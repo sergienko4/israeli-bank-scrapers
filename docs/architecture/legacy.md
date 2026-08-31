@@ -38,6 +38,61 @@ Everything **outside `src/Scrapers/Pipeline/`** except the **layer-5 shared infr
 | `src/Common/Navigation.ts`, `Storage.ts` | Mediator zones own these directly                   |
 | `src/Common/ResultFormatter.ts`          | `src/Scrapers/Pipeline/Core/PipelineResult.ts`      |
 
+## Legacy-only scraper options
+
+`ScraperOptions` is one flat type shared by both paths, so the compiler accepts every field for every bank. Eight of them are implemented **only** by the legacy scrapers and have no effect on a Pipeline bank:
+
+| Option                            | Legacy reader                                          |
+| --------------------------------- | ------------------------------------------------------ |
+| `includeRawTransaction`           | `src/Common/Transactions.ts` (`getRawTransaction`)     |
+| `navigationRetryCount`            | `src/Scrapers/Base/BaseScraperWithBrowser.ts`          |
+| `optInFeatures`                   | `src/Scrapers/Mizrahi/MizrahiScraper.ts`               |
+| `outputData`                      | `BeyahadBishvilhaScraper` (date filtering)             |
+| `shouldAddTransactionInformation` | `src/Scrapers/Mizrahi/MizrahiScraper.ts`               |
+| `shouldCombineInstallments`       | `src/Common/Transactions.ts`                           |
+| `skipCloseBrowser`                | `src/Scrapers/Base/BaseScraperWithBrowser.ts`          |
+| `storeFailureScreenShotPath`      | `src/Scrapers/Base/BaseScraperWithBrowser.ts`          |
+
+`createScraper` emits a `ScraperOptionsWarning` when any of them is passed for a
+Pipeline bank — see [Configuration](../configuration.md#options-the-pipeline-ignores).
+
+The manifest that drives the warning lives in
+`src/Scrapers/Pipeline/Core/LegacyOnlyOptions.ts`, which exports four symbols:
+
+| Symbol | Role |
+| --- | --- |
+| `LEGACY_ONLY_OPTIONS` | The manifest itself — the eight option names, alphabetical |
+| `LegacyOnlyOption` | Union of those names, so a typo is a compile error |
+| `findLegacyOnlyOptions` | Returns the legacy-only options a caller actually supplied |
+| `warnLegacyOnlyOptions` | Emits the warning; called by `createScraper` on the Pipeline branch |
+
+A bank migration that implements one of these options must delete its entry from
+`LEGACY_ONLY_OPTIONS` in the same change, or the Pipeline will keep warning that
+a now-working option is ignored.
+
+`browserContext` is also honoured only by the legacy path
+(`BaseScraperWithBrowser.ts`), but it sits outside this manifest: it is a
+required member of an options-union arm rather than a stray flag, so supplying
+it is a deliberate choice. It is documented instead under
+[Browser lifecycle options](../configuration.md#browser-lifecycle-options).
+
+**These options will not be ported.** Raw provider payloads are available on the
+Pipeline through `FORENSIC_TRACE=true`, which writes every request and response
+body to `network/*.json` under `RUNS_ROOT` with PII redaction applied by default
+— see [Observability](../observability/index.md) and
+[PII redaction](../observability/redaction.md).
+
+## Support policy
+
+The legacy path is closed to new work. It is retained for API compatibility only:
+
+- ❌ No new features on legacy scrapers.
+- ❌ No new options, or new readers for existing options, on the legacy path.
+- ❌ No behavioural fixes — a legacy-only defect is resolved by migrating the bank to the Pipeline, not by patching the legacy scraper.
+- ✅ Security fixes and changes required to keep the package building.
+
+A request to extend a legacy capability is answered by porting the bank, per [Migration strategy](migration.md).
+
 ## Why ship deprecated code?
 
 1. **Public API compatibility** — `createScraper(CompanyTypes.Mizrahi, ...)` already works; removing it would be a breaking change.
