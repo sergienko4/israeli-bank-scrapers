@@ -23,6 +23,15 @@ export class CanaryGlobal {
     return undefined;
   } // 🚫 undefined return
 
+  // Data integrity: empty-string fallback. The selector exempts variables
+  // named text/html/content/val/attr, so the name here deliberately avoids
+  // all five — otherwise nothing in the canary suite reaches this selector
+  // and a queued-for-drain guard could stop matching unnoticed.
+  public fallback(input: string): string {
+    const parsed = input || ''; // 🚫 DATA INTEGRITY: '' fallback
+    return parsed;
+  }
+
   // Nested call
   public run(): number {
     return Math.abs(Math.floor(1.5));

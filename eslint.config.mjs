@@ -3539,13 +3539,13 @@ export default tseslint.config(
   //     Bringing any of the three latter layers in-scope is a follow-up worth
   //     doing; it needs ~15 grandfather entries and a maintainer decision.
   //
-  //     `RESTRICTED_SYNTAX_RULES` and `NO_DIRECT_SCREENSHOT_RULE` are re-spread
+  //     `PIPELINE_SYNTAX_RULES` is spread rather than listing selectors here
   //     because flat config REPLACES a rule's options rather than merging them
-  //     — omitting them would strip the guards that the `src/**/*.ts` block
-  //     (§14) establishes for these files. NOTE: that earlier block already
-  //     overrides §6's richer `RESTRICTED_SYNTAX_RULES_NEW` set for all of
-  //     `src/**`, so §6's extra selectors are not in force here either before
-  //     or after this change. This block neither causes nor repairs that.
+  //     — omitting it would strip the guards that the `src/**/*.ts` block (§14)
+  //     establishes for these files. That constant already unions
+  //     `RESTRICTED_SYNTAX_RULES`, §6's richer `RESTRICTED_SYNTAX_RULES_NEW`
+  //     and `PIPELINE_REVIEW_RULES` (minus the drain queue), so §6's extra
+  //     selectors ARE in force on these paths.
   {
     files: [
       'src/Scrapers/Pipeline/Phases/**/*.ts',

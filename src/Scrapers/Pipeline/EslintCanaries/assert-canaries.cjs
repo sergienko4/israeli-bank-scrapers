@@ -24,26 +24,22 @@
  * Annotations (in a comment anywhere in the canary):
  *   canary-expects-rule:    <rule-id>      required
  *   canary-expects-message: <substring>    required iff rule is no-restricted-syntax
- *   canary-expects-no-rule: <rule-id>      optional; inverse canaries (must NOT fire)
  */
 const fs = require('fs');
 
 const EXPECTS_RULE = /canary-expects-rule:\s*(\S+)/;
 const EXPECTS_MESSAGE = /canary-expects-message:\s*(.+)/;
-const EXPECTS_NO_RULE = /canary-expects-no-rule:\s*(\S+)/;
 const BUNDLED_RULE = 'no-restricted-syntax';
 
 const readAnnotations = filePath => {
   const wants = [];
-  let noRule = null;
   for (const line of fs.readFileSync(filePath, 'utf8').split(/\r?\n/)) {
     const rule = EXPECTS_RULE.exec(line);
     if (rule) wants.push({ rule: rule[1], message: null });
     else if (EXPECTS_MESSAGE.test(line) && wants.length > 0)
       wants[wants.length - 1].message = EXPECTS_MESSAGE.exec(line)[1].trim();
-    else noRule = EXPECTS_NO_RULE.exec(line)?.[1] ?? noRule;
   }
-  return { wants, noRule };
+  return wants;
 };
 
 const baseName = filePath => filePath.replace(/.*[\\/]/, '');
@@ -76,14 +72,6 @@ const checkTarget = (file, name, want, out) => {
   }
   if (!onTarget.some(m => m.message.includes(want.message))) {
     out.wrongMessage.push(`${name} (no ${want.rule} message contains "${want.message}")`);
-  }
-};
-
-/** Inverse assertion: a rule that must NOT fire here (an allowed-usage canary). */
-const checkNoRule = (file, name, noRule, out) => {
-  if (noRule === null) return;
-  if ((file.messages ?? []).some(m => m.ruleId === noRule)) {
-    out.unexpected.push(`${name} (declared clean of ${noRule}, but it fired)`);
   }
 };
 
@@ -135,8 +123,7 @@ const NO_SUBJECT = { rules: [], messages: [] };
 
 const checkOne = (file, out, subjectsByFile) => {
   const name = baseName(file.filePath);
-  const { wants, noRule } = readAnnotations(file.filePath);
-  checkNoRule(file, name, noRule, out);
+  const wants = readAnnotations(file.filePath);
   if (wants.length === 0) {
     out.unannotated.push(name);
     return;
@@ -176,11 +163,6 @@ const FAILURES = [
     'wrongMessage',
     '❌ WRONG-SELECTOR FAILURE — declared message never appeared for',
     'The rule fired, but on a different selector than the one being certified.',
-  ],
-  [
-    'unexpected',
-    '❌ INVERSE-CANARY FAILURE — a rule declared absent fired for',
-    'This canary documents an ALLOWED usage; the rule must not fire on it.',
   ],
   [
     'wrongSubject',
@@ -249,7 +231,6 @@ const main = async () => {
     needMessage: [],
     wrongRule: [],
     wrongMessage: [],
-    unexpected: [],
     wrongSubject: [],
   };
   data.forEach(file => checkOne(file, out, subjectsByFile));

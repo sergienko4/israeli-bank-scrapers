@@ -29,7 +29,21 @@ const NEEDLE = 'Rule #10';
 
 const MEDIATOR = 'src/Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.ts';
 const GRANDFATHER = 'src/Scrapers/Pipeline/Phases/BindApiMediator/BindApiMediatorClientVersion.ts';
-const PHASES_ROOT = 'src/Scrapers/Pipeline/Phases';
+
+/**
+ * Every sub-scope §21 arms Rule #10 on.
+ *
+ * Probing only one of them would let a commit drop the other four from the
+ * §21 `files` list with this gate still green — the rule would remain "armed"
+ * on the one path the probe happens to read.
+ */
+const ARMED_ROOTS = [
+  'src/Scrapers/Pipeline/Phases',
+  'src/Scrapers/Pipeline/Core',
+  'src/Scrapers/Pipeline/Banks',
+  'src/Scrapers/Pipeline/Registry',
+  'src/Scrapers/Pipeline/Logging',
+];
 
 /**
  * First `.ts` file under a directory, depth-first, excluding one path.
@@ -49,17 +63,23 @@ const firstFile = (dir, skip) => {
 };
 
 /**
- * Whether Rule #10 is in the resolved `no-restricted-syntax` options.
+ * Whether Rule #10 is armed as an ERROR in the resolved config for a file.
+ *
+ * Presence alone is not enough: `no-restricted-syntax` demoted to `'warn'`
+ * still carries the Rule #10 entry, so a presence-only check would pass while
+ * nothing failed CI. Severity is part of the guarantee.
  * @param eslint - Configured ESLint instance.
  * @param file - Repo-relative file path.
- * @returns True when an option entry carries Rule #10's message.
+ * @returns True when Rule #10 is present AND the rule is set to error.
  */
 const hasRuleTen = async (eslint, file) => {
   const config = await eslint.calculateConfigForFile(path.join(REPO_ROOT, file));
   const options = config.rules?.['no-restricted-syntax'] ?? [];
-  return options
+  const errors = options[0] === 2 || options[0] === 'error';
+  const carries = options
     .slice(1)
     .some(entry => typeof entry === 'object' && String(entry.message).includes(NEEDLE));
+  return carries && errors;
 };
 
 /** Report one expectation. @param ok - Whether it held. @param label - Description. @param out - Failures. */
@@ -67,26 +87,46 @@ const expect = (ok, label, out) => {
   if (!ok) out.push(label);
 };
 
+/**
+ * A probe file for one armed root, as a repo-relative path.
+ * @param root - Repo-relative directory.
+ * @returns Repo-relative file path, or null when the root holds no candidate.
+ */
+const probeFor = root => {
+  const found = firstFile(path.join(REPO_ROOT, root), path.join(REPO_ROOT, GRANDFATHER));
+  return found ? path.relative(REPO_ROOT, found).split(path.sep).join('/') : null;
+};
+
 const main = async () => {
   const eslint = new ESLint({ ignore: false });
-  const probe = firstFile(path.join(REPO_ROOT, PHASES_ROOT), path.join(REPO_ROOT, GRANDFATHER));
-  if (!probe) {
-    console.error(`❌ RULE #10 BOUNDARY — no probe file found under ${PHASES_ROOT}`);
-    process.exit(1);
-  }
-  const phase = path.relative(REPO_ROOT, probe).split(path.sep).join('/');
   const out = [];
-  expect(await hasRuleTen(eslint, phase), `POSITIVE CONTROL: Rule #10 absent on ${phase}`, out);
+  const probes = [];
+  for (const root of ARMED_ROOTS) {
+    const probe = probeFor(root);
+    if (!probe) {
+      out.push(`no probe file found under ${root}`);
+      continue;
+    }
+    probes.push(probe);
+    expect(
+      await hasRuleTen(eslint, probe),
+      `POSITIVE CONTROL: Rule #10 not an error on ${probe}`,
+      out,
+    );
+  }
   expect(!(await hasRuleTen(eslint, MEDIATOR)), `Rule #10 leaked onto ${MEDIATOR}`, out);
   expect(!(await hasRuleTen(eslint, GRANDFATHER)), `§21a grandfather lost on ${GRANDFATHER}`, out);
 
   if (out.length > 0) {
     console.error(`\n❌ RULE #10 BOUNDARY FAILURE:\n   - ${out.join('\n   - ')}`);
-    console.error('\n   Rule #10 must be armed on Pipeline business logic and absent from the');
-    console.error('   Mediator (which owns the browser handle) and from the §21a grandfather.');
+    console.error('\n   Rule #10 must be armed as an ERROR on every Pipeline business-logic');
+    console.error('   root, and absent from the Mediator (which owns the browser handle)');
+    console.error('   and from the §21a grandfather.');
     process.exit(1);
   }
-  console.log(`✅ Rule #10 boundary holds (armed on ${phase}, exempt on Mediator + §21a)`);
+  console.log(
+    `✅ Rule #10 boundary holds (armed on ${probes.length} roots, exempt on Mediator + §21a)`,
+  );
 };
 
 main();
