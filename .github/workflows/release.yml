@@ -150,7 +150,7 @@ jobs:
           npm install -g npm@11.11.0 --ignore-scripts --audit-signatures
           npm --version | grep -q '^11\.' || (echo "ERROR: npm upgrade failed" && exit 1)
       - run: npm ci
-      - uses: ./.github/actions/build-package
+      - uses: $/.github/actions/build-package
       - name: Publish with provenance (Trusted Publishing OIDC)
         run: npm publish --access public --provenance
 
