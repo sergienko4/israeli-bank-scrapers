@@ -12,10 +12,7 @@ import jsdoc from 'eslint-plugin-jsdoc';
 import regexpPlugin from 'eslint-plugin-regexp';
 import sonarjs from 'eslint-plugin-sonarjs';
 import unicorn from 'eslint-plugin-unicorn';
-import {
-  SKIP_ALLOWLIST_FILES,
-  SONAR_PARITY_IGNORE_GLOBS,
-} from './eslint.canary-scope.mjs';
+import { SKIP_ALLOWLIST_FILES, SONAR_PARITY_IGNORE_GLOBS } from './eslint.canary-scope.mjs';
 
 /**
  * GLOBAL ARCHITECTURAL GUARDRAILS
@@ -43,17 +40,25 @@ const RESTRICTED_SYNTAX_RULES = [
   },
 
   // 4. Return Value Integrity (Blocking null & undefined returns)
+  //
+  // Method coverage is deliberately absent here. These two selectors once named
+  // `TSMethodDefinition`, which is not a node typescript-eslint ever emits (the
+  // real names are `MethodDefinition` / `TSAbstractMethodDefinition` /
+  // `TSMethodSignature`), so that branch matched nothing while reading as
+  // coverage. The corrected, method-aware spellings live in
+  // `PIPELINE_SYNTAX_PENDING_DRAIN` and are armed when their sites are drained;
+  // naming the dead node here too would claim the same coverage twice and
+  // silently pre-empt that decision.
   {
-    // Blocks 'null' or 'undefined' in Type Annotations for functions/methods
+    // Blocks 'null' or 'undefined' in Type Annotations for functions
     selector:
-      ":matches(TSFunctionType, TSMethodDefinition, FunctionDeclaration) TSTypeAnnotation :matches(Identifier[name='null'], Identifier[name='undefined'], TSNullKeyword, TSUndefinedKeyword)",
+      ":matches(TSFunctionType, FunctionDeclaration) TSTypeAnnotation :matches(Identifier[name='null'], Identifier[name='undefined'], TSNullKeyword, TSUndefinedKeyword)",
     message:
       "🚫 ARCHITECTURE: Functions cannot return 'null' or 'undefined'. Use a Result Pattern (e.g., IScraperResult).",
   },
   {
     // Blocks 'void' as a return type (Forces every function to return data)
-    selector:
-      ':matches(TSFunctionType, TSMethodDefinition, FunctionDeclaration) TSTypeAnnotation > TSVoidKeyword',
+    selector: ':matches(TSFunctionType, FunctionDeclaration) TSTypeAnnotation > TSVoidKeyword',
     message:
       "🚫 ARCHITECTURE: 'void' is forbidden. Every function must return a meaningful value or status object.",
   },
@@ -274,6 +279,113 @@ const SHAPE_TXNS_WINDOW_END_RULE = {
     'Reading the clock in a *ShapeTxns.ts file detaches it from the scrape window. Use scrapeWindowEnd(ctx) from src/Scrapers/Pipeline/Mediator/Scrape/ScrapeWindowEnd.ts so the coverage backfill can narrow the bound.',
 };
 
+// §8e: balance resolution belongs to BALANCE-RESOLVE, so the literal must not
+// creep back into the SCRAPE data assembler.
+const NO_BALANCE_LITERAL_RULE = {
+  selector: "Literal[value='balance']",
+  message:
+    "🚫 V5 ISOLATION (T50): The literal 'balance' is forbidden in ScrapeDataActions.ts. Balance resolution belongs to the BALANCE-RESOLVE phase.",
+};
+
+// §8g: an unwrapped `await api.fetch*` rejects the surrounding `Promise.all`,
+// so one bank account's network failure aborts every sibling fetch.
+const BALANCE_QUARANTINE_RULE = {
+  selector: 'AwaitExpression > CallExpression[callee.property.name=/^fetch(Post|Get)$/]',
+  message:
+    '🚫 BALANCE-RESOLVE QUARANTINE (CR #264 Critical): wrap `await api.fetch*` in safeIssueOneFetch (try/catch) so a thrown fetch cannot abort the Promise.all loop and break per-bank-account quarantine.',
+};
+
+// §8h: the bulk-key sentinel lives in BalanceFetchPlanner; hardcoded copies
+// drift silently when it is renamed.
+const BALANCE_BULK_LITERAL_RULE = {
+  selector: "Literal[value='__BULK__']",
+  message:
+    "🚫 BALANCE-RESOLVE CONSTANTS (CR #264 Major): use the named BULK_KEY constant imported from BalanceFetchPlanner instead of the hardcoded '__BULK__' literal.",
+};
+
+// §8i: `<x>.balance ?? 0` makes "balance unknown" indistinguishable from a real
+// zero, so PipelineResult can no longer fall back to the legacy SCRAPE value.
+const BALANCE_DEFAULT_DENY_RULES = [
+  {
+    selector: "LogicalExpression[operator='??'][left.property.name='balance'][right.value=0]",
+    message:
+      '🚫 BALANCE DEFAULT-DENY (CR #264 Major): `acc.balance ?? 0` collapses unknown into a real zero. Skip the entry (or surface a typed failure) instead.',
+  },
+  {
+    selector: "LogicalExpression[operator='??'][left.property.name='balance'][right.raw='null']",
+    message:
+      '🚫 BALANCE DEFAULT-DENY (CR #264 Major): `acc.balance ?? null` is forbidden for the same reason as `?? 0` — use a typed skip.',
+  },
+];
+
+// §12C: `lower*Keys` names a membership-test set (Sonar S7776) built as an
+// array, so every lookup is O(n). sonarjs@4 does not expose S7776.
+const LOWER_KEYS_ARRAY_RULE = {
+  selector: 'VariableDeclarator[id.name=/^lower\\w*Keys$/]',
+  message:
+    'PR #281 C8 §12C: name `lower*Keys` implies a key set for membership testing (Sonar S7776). Use `new Set(keys.map(k => k.toLowerCase()))` named `lower*KeySet`, or rename to `lowerNames` if iterating only.',
+};
+
+// §13: every redaction sentinel must be defined once in PiiRedactor/Types.ts
+// and imported, so a hint can be changed in one place.
+const PII_SENTINEL_LITERAL_RULES = [
+  {
+    selector: "Literal[value='[REDACTED]']",
+    message:
+      "🚫 PII CONSTANT: Import { REDACTED_HINT } from './Types.js' instead of hardcoding '[REDACTED]'. " +
+      'CR cycle-1 #9 / CLAUDE.md "Constants from configuration — never hardcode values inline".',
+  },
+  {
+    selector: "Literal[value='[OTP]']",
+    message:
+      "🚫 PII CONSTANT: Import { OTP_HINT } from './Types.js' instead of hardcoding '[OTP]'.",
+  },
+  {
+    selector: "Literal[value='[REDACTION_ERROR]']",
+    message:
+      "🚫 PII CONSTANT: Import { REDACTION_ERROR_HINT } from './Types.js' instead of hardcoding '[REDACTION_ERROR]'.",
+  },
+  {
+    // CR cycle-2: catches `'-***'` / `'+***'` / `'***'` (Amount sign markers) and
+    // any future bracket-name sentinel (e.g. `'[NEW_HINT]'`). Forces every NEW
+    // redaction sentinel to live in Types.ts before it can be used elsewhere.
+    selector: 'Literal[value=/^(\\[[A-Z_]+\\]|[+\\-]?\\*{3,})$/]',
+    message:
+      "🚫 PII SENTINEL: Hardcoded redaction sentinel detected. Define it once in './Types.js' " +
+      '(e.g. AMOUNT_NEGATIVE_HINT, AMOUNT_POSITIVE_HINT) and import the constant. ' +
+      'CR cycle-2 / CLAUDE.md "Constants from configuration — never hardcode values inline".',
+  },
+];
+
+// `ErrorLog.ts` must always-redact: bank error messages are security-classified
+// (CodeQL #28 / CR cycle-1 #3), so `PII_REDACTION=off` must not reach them.
+// Named so §13C and the canary block in §22a arm the identical entry.
+const PII_ERRORLOG_NO_BYPASS_RULE = {
+  selector: "Identifier[name='isPiiRedactionDisabled']",
+  message:
+    '🚫 SECURITY (CodeQL #28 / CR cycle-1 #3): ErrorLog.ts MUST always-redact. ' +
+    'Do not reference isPiiRedactionDisabled here — bank error messages are ' +
+    'security-classified and cannot be bypassed via PII_REDACTION=off.',
+};
+
+// Mocks must not bypass the type system. Declared as a const rather than
+// inline for the same reason as NO_EXPORT_DEFAULT_RULE: the canary contract
+// (§22) has to arm the identical entry.
+const TEST_INTEGRITY_NO_AS_NEVER_RULE = {
+  selector: 'TSAsExpression > :matches(TSNeverKeyword, TSAnyKeyword)',
+  message:
+    "🚫 TEST INTEGRITY: Do not use 'as never' or 'as any' in mocks. Use 'DeepPartial<T>' or implement the required interface.",
+};
+
+// Named exports only. Declared as a const rather than inline so the canary
+// contract (§22) can arm the exact same entry — `default-export.canary.ts`
+// certified this rule while resolving to a config that never contained it.
+const NO_EXPORT_DEFAULT_RULE = {
+  selector: 'ExportDefaultDeclaration',
+  message:
+    "🚫 ARCHITECTURE: Named exports only. Do not use 'export default' in Pipeline/Strategy files.",
+};
+
 // §19.9 TEST-HELPER STATEMENT CAP — fires on any `function foo() { ...11+ stmts }`
 // inside `src/Tests/**`. Scoped to `FunctionDeclaration` so legitimate
 // `describe('...', () => { ... })` / `it('...', () => { ... })` /
@@ -424,15 +536,18 @@ const RESTRICTED_SYNTAX_RULES_NEW = [
   },
 
   // 4. Return Value Integrity (Blocking null & undefined returns)
+  //
+  // The method-aware twins of the two function-only selectors in
+  // `RESTRICTED_SYNTAX_RULES`. Both are queued in
+  // `PIPELINE_SYNTAX_PENDING_DRAIN` (one site each) rather than armed, so they
+  // are the single place method-level return integrity is tracked.
   {
-    // UPDATED: TSMethodDefinition -> MethodDefinition
     selector:
       ":matches(TSFunctionType, MethodDefinition, FunctionDeclaration) TSTypeAnnotation :matches(Identifier[name='null'], Identifier[name='undefined'], TSNullKeyword, TSUndefinedKeyword)",
     message:
       "🚫 ARCHITECTURE: Functions cannot return 'null' or 'undefined'. Use a Result Pattern (e.g., IScraperResult).",
   },
   {
-    // UPDATED: TSMethodDefinition -> MethodDefinition
     selector:
       ':matches(TSFunctionType, MethodDefinition, FunctionDeclaration) TSTypeAnnotation > TSVoidKeyword',
     message:
@@ -679,6 +794,505 @@ const RESTRICTED_SYNTAX_RULES_NEW = [
       '🚫 PII LEAK (T16): Identifier with payload-shape name passed as LOG value. Pre-redact via PiiRedactor or pass scalar.',
   },
 ];
+
+// ---------------------------------------------------------------------------
+// PIPELINE SYNTAX CONTRACT — the set §6 must actually deliver.
+//
+// Flat config REPLACES `no-restricted-syntax` options; it never merges them.
+// Two blocks both matching a Pipeline file means the later one wins outright,
+// and every selector unique to the earlier one silently evaporates. That is
+// not a hypothetical: §14 (`files: ['src/**\/*.ts']`) sorted after §6 and
+// matched a superset of its files, so the 23 selectors unique to
+// RESTRICTED_SYNTAX_RULES_NEW resolved to nothing on production code from the
+// day they were written (7d52e9ff, 2026-05-31) until this contract existed.
+//
+// The failure is invisible to reading and to grep — the selectors are present
+// in this file either way — so it is asserted empirically instead, against the
+// RESOLVED configuration, by `npm run lint:syntax-guardrails`.
+// ---------------------------------------------------------------------------
+
+/**
+ * Selectors the Pipeline contract defines but production code still violates,
+ * and which are therefore not yet enforced.
+ *
+ * This list is a DRAIN QUEUE, not an exemption list. It may only ever shrink:
+ * each entry is removed in its own `chore(eslint):` commit once the violations
+ * behind it are refactored away (`eslint-rules-guidlines.md` §1, §4 — tighten,
+ * never weaken; narrow scope, never raise a cap). `check-syntax-guardrails`
+ * fails if an entry here is not a real member of `RESTRICTED_SYNTAX_RULES_NEW`
+ * or `PIPELINE_REVIEW_RULES`, so a typo cannot disarm a selector by accident,
+ * and a selector shared with the repo-wide legacy set can never be queued —
+ * that would open a Pipeline-only hole in a rule the rest of `src` still obeys.
+ *
+ * Counts are production violations under `src/Scrapers/Pipeline` measured when
+ * each entry was added; they are indicative, not asserted.
+ */
+const PIPELINE_SYNTAX_PENDING_DRAIN = new Set([
+  // 183 — ternaries. The largest single debt; draining it is a readability
+  // refactor across the whole tree, not a guardrail change.
+  'ConditionalExpression',
+  // 111 — `unknown` parameters.
+  ':matches(FunctionDeclaration, ArrowFunctionExpression, MethodDefinition) Identifier > TSTypeAnnotation > TSUnknownKeyword',
+  // 80 — `unknown` return types.
+  ':matches(FunctionDeclaration, ArrowFunctionExpression, MethodDefinition) > TSTypeAnnotation TSUnknownKeyword',
+  // 43 in 30 files — CR-P2 `expr as unknown as T` double-casts. Concentrated in
+  // the Mediator's browser-facing edges, where a DOM/JSON value is narrowed to
+  // a domain type. Draining it means giving those boundaries real projectors,
+  // which is a typing refactor with its own review.
+  'TSAsExpression > TSAsExpression',
+  // 20 — direct instantiation outside the DI container.
+  'NewExpression[callee.name=/^(?!Error|Map|Set|Date|RegExp|URL|Headers|EventEmitter|ScraperError|PipelineBuilder|HomePhase|PreLoginPhase|DashboardPhase|ScrapePhase|OtpPhase|TerminatePhase)[A-Z]/]',
+  // 17 — `''` fallbacks in business logic.
+  "VariableDeclarator[id.name!=/text|html|content|val|attr/i] > LogicalExpression[right.value='']",
+  // 10 — `else` blocks.
+  'IfStatement[alternate]',
+  // 8 in 6 files — CR-P1 `ReadonlySet<string>`. Each site needs a literal union
+  // to narrow to, so the drain is per-call-site type work.
+  'TSTypeReference[typeName.name="ReadonlySet"] > TSTypeParameterInstantiation > TSStringKeyword',
+  // 5 — hardcoded config literals.
+  'Property[key.name=/viewport|width|height|timeout|delay|retries/i] > Literal',
+  // 3 — manual `.message` access inside `catch`.
+  "CatchClause MemberExpression[property.name='message']",
+  // 3 — manual pagination loops.
+  'WhileStatement, DoWhileStatement',
+  // 2 — `Promise.any` (swallows errors).
+  "CallExpression[callee.object.name='Promise'][callee.property.name='any']",
+  // 1 — functions returning `null`/`undefined`.
+  ":matches(TSFunctionType, MethodDefinition, FunctionDeclaration) TSTypeAnnotation :matches(Identifier[name='null'], Identifier[name='undefined'], TSNullKeyword, TSUndefinedKeyword)",
+  // 1 — `void` return types.
+  ':matches(TSFunctionType, MethodDefinition, FunctionDeclaration) TSTypeAnnotation > TSVoidKeyword',
+]);
+
+/**
+ * Read an entry's selector, accepting both spellings used in these arrays.
+ * @param entry - Bare selector string, or `{ selector, message }`.
+ * @returns The selector string.
+ */
+const selectorOf = entry => (typeof entry === 'string' ? entry : entry.selector);
+
+/**
+ * Review-derived Pipeline selectors, formerly written inline inside §6.
+ *
+ * Hoisted so they are addressable: while they lived inside the §6 rule array
+ * they could be neither queued for drain nor named by a canary, and — like
+ * the rest of §6 — they were being overwritten wholesale by §14 and so never
+ * fired on a single production file.
+ */
+const PIPELINE_REVIEW_RULES = [
+  {
+    // CR-P1 — ban `ReadonlySet<string>` for literal-string sets.
+    // Use `ReadonlySet<PhaseName>` (or similar literal union) + `as const`
+    // so typos in entries fail at compile time.
+    selector:
+      'TSTypeReference[typeName.name="ReadonlySet"] > TSTypeParameterInstantiation > TSStringKeyword',
+    message:
+      '🚫 PIPELINE TYPE: Type literal sets via a string-literal union (e.g. ReadonlySet<PhaseName>) + `as const`, not ReadonlySet<string>. Catches typos at compile time.',
+  },
+  {
+    // CR-P2 — ban `expr as unknown as T` double-casts at API boundaries
+    // (extended from Phase H tests to Pipeline production code).
+    selector: 'TSAsExpression > TSAsExpression',
+    message:
+      "🚫 TYPE BYPASS (Pipeline rule): 'expr as unknown as T' double-casts are banned. Express the type via a proper intersection / projector instead.",
+  },
+  {
+    // CR-P3 (V5 — from PR #261 review) — ban `.success === true`
+    // / `.success === false` / `.success !== true` / `.success !== false`
+    // checks on Procedure values. Use the {@link isOk} helper for
+    // consistency with the rest of the call-sites (CodeRabbit found
+    // one of these on PhoneFormatter and the canary keeps new
+    // occurrences out at pre-commit time).
+    //
+    // Matches on `right.raw`, NOT `right.value`. esquery applies a regex
+    // test only to string values; for a boolean literal `value` is `true`,
+    // which no regex matches. The original `[right.value=/^(true|false)$/]`
+    // spelling therefore matched exactly one thing — the STRING literal
+    // `.success === 'true'` — and never the boolean comparison it exists to
+    // ban. It matched nothing in the codebase from the day it was written
+    // (PR #261) until 2026-06. `raw` is the source text (`"true"`), so the
+    // regex applies as intended. Verified against a fixture AST both ways.
+    selector:
+      'BinaryExpression[operator=/^[!=]==$/][left.type="MemberExpression"][left.property.name="success"][right.type="Literal"][right.raw=/^(true|false)$/]',
+    message:
+      '🚫 PROCEDURE: Use `isOk(result)` instead of `result.success === true/false`. Keeps narrowing + call-site consistency aligned across the codebase.',
+  },
+  {
+    // Hand-rolled Procedure literals. `return { success: true, … }` bypasses
+    // `succeed()` / `fail()`, so the shape drifts from the discriminated union
+    // and the helpers stop being the single place the contract is expressed.
+    //
+    // Added 2026-06 to give `inline-return-obj.canary.ts` a real target: that
+    // canary had certified `ReturnStatement > ObjectExpression`, a selector
+    // configured nowhere, and so proved nothing since it was written. The
+    // broad form is unusable — 696 legitimate hits across 300 Pipeline files —
+    // but narrowing it to the `success` key leaves exactly 4, all inside
+    // `Types/Procedure.ts`, which is where the helpers are DEFINED and is
+    // exempted below by path.
+    //
+    // WIDENED 2026-08 after review found two spellings walked straight past it:
+    //   `() => ({ success: true })`   — a concise arrow body has no
+    //                                   ReturnStatement, so the old selector
+    //                                   could not see it.
+    //   `return { 'success': true }`  — a Literal key has no `key.name`, so
+    //                                   `[key.name="success"]` never matched.
+    // Both are ordinary TypeScript a reviewer would not blink at, which made
+    // the guard evadable without any intent to evade. Covering the arrow body
+    // and the quoted key is a tighten, never a widening of what is allowed
+    // (eslint-rules-guidlines.md §1/§4).
+    selector:
+      ':matches(ReturnStatement, ArrowFunctionExpression) > ObjectExpression > Property:matches([key.name="success"], [key.value="success"])',
+    message:
+      '🚫 PROCEDURE: Do not hand-roll a Procedure literal. Return `succeed(value)` / `fail(type, message)` from src/Scrapers/Pipeline/Types/Procedure.js so the union has one spelling.',
+  },
+];
+
+/**
+ * Every `no-restricted-syntax` entry that production Pipeline code must carry.
+ *
+ * Composed here rather than spread at the use site so the contract has exactly
+ * one spelling, and so the gate can import the same value ESLint applies. The
+ * screenshot ban is folded in because §14 — which used to be its only home —
+ * no longer matches Pipeline files.
+ *
+ * De-duplicated by selector because the legacy and `_NEW` sets overlap: they
+ * were written months apart and both re-state `ForInStatement`, the PII log
+ * bans, and a dozen others. ESLint rejects options containing two deeply equal
+ * entries outright, and two entries sharing a selector but not a message would
+ * double-report every hit. Later entries win, so the `_NEW` wording — the
+ * newer and more specific of the two — is the one authors see.
+ */
+const PIPELINE_SYNTAX_RULES = [
+  ...new Map(
+    [
+      ...RESTRICTED_SYNTAX_RULES,
+      ...RESTRICTED_SYNTAX_RULES_NEW,
+      ...PIPELINE_REVIEW_RULES,
+      NO_DIRECT_SCREENSHOT_RULE,
+    ]
+      .filter(entry => !PIPELINE_SYNTAX_PENDING_DRAIN.has(selectorOf(entry)))
+      .map(entry => [selectorOf(entry), entry]),
+  ).values(),
+];
+
+/**
+ * The same contract with NOTHING drained, for the canary directory.
+ *
+ * A selector on the drain queue is unenforced on production but must still be
+ * provably alive, or "queued for drain" silently becomes "deleted": the queue
+ * is meant to shrink, and nothing would notice if a queued selector stopped
+ * matching. `eslint-rules-guidlines.md` §2 requires a live canary per guardrail
+ * — arming the full set here is what lets the queue exist without weakening it.
+ *
+ * Canaries are fixtures, not shipped code; the violation is the point.
+ */
+const PIPELINE_CANARY_SYNTAX_RULES = [
+  ...new Map(
+    [
+      ...RESTRICTED_SYNTAX_RULES,
+      ...RESTRICTED_SYNTAX_RULES_NEW,
+      ...PIPELINE_REVIEW_RULES,
+      NO_DIRECT_SCREENSHOT_RULE,
+      RULE10_NO_RAW_PAGE_RULE,
+      SHAPE_TXNS_WINDOW_END_RULE,
+      NO_EXPORT_DEFAULT_RULE,
+      TEST_HELPER_OVER_10_STMTS_RULE,
+      TEST_INTEGRITY_NO_AS_NEVER_RULE,
+    ].map(entry => [selectorOf(entry), entry]),
+  ).values(),
+];
+
+/**
+ * The armed contract, as plain selector strings, for `check-syntax-guardrails`.
+ *
+ * Exported alongside the default config; ESLint reads only the default export,
+ * so this is inert as far as linting is concerned.
+ */
+export const PIPELINE_ARMED_SELECTORS = PIPELINE_SYNTAX_RULES.map(selectorOf);
+
+/**
+ * Per-file, per-selector exemptions from the contract.
+ *
+ * Declared here rather than expressed as `'no-restricted-syntax': 'off'`
+ * because `off` is indiscriminate: it lifts all 61 selectors to excuse one.
+ * `PiiRedactor/Types.ts` carried exactly that hammer — the file whose job is
+ * defining redaction sentinels ran with no restricted-syntax guardrails at all
+ * so that it could hold its own sentinel literals.
+ *
+ * Keyed by repo-relative path with forward slashes, matching what the gate
+ * derives from a walk.
+ */
+export const PIPELINE_SELECTOR_EXEMPTIONS = {
+  // SafeScreenshot is the one sanctioned `page.screenshot()` call site: it
+  // short-circuits in CI so rendered bank pixels stay out of public-readable
+  // artifacts (PR #248 leaked 18+ post-auth PNGs). Exempting the selector on
+  // this file alone keeps every other selector enforced on it.
+  'src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts': [NO_DIRECT_SCREENSHOT_RULE.selector],
+
+  // `Procedure.ts` DEFINES `succeed()` / `fail()`, so it is the one place a
+  // `{ success: … }` literal is the point rather than a bypass of the helpers.
+  //
+  // ACCEPTED RISK — this exempts the FILE, not the helper functions. Flat
+  // config keys exemptions by path, so there is no way to say "only inside
+  // succeed/fail/failWithDetails". `toLegacy` (Procedure.ts) already returns a
+  // `{ success: true }` literal typed `IScraperScrapingResult` — not a
+  // Procedure at all — and would be a false positive if this exemption were
+  // narrowed naively. Telling the two apart needs the returned TYPE, which a
+  // syntactic selector cannot see. TARGET: a type-aware custom rule keyed on
+  // the return type, after which this entry is DELETED, not widened (§4).
+  'src/Scrapers/Pipeline/Types/Procedure.ts': [
+    ':matches(ReturnStatement, ArrowFunctionExpression) > ObjectExpression > Property:matches([key.name="success"], [key.value="success"])',
+  ],
+
+  // The three files below sit in folders that had been narrowed to a single
+  // selector, so they have been escaping the repo-wide legacy set. They are
+  // exempted per-selector rather than queued for drain because these rules do
+  // apply everywhere else in `src` — queueing them would weaken the whole
+  // Pipeline to accommodate seven sites (`eslint-rules-guidlines.md` §1).
+  //
+  // TARGET: drain each in its own commit, then delete its entry here.
+  // `snapshotBalancePool` returns `readonly unknown[] | undefined` and signals
+  // "no mediator / empty pool" with `undefined`; collapsing that onto a Result
+  // changes what BALANCE-RESOLVE observes, so it needs its own tests.
+  'src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhase/PhaseActions.ts': [
+    ":matches(TSFunctionType, FunctionDeclaration) TSTypeAnnotation :matches(Identifier[name='null'], Identifier[name='undefined'], TSNullKeyword, TSUndefinedKeyword)",
+    "ReturnStatement[argument=null], ReturnStatement[argument.type='Literal'][argument.value=null], ReturnStatement[argument.type='Identifier'][argument.name='undefined']",
+  ],
+  // Two nested calls each, in replay serialisation helpers.
+  'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/JsonReplace.ts': [
+    "CallExpression > .arguments[type='CallExpression']",
+  ],
+  'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/RecordShape.ts': [
+    "CallExpression > .arguments[type='CallExpression']",
+  ],
+};
+
+/**
+ * Selectors that apply to a SUBSET of the Pipeline, on top of the contract.
+ *
+ * This table exists because the exemption blocks in §23 are emitted last and
+ * rebuild `no-restricted-syntax` wholesale. Before it existed they rebuilt from
+ * {@link PIPELINE_SYNTAX_RULES} alone, so any selector a narrower block had
+ * added was dropped for exactly the files that block targeted. §12C added
+ * {@link LOWER_KEYS_ARRAY_RULE} for the canonical-10 folders, and three of the
+ * five exemption entries — `PhaseActions.ts`, `JsonReplace.ts`, `RecordShape.ts`
+ * — sit inside those folders. The last two are the very files §12C cites as its
+ * motivation, so the rule was disarmed precisely where it was aimed.
+ *
+ * That is the same flat-config replacement hazard the exemption machinery was
+ * built to contain, reappearing one layer up. Declaring the scoped selectors
+ * once, here, and deriving BOTH the scoped block and the exemption blocks from
+ * it means the two cannot drift: there is no second list to forget to update.
+ */
+export const PIPELINE_SCOPED_SYNTAX_EXTRAS = [
+  {
+    id: '§12C canonical-10 lookup-array naming',
+    files: [
+      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhase/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/**/*.ts',
+      'src/Scrapers/Pipeline/Mediator/Scrape/FrozenScrapeAction.ts',
+      'src/Scrapers/Pipeline/Mediator/Scrape/UrlDateRange.ts',
+    ],
+    rules: [LOWER_KEYS_ARRAY_RULE],
+  },
+];
+
+/**
+ * Whether a scoped-extras glob covers a file, for the two shapes we use.
+ *
+ * Deliberately NOT a general glob engine. It understands a trailing `/**\/*.ts`
+ * directory glob and an exact path, and THROWS on anything else. A partial
+ * matcher that quietly returned `false` for an unrecognised pattern would
+ * reintroduce the silent-disarm bug it exists to prevent, so it fails closed:
+ * an exotic glob breaks the config load loudly instead of dropping a selector.
+ * @param glob - Pattern from a {@link PIPELINE_SCOPED_SYNTAX_EXTRAS} entry.
+ * @param file - Repo-relative, POSIX-separated file path.
+ * @returns True when the pattern covers the file.
+ * @throws {Error} When the pattern is a shape this matcher cannot decide.
+ */
+const matchesScopeGlob = (glob, file) => {
+  const DIR_GLOB = '**/*.ts';
+  if (glob.endsWith(DIR_GLOB)) return file.startsWith(glob.slice(0, -DIR_GLOB.length));
+  if (!glob.includes('*')) return file === glob;
+  throw new Error(
+    `PIPELINE_SCOPED_SYNTAX_EXTRAS: unsupported glob shape ${glob}. ` +
+      'Extend matchesScopeGlob deliberately — do not let it fall through.',
+  );
+};
+
+/**
+ * The scoped selectors that apply to one file.
+ * @param file - Repo-relative, POSIX-separated file path.
+ * @returns Selector entries contributed by every matching scope.
+ */
+const scopedExtrasFor = file =>
+  PIPELINE_SCOPED_SYNTAX_EXTRAS.filter(scope =>
+    scope.files.some(glob => matchesScopeGlob(glob, file)),
+  ).flatMap(scope => scope.rules);
+
+/**
+ * Scoped selector strings that must resolve on a file, for the gate.
+ *
+ * Exported so `check-syntax-guardrails` expects scoped selectors using THIS
+ * matcher rather than reimplementing the glob semantics. A second copy of the
+ * matching logic is how the scoped rule got dropped in the first place.
+ * @param file - Repo-relative, POSIX-separated file path.
+ * @returns Selector strings every matching scope contributes.
+ */
+export const scopedSelectorsForFile = file => scopedExtrasFor(file).map(selectorOf);
+
+/**
+ * The full contract for one file, minus the selectors it is exempt from.
+ *
+ * Every Pipeline-scoped block must spread {@link PIPELINE_SYNTAX_RULES} before
+ * its own selectors. Writing a bare selector list instead is what disarmed the
+ * tree: flat config replaces rule options wholesale, so a block declaring one
+ * extra selector silently *removes* the other sixty for the files it matches.
+ * Four blocks did precisely that — the scrape canonical folders dropped to one
+ * selector, the PII redactor cluster to four, and `PiiRedactor/ErrorLog.ts`, a
+ * security-classified always-redact module, to one.
+ *
+ * §8a already carried a comment describing this exact hazard after a review
+ * cycle caught it there; the lesson was applied to that one block and never
+ * generalised. `check-syntax-guardrails` now generalises it by resolving the
+ * real config per file instead of trusting the source to read correctly.
+ * @param exempt - Selector strings to drop, from the exemption table.
+ * @param file - The file this block targets, so scoped selectors survive.
+ * @returns Rule options with the exempt selectors removed.
+ */
+const pipelineSyntaxExcept = (exempt, file) => [
+  'error',
+  ...[...PIPELINE_SYNTAX_RULES, ...scopedExtrasFor(file)].filter(
+    entry => !exempt.includes(selectorOf(entry)),
+  ),
+];
+
+/**
+ * The drain queue, exported so the gate can prove every entry is real.
+ *
+ * Without this check a mistyped entry would silently fail to match anything,
+ * leaving the selector armed — or worse, a future edit could park a live
+ * selector here under a typo and never be noticed.
+ */
+export const PIPELINE_PENDING_DRAIN_SELECTORS = [...PIPELINE_SYNTAX_PENDING_DRAIN];
+
+/**
+ * Selectors that may legitimately be queued for drain.
+ *
+ * Deliberately excludes `RESTRICTED_SYNTAX_RULES`: those are enforced across
+ * all of `src`, so queueing one would carve a Pipeline-shaped hole in a rule
+ * the rest of the tree still obeys — a weakening, which
+ * `eslint-rules-guidlines.md` §1 forbids.
+ */
+export const PIPELINE_KNOWN_NEW_SELECTORS = [
+  ...RESTRICTED_SYNTAX_RULES_NEW,
+  ...PIPELINE_REVIEW_RULES,
+].map(selectorOf);
+
+/** Every selector a canary fixture is guaranteed to have armed. */
+export const PIPELINE_CANARY_SELECTORS = PIPELINE_CANARY_SYNTAX_RULES.map(selectorOf);
+
+/**
+ * Selectors enforced across all of `src` — never legitimately drainable.
+ *
+ * `PIPELINE_KNOWN_NEW_SELECTORS` documents that these are excluded from the
+ * drain queue, but a docblock cannot enforce itself: the two sets are built
+ * from different arrays that nothing stops from converging on the same
+ * selector string. Exported so the guardrail gate can assert the exclusion
+ * instead of trusting it (`eslint-rules-guidlines.md` §1 — tighten, never
+ * weaken).
+ */
+export const PIPELINE_LEGACY_SELECTORS = RESTRICTED_SYNTAX_RULES.map(selectorOf);
+
+/**
+ * File-specific rule entries a single canary exists to certify.
+ *
+ * These used to live inline in the production block that owns the rule, with
+ * the canary path bolted onto that block's `files`. That spelling is unsafe
+ * for the reason this whole section exists: any later block touching the
+ * canary directory replaces the options wholesale, and the canary keeps
+ * failing — just on some unrelated rule — so nothing reports the loss.
+ *
+ * Declared here and emitted last (§22a), a canary's extra entry cannot be
+ * outranked, and `check-syntax-guardrails.mjs` proves each one resolves.
+ */
+/**
+ * Suppression-comment ban options, shared by §15 (production) and §15a (canary).
+ *
+ * Hoisted so the canary that certifies the rule is provably armed with the SAME
+ * term list production carries. Inlined twice, the two could drift and the
+ * canary would keep passing while guarding a shorter list than production uses.
+ */
+const SUPPRESSION_COMMENT_OPTIONS = {
+  terms: [
+    'NOSONAR',
+    '@ts-ignore',
+    '@ts-expect-error',
+    '@ts-nocheck',
+    'biome-ignore',
+    'eslint-disable',
+    'istanbul ignore',
+    'c8 ignore',
+    'v8 ignore',
+    'prettier-ignore',
+  ],
+  location: 'anywhere',
+};
+
+const CANARY_EXTRA_RULES = {
+  // §8e: `ScrapePhase.ts` must not emit a `balance:` literal.
+  'src/Scrapers/Pipeline/EslintCanaries/no-balance-in-scrape.canary.ts': [NO_BALANCE_LITERAL_RULE],
+  // §8g: BALANCE-RESOLVE fetches must stay quarantined in a try block.
+  'src/Scrapers/Pipeline/EslintCanaries/balance-resolve-throw-leaks-quarantine.canary.ts': [
+    BALANCE_QUARANTINE_RULE,
+  ],
+  // §8h: the `'__BULK__'` sentinel must be imported, never re-typed.
+  'src/Scrapers/Pipeline/EslintCanaries/balance-resolve-bulk-literal.canary.ts': [
+    BALANCE_BULK_LITERAL_RULE,
+  ],
+  // §8i: `balance ?? 0` / `?? null` collapses unknown into a real value.
+  'src/Scrapers/Pipeline/EslintCanaries/balance-default-zero.canary.ts':
+    BALANCE_DEFAULT_DENY_RULES,
+  // §12C: `lower*Keys` implies membership testing — use a Set.
+  'src/Scrapers/Pipeline/EslintCanaries/scrape-canonical10-lookup-array-shouldbe-set.canary.ts': [
+    LOWER_KEYS_ARRAY_RULE,
+  ],
+  // §13: redaction sentinels are defined once in `PiiRedactor/Types.ts`.
+  'src/Scrapers/Pipeline/EslintCanaries/pii-hardcoded-sentinel.canary.ts':
+    PII_SENTINEL_LITERAL_RULES,
+  // §13C: `ErrorLog.ts` must always-redact; the canary proves the ban fires.
+  'src/Scrapers/Pipeline/EslintCanaries/pii-errorlog-bypass.canary.ts': [
+    PII_ERRORLOG_NO_BYPASS_RULE,
+  ],
+};
+
+/** `canary path → selector[]`, for the gate. Derived so the two cannot drift. */
+export const CANARY_EXTRA_SELECTORS = Object.fromEntries(
+  Object.entries(CANARY_EXTRA_RULES).map(([file, rules]) => [file, rules.map(selectorOf)]),
+);
+
+/**
+ * `canary path → message[]` for the rules a canary was written to certify.
+ *
+ * A canary given a file-specific rule exists for that rule and nothing else, so
+ * this map is ground truth for its subject. The harness asserts the canary
+ * declares one of these messages: a fixture usually trips bystander selectors
+ * too, and declaring a bystander certifies the wrong guardrail while still
+ * reporting green.
+ */
+export const CANARY_EXTRA_MESSAGES = Object.fromEntries(
+  Object.entries(CANARY_EXTRA_RULES).map(([file, rules]) => [
+    file,
+    rules.map(entry => (typeof entry === 'string' ? '' : entry.message)).filter(Boolean),
+  ]),
+);
+
+/** Config blocks arming each canary's file-specific rule. Emitted last. */
+const CANARY_EXTRA_BLOCKS = Object.entries(CANARY_EXTRA_RULES).map(([file, rules]) => ({
+  files: [file],
+  rules: {
+    'no-restricted-syntax': ['error', ...PIPELINE_CANARY_SYNTAX_RULES, ...rules],
+  },
+}));
 
 // Phase 3 Common ↔ Pipeline unification guard — Commit 11 (refactor/phase-3-common-unify).
 //
@@ -997,17 +1611,8 @@ export default tseslint.config(
       'no-restricted-syntax': [
         'error',
         ...RESTRICTED_SYNTAX_RULES,
-        {
-          // Type Bypasses (as never / as any)
-          selector: 'TSAsExpression > :matches(TSNeverKeyword, TSAnyKeyword)',
-          message:
-            "🚫 TEST INTEGRITY: Do not use 'as never' or 'as any' in mocks. Use 'DeepPartial<T>' or implement the required interface.",
-        },
-        {
-          selector: 'ExportDefaultDeclaration',
-          message:
-            "🚫 ARCHITECTURE: Named exports only. Do not use 'export default' in Pipeline/Strategy files.",
-        },
+        TEST_INTEGRITY_NO_AS_NEVER_RULE,
+        NO_EXPORT_DEFAULT_RULE,
         RULE10_NO_RAW_PAGE_RULE,
         TEST_HELPER_OVER_10_STMTS_RULE,
       ],
@@ -1047,38 +1652,7 @@ export default tseslint.config(
       // This applies to ALL files in Pipeline, including Mediator and Strategy.
       // CodeRabbit-class selectors (PR #257) appended here so the same
       // patterns are caught at pre-commit time instead of in review.
-      'no-restricted-syntax': [
-        'error',
-        ...RESTRICTED_SYNTAX_RULES_NEW,
-        {
-          // CR-P1 — ban `ReadonlySet<string>` for literal-string sets.
-          // Use `ReadonlySet<PhaseName>` (or similar literal union) + `as const`
-          // so typos in entries fail at compile time.
-          selector:
-            'TSTypeReference[typeName.name="ReadonlySet"] > TSTypeParameterInstantiation > TSStringKeyword',
-          message:
-            '🚫 PIPELINE TYPE: Type literal sets via a string-literal union (e.g. ReadonlySet<PhaseName>) + `as const`, not ReadonlySet<string>. Catches typos at compile time.',
-        },
-        {
-          // CR-P2 — ban `expr as unknown as T` double-casts at API boundaries
-          // (extended from Phase H tests to Pipeline production code).
-          selector: 'TSAsExpression > TSAsExpression',
-          message:
-            "🚫 TYPE BYPASS (Pipeline rule): 'expr as unknown as T' double-casts are banned. Express the type via a proper intersection / projector instead.",
-        },
-        {
-          // CR-P3 (V5 — from PR #261 review) — ban `.success === true`
-          // / `.success === false` / `.success !== true` / `.success !== false`
-          // checks on Procedure values. Use the {@link isOk} helper for
-          // consistency with the rest of the call-sites (CodeRabbit found
-          // one of these on PhoneFormatter and the canary keeps new
-          // occurrences out at pre-commit time).
-          selector:
-            'BinaryExpression[operator=/^[!=]==$/][left.type="MemberExpression"][left.property.name="success"][right.type="Literal"][right.value=/^(true|false)$/]',
-          message:
-            '🚫 PROCEDURE: Use `isOk(result)` instead of `result.success === true/false`. Keeps narrowing + call-site consistency aligned across the codebase.',
-        },
-      ],
+      'no-restricted-syntax': ['error', ...PIPELINE_SYNTAX_RULES],
 
       // --- C. DEFAULT COMPLEXITY (STRICT) ---
       'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
@@ -1191,6 +1765,7 @@ export default tseslint.config(
     rules: {
       'no-restricted-syntax': [
         'error',
+        ...PIPELINE_SYNTAX_RULES,
         {
           selector: 'Program',
           message:
@@ -1287,22 +1862,11 @@ export default tseslint.config(
   // `ScrapeDataActions.ts` previously held a `'balance'` literal as
   // part of the assembled account shape. v4 moved balance to
   // `ctx.balanceResolution`; this rule blocks the literal from
-  // sneaking back in. The canary file deliberately uses the literal
-  // so verify.sh can confirm the rule fires.
+  // sneaking back in. The canary that proves it fires is armed in §22a.
   {
-    files: [
-      'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeDataActions.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/no-balance-in-scrape.canary.ts',
-    ],
+    files: ['src/Scrapers/Pipeline/Strategy/Scrape/ScrapeDataActions.ts'],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: "Literal[value='balance']",
-          message:
-            "🚫 V5 ISOLATION (T50): The literal 'balance' is forbidden in ScrapeDataActions.ts. Balance resolution belongs to the BALANCE-RESOLVE phase.",
-        },
-      ],
+      'no-restricted-syntax': ['error', ...PIPELINE_SYNTAX_RULES, NO_BALANCE_LITERAL_RULE],
     },
   },
 
@@ -1335,57 +1899,29 @@ export default tseslint.config(
     },
   },
 
-  // 8g. BALANCE-RESOLVE QUARANTINE INTEGRITY (PR #264 CR finding #4)
+  // 8g+8h. BALANCE-RESOLVE MEDIATOR LOCKS (PR #264 CR findings #4 + #7)
   //
-  // Every `await api.fetchPost(...)` / `await api.fetchGet(...)` inside
-  // the BALANCE-RESOLVE mediator MUST be wrapped in a TryStatement so a
-  // thrown exception from one bank account's network call does not
-  // reject the surrounding `Promise.all` and abort every sibling fetch.
-  // The `safeIssueOneFetch` helper is the canonical wrapper.
+  // Both rules scope to the same file, so they MUST share one block: flat
+  // config replaces `no-restricted-syntax` options rather than merging them,
+  // and two blocks would leave only the later rule armed.
   //
-  // Scope = the production mediator file + the dedicated canary fixture
-  // so `verify.sh` proves the rule actually fires.
+  //   • Quarantine — every `await api.fetchPost/fetchGet` inside the
+  //     BALANCE-RESOLVE mediator must be wrapped in a TryStatement
+  //     (`safeIssueOneFetch`) so a throw from one bank account's network call
+  //     cannot reject the surrounding `Promise.all` and abort every sibling.
+  //   • BULK_KEY — the `'__BULK__'` sentinel lives only in
+  //     `BalanceFetchPlanner.ts`; consumers import the named constant so the
+  //     value can be renamed atomically.
+  //
+  // The canaries that prove both fire are armed in §22a.
   {
-    files: [
-      'src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/balance-resolve-throw-leaks-quarantine.canary.ts',
-    ],
+    files: ['src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts'],
     rules: {
       'no-restricted-syntax': [
         'error',
-        ...RESTRICTED_SYNTAX_RULES,
-        {
-          selector: 'AwaitExpression > CallExpression[callee.property.name=/^fetch(Post|Get)$/]',
-          message:
-            '🚫 BALANCE-RESOLVE QUARANTINE (CR #264 Critical): wrap `await api.fetch*` in safeIssueOneFetch (try/catch) so a thrown fetch cannot abort the Promise.all loop and break per-bank-account quarantine.',
-        },
-      ],
-    },
-  },
-
-  // 8h. BALANCE-RESOLVE BULK_KEY CONSTANTS (PR #264 CR finding #7)
-  //
-  // The string literal `'__BULK__'` is the planner's bulk-key sentinel
-  // and lives only in `BalanceFetchPlanner.ts`. Every consumer must
-  // import the named constant `BULK_KEY` from there so the value can
-  // be renamed atomically. Hardcoded copies drift silently when the
-  // sentinel changes.
-  //
-  // Scope = the BALANCE-RESOLVE mediator consumer + canary.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/balance-resolve-bulk-literal.canary.ts',
-    ],
-    rules: {
-      'no-restricted-syntax': [
-        'error',
-        ...RESTRICTED_SYNTAX_RULES,
-        {
-          selector: "Literal[value='__BULK__']",
-          message:
-            "🚫 BALANCE-RESOLVE CONSTANTS (CR #264 Major): use the named BULK_KEY constant imported from BalanceFetchPlanner instead of the hardcoded '__BULK__' literal.",
-        },
+        ...PIPELINE_SYNTAX_RULES,
+        BALANCE_QUARANTINE_RULE,
+        BALANCE_BULK_LITERAL_RULE,
       ],
     },
   },
@@ -1397,28 +1933,11 @@ export default tseslint.config(
   // SCRAPE value. Per coding-principle-guidlines §4 DEFAULT-DENY: skip
   // the slot, do not silently default.
   //
-  // Scope = api-direct phase that emits balanceResolution + canary.
+  // Scope = api-direct phase that emits balanceResolution; canary in §22a.
   {
-    files: [
-      'src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/balance-default-zero.canary.ts',
-    ],
+    files: ['src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.ts'],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        ...RESTRICTED_SYNTAX_RULES,
-        {
-          selector: "LogicalExpression[operator='??'][left.property.name='balance'][right.value=0]",
-          message:
-            '🚫 BALANCE DEFAULT-DENY (CR #264 Major): `acc.balance ?? 0` collapses unknown into a real zero. Skip the entry (or surface a typed failure) instead.',
-        },
-        {
-          selector:
-            "LogicalExpression[operator='??'][left.property.name='balance'][right.raw='null']",
-          message:
-            '🚫 BALANCE DEFAULT-DENY (CR #264 Major): `acc.balance ?? null` is forbidden for the same reason as `?? 0` — use a typed skip.',
-        },
-      ],
+      'no-restricted-syntax': ['error', ...PIPELINE_SYNTAX_RULES, ...BALANCE_DEFAULT_DENY_RULES],
     },
   },
 
@@ -1733,6 +2252,7 @@ export default tseslint.config(
       'no-restricted-syntax': [
         'error',
         ...RESTRICTED_SYNTAX_RULES,
+        NO_DIRECT_SCREENSHOT_RULE,
         {
           selector:
             "MemberExpression[computed=true][object.type='MemberExpression'][object.object.name='SCRAPER_CONFIGURATION'][object.property.name='banks']",
@@ -1751,13 +2271,24 @@ export default tseslint.config(
   //     at `src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts`
   //     and is allow-listed so the helper itself can call
   //     `page.screenshot()` without tripping the rule.
+  //     Pipeline and Scrapers/Base are excluded here and carry the ban
+  //     through their own blocks instead. Both declare extra selectors of
+  //     their own, and flat config REPLACES `no-restricted-syntax` options
+  //     rather than merging them — so while this block matched them last it
+  //     silently overwrote everything they declared. See
+  //     `check-syntax-guardrails` for the gate that now proves it cannot
+  //     happen again.
   {
     files: ['src/**/*.ts'],
-    ignores: ['src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts', 'src/Tests/**'],
+    ignores: ['src/Scrapers/Pipeline/**', 'src/Scrapers/Base/**', 'src/Tests/**'],
     rules: {
       'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES, NO_DIRECT_SCREENSHOT_RULE],
     },
   },
+
+  // 14a. Contract exemptions are applied in one place at the end of this
+  //     config, generated from PIPELINE_SELECTOR_EXEMPTIONS, so they cannot
+  //     themselves be overwritten by a later block.
 
   // 15. NO SUPPRESSION COMMENTS — Phase 2 of Security Hardening 2026-05.
   //     Bans every suppression-comment family on src/** so future
@@ -1769,29 +2300,50 @@ export default tseslint.config(
   //     ESLint 9 + typescript-eslint flat-config — verified
   //     empirically. The terms-array form fires on both Line and
   //     Block comments. Canary fixtures in EslintCanaries/ are
-  //     intentionally malformed; excluded via `ignores`.
+  //     intentionally malformed; excluded via `ignores`, then re-armed
+  //     for the two canaries that certify this rule (§15a) — a blanket
+  //     ignore is what left `no-suppression-comments.canary.ts` unable to
+  //     fire the rule it exists to prove.
   {
     files: ['src/**/*.ts', 'src/**/*.tsx'],
     ignores: ['src/Scrapers/Pipeline/EslintCanaries/**'],
     rules: {
-      'no-warning-comments': [
-        'error',
-        {
-          terms: [
-            'NOSONAR',
-            '@ts-ignore',
-            '@ts-expect-error',
-            '@ts-nocheck',
-            'biome-ignore',
-            'eslint-disable',
-            'istanbul ignore',
-            'c8 ignore',
-            'v8 ignore',
-            'prettier-ignore',
-          ],
-          location: 'anywhere',
-        },
-      ],
+      'no-warning-comments': ['error', SUPPRESSION_COMMENT_OPTIONS],
+    },
+  },
+
+  // 15a. SUPPRESSION-COMMENT CANARIES — re-arm §15 on the fixtures that
+  //      certify it. §15 ignores the whole canary directory because most
+  //      canaries carry deliberately-malformed markers; that blanket
+  //      exclusion also covered the canary whose entire job is to prove
+  //      §15 still fires, so it passed on incidental lint noise instead.
+  //      Listed explicitly, not by glob, so adding a canary cannot
+  //      silently opt it into a rule it was not written for.
+  {
+    files: ['src/Scrapers/Pipeline/EslintCanaries/no-suppression-comments.canary.ts'],
+    rules: {
+      'no-warning-comments': ['error', SUPPRESSION_COMMENT_OPTIONS],
+    },
+  },
+
+  // 15b. JEST ASSERTION CANARY — `jest/expect-expect` is scoped to
+  //      `src/Tests/Unit/**/*.test.ts`, which the canary directory is not
+  //      part of. The canary's own docblock claimed the harness passed
+  //      `--rule 'jest/expect-expect: error'`; it never did, so the file
+  //      certified nothing. Arming the rule here is the honest spelling.
+  //
+  //      `globals` matters: eslint-plugin-jest resolves `it` / `test` through
+  //      scope and ignores a locally-declared stub, so the canary's original
+  //      `declare function it(...)` was itself enough to keep the rule silent.
+  //      Declaring the jest globals here is what makes the call recognisable.
+  {
+    files: ['src/Scrapers/Pipeline/EslintCanaries/jest-expect-expect.canary.ts'],
+    plugins: { jest },
+    languageOptions: {
+      globals: { it: 'readonly', test: 'readonly', describe: 'readonly', expect: 'readonly' },
+    },
+    rules: {
+      'jest/expect-expect': ['error', { assertFunctionNames: ['expect', 'assert*', 'run*'] }],
     },
   },
 
@@ -1950,26 +2502,17 @@ export default tseslint.config(
   //
   // The accompanying canary
   // `scrape-canonical10-lookup-array-shouldbe-set.canary.ts` exhibits
-  // the banned name so verify.sh asserts the rule fires on every commit.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhase/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/Scrape/FrozenScrapeAction.ts',
-      'src/Scrapers/Pipeline/Mediator/Scrape/UrlDateRange.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/scrape-canonical10-lookup-array-shouldbe-set.canary.ts',
-    ],
+  // the banned name; it is armed in §22a.
+  //
+  // Generated from PIPELINE_SCOPED_SYNTAX_EXTRAS so that §23's exemption
+  // blocks — which are emitted later and rebuild the rule wholesale — can
+  // re-add these selectors from the same source instead of dropping them.
+  ...PIPELINE_SCOPED_SYNTAX_EXTRAS.map(scope => ({
+    files: scope.files,
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: 'VariableDeclarator[id.name=/^lower\\w*Keys$/]',
-          message:
-            'PR #281 C8 §12C: name `lower*Keys` implies a key set for membership testing (Sonar S7776). Use `new Set(keys.map(k => k.toLowerCase()))` named `lower*KeySet`, or rename to `lowerNames` if iterating only.',
-        },
-      ],
+      'no-restricted-syntax': ['error', ...PIPELINE_SYNTAX_RULES, ...scope.rules],
     },
-  },
+  })),
 
   // 12D. SCRAPE CANONICAL-10 NO-NEGATED-CONDITION GUARD (PR #281 C9 hardening, 2026-05-31)
   //
@@ -2051,7 +2594,7 @@ export default tseslint.config(
   //   • `pii-cluster-fn-over-cap.canary.ts` — proves
   //     `max-lines-per-function: 10` fires (function > 10 LoC)
   //   • `pii-hardcoded-sentinel.canary.ts` — proves the
-  //     sentinel-literal ban fires
+  //     sentinel-literal ban fires (armed in §22a, not here)
   {
     files: [
       'src/Scrapers/Pipeline/Types/PiiRedactor/**/*.ts',
@@ -2059,7 +2602,6 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/EslintCanaries/pii-cluster-fn-over-cap.canary.ts',
       'src/Scrapers/Pipeline/EslintCanaries/pii-facade-no-grandfather.canary.ts',
       'src/Scrapers/Pipeline/EslintCanaries/lint-guideline-coverage-defaults-audit.canary.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/pii-hardcoded-sentinel.canary.ts',
     ],
     plugins: { sonarjs },
     rules: {
@@ -2070,35 +2612,9 @@ export default tseslint.config(
       ],
       'sonarjs/no-identical-functions': 'error',
       'sonarjs/no-duplicate-string': ['error', { threshold: 3 }],
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: "Literal[value='[REDACTED]']",
-          message:
-            "🚫 PII CONSTANT: Import { REDACTED_HINT } from './Types.js' instead of hardcoding '[REDACTED]'. " +
-            'CR cycle-1 #9 / CLAUDE.md "Constants from configuration — never hardcode values inline".',
-        },
-        {
-          selector: "Literal[value='[OTP]']",
-          message:
-            "🚫 PII CONSTANT: Import { OTP_HINT } from './Types.js' instead of hardcoding '[OTP]'.",
-        },
-        {
-          selector: "Literal[value='[REDACTION_ERROR]']",
-          message:
-            "🚫 PII CONSTANT: Import { REDACTION_ERROR_HINT } from './Types.js' instead of hardcoding '[REDACTION_ERROR]'.",
-        },
-        {
-          // CR cycle-2: catches `'-***'` / `'+***'` / `'***'` (Amount sign markers) and
-          // any future bracket-name sentinel (e.g. `'[NEW_HINT]'`). Forces every NEW
-          // redaction sentinel to live in Types.ts before it can be used elsewhere.
-          selector: 'Literal[value=/^(\\[[A-Z_]+\\]|[+\\-]?\\*{3,})$/]',
-          message:
-            "🚫 PII SENTINEL: Hardcoded redaction sentinel detected. Define it once in './Types.js' " +
-            '(e.g. AMOUNT_NEGATIVE_HINT, AMOUNT_POSITIVE_HINT) and import the constant. ' +
-            'CR cycle-2 / CLAUDE.md "Constants from configuration — never hardcode values inline".',
-        },
-      ],
+      // The sentinel canary is armed in §22a — a canary-directory block
+      // declared later would replace these options and disarm it.
+      'no-restricted-syntax': ['error', ...PIPELINE_SYNTAX_RULES, ...PII_SENTINEL_LITERAL_RULES],
     },
   },
 
@@ -2107,10 +2623,17 @@ export default tseslint.config(
   // `Types.ts` legitimately HOLDS the hint constants — its
   // `export const REDACTED_HINT = '[REDACTED]'` declaration MUST
   // contain the bare literal. Unlock the §13 sentinel ban here.
+  //
+  // Re-declaring the shared contract, NOT `'no-restricted-syntax': 'off'`.
+  // `off` lifted all sixty-one selectors to excuse four sentinel literals,
+  // leaving the module that defines the redaction vocabulary as the only
+  // production Pipeline file with no restricted-syntax guardrails at all.
+  // The §13 sentinel selectors are additions on top of the contract, so
+  // simply not repeating them here grants exactly the intended unlock.
   {
     files: ['src/Scrapers/Pipeline/Types/PiiRedactor/Types.ts'],
     rules: {
-      'no-restricted-syntax': 'off',
+      'no-restricted-syntax': ['error', ...PIPELINE_SYNTAX_RULES],
     },
   },
 
@@ -2119,23 +2642,14 @@ export default tseslint.config(
   // `ErrorLog.ts` MUST NEVER reference `isPiiRedactionDisabled` —
   // bank error messages are security-classified (CodeQL #28 / CR
   // cycle-1 #3): they always redact, even with `PII_REDACTION=off`.
-  // The same lock applies to the canary that proves the rule fires.
+  //
+  // The canary that proves the rule fires is armed in §22a instead of
+  // being listed here: a canary-directory block declared later would
+  // replace these options and silently disarm it.
   {
-    files: [
-      'src/Scrapers/Pipeline/Types/PiiRedactor/ErrorLog.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/pii-errorlog-bypass.canary.ts',
-    ],
+    files: ['src/Scrapers/Pipeline/Types/PiiRedactor/ErrorLog.ts'],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: "Identifier[name='isPiiRedactionDisabled']",
-          message:
-            '🚫 SECURITY (CodeQL #28 / CR cycle-1 #3): ErrorLog.ts MUST always-redact. ' +
-            'Do not reference isPiiRedactionDisabled here — bank error messages are ' +
-            'security-classified and cannot be bypassed via PII_REDACTION=off.',
-        },
-      ],
+      'no-restricted-syntax': ['error', ...PIPELINE_SYNTAX_RULES, PII_ERRORLOG_NO_BYPASS_RULE],
     },
   },
 
@@ -2887,17 +3401,15 @@ export default tseslint.config(
 
   // 19.9 CANARY — TEST-HELPER FUNCTION-DECLARATION ≤10-STMT CAP.
   //
-  // The §19.9 rule (defined inline in §4 + §5) bans
-  // FunctionDeclaration bodies > 10 stmts inside `src/Tests/**`.
-  // This canary-only block re-enables the rule on a single fixture
-  // under `EslintCanaries/` (globally ignored at line 539) so
-  // `verify.sh` can confirm the guardrail stays armed.
-  {
-    files: ['src/Scrapers/Pipeline/EslintCanaries/test-helper-over-10-stmts.canary.ts'],
-    rules: {
-      'no-restricted-syntax': ['error', TEST_HELPER_OVER_10_STMTS_RULE],
-    },
-  },
+  // The §19.9 rule (defined inline in §4 + §5) bans FunctionDeclaration
+  // bodies > 10 stmts inside `src/Tests/**`.
+  //
+  // The canary-only block that used to live here re-enabled the rule on one
+  // fixture under `EslintCanaries/` — and, being a `no-restricted-syntax`
+  // re-declaration, it REPLACED the whole set for that file, leaving it with
+  // exactly one selector. §22 now arms the rule across every canary as part
+  // of the canary contract, so a single fixture no longer buys its coverage
+  // by discarding everyone else's.
 
   // 19.10 TEST-HELPER LINE CAP — `fn-declaration-max-lines:10` on the
   // 6 Phase 9 files. Closes the lines-vs-statements gap CR cycle 2
@@ -3041,15 +3553,9 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Banks/**/*.ts',
       'src/Scrapers/Pipeline/Registry/**/*.ts',
       'src/Scrapers/Pipeline/Logging/**/*.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/rule10-phase-violation.canary.ts',
     ],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        ...RESTRICTED_SYNTAX_RULES,
-        NO_DIRECT_SCREENSHOT_RULE,
-        RULE10_NO_RAW_PAGE_RULE,
-      ],
+      'no-restricted-syntax': ['error', ...PIPELINE_SYNTAX_RULES, RULE10_NO_RAW_PAGE_RULE],
     },
   },
 
@@ -3080,7 +3586,7 @@ export default tseslint.config(
   {
     files: ['src/Scrapers/Pipeline/Phases/BindApiMediator/BindApiMediatorClientVersion.ts'],
     rules: {
-      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES, NO_DIRECT_SCREENSHOT_RULE],
+      'no-restricted-syntax': ['error', ...PIPELINE_SYNTAX_RULES],
     },
   },
 
@@ -3118,17 +3624,50 @@ export default tseslint.config(
     files: [
       'src/Scrapers/Pipeline/Banks/**/scrape/*ShapeTxns.ts',
       'src/Scrapers/Pipeline/Phases/ApiDirectScrape/**/*ShapeTxns.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/shape-txns-window-end-from-clock.canary.ts',
     ],
     ignores: ['src/Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShapeTxns.ts'],
     rules: {
       'no-restricted-syntax': [
         'error',
-        ...RESTRICTED_SYNTAX_RULES,
-        NO_DIRECT_SCREENSHOT_RULE,
+        ...PIPELINE_SYNTAX_RULES,
         SHAPE_TXNS_WINDOW_END_RULE,
         RULE10_NO_RAW_PAGE_RULE,
       ],
     },
   },
+
+  // 22. CANARY DIRECTORY — the full contract, nothing drained.
+  //
+  // Placed last (before the per-file exemptions) so no earlier block can
+  // narrow it. Canaries exist to prove a selector still fires; a canary whose
+  // target had been drained or overwritten would pass on incidental lint noise
+  // — which is exactly how `readonly-set-instead-of-const` and
+  // `as-unknown-as-double-cast` sat green while certifying nothing.
+  {
+    files: ['src/Scrapers/Pipeline/EslintCanaries/**/*.canary.ts'],
+    rules: { 'no-restricted-syntax': ['error', ...PIPELINE_CANARY_SYNTAX_RULES] },
+  },
+
+  // 22a. CANARY FILE-SPECIFIC RULES — the contract plus what one canary certifies.
+  //
+  // Generated from CANARY_EXTRA_RULES and emitted after §22 so the base
+  // contract cannot swallow a canary's own target. `check-syntax-guardrails`
+  // proves each entry resolves on the canary that declares it.
+  ...CANARY_EXTRA_BLOCKS,
+
+  // 23. CONTRACT EXEMPTIONS — last, so nothing can overwrite them.
+  //
+  // Generated from PIPELINE_SELECTOR_EXEMPTIONS so the table a reviewer reads
+  // is the table ESLint applies and the one `check-syntax-guardrails` subtracts.
+  // Each entry re-declares the full contract MINUS the named selectors, never
+  // `'no-restricted-syntax': 'off'` — `off` excuses one selector by lifting all
+  // of them, which is how `PiiRedactor/Types.ts` came to run unguarded.
+  //
+  // The file is passed to `pipelineSyntaxExcept` so scoped selectors (§12C)
+  // survive: rebuilding from the global contract alone silently disarmed them
+  // on the three exempted files that sit inside the canonical-10 folders.
+  ...Object.entries(PIPELINE_SELECTOR_EXEMPTIONS).map(([file, exempt]) => ({
+    files: [file],
+    rules: { 'no-restricted-syntax': pipelineSyntaxExcept(exempt, file) },
+  })),
 );
