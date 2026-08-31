@@ -53,6 +53,7 @@ interface IStep {
 interface IJob {
   readonly if?: string;
   readonly steps?: readonly IStep[];
+  readonly 'continue-on-error'?: unknown;
 }
 
 /** Parsed workflow document. */
@@ -92,15 +93,101 @@ function stepsOf(job: IJob): readonly IStep[] {
 }
 
 /**
- * Identify the step invoking the canary suite.
+ * The one run block the canary step is allowed to carry.
+ *
+ * <p>A blacklist of masking constructs cannot be honest: `; true`,
+ * `|| echo ok`, a pipeline, a leading `#`, `set +e` and background execution
+ * all discard the exit status, and no list of them is ever complete. An exact
+ * contract inverts the burden — any rewrite, however it is spelled, stops
+ * matching and turns this suite red until someone changes it deliberately.
+ */
+const CANARY_RUN = 'npm run lint:canaries';
+
+/** Unmasked shell the `lint:canaries` npm script must resolve to. */
+const CANARY_SCRIPT = 'bash src/Scrapers/Pipeline/EslintCanaries/verify.sh';
+
+/** Manifest shape this test reads. */
+interface IManifest {
+  readonly scripts?: Readonly<Record<string, string>>;
+}
+
+/**
+ * Read the shell the canary npm script resolves to.
+ *
+ * <p>Pinning the workflow step alone leaves the indirection unguarded: the
+ * step can be exactly right while `lint:canaries` itself is rewritten to
+ * swallow the failure.
+ *
+ * @returns The declared script body, normalized, or an empty string.
+ */
+function canaryNpmScript(): string {
+  const manifestPath = join(REPO_ROOT, 'package.json');
+  const raw = readFileSync(manifestPath, 'utf8');
+  const manifest = JSON.parse(raw) as IManifest;
+  const script = manifest.scripts?.[CANARY_COMMAND] ?? '';
+  return normalizeRun(script);
+}
+
+/**
+ * Collapse a workflow run block to a single normalized line.
+ *
+ * @param run - Raw `run:` body.
+ * @returns The body with surrounding and repeated whitespace removed.
+ */
+function normalizeRun(run: string): string {
+  const trimmed = run.trim();
+  return trimmed.replace(/\s+/gu, ' ');
+}
+
+/**
+ * Identify the step invoking the canary suite, unmasked.
  *
  * @param step - Step definition.
- * @returns True when the step runs the canary npm script.
+ * @returns True when the step runs exactly the approved command.
  */
 function isCanaryStep(step: IStep): boolean {
   const run = step.run ?? '';
-  return run.includes(CANARY_COMMAND);
+  const normalized = normalizeRun(run);
+  return normalized === CANARY_RUN;
 }
+
+/**
+ * Identify a job whose failures still fail the workflow.
+ *
+ * <p>`continue-on-error` at job level masks a failed canary step just as
+ * effectively as it does at step level, and is invisible to any assertion
+ * that only walks steps.
+ *
+ * @param job - Job definition.
+ * @returns True when the job carries no failure mask.
+ */
+function isUnmaskedJob(job: IJob): boolean {
+  return job['continue-on-error'] === undefined;
+}
+
+/**
+ * Run blocks that must never be accepted as canary wiring.
+ *
+ * <p>Written out literally rather than derived from the detector: a table
+ * generated from the implementation shrinks whenever the implementation does,
+ * so it would pass vacuously on the day the detector stopped rejecting
+ * anything. Every entry below exits zero after a failed suite, never runs it,
+ * or runs something else entirely.
+ */
+const MASKED_RUN_BLOCKS: readonly string[] = [
+  'npm run lint:canaries || true',
+  'npm run lint:canaries || :',
+  'npm run lint:canaries || exit 0',
+  'npm run lint:canaries || echo ignored',
+  'npm run lint:canaries; true',
+  'npm run lint:canaries | cat',
+  'set +e\nnpm run lint:canaries',
+  'if ! npm run lint:canaries; then echo soft; fi',
+  'npm run lint:canaries &',
+  'npm run --if-present lint:canaries',
+  '# npm run lint:canaries',
+  'echo npm run lint:canaries',
+];
 
 /**
  * Identify the step installing dependencies, however it is spelled.
@@ -175,6 +262,41 @@ describe('CanarySuiteCiGate', () => {
     const canaries = steps.filter(isCanaryStep);
     expect(canaries.length).toBeGreaterThan(0);
     for (const step of canaries) expect(step['continue-on-error']).toBeUndefined();
+  });
+
+  it('[CI-CANARY] Detector_ShellMaskedCanaryStep_ShouldNotCountAsWired', () => {
+    const verdicts = MASKED_RUN_BLOCKS.map(run => isCanaryStep({ run }));
+    const hasAnyAccepted = verdicts.some(verdict => verdict);
+    expect(hasAnyAccepted).toBe(false);
+  });
+
+  it('[CI-CANARY] Detector_MaskTable_ShouldStayNonEmpty', () => {
+    expect(MASKED_RUN_BLOCKS.length).toBeGreaterThanOrEqual(12);
+  });
+
+  it('[CI-CANARY] Detector_UnmaskedCanaryStep_ShouldCountAsWired', () => {
+    const step = { run: CANARY_RUN };
+    const isWired = isCanaryStep(step);
+    expect(isWired).toBe(true);
+  });
+
+  it('[CI-CANARY] Detector_JobLevelContinueOnError_ShouldNotCountAsUnmasked', () => {
+    const job: IJob = { 'continue-on-error': true };
+    const isUnmasked = isUnmaskedJob(job);
+    expect(isUnmasked).toBe(false);
+  });
+
+  it('[CI-CANARY] PrYaml_CanaryOwningJob_ShouldNotBeMaskedByContinueOnError', () => {
+    const jobs = canaryJobs();
+    expect(jobs.length).toBeGreaterThan(0);
+    const verdicts = jobs.map(job => isUnmaskedJob(job));
+    const hasAnyMasked = verdicts.some(verdict => !verdict);
+    expect(hasAnyMasked).toBe(false);
+  });
+
+  it('[CI-CANARY] PackageJson_CanaryScript_ShouldInvokeVerifyUnmasked', () => {
+    const script = canaryNpmScript();
+    expect(script).toBe(CANARY_SCRIPT);
   });
 
   it('[CI-CANARY] PrYaml_CanaryOwningJob_ShouldAdmitGuardrailOnlyChanges', () => {
