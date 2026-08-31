@@ -89,6 +89,7 @@ emit_fail_open() {
     echo "critical_deps=true"
     echo "metrics=true"
     echo "public_surface=true"
+    echo "syntax_guardrails=true"
     echo "full_suite=true"
   } >> "$GITHUB_OUTPUT"
 }
@@ -143,6 +144,7 @@ if [ -z "${changed_files}" ]; then
     echo "critical_deps=false"
     echo "metrics=false"
     echo "public_surface=false"
+    echo "syntax_guardrails=false"
     echo "full_suite=false"
   } >> "$GITHUB_OUTPUT"
   exit 0
@@ -222,6 +224,7 @@ test_config=false
 critical_deps=false
 metrics=false
 public_surface=false
+syntax_guardrails=false
 full_suite=false
 
 if has '^src/'; then src=true; fi
@@ -246,6 +249,18 @@ public_surface_paths="${public_surface_paths}|^\.github/actions/build-package/"
 public_surface_paths="${public_surface_paths}|^package\.json$|^package-lock\.json$"
 if has "${public_surface_paths}"; then public_surface=true; fi
 
+# The restricted-syntax guardrail set and the gate that proves it resolves.
+# Kept out of `full_suite` (pinned to `src OR critical_deps` by
+# CriticalDepsFullSuiteGate.test.ts) for the same reason as `public_surface`:
+# a config-only or checker-only edit is precisely the change most able to
+# disarm the guard, and it touches no file under `src/`.
+# `package.json` is in the set because the gate is reached through the
+# `lint:syntax-guardrails` npm script: deleting or redirecting that script
+# would otherwise silently skip the guard while every group stayed false.
+if has '^eslint\.config\.mjs$|^scripts/check-syntax-guardrails\.mjs$|^package\.json$'; then
+  syntax_guardrails=true
+fi
+
 # Compare against the merge-base, mirroring the `...HEAD` semantics used
 # for `changed_files`: main bumping playwright-core meanwhile must not be
 # attributed to this PR.
@@ -267,6 +282,7 @@ if [ "${src}" = "true" ] || [ "${critical_deps}" = "true" ]; then full_suite=tru
   echo "critical_deps=${critical_deps}"
   echo "metrics=${metrics}"
   echo "public_surface=${public_surface}"
+  echo "syntax_guardrails=${syntax_guardrails}"
   echo "full_suite=${full_suite}"
 } >> "$GITHUB_OUTPUT"
 
@@ -281,4 +297,5 @@ echo "  test_config=${test_config}"
 echo "  critical_deps=${critical_deps}"
 echo "  metrics=${metrics}"
 echo "  public_surface=${public_surface}"
+echo "  syntax_guardrails=${syntax_guardrails}"
 echo "  full_suite=${full_suite}"

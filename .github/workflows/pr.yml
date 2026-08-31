@@ -169,6 +169,10 @@ jobs:
       # guards it. Kept separate from `full_suite` because that is pinned to
       # `src OR critical_deps` by CriticalDepsFullSuiteGate.test.ts.
       public_surface: ${{ steps.changes.outputs.public_surface }}
+      # The restricted-syntax contract and its resolution gate. Separate from
+      # `full_suite` for the same reason as `public_surface`: a config-only or
+      # checker-only edit disarms the guard without touching `src/`.
+      syntax_guardrails: ${{ steps.changes.outputs.syntax_guardrails }}
       # `full_suite` = src OR critical_deps. Every heavy job gates on THIS,
       # so a playwright-core / Camoufox bump runs the same flow a src/ PR
       # does — those packages are the runtime for all 17 banks.
@@ -211,7 +215,7 @@ jobs:
     # `full_suite` already subsumes `src` (it is `src OR critical_deps`), so it
     # stands in for it here — see CriticalDepsFullSuiteGate.test.ts, which pins
     # that invariant so this umbrella cannot silently stop covering src PRs.
-    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.md == 'true' || needs.changes.outputs.docs == 'true' || needs.changes.outputs.ci_scripts == 'true' || needs.changes.outputs.deps == 'true'
+    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.md == 'true' || needs.changes.outputs.docs == 'true' || needs.changes.outputs.ci_scripts == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.syntax_guardrails == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -230,14 +234,46 @@ jobs:
       # proves it in an isolated copy rather than relying on this step. The
       # cost is a full `npm ci` (including `prepare`, which runs `tsup`) on
       # workflow-only PRs such as dependabot action bumps.
+      # `syntax_guardrails` is here because the guardrail gate below runs
+      # `npm run lint:syntax-guardrails`, which imports `eslint` to resolve the
+      # real config. A PR touching only `eslint.config.mjs` or the checker sets
+      # `syntax_guardrails=true` without setting `full_suite`/`deps`, so without
+      # this the gate would run against an empty `node_modules` and fail on a
+      # clean runner. That is the exact PR shape most able to disarm the guard.
       - uses: ./.github/actions/setup-node-deps
-        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci_scripts == 'true'
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci_scripts == 'true' || needs.changes.outputs.syntax_guardrails == 'true'
       - if: needs.changes.outputs.full_suite == 'true'
         run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
 
       - name: ESLint (warnings as errors)
         if: needs.changes.outputs.full_suite == 'true'
         run: npx eslint src --max-warnings 0 --ignore-pattern '**/*.cjs'
+
+      # ESLint flat config REPLACES `no-restricted-syntax` options instead of
+      # merging them, so the last matching block wins outright and every
+      # selector unique to an earlier block evaporates. The step above cannot
+      # see that — the rule still runs, it just runs a smaller set. This reads
+      # the RESOLVED config per production Pipeline file and asserts every
+      # armed selector actually reached it.
+      - name: Restricted-syntax guardrails resolve
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.syntax_guardrails == 'true'
+        run: npm run lint:syntax-guardrails
+
+      # The canary suite proves each guardrail still FIRES; the step above only
+      # proves each one still RESOLVES. A rule can resolve onto every file and
+      # still match nothing (a selector whose construct no longer exists, a
+      # fixture padded past every declared cap, an assertion aimed at a file
+      # with no matching syntax) — that gap is what these 76 TS + 5 bash
+      # canaries and the three assertions inside verify.sh close.
+      #
+      # It ran nowhere in CI until now: `npm run lint` chains it, but the
+      # ESLint step above calls `npx eslint` directly, so the only enforcement
+      # was the local pre-commit hook — which `--no-verify` bypasses and which
+      # never runs for a fork PR. The PR template asked the author to tick a
+      # box attesting it passed. That is an honour system, not a gate.
+      - name: Architectural canaries fire
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.syntax_guardrails == 'true'
+        run: npm run lint:canaries
       - name: Prettier check
         if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
         run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
