@@ -56,7 +56,7 @@ is worth knowing when reading that code.
 | `BankDay` | Nominal type for that label, so a day cannot be passed where the ISO *instant* it came from is expected |
 | `parseInBankZone` | Turns a raw provider value into a moment fixed to the bank zone — the entry point `parseAutoDate` uses |
 | `bankMomentOfInstant` | Reads an already-resolved instant in the bank zone |
-| `bankDayOfInstant` | Reduces an instant to its `BankDay` |
+| `bankDayOfInstant` | Reduces an instant to its `BankDay`, or to `false` when the value cannot be read — `moment`'s own `'Invalid date'` string is day-shaped enough to survive a `string` return and then sorts after every real label |
 
 ## Why the zone is named rather than inherited
 

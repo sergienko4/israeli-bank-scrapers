@@ -95,10 +95,18 @@ export function bankMomentOfInstant(value: string | Date, strict = false): momen
 /**
  * Calendar day an instant falls on in the bank's calendar.
  *
+ * Answers `false` rather than a day when the input cannot be read.
+ * `moment(...).format()` reports an unreadable value as the *string*
+ * `'Invalid date'`, which is day-shaped enough to survive a `string` return
+ * and then sort after every real `YYYY-MM-DD` label in the lexicographic
+ * comparisons this module exists to enable. `false` is the same "no usable
+ * value" sentinel the surrounding Scrape code already uses.
+ *
  * @param value - ISO-8601 instant, or a `Date`.
- * @returns Day label, or `'Invalid date'` when the input cannot be read.
+ * @returns Day label, or `false` when the input cannot be read.
  */
-export function bankDayOfInstant(value: string | Date): BankDay {
+export function bankDayOfInstant(value: string | Date): BankDay | false {
   const inZone = bankMomentOfInstant(value);
+  if (!inZone.isValid()) return false;
   return inZone.format(BANK_DAY_FORMAT) as BankDay;
 }

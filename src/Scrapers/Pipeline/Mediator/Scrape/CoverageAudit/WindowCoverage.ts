@@ -123,10 +123,11 @@ function oldestOf(rows: readonly object[]): string {
  *
  * @param requestedStart - Requested window start.
  * @param oldest - Calendar day of the oldest row.
- * @returns Day count, never negative.
+ * @returns Day count, never negative, or `false` when the start is unreadable.
  */
-function gapOf(requestedStart: string, oldest: string): number {
+function gapOf(requestedStart: string, oldest: string): number | false {
   const startDay = bankDayOfInstant(requestedStart);
+  if (startDay === false) return false;
   const from = parseInBankZone(startDay, DAY);
   const to = parseInBankZone(oldest, DAY);
   const days = to.diff(from, 'days');
@@ -142,6 +143,9 @@ function gapOf(requestedStart: string, oldest: string): number {
 function windowMessage(label: string, result: IWindowResult): string {
   if (result.verdict === 'covered') return `window ${label}: covered`;
   if (result.oldest === '') return `window ${label}: UNPROVEN — no row carried a usable date`;
+  // A zero gap is otherwise 'covered', so reaching here means gapOf() could
+  // not read the requested start and the count is a placeholder, not a gap.
+  if (result.gapDays === 0) return `window ${label}: UNPROVEN — requested start unreadable`;
   const gap = `gapDays=${String(result.gapDays)}`;
   return `window ${label}: UNPROVEN — oldest=${result.oldest} ${gap}`;
 }
@@ -177,8 +181,8 @@ function reportWindow(label: string, result: IWindowResult): IWindowResult {
 export function assessWindowCoverage(args: IWindowArgs): IWindowResult {
   const oldest = oldestOf(args.rows);
   if (oldest === '') return reportWindow(args.label, UNPROVEN_EMPTY);
-  const gapDays = gapOf(args.requestedStart, oldest);
-  const isCovered = gapDays === 0;
-  const verdict: WindowVerdict = isCovered ? 'covered' : 'unproven';
-  return reportWindow(args.label, { verdict, oldest, gapDays });
+  const gap = gapOf(args.requestedStart, oldest);
+  if (gap === false) return reportWindow(args.label, { verdict: 'unproven', oldest, gapDays: 0 });
+  const verdict: WindowVerdict = gap === 0 ? 'covered' : 'unproven';
+  return reportWindow(args.label, { verdict, oldest, gapDays: gap });
 }

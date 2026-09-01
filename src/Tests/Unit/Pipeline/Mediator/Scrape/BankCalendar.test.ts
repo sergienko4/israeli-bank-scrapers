@@ -84,7 +84,7 @@ describe('parseAutoDate/is host-independent', () => {
   });
 
   it('keeps the stated calendar day recoverable in the bank zone', () => {
-    const days = acrossZones((): string => {
+    const days = acrossZones((): string | false => {
       const emitted = parseAutoDate('29/06/2026');
       return bankDayOfInstant(emitted);
     });
@@ -197,5 +197,37 @@ describe('planBackfill/derives the re-ask bound in the bank calendar', () => {
     );
     const expected = ZONES.map((): number => 23);
     expect(hours).toEqual(expected);
+  });
+});
+
+describe('bankDayOfInstant/refuses to invent a day', () => {
+  // `moment(...).format()` answers the *string* 'Invalid date' for an
+  // unreadable input. That is not a day, but it is a string, so an
+  // unconditional `BankDay` return let it flow into the lexicographic day
+  // comparisons this module exists to enable — and 'Invalid date' sorts
+  // after every real YYYY-MM-DD label.
+  it.each(['', 'not-a-date', '2026-13-45'])('answers false for %p', raw => {
+    const day = bankDayOfInstant(raw);
+    expect(day).toBe(false);
+  });
+
+  it('answers false for an unreadable Date rather than a day-shaped string', () => {
+    const day = bankDayOfInstant(new Date('nope'));
+    expect(day).toBe(false);
+  });
+
+  it('still answers the day for a readable instant', () => {
+    const day = bankDayOfInstant('2026-06-29T05:00:00.000Z');
+    expect(day).toBe('2026-06-29');
+  });
+
+  it('never lets an unreadable start certify coverage or log a NaN gap', () => {
+    // gapOf() fed 'Invalid date' produced NaN, so the audit reported
+    // `gapDays=NaN` and drove a re-ask with a meaningless bound.
+    const rows = [{ date: '01/06/2026' }];
+    const seen = assessWindowCoverage({ requestedStart: 'garbage', rows, label: 'demo' });
+    const isNaNGap = Number.isNaN(seen.gapDays);
+    expect(seen.verdict).toBe('unproven');
+    expect(isNaNGap).toBe(false);
   });
 });
