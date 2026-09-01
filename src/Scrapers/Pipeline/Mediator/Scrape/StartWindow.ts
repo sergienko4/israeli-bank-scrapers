@@ -4,9 +4,10 @@
  * `ScraperOptions.startDate` is a required field meaning "give me transactions
  * from this date onwards", yet no bank on the ApiDirectScrape path applied it.
  * The legacy filter ({@link filterAfterStart}) still exists but nothing reaches
- * it — every registered bank routes through `withApiDirect`, which
- * short-circuits the builder straight to the ApiDirectScrape phase. Callers
- * therefore received whatever the provider happened to return.
+ * it — every registered bank routes through `withApiDirect` or
+ * `withBrowserApiDirect`, both of which short-circuit the builder straight to
+ * the ApiDirectScrape phase. Callers therefore received whatever the provider
+ * happened to return.
  *
  * For card issuers that is not "startDate to today" but whole **billing
  * cycles**, and a cycle carries rows whose purchase date can be far older than
@@ -29,24 +30,23 @@
  *
  * <p>Compares **calendar days**, not instants, because the two sides arrive in
  * different calendars. A provider's date-only value ('2026-02-20') is parsed
- * by `parseAutoDate` through *local* midnight, while the documented caller
- * form `new Date('2026-02-20')` is *UTC* midnight. Comparing those as instants
- * puts the row two hours before the bound in Israel and deletes every
- * transaction dated on the very day the caller asked for. Reducing both sides
- * to a local day label is exact wherever the run and the bank share a
- * calendar, and elsewhere errs one day wide — which keeps a row the caller may
- * not have wanted rather than destroying one they did.
+ * by `parseAutoDate` through midnight in the bank's calendar, while the
+ * documented caller form `new Date('2026-02-20')` is *UTC* midnight. Comparing
+ * those as instants puts the row two hours before the bound in Israel and
+ * deletes every transaction dated on the very day the caller asked for.
+ *
+ * <p>Both sides reduce to a day label in {@link BANK_CALENDAR_TIMEZONE} rather
+ * than in the ambient zone. The bound and the rows must be read in one
+ * calendar or the comparison is not about the same day at all: read west of
+ * UTC, the caller's own start date names the previous day and the window
+ * silently runs one day wide. See issue #545.
  */
-
-import moment from 'moment';
 
 import type { ITransaction } from '../../../../Transactions.js';
 import { getDebug } from '../../Logging/Debug.js';
+import { BANK_DAY_FORMAT, bankDayOfInstant, bankMomentOfInstant } from './BankCalendar.js';
 
 const LOG = getDebug(import.meta.url);
-
-/** Calendar-day label both sides of the comparison are reduced to. */
-const DAY = 'YYYY-MM-DD';
 
 /** Inputs for one windowing round. */
 export interface IStartWindowArgs {
@@ -75,7 +75,7 @@ export interface IStartWindowResult {
  * module exists to prevent.
  *
  * @param startDate - Caller-supplied window lower bound.
- * @returns Local calendar-day label, or `false` when the bound is unusable.
+ * @returns Bank calendar-day label, or `false` when the bound is unusable.
  */
 function windowStartDay(startDate: Date): string | false {
   const isDateValue = startDate instanceof Date;
@@ -83,7 +83,7 @@ function windowStartDay(startDate: Date): string | false {
   const ms = startDate.getTime();
   const isRealDate = Number.isFinite(ms);
   if (!isRealDate) return false;
-  return moment(startDate).format(DAY);
+  return bankDayOfInstant(startDate);
 }
 
 /**
@@ -139,14 +139,14 @@ function isUndated(ms: number): boolean {
  * without usable fields.
  *
  * @param txn - Mapped transaction under test.
- * @param startDay - Inclusive window lower bound as a local day label.
+ * @param startDay - Inclusive window lower bound as a bank day label.
  * @returns True when the row is in window or carries no usable date.
  */
 function isInWindow(txn: ITransaction, startDay: string): boolean {
-  const parsed = moment(txn.date, moment.ISO_8601);
+  const parsed = bankMomentOfInstant(txn.date);
   const ms = parsed.valueOf();
   if (isUndated(ms)) return true;
-  const day = parsed.format(DAY);
+  const day = parsed.format(BANK_DAY_FORMAT);
   return day >= startDay;
 }
 
@@ -154,7 +154,7 @@ function isInWindow(txn: ITransaction, startDay: string): boolean {
  * Keep only the rows the caller's window admits.
  *
  * @param txns - Mapped transactions for one account.
- * @param startDay - Inclusive window lower bound as a local day label.
+ * @param startDay - Inclusive window lower bound as a bank day label.
  * @returns Rows on or after the bound, plus any row with no usable date.
  */
 function filterToWindow(txns: readonly ITransaction[], startDay: string): readonly ITransaction[] {

@@ -14,19 +14,17 @@
  * asked" are different facts and an operator must be able to tell them apart.
  */
 
-import moment from 'moment';
+import moment from 'moment-timezone';
 
 import { getDebug } from '../../Logging/Debug.js';
 import type { Option } from '../../Types/Option.js';
 import { isSome, none, some } from '../../Types/Option.js';
 import type { WindowNarrowing } from '../../Types/WindowNarrowing.js';
 import { BACKFILL_EXCLUSION } from '../../Types/WindowNarrowing.js';
+import { BANK_DAY_FORMAT } from './BankCalendar.js';
 import type { IWindowResult } from './CoverageAudit/WindowCoverage.js';
 
 const LOG = getDebug(import.meta.url);
-
-/** Calendar-day form — see {@link IWindowResult.oldest}. */
-const DAY = 'YYYY-MM-DD';
 
 /**
  * Hard ceiling on extra requests per account.
@@ -98,21 +96,31 @@ function blockingReason(args: IBackfillPlanArgs): string {
  * held copy per re-served row, so only the withheld ones survive.
  *
  * <p>End of day, not start of day, because not every consumer of this bound is
- * day-granular. Seven of the eight backfillable banks render it through
- * `format('YYYYMMDD')`, to which the time of day is invisible; Leumi puts it on
- * the wire as an RFC-1123 *instant* (`toUTCString()`). A start-of-day instant
- * would exclude everything that day after midnight local.
+ * day-granular. Most backfillable banks render it back to a day label —
+ * `YYYYMMDD` for Hapoalim, `YYYY-MM-DD` for the FIBI group and Pepper, month
+ * components for Yahav — to which the time of day is invisible; Leumi puts it
+ * on the wire as an RFC-1123 *instant* (`toUTCString()`). A start-of-day
+ * instant would exclude everything that day after midnight.
+ *
+ * <p><b>Deliberately ambient, not bank-anchored.</b> Everywhere else in this
+ * cluster a calendar decision resolves in the bank's zone
+ * (`BANK_CALENDAR_TIMEZONE`), but
+ * here the day *label* is the interchange unit: this function turns a label
+ * into an instant and the shapes above turn that instant straight back into a
+ * label. Round-tripping is lossless only while both halves share one zone.
+ * Anchoring this half alone would make an east-of-Israel host re-ask for
+ * `oldest + 1` — a slice the caller never lost — so the pair moves together or
+ * not at all. `BankCalendar.test.ts` pins the round trip in four zones.
  *
  * <p>Termination is unaffected. A request that returns nothing new leaves
  * `oldest` where it was, which derives this same bound again, and
  * {@link isEarlier} refuses a non-strict step.
  *
  * @param oldest - Calendar day of the oldest row collected.
- * @returns Last instant of that calendar day, local.
+ * @returns Last instant of that calendar day, read in the ambient zone.
  */
 function endOfOldest(oldest: string): Date {
-  const shifted = moment(oldest, DAY).endOf('day');
-  return shifted.toDate();
+  return moment(oldest, BANK_DAY_FORMAT).endOf('day').toDate();
 }
 
 /**
@@ -168,7 +176,7 @@ function refuse(args: IBackfillPlanArgs, reason: string): IBackfillPlan {
  * @returns The authorisation.
  */
 function accept(args: IBackfillPlanArgs, next: Date, gap: string): IBackfillPlan {
-  const when = moment(next).format(DAY);
+  const when = moment(next).format(BANK_DAY_FORMAT);
   const reason = `${gap} — re-asking with end=${when}`;
   const plan: IBackfillPlan = { shouldAsk: true, nextEnd: some(next), reason };
   return report(args, plan);
