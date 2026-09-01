@@ -1,5 +1,17 @@
 # Changelog
 
+## [8.7.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.10...v8.7.0) (2026-09-01)
+
+
+### Features
+
+* **pipeline:** warn on Legacy-only scraper options ([#542](https://github.com/sergienko4/israeli-bank-scrapers/issues/542)) ([bff63e7](https://github.com/sergienko4/israeli-bank-scrapers/commit/bff63e788896607428bbf04fe6d32e86d25ed70a))
+
+
+### Bug Fixes
+
+* **scrape:** resolve bank dates in the bank's own calendar ([#549](https://github.com/sergienko4/israeli-bank-scrapers/issues/549)) ([382feda](https://github.com/sergienko4/israeli-bank-scrapers/commit/382fedaf8d4c7959fb71184d6895d5c56335ace5))
+
 ## [8.6.10](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.9...v8.6.10) (2026-08-30)
 
 
