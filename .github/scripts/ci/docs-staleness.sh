@@ -43,6 +43,11 @@ STAGE_MODE="${STAGE_MODE:-0}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 DOCS_DIR="${REPO_ROOT}/docs"
 
+# Associative arrays are bash 4+; macOS ships bash 3.2, so this gate
+# would abort with "declare: -A: invalid option" on every macOS commit.
+# shellcheck source=.github/scripts/ci/portable-map.sh
+. "$(dirname "${BASH_SOURCE[0]}")/portable-map.sh"
+
 # Resolve base — same retry pattern as docs-coverage.sh.
 if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
   echo "[docs-staleness] BASE_SHA ${BASE_SHA} not reachable; fetching ${BASE_REF}." >&2
@@ -119,16 +124,15 @@ if [ -z "$CHANGED" ]; then
   exit 0
 fi
 
-# Sets of (a) declared source files and (b) docs files touched.
-declare -A DECLARED_SRC=()
-declare -A DOCS_TOUCHED=()
-while IFS=$'\t' read -r src doc; do
-  DECLARED_SRC["$src"]+="${doc}"$'\n'
-done <<< "$MAP"
-
+# `MAP` is already a "src<TAB>doc" record set — which is exactly the
+# portable-map encoding — so it doubles as the src -> [doc, ...] map
+# and needs no separate index built from it.
+#
+# Set of docs files touched by this diff.
+DOCS_TOUCHED=''
 while IFS= read -r f; do
   case "$f" in
-    docs/*.md|docs/**/*.md) DOCS_TOUCHED["$f"]=1 ;;
+    docs/*.md|docs/**/*.md) map_put DOCS_TOUCHED "$f" 1 ;;
   esac
 done <<< "$CHANGED"
 
@@ -140,12 +144,12 @@ while IFS= read -r f; do
     docs/*) continue ;;
     *.md) continue ;;
   esac
-  declared="${DECLARED_SRC[$f]:-}"
+  declared="$(map_get_all MAP "$f")"
   [ -z "$declared" ] && continue
   any_touched=0
   while IFS= read -r doc; do
     [ -z "$doc" ] && continue
-    if [ -n "${DOCS_TOUCHED[$doc]:-}" ]; then
+    if map_has DOCS_TOUCHED "$doc"; then
       any_touched=1
       break
     fi
@@ -170,7 +174,7 @@ for f in "${STALE[@]}"; do
   while IFS= read -r doc; do
     [ -z "$doc" ] && continue
     echo "      declared in: ${doc}" >&2
-  done <<< "${DECLARED_SRC[$f]}"
+  done <<< "$(map_get_all MAP "$f")"
 done
 cat >&2 <<EOF
 

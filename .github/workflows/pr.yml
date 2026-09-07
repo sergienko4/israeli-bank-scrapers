@@ -355,6 +355,12 @@ jobs:
       - name: Docs coverage extractor unit test
         if: needs.changes.outputs.ci_scripts == 'true'
         run: bash .github/scripts/ci/tests/extract-exports.test.sh
+      - name: Portable map unit test (gate scripts must run on bash 3.2)
+        if: needs.changes.outputs.ci_scripts == 'true'
+        run: bash .github/scripts/ci/tests/portable-map.test.sh
+      - name: Shell portability (gates must run on macOS/Windows too)
+        if: needs.changes.outputs.ci_scripts == 'true'
+        run: npm run lint:shell-portability
       - name: Docs coverage canary
         if: github.event_name == 'pull_request' && needs.changes.outputs.pipeline_ts == 'true'
         env:

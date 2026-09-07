@@ -208,7 +208,11 @@ if [ -n "$ARCH_FILES" ]; then
     else
         ARCH_LIST=$(mktemp)
         echo "$ARCH_FILES" > "$ARCH_LIST"
-        bg_gate "architecture" "yes" bash -c "xargs -a '$ARCH_LIST' npx tsx src/Tests/Tools/lint-and-validate.ts"
+        # Read the list from stdin, NOT `xargs -a` — `-a` is a GNU
+        # extension and macOS ships BSD xargs, where it aborts with
+        # "illegal option -- a". Redirection is POSIX and behaves
+        # identically on GNU, BSD and Git-Bash.
+        bg_gate "architecture" "yes" bash -c "xargs npx tsx src/Tests/Tools/lint-and-validate.ts < '$ARCH_LIST'"
     fi
 else
     log "  ⏭️  architecture skipped — no src/ files staged"
@@ -416,7 +420,7 @@ wait_all
 # # blocks before burning real-bank time / WAF / OTP rate-limit budget.
 # # Sequential because Camoufox instances cannot run concurrently
 # # (upstream bug #386).
-run-integration-modes() {
+run_integration_modes() {
     log ""
     log "🧪 Phase 4: Integration Mode A (HARD GATE — no relaxation)"
     # Mode B was REMOVED from pre-commit on 2026-06-10 — it averages
@@ -447,7 +451,7 @@ run-integration-modes() {
 # `Integration Mode a (<bank>)` CI matrix (pr.yml) — 7 parallel jobs vs.
 # the sequential ~2 min local run. Mode B already runs CI-only. Re-enable
 # for local validation via `npm run test:integration:mode-a`.
-#run-integration-modes
+#run_integration_modes
 
 # # ── Phase 5: Live E2E (real banks, FINAL gate) ──
 # # This is the last gate — if it passes, the commit proceeds.
@@ -460,7 +464,7 @@ run-integration-modes() {
 # # (5+ parallel Camoufox containers saturating the host resolver,
 # # producing "Server Not Found" on bank URLs) that is tracked for a
 # # follow-up. Until that is resolved, host sequential mode stays.
-run-e2e-happy-path() {
+run_e2e_happy_path() {
     log ""
     log "🔴 Phase 5: Live E2E — happy-path (Rule #16 — never parallel with Isracard)"
     npm run test:e2e:real 2>&1 | tee -a "$LOG_FILE"
@@ -474,8 +478,8 @@ run-e2e-happy-path() {
 # pre-commit concern — it burns real-bank WAF / OTP budget on every
 # commit. CI's `E2E Real {A,B,C} — approval gate` jobs cover this.
 # Re-enable locally via `npm run test:e2e:real` before pushing.
-# run-e2e-happy-path
-#run-e2e-happy-path
+# run_e2e_happy_path
+#run_e2e_happy_path
 
 log "══════════════════════════════════════════════════════"
 log "✅  ALL LOCAL GATES PASSED. COMMITTING..."

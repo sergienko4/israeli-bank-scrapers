@@ -74,6 +74,8 @@
     "lint:node-support": "node scripts/check-node-support.mjs",
     "lint:coderabbit-filters": "node scripts/check-coderabbit-filters.mjs",
     "lint:jest-scopes": "node scripts/check-jest-scopes.mjs",
+    "lint:shell-tests": "bash .github/scripts/ci/tests/extract-exports.test.sh && bash .github/scripts/ci/tests/portable-map.test.sh",
+    "lint:shell-portability": "node scripts/check-shell-portability.mjs",
     "lint:public-surface": "node scripts/check-public-surface.mjs --check",
     "lint:syntax-guardrails": "node scripts/check-syntax-guardrails.mjs",
     "compat:build": "node scripts/build-compatibility.mjs",
