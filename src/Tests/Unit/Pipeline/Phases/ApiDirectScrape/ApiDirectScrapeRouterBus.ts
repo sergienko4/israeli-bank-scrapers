@@ -56,25 +56,75 @@ function buildRoute(
 }
 
 /**
+ * Typed failure for an operation this router deliberately does not implement.
+ *
+ * <p>Loud rather than silent: a spec that reaches one of these is exercising
+ * a path it never set up, and must fail rather than read `undefined`.
+ * @param name - The operation that was called.
+ * @returns A failed procedure naming the operation.
+ */
+function unsupported<T>(name: string): Procedure<T> {
+  return fail(ScraperErrorTypes.Generic, `router bus does not implement ${name}`);
+}
+
+/**
+ * `apiPost` stand-in: this router serves queued query responses only.
+ * @returns A failed procedure naming the operation.
+ */
+function unsupportedPost<T>(): Promise<Procedure<T>> {
+  const failure = unsupported<T>('apiPost');
+  return Promise.resolve(failure);
+}
+
+/**
+ * `apiGet` stand-in: this router serves queued query responses only.
+ * @returns A failed procedure naming the operation.
+ */
+function unsupportedGet<T>(): Promise<Procedure<T>> {
+  const failure = unsupported<T>('apiGet');
+  return Promise.resolve(failure);
+}
+
+/**
+ * `primeSession` stand-in: specs that need a warm session build it directly.
+ * @returns A failed procedure naming the operation.
+ */
+function unsupportedPrime(): Promise<Procedure<string>> {
+  const failure = unsupported<string>('primeSession');
+  return Promise.resolve(failure);
+}
+
+/**
  * Build a router-backed mock mediator that shifts one queued response per
  * operation call.
+ *
+ * <p>The result is annotated `IApiMediator` rather than cast to it, so a
+ * member added to the mediator surface breaks this factory at compile time
+ * instead of surfacing as an `undefined is not a function` inside a spec.
  * @param router - Per-op ordered response queue.
  * @returns Mock mediator.
  */
 export function makeRouterBus(router: RouterQueues): IApiMediator {
   const queues = cloneQueues(router);
   const route = buildRoute(queues);
-  const apiQuery = jest.fn(route);
-  return {
-    apiPost: jest.fn(),
-    apiGet: jest.fn(),
+  // The only cast left, and a narrow one: the queue is deliberately
+  // heterogeneous (`Procedure<unknown>`), which no generic signature can
+  // express. It hides no missing member.
+  const apiQuery = jest.fn(route) as IApiMediator['apiQuery'];
+  const bus: IApiMediator = {
+    apiPost: unsupportedPost,
+    apiGet: unsupportedGet,
     apiQuery,
-    setBearer: jest.fn(),
-    setRawAuth: jest.fn(),
+    setBearer: jest.fn((): boolean => true),
+    setRawAuth: jest.fn((): boolean => true),
     setSessionContext: jest.fn((): boolean => true),
+    withTokenResolver: jest.fn((): true => true),
+    withTokenStrategy: jest.fn((): true => true),
+    primeSession: unsupportedPrime,
     ...makeRecoverySessionStubs(),
     getSessionContext: jest.fn((): Readonly<Record<string, unknown>> => ({})),
-  } as unknown as IApiMediator;
+  };
+  return bus;
 }
 
 export type { RouterQueues };

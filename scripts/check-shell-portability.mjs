@@ -40,7 +40,7 @@
  *   0  no known-unportable construct found
  *   1  at least one found (details on stderr)
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { lstatSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 /** Directories scanned for shell code, relative to the repo root. */
@@ -106,12 +106,21 @@ function isShellFile(path, name) {
   return !name.includes('.');
 }
 
-/** Every shell file under `dir`, recursively. */
+/**
+ * Every shell file under `dir`, recursively.
+ *
+ * <p>`lstat`, not `stat`: `stat` follows links, so a dangling link killed the
+ * whole gate with `ENOENT` and a link back into the tree made the walk
+ * re-enter itself forever. A link is never the file we are responsible for —
+ * its target is walked on its own account if it lives under a root.
+ */
 function collect(dir, out) {
   for (const name of readdirSync(dir)) {
     if (SKIP.has(name)) continue;
     const path = join(dir, name);
-    if (statSync(path).isDirectory()) collect(path, out);
+    const entry = lstatSync(path);
+    if (entry.isSymbolicLink()) continue;
+    if (entry.isDirectory()) collect(path, out);
     else if (isShellFile(path, name)) out.push(path);
   }
   return out;

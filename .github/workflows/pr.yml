@@ -439,6 +439,45 @@ jobs:
         continue-on-error: true
 
   # ──────────────────────────────────────────────────────────────
+  # The gate scripts' bash-3.2 claim, actually exercised.
+  #
+  # `lint-and-types` already runs these two test scripts, but on
+  # ubuntu-latest — bash 5.x, where every construct the portable
+  # helpers exist to avoid works fine. So the step named "gate
+  # scripts must run on bash 3.2" could not fail for the reason it
+  # names, which is precisely how `declare -A` reached `main` and
+  # broke these gates on a maintainer's Mac.
+  #
+  # macOS is the only runner that can prove it: Apple still ships
+  # bash 3.2.57, the last GPLv2 release. The runner is free for
+  # public repositories, and the leg is skipped entirely unless
+  # `ci_scripts` changed. `--version` is printed first so a future
+  # image that quietly ships bash 5 as /bin/bash is visible in the
+  # log rather than silently making this leg vacuous again.
+  #
+  # `lint:shell-portability` deliberately stays on ubuntu only: it
+  # is a static scan whose result cannot depend on the host shell.
+  # ──────────────────────────────────────────────────────────────
+  portability-macos:
+    name: Gate scripts on bash 3.2 (macOS)
+    needs: changes
+    if: needs.changes.outputs.ci_scripts == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Record the shell this leg actually exercises
+        run: /bin/bash --version
+      - name: Portable map unit test
+        run: /bin/bash .github/scripts/ci/tests/portable-map.test.sh
+      - name: Docs coverage extractor unit test
+        run: /bin/bash .github/scripts/ci/tests/extract-exports.test.sh
+
+  # ──────────────────────────────────────────────────────────────
   # Unit tests with coverage — parallel with the e2e and integration
   # jobs. Camoufox is NOT needed here (jest.pipeline.config.cjs
   # excludes the browser-driven suites).
@@ -877,6 +916,7 @@ jobs:
     needs:
       - changes
       - lint-and-types
+      - portability-macos
       - unit-tests
       - memory
       - decoupling

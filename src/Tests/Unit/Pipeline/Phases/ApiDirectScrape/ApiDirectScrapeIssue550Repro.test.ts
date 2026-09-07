@@ -672,3 +672,65 @@ describe('Pepper #550 — an unusable count is a reporting failure, never a lie'
     expect(warned).toHaveLength(0);
   });
 });
+
+/** A marker only a leaked error message could put into the log. */
+const LEAK_MARKER = 'IL620108000000099999999';
+
+/**
+ * Build a `countDiscovered` stand-in that throws a chosen message.
+ * @param message - The message the throw will carry.
+ * @returns A counter that always throws.
+ */
+function counterThrowing(message: string): () => number {
+  return () => {
+    throw new ScraperError(message);
+  };
+}
+
+/**
+ * Run a shape against a context whose logger throws on every `warn`.
+ * @param shape - Shape under test.
+ * @param bus - Pre-loaded mediator.
+ * @returns The procedure the action emitted.
+ */
+async function runWithBrokenWarn<TAcct, TCursor>(
+  shape: IApiDirectScrapeShape<TAcct, TCursor>,
+  bus: IApiMediator,
+): Promise<Procedure<ApiDirectScrapeResult>> {
+  const phase = createApiDirectScrapePhase(shape);
+  const base = pepperContext(bus);
+  const logger = Object.create(base.logger) as IActionContext['logger'];
+  logger.warn = EXPLODE;
+  return phase({ ...base, logger });
+}
+
+describe('Pepper #550 — the reporting warning is bounded and cannot break a run', () => {
+  it('P550-DIAG-12 a thrown message never reaches the log', async () => {
+    // The report promises counts only. A shape's exception text is arbitrary
+    // bank-authored data, so it must never be copied into a log payload.
+    const healthy = succeed(PEPPER_CASE.fixtures.balance);
+    const bus = ilsBusWithBalance(healthy);
+    const countDiscovered = counterThrowing(LEAK_MARKER);
+    const shape = pepperShapeWith({ countDiscovered });
+
+    const lines = await logLinesOf(shape, bus, 'warn');
+
+    const serialised = JSON.stringify(lines);
+    const failures = failureLinesOf(lines);
+    expect(failures).toHaveLength(1);
+    expect(serialised).not.toContain(LEAK_MARKER);
+  });
+
+  it('P550-DIAG-13 a logger that cannot warn still cannot fail the scrape', async () => {
+    // The last link in the chain: reporting a reporting failure must not
+    // become the thing that discards the money we already fetched.
+    const healthy = succeed(PEPPER_CASE.fixtures.balance);
+    const bus = ilsBusWithBalance(healthy);
+    const countDiscovered = counterReturning(Number.NaN);
+    const shape = pepperShapeWith({ countDiscovered });
+
+    const result = await runWithBrokenWarn(shape, bus);
+
+    expect(result.success).toBe(true);
+  });
+});

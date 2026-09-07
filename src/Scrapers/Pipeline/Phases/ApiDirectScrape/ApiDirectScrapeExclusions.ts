@@ -60,15 +60,24 @@ function logExclusion<TAcct, TCursor>(
 
 /**
  * Emit the single warning that says reporting itself could not be done.
+ *
+ * <p>The emission is itself contained. A logger that cannot log is the one
+ * failure that cannot be reported, and losing a warning is survivable where
+ * losing an already-fetched scrape is not.
  * @param d - Driver context.
- * @param reason - Why the report could not be produced.
+ * @param reason - Why the report could not be produced. Must be a string this
+ * module composed itself — never text authored by a bank shape.
  * @returns Zero — nothing could be reported as excluded.
  */
 function warnReportFailed<TAcct, TCursor>(
   d: IDriverCtx<TAcct, TCursor>,
   reason: string,
 ): ExcludedProductCount {
-  d.ctx.logger.warn({ message: EXCLUSION_REPORT_FAILED, reason });
+  try {
+    d.ctx.logger.warn({ message: EXCLUSION_REPORT_FAILED, reason });
+  } catch {
+    // Nothing left to report with. Deliberately swallowed.
+  }
   return 0 as ExcludedProductCount;
 }
 
@@ -147,7 +156,10 @@ function reportChecked<TAcct, TCursor>(
  * <p>Only a non-zero exclusion is worth a line — reporting on every clean run
  * would train operators to ignore it. The report carries counts ONLY: account
  * ids, numbers and product categories never reach the log
- * (`logging-pii-guidlines.md`).
+ * (`logging-pii-guidlines.md`). That is why a throw is reported by TYPE and
+ * never by message: an exception raised inside bank-authored code can carry
+ * account data in its text, so copying it into a log payload would leak
+ * through the diagnostics channel.
  * @param d - Driver context.
  * @param args - The bundle handed to the shape's extractor.
  * @param selected - How many accounts the extractor kept.
@@ -161,7 +173,7 @@ export default function reportExcludedProducts<TAcct, TCursor>(
   try {
     return reportChecked(d, args, selected);
   } catch (error) {
-    const reason = toError(error).message;
-    return warnReportFailed(d, reason);
+    const kind = toError(error).name;
+    return warnReportFailed(d, `countDiscovered threw ${kind}`);
   }
 }

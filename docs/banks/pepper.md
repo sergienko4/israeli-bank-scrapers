@@ -74,6 +74,14 @@ Both failure modes were silent-omission defects one level down: a non-integer
 delta would be published as a measurement it is not (`excluded: NaN`), while
 an under-count produced a negative delta that suppressed the report entirely.
 
+The containment is text-free and self-terminating. What the throw carries is
+bank-authored — an `Error.message` can quote an account number the payload
+held — so the warning names only the exception's *type*, never its message,
+keeping the counts-only promise the log line above already makes. And because
+the last thing that can fail is the act of reporting a failure, the warning
+emission is wrapped in turn: a logger whose `warn` throws is swallowed rather
+than allowed to discard the scrape it was only meant to describe.
+
 ## Balance is truthful, never a fabricated zero
 
 Pepper's balance step declares `fallbackOnFail: BALANCE_UNKNOWN`. A rejected
