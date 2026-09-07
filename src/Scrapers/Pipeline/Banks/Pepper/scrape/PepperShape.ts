@@ -12,6 +12,7 @@ import type {
   HeaderMap,
   IApiDirectScrapeShape,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import { BALANCE_UNKNOWN } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import type { IPepperCreds } from '../PepperCreds.js';
@@ -21,7 +22,9 @@ type PepperUserId = Brand<string, 'PepperUserId'>;
 import {
   accountNumberOf,
   balanceExtract,
+  balanceIsAbsent,
   balanceVars,
+  countDiscovered,
   customerVars,
   extractAccounts,
   type IPepperAcct,
@@ -77,11 +80,17 @@ const PEPPER_SHAPE: IApiDirectScrapeShape<IPepperAcct, number> = {
   customer: {
     buildVars: customerVars,
     extractAccounts,
+    countDiscovered,
     extraHeaders: dynamicHeaders('UserDataV2'),
   },
   balance: {
     buildVars: balanceVars,
     extract: balanceExtract,
+    isAbsent: balanceIsAbsent,
+    // A rejected balance call must not discard a scrape whose transactions are
+    // already in hand (issue #550). Pepper HAS a real figure, so no number
+    // would be honest here — the account is published without a balance.
+    fallbackOnFail: BALANCE_UNKNOWN,
     extraHeaders: dynamicHeaders('fetchAccountBalance'),
   },
   transactions: {

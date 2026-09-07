@@ -71,6 +71,33 @@ leaving the account list empty). It keys on accounts only, never
 transactions, so an empty-but-healthy account (OneZero / Pepper) stays
 successful.
 
+The zero-account floor is **universal**, so a shape's own guard must add
+to it rather than replace it. `withZeroAccountsFloor` composes the two:
+it runs the floor first and only then delegates to the shape's
+`ScrapeResultGuard`. The phase previously wired `shape.resultGuard ??
+zeroAccountsGuard`, which meant declaring a guard silently *lost* the
+floor — PayBox was the only such shape, and so the only bank that could
+complete a scrape resolving no accounts as a silent success.
+
+### `fallbackOnFail` — masked zero vs truthful unknown
+
+A shape's balance step may declare `fallbackOnFail` so a rejected
+balance degrades the run instead of failing it. The value chosen decides
+what the caller is told:
+
+| Declaration        | Balance reported     | Meaning to a consumer                     |
+| ------------------ | -------------------- | ----------------------------------------- |
+| numeric (e.g. `0`) | the number           | indistinguishable from a genuine zero     |
+| `BALANCE_UNKNOWN`  | key omitted entirely | explicitly "not known"                    |
+| none               | run fails            | loud failure, no partial result           |
+
+`BALANCE_UNKNOWN` (type `BalanceUnknown`) is the truthful option and the
+one Pepper uses. Because `ITransactionsAccount.balance` is optional,
+omitting the key is the only way to express "unknown" without inventing
+a figure; a shape can additionally declare `isAbsent` (Pepper supplies
+`balanceIsAbsent`) so a payload that carries no balance at all is
+treated as unknown rather than as a parse failure.
+
 ## Per-bank shape extractors
 
 Each api-direct bank declares its own `IApiDirectScrapeShape`:

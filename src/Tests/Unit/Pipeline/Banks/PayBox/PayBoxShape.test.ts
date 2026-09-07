@@ -12,6 +12,7 @@
  */
 
 import { ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
+import { PAYBOX_DEGRADED_SCRAPE_MSG } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxResultGuard.js';
 import { PAYBOX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/PayBox/scrape/PayBoxShape.js';
 import {
   accountNumberOf,
@@ -36,6 +37,7 @@ import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IActionContext,
   IPipelineContext,
+  IScrapeState,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -402,6 +404,43 @@ describe('PayBoxShape result-guard (fail-closed) — PB-GUARD', () => {
     const pctx: IPipelineContext = { ...base, scrape: scraped.value.scrape };
     const result = await phase.post(pctx, pctx);
     expect(result.success).toBe(true);
+  });
+
+  it('PB-GUARD-7 zero accounts fails LOUDLY even though PayBox declares its own guard', async () => {
+    // Issue #550 fallout: the phase used `shape.resultGuard ?? zeroAccountsGuard`,
+    // so declaring a guard silently REPLACED the universal zero-account floor.
+    // PayBox was the only shape with its own guard and so the only bank that
+    // could complete a scrape resolving no accounts as a silent success.
+    const phase = buildApiDirectScrapePhase(PAYBOX_SHAPE);
+    const base = makeMockContext();
+    const emptyScrape: IScrapeState = { accounts: [], balanceDegraded: false };
+    const pctx: IPipelineContext = { ...base, scrape: some(emptyScrape) };
+
+    const result = await phase.post(pctx, pctx);
+
+    expect(result.success).toBe(false);
+    const message = result.success ? '' : result.errorMessage;
+    expect(message).toContain('zero accounts');
+  });
+
+  it('PB-GUARD-8 PayBox own guard still fires THROUGH the zero-account floor', async () => {
+    // Companion to PB-GUARD-7. That spec proves the floor was ADDED; this one
+    // proves the shape guard was not LOST in the process. A `withZeroAccountsFloor`
+    // that wrongly returned the floor alone would still pass PB-GUARD-7 and every
+    // direct `payBoxResultGuard` unit test, because neither drives a shape guard
+    // through the phase. One account + zero txns + a degraded balance clears the
+    // floor and can only fail via PayBox's OWN predicate.
+    const phase = buildApiDirectScrapePhase(PAYBOX_SHAPE);
+    const base = makeMockContext();
+    const account = { accountNumber: 'pb-acct-1', balance: 0, txns: [] };
+    const degraded: IScrapeState = { accounts: [account], balanceDegraded: true };
+    const pctx: IPipelineContext = { ...base, scrape: some(degraded) };
+
+    const result = await phase.post(pctx, pctx);
+
+    expect(result.success).toBe(false);
+    const message = result.success ? '' : result.errorMessage;
+    expect(message).toBe(PAYBOX_DEGRADED_SCRAPE_MSG);
   });
 
   it('PB-GUARD-3 guard is wired on PayBox only (OneZero + Pepper opt out)', () => {

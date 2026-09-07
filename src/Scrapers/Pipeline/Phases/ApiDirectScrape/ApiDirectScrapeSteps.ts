@@ -22,14 +22,14 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { dispatchStep } from './ApiDirectScrapeDispatch.js';
 import {
-  buildBalanceDispatchArgs,
   buildCustomerDispatchArgs,
   buildTxnsDispatchArgs,
   type IAcctCtx,
   type IDriverCtx,
   resolveSecondaryUrlTag,
 } from './ApiDirectScrapeDispatchArgs.js';
-import type { ApiBody, IBalanceOutcome } from './IApiDirectScrapeShape.js';
+import reportExcludedProducts from './ApiDirectScrapeExclusions.js';
+import type { ApiBody, IExtractAccountsArgs } from './IApiDirectScrapeShape.js';
 
 /** Stop signal — branded so Rule #15 accepts the boolean return. */
 type ShouldStop = Brand<boolean, 'GenericHeadlessShouldStop'>;
@@ -50,6 +50,21 @@ async function fetchSecondaryBody<TAcct, TCursor>(
   const tag = resolveSecondaryUrlTag(d);
   if (tag === false) return succeed<ApiBody>(EMPTY_BODY);
   return d.bus.apiGet<ApiBody>(tag);
+}
+
+/**
+ * Extract the account list and report anything the shape filtered out.
+ * @param d - Driver context.
+ * @param args - Extract-args bundle.
+ * @returns Account refs procedure.
+ */
+function extractAndReport<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+  args: IExtractAccountsArgs,
+): Procedure<readonly TAcct[]> {
+  const accts = d.shape.customer.extractAccounts(args);
+  reportExcludedProducts(d, args, accts.length);
+  return succeed(accts);
 }
 
 /**
@@ -74,8 +89,7 @@ function runExtract<TAcct, TCursor>(
 ): Procedure<readonly TAcct[]> {
   const sessionContext = d.bus.getSessionContext();
   try {
-    const accts = d.shape.customer.extractAccounts({ body, secondaryBody, sessionContext });
-    return succeed(accts);
+    return extractAndReport(d, { body, secondaryBody, sessionContext });
   } catch (error) {
     const message = toError(error).message;
     return fail(ScraperErrorTypes.Generic, `extractAccounts threw: ${message}`);
@@ -114,31 +128,6 @@ export async function fetchAccounts<TAcct, TCursor>(
   const resp = await dispatchStep(dispatchArgs);
   if (!isOk(resp)) return resp;
   return extractAccts(d, resp.value);
-}
-
-/**
- * Fetch one account's balance, honouring fallbackOnFail when set.
- *
- * `extract` receives the account as well as the response so a shape whose
- * balance already rode an earlier step can answer from it (Max) rather than
- * issue a second call.
- * @param a - Per-account context.
- * @returns Balance outcome procedure (value + degraded flag).
- */
-export async function fetchBalance<TAcct, TCursor>(
-  a: IAcctCtx<TAcct, TCursor>,
-): Promise<Procedure<IBalanceOutcome>> {
-  if (a.shape.balance.skipFetch === true) {
-    return succeed({ value: a.shape.balance.extract(EMPTY_BODY, a.acct), degraded: false });
-  }
-  const dispatchArgs = buildBalanceDispatchArgs(a);
-  const resp = await dispatchStep(dispatchArgs);
-  if (isOk(resp)) {
-    return succeed({ value: a.shape.balance.extract(resp.value, a.acct), degraded: false });
-  }
-  const fb = a.shape.balance.fallbackOnFail;
-  if (fb === undefined) return resp;
-  return succeed({ value: fb, degraded: true });
 }
 
 /** Page fetcher signature consumed by fetchPaginated. */

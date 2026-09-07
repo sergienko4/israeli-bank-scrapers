@@ -32,6 +32,7 @@ import {
   PEPPER_CASE,
   SYN_CASE,
 } from './ApiDirectScrapeBankShapes.js';
+import { makeRouterBus } from './ApiDirectScrapeRouterBus.js';
 
 /** Pepper headers consult ctx.credentials.phoneNumber — provide one for the real shape. */
 const PEPPER_TEST_CREDENTIALS = {
@@ -51,38 +52,6 @@ interface ISelfHealArgs {
 interface ISelfHealHandle {
   readonly bus: IApiMediator;
   readonly recoverSession: jest.Mock;
-}
-
-/**
- * Build a router-backed mock mediator.
- * @param router - Per-op ordered response queue.
- * @returns Mock mediator.
- */
-function makeRouterBus(router: Record<string, readonly Procedure<unknown>[]>): IApiMediator {
-  const queues: Record<string, Procedure<unknown>[]> = {};
-  for (const key of Object.keys(router)) queues[key] = [...router[key]];
-  /**
-   * Shift the queue for an operation.
-   * @param op - Operation label.
-   * @returns Next queued procedure.
-   */
-  async function route(op: string): Promise<Procedure<unknown>> {
-    await Promise.resolve();
-    const q = queues[op] ?? [];
-    const head = q.shift();
-    if (head) return head;
-    return fail(ScraperErrorTypes.Generic, `no stub for op=${op}`);
-  }
-  const apiQuery = jest.fn(route);
-  return {
-    apiPost: jest.fn(),
-    apiGet: jest.fn(),
-    apiQuery,
-    setBearer: jest.fn(),
-    setRawAuth: jest.fn(),
-    setSessionContext: jest.fn((): boolean => true),
-    getSessionContext: jest.fn((): Readonly<Record<string, unknown>> => ({})),
-  } as unknown as IApiMediator;
 }
 
 /**
@@ -309,5 +278,69 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
     assertHas(scr);
     expect(recoverSession).not.toHaveBeenCalled();
     expect(scr.value.accounts).toHaveLength(0);
+  });
+});
+
+describe('ApiDirectScrape self-heal — Pepper deployed shape (issue #550)', () => {
+  // The parameterised SH-1 above runs Pepper through `degradedShape`, which
+  // REPLACES `fallbackOnFail: BALANCE_UNKNOWN` with the numeric `0` (Pepper
+  // declares no `fixtures.fallbackBalance`). These two specs drive
+  // `PEPPER_CASE.shape` UNCHANGED, so they are the only self-heal coverage of
+  // the configuration that actually ships.
+  const pepperShape = PEPPER_CASE.shape as IApiDirectScrapeShape<unknown, unknown>;
+
+  it('SH-P550-1 — warm + unknown balance recovers once and heals to a real number', async () => {
+    const { bus, recoverSession } = makeSelfHealBus({
+      router: {
+        customer: [succeed(PEPPER_CASE.fixtures.customer), succeed(PEPPER_CASE.fixtures.customer)],
+        balance: [BALANCE_REJECTED, succeed(PEPPER_CASE.fixtures.balance)],
+        transactions: [
+          succeed(PEPPER_CASE.fixtures.transactions),
+          succeed(PEPPER_CASE.fixtures.transactions),
+        ],
+      },
+      isWarm: true,
+      recover: succeed('fresh-cold-token'),
+    });
+    const phase = createApiDirectScrapePhase(pepperShape);
+
+    const ctx = ctxOf(bus, PEPPER_CASE.name);
+    const result = await phase(ctx);
+
+    assertOk(result);
+    const scr = result.value.scrape;
+    assertHas(scr);
+    expect(recoverSession).toHaveBeenCalledTimes(1);
+    expect(scr.value.balanceDegraded).toBe(false);
+    expect(scr.value.accounts[0].balance).toBe(PEPPER_CASE.fixtures.expectedBalance);
+  });
+
+  it('SH-P550-2 — warm + unknown balance + failed recovery OMITS balance, never reports 0', async () => {
+    // The whole point of `BALANCE_UNKNOWN`: when the figure cannot be learned
+    // the key must be ABSENT, so a consumer sees "unknown" rather than a
+    // fabricated zero that reads as an empty account.
+    const { bus, recoverSession } = makeSelfHealBus({
+      router: {
+        customer: [succeed(PEPPER_CASE.fixtures.customer)],
+        balance: [BALANCE_REJECTED],
+        transactions: [succeed(PEPPER_CASE.fixtures.transactions)],
+      },
+      isWarm: true,
+      recover: fail(ScraperErrorTypes.Generic, 'cold re-login failed'),
+    });
+    const phase = createApiDirectScrapePhase(pepperShape);
+
+    const ctx = ctxOf(bus, PEPPER_CASE.name);
+    const result = await phase(ctx);
+
+    assertOk(result);
+    const scr = result.value.scrape;
+    assertHas(scr);
+    expect(recoverSession).toHaveBeenCalledTimes(1);
+    expect(scr.value.balanceDegraded).toBe(true);
+    const account = scr.value.accounts[0];
+    expect(account).toBeDefined();
+    expect('balance' in account).toBe(false);
+    expect(account.balance).toBeUndefined();
   });
 });

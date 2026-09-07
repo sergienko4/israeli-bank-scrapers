@@ -29,7 +29,7 @@ import type {
   IApiDirectScrapeGuardSummary,
   IApiDirectScrapeShape,
 } from './IApiDirectScrapeShape.js';
-import { zeroAccountsGuard } from './ZeroAccountsGuard.js';
+import { withZeroAccountsFloor } from './ZeroAccountsGuard.js';
 
 export type { ApiDirectScrapeFn, ApiDirectScrapeResult } from './ApiDirectScrapeTypes.js';
 
@@ -230,7 +230,7 @@ function buildApiDirectScrapePhase<TAcct, TCursor>(
   shape: IApiDirectScrapeShape<TAcct, TCursor>,
 ): ApiDirectScrapePhase {
   const fn = buildGenericHeadlessScrape(shape);
-  const guard = shape.resultGuard ?? zeroAccountsGuard;
+  const guard = withZeroAccountsFloor(shape.resultGuard);
   return Reflect.construct(ApiDirectScrapePhase, [fn, guard]);
 }
 

@@ -13,15 +13,24 @@
  *
  * <p>`accountCount === 0` is a universally invalid post-login outcome: a
  * logged-in customer always owns at least one account/card. It is therefore
- * the phase-wide default (applied when a shape declares no `resultGuard`);
- * a shape with its own guard (PayBox's degraded-token guard) keeps it.
- * PII-safe: the message carries no identifiers.
+ * a phase-wide FLOOR, not a default: {@link withZeroAccountsFloor} composes it
+ * ahead of a shape's own guard so declaring one ADDS a check rather than
+ * replacing this one. PII-safe: the message carries no identifiers.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, succeed } from '../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { IApiDirectScrapeGuardSummary } from './IApiDirectScrapeShape.js';
+
+/**
+ * A scrape result guard — mirrors `IApiDirectScrapeShape.resultGuard`.
+ *
+ * Declared here rather than imported from `ApiDirectScrapePhase.ts` because
+ * that module imports this one; importing back would close a cycle the
+ * acyclic-dependencies gate forbids.
+ */
+type ScrapeResultGuard = (summary: IApiDirectScrapeGuardSummary) => Procedure<void>;
 
 /**
  * PII-free operator message: what was OBSERVED (zero accounts) plus every
@@ -53,4 +62,24 @@ export function zeroAccountsGuard(summary: IApiDirectScrapeGuardSummary): Proced
   return succeed(undefined);
 }
 
+/**
+ * Compose the universal zero-account floor AHEAD of a shape's own guard.
+ *
+ * <p>The phase previously wired `shape.resultGuard ?? zeroAccountsGuard`, so a
+ * shape that declared a guard silently LOST the floor — PayBox, the only such
+ * shape, could complete a scrape resolving no accounts as a silent success.
+ * The floor is universal, so a shape guard must ADD to it, never replace it.
+ * @param shapeGuard - The shape's own guard, when it declares one.
+ * @returns The floor alone, or the floor followed by the shape's guard.
+ */
+export function withZeroAccountsFloor(shapeGuard?: ScrapeResultGuard): ScrapeResultGuard {
+  if (shapeGuard === undefined) return zeroAccountsGuard;
+  return function guardWithFloor(summary: IApiDirectScrapeGuardSummary): Procedure<void> {
+    const floor = zeroAccountsGuard(summary);
+    if (!isOk(floor)) return floor;
+    return shapeGuard(summary);
+  };
+}
+
 export default zeroAccountsGuard;
+export type { ScrapeResultGuard };
