@@ -127,7 +127,8 @@ async function fetchAccountTxns<TAcct, TCursor>(
  * `ITransactionsAccount.balance` is optional, so leaving the key out is the
  * only truthful way to say "we do not know". Emitting `0` would publish a
  * number the bank never gave us; emitting `undefined` would still create the
- * key and survive a `JSON.stringify` round-trip as a null.
+ * key, so `'balance' in account` and `Object.keys` would both report a
+ * balance the bank never sent.
  * @param outcome - Balance outcome from the balance step.
  * @returns Either `{ balance }` or an empty object.
  */

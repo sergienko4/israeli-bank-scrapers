@@ -312,7 +312,7 @@ export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> {
  * Balance fetch outcome: the figure plus whether it came from a fallback.
  *
  * `value` is ABSENT when the balance is unknown — either the call failed
- * under `fallbackOnFail: 'unknown'` or a successful response carried no
+ * under {@link BALANCE_UNKNOWN} or a successful response carried no
  * figure. Absent is not `0`: the driver omits the account's optional
  * `balance` field so an unknown balance never masquerades as an empty one.
  */

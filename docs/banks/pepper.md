@@ -23,7 +23,10 @@ const result = await scraper.scrape({
 ## Known quirks
 
 - Uses **asymmetric (ECDSA-P256 / RSA-2048) signing** with the signature attached as a request header.
-- REST API throughout (no GraphQL) — `/transactions` + `/balance` endpoints.
+- **GraphQL throughout** — a single gateway serving three operations
+  (`UserDataV2`, `fetchAccountBalance`, `Transactions`). The gateway also
+  requires a `queryname` request header matching the operation name, supplied
+  by the scrape shape as `extraHeaders`.
 - Pepper is on the Headless mediator path — its `PipelineDescriptor` is composed via the fluent `PipelineBuilder` rather than the declarative literal style.
 - Only **current accounts** are scrapeable; every other product the profile holds is skipped at discovery (see below).
 
