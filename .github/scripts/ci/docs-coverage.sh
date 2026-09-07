@@ -69,7 +69,7 @@ load_allowlist() {
   # (Phase 5 PR #277 was the first real test of this code path; the
   # allowlist held only comments until then, hiding the bug).
   { grep -vE '^\s*(#|$)' "$ALLOWLIST_FILE" || true; } \
-    | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | sort -u
+    | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | LC_ALL=C sort -u
 }
 
 # Resolve base — handles same-repo PRs and pre-fetched checkouts.
@@ -176,7 +176,7 @@ for file in "${CHANGED_FILES[@]}"; do
 
   # NEW = HEAD \ BASE (set difference).
   if [ -z "$head_syms" ]; then continue; fi
-  diff_new="$(comm -23 <(printf '%s\n' "$head_syms") <(printf '%s\n' "$base_syms"))"
+  diff_new="$(LC_ALL=C comm -23 <(printf '%s\n' "$head_syms") <(printf '%s\n' "$base_syms"))"
 
   while IFS= read -r sym; do
     [ -z "$sym" ] && continue

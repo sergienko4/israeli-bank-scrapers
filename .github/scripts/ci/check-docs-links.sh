@@ -79,7 +79,7 @@ while IFS= read -r line; do
   fi
 done < <(
   grep -rHoE "${SITE_PREFIX}[A-Za-z0-9._/#-]*" \
-    --include='*.md' README.md docs/ 2>/dev/null | sort -u
+    --include='*.md' README.md docs/ 2>/dev/null | LC_ALL=C sort -u
 )
 
 echo ""

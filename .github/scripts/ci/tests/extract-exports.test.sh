@@ -103,6 +103,40 @@ run_scenario "RenderHealth.ts export shape" \
     "$(printf 'export type { IRenderCounts, IRenderHealth, RenderProbeStatus };\nexport {\n  measureRenderHealth,\n  RENDER_PROBE_TIMEOUT_MS,\n};')" \
     'IRenderCounts IRenderHealth RENDER_PROBE_TIMEOUT_MS RenderProbeStatus measureRenderHealth'
 
+# --- Collation must not follow the ambient locale
+#
+# The extractor's output feeds `comm -23` in docs-coverage.sh, and
+# `comm` is only correct when its inputs are ordered the way it
+# compares. A locale that collates case-blind therefore does not merely
+# reorder a report — it can make the docs gate miss a newly exported,
+# undocumented symbol. Byte order is the contract, whoever runs it.
+#
+# A real locale cannot reproduce this everywhere: the BSD `sort` on
+# macOS 13 ignores UTF-8 collation, while the CI runner's honours it.
+# The double below models the documented behaviour instead — byte order
+# under LC_ALL=C, case-blind otherwise — which is exactly the ordering
+# the macOS CI leg observed.
+SHIM_DIR="$(mktemp -d)"
+trap 'rm -rf "$SHIM_DIR"' EXIT
+REAL_SORT="$(command -v sort)"
+{
+    echo '#!/usr/bin/env bash'
+    echo "[ \"\${LC_ALL:-}\" = C ] && exec \"$REAL_SORT\" \"\$@\""
+    echo "exec \"$REAL_SORT\" -f \"\$@\""
+} >"$SHIM_DIR/sort"
+chmod +x "$SHIM_DIR/sort"
+
+OUTER_PATH="$PATH"
+PATH="$SHIM_DIR:$PATH"
+hash -r
+export LC_ALL=en_US.UTF-8
+run_scenario "sort order does not follow the ambient locale" \
+    "$(printf 'export type { IRenderCounts, IRenderHealth, RenderProbeStatus };\nexport {\n  measureRenderHealth,\n  RENDER_PROBE_TIMEOUT_MS,\n};')" \
+    'IRenderCounts IRenderHealth RENDER_PROBE_TIMEOUT_MS RenderProbeStatus measureRenderHealth'
+unset LC_ALL
+PATH="$OUTER_PATH"
+hash -r
+
 echo
 echo "extract-exports: ${PASS} passed, ${FAIL} failed"
 [ "$FAIL" -eq 0 ] || exit 1

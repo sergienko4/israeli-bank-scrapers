@@ -112,13 +112,13 @@ list_changed_files() {
   fi
 }
 
-MAP="$(build_inverted_map | sort -u)"
+MAP="$(build_inverted_map | LC_ALL=C sort -u)"
 if [ -z "$MAP" ]; then
   echo "[docs-staleness] No docs pages declare source-files: yet. Nothing to enforce. PASS."
   exit 0
 fi
 
-CHANGED="$(list_changed_files | sort -u)"
+CHANGED="$(list_changed_files | LC_ALL=C sort -u)"
 if [ -z "$CHANGED" ]; then
   echo "[docs-staleness] No changed files in this diff. PASS."
   exit 0
