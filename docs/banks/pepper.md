@@ -67,6 +67,13 @@ is not hidden — a diagnostics channel that has stopped working stays visible.
 Conversely, the reporting call sits outside the `extractAccounts` try/catch so
 only a genuine extractor failure can be blamed for `extractAccounts threw`.
 
+Nor can reporting publish a number it cannot believe. A count that is not a
+whole number, or that is smaller than the number of accounts the extractor
+kept, is rejected through that same warning path rather than reaching the log.
+Both failure modes were silent-omission defects one level down: a non-integer
+delta would be published as a measurement it is not (`excluded: NaN`), while
+an under-count produced a negative delta that suppressed the report entirely.
+
 ## Balance is truthful, never a fabricated zero
 
 Pepper's balance step declares `fallbackOnFail: BALANCE_UNKNOWN`. A rejected

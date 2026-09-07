@@ -302,6 +302,15 @@ function exclusionLinesOf(lines: readonly LogLine[]): readonly LogLine[] {
   return lines.filter(line => line.message === ACCOUNTS_FILTERED_LOG);
 }
 
+/**
+ * Pick the reporting-FAILURE line out of recorded log output.
+ * @param lines - Every recorded `warn` payload.
+ * @returns The reporting-failure lines only.
+ */
+function failureLinesOf(lines: readonly LogLine[]): readonly LogLine[] {
+  return lines.filter(line => line.message === EXCLUSION_REPORT_FAILED);
+}
+
 describe('Pepper #550 — unsupported products are excluded at discovery', () => {
   it('P550-EX-1 keeps only supported categories from a multi-product profile', () => {
     const kept = keptIdsOf([FX_PRODUCT, SECURITIES_PRODUCT, ILS_PRODUCT]);
@@ -569,7 +578,97 @@ describe('Pepper #550 — diagnostics never decide the outcome of a scrape', () 
 
     const lines = await logLinesOf(shape, bus, 'warn');
 
-    const warned = lines.filter(line => line.message === EXCLUSION_REPORT_FAILED);
+    const warned = failureLinesOf(lines);
     expect(warned).toHaveLength(1);
+  });
+});
+
+/**
+ * Counts a shape could return that no honest counter ever would.
+ *
+ * <p>`0` is in the list because it is BELOW the number of accounts the
+ * extractor kept — a counter that under-counts is exactly as broken as one
+ * that returns `NaN`, and its old failure mode was the quieter of the two.
+ */
+const UNUSABLE_COUNTS: readonly (readonly [string, number])[] = [
+  ['NaN', Number.NaN],
+  ['an infinite', Number.POSITIVE_INFINITY],
+  ['a negative', -5],
+  ['a fractional', 2.5],
+  ['a below-kept', 0],
+];
+
+/**
+ * Build a `countDiscovered` stand-in that always returns one number.
+ * @param discovered - The number the counter will return.
+ * @returns A counter returning exactly that number.
+ */
+function counterReturning(discovered: number): () => number {
+  return () => discovered;
+}
+
+/**
+ * Run Pepper with a chosen `countDiscovered` and collect one log level.
+ * @param discovered - What the shape's counter will return.
+ * @param level - Which pino level to capture.
+ * @returns Every payload emitted at that level.
+ */
+async function linesForCount(
+  discovered: number,
+  level: 'info' | 'warn',
+): Promise<readonly LogLine[]> {
+  const healthy = succeed(PEPPER_CASE.fixtures.balance);
+  const bus = ilsBusWithBalance(healthy);
+  const countDiscovered = counterReturning(discovered);
+  const shape = pepperShapeWith({ countDiscovered });
+  return logLinesOf(shape, bus, level);
+}
+
+describe('Pepper #550 — an unusable count is a reporting failure, never a lie', () => {
+  it.each(UNUSABLE_COUNTS)(
+    'P550-DIAG-8 %s count never reaches the exclusion log',
+    async (_label, discovered) => {
+      // A payload such as `excluded: NaN` is worse than no payload: it looks
+      // like a measurement.
+      const lines = await linesForCount(discovered, 'info');
+
+      const reported = exclusionLinesOf(lines);
+      expect(reported).toHaveLength(0);
+    },
+  );
+
+  it.each(UNUSABLE_COUNTS)(
+    'P550-DIAG-9 %s count is surfaced through the reporting-failure warning',
+    async (_label, discovered) => {
+      // Rejecting the number must not make it silent — that is the same
+      // silent-omission defect this issue is about, one level down.
+      const lines = await linesForCount(discovered, 'warn');
+
+      const warned = failureLinesOf(lines);
+      expect(warned).toHaveLength(1);
+    },
+  );
+
+  it('P550-DIAG-10 an unusable count still cannot fail the scrape', async () => {
+    const healthy = succeed(PEPPER_CASE.fixtures.balance);
+    const bus = ilsBusWithBalance(healthy);
+    const countDiscovered = counterReturning(Number.NaN);
+    const shape = pepperShapeWith({ countDiscovered });
+
+    const result = await runShape(shape, bus);
+
+    assertOk(result);
+    const { scrape } = result.value;
+    assertHas(scrape);
+    expect(scrape.value.accounts).toHaveLength(1);
+  });
+
+  it('P550-DIAG-11 a count equal to the kept total is not a failure', async () => {
+    // Validation must not become over-eager: discovered === selected is the
+    // ordinary "nothing was excluded" case, not a broken counter.
+    const lines = await linesForCount(1, 'warn');
+
+    const warned = failureLinesOf(lines);
+    expect(warned).toHaveLength(0);
   });
 });
