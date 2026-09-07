@@ -123,6 +123,29 @@ function logDelta<TAcct, TCursor>(
 }
 
 /**
+ * Run the shape's counter, contained, so a throw names the counter.
+ *
+ * <p>Attribution has to happen HERE. Everything else inside the report — the
+ * exclusion line's own emission included — can fail for reasons no bank shape
+ * caused, and a warning that blames `countDiscovered` for those would send an
+ * operator to read blameless code. Only this call site knows the counter ran.
+ * @param count - The shape's counter.
+ * @param args - The bundle handed to the shape's extractor.
+ * @returns The count, or the reason the counter could not produce one.
+ */
+function discover(
+  count: (args: IExtractAccountsArgs) => number,
+  args: IExtractAccountsArgs,
+): number | string {
+  try {
+    return count(args);
+  } catch (error) {
+    const kind = toError(error).name;
+    return `countDiscovered threw ${kind}`;
+  }
+}
+
+/**
  * Validate the shape's count, then report the delta it describes.
  * @param d - Driver context.
  * @param args - The bundle handed to the shape's extractor.
@@ -136,7 +159,8 @@ function reportChecked<TAcct, TCursor>(
 ): ExcludedProductCount {
   const count = d.shape.customer.countDiscovered;
   if (!count) return 0 as ExcludedProductCount;
-  const discovered = count(args);
+  const discovered = discover(count, args);
+  if (typeof discovered === 'string') return warnReportFailed(d, discovered);
   const problem = countProblem(discovered, selected);
   if (problem) return warnReportFailed(d, problem);
   return logDelta(d, discovered, selected);
@@ -156,10 +180,14 @@ function reportChecked<TAcct, TCursor>(
  * <p>Only a non-zero exclusion is worth a line — reporting on every clean run
  * would train operators to ignore it. The report carries counts ONLY: account
  * ids, numbers and product categories never reach the log
- * (`logging-pii-guidlines.md`). That is why a throw is reported by TYPE and
+ * (`logging-pii-guidlines.md`). That is why a failure is reported by TYPE and
  * never by message: an exception raised inside bank-authored code can carry
  * account data in its text, so copying it into a log payload would leak
  * through the diagnostics channel.
+ *
+ * <p>The catch below is the LAST resort, and stays deliberately unattributed.
+ * The counter is contained at its own call site, which is the only place that
+ * can honestly name it; anything reaching here failed elsewhere in the report.
  * @param d - Driver context.
  * @param args - The bundle handed to the shape's extractor.
  * @param selected - How many accounts the extractor kept.
@@ -174,6 +202,6 @@ export default function reportExcludedProducts<TAcct, TCursor>(
     return reportChecked(d, args, selected);
   } catch (error) {
     const kind = toError(error).name;
-    return warnReportFailed(d, `countDiscovered threw ${kind}`);
+    return warnReportFailed(d, `exclusion report failed: ${kind}`);
   }
 }

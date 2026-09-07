@@ -82,6 +82,13 @@ the last thing that can fail is the act of reporting a failure, the warning
 emission is wrapped in turn: a logger whose `warn` throws is swallowed rather
 than allowed to discard the scrape it was only meant to describe.
 
+Blame is placed only where it can be placed honestly. The shape's counter is
+contained at its own call site, so a counter that throws is named as such;
+everything further in — the exclusion line's own `info` emission included —
+fails for reasons no bank shape caused, and the last-resort catch therefore
+reports a generic report failure rather than sending an operator off to read
+blameless code.
+
 ## Balance is truthful, never a fabricated zero
 
 Pepper's balance step declares `fallbackOnFail: BALANCE_UNKNOWN`. A rejected

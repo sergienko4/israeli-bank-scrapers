@@ -704,6 +704,77 @@ async function runWithBrokenWarn<TAcct, TCursor>(
   return phase({ ...base, logger });
 }
 
+/**
+ * Run a shape against a logger that cannot emit `info`, recording `warn`.
+ *
+ * <p>Models the one reporting failure no shape is responsible for: the
+ * exclusion line is an `info` emission made by this module, so a logger that
+ * throws there fails inside the report with the shape's counter blameless.
+ * @param shape - Shape under test.
+ * @param bus - Pre-loaded mediator.
+ * @returns Every `warn` payload emitted during the run.
+ */
+async function warnLinesWithBrokenInfo<TAcct, TCursor>(
+  shape: IApiDirectScrapeShape<TAcct, TCursor>,
+  bus: IApiMediator,
+): Promise<readonly LogLine[]> {
+  const phase = createApiDirectScrapePhase(shape);
+  const base = pepperContext(bus);
+  const sink: LogLine[] = [];
+  /**
+   * Record one payload.
+   * @param payload - Structured pino log object.
+   * @returns Count of payloads recorded so far.
+   */
+  const record = (payload: unknown): number => sink.push(payload as LogLine);
+  const logger = Object.create(base.logger) as IActionContext['logger'];
+  logger.info = EXPLODE;
+  logger.warn = record;
+  await phase({ ...base, logger });
+  return sink;
+}
+
+/**
+ * Read the `reason` field of a single reporting-failure line.
+ * @param lines - Every recorded `warn` payload.
+ * @returns The reason text of the one failure line.
+ */
+function soleFailureReason(lines: readonly LogLine[]): string {
+  const failures = failureLinesOf(lines);
+  expect(failures).toHaveLength(1);
+  return String(failures[0].reason);
+}
+
+describe('Pepper #550 — a reporting failure names the right culprit', () => {
+  it('P550-DIAG-14 a broken info logger is not blamed on the counter', async () => {
+    // The counter here is honest and returns a believable number. What
+    // fails is the exclusion line's own emission, so naming `countDiscovered`
+    // would send an operator to read blameless bank code.
+    const healthy = succeed(PEPPER_CASE.fixtures.balance);
+    const bus = ilsBusWithBalance(healthy);
+    const countDiscovered = counterReturning(3);
+    const shape = pepperShapeWith({ countDiscovered });
+
+    const lines = await warnLinesWithBrokenInfo(shape, bus);
+
+    const reason = soleFailureReason(lines);
+    expect(reason).not.toContain('countDiscovered');
+  });
+
+  it('P550-DIAG-15 a counter that really threw is still named', async () => {
+    // The other direction, so the fix above cannot be "call everything
+    // generic": when the counter IS at fault, the report must say so.
+    const healthy = succeed(PEPPER_CASE.fixtures.balance);
+    const bus = ilsBusWithBalance(healthy);
+    const shape = pepperShapeWith({ countDiscovered: EXPLODE });
+
+    const lines = await logLinesOf(shape, bus, 'warn');
+
+    const reason = soleFailureReason(lines);
+    expect(reason).toContain('countDiscovered');
+  });
+});
+
 describe('Pepper #550 — the reporting warning is bounded and cannot break a run', () => {
   it('P550-DIAG-12 a thrown message never reaches the log', async () => {
     // The report promises counts only. A shape's exception text is arbitrary
