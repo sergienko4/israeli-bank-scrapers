@@ -23,9 +23,13 @@
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import { extractAccounts } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShapeHelpers.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import { ACCOUNTS_FILTERED_LOG } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeExclusions.js';
+import {
+  ACCOUNTS_FILTERED_LOG,
+  EXCLUSION_REPORT_FAILED,
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeExclusions.js';
 import {
   type ApiDirectScrapeResult,
   buildApiDirectScrapePhase,
@@ -234,17 +238,19 @@ function ilsBusWithBalance(balance: Procedure<unknown>): IApiMediator {
 type LogLine = Record<string, unknown>;
 
 /**
- * Run a shape's scrape action while recording every `info` log payload.
+ * Run a shape's scrape action while recording one log level's payloads.
  *
  * <p>Asserting on the log is the point of the diagnostics channel: excluding a
  * product is a SILENT omission of money unless an operator can see it happened.
  * @param shape - Shape under test.
  * @param bus - Pre-loaded mediator.
- * @returns Every `info` payload emitted during the run.
+ * @param level - Which pino level to capture.
+ * @returns Every payload emitted at that level during the run.
  */
-async function infoLinesOf<TAcct, TCursor>(
+async function logLinesOf<TAcct, TCursor>(
   shape: IApiDirectScrapeShape<TAcct, TCursor>,
   bus: IApiMediator,
+  level: 'info' | 'warn',
 ): Promise<readonly LogLine[]> {
   const phase = createApiDirectScrapePhase(shape);
   const base = pepperContext(bus);
@@ -257,9 +263,34 @@ async function infoLinesOf<TAcct, TCursor>(
   const record = (payload: unknown): number => sink.push(payload as LogLine);
   // Prototype-linked so every other pino method still works untouched.
   const recorder = Object.create(base.logger) as IActionContext['logger'];
-  recorder.info = record;
+  recorder[level] = record;
   await phase({ ...base, logger: recorder });
   return sink;
+}
+
+/**
+ * Run a shape's scrape action while recording every `info` log payload.
+ * @param shape - Shape under test.
+ * @param bus - Pre-loaded mediator.
+ * @returns Every `info` payload emitted during the run.
+ */
+async function infoLinesOf<TAcct, TCursor>(
+  shape: IApiDirectScrapeShape<TAcct, TCursor>,
+  bus: IApiMediator,
+): Promise<readonly LogLine[]> {
+  return logLinesOf(shape, bus, 'info');
+}
+
+/**
+ * Build a Pepper shape with overridden customer-side hooks.
+ * @param over - The customer hooks to replace.
+ * @returns A shape identical to Pepper's but for those hooks.
+ */
+function pepperShapeWith(
+  over: Partial<IApiDirectScrapeShape<unknown, unknown>['customer']>,
+): IApiDirectScrapeShape<unknown, unknown> {
+  const shape = PEPPER_CASE.shape as unknown as IApiDirectScrapeShape<unknown, unknown>;
+  return { ...shape, customer: { ...shape.customer, ...over } };
 }
 
 /**
@@ -473,5 +504,72 @@ describe('Pepper #550 — excluded products are reported, never silently dropped
 
     const reported = exclusionLinesOf(lines);
     expect(reported).toHaveLength(0);
+  });
+});
+
+/**
+ * Run any shape's scrape ACTION against a pre-loaded bus.
+ * @param shape - Shape under test.
+ * @param bus - Pre-loaded mediator.
+ * @returns The procedure the action emitted.
+ */
+async function runShape(
+  shape: IApiDirectScrapeShape<unknown, unknown>,
+  bus: IApiMediator,
+): Promise<Procedure<ApiDirectScrapeResult>> {
+  const phase = createApiDirectScrapePhase(shape);
+  const ctx = pepperContext(bus);
+  return phase(ctx);
+}
+
+/**
+ * A hook that always throws, used to prove WHERE a failure is attributed.
+ * @returns Never — it always throws.
+ */
+const EXPLODE = (): never => {
+  throw new ScraperError('hook exploded');
+};
+
+describe('Pepper #550 — diagnostics never decide the outcome of a scrape', () => {
+  it('P550-DIAG-5 a throwing exclusion counter cannot fail a healthy scrape', async () => {
+    // `countDiscovered` exists ONLY to log. A scrape that fetched real money
+    // must not be thrown away because the thing counting it misbehaved.
+    const healthy = succeed(PEPPER_CASE.fixtures.balance);
+    const bus = ilsBusWithBalance(healthy);
+    const shape = pepperShapeWith({ countDiscovered: EXPLODE });
+
+    const result = await runShape(shape, bus);
+
+    assertOk(result);
+    const { scrape } = result.value;
+    assertHas(scrape);
+    expect(scrape.value.accounts).toHaveLength(1);
+  });
+
+  it('P550-DIAG-6 a real extractAccounts throw is still blamed on extractAccounts', async () => {
+    // The other half of the contract: narrowing the try/catch must not make
+    // a genuine parse failure quieter or mis-attributed.
+    const healthy = succeed(PEPPER_CASE.fixtures.balance);
+    const bus = ilsBusWithBalance(healthy);
+    const shape = pepperShapeWith({ extractAccounts: EXPLODE });
+
+    const result = await runShape(shape, bus);
+
+    const message = messageOf(result);
+    expect(result.success).toBe(false);
+    expect(message).toContain('extractAccounts threw');
+  });
+
+  it('P550-DIAG-7 a swallowed reporting failure is still surfaced as a warning', async () => {
+    // Contained is not the same as hidden: a broken diagnostics channel is
+    // itself an operational fact an operator has to be able to see.
+    const healthy = succeed(PEPPER_CASE.fixtures.balance);
+    const bus = ilsBusWithBalance(healthy);
+    const shape = pepperShapeWith({ countDiscovered: EXPLODE });
+
+    const lines = await logLinesOf(shape, bus, 'warn');
+
+    const warned = lines.filter(line => line.message === EXCLUSION_REPORT_FAILED);
+    expect(warned).toHaveLength(1);
   });
 });

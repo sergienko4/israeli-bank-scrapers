@@ -53,21 +53,6 @@ async function fetchSecondaryBody<TAcct, TCursor>(
 }
 
 /**
- * Extract the account list and report anything the shape filtered out.
- * @param d - Driver context.
- * @param args - Extract-args bundle.
- * @returns Account refs procedure.
- */
-function extractAndReport<TAcct, TCursor>(
-  d: IDriverCtx<TAcct, TCursor>,
-  args: IExtractAccountsArgs,
-): Procedure<readonly TAcct[]> {
-  const accts = d.shape.customer.extractAccounts(args);
-  reportExcludedProducts(d, args, accts.length);
-  return succeed(accts);
-}
-
-/**
  * Run a shape's `extractAccounts` and convert a throw into a typed failure.
  *
  * <p>Shapes reject an unusable account identity by throwing (see the FIBI
@@ -77,6 +62,30 @@ function extractAndReport<TAcct, TCursor>(
  * failed `Procedure` is what `isScrapeSuspicious` reads, so converting here
  * keeps the documented recover-once path reachable and honours the
  * Result-Pattern contract every other step in this module follows.
+ * @param d - Driver context.
+ * @param args - Extract-args bundle.
+ * @returns Account refs procedure.
+ */
+function tryExtract<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+  args: IExtractAccountsArgs,
+): Procedure<readonly TAcct[]> {
+  try {
+    const accts = d.shape.customer.extractAccounts(args);
+    return succeed(accts);
+  } catch (error) {
+    const message = toError(error).message;
+    return fail(ScraperErrorTypes.Generic, `extractAccounts threw: ${message}`);
+  }
+}
+
+/**
+ * Extract the account list, then report anything the shape filtered out.
+ *
+ * <p>The reporting call sits OUTSIDE `tryExtract` deliberately: only
+ * `extractAccounts` may be blamed for `extractAccounts threw`, and
+ * `reportExcludedProducts` is total, so diagnostics cannot change the
+ * outcome of a scrape that already succeeded.
  * @param d - Driver context.
  * @param body - Primary customer-fetch body.
  * @param secondaryBody - Secondary identity body.
@@ -88,12 +97,11 @@ function runExtract<TAcct, TCursor>(
   secondaryBody: ApiBody,
 ): Procedure<readonly TAcct[]> {
   const sessionContext = d.bus.getSessionContext();
-  try {
-    return extractAndReport(d, { body, secondaryBody, sessionContext });
-  } catch (error) {
-    const message = toError(error).message;
-    return fail(ScraperErrorTypes.Generic, `extractAccounts threw: ${message}`);
-  }
+  const args = { body, secondaryBody, sessionContext };
+  const extracted = tryExtract(d, args);
+  if (!extracted.success) return extracted;
+  reportExcludedProducts(d, args, extracted.value.length);
+  return extracted;
 }
 
 /**

@@ -59,6 +59,14 @@ products the payload declared, and when any were excluded the phase emits one
 `ACCOUNTS_FILTERED_LOG` line carrying counts only — no account identifiers, no
 balances.
 
+Reporting can never decide the outcome. `countDiscovered` is bank-specific
+code that may throw, so `reportExcludedProducts` is total by construction: a
+throw is contained and re-surfaced as one `EXCLUSION_REPORT_FAILED` warning
+instead of discarding a scrape that had already fetched real money. Contained
+is not hidden — a diagnostics channel that has stopped working stays visible.
+Conversely, the reporting call sits outside the `extractAccounts` try/catch so
+only a genuine extractor failure can be blamed for `extractAccounts threw`.
+
 ## Balance is truthful, never a fabricated zero
 
 Pepper's balance step declares `fallbackOnFail: BALANCE_UNKNOWN`. A rejected

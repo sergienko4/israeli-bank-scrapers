@@ -13,6 +13,7 @@
  */
 
 import type { Brand } from '../../Types/Brand.js';
+import { toError } from '../../Types/ErrorUtils.js';
 import type { IDriverCtx } from './ApiDirectScrapeDispatchArgs.js';
 import type { IExtractAccountsArgs } from './IApiDirectScrapeShape.js';
 
@@ -26,6 +27,15 @@ type ExcludedProductCount = Brand<number, 'ExcludedProductCount'>;
  * re-declaring it and drifting.
  */
 export const ACCOUNTS_FILTERED_LOG = 'api-direct-scrape.accounts.filtered';
+
+/**
+ * Log message reporting a FAILURE of the exclusion report itself.
+ *
+ * <p>Contained is not the same as hidden: swallowing the throw keeps a
+ * healthy scrape alive, but a diagnostics channel that has stopped working
+ * is itself an operational fact an operator has to be able to see.
+ */
+export const EXCLUSION_REPORT_FAILED = 'api-direct-scrape.accounts.filtered.failed';
 
 /** Counts describing one filtered discovery pass. */
 interface IExclusionCounts {
@@ -49,25 +59,53 @@ function logExclusion<TAcct, TCursor>(
 }
 
 /**
- * Report how many discovered products a shape's filter excluded.
- *
- * <p>Only a non-zero exclusion is worth a line — reporting on every clean run
- * would train operators to ignore it. Counts ONLY: account ids, numbers and
- * product categories never reach the log (`logging-pii-guidlines.md`).
+ * Compute the exclusion delta and log it when it is non-zero.
  * @param d - Driver context.
  * @param args - The bundle handed to the shape's extractor.
  * @param selected - How many accounts the extractor kept.
  * @returns How many products were excluded.
+ */
+function computeExclusion<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+  args: IExtractAccountsArgs,
+  selected: number,
+): number {
+  const count = d.shape.customer.countDiscovered;
+  if (!count) return 0;
+  const discovered = count(args);
+  const counts = { discovered, selected, excluded: discovered - selected };
+  if (counts.excluded <= 0) return 0;
+  return logExclusion(d, counts);
+}
+
+/**
+ * Report how many discovered products a shape's filter excluded.
+ *
+ * <p>TOTAL BY CONSTRUCTION — it reports, so it must never decide. A shape's
+ * `countDiscovered` is arbitrary bank-specific code that can throw; letting
+ * that escape would discard a scrape that had already fetched real money,
+ * turning an observability defect into data loss. The throw is contained
+ * here and re-surfaced as a warning instead.
+ *
+ * <p>Only a non-zero exclusion is worth a line — reporting on every clean run
+ * would train operators to ignore it. The report carries counts ONLY: account
+ * ids, numbers and product categories never reach the log
+ * (`logging-pii-guidlines.md`).
+ * @param d - Driver context.
+ * @param args - The bundle handed to the shape's extractor.
+ * @param selected - How many accounts the extractor kept.
+ * @returns How many products were excluded; `0` if reporting itself failed.
  */
 export default function reportExcludedProducts<TAcct, TCursor>(
   d: IDriverCtx<TAcct, TCursor>,
   args: IExtractAccountsArgs,
   selected: number,
 ): ExcludedProductCount {
-  const count = d.shape.customer.countDiscovered;
-  if (!count) return 0 as ExcludedProductCount;
-  const discovered = count(args);
-  const counts = { discovered, selected, excluded: discovered - selected };
-  if (counts.excluded <= 0) return 0 as ExcludedProductCount;
-  return logExclusion(d, counts) as ExcludedProductCount;
+  try {
+    return computeExclusion(d, args, selected) as ExcludedProductCount;
+  } catch (error) {
+    const reason = toError(error).message;
+    d.ctx.logger.warn({ message: EXCLUSION_REPORT_FAILED, reason });
+    return 0 as ExcludedProductCount;
+  }
 }
