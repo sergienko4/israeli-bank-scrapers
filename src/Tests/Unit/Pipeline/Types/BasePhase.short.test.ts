@@ -272,17 +272,11 @@ describe('BasePhase phase-level screenshot bookend', () => {
   class FailingActionPhase extends BasePhase {
     public readonly name: PhaseName = 'home';
     /**
-     * Test helper — fails unconditionally.
-     * @param ctx - Action context (unused).
-     * @param input - Action context (unused).
+     * Test helper — fails unconditionally. Declares no parameters; a
+     * zero-arity override still satisfies the base `action` signature.
      * @returns Failed Procedure.
      */
-    public async action(
-      ctx: IActionContext,
-      input: IActionContext,
-    ): Promise<Procedure<IActionContext>> {
-      void ctx;
-      void input;
+    public async action(): Promise<Procedure<IActionContext>> {
       await Promise.resolve();
       return fail(ScraperErrorTypes.Generic, 'forced for test');
     }

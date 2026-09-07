@@ -293,8 +293,8 @@ describe('LoginPhaseActions writeIframeSnapshot atom', () => {
     const targetPath = path.join(rootDir, 'atom-iframe-7.html');
     const bytes = await fs.readFile(targetPath, 'utf8');
     expect(bytes).toBe('<snap>');
-    // Touch ScraperError so the import is not unused (guards against
+    // Assert on ScraperError so the import is genuinely used (guards against
     // accidental `throw new Error(...)` reintroduction in this file).
-    void ScraperError;
+    expect(ScraperError).toBeDefined();
   });
 });

@@ -71,6 +71,9 @@ const CUSTOM_SETUP: ILoginSetup = {
  * unit tests can assert both branches without driving the full login chain.
  */
 class TestGenericScraper extends GENERIC_BANK_SCRAPER<ScraperCredentials> {
+  /** Canned result the stubbed `fetchData` hands back. */
+  private readonly _stubResult: IScraperScrapingResult = { success: true, accounts: [] };
+
   /**
    * Expose the protected hook for direct assertion.
    * @returns The lookup result.
@@ -84,8 +87,7 @@ class TestGenericScraper extends GENERIC_BANK_SCRAPER<ScraperCredentials> {
    * @returns Empty success result.
    */
   public fetchData(): Promise<IScraperScrapingResult> {
-    void this.loginConfig;
-    return Promise.resolve({ success: true, accounts: [] });
+    return Promise.resolve(this._stubResult);
   }
 }
 
