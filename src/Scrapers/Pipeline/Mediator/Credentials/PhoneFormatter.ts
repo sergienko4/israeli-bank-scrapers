@@ -146,9 +146,9 @@ function formatDigits(digits: string, format: PhoneNumberFormat): string {
 }
 
 /**
- * Separator each wire format injects into the digits-only form — the
- * decoration {@link stripWireDecoration} has to remove to recover those
- * digits. Empty string means the format adds no separator at all.
+ * Separator that each wire format injects into the digits-only form — the
+ * decoration that {@link stripWireDecoration} has to remove to recover
+ * those digits. Empty string means the format adds no separator at all.
  */
 const WIRE_DECORATION: Readonly<Record<PhoneNumberFormat, string>> = {
   'international-plus': '+',
