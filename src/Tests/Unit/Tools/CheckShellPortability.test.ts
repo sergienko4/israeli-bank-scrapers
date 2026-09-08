@@ -29,6 +29,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
+import { canCreateSymlinks } from '../../Helpers/HostCapabilities.js';
 
 /** The gate under test, resolved from the repo root. */
 const REPO_ROOT = process.cwd();
@@ -108,46 +109,53 @@ describe('check-shell-portability — links never stop the gate running', () => 
   it('SHP-LINK-1 a broken symlink does not crash the walk', () => {
     // `stat` on a dangling link throws ENOENT. The gate must not die on a
     // link it was never responsible for.
-    const root = makeTree();
-    const link = scriptPath(root, 'dangling.sh');
-    const absent = scriptPath(root, 'absent.sh');
-    fs.symlinkSync(absent, link);
+    if (canCreateSymlinks(process.platform)) {
+      const root = makeTree();
+      const link = scriptPath(root, 'dangling.sh');
+      const absent = scriptPath(root, 'absent.sh');
+      fs.symlinkSync(absent, link);
 
-    const { status, output } = spawnGate(root);
+      const { status, output } = spawnGate(root);
 
-    expect(output).not.toContain('ENOENT');
-    expect(status).toBe(0);
+      expect(output).not.toContain('ENOENT');
+      expect(status).toBe(0);
+    }
   });
 
   it('SHP-LINK-2 a link pointing back into the tree does not re-enter it', () => {
     // Followed as a directory, this walks `scripts/loop/loop/loop/...` until
     // the process dies. Skipping links terminates.
-    const root = makeTree();
-    const scripts = path.join(root, 'scripts');
-    const loop = path.join(scripts, 'loop');
-    fs.symlinkSync(scripts, loop);
+    if (canCreateSymlinks(process.platform)) {
+      const root = makeTree();
+      const scripts = path.join(root, 'scripts');
+      const loop = path.join(scripts, 'loop');
+      fs.symlinkSync(scripts, loop);
 
-    const { status } = spawnGate(root);
+      const { status } = spawnGate(root);
 
-    expect(status).toBe(0);
+      expect(status).toBe(0);
+    }
   });
 
   it('SHP-LINK-3 a real violation is still reported', () => {
     // The guard against fixing the crash by making the gate blind.
-    const root = makeTree();
-    const bad = scriptPath(root, 'bad.sh');
-    fs.writeFileSync(bad, NON_PORTABLE);
-    const absent = scriptPath(root, 'absent.sh');
-    const link = scriptPath(root, 'x.sh');
-    fs.symlinkSync(absent, link);
+    if (canCreateSymlinks(process.platform)) {
+      const root = makeTree();
+      const bad = scriptPath(root, 'bad.sh');
+      fs.writeFileSync(bad, NON_PORTABLE);
+      const absent = scriptPath(root, 'absent.sh');
+      const link = scriptPath(root, 'x.sh');
+      fs.symlinkSync(absent, link);
 
-    const { status, output } = spawnGate(root);
+      const { status, output } = spawnGate(root);
 
-    expect(output).toContain('bad.sh');
-    expect(status).toBe(1);
+      expect(output).toContain('bad.sh');
+      expect(status).toBe(1);
+    }
   });
 
   it('SHP-LINK-4 a clean tree still passes', () => {
+    // No link involved, so this case is required on every host.
     const root = makeTree();
     const good = scriptPath(root, 'good.sh');
     fs.writeFileSync(good, PORTABLE);

@@ -24,6 +24,8 @@ import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
 
+import { canRunPosixBash } from '../../../Helpers/HostCapabilities.js';
+
 const THIS_FILE_URL = import.meta.url;
 const THIS_FILE_PATH = fileURLToPath(THIS_FILE_URL);
 const THIS_DIR = dirname(THIS_FILE_PATH);
@@ -201,20 +203,6 @@ function runGuard(script: string, bin: string): number {
   return result.status ?? -1;
 }
 
-/**
- * Whether this host can run the workflow guard at all.
- *
- * <p>The guard is invoked through absolute POSIX bash paths. On Windows those
- * cannot exist — even Git for Windows installs bash under `Program Files` —
- * so the check is unrunnable there rather than failing. Every other platform
- * is expected to have a bash and must still be held to the assertion.
- * @param platform - A `process.platform` value.
- * @returns True when the guard can be executed on this host.
- */
-function guardIsRunnable(platform: string): boolean {
-  return platform !== 'win32';
-}
-
 describe('PrYamlGateHardening — the macOS leg cannot go vacuous', () => {
   it('[PR-YAML-BASH32] the workflow asserts its bash version rather than printing it', () => {
     // Printing to the log is not enforcement: nobody reads a green job. If
@@ -236,21 +224,8 @@ describe('PrYamlGateHardening — the macOS leg cannot go vacuous', () => {
     expect(argv).toContain('pipefail');
   });
 
-  it('[PR-YAML-BASH32] only Windows is excused from running the guard', () => {
-    // The skip below must stay narrow. A host that merely *happens* to have
-    // no bash on a POSIX layout is broken and should fail loudly; only
-    // Windows, where these absolute paths cannot exist by construction, is
-    // genuinely unable to run the guard.
-    const posix = ['darwin', 'linux', 'freebsd'];
-    const excused = posix.map(name => guardIsRunnable(name));
-    const canRunOnWindows = guardIsRunnable('win32');
-
-    expect(excused).toEqual([true, true, true]);
-    expect(canRunOnWindows).toEqual(false);
-  });
-
   it('[PR-YAML-BASH32] the guard passes on bash 3.2 and fails on anything else', () => {
-    if (guardIsRunnable(process.platform)) {
+    if (canRunPosixBash(process.platform)) {
       const script = versionGuardScript();
       const present = BASH_CANDIDATES.filter(bin => existsSync(bin));
       expect(present.length).toBeGreaterThan(0);
