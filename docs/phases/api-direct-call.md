@@ -56,10 +56,16 @@ Every api-direct bank declares its wire format in `PipelineBankConfig.headless.p
 
 Callers always pass digits-only international form; the ACTION-stage mediator rewrites once before the flow runs.
 
-A value it cannot rewrite — anything carrying `+`, dashes or spaces, shorter
-than 10 digits, or lacking the `972` country code (which includes the natural
-local form `05XXXXXXXX`) — **fails the run** with `INVALID_PHONE_NUMBER`,
-before a bus is built and before anything reaches the network.
+A value already in the bank's own wire form — the third column above — is
+accepted unchanged. The per-bank guides document that form as the value to
+pass, so normalising it has to be a no-op rather than a rejection. The check is
+an exact round-trip, so a near-miss like `972-000-000-000` is still refused.
+
+A value it cannot rewrite — a shape that is neither the digits-only form nor
+this bank's exact wire form, shorter than 10 digits, or lacking the `972`
+country code (which includes the natural local form `05XXXXXXXX`) — **fails
+the run** with `INVALID_PHONE_NUMBER`, before a bus is built and before
+anything reaches the network.
 
 It used to log a warning and hand the raw value on "for downstream
 validation". There is no downstream validation: Pepper reads

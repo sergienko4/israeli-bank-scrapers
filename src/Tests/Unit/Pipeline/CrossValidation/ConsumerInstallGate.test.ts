@@ -120,4 +120,27 @@ describe('consumer-install CI gate', () => {
     const smoke = readText(SMOKE_PROGRAM);
     expect(smoke).not.toContain('process.env');
   });
+
+  /**
+   * Accepting anything that merely settled would let an unrelated regression
+   * inside the package report success — a TypeError on import settles too.
+   * The gate has to name the outcome it expects.
+   */
+  it('[CIG-8] requires the expected environment failure, not merely any settled outcome', () => {
+    const script = readText(GATE_SCRIPT);
+    expect(script).toContain('EXPECTED_OUTCOME=');
+    expect(script).toContain('assert_expected_outcome');
+  });
+
+  /**
+   * A scrape reports failure by returning a result, so an exception reaching
+   * the consumer is a defect. The smoke program has to surface that in its
+   * exit status, and the gate has to read the status rather than discard it.
+   */
+  it('[CIG-9] fails the run when an exception escapes to the consumer', () => {
+    const smoke = readText(SMOKE_PROGRAM);
+    expect(smoke).toContain('process.exitCode = 1');
+    const script = readText(GATE_SCRIPT);
+    expect(script).toContain('an exception escaped to the consumer');
+  });
 });

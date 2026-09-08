@@ -22,6 +22,8 @@
  * that cannot be built degrades the logger instead of ending the scrape.
  */
 
+import { jest } from '@jest/globals';
+
 import {
   buildActiveOptions,
   buildTransport,
@@ -108,5 +110,26 @@ describe('pretty logs opt-in', () => {
     expect(() => {
       logger.info('still usable');
     }).not.toThrow();
+  });
+
+  /**
+   * The degradation warning is a diagnostic, so it has to name the real
+   * cause. A trace-file transport can fail for reasons of its own — a
+   * worker that will not start, a version mismatch — and blaming
+   * `PRETTY_LOGS` for those sends whoever reads the warning after a flag
+   * they never set.
+   */
+  it('[LOG-8] a failure with pretty output unrequested does not blame PRETTY_LOGS', () => {
+    delete process.env.PRETTY_LOGS;
+    const warnings: string[] = [];
+    const spy = jest.spyOn(process, 'emitWarning').mockImplementation(warning => {
+      const text = String(warning);
+      warnings.push(text);
+    });
+    const unresolvable = buildActiveOptions({ target: 'pino-file-not-installed' });
+    instantiateLogger(NO_LOG_FILE, unresolvable);
+    spy.mockRestore();
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).not.toContain('PRETTY_LOGS');
   });
 });

@@ -133,18 +133,86 @@ function applyPhoneFormat(args: IApplyFormatArgs): string {
 }
 
 /**
+ * Split a validated digits-only international string into its country
+ * code and local part, then render it in the bank's wire form.
+ * @param digits - Validated digits-only international form.
+ * @param format - Per-bank wire-format selector.
+ * @returns Formatted wire string.
+ */
+function formatDigits(digits: string, format: PhoneNumberFormat): string {
+  const cc = digits.slice(0, IL_COUNTRY_CODE.length);
+  const local = digits.slice(IL_COUNTRY_CODE.length);
+  return applyPhoneFormat({ cc, local, format });
+}
+
+/**
+ * Separator each wire format injects into the digits-only form — the
+ * decoration {@link stripWireDecoration} has to remove to recover those
+ * digits. Empty string means the format adds no separator at all.
+ */
+const WIRE_DECORATION: Readonly<Record<PhoneNumberFormat, string>> = {
+  'international-plus': '+',
+  'international-dash': '-',
+  'international-flat': '',
+  'local-only': '',
+};
+
+/**
+ * Remove every occurrence of a format's separator, recovering the
+ * candidate digits-only form so it can be validated normally.
+ * @param raw - Caller-supplied phone string.
+ * @param format - Per-bank wire-format selector.
+ * @returns `raw` with the format's separator removed.
+ */
+function stripWireDecoration(raw: string, format: PhoneNumberFormat): string {
+  const decoration = WIRE_DECORATION[format];
+  if (!decoration) return raw;
+  return raw.split(decoration).join('');
+}
+
+/**
+ * Decide whether `raw` is *already* this bank's wire form.
+ *
+ * The per-bank guides (`docs/banks/onezero.md`, `docs/banks/paybox.md`)
+ * document the wire form itself as the value to pass, so a caller who
+ * follows them hands us a string that needs no further work. Normalising
+ * it must therefore be a no-op rather than a rejection.
+ *
+ * The test is an exact round-trip — strip the separator, validate the
+ * recovered digits with the same checks the canonical path uses, then
+ * re-render and require byte equality. Anything merely *resembling* a
+ * wire form (wrong grouping, another bank's separator) fails to round-trip
+ * and falls through to the strict digits-only contract.
+ *
+ * @param raw - Caller-supplied phone string.
+ * @param format - Per-bank wire-format selector.
+ * @returns True when `raw` round-trips to itself.
+ */
+function isAlreadyWireForm(raw: string, format: PhoneNumberFormat): boolean {
+  const digits = stripWireDecoration(raw, format);
+  const validated = validateInternationalDigits(digits);
+  if (!isOk(validated)) return false;
+  return formatDigits(validated.value, format) === raw;
+}
+
+/**
  * Normalise a caller-supplied phone string into the bank's wire form.
  * Returns a Procedure so the pipeline can surface validation errors
  * with a clear diagnostic message.
+ *
+ * Accepts either the canonical digits-only international form or a value
+ * already in this bank's wire form (see {@link isAlreadyWireForm}); every
+ * other shape — including the Israeli local trunk form `05…` — fails here
+ * rather than reaching the bank as an unusable credential.
+ *
  * @param raw - Caller-supplied digits-only international form.
  * @param format - Per-bank wire-format selector.
  * @returns Procedure with the formatted wire string.
  */
 export function formatPhoneNumber(raw: string, format: PhoneNumberFormat): Procedure<string> {
+  if (isAlreadyWireForm(raw, format)) return succeed(raw);
   const validated = validateInternationalDigits(raw);
   if (!isOk(validated)) return validated;
-  const cc = validated.value.slice(0, IL_COUNTRY_CODE.length);
-  const local = validated.value.slice(IL_COUNTRY_CODE.length);
-  const formatted = applyPhoneFormat({ cc, local, format });
+  const formatted = formatDigits(validated.value, format);
   return succeed(formatted);
 }

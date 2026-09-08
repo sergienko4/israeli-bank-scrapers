@@ -30,9 +30,9 @@ describe('PepperShape.userIdOf', () => {
   });
 
   it('propagates a phone that already lacks the 972 prefix', () => {
-    const ctx = makeCtxWithPhone('500000001');
+    const ctx = makeCtxWithPhone('000000001');
     const result = userIdOf(ctx);
-    expect(result).toBe('500000001');
+    expect(result).toBe('000000001');
   });
 
   it('returns empty string when credentials.phoneNumber is empty', () => {
@@ -42,16 +42,19 @@ describe('PepperShape.userIdOf', () => {
   });
 
   /**
-   * The leading `0` is the Israeli trunk prefix, never part of the
-   * subscriber number, so `0500000001` and `972500000001` name the same
-   * subscriber and must produce the same header. Before the ACTION stage
-   * learned to refuse an unnormalisable phone, the local form reached here
-   * intact and went out as `x-user-id: 0500000001` — a value the bank has
-   * never issued.
+   * Deliberate non-repair. The Israeli local form `05…` can never reach
+   * here on the production path: Pepper declares `international-flat`, and
+   * the API-direct ACTION now refuses a phone it cannot normalise to it.
+   *
+   * Rewriting the value here anyway would hide a broken upstream invariant
+   * inside a header builder — the same silent-repair pattern this change
+   * set removes. The credential boundary is the only place allowed to
+   * reject, so this helper passes an unexpected shape through untouched
+   * and lets the failure stay visible.
    */
-  it('never emits the trunk prefix, whichever form it is handed', () => {
+  it('does not repair a local trunk form — the credential boundary owns rejection', () => {
     const ctx = makeCtxWithPhone('0500000001');
     const result = userIdOf(ctx);
-    expect(result).toBe('500000001');
+    expect(result).toBe('0500000001');
   });
 });

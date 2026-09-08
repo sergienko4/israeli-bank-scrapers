@@ -26,7 +26,7 @@ export interface IMockHandle {
 
 /** Synthetic credentials — safe for public fixtures. */
 export const PEPPER_MOCK_CREDS = Object.freeze({
-  phoneNumber: '+972-5fixt-mock1',
+  phoneNumber: '972000000000',
   password: 'fixt-m-pep-9b1d',
   otpLongTermToken: 'syn-pepper-long-term-a7f4b2c8',
 });

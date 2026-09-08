@@ -19,6 +19,10 @@
  *      the logger's. A library that resolves a devDependency at runtime dies
  *      before reaching the network.
  *
+ * A scrape reports failure by RETURNING a result, so an exception reaching
+ * this file is itself a defect — `throw` therefore sets a non-zero exit code
+ * and fails the gate rather than counting as "it settled".
+ *
  * No bank is contacted. The credentials are obvious dummies, and the harness
  * installs with `--ignore-scripts` so the native better-sqlite3 binding is
  * absent — Camoufox therefore refuses to start long before any navigation.
@@ -54,4 +58,7 @@ const scraper = createScraper({
 scraper
   .scrape(DUMMY_CREDENTIALS)
   .then(result => report('result', JSON.stringify(result)))
-  .catch(error => report('throw', error && error.message ? error.message : String(error)));
+  .catch(error => {
+    report('throw', error && error.message ? error.message : String(error));
+    process.exitCode = 1;
+  });

@@ -54,6 +54,25 @@ SETTLED_MARKER="SETTLED"
 # resolving a devDependency at runtime.
 TRANSPORT_FAILURE="unable to determine transport target"
 
+# The one outcome a hermetic run may reach. Both strings are this repo's own
+# (`CamoufoxIdentityFetchStrategy.ts`, `CamoufoxLauncher.ts`) and are pinned by
+# unit tests, so they cannot drift underneath the gate the way a third-party
+# error message could.
+#
+# Asserting the expected outcome POSITIVELY is the point. Accepting anything
+# that merely settled would let an unrelated regression inside the package -
+# a TypeError on import, a reworked error message - report success, because
+# it too would print a settled line.
+EXPECTED_OUTCOME="camoufox launch failed"
+
+# A scrape reports failure by returning a result. `SETTLED throw` means an
+# exception escaped to the consumer, which is a defect in its own right.
+EXPECTED_KIND="SETTLED result"
+
+# No bank may be contacted, so a scrape that reports success means the harness
+# has stopped being hermetic and the gate is no longer proving anything.
+EXPECTED_VERDICT='"success":false'
+
 WORK_DIR=""
 
 # Remove the throwaway project even when an assertion aborts the script, so a
@@ -100,6 +119,32 @@ FAILED=0
 # CI captures them, which detaches a failure from the environment that caused
 # it. The exit code, not the stream, is the machine-readable verdict.
 #
+# Assert the settled outcome is the expected controlled environment failure
+# rather than merely *an* outcome.
+#
+# $1 - captured smoke output
+#
+# Returns 0 when every expectation is present, 1 otherwise (marking the run
+# failed, so the caller can bail out without repeating the bookkeeping).
+assert_expected_outcome() {
+  local output="$1"
+  local expectation
+  for expectation in "${EXPECTED_KIND}" "${EXPECTED_VERDICT}" "${EXPECTED_OUTCOME}"; do
+    case "${output}" in
+      *"${expectation}"*)
+        ;;
+      *)
+        echo "    FAIL: settled, but not with the outcome this gate expects."
+        echo "          missing: ${expectation}"
+        echo "          ${output}"
+        FAILED=1
+        return 1
+        ;;
+    esac
+  done
+  return 0
+}
+
 # Run the consumer program under one environment and assert on the outcome.
 #
 # $1 - human-readable label for the log
@@ -109,10 +154,13 @@ run_environment() {
   shift
   echo "==> Consumer environment: ${label}"
 
-  # `|| true` keeps a non-zero exit from aborting the run before the output
-  # can be inspected; the assertions below decide the verdict, not the code.
+  # The exit status is part of the verdict, so it is captured rather than
+  # discarded: the smoke program exits non-zero when an exception escapes to
+  # the consumer. `|| status=$?` keeps that from aborting the run under
+  # `set -e` while still recording what happened.
   local output
-  output="$(env "$@" node ./smoke.cjs 2>&1 || true)"
+  local status=0
+  output="$(env "$@" node ./smoke.cjs 2>&1)" || status=$?
 
   case "${output}" in
     *"${SETTLED_MARKER}"*)
@@ -134,7 +182,18 @@ run_environment() {
       ;;
   esac
 
-  echo "    ok - settled with an actionable outcome"
+  if [ "${status}" -ne 0 ]; then
+    echo "    FAIL: an exception escaped to the consumer (exit ${status})."
+    echo "          A scrape must report failure by returning a result."
+    echo "          ${output}"
+    FAILED=1
+    return 0
+  fi
+
+  assert_expected_outcome "${output}" || return 0
+
+  echo "    ok - settled with the expected environment failure"
+  echo "    ${output}"
   return 0
 }
 

@@ -51,3 +51,41 @@ describe('formatPhoneNumber — strict validation branches', () => {
     if (result.success) expect(result.value).toBe('972-000000000');
   });
 });
+
+/**
+ * Idempotence branch — `docs/banks/onezero.md` and `docs/banks/paybox.md`
+ * document the bank's own wire form as the value to pass, so a caller
+ * following those guides supplies a string that is already normalised.
+ * Normalising it again must be a no-op rather than a hard failure.
+ * The strictness pins below prove this is an exact round-trip and not a
+ * blanket "anything decorated is fine" escape hatch.
+ */
+describe('formatPhoneNumber — idempotence on the bank wire form', () => {
+  it('accepts a value already in the plus wire form documented for OneZero', () => {
+    const result = formatPhoneNumber('+972000000000', 'international-plus');
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value).toBe('+972000000000');
+  });
+
+  it('accepts a value already in the dash wire form documented for PayBox', () => {
+    const result = formatPhoneNumber('972-000000000', 'international-dash');
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value).toBe('972-000000000');
+  });
+
+  it('rejects a decorated value that is not the exact wire form of its bank', () => {
+    const result = formatPhoneNumber('972-000-000-000', 'international-dash');
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a wire form belonging to a different bank than the one declared', () => {
+    const result = formatPhoneNumber('+972000000000', 'international-dash');
+    expect(result.success).toBe(false);
+  });
+
+  it('still rejects the Israeli local trunk form on a flat-format bank', () => {
+    const result = formatPhoneNumber('0500000001', 'international-flat');
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toContain('country code 972');
+  });
+});

@@ -203,7 +203,8 @@ result.persistentOtpToken; // pass back as `otpLongTermToken` on the next run
 
 Pass `phoneNumber` in digits-only international form. Each bank wants a
 different wire format (`+972…`, `972…`, `972-…`) and the mediator rewrites it
-for you.
+for you. A value already in your bank's own wire form is accepted unchanged —
+the per-bank guides document that form, so normalising it is a no-op.
 
 The form matters: a value the mediator cannot rewrite fails the run with
 `errorType: 'INVALID_PHONE_NUMBER'` before any network call. That includes the

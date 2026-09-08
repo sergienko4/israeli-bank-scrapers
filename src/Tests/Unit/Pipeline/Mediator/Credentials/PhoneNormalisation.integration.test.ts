@@ -52,12 +52,20 @@ interface IPipelineBankConfig {
 }
 
 /**
- * Per-bank expectation: the bank's declared phoneNumberFormat plus
- * the wire form the body templates should observe.
+ * Per-bank expectation: the bank's declared phoneNumberFormat, the value
+ * the caller supplies, and the wire form the body templates should observe.
+ *
+ * The matrix covers every production `phoneNumberFormat` declaration
+ * (`PipelineBankConfig.ts` lines 146/168/208) twice — once from the
+ * canonical digits-only form the README documents, and once from the
+ * bank's own wire form, which is what `docs/banks/*.md` tells callers to
+ * pass. The second pass pins idempotence: a caller who follows the bank
+ * guide must not be rejected.
  */
 interface IBankWireCase {
   readonly bank: CompanyTypes;
   readonly phoneNumberFormat: PhoneNumberFormatTag;
+  readonly rawPhone: string;
   readonly expectedWirePhone: string;
 }
 
@@ -65,12 +73,32 @@ const BANK_CASES: readonly IBankWireCase[] = [
   {
     bank: CompanyTypes.OneZero,
     phoneNumberFormat: 'international-plus',
+    rawPhone: RAW_PHONE,
     expectedWirePhone: '+972000000000',
+  },
+  {
+    bank: CompanyTypes.PayBox,
+    phoneNumberFormat: 'international-dash',
+    rawPhone: RAW_PHONE,
+    expectedWirePhone: '972-000000000',
   },
   {
     bank: CompanyTypes.Pepper,
     phoneNumberFormat: 'international-flat',
+    rawPhone: RAW_PHONE,
     expectedWirePhone: '972000000000',
+  },
+  {
+    bank: CompanyTypes.OneZero,
+    phoneNumberFormat: 'international-plus',
+    rawPhone: '+972000000000',
+    expectedWirePhone: '+972000000000',
+  },
+  {
+    bank: CompanyTypes.PayBox,
+    phoneNumberFormat: 'international-dash',
+    rawPhone: '972-000000000',
+    expectedWirePhone: '972-000000000',
   },
 ];
 
@@ -142,38 +170,41 @@ function makeBankConfig(format: PhoneNumberFormatTag): IPipelineBankConfig {
   };
 }
 
+/** Args bundle for {@link makeBankCtx} — keeps params ≤3. */
+interface IBankCtxArgs {
+  readonly bank: CompanyTypes;
+  readonly config: IPipelineBankConfig;
+  readonly bus: IApiMediator;
+  readonly rawPhone?: string;
+}
+
 /**
  * Build an action-ready pipeline context bound to a bank config
  * literal plus the capturing mediator.
- * @param bank - CompanyTypes discriminator.
- * @param config - Pipeline bank config literal.
- * @param bus - Capturing mediator.
+ * @param args - Bank discriminator, config literal, mediator, raw phone.
  * @returns IPipelineContext.
  */
-function makeBankCtx(
-  bank: CompanyTypes,
-  config: IPipelineBankConfig,
-  bus: IApiMediator,
-): IPipelineContext {
+function makeBankCtx(args: IBankCtxArgs): IPipelineContext {
   const base = makeMockContext();
-  const credentials = { ...base.credentials, phoneNumber: RAW_PHONE };
+  const phoneNumber = args.rawPhone ?? RAW_PHONE;
+  const credentials = { ...base.credentials, phoneNumber };
   return {
     ...base,
-    companyId: bank,
-    apiMediator: some(bus),
-    config,
+    companyId: args.bank,
+    apiMediator: some(args.bus),
+    config: args.config,
     credentials,
   };
 }
 
 describe('Phone normalisation — pipeline integration', () => {
   it.each(BANK_CASES)(
-    'rewrites creds.phoneNumber to the bank wire format ($bank → $expectedWirePhone)',
-    async ({ bank, phoneNumberFormat, expectedWirePhone }) => {
+    'normalises creds.phoneNumber to the bank wire format ($bank: $rawPhone → $expectedWirePhone)',
+    async ({ bank, phoneNumberFormat, rawPhone, expectedWirePhone }) => {
       const capture: ICredsCapture = { capturedPhone: '' };
       const bus = makeCapturingBus(capture);
       const bankConfig = makeBankConfig(phoneNumberFormat);
-      const ctx = makeBankCtx(bank, bankConfig, bus);
+      const ctx = makeBankCtx({ bank, config: bankConfig, bus, rawPhone });
       const config = makeProbeConfig();
       const result = await runApiDirectCallAction(config, ctx);
       expect(result.success).toBe(true);
@@ -195,7 +226,7 @@ describe('Phone normalisation — pipeline integration', () => {
         paths: {},
       },
     };
-    const ctx = makeBankCtx(bank, configNoFormat, bus);
+    const ctx = makeBankCtx({ bank, config: configNoFormat, bus });
     const config = makeProbeConfig();
     const result = await runApiDirectCallAction(config, ctx);
     expect(result.success).toBe(true);
@@ -207,7 +238,7 @@ describe('Phone normalisation — pipeline integration', () => {
     const bus = makeCapturingBus(capture);
     const bank = CompanyTypes.OneZero;
     const bankConfig = makeBankConfig('international-plus');
-    const baseCtx = makeBankCtx(bank, bankConfig, bus);
+    const baseCtx = makeBankCtx({ bank, config: bankConfig, bus });
     const credsWithoutPhone = { ...baseCtx.credentials } as Record<string, unknown>;
     delete credsWithoutPhone.phoneNumber;
     const ctx: IPipelineContext = {
@@ -226,7 +257,7 @@ describe('Phone normalisation — pipeline integration', () => {
     const bank = CompanyTypes.OneZero;
     const malformedPhone = '+972-000-000-000';
     const bankConfig = makeBankConfig('international-plus');
-    const baseCtx = makeBankCtx(bank, bankConfig, bus);
+    const baseCtx = makeBankCtx({ bank, config: bankConfig, bus });
     const ctx: IPipelineContext = {
       ...baseCtx,
       credentials: { ...baseCtx.credentials, phoneNumber: malformedPhone },
@@ -242,7 +273,7 @@ describe('Phone normalisation — pipeline integration', () => {
     const bus = makeCapturingBus(capture);
     const bank = CompanyTypes.OneZero;
     const bankConfig = makeBankConfig('international-plus');
-    const baseCtx = makeBankCtx(bank, bankConfig, bus);
+    const baseCtx = makeBankCtx({ bank, config: bankConfig, bus });
     const ctx: IPipelineContext = {
       ...baseCtx,
       credentials: { ...baseCtx.credentials, phoneNumber: '+972-000-000-000' },
@@ -266,7 +297,7 @@ describe('Phone normalisation — pipeline integration', () => {
     const bank = CompanyTypes.Pepper;
     const localForm = '0500000001';
     const bankConfig = makeBankConfig('international-flat');
-    const baseCtx = makeBankCtx(bank, bankConfig, bus);
+    const baseCtx = makeBankCtx({ bank, config: bankConfig, bus });
     const ctx: IPipelineContext = {
       ...baseCtx,
       credentials: { ...baseCtx.credentials, phoneNumber: localForm },

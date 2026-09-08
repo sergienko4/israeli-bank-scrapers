@@ -39,8 +39,17 @@ If you spot something leaking past both layers, [open an issue](https://github.c
 
 ## Pretty terminal output
 
-Logs are structured JSON by default. `PRETTY_LOGS=true` routes them through
-`pino-pretty` instead, which is easier to read while developing.
+The library writes **no logs at all by default**. `buildTransport` returns
+`false` when neither a forensic trace file nor `PRETTY_LOGS` asks for a
+destination, and the logger is then built with `level: 'silent'`. That is
+deliberate and predates this flag: a library must not print to a host
+application's STDOUT uninvited, and without the explicit silent level Pino v10
+falls back to STDOUT on its own.
+
+So a destination is always opted into — `FORENSIC_TRACE` for the run-folder
+file, `PRETTY_LOGS=true` for readable terminal output while developing, or
+both. `LOG_LEVEL` tunes verbosity but has nothing to tune until one of them is
+set.
 
 The flag is **default-deny**: only the literal string `true` (trimmed,
 case-insensitive) enables it. `PRETTY_LOGS=1` does not.

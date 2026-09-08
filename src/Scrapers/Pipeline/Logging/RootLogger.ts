@@ -34,6 +34,12 @@ const PRETTY_UNAVAILABLE =
   `${PRETTY_LOGS_ENV} was requested but the transport could not be built; ` +
   'continuing without it:';
 
+/** Prefix used when the failing transport is not the pretty one. */
+const TRANSPORT_UNAVAILABLE = 'log transport could not be built; continuing without it:';
+
+/** Prefix used when even the degraded transport fails and logging goes silent. */
+const FALLBACK_UNAVAILABLE = 'degraded log transport could not be built either; going silent:';
+
 /**
  * True iff `PRETTY_LOGS=true` (case-insensitive, whitespace-trimmed).
  *
@@ -197,6 +203,49 @@ function optionsWithoutPretty(logFile: string): pino.LoggerOptions {
 }
 
 /**
+ * Emit the degradation warning naming the transport that actually failed.
+ * Blaming `PRETTY_LOGS` for a trace-file failure would send whoever reads
+ * the warning after a flag they never set.
+ * @param error - The failure thrown while constructing the transport.
+ * @returns True once the warning has been emitted.
+ */
+function warnTransportFailure(error: Error): true {
+  const isPretty = isPrettyLogs();
+  const reason = isPretty ? PRETTY_UNAVAILABLE : TRANSPORT_UNAVAILABLE;
+  process.emitWarning(`${reason} ${error.message}`);
+  return true;
+}
+
+/**
+ * Last-resort logger — no transport at all, so `pino()` has nothing left to
+ * resolve and cannot fail a second time. This is what makes the "always
+ * returns a usable logger" contract total rather than one level deep.
+ * @param error - The failure thrown by the degraded transport.
+ * @returns A silent but usable logger.
+ */
+function silentLogger(error: Error): Logger {
+  process.emitWarning(`${FALLBACK_UNAVAILABLE} ${error.message}`);
+  const silent = buildSilentOptions();
+  return pino(silent);
+}
+
+/**
+ * Build the degraded logger, and if even that cannot be constructed fall
+ * back to a transportless silent instance.
+ * @param logFile - Resolved log file path, used to choose the fallback.
+ * @returns A usable logger — the degraded one, or a silent one.
+ */
+function degradeLogger(logFile: string): Logger {
+  const fallback = optionsWithoutPretty(logFile);
+  try {
+    return pino(fallback);
+  } catch (error_) {
+    const error = toError(error_);
+    return silentLogger(error);
+  }
+}
+
+/**
  * Build a pino instance, degrading rather than failing when its transport
  * cannot be constructed.
  *
@@ -221,9 +270,8 @@ export function instantiateLogger(logFile: string, options: pino.LoggerOptions):
     return pino(options);
   } catch (error_) {
     const error = toError(error_);
-    process.emitWarning(`${PRETTY_UNAVAILABLE} ${error.message}`);
-    const fallback = optionsWithoutPretty(logFile);
-    return pino(fallback);
+    warnTransportFailure(error);
+    return degradeLogger(logFile);
   }
 }
 
