@@ -451,9 +451,11 @@ jobs:
   # macOS is the only runner that can prove it: Apple still ships
   # bash 3.2.57, the last GPLv2 release. The runner is free for
   # public repositories, and the leg is skipped entirely unless
-  # `ci_scripts` changed. `--version` is printed first so a future
-  # image that quietly ships bash 5 as /bin/bash is visible in the
-  # log rather than silently making this leg vacuous again.
+  # `ci_scripts` changed. The version is ASSERTED, not merely printed:
+  # a future image that quietly ships bash 5 as /bin/bash would
+  # otherwise leave this leg green and vacuous, and nobody reads the
+  # log of a passing job. `BASH_BIN` exists so the assertion can be
+  # executed against a chosen binary by its unit test.
   #
   # `lint:shell-portability` deliberately stays on ubuntu only: it
   # is a static scan whose result cannot depend on the host shell.
@@ -470,8 +472,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Record the shell this leg actually exercises
-        run: /bin/bash --version
+      - name: Assert this leg really runs bash 3.2
+        run: |
+          bash_bin="${BASH_BIN:-/bin/bash}"
+          "$bash_bin" --version | head -n 1
+          version="$("$bash_bin" -c 'echo "${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}"')"
+          if [ "$version" != "3.2" ]; then
+            echo "::error::$bash_bin is bash $version, expected 3.2 — this leg would prove nothing"
+            exit 1
+          fi
       - name: Portable map unit test
         run: /bin/bash .github/scripts/ci/tests/portable-map.test.sh
       - name: Docs coverage extractor unit test
