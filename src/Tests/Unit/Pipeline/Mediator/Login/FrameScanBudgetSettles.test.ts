@@ -91,7 +91,10 @@ describe('safeScanFrame budget', () => {
   });
 
   afterAll(() => {
-    rmSync(workDir, { force: true, recursive: true });
+    // Only remove what setup actually created. `rmSync('')` is harmless today
+    // purely because `force` swallows the ENOENT — teardown should not depend
+    // on that, and would start throwing the moment `force` were dropped.
+    if (workDir) rmSync(workDir, { force: true, recursive: true });
   });
 
   it(
