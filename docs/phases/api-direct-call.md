@@ -56,6 +56,24 @@ Every api-direct bank declares its wire format in `PipelineBankConfig.headless.p
 
 Callers always pass digits-only international form; the ACTION-stage mediator rewrites once before the flow runs.
 
+A value already in the bank's own wire form — the third column above — is
+accepted unchanged. The per-bank guides document that form as the value to
+pass, so normalising it has to be a no-op rather than a rejection. The check is
+an exact round-trip, so a near-miss like `972-000-000-000` is still refused.
+
+A value it cannot rewrite — a shape that is neither the digits-only form nor
+this bank's exact wire form, shorter than 10 digits, or lacking the `972`
+country code (which includes the natural local form `05XXXXXXXX`) — **fails
+the run** with `INVALID_PHONE_NUMBER`, before a bus is built and before
+anything reaches the network.
+
+It used to log a warning and hand the raw value on "for downstream
+validation". There is no downstream validation: Pepper reads
+`credentials.phoneNumber` straight into its `x-user-id` header, so the
+unusable value went to the bank as-is and came back as an opaque auth failure
+that named nothing. See
+[#552](https://github.com/sergienko4/israeli-bank-scrapers/issues/552).
+
 ## Sub-step contract
 
 | Hook | What it does |
@@ -72,5 +90,6 @@ Callers always pass digits-only international form; the ACTION-stage mediator re
 | `INVALID_PASSWORD` | Bank rejected credentials |
 | `INVALID_OTP` | Wrong code |
 | `TWO_FACTOR_RETRIEVER_MISSING` | OTP step reached without callback |
+| `INVALID_PHONE_NUMBER` | `phoneNumber` cannot be normalised to the bank's wire format — see [Phone normaliser](#phone-normaliser) |
 | `TIMEOUT` | A step's HTTP call didn't complete |
 | `GENERIC` | Signer key missing, response shape drift, or a `cryptoField` failure |

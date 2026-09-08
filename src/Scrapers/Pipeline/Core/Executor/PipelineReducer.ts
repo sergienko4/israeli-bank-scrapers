@@ -83,6 +83,11 @@ function buildStep(tracker: IContextTracker, index: number): IPhaseStep {
  * completes (`when='final'`). FINAL settle is skipped for the
  * terminal phase so pipeline completion is not delayed.
  *
+ * <p>The timer is ref'd. An unref'd timer tells Node it may exit without
+ * waiting, which is a contradiction for a wait the pipeline then awaits:
+ * with no browser or socket left to hold the loop open, Node exits mid-run
+ * and the scrape is abandoned with no result and no error (issue #552).
+ *
  * @param ctx - Active pipeline context (used for structured trace).
  * @param step - The phase step entering or just-finished.
  * @param when - 'pre' (before phase work) or 'final' (after phase work).
@@ -99,7 +104,7 @@ async function phaseSettle(
     when,
     elapsedMs: String(PHASE_SETTLE_MS),
   });
-  await setTimeoutPromise(PHASE_SETTLE_MS, undefined, { ref: false });
+  await setTimeoutPromise(PHASE_SETTLE_MS);
   return true as const;
 }
 

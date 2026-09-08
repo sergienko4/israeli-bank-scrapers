@@ -40,4 +40,21 @@ describe('PepperShape.userIdOf', () => {
     const result = userIdOf(ctx);
     expect(result).toBe('');
   });
+
+  /**
+   * Deliberate non-repair. The Israeli local form `05…` can never reach
+   * here on the production path: Pepper declares `international-flat`, and
+   * the API-direct ACTION now refuses a phone it cannot normalise to it.
+   *
+   * Rewriting the value here anyway would hide a broken upstream invariant
+   * inside a header builder — the same silent-repair pattern this change
+   * set removes. The credential boundary is the only place allowed to
+   * reject, so this helper passes an unexpected shape through untouched
+   * and lets the failure stay visible.
+   */
+  it('does not repair a local trunk form — the credential boundary owns rejection', () => {
+    const ctx = makeCtxWithPhone('0500000001');
+    const result = userIdOf(ctx);
+    expect(result).toBe('0500000001');
+  });
 });

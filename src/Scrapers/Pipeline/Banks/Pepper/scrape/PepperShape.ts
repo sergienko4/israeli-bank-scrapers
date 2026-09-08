@@ -37,15 +37,23 @@ const APP_VERSION = '11.5.1-202603051858';
 /** Stable per-install client id — generated once per process. */
 const PEPPER_CLIENT_ID = randomUUID();
 
+/** Israeli country-code prefix carried by the international-flat form. */
+const IL_COUNTRY_CODE = '972';
+
 /**
  * Resolve the x-user-id header — Pepper uses the phone without the
  * country-code prefix (local-only form).
  *
- * Pepper's `phoneNumberFormat` is `'international-flat'` so the body
- * templates receive `972XXXXXXXXX`. The x-user-id header, however,
- * is a SEPARATE concern (header vs body) and expects the local form,
- * so this helper strips the `972` prefix when present. Robust to
- * either form so it can absorb a future config change.
+ * Pepper's `phoneNumberFormat` is `'international-flat'`, and the
+ * API-direct ACTION rejects anything that cannot be normalised to it,
+ * so by the time this runs the credential is guaranteed to read
+ * `972XXXXXXXXX`. The x-user-id header is a SEPARATE concern from the
+ * body (header vs body) and expects the subscriber digits alone, so this
+ * helper strips the `972` prefix.
+ *
+ * It deliberately does not repair any other shape. Rewriting a malformed
+ * value here would paper over a broken upstream invariant inside a header
+ * builder; the credential boundary is the one place allowed to reject.
  * @param ctx - Action context carrying credentials.
  * @returns x-user-id string (empty when phone absent).
  */
@@ -53,8 +61,8 @@ function userIdOf(ctx: IActionContext): PepperUserId {
   const creds = ctx.credentials as unknown as IPepperCreds;
   const candidate = creds.phoneNumber as unknown;
   const raw = typeof candidate === 'string' ? candidate : '';
-  if (raw.startsWith('972')) return raw.slice(3) as unknown as PepperUserId;
-  return raw as unknown as PepperUserId;
+  if (raw.startsWith(IL_COUNTRY_CODE)) return raw.slice(IL_COUNTRY_CODE.length) as PepperUserId;
+  return raw as PepperUserId;
 }
 
 /**

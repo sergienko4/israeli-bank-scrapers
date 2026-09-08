@@ -3,7 +3,10 @@
  * PII-safe: only logs shape descriptors (length, leading digits), never raw digits.
  */
 
+import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
+import type { Procedure } from '../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { PhoneNumberFormat } from '../Credentials/PhoneFormatter.js';
 import { formatPhoneNumber } from '../Credentials/PhoneFormatter.js';
 import { PHASE_LABEL } from './ApiDirectCallActions.shared.js';
@@ -49,18 +52,24 @@ function collectNormaliseBundle(ctx: IPipelineContext): INormaliseBundle | false
 }
 
 /**
- * Log + return ctx unchanged when wire formatting fails.
+ * Refuse a phone the bank's wire format cannot represent.
+ *
+ * <p>This used to warn and hand the raw value on, on the stated grounds
+ * that something downstream would validate it. Nothing does. Pepper reads
+ * `credentials.phoneNumber` straight into its `x-user-id` header, so a
+ * local-form number such as `05XXXXXXXX` — the form a user is most likely
+ * to supply — went to the bank verbatim and came back as an opaque auth
+ * failure naming nothing (issue #552).
  * @param bundle - Original normalisation bundle.
- * @param reason - Failure reason from {@link formatPhoneNumber}.
- * @returns Ctx unchanged.
+ * @param reason - Failure reason from {@link formatPhoneNumber}, which
+ * already names the offending field — this must not restate it.
+ * @returns Failed Procedure carrying a PII-safe diagnostic.
  */
-function logFormatFailure(bundle: INormaliseBundle, reason: string): IPipelineContext {
+function failUnusablePhone(bundle: INormaliseBundle, reason: string): Procedure<IPipelineContext> {
   const { ctx, format, rawShape } = bundle;
-  ctx.logger.warn(
-    { module: PHASE_LABEL, reason, format, rawShape },
-    'phoneNumber normalisation failed — keeping raw input for downstream validation',
-  );
-  return ctx;
+  const message = `${reason} (cannot be normalised to the ${format} wire format)`;
+  ctx.logger.error({ module: PHASE_LABEL, format, rawShape }, message);
+  return fail(ScraperErrorTypes.InvalidPhoneNumber, message);
 }
 
 /**
@@ -83,22 +92,27 @@ function applyWireFormat(bundle: INormaliseBundle, wireValue: string): IPipeline
 /**
  * Apply the wire-format Procedure outcome to the bundle's ctx.
  * @param bundle - Normalisation bundle.
- * @returns Updated ctx (success) or original ctx (failure).
+ * @returns Updated ctx, or a failure when the phone is unusable.
  */
-function applyWireOutcome(bundle: INormaliseBundle): IPipelineContext {
+function applyWireOutcome(bundle: INormaliseBundle): Procedure<IPipelineContext> {
   const wire = formatPhoneNumber(bundle.raw, bundle.format);
-  if (!wire.success) return logFormatFailure(bundle, wire.errorMessage);
-  return applyWireFormat(bundle, wire.value);
+  if (!isOk(wire)) return failUnusablePhone(bundle, wire.errorMessage);
+  const next = applyWireFormat(bundle, wire.value);
+  return succeed(next);
 }
 
 /**
  * Rewrite `ctx.credentials.phoneNumber` into the bank's wire format.
+ *
+ * <p>A bank that declares no `phoneNumberFormat`, or a context carrying no
+ * `phoneNumber`, has nothing to normalise and passes through untouched. A
+ * bank that does declare one gets a value in that format or no run at all.
  * @param ctx - Pipeline context.
- * @returns Ctx with credentials.phoneNumber normalised, or unchanged.
+ * @returns Ctx with credentials.phoneNumber normalised, or a failure.
  */
-function withNormalisedCreds(ctx: IPipelineContext): IPipelineContext {
+function withNormalisedCreds(ctx: IPipelineContext): Procedure<IPipelineContext> {
   const bundle = collectNormaliseBundle(ctx);
-  if (bundle === false) return ctx;
+  if (bundle === false) return succeed(ctx);
   return applyWireOutcome(bundle);
 }
 

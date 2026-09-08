@@ -140,6 +140,7 @@ describe('Debug buildTransport — env-permutation branches', () => {
   const originalCi = process.env.CI;
   const originalNodeEnv = process.env.NODE_ENV;
   const originalForensicTrace = process.env.FORENSIC_TRACE;
+  const originalPrettyLogs = process.env.PRETTY_LOGS;
 
   afterEach(() => {
     // Restore env exactly.
@@ -153,12 +154,14 @@ describe('Debug buildTransport — env-permutation branches', () => {
     else process.env.NODE_ENV = originalNodeEnv;
     if (originalForensicTrace === undefined) delete process.env.FORENSIC_TRACE;
     else process.env.FORENSIC_TRACE = originalForensicTrace;
+    if (originalPrettyLogs === undefined) delete process.env.PRETTY_LOGS;
+    else process.env.PRETTY_LOGS = originalPrettyLogs;
     jest.resetModules();
   });
 
-  it('FORENSIC_TRACE + isDevMode=true builds multi-target transport', async () => {
+  it('FORENSIC_TRACE + PRETTY_LOGS builds multi-target transport', async () => {
     delete process.env.CI;
-    process.env.NODE_ENV = 'development';
+    process.env.PRETTY_LOGS = 'true';
     process.env.LOG_LEVEL = 'trace';
     process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = DEBUG_TEST_RUNS_ROOT_DEV;
@@ -172,9 +175,10 @@ describe('Debug buildTransport — env-permutation branches', () => {
     }).not.toThrow();
   });
 
-  it('FORENSIC_TRACE + CI=true builds file-only transport (non-dev)', async () => {
+  it('FORENSIC_TRACE without PRETTY_LOGS builds file-only transport', async () => {
     process.env.CI = '1';
     delete process.env.NODE_ENV;
+    delete process.env.PRETTY_LOGS;
     process.env.LOG_LEVEL = 'trace';
     process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = DEBUG_TEST_RUNS_ROOT_CI;
@@ -188,9 +192,10 @@ describe('Debug buildTransport — env-permutation branches', () => {
     }).not.toThrow();
   });
 
-  it('non-trace + CI + production → transport=false (no file output)', async () => {
+  it('non-trace without PRETTY_LOGS → transport=false (no output)', async () => {
     process.env.CI = '1';
     process.env.NODE_ENV = 'production';
+    delete process.env.PRETTY_LOGS;
     delete process.env.LOG_LEVEL;
     jest.resetModules();
     const mod = await import('../../../../Scrapers/Pipeline/Logging/Debug.js');
@@ -200,9 +205,9 @@ describe('Debug buildTransport — env-permutation branches', () => {
     }).not.toThrow();
   });
 
-  it('non-trace + dev mode → DEV_TRANSPORT pretty stdout (no file)', async () => {
+  it('non-trace + PRETTY_LOGS → pretty stdout (no file)', async () => {
     delete process.env.CI;
-    process.env.NODE_ENV = 'development';
+    process.env.PRETTY_LOGS = 'true';
     delete process.env.LOG_LEVEL;
     jest.resetModules();
     const mod = await import('../../../../Scrapers/Pipeline/Logging/Debug.js');

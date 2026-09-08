@@ -104,7 +104,7 @@ Playwright, and TypeScript strict mode.
 | Node.js | `>= 22.14.0` | ESM-by-default + `node:crypto` `randomUUID` |
 | npm | `>= 10` | Provenance-signed publishes |
 | Disk | ~1.3 GB | Camoufox bundle, cached on **first launch** (not at install) |
-| Install scripts | must be allowed | `--ignore-scripts` breaks the native build — see [Troubleshooting](https://sergienko4.github.io/israeli-bank-scrapers/troubleshooting/) |
+| Install scripts | must be allowed | `--ignore-scripts` breaks the native build. npm 12 blocks them by default too, so `better-sqlite3` needs `npm install-scripts approve` — see [Troubleshooting](https://sergienko4.github.io/israeli-bank-scrapers/troubleshooting/) |
 
 Windows, macOS, and Linux are all supported.
 
@@ -203,7 +203,12 @@ result.persistentOtpToken; // pass back as `otpLongTermToken` on the next run
 
 Pass `phoneNumber` in digits-only international form. Each bank wants a
 different wire format (`+972…`, `972…`, `972-…`) and the mediator rewrites it
-for you.
+for you. A value already in your bank's own wire form is accepted unchanged —
+the per-bank guides document that form, so normalising it is a no-op.
+
+The form matters: a value the mediator cannot rewrite fails the run with
+`errorType: 'INVALID_PHONE_NUMBER'` before any network call. That includes the
+natural local form `0500000001` — write it as `972500000001`.
 
 ## What you get back
 

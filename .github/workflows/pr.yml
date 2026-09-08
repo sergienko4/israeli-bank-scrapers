@@ -907,6 +907,40 @@ jobs:
           retention-days: 7
 
   # ──────────────────────────────────────────────────────────────
+  # Consumer install — the only job that leaves the working tree.
+  #
+  # Every other job runs from the repo, where devDependencies are on
+  # disk and the runner sets `CI=true`. A defect that needs a
+  # production install and an unset `CI` is unreachable from all of
+  # them by construction. This job packs the real tarball, installs
+  # it into an empty project with `--omit=dev`, and runs a scrape
+  # with `CI` and `NODE_ENV` unset — the ordinary state of a
+  # consumer's app. See .github/scripts/ci/consumer-install.sh.
+  #
+  # Hermetic: no bank is contacted (see the script's header).
+  # ──────────────────────────────────────────────────────────────
+  consumer-install:
+    name: Consumer install
+    needs: changes
+    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci_scripts == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/setup-test-runner
+        with:
+          camoufox: 'false'
+          tests-config: 'false'
+      # The script packs (and therefore builds, via `prepare`) itself, so
+      # there is no separate build step to keep in sync with it.
+      - name: Package works for consumers
+        run: /bin/bash .github/scripts/ci/consumer-install.sh
+
+  # ──────────────────────────────────────────────────────────────
   # Validate aggregator — preserves the external `Validate` status
   # context name AND the outputs that downstream jobs (dns-preflight,
   # e2e-real-group-*, dependency-review) consume.
@@ -934,6 +968,7 @@ jobs:
       - bank-coverage
       - integration
       - build
+      - consumer-install
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

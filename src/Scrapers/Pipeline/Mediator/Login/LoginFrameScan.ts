@@ -10,6 +10,7 @@ import type { Frame, Page } from 'playwright-core';
 
 import type { IElementMediator } from '../Elements/ElementMediator.js';
 import { LOGIN_PER_FRAME_SCAN_TIMEOUT_MS } from '../Timing/LoginTimingConfig.js';
+import { RACE_TIMED_OUT, raceTimeout } from '../Timing/TimingActions.js';
 
 /** Minimal error-scan result shape for the all-frames helper. */
 interface IFramesScanResult {
@@ -21,20 +22,15 @@ interface IFramesScanResult {
 const FRAMES_NO_ERRORS: IFramesScanResult = { hasErrors: false, summary: '' };
 
 /**
- * Produce a Promise that resolves to FRAMES_NO_ERRORS after ms elapses.
- * @param ms - Budget in milliseconds.
- * @returns Empty-scan Promise.
- */
-async function budgetFrameScan(ms: number): Promise<IFramesScanResult> {
-  const { setTimeout: setTimeoutPromise } = await import('node:timers/promises');
-  await setTimeoutPromise(ms, undefined, { ref: false });
-  return FRAMES_NO_ERRORS;
-}
-
-/**
  * Scan a single frame, swallowing detached-frame errors AND capping the
  * call at PER_FRAME_SCAN_TIMEOUT_MS so one hung frame cannot stall the
  * Promise.all fan-out.
+ *
+ * <p>The cap comes from {@link raceTimeout} rather than a hand-rolled
+ * budget arm. Its timer is ref'd, so the budget still fires when the scan
+ * is the only work left — a budget Node has been told to ignore is no
+ * budget at all — and it is cancelled once the race settles, so a losing
+ * budget cannot delay process exit either.
  * @param mediator - Element mediator.
  * @param frame - Page or iframe to scan.
  * @returns Scan result (empty on failure or timeout).
@@ -44,8 +40,8 @@ async function safeScanFrame(
   frame: Page | Frame,
 ): Promise<IFramesScanResult> {
   const discover = mediator.discoverErrors(frame).catch((): IFramesScanResult => FRAMES_NO_ERRORS);
-  const budget = budgetFrameScan(LOGIN_PER_FRAME_SCAN_TIMEOUT_MS);
-  const scan = await Promise.race([discover, budget]);
+  const scan = await raceTimeout(LOGIN_PER_FRAME_SCAN_TIMEOUT_MS, discover);
+  if (scan === RACE_TIMED_OUT) return FRAMES_NO_ERRORS;
   if (!scan.hasErrors) return FRAMES_NO_ERRORS;
   return { hasErrors: true, summary: scan.summary };
 }

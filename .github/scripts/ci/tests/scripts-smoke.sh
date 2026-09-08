@@ -45,7 +45,7 @@ assert_eq() {
 # ── 1. shellcheck ──
 echo "── 1/10: shellcheck ──"
 if command -v shellcheck >/dev/null 2>&1; then
-  for script in decrypt-token-cache.sh encrypt-token-cache.sh check-docs-links.sh pipeline-summary.sh memory-compare.sh memory-measure.sh decoupling-compare.sh verify-npm-publish.sh dns-warmup.sh; do
+  for script in decrypt-token-cache.sh consumer-install.sh encrypt-token-cache.sh check-docs-links.sh pipeline-summary.sh memory-compare.sh memory-measure.sh decoupling-compare.sh verify-npm-publish.sh dns-warmup.sh; do
     if shellcheck "$SCRIPT_DIR/$script"; then
       PASS=$((PASS + 1))
       echo "  ✓ shellcheck $script"

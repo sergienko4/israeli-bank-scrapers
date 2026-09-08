@@ -41,7 +41,7 @@ export interface IMockHandle {
 export const ONEZERO_MOCK_CREDS = Object.freeze({
   email: 'synthetic-onezero@example.test',
   password: 'synthetic-pass',
-  phoneNumber: '+972-546-218739',
+  phoneNumber: '972000000000',
   otpLongTermToken: 'syn-otp-long-term-a7f4b2c8',
 });
 

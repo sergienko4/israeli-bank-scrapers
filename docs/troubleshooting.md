@@ -15,12 +15,66 @@ better-sqlite3's prebuild download.
 npm rebuild better-sqlite3
 ```
 
+### npm 12 blocks install scripts by default
+
+npm 12 does not run a dependency's install script unless that dependency is
+listed in your `allowScripts`. A plain `npm install` therefore leaves
+better-sqlite3 unbuilt, and says so only in a warning that is easy to miss:
+
+```
+npm warn install-scripts 1 package had install scripts blocked because they are not covered by allowScripts:
+npm warn install-scripts   better-sqlite3@12.11.1 (install: prebuild-install || node-gyp rebuild --release)
+```
+
+`npm rebuild better-sqlite3` alone **does not fix this**. It is blocked by the
+same policy and still prints `rebuilt dependencies successfully` while building
+nothing, so the error survives a remedy that reported success. Approve the
+package first, then rebuild — both steps are required:
+
+```bash
+npm install-scripts approve better-sqlite3
+npm rebuild better-sqlite3
+```
+
+`approve` records the decision in your `package.json` under `allowScripts`, so
+it survives a reinstall. Run `npm install-scripts ls` to see what is blocked.
+
 If that has to compile from source (no prebuild for your platform), install a
 toolchain first:
 
 ```bash
 sudo apt-get install -y python3 make g++   # Debian / Ubuntu
 ```
+
+## `Version information not found`
+
+The full text is:
+
+```
+Version information not found at <cache dir>/version.json. Please run `camoufox fetch` to install.
+```
+
+The Camoufox bundle is downloaded on **first launch**, not at install time.
+This error means the cache directory exists and is not empty, but holds no
+`version.json` — a first launch that was interrupted part-way through.
+
+| OS | Cache directory |
+|---|---|
+| macOS | `~/Library/Caches/camoufox` |
+| Linux | `~/.cache/camoufox` |
+| Windows | `%LOCALAPPDATA%\camoufox\camoufox\Cache` |
+
+Ignore the advice in the message. `camoufox fetch` is the Python CLI, which you
+do not have as a Node consumer of this package. Delete the partial directory
+and launch again — an **absent or empty** directory triggers a fresh download,
+whereas a partial one does not:
+
+```bash
+rm -rf ~/Library/Caches/camoufox   # macOS; ~/.cache/camoufox on Linux
+```
+
+Set `CAMOUFOX_INSTALL_DIR` to relocate the cache — useful when the home
+directory is ephemeral, as in a container without a persisted volume.
 
 ## `Cannot read properties of undefined (reading 'url')`
 
@@ -73,6 +127,7 @@ Returned as `result.errorType` when `result.success` is `false`.
 | `INVALID_PASSWORD` | Wrong credentials |
 | `INVALID_OTP` | Wrong or expired OTP code |
 | `TWO_FACTOR_RETRIEVER_MISSING` | OTP required but no `otpCodeRetriever` supplied |
+| `INVALID_PHONE_NUMBER` | `phoneNumber` is not usable for this bank. Pass digits-only international form (`972000000000`) or the bank's own wire form from its [bank guide](banks/index.md). Raised before any network call, so nothing was sent — the Israeli local form `0500000001` is refused on purpose rather than forwarded and rejected as an opaque auth failure |
 | `CHANGE_PASSWORD` | The bank is forcing a password change — log in manually first |
 | `ACCOUNT_BLOCKED` | The bank locked the account |
 | `WAF_BLOCKED` | Cloudflare block — read `errorDetails.suggestions` |

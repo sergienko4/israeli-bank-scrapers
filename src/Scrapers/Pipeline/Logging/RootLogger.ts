@@ -15,6 +15,7 @@ import pino, { type Logger } from 'pino';
 
 import type { Brand } from '../Types/Brand.js';
 import { SENSITIVE_PATHS } from '../Types/DebugConfig.js';
+import { toError } from '../Types/ErrorUtils.js';
 import { createCensorFn } from '../Types/PiiRedactor.js';
 import { getLogFile } from '../Types/TraceConfig.js';
 import { getBankMixin } from './BankContext.js';
@@ -22,10 +23,42 @@ import { getBankMixin } from './BankContext.js';
 /** Brand for the root-logger generation counter (Rule #15). */
 type RootLoggerGeneration = Brand<number, 'RootLoggerGeneration'>;
 
-const isDevMode = !process.env.CI && process.env.NODE_ENV !== 'production';
+/** Opt-in flag for human-readable terminal output. */
+const PRETTY_LOGS_ENV = 'PRETTY_LOGS';
 
-/** Pino transport for dev mode (pretty printing). */
-const DEV_TRANSPORT = { target: 'pino-pretty', options: { colorize: true } };
+/** Pino transport for pretty printing. */
+const PRETTY_TRANSPORT = { target: 'pino-pretty', options: { colorize: true } };
+
+/** Prefix of the out-of-band warning emitted when pretty output is unusable. */
+const PRETTY_UNAVAILABLE =
+  `${PRETTY_LOGS_ENV} was requested but the transport could not be built; ` +
+  'continuing without it:';
+
+/** Prefix used when the failing transport is not the pretty one. */
+const TRANSPORT_UNAVAILABLE = 'log transport could not be built; continuing without it:';
+
+/** Prefix used when even the degraded transport fails and logging goes silent. */
+const FALLBACK_UNAVAILABLE = 'degraded log transport could not be built either; going silent:';
+
+/**
+ * True iff `PRETTY_LOGS=true` (case-insensitive, whitespace-trimmed).
+ *
+ * <p>Default-deny, and read per call rather than captured at module load so
+ * the choice is testable and so a consumer can set it before their first log.
+ *
+ * <p>This replaces a check on `CI` and `NODE_ENV`. That check was inverted
+ * in practice: it treated "the caller set neither variable" as "we are
+ * developing this library", which is the ordinary state of any application
+ * that depends on it. Every such consumer was handed a `pino-pretty`
+ * transport — a devDependency absent from their production install — and the
+ * scrape died resolving it before reaching the network (issue #552). Pretty
+ * output is a developer convenience, so it is now asked for explicitly.
+ * @returns True only when the flag is the literal `true`.
+ */
+function isPrettyLogs(): boolean {
+  const flag = (process.env[PRETTY_LOGS_ENV] ?? '').trim().toLowerCase();
+  return flag === 'true';
+}
 
 /** Single source of truth censor — built from PiiRedactor strategies. */
 const CENSOR = createCensorFn();
@@ -47,32 +80,36 @@ function buildFileTransport(logFile: string): pino.TransportSingleOptions {
 }
 
 /**
- * Build the dual terminal-+-file transport used in dev mode so the
- * developer sees pretty output AND the same trace artefact lands on
- * disk for post-run inspection.
+ * Build the dual terminal-+-file transport used when pretty output is
+ * requested, so the developer sees pretty output AND the same trace
+ * artefact lands on disk for post-run inspection.
  * @param logFile - Resolved log file path.
  * @returns Pino multi-target transport config.
  */
 function buildDualTransport(logFile: string): pino.TransportMultiOptions {
   return {
     targets: [
-      { target: 'pino-pretty', options: { colorize: true }, level: 'trace' },
+      { ...PRETTY_TRANSPORT, level: 'trace' },
       { target: 'pino/file', options: { destination: logFile }, level: 'trace' },
     ],
   };
 }
 
 /**
- * Build pino transport — terminal only or terminal + file.
+ * Build pino transport — terminal only, file only, both, or none.
+ *
+ * <p>Exported only so the unit test can pin the selection contract without
+ * bootstrapping a real pino instance.
  * @param logFile - Resolved log file path (empty string disables file output).
  * @returns Transport config or false.
  */
-function buildTransport(
+export function buildTransport(
   logFile: string,
 ): pino.TransportSingleOptions | pino.TransportMultiOptions | false {
-  if (!isDevMode && !logFile) return false;
-  if (!logFile) return DEV_TRANSPORT;
-  if (!isDevMode) return buildFileTransport(logFile);
+  const isPretty = isPrettyLogs();
+  if (!isPretty && !logFile) return false;
+  if (!logFile) return PRETTY_TRANSPORT;
+  if (!isPretty) return buildFileTransport(logFile);
   return buildDualTransport(logFile);
 }
 
@@ -153,6 +190,95 @@ export function buildPinoOptions(
 }
 
 /**
+ * The options {@link buildTransport} would have produced had pretty output
+ * not been requested — one step down, never two: a run that asked for a
+ * trace file keeps it.
+ * @param logFile - Resolved log file path (empty string for no file output).
+ * @returns Pino options with the pretty target dropped.
+ */
+function optionsWithoutPretty(logFile: string): pino.LoggerOptions {
+  if (!logFile) return buildSilentOptions();
+  const transport = buildFileTransport(logFile);
+  return buildActiveOptions(transport);
+}
+
+/**
+ * Emit the degradation warning naming the transport that actually failed.
+ * Blaming `PRETTY_LOGS` for a trace-file failure would send whoever reads
+ * the warning after a flag they never set, so the flag is named only when
+ * pretty output was the sole target and therefore the only candidate.
+ * @param error - The failure thrown while constructing the transport.
+ * @param logFile - Resolved log file path; a non-empty one means a second
+ * target was present, so the failure is not attributable to pretty output.
+ * @returns True once the warning has been emitted.
+ */
+function warnTransportFailure(error: Error, logFile: string): true {
+  const isPrettyOnly = isPrettyLogs() && !logFile;
+  const reason = isPrettyOnly ? PRETTY_UNAVAILABLE : TRANSPORT_UNAVAILABLE;
+  process.emitWarning(`${reason} ${error.message}`);
+  return true;
+}
+
+/**
+ * Last-resort logger — no transport at all, so `pino()` has nothing left to
+ * resolve and cannot fail a second time. This is what makes the "always
+ * returns a usable logger" contract total rather than one level deep.
+ * @param error - The failure thrown by the degraded transport.
+ * @returns A silent but usable logger.
+ */
+function silentLogger(error: Error): Logger {
+  process.emitWarning(`${FALLBACK_UNAVAILABLE} ${error.message}`);
+  const silent = buildSilentOptions();
+  return pino(silent);
+}
+
+/**
+ * Build the degraded logger, and if even that cannot be constructed fall
+ * back to a transportless silent instance.
+ * @param logFile - Resolved log file path, used to choose the fallback.
+ * @returns A usable logger — the degraded one, or a silent one.
+ */
+function degradeLogger(logFile: string): Logger {
+  const fallback = optionsWithoutPretty(logFile);
+  try {
+    return pino(fallback);
+  } catch (error_) {
+    const error = toError(error_);
+    return silentLogger(error);
+  }
+}
+
+/**
+ * Build a pino instance, degrading rather than failing when its transport
+ * cannot be constructed.
+ *
+ * <p>A logger is a diagnostic aid; it must never be the thing that ends a
+ * scrape. `pino()` throws synchronously when a transport target cannot be
+ * resolved — a missing `pino-pretty`, a version mismatch, a worker that
+ * will not start — and that throw used to propagate all the way out as the
+ * scrape's failure, masquerading as a bank problem.
+ *
+ * <p>The warning goes through `process.emitWarning` rather than a log line
+ * for the obvious reason: the logger is what just failed. Consumers can
+ * observe it via `process.on('warning')` or silence it like any other.
+ *
+ * <p>Exported only so the unit test can pin the degradation contract by
+ * handing it a transport that cannot resolve.
+ * @param logFile - Resolved log file path, used to choose the fallback.
+ * @param options - Preferred options, produced by {@link buildPinoOptions}.
+ * @returns A usable logger — the preferred one, or a degraded one.
+ */
+export function instantiateLogger(logFile: string, options: pino.LoggerOptions): Logger {
+  try {
+    return pino(options);
+  } catch (error_) {
+    const error = toError(error_);
+    warnTransportFailure(error, logFile);
+    return degradeLogger(logFile);
+  }
+}
+
+/**
  * Replace the cached root logger with one bound to `logFile`, flushing the
  * superseded instance so buffered pre-upgrade records still reach their
  * destination.
@@ -164,8 +290,8 @@ export function buildPinoOptions(
  * old stream forever and would start throwing on a closed one. Flushing
  * therefore trades a bounded leak for safety — and the bound is small: a run
  * changes destination exactly once (`'' -> <file>`, when `setActiveBank`
- * fires), so at most one logger is ever superseded, and in production
- * (`NODE_ENV=production` with no file) the superseded logger is transportless
+ * fires), so at most one logger is ever superseded, and without the
+ * `PRETTY_LOGS` opt-in and no file the superseded logger is transportless
  * and owns no worker at all.
  * @param logFile - Resolved log file path (empty string for terminal-only).
  * @returns The freshly built root logger.
@@ -174,7 +300,7 @@ function rebuildRootLogger(logFile: string): Logger {
   const previous = rootLoggerCache;
   const transport = buildTransport(logFile);
   const options = buildPinoOptions(transport);
-  rootLoggerCache = pino(options);
+  rootLoggerCache = instantiateLogger(logFile, options);
   rootLoggerKey = logFile;
   rootGeneration += 1;
   if (previous) previous.flush();
@@ -190,8 +316,8 @@ function rebuildRootLogger(logFile: string): Logger {
  * The cache is keyed on the resolved destination rather than gated on it.
  * Gating meant that off-trace runs — where `getLogFile()` returns `''`
  * permanently — cached nothing and rebuilt a pino instance on *every*
- * property access. In dev mode each rebuild started a `pino-pretty`
- * `thread-stream` worker that nothing ever closed: one `LOG.info(...)`
+ * property access. With `PRETTY_LOGS` enabled each rebuild started a
+ * `pino-pretty` `thread-stream` worker that nothing ever closed: one `LOG.info(...)`
  * costs 23 property reads (pino reads its internal symbols off `this`),
  * so a single log statement leaked 23 worker threads and ~92 MB of
  * `SharedArrayBuffer`. Keying preserves the file-upgrade behaviour the

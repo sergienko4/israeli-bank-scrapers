@@ -52,12 +52,20 @@ interface IPipelineBankConfig {
 }
 
 /**
- * Per-bank expectation: the bank's declared phoneNumberFormat plus
- * the wire form the body templates should observe.
+ * Per-bank expectation: the bank's declared phoneNumberFormat, the value
+ * the caller supplies, and the wire form the body templates should observe.
+ *
+ * The matrix covers every production `phoneNumberFormat` declaration
+ * (`PipelineBankConfig.ts` lines 146/168/208) twice — once from the
+ * canonical digits-only form the README documents, and once from the
+ * bank's own wire form, which is what `docs/banks/*.md` tells callers to
+ * pass. The second pass pins idempotence: a caller who follows the bank
+ * guide must not be rejected.
  */
 interface IBankWireCase {
   readonly bank: CompanyTypes;
   readonly phoneNumberFormat: PhoneNumberFormatTag;
+  readonly rawPhone: string;
   readonly expectedWirePhone: string;
 }
 
@@ -65,12 +73,32 @@ const BANK_CASES: readonly IBankWireCase[] = [
   {
     bank: CompanyTypes.OneZero,
     phoneNumberFormat: 'international-plus',
+    rawPhone: RAW_PHONE,
     expectedWirePhone: '+972000000000',
+  },
+  {
+    bank: CompanyTypes.PayBox,
+    phoneNumberFormat: 'international-dash',
+    rawPhone: RAW_PHONE,
+    expectedWirePhone: '972-000000000',
   },
   {
     bank: CompanyTypes.Pepper,
     phoneNumberFormat: 'international-flat',
+    rawPhone: RAW_PHONE,
     expectedWirePhone: '972000000000',
+  },
+  {
+    bank: CompanyTypes.OneZero,
+    phoneNumberFormat: 'international-plus',
+    rawPhone: '+972000000000',
+    expectedWirePhone: '+972000000000',
+  },
+  {
+    bank: CompanyTypes.PayBox,
+    phoneNumberFormat: 'international-dash',
+    rawPhone: '972-000000000',
+    expectedWirePhone: '972-000000000',
   },
 ];
 
@@ -142,38 +170,59 @@ function makeBankConfig(format: PhoneNumberFormatTag): IPipelineBankConfig {
   };
 }
 
+/** Args bundle for {@link makeBankCtx} — keeps params ≤3. */
+interface IBankCtxArgs {
+  readonly bank: CompanyTypes;
+  readonly config: IPipelineBankConfig;
+  readonly bus: IApiMediator;
+  readonly rawPhone?: string;
+}
+
 /**
  * Build an action-ready pipeline context bound to a bank config
  * literal plus the capturing mediator.
- * @param bank - CompanyTypes discriminator.
- * @param config - Pipeline bank config literal.
- * @param bus - Capturing mediator.
+ * @param args - Bank discriminator, config literal, mediator, raw phone.
  * @returns IPipelineContext.
  */
-function makeBankCtx(
-  bank: CompanyTypes,
-  config: IPipelineBankConfig,
-  bus: IApiMediator,
-): IPipelineContext {
+function makeBankCtx(args: IBankCtxArgs): IPipelineContext {
   const base = makeMockContext();
-  const credentials = { ...base.credentials, phoneNumber: RAW_PHONE };
+  const phoneNumber = args.rawPhone ?? RAW_PHONE;
+  const credentials = { ...base.credentials, phoneNumber };
   return {
     ...base,
-    companyId: bank,
-    apiMediator: some(bus),
-    config,
+    companyId: args.bank,
+    apiMediator: some(args.bus),
+    config: args.config,
     credentials,
   };
 }
 
+/**
+ * Run the ACTION stage with a phone the bank's format cannot represent.
+ *
+ * @param format - Bank wire format under test.
+ * @param rawPhone - Phone that format must refuse.
+ * @returns Failure message the stage produced, or `''` when it succeeded.
+ */
+async function failureMessageFor(format: PhoneNumberFormatTag, rawPhone: string): Promise<string> {
+  const capture: ICredsCapture = { capturedPhone: '' };
+  const bus = makeCapturingBus(capture);
+  const bankConfig = makeBankConfig(format);
+  const baseCtx = makeBankCtx({ bank: CompanyTypes.Pepper, config: bankConfig, bus });
+  const credentials = { ...baseCtx.credentials, phoneNumber: rawPhone };
+  const config = makeProbeConfig();
+  const result = await runApiDirectCallAction(config, { ...baseCtx, credentials });
+  return result.success ? '' : result.errorMessage;
+}
+
 describe('Phone normalisation — pipeline integration', () => {
   it.each(BANK_CASES)(
-    'rewrites creds.phoneNumber to the bank wire format ($bank → $expectedWirePhone)',
-    async ({ bank, phoneNumberFormat, expectedWirePhone }) => {
+    'normalises creds.phoneNumber to the bank wire format ($bank: $rawPhone → $expectedWirePhone)',
+    async ({ bank, phoneNumberFormat, rawPhone, expectedWirePhone }) => {
       const capture: ICredsCapture = { capturedPhone: '' };
       const bus = makeCapturingBus(capture);
       const bankConfig = makeBankConfig(phoneNumberFormat);
-      const ctx = makeBankCtx(bank, bankConfig, bus);
+      const ctx = makeBankCtx({ bank, config: bankConfig, bus, rawPhone });
       const config = makeProbeConfig();
       const result = await runApiDirectCallAction(config, ctx);
       expect(result.success).toBe(true);
@@ -195,7 +244,7 @@ describe('Phone normalisation — pipeline integration', () => {
         paths: {},
       },
     };
-    const ctx = makeBankCtx(bank, configNoFormat, bus);
+    const ctx = makeBankCtx({ bank, config: configNoFormat, bus });
     const config = makeProbeConfig();
     const result = await runApiDirectCallAction(config, ctx);
     expect(result.success).toBe(true);
@@ -207,7 +256,7 @@ describe('Phone normalisation — pipeline integration', () => {
     const bus = makeCapturingBus(capture);
     const bank = CompanyTypes.OneZero;
     const bankConfig = makeBankConfig('international-plus');
-    const baseCtx = makeBankCtx(bank, bankConfig, bus);
+    const baseCtx = makeBankCtx({ bank, config: bankConfig, bus });
     const credsWithoutPhone = { ...baseCtx.credentials } as Record<string, unknown>;
     delete credsWithoutPhone.phoneNumber;
     const ctx: IPipelineContext = {
@@ -220,25 +269,75 @@ describe('Phone normalisation — pipeline integration', () => {
     expect(capture.capturedPhone).toBe('');
   });
 
-  it('keeps raw input + emits a warning when the supplied phone fails validation', async () => {
+  it('rejects an unusable phone before any credential reaches the wire', async () => {
     const capture: ICredsCapture = { capturedPhone: '' };
     const bus = makeCapturingBus(capture);
     const bank = CompanyTypes.OneZero;
     const malformedPhone = '+972-000-000-000';
     const bankConfig = makeBankConfig('international-plus');
-    const baseCtx = makeBankCtx(bank, bankConfig, bus);
+    const baseCtx = makeBankCtx({ bank, config: bankConfig, bus });
     const ctx: IPipelineContext = {
       ...baseCtx,
       credentials: { ...baseCtx.credentials, phoneNumber: malformedPhone },
     };
     const config = makeProbeConfig();
     const result = await runApiDirectCallAction(config, ctx);
-    // The rewrite path keeps the raw input on validation failure
-    // (warning-level log path); we assert the rewrite did NOT silently
-    // mangle the value, AND that the action still completes (the
-    // probe stub is configured to succeed, so the downstream effect
-    // of the malformed phone is observable only in the captured creds).
-    expect(capture.capturedPhone).toBe(malformedPhone);
-    if (!result.success) expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+    expect(result.success).toBe(false);
+    expect(capture.capturedPhone).toBe('');
+  });
+
+  it('names the failure so a caller can tell it from a generic fault', async () => {
+    const capture: ICredsCapture = { capturedPhone: '' };
+    const bus = makeCapturingBus(capture);
+    const bank = CompanyTypes.OneZero;
+    const bankConfig = makeBankConfig('international-plus');
+    const baseCtx = makeBankCtx({ bank, config: bankConfig, bus });
+    const ctx: IPipelineContext = {
+      ...baseCtx,
+      credentials: { ...baseCtx.credentials, phoneNumber: '+972-000-000-000' },
+    };
+    const config = makeProbeConfig();
+    const result = await runApiDirectCallAction(config, ctx);
+    const errorType = result.success ? '' : result.errorType;
+    expect(errorType).toBe(ScraperErrorTypes.InvalidPhoneNumber);
+  });
+
+  /**
+   * The natural Israeli form is the one a user is most likely to supply,
+   * and it is the one that used to fail worst: `checkCountryCode` rejects
+   * it, the old code logged a warning and kept it, and Pepper then shipped
+   * it verbatim as `x-user-id`. The bank answered with an opaque auth
+   * failure that named nothing. It must be refused here instead.
+   */
+  it('refuses the local Israeli form rather than shipping it as-is', async () => {
+    const capture: ICredsCapture = { capturedPhone: '' };
+    const bus = makeCapturingBus(capture);
+    const bank = CompanyTypes.Pepper;
+    const localForm = '0500000001';
+    const bankConfig = makeBankConfig('international-flat');
+    const baseCtx = makeBankCtx({ bank, config: bankConfig, bus });
+    const ctx: IPipelineContext = {
+      ...baseCtx,
+      credentials: { ...baseCtx.credentials, phoneNumber: localForm },
+    };
+    const config = makeProbeConfig();
+    const result = await runApiDirectCallAction(config, ctx);
+    expect(result.success).toBe(false);
+    expect(capture.capturedPhone).toBe('');
+  });
+
+  /**
+   * `formatPhoneNumber` already names the field it rejected, and PayBox
+   * propagates that reason verbatim (`PayBoxBootstrap.deriveHmacKey`), so
+   * the prefix has to stay where it is. The wrapper here should therefore
+   * contribute only what it alone knows — the target wire format — rather
+   * than restating the field and producing `…: phoneNumber: …`.
+   */
+  it('names the phoneNumber field once, not twice, in the failure message', async () => {
+    const message = await failureMessageFor('international-flat', '0500000001');
+    const mentions = message.split('phoneNumber').length - 1;
+    expect(mentions).toBe(1);
+    expect(message).toContain('international-flat');
+    expect(message).toContain('country code 972');
   });
 });

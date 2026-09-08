@@ -121,7 +121,7 @@ API-direct banks (OneZero, Pepper, PayBox) additionally accept:
 
 | Field | Purpose |
 | --- | --- |
-| `phoneNumber` | Digits-only international form (no `+`, no dashes) — e.g. `972000000000`. The mediator rewrites it to each bank's wire format. |
+| `phoneNumber` | Digits-only international form (no `+`, no dashes) — e.g. `972000000000`; a value already in the bank's own wire form is accepted unchanged. The mediator rewrites it to each bank's wire format, and fails the run with `INVALID_PHONE_NUMBER` when it cannot — including for the natural local form `0500000001`. |
 | `otpCodeRetriever` | Passed in **credentials**, not options, for these three banks |
 | `otpLongTermToken` | Persistent token returned in `result.persistentOtpToken` — supply it to skip the SMS round-trip on the next run |
 
@@ -137,7 +137,8 @@ All optional.
 | `PII_REDACTION` | `on` | Set to `off` for real-bank E2E **only**. It governs the three text artifacts below — `pipeline.log`, `network/*.json`, `screenshots/*.html` — so turning it off means each holds real PII. It does not govern the browser cache or `.png` screenshots, which behave the same in both modes. Unit tests always run with redaction default-on. |
 | `FORENSIC_TRACE` | unset | `true` writes the full run folder — `pipeline.log`, `network/*.json`, `screenshots/*.png` — under `RUNS_ROOT`. This is how raw provider payloads are captured on the Pipeline; see [Observability](observability/index.md) |
 | `RUNS_ROOT` | `<cwd>` | Parent directory for the forensic run folder — see [PII redaction](observability/redaction.md) |
-| `LOG_LEVEL` | pino default | Pino verbosity only; decoupled from `FORENSIC_TRACE` |
+| `LOG_LEVEL` | pino default | Pino verbosity only; decoupled from `FORENSIC_TRACE`. Has no observable effect until a destination is enabled — the logger is silent unless `FORENSIC_TRACE` or `PRETTY_LOGS` asks for one |
+| `PRETTY_LOGS` | unset | `true` (exactly — the flag is default-deny) routes logs through `pino-pretty` for human-readable terminal output. It is a **development** convenience: `pino-pretty` is a devDependency, so it is absent from a consumer's production install. Asking for it there is not fatal — `instantiateLogger` emits a process warning and degrades to the file transport, or to silence — see [Observability](observability/index.md#pretty-terminal-output) |
 | `DUMP_FIXTURES_DIR` | unset | Opt-in DOM `*.html` snapshot capture — see [TERMINATE](phases/terminate.md) |
 | `DUMP_SNAPSHOTS` | unset | Opt-in cold-start navigation snapshots — see [INIT navigation forensics](observability/init-navigation-forensics.md) |
 | `WINDOW_BACKFILL` | on | `off` is the operator kill-switch; any other value leaves backfill on — see [API-DIRECT-SCRAPE](phases/api-direct-scrape.md) |

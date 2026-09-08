@@ -54,7 +54,27 @@ function resolveBusStrategy(
 }
 
 /**
+ * Assemble the boot bundle from an already-normalised context.
+ * @param config - API-direct-call config.
+ * @param ctx - Context whose credentials are in the bank's wire format.
+ * @returns Boot bundle procedure.
+ */
+function bootFromNormalised(
+  config: IApiDirectCallConfig,
+  ctx: IPipelineContext,
+): Procedure<IBootedAction> {
+  const proc = resolveBusStrategy(config, ctx);
+  if (!isOk(proc)) return proc;
+  const creds = mergeOptionsIntoCreds(ctx);
+  return succeed({ ...proc.value, ctx, creds });
+}
+
+/**
  * Build the bus + strategy + creds bundle (ACTION-stage boot).
+ *
+ * <p>Normalisation runs first and is allowed to refuse: a phone the bank's
+ * wire format cannot represent ends the run here, before a bus exists and
+ * long before anything reaches the network.
  * @param config - API-direct-call config.
  * @param rawCtx - Pipeline context (pre-normalisation).
  * @returns Boot bundle procedure.
@@ -63,11 +83,9 @@ function bootApiAction(
   config: IApiDirectCallConfig,
   rawCtx: IPipelineContext,
 ): Procedure<IBootedAction> {
-  const ctx = withNormalisedCreds(rawCtx);
-  const proc = resolveBusStrategy(config, ctx);
-  if (!isOk(proc)) return proc;
-  const creds = mergeOptionsIntoCreds(ctx);
-  return succeed({ ...proc.value, ctx, creds });
+  const ctxProc = withNormalisedCreds(rawCtx);
+  if (!isOk(ctxProc)) return ctxProc;
+  return bootFromNormalised(config, ctxProc.value);
 }
 
 /**

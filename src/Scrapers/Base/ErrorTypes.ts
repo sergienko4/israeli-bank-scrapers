@@ -3,6 +3,8 @@ enum ScraperErrorTypes {
   TwoFactorRetrieverMissing = 'TWO_FACTOR_RETRIEVER_MISSING',
   InvalidOtp = 'INVALID_OTP',
   InvalidPassword = 'INVALID_PASSWORD',
+  /** Supplied `phoneNumber` cannot be normalised to the bank's wire format. */
+  InvalidPhoneNumber = 'INVALID_PHONE_NUMBER',
   ChangePassword = 'CHANGE_PASSWORD',
   Timeout = 'TIMEOUT',
   NetworkError = 'NETWORK_ERROR',
