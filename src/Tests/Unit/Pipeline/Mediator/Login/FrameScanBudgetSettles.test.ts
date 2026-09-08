@@ -22,12 +22,14 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const THIS_FILE_PATH = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE_PATH);
 const REPO_ROOT = join(THIS_DIR, '../../../../../../');
 const FRAME_SCAN_MODULE = join(REPO_ROOT, 'src/Scrapers/Pipeline/Mediator/Login/LoginFrameScan.js');
+const FRAME_SCAN_URL = pathToFileURL(FRAME_SCAN_MODULE);
+const FRAME_SCAN_SPECIFIER = FRAME_SCAN_URL.href;
 
 /** Printed by the probe only if the race settled. */
 const SETTLED_MARKER = 'SETTLED';
@@ -41,9 +43,12 @@ const PROBE_TIMEOUT_MS = 30_000;
  * <p>No keepalive timer, no open handle, no second await — anything of the
  * kind would keep the process alive on its own and mask exactly the defect
  * under test.
+ *
+ * <p>The module is addressed by file URL rather than by path: an absolute
+ * Windows path is not a usable ESM specifier.
  */
 const PROBE_SOURCE = `
-import { safeScanFrame } from ${JSON.stringify(FRAME_SCAN_MODULE)};
+import { safeScanFrame } from ${JSON.stringify(FRAME_SCAN_SPECIFIER)};
 
 const hungMediator = { discoverErrors: () => new Promise(() => {}) };
 
@@ -105,4 +110,15 @@ describe('safeScanFrame budget', () => {
     },
     PROBE_TIMEOUT_MS,
   );
+
+  /**
+   * The probe's import specifier is generated, so it is only ever exercised
+   * on the platform that generated it. CI runs no Windows job, so a raw
+   * absolute path would pass everywhere CI looks and fail for every Windows
+   * contributor: `C:\...` is not a valid ESM specifier, the drive letter
+   * parses as a scheme. Only a file URL is portable, so pin the form.
+   */
+  it('[SCAN-2] imports the module as a file URL, so the probe runs on Windows too', () => {
+    expect(PROBE_SOURCE).toContain('from "file://');
+  });
 });
