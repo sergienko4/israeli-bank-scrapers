@@ -62,13 +62,17 @@ const NEUTRAL_OUTCOME: ICompletionPollOutcome = {
 const SINGLE_SHOT_POLL = { intervalMs: 0, maxAttempts: 1 } as const;
 
 /**
- * Wait the given milliseconds via the canonical node timers promise — an
- * unref'd, lint-clean wait that satisfies the poll's sleep contract.
+ * Wait the given milliseconds via the canonical node timers promise — a
+ * lint-clean wait that satisfies the poll's sleep contract.
+ *
+ * <p>The timer is ref'd. Unref'ing it would let Node exit before the wait
+ * elapsed whenever the poll is the only work left, abandoning the poll
+ * mid-flight with no result and no error.
  * @param ms - Milliseconds to wait.
  * @returns Resolves after the wait.
  */
 async function pollSleep(ms: number): Promise<void> {
-  await setTimeoutPromise(ms, undefined, { ref: false });
+  await setTimeoutPromise(ms);
 }
 
 /**

@@ -96,12 +96,18 @@ const BUDGET_SENTINEL: IBudgetSentinel = { exceeded: true };
  * `signal` lets the caller cancel the arm once the race is decided. Without
  * it a losing budget timer stays pending for the full budget and keeps the
  * settled race — and the account payload it resolved with — reachable.
+ *
+ * <p>The timer is deliberately ref'd. Unref'ing it would let Node exit
+ * before the budget fired whenever the dispatch is the only work left, so
+ * the race would never settle and the caller would receive neither an
+ * account nor a timeout. Cancellation, not unref'ing, is what keeps a
+ * losing arm from outliving the race.
  * @param ms - Budget in milliseconds.
  * @param signal - Optional cancellation signal for the losing arm.
  * @returns Budget-sentinel Promise.
  */
 async function budgetElapsed(ms: number, signal?: AbortSignal): Promise<IBudgetSentinel> {
-  await setTimeoutPromise(ms, undefined, { ref: false, signal });
+  await setTimeoutPromise(ms, undefined, { signal });
   return BUDGET_SENTINEL;
 }
 
