@@ -132,4 +132,45 @@ describe('pretty logs opt-in', () => {
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).not.toContain('PRETTY_LOGS');
   });
+
+  /**
+   * With a trace file configured the transport carries two targets, so a
+   * failure is not attributable to either of them. Naming `PRETTY_LOGS`
+   * then sends whoever reads the warning after a flag that may have had
+   * nothing to do with it — the exact misdirection this warning exists to
+   * prevent. The flag may only be blamed when pretty output was the only
+   * target that could have failed.
+   */
+  it('[LOG-9] does not blame PRETTY_LOGS when pretty was not the only target', () => {
+    process.env.PRETTY_LOGS = 'true';
+    const warnings: string[] = [];
+    const spy = jest.spyOn(process, 'emitWarning').mockImplementation(warning => {
+      const text = String(warning);
+      warnings.push(text);
+    });
+    const unresolvable = buildActiveOptions({ target: 'pino-file-not-installed' });
+    instantiateLogger(LOG_FILE, unresolvable);
+    spy.mockRestore();
+    expect(warnings[0]).not.toContain('PRETTY_LOGS');
+  });
+
+  /**
+   * The mirror of [LOG-9], and the reason this pair has to exist together.
+   * Both other warning specs assert an absence, so `warnTransportFailure`
+   * could collapse to the neutral prefix unconditionally and still satisfy
+   * them — silently discarding the one attribution it can make with
+   * certainty. Pretty output as the sole target is exactly that case.
+   */
+  it('[LOG-10] names PRETTY_LOGS when pretty output was the only target', () => {
+    process.env.PRETTY_LOGS = 'true';
+    const warnings: string[] = [];
+    const spy = jest.spyOn(process, 'emitWarning').mockImplementation(warning => {
+      const text = String(warning);
+      warnings.push(text);
+    });
+    const unresolvable = buildActiveOptions({ target: 'pino-pretty-not-installed' });
+    instantiateLogger(NO_LOG_FILE, unresolvable);
+    spy.mockRestore();
+    expect(warnings[0]).toContain('PRETTY_LOGS');
+  });
 });

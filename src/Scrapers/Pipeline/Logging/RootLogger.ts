@@ -205,13 +205,16 @@ function optionsWithoutPretty(logFile: string): pino.LoggerOptions {
 /**
  * Emit the degradation warning naming the transport that actually failed.
  * Blaming `PRETTY_LOGS` for a trace-file failure would send whoever reads
- * the warning after a flag they never set.
+ * the warning after a flag they never set, so the flag is named only when
+ * pretty output was the sole target and therefore the only candidate.
  * @param error - The failure thrown while constructing the transport.
+ * @param logFile - Resolved log file path; a non-empty one means a second
+ * target was present, so the failure is not attributable to pretty output.
  * @returns True once the warning has been emitted.
  */
-function warnTransportFailure(error: Error): true {
-  const isPretty = isPrettyLogs();
-  const reason = isPretty ? PRETTY_UNAVAILABLE : TRANSPORT_UNAVAILABLE;
+function warnTransportFailure(error: Error, logFile: string): true {
+  const isPrettyOnly = isPrettyLogs() && !logFile;
+  const reason = isPrettyOnly ? PRETTY_UNAVAILABLE : TRANSPORT_UNAVAILABLE;
   process.emitWarning(`${reason} ${error.message}`);
   return true;
 }
@@ -270,7 +273,7 @@ export function instantiateLogger(logFile: string, options: pino.LoggerOptions):
     return pino(options);
   } catch (error_) {
     const error = toError(error_);
-    warnTransportFailure(error);
+    warnTransportFailure(error, logFile);
     return degradeLogger(logFile);
   }
 }
