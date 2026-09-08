@@ -48,6 +48,11 @@ SCOPE_PREFIX='src/Scrapers/Pipeline/'
 # shellcheck source=.github/scripts/ci/extract-exports.sh
 . "$(dirname "${BASH_SOURCE[0]}")/extract-exports.sh"
 
+# Associative arrays are bash 4+; macOS ships bash 3.2, so this gate
+# would abort with "declare: -A: invalid option" on every macOS commit.
+# shellcheck source=.github/scripts/ci/portable-map.sh
+. "$(dirname "${BASH_SOURCE[0]}")/portable-map.sh"
+
 load_allowlist() {
   if [ ! -f "$ALLOWLIST_FILE" ]; then
     echo ""
@@ -64,7 +69,7 @@ load_allowlist() {
   # (Phase 5 PR #277 was the first real test of this code path; the
   # allowlist held only comments until then, hiding the bug).
   { grep -vE '^\s*(#|$)' "$ALLOWLIST_FILE" || true; } \
-    | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | sort -u
+    | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | LC_ALL=C sort -u
 }
 
 # Resolve base — handles same-repo PRs and pre-fetched checkouts.
@@ -83,7 +88,7 @@ fi
 # fall back to an empty base set, and every existing export would
 # read as new — false-positive failures on rename-only PRs.
 declare -a CHANGED_FILES=()
-declare -A BASE_PATH_BY_HEAD=()  # post-rename path → pre-rename path
+BASE_PATH_BY_HEAD=''  # post-rename path → pre-rename path
 
 # STAGE_MODE=1 (husky local): diff staged content against BASE_SHA.
 # This is needed because at pre-commit time HEAD is still the parent
@@ -112,7 +117,7 @@ while IFS=$'\t' read -r status path_a path_b; do
     *.test.ts | */Tests/* | */EslintCanaries/* | *.canary.ts) continue ;;
   esac
   CHANGED_FILES+=("${head_path}")
-  BASE_PATH_BY_HEAD["${head_path}"]="${base_path}"
+  map_put BASE_PATH_BY_HEAD "${head_path}" "${base_path}"
 done < <("${DIFF_CMD[@]}")
 
 if [ "${#CHANGED_FILES[@]}" -eq 0 ]; then
@@ -123,7 +128,8 @@ fi
 echo "[docs-coverage] Diffing against ${BASE_REF} @ ${BASE_SHA:0:12}"
 echo "[docs-coverage] ${#CHANGED_FILES[@]} Pipeline file(s) touched:"
 for f in "${CHANGED_FILES[@]}"; do
-  base_p="${BASE_PATH_BY_HEAD[$f]:-$f}"
+  base_p="$(map_get BASE_PATH_BY_HEAD "$f")"
+  [ -n "$base_p" ] || base_p="$f"
   if [ "${base_p}" != "${f}" ]; then
     echo "  - ${f}  (renamed from ${base_p})"
   else
@@ -135,7 +141,7 @@ echo
 ALLOWLIST="$(load_allowlist)"
 
 declare -a NEW_SYMBOLS=()
-declare -A SYMBOL_OWNERS=()  # symbol → first file that introduced it
+SYMBOL_OWNERS=''  # symbol → first file that introduced it
 
 for file in "${CHANGED_FILES[@]}"; do
   # HEAD set. In STAGE_MODE we read the STAGED blob (git show :path)
@@ -160,7 +166,8 @@ for file in "${CHANGED_FILES[@]}"; do
   # and produces an empty NEW diff. `git show` still errors when the
   # file is genuinely new (`A` status, base_path == head_path that
   # didn't exist on BASE) — treat that as an empty set.
-  base_file="${BASE_PATH_BY_HEAD[$file]:-$file}"
+  base_file="$(map_get BASE_PATH_BY_HEAD "$file")"
+  [ -n "$base_file" ] || base_file="$file"
   if base_content="$(git show "${BASE_SHA}:${base_file}" 2>/dev/null)"; then
     base_syms="$(printf '%s\n' "$base_content" | extract_symbols)"
   else
@@ -169,12 +176,14 @@ for file in "${CHANGED_FILES[@]}"; do
 
   # NEW = HEAD \ BASE (set difference).
   if [ -z "$head_syms" ]; then continue; fi
-  diff_new="$(comm -23 <(printf '%s\n' "$head_syms") <(printf '%s\n' "$base_syms"))"
+  diff_new="$(LC_ALL=C comm -23 <(printf '%s\n' "$head_syms") <(printf '%s\n' "$base_syms"))"
 
   while IFS= read -r sym; do
     [ -z "$sym" ] && continue
     NEW_SYMBOLS+=("$sym")
-    [ -z "${SYMBOL_OWNERS[$sym]:-}" ] && SYMBOL_OWNERS[$sym]="$file"
+    if ! map_has SYMBOL_OWNERS "$sym"; then
+      map_put SYMBOL_OWNERS "$sym" "$file"
+    fi
   done <<< "$diff_new"
 done
 
@@ -185,7 +194,7 @@ fi
 
 echo "[docs-coverage] New public Pipeline exports detected:"
 for sym in "${NEW_SYMBOLS[@]}"; do
-  echo "  + ${sym}    (from ${SYMBOL_OWNERS[$sym]})"
+  echo "  + ${sym}    (from $(map_get SYMBOL_OWNERS "$sym"))"
 done
 echo
 

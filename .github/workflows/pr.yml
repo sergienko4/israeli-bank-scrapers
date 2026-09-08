@@ -355,6 +355,12 @@ jobs:
       - name: Docs coverage extractor unit test
         if: needs.changes.outputs.ci_scripts == 'true'
         run: bash .github/scripts/ci/tests/extract-exports.test.sh
+      - name: Portable map unit test (gate scripts must run on bash 3.2)
+        if: needs.changes.outputs.ci_scripts == 'true'
+        run: bash .github/scripts/ci/tests/portable-map.test.sh
+      - name: Shell portability (gates must run on macOS/Windows too)
+        if: needs.changes.outputs.ci_scripts == 'true'
+        run: npm run lint:shell-portability
       - name: Docs coverage canary
         if: github.event_name == 'pull_request' && needs.changes.outputs.pipeline_ts == 'true'
         env:
@@ -431,6 +437,54 @@ jobs:
         if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
         run: npm audit --audit-level=high
         continue-on-error: true
+
+  # ──────────────────────────────────────────────────────────────
+  # The gate scripts' bash-3.2 claim, actually exercised.
+  #
+  # `lint-and-types` already runs these two test scripts, but on
+  # ubuntu-latest — bash 5.x, where every construct the portable
+  # helpers exist to avoid works fine. So the step named "gate
+  # scripts must run on bash 3.2" could not fail for the reason it
+  # names, which is precisely how `declare -A` reached `main` and
+  # broke these gates on a maintainer's Mac.
+  #
+  # macOS is the only runner that can prove it: Apple still ships
+  # bash 3.2.57, the last GPLv2 release. The runner is free for
+  # public repositories, and the leg is skipped entirely unless
+  # `ci_scripts` changed. The version is ASSERTED, not merely printed:
+  # a future image that quietly ships bash 5 as /bin/bash would
+  # otherwise leave this leg green and vacuous, and nobody reads the
+  # log of a passing job. `BASH_BIN` exists so the assertion can be
+  # executed against a chosen binary by its unit test.
+  #
+  # `lint:shell-portability` deliberately stays on ubuntu only: it
+  # is a static scan whose result cannot depend on the host shell.
+  # ──────────────────────────────────────────────────────────────
+  portability-macos:
+    name: Gate scripts on bash 3.2 (macOS)
+    needs: changes
+    if: needs.changes.outputs.ci_scripts == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Assert this leg really runs bash 3.2
+        run: |
+          bash_bin="${BASH_BIN:-/bin/bash}"
+          "$bash_bin" --version | head -n 1
+          version="$("$bash_bin" -c 'echo "${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}"')"
+          if [ "$version" != "3.2" ]; then
+            echo "::error::$bash_bin is bash $version, expected 3.2 — this leg would prove nothing"
+            exit 1
+          fi
+      - name: Portable map unit test
+        run: /bin/bash .github/scripts/ci/tests/portable-map.test.sh
+      - name: Docs coverage extractor unit test
+        run: /bin/bash .github/scripts/ci/tests/extract-exports.test.sh
 
   # ──────────────────────────────────────────────────────────────
   # Unit tests with coverage — parallel with the e2e and integration
@@ -871,6 +925,7 @@ jobs:
     needs:
       - changes
       - lint-and-types
+      - portability-macos
       - unit-tests
       - memory
       - decoupling

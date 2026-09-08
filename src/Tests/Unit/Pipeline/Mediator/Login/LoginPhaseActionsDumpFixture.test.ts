@@ -12,7 +12,6 @@ import * as path from 'node:path';
 import type { Frame, Page as BrowserPage } from 'playwright-core';
 
 import { CompanyTypes } from '../../../../../Definitions.js';
-import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import {
   dumpFixtureHtml,
   writeFrameHtml,
@@ -293,8 +292,5 @@ describe('LoginPhaseActions writeIframeSnapshot atom', () => {
     const targetPath = path.join(rootDir, 'atom-iframe-7.html');
     const bytes = await fs.readFile(targetPath, 'utf8');
     expect(bytes).toBe('<snap>');
-    // Touch ScraperError so the import is not unused (guards against
-    // accidental `throw new Error(...)` reintroduction in this file).
-    void ScraperError;
   });
 });

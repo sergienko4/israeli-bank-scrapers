@@ -9,7 +9,6 @@
 
 import { CompanyTypes } from '../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import type { IAuthFlowInfo } from '../../../../../Scrapers/Base/Interface.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import {
   runApiDirectCallAction,
@@ -169,13 +168,13 @@ describe('ApiDirectCallActions.runApiDirectCallAction primeSession', () => {
 
 describe('ApiDirectCallActions.runApiDirectCallAction callback invocation', () => {
   /**
-   * Recording no-op onAuthFlowComplete used by the callback branches.
-   * @param info - Flow-result info emitted by the mediator.
+   * No-op onAuthFlowComplete used by the callback branches. Declares no
+   * parameter — a zero-arity function still satisfies the callback type, and
+   * the flow info is irrelevant to what these branches assert.
    * @returns Void promise.
    */
-  async function noOpCallback(info: IAuthFlowInfo): Promise<void> {
+  async function noOpCallback(): Promise<void> {
     await Promise.resolve();
-    void info;
   }
 
   it('skips onAuthFlowComplete when no long-term token is captured', async (): Promise<void> => {

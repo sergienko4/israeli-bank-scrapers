@@ -31,8 +31,12 @@
  * any future path that re-enables a balance fetch.
  *
  * <p>Scope is PayBox-only by construction: only `PAYBOX_SHAPE` wires this
- * guard. OneZero / Pepper share `fallbackOnFail: 0` but declare no
- * `resultGuard`, so their empty-but-healthy runs stay successful.
+ * guard. OneZero declares `fallbackOnFail: 0` and Pepper declares
+ * `BALANCE_UNKNOWN`, but neither declares a `resultGuard`, so their
+ * empty-but-healthy runs stay successful. Declaring this guard does NOT cost
+ * PayBox the universal zero-account floor — `withZeroAccountsFloor` composes
+ * that floor ahead of this predicate, which is why the zero-account case below
+ * is deliberately passed through here.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';

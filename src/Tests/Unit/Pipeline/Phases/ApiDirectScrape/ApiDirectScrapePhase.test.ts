@@ -10,8 +10,6 @@
  * short-circuit) stay on the synthetic case to keep the suite lean.
  */
 
-import { jest } from '@jest/globals';
-
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import {
@@ -29,7 +27,7 @@ import type {
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
-import { makeMockContext, makeRecoverySessionStubs } from '../../Infrastructure/MockFactories.js';
+import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import {
   ALL_BANK_CASES,
   type AnyBankCase,
@@ -37,6 +35,7 @@ import {
   PEPPER_CASE,
   SYN_CASE,
 } from './ApiDirectScrapeBankShapes.js';
+import { makeRouterBus } from './ApiDirectScrapeRouterBus.js';
 
 /** Pepper headers consult ctx.credentials.phoneNumber — provide one for the real shape. */
 const PEPPER_TEST_CREDENTIALS = {
@@ -44,39 +43,6 @@ const PEPPER_TEST_CREDENTIALS = {
   password: 'pepper-test-pass',
   phoneNumber: '972000000001',
 } as unknown as IPipelineContext['credentials'];
-
-/**
- * Build a router-backed mock mediator.
- * @param router - Per-op ordered response queue.
- * @returns Mock mediator.
- */
-function makeRouterBus(router: Record<string, readonly Procedure<unknown>[]>): IApiMediator {
-  const queues: Record<string, Procedure<unknown>[]> = {};
-  for (const key of Object.keys(router)) queues[key] = [...router[key]];
-  /**
-   * Shift the queue for an operation.
-   * @param op - Operation label.
-   * @returns Next queued procedure.
-   */
-  async function route(op: string): Promise<Procedure<unknown>> {
-    await Promise.resolve();
-    const q = queues[op] ?? [];
-    const head = q.shift();
-    if (head) return head;
-    return fail(ScraperErrorTypes.Generic, `no stub for op=${op}`);
-  }
-  const apiQuery = jest.fn(route);
-  return {
-    apiPost: jest.fn(),
-    apiGet: jest.fn(),
-    apiQuery,
-    setBearer: jest.fn(),
-    setRawAuth: jest.fn(),
-    setSessionContext: jest.fn((): boolean => true),
-    ...makeRecoverySessionStubs(),
-    getSessionContext: jest.fn((): Readonly<Record<string, unknown>> => ({})),
-  } as unknown as IApiMediator;
-}
 
 /**
  * Wrap a bus into an IActionContext suitable for the bound case.
@@ -160,7 +126,7 @@ describe.each(ALL_BANK_CASES)('createApiDirectScrapePhase — $name', bankCase =
   });
 });
 
-describe.each([SYN_CASE, PEPPER_CASE] as readonly AnyBankCase[])(
+describe.each([SYN_CASE] as readonly AnyBankCase[])(
   'createApiDirectScrapePhase ADS-ACT-3 — $name (no fallback)',
   bankCase => {
     it('balance fail without fallback propagates', async () => {
@@ -174,6 +140,32 @@ describe.each([SYN_CASE, PEPPER_CASE] as readonly AnyBankCase[])(
     });
   },
 );
+
+describe('createApiDirectScrapePhase ADS-ACT-3b — BALANCE_UNKNOWN fallback', () => {
+  // Pepper used to be parameterized into ADS-ACT-3 above. It no longer belongs
+  // there: issue #550 gave its balance step `fallbackOnFail: BALANCE_UNKNOWN`,
+  // so a rejected balance call must NOT discard a scrape whose transactions
+  // are already in hand. Keeping it there would have passed for the wrong
+  // reason anyway — that spec queues no transactions response, so the run died
+  // at the transactions step rather than at the balance step it names.
+  it('keeps the account and OMITS the balance rather than propagating', async () => {
+    const balFail = fail(ScraperErrorTypes.Generic, 'bal bad');
+    const bus = makeRouterBus({
+      customer: [succeed(PEPPER_CASE.fixtures.customer)],
+      balance: [balFail],
+      transactions: [succeed(PEPPER_CASE.fixtures.transactions)],
+    });
+
+    const result = await runPhase(PEPPER_CASE as unknown as AnyBankCase, bus);
+
+    assertOk(result);
+    const scr = result.value.scrape;
+    assertHas(scr);
+    expect(scr.value.accounts).toHaveLength(1);
+    expect('balance' in scr.value.accounts[0]).toBe(false);
+    expect(scr.value.balanceDegraded).toBe(true);
+  });
+});
 
 describe.each([SYN_CASE, ONEZERO_CASE] as readonly AnyBankCase[])(
   'createApiDirectScrapePhase ADS-ACT-4 — $name (with fallback)',
@@ -256,7 +248,13 @@ describe('createApiDirectScrapePhase (synthetic-only edge cases)', () => {
       transactions: [succeed({ items: [], nextCursor: false })],
     });
     const result = await runPhase(SYN_CASE as unknown as AnyBankCase, bus);
+    // Asserting the EXACT injected message, not just `success === false`: only
+    // two balance responses are queued, so a walk that failed to stop at
+    // account two would reach account three, exhaust the queue and fail with
+    // `no stub for op=balance` instead. A bare boolean cannot tell the two
+    // apart, so it would still pass while the short-circuit was broken.
     expect(result.success).toBe(false);
+    if (!result.success) expect(result.errorMessage).toBe('bal bad');
   });
 });
 

@@ -5,6 +5,7 @@
 
 import { PEPPER_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShape.js';
 import { isLastPage } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShapeTxns.js';
+import { BALANCE_UNKNOWN } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { makeMockContext, makeMockOptions } from '../../Infrastructure/MockFactories.js';
 
@@ -37,9 +38,30 @@ describe('PEPPER_SHAPE balance extractor', () => {
     expect(got).toBe(42.5);
   });
 
-  it('falls back to 0 when currentBalance absent', () => {
-    const got = PEPPER_SHAPE.balance.extract({}, acct);
-    expect(got).toBe(0);
+  it('reports the figure ABSENT (never a fabricated 0) when currentBalance is missing — issue #550', () => {
+    // A coerced 0 is indistinguishable from a genuinely empty account and
+    // carries no degraded signal. Declaring absence makes the driver omit the
+    // balance field instead. See PepperShapeHelpers.balanceIsAbsent.
+    const isAbsent = PEPPER_SHAPE.balance.isAbsent?.({}, acct);
+    expect(isAbsent).toBe(true);
+  });
+
+  it('reports the figure ABSENT when currentBalance is present but not a number', () => {
+    const body = { accounts: { balance: { currentBalance: null } } };
+    const isAbsent = PEPPER_SHAPE.balance.isAbsent?.(body, acct);
+    expect(isAbsent).toBe(true);
+  });
+
+  it('keeps a genuine zero balance as a PRESENT 0, never as absent', () => {
+    const body = { accounts: { balance: { currentBalance: 0 } } };
+    const isAbsent = PEPPER_SHAPE.balance.isAbsent?.(body, acct);
+    const figure = PEPPER_SHAPE.balance.extract(body, acct);
+    expect(isAbsent).toBe(false);
+    expect(figure).toBe(0);
+  });
+
+  it('declares BALANCE_UNKNOWN as its failure fallback so a rejected call cannot discard the run', () => {
+    expect(PEPPER_SHAPE.balance.fallbackOnFail).toBe(BALANCE_UNKNOWN);
   });
 });
 

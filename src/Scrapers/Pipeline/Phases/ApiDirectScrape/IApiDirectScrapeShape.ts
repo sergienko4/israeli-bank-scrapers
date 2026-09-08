@@ -90,6 +90,18 @@ export interface IExtractAccountsArgs {
 export interface IApiDirectScrapeCustomerStep<TAcct> {
   readonly buildVars: (ctx: IActionContext) => VarsMap;
   readonly extractAccounts: (args: IExtractAccountsArgs) => readonly TAcct[];
+  /**
+   * Optional — how many products the payload held BEFORE `extractAccounts`
+   * filtered it. Declared only by shapes that exclude known-unsupported
+   * products at discovery (Pepper, issue #550).
+   *
+   * <p>Excluding a product is a silent omission of money unless an operator
+   * can see it happened, so when this hook reports more products than
+   * `extractAccounts` kept, the driver logs the counts. Absent ⇒ the shape
+   * filters nothing and the driver logs nothing, which is why the other
+   * api-direct banks sharing this driver are unaffected.
+   */
+  readonly countDiscovered?: (args: IExtractAccountsArgs) => number;
   readonly extraHeaders?: ApiDirectScrapeHeadersLike;
   /** REST dispatch override; absent ⇒ GraphQL via apiQuery('customer'). */
   readonly urlTag?: CustomerUrlTag;
@@ -119,6 +131,18 @@ export interface IApiDirectScrapeCustomerStep<TAcct> {
   readonly skipFetch?: boolean;
 }
 
+/**
+ * Sentinel meaning "the balance is real but we could not reach it".
+ *
+ * Declared as a shape's {@link IApiDirectScrapeBalanceStep.fallbackOnFail} so
+ * a rejected balance call neither discards a scrape whose transactions are
+ * already in hand nor publishes a substitute number the bank never sent.
+ */
+export const BALANCE_UNKNOWN = 'balance-unknown';
+
+/** The {@link BALANCE_UNKNOWN} sentinel's type. */
+export type BalanceUnknown = typeof BALANCE_UNKNOWN;
+
 /** Balance-step shape — fetches one account's current balance. */
 export interface IApiDirectScrapeBalanceStep<TAcct> {
   /**
@@ -138,11 +162,37 @@ export interface IApiDirectScrapeBalanceStep<TAcct> {
    * call. Max carries its per-card cycle debit this way and pairs it with
    * `skipFetch`. Shapes that only need the response keep their
    * `(body) => …` form.
+   *
+   * Only consulted when {@link IApiDirectScrapeBalanceStep.isAbsent} does not
+   * declare the figure missing, so it always answers a real number.
    */
   readonly extract: (body: ApiBody, acct: TAcct) => number;
+  /**
+   * Declare that a SUCCESSFUL response carried NO balance figure.
+   *
+   * Optional and consulted before `extract`. Without it a shape whose payload
+   * lost its figure — a schema change, a partial response — can do no better
+   * than coerce to `0`, which publishes a fabricated number that no consumer
+   * can tell from a genuinely empty account and that sets no degraded flag.
+   * Declaring absence instead makes the driver omit the account's `balance`
+   * field and mark the scrape degraded.
+   *
+   * A shape whose balance is definitionally zero (the `card-cycle` issuers)
+   * must NOT declare this — their `0` is the true figure, not a missing one.
+   */
+  readonly isAbsent?: (body: ApiBody, acct: TAcct) => boolean;
   readonly extraHeaders?: ApiDirectScrapeHeadersLike;
-  /** Value to return on failure; undefined → propagate. */
-  readonly fallbackOnFail?: number;
+  /**
+   * What to answer when the balance call FAILS; undefined → propagate the
+   * failure and discard the whole scrape.
+   *
+   * {@link BALANCE_UNKNOWN} keeps the account and its transactions but
+   * publishes no balance at all — the truthful answer for a bank that has a
+   * real figure the failed call simply could not reach. A number substitutes
+   * that literal value instead, which is only honest for a shape whose
+   * balance is definitionally zero. Either way the scrape is flagged degraded.
+   */
+  readonly fallbackOnFail?: number | BalanceUnknown;
   /** REST dispatch override; absent ⇒ GraphQL via apiQuery('balance'). */
   readonly urlTag?: BalanceUrlTag<TAcct>;
   /** REST verb when `urlTag` is set; default POST. GET sends no body. */
@@ -258,9 +308,16 @@ export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> {
   readonly auditOwnsRow?: (row: object, acct: TAcct) => boolean;
 }
 
-/** Balance fetch outcome: value + whether it came from `fallbackOnFail`. */
+/**
+ * Balance fetch outcome: the figure plus whether it came from a fallback.
+ *
+ * `value` is ABSENT when the balance is unknown — either the call failed
+ * under {@link BALANCE_UNKNOWN} or a successful response carried no
+ * figure. Absent is not `0`: the driver omits the account's optional
+ * `balance` field so an unknown balance never masquerades as an empty one.
+ */
 export interface IBalanceOutcome {
-  readonly value: number;
+  readonly value?: number;
   readonly degraded: boolean;
 }
 

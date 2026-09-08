@@ -16,11 +16,15 @@
  * may ever ship with the mask again.
  */
 
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
+
+import { canRunPosixBash } from '../../../Helpers/HostCapabilities.js';
 
 const THIS_FILE_URL = import.meta.url;
 const THIS_FILE_PATH = fileURLToPath(THIS_FILE_URL);
@@ -32,11 +36,16 @@ const PR_YAML = join(REPO_ROOT, '.github/workflows/pr.yml');
 interface IPrYamlJob {
   readonly name?: string;
   readonly 'continue-on-error'?: unknown;
-  readonly steps?: readonly { readonly 'continue-on-error'?: unknown }[];
+  readonly steps?: readonly {
+    readonly name?: string;
+    readonly run?: string;
+    readonly 'continue-on-error'?: unknown;
+  }[];
 }
 
 interface IPrYamlDoc {
   readonly jobs?: Readonly<Record<string, IPrYamlJob>>;
+  readonly defaults?: { readonly run?: { readonly shell?: string } };
 }
 
 /**
@@ -106,6 +115,124 @@ describe('PrYamlGateHardening', () => {
       for (const step of steps) {
         const hasMask = step['continue-on-error'] !== undefined;
         expect(hasMask).toBe(false);
+      }
+    }
+  });
+});
+
+/** The job whose only purpose is to exercise a real bash 3.2. */
+const MACOS_JOB_KEY = 'portability-macos';
+
+/** Bash binaries a developer machine or runner might hold. */
+const BASH_CANDIDATES = [
+  '/bin/bash',
+  '/usr/bin/bash',
+  '/usr/local/bin/bash',
+  '/opt/homebrew/bin/bash',
+] as const;
+
+/**
+ * Read the version-assertion script out of the workflow itself.
+ *
+ * <p>Taken from the YAML rather than restated here: a copy in the test could
+ * pass while the workflow shipped something else entirely.
+ * @returns The step's shell script.
+ */
+function versionGuardScript(): string {
+  const doc = loadPrYaml();
+  const job = doc.jobs?.[MACOS_JOB_KEY];
+  const steps = job?.steps ?? [];
+  const guard = steps.find(step => (step.run ?? '').includes('BASH_VERSINFO'));
+  return guard?.run ?? '';
+}
+
+/**
+ * Ask a bash binary for its own `major.minor`.
+ * @param bin - Absolute path to a bash binary.
+ * @returns The version, e.g. `3.2`.
+ */
+function versionOf(bin: string): string {
+  const probe = 'echo "${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}"';
+  const result = spawnSync(bin, ['-c', probe], { encoding: 'utf8' });
+  return (result.stdout || '').trim();
+}
+
+/**
+ * The argv every `run:` block in this workflow executes under.
+ *
+ * <p>Read from `defaults.run.shell` rather than restated, so the guard below
+ * is exercised with the same strictness Actions applies — `-e`, `-u` and
+ * `-o pipefail`. A test that ran it under a laxer shell could pass while CI
+ * failed.
+ * @returns The shell argv, `{0}` still standing for the script path.
+ */
+function workflowShellArgv(): readonly string[] {
+  const doc = loadPrYaml();
+  const shell = doc.defaults?.run?.shell ?? '';
+  return shell.split(' ').filter(token => token !== '');
+}
+
+/**
+ * Write the step script to a throwaway file, the way Actions does.
+ * @param script - The guard script.
+ * @returns Absolute path to the written script.
+ */
+function writeStepFile(script: string): string {
+  const tmp = tmpdir();
+  const prefix = join(tmp, 'pr-guard-');
+  const dir = mkdtempSync(prefix);
+  const file = join(dir, 'step.sh');
+  writeFileSync(file, script);
+  return file;
+}
+
+/**
+ * Run the workflow's guard with a chosen bash under test.
+ * @param script - The guard script lifted from the workflow.
+ * @param bin - The bash the guard should inspect.
+ * @returns The exit status the guard produced.
+ */
+function runGuard(script: string, bin: string): number {
+  const file = writeStepFile(script);
+  const argv = workflowShellArgv();
+  const [command, ...rest] = argv.map(token => (token === '{0}' ? file : token));
+  const options = { encoding: 'utf8' as const, env: { ...process.env, BASH_BIN: bin } };
+  const result = spawnSync(command, rest, options);
+  const dir = dirname(file);
+  rmSync(dir, { recursive: true, force: true });
+  return result.status ?? -1;
+}
+
+describe('PrYamlGateHardening — the macOS leg cannot go vacuous', () => {
+  it('[PR-YAML-BASH32] the workflow asserts its bash version rather than printing it', () => {
+    // Printing to the log is not enforcement: nobody reads a green job. If
+    // the image ever ships bash 5 as /bin/bash, this leg proves nothing
+    // while still reporting success.
+    const script = versionGuardScript();
+
+    expect(script).not.toEqual('');
+  });
+
+  it('[PR-YAML-BASH32] the guard runs under a strict shell', () => {
+    // The guard is only trustworthy if Actions runs it with -e, -u and
+    // pipefail. The workflow sets that once at `defaults.run.shell` instead
+    // of repeating `set -euo pipefail` per step, so that default is the
+    // thing worth pinning — drop it and every run block silently relaxes.
+    const argv = workflowShellArgv();
+
+    expect(argv).toContain('-euo');
+    expect(argv).toContain('pipefail');
+  });
+
+  it('[PR-YAML-BASH32] the guard passes on bash 3.2 and fails on anything else', () => {
+    if (canRunPosixBash(process.platform)) {
+      const script = versionGuardScript();
+      const present = BASH_CANDIDATES.filter(bin => existsSync(bin));
+      expect(present.length).toBeGreaterThan(0);
+
+      for (const bin of present) {
+        const expected = versionOf(bin) === '3.2' ? 0 : 1;
+        expect({ bin, status: runGuard(script, bin) }).toEqual({ bin, status: expected });
       }
     }
   });

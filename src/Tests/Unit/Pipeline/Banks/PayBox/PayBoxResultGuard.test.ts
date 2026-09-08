@@ -56,6 +56,10 @@ describe('payBoxResultGuard', () => {
   });
 
   it('T-PBG-4: passes zero accounts — that case belongs to zeroAccountsGuard', () => {
+    // True at this unit level AND in production: `withZeroAccountsFloor`
+    // composes `zeroAccountsGuard` ahead of this predicate, so the case is
+    // caught before this guard is consulted. `PayBoxShape.test.ts` PB-GUARD-7
+    // pins that composition at the phase level.
     const noAccounts = summaryOf({ accountCount: 0, totalTxns: 0, balanceDegraded: true });
 
     const result = payBoxResultGuard(noAccounts);

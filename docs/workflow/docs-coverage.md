@@ -29,6 +29,21 @@ internalising:
   the base branch too, so widening what the extractor can see does not
   retroactively fail anything. The gate is a ratchet, not an audit.
 
+## The set difference is byte-ordered, deliberately
+
+`NEW` is computed with `comm -23`, which is only correct when its two
+inputs are ordered the way `comm` compares them. `sort` follows the
+ambient locale, and a locale that collates case-blind orders
+`measureRenderHealth` before `RENDER_PROBE_TIMEOUT_MS` where a byte-wise
+sort does not. Mixed orderings do not make `comm` complain — they make it
+quietly report the wrong set, so a newly exported symbol can slip through
+undocumented on one machine and not another.
+
+Every `sort` and `comm` in the docs gates is therefore pinned to
+`LC_ALL=C`, and `extract-exports.test.sh` asserts the ordering holds under
+a hostile locale. The macOS CI leg caught this on its first run: the same
+extractor produced two different orderings on two runners.
+
 ## Which export forms count
 
 An export counts when the file is the symbol's **definition site**.

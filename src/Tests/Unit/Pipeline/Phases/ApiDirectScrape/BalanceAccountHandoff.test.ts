@@ -15,8 +15,8 @@
  * rather than silently reporting one card's balance for all of them.
  */
 
+import { fetchBalance } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeBalance.js';
 import type { IAcctCtx } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeDispatchArgs.js';
-import { fetchBalance } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeSteps.js';
 import type { ApiBody } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { isOk, type Procedure, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
@@ -50,12 +50,14 @@ function acctCtxWith(acct: ITestAcct, extract: Extractor): IAcctCtx<ITestAcct, n
 }
 
 /**
- * Read a balance procedure's value, or NaN when it failed.
+ * Read a balance procedure's value, or NaN when it failed OR reported the
+ * figure UNKNOWN — `IBalanceOutcome.value` is absent in both cases, and these
+ * specs only ever assert a real handed-over number.
  * @param result - Balance outcome procedure.
  * @returns Extracted balance.
  */
 function balanceOf(result: Awaited<ReturnType<typeof fetchBalance<ITestAcct, number>>>): number {
-  return isOk(result) ? result.value.value : Number.NaN;
+  return isOk(result) ? (result.value.value ?? Number.NaN) : Number.NaN;
 }
 
 /**

@@ -21,7 +21,13 @@
 #                 (drives the docs-coverage canary)
 #   ci_scripts  — `.github/scripts/ci/**`, `.github/workflows/**`,
 #                 `.github/actions/**` or `.husky/**` was modified (drives
-#                 the CI scripts smoke test, which pins the gate wiring)
+#                 the CI scripts smoke test, which pins the gate wiring).
+#                 `scripts/check-shell-portability.mjs` is included for the
+#                 same self-testing reason `metrics` exists: it is the gate
+#                 that keeps those shell files runnable on macOS and
+#                 Windows, and it sits outside every other group, so it
+#                 could otherwise be weakened and merged without the job
+#                 that runs it ever firing.
 #   metrics     — `scripts/decoupling-metrics/**` was modified. That tree
 #                 sits outside both `src/` and `.github/`, so it matched NO
 #                 other group: the tool that measures architectural
@@ -231,7 +237,7 @@ if has '^src/'; then src=true; fi
 if has '\.md$'; then md=true; fi
 if has '^docs/|^mkdocs\.yml$|^requirements-docs\.txt$|^typedoc\.json$|^compatibility\.json$|^scripts/build-compatibility\.mjs$'; then docs=true; fi
 if has '^src/Scrapers/Pipeline/.*\.ts$'; then pipeline_ts=true; fi
-if has '^\.github/scripts/ci/|^\.github/workflows/|^\.github/actions/|^\.husky/'; then ci_scripts=true; fi
+if has '^\.github/scripts/ci/|^\.github/workflows/|^\.github/actions/|^\.husky/|^scripts/check-shell-portability\.mjs$'; then ci_scripts=true; fi
 if has '^package\.json$|^package-lock\.json$|^\.github/dependabot\.yml$'; then deps=true; fi
 if has '^jest\..*\.(js|cjs|mjs|ts)$|^jest\.config\.(js|cjs|mjs|ts)$'; then test_config=true; fi
 if has '^scripts/decoupling-metrics/'; then metrics=true; fi

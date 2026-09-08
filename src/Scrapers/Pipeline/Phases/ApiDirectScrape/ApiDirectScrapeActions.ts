@@ -19,12 +19,13 @@ import type { IActionContext, IScrapeState } from '../../Types/PipelineContext.j
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
 import { collectAccountRows } from './ApiDirectScrapeBackfill.js';
+import { fetchBalance } from './ApiDirectScrapeBalance.js';
 import runBootstrap from './ApiDirectScrapeBootstrap.js';
 import type { IAcctCtx, IDriverCtx } from './ApiDirectScrapeDispatchArgs.js';
 import runPrime from './ApiDirectScrapePrime.js';
-import { fetchAccounts, fetchBalance } from './ApiDirectScrapeSteps.js';
+import { fetchAccounts } from './ApiDirectScrapeSteps.js';
 import type { ApiDirectScrapeResult } from './ApiDirectScrapeTypes.js';
-import type { IApiDirectScrapeShape } from './IApiDirectScrapeShape.js';
+import type { IApiDirectScrapeShape, IBalanceOutcome } from './IApiDirectScrapeShape.js';
 
 /** One account plus the outcome facts its walk produced. */
 interface IAccountResult {
@@ -121,6 +122,22 @@ async function fetchAccountTxns<TAcct, TCursor>(
 }
 
 /**
+ * Build the account's balance field — OMITTED when the figure is unknown.
+ *
+ * `ITransactionsAccount.balance` is optional, so leaving the key out is the
+ * only truthful way to say "we do not know". Emitting `0` would publish a
+ * number the bank never gave us; emitting `undefined` would still create the
+ * key, so `'balance' in account` and `Object.keys` would both report a
+ * balance the bank never sent.
+ * @param outcome - Balance outcome from the balance step.
+ * @returns Either `{ balance }` or an empty object.
+ */
+function balanceField(outcome: IBalanceOutcome): { balance?: number } {
+  if (outcome.value === undefined) return {};
+  return { balance: outcome.value };
+}
+
+/**
  * Assemble one account — balance + txns + outcome flags.
  * @param a - Per-account context.
  * @returns Account-result procedure (account + balance and backfill outcomes).
@@ -133,7 +150,7 @@ async function fetchOneAccount<TAcct, TCursor>(
   const txns = await fetchAccountTxns(a);
   if (!isOk(txns)) return txns;
   const accountNumber = a.shape.accountNumberOf(a.acct);
-  const account = { accountNumber, balance: bal.value.value, txns: [...txns.value.txns] };
+  const account = { accountNumber, ...balanceField(bal.value), txns: [...txns.value.txns] };
   const wasExhausted = txns.value.backfillExhausted;
   return succeed({ account, degraded: bal.value.degraded, backfillExhausted: wasExhausted });
 }

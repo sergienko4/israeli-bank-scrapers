@@ -114,6 +114,11 @@ scripts/**
 # Run by `npm run lint:public-surface` from the pre-commit build gate and
 # the Build & Package job, so it has to be in the tree for either to work.
 !scripts/check-public-surface.mjs
+# Run by `npm run lint:shell-portability` from the Lint & Types job, so it
+# has to be in the tree for the gate to work. It is what keeps the husky
+# hooks and the CI shell scripts runnable on macOS (bash 3.2 + BSD tools)
+# and Git-Bash on Windows rather than on ubuntu-latest alone.
+!scripts/check-shell-portability.mjs
 !scripts/check-staged-pii.cjs
 # Run by `npm run lint:syntax-guardrails` from the pre-commit hook and the
 # Lint & Types job, so it has to be in the tree for either to work. It is the

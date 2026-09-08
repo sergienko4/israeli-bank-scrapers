@@ -93,5 +93,5 @@ extract_symbols() {
   {
     printf '%s\n' "$content" | sed -nE "s/${EXPORT_REGEX}.*/\4/p"
     printf '%s\n' "$content" | awk "${EXPORT_LIST_AWK}"
-  } | sort -u
+  } | LC_ALL=C sort -u
 }
