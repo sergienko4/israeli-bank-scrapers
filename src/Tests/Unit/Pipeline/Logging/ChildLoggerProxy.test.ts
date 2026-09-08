@@ -102,9 +102,9 @@ describe('Feature — deferred proxy resolves its child once (worker-leak regres
  * the other half of the contract: a proxy that resolved a child against the
  * pre-`setActiveBank` root must pick up the upgraded root on its next access.
  *
- * The observable is the logger's own `level`. `CI` is forced on so
- * `isDevMode` is false, which makes the pre-bank root transportless
- * (`level: 'silent'`) and the post-bank root file-backed (`level: 'info'`).
+ * The observable is the logger's own `level`. Without the `PRETTY_LOGS`
+ * opt-in the pre-bank root is transportless (`level: 'silent'`) and the
+ * post-bank root file-backed (`level: 'info'`).
  * A permanently-memoised child would keep reporting `'silent'`.
  */
 describe('Feature — deferred proxy invalidates its child on root upgrade', () => {

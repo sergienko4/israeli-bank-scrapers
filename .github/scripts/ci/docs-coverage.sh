@@ -234,7 +234,7 @@ src/Scrapers/Pipeline/ but never mentioned in docs/:
 
 EOF
 for sym in "${MISSING[@]}"; do
-  echo "  - ${sym}    (introduced in ${SYMBOL_OWNERS[$sym]})" >&2
+  echo "  - ${sym}    (introduced in $(map_get SYMBOL_OWNERS "$sym"))" >&2
 done
 cat >&2 <<EOF
 

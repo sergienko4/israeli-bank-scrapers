@@ -138,6 +138,7 @@ All optional.
 | `FORENSIC_TRACE` | unset | `true` writes the full run folder — `pipeline.log`, `network/*.json`, `screenshots/*.png` — under `RUNS_ROOT`. This is how raw provider payloads are captured on the Pipeline; see [Observability](observability/index.md) |
 | `RUNS_ROOT` | `<cwd>` | Parent directory for the forensic run folder — see [PII redaction](observability/redaction.md) |
 | `LOG_LEVEL` | pino default | Pino verbosity only; decoupled from `FORENSIC_TRACE` |
+| `PRETTY_LOGS` | unset | `true` (exactly — the flag is default-deny) routes logs through `pino-pretty` for human-readable terminal output. It is a **development** convenience: `pino-pretty` is a devDependency, so it is absent from a consumer's production install. Asking for it there is not fatal — `instantiateLogger` emits a process warning and degrades to the file transport, or to silence — see [Observability](observability/index.md#pretty-terminal-output) |
 | `DUMP_FIXTURES_DIR` | unset | Opt-in DOM `*.html` snapshot capture — see [TERMINATE](phases/terminate.md) |
 | `DUMP_SNAPSHOTS` | unset | Opt-in cold-start navigation snapshots — see [INIT navigation forensics](observability/init-navigation-forensics.md) |
 | `WINDOW_BACKFILL` | on | `off` is the operator kill-switch; any other value leaves backfill on — see [API-DIRECT-SCRAPE](phases/api-direct-scrape.md) |
