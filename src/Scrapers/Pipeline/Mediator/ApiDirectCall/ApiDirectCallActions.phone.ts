@@ -61,12 +61,13 @@ function collectNormaliseBundle(ctx: IPipelineContext): INormaliseBundle | false
  * to supply — went to the bank verbatim and came back as an opaque auth
  * failure naming nothing (issue #552).
  * @param bundle - Original normalisation bundle.
- * @param reason - Failure reason from {@link formatPhoneNumber}.
+ * @param reason - Failure reason from {@link formatPhoneNumber}, which
+ * already names the offending field — this must not restate it.
  * @returns Failed Procedure carrying a PII-safe diagnostic.
  */
 function failUnusablePhone(bundle: INormaliseBundle, reason: string): Procedure<IPipelineContext> {
   const { ctx, format, rawShape } = bundle;
-  const message = `phoneNumber cannot be normalised to the ${format} wire format: ${reason}`;
+  const message = `${reason} (cannot be normalised to the ${format} wire format)`;
   ctx.logger.error({ module: PHASE_LABEL, format, rawShape }, message);
   return fail(ScraperErrorTypes.InvalidPhoneNumber, message);
 }

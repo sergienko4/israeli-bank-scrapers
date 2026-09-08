@@ -197,6 +197,24 @@ function makeBankCtx(args: IBankCtxArgs): IPipelineContext {
   };
 }
 
+/**
+ * Run the ACTION stage with a phone the bank's format cannot represent.
+ *
+ * @param format - Bank wire format under test.
+ * @param rawPhone - Phone that format must refuse.
+ * @returns Failure message the stage produced, or `''` when it succeeded.
+ */
+async function failureMessageFor(format: PhoneNumberFormatTag, rawPhone: string): Promise<string> {
+  const capture: ICredsCapture = { capturedPhone: '' };
+  const bus = makeCapturingBus(capture);
+  const bankConfig = makeBankConfig(format);
+  const baseCtx = makeBankCtx({ bank: CompanyTypes.Pepper, config: bankConfig, bus });
+  const credentials = { ...baseCtx.credentials, phoneNumber: rawPhone };
+  const config = makeProbeConfig();
+  const result = await runApiDirectCallAction(config, { ...baseCtx, credentials });
+  return result.success ? '' : result.errorMessage;
+}
+
 describe('Phone normalisation — pipeline integration', () => {
   it.each(BANK_CASES)(
     'normalises creds.phoneNumber to the bank wire format ($bank: $rawPhone → $expectedWirePhone)',
@@ -306,5 +324,20 @@ describe('Phone normalisation — pipeline integration', () => {
     const result = await runApiDirectCallAction(config, ctx);
     expect(result.success).toBe(false);
     expect(capture.capturedPhone).toBe('');
+  });
+
+  /**
+   * `formatPhoneNumber` already names the field it rejected, and PayBox
+   * propagates that reason verbatim (`PayBoxBootstrap.deriveHmacKey`), so
+   * the prefix has to stay where it is. The wrapper here should therefore
+   * contribute only what it alone knows — the target wire format — rather
+   * than restating the field and producing `…: phoneNumber: …`.
+   */
+  it('names the phoneNumber field once, not twice, in the failure message', async () => {
+    const message = await failureMessageFor('international-flat', '0500000001');
+    const mentions = message.split('phoneNumber').length - 1;
+    expect(mentions).toBe(1);
+    expect(message).toContain('international-flat');
+    expect(message).toContain('country code 972');
   });
 });
