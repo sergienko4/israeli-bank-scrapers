@@ -30,14 +30,28 @@ describe('PepperShape.userIdOf', () => {
   });
 
   it('propagates a phone that already lacks the 972 prefix', () => {
-    const ctx = makeCtxWithPhone('000000001');
+    const ctx = makeCtxWithPhone('500000001');
     const result = userIdOf(ctx);
-    expect(result).toBe('000000001');
+    expect(result).toBe('500000001');
   });
 
   it('returns empty string when credentials.phoneNumber is empty', () => {
     const ctx = makeCtxWithPhone('');
     const result = userIdOf(ctx);
     expect(result).toBe('');
+  });
+
+  /**
+   * The leading `0` is the Israeli trunk prefix, never part of the
+   * subscriber number, so `0500000001` and `972500000001` name the same
+   * subscriber and must produce the same header. Before the ACTION stage
+   * learned to refuse an unnormalisable phone, the local form reached here
+   * intact and went out as `x-user-id: 0500000001` — a value the bank has
+   * never issued.
+   */
+  it('never emits the trunk prefix, whichever form it is handed', () => {
+    const ctx = makeCtxWithPhone('0500000001');
+    const result = userIdOf(ctx);
+    expect(result).toBe('500000001');
   });
 });

@@ -205,6 +205,10 @@ Pass `phoneNumber` in digits-only international form. Each bank wants a
 different wire format (`+972…`, `972…`, `972-…`) and the mediator rewrites it
 for you.
 
+The form matters: a value the mediator cannot rewrite fails the run with
+`errorType: 'INVALID_PHONE_NUMBER'` before any network call. That includes the
+natural local form `0500000001` — write it as `972500000001`.
+
 ## What you get back
 
 Every bank — browser or API-direct — returns the same `IScraperScrapingResult`:

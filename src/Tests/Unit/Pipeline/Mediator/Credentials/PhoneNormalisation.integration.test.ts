@@ -220,7 +220,7 @@ describe('Phone normalisation — pipeline integration', () => {
     expect(capture.capturedPhone).toBe('');
   });
 
-  it('keeps raw input + emits a warning when the supplied phone fails validation', async () => {
+  it('rejects an unusable phone before any credential reaches the wire', async () => {
     const capture: ICredsCapture = { capturedPhone: '' };
     const bus = makeCapturingBus(capture);
     const bank = CompanyTypes.OneZero;
@@ -233,12 +233,47 @@ describe('Phone normalisation — pipeline integration', () => {
     };
     const config = makeProbeConfig();
     const result = await runApiDirectCallAction(config, ctx);
-    // The rewrite path keeps the raw input on validation failure
-    // (warning-level log path); we assert the rewrite did NOT silently
-    // mangle the value, AND that the action still completes (the
-    // probe stub is configured to succeed, so the downstream effect
-    // of the malformed phone is observable only in the captured creds).
-    expect(capture.capturedPhone).toBe(malformedPhone);
-    if (!result.success) expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+    expect(result.success).toBe(false);
+    expect(capture.capturedPhone).toBe('');
+  });
+
+  it('names the failure so a caller can tell it from a generic fault', async () => {
+    const capture: ICredsCapture = { capturedPhone: '' };
+    const bus = makeCapturingBus(capture);
+    const bank = CompanyTypes.OneZero;
+    const bankConfig = makeBankConfig('international-plus');
+    const baseCtx = makeBankCtx(bank, bankConfig, bus);
+    const ctx: IPipelineContext = {
+      ...baseCtx,
+      credentials: { ...baseCtx.credentials, phoneNumber: '+972-000-000-000' },
+    };
+    const config = makeProbeConfig();
+    const result = await runApiDirectCallAction(config, ctx);
+    const errorType = result.success ? '' : result.errorType;
+    expect(errorType).toBe(ScraperErrorTypes.InvalidPhoneNumber);
+  });
+
+  /**
+   * The natural Israeli form is the one a user is most likely to supply,
+   * and it is the one that used to fail worst: `checkCountryCode` rejects
+   * it, the old code logged a warning and kept it, and Pepper then shipped
+   * it verbatim as `x-user-id`. The bank answered with an opaque auth
+   * failure that named nothing. It must be refused here instead.
+   */
+  it('refuses the local Israeli form rather than shipping it as-is', async () => {
+    const capture: ICredsCapture = { capturedPhone: '' };
+    const bus = makeCapturingBus(capture);
+    const bank = CompanyTypes.Pepper;
+    const localForm = '0500000001';
+    const bankConfig = makeBankConfig('international-flat');
+    const baseCtx = makeBankCtx(bank, bankConfig, bus);
+    const ctx: IPipelineContext = {
+      ...baseCtx,
+      credentials: { ...baseCtx.credentials, phoneNumber: localForm },
+    };
+    const config = makeProbeConfig();
+    const result = await runApiDirectCallAction(config, ctx);
+    expect(result.success).toBe(false);
+    expect(capture.capturedPhone).toBe('');
   });
 });

@@ -37,15 +37,26 @@ const APP_VERSION = '11.5.1-202603051858';
 /** Stable per-install client id — generated once per process. */
 const PEPPER_CLIENT_ID = randomUUID();
 
+/** Israeli country-code prefix carried by the international-flat form. */
+const IL_COUNTRY_CODE = '972';
+
+/** Israeli trunk prefix — leads the local form, never the subscriber digits. */
+const IL_TRUNK_PREFIX = '0';
+
 /**
  * Resolve the x-user-id header — Pepper uses the phone without the
  * country-code prefix (local-only form).
  *
  * Pepper's `phoneNumberFormat` is `'international-flat'` so the body
  * templates receive `972XXXXXXXXX`. The x-user-id header, however,
- * is a SEPARATE concern (header vs body) and expects the local form,
- * so this helper strips the `972` prefix when present. Robust to
- * either form so it can absorb a future config change.
+ * is a SEPARATE concern (header vs body) and expects the subscriber
+ * digits alone, so this helper strips the `972` prefix when present.
+ *
+ * It also strips a leading `0`. That digit is the Israeli trunk prefix
+ * and never part of the subscriber number, so `0500000001` and
+ * `972500000001` name the same subscriber and must produce the same
+ * header. This makes the helper total over every form the config could
+ * hand it, rather than passing an unrecognised one through untouched.
  * @param ctx - Action context carrying credentials.
  * @returns x-user-id string (empty when phone absent).
  */
@@ -53,8 +64,9 @@ function userIdOf(ctx: IActionContext): PepperUserId {
   const creds = ctx.credentials as unknown as IPepperCreds;
   const candidate = creds.phoneNumber as unknown;
   const raw = typeof candidate === 'string' ? candidate : '';
-  if (raw.startsWith('972')) return raw.slice(3) as unknown as PepperUserId;
-  return raw as unknown as PepperUserId;
+  if (raw.startsWith(IL_COUNTRY_CODE)) return raw.slice(IL_COUNTRY_CODE.length) as PepperUserId;
+  if (raw.startsWith(IL_TRUNK_PREFIX)) return raw.slice(IL_TRUNK_PREFIX.length) as PepperUserId;
+  return raw as PepperUserId;
 }
 
 /**

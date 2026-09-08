@@ -121,7 +121,7 @@ API-direct banks (OneZero, Pepper, PayBox) additionally accept:
 
 | Field | Purpose |
 | --- | --- |
-| `phoneNumber` | Digits-only international form (no `+`, no dashes) — e.g. `972000000000`. The mediator rewrites it to each bank's wire format. |
+| `phoneNumber` | Digits-only international form (no `+`, no dashes) — e.g. `972000000000`. The mediator rewrites it to each bank's wire format, and fails the run with `INVALID_PHONE_NUMBER` when it cannot — including for the natural local form `0500000001`. |
 | `otpCodeRetriever` | Passed in **credentials**, not options, for these three banks |
 | `otpLongTermToken` | Persistent token returned in `result.persistentOtpToken` — supply it to skip the SMS round-trip on the next run |
 
