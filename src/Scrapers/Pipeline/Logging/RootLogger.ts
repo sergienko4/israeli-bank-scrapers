@@ -89,7 +89,7 @@ function buildFileTransport(logFile: string): pino.TransportSingleOptions {
 function buildDualTransport(logFile: string): pino.TransportMultiOptions {
   return {
     targets: [
-      { target: 'pino-pretty', options: { colorize: true }, level: 'trace' },
+      { ...PRETTY_TRANSPORT, level: 'trace' },
       { target: 'pino/file', options: { destination: logFile }, level: 'trace' },
     ],
   };
