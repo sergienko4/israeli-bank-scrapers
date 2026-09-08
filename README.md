@@ -104,7 +104,7 @@ Playwright, and TypeScript strict mode.
 | Node.js | `>= 22.14.0` | ESM-by-default + `node:crypto` `randomUUID` |
 | npm | `>= 10` | Provenance-signed publishes |
 | Disk | ~1.3 GB | Camoufox bundle, cached on **first launch** (not at install) |
-| Install scripts | must be allowed | `--ignore-scripts` breaks the native build — see [Troubleshooting](https://sergienko4.github.io/israeli-bank-scrapers/troubleshooting/) |
+| Install scripts | must be allowed | `--ignore-scripts` breaks the native build. npm 12 blocks them by default too, so `better-sqlite3` needs `npm install-scripts approve` — see [Troubleshooting](https://sergienko4.github.io/israeli-bank-scrapers/troubleshooting/) |
 
 Windows, macOS, and Linux are all supported.
 

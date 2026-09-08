@@ -37,6 +37,12 @@ If a launch instead fails with `Could not locate the bindings file`, the
 dependencies were installed with `--ignore-scripts`; reinstall without that
 flag, or rebuild the binding with `npm rebuild better-sqlite3`.
 
+On npm 12 the same failure occurs on a plain `npm install`, because install
+scripts are blocked unless the package is in your `allowScripts` — and
+`npm rebuild` reports success without building. See
+[Troubleshooting](troubleshooting.md#npm-12-blocks-install-scripts-by-default)
+for the two commands that do fix it.
+
 ## 2. Scrape
 
 ```typescript
