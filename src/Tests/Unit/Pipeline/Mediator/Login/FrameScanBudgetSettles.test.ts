@@ -18,7 +18,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -27,7 +27,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const THIS_FILE_PATH = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE_PATH);
 const REPO_ROOT = join(THIS_DIR, '../../../../../../');
-const FRAME_SCAN_MODULE = join(REPO_ROOT, 'src/Scrapers/Pipeline/Mediator/Login/LoginFrameScan.js');
+const FRAME_SCAN_MODULE = join(REPO_ROOT, 'src/Scrapers/Pipeline/Mediator/Login/LoginFrameScan.ts');
 const FRAME_SCAN_URL = pathToFileURL(FRAME_SCAN_MODULE);
 const FRAME_SCAN_SPECIFIER = FRAME_SCAN_URL.href;
 
@@ -120,5 +120,18 @@ describe('safeScanFrame budget', () => {
    */
   it('[SCAN-2] imports the module as a file URL, so the probe runs on Windows too', () => {
     expect(PROBE_SOURCE).toContain('from "file://');
+  });
+
+  /**
+   * Unlike the repo's own `.js` import specifiers — which NodeNext requires
+   * of TypeScript source and the compiler maps back to `.ts` — this one is
+   * a runtime URL in generated code that tsc never sees. A URL is resolved
+   * literally, so it must address a file that exists rather than rely on
+   * the loader rewriting an extension for us.
+   */
+  it('[SCAN-3] addresses a module file that actually exists on disk', () => {
+    const target = fileURLToPath(FRAME_SCAN_SPECIFIER);
+    const isOnDisk = existsSync(target);
+    expect(isOnDisk).toBe(true);
   });
 });
