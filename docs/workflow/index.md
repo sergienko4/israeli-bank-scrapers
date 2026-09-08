@@ -12,6 +12,7 @@
 | [Branch flow & release-please](branch-flow.md) | Branch policy, PR rules, release-please automated versioning                                             |
 | [Releases & consumer signals](releases.md)     | What a publish proves, the guards behind it, and the compatibility score                                 |
 | [Code-review tooling](code-review-tooling.md)  | How to query CodeRabbit + SonarCloud findings via API + the OSS rate-limit posture in `.coderabbit.yaml` |
+| [Code scanning triage](code-scanning.md)       | Which scanner to believe when zizmor and Scorecard disagree, plus the two standing dismissals            |
 | [LSP (code intelligence)](lsp.md)              | `.github/lsp.json`, the `typescript-language-server` prerequisite, and how to activate it                |
 
 ## Two lines of defense

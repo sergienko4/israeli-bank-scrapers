@@ -140,6 +140,12 @@ jobs:
           registry-url: https://registry.npmjs.org/
           cache: npm
       - name: Upgrade npm for Trusted Publishing (OIDC requires npm 11.5.1+)
+        # zizmor: ignore[adhoc-packages] — npm is the package manager itself,
+        # so it cannot come from our own lockfile, and Trusted Publishing
+        # OIDC requires 11.5.1+. Hardened instead: exact version pin,
+        # `--ignore-scripts`, and `--audit-signatures` verifying the registry
+        # signature before install.
+        #
         # Closes CodeQL alert #35 (PinnedDependenciesID): the
         # `npm install -g npm@11.11.0` invocation now passes
         # `--audit-signatures` so the package signature is verified

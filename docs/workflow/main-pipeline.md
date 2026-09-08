@@ -135,7 +135,11 @@ path-filtered post-merge so it only ran when workflow files changed. A reusable
 call cannot carry `paths:`, so it now runs every time. That is deliberate: it
 is a roughly one-minute security scan, and continuously verifying workflow
 hardening on `main` is worth more than the saved minute. Its PR trigger keeps
-the path filter.
+the path filter. The scan **fails the job on findings** — it previously ended
+in `|| true`, which made every finding advisory. Gating takes two invocations,
+because `--format sarif` suppresses zizmor's exit codes; see
+[Code scanning triage](code-scanning.md) for the mechanism, and for why zizmor,
+not Scorecard, is the authority on GitHub Actions hardening here.
 
 ## Effect on branch protection
 
