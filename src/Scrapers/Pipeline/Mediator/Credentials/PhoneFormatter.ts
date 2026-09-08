@@ -205,7 +205,7 @@ function isAlreadyWireForm(raw: string, format: PhoneNumberFormat): boolean {
  * other shape — including the Israeli local trunk form `05…` — fails here
  * rather than reaching the bank as an unusable credential.
  *
- * @param raw - Caller-supplied digits-only international form.
+ * @param raw - Digits-only international form, or this bank's own wire form.
  * @param format - Per-bank wire-format selector.
  * @returns Procedure with the formatted wire string.
  */

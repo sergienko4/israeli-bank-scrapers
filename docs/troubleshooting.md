@@ -127,6 +127,7 @@ Returned as `result.errorType` when `result.success` is `false`.
 | `INVALID_PASSWORD` | Wrong credentials |
 | `INVALID_OTP` | Wrong or expired OTP code |
 | `TWO_FACTOR_RETRIEVER_MISSING` | OTP required but no `otpCodeRetriever` supplied |
+| `INVALID_PHONE_NUMBER` | `phoneNumber` is not usable for this bank. Pass digits-only international form (`972000000000`) or the bank's own wire form from its [bank guide](banks/index.md). Raised before any network call, so nothing was sent — the Israeli local form `0500000001` is refused on purpose rather than forwarded and rejected as an opaque auth failure |
 | `CHANGE_PASSWORD` | The bank is forcing a password change — log in manually first |
 | `ACCOUNT_BLOCKED` | The bank locked the account |
 | `WAF_BLOCKED` | Cloudflare block — read `errorDetails.suggestions` |
