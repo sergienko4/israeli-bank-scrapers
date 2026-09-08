@@ -82,6 +82,36 @@ function needsOf(doc: IWorkflowDoc, jobKey: string): readonly string[] {
   return needs ?? [];
 }
 
+/** One property of the gate script that a single substring proves present. */
+interface IGateScriptProperty {
+  readonly id: string;
+  readonly property: string;
+  readonly needle: string;
+}
+
+/**
+ * Properties whose absence would leave the gate running but vacuous. Each is
+ * proved by one substring of the same script, so they belong in a single
+ * parameterized test rather than in tests that differ only by a literal.
+ */
+const GATE_SCRIPT_PROPERTIES: readonly IGateScriptProperty[] = [
+  {
+    id: 'CIG-3',
+    property: 'installs without devDependencies, so pino-pretty cannot resolve',
+    needle: '--omit=dev',
+  },
+  {
+    id: 'CIG-4',
+    property: 'runs the consumer program with CI and NODE_ENV unset',
+    needle: '-u CI -u NODE_ENV',
+  },
+  {
+    id: 'CIG-5',
+    property: 'treats a silent exit as a failure rather than as no output',
+    needle: 'the scrape never settled',
+  },
+];
+
 describe('consumer-install CI gate', () => {
   it('[CIG-1] pr.yml defines the gate as a job', () => {
     const doc = loadWorkflow();
@@ -95,19 +125,9 @@ describe('consumer-install CI gate', () => {
     expect(validateNeeds).toContain(GATE_JOB_KEY);
   });
 
-  it('[CIG-3] installs without devDependencies, so pino-pretty cannot resolve', () => {
+  it.each(GATE_SCRIPT_PROPERTIES)('[$id] $property', (row): void => {
     const script = readText(GATE_SCRIPT);
-    expect(script).toContain('--omit=dev');
-  });
-
-  it('[CIG-4] runs the consumer program with CI and NODE_ENV unset', () => {
-    const script = readText(GATE_SCRIPT);
-    expect(script).toContain('-u CI -u NODE_ENV');
-  });
-
-  it('[CIG-5] treats a silent exit as a failure rather than as no output', () => {
-    const script = readText(GATE_SCRIPT);
-    expect(script).toContain('the scrape never settled');
+    expect(script).toContain(row.needle);
   });
 
   it('[CIG-6] the consumer program holds no timer that would mask abandonment', () => {
