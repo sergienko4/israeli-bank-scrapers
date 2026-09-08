@@ -178,6 +178,7 @@ describe('Debug buildTransport — env-permutation branches', () => {
   it('FORENSIC_TRACE without PRETTY_LOGS builds file-only transport', async () => {
     process.env.CI = '1';
     delete process.env.NODE_ENV;
+    delete process.env.PRETTY_LOGS;
     process.env.LOG_LEVEL = 'trace';
     process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = DEBUG_TEST_RUNS_ROOT_CI;
@@ -194,6 +195,7 @@ describe('Debug buildTransport — env-permutation branches', () => {
   it('non-trace without PRETTY_LOGS → transport=false (no output)', async () => {
     process.env.CI = '1';
     process.env.NODE_ENV = 'production';
+    delete process.env.PRETTY_LOGS;
     delete process.env.LOG_LEVEL;
     jest.resetModules();
     const mod = await import('../../../../Scrapers/Pipeline/Logging/Debug.js');

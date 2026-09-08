@@ -197,12 +197,14 @@ run_environment() {
   return 0
 }
 
-# The default state of a consumer's application: neither variable is set.
-# This is the environment no CI job can reproduce.
-run_environment "default (CI and NODE_ENV unset)" -u CI -u NODE_ENV
+# The default state of a consumer's application: none of these are set.
+# This is the environment no CI job can reproduce. PRETTY_LOGS is unset
+# explicitly so a developer who exports it cannot silently run this gate
+# down a different transport branch than CI does.
+run_environment "default (CI and NODE_ENV unset)" -u CI -u NODE_ENV -u PRETTY_LOGS
 
 # A consumer who does set NODE_ENV. Different transport branch, same contract.
-run_environment "NODE_ENV=production" -u CI NODE_ENV=production
+run_environment "NODE_ENV=production" -u CI -u PRETTY_LOGS NODE_ENV=production
 
 if [ "${FAILED}" -ne 0 ]; then
   echo "" >&2
