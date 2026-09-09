@@ -54,7 +54,9 @@ while IFS= read -r line; do
   if [[ ! "$line" =~ npm@[0-9]+\.[0-9]+\.[0-9]+ ]]; then
     exit 1
   fi
-  if [[ ! "$line" =~ --ignore-scripts ]]; then
+  # Enabled form only. `--ignore-scripts=false` contains the flag as a
+  # substring while disabling it.
+  if [[ ! "$line" =~ --ignore-scripts(=true)?([[:space:]]|$) ]]; then
     exit 1
   fi
   # Not merely unnecessary: npm 12 fails the install with
