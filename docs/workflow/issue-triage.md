@@ -33,7 +33,8 @@ that missing half: the seven-day clock runs only while the label is present.
 stateDiagram-v2
     [*] --> Open
     Open --> AwaitingReporter: maintainer adds needs-info
-    AwaitingReporter --> Open: reporter comments<br/>(label auto-removed)
+    AwaitingReporter --> AwaitingReporter: anyone comments<br/>(clock restarts)
+    AwaitingReporter --> Open: maintainer removes needs-info
     AwaitingReporter --> Closed: 7 days of silence
     Closed --> Open: maintainer reopens on request
 ```
@@ -61,14 +62,14 @@ gh issue edit <number> -R sergienko4/israeli-bank-scrapers --add-label needs-inf
 ```
 
 - **Opt an issue out entirely:** add `not-stale`. Both lanes honour it.
-- **Cancel the clock manually:** remove `needs-info`.
-- The reporter's own reply removes the label automatically, so you do not need
-  to watch the issue.
+- **Cancel the clock:** remove `needs-info`. Nothing removes it for you — do
+  this once you have your answer, or a later quiet week will close an issue
+  that was in fact answered.
+- Any comment restarts the seven days, because the action measures from the
+  issue's `updated_at`. That includes your own follow-ups, which errs on the
+  generous side.
 - The seven days run from when you apply `needs-info`, not from when the issue
-  was opened — labelling an issue updates it, and that is the clock. Your own
-  follow-up comments do extend the deadline, which errs on the generous side.
-  A reply from the reporter removes the label and takes the issue out of scope
-  altogether, which is stronger than restarting a timer.
+  was opened — labelling an issue updates it, and that is the clock.
 
 ## For reporters
 

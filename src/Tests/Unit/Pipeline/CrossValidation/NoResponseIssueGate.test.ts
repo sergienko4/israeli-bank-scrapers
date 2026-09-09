@@ -8,15 +8,12 @@
  *
  * <p>`actions/stale` keys off `updated_at`, so it knows only that an issue is
  * quiet — never *whose* turn it is. The label is therefore the state machine:
- * the clock runs only while `needs-info` is present. That has two consequences
- * this test exists to pin, because both fail silently and invisibly:
+ * the clock runs only while `needs-info` is present. A comment restarts that
+ * clock on its own, since commenting updates the issue; the label itself is
+ * removed by a maintainer, not automatically. One consequence is pinned here,
+ * because it fails silently and invisibly:
  *
  * <ul>
- *   <li>Something must remove the label the moment the reporter answers.
- *       `labels-to-remove-when-unstale` fires only for an issue that was
- *       already marked stale, so it does not cover a reply inside the first
- *       seven days. Without the companion workflow, an issue the reporter
- *       *did* answer still gets closed.</li>
  *   <li>The lane must not share the `Stale` label with the pre-existing
  *       60-day inactivity job in the same file, or the two fight over one
  *       marker.</li>
