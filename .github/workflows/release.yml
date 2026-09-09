@@ -31,8 +31,8 @@ on:
         description: 'PAT with contents:write — release-please needs it for cross-branch release commits'
         required: true
 
-# Top-level least-privilege baseline — closes CodeQL alert #32
-# (TokenPermissionsID). The release-please job overrides locally to
+# Top-level least-privilege baseline — closes code-scanning alert #32
+# (Scorecard `TokenPermissionsID`). The release-please job overrides locally to
 # `contents: write` + `pull-requests: write` because it needs to push
 # release commits and PRs; the publish job overrides locally to
 # `contents: read` + `id-token: write` for the npm OIDC trust chain.
@@ -146,7 +146,7 @@ jobs:
         # `--ignore-scripts`, and `--audit-signatures` verifying the registry
         # signature before install.
         #
-        # Closes CodeQL alert #35 (PinnedDependenciesID): the
+        # Closes code-scanning alert #35 (Scorecard `PinnedDependenciesID`): the
         # `npm install -g npm@11.11.0` invocation now passes
         # `--audit-signatures` so the package signature is verified
         # against the npm registry public key BEFORE installation.
