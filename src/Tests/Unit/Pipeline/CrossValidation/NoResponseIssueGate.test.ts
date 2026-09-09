@@ -52,6 +52,9 @@ const NO_RESPONSE_JOB_KEY = 'no-response';
 /** Job running the pre-existing 60-day inactivity policy. */
 const GENERIC_JOB_KEY = 'stale';
 
+/** The only job of the companion label-clearing workflow. */
+const CLEAR_JOB_KEY = 'clear-needs-info';
+
 /** Label a maintainer applies to start the clock. */
 const NEEDS_INFO_LABEL = 'needs-info';
 
@@ -102,6 +105,7 @@ interface IWorkflowTriggers {
 
 interface IWorkflowDoc {
   readonly on?: IWorkflowTriggers;
+  readonly concurrency?: unknown;
   readonly jobs?: Readonly<Record<string, IWorkflowJob>>;
 }
 
@@ -168,12 +172,15 @@ function input(name: string): string {
 /**
  * The only job of the companion label-clearing workflow.
  *
+ * Pinned by key rather than by position: reading the first job would silently
+ * start asserting against the wrong one if a second job were ever added.
+ *
  * @returns The job, or an empty job when the workflow is absent.
  */
 function clearJob(): IWorkflowJob {
   const doc = loadWorkflow(CLEAR_YAML);
   const jobs = doc.jobs ?? {};
-  return Object.values(jobs)[0] ?? {};
+  return jobs[CLEAR_JOB_KEY] ?? {};
 }
 
 /**
@@ -300,8 +307,8 @@ describe('Clearing the waiting label when the reporter replies', () => {
 
   it('[NRI-18] acts only when the commenter is the reporter', () => {
     const condition = clearCondition();
-    expect(condition).toContain('github.event.comment.user.login');
-    expect(condition).toContain('github.event.issue.user.login');
+    const comparison = 'github.event.comment.user.login == github.event.issue.user.login';
+    expect(condition).toContain(comparison);
   });
 
   it('[NRI-19] acts only on issues actually awaiting a reply', () => {
@@ -320,5 +327,29 @@ describe('Clearing the waiting label when the reporter replies', () => {
     const runs = steps.map(step => step.run ?? '');
     const hasUnsafe = runs.some(run => UNSAFE_INTERPOLATION.test(run));
     expect(hasUnsafe).toBe(false);
+  });
+
+  /*
+   * `closed-no-response` is both the marker this lane staleness-tracks and the
+   * permanent record of why the issue closed, so it survives on a reopened
+   * issue. Re-labelling such an issue only avoids an instant, grace-free close
+   * because `remove-stale-when-updated` defaults to on, which un-stales it
+   * first. The action reads the option with a strict `=== 'false'`, so that is
+   * the single value that would arm the trap.
+   */
+  it('[NRI-22] keeps the un-stale escape that protects reopened issues', () => {
+    const remove = input('remove-stale-when-updated');
+    expect(remove).not.toBe('false');
+  });
+
+  /*
+   * `needs: stale` orders the two jobs inside one run; it says nothing about
+   * two runs overlapping, which a manual dispatch during the nightly cron
+   * would otherwise do. Only a concurrency group prevents that.
+   */
+  it('[NRI-23] stops two runs of the lane overlapping', () => {
+    const doc = loadWorkflow(STALE_YAML);
+    const concurrency = doc.concurrency;
+    expect(concurrency).toBeDefined();
   });
 });

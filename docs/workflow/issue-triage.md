@@ -12,8 +12,16 @@ They exist for different reasons and must not be confused.
 | **General inactivity** (`stale` job) | issues **and** PRs | no activity at all | 60 days → `Stale`, 14 more → close | closed `not_planned` |
 | **Awaiting the reporter** (`no-response` job) | issues only | maintainer applies `needs-info` | 7 days of silence → close | closed `not_planned`, labelled `closed-no-response` |
 
-The jobs are serialised (`needs: stale`) so two `actions/stale` runs can never
-race on the same issue or double-spend the API rate limit.
+`needs: stale` orders the two jobs inside a run, and a `stale-issues`
+concurrency group stops two runs overlapping — a manual dispatch landing on top
+of the nightly cron would otherwise have both lanes acting on the same issue
+and double-spending the API rate limit.
+
+The lanes stay disjoint by arithmetic rather than by exemption: both measure
+from `updated_at`, and seven days elapses before sixty, so an issue carrying
+`needs-info` is always closed by the fast lane first. The general lane is
+deliberately *not* made to skip `needs-info`, because that would remove the
+only backstop if the fast lane ever stopped firing.
 
 ## The label is the state machine
 

@@ -6,6 +6,13 @@ on:
 
 permissions: {}
 
+# `needs:` orders the two jobs within a run. It does nothing about two runs
+# overlapping, which a manual dispatch during the nightly cron would do, so
+# the group is what actually stops the lanes racing on the same issue.
+concurrency:
+  group: stale-issues
+  cancel-in-progress: false
+
 jobs:
   stale:
     runs-on: ubuntu-latest
