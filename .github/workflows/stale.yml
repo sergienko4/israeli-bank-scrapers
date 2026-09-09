@@ -26,3 +26,58 @@ jobs:
           close-issue-reason: 'not_planned'
           exempt-issue-labels: 'not-stale'
           exempt-pr-labels: 'not-stale'
+
+  # Second, much faster lane: issues explicitly waiting on their reporter.
+  #
+  # `actions/stale` only knows an issue is quiet, never whose turn it is, so
+  # `needs-info` is the state machine — the clock runs only while that label
+  # is present, and `issue-needs-info-clear.yml` removes it the moment the
+  # reporter answers.
+  #
+  # A seven-day stale window with a zero-day close window closes in the same
+  # run, which is what "no warning period" means for a mark-then-close
+  # processor: `_markStale` stamps `updated_at` with `Date.toString()`, whose
+  # whole-second precision leaves the close check comparing 1-999 ms against
+  # zero. A close window of 1 would defer the closure by a day instead.
+  no-response:
+    needs: stale
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/stale@4391f3da665fdf50b6810c1a66712fb9ba21aa93 # v11.0.0
+        with:
+          ascending: true
+          only-issue-labels: 'needs-info'
+          days-before-issue-stale: 7
+          days-before-issue-close: 0
+          # This lane is for issues only; the 60-day job above still covers PRs.
+          days-before-pr-stale: -1
+          days-before-pr-close: -1
+          # The deadline runs from the moment the label is applied, which is
+          # what labelling an issue already does to `updated_at`. Turning on
+          # `ignore-issue-updates` would move the reference to the *creation*
+          # date, closing any issue older than a week the instant it is
+          # labelled and giving the reporter no time at all.
+          stale-issue-label: 'closed-no-response'
+          labels-to-remove-when-stale: 'needs-info'
+          close-issue-reason: 'not_planned'
+          exempt-issue-labels: 'not-stale'
+          # Omitting `stale-issue-message` would not merely silence the lane,
+          # it would disable it: with no message the action does not mark at
+          # all. `close-issue-message` is deliberately left unset so the
+          # same-run closure posts exactly one comment.
+          stale-issue-message: >-
+            Closing this because it has been waiting seven days for the
+            information requested above and we have not heard back.
+
+
+            This is not a judgement about the report — we just cannot
+            investigate without those details. If you can still provide them,
+            please comment and we will happily reopen: nothing here is lost.
+            Maintainers can add the `not-stale` label to opt an issue out of
+            this automation entirely.

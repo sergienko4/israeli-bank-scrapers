@@ -1,0 +1,52 @@
+name: 'Clear needs-info when the reporter replies'
+
+# The companion to the `no-response` job in `stale.yml`.
+#
+# That job closes issues that sit seven days under the `needs-info` label, and
+# `actions/stale` cannot tell whose turn it is — it only sees that an issue is
+# quiet. The label is the state machine, so something has to clear it the
+# moment the reporter answers. `labels-to-remove-when-unstale` is not that
+# something: it fires only for an issue that was already marked stale, so it
+# never covers a reply inside the first seven days. Without this workflow, an
+# issue the reporter *did* answer would still be closed for silence.
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+jobs:
+  clear-needs-info:
+    # `issue_comment` also fires for pull-request comments, hence the first
+    # clause. The second is the whole point: only the person who opened the
+    # issue can satisfy a request made of them.
+    if: >-
+      github.event.issue.pull_request == null &&
+      github.event.comment.user.login == github.event.issue.user.login &&
+      contains(github.event.issue.labels.*.name, 'needs-info')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Remove the waiting label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          LABEL: 'needs-info'
+        # Every value above is an identifier or a number that GitHub controls,
+        # never comment or title text, so nothing attacker-controlled reaches
+        # the shell. The re-read guards a race rather than masking errors: if
+        # the label has already gone there is nothing to do, while a genuine
+        # API failure still fails the step.
+        run: |
+          if gh api "repos/$REPO/issues/$ISSUE_NUMBER/labels" --jq '.[].name' |
+            grep -qx "$LABEL"; then
+            gh api --method DELETE \
+              "repos/$REPO/issues/$ISSUE_NUMBER/labels/$LABEL" --silent
+            echo "Removed '$LABEL' from #$ISSUE_NUMBER — the reporter replied."
+          else
+            echo "'$LABEL' already absent from #$ISSUE_NUMBER; nothing to do."
+          fi
