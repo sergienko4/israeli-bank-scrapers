@@ -26,8 +26,10 @@
  * window plus a zero-day close window. That is not a guess: `_markStale` sets
  * `issue.updated_at = new Date().toString()` before the close check, and
  * `Date.toString()` keeps only whole seconds, so the elapsed value the check
- * sees is 1-999 ms and never satisfies `<= 0`. The issue closes in the same
- * run. A close window of 1 would instead defer closure by a day.
+ * sees is 1-999 ms and never satisfies `<= 0`. That check asks whether the
+ * issue *was* updated inside the close window, and closure follows when it was
+ * not — so the issue closes in the same run. A close window of 1 would instead
+ * defer closure by a day.
  *
  * <p>Omitting `stale-issue-message` would disable the lane outright rather
  * than merely silence it — `actions/stale` documents that with no message it

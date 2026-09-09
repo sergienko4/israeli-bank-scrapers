@@ -40,7 +40,7 @@ stateDiagram-v2
 
 Two consequences follow, and both are enforced by
 `src/Tests/Unit/Pipeline/CrossValidation/NoResponseIssueGate.test.ts`
-(`NRI-1`…`NRI-21`), because each fails silently:
+(the `NRI-*` assertions), because each fails silently:
 
 - **Something must clear the label when the reporter answers.**
   [`issue-needs-info-clear.yml`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/.github/workflows/issue-needs-info-clear.yml)
@@ -87,10 +87,12 @@ no warning period" is expressed as `days-before-issue-stale: 7` plus
 That is a verified property of the action, not an assumption. In
 `actions/stale` v11.0.0, `_markStale` sets
 `issue.updated_at = new Date().toString()` before the close check runs, and
-`Date.toString()` keeps only whole seconds. The close check then asks whether
-`millisSinceLastUpdated <= 0`; because the stamp was truncated to the second,
-the value is between 1 and 999 ms, so the guard is false and the issue closes.
-Simulated over 20 000 trials, this closes in the same run 100% of the time.
+`Date.toString()` keeps only whole seconds. The close check asks the inverse of
+what you might expect — whether the issue *was* updated inside the close
+window, `millisSinceLastUpdated <= 0` — and closes when the answer is no.
+Because the stamp was truncated to the second, the elapsed value is between 1
+and 999 ms, so the answer is no and the issue closes on the spot. Simulated
+over 20 000 trials, this closes in the same run 100% of the time.
 Setting the close window to `1` would instead defer every closure by a day.
 
 One further trap, documented in the action's own `action.yml`: omitting
