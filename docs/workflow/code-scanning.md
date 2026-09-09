@@ -44,10 +44,11 @@ Nothing watches that pin automatically: Dependabot has no ecosystem for
 the SHA-pinned `zizmorcore/zizmor-action` or a `requirements.txt`, either of
 which Dependabot does track.
 
-`WorkflowSecurityGate.test.ts` (`WSG-1`..`WSG-9`) pins all of this, because
+The `WSG-*` cases in `WorkflowSecurityGate.test.ts` pin all of this, because
 every part can be removed by a well-meaning edit without anything else going
 red — including the ones that live outside the `run:` block, like
-`continue-on-error`.
+`continue-on-error`, which GitHub Actions accepts at job level as well as step
+level.
 
 ## Suppressing a zizmor finding
 

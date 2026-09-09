@@ -52,6 +52,24 @@ jobs:
           # below is what actually fails the build.
           zizmor --format sarif .github/workflows .github/actions > zizmor.sarif
 
+      - name: Check the SARIF was actually produced
+        id: sarif
+        # `!cancelled()` on the upload deliberately ignores `success()`, so it
+        # also runs when the scan failed — including before the redirect wrote
+        # anything. `>` truncates on open, so that leaves a 0-byte file, and
+        # uploading it fails with a parse error that buries the real cause.
+        # Emptiness alone is not enough either: a scan killed mid-write leaves
+        # valid-looking bytes that are not valid JSON.
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          if [ -s zizmor.sarif ] && python3 -c 'import json; json.load(open("zizmor.sarif"))' 2>/dev/null; then
+            echo 'is-ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'is-ready=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::No usable zizmor.sarif — skipping upload so the real failure stays visible.'
+          fi
+
       - name: Upload SARIF to code-scanning
         # Runs before the gate below and on scan failure, because the upload
         # is what makes a finding readable — without it the first real
@@ -59,7 +77,7 @@ jobs:
         # rather than `always()`: a cancelled run leaves a truncated
         # `zizmor.sarif`, and uploading that fails confusingly on a run
         # nobody is waiting for.
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.sarif.outputs.is-ready == 'true' }}
         uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         with:
           sarif_file: zizmor.sarif

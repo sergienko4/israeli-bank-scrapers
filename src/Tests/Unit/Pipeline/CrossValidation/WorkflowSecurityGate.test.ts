@@ -52,6 +52,13 @@ const SCORECARD_YAML = join(REPO_ROOT, '.github/workflows/scorecard.yml');
 const ZIZMOR_JOB_KEY = 'zizmor';
 
 /**
+ * Step output recording that the SARIF file exists and parses. The upload
+ * condition must consult it, or a scan that died before writing anything
+ * turns into a misleading upload error.
+ */
+const SARIF_READY_OUTPUT = 'steps.sarif.outputs.is-ready';
+
+/**
  * First release whose `unpinned-uses` default requires hash-pinning on every
  * action rather than only third-party ones. A pin below this silently relaxes
  * the policy the dismissal of the Scorecard alerts depends on.
@@ -201,25 +208,30 @@ const GATE_DETECTION_CASES = [
     run: '# installed above with pipx install zizmor==1.30.0\nzizmor --format plain .github/workflows',
     isGate: true,
   },
+  {
+    label: 'a step that only reads the SARIF file by name',
+    run: "if [ -s zizmor.sarif ] && python3 -c 'import json'; then\n  echo ok\nfi",
+    isGate: false,
+  },
 ] as const;
 
 /**
  * Does a `run` block invoke zizmor in a mode that yields a finding exit code?
  *
- * <p>Matched on executable content only. The steps in this job necessarily
- * discuss each other — the gate's comment explains why the SARIF run cannot
- * gate — so reading prose as code would let a comment edit silently point the
- * assertions below at the wrong step.
+ * <p>Matched on executable lines that *start* a zizmor command, not on any
+ * mention of the string. The steps in this job necessarily discuss each other
+ * and one of them reads `zizmor.sarif` by name, so looser matching would both
+ * read prose as code and mistake a file reference for an invocation.
  *
  * @param run - Raw `run:` block.
  * @returns True for a non-SARIF zizmor invocation, excluding the installer.
  */
 function isGateCommand(run: string): boolean {
   const code = executableLines(run);
-  const isZizmorCall = code.includes('zizmor');
-  const isInstall = code.includes('pipx install');
-  const isSarif = code.includes('--format sarif');
-  return isZizmorCall && !isInstall && !isSarif;
+  const lines = code.split('\n');
+  const invocations = lines.filter(line => line.trim().startsWith('zizmor '));
+  const hasSarifMode = invocations.some(line => line.includes('--format sarif'));
+  return invocations.length > 0 && !hasSarifMode;
 }
 
 /**
@@ -325,6 +337,18 @@ describe('workflow-security zizmor gate', () => {
   it('[WSG-5] SARIF is uploaded when the scan fails but not when cancelled', () => {
     const condition = uploadCondition();
     expect(condition).toContain('!cancelled()');
+  });
+
+  /**
+   * `!cancelled()` deliberately ignores `success()`, so the upload also runs
+   * when an earlier step failed — including a failure *before* the redirect
+   * produced anything. `> zizmor.sarif` truncates on open, so that leaves an
+   * empty file, and uploading it fails with a parse error that buries the
+   * real cause. The condition must therefore also require a usable file.
+   */
+  it('[WSG-11] the upload is guarded on a SARIF having actually been produced', () => {
+    const condition = uploadCondition();
+    expect(condition).toContain(SARIF_READY_OUTPUT);
   });
 
   it('[WSG-6] the auditor is version-pinned', () => {
