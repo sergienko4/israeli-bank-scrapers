@@ -10,4 +10,5 @@ jobs:
     steps:
       - name: Install npm pinned to an exact version, without lifecycle scripts
         run: |
+          # Never npm@latest here, and never without --ignore-scripts.
           npm install -g npm@11.11.0 --ignore-scripts

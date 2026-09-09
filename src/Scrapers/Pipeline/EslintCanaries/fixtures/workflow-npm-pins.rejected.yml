@@ -8,6 +8,10 @@ jobs:
   install:
     runs-on: ubuntu-latest
     steps:
-      - name: Install npm from a floating tag, global flag after the package
+      # Floating tag, global flag after the package, split across a line
+      # continuation, with a comment that names an exact pin. Detection
+      # must survive all three or this fixture stops being rejected.
+      - name: Install npm from a floating tag
         run: |
-          npm install npm@latest -g --ignore-scripts
+          npm install npm@latest \
+            -g --ignore-scripts   # was pinned to npm@11.11.0
