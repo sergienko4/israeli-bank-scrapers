@@ -49,8 +49,12 @@ if [[ ! -f "$FILE" ]]; then
   exit 2
 fi
 
-# Every alias npm accepts for `install`; `npm add -g npm@latest` is the
-# same command. Longest first, so the alternation cannot stop at a prefix.
+# Every alias npm itself resolves to `install`, so `npm add -g npm@latest`
+# and `npm isntall -g npm@latest` are the same command as `npm install`.
+# The typo-looking entries are npm's own shipped aliases, not a mistake
+# here: `npm isntall --help` prints "Install a package". Deleting them
+# reopens the bypass they close. Longest first, so the alternation cannot
+# stop at a prefix.
 readonly INSTALL_ALIAS='(install|instal|insta|inst|isntall|isntal|isnta|isnt|ins|in|add|i)'
 # Every spelling of "install globally".
 readonly GLOBAL_FLAG='(-g|--global|--location=global)'
