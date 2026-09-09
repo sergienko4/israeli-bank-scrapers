@@ -66,7 +66,7 @@ convention:
 Prefer this over raising a global threshold: the exemption stays next to the
 code it excuses, and the next finding of the same class still blocks.
 
-## Standing finding 1: 28 Scorecard `PinnedDependenciesID` alerts — dismissed
+## Standing finding 1: 28 Scorecard `PinnedDependenciesID` alerts — filtered from the SARIF
 
 **Do not "fix" these by changing `uses:` syntax.**
 
@@ -89,18 +89,44 @@ audit, `$/` "is not subject to runtime filesystem state, meaning that it can't
 load an action that was cloned at runtime in a previous step", and "is treated
 as a form of pinning" by GitHub — which `./` is not.
 
-No syntax satisfies both scanners:
+No single _syntax_ satisfies both scanners at once:
 
-| form               | GitHub            | zizmor                    | Scorecard          |
-| ------------------ | ----------------- | ------------------------- | ------------------ |
-| `$/…` (current)    | treated as pinned | **required**              | 28 false positives |
-| `./…`              | not pinned        | `self-repository` finding | silent             |
-| `owner/repo/…@sha` | pinned            | `self-repository` finding | silent             |
+| form               | GitHub            | zizmor                          | Scorecard          |
+| ------------------ | ----------------- | ------------------------------- | ------------------ |
+| `$/…` (current)    | treated as pinned | **required**                    | 28 false positives |
+| `./…`              | not pinned        | `self-repository` finding, High | silent             |
+| `owner/repo/…@sha` | pinned            | passes (no `self-repository`)   | silent             |
 
-Reverting would buy a quiet scanner with a real security regression.
+The `owner/repo/…@sha` row was verified empirically against zizmor 1.30.0
+(exit 0, no `self-repository` finding), correcting an earlier claim here that
+zizmor objected to it. It is still rejected on other grounds: it hard-codes
+`sergienko4`, so it breaks on forks (the reason `$/` was adopted), and pinning
+a self-reference by SHA means every edit to a composite action needs the pin
+bumped at every call site. Reverting `$/` therefore buys a quiet scanner for a
+real regression, whichever alternative form is chosen.
 
-**Action:** dismiss as _false positive_, citing this page. Re-evaluate if
-Scorecard adds `$/` support.
+**What we do instead — satisfy both scanners without touching `$/`.** The
+false positives only exist in the SARIF that `scorecard.yml` uploads to code
+scanning; `publish_results` (the public scorecard.dev score) is a separate
+channel. So the workflow runs
+[`scripts/filter-scorecard-sarif.mjs`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/scripts/filter-scorecard-sarif.mjs)
+between `ossf/scorecard-action` and `github/codeql-action/upload-sarif`. It
+drops only the `PinnedDependenciesID` results whose flagged source line is a
+`uses: $/…` self-repository reference. A genuinely unpinned third-party action
+never matches `$/`, so it survives the filter and is still reported — the
+security property is preserved. zizmor stays green because `$/` is untouched,
+and code scanning stays clean because the false positives never arrive.
+
+The wiring and the surgical scope are pinned by tests: `SCF-*` in
+`WorkflowSecurityGate.test.ts` assert the filter runs after Scorecard and
+before the upload, and `FSS-*` in `FilterScorecardSarif.test.ts` assert a real
+unpinned third-party action is kept while `$/` hits are dropped.
+
+**Action:** the 28 open alerts clear as _fixed_ on the next Scorecard run on
+`main` after this ships (the filtered SARIF no longer references those lines).
+Trigger one on demand with `gh workflow run scorecard.yml`. Re-evaluate — and
+remove the filter — if Scorecard adds `$/` support: upstream tracking issue
+[ossf/scorecard#5191][scorecard-5191] is still open.
 
 ## Standing finding 2: adm-zip — accepted risk, no fix exists
 
@@ -144,7 +170,10 @@ directory.
    `known-vulnerable-actions`, are skipped.
 2. **CodeQL finding?** Real until proven otherwise.
 3. **Scorecard `PinnedDependenciesID` on a `$/` line?** Standing finding 1 —
-   dismiss.
+   should no longer reach you: `scripts/filter-scorecard-sarif.mjs` strips it
+   from the SARIF before upload. If one appears anyway, the filter is broken
+   (its line no longer matched `uses: $/…`, or the step was reordered after the
+   upload) — fix the filter, do not dismiss the alert.
 4. **Scorecard `VulnerabilitiesID`?** Check the named GHSAs against the current
    lockfile first; the check is a weekly snapshot and is often already fixed —
    alert 63 named two browserslist advisories that `9ebcbc7` had already
@@ -158,4 +187,5 @@ directory.
    until the following Monday.
 
 [self-repo-blog]: https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/
+[scorecard-5191]: https://github.com/ossf/scorecard/issues/5191
 [adm-zip-advisory]: https://github.com/advisories/GHSA-vwc7-r8mq-g2x9
