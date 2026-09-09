@@ -64,9 +64,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ -s zizmor.sarif ] && python3 -c 'import json; json.load(open("zizmor.sarif"))' 2>/dev/null; then
-            echo 'is-ready=true' >> "$GITHUB_OUTPUT"
+            echo 'is_ready=true' >> "$GITHUB_OUTPUT"
           else
-            echo 'is-ready=false' >> "$GITHUB_OUTPUT"
+            echo 'is_ready=false' >> "$GITHUB_OUTPUT"
             echo '::notice::No usable zizmor.sarif — skipping upload so the real failure stays visible.'
           fi
 
@@ -77,7 +77,7 @@ jobs:
         # rather than `always()`: a cancelled run leaves a truncated
         # `zizmor.sarif`, and uploading that fails confusingly on a run
         # nobody is waiting for.
-        if: ${{ !cancelled() && steps.sarif.outputs.is-ready == 'true' }}
+        if: ${{ !cancelled() && steps.sarif.outputs.is_ready == 'true' }}
         uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         with:
           sarif_file: zizmor.sarif

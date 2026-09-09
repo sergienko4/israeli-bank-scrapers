@@ -56,7 +56,7 @@ const ZIZMOR_JOB_KEY = 'zizmor';
  * condition must consult it, or a scan that died before writing anything
  * turns into a misleading upload error.
  */
-const SARIF_READY_OUTPUT = 'steps.sarif.outputs.is-ready';
+const SARIF_READY_OUTPUT = 'steps.sarif.outputs.is_ready';
 
 /**
  * First release whose `unpinned-uses` default requires hash-pinning on every
