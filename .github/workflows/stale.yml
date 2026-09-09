@@ -38,8 +38,8 @@ jobs:
   #
   # `actions/stale` only knows an issue is quiet, never whose turn it is, so
   # `needs-info` is the state machine — the clock runs only while that label
-  # is present, and `issue-needs-info-clear.yml` removes it the moment the
-  # reporter answers.
+  # is present. Any comment restarts it, because the action measures from the
+  # issue's `updated_at`; a maintainer removes the label once answered.
   #
   # A seven-day stale window with a zero-day close window closes in the same
   # run, which is what "no warning period" means for a mark-then-close

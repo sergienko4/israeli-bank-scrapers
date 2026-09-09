@@ -46,16 +46,12 @@ const THIS_FILE_PATH = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE_PATH);
 const REPO_ROOT = join(THIS_DIR, '../../../../../');
 const STALE_YAML = join(REPO_ROOT, '.github/workflows/stale.yml');
-const CLEAR_YAML = join(REPO_ROOT, '.github/workflows/issue-needs-info-clear.yml');
 
 /** Job running the seven-day, label-scoped lane. */
 const NO_RESPONSE_JOB_KEY = 'no-response';
 
 /** Job running the pre-existing 60-day inactivity policy. */
 const GENERIC_JOB_KEY = 'stale';
-
-/** The only job of the companion label-clearing workflow. */
-const CLEAR_JOB_KEY = 'clear-needs-info';
 
 /** Label a maintainer applies to start the clock. */
 const NEEDS_INFO_LABEL = 'needs-info';
@@ -78,36 +74,6 @@ const DISABLED = -1;
 /** Timings of the pre-existing general-inactivity lane, asserted unchanged. */
 const GENERIC_DAYS_BEFORE_STALE = 60;
 const GENERIC_DAYS_BEFORE_CLOSE = 14;
-
-/**
- * Interpolations that would splice attacker-controlled text into the shell.
- * `issue_comment` is reachable by anyone on a public repository and the job
- * holds `issues: write`, so a title or comment body reaching `run:` would be
- * a template-injection foothold. The set is the whole untrusted surface of
- * this event rather than the subset that happens to be dangerous today:
- * logins are constrained to `[A-Za-z0-9-]` and so carry no metacharacters,
- * but guarding the comment author while leaving the issue author open is an
- * asymmetry a future edit could mistake for a deliberate allowance.
- */
-const UNSAFE_INTERPOLATION =
-  /\$\{\{\s*github\.event\.(?:issue\.(?:title|body|user)|comment\.(?:body|user)|sender)/;
-
-/** Every untrusted field the guard above claims to cover. */
-const UNTRUSTED_FIELDS = [
-  'github.event.issue.title',
-  'github.event.issue.body',
-  'github.event.issue.user.login',
-  'github.event.comment.body',
-  'github.event.comment.user.login',
-  'github.event.sender.login',
-] as const;
-
-/**
- * The label read must cross page boundaries; the endpoint pages at 30, and a
- * missed label would leave the lane free to close an answered issue.
- */
-const PAGINATED_LABEL_READ =
-  /gh api --paginate(?:\s+\\)?\s+"repos\/\$REPO\/issues\/\$ISSUE_NUMBER\/labels"/;
 
 interface IWorkflowStep {
   readonly uses?: string;
@@ -192,31 +158,6 @@ function input(name: string): string {
   return inputOf(NO_RESPONSE_JOB_KEY, name);
 }
 
-/**
- * The only job of the companion label-clearing workflow.
- *
- * Pinned by key rather than by position: reading the first job would silently
- * start asserting against the wrong one if a second job were ever added.
- *
- * @returns The job, or an empty job when the workflow is absent.
- */
-function clearJob(): IWorkflowJob {
-  const doc = loadWorkflow(CLEAR_YAML);
-  const jobs = doc.jobs ?? {};
-  return jobs[CLEAR_JOB_KEY] ?? {};
-}
-
-/**
- * Guard expression of the companion label-clearing job.
- *
- * @returns The job's `if` condition, whitespace collapsed.
- */
-function clearCondition(): string {
-  const job = clearJob();
-  const condition = job.if ?? '';
-  return condition.replace(/\s+/g, ' ').trim();
-}
-
 describe('No-response issue triage', () => {
   it('[NRI-1] scopes the lane to the needs-info label', () => {
     const labels = input('only-issue-labels');
@@ -225,14 +166,20 @@ describe('No-response issue triage', () => {
 
   it('[NRI-2] waits seven days before acting', () => {
     const raw = input('days-before-issue-stale');
-    const days = Number(raw);
-    expect(days).toBe(DAYS_BEFORE_STALE);
+    const expected = String(DAYS_BEFORE_STALE);
+    expect(raw).toBe(expected);
   });
 
+  /*
+   * The raw input is compared, not `Number(raw)`. An absent input reads as an
+   * empty string, and `Number('')` is 0 — the very value this asserts — so a
+   * numeric comparison would still pass if the input were deleted, while the
+   * action fell back to warning first and closing a week later.
+   */
   it('[NRI-3] closes in the same run, giving no warning period', () => {
     const raw = input('days-before-issue-close');
-    const days = Number(raw);
-    expect(days).toBe(DAYS_BEFORE_CLOSE);
+    const expected = String(DAYS_BEFORE_CLOSE);
+    expect(raw).toBe(expected);
   });
 
   it('[NRI-4] closes as not planned, so it never reads as fixed', () => {
@@ -243,10 +190,9 @@ describe('No-response issue triage', () => {
   it('[NRI-5] never touches pull requests', () => {
     const staleRaw = input('days-before-pr-stale');
     const closeRaw = input('days-before-pr-close');
-    const stale = Number(staleRaw);
-    const close = Number(closeRaw);
-    expect(stale).toBe(DISABLED);
-    expect(close).toBe(DISABLED);
+    const expected = String(DISABLED);
+    expect(staleRaw).toBe(expected);
+    expect(closeRaw).toBe(expected);
   });
 
   it('[NRI-6] labels the closure so it stays auditable', () => {
@@ -309,49 +255,11 @@ describe('No-response issue triage', () => {
   it('[NRI-15] leaves the 60-day lane on its own timings', () => {
     const staleRaw = inputOf(GENERIC_JOB_KEY, 'days-before-stale');
     const closeRaw = inputOf(GENERIC_JOB_KEY, 'days-before-close');
-    const stale = Number(staleRaw);
-    const close = Number(closeRaw);
-    expect(stale).toBe(GENERIC_DAYS_BEFORE_STALE);
-    expect(close).toBe(GENERIC_DAYS_BEFORE_CLOSE);
+    const expectedStale = String(GENERIC_DAYS_BEFORE_STALE);
+    const expectedClose = String(GENERIC_DAYS_BEFORE_CLOSE);
+    expect(staleRaw).toBe(expectedStale);
+    expect(closeRaw).toBe(expectedClose);
   });
-});
-
-describe('Clearing the waiting label when the reporter replies', () => {
-  it('[NRI-16] reacts to new comments', () => {
-    const doc = loadWorkflow(CLEAR_YAML);
-    const types = doc.on?.issue_comment?.types ?? [];
-    expect(types).toContain('created');
-  });
-
-  it('[NRI-17] ignores pull-request comments, which share the event', () => {
-    const condition = clearCondition();
-    expect(condition).toContain('github.event.issue.pull_request == null');
-  });
-
-  it('[NRI-18] acts only when the commenter is the reporter', () => {
-    const condition = clearCondition();
-    const comparison = 'github.event.comment.user.login == github.event.issue.user.login';
-    expect(condition).toContain(comparison);
-  });
-
-  it('[NRI-19] acts only on issues actually awaiting a reply', () => {
-    const condition = clearCondition();
-    expect(condition).toContain(NEEDS_INFO_LABEL);
-  });
-
-  it('[NRI-20] asks only for permission to write issues', () => {
-    const job = clearJob();
-    expect(job.permissions).toEqual({ issues: 'write' });
-  });
-
-  it('[NRI-21] keeps attacker-controlled text out of the shell', () => {
-    const job = clearJob();
-    const steps = job.steps ?? [];
-    const runs = steps.map(step => step.run ?? '');
-    const hasUnsafe = runs.some(run => UNSAFE_INTERPOLATION.test(run));
-    expect(hasUnsafe).toBe(false);
-  });
-
   /*
    * `closed-no-response` is both the marker this lane staleness-tracks and the
    * permanent record of why the issue closed, so it survives on a reopened
@@ -360,7 +268,7 @@ describe('Clearing the waiting label when the reporter replies', () => {
    * first. The action reads the option with a strict `=== 'false'`, so that is
    * the single value that would arm the trap.
    */
-  it('[NRI-22] keeps the un-stale escape that protects reopened issues', () => {
+  it('[NRI-16] keeps the un-stale escape that protects reopened issues', () => {
     const remove = input('remove-stale-when-updated');
     expect(remove).not.toBe('false');
   });
@@ -370,37 +278,9 @@ describe('Clearing the waiting label when the reporter replies', () => {
    * two runs overlapping, which a manual dispatch during the nightly cron
    * would otherwise do. Only a concurrency group prevents that.
    */
-  it('[NRI-23] stops two runs of the lane overlapping', () => {
+  it('[NRI-17] stops two runs of the lane overlapping', () => {
     const doc = loadWorkflow(STALE_YAML);
     const concurrency = doc.concurrency;
     expect(concurrency).toBeDefined();
-  });
-
-  /*
-   * NRI-21 can only be trusted if its pattern actually recognises the text it
-   * is meant to reject, so the guard is exercised against the whole untrusted
-   * surface directly. Without this, narrowing the pattern would silently turn
-   * NRI-21 into a test that passes because it matches nothing.
-   */
-  it('[NRI-24] recognises every untrusted field it claims to guard', () => {
-    const missed = UNTRUSTED_FIELDS.filter(field => {
-      const interpolation = `\${{ ${field} }}`;
-      return !UNSAFE_INTERPOLATION.test(interpolation);
-    });
-    expect(missed).toEqual([]);
-  });
-
-  /*
-   * The labels endpoint pages at 30. A first-page-only read on a heavily
-   * labelled issue could report the waiting label absent, skip the removal,
-   * and leave the seven-day lane free to close an issue the reporter had
-   * already answered — the single outcome this feature must never produce.
-   */
-  it('[NRI-25] reads every page when checking for the waiting label', () => {
-    const job = clearJob();
-    const steps = job.steps ?? [];
-    const runs = steps.map(step => step.run ?? '');
-    const hasPagination = runs.some(run => PAGINATED_LABEL_READ.test(run));
-    expect(hasPagination).toBe(true);
   });
 });

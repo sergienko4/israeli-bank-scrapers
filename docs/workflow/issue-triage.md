@@ -38,20 +38,19 @@ stateDiagram-v2
     Closed --> Open: maintainer reopens on request
 ```
 
-Two consequences follow, and both are enforced by
+One consequence follows, and it is enforced by
 `src/Tests/Unit/Pipeline/CrossValidation/NoResponseIssueGate.test.ts`
-(the `NRI-*` assertions), because each fails silently:
+(the `NRI-*` assertions), because it fails silently:
 
-- **Something must clear the label when the reporter answers.**
-  [`issue-needs-info-clear.yml`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/.github/workflows/issue-needs-info-clear.yml)
-  does this on `issue_comment`. The built-in
-  `labels-to-remove-when-unstale` is *not* enough: it fires only for an issue
-  already marked stale, so it never covers a reply inside the first seven
-  days. Without the companion workflow, an issue the reporter **did** answer
-  would still be closed for silence.
 - **The two lanes must not share a label.** The fast lane marks with
   `closed-no-response`, never the generic `Stale`, or the jobs would fight
   over one marker.
+
+A reply from anyone restarts the clock on its own: the action measures
+inactivity from the issue's `updated_at`, which a comment bumps. The label is
+not removed automatically, though, so once you have your answer, **remove
+`needs-info`** — otherwise a later quiet week closes an issue that was in fact
+answered.
 
 ## For maintainers
 
@@ -103,22 +102,10 @@ deliberately left unset so the same-run closure posts exactly one comment.
 
 ## Security posture
 
-`issue-needs-info-clear.yml` is triggered by `issue_comment`, which is
-attacker-reachable on a public repository, and it holds `issues: write`.
+`stale.yml` runs on a schedule and on manual dispatch only — never on an
+event an outside contributor can trigger — and the lane requests just
+`issues: write`. No attacker-controlled text reaches a shell: the job is a
+single pinned action invocation with no `run:` step.
 
-- Top-level `permissions: {}`; only the single job requests `issues: write`.
-- No attacker-controlled text reaches the shell. The step passes only the
-  repository slug and the numeric issue id through `env:` — never the comment
-  body, issue title, or a user login — so there is no template-injection
-  surface. `NRI-21` asserts this, and `NRI-24` proves that guard recognises
-  every untrusted field of the event rather than passing because it matches
-  nothing.
-- The label removal re-reads the label list first, across every page. That
-  guards a genuine race (the label being removed concurrently) rather than
-  masking errors: a real API failure still fails the step. The endpoint pages
-  at 30, so a first-page-only read on a heavily labelled issue could report
-  the label absent and leave the lane free to close an issue the reporter had
-  answered; `NRI-25` holds the pagination in place.
-
-Both workflows are audited by the `zizmor` gate described in
-[Code scanning triage](code-scanning.md), and pass with no findings.
+The workflow is audited by the `zizmor` gate described in
+[Code scanning triage](code-scanning.md), and passes with no findings.
