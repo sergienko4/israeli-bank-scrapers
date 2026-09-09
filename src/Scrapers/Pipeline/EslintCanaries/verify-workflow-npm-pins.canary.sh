@@ -46,7 +46,8 @@ fi
 # Shell quotes are removed first: a quoted spec such as `'npm@latest'`
 # would otherwise not be preceded by whitespace, so the line would escape
 # detection entirely and every rule below would be skipped for it.
-UNQUOTED="$(tr -d '\047"' <"$FILE")"
+UNQUOTED="$(<"$FILE")"
+UNQUOTED="${UNQUOTED//[\'\"]/}"
 NPM_LINES="$(printf '%s\n' "$UNQUOTED" | grep -E 'npm[[:space:]]+(install|i)[[:space:]]+([^[:space:]]+[[:space:]]+)*(-g|--global)([[:space:]]+[^[:space:]]+)*[[:space:]]+npm@' || true)"
 if [[ -z "$NPM_LINES" ]]; then
   # No npm install line — nothing to pin.
