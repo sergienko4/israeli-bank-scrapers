@@ -42,16 +42,32 @@ fi
 # (`-g`, `--global`) in any order so the canary catches the variants the
 # strict prior regex missed.
 # Pattern: `npm (install|i) ... (-g|--global) ... npm@`
-NPM_LINES="$(grep -E 'npm[[:space:]]+(install|i)[[:space:]]+([^[:space:]]+[[:space:]]+)*(-g|--global)([[:space:]]+[^[:space:]]+)*[[:space:]]+npm@' "$FILE" || true)"
+#
+# Shell quotes are removed first: a quoted spec such as `'npm@latest'`
+# would otherwise not be preceded by whitespace, so the line would escape
+# detection entirely and every rule below would be skipped for it.
+UNQUOTED="$(tr -d '\047"' <"$FILE")"
+NPM_LINES="$(printf '%s\n' "$UNQUOTED" | grep -E 'npm[[:space:]]+(install|i)[[:space:]]+([^[:space:]]+[[:space:]]+)*(-g|--global)([[:space:]]+[^[:space:]]+)*[[:space:]]+npm@' || true)"
 if [[ -z "$NPM_LINES" ]]; then
   # No npm install line — nothing to pin.
   exit 0
 fi
 
 while IFS= read -r line; do
-  # An exact three-part version. `npm@latest`, `npm@^11.11.0` and
-  # `npm@11` all fail this, and all of them float.
-  if [[ ! "$line" =~ npm@[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+  # An exact three-part version ending at a word boundary. `npm@latest`,
+  # `npm@^11.11.0`, `npm@11` and prereleases like `npm@11.11.0-rc.1` all
+  # fail this, and all of them float.
+  if [[ ! "$line" =~ npm@[0-9]+\.[0-9]+\.[0-9]+([[:space:]]|$) ]]; then
+    exit 1
+  fi
+  # A semver hyphen range (`npm@11.11.0 - 12.0.0`) opens with an
+  # exact-looking token, so it satisfies the check above yet still floats.
+  if [[ "$line" =~ npm@[0-9]+\.[0-9]+\.[0-9]+[[:space:]]+-[[:space:]] ]]; then
+    exit 1
+  fi
+  # npm honours the last value, so a disabling form anywhere on the line
+  # wins even when an enabling one precedes it.
+  if [[ "$line" =~ --ignore-scripts=false ]] || [[ "$line" =~ --no-ignore-scripts ]]; then
     exit 1
   fi
   # Enabled form only. `--ignore-scripts=false` contains the flag as a
