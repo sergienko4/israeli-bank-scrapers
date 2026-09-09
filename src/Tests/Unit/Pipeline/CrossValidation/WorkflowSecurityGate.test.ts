@@ -149,16 +149,48 @@ function uploadCondition(): string {
   return step?.if ?? '';
 }
 
+/** Synthetic `run` blocks proving gate detection reads code, not prose. */
+const GATE_DETECTION_CASES = [
+  {
+    label: 'a plain-format invocation',
+    run: 'zizmor --format plain .github/workflows',
+    isGate: true,
+  },
+  { label: 'the installer', run: 'pipx install zizmor==1.30.0', isGate: false },
+  { label: 'the SARIF invocation', run: 'zizmor --format sarif . > zizmor.sarif', isGate: false },
+  {
+    label: 'a step that only mentions zizmor in prose',
+    run: '# see the zizmor gate below\nnpm ci',
+    isGate: false,
+  },
+  {
+    label: 'a gate whose comment quotes --format sarif',
+    run: '# the run above uses --format sarif, which exits 0\nzizmor --format plain .github/workflows',
+    isGate: true,
+  },
+  {
+    label: 'a gate whose comment quotes pipx install',
+    run: '# installed above with pipx install zizmor==1.30.0\nzizmor --format plain .github/workflows',
+    isGate: true,
+  },
+] as const;
+
 /**
  * Does a `run` block invoke zizmor in a mode that yields a finding exit code?
+ *
+ * <p>Matched on executable content only. The steps in this job necessarily
+ * discuss each other — the gate's comment explains why the SARIF run cannot
+ * gate — so reading prose as code would let a comment edit silently point the
+ * assertions below at the wrong step.
  *
  * @param run - Raw `run:` block.
  * @returns True for a non-SARIF zizmor invocation, excluding the installer.
  */
 function isGateCommand(run: string): boolean {
-  const isZizmorCall = run.includes('zizmor');
-  const isInstall = run.includes('pipx install');
-  const isSarif = run.includes('--format sarif');
+  const code = executableLines(run);
+  const isZizmorCall = code.includes('zizmor');
+  const isInstall = code.includes('pipx install');
+  const isSarif = code.includes('--format sarif');
   return isZizmorCall && !isInstall && !isSarif;
 }
 
@@ -277,6 +309,18 @@ describe('workflow-security zizmor gate', () => {
   ])('[WSG-8] $major.$minor is accepted: $isAccepted', ({ major, minor, isAccepted }) => {
     const isActual = isAtLeastMinimum(major, minor);
     expect(isActual).toBe(isAccepted);
+  });
+
+  /**
+   * Gate detection is what points every assertion above at the right step, so
+   * it must read executable content rather than prose. The steps in this job
+   * necessarily describe each other, and a step excluded by its own comment
+   * while another is included by its comment would leave exactly one
+   * candidate — the wrong one — with the whole suite still green.
+   */
+  it.each(GATE_DETECTION_CASES)('[WSG-10] $label is a gate: $isGate', ({ run, isGate }) => {
+    const isDetected = isGateCommand(run);
+    expect(isDetected).toBe(isGate);
   });
 
   /**
