@@ -56,8 +56,14 @@ fi
 # reopens the bypass they close. Longest first, so the alternation cannot
 # stop at a prefix.
 readonly INSTALL_ALIAS='(install|instal|insta|inst|isntall|isntal|isnta|isnt|ins|in|add|i)'
-# Every spelling of "install globally".
-readonly GLOBAL_FLAG='(-g|--global|--location=global)'
+# Every spelling of "install globally". npm reads any `--global` value
+# except `false` as true (`--global=0` and `--global=no` both resolve
+# global, verified with `npm root`), and `--location` takes its value
+# either attached or as the next word.
+readonly GLOBAL_FLAG='(-g|--global(=[^[:space:]]*)?|--location(=|[[:space:]]+)global)'
+# The spellings that put the install back in the local tree, which the
+# broad `--global=<value>` match above would otherwise catch.
+readonly LOCAL_FLAG='(--global=false|--no-global|--location(=|[[:space:]]+)user)'
 # The npm CLI as an install target, with or without a version.
 readonly CLI_TARGET='(^|[[:space:]])npm(@[^[:space:]]*)?([[:space:]]|$)'
 
@@ -116,6 +122,9 @@ is_global_cli_install() {
   local cmd="$1"
   [[ $cmd =~ (^|[[:space:]])npm([[:space:]]+-[^[:space:]]+)*[[:space:]]+$INSTALL_ALIAS([[:space:]]|$) ]] || return 1
   [[ $cmd =~ (^|[[:space:]])$GLOBAL_FLAG([[:space:]]|$) ]] || return 1
+  if [[ $cmd =~ (^|[[:space:]])$LOCAL_FLAG([[:space:]]|$) ]]; then
+    return 1
+  fi
   # Look past the `npm` naming the executable, so the match is the
   # package being installed rather than the command running.
   [[ ${cmd#*npm} =~ $CLI_TARGET ]]
