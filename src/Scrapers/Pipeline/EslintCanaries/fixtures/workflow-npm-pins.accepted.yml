@@ -8,6 +8,6 @@ jobs:
   install:
     runs-on: ubuntu-latest
     steps:
-      - name: Install npm with signature verification
+      - name: Install npm pinned to an exact version, without lifecycle scripts
         run: |
-          npm install -g npm@11.11.0 --ignore-scripts --audit-signatures
+          npm install -g npm@11.11.0 --ignore-scripts

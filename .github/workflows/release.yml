@@ -142,18 +142,22 @@ jobs:
       - name: Upgrade npm for Trusted Publishing (OIDC requires npm 11.5.1+)
         # zizmor: ignore[adhoc-packages] — npm is the package manager itself,
         # so it cannot come from our own lockfile, and Trusted Publishing
-        # OIDC requires 11.5.1+. Hardened instead: exact version pin,
-        # `--ignore-scripts`, and `--audit-signatures` verifying the registry
-        # signature before install.
+        # OIDC requires 11.5.1+. Hardened instead by an exact version pin and
+        # `--ignore-scripts`, plus the SHA-512 integrity npm checks on every
+        # tarball by default.
         #
-        # Closes code-scanning alert #35 (Scorecard `PinnedDependenciesID`): the
-        # `npm install -g npm@11.11.0` invocation now passes
-        # `--audit-signatures` so the package signature is verified
-        # against the npm registry public key BEFORE installation.
-        # Pinned to the exact version; signature-checked at fetch time.
+        # Closes code-scanning alert #35 (Scorecard `PinnedDependenciesID`):
+        # `npm@11.11.0` is an exact pin, not a floating tag.
+        #
+        # This step used to pass `--audit-signatures` and claim it verified
+        # the registry signature before install. `npm install` has no such
+        # flag — npm 12 rejects it with EUNKNOWNCONFIG and older npm ignored
+        # it silently, so it verified nothing. Signature verification is the
+        # separate `npm audit signatures` command, which runs against an
+        # installed tree and so cannot guard the upgrade of the CLI itself.
         run: |
           set -euo pipefail
-          npm install -g npm@11.11.0 --ignore-scripts --audit-signatures
+          npm install -g npm@11.11.0 --ignore-scripts
           npm --version | grep -q '^11\.' || (echo "ERROR: npm upgrade failed" && exit 1)
       - run: npm ci
       - uses: $/.github/actions/build-package

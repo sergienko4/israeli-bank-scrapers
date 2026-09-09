@@ -59,8 +59,8 @@ convention:
 ```yaml
 - name: Upgrade npm for Trusted Publishing
   # zizmor: ignore[adhoc-packages] — npm is the package manager itself, so it
-  # cannot come from our own lockfile. Hardened instead: exact version pin,
-  # `--ignore-scripts`, and `--audit-signatures`.
+  # cannot come from our own lockfile. Hardened instead: exact version pin
+  # and `--ignore-scripts`.
 ```
 
 Prefer this over raising a global threshold: the exemption stays next to the

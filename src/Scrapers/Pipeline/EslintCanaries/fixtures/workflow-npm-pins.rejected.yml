@@ -8,6 +8,6 @@ jobs:
   install:
     runs-on: ubuntu-latest
     steps:
-      - name: Install npm without signature check
+      - name: Install npm from a floating tag
         run: |
-          npm install -g npm@11.11.0 --ignore-scripts
+          npm install -g npm@latest --ignore-scripts
