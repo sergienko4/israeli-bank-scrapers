@@ -8,6 +8,6 @@ jobs:
   install:
     runs-on: ubuntu-latest
     steps:
-      - name: Install npm from a floating tag
+      - name: Install npm from a floating tag, global flag after the package
         run: |
-          npm install -g npm@latest --ignore-scripts
+          npm install npm@latest -g --ignore-scripts

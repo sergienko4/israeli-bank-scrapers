@@ -38,17 +38,21 @@ if [[ ! -f "$FILE" ]]; then
   exit 2
 fi
 
-# Match the alias forms (`install`, `i`) and both global flag variants
-# (`-g`, `--global`) in any order so the canary catches the variants the
-# strict prior regex missed.
-# Pattern: `npm (install|i) ... (-g|--global) ... npm@`
+# npm accepts flags positionally, so the global flag may appear either
+# side of the package spec: `install -g npm@x` and `install npm@x -g` are
+# the same command. Requiring a fixed order let the second form escape
+# detection entirely, skipping every rule below. Test the three required
+# tokens independently instead, which is order-agnostic by construction.
 #
 # Shell quotes are removed first: a quoted spec such as `'npm@latest'`
 # would otherwise not be preceded by whitespace, so the line would escape
-# detection entirely and every rule below would be skipped for it.
+# detection for the same reason.
 UNQUOTED="$(<"$FILE")"
 UNQUOTED="${UNQUOTED//[\'\"]/}"
-NPM_LINES="$(printf '%s\n' "$UNQUOTED" | grep -E 'npm[[:space:]]+(install|i)[[:space:]]+([^[:space:]]+[[:space:]]+)*(-g|--global)([[:space:]]+[^[:space:]]+)*[[:space:]]+npm@' || true)"
+NPM_LINES="$(printf '%s\n' "$UNQUOTED" |
+  grep -E 'npm[[:space:]]+(install|i)([[:space:]]|$)' |
+  grep -E '(^|[[:space:]])(-g|--global)([[:space:]]|$)' |
+  grep -E '(^|[[:space:]])npm@' || true)"
 if [[ -z "$NPM_LINES" ]]; then
   # No npm install line — nothing to pin.
   exit 0
