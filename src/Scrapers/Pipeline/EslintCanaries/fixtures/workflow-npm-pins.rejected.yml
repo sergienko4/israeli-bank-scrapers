@@ -8,6 +8,11 @@ jobs:
   install:
     runs-on: ubuntu-latest
     steps:
-      - name: Install npm without signature check
+      # Floating tag, global flag after the package and in its
+      # space-separated `--location global` spelling, split across a line
+      # continuation, with a comment that names an exact pin. Detection
+      # must survive all four or this fixture stops being rejected.
+      - name: Install npm from a floating tag
         run: |
-          npm install -g npm@11.11.0 --ignore-scripts
+          npm install npm@latest \
+            --location global --ignore-scripts   # was pinned to npm@11.11.0

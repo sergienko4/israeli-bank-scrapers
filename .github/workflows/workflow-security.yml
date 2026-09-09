@@ -31,7 +31,11 @@ jobs:
           persist-credentials: false
 
       - name: Install zizmor
-        run: pipx install zizmor
+        # Version-pinned so the gate's strictness cannot change under us
+        # between runs. >= v1.20.0 matters: from that release `unpinned-uses`
+        # requires hash-pinning on *every* action by default, and v1.30.0
+        # adds the `self-repository` audit that validates our `$/` syntax.
+        run: pipx install zizmor==1.30.0
 
       - name: Run zizmor on every workflow and action file
         run: |
@@ -41,10 +45,57 @@ jobs:
           # `.github/workflows`, so composite actions were never audited.
           # That blind spot hid two `self-repository` findings in
           # setup-test-runner until a manual scan surfaced them.
-          zizmor --format sarif .github/workflows .github/actions > zizmor.sarif || true
+          #
+          # This invocation exists to produce the SARIF, not to gate: zizmor
+          # documents that `--format sarif` disables its finding exit codes
+          # (11+), so it returns 0 no matter what it finds. The gate step
+          # below is what actually fails the build.
+          zizmor --format sarif .github/workflows .github/actions > zizmor.sarif
+
+      - name: Check the SARIF was actually produced
+        id: sarif
+        # `!cancelled()` on the upload deliberately ignores `success()`, so it
+        # also runs when the scan failed — including before the redirect wrote
+        # anything. `>` truncates on open, so that leaves a 0-byte file, and
+        # uploading it fails with a parse error that buries the real cause.
+        # Emptiness alone is not enough either: a scan killed mid-write leaves
+        # valid-looking bytes that are not valid JSON.
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          if [ -s zizmor.sarif ] && python3 -c 'import json; json.load(open("zizmor.sarif"))' 2>/dev/null; then
+            echo 'is_ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'is_ready=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::No usable zizmor.sarif — skipping upload so the real failure stays visible.'
+          fi
 
       - name: Upload SARIF to code-scanning
+        # Runs before the gate below and on scan failure, because the upload
+        # is what makes a finding readable — without it the first real
+        # finding would also destroy the record of what it was. `!cancelled()`
+        # rather than `always()`: a cancelled run leaves a truncated
+        # `zizmor.sarif`, and uploading that fails confusingly on a run
+        # nobody is waiting for.
+        if: ${{ !cancelled() && steps.sarif.outputs.is_ready == 'true' }}
         uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         with:
           sarif_file: zizmor.sarif
           category: zizmor
+
+      - name: Fail the build on any finding
+        run: |
+          set -euo pipefail
+          # The gate. This job previously ended in `|| true` with nothing
+          # reading the result, so every finding was advisory: a newly
+          # unpinned action raised a code-scanning alert and merged anyway.
+          # Dropping `|| true` alone would not have fixed it, because the
+          # SARIF run above always exits 0 — verified against zizmor 1.30.0
+          # on this tree, where SARIF mode exited 0 and plain mode exited 12
+          # on the same finding.
+          #
+          # zizmor is the authority we cite when dismissing Scorecard's `$/`
+          # false positives, so it has to be able to fail a build. No
+          # `--min-severity`: findings are suppressed deliberately and
+          # in-file, with a reason, not by raising a global threshold.
+          zizmor --format plain .github/workflows .github/actions

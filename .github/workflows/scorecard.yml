@@ -3,6 +3,12 @@ name: OSSF Scorecard
 on:
   schedule:
     - cron: '30 2 * * 1'
+  # On-demand runs. The weekly cadence alone meant a dependency fixed on a
+  # Tuesday stayed reported until the following Monday — alert 63 sat open as
+  # "high" for days after `9ebcbc7` had already fixed both browserslist
+  # advisories it named, with no way to ask for a re-scan. See
+  # docs/workflow/code-scanning.md for how to triage what it reports.
+  workflow_dispatch:
 
 permissions: {}
 
