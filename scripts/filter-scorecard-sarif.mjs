@@ -28,10 +28,10 @@
  *   0  — SARIF rewritten in place (with 0 or more results dropped)
  *   2  — usage error (no file argument / file unreadable / invalid JSON)
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { argv, cwd, exit, stderr, stdout } from 'node:process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 /** Scorecard rule whose `$/` hits are the false positives we remove. */
 const PINNED_DEPS_RULE = 'PinnedDependenciesID';
@@ -161,4 +161,34 @@ function main() {
   }
 }
 
-if (argv[1] === fileURLToPath(import.meta.url)) main();
+/**
+ * A path reduced to one canonical form, following symlinks.
+ *
+ * @param {string} path - Filesystem path to canonicalise.
+ * @returns {string} The path as a `file:` URL with symlinks resolved.
+ */
+function canonicalHref(path) {
+  return pathToFileURL(realpathSync(path)).href;
+}
+
+/**
+ * Whether this module was run directly rather than imported.
+ *
+ * <p>Both sides are canonicalised. Node may resolve the module specifier
+ * through symlinks while leaving `argv[1]` as written, or (under
+ * `--preserve-symlinks-main`) do the opposite, so canonicalising only one side
+ * still mismatches. That failure is silent and security-relevant: `main()`
+ * would not run, the SARIF would upload unfiltered, and the step would still
+ * exit 0. Canonicalisation is deliberately allowed to throw rather than be
+ * caught into `false`, so an unresolvable entry fails the step loudly instead
+ * of degrading into the same silent no-op.
+ *
+ * @returns {boolean} True when this file is the entry point.
+ */
+function isEntryPoint() {
+  const entry = argv[1];
+  if (entry === undefined) return false;
+  return canonicalHref(entry) === canonicalHref(fileURLToPath(import.meta.url));
+}
+
+if (isEntryPoint()) main();

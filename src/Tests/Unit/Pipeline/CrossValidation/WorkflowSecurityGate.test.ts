@@ -625,20 +625,33 @@ describe('scorecard SARIF false-positive filter', () => {
   /**
    * The filter can only remove what Scorecard has already written, so it must
    * run after the action that produces `results.sarif`.
+   *
+   * <p>The producer is asserted present before the ordering is compared.
+   * `scorecardStepIndex` returns -1 for a missing step, so deleting the
+   * Scorecard action would otherwise leave `filterAt > -1` trivially true and
+   * this case would keep passing while asserting nothing.
    */
   it('[SCF-2] the filter runs after Scorecard produces the SARIF', () => {
     const filterAt = filterStepIndex();
     const produceAt = scorecardStepIndex(SCORECARD_ACTION);
+    expect(produceAt).toBeGreaterThanOrEqual(0);
     expect(filterAt).toBeGreaterThan(produceAt);
   });
 
   /**
    * If the upload ran first the false positives would reach code scanning
    * anyway, so the filter must run before the SARIF is uploaded.
+   *
+   * <p>Both endpoints are asserted present first. `scorecardStepIndex` returns
+   * -1 for a missing step, so an ordering comparison alone can be satisfied by
+   * the sentinel rather than by real ordering, leaving the case silently
+   * unchecked.
    */
   it('[SCF-3] the filter runs before the SARIF reaches code scanning', () => {
     const filterAt = filterStepIndex();
     const uploadAt = scorecardStepIndex(UPLOAD_SARIF_ACTION);
+    expect(filterAt).toBeGreaterThanOrEqual(0);
+    expect(uploadAt).toBeGreaterThanOrEqual(0);
     expect(filterAt).toBeLessThan(uploadAt);
   });
 });
