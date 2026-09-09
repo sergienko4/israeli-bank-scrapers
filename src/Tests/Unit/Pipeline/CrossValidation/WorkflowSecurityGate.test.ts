@@ -64,7 +64,8 @@ const SARIF_STEP_ID = 'sarif';
 /**
  * The only upload guard that is safe. Asserted whole rather than by
  * substring: `|| <ready>` or `== 'false'` both *contain* the readiness
- * output while inverting what it guards.
+ * output while inverting what it guards. Compared after normalisation, so
+ * its spacing here is readability only.
  */
 const REQUIRED_UPLOAD_CONDITION = `\${{ !cancelled() && ${SARIF_READY_OUTPUT} == 'true' }}`;
 
@@ -196,14 +197,32 @@ function uploadCondition(): string {
 }
 
 /**
- * Upload guard with insignificant whitespace collapsed, so only a meaningful
+ * Normalise a workflow expression for comparison.
+ *
+ * <p>GitHub treats whitespace between expression tokens as insignificant, so
+ * every spacing of the same expression must compare equal — including no
+ * spacing at all, which a collapse-to-one-space rule would miss.
+ *
+ * <p>This would corrupt a string literal containing spaces. The compared
+ * condition's only literal is `'true'`, and adding one with a space would be
+ * a semantic change that has to update the assertion anyway.
+ *
+ * @param expression - Raw `if` expression.
+ * @returns The expression with all whitespace removed.
+ */
+function normaliseExpression(expression: string): string {
+  return expression.replace(/\s+/g, '');
+}
+
+/**
+ * Upload guard with insignificant whitespace removed, so only a meaningful
  * change to the expression can break the comparison.
  *
  * @returns The normalised `if` condition, or an empty string when absent.
  */
 function normalisedUploadCondition(): string {
   const condition = uploadCondition();
-  return condition.replace(/\s+/g, ' ').trim();
+  return normaliseExpression(condition);
 }
 
 /**
@@ -223,6 +242,26 @@ const PRODUCER_REQUIREMENTS = [
   { label: 'proves the bytes parse as JSON', fragment: 'json.load' },
   { label: 'records a usable report', fragment: 'is_ready=true' },
   { label: 'records an unusable report', fragment: 'is_ready=false' },
+] as const;
+
+/**
+ * Spacings GitHub parses identically. A reformat of the guard changes none
+ * of its meaning, so none of these may fail WSG-11.
+ */
+const EQUIVALENT_SPACINGS = [
+  { label: 'canonical', expression: REQUIRED_UPLOAD_CONDITION },
+  {
+    label: 'no spaces between tokens',
+    expression: `\${{!cancelled()&&${SARIF_READY_OUTPUT}=='true'}}`,
+  },
+  {
+    label: 'padded',
+    expression: `\${{   !cancelled()   &&   ${SARIF_READY_OUTPUT}  ==  'true'   }}`,
+  },
+  {
+    label: 'wrapped onto two lines',
+    expression: `\${{ !cancelled()\n  && ${SARIF_READY_OUTPUT} == 'true' }}`,
+  },
 ] as const;
 
 /** Synthetic `run` blocks proving gate detection reads code, not prose. */
@@ -389,7 +428,8 @@ describe('workflow-security zizmor gate', () => {
    */
   it('[WSG-11] the upload is guarded on a SARIF having actually been produced', () => {
     const condition = normalisedUploadCondition();
-    expect(condition).toBe(REQUIRED_UPLOAD_CONDITION);
+    const required = normaliseExpression(REQUIRED_UPLOAD_CONDITION);
+    expect(condition).toBe(required);
   });
 
   /**
@@ -401,6 +441,19 @@ describe('workflow-security zizmor gate', () => {
   it.each(PRODUCER_REQUIREMENTS)('[WSG-12] the readiness producer $label', ({ fragment }) => {
     const run = producerRun();
     expect(run).toContain(fragment);
+  });
+
+  /**
+   * WSG-11 compares the guard whole, which is only fair if the comparison
+   * ignores what GitHub ignores. Otherwise a purely cosmetic reformat fails
+   * a security test, and the next person learns to edit the assertion
+   * rather than read it.
+   */
+  it.each(EQUIVALENT_SPACINGS)('[WSG-13] $label spacing compares equal', ({ expression }) => {
+    const [canonical] = EQUIVALENT_SPACINGS;
+    const expected = normaliseExpression(canonical.expression);
+    const actual = normaliseExpression(expression);
+    expect(actual).toBe(expected);
   });
 
   it('[WSG-6] the auditor is version-pinned', () => {
