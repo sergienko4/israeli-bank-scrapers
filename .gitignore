@@ -125,6 +125,13 @@ scripts/**
 # only instrument that can see a flat-config `no-restricted-syntax` override
 # collision, which had left the Pipeline selector set unenforced.
 !scripts/check-syntax-guardrails.mjs
+# Run by the OSSF Scorecard workflow (scorecard.yml) to strip `$/`
+# self-repository false positives from the SARIF before it is uploaded to
+# code scanning, so it must be in the tree for the workflow to work. The
+# `.d.mts` beside it types the `FilterScorecardSarif` unit test (tsconfig sets
+# `allowJs: false`, so the `.ts` test cannot import the `.mjs` untyped).
+!scripts/filter-scorecard-sarif.mjs
+!scripts/filter-scorecard-sarif.d.mts
 # Published tooling: named in package.json "files", so it ships in the
 # tarball and runs from postinstall on every consumer install.
 !scripts/patch-playwright-core.mjs

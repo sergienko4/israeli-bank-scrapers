@@ -519,6 +519,7 @@ interface IScorecardDoc {
   readonly on?: Readonly<Record<string, unknown>>;
   readonly env?: unknown;
   readonly defaults?: unknown;
+  readonly jobs?: Readonly<Record<string, IWorkflowJob>>;
 }
 
 /**
@@ -529,6 +530,50 @@ interface IScorecardDoc {
 function loadScorecard(): IScorecardDoc {
   const raw = readFileSync(SCORECARD_YAML, 'utf8');
   return parse(raw) as IScorecardDoc;
+}
+
+/** The job key that runs the Scorecard analysis. */
+const SCORECARD_JOB_KEY = 'analysis';
+
+/** The action that produces `results.sarif`. */
+const SCORECARD_ACTION = 'ossf/scorecard-action';
+
+/** The action that uploads SARIF to code scanning. */
+const UPLOAD_SARIF_ACTION = 'github/codeql-action/upload-sarif';
+
+/** The script that strips `$/` self-repository false positives from the SARIF. */
+const SARIF_FILTER_SCRIPT = 'scripts/filter-scorecard-sarif.mjs';
+
+/**
+ * Steps of the Scorecard analysis job.
+ *
+ * @returns Every step declared by the analysis job.
+ */
+function scorecardSteps(): readonly IWorkflowStep[] {
+  const doc = loadScorecard();
+  const job = doc.jobs?.[SCORECARD_JOB_KEY] ?? {};
+  return job.steps ?? [];
+}
+
+/**
+ * Index of the first step whose `run` block invokes the SARIF filter.
+ *
+ * @returns Its position in the analysis job, or -1 when absent.
+ */
+function filterStepIndex(): number {
+  const steps = scorecardSteps();
+  return steps.findIndex(step => (step.run ?? '').includes(SARIF_FILTER_SCRIPT));
+}
+
+/**
+ * Index of the first step whose `uses` matches an action fragment.
+ *
+ * @param fragment - Substring identifying the action.
+ * @returns Its position in the analysis job, or -1 when absent.
+ */
+function scorecardStepIndex(fragment: string): number {
+  const steps = scorecardSteps();
+  return steps.findIndex(step => step.uses?.includes(fragment) === true);
 }
 
 describe('scorecard workflow triggers', () => {
@@ -558,5 +603,55 @@ describe('scorecard workflow triggers', () => {
     const doc = loadScorecard();
     const hasForbiddenRoot = doc.env !== undefined || doc.defaults !== undefined;
     expect(hasForbiddenRoot).toBe(false);
+  });
+});
+
+describe('scorecard SARIF false-positive filter', () => {
+  /**
+   * Scorecard v2.4.4 cannot parse GitHub's `$/` self-repository syntax and
+   * reports every `uses: $/…` reference as an unpinned third-party action —
+   * 28 false `PinnedDependenciesID` alerts on this repo. Rather than revert
+   * the syntax (which zizmor's `self-repository` audit requires and which
+   * GitHub treats as pinning), `scripts/filter-scorecard-sarif.mjs` strips
+   * only those false positives from the SARIF before upload. Both scanners
+   * end up satisfied. See docs/workflow/code-scanning.md, upstream
+   * https://github.com/ossf/scorecard/issues/5191.
+   */
+  it('[SCF-1] the analysis job filters the SARIF before uploading it', () => {
+    const index = filterStepIndex();
+    expect(index).toBeGreaterThanOrEqual(0);
+  });
+
+  /**
+   * The filter can only remove what Scorecard has already written, so it must
+   * run after the action that produces `results.sarif`.
+   *
+   * <p>The producer is asserted present before the ordering is compared.
+   * `scorecardStepIndex` returns -1 for a missing step, so deleting the
+   * Scorecard action would otherwise leave `filterAt > -1` trivially true and
+   * this case would keep passing while asserting nothing.
+   */
+  it('[SCF-2] the filter runs after Scorecard produces the SARIF', () => {
+    const filterAt = filterStepIndex();
+    const produceAt = scorecardStepIndex(SCORECARD_ACTION);
+    expect(produceAt).toBeGreaterThanOrEqual(0);
+    expect(filterAt).toBeGreaterThan(produceAt);
+  });
+
+  /**
+   * If the upload ran first the false positives would reach code scanning
+   * anyway, so the filter must run before the SARIF is uploaded.
+   *
+   * <p>Both endpoints are asserted present first. `scorecardStepIndex` returns
+   * -1 for a missing step, so an ordering comparison alone can be satisfied by
+   * the sentinel rather than by real ordering, leaving the case silently
+   * unchecked.
+   */
+  it('[SCF-3] the filter runs before the SARIF reaches code scanning', () => {
+    const filterAt = filterStepIndex();
+    const uploadAt = scorecardStepIndex(UPLOAD_SARIF_ACTION);
+    expect(filterAt).toBeGreaterThanOrEqual(0);
+    expect(uploadAt).toBeGreaterThanOrEqual(0);
+    expect(filterAt).toBeLessThan(uploadAt);
   });
 });

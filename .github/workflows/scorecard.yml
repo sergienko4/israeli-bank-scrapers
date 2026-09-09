@@ -37,6 +37,16 @@ jobs:
           results_file: results.sarif
           results_format: sarif
           publish_results: true
+      # Scorecard v2.4.4 predates GitHub's `$/` self-repository syntax and
+      # misreports every `uses: $/…` reference as an unpinned third-party
+      # action (28 false PinnedDependenciesID alerts). Reverting the syntax is
+      # not an option: zizmor's `self-repository` audit requires `$/` and
+      # GitHub treats it as a form of pinning. So strip only those false
+      # positives from the SARIF before it is uploaded — a genuinely unpinned
+      # third-party action never matches `$/`, so it is still reported.
+      # See docs/workflow/code-scanning.md and ossf/scorecard#5191.
+      - name: Drop $/ self-repository false positives from the SARIF
+        run: node scripts/filter-scorecard-sarif.mjs results.sarif
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: SARIF file
