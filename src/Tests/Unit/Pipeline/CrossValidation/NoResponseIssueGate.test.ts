@@ -83,10 +83,31 @@ const GENERIC_DAYS_BEFORE_CLOSE = 14;
  * Interpolations that would splice attacker-controlled text into the shell.
  * `issue_comment` is reachable by anyone on a public repository and the job
  * holds `issues: write`, so a title or comment body reaching `run:` would be
- * a template-injection foothold.
+ * a template-injection foothold. The set is the whole untrusted surface of
+ * this event rather than the subset that happens to be dangerous today:
+ * logins are constrained to `[A-Za-z0-9-]` and so carry no metacharacters,
+ * but guarding the comment author while leaving the issue author open is an
+ * asymmetry a future edit could mistake for a deliberate allowance.
  */
 const UNSAFE_INTERPOLATION =
-  /\$\{\{\s*github\.event\.(?:issue\.(?:title|body)|comment\.(?:body|user))/;
+  /\$\{\{\s*github\.event\.(?:issue\.(?:title|body|user)|comment\.(?:body|user)|sender)/;
+
+/** Every untrusted field the guard above claims to cover. */
+const UNTRUSTED_FIELDS = [
+  'github.event.issue.title',
+  'github.event.issue.body',
+  'github.event.issue.user.login',
+  'github.event.comment.body',
+  'github.event.comment.user.login',
+  'github.event.sender.login',
+] as const;
+
+/**
+ * The label read must cross page boundaries; the endpoint pages at 30, and a
+ * missed label would leave the lane free to close an answered issue.
+ */
+const PAGINATED_LABEL_READ =
+  /gh api --paginate(?:\s+\\)?\s+"repos\/\$REPO\/issues\/\$ISSUE_NUMBER\/labels"/;
 
 interface IWorkflowStep {
   readonly uses?: string;
@@ -353,5 +374,33 @@ describe('Clearing the waiting label when the reporter replies', () => {
     const doc = loadWorkflow(STALE_YAML);
     const concurrency = doc.concurrency;
     expect(concurrency).toBeDefined();
+  });
+
+  /*
+   * NRI-21 can only be trusted if its pattern actually recognises the text it
+   * is meant to reject, so the guard is exercised against the whole untrusted
+   * surface directly. Without this, narrowing the pattern would silently turn
+   * NRI-21 into a test that passes because it matches nothing.
+   */
+  it('[NRI-24] recognises every untrusted field it claims to guard', () => {
+    const missed = UNTRUSTED_FIELDS.filter(field => {
+      const interpolation = `\${{ ${field} }}`;
+      return !UNSAFE_INTERPOLATION.test(interpolation);
+    });
+    expect(missed).toEqual([]);
+  });
+
+  /*
+   * The labels endpoint pages at 30. A first-page-only read on a heavily
+   * labelled issue could report the waiting label absent, skip the removal,
+   * and leave the seven-day lane free to close an issue the reporter had
+   * already answered — the single outcome this feature must never produce.
+   */
+  it('[NRI-25] reads every page when checking for the waiting label', () => {
+    const job = clearJob();
+    const steps = job.steps ?? [];
+    const runs = steps.map(step => step.run ?? '');
+    const hasPagination = runs.some(run => PAGINATED_LABEL_READ.test(run));
+    expect(hasPagination).toBe(true);
   });
 });

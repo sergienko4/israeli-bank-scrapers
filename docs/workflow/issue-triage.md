@@ -110,10 +110,15 @@ attacker-reachable on a public repository, and it holds `issues: write`.
 - No attacker-controlled text reaches the shell. The step passes only the
   repository slug and the numeric issue id through `env:` — never the comment
   body, issue title, or a user login — so there is no template-injection
-  surface. `NRI-21` asserts this.
-- The label removal re-reads the label list first. That guards a genuine race
-  (the label being removed concurrently) rather than masking errors: a real API
-  failure still fails the step.
+  surface. `NRI-21` asserts this, and `NRI-24` proves that guard recognises
+  every untrusted field of the event rather than passing because it matches
+  nothing.
+- The label removal re-reads the label list first, across every page. That
+  guards a genuine race (the label being removed concurrently) rather than
+  masking errors: a real API failure still fails the step. The endpoint pages
+  at 30, so a first-page-only read on a heavily labelled issue could report
+  the label absent and leave the lane free to close an issue the reporter had
+  answered; `NRI-25` holds the pagination in place.
 
 Both workflows are audited by the `zizmor` gate described in
 [Code scanning triage](code-scanning.md), and pass with no findings.

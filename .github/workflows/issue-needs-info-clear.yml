@@ -51,12 +51,16 @@ jobs:
         # genuine API error rather than blanket-ignored. The label list is read
         # into a variable rather than piped, because `pipefail` would otherwise
         # let a `SIGPIPE` from the early exit of `grep -q` look like a failed
-        # lookup and silently take the "already absent" branch.
+        # lookup and silently take the "already absent" branch. It is read with
+        # `--paginate` because the endpoint pages at 30: on an issue carrying
+        # more labels than that, a first-page-only read could miss the label
+        # and leave it in place, auto-closing an issue the reporter had in
+        # fact answered — the one outcome this lane must never produce.
         run: |
           has_label() {
             local labels
-            labels=$(gh api "repos/$REPO/issues/$ISSUE_NUMBER/labels" \
-              --jq '.[].name')
+            labels=$(gh api --paginate \
+              "repos/$REPO/issues/$ISSUE_NUMBER/labels" --jq '.[].name')
             grep -qx "$LABEL" <<<"$labels"
           }
 
