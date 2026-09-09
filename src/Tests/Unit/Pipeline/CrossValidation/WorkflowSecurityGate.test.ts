@@ -58,6 +58,16 @@ const ZIZMOR_JOB_KEY = 'zizmor';
  */
 const SARIF_READY_OUTPUT = 'steps.sarif.outputs.is_ready';
 
+/** Step id of the producer that decides whether the SARIF is usable. */
+const SARIF_STEP_ID = 'sarif';
+
+/**
+ * The only upload guard that is safe. Asserted whole rather than by
+ * substring: `|| <ready>` or `== 'false'` both *contain* the readiness
+ * output while inverting what it guards.
+ */
+const REQUIRED_UPLOAD_CONDITION = `\${{ !cancelled() && ${SARIF_READY_OUTPUT} == 'true' }}`;
+
 /**
  * First release whose `unpinned-uses` default requires hash-pinning on every
  * action rather than only third-party ones. A pin below this silently relaxes
@@ -69,6 +79,7 @@ const MINIMUM_MINOR = 20;
 /** Step-level shape this test reads — everything else is irrelevant. */
 interface IWorkflowStep {
   readonly name?: string;
+  readonly id?: string;
   readonly run?: string;
   readonly uses?: string;
   readonly if?: string;
@@ -183,6 +194,36 @@ function uploadCondition(): string {
   const step = steps.find(item => item.uses?.includes('upload-sarif') === true);
   return step?.if ?? '';
 }
+
+/**
+ * Upload guard with insignificant whitespace collapsed, so only a meaningful
+ * change to the expression can break the comparison.
+ *
+ * @returns The normalised `if` condition, or an empty string when absent.
+ */
+function normalisedUploadCondition(): string {
+  const condition = uploadCondition();
+  return condition.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * The step that decides whether a usable SARIF exists.
+ *
+ * @returns Its shell commands, or an empty string when the step is gone.
+ */
+function producerRun(): string {
+  const steps = auditSteps();
+  const step = steps.find(item => item.id === SARIF_STEP_ID);
+  return codeOf(step ?? {});
+}
+
+/** Everything the readiness producer must actually do to be trustworthy. */
+const PRODUCER_REQUIREMENTS = [
+  { label: 'checks the report is non-empty', fragment: '-s zizmor.sarif' },
+  { label: 'proves the bytes parse as JSON', fragment: 'json.load' },
+  { label: 'records a usable report', fragment: 'is_ready=true' },
+  { label: 'records an unusable report', fragment: 'is_ready=false' },
+] as const;
 
 /** Synthetic `run` blocks proving gate detection reads code, not prose. */
 const GATE_DETECTION_CASES = [
@@ -347,8 +388,19 @@ describe('workflow-security zizmor gate', () => {
    * real cause. The condition must therefore also require a usable file.
    */
   it('[WSG-11] the upload is guarded on a SARIF having actually been produced', () => {
-    const condition = uploadCondition();
-    expect(condition).toContain(SARIF_READY_OUTPUT);
+    const condition = normalisedUploadCondition();
+    expect(condition).toBe(REQUIRED_UPLOAD_CONDITION);
+  });
+
+  /**
+   * WSG-11 only proves the condition *names* the readiness output. If the
+   * step producing it were deleted, the reference would silently resolve to
+   * empty, the upload would never run, and the gate would still be green —
+   * the failure mode the guard exists to prevent, reintroduced invisibly.
+   */
+  it.each(PRODUCER_REQUIREMENTS)('[WSG-12] the readiness producer $label', ({ fragment }) => {
+    const run = producerRun();
+    expect(run).toContain(fragment);
   });
 
   it('[WSG-6] the auditor is version-pinned', () => {

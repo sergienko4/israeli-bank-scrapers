@@ -10,12 +10,12 @@ two standing findings that should not be "fixed".
 
 ## Why zizmor decides
 
-| | zizmor | Scorecard |
-|---|---|---|
-| Scope | purpose-built GitHub Actions auditor | whole-project supply-chain score |
-| Runs | PRs touching `.github/workflows/**` or `.github/actions/**`, and every merge | weekly cron + on demand |
-| Blocking | **yes** — `workflow-security.yml` fails on findings | no, SARIF only |
-| Understands `$/` | yes | **no** |
+|                  | zizmor                                                                       | Scorecard                        |
+| ---------------- | ---------------------------------------------------------------------------- | -------------------------------- |
+| Scope            | purpose-built GitHub Actions auditor                                         | whole-project supply-chain score |
+| Runs             | PRs touching `.github/workflows/**` or `.github/actions/**`, and every merge | weekly cron + on demand          |
+| Blocking         | **yes** — `workflow-security.yml` fails on findings                          | no, SARIF only                   |
+| Understands `$/` | yes                                                                          | **no**                           |
 
 `workflow-security.yml` pins `zizmor==1.30.0` and now fails the job on findings.
 That takes **two** invocations, which is worth understanding before editing the
@@ -35,7 +35,7 @@ alone would have looked like a fix and changed nothing.
 The version pin is deliberate too:
 
 - **`>= 1.20.0`** — from that release, `unpinned-uses` requires hash-pinning on
-  *every* action by default, not only third-party ones.
+  _every_ action by default, not only third-party ones.
 - **`1.30.0`** — adds the `self-repository` audit, which is what validates our
   `$/` usage.
 
@@ -52,7 +52,7 @@ level.
 
 ## Suppressing a zizmor finding
 
-Because the gate has no `--min-severity` floor, *every* finding blocks. Silence
+Because the gate has no `--min-severity` floor, _every_ finding blocks. Silence
 one in the file it belongs to, with a reason, using the repository's existing
 convention:
 
@@ -73,40 +73,40 @@ code it excuses, and the next finding of the same class still blocks.
 Scorecard v2.4.4 does not understand GitHub's
 [`$/` self-repository syntax][self-repo-blog] (shipped July 2026) and reports
 each use as a third-party action lacking a hash pin. Every genuine third-party
-action in this repository *is* pinned to a 40-character SHA, and none of those
+action in this repository _is_ pinned to a 40-character SHA, and none of those
 is flagged.
 
 The alerts were caused by adopting the syntax, not by a regression:
 
-| date | event | alerts raised |
-|---|---|---|
-| 2026-08-17 / 08-24 / 08-31 | scans while still on `./` | 0 |
-| 2026-09-01 | `f8a48d1` (#548) migrates `./` → `$/` | — |
-| 2026-09-07 | first scan afterwards | **all 28, one timestamp** |
+| date                       | event                                 | alerts raised             |
+| -------------------------- | ------------------------------------- | ------------------------- |
+| 2026-08-17 / 08-24 / 08-31 | scans while still on `./`             | 0                         |
+| 2026-09-01                 | `f8a48d1` (#548) migrates `./` → `$/` | —                         |
+| 2026-09-07                 | first scan afterwards                 | **all 28, one timestamp** |
 
-The flagged syntax is the *more* secure one. Per zizmor's `self-repository`
+The flagged syntax is the _more_ secure one. Per zizmor's `self-repository`
 audit, `$/` "is not subject to runtime filesystem state, meaning that it can't
 load an action that was cloned at runtime in a previous step", and "is treated
 as a form of pinning" by GitHub — which `./` is not.
 
 No syntax satisfies both scanners:
 
-| form | GitHub | zizmor | Scorecard |
-|---|---|---|---|
-| `$/…` (current) | treated as pinned | **required** | 28 false positives |
-| `./…` | not pinned | `self-repository` finding | silent |
-| `owner/repo/…@sha` | pinned | `self-repository` finding | silent |
+| form               | GitHub            | zizmor                    | Scorecard          |
+| ------------------ | ----------------- | ------------------------- | ------------------ |
+| `$/…` (current)    | treated as pinned | **required**              | 28 false positives |
+| `./…`              | not pinned        | `self-repository` finding | silent             |
+| `owner/repo/…@sha` | pinned            | `self-repository` finding | silent             |
 
 Reverting would buy a quiet scanner with a real security regression.
 
-**Action:** dismiss as *false positive*, citing this page. Re-evaluate if
+**Action:** dismiss as _false positive_, citing this page. Re-evaluate if
 Scorecard adds `$/` support.
 
 ## Standing finding 2: adm-zip — accepted risk, no fix exists
 
 [`GHSA-vwc7-r8mq-g2x9`][adm-zip-advisory] — extraction follows destination
-symlinks, allowing arbitrary file overwrite. CWE-59, CVSS 6.5 moderate,
-affecting `>=0.5.9 <=0.6.0`.
+symlinks, allowing arbitrary file overwrite. CWE-59, moderate — CVSS v3.1 6.5,
+v4.0 6.8 — affecting `>=0.5.9 <=0.6.0`.
 
 **The latest published adm-zip is 0.6.0 — inside the affected range.** There is
 no version to upgrade to and nothing for an `overrides` entry to point at.
@@ -114,12 +114,12 @@ no version to upgrade to and nothing for an `overrides` entry to point at.
 We never import adm-zip. It arrives under `@hieutran094/camoufox-js`, and only
 half of its call sites are even the vulnerable shape:
 
-| call site | pattern | writes to disk | vulnerable |
-|---|---|---|---|
-| `generative-bayesian-network` (read) | `getEntries()` / `getData()` | no — in memory | no |
-| `generative-bayesian-network` (write) | `addFile` / `writeZip` | creates an archive | no |
-| `camoufox-js` `extractAllTo(dir, true)` | extraction, overwrite on | yes | **yes** |
-| `camoufox-js` `extractEntryTo(e, p, false, true)` | extraction, overwrite on | yes | **yes** |
+| call site                                         | pattern                      | writes to disk     | vulnerable |
+| ------------------------------------------------- | ---------------------------- | ------------------ | ---------- |
+| `generative-bayesian-network` (read)              | `getEntries()` / `getData()` | no — in memory     | no         |
+| `generative-bayesian-network` (write)             | `addFile` / `writeZip`       | creates an archive | no         |
+| `camoufox-js` `extractAllTo(dir, true)`           | extraction, overwrite on     | yes                | **yes**    |
+| `camoufox-js` `extractEntryTo(e, p, false, true)` | extraction, overwrite on     | yes                | **yes**    |
 
 Residual risk is low for three independent reasons:
 
