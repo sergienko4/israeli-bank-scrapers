@@ -111,25 +111,55 @@ function filterOnce(results: readonly ISarifResult[]): { kept: string[]; removed
   return { kept, removed };
 }
 
+/** One single-result filter case driven from the fixture map. */
+interface IFilterCase {
+  readonly id: string;
+  readonly what: string;
+  readonly rule: string;
+  readonly line: number;
+}
+
+/** Flagged lines that really are `$/` self-repository references. */
+const DROPPED_CASES: IFilterCase[] = [
+  { id: 'FSS-1', what: 'a `$/` action reference', rule: PINNED_RULE, line: 1 },
+  { id: 'FSS-2', what: 'a `$/` reusable-workflow reference', rule: PINNED_RULE, line: 2 },
+];
+
+/**
+ * Results that must survive the filter.
+ *
+ * <p>These encode the security property: a genuinely unpinned third-party
+ * action does not use `$/`, so it must still be reported. FSS-9 and FSS-10 are
+ * the property stated as a negative — a `$/` mentioned in a comment does not
+ * make an action self-hosted, so a rule matching `$/` anywhere on the line
+ * would silently drop a real supply-chain finding.
+ */
+const KEPT_CASES: IFilterCase[] = [
+  { id: 'FSS-3', what: 'a genuinely unpinned third-party action', rule: PINNED_RULE, line: 3 },
+  {
+    id: 'FSS-4',
+    what: 'a non-pinned-dependencies rule on a `$/` line',
+    rule: 'VulnerabilitiesID',
+    line: 1,
+  },
+  {
+    id: 'FSS-9',
+    what: 'a third-party action mentioning `$/` only in a comment',
+    rule: PINNED_RULE,
+    line: 5,
+  },
+  { id: 'FSS-10', what: 'a commented-out `$/` reference', rule: PINNED_RULE, line: 6 },
+];
+
 describe('filter-scorecard-sarif $/ false-positive removal', () => {
-  it('[FSS-1] drops a PinnedDependenciesID hit on a `$/` action reference', () => {
-    const outcome = filterOnce([makeResult(PINNED_RULE, 'wf.yml', 1)]);
+  it.each(DROPPED_CASES)('[$id] drops a PinnedDependenciesID hit on $what', ({ rule, line }) => {
+    const outcome = filterOnce([makeResult(rule, 'wf.yml', line)]);
     expect(outcome.kept).toHaveLength(0);
   });
 
-  it('[FSS-2] drops a PinnedDependenciesID hit on a `$/` reusable-workflow reference', () => {
-    const outcome = filterOnce([makeResult(PINNED_RULE, 'wf.yml', 2)]);
-    expect(outcome.kept).toHaveLength(0);
-  });
-
-  it('[FSS-3] KEEPS a PinnedDependenciesID hit on a genuinely unpinned third-party action', () => {
-    const outcome = filterOnce([makeResult(PINNED_RULE, 'wf.yml', 3)]);
-    expect(outcome.kept).toEqual([PINNED_RULE]);
-  });
-
-  it('[FSS-4] keeps a non-pinned-dependencies rule even when its line is `$/`', () => {
-    const outcome = filterOnce([makeResult('VulnerabilitiesID', 'wf.yml', 1)]);
-    expect(outcome.kept).toEqual(['VulnerabilitiesID']);
+  it.each(KEPT_CASES)('[$id] KEEPS $what', ({ rule, line }) => {
+    const outcome = filterOnce([makeResult(rule, 'wf.yml', line)]);
+    expect(outcome.kept).toEqual([rule]);
   });
 
   it('[FSS-5] keeps a PinnedDependenciesID hit that carries no physical location', () => {
@@ -175,21 +205,6 @@ describe('filter-scorecard-sarif $/ false-positive removal', () => {
     expect(removed).toBe(1);
     expect(firstRunRules).toEqual([PINNED_RULE]);
     expect(secondRunRules).toHaveLength(0);
-  });
-
-  /**
-   * The security property, stated as a negative. A trailing comment mentioning
-   * `$/` does not make the action self-hosted, so a rule matching `$/`
-   * anywhere on the line would drop a genuine unpinned third-party finding.
-   */
-  it('[FSS-9] KEEPS a third-party action whose line only mentions `$/` in a comment', () => {
-    const outcome = filterOnce([makeResult(PINNED_RULE, 'wf.yml', 5)]);
-    expect(outcome.kept).toEqual([PINNED_RULE]);
-  });
-
-  it('[FSS-10] keeps a hit whose line is a commented-out `$/` reference', () => {
-    const outcome = filterOnce([makeResult(PINNED_RULE, 'wf.yml', 6)]);
-    expect(outcome.kept).toEqual([PINNED_RULE]);
   });
 
   /**
