@@ -29,7 +29,7 @@
  *   2  — usage error (no file argument / file unreadable / invalid JSON)
  */
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { resolve, sep } from 'node:path';
 import { argv, cwd, exit, stderr, stdout } from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -51,6 +51,12 @@ function ruleIdOf(result) {
 }
 
 /**
+ * @typedef {{ artifactLocation?: { uri?: unknown }, region?: { startLine?: unknown } }}
+ *   SarifPhysicalLocation
+ */
+/** @typedef {{ physicalLocation?: SarifPhysicalLocation }} SarifLocation */
+
+/**
  * The primary flagged location of a SARIF result.
  *
  * @param {Record<string, unknown>} result - A SARIF result object.
@@ -58,8 +64,8 @@ function ruleIdOf(result) {
  *   1-based line, or undefined when the result carries no physical location.
  */
 function primaryLocation(result) {
-  const locations = /** @type {unknown[]} */ (result.locations ?? []);
-  const physical = /** @type {any} */ (locations[0])?.physicalLocation;
+  const locations = /** @type {SarifLocation[]} */ (result.locations ?? []);
+  const physical = locations[0]?.physicalLocation;
   const uri = physical?.artifactLocation?.uri;
   const startLine = physical?.region?.startLine;
   if (typeof uri !== 'string' || typeof startLine !== 'number') return undefined;
@@ -111,6 +117,28 @@ export function filterSarif(sarif, resolveLine) {
 }
 
 /**
+ * A SARIF uri resolved to an absolute path confined to the workspace root.
+ *
+ * <p>SARIF is machine-generated input. `resolve` lets an absolute uri discard
+ * the root outright and `..` segments climb out of it, so a crafted or
+ * malformed document could otherwise make the filter read a file outside the
+ * checkout. Reading the wrong file is not merely an information concern here:
+ * a line that happens to look like `uses: $/…` would suppress a genuine
+ * unpinned-dependency alert.
+ *
+ * @param {string} root - Directory the SARIF uris are relative to.
+ * @param {string} uri - Flagged file, as written in the SARIF.
+ * @returns {string | undefined} The absolute path, or undefined when it would
+ *   escape the root.
+ */
+function resolveInsideRoot(root, uri) {
+  const base = resolve(root);
+  const target = resolve(base, uri.replace(/^\.\//, ''));
+  const isInside = target === base || target.startsWith(base + sep);
+  return isInside ? target : undefined;
+}
+
+/**
  * A source reader rooted at a working directory.
  *
  * @param {string} root - Directory the SARIF uris are relative to.
@@ -119,9 +147,10 @@ export function filterSarif(sarif, resolveLine) {
  */
 function diskResolver(root) {
   return (uri, line) => {
+    const target = resolveInsideRoot(root, uri);
+    if (target === undefined) return '';
     try {
-      const relative = uri.replace(/^\.\//, '');
-      const text = readFileSync(join(root, relative), 'utf8');
+      const text = readFileSync(target, 'utf8');
       return text.split('\n')[line - 1] ?? '';
     } catch {
       return '';

@@ -22,9 +22,16 @@ interface ISarifDoc {
   readonly runs: { results: ISarifResult[] }[];
 }
 
-/** A single SARIF result as the filter reads it. */
+/**
+ * A single SARIF result as the filter reads it.
+ *
+ * <p>`ruleId` is optional and `rule.id` is modelled because the production
+ * filter accepts the id in either place. Requiring `ruleId` here would let the
+ * `rule.id` fallback be deleted with the suite still green.
+ */
 interface ISarifResult {
-  readonly ruleId: string;
+  readonly ruleId?: string;
+  readonly rule?: { readonly id?: string };
   readonly locations?: readonly {
     readonly physicalLocation?: {
       readonly artifactLocation?: { readonly uri?: string };
@@ -100,7 +107,7 @@ function resolveLine(uri: string, line: number): string {
 function filterOnce(results: readonly ISarifResult[]): { kept: string[]; removed: number } {
   const sarif = makeSarif(results);
   const removed = filterSarif(sarif, resolveLine);
-  const kept = sarif.runs[0].results.map(result => result.ruleId);
+  const kept = sarif.runs[0].results.map(result => result.ruleId ?? result.rule?.id ?? '');
   return { kept, removed };
 }
 
@@ -183,5 +190,18 @@ describe('filter-scorecard-sarif $/ false-positive removal', () => {
   it('[FSS-10] keeps a hit whose line is a commented-out `$/` reference', () => {
     const outcome = filterOnce([makeResult(PINNED_RULE, 'wf.yml', 6)]);
     expect(outcome.kept).toEqual([PINNED_RULE]);
+  });
+
+  /**
+   * SARIF may attribute a result through `rule.id` rather than `ruleId`, and
+   * the filter reads both. Nothing else exercises the fallback, so dropping it
+   * would leave every `$/` false positive in place with the suite still green.
+   */
+  it('[FSS-11] recognises a rule id supplied as `rule.id` instead of `ruleId`', () => {
+    const physicalLocation = { artifactLocation: { uri: 'wf.yml' }, region: { startLine: 1 } };
+    const viaRule: ISarifResult = { rule: { id: PINNED_RULE }, locations: [{ physicalLocation }] };
+    const outcome = filterOnce([viaRule]);
+    expect(outcome.removed).toBe(1);
+    expect(outcome.kept).toHaveLength(0);
   });
 });
