@@ -201,6 +201,7 @@ nav:
       - Releases & consumer signals: workflow/releases.md
       - Code-review tooling (CodeRabbit + SonarCloud): workflow/code-review-tooling.md
       - Code scanning triage (zizmor vs Scorecard): workflow/code-scanning.md
+      - Issue triage automation: workflow/issue-triage.md
       - LSP (code intelligence): workflow/lsp.md
       - Doc path gate: workflow/doc-paths.md
       - Docs coverage gate: workflow/docs-coverage.md
