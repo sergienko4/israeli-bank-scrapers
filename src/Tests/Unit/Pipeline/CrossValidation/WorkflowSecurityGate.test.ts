@@ -70,6 +70,7 @@ interface IWorkflowStep {
 
 interface IWorkflowJob {
   readonly steps?: readonly IWorkflowStep[];
+  readonly 'continue-on-error'?: boolean | string;
 }
 
 interface IWorkflowDoc {
@@ -87,22 +88,33 @@ function loadWorkflow(): IWorkflowDoc {
 }
 
 /**
+ * The audit job itself.
+ *
+ * @returns The zizmor job, or an empty job when it no longer exists.
+ */
+function auditJob(): IWorkflowJob {
+  const doc = loadWorkflow();
+  return doc.jobs?.[ZIZMOR_JOB_KEY] ?? {};
+}
+
+/**
  * Steps of the audit job.
  *
  * @returns Every step declared by the zizmor job.
  */
 function auditSteps(): readonly IWorkflowStep[] {
-  const doc = loadWorkflow();
-  return doc.jobs?.[ZIZMOR_JOB_KEY]?.steps ?? [];
+  const job = auditJob();
+  return job.steps ?? [];
 }
 
 /**
  * Drop comment-only lines from a `run:` block.
  *
- * <p>The assertions below are about what the shell executes, not about what
- * the surrounding prose says. The scan step's comment legitimately names the
- * construct it no longer uses, and a raw substring match would read that
- * explanation as the defect it documents.
+ * <p>Every assertion here is about what the shell executes, not about what
+ * the surrounding prose says, and the steps of this job necessarily describe
+ * each other — the gate's comment exists to explain why the SARIF run cannot
+ * gate. Matching raw text would let a comment edit satisfy an assertion whose
+ * subject has been deleted, or point one at the wrong step.
  *
  * @param run - Raw `run:` block.
  * @returns The block's executable lines, comments removed.
@@ -114,27 +126,43 @@ function executableLines(run: string): string {
 }
 
 /**
+ * Executable content of a step's `run` block.
+ *
+ * @param step - Step to read.
+ * @returns The step's shell commands, comments removed.
+ */
+function codeOf(step: IWorkflowStep): string {
+  return executableLines(step.run ?? '');
+}
+
+/**
  * The command the auditor is invoked with.
  *
- * @returns The scan step's `run` block, or an empty string when no step
- *   invokes zizmor.
+ * @returns The scan step's shell commands, or an empty string when no step
+ *   invokes zizmor in SARIF mode.
  */
 function scanRun(): string {
   const steps = auditSteps();
-  const step = steps.find(item => item.run?.includes('zizmor --format sarif') === true);
-  return step?.run ?? '';
+  const step = steps.find(item => {
+    const code = codeOf(item);
+    return code.includes('zizmor --format sarif');
+  });
+  return codeOf(step ?? {});
 }
 
 /**
  * The command the auditor is installed with.
  *
- * @returns The install step's `run` block, or an empty string when none
+ * @returns The install step's shell commands, or an empty string when none
  *   installs zizmor.
  */
 function installRun(): string {
   const steps = auditSteps();
-  const step = steps.find(item => item.run?.includes('pipx install') === true);
-  return step?.run ?? '';
+  const step = steps.find(item => {
+    const code = codeOf(item);
+    return code.includes('pipx install');
+  });
+  return codeOf(step ?? {});
 }
 
 /**
@@ -215,6 +243,16 @@ function gateStep(): IWorkflowStep {
 }
 
 /**
+ * The gate step's shell commands.
+ *
+ * @returns Executable content of the gate, or an empty string when absent.
+ */
+function gateRun(): string {
+  const step = gateStep();
+  return codeOf(step);
+}
+
+/**
  * Is a pinned `major.minor` at least the minimum the policy depends on?
  *
  * @param major - Parsed major version.
@@ -229,6 +267,15 @@ function isAtLeastMinimum(major: number, minor: number): boolean {
 
 /** Ways a `run` block can quietly discard its own failure. */
 const EXIT_CODE_ESCAPES = ['|| true', '|| exit 0', 'set +e', '--no-exit-codes'] as const;
+
+/**
+ * Both scopes GitHub Actions accepts `continue-on-error` at. Either one
+ * restores advisory behaviour, and neither lives inside a `run` block.
+ */
+const TOLERANCE_SCOPES = [
+  { scope: 'the gate step', isTolerated: gateStep()['continue-on-error'] },
+  { scope: 'the zizmor job', isTolerated: auditJob()['continue-on-error'] },
+] as const;
 
 describe('workflow-security zizmor gate', () => {
   it('[WSG-1] the audit job exists and invokes zizmor', () => {
@@ -253,18 +300,18 @@ describe('workflow-security zizmor gate', () => {
   });
 
   it.each(EXIT_CODE_ESCAPES)('[WSG-3] the gate does not neutralise itself with %s', escapeHatch => {
-    const run = gateStep().run ?? '';
-    const executable = executableLines(run);
+    const executable = gateRun();
     expect(executable).not.toContain(escapeHatch);
   });
 
   /**
    * `continue-on-error` lives outside the `run` block, so the string
    * assertions above cannot see it. It is the cheapest way to silently
-   * restore the old advisory behaviour.
+   * restore the old advisory behaviour — and GitHub Actions accepts it at
+   * job level too, where it makes the whole job non-blocking no matter how
+   * the gate step itself is written.
    */
-  it('[WSG-4] the gate step is not marked continue-on-error', () => {
-    const isTolerated = gateStep()['continue-on-error'];
+  it.each(TOLERANCE_SCOPES)('[WSG-4] $scope is not marked continue-on-error', ({ isTolerated }) => {
     expect(isTolerated).toBeUndefined();
   });
 
@@ -332,7 +379,7 @@ describe('workflow-security zizmor gate', () => {
    */
   it.each([
     { label: 'SARIF run', run: scanRun() },
-    { label: 'gate', run: gateStep().run ?? '' },
+    { label: 'gate', run: gateRun() },
   ])('[WSG-9] the $label covers composite actions, not only workflows', ({ run }) => {
     expect(run).toContain('.github/actions');
   });
