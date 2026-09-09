@@ -12,3 +12,8 @@ jobs:
         run: |
           # Never npm@latest here, and never without --ignore-scripts.
           npm install -g npm@11.11.0 --ignore-scripts
+
+      - name: Keep prose out of the command stream
+        run: |
+          npm run build ;# npm install -g npm@latest is a comment, it never runs
+          echo "a # inside quotes opens no comment" && npm ci --ignore-scripts

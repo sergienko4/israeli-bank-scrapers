@@ -76,8 +76,11 @@ readonly CLI_TARGET='(^|[[:space:]])npm(@[^[:space:]]*)?([[:space:]]|$)'
 # Step 2 must be quote-aware in a single pass. Stripping quotes first
 # would turn the literal `#` in `echo "#" && npm install -g npm@latest`
 # into a comment and delete the install behind it — the shell runs that
-# install, so the canary would accept an unpinned upgrade. A `#` only
-# opens a comment when it is unquoted and starts a word, which is also
+# install, so the canary would accept an unpinned upgrade. A `#` opens a
+# comment when it is unquoted and starts a word; a word begins at the
+# start of a line, after whitespace, or straight after a command
+# separator, so `build;# npm install -g npm@latest` is a comment and the
+# hidden text never runs. A `#` anywhere else is ordinary text, which is
 # why a URL fragment survives.
 #
 # Step 3 splits on the single characters, so `&&` and `||` simply yield
@@ -95,7 +98,7 @@ normalise_commands() {
           ch = substr(line, i, 1)
           if (ch == SINGLE && !in_double) { in_single = !in_single; prev = ch; continue }
           if (ch == DOUBLE && !in_single) { in_double = !in_double; prev = ch; continue }
-          if (ch == "#" && !in_single && !in_double && prev ~ /[[:space:]]/) { break }
+          if (ch == "#" && !in_single && !in_double && prev ~ /[[:space:];&|()]/) { break }
           out = out ch
           prev = ch
         }
@@ -135,6 +138,9 @@ is_pinned_and_script_free() {
   local cmd="$1"
   # An exact three-part version, as its own token. A bare `npm` target
   # carries no version at all and fails here, as it must: it floats.
+  # Deliberately stable releases only: a prerelease or build-metadata
+  # suffix (`npm@11.11.0-rc.1`, `npm@11.11.0+build.5`) is pinned but is
+  # not a released CLI, and this gate guards a publish pipeline.
   if [[ ! $cmd =~ (^|[[:space:]])npm@[0-9]+\.[0-9]+\.[0-9]+([[:space:]]|$) ]]; then
     return 1
   fi
@@ -145,12 +151,17 @@ is_pinned_and_script_free() {
   fi
   # npm honours the last value, so a disabling form anywhere on the
   # command wins even when an enabling one precedes it.
-  if [[ $cmd =~ --ignore-scripts=false ]] || [[ $cmd =~ --no-ignore-scripts ]]; then
+  if [[ $cmd =~ (^|[[:space:]])--ignore-scripts=false([[:space:]]|$) ]] ||
+    [[ $cmd =~ (^|[[:space:]])--no-ignore-scripts([[:space:]]|$) ]]; then
     return 1
   fi
-  # Enabled form only. `--ignore-scripts=false` contains the flag as a
-  # substring while disabling it.
-  if [[ ! $cmd =~ --ignore-scripts(=true)?([[:space:]]|$) ]]; then
+  # Enabled form only, and as a whole token: `--ignore-scripts=false`
+  # contains the flag as a substring while disabling it, and an unrelated
+  # `--foo--ignore-scripts` ends in it while never enabling it at all.
+  # Deliberately the canonical spellings only — npm also reads `=1` and
+  # `=yes` as true, but rejecting those can only ask for a clearer
+  # command, never let a script-running install through.
+  if [[ ! $cmd =~ (^|[[:space:]])--ignore-scripts(=true)?([[:space:]]|$) ]]; then
     return 1
   fi
   # Not merely unnecessary: npm 12 fails the install with
