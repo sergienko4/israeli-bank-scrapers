@@ -76,12 +76,6 @@ function renderInstant(): string {
 }
 
 /**
- * The lookback fallback as `computeStartDate` composes it: anchor "now" in the
- * bank calendar first, then subtract. Subtracting a year is calendar
- * arithmetic, so it resolves against whatever zone the moment carries.
- * @returns The bank day the fallback bound lands on.
- */
-/**
  * US DST starts at this instant and Israel's has not yet — the two zones'
  * transitions do not coincide, so this is one of the two days a year on which
  * an ambiently-computed lookback disagreed across hosts.

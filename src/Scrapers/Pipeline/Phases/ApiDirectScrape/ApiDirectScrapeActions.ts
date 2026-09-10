@@ -7,7 +7,6 @@
  * the per-file LOC ceiling. Zero bank-name coupling.
  */
 
-import type { IWindowCoverage } from '../../../../WindowCoverage.js';
 import type { IApiMediator } from '../../Mediator/Api/ApiMediator.js';
 import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
 import { makeEvidenceLedger } from '../../Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
@@ -31,8 +30,6 @@ interface IAccountResult {
   readonly degraded: boolean;
   /** Backfill was asked for the missing slice and did not get it. */
   readonly backfillExhausted: boolean;
-  /** What this account may honestly claim about the requested window. */
-  readonly windowCoverage: IWindowCoverage;
 }
 
 /** Accumulator for per-account scrape results. */
@@ -71,7 +68,7 @@ async function fetchOneAccount<TAcct, TCursor>(
   const held = { txns: [...txns.value.txns], windowCoverage };
   const account = { accountNumber, ...balanceField(bal.value), ...held };
   const outcome = { degraded: bal.value.degraded, backfillExhausted: txns.value.backfillExhausted };
-  return succeed({ account, ...outcome, windowCoverage });
+  return succeed({ account, ...outcome });
 }
 
 /**
