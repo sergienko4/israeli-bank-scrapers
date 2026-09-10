@@ -289,10 +289,10 @@ and then dropped. Each account now carries the verdict out on the result.
 The published shape is a three-state `IWindowCoverage` (`src/WindowCoverage.ts`),
 and the three states answer three different questions:
 
-| `status`            | What it means                                                                                                  | Extra fields                          |
-| ------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `covered`           | the oldest row reaches the requested start, with nothing casting doubt on it                                   | `requestedStart`, `oldest`            |
-| `lowerBoundReached` | the oldest row reaches the requested start, but a loss channel reported or could not run — rows may be missing | `requestedStart`, `oldest`, `caveats` |
+| `status`            | What it means                                                                                                  | Extra fields                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `covered`           | the oldest row reaches the requested start, with nothing casting doubt on it                                   | `requestedStart`, `oldest`                                                     |
+| `lowerBoundReached` | the oldest row reaches the requested start, but a loss channel reported or could not run — rows may be missing | `requestedStart`, `oldest`, `caveats`                                          |
 | `unproven`          | the walk stopped without proving the window                                                                    | `requestedStart`, `reason`, and `oldest` + `gapDays` when a row carried a date |
 
 `unproven` is a first-class answer, not a failure. A quiet account and a
@@ -351,9 +351,28 @@ terms while the provider was still offering more. The other two are not:
   publish the best available outcome as a qualified one on every run.
 
 Trusting the predicate costs nothing, because the date audit is an independent
-guard: a predicate that stopped the walk *before* the window was covered leaves
+guard: a predicate that stopped the walk _before_ the window was covered leaves
 the audit unsatisfied and the verdict becomes `unproven` on that evidence
 alone.
+
+### Ranking two rounds against each other
+
+An account's backfill runs several rounds, each its own paginated walk, and
+only one ending is published. `worseTermination()` folds them, keeping the one
+that leaves the most unproven.
+
+Both it and `isLossyTermination()` read the same `TERMINATION_DOUBT` map, which
+scores every ending from "provider finished" through "shape had enough" to
+"walk gave up while more was on offer". Sharing one ranking is deliberate. When
+the fold and the loss test were separate rules they disagreed: the fold kept
+the first non-`exhausted` answer, so an early `predicateStop` — which is not
+loss — stuck, and a `cursorRepeat` proved by a later round was never reported.
+An account that had provably lost rows was published as clean. Deriving both
+from one map makes that disagreement unrepresentable.
+
+An ending the map has never been taught scores as loss, so a future
+termination added to `Pagination.ts` and forgotten here surfaces as an
+over-cautious verdict rather than a silently clean one.
 
 ### Why classification is separated from the walk
 

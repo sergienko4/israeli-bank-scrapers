@@ -547,3 +547,61 @@ describe('collectAccountRows/unreadable start', () => {
     expect(reason).toBe('requestedStartUnreadable');
   });
 });
+
+/**
+ * Replies whose first round stops on the shape's own rule while still short,
+ * and whose backfill round then gets stuck on a repeated cursor.
+ *
+ * The first ask carries the marker row the predicate watches for, so that round
+ * ends `predicateStop` — with the oldest row still well inside the window, so
+ * backfill is earned. The backfill ask carries no marker, so the predicate
+ * stays quiet and that round runs on until the cursor repeats.
+ */
+const ENOUGH_THEN_STUCK: Record<string, readonly IRow[]> = {
+  none: [{ date: '2026-04-10', id: 'enough' }],
+  '2026-04-10': [{ date: '2026-04-10', id: 'plain' }],
+};
+
+/**
+ * Stop once the marker row is held.
+ *
+ * Stands for a bank predicate that fires for a reason of its own rather than
+ * because the window is covered. That is the case where backfill still
+ * follows, and so the case where a later round can still prove loss.
+ *
+ * @param acc - Rows accumulated so far.
+ * @returns True once the marker row is among them.
+ */
+function markerStop(acc: readonly object[]): boolean {
+  const rows = acc as readonly IRow[];
+  return rows.some((r): boolean => r.id === 'enough');
+}
+
+/** Shape that stops on its own rule while short, then walks into a repeat. */
+const ENOUGH_THEN_STUCK_SHAPE = {
+  ...SHAPE,
+  transactions: {
+    ...SHAPE.transactions,
+    extractPage: stuckExtractPage,
+    stop: markerStop,
+    pagesMayOverlap: true,
+  },
+} as unknown as IApiDirectScrapeShape<IAcct, string>;
+
+describe('collectAccountRows/loss proved after a non-lossy round', () => {
+  it('keeps the later lossy ending over the earlier intentional stop', async () => {
+    const bus = makeBus([], ENOUGH_THEN_STUCK);
+    const audit = await collectWithLedger(bus, ENOUGH_THEN_STUCK_SHAPE);
+    expect(audit.collected.termination).toBe('cursorRepeat');
+  });
+
+  it('records the loss that later round proved', async () => {
+    // A fold that keeps the first non-`exhausted` answer holds `predicateStop`
+    // forever. Since that is not loss, the `cursorRepeat` behind it is never
+    // reported, and an account that provably lost rows is published as clean.
+    const bus = makeBus([], ENOUGH_THEN_STUCK);
+    const audit = await collectWithLedger(bus, ENOUGH_THEN_STUCK_SHAPE);
+    const reported = audit.ledger.caveats();
+    expect(reported).toEqual(['paginationStoppedEarly']);
+  });
+});

@@ -16,7 +16,10 @@
  * predates the start.
  */
 
-import { isLossyTermination } from '../../Mediator/Scrape/CoverageAudit/TerminationEvidence.js';
+import {
+  isLossyTermination,
+  worseTermination,
+} from '../../Mediator/Scrape/CoverageAudit/TerminationEvidence.js';
 import type { IWindowResult } from '../../Mediator/Scrape/CoverageAudit/WindowCoverage.js';
 import { assessWindowCoverage } from '../../Mediator/Scrape/CoverageAudit/WindowCoverage.js';
 import type { WindowStop } from '../../Mediator/Scrape/CoverageAudit/WindowCoverageVerdict.js';
@@ -42,31 +45,20 @@ interface IWalkState {
   /** Extra requests issued beyond the first. */
   readonly attempt: number;
   /**
-   * How pagination ended, worst round wins.
+   * How pagination ended, the most doubtful round winning.
    *
    * <p>Monotonic on purpose. Each backfill round runs its own paginated walk,
    * so keeping only the newest answer would let a clean final round erase an
    * earlier halt — the walk would look exhausted when an earlier round had
    * already proved it was not.
+   *
+   * <p>Ranked by `worseTermination`, which shares its ordering with
+   * `isLossyTermination` so that "which ending is worse" and "which endings
+   * are loss" cannot drift apart. They did once: the fold kept the first
+   * non-`exhausted` answer, so an early `predicateStop` — which is not loss —
+   * masked a `cursorRepeat` a later round went on to prove.
    */
   readonly termination: PaginationTermination;
-}
-
-/**
- * Fold one round's termination into the walk's, worst case winning.
- *
- * `exhausted` is the only clean answer, so anything else sticks: once a round
- * has stopped short, no later round can un-prove it.
- *
- * @param held - Termination the walk already carries.
- * @param incoming - Termination the newest round produced.
- * @returns Whichever of the two represents less certainty.
- */
-function keepWorst(
-  held: PaginationTermination,
-  incoming: PaginationTermination,
-): PaginationTermination {
-  return held === 'exhausted' ? incoming : held;
 }
 
 /** What a stopped walk settled on about the window it was asked for. */
@@ -192,7 +184,7 @@ async function extend<TAcct, TCursor>(
   const incoming = more.value.items;
   const fresh = dropOverlap({ collected: state.rows, incoming, label: labelOf(a) });
   const rows = [...state.rows, ...fresh.kept];
-  const termination = keepWorst(state.termination, more.value.termination);
+  const termination = worseTermination(state.termination, more.value.termination);
   return succeed({ rows, end: state.end, attempt: state.attempt + 1, termination });
 }
 

@@ -1,10 +1,17 @@
 /**
- * Which pagination terminations count as evidence of loss.
+ * How much doubt each pagination ending leaves about completeness.
  *
  * `Pagination.ts` deliberately reports how a walk ended and nothing more — it
  * states outright that callers who care about data completeness map its codes
  * into their own vocabulary. This is that mapping, and it lives here rather
  * than there so the paginator keeps knowing nothing about window coverage.
+ *
+ * <p>One ranking serves both questions asked of an ending: "is this loss?" and
+ * "which of two rounds ended worse?". They were once answered by two separate
+ * rules, and the rules disagreed — a walk could hold an ending that was not
+ * loss while a later round had already proved loss, and the proof was dropped.
+ * Deriving both from {@link TERMINATION_DOUBT} makes that disagreement
+ * unrepresentable.
  *
  * <p><b>Why `predicateStop` is not loss.</b> The stop predicate is the shape's
  * own rule for "we have enough", and for a window walk it fires only once the
@@ -24,17 +31,42 @@ import type { Brand } from '../../../Types/Brand.js';
 /** Branded result of {@link isLossyTermination} (Rule #15 — no bare primitive return). */
 export type IsLossyTermination = Brand<boolean, 'IsLossyTermination'>;
 
+/** The provider said it was finished — nothing is outstanding. */
+const DOUBT_NONE = 0;
+/** The shape's own rule ended the walk — no rows are known to be missing. */
+const DOUBT_SUFFICIENT = 1;
+/** The walk gave up while the provider was still offering — rows may be gone. */
+const DOUBT_LOSS = 2;
+
 /**
- * Terminations that leave rows the walk never saw.
+ * Each ending scored by how much it leaves unproven, low to high.
  *
- * `exhausted` is the provider saying it was finished and `predicateStop` is the
- * shape saying it had enough. The two here are neither: the walk gave up on its
- * own terms while the provider was still offering more.
+ * A map rather than a chain of comparisons, so a new termination is added by
+ * scoring it here and nothing else has to change.
  */
-const LOSSY_TERMINATIONS: ReadonlySet<PaginationTermination> = new Set<PaginationTermination>([
-  'cursorRepeat',
-  'pageCeiling',
+const TERMINATION_DOUBT: ReadonlyMap<PaginationTermination, number> = new Map<
+  PaginationTermination,
+  number
+>([
+  ['exhausted', DOUBT_NONE],
+  ['predicateStop', DOUBT_SUFFICIENT],
+  ['cursorRepeat', DOUBT_LOSS],
+  ['pageCeiling', DOUBT_LOSS],
 ]);
+
+/**
+ * Score one ending, treating anything unscored as loss.
+ *
+ * An ending nobody has ranked is one this module has not been taught about.
+ * Scoring it as loss makes the omission show up as an over-cautious verdict
+ * rather than as a silently clean one.
+ *
+ * @param termination - How the paginated walk ended.
+ * @returns Its doubt score.
+ */
+function doubtOf(termination: PaginationTermination): number {
+  return TERMINATION_DOUBT.get(termination) ?? DOUBT_LOSS;
+}
 
 /**
  * Whether a walk's ending means rows may be missing.
@@ -43,8 +75,29 @@ const LOSSY_TERMINATIONS: ReadonlySet<PaginationTermination> = new Set<Paginatio
  * @returns True when the walk may have left rows unseen.
  */
 export function isLossyTermination(termination: PaginationTermination): IsLossyTermination {
-  const isLossy = LOSSY_TERMINATIONS.has(termination);
+  const isLossy = doubtOf(termination) >= DOUBT_LOSS;
   return isLossy as IsLossyTermination;
+}
+
+/**
+ * Fold one round's ending into the walk's, the more doubtful one winning.
+ *
+ * Each backfill round runs its own paginated walk, so keeping the newest
+ * answer would let a clean final round erase an earlier halt. Keeping the
+ * *first* non-clean answer has the mirror flaw: an early `predicateStop` is
+ * not loss, and holding it would swallow a `cursorRepeat` a later round went
+ * on to prove. Ranking by doubt is what avoids both.
+ *
+ * @param held - Ending the walk already carries.
+ * @param incoming - Ending the newest round produced.
+ * @returns Whichever of the two leaves more unproven.
+ */
+export function worseTermination(
+  held: PaginationTermination,
+  incoming: PaginationTermination,
+): PaginationTermination {
+  const isIncomingWorse = doubtOf(incoming) > doubtOf(held);
+  return isIncomingWorse ? incoming : held;
 }
 
 export default isLossyTermination;
