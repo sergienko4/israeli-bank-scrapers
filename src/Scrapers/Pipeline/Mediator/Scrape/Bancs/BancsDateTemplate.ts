@@ -23,6 +23,9 @@
  */
 
 import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
+import { bankDayOfInstant } from '../BankCalendar.js';
+import type { IBankDateParts } from '../BankMonth.js';
+import { bankDatePartsOfLabel } from '../BankMonth.js';
 import { getIn, isNum } from './BancsShape.js';
 import { innerFilterNodes, isBancsTxnBody } from './BancsTxnRequest.js';
 
@@ -46,13 +49,22 @@ const FROM_OPERATORS = new Set(['GREATERTHANOREQUAL', 'GREATERTHAN']);
 const TO_OPERATORS = new Set(['LESSTHANOREQUAL', 'LESSTHAN']);
 
 /**
- * Split a UTC ISO timestamp into BaNCS `{Day,Month,Year}` parts.
- * @param iso - UTC ISO timestamp (a month chunk's start/end).
- * @returns The calendar date in BaNCS numeric form.
+ * Map validated bank-date parts to the BaNCS wire shape.
+ * @param parts - Bank-calendar date parts.
+ * @returns BaNCS numeric date fields.
  */
-function toDatePart(iso: string): IDatePart {
-  const d = new Date(iso);
-  return { Day: d.getUTCDate(), Month: d.getUTCMonth() + 1, Year: d.getUTCFullYear() };
+function toBancsPart(parts: IBankDateParts): IDatePart {
+  return { Day: parts.day, Month: parts.month, Year: parts.year };
+}
+
+/**
+ * Split a strict bank label into BaNCS `{Day,Month,Year}` parts.
+ * @param label - Month chunk start/end label.
+ * @returns BaNCS date parts, or false for an invalid label.
+ */
+function toDatePart(label: string): IDatePart | false {
+  const parts = bankDatePartsOfLabel(label);
+  return parts === false ? false : toBancsPart(parts);
 }
 
 /**
@@ -106,16 +118,15 @@ function applyNode(node: ApiRecord, from: IDatePart, to: IDatePart): boolean {
 }
 
 /**
- * Today's date as BaNCS calendar parts, using the local calendar to match
- * the month-chunk generator's local date extraction. Exported so the
+ * Today's date as BaNCS calendar parts, using the bank calendar. Exported so the
  * BancsDateTemplate to-bound-cap test asserts against this exact source of
  * truth instead of duplicating the extraction.
- * @returns Today as `{Day,Month,Year}`.
+ * @returns Today as `{Day,Month,Year}`, or false for an invalid clock.
  */
-export function todayDatePart(): IDatePart {
+export function todayDatePart(): IDatePart | false {
   const now = new Date();
-  const month = now.getMonth() + 1;
-  return { Day: now.getDate(), Month: month, Year: now.getFullYear() };
+  const label = bankDayOfInstant(now);
+  return label === false ? false : toDatePart(label);
 }
 
 /**
@@ -134,9 +145,10 @@ function partOrdinal(part: IDatePart): number {
  * @param endIso - The month chunk's UTC ISO end timestamp.
  * @returns The to-bound calendar parts, capped at today.
  */
-function cappedToBound(endIso: string): IDatePart {
+function cappedToBound(endIso: string): IDatePart | false {
   const endPart = toDatePart(endIso);
   const today = todayDatePart();
+  if (endPart === false || today === false) return false;
   const endOrd = partOrdinal(endPart);
   const todayOrd = partOrdinal(today);
   return endOrd > todayOrd ? today : endPart;
@@ -153,6 +165,7 @@ function applyBancsChunkRange(body: ApiRecord, chunk: IChunkRange): boolean {
   if (!isBancsTxnBody(body)) return false;
   const from = toDatePart(chunk.start);
   const to = cappedToBound(chunk.end);
+  if (from === false || to === false) return false;
   for (const node of innerFilterNodes(body)) {
     applyNode(node, from, to);
   }

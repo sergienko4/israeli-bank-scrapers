@@ -1149,10 +1149,6 @@ export const PIPELINE_SELECTOR_EXEMPTIONS = {
   // rather than an `eslint-disable` header, which §3 bans outright.
   //
   // TARGET: empty. When the last entry goes, delete this block with it.
-  'src/Scrapers/Pipeline/Mediator/Scrape/Bancs/BancsDateTemplate.ts': [
-    BANK_CALENDAR_HOST_READ_RULE.selector,
-    BANK_CALENDAR_UTC_READ_RULE.selector,
-  ],
   'src/Scrapers/Pipeline/Mediator/Dashboard/DashboardDateCandidates.ts': [
     BANK_CALENDAR_HOST_READ_RULE.selector,
   ],

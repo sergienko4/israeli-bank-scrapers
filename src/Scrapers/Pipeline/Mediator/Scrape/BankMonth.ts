@@ -14,6 +14,11 @@ interface IBankMonth {
   readonly month: number;
 }
 
+/** Calendar date components read from a strict bank label. */
+interface IBankDateParts extends IBankMonth {
+  readonly day: number;
+}
+
 /** Start/end instants delimiting one bank-calendar month. */
 interface IBankMonthBounds {
   readonly start: Date;
@@ -98,6 +103,21 @@ function bankMonthOfLabel(value: string): IBankMonth | false {
 }
 
 /**
+ * Read complete date parts from a strict bank label.
+ * @param value - Bank label carrying a calendar day.
+ * @returns Validated date parts, or false.
+ */
+function bankDatePartsOfLabel(value: string): IBankDateParts | false {
+  const match = BANK_MONTH_LABEL.exec(value);
+  if (match === null) return false;
+  const month = monthOfCaptures(match[1], match[2]);
+  const rawDay = match.at(3);
+  if (month === false || rawDay === undefined || !hasValidDay(rawDay, month)) return false;
+  const day = Number(rawDay);
+  return { ...month, day };
+}
+
+/**
  * Read a provider `MM/YYYY` billing label.
  * @param value - Provider billing label.
  * @returns Validated bank month, or false.
@@ -169,8 +189,9 @@ function bankMonthBounds(value: IBankMonth): IBankMonthBounds {
   return { start: startMoment.toDate(), end: endMoment.toDate() };
 }
 
-export type { IBankMonth, IBankMonthBounds };
+export type { IBankDateParts, IBankMonth, IBankMonthBounds };
 export {
+  bankDatePartsOfLabel,
   bankMonthBounds,
   bankMonthOfInstant,
   bankMonthOfLabel,
