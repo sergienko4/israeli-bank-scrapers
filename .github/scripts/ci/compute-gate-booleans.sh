@@ -32,9 +32,24 @@
 #   PR_AUTHOR    ? github.event.pull_request.user.login
 #   FULL_SUITE   ? needs.changes.outputs.full_suite ('true' or 'false')
 #
-# Downstream pattern:
-#   if: needs.validate.outputs.real_gates_enabled == 'true'   # heavy gates
-#   if: needs.validate.outputs.trusted_event == 'true'        # secret-touching jobs
+# Downstream pattern — `validate` is an `always()` aggregator, so a BARE
+# boolean `if:` on a job that needs it is skipped whenever any of validate's
+# conditional needs skipped, even though validate itself is green and this
+# output reads 'true'. That silently disabled the real gates from 2026-09-08
+# until it was caught. Opting out with `!cancelled()` drops the implicit
+# `success()` over the whole needs list, so re-state EVERY need:
+#
+#   if: >-                                                    # heavy gates
+#     !cancelled() &&
+#     needs.validate.result == 'success' &&
+#     needs.validate.outputs.real_gates_enabled == 'true'
+#
+#   if: >-                                                    # secret-touching jobs
+#     !cancelled() &&
+#     needs.validate.result == 'success' &&
+#     needs.validate.outputs.trusted_event == 'true'
+#
+# PrYamlGateHardening.test.ts [PR-YAML-SKIP-POISON] enforces this.
 # ??????????????????????????????????????????????????????????????
 set -euo pipefail
 
