@@ -336,7 +336,7 @@ const LOWER_KEYS_ARRAY_RULE = {
 // and the window simply came back short.
 //
 // Patching the sites one at a time lost: two were fixed and a third survived.
-// `Mediator/Scrape/BankCalendar.ts` is the sanctioned reader, and these three
+// `Mediator/Scrape/BankCalendar.ts` is the sanctioned reader, and these four
 // selectors are what make going through it mandatory rather than customary.
 // Deliberately aimed at the defect MECHANISM — reading or building calendar
 // COMPONENTS in the host's zone — and not at `new Date(x)` generally, because
@@ -353,6 +353,13 @@ const BANK_CALENDAR_UTC_READ_RULE = {
     'CallExpression[callee.type="MemberExpression"][callee.property.name=/^getUTC(FullYear|Month|Date|Day|Hours|Minutes|Seconds|Milliseconds)$/]',
   message:
     '🚫 BANK CALENDAR: raw `.getUTCMonth()` / `.getUTCDate()` component reads bypass the bank-calendar provider and can mistake a formatted bank label for a UTC instant. Use bankMomentOfInstant() / bankDayOfInstant(), or read and validate the label directly.',
+};
+
+const BANK_CALENDAR_MOMENT_RULE = {
+  selector:
+    ':matches(CallExpression[callee.name="moment"], CallExpression[callee.type="MemberExpression"][callee.object.name="moment"][callee.property.name="tz"])',
+  message:
+    '🚫 BANK CALENDAR: direct `moment(...)` / `moment.tz(...)` calls bypass the Pipeline bank-calendar provider and can inherit the shared default zone. Use parseInBankZone(), bankMomentOfInstant(), or another BankCalendar helper.',
 };
 
 const BANK_CALENDAR_HOST_BUILD_RULE = {
@@ -924,6 +931,7 @@ const selectorOf = entry => (typeof entry === 'string' ? entry : entry.selector)
 const PIPELINE_REVIEW_RULES = [
   BANK_CALENDAR_HOST_READ_RULE,
   BANK_CALENDAR_UTC_READ_RULE,
+  BANK_CALENDAR_MOMENT_RULE,
   BANK_CALENDAR_HOST_BUILD_RULE,
   {
     // CR-P1 — ban `ReadonlySet<string>` for literal-string sets.
@@ -1124,9 +1132,15 @@ export const PIPELINE_SELECTOR_EXEMPTIONS = {
   'src/Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeEnvelope.ts': [
     BANK_CALENDAR_UTC_READ_RULE.selector,
   ],
+  // BankCalendar is the one sanctioned Moment boundary. It pins every parse
+  // explicitly; allowing Moment anywhere else would recreate the shared
+  // default-zone leak this provider exists to remove.
+  'src/Scrapers/Pipeline/Mediator/Scrape/BankCalendar.ts': [
+    BANK_CALENDAR_MOMENT_RULE.selector,
+  ],
 
-  // §24 BANK CALENDAR DRAIN QUEUE — the four files still reading or building
-  // bank-calendar components outside the provider when the boundary was armed.
+  // §24 BANK CALENDAR DRAIN QUEUE — the files still reading, building, or
+  // parsing bank-calendar values outside the provider when the boundary armed.
   //
   // This list IS the worklist: the rule is what makes the defect visible, and
   // each entry is deleted by the commit that drains its file, never widened
@@ -1149,6 +1163,27 @@ export const PIPELINE_SELECTOR_EXEMPTIONS = {
   'src/Scrapers/Pipeline/Strategy/Scrape/MatrixLoopStrategy.ts': [
     BANK_CALENDAR_HOST_READ_RULE.selector,
     BANK_CALENDAR_HOST_BUILD_RULE.selector,
+  ],
+  'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/MonthChunking.ts': [
+    BANK_CALENDAR_MOMENT_RULE.selector,
+  ],
+  'src/Scrapers/Pipeline/Mediator/Scrape/FrozenScrapeAction.ts': [
+    BANK_CALENDAR_MOMENT_RULE.selector,
+  ],
+  'src/Scrapers/Pipeline/Mediator/Scrape/UrlDateRange.ts': [
+    BANK_CALENDAR_MOMENT_RULE.selector,
+  ],
+  'src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhase/DirectFetch.ts': [
+    BANK_CALENDAR_MOMENT_RULE.selector,
+  ],
+  'src/Scrapers/Pipeline/Mediator/Scrape/UrlDateRangeInspect.ts': [
+    BANK_CALENDAR_MOMENT_RULE.selector,
+  ],
+  'src/Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShapeTxns.ts': [
+    BANK_CALENDAR_MOMENT_RULE.selector,
+  ],
+  'src/Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShapeTxns.ts': [
+    BANK_CALENDAR_MOMENT_RULE.selector,
   ],
 };
 
