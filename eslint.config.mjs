@@ -1156,10 +1156,6 @@ export const PIPELINE_SELECTOR_EXEMPTIONS = {
   'src/Scrapers/Pipeline/Mediator/Dashboard/DashboardDateCandidates.ts': [
     BANK_CALENDAR_HOST_READ_RULE.selector,
   ],
-  'src/Scrapers/Pipeline/Mediator/Scrape/JsonTraversal.ts': [
-    BANK_CALENDAR_HOST_READ_RULE.selector,
-    BANK_CALENDAR_HOST_BUILD_RULE.selector,
-  ],
   'src/Scrapers/Pipeline/Mediator/Scrape/FrozenScrapeAction.ts': [
     BANK_CALENDAR_MOMENT_RULE.selector,
   ],

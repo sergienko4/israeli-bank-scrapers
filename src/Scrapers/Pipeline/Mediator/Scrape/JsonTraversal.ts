@@ -3,6 +3,12 @@
  * Replaces manual while loops with recursive reduce patterns.
  */
 
+import { getDebug } from '../../Logging/Debug.js';
+import type { IBankMonth } from './BankMonth.js';
+import { bankMonthOfInstant, shiftBankMonth } from './BankMonth.js';
+
+const LOG = getDebug(import.meta.url);
+
 /** A parsed JSON node — object, array, or primitive. */
 type JsonNode = Record<string, unknown> | readonly unknown[] | string | number | boolean | null;
 
@@ -235,12 +241,39 @@ function extractMatchingKeys(body: JsonNode, pattern: RegExp): readonly string[]
  * @returns Array of DD/MM/YYYY billing month strings.
  */
 function generateBillingMonths(startMs: number, futureMonths = 0): readonly string[] {
+  const range = resolveBillingRange(startMs, futureMonths);
+  if (range === false) return [];
+  return buildMonthList(range.first, range.last, []);
+}
+
+/** First and last bank months in a billing request range. */
+interface IBillingMonthRange {
+  readonly first: IBankMonth;
+  readonly last: IBankMonth;
+}
+
+/**
+ * Surface an invalid range boundary.
+ * @returns False sentinel.
+ */
+function rejectBillingRange(): false {
+  LOG.warn({ message: 'Billing month generation skipped for an invalid date' });
+  return false;
+}
+
+/**
+ * Resolve billing range boundaries in the bank calendar.
+ * @param startMs - Start instant in milliseconds.
+ * @param futureMonths - Signed end-month offset from today.
+ * @returns Validated range, or false.
+ */
+function resolveBillingRange(startMs: number, futureMonths: number): IBillingMonthRange | false {
   const start = new Date(startMs);
-  const firstMonth = new Date(start.getFullYear(), start.getMonth(), 1);
   const now = new Date();
-  const endDate = new Date(now.getFullYear(), now.getMonth() + futureMonths, 1);
-  const endMs = endDate.getTime();
-  return buildMonthList(firstMonth, endMs, []);
+  const first = bankMonthOfInstant(start);
+  const current = bankMonthOfInstant(now);
+  if (first === false || current === false) return rejectBillingRange();
+  return { first, last: shiftBankMonth(current, futureMonths) };
 }
 
 /**
@@ -248,29 +281,42 @@ function generateBillingMonths(startMs: number, futureMonths = 0): readonly stri
  * label. Pulled out so {@link buildMonthList} stays a small
  * recursion driver.
  *
- * @param current - Date pointing at the first of the cycle's month.
+ * @param current - Named billing month.
  * @returns Stringified `01/MM/YYYY` entry.
  */
-function formatBillingMonthEntry(current: Date): string {
-  const rawMonth = current.getMonth() + 1;
-  const monthStr = String(rawMonth).padStart(2, '0');
-  const year = current.getFullYear();
-  const yearStr = String(year);
+function formatBillingMonthEntry(current: IBankMonth): string {
+  const monthStr = String(current.month).padStart(2, '0');
+  const yearStr = String(current.year);
   return `01/${monthStr}/${yearStr}`;
 }
 
 /**
+ * Compare two bank months.
+ * @param current - Candidate month.
+ * @param end - Inclusive upper month.
+ * @returns True when current is after end.
+ */
+function monthIsAfter(current: IBankMonth, end: IBankMonth): boolean {
+  if (current.year !== end.year) return current.year > end.year;
+  return current.month > end.month;
+}
+
+/**
  * Recursively build month list until current date.
- * @param current - Current month date.
- * @param endMs - End epoch ms.
+ * @param current - Current bank month.
+ * @param end - Inclusive end month.
  * @param accumulated - Months collected so far.
  * @returns Complete month list.
  */
-function buildMonthList(current: Date, endMs: number, accumulated: string[]): readonly string[] {
-  if (current.getTime() > endMs) return accumulated;
+function buildMonthList(
+  current: IBankMonth,
+  end: IBankMonth,
+  accumulated: string[],
+): readonly string[] {
+  if (monthIsAfter(current, end)) return accumulated;
   const entry = formatBillingMonthEntry(current);
-  const next = new Date(current.getFullYear(), current.getMonth() + 1, 1);
-  return buildMonthList(next, endMs, [...accumulated, entry]);
+  const next = shiftBankMonth(current, 1);
+  return buildMonthList(next, end, [...accumulated, entry]);
 }
 
 export type { JsonNode };

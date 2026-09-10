@@ -2,12 +2,32 @@
  * Unit tests for JsonTraversal — BFS tree search + key collection + billing months.
  */
 
+import { jest } from '@jest/globals';
+
 import {
   bodyHasSignature,
   extractMatchingKeys,
   generateBillingMonths,
   objectKeysMatch,
 } from '../../../../Scrapers/Pipeline/Mediator/Scrape/JsonTraversal.js';
+
+/**
+ * Make host-local Date components disagree with the represented instant.
+ * @param run - Billing-month probe.
+ * @returns Probe result.
+ */
+function withTamperedHostCalendar<T>(run: () => T): T {
+  const yearSpy = jest.spyOn(Date.prototype, 'getFullYear');
+  const monthSpy = jest.spyOn(Date.prototype, 'getMonth');
+  yearSpy.mockReturnValue(1999);
+  monthSpy.mockReturnValue(0);
+  try {
+    return run();
+  } finally {
+    yearSpy.mockRestore();
+    monthSpy.mockRestore();
+  }
+}
 
 describe('objectKeysMatch', () => {
   it('returns true when a key matches', () => {
@@ -102,6 +122,23 @@ describe('extractMatchingKeys', () => {
 });
 
 describe('generateBillingMonths', () => {
+  it('enumerates the bank month even when host Date components disagree', () => {
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date('2026-03-15T10:00:00.000Z'));
+      const start = new Date('2026-03-01T10:00:00.000Z').getTime();
+      /**
+       * Generate labels under the tampered host calendar.
+       * @returns Billing labels.
+       */
+      const generate = (): readonly string[] => generateBillingMonths(start);
+      const months = withTamperedHostCalendar(generate);
+      expect(months).toEqual(['01/03/2026']);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('generates at least one month for current date', () => {
     const now = Date.now();
     const months = generateBillingMonths(now);
