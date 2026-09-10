@@ -289,11 +289,11 @@ and then dropped. Each account now carries the verdict out on the result.
 The published shape is a three-state `IWindowCoverage` (`src/WindowCoverage.ts`),
 and the three states answer three different questions:
 
-| `status`            | What it means                                                                    | Extra fields               |
-| ------------------- | -------------------------------------------------------------------------------- | -------------------------- |
-| `covered`           | the oldest row reaches the requested start, with nothing casting doubt on it     | `requestedStart`, `oldest` |
-| `lowerBoundReached` | the provider has no more to give, but something about the walk warrants a caveat | `caveats`                  |
-| `unproven`          | the walk stopped without proving the window                                      | `reason`, `gapDays`        |
+| `status`            | What it means                                                                                                  | Extra fields                          |
+| ------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `covered`           | the oldest row reaches the requested start, with nothing casting doubt on it                                   | `requestedStart`, `oldest`            |
+| `lowerBoundReached` | the oldest row reaches the requested start, but a loss channel reported or could not run — rows may be missing | `requestedStart`, `oldest`, `caveats` |
+| `unproven`          | the walk stopped without proving the window                                                                    | `reason`, `gapDays`                   |
 
 `unproven` is a first-class answer, not a failure. A quiet account and a
 truncated one are indistinguishable in the data, so a verdict that had to pick

@@ -24,6 +24,24 @@ function account(accountNumber: string, windowCoverage?: IWindowCoverage): ITran
   return { ...base, windowCoverage };
 }
 
+/** Distinct accounts whose masked hints stay distinguishable. */
+const ACCT_1 = '12-345-6780001';
+const ACCT_2 = '12-345-6780002';
+const ACCT_3 = '12-345-6780003';
+
+/** A realistic Israeli account number — never allowed to reach CI output. */
+const RAW_ACCOUNT = '12-345-6789012';
+
+/**
+ * Everything the gate would print for one account, as a single string.
+ * @param coverage - Verdict to attach, omitted to simulate a regression.
+ * @returns The gate's whole rendered output.
+ */
+function gateOutputFor(coverage?: IWindowCoverage): string {
+  const report = inspectWindowCoverage([account(RAW_ACCOUNT, coverage)]);
+  return [...report.missing, ...report.warnings].join('\n');
+}
+
 const COVERED: IWindowCoverage = {
   status: 'covered',
   requestedStart: '2026-01-01',
@@ -51,9 +69,9 @@ describe('e2e/window-coverage gate', () => {
   });
 
   it('names every account that published no verdict', () => {
-    const accounts = [account('1', COVERED), account('2'), account('3')];
+    const accounts = [account(ACCT_1, COVERED), account(ACCT_2), account(ACCT_3)];
     const report = inspectWindowCoverage(accounts);
-    expect(report.missing).toEqual(['2', '3']);
+    expect(report.missing).toEqual(['****0002', '****0003']);
   });
 
   it('warns rather than fails when a window could not be proven', () => {
@@ -75,9 +93,28 @@ describe('e2e/window-coverage gate', () => {
   });
 
   it('says why the window is unproven, not just that it is', () => {
-    const report = inspectWindowCoverage([account('7', UNPROVEN)]);
+    const report = inspectWindowCoverage([account(RAW_ACCOUNT, UNPROVEN)]);
     const line = report.warnings[0];
     expect(line).toContain('boundDidNotMove');
-    expect(line).toContain('7');
+    expect(line).toContain('****9012');
+  });
+  /**
+   * Both of the gate's output channels name the account, and both are printed
+   * by CI — `missing` through the failed assertion, `warnings` through
+   * `console.warn`. E2E-real runs against live banks, so the identifier is a
+   * real account number and the logs are retained build artifacts.
+   */
+  it('never prints a raw account number in the missing-verdict output', () => {
+    const rendered = gateOutputFor(undefined);
+    const hasRaw = rendered.includes(RAW_ACCOUNT);
+    expect(hasRaw).toBe(false);
+    expect(rendered.length).toBeGreaterThan(0);
+  });
+
+  it('never prints a raw account number in a shortfall warning', () => {
+    const rendered = gateOutputFor(UNPROVEN);
+    const hasRaw = rendered.includes(RAW_ACCOUNT);
+    expect(hasRaw).toBe(false);
+    expect(rendered.length).toBeGreaterThan(0);
   });
 });

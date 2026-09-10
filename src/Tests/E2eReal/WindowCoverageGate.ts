@@ -19,11 +19,13 @@
  * reintroduce the blind spot one level up.
  */
 
+import { maskAccount } from '../../Common/ResultFormatter.js';
 import type { ITransactionsAccount } from '../../Transactions.js';
 import type { IWindowCoverage } from '../../WindowCoverage.js';
 
 /** One account's verdict, paired with the account that carries it. */
 interface IAccountVerdict {
+  /** Masked account label — this reaches CI logs, so never the raw number. */
   readonly account: string;
   readonly coverage: IWindowCoverage | 'absent';
 }
@@ -36,7 +38,7 @@ interface IAccountVerdict {
 function verdictsOf(accounts: readonly ITransactionsAccount[]): readonly IAccountVerdict[] {
   return accounts.map((a): IAccountVerdict => {
     const coverage = a.windowCoverage ?? 'absent';
-    return { account: a.accountNumber, coverage };
+    return { account: maskAccount(a.accountNumber), coverage };
   });
 }
 

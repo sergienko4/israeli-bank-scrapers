@@ -75,6 +75,30 @@ function renderInstant(): string {
   return bankMomentOfInstant('2026-02-08T22:00:00.000Z').format('YYYY-MM-DD HH:mm');
 }
 
+/**
+ * The lookback fallback as `computeStartDate` composes it: anchor "now" in the
+ * bank calendar first, then subtract. Subtracting a year is calendar
+ * arithmetic, so it resolves against whatever zone the moment carries.
+ * @returns The bank day the fallback bound lands on.
+ */
+/**
+ * US DST starts at this instant and Israel's has not yet — the two zones'
+ * transitions do not coincide, so this is one of the two days a year on which
+ * an ambiently-computed lookback disagreed across hosts.
+ */
+const DST_INSTANT = '2026-03-08T21:00:00.000Z';
+
+/**
+ * The lookback fallback as `computeStartDate` composes it: anchor "now" in the
+ * bank calendar first, then subtract. Subtracting a year is calendar
+ * arithmetic, so it resolves against whatever zone the moment carries.
+ * @returns The bank day the fallback bound lands on.
+ */
+function renderLookback(): string {
+  const anchored = bankMomentOfInstant(DST_INSTANT);
+  return anchored.subtract(1, 'years').format('YYYY-MM-DD');
+}
+
 describe('parseAutoDate/is host-independent', () => {
   it('emits one instant for a date-only value whatever zone the process is in', () => {
     const emitted = acrossZones((): string => parseAutoDate('29/06/2026'));
@@ -275,6 +299,17 @@ describe('bankDayOfInstant/refuses to invent a day', () => {
       underZone(z, (): unknown => bankDayOfInstant('2026-02-09')),
     );
     const expected = ZONES.map((): unknown => '2026-02-09');
+    expect(seen).toEqual(expected);
+  });
+  /**
+   * `computeStartDate` falls back to a one-year lookback when the caller's
+   * start is older than the cap. Computed ambiently, a host on US Pacific
+   * named a different bank day than UTC at this instant — the request went to
+   * the bank asking for the wrong day, on nothing but the host's location.
+   */
+  it('lands the lookback fallback on one bank day for every host', () => {
+    const seen = ZONES.map((z): string => underZone(z, renderLookback));
+    const expected = ZONES.map((): string => seen[0]);
     expect(seen).toEqual(expected);
   });
 });

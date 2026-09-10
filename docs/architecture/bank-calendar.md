@@ -62,10 +62,14 @@ is worth knowing when reading that code.
 
 ISO-8601 lets a value carry no offset — `2026-02-09`, or `2026-02-09T00:00:00`.
 Such a value is not an instant until some zone is chosen for it, and plain
-`moment(value, moment.ISO_8601)` chooses the **host's**. That reintroduces
-exactly the machine-dependence this module exists to remove, one layer down:
-the argument looks absolute, so nothing about the call site suggests the answer
-could differ per machine.
+`moment(value, moment.ISO_8601)` chooses **moment's effective default** — the
+host's zone, unless something in the process has called `moment.tz.setDefault`.
+Something does: `BaseScraper.initialize()` sets it before scraping, on the same
+singleton the Pipeline imported. So the old reading varied not only with the
+machine but with **scrape order** within one process, exactly as described under
+[Why the zone is named rather than inherited](#why-the-zone-is-named-rather-than-inherited).
+The argument looks absolute, so nothing at the call site suggests the answer
+could move at all.
 
 It did. Read from `Pacific/Kiritimati` (UTC+14), a bare `2026-02-09` resolved to
 `2026-02-08` in the bank calendar. In the window audit that shifted the
@@ -74,11 +78,23 @@ covered window as `unproven` — a spurious backfill ask, on nothing but the
 reader's location.
 
 `bankMomentOfInstant` therefore parses strings with `moment.tz(value,
-moment.ISO_8601, strict, BANK_CALENDAR_TIMEZONE)`. A value that **does** carry
-an offset is untouched, because the offset still wins — so everything produced
-by `Date.prototype.toISOString()`, which is every production caller, resolves
-byte-identically to before. Only the previously-ambiguous case changes, and it
-changes from "depends on the host" to "the bank's calendar".
+moment.ISO_8601, strict, BANK_CALENDAR_TIMEZONE)`.
+
+The change is confined to values that were ambiguous in the first place:
+
+- **`Date` arguments** — unchanged. A `Date` is already an instant; it is only
+  re-expressed.
+- **Strings carrying an explicit offset** — unchanged, byte for byte. The offset
+  still wins, so everything `Date.prototype.toISOString()` produces resolves
+  exactly as before. Every caller that passes `ctx.options.startDate`, a window
+  bound, or a `toISOString()` result is in this group.
+- **Bare `YYYY-MM-DD` (or offset-less) strings** — these **do** change, which is
+  the point. `ITransaction.date` can reach `bankMomentOfInstant` this way
+  through `isInWindow` in
+  [`src/Scrapers/Pipeline/Mediator/Scrape/StartWindow.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Scrape/StartWindow.ts)
+  whenever `parseAutoDate` could not normalise the provider's raw value. Such a
+  row used to be classified in or out of the window by the reader's location;
+  it is now classified in the bank's calendar.
 
 !!! note "Why the test suite could not see this"
 `jest.config.js` pins `TZ='Asia/Jerusalem'`, and Jerusalem is the one zone
