@@ -27,7 +27,12 @@
  * measured during the walk; none is inferred afterwards.
  */
 export type WindowCaveat =
-  /** The paginated walk stopped on its own terms rather than being told it was done. */
+  /**
+   * The paginated walk gave up while the provider was still offering rows —
+   * it repeated a cursor, or hit its page ceiling. A shape's own "we have
+   * enough" stop does not raise this: that is sufficiency, not loss, and the
+   * start-date test judges it independently.
+   */
   | 'paginationStoppedEarly'
   /** The provider declared more rows in a container than were present. */
   | 'declaredRowShortfall'
