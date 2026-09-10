@@ -2,6 +2,7 @@
 title: Bank calendar
 source-files:
   - src/Scrapers/Pipeline/Mediator/Scrape/BankCalendar.ts
+  - src/Scrapers/Pipeline/Mediator/Scrape/BankMonth.ts
 ---
 
 # Bank calendar — the zone every date decision resolves in
@@ -57,6 +58,27 @@ is worth knowing when reading that code.
 | `parseInBankZone`        | Turns a raw provider value into a moment fixed to the bank zone — the entry point `parseAutoDate` uses                                                                                                                                                           |
 | `bankMomentOfInstant`    | Reads an instant in the bank zone. A `Date` is already unambiguous and is only re-expressed; a _string_ may not be, so it is parsed **through** the zone rather than against the host — see [Zone-less strings](#zone-less-strings-resolve-in-the-bank-zone-too) |
 | `bankDayOfInstant`       | Reduces an instant to its `BankDay`, or to `false` when the value cannot be read — `moment`'s own `'Invalid date'` string is day-shaped enough to survive a `string` return and then sorts after every real label                                                |
+
+### Named months are not instants
+
+Monthly orchestration carries an `IBankMonth` object instead of serializing a
+month to an ISO-looking string and parsing it back through `Date`. The companion
+[`BankMonth.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Scrape/BankMonth.ts)
+owns that boundary:
+
+| Export                    | What it is for                                                                                             |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `IBankMonth`              | A validated `{ year, month }` value; `month` is 1-indexed to match bank request parameters                 |
+| `IBankMonthBounds`        | Start and end instants for one bank-calendar month                                                         |
+| `bankMonthOfLabel`        | Strictly validates an ISO-shaped bank label and reads the month it names without treating it as an instant |
+| `bankMonthOfSlashedLabel` | Strictly validates provider billing labels in `MM/YYYY` form                                               |
+| `bankMonthOfInstant`      | Projects a real `Date` or ISO instant into the bank's month                                                |
+| `shiftBankMonth`          | Moves a named month without host-local `Date` arithmetic                                                   |
+| `bankMonthBounds`         | Builds the first and last instants of a named month in `Asia/Jerusalem`                                    |
+
+`MatrixLoopStrategy` now consumes this object from cycle selection through
+request construction. The request body and URL bounds therefore describe the
+same month on every host.
 
 ## Zone-less strings resolve in the bank zone too
 

@@ -15,6 +15,13 @@
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
 import { getDebug } from '../../Logging/Debug.js';
 import { parseFreshResponse } from '../../Mediator/Dashboard/TxnParser.js';
+import type { IBankMonth } from '../../Mediator/Scrape/BankMonth.js';
+import {
+  bankMonthBounds,
+  bankMonthOfInstant,
+  bankMonthOfLabel,
+  bankMonthOfSlashedLabel,
+} from '../../Mediator/Scrape/BankMonth.js';
 import {
   buildMonthBody,
   generateMonthChunks,
@@ -68,20 +75,26 @@ interface IChunkFetchArgs {
   readonly template: string;
 }
 
+/** Generated chunk surface needed to recover its named month. */
+interface IMonthChunkName {
+  /** Label carrying a YYYY-MM prefix. */
+  readonly start: string;
+}
+
 /**
  * Fetch one month chunk via the discovered monthly endpoint.
  * @param ctx - Chunk fetch context.
- * @param chunkStart - ISO start date of the chunk.
+ * @param named - Bank-calendar month to fetch.
  * @returns Extracted transactions for this chunk.
  */
 async function fetchMatrixChunk(
   ctx: IChunkFetchArgs,
-  chunkStart: string,
+  named: IBankMonth,
 ): Promise<readonly ITransaction[]> {
-  const chunkDate = new Date(chunkStart);
-  const monthNum = chunkDate.getMonth() + 1;
-  const yearNum = chunkDate.getFullYear();
+  const monthNum = named.month;
+  const yearNum = named.year;
   const month = `${String(monthNum)}/${String(yearNum)}`;
+  const bounds = bankMonthBounds(named);
   /**
    * POST fetch for one matrix chunk.
    * @returns Extracted transactions.
@@ -95,10 +108,9 @@ async function fetchMatrixChunk(
       accountRecord: ctx.args.accountRecord,
     };
     const body = buildMonthBody(opts) as Record<string, string | object>;
-    const monthEnd = new Date(yearNum, monthNum, 0);
     const patchedUrl = applyDateRangeAndAppend(ctx.txnUrl, {
-      fromDate: chunkDate,
-      toDate: monthEnd,
+      fromDate: bounds.start,
+      toDate: bounds.end,
       windowParams: ctx.args.fc.dateWindowParams ?? [],
     });
     const raw = await ctx.args.fc.api.fetchPost<Record<string, unknown>>(patchedUrl, body);
@@ -173,110 +185,59 @@ async function tryMatrixLoop(
  * @param fc - Per-account fetch context plumbed by SCRAPE.PRE.
  * @returns Ordered month chunks for {@link collectChunkTxns}.
  */
-function resolveChunkPlan(fc: IAccountFetchCtx): readonly IMonthChunkLike[] {
+function resolveChunkPlan(fc: IAccountFetchCtx): readonly IBankMonth[] {
   const catalog = fc.billingCycleCatalog;
   const hasCatalog = catalog !== undefined && catalog.cycles.length > 0;
   if (!hasCatalog) {
     const startDate = parseStartDate(fc.startDate);
-    return generateMonthChunks(startDate, new Date(), fc.futureMonths);
+    const chunks = generateMonthChunks(startDate, new Date(), fc.futureMonths);
+    return chunks.flatMap(chunkToMonth);
   }
   const cycleCount = catalog.cycles.length;
   LOG.debug({
     message: `MatrixLoop: catalog-driven — cycles=${String(cycleCount)}`,
   });
-  return catalog.cycles.map(cycleToChunk);
+  return catalog.cycles.flatMap(cycleToMonth);
 }
 
 /**
- * Project one canonical {@link IBillingCycle} onto the
- * {@link IMonthChunkLike} shape consumed by {@link fetchMatrixChunk}.
- * The chunk start is parsed from the cycle's `billingDate` (Backbase
- * `MM/YYYY`, Max ISO, VisaCal ISO). Unparseable dates fall back to
- * the current month so the iteration still emits SOMETHING and the
- * fail-loud guard at SCRAPE.POST catches a true regression.
+ * Read one generated chunk's named month.
+ * @param chunk - Generated month chunk.
+ * @returns One validated month, or empty on an impossible invalid label.
+ */
+function chunkToMonth(chunk: IMonthChunkName): readonly IBankMonth[] {
+  const named = bankMonthOfLabel(chunk.start);
+  if (named !== false) return [named];
+  LOG.warn({ message: 'MatrixLoop: skipped invalid generated month label' });
+  return [];
+}
+
+/**
+ * Project one canonical billing cycle onto its named bank month.
+ * Invalid provider labels preserve the existing current-month fallback.
  *
  * @param cycle - One canonical cycle from the catalog.
- * @returns Month-chunk with ISO `start` consumed by the fetcher.
+ * @returns One validated month, or empty if the clock is invalid.
  */
-function cycleToChunk(cycle: IBillingCycle): IMonthChunkLike {
-  const parsed = parseCycleDate(cycle.billingDate);
-  return { start: parsed.toISOString() };
+function cycleToMonth(cycle: IBillingCycle): readonly IBankMonth[] {
+  const parsed = parseCycleMonth(cycle.billingDate);
+  if (parsed !== false) return [parsed];
+  LOG.warn({ message: 'MatrixLoop: skipped cycle because the system clock is invalid' });
+  return [];
 }
 
 /**
- * Parse a cycle billing-date across all known per-bank shapes —
- * Backbase `MM/YYYY`, Max ISO `YYYY-MM-DD`, VisaCal ISO same.
- * Returns the first-of-month derived from the parsed value so the
- * fetcher's `getMonth()` / `getFullYear()` reads land on the right
- * cycle. Falls back to the current month-start on parse failure.
+ * Parse every known billing-date shape into a bank month.
  *
  * @param raw - Raw billing-date string.
- * @returns Parsed first-of-month Date.
+ * @returns Named month, falling back to the current bank month.
  */
-function parseCycleDate(raw: string): Date {
-  const fromBackbase = tryParseBackbase(raw);
+function parseCycleMonth(raw: string): IBankMonth | false {
+  const fromBackbase = bankMonthOfSlashedLabel(raw);
   if (fromBackbase !== false) return fromBackbase;
-  const fromIso = tryParseIso(raw);
+  const fromIso = bankMonthOfLabel(raw);
   if (fromIso !== false) return fromIso;
-  return currentMonthStart();
-}
-
-/** Lower bound for a calendar month, used by {@link tryParseBackbase}. */
-const MIN_CALENDAR_MONTH = 1;
-/** Upper bound for a calendar month, used by {@link tryParseBackbase}. */
-const MAX_CALENDAR_MONTH = 12;
-
-/**
- * Parse the Backbase `MM/YYYY` shape with strict month-range
- * validation. Values like `00/2026` or `13/2026` reject so callers
- * fall through to ISO parse or the deterministic month-start
- * fallback instead of silently shifting into adjacent years.
- *
- * @param raw - Raw cycle billing-date string.
- * @returns First-of-month Date on success; `false` on miss.
- */
-function tryParseBackbase(raw: string): Date | false {
-  const match = /^(\d{2})\/(\d{4})$/.exec(raw);
-  if (match === null) return false;
-  const month = Number(match[1]);
-  const year = Number(match[2]);
-  if (month < MIN_CALENDAR_MONTH || month > MAX_CALENDAR_MONTH) return false;
-  return new Date(year, month - 1, 1);
-}
-
-/**
- * Parse the ISO-shape billing date Max + VisaCal emit.
- *
- * <p>Extracts year and month directly from the leading `YYYY-MM`
- * fragment instead of going through `new Date(raw)` — the latter
- * parses date-only strings (`2026-06-02`) as UTC midnight, then
- * `getMonth()` reads LOCAL time, which silently rolls back the
- * month in negative-UTC zones (UTC-5, UTC-8…). The regex path is
- * timezone-independent: a string carrying `2026-06-02` always
- * resolves to June 2026 regardless of the runner's locale.
- *
- * @param raw - Raw cycle billing-date string (date-only or full
- *   ISO 8601 with time component).
- * @returns First-of-month Date on success; `false` on miss.
- */
-function tryParseIso(raw: string): Date | false {
-  const match = /^(\d{4})-(\d{2})(?:-\d{2})?/.exec(raw);
-  if (match === null) return false;
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  if (month < MIN_CALENDAR_MONTH || month > MAX_CALENDAR_MONTH) return false;
-  return new Date(year, month - 1, 1);
-}
-
-/**
- * Deterministic fallback — the first day of the current month —
- * used when neither Backbase nor ISO parsing claims the input.
- *
- * @returns First-of-current-month Date.
- */
-function currentMonthStart(): Date {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), 1);
+  return bankMonthOfInstant(new Date());
 }
 
 /**
@@ -289,14 +250,14 @@ function currentMonthStart(): Date {
  */
 async function collectChunkTxns(
   ctx: IChunkFetchArgs,
-  chunks: readonly IMonthChunkLike[],
+  chunks: readonly IBankMonth[],
 ): Promise<readonly ITransaction[]> {
   const allTxns: ITransaction[] = [];
   const seed = Promise.resolve(true as const);
   const chain = chunks.reduce(
-    (prev, chunk): Promise<true> =>
+    (prev, named): Promise<true> =>
       prev.then(async (): Promise<true> => {
-        const txns = await fetchMatrixChunk(ctx, chunk.start);
+        const txns = await fetchMatrixChunk(ctx, named);
         allTxns.push(...txns);
         return rateLimitPause(MATRIX_RATE_LIMIT_MS);
       }),
@@ -304,11 +265,6 @@ async function collectChunkTxns(
   );
   await chain;
   return allTxns;
-}
-
-/** Minimal chunk shape — only the `start` field {@link fetchMatrixChunk} reads. */
-interface IMonthChunkLike {
-  readonly start: string;
 }
 
 export default tryMatrixLoop;

@@ -263,6 +263,38 @@ function makeCountingApi(): ICountingApi {
   return { api, calls };
 }
 
+/** Date returned when production tries to re-parse a named month as an instant. */
+const WRONG_MONTH_INSTANT = '1999-01-01T00:00:00.000Z';
+
+/**
+ * Replace only string-based Date construction while a Matrix probe runs.
+ * The correct design carries a named month object and never invokes this path.
+ * @param run - Matrix probe.
+ * @returns Probe result.
+ */
+async function withTamperedStringDate<T>(run: () => Promise<T>): Promise<T> {
+  const realDate = globalThis.Date;
+  /**
+   * Delegate every construction except the defective ISO-string round-trip.
+   * @param args - Original Date constructor arguments.
+   * @returns Real or sentinel Date.
+   */
+  const tampered = function (...args: unknown[]): Date {
+    const [value] = args;
+    if (typeof value === 'string' && value.endsWith('Z')) {
+      return new realDate(WRONG_MONTH_INSTANT);
+    }
+    return Reflect.construct(realDate, args) as Date;
+  };
+  Object.assign(tampered, { now: realDate.now, parse: realDate.parse, UTC: realDate.UTC });
+  globalThis.Date = tampered as unknown as DateConstructor;
+  try {
+    return await run();
+  } finally {
+    globalThis.Date = realDate;
+  }
+}
+
 describe('tryMatrixLoop — catalog-driven iteration', () => {
   it('[MATRIX-CATALOG-USES] WithCatalog_IteratesCatalogCycles_NotMonthChunks', async () => {
     const catalog: IBillingCycleCatalog = {
@@ -310,7 +342,36 @@ describe('tryMatrixLoop — catalog-driven iteration', () => {
     expect(calls.length).toBeGreaterThan(0);
   });
 
-  /** One row in the `parseCycleDate` bounds truth table. */
+  it('asks for the month the catalog names without parsing it as an instant', async () => {
+    const catalog: IBillingCycleCatalog = {
+      cycles: [{ billingDate: '03/2026', isOpen: true }],
+    };
+    const { api, calls } = makeCountingApi();
+    const ep = stubTxn({
+      url: 'https://bank.example/api/txn',
+      method: 'POST',
+      templatePostData: JSON.stringify({ month: 1, year: 2020, accountId: 'a' }),
+    });
+    const fc: IAccountFetchCtx = {
+      api,
+      network: makeInertNetwork(),
+      startDate: '20260101',
+      txnEndpoint: ep,
+      billingCycleCatalog: catalog,
+    };
+    /**
+     * Execute Matrix under the Date sentinel.
+     * @returns Matrix result.
+     */
+    const runMatrix = (): ReturnType<typeof tryMatrixLoop> =>
+      tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
+    const matrixResult = withTamperedStringDate(runMatrix);
+    await matrixResult;
+    expect(calls[0].body.month).toBe('3');
+    expect(calls[0].body.year).toBe('2026');
+  });
+
+  /** One row in the cycle-month bounds truth table. */
   interface IBackbaseBoundsCase {
     readonly billingDate: string;
     readonly isAccepted: boolean;
