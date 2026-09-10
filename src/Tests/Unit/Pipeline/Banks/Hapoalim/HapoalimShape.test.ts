@@ -41,11 +41,18 @@ function accountsArgs(body: ApiBody): IExtractAccountsArgs {
 }
 
 /**
- * Minimal action context carrying a fixed local startDate.
- * @returns Action context with startDate = 2026-06-04 (local).
+ * Minimal action context carrying a fixed startDate.
+ *
+ * <p>An absolute instant, not `new Date(2026, 5, 4)`. That constructor builds
+ * *local* midnight, which is a different real moment per host — from
+ * Kiritimati it is already 2026-06-03 in the bank's calendar, so the shape
+ * correctly renders `20260603` and an expectation of `20260604` fails. Midday
+ * UTC names the same bank day on every host.
+ * @returns Action context with startDate = 2026-06-04 in the bank's calendar.
  */
 function ctxWithStart(): IActionContext {
-  return { options: { startDate: new Date(2026, 5, 4) } } as unknown as IActionContext;
+  const startDate = new Date('2026-06-04T12:00:00Z');
+  return { options: { startDate } } as unknown as IActionContext;
 }
 
 describe('HapoalimShape helpers', () => {

@@ -16,13 +16,13 @@
  */
 
 import { jest } from '@jest/globals';
-import moment from 'moment-timezone';
 
 import {
   lastOffset,
   startMonth,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/CardIssuer/CardIssuerShapeTxns.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { underZone } from '../../../../Helpers/AmbientZone.js';
 import { ctxSpanning } from './WindowNarrowingFixtures.js';
 
 /** Hosts to impersonate — one either side of Israel, plus UTC. */
@@ -62,27 +62,6 @@ afterEach(() => {
 function ctxFrom(start: string): IActionContext {
   const from = new Date(start);
   return ctxSpanning(from, WINDOW_END);
-}
-
-/**
- * Impersonate a host in `zone` for one probe, moving both moment's ambient
- * zone and native `Date`'s — they are separate mechanisms and a renderer
- * built on either one is invisible to the other.
- * @param zone - Ambient zone to impersonate.
- * @param run - Probe to evaluate.
- * @returns Whatever the probe returned.
- */
-function underZone<T>(zone: string, run: () => T): T {
-  const previousMoment = moment().tz();
-  const previousEnv = process.env.TZ ?? 'Asia/Jerusalem';
-  moment.tz.setDefault(zone);
-  process.env.TZ = zone;
-  try {
-    return run();
-  } finally {
-    moment.tz.setDefault(previousMoment);
-    process.env.TZ = previousEnv;
-  }
 }
 
 describe('cardIssuer/month span', () => {

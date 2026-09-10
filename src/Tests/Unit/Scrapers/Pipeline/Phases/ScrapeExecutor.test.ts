@@ -3,9 +3,10 @@
  * Covers all fetch paths, error propagation, date computation, empty accounts.
  */
 
-import moment from 'moment';
+import moment from 'moment-timezone';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import { BANK_CALENDAR_TIMEZONE } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
 import {
   DEFAULT_FETCH_OPTS,
   type IFetchStrategy,
@@ -348,7 +349,7 @@ describe('ScrapeExecutor/computeStartDate', () => {
     const ctx = MAKE_CTX_WITH_STRATEGY(strategy);
     const opts = { ...ctx.options, startDate: recentDate };
     await executeScrape({ ...ctx, options: opts }, config);
-    const expectedDate = moment(recentDate).format('YYYYMMDD');
+    const expectedDate = moment(recentDate).tz(BANK_CALENDAR_TIMEZONE).format('YYYYMMDD');
     expect(capturedDates[0]).toBe(expectedDate);
   });
 
@@ -379,7 +380,7 @@ describe('ScrapeExecutor/computeStartDate', () => {
     const ctx = MAKE_CTX_WITH_STRATEGY(strategy);
     const opts = { ...ctx.options, startDate: oldDate };
     await executeScrape({ ...ctx, options: opts }, config);
-    const cappedDate = moment().subtract(1, 'years').format('YYYYMMDD');
+    const cappedDate = moment().tz(BANK_CALENDAR_TIMEZONE).subtract(1, 'years').format('YYYYMMDD');
     expect(capturedDates[0]).toBe(cappedDate);
   });
 });

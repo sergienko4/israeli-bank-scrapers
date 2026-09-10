@@ -30,6 +30,7 @@ import { applyStartWindow } from '../../../../../Scrapers/Pipeline/Mediator/Scra
 import { planBackfill } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/WindowBackfill.js';
 import { isSome, none } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { ITransaction } from '../../../../../Transactions.js';
+import { underZone } from '../../../../Helpers/AmbientZone.js';
 
 /**
  * Israel, UTC, and one zone either side of it — the four cases that used to
@@ -38,26 +39,6 @@ import type { ITransaction } from '../../../../../Transactions.js';
  * there. Only an east-of-Israel zone can catch that direction.
  */
 const ZONES = ['Asia/Jerusalem', 'UTC', 'America/Los_Angeles', 'Asia/Tokyo'] as const;
-
-/**
- * Run one probe with the global moment default moved, then put back exactly
- * the default that was in force before — `setDefault()` with no argument
- * resets to the process zone, which is not necessarily what we displaced.
- * `moment().tz()` reports the default a bare moment inherits, and is
- * `undefined` when none is set, which is precisely the reset argument.
- * @param zone - Ambient zone to impersonate.
- * @param run - Probe to evaluate.
- * @returns Whatever the probe returned.
- */
-function underZone<T>(zone: string, run: () => T): T {
-  const previous = moment().tz();
-  moment.tz.setDefault(zone);
-  try {
-    return run();
-  } finally {
-    moment.tz.setDefault(previous);
-  }
-}
 
 /**
  * Evaluate one probe once per ambient zone.
@@ -76,6 +57,22 @@ function acrossZones<T>(run: () => T): T[] {
 function txnOn(raw: string): ITransaction {
   const date = parseAutoDate(raw);
   return { date, processedDate: date } as unknown as ITransaction;
+}
+
+/**
+ * Render a zone-less calendar day through the bank calendar.
+ * @returns The day and time it resolves to in the bank's zone.
+ */
+function renderBare(): string {
+  return bankMomentOfInstant('2026-02-09').format('YYYY-MM-DD HH:mm');
+}
+
+/**
+ * Render the same instant expressed with an explicit offset.
+ * @returns The day and time it resolves to in the bank's zone.
+ */
+function renderInstant(): string {
+  return bankMomentOfInstant('2026-02-08T22:00:00.000Z').format('YYYY-MM-DD HH:mm');
 }
 
 describe('parseAutoDate/is host-independent', () => {
@@ -248,5 +245,36 @@ describe('bankDayOfInstant/refuses to invent a day', () => {
     const isNaNGap = Number.isNaN(seen.gapDays);
     expect(seen.verdict).toBe('unproven');
     expect(isNaNGap).toBe(false);
+  });
+  /**
+   * ISO-8601 allows a value to carry no offset, and a zone-less value has to be
+   * resolved against *some* zone. Resolving it against the host's made the same
+   * argument name different calendar days on different machines: read from
+   * UTC+14 a bare `2026-02-09` landed on `2026-02-08`, which inflated a window
+   * gap by a day and turned a covered window into a spurious backfill ask.
+   */
+  it('reads a zone-less calendar day in the bank zone, not the host zone', () => {
+    const seen = ZONES.map((z): string => underZone(z, (): string => renderBare()));
+    const expected = ZONES.map((): string => '2026-02-09 00:00');
+    expect(seen).toEqual(expected);
+  });
+
+  /**
+   * The guard above must not be bought by re-interpreting values that were
+   * already unambiguous — everything `toISOString()` emits carries `Z`, and the
+   * offset has to keep winning.
+   */
+  it('leaves an offset-bearing instant untouched on every host', () => {
+    const seen = ZONES.map((z): string => underZone(z, (): string => renderInstant()));
+    const expected = ZONES.map((): string => '2026-02-09 00:00');
+    expect(seen).toEqual(expected);
+  });
+
+  it('reports the same calendar day for a zone-less start on every host', () => {
+    const seen = ZONES.map((z): unknown =>
+      underZone(z, (): unknown => bankDayOfInstant('2026-02-09')),
+    );
+    const expected = ZONES.map((): unknown => '2026-02-09');
+    expect(seen).toEqual(expected);
   });
 });

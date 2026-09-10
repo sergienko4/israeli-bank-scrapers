@@ -23,8 +23,8 @@
  */
 
 import { jest } from '@jest/globals';
-import moment from 'moment-timezone';
 
+import { underZone } from '../../../../Helpers/AmbientZone.js';
 import type { IWindowNarrowingCase } from './WindowNarrowingFixtures.js';
 import {
   ctxSpanning,
@@ -62,32 +62,6 @@ beforeEach(() => {
 afterEach(() => {
   jest.useRealTimers();
 });
-
-/**
- * Impersonate a host in `zone` for the duration of one probe.
- *
- * <p>Both halves matter and they are separate mechanisms: `moment.tz.setDefault`
- * moves moment's ambient zone, while `process.env.TZ` moves native `Date`'s.
- * A renderer built on `new Date(y, m, d)` / `getFullYear()` is invisible to the
- * first and only the second catches it — moving one alone lets half the
- * host-dependence in this codebase pass vacuously.
- *
- * @param zone - Ambient zone to impersonate.
- * @param run - Probe to evaluate.
- * @returns Whatever the probe returned.
- */
-function underZone<T>(zone: string, run: () => T): T {
-  const previousMoment = moment().tz();
-  const previousEnv = process.env.TZ ?? 'Asia/Jerusalem';
-  moment.tz.setDefault(zone);
-  process.env.TZ = zone;
-  try {
-    return run();
-  } finally {
-    moment.tz.setDefault(previousMoment);
-    process.env.TZ = previousEnv;
-  }
-}
 
 /**
  * Render one bank's walk once per ambient zone.

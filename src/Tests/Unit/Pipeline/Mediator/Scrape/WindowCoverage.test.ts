@@ -104,7 +104,7 @@ describe('assessWindowCoverage', () => {
     // The caller holds `options.startDate` as a Date, so the start arrives as a
     // UTC instant. Reducing only one side to a calendar day would truncate the
     // difference by a partial day and understate the gap by one.
-    const start = new Date(2026, 1, 9).toISOString();
+    const start = new Date('2026-02-09T12:00:00Z').toISOString();
     const result = assess(start, [poalimRow('20260414')]);
     expect(result.oldest).toBe('2026-04-14');
     expect(result.gapDays).toBe(64);

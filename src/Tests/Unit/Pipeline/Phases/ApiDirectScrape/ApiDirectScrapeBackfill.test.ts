@@ -15,6 +15,7 @@
 import { jest } from '@jest/globals';
 
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import { bankMomentOfInstant } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
 import type { IEvidenceLedger } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
 import { makeEvidenceLedger } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
 import { classifyWindowCoverage } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/WindowCoverageVerdict.js';
@@ -68,18 +69,19 @@ const REPLIES: Record<string, readonly IRow[]> = {
 
 /**
  * Render a bound as the calendar day the provider would key on.
+ *
+ * <p>Rendered in the bank's calendar, not the host's. The bound is an absolute
+ * instant that the shapes format through `bankMomentOfInstant`, so a helper
+ * that reads it back with local `Date` getters asserts the runner's timezone
+ * rather than the behaviour. `jest.config.js` pins TZ=Asia/Jerusalem but
+ * `jest.pipeline.config.cjs` does not, so an ambient read here passes locally
+ * and reports the wrong day on a host east of Israel.
  * @param ctx - Action context carrying the current window bound.
- * @returns The bound's local calendar day, or `none` on the first ask.
+ * @returns The bound's bank-calendar day, or `none` on the first ask.
  */
 function boundKey(ctx: IActionContext): string {
   if (!ctx.windowEnd.has) return 'none';
-  const when = ctx.windowEnd.value;
-  const monthIndex = when.getMonth();
-  const dayOfMonth = when.getDate();
-  const fullYear = when.getFullYear();
-  const month = String(monthIndex + 1).padStart(2, '0');
-  const day = String(dayOfMonth).padStart(2, '0');
-  return `${String(fullYear)}-${month}-${day}`;
+  return bankMomentOfInstant(ctx.windowEnd.value).format('YYYY-MM-DD');
 }
 
 /**

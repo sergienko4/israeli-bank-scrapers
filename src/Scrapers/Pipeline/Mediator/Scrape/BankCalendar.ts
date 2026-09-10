@@ -83,13 +83,26 @@ export function parseInBankZone(
 /**
  * Read an already-resolved instant in the bank's calendar.
  *
- * @param value - ISO-8601 instant, or a `Date`.
+ * <p>A `Date` is an unambiguous instant, so it only needs re-expressing. A
+ * string may not be: ISO-8601 permits a value with no offset (`2026-02-09`,
+ * `2026-02-09T00:00:00`), and plain `moment(value, ISO_8601)` resolves those
+ * against the *host's* zone. That made the same argument name different
+ * calendar days on different machines — read from UTC+14 a bare `2026-02-09`
+ * became `2026-02-08`, inflating a window gap by a day and turning a covered
+ * window into a spurious backfill ask.
+ *
+ * <p>Parsing through the zone instead pins a zone-less value to the bank's
+ * calendar. A value that *does* carry an offset (everything `toISOString()`
+ * produces) is unaffected — the offset still wins, so this is a no-op for
+ * already-unambiguous input.
+ *
+ * @param value - ISO-8601 instant or calendar day, or a `Date`.
  * @param strict - Whether a string must match ISO-8601 exactly.
  * @returns Moment fixed to the bank zone; may be invalid.
  */
 export function bankMomentOfInstant(value: string | Date, strict = false): moment.Moment {
-  const parsed = value instanceof Date ? moment(value) : moment(value, moment.ISO_8601, strict);
-  return parsed.tz(BANK_CALENDAR_TIMEZONE);
+  if (value instanceof Date) return moment(value).tz(BANK_CALENDAR_TIMEZONE);
+  return moment.tz(value, moment.ISO_8601, strict, BANK_CALENDAR_TIMEZONE);
 }
 
 /**

@@ -8,6 +8,7 @@
  * These cases pin every exit.
  */
 
+import { bankMomentOfInstant } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
 import type { IWindowResult } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/WindowCoverage.js';
 import {
   type IBackfillPlanArgs,
@@ -47,20 +48,28 @@ describe('planBackfill/asks again', () => {
     // resuming the day before would step over the rows it withheld. The
     // re-served rows are dropped by raw identity in dropOverlap.
     const bound = isSome(plan.nextEnd) ? plan.nextEnd.value : new Date(0);
-    const asDay = [bound.getFullYear(), bound.getMonth(), bound.getDate()];
-    expect(asDay).toEqual([2026, 3, 1]);
+    const asDay = bankMomentOfInstant(bound).format('YYYY-MM-DD');
+    expect(asDay).toBe('2026-04-01');
   });
 
   it('puts the bound at the end of that day, not its start', () => {
     // Seven of the eight backfillable banks render the bound day-granularly, to
     // which the time is invisible. Leumi puts it on the wire as an RFC-1123
     // instant, so a start-of-day bound would exclude that whole day.
+    //
+    // Read in the bank's calendar, never the host's. The bound is an absolute
+    // instant; `getHours()` reports 23 only where the host happens to be
+    // Israel, so an ambient read asserts the runner's timezone rather than the
+    // behaviour. `jest.config.js` pins TZ=Asia/Jerusalem but
+    // `jest.pipeline.config.cjs` does not, so an ambient read here passes
+    // locally and fails on a UTC CI runner.
     const args = argsFor();
     const plan = planBackfill(args);
     const fallback = new Date(0);
     const bound = isSome(plan.nextEnd) ? plan.nextEnd.value : fallback;
-    const hours = bound.getHours();
-    const minutes = bound.getMinutes();
+    const atBank = bankMomentOfInstant(bound);
+    const hours = atBank.hours();
+    const minutes = atBank.minutes();
     expect(hours).toBe(23);
     expect(minutes).toBe(59);
   });

@@ -46,7 +46,7 @@ function inBankZone(d: Date): moment.Moment {
  * @returns Start of that month in the bank's zone.
  */
 function bankMonthStart(year: number, month: number): moment.Moment {
-  return moment.tz({ year, month, day: 1 }, BANK_CALENDAR_TIMEZONE).startOf('day');
+  return moment.tz({ year, month, date: 1 }, BANK_CALENDAR_TIMEZONE).startOf('day');
 }
 
 /**
