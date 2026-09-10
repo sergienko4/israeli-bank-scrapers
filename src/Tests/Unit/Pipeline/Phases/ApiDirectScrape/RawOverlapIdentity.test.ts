@@ -17,6 +17,7 @@
 import { jest } from '@jest/globals';
 
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import { bankDayOfInstant } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
 import type { IEvidenceLedger } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
 import { makeEvidenceLedger } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
 import { classifyWindowCoverage } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/WindowCoverageVerdict.js';
@@ -36,6 +37,9 @@ import { makeMockContext, makeRecoverySessionStubs } from '../../Infrastructure/
 
 /** Start of the window the caller asks for. */
 const REQUESTED_START = new Date('2026-01-01T00:00:00Z');
+
+/** Stands in for "no upper bound yet" — later than any row this suite serves. */
+const UNBOUNDED_DAY = '2026-12-31';
 
 /**
  * One row exactly as it reaches the wire.
@@ -142,18 +146,19 @@ function reply(bound: string, cfg: IProviderCfg, calls: ICallCount): readonly IW
 
 /**
  * Read the bound off the context as YYYY-MM-DD, or the ledger's newest day.
+ *
+ * <p>The bound is an *end-of-day in the bank's calendar*, so the day it names
+ * is read in that calendar too. Host-local `Date` getters would name the next
+ * day east of Israel — `2026-03-01T21:59:59.999Z` is already the 2nd in
+ * `Pacific/Kiritimati` — which is the exact host-dependence this suite exists
+ * to rule out.
  * @param ctx - Action context carrying the (possibly unset) bound.
  * @returns Upper bound for this request.
  */
 function boundKey(ctx: IActionContext): string {
-  if (!ctx.windowEnd.has) return '2026-12-31';
-  const when = ctx.windowEnd.value;
-  const year = when.getFullYear();
-  const monthIndex = when.getMonth();
-  const dayOfMonth = when.getDate();
-  const m = String(monthIndex + 1).padStart(2, '0');
-  const d = String(dayOfMonth).padStart(2, '0');
-  return `${String(year)}-${m}-${d}`;
+  if (!ctx.windowEnd.has) return UNBOUNDED_DAY;
+  const named = bankDayOfInstant(ctx.windowEnd.value);
+  return named === false ? UNBOUNDED_DAY : named;
 }
 
 /**
