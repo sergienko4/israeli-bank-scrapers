@@ -293,7 +293,7 @@ and the three states answer three different questions:
 | ------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
 | `covered`           | the oldest row reaches the requested start, with nothing casting doubt on it                                   | `requestedStart`, `oldest`            |
 | `lowerBoundReached` | the oldest row reaches the requested start, but a loss channel reported or could not run — rows may be missing | `requestedStart`, `oldest`, `caveats` |
-| `unproven`          | the walk stopped without proving the window                                                                    | `reason`, `gapDays`                   |
+| `unproven`          | the walk stopped without proving the window                                                                    | `requestedStart`, `reason`, and `oldest` + `gapDays` when a row carried a date |
 
 `unproven` is a first-class answer, not a failure. A quiet account and a
 truncated one are indistinguishable in the data, so a verdict that had to pick
@@ -326,6 +326,34 @@ Three properties are deliberate:
 rather than wrapping the write in an `if`. That keeps the caveat name and the
 condition that earns it on the same line, where a reader can check one against
 the other.
+
+### Which pagination endings count as loss
+
+`isLossyTermination()`
+(`src/Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/TerminationEvidence.ts`)
+decides whether a walk's ending earns `paginationStoppedEarly`. It returns the
+branded `IsLossyTermination` rather than a bare `boolean`, per architecture
+Rule #15.
+
+`Pagination.ts` reports how a walk ended and nothing more; it says outright
+that callers who care about completeness map its codes into their own
+vocabulary. This is that mapping, kept on the coverage side so the paginator
+stays ignorant of window verdicts.
+
+Only `cursorRepeat` and `pageCeiling` are loss — the walk gave up on its own
+terms while the provider was still offering more. The other two are not:
+
+- `exhausted` is the provider saying it was finished.
+- `predicateStop` is the shape's own "we have enough" rule. For a window walk
+  it fires only once the rows held already reach past the requested start, so
+  it reports sufficiency. Counting it as loss would make `covered` unreachable
+  for every bank that declares a stop predicate — OneZero among them — and
+  publish the best available outcome as a qualified one on every run.
+
+Trusting the predicate costs nothing, because the date audit is an independent
+guard: a predicate that stopped the walk *before* the window was covered leaves
+the audit unsatisfied and the verdict becomes `unproven` on that evidence
+alone.
 
 ### Why classification is separated from the walk
 

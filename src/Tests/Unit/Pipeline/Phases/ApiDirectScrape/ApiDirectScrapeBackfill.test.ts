@@ -411,6 +411,71 @@ describe('collectAccountRows/a walk the paginator halted early', () => {
 });
 
 /**
+ * Read rows out of a reply while offering a fresh cursor.
+ *
+ * The walk has to be *able* to continue for the stop predicate to be what ends
+ * it: a page that reports itself final terminates as `exhausted` and never
+ * exercises the predicate at all.
+ *
+ * @param args - Extraction args bundle.
+ * @param args.body - The response payload this page came from.
+ * @returns The page's rows under a cursor that invites another round.
+ */
+function advancingExtractPage(args: { body: unknown }): {
+  items: readonly object[];
+  nextCursor: string;
+} {
+  const body = args.body as { items: readonly IRow[] };
+  return { items: body.items, nextCursor: 'more' };
+}
+
+/**
+ * Stop once the oldest row held already predates the requested start.
+ *
+ * OneZero's own predicate in miniature. It fires precisely when the window is
+ * provably covered, so it reports sufficiency — never loss.
+ *
+ * @param acc - Rows accumulated so far, oldest last.
+ * @returns True once the held rows reach past the requested start.
+ */
+function coveredStop(acc: readonly object[]): boolean {
+  const rows = acc as readonly IRow[];
+  const oldest = rows.at(-1);
+  if (oldest === undefined) return false;
+  const day = new Date(oldest.date);
+  return day < REQUESTED_START;
+}
+
+/** Shape that ends its walk on an intentional, correctness-driven stop. */
+const COVERED_STOP_SHAPE = {
+  ...SHAPE,
+  transactions: {
+    ...SHAPE.transactions,
+    extractPage: advancingExtractPage,
+    stop: coveredStop,
+  },
+} as unknown as IApiDirectScrapeShape<IAcct, string>;
+
+describe('collectAccountRows/a walk its own stop rule ended', () => {
+  it('ends on the predicate rather than on exhaustion', async () => {
+    const bus = makeBus([], { none: REACHING_ROWS });
+    const collected = await collect(bus, COVERED_STOP_SHAPE);
+    expect(collected.termination).toBe('predicateStop');
+  });
+
+  it('records no loss when the walk stopped because it had enough', async () => {
+    // The predicate fires only once the rows already reach past the requested
+    // start. Calling that "stopped early" would downgrade every clean OneZero
+    // window from `covered` to `lowerBoundReached` — the best outcome the
+    // scrape can reach, reported as a qualified one, on every single run.
+    const bus = makeBus([], { none: REACHING_ROWS });
+    const audit = await collectWithLedger(bus, COVERED_STOP_SHAPE);
+    const reported = audit.ledger.caveats();
+    expect(reported).toEqual([]);
+  });
+});
+
+/**
  * Replies whose first ask stops short and whose backfill round completes.
  *
  * The first ask returns one row, well inside the window, under a cursor the

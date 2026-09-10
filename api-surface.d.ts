@@ -293,7 +293,7 @@ interface IWindowUnproven {
     readonly status: 'unproven';
     /** What stopped the walk short of the requested start. */
     readonly reason: WindowUnprovenReason;
-    /** The start the caller asked for, ISO 8601, or the raw value when unreadable. */
+    /** The start the caller asked for, ISO 8601, or `'invalid-date'` when unreadable. */
     readonly requestedStart: string;
     /** The oldest row's calendar day, `YYYY-MM-DD` — absent when no row carried one. */
     readonly oldest?: string;

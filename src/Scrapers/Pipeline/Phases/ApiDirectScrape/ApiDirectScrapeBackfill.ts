@@ -16,6 +16,7 @@
  * predates the start.
  */
 
+import { isLossyTermination } from '../../Mediator/Scrape/CoverageAudit/TerminationEvidence.js';
 import type { IWindowResult } from '../../Mediator/Scrape/CoverageAudit/WindowCoverage.js';
 import { assessWindowCoverage } from '../../Mediator/Scrape/CoverageAudit/WindowCoverage.js';
 import type { WindowStop } from '../../Mediator/Scrape/CoverageAudit/WindowCoverageVerdict.js';
@@ -250,7 +251,8 @@ function stopAt<TAcct, TCursor>(
 ): ICollectedRows {
   const didAsk = state.attempt > 0;
   const isShort = window.stop !== 'covered';
-  a.ledger.noteWhen('paginationStoppedEarly', state.termination !== 'exhausted');
+  const isLossy = isLossyTermination(state.termination);
+  a.ledger.noteWhen('paginationStoppedEarly', isLossy);
   const isBackfillExhausted = didAsk && isShort;
   const termination = state.termination;
   return { rows: state.rows, isBackfillExhausted, termination, window };
