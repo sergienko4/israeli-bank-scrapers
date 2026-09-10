@@ -1081,10 +1081,13 @@ jobs:
   # baked into the Real A and Real B jobs themselves; if this job
   # is RED, those jobs will also fail at their DNS step.
   #
-  # Decoupled from the gate (no `needs:`) on purpose: occasionally
-  # the reviewer may want to approve E2E Real even when this
-  # preflight flaked (e.g. transient registry hiccup) — the gate
-  # stays unblocked. Treat the preflight as informational.
+  # The five group gates take a HARD `needs: [validate, dns-preflight]`
+  # dependency on this job (2026-05-17) and re-state it explicitly in
+  # their own `if:` — a RED preflight leaves them unapprovable rather
+  # than burning the E2E Real matrix on a guaranteed-DNS failure.
+  # An earlier revision of this comment called the preflight
+  # "informational" and "decoupled from the gate (no `needs:`)"; that
+  # stopped being true when the gates gained the dependency.
   # ──────────────────────────────────────────────────────────────
   dns-preflight:
     name: DNS Preflight (IL bank resolution)
@@ -1097,7 +1100,19 @@ jobs:
     # maintainer-owned branch: `full_suite` then unlocks them.
     # `real_gates_enabled` = trusted_event AND non-dependabot AND full_suite
     # (see .github/scripts/ci/compute-gate-booleans.sh for the predicate).
-    if: needs.validate.outputs.real_gates_enabled == 'true'
+    # `!cancelled()` is load-bearing: `validate` runs under `always()`, and a
+    # bare boolean `if:` here inherits the `skipped` GitHub propagates
+    # transitively whenever ANY of validate's conditional needs skipped (e.g.
+    # `portability-macos` on a PR touching no `.github/scripts/**`). Measured
+    # on branch `ci/skip-propagation-probe`: the dependent skipped while the
+    # aggregator was green and its output read 'true'.
+    # Opting out drops the implicit `success()`, so validate's result is
+    # re-stated explicitly — a red validate still blocks.
+    # Pinned by PrYamlGateHardening.test.ts [PR-YAML-SKIP-POISON].
+    if: >-
+      !cancelled() &&
+      needs.validate.result == 'success' &&
+      needs.validate.outputs.real_gates_enabled == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:
@@ -1118,7 +1133,21 @@ jobs:
     # burn the E2E Real matrix on guaranteed-DNS failures.
     needs: [validate, dns-preflight]
     # See dns-preflight comment for `real_gates_enabled` semantics.
-    if: needs.validate.outputs.real_gates_enabled == 'true'
+    # `!cancelled()` is load-bearing: `validate` runs under `always()`, and a
+    # bare boolean `if:` here inherits the `skipped` GitHub propagates
+    # transitively whenever ANY of validate's conditional needs skipped (e.g.
+    # `portability-macos` on a PR touching no `.github/scripts/**`). Measured
+    # on branch `ci/skip-propagation-probe`: the dependent skipped while the
+    # aggregator was green and its output read 'true'.
+    # Opting out drops the implicit `success()` over the WHOLE needs list, so
+    # every need is re-stated: omitting `dns-preflight` here would silently
+    # delete the HARD dependency documented above.
+    # Pinned by PrYamlGateHardening.test.ts [PR-YAML-SKIP-POISON].
+    if: >-
+      !cancelled() &&
+      needs.validate.result == 'success' &&
+      needs.dns-preflight.result == 'success' &&
+      needs.validate.outputs.real_gates_enabled == 'true'
     runs-on: ubuntu-latest
     # Per-group environment (2026-05-26): each gate references a
     # DISTINCT GitHub environment so the reviewer must click
@@ -1145,7 +1174,20 @@ jobs:
   e2e-real-group-a:
     name: E2E Real A (${{ matrix.bank }})
     needs: e2e-real-group-a-gate
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    # `!cancelled()` for the same reason as the gate above, and it is NOT
+    # redundant with it: the skip taint does not stop at a dependent that
+    # opted out and succeeded (measured: `ci/skip-propagation-probe` Q3).
+    # Without it these jobs stay skipped even after the reviewer approves,
+    # and the run still concludes green. The explicit gate-result check
+    # re-states the implicit `success()` that opting out drops, so approval
+    # stays mandatory before any real bank is scraped. The fork check is
+    # parenthesised — it is the credential boundary and must not re-bind.
+    # Pinned by PrYamlGateHardening.test.ts [PR-YAML-SKIP-POISON].
+    if: >-
+      !cancelled() &&
+      needs.e2e-real-group-a-gate.result == 'success' &&
+      (github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     # Non-OTP browser-form banks. Amex is no longer here — it now runs
     # in its OWN isolated Group D (`e2e-real-group-d` below) under a
@@ -1274,7 +1316,21 @@ jobs:
     # runner's resolver chain, so we never burn the Amex run on a
     # guaranteed-DNS failure. `real_gates_enabled` mirrors gate-A/B/C.
     needs: [validate, dns-preflight]
-    if: needs.validate.outputs.real_gates_enabled == 'true'
+    # `!cancelled()` is load-bearing: `validate` runs under `always()`, and a
+    # bare boolean `if:` here inherits the `skipped` GitHub propagates
+    # transitively whenever ANY of validate's conditional needs skipped (e.g.
+    # `portability-macos` on a PR touching no `.github/scripts/**`). Measured
+    # on branch `ci/skip-propagation-probe`: the dependent skipped while the
+    # aggregator was green and its output read 'true'.
+    # Opting out drops the implicit `success()` over the WHOLE needs list, so
+    # every need is re-stated: omitting `dns-preflight` here would silently
+    # delete the HARD dependency documented above.
+    # Pinned by PrYamlGateHardening.test.ts [PR-YAML-SKIP-POISON].
+    if: >-
+      !cancelled() &&
+      needs.validate.result == 'success' &&
+      needs.dns-preflight.result == 'success' &&
+      needs.validate.outputs.real_gates_enabled == 'true'
     runs-on: ubuntu-latest
     # DISTINCT environment `e2e-real-group-d` → one approval click for
     # Amex alone. Auto-creates WITHOUT reviewers on first run (passes
@@ -1291,7 +1347,20 @@ jobs:
   e2e-real-group-d:
     name: E2E Real D (${{ matrix.bank }})
     needs: e2e-real-group-d-gate
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    # `!cancelled()` for the same reason as the gate above, and it is NOT
+    # redundant with it: the skip taint does not stop at a dependent that
+    # opted out and succeeded (measured: `ci/skip-propagation-probe` Q3).
+    # Without it these jobs stay skipped even after the reviewer approves,
+    # and the run still concludes green. The explicit gate-result check
+    # re-states the implicit `success()` that opting out drops, so approval
+    # stays mandatory before any real bank is scraped. The fork check is
+    # parenthesised — it is the credential boundary and must not re-bind.
+    # Pinned by PrYamlGateHardening.test.ts [PR-YAML-SKIP-POISON].
+    if: >-
+      !cancelled() &&
+      needs.e2e-real-group-d-gate.result == 'success' &&
+      (github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 25
     # Serialize same-bank runs repo-wide (see e2e-real-group-a above).
@@ -1424,7 +1493,21 @@ jobs:
     # run in parallel under one approval.
     needs: [validate, dns-preflight]
     # See dns-preflight comment for `real_gates_enabled` semantics.
-    if: needs.validate.outputs.real_gates_enabled == 'true'
+    # `!cancelled()` is load-bearing: `validate` runs under `always()`, and a
+    # bare boolean `if:` here inherits the `skipped` GitHub propagates
+    # transitively whenever ANY of validate's conditional needs skipped (e.g.
+    # `portability-macos` on a PR touching no `.github/scripts/**`). Measured
+    # on branch `ci/skip-propagation-probe`: the dependent skipped while the
+    # aggregator was green and its output read 'true'.
+    # Opting out drops the implicit `success()` over the WHOLE needs list, so
+    # every need is re-stated: omitting `dns-preflight` here would silently
+    # delete the HARD dependency documented above.
+    # Pinned by PrYamlGateHardening.test.ts [PR-YAML-SKIP-POISON].
+    if: >-
+      !cancelled() &&
+      needs.validate.result == 'success' &&
+      needs.dns-preflight.result == 'success' &&
+      needs.validate.outputs.real_gates_enabled == 'true'
     runs-on: ubuntu-latest
     # Distinct environment per the gate-A comment above — each
     # group's approval click is independent.
@@ -1439,7 +1522,20 @@ jobs:
   e2e-real-group-b:
     name: E2E Real B (${{ matrix.bank }})
     needs: e2e-real-group-b-gate
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    # `!cancelled()` for the same reason as the gate above, and it is NOT
+    # redundant with it: the skip taint does not stop at a dependent that
+    # opted out and succeeded (measured: `ci/skip-propagation-probe` Q3).
+    # Without it these jobs stay skipped even after the reviewer approves,
+    # and the run still concludes green. The explicit gate-result check
+    # re-states the implicit `success()` that opting out drops, so approval
+    # stays mandatory before any real bank is scraped. The fork check is
+    # parenthesised — it is the credential boundary and must not re-bind.
+    # Pinned by PrYamlGateHardening.test.ts [PR-YAML-SKIP-POISON].
+    if: >-
+      !cancelled() &&
+      needs.e2e-real-group-b-gate.result == 'success' &&
+      (github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # Serialize same-bank runs repo-wide. Critical for Hapoalim:
@@ -1541,7 +1637,21 @@ jobs:
     # rationale (per-group approval, no inter-group ordering).
     needs: [validate, dns-preflight]
     # See dns-preflight comment for `real_gates_enabled` semantics.
-    if: needs.validate.outputs.real_gates_enabled == 'true'
+    # `!cancelled()` is load-bearing: `validate` runs under `always()`, and a
+    # bare boolean `if:` here inherits the `skipped` GitHub propagates
+    # transitively whenever ANY of validate's conditional needs skipped (e.g.
+    # `portability-macos` on a PR touching no `.github/scripts/**`). Measured
+    # on branch `ci/skip-propagation-probe`: the dependent skipped while the
+    # aggregator was green and its output read 'true'.
+    # Opting out drops the implicit `success()` over the WHOLE needs list, so
+    # every need is re-stated: omitting `dns-preflight` here would silently
+    # delete the HARD dependency documented above.
+    # Pinned by PrYamlGateHardening.test.ts [PR-YAML-SKIP-POISON].
+    if: >-
+      !cancelled() &&
+      needs.validate.result == 'success' &&
+      needs.dns-preflight.result == 'success' &&
+      needs.validate.outputs.real_gates_enabled == 'true'
     runs-on: ubuntu-latest
     # Distinct environment per the gate-A comment above — each
     # group's approval click is independent.
@@ -1556,7 +1666,20 @@ jobs:
   e2e-real-group-c:
     name: E2E Real C (${{ matrix.bank }})
     needs: e2e-real-group-c-gate
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    # `!cancelled()` for the same reason as the gate above, and it is NOT
+    # redundant with it: the skip taint does not stop at a dependent that
+    # opted out and succeeded (measured: `ci/skip-propagation-probe` Q3).
+    # Without it these jobs stay skipped even after the reviewer approves,
+    # and the run still concludes green. The explicit gate-result check
+    # re-states the implicit `success()` that opting out drops, so approval
+    # stays mandatory before any real bank is scraped. The fork check is
+    # parenthesised — it is the credential boundary and must not re-bind.
+    # Pinned by PrYamlGateHardening.test.ts [PR-YAML-SKIP-POISON].
+    if: >-
+      !cancelled() &&
+      needs.e2e-real-group-c-gate.result == 'success' &&
+      (github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # Serialize same-bank runs repo-wide. Cooldown step below adds a
@@ -1703,7 +1826,21 @@ jobs:
     # Same HARD dependency on `dns-preflight` as the other gates.
     needs: [validate, dns-preflight]
     # See dns-preflight comment for `real_gates_enabled` semantics.
-    if: needs.validate.outputs.real_gates_enabled == 'true'
+    # `!cancelled()` is load-bearing: `validate` runs under `always()`, and a
+    # bare boolean `if:` here inherits the `skipped` GitHub propagates
+    # transitively whenever ANY of validate's conditional needs skipped (e.g.
+    # `portability-macos` on a PR touching no `.github/scripts/**`). Measured
+    # on branch `ci/skip-propagation-probe`: the dependent skipped while the
+    # aggregator was green and its output read 'true'.
+    # Opting out drops the implicit `success()` over the WHOLE needs list, so
+    # every need is re-stated: omitting `dns-preflight` here would silently
+    # delete the HARD dependency documented above.
+    # Pinned by PrYamlGateHardening.test.ts [PR-YAML-SKIP-POISON].
+    if: >-
+      !cancelled() &&
+      needs.validate.result == 'success' &&
+      needs.dns-preflight.result == 'success' &&
+      needs.validate.outputs.real_gates_enabled == 'true'
     runs-on: ubuntu-latest
     # Distinct environment per the gate-A comment above — each
     # group's approval click is independent.
@@ -1718,7 +1855,20 @@ jobs:
   e2e-real-group-e:
     name: E2E Real E (${{ matrix.bank }})
     needs: e2e-real-group-e-gate
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    # `!cancelled()` for the same reason as the gate above, and it is NOT
+    # redundant with it: the skip taint does not stop at a dependent that
+    # opted out and succeeded (measured: `ci/skip-propagation-probe` Q3).
+    # Without it these jobs stay skipped even after the reviewer approves,
+    # and the run still concludes green. The explicit gate-result check
+    # re-states the implicit `success()` that opting out drops, so approval
+    # stays mandatory before any real bank is scraped. The fork check is
+    # parenthesised — it is the credential boundary and must not re-bind.
+    # Pinned by PrYamlGateHardening.test.ts [PR-YAML-SKIP-POISON].
+    if: >-
+      !cancelled() &&
+      needs.e2e-real-group-e-gate.result == 'success' &&
+      (github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     # Serialize same-bank runs repo-wide (see e2e-real-group-a above).
