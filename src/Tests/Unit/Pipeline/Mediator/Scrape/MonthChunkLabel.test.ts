@@ -11,10 +11,18 @@
  * <p>These probes do not move the ambient zone. `jest.config.js` says plainly
  * that "reassigning `TZ` from inside a test does not work" — workers honour it
  * at startup — so a runtime zone swap would prove nothing about native `Date`.
- * Instead each stamp is chosen so that reading it as an instant lands in a
- * *different* month from the day it names, on one side of UTC or the other.
- * Whichever side the host running these tests sits on, one of the two catches
- * an implementation that consults the instant.
+ *
+ * <p>Nor is it enough to pick inputs whose instant month differs from their
+ * label month: CI runs this suite under `jest.pipeline.config.cjs`, which pins
+ * no zone, so it executes in the runner's UTC. In UTC the two readings agree
+ * *by construction* — the label is the UTC date part of the stamp — so no
+ * choice of input can tell them apart there, and a zone-sensitive probe is
+ * vacuous on exactly the machine that has to catch the regression.
+ *
+ * <p>So the invariant is asserted directly instead: the reader must not consult
+ * the ambient clock at all. {@link withoutDate} swaps `Date` for a stand-in
+ * that reports 1999, which fails an instant-reading implementation in every
+ * zone, UTC included.
  */
 
 import type { IMonthChunk } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/MonthChunking.js';
@@ -51,7 +59,57 @@ function monthOf(chunk: IMonthChunk): string {
   return `${String(year)}-${String(month).padStart(2, '0')}`;
 }
 
+/**
+ * What a tampered clock reports: a moment far from anything this suite uses, so
+ * an implementation that reads the instant produces an obviously wrong month
+ * rather than an accidentally right one.
+ */
+const CLOCK_SENTINEL = {
+  /**
+   * Report a year no chunk in this suite names.
+   * @returns 1999.
+   */
+  getFullYear: (): number => 1999,
+  /**
+   * Report a month no chunk in this suite names.
+   * @returns January, zero-indexed as the real `Date` reports it.
+   */
+  getMonth: (): number => 0,
+};
+
+/**
+ * Stand-in for `Date`. A constructor that returns an object yields that object,
+ * so `new Date(anything)` becomes the sentinel.
+ * @returns The sentinel clock.
+ */
+function tamperedClock(): object {
+  return CLOCK_SENTINEL;
+}
+
+/**
+ * Take the ambient clock away for the duration of one call, so that reading a
+ * chunk through `new Date(...)` reports 1999 instead of quietly answering in
+ * the host's zone. Unlike a zone swap this discriminates in every zone, UTC
+ * included — which is the zone CI actually runs in.
+ * @param run - Probe to evaluate against the tampered clock.
+ * @returns Whatever the probe returned.
+ */
+function withoutDate<T>(run: () => T): T {
+  const realDate = globalThis.Date;
+  globalThis.Date = tamperedClock as unknown as DateConstructor;
+  try {
+    return run();
+  } finally {
+    globalThis.Date = realDate;
+  }
+}
+
 describe('month chunk/the month a chunk names', () => {
+  it('never consults the ambient clock', () => {
+    const named = withoutDate((): string => monthOf(FIRST_OF_MARCH));
+    expect(named).toBe('2026-03');
+  });
+
   it('reads the day it names, not the instant it parses as', () => {
     const seen = [monthOf(FIRST_OF_MARCH), monthOf(LAST_OF_MARCH)];
     expect(seen).toEqual(['2026-03', '2026-03']);

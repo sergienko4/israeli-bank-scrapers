@@ -444,11 +444,20 @@ It now returns an `IPaginatedWalk<TItem>`: the `items`, plus a
 | `pageCeiling`           | our own `MAX_PAGES` guard fired         |
 | `predicateStop`         | the caller's stop predicate asked it to |
 
-Only `exhausted` is evidence about the provider's data. The other three are
-facts about **our** limits, and a window that ends on one of them has not been
-proven — it has merely been abandoned. The pagination module deliberately does
-not know what its caller does with the code; it reports the exit and nothing
-more.
+Only `exhausted` is evidence about the provider's data. `cursorRepeat` and
+`pageCeiling` are facts about **our** limits: a window that ends on one of them
+has not been proven, it has merely been abandoned.
+
+`predicateStop` is neither. It is the shape's own "we have enough" rule, so it
+reports sufficiency rather than loss — see [Which pagination endings count as
+loss](#which-pagination-endings-count-as-loss). It carries no doubt of its own,
+and the independent start-date audit decides the verdict: a predicate that fired
+before the window was covered leaves that audit unsatisfied and the account is
+`unproven` on those grounds alone, while one that fired after it can still
+produce `covered`.
+
+The pagination module deliberately does not know what its caller does with the
+code; it reports the exit and nothing more.
 
 ### Where the verdict is attached
 
