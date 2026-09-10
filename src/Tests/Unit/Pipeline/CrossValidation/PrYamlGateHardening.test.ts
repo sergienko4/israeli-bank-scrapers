@@ -370,7 +370,7 @@ describe('PrYamlGateHardening — the real-bank gates keep their access controls
     const doc = loadPrYaml();
     const gates = jobEntries(doc).filter(([key]): boolean => REAL_GATE_KEYS.test(key));
 
-    expect(gates.length).toBe(6);
+    expect(gates).toHaveLength(6);
     for (const [key, job] of gates) {
       const condition = conditionOf(job);
       const expected = "needs.validate.outputs.real_gates_enabled == 'true'";
@@ -386,8 +386,8 @@ describe('PrYamlGateHardening — the real-bank gates keep their access controls
     const named = environments.filter((name): boolean => typeof name === 'string');
     const unique = new Set(named);
 
-    expect(gates.length).toBe(5);
-    expect(named.length).toBe(gates.length);
+    expect(gates).toHaveLength(5);
+    expect(named).toHaveLength(gates.length);
     expect(unique.size).toBe(gates.length);
   });
 
@@ -395,7 +395,7 @@ describe('PrYamlGateHardening — the real-bank gates keep their access controls
     const doc = loadPrYaml();
     const matrices = jobEntries(doc).filter(([key]): boolean => REAL_MATRIX_KEYS.test(key));
 
-    expect(matrices.length).toBe(5);
+    expect(matrices).toHaveLength(5);
     for (const [key, job] of matrices) {
       const condition = conditionOf(job);
       const hasForkCheck = requiresConjunct(condition, FORK_CONJUNCT);
