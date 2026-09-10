@@ -19,8 +19,9 @@
  * site, so adding a fifth issuer needs no change here.
  */
 
-import moment from 'moment';
+import type moment from 'moment';
 
+import { bankMomentOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
 import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
@@ -42,11 +43,18 @@ export type TBillingMonth = Brand<string, 'CardBillingMonth'>;
 /**
  * First billing month of the scrape window (from ScraperOptions.startDate).
  *
+ * <p>Read in the bank's zone, not the host's. The caller supplies an instant;
+ * the provider expects the bank-calendar day it falls on. Formatting it
+ * ambiently names the previous day west of Israel (harmless over-fetch) and
+ * the *next* day east of it — which never asks for the caller's first day and
+ * leaves a gap no backfill can close, because the gap is at the far end.
+ * For an issuer that is a whole billing cycle, not a day.
+ *
  * @param ctx - Action context.
  * @returns Start-of-month moment for the window start.
  */
 export function startMonth(ctx: IActionContext): moment.Moment {
-  return moment(ctx.options.startDate).startOf('month');
+  return bankMomentOfInstant(ctx.options.startDate).startOf('month');
 }
 
 /**
@@ -119,7 +127,10 @@ function effectiveFutureMonths(ctx: IActionContext, floor?: number): number {
 export function lastOffset(ctx: IActionContext, floor?: number): TMonthOffset {
   const future = effectiveFutureMonths(ctx, floor);
   const windowEnd = scrapeWindowEnd(ctx);
-  const end = moment(windowEnd).add(future, 'months').startOf('month');
+  // Both operands in the bank's zone. Anchoring only one of them would make
+  // `diff` compare month starts across zones and floor away the terminal
+  // billing month — a whole cycle of transactions, silently.
+  const end = bankMomentOfInstant(windowEnd).add(future, 'months').startOf('month');
   const start = startMonth(ctx);
   return end.diff(start, 'months') as TMonthOffset;
 }

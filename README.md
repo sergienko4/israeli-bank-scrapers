@@ -221,6 +221,11 @@ Every bank — browser or API-direct — returns the same `IScraperScrapingResul
     {
       "accountNumber": "12-345-678901234",
       "balance": 15234.5,
+      "windowCoverage": {
+        "status": "covered",
+        "requestedStart": "2024-01-01T00:00:00.000Z",
+        "oldest": "2024-01-01"
+      },
       "txns": [
         {
           "type": "normal",
@@ -242,6 +247,47 @@ Every bank — browser or API-direct — returns the same `IScraperScrapingResul
 Optional fields — `memo`, `category`, `installments`, `chargedCurrency`,
 `rawTransaction` — appear when the bank supplies them. `futureDebits`,
 `persistentOtpToken`, and `diagnostics` sit alongside `accounts`.
+
+`futureDebits` is **never populated**. It is part of the upstream result shape
+and is kept for compatibility; no scraper in this package writes to it. Read it
+as "not available", not as "this account has no upcoming debits".
+
+`diagnostics` is populated only by the browser-based scrapers. The API-direct
+pipeline reports through `windowCoverage` instead — see below.
+
+### Did you get the whole window? (`windowCoverage`)
+
+A short transaction list has two very different causes: the bank genuinely had
+nothing older, or the scrape stopped early. Both arrive as `success: true`, and
+until you ask, they look identical. Every API-direct account carries a
+`windowCoverage` verdict saying which one happened:
+
+| `status` | What it means | What to do |
+| --- | --- | --- |
+| `covered` | The oldest row reaches your `startDate`, and every loss channel the scrape watches came back clean. | Nothing. |
+| `lowerBoundReached` | The oldest row reaches your `startDate`, but a channel reported loss. `caveats` names which. | Treat the list as possibly incomplete. |
+| `unproven` | Your `startDate` was never reached. `reason` says what stopped the walk. | Re-run, or narrow the window. |
+
+```ts
+for (const account of result.accounts ?? []) {
+  const coverage = account.windowCoverage;
+  if (coverage?.status === 'unproven') {
+    console.warn(`${account.accountNumber}: only back to ${coverage.oldest ?? 'unknown'} — ${coverage.reason}`);
+  }
+}
+```
+
+**What `covered` does not promise.** It proves the window's *far edge* was
+reached and that nothing the scrape can observe reported loss on the way. It
+does **not** prove that no row in the *middle* of the window was dropped
+without leaving a trace. Detecting that needs provider-side totals that Israeli
+banks do not send. Where a provider does declare a row count, the scrape checks
+it and downgrades to `lowerBoundReached` on a shortfall; where it declares
+nothing, there is nothing to check against. `covered` means "we reached the
+edge and saw no loss", never "nothing was lost".
+
+The field is absent on browser-based scrapers, which have no equivalent walk to
+audit — so check for its presence rather than assuming it.
 
 ### The same data, on disk
 

@@ -153,4 +153,17 @@ describe('planBackfill/kill switch', () => {
     const plan = planBackfill(args);
     expect(plan.shouldAsk).toBe(true);
   });
+
+  it('still calls a covered window covered, switch or no switch', () => {
+    // Precedence matters beyond the log line: the coverage classifier reads
+    // this code, so reporting a covered window as "switched off" would put an
+    // account in doubt that the audit had just proved complete.
+    process.env.WINDOW_BACKFILL = 'off';
+    const coverage: IWindowResult = { verdict: 'covered', oldest: '2025-12-25', gapDays: 0 };
+    const args = argsFor({ coverage });
+    const plan = planBackfill(args);
+    expect(plan.shouldAsk).toBe(false);
+    const stop = plan.shouldAsk ? 'asking' : plan.stop;
+    expect(stop).toBe('covered');
+  });
 });

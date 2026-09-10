@@ -322,6 +322,25 @@ describe('createApiDirectScrapePhase ApiDirectScrape REST flow', () => {
     expect(scr.value.accounts[0].balance).toBe(4242);
   });
 
+  it('ADS-REST-1b gives every account it returns a window verdict', async () => {
+    // The verdict is the whole point of the audit: computing it and then
+    // dropping it on the floor between the walk and the account is exactly
+    // the defect issue #553 reports. Assert on own-property presence, because
+    // an `undefined` value would satisfy an optional-field read while telling
+    // a caller nothing.
+    const router = makeHappyRouter();
+    const bus = makeRestBus(router, []);
+    const ctx = makeRestCtx(bus);
+    const shape = makeRestShape();
+    const phase = createApiDirectScrapePhase(shape);
+    const result = await phase(ctx);
+    assertOk(result);
+    const scr = result.value.scrape;
+    assertHas(scr);
+    const carried = scr.value.accounts.map((a): boolean => 'windowCoverage' in a);
+    expect(carried).toEqual([true]);
+  });
+
   it('ADS-REST-2 every captured body hydrates carry.bearerSlot from session-context', async () => {
     const captures: IPostCapture[] = [];
     const router = makeHappyRouter();

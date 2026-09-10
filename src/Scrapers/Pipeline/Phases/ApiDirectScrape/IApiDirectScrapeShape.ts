@@ -26,6 +26,7 @@ import type {
   JsonValueTemplate,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IDeclaredRowSpec } from '../../Mediator/Scrape/CoverageAudit/DeclaredRows.js';
+import type { IEvidenceLedger } from '../../Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
@@ -222,6 +223,15 @@ export interface IExtractPageArgs<TAcct, TCursor> {
   readonly cursor: TCursor | false;
   readonly acct: TAcct;
   readonly ctx: IActionContext;
+  /**
+   * Where a shape-level guardrail reports row loss it alone can detect.
+   *
+   * Optional because most shapes have nothing to say and every existing test
+   * fixture predates it; the pipeline always supplies one. A shape that owns
+   * an ordering or completeness guard notes into it instead of only logging,
+   * which is what lets the account's coverage verdict see the guard's finding.
+   */
+  readonly ledger?: IEvidenceLedger;
 }
 
 /**

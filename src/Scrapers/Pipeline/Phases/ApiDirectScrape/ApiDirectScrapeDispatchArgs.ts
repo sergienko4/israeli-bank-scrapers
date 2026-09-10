@@ -7,6 +7,7 @@
  */
 
 import type { IApiMediator, IApiQueryOpts } from '../../Mediator/Api/ApiMediator.js';
+import type { IEvidenceLedger } from '../../Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { IDispatchArgs } from './ApiDirectScrapeDispatch.js';
@@ -30,6 +31,14 @@ export interface IDriverCtx<TAcct, TCursor> {
 /** Per-account context — driver context + current account. */
 export interface IAcctCtx<TAcct, TCursor> extends IDriverCtx<TAcct, TCursor> {
   readonly acct: TAcct;
+  /**
+   * Where this account's guardrails report what they saw.
+   *
+   * One per account, never shared. Required rather than optional so a new
+   * call site that forgets to open one is a compile error rather than an
+   * account whose evidence silently vanishes.
+   */
+  readonly ledger: IEvidenceLedger;
 }
 
 /**

@@ -4,6 +4,7 @@ import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
 import type { ITransaction, ITransactionsAccount } from '../../Transactions.js';
 import { CI_BROWSER_ARGS } from '../Config/TestTimingConfig.js';
+import { assertWindowCoverage } from './WindowCoverageGate.js';
 
 /**
  * Playwright internal teardown error: `_Page.addPageError` (in
@@ -156,6 +157,12 @@ function assertNonZeroTotalTxns(accounts: readonly ITransactionsAccount[]): true
  * across the whole 180-day window is treated as a regression — not a
  * "no recent activity" pass — because every CI bank has historical txn
  * activity inside the default look-back window.
+ *
+ * <p>Also asserts every account published a window-coverage verdict. Counting
+ * transactions cannot tell a full window from a truncated one — a scrape that
+ * returned 30 days of a 180-day request satisfied every assertion here before
+ * this was added, which is why issue #553 went unnoticed by a green CI.
+ *
  * @param result - the scraper result to validate
  * @returns true when all assertions pass
  */
@@ -165,8 +172,18 @@ export function assertSuccessfulScrape(result: IScraperScrapingResult): boolean 
   expect(result.accounts).toBeDefined();
   const accounts = result.accounts ?? [];
   expect(accounts.length).toBeGreaterThan(0);
+  return assertAccountsUsable(accounts);
+}
+
+/**
+ * Assert the accounts themselves carry usable, window-complete data.
+ * @param accounts - non-empty accounts slice from the scraper result
+ * @returns true when every account assertion passes
+ */
+function assertAccountsUsable(accounts: readonly ITransactionsAccount[]): boolean {
   for (const account of accounts) assertAccountValid(account);
   assertNonZeroTotalTxns(accounts);
+  assertWindowCoverage(accounts);
   return true;
 }
 

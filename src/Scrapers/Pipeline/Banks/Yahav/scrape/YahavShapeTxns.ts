@@ -39,6 +39,10 @@ export function txnsUrl(): WKUrlOrLiteral {
 /**
  * Month chunks spanning `[startDate, today]` — never empty (a degenerate
  * future startDate falls back to a single today chunk).
+ *
+ * <p>The bound is handed over as a raw instant: `generateMonthChunks` names
+ * bank-calendar days itself, so re-anchoring it here would apply the bank's
+ * zone twice.
  * @param ctx - Action context (carries startDate).
  * @returns Ordered month chunks.
  */

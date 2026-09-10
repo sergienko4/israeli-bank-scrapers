@@ -1,7 +1,21 @@
 /**
  * Generate monthly ISO chunks for date-range iteration. Pure date
  * arithmetic — no JSON/body dependencies.
+ *
+ * <p>Every chunk boundary is a *calendar* question — which month a date falls
+ * in, which day ends it — so it is answered in the bank's calendar rather than
+ * the host's. Every consumer reads a chunk as a label (splitting the string, or
+ * lifting Day/Month/Year out of it) and none treats it as an instant, so the
+ * `Z` suffix names a bank day and not a UTC moment.
+ *
+ * <p>Read in the host's zone instead, a machine an hour either side of Israel
+ * enumerates a different set of months for the same window — silently dropping
+ * a terminal month, or asking for one the caller never wanted.
  */
+
+import moment from 'moment-timezone';
+
+import { BANK_CALENDAR_TIMEZONE } from '../BankCalendar.js';
 
 /** A single month chunk with start and end ISO strings. */
 interface IMonthChunk {
@@ -17,18 +31,31 @@ interface IChunkBuildState {
 }
 
 /**
- * Format a date as YYYY-MM-DD.
- * @param d - Date to format.
- * @returns Formatted date string.
+ * Read an instant as a moment in the bank's calendar.
+ * @param d - Instant to place.
+ * @returns The same instant, expressed in the bank's zone.
+ */
+function inBankZone(d: Date): moment.Moment {
+  return moment(d).tz(BANK_CALENDAR_TIMEZONE);
+}
+
+/**
+ * The first moment of a bank-calendar month.
+ * @param year - Calendar year.
+ * @param month - Month, 0-indexed.
+ * @returns Start of that month in the bank's zone.
+ */
+function bankMonthStart(year: number, month: number): moment.Moment {
+  return moment.tz({ year, month, day: 1 }, BANK_CALENDAR_TIMEZONE).startOf('day');
+}
+
+/**
+ * Format an instant as the bank-calendar day it falls on.
+ * @param d - Instant to name.
+ * @returns Day as YYYY-MM-DD.
  */
 function formatDatePart(d: Date): string {
-  const fullYear = d.getFullYear();
-  const monthIdx = d.getMonth() + 1;
-  const dayNum = d.getDate();
-  const y = String(fullYear);
-  const m = String(monthIdx).padStart(2, '0');
-  const day = String(dayNum).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return inBankZone(d).format('YYYY-MM-DD');
 }
 
 /**
@@ -51,8 +78,8 @@ function advanceMonth(year: number, month: number): { year: number; month: numbe
  * @returns Day as YYYY-MM-DD.
  */
 function computeChunkEndDay(year: number, month: number, endTime: number): string {
-  const lastDayDate = new Date(year, month + 1, 0);
-  const lastDayMs = lastDayDate.getTime();
+  const lastDay = bankMonthStart(year, month).endOf('month').startOf('day');
+  const lastDayMs = lastDay.valueOf();
   const chunkEndMs = Math.min(lastDayMs, endTime);
   const chunkEndDate = new Date(chunkEndMs);
   return formatDatePart(chunkEndDate);
@@ -81,7 +108,7 @@ function buildChunk(year: number, month: number, endTime: number): IMonthChunk {
  * @returns True when the current month is past endTime.
  */
 function reachedEnd(state: IChunkBuildState): boolean {
-  const currentMs = new Date(state.year, state.month, 1).getTime();
+  const currentMs = bankMonthStart(state.year, state.month).valueOf();
   return currentMs > state.endTime;
 }
 
@@ -109,9 +136,8 @@ function buildChunkList(
  * @returns Extended end date.
  */
 function applyFutureMonths(today: Date, futureMonths: number): Date {
-  const future = new Date(today);
-  future.setMonth(future.getMonth() + futureMonths);
-  return future;
+  const future = inBankZone(today).add(futureMonths, 'months');
+  return future.toDate();
 }
 
 /**
@@ -134,8 +160,9 @@ function resolveEndDate(end: Date, futureMonths?: number): Date {
  * @returns Initial state for buildChunkList.
  */
 function buildInitialState(start: Date, cappedEnd: Date): IChunkBuildState {
-  const year = start.getFullYear();
-  const month = start.getMonth();
+  const bankStart = inBankZone(start);
+  const year = bankStart.year();
+  const month = bankStart.month();
   const endTime = cappedEnd.getTime();
   return { year, month, endTime };
 }

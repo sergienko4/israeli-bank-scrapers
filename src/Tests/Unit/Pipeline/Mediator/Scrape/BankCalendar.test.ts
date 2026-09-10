@@ -22,6 +22,7 @@ import moment from 'moment-timezone';
 import {
   BANK_CALENDAR_TIMEZONE,
   bankDayOfInstant,
+  bankMomentOfInstant,
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
 import { parseAutoDate } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/Coercion/Coercion.js';
 import { assessWindowCoverage } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/WindowCoverage.js';
@@ -177,23 +178,41 @@ describe('planBackfill/derives the re-ask bound in the bank calendar', () => {
   it.each(['2026-04-01', '2026-04-30', '2026-12-31'])(
     'round-trips %s back to the same day through the wire serializers',
     oldestDay => {
-      // The shapes serialise the bound with ambient `moment(d).format(...)`
-      // (HapoalimShapeTxns.endOf, FibiGroupShapeTxns.endOf, PepperShapeTxns).
-      // Label -> instant -> label must be lossless or the re-ask names the
-      // wrong day and the backfill asks for a slice the caller never lost.
+      // The shapes serialise the bound with `bankMomentOfInstant(d).format(...)`
+      // (HapoalimShapeTxns.endOf, FibiGroupShapeTxns.endOf, PepperShapeTxns,
+      // and YahavShapeTxns.chunkEnd via bankDayOfInstant). Label -> instant ->
+      // label must be lossless or the re-ask names the wrong day and the
+      // backfill asks for a slice the caller never lost.
       const bounds = boundsFor(oldestDay);
       const onWire = bounds.map((bound, i): string =>
-        underZone(ZONES[i], (): string => moment(bound).format('YYYY-MM-DD')),
+        underZone(ZONES[i], (): string => bankMomentOfInstant(bound).format('YYYY-MM-DD')),
       );
       const expected = ZONES.map((): string => oldestDay);
       expect(onWire).toEqual(expected);
     },
   );
 
+  it('names the same instant on every host, not the same wall clock', () => {
+    // Leumi is the reason this matters. It puts the bound on the wire as an
+    // absolute instant (`toUTCString()`), so an ambient end-of-day means a
+    // different real moment per host: from Los Angeles it lands after the
+    // rows already held, the provider re-serves the same set, `oldest` does
+    // not move, and the very next round refuses with `boundDidNotMove`. The
+    // backfill dies on the first retry and the caller is told the window is
+    // unproven — on a west-of-Israel host only.
+    const bounds = boundsFor('2026-04-01');
+    const instants = bounds.map((bound): string => bound.toISOString());
+    const endOfDayInIsrael = '2026-04-01T20:59:59.999Z';
+    const expected = ZONES.map((): string => endOfDayInIsrael);
+    expect(instants).toEqual(expected);
+  });
+
   it('still covers the whole oldest day rather than stopping at midnight', () => {
+    // Read in the bank's zone, because that is the calendar the day belongs
+    // to. Ambiently the same instant is 23:00 or 01:00 depending on the host.
     const bounds = boundsFor('2026-04-01');
     const hours = bounds.map((bound, i): number =>
-      underZone(ZONES[i], (): number => moment(bound).hours()),
+      underZone(ZONES[i], (): number => bankMomentOfInstant(bound).hours()),
     );
     const expected = ZONES.map((): number => 23);
     expect(hours).toEqual(expected);

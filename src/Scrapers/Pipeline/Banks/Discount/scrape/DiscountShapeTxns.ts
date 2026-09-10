@@ -10,8 +10,7 @@
  * builder (Mediator/Network/EndpointState `assembleTxnUrl`).
  */
 
-import moment from 'moment';
-
+import { bankMomentOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
 import type {
   IExtractPageArgs,
   VarsMap,
@@ -37,11 +36,18 @@ interface ITxnsResp {
 /**
  * Scrape-window start date (YYYYMMDD from ScraperOptions.startDate).
  * File-internal helper (not a module boundary) — plain string is fine.
+ *
+ * <p>Read in the bank's zone, not the host's. The caller supplies an instant;
+ * the provider expects the bank-calendar day it falls on. Formatting it
+ * ambiently names the previous day west of Israel (harmless over-fetch) and
+ * the *next* day east of it — which never asks for the caller's first day and
+ * leaves a gap no backfill can close, because the gap is at the far end.
+ *
  * @param ctx - Action context.
  * @returns Formatted FromDate.
  */
 function fromDateOf(ctx: IActionContext): string {
-  return moment(ctx.options.startDate).format(TITAN_DATE_FMT);
+  return bankMomentOfInstant(ctx.options.startDate).format(TITAN_DATE_FMT);
 }
 
 /**

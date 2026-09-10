@@ -140,12 +140,13 @@ export const STUB_ACCOUNT = anyProxy('acct');
  * `windowEnd` and `options` are real values because the shapes read them;
  * everything else falls through to a stand-in.
  * @param windowEnd - Upper bound to place on the context.
+ * @param startDate - Lower bound to place on the context.
  * @returns Context suitable for `buildVars` and `urlTag`.
  */
-function ctxWithBound(windowEnd: Option<Date>): IActionContext {
+function ctxWithBound(windowEnd: Option<Date>, startDate: Date = START_DATE): IActionContext {
   const base: Record<string, unknown> = {
     companyId: 'contract',
-    options: { startDate: START_DATE, companyId: 'contract' },
+    options: { startDate, companyId: 'contract' },
     credentials: {},
     windowEnd,
   };
@@ -174,6 +175,22 @@ function readOrStandIn(target: Record<string, unknown>, prop: string | symbol): 
 export function ctxBoundedAt(windowEnd: Date): IActionContext {
   const bound = some(windowEnd);
   return ctxWithBound(bound);
+}
+
+/**
+ * Build a context spanning a chosen window.
+ *
+ * The context is a Proxy that answers every unset field with a stand-in, so it
+ * cannot be spread or cloned — a caller that needs a different window has to
+ * build a fresh one here.
+ *
+ * @param startDate - Lower bound of the scrape window.
+ * @param windowEnd - Upper bound of the scrape window.
+ * @returns Context spanning exactly that window.
+ */
+export function ctxSpanning(startDate: Date, windowEnd: Date): IActionContext {
+  const bound = some(windowEnd);
+  return ctxWithBound(bound, startDate);
 }
 
 /**

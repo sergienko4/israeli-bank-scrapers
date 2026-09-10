@@ -35,6 +35,32 @@ interface IPage<TItem, TCursor> {
   readonly nextCursor: TCursor | false;
 }
 
+/**
+ * How a paginated walk ended.
+ *
+ * Deliberately a *pagination* fact and nothing more. Only `exhausted` means the
+ * provider said it was finished; the other three mean the walk stopped on its
+ * own terms and may have left rows unseen. Callers that care about data
+ * completeness map these to their own vocabulary — this module does not know
+ * what they use it for.
+ */
+type PaginationTermination = 'exhausted' | 'cursorRepeat' | 'pageCeiling' | 'predicateStop';
+
+/** Everything one paginated walk produced: the rows, and how it ended. */
+interface IPaginatedWalk<TItem> {
+  readonly items: readonly TItem[];
+  readonly termination: PaginationTermination;
+}
+
+/** Halt codes that carry a log line, and the line each one emits. */
+const HALT_MESSAGE = Object.freeze({
+  cursorRepeat: 'cursor repeated — the walk stopped making progress',
+  pageCeiling: `page ceiling ${String(MAX_PAGES)} reached`,
+});
+
+/** A termination that ends the walk abnormally, mid-cursor. */
+type HaltCode = keyof typeof HALT_MESSAGE;
+
 /** Arguments for fetchPaginated — callers supply the page fetcher and stop predicate. */
 interface IFetchPaginatedArgs<TItem, TCursor> {
   readonly fetchPage: (cursor: TCursor | false) => Promise<Procedure<IPage<TItem, TCursor>>>;
@@ -106,31 +132,43 @@ function isCursorRepeat<TCursor>(next: TCursor | false, previous: TCursor | fals
 }
 
 /**
- * Why the walk must stop early, if it must.
+ * Which abnormal halt applies, if any.
  * @param next - State the fetched page produced.
  * @param state - State the request was issued under.
- * @returns Reason for the log line, or false to keep walking.
+ * @returns The halt code, or false to keep walking.
  */
-function haltReason<TItem, TCursor>(
+function haltCode<TItem, TCursor>(
   next: IPaginationState<TItem, TCursor>,
   state: IPaginationState<TItem, TCursor>,
-): string | false {
-  const isRepeat = isCursorRepeat(next.cursor, state.cursor);
-  if (isRepeat) return 'cursor repeated — the walk stopped making progress';
-  if (next.page >= MAX_PAGES) return `page ceiling ${String(MAX_PAGES)} reached`;
+): HaltCode | false {
+  if (isCursorRepeat(next.cursor, state.cursor)) return 'cursorRepeat';
+  if (next.page >= MAX_PAGES) return 'pageCeiling';
   return false;
+}
+
+/**
+ * Close the walk, naming how it ended.
+ * @param items - Rows gathered.
+ * @param termination - How the walk ended.
+ * @returns The completed walk.
+ */
+function walked<TItem>(
+  items: readonly TItem[],
+  termination: PaginationTermination,
+): Procedure<IPaginatedWalk<TItem>> {
+  return succeed({ items, termination });
 }
 
 /**
  * Stop the walk and say so. Counts and the reason only — never row content.
  * @param acc - Rows gathered before the halt.
- * @param reason - Why the walk stopped short of an exhausted cursor.
- * @returns The rows gathered so far.
+ * @param code - Which abnormal halt fired.
+ * @returns The rows gathered so far, carrying the halt.
  */
-function halt<TItem>(acc: readonly TItem[], reason: string): Procedure<readonly TItem[]> {
-  const message = `pagination halted: ${reason} (rows=${String(acc.length)})`;
+function halt<TItem>(acc: readonly TItem[], code: HaltCode): Procedure<IPaginatedWalk<TItem>> {
+  const message = `pagination halted: ${HALT_MESSAGE[code]} (rows=${String(acc.length)})`;
   LOG.warn({ message });
-  return succeed(acc);
+  return walked(acc, code);
 }
 
 /**
@@ -158,23 +196,27 @@ async function advanceOnce<TItem, TCursor>(
 function terminalOf<TItem, TCursor>(
   next: IPaginationState<TItem, TCursor>,
   state: IPaginationState<TItem, TCursor>,
-): Procedure<readonly TItem[]> | false {
-  if (next.cursor === false) return succeed(next.acc);
-  const reason = haltReason(next, state);
-  return reason === false ? false : halt(next.acc, reason);
+): Procedure<IPaginatedWalk<TItem>> | false {
+  if (next.cursor === false) return walked(next.acc, 'exhausted');
+  const code = haltCode(next, state);
+  return code === false ? false : halt(next.acc, code);
 }
 
 /**
  * Recursive pagination step — fetches one page, merges, recurses or stops.
+ *
+ * <p>A stop predicate firing is its own termination, never `exhausted`: the
+ * caller's own rule ended the walk, and the provider may well have had more.
+ *
  * @param args - Caller-supplied fetchPage + stop predicate.
  * @param state - Current recursion state (accumulator + cursor).
- * @returns Procedure carrying the accumulated items, or the propagated fail.
+ * @returns Procedure carrying the walk, or the propagated fail.
  */
 async function paginateStep<TItem, TCursor>(
   args: IFetchPaginatedArgs<TItem, TCursor>,
   state: IPaginationState<TItem, TCursor>,
-): Promise<Procedure<readonly TItem[]>> {
-  if (args.stop(state.acc)) return succeed(state.acc);
+): Promise<Procedure<IPaginatedWalk<TItem>>> {
+  if (args.stop(state.acc)) return walked(state.acc, 'predicateStop');
   const stepped = await advanceOnce(args, state);
   if (!isOk(stepped)) return stepped;
   const terminal = terminalOf(stepped.value, state);
@@ -184,15 +226,15 @@ async function paginateStep<TItem, TCursor>(
 /**
  * Accumulate items across pages until stop predicate fires or cursor exhausts.
  * @param args - Caller-supplied fetchPage (cursor → Procedure<Page>) + stop predicate.
- * @returns Procedure carrying all accumulated items, or the first propagated fail.
+ * @returns Procedure carrying the walk and how it ended, or the first propagated fail.
  */
 async function fetchPaginated<TItem, TCursor>(
   args: IFetchPaginatedArgs<TItem, TCursor>,
-): Promise<Procedure<readonly TItem[]>> {
+): Promise<Procedure<IPaginatedWalk<TItem>>> {
   const initial: IPaginationState<TItem, TCursor> = { acc: [], cursor: false, page: 0 };
   return paginateStep(args, initial);
 }
 
-export type { IFetchPaginatedArgs, IPage };
+export type { IFetchPaginatedArgs, IPage, IPaginatedWalk, PaginationTermination };
 export { fetchPaginated, MAX_PAGES };
 export default fetchPaginated;

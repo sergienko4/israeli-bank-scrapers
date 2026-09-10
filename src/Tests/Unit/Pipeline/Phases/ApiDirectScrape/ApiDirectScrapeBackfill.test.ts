@@ -15,6 +15,9 @@
 import { jest } from '@jest/globals';
 
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import type { IEvidenceLedger } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
+import { makeEvidenceLedger } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
+import { classifyWindowCoverage } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/WindowCoverageVerdict.js';
 import { MAX_BACKFILL_ASKS } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/WindowBackfill.js';
 import type { ICollectedRows } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeBackfill.js';
 import collectAccountRows from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeBackfill.js';
@@ -179,14 +182,40 @@ function makeBus(seen: string[], replies: Record<string, readonly IRow[]> = REPL
  * @returns Everything the walk collected, including the backfill outcome.
  */
 async function collect(bus: IApiMediator, shape: unknown = SHAPE): Promise<ICollectedRows> {
-  const options = { startDate: REQUESTED_START } as IPipelineContext['options'];
+  return (await collectWithLedger(bus, shape)).collected;
+}
+
+/** One walk's rows plus the evidence its guardrails recorded along the way. */
+interface IWalkAudit {
+  readonly collected: ICollectedRows;
+  readonly ledger: IEvidenceLedger;
+}
+
+/**
+ * Drive one account's walk and keep the ledger it reported into.
+ *
+ * The ledger is account-scoped and lives on the account context, so a test can
+ * hold the same instance the walk writes to and read it once the walk is done.
+ *
+ * @param bus - The provider to answer from.
+ * @param shape - The shape whose stance the walk should honour.
+ * @param startDate - The window start the caller asked for.
+ * @returns Everything the walk collected, plus the evidence it gathered.
+ */
+async function collectWithLedger(
+  bus: IApiMediator,
+  shape: unknown = SHAPE,
+  startDate: Date = REQUESTED_START,
+): Promise<IWalkAudit> {
+  const options = { startDate } as IPipelineContext['options'];
   const base = makeMockContext({ apiMediator: some(bus), options });
   const ctx = { ...base, windowEnd: none() } as unknown as IActionContext;
-  const acctCtx = { shape, bus, ctx, acct: { id: 'acct-1' } };
+  const ledger = makeEvidenceLedger();
+  const acctCtx = { shape, bus, ctx, acct: { id: 'acct-1' }, ledger };
   const result = await collectAccountRows(acctCtx as unknown as IAcctCtx<IAcct, string>);
   const isSuccess = isOk(result);
   expect(isSuccess).toBe(true);
-  return (result as { value: ICollectedRows }).value;
+  return { collected: (result as { value: ICollectedRows }).value, ledger };
 }
 
 /**
@@ -318,5 +347,136 @@ describe('collectAccountRows/completeness', () => {
     const bus = makeBus(seen, STALLED_REPLIES);
     await collect(bus, UNBACKFILLABLE_SHAPE);
     expect(seen).toEqual(['none']);
+  });
+});
+
+/**
+ * Rows that already reach back past {@link REQUESTED_START} on the first page.
+ *
+ * They matter because they make `assessWindowCoverage` return `covered`: the
+ * oldest row is older than the requested start, so the date test alone is
+ * satisfied and no backfill is earned. Any truncation on this account is
+ * therefore invisible to the window verdict.
+ */
+const REACHING_ROWS: readonly IRow[] = [
+  { date: '2026-04-10', id: 'recent' },
+  { date: '2025-12-25', id: 'old' },
+];
+
+/**
+ * Read rows out of a reply while deriving the same cursor every time.
+ *
+ * A provider whose boundary day cannot be split derives its own cursor again,
+ * and `fetchPaginated` halts on the repeat rather than recursing. That halt is
+ * the evidence this test is about: it proves the walk stopped before the
+ * provider said it was finished.
+ *
+ * @param args - Extraction args bundle.
+ * @param args.body - The response payload this page came from.
+ * @returns The page's rows under a cursor that never advances.
+ */
+function stuckExtractPage(args: { body: unknown }): {
+  items: readonly object[];
+  nextCursor: string;
+} {
+  const body = args.body as { items: readonly IRow[] };
+  return { items: body.items, nextCursor: 'stuck' };
+}
+
+/** Shape whose paginator can never advance past its first cursor. */
+const STUCK_CURSOR_SHAPE = {
+  ...SHAPE,
+  transactions: {
+    ...SHAPE.transactions,
+    extractPage: stuckExtractPage,
+    pagesMayOverlap: true,
+  },
+} as unknown as IApiDirectScrapeShape<IAcct, string>;
+
+describe('collectAccountRows/a walk the paginator halted early', () => {
+  it('records that pagination stopped before the provider was finished', async () => {
+    const bus = makeBus([], { none: REACHING_ROWS });
+    const collected = await collect(bus, STUCK_CURSOR_SHAPE);
+    expect(collected.termination).toBe('cursorRepeat');
+  });
+
+  it('reports the halt as evidence, not only as a log line', async () => {
+    const bus = makeBus([], { none: REACHING_ROWS });
+    const audit = await collectWithLedger(bus, STUCK_CURSOR_SHAPE);
+    const reported = audit.ledger.caveats();
+    expect(reported).toEqual(['paginationStoppedEarly']);
+  });
+});
+
+/**
+ * Replies whose first ask stops short and whose backfill round completes.
+ *
+ * The first ask returns one row, well inside the window, under a cursor the
+ * shape re-derives — so that round halts. The backfill ask then reaches back
+ * past the requested start and exhausts cleanly. This is the sequence that
+ * would erase the halt if evidence were kept per round rather than per account.
+ */
+const HALT_THEN_RECOVER: Record<string, readonly IRow[]> = {
+  none: [{ date: '2026-04-10', id: 'partial' }],
+  '2026-04-10': [
+    { date: '2026-04-10', id: 'partial' },
+    { date: '2025-12-25', id: 'old' },
+  ],
+};
+
+/**
+ * Halt on the single-row page, run clean once the backfill ask widens it.
+ * @param args - Extraction args bundle.
+ * @param args.body - The response payload this page came from.
+ * @returns The page's rows, cursor repeating only while the page is short.
+ */
+function haltThenRecoverExtractPage(args: { body: unknown }): {
+  items: readonly object[];
+  nextCursor: string | false;
+} {
+  const body = args.body as { items: readonly IRow[] };
+  const isShort = body.items.length < 2;
+  return { items: body.items, nextCursor: isShort ? 'stuck' : false };
+}
+
+/** Shape that halts on its first round and then completes on the backfill ask. */
+const HALT_THEN_RECOVER_SHAPE = {
+  ...SHAPE,
+  transactions: {
+    ...SHAPE.transactions,
+    extractPage: haltThenRecoverExtractPage,
+    pagesMayOverlap: true,
+  },
+} as unknown as IApiDirectScrapeShape<IAcct, string>;
+
+describe('collectAccountRows/evidence across backfill rounds', () => {
+  it('keeps an early halt after a later round completes cleanly', async () => {
+    const seen: string[] = [];
+    const bus = makeBus(seen, HALT_THEN_RECOVER);
+    const audit = await collectWithLedger(bus, HALT_THEN_RECOVER_SHAPE);
+    expect(seen).toContain('2026-04-10');
+    expect(audit.collected.termination).toBe('cursorRepeat');
+    const reported = audit.ledger.caveats();
+    expect(reported).toEqual(['paginationStoppedEarly']);
+  });
+});
+
+describe('collectAccountRows/unreadable start', () => {
+  it('keeps the account when the caller asked from an unparseable date', async () => {
+    // Rendering the start used to throw here, which took the whole account
+    // down before any verdict could be formed. Losing the account hides the
+    // caller's own mistake behind a failure that names nothing.
+    const bus = makeBus([]);
+    const audit = await collectWithLedger(bus, SHAPE, new Date('not-a-date'));
+    expect(audit.collected.window.requestedStart).toBe('invalid-date');
+  });
+
+  it('publishes that unreadable start as the reason the window is unproven', async () => {
+    const bus = makeBus([]);
+    const audit = await collectWithLedger(bus, SHAPE, new Date('not-a-date'));
+    const caveats = audit.ledger.caveats();
+    const verdict = classifyWindowCoverage({ ...audit.collected.window, caveats });
+    const reason = verdict.status === 'unproven' ? verdict.reason : verdict.status;
+    expect(reason).toBe('requestedStartUnreadable');
   });
 });
