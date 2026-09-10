@@ -8,7 +8,7 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { getDebug as createLogger } from '../../Logging/Debug.js';
 import { parseFreshResponse } from '../../Mediator/Dashboard/TxnParser.js';
 import type { IMonthChunk } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
-import { generateMonthChunks } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
+import { chunkStartMonth, generateMonthChunks } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { applyDateRangeAndAppend } from '../../Mediator/Scrape/UrlDateRange.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -40,15 +40,17 @@ const RATE_LIMIT_MS = 300;
 
 /**
  * Extract month and year strings from a chunk start date.
+ *
+ * <p>Read from the chunk's label rather than from the instant it parses as: a
+ * host west of UTC parses the first of the month back into the one before, and
+ * would ask the bank for the wrong month's bill.
  * @param chunk - Month chunk with start date.
  * @returns Month and year as strings.
  */
 function chunkMonthYear(chunk: IMonthChunk): { readonly month: string; readonly year: string } {
-  const d = new Date(chunk.start);
-  const rawMonth = d.getMonth() + 1;
-  const rawYear = d.getFullYear();
-  const month = String(rawMonth);
-  const year = String(rawYear);
+  const named = chunkStartMonth(chunk);
+  const month = String(named.month);
+  const year = String(named.year);
   return { month, year };
 }
 

@@ -45,6 +45,13 @@ export function restoreAmbientZone(previous: IAmbientZone): IAmbientZone {
 /**
  * Impersonate a host in `zone` for the duration of one probe, moving both
  * ambient mechanisms and restoring both afterwards.
+ *
+ * <p>Only the Moment default actually moves under Jest. Workers read `TZ` once
+ * at startup — `jest.config.js` pins it there and says so — so reassigning it
+ * here changes what child processes inherit but *not* what native `Date`
+ * reports in this worker. A probe that would only fail through a native `Date`
+ * getter therefore proves nothing: give it an input whose correct reading
+ * differs from its instant reading instead, as `MonthChunkLabel.test.ts` does.
  * @param zone - Ambient zone to impersonate.
  * @param run - Probe to evaluate.
  * @returns Whatever the probe returned.

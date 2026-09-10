@@ -187,6 +187,51 @@ the non-determinism this change removes.
   behaviour was non-deterministic across hosts _and_ across scrape order, so
   there was no accurate sentence to write.
 
+## The same trap in month chunks
+
+A monthly scrape is split into chunks by
+`src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/MonthChunking.ts`, whose
+boundaries are chosen in the bank calendar for exactly the reasons above. Each
+chunk carries its start as `2026-03-01T00:00:00.000Z`.
+
+That `Z` is part of the rendering, not a claim about UTC — the string **names a
+bank day**. Handing it to `new Date()` is fine for ordering it against another
+instant, or for passing it to a range filter. Asking the resulting instant which
+_month_ it is, is not:
+
+| Host               | `new Date('2026-03-01T00:00:00.000Z').getMonth() + 1` | Month the chunk names |
+| ------------------ | ----------------------------------------------------- | --------------------- |
+| `Asia/Jerusalem`   | 3                                                     | 3                     |
+| `UTC`              | 3                                                     | 3                     |
+| `America/New_York` | **2**                                                 | 3                     |
+
+Two callers built a bank request parameter that way — the billing-month body in
+`src/Scrapers/Pipeline/Strategy/Scrape/BillingFallbackStrategy.ts` and the
+`filterData` URL in
+`src/Scrapers/Pipeline/Strategy/Scrape/Account/FilterDataStrategy.ts` — so a
+scrape for March asked the bank for February on any host west of UTC. The
+provider answered successfully with the wrong month's rows, so nothing failed;
+the window simply came back short, and the audit reported `unproven` on those
+hosts only.
+
+Anything that needs the month reads the label instead, through
+`chunkStartMonth`, which returns an `IChunkMonth` (`year`, plus a 1-indexed
+`month` matching what bank request parameters expect):
+
+```ts
+const { year, month } = chunkStartMonth(chunk);
+```
+
+It parses the `YYYY-MM` prefix of the start string — the exact inverse of how
+the chunk was written — and consults no ambient state, so no host zone can shift
+the answer.
+
+> **Testing note.** A probe that swaps `process.env.TZ` at runtime cannot catch
+> this class of defect: Jest workers read `TZ` once at startup, as
+> `jest.config.js` states, so native `Date` does not move. Pick an input whose
+> label month and instant month differ instead — see
+> `src/Tests/Unit/Pipeline/Mediator/Scrape/MonthChunkLabel.test.ts`.
+
 ## Related
 
 - [Transaction sign](transaction-sign.md) — the other cross-cutting

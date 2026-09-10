@@ -4,13 +4,16 @@
  *
  * <p>Every chunk boundary is a *calendar* question — which month a date falls
  * in, which day ends it — so it is answered in the bank's calendar rather than
- * the host's. Every consumer reads a chunk as a label (splitting the string, or
- * lifting Day/Month/Year out of it) and none treats it as an instant, so the
- * `Z` suffix names a bank day and not a UTC moment.
+ * the host's. Read in the host's zone instead, a machine an hour either side of
+ * Israel enumerates a different set of months for the same window — silently
+ * dropping a terminal month, or asking for one the caller never wanted.
  *
- * <p>Read in the host's zone instead, a machine an hour either side of Israel
- * enumerates a different set of months for the same window — silently dropping
- * a terminal month, or asking for one the caller never wanted.
+ * <p>The `Z` a chunk carries is part of that formatting, not a claim about UTC:
+ * it names a *bank day*. Consumers do hand these strings to `new Date()`, which
+ * is safe for ordering and for range filters, but asking the resulting instant
+ * which month it is re-opens the very host-dependence the boundaries were
+ * chosen to close. Anything that needs the month must read the label, via
+ * {@link chunkStartMonth}, rather than the parsed instant.
  */
 
 import moment from 'moment-timezone';
@@ -184,5 +187,24 @@ function generateMonthChunks(
   return buildChunkList(state, []);
 }
 
-export type { IMonthChunk };
-export { generateMonthChunks };
+/** Calendar year and 1-indexed month that a chunk's start names. */
+interface IChunkMonth {
+  readonly year: number;
+  /** 1-indexed, matching what bank request parameters expect. */
+  readonly month: number;
+}
+
+/**
+ * Read the month a chunk *names*, which is the exact inverse of how
+ * {@link buildChunk} writes it: the `YYYY-MM` prefix of the start label. It
+ * never parses the stamp, so no host zone can shift the answer.
+ * @param chunk - The chunk to read.
+ * @returns Its year and 1-indexed month.
+ */
+function chunkStartMonth(chunk: IMonthChunk): IChunkMonth {
+  const [year, month] = chunk.start.split('-', 2).map(Number);
+  return { year, month };
+}
+
+export type { IChunkMonth, IMonthChunk };
+export { chunkStartMonth, generateMonthChunks };
