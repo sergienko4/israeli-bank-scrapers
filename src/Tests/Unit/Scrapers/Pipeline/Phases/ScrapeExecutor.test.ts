@@ -3,6 +3,7 @@
  * Covers all fetch paths, error propagation, date computation, empty accounts.
  */
 
+import { jest } from '@jest/globals';
 import moment from 'moment-timezone';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
@@ -321,7 +322,26 @@ describe('ScrapeExecutor/buildFetchOpts', () => {
 
 // ── computeStartDate ───────────────────────────────────────
 
+/**
+ * A fixed instant for the clock these tests share with the executor.
+ *
+ * `computeStartDate` reads "now" inside `executeScrape()`, and the one-year cap
+ * assertion reads it again afterwards. Left on the real clock those are two
+ * separate reads, and a run that crosses midnight in the bank's calendar
+ * between them computes two different days. Mid-morning, mid-month, mid-year
+ * keeps the frozen instant clear of a day, month or year boundary.
+ */
+const FROZEN_NOW = new Date('2026-06-15T09:00:00Z');
+
 describe('ScrapeExecutor/computeStartDate', () => {
+  beforeEach(() => {
+    jest.useFakeTimers({ now: FROZEN_NOW });
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('uses provided startDate when within 1 year', async () => {
     const recentDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const capturedDates: string[] = [];
@@ -380,7 +400,11 @@ describe('ScrapeExecutor/computeStartDate', () => {
     const ctx = MAKE_CTX_WITH_STRATEGY(strategy);
     const opts = { ...ctx.options, startDate: oldDate };
     await executeScrape({ ...ctx, options: opts }, config);
-    const cappedDate = moment().tz(BANK_CALENDAR_TIMEZONE).subtract(1, 'years').format('YYYYMMDD');
+    const cappedDate = moment(FROZEN_NOW)
+      .tz(BANK_CALENDAR_TIMEZONE)
+      .subtract(1, 'years')
+      .format('YYYYMMDD');
     expect(capturedDates[0]).toBe(cappedDate);
+    expect(cappedDate).toBe('20250615');
   });
 });
