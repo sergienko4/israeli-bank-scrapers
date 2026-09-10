@@ -55,7 +55,9 @@ const LAST_OF_MARCH: IMonthChunk = {
  * @returns Its month as `YYYY-MM`.
  */
 function monthOf(chunk: IMonthChunk): string {
-  const { year, month } = chunkStartMonth(chunk);
+  const named = chunkStartMonth(chunk);
+  if (named === false) return 'invalid';
+  const { year, month } = named;
   return `${String(year)}-${String(month).padStart(2, '0')}`;
 }
 
@@ -113,6 +115,15 @@ describe('month chunk/the month a chunk names', () => {
   it('reads the day it names, not the instant it parses as', () => {
     const seen = [monthOf(FIRST_OF_MARCH), monthOf(LAST_OF_MARCH)];
     expect(seen).toEqual(['2026-03', '2026-03']);
+  });
+
+  it('rejects a malformed generated label instead of returning NaN or a shifted date', () => {
+    const malformed: IMonthChunk = {
+      start: '2026-02-31T00:00:00.000Z',
+      end: '2026-02-31T23:59:59.000Z',
+    };
+    const named = chunkStartMonth(malformed);
+    expect(named).toBe(false);
   });
 
   it('names the month the caller actually asked for', () => {

@@ -104,6 +104,10 @@ async function scrapeViaFilterData(
     (prev, chunk): Promise<true> =>
       prev.then(async (): Promise<true> => {
         const named = chunkStartMonth(chunk);
+        if (named === false) {
+          LOG.warn({ message: 'Skipped filterData request for an invalid generated month label' });
+          return rateLimitPause(GET_RATE_LIMIT_MS);
+        }
         const url = buildFilterDataUrl(baseUrl, named.year, named.month);
         LOG.debug({ message: `GET filterData: ${chunk.start}` });
         const raw = await fc.api.fetchGet<Record<string, unknown>>(url);

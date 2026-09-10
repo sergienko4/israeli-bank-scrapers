@@ -8,6 +8,7 @@ import {
   bankMonthOfInstant,
   bankMonthOfLabel,
   bankMonthOfSlashedLabel,
+  shiftBankInstant,
   shiftBankMonth,
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankMonth.js';
 
@@ -39,6 +40,13 @@ describe('BankMonth', () => {
   it('shifts across a year boundary without a host Date', () => {
     const shifted = shiftBankMonth({ year: 2026, month: 12 }, 1);
     expect(shifted).toEqual({ year: 2027, month: 1 });
+  });
+
+  it('shifts an instant by bank months while preserving its bank-calendar day', () => {
+    const source = new Date('2026-01-31T22:30:00.000Z');
+    const shifted = shiftBankInstant(source, 1);
+    const shiftedDay = shifted === false ? false : bankDayOfInstant(shifted);
+    expect(shiftedDay).toBe('2026-03-01');
   });
 
   it('builds bounds whose instants name the requested bank month', () => {

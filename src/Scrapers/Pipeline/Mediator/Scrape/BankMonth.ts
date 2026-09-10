@@ -20,15 +20,10 @@ interface IBankMonthBounds {
   readonly end: Date;
 }
 
-const BANK_MONTH_LABEL_FORMATS = [
-  'YYYY-MM',
-  'YYYY-MM-DD',
-  'YYYY-MM-DDTHH:mm:ss',
-  'YYYY-MM-DDTHH:mm:ss.SSS',
-  'YYYY-MM-DDTHH:mm:ss[Z]',
-  'YYYY-MM-DDTHH:mm:ss.SSS[Z]',
-];
-const SLASHED_BANK_MONTH_FORMAT = 'MM/YYYY';
+const BANK_MONTH_LABEL =
+  /^(\d{4})-(\d{2})(?:-(\d{2})(?:T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{3})?Z?)?)?$/;
+const SLASHED_BANK_MONTH_LABEL = /^(\d{2})\/(\d{4})$/;
+const DAYS_BY_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 const MIN_MONTH = 1;
 const MAX_MONTH = 12;
 
@@ -45,16 +40,61 @@ function validatedMonth(year: number, month: number): IBankMonth | false {
 }
 
 /**
+ * Convert year/month captures into a validated month.
+ * @param yearRaw - Four-digit year capture.
+ * @param monthRaw - Two-digit month capture.
+ * @returns Validated month, or false.
+ */
+function monthOfCaptures(yearRaw: string, monthRaw: string): IBankMonth | false {
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  return validatedMonth(year, month);
+}
+
+/**
+ * Decide whether February has a leap day.
+ * @param year - Calendar year.
+ * @returns True for a Gregorian leap year.
+ */
+function isLeapYear(year: number): boolean {
+  return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+}
+
+/**
+ * Maximum valid day in a month.
+ * @param value - Validated month.
+ * @returns Last valid day number.
+ */
+function lastDayOf(value: IBankMonth): number {
+  if (value.month === 2 && isLeapYear(value.year)) return 29;
+  return DAYS_BY_MONTH[value.month - 1] ?? 0;
+}
+
+/**
+ * Validate an optional day capture.
+ * @param raw - Optional two-digit day.
+ * @param month - Validated month.
+ * @returns True when absent or inside the month.
+ */
+function hasValidDay(raw: string | false, month: IBankMonth): boolean {
+  if (raw === false) return true;
+  const day = Number(raw);
+  return day >= 1 && day <= lastDayOf(month);
+}
+
+/**
  * Read a strict ISO-shaped bank label.
  * @param value - Bank label, optionally followed by a day/time suffix.
  * @returns Validated bank month, or false.
  */
 function bankMonthOfLabel(value: string): IBankMonth | false {
-  const parsed = parseInBankZone(value, BANK_MONTH_LABEL_FORMATS, true);
-  if (!parsed.isValid()) return false;
-  const year = parsed.year();
-  const month = parsed.month() + 1;
-  return validatedMonth(year, month);
+  const match = BANK_MONTH_LABEL.exec(value);
+  if (match === null) return false;
+  const month = monthOfCaptures(match[1], match[2]);
+  const capturedDay = match.at(3);
+  const day = capturedDay ?? false;
+  if (month === false || !hasValidDay(day, month)) return false;
+  return month;
 }
 
 /**
@@ -63,11 +103,9 @@ function bankMonthOfLabel(value: string): IBankMonth | false {
  * @returns Validated bank month, or false.
  */
 function bankMonthOfSlashedLabel(value: string): IBankMonth | false {
-  const parsed = parseInBankZone(value, SLASHED_BANK_MONTH_FORMAT, true);
-  if (!parsed.isValid()) return false;
-  const year = parsed.year();
-  const month = parsed.month() + 1;
-  return validatedMonth(year, month);
+  const match = SLASHED_BANK_MONTH_LABEL.exec(value);
+  if (match === null) return false;
+  return monthOfCaptures(match[2], match[1]);
 }
 
 /**
@@ -94,6 +132,18 @@ function shiftBankMonth(value: IBankMonth, amount: number): IBankMonth {
   const year = Math.floor(index / 12);
   const month = (((index % 12) + 12) % 12) + 1;
   return { year, month };
+}
+
+/**
+ * Shift a resolved instant in the bank calendar.
+ * @param value - Source instant.
+ * @param amount - Signed number of months.
+ * @returns Shifted instant, or false for invalid input.
+ */
+function shiftBankInstant(value: Date, amount: number): Date | false {
+  const inBank = bankMomentOfInstant(value);
+  if (!inBank.isValid()) return false;
+  return inBank.add(amount, 'months').toDate();
 }
 
 /**
@@ -125,5 +175,6 @@ export {
   bankMonthOfInstant,
   bankMonthOfLabel,
   bankMonthOfSlashedLabel,
+  shiftBankInstant,
   shiftBankMonth,
 };

@@ -74,6 +74,7 @@ owns that boundary:
 | `bankMonthOfSlashedLabel` | Strictly validates provider billing labels in `MM/YYYY` form                                               |
 | `bankMonthOfInstant`      | Projects a real `Date` or ISO instant into the bank's month                                                |
 | `shiftBankMonth`          | Moves a named month without host-local `Date` arithmetic                                                   |
+| `shiftBankInstant`        | Moves a resolved instant by bank-calendar months while preserving its bank-calendar wall time              |
 | `bankMonthBounds`         | Builds the first and last instants of a named month in `Asia/Jerusalem`                                    |
 
 `MatrixLoopStrategy` now consumes this object from cycle selection through
@@ -237,16 +238,20 @@ the window simply came back short, and the audit reported `unproven` on those
 hosts only.
 
 Anything that needs the month reads the label instead, through
-`chunkStartMonth`, which returns an `IChunkMonth` (`year`, plus a 1-indexed
-`month` matching what bank request parameters expect):
+`chunkStartMonth`. It returns an `IChunkMonth` (`year`, plus a 1-indexed
+`month` matching what bank request parameters expect), or `false` when the
+generated label is malformed:
 
 ```ts
-const { year, month } = chunkStartMonth(chunk);
+const named = chunkStartMonth(chunk);
+if (named === false) return [];
+const { year, month } = named;
 ```
 
-It parses the `YYYY-MM` prefix of the start string — the exact inverse of how
-the chunk was written — and consults no ambient state, so no host zone can shift
-the answer.
+It delegates to `bankMonthOfLabel`, which validates the complete date/time
+shape and its calendar day without consulting ambient state. A host zone cannot
+shift the answer, and a corrupt suffix cannot be accepted merely because its
+`YYYY-MM` prefix looks plausible.
 
 > **Testing note.** A probe that swaps `process.env.TZ` at runtime cannot catch
 > this class of defect: Jest workers read `TZ` once at startup, as

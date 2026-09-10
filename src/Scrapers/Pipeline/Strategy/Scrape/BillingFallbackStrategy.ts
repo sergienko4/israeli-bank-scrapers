@@ -47,8 +47,11 @@ const RATE_LIMIT_MS = 300;
  * @param chunk - Month chunk with start date.
  * @returns Month and year as strings.
  */
-function chunkMonthYear(chunk: IMonthChunk): { readonly month: string; readonly year: string } {
+function chunkMonthYear(
+  chunk: IMonthChunk,
+): { readonly month: string; readonly year: string } | false {
   const named = chunkStartMonth(chunk);
+  if (named === false) return false;
   const month = String(named.month);
   const year = String(named.year);
   return { month, year };
@@ -64,7 +67,12 @@ async function scrapeOneBillingChunk(
   ctx: IBillingChunkCtx,
   chunk: IMonthChunk,
 ): Promise<readonly ITransaction[]> {
-  const { month, year } = chunkMonthYear(chunk);
+  const named = chunkMonthYear(chunk);
+  if (named === false) {
+    LOG.warn({ message: 'Skipped billing request for an invalid generated month label' });
+    return [];
+  }
+  const { month, year } = named;
   const body = { cardUniqueId: ctx.accountId, month, year };
   const chunkStart = new Date(chunk.start);
   const chunkEnd = new Date(chunk.end);
