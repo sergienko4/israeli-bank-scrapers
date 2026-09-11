@@ -14,6 +14,7 @@
 
 import { jest } from '@jest/globals';
 
+import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import { bankMomentOfInstant } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
 import type { IEvidenceLedger } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
@@ -30,7 +31,7 @@ import type {
   IPipelineContext,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext, makeRecoverySessionStubs } from '../../Infrastructure/MockFactories.js';
 
 /** One dated row, as the provider serves it. */
@@ -543,6 +544,22 @@ describe('collectAccountRows/evidence across backfill rounds', () => {
 });
 
 describe('collectAccountRows/unreadable start', () => {
+  it('bypasses a rejecting plan guard without dispatching or losing the verdict', async () => {
+    const seen: string[] = [];
+    const validatePlan = jest.fn((): Procedure<void> => {
+      return fail(ScraperErrorTypes.Generic, 'plan guard should not run');
+    });
+    const transactions = { ...SHAPE.transactions, validatePlan };
+    const shape = { ...SHAPE, transactions } as IApiDirectScrapeShape<IAcct, string>;
+    const bus = makeBus(seen);
+    const audit = await collectWithLedger(bus, shape, new Date('not-a-date'));
+    const caveats = audit.ledger.caveats();
+    const verdict = classifyWindowCoverage({ ...audit.collected.window, caveats });
+    expect(validatePlan).not.toHaveBeenCalled();
+    expect(seen).toEqual([]);
+    expect(verdict).toMatchObject({ status: 'unproven', reason: 'requestedStartUnreadable' });
+  });
+
   it('does not issue a provider request for an unparseable start', async () => {
     const seen: string[] = [];
     const bus = makeBus(seen);

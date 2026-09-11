@@ -50,7 +50,7 @@ CSS selectors **are** allowed in parsing / extraction code (table walks, date-pi
 
 | Banned                                         | Allowed                                              |
 | ---------------------------------------------- | ---------------------------------------------------- |
-| `function foo(): T                             | null`                                                | `function foo(): Procedure<T>` |
+| <code>function foo(): T &#124; null</code>     | `function foo(): Procedure<T>`                       |
 | `return null;`, `return;`, `return undefined;` | `return succeed(value);` / `return fail(type, msg);` |
 | `value!` non-null assertion                    | Optional chaining + explicit guard                   |
 
