@@ -7,8 +7,9 @@ import type { ITransaction, ITransactionsAccount } from '../../../../Transaction
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { getDebug as createLogger } from '../../Logging/Debug.js';
 import { parseFreshResponse } from '../../Mediator/Dashboard/TxnParser.js';
+import { bankInstantOfLabel } from '../../Mediator/Scrape/BankMonth.js';
 import type { IMonthChunk } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
-import { generateMonthChunks } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
+import { chunkStartMonth, generateMonthChunks } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { applyDateRangeAndAppend } from '../../Mediator/Scrape/UrlDateRange.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -40,15 +41,20 @@ const RATE_LIMIT_MS = 300;
 
 /**
  * Extract month and year strings from a chunk start date.
+ *
+ * <p>Read from the chunk's label rather than from the instant it parses as: a
+ * host west of UTC parses the first of the month back into the one before, and
+ * would ask the bank for the wrong month's bill.
  * @param chunk - Month chunk with start date.
  * @returns Month and year as strings.
  */
-function chunkMonthYear(chunk: IMonthChunk): { readonly month: string; readonly year: string } {
-  const d = new Date(chunk.start);
-  const rawMonth = d.getMonth() + 1;
-  const rawYear = d.getFullYear();
-  const month = String(rawMonth);
-  const year = String(rawYear);
+function chunkMonthYear(
+  chunk: IMonthChunk,
+): { readonly month: string; readonly year: string } | false {
+  const named = chunkStartMonth(chunk);
+  if (named === false) return false;
+  const month = String(named.month);
+  const year = String(named.year);
   return { month, year };
 }
 
@@ -62,10 +68,19 @@ async function scrapeOneBillingChunk(
   ctx: IBillingChunkCtx,
   chunk: IMonthChunk,
 ): Promise<readonly ITransaction[]> {
-  const { month, year } = chunkMonthYear(chunk);
+  const named = chunkMonthYear(chunk);
+  if (named === false) {
+    LOG.warn({ message: 'Skipped billing request for an invalid generated month label' });
+    return [];
+  }
+  const { month, year } = named;
   const body = { cardUniqueId: ctx.accountId, month, year };
-  const chunkStart = new Date(chunk.start);
-  const chunkEnd = new Date(chunk.end);
+  const chunkStart = bankInstantOfLabel(chunk.start);
+  const chunkEnd = bankInstantOfLabel(chunk.end);
+  if (chunkStart === false || chunkEnd === false) {
+    LOG.warn({ message: 'Skipped billing request for an invalid generated date label' });
+    return [];
+  }
   const patchedUrl = applyDateRangeAndAppend(ctx.billingUrl, {
     fromDate: chunkStart,
     toDate: chunkEnd,

@@ -19,11 +19,21 @@
  * site, so adding a fifth issuer needs no change here.
  */
 
-import moment from 'moment';
+import type moment from 'moment';
 
+import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import { bankMomentOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
+import type { IBankMonth } from '../../../Mediator/Scrape/BankMonth.js';
+import { bankMonthOfInstant, shiftBankInstant } from '../../../Mediator/Scrape/BankMonth.js';
+import {
+  boundedMonthCount,
+  MAX_MONTH_REQUESTS,
+} from '../../../Mediator/Scrape/MonthRangeBudget.js';
 import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
+import type { Procedure } from '../../../Types/Procedure.js';
+import { fail, succeed } from '../../../Types/Procedure.js';
 import { getFutureMonths } from '../../../Types/ScraperDefaults.js';
 
 /**
@@ -42,11 +52,18 @@ export type TBillingMonth = Brand<string, 'CardBillingMonth'>;
 /**
  * First billing month of the scrape window (from ScraperOptions.startDate).
  *
+ * <p>Read in the bank's zone, not the host's. The caller supplies an instant;
+ * the provider expects the bank-calendar day it falls on. Formatting it
+ * ambiently names the previous day west of Israel (harmless over-fetch) and
+ * the *next* day east of it — which never asks for the caller's first day and
+ * leaves a gap no backfill can close, because the gap is at the far end.
+ * For an issuer that is a whole billing cycle, not a day.
+ *
  * @param ctx - Action context.
  * @returns Start-of-month moment for the window start.
  */
 export function startMonth(ctx: IActionContext): moment.Moment {
-  return moment(ctx.options.startDate).startOf('month');
+  return bankMomentOfInstant(ctx.options.startDate).startOf('month');
 }
 
 /**
@@ -104,6 +121,37 @@ function effectiveFutureMonths(ctx: IActionContext, floor?: number): number {
 }
 
 /**
+ * Last month in the issuer's effective request window.
+ * @param ctx - Action context carrying the upper bound.
+ * @param floor - Issuer open-cycle floor in months.
+ * @returns Validated bank month, or false for an unreadable bound.
+ */
+function requestEndMonth(ctx: IActionContext, floor?: number): IBankMonth | false {
+  const future = effectiveFutureMonths(ctx, floor);
+  const windowEnd = scrapeWindowEnd(ctx);
+  const end = shiftBankInstant(windowEnd, future);
+  if (end === false) return false;
+  return bankMonthOfInstant(end);
+}
+
+/**
+ * Fail closed when a complete issuer walk cannot fit the shared request budget.
+ * An unreadable caller start remains the coverage audit's responsibility.
+ * @param ctx - Action context carrying the requested window.
+ * @param floor - Issuer open-cycle floor in months.
+ * @returns Successful validation or a typed plan rejection.
+ */
+export function validateCardIssuerPlan(ctx: IActionContext, floor?: number): Procedure<void> {
+  const first = bankMonthOfInstant(ctx.options.startDate);
+  if (first === false) return succeed(undefined);
+  const last = requestEndMonth(ctx, floor);
+  const count = last === false ? false : boundedMonthCount(first, last);
+  if (count !== false) return succeed(undefined);
+  const limit = String(MAX_MONTH_REQUESTS);
+  return fail(ScraperErrorTypes.Generic, `Card issuer month plan exceeds ${limit}-request budget`);
+}
+
+/**
  * Highest in-window month offset — months from the start month to the
  * scrape window end, extended by the effective future-month count.
  *
@@ -119,7 +167,10 @@ function effectiveFutureMonths(ctx: IActionContext, floor?: number): number {
 export function lastOffset(ctx: IActionContext, floor?: number): TMonthOffset {
   const future = effectiveFutureMonths(ctx, floor);
   const windowEnd = scrapeWindowEnd(ctx);
-  const end = moment(windowEnd).add(future, 'months').startOf('month');
+  // Both operands in the bank's zone. Anchoring only one of them would make
+  // `diff` compare month starts across zones and floor away the terminal
+  // billing month — a whole cycle of transactions, silently.
+  const end = bankMomentOfInstant(windowEnd).add(future, 'months').startOf('month');
   const start = startMonth(ctx);
   return end.diff(start, 'months') as TMonthOffset;
 }

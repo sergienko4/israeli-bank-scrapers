@@ -1,7 +1,33 @@
+import type { IWindowCoverage } from './WindowCoverage.js';
+
 export interface ITransactionsAccount {
   accountNumber: string;
   balance?: number;
   txns: ITransaction[];
+  /**
+   * What this account can honestly claim about the window that was requested.
+   *
+   * <p>`txns` alone cannot answer it. A short list and a complete one are the
+   * same shape, so a caller who receives thirty days after asking for ninety
+   * has no way to tell a quiet account from a truncated one. This field is
+   * that answer, per account, because the scrape's own window audit is
+   * per-account.
+   *
+   * <p>Read {@link IWindowCoverage.status} first: `covered` means the start
+   * was reached and every loss signal the scrape can observe was clean;
+   * `lowerBoundReached` means the start was reached but something reported
+   * loss or an extraction audit could not run (see `caveats`); `unproven`
+   * means the start was never reached (see `reason`).
+   *
+   * <p>Even `covered` does not prove that no row in the *middle* of the window
+   * was dropped silently — that needs a reliable provider total for the
+   * complete requested window, which Israeli banks generally do not send.
+   * See `src/WindowCoverage.ts` for the full contract.
+   *
+   * <p>Optional because only the Pipeline's API-direct scrapers run the audit.
+   * Absent means "not assessed", never "assessed and fine".
+   */
+  windowCoverage?: IWindowCoverage;
 }
 
 export enum TransactionTypes {

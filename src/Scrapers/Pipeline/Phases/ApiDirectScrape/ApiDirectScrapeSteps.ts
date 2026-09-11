@@ -184,7 +184,10 @@ function auditPageCoverage<TAcct, TCursor>(
   const label = `${a.ctx.companyId}/txns`;
   const isCardIssuer = a.shape.isCardIssuer;
   const ownsRow = ownsRowFor(a);
-  return auditCoverage({ body, extracted: items, isCardIssuer, label, ownsRow });
+  const result = auditCoverage({ body, extracted: items, isCardIssuer, label, ownsRow });
+  a.ledger.noteWhen('extractionShortfall', result.unread > 0);
+  a.ledger.noteWhen('extractionAuditUnavailable', result.unaudited);
+  return result;
 }
 
 /**
@@ -201,7 +204,8 @@ function auditPageCoverage<TAcct, TCursor>(
 function auditPageDeclared<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>, body: ApiBody): true {
   const specs = a.shape.transactions.declaredRowSpecs ?? [];
   const label = `${a.ctx.companyId}/txns`;
-  auditDeclaredRows({ body, specs, label });
+  const result = auditDeclaredRows({ body, specs, label });
+  a.ledger.noteWhen('declaredRowShortfall', result.shortfall > 0);
   return true;
 }
 
@@ -242,7 +246,7 @@ function extractAudited<TAcct, TCursor>(
   body: ApiBody,
   cursor: TCursor | false,
 ): IPage<object, TCursor> {
-  const args = { body, cursor, acct: a.acct, ctx: a.ctx };
+  const args = { body, cursor, acct: a.acct, ctx: a.ctx, ledger: a.ledger };
   const page = a.shape.transactions.extractPage(args);
   auditPage(a, body, page.items);
   return page;

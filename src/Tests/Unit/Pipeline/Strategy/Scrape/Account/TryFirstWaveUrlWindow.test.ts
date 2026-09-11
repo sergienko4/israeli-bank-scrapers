@@ -159,6 +159,30 @@ interface IMakeWindowFcArgs {
   readonly startDate: string;
 }
 
+/** Numeric lower bound used by a synthetic BaNCS transaction body. */
+interface IBancsLowerBound {
+  readonly day: number;
+  readonly month: number;
+  readonly year: number;
+}
+
+/**
+ * Build a BaNCS endpoint whose lower bound can exercise strict validation.
+ * @param from - Numeric lower-bound parts.
+ * @returns A synthetic captured transactions endpoint.
+ */
+function makeBancsEndpoint(from: IBancsLowerBound): ITxnEndpoint {
+  const lower = {
+    Operator: 'GREATERTHANOREQUAL',
+    OrigDt: { Day: from.day, Month: from.month, Year: from.year },
+  };
+  const upper = { Operator: 'LESSTHANOREQUAL', OrigDt: { Day: 31, Month: 12, Year: 2026 } };
+  const body = {
+    Payload: { Category: ['CURRENT_ACCOUNT'], Filters: [{ Filters: [lower, upper] }] },
+  };
+  return { ...makeEmptyBodyEndpoint(NON_WINDOWED_URL), templatePostData: JSON.stringify(body) };
+}
+
 /**
  * Build a fetch context tying together api + endpoint + harvest +
  * startDate.
@@ -247,6 +271,15 @@ describe('scrapeOneAccountPost — windowed-URL first-wave guard (Hapoalim billi
     const result = await runScrape(fc);
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
+    expect(spy.count).toBeGreaterThan(0);
+  });
+
+  it('BANC-DATE-05 skips first-wave when a BaNCS bound is not a real date', async () => {
+    const spy: IFetchPostSpy = { count: 0, urls: [] };
+    const api = makeApi({ fetchPost: makeSpyingFetchPost(spy) });
+    const endpoint = makeBancsEndpoint({ day: 0, month: 0, year: 2026 });
+    const fc = makeWindowFc({ api, endpoint, harvest: makeSingleHarvest(), startDate: '20260101' });
+    await runScrape(fc);
     expect(spy.count).toBeGreaterThan(0);
   });
 });

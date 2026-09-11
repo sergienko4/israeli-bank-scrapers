@@ -53,7 +53,7 @@ function accountsArgs(body: ApiBody, secondaryBody?: ApiBody): IExtractAccountsA
  * @returns Action context with startDate = 2026-06-04 (local).
  */
 function ctxWithStart(): IActionContext {
-  return { options: { startDate: new Date(2026, 5, 4) } } as unknown as IActionContext;
+  return { options: { startDate: new Date('2026-06-04T12:00:00Z') } } as unknown as IActionContext;
 }
 
 describe('BeinleumiShape accounts', () => {

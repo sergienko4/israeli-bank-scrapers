@@ -13,8 +13,6 @@
  * sample. Split from `LeumiShapeHelpers.ts` to respect the 150-LOC cap.
  */
 
-import moment from 'moment';
-
 import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type {
   IExtractPageArgs,
@@ -37,7 +35,7 @@ interface ITxnsResp {
  * @returns RFC-1123 start date.
  */
 function startDateOf(ctx: IActionContext): string {
-  return moment(ctx.options.startDate).toDate().toUTCString();
+  return ctx.options.startDate.toUTCString();
 }
 
 /**

@@ -26,6 +26,7 @@ import type {
   JsonValueTemplate,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IDeclaredRowSpec } from '../../Mediator/Scrape/CoverageAudit/DeclaredRows.js';
+import type { IEvidenceLedger } from '../../Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
@@ -222,6 +223,15 @@ export interface IExtractPageArgs<TAcct, TCursor> {
   readonly cursor: TCursor | false;
   readonly acct: TAcct;
   readonly ctx: IActionContext;
+  /**
+   * Where a shape-level guardrail reports row loss it alone can detect.
+   *
+   * Optional because most shapes have nothing to say and every existing test
+   * fixture predates it; the pipeline always supplies one. A shape that owns
+   * an ordering or completeness guard notes into it instead of only logging,
+   * which is what lets the account's coverage verdict see the guard's finding.
+   */
+  readonly ledger?: IEvidenceLedger;
 }
 
 /**
@@ -235,6 +245,12 @@ export type { WindowNarrowing } from '../../Types/WindowNarrowing.js';
 export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> {
   readonly buildVars: (acct: TAcct, cursor: TCursor | false, ctx: IActionContext) => VarsMap;
   readonly extractPage: (args: IExtractPageArgs<TAcct, TCursor>) => IPage<object, TCursor>;
+  /**
+   * Optional fail-closed validation for a complete transaction request plan.
+   * Runs before the first transaction request, so an unsafe plan cannot
+   * degrade into a successful partial walk at the paginator's runaway ceiling.
+   */
+  readonly validatePlan?: (ctx: IActionContext) => Procedure<void>;
   /**
    * Whether a coverage gap on this bank can be backfilled by re-asking for an
    * older slice. Required, so adding a bank without deciding is a compile

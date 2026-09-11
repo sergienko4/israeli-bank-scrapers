@@ -12,6 +12,12 @@
 
 import { jest } from '@jest/globals';
 
+import {
+  type ITransaction,
+  TransactionStatuses,
+  TransactionTypes,
+} from '../../../../Transactions.js';
+
 /** Single logger instance shared by the modules under test and the assertions. */
 const LOG = {
   trace: jest.fn(),
@@ -40,6 +46,18 @@ const AUDIT = await import('../../../../Scrapers/Pipeline/Mediator/Scrape/Forens
 const FACTORIES = await import('./MockFactories.js');
 const OPTION = await import('../../../../Scrapers/Pipeline/Types/Option.js');
 
+const BOUNDARY_DATE = '2026-01-01T22:30:00.000Z';
+const BOUNDARY_TXN: ITransaction = {
+  type: TransactionTypes.Normal,
+  date: BOUNDARY_DATE,
+  processedDate: BOUNDARY_DATE,
+  originalAmount: 1,
+  originalCurrency: 'ILS',
+  chargedAmount: 1,
+  description: '',
+  status: TransactionStatuses.Completed,
+};
+
 /**
  * Every line emitted so far at any level, joined for a substring assertion.
  * @returns The text of all log calls this test produced.
@@ -58,6 +76,16 @@ function emitted(): string {
  */
 function ctxWith(isExhausted: boolean): Parameters<typeof AUDIT.logForensicAudit>[0] {
   const scrape = { accounts: [], backfillExhausted: isExhausted };
+  return FACTORIES.makeMockContext({ scrape: OPTION.some(scrape) });
+}
+
+/**
+ * A scrape whose transaction instant falls on the next bank-calendar day.
+ * @returns Context ready for the run-level audit.
+ */
+function ctxWithBoundaryTxn(): Parameters<typeof AUDIT.logForensicAudit>[0] {
+  const account = { accountNumber: 'test-account', txns: [BOUNDARY_TXN] };
+  const scrape = { accounts: [account], backfillExhausted: false };
   return FACTORIES.makeMockContext({ scrape: OPTION.some(scrape) });
 }
 
@@ -81,5 +109,14 @@ describe('logForensicAudit — window verdict wiring', () => {
     AUDIT.logForensicAudit(ctx);
     const said = emitted();
     expect(said).toContain('WINDOW | NOT_EXHAUSTED');
+  });
+});
+
+describe('logForensicAudit — bank-calendar transaction dates', () => {
+  it('renders a boundary instant as the day observed by the bank', () => {
+    const ctx = ctxWithBoundaryTxn();
+    AUDIT.logForensicAudit(ctx);
+    const said = emitted();
+    expect(said).toContain('2.1.2026');
   });
 });

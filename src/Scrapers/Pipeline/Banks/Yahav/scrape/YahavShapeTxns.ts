@@ -9,6 +9,7 @@
  */
 
 import normalizeBancsRecords from '../../../Mediator/Scrape/Bancs/BancsNormalizer.js';
+import { bankDayOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
 import huntTransactions from '../../../Mediator/Scrape/FieldHunt/TxnHunt.js';
 import {
   generateMonthChunks,
@@ -37,8 +38,24 @@ export function txnsUrl(): WKUrlOrLiteral {
 }
 
 /**
+ * Build the one-day fallback from the bank calendar.
+ * @param end - Effective scrape-window end.
+ * @returns A chunk naming the end's bank day.
+ */
+function fallbackChunk(end: Date): IMonthChunk {
+  const day = bankDayOfInstant(end);
+  if (day === false) throw new RangeError('Yahav: invalid scrape window end');
+  const stamp = `${day}T00:00:00.000Z`;
+  return { start: stamp, end: stamp };
+}
+
+/**
  * Month chunks spanning `[startDate, today]` — never empty (a degenerate
- * future startDate falls back to a single today chunk).
+ * future startDate falls back to the effective end's bank day).
+ *
+ * <p>The bound is handed over as a raw instant: `generateMonthChunks` names
+ * bank-calendar days itself, so re-anchoring it here would apply the bank's
+ * zone twice.
  * @param ctx - Action context (carries startDate).
  * @returns Ordered month chunks.
  */
@@ -46,7 +63,7 @@ function scrapeChunks(ctx: IActionContext): readonly IMonthChunk[] {
   const start = new Date(ctx.options.startDate);
   const end = scrapeWindowEnd(ctx);
   const chunks = generateMonthChunks(start, end);
-  return chunks.length > 0 ? chunks : [{ start: end.toISOString(), end: end.toISOString() }];
+  return chunks.length > 0 ? chunks : [fallbackChunk(end)];
 }
 
 /**

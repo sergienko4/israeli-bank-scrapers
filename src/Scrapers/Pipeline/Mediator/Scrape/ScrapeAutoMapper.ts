@@ -27,9 +27,10 @@ export {
 } from './ContainerPicker/ContainerPicker.js';
 export { default as resolveTxnEndpoint } from './EndpointResolver/EndpointResolver.js';
 export { default as findFirstArray } from './FieldHunt/LifoCrawl.js';
-export type { IMonthChunk } from './ScrapeReplayAction.js';
+export type { IChunkMonth, IMonthChunk } from './ScrapeReplayAction.js';
 export {
   buildMonthBody,
+  chunkStartMonth,
   generateMonthChunks,
   isMonthlyEndpoint,
   isRangeIterable,

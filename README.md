@@ -21,8 +21,10 @@ const scraper = createScraper({
 const result = await scraper.scrape({ userCode: '1234567', password: 'secret' });
 
 if (result.success) {
-  for (const account of result.accounts ?? []) {
-    console.log(`${account.accountNumber}: ${account.txns.length} txns, balance ${account.balance ?? 'n/a'}`);
+  for (const [index, account] of (result.accounts ?? []).entries()) {
+    console.log(
+      `Account ${index + 1}: ${account.txns.length} txns, balance ${account.balance ?? 'n/a'}`,
+    );
   }
 }
 ```
@@ -60,6 +62,7 @@ Playwright, and TypeScript strict mode.
      (doctoc strips comments inside its own markers, so this note lives outside them) -->
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
 ## Table of Contents
 
 - [Why this fork](#why-this-fork)
@@ -89,7 +92,7 @@ Playwright, and TypeScript strict mode.
   Fields are found by the visible Hebrew text a user reads, through a
   7-strategy resolver.
 - **PII redaction you can trust** — every log line, captured HTTP body, and DOM
-  snapshot passes through one redactor *before* it touches disk.
+  snapshot passes through one redactor _before_ it touches disk.
 - **Direct-API scraping after login** — once the browser proves the session,
   data is read from the bank's own REST/GraphQL endpoints, not scraped from the
   DOM. Faster, and immune to layout changes.
@@ -99,11 +102,11 @@ Playwright, and TypeScript strict mode.
 
 ## Requirements
 
-| Requirement | Minimum | Note |
-| --- | --- | --- |
-| Node.js | `>= 22.14.0` | ESM-by-default + `node:crypto` `randomUUID` |
-| npm | `>= 10` | Provenance-signed publishes |
-| Disk | ~1.3 GB | Camoufox bundle, cached on **first launch** (not at install) |
+| Requirement     | Minimum         | Note                                                                                                                                                                                                                                |
+| --------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Node.js         | `>= 22.14.0`    | ESM-by-default + `node:crypto` `randomUUID`                                                                                                                                                                                         |
+| npm             | `>= 10`         | Provenance-signed publishes                                                                                                                                                                                                         |
+| Disk            | ~1.3 GB         | Camoufox bundle, cached on **first launch** (not at install)                                                                                                                                                                        |
 | Install scripts | must be allowed | `--ignore-scripts` breaks the native build. npm 12 blocks them by default too, so `better-sqlite3` needs `npm install-scripts approve` — see [Troubleshooting](https://sergienko4.github.io/israeli-bank-scrapers/troubleshooting/) |
 
 Windows, macOS, and Linux are all supported.
@@ -115,12 +118,14 @@ full unit suite against on every pull request. Anything outside this list may
 work, but nothing here proves it.
 
 <!-- node-support:start -->
-| Node | Why this leg |
-| --- | --- |
-| `22.14.0` | The declared minimum in `engines.node` — the oldest version we promise |
-| `22` | Latest 22.x, so a patched LTS cannot regress us unnoticed |
-| `24` | Latest 24.x, so the open-ended `>=` is an evidenced claim, not a hope |
-| `26` | Active LTS from Oct 2026 — we meet the next default before consumers do |
+
+| Node      | Why this leg                                                            |
+| --------- | ----------------------------------------------------------------------- |
+| `22.14.0` | The declared minimum in `engines.node` — the oldest version we promise  |
+| `22`      | Latest 22.x, so a patched LTS cannot regress us unnoticed               |
+| `24`      | Latest 24.x, so the open-ended `>=` is an evidenced claim, not a hope   |
+| `26`      | Active LTS from Oct 2026 — we meet the next default before consumers do |
+
 <!-- node-support:end -->
 
 `npm run lint:node-support` fails the build if this table, `.nvmrc`,
@@ -143,27 +148,27 @@ choose 24.
 19 institutions. `CompanyTypes.<Name>` selects the bank; credential fields are
 validated at runtime.
 
-| Institution | Type | Engine | Credentials |
-| --- | --- | --- | --- |
-| Bank Hapoalim | Bank | Browser | `userCode`, `password`, OTP\* |
-| Bank Leumi | Bank | Browser | `username`, `password` |
-| Bank Otsar Hahayal | Bank | Browser | `username`, `password`, OTP |
-| Bank Yahav | Bank | Browser | `num`, `nationalID`, `password` |
-| Behatsdaa | Bank | Browser | `id`, `password` |
-| Beinleumi | Bank | Browser | `username`, `password`, OTP |
-| Beyahad Bishvilha | Bank | Browser | `id`, `password` |
-| Discount Bank | Bank | Browser | `id`, `password`, `num` |
-| Massad | Bank | Browser | `username`, `password`, OTP |
-| Mercantile Bank | Bank | Browser | `id`, `password`, `num` |
-| Mizrahi Bank | Bank | Browser | `username`, `password` |
-| One Zero | Bank | API-direct | `email`, `password`, OTP |
-| Pagi | Bank | Browser | `username`, `password`, OTP |
-| Pepper (by Leumi) | Bank | API-direct | `phoneNumber`, `password`, OTP |
-| Amex | Credit card | Browser | `id`, `card6Digits`, `password` |
-| Isracard | Credit card | Browser | `id`, `card6Digits`, `password` |
-| Max | Credit card | Browser | `username`, `password` |
-| Visa Cal | Credit card | Browser | `username`, `password` |
-| PayBox (by Discount) | Wallet | API-direct | `phoneNumber`, OTP |
+| Institution          | Type        | Engine     | Credentials                     |
+| -------------------- | ----------- | ---------- | ------------------------------- |
+| Bank Hapoalim        | Bank        | Browser    | `userCode`, `password`, OTP\*   |
+| Bank Leumi           | Bank        | Browser    | `username`, `password`          |
+| Bank Otsar Hahayal   | Bank        | Browser    | `username`, `password`, OTP     |
+| Bank Yahav           | Bank        | Browser    | `num`, `nationalID`, `password` |
+| Behatsdaa            | Bank        | Browser    | `id`, `password`                |
+| Beinleumi            | Bank        | Browser    | `username`, `password`, OTP     |
+| Beyahad Bishvilha    | Bank        | Browser    | `id`, `password`                |
+| Discount Bank        | Bank        | Browser    | `id`, `password`, `num`         |
+| Massad               | Bank        | Browser    | `username`, `password`, OTP     |
+| Mercantile Bank      | Bank        | Browser    | `id`, `password`, `num`         |
+| Mizrahi Bank         | Bank        | Browser    | `username`, `password`          |
+| One Zero             | Bank        | API-direct | `email`, `password`, OTP        |
+| Pagi                 | Bank        | Browser    | `username`, `password`, OTP     |
+| Pepper (by Leumi)    | Bank        | API-direct | `phoneNumber`, `password`, OTP  |
+| Amex                 | Credit card | Browser    | `id`, `card6Digits`, `password` |
+| Isracard             | Credit card | Browser    | `id`, `card6Digits`, `password` |
+| Max                  | Credit card | Browser    | `username`, `password`          |
+| Visa Cal             | Credit card | Browser    | `username`, `password`          |
+| PayBox (by Discount) | Wallet      | API-direct | `phoneNumber`, OTP              |
 
 \* Hapoalim prompts for OTP only on unrecognised devices.
 
@@ -177,7 +182,7 @@ Per-bank notes live in the
 
 ## OTP (two-factor authentication)
 
-**Browser banks** — pass the callback in *options*:
+**Browser banks** — pass the callback in _options_:
 
 ```typescript
 createScraper({
@@ -187,7 +192,7 @@ createScraper({
 });
 ```
 
-**API-direct banks** (OneZero, Pepper, PayBox) — pass it in *credentials*, and
+**API-direct banks** (OneZero, Pepper, PayBox) — pass it in _credentials_, and
 keep the returned token to skip SMS next time:
 
 ```typescript
@@ -221,6 +226,11 @@ Every bank — browser or API-direct — returns the same `IScraperScrapingResul
     {
       "accountNumber": "12-345-678901234",
       "balance": 15234.5,
+      "windowCoverage": {
+        "status": "covered",
+        "requestedStart": "2024-01-01T00:00:00.000Z",
+        "oldest": "2024-01-01"
+      },
       "txns": [
         {
           "type": "normal",
@@ -243,10 +253,55 @@ Optional fields — `memo`, `category`, `installments`, `chargedCurrency`,
 `rawTransaction` — appear when the bank supplies them. `futureDebits`,
 `persistentOtpToken`, and `diagnostics` sit alongside `accounts`.
 
+`futureDebits` is **never populated**. It is part of the upstream result shape
+and is kept for compatibility; no scraper in this package writes to it. Read it
+as "not available", not as "this account has no upcoming debits".
+
+`diagnostics` is populated only by the browser-based scrapers. The API-direct
+pipeline reports through `windowCoverage` instead — see below.
+
+### Did you get the whole window? (`windowCoverage`)
+
+A short transaction list does not reveal whether the requested start was
+reached or whether collection stopped short. Both outcomes arrive as
+`success: true`. Every API-direct account therefore carries a `windowCoverage`
+verdict describing what the scrape can prove and which observed caveats prevent
+a stronger claim:
+
+| `status`            | What it means                                                                                                                     | What to do                             |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `covered`           | The oldest row reaches your `startDate`, and every loss channel the scrape watches came back clean.                               | Nothing.                               |
+| `lowerBoundReached` | The oldest row reaches your `startDate`, but a channel reported loss or an extraction audit could not run. `caveats` names which. | Treat the list as possibly incomplete. |
+| `unproven`          | Your `startDate` was never reached. `reason` says what stopped the walk.                                                          | Re-run, or narrow the window.          |
+
+```ts
+for (const [index, account] of (result.accounts ?? []).entries()) {
+  const coverage = account.windowCoverage;
+  if (coverage?.status === 'unproven') {
+    console.warn(
+      `Account ${index + 1}: only back to ${coverage.oldest ?? 'unknown'} — ${coverage.reason}`,
+    );
+  }
+}
+```
+
+**What `covered` does not promise.** It proves the window's _far edge_ was
+reached and that nothing the scrape can observe reported loss on the way. It
+does **not** prove that no row in the _middle_ of the window was dropped
+without leaving a trace. Detecting that needs a reliable provider total for the
+complete requested window, which Israeli banks generally do not send. Where a
+provider declares a row count for an individual response, the scrape checks it
+and downgrades to `lowerBoundReached` on a shortfall; where it declares nothing,
+there is nothing to check against. `covered` means "we reached the edge and saw
+no loss", never "nothing was lost".
+
+The field is absent on browser-based scrapers, which have no equivalent walk to
+audit — so check for its presence rather than assuming it.
+
 ### The same data, on disk
 
 With redaction on (the default), those values are only ever unredacted **in
-memory**: every *text* artifact the run writes — `pipeline.log`,
+memory**: every _text_ artifact the run writes — `pipeline.log`,
 `network/*.json`, `screenshots/*.html` — goes through the redactor first, so
 `pipeline.log` from a real run reads:
 
@@ -274,7 +329,7 @@ The credentials you pass in are used to log into the bank and are never
 persisted by this library — no credential store, no cache file, no config
 written back.
 
-Your bank's own login exchange is a different thing, and it *is* captured. The
+Your bank's own login exchange is a different thing, and it _is_ captured. The
 session material it returns — cookies, bearer tokens, `otpLongTermToken` — and
 the submitted `password` field itself flow through `network/*.json` and
 `pipeline.log`. Every one of those is routed through the redactor before the
@@ -303,17 +358,17 @@ if (!result.success) {
 }
 ```
 
-| `errorType` | Meaning | First thing to try |
-| --- | --- | --- |
-| `INVALID_PASSWORD` | Wrong credentials | Re-check the credential *field names* for that bank — they differ |
-| `INVALID_OTP` | Wrong or expired OTP code | Codes expire fast; return them from `otpCodeRetriever` promptly |
-| `TWO_FACTOR_RETRIEVER_MISSING` | OTP required, no callback supplied | Add `otpCodeRetriever` |
-| `CHANGE_PASSWORD` | Bank is forcing a password reset | Log in through the bank's own site once |
-| `ACCOUNT_BLOCKED` | Bank locked the account | Contact the bank — retrying will not help |
-| `WAF_BLOCKED` | Cloudflare block | Read `errorDetails.suggestions` |
-| `TIMEOUT` | Page load timeout | Raise `defaultTimeout` |
-| `NETWORK_ERROR` | Transport failure before a response | Check connectivity, then retry |
-| `GENERIC` | Pipeline phase failure | Read `errorMessage` |
+| `errorType`                    | Meaning                             | First thing to try                                                |
+| ------------------------------ | ----------------------------------- | ----------------------------------------------------------------- |
+| `INVALID_PASSWORD`             | Wrong credentials                   | Re-check the credential _field names_ for that bank — they differ |
+| `INVALID_OTP`                  | Wrong or expired OTP code           | Codes expire fast; return them from `otpCodeRetriever` promptly   |
+| `TWO_FACTOR_RETRIEVER_MISSING` | OTP required, no callback supplied  | Add `otpCodeRetriever`                                            |
+| `CHANGE_PASSWORD`              | Bank is forcing a password reset    | Log in through the bank's own site once                           |
+| `ACCOUNT_BLOCKED`              | Bank locked the account             | Contact the bank — retrying will not help                         |
+| `WAF_BLOCKED`                  | Cloudflare block                    | Read `errorDetails.suggestions`                                   |
+| `TIMEOUT`                      | Page load timeout                   | Raise `defaultTimeout`                                            |
+| `NETWORK_ERROR`                | Transport failure before a response | Check connectivity, then retry                                    |
+| `GENERIC`                      | Pipeline phase failure              | Read `errorMessage`                                               |
 
 `GENERAL_ERROR` is a deprecated alias of `GENERIC`, still emitted for
 backwards compatibility. Full remedies, including WAF-specific ones, are in
@@ -368,17 +423,17 @@ a shared context. See
 
 ## Documentation
 
-| Guide | Contents |
-| --- | --- |
-| [Quick start](https://sergienko4.github.io/israeli-bank-scrapers/quick-start/) | Install, requirements, first scrape |
-| [Configuration](https://sergienko4.github.io/israeli-bank-scrapers/configuration/) | Every option, credential, and env var |
-| [Troubleshooting](https://sergienko4.github.io/israeli-bank-scrapers/troubleshooting/) | Errors by symptom, WAF remedies |
-| [Advanced usage](https://sergienko4.github.io/israeli-bank-scrapers/advanced-usage/) | Parallel scraping, timeouts, upstream migration |
-| [Compatibility](https://sergienko4.github.io/israeli-bank-scrapers/compatibility/) | Upgrade notes and breaking changes |
-| [Banks](https://sergienko4.github.io/israeli-bank-scrapers/banks/) | Per-bank behaviour and quirks |
-| [Architecture](https://sergienko4.github.io/israeli-bank-scrapers/architecture/pipeline/) | Pipeline phases and contracts |
-| [PII redaction](https://sergienko4.github.io/israeli-bank-scrapers/observability/redaction/) | What is masked, and how it stays correct |
-| [API reference](https://sergienko4.github.io/israeli-bank-scrapers/api/) | Generated TypeDoc |
+| Guide                                                                                        | Contents                                        |
+| -------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| [Quick start](https://sergienko4.github.io/israeli-bank-scrapers/quick-start/)               | Install, requirements, first scrape             |
+| [Configuration](https://sergienko4.github.io/israeli-bank-scrapers/configuration/)           | Every option, credential, and env var           |
+| [Troubleshooting](https://sergienko4.github.io/israeli-bank-scrapers/troubleshooting/)       | Errors by symptom, WAF remedies                 |
+| [Advanced usage](https://sergienko4.github.io/israeli-bank-scrapers/advanced-usage/)         | Parallel scraping, timeouts, upstream migration |
+| [Compatibility](https://sergienko4.github.io/israeli-bank-scrapers/compatibility/)           | Upgrade notes and breaking changes              |
+| [Banks](https://sergienko4.github.io/israeli-bank-scrapers/banks/)                           | Per-bank behaviour and quirks                   |
+| [Architecture](https://sergienko4.github.io/israeli-bank-scrapers/architecture/pipeline/)    | Pipeline phases and contracts                   |
+| [PII redaction](https://sergienko4.github.io/israeli-bank-scrapers/observability/redaction/) | What is masked, and how it stays correct        |
+| [API reference](https://sergienko4.github.io/israeli-bank-scrapers/api/)                     | Generated TypeDoc                               |
 
 Upgrading? [Compatibility](https://sergienko4.github.io/israeli-bank-scrapers/compatibility/)
 lists the releases that need action; everything else is a drop-in. Full

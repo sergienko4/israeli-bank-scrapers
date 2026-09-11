@@ -279,6 +279,218 @@ walk-order hapoalim/txns: BEYOND — asked=20260715 newest=20260716; page carrie
 
 A faulting verdict warns rather than throws, matching `assessWindowCoverage`. Throwing would discard the rows already gathered, which is a larger loss than the one being reported — and the rows on a violated page are still real rows, they are simply not all of them.
 
+## From verdict to public field: what the caller is told
+
+Everything above ends in a log line. A log line is only readable by whoever is
+watching the run, and the caller of `scrape()` is not. Issue #553 is exactly
+that gap: the verdict was computed, consumed to decide whether to keep walking,
+and then dropped. Each account now carries the verdict out on the result.
+
+The published shape is a three-state `IWindowCoverage` (`src/WindowCoverage.ts`),
+and the three states answer three different questions:
+
+| `status`            | What it means                                                                                                  | Extra fields                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `covered`           | the oldest row reaches the requested start, with nothing casting doubt on it                                   | `requestedStart`, `oldest`                                                     |
+| `lowerBoundReached` | the oldest row reaches the requested start, but a loss channel reported or could not run — rows may be missing | `requestedStart`, `oldest`, `caveats`                                          |
+| `unproven`          | the walk stopped without proving the window                                                                    | `requestedStart`, `reason`, and `oldest` + `gapDays` when a row carried a date |
+
+`unproven` is a first-class answer, not a failure. A quiet account and a
+truncated one are indistinguishable in the data, so a verdict that had to pick
+one would be guessing. Naming the doubt is the honest option and it is the
+option the caller can act on.
+
+### Why the evidence is accumulated rather than recomputed
+
+The facts that justify a caveat are discovered at different moments and by
+different code: a mapper reject during extraction, an ordering fault during the
+walk, a shortfall against a declared count after a page lands. By the time the
+verdict is built, most of them are no longer in scope.
+
+`makeEvidenceLedger()` (`src/Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/EvidenceLedger.ts`)
+returns an `IEvidenceLedger` that each of those sites writes to as it passes.
+It has exactly two writers — `note(caveat)` and `noteWhen(caveat, condition)` —
+and one reader, `caveats()`.
+
+Three properties are deliberate:
+
+- **Monotonic.** A caveat can be added and never removed. Doubt that has been
+  raised once cannot be argued away by a later, luckier page.
+- **Idempotent.** The same caveat noted on forty pages appears once. Callers
+  read a set of concerns, not a page count.
+- **Order-independent.** `caveats()` emits in a frozen declaration order, not
+  in the order the walk happened to observe them, so the published field does
+  not change shape because a bank reordered its pages.
+
+`noteWhen` exists so a call site can hand over a boolean it already computed
+rather than wrapping the write in an `if`. That keeps the caveat name and the
+condition that earns it on the same line, where a reader can check one against
+the other.
+
+### Which pagination endings count as loss
+
+`isLossyTermination()`
+(`src/Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/TerminationEvidence.ts`)
+decides whether a walk's ending earns `paginationStoppedEarly`. It returns the
+branded `IsLossyTermination` rather than a bare `boolean`, per architecture
+Rule #15.
+
+`Pagination.ts` reports how a walk ended and nothing more; it says outright
+that callers who care about completeness map its codes into their own
+vocabulary. This is that mapping, kept on the coverage side so the paginator
+stays ignorant of window verdicts.
+
+Only `cursorRepeat` and `pageCeiling` are loss — the walk gave up on its own
+terms while the provider was still offering more. The other two are not:
+
+- `exhausted` is the provider saying it was finished.
+- `predicateStop` is the shape's own "we have enough" rule. For a window walk
+  it fires only once the rows held already reach past the requested start, so
+  it reports sufficiency. Counting it as loss would make `covered` unreachable
+  for every bank that declares a stop predicate — OneZero among them — and
+  publish the best available outcome as a qualified one on every run.
+
+Trusting the predicate costs nothing, because the date audit is an independent
+guard: a predicate that stopped the walk _before_ the window was covered leaves
+the audit unsatisfied and the verdict becomes `unproven` on that evidence
+alone.
+
+### Ranking two rounds against each other
+
+An account's backfill runs several rounds, each its own paginated walk, and
+only one ending is published. `worseTermination()` folds them, keeping the one
+that leaves the most unproven.
+
+Both it and `isLossyTermination()` read the same `TERMINATION_DOUBT` map, which
+scores every ending from "provider finished" through "shape had enough" to
+"walk gave up while more was on offer". Sharing one ranking is deliberate. When
+the fold and the loss test were separate rules they disagreed: the fold kept
+the first non-`exhausted` answer, so an early `predicateStop` — which is not
+loss — stuck, and a `cursorRepeat` proved by a later round was never reported.
+An account that had provably lost rows was published as clean. Deriving both
+from one map makes that disagreement unrepresentable.
+
+An ending the map has never been taught scores as loss, so a future
+termination added to `Pagination.ts` and forgotten here surfaces as an
+over-cautious verdict rather than a silently clean one.
+
+### Why classification is separated from the walk
+
+`classifyWindowCoverage()`
+(`src/Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/WindowCoverageVerdict.ts`)
+takes an `IClassifyArgs` — the `requestedStart`, the `IWindowResult` the audit
+produced, the `WindowStop` the backfill settled on, and the accumulated
+`caveats` — and returns the published `IWindowCoverage`.
+
+It touches no network state and reads no context, so the mapping from evidence
+to public status is a pure function that can be tested exhaustively without a
+scrape. That matters more here than elsewhere: this function decides what the
+package _claims_, and a wrong claim is worse than a missing one.
+
+`WindowStop` is `'covered'` or a `WindowUnprovenReason`. The distinction it
+encodes is the one the walk is uniquely able to make and the audit is not:
+whether we **stopped asking** because there was nothing more to get, or because
+we ran out of permission to ask.
+
+The classifier's one non-obvious rule: reaching the lower bound with caveats is
+`lowerBoundReached`, not `covered`. Caveats exist precisely because something
+happened that could have cost rows; laundering that into `covered` would
+reproduce the silence this whole page documents.
+
+### Why the backfill's refusals are data, not branches
+
+`planBackfill()` returns an `IBackfillPlan` — either an `IBackfillAsk` naming
+the narrowed window to re-request, or an `IBackfillRefusal` naming why it will
+not ask again. The refusal reasons are the raw material of `unproven`, so they
+have to be enumerable rather than scattered through conditionals.
+
+They live in `WindowBackfillBlocks.ts`. `blockOf()` takes an
+`IBackfillPlanArgs` — the bank's `stance`, the current `coverage`, the
+`attempt` number, the `previousEnd`, and a `label` — and returns the first
+matching `IBackfillBlock`, or `false` when nothing blocks the ask. Each block
+carries a `BackfillStop` code and a human `reason` string; the codes are the
+same vocabulary the public `unproven` reason uses, so no translation layer can
+drift between what is logged and what is published.
+
+Adding a new reason to stop is adding an entry to the rule list, which is the
+open/closed shape the repository prefers to a growing `if` ladder.
+
+Two constants are worth knowing by name:
+
+- `MAX_BACKFILL_ASKS` caps how many times one account may re-ask. Without a
+  cap, a provider that returns the same short answer forever turns a scrape
+  into an infinite loop.
+- `BOUND_DID_NOT_MOVE` is the block that fires when a re-ask came back with the
+  same oldest row as the previous one. It is the walk's proof that asking again
+  is pointless, and it is the single most common route to `unproven` in
+  practice. It is also why the window dates must resolve in the **bank's**
+  calendar: a bound rendered in the host's zone can land after rows already
+  held, which makes a healthy provider look like a stuck one on any host west
+  of Israel. See [Bank calendar](../architecture/bank-calendar.md).
+
+### Why pagination now reports how it ended
+
+`fetchPaginated` used to return only the rows. Its caller therefore could not
+distinguish "the provider ran out of data" from "we hit our own page ceiling"
+— and those two mean opposite things about coverage.
+
+It now returns an `IPaginatedWalk<TItem>`: the `items`, plus a
+`PaginationTermination` naming the exit. Four exits exist —
+
+| `PaginationTermination` | The walk stopped because                |
+| ----------------------- | --------------------------------------- |
+| `exhausted`             | the provider offered no further cursor  |
+| `cursorRepeat`          | the cursor stopped advancing            |
+| `pageCeiling`           | our own `MAX_PAGES` guard fired         |
+| `predicateStop`         | the caller's stop predicate asked it to |
+
+Neither `cursorRepeat` nor `pageCeiling` says the provider's data ran out.
+`cursorRepeat` records a non-advancing cursor; `pageCeiling` says **our** own
+`MAX_PAGES` guard fired. Either leaves the window unproven because the walk was
+abandoned before the provider reported `exhausted`.
+
+`predicateStop` is neither. It is the shape's own "we have enough" rule, so it
+reports sufficiency rather than loss — see [Which pagination endings count as
+loss](#which-pagination-endings-count-as-loss). It carries no doubt of its own,
+and the independent start-date audit decides the verdict: a predicate that fired
+before the window was covered leaves that audit unsatisfied and the account is
+`unproven` on those grounds alone, while one that fired after it can still
+produce `covered`.
+
+The pagination module deliberately does not know what its caller does with the
+code; it reports the exit and nothing more.
+
+### Where the verdict is attached
+
+`fetchAccountTxns()`
+(`src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeAccountTxns.ts`)
+returns an `IAccountTxns` — the mapped `txns`, the `backfillExhausted` flag,
+and the `windowCoverage` verdict. Carrying the verdict alongside the rows is
+the whole point: a truncated transaction list and a complete one are the same
+shape, so a verdict dropped here is unrecoverable above.
+
+Upstream of it, `IWalkEnd` records what a stopped walk settled on — the
+`requestedStart` as rendered for the audit, the `coverage` the audit produced,
+and the `stop` code the backfill loop ended with. It is the bundle the
+classifier consumes.
+
+At the phase boundary, `IAuditedAccount`
+(`src/Scrapers/Pipeline/Types/Domain/AuditedAccount.ts`) extends
+`ITransactionsAccount` with a **required** `windowCoverage`. The public field is
+optional, because absent legitimately means "no audit ran" — which is true of
+every browser scrape strategy. Inside a phase that does run the audit, absent
+can only mean the verdict was computed and then dropped, which is issue #553
+itself. Requiring it here turns that regression into a compile error instead of
+a silence someone has to notice.
+
+### What `covered` still does not promise
+
+`covered` proves the **oldest** row reaches the requested start. It does not
+prove that no row in the **middle** of the window was dropped — that would need
+provider-side totals we are not sent, and `auditDeclaredRows` is only a partial
+answer because most banks declare nothing. The same limit is stated on the
+public README so a caller cannot read more into the field than it can support.
+
 ## Verifying a change to it
 
 `auditCoverage` is a pure function over a body and a row list, so it is unit-tested in isolation in `src/Tests/Unit/Pipeline/Mediator/Scrape/CoverageAudit.test.ts` — including the transforming-extractor case that pins the mapped-key decision, and the mapper-reject case that pins the over-collection decision. Both exist to fail loudly if someone "simplifies" the comparison back to reference equality or raw counts. `reportMapRejects` is covered alongside it in `src/Tests/Unit/Pipeline/Mediator/Scrape/MapRejects.test.ts`, and `auditDeclaredRows` in `src/Tests/Unit/Pipeline/Mediator/Scrape/DeclaredRows.test.ts` — where the surplus case and the declares-nothing case pin the two decisions above.

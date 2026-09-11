@@ -43,7 +43,7 @@ function accountsArgs(body: ApiBody): IExtractAccountsArgs {
  * @returns Action context with startDate = 2024-01-15 (local).
  */
 function ctxWithStart(): IActionContext {
-  return { options: { startDate: new Date(2024, 0, 15) } } as unknown as IActionContext;
+  return { options: { startDate: new Date('2024-01-15T12:00:00Z') } } as unknown as IActionContext;
 }
 
 describe('MercantileShape helpers', () => {

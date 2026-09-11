@@ -12,6 +12,7 @@
  */
 
 import { readBancsFromDate } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/Bancs/BancsDateTemplate.js';
+import { bankDayOfInstant } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
 import { balanceBody, txnBody } from '../../../../BancsRequestFixtures.js';
 
 /** A calendar date in BaNCS numeric parts (Month is 1-based). */
@@ -39,19 +40,28 @@ describe('readBancsFromDate', () => {
   it('reads the GREATERTHAN* OrigDt fromDate of a CURRENT_ACCOUNT body', () => {
     const body = txnBody();
     const result = readBancsFromDate(body);
-    const isDate = result !== false;
-    expect(isDate).toBe(true);
-    const ms = result === false ? 0 : result.getTime();
-    const expected = Date.UTC(2026, 0, 1); // fixture lower bound = Day 1 / Month 1 / Year 2026
-    expect(ms).toBe(expected);
+    const day = result === false ? false : bankDayOfInstant(result);
+    expect(day).toBe('2026-01-01');
   });
 
   it('reads a specific narrow from-bound (Month is 1-based)', () => {
     const body = bancsBodyFrom({ day: 5, month: 7, year: 2026 });
     const result = readBancsFromDate(body);
-    const ms = result === false ? 0 : result.getTime();
-    const expected = Date.UTC(2026, 6, 5); // July -> index 6
-    expect(ms).toBe(expected);
+    const day = result === false ? false : bankDayOfInstant(result);
+    expect(day).toBe('2026-07-05');
+  });
+
+  it('BANC-DATE-03 rejects provider parts that JavaScript would normalize', () => {
+    const body = bancsBodyFrom({ day: 0, month: 0, year: 2026 });
+    const result = readBancsFromDate(body);
+    expect(result).toBe(false);
+  });
+
+  it('BANC-DATE-04 preserves an accepted four-digit year below 100', () => {
+    const body = bancsBodyFrom({ day: 5, month: 7, year: 42 });
+    const result = readBancsFromDate(body);
+    const day = result === false ? false : bankDayOfInstant(result);
+    expect(day).toBe('0042-07-05');
   });
 
   it('returns false for a non-txn BaNCS body (portfolioBalance, no date range)', () => {
