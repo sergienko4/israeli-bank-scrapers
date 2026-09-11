@@ -12,6 +12,7 @@
  * changing the request. Neither failure raises an error on its own.
  */
 
+import { bankMomentOfInstant } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
 import { assessWindowCoverage } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/WindowCoverage.js';
 import { planBackfill } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/WindowBackfill.js';
 import type { Option } from '../../../../../Scrapers/Pipeline/Types/Option.js';
@@ -43,18 +44,17 @@ const CASE_ROWS = WINDOW_NARROWING_CASES.map(c => [c.bank, c] as const);
 /**
  * A date's calendar day in the local zone.
  *
- * The bound is a local midnight and every shape formats it locally, so
- * rendering it as UTC would report the preceding day for half the year.
+ * <p>Rendered in the bank's calendar, not the host's. The bound is an absolute
+ * instant that the shapes format through `bankMomentOfInstant`, so a helper
+ * that reads it back with local `Date` getters asserts the runner's timezone
+ * rather than the behaviour. `jest.config.js` pins TZ=Asia/Jerusalem but
+ * `jest.pipeline.config.cjs` does not, so an ambient read here passes locally
+ * and reports the wrong day on a host east of Israel.
  * @param when - Date to render.
  * @returns Calendar day, `YYYY-MM-DD`.
  */
 function dayOf(when: Date): string {
-  const year = when.getFullYear();
-  const month = when.getMonth() + 1;
-  const day = when.getDate();
-  const mm = String(month).padStart(2, '0');
-  const dd = String(day).padStart(2, '0');
-  return `${String(year)}-${mm}-${dd}`;
+  return bankMomentOfInstant(when).format('YYYY-MM-DD');
 }
 
 describe('the shortfall these cases are judged against', () => {

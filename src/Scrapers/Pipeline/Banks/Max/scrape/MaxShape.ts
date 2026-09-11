@@ -12,6 +12,7 @@
  * MaxShapeExtract.ts to hold the file-size cap.
  */
 
+import { validateCardIssuerPlan } from '../../../Phases/ApiDirectScrape/CardIssuer/CardIssuerShapeTxns.js';
 import type {
   ApiBody,
   IApiDirectScrapeShape,
@@ -59,6 +60,7 @@ const MAX_SHAPE: IApiDirectScrapeShape<IMaxCard, number> = {
   transactions: {
     buildVars: noVars,
     extractPage: txnsExtractPage,
+    validatePlan: validateCardIssuerPlan,
     auditOwnsRow: OWNS_MAX_ROW,
     windowNarrowing: 'periodEnumeration',
     urlTag: txnsUrl,

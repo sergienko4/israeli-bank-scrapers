@@ -10,44 +10,64 @@ The pre-commit hook runs ESLint + Biome + Prettier + the architecture validator 
 
 Open-closed pattern enforced via `eslint.config.mjs` `max-depth: 1` and `complexity` rules.
 
-| Banned | Allowed |
-|---|---|
+| Banned                                             | Allowed                           |
+| -------------------------------------------------- | --------------------------------- |
 | `if (bank === 'amex') {} else if (...) {}` ladders | Lookup table — `MAP[bank]?.(...)` |
-| Functions over the cluster cap (see CLEAN_CODE.md) | Extract helpers |
-| `class` extension chains | Composition + declarative config |
+| Functions over the cluster cap (see CLEAN_CODE.md) | Extract helpers                   |
+| `class` extension chains                           | Composition + declarative config  |
+
+### Bank-calendar decisions use one provider
+
+Pipeline code must resolve bank days and months through `BankCalendar.ts`. The
+calendar selectors in `eslint.config.mjs` reject:
+
+- host-local `Date` component reads and locale date formatting;
+- raw UTC component reads;
+- multi-argument host-zone `Date` construction; and
+- direct `moment(...)` or `moment.tz(...)` parsing.
+
+The rule targets calendar decisions, not absolute instants. Comparing
+`getTime()`, serializing with `toISOString()`, and forwarding an instant with
+`toUTCString()` remain valid because they do not ask the host which calendar
+day the instant names.
+
+Permanent exceptions are limited to the provider itself, operator-facing run
+and trace labels that intentionally use the machine clock, and Yahav's
+explicit UTC wire envelope. Exact-message canaries keep every calendar
+selector active.
 
 ### No CSS selectors in interaction code
 
-| Banned in interaction code | Allowed |
-|---|---|
+| Banned in interaction code                       | Allowed                                                              |
+| ------------------------------------------------ | -------------------------------------------------------------------- |
 | `page.$$('div#login')`, `$eval`, `querySelector` | `getByText`, `getByRole`, `getByPlaceholder` (Playwright text-first) |
-| Hardcoded `#login-form`, `.btn-submit` strings | The 7-strategy `SelectorResolver` |
-| `waitForSelector('#id')` | `waitForText` / `waitForRole` |
+| Hardcoded `#login-form`, `.btn-submit` strings   | The 7-strategy `SelectorResolver`                                    |
+| `waitForSelector('#id')`                         | `waitForText` / `waitForRole`                                        |
 
 CSS selectors **are** allowed in parsing / extraction code (table walks, date-picker grids, etc.) — the rule targets user-facing flow only.
 
 ### No `null` / `undefined` returns
 
-| Banned | Allowed |
-|---|---|
-| `function foo(): T | null` | `function foo(): Procedure<T>` |
+| Banned                                         | Allowed                                              |
+| ---------------------------------------------- | ---------------------------------------------------- |
+| `function foo(): T                             | null`                                                | `function foo(): Procedure<T>` |
 | `return null;`, `return;`, `return undefined;` | `return succeed(value);` / `return fail(type, msg);` |
-| `value!` non-null assertion | Optional chaining + explicit guard |
+| `value!` non-null assertion                    | Optional chaining + explicit guard                   |
 
 ### No raw PII in logs
 
-| Banned | Allowed |
-|---|---|
-| `LOG.info(\`account ${accountId}\`)` | `LOG.info({ account: maskTail4(accountId) })` |
+| Banned                                  | Allowed                                        |
+| --------------------------------------- | ---------------------------------------------- |
+| `LOG.info(\`account ${accountId}\`)`    | `LOG.info({ account: maskTail4(accountId) })`  |
 | `LOG.debug({ result })` (whole payload) | `LOG.debug({ stage: 'final', resolvedCount })` |
-| `console.log(...)` (any) | Use the typed logger |
+| `console.log(...)` (any)                | Use the typed logger                           |
 
 ### No `throw new Error` across module boundaries
 
-| Banned | Allowed |
-|---|---|
-| `throw new Error('...')` | `throw new ScraperError('...')` |
-| | `return fail(ScraperErrorTypes.Generic, '...')` (preferred in pipeline code) |
+| Banned                   | Allowed                                                                      |
+| ------------------------ | ---------------------------------------------------------------------------- |
+| `throw new Error('...')` | `throw new ScraperError('...')`                                              |
+|                          | `return fail(ScraperErrorTypes.Generic, '...')` (preferred in pipeline code) |
 
 ### No nested call expressions
 
@@ -66,24 +86,24 @@ Test files have the [`assertOk`](https://github.com/sergienko4/israeli-bank-scra
 
 ## Auto-fix vs hand-fix
 
-| Tool | Auto-fix command | What it handles |
-|---|---|---|
-| Prettier | `npm run format` | Whitespace, quotes, trailing commas, line wraps |
-| ESLint | `npm run lint:fix` | Import order, unused imports, trivial style |
-| Biome | `npx biome check src --write` | Some safe semantic fixes (organise imports, simplify expressions) |
+| Tool     | Auto-fix command              | What it handles                                                   |
+| -------- | ----------------------------- | ----------------------------------------------------------------- |
+| Prettier | `npm run format`              | Whitespace, quotes, trailing commas, line wraps                   |
+| ESLint   | `npm run lint:fix`            | Import order, unused imports, trivial style                       |
+| Biome    | `npx biome check src --write` | Some safe semantic fixes (organise imports, simplify expressions) |
 
 Architecture violations + canaries + dead code must be **hand-fixed**. They flag invariant breaks, not style.
 
 ## Common errors and their fixes
 
-| Error | Fix |
-|---|---|
-| `File has too many lines (N). Maximum allowed is 600` | Split the file — extract a `*Helpers.ts` or `*Branches.test.ts` |
-| `🚫 FORBIDDEN NESTED CALL` | Extract the nested call to a variable |
-| `🚫 ARCHITECTURE: Functions cannot return 'null' or 'undefined'` | Switch to `Procedure<T>` |
-| `Do not use 'throw new Error()'` | Use `ScraperError` (or `fail()` if you're in pipeline code) |
-| `🚫 TYPE SKIP: Do not declare variables as 'unknown'` | Cast to the concrete type immediately at the boundary |
-| `🚫 LINT SKIP: Do not disable ESLint rules` | Don't use `// eslint-disable` — fix the underlying issue |
+| Error                                                            | Fix                                                             |
+| ---------------------------------------------------------------- | --------------------------------------------------------------- |
+| `File has too many lines (N). Maximum allowed is 600`            | Split the file — extract a `*Helpers.ts` or `*Branches.test.ts` |
+| `🚫 FORBIDDEN NESTED CALL`                                       | Extract the nested call to a variable                           |
+| `🚫 ARCHITECTURE: Functions cannot return 'null' or 'undefined'` | Switch to `Procedure<T>`                                        |
+| `Do not use 'throw new Error()'`                                 | Use `ScraperError` (or `fail()` if you're in pipeline code)     |
+| `🚫 TYPE SKIP: Do not declare variables as 'unknown'`            | Cast to the concrete type immediately at the boundary           |
+| `🚫 LINT SKIP: Do not disable ESLint rules`                      | Don't use `// eslint-disable` — fix the underlying issue        |
 
 ## When in doubt
 

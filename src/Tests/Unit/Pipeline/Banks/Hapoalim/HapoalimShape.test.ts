@@ -19,10 +19,12 @@ import {
   type IHapoalimAcct,
 } from '../../../../../Scrapers/Pipeline/Banks/Hapoalim/scrape/HapoalimShapeHelpers.js';
 import {
+  type HapoalimCursor,
   txnsExtractPage,
   txnsHeaders,
   txnsUrl,
 } from '../../../../../Scrapers/Pipeline/Banks/Hapoalim/scrape/HapoalimShapeTxns.js';
+import { makeEvidenceLedger } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
 import type {
   ApiBody,
   IExtractAccountsArgs,
@@ -41,11 +43,37 @@ function accountsArgs(body: ApiBody): IExtractAccountsArgs {
 }
 
 /**
- * Minimal action context carrying a fixed local startDate.
- * @returns Action context with startDate = 2026-06-04 (local).
+ * Minimal action context carrying a fixed startDate.
+ *
+ * <p>An absolute instant, not `new Date(2026, 5, 4)`. That constructor builds
+ * *local* midnight, which is a different real moment per host — from
+ * Kiritimati it is already 2026-06-03 in the bank's calendar, so the shape
+ * correctly renders `20260603` and an expectation of `20260604` fails. Midday
+ * UTC names the same bank day on every host.
+ * @returns Action context with startDate = 2026-06-04 in the bank's calendar.
  */
 function ctxWithStart(): IActionContext {
-  return { options: { startDate: new Date(2026, 5, 4) } } as unknown as IActionContext;
+  const startDate = new Date('2026-06-04T12:00:00Z');
+  return { options: { startDate } } as unknown as IActionContext;
+}
+
+const WALK_CURSOR = '20260801' as HapoalimCursor;
+
+/**
+ * Read coverage caveats emitted by one full cursor page.
+ * @param eventDates - Provider dates carried by the page.
+ * @param cursor - Inclusive upper bound sent to the provider.
+ * @returns Caveats recorded while extracting the page.
+ */
+function coverageCaveatsFor(
+  eventDates: readonly number[],
+  cursor: HapoalimCursor,
+): readonly string[] {
+  const ledger = makeEvidenceLedger();
+  const transactions = eventDates.map((eventDate): object => ({ eventDate }));
+  const body = { numItemsPerPage: transactions.length, transactions };
+  txnsExtractPage({ body, cursor, acct: ACCT, ctx: ctxWithStart(), ledger });
+  return ledger.caveats();
 }
 
 describe('HapoalimShape helpers', () => {
@@ -138,6 +166,21 @@ describe('HapoalimShape transactions', () => {
     const ctx = ctxWithStart();
     const page = txnsExtractPage({ body: {}, cursor: false, acct: ACCT, ctx });
     expect(page.items).toEqual([]);
+  });
+
+  it('records a cursor page that stops short as an ordering violation', () => {
+    const caveats = coverageCaveatsFor([20260701, 20260710], WALK_CURSOR);
+    expect(caveats).toContain('walkOrderViolated');
+  });
+
+  it('records a page that ignored its upper bound as an ordering violation', () => {
+    const caveats = coverageCaveatsFor([20260801, 20260802], WALK_CURSOR);
+    expect(caveats).toContain('walkOrderViolated');
+  });
+
+  it('leaves a stalled cursor for pagination evidence without mislabeling its order', () => {
+    const caveats = coverageCaveatsFor([20260801, 20260801], WALK_CURSOR);
+    expect(caveats).not.toContain('walkOrderViolated');
   });
 });
 

@@ -19,6 +19,7 @@ import {
   monthAt,
   nextCursorOf,
   offsetOf,
+  validateCardIssuerPlan,
 } from '../../../Phases/ApiDirectScrape/CardIssuer/CardIssuerShapeTxns.js';
 import type {
   IExtractPageArgs,
@@ -27,6 +28,7 @@ import type {
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
+import type { Procedure } from '../../../Types/Procedure.js';
 import { CAL_API, type IVisaCalCard } from './VisaCalShapeHelpers.js';
 
 type VisaCalTxn = Record<string, unknown>;
@@ -56,6 +58,15 @@ interface ITxnsResp {
  * purchases. CAL is the only issuer that declares such a floor.
  */
 const OPEN_CYCLE_MONTHS = 1;
+
+/**
+ * Validate CAL's complete monthly walk with its required open-cycle floor.
+ * @param ctx - Action context carrying the requested window.
+ * @returns Successful validation or a typed budget rejection.
+ */
+export function validatePlan(ctx: IActionContext): Procedure<void> {
+  return validateCardIssuerPlan(ctx, OPEN_CYCLE_MONTHS);
+}
 
 /**
  * Build txns POST body for one card-month: {cardUniqueId, month, year}

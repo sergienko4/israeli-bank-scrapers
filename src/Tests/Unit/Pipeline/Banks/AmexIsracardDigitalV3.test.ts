@@ -204,7 +204,7 @@ describe.each(BANKS)('$name DigitalV3 shape', bank => {
     };
     const body = { data: { israelAbroadVouchers: { outOfStatementChargeDateVouchers: [group] } } };
     const result = auditDeclaredRows({ body, specs: bank.declared, label: 'test/txns' });
-    expect(result).toEqual({ checked: 1, shortfall: 0 });
+    expect(result).toEqual({ checked: 1, shortfall: 0, unavailable: false });
   });
 
   it('declared rows expose the container omission this suite exists for', () => {

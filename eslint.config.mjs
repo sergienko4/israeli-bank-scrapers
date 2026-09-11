@@ -326,6 +326,62 @@ const LOWER_KEYS_ARRAY_RULE = {
     'PR #281 C8 §12C: name `lower*Keys` implies a key set for membership testing (Sonar S7776). Use `new Set(keys.map(k => k.toLowerCase()))` named `lower*KeySet`, or rename to `lowerNames` if iterating only.',
 };
 
+// §24 BANK CALENDAR BOUNDARY — added 2026-09 after issue #553's review found
+// the SAME defect in three unrelated scrape sites, one at a time, across ten
+// review rounds. `MonthChunking.buildChunk` writes a chunk start from a
+// BANK-calendar day and appends the text `T00:00:00.000Z`; the `Z` is a
+// formatting literal, not a UTC claim. Reading that back with host-local
+// getters made a scrape for March ask the bank for February on any host west
+// of UTC — the provider answered `200 OK` with the wrong month, nothing threw,
+// and the window simply came back short.
+//
+// Patching the sites one at a time lost: two were fixed and a third survived.
+// `Mediator/Scrape/BankCalendar.ts` is the sanctioned reader, and these
+// selectors are what make going through it mandatory rather than customary.
+// Deliberately aimed at the defect MECHANISM — reading or building calendar
+// COMPONENTS in the host's zone — and not at `new Date(x)` generally, because
+// a Date that is only passed along as an instant is harmless.
+const BANK_CALENDAR_HOST_READ_RULE = {
+  selector:
+    'CallExpression[callee.type="MemberExpression"][callee.property.name=/^get(FullYear|Month|Date|Day|Hours|Minutes|Seconds)$/]',
+  message:
+    '🚫 BANK CALENDAR: `.getMonth()` / `.getFullYear()` / `.getDate()` read the HOST machine calendar, so one instant names a different day west of UTC. Use bankMomentOfInstant() / bankDayOfInstant() from src/Scrapers/Pipeline/Mediator/Scrape/BankCalendar.ts — or read the label directly when the value already carries one.',
+};
+
+const BANK_CALENDAR_HOST_FORMAT_RULE = {
+  selector:
+    'CallExpression[callee.type="MemberExpression"][callee.property.name="toLocaleDateString"]',
+  message:
+    '🚫 BANK CALENDAR: `.toLocaleDateString()` can format a date in the HOST machine calendar because a locale does not select a timezone. Use bankMomentOfInstant() or bankDayOfInstant() before formatting.',
+};
+
+const BANK_CALENDAR_UTC_READ_RULE = {
+  selector:
+    'CallExpression[callee.type="MemberExpression"][callee.property.name=/^getUTC(FullYear|Month|Date|Day|Hours|Minutes|Seconds|Milliseconds)$/]',
+  message:
+    '🚫 BANK CALENDAR: raw `.getUTCMonth()` / `.getUTCDate()` component reads bypass the bank-calendar provider and can mistake a formatted bank label for a UTC instant. Use bankMomentOfInstant() / bankDayOfInstant(), or read and validate the label directly.',
+};
+
+const BANK_CALENDAR_UTC_BUILD_RULE = {
+  selector:
+    'CallExpression[callee.type="MemberExpression"][callee.object.name="Date"][callee.property.name="UTC"]',
+  message:
+    '🚫 BANK CALENDAR: do not construct calendar parts through UTC; Date.UTC normalizes invalid dates and rewrites years 0–99. Validate the label and resolve it through BankCalendar.',
+};
+
+const BANK_CALENDAR_MOMENT_RULE = {
+  selector:
+    ':matches(CallExpression[callee.name="moment"], CallExpression[callee.type="MemberExpression"][callee.object.name="moment"][callee.property.name="tz"])',
+  message:
+    '🚫 BANK CALENDAR: direct `moment(...)` / `moment.tz(...)` calls bypass the Pipeline bank-calendar provider and can inherit the shared default zone. Use parseInBankZone(), bankMomentOfInstant(), or another BankCalendar helper.',
+};
+
+const BANK_CALENDAR_HOST_BUILD_RULE = {
+  selector: 'NewExpression[callee.name="Date"][arguments.length>=2]',
+  message:
+    '🚫 BANK CALENDAR: `new Date(year, month, day)` resolves those components in the HOST zone, so the instant it produces depends on where the scraper runs. Build it in the bank calendar with parseInBankZone() from src/Scrapers/Pipeline/Mediator/Scrape/BankCalendar.ts.',
+};
+
 // §13: every redaction sentinel must be defined once in PiiRedactor/Types.ts
 // and imported, so a hint can be changed in one place.
 const PII_SENTINEL_LITERAL_RULES = [
@@ -887,6 +943,12 @@ const selectorOf = entry => (typeof entry === 'string' ? entry : entry.selector)
  * fired on a single production file.
  */
 const PIPELINE_REVIEW_RULES = [
+  BANK_CALENDAR_HOST_READ_RULE,
+  BANK_CALENDAR_HOST_FORMAT_RULE,
+  BANK_CALENDAR_UTC_READ_RULE,
+  BANK_CALENDAR_UTC_BUILD_RULE,
+  BANK_CALENDAR_MOMENT_RULE,
+  BANK_CALENDAR_HOST_BUILD_RULE,
   {
     // CR-P1 — ban `ReadonlySet<string>` for literal-string sets.
     // Use `ReadonlySet<PhaseName>` (or similar literal union) + `as const`
@@ -1071,6 +1133,26 @@ export const PIPELINE_SELECTOR_EXEMPTIONS = {
   ],
   'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/RecordShape.ts': [
     "CallExpression > .arguments[type='CallExpression']",
+  ],
+
+  // §24 BANK CALENDAR — these two files name LOCAL forensic artefacts, not
+  // bank-calendar data. Their host-local timestamps are the intended output:
+  // a screenshot/run folder should match the machine clock an operator reads.
+  // Exempt only the component-read selector; host-zone Date construction stays
+  // banned even here.
+  'src/Scrapers/Pipeline/Types/RunLabel.ts': [BANK_CALENDAR_HOST_READ_RULE.selector],
+  'src/Scrapers/Pipeline/Types/TraceConfig.ts': [BANK_CALENDAR_HOST_READ_RULE.selector],
+  // Yahav's envelope timestamp is an explicit UTC wire-protocol value, not a
+  // bank-calendar decision. Its fixed `UTCOffsetHour: -3` schema requires
+  // UTC components; host-local components produce provider error 93194.
+  'src/Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeEnvelope.ts': [
+    BANK_CALENDAR_UTC_READ_RULE.selector,
+  ],
+  // BankCalendar is the one sanctioned Moment boundary. It pins every parse
+  // explicitly; allowing Moment anywhere else would recreate the shared
+  // default-zone leak this provider exists to remove.
+  'src/Scrapers/Pipeline/Mediator/Scrape/BankCalendar.ts': [
+    BANK_CALENDAR_MOMENT_RULE.selector,
   ],
 };
 

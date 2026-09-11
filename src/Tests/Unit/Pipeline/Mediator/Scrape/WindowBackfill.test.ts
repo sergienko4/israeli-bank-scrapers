@@ -8,6 +8,7 @@
  * These cases pin every exit.
  */
 
+import { bankMomentOfInstant } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
 import type { IWindowResult } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/WindowCoverage.js';
 import {
   type IBackfillPlanArgs,
@@ -24,7 +25,7 @@ import type { WindowNarrowing } from '../../../../../Scrapers/Pipeline/Types/Win
  * @returns An uncovered window result.
  */
 function gapTo(oldest: string): IWindowResult {
-  return { verdict: 'unproven', oldest, gapDays: 30 };
+  return { verdict: 'unproven', requestedStartReadable: true, oldest, gapDays: 30 };
 }
 
 /**
@@ -47,20 +48,28 @@ describe('planBackfill/asks again', () => {
     // resuming the day before would step over the rows it withheld. The
     // re-served rows are dropped by raw identity in dropOverlap.
     const bound = isSome(plan.nextEnd) ? plan.nextEnd.value : new Date(0);
-    const asDay = [bound.getFullYear(), bound.getMonth(), bound.getDate()];
-    expect(asDay).toEqual([2026, 3, 1]);
+    const asDay = bankMomentOfInstant(bound).format('YYYY-MM-DD');
+    expect(asDay).toBe('2026-04-01');
   });
 
   it('puts the bound at the end of that day, not its start', () => {
     // Seven of the eight backfillable banks render the bound day-granularly, to
     // which the time is invisible. Leumi puts it on the wire as an RFC-1123
     // instant, so a start-of-day bound would exclude that whole day.
+    //
+    // Read in the bank's calendar, never the host's. The bound is an absolute
+    // instant; `getHours()` reports 23 only where the host happens to be
+    // Israel, so an ambient read asserts the runner's timezone rather than the
+    // behaviour. `jest.config.js` pins TZ=Asia/Jerusalem but
+    // `jest.pipeline.config.cjs` does not, so an ambient read here passes
+    // locally and fails on a UTC CI runner.
     const args = argsFor();
     const plan = planBackfill(args);
     const fallback = new Date(0);
     const bound = isSome(plan.nextEnd) ? plan.nextEnd.value : fallback;
-    const hours = bound.getHours();
-    const minutes = bound.getMinutes();
+    const atBank = bankMomentOfInstant(bound);
+    const hours = atBank.hours();
+    const minutes = atBank.minutes();
     expect(hours).toBe(23);
     expect(minutes).toBe(59);
   });
@@ -74,7 +83,12 @@ describe('planBackfill/asks again', () => {
 
 describe('planBackfill/stops', () => {
   it('stops once the window is covered', () => {
-    const covered: IWindowResult = { verdict: 'covered', oldest: '2026-01-01', gapDays: 0 };
+    const covered: IWindowResult = {
+      verdict: 'covered',
+      requestedStartReadable: true,
+      oldest: '2026-01-01',
+      gapDays: 0,
+    };
     const args = argsFor({ coverage: covered });
     const plan = planBackfill(args);
     expect(plan.shouldAsk).toBe(false);
@@ -82,7 +96,12 @@ describe('planBackfill/stops', () => {
   });
 
   it('stops when no row carried a date to narrow against', () => {
-    const undatable: IWindowResult = { verdict: 'unproven', oldest: '', gapDays: 0 };
+    const undatable: IWindowResult = {
+      verdict: 'unproven',
+      requestedStartReadable: true,
+      oldest: '',
+      gapDays: 0,
+    };
     const args = argsFor({ coverage: undatable });
     const plan = planBackfill(args);
     expect(plan.shouldAsk).toBe(false);
@@ -152,5 +171,23 @@ describe('planBackfill/kill switch', () => {
     const args = argsFor();
     const plan = planBackfill(args);
     expect(plan.shouldAsk).toBe(true);
+  });
+
+  it('still calls a covered window covered, switch or no switch', () => {
+    // Precedence matters beyond the log line: the coverage classifier reads
+    // this code, so reporting a covered window as "switched off" would put an
+    // account in doubt that the audit had just proved complete.
+    process.env.WINDOW_BACKFILL = 'off';
+    const coverage: IWindowResult = {
+      verdict: 'covered',
+      requestedStartReadable: true,
+      oldest: '2025-12-25',
+      gapDays: 0,
+    };
+    const args = argsFor({ coverage });
+    const plan = planBackfill(args);
+    expect(plan.shouldAsk).toBe(false);
+    const stop = plan.shouldAsk ? 'asking' : plan.stop;
+    expect(stop).toBe('covered');
   });
 });

@@ -31,8 +31,7 @@
 
 import { randomUUID } from 'node:crypto';
 
-import moment from 'moment';
-
+import { bankMomentOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
 import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type {
   HeaderMap,
@@ -45,7 +44,11 @@ import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import { HAPOALIM_API, type IHapoalimAcct } from './HapoalimShapeHelpers.js';
-import { assessWalkOrder, type IWalkOrderResult } from './HapoalimWalkGuard.js';
+import {
+  assessWalkOrder,
+  type IWalkOrderResult,
+  type WalkOrderVerdict,
+} from './HapoalimWalkGuard.js';
 
 /** Retrieval date format (YYYYMMDD, no separators). */
 const HAPOALIM_DATE_FMT = 'YYYYMMDD';
@@ -92,18 +95,24 @@ export type HapoalimCursor = Brand<string, 'HapoalimRetrievalEndDate'>;
  * @returns Formatted retrievalStartDate.
  */
 function startOf(ctx: IActionContext): string {
-  return moment(ctx.options.startDate).format(HAPOALIM_DATE_FMT);
+  return bankMomentOfInstant(ctx.options.startDate).format(HAPOALIM_DATE_FMT);
 }
 
 /**
  * Retrieval end date (YYYYMMDD) — the window's upper bound, narrowed during a
  * coverage backfill and otherwise today (upstream parity).
+ *
+ * <p>Read in the bank's zone, not the host's. The bound is an instant the
+ * backfill anchors to the end of a bank-calendar day; formatting it ambiently
+ * would name the next day on a host east of Israel and re-ask for a slice the
+ * caller never lost.
+ *
  * @param ctx - Action context.
  * @returns Formatted retrievalEndDate.
  */
 function endOf(ctx: IActionContext): string {
   const windowEnd = scrapeWindowEnd(ctx);
-  return moment(windowEnd).format(HAPOALIM_DATE_FMT);
+  return bankMomentOfInstant(windowEnd).format(HAPOALIM_DATE_FMT);
 }
 
 /**
@@ -264,6 +273,9 @@ function oldestOrEmpty(rows: readonly HapoalimTxn[]): string {
   return oldest === false ? '' : oldest;
 }
 
+/** Verdicts that mean the provider served rows the walk's ordering did not expect. */
+const ORDER_FAULTS: ReadonlySet<WalkOrderVerdict> = new Set(['violated', 'beyond']);
+
 /**
  * Check this page against the walk's ordering assumption.
  *
@@ -271,19 +283,23 @@ function oldestOrEmpty(rows: readonly HapoalimTxn[]): string {
  * own page size is the only case where an unmoved cursor means anything — see
  * the guard's module header.
  *
+ * <p>A faulting verdict is also noted on the account's ledger. `unknown` is not
+ * a fault: the first page of every walk asks under no bound and so has nothing
+ * to compare, and treating that as loss would caveat every account there is.
+ *
  * @param args - Bundle carrying the unwrapped response body and the context.
  * @param rows - Rows this page returned.
  * @param capped - Whether the page came back full at the bank's own limit.
  * @returns The ordering verdict, already reported to the log.
  */
 function checkWalkOrder(args: TxnPageArgs, rows: TxnRows, capped: boolean): IWalkOrderResult {
-  return assessWalkOrder({
-    asked: args.cursor,
-    newest: newestDay(rows),
-    oldest: oldestOrEmpty(rows),
-    capped,
-    label: WALK_GUARD_LABEL,
-  });
+  const oldest = oldestOrEmpty(rows);
+  const newest = newestDay(rows);
+  const asked = args.cursor;
+  const result = assessWalkOrder({ asked, newest, oldest, capped, label: WALK_GUARD_LABEL });
+  const isFault = ORDER_FAULTS.has(result.verdict);
+  args.ledger?.noteWhen('walkOrderViolated', isFault);
+  return result;
 }
 
 /**
