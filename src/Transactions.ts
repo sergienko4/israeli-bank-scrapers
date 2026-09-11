@@ -16,7 +16,7 @@ export interface ITransactionsAccount {
    * <p>Read {@link IWindowCoverage.status} first: `covered` means the start
    * was reached and every loss signal the scrape can observe was clean;
    * `lowerBoundReached` means the start was reached but something reported
-   * loss or an extraction audit could not run (see `caveats`); `unproven`
+   * loss or a configured audit could not run (see `caveats`); `unproven`
    * means the start was never reached (see `reason`).
    *
    * <p>Even `covered` does not prove that no row in the *middle* of the window

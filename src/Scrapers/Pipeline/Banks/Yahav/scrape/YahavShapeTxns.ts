@@ -8,6 +8,7 @@
  * hunted + signed + flattened to `bancs*` scalars for the per-row auto-mapper.
  */
 
+import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import normalizeBancsRecords from '../../../Mediator/Scrape/Bancs/BancsNormalizer.js';
 import { bankDayOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
 import huntTransactions from '../../../Mediator/Scrape/FieldHunt/TxnHunt.js';
@@ -24,6 +25,8 @@ import type {
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
+import type { Procedure } from '../../../Types/Procedure.js';
+import { fail, succeed } from '../../../Types/Procedure.js';
 import { buildEnvelope } from './YahavShapeEnvelope.js';
 import { bancsHeaders } from './YahavShapeHeaders.js';
 import { ACCOUNT_PATH, type IYahavAcct, YAHAV_API } from './YahavShapeHelpers.js';
@@ -49,6 +52,20 @@ function fallbackChunk(end: Date): IMonthChunk {
   return { start: stamp, end: stamp };
 }
 
+const PLAN_ERROR = 'Yahav: invalid or oversized month plan';
+
+/**
+ * Resolve Yahav's plan while preserving its intentional future-start fallback.
+ * @param ctx - Action context carrying the requested window.
+ * @returns Month chunks, or false for rejected generator input.
+ */
+function resolveScrapeChunks(ctx: IActionContext): readonly IMonthChunk[] | false {
+  const start = new Date(ctx.options.startDate);
+  const end = scrapeWindowEnd(ctx);
+  if (start.getTime() > end.getTime()) return [fallbackChunk(end)];
+  return generateMonthChunks(start, end);
+}
+
 /**
  * Month chunks spanning `[startDate, today]` — never empty (a degenerate
  * future startDate falls back to the effective end's bank day).
@@ -60,10 +77,19 @@ function fallbackChunk(end: Date): IMonthChunk {
  * @returns Ordered month chunks.
  */
 function scrapeChunks(ctx: IActionContext): readonly IMonthChunk[] {
-  const start = new Date(ctx.options.startDate);
-  const end = scrapeWindowEnd(ctx);
-  const chunks = generateMonthChunks(start, end);
-  return chunks.length > 0 ? chunks : [fallbackChunk(end)];
+  const chunks = resolveScrapeChunks(ctx);
+  if (chunks !== false) return chunks;
+  throw new RangeError(PLAN_ERROR);
+}
+
+/**
+ * Reject an unsafe Yahav plan before request variables are built.
+ * @param ctx - Action context carrying the requested window.
+ * @returns Typed validation result.
+ */
+function validatePlan(ctx: IActionContext): Procedure<void> {
+  if (resolveScrapeChunks(ctx) !== false) return succeed(undefined);
+  return fail(ScraperErrorTypes.Generic, PLAN_ERROR);
 }
 
 /**
@@ -111,6 +137,7 @@ export function txnsExtractPage(args: IExtractPageArgs<IYahavAcct, number>): IPa
 export const YAHAV_TXNS: IApiDirectScrapeTxnsStep<IYahavAcct, number> = {
   buildVars: txnsVars,
   extractPage: txnsExtractPage,
+  validatePlan,
   windowNarrowing: 'windowEnd',
   urlTag: txnsUrl,
   method: 'POST',

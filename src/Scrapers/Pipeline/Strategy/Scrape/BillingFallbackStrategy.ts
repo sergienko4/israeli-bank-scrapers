@@ -186,6 +186,9 @@ async function tryBillingFallback(
   LOG.debug({ message: `billing url=${maskVisibleText(billingUrl)}` });
   const startDate = parseStartDate(fc.startDate);
   const chunks = generateMonthChunks(startDate, new Date(), fc.futureMonths);
+  if (chunks === false) {
+    return fail(ScraperErrorTypes.Generic, 'Billing: invalid or oversized month plan');
+  }
   const ctx: IBillingChunkCtx = { fc, billingUrl, accountId: post.accountId };
   const allTxns = await collectBillingChunks(ctx, chunks);
   if (allTxns.length === 0) return fail(ScraperErrorTypes.Generic, 'Billing: 0 txns');

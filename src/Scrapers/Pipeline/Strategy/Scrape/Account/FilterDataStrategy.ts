@@ -5,13 +5,14 @@
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../../Transactions.js';
+import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { getDebug as createLogger } from '../../../Logging/Debug.js';
 import { parseFreshResponse } from '../../../Mediator/Dashboard/TxnParser.js';
 import { chunkStartMonth, generateMonthChunks } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { PIPELINE_WELL_KNOWN_QUERY_KEYS as WK_QUERY } from '../../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { Procedure } from '../../../Types/Procedure.js';
-import { isOk } from '../../../Types/Procedure.js';
+import { fail, isOk } from '../../../Types/Procedure.js';
 import {
   buildAccountResult,
   buildFilterDataUrl,
@@ -99,6 +100,9 @@ async function scrapeViaFilterData(
   const allTxns: ITransaction[] = [];
   const startDate = parseStartDate(fc.startDate);
   const chunks = generateMonthChunks(startDate, new Date(), fc.futureMonths);
+  if (chunks === false) {
+    return fail(ScraperErrorTypes.Generic, 'FilterData: invalid or oversized month plan');
+  }
   const seed = Promise.resolve(true as const);
   const chain = chunks.reduce(
     (prev, chunk): Promise<true> =>

@@ -141,4 +141,24 @@ describe('scrapeWithMonthlyChunking', () => {
     const isOkResult2 = isOk(result);
     expect(isOkResult2).toBe(true);
   });
+
+  it('rejects an oversized month plan before fetching', async () => {
+    const fetched: string[] = [];
+    const fc = {
+      api: makeApi({ fetchPost: stubFetchPostFailRecording(fetched) }),
+      network: makeNetwork(),
+      startDate: '19000101',
+    };
+    const ctx: IChunkingCtx = {
+      fc,
+      baseBody: {},
+      url: 'https://bank.example/api/txn',
+      displayId: '1',
+      accountId: 'a',
+    };
+    const result = await scrapeWithMonthlyChunking(ctx);
+    expect(fetched).toEqual([]);
+    const isSucceeded = isOk(result);
+    expect(isSucceeded).toBe(false);
+  });
 });

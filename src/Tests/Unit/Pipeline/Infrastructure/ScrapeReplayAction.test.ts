@@ -10,6 +10,7 @@ import {
   isRangeIterable,
   replaceField,
 } from '../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeReplayAction.js';
+import requireMonthChunks from '../../../Helpers/MonthChunkPlan.js';
 
 describe('replaceField', () => {
   it('replaces matching top-level field', () => {
@@ -215,7 +216,8 @@ describe('generateMonthChunks', () => {
   it('generates one chunk for same-month start/end', () => {
     const start = new Date(2026, 3, 1);
     const end = new Date(2026, 3, 30);
-    const chunks = generateMonthChunks(start, end);
+    const generated = generateMonthChunks(start, end);
+    const chunks = requireMonthChunks(generated);
     expect(chunks.length).toBe(1);
     expect(chunks[0].start).toContain('2026-04-01');
   });
@@ -223,21 +225,24 @@ describe('generateMonthChunks', () => {
   it('generates multiple chunks spanning months', () => {
     const start = new Date(2026, 0, 1);
     const end = new Date(2026, 2, 31);
-    const chunks = generateMonthChunks(start, end);
+    const generated = generateMonthChunks(start, end);
+    const chunks = requireMonthChunks(generated);
     expect(chunks.length).toBe(3);
   });
 
   it('caps end to today when end is in future and no futureMonths', () => {
     const start = new Date(2026, 0, 1);
     const future = new Date(2100, 11, 31);
-    const chunks = generateMonthChunks(start, future);
+    const generated = generateMonthChunks(start, future);
+    const chunks = requireMonthChunks(generated);
     expect(chunks.length).toBeGreaterThan(0);
   });
 
   it('extends end when futureMonths is provided', () => {
     const start = new Date(2026, 0, 1);
     const end = new Date(2026, 0, 31);
-    const chunks = generateMonthChunks(start, end, 3);
+    const generated = generateMonthChunks(start, end, 3);
+    const chunks = requireMonthChunks(generated);
     expect(chunks.length).toBeGreaterThan(1);
   });
 });

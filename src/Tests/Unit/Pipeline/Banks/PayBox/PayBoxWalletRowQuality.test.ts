@@ -67,6 +67,7 @@ describe('PayBox wallet pagination — duplicate-row regression (T-PBQ-DUP)', ()
     });
     expect(page.items).toHaveLength(0);
     expect(page.nextCursor).toBe(false);
+    expect(page.termination).toBe('cursorRepeat');
   });
 
   it('T-PBQ-DUP-2 keeps rows the cursor has not covered yet', () => {

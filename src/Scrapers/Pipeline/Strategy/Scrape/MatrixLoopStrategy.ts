@@ -156,7 +156,7 @@ async function tryMatrixLoop(
   if (chunks === false) {
     return fail(
       ScraperErrorTypes.Generic,
-      `MatrixLoop: invalid or oversized cycle catalog (limit ${String(MAX_MONTH_REQUESTS)})`,
+      `MatrixLoop: invalid or oversized month plan (limit ${String(MAX_MONTH_REQUESTS)})`,
     );
   }
   LOG.debug({
@@ -182,6 +182,17 @@ async function tryMatrixLoop(
 }
 
 /**
+ * Build the bounded fallback plan when the bank supplied no cycle catalog.
+ * @param fc - Per-account fetch context.
+ * @returns Generated bank months, or false for an unsafe request.
+ */
+function generatedChunkPlan(fc: IAccountFetchCtx): readonly IBankMonth[] | false {
+  const startDate = parseStartDate(fc.startDate);
+  const chunks = generateMonthChunks(startDate, new Date(), fc.futureMonths);
+  return chunks === false ? false : chunks.flatMap(chunkToMonth);
+}
+
+/**
  * Resolve the per-card month-iteration plan from the most
  * authoritative source available — the bank-reported cycle catalog
  * when present, the blind month-chunk fallback otherwise.
@@ -198,11 +209,7 @@ async function tryMatrixLoop(
 function resolveChunkPlan(fc: IAccountFetchCtx): readonly IBankMonth[] | false {
   const catalog = fc.billingCycleCatalog;
   const hasCatalog = catalog !== undefined && catalog.cycles.length > 0;
-  if (!hasCatalog) {
-    const startDate = parseStartDate(fc.startDate);
-    const chunks = generateMonthChunks(startDate, new Date(), fc.futureMonths);
-    return chunks.flatMap(chunkToMonth);
-  }
+  if (!hasCatalog) return generatedChunkPlan(fc);
   const cycleCount = catalog.cycles.length;
   LOG.debug({
     message: `MatrixLoop: catalog-driven — cycles=${String(cycleCount)}`,

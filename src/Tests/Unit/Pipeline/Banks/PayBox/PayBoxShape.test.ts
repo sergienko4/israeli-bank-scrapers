@@ -293,12 +293,23 @@ describe('PayBoxShape mapWalletTxn — sign + status branches', () => {
 });
 
 describe('PayBoxShape pagination terminators', () => {
-  it('nextWalletCursor terminates at the page cap', () => {
-    // page+1 === WALLET_PAGE_CAP triggers the cap-guard.
-    const seed = { ts: 'seed', page: 23 };
-    const items = [{ ts: 'newer' }];
-    const next = PAYBOX_TXNS_INTERNALS.nextWalletCursor(seed, items, items);
-    expect(next).toBe(false);
+  it('marks an empty provider page as exhausted', () => {
+    const body = { content: { nc: [] } };
+    const acct: IPayBoxAcct = { accountNumber: FIXT_UID };
+    const ctx = { options: { startDate: new Date() } } as unknown as IActionContext;
+    const page = txnsExtractPage({ body, cursor: false, acct, ctx });
+    expect(page.nextCursor).toBe(false);
+    expect(page.termination).toBe('exhausted');
+  });
+
+  it('marks the wallet page cap as an incomplete walk', () => {
+    const body = { content: { nc: [{ _id: 'cap-row', ts: '2024-01-01T00:00:00Z' }] } };
+    const cursor = { ts: '2024-02-01T00:00:00Z', page: 23 };
+    const acct: IPayBoxAcct = { accountNumber: FIXT_UID };
+    const ctx = { options: { startDate: new Date() } } as unknown as IActionContext;
+    const page = txnsExtractPage({ body, cursor, acct, ctx });
+    expect(page.nextCursor).toBe(false);
+    expect(page.termination).toBe('pageCeiling');
   });
 });
 

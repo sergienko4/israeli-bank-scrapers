@@ -226,8 +226,8 @@ interface IScraperLoginResult {
 /**
  * Why `covered` could not be claimed even though the start date was reached.
  *
- * Each member names a channel the scrape watches for row loss. All of them are
- * measured during the walk; none is inferred afterwards.
+ * Each member names either an observed loss signal or a configured audit that
+ * was unavailable. All are recorded during the walk; none is inferred later.
  *
  * `paginationStoppedEarly` means the paginated walk gave up while the provider
  * was still offering rows: it repeated a cursor or hit its page ceiling. A
@@ -237,6 +237,8 @@ interface IScraperLoginResult {
 type WindowCaveat = 'paginationStoppedEarly'
 /** The provider declared more rows in a container than were present. */
  | 'declaredRowShortfall'
+/** A configured provider row-count declaration could not be validated. */
+ | 'declaredRowAuditUnavailable'
 /** Rows were found in the response body that the bank shape did not return. */
  | 'extractionShortfall'
 /** The extraction audit had nothing comparable to check against. */
@@ -324,7 +326,7 @@ interface ITransactionsAccount {
      * <p>Read {@link IWindowCoverage.status} first: `covered` means the start
      * was reached and every loss signal the scrape can observe was clean;
      * `lowerBoundReached` means the start was reached but something reported
-     * loss or an extraction audit could not run (see `caveats`); `unproven`
+     * loss or a configured audit could not run (see `caveats`); `unproven`
      * means the start was never reached (see `reason`).
      *
      * <p>Even `covered` does not prove that no row in the *middle* of the window

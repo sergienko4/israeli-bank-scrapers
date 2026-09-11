@@ -48,14 +48,20 @@ describe('EvidenceLedger', () => {
   it('reports in a fixed order, not the order observations arrived', () => {
     const forward = makeEvidenceLedger();
     forward.note('paginationStoppedEarly');
+    forward.note('declaredRowAuditUnavailable');
     forward.note('walkOrderViolated');
     const backward = makeEvidenceLedger();
     backward.note('walkOrderViolated');
+    backward.note('declaredRowAuditUnavailable');
     backward.note('paginationStoppedEarly');
     const forwardOrder = forward.caveats();
     const backwardOrder = backward.caveats();
     expect(backwardOrder).toEqual(forwardOrder);
-    expect(forwardOrder).toEqual(['paginationStoppedEarly', 'walkOrderViolated']);
+    expect(forwardOrder).toEqual([
+      'paginationStoppedEarly',
+      'declaredRowAuditUnavailable',
+      'walkOrderViolated',
+    ]);
   });
 
   it('gives each account its own ledger', () => {

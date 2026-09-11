@@ -157,19 +157,33 @@ const SHAPE = {
   },
 } as unknown as IApiDirectScrapeShape<IAcct, string>;
 
+/** Shape whose response declares a per-group row count. */
+const DECLARED_SHAPE = {
+  ...SHAPE,
+  transactions: {
+    ...SHAPE.transactions,
+    declaredRowSpecs: [{ groups: 'groups', rows: 'rows', count: 'count' }],
+  },
+} as unknown as IApiDirectScrapeShape<IAcct, string>;
+
 /**
  * Build a mediator that answers from a replies table and records each bound.
  * @param seen - Bounds the loop asked under, appended to in call order.
  * @param replies - Rows to serve, keyed by the bound the request carried.
+ * @param extraBody - Extra provider fields included with every response.
  * @returns A mediator serving only the transactions query.
  */
-function makeBus(seen: string[], replies: Record<string, readonly IRow[]> = REPLIES): IApiMediator {
+function makeBus(
+  seen: string[],
+  replies: Record<string, readonly IRow[]> = REPLIES,
+  extraBody: Record<string, unknown> = {},
+): IApiMediator {
   const apiQuery = jest.fn(
     async (_op: unknown, variables: Record<string, unknown>): Promise<Procedure<unknown>> => {
       await Promise.resolve();
       const key = String(variables.end);
       seen.push(key);
-      return succeed({ items: replies[key] ?? [] });
+      return succeed({ items: replies[key] ?? [], ...extraBody });
     },
   );
   const stubs = makeRecoverySessionStubs();
@@ -529,18 +543,18 @@ describe('collectAccountRows/evidence across backfill rounds', () => {
 });
 
 describe('collectAccountRows/unreadable start', () => {
-  it('does not issue a backfill request for an unparseable start', async () => {
+  it('does not issue a provider request for an unparseable start', async () => {
     const seen: string[] = [];
     const bus = makeBus(seen);
     await collectWithLedger(bus, SHAPE, new Date('not-a-date'));
-    expect(seen).toEqual(['none']);
+    expect(seen).toEqual([]);
   });
 
-  it('COV-START-04 limits a paginated unreadable start to one provider request', async () => {
+  it('COV-START-04 does not dispatch a paginated unreadable start', async () => {
     const seen: string[] = [];
     const bus = makeBus(seen, { none: REACHING_ROWS });
     await collectWithLedger(bus, STUCK_CURSOR_SHAPE, new Date('not-a-date'));
-    expect(seen).toEqual(['none']);
+    expect(seen).toEqual([]);
   });
 
   it('keeps the account when the caller asked from an unparseable date', async () => {
@@ -559,6 +573,16 @@ describe('collectAccountRows/unreadable start', () => {
     const verdict = classifyWindowCoverage({ ...audit.collected.window, caveats });
     const reason = verdict.status === 'unproven' ? verdict.reason : verdict.status;
     expect(reason).toBe('requestedStartUnreadable');
+  });
+});
+
+describe('collectAccountRows/declared-row evidence', () => {
+  it('records an unavailable declaration audit as a coverage caveat', async () => {
+    const body = { groups: [{ count: -1, rows: [] }] };
+    const bus = makeBus([], { none: [] }, body);
+    const audit = await collectWithLedger(bus, DECLARED_SHAPE);
+    const caveats = audit.ledger.caveats();
+    expect(caveats).toContain('declaredRowAuditUnavailable');
   });
 });
 

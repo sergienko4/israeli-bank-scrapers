@@ -360,6 +360,15 @@ describe('YahavShape transactions', () => {
     expect(start).toMatchObject({ Day: 2, Month: 3, Year: 2026 });
   });
 
+  it('rejects an oversized range instead of using the current-day fallback', () => {
+    const ctx = ctxWithBancs(undefined, new Date('1900-01-01T00:00:00.000Z'));
+    const validate = YAHAV_SHAPE.transactions.validatePlan;
+    expect(validate?.(ctx)).toMatchObject({
+      success: false,
+      errorMessage: 'Yahav: invalid or oversized month plan',
+    });
+  });
+
   it('txnsExtractPage advances from a numeric cursor', () => {
     const start = new Date();
     start.setMonth(start.getMonth() - 3);

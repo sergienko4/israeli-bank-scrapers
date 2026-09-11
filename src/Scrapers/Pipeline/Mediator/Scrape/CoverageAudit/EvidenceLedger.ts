@@ -29,6 +29,7 @@ import type { WindowCaveat } from '../../../../../WindowCoverage.js';
 const CAVEAT_ORDER: readonly WindowCaveat[] = Object.freeze([
   'paginationStoppedEarly',
   'declaredRowShortfall',
+  'declaredRowAuditUnavailable',
   'extractionShortfall',
   'extractionAuditUnavailable',
   'mappingRejectedRows',

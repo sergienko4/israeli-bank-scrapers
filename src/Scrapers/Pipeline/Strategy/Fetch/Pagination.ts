@@ -29,10 +29,12 @@ const LOG = getDebug(import.meta.url);
  */
 const MAX_PAGES = 300;
 
-/** A single page of items plus the cursor for the next page (false when exhausted). */
+/** A single page plus its next cursor and optional explicit terminal evidence. */
 interface IPage<TItem, TCursor> {
   readonly items: readonly TItem[];
   readonly nextCursor: TCursor | false;
+  /** Overrides inferred exhaustion when a shape ended the walk locally. */
+  readonly termination?: PaginationTermination;
 }
 
 /**
@@ -80,6 +82,7 @@ interface IPaginationState<TItem, TCursor> {
   readonly acc: readonly TItem[];
   readonly cursor: TCursor | false;
   readonly page: number;
+  readonly termination?: PaginationTermination;
 }
 
 /**
@@ -113,7 +116,8 @@ function advance<TItem, TCursor>(
 ): IPaginationState<TItem, TCursor> {
   const merge = args.merge ?? concatPages;
   const mergedAcc = merge(state.acc, page.items);
-  return { acc: mergedAcc, cursor: page.nextCursor, page: state.page + 1 };
+  const termination = page.nextCursor === false ? page.termination : undefined;
+  return { acc: mergedAcc, cursor: page.nextCursor, page: state.page + 1, termination };
 }
 
 /**
@@ -197,7 +201,7 @@ function terminalOf<TItem, TCursor>(
   next: IPaginationState<TItem, TCursor>,
   state: IPaginationState<TItem, TCursor>,
 ): Procedure<IPaginatedWalk<TItem>> | false {
-  if (next.cursor === false) return walked(next.acc, 'exhausted');
+  if (next.cursor === false) return walked(next.acc, next.termination ?? 'exhausted');
   const code = haltCode(next, state);
   return code === false ? false : halt(next.acc, code);
 }

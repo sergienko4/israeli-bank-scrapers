@@ -206,6 +206,7 @@ function auditPageDeclared<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>, body: Ap
   const label = `${a.ctx.companyId}/txns`;
   const result = auditDeclaredRows({ body, specs, label });
   a.ledger.noteWhen('declaredRowShortfall', result.shortfall > 0);
+  a.ledger.noteWhen('declaredRowAuditUnavailable', result.unavailable);
   return true;
 }
 

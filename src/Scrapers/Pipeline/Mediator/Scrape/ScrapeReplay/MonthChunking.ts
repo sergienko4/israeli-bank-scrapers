@@ -105,11 +105,11 @@ function buildChunkList(state: IChunkBuildState, count: number): MonthChunks | f
  * @returns Effective end instant, or false for invalid input.
  */
 function resolveEndDate(end: Date, futureMonths?: number): Date | false {
+  const endTime = end.getTime();
+  if (!Number.isFinite(endTime)) return false;
   const today = new Date();
   if (futureMonths && futureMonths > 0) return shiftBankInstant(today, futureMonths);
-  const capped = end > today ? today : end;
-  const endTime = capped.getTime();
-  return Number.isFinite(endTime) ? capped : false;
+  return endTime > today.getTime() ? today : end;
 }
 
 /**
@@ -137,9 +137,9 @@ function chunkCount(state: IChunkBuildState): number | false {
 /**
  * Build a month plan only when it fits the request budget.
  * @param state - First month and effective end instant.
- * @returns Bounded chunks, or an empty rejected plan.
+ * @returns Bounded chunks, or false when the plan is rejected.
  */
-function buildBoundedChunks(state: IChunkBuildState): MonthChunks {
+function buildBoundedChunks(state: IChunkBuildState): MonthChunks | false {
   const count = chunkCount(state);
   if (count === false) {
     return rejectChunks(`range exceeds ${String(MAX_MONTH_REQUESTS)}-request budget`);
@@ -151,11 +151,11 @@ function buildBoundedChunks(state: IChunkBuildState): MonthChunks {
 /**
  * Surface an invalid generation input and fail closed.
  * @param reason - Non-sensitive failure reason.
- * @returns Empty chunk list.
+ * @returns False so callers cannot mistake rejection for a valid empty plan.
  */
-function rejectChunks(reason: string): readonly IMonthChunk[] {
+function rejectChunks(reason: string): false {
   LOG.warn({ message: `Month chunk generation skipped: ${reason}` });
-  return [];
+  return false;
 }
 
 /**
@@ -163,9 +163,9 @@ function rejectChunks(reason: string): readonly IMonthChunk[] {
  * @param start - Range start date.
  * @param end - Range end date (capped to today unless futureMonths).
  * @param futureMonths - Extra billing months beyond today.
- * @returns Array of month chunks.
+ * @returns Month chunks, or false for invalid, reversed, or oversized input.
  */
-function generateMonthChunks(start: Date, end: Date, futureMonths?: number): MonthChunks {
+function generateMonthChunks(start: Date, end: Date, futureMonths?: number): MonthChunks | false {
   const cappedEnd = resolveEndDate(end, futureMonths);
   if (cappedEnd === false) return rejectChunks('invalid end date');
   if (start.getTime() > cappedEnd.getTime()) return rejectChunks('start date follows end date');

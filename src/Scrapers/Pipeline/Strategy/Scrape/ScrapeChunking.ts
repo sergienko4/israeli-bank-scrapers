@@ -10,6 +10,7 @@
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
+import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { getDebug } from '../../Logging/Debug.js';
 import { parseFreshResponse } from '../../Mediator/Dashboard/TxnParser.js';
 import applyBancsChunkRange from '../../Mediator/Scrape/Bancs/BancsDateTemplate.js';
@@ -21,7 +22,7 @@ import { applyDateRangeAndAppend } from '../../Mediator/Scrape/UrlDateRange.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { isOk } from '../../Types/Procedure.js';
+import { fail, isOk } from '../../Types/Procedure.js';
 import buildAccountResult from './ScrapeData/ScrapeDataAssembly.js';
 import {
   deduplicateTxns,
@@ -118,6 +119,9 @@ async function scrapeWithMonthlyChunking(
 ): Promise<Procedure<ITransactionsAccount>> {
   const startDate = parseStartDate(ctx.fc.startDate);
   const chunks = generateMonthChunks(startDate, new Date(), ctx.fc.futureMonths);
+  if (chunks === false) {
+    return fail(ScraperErrorTypes.Generic, 'Chunking: invalid or oversized month plan');
+  }
   const allTxns = await scrapeAllChunks(ctx, chunks);
   const startMs = startDate.getTime();
   const keyFields = ctx.fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;

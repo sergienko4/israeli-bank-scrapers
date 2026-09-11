@@ -98,8 +98,10 @@ Monthly plans also share one provider-work budget:
 Oversized generated ranges fail before allocation; oversized provider catalogs
 fail before network work. API-direct shapes declare the same check through
 `transactions.validatePlan`, which runs before their first monthly transaction
-request. None is silently truncated, because truncation would make the
-requested-window evidence untruthful.
+request. Generated-plan consumers treat rejection as a typed failure rather
+than an empty month list, so an invalid or oversized request cannot become a
+successful empty account. None is silently truncated, because truncation would
+make the requested-window evidence untruthful.
 
 ## Zone-less strings resolve in the bank zone too
 

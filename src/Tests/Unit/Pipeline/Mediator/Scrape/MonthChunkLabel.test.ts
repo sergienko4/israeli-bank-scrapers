@@ -30,6 +30,7 @@ import {
   chunkStartMonth,
   generateMonthChunks,
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/MonthChunking.js';
+import requireMonthChunks from '../../../../Helpers/MonthChunkPlan.js';
 
 /**
  * Midnight on the first — an instant reader on a host *west* of UTC rolls back
@@ -129,7 +130,8 @@ describe('month chunk/the month a chunk names', () => {
   it('names the month the caller actually asked for', () => {
     const start = new Date('2026-03-04T00:00:00.000Z');
     const end = new Date('2026-03-20T00:00:00.000Z');
-    const chunks = generateMonthChunks(start, end);
+    const generated = generateMonthChunks(start, end);
+    const chunks = requireMonthChunks(generated);
     const named = monthOf(chunks[0]);
     expect(named).toBe('2026-03');
   });

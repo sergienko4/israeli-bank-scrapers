@@ -403,4 +403,20 @@ describe('tryBillingFallback — chunk success with real transactions', () => {
     // futureMonths=2 → at least 3 chunks (current + 2 future).
     expect(calls.length).toBeGreaterThanOrEqual(3);
   }, 20000);
+
+  it('rejects an oversized month plan before fetching', async () => {
+    const calls: string[] = [];
+    const fc: IAccountFetchCtx = {
+      api: makeApi({ fetchPost: stubFetchPostFailRecording(calls) }),
+      network: makeNetwork(),
+      startDate: '17000101',
+      txnEndpoint: withBillingUrl(FAKE_BILLING_URL_FOR_TESTS),
+    };
+    const result = await tryBillingFallback(fc, DEFAULT_POST);
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'Billing: invalid or oversized month plan',
+    });
+    expect(calls).toEqual([]);
+  });
 });

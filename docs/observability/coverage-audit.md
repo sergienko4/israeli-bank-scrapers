@@ -62,7 +62,7 @@ coverage payBox/txns: complete (extracted=43 hunted=0)
 
 Forty-three rows returned, zero rows hunted, and a green verdict. A shape in that state can drop an entire container and still read clean — precisely the loss the audit exists to surface, reported as success.
 
-`unread === 0` is therefore not on its own a pass. `isUnaudited` separates the two readings by asking whether anything comparable survived the hunt, and `ICoverageResult.unaudited` carries the answer, so `unread === 0` means _the comparison ran and found no shortfall_ only when `unaudited` is `false`. This is the same distinction `auditDeclaredRows` draws with `checked=0`: _nothing was verifiable_ is a different answer from _everything agreed_, and conflating them hid the defect.
+`unread === 0` is therefore not on its own a pass. `isUnaudited` separates the two readings by asking whether anything comparable survived the hunt, and `ICoverageResult.unaudited` carries the answer, so `unread === 0` means _the comparison ran and found no shortfall_ only when `unaudited` is `false`. `auditDeclaredRows` carries the same distinction explicitly as `unavailable`: _nothing was verifiable_ is a different answer from _everything agreed_, and conflating them hid the defect.
 
 Note the limit of the claim. `unaudited` detects a **total** absence of comparable rows, not a partial one: a round that hunted three comparable rows out of forty still reports `unaudited=false`. So a `false` here means the comparison ran, not that it was exhaustive.
 
@@ -145,7 +145,7 @@ Both audits above are _inferences_. The hunter guesses which arrays hold transac
 
 Some responses need no inference at all, because they **state their own row count next to the rows**. Where that is true the comparison is not heuristic and cannot be disputed: a container that says it holds twelve rows and carries zero has lost twelve, provable from a single response with no second run to compare against.
 
-`auditDeclaredRows()` (`src/Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/DeclaredRows.ts`) performs that comparison. It takes an `IDeclaredArgs` — the raw `body`, the `specs` the bank declares, and a bank/step `label` — and returns an `IDeclaredResult` carrying `checked` (groups that stated a count, so were checkable) and `shortfall` (declared rows not carried, summed).
+`auditDeclaredRows()` (`src/Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/DeclaredRows.ts`) performs that comparison. It takes an `IDeclaredArgs` — the raw `body`, the `specs` the bank declares, and a bank/step `label` — and returns an `IDeclaredResult` carrying `checked` (groups that stated a valid count), `shortfall` (declared rows not carried, summed), and `unavailable` (a configured container or count could not be validated).
 
 ### A count is only an oracle beside the rows it counts
 
@@ -164,7 +164,7 @@ The count that does hold is scoped to a single group:
 
 The container it watches is not an arbitrary one. It is the same `outOfStatementChargeDateVouchers` container whose omission cost a real Isracard statement around 47% of its rows. Had this check existed, that defect would have warned on its first run.
 
-Two banks declare it today — `ISRACARD_DECLARED_ROWS` and `AMEX_DECLARED_ROWS`, each a single literal beside the extractor that reads the container, wired onto the shape's `transactions.declaredRowSpecs`. Any bank whose response carries a sibling count can adopt it the same way; a bank that declares nothing is unaffected, because an empty spec list disables the check.
+Two banks declare it today — `ISRACARD_DECLARED_ROWS` and `AMEX_DECLARED_ROWS`, each a single literal beside the extractor that reads the container, wired onto the shape's `transactions.declaredRowSpecs`. Any bank whose response carries a sibling count can adopt it the same way; a bank that declares nothing is unaffected, because an empty spec list disables the check. Once a spec is configured, an absent container or a non-finite, negative, fractional, or otherwise unreadable count marks the audit unavailable rather than clean.
 
 ### Why a shortfall always warns
 
@@ -173,9 +173,13 @@ Unlike the coverage audit there is no room to call it a false positive: the prov
 ```text
 declared isracard/txns: complete (checked=20)
 declared isracard/txns: SHORTFALL — missing=12 (checked=20)
+declared isracard/txns: UNAVAILABLE (checked=0)
 ```
 
-A group that declares no count is skipped rather than counted as agreeing, so `checked=0` means _nothing was verifiable_, which is a different answer from _everything agreed_. Conflating the two would hide a renamed field.
+A group that declares no valid count is not counted as agreeing. It marks
+`unavailable=true`, while `checked` still reports how many other declarations
+were verifiable. That prevents a missing or renamed count field from becoming a
+clean result.
 
 Like the audits above it reports and never repairs. A shortfall means the shape reads the wrong path or the provider changed one — both are reviewed code changes with a test.
 
@@ -441,12 +445,19 @@ It now returns an `IPaginatedWalk<TItem>`: the `items`, plus a
 | ----------------------- | --------------------------------------- |
 | `exhausted`             | the provider offered no further cursor  |
 | `cursorRepeat`          | the cursor stopped advancing            |
-| `pageCeiling`           | our own `MAX_PAGES` guard fired         |
+| `pageCeiling`           | a scraper-owned page ceiling fired      |
 | `predicateStop`         | the caller's stop predicate asked it to |
 
+A page whose `nextCursor` is `false` normally means `exhausted`. Shapes where
+that sentinel can also represent a local decision attach an explicit
+`IPage.termination` instead. PayBox uses this to distinguish an empty provider
+page (`exhausted`), a re-served or stalled page (`cursorRepeat`), and its local
+wallet safety cap (`pageCeiling`).
+
 Neither `cursorRepeat` nor `pageCeiling` says the provider's data ran out.
-`cursorRepeat` records a non-advancing cursor; `pageCeiling` says **our** own
-`MAX_PAGES` guard fired. Either leaves the window unproven because the walk was
+`cursorRepeat` records a non-advancing cursor; `pageCeiling` says one of
+**our** bounds fired — the generic `MAX_PAGES` guard or a shape-specific safety
+cap such as PayBox's. Either leaves the window unproven because the walk was
 abandoned before the provider reported `exhausted`.
 
 `predicateStop` is neither. It is the shape's own "we have enough" rule, so it

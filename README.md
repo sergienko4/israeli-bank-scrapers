@@ -268,11 +268,11 @@ reached or whether collection stopped short. Both outcomes arrive as
 verdict describing what the scrape can prove and which observed caveats prevent
 a stronger claim:
 
-| `status`            | What it means                                                                                                                     | What to do                             |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `covered`           | The oldest row reaches your `startDate`, and every loss channel the scrape watches came back clean.                               | Nothing.                               |
-| `lowerBoundReached` | The oldest row reaches your `startDate`, but a channel reported loss or an extraction audit could not run. `caveats` names which. | Treat the list as possibly incomplete. |
-| `unproven`          | Your `startDate` was never reached. `reason` says what stopped the walk.                                                          | Re-run, or narrow the window.          |
+| `status`            | What it means                                                                                                                      | What to do                             |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `covered`           | The oldest row reaches your `startDate`, and every loss channel the scrape watches came back clean.                                | Nothing.                               |
+| `lowerBoundReached` | The oldest row reaches your `startDate`, but a loss signal was reported or a configured audit was unavailable. `caveats` says why. | Treat the list as possibly incomplete. |
+| `unproven`          | Your `startDate` was never reached. `reason` says what stopped the walk.                                                           | Re-run, or narrow the window.          |
 
 ```ts
 for (const [index, account] of (result.accounts ?? []).entries()) {
@@ -291,9 +291,11 @@ does **not** prove that no row in the _middle_ of the window was dropped
 without leaving a trace. Detecting that needs a reliable provider total for the
 complete requested window, which Israeli banks generally do not send. Where a
 provider declares a row count for an individual response, the scrape checks it
-and downgrades to `lowerBoundReached` on a shortfall; where it declares nothing,
-there is nothing to check against. `covered` means "we reached the edge and saw
-no loss", never "nothing was lost".
+and downgrades to `lowerBoundReached` on a shortfall. If a configured count is
+absent or malformed, `declaredRowAuditUnavailable` records that the comparison
+could not be made; it does not claim rows were confirmed missing. Where a bank
+declares nothing and configures no audit, there is nothing to check against.
+`covered` means "we reached the edge and saw no loss", never "nothing was lost".
 
 The field is absent on browser-based scrapers, which have no equivalent walk to
 audit — so check for its presence rather than assuming it.

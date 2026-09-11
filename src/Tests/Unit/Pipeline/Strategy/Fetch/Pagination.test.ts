@@ -63,6 +63,19 @@ describe('Pagination.fetchPaginated', () => {
     }
   });
 
+  it('preserves an explicit abnormal ending from a terminal page', async () => {
+    const page: IPage<string, string> = {
+      items: ['partial'],
+      nextCursor: false,
+      termination: 'pageCeiling',
+    };
+    const result = await fetchPaginated({
+      fetchPage: makePagedFetcher([page]),
+      stop: NEVER_STOP,
+    });
+    expect(isOk(result) ? result.value.termination : 'failed').toBe('pageCeiling');
+  });
+
   it('accumulates items across multiple pages until nextCursor === false', async () => {
     const pages: IPage<string, string>[] = [
       { items: ['a', 'b'], nextCursor: 'cursor-1' },

@@ -180,17 +180,11 @@ function startIsReadable(start: Date): boolean {
 }
 
 /**
- * Fetch exactly one page when no readable lower bound can guide pagination.
- * @param a - Per-account context.
- * @returns First page, marked as caller-stopped when more pages were offered.
+ * Build the empty walk used when caller input cannot safely reach a provider.
+ * @returns Caller-stopped walk with no fabricated rows.
  */
-async function fetchSinglePage<TAcct, TCursor>(
-  a: IAcctCtx<TAcct, TCursor>,
-): Promise<Procedure<IPaginatedWalk<object>>> {
-  const page = await buildPageFetcher(a)(false);
-  if (!isOk(page)) return page;
-  const termination = page.value.nextCursor === false ? 'exhausted' : 'predicateStop';
-  return succeed({ items: page.value.items, termination });
+function unreadableStartWalk(): Procedure<IPaginatedWalk<object>> {
+  return succeed({ items: [], termination: 'predicateStop' });
 }
 
 /**
@@ -201,7 +195,10 @@ async function fetchSinglePage<TAcct, TCursor>(
 function fetchInitial<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
 ): Promise<Procedure<IPaginatedWalk<object>>> {
-  if (!startIsReadable(a.ctx.options.startDate)) return fetchSinglePage(a);
+  if (!startIsReadable(a.ctx.options.startDate)) {
+    const walk = unreadableStartWalk();
+    return Promise.resolve(walk);
+  }
   return fetchOnce(a);
 }
 
