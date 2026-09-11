@@ -2,8 +2,6 @@
  * Unit tests for MatrixLoopStrategy — guard clauses (not-applicable paths).
  */
 
-import { jest } from '@jest/globals';
-
 import type {
   IDiscoveredEndpoint,
   INetworkDiscovery,
@@ -382,9 +380,7 @@ describe('tryMatrixLoop — catalog-driven iteration', () => {
     { billingDate: '13/2026', isAccepted: false },
     { billingDate: '01/2026', isAccepted: true },
     { billingDate: '12/2026', isAccepted: true },
-    // ISO-shape misses — exercises tryParseIso's regex-miss and
-    // out-of-range branches before falling through to
-    // currentMonthStart under the frozen clock.
+    // ISO-shape misses — neither may create an unrelated request.
     { billingDate: 'not-a-date', isAccepted: false },
     { billingDate: '2026-13-01', isAccepted: false },
     // ISO-shape happy path — explicitly fetched year matches the
@@ -392,23 +388,7 @@ describe('tryMatrixLoop — catalog-driven iteration', () => {
     { billingDate: '2026-07-15', isAccepted: true },
   ];
 
-  /**
-   * Frozen system clock used by the bounds matrix — pins the
-   * "current month" fallback so the year-shift assertion never
-   * drifts when the real wall-clock advances past 2027.
-   */
-  const frozenClock = new Date('2026-05-15T12:00:00Z');
-
-  describe('with frozen system clock', () => {
-    beforeEach(() => {
-      jest.useFakeTimers();
-      jest.setSystemTime(frozenClock);
-    });
-
-    afterEach(() => {
-      jest.useRealTimers();
-    });
-
+  describe('with malformed-label rejection', () => {
     it.each(backbaseBoundsCases)(
       '[MATRIX-CATALOG-BOUNDS] BackbaseBillingDate_$billingDate_acceptanceMatchesRange',
       async testCase => {
@@ -429,17 +409,14 @@ describe('tryMatrixLoop — catalog-driven iteration', () => {
           billingCycleCatalog: catalog,
         };
         await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
-        // Out-of-range months still produce ONE fetch (the parser
-        // falls back to current-month-start under frozenClock,
-        // = May 2026). The assertion proves the recogniser does NOT
-        // silently shift `13/2026` into a January 2027 chunk.
-        expect(calls.length).toBe(1);
-        const [recorded] = calls;
-        const fetchedYear = Number(recorded.body.year);
-        const frozenYear = frozenClock.getUTCFullYear();
-        const acceptedYear = extractAcceptedYear(testCase.billingDate);
-        const expectedYear = testCase.isAccepted ? acceptedYear : frozenYear;
-        expect(fetchedYear).toBe(expectedYear);
+        const expectedCalls = testCase.isAccepted ? 1 : 0;
+        expect(calls.length).toBe(expectedCalls);
+        if (testCase.isAccepted) {
+          const [recorded] = calls;
+          const fetchedYear = Number(recorded.body.year);
+          const acceptedYear = extractAcceptedYear(testCase.billingDate);
+          expect(fetchedYear).toBe(acceptedYear);
+        }
       },
     );
   });

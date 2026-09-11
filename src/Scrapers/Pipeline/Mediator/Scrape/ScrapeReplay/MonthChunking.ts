@@ -6,14 +6,14 @@
  * in, which day ends it — so it is answered in the bank's calendar rather than
  * the host's. Read in the host's zone instead, a machine an hour either side of
  * Israel enumerates a different set of months for the same window — silently
- * dropping a terminal month, or asking for one the caller never wanted.
+ * dropping a terminal month or asking for one the caller never wanted.
  *
  * <p>The `Z` a chunk carries is part of that formatting, not a claim about UTC:
- * it names a *bank day*. Consumers do hand these strings to `new Date()`, which
- * is safe for ordering and for range filters, but asking the resulting instant
- * which month it is re-opens the very host-dependence the boundaries were
- * chosen to close. Anything that needs the month must read the label, via
- * {@link chunkStartMonth}, rather than the parsed instant.
+ * it names a *bank day*. Treating it as a UTC instant is safe only for comparing
+ * two labels written by this module. A consumer that needs a bank day, month,
+ * or URL bound must validate the label through the bank-calendar provider;
+ * projecting the apparent UTC instant back into Jerusalem moves end-of-day
+ * labels into tomorrow.
  */
 
 import { getDebug } from '../../../Logging/Debug.js';

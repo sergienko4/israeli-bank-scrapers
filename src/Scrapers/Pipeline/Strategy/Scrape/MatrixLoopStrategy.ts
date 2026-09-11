@@ -18,7 +18,6 @@ import { parseFreshResponse } from '../../Mediator/Dashboard/TxnParser.js';
 import type { IBankMonth } from '../../Mediator/Scrape/BankMonth.js';
 import {
   bankMonthBounds,
-  bankMonthOfInstant,
   bankMonthOfLabel,
   bankMonthOfSlashedLabel,
 } from '../../Mediator/Scrape/BankMonth.js';
@@ -214,15 +213,15 @@ function chunkToMonth(chunk: IMonthChunkName): readonly IBankMonth[] {
 
 /**
  * Project one canonical billing cycle onto its named bank month.
- * Invalid provider labels preserve the existing current-month fallback.
+ * Invalid provider labels are rejected rather than redirected to another month.
  *
  * @param cycle - One canonical cycle from the catalog.
- * @returns One validated month, or empty if the clock is invalid.
+ * @returns One validated month, or empty for an invalid provider label.
  */
 function cycleToMonth(cycle: IBillingCycle): readonly IBankMonth[] {
   const parsed = parseCycleMonth(cycle.billingDate);
   if (parsed !== false) return [parsed];
-  LOG.warn({ message: 'MatrixLoop: skipped cycle because the system clock is invalid' });
+  LOG.warn({ message: 'MatrixLoop: skipped invalid billing-cycle label' });
   return [];
 }
 
@@ -230,14 +229,14 @@ function cycleToMonth(cycle: IBillingCycle): readonly IBankMonth[] {
  * Parse every known billing-date shape into a bank month.
  *
  * @param raw - Raw billing-date string.
- * @returns Named month, falling back to the current bank month.
+ * @returns Named month, or false for an invalid provider label.
  */
 function parseCycleMonth(raw: string): IBankMonth | false {
   const fromBackbase = bankMonthOfSlashedLabel(raw);
   if (fromBackbase !== false) return fromBackbase;
   const fromIso = bankMonthOfLabel(raw);
   if (fromIso !== false) return fromIso;
-  return bankMonthOfInstant(new Date());
+  return false;
 }
 
 /**

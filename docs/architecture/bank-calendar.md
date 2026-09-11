@@ -73,6 +73,7 @@ owns that boundary:
 | `IBankMonthBounds`        | Start and end instants for one bank-calendar month                                                         |
 | `bankDatePartsOfInstant`  | Projects a resolved instant into validated bank-calendar date components                                   |
 | `bankDatePartsOfLabel`    | Strictly validates a complete bank date label before exposing its numeric components                       |
+| `bankInstantOfLabel`      | Opens a generated timestamp-shaped label onto the instant its wall time names in the bank calendar         |
 | `bankMonthOfLabel`        | Strictly validates an ISO-shaped bank label and reads the month it names without treating it as an instant |
 | `bankMonthOfSlashedLabel` | Strictly validates provider billing labels in `MM/YYYY` form                                               |
 | `bankMonthOfInstant`      | Projects a real `Date` or ISO instant into the bank's month                                                |
@@ -180,10 +181,12 @@ rejects:
 - multi-argument host-zone construction such as `new Date(year, month, day)`;
 - direct `moment(...)` and `moment.tz(...)` parsing outside `BankCalendar.ts`.
 
-The rule targets calendar decisions, not `Date` itself. Creating or carrying an
-instant, comparing `getTime()`, serializing with `toISOString()`, and forwarding
-an instant with `toUTCString()` remain valid because none asks the host which
-calendar components the instant names.
+The rule targets calendar decisions, not `Date` itself. Creating or carrying a
+real instant, comparing `getTime()`, serializing with `toISOString()`, and
+forwarding an instant with `toUTCString()` remain valid because none asks the
+host which calendar components the instant names. Timestamp-shaped bank labels
+are not real instants: `bankInstantOfLabel` validates them and opens their wall
+time in Jerusalem before a URL serializer reads their day.
 
 The permanent exceptions are narrow and describe values that are deliberately
 not bank-calendar data:
@@ -252,10 +255,12 @@ provider answered successfully with the wrong month's rows, so nothing failed;
 the window simply came back short, and the audit reported `unproven` on those
 hosts only.
 
-Anything that needs the month reads the label instead, through
-`chunkStartMonth`. It returns an `IChunkMonth` (`year`, plus a 1-indexed
-`month` matching what bank request parameters expect), or `false` when the
-generated label is malformed:
+Anything that needs the month reads the label through `chunkStartMonth`.
+Anything that needs a URL-bound instant uses `bankInstantOfLabel`, so the
+formatting-only `Z` cannot move an end-of-day label into tomorrow in Jerusalem.
+`chunkStartMonth` returns an `IChunkMonth` (`year`, plus a 1-indexed `month`
+matching what bank request parameters expect), or `false` when the generated
+label is malformed:
 
 ```ts
 const named = chunkStartMonth(chunk);

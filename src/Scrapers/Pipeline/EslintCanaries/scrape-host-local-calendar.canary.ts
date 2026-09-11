@@ -2,7 +2,7 @@
  * ESLint canary — bank-calendar boundary (§24).
  *
  * canary-expects-rule: no-restricted-syntax
- * canary-expects-message: 🚫 BANK CALENDAR
+ * canary-expects-message: read the HOST machine calendar
  */
 
 /** A stamp written from a bank-calendar day, as `MonthChunking` writes them. */
@@ -12,7 +12,4 @@ const STAMP = new Date(0);
 // this names February on any host west of UTC.
 const HOST_MONTH = STAMP.getMonth() + 1;
 
-// Canary: builds an instant from components in the HOST's zone.
-const HOST_MONTH_START = new Date(2026, 2, 1);
-
-export { HOST_MONTH, HOST_MONTH_START };
+export { HOST_MONTH };

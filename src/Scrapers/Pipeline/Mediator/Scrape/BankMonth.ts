@@ -27,6 +27,7 @@ interface IBankMonthBounds {
 
 const BANK_MONTH_LABEL =
   /^(\d{4})-(\d{2})(?:-(\d{2})(?:T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{3})?Z?)?)?$/;
+const BANK_TIMESTAMP_LABEL_FORMAT = 'YYYY-MM-DD[T]HH:mm:ss.SSS[Z]';
 const SLASHED_BANK_MONTH_LABEL = /^(\d{2})\/(\d{4})$/;
 const DAYS_BY_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 const MIN_MONTH = 1;
@@ -156,6 +157,18 @@ function bankMonthOfInstant(value: string | Date): IBankMonth | false {
 }
 
 /**
+ * Open a generated timestamp label onto its bank-zone instant.
+ * @param value - Timestamp-shaped bank label with a formatting-only Z.
+ * @returns Resolved instant, or false for an invalid label.
+ */
+function bankInstantOfLabel(value: string): Date | false {
+  const parts = bankDatePartsOfLabel(value);
+  if (parts === false) return false;
+  const parsed = parseInBankZone(value, BANK_TIMESTAMP_LABEL_FORMAT, true);
+  return parsed.isValid() ? parsed.toDate() : false;
+}
+
+/**
  * Shift a validated bank month.
  * @param value - Source month.
  * @param amount - Signed number of months.
@@ -186,8 +199,9 @@ function shiftBankInstant(value: Date, amount: number): Date | false {
  * @returns YYYY-MM-01 label.
  */
 function monthStartLabel(value: IBankMonth): string {
+  const year = String(value.year).padStart(4, '0');
   const month = String(value.month).padStart(2, '0');
-  return `${String(value.year)}-${month}-01`;
+  return `${year}-${month}-01`;
 }
 
 /**
@@ -207,6 +221,7 @@ export type { IBankDateParts, IBankMonth, IBankMonthBounds };
 export {
   bankDatePartsOfInstant,
   bankDatePartsOfLabel,
+  bankInstantOfLabel,
   bankMonthBounds,
   bankMonthOfInstant,
   bankMonthOfLabel,

@@ -2,6 +2,8 @@
  * Unit tests for Strategy/Scrape/ScrapeChunking — applyGlobalDateFilter + scrapeWithMonthlyChunking.
  */
 
+import { jest } from '@jest/globals';
+
 import {
   applyGlobalDateFilter,
   scrapeWithMonthlyChunking,
@@ -14,6 +16,7 @@ import {
   makeApi,
   makeNetwork,
   stubFetchPostFail,
+  stubFetchPostFailRecording,
   stubFetchPostOk,
 } from '../StrategyTestHelpers.js';
 
@@ -77,6 +80,24 @@ describe('applyGlobalDateFilter', () => {
 });
 
 describe('scrapeWithMonthlyChunking', () => {
+  it('SCRAPE-CHUNK-URL-001 — keeps the generated bank end day in the URL', async () => {
+    jest.useFakeTimers({ doNotFake: ['setTimeout'], now: new Date('2026-03-15T12:00:00Z') });
+    const fetched: string[] = [];
+    const api = makeApi({ fetchPost: stubFetchPostFailRecording(fetched) });
+    const startDate = '20260301';
+    const fc = { api, network: makeNetwork(), startDate };
+    const url = 'https://bank.example/api/txn?fromDate=20200101&toDate=20200131';
+    const ctx: IChunkingCtx = { fc, baseBody: {}, url, displayId: '1', accountId: 'a' };
+    try {
+      await scrapeWithMonthlyChunking(ctx);
+      const parsed = new URL(fetched[0]);
+      const renderedEnd = parsed.searchParams.get('toDate');
+      expect(renderedEnd).toBe('20260315');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('succeeds even when all chunks fail', async () => {
     const ctx: IChunkingCtx = {
       fc: {

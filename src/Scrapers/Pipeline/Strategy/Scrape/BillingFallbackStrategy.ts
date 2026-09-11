@@ -7,6 +7,7 @@ import type { ITransaction, ITransactionsAccount } from '../../../../Transaction
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { getDebug as createLogger } from '../../Logging/Debug.js';
 import { parseFreshResponse } from '../../Mediator/Dashboard/TxnParser.js';
+import { bankInstantOfLabel } from '../../Mediator/Scrape/BankMonth.js';
 import type { IMonthChunk } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { chunkStartMonth, generateMonthChunks } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { applyDateRangeAndAppend } from '../../Mediator/Scrape/UrlDateRange.js';
@@ -74,8 +75,12 @@ async function scrapeOneBillingChunk(
   }
   const { month, year } = named;
   const body = { cardUniqueId: ctx.accountId, month, year };
-  const chunkStart = new Date(chunk.start);
-  const chunkEnd = new Date(chunk.end);
+  const chunkStart = bankInstantOfLabel(chunk.start);
+  const chunkEnd = bankInstantOfLabel(chunk.end);
+  if (chunkStart === false || chunkEnd === false) {
+    LOG.warn({ message: 'Skipped billing request for an invalid generated date label' });
+    return [];
+  }
   const patchedUrl = applyDateRangeAndAppend(ctx.billingUrl, {
     fromDate: chunkStart,
     toDate: chunkEnd,

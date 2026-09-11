@@ -68,4 +68,12 @@ describe('BankMonth', () => {
     expect(startDay).toBe('2026-03-01');
     expect(endDay).toBe('2026-03-31');
   });
+
+  it('preserves an accepted four-digit year when building bounds', () => {
+    const bounds = bankMonthBounds({ year: 42, month: 3 });
+    const startDay = bankDayOfInstant(bounds.start);
+    const endDay = bankDayOfInstant(bounds.end);
+    expect(startDay).toBe('0042-03-01');
+    expect(endDay).toBe('0042-03-31');
+  });
 });
