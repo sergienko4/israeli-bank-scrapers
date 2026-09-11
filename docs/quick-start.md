@@ -59,8 +59,8 @@ const result = await scraper.scrape({
 });
 
 if (result.success) {
-  for (const acc of result.accounts!) {
-    console.log(`${acc.accountNumber}: ${acc.txns.length} txns, balance ${acc.balance}`);
+  for (const [index, acc] of result.accounts!.entries()) {
+    console.log(`Account ${index + 1}: ${acc.txns.length} txns, balance ${acc.balance}`);
   }
 } else {
   console.error(result.errorType, result.errorMessage);

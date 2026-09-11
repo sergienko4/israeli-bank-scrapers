@@ -61,7 +61,7 @@ describe('Declared/auditDeclaredRows', () => {
     const node = body([group(3, 3)]);
     const args: IDeclaredArgs = { body: node, specs: [], label: 'test/txns' };
     const result = auditDeclaredRows(args);
-    expect(result).toEqual({ checked: 0, shortfall: 0 });
+    expect(result).toEqual({ checked: 0, shortfall: 0, unavailable: false });
   });
 
   it('reports no shortfall when carried matches declared', () => {
@@ -69,6 +69,7 @@ describe('Declared/auditDeclaredRows', () => {
     const result = audit(node);
     expect(result.checked).toBe(1);
     expect(result.shortfall).toBe(0);
+    expect(result.unavailable).toBe(false);
   });
 
   it('reports the rows a group declared but did not carry', () => {
@@ -90,6 +91,7 @@ describe('Declared/auditDeclaredRows', () => {
     const result = audit(node);
     expect(result.checked).toBe(1);
     expect(result.shortfall).toBe(0);
+    expect(result.unavailable).toBe(true);
   });
 
   it('never nets a surplus against a real shortfall', () => {
@@ -100,13 +102,13 @@ describe('Declared/auditDeclaredRows', () => {
 
   it('checks nothing when the container is absent', () => {
     const result = audit({ data: {} });
-    expect(result).toEqual({ checked: 0, shortfall: 0 });
+    expect(result).toEqual({ checked: 0, shortfall: 0, unavailable: true });
   });
 
   it('checks nothing when the container is not an array', () => {
     const node = { data: { israelAbroadVouchers: { outOfStatementChargeDateVouchers: {} } } };
     const result = audit(node);
-    expect(result).toEqual({ checked: 0, shortfall: 0 });
+    expect(result).toEqual({ checked: 0, shortfall: 0, unavailable: true });
   });
 
   it('treats a group carrying no row array as carrying nothing', () => {
@@ -115,10 +117,32 @@ describe('Declared/auditDeclaredRows', () => {
     expect(result.shortfall).toBe(4);
   });
 
-  it('ignores a count that is not a finite number', () => {
+  it('marks a non-numeric count as unavailable evidence', () => {
     const node = body([{ totalVouchersCurrencyDate: { countImmediateVouchers: '4' } }]);
     const result = audit(node);
-    expect(result).toEqual({ checked: 0, shortfall: 0 });
+    expect(result).toMatchObject({ checked: 0, shortfall: 0, unavailable: true });
+  });
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY])(
+    'marks non-finite count %p as unavailable evidence',
+    declared => {
+      const item = group(declared, 0);
+      const node = body([item]);
+      const result = audit(node);
+      expect(result).toMatchObject({ checked: 0, shortfall: 0, unavailable: true });
+    },
+  );
+
+  it('marks a negative count as unavailable evidence', () => {
+    const node = body([group(-1, 0)]);
+    const result = audit(node);
+    expect(result).toMatchObject({ checked: 0, shortfall: 0, unavailable: true });
+  });
+
+  it('marks a fractional count as unavailable evidence', () => {
+    const node = body([group(1.5, 1)]);
+    const result = audit(node);
+    expect(result).toMatchObject({ checked: 0, shortfall: 0, unavailable: true });
   });
 
   it('reconciles every declaration a bank names', () => {
@@ -126,6 +150,6 @@ describe('Declared/auditDeclaredRows', () => {
     const node = { data: { more: [{ total: 5, items: [{ n: 1 }] }] } };
     const args: IDeclaredArgs = { body: node, specs: [SPEC, other], label: 'test/txns' };
     const result = auditDeclaredRows(args);
-    expect(result).toEqual({ checked: 1, shortfall: 4 });
+    expect(result).toEqual({ checked: 1, shortfall: 4, unavailable: true });
   });
 });

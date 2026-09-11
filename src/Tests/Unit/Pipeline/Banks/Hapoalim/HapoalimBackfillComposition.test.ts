@@ -18,6 +18,7 @@ import {
   type HapoalimCursor,
   txnsExtractPage,
 } from '../../../../../Scrapers/Pipeline/Banks/Hapoalim/scrape/HapoalimShapeTxns.js';
+import { bankMomentOfInstant } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
 import { assessWindowCoverage } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/WindowCoverage.js';
 import { buildOverlapMerge } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/OverlapMerge.js';
 import { planBackfill } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/WindowBackfill.js';
@@ -127,19 +128,17 @@ function walkShape(): readonly object[] {
 /**
  * A date's calendar day in the local zone.
  *
- * The bound is a local midnight, and the shape formats it with a local
- * formatter. Rendering it as UTC would report the day before for half the
- * year and make the two paths look like they disagree when they do not.
+ * <p>Rendered in the bank's calendar, not the host's. The bound is an absolute
+ * instant that the shapes format through `bankMomentOfInstant`, so a helper
+ * that reads it back with local `Date` getters asserts the runner's timezone
+ * rather than the behaviour. `jest.config.js` pins TZ=Asia/Jerusalem but
+ * `jest.pipeline.config.cjs` does not, so an ambient read here passes locally
+ * and reports the wrong day on a host east of Israel.
  * @param when - Date to render.
  * @returns Calendar day, `YYYYMMDD`.
  */
 function dayOf(when: Date): string {
-  const year = when.getFullYear();
-  const month = when.getMonth() + 1;
-  const day = when.getDate();
-  const mm = String(month).padStart(2, '0');
-  const dd = String(day).padStart(2, '0');
-  return `${String(year)}${mm}${dd}`;
+  return bankMomentOfInstant(when).format('YYYYMMDD');
 }
 
 /**

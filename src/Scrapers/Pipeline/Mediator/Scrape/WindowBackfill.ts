@@ -14,74 +14,44 @@
  * asked" are different facts and an operator must be able to tell them apart.
  */
 
-import moment from 'moment-timezone';
-
 import { getDebug } from '../../Logging/Debug.js';
 import type { Option } from '../../Types/Option.js';
 import { isSome, none, some } from '../../Types/Option.js';
-import type { WindowNarrowing } from '../../Types/WindowNarrowing.js';
-import { BACKFILL_EXCLUSION } from '../../Types/WindowNarrowing.js';
-import { BANK_DAY_FORMAT } from './BankCalendar.js';
-import type { IWindowResult } from './CoverageAudit/WindowCoverage.js';
+import { BANK_DAY_FORMAT, bankDayOfInstant, parseInBankZone } from './BankCalendar.js';
+import type { BackfillStop, IBackfillBlock, IBackfillPlanArgs } from './WindowBackfillBlocks.js';
+import { blockOf, BOUND_DID_NOT_MOVE } from './WindowBackfillBlocks.js';
 
 const LOG = getDebug(import.meta.url);
 
-/**
- * Hard ceiling on extra requests per account.
- *
- * Twelve is one per month of a year-long window, which is the longest window
- * any supported provider serves. A run that has narrowed the bound twelve
- * times and still cannot reach `startDate` is not converging, and burning more
- * provider quota will not change that.
- */
-export const MAX_BACKFILL_ASKS = 12;
-
-/** Operator kill-switch: `WINDOW_BACKFILL=off` suppresses every extra ask. */
-const KILL_SWITCH = 'off';
-
-/** Inputs for one backfill decision. */
-export interface IBackfillPlanArgs {
-  /** The bank's declared stance — decides whether a re-ask is possible. */
-  readonly stance: WindowNarrowing;
-  /** Verdict for everything collected so far. */
-  readonly coverage: IWindowResult;
-  /** Extra requests already issued for this account. */
-  readonly attempt: number;
-  /** Bound the assessed request carried, so the next one must be earlier. */
-  readonly previousEnd: Option<Date>;
-  /** Bank + step identity for the log line. Never contains row content. */
-  readonly label: string;
-}
-
-/** What the loop should do next. Never carries row content. */
-export interface IBackfillPlan {
-  /** Whether to issue another request. */
-  readonly shouldAsk: boolean;
-  /** Upper bound for that request; absent when {@link shouldAsk} is false. */
+/** Issue another request under a narrowed bound. */
+export interface IBackfillAsk {
+  readonly shouldAsk: true;
+  /** Upper bound for that request. */
   readonly nextEnd: Option<Date>;
-  /** Why — logged verbatim, in both directions. */
+  /** Why — logged verbatim. */
   readonly reason: string;
 }
 
-/**
- * Name the first condition that forbids another request.
- *
- * Ordered cheapest-and-most-decisive first: an operator override outranks a
- * verdict, a covered window needs no reason beyond itself, and an undatable
- * page offers no bound to derive.
- *
- * @param args - The decision inputs.
- * @returns The blocking reason, or empty when a re-ask is allowed.
- */
-function blockingReason(args: IBackfillPlanArgs): string {
-  if (process.env.WINDOW_BACKFILL === KILL_SWITCH) return 'disabled by WINDOW_BACKFILL=off';
-  if (args.coverage.verdict === 'covered') return 'window covered';
-  if (args.coverage.oldest === '') return 'no row carried a usable date';
-  if (args.stance !== 'windowEnd') return BACKFILL_EXCLUSION[args.stance];
-  if (args.attempt >= MAX_BACKFILL_ASKS)
-    return `reached the ${String(MAX_BACKFILL_ASKS)}-request ceiling`;
-  return '';
+/** Stop asking, and say what ended it. */
+export interface IBackfillRefusal {
+  readonly shouldAsk: false;
+  /** Always absent: there is no next request to bound. */
+  readonly nextEnd: Option<Date>;
+  /** Why — logged verbatim. */
+  readonly reason: string;
+  /**
+   * The same answer as a code, for callers that must act on it.
+   *
+   * The prose above is written for an operator and is pinned byte-for-byte by
+   * tests; this is what the coverage classifier reads, so no caller ever has
+   * to parse a log line. Present only on this branch, so a caller that has not
+   * established the loop actually stopped cannot reach for it.
+   */
+  readonly stop: BackfillStop;
 }
+
+/** What the loop should do next. Never carries row content. */
+export type IBackfillPlan = IBackfillAsk | IBackfillRefusal;
 
 /**
  * The end of the oldest day we hold, as the next request's bound.
@@ -102,25 +72,27 @@ function blockingReason(args: IBackfillPlanArgs): string {
  * on the wire as an RFC-1123 *instant* (`toUTCString()`). A start-of-day
  * instant would exclude everything that day after midnight.
  *
- * <p><b>Deliberately ambient, not bank-anchored.</b> Everywhere else in this
- * cluster a calendar decision resolves in the bank's zone
- * (`BANK_CALENDAR_TIMEZONE`), but
- * here the day *label* is the interchange unit: this function turns a label
- * into an instant and the shapes above turn that instant straight back into a
- * label. Round-tripping is lossless only while both halves share one zone.
- * Anchoring this half alone would make an east-of-Israel host re-ask for
- * `oldest + 1` — a slice the caller never lost — so the pair moves together or
- * not at all. `BankCalendar.test.ts` pins the round trip in four zones.
+ * <p><b>Bank-anchored, like every other calendar decision in this cluster.</b>
+ * The day label means a day in the bank's zone, so the instant it opens onto
+ * must be that day's end there. Reading it ambiently made the bound mean a
+ * different real moment per host: Leumi sends it absolutely, so from a
+ * west-of-Israel host the re-ask landed *after* the rows already held, the
+ * provider re-served the same set, `oldest` never moved and the next round
+ * refused with `boundDidNotMove` — backfill dead on the first retry.
+ *
+ * <p>Every consumer that turns this instant back into a day label must read it
+ * in the bank's zone too, or an east-of-Israel host re-asks for `oldest + 1`.
+ * The pair moves together; `BankCalendar.test.ts` pins both halves.
  *
  * <p>Termination is unaffected. A request that returns nothing new leaves
  * `oldest` where it was, which derives this same bound again, and
  * {@link isEarlier} refuses a non-strict step.
  *
  * @param oldest - Calendar day of the oldest row collected.
- * @returns Last instant of that calendar day, read in the ambient zone.
+ * @returns Last instant of that calendar day in the bank's zone.
  */
 function endOfOldest(oldest: string): Date {
-  return moment(oldest, BANK_DAY_FORMAT).endOf('day').toDate();
+  return parseInBankZone(oldest, BANK_DAY_FORMAT).endOf('day').toDate();
 }
 
 /**
@@ -158,13 +130,25 @@ function report(args: IBackfillPlanArgs, plan: IBackfillPlan): IBackfillPlan {
 }
 
 /**
+ * Explain a refusal without presenting an unmeasured gap as zero.
+ * @param args - The decision inputs.
+ * @param block - Why no request will be made.
+ * @returns Operator-facing refusal reason.
+ */
+function refusalReason(args: IBackfillPlanArgs, block: IBackfillBlock): string {
+  if (!args.coverage.requestedStartReadable) return block.reason;
+  return `gapDays=${String(args.coverage.gapDays)} — ${block.reason}`;
+}
+
+/**
  * Refuse another request, reporting the gap and the reason together.
  * @param args - The decision inputs.
- * @param reason - Why no further request will be made.
+ * @param block - The code and prose for why no further request will be made.
  * @returns The refusal.
  */
-function refuse(args: IBackfillPlanArgs, reason: string): IBackfillPlan {
-  const plan: IBackfillPlan = { shouldAsk: false, nextEnd: none(), reason };
+function refuse(args: IBackfillPlanArgs, block: IBackfillBlock): IBackfillPlan {
+  const reason = refusalReason(args, block);
+  const plan: IBackfillPlan = { shouldAsk: false, nextEnd: none(), reason, stop: block.stop };
   return report(args, plan);
 }
 
@@ -176,7 +160,10 @@ function refuse(args: IBackfillPlanArgs, reason: string): IBackfillPlan {
  * @returns The authorisation.
  */
 function accept(args: IBackfillPlanArgs, next: Date, gap: string): IBackfillPlan {
-  const when = moment(next).format(BANK_DAY_FORMAT);
+  // Read in the bank's zone, like the shapes that put it on the wire. Reading
+  // it ambiently would log a different day than was actually sent.
+  const day = bankDayOfInstant(next);
+  const when = day === false ? 'unreadable' : day;
   const reason = `${gap} — re-asking with end=${when}`;
   const plan: IBackfillPlan = { shouldAsk: true, nextEnd: some(next), reason };
   return report(args, plan);
@@ -189,13 +176,15 @@ function accept(args: IBackfillPlanArgs, next: Date, gap: string): IBackfillPlan
  * @returns The decision, already reported.
  */
 export function planBackfill(args: IBackfillPlanArgs): IBackfillPlan {
-  const gap = `gapDays=${String(args.coverage.gapDays)}`;
-  const blocked = blockingReason(args);
-  if (blocked !== '') return refuse(args, `${gap} — ${blocked}`);
+  const blocked = blockOf(args);
+  if (blocked !== false) return refuse(args, blocked);
   const next = endOfOldest(args.coverage.oldest);
   const didMove = isEarlier(next, args.previousEnd);
-  if (!didMove) return refuse(args, `${gap} — bound did not move`);
+  if (!didMove) return refuse(args, BOUND_DID_NOT_MOVE);
+  const gap = `gapDays=${String(args.coverage.gapDays)}`;
   return accept(args, next, gap);
 }
 
+export type { BackfillStop, IBackfillPlanArgs } from './WindowBackfillBlocks.js';
+export { MAX_BACKFILL_ASKS } from './WindowBackfillBlocks.js';
 export default planBackfill;

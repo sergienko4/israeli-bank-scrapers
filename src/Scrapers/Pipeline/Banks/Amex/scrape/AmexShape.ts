@@ -12,6 +12,7 @@
  * to hold the file-size cap.
  */
 
+import { validateCardIssuerPlan } from '../../../Phases/ApiDirectScrape/CardIssuer/CardIssuerShapeTxns.js';
 import type {
   HeaderMap,
   IApiDirectScrapeShape,
@@ -87,6 +88,7 @@ const AMEX_SHAPE: IApiDirectScrapeShape<IAmexCard, number> = {
   transactions: {
     buildVars: txnsVars,
     extractPage: txnsExtractPage,
+    validatePlan: validateCardIssuerPlan,
     windowNarrowing: 'periodEnumeration',
     urlTag: txnsUrl,
     method: 'POST',

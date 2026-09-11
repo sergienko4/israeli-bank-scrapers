@@ -21,7 +21,7 @@ import {
   type IVisaCalCard,
   noVars,
 } from './VisaCalShapeHelpers.js';
-import { txnsExtractPage, txnsUrl, txnsVars } from './VisaCalShapeTxns.js';
+import { txnsExtractPage, txnsUrl, txnsVars, validatePlan } from './VisaCalShapeTxns.js';
 
 /**
  * Card-cycle balance — a deliberate 0, not a missing implementation.
@@ -80,6 +80,7 @@ const VISACAL_SHAPE: IApiDirectScrapeShape<IVisaCalCard, number> = {
   transactions: {
     buildVars: txnsVars,
     extractPage: txnsExtractPage,
+    validatePlan,
     windowNarrowing: 'periodEnumeration',
     urlTag: txnsUrl,
     method: 'POST',

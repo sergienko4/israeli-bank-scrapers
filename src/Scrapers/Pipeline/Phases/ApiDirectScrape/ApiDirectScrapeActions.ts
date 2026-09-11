@@ -1,24 +1,21 @@
 /**
  * ApiDirectScrape phase actions — Zero-Logic Bank Folder pattern.
  * Banks supply an IApiDirectScrapeShape (data only); this file walks
- * customer → per-account (balance + paginated transactions), maps
- * rows via autoMapTransaction, and returns the scrape procedure.
- * Per-step helpers live in ApiDirectScrapeSteps.ts to keep this
- * file under the per-file LOC ceiling. Zero bank-name coupling.
+ * customer → per-account (balance + paginated transactions) and returns
+ * the scrape procedure. Per-step helpers live in ApiDirectScrapeSteps.ts and
+ * row refinement in ApiDirectScrapeAccountTxns.ts, keeping this file under
+ * the per-file LOC ceiling. Zero bank-name coupling.
  */
 
-import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
 import type { IApiMediator } from '../../Mediator/Api/ApiMediator.js';
 import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
-import { reportMapRejects } from '../../Mediator/Scrape/CoverageAudit/MapRejects.js';
-import { autoMapTransaction } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
-import { applyStartWindow } from '../../Mediator/Scrape/StartWindow.js';
-import { collapseDuplicates } from '../../Mediator/Scrape/TxnDedup.js';
+import { makeEvidenceLedger } from '../../Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
+import type { IAuditedAccount } from '../../Types/Domain/AuditedAccount.js';
 import { isSome, some } from '../../Types/Option.js';
 import type { IActionContext, IScrapeState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
-import { collectAccountRows } from './ApiDirectScrapeBackfill.js';
+import { fetchAccountTxns } from './ApiDirectScrapeAccountTxns.js';
 import { fetchBalance } from './ApiDirectScrapeBalance.js';
 import runBootstrap from './ApiDirectScrapeBootstrap.js';
 import type { IAcctCtx, IDriverCtx } from './ApiDirectScrapeDispatchArgs.js';
@@ -29,7 +26,7 @@ import type { IApiDirectScrapeShape, IBalanceOutcome } from './IApiDirectScrapeS
 
 /** One account plus the outcome facts its walk produced. */
 interface IAccountResult {
-  readonly account: ITransactionsAccount;
+  readonly account: IAuditedAccount;
   readonly degraded: boolean;
   /** Backfill was asked for the missing slice and did not get it. */
   readonly backfillExhausted: boolean;
@@ -37,89 +34,6 @@ interface IAccountResult {
 
 /** Accumulator for per-account scrape results. */
 type AcctsAcc = Procedure<readonly IAccountResult[]>;
-
-/**
- * Map raw rows through autoMapTransaction (drops rejects).
- * @param raws - Raw rows emitted by the shape's extractPage.
- * @param isCardIssuer - Declared by the shape; decides charge-sign handling.
- * @returns Mapped ITransactions (rejects filtered out).
- */
-function mapTxns(raws: readonly object[], isCardIssuer?: boolean): readonly ITransaction[] {
-  const widened = raws as unknown as readonly Record<string, unknown>[];
-  const mapped = widened.map((raw): ITransaction | false => autoMapTransaction(raw, isCardIssuer));
-  return mapped.filter((t): t is ITransaction => t !== false);
-}
-
-/**
- * Map the shape's raw rows, reporting any the mapper refused.
- *
- * The refusals are reported here rather than swallowed because the shape found
- * those rows and believed them transactions — a non-zero count is data that
- * reached us and was dropped, which the totals alone would never reveal.
- *
- * @param a - Per-account context.
- * @param raws - Raw rows emitted by the shape's extractPage.
- * @param label - Bank + step identity for the log line.
- * @returns The rows the mapper accepted.
- */
-function mapAndReport<TAcct, TCursor>(
-  a: IAcctCtx<TAcct, TCursor>,
-  raws: readonly object[],
-  label: string,
-): readonly ITransaction[] {
-  const mapped = mapTxns(raws, a.shape.isCardIssuer);
-  reportMapRejects({ extracted: raws.length, mapped: mapped.length, label });
-  return mapped;
-}
-
-/**
- * Refine one account's raw rows into the transactions the caller asked for.
- *
- * Reports the rows the mapper refused first, then collapses proven duplicates
- * (opt-in; no bank declares a key today) and trims to the caller's `startDate`.
- * Providers return whole billing cycles rather than a date range, so without
- * the window the caller receives months of history it never asked for.
- *
- * @param a - Per-account context.
- * @param raws - Raw rows emitted by the shape's extractPage.
- * @returns Mapped, deduplicated, in-window transactions.
- */
-function refineTxns<TAcct, TCursor>(
-  a: IAcctCtx<TAcct, TCursor>,
-  raws: readonly object[],
-): readonly ITransaction[] {
-  const label = `${a.ctx.companyId}/txns`;
-  const mapped = mapAndReport(a, raws, label);
-  const keyFields = a.shape.transactions.dedupKeyFields ?? [];
-  const unique = collapseDuplicates({ txns: mapped, keyFields, label });
-  return applyStartWindow({ txns: unique.kept, startDate: a.ctx.options.startDate, label }).kept;
-}
-
-/** One account's transactions plus the facts its walk produced. */
-interface IAccountTxns {
-  readonly txns: readonly ITransaction[];
-  /** Backfill was asked for the missing slice and did not get it. */
-  readonly backfillExhausted: boolean;
-}
-
-/**
- * Fetch + map one account's paginated transactions.
- *
- * Carries the backfill outcome out with the rows: a short window and a
- * complete one yield the same transaction list, so dropping the flag here
- * would put the loss back out of reach of every caller above.
- *
- * @param a - Per-account context.
- * @returns Mapped, in-window transactions plus the backfill outcome.
- */
-async function fetchAccountTxns<TAcct, TCursor>(
-  a: IAcctCtx<TAcct, TCursor>,
-): Promise<Procedure<IAccountTxns>> {
-  const collected = await collectAccountRows(a);
-  if (!isOk(collected)) return collected;
-  const txns = refineTxns(a, collected.value.rows);
-  return succeed({ txns, backfillExhausted: collected.value.isBackfillExhausted });
-}
 
 /**
  * Build the account's balance field — OMITTED when the figure is unknown.
@@ -150,9 +64,11 @@ async function fetchOneAccount<TAcct, TCursor>(
   const txns = await fetchAccountTxns(a);
   if (!isOk(txns)) return txns;
   const accountNumber = a.shape.accountNumberOf(a.acct);
-  const account = { accountNumber, ...balanceField(bal.value), txns: [...txns.value.txns] };
-  const wasExhausted = txns.value.backfillExhausted;
-  return succeed({ account, degraded: bal.value.degraded, backfillExhausted: wasExhausted });
+  const { windowCoverage } = txns.value;
+  const held = { txns: [...txns.value.txns], windowCoverage };
+  const account = { accountNumber, ...balanceField(bal.value), ...held };
+  const outcome = { degraded: bal.value.degraded, backfillExhausted: txns.value.backfillExhausted };
+  return succeed({ account, ...outcome });
 }
 
 /**
@@ -170,7 +86,7 @@ async function iterateAccounts<TAcct, TCursor>(
   return accounts.reduce(async (prev, acct): Promise<AcctsAcc> => {
     const acc = await prev;
     if (!isOk(acc)) return acc;
-    const one = await fetchOneAccount({ ...d, acct });
+    const one = await fetchOneAccount({ ...d, acct, ledger: makeEvidenceLedger() });
     if (!isOk(one)) return one;
     return succeed([...acc.value, one.value]);
   }, seed);

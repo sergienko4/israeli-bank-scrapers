@@ -202,10 +202,142 @@ interface IScraperLoginResult {
     persistentOtpToken?: string;
 }
 
+/**
+ * What a scrape can honestly say about the window it was asked for.
+ *
+ * A caller asks for transactions since a date. Today the answer is a list, and
+ * a list that is short because the bank had nothing older is indistinguishable
+ * from a list that is short because the walk gave up. Both arrive as `success`.
+ * This module names the difference so callers can act on it.
+ *
+ * Three states, each provable from evidence the scrape already holds:
+ *
+ * - `covered` — the oldest row reaches the requested start AND every loss
+ *   channel the scrape watches came back clean.
+ * - `lowerBoundReached` — the oldest row reaches the requested start, but at
+ *   least one channel reported loss or could not run. Rows are missing or may
+ *   be, and {@link IWindowLowerBoundReached.caveats} says which channel said so.
+ * - `unproven` — the requested start was never reached at all.
+ *
+ * There is deliberately no fourth "probably fine" state. Every state here is
+ * backed by something observed; none rests on an inference about what the
+ * provider meant.
+ */
+/**
+ * Why `covered` could not be claimed even though the start date was reached.
+ *
+ * Each member names either an observed loss signal or a configured audit that
+ * was unavailable. All are recorded during the walk; none is inferred later.
+ *
+ * `paginationStoppedEarly` means the paginated walk gave up while the provider
+ * was still offering rows: it repeated a cursor or hit its page ceiling. A
+ * shape's own "we have enough" stop does not raise this because sufficiency is
+ * judged independently by the start-date test.
+ */
+type WindowCaveat = 'paginationStoppedEarly'
+/** The provider declared more rows in a container than were present. */
+ | 'declaredRowShortfall'
+/** A configured provider row-count declaration could not be validated. */
+ | 'declaredRowAuditUnavailable'
+/** Rows were found in the response body that the bank shape did not return. */
+ | 'extractionShortfall'
+/** The extraction audit had nothing comparable to check against. */
+ | 'extractionAuditUnavailable'
+/** The mapper refused rows the shape had extracted. */
+ | 'mappingRejectedRows'
+/** The provider served rows outside the order the walk assumes. */
+ | 'walkOrderViolated';
+/**
+ * Why the requested start was never reached.
+ *
+ * Every member is produced by a specific stop condition in the backfill loop
+ * or by the classifier itself; there is no catch-all. A member that no code
+ * path can reach is a lie the type system would help tell, so none is kept
+ * "just in case".
+ *
+ * `noRowCarriedAUsableDate` means rows arrived, but none carried a date the
+ * audit could read.
+ */
+type WindowUnprovenReason = 'noRowCarriedAUsableDate'
+/** The caller's own `startDate` could not be read as a date. */
+ | 'requestedStartUnreadable'
+/** Backfill spent its ask ceiling without closing the gap. */
+ | 'backfillCeilingReached'
+/** This bank's request shape cannot express a narrower upper bound. */
+ | 'backfillNotSupportedForBank'
+/** Backfill was switched off for this run. */
+ | 'backfillDisabled'
+/** A narrowed ask returned nothing older, so the walk stopped advancing. */
+ | 'boundDidNotMove';
+/**
+ * The requested start was reached and every watched channel was clean.
+ *
+ * <p>This does NOT promise that no row in the middle of the window was dropped
+ * without leaving a trace. Detecting that needs a reliable provider total for
+ * the complete requested window, which Israeli banks generally do not send. It
+ * promises that the window's far edge was reached and that nothing the scrape
+ * can observe reported loss along the way.
+ */
+interface IWindowCovered {
+    readonly status: 'covered';
+    /** The start the caller asked for, ISO 8601. */
+    readonly requestedStart: string;
+    /** The oldest row's calendar day in the bank's own zone, `YYYY-MM-DD`. */
+    readonly oldest: string;
+}
+/** The requested start was reached, but a channel reported loss or could not run. */
+interface IWindowLowerBoundReached {
+    readonly status: 'lowerBoundReached';
+    /** The start the caller asked for, ISO 8601. */
+    readonly requestedStart: string;
+    /** The oldest row's calendar day in the bank's own zone, `YYYY-MM-DD`. */
+    readonly oldest: string;
+    /** Every channel that blocked `covered`, in a stable order. Never empty. */
+    readonly caveats: readonly WindowCaveat[];
+}
+/** The requested start was never reached. */
+interface IWindowUnproven {
+    readonly status: 'unproven';
+    /** What stopped the walk short of the requested start. */
+    readonly reason: WindowUnprovenReason;
+    /** The start the caller asked for, ISO 8601, or `'invalid-date'` when unreadable. */
+    readonly requestedStart: string;
+    /** The oldest row's calendar day, `YYYY-MM-DD` — absent when no row carried one. */
+    readonly oldest?: string;
+    /** Whole days between the requested start and the oldest row, when both are known. */
+    readonly gapDays?: number;
+}
+/** One account's verdict on the window the caller asked for. */
+type IWindowCoverage = IWindowCovered | IWindowLowerBoundReached | IWindowUnproven;
+
 interface ITransactionsAccount {
     accountNumber: string;
     balance?: number;
     txns: ITransaction[];
+    /**
+     * What this account can honestly claim about the window that was requested.
+     *
+     * <p>`txns` alone cannot answer it. A short list and a complete one are the
+     * same shape, so a caller who receives thirty days after asking for ninety
+     * has no way to tell a quiet account from a truncated one. This field is
+     * that answer, per account, because the scrape's own window audit is
+     * per-account.
+     *
+     * <p>Read {@link IWindowCoverage.status} first: `covered` means the start
+     * was reached and every loss signal the scrape can observe was clean;
+     * `lowerBoundReached` means the start was reached but something reported
+     * loss or a configured audit could not run (see `caveats`); `unproven`
+     * means the start was never reached (see `reason`).
+     *
+     * <p>Even `covered` does not prove that no row in the *middle* of the window
+     * was dropped silently — that needs a reliable provider total for the
+     * complete requested window, which Israeli banks generally do not send.
+     * See `src/WindowCoverage.ts` for the full contract.
+     *
+     * <p>Optional because only the Pipeline's API-direct scrapers run the audit.
+     * Absent means "not assessed", never "assessed and fine".
+     */
+    windowCoverage?: IWindowCoverage;
 }
 declare enum TransactionTypes {
     Normal = "normal",
@@ -291,6 +423,15 @@ interface IScraperDiagnostics {
 interface IScraperScrapingResult {
     success: boolean;
     accounts?: ITransactionsAccount[];
+    /**
+     * Upcoming debits.
+     *
+     * <p><b>Never populated.</b> The field is part of the upstream result shape
+     * and is kept so the type stays compatible, but no scraper in this package
+     * writes to it. An empty or absent value means "not available", not "this
+     * account has no upcoming debits" — treating it as the latter would read a
+     * gap in the implementation as a fact about someone's money.
+     */
     futureDebits?: IFutureDebit[];
     errorType?: ScraperErrorTypes;
     errorMessage?: string;
@@ -298,6 +439,13 @@ interface IScraperScrapingResult {
     /** Long-term OTP token returned by banks that support it (e.g. OneZero).
      *  Save and pass as credentials.otpLongTermToken to skip SMS on future runs. */
     persistentOtpToken?: string;
+    /**
+     * Per-run diagnostics.
+     *
+     * <p>Populated by the browser-based scrapers only. The API-direct pipeline
+     * does not extend the base scraper that builds this, and reports what it
+     * knows through `ITransactionsAccount.windowCoverage` instead.
+     */
     diagnostics?: IScraperDiagnostics;
 }
 
@@ -571,4 +719,4 @@ type ScraperScrapingResult = IScraperScrapingResult;
  */
 declare function createScraper(options: ScraperOptions): IScraper<ScraperCredentials>;
 
-export { CompanyTypes, type IScraper, type IScraperLoginResult, type IScraperScrapingResult, SCRAPERS, type IScraperLoginResult as ScaperLoginResult, type IScraperScrapingResult as ScaperScrapingResult, type Scraper, type ScraperCredentials, type ScraperLoginResult, type ScraperOptions, type ScraperScrapingResult, createScraper };
+export { CompanyTypes, type IScraper, type IScraperLoginResult, type IScraperScrapingResult, type IWindowCoverage, type IWindowCovered, type IWindowLowerBoundReached, type IWindowUnproven, SCRAPERS, type IScraperLoginResult as ScaperLoginResult, type IScraperScrapingResult as ScaperScrapingResult, type Scraper, type ScraperCredentials, type ScraperLoginResult, type ScraperOptions, type ScraperScrapingResult, type WindowCaveat, type WindowUnprovenReason, createScraper };

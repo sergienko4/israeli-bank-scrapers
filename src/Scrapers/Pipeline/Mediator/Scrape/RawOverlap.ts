@@ -18,6 +18,33 @@
  * declared key because it judges rows the provider sent *once*. Here the
  * duplication is something we caused by asking twice, so identity is the whole
  * test and no bank has to declare anything.
+ *
+ * <h2>What this rests on, stated precisely</h2>
+ *
+ * An earlier reading of this file claimed safety came from the re-ask always
+ * carrying *both* copies of a tied pair. That is not the guarantee, and saying
+ * so invited the obvious follow-up question: what if it carries only one?
+ *
+ * The actual guarantee is narrower and easier to check. A tally is only ever
+ * spent on a row the provider has *just re-served*; copies already held are
+ * never removed. So the collapse can never reduce what is held — the worst it
+ * can do is decline to add a row, and declining to add rows is precisely what
+ * leaves the walk's bound where it was. A bound that does not move stops the
+ * walk and publishes `unproven`. The row is therefore never both dropped and
+ * reported as covered.
+ *
+ * `RawOverlapIdentity.test.ts` drives this against simulated providers across
+ * every cap that can split a tied pair, and against a provider that reveals
+ * both copies once and only one of them on the re-ask — the case the earlier
+ * wording left open. None of them loses a row through this collapse.
+ *
+ * <p><b>The residual, honestly:</b> if a provider is inconsistent about how
+ * many copies of an identical row it serves, the reply that withheld one and a
+ * reply from a provider that only ever had one are the same bytes. Nothing
+ * here, and nothing that could be written here, can tell them apart without an
+ * identity the provider does not send. That is a limit of the data, not a bug
+ * to be fixed by a cleverer rule — and it is why the public contract documents
+ * `covered` as "the far edge was reached", never "nothing was lost".
  */
 
 import { getDebug } from '../../Logging/Debug.js';

@@ -26,11 +26,12 @@ import type {
   JsonValueTemplate,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IDeclaredRowSpec } from '../../Mediator/Scrape/CoverageAudit/DeclaredRows.js';
+import type { IEvidenceLedger } from '../../Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import type { WindowNarrowing } from '../../Types/WindowNarrowing.js';
+import type { IWindowRequestPolicy } from '../../Types/WindowNarrowing.js';
 
 /** Opaque headers map (shape step may declare per-call extraHeaders). */
 export type HeaderMap = Record<string, string>;
@@ -222,6 +223,15 @@ export interface IExtractPageArgs<TAcct, TCursor> {
   readonly cursor: TCursor | false;
   readonly acct: TAcct;
   readonly ctx: IActionContext;
+  /**
+   * Where a shape-level guardrail reports row loss it alone can detect.
+   *
+   * Optional because most shapes have nothing to say and every existing test
+   * fixture predates it; the pipeline always supplies one. A shape that owns
+   * an ordering or completeness guard notes into it instead of only logging,
+   * which is what lets the account's coverage verdict see the guard's finding.
+   */
+  readonly ledger?: IEvidenceLedger;
 }
 
 /**
@@ -232,15 +242,9 @@ export interface IExtractPageArgs<TAcct, TCursor> {
 export type { WindowNarrowing } from '../../Types/WindowNarrowing.js';
 
 /** Transactions-step shape — paginated per-account fetch. */
-export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> {
+export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> extends IWindowRequestPolicy {
   readonly buildVars: (acct: TAcct, cursor: TCursor | false, ctx: IActionContext) => VarsMap;
   readonly extractPage: (args: IExtractPageArgs<TAcct, TCursor>) => IPage<object, TCursor>;
-  /**
-   * Whether a coverage gap on this bank can be backfilled by re-asking for an
-   * older slice. Required, so adding a bank without deciding is a compile
-   * error rather than a silent `undefined` that skips the backfill.
-   */
-  readonly windowNarrowing: WindowNarrowing;
   /**
    * Whether consecutive pages of this step's walk can re-serve the same rows.
    *

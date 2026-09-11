@@ -58,8 +58,22 @@ describe('Pagination.fetchPaginated', () => {
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     if (isOk(result)) {
-      expect(result.value).toEqual(['a', 'b', 'c']);
+      expect(result.value.items).toEqual(['a', 'b', 'c']);
+      expect(result.value.termination).toBe('exhausted');
     }
+  });
+
+  it('preserves an explicit abnormal ending from a terminal page', async () => {
+    const page: IPage<string, string> = {
+      items: ['partial'],
+      nextCursor: false,
+      termination: 'pageCeiling',
+    };
+    const result = await fetchPaginated({
+      fetchPage: makePagedFetcher([page]),
+      stop: NEVER_STOP,
+    });
+    expect(isOk(result) ? result.value.termination : 'failed').toBe('pageCeiling');
   });
 
   it('accumulates items across multiple pages until nextCursor === false', async () => {
@@ -74,7 +88,8 @@ describe('Pagination.fetchPaginated', () => {
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     if (isOk(result)) {
-      expect(result.value).toEqual(['a', 'b', 'c', 'd', 'e']);
+      expect(result.value.items).toEqual(['a', 'b', 'c', 'd', 'e']);
+      expect(result.value.termination).toBe('exhausted');
     }
   });
 
@@ -125,8 +140,9 @@ describe('Pagination.fetchPaginated', () => {
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     if (isOk(result)) {
-      expect(result.value.length).toBeGreaterThanOrEqual(10);
-      expect(result.value.length).toBeLessThan(13);
+      expect(result.value.items.length).toBeGreaterThanOrEqual(10);
+      expect(result.value.items.length).toBeLessThan(13);
+      expect(result.value.termination).toBe('predicateStop');
     }
   });
 
@@ -138,7 +154,8 @@ describe('Pagination.fetchPaginated', () => {
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     if (isOk(result)) {
-      expect(result.value).toEqual([]);
+      expect(result.value.items).toEqual([]);
+      expect(result.value.termination).toBe('exhausted');
     }
   });
 
@@ -178,7 +195,8 @@ describe('Pagination.fetchPaginated', () => {
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     if (isOk(result)) {
-      expect(result.value).toEqual(['p1-a', 'p2-a', 'p2-b', 'p3-a']);
+      expect(result.value.items).toEqual(['p1-a', 'p2-a', 'p2-b', 'p3-a']);
+      expect(result.value.termination).toBe('exhausted');
     }
   });
 });
@@ -230,8 +248,10 @@ describe('Pagination.fetchPaginated/walks that stop making progress', () => {
     const result = await fetchPaginated(args);
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
-    const rows = isOkResult ? result.value : [];
+    const rows = isOkResult ? result.value.items : [];
     expect(rows).toEqual(['same', 'same']);
+    const termination = isOkResult ? result.value.termination : undefined;
+    expect(termination).toBe('cursorRepeat');
   });
 
   it('lets a merge collapse the rows a repeated ask re-served', async () => {
@@ -246,7 +266,7 @@ describe('Pagination.fetchPaginated/walks that stop making progress', () => {
     const result = await fetchPaginated(args);
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
-    const rows = isOkResult ? result.value : [];
+    const rows = isOkResult ? result.value.items : [];
     expect(rows).toEqual(['same']);
   });
 });
@@ -275,7 +295,9 @@ describe('Pagination.fetchPaginated/the runaway ceiling', () => {
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     expect(asks).toHaveLength(300);
-    const rows = isOkResult ? result.value : [];
+    const rows = isOkResult ? result.value.items : [];
     expect(rows).toHaveLength(300);
+    const termination = isOkResult ? result.value.termination : undefined;
+    expect(termination).toBe('pageCeiling');
   });
 });

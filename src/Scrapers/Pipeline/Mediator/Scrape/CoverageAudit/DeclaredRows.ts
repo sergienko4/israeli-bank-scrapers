@@ -62,6 +62,14 @@ export interface IDeclaredResult {
   readonly checked: number;
   /** Rows declared but not carried by the response, summed. Above zero means loss. */
   readonly shortfall: number;
+  /** True when a configured declaration could not be validated. */
+  readonly unavailable: boolean;
+}
+
+/** One configured declaration's usable gaps and audit availability. */
+interface IDeclaredScan {
+  readonly gaps: readonly number[];
+  readonly unavailable: boolean;
 }
 
 /**
@@ -90,7 +98,7 @@ function asRows(node: unknown): readonly unknown[] {
  * @returns The count, or false when the group declares none.
  */
 function countOf(node: unknown): number | false {
-  const isCount = typeof node === 'number' && Number.isFinite(node);
+  const isCount = typeof node === 'number' && Number.isInteger(node) && node >= 0;
   return isCount ? node : false;
 }
 
@@ -109,16 +117,17 @@ function gapOf(group: unknown, spec: IDeclaredRowSpec): number | false {
 }
 
 /**
- * Every checkable gap under one declaration.
+ * Audit every group under one configured declaration.
  * @param body - Raw response body.
  * @param spec - One declaration.
- * @returns One gap per group that stated a count.
+ * @returns Checkable gaps plus whether any configured evidence was unreadable.
  */
-function gapsOf(body: object, spec: IDeclaredRowSpec): readonly number[] {
+function scanOf(body: object, spec: IDeclaredRowSpec): IDeclaredScan {
   const node = atPath(body, spec.groups);
-  const groups = asRows(node);
-  const gaps = groups.map((g): number | false => gapOf(g, spec));
-  return gaps.filter((g): g is number => g !== false);
+  if (!Array.isArray(node)) return { gaps: [], unavailable: true };
+  const candidates = node.map((group): number | false => gapOf(group, spec));
+  const gaps = candidates.filter((gap): gap is number => gap !== false);
+  return { gaps, unavailable: gaps.length !== candidates.length };
 }
 
 /**
@@ -129,8 +138,11 @@ function gapsOf(body: object, spec: IDeclaredRowSpec): readonly number[] {
  */
 function declaredMessage(label: string, result: IDeclaredResult): string {
   const detail = `checked=${String(result.checked)}`;
-  if (result.shortfall === 0) return `declared ${label}: complete (${detail})`;
-  return `declared ${label}: SHORTFALL — missing=${String(result.shortfall)} (${detail})`;
+  if (result.shortfall > 0) {
+    return `declared ${label}: SHORTFALL — missing=${String(result.shortfall)} (${detail})`;
+  }
+  if (result.unavailable) return `declared ${label}: UNAVAILABLE (${detail})`;
+  return `declared ${label}: complete (${detail})`;
 }
 
 /**
@@ -147,10 +159,23 @@ function declaredMessage(label: string, result: IDeclaredResult): string {
  */
 function reportDeclared(label: string, result: IDeclaredResult): IDeclaredResult {
   const message = declaredMessage(label, result);
-  const isComplete = result.shortfall === 0;
+  const isComplete = result.shortfall === 0 && !result.unavailable;
   if (isComplete) LOG.debug({ message });
   else LOG.warn({ message });
   return result;
+}
+
+/**
+ * Combine declaration scans into one reconciliation result.
+ * @param scans - Per-spec declaration scans.
+ * @returns Aggregate checked count, shortfall, and availability.
+ */
+function resultOf(scans: readonly IDeclaredScan[]): IDeclaredResult {
+  const gaps = scans.flatMap((scan): readonly number[] => scan.gaps);
+  const missing = gaps.filter((gap): boolean => gap > 0);
+  const shortfall = missing.reduce((sum, gap): number => sum + gap, 0);
+  const isUnavailable = scans.some((scan): boolean => scan.unavailable);
+  return { checked: gaps.length, shortfall, unavailable: isUnavailable };
 }
 
 /**
@@ -164,9 +189,8 @@ function reportDeclared(label: string, result: IDeclaredResult): IDeclaredResult
  */
 export function auditDeclaredRows(args: IDeclaredArgs): IDeclaredResult {
   const isEnabled = args.specs.length > 0;
-  if (!isEnabled) return { checked: 0, shortfall: 0 };
-  const gaps = args.specs.flatMap((s): readonly number[] => gapsOf(args.body, s));
-  const missing = gaps.filter((g): boolean => g > 0);
-  const shortfall = missing.reduce((a, b): number => a + b, 0);
-  return reportDeclared(args.label, { checked: gaps.length, shortfall });
+  if (!isEnabled) return { checked: 0, shortfall: 0, unavailable: false };
+  const scans = args.specs.map((spec): IDeclaredScan => scanOf(args.body, spec));
+  const result = resultOf(scans);
+  return reportDeclared(args.label, result);
 }

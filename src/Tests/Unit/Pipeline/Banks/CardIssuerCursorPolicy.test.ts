@@ -7,6 +7,10 @@
  * self-contained, carries zero PII, and never reads the clock.
  */
 
+import { AMEX_SHAPE } from '../../../../Scrapers/Pipeline/Banks/Amex/scrape/AmexShape.js';
+import { ISRACARD_SHAPE } from '../../../../Scrapers/Pipeline/Banks/Isracard/scrape/IsracardShape.js';
+import { MAX_SHAPE } from '../../../../Scrapers/Pipeline/Banks/Max/scrape/MaxShape.js';
+import { VISACAL_SHAPE } from '../../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShape.js';
 import {
   billingMonthAt,
   lastOffset,
@@ -14,9 +18,11 @@ import {
   nextCursorOf,
   offsetOf,
   startMonth,
+  validateCardIssuerPlan,
 } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/CardIssuer/CardIssuerShapeTxns.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** Window start — mid-January so month arithmetic cannot straddle a boundary. */
 const START = new Date(2026, 0, 15);
@@ -32,6 +38,7 @@ const ISO_DAY = 'YYYY-MM-DD';
  * so a purchase made today sits in next month's cycle.
  */
 const OPEN_CYCLE_MONTHS = 1;
+const CARD_ISSUER_SHAPES = [AMEX_SHAPE, ISRACARD_SHAPE, MAX_SHAPE, VISACAL_SHAPE] as const;
 
 /**
  * Minimal action context carrying the window start, the future-month option,
@@ -45,6 +52,19 @@ function ctxWith(startDate: Date, windowEnd: Date, futureMonthsToScrape?: number
   const bound = some(windowEnd);
   const options = { startDate, futureMonthsToScrape };
   return { options, windowEnd: bound } as unknown as IActionContext;
+}
+
+/**
+ * Whether one issuer shape rejects an oversized monthly walk.
+ * @param shape - Card-issuer shape under test.
+ * @returns True only when its declared validator rejects the plan.
+ */
+function shapeRejectsOversizedPlan(shape: (typeof CARD_ISSUER_SHAPES)[number]): boolean {
+  const validate = shape.transactions.validatePlan;
+  if (!validate) return false;
+  const ctx = ctxWith(START, END, 295);
+  const result = validate(ctx);
+  return !isOk(result);
 }
 
 describe('CardIssuer cursor policy — calendar helpers', () => {
@@ -147,6 +167,46 @@ describe('CardIssuer cursor policy — lastOffset', () => {
     const ctx = ctxWith(START, END, -2);
     const last = lastOffset(ctx, OPEN_CYCLE_MONTHS);
     expect(last).toBe(6);
+  });
+});
+
+describe('CardIssuer cursor policy — request budget', () => {
+  it('accepts a complete walk at the shared 300-request limit', () => {
+    const ctx = ctxWith(START, END, 294);
+    const result = validateCardIssuerPlan(ctx);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(true);
+  });
+
+  it('rejects a walk that the paginator would truncate at 300 requests', () => {
+    const ctx = ctxWith(START, END, 295);
+    const result = validateCardIssuerPlan(ctx);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(false);
+    expect(result).toMatchObject({
+      errorMessage: 'Card issuer: invalid or oversized month plan (limit 300)',
+    });
+  });
+
+  it('rejects a start month after the effective request end', () => {
+    const futureStart = new Date(2026, 7, 1);
+    const ctx = ctxWith(futureStart, END);
+    const result = validateCardIssuerPlan(ctx);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(false);
+  });
+
+  it('leaves an unreadable start for the coverage audit to classify', () => {
+    const invalid = new Date('not-a-date');
+    const ctx = ctxWith(invalid, END);
+    const result = validateCardIssuerPlan(ctx);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(true);
+  });
+
+  it.each(CARD_ISSUER_SHAPES)('$stepName rejects an oversized plan before fetching', shape => {
+    const isRejected = shapeRejectsOversizedPlan(shape);
+    expect(isRejected).toBe(true);
   });
 });
 

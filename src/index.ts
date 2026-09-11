@@ -12,3 +12,11 @@ export type {
   ScraperScrapingResult,
 } from './Scrapers/Base/Interface.js';
 export { default as createScraper } from './Scrapers/Registry/Factory.js';
+export type {
+  IWindowCoverage,
+  IWindowCovered,
+  IWindowLowerBoundReached,
+  IWindowUnproven,
+  WindowCaveat,
+  WindowUnprovenReason,
+} from './WindowCoverage.js';
