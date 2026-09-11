@@ -71,6 +71,7 @@ owns that boundary:
 | `IBankDateParts`          | Validated `{ year, month, day }` components for provider wire formats                                      |
 | `IBankMonth`              | A validated `{ year, month }` value; `month` is 1-indexed to match bank request parameters                 |
 | `IBankMonthBounds`        | Start and end instants for one bank-calendar month                                                         |
+| `bankDatePartsOfInstant`  | Projects a resolved instant into validated bank-calendar date components                                   |
 | `bankDatePartsOfLabel`    | Strictly validates a complete bank date label before exposing its numeric components                       |
 | `bankMonthOfLabel`        | Strictly validates an ISO-shaped bank label and reads the month it names without treating it as an instant |
 | `bankMonthOfSlashedLabel` | Strictly validates provider billing labels in `MM/YYYY` form                                               |

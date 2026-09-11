@@ -118,6 +118,20 @@ function bankDatePartsOfLabel(value: string): IBankDateParts | false {
 }
 
 /**
+ * Project an instant into complete bank-calendar date parts.
+ * @param value - Resolved instant.
+ * @returns Bank date parts, or false for invalid input.
+ */
+function bankDatePartsOfInstant(value: string | Date): IBankDateParts | false {
+  const inBank = bankMomentOfInstant(value);
+  if (!inBank.isValid()) return false;
+  const year = inBank.year();
+  const month = inBank.month() + 1;
+  const day = inBank.date();
+  return { year, month, day };
+}
+
+/**
  * Read a provider `MM/YYYY` billing label.
  * @param value - Provider billing label.
  * @returns Validated bank month, or false.
@@ -191,6 +205,7 @@ function bankMonthBounds(value: IBankMonth): IBankMonthBounds {
 
 export type { IBankDateParts, IBankMonth, IBankMonthBounds };
 export {
+  bankDatePartsOfInstant,
   bankDatePartsOfLabel,
   bankMonthBounds,
   bankMonthOfInstant,

@@ -4,6 +4,7 @@
 
 import { bankDayOfInstant } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
 import {
+  bankDatePartsOfInstant,
   bankDatePartsOfLabel,
   bankMonthBounds,
   bankMonthOfInstant,
@@ -17,6 +18,11 @@ describe('BankMonth', () => {
   it('reads complete date parts from a strict bank label', () => {
     const parts = bankDatePartsOfLabel('2026-03-15T10:30:00.000Z');
     expect(parts).toEqual({ year: 2026, month: 3, day: 15 });
+  });
+
+  it('projects an instant into complete bank date parts', () => {
+    const parts = bankDatePartsOfInstant('2026-02-28T22:30:00.000Z');
+    expect(parts).toEqual({ year: 2026, month: 3, day: 1 });
   });
 
   it('reads the month named by a chunk label', () => {
