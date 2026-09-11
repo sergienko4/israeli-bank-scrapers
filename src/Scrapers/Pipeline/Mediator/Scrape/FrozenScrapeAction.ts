@@ -12,8 +12,6 @@
  * nested inside the slim endpoint.
  */
 
-import moment from 'moment';
-
 import type { ITransactionsAccount } from '../../../../Transactions.js';
 import { getDebug as createLogger } from '../../Logging/Debug.js';
 import { fetchAndMergePending } from '../../Strategy/Scrape/Account/PendingStrategy.js';
@@ -34,6 +32,7 @@ import {
 import { type Procedure, succeed } from '../../Types/Procedure.js';
 import { getFutureMonths } from '../../Types/ScraperDefaults.js';
 import { createFrozenNetwork } from '../Network/NetworkDiscovery.js';
+import { bankMomentOfInstant } from './BankCalendar.js';
 import {
   readDashboardTxnHarvest,
   readDateWindowParams,
@@ -157,7 +156,7 @@ function resolveDashboardDerived(input: IActionContext): IDashboardDerived {
  */
 function buildFrozenFetchCtx(args: IFetchCtxInputs): IFrozenFetchCtx {
   const network = buildFrozenAdapter(args.disc);
-  const startDate = moment(args.input.options.startDate).format('YYYYMMDD');
+  const startDate = bankMomentOfInstant(args.input.options.startDate).format('YYYYMMDD');
   const futureMonths = getFutureMonths(args.input.options);
   const ctxTxn = readPreDiscoveredTxn(args.input);
   const txnEndpoint = pickFrozenTxnEndpoint(ctxTxn, args.disc.txnEndpoint ?? false);

@@ -221,4 +221,15 @@ describe('scrapeViaFilterData', () => {
     const isOkResult12 = isOk(result);
     expect(isOkResult12).toBe(true);
   });
+
+  it('rejects an oversized month plan instead of returning an empty account', async () => {
+    const fc: IAccountFetchCtx = {
+      api: makeApi({ fetchGet: stubFetchGetFail() }),
+      network: makeNetwork(),
+      startDate: '19000101',
+    };
+    const result = await scrapeViaFilterData(fc, 'acc-1', 'https://max.example/api');
+    const isSucceeded = isOk(result);
+    expect(isSucceeded).toBe(false);
+  });
 });

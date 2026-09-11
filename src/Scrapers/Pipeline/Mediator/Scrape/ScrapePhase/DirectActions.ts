@@ -8,6 +8,7 @@
  * for the FrozenScrapeAction / Mediator surface.
  */
 
+import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import {
   buildLoadCtxFromPreDiscovered,
   pivotToSpaIfNeeded,
@@ -15,7 +16,8 @@ import {
 import { type IFetchAllAccountsCtx } from '../../../Strategy/Scrape/ScrapeTypes.js';
 import { some } from '../../../Types/Option.js';
 import { type IPipelineContext } from '../../../Types/PipelineContext.js';
-import { type Procedure, succeed } from '../../../Types/Procedure.js';
+import { fail, type Procedure, succeed } from '../../../Types/Procedure.js';
+import { bankDayOfInstant } from '../BankCalendar.js';
 import {
   buildLoadCtxInputs,
   buildScrapeDiscoveryState,
@@ -28,6 +30,8 @@ import { readDashboardTxnHarvest, readPreDiscoveredTxn } from './PreDiscovery.js
 
 type IDiag = IPipelineContext['diagnostics'];
 type IProc = Procedure<IPipelineContext>;
+
+const UNREADABLE_START_MSG = 'scrape: requested start date is unreadable';
 
 /**
  * Run SPA pivot + pre-discovery reads (network, txnEndpoint, harvest).
@@ -63,6 +67,16 @@ async function runDirectDiscoveryInner(ready: IReadyHandle, diag: IDiag): Promis
 }
 
 /**
+ * Validate the caller's lower bound before discovery can reach the provider.
+ * @param input - Pipeline context carrying the requested start.
+ * @returns Typed failure for an unreadable start, otherwise false.
+ */
+function startFailure(input: IPipelineContext): IProc | false {
+  if (bankDayOfInstant(input.options.startDate) !== false) return false;
+  return fail(ScraperErrorTypes.Generic, UNREADABLE_START_MSG);
+}
+
+/**
  * DIRECT path: discover endpoints + load accounts + freeze network.
  * Runs SPA pivot, endpoint discovery, account loading, storage harvest.
  * Stores everything in scrapeDiscovery for sealed ACTION.
@@ -75,6 +89,8 @@ async function executeDirectDiscovery(input: IPipelineContext, diag: IDiag): Pro
   if (!input.mediator.has || !input.api.has) {
     return succeed({ ...input, diagnostics: diag });
   }
+  const invalidStart = startFailure(input);
+  if (invalidStart !== false) return invalidStart;
   const ready: IReadyHandle = { input, mediator: input.mediator.value, api: input.api.value };
   return runDirectDiscoveryInner(ready, diag);
 }

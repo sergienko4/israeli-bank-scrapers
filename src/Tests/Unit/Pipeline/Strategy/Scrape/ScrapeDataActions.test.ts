@@ -60,22 +60,16 @@ function callDedupLegacy(txns: readonly ITransaction[], startMs: number): readon
 }
 
 describe('parseStartDate', () => {
-  it('converts YYYYMMDD string to Date', () => {
+  it('resolves YYYYMMDD at Jerusalem midnight', () => {
     const d = parseStartDate('20260115');
-    const getUTCFullYearResult1 = d.getUTCFullYear();
-    expect(getUTCFullYearResult1).toBe(2026);
-    const getUTCMonthResult2 = d.getUTCMonth();
-    expect(getUTCMonthResult2).toBe(0);
-    const getUTCDateResult3 = d.getUTCDate();
-    expect(getUTCDateResult3).toBe(15);
+    const resolved = d.toISOString();
+    expect(resolved).toBe('2026-01-14T22:00:00.000Z');
   });
 
-  it('works with different months', () => {
+  it('preserves the bank day across a year boundary', () => {
     const d = parseStartDate('20251231');
-    const getUTCFullYearResult4 = d.getUTCFullYear();
-    expect(getUTCFullYearResult4).toBe(2025);
-    const getUTCMonthResult5 = d.getUTCMonth();
-    expect(getUTCMonthResult5).toBe(11);
+    const resolved = d.toISOString();
+    expect(resolved).toBe('2025-12-30T22:00:00.000Z');
   });
 });
 
@@ -96,6 +90,13 @@ describe('deduplicateTxns', () => {
     const result = callDedupLegacy(txns, startMs);
     expect(result).toHaveLength(1);
     expect(result[0].description).toBe('b');
+  });
+
+  it('keeps a transaction at bank midnight on the requested start day', () => {
+    const txn = makeTxn({ date: '2026-01-15T00:00:00+02:00' });
+    const startMs = parseStartDate('20260115').getTime();
+    const result = callDedupLegacy([txn], startMs);
+    expect(result).toHaveLength(1);
   });
 
   it('returns empty array when all txns are before start', () => {

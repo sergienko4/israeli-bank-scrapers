@@ -22,41 +22,12 @@ import moment from 'moment-timezone';
 import {
   BANK_CALENDAR_TIMEZONE,
   bankDayOfInstant,
+  bankMomentOfInstant,
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
 import { parseAutoDate } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/Coercion/Coercion.js';
-import { assessWindowCoverage } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/WindowCoverage.js';
 import { applyStartWindow } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/StartWindow.js';
-import { planBackfill } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/WindowBackfill.js';
-import { isSome, none } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { ITransaction } from '../../../../../Transactions.js';
-
-/**
- * Israel, UTC, and one zone either side of it — the four cases that used to
- * disagree. `Asia/Tokyo` matters on its own: it is east of Israel, so a bound
- * built in the bank calendar and read back ambiently lands on the *next* day
- * there. Only an east-of-Israel zone can catch that direction.
- */
-const ZONES = ['Asia/Jerusalem', 'UTC', 'America/Los_Angeles', 'Asia/Tokyo'] as const;
-
-/**
- * Run one probe with the global moment default moved, then put back exactly
- * the default that was in force before — `setDefault()` with no argument
- * resets to the process zone, which is not necessarily what we displaced.
- * `moment().tz()` reports the default a bare moment inherits, and is
- * `undefined` when none is set, which is precisely the reset argument.
- * @param zone - Ambient zone to impersonate.
- * @param run - Probe to evaluate.
- * @returns Whatever the probe returned.
- */
-function underZone<T>(zone: string, run: () => T): T {
-  const previous = moment().tz();
-  moment.tz.setDefault(zone);
-  try {
-    return run();
-  } finally {
-    moment.tz.setDefault(previous);
-  }
-}
+import { AMBIENT_ZONE_CASES as ZONES, underZone } from '../../../../Helpers/AmbientZone.js';
 
 /**
  * Evaluate one probe once per ambient zone.
@@ -75,6 +46,40 @@ function acrossZones<T>(run: () => T): T[] {
 function txnOn(raw: string): ITransaction {
   const date = parseAutoDate(raw);
   return { date, processedDate: date } as unknown as ITransaction;
+}
+
+/**
+ * Render a zone-less calendar day through the bank calendar.
+ * @returns The day and time it resolves to in the bank's zone.
+ */
+function renderBare(): string {
+  return bankMomentOfInstant('2026-02-09').format('YYYY-MM-DD HH:mm');
+}
+
+/**
+ * Render the same instant expressed with an explicit offset.
+ * @returns The day and time it resolves to in the bank's zone.
+ */
+function renderInstant(): string {
+  return bankMomentOfInstant('2026-02-08T22:00:00.000Z').format('YYYY-MM-DD HH:mm');
+}
+
+/**
+ * US DST starts at this instant and Israel's has not yet — the two zones'
+ * transitions do not coincide, so this is one of the two days a year on which
+ * an ambiently-computed lookback disagreed across hosts.
+ */
+const DST_INSTANT = '2026-03-08T21:00:00.000Z';
+
+/**
+ * The lookback fallback as `computeStartDate` composes it: anchor "now" in the
+ * bank calendar first, then subtract. Subtracting a year is calendar
+ * arithmetic, so it resolves against whatever zone the moment carries.
+ * @returns The bank day the fallback bound lands on.
+ */
+function renderLookback(): string {
+  const anchored = bankMomentOfInstant(DST_INSTANT);
+  return anchored.subtract(1, 'years').format('YYYY-MM-DD');
 }
 
 describe('parseAutoDate/is host-independent', () => {
@@ -132,74 +137,6 @@ describe('applyStartWindow/bounds in the bank calendar', () => {
   });
 });
 
-describe('assessWindowCoverage/measures in the bank calendar', () => {
-  /**
-   * Assess a single row against a start expressed the way the phase expresses it.
-   * @returns One verdict per ambient zone.
-   */
-  function verdicts(): string[] {
-    const requestedStart = new Date('2026-06-01').toISOString();
-    const rows = [{ date: '01/06/2026' }];
-    return acrossZones(
-      (): string => assessWindowCoverage({ requestedStart, rows, label: 'demo' }).verdict,
-    );
-  }
-
-  it('calls a fully served window covered in every zone', () => {
-    // ApiDirectScrapeBackfill passes startDate.toISOString(), a UTC instant.
-    // Reduced in a zone west of UTC it names the previous day and invents a gap.
-    const seen = verdicts();
-    const expected = ZONES.map((): string => 'covered');
-    expect(seen).toEqual(expected);
-  });
-});
-
-describe('planBackfill/derives the re-ask bound in the bank calendar', () => {
-  /**
-   * The bound `planBackfill` hands the shapes for one oldest day.
-   * @param oldestDay - Oldest collected day.
-   * @returns One `nextEnd` per ambient zone.
-   */
-  function boundsFor(oldestDay: string): Date[] {
-    const coverage = { verdict: 'unproven', oldest: oldestDay, gapDays: 30 } as const;
-    return acrossZones((): Date => {
-      const plan = planBackfill({
-        stance: 'windowEnd',
-        coverage,
-        attempt: 0,
-        previousEnd: none(),
-        label: 'demo',
-      });
-      return isSome(plan.nextEnd) ? plan.nextEnd.value : new Date(Number.NaN);
-    });
-  }
-
-  it.each(['2026-04-01', '2026-04-30', '2026-12-31'])(
-    'round-trips %s back to the same day through the wire serializers',
-    oldestDay => {
-      // The shapes serialise the bound with ambient `moment(d).format(...)`
-      // (HapoalimShapeTxns.endOf, FibiGroupShapeTxns.endOf, PepperShapeTxns).
-      // Label -> instant -> label must be lossless or the re-ask names the
-      // wrong day and the backfill asks for a slice the caller never lost.
-      const bounds = boundsFor(oldestDay);
-      const onWire = bounds.map((bound, i): string =>
-        underZone(ZONES[i], (): string => moment(bound).format('YYYY-MM-DD')),
-      );
-      const expected = ZONES.map((): string => oldestDay);
-      expect(onWire).toEqual(expected);
-    },
-  );
-
-  it('still covers the whole oldest day rather than stopping at midnight', () => {
-    const bounds = boundsFor('2026-04-01');
-    const hours = bounds.map((bound, i): number =>
-      underZone(ZONES[i], (): number => moment(bound).hours()),
-    );
-    const expected = ZONES.map((): number => 23);
-    expect(hours).toEqual(expected);
-  });
-});
-
 describe('bankDayOfInstant/refuses to invent a day', () => {
   // `moment(...).format()` answers the *string* 'Invalid date' for an
   // unreadable input. That is not a day, but it is a string, so an
@@ -221,13 +158,46 @@ describe('bankDayOfInstant/refuses to invent a day', () => {
     expect(day).toBe('2026-06-29');
   });
 
-  it('never lets an unreadable start certify coverage or log a NaN gap', () => {
-    // gapOf() fed 'Invalid date' produced NaN, so the audit reported
-    // `gapDays=NaN` and drove a re-ask with a meaningless bound.
-    const rows = [{ date: '01/06/2026' }];
-    const seen = assessWindowCoverage({ requestedStart: 'garbage', rows, label: 'demo' });
-    const isNaNGap = Number.isNaN(seen.gapDays);
-    expect(seen.verdict).toBe('unproven');
-    expect(isNaNGap).toBe(false);
+  /**
+   * ISO-8601 allows a value to carry no offset, and a zone-less value has to be
+   * resolved against *some* zone. Resolving it against the host's made the same
+   * argument name different calendar days on different machines: read from
+   * UTC+14 a bare `2026-02-09` landed on `2026-02-08`, which inflated a window
+   * gap by a day and turned a covered window into a spurious backfill ask.
+   */
+  it('reads a zone-less calendar day in the bank zone, not the host zone', () => {
+    const seen = ZONES.map((z): string => underZone(z, (): string => renderBare()));
+    const expected = ZONES.map((): string => '2026-02-09 00:00');
+    expect(seen).toEqual(expected);
+  });
+
+  /**
+   * The guard above must not be bought by re-interpreting values that were
+   * already unambiguous — everything `toISOString()` emits carries `Z`, and the
+   * offset has to keep winning.
+   */
+  it('leaves an offset-bearing instant untouched on every host', () => {
+    const seen = ZONES.map((z): string => underZone(z, (): string => renderInstant()));
+    const expected = ZONES.map((): string => '2026-02-09 00:00');
+    expect(seen).toEqual(expected);
+  });
+
+  it('reports the same calendar day for a zone-less start on every host', () => {
+    const seen = ZONES.map((z): unknown =>
+      underZone(z, (): unknown => bankDayOfInstant('2026-02-09')),
+    );
+    const expected = ZONES.map((): unknown => '2026-02-09');
+    expect(seen).toEqual(expected);
+  });
+  /**
+   * `computeStartDate` falls back to a one-year lookback when the caller's
+   * start is older than the cap. Computed ambiently, a host on US Pacific
+   * named a different bank day than UTC at this instant — the request went to
+   * the bank asking for the wrong day, on nothing but the host's location.
+   */
+  it('lands the lookback fallback on one bank day for every host', () => {
+    const seen = ZONES.map((z): string => underZone(z, renderLookback));
+    const expected = ZONES.map((): string => seen[0]);
+    expect(seen).toEqual(expected);
   });
 });

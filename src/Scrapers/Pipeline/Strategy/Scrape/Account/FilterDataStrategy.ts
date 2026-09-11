@@ -5,13 +5,14 @@
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../../Transactions.js';
+import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { getDebug as createLogger } from '../../../Logging/Debug.js';
 import { parseFreshResponse } from '../../../Mediator/Dashboard/TxnParser.js';
-import { generateMonthChunks } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
+import { chunkStartMonth, generateMonthChunks } from '../../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { PIPELINE_WELL_KNOWN_QUERY_KEYS as WK_QUERY } from '../../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { Procedure } from '../../../Types/Procedure.js';
-import { isOk } from '../../../Types/Procedure.js';
+import { fail, isOk } from '../../../Types/Procedure.js';
 import {
   buildAccountResult,
   buildFilterDataUrl,
@@ -99,14 +100,19 @@ async function scrapeViaFilterData(
   const allTxns: ITransaction[] = [];
   const startDate = parseStartDate(fc.startDate);
   const chunks = generateMonthChunks(startDate, new Date(), fc.futureMonths);
+  if (chunks === false) {
+    return fail(ScraperErrorTypes.Generic, 'FilterData: invalid or oversized month plan');
+  }
   const seed = Promise.resolve(true as const);
   const chain = chunks.reduce(
     (prev, chunk): Promise<true> =>
       prev.then(async (): Promise<true> => {
-        const chunkDate = new Date(chunk.start);
-        const yyyy = chunkDate.getFullYear();
-        const month = chunkDate.getMonth() + 1;
-        const url = buildFilterDataUrl(baseUrl, yyyy, month);
+        const named = chunkStartMonth(chunk);
+        if (named === false) {
+          LOG.warn({ message: 'Skipped filterData request for an invalid generated month label' });
+          return rateLimitPause(GET_RATE_LIMIT_MS);
+        }
+        const url = buildFilterDataUrl(baseUrl, named.year, named.month);
         LOG.debug({ message: `GET filterData: ${chunk.start}` });
         const raw = await fc.api.fetchGet<Record<string, unknown>>(url);
         if (isOk(raw)) {

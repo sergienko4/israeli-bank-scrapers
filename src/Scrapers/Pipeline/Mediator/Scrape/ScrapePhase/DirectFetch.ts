@@ -7,8 +7,6 @@
  * NOT need to be added to NET_SCRAPE_ALLOWLIST.
  */
 
-import moment from 'moment';
-
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { FALLBACK_DEDUP_KEY_FIELDS } from '../../../Strategy/Scrape/ScrapeDataActions.js';
 import {
@@ -19,6 +17,7 @@ import { type IScrapeDiscovery } from '../../../Types/Domain/ScrapeDiscoveryType
 import { type IPipelineContext } from '../../../Types/PipelineContext.js';
 import { fail, type Procedure } from '../../../Types/Procedure.js';
 import { getFutureMonths } from '../../../Types/ScraperDefaults.js';
+import { bankMomentOfInstant } from '../BankCalendar.js';
 import { LOG } from './Diag.js';
 import type { readDashboardTxnHarvest, readPreDiscoveredTxn } from './PreDiscovery.js';
 import {
@@ -96,7 +95,7 @@ function buildRefFields(args: IFetchCtxArgs): IRefFields {
  */
 function buildDerivedFields(args: IFetchCtxArgs): IDerivedFields {
   return {
-    startDate: moment(args.ready.input.options.startDate).format('YYYYMMDD'),
+    startDate: bankMomentOfInstant(args.ready.input.options.startDate).format('YYYYMMDD'),
     futureMonths: getFutureMonths(args.ready.input.options),
     billingCycleCatalog: readBillingCycleCatalog(args.ready.input),
     dedupKeyFields: readDedupKeyFields(args.reads.harvest, FALLBACK_DEDUP_KEY_FIELDS),

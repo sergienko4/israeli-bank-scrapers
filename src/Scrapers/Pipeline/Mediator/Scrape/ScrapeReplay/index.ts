@@ -7,6 +7,6 @@
 export { isRangeIterable } from './Base64Paging.js';
 export { default as replaceField } from './JsonReplace.js';
 export type { JsonRecord } from './JsonTypes.js';
-export type { IMonthChunk } from './MonthChunking.js';
-export { generateMonthChunks } from './MonthChunking.js';
+export type { IChunkMonth, IMonthChunk } from './MonthChunking.js';
+export { chunkStartMonth, generateMonthChunks } from './MonthChunking.js';
 export { buildMonthBody, isMonthlyEndpoint } from './RecordShape.js';

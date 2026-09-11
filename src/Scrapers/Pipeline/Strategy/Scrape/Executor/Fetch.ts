@@ -5,9 +5,13 @@
  * `ScrapeExecutor.ts` during the Phase 12e file-size drain.
  */
 
-import moment from 'moment';
+import moment from 'moment-timezone';
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import {
+  BANK_CALENDAR_TIMEZONE,
+  bankMomentOfInstant,
+} from '../../../Mediator/Scrape/BankCalendar.js';
 import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import type { IPipelineContext } from '../../../Types/PipelineContext.js';
 import type { Procedure } from '../../../Types/Procedure.js';
@@ -59,15 +63,29 @@ function buildFetchOpts<TA, TT>(config: IScrapeConfig<TA, TT>, ctx: IPipelineCon
 
 /**
  * Compute start date string from options and config.
+ *
+ * <p>Read in the bank's zone, not the host's: the caller supplies an instant
+ * and the provider expects the bank-calendar day it falls on. Ambiently, a
+ * host east of Israel names the *next* day and never asks for the caller's
+ * first day at all.
+ *
+ * <p>The fallback bound is anchored the same way. Subtracting a year is
+ * *calendar* arithmetic, so it resolves against whatever zone the moment
+ * carries, and the two zones' DST transitions do not coincide. Ambiently that
+ * put the fallback on a different bank day twice a year — verified at
+ * `2026-03-08T21:00Z` and `2026-11-01T22:00Z`, where a host on US Pacific
+ * disagreed with UTC by a full day.
+ *
  * @param ctx - Pipeline context with options.
  * @param dateFormat - The bank's date format string.
  * @returns Formatted start date.
  */
 function computeStartDate(ctx: IPipelineContext, dateFormat: string): StartDateFormatted {
-  const defaultStart = moment().subtract(DEFAULT_LOOKBACK_AMOUNT, DEFAULT_LOOKBACK_UNIT);
-  const optionsStart = moment(ctx.options.startDate);
+  const now = bankMomentOfInstant(new Date());
+  const defaultStart = now.subtract(DEFAULT_LOOKBACK_AMOUNT, DEFAULT_LOOKBACK_UNIT);
+  const optionsStart = bankMomentOfInstant(ctx.options.startDate);
   const start = moment.max(defaultStart, optionsStart);
-  return start.format(dateFormat) as StartDateFormatted;
+  return start.tz(BANK_CALENDAR_TIMEZONE).format(dateFormat) as StartDateFormatted;
 }
 
 /**

@@ -3,8 +3,7 @@
  * Split from OneZeroShapeHelpers.ts to respect the 150-LOC per-file ceiling.
  */
 
-import moment from 'moment';
-
+import { bankMomentOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
 import {
   type CursorWireValue,
   FIRST_PAGE_CURSOR_WIRE,
@@ -94,9 +93,10 @@ export function txnsExtractPage(
  * @returns Start-date threshold.
  */
 function resolveStartDate(ctx: IActionContext): Date {
-  const defStart = moment().subtract(1, 'years').add(1, 'day');
-  const optStart = moment(ctx.options.startDate);
-  return moment.max(defStart, optStart).toDate();
+  const now = new Date();
+  const defaultStart = bankMomentOfInstant(now).subtract(1, 'years').add(1, 'day').toDate();
+  const optionStart = ctx.options.startDate;
+  return defaultStart > optionStart ? defaultStart : optionStart;
 }
 
 /**

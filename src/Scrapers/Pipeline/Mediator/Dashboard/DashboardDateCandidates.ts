@@ -4,6 +4,10 @@
  */
 
 import type { SelectorCandidate } from '../../../Base/Config/LoginConfig.js';
+import { getDebug } from '../../Logging/Debug.js';
+import { bankDatePartsOfInstant } from '../Scrape/BankMonth.js';
+
+const LOG = getDebug(import.meta.url);
 
 /** Bundled date parts for format generation. */
 interface IDateParts {
@@ -27,8 +31,10 @@ interface IDateNumbers {
  * @param now - Date to extract from.
  * @returns Numeric parts.
  */
-function getDateNumbers(now: Date): IDateNumbers {
-  return { dayNum: now.getDate(), monthNum: now.getMonth() + 1, yearNum: now.getFullYear() };
+function getDateNumbers(now: Date): IDateNumbers | false {
+  const parts = bankDatePartsOfInstant(now);
+  if (parts === false) return false;
+  return { dayNum: parts.day, monthNum: parts.month, yearNum: parts.year };
 }
 
 /**
@@ -63,8 +69,9 @@ function buildYearStrings(yearNum: number): { yearShort: string; yearFull: strin
  * @param now - Date to extract from.
  * @returns Padded and raw day/month/year strings.
  */
-function extractDateParts(now: Date): IDateParts {
+function extractDateParts(now: Date): IDateParts | false {
   const nums = getDateNumbers(now);
+  if (nums === false) return false;
   const day = buildDayStrings(nums.dayNum);
   const month = buildMonthStrings(nums.monthNum);
   const year = buildYearStrings(nums.yearNum);
@@ -72,17 +79,31 @@ function extractDateParts(now: Date): IDateParts {
 }
 
 /**
- * Build runtime date candidates for today in multiple formats.
- * @returns SelectorCandidate array with today's date.
+ * Build raw candidate values from projected bank-date parts.
+ * @param parts - Formatted bank-date parts.
+ * @returns Candidate text values.
  */
-function buildDateCandidates(): readonly SelectorCandidate[] {
-  const parts = extractDateParts(new Date());
+function buildCandidateValues(parts: IDateParts): readonly string[] {
   const sep = ['.', '/', '-'];
-  const combos = sep.flatMap((s): string[] => [
+  return sep.flatMap((s): string[] => [
     `${parts.dayPad}${s}${parts.monthPad}${s}${parts.yearShort}`,
     `${parts.dayRaw}${s}${parts.monthRaw}${s}${parts.yearShort}`,
     `${parts.dayPad}${s}${parts.monthPad}${s}${parts.yearFull}`,
   ]);
+}
+
+/**
+ * Build runtime date candidates for today in multiple formats.
+ * @returns SelectorCandidate array with today's date.
+ */
+function buildDateCandidates(): readonly SelectorCandidate[] {
+  const now = new Date();
+  const parts = extractDateParts(now);
+  if (parts === false) {
+    LOG.warn({ message: 'Dashboard date candidates skipped for an invalid clock' });
+    return [];
+  }
+  const combos = buildCandidateValues(parts);
   return combos.map((fmt): SelectorCandidate => ({ kind: 'textContent', value: fmt }));
 }
 

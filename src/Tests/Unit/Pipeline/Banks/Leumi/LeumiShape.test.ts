@@ -191,6 +191,14 @@ describe('LeumiShape WCF envelope + vars builders', () => {
     expect(inner.PeriodType).toBe('3');
     expect(inner.AccountIndex).toBe(3);
   });
+
+  it('txnsVars preserves the start instant in the Leumi UTC wire format', () => {
+    const ctx = ctxWithSession('sess-123');
+    const vars = txnsVars(acctIdx, false, ctx);
+    const inner = innerOf(vars);
+    const expected = ctx.options.startDate.toUTCString();
+    expect(inner.FromDateUTC).toBe(expected);
+  });
 });
 
 describe('LeumiShape transactions', () => {

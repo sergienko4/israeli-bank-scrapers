@@ -12,8 +12,7 @@
  * DASHBOARD-side harvest is NOT reusable and SCRAPE must re-fetch.
  */
 
-import moment from 'moment';
-
+import { bankMomentOfInstant, parseInBankZone } from './BankCalendar.js';
 import {
   FROM_KEYS,
   ISO_DATE_PATTERN,
@@ -30,11 +29,11 @@ import {
  */
 function parseWkDateValue(raw: string): Date | false {
   if (YMD_PATTERN.test(raw)) {
-    const parsed = moment(raw, 'YYYYMMDD', true);
+    const parsed = parseInBankZone(raw, 'YYYYMMDD', true);
     return parsed.isValid() ? parsed.toDate() : false;
   }
   if (!ISO_DATE_PATTERN.test(raw)) return false;
-  const iso = moment(raw);
+  const iso = bankMomentOfInstant(raw, true);
   return iso.isValid() ? iso.toDate() : false;
 }
 

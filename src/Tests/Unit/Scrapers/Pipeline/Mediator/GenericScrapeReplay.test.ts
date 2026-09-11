@@ -9,6 +9,7 @@ import {
   replaceField,
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
 import type { JsonRecord } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeReplayAction.js';
+import requireMonthChunks from '../../../../Helpers/MonthChunkPlan.js';
 
 describe('replaceField', () => {
   it('replaces a WellKnown field by name', () => {
@@ -93,33 +94,57 @@ describe('isRangeIterable', () => {
 
 describe('generateMonthChunks', () => {
   it('generates monthly chunks from Feb 2026 to Mar 2026', () => {
-    const chunks = generateMonthChunks(new Date('2026-02-01'), new Date('2026-03-24'));
+    const generated = generateMonthChunks(new Date('2026-02-01'), new Date('2026-03-24'));
+    const chunks = requireMonthChunks(generated);
     expect(chunks).toHaveLength(2);
     expect(chunks[0].start).toContain('2026-02');
     expect(chunks[1].start).toContain('2026-03');
   });
 
   it('generates single chunk for same month', () => {
-    const chunks = generateMonthChunks(new Date('2026-03-01'), new Date('2026-03-24'));
+    const generated = generateMonthChunks(new Date('2026-03-01'), new Date('2026-03-24'));
+    const chunks = requireMonthChunks(generated);
     expect(chunks).toHaveLength(1);
     expect(chunks[0].start).toContain('2026-03');
   });
 
+  it('rejects a reversed range within one bank month', () => {
+    const start = new Date('2026-03-20T10:00:00.000Z');
+    const end = new Date('2026-03-10T10:00:00.000Z');
+    const chunks = generateMonthChunks(start, end);
+    expect(chunks).toBe(false);
+  });
+
   it('caps end date chunk to actual end date (not end of month)', () => {
-    const chunks = generateMonthChunks(new Date('2026-02-01'), new Date('2026-03-15'));
+    const generated = generateMonthChunks(new Date('2026-02-01'), new Date('2026-03-15'));
+    const chunks = requireMonthChunks(generated);
     const lastChunk = chunks.at(-1);
     expect(lastChunk).toBeDefined();
     expect(lastChunk?.end).toContain('2026-03-15');
   });
 
   it('generates 12 chunks for a full year', () => {
-    const chunks = generateMonthChunks(new Date('2025-04-01'), new Date('2026-03-24'));
+    const generated = generateMonthChunks(new Date('2025-04-01'), new Date('2026-03-24'));
+    const chunks = requireMonthChunks(generated);
     expect(chunks).toHaveLength(12);
+  });
+
+  it('CAL-RANGE-01 rejects an ancient range before month-chunk expansion', () => {
+    const start = new Date('0042-03-01T10:00:00.000Z');
+    const end = new Date('2026-03-15T10:00:00.000Z');
+    const chunks = generateMonthChunks(start, end);
+    expect(chunks).toBe(false);
+  });
+
+  it('rejects an invalid end even when future months are requested', () => {
+    const chunks = generateMonthChunks(new Date('2026-03-01'), new Date('invalid'), 1);
+    expect(chunks).toBe(false);
   });
 
   it('caps future end date to today (within 48h timezone tolerance)', () => {
     const future = new Date('2027-06-15');
-    const chunks = generateMonthChunks(new Date('2026-01-01'), future);
+    const generated = generateMonthChunks(new Date('2026-01-01'), future);
+    const chunks = requireMonthChunks(generated);
     const lastChunk = chunks.at(-1);
     expect(lastChunk).toBeDefined();
     const lastEnd = new Date(lastChunk?.end ?? '');

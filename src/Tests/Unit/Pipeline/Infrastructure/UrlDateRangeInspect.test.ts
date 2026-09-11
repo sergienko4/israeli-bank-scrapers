@@ -13,10 +13,12 @@
  *   <li>Raw value matches neither shape → false</li>
  * </ul>
  */
+import { bankDayOfInstant } from '../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
 import {
   readCapturedFromDate,
   urlHasWkDateRange,
 } from '../../../../Scrapers/Pipeline/Mediator/Scrape/UrlDateRangeInspect.js';
+import { underZone } from '../../../Helpers/AmbientZone.js';
 
 describe('urlHasWkDateRange', () => {
   it('returns hasWkDateRange=false on malformed URL', () => {
@@ -46,6 +48,18 @@ describe('urlHasWkDateRange', () => {
 });
 
 describe('readCapturedFromDate', () => {
+  it('parses a date-only provider label in the bank calendar', () => {
+    const url = 'https://example.com/path?fromDate=2026-05-08&toDate=2026-06-07';
+    /**
+     * Read the captured bound under an alternate Moment default.
+     * @returns Parsed bound.
+     */
+    const read = (): ReturnType<typeof readCapturedFromDate> => readCapturedFromDate(url);
+    const result = underZone('Pacific/Kiritimati', read);
+    const bankDay = result === false ? false : bankDayOfInstant(result);
+    expect(bankDay).toBe('2026-05-08');
+  });
+
   it('returns false on malformed URL', () => {
     const result = readCapturedFromDate('::not-a-url::');
     expect(result).toBe(false);
@@ -61,13 +75,8 @@ describe('readCapturedFromDate', () => {
     const url = 'https://example.com/path?retrievalStartDate=20260508&retrievalEndDate=20260607';
     const result = readCapturedFromDate(url);
     expect(result).toBeInstanceOf(Date);
-    const parsedDate = result as Date;
-    const yyyy = parsedDate.getFullYear();
-    const mm = parsedDate.getMonth();
-    const dd = parsedDate.getDate();
-    expect(yyyy).toBe(2026);
-    expect(mm).toBe(4);
-    expect(dd).toBe(8);
+    const bankDay = result === false ? false : bankDayOfInstant(result);
+    expect(bankDay).toBe('2026-05-08');
   });
 
   it('parses ISO YYYY-MM-DD WK fromDate value to a Date', () => {
