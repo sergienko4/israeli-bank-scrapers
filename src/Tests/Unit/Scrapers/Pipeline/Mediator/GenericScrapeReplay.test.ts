@@ -3,6 +3,8 @@
  * Covers both GET (URL template) and POST (body template) strategies.
  */
 
+import { jest } from '@jest/globals';
+
 import {
   generateMonthChunks,
   isRangeIterable,
@@ -141,18 +143,16 @@ describe('generateMonthChunks', () => {
     expect(chunks).toBe(false);
   });
 
-  it('caps future end date to today (within 48h timezone tolerance)', () => {
-    const future = new Date('2027-06-15');
-    const generated = generateMonthChunks(new Date('2026-01-01'), future);
-    const chunks = requireMonthChunks(generated);
-    const lastChunk = chunks.at(-1);
-    expect(lastChunk).toBeDefined();
-    const lastEnd = new Date(lastChunk?.end ?? '');
-    // 48h tolerance: formatDatePart uses local timezone, so end-of-day in e.g. UTC+3
-    // can be up to 27h from Date.now() when called near UTC midnight.
-    const toleranceMs = 2 * 86400000;
-    const lastEndMs = lastEnd.getTime();
-    const cutoffMs = Date.now() + toleranceMs;
-    expect(lastEndMs).toBeLessThanOrEqual(cutoffMs);
+  it('caps a future end to today in the bank calendar', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-03-24T10:00:00.000Z'));
+    try {
+      const future = new Date('2027-06-15T12:00:00.000Z');
+      const generated = generateMonthChunks(new Date('2026-01-01T12:00:00.000Z'), future);
+      const lastChunk = requireMonthChunks(generated).at(-1);
+      expect(lastChunk?.end).toBe('2026-03-24T23:59:59.000Z');
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

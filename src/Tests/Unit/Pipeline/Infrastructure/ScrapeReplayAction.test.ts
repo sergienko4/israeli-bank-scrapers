@@ -214,8 +214,8 @@ describe('isRangeIterable', () => {
 
 describe('generateMonthChunks', () => {
   it('generates one chunk for same-month start/end', () => {
-    const start = new Date(2026, 3, 1);
-    const end = new Date(2026, 3, 30);
+    const start = new Date('2026-04-01T12:00:00.000Z');
+    const end = new Date('2026-04-30T12:00:00.000Z');
     const generated = generateMonthChunks(start, end);
     const chunks = requireMonthChunks(generated);
     expect(chunks.length).toBe(1);
@@ -223,24 +223,24 @@ describe('generateMonthChunks', () => {
   });
 
   it('generates multiple chunks spanning months', () => {
-    const start = new Date(2026, 0, 1);
-    const end = new Date(2026, 2, 31);
+    const start = new Date('2026-01-01T12:00:00.000Z');
+    const end = new Date('2026-03-31T12:00:00.000Z');
     const generated = generateMonthChunks(start, end);
     const chunks = requireMonthChunks(generated);
     expect(chunks.length).toBe(3);
   });
 
   it('caps end to today when end is in future and no futureMonths', () => {
-    const start = new Date(2026, 0, 1);
-    const future = new Date(2100, 11, 31);
+    const start = new Date('2026-01-01T12:00:00.000Z');
+    const future = new Date('2100-12-31T12:00:00.000Z');
     const generated = generateMonthChunks(start, future);
     const chunks = requireMonthChunks(generated);
     expect(chunks.length).toBeGreaterThan(0);
   });
 
   it('extends end when futureMonths is provided', () => {
-    const start = new Date(2026, 0, 1);
-    const end = new Date(2026, 0, 31);
+    const start = new Date('2026-01-01T12:00:00.000Z');
+    const end = new Date('2026-01-31T12:00:00.000Z');
     const generated = generateMonthChunks(start, end, 3);
     const chunks = requireMonthChunks(generated);
     expect(chunks.length).toBeGreaterThan(1);

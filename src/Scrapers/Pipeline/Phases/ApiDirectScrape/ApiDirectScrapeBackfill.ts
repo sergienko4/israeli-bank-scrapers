@@ -204,11 +204,12 @@ function fetchInitial<TAcct, TCursor>(
 }
 
 /**
- * Run the shape's optional whole-plan guard before its first transaction request.
+ * Run the shape's optional whole-plan guard for a readable request.
  * @param a - Per-account context carrying the shape and requested window.
  * @returns Successful validation, or the shape's typed rejection.
  */
 function validateRequestPlan<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): Procedure<void> {
+  if (!startIsReadable(a.ctx.options.startDate)) return succeed(undefined);
   const validate = a.shape.transactions.validatePlan;
   if (!validate) return succeed(undefined);
   return validate(a.ctx);
