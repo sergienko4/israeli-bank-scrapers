@@ -1138,35 +1138,6 @@ export const PIPELINE_SELECTOR_EXEMPTIONS = {
   'src/Scrapers/Pipeline/Mediator/Scrape/BankCalendar.ts': [
     BANK_CALENDAR_MOMENT_RULE.selector,
   ],
-
-  // §24 BANK CALENDAR DRAIN QUEUE — the files still reading, building, or
-  // parsing bank-calendar values outside the provider when the boundary armed.
-  //
-  // This list IS the worklist: the rule is what makes the defect visible, and
-  // each entry is deleted by the commit that drains its file, never widened
-  // (`eslint-rules-guidlines.md` §4). Grandfathered per-selector rather than
-  // with `off` so every other guardrail stays armed on them, and via this table
-  // rather than an `eslint-disable` header, which §3 bans outright.
-  //
-  // TARGET: empty. When the last entry goes, delete this block with it.
-  'src/Scrapers/Pipeline/Mediator/Scrape/FrozenScrapeAction.ts': [
-    BANK_CALENDAR_MOMENT_RULE.selector,
-  ],
-  'src/Scrapers/Pipeline/Mediator/Scrape/UrlDateRange.ts': [
-    BANK_CALENDAR_MOMENT_RULE.selector,
-  ],
-  'src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhase/DirectFetch.ts': [
-    BANK_CALENDAR_MOMENT_RULE.selector,
-  ],
-  'src/Scrapers/Pipeline/Mediator/Scrape/UrlDateRangeInspect.ts': [
-    BANK_CALENDAR_MOMENT_RULE.selector,
-  ],
-  'src/Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShapeTxns.ts': [
-    BANK_CALENDAR_MOMENT_RULE.selector,
-  ],
-  'src/Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShapeTxns.ts': [
-    BANK_CALENDAR_MOMENT_RULE.selector,
-  ],
 };
 
 /**

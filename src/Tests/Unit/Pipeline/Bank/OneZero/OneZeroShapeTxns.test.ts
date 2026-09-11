@@ -2,12 +2,15 @@
  * Branch coverage for OneZeroShapeTxns — stop predicate + cursor logic.
  */
 
+import { jest } from '@jest/globals';
+
 import {
   stopPredicate,
   txnsExtractPage,
   txnsVars,
 } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShapeTxns.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { underZone } from '../../../../Helpers/AmbientZone.js';
 import { makeMockContext, makeMockOptions } from '../../Infrastructure/MockFactories.js';
 
 const ACCT = { portfolioId: 'pf', portfolioNum: 'num', accountId: 'acc' };
@@ -76,6 +79,24 @@ describe('OneZeroShapeTxns.txnsExtractPage', () => {
 });
 
 describe('OneZeroShapeTxns.stopPredicate', () => {
+  it('computes the default lookback in the bank calendar at a leap boundary', () => {
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date('2024-02-28T10:00:00.000Z'));
+      const ctx = ctxFor(new Date('2020-01-01T00:00:00.000Z'));
+      const acc = [{ movementTimestamp: '2023-03-01T00:00:00.000Z' }];
+      /**
+       * Evaluate the stop boundary under an alternate Moment default.
+       * @returns Pagination stop signal.
+       */
+      const check = (): ReturnType<typeof stopPredicate> => stopPredicate(acc, ctx);
+      const isStopped = underZone('Pacific/Kiritimati', check);
+      expect(isStopped).toBe(true);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('returns false on empty accumulator', () => {
     const ctx = ctxFor(new Date('2020-01-01'));
     const isStopped = stopPredicate([], ctx);

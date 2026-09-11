@@ -11,10 +11,9 @@
  * Zero bank-specific code. No hardcoded URL paths.
  */
 
-import moment from 'moment';
-
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../Types/Brand.js';
+import { bankMomentOfInstant } from './BankCalendar.js';
 
 /** URL with date-range params rewritten. */
 type DateRangeAppliedUrl = Brand<string, 'DateRangeAppliedUrl'>;
@@ -59,9 +58,10 @@ function isYmdShape(raw: string): boolean {
  * @returns Formatted date string.
  */
 function formatLikeProbe(when: Date, probe: string): string {
-  if (isYmdShape(probe)) return moment(when).format('YYYYMMDD');
-  if (ISO_DATE_PATTERN.test(probe)) return moment(when).format('YYYY-MM-DD');
-  return moment(when).format('YYYYMMDD');
+  const inBank = bankMomentOfInstant(when);
+  if (isYmdShape(probe)) return inBank.format('YYYYMMDD');
+  if (ISO_DATE_PATTERN.test(probe)) return inBank.format('YYYY-MM-DD');
+  return inBank.format('YYYYMMDD');
 }
 
 /**
@@ -179,7 +179,7 @@ interface IAppendTarget {
  */
 function appendAliasIfMissing(params: URLSearchParams, alias: string, date: Date): number {
   if (params.has(alias)) return 0;
-  const formatted = moment(date).format('YYYYMMDD');
+  const formatted = bankMomentOfInstant(date).format('YYYYMMDD');
   params.set(alias, formatted);
   return 1;
 }

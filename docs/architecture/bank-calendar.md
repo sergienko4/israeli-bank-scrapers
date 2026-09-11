@@ -151,39 +151,51 @@ the old behaviour. Naming the zone removes both variables at once.
 
 ## What it governs
 
-| Site                                                       | Decision it makes                                   |
-| ---------------------------------------------------------- | --------------------------------------------------- |
-| `parseAutoDate` (`Coercion.ts`)                            | Which instant a date-only provider value becomes    |
-| `applyStartWindow` (`StartWindow.ts`)                      | Whether a row falls inside the caller's `startDate` |
-| `assessWindowCoverage` (`CoverageAudit/WindowCoverage.ts`) | Whether the provider served the whole window        |
+The boundary covers every Pipeline decision that turns an instant or provider
+label into a bank day, month, or wire value:
 
-These three have to agree. Fixing only the parse would have left the mapper
-resolving in Jerusalem while the window compared in the host zone — a fresh
-defect in place of the old one. The window sites also take a _full UTC instant_
-(`ApiDirectScrapeBackfill` passes `startDate.toISOString()`), so reduced west of
-UTC that instant named the previous day, inflating the measured gap by one and
-turning a fully covered window into a spurious backfill request.
+| Site                                                               | Decision it makes                                                                           |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `Coercion.ts`, `StartWindow.ts`, `CoverageAudit/WindowCoverage.ts` | Parse provider dates, apply the requested window, and assess its coverage in one calendar   |
+| `WindowBackfill.ts` and bank request shapes                        | Open an oldest-day label onto a re-ask bound and render that bound consistently             |
+| `MatrixLoopStrategy.ts`, `MonthChunking.ts`, `JsonTraversal.ts`    | Carry, validate, enumerate, and bound named billing months without an instant round trip    |
+| `BancsDateTemplate.ts`                                             | Validate chunk labels and render the provider's bank-calendar request fields                |
+| `DashboardDateCandidates.ts`                                       | Match visible date candidates to the Israel-pinned browser calendar                         |
+| `UrlDateRange.ts`, `UrlDateRangeInspect.ts`                        | Read captured date labels and write URL ranges in the bank calendar                         |
+| `FrozenScrapeAction.ts`, `ScrapePhase/DirectFetch.ts`              | Render the caller's start instant into the shared scrape context                            |
+| `OneZeroShapeTxns.ts`                                              | Calculate the default one-year lookback across leap and DST boundaries                      |
+| `LeumiShapeTxns.ts`                                                | Forward an already-resolved `Date` as RFC-1123 UTC without a redundant ambient Moment parse |
 
-### The one site deliberately left ambient
+These decisions have to agree. Fixing only parsing would leave the mapper
+resolving in Jerusalem while a window, request, or month plan still resolved in
+the host zone — replacing one defect with another.
 
-`planBackfill` (`WindowBackfill.ts`) turns a day _label_ into the upper bound of
-a re-ask, and the bank shapes turn that bound straight back into a label —
-`YYYYMMDD` for Hapoalim, `YYYY-MM-DD` for the FIBI group and Pepper, month
-components for Yahav. That round trip is lossless only while both halves read
-the same zone.
+## The boundary is mechanically enforced
 
-Anchoring the producing half alone would make a host east of Israel re-ask for
-`oldest + 1` — a slice the caller never lost — because an Israel end-of-day
-instant is already the next calendar day in Tokyo. So the pair moves together or
-not at all, and moving it means touching every bank shape; that is a larger
-change than this defect warrants. The label's _meaning_ is fixed either way,
-because the label itself now comes from `assessWindowCoverage`, which is
-bank-anchored. `BankCalendar.test.ts` pins the round trip in four zones so the
-symmetry cannot be broken silently later.
+`eslint.config.mjs` applies the bank-calendar rule to the entire Pipeline. It
+rejects:
 
-Leumi is the one shape that consumes the bound as an instant
-(`toUTCString()`), and it therefore still inherits the ambient end-of-day. That
-is pre-existing behaviour, unchanged here, and tracked separately.
+- host-local `Date` component reads such as `getMonth()` and `getFullYear()`;
+- raw UTC component reads such as `getUTCMonth()`;
+- multi-argument host-zone construction such as `new Date(year, month, day)`;
+- direct `moment(...)` and `moment.tz(...)` parsing outside `BankCalendar.ts`.
+
+The rule targets calendar decisions, not `Date` itself. Creating or carrying an
+instant, comparing `getTime()`, serializing with `toISOString()`, and forwarding
+an instant with `toUTCString()` remain valid because none asks the host which
+calendar components the instant names.
+
+The permanent exceptions are narrow and describe values that are deliberately
+not bank-calendar data:
+
+| File                                        | Allowed operation          | Reason                                                                          |
+| ------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------- |
+| `Mediator/Scrape/BankCalendar.ts`           | Direct Moment construction | This is the provider boundary; every parse names `Asia/Jerusalem` explicitly    |
+| `Types/RunLabel.ts`, `Types/TraceConfig.ts` | Host-local component reads | Operator-facing artifact and trace labels intentionally match the machine clock |
+| `Banks/Yahav/scrape/YahavShapeEnvelope.ts`  | UTC component reads        | Yahav's envelope requires explicit UTC wire fields and a fixed offset field     |
+
+Exact-message ESLint canaries prove that each selector remains armed. There is
+no migration allowlist: every former production bypass has been drained.
 
 ## Impact of the change
 

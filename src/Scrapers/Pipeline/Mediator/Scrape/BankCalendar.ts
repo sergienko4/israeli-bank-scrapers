@@ -86,10 +86,11 @@ export function parseInBankZone(
  * <p>A `Date` is an unambiguous instant, so it only needs re-expressing. A
  * string may not be: ISO-8601 permits a value with no offset (`2026-02-09`,
  * `2026-02-09T00:00:00`), and plain `moment(value, ISO_8601)` resolves those
- * against the *host's* zone. That made the same argument name different
- * calendar days on different machines — read from UTC+14 a bare `2026-02-09`
- * became `2026-02-08`, inflating a window gap by a day and turning a covered
- * window into a spurious backfill ask.
+ * against Moment's effective shared default. `BaseScraper.initialize()` can
+ * change that default before scraping, so the same argument named different
+ * calendar days across hosts or scrape orders — read from UTC+14 a bare
+ * `2026-02-09` became `2026-02-08`, inflating a window gap by a day and
+ * turning a covered window into a spurious backfill ask.
  *
  * <p>Parsing through the zone instead pins a zone-less value to the bank's
  * calendar. A value that *does* carry an offset (everything `toISOString()`
