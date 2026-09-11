@@ -1,5 +1,17 @@
 # Changelog
 
+## [8.7.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.7.0...v8.7.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* **ci:** restore skipped E2E Real gates ([#566](https://github.com/sergienko4/israeli-bank-scrapers/issues/566)) ([ca9cde8](https://github.com/sergienko4/israeli-bank-scrapers/commit/ca9cde82838d0aa97c96e2c44316f3355862caf4))
+* **pepper:** skip account products the OSH resolver cannot serve ([#559](https://github.com/sergienko4/israeli-bank-scrapers/issues/559)) ([49a895d](https://github.com/sergienko4/israeli-bank-scrapers/commit/49a895de6ffec8d4f53dff9077e813c455fdde11))
+* **pipeline:** close coverage review gaps ([#570](https://github.com/sergienko4/israeli-bank-scrapers/issues/570)) ([6b66eff](https://github.com/sergienko4/israeli-bank-scrapers/commit/6b66eff6887b81bd701c3f4a81e779fba9e56395))
+* **pipeline:** expose window coverage evidence ([#569](https://github.com/sergienko4/israeli-bank-scrapers/issues/569)) ([4f40548](https://github.com/sergienko4/israeli-bank-scrapers/commit/4f4054890b450ac758552e6128fac69ccf2338b6))
+* **pipeline:** make the published package work for consumers ([#561](https://github.com/sergienko4/israeli-bank-scrapers/issues/561)) ([f41853d](https://github.com/sergienko4/israeli-bank-scrapers/commit/f41853d7fc302ae9ec25789a590a3618a5f32e69))
+* **pipeline:** make window dates calendar-safe ([#568](https://github.com/sergienko4/israeli-bank-scrapers/issues/568)) ([b812b35](https://github.com/sergienko4/israeli-bank-scrapers/commit/b812b3559c93672db6732b4ff8f91f7ac40a15b6))
+
 ## [8.7.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.6.10...v8.7.0) (2026-09-01)
 
 
