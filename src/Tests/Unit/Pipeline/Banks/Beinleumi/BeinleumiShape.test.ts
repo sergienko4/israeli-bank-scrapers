@@ -34,7 +34,9 @@ import type {
   ApiBody,
   IExtractAccountsArgs,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { AMBIENT_ZONE_CASES, underZone } from '../../../../Helpers/AmbientZone.js';
 
 const ACCT: IBeinleumiAcct = { accountNumber: '555001', branch: '770', accountType: 105 };
 
@@ -53,7 +55,17 @@ function accountsArgs(body: ApiBody, secondaryBody?: ApiBody): IExtractAccountsA
  * @returns Action context with startDate = 2026-06-04 (local).
  */
 function ctxWithStart(): IActionContext {
-  return { options: { startDate: new Date(2026, 5, 4) } } as unknown as IActionContext;
+  return { options: { startDate: new Date('2026-06-04T12:00:00Z') } } as unknown as IActionContext;
+}
+
+/**
+ * Builds a context whose two request bounds name the same instant.
+ * @param instant - Shared lower and upper bound.
+ * @returns Action context carrying an explicit one-day window.
+ */
+function ctxWithBoundedDay(instant: Date): IActionContext {
+  const options = { startDate: instant };
+  return { options, windowEnd: some(instant) } as unknown as IActionContext;
 }
 
 describe('BeinleumiShape accounts', () => {
@@ -176,6 +188,13 @@ describe('BeinleumiShape balance + identity urls', () => {
 });
 
 describe('BeinleumiShape transactions', () => {
+  it.each(AMBIENT_ZONE_CASES)('renders both bank bounds under %s', zone => {
+    const ctx = ctxWithBoundedDay(new Date('2026-02-28T22:30:00.000Z'));
+    const vars = underZone(zone, (): Record<string, unknown> => txnsVars(ACCT, false, ctx));
+    const req = vars.initialRequest as Record<string, unknown>;
+    expect(req).toMatchObject({ startDate: '2026-03-01', endDate: '2026-03-01' });
+  });
+
   it('txnsUrl is the static BFF list endpoint (params ride the body)', () => {
     const url = txnsUrl();
     expect(url).toBe(`${BEINLEUMI_API}${BFF_BASE}/list`);

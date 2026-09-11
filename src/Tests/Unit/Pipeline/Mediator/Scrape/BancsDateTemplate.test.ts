@@ -14,6 +14,8 @@
  * Every value is fabricated — no real account data appears.
  */
 
+import { jest } from '@jest/globals';
+
 import applyBancsChunkRange, {
   todayDatePart,
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/Bancs/BancsDateTemplate.js';
@@ -65,7 +67,38 @@ function readInnerNodes(body: JsonRecord): readonly IReadNode[] {
   return parsed.Payload.Filters[0].Filters;
 }
 
+/**
+ * Make host-local date components disagree with the represented instant.
+ * @param run - Date-part probe.
+ * @returns Probe result.
+ */
+function withTamperedHostDate<T>(run: () => T): T {
+  const yearSpy = jest.spyOn(Date.prototype, 'getFullYear');
+  const monthSpy = jest.spyOn(Date.prototype, 'getMonth');
+  const daySpy = jest.spyOn(Date.prototype, 'getDate');
+  yearSpy.mockReturnValue(1999);
+  monthSpy.mockReturnValue(0);
+  daySpy.mockReturnValue(9);
+  try {
+    return run();
+  } finally {
+    yearSpy.mockRestore();
+    monthSpy.mockRestore();
+    daySpy.mockRestore();
+  }
+}
+
 describe('BancsDateTemplate — applyBancsChunkRange (default-deny write)', () => {
+  it('when_a_chunk_label_is_invalid_should_default_deny_without_mutating', () => {
+    const body = bancsTxnBody();
+    const before = JSON.stringify(body);
+    const malformed = { start: '2026-02-31T00:00:00.000Z', end: FEB_2026.end };
+    const isBancs = applyBancsChunkRange(body, malformed);
+    expect(isBancs).toBe(false);
+    const after = JSON.stringify(body);
+    expect(after).toBe(before);
+  });
+
   it('when_bancs_txn_body_should_rewrite_from_bound_to_chunk_start', () => {
     const body = bancsTxnBody();
     const isBancs = applyBancsChunkRange(body, FEB_2026);
@@ -139,16 +172,39 @@ describe('BancsDateTemplate — applyBancsChunkRange (default-deny write)', () =
 });
 
 describe('BancsDateTemplate — to-bound capped at today', () => {
+  it('reads today in the bank calendar even when host components disagree', () => {
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date('2026-02-28T22:30:00.000Z'));
+      /**
+       * Read today's BaNCS parts under the tampered host calendar.
+       * @returns Bank-calendar date parts.
+       */
+      const readToday = (): ReturnType<typeof todayDatePart> => todayDatePart();
+      const today = withTamperedHostDate(readToday);
+      expect(today).toEqual({ Day: 1, Month: 3, Year: 2026 });
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('when_chunk_end_is_in_the_future_should_cap_the_to_bound_at_today', () => {
     const body = bancsTxnBody();
     const futureChunk = { start: '2026-07-01T00:00:00.000Z', end: '2999-12-31T23:59:59.000Z' };
     applyBancsChunkRange(body, futureChunk);
     const nodes = readInnerNodes(body);
     const today = todayDatePart();
+    expect(today).not.toBe(false);
+    const expectedToday = today === false ? { Day: -1, Month: -1, Year: -1 } : today;
     expect(nodes).toContainEqual({
       Ver: 'v1',
       Operator: 'LESSTHANOREQUAL',
-      OrigDt: { Ver: 'v1', Day: today.Day, Month: today.Month, Year: today.Year },
+      OrigDt: {
+        Ver: 'v1',
+        Day: expectedToday.Day,
+        Month: expectedToday.Month,
+        Year: expectedToday.Year,
+      },
     });
   });
 

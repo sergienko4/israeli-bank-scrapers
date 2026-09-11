@@ -12,9 +12,10 @@
  *   - JsonTypes.ts       shared JsonRecord alias
  */
 
-export type { IMonthChunk, JsonRecord } from './ScrapeReplay/index.js';
+export type { IChunkMonth, IMonthChunk, JsonRecord } from './ScrapeReplay/index.js';
 export {
   buildMonthBody,
+  chunkStartMonth,
   generateMonthChunks,
   isMonthlyEndpoint,
   isRangeIterable,

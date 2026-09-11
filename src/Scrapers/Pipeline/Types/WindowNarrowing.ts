@@ -8,6 +8,9 @@
  * reaching upward into a phase for a type.
  */
 
+import type { IActionContext } from './PipelineContext.js';
+import type { Procedure } from './Procedure.js';
+
 /**
  * How a bank's transactions request expresses the window's upper bound —
  * declared per the hard-model rule, never inferred.
@@ -30,6 +33,14 @@ export type WindowNarrowing =
   | 'lowerBoundOnly'
   /** Provider supplies the next-page token and owns completeness. */
   | 'providerCursor';
+
+/** Declares how a transaction step validates and narrows its requested window. */
+export interface IWindowRequestPolicy {
+  /** Rejects an unsafe request plan before the first provider call. */
+  readonly validatePlan?: (ctx: IActionContext) => Procedure<void>;
+  /** Identifies whether an uncovered window can be narrowed and retried. */
+  readonly windowNarrowing: WindowNarrowing;
+}
 
 /** Every stance that cannot close a gap by asking again. */
 export type UnbackfillableStance = Exclude<WindowNarrowing, 'windowEnd'>;

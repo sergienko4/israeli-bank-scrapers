@@ -8,6 +8,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import { bankDayOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
 import { some } from '../../../Types/Option.js';
 import type { IPipelineContext } from '../../../Types/PipelineContext.js';
 import type { Procedure } from '../../../Types/Procedure.js';
@@ -17,6 +18,8 @@ import type { IFetchStrategy } from '../../Fetch/FetchStrategy.js';
 import fetchSequential from './Account.js';
 import { buildFetchOpts, computeStartDate, fetchAccountList } from './Fetch.js';
 import type { IScrapeOps } from './Types.js';
+
+const UNREADABLE_START_MSG = 'scrape: requested start date is unreadable';
 
 /** Inputs to {@link buildScrapeOps} (narrowed strategy + context + config). */
 interface IScrapeOpsInput<TA, TT> {
@@ -68,6 +71,8 @@ async function executeScrape<TA, TT>(
   config: IScrapeConfig<TA, TT>,
 ): Promise<Procedure<IPipelineContext>> {
   if (!ctx.fetchStrategy.has) return fail(ScraperErrorTypes.Generic, 'No fetchStrategy in context');
+  const requestedStart = bankDayOfInstant(ctx.options.startDate);
+  if (requestedStart === false) return fail(ScraperErrorTypes.Generic, UNREADABLE_START_MSG);
   const ops = buildScrapeOps({ strategy: ctx.fetchStrategy.value, ctx, config });
   return runScrape(ctx, ops);
 }

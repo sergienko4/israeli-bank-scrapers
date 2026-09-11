@@ -2,10 +2,13 @@
  * Unit tests for Strategy/Scrape/ScrapeChunking — applyGlobalDateFilter + scrapeWithMonthlyChunking.
  */
 
+import { jest } from '@jest/globals';
+
 import {
   applyGlobalDateFilter,
   scrapeWithMonthlyChunking,
 } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeChunking.js';
+import { parseStartDate } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeDataActions.js';
 import type { IChunkingCtx } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { ITransaction, ITransactionsAccount } from '../../../../../Transactions.js';
@@ -14,6 +17,7 @@ import {
   makeApi,
   makeNetwork,
   stubFetchPostFail,
+  stubFetchPostFailRecording,
   stubFetchPostOk,
 } from '../StrategyTestHelpers.js';
 
@@ -54,6 +58,13 @@ describe('applyGlobalDateFilter', () => {
     expect(account.txns[0].date).toBe('2026-03-01');
   });
 
+  it('keeps a transaction at bank midnight on the requested start day', () => {
+    const account = makeAccount([makeTxn('2026-01-15T00:00:00+02:00')]);
+    const startMs = parseStartDate('20260115').getTime();
+    applyGlobalDateFilter([account], startMs);
+    expect(account.txns).toHaveLength(1);
+  });
+
   it('discards invalid date strings', () => {
     const account = makeAccount([makeTxn('not-a-date'), makeTxn('2026-03-01')]);
     const startMs = new Date('2026-01-01').getTime();
@@ -77,6 +88,24 @@ describe('applyGlobalDateFilter', () => {
 });
 
 describe('scrapeWithMonthlyChunking', () => {
+  it('SCRAPE-CHUNK-URL-001 — keeps the generated bank end day in the URL', async () => {
+    jest.useFakeTimers({ doNotFake: ['setTimeout'], now: new Date('2026-03-15T12:00:00Z') });
+    const fetched: string[] = [];
+    const api = makeApi({ fetchPost: stubFetchPostFailRecording(fetched) });
+    const startDate = '20260301';
+    const fc = { api, network: makeNetwork(), startDate };
+    const url = 'https://bank.example/api/txn?fromDate=20200101&toDate=20200131';
+    const ctx: IChunkingCtx = { fc, baseBody: {}, url, displayId: '1', accountId: 'a' };
+    try {
+      await scrapeWithMonthlyChunking(ctx);
+      const parsed = new URL(fetched[0]);
+      const renderedEnd = parsed.searchParams.get('toDate');
+      expect(renderedEnd).toBe('20260315');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('succeeds even when all chunks fail', async () => {
     const ctx: IChunkingCtx = {
       fc: {
@@ -111,5 +140,25 @@ describe('scrapeWithMonthlyChunking', () => {
     const result = await scrapeWithMonthlyChunking(ctx);
     const isOkResult2 = isOk(result);
     expect(isOkResult2).toBe(true);
+  });
+
+  it('rejects an oversized month plan before fetching', async () => {
+    const fetched: string[] = [];
+    const fc = {
+      api: makeApi({ fetchPost: stubFetchPostFailRecording(fetched) }),
+      network: makeNetwork(),
+      startDate: '19000101',
+    };
+    const ctx: IChunkingCtx = {
+      fc,
+      baseBody: {},
+      url: 'https://bank.example/api/txn',
+      displayId: '1',
+      accountId: 'a',
+    };
+    const result = await scrapeWithMonthlyChunking(ctx);
+    expect(fetched).toEqual([]);
+    const isSucceeded = isOk(result);
+    expect(isSucceeded).toBe(false);
   });
 });

@@ -26,12 +26,16 @@ import {
   balancePayload,
 } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapePayloads.js';
 import { txnsPayload } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeTxnPayload.js';
-import { txnsExtractPage } from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeTxns.js';
+import {
+  txnsExtractPage,
+  YAHAV_TXNS,
+} from '../../../../../Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeTxns.js';
 import type {
   ApiBody,
   IExtractAccountsArgs,
   VarsMap,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 
 const SEC_TOKEN = { Ver: 'SecurityToken_1.0.0', Token: [{ TokenId: 't-1', Signature: 'sig' }] };
@@ -343,6 +347,29 @@ describe('YahavShape transactions', () => {
     const ctx = ctxWithBancs(undefined, future);
     const page = txnsExtractPage({ body: {}, cursor: false, acct: ACCT, ctx });
     expect(page.nextCursor).toBe(false);
+  });
+
+  it('requests the current bank day when a future start leaves no chunks', () => {
+    const future = new Date('2027-03-02T12:00:00.000Z');
+    const ctx = {
+      ...ctxWithBancs(undefined, future),
+      windowEnd: some(new Date('2026-03-01T22:30:00.000Z')),
+    };
+    const vars = YAHAV_SHAPE.transactions.buildVars(ACCT, 0, ctx);
+    const payload = vars.Payload as Record<string, unknown>;
+    const andFilter = (payload.Filters as Record<string, unknown>[])[0];
+    const bounds = andFilter.Filters as Record<string, unknown>[];
+    const start = bounds[0].OrigDt as Record<string, unknown>;
+    expect(start).toMatchObject({ Day: 2, Month: 3, Year: 2026 });
+  });
+
+  it('rejects an oversized range instead of using the current-day fallback', () => {
+    const ctx = ctxWithBancs(undefined, new Date('1900-01-01T00:00:00.000Z'));
+    const validate = YAHAV_TXNS.validatePlan;
+    expect(validate?.(ctx)).toMatchObject({
+      success: false,
+      errorMessage: 'Yahav: invalid or oversized month plan',
+    });
   });
 
   it('txnsExtractPage advances from a numeric cursor', () => {

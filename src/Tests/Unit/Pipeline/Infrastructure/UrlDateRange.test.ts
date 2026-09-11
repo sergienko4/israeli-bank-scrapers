@@ -11,11 +11,25 @@ import {
   applyDateRangeToUrl,
   applyDateRangeToUrlWithCount,
 } from '../../../../Scrapers/Pipeline/Mediator/Scrape/UrlDateRange.js';
+import { underZone } from '../../../Helpers/AmbientZone.js';
 
 const FROM = new Date('2025-04-21T00:00:00Z');
 const TO = new Date('2026-04-20T00:00:00Z');
 
 describe('applyDateRangeToUrl — Hapoalim YYYYMMDD shape', () => {
+  it('formats resolved instants in the bank calendar, not Moment default', () => {
+    const url = 'https://x.example/api?fromDate=20260228&toDate=20260301';
+    const instant = new Date('2026-02-28T22:30:00.000Z');
+    /**
+     * Render the range under an alternate Moment default.
+     * @returns Patched URL.
+     */
+    const render = (): string => applyDateRangeToUrl(url, instant, instant);
+    const out = underZone('America/New_York', render);
+    expect(out).toContain('fromDate=20260301');
+    expect(out).toContain('toDate=20260301');
+  });
+
   it('rewrites retrievalStartDate / retrievalEndDate', () => {
     const url =
       'https://login.bankhapoalim.co.il/ServerServices/current-account/transactions' +

@@ -8,8 +8,21 @@ import {
   isLastPage,
   pageNumberOf,
   txnsExtractPage,
+  windowOf,
 } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShapeTxns.js';
+import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { AMBIENT_ZONE_CASES, underZone } from '../../../../Helpers/AmbientZone.js';
+
+/**
+ * Builds a context whose two request bounds name the same instant.
+ * @param instant - Shared lower and upper bound.
+ * @returns Action context carrying an explicit one-day window.
+ */
+function ctxWithBoundedDay(instant: Date): IActionContext {
+  const options = { startDate: instant };
+  return { options, windowEnd: some(instant) } as unknown as IActionContext;
+}
 
 /**
  * Wrap a raw body + cursor in the unified IExtractPageArgs bundle.
@@ -33,6 +46,14 @@ describe('PepperShapeTxns.pageNumberOf', () => {
   it('returns the cursor value when present', () => {
     const result = pageNumberOf(7);
     expect(result).toBe(7);
+  });
+});
+
+describe('PepperShapeTxns.windowOf', () => {
+  it.each(AMBIENT_ZONE_CASES)('renders both bank bounds under %s', zone => {
+    const ctx = ctxWithBoundedDay(new Date('2026-02-28T22:30:00.000Z'));
+    const window = underZone(zone, () => windowOf(ctx));
+    expect(window).toEqual({ from: '2026-03-01', to: '2026-03-01' });
   });
 });
 

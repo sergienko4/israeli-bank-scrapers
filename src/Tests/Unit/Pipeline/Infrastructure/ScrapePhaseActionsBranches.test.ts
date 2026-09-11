@@ -101,6 +101,18 @@ describe('executeForensicPre DIRECT path', () => {
 });
 
 describe('executeForensicPre DIRECT path edge cases', () => {
+  it('fails before discovery when the requested start is unreadable', async () => {
+    const page = makeScreenshotPage();
+    const base = makeContextWithBrowser(page);
+    const options = { ...base.options, startDate: new Date('not-a-date') };
+    const api = makeApi();
+    const ctx = { ...base, options, api: some(api) };
+    const result = await executeForensicPre(ctx);
+    const wasOk = isOk(result);
+    expect(wasOk).toBe(false);
+    if (!wasOk) expect(result.errorMessage).toContain('requested start date is unreadable');
+  });
+
   it('runs DIRECT with no fetchStrategy — succeeds passthrough', async () => {
     const base = makeMockContext();
     const ctx = {

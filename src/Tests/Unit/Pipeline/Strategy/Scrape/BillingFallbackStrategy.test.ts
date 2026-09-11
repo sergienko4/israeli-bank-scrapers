@@ -2,6 +2,8 @@
  * Unit tests for BillingFallbackStrategy — tryBillingFallback paths.
  */
 
+import { jest } from '@jest/globals';
+
 import { tryBillingFallback } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/BillingFallbackStrategy.js';
 import {
   EMPTY_TXN_ENDPOINT,
@@ -18,6 +20,7 @@ import {
   makeEndpoint,
   makeNetwork,
   stubFetchPostFail,
+  stubFetchPostFailRecording,
   stubFetchPostOk,
 } from '../StrategyTestHelpers.js';
 
@@ -187,6 +190,27 @@ const FAKE_BILLING_URL_FOR_TESTS =
   'https://bank.fake.example/Transactions/api/transactionsDetails/getCardTransactionsDetails';
 
 describe('tryBillingFallback — Phase 7e: billingUrl supplied via fc', () => {
+  it('BILLING-CHUNK-URL-001 — keeps the generated bank end day in the URL', async () => {
+    jest.useFakeTimers({ doNotFake: ['setTimeout'], now: new Date('2026-03-15T12:00:00Z') });
+    const fetched: string[] = [];
+    const billingUrl = `${FAKE_BILLING_URL_FOR_TESTS}?fromDate=20200101&toDate=20200131`;
+    const api = makeApi({ fetchPost: stubFetchPostFailRecording(fetched) });
+    const fc: IAccountFetchCtx = {
+      api,
+      network: makeNetwork(),
+      startDate: '20260301',
+      txnEndpoint: withBillingUrl(billingUrl),
+    };
+    try {
+      await tryBillingFallback(fc, DEFAULT_POST);
+      const parsed = new URL(fetched[0]);
+      const renderedEnd = parsed.searchParams.get('toDate');
+      expect(renderedEnd).toBe('20260315');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('uses fc.billingUrl directly when DASHBOARD.FINAL pre-resolved it', async () => {
     const fetched: { url?: string; body?: unknown } = {};
     /**
@@ -379,4 +403,20 @@ describe('tryBillingFallback — chunk success with real transactions', () => {
     // futureMonths=2 → at least 3 chunks (current + 2 future).
     expect(calls.length).toBeGreaterThanOrEqual(3);
   }, 20000);
+
+  it('rejects an oversized month plan before fetching', async () => {
+    const calls: string[] = [];
+    const fc: IAccountFetchCtx = {
+      api: makeApi({ fetchPost: stubFetchPostFailRecording(calls) }),
+      network: makeNetwork(),
+      startDate: '17000101',
+      txnEndpoint: withBillingUrl(FAKE_BILLING_URL_FOR_TESTS),
+    };
+    const result = await tryBillingFallback(fc, DEFAULT_POST);
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'Billing: invalid or oversized month plan',
+    });
+    expect(calls).toEqual([]);
+  });
 });

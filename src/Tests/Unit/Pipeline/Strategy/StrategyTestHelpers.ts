@@ -294,6 +294,19 @@ export function stubFetchPostFail(): IApiFetchContext['fetchPost'] {
 }
 
 /**
+ * Build a failing POST stub that records every requested URL.
+ * @param urls - URL collector owned by the test.
+ * @returns Typed fetchPost stub.
+ */
+export function stubFetchPostFailRecording(urls: string[]): IApiFetchContext['fetchPost'] {
+  return <T>(url: string): Promise<Procedure<T>> => {
+    urls.push(url);
+    const failure = fail(ScraperErrorTypes.Generic, 'post failed');
+    return Promise.resolve(failure);
+  };
+}
+
+/**
  * Helper: fetchGet that always fails.
  * @returns Stub fetchGet that always fails.
  */

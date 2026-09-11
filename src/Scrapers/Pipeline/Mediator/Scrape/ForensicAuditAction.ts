@@ -9,6 +9,7 @@ import { redactAccount, redactAmount, redactMerchant } from '../../Types/PiiReda
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { succeed } from '../../Types/Procedure.js';
+import { bankMomentOfInstant } from './BankCalendar.js';
 import { detectMirroredAccounts } from './MirrorDetection.js';
 import { logWindowCompleteness } from './WindowCompletenessAudit.js';
 
@@ -64,11 +65,11 @@ function redactDesc(desc: string): string {
  * stays a pure literal lookup.
  *
  * @param raw - Raw transaction date as stored on the audit record.
- * @returns `dd/MM/yyyy` (he-IL) when present, else empty string.
+ * @returns Bank-calendar `D.M.YYYY` when present, else empty string.
  */
 function resolveTxnDateLabel(raw: string): string {
   if (!raw) return '';
-  return new Date(raw).toLocaleDateString('he-IL');
+  return bankMomentOfInstant(raw).format('D.M.YYYY');
 }
 
 /**

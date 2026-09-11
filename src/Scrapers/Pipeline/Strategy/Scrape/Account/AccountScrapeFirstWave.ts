@@ -8,6 +8,7 @@
 import type { ITransaction, ITransactionsAccount } from '../../../../../Transactions.js';
 import { getDebug as createLogger } from '../../../Logging/Debug.js';
 import { readBancsFromDate } from '../../../Mediator/Scrape/Bancs/BancsDateTemplate.js';
+import { isBancsTxnBody } from '../../../Mediator/Scrape/Bancs/BancsTxnRequest.js';
 import {
   readCapturedFromDate,
   urlHasWkDateRange,
@@ -83,17 +84,18 @@ function urlWindowCovers(url: string, requestedStartMs: number): boolean {
 /**
  * Body-window branch for BaNCS banks (Yahav), whose date window lives in
  * the POST body (`OrigDt`), not the URL: reuse only when the captured
- * `GREATERTHAN*` fromDate is at-or-before the requested start. A non-BaNCS
- * body (no readable body window) defaults to reuse-safe (`true`), so the
- * gate is a provable no-op for every other bank.
+ * `GREATERTHAN*` fromDate is at-or-before the requested start. Invalid BaNCS
+ * dates fail closed; only a body that is not BaNCS defaults to reuse-safe.
  * @param baseBody - The committed POST body (`post.baseBody`).
  * @param requestedStartMs - User's requested start (epoch ms).
  * @returns True when the captured body window covers the requested range.
  */
 function bancsWindowCovers(baseBody: Record<string, unknown>, requestedStartMs: number): boolean {
   const bancsStart = readBancsFromDate(baseBody);
-  if (bancsStart === false) return true;
-  return bancsStart.getTime() <= requestedStartMs;
+  if (bancsStart !== false) return bancsStart.getTime() <= requestedStartMs;
+  if (!isBancsTxnBody(baseBody)) return true;
+  LOG.warn({ message: 'First-wave skipped: unreadable BaNCS transaction window' });
+  return false;
 }
 
 /**

@@ -3,8 +3,7 @@
  * Split from PepperShapeHelpers.ts to respect the 150-LOC ceiling.
  */
 
-import moment from 'moment';
-
+import { bankMomentOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
 import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type {
   IExtractPageArgs,
@@ -44,13 +43,21 @@ export interface IWindow {
 
 /**
  * Compute the scrape window from ScraperOptions.startDate.
+ *
+ * <p>Read in the bank's zone, not the host's. The bound is an instant the
+ * backfill anchors to the end of a bank-calendar day; formatting it ambiently
+ * would name the next day on a host east of Israel and re-ask for a slice the
+ * caller never lost.
+ * Both ends are read the same way: a window whose halves resolve in different
+ * zones is the split this cluster exists to prevent.
+ *
  * @param ctx - Action context.
  * @returns from/to ISO strings.
  */
 export function windowOf(ctx: IActionContext): IWindow {
-  const from = moment(ctx.options.startDate).format(ISO_DATE_FMT);
+  const from = bankMomentOfInstant(ctx.options.startDate).format(ISO_DATE_FMT);
   const windowEnd = scrapeWindowEnd(ctx);
-  const to = moment(windowEnd).format(ISO_DATE_FMT);
+  const to = bankMomentOfInstant(windowEnd).format(ISO_DATE_FMT);
   return { from, to };
 }
 

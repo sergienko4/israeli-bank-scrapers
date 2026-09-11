@@ -10,8 +10,11 @@
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
+import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { getDebug } from '../../Logging/Debug.js';
 import { parseFreshResponse } from '../../Mediator/Dashboard/TxnParser.js';
 import applyBancsChunkRange from '../../Mediator/Scrape/Bancs/BancsDateTemplate.js';
+import { bankInstantOfLabel } from '../../Mediator/Scrape/BankMonth.js';
 import type { IMonthChunk } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { generateMonthChunks, replaceField } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import type { JsonRecord } from '../../Mediator/Scrape/ScrapeReplayAction.js';
@@ -19,7 +22,7 @@ import { applyDateRangeAndAppend } from '../../Mediator/Scrape/UrlDateRange.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { isOk } from '../../Types/Procedure.js';
+import { fail, isOk } from '../../Types/Procedure.js';
 import buildAccountResult from './ScrapeData/ScrapeDataAssembly.js';
 import {
   deduplicateTxns,
@@ -32,6 +35,7 @@ import { EMPTY_TXN_ENDPOINT, type IAccountAssemblyCtx, type IChunkingCtx } from 
 type IsAfterStart = Brand<boolean, 'IsAfterStart'>;
 
 const RATE_LIMIT_MS = 300;
+const LOG = getDebug(import.meta.url);
 
 /**
  * Scrape one monthly chunk via POST.
@@ -48,8 +52,12 @@ async function scrapeOneChunk(
   replaceField(body as JsonRecord, WK.fromDate, chunk.start);
   replaceField(body as JsonRecord, WK.toDate, chunk.end);
   applyBancsChunkRange(body, chunk);
-  const chunkStart = new Date(chunk.start);
-  const chunkEnd = new Date(chunk.end);
+  const chunkStart = bankInstantOfLabel(chunk.start);
+  const chunkEnd = bankInstantOfLabel(chunk.end);
+  if (chunkStart === false || chunkEnd === false) {
+    LOG.warn({ message: 'Skipped monthly request for an invalid generated date label' });
+    return [];
+  }
   const patchedUrl = applyDateRangeAndAppend(ctx.url, {
     fromDate: chunkStart,
     toDate: chunkEnd,
@@ -111,6 +119,9 @@ async function scrapeWithMonthlyChunking(
 ): Promise<Procedure<ITransactionsAccount>> {
   const startDate = parseStartDate(ctx.fc.startDate);
   const chunks = generateMonthChunks(startDate, new Date(), ctx.fc.futureMonths);
+  if (chunks === false) {
+    return fail(ScraperErrorTypes.Generic, 'Chunking: invalid or oversized month plan');
+  }
   const allTxns = await scrapeAllChunks(ctx, chunks);
   const startMs = startDate.getTime();
   const keyFields = ctx.fc.dedupKeyFields ?? FALLBACK_DEDUP_KEY_FIELDS;

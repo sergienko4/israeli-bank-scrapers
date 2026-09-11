@@ -26,6 +26,7 @@ import type {
   IExtractAccountsArgs,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { AMBIENT_ZONE_CASES, underZone } from '../../../../Helpers/AmbientZone.js';
 
 const ACCT: IMercantileAcct = { accountId: 'ACCT-1', displayNumber: '12-345-6' };
 
@@ -40,10 +41,11 @@ function accountsArgs(body: ApiBody): IExtractAccountsArgs {
 
 /**
  * Minimal action context carrying a fixed local startDate.
- * @returns Action context with startDate = 2024-01-15 (local).
+ * @param startDate - Requested transaction-window start.
+ * @returns Action context carrying the requested start.
  */
-function ctxWithStart(): IActionContext {
-  return { options: { startDate: new Date(2024, 0, 15) } } as unknown as IActionContext;
+function ctxWithStart(startDate = new Date('2024-01-15T12:00:00Z')): IActionContext {
+  return { options: { startDate } } as unknown as IActionContext;
 }
 
 describe('MercantileShape helpers', () => {
@@ -114,6 +116,12 @@ describe('MercantileShape helpers', () => {
 });
 
 describe('MercantileShape transactions', () => {
+  it.each(AMBIENT_ZONE_CASES)('renders the bank start day under %s', zone => {
+    const ctx = ctxWithStart(new Date('2026-02-28T22:30:00.000Z'));
+    const url = underZone(zone, (): string => txnsUrl(ACCT, false, ctx));
+    expect(url).toContain('FromDate=20260301');
+  });
+
   it('txnsUrl targets the full-history /Date endpoint with FromDate', () => {
     const ctx = ctxWithStart();
     const url = txnsUrl(ACCT, false, ctx);

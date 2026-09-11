@@ -9,6 +9,7 @@ import { setTimeout as timerWait } from 'node:timers/promises';
 
 import type { ITransaction } from '../../../../../Transactions.js';
 import ScraperError from '../../../../Base/ScraperError.js';
+import { parseInBankZone } from '../../../Mediator/Scrape/BankCalendar.js';
 import type { Brand } from '../../../Types/Brand.js';
 
 /** Pipe-delimited transaction hash. */
@@ -19,6 +20,7 @@ type IsAfterStartDate = Brand<boolean, 'IsAfterStartDate'>;
 type ShouldRetainTxn = Brand<boolean, 'ShouldRetainTxn'>;
 /** Read-only transaction list — local alias to keep signatures terse. */
 type TxnList = readonly ITransaction[];
+const COMPACT_BANK_DAY_FORMAT = 'YYYYMMDD';
 
 /**
  * Pause execution for rate limiting between API calls.
@@ -33,13 +35,12 @@ async function rateLimitPause(ms: number): Promise<true> {
 }
 
 /**
- * Parse YYYYMMDD to Date.
+ * Resolve a compact bank-day label at Jerusalem midnight.
  * @param raw - Date string in YYYYMMDD format.
  * @returns Parsed Date.
  */
 function parseStartDate(raw: string): Date {
-  const fmt = raw.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3');
-  return new Date(fmt);
+  return parseInBankZone(raw, COMPACT_BANK_DAY_FORMAT, true).toDate();
 }
 
 /** Stringified `undefined` produced by `String(undefined)` — used by the

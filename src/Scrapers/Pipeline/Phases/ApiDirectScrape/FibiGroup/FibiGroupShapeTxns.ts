@@ -16,8 +16,7 @@
  * Origin-independent: brand modules bind the urlTag builder to one origin.
  */
 
-import moment from 'moment';
-
+import { bankMomentOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
 import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
@@ -44,18 +43,24 @@ interface ITxnsResp {
  * @returns Formatted startDate.
  */
 function startOf(ctx: IActionContext): string {
-  return moment(ctx.options.startDate).format(TXN_DATE_FMT);
+  return bankMomentOfInstant(ctx.options.startDate).format(TXN_DATE_FMT);
 }
 
 /**
  * Window end date (YYYY-MM-DD) — the window's upper bound, narrowed
  * during a coverage backfill and otherwise today.
+ *
+ * <p>Read in the bank's zone, not the host's. The bound is an instant the
+ * backfill anchors to the end of a bank-calendar day; formatting it ambiently
+ * would name the next day on a host east of Israel and re-ask for a slice the
+ * caller never lost.
+ *
  * @param ctx - Action context.
  * @returns Formatted endDate.
  */
 function endOf(ctx: IActionContext): string {
   const windowEnd = scrapeWindowEnd(ctx);
-  return moment(windowEnd).format(TXN_DATE_FMT);
+  return bankMomentOfInstant(windowEnd).format(TXN_DATE_FMT);
 }
 
 /**
