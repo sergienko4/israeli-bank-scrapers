@@ -347,7 +347,9 @@ stays ignorant of window verdicts.
 Only `cursorRepeat` and `pageCeiling` are loss — the walk gave up on its own
 terms while the provider was still offering more. The other two are not:
 
-- `exhausted` is the provider saying it was finished.
+- `exhausted` is the historical name for normal completion without a detected
+  halt. It may mean the provider returned no further cursor, or that a finite
+  local month plan completed. It is not proof of the provider's retention.
 - `predicateStop` is the shape's own "we have enough" rule. For a window walk
   it fires only once the rows held already reach past the requested start, so
   it reports sufficiency. Counting it as loss would make `covered` unreachable
@@ -366,7 +368,7 @@ only one ending is published. `worseTermination()` folds them, keeping the one
 that leaves the most unproven.
 
 Both it and `isLossyTermination()` read the same `TERMINATION_DOUBT` map, which
-scores every ending from "provider finished" through "shape had enough" to
+scores every ending from "planned walk completed" through "shape had enough" to
 "walk gave up while more was on offer". Sharing one ranking is deliberate. When
 the fold and the loss test were separate rules they disagreed: the fold kept
 the first non-`exhausted` answer, so an early `predicateStop` — which is not
@@ -435,30 +437,32 @@ Two constants are worth knowing by name:
 ### Why pagination now reports how it ended
 
 `fetchPaginated` used to return only the rows. Its caller therefore could not
-distinguish "the provider ran out of data" from "we hit our own page ceiling"
-— and those two mean opposite things about coverage.
+distinguish "the planned walk completed" from "we hit our own page ceiling" —
+and those two mean opposite things about pagination integrity.
 
 It now returns an `IPaginatedWalk<TItem>`: the `items`, plus a
 `PaginationTermination` naming the exit. Four exits exist —
 
 | `PaginationTermination` | The walk stopped because                |
 | ----------------------- | --------------------------------------- |
-| `exhausted`             | the provider offered no further cursor  |
+| `exhausted`             | its planned cursor sequence completed   |
 | `cursorRepeat`          | the cursor stopped advancing            |
 | `pageCeiling`           | a scraper-owned page ceiling fired      |
 | `predicateStop`         | the caller's stop predicate asked it to |
 
-A page whose `nextCursor` is `false` normally means `exhausted`. Shapes where
-that sentinel can also represent a local decision attach an explicit
-`IPage.termination` instead. PayBox uses this to distinguish an empty provider
-page (`exhausted`), a re-served or stalled page (`cursorRepeat`), and its local
-wallet safety cap (`pageCeiling`).
+A page whose `nextCursor` is `false` normally maps to `exhausted`: no abnormal
+halt was detected. That may be provider exhaustion, a single-page endpoint, or
+completion of a locally planned month sequence. Shapes where the sentinel
+represents an abnormal local decision attach an explicit `IPage.termination`
+instead. PayBox uses this to distinguish an empty provider page (`exhausted`),
+a re-served or stalled page (`cursorRepeat`), and its local wallet safety cap
+(`pageCeiling`).
 
 Neither `cursorRepeat` nor `pageCeiling` says the provider's data ran out.
 `cursorRepeat` records a non-advancing cursor; `pageCeiling` says one of
 **our** bounds fired — the generic `MAX_PAGES` guard or a shape-specific safety
 cap such as PayBox's. Either leaves the window unproven because the walk was
-abandoned before the provider reported `exhausted`.
+abandoned before normal completion.
 
 `predicateStop` is neither. It is the shape's own "we have enough" rule, so it
 reports sufficiency rather than loss — see [Which pagination endings count as

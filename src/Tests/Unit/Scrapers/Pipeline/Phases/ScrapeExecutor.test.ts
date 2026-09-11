@@ -52,6 +52,39 @@ describe('ScrapeExecutor/guard', () => {
       expect(result.errorMessage).toContain('No fetchStrategy');
     }
   });
+
+  it('fails before provider work when the requested start is unreadable', async () => {
+    const calls: string[] = [];
+    const strategy = {
+      /**
+       * Record a forbidden GET request.
+       * @returns Successful placeholder response.
+       */
+      fetchGet: <T>(): Promise<ReturnType<typeof succeed<T>>> => {
+        calls.push('GET');
+        const result = succeed({} as T);
+        return Promise.resolve(result);
+      },
+      /**
+       * Record a forbidden POST request.
+       * @returns Successful placeholder response.
+       */
+      fetchPost: <T>(): Promise<ReturnType<typeof succeed<T>>> => {
+        calls.push('POST');
+        const result = succeed({} as T);
+        return Promise.resolve(result);
+      },
+    } as IFetchStrategy;
+    const base = MAKE_CTX_WITH_STRATEGY(strategy);
+    const options = { ...base.options, startDate: new Date('not-a-date') };
+    const config = makeMockScrapeConfig();
+    const result = await executeScrape({ ...base, options }, config);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorMessage).toContain('requested start date is unreadable');
+    }
+    expect(calls).toHaveLength(0);
+  });
 });
 
 // ── Account fetch ──────────────────────────────────────────

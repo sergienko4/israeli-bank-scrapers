@@ -31,7 +31,7 @@ import type { Brand } from '../../../Types/Brand.js';
 /** Branded result of {@link isLossyTermination} (Rule #15 — no bare primitive return). */
 export type IsLossyTermination = Brand<boolean, 'IsLossyTermination'>;
 
-/** The provider said it was finished — nothing is outstanding. */
+/** The planned pagination walk completed without a detected halt. */
 const DOUBT_NONE = 0;
 /** The shape's own rule ended the walk — no rows are known to be missing. */
 const DOUBT_SUFFICIENT = 1;

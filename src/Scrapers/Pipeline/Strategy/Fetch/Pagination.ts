@@ -40,11 +40,11 @@ interface IPage<TItem, TCursor> {
 /**
  * How a paginated walk ended.
  *
- * Deliberately a *pagination* fact and nothing more. Only `exhausted` means the
- * provider said it was finished; the other three mean the walk stopped on its
- * own terms and may have left rows unseen. Callers that care about data
- * completeness map these to their own vocabulary — this module does not know
- * what they use it for.
+ * Deliberately a *pagination* fact and nothing more. `exhausted` is the
+ * historical name for normal completion without a detected halt: it may mean
+ * the provider returned no cursor, or that a finite local month plan completed.
+ * It is not proof about provider retention. Callers that care about data
+ * completeness map these codes to their own vocabulary.
  */
 type PaginationTermination = 'exhausted' | 'cursorRepeat' | 'pageCeiling' | 'predicateStop';
 

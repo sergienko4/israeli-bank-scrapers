@@ -354,6 +354,25 @@ describe('tryMatrixLoop — catalog-driven iteration', () => {
     });
   });
 
+  it('[MATRIX-CATALOG-INVALID-START] rejects before fetching catalog cycles', async () => {
+    const { api, calls } = makeCountingApi();
+    const txnEndpoint = stubTxn({
+      url: 'https://bank.example/api/txn',
+      method: 'POST',
+      templatePostData: JSON.stringify({ month: 1, year: 2026, accountId: 'a' }),
+    });
+    const fc = {
+      api,
+      network: makeInertNetwork(),
+      startDate: 'Invalid date',
+      txnEndpoint,
+      billingCycleCatalog: catalogWithCount(1),
+    };
+    const result = await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
+    expect(calls).toHaveLength(0);
+    expect(result).toMatchObject({ success: false });
+  });
+
   it('[MATRIX-GENERATED-BUDGET-301] rejects an oversized generated plan', async () => {
     const { api, calls } = makeCountingApi();
     const txnEndpoint = stubTxn({

@@ -182,12 +182,23 @@ async function tryMatrixLoop(
 }
 
 /**
+ * Parse the compact requested start without inventing a usable day.
+ * @param fc - Per-account fetch context.
+ * @returns Parsed date, or false when the label is unreadable.
+ */
+function readableStartDate(fc: IAccountFetchCtx): Date | false {
+  const startDate = parseStartDate(fc.startDate);
+  const startMs = startDate.getTime();
+  return Number.isFinite(startMs) ? startDate : false;
+}
+
+/**
  * Build the bounded fallback plan when the bank supplied no cycle catalog.
  * @param fc - Per-account fetch context.
+ * @param startDate - Validated requested start.
  * @returns Generated bank months, or false for an unsafe request.
  */
-function generatedChunkPlan(fc: IAccountFetchCtx): readonly IBankMonth[] | false {
-  const startDate = parseStartDate(fc.startDate);
+function generatedChunkPlan(fc: IAccountFetchCtx, startDate: Date): readonly IBankMonth[] | false {
   const chunks = generateMonthChunks(startDate, new Date(), fc.futureMonths);
   return chunks === false ? false : chunks.flatMap(chunkToMonth);
 }
@@ -207,9 +218,11 @@ function generatedChunkPlan(fc: IAccountFetchCtx): readonly IBankMonth[] | false
  * @returns Ordered month chunks for {@link collectChunkTxns}.
  */
 function resolveChunkPlan(fc: IAccountFetchCtx): readonly IBankMonth[] | false {
+  const startDate = readableStartDate(fc);
+  if (startDate === false) return false;
   const catalog = fc.billingCycleCatalog;
   const hasCatalog = catalog !== undefined && catalog.cycles.length > 0;
-  if (!hasCatalog) return generatedChunkPlan(fc);
+  if (!hasCatalog) return generatedChunkPlan(fc, startDate);
   const cycleCount = catalog.cycles.length;
   LOG.debug({
     message: `MatrixLoop: catalog-driven — cycles=${String(cycleCount)}`,

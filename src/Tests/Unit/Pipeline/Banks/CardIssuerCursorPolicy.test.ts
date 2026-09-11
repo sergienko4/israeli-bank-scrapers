@@ -183,6 +183,17 @@ describe('CardIssuer cursor policy — request budget', () => {
     const result = validateCardIssuerPlan(ctx);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(false);
+    expect(result).toMatchObject({
+      errorMessage: 'Card issuer: invalid or oversized month plan (limit 300)',
+    });
+  });
+
+  it('rejects a start month after the effective request end', () => {
+    const futureStart = new Date(2026, 7, 1);
+    const ctx = ctxWith(futureStart, END);
+    const result = validateCardIssuerPlan(ctx);
+    const isSuccess = isOk(result);
+    expect(isSuccess).toBe(false);
   });
 
   it('leaves an unreadable start for the coverage audit to classify', () => {

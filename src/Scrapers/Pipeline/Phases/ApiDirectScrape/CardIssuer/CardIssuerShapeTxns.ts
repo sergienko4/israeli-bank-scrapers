@@ -146,9 +146,10 @@ export function validateCardIssuerPlan(ctx: IActionContext, floor?: number): Pro
   if (first === false) return succeed(undefined);
   const last = requestEndMonth(ctx, floor);
   const count = last === false ? false : boundedMonthCount(first, last);
-  if (count !== false) return succeed(undefined);
+  if (count !== false && count > 0) return succeed(undefined);
   const limit = String(MAX_MONTH_REQUESTS);
-  return fail(ScraperErrorTypes.Generic, `Card issuer month plan exceeds ${limit}-request budget`);
+  const message = `Card issuer: invalid or oversized month plan (limit ${limit})`;
+  return fail(ScraperErrorTypes.Generic, message);
 }
 
 /**

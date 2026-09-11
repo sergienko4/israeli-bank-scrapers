@@ -98,9 +98,10 @@ export interface ICollectedRows {
   /**
    * How the account's pagination ended, worst round winning.
    *
-   * <p>Only `exhausted` means the provider said it was finished. The other
-   * three mean the walk stopped on its own terms and rows it never saw may
-   * exist — a fact the date-based window verdict cannot detect on its own.
+   * <p>`exhausted` means the planned cursor walk completed without a detected
+   * halt; it does not prove provider retention. `cursorRepeat` and
+   * `pageCeiling` may leave rows unseen. `predicateStop` is caller-controlled,
+   * so the independent date audit decides whether it stopped late enough.
    */
   readonly termination: PaginationTermination;
   /**
