@@ -117,6 +117,13 @@ describe('generateMonthChunks', () => {
     expect(chunks).toHaveLength(12);
   });
 
+  it('CAL-RANGE-01 rejects an ancient range before month-chunk expansion', () => {
+    const start = new Date('0042-03-01T10:00:00.000Z');
+    const end = new Date('2026-03-15T10:00:00.000Z');
+    const chunks = generateMonthChunks(start, end);
+    expect(chunks).toEqual([]);
+  });
+
   it('caps future end date to today (within 48h timezone tolerance)', () => {
     const future = new Date('2027-06-15');
     const chunks = generateMonthChunks(new Date('2026-01-01'), future);

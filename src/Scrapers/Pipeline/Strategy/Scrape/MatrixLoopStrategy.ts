@@ -13,6 +13,7 @@
  */
 
 import type { ITransaction, ITransactionsAccount } from '../../../../Transactions.js';
+import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { getDebug } from '../../Logging/Debug.js';
 import { parseFreshResponse } from '../../Mediator/Dashboard/TxnParser.js';
 import type { IBankMonth } from '../../Mediator/Scrape/BankMonth.js';
@@ -22,6 +23,10 @@ import {
   bankMonthOfSlashedLabel,
 } from '../../Mediator/Scrape/BankMonth.js';
 import {
+  fitsMonthRequestBudget,
+  MAX_MONTH_REQUESTS,
+} from '../../Mediator/Scrape/MonthRangeBudget.js';
+import {
   buildMonthBody,
   generateMonthChunks,
   isMonthlyEndpoint,
@@ -30,7 +35,7 @@ import { applyDateRangeAndAppend } from '../../Mediator/Scrape/UrlDateRange.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
 import type { IBillingCycle } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { isOk } from '../../Types/Procedure.js';
+import { fail, isOk } from '../../Types/Procedure.js';
 import buildAccountResult from './ScrapeData/ScrapeDataAssembly.js';
 import {
   deduplicateTxns,
@@ -148,6 +153,12 @@ async function tryMatrixLoop(
       `postData=${String(postDataLen)} chars`,
   });
   const chunks = resolveChunkPlan(args.fc);
+  if (chunks === false) {
+    return fail(
+      ScraperErrorTypes.Generic,
+      `MatrixLoop: cycle catalog exceeds ${String(MAX_MONTH_REQUESTS)}-request budget`,
+    );
+  }
   LOG.debug({
     message: `MatrixLoop: chunks=${String(chunks.length)} startDate=${args.fc.startDate}`,
   });
@@ -184,7 +195,7 @@ async function tryMatrixLoop(
  * @param fc - Per-account fetch context plumbed by SCRAPE.PRE.
  * @returns Ordered month chunks for {@link collectChunkTxns}.
  */
-function resolveChunkPlan(fc: IAccountFetchCtx): readonly IBankMonth[] {
+function resolveChunkPlan(fc: IAccountFetchCtx): readonly IBankMonth[] | false {
   const catalog = fc.billingCycleCatalog;
   const hasCatalog = catalog !== undefined && catalog.cycles.length > 0;
   if (!hasCatalog) {
@@ -196,7 +207,10 @@ function resolveChunkPlan(fc: IAccountFetchCtx): readonly IBankMonth[] {
   LOG.debug({
     message: `MatrixLoop: catalog-driven — cycles=${String(cycleCount)}`,
   });
-  return catalog.cycles.flatMap(cycleToMonth);
+  const chunks = catalog.cycles.flatMap(cycleToMonth);
+  if (fitsMonthRequestBudget(chunks)) return chunks;
+  LOG.warn({ message: 'MatrixLoop: rejected oversized cycle catalog' });
+  return false;
 }
 
 /**

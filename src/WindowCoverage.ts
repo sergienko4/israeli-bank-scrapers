@@ -71,9 +71,10 @@ export type WindowUnprovenReason =
  * The requested start was reached and every watched channel was clean.
  *
  * <p>This does NOT promise that no row in the middle of the window was dropped
- * without leaving a trace. Detecting that needs provider-side totals no Israeli
- * bank sends. It promises that the window's far edge was reached and that
- * nothing the scrape can observe reported loss along the way.
+ * without leaving a trace. Detecting that needs a reliable provider total for
+ * the complete requested window, which Israeli banks generally do not send. It
+ * promises that the window's far edge was reached and that nothing the scrape
+ * can observe reported loss along the way.
  */
 export interface IWindowCovered {
   readonly status: 'covered';

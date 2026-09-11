@@ -130,14 +130,24 @@ function report(args: IBackfillPlanArgs, plan: IBackfillPlan): IBackfillPlan {
 }
 
 /**
+ * Explain a refusal without presenting an unmeasured gap as zero.
+ * @param args - The decision inputs.
+ * @param block - Why no request will be made.
+ * @returns Operator-facing refusal reason.
+ */
+function refusalReason(args: IBackfillPlanArgs, block: IBackfillBlock): string {
+  if (!args.coverage.requestedStartReadable) return block.reason;
+  return `gapDays=${String(args.coverage.gapDays)} — ${block.reason}`;
+}
+
+/**
  * Refuse another request, reporting the gap and the reason together.
  * @param args - The decision inputs.
  * @param block - The code and prose for why no further request will be made.
  * @returns The refusal.
  */
 function refuse(args: IBackfillPlanArgs, block: IBackfillBlock): IBackfillPlan {
-  const gap = `gapDays=${String(args.coverage.gapDays)}`;
-  const reason = `${gap} — ${block.reason}`;
+  const reason = refusalReason(args, block);
   const plan: IBackfillPlan = { shouldAsk: false, nextEnd: none(), reason, stop: block.stop };
   return report(args, plan);
 }

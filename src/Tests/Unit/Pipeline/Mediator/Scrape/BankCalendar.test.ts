@@ -177,7 +177,12 @@ describe('planBackfill/derives the re-ask bound in the bank calendar', () => {
    * @returns One `nextEnd` per ambient zone.
    */
   function boundsFor(oldestDay: string): Date[] {
-    const coverage = { verdict: 'unproven', oldest: oldestDay, gapDays: 30 } as const;
+    const coverage = {
+      verdict: 'unproven',
+      requestedStartReadable: true,
+      oldest: oldestDay,
+      gapDays: 30,
+    } as const;
     return acrossZones((): Date => {
       const plan = planBackfill({
         stance: 'windowEnd',

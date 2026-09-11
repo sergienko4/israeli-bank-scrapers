@@ -355,6 +355,13 @@ const BANK_CALENDAR_UTC_READ_RULE = {
     '🚫 BANK CALENDAR: raw `.getUTCMonth()` / `.getUTCDate()` component reads bypass the bank-calendar provider and can mistake a formatted bank label for a UTC instant. Use bankMomentOfInstant() / bankDayOfInstant(), or read and validate the label directly.',
 };
 
+const BANK_CALENDAR_UTC_BUILD_RULE = {
+  selector:
+    'CallExpression[callee.type="MemberExpression"][callee.object.name="Date"][callee.property.name="UTC"]',
+  message:
+    '🚫 BANK CALENDAR: do not construct calendar parts through UTC; Date.UTC normalizes invalid dates and rewrites years 0–99. Validate the label and resolve it through BankCalendar.',
+};
+
 const BANK_CALENDAR_MOMENT_RULE = {
   selector:
     ':matches(CallExpression[callee.name="moment"], CallExpression[callee.type="MemberExpression"][callee.object.name="moment"][callee.property.name="tz"])',
@@ -931,6 +938,7 @@ const selectorOf = entry => (typeof entry === 'string' ? entry : entry.selector)
 const PIPELINE_REVIEW_RULES = [
   BANK_CALENDAR_HOST_READ_RULE,
   BANK_CALENDAR_UTC_READ_RULE,
+  BANK_CALENDAR_UTC_BUILD_RULE,
   BANK_CALENDAR_MOMENT_RULE,
   BANK_CALENDAR_HOST_BUILD_RULE,
   {

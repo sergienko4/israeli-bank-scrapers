@@ -6,6 +6,7 @@
 import { getDebug } from '../../Logging/Debug.js';
 import type { IBankMonth } from './BankMonth.js';
 import { bankMonthOfInstant, shiftBankMonth } from './BankMonth.js';
+import { boundedMonthCount, MAX_MONTH_REQUESTS } from './MonthRangeBudget.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -243,7 +244,12 @@ function extractMatchingKeys(body: JsonNode, pattern: RegExp): readonly string[]
 function generateBillingMonths(startMs: number, futureMonths = 0): readonly string[] {
   const range = resolveBillingRange(startMs, futureMonths);
   if (range === false) return [];
-  return buildMonthList(range.first, range.last, []);
+  const count = boundedMonthCount(range.first, range.last);
+  if (count === false) {
+    rejectBillingRange(`range exceeds ${String(MAX_MONTH_REQUESTS)}-request budget`);
+    return [];
+  }
+  return buildMonthList(range.first, count);
 }
 
 /** First and last bank months in a billing request range. */
@@ -253,11 +259,12 @@ interface IBillingMonthRange {
 }
 
 /**
- * Surface an invalid range boundary.
+ * Surface an unsafe range.
+ * @param reason - Non-sensitive rejection reason.
  * @returns False sentinel.
  */
-function rejectBillingRange(): false {
-  LOG.warn({ message: 'Billing month generation skipped for an invalid date' });
+function rejectBillingRange(reason: string): false {
+  LOG.warn({ message: `Billing month generation skipped: ${reason}` });
   return false;
 }
 
@@ -272,7 +279,7 @@ function resolveBillingRange(startMs: number, futureMonths: number): IBillingMon
   const now = new Date();
   const first = bankMonthOfInstant(start);
   const current = bankMonthOfInstant(now);
-  if (first === false || current === false) return rejectBillingRange();
+  if (first === false || current === false) return rejectBillingRange('invalid date');
   return { first, last: shiftBankMonth(current, futureMonths) };
 }
 
@@ -286,37 +293,21 @@ function resolveBillingRange(startMs: number, futureMonths: number): IBillingMon
  */
 function formatBillingMonthEntry(current: IBankMonth): string {
   const monthStr = String(current.month).padStart(2, '0');
-  const yearStr = String(current.year);
+  const yearStr = String(current.year).padStart(4, '0');
   return `01/${monthStr}/${yearStr}`;
 }
 
 /**
- * Compare two bank months.
- * @param current - Candidate month.
- * @param end - Inclusive upper month.
- * @returns True when current is after end.
+ * Build a bounded billing-month list without recursive stack growth.
+ * @param first - First requested month.
+ * @param count - Number of monthly requests to schedule.
+ * @returns Complete billing-month list.
  */
-function monthIsAfter(current: IBankMonth, end: IBankMonth): boolean {
-  if (current.year !== end.year) return current.year > end.year;
-  return current.month > end.month;
-}
-
-/**
- * Recursively build month list until current date.
- * @param current - Current bank month.
- * @param end - Inclusive end month.
- * @param accumulated - Months collected so far.
- * @returns Complete month list.
- */
-function buildMonthList(
-  current: IBankMonth,
-  end: IBankMonth,
-  accumulated: string[],
-): readonly string[] {
-  if (monthIsAfter(current, end)) return accumulated;
-  const entry = formatBillingMonthEntry(current);
-  const next = shiftBankMonth(current, 1);
-  return buildMonthList(next, end, [...accumulated, entry]);
+function buildMonthList(first: IBankMonth, count: number): readonly string[] {
+  return Array.from({ length: count }, (_, offset) => {
+    const month = shiftBankMonth(first, offset);
+    return formatBillingMonthEntry(month);
+  });
 }
 
 export type { JsonNode };

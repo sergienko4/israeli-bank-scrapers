@@ -27,6 +27,7 @@ import {
   shiftBankInstant,
   shiftBankMonth,
 } from '../BankMonth.js';
+import { boundedMonthCount, MAX_MONTH_REQUESTS } from '../MonthRangeBudget.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -75,30 +76,26 @@ function stampChunk(startDay: BankDay, endDay: BankDay): IMonthChunk {
 }
 
 /**
- * Check whether the current month starts after the end instant.
- * @param state - Current month and end instant.
- * @returns True when iteration is complete.
+ * Narrow a generated chunk candidate after boundary validation.
+ * @param chunk - Candidate chunk.
+ * @returns True when the candidate is usable.
  */
-function reachedEnd(state: IChunkBuildState): boolean {
-  const bounds = bankMonthBounds(state.month);
-  return bounds.start.getTime() > state.endTime;
+function isMonthChunk(chunk: IMonthChunk | false): chunk is IMonthChunk {
+  return chunk !== false;
 }
 
 /**
- * Recursively build chunks through the effective end instant.
- * @param state - Current month and end instant.
- * @param accumulated - Chunks already built.
+ * Build a bounded month plan without recursive stack growth.
+ * @param state - First month and effective end instant.
+ * @param count - Number of monthly requests to schedule.
  * @returns Complete chunks, or false on an invalid derived day.
  */
-function buildChunkList(
-  state: IChunkBuildState,
-  accumulated: readonly IMonthChunk[],
-): readonly IMonthChunk[] | false {
-  if (reachedEnd(state)) return accumulated;
-  const chunk = buildChunk(state.month, state.endTime);
-  if (chunk === false) return false;
-  const month = shiftBankMonth(state.month, 1);
-  return buildChunkList({ ...state, month }, [...accumulated, chunk]);
+function buildChunkList(state: IChunkBuildState, count: number): MonthChunks | false {
+  const chunks = Array.from({ length: count }, (_, offset) => {
+    const month = shiftBankMonth(state.month, offset);
+    return buildChunk(month, state.endTime);
+  });
+  return chunks.every(isMonthChunk) ? chunks : false;
 }
 
 /**
@@ -128,6 +125,30 @@ function buildInitialState(start: Date, cappedEnd: Date): IChunkBuildState | fal
 }
 
 /**
+ * Count chunks after both range endpoints have entered the month domain.
+ * @param state - First month and effective end instant.
+ * @returns Bounded count, or false when the range is unsafe.
+ */
+function chunkCount(state: IChunkBuildState): number | false {
+  const last = bankMonthOfInstant(new Date(state.endTime));
+  return last === false ? false : boundedMonthCount(state.month, last);
+}
+
+/**
+ * Build a month plan only when it fits the request budget.
+ * @param state - First month and effective end instant.
+ * @returns Bounded chunks, or an empty rejected plan.
+ */
+function buildBoundedChunks(state: IChunkBuildState): MonthChunks {
+  const count = chunkCount(state);
+  if (count === false) {
+    return rejectChunks(`range exceeds ${String(MAX_MONTH_REQUESTS)}-request budget`);
+  }
+  const chunks = buildChunkList(state, count);
+  return chunks === false ? rejectChunks('invalid derived boundary') : chunks;
+}
+
+/**
  * Surface an invalid generation input and fail closed.
  * @param reason - Non-sensitive failure reason.
  * @returns Empty chunk list.
@@ -149,9 +170,7 @@ function generateMonthChunks(start: Date, end: Date, futureMonths?: number): Mon
   if (cappedEnd === false) return rejectChunks('invalid end date');
   const state = buildInitialState(start, cappedEnd);
   if (state === false) return rejectChunks('invalid start date');
-  const chunks = buildChunkList(state, []);
-  if (chunks === false) return rejectChunks('invalid derived boundary');
-  return chunks;
+  return buildBoundedChunks(state);
 }
 
 /** Calendar year and 1-indexed month that a chunk's start names. */

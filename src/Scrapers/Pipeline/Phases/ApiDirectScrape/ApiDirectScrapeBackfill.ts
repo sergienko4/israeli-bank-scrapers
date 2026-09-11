@@ -170,6 +170,42 @@ async function fetchOnce<TAcct, TCursor>(
 }
 
 /**
+ * Whether the caller supplied a resolved requested-start instant.
+ * @param start - Requested lower-bound instant.
+ * @returns True when the instant can guide pagination.
+ */
+function startIsReadable(start: Date): boolean {
+  const time = start.getTime();
+  return Number.isFinite(time);
+}
+
+/**
+ * Fetch exactly one page when no readable lower bound can guide pagination.
+ * @param a - Per-account context.
+ * @returns First page, marked as caller-stopped when more pages were offered.
+ */
+async function fetchSinglePage<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+): Promise<Procedure<IPaginatedWalk<object>>> {
+  const page = await buildPageFetcher(a)(false);
+  if (!isOk(page)) return page;
+  const termination = page.value.nextCursor === false ? 'exhausted' : 'predicateStop';
+  return succeed({ items: page.value.items, termination });
+}
+
+/**
+ * Select the bounded initial fetch from requested-start readability.
+ * @param a - Per-account context.
+ * @returns One page for an unreadable start, otherwise the normal walk.
+ */
+function fetchInitial<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+): Promise<Procedure<IPaginatedWalk<object>>> {
+  if (!startIsReadable(a.ctx.options.startDate)) return fetchSinglePage(a);
+  return fetchOnce(a);
+}
+
+/**
  * Issue one narrowed request and fold its fresh rows into the state.
  * @param a - Per-account context.
  * @param state - Rows held, plus the bound the next request should carry.
@@ -199,8 +235,7 @@ async function extend<TAcct, TCursor>(
  * @returns An ISO instant, or a marker the audit will reject as unreadable.
  */
 function renderStart(start: Date): string {
-  const time = start.getTime();
-  return Number.isNaN(time) ? 'invalid-date' : start.toISOString();
+  return startIsReadable(start) ? start.toISOString() : 'invalid-date';
 }
 
 /**
@@ -281,7 +316,7 @@ async function walk<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>, state: IWalkSta
 export async function collectAccountRows<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
 ): Promise<Procedure<ICollectedRows>> {
-  const first = await fetchOnce(a);
+  const first = await fetchInitial(a);
   if (!isOk(first)) return first;
   const rows = first.value.items;
   const termination = first.value.termination;

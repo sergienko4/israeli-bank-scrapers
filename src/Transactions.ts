@@ -16,12 +16,13 @@ export interface ITransactionsAccount {
    * <p>Read {@link IWindowCoverage.status} first: `covered` means the start
    * was reached and every loss signal the scrape can observe was clean;
    * `lowerBoundReached` means the start was reached but something reported
-   * loss along the way (see `caveats`); `unproven` means the start was never
-   * reached (see `reason`).
+   * loss or an extraction audit could not run (see `caveats`); `unproven`
+   * means the start was never reached (see `reason`).
    *
    * <p>Even `covered` does not prove that no row in the *middle* of the window
-   * was dropped silently — that needs provider-side totals no Israeli bank
-   * sends. See `src/WindowCoverage.ts` for the full contract.
+   * was dropped silently — that needs a reliable provider total for the
+   * complete requested window, which Israeli banks generally do not send.
+   * See `src/WindowCoverage.ts` for the full contract.
    *
    * <p>Optional because only the Pipeline's API-direct scrapers run the audit.
    * Absent means "not assessed", never "assessed and fine".

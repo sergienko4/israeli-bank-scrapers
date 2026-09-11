@@ -28,6 +28,7 @@ import { getDebug } from '../../../Logging/Debug.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../../Registry/WK/ScrapeWK.js';
 import {
   BANK_DAY_FORMAT,
+  type BankDay,
   bankDayOfInstant,
   bankMomentOfInstant,
   parseInBankZone,
@@ -60,14 +61,21 @@ export interface IWindowArgs {
 export interface IWindowResult {
   /** Whether the window is provably served. */
   readonly verdict: WindowVerdict;
+  /** Whether the caller's requested start could be interpreted. */
+  readonly requestedStartReadable: boolean;
   /** Calendar day of the oldest row, or empty when no row carried a date. */
   readonly oldest: string;
-  /** Days between the requested start and the oldest row. Zero when covered. */
+  /** Days between the requested start and oldest row; meaningful only when readable. */
   readonly gapDays: number;
 }
 
 /** Verdict when a page proves nothing about the window's older end. */
-const UNPROVEN_EMPTY: IWindowResult = { verdict: 'unproven', oldest: '', gapDays: 0 };
+const UNPROVEN_EMPTY: IWindowResult = {
+  verdict: 'unproven',
+  requestedStartReadable: true,
+  oldest: '',
+  gapDays: 0,
+};
 
 /**
  * Calendar-day form. Banks reason in calendar days, not instants, and an
@@ -121,14 +129,12 @@ function oldestOf(rows: readonly object[]): string {
  * Both sides are reduced to calendar days first, so a start expressed as an
  * instant cannot truncate the difference by a partial day.
  *
- * @param requestedStart - Requested window start.
+ * @param requestedStart - Requested bank-calendar start day.
  * @param oldest - Calendar day of the oldest row.
- * @returns Day count, never negative, or `false` when the start is unreadable.
+ * @returns Day count, never negative.
  */
-function gapOf(requestedStart: string, oldest: string): number | false {
-  const startDay = bankDayOfInstant(requestedStart);
-  if (startDay === false) return false;
-  const from = parseInBankZone(startDay, DAY);
+function gapOf(requestedStart: BankDay, oldest: string): number {
+  const from = parseInBankZone(requestedStart, DAY);
   const to = parseInBankZone(oldest, DAY);
   const days = to.diff(from, 'days');
   return Math.max(days, 0);
@@ -143,9 +149,9 @@ function gapOf(requestedStart: string, oldest: string): number | false {
 function windowMessage(label: string, result: IWindowResult): string {
   if (result.verdict === 'covered') return `window ${label}: covered`;
   if (result.oldest === '') return `window ${label}: UNPROVEN — no row carried a usable date`;
-  // A zero gap is otherwise 'covered', so reaching here means gapOf() could
-  // not read the requested start and the count is a placeholder, not a gap.
-  if (result.gapDays === 0) return `window ${label}: UNPROVEN — requested start unreadable`;
+  if (!result.requestedStartReadable) {
+    return `window ${label}: UNPROVEN — requested start unreadable`;
+  }
   const gap = `gapDays=${String(result.gapDays)}`;
   return `window ${label}: UNPROVEN — oldest=${result.oldest} ${gap}`;
 }
@@ -169,6 +175,34 @@ function reportWindow(label: string, result: IWindowResult): IWindowResult {
 }
 
 /**
+ * Report the explicit no-measurement result for an unreadable start.
+ * @param label - Bank + step identity.
+ * @param oldest - Oldest readable row day, when one exists.
+ * @returns An unproven result carrying no usable gap measurement.
+ */
+function reportUnreadableStart(label: string, oldest: string): IWindowResult {
+  const result = {
+    verdict: 'unproven',
+    requestedStartReadable: false,
+    oldest,
+    gapDays: 0,
+  } as const;
+  return reportWindow(label, result);
+}
+
+/**
+ * Build a measured result after both boundary days are known.
+ * @param requestedStart - Requested bank-calendar start day.
+ * @param oldest - Oldest readable row day.
+ * @returns Coverage result with a measured gap.
+ */
+function measuredResult(requestedStart: BankDay, oldest: string): IWindowResult {
+  const gapDays = gapOf(requestedStart, oldest);
+  const verdict: WindowVerdict = gapDays === 0 ? 'covered' : 'unproven';
+  return { verdict, requestedStartReadable: true, oldest, gapDays };
+}
+
+/**
  * Compare the rows a page carried against the window that was requested.
  *
  * Reports only; never repairs. An empty page and a page whose rows carry no
@@ -180,9 +214,9 @@ function reportWindow(label: string, result: IWindowResult): IWindowResult {
  */
 export function assessWindowCoverage(args: IWindowArgs): IWindowResult {
   const oldest = oldestOf(args.rows);
+  const requestedStart = bankDayOfInstant(args.requestedStart);
+  if (requestedStart === false) return reportUnreadableStart(args.label, oldest);
   if (oldest === '') return reportWindow(args.label, UNPROVEN_EMPTY);
-  const gap = gapOf(args.requestedStart, oldest);
-  if (gap === false) return reportWindow(args.label, { verdict: 'unproven', oldest, gapDays: 0 });
-  const verdict: WindowVerdict = gap === 0 ? 'covered' : 'unproven';
-  return reportWindow(args.label, { verdict, oldest, gapDays: gap });
+  const measured = measuredResult(requestedStart, oldest);
+  return reportWindow(args.label, measured);
 }

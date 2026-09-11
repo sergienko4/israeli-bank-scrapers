@@ -3,6 +3,7 @@ title: Bank calendar
 source-files:
   - src/Scrapers/Pipeline/Mediator/Scrape/BankCalendar.ts
   - src/Scrapers/Pipeline/Mediator/Scrape/BankMonth.ts
+  - src/Scrapers/Pipeline/Mediator/Scrape/MonthRangeBudget.ts
 ---
 
 # Bank calendar — the zone every date decision resolves in
@@ -84,6 +85,18 @@ owns that boundary:
 `MatrixLoopStrategy` now consumes this object from cycle selection through
 request construction. The request body and URL bounds therefore describe the
 same month on every host.
+
+Monthly plans also share one provider-work budget:
+
+| Export                   | What it is for                                                      |
+| ------------------------ | ------------------------------------------------------------------- |
+| `MAX_MONTH_REQUESTS`     | Maximum complete month plan accepted before any requests are issued |
+| `boundedMonthCount`      | Counts an inclusive generated range, rejecting oversized spans      |
+| `fitsMonthRequestBudget` | Validates an already prepared provider cycle catalog                |
+
+Oversized generated ranges fail before allocation; oversized provider catalogs
+fail before network work. Neither is silently truncated, because truncation
+would make the requested-window evidence untruthful.
 
 ## Zone-less strings resolve in the bank zone too
 

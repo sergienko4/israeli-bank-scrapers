@@ -444,11 +444,10 @@ It now returns an `IPaginatedWalk<TItem>`: the `items`, plus a
 | `pageCeiling`           | our own `MAX_PAGES` guard fired         |
 | `predicateStop`         | the caller's stop predicate asked it to |
 
-Only `exhausted` is evidence about the provider's data. The other two are not.
-`cursorRepeat` says the provider handed back a cursor that stopped advancing;
-`pageCeiling` says **our** own `MAX_PAGES` guard fired. Neither reports that the
-data ran out, so a window that ends on either has not been proven — it has
-merely been abandoned.
+Neither `cursorRepeat` nor `pageCeiling` says the provider's data ran out.
+`cursorRepeat` records a non-advancing cursor; `pageCeiling` says **our** own
+`MAX_PAGES` guard fired. Either leaves the window unproven because the walk was
+abandoned before the provider reported `exhausted`.
 
 `predicateStop` is neither. It is the shape's own "we have enough" rule, so it
 reports sufficiency rather than loss — see [Which pagination endings count as

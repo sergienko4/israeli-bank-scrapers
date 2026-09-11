@@ -74,6 +74,15 @@ function isDisabled(): boolean {
 }
 
 /**
+ * Whether the requested start cannot support a coverage comparison.
+ * @param args - The decision inputs.
+ * @returns True when no valid start day was available.
+ */
+function hasUnreadableStart(args: IBackfillPlanArgs): boolean {
+  return !args.coverage.requestedStartReadable;
+}
+
+/**
  * Whether the window is already reached, so there is nothing left to ask for.
  * @param args - The decision inputs.
  * @returns True when the coverage audit said covered.
@@ -131,14 +140,18 @@ function fixed(text: string): (args: IBackfillPlanArgs) => string {
 /**
  * Refusals in decision order, most decisive first.
  *
- * <p>`covered` leads, ahead even of the operator kill-switch. The switch stops
- * further *asks*, and a window that is already covered has none left to make;
- * reporting it as switched off would tell a caller the window is in doubt when
- * the audit has just proved it is not. Below that the order is
+ * <p>An unreadable requested start leads because no later decision can measure
+ * against it. `covered` then leads the ordinary rules, ahead even of the
+ * operator kill-switch. Below that the order is
  * cheapest-and-most-decisive: an operator override outranks a bank's stance,
  * and an undatable page offers no bound to derive.
  */
 const BLOCK_RULES: readonly IBlockRule[] = Object.freeze([
+  {
+    stop: 'requestedStartUnreadable',
+    blocks: hasUnreadableStart,
+    reason: fixed('requested start unreadable'),
+  },
   { stop: 'covered', blocks: isCovered, reason: fixed('window covered') },
   {
     stop: 'backfillDisabled',

@@ -165,6 +165,30 @@ describe('generateBillingMonths', () => {
       expect(m).toMatch(/^\d{2}\/\d{2}\/\d{4}$/);
     });
   });
+
+  it('preserves leading zeroes in an accepted four-digit year', () => {
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date('0042-03-15T10:00:00.000Z'));
+      const start = new Date('0042-03-01T10:00:00.000Z').getTime();
+      const months = generateBillingMonths(start);
+      expect(months).toEqual(['01/03/0042']);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('CAL-RANGE-02 rejects an ancient range before billing-month expansion', () => {
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date('2026-03-15T10:00:00.000Z'));
+      const start = new Date('0042-03-01T10:00:00.000Z').getTime();
+      const months = generateBillingMonths(start);
+      expect(months).toEqual([]);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 describe('JsonTraversal branch gaps', () => {

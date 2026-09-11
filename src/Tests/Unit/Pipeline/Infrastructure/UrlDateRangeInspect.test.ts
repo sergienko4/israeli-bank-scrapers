@@ -75,13 +75,8 @@ describe('readCapturedFromDate', () => {
     const url = 'https://example.com/path?retrievalStartDate=20260508&retrievalEndDate=20260607';
     const result = readCapturedFromDate(url);
     expect(result).toBeInstanceOf(Date);
-    const parsedDate = result as Date;
-    const yyyy = parsedDate.getFullYear();
-    const mm = parsedDate.getMonth();
-    const dd = parsedDate.getDate();
-    expect(yyyy).toBe(2026);
-    expect(mm).toBe(4);
-    expect(dd).toBe(8);
+    const bankDay = result === false ? false : bankDayOfInstant(result);
+    expect(bankDay).toBe('2026-05-08');
   });
 
   it('parses ISO YYYY-MM-DD WK fromDate value to a Date', () => {

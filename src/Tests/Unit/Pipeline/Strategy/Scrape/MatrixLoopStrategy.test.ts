@@ -6,6 +6,10 @@ import type {
   IDiscoveredEndpoint,
   INetworkDiscovery,
 } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
+import {
+  fitsMonthRequestBudget,
+  MAX_MONTH_REQUESTS,
+} from '../../../../../Scrapers/Pipeline/Mediator/Scrape/MonthRangeBudget.js';
 import { tryMatrixLoop } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/MatrixLoopStrategy.js';
 import {
   EMPTY_TXN_ENDPOINT,
@@ -261,6 +265,47 @@ function makeCountingApi(): ICountingApi {
   return { api, calls };
 }
 
+/**
+ * Build distinct valid monthly catalog entries.
+ * @param count - Number of cycles to generate.
+ * @returns Chronological cycle catalog.
+ */
+function catalogWithCount(count: number): IBillingCycleCatalog {
+  const cycles = Array.from({ length: count }, (_, index) => {
+    const month = String((index % 12) + 1).padStart(2, '0');
+    const year = String(2000 + Math.floor(index / 12));
+    return { billingDate: `${month}/${year}`, isOpen: false };
+  });
+  return { cycles };
+}
+
+/**
+ * Run an oversized catalog, which must stop before rate-limit timers.
+ * @param count - Number of valid catalog entries.
+ * @returns Recorded requests and the Matrix result.
+ */
+async function runCatalogCount(count: number): Promise<{
+  readonly calls: readonly IRecordedCall[];
+  readonly result: Awaited<ReturnType<typeof tryMatrixLoop>>;
+}> {
+  const { api, calls } = makeCountingApi();
+  const templatePostData = JSON.stringify({ month: 1, year: 2026, accountId: 'a' });
+  const txnEndpoint = stubTxn({
+    url: 'https://bank.example/api/txn',
+    method: 'POST',
+    templatePostData,
+  });
+  const fc = {
+    api,
+    network: makeInertNetwork(),
+    startDate: '20000101',
+    txnEndpoint,
+    billingCycleCatalog: catalogWithCount(count),
+  };
+  const result = await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
+  return { calls, result };
+}
+
 /** Date returned when production tries to re-parse a named month as an instant. */
 const WRONG_MONTH_INSTANT = '1999-01-01T00:00:00.000Z';
 
@@ -294,6 +339,21 @@ async function withTamperedStringDate<T>(run: () => Promise<T>): Promise<T> {
 }
 
 describe('tryMatrixLoop — catalog-driven iteration', () => {
+  it('[MATRIX-CATALOG-BUDGET-300] accepts a catalog at the request ceiling', () => {
+    const plan = catalogWithCount(MAX_MONTH_REQUESTS).cycles;
+    const hasBudget = fitsMonthRequestBudget(plan);
+    expect(hasBudget).toBe(true);
+  });
+
+  it('[MATRIX-CATALOG-BUDGET-301] rejects a catalog above the request ceiling', async () => {
+    const { calls, result } = await runCatalogCount(MAX_MONTH_REQUESTS + 1);
+    expect(calls).toHaveLength(0);
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'MatrixLoop: cycle catalog exceeds 300-request budget',
+    });
+  });
+
   it('[MATRIX-CATALOG-USES] WithCatalog_IteratesCatalogCycles_NotMonthChunks', async () => {
     const catalog: IBillingCycleCatalog = {
       cycles: [

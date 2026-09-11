@@ -529,6 +529,20 @@ describe('collectAccountRows/evidence across backfill rounds', () => {
 });
 
 describe('collectAccountRows/unreadable start', () => {
+  it('does not issue a backfill request for an unparseable start', async () => {
+    const seen: string[] = [];
+    const bus = makeBus(seen);
+    await collectWithLedger(bus, SHAPE, new Date('not-a-date'));
+    expect(seen).toEqual(['none']);
+  });
+
+  it('COV-START-04 limits a paginated unreadable start to one provider request', async () => {
+    const seen: string[] = [];
+    const bus = makeBus(seen, { none: REACHING_ROWS });
+    await collectWithLedger(bus, STUCK_CURSOR_SHAPE, new Date('not-a-date'));
+    expect(seen).toEqual(['none']);
+  });
+
   it('keeps the account when the caller asked from an unparseable date', async () => {
     // Rendering the start used to throw here, which took the whole account
     // down before any verdict could be formed. Losing the account hides the

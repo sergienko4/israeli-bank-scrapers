@@ -25,7 +25,7 @@
 import type { ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
 import { bankDayOfInstant } from '../BankCalendar.js';
 import type { IBankDateParts } from '../BankMonth.js';
-import { bankDatePartsOfLabel } from '../BankMonth.js';
+import { bankDatePartsOfLabel, bankInstantOfLabel } from '../BankMonth.js';
 import { getIn, isNum } from './BancsShape.js';
 import { innerFilterNodes, isBancsTxnBody } from './BancsTxnRequest.js';
 
@@ -175,20 +175,19 @@ function applyBancsChunkRange(body: ApiRecord, chunk: IChunkRange): boolean {
 export default applyBancsChunkRange;
 
 /**
- * Build a UTC Date from a BaNCS `OrigDt {Day,Month,Year}` (Month is
- * 1-based), or false when any part is missing or non-numeric.
+ * Resolve strict BaNCS `OrigDt {Day,Month,Year}` parts in the bank calendar.
  * @param origDt - The `OrigDt` sub-record of one inner filter node.
- * @returns The calendar date (UTC), or false.
+ * @returns The bank-zone calendar date, or false for invalid parts.
  */
 function origDtToDate(origDt: ApiRecord): Date | false {
   const day = getIn(origDt, ['Day']);
   const month = getIn(origDt, ['Month']);
   const year = getIn(origDt, ['Year']);
-  if (isNum(day) && isNum(month) && isNum(year)) {
-    const utcMs = Date.UTC(year, month - 1, day);
-    return new Date(utcMs);
-  }
-  return false;
+  if (!isNum(day) || !isNum(month) || !isNum(year)) return false;
+  const yearPart = String(year).padStart(4, '0');
+  const monthPart = String(month).padStart(2, '0');
+  const dayPart = String(day).padStart(2, '0');
+  return bankInstantOfLabel(`${yearPart}-${monthPart}-${dayPart}T00:00:00.000Z`);
 }
 
 /**
@@ -213,7 +212,7 @@ function fromBoundDate(node: ApiRecord): Date | false {
  * from one that already covers the user's requested range. Default-deny —
  * `false` for any non-BaNCS body, so the gate is a no-op for other banks.
  * @param body - Parsed request body (the committed `templatePostData`).
- * @returns The captured fromDate (UTC), or false.
+ * @returns The captured fromDate in the bank calendar, or false.
  */
 export function readBancsFromDate(body: ApiRecord): Date | false {
   if (!isBancsTxnBody(body)) return false;

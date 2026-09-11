@@ -25,7 +25,7 @@ import type { WindowNarrowing } from '../../../../../Scrapers/Pipeline/Types/Win
  * @returns An uncovered window result.
  */
 function gapTo(oldest: string): IWindowResult {
-  return { verdict: 'unproven', oldest, gapDays: 30 };
+  return { verdict: 'unproven', requestedStartReadable: true, oldest, gapDays: 30 };
 }
 
 /**
@@ -83,7 +83,12 @@ describe('planBackfill/asks again', () => {
 
 describe('planBackfill/stops', () => {
   it('stops once the window is covered', () => {
-    const covered: IWindowResult = { verdict: 'covered', oldest: '2026-01-01', gapDays: 0 };
+    const covered: IWindowResult = {
+      verdict: 'covered',
+      requestedStartReadable: true,
+      oldest: '2026-01-01',
+      gapDays: 0,
+    };
     const args = argsFor({ coverage: covered });
     const plan = planBackfill(args);
     expect(plan.shouldAsk).toBe(false);
@@ -91,7 +96,12 @@ describe('planBackfill/stops', () => {
   });
 
   it('stops when no row carried a date to narrow against', () => {
-    const undatable: IWindowResult = { verdict: 'unproven', oldest: '', gapDays: 0 };
+    const undatable: IWindowResult = {
+      verdict: 'unproven',
+      requestedStartReadable: true,
+      oldest: '',
+      gapDays: 0,
+    };
     const args = argsFor({ coverage: undatable });
     const plan = planBackfill(args);
     expect(plan.shouldAsk).toBe(false);
@@ -168,7 +178,12 @@ describe('planBackfill/kill switch', () => {
     // this code, so reporting a covered window as "switched off" would put an
     // account in doubt that the audit had just proved complete.
     process.env.WINDOW_BACKFILL = 'off';
-    const coverage: IWindowResult = { verdict: 'covered', oldest: '2025-12-25', gapDays: 0 };
+    const coverage: IWindowResult = {
+      verdict: 'covered',
+      requestedStartReadable: true,
+      oldest: '2025-12-25',
+      gapDays: 0,
+    };
     const args = argsFor({ coverage });
     const plan = planBackfill(args);
     expect(plan.shouldAsk).toBe(false);

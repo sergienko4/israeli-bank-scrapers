@@ -25,7 +25,6 @@ import type {
   WindowCaveat,
   WindowUnprovenReason,
 } from '../../../../../WindowCoverage.js';
-import { bankDayOfInstant } from '../BankCalendar.js';
 import type { IWindowResult } from './WindowCoverage.js';
 
 /** Why the backfill loop stopped asking. `covered` is the benign member. */
@@ -50,6 +49,7 @@ export interface IClassifyArgs {
  */
 function gapFields(coverage: IWindowResult): { oldest?: string; gapDays?: number } {
   if (coverage.oldest === '') return {};
+  if (!coverage.requestedStartReadable) return { oldest: coverage.oldest };
   return { oldest: coverage.oldest, gapDays: coverage.gapDays };
 }
 
@@ -86,8 +86,7 @@ function reached(args: IClassifyArgs): IWindowCoverage {
  * @returns Exactly one of the three states.
  */
 export function classifyWindowCoverage(args: IClassifyArgs): IWindowCoverage {
-  const startDay = bankDayOfInstant(args.requestedStart);
-  if (startDay === false) return unproven(args, 'requestedStartUnreadable');
+  if (!args.coverage.requestedStartReadable) return unproven(args, 'requestedStartUnreadable');
   if (args.stop !== 'covered') return unproven(args, args.stop);
   return reached(args);
 }

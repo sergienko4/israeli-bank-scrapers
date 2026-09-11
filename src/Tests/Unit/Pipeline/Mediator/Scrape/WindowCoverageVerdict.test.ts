@@ -21,13 +21,28 @@ import type { WindowCaveat } from '../../../../../WindowCoverage.js';
 const START = '2026-01-01T00:00:00.000Z';
 
 /** Coverage result for a walk whose oldest row reached the requested start. */
-const REACHED: IWindowResult = { verdict: 'covered', oldest: '2025-12-25', gapDays: 0 };
+const REACHED: IWindowResult = {
+  verdict: 'covered',
+  requestedStartReadable: true,
+  oldest: '2025-12-25',
+  gapDays: 0,
+};
 
 /** Coverage result for a walk that stopped eleven days short. */
-const SHORT: IWindowResult = { verdict: 'unproven', oldest: '2026-01-12', gapDays: 11 };
+const SHORT: IWindowResult = {
+  verdict: 'unproven',
+  requestedStartReadable: true,
+  oldest: '2026-01-12',
+  gapDays: 11,
+};
 
 /** Coverage result for a walk whose rows carried no readable date at all. */
-const UNDATED: IWindowResult = { verdict: 'unproven', oldest: '', gapDays: 0 };
+const UNDATED: IWindowResult = {
+  verdict: 'unproven',
+  requestedStartReadable: true,
+  oldest: '',
+  gapDays: 0,
+};
 
 /** No guardrail spoke. */
 const CLEAN: readonly WindowCaveat[] = [];
@@ -114,26 +129,47 @@ describe('classifyWindowCoverage/the start date was not reached', () => {
 });
 
 describe('classifyWindowCoverage/the caller asked for a start we cannot read', () => {
-  it('says so rather than reporting a gap measured against nothing', () => {
+  it('omits a gap that could not be measured against the unreadable start', () => {
     const args = {
       requestedStart: 'Invalid date',
-      coverage: SHORT,
+      coverage: { ...SHORT, requestedStartReadable: false },
       stop: CEILING_STOP,
       caveats: CLEAN,
     };
     const verdict = classifyWindowCoverage(args);
-    const reason = verdict.status === 'unproven' ? verdict.reason : 'not-unproven';
-    expect(reason).toBe('requestedStartUnreadable');
+    expect(verdict).toEqual({
+      status: 'unproven',
+      reason: 'requestedStartUnreadable',
+      requestedStart: 'Invalid date',
+      oldest: '2026-01-12',
+    });
   });
 
   it('outranks even a coverage result that claims the window was reached', () => {
     const args = {
       requestedStart: '',
-      coverage: REACHED,
+      coverage: { ...REACHED, requestedStartReadable: false },
       stop: COVERED_STOP,
       caveats: CLEAN,
     };
     const verdict = classifyWindowCoverage(args);
     expect(verdict.status).toBe('unproven');
+  });
+
+  it('keeps a measured zero gap when a readable walk stops for another reason', () => {
+    const coverage: IWindowResult = {
+      verdict: 'unproven',
+      requestedStartReadable: true,
+      oldest: '2026-01-01',
+      gapDays: 0,
+    };
+    const args = {
+      requestedStart: START,
+      coverage,
+      stop: 'backfillDisabled' as const,
+      caveats: CLEAN,
+    };
+    const verdict = classifyWindowCoverage(args);
+    expect(verdict).toMatchObject({ status: 'unproven', gapDays: 0 });
   });
 });

@@ -265,7 +265,7 @@ until you ask, they look identical. Every API-direct account carries a
 | `status` | What it means | What to do |
 | --- | --- | --- |
 | `covered` | The oldest row reaches your `startDate`, and every loss channel the scrape watches came back clean. | Nothing. |
-| `lowerBoundReached` | The oldest row reaches your `startDate`, but a channel reported loss. `caveats` names which. | Treat the list as possibly incomplete. |
+| `lowerBoundReached` | The oldest row reaches your `startDate`, but a channel reported loss or an extraction audit could not run. `caveats` names which. | Treat the list as possibly incomplete. |
 | `unproven` | Your `startDate` was never reached. `reason` says what stopped the walk. | Re-run, or narrow the window. |
 
 ```ts
@@ -280,11 +280,12 @@ for (const account of result.accounts ?? []) {
 **What `covered` does not promise.** It proves the window's *far edge* was
 reached and that nothing the scrape can observe reported loss on the way. It
 does **not** prove that no row in the *middle* of the window was dropped
-without leaving a trace. Detecting that needs provider-side totals that Israeli
-banks do not send. Where a provider does declare a row count, the scrape checks
-it and downgrades to `lowerBoundReached` on a shortfall; where it declares
-nothing, there is nothing to check against. `covered` means "we reached the
-edge and saw no loss", never "nothing was lost".
+without leaving a trace. Detecting that needs a reliable provider total for the
+complete requested window, which Israeli banks generally do not send. Where a
+provider declares a row count for an individual response, the scrape checks it
+and downgrades to `lowerBoundReached` on a shortfall; where it declares nothing,
+there is nothing to check against. `covered` means "we reached the edge and saw
+no loss", never "nothing was lost".
 
 The field is absent on browser-based scrapers, which have no equivalent walk to
 audit — so check for its presence rather than assuming it.
