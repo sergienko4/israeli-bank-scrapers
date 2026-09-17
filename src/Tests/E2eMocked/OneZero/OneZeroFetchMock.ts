@@ -5,11 +5,15 @@
  * Rule #18: every value here is SYNTHETIC. No real PII.
  * Rule #17: mock suite parity — 8/8 target.
  *
- * The mock short-circuits the OTP flow via `otpLongTermToken`, so only the
- * following endpoints need synthetic responses:
- *   - POST <identityBase>.../getIdToken
+ * The mock short-circuits the OTP flow via `otpLongTermToken` (the persisted
+ * ~10-year idToken), so warm-start needs synthetic responses for exactly one
+ * identity endpoint plus GraphQL:
  *   - POST <identityBase>.../sessions/token
  *   - POST <graphqlUrl>  (operation-name dispatch)
+ *
+ * getIdToken is deliberately NOT routed: a warm run that still calls it has
+ * regressed to seeding the 1-hour otpToken, and the resulting 404 fails the
+ * scrape — the mock itself is the tripwire.
  *
  * Since fix/onezero-camoufox-identity-tls, identity calls route through the
  * Camoufox-backed strategy. The CamoufoxJsMock fake-page-eval mode is toggled
@@ -27,6 +31,12 @@ export interface IMockCallCounts {
   readonly graphql: number;
 }
 
+/** Recorded identity request — URL + parsed JSON body. */
+export interface IIdentityRequest {
+  readonly url: string;
+  readonly body: JsonObject;
+}
+
 /**
  * Handle returned by the installer.
  * `dispose()` restores the original fetch and returns `true` for Result-pattern
@@ -35,6 +45,32 @@ export interface IMockCallCounts {
 export interface IMockHandle {
   readonly dispose: () => boolean;
   readonly callCounts: () => IMockCallCounts;
+  readonly identityRequests: () => readonly IIdentityRequest[];
+}
+
+/** Synthetic idToken claims — ≈10-year validity window, zero real values. */
+const ID_TOKEN_CLAIMS = Object.freeze({
+  tokenType: 'idToken',
+  deviceId: '00000000-0000-4000-8000-000000000000',
+  userId: 'syn-user',
+  identitySessionId: 'syn-session',
+  clientId: 'mobile',
+  iat: 1_800_000_000,
+  exp: 2_115_576_000,
+});
+
+/**
+ * Build the synthetic 10-year idToken fixture: a syntactically valid JWT
+ * (base64url header.payload.signature) with a garbage signature — nothing
+ * verifies it client-side. Every claim value is synthetic (Rule #18).
+ * @returns Compact JWT string.
+ */
+function makeSyntheticIdToken(): string {
+  const headerJson = JSON.stringify({ alg: 'RS256', typ: 'JWT' });
+  const headerEnc = Buffer.from(headerJson).toString('base64url');
+  const payloadJson = JSON.stringify(ID_TOKEN_CLAIMS);
+  const payloadEnc = Buffer.from(payloadJson).toString('base64url');
+  return `${headerEnc}.${payloadEnc}.syn-signature`;
 }
 
 /** Synthetic credentials for mock-mode runs — safe for public fixtures. */
@@ -42,11 +78,11 @@ export const ONEZERO_MOCK_CREDS = Object.freeze({
   email: 'synthetic-onezero@example.test',
   password: 'synthetic-pass',
   phoneNumber: '972000000000',
-  otpLongTermToken: 'syn-otp-long-term-a7f4b2c8',
+  otpLongTermToken: makeSyntheticIdToken(),
 });
 
-const SYN_ID_TOKEN = 'syn-id-a7f4b2c8';
-const SYN_ACCESS_TOKEN = 'syn-access-d3e9';
+/** Synthetic access token minted by the sessions/token route. */
+export const ONEZERO_MOCK_ACCESS_TOKEN = 'syn-access-d3e9';
 const SYN_PORTFOLIO_ID = 'portfolio-a7f4b2c8';
 const SYN_PORTFOLIO_NUM = '40286139';
 const SYN_ACCOUNT_ID = 'acct-b7c4';
@@ -84,10 +120,11 @@ function emptyHeaders(): IResponseLike['headers'] {
   return { getSetCookie };
 }
 
-/** Accumulates call counts so tests can assert wiring. */
+/** Accumulates call counts + recorded identity requests. */
 interface ICallTally {
   identity: number;
   graphql: number;
+  requests: IIdentityRequest[];
 }
 
 /**
@@ -297,15 +334,15 @@ interface IGraphqlRequestBody {
 }
 
 /**
- * Parse a fetch request init body into a GraphQL-shaped request.
+ * Parse a fetch request init body into a plain JSON object.
  * @param init - Fetch init as passed by the caller.
  * @returns Parsed body, or an empty object when parsing fails.
  */
-function parseGraphqlBody(init?: RequestInit): IGraphqlRequestBody {
+function parseJsonBody(init?: RequestInit): JsonObject {
   const raw = init?.body;
   if (typeof raw !== 'string') return {};
   try {
-    return JSON.parse(raw) as IGraphqlRequestBody;
+    return JSON.parse(raw) as JsonObject;
   } catch {
     return {};
   }
@@ -361,16 +398,17 @@ function routeMovements(body: IGraphqlRequestBody): IResponseLike {
 }
 
 /**
- * Route an identity request (getIdToken / sessions/token).
+ * Route an identity request (sessions/token only), recording url + body.
+ * getIdToken is intentionally unhandled — see the file header.
  * @param url - Request URL (already classified as identity).
+ * @param sink - Recorded-request sink.
+ * @param init - Fetch init carrying the JSON body.
  * @returns Response-like envelope for the detected path.
  */
-function routeIdentity(url: string): IResponseLike {
-  if (url.includes('getIdToken')) {
-    return jsonOk({ resultData: { idToken: SYN_ID_TOKEN } });
-  }
+function routeIdentity(url: string, sink: IIdentityRequest[], init?: RequestInit): IResponseLike {
+  sink.push({ url, body: parseJsonBody(init) });
   if (url.includes('sessions/token')) {
-    return jsonOk({ resultData: { accessToken: SYN_ACCESS_TOKEN } });
+    return jsonOk({ resultData: { accessToken: ONEZERO_MOCK_ACCESS_TOKEN } });
   }
   return notFound('unknown mock identity route');
 }
@@ -405,18 +443,18 @@ function classify(url: string): RequestClass {
  * Dispatch one fetch call to the matching synthetic responder and tally.
  * @param url - Target URL.
  * @param tally - Call counter mutated in place.
- * @param init - Fetch init (optional — only GraphQL needs body parsing).
+ * @param init - Fetch init (optional — identity + GraphQL bodies are parsed).
  * @returns A Response-like the caller will read.
  */
 function dispatch(url: string, tally: ICallTally, init?: RequestInit): IResponseLike {
   const kind = classify(url);
   if (kind === 'identity') {
     tally.identity += 1;
-    return routeIdentity(url);
+    return routeIdentity(url, tally.requests, init);
   }
   if (kind === 'graphql') {
     tally.graphql += 1;
-    const body = parseGraphqlBody(init);
+    const body: IGraphqlRequestBody = parseJsonBody(init);
     return routeGraphql(body);
   }
   return notFound('unknown mock route');
@@ -452,7 +490,7 @@ function makeMockFetch(tally: ICallTally): MockFetch {
  */
 export function installOneZeroFetchMock(): IMockHandle {
   const previousFetch = globalThis.fetch;
-  const tally: ICallTally = { identity: 0, graphql: 0 };
+  const tally: ICallTally = { identity: 0, graphql: 0, requests: [] };
   const mockFetch = makeMockFetch(tally);
   (globalThis as unknown as { fetch: typeof mockFetch }).fetch = mockFetch;
   setFakePageEvalMode(true);
@@ -475,5 +513,10 @@ export function installOneZeroFetchMock(): IMockHandle {
     identity: tally.identity,
     graphql: tally.graphql,
   });
-  return { dispose, callCounts };
+  /**
+   * Snapshot the recorded identity requests (url + parsed JSON body).
+   * @returns Copy of the recorded requests in arrival order.
+   */
+  const identityRequests = (): readonly IIdentityRequest[] => tally.requests.slice();
+  return { dispose, callCounts, identityRequests };
 }

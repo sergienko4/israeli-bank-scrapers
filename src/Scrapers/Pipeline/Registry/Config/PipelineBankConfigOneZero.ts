@@ -5,11 +5,12 @@
  * jar — just POSTs with plain JSON bodies and /resultData/*
  * response extraction.
  *
- * Warm-start: creds.otpLongTermToken is the output of step-3
- * (/otp/verify), so the warm path pre-seeds carry.otpToken and
- * starts iterating from step-3-end (i.e. step 3). Steps 4+5
- * (getIdToken, sessionToken) always run to produce the final
- * Bearer token.
+ * Warm-start: creds.otpLongTermToken carries the ~10-year idToken
+ * minted by step 3 (getIdToken) — the creds field name is kept for
+ * compatibility. The warm path pre-seeds carry.idToken and runs only
+ * step 4 (sessionToken): steps 0-3 exist to mint that idToken, and
+ * the step-2 otpToken they chain through dies within the hour, so it
+ * can never seed a warm run.
  *
  * Zero bank knowledge in ApiDirectCall mediator — this file is
  * the whole bank surface for login.
@@ -24,8 +25,8 @@ const ONEZERO_API_DIRECT_CALL: IApiDirectCallConfig = {
   authScheme: 'bearer',
   warmStart: {
     credsField: 'otpLongTermToken',
-    carryField: 'otpToken',
-    fromStepIndex: 3,
+    carryField: 'idToken',
+    fromStepIndex: 4,
   },
   probe: { queryTag: 'customer' },
   steps: [

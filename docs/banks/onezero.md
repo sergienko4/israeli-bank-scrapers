@@ -18,10 +18,33 @@ const result = await scraper.scrape({
   password: 'mypassword',
   phoneNumber: '+972000000000', // international-plus (with +)
   otpCodeRetriever: async () => await myInbox.getCode(),
+  // Persist info.longTermToken (the ~10-year idToken) and pass it back as
+  // otpLongTermToken on the next run to skip the SMS — see Warm start below.
+  onAuthFlowComplete: info => store.save(info.longTermToken),
 });
-
-// Save result.persistentOtpToken — pass as otpLongTermToken on next run to skip SMS
 ```
+
+## Warm start (skip the SMS)
+
+Every successful login — cold or warm — surfaces a **~10-year `idToken`** via
+`onAuthFlowComplete` (`info.longTermToken`). Persist it, then pass it back as
+`otpLongTermToken` together with `password`:
+
+```typescript
+const result = await scraper.scrape({
+  email: 'user@example.com',
+  password: 'mypassword', // mandatory — sessions/token rejects a missing pass (HTTP 400)
+  otpLongTermToken: savedIdToken,
+});
+```
+
+A warm run makes exactly **one** identity call — `POST /v1/sessions/token` with
+`{ idToken, pass }` — and no SMS is requested. The idToken is not rotated by
+renewal, so the same value keeps working until the bank itself expires it. The
+mid-chain `otpToken` is _not_ the warm artifact: it dies within the hour, which
+is why older warm attempts always failed with `500 ErrorInvalidToken`. When the
+bank rejects a stored idToken, delete it and run cold once (SMS-OTP) to mint a
+fresh one.
 
 ## Transport — Cloudflare mutual TLS (mTLS)
 
@@ -79,5 +102,5 @@ than leaving the request pending.
 ## Known quirks
 
 - GraphQL API throughout — `GET_ACCOUNT_TRANSACTIONS` + `GET_ACCOUNT_BALANCE` queries.
-- Persistent OTP token returned on successful login — opt-in long-lived auth for headless re-runs.
+- Long-lived (≈10-year) idToken surfaced via `onAuthFlowComplete` on every successful login — warm re-runs skip SMS entirely (see Warm start above).
 - The poll interval was bumped past an undocumented API throttle in v8.4.x (see `fix(telegram-otp): bump poll interval past undocumented API throttle`).
