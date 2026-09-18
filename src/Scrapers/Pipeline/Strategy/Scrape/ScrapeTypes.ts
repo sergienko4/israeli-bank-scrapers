@@ -42,11 +42,14 @@ const EMPTY_TXN_ENDPOINT: ITxnEndpoint = {
 /** API response payload — wraps Record to hide `unknown` from function signatures. */
 type ApiPayload = Record<string, unknown>;
 /**
- * Untyped API value — alias of the shared structural {@link JsonUnknown}
- * union. Closes Sonar S6564 (`typescript:S6564`): the prior
- * `type ApiValue = unknown` alias was redundant; the union RHS
- * is accepted as non-redundant. Domain name preserved to avoid a
- * cascade across the strategy callers.
+ * Untyped API value — alias of the shared {@link JsonUnknown} open arm.
+ *
+ * <p>`JsonUnknown` is `unknown`: one un-narrowed value at a boundary, with
+ * no structural JSON shape to rely on. Narrow it with a guard before
+ * reading it. S6564 (`typescript:S6564`) is silenced at the declaration
+ * site by a documented file-scoped exemption, not by the shape of this
+ * alias. Domain name preserved to avoid a cascade across the strategy
+ * callers.
  */
 type ApiValue = JsonUnknown;
 /** Untyped API array — wraps `unknown[]` to satisfy no-unknown-in-signatures ESLint rule. */

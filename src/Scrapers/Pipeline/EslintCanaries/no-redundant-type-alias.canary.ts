@@ -3,10 +3,15 @@
  *
  * <p>Verifies the `sonarjs/redundant-type-aliases` rule fires
  * on a bare `type X = string` alias. The pipeline replaces
- * such aliases with structural unions (see
+ * such aliases with structural unions (the CLOSED arms in
  * `Pipeline/Types/JsonValue.ts`) or branded nominal types
  * (see `Pipeline/Types/Brand.ts`) so Sonar accepts the RHS as
  * non-redundant.
+ *
+ * <p>Where the type genuinely IS the top type — `JsonUnknown`, the
+ * open arm — there is no honest structural RHS to reach for, so it
+ * carries a declared, file-scoped exemption instead. That is the
+ * documented exception, not a third way to dodge the rule.
  *
  * <p>Applicable guidelines (per spec.txt §1 RC-5):
  * <ul>
