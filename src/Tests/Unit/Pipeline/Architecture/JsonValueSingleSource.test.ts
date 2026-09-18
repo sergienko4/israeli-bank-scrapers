@@ -55,6 +55,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ESLint } from 'eslint';
 import * as ts from 'typescript';
 
 const HERE_URL = fileURLToPath(import.meta.url);
@@ -554,6 +555,234 @@ function describeGuards(guards: readonly IUnsoundGuard[]): string {
   return rendered.join('\n');
 }
 
+/** Repository root, five levels above this test file. */
+const REPO_ROOT = path.join(HERE, '..', '..', '..', '..', '..');
+
+/** The `src` tree, four levels above this test file. */
+const SRC_ROOT = path.join(HERE, '..', '..', '..', '..');
+
+/**
+ * Collect every type alias in a parsed file, at any nesting depth.
+ *
+ * <p>A top-level-only walk would miss an alias declared inside a
+ * `namespace` or `declare module` block — exactly where one would hide.
+ * @param source - Parsed source file to walk.
+ * @returns Every alias declaration the file contains.
+ */
+function allAliases(source: ts.SourceFile): readonly ts.TypeAliasDeclaration[] {
+  const queue: ts.Node[] = [source];
+  const found: ts.TypeAliasDeclaration[] = [];
+  for (const node of queue) {
+    if (ts.isTypeAliasDeclaration(node)) found.push(node);
+    const kids = node.getChildren();
+    queue.push(...kids);
+  }
+  return found;
+}
+
+/**
+ * Parse a file and hand back its alias declarations.
+ * @param file - Absolute path of the file to inspect.
+ * @returns Every alias the file declares, at any depth.
+ */
+function aliasesOf(file: string): readonly ts.TypeAliasDeclaration[] {
+  const raw = fs.readFileSync(file, 'utf8');
+  const source = ts.createSourceFile(file, raw, ts.ScriptTarget.Latest, true);
+  return allAliases(source);
+}
+
+/**
+ * Decide whether a type node is exactly `Record<string, unknown>`.
+ * @param node - Type node to test.
+ * @returns True for the bare open-record shape.
+ */
+function isUnknownRecord(node: ts.TypeNode): boolean {
+  if (!ts.isTypeReferenceNode(node)) return false;
+  const args = node.typeArguments ?? [];
+  const named = node.typeName.getText();
+  if (named !== 'Record' || args.length !== 2) return false;
+  const key = args[0];
+  const value = args[1];
+  return key.kind === ts.SyntaxKind.StringKeyword && value.kind === ts.SyntaxKind.UnknownKeyword;
+}
+
+/**
+ * Decide whether an alias body is an open record, bare or readonly-wrapped.
+ *
+ * <p>`Readonly<Record<string, unknown>>` is the same debt wearing a wrapper;
+ * a lexical scan misses it, which is why this walks the AST.
+ * @param node - Right-hand side of a type alias.
+ * @returns True for both spellings of the open record.
+ */
+function isOpenRecordBody(node: ts.TypeNode): boolean {
+  if (isUnknownRecord(node)) return true;
+  if (!ts.isTypeReferenceNode(node)) return false;
+  const args = node.typeArguments ?? [];
+  if (node.typeName.getText() !== 'Readonly' || args.length !== 1) return false;
+  return isUnknownRecord(args[0]);
+}
+
+/**
+ * Count the open-record aliases declared across a set of files.
+ * @param files - Absolute paths of the source files to scan.
+ * @returns How many such aliases those files declare in total.
+ */
+function openRecordAliasCount(files: readonly string[]): number {
+  return files.reduce((total, file): number => {
+    const aliases = aliasesOf(file);
+    const open = aliases.filter((node): boolean => isOpenRecordBody(node.type));
+    return total + open.length;
+  }, 0);
+}
+
+/**
+ * Today's population of duplicate open-record aliases, counted by AST.
+ *
+ * <p>A ratchet on a *related* debt population: 24 spelled
+ * `Record<string, unknown>` and 7 spelled `Readonly<Record<string,
+ * unknown>>`. Most are boundaries laundering `unknown` through a
+ * JSON-shaped name, but this is repo-wide and sweeps in test and logging
+ * helpers — `RecordedOptions`, `LogEvent`, `LogLine` — that never feed
+ * {@link JsonUnknown}. It is not a causal inventory: the evidence that
+ * narrowing the arm is a real refactor is the 29 type errors the recipe in
+ * "Known gap" (`docs/architecture/json-algebra.md`) reproduces.
+ *
+ * <p>The assertion is exact equality, not a ceiling. A ceiling lets the
+ * count fall to 30 and then drift back to 31 unnoticed; exact equality makes
+ * paying the debt down edit this number in the same commit.
+ */
+const OPEN_RECORD_ALIASES = 31;
+
+/** The canonical module, spelled as the three exemption files spell it. */
+const CANONICAL_POSIX = 'src/Scrapers/Pipeline/Types/JsonValue.ts';
+
+/**
+ * The aliases the file-scoped S6564 exemption silences — and the only ones.
+ *
+ * <p>This is what S6564 itself reports when the exemption is reversed, not
+ * a hand-rolled model of the rule. `JsonObject` is absent on purpose: the
+ * rule flags a type reference only when it resolves to another alias, and
+ * `IJsonObject` is an interface, so renaming it is not a violation.
+ *
+ * <p>A second name here means an unreviewed redundant alias was planted in
+ * the one file where S6564 cannot see it. That is the hole this pins shut.
+ */
+const S6564_SILENCED_ALIASES: readonly string[] = ['JsonUnknown'];
+
+/** Sonar's multicriteria id for the exemption. */
+const SONAR_KEY = 'sonar.issue.ignore.multicriteria.jsonUnknownAlias';
+
+/** The Sonar rule the exemption must stay bound to. */
+const S6564_RULE = 'typescript:S6564';
+
+/** The ESLint rule implementing S6564. */
+const S6564_ESLINT_RULE = 'sonarjs/redundant-type-aliases';
+
+/** The tag the repo's own canary uses for S6564 in the allowlist. */
+const S6564_CANARY_TAG = 'S6564-Canary';
+
+/** A neighbouring Pipeline module, used to prove the rule is still armed. */
+const NEIGHBOUR_REL = path.join('Types', 'Brand.ts');
+
+/**
+ * Read the active `key=value` lines of a .properties file: comments
+ * dropped, last assignment wins.
+ *
+ * <p>Deliberately not a full .properties parser — no continuation lines, no
+ * escaped separators, no `:` separator. This file uses none of them. It
+ * covers the two ways an exemption dies silently: substring matching cannot
+ * see a commented-out line or a later assignment that overrides an earlier
+ * one, and both would leave the expected text sitting in the file.
+ * @param file - Absolute path of the properties file.
+ * @returns Every active key mapped to its final value.
+ */
+function activeProperties(file: string): Readonly<Record<string, string>> {
+  const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/u);
+  const live = lines.filter((line): boolean => /^\s*[^#!\s]/u.test(line) && line.includes('='));
+  const pairs = live.map((line): readonly [string, string] => splitProperty(line));
+  return Object.fromEntries(pairs);
+}
+
+/**
+ * Split one properties line into its key and value at the first `=`.
+ * @param line - Raw properties line, known to contain `=`.
+ * @returns The trimmed key and value.
+ */
+function splitProperty(line: string): readonly [string, string] {
+  const at = line.indexOf('=');
+  return [line.slice(0, at).trim(), line.slice(at + 1).trim()];
+}
+
+/** Multicriteria criterion id carrying the S6564 exemption. */
+const SONAR_CRITERION = 'jsonUnknownAlias';
+
+/** Shape of the slice of ESLint's resolved config this test reads. */
+interface IResolvedConfig {
+  readonly rules?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Resolve the severity ESLint applies to S6564 for one file.
+ * @param target - Absolute path of the file to resolve config for.
+ * @returns The configured severity, as ESLint reports it.
+ */
+async function s6564SeverityFor(target: string): Promise<unknown> {
+  const engine = new ESLint();
+  const resolved = (await engine.calculateConfigForFile(target)) as IResolvedConfig;
+  const entry = resolved.rules?.[S6564_ESLINT_RULE];
+  if (!Array.isArray(entry)) return entry;
+  return entry[0];
+}
+
+/**
+ * Ask S6564 itself which aliases in a file it considers redundant.
+ *
+ * <p>Modelling the rule by hand drifts from it: the installed rule reports a
+ * type reference only when it resolves to another alias, so an alias to an
+ * interface is not a violation. Running the real rule cannot drift.
+ * @param relative - Repo-relative POSIX path of the file to lint.
+ * @returns The alias names the rule reports, sorted.
+ */
+async function s6564ReportsFor(relative: string): Promise<readonly string[]> {
+  const absolute = path.join(REPO_ROOT, relative);
+  const engine = new ESLint({ overrideConfig: { rules: { [S6564_ESLINT_RULE]: 'error' } } });
+  const results = await engine.lintFiles([absolute]);
+  const lines = reportedLinesFor(results);
+  const byLine = aliasNamesByLine(absolute);
+  const names = lines.map((line): string => byLine.get(line) ?? `unmatched:${String(line)}`);
+  return names.sort();
+}
+
+/**
+ * Collect the line numbers S6564 reported across one lint run.
+ * @param results - Raw ESLint results for the linted file.
+ * @returns One-based line numbers, in report order.
+ */
+function reportedLinesFor(results: readonly ESLint.LintResult[]): readonly number[] {
+  const found: number[] = [];
+  for (const result of results) {
+    for (const message of result.messages) {
+      if (message.ruleId === S6564_ESLINT_RULE) found.push(message.line);
+    }
+  }
+  return found;
+}
+
+/**
+ * Index a file's alias declarations by the line their name sits on.
+ * @param absolute - Absolute path of the file to parse.
+ * @returns Map from one-based line number to alias name.
+ */
+function aliasNamesByLine(absolute: string): ReadonlyMap<number, string> {
+  const byLine = new Map<number, string>();
+  for (const node of aliasesOf(absolute)) {
+    const source = node.getSourceFile();
+    const line = lineOf(node.name, source);
+    byLine.set(line, node.name.text);
+  }
+  return byLine;
+}
+
 describe('RC-5 — JsonValue single source of truth', () => {
   const sourceFiles = listSourceFiles(PIPELINE_ROOT);
 
@@ -576,6 +805,52 @@ describe('RC-5 — JsonValue single source of truth', () => {
     const declared = decls.map((decl): string => decl.symbol).sort();
     const expected = [...OWNED_SYMBOLS].sort();
     expect(declared).toStrictEqual(expected);
+  });
+
+  // The S6564 exemption is FILE-scoped — none of the three enforcers offers a
+  // declaration-scoped exclusion — so it silences the rule for every alias in
+  // the canonical module, not just the open arm. `type JsonValue = unknown`
+  // would slip past all three. These tests put the guard back at declaration
+  // granularity, and prove the exemption is still bound to the rule and the
+  // path it claims.
+  it('pins every S6564-redundant alias the file-scoped exemption silences', async () => {
+    const reported = await s6564ReportsFor(CANONICAL_POSIX);
+    expect(reported).toStrictEqual(S6564_SILENCED_ALIASES);
+  }, 60_000);
+
+  it('disables S6564 for the canonical module in the resolved ESLint config', async () => {
+    const target = path.join(REPO_ROOT, CANONICAL_POSIX);
+    const severity = await s6564SeverityFor(target);
+    expect([0, 'off']).toContain(severity);
+  }, 60_000);
+
+  it('keeps S6564 armed for neighbouring Pipeline modules', async () => {
+    const target = path.join(PIPELINE_ROOT, NEIGHBOUR_REL);
+    const severity = await s6564SeverityFor(target);
+    expect([2, 'error']).toContain(severity);
+  }, 60_000);
+
+  it('keeps the Sonar exemption bound to S6564, the path, and the active list', () => {
+    const sonarFile = path.join(REPO_ROOT, 'sonar-project.properties');
+    const props = activeProperties(sonarFile);
+    expect(props[`${SONAR_KEY}.ruleKey`]).toBe(S6564_RULE);
+    expect(props[`${SONAR_KEY}.resourceKey`]).toBe(CANONICAL_POSIX);
+    const active = (props['sonar.issue.ignore.multicriteria'] ?? '').split(',');
+    expect(active).toContain(SONAR_CRITERION);
+  });
+
+  it('keeps the canary allowlist entry bound to the S6564 tag', () => {
+    const allowlist = path.join(REPO_ROOT, 'src', 'Tests', 'Tools', 'architecture-allowlist.json');
+    const raw = fs.readFileSync(allowlist, 'utf8');
+    const parsed = JSON.parse(raw) as Record<string, readonly string[]>;
+    const tags = parsed[CANONICAL_POSIX] ?? [];
+    expect(tags).toContain(S6564_CANARY_TAG);
+  });
+
+  it('holds the duplicate open-record alias population at its baseline', () => {
+    const allSources = listSourceFiles(SRC_ROOT);
+    const aliasCount = openRecordAliasCount(allSources);
+    expect(aliasCount).toBe(OPEN_RECORD_ALIASES);
   });
 
   it('detects declaration forms a line scanner would miss', () => {

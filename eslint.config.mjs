@@ -3811,4 +3811,61 @@ export default tseslint.config(
       '@typescript-eslint/no-deprecated': 'off',
     },
   },
+
+  // ── `JsonUnknown` is the one alias S6564 may not judge ───────────
+  //
+  //     `Types/JsonValue.ts` declares `type JsonUnknown = unknown` —
+  //     the single name for "a boundary value nobody has narrowed
+  //     yet". S6564 (`sonarjs/redundant-type-aliases`) fires because
+  //     the alias carries no TYPE information. That is true, and it is
+  //     beside the point: the NAME is the contract. It marks an
+  //     OPAQUE boundary — a value carrying no structural guarantee —
+  //     and it is the vocabulary `JsonValueSingleSource.test.ts` uses
+  //     to tell the open arm from the closed ones. Note it does NOT
+  //     today keep bare `unknown` out of Pipeline signatures: both
+  //     `unknown` signature selectors sit in
+  //     `PIPELINE_SYNTAX_PENDING_DRAIN` above and are filtered out of
+  //     the active rule set.
+  //
+  //     The alias is exempted rather than re-spelled because each
+  //     obvious direct alternative is blocked by another enabled gate
+  //     — every one below was run, not assumed. (Indirect evasions
+  //     such as `ReturnType<() => unknown>` do pass; they are worse
+  //     than an explicit, documented exemption, not better.)
+  //       - `JsonValue | NonNullable<unknown> | null | undefined`, the
+  //         spelling this replaced, trips
+  //         `@typescript-eslint/no-generated-empty-object-type` (added
+  //         in 8.70.0): `NonNullable<unknown>` resolves to `{}`.
+  //       - `JsonValue | unknown | null | undefined` trips
+  //         `@typescript-eslint/no-redundant-type-constituents`.
+  //       - `JsonValue | object | null | undefined` trips `tsc`: 20
+  //         diagnostics, boundary call sites passing `unknown` in by
+  //         design, which is precisely what the type exists to accept.
+  //
+  //     Mirrored by `jsonUnknownAlias` in `sonar-project.properties`;
+  //     without that, SonarCloud fails the quality gate on the same
+  //     rule and `sonar.qualitygate.wait=true` blocks the merge.
+  //
+  //     This override is FILE-scoped — the narrowest scope ESLint
+  //     supports — so it also silences S6564 for the closed arms
+  //     declared alongside it. `JsonValueSingleSource.test.ts`
+  //     restores the declaration-level guard by running S6564
+  //     itself with this override reversed, and asserting the rule
+  //     reports exactly one alias here: `JsonUnknown`. (`JsonObject`
+  //     is not reported — S6564 flags a reference only when it
+  //     resolves to another alias, and `IJsonObject` is an
+  //     interface.) It also asserts, through ESLint's own resolved
+  //     config, that S6564 is off for this file and still armed
+  //     for its neighbours.
+  //
+  //     Removal condition: drop this when the alias is deleted, or if
+  //     S6564 gains an exemption for documented top-type aliases. It
+  //     may only ever be narrowed, never widened
+  //     (eslint-rules-guidlines.md §4).
+  {
+    files: ['src/Scrapers/Pipeline/Types/JsonValue.ts'],
+    rules: {
+      'sonarjs/redundant-type-aliases': 'off',
+    },
+  },
 );
