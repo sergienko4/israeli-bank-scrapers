@@ -9,9 +9,14 @@
  * records warm=true; an absent token runs cold and records warm=false.
  */
 
+import { PassThrough } from 'node:stream';
+
+import pino from 'pino';
+
 import { CompanyTypes } from '../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { ScraperCredentials } from '../../../../../Scrapers/Base/Interface.js';
+import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
 import { runApiDirectCallAction } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.action.js';
@@ -176,6 +181,55 @@ function ctxFor(rec: IWarmRecorder, token?: string): ReturnType<typeof makeMockC
   });
 }
 
+/** A logger plus the buffer capturing everything it emitted. */
+interface ILogRecorder {
+  readonly logger: ScraperLogger;
+  readonly read: () => string;
+}
+
+/**
+ * Build a real pino logger writing into an in-memory buffer.
+ * @returns Logger plus a reader for the emitted lines.
+ */
+function makeLogRecorder(): ILogRecorder {
+  const stream = new PassThrough();
+  let output = '';
+  stream.on('data', (chunk: Buffer) => {
+    output += chunk.toString();
+  });
+  const logger = pino({ level: 'warn' }, stream);
+  return {
+    logger,
+    /**
+     * Read everything the logger has emitted so far.
+     * @returns Accumulated log output.
+     */
+    read: (): string => output,
+  };
+}
+
+/**
+ * Run the ACTION stage against a recording logger.
+ * @param rec - The recording bus.
+ * @param token - Optional cached long-term JWT.
+ * @returns The emitted log output plus the action's procedure result.
+ */
+async function runWithLogRecorder(
+  rec: IWarmRecorder,
+  token?: string,
+): Promise<{ logs: string; result: Procedure<unknown> }> {
+  const recorder = makeLogRecorder();
+  const base = ctxFor(rec, token);
+  const ctx = { ...base, logger: recorder.logger };
+  const config = warmConfig();
+  const result = await runApiDirectCallAction(config, ctx);
+  const logs = recorder.read();
+  return { logs, result };
+}
+
+/** Text the degradation warning must contain to be actionable. */
+const FALLBACK_WARNING = 'stored long-term token was not accepted';
+
 describe('ApiDirectCall ACTION records the warm flag from the actual prime path', () => {
   it('records warm=false when the cached JWT is stale (cold flow runs)', async () => {
     const coldTok = succeed({ access_token: 'cold-tok' });
@@ -200,6 +254,31 @@ describe('ApiDirectCall ACTION records the warm flag from the actual prime path'
     expect(result.success).toBe(true);
     expect(wasWarm).toBe(true);
     expect(rec.captures).toHaveLength(0);
+  });
+
+  it('warns when a stored token was supplied but the cold SMS flow ran', async () => {
+    const coldTok = succeed({ access_token: 'cold-tok' });
+    const rec = makeWarmRecordingBus([coldTok]);
+    const staleJwt = makeJwt(-10);
+    const { logs, result } = await runWithLogRecorder(rec, staleJwt);
+    expect(result.success).toBe(true);
+    expect(logs).toContain(FALLBACK_WARNING);
+  });
+
+  it('stays quiet when no token was stored, since nothing degraded', async () => {
+    const coldTok = succeed({ access_token: 'cold-tok' });
+    const rec = makeWarmRecordingBus([coldTok]);
+    const { logs, result } = await runWithLogRecorder(rec);
+    expect(result.success).toBe(true);
+    expect(logs).not.toContain(FALLBACK_WARNING);
+  });
+
+  it('stays quiet when the warm path actually succeeded', async () => {
+    const rec = makeWarmRecordingBus([]);
+    const freshJwt = makeJwt(3600);
+    const { logs, result } = await runWithLogRecorder(rec, freshJwt);
+    expect(result.success).toBe(true);
+    expect(logs).not.toContain(FALLBACK_WARNING);
   });
 
   it('records warm=false when no cached token is present (cold flow)', async () => {

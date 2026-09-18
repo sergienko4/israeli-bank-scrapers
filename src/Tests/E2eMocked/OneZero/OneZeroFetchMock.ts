@@ -5,11 +5,19 @@
  * Rule #18: every value here is SYNTHETIC. No real PII.
  * Rule #17: mock suite parity — 8/8 target.
  *
- * The mock short-circuits the OTP flow via `otpLongTermToken`, so only the
- * following endpoints need synthetic responses:
+ * The mock serves the whole identity chain, so a cold login and a warm login
+ * are both reachable:
+ *   - POST <identityBase>.../devices/token
+ *   - POST <identityBase>.../otp/prepare
+ *   - POST <identityBase>.../otp/verify
  *   - POST <identityBase>.../getIdToken
  *   - POST <identityBase>.../sessions/token
  *   - POST <graphqlUrl>  (operation-name dispatch)
+ *
+ * `sessions/token` validates the `idToken` it is handed rather than accepting
+ * anything, so an expired or opaque artifact is rejected the way the real bank
+ * rejects it. Without that, a warm start replaying a dead token looked healthy
+ * here while failing in production — the blind spot behind issue #576.
  *
  * Since fix/onezero-camoufox-identity-tls, identity calls route through the
  * Camoufox-backed strategy. The CamoufoxJsMock fake-page-eval mode is toggled
@@ -19,6 +27,7 @@
 
 import { setMtlsFetchFallback } from '../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import { invokeFetch } from '../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js';
+import { makeJwtExpiringIn, makeJwtExpiringInWithClaims } from '../../Helpers/Jwt.js';
 import { setFakePageEvalMode } from '../../Mocks/CamoufoxJsMock.js';
 
 /** Tally values returned alongside dispose for wiring assertions. */
@@ -37,22 +46,41 @@ export interface IMockHandle {
   readonly callCounts: () => IMockCallCounts;
 }
 
+const ONE_YEAR_SECONDS = 365 * 24 * 60 * 60;
+const ONE_HOUR_SECONDS = 60 * 60;
+
+/**
+ * Long-lived artifact minted by /getIdToken — the handle warm start keeps.
+ * The distinguishing `sub` keeps a freshly minted token textually different
+ * from the stored seed, so a test can tell a cold mint from a warm reuse.
+ */
+export const SYN_ID_TOKEN = makeJwtExpiringInWithClaims(ONE_YEAR_SECONDS, {
+  sub: 'syn-minted-id-token',
+});
+
+/** Short-lived artifact minted by /otp/verify — deliberately NOT persisted. */
+const SYN_OTP_TOKEN = makeJwtExpiringIn(ONE_HOUR_SECONDS);
+
+const SYN_DEVICE_TOKEN = 'syn-device-a7f4b2c8';
+const SYN_OTP_CONTEXT = 'syn-otp-ctx-a7f4b2c8';
+const SYN_ACCESS_TOKEN = 'syn-access-d3e9';
 /** Synthetic credentials for mock-mode runs — safe for public fixtures. */
 export const ONEZERO_MOCK_CREDS = Object.freeze({
   email: 'synthetic-onezero@example.test',
   password: 'synthetic-pass',
   phoneNumber: '972000000000',
-  otpLongTermToken: 'syn-otp-long-term-a7f4b2c8',
+  otpLongTermToken: makeJwtExpiringInWithClaims(ONE_YEAR_SECONDS, {
+    sub: 'syn-stored-id-token',
+  }),
 });
 
-const SYN_ID_TOKEN = 'syn-id-a7f4b2c8';
-const SYN_ACCESS_TOKEN = 'syn-access-d3e9';
 const SYN_PORTFOLIO_ID = 'portfolio-a7f4b2c8';
 const SYN_PORTFOLIO_NUM = '40286139';
 const SYN_ACCOUNT_ID = 'acct-b7c4';
 const SYN_CURSOR_PAGE_TWO = 'next-page';
 const SYN_CURSOR_NONE = '';
 const SYN_BALANCE = 2850.6;
+const JWT_SEGMENTS = 3;
 const MIN_OK_STATUS = 200;
 const MAX_OK_STATUS = 300;
 
@@ -125,6 +153,16 @@ function jsonOk(payload: JsonObject): IResponseLike {
 function notFound(message: string): IResponseLike {
   const bodyText = JSON.stringify({ message });
   return buildResponse(404, bodyText);
+}
+
+/**
+ * Build a 401 Response-like carrying a bank-style error code.
+ * @param errorCode - Identity-server error code, e.g. ErrorInvalidToken.
+ * @returns A 401 Response-like.
+ */
+function rejected(errorCode: string): IResponseLike {
+  const bodyText = JSON.stringify({ errorCode });
+  return buildResponse(401, bodyText);
 }
 
 /** A single synthetic movement row. */
@@ -360,18 +398,107 @@ function routeMovements(body: IGraphqlRequestBody): IResponseLike {
   return jsonOk(payload);
 }
 
+/** Returned by readExpSeconds when a token carries no usable expiry. */
+const NO_EXPIRY = 0;
+
 /**
- * Route an identity request (getIdToken / sessions/token).
+ * Decode the `exp` claim of a compact JWT.
+ * @param token - Candidate token.
+ * @returns Expiry in epoch seconds, or NO_EXPIRY when the token carries none.
+ */
+function readExpSeconds(token: string): number {
+  const segments = token.split('.');
+  if (segments.length !== JWT_SEGMENTS) return NO_EXPIRY;
+  try {
+    const json = Buffer.from(segments[1], 'base64url').toString('utf8');
+    const decoded = JSON.parse(json) as { exp?: unknown };
+    const exp = decoded.exp;
+    return typeof exp === 'number' ? exp : NO_EXPIRY;
+  } catch {
+    return NO_EXPIRY;
+  }
+}
+
+/**
+ * Decide whether the bank would still honour a token.
+ * Opaque and expired artifacts are both rejected, exactly as the real identity
+ * server rejects them.
+ *
+ * Assumption on record: OneZero's artifacts are JWTs — the capture in issue
+ * #576 decodes `iat`/`exp` on both. Identity servers may legitimately issue
+ * opaque handles, so if OneZero ever switches, this fixture will start failing
+ * runs that the real bank would accept. Read that as a fixture to update, not
+ * as a product regression.
+ * @param token - Token lifted from the request body.
+ * @returns True when the token is a JWT that has not expired.
+ */
+function isAcceptedByBank(token: string): boolean {
+  if (token === '') return false;
+  const expSeconds = readExpSeconds(token);
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  return expSeconds > nowSeconds;
+}
+
+/**
+ * Read one string field out of a JSON request body.
+ * @param field - Field name to lift.
+ * @param init - Fetch init carrying the serialized body.
+ * @returns The field value, or an empty string when absent or unparseable.
+ */
+function readBodyString(field: string, init?: RequestInit): string {
+  const raw = init?.body;
+  if (typeof raw !== 'string') return '';
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const value = parsed[field];
+    return typeof value === 'string' ? value : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Serve /getIdToken, which the bank gates on a live otpSmsToken.
+ * @param init - Fetch init carrying the request body.
+ * @returns Response-like envelope carrying the durable idToken.
+ */
+function routeGetIdToken(init?: RequestInit): IResponseLike {
+  const otpSmsToken = readBodyString('otpSmsToken', init);
+  const isLive = isAcceptedByBank(otpSmsToken);
+  if (!isLive) return rejected('ErrorInvalidToken');
+  return jsonOk({ resultData: { idToken: SYN_ID_TOKEN } });
+}
+
+/**
+ * Serve /sessions/token, which mints a short-lived access token from an idToken.
+ * @param init - Fetch init carrying the request body.
+ * @returns Response-like envelope carrying the access token.
+ */
+function routeSessionToken(init?: RequestInit): IResponseLike {
+  const idToken = readBodyString('idToken', init);
+  const isLive = isAcceptedByBank(idToken);
+  if (!isLive) return rejected('ErrorInvalidToken');
+  return jsonOk({ resultData: { accessToken: SYN_ACCESS_TOKEN } });
+}
+
+/** Identity routes that need no request-body validation. */
+const STATIC_IDENTITY_ROUTES: readonly (readonly [string, JsonObject])[] = [
+  ['devices/token', { resultData: { deviceToken: SYN_DEVICE_TOKEN } }],
+  ['otp/prepare', { resultData: { otpContext: SYN_OTP_CONTEXT } }],
+  ['otp/verify', { resultData: { otpToken: SYN_OTP_TOKEN } }],
+];
+
+/**
+ * Route an identity request across the full login chain.
  * @param url - Request URL (already classified as identity).
+ * @param init - Fetch init carrying the request body.
  * @returns Response-like envelope for the detected path.
  */
-function routeIdentity(url: string): IResponseLike {
-  if (url.includes('getIdToken')) {
-    return jsonOk({ resultData: { idToken: SYN_ID_TOKEN } });
-  }
-  if (url.includes('sessions/token')) {
-    return jsonOk({ resultData: { accessToken: SYN_ACCESS_TOKEN } });
-  }
+function routeIdentity(url: string, init?: RequestInit): IResponseLike {
+  const staticRoute = STATIC_IDENTITY_ROUTES.find(([path]) => url.includes(path));
+  if (staticRoute) return jsonOk(staticRoute[1]);
+  if (url.includes('getIdToken')) return routeGetIdToken(init);
+  if (url.includes('sessions/token')) return routeSessionToken(init);
   return notFound('unknown mock identity route');
 }
 
@@ -412,7 +539,7 @@ function dispatch(url: string, tally: ICallTally, init?: RequestInit): IResponse
   const kind = classify(url);
   if (kind === 'identity') {
     tally.identity += 1;
-    return routeIdentity(url);
+    return routeIdentity(url, init);
   }
   if (kind === 'graphql') {
     tally.graphql += 1;

@@ -12,7 +12,11 @@ import { CompanyTypes } from '../../../Definitions.js';
 import type { ScraperCredentials } from '../../../Scrapers/Base/Interface.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
 import type { IMockHandle as IOneZeroMockHandle } from '../OneZero/OneZeroFetchMock.js';
-import { installOneZeroFetchMock, ONEZERO_MOCK_CREDS } from '../OneZero/OneZeroFetchMock.js';
+import {
+  installOneZeroFetchMock,
+  ONEZERO_MOCK_CREDS,
+  SYN_ID_TOKEN,
+} from '../OneZero/OneZeroFetchMock.js';
 import type { IMockHandle as IPepperMockHandle } from '../Pepper/PepperFetchMock.js';
 import { installPepperFetchMock, PEPPER_MOCK_CREDS } from '../Pepper/PepperFetchMock.js';
 
@@ -61,6 +65,12 @@ interface IApiDirectFlowCase {
   readonly minTxns?: number;
   readonly minGraphqlCalls: number;
   readonly minIdentityCalls?: number;
+  readonly maxIdentityCalls?: number;
+  readonly expectsWarmStart?: boolean;
+  /** Exact `result.persistentOtpToken` the caller must receive back. */
+  readonly expectedPersistentToken?: string;
+  /** How many times the pipeline is allowed to ask for an SMS code. */
+  readonly expectedOtpPrompts?: number;
   readonly timeoutMs?: number;
 }
 
@@ -88,22 +98,80 @@ const PEPPER_CASE: IApiDirectFlowCase = {
   minGraphqlCalls: 3,
 };
 
+/** Records whether the pipeline asked for an SMS code during a run. */
+const OTP_PROMPTS: string[] = [];
+
+/** OTP code the OneZero mock accepts on the cold chain. */
+const ONEZERO_FAKE_OTP = '123456';
+
+/**
+ * OTP retriever that records being called.
+ * A warm start must never reach it: needing a code means we fell back to the
+ * cold SMS chain, which is the silent degradation issue #576 reported.
+ * @param phoneHint - Masked phone the pipeline would have texted.
+ * @returns Placeholder code, only ever used if the cold path is taken.
+ */
+function recordingOtpRetriever(phoneHint: string): Promise<string> {
+  OTP_PROMPTS.push(phoneHint);
+  return Promise.resolve(ONEZERO_FAKE_OTP);
+}
+
+/**
+ * Zero-arg OTP retriever matching the credentials-side contract.
+ * @returns Placeholder code, recorded so the test can count SMS prompts.
+ */
+function credsOtpRetriever(): Promise<string> {
+  return recordingOtpRetriever('creds');
+}
+
 const ONEZERO_CASE: IApiDirectFlowCase = {
   displayName: 'OneZero',
   companyId: CompanyTypes.OneZero,
   installFetchMock: installOneZeroFetchMock,
   mockCreds: { ...ONEZERO_MOCK_CREDS },
+  otpCodeRetriever: recordingOtpRetriever,
   startDate: ONEZERO_START_DATE,
   expectedAccounts: 1,
   expectedAccountNumber: '40286139',
   expectedBalance: 2850.6,
   minTxns: 2,
   minGraphqlCalls: 3,
-  minIdentityCalls: 2,
+  // One call: /sessions/token. A warm start that also hits /getIdToken is
+  // replaying a mid-chain artifact and has regressed to the issue-#576 shape.
+  minIdentityCalls: 1,
+  maxIdentityCalls: 1,
+  expectsWarmStart: true,
+  // The stored seed is replayed verbatim, so the caller gets it back unchanged.
+  expectedPersistentToken: ONEZERO_MOCK_CREDS.otpLongTermToken,
+  expectedOtpPrompts: 0,
   timeoutMs: 60000,
 };
 
-const CASES: readonly IApiDirectFlowCase[] = [PEPPER_CASE, ONEZERO_CASE];
+/**
+ * Credentials without a stored long-term token — forces the full cold chain.
+ * @returns OneZero mock credentials minus `otpLongTermToken`.
+ */
+function coldOneZeroCreds(): ScraperCredentials {
+  const { otpLongTermToken, ...rest } = ONEZERO_MOCK_CREDS;
+  expect(otpLongTermToken.length).toBeGreaterThan(0);
+  return { ...rest, otpCodeRetriever: credsOtpRetriever };
+}
+
+const ONEZERO_COLD_CASE: IApiDirectFlowCase = {
+  ...ONEZERO_CASE,
+  displayName: 'OneZero (cold)',
+  mockCreds: coldOneZeroCreds(),
+  // Full chain: devices/token, otp/prepare, otp/verify, getIdToken, sessions/token.
+  minIdentityCalls: 5,
+  maxIdentityCalls: 5,
+  expectsWarmStart: false,
+  // A cold run mints a brand-new handle; the caller must receive that one so it
+  // can be stored for the next run. Distinct from the stored seed by `sub`.
+  expectedPersistentToken: SYN_ID_TOKEN,
+  expectedOtpPrompts: 1,
+};
+
+const CASES: readonly IApiDirectFlowCase[] = [PEPPER_CASE, ONEZERO_CASE, ONEZERO_COLD_CASE];
 
 /** Minimal scraper-options shape exercised by this parameterized spec. */
 interface IApiDirectScraperOptions {
@@ -157,13 +225,42 @@ function assertAccountShape(account: IAccountSlice, testCase: IApiDirectFlowCase
 function assertCallCounts(handle: MockHandle, testCase: IApiDirectFlowCase): boolean {
   const counts = handle.callCounts();
   expect(counts.graphql).toBeGreaterThanOrEqual(testCase.minGraphqlCalls);
+  if (testCase.maxIdentityCalls !== undefined) {
+    expect(counts.identity).toBeLessThanOrEqual(testCase.maxIdentityCalls);
+  }
   if (testCase.minIdentityCalls !== undefined) {
     expect(counts.identity).toBeGreaterThanOrEqual(testCase.minIdentityCalls);
   }
   return true;
 }
 
+/** Slice of the scrape result carrying the durable re-login token. */
+interface IAuthOutcomeSlice {
+  readonly persistentOtpToken?: string;
+}
+
+/**
+ * Asserts the caller-visible auth outcome: how many SMS prompts the run cost
+ * and which durable token the caller receives back to store for next time.
+ * @param result scrape result under assertion.
+ * @param testCase parameterized bank case providing the expectations.
+ * @returns `true` once every encoded expectation has been verified.
+ */
+function assertAuthOutcome(result: IAuthOutcomeSlice, testCase: IApiDirectFlowCase): boolean {
+  if (testCase.expectedOtpPrompts !== undefined) {
+    expect(OTP_PROMPTS).toHaveLength(testCase.expectedOtpPrompts);
+  }
+  if (testCase.expectedPersistentToken !== undefined) {
+    expect(result.persistentOtpToken).toBe(testCase.expectedPersistentToken);
+  }
+  return true;
+}
+
 describe.each(CASES)('API-DIRECT mocked E2E — $displayName', testCase => {
+  beforeEach(() => {
+    OTP_PROMPTS.length = 0;
+  });
+
   it(
     'completes login + scrape and returns synthetic accounts',
     async () => {
@@ -178,6 +275,7 @@ describe.each(CASES)('API-DIRECT mocked E2E — $displayName', testCase => {
           expect(accounts).toHaveLength(testCase.expectedAccounts);
           assertAccountShape(accounts[0], testCase);
           assertCallCounts(handle, testCase);
+          assertAuthOutcome(result, testCase);
         }
       } finally {
         handle.dispose();

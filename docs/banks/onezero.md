@@ -23,6 +23,47 @@ const result = await scraper.scrape({
 // Save result.persistentOtpToken — pass as otpLongTermToken on next run to skip SMS
 ```
 
+## Warm start (skipping the SMS)
+
+`result.persistentOtpToken` carries the long-lived `idToken` the identity server
+mints. Pass it back as `otpLongTermToken` and the next run re-uses it to mint a
+fresh access token, so no SMS is sent.
+
+The same value is also delivered to the `onAuthFlowComplete` callback as
+`longTermToken`, which is useful when you want to persist it as soon as login
+completes rather than waiting for the scrape to finish.
+
+### Treat it as a standing bypass of your second factor
+
+**This token does not rotate.** A warm run replays the stored value and returns
+it unchanged, so the value you store is the one minted by your last SMS login
+and it stays valid until the bank expires it — observed as roughly a year, not
+a session. Anyone holding it can skip the SMS step for that entire period, so
+store it with the same care as the password itself: encrypted at rest, never in
+source control, never in a shared log.
+
+One thing limits the damage: the token alone is not a bearer credential. The
+final `/sessions/token` call sends the stored token **and** the account
+password, so a leaked token cannot mint a session on its own. It is a bypass of
+the SMS factor, not of authentication.
+
+Re-read it from every result and overwrite your copy, so that a run which falls
+back to a cold login replaces the stored value with the newly minted one. The
+value is redacted from logs and snapshots like any other token.
+
+The token is checked for freshness before use. When it has expired — or when it
+is a token stored by an earlier version, which persisted a different,
+short-lived artifact — the scraper falls back to the full SMS login and returns
+a newly minted `persistentOtpToken`, and a warning is logged recording that the
+stored token was not accepted. No migration step is needed; the first run after
+upgrading costs one SMS and heals itself.
+
+> Earlier versions persisted an artifact that expired about an hour after the original
+> SMS login and was never refreshed, so warm start appeared to work and then
+> quietly reverted to sending an SMS on every run ([#576][issue-576]).
+
+[issue-576]: https://github.com/sergienko4/israeli-bank-scrapers/issues/576
+
 ## Transport — Cloudflare mutual TLS (mTLS)
 
 The OneZero identity + GraphQL endpoints sit behind **Cloudflare API Shield**, which

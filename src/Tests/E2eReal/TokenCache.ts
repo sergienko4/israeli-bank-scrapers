@@ -83,6 +83,10 @@ const CACHE_FILE_MODE = 0o600;
 /**
  * Safely write the cache file (UTF-8, truncating any prior content) with
  * owner-only permissions. Returns false on any write error.
+ *
+ * The explicit chmod matters: `mode` on `writeFile` only applies when the file
+ * is created, so a cache file that already exists with looser permissions would
+ * silently keep them while holding a token that stays valid for months.
  * @param cachePath - Absolute path.
  * @param token - Token string.
  * @param log - Logger for WARN diagnostics.
@@ -95,6 +99,7 @@ async function writeCacheSafe(
 ): Promise<boolean> {
   try {
     await fs.writeFile(cachePath, token, { encoding: 'utf8', mode: CACHE_FILE_MODE });
+    await fs.chmod(cachePath, CACHE_FILE_MODE);
     return true;
   } catch (error) {
     const e = error as NodeJS.ErrnoException;

@@ -26,6 +26,7 @@ import { BasePhase } from '../Base/BasePhase.js';
 const INIT_STUBS = {
   mediator: none(),
   login: none(),
+  durableAuth: none(),
   scrape: none(),
   fetchStrategy: none(),
   loginFieldDiscovery: none(),

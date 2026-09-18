@@ -72,8 +72,14 @@ export const SENSITIVE_PATHS = [
   'description',
   'merchant',
   'payee',
-  // Long-term auth context (otpLongTermToken + assertion ids) — fully redacted
+  // Long-term auth context (otpLongTermToken + assertion ids) — fully redacted.
+  // `longTermToken` is the onAuthFlowComplete payload key and
+  // `persistentOtpToken` is the public result field; the same durable
+  // credential travels under all three names, and pino's redact.paths is an
+  // exact-name match, so every alias has to be listed (issue #576).
   'otpLongTermToken',
+  'longTermToken',
+  'persistentOtpToken',
   'idToken',
   'otpToken',
   'smsAssertionId',

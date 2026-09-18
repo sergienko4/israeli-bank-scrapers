@@ -95,7 +95,7 @@ type BalanceOptions = Pick<IResultSlots, BalanceSlotKey>;
  * @returns Phase-state Options set to none().
  */
 function emptyPhaseStateOptions(): PhaseStateOptions {
-  return { login: none(), dashboard: none(), scrape: none(), api: none() };
+  return { login: none(), dashboard: none(), scrape: none(), api: none(), durableAuth: none() };
 }
 
 /**

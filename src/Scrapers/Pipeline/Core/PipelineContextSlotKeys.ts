@@ -10,7 +10,7 @@
  */
 
 /** Phase-state slot keys (top-level phase outcomes). */
-export type PhaseStateSlotKey = 'login' | 'dashboard' | 'scrape' | 'api';
+export type PhaseStateSlotKey = 'login' | 'dashboard' | 'scrape' | 'api' | 'durableAuth';
 
 /** Discovery slot keys (intermediate findings consumed by later phases). */
 export type DiscoverySlotKey =

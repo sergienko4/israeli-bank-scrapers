@@ -65,6 +65,23 @@ function extractAccounts(ctx: IPipelineContext): IScraperScrapingResult['account
 }
 
 /**
+ * Read the durable re-login token from whichever slot produced it.
+ *
+ * Browser scrapers write it into the LOGIN phase state; API-direct banks have
+ * no LOGIN phase and write it into `ctx.durableAuth`. Both are surfaced through
+ * the single public `result.persistentOtpToken`.
+ * @param ctx - Pipeline context.
+ * @returns The token, or an empty string when no login path produced one.
+ */
+function extractPersistentOtpToken(ctx: IPipelineContext): string {
+  if (ctx.durableAuth.has) return ctx.durableAuth.value.persistentOtpToken;
+  if (ctx.login.has && ctx.login.value.persistentOtpToken.has) {
+    return ctx.login.value.persistentOtpToken.value;
+  }
+  return '';
+}
+
+/**
  * Extract scrape results from a successful pipeline context.
  * @param ctx - The final pipeline context after all phases.
  * @returns Legacy result with accounts and OTP token.
@@ -74,9 +91,8 @@ function extractSuccess(ctx: IPipelineContext): IScraperScrapingResult {
     success: true,
     accounts: extractAccounts(ctx),
   };
-  if (ctx.login.has && ctx.login.value.persistentOtpToken.has) {
-    base.persistentOtpToken = ctx.login.value.persistentOtpToken.value;
-  }
+  const durable = extractPersistentOtpToken(ctx);
+  if (durable.length > 0) base.persistentOtpToken = durable;
   return base;
 }
 

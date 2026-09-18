@@ -532,6 +532,8 @@ const PII_IDENTIFIER_NAMES: readonly string[] = [
   'nationalId',
   'MisparZihuy',
   'otpLongTermToken',
+  'longTermToken',
+  'persistentOtpToken',
   'otpToken',
   'idToken',
   'userName',
