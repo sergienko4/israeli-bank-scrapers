@@ -263,7 +263,10 @@ if has "${public_surface_paths}"; then public_surface=true; fi
 # `package.json` is in the set because the gate is reached through the
 # `lint:syntax-guardrails` npm script: deleting or redirecting that script
 # would otherwise silently skip the guard while every group stayed false.
-if has '^eslint\.config\.mjs$|^scripts/check-syntax-guardrails\.mjs$|^package\.json$'; then
+# `eslint.canary-scope.mjs` is in the set because `eslint.config.mjs`
+# imports it directly and it decides which files the guard even sees —
+# editing it alone would otherwise skip lint entirely.
+if has '^eslint\.config\.mjs$|^eslint\.canary-scope\.mjs$|^scripts/check-syntax-guardrails\.mjs$|^package\.json$'; then
   syntax_guardrails=true
 fi
 

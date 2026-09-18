@@ -87,10 +87,59 @@ const DETECTOR_OUTPUT_BRANCHES = 3;
 /** Flags that must be emitted on every one of those branches. */
 const DETECTOR_FLAGS = ['critical_deps', 'full_suite', 'public_surface'] as const;
 
-/** Steps that must also fire on a lockfile-only bump, not just `full_suite`. */
-const AUDIT_STEP_NAMES = [
+/**
+ * Steps that must also fire on a lockfile-only bump, not just `full_suite`.
+ *
+ * <p>A lint-rule bump lands as `deps` alone: `critical_deps` covers only the
+ * browser stack, so `full_suite` (`src OR critical_deps`) stays false and a
+ * step gated on `full_suite` never runs. `typescript-eslint` 8.70.0 reached
+ * main exactly that way — it added `no-generated-empty-object-type`, which
+ * fires on existing `src/` code, so the FIRST unrelated PR afterwards failed
+ * lint while the bump itself merged green.
+ */
+const DEPS_GATED_STEP_NAMES = [
   'Audit production dependencies',
   'Audit all dependencies (informational)',
+  'ESLint (warnings as errors)',
+] as const;
+
+/**
+ * Steps that must ALSO fire when only the lint configuration changes.
+ *
+ * <p>`syntax_guardrails` is the flag a PR touching `eslint.config.mjs` alone
+ * sets — it sets neither `src`, `deps` nor `full_suite`. A rule tightened by
+ * hand is the same hazard as one arriving via dependabot, so the run that
+ * changes the rules must be the run that proves them.
+ */
+const CONFIG_GATED_STEP_NAMES = ['ESLint (warnings as errors)'] as const;
+
+/** Every step above, deduplicated — `ESLint` belongs to both sets. */
+const GATED_STEP_NAMES = [...DEPS_GATED_STEP_NAMES, ...CONFIG_GATED_STEP_NAMES];
+
+/**
+ * Steps whose flags must be OR-ed, never AND-ed.
+ *
+ * <p>`full_suite == 'true' && deps == 'true'` satisfies every membership
+ * assertion above and still skips the step on the deps-only bump those
+ * assertions exist to catch. The operator is the invariant, so it is pinned
+ * separately from the flag names.
+ */
+const OR_ONLY_STEP_NAMES = [...new Set(GATED_STEP_NAMES)];
+
+/**
+ * Every file that can change what ESLint enforces.
+ *
+ * <p>All four must set `syntax_guardrails`, or a PR can rewrite the rules
+ * without ever running them against `src`. `eslint.canary-scope.mjs` is the
+ * non-obvious one: `eslint.config.mjs` imports it directly and it decides
+ * which files the guard even sees, so editing it alone used to set no flag
+ * at all — neither `src`, nor `deps`, nor `syntax_guardrails`.
+ */
+const LINT_CONFIG_INPUTS = [
+  String.raw`^eslint\.config\.mjs$`,
+  String.raw`^eslint\.canary-scope\.mjs$`,
+  String.raw`^scripts/check-syntax-guardrails\.mjs$`,
+  String.raw`^package\.json$`,
 ] as const;
 
 interface IPrYamlStep {
@@ -232,14 +281,42 @@ describe('CriticalDepsFullSuiteGate', () => {
     expect(condition).not.toContain("outputs.src == 'true'");
   });
 
-  it.each(AUDIT_STEP_NAMES)(
-    '[CI-CRIT-GATE] PrYaml_AuditStep_%s_ShouldCoverDepsOnlyBumps',
+  it.each(DEPS_GATED_STEP_NAMES)(
+    '[CI-CRIT-GATE] PrYaml_Step_%s_ShouldCoverDepsOnlyBumps',
     stepName => {
       const conditions = stepConditions('lint-and-types', stepName);
       expect(conditions).toHaveLength(1);
       const condition = conditions.join('');
-      expect(condition).toContain("full_suite == 'true'");
-      expect(condition).toContain("deps == 'true'");
+      expect(condition).toContain("needs.changes.outputs.full_suite == 'true'");
+      expect(condition).toContain("needs.changes.outputs.deps == 'true'");
+    },
+  );
+
+  it.each(CONFIG_GATED_STEP_NAMES)(
+    '[CI-CRIT-GATE] PrYaml_Step_%s_ShouldCoverConfigOnlyEdits',
+    stepName => {
+      const conditions = stepConditions('lint-and-types', stepName);
+      expect(conditions).toHaveLength(1);
+      const condition = conditions.join('');
+      expect(condition).toContain("needs.changes.outputs.syntax_guardrails == 'true'");
+    },
+  );
+
+  it.each(OR_ONLY_STEP_NAMES)(
+    '[CI-CRIT-GATE] PrYaml_Step_%s_ShouldCombineFlagsWithOr',
+    stepName => {
+      const conditions = stepConditions('lint-and-types', stepName);
+      const condition = conditions.join('');
+      expect(condition).toContain('||');
+      expect(condition).not.toContain('&&');
+    },
+  );
+
+  it.each(LINT_CONFIG_INPUTS)(
+    '[CI-CRIT-GATE] Detector_LintConfigInput_%s_ShouldSetSyntaxGuardrails',
+    pattern => {
+      const detector = read(DETECTOR);
+      expect(detector).toContain(pattern);
     },
   );
 
