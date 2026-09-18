@@ -84,8 +84,21 @@ const CHECK_SCRIPT_COMMAND = 'node scripts/check-public-surface.mjs --check';
 /** The three `$GITHUB_OUTPUT` branches detect-changes.sh can take. */
 const DETECTOR_OUTPUT_BRANCHES = 3;
 
-/** Flags that must be emitted on every one of those branches. */
-const DETECTOR_FLAGS = ['critical_deps', 'full_suite', 'public_surface'] as const;
+/**
+ * Flags that must be emitted on every one of those branches.
+ *
+ * <p>`deps` and `syntax_guardrails` are here because the ESLint step now
+ * gates on them. An early-return branch that forgot to emit one would leave
+ * the workflow output unset, and an unset output is falsy — so the step would
+ * silently skip on exactly the lockfile-only bump it exists to catch.
+ */
+const DETECTOR_FLAGS = [
+  'critical_deps',
+  'full_suite',
+  'public_surface',
+  'deps',
+  'syntax_guardrails',
+] as const;
 
 /**
  * Steps that must also fire on a lockfile-only bump, not just `full_suite`.
