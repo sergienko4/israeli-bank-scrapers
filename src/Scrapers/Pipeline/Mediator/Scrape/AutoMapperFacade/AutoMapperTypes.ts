@@ -11,12 +11,15 @@ export type ApiRecord = Record<string, unknown>;
 
 /**
  * Untyped value crossing module boundaries — alias of the shared
- * {@link JsonUnknown} structural union from
- * `Pipeline/Types/JsonValue.ts`. Closes Sonar S6564 (the prior
- * `type UntypedValue = unknown` alias was redundant); the
- * structural union RHS is accepted as non-redundant because it is a
- * `TSUnionType`, not a bare `TSUnknownKeyword`. Domain
- * name retained (`UntypedValue`) so the call-sites do not need renaming.
+ * {@link JsonUnknown} open arm from `Pipeline/Types/JsonValue.ts`.
+ *
+ * <p>`JsonUnknown` is `unknown`: one un-narrowed value at a boundary, with
+ * no structural JSON shape to rely on. Narrow it with a guard before
+ * reading it. S6564 is silenced at the declaration site by a documented
+ * file-scoped exemption, not by the shape of this alias.
+ *
+ * <p>Domain name retained (`UntypedValue`) so the call-sites do not need
+ * renaming.
  */
 export type UntypedValue = JsonUnknown;
 

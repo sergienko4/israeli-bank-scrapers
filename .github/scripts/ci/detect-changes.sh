@@ -263,7 +263,18 @@ if has "${public_surface_paths}"; then public_surface=true; fi
 # `package.json` is in the set because the gate is reached through the
 # `lint:syntax-guardrails` npm script: deleting or redirecting that script
 # would otherwise silently skip the guard while every group stayed false.
-if has '^eslint\.config\.mjs$|^scripts/check-syntax-guardrails\.mjs$|^package\.json$'; then
+# `eslint.canary-scope.mjs` is in the set because `eslint.config.mjs`
+# imports it directly and it decides which files the guard even sees —
+# editing it alone would otherwise skip lint entirely.
+# `tsconfig.json` is in the set because the ESLint config turns on
+# `parserOptions.projectService`, so the tsconfig IS a lint input: it
+# decides which files are in the program and which compiler options the
+# type-aware rules see. The canary tree's own tsconfig extends it, so one
+# edit moves both programs. It otherwise sets only `public_surface`, which
+# does not gate this step. `tsconfig.build.json` is deliberately absent:
+# `projectService` resolves the nearest `tsconfig.json`, never that file,
+# so it changes the build, not the lint.
+if has '^eslint\.config\.mjs$|^eslint\.canary-scope\.mjs$|^scripts/check-syntax-guardrails\.mjs$|^package\.json$|^tsconfig\.json$'; then
   syntax_guardrails=true
 fi
 

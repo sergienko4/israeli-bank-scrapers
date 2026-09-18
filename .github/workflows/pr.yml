@@ -245,8 +245,20 @@ jobs:
       - if: needs.changes.outputs.full_suite == 'true'
         run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
 
+      # `deps` is here, not just `full_suite`, because a lint-rule bump lands
+      # as `deps` alone — `critical_deps` covers only the browser stack, so
+      # `full_suite` stays false. `typescript-eslint` 8.70.0 (#573) merged
+      # green that way and added `no-generated-empty-object-type`, which fires
+      # on existing `src/` code; the next unrelated PR ate the failure. The
+      # bump that changes the rules must be the run that proves them.
+      # `syntax_guardrails` is here for the same reason one door down: a PR
+      # touching only `eslint.config.mjs` sets neither `src`, `deps` nor
+      # `full_suite`, so a rule tightened BY HAND would skip this step exactly
+      # as the dependabot bump did. Matches the two sibling guardrail steps
+      # below, which already carry it.
+      # Pinned by CriticalDepsFullSuiteGate.test.ts.
       - name: ESLint (warnings as errors)
-        if: needs.changes.outputs.full_suite == 'true'
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.syntax_guardrails == 'true'
         run: npx eslint src --max-warnings 0 --ignore-pattern '**/*.cjs'
 
       # ESLint flat config REPLACES `no-restricted-syntax` options instead of
