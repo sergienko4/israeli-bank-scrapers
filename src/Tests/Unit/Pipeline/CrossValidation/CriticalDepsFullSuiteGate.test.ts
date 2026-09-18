@@ -153,7 +153,24 @@ const LINT_CONFIG_INPUTS = [
   String.raw`^eslint\.canary-scope\.mjs$`,
   String.raw`^scripts/check-syntax-guardrails\.mjs$`,
   String.raw`^package\.json$`,
+  String.raw`^tsconfig\.json$`,
 ] as const;
+
+/**
+ * Pull the alternatives out of the detector's `syntax_guardrails` test.
+ *
+ * <p>Asserting each pattern is merely *present* is a one-way ratchet: it
+ * catches a removal but not an addition, so a new lint input could be wired
+ * in without anyone revisiting which flag it should arm. Comparing the whole
+ * alternation makes the set exact in both directions.
+ * @param script - Raw text of detect-changes.sh.
+ * @returns Every alternative in the guard expression, in source order.
+ */
+function syntaxGuardrailInputs(script: string): readonly string[] {
+  const line = /if has '([^']+)'; then\r?\n[ \t]*syntax_guardrails=true/u.exec(script);
+  if (line === null) return [];
+  return line[1].split('|');
+}
 
 interface IPrYamlStep {
   readonly name?: string;
@@ -325,13 +342,11 @@ describe('CriticalDepsFullSuiteGate', () => {
     },
   );
 
-  it.each(LINT_CONFIG_INPUTS)(
-    '[CI-CRIT-GATE] Detector_LintConfigInput_%s_ShouldSetSyntaxGuardrails',
-    pattern => {
-      const detector = read(DETECTOR);
-      expect(detector).toContain(pattern);
-    },
-  );
+  it('[CI-CRIT-GATE] Detector_LintConfigInputs_ShouldMatchTheContractExactly', () => {
+    const detector = read(DETECTOR);
+    const found = syntaxGuardrailInputs(detector);
+    expect(found).toStrictEqual([...LINT_CONFIG_INPUTS]);
+  });
 
   it('[CI-CRIT-GATE] GateScript_RealGates_ShouldConsumeFullSuite', () => {
     const script = read(GATE_SCRIPT);
