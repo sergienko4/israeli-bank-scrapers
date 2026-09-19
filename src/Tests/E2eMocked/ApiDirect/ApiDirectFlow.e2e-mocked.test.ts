@@ -284,3 +284,49 @@ describe.each(CASES)('API-DIRECT mocked E2E — $displayName', testCase => {
     testCase.timeoutMs,
   );
 });
+
+/** Any URL the mock classifies as the session-token identity route. */
+const SESSION_TOKEN_URL = 'https://identity.example.test/sessions/token';
+
+/**
+ * POST a body through the installed mock fetch, as the pipeline does.
+ * @param body - Request body object.
+ * @returns HTTP status the mock answered with.
+ */
+async function postSessionToken(body: Readonly<Record<string, string>>): Promise<number> {
+  const response = await fetch(SESSION_TOKEN_URL, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  return response.status;
+}
+
+describe('OneZero mock — the mandatory password is part of the contract', () => {
+  let handle: IOneZeroMockHandle;
+
+  beforeEach(() => {
+    handle = installOneZeroFetchMock();
+  });
+
+  afterEach(() => {
+    handle.dispose();
+  });
+
+  it('mints an access token when idToken and pass are both present', async () => {
+    const status = await postSessionToken({
+      idToken: SYN_ID_TOKEN,
+      pass: ONEZERO_MOCK_CREDS.password,
+    });
+    expect(status).toBe(200);
+  });
+
+  it('refuses a session-token request that omits the password', async () => {
+    const status = await postSessionToken({ idToken: SYN_ID_TOKEN });
+    expect(status).not.toBe(200);
+  });
+
+  it('refuses a session-token request carrying the wrong password', async () => {
+    const status = await postSessionToken({ idToken: SYN_ID_TOKEN, pass: 'not-the-password' });
+    expect(status).not.toBe(200);
+  });
+});

@@ -215,3 +215,52 @@ describe('ApiMediator.recoverSession — cold re-mint', () => {
     expect(wasWarm).toBe(false);
   });
 });
+
+/**
+ * Build a hook that records the warm verdict handed to it.
+ *
+ * <p>`recoverSessionOp` flips the session cold *before* firing the hook
+ * (recover-once), so a hook that asks the bus after the fact always sees
+ * `false`. The verdict therefore has to travel as an argument, and this
+ * recorder is what pins that.
+ * @param sink - Array receiving each verdict.
+ * @returns Recovery hook that records then resolves.
+ */
+function verdictRecordingHook(sink: boolean[]): RecoveredHook {
+  /**
+   * Record the warm verdict then resolve.
+   * @param _header - Fresh header (not under test here).
+   * @param wasWarm - Whether the session was warm before recovery.
+   * @returns Resolved once recorded.
+   */
+  async function hook(_header: string, wasWarm: boolean): Promise<void> {
+    sink.push(wasWarm);
+    await Promise.resolve();
+  }
+  return hook;
+}
+
+describe('ApiMediator.recoverSession — warm verdict reaches the hook', () => {
+  it('tells the hook the session was warm even though the flag is already cold', async () => {
+    const okFresh = succeed(FRESH_HEADER);
+    const strategy = strategyWithFresh(okFresh);
+    const mediator = makeMediator(strategy);
+    mediator.setSessionWarm(true);
+    const verdicts: boolean[] = [];
+    const hook = verdictRecordingHook(verdicts);
+    mediator.withRecoveryHook?.(hook);
+    await mediator.recoverSession();
+    expect(verdicts).toEqual([true]);
+  });
+
+  it('tells the hook the session was already cold when it never went warm', async () => {
+    const okFresh = succeed(FRESH_HEADER);
+    const strategy = strategyWithFresh(okFresh);
+    const mediator = makeMediator(strategy);
+    const verdicts: boolean[] = [];
+    const hook = verdictRecordingHook(verdicts);
+    mediator.withRecoveryHook?.(hook);
+    await mediator.recoverSession();
+    expect(verdicts).toEqual([false]);
+  });
+});

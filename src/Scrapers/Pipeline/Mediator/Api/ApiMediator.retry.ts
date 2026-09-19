@@ -6,7 +6,7 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk } from '../../Types/Procedure.js';
-import { setRawAuthOp, setSessionWarmOp } from './ApiMediator.state.js';
+import { getSessionWarmOp, setRawAuthOp, setSessionWarmOp } from './ApiMediator.state.js';
 import type { IMediatorState } from './ApiMediator.types.js';
 
 /**
@@ -130,15 +130,17 @@ async function retryOn401Op<T>(args: IRetryOn401Args<T>): Promise<Procedure<T>> 
  * re-cached to disk and reused next run instead of re-OTP'ing every time.
  * @param state - Mediator state.
  * @param refreshed - Successful refresh procedure carrying the new header.
+ * @param wasWarm - Session warmth captured before recovery flipped it cold.
  * @returns True once the hook ran (false when absent or refresh failed).
  */
 async function runRecoveredHook(
   state: IMediatorState,
   refreshed: Procedure<string>,
+  wasWarm: boolean,
 ): Promise<boolean> {
   if (!isOk(refreshed)) return false;
   if (state.onRecovered === undefined) return false;
-  await state.onRecovered(refreshed.value);
+  await state.onRecovered(refreshed.value, wasWarm);
   return true;
 }
 
@@ -165,16 +167,18 @@ function discardOnFailedRecovery(
  * (`sessionWarm=false`) on BOTH success and failure (recover-once). On success
  * the re-cache hook re-installs session context + re-surfaces the new token; on
  * failure the stale bearer is cleared and the failure propagates so the caller
- * fails loud instead of masking degradation.
+ * fails loud instead of masking degradation. The pre-flip warmth is handed to
+ * the hook, which could not otherwise observe it.
  * @param state - Mediator state.
  * @returns Refresh procedure (success carries the fresh header value).
  */
 async function recoverSessionOp(state: IMediatorState): Promise<Procedure<string>> {
+  const wasWarm = getSessionWarmOp(state);
   const refreshed = await guardedRefreshOp(state);
   const isReady = applyRefreshedAuth(state, refreshed);
   setSessionWarmOp(state, false);
   if (!isReady) return discardOnFailedRecovery(state, refreshed);
-  await runRecoveredHook(state, refreshed);
+  await runRecoveredHook(state, refreshed, wasWarm);
   return refreshed;
 }
 

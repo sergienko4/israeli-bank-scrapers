@@ -46,7 +46,12 @@ export interface IMockHandle {
   readonly callCounts: () => IMockCallCounts;
 }
 
-const ONE_YEAR_SECONDS = 365 * 24 * 60 * 60;
+/**
+ * Fixture freshness only. The real idToken outlives this by a wide margin,
+ * but nothing here measures the bank: the value just has to sit far enough
+ * in the future that the freshness gate treats it as live.
+ */
+const LONG_LIVED_FIXTURE_SECONDS = 365 * 24 * 60 * 60;
 const ONE_HOUR_SECONDS = 60 * 60;
 
 /**
@@ -54,7 +59,7 @@ const ONE_HOUR_SECONDS = 60 * 60;
  * The distinguishing `sub` keeps a freshly minted token textually different
  * from the stored seed, so a test can tell a cold mint from a warm reuse.
  */
-export const SYN_ID_TOKEN = makeJwtExpiringInWithClaims(ONE_YEAR_SECONDS, {
+export const SYN_ID_TOKEN = makeJwtExpiringInWithClaims(LONG_LIVED_FIXTURE_SECONDS, {
   sub: 'syn-minted-id-token',
 });
 
@@ -69,7 +74,7 @@ export const ONEZERO_MOCK_CREDS = Object.freeze({
   email: 'synthetic-onezero@example.test',
   password: 'synthetic-pass',
   phoneNumber: '972000000000',
-  otpLongTermToken: makeJwtExpiringInWithClaims(ONE_YEAR_SECONDS, {
+  otpLongTermToken: makeJwtExpiringInWithClaims(LONG_LIVED_FIXTURE_SECONDS, {
     sub: 'syn-stored-id-token',
   }),
 });
@@ -458,11 +463,26 @@ function readBodyString(field: string, init?: RequestInit): string {
 }
 
 /**
+ * Whether the request carries the mandatory account password.
+ *
+ * <p>Both identity calls that mint a token send `pass` alongside the
+ * token (see `PipelineBankConfigOneZero`). A mock that answers 200 to a
+ * passwordless request teaches the wrong contract: it would let a warm
+ * request that dropped the field look perfectly healthy here.
+ * @param init - Fetch init carrying the request body.
+ * @returns True when the body carries the expected password.
+ */
+function hasAccountPassword(init?: RequestInit): boolean {
+  return readBodyString('pass', init) === ONEZERO_MOCK_CREDS.password;
+}
+
+/**
  * Serve /getIdToken, which the bank gates on a live otpSmsToken.
  * @param init - Fetch init carrying the request body.
  * @returns Response-like envelope carrying the durable idToken.
  */
 function routeGetIdToken(init?: RequestInit): IResponseLike {
+  if (!hasAccountPassword(init)) return rejected('ErrorInvalidCredentials');
   const otpSmsToken = readBodyString('otpSmsToken', init);
   const isLive = isAcceptedByBank(otpSmsToken);
   if (!isLive) return rejected('ErrorInvalidToken');
@@ -475,6 +495,7 @@ function routeGetIdToken(init?: RequestInit): IResponseLike {
  * @returns Response-like envelope carrying the access token.
  */
 function routeSessionToken(init?: RequestInit): IResponseLike {
+  if (!hasAccountPassword(init)) return rejected('ErrorInvalidCredentials');
   const idToken = readBodyString('idToken', init);
   const isLive = isAcceptedByBank(idToken);
   if (!isLive) return rejected('ErrorInvalidToken');

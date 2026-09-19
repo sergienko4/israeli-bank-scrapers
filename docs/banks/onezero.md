@@ -37,8 +37,11 @@ completes rather than waiting for the scrape to finish.
 
 **This token does not rotate.** A warm run replays the stored value and returns
 it unchanged, so the value you store is the one minted by your last SMS login
-and it stays valid until the bank expires it — observed as roughly a year, not
-a session. Anyone holding it can skip the SMS step for that entire period, so
+and it stays valid until the bank expires it — a lifetime measured in months or
+years, not a session. Issue #576 reports an `exp` roughly ten years out; that
+figure is the reporter's observation rather than something this project
+measures, and it is the bank's to change. Anyone holding the token can skip the
+SMS step for that entire period, so
 store it with the same care as the password itself: encrypted at rest, never in
 source control, never in a shared log.
 
@@ -57,6 +60,13 @@ short-lived artifact — the scraper falls back to the full SMS login and return
 a newly minted `persistentOtpToken`, and a warning is logged recording that the
 stored token was not accepted. No migration step is needed; the first run after
 upgrading costs one SMS and heals itself.
+
+A stored token can also pass the freshness check, carry the session, and then be
+rejected by the bank mid-run — revoked server-side, or expired against a claim
+the scraper does not read. Recovery spends an SMS to repair that, and it emits
+the same warning, so the degradation is never silent. Both paths share one
+sentence (`COLD_FALLBACK_DETAIL`), so a single grep finds every run that paid for
+an SMS it was meant to avoid.
 
 > Earlier versions persisted an artifact that expired about an hour after the original
 > SMS login and was never refreshed, so warm start appeared to work and then

@@ -12,6 +12,17 @@ import { fail } from '../../Types/Procedure.js';
 /** Diagnostic label for the phase — appears in error messages. */
 const PHASE_LABEL = 'api-direct-call';
 
+/**
+ * The one sentence emitted whenever a stored long-term token failed to
+ * carry a session and an SMS login was spent instead.
+ *
+ * <p>Shared so the two places a warm session can silently degrade — the
+ * initial prime and a mid-run cold recovery — speak with one voice; a
+ * reader grepping the logs for this string finds both.
+ */
+const COLD_FALLBACK_DETAIL =
+  'stored long-term token was not accepted; fell back to the full SMS login';
+
 /** ScraperOptions callback signature — surfaced at the bank surface. */
 type IAuthFlowCallback = (info: IAuthFlowInfo) => void | Promise<void>;
 
@@ -44,5 +55,5 @@ async function safeInvoke<T>(
   }
 }
 
-export { PHASE_LABEL, safeInvoke };
+export { COLD_FALLBACK_DETAIL, PHASE_LABEL, safeInvoke };
 export type { IAuthFlowCallback };

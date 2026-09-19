@@ -5,6 +5,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import type { IDurableAuthState } from '../../Types/Domain/DurableAuthState.js';
 import { some } from '../../Types/Option.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -15,7 +16,7 @@ import { invokeAuthFlowComplete } from './ApiDirectCallActions.callback.js';
 import { withNormalisedCreds } from './ApiDirectCallActions.phone.js';
 import { mergeOptionsIntoCreds } from './ApiDirectCallActions.pre.js';
 import { makeRecoveryHook } from './ApiDirectCallActions.recovery.js';
-import { PHASE_LABEL, safeInvoke } from './ApiDirectCallActions.shared.js';
+import { COLD_FALLBACK_DETAIL, PHASE_LABEL, safeInvoke } from './ApiDirectCallActions.shared.js';
 import type { IApiDirectCallConfig } from './ConfigContracts/index.js';
 import {
   createTokenStrategyFromConfig,
@@ -138,8 +139,7 @@ function setBusAuth(bus: IApiMediator, strategy: IConfigTokenStrategy, header: s
 function warnOnSilentColdFallback(booted: IBootedAction, isWarm: boolean): boolean {
   if (isWarm) return false;
   if (!booted.strategy.hasWarmState(booted.creds)) return false;
-  const detail = 'stored long-term token was not accepted; fell back to the full SMS login';
-  booted.ctx.logger.warn({ message: `${PHASE_LABEL} ${detail}` });
+  booted.ctx.logger.warn({ message: `${PHASE_LABEL} ${COLD_FALLBACK_DETAIL}` });
   return true;
 }
 
@@ -172,12 +172,41 @@ function registerStrategy(booted: IBootedAction): boolean {
 }
 
 /**
+ * Build the durable-auth slot as a live read of the strategy.
+ *
+ * <p>A getter keeps the published shape a plain `string` property — the
+ * data contract `PipelineResult` already reads — while resolving it at
+ * read time, so whichever token the strategy holds when the result is
+ * built is the one the caller is handed.
+ * @param strategy - Token strategy holding the freshest artifact.
+ * @returns Durable-auth state backed by the strategy.
+ */
+function liveDurableAuth(strategy: IConfigTokenStrategy): IDurableAuthState {
+  return {
+    /**
+     * Resolve the durable token at read time.
+     * @returns The freshest long-term token the strategy holds.
+     */
+    get persistentOtpToken(): string {
+      return strategy.getLatestLongTermToken();
+    },
+  };
+}
+
+/**
  * Publish the long-lived re-login handle onto the context.
  *
  * API-direct banks never run the browser LOGIN phase, so this is the only way
  * the artifact reaches `result.persistentOtpToken`. Callers need it to skip the
  * SMS on the next run; without it the warm-start feature has no supported
  * retrieval channel (issue #576).
+ *
+ * <p>The slot is a live view of the strategy, not a copy. A warm session can
+ * be revoked mid-run: `ApiMediator` then recovers cold and the strategy mints
+ * a replacement. A value copied here would leave `result.persistentOtpToken`
+ * holding the dead token, and callers are told to overwrite their stored copy
+ * from every result — so the snapshot would actively destroy the good token
+ * and force an SMS on the next run, which is issue #576 all over again.
  * @param ctx - Pipeline context.
  * @param strategy - Token strategy holding the freshest artifact.
  * @returns Context carrying the durable-auth slot when a token exists.
@@ -185,7 +214,8 @@ function registerStrategy(booted: IBootedAction): boolean {
 function withDurableAuth(ctx: IPipelineContext, strategy: IConfigTokenStrategy): IPipelineContext {
   const token = strategy.getLatestLongTermToken();
   if (token.length === 0) return ctx;
-  return { ...ctx, durableAuth: some({ persistentOtpToken: token }) };
+  const liveView = liveDurableAuth(strategy);
+  return { ...ctx, durableAuth: some(liveView) };
 }
 
 /**

@@ -81,12 +81,33 @@ async function readCacheSafe(cachePath: string, log: ScraperLogger): Promise<str
 const CACHE_FILE_MODE = 0o600;
 
 /**
+ * Write the token through a descriptor that is tightened before any byte
+ * of it exists on disk.
+ *
+ * <p>Order is the whole point. `mode` on `writeFile` applies only when the
+ * file is created, so an existing cache keeps its looser bits while the new
+ * token lands; a tightening `chmod` afterwards shuts the door on a secret
+ * that is already readable, and a crash in that window leaves a long-lived
+ * token exposed for good. Opening with `w` truncates first, so the `fchmod`
+ * below runs while the file is empty.
+ * @param cachePath - Absolute path.
+ * @param token - Token string.
+ * @returns True once the token is written.
+ */
+async function writeOwnerOnly(cachePath: string, token: string): Promise<boolean> {
+  const handle = await fs.open(cachePath, 'w', CACHE_FILE_MODE);
+  try {
+    await handle.chmod(CACHE_FILE_MODE);
+    await handle.writeFile(token, { encoding: 'utf8' });
+    return true;
+  } finally {
+    await handle.close();
+  }
+}
+
+/**
  * Safely write the cache file (UTF-8, truncating any prior content) with
  * owner-only permissions. Returns false on any write error.
- *
- * The explicit chmod matters: `mode` on `writeFile` only applies when the file
- * is created, so a cache file that already exists with looser permissions would
- * silently keep them while holding a token that stays valid for months.
  * @param cachePath - Absolute path.
  * @param token - Token string.
  * @param log - Logger for WARN diagnostics.
@@ -98,9 +119,7 @@ async function writeCacheSafe(
   log: ScraperLogger,
 ): Promise<boolean> {
   try {
-    await fs.writeFile(cachePath, token, { encoding: 'utf8', mode: CACHE_FILE_MODE });
-    await fs.chmod(cachePath, CACHE_FILE_MODE);
-    return true;
+    return await writeOwnerOnly(cachePath, token);
   } catch (error) {
     const e = error as NodeJS.ErrnoException;
     log.warn({ cachePath, code: e.code ?? 'UNKNOWN' }, 'TokenCache write failure');
