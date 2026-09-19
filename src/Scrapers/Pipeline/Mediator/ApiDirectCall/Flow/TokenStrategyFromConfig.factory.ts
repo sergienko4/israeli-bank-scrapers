@@ -77,15 +77,24 @@ function buildPrimeBindings(
 /** The three slot-derived getter bindings produced by buildGetterBindings. */
 type IGetterBindings = Pick<
   IStrategyBindings,
-  'getLatestLongTermToken' | 'getLatestCarrySnapshot' | 'lastPrimeWasWarm'
+  | 'getLatestLongTermToken'
+  | 'getLatestCarrySnapshot'
+  | 'lastPrimeWasWarm'
+  | 'warmSeedRejectedLocally'
 >;
 
+/** The slot readers that expose captured token material. */
+type ITokenGetters = Pick<IGetterBindings, 'getLatestLongTermToken' | 'getLatestCarrySnapshot'>;
+
+/** The slot readers that explain which path the last prime actually took. */
+type IWarmGetters = Pick<IGetterBindings, 'lastPrimeWasWarm' | 'warmSeedRejectedLocally'>;
+
 /**
- * Build the slot-getter bindings (long-term token + carry snapshot + warm flag).
+ * Build the readers for the token material the last flow captured.
  * @param slot - Capture slot.
- * @returns Three-binding object.
+ * @returns Token + carry-snapshot bindings.
  */
-function buildGetterBindings(slot: ILongTermTokenSlot): IGetterBindings {
+function buildTokenGetters(slot: ILongTermTokenSlot): ITokenGetters {
   /**
    * Read the captured long-term token from the slot.
    * @returns Latest captured token (or '' when none).
@@ -97,12 +106,37 @@ function buildGetterBindings(slot: ILongTermTokenSlot): IGetterBindings {
    */
   const getLatestCarrySnapshot = (): Readonly<Record<string, JsonValue>> =>
     slot.latestCarrySnapshot;
+  return { getLatestLongTermToken, getLatestCarrySnapshot };
+}
+
+/**
+ * Build the readers that distinguish warm reuse, local rejection and cold flow.
+ * @param slot - Capture slot.
+ * @returns Warm-path + local-rejection bindings.
+ */
+function buildWarmGetters(slot: ILongTermTokenSlot): IWarmGetters {
   /**
    * Whether the last prime reused a cached warm seed (vs cold flow).
    * @returns Warm-path flag (false until a prime sets it).
    */
   const lastPrimeWasWarm = (): boolean => slot.usedWarmPath ?? false;
-  return { getLatestLongTermToken, getLatestCarrySnapshot, lastPrimeWasWarm };
+  /**
+   * Whether the local freshness gate refused the stored seed.
+   * @returns True when the seed was never sent to the bank.
+   */
+  const warmSeedRejectedLocally = (): boolean => slot.warmSeedRejectedLocally ?? false;
+  return { lastPrimeWasWarm, warmSeedRejectedLocally };
+}
+
+/**
+ * Build the slot-getter bindings (long-term token + carry snapshot + flags).
+ * @param slot - Capture slot.
+ * @returns Four-binding object.
+ */
+function buildGetterBindings(slot: ILongTermTokenSlot): IGetterBindings {
+  const tokenGetters = buildTokenGetters(slot);
+  const warmGetters = buildWarmGetters(slot);
+  return { ...tokenGetters, ...warmGetters };
 }
 
 /**

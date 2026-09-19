@@ -20,6 +20,12 @@ interface IConfigTokenStrategy extends ITokenStrategy<GenericCreds> {
   getLatestCarrySnapshot(): Readonly<Record<string, JsonValue>>;
   /** Whether the most recent prime reused a cached warm seed (vs cold flow). */
   lastPrimeWasWarm(): boolean;
+  /**
+   * Whether the stored seed was refused by the local freshness gate, before
+   * any request went out. Distinguishes "we never asked the bank" from "the
+   * bank said no", which read identically from the warm flag alone.
+   */
+  warmSeedRejectedLocally(): boolean;
 }
 
 /** Args for runConfiguredFlow — respects 3-param ceiling. */
@@ -38,6 +44,12 @@ interface ILongTermTokenSlot {
   latestCarrySnapshot: Readonly<Record<string, JsonValue>>;
   /** True when the last prime reused a cached warm seed; false on cold flow. */
   usedWarmPath?: boolean;
+  /**
+   * True when `pickWarmSeed` refused the stored seed locally, so it was never
+   * sent. Only `primeInitial` writes it — a later cold retry must not erase
+   * the reason the warm path was skipped.
+   */
+  warmSeedRejectedLocally?: boolean;
 }
 
 /** Subset of IFlowResult consumed by captureFlowResult. */

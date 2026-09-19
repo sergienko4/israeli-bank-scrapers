@@ -24,8 +24,22 @@ const PHASE_LABEL = 'api-direct-call';
  */
 const COLD_FALLBACK_DETAIL = 'fell back to the full SMS login';
 
-/** Cause named when the bank refused the stored token at the initial prime. */
+/**
+ * Cause named when the bank refused the stored token at the initial prime.
+ *
+ * <p>Reserved for an actual server refusal. A token the local freshness gate
+ * threw out never reached the bank, so reporting it this way would send an
+ * operator digging through identity-server logs for a request that was never
+ * made — see {@link COLD_FALLBACK_STALE}.
+ */
 const COLD_FALLBACK_REJECTED = 'stored long-term token was not accepted';
+
+/**
+ * Cause named when the stored token failed the local freshness gate and was
+ * therefore never sent. The remedy is on this side — the stored copy is
+ * expired or malformed — not at the bank.
+ */
+const COLD_FALLBACK_STALE = 'stored long-term token failed the local freshness check';
 
 /** Cause named when a session that had been carrying fine died mid-run. */
 const COLD_FALLBACK_DEGRADED = 'warm session was rejected mid-run';
@@ -66,6 +80,7 @@ export {
   COLD_FALLBACK_DEGRADED,
   COLD_FALLBACK_DETAIL,
   COLD_FALLBACK_REJECTED,
+  COLD_FALLBACK_STALE,
   PHASE_LABEL,
   safeInvoke,
 };

@@ -92,12 +92,12 @@ async function runConfiguredFlow(
  */
 async function primeInitialImpl(args: IPrimeArgs): Promise<Procedure<string>> {
   const { config, bus, ctx, creds, slot } = args;
+  const flowBase = { config, bus, creds, companyId: ctx.companyId };
   const stored = pickWarmSeed(config, creds);
   slot.usedWarmPath = stored !== false;
-  if (stored === false) {
-    return runConfiguredFlow({ config, bus, creds, companyId: ctx.companyId }, slot);
-  }
-  const warmArgs = makeWarmArgs({ config, bus, creds, stored, companyId: ctx.companyId });
+  slot.warmSeedRejectedLocally = stored === false;
+  if (stored === false) return runConfiguredFlow(flowBase, slot);
+  const warmArgs = makeWarmArgs({ ...flowBase, stored });
   return runConfiguredFlow(warmArgs, slot);
 }
 

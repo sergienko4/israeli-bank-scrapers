@@ -95,6 +95,19 @@ function warmConfig(): IApiDirectCallConfig {
 }
 
 /**
+ * Same warm contract, but with a step ahead of the resume point so the warm
+ * path actually issues a request. With the single-step `warmConfig`,
+ * `fromStepIndex: 1` lands past the end and the warm path short-circuits
+ * without ever contacting the bank, so a bank refusal is unreachable.
+ * @returns API-direct-call config whose warm resume costs one request.
+ */
+function warmTwoStepConfig(): IApiDirectCallConfig {
+  const base = warmConfig();
+  const resumed = base.steps[0];
+  return { ...base, steps: [resumed, ...base.steps] };
+}
+
+/**
  * Record a `setSessionWarm` invocation into the sink.
  * @param sink - Output slot for recorded flags.
  * @param value - The warm flag the ACTION stage recorded.
@@ -106,7 +119,10 @@ function recordWarm(sink: boolean[], value: boolean): true {
 }
 
 /**
- * Run the captured strategy's primeInitial against the scripted bus.
+ * Drive the captured strategy the way the real `TokenResolverBuilder.runInitial`
+ * does: primeInitial, then — only when the caller supplied warm state — one
+ * cold retry via primeFresh. Without that retry the stub cannot reach the
+ * branch where the bank refuses a seed that passed the local freshness gate.
  * @param base - Stub bus whose apiPost dequeues scripted cold responses.
  * @param sink - Single-slot sink holding the captured registration.
  * @returns Header-value procedure from the real prime path.
@@ -114,7 +130,10 @@ function recordWarm(sink: boolean[], value: boolean): true {
 async function primeCaptured(base: IApiMediator, sink: ICaptured[]): Promise<Procedure<string>> {
   if (sink.length === 0) return fail(ScraperErrorTypes.Generic, 'no strategy registered');
   const captured = sink[0];
-  return captured.strategy.primeInitial(base, captured.ctx, captured.creds);
+  const first = await captured.strategy.primeInitial(base, captured.ctx, captured.creds);
+  if (first.success) return first;
+  if (!captured.strategy.hasWarmState(captured.creds)) return first;
+  return captured.strategy.primeFresh(base, captured.ctx, captured.creds);
 }
 
 /**
@@ -243,16 +262,17 @@ function makeLogRecorder(): ILogRecorder {
  * Run the ACTION stage against a recording logger.
  * @param rec - The recording bus.
  * @param token - Optional cached long-term JWT.
+ * @param config - Config the ACTION stage should run (defaults to warmConfig).
  * @returns The emitted log output plus the action's procedure result.
  */
 async function runWithLogRecorder(
   rec: IWarmRecorder,
   token?: string,
+  config: IApiDirectCallConfig = warmConfig(),
 ): Promise<{ logs: string; result: Procedure<unknown>; readLogs: () => string }> {
   const recorder = makeLogRecorder();
   const base = ctxFor(rec, token);
   const ctx = { ...base, logger: recorder.logger };
-  const config = warmConfig();
   const result = await runApiDirectCallAction(config, ctx);
   const logs = recorder.read();
   return { logs, result, readLogs: recorder.read };
@@ -266,6 +286,9 @@ const REJECTED_CAUSE = 'stored long-term token was not accepted';
 
 /** Cause named when a session that had been carrying fine died mid-run. */
 const DEGRADED_CAUSE = 'warm session was rejected mid-run';
+
+/** Cause named when the stored token never reached the bank at all. */
+const STALE_CAUSE = 'stored long-term token failed the local freshness check';
 
 /** Long-term token the scripted cold recovery mints as a replacement. */
 const RECOVERED_TOKEN = 'recovered-long-term-tok';
@@ -402,8 +425,45 @@ describe('ApiDirectCall ACTION records the warm flag from the actual prime path'
     const staleJwt = makeJwt(-10);
     const { logs, result } = await runWithLogRecorder(rec, staleJwt);
     expect(result.success).toBe(true);
-    expect(logs).toContain(REJECTED_CAUSE);
     expect(logs).toContain(SMS_FALLBACK_CLAUSE);
+  });
+
+  it('blames the bank when a fresh stored token was sent and refused', async () => {
+    const warmRefusal = fail(ScraperErrorTypes.Generic, 'bank refused the stored token');
+    const coldTok = succeed({ access_token: 'cold-tok' });
+    const coldId = succeed({ access_token: 'cold-id' });
+    const rec = makeWarmRecordingBus([warmRefusal, coldTok, coldId]);
+    const freshJwt = makeJwt(3600);
+    const twoStep = warmTwoStepConfig();
+    const { logs, result } = await runWithLogRecorder(rec, freshJwt, twoStep);
+    expect(result.success).toBe(true);
+    expect(logs).toContain(REJECTED_CAUSE);
+  });
+
+  it('does not blame the bank for a token the freshness gate rejected locally', async () => {
+    const coldTok = succeed({ access_token: 'cold-tok' });
+    const rec = makeWarmRecordingBus([coldTok]);
+    const staleJwt = makeJwt(-10);
+    const { logs } = await runWithLogRecorder(rec, staleJwt);
+    expect(logs).not.toContain(REJECTED_CAUSE);
+  });
+
+  it('names the local freshness gate when the token never reached the bank', async () => {
+    const coldTok = succeed({ access_token: 'cold-tok' });
+    const rec = makeWarmRecordingBus([coldTok]);
+    const staleJwt = makeJwt(-10);
+    const { logs } = await runWithLogRecorder(rec, staleJwt);
+    expect(logs).toContain(STALE_CAUSE);
+  });
+
+  it('sends no request when the freshness gate rejects the stored token', async () => {
+    const coldTok = succeed({ access_token: 'cold-tok' });
+    const rec = makeWarmRecordingBus([coldTok]);
+    const staleJwt = makeJwt(-10);
+    await runWithLogRecorder(rec, staleJwt);
+    const serialised = rec.captures.map(capture => JSON.stringify(capture));
+    const warmSends = serialised.filter(text => text.includes(staleJwt));
+    expect(warmSends).toHaveLength(0);
   });
 
   it('stays quiet when no token was stored, since nothing degraded', async () => {

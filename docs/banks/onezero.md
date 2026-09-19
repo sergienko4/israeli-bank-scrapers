@@ -63,9 +63,11 @@ value is redacted from logs and snapshots like any other token.
 The token is checked for freshness before use. When it has expired — or when it
 is a token stored by an earlier version, which persisted a different,
 short-lived artifact — the scraper falls back to the full SMS login and returns
-a newly minted `persistentOtpToken`, and a warning is logged recording that the
-stored token was not accepted. No migration step is needed; the first run after
-upgrading costs one SMS and heals itself.
+a newly minted `persistentOtpToken`. That rejection is made locally, before any
+request leaves the process, so the warning says exactly that
+(`COLD_FALLBACK_STALE`, "stored long-term token failed the local freshness
+check") instead of implying the bank turned it down. No migration step is
+needed; the first run after upgrading costs one SMS and heals itself.
 
 A stored token can also pass the freshness check, carry the session, and then be
 rejected by the bank mid-run — revoked server-side, or expired against a claim
@@ -75,11 +77,14 @@ so the degradation is never silent.
 Both warnings end with the same clause (`COLD_FALLBACK_DETAIL`, "fell back to
 the full SMS login"), so a single grep finds every run that paid for an SMS it
 was meant to avoid. They name different causes, because the two events are not
-the same: `COLD_FALLBACK_REJECTED` means the bank refused the stored token up
-front, while `COLD_FALLBACK_DEGRADED` means the token was accepted, carried a
-session, and was revoked underneath you. A token that worked is never reported
-as "not accepted" — that distinction is what tells you whether to suspect your
-stored copy or the bank.
+the same. `COLD_FALLBACK_STALE` means the stored copy failed the local
+freshness check and was never sent — the fault is on this side, and there is no
+bank-side request to go looking for. `COLD_FALLBACK_REJECTED` means the token
+passed that check, was sent, and the bank refused it up front. And
+`COLD_FALLBACK_DEGRADED` means the token was accepted, carried a session, and
+was revoked underneath you. A token that worked is never reported as "not
+accepted", and a token the bank never saw is never reported as refused — that
+is what tells you whether to suspect your stored copy or the bank.
 
 A mid-run rejection is repaired wherever it surfaces. Any API call that comes
 back `401`/`403` re-mints in place and retries, and that in-request repair

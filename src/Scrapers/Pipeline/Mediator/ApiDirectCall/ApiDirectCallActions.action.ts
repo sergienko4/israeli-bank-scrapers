@@ -19,6 +19,7 @@ import { makeRecoveryHook } from './ApiDirectCallActions.recovery.js';
 import {
   COLD_FALLBACK_DETAIL,
   COLD_FALLBACK_REJECTED,
+  COLD_FALLBACK_STALE,
   PHASE_LABEL,
   safeInvoke,
 } from './ApiDirectCallActions.shared.js';
@@ -144,7 +145,9 @@ function setBusAuth(bus: IApiMediator, strategy: IConfigTokenStrategy, header: s
 function warnOnSilentColdFallback(booted: IBootedAction, isWarm: boolean): boolean {
   if (isWarm) return false;
   if (!booted.strategy.hasWarmState(booted.creds)) return false;
-  const detail = `${COLD_FALLBACK_REJECTED}; ${COLD_FALLBACK_DETAIL}`;
+  const wasLocal = booted.strategy.warmSeedRejectedLocally();
+  const cause = wasLocal ? COLD_FALLBACK_STALE : COLD_FALLBACK_REJECTED;
+  const detail = `${cause}; ${COLD_FALLBACK_DETAIL}`;
   booted.ctx.logger.warn({ message: `${PHASE_LABEL} ${detail}` });
   return true;
 }
