@@ -25,34 +25,32 @@ function isInsideSandbox(resolved: string): boolean {
   return !relative.startsWith('..') && !path.isAbsolute(relative);
 }
 
+/** A key the guard must refuse, paired with the reason it is dangerous. */
+interface IRejectedKey {
+  readonly key: string;
+  readonly why: string;
+}
+
+/**
+ * Keys that must never become a path. The traversal entries are the ones the
+ * guard exists for; the rest keep the allowlist from widening by accident.
+ */
+const REJECTED_KEYS: readonly IRejectedKey[] = [
+  { key: '../../../evil', why: 'a key that climbs out of the cache directory' },
+  { key: '../onezero', why: 'a key carrying a single parent segment' },
+  { key: '/etc/onezero', why: 'an absolute path posing as a key' },
+  { key: 'hapoalim', why: 'a bank that is not supported' },
+  { key: '', why: 'the empty string' },
+];
+
 describe('isBankKey', () => {
   it.each(BANK_KEYS)('accepts the supported key %s', key => {
     const wasAccepted = isBankKey(key);
     expect(wasAccepted).toBe(true);
   });
 
-  it('rejects a key that climbs out of the cache directory', () => {
-    const wasAccepted = isBankKey('../../../evil');
-    expect(wasAccepted).toBe(false);
-  });
-
-  it('rejects a key carrying a single parent segment', () => {
-    const wasAccepted = isBankKey('../onezero');
-    expect(wasAccepted).toBe(false);
-  });
-
-  it('rejects an absolute path posing as a key', () => {
-    const wasAccepted = isBankKey('/etc/onezero');
-    expect(wasAccepted).toBe(false);
-  });
-
-  it('rejects a bank that is not supported', () => {
-    const wasAccepted = isBankKey('hapoalim');
-    expect(wasAccepted).toBe(false);
-  });
-
-  it('rejects the empty string', () => {
-    const wasAccepted = isBankKey('');
+  it.each(REJECTED_KEYS)('rejects $why', ({ key }) => {
+    const wasAccepted = isBankKey(key);
     expect(wasAccepted).toBe(false);
   });
 });
@@ -77,21 +75,12 @@ describe('requireBankKey — the guard the measure CLI runs before it reads anyt
     expect(resolved).toBe(key);
   });
 
-  it('refuses a traversal argument instead of resolving it to a path', () => {
+  it.each(REJECTED_KEYS)('refuses $why before touching the filesystem', ({ key }) => {
     /**
-     * Invoke the guard with a path-climbing argument.
+     * Invoke the guard with an argument that must never become a path.
      * @returns Never — the guard throws first.
      */
-    const reject = (): BankKey => requireBankKey('../../../evil');
-    expect(reject).toThrow(/usage: measure:token-lifetime/);
-  });
-
-  it('refuses an unsupported bank instead of resolving it to a path', () => {
-    /**
-     * Invoke the guard with a bank the cache does not support.
-     * @returns Never — the guard throws first.
-     */
-    const reject = (): BankKey => requireBankKey('hapoalim');
+    const reject = (): BankKey => requireBankKey(key);
     expect(reject).toThrow(/usage: measure:token-lifetime/);
   });
 
