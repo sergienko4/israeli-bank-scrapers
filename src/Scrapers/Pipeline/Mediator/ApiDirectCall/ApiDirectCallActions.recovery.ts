@@ -12,7 +12,11 @@
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { IApiMediator, RecoveredHook } from '../Api/ApiMediator.js';
 import { invokeAuthFlowComplete } from './ApiDirectCallActions.callback.js';
-import { COLD_FALLBACK_DETAIL, PHASE_LABEL } from './ApiDirectCallActions.shared.js';
+import {
+  COLD_FALLBACK_DEGRADED,
+  COLD_FALLBACK_DETAIL,
+  PHASE_LABEL,
+} from './ApiDirectCallActions.shared.js';
 import type { IConfigTokenStrategy } from './Flow/TokenStrategyFromConfig.js';
 
 /** Collaborators captured by {@link makeRecoveryHook}. */
@@ -40,7 +44,8 @@ interface IRecoveryHookArgs {
  */
 function warnOnRecoveredWarmSession(args: IRecoveryHookArgs, wasWarm: boolean): boolean {
   if (!wasWarm) return false;
-  args.ctx.logger.warn({ message: `${PHASE_LABEL} ${COLD_FALLBACK_DETAIL}` });
+  const detail = `${COLD_FALLBACK_DEGRADED}; ${COLD_FALLBACK_DETAIL}`;
+  args.ctx.logger.warn({ message: `${PHASE_LABEL} ${detail}` });
   return true;
 }
 

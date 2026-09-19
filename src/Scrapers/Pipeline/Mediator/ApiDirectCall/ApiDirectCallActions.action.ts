@@ -16,7 +16,12 @@ import { invokeAuthFlowComplete } from './ApiDirectCallActions.callback.js';
 import { withNormalisedCreds } from './ApiDirectCallActions.phone.js';
 import { mergeOptionsIntoCreds } from './ApiDirectCallActions.pre.js';
 import { makeRecoveryHook } from './ApiDirectCallActions.recovery.js';
-import { COLD_FALLBACK_DETAIL, PHASE_LABEL, safeInvoke } from './ApiDirectCallActions.shared.js';
+import {
+  COLD_FALLBACK_DETAIL,
+  COLD_FALLBACK_REJECTED,
+  PHASE_LABEL,
+  safeInvoke,
+} from './ApiDirectCallActions.shared.js';
 import type { IApiDirectCallConfig } from './ConfigContracts/index.js';
 import {
   createTokenStrategyFromConfig,
@@ -139,7 +144,8 @@ function setBusAuth(bus: IApiMediator, strategy: IConfigTokenStrategy, header: s
 function warnOnSilentColdFallback(booted: IBootedAction, isWarm: boolean): boolean {
   if (isWarm) return false;
   if (!booted.strategy.hasWarmState(booted.creds)) return false;
-  booted.ctx.logger.warn({ message: `${PHASE_LABEL} ${COLD_FALLBACK_DETAIL}` });
+  const detail = `${COLD_FALLBACK_REJECTED}; ${COLD_FALLBACK_DETAIL}`;
+  booted.ctx.logger.warn({ message: `${PHASE_LABEL} ${detail}` });
   return true;
 }
 

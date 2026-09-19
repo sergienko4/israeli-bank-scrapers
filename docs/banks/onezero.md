@@ -63,10 +63,17 @@ upgrading costs one SMS and heals itself.
 
 A stored token can also pass the freshness check, carry the session, and then be
 rejected by the bank mid-run — revoked server-side, or expired against a claim
-the scraper does not read. Recovery spends an SMS to repair that, and it emits
-the same warning, so the degradation is never silent. Both paths share one
-sentence (`COLD_FALLBACK_DETAIL`), so a single grep finds every run that paid for
-an SMS it was meant to avoid.
+the scraper does not read. Recovery spends an SMS to repair that and warns too,
+so the degradation is never silent.
+
+Both warnings end with the same clause (`COLD_FALLBACK_DETAIL`, "fell back to
+the full SMS login"), so a single grep finds every run that paid for an SMS it
+was meant to avoid. They name different causes, because the two events are not
+the same: `COLD_FALLBACK_REJECTED` means the bank refused the stored token up
+front, while `COLD_FALLBACK_DEGRADED` means the token was accepted, carried a
+session, and was revoked underneath you. A token that worked is never reported
+as "not accepted" — that distinction is what tells you whether to suspect your
+stored copy or the bank.
 
 A mid-run rejection is repaired wherever it surfaces. Any API call that comes
 back `401`/`403` re-mints in place and retries, and that in-request repair

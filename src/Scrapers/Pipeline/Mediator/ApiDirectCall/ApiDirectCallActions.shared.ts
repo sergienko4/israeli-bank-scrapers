@@ -13,15 +13,22 @@ import { fail } from '../../Types/Procedure.js';
 const PHASE_LABEL = 'api-direct-call';
 
 /**
- * The one sentence emitted whenever a stored long-term token failed to
- * carry a session and an SMS login was spent instead.
+ * The clause emitted by every warm-start fallback — the fact an operator
+ * actually acts on: this run spent an SMS it was meant to avoid.
  *
- * <p>Shared so the two places a warm session can silently degrade — the
- * initial prime and a mid-run cold recovery — speak with one voice; a
- * reader grepping the logs for this string finds both.
+ * <p>Shared so one grep still finds both places a warm session can degrade.
+ * The *cause* is not shared, because the two are not the same event: a token
+ * that carried a session and was revoked later was very much "accepted", and
+ * saying otherwise sends the reader hunting a bad stored token that was in
+ * fact fine. Each call site prefixes its own cause.
  */
-const COLD_FALLBACK_DETAIL =
-  'stored long-term token was not accepted; fell back to the full SMS login';
+const COLD_FALLBACK_DETAIL = 'fell back to the full SMS login';
+
+/** Cause named when the bank refused the stored token at the initial prime. */
+const COLD_FALLBACK_REJECTED = 'stored long-term token was not accepted';
+
+/** Cause named when a session that had been carrying fine died mid-run. */
+const COLD_FALLBACK_DEGRADED = 'warm session was rejected mid-run';
 
 /** ScraperOptions callback signature — surfaced at the bank surface. */
 type IAuthFlowCallback = (info: IAuthFlowInfo) => void | Promise<void>;
@@ -55,5 +62,11 @@ async function safeInvoke<T>(
   }
 }
 
-export { COLD_FALLBACK_DETAIL, PHASE_LABEL, safeInvoke };
+export {
+  COLD_FALLBACK_DEGRADED,
+  COLD_FALLBACK_DETAIL,
+  COLD_FALLBACK_REJECTED,
+  PHASE_LABEL,
+  safeInvoke,
+};
 export type { IAuthFlowCallback };

@@ -258,8 +258,14 @@ async function runWithLogRecorder(
   return { logs, result, readLogs: recorder.read };
 }
 
-/** Text the degradation warning must contain to be actionable. */
-const FALLBACK_WARNING = 'stored long-term token was not accepted';
+/** The clause both fallback paths share — "this run paid for an SMS". */
+const SMS_FALLBACK_CLAUSE = 'fell back to the full SMS login';
+
+/** Cause named when the bank refused the stored token at the initial prime. */
+const REJECTED_CAUSE = 'stored long-term token was not accepted';
+
+/** Cause named when a session that had been carrying fine died mid-run. */
+const DEGRADED_CAUSE = 'warm session was rejected mid-run';
 
 /** Long-term token the scripted cold recovery mints as a replacement. */
 const RECOVERED_TOKEN = 'recovered-long-term-tok';
@@ -281,7 +287,7 @@ function durableTokenOf(result: Procedure<IPipelineContext>): string {
  * @returns Number of occurrences.
  */
 function countWarnings(logs: string): number {
-  return logs.split(FALLBACK_WARNING).length - 1;
+  return logs.split(SMS_FALLBACK_CLAUSE).length - 1;
 }
 
 /**
@@ -332,10 +338,21 @@ describe('ApiDirectCall ACTION keeps the durable token current after cold recove
     const rec = makeWarmRecordingBus([recovered]);
     const freshJwt = makeJwt(3600);
     const run = await runWithLogRecorder(rec, freshJwt);
-    expect(run.logs).not.toContain(FALLBACK_WARNING);
+    expect(run.logs).not.toContain(SMS_FALLBACK_CLAUSE);
     await recoverColdly(rec);
     const after = run.readLogs();
-    expect(after).toContain(FALLBACK_WARNING);
+    expect(after).toContain(SMS_FALLBACK_CLAUSE);
+    expect(after).toContain(DEGRADED_CAUSE);
+  });
+
+  it('does not call a token that carried a session "not accepted"', async () => {
+    const recovered = succeed({ access_token: RECOVERED_TOKEN });
+    const rec = makeWarmRecordingBus([recovered]);
+    const freshJwt = makeJwt(3600);
+    const run = await runWithLogRecorder(rec, freshJwt);
+    await recoverColdly(rec);
+    const after = run.readLogs();
+    expect(after).not.toContain(REJECTED_CAUSE);
   });
 
   it('does not re-blame the stored token when the session was already cold', async () => {
@@ -385,7 +402,8 @@ describe('ApiDirectCall ACTION records the warm flag from the actual prime path'
     const staleJwt = makeJwt(-10);
     const { logs, result } = await runWithLogRecorder(rec, staleJwt);
     expect(result.success).toBe(true);
-    expect(logs).toContain(FALLBACK_WARNING);
+    expect(logs).toContain(REJECTED_CAUSE);
+    expect(logs).toContain(SMS_FALLBACK_CLAUSE);
   });
 
   it('stays quiet when no token was stored, since nothing degraded', async () => {
@@ -393,7 +411,7 @@ describe('ApiDirectCall ACTION records the warm flag from the actual prime path'
     const rec = makeWarmRecordingBus([coldTok]);
     const { logs, result } = await runWithLogRecorder(rec);
     expect(result.success).toBe(true);
-    expect(logs).not.toContain(FALLBACK_WARNING);
+    expect(logs).not.toContain(SMS_FALLBACK_CLAUSE);
   });
 
   it('stays quiet when the warm path actually succeeded', async () => {
@@ -401,7 +419,7 @@ describe('ApiDirectCall ACTION records the warm flag from the actual prime path'
     const freshJwt = makeJwt(3600);
     const { logs, result } = await runWithLogRecorder(rec, freshJwt);
     expect(result.success).toBe(true);
-    expect(logs).not.toContain(FALLBACK_WARNING);
+    expect(logs).not.toContain(SMS_FALLBACK_CLAUSE);
   });
 
   it('records warm=false when no cached token is present (cold flow)', async () => {
