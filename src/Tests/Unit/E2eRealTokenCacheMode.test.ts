@@ -42,9 +42,6 @@ const GROUP_OTHER_BITS = 0o077;
 /** Isolated tmp dir backing `os.tmpdir()` for one test. */
 let sandbox = '';
 
-/** Previous TMPDIR, restored after each test. */
-let priorTmpDir: string | undefined;
-
 /**
  * Build a logger stub — diagnostics are not under test here.
  * @returns Logger double.
@@ -66,17 +63,48 @@ function stubLog(): ScraperLogger {
  * @returns Absolute cache path.
  */
 function cachePath(): string {
+  return path.join(sandbox, 'onezero-token.cache');
+}
+
+/**
+ * Build the cache under test, pinned to the sandbox directory.
+ *
+ * <p>The directory is injected rather than steered through `TMPDIR`.
+ * `os.tmpdir()` resolves `TMPDIR` via `safeGetenv`, which reads the real
+ * process environ, but Jest gives each test module a *copy* of
+ * `process.env` — so an override here never reaches `os.tmpdir()` and the
+ * cache would quietly operate on the developer's real token instead.
+ * @returns The token cache bound to the sandbox.
+ */
+function makeCache(): ReturnType<typeof createTokenCache> {
+  const log = stubLog();
+  return createTokenCache({ bankKey: 'onezero', envFlag: FLAG, log, dir: sandbox });
+}
+
+/**
+ * Resolve the shared cache path the suite must never touch.
+ * @returns Absolute path under the real `os.tmpdir()`.
+ */
+function sharedCachePath(): string {
   const tmp = os.tmpdir();
   return path.join(tmp, 'onezero-token.cache');
 }
 
 /**
- * Build the cache under test with a throwaway logger.
- * @returns The token cache bound to the sandbox.
+ * Read a path, treating "absent" as empty.
+ *
+ * <p>Existence alone is too weak a probe here: earlier tests in the file
+ * would already have created the shared cache, so an existence check
+ * silently becomes order-dependent. Content is order-independent.
+ * @param target - Absolute path.
+ * @returns File contents, or '' when the path is absent.
  */
-function makeCache(): ReturnType<typeof createTokenCache> {
-  const log = stubLog();
-  return createTokenCache({ bankKey: 'onezero', envFlag: FLAG, log });
+async function contentsOrEmpty(target: string): Promise<string> {
+  try {
+    return await fs.readFile(target, 'utf8');
+  } catch {
+    return '';
+  }
 }
 
 /**
@@ -139,18 +167,14 @@ async function strayTempFiles(): Promise<string[]> {
 }
 
 beforeEach(async () => {
-  priorTmpDir = process.env.TMPDIR;
   const root = os.tmpdir();
   const prefix = path.join(root, 'tokencache-');
   sandbox = await fs.mkdtemp(prefix);
-  process.env.TMPDIR = sandbox;
   process.env[FLAG] = '1';
 });
 
 afterEach(async () => {
   Reflect.deleteProperty(process.env, FLAG);
-  if (priorTmpDir === undefined) Reflect.deleteProperty(process.env, 'TMPDIR');
-  else process.env.TMPDIR = priorTmpDir;
   await fs.rm(sandbox, { recursive: true, force: true });
 });
 
@@ -200,5 +224,31 @@ describe('E2E-Real token cache — the token never enters a shared inode', () =>
 
     const strays = await strayTempFiles();
     expect(strays).toStrictEqual([]);
+  });
+});
+
+/**
+ * The suite must never write outside its sandbox.
+ *
+ * <p>An earlier revision steered the cache with `process.env.TMPDIR`, which
+ * Jest never propagates to `os.tmpdir()`. Every "sandboxed" test therefore
+ * operated on the *real* shared cache, so running the unit suite overwrote a
+ * developer's live warm-start token with a fixture and cost them the SMS this
+ * cache exists to avoid. The directory is injected now, and this pins it.
+ */
+describe('E2E-Real token cache — the suite stays inside its sandbox', () => {
+  it('[E2E-REAL-CACHE] TokenCache_SandboxedWrite_ShouldLeaveTheSharedCacheByteIdentical', async () => {
+    const shared = sharedCachePath();
+    const before = await contentsOrEmpty(shared);
+
+    const cache = makeCache();
+    await cache.write(TOKEN);
+
+    const after = await contentsOrEmpty(shared);
+    const target = cachePath();
+    const landed = await fs.readFile(target, 'utf8');
+    expect(landed).toBe(TOKEN);
+    expect(after).toBe(before);
+    expect(after).not.toBe(TOKEN);
   });
 });

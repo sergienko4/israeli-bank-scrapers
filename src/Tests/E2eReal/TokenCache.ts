@@ -34,6 +34,18 @@ interface ITokenCacheArgs {
   readonly bankKey: BankKey;
   readonly envFlag: string;
   readonly log: ScraperLogger;
+  /**
+   * Directory holding the cache file. Defaults to `os.tmpdir()`.
+   *
+   * <p>Injected rather than read from the ambient environment because
+   * `os.tmpdir()` cannot be redirected from inside a test: it resolves
+   * `TMPDIR` through `safeGetenv`, which reads the real process environ,
+   * while Jest hands each test module a *copy* of `process.env`. A test
+   * that overrode `process.env.TMPDIR` therefore still wrote to the shared
+   * temp dir and clobbered the developer's real cached token — costing
+   * them the very SMS this cache exists to avoid.
+   */
+  readonly dir?: string;
 }
 
 /** Public handle returned by createTokenCache. */
@@ -48,11 +60,12 @@ interface ITokenCacheHandle {
 /**
  * Resolve the cache file path for a bank.
  * @param bankKey - One of the BankKey union values.
- * @returns Absolute path to <tmpdir>/<bank>-token.cache.
+ * @param dir - Directory to hold the file; defaults to `os.tmpdir()`.
+ * @returns Absolute path to <dir>/<bank>-token.cache.
  */
-function cachePathFor(bankKey: BankKey): string {
-  const tmp = os.tmpdir();
-  return path.join(tmp, `${bankKey}-token.cache`);
+function cachePathFor(bankKey: BankKey, dir?: string): string {
+  const base = dir ?? os.tmpdir();
+  return path.join(base, `${bankKey}-token.cache`);
 }
 
 /**
@@ -267,7 +280,7 @@ function createDisabledCache(): ITokenCacheHandle {
 function createTokenCache(args: ITokenCacheArgs): ITokenCacheHandle {
   const flag = process.env[args.envFlag];
   if (flag === undefined || flag.length === 0) return createDisabledCache();
-  const cachePath = cachePathFor(args.bankKey);
+  const cachePath = cachePathFor(args.bankKey, args.dir);
   const log = args.log;
   /**
    * Read the cached token.
