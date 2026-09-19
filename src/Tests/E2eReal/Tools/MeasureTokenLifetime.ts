@@ -11,26 +11,16 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import * as os from 'node:os';
-import * as path from 'node:path';
 import * as process from 'node:process';
 
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
 import { measureJwtLifetime } from '../JwtLifetime.js';
+import type { BankKey } from '../TokenCache.js';
+import { cachePathFor, requireBankKey } from '../TokenCache.js';
 
 const EXIT_FAILURE = 1;
 const BANK_ARG_INDEX = 2;
 const MS_PER_SECOND = 1000;
-
-/**
- * Resolve the cache file for a bank key, mirroring `TokenCache.cachePathFor`.
- * @param bankKey - Bank key whose cache should be measured.
- * @returns Absolute path to the cache file.
- */
-function cacheFileFor(bankKey: string): string {
-  const base = os.tmpdir();
-  return path.join(base, `${bankKey}-token.cache`);
-}
 
 /**
  * Format one epoch-seconds timestamp as an ISO-8601 instant.
@@ -47,8 +37,8 @@ function asIso(seconds: number): string {
  * @param bankKey - Bank key whose cache should be measured.
  * @returns Nothing; output goes to stdout.
  */
-async function reportLifetime(bankKey: string): Promise<void> {
-  const file = cacheFileFor(bankKey);
+async function reportLifetime(bankKey: BankKey): Promise<void> {
+  const file = cachePathFor(bankKey);
   const raw = await readFile(file, 'utf8');
   const token = raw.trim();
   if (token.length === 0) throw new ScraperError(`no cached token at ${file}`);
@@ -62,8 +52,8 @@ async function reportLifetime(bankKey: string): Promise<void> {
  * @returns Nothing; exits non-zero on failure.
  */
 async function main(): Promise<void> {
-  const bankKey = process.argv.at(BANK_ARG_INDEX) ?? '';
-  if (bankKey.length === 0) throw new ScraperError('usage: measure:token-lifetime -- <bankKey>');
+  const argument = process.argv.at(BANK_ARG_INDEX) ?? '';
+  const bankKey = requireBankKey(argument);
   await reportLifetime(bankKey);
 }
 

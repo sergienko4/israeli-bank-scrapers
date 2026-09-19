@@ -24,11 +24,46 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import type { IAuthFlowInfo } from '../../Scrapers/Base/Interface.js';
+import ScraperError from '../../Scrapers/Base/ScraperError.js';
 import type { ScraperLogger } from '../../Scrapers/Pipeline/Logging/Debug.js';
 import { replaceAtomically } from './AtomicReplace.js';
 
 /** Supported bank keys — matches the BankPlugin taxonomy. */
-type BankKey = 'onezero' | 'pepper' | 'paybox';
+const BANK_KEYS = ['onezero', 'pepper', 'paybox'] as const;
+
+/** Supported bank keys — derived from BANK_KEYS so the two cannot drift. */
+type BankKey = (typeof BANK_KEYS)[number];
+
+/**
+ * Narrow an untrusted string to a supported bank key.
+ *
+ * <p>`cachePathFor` interpolates the key straight into a filename, so a key
+ * carrying `..` walks out of the cache directory. Callers taking a key from
+ * argv or any other untrusted source must pass it through here first.
+ * @param value - Candidate key.
+ * @returns True when the value is one of BANK_KEYS.
+ */
+function isBankKey(value: string): value is BankKey {
+  const keys: readonly string[] = BANK_KEYS;
+  return keys.includes(value);
+}
+
+/**
+ * Resolve an untrusted CLI argument to a supported bank key, or refuse.
+ *
+ * <p>Lives beside `isBankKey` so the guard and the path builder cannot drift
+ * apart: a caller that reaches `cachePathFor` has necessarily come through
+ * here, and an argument that never becomes a `BankKey` never becomes a path
+ * either — the refusal happens before any filesystem access.
+ * @param argument - Raw argv value.
+ * @returns The narrowed bank key.
+ * @throws ScraperError naming the supported keys when the value is not one.
+ */
+function requireBankKey(argument: string): BankKey {
+  if (isBankKey(argument)) return argument;
+  const supported = BANK_KEYS.join(', ');
+  throw new ScraperError(`usage: measure:token-lifetime -- <${supported}>`);
+}
 
 /** Args bundle for createTokenCache — respects the 3-param ceiling. */
 interface ITokenCacheArgs {
@@ -310,4 +345,4 @@ function createTokenCache(args: ITokenCacheArgs): ITokenCacheHandle {
 }
 
 export type { BankKey, ITokenCacheArgs, ITokenCacheHandle };
-export { createTokenCache };
+export { BANK_KEYS, cachePathFor, createTokenCache, isBankKey, requireBankKey };
