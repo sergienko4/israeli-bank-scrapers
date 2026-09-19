@@ -26,6 +26,15 @@ interface IConfigTokenStrategy extends ITokenStrategy<GenericCreds> {
    * bank said no", which read identically from the warm flag alone.
    */
   warmSeedRejectedLocally(): boolean;
+  /**
+   * How the warm attempt failed, as a ScraperErrorTypes tag, or '' when none
+   * was attempted or it succeeded. The cold retry fires on *any* primeInitial
+   * failure, so without this the fallback warning can only guess.
+   *
+   * <p>The tag, never the message: banks echo credentials into `errorMessage`
+   * (see PiiRedactor/ErrorLog, CodeQL js/clear-text-logging #28).
+   */
+  warmAttemptFailureType(): string;
 }
 
 /** Args for runConfiguredFlow — respects 3-param ceiling. */
@@ -50,6 +59,8 @@ interface ILongTermTokenSlot {
    * the reason the warm path was skipped.
    */
   warmSeedRejectedLocally?: boolean;
+  /** ScraperErrorTypes tag from the warm attempt, when one was made and failed. */
+  warmAttemptFailureType?: string;
 }
 
 /** Subset of IFlowResult consumed by captureFlowResult. */

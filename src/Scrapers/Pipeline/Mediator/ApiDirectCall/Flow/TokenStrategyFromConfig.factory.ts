@@ -81,13 +81,17 @@ type IGetterBindings = Pick<
   | 'getLatestCarrySnapshot'
   | 'lastPrimeWasWarm'
   | 'warmSeedRejectedLocally'
+  | 'warmAttemptFailureType'
 >;
 
 /** The slot readers that expose captured token material. */
 type ITokenGetters = Pick<IGetterBindings, 'getLatestLongTermToken' | 'getLatestCarrySnapshot'>;
 
 /** The slot readers that explain which path the last prime actually took. */
-type IWarmGetters = Pick<IGetterBindings, 'lastPrimeWasWarm' | 'warmSeedRejectedLocally'>;
+type IWarmGetters = Pick<
+  IGetterBindings,
+  'lastPrimeWasWarm' | 'warmSeedRejectedLocally' | 'warmAttemptFailureType'
+>;
 
 /**
  * Build the readers for the token material the last flow captured.
@@ -125,7 +129,12 @@ function buildWarmGetters(slot: ILongTermTokenSlot): IWarmGetters {
    * @returns True when the seed was never sent to the bank.
    */
   const warmSeedRejectedLocally = (): boolean => slot.warmSeedRejectedLocally ?? false;
-  return { lastPrimeWasWarm, warmSeedRejectedLocally };
+  /**
+   * Read how the warm attempt failed, when one was made and failed.
+   * @returns The ScraperErrorTypes tag, or '' when there is none.
+   */
+  const warmAttemptFailureType = (): string => slot.warmAttemptFailureType ?? '';
+  return { lastPrimeWasWarm, warmSeedRejectedLocally, warmAttemptFailureType };
 }
 
 /**

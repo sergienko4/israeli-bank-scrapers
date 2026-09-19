@@ -25,14 +25,14 @@ const PHASE_LABEL = 'api-direct-call';
 const COLD_FALLBACK_DETAIL = 'fell back to the full SMS login';
 
 /**
- * Cause named when the bank refused the stored token at the initial prime.
+ * Cause named when a warm attempt was made and did not carry the session.
  *
- * <p>Reserved for an actual server refusal. A token the local freshness gate
- * threw out never reached the bank, so reporting it this way would send an
- * operator digging through identity-server logs for a request that was never
- * made — see {@link COLD_FALLBACK_STALE}.
+ * <p>Deliberately neutral. The cold retry fires on any warm failure — a bank
+ * refusal, a timeout, a transport error, a WAF block — and those are not
+ * distinguishable from the warm flag alone. Naming one of them would be a
+ * guess, so the warm attempt's own failure is appended instead.
  */
-const COLD_FALLBACK_REJECTED = 'stored long-term token was not accepted';
+const COLD_FALLBACK_WARM_FAILED = 'warm start with the stored long-term token did not succeed';
 
 /**
  * Cause named when the stored token failed the local freshness gate and was
@@ -79,8 +79,8 @@ async function safeInvoke<T>(
 export {
   COLD_FALLBACK_DEGRADED,
   COLD_FALLBACK_DETAIL,
-  COLD_FALLBACK_REJECTED,
   COLD_FALLBACK_STALE,
+  COLD_FALLBACK_WARM_FAILED,
   PHASE_LABEL,
   safeInvoke,
 };

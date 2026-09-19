@@ -7,6 +7,7 @@
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IDurableAuthState } from '../../Types/Domain/DurableAuthState.js';
 import { some } from '../../Types/Option.js';
+import { redactSensitiveEnum } from '../../Types/PiiRedactor.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
@@ -18,8 +19,8 @@ import { mergeOptionsIntoCreds } from './ApiDirectCallActions.pre.js';
 import { makeRecoveryHook } from './ApiDirectCallActions.recovery.js';
 import {
   COLD_FALLBACK_DETAIL,
-  COLD_FALLBACK_REJECTED,
   COLD_FALLBACK_STALE,
+  COLD_FALLBACK_WARM_FAILED,
   PHASE_LABEL,
   safeInvoke,
 } from './ApiDirectCallActions.shared.js';
@@ -131,6 +132,27 @@ function setBusAuth(bus: IApiMediator, strategy: IConfigTokenStrategy, header: s
 }
 
 /**
+ * Name the cause that matches what actually happened to the stored seed.
+ *
+ * <p>Only the local-freshness rejection is knowable here. Everything else the
+ * cold retry swallows — refusal, timeout, transport, WAF — so the warm
+ * attempt's error tag is reported rather than a guess at which one it was.
+ * The tag is passed through `redactSensitiveEnum` because password-class tags
+ * are themselves credential metadata. An absent tag is a defensive default —
+ * `fail()` always carries a `ScraperErrorTypes` value — so the clause degrades
+ * to the bare neutral wording rather than printing an empty parenthesis.
+ * @param strategy - The strategy that primed the session.
+ * @returns Cause clause for the fallback warning.
+ */
+function pickFallbackCause(strategy: IBootedAction['strategy']): string {
+  if (strategy.warmSeedRejectedLocally()) return COLD_FALLBACK_STALE;
+  const failureType = strategy.warmAttemptFailureType();
+  if (failureType.length === 0) return COLD_FALLBACK_WARM_FAILED;
+  const safeType = redactSensitiveEnum(failureType);
+  return `${COLD_FALLBACK_WARM_FAILED} (${safeType})`;
+}
+
+/**
  * Warn when a stored long-term token was supplied but the cold SMS chain ran
  * anyway.
  *
@@ -145,8 +167,7 @@ function setBusAuth(bus: IApiMediator, strategy: IConfigTokenStrategy, header: s
 function warnOnSilentColdFallback(booted: IBootedAction, isWarm: boolean): boolean {
   if (isWarm) return false;
   if (!booted.strategy.hasWarmState(booted.creds)) return false;
-  const wasLocal = booted.strategy.warmSeedRejectedLocally();
-  const cause = wasLocal ? COLD_FALLBACK_STALE : COLD_FALLBACK_REJECTED;
+  const cause = pickFallbackCause(booted.strategy);
   const detail = `${cause}; ${COLD_FALLBACK_DETAIL}`;
   booted.ctx.logger.warn({ message: `${PHASE_LABEL} ${detail}` });
   return true;

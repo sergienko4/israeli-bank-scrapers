@@ -87,12 +87,24 @@ the full SMS login"), so a single grep finds every run that paid for an SMS it
 was meant to avoid. They name different causes, because the two events are not
 the same. `COLD_FALLBACK_STALE` means the stored copy failed the local
 freshness check and was never sent — the fault is on this side, and there is no
-bank-side request to go looking for. `COLD_FALLBACK_REJECTED` means the token
-passed that check, was sent, and the bank refused it up front. And
+bank-side request to go looking for. `COLD_FALLBACK_WARM_FAILED` means the
+token passed that check and was sent, but the warm attempt did not carry the
+session; the attempt's error tag is reported in parentheses. And
 `COLD_FALLBACK_DEGRADED` means the token was accepted, carried a session, and
-was revoked underneath you. A token that worked is never reported as "not
-accepted", and a token the bank never saw is never reported as refused — that
-is what tells you whether to suspect your stored copy or the bank.
+was revoked underneath you.
+
+`COLD_FALLBACK_WARM_FAILED` is deliberately neutral about *why* the warm
+attempt failed. The cold retry fires on any failure of the initial prime — a
+refusal by the bank, but equally a timeout, a transport error or a WAF block —
+and those are indistinguishable once the retry has swallowed them. Calling all
+of them "not accepted" would blame your stored token for an outage, so the
+scraper reports the attempt's own error tag — `TIMEOUT`, `NETWORK_ERROR` and
+so on — instead of guessing which it was.
+
+Only the tag is reported, never the failure text. Banks echo credentials into
+error messages, so putting that text in an operator-facing log is exactly the
+cleartext-logging leak `redactErrorMessage` exists to prevent; password-class
+tags are themselves credential metadata and are redacted in turn.
 
 A mid-run rejection is repaired wherever it surfaces. Any API call that comes
 back `401`/`403` re-mints in place and retries, and that in-request repair
