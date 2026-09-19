@@ -31,6 +31,13 @@ import { captureEnvVar, restoreEnvVar } from '../Helpers/AmbientEnv.js';
 const FLAG = 'ONEZERO_OTP_LONG_TERM';
 
 /**
+ * The flag exactly as the host had it, captured before the fixture below
+ * overwrites it. Nothing may destroy a value it has not first captured —
+ * that is the whole point of the bug these tests guard.
+ */
+const HOST_FLAG = captureEnvVar(FLAG);
+
+/**
  * Value standing in for the developer's own `.env`, which really does set
  * this flag. Installed before the hooks run so the suite is exercised
  * against a host that had the variable, not against an empty environment.
@@ -195,15 +202,24 @@ afterEach(async () => {
 });
 
 /**
- * Fail the suite if it handed the host environment back altered.
+ * Fail the suite if it handed the host environment back altered, then put
+ * the host's own value back.
+ *
+ * <p>The restore is belt-and-braces: Jest gives every test file its own
+ * `process.env` copy, so a write here cannot reach another file. That was
+ * measured, not assumed — a canary set at module load in one file reads back
+ * `undefined` in the next. The file still restores what it overwrote, because
+ * "nothing observes it today" is not a reason to destroy a value, and the
+ * isolation is Jest's to change.
  *
  * <p>`expect` is deliberately avoided here: `jest/no-standalone-expect`
  * forbids assertions outside a test body, and a throw fails the suite just
- * as loudly.
+ * as loudly. The restore runs before the throw so it happens either way.
  * @returns True when the flag survived the run untouched.
  */
 afterAll((): boolean => {
   const actual = process.env[FLAG];
+  restoreEnvVar(HOST_FLAG);
   if (actual === HOST_FLAG_VALUE) return true;
   throw new ScraperError(`suite left ${FLAG} as ${String(actual)}, host had ${HOST_FLAG_VALUE}`);
 });
