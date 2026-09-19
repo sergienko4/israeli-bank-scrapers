@@ -25,6 +25,7 @@ import * as path from 'node:path';
 
 import type { IAuthFlowInfo } from '../../Scrapers/Base/Interface.js';
 import type { ScraperLogger } from '../../Scrapers/Pipeline/Logging/Debug.js';
+import { replaceAtomically } from './AtomicReplace.js';
 
 /** Supported bank keys — matches the BankPlugin taxonomy. */
 type BankKey = 'onezero' | 'pepper' | 'paybox';
@@ -139,6 +140,10 @@ async function discardTemp(tempPath: string): Promise<boolean> {
  * filled, then `rename`d over the cache: the replacement is atomic, so
  * readers see either the whole old file or the whole new one, and anyone
  * holding the old inode is left with the token they already had.
+ *
+ * <p>The move goes through {@link replaceAtomically} because Windows refuses
+ * it while another process holds the cache open; dropping the token on that
+ * refusal would cost the user an SMS on the next run.
  * @param cachePath - Absolute path.
  * @param token - Token string.
  * @returns True once the token is in place.
@@ -147,8 +152,7 @@ async function writeOwnerOnly(cachePath: string, token: string): Promise<boolean
   const tempPath = `${cachePath}.${randomUUID()}.tmp`;
   try {
     await writeTempOwnerOnly(tempPath, token);
-    await fs.rename(tempPath, cachePath);
-    return true;
+    return await replaceAtomically({ from: tempPath, to: cachePath });
   } catch (error) {
     await discardTemp(tempPath);
     throw error;
