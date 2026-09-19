@@ -33,9 +33,6 @@ const TOKEN = 'SYNTHETIC-DURABLE-TOKEN';
 /** Value a pre-existing cache holds before the run. */
 const PRIOR = 'previous-token';
 
-/** Loose mode a cache written by an older version can carry. */
-const LOOSE_MODE = 0o644;
-
 /** Owner-only mode the cache must end up with. */
 const OWNER_ONLY = 0o600;
 
@@ -83,14 +80,19 @@ function makeCache(): ReturnType<typeof createTokenCache> {
 }
 
 /**
- * Seed a cache that already exists with loose permissions — the only
- * situation in which the leak is reachable.
+ * Seed a cache that already exists, owner-only.
+ *
+ * <p>The seed is deliberately `0600`: the leak does not depend on loose
+ * bits. Reusing the published inode is what exposes the token, so any
+ * reader that already has it open — a same-user process here, another
+ * local user when the bits are looser — reads whatever lands in it next.
+ * Seeding tight keeps the test from creating a world-readable file just
+ * to prove a point the tight case already proves.
  * @returns The seeded path.
  */
-async function seedLooseCache(): Promise<string> {
+async function seedExistingCache(): Promise<string> {
   const target = cachePath();
-  await fs.writeFile(target, PRIOR, { mode: LOOSE_MODE });
-  await fs.chmod(target, LOOSE_MODE);
+  await fs.writeFile(target, PRIOR, { mode: OWNER_ONLY });
   return target;
 }
 
@@ -131,7 +133,7 @@ afterEach(async () => {
 
 describe('E2E-Real token cache — the token never enters a shared inode', () => {
   it('[E2E-REAL-CACHE] TokenCache_ReaderHoldingOldDescriptor_ShouldNeverSeeTheNewToken', async () => {
-    const target = await seedLooseCache();
+    const target = await seedExistingCache();
     const watcherFd = openSync(target, 'r');
 
     const cache = makeCache();
@@ -142,8 +144,8 @@ describe('E2E-Real token cache — the token never enters a shared inode', () =>
     expect(throughOldFd).toBe(PRIOR);
   });
 
-  it('[E2E-REAL-CACHE] TokenCache_PreExistingLooseFile_ShouldPublishOwnerOnly', async () => {
-    const target = await seedLooseCache();
+  it('[E2E-REAL-CACHE] TokenCache_PreExistingCache_ShouldPublishOwnerOnly', async () => {
+    const target = await seedExistingCache();
 
     const cache = makeCache();
     await cache.write(TOKEN);
