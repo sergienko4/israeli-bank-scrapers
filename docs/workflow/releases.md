@@ -83,12 +83,24 @@ mean parsing npm's error text, which carries no stable error code. The publish
 step emits a `::warning::` and the verification step echoes the recorded
 outcome, so the log says which of the two happened.
 
-**If a release goes red, read the verification step first.** If it reports the
-version as missing after the full budget, check
-[the package on npmjs.com](https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers)
-before re-running: if the version is listed, the scan simply outran the budget
-and a re-run will pass; if it is not, the publish never reached the registry
-and the cause is upstream of the wait.
+**If a release goes red, read the verification step first.** It checks three
+things — that the version resolves, that `dist-tags.latest` points at it, and
+that it carries a provenance attestation — and it names which one failed. A
+re-run only helps when the sole problem was that the version had not appeared
+yet, so check the failing signal before re-running:
+
+| What the step reports | What it means | Re-run? |
+| --- | --- | --- |
+| Version missing, and it is now listed on [npmjs.com](https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers) | The scan outran the budget; the release shipped | Yes — verification will pass |
+| Version missing, and still not listed | Either the publish never reached the registry, or the scan is still running or has **blocked** the package | Not yet — establish which before re-running |
+| Version resolves but `dist-tags.latest` is stale | The tag was not moved | No — a re-run cannot fix it; re-tag instead |
+| Version resolves but has no attestation | The OIDC exchange degraded and published without provenance | No — a re-run cannot add provenance to a published version |
+
+A blocked package is the case worth naming: npm may hold or block a package it
+flags, and from the registry that is indistinguishable from a slow scan, so the
+job waits the full budget before going red. If nothing appears and no
+notification arrives, check the publishing account for an appeal notice rather
+than re-running.
 
 ## Signals we control
 

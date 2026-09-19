@@ -69,6 +69,17 @@ const SLEEP_DEFAULT_RE = /VERIFY_SLEEP_SECONDS:-(\d+)/;
  */
 const PUBLISH_TOLERANCE_RE = /if\s+npm publish|npm publish[^\n]*\|\||publish_rc|\bset \+e\b/;
 
+/**
+ * Fragments identifying the two steps whose order is load-bearing.
+ *
+ * <p>`PUBLISH_INVOCATION` carries its flags deliberately. The verification
+ * step echoes `npm publish outcome: …` into the log, so a bare `npm publish`
+ * matches both steps and whichever comes first wins — which silently points
+ * the content assertions at the wrong step the moment anything is reordered.
+ */
+const PUBLISH_INVOCATION = 'npm publish --access public';
+const VERIFY_INVOCATION = 'verify-npm-publish.sh';
+
 /** Step-level shape this test reads — everything else is irrelevant. */
 interface IWorkflowStep {
   readonly name?: string;
@@ -121,8 +132,19 @@ function publishSteps(): readonly IWorkflowStep[] {
  */
 function publishStep(): IWorkflowStep {
   const steps = publishSteps();
-  const found = steps.find(step => (step.run ?? '').includes('npm publish'));
+  const found = steps.find(step => (step.run ?? '').includes(PUBLISH_INVOCATION));
   return found ?? {};
+}
+
+/**
+ * Index of the first step whose `run` block contains a fragment.
+ *
+ * @param fragment - Substring identifying the command.
+ * @returns Its position in the publish job, or -1 when absent.
+ */
+function stepIndex(fragment: string): number {
+  const steps = publishSteps();
+  return steps.findIndex(step => (step.run ?? '').includes(fragment));
 }
 
 /**
@@ -153,11 +175,12 @@ describe('release.yml — the publish job can outlast npm publish-time scanning'
     expect(timeout).toBeGreaterThanOrEqual(pollMinutes + NON_POLL_MINUTES);
   });
 
-  it('still verifies the release after publishing', () => {
-    const steps = publishSteps();
-    const hasVerifyStep = steps.some(step => (step.run ?? '').includes('verify-npm-publish.sh'));
+  it('verifies the release, and only after the publish has happened', () => {
+    const publishAt = stepIndex(PUBLISH_INVOCATION);
+    const verifyAt = stepIndex(VERIFY_INVOCATION);
 
-    expect(hasVerifyStep).toBe(true);
+    expect(publishAt).toBeGreaterThanOrEqual(0);
+    expect(verifyAt).toBeGreaterThan(publishAt);
   });
 });
 
