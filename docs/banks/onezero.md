@@ -42,10 +42,18 @@ not a session.
 
 A token minted against the live bank on 2026-09-19 carried `iat` and `exp`
 exactly **3650 days apart — ten years to the second** (`RS256`, expiring
-2036-09-16). That is a measurement taken from a real run of
-`src/Tests/E2eReal/OneZero.e2e-real.test.ts`, not the reporter's figure quoted
-in issue #576, though it confirms it. The interval is still the bank's to
-change without notice.
+2036-09-16). The scrape that minted it never reads either claim, so the figure
+does not come from the E2E run itself: it comes from decoding the cached token
+afterwards, which anyone holding a token can repeat without contacting the bank:
+
+```sh
+npm run measure:token-lifetime -- onezero
+# onezero: iat=2026-09-19T07:59:42.000Z exp=2036-09-16T07:59:42.000Z lifetime=3650 days
+```
+
+Treat that as one observation of one token, not a guarantee. It corroborates
+the lifetime reported in issue #576 rather than resting on it, but the interval
+remains the bank's to change without notice.
 
 Anyone holding the token can skip the SMS step for that entire period, so store
 it with the same care as the password itself: encrypted at rest, never in
