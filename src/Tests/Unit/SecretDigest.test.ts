@@ -7,7 +7,11 @@
  * that makes the digest an honest substitute.
  */
 
-import { ABSENT, digestOf } from '../Helpers/SecretDigest.js';
+import * as fs from 'node:fs/promises';
+import * as os from 'node:os';
+import * as path from 'node:path';
+
+import { ABSENT, digestFileOrAbsent, digestOf } from '../Helpers/SecretDigest.js';
 
 /** Stand-in for a real cached bank token — used nowhere else. */
 const SECRET = 'header.eyJzdWIiOiJzZWNyZXQtc3ViamVjdCJ9.signature-value';
@@ -85,5 +89,54 @@ describe('digesting a secret before asserting on it', () => {
   it('gives present content a digest that is not the absent marker', () => {
     const digest = digestOf(SECRET);
     expect(digest).not.toBe(ABSENT);
+  });
+});
+
+/**
+ * Capture the error code a rejected digest produced.
+ * @param target - Path to digest.
+ * @returns The `code` of the rejection, or '' when it resolved instead.
+ */
+async function codeOfRejection(target: string): Promise<string> {
+  try {
+    await digestFileOrAbsent(target);
+  } catch (thrown: unknown) {
+    const failure = thrown as NodeJS.ErrnoException;
+    return failure.code ?? 'UNKNOWN';
+  }
+  return '';
+}
+
+describe('digesting a file that may not be there', () => {
+  let scratch: string;
+
+  beforeAll(async () => {
+    const tmp = os.tmpdir();
+    const prefix = path.join(tmp, 'secret-digest-');
+    scratch = await fs.mkdtemp(prefix);
+  });
+
+  afterAll(async () => {
+    await fs.rm(scratch, { recursive: true, force: true });
+  });
+
+  it('reports absence when there is nothing at the path', async () => {
+    const missing = path.join(scratch, 'not-here');
+    const digest = await digestFileOrAbsent(missing);
+    expect(digest).toBe(ABSENT);
+  });
+
+  it('digests the contents when the path does hold something', async () => {
+    const target = path.join(scratch, 'present');
+    await fs.writeFile(target, SECRET, 'utf8');
+    const digest = await digestFileOrAbsent(target);
+    const expected = digestOf(SECRET);
+    expect(digest).toBe(expected);
+  });
+
+  it('refuses to call an unreadable path absent', async () => {
+    const code = await codeOfRejection(scratch);
+    expect(code).not.toBe('');
+    expect(code).not.toBe('ENOENT');
   });
 });

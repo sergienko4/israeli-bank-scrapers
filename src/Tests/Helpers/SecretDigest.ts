@@ -14,6 +14,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 
 /** Marker for "nothing was there", distinct from any real digest. */
 const ABSENT = '';
@@ -30,4 +31,36 @@ function digestOf(content: string): string {
   return hash.digest('hex');
 }
 
-export { ABSENT, digestOf };
+/**
+ * Decide what a failed read means.
+ * @param thrown - Whatever the read raised.
+ * @returns The absent marker, when and only when the file was missing.
+ */
+function absentOrRethrow(thrown: unknown): string {
+  const failure = thrown as NodeJS.ErrnoException;
+  if (failure.code === 'ENOENT') return ABSENT;
+  throw thrown;
+}
+
+/**
+ * Digest a file's contents, treating only a missing file as absent.
+ *
+ * <p>A blanket `catch` would report an unreadable file — `EACCES` when the
+ * path belongs to another user, `EIO` on a failing disk — as "nothing was
+ * there". A caller comparing a before-and-after digest would then see two
+ * empty strings and pass without having observed anything at all, which is
+ * the one outcome such a check exists to rule out. Absence is `ENOENT` and
+ * nothing else.
+ * @param target - Absolute path whose contents must not reach a reporter.
+ * @returns Hex SHA-256 of the contents, or '' when the path does not exist.
+ */
+async function digestFileOrAbsent(target: string): Promise<string> {
+  try {
+    const raw = await readFile(target, 'utf8');
+    return digestOf(raw);
+  } catch (thrown: unknown) {
+    return absentOrRethrow(thrown);
+  }
+}
+
+export { ABSENT, digestFileOrAbsent, digestOf };

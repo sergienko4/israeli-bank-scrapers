@@ -26,7 +26,7 @@ import type { ScraperLogger } from '../../Scrapers/Pipeline/Logging/Debug.js';
 import { createTokenCache } from '../E2eReal/TokenCache.js';
 import type { ICapturedEnvVar } from '../Helpers/AmbientEnv.js';
 import { captureEnvVar, restoreEnvVar } from '../Helpers/AmbientEnv.js';
-import { digestOf } from '../Helpers/SecretDigest.js';
+import { digestFileOrAbsent, digestOf } from '../Helpers/SecretDigest.js';
 
 /** Env flag that switches the cache on. */
 const FLAG = 'ONEZERO_OTP_LONG_TERM';
@@ -111,29 +111,6 @@ function makeCache(): ReturnType<typeof createTokenCache> {
 function sharedCachePath(): string {
   const tmp = os.tmpdir();
   return path.join(tmp, 'onezero-token.cache');
-}
-
-/**
- * Digest a path's contents, treating "absent" as empty.
- *
- * <p>Existence alone is too weak a probe here: earlier tests in the file
- * would already have created the shared cache, so an existence check
- * silently becomes order-dependent. Content is order-independent.
- *
- * <p>The contents are digested rather than returned, because this reads the
- * developer's *real* cache — a live bank token. Returning it would put it one
- * failed assertion away from the console and the CI log; the digest compares
- * just as exactly and is safe to print.
- * @param target - Absolute path.
- * @returns SHA-256 of the contents, or '' when the path is absent.
- */
-async function digestOrEmpty(target: string): Promise<string> {
-  try {
-    const raw = await fs.readFile(target, 'utf8');
-    return digestOf(raw);
-  } catch {
-    return '';
-  }
 }
 
 /**
@@ -285,7 +262,10 @@ describe('E2E-Real token cache — the token never enters a shared inode', () =>
  *
  * <p>`before` and `after` are digests, not contents: they describe whatever
  * the developer's real cache holds, and Jest publishes both operands of a
- * failed `toBe` straight into the console and the CI log.
+ * failed `toBe` straight into the console and the CI log. Digesting the
+ * *contents* rather than probing for existence also keeps the check
+ * order-independent — earlier tests in this file may already have created
+ * the shared cache, so an existence probe would depend on who ran first.
  *
  * <p>An earlier revision steered the cache with `process.env.TMPDIR`, which
  * Jest never propagates to `os.tmpdir()`. Every "sandboxed" test therefore
@@ -296,12 +276,12 @@ describe('E2E-Real token cache — the token never enters a shared inode', () =>
 describe('E2E-Real token cache — the suite stays inside its sandbox', () => {
   it('[E2E-REAL-CACHE] TokenCache_SandboxedWrite_ShouldLeaveTheSharedCacheByteIdentical', async () => {
     const shared = sharedCachePath();
-    const before = await digestOrEmpty(shared);
+    const before = await digestFileOrAbsent(shared);
 
     const cache = makeCache();
     await cache.write(TOKEN);
 
-    const after = await digestOrEmpty(shared);
+    const after = await digestFileOrAbsent(shared);
     const target = cachePath();
     const landed = await fs.readFile(target, 'utf8');
     expect(landed).toBe(TOKEN);
