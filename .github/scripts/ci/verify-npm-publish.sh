@@ -19,9 +19,11 @@
 # Both are invisible from the publish job itself, which is why this runs
 # afterwards and reads back from the registry as a consumer would.
 #
-# The registry is read-through-cache and eventually consistent, so a fresh
-# publish can 404 for a few seconds. That is expected, not a failure — hence
-# the bounded poll rather than a single request.
+# The registry is read-through-cache and eventually consistent, and since
+# npm's publish-time malware scan a freshly published version is not merely
+# uncached but absent: it becomes installable only once scanning completes.
+# That is expected, not a failure — hence the bounded poll rather than a
+# single request.
 #
 # Usage:
 #   verify-npm-publish.sh <package-name> <version>
@@ -41,10 +43,25 @@ PKG_VERSION="${2:?version required}"
 ENCODED_NAME="${PKG_NAME//\//%2f}"
 REGISTRY_URL="https://registry.npmjs.org/${ENCODED_NAME}"
 
-# Overridable so the smoke test can exercise the give-up path in milliseconds
-# instead of the two minutes a real release is willing to wait.
-readonly MAX_ATTEMPTS="${VERIFY_MAX_ATTEMPTS:-12}"
-readonly SLEEP_SECONDS="${VERIFY_SLEEP_SECONDS:-10}"
+# npm scans every publish before the version becomes installable, which it
+# documents as "typically around five minutes... up to 15 minutes or more at
+# peak", with the explicit instruction to update automation that assumes
+# immediate availability:
+# https://github.blog/changelog/2026-07-28-npm-publish-time-malware-scanning-and-dual-use-metadata/
+#
+# The budget is therefore set against that documented ceiling rather than its
+# typical case: a budget sized for the typical case reports a healthy release
+# as broken roughly whenever a scan runs slow. 80 x 15s = 20 minutes.
+#
+# This used to be 12 x 10s = 120s, written when the registry committed a
+# version synchronously. Release 8.7.2 became installable 127s after publish —
+# a fast scan by npm's own numbers — and the gate had already given up 16s
+# earlier, failing a release that had in fact shipped correctly.
+#
+# Overridable so the smoke test can exercise both the give-up path and the
+# appears-on-a-later-poll path in milliseconds.
+readonly MAX_ATTEMPTS="${VERIFY_MAX_ATTEMPTS:-80}"
+readonly SLEEP_SECONDS="${VERIFY_SLEEP_SECONDS:-15}"
 
 # Reads the registry's package document on stdin and prints two fields:
 # the version's own `version` string (empty when absent) and `dist-tags.latest`.
@@ -58,7 +75,7 @@ readonly READ_FIELDS='
   process.stdout.write(published + " " + latest);
 '
 
-echo "Verifying ${PKG_NAME}@${PKG_VERSION} on registry.npmjs.org"
+echo "Verifying ${PKG_NAME}@${PKG_VERSION} on registry.npmjs.org (budget $((MAX_ATTEMPTS * SLEEP_SECONDS))s)"
 
 attempt=1
 while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
@@ -80,9 +97,11 @@ while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
 
   if [ "${attempt}" -eq "${MAX_ATTEMPTS}" ]; then
     echo "ERROR: ${PKG_NAME}@${PKG_VERSION} is not installable after $((MAX_ATTEMPTS * SLEEP_SECONDS))s." >&2
-    echo "       The publish step reported success, so the tarball was accepted, but the" >&2
-    echo "       registry does not serve this version as 'latest'. Consumers running" >&2
-    echo "       'npm install ${PKG_NAME}' are still getting '${latest:-the previous release}'." >&2
+    echo "       Consumers running 'npm install ${PKG_NAME}' are still getting" >&2
+    echo "       '${latest:-the previous release}'. Either the publish never reached the" >&2
+    echo "       registry, or npm's publish-time scan is still running or has blocked" >&2
+    echo "       this version. Check https://www.npmjs.com/package/${PKG_NAME} before" >&2
+    echo "       re-running: a version that is merely slow will appear on its own." >&2
     exit 1
   fi
 

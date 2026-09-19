@@ -120,7 +120,14 @@ jobs:
     needs: [release-please]
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # npm scans every publish before the version becomes installable, so most
+    # of this job is spent waiting for the registry rather than working. The
+    # cap has to clear `verify-npm-publish.sh`'s whole budget plus checkout,
+    # `npm ci` and the build, or the runner kills the poll before the gate can
+    # pass — which is exactly how release 8.7.2 went red after shipping fine.
+    # `ReleasePublishAvailabilityGate.test.ts` fails if this drops below the
+    # verifier's budget.
+    timeout-minutes: 30
     environment: npm-publish
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -162,17 +169,41 @@ jobs:
       - run: npm ci
       - uses: $/.github/actions/build-package
       - name: Publish with provenance (Trusted Publishing OIDC)
-        run: npm publish --access public --provenance
+        # `npm publish` is not idempotent: once the registry has accepted a
+        # tarball, every later attempt fails with "cannot publish over the
+        # previously published versions". Combined with npm's publish-time
+        # scan that makes a re-run useless — the first attempt publishes, its
+        # verification times out waiting for the scan, and the re-run that
+        # should recover the release instead dies on the conflict. Both runs
+        # red, permanently.
+        #
+        # So this step does not get to decide whether the release shipped.
+        # It records what happened and the verification below reads the answer
+        # back from the registry, which is the only place that actually knows.
+        # A pre-publish existence check cannot substitute: while scanning is
+        # pending the version is absent from the packument, so "not there yet"
+        # and "never published" are indistinguishable from outside.
+        run: |
+          set -euo pipefail
+          if npm publish --access public --provenance; then
+            echo "PUBLISH_OUTCOME=accepted" >> "$GITHUB_ENV"
+          else
+            echo "PUBLISH_OUTCOME=rejected" >> "$GITHUB_ENV"
+            echo "::warning::npm publish exited non-zero. If a previous attempt already published this version that is expected; the registry check below decides."
+          fi
 
       # `npm publish` exiting 0 proves the registry accepted the tarball, not
       # that consumers can install it — `dist-tags.latest` can still point at
-      # the previous release, and a degraded OIDC exchange publishes without
-      # provenance rather than failing. Read it back as a consumer would.
+      # the previous release, a degraded OIDC exchange publishes without
+      # provenance rather than failing, and since publish-time scanning a
+      # version is not installable for minutes after it is accepted. Read it
+      # back as a consumer would. This is the step that decides the release.
       - name: Verify the release is installable
         env:
           VERSION: ${{ needs.release-please.outputs.version }}
         run: |
           set -euo pipefail
+          echo "npm publish outcome: ${PUBLISH_OUTCOME:-unknown}"
           PKG_NAME=$(node -p "require('./package.json').name")
           bash .github/scripts/ci/verify-npm-publish.sh "$PKG_NAME" "$VERSION"
 

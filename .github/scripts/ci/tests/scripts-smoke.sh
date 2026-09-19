@@ -565,6 +565,21 @@ mkdir -p "$NPM_TMP/bin"
 cat > "$NPM_TMP/bin/curl" <<'STUB_CURL'
 #!/usr/bin/env bash
 # Stands in for registry.npmjs.org: ignores curl's flags, serves the fixture.
+#
+# With FIXTURE_AFTER set, the first FIXTURE_MISSES calls serve
+# FIXTURE_PACKUMENT and every later call serves FIXTURE_AFTER. That is the
+# registry behaviour npm's publish-time malware scan introduced: a freshly
+# published version is absent from the packument for minutes, then appears.
+if [ -n "${FIXTURE_AFTER:-}" ]; then
+  seen=0
+  [ -s "${FIXTURE_COUNTER}" ] && seen=$(cat "${FIXTURE_COUNTER}")
+  seen=$((seen + 1))
+  printf '%s' "${seen}" > "${FIXTURE_COUNTER}"
+  if [ "${seen}" -gt "${FIXTURE_MISSES:-1}" ]; then
+    cat "${FIXTURE_AFTER}"
+    exit 0
+  fi
+fi
 cat "${FIXTURE_PACKUMENT}"
 STUB_CURL
 chmod +x "$NPM_TMP/bin/curl"
@@ -605,6 +620,47 @@ assert_eq "a publish carrying no provenance attestation fails" "1" \
   "$(run_verify "$NPM_TMP/unsigned.json")"
 assert_eq "a version the registry does not serve as latest fails" "1" \
   "$(run_verify "$NPM_TMP/stale.json")"
+
+# npm scans every publish before the version becomes installable, so the poll
+# loop — not the first request — is what decides a release. It had no coverage
+# at all while every case above pinned VERIFY_MAX_ATTEMPTS=1, which is how a
+# budget 7x too small for npm's documented window survived review.
+cat > "$NPM_TMP/absent.json" <<'EOF'
+{
+  "dist-tags": { "latest": "8.8.8" },
+  "versions": { "8.8.8": { "version": "8.8.8" } }
+}
+EOF
+
+# $1 = how many polls report the version missing before it appears
+run_verify_eventual() {
+  : > "$NPM_TMP/counter"
+  PATH="$NPM_TMP/bin:$PATH" \
+    FIXTURE_PACKUMENT="$NPM_TMP/absent.json" FIXTURE_AFTER="$NPM_TMP/signed.json" \
+    FIXTURE_MISSES="$1" FIXTURE_COUNTER="$NPM_TMP/counter" \
+    VERIFY_MAX_ATTEMPTS=5 VERIFY_SLEEP_SECONDS=0 \
+    bash "$SCRIPT_DIR/verify-npm-publish.sh" "@scope/pkg" "9.9.9" >/dev/null 2>&1
+  echo "$?"
+}
+
+assert_eq "a version that appears only after npm's publish scan is accepted" "0" \
+  "$(run_verify_eventual 3)"
+assert_eq "a version that never appears within the budget still fails" "1" \
+  "$(run_verify_eventual 99)"
+
+# The budget is the whole guard. npm documents roughly five minutes to become
+# installable and up to fifteen or more at peak, so anything below that window
+# reports a healthy release as broken. Read it back from the script's own
+# output rather than re-deriving it here, so the assertion tracks what the
+# script will actually wait for.
+NPM_SCAN_WINDOW_SECONDS=900
+budget_seconds=$(
+  PATH="$NPM_TMP/bin:$PATH" FIXTURE_PACKUMENT="$NPM_TMP/signed.json" \
+    bash "$SCRIPT_DIR/verify-npm-publish.sh" "@scope/pkg" "9.9.9" 2>/dev/null |
+    sed -n 's/.*budget \([0-9][0-9]*\)s.*/\1/p' | head -1
+)
+assert_eq "the default budget covers npm's documented publish-scan window" "yes" \
+  "$([ -n "${budget_seconds}" ] && [ "${budget_seconds}" -ge "${NPM_SCAN_WINDOW_SECONDS}" ] && echo yes || echo "no (${budget_seconds:-unreported}s)")"
 
 rm -rf "$NPM_TMP"
 
