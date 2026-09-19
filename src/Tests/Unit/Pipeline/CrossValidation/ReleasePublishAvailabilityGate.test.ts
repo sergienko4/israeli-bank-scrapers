@@ -15,7 +15,7 @@
  * died with "cannot publish over the previously published versions". Both
  * runs red, no recovery path.
  *
- * <p>This pins the four properties that keep that from recurring, each of
+ * <p>This pins the five properties that keep that from recurring, each of
  * which can be removed by an edit that nothing else would catch:
  *
  * <ul>
@@ -25,6 +25,9 @@
  *       kills the poll before the gate can pass;</li>
  *   <li>a non-zero `npm publish` does not by itself fail the job, or a
  *       re-run can never recover a release whose verification timed out;</li>
+ *   <li>the outcome of that publish is both recorded and reported, or the
+ *       one signal distinguishing "already published" from "genuinely
+ *       broken" is lost and the log reads `unknown`;</li>
  *   <li>verification still runs, and still decides — tolerating the publish
  *       failure is only safe because the registry is consulted afterwards.</li>
  * </ul>
@@ -79,6 +82,18 @@ const PUBLISH_TOLERANCE_RE = /if\s+npm publish|npm publish[^\n]*\|\||publish_rc|
  */
 const PUBLISH_INVOCATION = 'npm publish --access public';
 const VERIFY_INVOCATION = 'verify-npm-publish.sh';
+
+/**
+ * The variable the publish step records and the verification step reports.
+ *
+ * <p>Both halves are asserted. Dropping the `$GITHUB_ENV` writes while keeping
+ * the warning, or dropping the echo that reads them back, leaves the log
+ * saying `unknown` — and that log line is the whole mitigation for letting a
+ * genuinely broken publish fail slowly instead of at once.
+ */
+const OUTCOME_VAR = 'PUBLISH_OUTCOME';
+const OUTCOME_ACCEPTED_RE = /PUBLISH_OUTCOME=accepted[^\n]*GITHUB_ENV/;
+const OUTCOME_REJECTED_RE = /PUBLISH_OUTCOME=rejected[^\n]*GITHUB_ENV/;
 
 /** Step-level shape this test reads — everything else is irrelevant. */
 interface IWorkflowStep {
@@ -148,6 +163,17 @@ function stepIndex(fragment: string): number {
 }
 
 /**
+ * The step that runs the availability verifier.
+ *
+ * @returns That step, or an empty step when nothing verifies.
+ */
+function verifyStep(): IWorkflowStep {
+  const steps = publishSteps();
+  const found = steps.find(step => (step.run ?? '').includes(VERIFY_INVOCATION));
+  return found ?? {};
+}
+
+/**
  * Read the verifier's own defaults rather than restating them, so this test
  * tracks what the script will actually wait for.
  *
@@ -192,8 +218,16 @@ describe('release.yml — a re-run recovers a release whose verification timed o
   });
 
   it('records the publish outcome so a tolerated failure is never silent', () => {
-    const step = publishStep();
+    const run = publishStep().run ?? '';
 
-    expect(step.run ?? '').toMatch(/::warning::/);
+    expect(run).toMatch(OUTCOME_ACCEPTED_RE);
+    expect(run).toMatch(OUTCOME_REJECTED_RE);
+    expect(run).toMatch(/::warning::/);
+  });
+
+  it('reports that outcome from the step that decides the release', () => {
+    const run = verifyStep().run ?? '';
+
+    expect(run).toContain(OUTCOME_VAR);
   });
 });
