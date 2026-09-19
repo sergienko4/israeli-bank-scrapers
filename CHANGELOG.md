@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.7.2](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.7.1...v8.7.2) (2026-09-19)
+
+
+### Bug Fixes
+
+* **pipeline:** repair OneZero warm start ([#577](https://github.com/sergienko4/israeli-bank-scrapers/issues/577)) ([d56ef3f](https://github.com/sergienko4/israeli-bank-scrapers/commit/d56ef3f1d9aa988d40aa17871c0f70564c72efdb))
+
 ## [8.7.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.7.0...v8.7.1) (2026-09-11)
 
 
