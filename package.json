@@ -181,7 +181,7 @@
     "scripts/patch-playwright-core.mjs"
   ],
   "overrides": {
-    "adm-zip": "^0.6.0",
+    "adm-zip": "^0.6.1",
     "test-exclude": "^7.0.2",
     "ua-parser-js": "1.0.41",
     "@babel/core": "^7.29.6",
