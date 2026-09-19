@@ -70,10 +70,11 @@ value is redacted from logs and snapshots like any other token.
 
 ### One account, one writer
 
-Minting a long-term token revokes the one before it. Replaying a stored token
-after a later cold login had already minted its replacement, the identity
-server answered `401` with `{"errorResponse":{"type":"ErrorIdTokenRevoke"}}`:
-the older copy had been retired the moment the newer one was issued.
+Minting a long-term token revokes the one before it. A stored token replayed
+after a later cold login had already minted its replacement drew a `401` from
+the identity server carrying
+`{"errorResponse":{"type":"ErrorIdTokenRevoke"}}`: the older copy had been
+retired the moment the newer one was issued.
 
 That makes a shared account self-defeating. Two processes that each log in — CI
 and a developer machine, or two scheduled jobs — invalidate one another's
