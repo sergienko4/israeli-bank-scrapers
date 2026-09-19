@@ -95,6 +95,7 @@ yet, so check the failing signal before re-running:
 | Version missing, and still not listed | Either the publish never reached the registry, or the scan is still running or has **blocked** the package | Not yet — establish which before re-running |
 | Version resolves but `dist-tags.latest` is stale | The tag was not moved | No — a re-run cannot fix it; re-tag instead |
 | Version resolves but has no attestation | The OIDC exchange degraded and published without provenance | No — a re-run cannot add provenance to a published version |
+| The package document was never readable | A registry or network fault; the step saw nothing, so this says nothing about the publish | Yes, once the registry answers — but do not read it as a failed publish |
 
 A blocked package is the case worth naming: npm may hold or block a package it
 flags, and from the registry that is indistinguishable from a slow scan, so the

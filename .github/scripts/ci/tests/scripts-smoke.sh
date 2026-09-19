@@ -566,6 +566,14 @@ cat > "$NPM_TMP/bin/curl" <<'STUB_CURL'
 #!/usr/bin/env bash
 # Stands in for registry.npmjs.org: ignores curl's flags, serves the fixture.
 #
+# FIXTURE_UNREADABLE makes every call fail the way `curl --fail` does on a
+# 5xx or a DNS failure, which is a different state from a readable document
+# that lacks the version.
+if [ -n "${FIXTURE_UNREADABLE:-}" ]; then
+  echo "curl: (22) The requested URL returned error: 503" >&2
+  exit 22
+fi
+#
 # With FIXTURE_AFTER set, the first FIXTURE_MISSES calls serve
 # FIXTURE_PACKUMENT and every later call serves FIXTURE_AFTER. That is the
 # registry behaviour npm's publish-time malware scan introduced: a freshly
@@ -673,6 +681,29 @@ assert_eq "a stale dist-tag is not reported as maybe-still-scanning" "no" \
   "$(says "$(verify_stderr "$NPM_TMP/stale.json")" "still running")"
 assert_eq "an absent version is reported as not resolving at all" "yes" \
   "$(says "$(verify_stderr "$NPM_TMP/absent.json")" "does not resolve at all")"
+
+# A registry that cannot be read at all is a third state, and the loop used to
+# collapse it into the second: `published` and `latest` are only ever assigned
+# inside the curl-success branch, so an outage produced the "the version does
+# not resolve at all / the scan may still be running" diagnosis on no evidence
+# whatsoever, and named a `latest` nobody had read. That sends an operator to
+# npmjs.com to inspect a publish when the real fault is the network.
+unreadable_stderr() {
+  PATH="$NPM_TMP/bin:$PATH" FIXTURE_PACKUMENT="$NPM_TMP/signed.json" FIXTURE_UNREADABLE=1 \
+    VERIFY_MAX_ATTEMPTS=2 VERIFY_SLEEP_SECONDS=0 \
+    bash "$SCRIPT_DIR/verify-npm-publish.sh" "@scope/pkg" "9.9.9" 2>&1 >/dev/null
+}
+
+assert_eq "an unreadable registry is reported as unreadable" "yes" \
+  "$(says "$(unreadable_stderr)" "never readable")"
+assert_eq "an unreadable registry is not reported as an unpublished version" "no" \
+  "$(says "$(unreadable_stderr)" "does not resolve at all")"
+assert_eq "an unreadable registry does not claim what consumers are installing" "no" \
+  "$(says "$(unreadable_stderr)" "are still getting")"
+assert_eq "an unreadable registry still fails the gate" "1" \
+  "$(PATH="$NPM_TMP/bin:$PATH" FIXTURE_PACKUMENT="$NPM_TMP/signed.json" FIXTURE_UNREADABLE=1 \
+      VERIFY_MAX_ATTEMPTS=2 VERIFY_SLEEP_SECONDS=0 \
+      bash "$SCRIPT_DIR/verify-npm-publish.sh" "@scope/pkg" "9.9.9" >/dev/null 2>&1; echo $?)"
 
 # The budget is the whole guard. npm documents roughly five minutes to become
 # installable and up to fifteen or more at peak, so anything below that window

@@ -78,9 +78,15 @@ readonly READ_FIELDS='
 echo "Verifying ${PKG_NAME}@${PKG_VERSION} on registry.npmjs.org (budget $((MAX_ATTEMPTS * SLEEP_SECONDS))s)"
 
 attempt=1
+# Three outcomes have to stay distinguishable, because they need three
+# different recoveries. `published` and `latest` are only assigned inside the
+# curl-success branch, so without this flag an unreadable registry is
+# indistinguishable from a readable one that lacks the version.
+did_read_document=no
 while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
   # A 404 while the CDN catches up is normal; treat any non-200 as "not yet".
   if body=$(curl --fail --silent --show-error --location "${REGISTRY_URL}" 2>/dev/null); then
+    did_read_document=yes
     fields=$(printf '%s' "${body}" | node -e "${READ_FIELDS}" "${PKG_VERSION}")
     published="${fields%% *}"
     latest="${fields##* }"
@@ -97,6 +103,13 @@ while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
 
   if [ "${attempt}" -eq "${MAX_ATTEMPTS}" ]; then
     echo "ERROR: ${PKG_NAME}@${PKG_VERSION} is not installable after $((MAX_ATTEMPTS * SLEEP_SECONDS))s." >&2
+    if [ "${did_read_document}" = "no" ]; then
+      echo "       The package document was never readable: every request to" >&2
+      echo "       ${REGISTRY_URL} failed. That is a registry or network fault," >&2
+      echo "       and it is no evidence about the publish itself -- the version" >&2
+      echo "       may well be live. Re-run once the registry answers." >&2
+      exit 1
+    fi
     echo "       Consumers running 'npm install ${PKG_NAME}' are still getting" >&2
     echo "       '${latest:-the previous release}'." >&2
     # The loop already knows which of the two signals failed. Reporting both
