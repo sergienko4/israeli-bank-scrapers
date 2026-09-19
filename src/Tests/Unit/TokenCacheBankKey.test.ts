@@ -29,18 +29,25 @@ function isInsideSandbox(resolved: string): boolean {
 interface IRejectedKey {
   readonly key: string;
   readonly why: string;
+  /** Whether this key would read *outside* the cache directory unguarded. */
+  readonly wouldEscape: boolean;
 }
 
 /**
- * Keys that must never become a path. The traversal entries are the ones the
- * guard exists for; the rest keep the allowlist from widening by accident.
+ * Keys that must never become a path, and what each would do if it did.
+ *
+ * <p>Only the `..` keys leave the directory — `path.join` folds a leading
+ * slash away, so an absolute key lands in a wrong *subdirectory* instead.
+ * Both outcomes are wrong, which is why the guard refuses on the allowlist
+ * rather than on a path-shape heuristic that would wave `/etc/onezero`
+ * through.
  */
 const REJECTED_KEYS: readonly IRejectedKey[] = [
-  { key: '../../../evil', why: 'a key that climbs out of the cache directory' },
-  { key: '../onezero', why: 'a key carrying a single parent segment' },
-  { key: '/etc/onezero', why: 'an absolute path posing as a key' },
-  { key: 'hapoalim', why: 'a bank that is not supported' },
-  { key: '', why: 'the empty string' },
+  { key: '../../../evil', why: 'a key that climbs out of the cache directory', wouldEscape: true },
+  { key: '../onezero', why: 'a key carrying a single parent segment', wouldEscape: true },
+  { key: '/etc/onezero', why: 'an absolute path posing as a key', wouldEscape: false },
+  { key: 'hapoalim', why: 'a bank that is not supported', wouldEscape: false },
+  { key: '', why: 'the empty string', wouldEscape: false },
 ];
 
 describe('isBankKey', () => {
@@ -62,10 +69,13 @@ describe('cachePathFor', () => {
     expect(wasContained).toBe(true);
   });
 
-  it('would escape the directory for a traversal key, which is why the guard exists', () => {
-    const resolved = path.join(SANDBOX, '../../../evil-token.cache');
+  it.each(REJECTED_KEYS)('resolves $why to the wrong file if the guard is bypassed', entry => {
+    const unguarded = entry.key as BankKey;
+    const resolved = cachePathFor(unguarded, SANDBOX);
     const wasContained = isInsideSandbox(resolved);
-    expect(wasContained).toBe(false);
+    expect(wasContained).toBe(!entry.wouldEscape);
+    const expected = path.join(SANDBOX, `${entry.key}-token.cache`);
+    expect(resolved).toBe(expected);
   });
 });
 
