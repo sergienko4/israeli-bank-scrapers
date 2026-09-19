@@ -14,6 +14,7 @@ import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { RecoveredHook } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import { createApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
+import { literalUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { IFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 import type { GraphQLFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
@@ -262,5 +263,143 @@ describe('ApiMediator.recoverSession — warm verdict reaches the hook', () => {
     mediator.withRecoveryHook?.(hook);
     await mediator.recoverSession();
     expect(verdicts).toEqual([false]);
+  });
+});
+
+/** Inline absolute URL the retry tests fire at. */
+const ACCOUNTS_URL = literalUrl('https://example.test/accounts');
+
+/** Second inline URL, used once the scripted rejection is spent. */
+const CLEAN_URL = literalUrl('https://example.test/clean');
+
+/** Payload the retried (second) attempt resolves with. */
+const RETRIED_PAYLOAD = 'retried-ok';
+
+/** Error message carrying the embedded status the retry path keys on. */
+const UNAUTHORIZED_MESSAGE = 'GET 401: unauthorized';
+
+/**
+ * Build a fetch strategy whose first GET is rejected with an embedded 401
+ * and whose every later GET succeeds.
+ *
+ * <p>This is the shape a bank produces when a stored long-term token is
+ * revoked server-side mid-scrape: the call that carried it comes back
+ * unauthorized, and the same call succeeds once a fresh bearer is installed.
+ * @returns Fetch strategy stub scripted for one rejection.
+ */
+function fetchStrategyRejectingFirstGet(): IFetchStrategy {
+  let attempts = 0;
+  /**
+   * Reject once, then succeed.
+   * @returns Failure on the first call, success afterwards.
+   */
+  async function fetchGet(): Promise<Procedure<unknown>> {
+    await Promise.resolve();
+    attempts += 1;
+    if (attempts === 1) return fail(ScraperErrorTypes.Generic, UNAUTHORIZED_MESSAGE);
+    return succeed(RETRIED_PAYLOAD);
+  }
+  /**
+   * Wired-off fetchPost.
+   * @returns Generic failure.
+   */
+  async function fetchPost(): Promise<Procedure<unknown>> {
+    await Promise.resolve();
+    return fail(ScraperErrorTypes.Generic, 'not wired');
+  }
+  return { fetchPost, fetchGet } as unknown as IFetchStrategy;
+}
+
+/**
+ * Build a mediator over a caller-supplied fetch strategy.
+ * @param strategy - Token strategy to register.
+ * @param fetchStub - Fetch strategy backing apiGet/apiPost.
+ * @returns Configured mediator.
+ */
+function makeMediatorOver(
+  strategy: ITokenStrategy<ITestCreds>,
+  fetchStub: IFetchStrategy,
+): ReturnType<typeof createApiMediator> {
+  const graphqlStub = stubGraphqlStrategy();
+  const mediator = createApiMediator(CompanyTypes.OneZero, fetchStub, graphqlStub);
+  const ctx = makeStubCtx();
+  mediator.withTokenStrategy(strategy, ctx, { marker: 'x' });
+  return mediator;
+}
+
+/** Everything a recovery hook was handed, in fire order. */
+interface IHookCapture {
+  readonly headers: string[];
+  readonly verdicts: boolean[];
+}
+
+/**
+ * Build a hook that records both arguments it is fired with.
+ * @param capture - Sink receiving headers and warm verdicts.
+ * @returns Recovery hook that records then resolves.
+ */
+function capturingHook(capture: IHookCapture): RecoveredHook {
+  /**
+   * Record both arguments then resolve.
+   * @param header - Fresh header from a successful recovery.
+   * @param wasWarm - Session warmth before recovery flipped it cold.
+   * @returns Resolved once recorded.
+   */
+  async function hook(header: string, wasWarm: boolean): Promise<void> {
+    capture.headers.push(header);
+    capture.verdicts.push(wasWarm);
+    await Promise.resolve();
+  }
+  return hook;
+}
+
+/**
+ * Build a fresh capture sink.
+ * @returns Empty capture.
+ */
+function newCapture(): IHookCapture {
+  return { headers: [], verdicts: [] };
+}
+
+describe('ApiMediator.apiGet — a mid-run 401 re-caches the re-minted token', () => {
+  it('fires the recovery hook with the fresh header after an in-request refresh', async () => {
+    const okFresh = succeed(FRESH_HEADER);
+    const strategy = strategyWithFresh(okFresh);
+    const fetchStub = fetchStrategyRejectingFirstGet();
+    const mediator = makeMediatorOver(strategy, fetchStub);
+    mediator.setSessionWarm(true);
+    const capture = newCapture();
+    const hook = capturingHook(capture);
+    mediator.withRecoveryHook?.(hook);
+    const result = await mediator.apiGet<string>(ACCOUNTS_URL);
+    expect(result.success).toBe(true);
+    expect(capture.headers).toEqual([FRESH_HEADER]);
+  });
+
+  it('tells the hook the dead session had been warm', async () => {
+    const okFresh = succeed(FRESH_HEADER);
+    const strategy = strategyWithFresh(okFresh);
+    const fetchStub = fetchStrategyRejectingFirstGet();
+    const mediator = makeMediatorOver(strategy, fetchStub);
+    mediator.setSessionWarm(true);
+    const capture = newCapture();
+    const hook = capturingHook(capture);
+    mediator.withRecoveryHook?.(hook);
+    await mediator.apiGet<string>(ACCOUNTS_URL);
+    expect(capture.verdicts).toEqual([true]);
+  });
+
+  it('does not fire the hook when the request never hits an auth rejection', async () => {
+    const okFresh = succeed(FRESH_HEADER);
+    const strategy = strategyWithFresh(okFresh);
+    const fetchStub = fetchStrategyRejectingFirstGet();
+    const mediator = makeMediatorOver(strategy, fetchStub);
+    const capture = newCapture();
+    const hook = capturingHook(capture);
+    mediator.withRecoveryHook?.(hook);
+    await mediator.apiGet<string>(ACCOUNTS_URL);
+    const second = await mediator.apiGet<string>(CLEAN_URL);
+    expect(second.success).toBe(true);
+    expect(capture.headers).toEqual([FRESH_HEADER]);
   });
 });

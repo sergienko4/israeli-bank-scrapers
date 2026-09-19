@@ -16,7 +16,7 @@
  * synthetic and carry zero PII.
  */
 
-import { openSync, readFileSync } from 'node:fs';
+import { closeSync, openSync, readFileSync } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -97,6 +97,29 @@ async function seedExistingCache(): Promise<string> {
 }
 
 /**
+ * Hold a read descriptor on the cache across a write, the way a hostile
+ * watcher would, and report what that descriptor can still see afterwards.
+ *
+ * <p>The explicit owner-only mode on the `open` is inert under `'r'` (no
+ * `O_CREAT`, so the kernel ignores it), but it is stated anyway: an `open`
+ * against a path in the shared temp dir that names no mode is the exact
+ * shape that creates a world-readable file the moment the flag gains
+ * `O_CREAT`, and pinning it here keeps that shape out of the codebase.
+ * @param target - Cache path to watch.
+ * @param write - Cache write to run while the descriptor is held.
+ * @returns Contents visible through the descriptor taken before the write.
+ */
+async function readAcrossWrite(target: string, write: () => Promise<unknown>): Promise<string> {
+  const watcherFd = openSync(target, 'r', OWNER_ONLY);
+  try {
+    await write();
+    return readFileSync(watcherFd, 'utf8');
+  } finally {
+    closeSync(watcherFd);
+  }
+}
+
+/**
  * Read the permission bits currently on a path.
  * @param target - Absolute path.
  * @returns Mode bits masked to the permission octet.
@@ -134,12 +157,15 @@ afterEach(async () => {
 describe('E2E-Real token cache — the token never enters a shared inode', () => {
   it('[E2E-REAL-CACHE] TokenCache_ReaderHoldingOldDescriptor_ShouldNeverSeeTheNewToken', async () => {
     const target = await seedExistingCache();
-    const watcherFd = openSync(target, 'r');
-
     const cache = makeCache();
-    await cache.write(TOKEN);
+    /**
+     * Publish the new token into the cache.
+     * @returns True once the write landed.
+     */
+    const writeToken = async (): Promise<boolean> => cache.write(TOKEN);
 
-    const throughOldFd = readFileSync(watcherFd, 'utf8');
+    const throughOldFd = await readAcrossWrite(target, writeToken);
+
     expect(throughOldFd).not.toContain(TOKEN);
     expect(throughOldFd).toBe(PRIOR);
   });

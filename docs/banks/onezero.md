@@ -68,6 +68,14 @@ the same warning, so the degradation is never silent. Both paths share one
 sentence (`COLD_FALLBACK_DETAIL`), so a single grep finds every run that paid for
 an SMS it was meant to avoid.
 
+A mid-run rejection is repaired wherever it surfaces. Any API call that comes
+back `401`/`403` re-mints in place and retries, and that in-request repair
+re-surfaces the newly minted token through `onAuthFlowComplete` exactly as an
+explicit recovery does. Without that, the replacement token would exist only for
+the remainder of the process: your stored copy would keep the dead value and the
+next run would pay for another SMS — the original #576 symptom, reached by a
+different route.
+
 > Earlier versions persisted an artifact that expired about an hour after the original
 > SMS login and was never refreshed, so warm start appeared to work and then
 > quietly reverted to sending an SMS on every run ([#576][issue-576]).
