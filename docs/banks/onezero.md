@@ -37,12 +37,18 @@ completes rather than waiting for the scrape to finish.
 
 **This token does not rotate.** A warm run replays the stored value and returns
 it unchanged, so the value you store is the one minted by your last SMS login
-and it stays valid until the bank expires it — a lifetime measured in months or
-years, not a session. Issue #576 reports an `exp` roughly ten years out; that
-figure is the reporter's observation rather than something this project
-measures, and it is the bank's to change. Anyone holding the token can skip the
-SMS step for that entire period, so
-store it with the same care as the password itself: encrypted at rest, never in
+and it stays valid until the bank expires it — a lifetime measured in years,
+not a session.
+
+A token minted against the live bank on 2026-09-19 carried `iat` and `exp`
+exactly **3650 days apart — ten years to the second** (`RS256`, expiring
+2036-09-16). That is a measurement taken from a real run of
+`src/Tests/E2eReal/OneZero.e2e-real.test.ts`, not the reporter's figure quoted
+in issue #576, though it confirms it. The interval is still the bank's to
+change without notice.
+
+Anyone holding the token can skip the SMS step for that entire period, so store
+it with the same care as the password itself: encrypted at rest, never in
 source control, never in a shared log.
 
 One thing limits the damage: the token alone is not a bearer credential. The
