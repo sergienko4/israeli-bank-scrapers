@@ -98,10 +98,22 @@ while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
   if [ "${attempt}" -eq "${MAX_ATTEMPTS}" ]; then
     echo "ERROR: ${PKG_NAME}@${PKG_VERSION} is not installable after $((MAX_ATTEMPTS * SLEEP_SECONDS))s." >&2
     echo "       Consumers running 'npm install ${PKG_NAME}' are still getting" >&2
-    echo "       '${latest:-the previous release}'. Either the publish never reached the" >&2
-    echo "       registry, or npm's publish-time scan is still running or has blocked" >&2
-    echo "       this version. Check https://www.npmjs.com/package/${PKG_NAME} before" >&2
-    echo "       re-running: a version that is merely slow will appear on its own." >&2
+    echo "       '${latest:-the previous release}'." >&2
+    # The loop already knows which of the two signals failed. Reporting both
+    # the same way sends an operator to re-run a release that a re-run cannot
+    # repair: a stale tag means the tarball is published and scanned, and only
+    # `npm dist-tag` moves it.
+    if [ "${published:-}" = "${PKG_VERSION}" ]; then
+      echo "       The version itself resolves, so the tarball was published and" >&2
+      echo "       scanned -- but dist-tags.latest was never moved onto it. A re-run" >&2
+      echo "       will not fix this; move the tag with 'npm dist-tag add'." >&2
+    else
+      echo "       The version does not resolve at all. Either the publish never" >&2
+      echo "       reached the registry, or npm's publish-time scan is still running" >&2
+      echo "       or has blocked this version. Check" >&2
+      echo "       https://www.npmjs.com/package/${PKG_NAME} before re-running: a" >&2
+      echo "       version that is merely slow will appear on its own." >&2
+    fi
     exit 1
   fi
 

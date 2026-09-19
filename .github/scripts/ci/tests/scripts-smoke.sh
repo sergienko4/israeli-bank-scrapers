@@ -648,6 +648,32 @@ assert_eq "a version that appears only after npm's publish scan is accepted" "0"
 assert_eq "a version that never appears within the budget still fails" "1" \
   "$(run_verify_eventual 99)"
 
+# Both failures above exit 1, but only one of them is worth re-running. A stale
+# dist-tag means the tarball is published and already scanned, and no number of
+# re-runs moves the tag -- so reporting it with the same "maybe it is still
+# scanning" text sends an operator round a loop that cannot terminate. The loop
+# already reads both signals; these pin that it says which one failed.
+verify_stderr() {
+  PATH="$NPM_TMP/bin:$PATH" FIXTURE_PACKUMENT="$1" \
+    VERIFY_MAX_ATTEMPTS=1 VERIFY_SLEEP_SECONDS=0 \
+    bash "$SCRIPT_DIR/verify-npm-publish.sh" "@scope/pkg" "9.9.9" 2>&1 >/dev/null
+}
+
+# $1 = haystack, $2 = needle
+says() {
+  case "$1" in
+    *"$2"*) echo yes ;;
+    *) echo no ;;
+  esac
+}
+
+assert_eq "a stale dist-tag is reported as a tag that never moved" "yes" \
+  "$(says "$(verify_stderr "$NPM_TMP/stale.json")" "dist-tag add")"
+assert_eq "a stale dist-tag is not reported as maybe-still-scanning" "no" \
+  "$(says "$(verify_stderr "$NPM_TMP/stale.json")" "still running")"
+assert_eq "an absent version is reported as not resolving at all" "yes" \
+  "$(says "$(verify_stderr "$NPM_TMP/absent.json")" "does not resolve at all")"
+
 # The budget is the whole guard. npm documents roughly five minutes to become
 # installable and up to fifteen or more at peak, so anything below that window
 # reports a healthy release as broken. Read it back from the script's own
