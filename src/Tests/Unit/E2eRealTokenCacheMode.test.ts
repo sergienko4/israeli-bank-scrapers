@@ -21,11 +21,23 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import ScraperError from '../../Scrapers/Base/ScraperError.js';
 import type { ScraperLogger } from '../../Scrapers/Pipeline/Logging/Debug.js';
 import { createTokenCache } from '../E2eReal/TokenCache.js';
+import type { ICapturedEnvVar } from '../Helpers/AmbientEnv.js';
+import { captureEnvVar, restoreEnvVar } from '../Helpers/AmbientEnv.js';
 
 /** Env flag that switches the cache on. */
 const FLAG = 'ONEZERO_OTP_LONG_TERM';
+
+/**
+ * Value standing in for the developer's own `.env`, which really does set
+ * this flag. Installed before the hooks run so the suite is exercised
+ * against a host that had the variable, not against an empty environment.
+ */
+const HOST_FLAG_VALUE = 'host-set-flag-value';
+
+process.env[FLAG] = HOST_FLAG_VALUE;
 
 /** Synthetic secret — never a real credential. */
 const TOKEN = 'SYNTHETIC-DURABLE-TOKEN';
@@ -41,6 +53,9 @@ const GROUP_OTHER_BITS = 0o077;
 
 /** Isolated tmp dir backing `os.tmpdir()` for one test. */
 let sandbox = '';
+
+/** The cache flag as the host had it before the current test changed it. */
+let priorFlag: ICapturedEnvVar = captureEnvVar(FLAG);
 
 /**
  * Build a logger stub — diagnostics are not under test here.
@@ -170,12 +185,27 @@ beforeEach(async () => {
   const root = os.tmpdir();
   const prefix = path.join(root, 'tokencache-');
   sandbox = await fs.mkdtemp(prefix);
+  priorFlag = captureEnvVar(FLAG);
   process.env[FLAG] = '1';
 });
 
 afterEach(async () => {
-  Reflect.deleteProperty(process.env, FLAG);
+  restoreEnvVar(priorFlag);
   await fs.rm(sandbox, { recursive: true, force: true });
+});
+
+/**
+ * Fail the suite if it handed the host environment back altered.
+ *
+ * <p>`expect` is deliberately avoided here: `jest/no-standalone-expect`
+ * forbids assertions outside a test body, and a throw fails the suite just
+ * as loudly.
+ * @returns True when the flag survived the run untouched.
+ */
+afterAll((): boolean => {
+  const actual = process.env[FLAG];
+  if (actual === HOST_FLAG_VALUE) return true;
+  throw new ScraperError(`suite left ${FLAG} as ${String(actual)}, host had ${HOST_FLAG_VALUE}`);
 });
 
 describe('E2E-Real token cache — the token never enters a shared inode', () => {
