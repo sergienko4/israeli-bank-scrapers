@@ -68,6 +68,23 @@ Re-read it from every result and overwrite your copy, so that a run which falls
 back to a cold login replaces the stored value with the newly minted one. The
 value is redacted from logs and snapshots like any other token.
 
+### One account, one writer
+
+Minting a long-term token revokes the one before it. Replaying a stored token
+after a later cold login had already minted its replacement, the identity
+server answered `401` with `{"errorResponse":{"type":"ErrorIdTokenRevoke"}}`:
+the older copy had been retired the moment the newer one was issued.
+
+That makes a shared account self-defeating. Two processes that each log in — CI
+and a developer machine, or two scheduled jobs — invalidate one another's
+stored token, and every resulting fallback mints again and revokes again. The
+symptom is the one #576 reports, arrived at from the opposite direction: an SMS
+on every run, produced by a warm start that is working exactly as designed.
+
+Give each independent runner its own credentials, or let one process own the
+login and share the token it stores. Two writers minting against one account
+will keep cancelling each other out.
+
 The token is checked for freshness before use. When it has expired — or when it
 is a token stored by an earlier version, which persisted a different,
 short-lived artifact — the scraper falls back to the full SMS login and returns
