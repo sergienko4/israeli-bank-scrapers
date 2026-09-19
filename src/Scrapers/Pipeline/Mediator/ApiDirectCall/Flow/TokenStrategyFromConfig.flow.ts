@@ -18,6 +18,7 @@ import type {
   GenericCreds,
   IFlowCapture,
   ILongTermTokenSlot,
+  IMakeWarmArgs,
   IPrimeArgs,
   IRunFlowArgs,
 } from './TokenStrategyFromConfig.types.js';
@@ -86,19 +87,61 @@ async function runConfiguredFlow(
 }
 
 /**
+ * Run the warm attempt, recording why it failed when it does.
+ *
+ * <p>`TokenResolverBuilder` retries the cold flow on *any* primeInitial
+ * failure — a bank refusal, but equally a timeout, a transport error or a WAF
+ * block. It discards the failure on the way, so unless it is captured here the
+ * fallback warning has nothing left to name and can only assume.
+ *
+ * <p>Only the error *tag* is kept. `errorMessage` is not safe to carry into an
+ * operator-facing log: banks echo credentials into it, which is what
+ * `redactErrorMessage` exists to stop.
+ * @param warmSpec - Config, bus, creds, the accepted seed and the company id.
+ * @param slot - Capture slot recording the outcome.
+ * @returns Header-value procedure from the warm flow.
+ */
+async function runWarmAttempt(
+  warmSpec: IMakeWarmArgs,
+  slot: ILongTermTokenSlot,
+): Promise<Procedure<string>> {
+  const warmArgs = makeWarmArgs(warmSpec);
+  const proc = await runConfiguredFlow(warmArgs, slot);
+  if (!isOk(proc)) slot.warmAttemptFailureType = proc.errorType;
+  return proc;
+}
+
+/**
+ * Reset every per-prime verdict on the slot before a new attempt runs.
+ *
+ * <p>The failure tag deliberately survives `primeFresh`, because the cold
+ * retry that `TokenResolverBuilder` fires straight after a failed warm attempt
+ * is exactly when the fallback warning reads it. That longevity is why the
+ * reset has to happen here: otherwise a later, healthy prime would still
+ * report a tag belonging to a cycle that has already been superseded.
+ * @param slot - Mutable capture slot.
+ * @param hasSeed - Whether a seed survived the local freshness gate.
+ * @returns true (ack contract).
+ */
+function openPrimeCycle(slot: ILongTermTokenSlot, hasSeed: boolean): true {
+  slot.usedWarmPath = hasSeed;
+  slot.warmSeedRejectedLocally = !hasSeed;
+  slot.warmAttemptFailureType = undefined;
+  return true;
+}
+
+/**
  * primeInitial — warm-start short-circuit; else cold flow.
  * @param args - Config + bus + ctx + creds + capture slot.
  * @returns Header-value procedure.
  */
 async function primeInitialImpl(args: IPrimeArgs): Promise<Procedure<string>> {
   const { config, bus, ctx, creds, slot } = args;
+  const flowBase = { config, bus, creds, companyId: ctx.companyId };
   const stored = pickWarmSeed(config, creds);
-  slot.usedWarmPath = stored !== false;
-  if (stored === false) {
-    return runConfiguredFlow({ config, bus, creds, companyId: ctx.companyId }, slot);
-  }
-  const warmArgs = makeWarmArgs({ config, bus, creds, stored, companyId: ctx.companyId });
-  return runConfiguredFlow(warmArgs, slot);
+  openPrimeCycle(slot, stored !== false);
+  if (stored === false) return runConfiguredFlow(flowBase, slot);
+  return runWarmAttempt({ ...flowBase, stored }, slot);
 }
 
 /**

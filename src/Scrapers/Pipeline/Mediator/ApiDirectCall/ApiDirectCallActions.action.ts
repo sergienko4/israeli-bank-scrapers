@@ -5,6 +5,9 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import type { IDurableAuthState } from '../../Types/Domain/DurableAuthState.js';
+import { some } from '../../Types/Option.js';
+import { redactSensitiveEnum } from '../../Types/PiiRedactor.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
@@ -14,7 +17,13 @@ import { invokeAuthFlowComplete } from './ApiDirectCallActions.callback.js';
 import { withNormalisedCreds } from './ApiDirectCallActions.phone.js';
 import { mergeOptionsIntoCreds } from './ApiDirectCallActions.pre.js';
 import { makeRecoveryHook } from './ApiDirectCallActions.recovery.js';
-import { PHASE_LABEL, safeInvoke } from './ApiDirectCallActions.shared.js';
+import {
+  COLD_FALLBACK_DETAIL,
+  COLD_FALLBACK_STALE,
+  COLD_FALLBACK_WARM_FAILED,
+  PHASE_LABEL,
+  safeInvoke,
+} from './ApiDirectCallActions.shared.js';
 import type { IApiDirectCallConfig } from './ConfigContracts/index.js';
 import {
   createTokenStrategyFromConfig,
@@ -123,6 +132,48 @@ function setBusAuth(bus: IApiMediator, strategy: IConfigTokenStrategy, header: s
 }
 
 /**
+ * Name the cause that matches what actually happened to the stored seed.
+ *
+ * <p>Only the local-freshness rejection is knowable here. Everything else the
+ * cold retry swallows — refusal, timeout, transport, WAF — so the warm
+ * attempt's error tag is reported rather than a guess at which one it was.
+ * The tag is passed through `redactSensitiveEnum` because password-class tags
+ * are themselves credential metadata. An absent tag is a defensive default —
+ * `fail()` always carries a `ScraperErrorTypes` value — so the clause degrades
+ * to the bare neutral wording rather than printing an empty parenthesis.
+ * @param strategy - The strategy that primed the session.
+ * @returns Cause clause for the fallback warning.
+ */
+function pickFallbackCause(strategy: IBootedAction['strategy']): string {
+  if (strategy.warmSeedRejectedLocally()) return COLD_FALLBACK_STALE;
+  const failureType = strategy.warmAttemptFailureType();
+  if (failureType.length === 0) return COLD_FALLBACK_WARM_FAILED;
+  const safeType = redactSensitiveEnum(failureType);
+  return `${COLD_FALLBACK_WARM_FAILED} (${safeType})`;
+}
+
+/**
+ * Warn when a stored long-term token was supplied but the cold SMS chain ran
+ * anyway.
+ *
+ * The warm path fails open by design: `TokenResolverBuilder` retries cold so a
+ * dead token never breaks a scrape. That resilience is also what hid issue
+ * #576 for a year — every run silently sent an SMS while warm start reported
+ * success. One warn turns the next occurrence into a one-run diagnosis.
+ * @param booted - Booted ACTION bundle.
+ * @param isWarm - Whether the last prime actually reused the stored token.
+ * @returns true when the degradation warning was emitted.
+ */
+function warnOnSilentColdFallback(booted: IBootedAction, isWarm: boolean): boolean {
+  if (isWarm) return false;
+  if (!booted.strategy.hasWarmState(booted.creds)) return false;
+  const cause = pickFallbackCause(booted.strategy);
+  const detail = `${cause}; ${COLD_FALLBACK_DETAIL}`;
+  booted.ctx.logger.warn({ message: `${PHASE_LABEL} ${detail}` });
+  return true;
+}
+
+/**
  * Record whether the strategy's LAST prime actually reused a cached warm
  * token (vs ran the cold OTP flow) onto the bus. Reads the post-prime
  * `lastPrimeWasWarm` so the flag reflects the path that produced the
@@ -134,6 +185,7 @@ function setBusAuth(bus: IApiMediator, strategy: IConfigTokenStrategy, header: s
 function recordWarmState(booted: IBootedAction): boolean {
   const isWarm = booted.strategy.lastPrimeWasWarm();
   booted.bus.setSessionWarm(isWarm);
+  warnOnSilentColdFallback(booted, isWarm);
   return isWarm;
 }
 
@@ -150,19 +202,82 @@ function registerStrategy(booted: IBootedAction): boolean {
 }
 
 /**
- * Run primeSession on the booted bus, install auth + session context.
+ * Build the durable-auth slot as a live read of the strategy.
+ *
+ * <p>A getter keeps the published shape a plain `string` property — the
+ * data contract `PipelineResult` already reads — while resolving it at
+ * read time, so whichever token the strategy holds when the result is
+ * built is the one the caller is handed.
+ * @param strategy - Token strategy holding the freshest artifact.
+ * @returns Durable-auth state backed by the strategy.
+ */
+function liveDurableAuth(strategy: IConfigTokenStrategy): IDurableAuthState {
+  return {
+    /**
+     * Resolve the durable token at read time.
+     * @returns The freshest long-term token the strategy holds.
+     */
+    get persistentOtpToken(): string {
+      return strategy.getLatestLongTermToken();
+    },
+  };
+}
+
+/**
+ * Publish the long-lived re-login handle onto the context.
+ *
+ * API-direct banks never run the browser LOGIN phase, so this is the only way
+ * the artifact reaches `result.persistentOtpToken`. Callers need it to skip the
+ * SMS on the next run; without it the warm-start feature has no supported
+ * retrieval channel (issue #576).
+ *
+ * <p>The slot is a live view of the strategy, not a copy. A warm session can
+ * be revoked mid-run: `ApiMediator` then recovers cold and the strategy mints
+ * a replacement. A value copied here would leave `result.persistentOtpToken`
+ * holding the dead token, and callers are told to overwrite their stored copy
+ * from every result — so the snapshot would actively destroy the good token
+ * and force an SMS on the next run, which is issue #576 all over again.
+ * @param ctx - Pipeline context.
+ * @param strategy - Token strategy holding the freshest artifact.
+ * @returns Context carrying the durable-auth slot when a token exists.
+ */
+function withDurableAuth(ctx: IPipelineContext, strategy: IConfigTokenStrategy): IPipelineContext {
+  const token = strategy.getLatestLongTermToken();
+  if (token.length === 0) return ctx;
+  const liveView = liveDurableAuth(strategy);
+  return { ...ctx, durableAuth: some(liveView) };
+}
+
+/**
+ * Finish the ACTION stage once a header exists: record the warm/cold verdict,
+ * install auth on the bus, fire the user callback, and publish the durable
+ * re-login token onto the context.
+ * @param booted - Booted ACTION bundle.
+ * @param header - Authorization header value produced by primeSession.
+ * @returns Context carrying the durable-auth slot when a token was minted.
+ */
+async function completePrimedAuth(
+  booted: IBootedAction,
+  header: string,
+): Promise<IPipelineContext> {
+  const { bus, strategy, ctx } = booted;
+  recordWarmState(booted);
+  setBusAuth(bus, strategy, header);
+  await invokeAuthFlowComplete(ctx, strategy, header);
+  return withDurableAuth(ctx, strategy);
+}
+
+/**
+ * Run primeSession on the booted bus, then install auth + session context.
  * @param booted - Booted ACTION bundle.
  * @returns Updated context procedure.
  */
 async function installPrimedAuth(booted: IBootedAction): Promise<Procedure<IPipelineContext>> {
-  const { bus, strategy, ctx } = booted;
   registerStrategy(booted);
-  const primed = await primeAndCheck(bus);
+  const primed = await primeAndCheck(booted.bus);
   if (!isOk(primed)) return primed;
-  recordWarmState(booted);
-  setBusAuth(bus, strategy, primed.value);
-  await invokeAuthFlowComplete(ctx, strategy, primed.value);
-  return succeed(ctx);
+  const published = await completePrimedAuth(booted, primed.value);
+  return succeed(published);
 }
 
 /**

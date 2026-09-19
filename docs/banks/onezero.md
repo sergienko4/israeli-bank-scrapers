@@ -23,6 +23,103 @@ const result = await scraper.scrape({
 // Save result.persistentOtpToken — pass as otpLongTermToken on next run to skip SMS
 ```
 
+## Warm start (skipping the SMS)
+
+`result.persistentOtpToken` carries the long-lived `idToken` the identity server
+mints. Pass it back as `otpLongTermToken` and the next run re-uses it to mint a
+fresh access token, so no SMS is sent.
+
+The same value is also delivered to the `onAuthFlowComplete` callback as
+`longTermToken`, which is useful when you want to persist it as soon as login
+completes rather than waiting for the scrape to finish.
+
+### Treat it as a standing bypass of your second factor
+
+**This token does not rotate.** A warm run replays the stored value and returns
+it unchanged, so the value you store is the one minted by your last SMS login
+and it stays valid until the bank expires it — a lifetime measured in years,
+not a session.
+
+A token minted against the live bank on 2026-09-19 carried `iat` and `exp`
+exactly **3650 days apart — ten years to the second** (`RS256`, expiring
+2036-09-16). The scrape that minted it never reads either claim, so the figure
+does not come from the E2E run itself: it comes from decoding the cached token
+afterwards, which anyone holding a token can repeat without contacting the bank:
+
+```sh
+npm run measure:token-lifetime -- onezero
+# onezero: iat=2026-09-19T07:59:42.000Z exp=2036-09-16T07:59:42.000Z lifetime=3650 days
+```
+
+Treat that as one observation of one token, not a guarantee. It corroborates
+the lifetime reported in issue #576 rather than resting on it, but the interval
+remains the bank's to change without notice.
+
+Anyone holding the token can skip the SMS step for that entire period, so store
+it with the same care as the password itself: encrypted at rest, never in
+source control, never in a shared log.
+
+One thing limits the damage: the token alone is not a bearer credential. The
+final `/sessions/token` call sends the stored token **and** the account
+password, so a leaked token cannot mint a session on its own. It is a bypass of
+the SMS factor, not of authentication.
+
+Re-read it from every result and overwrite your copy, so that a run which falls
+back to a cold login replaces the stored value with the newly minted one. The
+value is redacted from logs and snapshots like any other token.
+
+The token is checked for freshness before use. When it has expired — or when it
+is a token stored by an earlier version, which persisted a different,
+short-lived artifact — the scraper falls back to the full SMS login and returns
+a newly minted `persistentOtpToken`. That rejection is made locally, before any
+request leaves the process, so the warning says exactly that
+(`COLD_FALLBACK_STALE`, "stored long-term token failed the local freshness
+check") instead of implying the bank turned it down. No migration step is
+needed; the first run after upgrading costs one SMS and heals itself.
+
+A stored token can also pass the freshness check, carry the session, and then be
+rejected by the bank mid-run — revoked server-side, or expired against a claim
+the scraper does not read. Recovery spends an SMS to repair that and warns too,
+so the degradation is never silent.
+
+Both warnings end with the same clause (`COLD_FALLBACK_DETAIL`, "fell back to
+the full SMS login"), so a single grep finds every run that paid for an SMS it
+was meant to avoid. They name different causes, because the two events are not
+the same. `COLD_FALLBACK_STALE` means the stored copy failed the local
+freshness check and was never sent — the fault is on this side, and there is no
+bank-side request to go looking for. `COLD_FALLBACK_WARM_FAILED` means the
+token passed that check and was sent, but the warm attempt did not carry the
+session; the attempt's error tag is reported in parentheses. And
+`COLD_FALLBACK_DEGRADED` means the token was accepted, carried a session, and
+was revoked underneath you.
+
+`COLD_FALLBACK_WARM_FAILED` is deliberately neutral about *why* the warm
+attempt failed. The cold retry fires on any failure of the initial prime — a
+refusal by the bank, but equally a timeout, a transport error or a WAF block —
+and those are indistinguishable once the retry has swallowed them. Calling all
+of them "not accepted" would blame your stored token for an outage, so the
+scraper reports the attempt's own error tag — `TIMEOUT`, `NETWORK_ERROR` and
+so on — instead of guessing which it was.
+
+Only the tag is reported, never the failure text. Banks echo credentials into
+error messages, so putting that text in an operator-facing log is exactly the
+cleartext-logging leak `redactErrorMessage` exists to prevent; password-class
+tags are themselves credential metadata and are redacted in turn.
+
+A mid-run rejection is repaired wherever it surfaces. Any API call that comes
+back `401`/`403` re-mints in place and retries, and that in-request repair
+re-surfaces the newly minted token through `onAuthFlowComplete` exactly as an
+explicit recovery does. Without that, the replacement token would exist only for
+the remainder of the process: your stored copy would keep the dead value and the
+next run would pay for another SMS — the original #576 symptom, reached by a
+different route.
+
+> Earlier versions persisted an artifact that expired about an hour after the original
+> SMS login and was never refreshed, so warm start appeared to work and then
+> quietly reverted to sending an SMS on every run ([#576][issue-576]).
+
+[issue-576]: https://github.com/sergienko4/israeli-bank-scrapers/issues/576
+
 ## Transport — Cloudflare mutual TLS (mTLS)
 
 The OneZero identity + GraphQL endpoints sit behind **Cloudflare API Shield**, which

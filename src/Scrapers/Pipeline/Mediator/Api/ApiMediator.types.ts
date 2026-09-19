@@ -30,8 +30,15 @@ interface IGraphQLEnvelope<T> {
 /** Bus-level session-context snapshot. */
 type SessionContext = Readonly<Record<string, unknown>>;
 
-/** Hook invoked after a successful cold session recovery, with the new header. */
-type RecoveredHook = (header: string) => Promise<void>;
+/**
+ * Hook invoked after a successful cold session recovery.
+ *
+ * <p>`wasWarm` is the session's warmth *before* recovery flipped it cold.
+ * Recovery clears the flag first (recover-once), so a hook that queried the
+ * bus instead would always read `false` and could never tell a degraded warm
+ * session apart from one that was cold all along.
+ */
+type RecoveredHook = (header: string, wasWarm: boolean) => Promise<void>;
 
 /** Public ApiMediator surface — the only API phases/handlers see. */
 interface IApiMediator {

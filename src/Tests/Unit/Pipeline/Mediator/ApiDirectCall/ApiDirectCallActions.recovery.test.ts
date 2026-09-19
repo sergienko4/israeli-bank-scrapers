@@ -103,7 +103,8 @@ describe('makeRecoveryHook — re-install context + re-cache token (F3)', () => 
     const ctx = ctxStub(payloads);
     const strategy = strategyStub();
     const hook = makeRecoveryHook({ bus, ctx, strategy });
-    await hook(RECOVERED_HEADER);
+    const wasWarm = false;
+    await hook(RECOVERED_HEADER, wasWarm);
     expect(snapshots).toEqual([NEW_CARRY]);
     expect(payloads).toEqual([{ longTermToken: NEW_LONG_TERM, bearer: RECOVERED_HEADER }]);
   });

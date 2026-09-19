@@ -173,6 +173,7 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     apiMediator: none(),
     browser: none(),
     login: none(),
+    durableAuth: none(),
     dashboard: none(),
     scrape: none(),
     api: none(),

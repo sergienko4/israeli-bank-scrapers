@@ -23,6 +23,7 @@ import type {
 import type { IBrowserState } from './Domain/BrowserState.js';
 import type { IDashboardState } from './Domain/DashboardState.js';
 import type { IDiagnosticsState } from './Domain/DiagnosticsState.js';
+import type { IDurableAuthState } from './Domain/DurableAuthState.js';
 import type { ILoginState } from './Domain/LoginState.js';
 import type { ILoginFieldDiscovery } from './Domain/LoginTypes.js';
 import type { IOtpFill, IOtpTrigger } from './Domain/OtpTypes.js';
@@ -130,6 +131,16 @@ interface IPipelineContext {
   readonly apiMediator: Option<IApiMediator>;
   readonly browser: Option<IBrowserState>;
   readonly login: Option<ILoginState>;
+  /**
+   * Long-lived re-login artifact captured by an API-direct login chain.
+   *
+   * Browser scrapers publish the same value through
+   * `ctx.login.value.persistentOtpToken`, but `ILoginState` is structurally
+   * browser-only (it holds a live `Page | Frame`), so API-direct banks — which
+   * never run the LOGIN phase — need their own slot. Both feed the single
+   * public `result.persistentOtpToken`.
+   */
+  readonly durableAuth: Option<IDurableAuthState>;
   readonly dashboard: Option<IDashboardState>;
   readonly scrape: Option<IScrapeState>;
   /** Auto-discovered API context — injected by DASHBOARD phase. */

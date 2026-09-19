@@ -18,21 +18,70 @@
  * via ScraperOptions.onAuthFlowComplete and is written atomically.
  */
 
+import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
 import type { IAuthFlowInfo } from '../../Scrapers/Base/Interface.js';
+import ScraperError from '../../Scrapers/Base/ScraperError.js';
 import type { ScraperLogger } from '../../Scrapers/Pipeline/Logging/Debug.js';
+import { replaceAtomically } from './AtomicReplace.js';
 
 /** Supported bank keys — matches the BankPlugin taxonomy. */
-type BankKey = 'onezero' | 'pepper' | 'paybox';
+const BANK_KEYS = ['onezero', 'pepper', 'paybox'] as const;
+
+/** Supported bank keys — derived from BANK_KEYS so the two cannot drift. */
+type BankKey = (typeof BANK_KEYS)[number];
+
+/**
+ * Narrow an untrusted string to a supported bank key.
+ *
+ * <p>`cachePathFor` interpolates the key straight into a filename, so a key
+ * carrying `..` walks out of the cache directory. Callers taking a key from
+ * argv or any other untrusted source must pass it through here first.
+ * @param value - Candidate key.
+ * @returns True when the value is one of BANK_KEYS.
+ */
+function isBankKey(value: string): value is BankKey {
+  const keys: readonly string[] = BANK_KEYS;
+  return keys.includes(value);
+}
+
+/**
+ * Resolve an untrusted CLI argument to a supported bank key, or refuse.
+ *
+ * <p>Lives beside `isBankKey` so the guard and the path builder cannot drift
+ * apart: a caller that reaches `cachePathFor` has necessarily come through
+ * here, and an argument that never becomes a `BankKey` never becomes a path
+ * either — the refusal happens before any filesystem access.
+ * @param argument - Raw argv value.
+ * @returns The narrowed bank key.
+ * @throws ScraperError naming the supported keys when the value is not one.
+ */
+function requireBankKey(argument: string): BankKey {
+  if (isBankKey(argument)) return argument;
+  const supported = BANK_KEYS.join(', ');
+  throw new ScraperError(`usage: measure:token-lifetime -- <${supported}>`);
+}
 
 /** Args bundle for createTokenCache — respects the 3-param ceiling. */
 interface ITokenCacheArgs {
   readonly bankKey: BankKey;
   readonly envFlag: string;
   readonly log: ScraperLogger;
+  /**
+   * Directory holding the cache file. Defaults to `os.tmpdir()`.
+   *
+   * <p>Injected rather than read from the ambient environment because
+   * `os.tmpdir()` cannot be redirected from inside a test: it resolves
+   * `TMPDIR` through `safeGetenv`, which reads the real process environ,
+   * while Jest hands each test module a *copy* of `process.env`. A test
+   * that overrode `process.env.TMPDIR` therefore still wrote to the shared
+   * temp dir and clobbered the developer's real cached token — costing
+   * them the very SMS this cache exists to avoid.
+   */
+  readonly dir?: string;
 }
 
 /** Public handle returned by createTokenCache. */
@@ -47,11 +96,12 @@ interface ITokenCacheHandle {
 /**
  * Resolve the cache file path for a bank.
  * @param bankKey - One of the BankKey union values.
- * @returns Absolute path to <tmpdir>/<bank>-token.cache.
+ * @param dir - Directory to hold the file; defaults to `os.tmpdir()`.
+ * @returns Absolute path to <dir>/<bank>-token.cache.
  */
-function cachePathFor(bankKey: BankKey): string {
-  const tmp = os.tmpdir();
-  return path.join(tmp, `${bankKey}-token.cache`);
+function cachePathFor(bankKey: BankKey, dir?: string): string {
+  const base = dir ?? os.tmpdir();
+  return path.join(base, `${bankKey}-token.cache`);
 }
 
 /**
@@ -81,6 +131,70 @@ async function readCacheSafe(cachePath: string, log: ScraperLogger): Promise<str
 const CACHE_FILE_MODE = 0o600;
 
 /**
+ * Write the token into a brand-new owner-only inode.
+ *
+ * <p>`wx` fails if the path exists, so this never reuses an inode another
+ * process may already hold a descriptor for, and the mode is applied at
+ * creation rather than tightened afterwards.
+ * @param tempPath - Absolute path of the scratch file to create.
+ * @param token - Token string.
+ * @returns True once the token is written.
+ */
+async function writeTempOwnerOnly(tempPath: string, token: string): Promise<boolean> {
+  const handle = await fs.open(tempPath, 'wx', CACHE_FILE_MODE);
+  try {
+    await handle.writeFile(token, { encoding: 'utf8' });
+    return true;
+  } finally {
+    await handle.close();
+  }
+}
+
+/**
+ * Remove an abandoned scratch file, never masking the original failure.
+ * @param tempPath - Absolute path of the scratch file.
+ * @returns True when the path is gone.
+ */
+async function discardTemp(tempPath: string): Promise<boolean> {
+  try {
+    await fs.rm(tempPath, { force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Publish the token by atomically replacing the cache.
+ *
+ * <p>Tightening an existing file cannot work: POSIX checks permissions only
+ * at `open`, so a reader that opened the old inode during any window keeps
+ * its descriptor and reads whatever is written into that inode afterwards —
+ * a later `fchmod` revokes nothing. The only safe move is to never write the
+ * secret into a shared inode. A fresh `0600` file is created exclusively,
+ * filled, then `rename`d over the cache: the replacement is atomic, so
+ * readers see either the whole old file or the whole new one, and anyone
+ * holding the old inode is left with the token they already had.
+ *
+ * <p>The move goes through {@link replaceAtomically} because Windows refuses
+ * it while another process holds the cache open; dropping the token on that
+ * refusal would cost the user an SMS on the next run.
+ * @param cachePath - Absolute path.
+ * @param token - Token string.
+ * @returns True once the token is in place.
+ */
+async function writeOwnerOnly(cachePath: string, token: string): Promise<boolean> {
+  const tempPath = `${cachePath}.${randomUUID()}.tmp`;
+  try {
+    await writeTempOwnerOnly(tempPath, token);
+    return await replaceAtomically({ from: tempPath, to: cachePath });
+  } catch (error) {
+    await discardTemp(tempPath);
+    throw error;
+  }
+}
+
+/**
  * Safely write the cache file (UTF-8, truncating any prior content) with
  * owner-only permissions. Returns false on any write error.
  * @param cachePath - Absolute path.
@@ -94,8 +208,7 @@ async function writeCacheSafe(
   log: ScraperLogger,
 ): Promise<boolean> {
   try {
-    await fs.writeFile(cachePath, token, { encoding: 'utf8', mode: CACHE_FILE_MODE });
-    return true;
+    return await writeOwnerOnly(cachePath, token);
   } catch (error) {
     const e = error as NodeJS.ErrnoException;
     log.warn({ cachePath, code: e.code ?? 'UNKNOWN' }, 'TokenCache write failure');
@@ -206,7 +319,7 @@ function createDisabledCache(): ITokenCacheHandle {
 function createTokenCache(args: ITokenCacheArgs): ITokenCacheHandle {
   const flag = process.env[args.envFlag];
   if (flag === undefined || flag.length === 0) return createDisabledCache();
-  const cachePath = cachePathFor(args.bankKey);
+  const cachePath = cachePathFor(args.bankKey, args.dir);
   const log = args.log;
   /**
    * Read the cached token.
@@ -232,4 +345,4 @@ function createTokenCache(args: ITokenCacheArgs): ITokenCacheHandle {
 }
 
 export type { BankKey, ITokenCacheArgs, ITokenCacheHandle };
-export { createTokenCache };
+export { BANK_KEYS, cachePathFor, createTokenCache, isBankKey, requireBankKey };

@@ -20,6 +20,21 @@ interface IConfigTokenStrategy extends ITokenStrategy<GenericCreds> {
   getLatestCarrySnapshot(): Readonly<Record<string, JsonValue>>;
   /** Whether the most recent prime reused a cached warm seed (vs cold flow). */
   lastPrimeWasWarm(): boolean;
+  /**
+   * Whether the stored seed was refused by the local freshness gate, before
+   * any request went out. Distinguishes "we never asked the bank" from "the
+   * bank said no", which read identically from the warm flag alone.
+   */
+  warmSeedRejectedLocally(): boolean;
+  /**
+   * How the warm attempt failed, as a ScraperErrorTypes tag, or '' when none
+   * was attempted or it succeeded. The cold retry fires on *any* primeInitial
+   * failure, so without this the fallback warning can only guess.
+   *
+   * <p>The tag, never the message: banks echo credentials into `errorMessage`
+   * (see PiiRedactor/ErrorLog, CodeQL js/clear-text-logging #28).
+   */
+  warmAttemptFailureType(): string;
 }
 
 /** Args for runConfiguredFlow — respects 3-param ceiling. */
@@ -38,6 +53,14 @@ interface ILongTermTokenSlot {
   latestCarrySnapshot: Readonly<Record<string, JsonValue>>;
   /** True when the last prime reused a cached warm seed; false on cold flow. */
   usedWarmPath?: boolean;
+  /**
+   * True when `pickWarmSeed` refused the stored seed locally, so it was never
+   * sent. Only `primeInitial` writes it — a later cold retry must not erase
+   * the reason the warm path was skipped.
+   */
+  warmSeedRejectedLocally?: boolean;
+  /** ScraperErrorTypes tag from the warm attempt, when one was made and failed. */
+  warmAttemptFailureType?: string;
 }
 
 /** Subset of IFlowResult consumed by captureFlowResult. */

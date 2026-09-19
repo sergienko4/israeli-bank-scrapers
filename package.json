@@ -51,6 +51,7 @@
     "test:e2e-factory-tests": "node --experimental-vm-modules node_modules/jest/bin/jest.js --ci --testPathPatterns='Tests/E2e\\.test' --verbose --forceExit --maxWorkers=2",
     "test:full": "npm run test:mock && npm run test:unit",
     "capture:invalid-login": "npx tsx src/Tests/E2eReal/tools/CaptureInvalidLogin.ts",
+    "measure:token-lifetime": "npx tsx src/Tests/E2eReal/Tools/MeasureTokenLifetime.ts",
     "test:gate": "npm run test:mock && npm run test:unit",
     "log:view": "npx tsx scripts/log-view.ts",
     "test:ci": "ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs && node --experimental-vm-modules --expose-gc node_modules/jest/bin/jest.js --ci --coverage",
@@ -181,7 +182,7 @@
     "scripts/patch-playwright-core.mjs"
   ],
   "overrides": {
-    "adm-zip": "^0.6.0",
+    "adm-zip": "^0.6.1",
     "test-exclude": "^7.0.2",
     "ua-parser-js": "1.0.41",
     "@babel/core": "^7.29.6",
