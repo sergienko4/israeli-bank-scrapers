@@ -18,6 +18,7 @@
  * via ScraperOptions.onAuthFlowComplete and is written atomically.
  */
 
+import { randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -81,27 +82,63 @@ async function readCacheSafe(cachePath: string, log: ScraperLogger): Promise<str
 const CACHE_FILE_MODE = 0o600;
 
 /**
- * Write the token through a descriptor that is tightened before any byte
- * of it exists on disk.
+ * Write the token into a brand-new owner-only inode.
  *
- * <p>Order is the whole point. `mode` on `writeFile` applies only when the
- * file is created, so an existing cache keeps its looser bits while the new
- * token lands; a tightening `chmod` afterwards shuts the door on a secret
- * that is already readable, and a crash in that window leaves a long-lived
- * token exposed for good. Opening with `w` truncates first, so the `fchmod`
- * below runs while the file is empty.
- * @param cachePath - Absolute path.
+ * <p>`wx` fails if the path exists, so this never reuses an inode another
+ * process may already hold a descriptor for, and the mode is applied at
+ * creation rather than tightened afterwards.
+ * @param tempPath - Absolute path of the scratch file to create.
  * @param token - Token string.
  * @returns True once the token is written.
  */
-async function writeOwnerOnly(cachePath: string, token: string): Promise<boolean> {
-  const handle = await fs.open(cachePath, 'w', CACHE_FILE_MODE);
+async function writeTempOwnerOnly(tempPath: string, token: string): Promise<boolean> {
+  const handle = await fs.open(tempPath, 'wx', CACHE_FILE_MODE);
   try {
-    await handle.chmod(CACHE_FILE_MODE);
     await handle.writeFile(token, { encoding: 'utf8' });
     return true;
   } finally {
     await handle.close();
+  }
+}
+
+/**
+ * Remove an abandoned scratch file, never masking the original failure.
+ * @param tempPath - Absolute path of the scratch file.
+ * @returns True when the path is gone.
+ */
+async function discardTemp(tempPath: string): Promise<boolean> {
+  try {
+    await fs.rm(tempPath, { force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Publish the token by atomically replacing the cache.
+ *
+ * <p>Tightening an existing file cannot work: POSIX checks permissions only
+ * at `open`, so a reader that opened the old inode during any window keeps
+ * its descriptor and reads whatever is written into that inode afterwards —
+ * a later `fchmod` revokes nothing. The only safe move is to never write the
+ * secret into a shared inode. A fresh `0600` file is created exclusively,
+ * filled, then `rename`d over the cache: the replacement is atomic, so
+ * readers see either the whole old file or the whole new one, and anyone
+ * holding the old inode is left with the token they already had.
+ * @param cachePath - Absolute path.
+ * @param token - Token string.
+ * @returns True once the token is in place.
+ */
+async function writeOwnerOnly(cachePath: string, token: string): Promise<boolean> {
+  const tempPath = `${cachePath}.${randomUUID()}.tmp`;
+  try {
+    await writeTempOwnerOnly(tempPath, token);
+    await fs.rename(tempPath, cachePath);
+    return true;
+  } catch (error) {
+    await discardTemp(tempPath);
+    throw error;
   }
 }
 
