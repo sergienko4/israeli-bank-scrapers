@@ -61,6 +61,32 @@ interface ILongTermTokenSlot {
   warmSeedRejectedLocally?: boolean;
   /** ScraperErrorTypes tag from the warm attempt, when one was made and failed. */
   warmAttemptFailureType?: string;
+  /**
+   * Cold logins this run has already started. A cold flow replays the bank's
+   * login from the beginning, walking the step that sends the SMS, so this is
+   * the count of messages the run has cost. Capped at one per run: the
+   * mediator refreshes once per rejected request, and without a counter a
+   * session the bank keeps refusing spends one message per call.
+   */
+  coldFlowsStarted?: number;
+  /**
+   * Authorization header the run's one cold flow produced, absent until that
+   * flow succeeds.
+   *
+   * <p>Kept so a budget refusal can hand back the session the run already
+   * paid an SMS for instead of discarding it. Without this a warm resume that
+   * is rejected *after* its own 401 already triggered the run's cold login
+   * would fail the whole scrape, even though a valid bearer had just been
+   * minted and installed.
+   *
+   * <p>Written on cold successes only, deliberately. A warm bearer reaching
+   * this field would be surrendered on refusal even though the 401 that
+   * forced the cold login is proof the bank had already rejected it — the run
+   * would retry a known-dead token instead of surfacing the real diagnosis.
+   * Distinct from `latest`, which holds the long-term token (OneZero's
+   * `idToken`) rather than the bearer.
+   */
+  latestHeaderValue?: string;
 }
 
 /** Subset of IFlowResult consumed by captureFlowResult. */

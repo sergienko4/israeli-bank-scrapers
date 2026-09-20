@@ -6,19 +6,9 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk } from '../../Types/Procedure.js';
+import { isAuthRejectionMessage } from './ApiMediator.authReject.js';
 import { getSessionWarmOp, setRawAuthOp, setSessionWarmOp } from './ApiMediator.state.js';
 import type { IMediatorState } from './ApiMediator.types.js';
-
-/**
- * Matches the embedded HTTP status prefix `<sp>401:<sp>` or `<sp>403:<sp>`.
- *
- * Most banks reject a stale or invalid bearer with 401, but Pepper sits
- * behind a CloudFront edge that answers 403 with a block page before the
- * API is reached. Without 403 here a stale warm-path token can never be
- * re-minted and the scrape fails hard instead of falling back to a cold
- * login.
- */
-const AUTH_REJECT_REGEX = /\s(?:401|403):\s/;
 
 /**
  * Bundled args for `retryOn401Op` (keeps the signature single-line).
@@ -99,7 +89,7 @@ function applyRefreshedAuth(state: IMediatorState, refreshed: Procedure<string>)
 function isUnauthorizedFailure<T>(first: Procedure<T>): boolean {
   if (first.success) return false;
   if (first.errorType === ScraperErrorTypes.WafBlocked) return false;
-  return AUTH_REJECT_REGEX.test(first.errorMessage);
+  return isAuthRejectionMessage(first.errorMessage);
 }
 
 /**

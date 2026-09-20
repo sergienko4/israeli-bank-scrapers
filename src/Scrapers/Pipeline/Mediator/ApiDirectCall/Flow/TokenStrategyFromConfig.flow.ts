@@ -4,10 +4,13 @@
  * and implements the warm/cold prime variants.
  */
 
+import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
-import { isOk, succeed } from '../../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import { runSmsOtpFlow } from './SmsOtpFlow.js';
+import { isColdStart, mayStartFlow } from './TokenStrategyFromConfig.budget.js';
 import {
   formatAuthValue,
   makeWarmArgs,
@@ -22,6 +25,8 @@ import type {
   IPrimeArgs,
   IRunFlowArgs,
 } from './TokenStrategyFromConfig.types.js';
+
+const LOG = getDebug(import.meta.url);
 
 /**
  * Build IRunSmsOtpArgs payload from IRunFlowArgs (passthrough).
@@ -65,17 +70,54 @@ interface IFinishFlowArgs {
  */
 function finishFlow(input: IFinishFlowArgs): string {
   captureFlowResult(input.slot, input.result);
-  return formatAuthValue(input.args.config, input.result.bearer);
+  const headerValue = formatAuthValue(input.args.config, input.result.bearer);
+  const isCold = isColdStart(input.args);
+  if (isCold) input.slot.latestHeaderValue = headerValue;
+  return headerValue;
 }
 
 /**
- * Run SmsOtpFlow, capture the long-term token into the slot, and wrap
- * the bearer per authScheme.
+ * Told to the caller when the run has nothing left to offer: the one cold
+ * login it was entitled to has been spent and did not yield a session.
+ *
+ * <p>Exported so the real-E2E harness and downstream consumers can recognise
+ * a policy refusal without matching on a substring.
+ */
+const BUDGET_SPENT_MESSAGE =
+  'this scrape has already spent its one cold SMS login; the session cannot ' +
+  'be re-minted in-run — start a new scrape';
+
+/**
+ * Answer a refused cold flow without contacting the bank.
+ *
+ * <p>A refusal means the run has already spent its one message — so if that
+ * login *succeeded*, the run owns a live bearer and the right answer is to
+ * hand it back rather than fail a scrape that has everything it needs. Only
+ * when no session was ever minted is there nothing to surrender.
+ *
+ * <p>It is logged either way. On the mainline path `retryOn401Op` discards a
+ * failed refresh and returns the original 401, so without this line an
+ * operator would see an unexplained rejection with no evidence that a policy
+ * cap intervened — a diagnosis paid for in issue triage.
+ * @param args - Run args for the refused flow.
+ * @param slot - Run-scoped capture slot.
+ * @returns The minted header, or the diagnosis when none exists.
+ */
+function answerRefusedFlow(args: IRunFlowArgs, slot: ILongTermTokenSlot): Procedure<string> {
+  const minted = slot.latestHeaderValue ?? '';
+  const meta = { companyId: args.companyId, hasMintedSession: minted.length > 0 };
+  LOG.warn(meta, 'Cold-login budget spent — refusing a second SMS login this run');
+  if (minted.length > 0) return succeed(minted);
+  return fail(ScraperErrorTypes.Generic, BUDGET_SPENT_MESSAGE);
+}
+
+/**
+ * Walk the configured flow and capture its long-term token into the slot.
  * @param args - Run args.
  * @param slot - Mutable capture slot.
  * @returns Formatted Authorization header value procedure.
  */
-async function runConfiguredFlow(
+async function runFlowAndCapture(
   args: IRunFlowArgs,
   slot: ILongTermTokenSlot,
 ): Promise<Procedure<string>> {
@@ -84,6 +126,27 @@ async function runConfiguredFlow(
   if (!isOk(flowProc)) return flowProc;
   const headerValue = finishFlow({ args, slot, result: flowProc.value });
   return succeed(headerValue);
+}
+
+/**
+ * Run SmsOtpFlow, capture the long-term token into the slot, and wrap
+ * the bearer per authScheme.
+ *
+ * <p>Cold starts draw on the run's one-SMS budget first; a warm resume never
+ * does. Refusing here, at the only place every flow passes through, covers the
+ * cold prime, the warm→cold fallback, every 401-driven refresh and explicit
+ * session recovery in one gate.
+ * @param args - Run args.
+ * @param slot - Mutable capture slot.
+ * @returns Formatted Authorization header value procedure.
+ */
+async function runConfiguredFlow(
+  args: IRunFlowArgs,
+  slot: ILongTermTokenSlot,
+): Promise<Procedure<string>> {
+  const canStart = mayStartFlow(args, slot);
+  if (!canStart) return answerRefusedFlow(args, slot);
+  return runFlowAndCapture(args, slot);
 }
 
 /**
@@ -166,4 +229,10 @@ function hasWarmStateImpl(config: IApiDirectCallConfig, creds: GenericCreds): bo
   return readCredsString(creds, config.warmStart.credsField).length > 0;
 }
 
-export { hasWarmStateImpl, primeFreshImpl, primeInitialImpl, runConfiguredFlow };
+export {
+  BUDGET_SPENT_MESSAGE,
+  hasWarmStateImpl,
+  primeFreshImpl,
+  primeInitialImpl,
+  runConfiguredFlow,
+};
