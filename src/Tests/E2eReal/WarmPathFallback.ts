@@ -76,9 +76,9 @@ interface IWarmFallbackArgs {
 /**
  * Whether this run has already sent an SMS.
  *
- * <p>A run without a budget reports nothing rather than guessing: the previous
- * behaviour was to retry unconditionally, and a suite that has not opted in
- * keeps it.
+ * <p>`otpBudget` is required on {@link IWarmFallbackArgs}, so there is no
+ * unmetered suite to fall back for: every caller wires a counter, and a run
+ * that has drawn on it cannot be allowed to draw again.
  * @param args - Fallback bundle.
  * @returns True when a message has already gone out.
  */

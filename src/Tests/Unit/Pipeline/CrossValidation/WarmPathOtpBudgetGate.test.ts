@@ -105,15 +105,28 @@ function findSingleAttemptSuites(): readonly string[] {
 const WARM_FALLBACK_SUITES = findWarmFallbackSuites();
 const SINGLE_ATTEMPT_SUITES = findSingleAttemptSuites();
 
+/**
+ * OTP suites known to exist when this gate was written.
+ *
+ * <p>A *floor*, never a ceiling. Discovery is what enumerates the suites, so a
+ * new OTP bank is covered the moment it lands — it is sorted into a safety
+ * model below and asserted like every other. This list exists only to catch
+ * the opposite failure: a suite that silently stops being discovered because
+ * its poller construction was renamed or refactored away, which would shrink
+ * the gate to nothing while every test still passed.
+ */
+const KNOWN_OTP_SUITES = [
+  'Beinleumi.e2e-real.test.ts',
+  'Hapoalim.e2e-real.test.ts',
+  'OneZero.e2e-real.test.ts',
+  'PayBox.e2e-real.test.ts',
+  'Pepper.e2e-real.test.ts',
+] as const;
+
 describe('real-E2E OTP suites — discovery', (): void => {
-  it('finds every suite that can cause an SMS', (): void => {
-    expect(OTP_SUITES).toEqual([
-      'Beinleumi.e2e-real.test.ts',
-      'Hapoalim.e2e-real.test.ts',
-      'OneZero.e2e-real.test.ts',
-      'PayBox.e2e-real.test.ts',
-      'Pepper.e2e-real.test.ts',
-    ]);
+  it('still finds every suite already known to cause an SMS', (): void => {
+    const missing = KNOWN_OTP_SUITES.filter(name => !OTP_SUITES.includes(name));
+    expect(missing).toEqual([]);
   });
 
   it('sorts every OTP suite into exactly one safety model', (): void => {
@@ -121,12 +134,11 @@ describe('real-E2E OTP suites — discovery', (): void => {
     expect(covered).toEqual([...OTP_SUITES]);
   });
 
-  it('holds the banks whose warm path can retry', (): void => {
-    expect(WARM_FALLBACK_SUITES).toEqual([
-      'OneZero.e2e-real.test.ts',
-      'PayBox.e2e-real.test.ts',
-      'Pepper.e2e-real.test.ts',
-    ]);
+  it('leaves neither safety model empty, so no assertion runs vacuously', (): void => {
+    const warmCount = WARM_FALLBACK_SUITES.length;
+    const singleCount = SINGLE_ATTEMPT_SUITES.length;
+    expect(warmCount).toBeGreaterThan(0);
+    expect(singleCount).toBeGreaterThan(0);
   });
 });
 

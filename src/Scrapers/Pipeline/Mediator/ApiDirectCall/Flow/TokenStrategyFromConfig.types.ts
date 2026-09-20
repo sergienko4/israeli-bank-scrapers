@@ -70,15 +70,21 @@ interface ILongTermTokenSlot {
    */
   coldFlowsStarted?: number;
   /**
-   * Authorization header the run's one cold flow produced, absent until a
+   * Authorization header the run's one cold flow produced, absent until that
    * flow succeeds.
    *
    * <p>Kept so a budget refusal can hand back the session the run already
-   * paid for instead of discarding it. Without this a warm resume that is
-   * rejected *after* its own 401 already triggered the run's cold login would
-   * fail the whole scrape, even though a valid bearer had just been minted
-   * and installed. Distinct from `latest`, which holds the long-term token
-   * (OneZero's `idToken`) rather than the bearer.
+   * paid an SMS for instead of discarding it. Without this a warm resume that
+   * is rejected *after* its own 401 already triggered the run's cold login
+   * would fail the whole scrape, even though a valid bearer had just been
+   * minted and installed.
+   *
+   * <p>Written on cold successes only, deliberately. A warm bearer reaching
+   * this field would be surrendered on refusal even though the 401 that
+   * forced the cold login is proof the bank had already rejected it — the run
+   * would retry a known-dead token instead of surfacing the real diagnosis.
+   * Distinct from `latest`, which holds the long-term token (OneZero's
+   * `idToken`) rather than the bearer.
    */
   latestHeaderValue?: string;
 }

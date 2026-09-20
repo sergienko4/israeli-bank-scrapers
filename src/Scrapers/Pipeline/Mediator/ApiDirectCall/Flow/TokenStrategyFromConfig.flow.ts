@@ -10,7 +10,7 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import { runSmsOtpFlow } from './SmsOtpFlow.js';
-import { mayStartFlow } from './TokenStrategyFromConfig.budget.js';
+import { isColdStart, mayStartFlow } from './TokenStrategyFromConfig.budget.js';
 import {
   formatAuthValue,
   makeWarmArgs,
@@ -71,7 +71,8 @@ interface IFinishFlowArgs {
 function finishFlow(input: IFinishFlowArgs): string {
   captureFlowResult(input.slot, input.result);
   const headerValue = formatAuthValue(input.args.config, input.result.bearer);
-  input.slot.latestHeaderValue = headerValue;
+  const isCold = isColdStart(input.args);
+  if (isCold) input.slot.latestHeaderValue = headerValue;
   return headerValue;
 }
 

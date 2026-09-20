@@ -85,7 +85,9 @@ from the `otp-trigger` phase, which this budget does not sit behind.)
 
 A *cold* flow replays the bank's login from the beginning, so it always walks
 the step that sends the message — which is not always the first step: PayBox
-sends at step 0, OneZero and Pepper at step 1. A *warm* resume starts strictly
+sends at step 0, OneZero and Pepper at step 1. `isColdStart` is what tells the
+two apart: a warm resume carries a `startStepIndex` past the send step, a cold
+one does not. A *warm* resume starts strictly
 after the last OTP pre-hook and so cannot send anything. That is enforced, not
 assumed: `WarmStartContract` fails any config whose `warmStart.fromStepIndex`
 does not clear every OTP step.

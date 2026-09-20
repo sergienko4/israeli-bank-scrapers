@@ -158,6 +158,15 @@ describe('cold-flow budget — one SMS per run', (): void => {
     expect(second.errorType).toBe(ScraperErrorTypes.Generic);
   });
 
+  it('never surrenders a warm session the cold flow did not replace', async (): Promise<void> => {
+    const harness = makeHarness();
+    await primeWarmOnce(harness);
+    await primeFreshFailing(harness);
+    const refused = await primeFreshOnce(harness);
+    if (refused.success) throw new ScraperError('expected the spent budget to be named');
+    expect(refused.errorMessage).toBe(BUDGET_SPENT_MESSAGE);
+  });
+
   it('never contacts the bank for the refused flow', async (): Promise<void> => {
     const harness = makeHarness();
     await primeFreshOnce(harness);

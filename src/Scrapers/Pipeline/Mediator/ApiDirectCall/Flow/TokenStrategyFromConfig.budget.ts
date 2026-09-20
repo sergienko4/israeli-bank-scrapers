@@ -75,4 +75,4 @@ function mayStartFlow(args: IRunFlowArgs, slot: ILongTermTokenSlot): boolean {
   return true;
 }
 
-export { COLD_FLOW_BUDGET, mayStartFlow };
+export { COLD_FLOW_BUDGET, isColdStart, mayStartFlow };
