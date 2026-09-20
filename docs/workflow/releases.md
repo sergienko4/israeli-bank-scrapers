@@ -11,10 +11,11 @@ flowchart LR
     MERGE[Squash merge to main]
     RP[release-please<br/>tag + GitHub release + CHANGELOG]
     PUB[npm publish<br/>--provenance]
+    SCAN[npm scans the tarball<br/>version not yet installable]
     VER[Verify installable<br/>version + dist-tag + attestation]
     OK[Release reached npm]
 
-    MERGE --> RP -->|"release_created"| PUB --> VER --> OK
+    MERGE --> RP -->|"release_created"| PUB --> SCAN --> VER --> OK
     VER -.->|"registry disagrees"| FAIL[Workflow fails]
     PUB -.->|"skipped"| FAIL
 ```
@@ -24,10 +25,83 @@ looks:
 
 | Guard | Failure it catches |
 | --- | --- |
-| `Verify the release is installable` | The tarball was accepted but `dist-tags.latest` still points at the previous version, so `npm install` keeps serving old code — or the OIDC exchange degraded and published without provenance |
+| `Verify the release is installable` | The tarball was accepted but the version is not yet resolvable, or `dist-tags.latest` still points at the previous version, so `npm install` keeps serving old code — or the OIDC exchange degraded and published without provenance |
 | `Release reached npm` | The `publish` job was **skipped**. A skipped job is not a red workflow, so the tag, GitHub release and CHANGELOG all say "shipped" while npm serves the previous version |
 
 Both live in [`.github/workflows/release.yml`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/.github/workflows/release.yml).
+
+## Publishing is no longer the same moment as being installable
+
+Since 2026-07-28 npm
+[scans every package at publish time](https://github.blog/changelog/2026-07-28-npm-publish-time-malware-scanning-and-dual-use-metadata/)
+before making it installable. The publish itself is accepted immediately; the
+version becomes resolvable only once the scan clears. npm's own wording:
+
+> This introduces a short delay between publishing and availability, typically
+> around five minutes. It may take longer, up to 15 minutes or more. […] If you
+> have automation that assumes a package is installable immediately after
+> publishing, update it to tolerate a short availability delay.
+
+Three things follow, and each one is a rule this pipeline now encodes:
+
+**1. During the scan the version is absent, not merely stale.** It does not
+appear in the packument at all, so "still scanning" and "never published" look
+identical from outside. That is why
+[`verify-npm-publish.sh`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/.github/scripts/ci/verify-npm-publish.sh)
+polls rather than checks once, and why nothing in the workflow tries to infer
+publish state by pre-reading the registry.
+
+**2. The poll budget targets npm's documented ceiling, not its typical case.**
+Defaults are 80 attempts × 15 s = **20 minutes**, and the `publish` job's
+`timeout-minutes` is sized to contain that plus checkout, install and build.
+A budget sized for the typical five minutes would go red on any slower-than-
+average scan. Version `8.7.2` is the worked example: the publish succeeded, the
+old 120-second budget expired, and the registry recorded the version 16 seconds
+later. Both numbers are pinned by
+`src/Tests/Unit/Pipeline/CrossValidation/ReleasePublishAvailabilityGate.test.ts`,
+so shrinking one without the other fails the build.
+
+**3. Re-running a failed release is safe, but it does not re-publish.**
+`npm publish` is not idempotent: once a tarball is accepted, a second attempt
+exits non-zero with
+
+```
+npm error You cannot publish over the previously published versions: X.Y.Z.
+```
+
+Before, that turned one slow scan into a permanently red release — the first
+run failed the wait, and every re-run failed the conflict. The publish step now
+records its outcome instead of aborting on it, and the verification step is
+what adjudicates: if the registry serves the version with a correct
+`dist-tags.latest` and an attestation, the release is green regardless of which
+run put it there.
+
+The trade-off is deliberate. A genuinely broken publish — a degraded OIDC
+exchange, a registry outage, a package blocked by the scan — now fails slowly,
+after the full budget, rather than instantly. Distinguishing it earlier would
+mean parsing npm's error text, which carries no stable error code. The publish
+step emits a `::warning::` and the verification step echoes the recorded
+outcome, so the log says which of the two happened.
+
+**If a release goes red, read the verification step first.** It checks three
+things — that the version resolves, that `dist-tags.latest` points at it, and
+that it carries a provenance attestation — and it names which one failed. A
+re-run only helps when the sole problem was that the version had not appeared
+yet, so check the failing signal before re-running:
+
+| What the step reports | What it means | Re-run? |
+| --- | --- | --- |
+| Version missing, and it is now listed on [npmjs.com](https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers) | The scan outran the budget; the release shipped | Yes — verification will pass |
+| Version missing, and still not listed | Either the publish never reached the registry, or the scan is still running or has **blocked** the package | Not yet — establish which before re-running |
+| Version resolves but `dist-tags.latest` is stale | The tag was not moved | No — a re-run cannot fix it; re-tag instead |
+| Version resolves but has no attestation | The OIDC exchange degraded and published without provenance | No — a re-run cannot add provenance to a published version |
+| The package document was never readable | A registry or network fault; the step saw nothing, so this says nothing about the publish | Yes, once the registry answers — but do not read it as a failed publish |
+
+A blocked package is the case worth naming: npm may hold or block a package it
+flags, and from the registry that is indistinguishable from a slow scan, so the
+job waits the full budget before going red. If nothing appears and no
+notification arrives, check the publishing account for an appeal notice rather
+than re-running.
 
 ## Signals we control
 

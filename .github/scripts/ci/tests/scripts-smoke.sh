@@ -565,6 +565,29 @@ mkdir -p "$NPM_TMP/bin"
 cat > "$NPM_TMP/bin/curl" <<'STUB_CURL'
 #!/usr/bin/env bash
 # Stands in for registry.npmjs.org: ignores curl's flags, serves the fixture.
+#
+# FIXTURE_UNREADABLE makes every call fail the way `curl --fail` does on a
+# 5xx or a DNS failure, which is a different state from a readable document
+# that lacks the version.
+if [ -n "${FIXTURE_UNREADABLE:-}" ]; then
+  echo "curl: (22) The requested URL returned error: 503" >&2
+  exit 22
+fi
+#
+# With FIXTURE_AFTER set, the first FIXTURE_MISSES calls serve
+# FIXTURE_PACKUMENT and every later call serves FIXTURE_AFTER. That is the
+# registry behaviour npm's publish-time malware scan introduced: a freshly
+# published version is absent from the packument for minutes, then appears.
+if [ -n "${FIXTURE_AFTER:-}" ]; then
+  seen=0
+  [ -s "${FIXTURE_COUNTER}" ] && seen=$(cat "${FIXTURE_COUNTER}")
+  seen=$((seen + 1))
+  printf '%s' "${seen}" > "${FIXTURE_COUNTER}"
+  if [ "${seen}" -gt "${FIXTURE_MISSES:-1}" ]; then
+    cat "${FIXTURE_AFTER}"
+    exit 0
+  fi
+fi
 cat "${FIXTURE_PACKUMENT}"
 STUB_CURL
 chmod +x "$NPM_TMP/bin/curl"
@@ -605,6 +628,96 @@ assert_eq "a publish carrying no provenance attestation fails" "1" \
   "$(run_verify "$NPM_TMP/unsigned.json")"
 assert_eq "a version the registry does not serve as latest fails" "1" \
   "$(run_verify "$NPM_TMP/stale.json")"
+
+# npm scans every publish before the version becomes installable, so the poll
+# loop — not the first request — is what decides a release. It had no coverage
+# at all while every case above pinned VERIFY_MAX_ATTEMPTS=1, which is how a
+# budget 7x too small for npm's documented window survived review.
+cat > "$NPM_TMP/absent.json" <<'EOF'
+{
+  "dist-tags": { "latest": "8.8.8" },
+  "versions": { "8.8.8": { "version": "8.8.8" } }
+}
+EOF
+
+# $1 = how many polls report the version missing before it appears
+run_verify_eventual() {
+  : > "$NPM_TMP/counter"
+  PATH="$NPM_TMP/bin:$PATH" \
+    FIXTURE_PACKUMENT="$NPM_TMP/absent.json" FIXTURE_AFTER="$NPM_TMP/signed.json" \
+    FIXTURE_MISSES="$1" FIXTURE_COUNTER="$NPM_TMP/counter" \
+    VERIFY_MAX_ATTEMPTS=5 VERIFY_SLEEP_SECONDS=0 \
+    bash "$SCRIPT_DIR/verify-npm-publish.sh" "@scope/pkg" "9.9.9" >/dev/null 2>&1
+  echo "$?"
+}
+
+assert_eq "a version that appears only after npm's publish scan is accepted" "0" \
+  "$(run_verify_eventual 3)"
+assert_eq "a version that never appears within the budget still fails" "1" \
+  "$(run_verify_eventual 99)"
+
+# Both failures above exit 1, but only one of them is worth re-running. A stale
+# dist-tag means the tarball is published and already scanned, and no number of
+# re-runs moves the tag -- so reporting it with the same "maybe it is still
+# scanning" text sends an operator round a loop that cannot terminate. The loop
+# already reads both signals; these pin that it says which one failed.
+verify_stderr() {
+  PATH="$NPM_TMP/bin:$PATH" FIXTURE_PACKUMENT="$1" \
+    VERIFY_MAX_ATTEMPTS=1 VERIFY_SLEEP_SECONDS=0 \
+    bash "$SCRIPT_DIR/verify-npm-publish.sh" "@scope/pkg" "9.9.9" 2>&1 >/dev/null
+}
+
+# $1 = haystack, $2 = needle
+says() {
+  case "$1" in
+    *"$2"*) echo yes ;;
+    *) echo no ;;
+  esac
+}
+
+assert_eq "a stale dist-tag is reported as a tag that never moved" "yes" \
+  "$(says "$(verify_stderr "$NPM_TMP/stale.json")" "dist-tag add")"
+assert_eq "a stale dist-tag is not reported as maybe-still-scanning" "no" \
+  "$(says "$(verify_stderr "$NPM_TMP/stale.json")" "still running")"
+assert_eq "an absent version is reported as not resolving at all" "yes" \
+  "$(says "$(verify_stderr "$NPM_TMP/absent.json")" "does not resolve at all")"
+
+# A registry that cannot be read at all is a third state, and the loop used to
+# collapse it into the second: `published` and `latest` are only ever assigned
+# inside the curl-success branch, so an outage produced the "the version does
+# not resolve at all / the scan may still be running" diagnosis on no evidence
+# whatsoever, and named a `latest` nobody had read. That sends an operator to
+# npmjs.com to inspect a publish when the real fault is the network.
+unreadable_stderr() {
+  PATH="$NPM_TMP/bin:$PATH" FIXTURE_PACKUMENT="$NPM_TMP/signed.json" FIXTURE_UNREADABLE=1 \
+    VERIFY_MAX_ATTEMPTS=2 VERIFY_SLEEP_SECONDS=0 \
+    bash "$SCRIPT_DIR/verify-npm-publish.sh" "@scope/pkg" "9.9.9" 2>&1 >/dev/null
+}
+
+assert_eq "an unreadable registry is reported as unreadable" "yes" \
+  "$(says "$(unreadable_stderr)" "never readable")"
+assert_eq "an unreadable registry is not reported as an unpublished version" "no" \
+  "$(says "$(unreadable_stderr)" "does not resolve at all")"
+assert_eq "an unreadable registry does not claim what consumers are installing" "no" \
+  "$(says "$(unreadable_stderr)" "are still getting")"
+assert_eq "an unreadable registry still fails the gate" "1" \
+  "$(PATH="$NPM_TMP/bin:$PATH" FIXTURE_PACKUMENT="$NPM_TMP/signed.json" FIXTURE_UNREADABLE=1 \
+      VERIFY_MAX_ATTEMPTS=2 VERIFY_SLEEP_SECONDS=0 \
+      bash "$SCRIPT_DIR/verify-npm-publish.sh" "@scope/pkg" "9.9.9" >/dev/null 2>&1; echo $?)"
+
+# The budget is the whole guard. npm documents roughly five minutes to become
+# installable and up to fifteen or more at peak, so anything below that window
+# reports a healthy release as broken. Read it back from the script's own
+# output rather than re-deriving it here, so the assertion tracks what the
+# script will actually wait for.
+NPM_SCAN_WINDOW_SECONDS=900
+budget_seconds=$(
+  PATH="$NPM_TMP/bin:$PATH" FIXTURE_PACKUMENT="$NPM_TMP/signed.json" \
+    bash "$SCRIPT_DIR/verify-npm-publish.sh" "@scope/pkg" "9.9.9" 2>/dev/null |
+    sed -n 's/.*budget \([0-9][0-9]*\)s.*/\1/p' | head -1
+)
+assert_eq "the default budget covers npm's documented publish-scan window" "yes" \
+  "$([ -n "${budget_seconds}" ] && [ "${budget_seconds}" -ge "${NPM_SCAN_WINDOW_SECONDS}" ] && echo yes || echo "no (${budget_seconds:-unreported}s)")"
 
 rm -rf "$NPM_TMP"
 
