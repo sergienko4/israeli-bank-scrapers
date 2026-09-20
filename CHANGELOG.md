@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.7.3](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.7.2...v8.7.3) (2026-09-20)
+
+
+### Bug Fixes
+
+* cap cold SMS logins at one per run ([#583](https://github.com/sergienko4/israeli-bank-scrapers/issues/583)) ([5122711](https://github.com/sergienko4/israeli-bank-scrapers/commit/5122711bf2c1f4527cb2b80a667df3a61afe9e52))
+* **ci:** survive npm publish-time scan delay ([#581](https://github.com/sergienko4/israeli-bank-scrapers/issues/581)) ([8e6b8db](https://github.com/sergienko4/israeli-bank-scrapers/commit/8e6b8db26457e81bbc602ce58ec45d35389146af))
+
 ## [8.7.2](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.7.1...v8.7.2) (2026-09-19)
 
 
