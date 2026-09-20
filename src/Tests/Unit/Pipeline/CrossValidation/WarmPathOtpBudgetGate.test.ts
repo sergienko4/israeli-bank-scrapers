@@ -169,7 +169,7 @@ describe.each(WARM_FALLBACK_SUITES)('%s — one SMS per run', (file): void => {
     expect(metered).toBe(pollers);
   });
 
-  it('meters the cold attempt as well as the warm one', (): void => {
+  it('builds a cold poller as well as a warm one', (): void => {
     const source = readSuite(file);
     const pollers = countOf(source, OTP_MARKER);
     expect(pollers).toBeGreaterThan(1);

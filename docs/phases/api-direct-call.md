@@ -105,8 +105,8 @@ re-entrancy latch: it blocks a refresh *nested inside* a refresh and releases
 in `finally`, leaving *sequential* refreshes unbounded. Since every `apiPost`,
 `apiGet` and `apiQuery` funnels through `retryOn401Op`, a session the bank had
 decided to refuse bought one fresh login — and one fresh SMS — per rejected
-request. Ten rejected calls meant ten messages.
-See [#553](https://github.com/sergienko4/israeli-bank-scrapers/issues/553).
+request. Ten rejected calls meant ten messages. This was found by reading the
+refresh path, not from a bug report — no issue tracks it.
 
 ### What changed for callers
 
@@ -130,7 +130,7 @@ an operator would otherwise have. The `GENERIC` form reaches callers through
 
 For OneZero the old behaviour was actively destructive: minting a long-term
 token revokes the previous one
-([#580](https://github.com/sergienko4/israeli-bank-scrapers/issues/580)), so
+([#580](https://github.com/sergienko4/israeli-bank-scrapers/pull/580)), so
 each silent re-mint invalidated the token the run was trying to keep.
 
 If a run legitimately needs a second login, start a second scrape.

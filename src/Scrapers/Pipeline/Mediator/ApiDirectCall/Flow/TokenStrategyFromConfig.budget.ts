@@ -35,7 +35,7 @@ import type { ILongTermTokenSlot, IRunFlowArgs } from './TokenStrategyFromConfig
  * <p>One, because a second has never been able to help: the bank refused the
  * credentials the first flow just minted, and replaying the same flow asks the
  * same question. For OneZero it is actively harmful — minting revokes the
- * previous long-term token (issue #580) — so the retry destroys the very token
+ * previous long-term token (#580) — so the retry destroys the very token
  * the run was trying to keep.
  */
 const COLD_FLOW_BUDGET = 1;

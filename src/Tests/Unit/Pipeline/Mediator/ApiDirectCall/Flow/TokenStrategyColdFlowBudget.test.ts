@@ -132,7 +132,7 @@ describe('cold-flow budget — one SMS per run', (): void => {
     expect(harness.captures).toHaveLength(COLD_STEPS);
   });
 
-  it('refuses a second cold flow in the same run', async (): Promise<void> => {
+  it('refuses a second cold flow without failing the caller', async (): Promise<void> => {
     const harness = makeHarness();
     await primeFreshOnce(harness);
     const second = await primeFreshOnce(harness);
