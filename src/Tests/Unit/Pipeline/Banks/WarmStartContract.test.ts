@@ -105,6 +105,25 @@ async function loadWarmStartConfigs(): Promise<
   return loaded.filter(([, config]) => config.warmStart !== undefined);
 }
 
+/**
+ * Index of the last step that collects an OTP code, or -1 when none does.
+ *
+ * <p>The bank sends the message at or before the step whose pre-hook asks for
+ * the code, so resuming strictly after this index is what makes a warm start
+ * provably free of SMS traffic. The cold-flow budget
+ * (`TokenStrategyFromConfig.budget.ts`) exempts warm resumes from its cap on
+ * exactly that assumption; this is where the assumption is enforced rather
+ * than trusted.
+ * @param config - Bank call-config literal.
+ * @returns Highest OTP pre-hook step index, or -1.
+ */
+function lastOtpPreHookIndex(config: IApiDirectCallConfig): number {
+  const otpSteps = config.steps.map((step, index) =>
+    step.preHook?.awaitCredsField === 'otpCodeRetriever' ? index : -1,
+  );
+  return Math.max(...otpSteps, -1);
+}
+
 describe('warm-start contract — every opted-in bank', () => {
   it('covers exactly the warm-start banks present on disk', async () => {
     const files = await findWarmStartConfigFiles();
@@ -137,6 +156,15 @@ describe('warm-start contract — every opted-in bank', () => {
       const index = config.warmStart?.fromStepIndex ?? -1;
       expect(index).toBeGreaterThan(0);
       expect(index).toBeLessThanOrEqual(config.steps.length);
+    }
+  });
+
+  it('resumes past every OTP pre-hook, so a warm start can never send a message', async () => {
+    const configs = await loadWarmStartConfigs();
+    for (const [, config] of configs) {
+      const lastOtpStep = lastOtpPreHookIndex(config);
+      const index = config.warmStart?.fromStepIndex ?? -1;
+      expect(index).toBeGreaterThan(lastOtpStep);
     }
   });
 

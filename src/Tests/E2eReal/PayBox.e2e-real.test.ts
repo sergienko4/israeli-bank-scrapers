@@ -5,6 +5,9 @@ import { CompanyTypes } from '../../index.js';
 import type { ScraperCredentials } from '../../Scrapers/Base/Interface.js';
 import { getDebug } from '../../Scrapers/Pipeline/Logging/Debug.js';
 import { assertSuccessfulScrape, logScrapedTransactions, SCRAPE_TIMEOUT } from './Helpers.js';
+import { createLoginWitness } from './LoginWitness.js';
+import type { OtpRetriever } from './OtpBudget.js';
+import { createOtpBudget } from './OtpBudget.js';
 import { createBankOtpPoller } from './OtpPoller.js';
 import { createScrapeAttempt } from './ScrapeAttempt.js';
 import { createTokenCache } from './TokenCache.js';
@@ -48,7 +51,22 @@ DESCRIBE_IF('E2E: PayBox (real credentials, config-driven)', () => {
       log: LOG,
     });
     const cachedToken = await cache.read();
-    const retrieve = createBankOtpPoller('PayBox', LOG);
+    const otpBudget = createOtpBudget();
+    const loginWitness = createLoginWitness(cache.writer);
+    const warmPoller = createBankOtpPoller('PayBox', LOG);
+    const retrieve = otpBudget.meter(warmPoller);
+    /**
+     * Build a metered OTP retriever for a cold attempt.
+     * @returns Retriever charged to this run's budget.
+     */
+    const meterColdPoller = (): OtpRetriever => {
+      const coldPoller = createBankOtpPoller('PayBox', LOG);
+      return otpBudget.meter(coldPoller);
+    };
+    // Both retrievers are metered through one budget, so the run — not any
+    // single scraper — is what is held to a single SMS. The warm creds keep a
+    // retriever because the bank sends the message a step BEFORE the retriever
+    // is consulted: withholding it would waste that message, not save it.
     const warmCreds = {
       phoneNumber,
       otpLongTermToken: cachedToken,
@@ -61,7 +79,7 @@ DESCRIBE_IF('E2E: PayBox (real credentials, config-driven)', () => {
     const buildColdCreds = (): ScraperCredentials =>
       ({
         phoneNumber,
-        otpCodeRetriever: createBankOtpPoller('PayBox', LOG),
+        otpCodeRetriever: meterColdPoller(),
       }) as unknown as ScraperCredentials;
     LOG.info(
       {
@@ -73,13 +91,15 @@ DESCRIBE_IF('E2E: PayBox (real credentials, config-driven)', () => {
     );
     const runScrape = createScrapeAttempt({
       companyId: CompanyTypes.PayBox,
-      onAuthFlowComplete: cache.writer,
+      onAuthFlowComplete: loginWitness.writer,
     });
     const result = await scrapeWithWarmFallback({
       cache,
       cachedToken,
       warmCreds,
       coldCreds: buildColdCreds,
+      otpBudget,
+      loginWitness,
       attempt: runScrape,
       log: LOG,
     });
