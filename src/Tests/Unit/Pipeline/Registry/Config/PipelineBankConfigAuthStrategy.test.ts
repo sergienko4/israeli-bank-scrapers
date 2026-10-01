@@ -90,7 +90,7 @@ describe('PipelineBankConfig — authStrategyKind completeness (T-REG)', () => {
     const apiDirectEntries = allBankEntries.filter(
       ([, cfg]) => cfg.authStrategyKind === 'api-direct',
     );
-    const actualApiDirect = apiDirectEntries.map(([id]) => id as CompanyTypes);
+    const actualApiDirect = apiDirectEntries.map(([id]) => id);
     const actualSet = new Set(actualApiDirect);
     expect(actualSet.size).toBe(3);
     for (const bank of API_DIRECT_SET) {

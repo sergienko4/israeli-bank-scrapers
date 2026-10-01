@@ -23,8 +23,12 @@ import type {
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 
-/** Default company ID for test mocks. */
-const TEST_COMPANY_ID = 'testBank';
+/**
+ * Default company ID for test mocks. Deliberately not a real bank, so no
+ * bank-specific config ever matches it; this is the one place it enters the
+ * enum.
+ */
+const TEST_COMPANY_ID = 'testBank' as unknown as CompanyTypes;
 
 /**
  * Create a no-op {@link ScraperLogger} suitable for tests that do
@@ -92,7 +96,7 @@ function makeMockOptions(overrides: Partial<ScraperOptions> = {}): ScraperOption
     companyId: TEST_COMPANY_ID,
     startDate: new Date('2024-01-01'),
   };
-  return { ...defaults, ...overrides } as ScraperOptions;
+  return { ...defaults, ...overrides };
 }
 
 /**
@@ -152,7 +156,7 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
   const defaults: IPipelineContext = {
     options: makeMockOptions(),
     credentials: makeMockCredentials(),
-    companyId: TEST_COMPANY_ID as unknown as CompanyTypes,
+    companyId: TEST_COMPANY_ID,
     logger: createMockLogger(),
     diagnostics: {
       loginUrl: '',

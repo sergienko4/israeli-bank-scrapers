@@ -133,6 +133,28 @@ export async function safeCleanup(cleanup: () => Promise<boolean>): Promise<bool
   return true;
 }
 
+/** Error types the `LoginResults` union excludes. */
+const NON_LOGIN_ERRORS: ReadonlySet<string> = new Set([
+  ScraperErrorTypes.Timeout,
+  ScraperErrorTypes.Generic,
+  ScraperErrorTypes.WafBlocked,
+]);
+
+/** Every runtime value of the `LoginResults` union. */
+const LOGIN_RESULT_VALUES: ReadonlySet<string> = new Set([
+  ...Object.values(ScraperErrorTypes).filter(type => !NON_LOGIN_ERRORS.has(type)),
+  ...Object.values(LoginBaseResults),
+]);
+
+/**
+ * Narrow a possible-results key to the login result it names.
+ * @param key - A key of a possible-results map.
+ * @returns True when the key is a `LoginResults` value.
+ */
+function isLoginResult(key: string): key is LoginResults {
+  return LOGIN_RESULT_VALUES.has(key);
+}
+
 /** Context for testing login result conditions. */
 interface IResultTestContext {
   object: PossibleLoginResults;
@@ -166,7 +188,8 @@ export async function getKeyByValue(
   page: Page,
 ): Promise<LoginResults> {
   const ctx: IResultTestContext = { object, value, page };
-  const keys = Object.keys(object) as LoginResults[];
+  const allKeys = Object.keys(object);
+  const keys = allKeys.filter(isLoginResult);
   const actions = keys.map(
     (key): (() => Promise<LoginResults>) =>
       () =>

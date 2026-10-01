@@ -5,7 +5,7 @@
  * resolvable via WK for ApiMediator.apiPost.
  */
 
-import type { CompanyTypes } from '../../../../Definitions.js';
+import { CompanyTypes } from '../../../../Definitions.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { WKUrlGroup } from '../WK/UrlsWK.js';
 import { registerWkUrl } from '../WK/UrlsWK.js';
@@ -42,19 +42,25 @@ function seedWkFromHeadless(bankHint: CompanyTypes, headless: IHeadlessUrlsConfi
 }
 
 /**
- * Seed one [bankId, config] entry from the PIPELINE_BANK_CONFIG map.
- * Skips banks with no headless block (HTML banks).
- * @param entry - Tuple from Object.entries(PIPELINE_BANK_CONFIG).
+ * Seed one bank's PIPELINE_BANK_CONFIG entry.
+ * Skips banks with no config or no headless block (HTML banks).
+ * @param registry - The pipeline bank registry map.
+ * @param bankId - Bank to seed.
  * @returns True when a headless block was seeded; false when skipped.
  */
-function seedOneEntry(entry: [string, IPipelineBankConfig]): DidSeed {
-  const [key, config] = entry;
-  if (!config.headless) return false as DidSeed;
-  return seedWkFromHeadless(key as CompanyTypes, config.headless);
+function seedOneBank(
+  registry: Partial<Record<CompanyTypes, IPipelineBankConfig>>,
+  bankId: CompanyTypes,
+): DidSeed {
+  const headless = registry[bankId]?.headless;
+  if (!headless) return false as DidSeed;
+  return seedWkFromHeadless(bankId, headless);
 }
 
 /**
  * Iterate PIPELINE_BANK_CONFIG and write every headless URL into WK.
+ * Walks the CompanyTypes enum rather than `Object.entries`, so every bank
+ * id stays typed without a cast.
  * Called once at bank-config module load.
  * @param registry - The pipeline bank registry map.
  * @returns True after the pass completes.
@@ -62,8 +68,8 @@ function seedOneEntry(entry: [string, IPipelineBankConfig]): DidSeed {
 function seedWkFromPipelineConfig(
   registry: Partial<Record<CompanyTypes, IPipelineBankConfig>>,
 ): DidSeed {
-  const entries = Object.entries(registry);
-  entries.forEach(seedOneEntry);
+  const bankIds = Object.values(CompanyTypes);
+  for (const bankId of bankIds) seedOneBank(registry, bankId);
   return true as DidSeed;
 }
 

@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import type { Frame, Page } from 'playwright-core';
 
+import { CompanyTypes } from '../../Definitions.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import type { ScraperOptions } from '../../Scrapers/Base/Interface.js';
 
@@ -131,10 +132,10 @@ function makeMockPage(): Page {
  */
 function makeOptions(overrides: Partial<ScraperOptions> = {}): ScraperOptions {
   return {
-    companyId: 'test',
+    companyId: CompanyTypes.Hapoalim,
     startDate: new Date(),
     ...overrides,
-  } as ScraperOptions;
+  };
 }
 
 /**
