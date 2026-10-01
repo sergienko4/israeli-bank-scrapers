@@ -7,7 +7,7 @@
  */
 
 import type { KeyObject } from 'node:crypto';
-import { createHash, generateKeyPairSync } from 'node:crypto';
+import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync } from 'node:crypto';
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
@@ -88,6 +88,63 @@ function generateKeypair(algorithm: SignerAlgorithm): Procedure<IGenericKeypair>
   return factory();
 }
 
+/** Node's name for the P-256 curve in `asymmetricKeyDetails.namedCurve`. */
+const P256_CURVE_NAME = 'prime256v1';
+
+/**
+ * Parse PKCS#8 DER into a private KeyObject without throwing.
+ * @param der - PKCS#8 DER bytes.
+ * @returns The private key, or false when the bytes are not a PKCS#8 key.
+ */
+function tryParsePkcs8(der: Buffer): KeyObject | false {
+  try {
+    return createPrivateKey({ key: der, format: 'der', type: 'pkcs8' });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Parse canonical Base64 PKCS#8 text into a P-256 private key.
+ * @param pkcs8Base64 - PKCS#8 DER encoded as standard padded Base64.
+ * @returns The private key, or false for any other text, key type, or curve.
+ */
+function parseCanonicalEcP256(pkcs8Base64: string): KeyObject | false {
+  const der = Buffer.from(pkcs8Base64, 'base64');
+  if (der.length === 0 || der.toString('base64') !== pkcs8Base64) return false;
+  const privateKey = tryParsePkcs8(der);
+  if (privateKey === false) return false;
+  if (privateKey.asymmetricKeyDetails?.namedCurve !== P256_CURVE_NAME) return false;
+  return privateKey;
+}
+
+/**
+ * Rehydrate a persisted ECDSA P-256 private key and derive its public half,
+ * SPKI, and key ID through the same {@link packKeypair} path that generation
+ * uses. Non-canonical Base64, non-PKCS#8 bytes, and any other key type or
+ * curve are rejected; the failure text never includes key material.
+ * @param pkcs8Base64 - PKCS#8 DER encoded as standard padded Base64.
+ * @returns Keypair bundle, or a failure naming only the key category.
+ */
+function importEcP256Pkcs8(pkcs8Base64: string): Procedure<IGenericKeypair> {
+  const privateKey = parseCanonicalEcP256(pkcs8Base64);
+  if (privateKey === false) return fail(ScraperErrorTypes.Generic, 'persisted EC key invalid');
+  const publicKey = createPublicKey(privateKey);
+  const bundle = packKeypair(privateKey, publicKey);
+  return succeed(bundle);
+}
+
+/**
+ * Export a keypair's private key as PKCS#8 DER in standard Base64 — the
+ * inverse of {@link importEcP256Pkcs8}.
+ * @param keypair - Keypair bundle to persist.
+ * @returns PKCS#8 DER as standard padded Base64.
+ */
+function exportPkcs8Base64(keypair: IGenericKeypair): string {
+  const der = keypair.privateKey.export({ type: 'pkcs8', format: 'der' });
+  return der.toString('base64');
+}
+
 export type { IGenericKeypair };
 export default generateKeypair;
-export { generateKeypair };
+export { exportPkcs8Base64, generateKeypair, importEcP256Pkcs8 };

@@ -105,12 +105,22 @@ function buildSmsOtpCarry(args: IRunSmsOtpArgs): Procedure<Readonly<Record<strin
 }
 
 /**
+ * Use the caller's keys when supplied; otherwise generate them per config.
+ * @param args - Flow run args.
+ * @returns Procedure with the keypair bundle the flow signs with.
+ */
+function resolveKeypairs(args: IRunSmsOtpArgs): Procedure<IKeypairBundle> {
+  if (args.keypairs !== undefined) return succeed(args.keypairs);
+  return prepareKeypairs(args.config);
+}
+
+/**
  * Prepare the keypairs + fingerprint bundle (no carry build).
  * @param args - Flow run args.
  * @returns Core inputs procedure.
  */
 function prepCoreInputs(args: IRunSmsOtpArgs): Procedure<ICoreSmsOtpInputs> {
-  const keypairsProc = prepareKeypairs(args.config);
+  const keypairsProc = resolveKeypairs(args);
   if (!isOk(keypairsProc)) return keypairsProc;
   const fpProc = prepareFingerprint(args.config);
   if (!isOk(fpProc)) return fpProc;

@@ -42,6 +42,10 @@ interface IRunSmsOtpArgs {
   readonly initialCarry?: Readonly<Record<string, JsonValue>>;
   /** First step index to iterate from (0 = cold path). */
   readonly startStepIndex?: number;
+  /** Keys to sign with instead of generating fresh ones (durable resume). */
+  readonly keypairs?: IKeypairBundle;
+  /** Step list for this run only; defaults to `config.steps`. */
+  readonly steps?: IApiDirectCallConfig['steps'];
 }
 
 /** Keypair bundle handed to RunStep per step. */
@@ -116,6 +120,8 @@ interface IFlowResult {
   readonly bearer: string;
   readonly longTermToken: string;
   readonly carrySnapshot: Readonly<Record<string, JsonValue>>;
+  /** Keys the flow signed with — injected or freshly generated. */
+  readonly keypairs: IKeypairBundle;
 }
 
 /** Prepared inputs for the seedScope + reduce passes. */

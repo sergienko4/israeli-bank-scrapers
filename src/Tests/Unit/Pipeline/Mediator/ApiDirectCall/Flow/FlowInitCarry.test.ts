@@ -20,6 +20,14 @@ function makeConfig(overrides: Partial<IApiDirectCallConfig>): IApiDirectCallCon
   };
 }
 
+/** Canonical lowercase RFC 9562 UUID version 4 (variant 10xx). */
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+/** Seed block that bootstraps `clientInstanceId` with a random UUID. */
+const UUID_SEED: Partial<IApiDirectCallConfig> = {
+  seedCarryFromCreds: [{ field: 'clientInstanceId', bootstrap: { kind: 'random-uuid' } }],
+};
+
 describe('FlowInitCarry.buildInitialCarry', () => {
   it('mirrors a creds field into carry under the same name', () => {
     const config = makeConfig({ seedCarryFromCreds: ['phoneNumber'] });
@@ -38,6 +46,39 @@ describe('FlowInitCarry.buildInitialCarry', () => {
       const value = result.value.deviceId16Hex;
       expect(typeof value).toBe('string');
       expect(value).toMatch(/^[0-9a-f]{32}$/);
+    }
+  });
+
+  it('runs the random-uuid bootstrap when creds value is absent', () => {
+    const config = makeConfig(UUID_SEED);
+    const result = buildInitialCarry(config, {}, {});
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value.clientInstanceId).toMatch(UUID_V4);
+  });
+
+  it('generates a distinct random-uuid value for each separate cold flow', () => {
+    const config = makeConfig(UUID_SEED);
+    const first = buildInitialCarry(config, {}, {});
+    const second = buildInitialCarry(config, {}, {});
+    expect(first.success && second.success).toBe(true);
+    if (first.success && second.success) {
+      expect(first.value.clientInstanceId).not.toBe(second.value.clientInstanceId);
+    }
+  });
+
+  it('shares one random-uuid value with every derivation in the same flow', () => {
+    const config = makeConfig({
+      ...UUID_SEED,
+      derivedCarry: [
+        { into: 'loginId', parts: ['carry.clientInstanceId'] },
+        { into: 'assertId', parts: ['carry.clientInstanceId'] },
+      ],
+    });
+    const result = buildInitialCarry(config, {}, {});
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.loginId).toBe(result.value.clientInstanceId);
+      expect(result.value.assertId).toBe(result.value.clientInstanceId);
     }
   });
 

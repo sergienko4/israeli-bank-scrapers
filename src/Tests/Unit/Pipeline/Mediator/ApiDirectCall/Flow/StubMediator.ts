@@ -20,6 +20,7 @@ interface IApiPostCapture {
   readonly url: WKUrlOrLiteral;
   readonly body: Record<string, unknown>;
   readonly extraHeaders: Record<string, string> | undefined;
+  readonly query?: Record<string, string>;
 }
 
 /** Args bundle for makeStubMediator — respects the 3-param ceiling. */
@@ -105,7 +106,7 @@ function makeApiPost(args: IStubMediatorArgs): IApiMediator['apiPost'] {
     opts?: IApiQueryOpts,
   ): Promise<Procedure<T>> => {
     await Promise.resolve();
-    args.captures.push({ url, body, extraHeaders: opts?.extraHeaders });
+    args.captures.push({ url, body, extraHeaders: opts?.extraHeaders, query: opts?.query });
     const resp = args.responses[idx];
     idx += 1;
     return resp as Procedure<T>;

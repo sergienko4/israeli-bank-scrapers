@@ -5,7 +5,7 @@
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, succeed } from '../../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import type { AsymmetricSignerAlgorithm } from '../ConfigContracts/SignerTypes.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
@@ -124,7 +124,7 @@ function buildReduceArgs(args: IRunSmsOtpArgs, prep: ISmsOtpPrep): IStepReduceAr
  */
 function makeReduceStepsArgs(bundle: IMakeReduceStepsArgs): IReduceStepsArgs {
   return {
-    steps: bundle.args.config.steps,
+    steps: bundle.args.steps ?? bundle.args.config.steps,
     startIndex: bundle.args.startStepIndex ?? 0,
     reduceArgs: bundle.reduceArgs,
     initial: bundle.initial,
@@ -149,20 +149,36 @@ async function reduceAllSteps(
 }
 
 /**
+ * Read the non-bearer outputs every successful flow returns.
+ * @param scope - Final scope.
+ * @param config - Bank config.
+ * @returns Long-term token (or '') and a frozen carry snapshot.
+ */
+function snapshotFlowOutputs(
+  scope: ITemplateScope,
+  config: IApiDirectCallConfig,
+): Pick<IFlowResult, 'longTermToken' | 'carrySnapshot'> {
+  const longTermToken = extractLongTermTokenFromCarry(config, scope);
+  const carrySnapshot = Object.freeze({ ...scope.carry });
+  return { longTermToken, carrySnapshot };
+}
+
+/**
  * Build the final IFlowResult after step reduction.
  * @param scope - Final scope.
  * @param config - Bank config.
- * @param bearer - Extracted bearer token.
- * @returns Flow result bundle.
+ * @param keypairs - Keys the flow signed with.
+ * @returns Flow result bundle, or a failure when no bearer was produced.
  */
 function buildFlowResult(
   scope: ITemplateScope,
   config: IApiDirectCallConfig,
-  bearer: string,
-): IFlowResult {
-  const longTermToken = extractLongTermTokenFromCarry(config, scope);
-  const carrySnapshot = Object.freeze({ ...scope.carry });
-  return { bearer, longTermToken, carrySnapshot };
+  keypairs: IKeypairBundle,
+): Procedure<IFlowResult> {
+  const bearerProc = extractTokenFromCarry(scope);
+  if (!isOk(bearerProc)) return bearerProc;
+  const outputs = snapshotFlowOutputs(scope, config);
+  return succeed({ ...outputs, bearer: bearerProc.value, keypairs });
 }
 
-export { buildFlowResult, extractLongTermTokenFromCarry, extractTokenFromCarry, reduceAllSteps };
+export { buildFlowResult, extractLongTermTokenFromCarry, reduceAllSteps };

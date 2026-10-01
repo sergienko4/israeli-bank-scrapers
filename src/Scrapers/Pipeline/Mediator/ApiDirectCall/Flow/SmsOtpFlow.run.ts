@@ -3,25 +3,23 @@
  */
 
 import type { Procedure } from '../../../Types/Procedure.js';
-import { isOk, succeed } from '../../../Types/Procedure.js';
+import { isOk } from '../../../Types/Procedure.js';
 import { prepareSmsOtpFlow } from './SmsOtpFlow.prep.js';
-import { buildFlowResult, extractTokenFromCarry, reduceAllSteps } from './SmsOtpFlow.result.js';
+import { buildFlowResult, reduceAllSteps } from './SmsOtpFlow.result.js';
 import type { IFlowResult, IRunSmsOtpArgs } from './SmsOtpFlow.types.js';
 
 /**
- * Run the sms-otp flow end-to-end.
+ * Run the sms-otp flow end-to-end. Callers may inject the keys to sign with
+ * and a replacement step list; both default to the configured behaviour.
  * @param args - Run args.
- * @returns Procedure with { bearer, longTermToken, carrySnapshot }.
+ * @returns Procedure with { bearer, longTermToken, carrySnapshot, keypairs }.
  */
 async function runSmsOtpFlow(args: IRunSmsOtpArgs): Promise<Procedure<IFlowResult>> {
   const prepProc = prepareSmsOtpFlow(args);
   if (!isOk(prepProc)) return prepProc;
   const finalProc = await reduceAllSteps(args, prepProc.value);
   if (!isOk(finalProc)) return finalProc;
-  const bearerProc = extractTokenFromCarry(finalProc.value);
-  if (!isOk(bearerProc)) return bearerProc;
-  const result = buildFlowResult(finalProc.value, args.config, bearerProc.value);
-  return succeed(result);
+  return buildFlowResult(finalProc.value, args.config, prepProc.value.keypairs);
 }
 
 export default runSmsOtpFlow;
