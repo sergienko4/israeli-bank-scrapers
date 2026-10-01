@@ -91,6 +91,13 @@ unusable value went to the bank as-is and came back as an opaque auth failure
 that named nothing. See
 [#552](https://github.com/sergienko4/israeli-bank-scrapers/issues/552).
 
+### Transport errors
+
+Every transport — native fetch, Camoufox page fetch and mTLS — names a URL in
+its errors and debug logs through `safeUrlForLog`, which keeps only the origin
+and path. Query parameters can carry device ids and session values, so they
+never reach an error message or a log line.
+
 ## One SMS per run
 
 **A single scrape of a single api-direct bank sends at most one SMS.** That is

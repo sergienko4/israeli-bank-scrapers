@@ -288,6 +288,20 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
     if (!isOk(r)) expect(r.errorMessage).toContain('parse error');
   });
 
+  it.each([
+    { label: 'non-2xx', envelope: ENV_APP_400 },
+    { label: 'parse error', envelope: { ...ENV_OK, bodyText: 'not-json{' } },
+  ])('OZ-CIT-21 — $label names origin + path, never the query', async ({ envelope }) => {
+    STATE.envelope = envelope;
+    const r = await new STRATEGY(ORIGIN, false).fetchPost(`${URL_OK}?did=SECRET-ID`, {}, OPTS);
+    const wasOk = isOk(r);
+    expect(wasOk).toBe(false);
+    if (!isOk(r)) {
+      expect(r.errorMessage).toContain(`POST ${URL_OK} `);
+      expect(r.errorMessage).not.toContain('SECRET-ID');
+    }
+  });
+
   it('OZ-CIT-08 — launch failure surfaces as Generic launch failure', async () => {
     STATE.launchThrows = true;
     const r = await new STRATEGY(ORIGIN, false).fetchPost(URL_OK, {}, OPTS);

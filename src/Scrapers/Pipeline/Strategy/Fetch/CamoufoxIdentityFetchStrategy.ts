@@ -22,12 +22,12 @@ import {
 } from '../../Mediator/Network/FetchConfig.js';
 import { TimeoutError, timeoutPromise } from '../../Mediator/Timing/TimingActions.js';
 import type { Brand, SafeUrlForLog } from '../../Types/Brand.js';
-import { mintSafeUrlForLog } from '../../Types/Brand.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
 import { digestResponse, type IResponseDigest } from './ResponseDigest.js';
+import { safeUrlForLog } from './SafeUrlForLog.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -68,20 +68,6 @@ interface IDispatchArgs {
   readonly url: string;
   readonly body: string | null;
   readonly opts: IFetchOpts;
-}
-
-/**
- * Strips query string and credentials from a URL for safe logging.
- * @param url - Full URL to sanitize.
- * @returns Origin + path only as a branded SafeUrlForLog.
- */
-function safeUrlForLog(url: string): SafeUrlForLog {
-  try {
-    const parsed = new URL(url);
-    return mintSafeUrlForLog(`${parsed.origin}${parsed.pathname}`);
-  } catch {
-    return mintSafeUrlForLog('<unparseable>');
-  }
 }
 
 /**
@@ -163,7 +149,8 @@ function classifyBody(body: string): ScraperErrorTypes {
  */
 function classifyNon2xx<T>(env: IPageFetchEnvelope, verb: HttpVerb, url: string): Procedure<T> {
   const snippet = env.bodyText.slice(0, ERROR_BODY_SNIPPET_LEN);
-  const message = `${verb} ${url} ${String(env.status)}: ${snippet}`;
+  const safeUrl = safeUrlForLog(url);
+  const message = `${verb} ${safeUrl} ${String(env.status)}: ${snippet}`;
   const errorType = classifyBody(env.bodyText);
   return fail(errorType, message);
 }
@@ -181,7 +168,8 @@ function parseJsonEnvelope<T>(env: IPageFetchEnvelope, verb: HttpVerb, url: stri
     return succeed(parsed);
   } catch (error) {
     const reason = toErrorMessage(error as Error);
-    return fail(ScraperErrorTypes.Generic, `${verb} ${url} parse error: ${reason}`);
+    const safeUrl = safeUrlForLog(url);
+    return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} parse error: ${reason}`);
   }
 }
 

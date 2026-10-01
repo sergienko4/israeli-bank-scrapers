@@ -15,6 +15,7 @@ import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import type { FetchInvoke, HttpVerb } from '../NativeFetchStrategy.js';
+import { safeUrlForLog } from '../SafeUrlForLog.js';
 import type { ICertBundle } from './OneZeroClientCert.js';
 
 /**
@@ -231,7 +232,8 @@ async function mtlsInvoke(request: IMtlsRequest): Promise<Procedure<Response>> {
     return succeed(response);
   } catch (error) {
     const reason = toErrorMessage(error as Error);
-    return fail(ScraperErrorTypes.Generic, `${request.verb} ${request.url} mtls error: ${reason}`);
+    const safeUrl = safeUrlForLog(request.url);
+    return fail(ScraperErrorTypes.Generic, `${request.verb} ${safeUrl} mtls error: ${reason}`);
   }
 }
 

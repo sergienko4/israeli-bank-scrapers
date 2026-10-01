@@ -150,6 +150,22 @@ describe('MtlsTransport.mtlsInvoke — against the simulated mTLS gate', () => {
     expect(isOkResult).toBe(false);
     if (!isOk(result)) expect(result.errorMessage).toContain('mtls error');
   });
+
+  it('names origin + path only — the query string never reaches the message', async () => {
+    const init: RequestInit = { method: 'GET', headers: {} };
+    const result = await mtlsInvoke({
+      agent: certAgent,
+      url: 'https://127.0.0.1:1/auth?did=SECRET-DEVICE-ID',
+      init,
+      verb: 'GET',
+    });
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorMessage).toContain('GET https://127.0.0.1:1/auth mtls error');
+      expect(result.errorMessage).not.toContain('SECRET-DEVICE-ID');
+    }
+  });
 });
 
 describe('MtlsTransport.makeMtlsInvoke', () => {

@@ -283,6 +283,65 @@ describe('NativeFetchStrategy — failure paths', () => {
   });
 });
 
+/** URL whose query carries a device-bound secret, as Pepper's auth calls do. */
+const SECRET_QUERY_URL = 'https://api.example/x?did=SECRET-DEVICE-ID&aid=app';
+
+/**
+ * Fetch impl answering 401.
+ * @returns Mock impl.
+ */
+function deniedImpl(): MockFetchImpl {
+  return respondWith(401, 'denied');
+}
+
+/**
+ * Fetch impl answering 200 with a non-JSON body.
+ * @returns Mock impl.
+ */
+function unparseableImpl(): MockFetchImpl {
+  return respondWith(200, 'not-json');
+}
+
+/**
+ * Fetch impl that throws a network error.
+ * @returns Mock impl.
+ */
+function refusedImpl(): MockFetchImpl {
+  const refused = new Error('connection refused');
+  return rejectWith(refused);
+}
+
+/** Every transport failure that names the URL: label + fetch impl factory. */
+const URL_NAMING_FAILURES = [
+  { label: 'non-2xx status', makeImpl: deniedImpl },
+  { label: 'parse error', makeImpl: unparseableImpl },
+  { label: 'network error', makeImpl: refusedImpl },
+] as const;
+
+describe('NativeFetchStrategy — failure messages never echo the query string', () => {
+  let originalFetch: typeof globalThis.fetch;
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it.each(URL_NAMING_FAILURES)('$label names origin + path only', async ({ makeImpl }) => {
+    const impl = makeImpl();
+    installFetchMock(impl);
+    const strategy = new NativeFetchStrategy('https://api.example');
+    const result = await strategy.fetchPost(SECRET_QUERY_URL, {}, { extraHeaders: {} });
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorMessage).toContain('POST https://api.example/x ');
+      expect(result.errorMessage).not.toContain('SECRET-DEVICE-ID');
+      expect(result.errorMessage).not.toContain('?');
+    }
+  });
+});
+
 describe('NativeFetchStrategy — onSetCookie hook + relative URL resolution', () => {
   let originalFetch: typeof globalThis.fetch;
   beforeEach(() => {
