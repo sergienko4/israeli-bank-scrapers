@@ -9,6 +9,7 @@ import {
   maskAmount,
   maskDesc,
 } from '../../Common/ResultFormatter.js';
+import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
 import type { ITransaction } from '../../Transactions.js';
 import { TransactionStatuses, TransactionTypes } from '../../Transactions.js';
@@ -249,7 +250,7 @@ describe('ResultFormatter — PII masking', () => {
       // replaced with the constant `<REDACTED_ENUM>` placeholder.
       const result: IScraperScrapingResult = {
         success: false,
-        errorType: 'INVALID_PASSWORD' as IScraperScrapingResult['errorType'],
+        errorType: ScraperErrorTypes.InvalidPassword,
       };
       const output = formatResultSummary('TestBank', result).join('\n');
       expect(output).toContain('success=false');
@@ -266,7 +267,7 @@ describe('ResultFormatter — PII masking', () => {
       const expectedLen = 35; // grapheme count of rawMsg
       const withMsg: IScraperScrapingResult = {
         success: false,
-        errorType: 'GENERIC' as IScraperScrapingResult['errorType'],
+        errorType: ScraperErrorTypes.Generic,
         errorMessage: rawMsg,
       };
       const out1 = formatResultSummary('TestBank', withMsg).join('\n');
@@ -281,7 +282,7 @@ describe('ResultFormatter — PII masking', () => {
       // No-message path keeps the human-readable fallback
       const noMsg: IScraperScrapingResult = {
         success: false,
-        errorType: 'GENERIC' as IScraperScrapingResult['errorType'],
+        errorType: ScraperErrorTypes.Generic,
       };
       const out2 = formatResultSummary('TestBank', noMsg).join('\n');
       expect(out2).toContain('no error message');
@@ -296,7 +297,7 @@ describe('ResultFormatter — PII masking', () => {
       const expectedLen = 38;
       const result: IScraperScrapingResult = {
         success: false,
-        errorType: 'INVALID_PASSWORD' as IScraperScrapingResult['errorType'],
+        errorType: ScraperErrorTypes.InvalidPassword,
         errorMessage: rawMsg,
       };
       const output = formatResultSummary('TestBank', result).join('\n');

@@ -214,6 +214,63 @@ describe('getKeyByValue no-match path (CodeQL leak fix at line 161)', () => {
   });
 });
 
+describe('getKeyByValue key handling', () => {
+  const landedUrl = 'https://x.example/after-login';
+
+  /*
+   * InvalidPhoneNumber, NetworkError and General are in the LoginResults
+   * union but not in LOGIN_RESULTS, so a guard built from LOGIN_RESULTS alone
+   * would drop them. 'GENERAL_ERROR' is the wire value of the deprecated
+   * ScraperErrorTypes.General, written as a literal so no-deprecated passes.
+   */
+  it.each([
+    ERROR_TYPES.TwoFactorRetrieverMissing,
+    ERROR_TYPES.InvalidOtp,
+    ERROR_TYPES.InvalidPassword,
+    ERROR_TYPES.InvalidPhoneNumber,
+    ERROR_TYPES.ChangePassword,
+    ERROR_TYPES.NetworkError,
+    ERROR_TYPES.AccountBlocked,
+    'GENERAL_ERROR',
+    LOGIN_RESULTS.Success,
+  ])('matches a %s key', async key => {
+    const page = makeMockPage(landedUrl);
+    const possibleResults: Record<string, string[]> = { [key]: [landedUrl] };
+    const out = await GET_KEY_BY_VALUE(possibleResults, landedUrl, page);
+    expect(out).toBe(key);
+  });
+
+  /*
+   * The map type accepts any string-keyed record, so a key outside the union
+   * reaches runtime. It used to be returned as the login result.
+   */
+  it.each([ERROR_TYPES.Timeout, ERROR_TYPES.Generic, ERROR_TYPES.WafBlocked, 'NOT_A_RESULT'])(
+    'skips a %s key even when its condition matches',
+    async key => {
+      const page = makeMockPage(landedUrl);
+      const possibleResults: Record<string, string[]> = { [key]: [landedUrl] };
+      const out = await GET_KEY_BY_VALUE(possibleResults, landedUrl, page);
+      expect(out).toBe(LOGIN_RESULTS.UnknownError);
+    },
+  );
+
+  it('keeps the caller key order, so the first listed match wins', async () => {
+    const page = makeMockPage(landedUrl);
+    const passwordFirst = {
+      [LOGIN_RESULTS.InvalidPassword]: [landedUrl],
+      [LOGIN_RESULTS.Success]: [landedUrl],
+    };
+    const successFirst = {
+      [LOGIN_RESULTS.Success]: [landedUrl],
+      [LOGIN_RESULTS.InvalidPassword]: [landedUrl],
+    };
+    const first = await GET_KEY_BY_VALUE(passwordFirst, landedUrl, page);
+    const second = await GET_KEY_BY_VALUE(successFirst, landedUrl, page);
+    expect(first).toBe(LOGIN_RESULTS.InvalidPassword);
+    expect(second).toBe(LOGIN_RESULTS.Success);
+  });
+});
+
 describe('buildLoginResult', () => {
   /**
    * Creates a login result context for testing.

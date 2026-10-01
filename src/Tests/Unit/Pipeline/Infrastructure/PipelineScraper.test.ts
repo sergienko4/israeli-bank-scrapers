@@ -1,12 +1,12 @@
 import { jest } from '@jest/globals';
 
-import type { CompanyTypes } from '../../../../Definitions.js';
+import { CompanyTypes } from '../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import { PipelineScraper } from '../../../../Scrapers/Pipeline/Core/PipelineScraper.js';
 import { fail } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockCredentials, makeMockDescriptor, makeMockOptions } from './MockFactories.js';
 
-const MOCK_OPTIONS = makeMockOptions({ companyId: 'beinleumi' as CompanyTypes });
+const MOCK_OPTIONS = makeMockOptions({ companyId: CompanyTypes.Beinleumi });
 const MOCK_CREDENTIALS = makeMockCredentials();
 
 /**

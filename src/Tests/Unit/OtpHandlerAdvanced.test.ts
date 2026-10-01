@@ -1,6 +1,7 @@
 import { jest } from '@jest/globals';
 import type { Frame, Page } from 'playwright-core';
 
+import { CompanyTypes } from '../../Definitions.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import type { ScraperOptions } from '../../Scrapers/Base/Interface.js';
 
@@ -154,7 +155,7 @@ function makeMockPage(): Page {
  * @returns A complete ScraperOptions mock.
  */
 function makeOptions(overrides: Partial<ScraperOptions> = {}): ScraperOptions {
-  return { companyId: 'test', startDate: new Date(), ...overrides } as ScraperOptions;
+  return { companyId: CompanyTypes.Hapoalim, startDate: new Date(), ...overrides };
 }
 
 // ── fillAndSubmitOtpCode: frame found path ──────────────────────────────────
