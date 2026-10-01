@@ -51,7 +51,7 @@ const BIND_STEP = {
           type: { $literal: 'rsa' },
         },
         params: {
-          CellPhoneID: { $ref: 'uuid' as const },
+          CellPhoneID: { $ref: 'carry.clientInstanceId' as const },
           Version_App: { $literal: APK_VERSION },
           transactionId: { $ref: 'uuid' as const },
         },

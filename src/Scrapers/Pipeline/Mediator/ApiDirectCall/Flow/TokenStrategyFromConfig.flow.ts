@@ -11,6 +11,7 @@ import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import { runSmsOtpFlow } from './SmsOtpFlow.js';
 import { isColdStart, mayStartFlow } from './TokenStrategyFromConfig.budget.js';
+import { primeDurable, refuseDurableRefresh } from './TokenStrategyFromConfig.persistent.js';
 import {
   formatAuthValue,
   makeWarmArgs,
@@ -194,11 +195,14 @@ function openPrimeCycle(slot: ILongTermTokenSlot, hasSeed: boolean): true {
 }
 
 /**
- * primeInitial — warm-start short-circuit; else cold flow.
+ * primeInitial — durable branch when opted in; else warm-start
+ * short-circuit; else cold flow.
  * @param args - Config + bus + ctx + creds + capture slot.
  * @returns Header-value procedure.
  */
 async function primeInitialImpl(args: IPrimeArgs): Promise<Procedure<string>> {
+  const durable = args.slot.persistentAuth;
+  if (durable !== undefined) return primeDurable(args, durable);
   const { config, bus, ctx, creds, slot } = args;
   const flowBase = { config, bus, creds, companyId: ctx.companyId };
   const stored = pickWarmSeed(config, creds);
@@ -208,23 +212,32 @@ async function primeInitialImpl(args: IPrimeArgs): Promise<Procedure<string>> {
 }
 
 /**
- * primeFresh — always runs the cold flow.
+ * primeFresh — always runs the cold flow, except in durable mode, which
+ * refuses locally so a rejected session never re-mints mid-run.
  * @param args - Config + bus + ctx + creds + capture slot.
  * @returns Header-value procedure.
  */
 async function primeFreshImpl(args: IPrimeArgs): Promise<Procedure<string>> {
   const { config, bus, ctx, creds, slot } = args;
+  if (slot.persistentAuth !== undefined) return refuseDurableRefresh(args);
   slot.usedWarmPath = false;
   return runConfiguredFlow({ config, bus, creds, companyId: ctx.companyId }, slot);
 }
 
 /**
- * hasWarmState — non-empty creds[warmStart.credsField].
+ * hasWarmState — non-empty creds[warmStart.credsField]. Always false in
+ * durable mode, so a failed durable prime never falls back to a cold flow.
  * @param config - Config literal.
  * @param creds - Caller credentials.
+ * @param slot - Capture slot holding the durable mode, if any.
  * @returns Warm-state flag.
  */
-function hasWarmStateImpl(config: IApiDirectCallConfig, creds: GenericCreds): boolean {
+function hasWarmStateImpl(
+  config: IApiDirectCallConfig,
+  creds: GenericCreds,
+  slot: ILongTermTokenSlot,
+): boolean {
+  if (slot.persistentAuth !== undefined) return false;
   if (config.warmStart === undefined) return false;
   return readCredsString(creds, config.warmStart.credsField).length > 0;
 }

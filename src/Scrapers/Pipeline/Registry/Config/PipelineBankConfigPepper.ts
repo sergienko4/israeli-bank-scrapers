@@ -12,6 +12,10 @@
  * Warm path: creds.otpLongTermToken IS the final JWT when fresh;
  * no steps run (fromStepIndex = steps.length = 3).
  *
+ * Durable path (opt-in): `persistentAuth` renews an expired JWT on the
+ * already-bound device via /auth/login + one password assertion — no bind,
+ * no OTP. `clientInstanceId` is one UUID per flow, reused as `CellPhoneID`.
+ *
  * Zero bank knowledge in ApiDirectCall mediator — this file is the
  * whole bank surface for login (Rule #11).
  */
@@ -22,6 +26,7 @@ import {
   STATIC_HEADERS,
   TS_CLIENT_VERSION,
 } from './PipelineBankConfigPepperFingerprint.js';
+import { PEPPER_RESUME_STEPS } from './PipelineBankConfigPepperResumeSteps.js';
 import { ASSERT_OTP_STEP, ASSERT_PWD_STEP, BIND_STEP } from './PipelineBankConfigPepperSteps.js';
 
 /** Pepper config literal — seeded into PIPELINE_BANK_CONFIG[PEPPER]. */
@@ -53,6 +58,15 @@ const PEPPER_API_DIRECT_CALL: IApiDirectCallConfig = {
   fingerprint: PEPPER_FINGERPRINT,
   probe: { queryTag: 'customer' },
   steps: [BIND_STEP, ASSERT_PWD_STEP, ASSERT_OTP_STEP],
+  seedCarryFromCreds: [{ field: 'clientInstanceId', bootstrap: { kind: 'random-uuid' } }],
+  persistentAuth: {
+    provider: 'pepper',
+    resumeSteps: PEPPER_RESUME_STEPS,
+    clientInstanceIdField: 'clientInstanceId',
+    deviceIdField: 'deviceId',
+    accountField: 'phoneNumber',
+    freshnessMarginSeconds: 300,
+  },
 };
 
 export { PEPPER_API_DIRECT_CALL };

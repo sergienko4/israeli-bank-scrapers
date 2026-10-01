@@ -9,6 +9,13 @@ import { createLoginWitness } from './LoginWitness.js';
 import type { OtpRetriever } from './OtpBudget.js';
 import { createOtpBudget } from './OtpBudget.js';
 import { createBankOtpPoller } from './OtpPoller.js';
+import {
+  buildDurableSink,
+  createDurableCache,
+  type DurableRunKind,
+  durableRunKindOf,
+  planDurableRun,
+} from './PepperDurableHarness.js';
 import { createScrapeAttempt } from './ScrapeAttempt.js';
 import { createTokenCache } from './TokenCache.js';
 import { scrapeWithWarmFallback } from './WarmPathFallback.js';
@@ -32,12 +39,78 @@ const hasCoreCreds = !!(process.env.PEPPER_PHONE_NUMBER && process.env.PEPPER_PA
  */
 const DESCRIBE_IF = hasCoreCreds ? describe : describe.skip;
 
+/** Durable run the PEPPER_PERSISTENT_AUTH* flags select; `off` keeps legacy. */
+const DURABLE_KIND: DurableRunKind = durableRunKindOf(process.env);
+const IT_LEGACY = DURABLE_KIND === 'off' ? it : it.skip;
+const IT_DURABLE = DURABLE_KIND === 'off' ? it.skip : it;
+
+/**
+ * Legacy auth-flow sink for durable runs: durable mode must never call it,
+ * and nothing it reports may reach the legacy token cache.
+ * @returns Resolves immediately.
+ */
+function discardAuthFlow(): Promise<void> {
+  return Promise.resolve();
+}
+
+/**
+ * One durable scrape: resume (or enroll) with the cached state, persist each
+ * published state, and assert the run's cost against its allowance. No
+ * WarmPathFallback and no cold retry — a durable failure is the result.
+ * @param kind - Durable run kind (not `off`).
+ * @returns True once asserted.
+ */
+async function runDurableScrape(kind: Exclude<DurableRunKind, 'off'>): Promise<true> {
+  const phoneNumber = process.env.PEPPER_PHONE_NUMBER ?? '';
+  const password = process.env.PEPPER_PASSWORD ?? '';
+  const cache = createDurableCache(LOG);
+  const before = await cache.read();
+  const plan = await planDurableRun(kind, cache, phoneNumber);
+  const otpBudget = createOtpBudget();
+  const loginWitness = createLoginWitness(discardAuthFlow);
+  let publications = 0;
+  const sink = buildDurableSink(cache, (): number => (publications += 1));
+  const runScrape = createScrapeAttempt({
+    companyId: CompanyTypes.Pepper,
+    onAuthFlowComplete: loginWitness.writer,
+    onPersistentAuthStateUpdate: sink,
+    ...plan.stateOption,
+  });
+  const poller = createBankOtpPoller('Pepper', LOG);
+  const otpCodeRetriever = otpBudget.meter(poller);
+  const result = await runScrape({ phoneNumber, password, otpCodeRetriever });
+  const after = await cache.read();
+  const { allowance } = plan;
+  const otpSpent = otpBudget.spent();
+  const legacyToken = loginWitness.lastToken();
+  LOG.info(
+    {
+      kind,
+      expectedPublications: allowance.publications,
+      success: result.success,
+      otpSpent,
+      publications,
+      hadState: before.length > 0,
+      stateChanged: after !== before,
+    },
+    'Pepper durable run',
+  );
+  assertSuccessfulScrape(result);
+  expect(otpSpent).toBeLessThanOrEqual(allowance.maxOtp);
+  expect(publications).toBe(allowance.publications);
+  expect(after !== before).toBe(allowance.publications > 0);
+  expect(legacyToken).toBe('');
+  expect(result.persistentOtpToken).toBeUndefined();
+  logScrapedTransactions(result);
+  return true;
+}
+
 DESCRIBE_IF('E2E: Pepper (real credentials, config-driven)', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
 
-  it('scrapes transactions successfully (warm path or SMS OTP)', async () => {
+  IT_LEGACY('scrapes transactions successfully (warm path or SMS OTP)', async () => {
     const phoneNumber = process.env.PEPPER_PHONE_NUMBER ?? '';
     const password = process.env.PEPPER_PASSWORD ?? '';
     const cache = createTokenCache({
@@ -108,5 +181,11 @@ DESCRIBE_IF('E2E: Pepper (real credentials, config-driven)', () => {
 
     assertSuccessfulScrape(result);
     logScrapedTransactions(result);
+  });
+
+  IT_DURABLE(`durable ${DURABLE_KIND}: replays or renews without SMS`, async () => {
+    const kind = DURABLE_KIND as Exclude<DurableRunKind, 'off'>;
+    const isAsserted = await runDurableScrape(kind);
+    expect(isAsserted).toBe(true);
   });
 });

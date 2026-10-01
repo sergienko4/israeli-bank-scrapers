@@ -49,12 +49,16 @@ function makePrimeFresh(
 }
 
 /**
- * hasWarmState factory — wraps hasWarmStateImpl with captured config.
+ * hasWarmState factory — wraps hasWarmStateImpl with captured config + slot.
  * @param config - Bank config.
+ * @param slot - Capture slot holding the durable mode, if any.
  * @returns Strategy hasWarmState binding.
  */
-function makeHasWarmState(config: IApiDirectCallConfig): IConfigTokenStrategy['hasWarmState'] {
-  return (creds): boolean => hasWarmStateImpl(config, creds);
+function makeHasWarmState(
+  config: IApiDirectCallConfig,
+  slot: ILongTermTokenSlot,
+): IConfigTokenStrategy['hasWarmState'] {
+  return (creds): boolean => hasWarmStateImpl(config, creds, slot);
 }
 
 /**
@@ -70,7 +74,7 @@ function buildPrimeBindings(
   return {
     primeInitial: makePrimeInitial(config, slot),
     primeFresh: makePrimeFresh(config, slot),
-    hasWarmState: makeHasWarmState(config),
+    hasWarmState: makeHasWarmState(config, slot),
   };
 }
 
@@ -162,6 +166,19 @@ function buildStrategyBindings(
 }
 
 /**
+ * Create the private capture slot. A legacy strategy gets exactly the slot it
+ * always had; only a durable one also retains its resolved mode.
+ * @param args - Factory args, possibly carrying a resolved durable mode.
+ * @returns Fresh capture slot.
+ */
+function createSlot(args: ICreateTokenStrategyArgs): ILongTermTokenSlot {
+  const slot: ILongTermTokenSlot = { latest: '', latestCarrySnapshot: Object.freeze({}) };
+  const mode = args.persistentAuth;
+  if (mode === undefined || mode.kind === 'legacy') return slot;
+  return { ...slot, persistentAuth: mode };
+}
+
+/**
  * Assemble the strategy instance from gated config.
  * @param args - Validated factory args.
  * @returns Strategy procedure.
@@ -169,7 +186,7 @@ function buildStrategyBindings(
 function assembleStrategy(args: ICreateTokenStrategyArgs): Procedure<IConfigTokenStrategy> {
   const { config } = args;
   const name = args.name ?? STRATEGY_NAME_DEFAULT;
-  const slot: ILongTermTokenSlot = { latest: '', latestCarrySnapshot: Object.freeze({}) };
+  const slot = createSlot(args);
   const bindings = buildStrategyBindings(config, slot);
   return succeed({ name, ...bindings });
 }

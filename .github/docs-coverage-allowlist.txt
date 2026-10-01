@@ -1515,3 +1515,16 @@ IBancsSpaHeaders
 # (CAMOUFOX_LAUNCH_TIMEOUT_MS) is documented in docs/quick-start.md.
 withLaunchBound
 withNativeBindingDiagnostic
+# Reason: PersistentAuthStateRules -- the codec's private validation tables
+# (raw parsed object, exact v1 key whitelist, ordered field rules). Exported
+# only so PersistentAuthStateCodec can share them; the durable-auth contract
+# they enforce is documented in docs/banks/pepper.md and
+# docs/phases/api-direct-call.md. Not user-facing.
+RawState
+STATE_KEYS
+STATE_RULES
+# Reason: PipelineBankConfigPepperHeadless -- Pepper's headless transport
+# literal, moved out of PipelineBankConfig.ts to keep that file under its size
+# cap. Registry-internal data; Pepper's endpoints and WAF handling are
+# documented in docs/banks/pepper.md. Not user-facing.
+PEPPER_HEADLESS

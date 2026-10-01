@@ -1,6 +1,8 @@
 /**
  * TokenCache — test-only helper that persists a bank's long-term OTP
- * token to `<os.tmpdir()>/<bank>-token.cache` across real-E2E runs.
+ * token to `<os.tmpdir()>/<bank>-token.cache` across real-E2E runs, or —
+ * with `artifact: 'durable'` — an opaque persistent-auth state to
+ * `<os.tmpdir()>/<bank>-durable.cache`.
  *
  * Usage:
  *   const cache = createTokenCache({
@@ -33,6 +35,16 @@ const BANK_KEYS = ['onezero', 'pepper', 'paybox'] as const;
 
 /** Supported bank keys — derived from BANK_KEYS so the two cannot drift. */
 type BankKey = (typeof BANK_KEYS)[number];
+
+/**
+ * Closed set of cache artifacts. `token` is the legacy long-term JWT;
+ * `durable` is an opaque persistent-auth state, which is never a JWT and so
+ * lives in its own file — a token reader can never pick it up by accident.
+ */
+const CACHE_ARTIFACTS = ['token', 'durable'] as const;
+
+/** One of {@link CACHE_ARTIFACTS}. */
+type CacheArtifact = (typeof CACHE_ARTIFACTS)[number];
 
 /**
  * Narrow an untrusted string to a supported bank key.
@@ -82,6 +94,8 @@ interface ITokenCacheArgs {
    * them the very SMS this cache exists to avoid.
    */
   readonly dir?: string;
+  /** Which artifact the handle stores. Defaults to `token`. */
+  readonly artifact?: CacheArtifact;
 }
 
 /** Public handle returned by createTokenCache. */
@@ -97,11 +111,12 @@ interface ITokenCacheHandle {
  * Resolve the cache file path for a bank.
  * @param bankKey - One of the BankKey union values.
  * @param dir - Directory to hold the file; defaults to `os.tmpdir()`.
- * @returns Absolute path to <dir>/<bank>-token.cache.
+ * @param artifact - Stored artifact; defaults to `token`.
+ * @returns Absolute path to <dir>/<bank>-<artifact>.cache.
  */
-function cachePathFor(bankKey: BankKey, dir?: string): string {
+function cachePathFor(bankKey: BankKey, dir?: string, artifact: CacheArtifact = 'token'): string {
   const base = dir ?? os.tmpdir();
-  return path.join(base, `${bankKey}-token.cache`);
+  return path.join(base, `${bankKey}-${artifact}.cache`);
 }
 
 /**
@@ -312,14 +327,14 @@ function createDisabledCache(): ITokenCacheHandle {
 /**
  * Build a per-bank token cache handle. When the env flag is unset,
  * returns a no-op cache. When set, reads/writes
- * <tmpdir>/<bankKey>-token.cache.
+ * <tmpdir>/<bankKey>-<artifact>.cache.
  * @param args - Bank key + env flag + logger.
  * @returns Cache handle.
  */
 function createTokenCache(args: ITokenCacheArgs): ITokenCacheHandle {
   const flag = process.env[args.envFlag];
   if (flag === undefined || flag.length === 0) return createDisabledCache();
-  const cachePath = cachePathFor(args.bankKey, args.dir);
+  const cachePath = cachePathFor(args.bankKey, args.dir, args.artifact);
   const log = args.log;
   /**
    * Read the cached token.
@@ -344,5 +359,5 @@ function createTokenCache(args: ITokenCacheArgs): ITokenCacheHandle {
   return { enabled: true, read, write, invalidate, writer };
 }
 
-export type { BankKey, ITokenCacheArgs, ITokenCacheHandle };
-export { BANK_KEYS, cachePathFor, createTokenCache, isBankKey, requireBankKey };
+export type { BankKey, CacheArtifact, ITokenCacheArgs, ITokenCacheHandle };
+export { BANK_KEYS, CACHE_ARTIFACTS, cachePathFor, createTokenCache, isBankKey, requireBankKey };
