@@ -12,7 +12,7 @@ import type {
   ISignerConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import {
-  exportPkcs8Base64,
+  exportEcP256Pkcs8,
   generateKeypair,
   importEcP256Pkcs8,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
@@ -105,8 +105,9 @@ describe('GenericCryptoSigner.signCanonical — rehydrated persisted P-256 key',
   it('signs with an imported key and the original public key verifies (DER)', () => {
     const original = generateKeypair('ECDSA-P256');
     if (!original.success) throw new ScraperError('keypair generation should succeed');
-    const pkcs8 = exportPkcs8Base64(original.value);
-    const imported = importEcP256Pkcs8(pkcs8);
+    const exported = exportEcP256Pkcs8(original.value);
+    if (!exported.success) throw new ScraperError('generated key should export');
+    const imported = importEcP256Pkcs8(exported.value);
     if (!imported.success) throw new ScraperError('exported key should import');
     const bytes = Buffer.from('/api/v2/auth/login%%1.0.0%%{}', 'utf8');
     const header = signCanonical(bytes, imported.value, ECDSA_DER_CONFIG);

@@ -23,9 +23,12 @@ Banks declare the algorithm + canonical-string parts + key-ref in their `Pipelin
 
 A cold flow generates fresh keypairs. A flow can instead be handed keypairs and
 a per-run step list, so it signs with a key the server already bound rather
-than a new one. `exportPkcs8Base64` persists the P-256 private key as canonical
-Base64 PKCS#8, and `importEcP256Pkcs8` rehydrates it. Import rejects any other
-encoding, key type or curve, and its error never includes key material.
+than a new one. `exportEcP256Pkcs8` persists the P-256 private key as canonical
+Base64 PKCS#8, and `importEcP256Pkcs8` rehydrates it. Export writes only a
+bundle `isKeypairFor` accepts as ECDSA-P256, so everything it writes imports
+back as the same public key and key ID; any other bundle fails as
+`EC key export invalid`. Import rejects any other encoding, key type or curve.
+Neither error includes key material.
 
 Handed keypairs are checked before any request. `signerSlotOf` maps the signer
 algorithm to the bundle slot it signs from (`ec` or `rsa`). `isKeypairFor`

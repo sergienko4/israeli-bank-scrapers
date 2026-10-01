@@ -8,16 +8,20 @@ import { generateKeyPairSync } from 'node:crypto';
 
 import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
 import type { AsymmetricSignerAlgorithm } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/SignerTypes.js';
+import type { IGenericKeypair } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
 import {
-  exportPkcs8Base64,
+  exportEcP256Pkcs8,
   generateKeypair,
   importEcP256Pkcs8,
   isKeypairFor,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
+import type { IKeyKind } from './KeyKindFixtures.js';
 import { KEY_KINDS } from './KeyKindFixtures.js';
 
 /** The only failure text the importer may emit — it names no key material. */
 const IMPORT_FAILURE = 'persisted EC key invalid';
+/** The only failure text the exporter may emit — it names no key material. */
+const EXPORT_FAILURE = 'EC key export invalid';
 
 /**
  * Export a P-256 keypair as PKCS#8 Base64 via the production path.
@@ -26,9 +30,31 @@ const IMPORT_FAILURE = 'persisted EC key invalid';
 function makeExportedP256(): { keyIdHex: string; publicKeyBase64: string; pkcs8: string } {
   const result = generateKeypair('ECDSA-P256');
   if (!result.success) throw new ScraperError('P-256 keypair generation should succeed');
-  const pkcs8 = exportPkcs8Base64(result.value);
-  return { keyIdHex: result.value.keyIdHex, publicKeyBase64: result.value.publicKeyBase64, pkcs8 };
+  const exported = exportEcP256Pkcs8(result.value);
+  if (!exported.success) throw new ScraperError('P-256 key export should succeed');
+  const { keyIdHex, publicKeyBase64 } = result.value;
+  return { keyIdHex, publicKeyBase64, pkcs8: exported.value };
 }
+
+/**
+ * Check the writer/reader contract for one keypair: whatever the exporter
+ * writes, the importer must read back as the same public key and key ID.
+ * @param keypair - Keypair handed to the exporter.
+ * @returns False only when the exporter wrote text the importer cannot restore.
+ */
+function isExportReadable(keypair: IGenericKeypair): boolean {
+  const exported = exportEcP256Pkcs8(keypair);
+  if (!exported.success) return true;
+  const imported = importEcP256Pkcs8(exported.value);
+  if (!imported.success) return false;
+  const isSameKeyId = imported.value.keyIdHex === keypair.keyIdHex;
+  return isSameKeyId && imported.value.publicKeyBase64 === keypair.publicKeyBase64;
+}
+
+/** Key kinds the exporter must refuse — everything not sound for P-256. */
+const NON_P256_KINDS: readonly IKeyKind[] = KEY_KINDS.filter(
+  kind => kind.soundFor !== 'ECDSA-P256',
+);
 
 /**
  * Encode a private key as PKCS#8 DER in standard Base64.
@@ -119,6 +145,28 @@ describe('CryptoKeyFactory.importEcP256Pkcs8 — persisted device key', () => {
     const result = importEcP256Pkcs8(text);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toBe(IMPORT_FAILURE);
+  });
+});
+
+describe('CryptoKeyFactory.exportEcP256Pkcs8 — writes only what the importer reads', () => {
+  const acceptanceCases = KEY_KINDS.map(kind => [kind.label, kind] as const);
+
+  it.each(acceptanceCases)('%s → export succeeds only for a sound P-256 key', (_label, kind) => {
+    const result = exportEcP256Pkcs8(kind.keypair);
+    expect(result.success).toBe(kind.soundFor === 'ECDSA-P256');
+  });
+
+  it.each(acceptanceCases)('%s → whatever is exported imports back intact', (_label, kind) => {
+    const isReadable = isExportReadable(kind.keypair);
+    expect(isReadable).toBe(true);
+  });
+
+  const refusalCases = NON_P256_KINDS.map(kind => [kind.label, kind] as const);
+
+  it.each(refusalCases)('%s → refused without echoing key material', (_label, kind) => {
+    const result = exportEcP256Pkcs8(kind.keypair);
+    if (result.success) throw new ScraperError(`${kind.label} export should fail`);
+    expect(result.errorMessage).toBe(EXPORT_FAILURE);
   });
 });
 

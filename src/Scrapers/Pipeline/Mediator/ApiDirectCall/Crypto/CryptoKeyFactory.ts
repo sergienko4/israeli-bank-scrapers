@@ -179,16 +179,22 @@ function importEcP256Pkcs8(pkcs8Base64: string): Procedure<IGenericKeypair> {
 }
 
 /**
- * Export a keypair's private key as PKCS#8 DER in standard Base64 — the
- * inverse of {@link importEcP256Pkcs8}.
+ * Export a P-256 keypair's private key as PKCS#8 DER in standard Base64 — the
+ * inverse of {@link importEcP256Pkcs8}. Only a bundle {@link isKeypairFor}
+ * accepts as ECDSA-P256 is written, so everything exported imports back as
+ * the same public key and key ID; the failure text never includes key material.
  * @param keypair - Keypair bundle to persist.
- * @returns PKCS#8 DER as standard padded Base64.
+ * @returns PKCS#8 DER as standard padded Base64, or a failure naming only the key category.
  */
-function exportPkcs8Base64(keypair: IGenericKeypair): string {
+function exportEcP256Pkcs8(keypair: IGenericKeypair): Procedure<string> {
+  if (!isKeypairFor(keypair, 'ECDSA-P256')) {
+    return fail(ScraperErrorTypes.Generic, 'EC key export invalid');
+  }
   const der = keypair.privateKey.export({ type: 'pkcs8', format: 'der' });
-  return der.toString('base64');
+  const pkcs8Base64 = der.toString('base64');
+  return succeed(pkcs8Base64);
 }
 
 export type { IGenericKeypair };
 export default generateKeypair;
-export { exportPkcs8Base64, generateKeypair, importEcP256Pkcs8, isKeypairFor };
+export { exportEcP256Pkcs8, generateKeypair, importEcP256Pkcs8, isKeypairFor };
