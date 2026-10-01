@@ -5,14 +5,13 @@
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, succeed } from '../../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
-import type { AsymmetricSignerAlgorithm } from '../ConfigContracts/SignerTypes.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { createSimpleCookieJar } from './RunStep.js';
 import { createPreHookCache } from './SmsOtpFlow.prehookCache.js';
-import { seedScope } from './SmsOtpFlow.prep.js';
+import { seedScope, signerSlotOf } from './SmsOtpFlow.prep.js';
 import { reduceSteps } from './SmsOtpFlow.reduce.js';
 import type {
   IFlowResult,
@@ -73,16 +72,6 @@ function makeSeedArgs(args: IRunSmsOtpArgs, prep: ISmsOtpPrep): ISeedArgs {
 }
 
 /**
- * Asymmetric-algorithm → keypair-slot lookup. AES is intentionally
- * absent: it is symmetric and has no asymmetric pair to select.
- */
-const KEYPAIR_SLOT_BY_ALGORITHM: Readonly<Record<AsymmetricSignerAlgorithm, keyof IKeypairBundle>> =
-  {
-    'ECDSA-P256': 'ec',
-    'RSA-2048': 'rsa',
-  };
-
-/**
  * Select the signing keypair RunStep must use, driven by
  * `config.signer.algorithm`. Returns `keypairs.ec` (typically undefined)
  * when the config has no signer or uses AES (no asymmetric pair).
@@ -94,10 +83,9 @@ function selectSigningKeypair(
   config: IApiDirectCallConfig,
   keypairs: IKeypairBundle,
 ): SigningKeypair {
-  const signer = config.signer;
-  if (signer === undefined) return keypairs.ec;
-  if (signer.algorithm === 'AES-CBC-PKCS7') return keypairs.ec;
-  return keypairs[KEYPAIR_SLOT_BY_ALGORITHM[signer.algorithm]];
+  const slot = signerSlotOf(config);
+  if (slot === false) return keypairs.ec;
+  return keypairs[slot];
 }
 
 /**
@@ -124,7 +112,7 @@ function buildReduceArgs(args: IRunSmsOtpArgs, prep: ISmsOtpPrep): IStepReduceAr
  */
 function makeReduceStepsArgs(bundle: IMakeReduceStepsArgs): IReduceStepsArgs {
   return {
-    steps: bundle.args.config.steps,
+    steps: bundle.args.steps ?? bundle.args.config.steps,
     startIndex: bundle.args.startStepIndex ?? 0,
     reduceArgs: bundle.reduceArgs,
     initial: bundle.initial,
@@ -149,20 +137,36 @@ async function reduceAllSteps(
 }
 
 /**
+ * Read the non-bearer outputs every successful flow returns.
+ * @param scope - Final scope.
+ * @param config - Bank config.
+ * @returns Long-term token (or '') and a frozen carry snapshot.
+ */
+function snapshotFlowOutputs(
+  scope: ITemplateScope,
+  config: IApiDirectCallConfig,
+): Pick<IFlowResult, 'longTermToken' | 'carrySnapshot'> {
+  const longTermToken = extractLongTermTokenFromCarry(config, scope);
+  const carrySnapshot = Object.freeze({ ...scope.carry });
+  return { longTermToken, carrySnapshot };
+}
+
+/**
  * Build the final IFlowResult after step reduction.
  * @param scope - Final scope.
  * @param config - Bank config.
- * @param bearer - Extracted bearer token.
- * @returns Flow result bundle.
+ * @param keypairs - Keys the flow signed with.
+ * @returns Flow result bundle, or a failure when no bearer was produced.
  */
 function buildFlowResult(
   scope: ITemplateScope,
   config: IApiDirectCallConfig,
-  bearer: string,
-): IFlowResult {
-  const longTermToken = extractLongTermTokenFromCarry(config, scope);
-  const carrySnapshot = Object.freeze({ ...scope.carry });
-  return { bearer, longTermToken, carrySnapshot };
+  keypairs: IKeypairBundle,
+): Procedure<IFlowResult> {
+  const bearerProc = extractTokenFromCarry(scope);
+  if (!isOk(bearerProc)) return bearerProc;
+  const outputs = snapshotFlowOutputs(scope, config);
+  return succeed({ ...outputs, bearer: bearerProc.value, keypairs });
 }
 
-export { buildFlowResult, extractLongTermTokenFromCarry, extractTokenFromCarry, reduceAllSteps };
+export { buildFlowResult, extractLongTermTokenFromCarry, reduceAllSteps };

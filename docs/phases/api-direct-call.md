@@ -21,6 +21,22 @@ Every api-direct bank reuses the **same building blocks** below the phase, so ad
 
 Banks declare the algorithm + canonical-string parts + key-ref in their `PipelineBankConfig.headless.signer` literal; the mediator dispatches without bank knowledge.
 
+A cold flow generates fresh keypairs. A flow can instead be handed keypairs and
+a per-run step list, so it signs with a key the server already bound rather
+than a new one. `exportEcP256Pkcs8` persists the P-256 private key as canonical
+Base64 PKCS#8, and `importEcP256Pkcs8` rehydrates it. Export writes only a
+bundle `isKeypairFor` accepts as ECDSA-P256, so everything it writes imports
+back as the same public key and key ID; any other bundle fails as
+`EC key export invalid`. Import rejects any other encoding, key type or curve.
+Neither error includes key material.
+
+Handed keypairs are checked before any request. `signerSlotOf` maps the signer
+algorithm to the bundle slot it signs from (`ec` or `rsa`). `isKeypairFor`
+accepts a slot only when its private key has that algorithm's exact type and
+curve or modulus, and its public key, key ID and Base64 all derive from that
+private key. A bad slot fails as `injected keypair invalid: <slot>`, and an
+empty signer slot fails as `injected keypair missing: <slot>`.
+
 ### JsonValueTemplate
 
 Declarative body literal with `$ref` tokens:
@@ -38,6 +54,7 @@ One hydration engine serves both `API-DIRECT-CALL` and `API-DIRECT-SCRAPE` step 
 
 - `seedCarryFromCreds` mirrors creds into carry slots at flow init.
 - `sha256-prefix-16` derives a stable identifier from another creds field (PayBox uses this to bind its long-term JWT to a phone-derived `deviceId16Hex` — warm-start-stable without the caller persisting state).
+- `random-uuid` generates one canonical UUID per flow init, so every step that reads the slot sees the same value — for banks that need a stable client-instance identifier across the steps of one login. A non-empty creds value is mirrored instead.
 - `derivedCarry` joins parts with separators + truncation for OTP-encryption keys.
 
 ### CryptoField pre-hook

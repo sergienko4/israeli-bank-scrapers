@@ -9,6 +9,8 @@ import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
 import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import type { IGenericKeypair } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
+import { generateKeypair } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
 import { runSmsOtpFlow } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/SmsOtpFlow.js';
 import type { WKUrlGroup } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
@@ -180,5 +182,87 @@ describe('api-direct-call SmsOtpFlow no signer + no fingerprint', () => {
     if (!result.success) throw new ScraperError('flow should succeed');
     expect(result.value.bearer).toBe('plain-tok');
     expect(captures[0].extraHeaders).toEqual({});
+  });
+});
+
+/**
+ * Generate an EC keypair to inject, as a durable resume would.
+ * @returns P-256 keypair bundle.
+ */
+function makeInjectedEcKeypair(): IGenericKeypair {
+  const result = generateKeypair('ECDSA-P256');
+  if (!result.success) throw new ScraperError('P-256 keypair generation should succeed');
+  return result.value;
+}
+
+/**
+ * Read the key ID a captured request was signed with.
+ * @param capture - Captured apiPost call.
+ * @returns Key ID hex from the X-Sig header, or '' when unsigned.
+ */
+function signedKeyId(capture: IApiPostCapture): string {
+  const header = capture.extraHeaders?.['X-Sig'] ?? '';
+  return /key-id:([\da-f]+)/.exec(header)?.[1] ?? '';
+}
+
+/** Scripted bind + assert responses for the 2-step config. */
+const TWO_STEP_RESPONSES = [
+  succeed({ data: { challenge: 'c1' } }),
+  succeed({ data: { accessToken: 'tok-xyz' } }),
+];
+
+describe('api-direct-call SmsOtpFlow reuse overrides', () => {
+  it('without overrides generates EC + RSA keys and returns the EC key it signed with', async (): Promise<void> => {
+    const captures: IApiPostCapture[] = [];
+    const bus = makeStubMediator({ responses: TWO_STEP_RESPONSES, captures });
+    const args = { config: makeConfig(), bus, creds: { password: 'secret' }, companyId: HINT };
+    const result = await runSmsOtpFlow(args);
+    if (!result.success) throw new ScraperError('flow should succeed');
+    const resultKeys = Object.keys(result.value).sort();
+    expect(resultKeys).toEqual(['bearer', 'carrySnapshot', 'keypairs', 'longTermToken']);
+    expect(result.value.keypairs.rsa).toBeDefined();
+    const signedWith = captures.map(signedKeyId);
+    const ecKeyId = result.value.keypairs.ec?.keyIdHex;
+    expect(signedWith).toEqual([ecKeyId, ecKeyId]);
+  });
+
+  it('signs with injected keys and generates none', async (): Promise<void> => {
+    const captures: IApiPostCapture[] = [];
+    const bus = makeStubMediator({ responses: TWO_STEP_RESPONSES, captures });
+    const ec = makeInjectedEcKeypair();
+    const keypairs = { ec };
+    const args = { config: makeConfig(), bus, creds: { password: 'p' }, companyId: HINT, keypairs };
+    const result = await runSmsOtpFlow(args);
+    if (!result.success) throw new ScraperError('flow should succeed');
+    expect(result.value.keypairs).toBe(keypairs);
+    expect(result.value.keypairs.rsa).toBeUndefined();
+    const signedWith = captures.map(signedKeyId);
+    expect(signedWith).toEqual([ec.keyIdHex, ec.keyIdHex]);
+    const bindBody = captures[0].body as { pub: string };
+    expect(bindBody.pub).toBe(ec.publicKeyBase64);
+  });
+
+  it('runs injected steps for that run only and leaves config.steps intact', async (): Promise<void> => {
+    const config = makeConfig();
+    const assertOnly = config.steps.slice(1);
+    const captures: IApiPostCapture[] = [];
+    const responses = [succeed({ data: { accessToken: 'renewed' } })];
+    const bus = makeStubMediator({ responses, captures });
+    const args = {
+      config,
+      bus,
+      creds: { password: 'p' },
+      companyId: HINT,
+      steps: assertOnly,
+      initialCarry: { challenge: 'seeded' },
+    };
+    const result = await runSmsOtpFlow(args);
+    if (!result.success) throw new ScraperError(`flow should succeed: ${result.errorMessage}`);
+    expect(result.value.bearer).toBe('renewed');
+    const urls = captures.map((capture): unknown => capture.url);
+    expect(urls).toEqual([ASSERT_TAG]);
+    const assertBody = captures[0].body as { chal: string };
+    expect(assertBody.chal).toBe('seeded');
+    expect(config.steps).toHaveLength(2);
   });
 });

@@ -4,12 +4,18 @@
  * outbound header value per ISignerConfig. Zero bank knowledge.
  */
 
+import { verify } from 'node:crypto';
+
 import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
 import type {
   ICanonicalStringConfig,
   ISignerConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { generateKeypair } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
+import {
+  exportEcP256Pkcs8,
+  generateKeypair,
+  importEcP256Pkcs8,
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
 import { signCanonical } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/GenericCryptoSigner.js';
 
 /** Minimal canonical config satisfying the new ISignerConfig requirement. */
@@ -92,5 +98,25 @@ describe('GenericCryptoSigner.signCanonical — unsupported encoding', () => {
     const result = signCanonical(bytes, keypair.value, config);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('unsupported signer encoding');
+  });
+});
+
+describe('GenericCryptoSigner.signCanonical — rehydrated persisted P-256 key', () => {
+  it('signs with an imported key and the original public key verifies (DER)', () => {
+    const original = generateKeypair('ECDSA-P256');
+    if (!original.success) throw new ScraperError('keypair generation should succeed');
+    const exported = exportEcP256Pkcs8(original.value);
+    if (!exported.success) throw new ScraperError('generated key should export');
+    const imported = importEcP256Pkcs8(exported.value);
+    if (!imported.success) throw new ScraperError('exported key should import');
+    const bytes = Buffer.from('/api/v2/auth/login%%1.0.0%%{}', 'utf8');
+    const header = signCanonical(bytes, imported.value, ECDSA_DER_CONFIG);
+    if (!header.success) throw new ScraperError('imported key should sign');
+    expect(header.value).toContain(`key-id:${original.value.keyIdHex}`);
+    const sigBase64 = /^data:([^;]+);/.exec(header.value)?.[1] ?? '';
+    const signature = Buffer.from(sigBase64, 'base64');
+    const publicKey = { key: original.value.publicKeyDer, format: 'der', type: 'spki' } as const;
+    const isVerified = verify('sha256', bytes, { ...publicKey, dsaEncoding: 'der' }, signature);
+    expect(isVerified).toBe(true);
   });
 });

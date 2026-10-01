@@ -43,6 +43,16 @@ interface IRandomHex16Bootstrap {
 }
 
 /**
+ * Random UUID v4 bootstrap — non-deterministic, generated once per flow
+ * init so every step template that reads the carry slot sees the same
+ * value. Used when a bank expects a canonical UUID client-instance
+ * identifier that must stay stable across the steps of one login.
+ */
+interface IRandomUuidBootstrap {
+  readonly kind: 'random-uuid';
+}
+
+/**
  * Deterministic 16-hex bootstrap derived from another creds field via
  * `sha256(creds[from]).slice(0, 16)`. Used when the carry slot must
  * stay stable across warm-start runs (e.g. a device identifier that
@@ -86,7 +96,8 @@ interface IJwtClaimBootstrap {
  * data-only by keeping the producer logic inside the mediator rather
  * than letting banks pass callbacks.
  */
-type SeedCarryBootstrapKind = IRandomHex16Bootstrap | ISha256Prefix16Bootstrap | IJwtClaimBootstrap;
+type SeedCarryBootstrapKind =
+  IRandomHex16Bootstrap | IRandomUuidBootstrap | ISha256Prefix16Bootstrap | IJwtClaimBootstrap;
 
 /**
  * Seed-carry source spec — names the creds field to mirror into
@@ -121,6 +132,7 @@ export type {
   IDerivedCarry,
   IJwtClaimBootstrap,
   IRandomHex16Bootstrap,
+  IRandomUuidBootstrap,
   ISeedCarrySource,
   ISha256Prefix16Bootstrap,
   IWarmStartConfig,

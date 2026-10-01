@@ -34,6 +34,25 @@ describe('buildInitialCarry — seed validation branches', () => {
     if (result.success) expect(result.value.deviceId16Hex).toMatch(/^[0-9a-f]{32}$/);
   });
 
+  it('mirrors a supplied creds value instead of running the random-uuid bootstrap', () => {
+    const persisted = '00000000-0000-4000-8000-000000000000';
+    const config = makeConfig({
+      seedCarryFromCreds: [{ field: 'clientInstanceId', bootstrap: { kind: 'random-uuid' } }],
+    });
+    const result = buildInitialCarry(config, { clientInstanceId: persisted }, {});
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value.clientInstanceId).toBe(persisted);
+  });
+
+  it('runs the random-uuid bootstrap when the creds field is present but empty', () => {
+    const config = makeConfig({
+      seedCarryFromCreds: [{ field: 'clientInstanceId', bootstrap: { kind: 'random-uuid' } }],
+    });
+    const result = buildInitialCarry(config, { clientInstanceId: '' }, {});
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.value.clientInstanceId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
   it('falls through to "absent" diagnostic for non-serialisable creds with no bootstrap', () => {
     const config = makeConfig({ seedCarryFromCreds: ['callback'] });
     /**
