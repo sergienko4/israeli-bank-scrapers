@@ -13,7 +13,7 @@ import { getDebug } from '../../../Logging/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IPersistentAuthConfig } from '../ConfigContracts/index.js';
-import { exportPkcs8Base64 } from '../Crypto/CryptoKeyFactory.js';
+import { exportEcP256Pkcs8 } from '../Crypto/CryptoKeyFactory.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import { isJwtFresh } from '../Jwt/GenericJwtClaims.js';
 import {
@@ -144,15 +144,16 @@ function readDeviceIdentity(
 }
 
 /**
- * Export the EC key enrollment generated, so resume can sign with it.
+ * Export the EC key enrollment generated, so resume can sign with it. A missing
+ * key and one the exporter refuses both fail as `enrollment-key`.
  * @param flow - Completed enrollment flow.
  * @returns PKCS#8 base64, or a category-only failure.
  */
 function exportEnrolledKey(flow: IFlowResult): Procedure<string> {
   const ec = flow.keypairs.ec;
   if (ec === undefined) return durableFail('enrollment-key');
-  const pkcs8 = exportPkcs8Base64(ec);
-  return succeed(pkcs8);
+  const exported = exportEcP256Pkcs8(ec);
+  return isOk(exported) ? exported : durableFail('enrollment-key');
 }
 
 /**

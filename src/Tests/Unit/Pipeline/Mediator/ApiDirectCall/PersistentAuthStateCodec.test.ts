@@ -13,7 +13,7 @@ import { generateKeyPairSync, randomUUID, sign, verify } from 'node:crypto';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import type { IGenericKeypair } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
 import {
-  exportPkcs8Base64,
+  exportEcP256Pkcs8,
   generateKeypair,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
 import {
@@ -51,6 +51,17 @@ function makeEcKeypair(): IGenericKeypair {
   return result.value;
 }
 
+/**
+ * Export a keypair's private key through the production exporter.
+ * @param keypair - Sound P-256 keypair.
+ * @returns PKCS#8 DER as standard padded Base64.
+ */
+function exportedKeyOf(keypair: IGenericKeypair): string {
+  const result = exportEcP256Pkcs8(keypair);
+  if (!result.success) throw new ScraperError('P-256 key export should succeed');
+  return result.value;
+}
+
 const KEYPAIR = makeEcKeypair();
 const INSTANCE_ID = randomUUID();
 const ACCESS_TOKEN = makeJwtExpiringIn(ONE_HOUR_SECONDS);
@@ -61,7 +72,7 @@ const VALID_STATE: IPersistentAuthStateV1 = {
   clientInstanceId: INSTANCE_ID,
   deviceId: 'device-fixture-0001',
   accessToken: ACCESS_TOKEN,
-  ecPrivateKeyPkcs8Base64: exportPkcs8Base64(KEYPAIR),
+  ecPrivateKeyPkcs8Base64: exportedKeyOf(KEYPAIR),
 };
 
 /**
