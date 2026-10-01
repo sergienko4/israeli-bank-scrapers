@@ -68,8 +68,8 @@ const KEY_KINDS: readonly IKeyKind[] = [
     soundFor: false,
   },
   {
-    label: 'RSA-1024',
-    keypair: selfConsistent(generateKeyPairSync('rsa', { modulusLength: 1024 }).privateKey),
+    label: 'RSA-3072',
+    keypair: selfConsistent(generateKeyPairSync('rsa', { modulusLength: 3072 }).privateKey),
     soundFor: false,
   },
   {
