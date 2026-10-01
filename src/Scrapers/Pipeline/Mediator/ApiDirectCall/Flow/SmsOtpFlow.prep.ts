@@ -5,10 +5,12 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
-import { isOk, succeed } from '../../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
-import { generateKeypair } from '../Crypto/CryptoKeyFactory.js';
+import type { AsymmetricSignerAlgorithm } from '../ConfigContracts/SignerTypes.js';
+import { generateKeypair, isKeypairFor } from '../Crypto/CryptoKeyFactory.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import type { ICollectionResult } from '../Fingerprint/GenericFingerprintBuilder.js';
 import { buildCollectionResult } from '../Fingerprint/GenericFingerprintBuilder.js';
@@ -105,12 +107,84 @@ function buildSmsOtpCarry(args: IRunSmsOtpArgs): Procedure<Readonly<Record<strin
 }
 
 /**
- * Use the caller's keys when supplied; otherwise generate them per config.
+ * Asymmetric-algorithm → keypair-slot lookup. AES is intentionally
+ * absent: it is symmetric and has no asymmetric pair to select.
+ */
+const KEYPAIR_SLOT_BY_ALGORITHM: Readonly<Record<AsymmetricSignerAlgorithm, keyof IKeypairBundle>> =
+  {
+    'ECDSA-P256': 'ec',
+    'RSA-2048': 'rsa',
+  };
+
+/** One asymmetric algorithm paired with the bundle slot its key fills. */
+type SlotEntry = readonly [AsymmetricSignerAlgorithm, keyof IKeypairBundle];
+
+/** Every slot with its algorithm, derived from the single lookup above. */
+const SLOT_ENTRIES = Object.entries(KEYPAIR_SLOT_BY_ALGORITHM) as readonly SlotEntry[];
+
+/**
+ * Name the slot the configured asymmetric signer signs from.
+ * @param config - API-direct-call config.
+ * @returns The slot, or false when there is no signer or it is AES.
+ */
+function signerSlotOf(config: IApiDirectCallConfig): keyof IKeypairBundle | false {
+  const signer = config.signer;
+  if (signer === undefined) return false;
+  if (signer.algorithm === 'AES-CBC-PKCS7') return false;
+  return KEYPAIR_SLOT_BY_ALGORITHM[signer.algorithm];
+}
+
+/**
+ * Check that one slot is empty or holds a sound key of its algorithm.
+ * @param keypairs - Caller-supplied bundle.
+ * @param entry - Algorithm and the slot it fills.
+ * @returns True when the slot is empty or its key matches.
+ */
+function isSlotSound(keypairs: IKeypairBundle, entry: SlotEntry): boolean {
+  const pair = keypairs[entry[1]];
+  return pair === undefined || isKeypairFor(pair, entry[0]);
+}
+
+/**
+ * Fail an injected bundle, naming only the slot — never key material.
+ * @param reason - Whether the slot's key is invalid or the slot is missing.
+ * @param slot - Bundle slot at fault.
+ * @returns Generic failure.
+ */
+function failInjected(
+  reason: 'invalid' | 'missing',
+  slot: keyof IKeypairBundle,
+): Procedure<IKeypairBundle> {
+  return fail(ScraperErrorTypes.Generic, `injected keypair ${reason}: ${slot}`);
+}
+
+/**
+ * Accept caller keys only when every filled slot holds a sound key of its
+ * algorithm and the signer's slot is filled, so a bad key fails before any
+ * request instead of sending an unusable signature.
+ * @param keypairs - Caller-supplied bundle.
+ * @param config - API-direct-call config (the signer picks the required slot).
+ * @returns The same bundle, or a failure.
+ */
+function checkInjectedKeypairs(
+  keypairs: IKeypairBundle,
+  config: IApiDirectCallConfig,
+): Procedure<IKeypairBundle> {
+  const bad = SLOT_ENTRIES.find((entry): boolean => !isSlotSound(keypairs, entry));
+  if (bad !== undefined) return failInjected('invalid', bad[1]);
+  const slot = signerSlotOf(config);
+  if (slot !== false && keypairs[slot] === undefined) return failInjected('missing', slot);
+  return succeed(keypairs);
+}
+
+/**
+ * Use the caller's keys when supplied (after checking them); otherwise
+ * generate them per config.
  * @param args - Flow run args.
  * @returns Procedure with the keypair bundle the flow signs with.
  */
 function resolveKeypairs(args: IRunSmsOtpArgs): Procedure<IKeypairBundle> {
-  if (args.keypairs !== undefined) return succeed(args.keypairs);
+  if (args.keypairs !== undefined) return checkInjectedKeypairs(args.keypairs, args.config);
   return prepareKeypairs(args.config);
 }
 
@@ -140,4 +214,4 @@ function prepareSmsOtpFlow(args: IRunSmsOtpArgs): Procedure<ISmsOtpPrep> {
   return succeed({ ...coreProc.value, initialCarry: carryProc.value });
 }
 
-export { prepareFingerprint, prepareKeypairs, prepareSmsOtpFlow, seedScope };
+export { prepareFingerprint, prepareKeypairs, prepareSmsOtpFlow, seedScope, signerSlotOf };

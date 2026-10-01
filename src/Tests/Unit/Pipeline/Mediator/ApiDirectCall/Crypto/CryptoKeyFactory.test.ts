@@ -7,11 +7,14 @@ import type { KeyObject } from 'node:crypto';
 import { generateKeyPairSync } from 'node:crypto';
 
 import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
+import type { AsymmetricSignerAlgorithm } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/SignerTypes.js';
 import {
   exportPkcs8Base64,
   generateKeypair,
   importEcP256Pkcs8,
+  isKeypairFor,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
+import { KEY_KINDS } from './KeyKindFixtures.js';
 
 /** The only failure text the importer may emit — it names no key material. */
 const IMPORT_FAILURE = 'persisted EC key invalid';
@@ -116,5 +119,29 @@ describe('CryptoKeyFactory.importEcP256Pkcs8 — persisted device key', () => {
     const result = importEcP256Pkcs8(text);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toBe(IMPORT_FAILURE);
+  });
+});
+
+/** Every asymmetric algorithm a keypair can be checked against. */
+const ALGORITHMS: readonly AsymmetricSignerAlgorithm[] = ['ECDSA-P256', 'RSA-2048'];
+
+describe('CryptoKeyFactory.isKeypairFor — caller-supplied keypairs', () => {
+  const cases = KEY_KINDS.flatMap(kind =>
+    ALGORITHMS.map(algorithm => [kind.label, algorithm, kind.soundFor === algorithm] as const),
+  );
+
+  it.each(cases)('%s as %s → accepted: %s', (label, algorithm, expected) => {
+    const kind = KEY_KINDS.find(candidate => candidate.label === label);
+    if (kind === undefined) throw new ScraperError(`unknown key kind ${label}`);
+    const isAccepted = isKeypairFor(kind.keypair, algorithm);
+    expect(isAccepted).toBe(expected);
+  });
+
+  it('accepts what the generator and the importer produce', () => {
+    const exported = makeExportedP256();
+    const imported = importEcP256Pkcs8(exported.pkcs8);
+    if (!imported.success) throw new ScraperError('exported P-256 key should import');
+    const isAccepted = isKeypairFor(imported.value, 'ECDSA-P256');
+    expect(isAccepted).toBe(true);
   });
 });

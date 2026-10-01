@@ -27,6 +27,13 @@ than a new one. `exportPkcs8Base64` persists the P-256 private key as canonical
 Base64 PKCS#8, and `importEcP256Pkcs8` rehydrates it. Import rejects any other
 encoding, key type or curve, and its error never includes key material.
 
+Handed keypairs are checked before any request. `signerSlotOf` maps the signer
+algorithm to the bundle slot it signs from (`ec` or `rsa`). `isKeypairFor`
+accepts a slot only when its private key has that algorithm's exact type and
+curve or modulus, and its public key, key ID and Base64 all derive from that
+private key. A bad slot fails as `injected keypair invalid: <slot>`, and an
+empty signer slot fails as `injected keypair missing: <slot>`.
+
 ### JsonValueTemplate
 
 Declarative body literal with `$ref` tokens:

@@ -13,6 +13,7 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import type { SignerAlgorithm } from '../ConfigContracts/index.js';
+import type { AsymmetricSignerAlgorithm } from '../ConfigContracts/SignerTypes.js';
 
 /** Uniform keypair bundle returned for every supported algorithm. */
 interface IGenericKeypair {
@@ -91,6 +92,49 @@ function generateKeypair(algorithm: SignerAlgorithm): Procedure<IGenericKeypair>
 /** Node's name for the P-256 curve in `asymmetricKeyDetails.namedCurve`. */
 const P256_CURVE_NAME = 'prime256v1';
 
+/** Node key details a private key needs to sign as one asymmetric algorithm. */
+interface IKeyShape {
+  readonly keyType: 'ec' | 'rsa';
+  readonly namedCurve?: string;
+  readonly modulusLength?: number;
+}
+
+/** Required shape per algorithm; a field absent here must be absent on the key. */
+const KEY_SHAPE_BY_ALGORITHM: Readonly<Record<AsymmetricSignerAlgorithm, IKeyShape>> = {
+  'ECDSA-P256': { keyType: 'ec', namedCurve: P256_CURVE_NAME },
+  'RSA-2048': { keyType: 'rsa', modulusLength: 2048 },
+};
+
+/**
+ * Check that a key is a private key of the algorithm's type, curve, and size.
+ * @param key - Any Node key object.
+ * @param algorithm - Asymmetric algorithm the key must sign as.
+ * @returns True only for a matching private key.
+ */
+function hasKeyShape(key: KeyObject, algorithm: AsymmetricSignerAlgorithm): boolean {
+  const shape = KEY_SHAPE_BY_ALGORITHM[algorithm];
+  if (key.type !== 'private' || key.asymmetricKeyType !== shape.keyType) return false;
+  const details = key.asymmetricKeyDetails ?? {};
+  return details.namedCurve === shape.namedCurve && details.modulusLength === shape.modulusLength;
+}
+
+/**
+ * Check a keypair built outside the generator: its private key must have the
+ * algorithm's shape, and its public key, SPKI, and key ID must derive from that
+ * key, so the signature, published key, and key ID never disagree.
+ * @param keypair - Keypair bundle from a caller.
+ * @param algorithm - Asymmetric algorithm the keypair must sign as.
+ * @returns True when the bundle is safe to sign with as that algorithm.
+ */
+function isKeypairFor(keypair: IGenericKeypair, algorithm: AsymmetricSignerAlgorithm): boolean {
+  if (!hasKeyShape(keypair.privateKey, algorithm)) return false;
+  const publicKey = createPublicKey(keypair.privateKey);
+  const derived = packKeypair(keypair.privateKey, publicKey);
+  if (derived.keyIdHex !== keypair.keyIdHex) return false;
+  if (derived.publicKeyBase64 !== keypair.publicKeyBase64) return false;
+  return derived.publicKeyDer.equals(keypair.publicKeyDer);
+}
+
 /**
  * Parse PKCS#8 DER into a private KeyObject without throwing.
  * @param der - PKCS#8 DER bytes.
@@ -114,7 +158,7 @@ function parseCanonicalEcP256(pkcs8Base64: string): KeyObject | false {
   if (der.length === 0 || der.toString('base64') !== pkcs8Base64) return false;
   const privateKey = tryParsePkcs8(der);
   if (privateKey === false) return false;
-  if (privateKey.asymmetricKeyDetails?.namedCurve !== P256_CURVE_NAME) return false;
+  if (!hasKeyShape(privateKey, 'ECDSA-P256')) return false;
   return privateKey;
 }
 
@@ -147,4 +191,4 @@ function exportPkcs8Base64(keypair: IGenericKeypair): string {
 
 export type { IGenericKeypair };
 export default generateKeypair;
-export { exportPkcs8Base64, generateKeypair, importEcP256Pkcs8 };
+export { exportPkcs8Base64, generateKeypair, importEcP256Pkcs8, isKeypairFor };
