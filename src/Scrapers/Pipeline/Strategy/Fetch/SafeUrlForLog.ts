@@ -11,6 +11,7 @@ import type { Brand, SafeUrlForLog } from '../../Types/Brand.js';
 import { mintSafeUrlForLog } from '../../Types/Brand.js';
 import { caughtMessageOf } from '../../Types/ErrorUtils.js';
 import { redactUrlFull } from '../../Types/PiiRedactor.js';
+import { ECHO_CUT_MARK, type IEchoCut, requestEchoCutsOf } from './RequestEchoForms.js';
 
 /** Failure text with no request query and no URL beyond origin + path. */
 type SafeErrorText = Brand<string, 'SafeErrorText'>;
@@ -18,11 +19,13 @@ type SafeErrorText = Brand<string, 'SafeErrorText'>;
 /** Stand-in for a URL that cannot be parsed, so nothing raw is echoed. */
 const UNPARSEABLE_URL = '<unparseable>';
 
-/** An absolute http(s) URL quoted in free text; linear, no nested quantifier. */
-const QUOTED_URL = /https?:\/\/[^\s"'<>]+/gi;
-
-/** Where a URL's query string or fragment begins. */
-const QUERY_START = /[?#]/;
+/**
+ * An absolute http(s) URL quoted in free text. It ends only at a character a
+ * URL serializer never leaves raw — whitespace, `"`, `<`, `>` — so an
+ * apostrophe in a credential, a path or a query does not split it. Linear,
+ * no nested quantifier.
+ */
+const QUOTED_URL = /https?:\/\/[^\s"<>]+/gi;
 
 /**
  * V8's `JSON.parse` quote of the body it failed on: at most ten characters
@@ -34,14 +37,11 @@ const JSON_PARSE_EXCERPT = /(?:\.\.\.)?"[\s\S]{0,20}"(?:\.\.\.)? is not valid JS
 /** What a parser's quote of the body becomes — the verdict without the body. */
 const JSON_PARSE_VERDICT = 'body is not valid JSON';
 
-/** Shortest query value treated as a secret; flags and locales stay readable. */
-const MIN_SECRET_VALUE_LEN = 8;
-
-/** Shortest form of a secret value still cut; shorter runs are too common. */
-const MIN_ECHO_FORM_LEN = 3;
-
-/** What a query value quoted back on its own becomes. */
+/** What a secret quoted back becomes. */
 const REDACTED_VALUE = '<redacted>';
+
+/** A cut mark as a URL serializer percent-encodes it in a path. */
+const ENCODED_CUT_MARK = encodeURIComponent(ECHO_CUT_MARK);
 
 /** How much of an error response body a failure message carries. */
 const ERROR_BODY_SNIPPET_LEN = 120;
@@ -63,86 +63,42 @@ function safeUrlForLog(url: string): SafeUrlForLog {
 }
 
 /**
- * The raw query string and fragment of a request URL, as the caller wrote it.
- * @param url - Request URL, parseable or not.
- * @returns Everything from the first `?` or `#`, or '' when there is none.
+ * The request URL quoted whole, reduced to what {@link safeUrlForLog} shows.
+ * An empty URL is no echo: cutting '' would insert the replacement everywhere.
+ * @param requestUrl - URL of the request that failed.
+ * @returns The cut, or none for an empty URL.
  */
-function rawQueryTail(url: string): string {
-  const start = url.search(QUERY_START);
-  if (start < 0) return '';
-  return url.slice(start);
+function wholeUrlCutsOf(requestUrl: string): readonly IEchoCut[] {
+  if (requestUrl.length === 0) return [];
+  return [{ form: requestUrl, replacement: safeUrlForLog(requestUrl) }];
 }
 
 /**
- * The value half of one `key=value` query pair.
- * @param pair - One `&`-separated query segment.
- * @returns Everything after the first `=`, or '' for a bare key.
- */
-function pairValue(pair: string): string {
-  const separator = pair.indexOf('=');
-  if (separator < 0) return '';
-  return pair.slice(separator + 1);
-}
-
-/**
- * Percent-decode a query value, keeping the raw form when it is malformed.
- * @param raw - Query value as it appears on the wire.
- * @returns The decoded value, or the raw one.
- */
-function decodedOrRaw(raw: string): string {
-  const spaced = raw.replaceAll('+', ' ');
-  try {
-    return decodeURIComponent(spaced);
-  } catch {
-    return raw;
-  }
-}
-
-/**
- * Every way a server may echo one query value — as sent, decoded, or
- * re-encoded with `+` or `%20` for a space. Secret-ness is decided once for
- * the value, so one secret-sized on the wire is cut in its short decoded form
- * too.
- * @param raw - Query value as it appears on the wire.
- * @returns The value's echo forms, or none for a short flag.
- */
-function echoFormsOf(raw: string): readonly string[] {
-  const decoded = decodedOrRaw(raw);
-  const formEncoded = new URLSearchParams({ v: decoded }).toString().slice(2);
-  const percentEncoded = formEncoded.replaceAll('+', '%20');
-  const forms = [raw, decoded, formEncoded, percentEncoded];
-  const isSecret = forms.some((form): boolean => form.length >= MIN_SECRET_VALUE_LEN);
-  if (!isSecret) return [];
-  return forms.filter((form): boolean => form.length >= MIN_ECHO_FORM_LEN);
-}
-
-/**
- * Every echo form of every secret-sized query value, longest first so no
- * shorter form splits a longer one before it is cut.
- * @param tail - The request's raw query tail.
- * @returns Distinct echo forms.
- */
-function secretEchoForms(tail: string): readonly string[] {
-  const [query] = tail.split('#');
-  const pairs = query.slice(1).split('&');
-  const forms = pairs.map(pairValue).flatMap(echoFormsOf);
-  const distinct = new Set(forms);
-  return [...distinct].sort((a, b): number => b.length - a.length);
-}
-
-/**
- * Cut a request's query wherever failure text quotes it back — whole, or one
- * value at a time as a server error body tends to. A bare `?` or `#` is no
- * query, so it is never cut.
+ * Cut every echo of the request from failure text: the URL whole, then each
+ * form of each secret it carries, longest first. A replacer function keeps
+ * a `$` in a URL literal, where a replacement string would read it as a
+ * pattern.
  * @param text - Failure text.
- * @param tail - The request's raw query tail.
- * @returns The text with no query and no secret-sized query value.
+ * @param requestUrl - URL of the request that failed.
+ * @returns The text with every request echo cut.
  */
-function withoutQueryEchoes(text: string, tail: string): string {
-  if (tail.length <= 1) return text;
-  const withoutTail = text.replaceAll(tail, '');
-  const forms = secretEchoForms(tail);
-  return forms.reduce((acc, form): string => acc.replaceAll(form, REDACTED_VALUE), withoutTail);
+function withoutRequestEchoes(text: string, requestUrl: string): string {
+  const cuts = [...wholeUrlCutsOf(requestUrl), ...requestEchoCutsOf(requestUrl)];
+  return cuts.reduce(
+    (acc, cut): string => acc.replaceAll(cut.form, (): string => cut.replacement),
+    text,
+  );
+}
+
+/**
+ * Show every cut mark as {@link REDACTED_VALUE}, raw or as a URL serializer
+ * percent-encodes it inside a shortened URL's path.
+ * @param text - Text whose secrets are marked.
+ * @returns The text with each mark redacted.
+ */
+function withMarksRedacted(text: string): string {
+  const withoutEncoded = text.replaceAll(ENCODED_CUT_MARK, REDACTED_VALUE);
+  return withoutEncoded.replaceAll(ECHO_CUT_MARK, REDACTED_VALUE);
 }
 
 /**
@@ -151,17 +107,18 @@ function withoutQueryEchoes(text: string, tail: string): string {
  * request in their own words — undici echoes an unparseable or
  * credential-bearing URL in full, V8 quotes the body it failed to parse,
  * servers echo a path or a single parameter — so the parser's body quote is
- * dropped, any absolute URL is reduced to origin + masked path, then the
- * request's query is cut wherever it still appears.
+ * dropped, every echo of the request is cut, and only then is any absolute
+ * URL reduced to origin + masked path: a URL match that ends inside a secret
+ * would split it before the secret is known.
  * @param text - Text from outside the transport.
  * @param requestUrl - URL of the request that failed.
  * @returns The text with no request query and no full URL.
  */
 function safeErrorText(text: string, requestUrl: string): SafeErrorText {
   const withoutBody = text.replaceAll(JSON_PARSE_EXCERPT, JSON_PARSE_VERDICT);
-  const withSafeUrls = withoutBody.replaceAll(QUOTED_URL, (url): string => safeUrlForLog(url));
-  const tail = rawQueryTail(requestUrl);
-  return withoutQueryEchoes(withSafeUrls, tail) as SafeErrorText;
+  const withoutRequest = withoutRequestEchoes(withoutBody, requestUrl);
+  const withSafeUrls = withoutRequest.replaceAll(QUOTED_URL, (url): string => safeUrlForLog(url));
+  return withMarksRedacted(withSafeUrls) as SafeErrorText;
 }
 
 /**

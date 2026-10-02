@@ -16,7 +16,13 @@ import {
   createTimeoutError,
 } from '../../../../../Scrapers/Pipeline/Mediator/Timing/TimingActions.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { ECHO_QUERY, leakedSecretsIn, urlEchoesOf } from '../../../../Helpers/UrlEchoFixtures.js';
+import {
+  ECHO_FULL_NAME,
+  echoRequestLabelOf,
+  echoRequestUrlOf,
+  leakedSecretsIn,
+  urlEchoesOf,
+} from '../../../../Helpers/UrlEchoFixtures.js';
 
 /** Envelope returned by the in-page fetch wrapper. */
 interface IPageFetchEnvelope {
@@ -174,9 +180,14 @@ const { CamoufoxIdentityFetchStrategy: STRATEGY } = STRATEGY_MOD;
 
 const ORIGIN = 'https://identity.tfd-bank.com';
 const URL_OK = 'https://identity.tfd-bank.com/v1/devices/token';
-const ECHO_URL = `${URL_OK}${ECHO_QUERY}`;
+const ECHO_URL = echoRequestUrlOf(URL_OK);
+const ECHO_LABEL = echoRequestLabelOf(URL_OK);
 const ECHOES = urlEchoesOf(URL_OK);
-const URL_QUOTING_ECHOES = ECHOES.filter(({ text }): boolean => text.includes('://'));
+// Found with no request to cut by: a URL as a serializer writes it. A decoded
+// value with a space reads as prose, so only the request's own cuts reach it.
+const URL_QUOTING_ECHOES = ECHOES.filter(
+  ({ text }): boolean => text.includes('://') && !text.includes(ECHO_FULL_NAME),
+);
 const OPTS = { extraHeaders: {} };
 const ENV_OK: IPageFetchEnvelope = {
   ok: true,
@@ -316,7 +327,7 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
       const r = await new STRATEGY(ORIGIN, false).fetchPost(ECHO_URL, {}, OPTS);
       const message = isOk(r) ? '' : r.errorMessage;
       const leaked = leakedSecretsIn(message);
-      expect(message).toContain(`POST ${URL_OK} network error`);
+      expect(message).toContain(`POST ${ECHO_LABEL} network error`);
       expect(leaked).toEqual([]);
     },
   );
@@ -326,7 +337,7 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
     const r = await new STRATEGY(ORIGIN, false).fetchPost(ECHO_URL, {}, OPTS);
     const message = isOk(r) ? '' : r.errorMessage;
     const leaked = leakedSecretsIn(message);
-    expect(message).toContain(`POST ${URL_OK} 400:`);
+    expect(message).toContain(`POST ${ECHO_LABEL} 400:`);
     expect(leaked).toEqual([]);
   });
 
@@ -337,7 +348,7 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
       const r = await new STRATEGY(ORIGIN, false).fetchPost(ECHO_URL, {}, OPTS);
       const message = isOk(r) ? '' : r.errorMessage;
       const leaked = leakedSecretsIn(message);
-      expect(message).toContain(`POST ${URL_OK} parse error`);
+      expect(message).toContain(`POST ${ECHO_LABEL} parse error`);
       expect(leaked).toEqual([]);
     },
   );

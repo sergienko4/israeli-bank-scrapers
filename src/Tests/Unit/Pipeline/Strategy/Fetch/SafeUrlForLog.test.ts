@@ -14,12 +14,14 @@ import { UNREPRESENTABLE_ERROR } from '../../../../../Scrapers/Pipeline/Types/Er
 import {
   ECHO_QUERY,
   ECHO_SECRET,
+  echoRequestUrlOf,
   leakedSecretsIn,
   urlEchoesOf,
+  withEchoCredentials,
 } from '../../../../Helpers/UrlEchoFixtures.js';
 
 const BASE = 'https://api.example/x';
-const REQUEST_URL = `${BASE}${ECHO_QUERY}`;
+const REQUEST_URL = echoRequestUrlOf(BASE);
 const ECHOES = urlEchoesOf(BASE);
 
 describe('safeUrlForLog', () => {
@@ -101,6 +103,51 @@ describe('safeErrorText — runtime wording', () => {
   it('leaves every "?" in place for a request whose query is empty', () => {
     const safe = safeErrorText('why? because? no#hash', `${BASE}?`);
     expect(safe).toBe('why? because? no#hash');
+  });
+});
+
+describe('safeErrorText — echoes a URL match would split', () => {
+  it('cuts a password holding an apostrophe from a credential echo', () => {
+    const url = withEchoCredentials(BASE);
+    const prefix = 'Request cannot be constructed from a URL that includes credentials: ';
+    const safe = safeErrorText(`${prefix}${url}`, url);
+    expect(safe).toBe(`${prefix}${BASE}`);
+  });
+
+  it('cuts a request credential quoted on its own', () => {
+    const url = withEchoCredentials(BASE);
+    const userName = new URL(url).username;
+    const safe = safeErrorText(`user ${userName} rejected`, url);
+    expect(safe).toBe('user <redacted> rejected');
+  });
+
+  it('masks the account in a request-relative path echo', () => {
+    const url = 'https://bank.co.il/api/accounts/1234567890?did=SECRET-DEVICE-ID';
+    const text = 'Bad request for /api/accounts/1234567890?did=SECRET-DEVICE-ID';
+    const safe = safeErrorText(text, url);
+    expect(safe).toBe('Bad request for /api/accounts/***7890');
+  });
+
+  it('cuts a decoded value holding a space before shortening its URL', () => {
+    const url = `${BASE}?name=FIRSTNAME%20LASTNAME`;
+    const safe = safeErrorText(`request to ${BASE}?name=FIRSTNAME LASTNAME failed`, url);
+    expect(safe).toBe(`request to ${BASE} failed`);
+  });
+
+  it('marks a secret cut from the path of another URL', () => {
+    const safe = safeErrorText(`see https://idp.example/devices/${ECHO_SECRET} now`, REQUEST_URL);
+    expect(safe).toBe('see https://idp.example/devices/<redacted> now');
+  });
+
+  it("keeps a `$'` in the request path as written", () => {
+    const url = "https://api.example/a$'b?k=SECRET-VALUE";
+    const safe = safeErrorText(`fetch ${url} failed`, url);
+    expect(safe).toBe("fetch https://api.example/a$'b failed");
+  });
+
+  it('leaves text alone for an empty request URL', () => {
+    const safe = safeErrorText('500 internal error', '');
+    expect(safe).toBe('500 internal error');
   });
 });
 

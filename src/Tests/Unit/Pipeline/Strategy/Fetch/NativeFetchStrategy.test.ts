@@ -13,6 +13,8 @@ import { fail, isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js'
 import type { IUrlEcho } from '../../../../Helpers/UrlEchoFixtures.js';
 import {
   ECHO_QUERY,
+  echoRequestLabelOf,
+  echoRequestUrlOf,
   leakedSecretsIn,
   urlEchoesOf,
   withEchoCredentials,
@@ -357,7 +359,10 @@ const REAL_FETCH = globalThis.fetch;
 const ECHO_BASE = 'https://api.example/x';
 
 /** The secret-carrying request every echo test sends. */
-const ECHO_URL = `${ECHO_BASE}${ECHO_QUERY}`;
+const ECHO_URL = echoRequestUrlOf(ECHO_BASE);
+
+/** How a failure names {@link ECHO_URL}. */
+const ECHO_LABEL = echoRequestLabelOf(ECHO_BASE);
 
 /** Echo shapes for {@link ECHO_URL}. */
 const ECHOES = urlEchoesOf(ECHO_BASE);
@@ -419,7 +424,7 @@ describe('NativeFetchStrategy — oracle: failure text quoting the request leaks
     const result = await strategy.fetchGet(ECHO_URL, { extraHeaders: {} });
     const message = isOk(result) ? '' : result.errorMessage;
     const leaked = leakedSecretsIn(message);
-    expect(message).toContain('GET https://api.example/x ');
+    expect(message).toContain(`GET ${ECHO_LABEL} `);
     expect(leaked).toEqual([]);
   });
 

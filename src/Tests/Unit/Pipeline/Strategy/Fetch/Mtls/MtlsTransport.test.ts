@@ -22,7 +22,8 @@ import {
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import { isOk } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
-  ECHO_QUERY,
+  echoRequestLabelOf,
+  echoRequestUrlOf,
   leakedSecretsIn,
   urlEchoesOf,
 } from '../../../../../Helpers/UrlEchoFixtures.js';
@@ -209,11 +210,12 @@ describe('MtlsTransport.mtlsInvoke — oracle: failure text quoting the request'
   it.each(ECHOES)('a socket failure quoting $label leaks no secret', async ({ text }) => {
     const agent = new EchoingAgent(text);
     const init: RequestInit = { method: 'GET', headers: {} };
-    const url = `${ECHO_BASE}${ECHO_QUERY}`;
+    const url = echoRequestUrlOf(ECHO_BASE);
     const result = await mtlsInvoke({ agent, url, init, verb: 'GET' });
     const message = isOk(result) ? '' : result.errorMessage;
     const leaked = leakedSecretsIn(message);
-    expect(message).toContain(`GET ${ECHO_BASE} mtls error`);
+    const label = echoRequestLabelOf(ECHO_BASE);
+    expect(message).toContain(`GET ${label} mtls error`);
     expect(leaked).toEqual([]);
   });
 });

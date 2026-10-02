@@ -28,7 +28,8 @@ const { ScraperErrorTypes: ERROR_TYPES } =
   await import('../../../../../Scrapers/Base/ErrorTypes.js');
 const { WafBlockError: WAF_BLOCK_ERROR } = await import('../../../../../Scrapers/Base/Errors.js');
 const {
-  ECHO_QUERY,
+  echoRequestLabelOf: ECHO_REQUEST_LABEL_OF,
+  echoRequestUrlOf: ECHO_REQUEST_URL_OF,
   leakedSecretsIn: LEAKED_SECRETS_IN,
   urlEchoesOf: URL_ECHOES_OF,
 } = await import('../../../../Helpers/UrlEchoFixtures.js');
@@ -37,7 +38,7 @@ const {
 const ECHO_BASE = 'https://api.test/post';
 
 /** The secret-carrying request every echo test sends. */
-const ECHO_URL = `${ECHO_BASE}${ECHO_QUERY}`;
+const ECHO_URL = ECHO_REQUEST_URL_OF(ECHO_BASE);
 
 /** Echo shapes for {@link ECHO_URL}. */
 const ECHOES = URL_ECHOES_OF(ECHO_BASE);
@@ -149,7 +150,8 @@ describe('BrowserFetchStrategy/fetchPost', () => {
     const strategy = new STRATEGY_MOD.BrowserFetchStrategy(MAKE_MOCK_FULL_PAGE());
     const result = await strategy.fetchPost(ECHO_URL, {}, OPTS_NO_HEADERS);
     const message = result.success ? '' : result.errorMessage;
-    expect(message).toBe(`Fetch returned empty response: ${ECHO_BASE}`);
+    const label = ECHO_REQUEST_LABEL_OF(ECHO_BASE);
+    expect(message).toBe(`Fetch returned empty response: ${label}`);
   });
 
   it.each(ECHOES)('a page-fetch error quoting $label leaks no secret', async ({ text }) => {

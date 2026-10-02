@@ -111,11 +111,28 @@ Before any such text becomes an `errorMessage`, a body snippet or a log line,
 `SafeErrorText`:
 
 1. V8's quote of the body becomes `body is not valid JSON`;
-2. a quoted absolute URL is reduced to its origin and masked path;
-3. a query tail that still follows the path is cut;
-4. any query value with a form of 8+ characters still quoted on its own,
-   whether as sent, percent-decoded, or re-encoded with `+` or `%20` for a
-   space, becomes `<redacted>`.
+2. every echo of the request is cut, longest form first. `requestEchoCutsOf`
+   (in `RequestEchoForms`) lists each form as an `IEchoCut`:
+   - the request URL quoted whole becomes its origin and masked path;
+   - the query tail as written is dropped;
+   - each query value with a form of 8+ characters, and the user name and
+     password whatever their length, are marked in every form of 3+
+     characters: as sent, percent-decoded, or re-encoded with `+` or `%20`
+     for a space;
+   - each id-shaped path segment, with or without its dashes, becomes its
+     mask (`***7890`) wherever it appears: inside a URL, in a relative path
+     the server echoes, or alone;
+3. only then is any absolute URL still in the text reduced to its origin and
+   masked path. A URL match ends only at whitespace, `"`, `<` or `>`, never
+   at an apostrophe, which a URL serializer leaves raw in credentials, paths
+   and `encodeURIComponent` values;
+4. every mark (`ECHO_CUT_MARK`) becomes `<redacted>`, including a mark that a
+   URL serializer percent-encoded inside a shortened path.
+
+The cuts come first because a URL match that ends inside a secret splits it:
+a space in a decoded value, or an apostrophe in a password, would leave the
+rest of the secret behind, and no rule would know it. Replacements go through
+a replacer function, so a `$'` or `$&` in a URL stays literal.
 
 `safeFailureText` applies this to whatever a transport caught. It reads the
 message through `caughtMessageOf`, which returns a string for any thrown or
@@ -142,9 +159,10 @@ These routes are outside that guarantee:
 | Mediator in-page `evaluate` rejections | Propagate the browser's text unchanged |
 | WAF bounce (`WafBlockError` blocked URL) | Uses `redactUrlFull`, which masks only known PII query keys |
 | URL discovery and network-dump logs | Use `redactUrlFull`, which masks only known PII query keys |
-| `logBodyPreview` | Logs a response-body head through `maskVisibleText`, not the request-echo cleaner |
+| `logBodyPreview` | Logs a response-body head through `maskVisibleText`, which only trims and truncates; it does not run the request-echo cleaner |
+| A decoded URL other than the request's | A URL quoted with a decoded value that contains a space cannot be told apart from prose. Only the request's own cuts reach it, so the Camoufox navigation failure, which is cleaned against the bare origin, does not cover a decoded URL of another request |
 | Camoufox launch and dispose failures | Carry no request; their text is logged as is |
-| Benign over-redaction | Text that contains the request's raw query string, even a short one such as `?a`, loses it; text equal to a secret's short form becomes `<redacted>` |
+| Benign over-redaction | Text that contains the request's raw query string, even a short one such as `?a`, loses it. Text equal to a secret's short form, or to a 3+ character credential, becomes `<redacted>`. The digits of a request path id are masked to `***LAST4` wherever they appear, even inside an unrelated number |
 
 ### Failure text in log lines
 

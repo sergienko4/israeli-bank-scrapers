@@ -30,14 +30,36 @@ const ECHO_NAME_WIRE = encodeURIComponent(ECHO_NAME);
 /** The name as an HTML form encodes it — `+` for the space. */
 const ECHO_NAME_FORM = ECHO_NAME_WIRE.replaceAll('%20', '+');
 
-/** Query every echo-test request carries: three secrets and a short flag. */
-const ECHO_QUERY = `?did=${ECHO_SECRET}&sig=${ECHO_SIGNATURE_WIRE}&name=${ECHO_NAME_WIRE}&aid=app`;
+/** A full name: a space and an apostrophe, both of which end a URL match. */
+const ECHO_FULL_NAME = "ECHOFIRST O'ECHOLAST";
+
+/** The full name on the wire — `%20` for the space, the apostrophe raw. */
+const ECHO_FULL_NAME_WIRE = encodeURIComponent(ECHO_FULL_NAME);
+
+/** The full name as an HTML form encodes it — `+`, and `%27` for the apostrophe. */
+const ECHO_FULL_NAME_FORM = new URLSearchParams({ v: ECHO_FULL_NAME }).toString().slice(2);
+
+/** The full name as a URL serializer re-encodes it — `%20` and `%27`. */
+const ECHO_FULL_NAME_HREF = ECHO_FULL_NAME_FORM.replaceAll('+', '%20');
+
+/** An account number every echo-test request carries in its path. */
+const ECHO_ACCOUNT = '9876543210';
+
+/** What a log may show of {@link ECHO_ACCOUNT}: its last four digits. */
+const ECHO_ACCOUNT_HINT = '***3210';
+
+/** Query every echo-test request carries: four secrets and a short flag. */
+const ECHO_QUERY = `?did=${ECHO_SECRET}&sig=${ECHO_SIGNATURE_WIRE}&name=${ECHO_NAME_WIRE}&full=${ECHO_FULL_NAME_WIRE}&aid=app`;
 
 /** Canary user name for a request URL that carries credentials. */
 const ECHO_USER = 'ECHO-USER-NAME';
 
-/** Canary password for a request URL that carries credentials. */
-const ECHO_PASS = 'ECHO-PASS-WORD';
+/**
+ * Canary password for a request URL that carries credentials. A URL keeps an
+ * apostrophe raw in its credentials, so a matcher that stops there leaves the
+ * rest of the password behind.
+ */
+const ECHO_PASS = "ECHO'PASS-WORD";
 
 /** Every form of a secret that must never surface. */
 const ECHO_SECRET_FORMS: readonly string[] = [
@@ -47,6 +69,11 @@ const ECHO_SECRET_FORMS: readonly string[] = [
   ECHO_NAME,
   ECHO_NAME_WIRE,
   ECHO_NAME_FORM,
+  ECHO_FULL_NAME,
+  ECHO_FULL_NAME_WIRE,
+  ECHO_FULL_NAME_FORM,
+  ECHO_FULL_NAME_HREF,
+  ECHO_ACCOUNT,
   ECHO_USER,
   ECHO_PASS,
 ];
@@ -88,6 +115,7 @@ function runtimeEchoesOf(url: string): readonly IUrlEcho[] {
     },
     { label: 'undici unparseable URL', text: `Failed to parse URL from ${url}` },
     { label: 'quoted absolute URL', text: `request to ${url} failed, reason: ECONNREFUSED` },
+    { label: 'decoded URL', text: `request to ${decodeURIComponent(url)} failed` },
     {
       label: 'playwright call log',
       text: `page.goto: NS_ERROR_UNKNOWN_HOST\n  - navigating to "${url}"`,
@@ -102,11 +130,12 @@ function runtimeEchoesOf(url: string): readonly IUrlEcho[] {
  */
 function serverEchoesOf(url: string): readonly IUrlEcho[] {
   const pathAndQuery = `${new URL(url).pathname}${ECHO_QUERY}`;
-  const values = `${ECHO_SECRET}, sig ${ECHO_SIGNATURE}, name ${ECHO_NAME}`;
+  const values = `${ECHO_SECRET}, sig ${ECHO_SIGNATURE}, name ${ECHO_NAME}, ${ECHO_FULL_NAME}`;
   return [
     { label: 'server path echo', text: `Bad request for ${pathAndQuery}` },
     { label: 'server value echo', text: `unknown device ${values}` },
     { label: 'server form-encoded echo', text: `no customer named ${ECHO_NAME_FORM}` },
+    { label: 'server account echo', text: `account ${ECHO_ACCOUNT} is closed` },
   ];
 }
 
@@ -127,12 +156,31 @@ function cutEchoes(): readonly IUrlEcho[] {
 }
 
 /**
- * Every echo shape for a request to `base` carrying {@link ECHO_QUERY}.
+ * The echo-test request to `base`: an account in its path, the secrets of
+ * {@link ECHO_QUERY} in its query.
  * @param base - Origin + path of the request.
- * @returns The request URL and its echo rows.
+ * @returns The request URL.
+ */
+function echoRequestUrlOf(base: string): string {
+  return `${base}/${ECHO_ACCOUNT}${ECHO_QUERY}`;
+}
+
+/**
+ * How a failure message names the echo-test request to `base`.
+ * @param base - Origin + path of the request.
+ * @returns Origin + path with the account masked.
+ */
+function echoRequestLabelOf(base: string): string {
+  return `${base}/${ECHO_ACCOUNT_HINT}`;
+}
+
+/**
+ * Every echo shape for the request {@link echoRequestUrlOf} builds.
+ * @param base - Origin + path of the request.
+ * @returns The echo rows.
  */
 function urlEchoesOf(base: string): readonly IUrlEcho[] {
-  const url = `${base}${ECHO_QUERY}`;
+  const url = echoRequestUrlOf(base);
   return [...runtimeEchoesOf(url), ...serverEchoesOf(url), ...cutEchoes()];
 }
 
@@ -164,4 +212,14 @@ function leakedSecretsIn(
 }
 
 export type { IUrlEcho };
-export { ECHO_QUERY, ECHO_SECRET, leakedSecretsIn, urlEchoesOf, withEchoCredentials };
+export {
+  ECHO_ACCOUNT,
+  ECHO_FULL_NAME,
+  ECHO_QUERY,
+  ECHO_SECRET,
+  echoRequestLabelOf,
+  echoRequestUrlOf,
+  leakedSecretsIn,
+  urlEchoesOf,
+  withEchoCredentials,
+};

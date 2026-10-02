@@ -8,13 +8,21 @@ import {
   detectWafBlock,
   fetchGetWithinPageWithHeaders,
 } from '../../../../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js';
-import { ECHO_QUERY, leakedSecretsIn, urlEchoesOf } from '../../../../Helpers/UrlEchoFixtures.js';
+import {
+  echoRequestLabelOf,
+  echoRequestUrlOf,
+  leakedSecretsIn,
+  urlEchoesOf,
+} from '../../../../Helpers/UrlEchoFixtures.js';
 
 /** Origin + path the echo requests target. */
 const ECHO_BASE = 'https://api.example/x';
 
 /** The secret-carrying request every echo test sends. */
-const ECHO_URL = `${ECHO_BASE}${ECHO_QUERY}`;
+const ECHO_URL = echoRequestUrlOf(ECHO_BASE);
+
+/** How a failure names {@link ECHO_URL}. */
+const ECHO_LABEL = echoRequestLabelOf(ECHO_BASE);
 
 /** Echo shapes for {@link ECHO_URL}. */
 const ECHOES = urlEchoesOf(ECHO_BASE);
@@ -93,7 +101,7 @@ describe('fetchGetWithinPageWithHeaders', () => {
     const pending = fetchGetWithinPageWithHeaders(page, ECHO_URL, {});
     const message = await rejectionTextOf(pending);
     const leaked = leakedSecretsIn(message);
-    expect(message).toContain(`url: ${ECHO_BASE},`);
+    expect(message).toContain(`url: ${ECHO_LABEL},`);
     expect(leaked).toEqual([]);
   });
 });
