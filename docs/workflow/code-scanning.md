@@ -79,8 +79,9 @@ is still flagged. It accepts only two forms
 
 Alerts #35 and #131 were both this rule; a comment in `release.yml` had
 declared #35 closed on the strength of that exact pin. #35 was the publish job
-upgrading npm for Trusted Publishing: the job now runs Node 24 — 24.5 and
-later bundle npm 11.5.1+ — and fails closed on an older npm. #131 was the
+upgrading npm for Trusted Publishing: the job now runs the latest Node 24
+(`check-latest`, not whatever 24.x the runner has cached) — 24.5 and later
+bundle npm 11.5.1+ — and fails closed on an older npm. #131 was the
 consumer-install gate installing the packed tarball: it now installs the locked
 production graph with `npm ci` and unpacks the tarball in place.
 
@@ -89,9 +90,10 @@ scanner: across every tracked workflow, shell script (by extension or shebang,
 so the husky hooks count) and Dockerfile it accepts **only** `npm ci` — not
 `npm install ci` or a commit-pinned git URL, both of which Scorecard lets
 through. Like Scorecard, it also reads `sh -c` bodies, command substitutions
-and exec-form `RUN` lines. It is a line-based heuristic, not Scorecard's shell
-parser: it reads heredoc bodies as ordinary lines, and cannot follow commands
-assembled at runtime (`eval`, variables).
+and exec-form `RUN` lines; past a wrapper such as `sudo -u root` or
+`timeout 600` it keeps looking for `npm`. It is a line-based heuristic, not
+Scorecard's shell parser: it reads heredoc bodies as ordinary lines, and cannot
+follow commands assembled at runtime (`eval`, variables).
 
 ## Standing finding 1: 28 Scorecard `PinnedDependenciesID` alerts — filtered from the SARIF
 

@@ -153,12 +153,15 @@ jobs:
           # `.nvmrc` stays the development toolchain, and Node 24 is a leg of
           # the unit-test matrix in pr.yml.
           node-version: '24'
+          # Without this, setup-node takes any 24.x already in the runner's
+          # tool cache, and 24.0–24.4 bundle an npm older than 11.5.1.
+          check-latest: true
           registry-url: https://registry.npmjs.org/
           cache: npm
       - name: Require npm 11.5.1+ for Trusted Publishing
-        # `node-version: '24'` can resolve to a 24.x already cached on the
-        # runner, and 24.0–24.4 bundle an older npm. Without this check the
-        # OIDC exchange is skipped and publish dies with ENEEDAUTH.
+        # Defence in depth behind `check-latest`: should an older npm ever
+        # arrive, the OIDC exchange is skipped and publish dies with
+        # ENEEDAUTH. Fail here, with the reason, instead.
         run: |
           set -euo pipefail
           NPM_VERSION="$(npm --version)"

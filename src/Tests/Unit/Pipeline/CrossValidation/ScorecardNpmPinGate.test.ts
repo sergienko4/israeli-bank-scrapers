@@ -45,16 +45,10 @@ const RELEASE_YAML = join(REPO_ROOT, '.github/workflows/release.yml');
 /** npm subcommands Scorecard's `isNpmDownload` treats as an install; only `ci` is pinned. */
 const INSTALL_SUBCOMMANDS = new Set(['ci', 'install', 'i', 'install-test', 'update']);
 
-/** Words that can precede a command without being the command itself. */
+/** Shell keywords and YAML/Dockerfile markers that can precede a command. */
 const COMMAND_PREFIXES = new Set([
   'run:',
   'RUN',
-  'sudo',
-  'env',
-  'command',
-  'nohup',
-  'exec',
-  'time',
   '!',
   'if',
   'then',
@@ -62,6 +56,22 @@ const COMMAND_PREFIXES = new Set([
   'else',
   'while',
   'until',
+]);
+
+/**
+ * Commands that run a command named later on their line, after options and
+ * operands of their own (`sudo -u root CMD`, `timeout 600 CMD`).
+ */
+const WRAPPERS = new Set([
+  'sudo',
+  'env',
+  'command',
+  'nohup',
+  'exec',
+  'time',
+  'nice',
+  'timeout',
+  'xargs',
 ]);
 
 /** Shell operators after which a new command starts. */
@@ -99,7 +109,7 @@ type IRegexGroups = readonly (string | undefined)[];
 interface IWorkflowStep {
   readonly uses?: string;
   readonly run?: string;
-  readonly with?: Readonly<Record<string, string | number | undefined>>;
+  readonly with?: Readonly<Record<string, string | number | boolean | undefined>>;
 }
 
 interface IReleaseDoc {
@@ -124,13 +134,32 @@ function logicalLines(text: string): readonly ILogicalLine[] {
 
 /**
  * Whether a word precedes the command rather than being it: an option such as
- * `-E` or `--mount=…`, a wrapper such as `sudo`, a keyword, or `VAR=value`.
+ * `-E` or `--mount=…`, a keyword, or `VAR=value`.
  *
  * @param word - One whitespace-separated word.
  * @returns True when the command starts later in the line.
  */
 function isCommandPrefix(word: string): boolean {
   return word.startsWith('-') || COMMAND_PREFIXES.has(word) || ENV_ASSIGNMENT.test(word);
+}
+
+/**
+ * Index of the word a command runs. Once a wrapper such as `sudo` appears, its
+ * own options and their values (`-u root`) are skipped until `npm` turns up —
+ * deliberately strict, since a wrapper's option arity varies.
+ *
+ * @param words - The command's whitespace-separated words.
+ * @returns Index of the command word, or -1 when there is none.
+ */
+function commandIndex(words: readonly string[]): number {
+  let isWrapped = false;
+  for (const [index, word] of words.entries()) {
+    if (basename(word) === 'npm') return index;
+    const isWrapper = WRAPPERS.has(word);
+    if (!isWrapped && !isWrapper && !isCommandPrefix(word)) return index;
+    isWrapped ||= isWrapper;
+  }
+  return -1;
 }
 
 /**
@@ -143,7 +172,7 @@ function isCommandPrefix(word: string): boolean {
  */
 function isUnpinnedNpm(command: string): boolean {
   const words = command.trim().split(/\s+/);
-  const start = words.findIndex(word => !isCommandPrefix(word));
+  const start = commandIndex(words);
   if (start < 0 || basename(words[start]) !== 'npm') return false;
   const args = words.slice(start + 1).map(word => word.toLowerCase());
   const subcommand = args.find(arg => INSTALL_SUBCOMMANDS.has(arg));
@@ -378,6 +407,11 @@ const POLICY_CASES: readonly IPolicyCase[] = [
   { command: 'npm i "${TARBALL}" --omit=dev --ignore-scripts', unpinned: true },
   { command: 'sudo npm update', unpinned: true },
   { command: 'sudo -E npm install', unpinned: true },
+  { command: 'sudo -u root npm install left-pad', unpinned: true },
+  { command: 'env -u CI npm install left-pad', unpinned: true },
+  { command: 'timeout 600 npm install', unpinned: true },
+  { command: 'nice -n 10 npm i left-pad', unpinned: true },
+  { command: 'xargs npm install', unpinned: true },
   { command: 'env CI=1 npm install', unpinned: true },
   { command: '/usr/local/bin/npm install-test', unpinned: true },
   { command: 'if npm install; then echo ok; fi', unpinned: true },
@@ -396,6 +430,8 @@ const POLICY_CASES: readonly IPolicyCase[] = [
   { command: 'RUN ["npm", "ci"]', unpinned: false },
   { command: 'npm ci --omit=dev --ignore-scripts --no-audit --no-fund', unpinned: false },
   { command: 'npm --prefix app ci', unpinned: false },
+  { command: 'sudo -u root npm ci', unpinned: false },
+  { command: 'command -v npm', unpinned: false },
   { command: "sh -c 'npm ci'", unpinned: false },
   { command: 'NPM_VERSION="$(npm --version)"', unpinned: false },
   { command: 'npm pkg set name=consumer-smoke', unpinned: false },
@@ -467,10 +503,13 @@ describe('Scorecard npm-pin gate', () => {
   /**
    * npm only ships 11.5.1+ with Node 24.5+, and no Node 22 release bundles it,
    * so the publish job takes its npm from Node 24 instead of downloading one.
+   * `check-latest` stops setup-node from settling for an older 24.x already in
+   * the runner's tool cache.
    */
   it('[SNP-4] the publish job runs on a Node line that bundles Trusted Publishing npm', () => {
     const setupNode = publishSteps().find(isSetupNode);
     expect(setupNode?.with?.['node-version-file']).toBeUndefined();
+    expect(setupNode?.with?.['check-latest']).toBe(true);
     const nodeVersion = String(setupNode?.with?.['node-version']);
     const major = Number.parseInt(nodeVersion, 10);
     expect(major).toBeGreaterThanOrEqual(MIN_PUBLISH_NODE_MAJOR);
