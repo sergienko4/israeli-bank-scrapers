@@ -9,6 +9,7 @@
  * Rule #18: every value is SYNTHETIC (no real PII, no real key material).
  */
 
+import type { JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonValue.js';
 import type { ISignedRequest } from './PepperSignatureOracle.js';
 import { headerOf, isValidSignature } from './PepperSignatureOracle.js';
 
@@ -24,8 +25,6 @@ const LOGIN_CHALLENGE = 'syn-login-challenge';
 const LOGIN_PWD_ASSERTION = 'syn-login-pwd-assert';
 const BIND_PWD_ASSERTION = 'syn-pwd-assert';
 const OTP_ASSERTION = 'syn-otp-assert';
-
-type JsonObject = Record<string, unknown>;
 
 /** Device the test registers before the run (an earlier enrollment). */
 interface ISeedDevice {
@@ -61,7 +60,7 @@ interface ISession {
 /** Reply the fetch mock turns into a Response-like. */
 interface IAuthReply {
   readonly status: number;
-  readonly payload: JsonObject;
+  readonly payload: JsonUnknownRecord;
 }
 
 /** Mutable server state shared by every route handler. */
@@ -75,7 +74,7 @@ interface IAuthServer {
 
 /** Signed request plus its parsed body. */
 interface IAuthRequest extends ISignedRequest {
-  readonly body: JsonObject;
+  readonly body: JsonUnknownRecord;
 }
 
 type RouteHandler = (server: IAuthServer, request: IAuthRequest) => IAuthReply;
@@ -85,7 +84,7 @@ type RouteHandler = (server: IAuthServer, request: IAuthRequest) => IAuthReply;
  * @param payload - Response JSON.
  * @returns Reply.
  */
-function ok(payload: JsonObject): IAuthReply {
+function ok(payload: JsonUnknownRecord): IAuthReply {
   return { status: 200, payload };
 }
 
@@ -107,10 +106,10 @@ function reject(server: IAuthServer, reason: string): IAuthReply {
  * @param key - Field name.
  * @returns Field value as an object, or an empty object.
  */
-function objectAt(source: JsonObject, key: string): JsonObject {
+function objectAt(source: JsonUnknownRecord, key: string): JsonUnknownRecord {
   const value = source[key];
   if (typeof value !== 'object' || value === null) return {};
-  return value as JsonObject;
+  return value as JsonUnknownRecord;
 }
 
 /**
@@ -119,7 +118,7 @@ function objectAt(source: JsonObject, key: string): JsonObject {
  * @param key - Field name.
  * @returns Field value, or '' when absent / not a string.
  */
-function textAt(source: JsonObject, key: string): string {
+function textAt(source: JsonUnknownRecord, key: string): string {
   const value = source[key];
   return typeof value === 'string' ? value : '';
 }
@@ -129,8 +128,8 @@ function textAt(source: JsonObject, key: string): string {
  * @param body - Parsed request body.
  * @returns Declared uid, or ''.
  */
-function uidOf(body: JsonObject): string {
-  const headers = Array.isArray(body.headers) ? (body.headers as JsonObject[]) : [];
+function uidOf(body: JsonUnknownRecord): string {
+  const headers = Array.isArray(body.headers) ? (body.headers as JsonUnknownRecord[]) : [];
   const entry = headers.find((header): boolean => header.type === 'uid');
   if (entry === undefined) return '';
   return textAt(entry, 'uid');
@@ -152,7 +151,7 @@ function queryOf(request: IAuthRequest, name: string): string {
  * @param body - Parsed request body.
  * @returns `data.params.CellPhoneID`, or ''.
  */
-function instanceIdOf(body: JsonObject): string {
+function instanceIdOf(body: JsonUnknownRecord): string {
   const data = objectAt(body, 'data');
   const params = objectAt(data, 'params');
   return textAt(params, 'CellPhoneID');
@@ -163,7 +162,7 @@ function instanceIdOf(body: JsonObject): string {
  * @param body - Parsed bind body.
  * @returns SPKI DER bytes, or false when the key is absent or not EC.
  */
-function boundKeyOf(body: JsonObject): Buffer | false {
+function boundKeyOf(body: JsonUnknownRecord): Buffer | false {
   const data = objectAt(body, 'data');
   const publicKey = objectAt(data, 'public_key');
   const keyText = textAt(publicKey, 'key');
@@ -178,7 +177,11 @@ function boundKeyOf(body: JsonObject): Buffer | false {
  * @param publicKeyDer - Verified device key.
  * @returns True once registered.
  */
-function registerBindDevice(server: IAuthServer, body: JsonObject, publicKeyDer: Buffer): true {
+function registerBindDevice(
+  server: IAuthServer,
+  body: JsonUnknownRecord,
+  publicKeyDer: Buffer,
+): true {
   const clientInstanceId = instanceIdOf(body);
   const uid = uidOf(body);
   const device = { deviceId: BIND_DEVICE_ID, publicKeyDer, clientInstanceId, uid };
@@ -266,7 +269,7 @@ function handleLogin(server: IAuthServer, request: IAuthRequest): IAuthReply {
 }
 
 /** Expected password-assertion fields per session kind. */
-const PASSWORD_ASSERTION: Readonly<Record<ISession['kind'], JsonObject>> = {
+const PASSWORD_ASSERTION: Readonly<Record<ISession['kind'], JsonUnknownRecord>> = {
   bind: { assertion_id: BIND_PWD_ASSERTION, fch: BIND_CHALLENGE, action: 'authentication' },
   login: { assertion_id: LOGIN_PWD_ASSERTION, fch: LOGIN_CHALLENGE, action: 'authentication' },
 };
@@ -278,7 +281,11 @@ const PASSWORD_ASSERTION: Readonly<Record<ISession['kind'], JsonObject>> = {
  * @param data - Assertion `data` object.
  * @returns True when every expected field matches.
  */
-function isPasswordAssertion(server: IAuthServer, session: ISession, data: JsonObject): boolean {
+function isPasswordAssertion(
+  server: IAuthServer,
+  session: ISession,
+  data: JsonUnknownRecord,
+): boolean {
   const expected = PASSWORD_ASSERTION[session.kind];
   const isNamed = Object.entries(expected).every(([key, value]): boolean => data[key] === value);
   const secret = objectAt(data, 'data');
@@ -312,7 +319,11 @@ function tokenReply(server: IAuthServer): IAuthReply {
  * @param data - Assertion `data` object.
  * @returns Next-step reply or a rejection.
  */
-function assertPassword(server: IAuthServer, session: ISession, data: JsonObject): IAuthReply {
+function assertPassword(
+  server: IAuthServer,
+  session: ISession,
+  data: JsonUnknownRecord,
+): IAuthReply {
   server.counts.assertPassword += 1;
   if (!isPasswordAssertion(server, session, data)) return reject(server, 'assert-password');
   if (session.kind === 'login') return tokenReply(server);
@@ -326,14 +337,18 @@ function assertPassword(server: IAuthServer, session: ISession, data: JsonObject
  * @param data - Assertion `data` object.
  * @returns Success reply or a rejection.
  */
-function assertOtp(server: IAuthServer, session: ISession, data: JsonObject): IAuthReply {
+function assertOtp(server: IAuthServer, session: ISession, data: JsonUnknownRecord): IAuthReply {
   server.counts.assertOtp += 1;
   const isBindOtp = session.kind === 'bind' && data.assertion_id === OTP_ASSERTION;
   if (!isBindOtp) return reject(server, 'assert-otp');
   return tokenReply(server);
 }
 
-type AssertionHandler = (server: IAuthServer, session: ISession, data: JsonObject) => IAuthReply;
+type AssertionHandler = (
+  server: IAuthServer,
+  session: ISession,
+  data: JsonUnknownRecord,
+) => IAuthReply;
 
 /** Assertion handlers keyed by `data.method`. */
 const ASSERTION_METHODS: Readonly<Record<string, AssertionHandler>> = {
@@ -348,7 +363,11 @@ const ASSERTION_METHODS: Readonly<Record<string, AssertionHandler>> = {
  * @param body - Parsed assert body.
  * @returns Assertion reply or a rejection.
  */
-function dispatchAssertion(server: IAuthServer, session: ISession, body: JsonObject): IAuthReply {
+function dispatchAssertion(
+  server: IAuthServer,
+  session: ISession,
+  body: JsonUnknownRecord,
+): IAuthReply {
   const data = objectAt(body, 'data');
   const method = textAt(data, 'method');
   const handler = ASSERTION_METHODS[method] as AssertionHandler | undefined;
@@ -384,10 +403,10 @@ const AUTH_ROUTES: Readonly<Record<string, RouteHandler>> = {
  * @param bodyText - Raw body.
  * @returns Parsed object, or an empty object.
  */
-function parseBody(bodyText: string): JsonObject {
+function parseBody(bodyText: string): JsonUnknownRecord {
   try {
     const parsed: unknown = JSON.parse(bodyText);
-    return typeof parsed === 'object' && parsed !== null ? (parsed as JsonObject) : {};
+    return typeof parsed === 'object' && parsed !== null ? (parsed as JsonUnknownRecord) : {};
   } catch {
     return {};
   }

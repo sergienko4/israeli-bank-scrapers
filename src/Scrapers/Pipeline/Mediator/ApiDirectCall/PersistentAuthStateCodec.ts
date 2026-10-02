@@ -10,13 +10,13 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import type { JsonUnknownRecord } from '../../Types/JsonValue.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { type IGenericKeypair, importEcP256Pkcs8 } from './Crypto/CryptoKeyFactory.js';
 import {
   type IPersistentAuthExpectation,
   type IPersistentAuthStateV1,
-  type RawState,
   STATE_KEYS,
   STATE_RULES,
 } from './PersistentAuthStateRules.js';
@@ -74,11 +74,11 @@ function decodeEnvelope(encoded: string): Procedure<string> {
  * @param text - JSON text.
  * @returns Parsed object, or false for a syntax error or non-object root.
  */
-function tryParseObject(text: string): RawState | false {
+function tryParseObject(text: string): JsonUnknownRecord | false {
   try {
     const parsed = JSON.parse(text) as unknown;
     const isObject = typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed);
-    return isObject ? (parsed as RawState) : false;
+    return isObject ? (parsed as JsonUnknownRecord) : false;
   } catch {
     return false;
   }
@@ -91,7 +91,7 @@ function tryParseObject(text: string): RawState | false {
  * @returns Typed state, or the first failing rule's category.
  */
 function validateFields(
-  raw: RawState,
+  raw: JsonUnknownRecord,
   expected: IPersistentAuthExpectation,
 ): Procedure<IPersistentAuthStateV1> {
   const broken = STATE_RULES.find((rule): boolean => !rule.isValid(raw, expected));

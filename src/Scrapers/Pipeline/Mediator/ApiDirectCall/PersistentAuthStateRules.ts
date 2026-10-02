@@ -5,6 +5,7 @@
  * passed in from the bank's config.
  */
 
+import type { JsonUnknownRecord } from '../../Types/JsonValue.js';
 import { decodeNumericClaim } from './Jwt/GenericJwtClaims.js';
 
 /** Decoded v1 payload — the only shape the codec accepts or emits. */
@@ -26,13 +27,10 @@ interface IPersistentAuthExpectation {
   readonly account: string;
 }
 
-/** Parsed JSON object still under validation. */
-type RawState = Readonly<Record<string, unknown>>;
-
 /** One validation rule: the failure category and the check that guards it. */
 interface IStateRule {
   readonly category: string;
-  readonly isValid: (raw: RawState, expected: IPersistentAuthExpectation) => boolean;
+  readonly isValid: (raw: JsonUnknownRecord, expected: IPersistentAuthExpectation) => boolean;
 }
 
 const KIB = 1024;
@@ -70,7 +68,7 @@ function isBoundedString(value: unknown, maxChars: number): value is string {
  * @param raw - Parsed state object.
  * @returns True when the key set matches.
  */
-function hasExactKeys(raw: RawState): boolean {
+function hasExactKeys(raw: JsonUnknownRecord): boolean {
   const keys = Object.keys(raw);
   if (keys.length !== STATE_KEYS.length) return false;
   return STATE_KEYS.every((key): boolean => Object.hasOwn(raw, key));
@@ -81,7 +79,7 @@ function hasExactKeys(raw: RawState): boolean {
  * @param raw - Parsed state object.
  * @returns True for version 1.
  */
-function isSupportedVersion(raw: RawState): boolean {
+function isSupportedVersion(raw: JsonUnknownRecord): boolean {
   return raw.version === STATE_VERSION;
 }
 
@@ -91,7 +89,7 @@ function isSupportedVersion(raw: RawState): boolean {
  * @param expected - Expected provider and account.
  * @returns True on an exact provider match.
  */
-function isExpectedProvider(raw: RawState, expected: IPersistentAuthExpectation): boolean {
+function isExpectedProvider(raw: JsonUnknownRecord, expected: IPersistentAuthExpectation): boolean {
   return raw.provider === expected.provider;
 }
 
@@ -101,7 +99,7 @@ function isExpectedProvider(raw: RawState, expected: IPersistentAuthExpectation)
  * @param expected - Expected provider and account.
  * @returns True on a bounded, exact account match.
  */
-function isExpectedAccount(raw: RawState, expected: IPersistentAuthExpectation): boolean {
+function isExpectedAccount(raw: JsonUnknownRecord, expected: IPersistentAuthExpectation): boolean {
   return isBoundedString(raw.account, MAX_ACCOUNT_CHARS) && raw.account === expected.account;
 }
 
@@ -110,7 +108,7 @@ function isExpectedAccount(raw: RawState, expected: IPersistentAuthExpectation):
  * @param raw - Parsed state object.
  * @returns True for a canonical UUID v4.
  */
-function isCanonicalInstanceId(raw: RawState): boolean {
+function isCanonicalInstanceId(raw: JsonUnknownRecord): boolean {
   const id = raw.clientInstanceId;
   return typeof id === 'string' && UUID_V4_PATTERN.test(id);
 }
@@ -120,7 +118,7 @@ function isCanonicalInstanceId(raw: RawState): boolean {
  * @param raw - Parsed state object.
  * @returns True for a bounded device ID.
  */
-function isBoundedDeviceId(raw: RawState): boolean {
+function isBoundedDeviceId(raw: JsonUnknownRecord): boolean {
   return isBoundedString(raw.deviceId, MAX_DEVICE_ID_CHARS);
 }
 
@@ -141,7 +139,7 @@ function isStructuralJwt(token: string): boolean {
  * @param raw - Parsed state object.
  * @returns True for a usable access token.
  */
-function isBoundedJwt(raw: RawState): boolean {
+function isBoundedJwt(raw: JsonUnknownRecord): boolean {
   const token = raw.accessToken;
   return isBoundedString(token, MAX_ACCESS_TOKEN_CHARS) && isStructuralJwt(token);
 }
@@ -151,7 +149,7 @@ function isBoundedJwt(raw: RawState): boolean {
  * @param raw - Parsed state object.
  * @returns True for bounded key text.
  */
-function isBoundedKeyText(raw: RawState): boolean {
+function isBoundedKeyText(raw: JsonUnknownRecord): boolean {
   return isBoundedString(raw.ecPrivateKeyPkcs8Base64, MAX_EC_KEY_CHARS);
 }
 
@@ -167,5 +165,5 @@ const STATE_RULES: readonly IStateRule[] = [
   { category: 'ecPrivateKey', isValid: isBoundedKeyText },
 ];
 
-export type { IPersistentAuthExpectation, IPersistentAuthStateV1, RawState };
+export type { IPersistentAuthExpectation, IPersistentAuthStateV1 };
 export { STATE_KEYS, STATE_RULES };
