@@ -102,22 +102,24 @@ function makeDurableConfig(): IApiDirectCallConfig {
   return { ...makeLegacyConfig(), persistentAuth: DURABLE_BLOCK };
 }
 
-/** Raw options plus whether the legacy token is also supplied. */
+/** Raw options, whether the legacy token is also supplied, and credential overrides. */
 interface ICtxInputs {
   readonly options: Readonly<Record<string, unknown>>;
   readonly hasToken: boolean;
+  readonly creds?: Readonly<Record<string, unknown>>;
 }
 
 /**
  * Build a context carrying raw options, the account phone and, optionally,
  * the legacy token. Options are `unknown` to model JavaScript callers.
- * @param inputs - Raw options and token presence.
+ * @param inputs - Raw options, token presence and credential overrides.
  * @returns Pipeline context.
  */
 function makeCtx(inputs: ICtxInputs): IPipelineContext {
   const base = makeMockContext();
   const token = inputs.hasToken ? { otpLongTermToken: LEGACY_TOKEN } : {};
-  const credentials = { ...base.credentials, phoneNumber: ACCOUNT_PHONE, ...token };
+  const phone = { phoneNumber: ACCOUNT_PHONE, ...inputs.creds };
+  const credentials = { ...base.credentials, ...phone, ...token };
   const options = { ...base.options, ...inputs.options };
   return { ...base, credentials, options };
 }
@@ -185,6 +187,24 @@ const INVALID_ROWS = [
   },
 ] as const;
 
+/** Durable options whose account credential is not usable text. */
+const NO_ACCOUNT_ROWS = [
+  { label: 'enroll, numeric phone', options: CALLBACK, creds: { phoneNumber: 972500000017 } },
+  { label: 'enroll, empty phone', options: CALLBACK, creds: { phoneNumber: '' } },
+  { label: 'enroll, missing phone', options: CALLBACK, creds: { phoneNumber: undefined } },
+  {
+    label: 'resume, numeric phone',
+    options: { ...STATE, ...CALLBACK },
+    creds: { phoneNumber: 972500000017 },
+  },
+] as const;
+
+/** The failure a durable run without a usable account receives. */
+const NO_ACCOUNT_FAILURE = {
+  success: false,
+  errorMessage: 'persistent auth options invalid: account',
+};
+
 /** The only verdict a bank without a persistent-auth block may receive. */
 const LEGACY_RESULT = succeed({ kind: 'legacy' });
 
@@ -232,19 +252,25 @@ describe('resolvePersistentAuthMode — durable bank', () => {
     expect(mode).toEqual(expected);
   });
 
-  it('treats a non-string account credential as an empty account', () => {
+  it.each(NO_ACCOUNT_ROWS)('$label fails with account only', ({ options, creds }) => {
     const config = makeDurableConfig();
-    const ctx = makeCtx({ options: CALLBACK, hasToken: false });
-    const input = readPersistentAuthInput(ctx);
-    const mode = resolvePersistentAuthMode(config, input, { phoneNumber: 972500000017 });
-    expect(isOk(mode) && mode.value.kind === 'enroll' && mode.value.account).toBe('');
+    const mode = resolveFor(config, { options, hasToken: false, creds });
+    expect(mode).toMatchObject(NO_ACCOUNT_FAILURE);
+  });
+
+  it('keeps a legacy run with a non-string account credential legacy', () => {
+    const config = makeDurableConfig();
+    const creds = { phoneNumber: 972500000017 };
+    const mode = resolveFor(config, { options: {}, hasToken: false, creds });
+    expect(mode).toEqual(LEGACY_RESULT);
   });
 
   it('treats an empty legacy token as absent', () => {
     const config = makeDurableConfig();
     const ctx = makeCtx({ options: CALLBACK, hasToken: false });
     const input = readPersistentAuthInput(ctx);
-    const mode = resolvePersistentAuthMode(config, input, { otpLongTermToken: '' });
+    const creds = { phoneNumber: ACCOUNT_PHONE, otpLongTermToken: '' };
+    const mode = resolvePersistentAuthMode(config, input, creds);
     expect(isOk(mode) && mode.value.kind).toBe('enroll');
   });
 });
@@ -334,6 +360,16 @@ describe('ApiDirectCall ACTION — durable mode wiring', () => {
         success: false,
         errorMessage: `persistent auth options invalid: ${category}`,
       });
+      expect(record).toEqual({ captures: [], creds: [], strategies: [], primeCalls: 0 });
+    },
+  );
+
+  it.each(NO_ACCOUNT_ROWS)(
+    '$label fails with account before any request or strategy',
+    async ({ options, creds }) => {
+      const config = makeDurableConfig();
+      const { result, record } = await runAction(config, { options, hasToken: false, creds });
+      expect(result).toMatchObject(NO_ACCOUNT_FAILURE);
       expect(record).toEqual({ captures: [], creds: [], strategies: [], primeCalls: 0 });
     },
   );

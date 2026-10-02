@@ -22,7 +22,7 @@ import {
 } from '../../Mediator/Network/FetchConfig.js';
 import { TimeoutError, timeoutPromise } from '../../Mediator/Timing/TimingActions.js';
 import type { Brand, SafeUrlForLog } from '../../Types/Brand.js';
-import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import { toError, toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
@@ -287,7 +287,7 @@ function logFetchStatus(verb: string, safeUrl: string, env: IPageFetchEnvelope):
  * @returns A Timeout failure for an expired deadline, otherwise Generic.
  */
 function toDispatchFailure(error: unknown, args: IDispatchArgs): Procedure<never> {
-  const rawReason = toErrorMessage(error as Error);
+  const rawReason = toError(error).message;
   const reason = scrubUrlFromText(rawReason, args.url);
   const safeUrl = safeUrlForLog(args.url);
   const message = `${args.verb} ${safeUrl} network error: ${reason}`;

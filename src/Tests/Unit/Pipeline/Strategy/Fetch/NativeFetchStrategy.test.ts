@@ -9,6 +9,7 @@ import { jest } from '@jest/globals';
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import { NativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import foreignRealmError from '../../../../Helpers/ForeignRealmError.js';
 
 type MockFetchImpl = (url: string, init: RequestInit) => Promise<Response>;
 type MockFetch = jest.Mock<Promise<Response>, [string, RequestInit]>;
@@ -321,12 +322,23 @@ function urlQuotingImpl(): MockFetchImpl {
   return rejectWith(quoting);
 }
 
+/**
+ * Fetch impl whose thrown URL-quoting error comes from another realm, as
+ * Node's own network errors do under Jest's ESM VM.
+ * @returns Mock impl.
+ */
+function foreignRealmImpl(): MockFetchImpl {
+  const foreign = foreignRealmError(`connect failed for ${SECRET_QUERY_URL}`);
+  return rejectWith(foreign);
+}
+
 /** Every transport failure that names the URL: label + fetch impl factory. */
 const URL_NAMING_FAILURES = [
   { label: 'non-2xx status', makeImpl: deniedImpl },
   { label: 'parse error', makeImpl: unparseableImpl },
   { label: 'network error', makeImpl: refusedImpl },
   { label: 'network error that quotes the URL', makeImpl: urlQuotingImpl },
+  { label: 'foreign-realm network error that quotes the URL', makeImpl: foreignRealmImpl },
 ] as const;
 
 describe('NativeFetchStrategy — failure messages never echo the query string', () => {

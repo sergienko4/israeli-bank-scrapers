@@ -16,6 +16,7 @@ import {
   createTimeoutError,
 } from '../../../../../Scrapers/Pipeline/Mediator/Timing/TimingActions.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import foreignRealmError from '../../../../Helpers/ForeignRealmError.js';
 
 /** Envelope returned by the in-page fetch wrapper. */
 interface IPageFetchEnvelope {
@@ -524,6 +525,18 @@ describe('CamoufoxIdentityFetchStrategy/failure text never echoes the query', ()
   it('OZ-CIT-21 — an in-page error that quotes the URL keeps origin + path only', async () => {
     const secretUrl = `${URL_OK}?did=SECRET-DEVICE-ID&aid=app`;
     STATE.evaluateRejection = new TypeError(`NetworkError when fetching ${secretUrl}`);
+    const r = await new STRATEGY(ORIGIN, false).fetchPost(secretUrl, {}, OPTS);
+    const wasOk = isOk(r);
+    expect(wasOk).toBe(false);
+    if (!isOk(r)) {
+      expect(r.errorMessage).toContain(`network error: NetworkError when fetching ${URL_OK}`);
+      expect(r.errorMessage).not.toContain('SECRET-DEVICE-ID');
+    }
+  });
+
+  it('OZ-CIT-21c — a foreign-realm error that quotes the URL still fails cleanly', async () => {
+    const secretUrl = `${URL_OK}?did=SECRET-DEVICE-ID&aid=app`;
+    STATE.evaluateRejection = foreignRealmError(`NetworkError when fetching ${secretUrl}`);
     const r = await new STRATEGY(ORIGIN, false).fetchPost(secretUrl, {}, OPTS);
     const wasOk = isOk(r);
     expect(wasOk).toBe(false);

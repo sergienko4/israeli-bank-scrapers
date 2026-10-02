@@ -1,15 +1,15 @@
 # Pepper (by Bank Leumi)
 
-| | |
-|---|---|
-| `CompanyTypes` | `Pepper` |
-| Engine | **API-direct** (no browser) |
-| Credentials | `phoneNumber`, `password`, `otpCodeRetriever` |
-| OTP | Required |
-| Phase chain | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md) |
-| Phone format | `international-flat` (`972000000000`) |
-| Durable auth | Opt-in — see [Durable device auth](#durable-device-auth-opt-in) |
-| Source | [`Banks/Pepper/PepperPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Pepper/PepperPipeline.ts) |
+|                |                                                                                                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CompanyTypes` | `Pepper`                                                                                                                                                     |
+| Engine         | **API-direct** (no browser)                                                                                                                                  |
+| Credentials    | `phoneNumber`, `password`, `otpCodeRetriever`                                                                                                                |
+| OTP            | Required                                                                                                                                                     |
+| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                        |
+| Phone format   | `international-flat` (`972000000000`)                                                                                                                        |
+| Durable auth   | Opt-in — see [Durable device auth](#durable-device-auth-opt-in)                                                                                              |
+| Source         | [`Banks/Pepper/PepperPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Pepper/PepperPipeline.ts) |
 
 ## Quick example
 
@@ -61,14 +61,14 @@ string counts as a supplied state and fails as
 
 ### What each run does
 
-| Options | Mode | Network and callback |
-| --- | --- | --- |
-| Neither option | Token-only (unchanged) | Existing behavior |
-| Callback, no state | Enrollment | The normal cold login — **one SMS** — then the callback once with the new state |
-| State and callback, token fresh for more than 5 minutes | Replay | Zero auth requests, no callback |
-| State and callback, token expiring or expired | Renewal | A signed login plus one password assertion — **no SMS** — then the callback once with the replacement state |
-| State without callback | Invalid | Fails before any request |
-| Either option with `otpLongTermToken` | Invalid | Fails before any request |
+| Options                                                 | Mode                   | Network and callback                                                                                        |
+| ------------------------------------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Neither option                                          | Token-only (unchanged) | Existing behavior                                                                                           |
+| Callback, no state                                      | Enrollment             | The normal cold login — **one SMS** — then the callback once with the new state                             |
+| State and callback, token fresh for more than 5 minutes | Replay                 | Zero auth requests, no callback                                                                             |
+| State and callback, token expiring or expired           | Renewal                | A signed login plus one password assertion — **no SMS** — then the callback once with the replacement state |
+| State without callback                                  | Invalid                | Fails before any request                                                                                    |
+| Either option with `otpLongTermToken`                   | Invalid                | Fails before any request                                                                                    |
 
 The phone credential is unchanged, so its type still requires an
 `otpCodeRetriever`. Enrollment calls it; replay and renewal are guaranteed
@@ -86,7 +86,8 @@ Store it like a password, and never log it or attach it to a bug report.
 ### The callback contract
 
 - Runs once after an enrollment or a renewal; never for a replay or a failed
-  run, and never retried.
+  auth flow, and never retried. The state it stored stays valid even if a
+  later data request in the same run fails.
 - Must resolve only after the state is durably stored. A rejection or throw
   fails the run before the new token is used.
 - Concurrency is the caller's job. Run one Pepper scrape per account at a time,
@@ -96,15 +97,17 @@ Store it like a password, and never log it or attach it to a bug report.
 
 ### Failures never fall back
 
-A durable run that fails never sends an SMS, never binds a new device, and
-never falls back to a cold login. Failures from the library's own checks are
+A failed resume never sends an SMS, never binds a new device, and never falls
+back to a cold login. In durable mode only an enrollment sends an SMS: once its
+OTP step has run, a later failure — such as a callback that rejects — has
+already used it. Failures from the library's own checks are
 `GENERIC` and carry only a category, never the state or the token:
 
-| Message | Categories |
-| --- | --- |
-| `persistent auth options invalid: <category>` | `malformed` (wrong runtime type), `state-with-legacy-token`, `callback-with-legacy-token`, `state-without-callback` |
-| `persistent auth state invalid: <category>` | `encoding` (including an empty string), `json`, `shape`, `version`, `provider`, `account` (state belongs to another phone number), `clientInstanceId`, `deviceId`, `accessToken`, `ecPrivateKey` |
-| `persistent auth failed: <category>` | `callback` (store rejected), `enrollment-budget`, `enrollment-identity`, `enrollment-key` |
+| Message                                       | Categories                                                                                                                                                                                        |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `persistent auth options invalid: <category>` | `malformed` (wrong runtime type), `state-with-legacy-token`, `callback-with-legacy-token`, `state-without-callback`, `account` (callback set, but the phone number is missing, empty or not text) |
+| `persistent auth state invalid: <category>`   | `encoding` (including an empty string), `json`, `shape`, `version`, `provider`, `account` (state belongs to another phone number), `clientInstanceId`, `deviceId`, `accessToken`, `ecPrivateKey`  |
+| `persistent auth failed: <category>`          | `callback` (store rejected), `enrollment-budget`, `enrollment-identity`, `enrollment-key`                                                                                                         |
 
 When Pepper itself refuses the renewal — an unknown device or a rejected
 signature — the run fails with the error the login step reports, still
@@ -151,10 +154,10 @@ cold SMS run, so it is a single-attempt suite rather than a
 WarmPathFallback one. Each flag is on when set to any non-empty value and off
 when unset or empty:
 
-| Flags | Run | SMS |
-| --- | --- | --- |
-| `PEPPER_PERSISTENT_AUTH` + `PEPPER_PERSISTENT_AUTH_ENROLL` | Enrollment; stores the state in `<os.tmpdir()>/pepper-durable.cache` | One |
-| `PEPPER_PERSISTENT_AUTH` | Resume from the cached state; replay or renewal, predicted from the cached token | None |
+| Flags                                                            | Run                                                                                         | SMS  |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ---- |
+| `PEPPER_PERSISTENT_AUTH` + `PEPPER_PERSISTENT_AUTH_ENROLL`       | Enrollment; stores the state in `<os.tmpdir()>/pepper-durable.cache`                        | One  |
+| `PEPPER_PERSISTENT_AUTH`                                         | Resume from the cached state; replay or renewal, predicted from the cached token            | None |
 | `PEPPER_PERSISTENT_AUTH` + `PEPPER_PERSISTENT_AUTH_FORCE_EXPIRY` | Resume with the cached token swapped, in memory only, for an expired one — forces a renewal | None |
 
 Without `PEPPER_PERSISTENT_AUTH` the durable suite skips, the legacy
@@ -197,7 +200,7 @@ future category is excluded rather than assumed serviceable.
 The inverse risk — silently dropping an account that holds real money — is
 handled by treating a product with **no usable category** as supported:
 absent, `null`, and blank values are all retained, so a schema change fails
-loudly at the resolver instead of vanishing. Only a non-blank *unrecognised*
+loudly at the resolver instead of vanishing. Only a non-blank _unrecognised_
 category is excluded, and the allow-list comparison stays exact so a padded
 near-miss such as `' Ils '` is never normalised into a supported value.
 
@@ -223,7 +226,7 @@ an under-count produced a negative delta that suppressed the report entirely.
 
 The containment is text-free and self-terminating. What the throw carries is
 bank-authored — an `Error.message` can quote an account number the payload
-held — so the warning names only the exception's *type*, never its message,
+held — so the warning names only the exception's _type_, never its message,
 keeping the counts-only promise the log line above already makes. And because
 the last thing that can fail is the act of reporting a failure, the warning
 emission is wrapped in turn: a logger whose `warn` throws is swallowed rather

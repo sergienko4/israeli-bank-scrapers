@@ -10,6 +10,7 @@ import { EventEmitter } from 'node:events';
 import type { IncomingMessage } from 'node:http';
 import { Agent } from 'node:https';
 
+import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
 import {
   buildMtlsAgent,
   collectBody,
@@ -33,6 +34,26 @@ import {
 interface IEcho {
   readonly ok: boolean;
   readonly method: string;
+}
+
+/** A request URL whose query carries a device id. */
+const QUERY_URL = 'https://127.0.0.1:1/auth?did=SECRET-DEVICE-ID';
+
+/**
+ * Fake engine connect step that fails quoting the full request URL.
+ * @returns Never; always throws.
+ */
+function failQuotingUrl(): never {
+  throw new ScraperError(`connect failed for ${QUERY_URL}`);
+}
+
+/**
+ * Build an agent whose connect step throws an engine error quoting the URL.
+ * @returns Agent that never opens a socket.
+ */
+function makeUrlQuotingAgent(): Agent {
+  const agent = new Agent({ keepAlive: false });
+  return Object.assign(agent, { createConnection: failQuotingUrl });
 }
 
 describe('MtlsTransport.buildMtlsAgent', () => {
@@ -164,6 +185,18 @@ describe('MtlsTransport.mtlsInvoke — against the simulated mTLS gate', () => {
     if (!isOk(result)) {
       expect(result.errorMessage).toContain('GET https://127.0.0.1:1/auth mtls error');
       expect(result.errorMessage).not.toContain('SECRET-DEVICE-ID');
+    }
+  });
+
+  it('scrubs the query string an engine error quotes back', async () => {
+    const agent = makeUrlQuotingAgent();
+    const init: RequestInit = { method: 'GET', headers: {} };
+    const result = await mtlsInvoke({ agent, url: QUERY_URL, init, verb: 'GET' });
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(false);
+    if (!isOk(result)) {
+      const context = 'GET https://127.0.0.1:1/auth mtls error: connect failed for';
+      expect(result.errorMessage).toBe(`${context} https://127.0.0.1:1/auth`);
     }
   });
 });

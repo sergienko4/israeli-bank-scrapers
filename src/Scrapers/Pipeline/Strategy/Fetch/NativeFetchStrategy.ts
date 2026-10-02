@@ -7,7 +7,7 @@
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { getDebug } from '../../Logging/Debug.js';
 import type { Brand } from '../../Types/Brand.js';
-import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import { toError, toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
@@ -115,13 +115,13 @@ function emitSetCookies(response: Response, hook?: IFetchOpts['onSetCookie']): S
 
 /**
  * Wrap a thrown fetch error into a network-error Procedure.
- * @param error - The caught value (Error or string).
+ * @param error - The caught value, from any realm.
  * @param verb - HTTP verb (for error-message prefixing).
  * @param url - Target URL (for error-message prefixing).
  * @returns Procedure failure annotated with the underlying reason.
  */
-function toNetworkFailure(error: Error | string, verb: HttpVerb, url: string): Procedure<Response> {
-  const rawReason = toErrorMessage(error);
+function toNetworkFailure(error: unknown, verb: HttpVerb, url: string): Procedure<Response> {
+  const rawReason = toError(error).message;
   const reason = scrubUrlFromText(rawReason, url);
   const safeUrl = safeUrlForLog(url);
   return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} network error: ${reason}`);
@@ -143,7 +143,7 @@ async function invokeFetch(
     const response = await globalThis.fetch(url, init);
     return succeed(response);
   } catch (error) {
-    return toNetworkFailure(error as Error, verb, url);
+    return toNetworkFailure(error, verb, url);
   }
 }
 

@@ -24,6 +24,7 @@ interface IOptionFacts {
   readonly hasState: boolean;
   readonly hasCallback: boolean;
   readonly hasLegacyToken: boolean;
+  readonly hasAccount: boolean;
 }
 
 /** One invalid option combination and the category it fails with. */
@@ -80,12 +81,23 @@ function hasStateWithoutCallback(facts: IOptionFacts): boolean {
   return facts.hasState && !facts.hasCallback;
 }
 
+/**
+ * Whether a durable run has no usable account to enroll or resume for. The
+ * stored state is bound to it, so it is checked before any request is sent.
+ * @param facts - Presence facts.
+ * @returns True when the callback is set but the account is not usable text.
+ */
+function hasCallbackWithoutAccount(facts: IOptionFacts): boolean {
+  return facts.hasCallback && !facts.hasAccount;
+}
+
 /** Invalid combinations from the approved mode table, checked in order. */
 const OPTION_RULES: readonly IOptionRule[] = [
   { category: 'malformed', isViolated: isMalformedInput },
   { category: 'state-with-legacy-token', isViolated: hasStateWithLegacyToken },
   { category: 'callback-with-legacy-token', isViolated: hasCallbackWithLegacyToken },
   { category: 'state-without-callback', isViolated: hasStateWithoutCallback },
+  { category: 'account', isViolated: hasCallbackWithoutAccount },
 ];
 
 /**
@@ -113,14 +125,16 @@ function hasLegacyToken(config: IApiDirectCallConfig, creds: GenericCreds): bool
 
 /**
  * Reduce the input to the presence facts the rules read.
- * @param input - Lifted persistent-auth options.
+ * @param args - Durable inputs for a bank with a persistent-auth block.
  * @param hasToken - Whether the legacy token is present.
  * @returns Presence facts.
  */
-function collectFacts(input: IPersistentAuthInput, hasToken: boolean): IOptionFacts {
-  const hasState = input.state.has;
-  const hasCallback = input.onUpdate.has;
-  return { isMalformed: input.isMalformed, hasState, hasCallback, hasLegacyToken: hasToken };
+function collectFacts(args: IDurableArgs, hasToken: boolean): IOptionFacts {
+  const { isMalformed, state, onUpdate } = args.input;
+  const account = readCredText(args.creds, args.block.accountField);
+  const hasAccount = account.length > 0;
+  const presence = { hasState: state.has, hasCallback: onUpdate.has };
+  return { isMalformed, ...presence, hasLegacyToken: hasToken, hasAccount };
 }
 
 /**
@@ -158,7 +172,7 @@ function pickValidMode(args: IDurableArgs): PersistentAuthMode {
  * @returns Resolved mode, or a category-only failure.
  */
 function resolveForBlock(args: IDurableArgs, hasToken: boolean): Procedure<PersistentAuthMode> {
-  const facts = collectFacts(args.input, hasToken);
+  const facts = collectFacts(args, hasToken);
   const broken = OPTION_RULES.find((rule): boolean => rule.isViolated(facts));
   if (broken !== undefined) {
     return fail(ScraperErrorTypes.Generic, `persistent auth options invalid: ${broken.category}`);
