@@ -22,17 +22,14 @@ import {
 } from '../../Mediator/Network/FetchConfig.js';
 import { TimeoutError, timeoutPromise } from '../../Mediator/Timing/TimingActions.js';
 import type { Brand, SafeUrlForLog } from '../../Types/Brand.js';
-import { toError, toErrorMessage } from '../../Types/ErrorUtils.js';
+import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
 import { digestResponse, type IResponseDigest } from './ResponseDigest.js';
-import { safeErrorText, safeUrlForLog } from './SafeUrlForLog.js';
+import { safeErrorSnippet, safeFailureText, safeUrlForLog } from './SafeUrlForLog.js';
 
 const LOG = getDebug(import.meta.url);
-
-/** Maximum length of a response-body snippet embedded in an error message. */
-const ERROR_BODY_SNIPPET_LEN = 120;
 
 /**
  * Cloudflare IE7-fallback HTML markers. A non-2xx response body containing
@@ -148,8 +145,7 @@ function classifyBody(body: string): ScraperErrorTypes {
  * @returns Structured failure with status + body snippet.
  */
 function classifyNon2xx<T>(env: IPageFetchEnvelope, verb: HttpVerb, url: string): Procedure<T> {
-  const rawSnippet = env.bodyText.slice(0, ERROR_BODY_SNIPPET_LEN);
-  const snippet = safeErrorText(rawSnippet, url);
+  const snippet = safeErrorSnippet(env.bodyText, url);
   const safeUrl = safeUrlForLog(url);
   const message = `${verb} ${safeUrl} ${String(env.status)}: ${snippet}`;
   const errorType = classifyBody(env.bodyText);
@@ -168,7 +164,7 @@ function parseJsonEnvelope<T>(env: IPageFetchEnvelope, verb: HttpVerb, url: stri
     const parsed = JSON.parse(env.bodyText) as T;
     return succeed(parsed);
   } catch (error) {
-    const reason = safeErrorText(toError(error).message, url);
+    const reason = safeFailureText(error, url);
     const safeUrl = safeUrlForLog(url);
     return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} parse error: ${reason}`);
   }
@@ -289,7 +285,7 @@ function logFetchStatus(verb: string, safeUrl: string, env: IPageFetchEnvelope):
  * @returns A Timeout failure for an expired deadline, otherwise Generic.
  */
 function toDispatchFailure(error: unknown, args: IDispatchArgs): Procedure<never> {
-  const reason = safeErrorText(toError(error).message, args.url);
+  const reason = safeFailureText(error, args.url);
   const safeUrl = safeUrlForLog(args.url);
   const message = `${args.verb} ${safeUrl} network error: ${reason}`;
   const isTimeout = error instanceof TimeoutError;
@@ -447,7 +443,7 @@ class CamoufoxIdentityFetchStrategy implements IFetchStrategy {
       this._page = page;
       return succeed(page);
     } catch (error) {
-      const reason = safeErrorText(toError(error).message, this._originUrl);
+      const reason = safeFailureText(error, this._originUrl);
       return fail(ScraperErrorTypes.Generic, `camoufox nav failed: ${reason}`);
     }
   }

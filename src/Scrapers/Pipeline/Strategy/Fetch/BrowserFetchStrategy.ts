@@ -25,7 +25,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, failWithDetails, succeed } from '../../Types/Procedure.js';
 import { hasCookieSentinel, substituteCookieHeaders } from './CookieHeaderSentinel.js';
 import type { IFetchOpts, IFetchStrategy } from './FetchStrategy.js';
-import { safeErrorText, safeUrlForLog } from './SafeUrlForLog.js';
+import { safeFailureText, safeUrlForLog } from './SafeUrlForLog.js';
 
 type IsTargetFrame = Brand<boolean, 'IsTargetFrame'>;
 
@@ -72,7 +72,7 @@ function resultToProcedure<T>(result: NullableFetchResult<T>, url: string): Proc
  * @returns The narrowest failure type the error supports.
  */
 function catchError(error: Error, url: string): Procedure<never> {
-  const message = safeErrorText(error.message, url);
+  const message = safeFailureText(error, url);
   if (error instanceof TimeoutError) return fail(ScraperErrorTypes.Timeout, message);
   const blockType = ScraperErrorTypes.WafBlocked;
   if (error instanceof WafBlockError) return failWithDetails(blockType, message, error.details);

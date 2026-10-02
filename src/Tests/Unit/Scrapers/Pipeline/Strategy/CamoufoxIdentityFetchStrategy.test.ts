@@ -31,6 +31,7 @@ interface IMockState {
   envelope: IPageFetchEnvelope;
   launchThrows: boolean;
   navThrows: boolean;
+  navRejectionText: string;
   evaluateThrows: boolean;
   evaluateRunsCallback: boolean;
   evaluateHangs: boolean;
@@ -52,6 +53,7 @@ const STATE: IMockState = {
   envelope: ENV_OK_DEFAULT,
   launchThrows: false,
   navThrows: false,
+  navRejectionText: 'nav failed',
   evaluateThrows: false,
   evaluateRunsCallback: false,
   evaluateHangs: false,
@@ -80,6 +82,7 @@ function resetState(): boolean {
     envelope: ENV_OK_DEFAULT,
     launchThrows: false,
     navThrows: false,
+    navRejectionText: 'nav failed',
     evaluateThrows: false,
     evaluateRunsCallback: false,
     evaluateHangs: false,
@@ -105,7 +108,7 @@ function buildMockBrowser(): unknown {
    */
   const goto = (url: string): Promise<unknown> => {
     STATE.pageGotos.push(url);
-    if (STATE.navThrows) return Promise.reject(new Error('nav failed'));
+    if (STATE.navThrows) return Promise.reject(new Error(STATE.navRejectionText));
     return Promise.resolve(null);
   };
   /** Args bundle that mirrors the strategy's IInPageFetchArgs. */
@@ -173,6 +176,7 @@ const ORIGIN = 'https://identity.tfd-bank.com';
 const URL_OK = 'https://identity.tfd-bank.com/v1/devices/token';
 const ECHO_URL = `${URL_OK}${ECHO_QUERY}`;
 const ECHOES = urlEchoesOf(URL_OK);
+const URL_QUOTING_ECHOES = ECHOES.filter(({ text }): boolean => text.includes('://'));
 const OPTS = { extraHeaders: {} };
 const ENV_OK: IPageFetchEnvelope = {
   ok: true,
@@ -325,6 +329,33 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
     expect(message).toContain(`POST ${URL_OK} 400:`);
     expect(leaked).toEqual([]);
   });
+
+  it.each(ECHOES)(
+    'OZ-CIT-24 — parse error over a body quoting $label leaks no secret',
+    async ({ text }) => {
+      STATE.envelope = { ...ENV_OK, bodyText: text };
+      const r = await new STRATEGY(ORIGIN, false).fetchPost(ECHO_URL, {}, OPTS);
+      const message = isOk(r) ? '' : r.errorMessage;
+      const leaked = leakedSecretsIn(message);
+      expect(message).toContain(`POST ${URL_OK} parse error`);
+      expect(leaked).toEqual([]);
+    },
+  );
+
+  // The navigation targets the bare origin, so only text quoting some other
+  // URL — a redirect, a call log — can carry a query back.
+  it.each(URL_QUOTING_ECHOES)(
+    'OZ-CIT-25 — nav failure quoting $label leaks no secret',
+    async ({ text }) => {
+      STATE.navThrows = true;
+      STATE.navRejectionText = text;
+      const r = await new STRATEGY(ORIGIN, false).fetchPost(ECHO_URL, {}, OPTS);
+      const message = isOk(r) ? '' : r.errorMessage;
+      const leaked = leakedSecretsIn(message);
+      expect(message).toContain('camoufox nav failed');
+      expect(leaked).toEqual([]);
+    },
+  );
 
   it('OZ-CIT-08 — launch failure surfaces as Generic launch failure', async () => {
     STATE.launchThrows = true;

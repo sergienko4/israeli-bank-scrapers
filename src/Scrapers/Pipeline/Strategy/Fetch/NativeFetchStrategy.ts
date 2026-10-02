@@ -7,20 +7,21 @@
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { getDebug } from '../../Logging/Debug.js';
 import type { Brand } from '../../Types/Brand.js';
-import { toError } from '../../Types/ErrorUtils.js';
 import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
-import { safeErrorText, safeUrlForLog } from './SafeUrlForLog.js';
+import {
+  safeErrorSnippet,
+  safeErrorText,
+  safeFailureText,
+  safeUrlForLog,
+} from './SafeUrlForLog.js';
 
 type SetCookieEmitCount = Brand<number, 'SetCookieEmitCount'>;
 type FullyQualifiedUrl = Brand<string, 'FullyQualifiedUrl'>;
 
 /** Module logger — name derived from source filename per project convention. */
 const LOG = getDebug(import.meta.url);
-
-/** Maximum length of a response-body snippet embedded in an error message. */
-const ERROR_BODY_SNIPPET_LEN = 120;
 
 /** HTTP method verbs used by this strategy. */
 type HttpVerb = 'GET' | 'POST';
@@ -61,7 +62,7 @@ async function parseJsonResponse<T>(
     const parsed = JSON.parse(rawText) as T;
     return succeed(parsed);
   } catch (error) {
-    const reason = safeErrorText(toError(error).message, url);
+    const reason = safeFailureText(error, url);
     const safeUrl = safeUrlForLog(url);
     return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} parse error: ${reason}`);
   }
@@ -80,8 +81,7 @@ async function classifyStatus<T>(
   url: string,
 ): Promise<Procedure<T>> {
   const rawText = await response.text();
-  const rawSnippet = rawText.slice(0, ERROR_BODY_SNIPPET_LEN);
-  const snippet = safeErrorText(rawSnippet, url);
+  const snippet = safeErrorSnippet(rawText, url);
   const safeUrl = safeUrlForLog(url);
   const message = `${verb} ${safeUrl} ${String(response.status)}: ${snippet}`;
   return fail(ScraperErrorTypes.Generic, message);
@@ -122,7 +122,7 @@ function emitSetCookies(response: Response, hook?: IFetchOpts['onSetCookie']): S
  * @returns Procedure failure annotated with the underlying reason.
  */
 function toNetworkFailure(error: Error | string, verb: HttpVerb, url: string): Procedure<Response> {
-  const reason = safeErrorText(toError(error).message, url);
+  const reason = safeFailureText(error, url);
   const safeUrl = safeUrlForLog(url);
   return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} network error: ${reason}`);
 }

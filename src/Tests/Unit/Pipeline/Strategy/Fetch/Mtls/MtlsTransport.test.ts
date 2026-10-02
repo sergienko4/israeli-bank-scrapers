@@ -10,6 +10,7 @@ import { EventEmitter } from 'node:events';
 import type { IncomingMessage } from 'node:http';
 import { Agent } from 'node:https';
 
+import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
 import {
   buildMtlsAgent,
   collectBody,
@@ -20,6 +21,11 @@ import {
   toResponse,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import { isOk } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import {
+  ECHO_QUERY,
+  leakedSecretsIn,
+  urlEchoesOf,
+} from '../../../../../Helpers/UrlEchoFixtures.js';
 import type { IGateServer } from './MtlsTestServer.js';
 import {
   buildCertAgent,
@@ -165,6 +171,50 @@ describe('MtlsTransport.mtlsInvoke — against the simulated mTLS gate', () => {
       expect(result.errorMessage).toContain('GET https://127.0.0.1:1/auth mtls error');
       expect(result.errorMessage).not.toContain('SECRET-DEVICE-ID');
     }
+  });
+});
+
+/** Origin + path the echo requests target. */
+const ECHO_BASE = 'https://127.0.0.1:1/auth';
+
+/** Every way a failure may quote a request to {@link ECHO_BASE}. */
+const ECHOES = urlEchoesOf(ECHO_BASE);
+
+/**
+ * An agent whose every connection fails with fixed text — stands in for any
+ * socket-level failure that quotes the request back.
+ */
+class EchoingAgent extends Agent {
+  private readonly _echo: string;
+
+  /**
+   * Arm the agent with the failure text.
+   * @param echo - Text the failed connection reports.
+   */
+  constructor(echo: string) {
+    super();
+    this._echo = echo;
+  }
+
+  /**
+   * Fail the connection with the armed text.
+   * @returns Never — always throws.
+   */
+  public override createConnection(): never {
+    throw new ScraperError(this._echo);
+  }
+}
+
+describe('MtlsTransport.mtlsInvoke — oracle: failure text quoting the request', () => {
+  it.each(ECHOES)('a socket failure quoting $label leaks no secret', async ({ text }) => {
+    const agent = new EchoingAgent(text);
+    const init: RequestInit = { method: 'GET', headers: {} };
+    const url = `${ECHO_BASE}${ECHO_QUERY}`;
+    const result = await mtlsInvoke({ agent, url, init, verb: 'GET' });
+    const message = isOk(result) ? '' : result.errorMessage;
+    const leaked = leakedSecretsIn(message);
+    expect(message).toContain(`GET ${ECHO_BASE} mtls error`);
+    expect(leaked).toEqual([]);
   });
 });
 

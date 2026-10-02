@@ -11,7 +11,12 @@ import { NativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/F
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { IUrlEcho } from '../../../../Helpers/UrlEchoFixtures.js';
-import { ECHO_QUERY, leakedSecretsIn, urlEchoesOf } from '../../../../Helpers/UrlEchoFixtures.js';
+import {
+  ECHO_QUERY,
+  leakedSecretsIn,
+  urlEchoesOf,
+  withEchoCredentials,
+} from '../../../../Helpers/UrlEchoFixtures.js';
 
 type MockFetchImpl = (url: string, init: RequestInit) => Promise<Response>;
 type MockFetch = jest.Mock<Promise<Response>, [string, RequestInit]>;
@@ -357,19 +362,8 @@ const ECHO_URL = `${ECHO_BASE}${ECHO_QUERY}`;
 /** Echo shapes for {@link ECHO_URL}. */
 const ECHOES = urlEchoesOf(ECHO_BASE);
 
-/**
- * The echo request with credentials added — real undici refuses it locally.
- * @returns The credential-bearing URL.
- */
-function credentialUrl(): string {
-  const url = new URL(ECHO_URL);
-  url.username = 'user';
-  url.password = 'pass';
-  return url.href;
-}
-
-/** Real undici rejects this before any socket opens and quotes the query. */
-const CREDENTIAL_URL = credentialUrl();
+/** Real undici rejects this before any socket opens and quotes it in full. */
+const CREDENTIAL_URL = withEchoCredentials(ECHO_URL);
 
 /** A host with a space: undici fails to parse it and echoes it verbatim. */
 const UNPARSEABLE_URL = `https://exa mple/x${ECHO_QUERY}`;

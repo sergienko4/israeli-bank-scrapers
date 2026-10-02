@@ -6,8 +6,8 @@
  */
 
 import ScraperError from '../../../../Base/ScraperError.js';
+import { safeUrlForLog } from '../../../Strategy/Fetch/SafeUrlForLog.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
-import { redactUrlFull } from '../../../Types/PiiRedactor.js';
 import { BODY_PREVIEW_LIMIT, NETWORK_FETCH_TIMEOUT_MS } from '../FetchConfig.js';
 import { getJsonHeaders, type JsonValue } from './Headers.js';
 import { LOG, logApiCall } from './Logging.js';
@@ -99,7 +99,7 @@ async function parseFetchGetResponse<TResult>(
   url: string,
   startMs: number,
 ): Promise<TResult> {
-  logApiCall(`GET ${redactUrlFull(url).slice(-100)}`, fetchResult.status, Date.now() - startMs);
+  logApiCall(`GET ${safeUrlForLog(url).slice(-100)}`, fetchResult.status, Date.now() - startMs);
   const text = await readBodyWithPreview(fetchResult);
   assertGetStatusOk(fetchResult);
   return JSON.parse(text) as TResult;
@@ -148,7 +148,7 @@ function buildPostInit(
  */
 async function sendPost(url: string, postInit: RequestInit, startMs: number): Promise<string> {
   const result = await fetchWithTimeout(url, postInit);
-  logApiCall(`POST ${redactUrlFull(url).slice(-100)}`, result.status, Date.now() - startMs);
+  logApiCall(`POST ${safeUrlForLog(url).slice(-100)}`, result.status, Date.now() - startMs);
   return readBodyWithPreview(result);
 }
 

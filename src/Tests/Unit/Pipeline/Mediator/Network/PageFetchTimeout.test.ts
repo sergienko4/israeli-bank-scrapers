@@ -34,6 +34,7 @@ import {
   NETWORK_FETCH_PAGE_TIMEOUT_MS,
   NETWORK_FETCH_TIMEOUT_MS,
 } from '../../../../../Scrapers/Pipeline/Mediator/Network/FetchConfig.js';
+import { ECHO_QUERY, leakedSecretsIn } from '../../../../Helpers/UrlEchoFixtures.js';
 
 const REAL_FETCH = globalThis.fetch;
 const REAL_TIMEOUT_FACTORY = AbortSignal.timeout.bind(AbortSignal);
@@ -529,11 +530,15 @@ describe('in-page timeout message redaction', () => {
    * Drive a carrier against a page that never settles until the Node deadline
    * fires, and hand back the resulting error.
    * @param run - Carrier entry point.
+   * @param url - URL the carrier requests.
    * @returns The rejection the caller would observe.
    */
-  async function timeoutError(run: (page: Page, url?: string) => Promise<unknown>): Promise<Error> {
+  async function timeoutError(
+    run: (page: Page, url?: string) => Promise<unknown>,
+    url: string = PII_URL,
+  ): Promise<Error> {
     const hangingPage = createHangingPage();
-    const pending = run(hangingPage, PII_URL);
+    const pending = run(hangingPage, url);
     const captured = pending.then(
       (value: unknown): unknown => value,
       (error: unknown): unknown => error,
@@ -553,5 +558,14 @@ describe('in-page timeout message redaction', () => {
   it.each(CARRIERS)('$label still identifies the request it timed out on', async ({ run }) => {
     const error = await timeoutError(run);
     expect(error.message).toContain(REDACTED_ACCOUNT_HINT);
+  });
+
+  // `redactUrlFull` masks query keys it knows; a device id travels under a key
+  // no list can name, so the label must drop the query outright.
+  it.each(CARRIERS)('$label names no query value it timed out on', async ({ run }) => {
+    const error = await timeoutError(run, `${PII_URL}&${ECHO_QUERY.slice(1)}`);
+    const leaked = leakedSecretsIn(error.message);
+    expect(error.message).toContain(REDACTED_ACCOUNT_HINT);
+    expect(leaked).toEqual([]);
   });
 });

@@ -83,30 +83,65 @@ FORENSIC_TRACE=true npm run test:e2e:real
 
 ## Transport failure text
 
-A request URL can carry device ids and session values in its query string.
-Pino's censor sees log *records*, not the text a transport puts in a failure
-message, so the transports keep that query out themselves.
+A request URL can carry device ids and session values in its query string,
+and an account or card number in its path. Pino's censor sees log *records*,
+not the text a transport puts in a failure message, so the fetch code keeps
+both out itself.
 
-Every transport (native fetch, Camoufox identity fetch, in-page browser fetch
-and mTLS) names a URL in its errors and debug logs through `safeUrlForLog`,
-which keeps only the origin and path.
+Every fetch path names a URL through `safeUrlForLog`. It keeps the origin and
+the path, drops the query, fragment and credentials, and masks each path
+segment of 4+ digits (dashes ignored) to its last four, as in
+`/accounts/***7890`. The fetch paths are:
+
+- the pipeline strategies (native fetch, Camoufox identity fetch, in-page
+  browser fetch and mTLS), in their errors and debug lines;
+- the Mediator's in-page and native fetch helpers, in their call, non-200 and
+  WAF log lines, their timeout messages and the `doPostFetch.headers` line;
+- the storage-frame auth discovery log.
+
+With `PII_REDACTION=off` the path stays unmasked; the query is still dropped.
 
 The URL the transport builds is not the only route a query can take. The
 runtime's exception text and the server's response body can quote the request
-back: undici's `Failed to parse URL from …`, a Playwright call log, or an error
-page that echoes `?did=…`. Before any such text becomes an `errorMessage`, a
-body snippet or a log line, `safeErrorText` cleans it against the request URL
-and returns it branded `SafeErrorText`:
+back: undici's `Failed to parse URL from …` (which quotes a
+credential-bearing URL in full), V8's `JSON.parse` quote of the body it
+choked on, a Playwright call log, or an error page that echoes `?did=…`.
+Before any such text becomes an `errorMessage`, a body snippet or a log line,
+`safeErrorText` cleans it against the request URL and returns it branded
+`SafeErrorText`:
 
-1. a quoted absolute URL is reduced to its origin and path;
-2. a query tail that still follows the path is cut;
-3. any query value of 8+ characters still quoted on its own, in wire or
-   percent-decoded form, becomes `<redacted>`.
+1. V8's quote of the body becomes `body is not valid JSON`;
+2. a quoted absolute URL is reduced to its origin and masked path;
+3. a query tail that still follows the path is cut;
+4. any query value with a form of 8+ characters still quoted on its own,
+   whether as sent, percent-decoded, or re-encoded with `+` or `%20` for a
+   space, becomes `<redacted>`.
 
-`NativeFetchStrategy` applies this once more to every failure its `_invoke`
-seam returns, so an mTLS agent or a test seam cannot bypass it. The oracle
-fixture `UrlEchoFixtures` lists the real echo shapes, and every transport's
-tests run each of them.
+`safeFailureText` applies this to whatever a transport caught, including a
+thrown value whose `message` is not a string. `safeErrorSnippet` cleans an
+error body *before* cutting it to `ERROR_BODY_SNIPPET_LEN` (120)
+characters. A cut made first could split a secret so no rule knows the half
+left behind. When the cleaned window itself cut the body, the snippet also
+drops as many trailing characters as the request's longest echo.
+
+`NativeFetchStrategy` applies the cleaner once more to every failure its
+`_invoke` seam returns, so an mTLS agent or a test seam cannot bypass it. The
+oracle fixture `UrlEchoFixtures` lists the real echo shapes, and every
+transport's tests run each of them.
+
+### Known gaps
+
+These routes are outside that guarantee:
+
+| Route | What it does |
+| --- | --- |
+| Legacy Mediator `fetchGet` / `fetchPost` / `fetchGraphql` | Throw runtime errors unchanged to the scrapers that call them; only their log URL labels are sanitized |
+| Mediator in-page `evaluate` rejections | Propagate the browser's text unchanged |
+| WAF bounce (`WafBlockError` blocked URL) | Uses `redactUrlFull`, which masks only known PII query keys |
+| URL discovery and network-dump logs | Use `redactUrlFull`, which masks only known PII query keys |
+| `logBodyPreview` | Logs a response-body head through `maskVisibleText`, not the request-echo cleaner |
+| Camoufox launch and dispose failures | Carry no request; their text is logged as is |
+| Benign over-redaction | Text that happens to equal a secret's short decoded form also becomes `<redacted>` |
 
 ### Failure text in log lines
 

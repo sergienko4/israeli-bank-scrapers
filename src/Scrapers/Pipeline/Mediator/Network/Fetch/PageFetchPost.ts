@@ -8,7 +8,7 @@
 import type { Frame, Page } from 'playwright-core';
 
 import type { Nullable } from '../../../../Base/Interfaces/CallbackTypes.js';
-import { redactUrlFull } from '../../../Types/PiiRedactor.js';
+import { safeUrlForLog } from '../../../Strategy/Fetch/SafeUrlForLog.js';
 import { timeoutPromise } from '../../Timing/TimingActions.js';
 import {
   JSON_CONTENT_TYPE,
@@ -89,7 +89,7 @@ function sortHeaderNames(headers: Record<string, string>): string[] {
 function buildDoPostFetchHeadersPayload(args: IPostEvaluateArgs): IDoPostFetchHeadersPayload {
   return {
     event: 'doPostFetch.headers',
-    url: args.innerUrl,
+    url: safeUrlForLog(args.innerUrl),
     headerNames: sortHeaderNames(args.innerExtraHeaders),
     bodyLen: args.innerDataJson.length,
   };
@@ -119,7 +119,7 @@ async function runPostEvaluate(
 ): Promise<PageFetchTuple> {
   logDoPostFetchHeaders(args);
   const pending = context.evaluate(doPostFetch, args);
-  const description = `in-page POST ${redactUrlFull(args.innerUrl)}`;
+  const description = `in-page POST ${safeUrlForLog(args.innerUrl)}`;
   return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, description);
 }
 
@@ -191,7 +191,7 @@ interface IFinalisePagePostArgs {
 function finalisePagePost<TResult>(args: IFinalisePagePostArgs): Nullable<TResult> {
   const { response, url, startMs, opts } = args;
   const [text, status] = response;
-  logApiCall(`POST(page) ${redactUrlFull(url).slice(-100)}`, status, Date.now() - startMs);
+  logApiCall(`POST(page) ${safeUrlForLog(url).slice(-100)}`, status, Date.now() - startMs);
   logResponseIssues(status, text, url);
   const facts = toResponseFacts(response, url);
   assertNotBounced(facts, opts.shouldIgnoreErrors === true);

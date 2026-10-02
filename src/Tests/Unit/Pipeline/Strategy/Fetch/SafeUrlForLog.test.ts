@@ -4,10 +4,19 @@
  */
 
 import {
+  ERROR_BODY_SNIPPET_LEN,
+  safeErrorSnippet,
   safeErrorText,
+  safeFailureText,
   safeUrlForLog,
 } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/SafeUrlForLog.js';
-import { ECHO_QUERY, leakedSecretsIn, urlEchoesOf } from '../../../../Helpers/UrlEchoFixtures.js';
+import { UNREPRESENTABLE_ERROR } from '../../../../../Scrapers/Pipeline/Types/ErrorUtils.js';
+import {
+  ECHO_QUERY,
+  ECHO_SECRET,
+  leakedSecretsIn,
+  urlEchoesOf,
+} from '../../../../Helpers/UrlEchoFixtures.js';
 
 const BASE = 'https://api.example/x';
 const REQUEST_URL = `${BASE}${ECHO_QUERY}`;
@@ -17,6 +26,11 @@ describe('safeUrlForLog', () => {
   it('keeps origin + path and drops query, fragment and credentials', () => {
     const safe = safeUrlForLog('https://u:p@api.example/x?did=1#frag');
     expect(safe).toBe('https://api.example/x');
+  });
+
+  it('masks an id-shaped path segment to its last four digits', () => {
+    const safe = safeUrlForLog('https://bank.co.il/api/accounts/1234567890/cards?token=t');
+    expect(safe).toBe('https://bank.co.il/api/accounts/***7890/cards');
   });
 
   it('names an unparseable URL without echoing it', () => {
@@ -74,5 +88,67 @@ describe('safeErrorText — keeps the diagnosis readable', () => {
   it('leaves text alone for a request with no query', () => {
     const safe = safeErrorText('500 internal error', BASE);
     expect(safe).toBe('500 internal error');
+  });
+});
+
+describe('safeErrorText — runtime wording', () => {
+  it('drops the body excerpt V8 quotes in a parse error', () => {
+    const parseError = 'Unexpected token \'S\', "SECRET-DEV"... is not valid JSON';
+    const safe = safeErrorText(parseError, BASE);
+    expect(safe).toBe("Unexpected token 'S', body is not valid JSON");
+  });
+
+  it('leaves every "?" in place for a request whose query is empty', () => {
+    const safe = safeErrorText('why? because? no#hash', `${BASE}?`);
+    expect(safe).toBe('why? because? no#hash');
+  });
+});
+
+describe('safeFailureText', () => {
+  it('sanitizes the message of whatever was thrown', () => {
+    const safe = safeFailureText(`unknown device ${ECHO_SECRET}`, REQUEST_URL);
+    expect(safe).toBe('unknown device <redacted>');
+  });
+
+  it('survives an error whose message is not a string', () => {
+    const odd = Object.assign(new Error('x'), { message: 42 });
+    const safe = safeFailureText(odd, REQUEST_URL);
+    expect(safe).toBe(UNREPRESENTABLE_ERROR);
+  });
+});
+
+/**
+ * A body whose secret starts `offset` characters after some URL echoes that
+ * shrink once cleaned — so the raw cut and the cleaned cut fall apart.
+ * @param offset - Padding before the secret.
+ * @returns The body text.
+ */
+function shrinkingBody(offset: number): string {
+  const echoes = `${REQUEST_URL} `.repeat(3);
+  const padding = 'y'.repeat(offset);
+  return `${echoes}${padding}${ECHO_SECRET} trailing`;
+}
+
+/** Every padding that walks the secret across both cut points. */
+const OFFSETS = Array.from({ length: 400 }, (_, offset): number => offset);
+
+describe('safeErrorSnippet', () => {
+  it('keeps a short body whole', () => {
+    const safe = safeErrorSnippet('{"error":"bad request"}', REQUEST_URL);
+    expect(safe).toBe('{"error":"bad request"}');
+  });
+
+  it('cuts a long clean body to the snippet length', () => {
+    const body = 'z'.repeat(ERROR_BODY_SNIPPET_LEN * 3);
+    const safe = safeErrorSnippet(body, REQUEST_URL);
+    expect(safe).toHaveLength(ERROR_BODY_SNIPPET_LEN);
+  });
+
+  it.each(OFFSETS)('leaks no fragment of a secret at offset %i', offset => {
+    const body = shrinkingBody(offset);
+    const safe = safeErrorSnippet(body, REQUEST_URL);
+    const leaked = leakedSecretsIn(safe);
+    expect(leaked).toEqual([]);
+    expect(safe.length).toBeLessThanOrEqual(ERROR_BODY_SNIPPET_LEN);
   });
 });

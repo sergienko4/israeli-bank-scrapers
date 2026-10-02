@@ -9,7 +9,7 @@
 import type { Frame, Page } from 'playwright-core';
 
 import type { Nullable } from '../../../../Base/Interfaces/CallbackTypes.js';
-import { redactUrlFull } from '../../../Types/PiiRedactor.js';
+import { safeUrlForLog } from '../../../Strategy/Fetch/SafeUrlForLog.js';
 import { timeoutPromise } from '../../Timing/TimingActions.js';
 import { NETWORK_FETCH_PAGE_TIMEOUT_MS, NETWORK_FETCH_TIMEOUT_MS } from '../FetchConfig.js';
 import type { PageFetchTuple } from './Bounce.js';
@@ -48,7 +48,7 @@ async function evalGetBody(args: IGetArgs): Promise<PageFetchTuple> {
 async function evaluateGet(context: Page | Frame, url: string): Promise<PageFetchTuple> {
   const timeoutMs = NETWORK_FETCH_PAGE_TIMEOUT_MS;
   const pending = context.evaluate(evalGetBody, { url, timeoutMs });
-  return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, `in-page GET ${redactUrlFull(url)}`);
+  return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, `in-page GET ${safeUrlForLog(url)}`);
 }
 
 /** Args for the in-page GET-with-headers evaluate callback. */
@@ -87,7 +87,7 @@ async function evaluateGetWithHeaders(
 ): Promise<PageFetchTuple> {
   const timeoutMs = NETWORK_FETCH_PAGE_TIMEOUT_MS;
   const pending = context.evaluate(evalGetWithHeadersBody, { url, headers, timeoutMs });
-  return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, `in-page GET ${redactUrlFull(url)}`);
+  return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, `in-page GET ${safeUrlForLog(url)}`);
 }
 
 /**
@@ -102,7 +102,7 @@ async function evaluateGetWithHeaders(
 function finalisePageGet<TResult>(args: IFinalisePageGetArgs): Nullable<TResult> {
   const { response, url, startMs, shouldIgnoreErrors } = args;
   const [result, status] = response;
-  logApiCall(`GET(page) ${redactUrlFull(url).slice(-100)}`, status, Date.now() - startMs);
+  logApiCall(`GET(page) ${safeUrlForLog(url).slice(-100)}`, status, Date.now() - startMs);
   logResponseIssues(status, result, url);
   const facts = toResponseFacts(response, url);
   assertNotBounced(facts, shouldIgnoreErrors);
