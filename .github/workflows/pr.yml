@@ -925,9 +925,11 @@ jobs:
   # disk and the runner sets `CI=true`. A defect that needs a
   # production install and an unset `CI` is unreachable from all of
   # them by construction. This job packs the real tarball, installs
-  # it into an empty project with `--omit=dev`, and runs a scrape
-  # with `CI` and `NODE_ENV` unset — the ordinary state of a
-  # consumer's app. See .github/scripts/ci/consumer-install.sh.
+  # it with `--omit=dev` into a scratch project — the production graph
+  # comes from our lockfile via `npm ci`, which Scorecard counts as
+  # pinned (alert #131) — and runs a scrape with `CI` and `NODE_ENV`
+  # unset, the ordinary state of a consumer's app. See
+  # .github/scripts/ci/consumer-install.sh.
   #
   # Hermetic: no bank is contacted (see the script's header).
   # ──────────────────────────────────────────────────────────────

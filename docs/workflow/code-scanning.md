@@ -57,14 +57,41 @@ one in the file it belongs to, with a reason, using the repository's existing
 convention:
 
 ```yaml
-- name: Upgrade npm for Trusted Publishing
-  # zizmor: ignore[adhoc-packages] — npm is the package manager itself, so it
-  # cannot come from our own lockfile. Hardened instead: exact version pin
-  # and `--ignore-scripts`.
+on:
+  # zizmor: ignore[dangerous-triggers] — no checkout of head code; see note above.
+  pull_request_target:
 ```
 
 Prefer this over raising a global threshold: the exemption stays next to the
 code it excuses, and the next finding of the same class still blocks.
+
+## npm installs: what Scorecard counts as pinned
+
+Scorecard's `PinnedDependenciesID` reads every workflow `run:` block, shell
+script and Dockerfile. It treats `npm install`, `npm i`, `npm install-test` and
+`npm update` as unpinned downloads, **exact version or not** — `npm@11.11.0`
+is still flagged. It accepts only two forms
+([`shell_download_validate.go`][scorecard-npm]):
+
+- `npm ci`, which installs what `package-lock.json` records and checks every
+  tarball against its committed hash;
+- a git URL (`github:`, `git+https:`, …) ending in `#<full commit hash>`.
+
+Alerts #35 and #131 were both this rule; a comment in `release.yml` had
+declared #35 closed on the strength of that exact pin. #35 was the publish job
+upgrading npm for Trusted Publishing: the job now runs Node 24 — 24.5 and
+later bundle npm 11.5.1+ — and fails closed on an older npm. #131 was the
+consumer-install gate installing the packed tarball: it now installs the locked
+production graph with `npm ci` and unpacks the tarball in place.
+
+`ScorecardNpmPinGate.test.ts` holds the line, and is stricter than the
+scanner: across every tracked workflow, shell script (by extension or shebang,
+so the husky hooks count) and Dockerfile it accepts **only** `npm ci` — not
+`npm install ci` or a commit-pinned git URL, both of which Scorecard lets
+through. Like Scorecard, it also reads `sh -c` bodies, command substitutions
+and exec-form `RUN` lines. It is a line-based heuristic, not Scorecard's shell
+parser: it reads heredoc bodies as ordinary lines, and cannot follow commands
+assembled at runtime (`eval`, variables).
 
 ## Standing finding 1: 28 Scorecard `PinnedDependenciesID` alerts — filtered from the SARIF
 
@@ -198,7 +225,11 @@ directory.
    from the SARIF before upload. If one appears anyway, the filter is broken
    (its line no longer matched `uses: $/…`, or the step was reordered after the
    upload) — fix the filter, do not dismiss the alert.
-4. **Scorecard `VulnerabilitiesID`?** Check the named GHSAs against the current
+4. **Scorecard `PinnedDependenciesID` on an `npm` line?** Real. Replace the
+   command with `npm ci` from a lockfile (see "npm installs" above) — an exact
+   version does not clear it — and `ScorecardNpmPinGate.test.ts` should have
+   caught it first.
+5. **Scorecard `VulnerabilitiesID`?** Check the named GHSAs against the current
    lockfile first; the check is a weekly snapshot and is often already fixed —
    alert 63 named two browserslist advisories that `9ebcbc7` had already
    closed. It is one aggregate alert over all the OSV findings it lists, so it
@@ -206,16 +237,17 @@ directory.
    adm-zip, whose advisory bounds the range with `last_affected: 0.6.0` rather
    than a `fixed` version; if Scorecard's handling of that shape changes, this
    alert re-raises on something we cannot fix (standing finding 2).
-5. Need a fresh Scorecard result now? `gh workflow run scorecard.yml`. The
+6. Need a fresh Scorecard result now? `gh workflow run scorecard.yml`. The
    weekly cadence alone meant a dependency fixed on a Tuesday stayed reported
    until the following Monday.
-6. **Scorecard run failed?** Every alert it owns freezes at the last
+7. **Scorecard run failed?** Every alert it owns freezes at the last
    successful snapshot until a run succeeds again. Read the log first. A
    `workflow verification failed` warning means the `scorecard` job holds a
    step the scorecard.dev API does not accept (`SCP-1` should have caught it).
 
 [self-repo-blog]: https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/
 [scorecard-5191]: https://github.com/ossf/scorecard/issues/5191
+[scorecard-npm]: https://github.com/ossf/scorecard/blob/main/checks/raw/shell_download_validate.go
 [scorecard-restrictions]: https://github.com/ossf/scorecard-action#workflow-restrictions
 [stale-config]: https://docs.github.com/en/code-security/how-tos/manage-security-alerts/manage-code-scanning-alerts/resolve-alerts#removing-stale-configurations-and-alerts-from-a-branch
 [adm-zip-advisory]: https://github.com/advisories/GHSA-vwc7-r8mq-g2x9

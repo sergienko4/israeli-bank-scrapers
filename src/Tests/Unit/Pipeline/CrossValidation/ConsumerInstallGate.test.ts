@@ -110,6 +110,16 @@ const GATE_SCRIPT_PROPERTIES: readonly IGateScriptProperty[] = [
     property: 'treats a silent exit as a failure rather than as no output',
     needle: 'the scrape never settled',
   },
+  {
+    id: 'CIG-10',
+    property: 'installs from the committed lockfile, so every tarball is hash-verified',
+    needle: 'npm ci --omit=dev',
+  },
+  {
+    id: 'CIG-11',
+    property: 'renames the scratch project, so Node cannot resolve the package to itself',
+    needle: 'npm pkg set name=',
+  },
 ];
 
 describe('consumer-install CI gate', () => {

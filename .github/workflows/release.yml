@@ -143,29 +143,30 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
         with:
-          node-version-file: .nvmrc
+          # Trusted Publishing requires npm 11.5.1+ (npm docs, "Trusted
+          # publishing for npm packages"). No Node 22 release bundles it —
+          # 22.x stops at npm 10 — while Node 24.5+ does, so this job runs on
+          # Node 24, as npm's own GitHub Actions example does, instead of
+          # `.nvmrc`. That retires the `npm install -g npm@…` self-upgrade
+          # Scorecard reported as an unpinned download (code-scanning alert
+          # #35); Scorecard does not count an exact version as a pin.
+          # `.nvmrc` stays the development toolchain, and Node 24 is a leg of
+          # the unit-test matrix in pr.yml.
+          node-version: '24'
           registry-url: https://registry.npmjs.org/
           cache: npm
-      - name: Upgrade npm for Trusted Publishing (OIDC requires npm 11.5.1+)
-        # zizmor: ignore[adhoc-packages] — npm is the package manager itself,
-        # so it cannot come from our own lockfile, and Trusted Publishing
-        # OIDC requires 11.5.1+. Hardened instead by an exact version pin and
-        # `--ignore-scripts`, plus the SHA-512 integrity npm checks on every
-        # tarball by default.
-        #
-        # Closes code-scanning alert #35 (Scorecard `PinnedDependenciesID`):
-        # `npm@11.11.0` is an exact pin, not a floating tag.
-        #
-        # This step used to pass `--audit-signatures` and claim it verified
-        # the registry signature before install. `npm install` has no such
-        # flag — npm 12 rejects it with EUNKNOWNCONFIG and older npm ignored
-        # it silently, so it verified nothing. Signature verification is the
-        # separate `npm audit signatures` command, which runs against an
-        # installed tree and so cannot guard the upgrade of the CLI itself.
+      - name: Require npm 11.5.1+ for Trusted Publishing
+        # `node-version: '24'` can resolve to a 24.x already cached on the
+        # runner, and 24.0–24.4 bundle an older npm. Without this check the
+        # OIDC exchange is skipped and publish dies with ENEEDAUTH.
         run: |
           set -euo pipefail
-          npm install -g npm@11.11.0 --ignore-scripts
-          npm --version | grep -q '^11\.' || (echo "ERROR: npm upgrade failed" && exit 1)
+          NPM_VERSION="$(npm --version)"
+          if ! printf '11.5.1\n%s\n' "$NPM_VERSION" | sort -V -C; then
+            echo "::error::npm ${NPM_VERSION} is older than 11.5.1, which Trusted Publishing requires."
+            exit 1
+          fi
+          echo "npm ${NPM_VERSION} supports Trusted Publishing."
       - run: npm ci
       - uses: $/.github/actions/build-package
       - name: Publish with provenance (Trusted Publishing OIDC)

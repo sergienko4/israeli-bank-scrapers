@@ -16,8 +16,16 @@
 #
 # So the failure is unreachable in CI by construction, not by accident. This
 # gate is the one place that leaves the working tree behind: it packs the real
-# tarball, installs it into an empty project with `--omit=dev`, and runs it
+# tarball, installs it into a scratch project with `--omit=dev`, and runs it
 # with `CI` and `NODE_ENV` explicitly unset.
+#
+# The scratch project installs the production graph our lockfile pins, root
+# `overrides` included, through `npm ci` - not a fresh resolve. OpenSSF
+# Scorecard classifies every `npm install` as an unpinned download, exact
+# version or not, and accepts `npm ci` (code-scanning alert #131). Both
+# defects this gate exists for survive that: devDependencies are still
+# absent, and the scrape still has to settle. What no pinned install can show
+# is the version drift a consumer's fresh resolve would pick up.
 #
 # WHAT IT ASSERTS
 # ---------------
@@ -98,11 +106,19 @@ npm pack --pack-destination "${WORK_DIR}" >/dev/null
 set -- "${WORK_DIR}"/*.tgz
 TARBALL="$1"
 
-echo "==> Installing into a clean project (--omit=dev)"
+echo "==> Installing the locked production graph (npm ci --omit=dev)"
 mkdir -p "${WORK_DIR}/app"
 cd "${WORK_DIR}/app"
-npm init -y >/dev/null 2>&1
-npm i "${TARBALL}" --omit=dev --ignore-scripts --no-audit --no-fund >/dev/null 2>&1
+cp "${REPO_ROOT}/package.json" "${REPO_ROOT}/package-lock.json" "${REPO_ROOT}/.npmrc" .
+# The package declares `exports`, so a project carrying its name would resolve
+# the import to itself instead of to node_modules.
+npm pkg set name=consumer-smoke
+npm ci --omit=dev --ignore-scripts --no-audit --no-fund >/dev/null 2>&1
+
+# Unpack the real tarball where installing it would have placed it.
+PKG_DIR="node_modules/${PKG_NAME}"
+mkdir -p "${PKG_DIR}"
+tar -xzf "${TARBALL}" -C "${PKG_DIR}" --strip-components=1
 cp "${REPO_ROOT}/.github/scripts/ci/consumer-smoke.cjs" ./smoke.cjs
 
 # `pino-pretty` must be absent, or the gate proves nothing: the transport
