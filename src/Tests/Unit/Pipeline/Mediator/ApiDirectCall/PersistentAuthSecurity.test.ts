@@ -274,6 +274,18 @@ describe('persistent-auth secrets stay out of errors and trace logs', () => {
     expect(leaked).toEqual([]);
     expect(message).toContain('POST https://sa.pepper.co.il/x 401: {"did":"[REDACTED]"');
   });
+
+  it('keeps stored values a renewal failure quotes back out of the trace log', async () => {
+    const { deviceId, clientInstanceId, accessToken } = STORED_EXPIRED.state;
+    const echoed = `401: {"did":"${deviceId}","cid":"${clientInstanceId}","jwt":"${accessToken}"}`;
+    const failure = FIXTURES.transportFailure(`POST https://sa.pepper.co.il/x ${echoed}`);
+    const scenario = { label: 'echo', responses: [failure], stored: STORED_EXPIRED };
+    await resolveScenario(scenario, FIXTURES.makeRecorder().onUpdate);
+    const emitted = LOG_LINES.join('\n');
+    const leaked = secretsOfEncoded(STORED_EXPIRED.encoded).filter(s => emitted.includes(s));
+    expect(emitted).toContain('firePost FAIL');
+    expect(leaked).toEqual([]);
+  });
 });
 
 /** Durable-auth test sources that must hold only synthetic secrets. */
