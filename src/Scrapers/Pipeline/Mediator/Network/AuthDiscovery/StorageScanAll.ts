@@ -6,6 +6,7 @@
 import type { Frame, Page } from 'playwright-core';
 
 import { getDebug } from '../../../Logging/Debug.js';
+import { safeUrlForLog } from '../../../Strategy/Fetch/SafeUrlForLog.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { tryParseJsonToken } from './Tokens.js';
 
@@ -35,7 +36,9 @@ async function scanFrameForTokens(frame: Frame): Promise<string | false> {
   const allValues = await readAllJsonStorageValues(frame);
   const tokenVal = allValues.find((v): boolean => tryParseJsonToken(v) !== false);
   if (!tokenVal) return false;
-  LOG.trace({ message: maskVisibleText(`Tier3c: token from frame ${frame.url().slice(0, 40)}`) });
+  const rawUrl = frame.url();
+  const frameUrl = safeUrlForLog(rawUrl);
+  LOG.trace({ message: maskVisibleText(`Tier3c: token from frame ${frameUrl}`) });
   return tryParseJsonToken(tokenVal);
 }
 

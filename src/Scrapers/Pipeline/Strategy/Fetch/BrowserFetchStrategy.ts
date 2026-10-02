@@ -20,11 +20,12 @@ import {
 } from '../../Mediator/Network/Fetch/index.js';
 import { TimeoutError } from '../../Mediator/Timing/TimingActions.js';
 import type { Brand } from '../../Types/Brand.js';
-import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import { toError } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, failWithDetails, succeed } from '../../Types/Procedure.js';
 import { hasCookieSentinel, substituteCookieHeaders } from './CookieHeaderSentinel.js';
 import type { IFetchOpts, IFetchStrategy } from './FetchStrategy.js';
+import { safeErrorText, safeUrlForLog } from './SafeUrlForLog.js';
 
 type IsTargetFrame = Brand<boolean, 'IsTargetFrame'>;
 
@@ -36,8 +37,8 @@ const LOG = getDebug(import.meta.url);
  * @returns A Generic failure Procedure.
  */
 function emptyResponseError(url: string): Procedure<never> {
-  const truncated = url.slice(-80);
-  return fail(ScraperErrorTypes.Generic, `Fetch returned empty response: ${truncated}`);
+  const safeUrl = safeUrlForLog(url);
+  return fail(ScraperErrorTypes.Generic, `Fetch returned empty response: ${safeUrl}`);
 }
 
 /** Nullable fetch result — truthy means data was returned. */
@@ -63,16 +64,38 @@ function resultToProcedure<T>(result: NullableFetchResult<T>, url: string): Proc
  * is preserved for the same reason: `ApiMediator` treats `WafBlocked` as
  * terminal, and flattening it to `Generic` would hide the block behind a retry.
  * Its `details` ride along, because `toLegacy` forwards them to the caller —
- * plain `fail` would return the right type with none of the evidence.
+ * plain `fail` would return the right type with none of the evidence. The
+ * message is URL-safe: page-fetch errors quote the request URL, and a bank URL
+ * carries tokens and ids in its query.
  * @param error - The caught error.
+ * @param url - The request URL, so any echo of its query can be cut.
  * @returns The narrowest failure type the error supports.
  */
-function catchError(error: Error): Procedure<never> {
-  const message = toErrorMessage(error);
+function catchError(error: Error, url: string): Procedure<never> {
+  const message = safeErrorText(error.message, url);
   if (error instanceof TimeoutError) return fail(ScraperErrorTypes.Timeout, message);
   const blockType = ScraperErrorTypes.WafBlocked;
   if (error instanceof WafBlockError) return failWithDetails(blockType, message, error.details);
   return fail(ScraperErrorTypes.Generic, message);
+}
+
+/**
+ * Settle a page fetch into a Procedure: empty → failure, throw → failure.
+ * @param pending - The in-flight page fetch.
+ * @param url - The request URL, for failure text.
+ * @returns Procedure with the parsed body or a URL-safe failure.
+ */
+async function settle<T>(
+  pending: Promise<NullableFetchResult<T>>,
+  url: string,
+): Promise<Procedure<T>> {
+  try {
+    const result = await pending;
+    return resultToProcedure(result, url);
+  } catch (error) {
+    const caught = toError(error);
+    return catchError(caught, url);
+  }
 }
 
 /**
@@ -91,7 +114,8 @@ function resolveContext(page: Page, targetUrl: string): Page | Frame {
     return (new URL(frameUrl).origin === targetOrigin) as IsTargetFrame;
   });
   if (frame) {
-    const frameUrl = frame.url().slice(0, 50);
+    const rawUrl = frame.url();
+    const frameUrl = safeUrlForLog(rawUrl);
     LOG.trace({
       message: `using iframe context: ${frameUrl}`,
     });
@@ -126,9 +150,8 @@ class BrowserFetchStrategy implements IFetchStrategy {
   ): Promise<Procedure<T>> {
     const ctx = resolveContext(this._page, url);
     const extraHeaders = await this.resolveHeaders(url, opts.extraHeaders);
-    return fetchPostWithinPage<T>(ctx, url, { data, extraHeaders })
-      .then((result): Procedure<T> => resultToProcedure(result, url))
-      .catch(catchError);
+    const pending = fetchPostWithinPage<T>(ctx, url, { data, extraHeaders });
+    return settle(pending, url);
   }
 
   /**
@@ -141,13 +164,11 @@ class BrowserFetchStrategy implements IFetchStrategy {
     const hasHeaders = Object.keys(opts.extraHeaders).length > 0;
     const ctx = resolveContext(this._page, url);
     if (!hasHeaders) {
-      return fetchGetWithinPage<T>(ctx, url, false)
-        .then((result): Procedure<T> => resultToProcedure(result, url))
-        .catch(catchError);
+      const pending = fetchGetWithinPage<T>(ctx, url, false);
+      return settle(pending, url);
     }
-    return fetchGetWithinPageWithHeaders<T>(ctx, url, opts.extraHeaders)
-      .then((result): Procedure<T> => resultToProcedure(result, url))
-      .catch(catchError);
+    const pending = fetchGetWithinPageWithHeaders<T>(ctx, url, opts.extraHeaders);
+    return settle(pending, url);
   }
 
   /**

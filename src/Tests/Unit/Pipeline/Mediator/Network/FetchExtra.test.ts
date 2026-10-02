@@ -8,6 +8,30 @@ import {
   detectWafBlock,
   fetchGetWithinPageWithHeaders,
 } from '../../../../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js';
+import { ECHO_QUERY, leakedSecretsIn, urlEchoesOf } from '../../../../Helpers/UrlEchoFixtures.js';
+
+/** Origin + path the echo requests target. */
+const ECHO_BASE = 'https://api.example/x';
+
+/** The secret-carrying request every echo test sends. */
+const ECHO_URL = `${ECHO_BASE}${ECHO_QUERY}`;
+
+/** Echo shapes for {@link ECHO_URL}. */
+const ECHOES = urlEchoesOf(ECHO_BASE);
+
+/**
+ * Message a pending call rejects with ('' when it resolves).
+ * @param pending - The call under test.
+ * @returns The rejection message.
+ */
+async function rejectionTextOf(pending: Promise<unknown>): Promise<string> {
+  try {
+    await pending;
+    return '';
+  } catch (error: unknown) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
 
 /**
  * Build a mock Page whose evaluate returns a scripted tuple.
@@ -62,5 +86,14 @@ describe('fetchGetWithinPageWithHeaders', () => {
       {},
     );
     await expect(fetchGetWithinPageWithHeadersResult2).rejects.toThrow(/parse error/);
+  });
+
+  it.each(ECHOES)('a parse error over a body quoting $label leaks no secret', async ({ text }) => {
+    const page = makePage(text, 200);
+    const pending = fetchGetWithinPageWithHeaders(page, ECHO_URL, {});
+    const message = await rejectionTextOf(pending);
+    const leaked = leakedSecretsIn(message);
+    expect(message).toContain(`url: ${ECHO_BASE},`);
+    expect(leaked).toEqual([]);
   });
 });

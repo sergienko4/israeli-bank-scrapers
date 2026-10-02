@@ -8,7 +8,8 @@
 
 import type { Nullable } from '../../../../Base/Interfaces/CallbackTypes.js';
 import ScraperError from '../../../../Base/ScraperError.js';
-import { toErrorMessage } from '../../../Types/ErrorUtils.js';
+import { safeErrorText, safeUrlForLog } from '../../../Strategy/Fetch/SafeUrlForLog.js';
+import { toError } from '../../../Types/ErrorUtils.js';
 import type { JsonUnknown } from '../../../Types/JsonValue.js';
 
 /** Typed null value for Nullable return types — avoids the no-restricted-syntax rule on `return null`. */
@@ -25,13 +26,16 @@ export interface IParseErrorOpts {
 
 /**
  * Build the human-readable ScraperError message for a JSON parse failure.
+ * The URL is cut to origin + path — the message reaches the caller's logs and
+ * a bank URL carries tokens and ids in its query.
  * @param opts - Parse error details.
  * @returns Formatted error message.
  */
 function buildParseErrorMessage(opts: IParseErrorOpts): string {
-  const msg = toErrorMessage(opts.err);
+  const msg = safeErrorText(toError(opts.err).message, opts.url);
+  const safeUrl = safeUrlForLog(opts.url);
   const statusStr = String(opts.status);
-  return `${opts.context} parse error: ${msg}, url: ${opts.url}, status: ${statusStr}`;
+  return `${opts.context} parse error: ${msg}, url: ${safeUrl}, status: ${statusStr}`;
 }
 
 /**

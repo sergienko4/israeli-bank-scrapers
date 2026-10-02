@@ -11,10 +11,11 @@ import type { ClientRequest, IncomingMessage } from 'node:http';
 import { Agent, request as httpsRequest, type RequestOptions } from 'node:https';
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { toErrorMessage } from '../../../Types/ErrorUtils.js';
+import { toError } from '../../../Types/ErrorUtils.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import type { FetchInvoke, HttpVerb } from '../NativeFetchStrategy.js';
+import { safeErrorText, safeUrlForLog } from '../SafeUrlForLog.js';
 import type { ICertBundle } from './OneZeroClientCert.js';
 
 /**
@@ -230,8 +231,9 @@ async function mtlsInvoke(request: IMtlsRequest): Promise<Procedure<Response>> {
     const response = toResponse(message, body);
     return succeed(response);
   } catch (error) {
-    const reason = toErrorMessage(error as Error);
-    return fail(ScraperErrorTypes.Generic, `${request.verb} ${request.url} mtls error: ${reason}`);
+    const reason = safeErrorText(toError(error).message, request.url);
+    const safeUrl = safeUrlForLog(request.url);
+    return fail(ScraperErrorTypes.Generic, `${request.verb} ${safeUrl} mtls error: ${reason}`);
   }
 }
 

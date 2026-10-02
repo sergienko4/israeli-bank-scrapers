@@ -6,12 +6,12 @@
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { getDebug } from '../../Logging/Debug.js';
-import type { Brand, SafeUrlForLog } from '../../Types/Brand.js';
-import { mintSafeUrlForLog } from '../../Types/Brand.js';
-import { toErrorMessage } from '../../Types/ErrorUtils.js';
-import type { Procedure } from '../../Types/Procedure.js';
+import type { Brand } from '../../Types/Brand.js';
+import { toError } from '../../Types/ErrorUtils.js';
+import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
+import { safeErrorText, safeUrlForLog } from './SafeUrlForLog.js';
 
 type SetCookieEmitCount = Brand<number, 'SetCookieEmitCount'>;
 type FullyQualifiedUrl = Brand<string, 'FullyQualifiedUrl'>;
@@ -21,24 +21,6 @@ const LOG = getDebug(import.meta.url);
 
 /** Maximum length of a response-body snippet embedded in an error message. */
 const ERROR_BODY_SNIPPET_LEN = 120;
-
-/**
- * Strip query string and credentials from a URL for safe logging.
- * Per `logging-pii-guidlines.txt`, never log query parameters that may
- * carry session ids, tokens, or PII (uid, phoneNumber, etc.). Returns
- * `<scheme>//<host><path>` only — enough for traceability without
- * leaking sensitive fields.
- * @param url - Full URL to sanitize.
- * @returns Origin + path only as a branded SafeUrlForLog.
- */
-function safeUrlForLog(url: string): SafeUrlForLog {
-  try {
-    const parsed = new URL(url);
-    return mintSafeUrlForLog(`${parsed.origin}${parsed.pathname}`);
-  } catch {
-    return mintSafeUrlForLog('<unparseable>');
-  }
-}
 
 /** HTTP method verbs used by this strategy. */
 type HttpVerb = 'GET' | 'POST';
@@ -79,8 +61,9 @@ async function parseJsonResponse<T>(
     const parsed = JSON.parse(rawText) as T;
     return succeed(parsed);
   } catch (error) {
-    const reason = toErrorMessage(error as Error);
-    return fail(ScraperErrorTypes.Generic, `${verb} ${url} parse error: ${reason}`);
+    const reason = safeErrorText(toError(error).message, url);
+    const safeUrl = safeUrlForLog(url);
+    return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} parse error: ${reason}`);
   }
 }
 
@@ -97,8 +80,10 @@ async function classifyStatus<T>(
   url: string,
 ): Promise<Procedure<T>> {
   const rawText = await response.text();
-  const snippet = rawText.slice(0, ERROR_BODY_SNIPPET_LEN);
-  const message = `${verb} ${url} ${String(response.status)}: ${snippet}`;
+  const rawSnippet = rawText.slice(0, ERROR_BODY_SNIPPET_LEN);
+  const snippet = safeErrorText(rawSnippet, url);
+  const safeUrl = safeUrlForLog(url);
+  const message = `${verb} ${safeUrl} ${String(response.status)}: ${snippet}`;
   return fail(ScraperErrorTypes.Generic, message);
 }
 
@@ -137,8 +122,9 @@ function emitSetCookies(response: Response, hook?: IFetchOpts['onSetCookie']): S
  * @returns Procedure failure annotated with the underlying reason.
  */
 function toNetworkFailure(error: Error | string, verb: HttpVerb, url: string): Procedure<Response> {
-  const reason = toErrorMessage(error);
-  return fail(ScraperErrorTypes.Generic, `${verb} ${url} network error: ${reason}`);
+  const reason = safeErrorText(toError(error).message, url);
+  const safeUrl = safeUrlForLog(url);
+  return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} network error: ${reason}`);
 }
 
 /**
@@ -171,6 +157,21 @@ interface IDispatchArgs {
 }
 
 /**
+ * Log an invoke failure and hand it on with URL-safe text. Every `_invoke`
+ * seam (native fetch, mTLS agent, injected fallbacks) funnels through here,
+ * so no transport can leak a request query in its own failure wording.
+ * @param failure - The invoke failure.
+ * @param args - Dispatch args (verb + URL).
+ * @returns The same failure with its message sanitized.
+ */
+function toSafeInvokeFailure(failure: IProcedureFailure, args: IDispatchArgs): IProcedureFailure {
+  const errorMessage = safeErrorText(failure.errorMessage, args.url);
+  const url = safeUrlForLog(args.url);
+  LOG.debug({ verb: args.verb, url, errorMessage, message: '[fetch] NETWORK FAIL' });
+  return { ...failure, errorMessage };
+}
+
+/**
  * Dispatch a fetch call and route success/non-2xx through the helpers.
  * Emits PII-safe DEBUG traces at fire and after-status. Per
  * `logging-pii-guidlines.txt`, the URL is stripped of query string
@@ -182,15 +183,7 @@ async function dispatchFetch<T>(args: IDispatchArgs): Promise<Procedure<T>> {
   const safeUrl = safeUrlForLog(args.url);
   LOG.debug({ verb: args.verb, url: safeUrl, message: '[fetch] FIRE' });
   const fetchResult = await args.invoke(args.url, args.init, args.verb);
-  if (!fetchResult.success) {
-    LOG.debug({
-      verb: args.verb,
-      url: safeUrl,
-      errorMessage: fetchResult.errorMessage,
-      message: '[fetch] NETWORK FAIL',
-    });
-    return fetchResult;
-  }
+  if (!fetchResult.success) return toSafeInvokeFailure(fetchResult, args);
   const status = fetchResult.value.status;
   LOG.debug({ verb: args.verb, url: safeUrl, status, message: '[fetch] STATUS' });
   emitSetCookies(fetchResult.value, args.onSetCookie);

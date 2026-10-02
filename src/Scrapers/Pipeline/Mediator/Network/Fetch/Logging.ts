@@ -7,6 +7,7 @@
  */
 
 import { getDebug } from '../../../Logging/Debug.js';
+import { safeUrlForLog } from '../../../Strategy/Fetch/SafeUrlForLog.js';
 import type { Brand } from '../../../Types/Brand.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { BODY_PREVIEW_LIMIT } from '../FetchConfig.js';
@@ -54,7 +55,7 @@ function logBodyPreview(text: string): LogEmitted {
  */
 function logNon200(status: number, url: string): LogEmitted {
   if (status === 200 || status === 204) return EMITTED;
-  LOG.debug({ message: `non-200: status=${String(status)} url=${maskVisibleText(url)}` });
+  LOG.debug({ message: `non-200: status=${String(status)} url=${safeUrlForLog(url)}` });
   return EMITTED;
 }
 
@@ -68,7 +69,7 @@ function logNon200(status: number, url: string): LogEmitted {
 function logWafBlock(status: number, text: string, url: string): LogEmitted {
   const wafReason = detectWafBlock(status, text);
   if (!wafReason) return EMITTED;
-  LOG.debug({ message: `WAF block: ${wafReason} url=${maskVisibleText(url)}` });
+  LOG.debug({ message: `WAF block: ${wafReason} url=${safeUrlForLog(url)}` });
   return EMITTED;
 }
 

@@ -8,7 +8,10 @@ import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import { NativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js';
-import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { fail, isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import type { IUrlEcho } from '../../../../Helpers/UrlEchoFixtures.js';
+import { ECHO_QUERY, leakedSecretsIn, urlEchoesOf } from '../../../../Helpers/UrlEchoFixtures.js';
 
 type MockFetchImpl = (url: string, init: RequestInit) => Promise<Response>;
 type MockFetch = jest.Mock<Promise<Response>, [string, RequestInit]>;
@@ -280,6 +283,171 @@ describe('NativeFetchStrategy — failure paths', () => {
       expect(result.errorMessage).toContain('network error');
       expect(result.errorMessage).toContain('connection refused');
     }
+  });
+});
+
+/** URL whose query carries a device-bound secret, as Pepper's auth calls do. */
+const SECRET_QUERY_URL = 'https://api.example/x?did=SECRET-DEVICE-ID&aid=app';
+
+/**
+ * Fetch impl answering 401.
+ * @returns Mock impl.
+ */
+function deniedImpl(): MockFetchImpl {
+  return respondWith(401, 'denied');
+}
+
+/**
+ * Fetch impl answering 200 with a non-JSON body.
+ * @returns Mock impl.
+ */
+function unparseableImpl(): MockFetchImpl {
+  return respondWith(200, 'not-json');
+}
+
+/**
+ * Fetch impl that throws a network error.
+ * @returns Mock impl.
+ */
+function refusedImpl(): MockFetchImpl {
+  const refused = new Error('connection refused');
+  return rejectWith(refused);
+}
+
+/** Every transport failure that names the URL: label + fetch impl factory. */
+const URL_NAMING_FAILURES = [
+  { label: 'non-2xx status', makeImpl: deniedImpl },
+  { label: 'parse error', makeImpl: unparseableImpl },
+  { label: 'network error', makeImpl: refusedImpl },
+] as const;
+
+describe('NativeFetchStrategy — failure messages never echo the query string', () => {
+  let originalFetch: typeof globalThis.fetch;
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it.each(URL_NAMING_FAILURES)('$label names origin + path only', async ({ makeImpl }) => {
+    const impl = makeImpl();
+    installFetchMock(impl);
+    const strategy = new NativeFetchStrategy('https://api.example');
+    const result = await strategy.fetchPost(SECRET_QUERY_URL, {}, { extraHeaders: {} });
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorMessage).toContain('POST https://api.example/x ');
+      expect(result.errorMessage).not.toContain('SECRET-DEVICE-ID');
+      expect(result.errorMessage).not.toContain('?');
+    }
+  });
+});
+
+/** The runtime's own fetch, captured before any test swaps it for a mock. */
+const REAL_FETCH = globalThis.fetch;
+
+/** Origin + path the echo requests target. */
+const ECHO_BASE = 'https://api.example/x';
+
+/** The secret-carrying request every echo test sends. */
+const ECHO_URL = `${ECHO_BASE}${ECHO_QUERY}`;
+
+/** Echo shapes for {@link ECHO_URL}. */
+const ECHOES = urlEchoesOf(ECHO_BASE);
+
+/**
+ * The echo request with credentials added — real undici refuses it locally.
+ * @returns The credential-bearing URL.
+ */
+function credentialUrl(): string {
+  const url = new URL(ECHO_URL);
+  url.username = 'user';
+  url.password = 'pass';
+  return url.href;
+}
+
+/** Real undici rejects this before any socket opens and quotes the query. */
+const CREDENTIAL_URL = credentialUrl();
+
+/** A host with a space: undici fails to parse it and echoes it verbatim. */
+const UNPARSEABLE_URL = `https://exa mple/x${ECHO_QUERY}`;
+
+/** One mocked transport behaviour that quotes the request back. */
+interface IEchoFailure {
+  readonly label: string;
+  readonly impl: MockFetchImpl;
+}
+
+/**
+ * One echo shape as three transport behaviours.
+ * @param echo - The echo row.
+ * @returns Network reject, error body and non-JSON 2xx body rows.
+ */
+function echoFailuresOf(echo: IUrlEcho): readonly IEchoFailure[] {
+  const error = new Error(echo.text);
+  return [
+    { label: `network error quoting ${echo.label}`, impl: rejectWith(error) },
+    { label: `non-2xx body with ${echo.label}`, impl: respondWith(400, echo.text) },
+    { label: `non-JSON 2xx body with ${echo.label}`, impl: respondWith(200, echo.text) },
+  ];
+}
+
+/** Every echo shape through every way the native transport can fail. */
+const ECHO_FAILURES = ECHOES.flatMap(echoFailuresOf);
+
+/** Strategy whose `_invoke` seam fails with text that quotes the request. */
+class EchoingInvokeStrategy extends NativeFetchStrategy {
+  /**
+   * Arm the seam with a fixed failure.
+   * @param echo - Failure text the seam reports.
+   */
+  constructor(echo: string) {
+    super('https://api.example');
+    const failure = fail(ScraperErrorTypes.Generic, echo);
+    /**
+     * Seam replacement — always the armed failure.
+     * @returns The armed failure.
+     */
+    this._invoke = (): Promise<Procedure<Response>> => Promise.resolve(failure);
+  }
+}
+
+describe('NativeFetchStrategy — oracle: failure text quoting the request leaks no secret', () => {
+  afterEach(() => {
+    globalThis.fetch = REAL_FETCH;
+  });
+
+  it.each(ECHO_FAILURES)('$label', async ({ impl }) => {
+    installFetchMock(impl);
+    const strategy = new NativeFetchStrategy('https://api.example');
+    const result = await strategy.fetchGet(ECHO_URL, { extraHeaders: {} });
+    const message = isOk(result) ? '' : result.errorMessage;
+    const leaked = leakedSecretsIn(message);
+    expect(message).toContain('GET https://api.example/x ');
+    expect(leaked).toEqual([]);
+  });
+
+  it.each([
+    { label: 'credential URL', url: CREDENTIAL_URL },
+    { label: 'unparseable URL', url: UNPARSEABLE_URL },
+  ])('real Node fetch rejecting a $label leaks no secret', async ({ url }) => {
+    const strategy = new NativeFetchStrategy('https://api.example');
+    const result = await strategy.fetchGet(url, { extraHeaders: {} });
+    const message = isOk(result) ? '' : result.errorMessage;
+    const leaked = leakedSecretsIn(message);
+    expect(message).toContain('network error');
+    expect(leaked).toEqual([]);
+  });
+
+  it.each(ECHOES)('any _invoke seam failure quoting $label is sanitized', async ({ text }) => {
+    const strategy = new EchoingInvokeStrategy(text);
+    const result = await strategy.fetchGet(ECHO_URL, { extraHeaders: {} });
+    const message = isOk(result) ? '' : result.errorMessage;
+    const leaked = leakedSecretsIn(message);
+    expect(message).not.toBe('');
+    expect(leaked).toEqual([]);
   });
 });
 

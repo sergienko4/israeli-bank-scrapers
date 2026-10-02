@@ -16,6 +16,7 @@ import {
   createTimeoutError,
 } from '../../../../../Scrapers/Pipeline/Mediator/Timing/TimingActions.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { ECHO_QUERY, leakedSecretsIn, urlEchoesOf } from '../../../../Helpers/UrlEchoFixtures.js';
 
 /** Envelope returned by the in-page fetch wrapper. */
 interface IPageFetchEnvelope {
@@ -170,6 +171,8 @@ const { CamoufoxIdentityFetchStrategy: STRATEGY } = STRATEGY_MOD;
 
 const ORIGIN = 'https://identity.tfd-bank.com';
 const URL_OK = 'https://identity.tfd-bank.com/v1/devices/token';
+const ECHO_URL = `${URL_OK}${ECHO_QUERY}`;
+const ECHOES = urlEchoesOf(URL_OK);
 const OPTS = { extraHeaders: {} };
 const ENV_OK: IPageFetchEnvelope = {
   ok: true,
@@ -286,6 +289,41 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
     const wasOk = isOk(r);
     expect(wasOk).toBe(false);
     if (!isOk(r)) expect(r.errorMessage).toContain('parse error');
+  });
+
+  it.each([
+    { label: 'non-2xx', envelope: ENV_APP_400 },
+    { label: 'parse error', envelope: { ...ENV_OK, bodyText: 'not-json{' } },
+  ])('OZ-CIT-21 — $label names origin + path, never the query', async ({ envelope }) => {
+    STATE.envelope = envelope;
+    const r = await new STRATEGY(ORIGIN, false).fetchPost(`${URL_OK}?did=SECRET-ID`, {}, OPTS);
+    const wasOk = isOk(r);
+    expect(wasOk).toBe(false);
+    if (!isOk(r)) {
+      expect(r.errorMessage).toContain(`POST ${URL_OK} `);
+      expect(r.errorMessage).not.toContain('SECRET-ID');
+    }
+  });
+
+  it.each(ECHOES)(
+    'OZ-CIT-22 — in-page fetch error quoting $label leaks no secret',
+    async ({ text }) => {
+      STATE.evaluateRejection = new Error(text);
+      const r = await new STRATEGY(ORIGIN, false).fetchPost(ECHO_URL, {}, OPTS);
+      const message = isOk(r) ? '' : r.errorMessage;
+      const leaked = leakedSecretsIn(message);
+      expect(message).toContain(`POST ${URL_OK} network error`);
+      expect(leaked).toEqual([]);
+    },
+  );
+
+  it.each(ECHOES)('OZ-CIT-23 — error body with $label leaks no secret', async ({ text }) => {
+    STATE.envelope = { ok: false, status: 400, bodyText: text, setCookies: [] };
+    const r = await new STRATEGY(ORIGIN, false).fetchPost(ECHO_URL, {}, OPTS);
+    const message = isOk(r) ? '' : r.errorMessage;
+    const leaked = leakedSecretsIn(message);
+    expect(message).toContain(`POST ${URL_OK} 400:`);
+    expect(leaked).toEqual([]);
   });
 
   it('OZ-CIT-08 — launch failure surfaces as Generic launch failure', async () => {

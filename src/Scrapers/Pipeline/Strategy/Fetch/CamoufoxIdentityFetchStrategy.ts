@@ -22,12 +22,12 @@ import {
 } from '../../Mediator/Network/FetchConfig.js';
 import { TimeoutError, timeoutPromise } from '../../Mediator/Timing/TimingActions.js';
 import type { Brand, SafeUrlForLog } from '../../Types/Brand.js';
-import { mintSafeUrlForLog } from '../../Types/Brand.js';
-import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import { toError, toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
 import { digestResponse, type IResponseDigest } from './ResponseDigest.js';
+import { safeErrorText, safeUrlForLog } from './SafeUrlForLog.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -68,20 +68,6 @@ interface IDispatchArgs {
   readonly url: string;
   readonly body: string | null;
   readonly opts: IFetchOpts;
-}
-
-/**
- * Strips query string and credentials from a URL for safe logging.
- * @param url - Full URL to sanitize.
- * @returns Origin + path only as a branded SafeUrlForLog.
- */
-function safeUrlForLog(url: string): SafeUrlForLog {
-  try {
-    const parsed = new URL(url);
-    return mintSafeUrlForLog(`${parsed.origin}${parsed.pathname}`);
-  } catch {
-    return mintSafeUrlForLog('<unparseable>');
-  }
 }
 
 /**
@@ -162,8 +148,10 @@ function classifyBody(body: string): ScraperErrorTypes {
  * @returns Structured failure with status + body snippet.
  */
 function classifyNon2xx<T>(env: IPageFetchEnvelope, verb: HttpVerb, url: string): Procedure<T> {
-  const snippet = env.bodyText.slice(0, ERROR_BODY_SNIPPET_LEN);
-  const message = `${verb} ${url} ${String(env.status)}: ${snippet}`;
+  const rawSnippet = env.bodyText.slice(0, ERROR_BODY_SNIPPET_LEN);
+  const snippet = safeErrorText(rawSnippet, url);
+  const safeUrl = safeUrlForLog(url);
+  const message = `${verb} ${safeUrl} ${String(env.status)}: ${snippet}`;
   const errorType = classifyBody(env.bodyText);
   return fail(errorType, message);
 }
@@ -180,8 +168,9 @@ function parseJsonEnvelope<T>(env: IPageFetchEnvelope, verb: HttpVerb, url: stri
     const parsed = JSON.parse(env.bodyText) as T;
     return succeed(parsed);
   } catch (error) {
-    const reason = toErrorMessage(error as Error);
-    return fail(ScraperErrorTypes.Generic, `${verb} ${url} parse error: ${reason}`);
+    const reason = safeErrorText(toError(error).message, url);
+    const safeUrl = safeUrlForLog(url);
+    return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} parse error: ${reason}`);
   }
 }
 
@@ -291,15 +280,16 @@ function logFetchStatus(verb: string, safeUrl: string, env: IPageFetchEnvelope):
  *
  * <p>An expired deadline arrives as a real {@link TimeoutError} because
  * {@link runFetchInPage} enforces it in Node, so the classification is a type
- * check rather than a match against engine-authored abort text. The URL is
- * redacted to origin + path: a bank URL carries the bearer token in its query,
- * and this message is what a caller logs.
+ * check rather than a match against engine-authored abort text. The URL and
+ * any URL the engine quotes back are redacted to origin + path: a bank URL
+ * carries the bearer token in its query, and this message is what a caller
+ * logs.
  * @param error - The caught error.
  * @param args - Dispatch args bundle, for message context.
  * @returns A Timeout failure for an expired deadline, otherwise Generic.
  */
 function toDispatchFailure(error: unknown, args: IDispatchArgs): Procedure<never> {
-  const reason = toErrorMessage(error as Error);
+  const reason = safeErrorText(toError(error).message, args.url);
   const safeUrl = safeUrlForLog(args.url);
   const message = `${args.verb} ${safeUrl} network error: ${reason}`;
   const isTimeout = error instanceof TimeoutError;
@@ -457,7 +447,7 @@ class CamoufoxIdentityFetchStrategy implements IFetchStrategy {
       this._page = page;
       return succeed(page);
     } catch (error) {
-      const reason = toErrorMessage(error as Error);
+      const reason = safeErrorText(toError(error).message, this._originUrl);
       return fail(ScraperErrorTypes.Generic, `camoufox nav failed: ${reason}`);
     }
   }

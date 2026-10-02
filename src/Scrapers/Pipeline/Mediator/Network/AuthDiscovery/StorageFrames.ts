@@ -8,6 +8,7 @@
 import type { Frame, Page } from 'playwright-core';
 
 import { getDebug } from '../../../Logging/Debug.js';
+import { safeUrlForLog } from '../../../Strategy/Fetch/SafeUrlForLog.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { prefixToken, STORAGE_AUTH_KEYS, tryParseJsonToken } from './Tokens.js';
 
@@ -98,10 +99,11 @@ async function readFrameKeyList(frame: Frame): Promise<string> {
  */
 async function dumpFrameKeys(frame: Frame): Promise<string> {
   const keys = await readFrameKeyList(frame);
-  const url = frame.url().slice(0, 50);
+  const rawUrl = frame.url();
+  const url = safeUrlForLog(rawUrl);
   if (keys !== 'EMPTY' && keys !== 'CROSS-ORIGIN') {
     const keyCount = keys.split(', ').length;
-    LOG.trace({ url: maskVisibleText(url), keyCount, keysSample: maskVisibleText(keys) });
+    LOG.trace({ url, keyCount, keysSample: maskVisibleText(keys) });
   }
   return keys;
 }

@@ -81,6 +81,33 @@ absolute paths and leading relative path tokens are replaced before logging.
 FORENSIC_TRACE=true npm run test:e2e:real
 ```
 
+## Transport failure text
+
+A request URL can carry device ids and session values in its query string.
+Pino's censor sees log *records*, not the text a transport puts in a failure
+message, so the transports keep that query out themselves.
+
+Every transport (native fetch, Camoufox identity fetch, in-page browser fetch
+and mTLS) names a URL in its errors and debug logs through `safeUrlForLog`,
+which keeps only the origin and path.
+
+The URL the transport builds is not the only route a query can take. The
+runtime's exception text and the server's response body can quote the request
+back: undici's `Failed to parse URL from …`, a Playwright call log, or an error
+page that echoes `?did=…`. Before any such text becomes an `errorMessage`, a
+body snippet or a log line, `safeErrorText` cleans it against the request URL
+and returns it branded `SafeErrorText`:
+
+1. a quoted absolute URL is reduced to its origin and path;
+2. a query tail that still follows the path is cut;
+3. any query value of 8+ characters still quoted on its own, in wire or
+   percent-decoded form, becomes `<redacted>`.
+
+`NativeFetchStrategy` applies this once more to every failure its `_invoke`
+seam returns, so an mTLS agent or a test seam cannot bypass it. The oracle
+fixture `UrlEchoFixtures` lists the real echo shapes, and every transport's
+tests run each of them.
+
 ## Disabling redaction
 
 `PII_REDACTION=off` disables runtime redaction. **Intended for real-bank E2E tests only** (where the maintainer needs to compare actual vs expected values during development). Unit tests always run with redaction default-on so `PiiRedactor.test.ts` assertions hold.
