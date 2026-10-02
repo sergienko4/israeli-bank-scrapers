@@ -110,7 +110,7 @@ describe('Pepper persistent auth — block', () => {
   it('declares the provider, identity fields and freshness margin', async () => {
     const block = await loadPersistent();
     const { resumeSteps, ...scalars } = block;
-    expect(resumeSteps.length).toBe(2);
+    expect(resumeSteps).toHaveLength(2);
     expect(scalars).toEqual({
       provider: 'pepper',
       clientInstanceIdField: 'clientInstanceId',

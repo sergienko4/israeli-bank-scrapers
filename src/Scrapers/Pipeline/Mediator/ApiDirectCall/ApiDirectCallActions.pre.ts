@@ -17,10 +17,10 @@ import type { GenericCreds, PersistentAuthMode } from './Flow/TokenStrategyFromC
 import { isJwtFresh } from './Jwt/GenericJwtClaims.js';
 
 /** Option keys that carry durable device-auth secrets. */
-const PERSISTENT_AUTH_OPTION_KEYS: readonly string[] = [
+const PERSISTENT_AUTH_OPTION_KEYS: ReadonlySet<string> = new Set([
   'persistentAuthState',
   'onPersistentAuthStateUpdate',
-];
+]);
 
 /**
  * Drop the durable device-auth secrets from a merged credential record.
@@ -29,7 +29,7 @@ const PERSISTENT_AUTH_OPTION_KEYS: readonly string[] = [
  */
 function withoutPersistentAuthOptions(merged: Record<string, unknown>): GenericCreds {
   const entries = Object.entries(merged);
-  const kept = entries.filter(([key]): boolean => !PERSISTENT_AUTH_OPTION_KEYS.includes(key));
+  const kept = entries.filter(([key]): boolean => !PERSISTENT_AUTH_OPTION_KEYS.has(key));
   return Object.fromEntries(kept);
 }
 
