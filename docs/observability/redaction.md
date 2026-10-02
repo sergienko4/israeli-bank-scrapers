@@ -117,8 +117,10 @@ Before any such text becomes an `errorMessage`, a body snippet or a log line,
    whether as sent, percent-decoded, or re-encoded with `+` or `%20` for a
    space, becomes `<redacted>`.
 
-`safeFailureText` applies this to whatever a transport caught, including a
-thrown value whose `message` is not a string. `safeErrorSnippet` cleans an
+`safeFailureText` applies this to whatever a transport caught. It reads the
+message through `caughtMessageOf`, which returns a string for any thrown or
+rejected value: `null`, a Symbol, an object whose `toString` throws, or an
+error whose `message` is not a string. `safeErrorSnippet` cleans an
 error body *before* cutting it to `ERROR_BODY_SNIPPET_LEN` (120)
 characters. A cut made first could split a secret so no rule knows the half
 left behind, and cleaning both lengthens and shortens text, so no margin
@@ -156,6 +158,13 @@ flows to the caller unchanged:
 | `RunStep` `firePost FAIL` | the transport's failure text can quote the request |
 | `onAuthFlowComplete callback threw` | a caller's error can quote the token payload |
 | `parseResponse.catch` | V8's `JSON.parse` message quotes the response body |
+| `handleResponse.error` | the parse failure can quote the response body |
+
+These sites read the caught value through `caughtMessageOf`, so a callback or
+parser that rejects with `null`, `undefined` or a Symbol is logged as a tag
+rather than throwing inside the catch block. Other catch sites that cast the
+caught value `as Error` before `toErrorMessage` predate this guarantee and are
+outside it.
 
 ## Disabling redaction
 

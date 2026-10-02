@@ -6,7 +6,7 @@
  */
 
 import { getDebug } from '../../../Logging/Debug.js';
-import { toErrorMessage } from '../../../Types/ErrorUtils.js';
+import { caughtMessageOf } from '../../../Types/ErrorUtils.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { redactErrorMessage, redactUrlFull } from '../../../Types/PiiRedactor.js';
 import type { IRequestMeta } from './ResponsePrimitives.js';
@@ -84,13 +84,13 @@ function logTextRead(meta: IRequestMeta, status: number, textLen: number): true 
 }
 
 /**
- * Length tag for a caught error's message — V8's JSON.parse message
+ * Length tag for a caught value's message — V8's JSON.parse message
  * quotes the body it failed on, so the text itself is never logged.
- * @param error - Caught error.
+ * @param error - The caught value, Error or not.
  * @returns The `<msg:N>` length tag.
  */
-function errorTagOf(error: Error): string {
-  const errorText = toErrorMessage(error);
+function errorTagOf(error: unknown): string {
+  const errorText = caughtMessageOf(error);
   return redactErrorMessage(errorText);
 }
 
@@ -99,10 +99,10 @@ function errorTagOf(error: Error): string {
  * length tag only, see {@link errorTagOf}).
  * @param meta - Request metadata.
  * @param status - HTTP status code.
- * @param error - Caught error.
+ * @param error - The caught value.
  * @returns False (caller short-circuits to the no-record branch).
  */
-function logParseCatch(meta: IRequestMeta, status: number, error: Error): false {
+function logParseCatch(meta: IRequestMeta, status: number, error: unknown): false {
   LOG.debug({
     event: 'parseResponse.catch',
     status,
@@ -145,7 +145,9 @@ function logCaptureMiss(meta: IResponseMeta): boolean {
 
 /**
  * CodeRabbit PR #276 #8 — log handleResponse parseResponse errors so
- * failed captures stay observable instead of being silently lost.
+ * failed captures stay observable instead of being silently lost. The
+ * failure may quote the response, so only its length tag is logged
+ * (see {@link errorTagOf}).
  * @param url - Response URL.
  * @param error - Unknown thrown value.
  * @returns False (the promise chain stays fire-and-forget).
@@ -154,7 +156,7 @@ function logHandleResponseError(url: string, error: unknown): boolean {
   LOG.debug({
     event: 'handleResponse.error',
     url: maskVisibleText(url),
-    error: toErrorMessage(error as Error),
+    error: errorTagOf(error),
   });
   return false;
 }

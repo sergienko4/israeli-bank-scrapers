@@ -3,10 +3,12 @@
  */
 
 import {
+  caughtMessageOf,
   toError,
   toErrorMessage,
   UNREPRESENTABLE_ERROR,
 } from '../../../../Scrapers/Pipeline/Types/ErrorUtils.js';
+import { ODD_CAUGHT_VALUES } from '../../../Helpers/CaughtValueFixtures.js';
 
 /**
  * Custom Error subclass used by the throwing-toString / Symbol.toPrimitive
@@ -206,5 +208,17 @@ describe('toError — never-throws contract', () => {
     for (const input of inputs) {
       expect(() => toError(input)).not.toThrow();
     }
+  });
+});
+
+describe('caughtMessageOf — a string for any caught value', () => {
+  it('returns the message of an Error', () => {
+    const message = caughtMessageOf(new TypeError('bad'));
+    expect(message).toBe('bad');
+  });
+
+  it.each(ODD_CAUGHT_VALUES)('returns a string for $label', ({ reason }) => {
+    const message = caughtMessageOf(reason);
+    expect(typeof message).toBe('string');
   });
 });

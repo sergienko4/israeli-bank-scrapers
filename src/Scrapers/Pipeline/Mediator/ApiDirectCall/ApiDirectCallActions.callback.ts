@@ -3,7 +3,7 @@
  * Catches user-callback throws so scrape success isn't invalidated by them.
  */
 
-import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import { caughtMessageOf } from '../../Types/ErrorUtils.js';
 import { isSome, none, type Option, some } from '../../Types/Option.js';
 import { redactErrorMessage } from '../../Types/PiiRedactor.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
@@ -24,13 +24,14 @@ interface IInvocationBundle {
 
 /**
  * Log a callback throw without raising it. The thrown text may echo the
- * token payload, so only its `<msg:N>` length tag is logged.
+ * token payload, so only its `<msg:N>` length tag is logged. The callback may
+ * reject with anything, so the message is read as an unknown value.
  * @param ctx - Pipeline context (for logger).
- * @param error - Thrown error.
+ * @param error - Whatever the callback threw or rejected with.
  * @returns false sentinel for caller propagation.
  */
 function logCallbackThrow(ctx: IPipelineContext, error: unknown): boolean {
-  const message = toErrorMessage(error as Error);
+  const message = caughtMessageOf(error);
   const tag = redactErrorMessage(message);
   ctx.logger.warn({ message: `${PHASE_LABEL} onAuthFlowComplete callback threw: ${tag}` });
   return false;

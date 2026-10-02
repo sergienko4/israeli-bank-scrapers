@@ -9,7 +9,7 @@
 
 import type { Brand, SafeUrlForLog } from '../../Types/Brand.js';
 import { mintSafeUrlForLog } from '../../Types/Brand.js';
-import { toError, UNREPRESENTABLE_ERROR } from '../../Types/ErrorUtils.js';
+import { caughtMessageOf } from '../../Types/ErrorUtils.js';
 import { redactUrlFull } from '../../Types/PiiRedactor.js';
 
 /** Failure text with no request query and no URL beyond origin + path. */
@@ -162,19 +162,6 @@ function safeErrorText(text: string, requestUrl: string): SafeErrorText {
   const withSafeUrls = withoutBody.replaceAll(QUOTED_URL, (url): string => safeUrlForLog(url));
   const tail = rawQueryTail(requestUrl);
   return withoutQueryEchoes(withSafeUrls, tail) as SafeErrorText;
-}
-
-/**
- * The message of a caught value, whatever was thrown. An error-like value
- * whose `message` is not a string yields a sentinel rather than a TypeError
- * inside the catch block that reads it.
- * @param error - The caught value.
- * @returns Its message as a string.
- */
-function caughtMessageOf(error: unknown): string {
-  const message: unknown = toError(error).message;
-  if (typeof message === 'string') return message;
-  return UNREPRESENTABLE_ERROR;
 }
 
 /**

@@ -6,9 +6,12 @@
  * that text only as a `<msg:N>` length tag, never verbatim.
  */
 
+import { jest } from '@jest/globals';
+
 import { invokeAuthFlowComplete } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.callback.js';
 import type { IConfigTokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { ODD_CAUGHT_VALUES } from '../../../../Helpers/CaughtValueFixtures.js';
 
 /** Auth-flow callback payload the dispatcher forwards. */
 interface IAuthPayload {
@@ -45,12 +48,26 @@ function echoingCallback(payload: IAuthPayload): Promise<never> {
   return Promise.reject(error);
 }
 
+/** The user callback the dispatcher invokes. */
+type AuthCallback = (payload: IAuthPayload) => Promise<never>;
+
+/**
+ * Callback that rejects with any value, Error or not — a mock, since a
+ * caller's promise is not bound by this repo's reject-with-an-Error rule.
+ * @param reason - The rejection reason.
+ * @returns The rejecting callback.
+ */
+function rejectingWith(reason: unknown): AuthCallback {
+  return jest.fn<Promise<never>, [IAuthPayload]>().mockRejectedValue(reason);
+}
+
 /**
  * Pipeline-context stub whose logger records every warn line.
  * @param sink - Array receiving each warn record as JSON.
+ * @param callback - The configured onAuthFlowComplete callback.
  * @returns Minimal pipeline context.
  */
-function ctxStub(sink: string[]): IPipelineContext {
+function ctxStub(sink: string[], callback: AuthCallback = echoingCallback): IPipelineContext {
   /**
    * Record one warn call.
    * @param record - Structured log record.
@@ -61,7 +78,7 @@ function ctxStub(sink: string[]): IPipelineContext {
     sink.push(line);
     return true;
   }
-  const options = { onAuthFlowComplete: echoingCallback };
+  const options = { onAuthFlowComplete: callback };
   return { options, logger: { warn } } as unknown as IPipelineContext;
 }
 
@@ -78,4 +95,18 @@ describe('invokeAuthFlowComplete — callback throw log safety', () => {
     expect(logged).not.toContain(LONG_TERM_TOKEN);
     expect(logged).not.toContain(BEARER);
   });
+
+  it.each(ODD_CAUGHT_VALUES)(
+    'logs a length tag and resolves false for $label',
+    async ({ reason }) => {
+      const lines: string[] = [];
+      const callback = rejectingWith(reason);
+      const ctx = ctxStub(lines, callback);
+      const strategy = strategyStub();
+      const isDone = await invokeAuthFlowComplete(ctx, strategy, BEARER);
+      expect(isDone).toBe(false);
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toContain('<msg:');
+    },
+  );
 });

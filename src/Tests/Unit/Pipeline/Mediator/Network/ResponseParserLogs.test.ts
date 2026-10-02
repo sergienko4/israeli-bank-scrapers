@@ -9,6 +9,7 @@
 import { jest } from '@jest/globals';
 
 import type { IRequestMeta } from '../../../../../Scrapers/Pipeline/Mediator/Network/Indexing/ResponsePrimitives.js';
+import { ODD_CAUGHT_VALUES } from '../../../../Helpers/CaughtValueFixtures.js';
 import { createDebugMock } from '../../../../MockModuleFactories.js';
 
 const DEBUG_SPY = jest.fn();
@@ -59,5 +60,28 @@ describe('logParseCatch — body-parse failure log safety', () => {
     expect(logged).toContain('parseResponse.catch');
     expect(logged).toContain('<msg:');
     expect(logged).not.toContain(SECRET);
+  });
+
+  it.each(ODD_CAUGHT_VALUES)('logs a length tag for $label', ({ reason }) => {
+    LOGS.logParseCatch(META, 200, reason);
+    const logged = JSON.stringify(DEBUG_SPY.mock.calls);
+    expect(logged).toContain('<msg:');
+  });
+});
+
+describe('logHandleResponseError — capture failure log safety', () => {
+  it('logs the failure as a length tag without its text', () => {
+    const error = new TypeError(`capture failed for ${SECRET}`);
+    LOGS.logHandleResponseError(META.url, error);
+    const logged = JSON.stringify(DEBUG_SPY.mock.calls);
+    expect(logged).toContain('handleResponse.error');
+    expect(logged).toContain('<msg:');
+    expect(logged).not.toContain(SECRET);
+  });
+
+  it.each(ODD_CAUGHT_VALUES)('logs a length tag for $label', ({ reason }) => {
+    LOGS.logHandleResponseError(META.url, reason);
+    const logged = JSON.stringify(DEBUG_SPY.mock.calls);
+    expect(logged).toContain('<msg:');
   });
 });

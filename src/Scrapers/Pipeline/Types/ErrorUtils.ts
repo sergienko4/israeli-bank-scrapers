@@ -106,5 +106,20 @@ function toError(error: unknown): Error {
   return new Error(safeStringify(error));
 }
 
+/**
+ * The message of any caught value as a string, whatever was thrown or a
+ * promise rejected with — `null`, a number, a Symbol, an object whose
+ * `toString` throws, an error-like value whose `message` is not a string.
+ * It takes `unknown`, so no `as Error` cast hides a value that a later string
+ * operation would throw on inside the very catch block meant to contain it.
+ * @param error - The caught value.
+ * @returns Its message, or {@link UNREPRESENTABLE_ERROR}.
+ */
+function caughtMessageOf(error: unknown): ErrorMessageString {
+  const message: unknown = toError(error).message;
+  if (typeof message === 'string') return message as ErrorMessageString;
+  return UNREPRESENTABLE_ERROR as ErrorMessageString;
+}
+
 export default toErrorMessage;
-export { toError, toErrorMessage, UNREPRESENTABLE_ERROR };
+export { caughtMessageOf, toError, toErrorMessage, UNREPRESENTABLE_ERROR };
