@@ -12,7 +12,7 @@ Five test suites, picked by **what you're testing**.
 | Cross-phase invariant | Integration test under `Tests/Unit/Pipeline/CrossValidation/` | `test:pipeline` |
 | Timing, cleanup, or cancellation code | Add a case to the memory regression gate | `test:memory` |
 | Public API surface (types in `Base/Interface.ts`) | Update both unit + e2e expectations | `test:unit` + `test:e2e:mock` |
-| Real-bank behavior (live network) | E2eReal suite — `Tests/E2eReal/<Bank>/` | `test:e2e:real:single` (needs `.env`) |
+| Real-bank behavior (live network) | E2eReal suite — `Tests/E2eReal/<Bank>.e2e-real.test.ts` | `npm test -- --testPathPatterns=E2eReal/<Bank>.e2e-real` (needs `.env`) |
 
 ## Each surface in detail
 
@@ -46,7 +46,8 @@ Five test suites, picked by **what you're testing**.
 
 - Live network, real credentials in `.env`.
 - Orchestrated by `scripts/run-real-suite.ts` — `WORKER_GROUPS` defines which banks run together (Amex + Isracard sequential; others parallel).
-- Single bank: `npm run test:e2e:real:single -- --testPathPatterns=<Bank>`.
+- Single bank: `npm test -- --testPathPatterns=E2eReal/<Bank>.e2e-real`.
+- Don't append `--testPathPatterns` to `test:e2e:real:single` or `test:e2e:mock`. Jest ORs it with the pattern the script already passes, so every suite runs instead of one — for real banks, a live login (and SMS) for every bank with credentials in `.env`.
 - Not run in CI — gates require maintainer-side creds.
 
 ### Memory regression gate (`test:memory`)

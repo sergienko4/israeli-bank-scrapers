@@ -25,7 +25,7 @@ For each legacy bank, the porting PR does:
 | 2 | Write `src/Scrapers/Pipeline/Banks/<Bank>/<Bank>Pipeline.ts` — `buildXxxPipeline(options)` returns a `Procedure<IPipelineDescriptor>` |
 | 3 | Register in the matching `src/Scrapers/Pipeline/Banks/PipelineRegistry{AmexToMax,MercantileToVisaCal}.ts` half — `[CT.<Bank>]: buildXxxPipeline` (never edit `Core/**`) |
 | 4 | Write fixtures under `src/Tests/E2eMocked/<Bank>/fixtures/` from a captured real-bank run |
-| 5 | Verify with `npm run test:e2e:mock --testPathPatterns=<Bank>` and `npm run test:e2e:real:single -- --testPathPatterns=<Bank>` |
+| 5 | Verify with `npm test -- --testPathPatterns=E2eMocked/<Bank>` and `npm test -- --testPathPatterns=E2eReal/<Bank>.e2e-real` |
 | 6 | **Options parity** — for each option in `LEGACY_ONLY_OPTIONS` (`src/Scrapers/Pipeline/Core/LegacyOnlyOptions.ts`), decide *implement on the Pipeline* or *drop*. Implementing one removes its manifest entry; dropping it is a behaviour change for that bank's callers and belongs in the PR body |
 | 7 | Once green, delete `src/Scrapers/<Bank>/` and remove from `SCRAPER_REGISTRY_LEUMI_TO_YAHAV.ts` or its sibling |
 | 8 | Re-run `lint:dead-code` to confirm no unused exports remain |
