@@ -96,7 +96,9 @@ that named nothing. See
 Every transport — native fetch, Camoufox page fetch and mTLS — names a URL in
 its errors and debug logs through `safeUrlForLog`, which keeps only the origin
 and path. Query parameters can carry device ids and session values, so they
-never reach an error message or a log line.
+never reach an error message or a log line. Native fetch and Camoufox also pass
+a caught exception's text through `scrubUrlFromText`, so an engine message that
+quotes the request URL keeps only its origin and path as well.
 
 ## One SMS per run
 

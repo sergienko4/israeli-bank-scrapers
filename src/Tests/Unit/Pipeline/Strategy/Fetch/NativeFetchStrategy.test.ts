@@ -311,11 +311,22 @@ function refusedImpl(): MockFetchImpl {
   return rejectWith(refused);
 }
 
+/**
+ * Fetch impl whose thrown error quotes the full URL, as undici's
+ * "Failed to parse URL from <url>" does.
+ * @returns Mock impl.
+ */
+function urlQuotingImpl(): MockFetchImpl {
+  const quoting = new TypeError(`Failed to parse URL from ${SECRET_QUERY_URL}`);
+  return rejectWith(quoting);
+}
+
 /** Every transport failure that names the URL: label + fetch impl factory. */
 const URL_NAMING_FAILURES = [
   { label: 'non-2xx status', makeImpl: deniedImpl },
   { label: 'parse error', makeImpl: unparseableImpl },
   { label: 'network error', makeImpl: refusedImpl },
+  { label: 'network error that quotes the URL', makeImpl: urlQuotingImpl },
 ] as const;
 
 describe('NativeFetchStrategy — failure messages never echo the query string', () => {

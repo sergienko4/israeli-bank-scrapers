@@ -27,7 +27,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
 import { digestResponse, type IResponseDigest } from './ResponseDigest.js';
-import { safeUrlForLog } from './SafeUrlForLog.js';
+import { safeUrlForLog, scrubUrlFromText } from './SafeUrlForLog.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -287,7 +287,8 @@ function logFetchStatus(verb: string, safeUrl: string, env: IPageFetchEnvelope):
  * @returns A Timeout failure for an expired deadline, otherwise Generic.
  */
 function toDispatchFailure(error: unknown, args: IDispatchArgs): Procedure<never> {
-  const reason = toErrorMessage(error as Error);
+  const rawReason = toErrorMessage(error as Error);
+  const reason = scrubUrlFromText(rawReason, args.url);
   const safeUrl = safeUrlForLog(args.url);
   const message = `${args.verb} ${safeUrl} network error: ${reason}`;
   const isTimeout = error instanceof TimeoutError;

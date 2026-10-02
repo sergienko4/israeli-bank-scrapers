@@ -11,7 +11,7 @@ import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
-import { safeUrlForLog } from './SafeUrlForLog.js';
+import { safeUrlForLog, scrubUrlFromText } from './SafeUrlForLog.js';
 
 type SetCookieEmitCount = Brand<number, 'SetCookieEmitCount'>;
 type FullyQualifiedUrl = Brand<string, 'FullyQualifiedUrl'>;
@@ -121,7 +121,8 @@ function emitSetCookies(response: Response, hook?: IFetchOpts['onSetCookie']): S
  * @returns Procedure failure annotated with the underlying reason.
  */
 function toNetworkFailure(error: Error | string, verb: HttpVerb, url: string): Procedure<Response> {
-  const reason = toErrorMessage(error);
+  const rawReason = toErrorMessage(error);
+  const reason = scrubUrlFromText(rawReason, url);
   const safeUrl = safeUrlForLog(url);
   return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} network error: ${reason}`);
 }
