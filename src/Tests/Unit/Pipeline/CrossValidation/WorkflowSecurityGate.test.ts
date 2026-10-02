@@ -90,6 +90,8 @@ interface IWorkflowStep {
 interface IWorkflowJob {
   readonly steps?: readonly IWorkflowStep[];
   readonly 'continue-on-error'?: boolean | string;
+  readonly needs?: string | readonly string[];
+  readonly permissions?: Readonly<Record<string, string>>;
 }
 
 interface IWorkflowDoc {
@@ -535,45 +537,100 @@ function loadScorecard(): IScorecardDoc {
 /** The job key that runs the Scorecard analysis. */
 const SCORECARD_JOB_KEY = 'analysis';
 
+/** The job key that filters the SARIF and uploads it to code scanning. */
+const SARIF_UPLOAD_JOB_KEY = 'upload-sarif';
+
 /** The action that produces `results.sarif`. */
 const SCORECARD_ACTION = 'ossf/scorecard-action';
 
 /** The action that uploads SARIF to code scanning. */
 const UPLOAD_SARIF_ACTION = 'github/codeql-action/upload-sarif';
 
+/** The action that hands the SARIF from the analysis job to the upload job. */
+const DOWNLOAD_ARTIFACT_ACTION = 'actions/download-artifact';
+
 /** The script that strips `$/` self-repository false positives from the SARIF. */
 const SARIF_FILTER_SCRIPT = 'scripts/filter-scorecard-sarif.mjs';
 
 /**
- * Steps of the Scorecard analysis job.
- *
- * @returns Every step declared by the analysis job.
+ * The only actions the scorecard.dev API accepts in the job that runs
+ * `ossf/scorecard-action` with `publish_results: true`. Any other step,
+ * including any `run:` step, gets the published result rejected.
+ * See https://github.com/ossf/scorecard-action#workflow-restrictions.
  */
-function scorecardSteps(): readonly IWorkflowStep[] {
+const APPROVED_SCORECARD_JOB_ACTIONS = [
+  'actions/checkout',
+  'actions/upload-artifact',
+  'github/codeql-action/upload-sarif',
+  'ossf/scorecard-action',
+  'step-security/harden-runner',
+] as const;
+
+/**
+ * Steps of one Scorecard workflow job.
+ *
+ * @param jobKey - YAML key of the job.
+ * @returns Every step the job declares, or none when the job is absent.
+ */
+function jobSteps(jobKey: string): readonly IWorkflowStep[] {
   const doc = loadScorecard();
-  const job = doc.jobs?.[SCORECARD_JOB_KEY] ?? {};
+  const job = doc.jobs?.[jobKey] ?? {};
   return job.steps ?? [];
 }
 
 /**
  * Index of the first step whose `run` block invokes the SARIF filter.
  *
- * @returns Its position in the analysis job, or -1 when absent.
+ * @param jobKey - YAML key of the job to search.
+ * @returns Its position in the job, or -1 when absent.
  */
-function filterStepIndex(): number {
-  const steps = scorecardSteps();
+function filterStepIndex(jobKey: string): number {
+  const steps = jobSteps(jobKey);
   return steps.findIndex(step => (step.run ?? '').includes(SARIF_FILTER_SCRIPT));
 }
 
 /**
  * Index of the first step whose `uses` matches an action fragment.
  *
+ * @param jobKey - YAML key of the job to search.
  * @param fragment - Substring identifying the action.
- * @returns Its position in the analysis job, or -1 when absent.
+ * @returns Its position in the job, or -1 when absent.
  */
-function scorecardStepIndex(fragment: string): number {
-  const steps = scorecardSteps();
+function usesStepIndex(jobKey: string, fragment: string): number {
+  const steps = jobSteps(jobKey);
   return steps.findIndex(step => step.uses?.includes(fragment) === true);
+}
+
+/**
+ * Whether a step is a `uses:` step of an action on the approved list.
+ *
+ * @param step - Workflow step to classify.
+ * @returns True when the step may run in the Scorecard job.
+ */
+function isApprovedScorecardStep(step: IWorkflowStep): boolean {
+  if (step.run !== undefined) return false;
+  const uses = step.uses ?? '';
+  return APPROVED_SCORECARD_JOB_ACTIONS.some(action => uses.startsWith(`${action}@`));
+}
+
+/**
+ * Keys of the jobs granted `id-token: write`.
+ *
+ * @returns Job keys holding the OIDC token permission.
+ */
+function idTokenWriteJobs(): readonly string[] {
+  const jobs = loadScorecard().jobs ?? {};
+  return Object.keys(jobs).filter(key => jobs[key].permissions?.['id-token'] === 'write');
+}
+
+/**
+ * The jobs the SARIF upload job waits for.
+ *
+ * @returns The `needs` list, normalised to an array.
+ */
+function uploadJobNeeds(): readonly string[] {
+  const needs = loadScorecard().jobs?.[SARIF_UPLOAD_JOB_KEY]?.needs ?? [];
+  return typeof needs === 'string' ? [needs] : needs;
 }
 
 describe('scorecard workflow triggers', () => {
@@ -617,41 +674,72 @@ describe('scorecard SARIF false-positive filter', () => {
    * end up satisfied. See docs/workflow/code-scanning.md, upstream
    * https://github.com/ossf/scorecard/issues/5191.
    */
-  it('[SCF-1] the analysis job filters the SARIF before uploading it', () => {
-    const index = filterStepIndex();
+  it('[SCF-1] a dedicated upload job filters the SARIF', () => {
+    const index = filterStepIndex(SARIF_UPLOAD_JOB_KEY);
     expect(index).toBeGreaterThanOrEqual(0);
   });
 
   /**
-   * The filter can only remove what Scorecard has already written, so it must
-   * run after the action that produces `results.sarif`.
+   * The filter can only remove what Scorecard has already written, so the
+   * upload job must wait for the analysis job and fetch its SARIF first.
    *
-   * <p>The producer is asserted present before the ordering is compared.
-   * `scorecardStepIndex` returns -1 for a missing step, so deleting the
-   * Scorecard action would otherwise leave `filterAt > -1` trivially true and
-   * this case would keep passing while asserting nothing.
+   * <p>Both endpoints are asserted present before the ordering is compared.
+   * `usesStepIndex` returns -1 for a missing step, so an ordering comparison
+   * alone can be satisfied by the sentinel and keep passing while asserting
+   * nothing.
    */
-  it('[SCF-2] the filter runs after Scorecard produces the SARIF', () => {
-    const filterAt = filterStepIndex();
-    const produceAt = scorecardStepIndex(SCORECARD_ACTION);
-    expect(produceAt).toBeGreaterThanOrEqual(0);
-    expect(filterAt).toBeGreaterThan(produceAt);
+  it('[SCF-2] the filter runs after the SARIF arrives from the analysis job', () => {
+    const filterAt = filterStepIndex(SARIF_UPLOAD_JOB_KEY);
+    const downloadAt = usesStepIndex(SARIF_UPLOAD_JOB_KEY, DOWNLOAD_ARTIFACT_ACTION);
+    const needs = uploadJobNeeds();
+    expect(needs).toContain(SCORECARD_JOB_KEY);
+    expect(downloadAt).toBeGreaterThanOrEqual(0);
+    expect(filterAt).toBeGreaterThan(downloadAt);
   });
 
   /**
    * If the upload ran first the false positives would reach code scanning
    * anyway, so the filter must run before the SARIF is uploaded.
-   *
-   * <p>Both endpoints are asserted present first. `scorecardStepIndex` returns
-   * -1 for a missing step, so an ordering comparison alone can be satisfied by
-   * the sentinel rather than by real ordering, leaving the case silently
-   * unchecked.
    */
   it('[SCF-3] the filter runs before the SARIF reaches code scanning', () => {
-    const filterAt = filterStepIndex();
-    const uploadAt = scorecardStepIndex(UPLOAD_SARIF_ACTION);
+    const filterAt = filterStepIndex(SARIF_UPLOAD_JOB_KEY);
+    const uploadAt = usesStepIndex(SARIF_UPLOAD_JOB_KEY, UPLOAD_SARIF_ACTION);
     expect(filterAt).toBeGreaterThanOrEqual(0);
     expect(uploadAt).toBeGreaterThanOrEqual(0);
     expect(filterAt).toBeLessThan(uploadAt);
+  });
+
+  /**
+   * The analysis job holds the unfiltered SARIF. An upload from there would
+   * deliver the 28 false positives to code scanning before the filter runs.
+   */
+  it('[SCF-4] the analysis job never uploads the unfiltered SARIF', () => {
+    const producedAt = usesStepIndex(SCORECARD_JOB_KEY, SCORECARD_ACTION);
+    const uploadAt = usesStepIndex(SCORECARD_JOB_KEY, UPLOAD_SARIF_ACTION);
+    expect(producedAt).toBeGreaterThanOrEqual(0);
+    expect(uploadAt).toBe(-1);
+  });
+});
+
+describe('scorecard result-publishing restrictions', () => {
+  /**
+   * With `publish_results: true`, the scorecard.dev API rejects the run unless
+   * every step of the job running `ossf/scorecard-action` is an approved
+   * `uses:` action. A `run:` step there failed every scheduled scan from
+   * 2026-09-14 on. Each failure also left the code-scanning alerts frozen at
+   * their last snapshot, so alert 63 stayed open on advisories already fixed.
+   */
+  it('[SCP-1] the analysis job runs only approved actions and no run: step', () => {
+    const steps = jobSteps(SCORECARD_JOB_KEY);
+    const rejected = steps.filter(step => !isApprovedScorecardStep(step));
+    const labels = rejected.map(step => step.name ?? step.uses ?? step.run);
+    expect(steps.length).toBeGreaterThan(0);
+    expect(labels).toEqual([]);
+  });
+
+  /** The same API rejects `id-token: write` on any job but the analysis job. */
+  it('[SCP-2] only the analysis job is granted id-token: write', () => {
+    const holders = idTokenWriteJobs();
+    expect(holders).toEqual([SCORECARD_JOB_KEY]);
   });
 });

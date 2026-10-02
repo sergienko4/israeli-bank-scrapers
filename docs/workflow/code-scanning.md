@@ -117,10 +117,25 @@ never matches `$/`, so it survives the filter and is still reported — the
 security property is preserved. zizmor stays green because `$/` is untouched,
 and code scanning stays clean because the false positives never arrive.
 
-The wiring and the surgical scope are pinned by tests: `SCF-*` in
-`WorkflowSecurityGate.test.ts` assert the filter runs after Scorecard and
-before the upload, and `FSS-*` in `FilterScorecardSarif.test.ts` assert a real
-unpinned third-party action is kept while `$/` hits are dropped.
+The filter runs in its own `upload-sarif` job, never in the `analysis` job.
+With `publish_results: true`, the scorecard.dev API rejects any run whose
+Scorecard job holds a step other than an
+[approved `uses:` action][scorecard-restrictions]. The first version of this
+filter ran as a `run:` step inside `analysis` and failed every scheduled scan
+from 2026-09-14 on. No SARIF reached code scanning, so alert 63 stayed open on
+advisories that `main` had already fixed. `analysis` now only produces the
+SARIF and hands it over as an artifact. `upload-sarif` downloads it, filters
+it and uploads it. The downloaded copy belongs to the runner user, while the
+original is written as root by the Scorecard container and cannot be
+rewritten in place.
+
+The wiring and the surgical scope are pinned by tests in
+`WorkflowSecurityGate.test.ts`. `SCF-*` assert the filter runs in
+`upload-sarif` after the download and before the upload, and that `analysis`
+never uploads the unfiltered SARIF. `SCP-*` assert `analysis` keeps to the
+approved actions and is the only job with `id-token: write`. `FSS-*` in
+`FilterScorecardSarif.test.ts` assert a real unpinned third-party action is
+kept while `$/` hits are dropped.
 
 **Action:** the 28 open alerts clear as _fixed_ on the next Scorecard run on
 `main` after this ships (the filtered SARIF no longer references those lines).
@@ -185,7 +200,12 @@ directory.
 5. Need a fresh Scorecard result now? `gh workflow run scorecard.yml`. The
    weekly cadence alone meant a dependency fixed on a Tuesday stayed reported
    until the following Monday.
+6. **Scorecard run failed?** Every alert it owns freezes at the last
+   successful snapshot until a run succeeds again. Read the log first. A
+   `workflow verification failed` warning means the `analysis` job holds a
+   step the scorecard.dev API does not accept (`SCP-1` should have caught it).
 
 [self-repo-blog]: https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/
 [scorecard-5191]: https://github.com/ossf/scorecard/issues/5191
+[scorecard-restrictions]: https://github.com/ossf/scorecard-action#workflow-restrictions
 [adm-zip-advisory]: https://github.com/advisories/GHSA-vwc7-r8mq-g2x9
