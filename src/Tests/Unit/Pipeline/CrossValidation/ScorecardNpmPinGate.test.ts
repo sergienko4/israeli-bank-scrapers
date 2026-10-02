@@ -45,10 +45,13 @@ const RELEASE_YAML = join(REPO_ROOT, '.github/workflows/release.yml');
 /** npm subcommands Scorecard's `isNpmDownload` treats as an install; only `ci` is pinned. */
 const INSTALL_SUBCOMMANDS = new Set(['ci', 'install', 'i', 'install-test', 'update']);
 
-/** Shell keywords and YAML/Dockerfile markers that can precede a command. */
+/**
+ * Shell keywords and YAML/Dockerfile markers that can precede a command, in
+ * lower case: Dockerfile instructions are case-insensitive.
+ */
 const COMMAND_PREFIXES = new Set([
   'run:',
-  'RUN',
+  'run',
   '!',
   'if',
   'then',
@@ -80,12 +83,17 @@ const QUOTED = /'[^']*'|"(?:\\.|[^"\\])*"/g;
 const COMMENT = /(?:^|\s)#.*$/;
 const ENV_ASSIGNMENT = /^[a-z_]\w*=/i;
 /** `sh -c 'CMD'` and friends: the body is a command Scorecard parses too. */
-const SHELL_C_BODY =
-  /\b(?:ba|da|k|mk|z)?sh\s+(?:-[a-z]+\s+)*-[a-z]*c\s+(?:'([^']*)'|"((?:\\.|[^"\\])*)")/g;
+const SHELL_OPTION = String.raw`(?:[-+][oO]\s+[^\s'"]+|--(?:rcfile|init-file)\s+[^\s'"]+|[-+]{1,2}[A-Za-z][\w-]*)\s+`;
+/** The option bundle carrying `c` (first `c` anchors): the shell runs the next argument. */
+const SHELL_C_FLAG_HEAD = String.raw`-[A-Zabd-z]*c[A-Za-z]*\s`;
+const SHELL_C_BODY = new RegExp(
+  String.raw`\b(?:ba|da|k|mk|z)?sh\s+(?:(?!${SHELL_C_FLAG_HEAD})${SHELL_OPTION})*${SHELL_C_FLAG_HEAD}+(?:${SHELL_OPTION})*(?:'([^']*)'|"((?:\\.|[^"\\])*)")`,
+  'g',
+);
 /** `$(CMD)` or `` `CMD` `` inside a double-quoted string, which the shell still runs. */
 const SUBSTITUTION = /\$\(([^()]*)\)|`([^`]*)`/g;
-/** Dockerfile exec form: `RUN ["npm", "install"]`. */
-const EXEC_FORM = /^\s*RUN\s+(\[.*\])\s*$/;
+/** Dockerfile exec form: `RUN ["npm", "install"]`; instructions are case-insensitive. */
+const EXEC_FORM = /^\s*RUN\s+(\[.*\])\s*$/i;
 const JSON_STRING = /"((?:\\.|[^"\\])*)"/g;
 const WORKFLOW_PATH = /^\.github\/workflows\/[^/]+\.ya?ml$/;
 const SHELL_EXTENSION = /\.(?:sh|bash|mksh)$/;
@@ -140,13 +148,15 @@ function logicalLines(text: string): readonly ILogicalLine[] {
  * @returns True when the command starts later in the line.
  */
 function isCommandPrefix(word: string): boolean {
-  return word.startsWith('-') || COMMAND_PREFIXES.has(word) || ENV_ASSIGNMENT.test(word);
+  const lower = word.toLowerCase();
+  return word.startsWith('-') || COMMAND_PREFIXES.has(lower) || ENV_ASSIGNMENT.test(word);
 }
 
 /**
- * Index of the word a command runs. Once a wrapper such as `sudo` appears, its
- * own options and their values (`-u root`) are skipped until `npm` turns up —
- * deliberately strict, since a wrapper's option arity varies.
+ * Index of the word a command runs. Once a wrapper such as `sudo` appears —
+ * bare or path-qualified — its own options and their values (`-u root`) are
+ * skipped until `npm` turns up; deliberately strict, since a wrapper's option
+ * arity varies.
  *
  * @param words - The command's whitespace-separated words.
  * @returns Index of the command word, or -1 when there is none.
@@ -154,8 +164,9 @@ function isCommandPrefix(word: string): boolean {
 function commandIndex(words: readonly string[]): number {
   let isWrapped = false;
   for (const [index, word] of words.entries()) {
-    if (basename(word) === 'npm') return index;
-    const isWrapper = WRAPPERS.has(word);
+    const name = basename(word);
+    if (name === 'npm') return index;
+    const isWrapper = WRAPPERS.has(name);
     if (!isWrapped && !isWrapper && !isCommandPrefix(word)) return index;
     isWrapped ||= isWrapper;
   }
@@ -265,6 +276,37 @@ function findUnpinnedNpm(text: string): readonly string[] {
   return logicalLines(text)
     .filter(({ text: raw }) => commandsIn(raw).some(isUnpinnedNpm))
     .map(({ line, text: raw }) => `${String(line)}: ${raw.trim()}`);
+}
+
+/**
+ * Every `run:` script in a parsed workflow, as YAML decodes it: a folded or
+ * multi-line plain scalar becomes the one command the runner executes.
+ *
+ * @param node - Any node of the parsed document.
+ * @returns The scripts, in document order.
+ */
+function runScripts(node: unknown): readonly string[] {
+  if (Array.isArray(node)) return node.flatMap(runScripts);
+  if (typeof node !== 'object' || node === null) return [];
+  return Object.entries(node).flatMap(([key, value]) =>
+    key === 'run' && typeof value === 'string' ? [value] : runScripts(value),
+  );
+}
+
+/**
+ * Find every unpinned npm download in one scanned file. Workflows are read
+ * twice: line by line, and as their decoded `run:` scripts.
+ *
+ * @param path - Repository-relative path, which decides how the text is read.
+ * @param text - File contents.
+ * @returns `line: source` for each offending line or `run:` script.
+ */
+function findUnpinnedInFile(path: string, text: string): readonly string[] {
+  const lineHits = findUnpinnedNpm(text);
+  if (!WORKFLOW_PATH.test(path)) return lineHits;
+  const document: unknown = parse(text);
+  const runHits = runScripts(document).flatMap(findUnpinnedNpm);
+  return [...lineHits, ...runHits.map(hit => `run: ${hit}`)];
 }
 
 /**
@@ -408,6 +450,8 @@ const POLICY_CASES: readonly IPolicyCase[] = [
   { command: 'sudo npm update', unpinned: true },
   { command: 'sudo -E npm install', unpinned: true },
   { command: 'sudo -u root npm install left-pad', unpinned: true },
+  { command: '/usr/bin/sudo -u root npm install left-pad', unpinned: true },
+  { command: '/usr/bin/env -u CI npm install left-pad', unpinned: true },
   { command: 'env -u CI npm install left-pad', unpinned: true },
   { command: 'timeout 600 npm install', unpinned: true },
   { command: 'nice -n 10 npm i left-pad', unpinned: true },
@@ -422,11 +466,19 @@ const POLICY_CASES: readonly IPolicyCase[] = [
   { command: 'npm install ci', unpinned: true },
   { command: "sh -c 'npm install left-pad'", unpinned: true },
   { command: 'bash -lc "npm i left-pad"', unpinned: true },
+  { command: "bash --noprofile -c 'npm install left-pad'", unpinned: true },
+  { command: "bash -O extglob -c 'npm install left-pad'", unpinned: true },
+  { command: 'bash -o pipefail -ec "npm i left-pad"', unpinned: true },
+  { command: "bash --rcfile /dev/null -c 'npm update'", unpinned: true },
   { command: 'echo "$(npm install left-pad)"', unpinned: true },
   { command: 'echo "`npm update`"', unpinned: true },
   { command: 'RUN --mount=type=cache,target=/root/.npm npm install', unpinned: true },
   { command: 'RUN ["npm", "install", "left-pad"]', unpinned: true },
+  { command: 'run ["npm", "install", "left-pad"]', unpinned: true },
+  { command: 'run npm install left-pad', unpinned: true },
   { command: 'RUN npm ci --prefer-offline --ignore-scripts', unpinned: false },
+  { command: 'run npm ci', unpinned: false },
+  { command: "bash --noprofile -c 'npm ci'", unpinned: false },
   { command: 'RUN ["npm", "ci"]', unpinned: false },
   { command: 'npm ci --omit=dev --ignore-scripts --no-audit --no-fund', unpinned: false },
   { command: 'npm --prefix app ci', unpinned: false },
@@ -463,6 +515,32 @@ const SCOPE_CASES: readonly IScopeCase[] = [
   { path: 'docs/workflow/releases.md', head: '# Releases', scanned: false },
 ];
 
+/** A workflow whose `run:` scalar spans lines, and whether it installs unpinned. */
+interface IFoldedCase {
+  readonly name: string;
+  readonly workflow: string;
+  readonly unpinned: boolean;
+}
+
+const FOLDED_CASES: readonly IFoldedCase[] = [
+  {
+    name: 'folded block',
+    workflow:
+      'jobs:\n  a:\n    steps:\n      - run: >\n          npm\n          install left-pad\n',
+    unpinned: true,
+  },
+  {
+    name: 'plain multi-line scalar',
+    workflow: 'jobs:\n  a:\n    steps:\n      - run: npm\n          install left-pad\n',
+    unpinned: true,
+  },
+  {
+    name: 'folded block running npm ci',
+    workflow: 'jobs:\n  a:\n    steps:\n      - run: >\n          npm\n          ci\n',
+    unpinned: false,
+  },
+];
+
 /** A version the stub npm reports, and whether the guard must let it through. */
 interface IGuardCase {
   readonly version: string;
@@ -494,7 +572,7 @@ describe('Scorecard npm-pin gate', () => {
   it('[SNP-3] no Scorecard-scanned file downloads through npm without a lockfile', () => {
     const offenders = scannedFiles().flatMap(path => {
       const text = readRepoFile(path);
-      const hits = findUnpinnedNpm(text);
+      const hits = findUnpinnedInFile(path, text);
       return hits.map(hit => `${path}:${hit}`);
     });
     expect(offenders).toEqual([]);
@@ -546,5 +624,10 @@ describe('Scorecard npm-pin gate', () => {
   it.each(SCOPE_CASES)('[SNP-7] $path is parsed as shell: $scanned', row => {
     const isScanned = isScannedFile(row.path, row.head);
     expect(isScanned).toBe(row.scanned);
+  });
+
+  it.each(FOLDED_CASES)('[SNP-8] reads a workflow `run:` as YAML decodes it: $name', row => {
+    const offenders = findUnpinnedInFile('.github/workflows/folded.yml', row.workflow);
+    expect(offenders.length > 0).toBe(row.unpinned);
   });
 });

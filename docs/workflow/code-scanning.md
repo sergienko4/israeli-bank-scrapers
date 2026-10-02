@@ -89,11 +89,14 @@ production graph with `npm ci` and unpacks the tarball in place.
 scanner: across every tracked workflow, shell script (by extension or shebang,
 so the husky hooks count) and Dockerfile it accepts **only** `npm ci` — not
 `npm install ci` or a commit-pinned git URL, both of which Scorecard lets
-through. Like Scorecard, it also reads `sh -c` bodies, command substitutions
-and exec-form `RUN` lines; past a wrapper such as `sudo -u root` or
-`timeout 600` it keeps looking for `npm`. It is a line-based heuristic, not
-Scorecard's shell parser: it reads heredoc bodies as ordinary lines, and cannot
-follow commands assembled at runtime (`eval`, variables).
+through. Like Scorecard, it also reads `sh -c` bodies (whatever shell options
+come first, such as `--noprofile` or `-o pipefail`), command substitutions,
+exec-form `RUN` lines in either case, and each workflow `run:` as YAML decodes
+it, so a folded scalar is one command. Past a wrapper such as `sudo -u root`,
+`/usr/bin/env -u CI` or `timeout 600` it keeps looking for `npm`. It is a
+line-based heuristic, not Scorecard's shell parser: it reads heredoc bodies as
+ordinary lines, and cannot follow commands assembled at runtime (`eval`,
+variables).
 
 ## Standing finding 1: 28 Scorecard `PinnedDependenciesID` alerts — filtered from the SARIF
 
