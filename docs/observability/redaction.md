@@ -108,6 +108,19 @@ seam returns, so an mTLS agent or a test seam cannot bypass it. The oracle
 fixture `UrlEchoFixtures` lists the real echo shapes, and every transport's
 tests run each of them.
 
+### Failure text in log lines
+
+`errorMessage` is not a censored key, so a log field holding free failure text
+would print verbatim. The sites below keep that text out of the log and record
+only `redactErrorMessage`'s `<msg:N>` length tag; the failure itself still
+flows to the caller unchanged:
+
+| Site | Why the raw text is unsafe |
+| --- | --- |
+| `RunStep` `firePost FAIL` | the transport's failure text can quote the request |
+| `onAuthFlowComplete callback threw` | a caller's error can quote the token payload |
+| `parseResponse.catch` | V8's `JSON.parse` message quotes the response body |
+
 ## Disabling redaction
 
 `PII_REDACTION=off` disables runtime redaction. **Intended for real-bank E2E tests only** (where the maintainer needs to compare actual vs expected values during development). Unit tests always run with redaction default-on so `PiiRedactor.test.ts` assertions hold.

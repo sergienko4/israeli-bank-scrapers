@@ -5,6 +5,7 @@
 
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import { isSome, none, type Option, some } from '../../Types/Option.js';
+import { redactErrorMessage } from '../../Types/PiiRedactor.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import { type IAuthFlowCallback, PHASE_LABEL } from './ApiDirectCallActions.shared.js';
 import type { IConfigTokenStrategy } from './Flow/TokenStrategyFromConfig.js';
@@ -22,14 +23,16 @@ interface IInvocationBundle {
 }
 
 /**
- * Log a callback throw without raising it.
+ * Log a callback throw without raising it. The thrown text may echo the
+ * token payload, so only its `<msg:N>` length tag is logged.
  * @param ctx - Pipeline context (for logger).
  * @param error - Thrown error.
  * @returns false sentinel for caller propagation.
  */
 function logCallbackThrow(ctx: IPipelineContext, error: unknown): boolean {
   const message = toErrorMessage(error as Error);
-  ctx.logger.warn({ message: `${PHASE_LABEL} onAuthFlowComplete callback threw: ${message}` });
+  const tag = redactErrorMessage(message);
+  ctx.logger.warn({ message: `${PHASE_LABEL} onAuthFlowComplete callback threw: ${tag}` });
   return false;
 }
 

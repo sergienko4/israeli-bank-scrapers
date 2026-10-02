@@ -4,6 +4,7 @@
  */
 
 import { getDebug } from '../../../Logging/Debug.js';
+import { redactErrorMessage } from '../../../Types/PiiRedactor.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
@@ -85,13 +86,14 @@ function extractAndMerge(bundle: IDispatchBundle, resp: JsonValue): Procedure<IT
 }
 
 /**
- * Log a fire-post failure (PII-safe).
+ * Log a fire-post failure (PII-safe). The transport text can echo
+ * request material, so only its `<msg:N>` length tag is logged.
  * @param bundle - Dispatch bundle.
  * @param errorMessage - Error message from the failed post.
  * @returns Sentinel true.
  */
 function logFireFail(bundle: IDispatchBundle, errorMessage: string): true {
-  const errCtx = { ...bundle.baseCtx, errorMessage };
+  const errCtx = { ...bundle.baseCtx, errorMessage: redactErrorMessage(errorMessage) };
   LOG.debug({ ...errCtx, message: 'firePost FAIL' });
   return true;
 }

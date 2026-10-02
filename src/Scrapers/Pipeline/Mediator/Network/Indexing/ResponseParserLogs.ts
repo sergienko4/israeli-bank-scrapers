@@ -8,7 +8,7 @@
 import { getDebug } from '../../../Logging/Debug.js';
 import { toErrorMessage } from '../../../Types/ErrorUtils.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
-import { redactUrlFull } from '../../../Types/PiiRedactor.js';
+import { redactErrorMessage, redactUrlFull } from '../../../Types/PiiRedactor.js';
 import type { IRequestMeta } from './ResponsePrimitives.js';
 
 const LOG = getDebug(import.meta.url);
@@ -84,7 +84,19 @@ function logTextRead(meta: IRequestMeta, status: number, textLen: number): true 
 }
 
 /**
- * Permanent diagnostic — body-parse error log entry.
+ * Length tag for a caught error's message — V8's JSON.parse message
+ * quotes the body it failed on, so the text itself is never logged.
+ * @param error - Caught error.
+ * @returns The `<msg:N>` length tag.
+ */
+function errorTagOf(error: Error): string {
+  const errorText = toErrorMessage(error);
+  return redactErrorMessage(errorText);
+}
+
+/**
+ * Permanent diagnostic — body-parse error log entry (message as a
+ * length tag only, see {@link errorTagOf}).
  * @param meta - Request metadata.
  * @param status - HTTP status code.
  * @param error - Caught error.
@@ -96,7 +108,7 @@ function logParseCatch(meta: IRequestMeta, status: number, error: Error): false 
     status,
     contentType: meta.contentType,
     url: redactUrlFull(meta.url),
-    errorMessage: toErrorMessage(error),
+    errorMessage: errorTagOf(error),
   });
   return false;
 }
