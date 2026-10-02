@@ -139,10 +139,10 @@ The existing [`Amex.e2e-mocked.test.ts`](https://github.com/sergienko4/israeli-b
 ### 8. Verify
 
 ```sh
-npm run test:e2e:mock -- --testPathPatterns=NewBank
+npm test -- --testPathPatterns=E2eMocked/NewBank
 npm run lint                      # eslint + architecture + canaries
 npm run test:pipeline             # coverage gates
-npm run test:e2e:real:single -- --testPathPatterns=NewBank   # requires .env credentials
+npm test -- --testPathPatterns=E2eReal/NewBank.e2e-real   # requires .env credentials
 ```
 
 ### 9. Open the PR

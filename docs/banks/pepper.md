@@ -167,7 +167,7 @@ with no cached state fails before scraping rather than enrolling, and setting
 both `ENROLL` and `FORCE_EXPIRY` is refused.
 
 ```bash
-PEPPER_PERSISTENT_AUTH=1 npm run test:e2e:real:single -- --testPathPatterns=PepperDurable
+PEPPER_PERSISTENT_AUTH=1 npm test -- --testPathPatterns=E2eReal/PepperDurable.e2e-real
 ```
 
 ## Known quirks
