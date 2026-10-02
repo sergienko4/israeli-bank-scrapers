@@ -13,6 +13,12 @@ import { PassThrough } from 'node:stream';
 import { jest } from '@jest/globals';
 import pino, { type Logger, type LoggerOptions } from 'pino';
 
+import {
+  getActiveLogContext,
+  runWithBankContext,
+} from '../../../../../Scrapers/Pipeline/Logging/BankContext.js';
+import { buildSilentOptions } from '../../../../../Scrapers/Pipeline/Logging/RootLogger.js';
+
 /** Every serialized log line any pipeline module emitted. */
 const LOG_LINES: string[] = [];
 
@@ -31,17 +37,18 @@ function makeCapturingLogger(production: LoggerOptions): Logger {
   return pino(options, stream);
 }
 
-jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Logging/Debug.js', async () => {
-  const bankContext = await import('../../../../../Scrapers/Pipeline/Logging/BankContext.js');
-  const root = await import('../../../../../Scrapers/Pipeline/Logging/RootLogger.js');
-  const production = root.buildSilentOptions();
+// The logger modules are imported statically, never inside this factory: the
+// factory runs while the module graph is still linking, and a dynamic import of
+// RootLogger's PiiRedactor graph from here races that link on Node 22.
+jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Logging/Debug.js', () => {
+  const production = buildSilentOptions();
   const logger = makeCapturingLogger(production);
   /**
    * Every pipeline module shares the capturing logger.
    * @returns The capturing logger.
    */
   const getDebug = (): Logger => logger;
-  return { ...bankContext, getDebug, getDebugByName: getDebug };
+  return { getActiveLogContext, runWithBankContext, getDebug, getDebugByName: getDebug };
 });
 
 const FIXTURES = await import('./Flow/DurableAuthFixtures.js');
