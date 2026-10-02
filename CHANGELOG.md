@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.7.4](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.7.3...v8.7.4) (2026-10-02)
+
+
+### Bug Fixes
+
+* **pepper:** add opt-in durable device auth ([#599](https://github.com/sergienko4/israeli-bank-scrapers/issues/599)) ([68b7fa1](https://github.com/sergienko4/israeli-bank-scrapers/commit/68b7fa1ab4e241365ad6553b122753f4af9894e6))
+* **security:** resolve Dependabot [#50](https://github.com/sergienko4/israeli-bank-scrapers/issues/50) and stale Scorecard alert [#63](https://github.com/sergienko4/israeli-bank-scrapers/issues/63) ([#605](https://github.com/sergienko4/israeli-bank-scrapers/issues/605)) ([deb1328](https://github.com/sergienko4/israeli-bank-scrapers/commit/deb1328871af836379b82d5f2f58a0ea2b13a5b9))
+
 ## [8.7.3](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.7.2...v8.7.3) (2026-09-20)
 
 
