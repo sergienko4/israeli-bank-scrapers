@@ -26,6 +26,7 @@ export type WKUrlGroup =
   | 'identity.pinValidation'
   | 'identity.loginBySms'
   | 'auth.bind'
+  | 'auth.login'
   | 'auth.assert'
   | 'auth.logout'
   | 'data.sync'

@@ -24,12 +24,9 @@ import {
   PHASE_LABEL,
   safeInvoke,
 } from './ApiDirectCallActions.shared.js';
+import { createContextStrategy } from './ApiDirectCallActions.strategy.js';
 import type { IApiDirectCallConfig } from './ConfigContracts/index.js';
-import {
-  createTokenStrategyFromConfig,
-  type GenericCreds,
-  type IConfigTokenStrategy,
-} from './Flow/TokenStrategyFromConfig.js';
+import type { GenericCreds, IConfigTokenStrategy } from './Flow/TokenStrategyFromConfig.js';
 
 /** Booted ACTION bundle — bus + strategy + ctx + creds. */
 interface IBootedAction {
@@ -49,7 +46,7 @@ interface IBusStrategy {
  * Resolve the bus and strategy procedures for the ACTION boot bundle.
  * @param config - API-direct-call config.
  * @param ctx - Normalised pipeline context.
- * @returns Procedure containing bus + strategy.
+ * @returns Procedure containing bus + strategy, or an option-validation failure.
  */
 function resolveBusStrategy(
   config: IApiDirectCallConfig,
@@ -57,7 +54,7 @@ function resolveBusStrategy(
 ): Procedure<IBusStrategy> {
   const busProc = resolveApiMediator(ctx, PHASE_LABEL);
   if (!isOk(busProc)) return busProc;
-  const stratProc = createTokenStrategyFromConfig({ config });
+  const stratProc = createContextStrategy(config, ctx);
   if (!isOk(stratProc)) return stratProc;
   return succeed({ bus: busProc.value, strategy: stratProc.value });
 }

@@ -124,6 +124,21 @@ function lastOtpPreHookIndex(config: IApiDirectCallConfig): number {
   return Math.max(...otpSteps, -1);
 }
 
+/**
+ * Collect every bank whose config declares a durable persistentAuth block.
+ * @returns Label/config pairs for persistent-auth banks.
+ */
+async function loadPersistentAuthConfigs(): Promise<
+  readonly (readonly [string, IApiDirectCallConfig])[]
+> {
+  const pending = CONFIG_PATHS.map(async ([label, path]) => {
+    const config = await loadConfig(path);
+    return [label, config] as const;
+  });
+  const loaded = await Promise.all(pending);
+  return loaded.filter(([, config]) => config.persistentAuth !== undefined);
+}
+
 describe('warm-start contract — every opted-in bank', () => {
   it('covers exactly the warm-start banks present on disk', async () => {
     const files = await findWarmStartConfigFiles();
@@ -183,6 +198,43 @@ describe('warm-start contract — every opted-in bank', () => {
       const carryField = config.warmStart?.carryField ?? '';
       const produced = config.steps.flatMap(step => Object.keys(step.extractsToCarry));
       expect(produced).toContain(carryField);
+    }
+  });
+});
+
+describe('persistent-auth contract — every opted-in bank', () => {
+  it('opts in only the banks this suite expects', async () => {
+    const configs = await loadPersistentAuthConfigs();
+    const labels = configs.map(([label]) => label);
+    expect(labels).toEqual(['Pepper']);
+  });
+
+  it('renews without any pre-hook, so a durable resume can never send a message', async () => {
+    const configs = await loadPersistentAuthConfigs();
+    for (const [, config] of configs) {
+      const resumeSteps = config.persistentAuth?.resumeSteps ?? [];
+      const hooked = resumeSteps.filter(step => step.preHook !== undefined);
+      expect(resumeSteps.length).toBeGreaterThan(0);
+      expect(hooked).toEqual([]);
+    }
+  });
+
+  it('always ends the renewal holding the warm-start token slot', async () => {
+    const configs = await loadPersistentAuthConfigs();
+    for (const [, config] of configs) {
+      const resumeSteps = config.persistentAuth?.resumeSteps ?? [];
+      const produced = resumeSteps.flatMap(step => Object.keys(step.extractsToCarry));
+      expect(produced).toContain(config.warmStart?.carryField);
+    }
+  });
+
+  it('seeds the client instance id at flow init, so enrollment and renewal agree', async () => {
+    const configs = await loadPersistentAuthConfigs();
+    for (const [, config] of configs) {
+      const seeded = (config.seedCarryFromCreds ?? []).map(entry =>
+        typeof entry === 'string' ? entry : entry.field,
+      );
+      expect(seeded).toContain(config.persistentAuth?.clientInstanceIdField);
     }
   });
 });

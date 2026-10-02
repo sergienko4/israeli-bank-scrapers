@@ -28,6 +28,27 @@ import type { FlowKind, IStepConfig } from './FlowTypes.js';
 import type { ISignerConfig } from './SignerTypes.js';
 import type { IEnvelopeSelectors } from './TemplateTypes.js';
 
+/**
+ * Opt-in persistent-auth block — lets a caller hold opaque device-bound
+ * state so later runs replay a fresh token or renew an expired one
+ * through `resumeSteps` without a bind or OTP step. Data only: the
+ * mediator owns every executable branch.
+ */
+interface IPersistentAuthConfig {
+  /** Provider tag written into, and required back from, the opaque state. */
+  readonly provider: string;
+  /** Signed renewal steps against the persisted device, in order. */
+  readonly resumeSteps: readonly IStepConfig[];
+  /** Creds field, mirrored into carry, holding the stable client-instance UUID. */
+  readonly clientInstanceIdField: string;
+  /** Carry slot holding the server-issued device identifier. */
+  readonly deviceIdField: string;
+  /** Normalized creds field that binds the state to one account. */
+  readonly accountField: string;
+  /** Seconds before token expiry at which a stored token stops being replayed. */
+  readonly freshnessMarginSeconds: number;
+}
+
 /** Top-level config literal — placed into PIPELINE_BANK_CONFIG[bank].apiDirectCall. */
 interface IApiDirectCallConfig {
   readonly flow: FlowKind;
@@ -69,6 +90,8 @@ interface IApiDirectCallConfig {
    * at flow init. Order matters when derivations depend on earlier ones.
    */
   readonly derivedCarry?: readonly IDerivedCarry[];
+  /** Optional durable device-state support — see IPersistentAuthConfig. */
+  readonly persistentAuth?: IPersistentAuthConfig;
 }
 
-export type { IApiDirectCallConfig };
+export type { IApiDirectCallConfig, IPersistentAuthConfig };

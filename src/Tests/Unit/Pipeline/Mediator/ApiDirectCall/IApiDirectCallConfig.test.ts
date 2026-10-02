@@ -9,6 +9,7 @@ import type {
   FlowKind,
   IApiDirectCallConfig,
   ICanonicalStringConfig,
+  IPersistentAuthConfig,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { WKQueryOperation } from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
 import type { WKUrlGroup } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
@@ -129,5 +130,90 @@ describe('FlowKind enum', () => {
     expect(smsOtp).toBe(MINIMAL_CONFIG.flow);
     expect(storedJwt).not.toBe(smsOtp);
     expect(bearerStatic).not.toBe(storedJwt);
+  });
+});
+
+/** Synthetic login URL tag — real registration is a registry concern. */
+const LOGIN_TAG = 'auth.login' as WKUrlGroup;
+
+/** Compile-time pin: a complete persistent-auth block with a login step. */
+const COMPLETE_BLOCK: IPersistentAuthConfig = {
+  provider: 'synthetic',
+  resumeSteps: [
+    {
+      name: 'login',
+      urlTag: LOGIN_TAG,
+      body: { shape: { data: { $literal: {} } } },
+      extractsToCarry: { challenge: '/data/challenge' },
+    },
+    {
+      name: 'assertPassword',
+      urlTag: ASSERT_TAG,
+      body: { shape: { data: { $literal: {} } } },
+      extractsToCarry: { token: '/data/token' },
+    },
+  ],
+  clientInstanceIdField: 'clientInstanceId',
+  deviceIdField: 'deviceId',
+  accountField: 'phoneNumber',
+  freshnessMarginSeconds: 300,
+};
+
+/** Keys of `TShape` whose value type is callable. */
+type CallableKeys<TShape> = {
+  [TKey in keyof TShape]-?: TShape[TKey] extends (...args: never[]) => unknown ? TKey : never;
+}[keyof TShape];
+
+/** Compile-time pin: the persistent-auth block carries no callback. */
+const isCallbackFree: [CallableKeys<IPersistentAuthConfig>] extends [never] ? true : false = true;
+
+/** Per field: does the contract still accept a block that omits it? */
+type IncompleteBlockVerdicts = {
+  readonly [TKey in keyof IPersistentAuthConfig]: [Omit<IPersistentAuthConfig, TKey>] extends [
+    IPersistentAuthConfig,
+  ]
+    ? true
+    : false;
+};
+
+/** Compile-time pin: omitting any single field fails type-check. */
+const INCOMPLETE_BLOCK_VERDICTS: IncompleteBlockVerdicts = {
+  provider: false,
+  resumeSteps: false,
+  clientInstanceIdField: false,
+  deviceIdField: false,
+  accountField: false,
+  freshnessMarginSeconds: false,
+};
+
+/** One `[field, accepted]` row per persistent-auth field. */
+const VERDICT_ROWS = Object.entries(INCOMPLETE_BLOCK_VERDICTS);
+
+describe('IPersistentAuthConfig contract', () => {
+  it('leaves existing config literals valid without a persistent-auth block', () => {
+    expect(FULL_CONFIG.persistentAuth).toBeUndefined();
+    expect(MINIMAL_CONFIG.persistentAuth).toBeUndefined();
+    expect(STORED_JWT_CONFIG.persistentAuth).toBeUndefined();
+  });
+
+  it('accepts a complete data-only block with login then password steps', () => {
+    const config: IApiDirectCallConfig = { ...MINIMAL_CONFIG, persistentAuth: COMPLETE_BLOCK };
+    const names = config.persistentAuth?.resumeSteps.map((step): string => step.name);
+    expect(names).toEqual(['login', 'assertPassword']);
+    expect(isCallbackFree).toBe(true);
+    const json = JSON.stringify(COMPLETE_BLOCK);
+    const roundTripped: unknown = JSON.parse(json);
+    expect(roundTripped).toEqual(COMPLETE_BLOCK);
+  });
+
+  it('pins a rejection verdict for every field of the block', () => {
+    const verdictKeys = Object.keys(INCOMPLETE_BLOCK_VERDICTS).sort();
+    const blockKeys = Object.keys(COMPLETE_BLOCK).sort();
+    expect(verdictKeys).toEqual(blockKeys);
+  });
+
+  it.each(VERDICT_ROWS)('rejects a block without %s at compile time', (field, isAccepted) => {
+    expect(field.length).toBeGreaterThan(0);
+    expect(isAccepted).toBe(false);
   });
 });

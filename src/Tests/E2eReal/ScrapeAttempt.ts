@@ -26,6 +26,23 @@ interface IScrapeAttemptArgs {
   readonly companyId: CompanyTypes;
   /** Token-cache writer bound to `ScraperOptions.onAuthFlowComplete`. */
   readonly onAuthFlowComplete: (info: IAuthFlowInfo) => Promise<void>;
+  /** Durable state to resume from (durable mode only). */
+  readonly persistentAuthState?: string;
+  /** Durable state sink (durable mode only). */
+  readonly onPersistentAuthStateUpdate?: (state: string) => Promise<void>;
+}
+
+/**
+ * Pick only the durable options the caller actually supplied, so a legacy
+ * attempt's options carry no `undefined` durable keys.
+ * @param args - Bank-specific configuration.
+ * @returns The supplied durable options.
+ */
+function durableOptionsOf(args: IScrapeAttemptArgs): Partial<ScraperOptions> {
+  const { persistentAuthState, onPersistentAuthStateUpdate } = args;
+  const state = persistentAuthState === undefined ? {} : { persistentAuthState };
+  const sink = onPersistentAuthStateUpdate === undefined ? {} : { onPersistentAuthStateUpdate };
+  return { ...state, ...sink };
 }
 
 /**
@@ -34,12 +51,14 @@ interface IScrapeAttemptArgs {
  * @returns Options for a single headless attempt.
  */
 function buildAttemptOptions(args: IScrapeAttemptArgs): ScraperOptions {
+  const durable = durableOptionsOf(args);
   return {
     companyId: args.companyId,
     startDate: defaultStartDate(),
     shouldShowBrowser: false,
     args: BROWSER_ARGS,
     onAuthFlowComplete: args.onAuthFlowComplete,
+    ...durable,
   };
 }
 

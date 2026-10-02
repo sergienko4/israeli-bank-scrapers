@@ -91,6 +91,15 @@ unusable value went to the bank as-is and came back as an opaque auth failure
 that named nothing. See
 [#552](https://github.com/sergienko4/israeli-bank-scrapers/issues/552).
 
+### Transport errors
+
+Every transport — native fetch, Camoufox page fetch and mTLS — names a URL in
+its errors and debug logs through `safeUrlForLog`, which keeps only the origin
+and path. Query parameters can carry device ids and session values, so they
+never reach an error message or a log line. Native fetch and Camoufox also pass
+a caught exception's text through `scrubUrlFromText`, so an engine message that
+quotes the request URL keeps only its origin and path as well.
+
 ## One SMS per run
 
 **A single scrape of a single api-direct bank sends at most one SMS.** That is
@@ -152,6 +161,51 @@ each silent re-mint invalidated the token the run was trying to keep.
 
 If a run legitimately needs a second login, start a second scrape.
 
+## Persistent (durable) device auth
+
+A bank whose config declares a `persistentAuth` block can keep its bound device
+between runs. Pepper is the only one today; every other bank ignores the two
+options. The caller-facing contract lives in
+[Pepper durable device auth](../banks/pepper.md#durable-device-auth-opt-in).
+
+`.action` resolves one mode — token-only, enrollment or resume — while it
+builds the token strategy, before any auth request. An invalid option
+combination fails there, so it never reaches the network.
+
+- **Enrollment** is the bank's normal cold flow, so it draws on the
+  [one-SMS budget](#one-sms-per-run) like any cold login. A spent budget fails
+  as `enrollment-budget` instead of sending.
+- **Resume** decodes and validates the state locally. A token fresh for more
+  than `freshnessMarginSeconds` (300 s for Pepper) is replayed with zero auth
+  requests. Otherwise the bank's `resumeSteps` run on the persisted device:
+  a signed login and one password assertion. They contain no bind and no OTP
+  step, so resume never draws on the budget.
+- **No fallback.** A durable strategy reports no warm state, so a failed resume
+  never falls back to a cold login. Its `primeFresh` fails locally, so a
+  401/403 during the scrape cannot recurse into a renewal or an enrollment.
+  The mediator then returns that request's original 401/403; the refusal is
+  only logged.
+- **Publish before use.** A new token is installed only after
+  `onPersistentAuthStateUpdate` resolves.
+- **No stored value in errors.** Transports drop the query string (see
+  [Transport errors](#transport-errors)), so the persisted device id never
+  reaches an error or a log line. A renewal failure is passed through with any
+  stored value it quotes replaced by `[REDACTED]`.
+
+A durable run therefore performs at most two auth requests on resume, at most
+one state callback, and no SMS outside enrollment.
+
+Where each piece lives, for maintainers:
+
+| Concern | Symbols |
+|---|---|
+| Caller input | `IPersistentAuthInput` and `PersistentAuthStateCallback`, read from the options by `readPersistentAuthInput` |
+| Mode resolution | `createContextStrategy` → `resolveContextAuthMode` → `resolvePersistentAuthMode`, producing a `PersistentAuthMode`: legacy, or a `DurableAuthMode` (enroll / resume) |
+| State codec | `encodePersistentAuthState` / `decodePersistentAuthState` over `IPersistentAuthStateV1`. Decoding checks the state against an `IPersistentAuthExpectation` and returns an `IRehydratedPersistentAuth` with the EC key ready to sign |
+| Strategy branch | `primeDurable` (replay, renew or enroll) and `refuseDurableRefresh` (the local `primeFresh` refusal) |
+| Secrets in failures | `scrubPersistedValues` redacts stored values a renewal failure quotes; transports already strip the query string with `safeUrlForLog` |
+| Bank data | Pepper's `PEPPER_RESUME_STEPS`: signed `/auth/login`, then one password assertion |
+
 ## Sub-step contract
 
 | Hook | What it does |
@@ -171,3 +225,4 @@ If a run legitimately needs a second login, start a second scrape.
 | `INVALID_PHONE_NUMBER` | `phoneNumber` cannot be normalised to the bank's wire format — see [Phone normaliser](#phone-normaliser) |
 | `TIMEOUT` | A step's HTTP call didn't complete |
 | `GENERIC` | Signer key missing, response shape drift, a `cryptoField` failure, or a second cold login refused by the [one-SMS budget](#one-sms-per-run) |
+| `GENERIC` | `persistent auth options invalid: <category>`, `persistent auth state invalid: <category>` or `persistent auth failed: <category>` — a [durable device auth](#persistent-durable-device-auth) failure; the categories are listed in [Pepper](../banks/pepper.md#failures-never-fall-back) |

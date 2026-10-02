@@ -6,12 +6,12 @@
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { getDebug } from '../../Logging/Debug.js';
-import type { Brand, SafeUrlForLog } from '../../Types/Brand.js';
-import { mintSafeUrlForLog } from '../../Types/Brand.js';
-import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import type { Brand } from '../../Types/Brand.js';
+import { toError, toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
+import { safeUrlForLog, scrubUrlFromText } from './SafeUrlForLog.js';
 
 type SetCookieEmitCount = Brand<number, 'SetCookieEmitCount'>;
 type FullyQualifiedUrl = Brand<string, 'FullyQualifiedUrl'>;
@@ -21,24 +21,6 @@ const LOG = getDebug(import.meta.url);
 
 /** Maximum length of a response-body snippet embedded in an error message. */
 const ERROR_BODY_SNIPPET_LEN = 120;
-
-/**
- * Strip query string and credentials from a URL for safe logging.
- * Per `logging-pii-guidlines.txt`, never log query parameters that may
- * carry session ids, tokens, or PII (uid, phoneNumber, etc.). Returns
- * `<scheme>//<host><path>` only — enough for traceability without
- * leaking sensitive fields.
- * @param url - Full URL to sanitize.
- * @returns Origin + path only as a branded SafeUrlForLog.
- */
-function safeUrlForLog(url: string): SafeUrlForLog {
-  try {
-    const parsed = new URL(url);
-    return mintSafeUrlForLog(`${parsed.origin}${parsed.pathname}`);
-  } catch {
-    return mintSafeUrlForLog('<unparseable>');
-  }
-}
 
 /** HTTP method verbs used by this strategy. */
 type HttpVerb = 'GET' | 'POST';
@@ -80,7 +62,8 @@ async function parseJsonResponse<T>(
     return succeed(parsed);
   } catch (error) {
     const reason = toErrorMessage(error as Error);
-    return fail(ScraperErrorTypes.Generic, `${verb} ${url} parse error: ${reason}`);
+    const safeUrl = safeUrlForLog(url);
+    return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} parse error: ${reason}`);
   }
 }
 
@@ -98,7 +81,8 @@ async function classifyStatus<T>(
 ): Promise<Procedure<T>> {
   const rawText = await response.text();
   const snippet = rawText.slice(0, ERROR_BODY_SNIPPET_LEN);
-  const message = `${verb} ${url} ${String(response.status)}: ${snippet}`;
+  const safeUrl = safeUrlForLog(url);
+  const message = `${verb} ${safeUrl} ${String(response.status)}: ${snippet}`;
   return fail(ScraperErrorTypes.Generic, message);
 }
 
@@ -131,14 +115,16 @@ function emitSetCookies(response: Response, hook?: IFetchOpts['onSetCookie']): S
 
 /**
  * Wrap a thrown fetch error into a network-error Procedure.
- * @param error - The caught value (Error or string).
+ * @param error - The caught value, from any realm.
  * @param verb - HTTP verb (for error-message prefixing).
  * @param url - Target URL (for error-message prefixing).
  * @returns Procedure failure annotated with the underlying reason.
  */
-function toNetworkFailure(error: Error | string, verb: HttpVerb, url: string): Procedure<Response> {
-  const reason = toErrorMessage(error);
-  return fail(ScraperErrorTypes.Generic, `${verb} ${url} network error: ${reason}`);
+function toNetworkFailure(error: unknown, verb: HttpVerb, url: string): Procedure<Response> {
+  const rawReason = toError(error).message;
+  const reason = scrubUrlFromText(rawReason, url);
+  const safeUrl = safeUrlForLog(url);
+  return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} network error: ${reason}`);
 }
 
 /**
@@ -157,7 +143,7 @@ async function invokeFetch(
     const response = await globalThis.fetch(url, init);
     return succeed(response);
   } catch (error) {
-    return toNetworkFailure(error as Error, verb, url);
+    return toNetworkFailure(error, verb, url);
   }
 }
 

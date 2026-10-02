@@ -662,6 +662,28 @@ type ScraperOptions = ScraperBrowserOptions & {
      */
     onAuthFlowComplete?: (info: IAuthFlowInfo) => void | Promise<void>;
     /**
+     * Opaque, versioned device-auth state previously emitted by
+     * onPersistentAuthStateUpdate. Banks without durable device auth ignore it.
+     *
+     * <p>The value is encoded, not encrypted: it carries a bearer token and a
+     * device private key, so callers must store it as a secret. Requires
+     * onPersistentAuthStateUpdate and must not be combined with
+     * creds.otpLongTermToken. Omit it when nothing is stored: an empty string
+     * is rejected as invalid state.
+     */
+    persistentAuthState?: string;
+    /**
+     * Persists replacement device-auth state for banks that support durable
+     * device authentication. Banks without durable device auth ignore it.
+     *
+     * <p>Runs once after a successful durable enrollment or expired-state
+     * renewal, never for a fresh replay or a failed flow, and is never retried.
+     * Resolution acknowledges durable storage; rejection or throw fails
+     * authentication before the new bearer is used. Durable mode never invokes
+     * onAuthFlowComplete or populates persistentOtpToken.
+     */
+    onPersistentAuthStateUpdate?: (state: string) => Promise<void>;
+    /**
      * Maximum time (ms) to wait for the OTP code from the retriever callback.
      * If the retriever doesn't resolve within this window, the phase fails with OTP_TIMEOUT.
      * @default 180000 (3 minutes)

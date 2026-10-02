@@ -15,6 +15,7 @@ export type AuthPathKey =
   | 'identity.pinValidation'
   | 'identity.loginBySms'
   | 'auth.bind'
+  | 'auth.login'
   | 'auth.assert'
   | 'auth.logout'
   | 'data.sync'

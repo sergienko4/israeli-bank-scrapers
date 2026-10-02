@@ -11,7 +11,13 @@
 import * as path from 'node:path';
 
 import type { BankKey } from '../E2eReal/TokenCache.js';
-import { BANK_KEYS, cachePathFor, isBankKey, requireBankKey } from '../E2eReal/TokenCache.js';
+import {
+  BANK_KEYS,
+  CACHE_ARTIFACTS,
+  cachePathFor,
+  isBankKey,
+  requireBankKey,
+} from '../E2eReal/TokenCache.js';
 
 const SANDBOX = path.join(path.sep, 'tmp', 'cache-dir');
 
@@ -102,5 +108,27 @@ describe('requireBankKey — the guard the measure CLI runs before it reads anyt
     const reject = (): BankKey => requireBankKey('');
     const supported = BANK_KEYS.join(', ');
     expect(reject).toThrow(supported);
+  });
+});
+
+describe('cachePathFor — artifacts', () => {
+  it.each(BANK_KEYS)('defaults %s to the token artifact the lifetime tool reads', key => {
+    const resolved = cachePathFor(key, SANDBOX);
+    const expected = path.join(SANDBOX, `${key}-token.cache`);
+    expect(resolved).toBe(expected);
+  });
+
+  it('stores Pepper durable state in its own file', () => {
+    const resolved = cachePathFor('pepper', SANDBOX, 'durable');
+    const expected = path.join(SANDBOX, 'pepper-durable.cache');
+    expect(resolved).toBe(expected);
+  });
+
+  it.each(BANK_KEYS)('keeps every %s artifact distinct and inside the directory', key => {
+    const paths = CACHE_ARTIFACTS.map((artifact): string => cachePathFor(key, SANDBOX, artifact));
+    const distinct = new Set(paths);
+    const isEveryContained = paths.every(isInsideSandbox);
+    expect(distinct.size).toBe(CACHE_ARTIFACTS.length);
+    expect(isEveryContained).toBe(true);
   });
 });

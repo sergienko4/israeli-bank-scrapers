@@ -11,10 +11,11 @@ import type { ClientRequest, IncomingMessage } from 'node:http';
 import { Agent, request as httpsRequest, type RequestOptions } from 'node:https';
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { toErrorMessage } from '../../../Types/ErrorUtils.js';
+import { toError } from '../../../Types/ErrorUtils.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import type { FetchInvoke, HttpVerb } from '../NativeFetchStrategy.js';
+import { safeUrlForLog, scrubUrlFromText } from '../SafeUrlForLog.js';
 import type { ICertBundle } from './OneZeroClientCert.js';
 
 /**
@@ -217,6 +218,19 @@ function toResponse(message: IncomingMessage, body: string): Response {
 }
 
 /**
+ * Wrap a thrown mTLS error into a failure naming origin + path only.
+ * @param error - The caught value, from any realm.
+ * @param request - The request that failed.
+ * @returns Procedure failure with no query string, even one the error quotes.
+ */
+function toMtlsFailure(error: unknown, request: IMtlsRequest): Procedure<Response> {
+  const rawReason = toError(error).message;
+  const reason = scrubUrlFromText(rawReason, request.url);
+  const safeUrl = safeUrlForLog(request.url);
+  return fail(ScraperErrorTypes.Generic, `${request.verb} ${safeUrl} mtls error: ${reason}`);
+}
+
+/**
  * Perform an mTLS request and surface a Procedure<Response>.
  * Mirrors invokeFetch's contract so it slots into dispatchFetch as the
  * transport seam; all response parsing and cookie handling stay shared.
@@ -230,8 +244,7 @@ async function mtlsInvoke(request: IMtlsRequest): Promise<Procedure<Response>> {
     const response = toResponse(message, body);
     return succeed(response);
   } catch (error) {
-    const reason = toErrorMessage(error as Error);
-    return fail(ScraperErrorTypes.Generic, `${request.verb} ${request.url} mtls error: ${reason}`);
+    return toMtlsFailure(error, request);
   }
 }
 

@@ -64,7 +64,7 @@ from (cross-package imports such as `Registry/WK/*` are omitted for brevity).
 | **CarryTypes** | `IWarmStartConfig`, `ISeedCarrySource`, `IRandomHex16Bootstrap`, `IRandomUuidBootstrap`, `ISha256Prefix16Bootstrap`, `IJwtClaimBootstrap`, `SeedCarryBootstrapKind`, `IDerivedCarry` | TemplateTypes |
 | **EnvelopeTypes** | `IFingerprintConfig`, `AuthScheme`, `IJwtClaimsConfig`, `IProbeConfig`, `IPreStepHook` | TemplateTypes, SignerTypes |
 | **FlowTypes** | `FlowKind`, `StepName`, `IStepConfig` | TemplateTypes, EnvelopeTypes |
-| **ApiDirectCallConfig** | `IApiDirectCallConfig` | all five above |
+| **ApiDirectCallConfig** | `IApiDirectCallConfig`, `IPersistentAuthConfig` | all five above |
 
 Notes:
 

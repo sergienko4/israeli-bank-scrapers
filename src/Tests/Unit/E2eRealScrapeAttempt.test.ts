@@ -59,6 +59,25 @@ function buildAttempt(writer: () => Promise<void>): AnyAttempt {
   return CREATE_SCRAPE_ATTEMPT(args as never) as unknown as AnyAttempt;
 }
 
+/** Durable option keys a legacy attempt must never carry, even as undefined. */
+const DURABLE_OPTION_KEYS = ['persistentAuthState', 'onPersistentAuthStateUpdate'] as const;
+
+/**
+ * Build a durable attempt carrying the given state and sink.
+ * @param state - Stored durable state.
+ * @param sink - Durable state sink.
+ * @returns Attempt callback under test.
+ */
+function buildDurableAttempt(state: string, sink: () => Promise<void>): AnyAttempt {
+  const args = {
+    companyId: 'pepper',
+    onAuthFlowComplete: sink,
+    persistentAuthState: state,
+    onPersistentAuthStateUpdate: sink,
+  };
+  return CREATE_SCRAPE_ATTEMPT(args as never) as unknown as AnyAttempt;
+}
+
 describe('E2eReal/ScrapeAttempt', () => {
   beforeEach(() => {
     CREATE_SCRAPER_MOCK.mockReset();
@@ -116,5 +135,26 @@ describe('E2eReal/ScrapeAttempt', () => {
 
     expect(SCRAPE_MOCK).toHaveBeenCalledWith(creds);
     expect(result).toEqual({ success: false });
+  });
+
+  it('leaves every durable option out of a legacy attempt', async () => {
+    const writer = stubWriter();
+    const attempt = buildAttempt(writer);
+
+    await attempt({});
+
+    const options = optionsOf(0);
+    const leaked = DURABLE_OPTION_KEYS.filter((key): boolean => key in options);
+    expect(leaked).toEqual([]);
+  });
+
+  it('passes the durable state and sink through unchanged', async () => {
+    const sink = stubWriter();
+    const attempt = buildDurableAttempt('state-fixture', sink);
+
+    await attempt({});
+
+    expect(optionsOf(0).persistentAuthState).toBe('state-fixture');
+    expect(optionsOf(0).onPersistentAuthStateUpdate).toBe(sink);
   });
 });

@@ -8,4 +8,5 @@ export type {
   GenericCreds,
   IConfigTokenStrategy,
   ICreateTokenStrategyArgs,
+  PersistentAuthMode,
 } from './TokenStrategyFromConfig.types.js';

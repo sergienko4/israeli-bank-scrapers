@@ -2,14 +2,48 @@
  * Type aliases + interfaces for the TokenStrategyFromConfig cluster.
  */
 
+import type { PersistentAuthStateCallback } from '../../../Types/Domain/PersistentAuthInput.js';
 import type { ITokenBus } from '../../../Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../../Types/Domain/TokenContext.js';
 import type { ITokenStrategy } from '../../Api/ITokenStrategy.js';
-import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
+import type { IApiDirectCallConfig, IPersistentAuthConfig } from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 
 /** Generic creds shape — strategies read named fields via config. */
 type GenericCreds = Readonly<Record<string, unknown>>;
+
+/** No durable options, or a bank whose config has no persistent-auth block. */
+interface ILegacyAuthMode {
+  readonly kind: 'legacy';
+}
+
+/** Validated inputs every durable mode carries — never the raw options. */
+interface IDurableAuthModeBase {
+  /** The bank's persistent-auth block, already narrowed to present. */
+  readonly block: IPersistentAuthConfig;
+  /** Caller hook that stores replacement state before a bearer is used. */
+  readonly onUpdate: PersistentAuthStateCallback;
+  /** Normalised account the durable state is bound to. */
+  readonly account: string;
+}
+
+/** Callback without state: enroll through the existing flow, then publish. */
+interface IDurableEnrollMode extends IDurableAuthModeBase {
+  readonly kind: 'enroll';
+}
+
+/** State with callback: replay the stored token, or renew it on the bound device. */
+interface IDurableResumeMode extends IDurableAuthModeBase {
+  readonly kind: 'resume';
+  /** Opaque state as supplied; decoded and validated before any request. */
+  readonly encodedState: string;
+}
+
+/** A mode that owns device-bound state — everything except legacy. */
+type DurableAuthMode = IDurableEnrollMode | IDurableResumeMode;
+
+/** Durable device-auth mode, resolved once before any auth request. */
+type PersistentAuthMode = ILegacyAuthMode | DurableAuthMode;
 
 /**
  * Extended ITokenStrategy exposing the most recent long-term token
@@ -87,6 +121,12 @@ interface ILongTermTokenSlot {
    * `idToken`) rather than the bearer.
    */
   latestHeaderValue?: string;
+  /**
+   * Durable mode the strategy was built for; absent means legacy. Held here
+   * rather than in creds or carry because it carries the caller's state and
+   * storage callback, which must never reach templates, snapshots or logs.
+   */
+  readonly persistentAuth?: DurableAuthMode;
 }
 
 /** Subset of IFlowResult consumed by captureFlowResult. */
@@ -117,11 +157,14 @@ interface IPrimeArgs {
 interface ICreateTokenStrategyArgs {
   readonly config: IApiDirectCallConfig;
   readonly name?: string;
+  /** Resolved durable mode; omitted or legacy keeps the existing behaviour. */
+  readonly persistentAuth?: PersistentAuthMode;
 }
 
 /** Strategy bindings — the 5 functions exposed by the strategy (without name). */
 type IStrategyBindings = Omit<IConfigTokenStrategy, 'name'>;
 export type {
+  DurableAuthMode,
   GenericCreds,
   IConfigTokenStrategy,
   ICreateTokenStrategyArgs,
@@ -131,4 +174,5 @@ export type {
   IPrimeArgs,
   IRunFlowArgs,
   IStrategyBindings,
+  PersistentAuthMode,
 };

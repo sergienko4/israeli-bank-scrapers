@@ -8,14 +8,35 @@
  * The CamoufoxJsMock fake-page-eval mode is toggled on so the evaluate
  * call runs the function in Node against this file's globalThis.fetch
  * override — same pattern as OneZeroFetchMock.
+ *
+ * Auth routes are served by the synthetic Transmit server in
+ * `PepperAuthServer.ts`, which verifies every request signature. GraphQL
+ * answers 401 to any bearer the server did not issue or the test did not
+ * explicitly accept, so a stale or never-renewed token cannot slip through.
  */
 
 import { setFakePageEvalMode } from '../../Mocks/CamoufoxJsMock.js';
+import type { IAuthRouteCounts, IAuthServer, ISeedDevice } from './PepperAuthServer.js';
+import { createPepperAuthServer, handleAuthRequest } from './PepperAuthServer.js';
+import { headerOf } from './PepperSignatureOracle.js';
 
 /** Tally values for wiring assertions. */
-export interface IMockCallCounts {
+export interface IMockCallCounts extends Readonly<IAuthRouteCounts> {
   readonly identity: number;
   readonly graphql: number;
+  readonly graphqlRejected: number;
+  /** Rejection reasons, in order — pins *where* a request was refused. */
+  readonly rejections: readonly string[];
+}
+
+/** Optional server behaviour; omitted fields keep the legacy defaults. */
+export interface IPepperMockOptions {
+  /** Access token the OTP / resume assertion returns. */
+  readonly issuedToken?: string;
+  /** Devices bound by an earlier (simulated) enrollment. */
+  readonly devices?: readonly ISeedDevice[];
+  /** Bearer tokens GraphQL accepts besides the issued one. */
+  readonly acceptedTokens?: readonly string[];
 }
 
 /** Installer handle. */
@@ -58,6 +79,14 @@ interface IResponseLike {
 interface ICallTally {
   identity: number;
   graphql: number;
+  graphqlRejected: number;
+}
+
+/** Everything one installed mock instance owns. */
+interface IMockState {
+  readonly tally: ICallTally;
+  readonly server: IAuthServer;
+  readonly acceptedTokens: ReadonlySet<string>;
 }
 
 /**
@@ -93,54 +122,6 @@ function noopCookies(): readonly string[] {
 function jsonOk(payload: JsonObject): IResponseLike {
   const bodyText = JSON.stringify(payload);
   return buildResponse(200, bodyText);
-}
-
-/**
- * Synthetic Transmit bind response — includes session/device headers
- * so step-2 and step-3 can carry them into their URL query params.
- * @returns Bind envelope carrying challenge + password assertion.
- */
-function bindResponse(): JsonObject {
-  return {
-    error_code: 0,
-    data: {
-      challenge: 'syn-challenge',
-      state: 'pending',
-      control_flow: [
-        { type: 'auth', methods: [{ type: 'password', assertion_id: 'syn-pwd-assert' }] },
-      ],
-    },
-    headers: [
-      { type: 'session_id', session_id: 'syn-session-id' },
-      { type: 'device_id', device_id: 'syn-device-id' },
-    ],
-  };
-}
-
-/**
- * Synthetic Transmit assert(password) response.
- * @returns Assert envelope carrying the SMS OTP channel assertion.
- */
-function assertPwdResponse(): JsonObject {
-  return {
-    data: {
-      state: 'pending',
-      control_flow: [
-        {
-          type: 'auth',
-          methods: [{ channels: [{ type: 'sms', assertion_id: 'syn-otp-assert' }] }],
-        },
-      ],
-    },
-  };
-}
-
-/**
- * Synthetic Transmit assert(otp) response.
- * @returns Assert envelope carrying the final JWT.
- */
-function assertOtpResponse(): JsonObject {
-  return { data: { state: 'success', token: SYN_JWT } };
 }
 
 /**
@@ -221,61 +202,71 @@ function graphqlByName(queryname: string): JsonObject {
 }
 
 /**
+ * Read the request headers the transport passed as a plain record.
+ * @param init - Request init (may be absent).
+ * @returns Header record (empty when missing).
+ */
+function headersOf(init?: RequestInit): Readonly<Record<string, string>> {
+  const raw = init?.headers as Record<string, string> | undefined;
+  return raw ?? {};
+}
+
+/**
  * Pick the queryname header from a RequestInit.
  * @param init - Request init (may be absent).
  * @returns queryname string ('' when missing).
  */
 function pickQueryname(init?: RequestInit): string {
-  const raw = init?.headers as Record<string, string> | undefined;
-  if (!raw) return '';
-  const name = raw.queryname;
-  if (!name) return '';
-  return name;
-}
-
-/**
- * Handle a bind or assert auth URL.
- * @param url - Target URL.
- * @param init - Request init (body carries the assertion type).
- * @returns Response-like.
- */
-function dispatchAuth(url: string, init?: RequestInit): IResponseLike {
-  if (url.includes('/auth/bind')) {
-    const bind = bindResponse();
-    return jsonOk(bind);
-  }
-  const body = typeof init?.body === 'string' ? init.body : '';
-  if (body.includes('"password"')) {
-    const pwd = assertPwdResponse();
-    return jsonOk(pwd);
-  }
-  const otp = assertOtpResponse();
-  return jsonOk(otp);
+  const headers = headersOf(init);
+  return headerOf(headers, 'queryname');
 }
 
 /** Args bundle for dispatch (respects the 3-param ceiling). */
 interface IDispatchArgs {
   readonly url: string;
   readonly init?: RequestInit;
-  readonly tally: ICallTally;
+  readonly mock: IMockState;
+}
+
+/**
+ * Serve an auth route through the synthetic Transmit server.
+ * @param args - URL + init + mock state bundle.
+ * @returns Response-like.
+ */
+function dispatchAuth(args: IDispatchArgs): IResponseLike {
+  args.mock.tally.identity += 1;
+  const headers = headersOf(args.init);
+  const bodyText = typeof args.init?.body === 'string' ? args.init.body : '';
+  const reply = handleAuthRequest(args.mock.server, { url: args.url, headers, bodyText });
+  const replyText = JSON.stringify(reply.payload);
+  return buildResponse(reply.status, replyText);
+}
+
+/**
+ * Serve a GraphQL operation, refusing any bearer the mock never accepted.
+ * @param args - URL + init + mock state bundle.
+ * @returns Response-like.
+ */
+function dispatchGraphql(args: IDispatchArgs): IResponseLike {
+  args.mock.tally.graphql += 1;
+  const headers = headersOf(args.init);
+  const bearer = headerOf(headers, 'authorization');
+  const isAccepted = args.mock.acceptedTokens.has(bearer);
+  if (!isAccepted) args.mock.tally.graphqlRejected += 1;
+  if (!isAccepted) return buildResponse(401, '{"message":"Unauthorized"}');
+  const qn = pickQueryname(args.init);
+  const envelope = graphqlByName(qn);
+  return jsonOk(envelope);
 }
 
 /**
  * Dispatch a URL + RequestInit to a synthetic response.
- * @param args - URL + init + tally bundle.
+ * @param args - URL + init + mock state bundle.
  * @returns Response-like.
  */
 function dispatch(args: IDispatchArgs): IResponseLike {
-  if (args.url.includes('/auth/')) {
-    args.tally.identity += 1;
-    return dispatchAuth(args.url, args.init);
-  }
-  if (args.url.includes('/graphql')) {
-    args.tally.graphql += 1;
-    const qn = pickQueryname(args.init);
-    const envelope = graphqlByName(qn);
-    return jsonOk(envelope);
-  }
+  if (args.url.includes('/auth/')) return dispatchAuth(args);
+  if (args.url.includes('/graphql')) return dispatchGraphql(args);
   const notFoundText = JSON.stringify({ message: `unmocked: ${args.url}` });
   return buildResponse(404, notFoundText);
 }
@@ -293,10 +284,10 @@ function resolveUrl(input: RequestInfo | URL): string {
 
 /**
  * Build the mock fetch closure.
- * @param tally - Call count accumulator.
+ * @param mock - Mock state (tallies, auth server, accepted bearers).
  * @returns Fetch-like function.
  */
-function makeMockFetch(tally: ICallTally): typeof globalThis.fetch {
+function makeMockFetch(mock: IMockState): typeof globalThis.fetch {
   /**
    * Mock fetch handler — synchronous dispatch + promise wrap.
    * @param input - URL or Request.
@@ -306,20 +297,49 @@ function makeMockFetch(tally: ICallTally): typeof globalThis.fetch {
   async function mockFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
     await Promise.resolve();
     const url = resolveUrl(input);
-    const resp = dispatch({ url, init, tally });
+    const resp = dispatch({ url, init, mock });
     return resp as unknown as Response;
   }
   return mockFetch;
 }
 
 /**
+ * Build the mock state from the caller's options.
+ * @param options - Optional server behaviour.
+ * @returns Fresh mock state.
+ */
+function createMockState(options: IPepperMockOptions): IMockState {
+  const issuedToken = options.issuedToken ?? SYN_JWT;
+  const devices = options.devices ?? [];
+  const server = createPepperAuthServer({
+    issuedToken,
+    password: PEPPER_MOCK_CREDS.password,
+    devices,
+  });
+  const acceptedTokens = new Set([issuedToken, ...(options.acceptedTokens ?? [])]);
+  const tally: ICallTally = { identity: 0, graphql: 0, graphqlRejected: 0 };
+  return { tally, server, acceptedTokens };
+}
+
+/**
+ * Snapshot every tally of one mock instance.
+ * @param mock - Mock state.
+ * @returns Frozen per-route counts.
+ */
+function snapshotCounts(mock: IMockState): IMockCallCounts {
+  const rejections = [...mock.server.rejections];
+  return { ...mock.server.counts, ...mock.tally, rejections };
+}
+
+/**
  * Install the synthetic fetch mock.
+ * @param options - Optional server behaviour (legacy defaults when omitted).
  * @returns Handle that restores original fetch + exposes call counts.
  */
-export function installPepperFetchMock(): IMockHandle {
+export function installPepperFetchMock(options: IPepperMockOptions = {}): IMockHandle {
   const previousFetch = globalThis.fetch;
-  const tally: ICallTally = { identity: 0, graphql: 0 };
-  const mockFetch = makeMockFetch(tally);
+  const mock = createMockState(options);
+  const mockFetch = makeMockFetch(mock);
   (globalThis as unknown as { fetch: typeof globalThis.fetch }).fetch = mockFetch;
   setFakePageEvalMode(true);
   /**
@@ -333,11 +353,8 @@ export function installPepperFetchMock(): IMockHandle {
   };
   /**
    * Snapshot the call counts.
-   * @returns Frozen identity + graphql tallies.
+   * @returns Frozen per-route tallies.
    */
-  const callCounts = (): IMockCallCounts => ({
-    identity: tally.identity,
-    graphql: tally.graphql,
-  });
+  const callCounts = (): IMockCallCounts => snapshotCounts(mock);
   return { dispose, callCounts };
 }

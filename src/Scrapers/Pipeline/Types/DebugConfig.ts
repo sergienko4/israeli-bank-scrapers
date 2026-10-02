@@ -90,6 +90,10 @@ export const SENSITIVE_PATHS = [
   'deviceId',
   'challenge',
   'Sisma',
+  // Durable device-auth options: the opaque state embeds a bearer token and a
+  // device private key, so both option names are redacted wherever they land.
+  'persistentAuthState',
+  'onPersistentAuthStateUpdate',
   // Cookies / session tokens
   'cookie',
   'cookies',

@@ -10,12 +10,26 @@ import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import { createApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
+import type {
+  IConfigTokenStrategy,
+  PersistentAuthMode,
+} from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
 import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { IFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 import type { GraphQLFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import {
+  type IStateRecorder,
+  loadPepperConfig,
+  makeDurableStrategy,
+  makeRecorder,
+  makeStoredState,
+  PEPPER_ACCOUNT,
+  pepperBlock,
+} from '../ApiDirectCall/Flow/DurableAuthFixtures.js';
+import { makeJwt } from '../ApiDirectCall/Flow/WarmStartFixtures.js';
 
 /** Test-only creds shape — opaque to the mediator + builder. */
 interface ITestCreds {
@@ -399,4 +413,73 @@ describe('ApiMediator.primeSession — direct invocation', () => {
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('not authorised');
   });
+});
+
+/**
+ * Fetch strategy answering the first post with an auth rejection and any
+ * later post with success, recording every post it receives.
+ * @param rejection - Auth-rejection message for the first post.
+ * @param posts - Output slot — one entry per post.
+ * @returns Fetch strategy stub.
+ */
+function rejectingThenOkFetch(rejection: string, posts: string[]): IFetchStrategy {
+  const queue = [fail(ScraperErrorTypes.Generic, rejection), succeed({ ok: 'retried' })];
+  /**
+   * Record the post, then answer from the queue.
+   * @returns Queued procedure.
+   */
+  async function fetchPost(): Promise<Procedure<unknown>> {
+    await Promise.resolve();
+    posts.push('post');
+    return queue.shift() ?? fail(ScraperErrorTypes.Generic, 'queue exhausted');
+  }
+  return { fetchPost } as unknown as IFetchStrategy;
+}
+
+/**
+ * Real durable strategy on Pepper's config; resume holds a fresh token.
+ * @param kind - Durable mode kind.
+ * @param recorder - State recorder.
+ * @returns Strategy.
+ */
+async function durableStrategy(
+  kind: 'enroll' | 'resume',
+  recorder: IStateRecorder,
+): Promise<IConfigTokenStrategy> {
+  const config = await loadPepperConfig();
+  const block = pepperBlock(config);
+  const base = { block, onUpdate: recorder.onUpdate, account: PEPPER_ACCOUNT };
+  const freshToken = makeJwt(3600);
+  const stored = makeStoredState(freshToken);
+  const resume = { kind: 'resume', ...base, encodedState: stored.encoded } as const;
+  const mode: PersistentAuthMode = kind === 'enroll' ? { kind: 'enroll', ...base } : resume;
+  return makeDurableStrategy(config, mode);
+}
+
+/** Durable mode × auth rejection the mediator must not recover from. */
+const DURABLE_REJECTIONS = [
+  ['enroll', MSG_401_FIRST],
+  ['enroll', MSG_403_FIRST],
+  ['resume', MSG_401_FIRST],
+  ['resume', MSG_403_FIRST],
+] as const;
+
+describe('ApiMediator.retryOn401 — durable persistent auth', () => {
+  it.each(DURABLE_REJECTIONS)(
+    '%s returns the original rejection without renewal, retry or publish (%s)',
+    async (kind, rejection) => {
+      const posts: string[] = [];
+      const fetchStrat = rejectingThenOkFetch(rejection, posts);
+      const graphql = stubGraphqlStrategy();
+      const mediator = createApiMediator(CompanyTypes.OneZero, fetchStrat, graphql);
+      const recorder = makeRecorder();
+      const strategy = await durableStrategy(kind, recorder);
+      const ctx0 = makeStubCtx();
+      mediator.withTokenStrategy(strategy, ctx0, {});
+      const result = await mediator.apiPost(TEST_URL_TAG, {});
+      expect(result).toMatchObject({ success: false, errorMessage: rejection });
+      expect(posts).toHaveLength(1);
+      expect(recorder.invocations).toHaveLength(0);
+    },
+  );
 });

@@ -19,7 +19,7 @@ import type { IBodyTemplate, IEnvelopeSelectors, JsonValueTemplate } from './Tem
 type FlowKind = 'sms-otp' | 'stored-jwt' | 'bearer-static';
 
 /** Step identifiers in the sms-otp flow. */
-type StepName = 'bind' | 'assertPassword' | 'assertOtp' | 'getIdToken' | 'sessionToken';
+type StepName = 'bind' | 'login' | 'assertPassword' | 'assertOtp' | 'getIdToken' | 'sessionToken';
 
 /** Per-step config: name, URL tag, body template, response-extract selectors. */
 interface IStepConfig {
