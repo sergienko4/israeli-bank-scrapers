@@ -133,7 +133,8 @@ The wiring and the surgical scope are pinned by tests in
 `WorkflowSecurityGate.test.ts`. `SCF-*` assert the filter runs in
 `upload-sarif` after the download and before the upload, and that `analysis`
 never uploads the unfiltered SARIF. `SCP-*` assert `analysis` keeps to the
-approved actions and is the only job with `id-token: write`. `FSS-*` in
+approved actions and is the only holder of `id-token: write`, the workflow
+root included, and that the root grants no write permission at all. `FSS-*` in
 `FilterScorecardSarif.test.ts` assert a real unpinned third-party action is
 kept while `$/` hits are dropped.
 

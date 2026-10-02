@@ -87,11 +87,17 @@ interface IWorkflowStep {
   readonly 'continue-on-error'?: boolean | string;
 }
 
+/**
+ * A `permissions:` block: either a per-scope map or the `read-all` /
+ * `write-all` shorthand, at workflow root or job level.
+ */
+type WorkflowPermissions = string | Readonly<Record<string, string>>;
+
 interface IWorkflowJob {
   readonly steps?: readonly IWorkflowStep[];
   readonly 'continue-on-error'?: boolean | string;
   readonly needs?: string | readonly string[];
-  readonly permissions?: Readonly<Record<string, string>>;
+  readonly permissions?: WorkflowPermissions;
 }
 
 interface IWorkflowDoc {
@@ -521,6 +527,7 @@ interface IScorecardDoc {
   readonly on?: Readonly<Record<string, unknown>>;
   readonly env?: unknown;
   readonly defaults?: unknown;
+  readonly permissions?: WorkflowPermissions;
   readonly jobs?: Readonly<Record<string, IWorkflowJob>>;
 }
 
@@ -613,14 +620,39 @@ function isApprovedScorecardStep(step: IWorkflowStep): boolean {
   return APPROVED_SCORECARD_JOB_ACTIONS.some(action => uses.startsWith(`${action}@`));
 }
 
+/** Label `idTokenWriteHolders` reports for a workflow-root grant. */
+const WORKFLOW_ROOT = '<workflow root>';
+
+/** `grantsWrite` scope that matches a write grant on any scope. */
+const ANY_SCOPE = '*';
+
 /**
- * Keys of the jobs granted `id-token: write`.
+ * Whether a permissions block grants a write scope.
  *
- * @returns Job keys holding the OIDC token permission.
+ * @param permissions - Root- or job-level `permissions:` value.
+ * @param scope - Scope to check, or `ANY_SCOPE`.
+ * @returns True for `write-all`, or a map granting `write` on the scope.
  */
-function idTokenWriteJobs(): readonly string[] {
-  const jobs = loadScorecard().jobs ?? {};
-  return Object.keys(jobs).filter(key => jobs[key].permissions?.['id-token'] === 'write');
+function grantsWrite(permissions: WorkflowPermissions, scope: string): boolean {
+  if (permissions === 'write-all') return true;
+  if (typeof permissions === 'string') return false;
+  const grants = scope === ANY_SCOPE ? Object.values(permissions) : [permissions[scope]];
+  return grants.includes('write');
+}
+
+/**
+ * Where `id-token: write` is granted: the workflow root and each job.
+ *
+ * @returns Holder labels, the root first when it grants the scope.
+ */
+function idTokenWriteHolders(): readonly string[] {
+  const doc = loadScorecard();
+  const jobs = doc.jobs ?? {};
+  const jobHolders = Object.keys(jobs).filter(key =>
+    grantsWrite(jobs[key].permissions ?? {}, 'id-token'),
+  );
+  const isRootHolder = grantsWrite(doc.permissions ?? {}, 'id-token');
+  return isRootHolder ? [WORKFLOW_ROOT, ...jobHolders] : jobHolders;
 }
 
 /**
@@ -737,9 +769,20 @@ describe('scorecard result-publishing restrictions', () => {
     expect(labels).toEqual([]);
   });
 
-  /** The same API rejects `id-token: write` on any job but the analysis job. */
+  /**
+   * The same API rejects `id-token: write` anywhere but the analysis job,
+   * the workflow root included. `write-all` grants it too, so the shorthand
+   * counts as a grant at either level.
+   */
   it('[SCP-2] only the analysis job is granted id-token: write', () => {
-    const holders = idTokenWriteJobs();
+    const holders = idTokenWriteHolders();
     expect(holders).toEqual([SCORECARD_JOB_KEY]);
+  });
+
+  /** The same API rejects any write permission at the workflow root. */
+  it('[SCP-3] the workflow root grants no write permission', () => {
+    const rootPermissions = loadScorecard().permissions ?? {};
+    const isRootWrite = grantsWrite(rootPermissions, ANY_SCOPE);
+    expect(isRootWrite).toBe(false);
   });
 });
