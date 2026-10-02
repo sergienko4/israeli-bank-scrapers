@@ -46,7 +46,9 @@ const THIS_FILE_PATH = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE_PATH);
 const REPO_ROOT = join(THIS_DIR, '../../../../../');
 const SECURITY_YAML = join(REPO_ROOT, '.github/workflows/workflow-security.yml');
-const SCORECARD_YAML = join(REPO_ROOT, '.github/workflows/scorecard.yml');
+/** Repo-relative path of the Scorecard workflow, as code scanning sees it. */
+const SCORECARD_WORKFLOW = '.github/workflows/scorecard.yml';
+const SCORECARD_YAML = join(REPO_ROOT, SCORECARD_WORKFLOW);
 
 /** YAML job key that runs the audit. */
 const ZIZMOR_JOB_KEY = 'zizmor';
@@ -542,10 +544,18 @@ function loadScorecard(): IScorecardDoc {
 }
 
 /** The job key that runs the Scorecard analysis. */
-const SCORECARD_JOB_KEY = 'analysis';
+const SCORECARD_JOB_KEY = 'scorecard';
 
 /** The job key that filters the SARIF and uploads it to code scanning. */
-const SARIF_UPLOAD_JOB_KEY = 'upload-sarif';
+const SARIF_UPLOAD_JOB_KEY = 'analysis';
+
+/**
+ * The code-scanning configuration that holds the existing Scorecard alerts.
+ * `github/codeql-action/upload-sarif` keys each upload as
+ * `<workflow path>:<GITHUB_JOB>`. If the upload moves to a job with another
+ * key, the old configuration goes stale and its alerts never close.
+ */
+const ESTABLISHED_ANALYSIS_KEY = '.github/workflows/scorecard.yml:analysis';
 
 /** The action that produces `results.sarif`. */
 const SCORECARD_ACTION = 'ossf/scorecard-action';
@@ -553,7 +563,7 @@ const SCORECARD_ACTION = 'ossf/scorecard-action';
 /** The action that uploads SARIF to code scanning. */
 const UPLOAD_SARIF_ACTION = 'github/codeql-action/upload-sarif';
 
-/** The action that hands the SARIF from the analysis job to the upload job. */
+/** The action that hands the SARIF from the Scorecard job to the upload job. */
 const DOWNLOAD_ARTIFACT_ACTION = 'actions/download-artifact';
 
 /** The script that strips `$/` self-repository false positives from the SARIF. */
@@ -665,6 +675,17 @@ function uploadJobNeeds(): readonly string[] {
   return typeof needs === 'string' ? [needs] : needs;
 }
 
+/**
+ * The analysis key of every job that uploads SARIF to code scanning.
+ *
+ * @returns One `<workflow path>:<job key>` per uploading job.
+ */
+function sarifUploadAnalysisKeys(): readonly string[] {
+  const jobKeys = Object.keys(loadScorecard().jobs ?? {});
+  const uploaders = jobKeys.filter(key => usesStepIndex(key, UPLOAD_SARIF_ACTION) >= 0);
+  return uploaders.map(key => `${SCORECARD_WORKFLOW}:${key}`);
+}
+
 describe('scorecard workflow triggers', () => {
   /**
    * The scan was cron-only, so a vulnerability fixed on a Tuesday stayed
@@ -713,14 +734,14 @@ describe('scorecard SARIF false-positive filter', () => {
 
   /**
    * The filter can only remove what Scorecard has already written, so the
-   * upload job must wait for the analysis job and fetch its SARIF first.
+   * upload job must wait for the Scorecard job and fetch its SARIF first.
    *
    * <p>Both endpoints are asserted present before the ordering is compared.
    * `usesStepIndex` returns -1 for a missing step, so an ordering comparison
    * alone can be satisfied by the sentinel and keep passing while asserting
    * nothing.
    */
-  it('[SCF-2] the filter runs after the SARIF arrives from the analysis job', () => {
+  it('[SCF-2] the filter runs after the SARIF arrives from the Scorecard job', () => {
     const filterAt = filterStepIndex(SARIF_UPLOAD_JOB_KEY);
     const downloadAt = usesStepIndex(SARIF_UPLOAD_JOB_KEY, DOWNLOAD_ARTIFACT_ACTION);
     const needs = uploadJobNeeds();
@@ -742,14 +763,28 @@ describe('scorecard SARIF false-positive filter', () => {
   });
 
   /**
-   * The analysis job holds the unfiltered SARIF. An upload from there would
+   * The Scorecard job holds the unfiltered SARIF. An upload from there would
    * deliver the 28 false positives to code scanning before the filter runs.
    */
-  it('[SCF-4] the analysis job never uploads the unfiltered SARIF', () => {
+  it('[SCF-4] the Scorecard job never uploads the unfiltered SARIF', () => {
     const producedAt = usesStepIndex(SCORECARD_JOB_KEY, SCORECARD_ACTION);
     const uploadAt = usesStepIndex(SCORECARD_JOB_KEY, UPLOAD_SARIF_ACTION);
     expect(producedAt).toBeGreaterThanOrEqual(0);
     expect(uploadAt).toBe(-1);
+  });
+});
+
+describe('scorecard code-scanning configuration identity', () => {
+  /**
+   * Every open Scorecard alert, alert 63 included, belongs to the
+   * configuration `.github/workflows/scorecard.yml:analysis`. Only an upload
+   * under that same key can close them. An upload from a job with another
+   * key starts a new configuration and leaves the old alerts open until
+   * someone deletes them by hand.
+   */
+  it('[SCI-1] the upload keeps the analysis key the existing alerts belong to', () => {
+    const keys = sarifUploadAnalysisKeys();
+    expect(keys).toEqual([ESTABLISHED_ANALYSIS_KEY]);
   });
 });
 
@@ -761,7 +796,7 @@ describe('scorecard result-publishing restrictions', () => {
    * 2026-09-14 on. Each failure also left the code-scanning alerts frozen at
    * their last snapshot, so alert 63 stayed open on advisories already fixed.
    */
-  it('[SCP-1] the analysis job runs only approved actions and no run: step', () => {
+  it('[SCP-1] the Scorecard job runs only approved actions and no run: step', () => {
     const steps = jobSteps(SCORECARD_JOB_KEY);
     const rejected = steps.filter(step => !isApprovedScorecardStep(step));
     const labels = rejected.map(step => step.name ?? step.uses ?? step.run);
@@ -770,11 +805,11 @@ describe('scorecard result-publishing restrictions', () => {
   });
 
   /**
-   * The same API rejects `id-token: write` anywhere but the analysis job,
+   * The same API rejects `id-token: write` anywhere but the Scorecard job,
    * the workflow root included. `write-all` grants it too, so the shorthand
    * counts as a grant at either level.
    */
-  it('[SCP-2] only the analysis job is granted id-token: write', () => {
+  it('[SCP-2] only the Scorecard job is granted id-token: write', () => {
     const holders = idTokenWriteHolders();
     expect(holders).toEqual([SCORECARD_JOB_KEY]);
   });

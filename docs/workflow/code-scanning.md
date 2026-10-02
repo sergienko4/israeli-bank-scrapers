@@ -117,22 +117,30 @@ never matches `$/`, so it survives the filter and is still reported — the
 security property is preserved. zizmor stays green because `$/` is untouched,
 and code scanning stays clean because the false positives never arrive.
 
-The filter runs in its own `upload-sarif` job, never in the `analysis` job.
+The filter runs in its own `analysis` job, never in the `scorecard` job.
 With `publish_results: true`, the scorecard.dev API rejects any run whose
 Scorecard job holds a step other than an
 [approved `uses:` action][scorecard-restrictions]. The first version of this
-filter ran as a `run:` step inside `analysis` and failed every scheduled scan
-from 2026-09-14 on. No SARIF reached code scanning, so alert 63 stayed open on
-advisories that `main` had already fixed. `analysis` now only produces the
-SARIF and hands it over as an artifact. `upload-sarif` downloads it, filters
+filter ran as a `run:` step inside the Scorecard job and failed every scheduled
+scan from 2026-09-14 on. No SARIF reached code scanning, so alert 63 stayed open
+on advisories that `main` had already fixed. `scorecard` now only produces the
+SARIF and hands it over as an artifact. `analysis` downloads it, filters
 it and uploads it. The downloaded copy belongs to the runner user, while the
 original is written as root by the Scorecard container and cannot be
 rewritten in place.
 
+The upload job keeps the key `analysis` on purpose.
+`github/codeql-action/upload-sarif` files every
+upload under `<workflow path>:<job key>`, and the existing Scorecard alerts
+belong to `.github/workflows/scorecard.yml:analysis`. An upload under a new key
+starts a new configuration. The old one goes stale, and its alerts stay open
+until it is [deleted by hand][stale-config].
+
 The wiring and the surgical scope are pinned by tests in
 `WorkflowSecurityGate.test.ts`. `SCF-*` assert the filter runs in
-`upload-sarif` after the download and before the upload, and that `analysis`
-never uploads the unfiltered SARIF. `SCP-*` assert `analysis` keeps to the
+`analysis` after the download and before the upload, and that `scorecard`
+never uploads the unfiltered SARIF. `SCI-1` asserts the upload keeps the
+`scorecard.yml:analysis` key. `SCP-*` assert `scorecard` keeps to the
 approved actions and is the only holder of `id-token: write`, the workflow
 root included, and that the root grants no write permission at all. `FSS-*` in
 `FilterScorecardSarif.test.ts` assert a real unpinned third-party action is
@@ -203,10 +211,11 @@ directory.
    until the following Monday.
 6. **Scorecard run failed?** Every alert it owns freezes at the last
    successful snapshot until a run succeeds again. Read the log first. A
-   `workflow verification failed` warning means the `analysis` job holds a
+   `workflow verification failed` warning means the `scorecard` job holds a
    step the scorecard.dev API does not accept (`SCP-1` should have caught it).
 
 [self-repo-blog]: https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/
 [scorecard-5191]: https://github.com/ossf/scorecard/issues/5191
 [scorecard-restrictions]: https://github.com/ossf/scorecard-action#workflow-restrictions
+[stale-config]: https://docs.github.com/en/code-security/how-tos/manage-security-alerts/manage-code-scanning-alerts/resolve-alerts#removing-stale-configurations-and-alerts-from-a-branch
 [adm-zip-advisory]: https://github.com/advisories/GHSA-vwc7-r8mq-g2x9

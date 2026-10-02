@@ -24,9 +24,9 @@ jobs:
   # every step of this job is an approved `uses:` action (checkout,
   # upload-artifact, upload-sarif, scorecard-action, harden-runner), and only
   # this job may hold `id-token: write`. Any `run:` step therefore lives in
-  # `upload-sarif` below. See
+  # `analysis` below. See
   #   https://github.com/ossf/scorecard-action#workflow-restrictions
-  analysis:
+  scorecard:
     name: Scorecard Analysis
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -60,9 +60,14 @@ jobs:
   # by the runner user; the original is written as root by the Scorecard
   # container and cannot be rewritten in place.
   # See docs/workflow/code-scanning.md and ossf/scorecard#5191.
-  upload-sarif:
+  #
+  # Keep this job key `analysis`. upload-sarif files each upload under
+  # `<workflow path>:<job key>`, and every existing Scorecard alert belongs to
+  # `.github/workflows/scorecard.yml:analysis`. Under another key those
+  # alerts would never close without a manual configuration delete.
+  analysis:
     name: Upload filtered SARIF
-    needs: analysis
+    needs: scorecard
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
