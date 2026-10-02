@@ -123,7 +123,8 @@ function isBoundedDeviceId(raw: JsonUnknownRecord): boolean {
 }
 
 /**
- * Whether a token is a three-segment compact JWT carrying a numeric `exp`.
+ * Whether a token is a three-segment compact JWT carrying a finite numeric
+ * `exp` — `1e400` parses to Infinity and would read as fresh forever.
  * @param token - Candidate compact JWT.
  * @returns True for a structurally valid JWT.
  */
@@ -131,7 +132,9 @@ function isStructuralJwt(token: string): boolean {
   const segments = token.split('.');
   if (segments.length !== JWT_SEGMENT_COUNT) return false;
   const isEncoded = segments.every((s): boolean => BASE64URL_SEGMENT_PATTERN.test(s));
-  return isEncoded && decodeNumericClaim(token, 'exp') !== false;
+  if (!isEncoded) return false;
+  const exp = decodeNumericClaim(token, 'exp');
+  return exp !== false && Number.isFinite(exp);
 }
 
 /**

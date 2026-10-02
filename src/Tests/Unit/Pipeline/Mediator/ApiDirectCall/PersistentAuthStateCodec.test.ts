@@ -121,6 +121,21 @@ function makeJwtOfLength(length: number): string {
 }
 
 /**
+ * Build a compact JWT from raw payload JSON text, for numbers JSON.stringify
+ * cannot emit — `1e400` parses to Infinity.
+ * @param payloadJson - Raw payload JSON text.
+ * @returns Compact JWT with a placeholder signature.
+ */
+function makeJwtFromPayloadText(payloadJson: string): string {
+  const jwt = makeJwtWithClaims({});
+  const headerEnd = jwt.indexOf('.');
+  const header = jwt.slice(0, headerEnd);
+  const payloadBuffer = Buffer.from(payloadJson);
+  const payload = payloadBuffer.toString('base64url');
+  return `${header}.${payload}.sig`;
+}
+
+/**
  * Export a non-P-256 private key as PKCS#8 Base64 to prove type/curve checks.
  * @param kind - Key family to generate.
  * @returns PKCS#8 DER as standard Base64.
@@ -281,6 +296,18 @@ describe('PersistentAuthStateCodec — field rule failures', () => {
       label: 'a JWT with a string exp',
       field: 'accessToken',
       value: makeJwtWithClaims({ exp: '4102444800' }),
+      category: 'accessToken',
+    },
+    {
+      label: 'a JWT whose exp overflows to Infinity',
+      field: 'accessToken',
+      value: makeJwtFromPayloadText('{"exp":1e400}'),
+      category: 'accessToken',
+    },
+    {
+      label: 'a JWT whose exp overflows to -Infinity',
+      field: 'accessToken',
+      value: makeJwtFromPayloadText('{"exp":-1e400}'),
       category: 'accessToken',
     },
     {
