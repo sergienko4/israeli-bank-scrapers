@@ -121,6 +121,7 @@ const KNOWN_OTP_SUITES = [
   'OneZero.e2e-real.test.ts',
   'PayBox.e2e-real.test.ts',
   'Pepper.e2e-real.test.ts',
+  'PepperDurable.e2e-real.test.ts',
 ] as const;
 
 describe('real-E2E OTP suites — discovery', (): void => {

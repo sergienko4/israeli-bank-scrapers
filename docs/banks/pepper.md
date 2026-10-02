@@ -145,8 +145,11 @@ Each needs new live evidence first; until then the run fails closed:
 
 ### Real-bank E2E
 
-`Pepper.e2e-real.test.ts` has an opt-in durable branch. The flags are
-presence-only — their values are never read:
+The durable run lives in its own opt-in suite,
+`PepperDurable.e2e-real.test.ts`. It scrapes once and never falls back to a
+cold SMS run, so it is a single-attempt suite rather than a
+WarmPathFallback one. The flags are presence-only — their values are never
+read:
 
 | Flags | Run | SMS |
 | --- | --- | --- |
@@ -154,12 +157,14 @@ presence-only — their values are never read:
 | `PEPPER_PERSISTENT_AUTH` | Resume from the cached state; replay or renewal, predicted from the cached token | None |
 | `PEPPER_PERSISTENT_AUTH` + `PEPPER_PERSISTENT_AUTH_FORCE_EXPIRY` | Resume with the cached token swapped, in memory only, for an expired one — forces a renewal | None |
 
-Without `PEPPER_PERSISTENT_AUTH` the legacy branch runs and the other two flags
-are ignored. A resume with no cached state fails before scraping rather than
-enrolling, and setting both `ENROLL` and `FORCE_EXPIRY` is refused.
+Without `PEPPER_PERSISTENT_AUTH` the durable suite skips, the legacy
+`Pepper.e2e-real.test.ts` runs, and the other two flags are ignored. With it,
+the legacy suite skips, so one run executes exactly one of the two. A resume
+with no cached state fails before scraping rather than enrolling, and setting
+both `ENROLL` and `FORCE_EXPIRY` is refused.
 
 ```bash
-PEPPER_PERSISTENT_AUTH=1 npm run test:e2e:real:single -- --testPathPatterns=Pepper
+PEPPER_PERSISTENT_AUTH=1 npm run test:e2e:real:single -- --testPathPatterns=PepperDurable
 ```
 
 ## Known quirks

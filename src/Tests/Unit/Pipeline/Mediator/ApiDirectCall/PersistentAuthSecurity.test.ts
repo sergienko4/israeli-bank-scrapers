@@ -284,6 +284,7 @@ const DURABLE_SOURCES = [
   'src/Tests/E2eMocked/Pepper/PepperPersistentAuthFixtures.ts',
   'src/Tests/E2eMocked/Pepper/PepperSignatureOracle.ts',
   'src/Tests/E2eReal/Pepper.e2e-real.test.ts',
+  'src/Tests/E2eReal/PepperDurable.e2e-real.test.ts',
   'src/Tests/E2eReal/PepperDurableHarness.ts',
   'src/Tests/E2eReal/PepperDurableState.ts',
   'src/Tests/Unit/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActionsPersistentAuth.test.ts',
