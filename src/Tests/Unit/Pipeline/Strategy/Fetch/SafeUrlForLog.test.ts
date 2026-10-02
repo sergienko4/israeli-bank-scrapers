@@ -129,6 +129,15 @@ function shrinkingBody(offset: number): string {
   return `${echoes}${padding}${ECHO_SECRET} trailing`;
 }
 
+/** A secret holding whole copies of another secret's short decoded form. */
+const NESTED_SECRET = `ZZZZZZZ${'abc'.repeat(8)}`;
+
+/** A request whose `b` decodes to `abc`, a short form found inside `a`. */
+const NESTED_REQUEST_URL = `${BASE}?a=${NESTED_SECRET}&b=%61%62%63`;
+
+/** Unrelated URLs whose queries are cut, so the text shrinks before the secret. */
+const SHRINKING_PREFIX = 'https://bank.co.il/x?q=1234567890 '.repeat(4);
+
 /** Every padding that walks the secret across both cut points. */
 const OFFSETS = Array.from({ length: 400 }, (_, offset): number => offset);
 
@@ -142,6 +151,15 @@ describe('safeErrorSnippet', () => {
     const body = 'z'.repeat(ERROR_BODY_SNIPPET_LEN * 3);
     const safe = safeErrorSnippet(body, REQUEST_URL);
     expect(safe).toHaveLength(ERROR_BODY_SNIPPET_LEN);
+  });
+
+  // Cleaning lengthens a cut secret here — each `abc` inside it becomes
+  // `<redacted>` — so no margin counted around a cut stays sound.
+  it.each(OFFSETS)('leaks no fragment of a secret cleaning lengthens, at offset %i', offset => {
+    const body = `${SHRINKING_PREFIX}${'y'.repeat(offset)}${NESTED_SECRET} trailing`;
+    const safe = safeErrorSnippet(body, NESTED_REQUEST_URL);
+    const leaked = leakedSecretsIn(safe, [NESTED_SECRET]);
+    expect(leaked).toEqual([]);
   });
 
   it.each(OFFSETS)('leaks no fragment of a secret at offset %i', offset => {

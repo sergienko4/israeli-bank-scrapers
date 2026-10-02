@@ -148,13 +148,17 @@ function fragmentsOf(form: string): readonly string[] {
 }
 
 /**
- * Secrets of {@link ECHO_QUERY} (and the canary credentials) that a failure
- * text still carries, whole or as a fragment.
+ * Secrets that a failure text still carries, whole or as a fragment.
  * @param text - Failure text under test.
+ * @param forms - Secret forms to look for; defaults to those of
+ *   {@link ECHO_QUERY} and the canary credentials.
  * @returns The leaked forms; empty when the text is clean.
  */
-function leakedSecretsIn(text: string): readonly string[] {
-  return ECHO_SECRET_FORMS.filter((form): boolean =>
+function leakedSecretsIn(
+  text: string,
+  forms: readonly string[] = ECHO_SECRET_FORMS,
+): readonly string[] {
+  return forms.filter((form): boolean =>
     fragmentsOf(form).some((fragment): boolean => text.includes(fragment)),
   );
 }

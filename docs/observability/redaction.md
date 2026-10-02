@@ -121,8 +121,9 @@ Before any such text becomes an `errorMessage`, a body snippet or a log line,
 thrown value whose `message` is not a string. `safeErrorSnippet` cleans an
 error body *before* cutting it to `ERROR_BODY_SNIPPET_LEN` (120)
 characters. A cut made first could split a secret so no rule knows the half
-left behind. When the cleaned window itself cut the body, the snippet also
-drops as many trailing characters as the request's longest echo.
+left behind, and cleaning both lengthens and shortens text, so no margin
+counted around a cut stays sound. The whole body is cleaned: this runs only on
+failure paths, over a body the transport already holds in memory.
 
 `NativeFetchStrategy` applies the cleaner once more to every failure its
 `_invoke` seam returns, so an mTLS agent or a test seam cannot bypass it. The
@@ -141,7 +142,7 @@ These routes are outside that guarantee:
 | URL discovery and network-dump logs | Use `redactUrlFull`, which masks only known PII query keys |
 | `logBodyPreview` | Logs a response-body head through `maskVisibleText`, not the request-echo cleaner |
 | Camoufox launch and dispose failures | Carry no request; their text is logged as is |
-| Benign over-redaction | Text that happens to equal a secret's short decoded form also becomes `<redacted>` |
+| Benign over-redaction | Text that contains the request's raw query string, even a short one such as `?a`, loses it; text equal to a secret's short form becomes `<redacted>` |
 
 ### Failure text in log lines
 

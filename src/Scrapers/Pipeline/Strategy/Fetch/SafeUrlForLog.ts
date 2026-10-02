@@ -189,36 +189,18 @@ function safeFailureText(error: unknown, requestUrl: string): SafeErrorText {
 }
 
 /**
- * How far past a cut an echo of the request can reach: its whole query, or
- * its longest re-encoded value.
- * @param requestUrl - URL of the request that failed.
- * @returns The longest echo in characters.
- */
-function echoReachOf(requestUrl: string): number {
-  const tail = rawQueryTail(requestUrl);
-  const [longest = ''] = secretEchoForms(tail);
-  return Math.max(tail.length, longest.length);
-}
-
-/**
- * Sanitize the head of an error body for a failure message. The body is
- * cleaned before it is cut — a cut first can split a secret so no rule knows
- * the half that is left. Only a window is cleaned; when the window cut the
- * body, its last {@link echoReachOf} characters go too, so an echo split by
- * the window's edge never shows.
+ * Sanitize the head of an error body for a failure message. The whole body is
+ * cleaned before it is cut: a cut made first can split a secret so no rule
+ * knows the half left behind, and cleaning both lengthens and shortens text,
+ * so no margin counted around an earlier cut stays sound. It runs on failure
+ * paths only, over a body already in memory.
  * @param text - The response body.
  * @param requestUrl - URL of the request that failed.
  * @returns At most {@link ERROR_BODY_SNIPPET_LEN} characters of clean body.
  */
 function safeErrorSnippet(text: string, requestUrl: string): SafeErrorText {
-  const reach = echoReachOf(requestUrl);
-  const window = text.slice(0, ERROR_BODY_SNIPPET_LEN + reach);
-  const cleaned = safeErrorText(window, requestUrl);
-  const isCut = window.length < text.length;
-  const end = isCut ? cleaned.length - reach : cleaned.length;
-  const kept = Math.max(end, 0);
-  const snippetEnd = Math.min(kept, ERROR_BODY_SNIPPET_LEN);
-  return cleaned.slice(0, snippetEnd) as SafeErrorText;
+  const cleaned = safeErrorText(text, requestUrl);
+  return cleaned.slice(0, ERROR_BODY_SNIPPET_LEN) as SafeErrorText;
 }
 
 export default safeUrlForLog;
