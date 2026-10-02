@@ -32,11 +32,10 @@ dotenv.config();
 const LOG = getDebug(import.meta.url);
 
 const hasCoreCreds = !!(process.env.PEPPER_PHONE_NUMBER && process.env.PEPPER_PASSWORD);
-const DESCRIBE_IF = hasCoreCreds ? describe : describe.skip;
 
 /** Durable run the PEPPER_PERSISTENT_AUTH* flags select; `off` skips this suite. */
 const DURABLE_KIND: DurableRunKind = durableRunKindOf(process.env);
-const IT_DURABLE = DURABLE_KIND === 'off' ? it.skip : it;
+const DESCRIBE_IF = hasCoreCreds && DURABLE_KIND !== 'off' ? describe : describe.skip;
 
 /**
  * Legacy auth-flow sink for durable runs: durable mode must never call it,
@@ -104,7 +103,7 @@ DESCRIBE_IF('E2E: Pepper durable device auth (real credentials, opt-in)', () => 
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
 
-  IT_DURABLE(`durable ${DURABLE_KIND}: replays or renews without SMS`, async () => {
+  it(`durable ${DURABLE_KIND}: replays or renews without SMS`, async () => {
     const kind = DURABLE_KIND as Exclude<DurableRunKind, 'off'>;
     const isAsserted = await runDurableScrape(kind);
     expect(isAsserted).toBe(true);

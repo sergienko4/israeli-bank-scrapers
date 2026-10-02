@@ -148,8 +148,8 @@ Each needs new live evidence first; until then the run fails closed:
 The durable run lives in its own opt-in suite,
 `PepperDurable.e2e-real.test.ts`. It scrapes once and never falls back to a
 cold SMS run, so it is a single-attempt suite rather than a
-WarmPathFallback one. The flags are presence-only — their values are never
-read:
+WarmPathFallback one. Each flag is on when set to any non-empty value and off
+when unset or empty:
 
 | Flags | Run | SMS |
 | --- | --- | --- |

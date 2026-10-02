@@ -2,7 +2,7 @@
  * PepperDurableHarness — opt-in real-E2E driver for Pepper's durable
  * (persistent-auth) mode.
  *
- * Presence-only flags (the values are never read):
+ * On/off flags — any non-empty value turns one on; unset or empty is off:
  *   PEPPER_PERSISTENT_AUTH               durable mode; state is cached in
  *                                        `<tmpdir>/pepper-durable.cache`
  *   PEPPER_PERSISTENT_AUTH_ENROLL        explicit enrollment: one SMS, state out
@@ -46,7 +46,7 @@ const RESUME_ALLOWANCE: Readonly<Record<ResumeOutcome, IDurableAllowance>> = {
 };
 
 /**
- * Whether a presence-only flag is set.
+ * Whether an on/off flag is on.
  * @param env - Environment to read.
  * @param name - Flag name.
  * @returns True when the flag is nonempty.

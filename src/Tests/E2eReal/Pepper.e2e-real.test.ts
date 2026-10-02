@@ -31,21 +31,20 @@ const hasCoreCreds = !!(process.env.PEPPER_PHONE_NUMBER && process.env.PEPPER_PA
  * other bank: skipped if PEPPER_PHONE_NUMBER + PEPPER_PASSWORD are
  * absent, runs otherwise.
  */
-const DESCRIBE_IF = hasCoreCreds ? describe : describe.skip;
-
+const isLegacyRun = durableRunKindOf(process.env) === 'off';
 /**
- * Durable runs (any PEPPER_PERSISTENT_AUTH* flag) belong to
+ * Durable runs (PEPPER_PERSISTENT_AUTH set) belong to
  * `PepperDurable.e2e-real.test.ts`; this legacy suite skips them, so one run
  * executes exactly one of the two.
  */
-const IT_LEGACY = durableRunKindOf(process.env) === 'off' ? it : it.skip;
+const DESCRIBE_IF = hasCoreCreds && isLegacyRun ? describe : describe.skip;
 
 DESCRIBE_IF('E2E: Pepper (real credentials, config-driven)', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
 
-  IT_LEGACY('scrapes transactions successfully (warm path or SMS OTP)', async () => {
+  it('scrapes transactions successfully (warm path or SMS OTP)', async () => {
     const phoneNumber = process.env.PEPPER_PHONE_NUMBER ?? '';
     const password = process.env.PEPPER_PASSWORD ?? '';
     const cache = createTokenCache({
