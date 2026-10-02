@@ -131,7 +131,7 @@ function modeOf(scenario: IScenario, onUpdate: (state: string) => Promise<void>)
 function secretsOfEncoded(encoded: string): readonly string[] {
   const { state } = FIXTURES.decodePublished(encoded);
   const fields = [state.accessToken, state.ecPrivateKeyPkcs8Base64, state.clientInstanceId];
-  return [encoded, ...fields, state.deviceId];
+  return [encoded, ...fields, state.deviceId, state.account];
 }
 
 /**
@@ -240,6 +240,19 @@ const SCENARIOS: readonly IScenario[] = [
   },
 ];
 
+/**
+ * A renewal 401 whose body quotes back every stored value the resume request
+ * sent: the account as `uid`, the device and instance ids, and the token.
+ * @returns Transport failure as the flow would surface it.
+ */
+function echoingRenewalFailure(): ScriptedResponse {
+  const { account, deviceId, clientInstanceId, accessToken } = STORED_EXPIRED.state;
+  const ids = `"uid":"${account}","did":"${deviceId}","cid":"${clientInstanceId}"`;
+  return FIXTURES.transportFailure(
+    `POST https://sa.pepper.co.il/x 401: {${ids},"jwt":"${accessToken}"}`,
+  );
+}
+
 describe('persistent-auth secrets stay out of errors and trace logs', () => {
   it.each(SCENARIOS)('$label emits no secret', async scenario => {
     const run = await observe(scenario);
@@ -265,20 +278,16 @@ describe('persistent-auth secrets stay out of errors and trace logs', () => {
   });
 
   it('redacts stored values a renewal failure quotes back', async () => {
-    const { deviceId, clientInstanceId, accessToken } = STORED_EXPIRED.state;
-    const echoed = `401: {"did":"${deviceId}","cid":"${clientInstanceId}","jwt":"${accessToken}"}`;
-    const failure = FIXTURES.transportFailure(`POST https://sa.pepper.co.il/x ${echoed}`);
+    const failure = echoingRenewalFailure();
     const scenario = { label: 'echo', responses: [failure], stored: STORED_EXPIRED };
     const message = await resolveScenario(scenario, FIXTURES.makeRecorder().onUpdate);
     const leaked = secretsOfEncoded(STORED_EXPIRED.encoded).filter(s => message.includes(s));
     expect(leaked).toEqual([]);
-    expect(message).toContain('POST https://sa.pepper.co.il/x 401: {"did":"[REDACTED]"');
+    expect(message).toContain('POST https://sa.pepper.co.il/x 401: {"uid":"[REDACTED]"');
   });
 
   it('keeps stored values a renewal failure quotes back out of the trace log', async () => {
-    const { deviceId, clientInstanceId, accessToken } = STORED_EXPIRED.state;
-    const echoed = `401: {"did":"${deviceId}","cid":"${clientInstanceId}","jwt":"${accessToken}"}`;
-    const failure = FIXTURES.transportFailure(`POST https://sa.pepper.co.il/x ${echoed}`);
+    const failure = echoingRenewalFailure();
     const scenario = { label: 'echo', responses: [failure], stored: STORED_EXPIRED };
     await resolveScenario(scenario, FIXTURES.makeRecorder().onUpdate);
     const emitted = LOG_LINES.join('\n');

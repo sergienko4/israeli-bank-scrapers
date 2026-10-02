@@ -3,10 +3,10 @@
  *
  * <p>Renewal passes the flow's own failure through, so the caller sees which
  * step failed. That text can quote the bank's response body, and a bank may
- * echo request values back — the device id it was sent, or the token it
- * rejected. Those values are the stored device state, which must never reach
- * `errorMessage`. Transports already strip the query string; this scrub covers
- * whatever else the failure text quotes.
+ * echo request values back — the device id it was sent, the account it was
+ * sent as `uid`, or the token it rejected. Those values are the stored device
+ * state, which must never reach `errorMessage`. Transports already strip the
+ * query string; this scrub covers whatever else the failure text quotes.
  */
 
 import { REDACTED_HINT } from '../../../Types/PiiRedactor.js';
@@ -16,6 +16,7 @@ import type { IPersistentAuthStateV1 } from '../PersistentAuthStateCodec.js';
 /** Persisted fields a failure must never quote. The decoder guarantees each is non-empty. */
 const PERSISTED_SECRET_FIELDS = [
   'accessToken',
+  'account',
   'clientInstanceId',
   'deviceId',
   'ecPrivateKeyPkcs8Base64',
