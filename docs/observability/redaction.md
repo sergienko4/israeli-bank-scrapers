@@ -81,6 +81,18 @@ absolute paths and leading relative path tokens are replaced before logging.
 FORENSIC_TRACE=true npm run test:e2e:real
 ```
 
+## JSON parse failures
+
+V8's `SyntaxError` for `JSON.parse` quotes the rejected input: the whole text when it is short, otherwise a 10-character prefix (`"card=45801"... is not valid JSON`). Every parse carrier that turns that error into failure text or a log line goes through [`Types/JsonParseFailure.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/JsonParseFailure.ts) instead:
+
+| Symbol | Behaviour |
+|---|---|
+| `describeJsonParseFailure(caught)` | Returns a `JsonParseFailureText` of `invalid JSON (SyntaxError)`, or `invalid JSON (SyntaxError at position N)`. Other errors pass through as their message. It matches on `error.name`, so errors from another realm are covered. |
+| `parseJsonOrThrow(text, context)` | Parses, or throws `ScraperError("<context>: <reason>")` with no `cause`, so the original excerpt is not chained. |
+| `parseCapturedTemplate(postData)` | `parseJsonOrThrow` for a captured POST template. A form-encoded body fails without echoing its fields. |
+
+The position is read only from V8's trailing `JSON at position N` suffix, so digits inside a quoted body are never mistaken for it.
+
 ## Disabling redaction
 
 `PII_REDACTION=off` disables runtime redaction. **Intended for real-bank E2E tests only** (where the maintainer needs to compare actual vs expected values during development). Unit tests always run with redaction default-on so `PiiRedactor.test.ts` assertions hold.

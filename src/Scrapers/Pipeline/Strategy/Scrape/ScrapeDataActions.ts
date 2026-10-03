@@ -36,5 +36,8 @@ export {
   rateLimitPause,
   txnHash,
 } from './ScrapeData/ScrapeDataDedup.js';
-export { default as templatePostBody } from './ScrapeData/ScrapeDataTemplating.js';
+export {
+  parseCapturedTemplate,
+  default as templatePostBody,
+} from './ScrapeData/ScrapeDataTemplating.js';
 export { buildFilterDataUrl, resolveTxnUrl } from './ScrapeData/ScrapeDataUrl.js';

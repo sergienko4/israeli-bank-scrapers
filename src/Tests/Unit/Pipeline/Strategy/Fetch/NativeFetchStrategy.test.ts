@@ -264,6 +264,20 @@ describe('NativeFetchStrategy — failure paths', () => {
     }
   });
 
+  it('parse error names the position, never the response body', async () => {
+    const impl = respondWith(200, 'ACCT4580123412341234');
+    installFetchMock(impl);
+    const strategy = new NativeFetchStrategy('https://api.example');
+    const result = await strategy.fetchGet('https://api.example/x', { extraHeaders: {} });
+    const isOkResult = isOk(result);
+    expect(isOkResult).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorMessage).toBe(
+        'GET https://api.example/x parse error: invalid JSON (SyntaxError)',
+      );
+    }
+  });
+
   it('returns fail with "network error" when fetch throws', async () => {
     const networkError = new Error('connection refused');
     const impl = rejectWith(networkError);

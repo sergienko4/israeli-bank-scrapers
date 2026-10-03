@@ -59,6 +59,20 @@ function callDedupLegacy(txns: readonly ITransaction[], startMs: number): readon
   return deduplicateTxns(txns, startMs, LEGACY_KEY_FIELDS);
 }
 
+/**
+ * Run a call that must throw and return the thrown message.
+ * @param call - The throwing call.
+ * @returns The thrown error's message.
+ */
+function thrownMessage(call: () => unknown): string {
+  try {
+    call();
+  } catch (error) {
+    return (error as Error).message;
+  }
+  return 'did not throw';
+}
+
 describe('parseStartDate', () => {
   it('resolves YYYYMMDD at Jerusalem midnight', () => {
     const d = parseStartDate('20260115');
@@ -312,6 +326,14 @@ describe('templatePostBody', () => {
   it('handles empty postData by using {}', () => {
     const body = templatePostBody('', {});
     expect(body).toEqual({});
+  });
+
+  it('rejects a form-encoded template without quoting its card number', () => {
+    const captured = 'card=4580123412341234&month=10';
+
+    const message = thrownMessage((): unknown => templatePostBody(captured, {}));
+
+    expect(message).toBe('captured POST template: invalid JSON (SyntaxError)');
   });
 
   it('filters plural cards array to the iteration card via WK last4Digits', () => {

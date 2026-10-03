@@ -186,7 +186,7 @@ interface IMakeFcOpts {
 }
 
 /** Default empty TXN endpoint for tests that don't exercise the field. */
-const EMPTY_TEST_TXN_ENDPOINT: ITxnEndpoint = {
+export const EMPTY_TEST_TXN_ENDPOINT: ITxnEndpoint = {
   url: '',
   method: 'GET',
   templatePostData: false,

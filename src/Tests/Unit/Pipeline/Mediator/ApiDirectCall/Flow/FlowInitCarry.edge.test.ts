@@ -279,6 +279,24 @@ describe('buildInitialCarry — jwt-claim bootstrap branches', () => {
     if (!result.success) expect(result.errorMessage).toContain('payload decode failed');
   });
 
+  it('names the JSON failure without quoting the decoded JWT payload', () => {
+    const header = Buffer.from('hdr', 'utf8').toString('base64url');
+    const payload = Buffer.from('ACCT4580123412341234', 'utf8').toString('base64url');
+    const config = makeConfig({
+      seedCarryFromCreds: [
+        { field: 'uId', bootstrap: { kind: 'jwt-claim', from: 'tokenField', claim: 'pl.uId' } },
+      ],
+    });
+    const result = buildInitialCarry(config, { tokenField: `${header}.${payload}.sig` }, {});
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorMessage).toContain(
+        'jwt-claim: payload decode failed: invalid JSON (SyntaxError)',
+      );
+      expect(result.errorMessage).not.toContain('4580123412341234');
+    }
+  });
+
   it('fails when the claim path misses (intermediate segment absent)', () => {
     const jwt = makeJwt({ pl: { other: 'value' } });
     const config = makeConfig({

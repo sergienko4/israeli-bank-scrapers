@@ -226,3 +226,83 @@ describe('fetchPostWithinPage', () => {
     expect(out).toEqual({});
   });
 });
+
+/** Card number planted in the malformed body and in the request query. */
+const CARD_SENTINEL = '4580123412341234';
+
+/** Endpoint whose query string carries the card number. */
+const SECRET_URL = `https://bank.co.il/api/tx?card=${CARD_SENTINEL}&lang=he`;
+
+/** Malformed body short enough for V8 to quote it whole. */
+const SECRET_BODY = `ACCT${CARD_SENTINEL}`;
+
+/**
+ * Await a fetch call that must reject and return its message.
+ * @param pending - The fetch call under test.
+ * @returns The rejection message.
+ */
+async function rejectionOf(pending: Promise<unknown>): Promise<string> {
+  try {
+    await pending;
+  } catch (error) {
+    return (error as Error).message;
+  }
+  return 'resolved unexpectedly';
+}
+
+/**
+ * Native GET of the secret endpoint.
+ * @returns The fetch call.
+ */
+function nativeGet(): Promise<unknown> {
+  return fetchGet(SECRET_URL, {});
+}
+
+/**
+ * Native POST to the secret endpoint.
+ * @returns The fetch call.
+ */
+function nativePost(): Promise<unknown> {
+  return fetchPost(SECRET_URL, { q: 'transactions' });
+}
+
+/**
+ * In-page GET of the secret endpoint.
+ * @returns The fetch call.
+ */
+function inPageGet(): Promise<unknown> {
+  const page = makeEvaluatingPage(SECRET_BODY, 200);
+  return fetchGetWithinPage(page, SECRET_URL);
+}
+
+/**
+ * In-page POST to the secret endpoint.
+ * @returns The fetch call.
+ */
+function inPagePost(): Promise<unknown> {
+  const page = makeEvaluatingPage(SECRET_BODY, 200);
+  return fetchPostWithinPage(page, SECRET_URL, { data: {} });
+}
+
+/** Every fetch helper that parses a response body. */
+const PARSE_CARRIERS = [
+  { carrier: 'fetchGet', run: nativeGet },
+  { carrier: 'fetchPost', run: nativePost },
+  { carrier: 'fetchGetWithinPage', run: inPageGet },
+  { carrier: 'fetchPostWithinPage', run: inPagePost },
+] as const;
+
+describe('parse failure never quotes the response body or the request query', () => {
+  it.each(PARSE_CARRIERS)('$carrier', async ({ run }) => {
+    const restore = stubFetch({ status: 200, body: SECRET_BODY });
+    try {
+      const pending = run();
+      const message = await rejectionOf(pending);
+
+      expect(message).toContain('parse error: invalid JSON (SyntaxError)');
+      expect(message).not.toContain(CARD_SENTINEL);
+    } finally {
+      restore();
+    }
+  });
+});

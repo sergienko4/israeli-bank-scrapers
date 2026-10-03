@@ -16,10 +16,11 @@ cookies and TLS fingerprint. When a bank's WAF intercepts one of those XHRs it
 answers with an HTML interstitial — frequently under **HTTP 200** — and when a
 session has lapsed the request is redirected to an HTML login page instead.
 
-Either way the body reaches `JSON.parse`, which throws:
+Either way the body reaches `JSON.parse`, which throws. The fetch layer reports
+it without quoting the body (see [JSON parse failures](../observability/redaction.md#json-parse-failures)):
 
 ```text
-… parse error: Unexpected token '<', "<html>…" is not valid JSON
+… parse error: invalid JSON (SyntaxError), url: …, status: 200
 ```
 
 That message is technically true and diagnostically useless. It is

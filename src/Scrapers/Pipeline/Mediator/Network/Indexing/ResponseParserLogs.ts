@@ -7,6 +7,7 @@
 
 import { getDebug } from '../../../Logging/Debug.js';
 import { toErrorMessage } from '../../../Types/ErrorUtils.js';
+import { describeJsonParseFailure } from '../../../Types/JsonParseFailure.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { redactUrlFull } from '../../../Types/PiiRedactor.js';
 import type { IRequestMeta } from './ResponsePrimitives.js';
@@ -96,7 +97,7 @@ function logParseCatch(meta: IRequestMeta, status: number, error: Error): false 
     status,
     contentType: meta.contentType,
     url: redactUrlFull(meta.url),
-    errorMessage: toErrorMessage(error),
+    errorMessage: describeJsonParseFailure(error),
   });
   return false;
 }

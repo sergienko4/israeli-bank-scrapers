@@ -289,6 +289,16 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
     if (!isOk(r)) expect(r.errorMessage).toContain('parse error');
   });
 
+  it('OZ-CIT-22 — malformed JSON 2xx never quotes the response body', async () => {
+    STATE.envelope = { ...ENV_OK, bodyText: 'DT4580123412341234' };
+    const r = await new STRATEGY(ORIGIN, false).fetchPost(URL_OK, {}, OPTS);
+    const wasOk = isOk(r);
+    expect(wasOk).toBe(false);
+    if (!isOk(r)) {
+      expect(r.errorMessage).toBe(`POST ${URL_OK} parse error: invalid JSON (SyntaxError)`);
+    }
+  });
+
   it.each([
     { label: 'non-2xx', envelope: ENV_APP_400 },
     { label: 'parse error', envelope: { ...ENV_OK, bodyText: 'not-json{' } },
