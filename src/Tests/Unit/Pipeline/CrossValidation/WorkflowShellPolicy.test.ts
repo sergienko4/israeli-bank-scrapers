@@ -6,8 +6,9 @@
  * single word naming `bash`, `sh` or `mksh` (`/bin/bash` and `BASH` count). It
  * reads `shell:` on the step, then `defaults.run.shell` on the job, and
  * otherwise assumes the runner's default. It ignores workflow-level
- * `defaults`. A `shell:` value with arguments (`bash -e {0}`), `pwsh`, or a
- * Windows runner is skipped silently, with no alert and no "incomplete
+ * `defaults`. A `shell:` value with arguments (`bash -e {0}`), `pwsh`, a
+ * Windows runner, or, with no shell set, a step `if:` naming Windows is
+ * skipped silently, with no alert and no "incomplete
  * results" note, so an unpinned `npm install` there would pass both the gate
  * and the scheduled scan. This policy keeps every workflow step where the
  * engine can see it, and is deliberately stricter than the engine.
@@ -39,6 +40,13 @@ const BASH_FAMILY_SHELL = /^(?:bash|sh)(?:\s|$)/;
 /** A runner label that defaults an unset shell to something other than bash. */
 const NON_BASH_RUNNER = /windows|\$\{\{/i;
 
+/**
+ * A step `if:` that may make Scorecard assume pwsh. Its `IsStepWindows` checks
+ * the condition for `runner.os == 'windows'`, `startsWith(runner.os, 'windows')`
+ * or `matrix.os == 'windows-…'` before it looks at `runs-on`.
+ */
+const WINDOWS_STEP_IF = /windows/i;
+
 /** A YAML workflow or action file. */
 const YAML_FILE = /\.ya?ml$/;
 
@@ -54,6 +62,7 @@ interface IRunDefaults {
 interface IStep {
   readonly run?: string;
   readonly shell?: string;
+  readonly if?: unknown;
 }
 
 /** A workflow job; reusable-workflow calls have no steps. */
@@ -186,6 +195,20 @@ function runnerProblem(runsOn: unknown): string {
 }
 
 /**
+ * Whether a step with no shell falls back to a bash default.
+ *
+ * @param step - The step.
+ * @param job - Its job.
+ * @returns Why it may not, or empty when it does.
+ */
+function unsetShellProblem(step: IStep, job: IJob): string {
+  if (typeof step.if === 'string' && WINDOWS_STEP_IF.test(step.if)) {
+    return `if "${step.if}" may make Scorecard assume pwsh`;
+  }
+  return runnerProblem(job['runs-on']);
+}
+
+/**
  * Whether Scorecard scans one workflow run step.
  *
  * @param step - The step.
@@ -194,7 +217,7 @@ function runnerProblem(runsOn: unknown): string {
  */
 function stepProblem(step: IStep, job: IJob): string {
   const shell = step.shell ?? job.defaults?.run?.shell;
-  if (shell === undefined) return runnerProblem(job['runs-on']);
+  if (shell === undefined) return unsetShellProblem(step, job);
   return SCANNED_SHELL.test(shell) ? '' : `shell "${shell}" is not a bare bash or sh`;
 }
 
@@ -306,6 +329,7 @@ function oneJob(job: IJob, defaults?: IRunDefaults): IWorkflow {
 
 const UBUNTU = 'ubuntu-latest';
 const NPM_STEP: IStep = { run: 'npm ci' };
+const WINDOWS_OS_IF = "runner.os == 'Windows'";
 
 const POLICY_CASES: readonly IPolicyCase[] = [
   {
@@ -382,6 +406,43 @@ const POLICY_CASES: readonly IPolicyCase[] = [
     isAccepted: false,
   },
   { name: 'unset shell with no runs-on', doc: oneJob({ steps: [NPM_STEP] }), isAccepted: false },
+  {
+    name: 'unset shell, if runner.os is Windows, on a self-hosted runner',
+    doc: oneJob({ 'runs-on': 'self-hosted', steps: [{ ...NPM_STEP, if: WINDOWS_OS_IF }] }),
+    isAccepted: false,
+  },
+  {
+    name: 'unset shell, if startsWith(runner.os, Windows)',
+    doc: oneJob({
+      'runs-on': UBUNTU,
+      steps: [{ ...NPM_STEP, if: "${{ startsWith(runner.os, 'Windows') }}" }],
+    }),
+    isAccepted: false,
+  },
+  {
+    name: 'unset shell, if matrix.os is a Windows image',
+    doc: oneJob({ 'runs-on': UBUNTU, steps: [{ ...NPM_STEP, if: "matrix.os == 'windows-2022'" }] }),
+    isAccepted: false,
+  },
+  {
+    name: 'step shell bash, if runner.os is Windows',
+    doc: oneJob({ 'runs-on': UBUNTU, steps: [{ ...NPM_STEP, if: WINDOWS_OS_IF, shell: 'bash' }] }),
+    isAccepted: true,
+  },
+  {
+    name: 'job default sh, if runner.os is Windows',
+    doc: oneJob({
+      'runs-on': UBUNTU,
+      defaults: { run: { shell: 'sh' } },
+      steps: [{ ...NPM_STEP, if: WINDOWS_OS_IF }],
+    }),
+    isAccepted: true,
+  },
+  {
+    name: 'unset shell, if on a non-Windows condition',
+    doc: oneJob({ 'runs-on': UBUNTU, steps: [{ ...NPM_STEP, if: "runner.os == 'Linux'" }] }),
+    isAccepted: true,
+  },
 ];
 
 describe('Workflow shell policy', () => {

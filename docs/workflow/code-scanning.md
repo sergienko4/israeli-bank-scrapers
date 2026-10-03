@@ -137,12 +137,13 @@ engine, so they apply to the scheduled scan too:
 - **Steps on a shell Scorecard skips.** It parses a `run:` only when the
   step's `shell:` — or failing that, the job's `defaults.run.shell` — is a
   single word naming `bash`, `sh` or `mksh` (`/bin/bash` and `BASH` count).
-  With arguments (`bash -e {0}`), `pwsh`, or no shell on a Windows runner, it
-  skips the step without a word. It ignores workflow-level `defaults` and goes
+  With arguments (`bash -e {0}`), `pwsh`, or no shell on a Windows runner or
+  under a Windows-only `if:`, it skips the step without a word. It ignores workflow-level `defaults` and goes
   by the runner instead. `WorkflowShellPolicy.test.ts` keeps every workflow
   step scannable, and is deliberately stricter: a step or job shell must be
   exactly `bash` or `sh`, a workflow-level default must start with one, and a
-  step with no shell needs a literal, non-Windows `runs-on`.
+  step with no shell needs a literal, non-Windows `runs-on` and an `if:` that
+  does not mention Windows.
 - **Composite actions.** Scorecard does not scan the `action.yml` files under
   `.github/actions/`, at any depth. The same test holds their steps to
   `bash`/`sh`, but review npm commands there by hand (today they use only
