@@ -12,6 +12,7 @@ import {
   PIPELINE_WELL_KNOWN_MONTHLY_FIELDS as MF,
 } from '../../../Registry/WK/ScrapeWK.js';
 import type { Brand } from '../../../Types/Brand.js';
+import { parseJsonOrThrow } from '../../../Types/JsonParseFailure.js';
 
 /** Lowercased templateable WK key. */
 type TemplateKeyLower = Brand<string, 'TemplateKeyLower'>;
@@ -186,9 +187,22 @@ function templatePostBody(
   accountRecord: Record<string, unknown>,
   accountId = '',
 ): Record<string, string | object> {
-  const body = JSON.parse(postData || '{}') as Record<string, unknown>;
+  const body = parseCapturedTemplate(postData);
   filterPluralCardArrays(body, accountId);
   return applyScalarFields(body as Record<string, string | object>, accountRecord);
 }
 
+/**
+ * Parse a POST body captured on the bank's page. A non-JSON body throws
+ * a failure naming the position only — never the body, which can hold
+ * card or account numbers.
+ *
+ * @param postData - Captured raw POST data string ('' reads as {}).
+ * @returns The parsed body.
+ */
+function parseCapturedTemplate(postData: string): Record<string, unknown> {
+  return parseJsonOrThrow(postData || '{}', 'captured POST template') as Record<string, unknown>;
+}
+
 export default templatePostBody;
+export { parseCapturedTemplate };

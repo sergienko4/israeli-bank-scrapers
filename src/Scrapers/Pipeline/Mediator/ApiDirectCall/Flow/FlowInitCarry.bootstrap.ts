@@ -6,6 +6,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import { describeJsonParseFailure } from '../../../Types/JsonParseFailure.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type {
@@ -144,7 +145,7 @@ function tryParseJwtSegment(payloadB64: string): Procedure<unknown> {
     const parsed = JSON.parse(decoded) as unknown;
     return succeed(parsed);
   } catch (error) {
-    const reason = (error as Error).message;
+    const reason = describeJsonParseFailure(error);
     return fail(ScraperErrorTypes.Generic, `jwt-claim: payload decode failed: ${reason}`);
   }
 }

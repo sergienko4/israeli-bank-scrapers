@@ -17,6 +17,7 @@ import {
   buildAccountResult,
   deduplicateTxns,
   FALLBACK_DEDUP_KEY_FIELDS,
+  parseCapturedTemplate,
   parseStartDate,
   scrapeWithMonthlyChunking,
   templatePostBody,
@@ -114,7 +115,7 @@ function buildPostCtx(
     if (txnEndpoint.templatePostData === false) return '{}';
     return txnEndpoint.templatePostData || '{}';
   })();
-  const capturedBody = JSON.parse(rawPost) as ApiPayload;
+  const capturedBody = parseCapturedTemplate(rawPost) as ApiPayload;
   const baseBody = templatePostBody(rawPost, accountRecord, cardId);
   const isLookupCard = cardId !== accountId;
   const cardLabel = redactAccount(cardId);

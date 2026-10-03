@@ -23,6 +23,7 @@ import {
 import { TimeoutError, timeoutPromise } from '../../Mediator/Timing/TimingActions.js';
 import type { Brand, SafeUrlForLog } from '../../Types/Brand.js';
 import { toError, toErrorMessage } from '../../Types/ErrorUtils.js';
+import { describeJsonParseFailure } from '../../Types/JsonParseFailure.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
@@ -167,7 +168,7 @@ function parseJsonEnvelope<T>(env: IPageFetchEnvelope, verb: HttpVerb, url: stri
     const parsed = JSON.parse(env.bodyText) as T;
     return succeed(parsed);
   } catch (error) {
-    const reason = toErrorMessage(error as Error);
+    const reason = describeJsonParseFailure(error);
     const safeUrl = safeUrlForLog(url);
     return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} parse error: ${reason}`);
   }

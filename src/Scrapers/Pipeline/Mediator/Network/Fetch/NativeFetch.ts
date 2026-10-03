@@ -6,6 +6,7 @@
  */
 
 import ScraperError from '../../../../Base/ScraperError.js';
+import { parseJsonOrThrow } from '../../../Types/JsonParseFailure.js';
 import { maskVisibleText } from '../../../Types/LogEvent.js';
 import { redactUrlFull } from '../../../Types/PiiRedactor.js';
 import { BODY_PREVIEW_LIMIT, NETWORK_FETCH_TIMEOUT_MS } from '../FetchConfig.js';
@@ -102,7 +103,7 @@ async function parseFetchGetResponse<TResult>(
   logApiCall(`GET ${redactUrlFull(url).slice(-100)}`, fetchResult.status, Date.now() - startMs);
   const text = await readBodyWithPreview(fetchResult);
   assertGetStatusOk(fetchResult);
-  return JSON.parse(text) as TResult;
+  return parseJsonOrThrow(text, 'fetchGet parse error') as TResult;
 }
 
 /**
@@ -167,7 +168,7 @@ export async function fetchPost<TResult>(
   const startMs = Date.now();
   const postInit = buildPostInit(data, extraHeaders);
   const text = await sendPost(url, postInit, startMs);
-  return JSON.parse(text) as TResult;
+  return parseJsonOrThrow(text, 'fetchPost parse error') as TResult;
 }
 
 /**

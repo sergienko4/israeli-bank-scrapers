@@ -7,7 +7,8 @@
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { getDebug } from '../../Logging/Debug.js';
 import type { Brand } from '../../Types/Brand.js';
-import { toError, toErrorMessage } from '../../Types/ErrorUtils.js';
+import { toError } from '../../Types/ErrorUtils.js';
+import { describeJsonParseFailure } from '../../Types/JsonParseFailure.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
@@ -61,7 +62,7 @@ async function parseJsonResponse<T>(
     const parsed = JSON.parse(rawText) as T;
     return succeed(parsed);
   } catch (error) {
-    const reason = toErrorMessage(error as Error);
+    const reason = describeJsonParseFailure(error);
     const safeUrl = safeUrlForLog(url);
     return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} parse error: ${reason}`);
   }

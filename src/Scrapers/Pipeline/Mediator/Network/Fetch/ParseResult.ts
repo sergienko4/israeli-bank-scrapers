@@ -8,7 +8,8 @@
 
 import type { Nullable } from '../../../../Base/Interfaces/CallbackTypes.js';
 import ScraperError from '../../../../Base/ScraperError.js';
-import { toErrorMessage } from '../../../Types/ErrorUtils.js';
+import { safeUrlForLog } from '../../../Strategy/Fetch/SafeUrlForLog.js';
+import { describeJsonParseFailure } from '../../../Types/JsonParseFailure.js';
 import type { JsonUnknown } from '../../../Types/JsonValue.js';
 
 /** Typed null value for Nullable return types — avoids the no-restricted-syntax rule on `return null`. */
@@ -25,13 +26,15 @@ export interface IParseErrorOpts {
 
 /**
  * Build the human-readable ScraperError message for a JSON parse failure.
+ * Neither the rejected body nor the request query string is echoed.
  * @param opts - Parse error details.
  * @returns Formatted error message.
  */
 function buildParseErrorMessage(opts: IParseErrorOpts): string {
-  const msg = toErrorMessage(opts.err);
+  const reason = describeJsonParseFailure(opts.err);
+  const safeUrl = safeUrlForLog(opts.url);
   const statusStr = String(opts.status);
-  return `${opts.context} parse error: ${msg}, url: ${opts.url}, status: ${statusStr}`;
+  return `${opts.context} parse error: ${reason}, url: ${safeUrl}, status: ${statusStr}`;
 }
 
 /**
