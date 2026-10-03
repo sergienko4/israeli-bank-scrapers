@@ -138,9 +138,10 @@ engine, so they apply to the scheduled scan too:
   step scannable, and is deliberately stricter: a step or job shell must be
   exactly `bash` or `sh`, a workflow-level default must start with one, and a
   step with no shell needs a literal, non-Windows `runs-on`.
-- **Composite actions.** Scorecard does not scan `.github/actions/*/action.yml`.
-  The same test holds their steps to `bash`/`sh`, but review npm commands
-  there by hand (today they use only `npm ci`, `npm run` and `npx`).
+- **Composite actions.** Scorecard does not scan the `action.yml` files under
+  `.github/actions/`, at any depth. The same test holds their steps to
+  `bash`/`sh`, but review npm commands there by hand (today they use only
+  `npm ci`, `npm run` and `npx`).
 - **Parser errors Scorecard does not report.** A script it fails to parse
   without emitting `Possibly incomplete results` passes silently.
 - **Commands assembled at runtime** (`eval`, variables).

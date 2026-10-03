@@ -17,7 +17,8 @@
  * outside both the gate and the scheduled scan.
  */
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -40,6 +41,9 @@ const NON_BASH_RUNNER = /windows|\$\{\{/i;
 
 /** A YAML workflow or action file. */
 const YAML_FILE = /\.ya?ml$/;
+
+/** An action's metadata file, at any depth below the actions directory. */
+const ACTION_FILE = /(?:^|[/\\])action\.ya?ml$/;
 
 /** A `defaults` block. */
 interface IRunDefaults {
@@ -99,15 +103,43 @@ function workflowFiles(): string[] {
 }
 
 /**
- * Every composite action's metadata file.
+ * Every composite action's metadata file under a directory.
+ *
+ * @param root - Directory holding the actions.
+ * @returns Absolute paths.
+ */
+function actionFilesUnder(root: string): string[] {
+  const entries = readdirSync(root, { recursive: true, encoding: 'utf8' });
+  const files = entries.filter(entry => ACTION_FILE.test(entry));
+  return files.map(file => join(root, file));
+}
+
+/**
+ * Every composite action's metadata file in the repo.
  *
  * @returns Absolute paths.
  */
 function actionFiles(): string[] {
-  const dirs = readdirSync(ACTIONS_DIR);
-  const files = dirs.flatMap(dir => ['action.yml', 'action.yaml'].map(name => join(dir, name)));
-  const existing = new Set(readdirSync(ACTIONS_DIR, { recursive: true, encoding: 'utf8' }));
-  return files.filter(file => existing.has(file)).map(file => join(ACTIONS_DIR, file));
+  return actionFilesUnder(ACTIONS_DIR);
+}
+
+/**
+ * A throwaway actions directory holding the given files.
+ *
+ * @param files - Paths relative to the directory.
+ * @returns The directory.
+ */
+function makeActionsDir(files: readonly string[]): string {
+  const temp = tmpdir();
+  const prefix = join(temp, 'shp-actions-');
+  const root = mkdtempSync(prefix);
+  for (const file of files) {
+    const path = join(root, file);
+    const parent = dirname(path);
+    mkdirSync(parent, { recursive: true });
+    writeFileSync(path, 'runs: {}\n');
+  }
+  return root;
 }
 
 /**
@@ -376,6 +408,18 @@ describe('Workflow shell policy', () => {
   it.each(POLICY_CASES)('[SHP-4] $name → accepted: $isAccepted', ({ doc, isAccepted }) => {
     const problems = workflowProblems(doc, 'wf.yml');
     expect(problems.length === 0).toBe(isAccepted);
+  });
+
+  it('[SHP-6] finds composite actions at any depth', () => {
+    const nested = ['flat/action.yml', 'group/tool/action.yaml', 'group/README.md'];
+    const root = makeActionsDir(nested);
+    try {
+      const found = actionFilesUnder(root).sort();
+      const expected = ['flat/action.yml', 'group/tool/action.yaml'].map(file => join(root, file));
+      expect(found).toEqual(expected);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('[SHP-5] names the runner when an unset shell would not default to bash', () => {
