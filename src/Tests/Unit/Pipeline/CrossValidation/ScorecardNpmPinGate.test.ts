@@ -18,7 +18,15 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,7 +38,10 @@ const THIS_DIR = dirname(THIS_FILE_PATH);
 const REPO_ROOT = join(THIS_DIR, '../../../../../');
 const PR_YAML = join(REPO_ROOT, '.github/workflows/pr.yml');
 const RELEASE_YAML = join(REPO_ROOT, '.github/workflows/release.yml');
-const GATE_SCRIPT = join(REPO_ROOT, '.github/scripts/ci/scorecard-npm-pins.sh');
+const GATE_SCRIPT_PATH = '.github/scripts/ci/scorecard-npm-pins.sh';
+const GATE_SCRIPT = join(REPO_ROOT, GATE_SCRIPT_PATH);
+const ACTION_WORKFLOW_PATH = '.github/workflows/scorecard.yml';
+const ACTION_WORKFLOW = join(REPO_ROOT, ACTION_WORKFLOW_PATH);
 
 /** YAML key of the gate job, and of the aggregator that decides what can block a merge. */
 const GATE_JOB_KEY = 'scorecard-npm-pins';
@@ -62,6 +73,22 @@ const MIN_PUBLISH_NODE_MAJOR = 24;
 /** Engine the gate pins, as the scheduled scan's go.mod spells it. */
 const PINNED_ENGINE = 'v5.5.0';
 
+/** What the gate says when scorecard.yml does not run exactly one action commit. */
+const PIN_REJECTED = 'expected one SHA-pinned ossf/scorecard-action';
+
+/** scorecard-action references a scorecard.yml step can carry. */
+const ACTION_STEP = '      - uses: ossf/scorecard-action@';
+const ACTION_SHA = '2d1146689b8cda280b9bc96326124645441f03bc';
+const OTHER_SHA = 'ae6de97fb1d0f3dcbe1b3e3e2b05bb0bd9f0f4c1';
+const ACTION_TAG = 'v2.4.4';
+
+/** Where the gate reads an action commit's go.mod, and the action it reads it for. */
+const ACTION_GO_MOD_URL = 'https://raw.githubusercontent.com/ossf/scorecard-action';
+const SCORECARD_ACTION = 'ossf/scorecard-action@';
+
+/** A full commit SHA. */
+const FULL_SHA = /^[0-9a-f]{40}$/;
+
 interface IWorkflowStep {
   readonly uses?: string;
   readonly run?: string;
@@ -81,7 +108,15 @@ interface IWorkflowJob {
 }
 
 interface IWorkflowDoc {
+  readonly env?: unknown;
   readonly jobs: Readonly<Record<string, IWorkflowJob>>;
+}
+
+/** A scorecard.yml body, and whether the gate must take its action pin. */
+interface IPinCase {
+  readonly name: string;
+  readonly lines: readonly string[];
+  readonly accepted: boolean;
 }
 
 /** What one run of the gate script reported. */
@@ -89,6 +124,8 @@ interface IGateRun {
   readonly status: number;
   readonly output: string;
   readonly didExtract: boolean;
+  /** The action go.mod URL the gate fetched, or empty when it fetched none. */
+  readonly goModUrl: string;
 }
 
 /** A Trusted Publishing npm version, and whether the release guard must accept it. */
@@ -178,9 +215,9 @@ function writeCommand(dir: string, name: string, body: string): string {
 }
 
 /**
- * A `curl` that serves a go.mod embedding `$STUB_ENGINE`, and anything else
- * as a file that is not the release asset; and a `tar` that only records it
- * ran. Nothing reaches the network.
+ * A `curl` that serves a go.mod embedding `$STUB_ENGINE` and records its URL,
+ * and anything else as a file that is not the release asset; and a `tar` that
+ * only records it ran. Nothing reaches the network.
  *
  * @returns Directory holding the stubs, to prepend to `PATH`.
  */
@@ -193,7 +230,9 @@ function makeDownloadStubs(): string {
     '  shift',
     'done',
     'case "$url" in',
-    '  */go.mod) printf "\\tgithub.com/ossf/scorecard/v5 %s\\n" "$STUB_ENGINE" > "$out" ;;',
+    '  */go.mod)',
+    '    printf "\\tgithub.com/ossf/scorecard/v5 %s\\n" "$STUB_ENGINE" > "$out"',
+    '    printf "%s" "$url" > "$STUB_GO_MOD_LOG" ;;',
     '  *) printf "not the release asset\\n" > "$out" ;;',
     'esac',
   ];
@@ -203,22 +242,90 @@ function makeDownloadStubs(): string {
 }
 
 /**
+ * Environment that puts the download stubs first on `PATH`.
+ *
+ * @param stubs - Directory holding the stubs.
+ * @param settings - What the stubs serve and where they record.
+ * @returns The environment.
+ */
+function stubEnvFor(stubs: string, settings: Readonly<Record<string, string>>): NodeJS.ProcessEnv {
+  const path = `${stubs}:${process.env.PATH ?? ''}`;
+  return { ...process.env, PATH: path, TMPDIR: stubs, RUNNER_TEMP: stubs, ...settings };
+}
+
+/**
+ * The `ossf/scorecard-action` refs a workflow's steps run, parsed as YAML.
+ *
+ * @param path - Workflow path.
+ * @returns Refs after the `@`.
+ */
+function actionRefsIn(path: string): readonly string[] {
+  const doc = loadWorkflow(path);
+  const jobs: readonly Partial<IWorkflowJob>[] = Object.values(doc.jobs);
+  const steps = jobs.flatMap(job => job.steps ?? []);
+  const actionSteps = steps.filter(step => step.uses?.startsWith(SCORECARD_ACTION) ?? false);
+  return actionSteps.map(step => step.uses?.slice(SCORECARD_ACTION.length) ?? '');
+}
+
+/**
  * Run the gate script against the download stubs.
  *
  * @param engine - Scorecard version the stub action go.mod embeds.
+ * @param script - Gate script to run.
  * @returns Exit status, output, and whether anything was extracted.
  */
-function runGate(engine: string): IGateRun {
+function runGate(engine: string, script = GATE_SCRIPT): IGateRun {
   const stubs = makeDownloadStubs();
   const marker = join(stubs, 'tar-ran');
-  const env = { ...process.env, PATH: `${stubs}:${process.env.PATH ?? ''}`, TMPDIR: stubs };
-  const stubEnv = { ...env, RUNNER_TEMP: stubs, STUB_ENGINE: engine, STUB_TAR_MARKER: marker };
+  const goModLog = join(stubs, 'go-mod-url');
+  const env = stubEnvFor(stubs, {
+    STUB_ENGINE: engine,
+    STUB_TAR_MARKER: marker,
+    STUB_GO_MOD_LOG: goModLog,
+  });
   try {
-    const result = spawnSync('bash', [GATE_SCRIPT], { env: stubEnv, encoding: 'utf8' });
+    const result = spawnSync('bash', [script], { env, encoding: 'utf8' });
     const output = `${result.stdout}${result.stderr}`;
-    return { status: result.status ?? -1, output, didExtract: existsSync(marker) };
+    const goModUrl = existsSync(goModLog) ? readFileSync(goModLog, 'utf8') : '';
+    return { status: result.status ?? -1, output, didExtract: existsSync(marker), goModUrl };
   } finally {
     rmSync(stubs, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Write a file, creating its directory.
+ *
+ * @param path - File to write.
+ * @param text - Its content.
+ * @returns The path.
+ */
+function writeFileWithDir(path: string, text: string): string {
+  const parent = dirname(path);
+  mkdirSync(parent, { recursive: true });
+  writeFileSync(path, text);
+  return path;
+}
+
+/**
+ * Run a copy of the gate script in a scratch repo whose scorecard.yml holds
+ * `lines`, with the stub go.mod embedding the pinned engine.
+ *
+ * @param lines - scorecard.yml step lines.
+ * @returns What the gate reported.
+ */
+function runGateWithWorkflow(lines: readonly string[]): IGateRun {
+  const root = makeTempDir('snp-repo-');
+  const script = join(root, GATE_SCRIPT_PATH);
+  const workflowPath = join(root, ACTION_WORKFLOW_PATH);
+  const workflow = ['jobs:', '  analysis:', '    steps:', ...lines, ''].join('\n');
+  writeFileWithDir(workflowPath, workflow);
+  const source = gateScript();
+  writeFileWithDir(script, source);
+  try {
+    return runGate(PINNED_ENGINE, script);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 }
 
@@ -291,6 +398,41 @@ const GUARD_CASES: readonly IGuardCase[] = [
   { version: '12.0.0', accepted: true },
 ];
 
+const PIN_CASES: readonly IPinCase[] = [
+  { name: 'one active SHA pin', lines: [`${ACTION_STEP}${ACTION_SHA} # v2.4.4`], accepted: true },
+  {
+    name: 'a SHA pin beside a commented-out one',
+    lines: [`      # - uses: ossf/scorecard-action@${OTHER_SHA}`, `${ACTION_STEP}${ACTION_SHA}`],
+    accepted: true,
+  },
+  {
+    name: 'a mutable tag behind a commented-out SHA',
+    lines: [`      # - uses: ossf/scorecard-action@${ACTION_SHA}`, `${ACTION_STEP}${ACTION_TAG}`],
+    accepted: false,
+  },
+  {
+    name: 'a SHA pin beside a mutable tag',
+    lines: [`${ACTION_STEP}${ACTION_SHA}`, `${ACTION_STEP}${ACTION_TAG}`],
+    accepted: false,
+  },
+  { name: 'only a mutable tag', lines: [`${ACTION_STEP}${ACTION_TAG}`], accepted: false },
+  {
+    name: 'a SHA pin beside a quoted mutable tag',
+    lines: [`${ACTION_STEP}${ACTION_SHA}`, `      - uses: "ossf/scorecard-action@${ACTION_TAG}"`],
+    accepted: false,
+  },
+  {
+    name: 'a SHA pin beside a flow-map mutable tag',
+    lines: [`${ACTION_STEP}${ACTION_SHA}`, `      - { uses: ossf/scorecard-action@${ACTION_TAG} }`],
+    accepted: false,
+  },
+  {
+    name: 'a SHA with a suffix YAML keeps in the ref',
+    lines: [`${ACTION_STEP}${ACTION_SHA}#${ACTION_TAG}`],
+    accepted: false,
+  },
+];
+
 describe('Scorecard npm-pin gate', () => {
   it('[SNP-1] runs on every pull request and can block the merge', () => {
     const job = gateJob();
@@ -317,13 +459,14 @@ describe('Scorecard npm-pin gate', () => {
   });
 
   it('[SNP-3] scans the merge commit with no credential in reach of the binary', () => {
-    const job = gateJob();
+    const workflow = loadWorkflow(PR_YAML);
+    const job = workflow.jobs[GATE_JOB_KEY];
     const [checkout] = job.steps;
-    const jobText = JSON.stringify(job);
+    const inReach = JSON.stringify({ env: workflow.env, job });
     expect(checkout.uses).toMatch(PINNED_CHECKOUT);
     expect(checkout.with?.['persist-credentials']).toBe(false);
     expect(checkout.with?.ref).toBeUndefined();
-    expect(jobText).not.toMatch(CREDENTIAL);
+    expect(inReach).not.toMatch(CREDENTIAL);
   });
 
   /**
@@ -391,5 +534,38 @@ describe('Scorecard npm-pin gate', () => {
     expect(tree).toBeGreaterThan(canary);
     expect(script).toContain('git archive --format=tar HEAD');
     expect(script).toContain('find "${TREE}" \\( -type l -o -type f -empty \\) -delete');
+  });
+
+  it.each(PIN_CASES)('[SNP-10] takes the engine pin only from an active SHA: $name', row => {
+    const run = runGateWithWorkflow(row.lines);
+    const isPinRejected = run.output.includes(PIN_REJECTED);
+    const didReachDownload = run.output.includes('checksum');
+    const fetched = row.accepted ? `${ACTION_GO_MOD_URL}/${ACTION_SHA}/go.mod` : '';
+    expect(isPinRejected).toBe(!row.accepted);
+    expect(didReachDownload).toBe(row.accepted);
+    expect(run.goModUrl).toBe(fetched);
+    expect(run.status).not.toBe(0);
+  });
+
+  it('[SNP-11] checks the engine of the action step the scheduled scan actually runs', () => {
+    const refs = actionRefsIn(ACTION_WORKFLOW);
+    const run = runGate(PINNED_ENGINE);
+    expect(refs).toHaveLength(1);
+    expect(refs[0]).toMatch(FULL_SHA);
+    expect(run.goModUrl).toBe(`${ACTION_GO_MOD_URL}/${refs[0]}/go.mod`);
+  });
+
+  it('[SNP-12] reads action steps past jobs that call a reusable workflow', () => {
+    const dir = makeTempDir('snp-workflow-');
+    const lines = ['jobs:', '  called:', '    uses: ./.github/workflows/other.yml', '  analysis:'];
+    const workflow = [...lines, '    steps:', `${ACTION_STEP}${ACTION_SHA}`, ''].join('\n');
+    const target = join(dir, 'scorecard.yml');
+    const path = writeFileWithDir(target, workflow);
+    try {
+      const refs = actionRefsIn(path);
+      expect(refs).toEqual([ACTION_SHA]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

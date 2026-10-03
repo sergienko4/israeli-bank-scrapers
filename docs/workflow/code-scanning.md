@@ -94,12 +94,17 @@ shell parser, so it sees exactly what the scan sees. The job checks out the
 merge commit with no credentials and runs
 `.github/scripts/ci/scorecard-npm-pins.sh`, which:
 
-1. reads the `ossf/scorecard-action` commit that `scorecard.yml` pins, fetches
-   that commit's `go.mod`, and stops unless it embeds the Scorecard version the
-   script pins (`SCORECARD_VERSION`), so a bump of the action cannot move the
-   scan to another engine unnoticed. The action runs that engine from an image
-   it names by tag (`ghcr.io/ossf/scorecard-action:v2.4.4`), not by digest; an
-   upstream rebuild of that tag is beyond what the gate can check;
+1. reads the `ossf/scorecard-action` commit that `scorecard.yml` pins (every
+   mention outside a comment line must be a plain `uses:` line, and together
+   they must name one full commit SHA), fetches that commit's `go.mod`, and
+   stops unless it embeds the Scorecard version the script pins
+   (`SCORECARD_VERSION`), so a bump of the action cannot move the scan to
+   another engine unnoticed. That check reads lines, so it cannot tell a step
+   from text inside a `run: |` block; `ScorecardNpmPinGate.test.ts` parses the
+   workflow as YAML and requires the fetched commit to be the one its action
+   step runs. The action runs that engine from an image it names by tag
+   (`ghcr.io/ossf/scorecard-action:v2.4.4`), not by digest; an upstream
+   rebuild of that tag is beyond what the gate can check;
 2. downloads that release's CLI and checks its SHA-256 **before** unpacking it;
 3. scans a one-line `npm install` canary and requires the verdict to fail, so
    a gate that has gone blind cannot pass;

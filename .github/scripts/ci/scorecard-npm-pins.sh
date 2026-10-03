@@ -79,15 +79,25 @@ sha256_of() {
   fi
 }
 
-# Step 1: the scheduled scan's engine must be the one pinned here.
+# Step 1: the scheduled scan's engine must be the one pinned here. Every
+# mention of the action outside a comment line must be a plain `uses:` line
+# (so a quoted or flow-style second reference cannot hide), and together they
+# must name one full commit SHA; a commented-out pin does not count.
 check_action_engine() {
-  local pins sha
-  pins="$(sed -nE 's/.*ossf\/scorecard-action@([0-9a-f]{40}).*/\1/p' "${ACTION_WORKFLOW}" | sort -u)"
-  if [ -z "${pins}" ] || [ "$(printf '%s\n' "${pins}" | wc -l)" -ne 1 ]; then
-    echo "expected one SHA-pinned ossf/scorecard-action in ${ACTION_WORKFLOW}, found: ${pins:-none}" >&2
+  local mentions uses refs sha
+  mentions="$(awk '!/^[[:space:]]*#/ && /ossf\/scorecard-action@/ { n++ } END { print n + 0 }' \
+    "${ACTION_WORKFLOW}")"
+  uses="$(sed -nE 's/^[[:space:]]*(-[[:space:]]+)?uses:[[:space:]]*ossf\/scorecard-action@([^[:space:]]+).*/\2/p' \
+    "${ACTION_WORKFLOW}")"
+  refs="$(printf '%s' "${uses}" | sort -u)"
+  if [ -z "${refs}" ] || [ "$(printf '%s\n' "${uses}" | wc -l)" -ne "${mentions}" ] ||
+    [ "$(printf '%s\n' "${refs}" | wc -l)" -ne 1 ] ||
+    ! printf '%s\n' "${refs}" | grep -Eqx '[0-9a-f]{40}'; then
+    echo "expected one SHA-pinned ossf/scorecard-action in ${ACTION_WORKFLOW}, each a plain" \
+      "uses: line; found ${mentions} mention(s), refs: $(printf '%s' "${refs:-none}" | tr '\n' ' ')" >&2
     return 1
   fi
-  sha="${pins}"
+  sha="${refs}"
   download "${ACTION_GO_MOD_URL}/${sha}/go.mod" "${WORK}/action-go.mod"
   if ! awk -v want="v${SCORECARD_VERSION}" \
     '$1 == "github.com/ossf/scorecard/v5" && $2 == want { found = 1 } END { exit !found }' \
