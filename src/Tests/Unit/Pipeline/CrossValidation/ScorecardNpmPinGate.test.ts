@@ -2,37 +2,25 @@
  * Scorecard npm-pin gate.
  *
  * <p>OpenSSF Scorecard's `PinnedDependenciesID` classifies every `npm install`,
- * `npm i`, `npm install-test` and `npm update` as an unpinned download. An exact
- * version such as `npm@11.11.0` does not count as a pin: the scanner accepts
- * `npm ci`, which installs from the committed lockfile, or a git URL pinned to
- * a full commit hash (`ossf/scorecard` `checks/raw/shell_download_validate.go`).
- * Code-scanning alerts #35 and #131 were both this rule, and #35 was once
- * declared closed by a comment claiming the exact pin was enough.
+ * `npm i`, `npm install-test` and `npm update` as an unpinned download; only
+ * `npm ci` and a git URL pinned to a full commit count as pinned. The scheduled
+ * scan (`scorecard.yml`) raises those alerts only after a change has merged, so
+ * the pull-request workflow runs the same engine, pinned by version and
+ * checksum, over the merge tree: `.github/scripts/ci/scorecard-npm-pins.sh`,
+ * with `check-scorecard-npm-pins.mjs` deciding the verdict.
  *
- * <p>This is a repository policy, deliberately stricter than the scanner: the
- * first install subcommand decides, so `npm install ci` fails, and commit-pinned
- * git URLs fail too. It reads every file Scorecard parses as shell — workflows,
- * scripts by extension or sh/bash/mksh shebang, and Dockerfiles — and the
- * commands inside `sh -c` bodies, substitutions in double quotes and exec-form
- * `RUN`. It is a line heuristic, not Scorecard's shell parser: heredoc bodies
- * are read as ordinary lines, and commands built from variables or `eval` are
- * out of its reach.
+ * <p>Mirroring the engine rather than re-implementing its shell parser is the
+ * point: the gate sees exactly what the scan sees. What this test pins is that
+ * the gate stays a gate — that it can block a merge, cannot swallow its own
+ * failure, verifies what it downloads before unpacking it, and moves its engine
+ * with the scheduled scan's. It also keeps the release job's npm on a Node line
+ * that bundles Trusted Publishing npm, so that job never has to download one.
  */
 
-import { execFileSync, spawnSync } from 'node:child_process';
-import {
-  chmodSync,
-  closeSync,
-  existsSync,
-  mkdtempSync,
-  openSync,
-  readFileSync,
-  readSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
@@ -40,337 +28,198 @@ import { parse } from 'yaml';
 const THIS_FILE_PATH = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE_PATH);
 const REPO_ROOT = join(THIS_DIR, '../../../../../');
+const PR_YAML = join(REPO_ROOT, '.github/workflows/pr.yml');
 const RELEASE_YAML = join(REPO_ROOT, '.github/workflows/release.yml');
+const GATE_SCRIPT = join(REPO_ROOT, '.github/scripts/ci/scorecard-npm-pins.sh');
 
-/** npm subcommands Scorecard's `isNpmDownload` treats as an install; only `ci` is pinned. */
-const INSTALL_SUBCOMMANDS = new Set(['ci', 'install', 'i', 'install-test', 'update']);
+/** YAML key of the gate job, and of the aggregator that decides what can block a merge. */
+const GATE_JOB_KEY = 'scorecard-npm-pins';
+const VALIDATE_JOB_KEY = 'validate';
 
-/**
- * Shell keywords and YAML/Dockerfile markers that can precede a command, in
- * lower case: Dockerfile instructions are case-insensitive.
- */
-const COMMAND_PREFIXES = new Set([
-  'run:',
-  'run',
-  '!',
-  'if',
-  'then',
-  'do',
-  'else',
-  'while',
-  'until',
-]);
+/** How the gate job invokes its script. */
+const GATE_COMMAND = '/bin/bash .github/scripts/ci/scorecard-npm-pins.sh';
 
-/**
- * Commands that run a command named later on their line, after options and
- * operands of their own (`sudo -u root CMD`, `timeout 600 CMD`).
- */
-const WRAPPERS = new Set([
-  'sudo',
-  'env',
-  'command',
-  'nohup',
-  'exec',
-  'time',
-  'nice',
-  'timeout',
-  'xargs',
-]);
+/** Longest the gate job may run; Scorecard itself takes seconds. */
+const MAX_GATE_MINUTES = 15;
 
-/** Shell operators after which a new command starts. */
-const COMMAND_SEPARATOR = /&&|\|\||[;|(){}`]|\$\(/;
-const QUOTED = /'[^']*'|"(?:\\.|[^"\\])*"/g;
-const COMMENT = /(?:^|\s)#.*$/;
-const ENV_ASSIGNMENT = /^[a-z_]\w*=/i;
-/** `sh -c 'CMD'` and friends: the body is a command Scorecard parses too. */
-const SHELL_OPTION = String.raw`(?:[-+][oO]\s+[^\s'"]+|--(?:rcfile|init-file)\s+[^\s'"]+|[-+]{1,2}[A-Za-z][\w-]*)\s+`;
-/** The option bundle carrying `c` (first `c` anchors): the shell runs the next argument. */
-const SHELL_C_FLAG_HEAD = String.raw`-[A-Zabd-z]*c[A-Za-z]*\s`;
-const SHELL_C_BODY = new RegExp(
-  String.raw`\b(?:ba|da|k|mk|z)?sh\s+(?:(?!${SHELL_C_FLAG_HEAD})${SHELL_OPTION})*${SHELL_C_FLAG_HEAD}+(?:${SHELL_OPTION})*(?:'([^']*)'|"((?:\\.|[^"\\])*)")`,
-  'g',
-);
-/** `$(CMD)` or `` `CMD` `` inside a double-quoted string, which the shell still runs. */
-const SUBSTITUTION = /\$\(([^()]*)\)|`([^`]*)`/g;
-/** Dockerfile exec form: `RUN ["npm", "install"]`; instructions are case-insensitive. */
-const EXEC_FORM = /^\s*RUN\s+(\[.*\])\s*$/i;
-const JSON_STRING = /"((?:\\.|[^"\\])*)"/g;
-const WORKFLOW_PATH = /^\.github\/workflows\/[^/]+\.ya?ml$/;
-const SHELL_EXTENSION = /\.(?:sh|bash|mksh)$/;
-const SHELL_SHEBANG = /^#!.*\b(?:ba|mk)?sh\b/;
+/** A pinned action reference: owner/name at a full commit SHA. */
+const PINNED_CHECKOUT = /^actions\/checkout@[0-9a-f]{40}$/;
+
+/** Anything that would hand a credential to the downloaded binary. */
+const CREDENTIAL = /secrets\.|github\.token|GH_TOKEN|GITHUB_TOKEN/;
+
+/** Shell that would let a failing command pass. */
+const SWALLOWED_FAILURE = /\|\|\s*(?:true|:)(?![\w-])|set \+e/;
+
+/** The verdict: the script's last command, so its exit status is the gate's. */
+const VERDICT_COMMAND = 'node "${CHECKER}" "${RESULT}" "v${SCORECARD_VERSION}"';
+
 /** Lowest npm that can complete the Trusted Publishing OIDC exchange. */
 const TRUSTED_PUBLISHING_NPM = '11.5.1';
 /** First Node major whose bundled npm can reach that version. */
 const MIN_PUBLISH_NODE_MAJOR = 24;
-/** Bytes read from each tracked file to find a shebang. */
-const SHEBANG_PROBE_BYTES = 128;
 
-/** One logical shell line: physical lines joined across `\` continuations. */
-interface ILogicalLine {
-  readonly line: number;
-  text: string;
-}
-
-/** A regex match's groups as they are at runtime: an unmatched group is undefined. */
-type IRegexGroups = readonly (string | undefined)[];
+/** Engine the gate pins, as the scheduled scan's go.mod spells it. */
+const PINNED_ENGINE = 'v5.5.0';
 
 interface IWorkflowStep {
   readonly uses?: string;
   readonly run?: string;
   readonly with?: Readonly<Record<string, string | number | boolean | undefined>>;
+  readonly env?: unknown;
+  readonly 'continue-on-error'?: unknown;
 }
 
-interface IReleaseDoc {
-  readonly jobs: Readonly<Record<string, { readonly steps: readonly IWorkflowStep[] }>>;
+interface IWorkflowJob {
+  readonly if?: unknown;
+  readonly needs?: readonly string[] | string;
+  readonly permissions?: unknown;
+  readonly env?: unknown;
+  readonly 'timeout-minutes'?: number;
+  readonly 'continue-on-error'?: unknown;
+  readonly steps: readonly IWorkflowStep[];
+}
+
+interface IWorkflowDoc {
+  readonly jobs: Readonly<Record<string, IWorkflowJob>>;
+}
+
+/** What one run of the gate script reported. */
+interface IGateRun {
+  readonly status: number;
+  readonly output: string;
+  readonly didExtract: boolean;
+}
+
+/** A Trusted Publishing npm version, and whether the release guard must accept it. */
+interface IGuardCase {
+  readonly version: string;
+  readonly accepted: boolean;
 }
 
 /**
- * Join backslash-continued lines, keeping the line number each one starts on.
+ * Parse a workflow file.
  *
- * @param text - File contents.
- * @returns Logical lines in file order.
+ * @param path - Workflow path.
+ * @returns Parsed workflow.
  */
-function logicalLines(text: string): readonly ILogicalLine[] {
-  const lines: ILogicalLine[] = [];
-  for (const [index, raw] of text.split(/\r?\n/).entries()) {
-    const previous = lines.at(-1);
-    if (previous?.text.endsWith('\\')) previous.text = `${previous.text.slice(0, -1)} ${raw}`;
-    else lines.push({ line: index + 1, text: raw });
+function loadWorkflow(path: string): IWorkflowDoc {
+  const text = readFileSync(path, 'utf8');
+  return parse(text) as IWorkflowDoc;
+}
+
+/**
+ * The gate job of the pull-request workflow.
+ *
+ * @returns The job, or an empty job when it is missing.
+ */
+function gateJob(): IWorkflowJob {
+  const doc = loadWorkflow(PR_YAML);
+  return doc.jobs[GATE_JOB_KEY] ?? { steps: [] };
+}
+
+/**
+ * The jobs the merge-blocking aggregator waits for.
+ *
+ * @returns Job keys in its `needs`.
+ */
+function validateNeeds(): readonly string[] {
+  const doc = loadWorkflow(PR_YAML);
+  const needs = doc.jobs[VALIDATE_JOB_KEY].needs ?? [];
+  return typeof needs === 'string' ? [needs] : needs;
+}
+
+/**
+ * The gate script's source.
+ *
+ * @returns Script text, or empty when it is missing.
+ */
+function gateScript(): string {
+  return existsSync(GATE_SCRIPT) ? readFileSync(GATE_SCRIPT, 'utf8') : '';
+}
+
+/**
+ * The last command the gate script runs.
+ *
+ * @param script - Script source.
+ * @returns Its last line that is neither blank nor a comment.
+ */
+function lastCommand(script: string): string {
+  const lines = script.split('\n').map(line => line.trim());
+  const commands = lines.filter(line => line !== '' && !line.startsWith('#'));
+  return commands.at(-1) ?? '';
+}
+
+/**
+ * Create a throwaway directory.
+ *
+ * @param name - Directory name prefix.
+ * @returns The directory.
+ */
+function makeTempDir(name: string): string {
+  const temp = tmpdir();
+  const prefix = join(temp, name);
+  return mkdtempSync(prefix);
+}
+
+/**
+ * Write an executable into a directory.
+ *
+ * @param dir - Directory to write into.
+ * @param name - Command name.
+ * @param body - Shell script body.
+ * @returns The command's path.
+ */
+function writeCommand(dir: string, name: string, body: string): string {
+  const path = join(dir, name);
+  writeFileSync(path, `#!/bin/sh\n${body}`);
+  chmodSync(path, 0o755);
+  return path;
+}
+
+/**
+ * A `curl` that serves a go.mod embedding `$STUB_ENGINE`, and anything else
+ * as a file that is not the release asset; and a `tar` that only records it
+ * ran. Nothing reaches the network.
+ *
+ * @returns Directory holding the stubs, to prepend to `PATH`.
+ */
+function makeDownloadStubs(): string {
+  const dir = makeTempDir('snp-stubs-');
+  const curl = [
+    'out=""; url=""',
+    'while [ $# -gt 0 ]; do',
+    '  case "$1" in --output) out="$2"; shift ;; https://*) url="$1" ;; esac',
+    '  shift',
+    'done',
+    'case "$url" in',
+    '  */go.mod) printf "\\tgithub.com/ossf/scorecard/v5 %s\\n" "$STUB_ENGINE" > "$out" ;;',
+    '  *) printf "not the release asset\\n" > "$out" ;;',
+    'esac',
+  ];
+  writeCommand(dir, 'curl', `${curl.join('\n')}\n`);
+  writeCommand(dir, 'tar', 'touch "$STUB_TAR_MARKER"\n');
+  return dir;
+}
+
+/**
+ * Run the gate script against the download stubs.
+ *
+ * @param engine - Scorecard version the stub action go.mod embeds.
+ * @returns Exit status, output, and whether anything was extracted.
+ */
+function runGate(engine: string): IGateRun {
+  const stubs = makeDownloadStubs();
+  const marker = join(stubs, 'tar-ran');
+  const env = { ...process.env, PATH: `${stubs}:${process.env.PATH ?? ''}`, TMPDIR: stubs };
+  const stubEnv = { ...env, RUNNER_TEMP: stubs, STUB_ENGINE: engine, STUB_TAR_MARKER: marker };
+  try {
+    const result = spawnSync('bash', [GATE_SCRIPT], { env: stubEnv, encoding: 'utf8' });
+    const output = `${result.stdout}${result.stderr}`;
+    return { status: result.status ?? -1, output, didExtract: existsSync(marker) };
+  } finally {
+    rmSync(stubs, { recursive: true, force: true });
   }
-  return lines;
-}
-
-/**
- * Whether a word precedes the command rather than being it: an option such as
- * `-E` or `--mount=…`, a keyword, or `VAR=value`.
- *
- * @param word - One whitespace-separated word.
- * @returns True when the command starts later in the line.
- */
-function isCommandPrefix(word: string): boolean {
-  const lower = word.toLowerCase();
-  return word.startsWith('-') || COMMAND_PREFIXES.has(lower) || ENV_ASSIGNMENT.test(word);
-}
-
-/**
- * Index of the word a command runs. Once a wrapper such as `sudo` appears —
- * bare or path-qualified — its own options and their values (`-u root`) are
- * skipped until `npm` turns up; deliberately strict, since a wrapper's option
- * arity varies.
- *
- * @param words - The command's whitespace-separated words.
- * @returns Index of the command word, or -1 when there is none.
- */
-function commandIndex(words: readonly string[]): number {
-  let isWrapped = false;
-  for (const [index, word] of words.entries()) {
-    const name = basename(word);
-    if (name === 'npm') return index;
-    const isWrapper = WRAPPERS.has(name);
-    if (!isWrapped && !isWrapper && !isCommandPrefix(word)) return index;
-    isWrapped ||= isWrapper;
-  }
-  return -1;
-}
-
-/**
- * Whether one shell command installs through npm without a lockfile. The first
- * install subcommand decides, so `npm --prefix app ci` passes and
- * `npm install ci` does not.
- *
- * @param command - A single command, quotes and comments already removed.
- * @returns True when the command is an unpinned npm download.
- */
-function isUnpinnedNpm(command: string): boolean {
-  const words = command.trim().split(/\s+/);
-  const start = commandIndex(words);
-  if (start < 0 || basename(words[start]) !== 'npm') return false;
-  const args = words.slice(start + 1).map(word => word.toLowerCase());
-  const subcommand = args.find(arg => INSTALL_SUBCOMMANDS.has(arg));
-  return subcommand !== undefined && subcommand !== 'ci';
-}
-
-/**
- * Remove a trailing shell comment, ignoring `#` inside quotes.
- *
- * @param line - One logical line.
- * @returns The line up to its comment.
- */
-function stripComment(line: string): string {
-  const masked = line.replace(QUOTED, quoted => '_'.repeat(quoted.length));
-  const comment = COMMENT.exec(masked);
-  return comment === null ? line : line.slice(0, comment.index);
-}
-
-/**
- * The first defined capture group of every match.
- *
- * @param text - Text to search.
- * @param pattern - A global pattern with one or two alternative groups.
- * @returns One captured string per match.
- */
-function captures(text: string, pattern: RegExp): readonly string[] {
-  const matches: readonly IRegexGroups[] = [...text.matchAll(pattern)];
-  return matches.map(match => match[1] ?? match[2] ?? '');
-}
-
-/**
- * Commands run by substitutions inside double-quoted strings.
- *
- * @param code - One line, comment removed.
- * @returns The substituted commands.
- */
-function substitutionsIn(code: string): readonly string[] {
-  const quoted = code.match(QUOTED) ?? [];
-  const doubleQuoted = quoted.filter(text => text.startsWith('"'));
-  return doubleQuoted.flatMap(text => captures(text, SUBSTITUTION));
-}
-
-/**
- * The command a Dockerfile exec-form `RUN` runs, as one space-joined line.
- *
- * @param code - One line, comment removed.
- * @returns The command, or nothing when the line is not exec form.
- */
-function execFormCommand(code: string): readonly string[] {
-  const execForm = EXEC_FORM.exec(code);
-  if (execForm === null) return [];
-  const args = captures(execForm[1], JSON_STRING);
-  return [args.join(' ')];
-}
-
-/**
- * Commands hidden inside quotes that still run: `sh -c` bodies, substitutions
- * in double quotes, and Dockerfile exec form.
- *
- * @param code - One line, comment removed.
- * @returns The embedded commands, still to be split.
- */
-function embeddedCommands(code: string): readonly string[] {
-  const shellBodies = captures(code, SHELL_C_BODY);
-  const substitutions = substitutionsIn(code);
-  const execForm = execFormCommand(code);
-  return [...shellBodies, ...substitutions, ...execForm];
-}
-
-/**
- * Every command one logical line runs, including embedded ones.
- *
- * @param line - One logical line.
- * @returns Commands with quotes and comments removed.
- */
-function commandsIn(line: string): readonly string[] {
-  const code = stripComment(line);
-  const direct = code.replace(QUOTED, '""').split(COMMAND_SEPARATOR);
-  const embedded = embeddedCommands(code).flatMap(commandsIn);
-  return [...direct, ...embedded];
-}
-
-/**
- * Find every unpinned npm download in a file's text.
- *
- * @param text - File contents.
- * @returns `line: source` for each offending logical line.
- */
-function findUnpinnedNpm(text: string): readonly string[] {
-  return logicalLines(text)
-    .filter(({ text: raw }) => commandsIn(raw).some(isUnpinnedNpm))
-    .map(({ line, text: raw }) => `${String(line)}: ${raw.trim()}`);
-}
-
-/**
- * Every `run:` script in a parsed workflow, as YAML decodes it: a folded or
- * multi-line plain scalar becomes the one command the runner executes.
- *
- * @param node - Any node of the parsed document.
- * @returns The scripts, in document order.
- */
-function runScripts(node: unknown): readonly string[] {
-  if (Array.isArray(node)) return node.flatMap(runScripts);
-  if (typeof node !== 'object' || node === null) return [];
-  return Object.entries(node).flatMap(([key, value]) =>
-    key === 'run' && typeof value === 'string' ? [value] : runScripts(value),
-  );
-}
-
-/**
- * Find every unpinned npm download in one scanned file. Workflows are read
- * twice: line by line, and as their decoded `run:` scripts.
- *
- * @param path - Repository-relative path, which decides how the text is read.
- * @param text - File contents.
- * @returns `line: source` for each offending line or `run:` script.
- */
-function findUnpinnedInFile(path: string, text: string): readonly string[] {
-  const lineHits = findUnpinnedNpm(text);
-  if (!WORKFLOW_PATH.test(path)) return lineHits;
-  const document: unknown = parse(text);
-  const runHits = runScripts(document).flatMap(findUnpinnedNpm);
-  return [...lineHits, ...runHits.map(hit => `run: ${hit}`)];
-}
-
-/**
- * Whether a repository-relative path exists in the working tree.
- *
- * @param path - Repository-relative path.
- * @returns True when the file is on disk.
- */
-function existsInTree(path: string): boolean {
-  const absolute = join(REPO_ROOT, path);
-  return existsSync(absolute);
-}
-
-/**
- * Read a repository file as UTF-8.
- *
- * @param path - Repository-relative path.
- * @returns File contents.
- */
-function readRepoFile(path: string): string {
-  const absolute = join(REPO_ROOT, path);
-  return readFileSync(absolute, 'utf8');
-}
-
-/**
- * Whether Scorecard reads this tracked file as a workflow, script or Dockerfile.
- *
- * @param path - Repository-relative path.
- * @param head - The file's first bytes, where a shebang would be.
- * @returns True when the file is in the scanner's scope.
- */
-function isScannedFile(path: string, head: string): boolean {
-  const name = basename(path);
-  if (WORKFLOW_PATH.test(path) || SHELL_EXTENSION.test(name)) return true;
-  return /dockerfile/i.test(name) || SHELL_SHEBANG.test(head);
-}
-
-/**
- * Read the first bytes of a repository file, enough to hold a shebang.
- *
- * @param path - Repository-relative path.
- * @returns The file's leading text.
- */
-function fileHead(path: string): string {
-  const absolute = join(REPO_ROOT, path);
-  const descriptor = openSync(absolute, 'r');
-  const buffer = Buffer.alloc(SHEBANG_PROBE_BYTES);
-  const length = readSync(descriptor, buffer, 0, SHEBANG_PROBE_BYTES, 0);
-  closeSync(descriptor);
-  return buffer.toString('utf8', 0, length);
-}
-
-/**
- * List tracked files Scorecard scans for pinned dependencies.
- *
- * @returns Repository-relative paths that exist in the working tree.
- */
-function scannedFiles(): readonly string[] {
-  const listing = execFileSync('git', ['ls-files', '-z'], { cwd: REPO_ROOT, encoding: 'utf8' });
-  const tracked = listing.split('\0').filter(path => path.length > 0 && existsInTree(path));
-  return tracked.filter(path => {
-    const head = fileHead(path);
-    return isScannedFile(path, head);
-  });
 }
 
 /**
@@ -379,8 +228,7 @@ function scannedFiles(): readonly string[] {
  * @returns Steps in execution order.
  */
 function publishSteps(): readonly IWorkflowStep[] {
-  const text = readFileSync(RELEASE_YAML, 'utf8');
-  const doc = parse(text) as IReleaseDoc;
+  const doc = loadWorkflow(RELEASE_YAML);
   return doc.jobs.publish.steps;
 }
 
@@ -410,12 +258,8 @@ function isSetupNode(step: IWorkflowStep): boolean {
  * @returns The directory, to prepend to `PATH`.
  */
 function makeNpmStub(): string {
-  const temp = tmpdir();
-  const prefix = join(temp, 'snp-npm-');
-  const dir = mkdtempSync(prefix);
-  const stub = join(dir, 'npm');
-  writeFileSync(stub, '#!/bin/sh\necho "$STUB_NPM_VERSION"\n');
-  chmodSync(stub, 0o755);
+  const dir = makeTempDir('snp-npm-');
+  writeCommand(dir, 'npm', 'echo "$STUB_NPM_VERSION"\n');
   return dir;
 }
 
@@ -438,115 +282,6 @@ function guardExitFor(version: string, stubDir: string): number {
   return result.status ?? -1;
 }
 
-/** A command and whether the policy must call it an unpinned download. */
-interface IPolicyCase {
-  readonly command: string;
-  readonly unpinned: boolean;
-}
-
-const POLICY_CASES: readonly IPolicyCase[] = [
-  { command: 'npm install -g npm@11.11.0 --ignore-scripts', unpinned: true },
-  { command: 'npm i "${TARBALL}" --omit=dev --ignore-scripts', unpinned: true },
-  { command: 'sudo npm update', unpinned: true },
-  { command: 'sudo -E npm install', unpinned: true },
-  { command: 'sudo -u root npm install left-pad', unpinned: true },
-  { command: '/usr/bin/sudo -u root npm install left-pad', unpinned: true },
-  { command: '/usr/bin/env -u CI npm install left-pad', unpinned: true },
-  { command: 'env -u CI npm install left-pad', unpinned: true },
-  { command: 'timeout 600 npm install', unpinned: true },
-  { command: 'nice -n 10 npm i left-pad', unpinned: true },
-  { command: 'xargs npm install', unpinned: true },
-  { command: 'env CI=1 npm install', unpinned: true },
-  { command: '/usr/local/bin/npm install-test', unpinned: true },
-  { command: 'if npm install; then echo ok; fi', unpinned: true },
-  { command: 'npm run build && npm install left-pad', unpinned: true },
-  { command: 'CI=1 npm INSTALL left-pad', unpinned: true },
-  { command: '- run: npm install', unpinned: true },
-  { command: 'npm \\\n  install left-pad', unpinned: true },
-  { command: 'npm install ci', unpinned: true },
-  { command: "sh -c 'npm install left-pad'", unpinned: true },
-  { command: 'bash -lc "npm i left-pad"', unpinned: true },
-  { command: "bash --noprofile -c 'npm install left-pad'", unpinned: true },
-  { command: "bash -O extglob -c 'npm install left-pad'", unpinned: true },
-  { command: 'bash -o pipefail -ec "npm i left-pad"', unpinned: true },
-  { command: "bash --rcfile /dev/null -c 'npm update'", unpinned: true },
-  { command: 'echo "$(npm install left-pad)"', unpinned: true },
-  { command: 'echo "`npm update`"', unpinned: true },
-  { command: 'RUN --mount=type=cache,target=/root/.npm npm install', unpinned: true },
-  { command: 'RUN ["npm", "install", "left-pad"]', unpinned: true },
-  { command: 'run ["npm", "install", "left-pad"]', unpinned: true },
-  { command: 'run npm install left-pad', unpinned: true },
-  { command: 'RUN npm ci --prefer-offline --ignore-scripts', unpinned: false },
-  { command: 'run npm ci', unpinned: false },
-  { command: "bash --noprofile -c 'npm ci'", unpinned: false },
-  { command: 'RUN ["npm", "ci"]', unpinned: false },
-  { command: 'npm ci --omit=dev --ignore-scripts --no-audit --no-fund', unpinned: false },
-  { command: 'npm --prefix app ci', unpinned: false },
-  { command: 'sudo -u root npm ci', unpinned: false },
-  { command: 'command -v npm', unpinned: false },
-  { command: "sh -c 'npm ci'", unpinned: false },
-  { command: 'NPM_VERSION="$(npm --version)"', unpinned: false },
-  { command: 'npm pkg set name=consumer-smoke', unpinned: false },
-  { command: 'npm run install-deps', unpinned: false },
-  { command: 'echo "Consumers running \'npm install x\' still get it"', unpinned: false },
-  { command: "echo 'a literal $(npm install x) is not run'", unpinned: false },
-  { command: '# npm install -g npm@latest', unpinned: false },
-  { command: '# echo "$(npm install x)"', unpinned: false },
-  { command: 'npm run build ;# npm install -g npm@latest', unpinned: false },
-  { command: '- name: npm install is never used here', unpinned: false },
-];
-
-/** A path, its leading bytes, and whether Scorecard parses it as shell. */
-interface IScopeCase {
-  readonly path: string;
-  readonly head: string;
-  readonly scanned: boolean;
-}
-
-const SCOPE_CASES: readonly IScopeCase[] = [
-  { path: '.github/workflows/release.yml', head: 'name: Release', scanned: true },
-  { path: 'scripts/check.sh', head: '', scanned: true },
-  { path: '.husky/pre-commit', head: '#!/usr/bin/env sh', scanned: true },
-  { path: 'scripts/release.hook', head: '#!/usr/bin/env bash\nset -e', scanned: true },
-  { path: 'tools/build.v2', head: '#!/bin/mksh', scanned: true },
-  { path: 'docker/Dockerfile.ci-mirror', head: 'FROM ubuntu', scanned: true },
-  { path: 'scripts/check.mjs', head: '#!/usr/bin/env node', scanned: false },
-  { path: 'tools/run.zsh', head: '#!/bin/zsh', scanned: false },
-  { path: 'docs/workflow/releases.md', head: '# Releases', scanned: false },
-];
-
-/** A workflow whose `run:` scalar spans lines, and whether it installs unpinned. */
-interface IFoldedCase {
-  readonly name: string;
-  readonly workflow: string;
-  readonly unpinned: boolean;
-}
-
-const FOLDED_CASES: readonly IFoldedCase[] = [
-  {
-    name: 'folded block',
-    workflow:
-      'jobs:\n  a:\n    steps:\n      - run: >\n          npm\n          install left-pad\n',
-    unpinned: true,
-  },
-  {
-    name: 'plain multi-line scalar',
-    workflow: 'jobs:\n  a:\n    steps:\n      - run: npm\n          install left-pad\n',
-    unpinned: true,
-  },
-  {
-    name: 'folded block running npm ci',
-    workflow: 'jobs:\n  a:\n    steps:\n      - run: >\n          npm\n          ci\n',
-    unpinned: false,
-  },
-];
-
-/** A version the stub npm reports, and whether the guard must let it through. */
-interface IGuardCase {
-  readonly version: string;
-  readonly accepted: boolean;
-}
-
 const GUARD_CASES: readonly IGuardCase[] = [
   { version: '10.9.9', accepted: false },
   { version: '11.4.2', accepted: false },
@@ -557,25 +292,38 @@ const GUARD_CASES: readonly IGuardCase[] = [
 ];
 
 describe('Scorecard npm-pin gate', () => {
-  it.each(POLICY_CASES)('[SNP-1] classifies `$command` (unpinned: $unpinned)', row => {
-    const offenders = findUnpinnedNpm(row.command);
-    expect(offenders.length > 0).toBe(row.unpinned);
+  it('[SNP-1] runs on every pull request and can block the merge', () => {
+    const job = gateJob();
+    expect(job.steps.length).toBeGreaterThan(0);
+    const needs = validateNeeds();
+    expect(job.if).toBeUndefined();
+    expect(needs).toContain(GATE_JOB_KEY);
+    expect(job.permissions).toEqual({ contents: 'read' });
+    expect(job['timeout-minutes']).toBeLessThanOrEqual(MAX_GATE_MINUTES);
   });
 
-  it('[SNP-2] scans the files Scorecard reads, including extensionless shell hooks', () => {
-    const files = scannedFiles();
-    expect(files).toContain('.husky/pre-commit');
-    expect(files).toContain('.github/workflows/release.yml');
-    expect(files).toContain('.github/scripts/ci/consumer-install.sh');
+  it('[SNP-2] cannot pass by ignoring its own failure', () => {
+    const job = gateJob();
+    const lenientSteps = job.steps.filter(step => step['continue-on-error'] !== undefined);
+    expect(job['continue-on-error']).toBeUndefined();
+    expect(lenientSteps).toEqual([]);
+    const commands = job.steps.map(step => step.run);
+    const script = gateScript();
+    const verdict = lastCommand(script);
+    expect(commands).toContain(GATE_COMMAND);
+    expect(script).toContain('set -euo pipefail');
+    expect(script).not.toMatch(SWALLOWED_FAILURE);
+    expect(verdict).toBe(VERDICT_COMMAND);
   });
 
-  it('[SNP-3] no Scorecard-scanned file downloads through npm without a lockfile', () => {
-    const offenders = scannedFiles().flatMap(path => {
-      const text = readRepoFile(path);
-      const hits = findUnpinnedInFile(path, text);
-      return hits.map(hit => `${path}:${hit}`);
-    });
-    expect(offenders).toEqual([]);
+  it('[SNP-3] scans the merge commit with no credential in reach of the binary', () => {
+    const job = gateJob();
+    const [checkout] = job.steps;
+    const jobText = JSON.stringify(job);
+    expect(checkout.uses).toMatch(PINNED_CHECKOUT);
+    expect(checkout.with?.['persist-credentials']).toBe(false);
+    expect(checkout.with?.ref).toBeUndefined();
+    expect(jobText).not.toMatch(CREDENTIAL);
   });
 
   /**
@@ -621,13 +369,27 @@ describe('Scorecard npm-pin gate', () => {
     });
   });
 
-  it.each(SCOPE_CASES)('[SNP-7] $path is parsed as shell: $scanned', row => {
-    const isScanned = isScannedFile(row.path, row.head);
-    expect(isScanned).toBe(row.scanned);
+  it('[SNP-7] refuses a release asset whose checksum differs, before unpacking it', () => {
+    const run = runGate(PINNED_ENGINE);
+    expect(run.output).toContain('checksum');
+    expect(run.didExtract).toBe(false);
+    expect(run.status).not.toBe(0);
   });
 
-  it.each(FOLDED_CASES)('[SNP-8] reads a workflow `run:` as YAML decodes it: $name', row => {
-    const offenders = findUnpinnedInFile('.github/workflows/folded.yml', row.workflow);
-    expect(offenders.length > 0).toBe(row.unpinned);
+  it('[SNP-8] refuses to run when the scheduled scan embeds a different engine', () => {
+    const run = runGate('v5.6.0');
+    expect(run.output).toContain(`does not embed Scorecard ${PINNED_ENGINE}`);
+    expect(run.didExtract).toBe(false);
+    expect(run.status).not.toBe(0);
+  });
+
+  it('[SNP-9] proves the scan can fail, then checks the tree the scheduled scan reads', () => {
+    const script = gateScript();
+    const canary = script.indexOf('scan "${CANARY}" "${CANARY_RESULT}"');
+    const tree = script.indexOf('scan "${TREE}" "${RESULT}"');
+    expect(canary).toBeGreaterThan(-1);
+    expect(tree).toBeGreaterThan(canary);
+    expect(script).toContain('git archive --format=tar HEAD');
+    expect(script).toContain('find "${TREE}" \\( -type l -o -type f -empty \\) -delete');
   });
 });
