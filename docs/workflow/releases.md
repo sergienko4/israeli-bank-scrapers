@@ -118,7 +118,7 @@ Two claims are easy to conflate, and only one of them can break someone:
 
 | Claim | Declared in | May move |
 | --- | --- | --- |
-| What we **build and publish on** | `.nvmrc` (consumed by `release.yml`, `docs.yml`, CI) | Any time — it is invisible to consumers |
+| What we **build and publish on** | `.nvmrc` for `docs.yml` and CI; Node 24 for the `publish` job in `release.yml`, because Trusted Publishing needs npm 11.5.1+ | Any time — it is invisible to consumers |
 | What we **require of consumers** | `engines.node`, plus `target` in `tsup.config.ts` | Only in a **major** — raising the floor breaks working installs |
 
 Raising `engines.node` also moves `tsup`'s `target` from `node22` to `node24`,

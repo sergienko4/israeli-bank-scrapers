@@ -57,14 +57,100 @@ one in the file it belongs to, with a reason, using the repository's existing
 convention:
 
 ```yaml
-- name: Upgrade npm for Trusted Publishing
-  # zizmor: ignore[adhoc-packages] — npm is the package manager itself, so it
-  # cannot come from our own lockfile. Hardened instead: exact version pin
-  # and `--ignore-scripts`.
+on:
+  # zizmor: ignore[dangerous-triggers] — no checkout of head code; see note above.
+  pull_request_target:
 ```
 
 Prefer this over raising a global threshold: the exemption stays next to the
 code it excuses, and the next finding of the same class still blocks.
+
+## npm installs: what Scorecard counts as pinned
+
+Scorecard's `PinnedDependenciesID` reads every workflow `run:` block, shell
+script and Dockerfile. It treats `npm install`, `npm i`, `npm install-test` and
+`npm update` as unpinned downloads, **exact version or not** — `npm@11.11.0`
+is still flagged. It accepts only two forms
+([`shell_download_validate.go`][scorecard-npm]):
+
+- `npm ci`, which installs what `package-lock.json` records and checks every
+  tarball against its committed hash;
+- a git URL (`github:`, `git+https:`, …) ending in `#<full commit hash>`.
+
+Alerts #35 and #131 were both this rule; a comment in `release.yml` had
+declared #35 closed on the strength of that exact pin. #35 was the publish job
+upgrading npm for Trusted Publishing: the job now runs the latest Node 24
+(`check-latest`, not whatever 24.x the runner has cached) — 24.5 and later
+bundle npm 11.5.1+ — and fails closed on an older npm. #131 was the
+consumer-install gate installing the packed tarball: it now installs the locked
+production graph with `npm ci` and unpacks the tarball in place.
+
+### The pull-request gate
+
+The `scorecard-npm-pins` job in `pr.yml` runs **the same engine** on every pull
+request, so an unpinned npm command blocks the merge instead of surfacing as
+an alert after the next scheduled scan. It does not re-implement Scorecard's
+shell parser, so it sees exactly what the scan sees. The job checks out the
+merge commit with no credentials and runs
+`.github/scripts/ci/scorecard-npm-pins.sh`, which:
+
+1. reads the `ossf/scorecard-action` commit that `scorecard.yml` pins (every
+   mention outside a comment line must be a plain `uses:` line, and together
+   they must name one full commit SHA), fetches that commit's `go.mod`, and
+   stops unless it embeds the Scorecard version the script pins
+   (`SCORECARD_VERSION`), so a bump of the action cannot move the scan to
+   another engine unnoticed. That check reads lines, so it cannot tell a step
+   from text inside a `run: |` block; `ScorecardNpmPinGate.test.ts` parses the
+   workflow as YAML and requires the fetched commit to be the one its action
+   step runs. The action runs that engine from an image it names by tag
+   (`ghcr.io/ossf/scorecard-action:v2.4.4`), not by digest; an upstream
+   rebuild of that tag is beyond what the gate can check;
+2. downloads that release's CLI and checks its SHA-256 **before** unpacking it;
+3. scans a one-line `npm install` canary and requires the verdict to fail, so
+   a gate that has gone blind cannot pass;
+4. scans `git archive HEAD` — tracked files only, minus the symlinks and empty
+   files Scorecard's archive mode skips — with `--checks=Pinned-Dependencies`;
+5. passes the JSON to `check-scorecard-npm-pins.mjs`, which fails on any
+   `npmCommand` warning, on `Possibly incomplete results`, on an inconclusive
+   score, on a summary that counts no npm commands, and on any output shape it
+   does not recognise.
+
+Run it locally with `bash .github/scripts/ci/scorecard-npm-pins.sh`. It needs
+`curl`, `tar`, `git`, `node` and `sha256sum` or `shasum`, runs on Linux or macOS (amd64 or arm64), uses
+no token, and scans the committed `HEAD`, not the working tree.
+`ScorecardNpmPinGate.test.ts` pins the wiring: the job can block a merge,
+cannot swallow its own failure, verifies the download before unpacking it, and
+runs the canary before the real scan.
+
+**Bumping the engine.** When Dependabot moves `ossf/scorecard-action` to a
+commit that embeds another Scorecard version, the gate fails with
+`does not embed Scorecard v…`. Move `SCORECARD_VERSION` and the four SHA-256s
+in the script (from the release's `scorecard_checksums.txt`) and the
+`v5.5.0` constants in `ScorecardNpmPinGate.test.ts` and
+`CheckScorecardNpmPins.test.ts` in the same pull request. If the new engine
+changes its JSON, regenerate the fixtures under
+`src/Tests/Unit/Tools/Fixtures/ScorecardNpmPins/` from real output.
+
+**What neither the gate nor the scan can see.** These limits belong to the
+engine, so they apply to the scheduled scan too:
+
+- **Steps on a shell Scorecard skips.** It parses a `run:` only when the
+  step's `shell:` — or failing that, the job's `defaults.run.shell` — is a
+  single word naming `bash`, `sh` or `mksh` (`/bin/bash` and `BASH` count).
+  With arguments (`bash -e {0}`), `pwsh`, or no shell on a Windows runner or
+  under a Windows-only `if:`, it skips the step without a word. It ignores workflow-level `defaults` and goes
+  by the runner instead. `WorkflowShellPolicy.test.ts` keeps every workflow
+  step scannable, and is deliberately stricter: a step or job shell must be
+  exactly `bash` or `sh`, a workflow-level default must start with one, and a
+  step with no shell needs a literal, non-Windows `runs-on` and an `if:` that
+  does not mention Windows.
+- **Composite actions.** Scorecard does not scan the `action.yml` files under
+  `.github/actions/`, at any depth. The same test holds their steps to
+  `bash`/`sh`, but review npm commands there by hand (today they use only
+  `npm ci`, `npm run` and `npx`).
+- **Parser errors Scorecard does not report.** A script it fails to parse
+  without emitting `Possibly incomplete results` passes silently.
+- **Commands assembled at runtime** (`eval`, variables).
 
 ## Standing finding 1: 28 Scorecard `PinnedDependenciesID` alerts — filtered from the SARIF
 
@@ -198,7 +284,13 @@ directory.
    from the SARIF before upload. If one appears anyway, the filter is broken
    (its line no longer matched `uses: $/…`, or the step was reordered after the
    upload) — fix the filter, do not dismiss the alert.
-4. **Scorecard `VulnerabilitiesID`?** Check the named GHSAs against the current
+4. **Scorecard `PinnedDependenciesID` on an `npm` line?** Real. Replace the
+   command with `npm ci` from a lockfile (see "npm installs" above) — an exact
+   version does not clear it. The `scorecard-npm-pins` pull-request job runs
+   the same engine and should have caught it first; if it did not, check
+   whether the engine pins have drifted, or the line sits in one of the blind
+   spots listed under "The pull-request gate".
+5. **Scorecard `VulnerabilitiesID`?** Check the named GHSAs against the current
    lockfile first; the check is a weekly snapshot and is often already fixed —
    alert 63 named two browserslist advisories that `9ebcbc7` had already
    closed. It is one aggregate alert over all the OSV findings it lists, so it
@@ -206,16 +298,17 @@ directory.
    adm-zip, whose advisory bounds the range with `last_affected: 0.6.0` rather
    than a `fixed` version; if Scorecard's handling of that shape changes, this
    alert re-raises on something we cannot fix (standing finding 2).
-5. Need a fresh Scorecard result now? `gh workflow run scorecard.yml`. The
+6. Need a fresh Scorecard result now? `gh workflow run scorecard.yml`. The
    weekly cadence alone meant a dependency fixed on a Tuesday stayed reported
    until the following Monday.
-6. **Scorecard run failed?** Every alert it owns freezes at the last
+7. **Scorecard run failed?** Every alert it owns freezes at the last
    successful snapshot until a run succeeds again. Read the log first. A
    `workflow verification failed` warning means the `scorecard` job holds a
    step the scorecard.dev API does not accept (`SCP-1` should have caught it).
 
 [self-repo-blog]: https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/
 [scorecard-5191]: https://github.com/ossf/scorecard/issues/5191
+[scorecard-npm]: https://github.com/ossf/scorecard/blob/main/checks/raw/shell_download_validate.go
 [scorecard-restrictions]: https://github.com/ossf/scorecard-action#workflow-restrictions
 [stale-config]: https://docs.github.com/en/code-security/how-tos/manage-security-alerts/manage-code-scanning-alerts/resolve-alerts#removing-stale-configurations-and-alerts-from-a-branch
 [adm-zip-advisory]: https://github.com/advisories/GHSA-vwc7-r8mq-g2x9

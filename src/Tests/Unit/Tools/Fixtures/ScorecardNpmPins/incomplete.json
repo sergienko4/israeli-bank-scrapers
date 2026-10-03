@@ -1,0 +1,28 @@
+{
+  "date": "2026-10-03T00:00:00Z",
+  "repo": {
+    "name": "file:///tree",
+    "commit": "unknown"
+  },
+  "scorecard": {
+    "version": "v5.5.0",
+    "commit": "c395761df6afe1a69e476bc60a013a94bcbc153f"
+  },
+  "score": -1.0,
+  "checks": [
+    {
+      "details": [
+        "Info: Possibly incomplete results: error parsing shell code: \"if\" must be followed by a statement list: b.sh:0",
+        "Info: Possibly incomplete results: error parsing shell code: \"if\" must be followed by a statement list: .github/workflows/w.yml:6"
+      ],
+      "score": -1,
+      "reason": "no dependencies found",
+      "name": "Pinned-Dependencies",
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/c395761df6afe1a69e476bc60a013a94bcbc153f/docs/checks.md#pinned-dependencies",
+        "short": "Determines if the project has declared and pinned the dependencies of its build process."
+      }
+    }
+  ],
+  "metadata": null
+}

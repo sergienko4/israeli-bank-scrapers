@@ -925,9 +925,11 @@ jobs:
   # disk and the runner sets `CI=true`. A defect that needs a
   # production install and an unset `CI` is unreachable from all of
   # them by construction. This job packs the real tarball, installs
-  # it into an empty project with `--omit=dev`, and runs a scrape
-  # with `CI` and `NODE_ENV` unset — the ordinary state of a
-  # consumer's app. See .github/scripts/ci/consumer-install.sh.
+  # it with `--omit=dev` into a scratch project — the production graph
+  # comes from our lockfile via `npm ci`, which Scorecard counts as
+  # pinned (alert #131) — and runs a scrape with `CI` and `NODE_ENV`
+  # unset, the ordinary state of a consumer's app. See
+  # .github/scripts/ci/consumer-install.sh.
   #
   # Hermetic: no bank is contacted (see the script's header).
   # ──────────────────────────────────────────────────────────────
@@ -951,6 +953,36 @@ jobs:
       # there is no separate build step to keep in sync with it.
       - name: Package works for consumers
         run: /bin/bash .github/scripts/ci/consumer-install.sh
+
+  # ──────────────────────────────────────────────────────────────
+  # Scorecard npm-pin gate — the scheduled OpenSSF Scorecard scan
+  # (scorecard.yml) raises PinnedDependenciesID for any npm command
+  # that downloads without a lockfile pin, but only after the change
+  # has merged. This runs the same engine, pinned by version and
+  # checksum and coupled to the scan's own scorecard-action pin, over
+  # the merge commit, and fails before the merge instead.
+  #
+  # Always on (no `changes` filter): a pin can be broken from any
+  # file Scorecard reads, and the scan itself takes seconds. No token
+  # reaches the downloaded binary — `--local` mode only reads files —
+  # and checkout keeps no credential behind. See
+  # .github/scripts/ci/scorecard-npm-pins.sh.
+  # ──────────────────────────────────────────────────────────────
+  scorecard-npm-pins:
+    name: Scorecard npm pins
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+        with:
+          node-version-file: .nvmrc
+      - name: npm commands are pinned as Scorecard reads them
+        run: /bin/bash .github/scripts/ci/scorecard-npm-pins.sh
 
   # ──────────────────────────────────────────────────────────────
   # Validate aggregator — preserves the external `Validate` status
@@ -981,6 +1013,7 @@ jobs:
       - integration
       - build
       - consumer-install
+      - scorecard-npm-pins
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

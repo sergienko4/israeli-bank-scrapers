@@ -1,0 +1,65 @@
+{
+  "date": "2026-10-03T00:00:00Z",
+  "repo": {
+    "name": "file:///tree",
+    "commit": "unknown"
+  },
+  "scorecard": {
+    "version": "v5.5.0",
+    "commit": "c395761df6afe1a69e476bc60a013a94bcbc153f"
+  },
+  "score": 4.0,
+  "checks": [
+    {
+      "details": [
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/main-pipeline.yml:128",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/main-pipeline.yml:138",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/main-pipeline.yml:150",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/main-pipeline.yml:107",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/main-pipeline.yml:114",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:243",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:702",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:881",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:1577",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:1578",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:778",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:551",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:598",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:907",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:911",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:946",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:1401",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:1402",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:807",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:828",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:1242",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:1243",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:1721",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:1722",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:1906",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/pr.yml:1907",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/release.yml:170",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/sonarcloud.yml:77",
+        "Warn: third-party GitHubAction not pinned by hash: .github/workflows/sonarcloud.yml:81",
+        "Warn: containerImage not pinned by hash: src/Scrapers/Pipeline/EslintCanaries/fixtures/dockerfile-pins.rejected.dockerfile:2: pin your Docker image by updating ubuntu:24.04 to ubuntu:24.04@sha256:a853f94d226358a79c740cfc7bce0c289748f3fe3488d921d038ccd752c61b60",
+        "Warn: npmCommand not pinned by hash: .github/scripts/ci/consumer-install.sh:105",
+        "Warn: pipCommand not pinned by hash: .github/workflows/docs.yml:46",
+        "Warn: pipCommand not pinned by hash: .github/workflows/pr.yml:363",
+        "Warn: npmCommand not pinned by hash: .github/workflows/release.yml:167",
+        "Info:  51 out of  51 GitHub-owned GitHubAction dependencies pinned",
+        "Info:   6 out of  35 third-party GitHubAction dependencies pinned",
+        "Info:   2 out of   3 containerImage dependencies pinned",
+        "Info:   4 out of   6 npmCommand dependencies pinned",
+        "Info:   0 out of   2 pipCommand dependencies pinned"
+      ],
+      "score": 4,
+      "reason": "dependency not pinned by hash detected -- score normalized to 4",
+      "name": "Pinned-Dependencies",
+      "documentation": {
+        "url": "https://github.com/ossf/scorecard/blob/c395761df6afe1a69e476bc60a013a94bcbc153f/docs/checks.md#pinned-dependencies",
+        "short": "Determines if the project has declared and pinned the dependencies of its build process."
+      }
+    }
+  ],
+  "metadata": null
+}

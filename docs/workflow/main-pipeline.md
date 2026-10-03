@@ -105,8 +105,8 @@ So calling `release.yml` from here moves the publisher identity to the caller:
 | `id-token: write` on the **parent** | the `release` job in `main-pipeline.yml` |
 | `id-token: write` on the **child** | the `publish` job in `release.yml` |
 | GitHub-hosted runner (self-hosted unsupported) | `runs-on: ubuntu-latest` |
-| npm ≥ 11.5.1 for the OIDC exchange | `npm install -g npm@11.11.0`, pinned and signature-checked |
-| Node from a single source of truth | `node-version-file: .nvmrc` |
+| npm ≥ 11.5.1 for the OIDC exchange | `node-version: '24'` with `check-latest: true` in the `publish` job — Node 24.5+ bundles it, no Node 22 does — plus a step that fails the job on an older npm |
+| Node from a single source of truth | `node-version-file: .nvmrc`, except the `publish` job, which needs Node 24 for the row above |
 | `repository.url` matching the GitHub repo exactly | `package.json` |
 
 Dropping any row breaks publishing with `ENEEDAUTH`. The parent/child
