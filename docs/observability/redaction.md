@@ -83,7 +83,7 @@ FORENSIC_TRACE=true npm run test:e2e:real
 
 ## JSON parse failures
 
-V8's `SyntaxError` for `JSON.parse` quotes the rejected input: the whole text when it is short, otherwise a 10-character prefix (`"card=45801"... is not valid JSON`). Every parse carrier that turns that error into failure text or a log line goes through [`Types/JsonParseFailure.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/JsonParseFailure.ts) instead:
+V8's `SyntaxError` for `JSON.parse` can quote the rejected input: the whole text when it is short, otherwise a 10-character prefix (`"card=45801"... is not valid JSON`). Position-only messages quote nothing. The parse carriers that would pass that message into failure text or a log line go through [`Types/JsonParseFailure.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/JsonParseFailure.ts) instead:
 
 | Symbol | Behaviour |
 |---|---|
