@@ -113,7 +113,7 @@ const GATE_SCRIPT_PROPERTIES: readonly IGateScriptProperty[] = [
   {
     id: 'CIG-10',
     property: 'installs from the committed lockfile, so every tarball is hash-verified',
-    needle: 'npm ci --omit=dev',
+    needle: '\nnpm ci --omit=dev',
   },
   {
     id: 'CIG-11',
