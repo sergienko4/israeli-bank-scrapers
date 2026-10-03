@@ -1,5 +1,13 @@
 # Changelog
 
+## [8.7.5](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.7.4...v8.7.5) (2026-10-03)
+
+
+### Bug Fixes
+
+* **ci:** replace unpinned npm installs ([#607](https://github.com/sergienko4/israeli-bank-scrapers/issues/607)) ([b3de24c](https://github.com/sergienko4/israeli-bank-scrapers/commit/b3de24c43629902d819c6c7eb8e1085f26e954ef))
+* **security:** redact JSON parse excerpts ([#609](https://github.com/sergienko4/israeli-bank-scrapers/issues/609)) ([664cdb5](https://github.com/sergienko4/israeli-bank-scrapers/commit/664cdb5b82c625f5bd2b093b11d158df781dfa97))
+
 ## [8.7.4](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.7.3...v8.7.4) (2026-10-02)
 
 
