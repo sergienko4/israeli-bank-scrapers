@@ -172,7 +172,7 @@ const PLAIN_AMOUNT = String.raw`-?\d[\d,]*(?:\.\d+)?`;
 /** The all-zero GUID that stands in for a redacted server GUID. */
 const ZERO_GUID = '00000000-0000-0000-0000-000000000000';
 /** JSON keys whose string value is a person's name. */
-const PERSON_NAME_KEYS = String.raw`partyFullName|partyFirstName|partyLastName|partyMiddleName|customerName|customerFullName|customerFirstName|customerLastName|userName|userFullName|firstName|lastName|fullName|middleName|FirstName|LastName|BankerName`;
+const PERSON_NAME_KEYS = String.raw`partyFullName|partyFirstName|partyLastName|partyMiddleName|customerName|customerFullName|customerFirstName|customerLastName|custFullName|displayName|userName|userFullName|firstName|lastName|fullName|middleName|FirstName|LastName|BankerName`;
 /** Whole token values that are not secrets: any redactor placeholder, or
  *  the corpus's one synthetic session token. */
 const TOKEN_PLACEHOLDER_VALUES = String.raw`\[redacted-[a-z-]+\]|FIXTURE-MAX-SESSION-A`;
@@ -205,10 +205,11 @@ const PII_PATTERNS = {
    *  token's encoded length is decoded, so long assets are never touched.
    *  Runs before the digit patterns so no 9-digit rule shreds it first. */
   base64EmbeddedIp: /(?<![\da-z+/])[\da-z+/]{56,76}={0,2}(?![\da-z+/=])/gi,
-  /** IPv4 in a client-address field (`var client_ip = '<ip>'`,
-   *  `"clientIp": "<ip>"`, `x-forwarded-for`). */
+  /** Every IPv4 in a client-address field, quoted or not, including each
+   *  hop of a comma-separated chain (`var client_ip = '<ip>'`,
+   *  `"clientIp": "<ip>"`, `X-Forwarded-For: <ip>, <ip>`). */
   clientIpField: new RegExp(
-    String.raw`(?<=\b(?:client_?ip|remote_?addr|ip_?address|user_?ip|x-forwarded-for|x-real-ip)\\?["']?\s*[:=]\s*\\?["'])${IPV4}(?=\\?["'])`,
+    String.raw`(?<=\b(?:client_?ip|remote_?addr|ip_?address|user_?ip|x-forwarded-for|x-real-ip)\\?["']?\s*[:=]\s*\\?["']?(?:${IPV4}\s*,\s*)*)${IPV4}(?![\d.])`,
     'gi',
   ),
   /** Radware per-session UUID (`var __uzdbm_1 = '<uuid>'`) that links the
@@ -229,7 +230,9 @@ const PII_PATTERNS = {
   /** Mizrahi `get428Index` paging GUID — a server session handle. */
   jsonActionGuid:
     /(?<="actionGUID\\?"\s*:\s*\\?")[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
-  cookieAuthValue: /((?:Set-Cookie|cookie)[^\n]*?(?:auth|token|session)=)[^;\s"]+/gi,
+  /** Every `*auth=`, `*token=` or `*session=` value on a cookie line, not
+   *  only the first one. */
+  cookieAuthValue: /(?<=(?:Set-Cookie|cookie)[^\n]*?(?:auth|token|session)=)[^;\s"]+/gi,
   /** Discount/Telebank session token in marketing-pixel query strings
    *  (`&LSESSIONID=<opaque>`). Must run BEFORE generic id/jwt patterns
    *  so the long token isn't shredded into smaller-pattern matches. */
@@ -378,7 +381,7 @@ const PII_REPLACEMENTS: Readonly<Record<keyof typeof PII_PATTERNS, PiiReplacemen
   requestVerificationToken: 'REDACTED_REQUEST_VERIFICATION_TOKEN',
   jsonTokenField: '[redacted-token]',
   jsonActionGuid: ZERO_GUID,
-  cookieAuthValue: '$1[redacted-cookie]',
+  cookieAuthValue: '[redacted-cookie]',
   hebrewGreetingName: '$1[redacted-name]$2',
   hebrewSurnameLiteral: '[redacted-name]',
   hebrewGivenNameLiteral: '[redacted-name]',

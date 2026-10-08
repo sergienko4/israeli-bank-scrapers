@@ -24,3 +24,6 @@ export interface AuditHit {
  * @returns Hits that are not known false positives, INFO markers included.
  */
 export function auditText(raw: string): AuditHit[];
+
+/** The id of every `fixtures-pii` rule, in evaluation order. */
+export const RULE_IDS: readonly string[];

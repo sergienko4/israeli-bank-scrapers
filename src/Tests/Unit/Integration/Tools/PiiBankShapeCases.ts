@@ -60,6 +60,16 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     expected: String.raw`{\"clientIp\":\"0.0.0.0\"}`,
   },
   {
+    key: 'clientIpField',
+    input: 'X-Forwarded-For: 203.0.113.5, 198.51.100.7',
+    expected: 'X-Forwarded-For: 0.0.0.0, 0.0.0.0',
+  },
+  {
+    key: 'clientIpField',
+    input: '{"x-forwarded-for":"203.0.113.5, 198.51.100.7"}',
+    expected: '{"x-forwarded-for":"0.0.0.0, 0.0.0.0"}',
+  },
+  {
     key: 'radwareSessionUuid',
     input: `var __uzdbm_1 = '${SESSION_UUID}';`,
     expected: `var __uzdbm_1 = '${ZERO_GUID}';`,
@@ -98,6 +108,12 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     key: 'cookieAuthValue',
     input: 'cookie: a=[redacted-cookie]; session=abc123live',
     expected: 'cookie: a=[redacted-cookie]; session=[redacted-cookie]',
+  },
+  {
+    key: 'cookieAuthValue',
+    input: 'Set-Cookie: xauth=[redacted-cookie]; session=abc123live; token=def456live',
+    expected:
+      'Set-Cookie: xauth=[redacted-cookie]; session=[redacted-cookie]; token=[redacted-cookie]',
   },
   {
     key: 'jsonTokenField',
@@ -146,6 +162,11 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     expected: '{"LastTimeVisited":"[redacted-last-login]"}',
   },
   {
+    key: 'jsonLastLoginField',
+    input: '{"LastTimeVisited":"07/10/2026 [redacted-last-login]"}',
+    expected: '{"LastTimeVisited":"[redacted-last-login]"}',
+  },
+  {
     key: 'jsonPersonNameField',
     input: '{"FirstName": "Dana", "LastName": "Levi", "BankerName": "Moshe Cohen"}',
     expected:
@@ -155,6 +176,16 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     key: 'jsonPersonNameField',
     input: '{"LastName": "[redacted-name] Levi"}',
     expected: '{"LastName": "[redacted-name]"}',
+  },
+  {
+    key: 'jsonPersonNameField',
+    input: '{"firstName": "Dana [redacted-name]"}',
+    expected: '{"firstName": "[redacted-name]"}',
+  },
+  {
+    key: 'jsonPersonNameField',
+    input: '{"displayName": "Dana Levi", "custFullName": "Dana Levi"}',
+    expected: '{"displayName": "[redacted-name]", "custFullName": "[redacted-name]"}',
   },
   {
     key: 'jsonPersonNameField',
@@ -250,7 +281,7 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
  * @param input - The look-alike text.
  * @returns A case whose expected output is its input.
  */
-function unchanged(key: PiiPatternKey, input: string): IShapeCase {
+export function unchanged(key: PiiPatternKey, input: string): IShapeCase {
   return { key, input, expected: input };
 }
 
@@ -261,6 +292,7 @@ export const NEGATIVE_CASES: readonly IShapeCase[] = [
   unchanged('base64EmbeddedIp', `"asset":"${ASSET_B64}"`),
   unchanged('clientIpField', "var app_version = '1.20.30.4';"),
   unchanged('clientIpField', '{"client_ip":"300.1.2.3"}'),
+  unchanged('clientIpField', 'X-Forwarded-Port: 443, 8443'),
   unchanged('radwareSessionUuid', `var other = '${SESSION_UUID}';`),
   unchanged('requestVerificationToken', '<input name="query" value="CfDJ8abc">'),
   unchanged(
@@ -268,6 +300,7 @@ export const NEGATIVE_CASES: readonly IShapeCase[] = [
     `<input name="__RequestVerificationToken" value="${RVT_REDACTED}">`,
   ),
   unchanged('cookieAuthValue', 'cookie: theme=dark; lang=he'),
+  unchanged('cookieAuthValue', 'cookie: authorized=1; sessions_seen=2'),
   unchanged('jsonTokenField', '{"token":"a1b2c3d4e5f6a7b8","xsrfToken":"short"}'),
   unchanged(
     'jsonTokenField',
@@ -278,6 +311,7 @@ export const NEGATIVE_CASES: readonly IShapeCase[] = [
   unchanged('hebrewLastLoginLabel', '<p>תאריך ערך: 07/10/26 18:54</p>'),
   unchanged('jsonLastLoginField', '{"TaarichErech":"2026-10-07T00:00:00"}'),
   unchanged('jsonPersonNameField', '{"BankerNameLabel": "Your banker"}'),
+  unchanged('jsonPersonNameField', '{"displayNameKey": "account.title"}'),
   unchanged('jsonOpaqueUserIdField', '{"UserType": "private"}'),
   unchanged('glassboxUserIdAttr', '<div class="main-all-content" data-role="shell">'),
   unchanged('roleEmbeddedAccount', '{"Role": "AC_FUNDS_ACTIVITY", "Alt": "AC_1234_VIEW"}'),
