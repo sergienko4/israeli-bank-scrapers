@@ -45,7 +45,7 @@ process warning at `createScraper` time:
 (node:12345) ScraperOptionsWarning: "isracard" runs on the Pipeline, which does not
 implement these Legacy (deprecated) scraper options: includeRawTransaction,
 shouldCombineInstallments. They are ignored here — only the deprecated non-Pipeline
-scrapers (Behatsdaa, Beyahad Bishvilha, Mizrahi) read them, and that path is closed
+scrapers (Behatsdaa, Beyahad Bishvilha) read them, and that path is closed
 to new work. Remove them, or see
 https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/
 ```
@@ -71,9 +71,9 @@ Read solely by the [Legacy (deprecated)](architecture/legacy.md) scrapers.
 | --- | --- |
 | `includeRawTransaction` | Attaches the unparsed provider row to each transaction |
 | `navigationRetryCount` | Retries a phase on `TIMEOUT` before failing |
-| `optInFeatures` | Per-bank behaviour flags (Mizrahi only) |
+| `optInFeatures` | No active reader since the legacy Mizrahi scraper was removed; ignored with `ScraperOptionsWarning` |
 | `outputData` | Suppresses date filtering (Beyahad Bishvilha only) |
-| `shouldAddTransactionInformation` | Adds extra per-transaction metadata (Mizrahi only) |
+| `shouldAddTransactionInformation` | No active reader since the legacy Mizrahi scraper was removed; ignored with `ScraperOptionsWarning` |
 | `shouldCombineInstallments` | Merges instalment rows into one transaction |
 | `skipCloseBrowser` | Leaves an externally supplied browser open |
 | `storeFailureScreenShotPath` | Writes a screenshot when a scrape fails |

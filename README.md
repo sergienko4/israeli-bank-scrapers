@@ -175,10 +175,11 @@ validated at runtime.
 Per-bank notes live in the
 [bank documentation](https://sergienko4.github.io/israeli-bank-scrapers/banks/).
 
-> **Legacy path:** Behatsdaa, Beyahad Bishvilha, and Mizrahi Bank still run on
-> the pre-pipeline scraper. They work through the same `createScraper(...)`
+> **Legacy path:** Behatsdaa and Beyahad Bishvilha still run on the
+> pre-pipeline scraper. They work through the same `createScraper(...)`
 > entry point and their public behaviour is preserved, but new features target
-> the pipeline architecture.
+> the pipeline architecture. Mizrahi Bank is migrating to the pipeline; its
+> legacy scraper was removed, so it is unavailable until that lands.
 
 ## OTP (two-factor authentication)
 
@@ -396,7 +397,7 @@ flowchart LR
       CALL["API-DIRECT-CALL<br/>(login + OTP via JSON API)"] --> SCR["API-DIRECT-SCRAPE"]
     end
 
-    subgraph LEG["Legacy banks (3) — Behatsdaa · Beyahad Bishvilha · Mizrahi"]
+    subgraph LEG["Legacy banks (2) — Behatsdaa · Beyahad Bishvilha"]
       direction LR
       LLOGIN["Declarative login"] --> LFETCH["Bank API or DOM parse"]
     end
@@ -413,11 +414,11 @@ list of REST/GraphQL calls — no post-login navigation, no DOM scraping. The
 API-direct banks reach that same phase through a headless JSON login instead of
 the browser prefix.
 
-The three legacy banks predate the phase chain. Behatsdaa and Mizrahi call the
-bank's API from the page; Beyahad Bishvilha still parses its transaction table
-out of the DOM. All three return the same `IScraperScrapingResult`, so callers
-cannot tell the difference — but they do not gain pipeline-only behaviour such
-as phase-scoped retries.
+The two legacy banks predate the phase chain. Behatsdaa calls the bank's API
+from the page; Beyahad Bishvilha still parses its transaction table out of the
+DOM. Both return the same `IScraperScrapingResult`, so callers cannot tell the
+difference — but they do not gain pipeline-only behaviour such as phase-scoped
+retries.
 
 Phases never read one another's state; they communicate through typed fields on
 a shared context. See

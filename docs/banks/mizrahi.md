@@ -1,25 +1,19 @@
 # Mizrahi Bank
 
---8<-- "_deprecated.md"
+!!! warning "Pipeline migration in progress"
+    The legacy (non-Pipeline) Mizrahi scraper was removed. Mizrahi is being
+    onboarded to the Pipeline; until that lands, `createScraper` rejects
+    `CompanyTypes.Mizrahi` with `unknown company id mizrahi`.
 
 | | |
 |---|---|
 | `CompanyTypes` | `Mizrahi` |
-| Engine | **Legacy** (`BaseScraperWithBrowser`) — **not on Pipeline** |
+| Engine | Browser (Pipeline) — **migration in progress** |
 | Credentials | `username`, `password` |
 | OTP | — |
-| Registry | `SCRAPER_REGISTRY_LEUMI_TO_YAHAV` |
-| Source | [`src/Scrapers/Mizrahi/MizrahiScraper.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Mizrahi/MizrahiScraper.ts) |
-
-## Quick example
-
-```typescript
-const result = await scraper.scrape({
-  username: 'myuser',
-  password: 'mypassword',
-});
-```
 
 ## Migration status
 
-**Wave 1** target in the [migration plan](../architecture/migration.md) — Mizrahi is a high-traffic legacy bank, so it lands in the first migration wave — alongside Bank Leumi, which has since migrated to the Pipeline.
+**Wave 1** target in the [migration plan](../architecture/migration.md). The legacy scraper was
+removed first; the Pipeline bank lands phase by phase (login form, then the hard-model API-direct
+scrape), each phase proven by a real run.

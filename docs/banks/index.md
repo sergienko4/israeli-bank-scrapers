@@ -2,7 +2,7 @@
 
 > **Who this is for:** users picking the right `CompanyTypes` for their bank and looking up credentials, OTP behavior, or known quirks.
 
-19 institutions are supported. **16 are on the Pipeline architecture** (recommended), **3 are on the legacy path** (still ship, on the migration roadmap).
+19 institutions are listed. **16 are on the Pipeline architecture** (recommended), **2 are on the legacy path** (still ship, on the migration roadmap), and **Mizrahi Bank is migrating to the Pipeline** (its legacy scraper was removed).
 
 ## Quick directory
 
@@ -22,7 +22,11 @@
 
 - :material-archive: **Legacy (deprecated)**
 
-  [Behatsdaa](behatsdaa.md) · [Beyahad Bishvilha](beyahad-bishvilha.md) · [Mizrahi Bank](mizrahi.md)
+  [Behatsdaa](behatsdaa.md) · [Beyahad Bishvilha](beyahad-bishvilha.md)
+
+- :material-progress-wrench: **Migrating to the Pipeline**
+
+  [Mizrahi Bank](mizrahi.md)
 
 </div>
 
@@ -47,13 +51,12 @@
 | Visa Cal        | `VisaCal`      | `username`, `password`          | —              |
 | Bank Yahav      | `Yahav`        | `num`, `nationalID`, `password` | —              |
 
-## Legacy banks (3) — credentials at a glance
+## Legacy banks (2) — credentials at a glance
 
 | Bank              | `CompanyTypes`     | Credential fields      | OTP |
 | ----------------- | ------------------ | ---------------------- | --- |
 | Behatsdaa         | `Behatsdaa`        | `id`, `password`       | —   |
 | Beyahad Bishvilha | `BeyahadBishvilha` | `id`, `password`       | —   |
-| Mizrahi Bank      | `Mizrahi`          | `username`, `password` | —   |
 
 Source: [`src/Definitions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Definitions.ts).
 
