@@ -1,0 +1,307 @@
+{
+  "_fixture": {
+    "bank": "amex",
+    "shape": "ocp/transactions/DigitalV3.Transactions/GetTransactionsList POST (Backbase vouchersList)",
+    "expectedMethod": "POST",
+    "expectedRecords": 5,
+    "expectedTxns": [
+      {
+        "originalAmount": -120,
+        "originalCurrency": "ILS",
+        "chargedCurrency": "ILS"
+      },
+      {
+        "originalAmount": -25,
+        "originalCurrency": "USD",
+        "chargedCurrency": "ILS"
+      },
+      {
+        "originalAmount": -30,
+        "originalCurrency": "USD",
+        "chargedCurrency": "ILS"
+      },
+      {
+        "originalAmount": -40,
+        "originalCurrency": "EUR",
+        "chargedCurrency": "ILS"
+      },
+      {
+        "originalAmount": -60,
+        "originalCurrency": "EUR",
+        "chargedCurrency": "ILS"
+      }
+    ],
+    "rationale": "Issue #614: every voucher row carries a numeric originalCurrency enum (0=ILS, 19=USD, 100=EUR) beside the ISO-4217 originalCurrencyIso. The mapper must emit the ISO code. Expected amounts are negative because a card-issuer charge is a debit. data.approvals is null, as in every real capture. Summary blocks (totalForStatement, totalVouchersCurrencyDate, totalTransactionsCurrency) are not transactions.",
+    "_traceSource": "Fully synthetic. Voucher and summary-block keys mirror real DigitalV3 GetTransactionsList captures; every value is invented."
+  },
+  "captures": [
+    {
+      "url": "https://web.amex.example/ocp/transactions/DigitalV3.Transactions/GetTransactionsList",
+      "method": "POST",
+      "captureIndex": 0,
+      "responseBody": {
+        "data": {
+          "approvals": null,
+          "israelAbroadVouchers": {
+            "vouchers": {
+              "israelAbroadVouchersList": [
+                {
+                  "billingAmountCurrencySymbol": "₪",
+                  "billingAmountCurrency": 0,
+                  "isIsraelDeal": true,
+                  "purchaseDate": "05/07/2026",
+                  "purchaseTime": "10:00:00",
+                  "transactionCode": 1,
+                  "transactionDescription": "FAKE TEXT",
+                  "businessName": "FAKE Merchant 1 (amex)",
+                  "clearedCode": "7  ",
+                  "clearedDescription": "FAKE TEXT",
+                  "cityDescription": "FAKE TEXT",
+                  "countryCode": "ISR",
+                  "countryDescription": "FAKE TEXT",
+                  "originalCurrency": 0,
+                  "originalAmount": 120,
+                  "originalCurrencyIso": "ILS",
+                  "ilsAmount": 120,
+                  "billingAmount": 120,
+                  "usdAmount": null,
+                  "moreInfo": "  ",
+                  "tranzacCodeType": "T",
+                  "tranzacCodeDescription": "FAKE TEXT",
+                  "presentCard": false,
+                  "isTransactionSecure": false,
+                  "isWalletTransaction": false,
+                  "isdirectDebit": false,
+                  "isNewDirectDebit": null,
+                  "isLastInstallment": null,
+                  "currentInstallmentNum": null,
+                  "numberOfInstallment": null,
+                  "voucherNumber": 9002,
+                  "seqVoucherNumber": "900090020",
+                  "businessNumber": 1000009002,
+                  "discountIndication": false,
+                  "discountAmount": null,
+                  "discountClubName": null
+                },
+                {
+                  "billingAmountCurrencySymbol": "₪",
+                  "billingAmountCurrency": 0,
+                  "isIsraelDeal": false,
+                  "purchaseDate": "08/07/2026",
+                  "purchaseTime": "10:00:00",
+                  "transactionCode": 1,
+                  "transactionDescription": "FAKE TEXT",
+                  "businessName": "FAKE Merchant 2 (amex)",
+                  "clearedCode": "7  ",
+                  "clearedDescription": "FAKE TEXT",
+                  "cityDescription": "FAKE TEXT",
+                  "countryCode": "USA",
+                  "countryDescription": "FAKE TEXT",
+                  "originalCurrency": 19,
+                  "originalAmount": 25,
+                  "originalCurrencyIso": "USD",
+                  "ilsAmount": 92.5,
+                  "billingAmount": 92.5,
+                  "usdAmount": 25,
+                  "moreInfo": "  ",
+                  "tranzacCodeType": "T",
+                  "tranzacCodeDescription": "FAKE TEXT",
+                  "presentCard": false,
+                  "isTransactionSecure": false,
+                  "isWalletTransaction": false,
+                  "isdirectDebit": false,
+                  "isNewDirectDebit": null,
+                  "isLastInstallment": null,
+                  "currentInstallmentNum": null,
+                  "numberOfInstallment": null,
+                  "voucherNumber": 9003,
+                  "seqVoucherNumber": "900090030",
+                  "businessNumber": 1000009003,
+                  "discountIndication": false,
+                  "discountAmount": null,
+                  "discountClubName": null
+                }
+              ],
+              "totalForStatement": {
+                "totalIlsBillingDate": 212.5,
+                "totalUsdBillingDate": 25,
+                "totalEurBillingDate": 0,
+                "totalInformativeOnly": 0,
+                "isMonthlyPayment": false,
+                "moreStatmentWithGrace": null
+              }
+            },
+            "outOfStatementChargeDateVouchers": [
+              {
+                "immediateVouchersCurrencyDate": [
+                  {
+                    "billingAmountCurrencySymbol": "₪",
+                    "billingAmountCurrency": 0,
+                    "isIsraelDeal": false,
+                    "purchaseDate": "12/07/2026",
+                    "purchaseTime": "10:00:00",
+                    "transactionCode": 1,
+                    "transactionDescription": "FAKE TEXT",
+                    "businessName": "FAKE Merchant 3 (amex)",
+                    "clearedCode": "7  ",
+                    "clearedDescription": "FAKE TEXT",
+                    "cityDescription": "FAKE TEXT",
+                    "countryCode": "USA",
+                    "countryDescription": "FAKE TEXT",
+                    "originalCurrency": 19,
+                    "originalAmount": 30,
+                    "originalCurrencyIso": "USD",
+                    "ilsAmount": 111,
+                    "billingAmount": 111,
+                    "usdAmount": 30,
+                    "moreInfo": "  ",
+                    "tranzacCodeType": "T",
+                    "tranzacCodeDescription": "FAKE TEXT",
+                    "presentCard": false,
+                    "isTransactionSecure": false,
+                    "isWalletTransaction": false,
+                    "isdirectDebit": false,
+                    "isNewDirectDebit": null,
+                    "isLastInstallment": null,
+                    "currentInstallmentNum": null,
+                    "numberOfInstallment": null,
+                    "voucherNumber": 9004,
+                    "seqVoucherNumber": "900090040",
+                    "businessNumber": 1000009004,
+                    "discountIndication": false,
+                    "discountAmount": null,
+                    "discountClubName": null
+                  }
+                ],
+                "totalVouchersCurrencyDate": {
+                  "totalImmediateVouchers": 30,
+                  "currencyImmediateVouchers": 19,
+                  "dateImmediateVouchers": "02/08/2026",
+                  "countImmediateVouchers": 1,
+                  "currencySymbolImmediateVouchers": "$"
+                }
+              },
+              {
+                "immediateVouchersCurrencyDate": [
+                  {
+                    "billingAmountCurrencySymbol": "₪",
+                    "billingAmountCurrency": 0,
+                    "isIsraelDeal": false,
+                    "purchaseDate": "14/07/2026",
+                    "purchaseTime": "10:00:00",
+                    "transactionCode": 1,
+                    "transactionDescription": "FAKE TEXT",
+                    "businessName": "FAKE Merchant 4 (amex)",
+                    "clearedCode": "7  ",
+                    "clearedDescription": "FAKE TEXT",
+                    "cityDescription": "FAKE TEXT",
+                    "countryCode": "DEU",
+                    "countryDescription": "FAKE TEXT",
+                    "originalCurrency": 100,
+                    "originalAmount": 40,
+                    "originalCurrencyIso": "EUR",
+                    "ilsAmount": 158,
+                    "billingAmount": 158,
+                    "usdAmount": null,
+                    "moreInfo": "  ",
+                    "tranzacCodeType": "T",
+                    "tranzacCodeDescription": "FAKE TEXT",
+                    "presentCard": false,
+                    "isTransactionSecure": false,
+                    "isWalletTransaction": false,
+                    "isdirectDebit": false,
+                    "isNewDirectDebit": null,
+                    "isLastInstallment": null,
+                    "currentInstallmentNum": null,
+                    "numberOfInstallment": null,
+                    "voucherNumber": 9005,
+                    "seqVoucherNumber": "900090050",
+                    "businessNumber": 1000009005,
+                    "discountIndication": false,
+                    "discountAmount": null,
+                    "discountClubName": null
+                  },
+                  {
+                    "billingAmountCurrencySymbol": "₪",
+                    "billingAmountCurrency": 0,
+                    "isIsraelDeal": false,
+                    "purchaseDate": "15/07/2026",
+                    "purchaseTime": "10:00:00",
+                    "transactionCode": 1,
+                    "transactionDescription": "FAKE TEXT",
+                    "businessName": "FAKE Merchant 5 (amex)",
+                    "clearedCode": "7  ",
+                    "clearedDescription": "FAKE TEXT",
+                    "cityDescription": "FAKE TEXT",
+                    "countryCode": "AUT",
+                    "countryDescription": "FAKE TEXT",
+                    "originalCurrency": 100,
+                    "originalAmount": 60,
+                    "originalCurrencyIso": "EUR",
+                    "ilsAmount": 237,
+                    "billingAmount": 237,
+                    "usdAmount": null,
+                    "moreInfo": "  ",
+                    "tranzacCodeType": "T",
+                    "tranzacCodeDescription": "FAKE TEXT",
+                    "presentCard": false,
+                    "isTransactionSecure": false,
+                    "isWalletTransaction": false,
+                    "isdirectDebit": false,
+                    "isNewDirectDebit": null,
+                    "isLastInstallment": null,
+                    "currentInstallmentNum": null,
+                    "numberOfInstallment": null,
+                    "voucherNumber": 9006,
+                    "seqVoucherNumber": "900090060",
+                    "businessNumber": 1000009006,
+                    "discountIndication": false,
+                    "discountAmount": null,
+                    "discountClubName": null
+                  }
+                ],
+                "totalVouchersCurrencyDate": {
+                  "totalImmediateVouchers": 100,
+                  "currencyImmediateVouchers": 100,
+                  "dateImmediateVouchers": "02/08/2026",
+                  "countImmediateVouchers": 2,
+                  "currencySymbolImmediateVouchers": "€"
+                }
+              }
+            ]
+          },
+          "currentTransactionsList": {
+            "currentTransactionsBillingMonth": [
+              {
+                "currentBillingMonth": "01/08/2026",
+                "totalTransactionsCurrency": [
+                  {
+                    "transactionsTotal": 120,
+                    "transactionsCurrency": 0,
+                    "transactionsSymbol": "₪",
+                    "transactionsCount": 1
+                  },
+                  {
+                    "transactionsTotal": 55,
+                    "transactionsCurrency": 19,
+                    "transactionsSymbol": "$",
+                    "transactionsCount": 2
+                  },
+                  {
+                    "transactionsTotal": 100,
+                    "transactionsCurrency": 100,
+                    "transactionsSymbol": "€",
+                    "transactionsCount": 2
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "errorCode": "00",
+        "errorDescription": null,
+        "isSuccess": true
+      }
+    }
+  ]
+}

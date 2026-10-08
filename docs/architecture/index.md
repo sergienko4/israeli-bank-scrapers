@@ -11,9 +11,10 @@ The package is a **typed phase-based pipeline**. Banks register a declarative `P
 3. **[Config Contracts (api-direct-call)](config-contracts.md)** — the 6-bucket type split that replaces the legacy `IApiDirectCallConfig.ts` god-file in v8.5; the example that defines how every type-tree should be carved into ≤150-LoC concern slices.
 4. **[JSON algebra](json-algebra.md)** — the single declaration site for JSON types, and why the closed (`JsonValue`) and open (`JsonUnknown`) arms stay distinct.
 5. **[Transaction sign](transaction-sign.md)** — which side of zero a mapped amount lands on; the card-issuer inversion, and why a bank's numeric direction code outranks a worded one.
-6. **[BALANCE-RESOLVE (v6)](balance-resolve.md)** — the single-phase ownership rewrite that lands in v8.4; the example that defines how new phases should be structured.
-7. **[Legacy (deprecated)](legacy.md)** — what counts as legacy under the wide-net policy, why it still ships, and what to read instead.
-8. **[Migration strategy](migration.md)** — how legacy code folds into Pipeline; staging plan.
+6. **[Transaction currency](transaction-currency.md)** — which code `originalCurrency` reports; why an ISO alias outranks a numeric enum, and why a blank value never wins.
+7. **[BALANCE-RESOLVE (v6)](balance-resolve.md)** — the single-phase ownership rewrite that lands in v8.4; the example that defines how new phases should be structured.
+8. **[Legacy (deprecated)](legacy.md)** — what counts as legacy under the wide-net policy, why it still ships, and what to read instead.
+9. **[Migration strategy](migration.md)** — how legacy code folds into Pipeline; staging plan.
 
 ## At a glance
 

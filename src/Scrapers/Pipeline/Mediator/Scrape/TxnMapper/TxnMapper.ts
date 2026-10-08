@@ -1,7 +1,7 @@
 /**
  * Txn mapper — converts a single raw API record into a normalised
  * `ITransaction`. Owns the per-field coercion concerns: identifier
- * sanitisation, currency normalisation (shekel aliases → ILS),
+ * sanitisation, currency resolution (delegated to `TxnCurrency`),
  * card-vs-bank amount sign convention, debit/credit netting,
  * direction-WK sign correction, and date/amount sanity gating.
  *
@@ -22,12 +22,10 @@ import {
 import { findFieldValue } from '../BfsFieldSearch/BfsFieldSearch.js';
 import { coerceNumber, coerceString, parseAutoDate } from '../Coercion/Coercion.js';
 import restoreProviderFields from './RestoredFields.js';
+import { findCurrencyHit, normalizeCurrency } from './TxnCurrency.js';
 import { signCardAmounts } from './TxnSign.js';
 
 const LOG = getDebug(import.meta.url);
-
-/** Shekel currency aliases from WK. */
-const SHEKEL_ALIASES = new Set(WK.shekelAliases);
 
 /**
  * Coerce a `findFieldValue` hit to a usable per-txn identifier.
@@ -43,16 +41,6 @@ function coerceIdentifier(val: ScalarFieldHit): string | number | false {
   if (typeof val === 'number') return val;
   if (typeof val === 'string' && val.length > 0 && val !== '0') return val;
   return false;
-}
-
-/**
- * Normalize currency — convert shekel aliases to standard ILS.
- * @param raw - Raw currency string.
- * @returns Normalized currency code.
- */
-function normalizeCurrency(raw: string): string {
-  if (SHEKEL_ALIASES.has(raw)) return 'ILS';
-  return raw;
 }
 
 /**
@@ -123,6 +111,9 @@ interface IRawTxnFields {
   chargedCurrency: ScalarFieldHit;
 }
 
+/** Raw fields resolved by the generic {@link RAW_FIELD_LOOKUPS} table. */
+type LookupField = Exclude<keyof IRawTxnFields, 'currency'>;
+
 /**
  * Resolved per-txn amounts after sign-correction and split
  * debit/credit netting. `amtNum` is the signed charged amount,
@@ -151,6 +142,9 @@ interface IDateStrings {
  * preserved (TypeScript coding-guideline §`as const`) while still
  * enforcing the `keyof IRawTxnFields` key set at compile time — CR
  * PR #298 outside-diff finding.
+ *
+ * `currency` is absent on purpose: {@link findCurrencyHit} resolves it so
+ * a blank alias value cannot mask the next usable one (issue #614).
  */
 const RAW_FIELD_LOOKUPS = {
   date: WK.date,
@@ -159,14 +153,13 @@ const RAW_FIELD_LOOKUPS = {
   originalAmount: WK.originalAmount,
   description: WK.description,
   identifier: WK.identifier,
-  currency: WK.currency,
   voidField: WK.voidIndicators,
   category: WK.category,
   chargedCurrency: WK.chargedCurrency,
-} as const satisfies Readonly<Record<keyof IRawTxnFields, readonly string[]>>;
+} as const satisfies Readonly<Record<LookupField, readonly string[]>>;
 
 /** Tuple shape produced by `Object.entries(RAW_FIELD_LOOKUPS)` for {@link extractRawTxnFields}. */
-type RawLookupEntry = readonly [keyof IRawTxnFields, readonly string[]];
+type RawLookupEntry = readonly [LookupField, readonly string[]];
 
 /**
  * Mapper for one {@link RAW_FIELD_LOOKUPS} entry — resolves the
@@ -183,8 +176,9 @@ function buildRawFieldMapper(
 
 /**
  * Extract every WK.* scalar a single raw record contributes. One
- * `findFieldValue` call per WK list — no fall-back logic, no
- * coercion, just the raw scalar hits the downstream helpers need.
+ * `findFieldValue` call per WK list plus the blank-skipping currency
+ * lookup — no coercion, just the raw scalar hits the downstream
+ * helpers need.
  * @param raw - Raw API record.
  * @returns Bundled raw scalar hits for the record.
  */
@@ -192,7 +186,8 @@ function extractRawTxnFields(raw: ApiRecord): IRawTxnFields {
   const entries = Object.entries(RAW_FIELD_LOOKUPS) as readonly RawLookupEntry[];
   const mapper = buildRawFieldMapper(raw);
   const mapped = entries.map(mapper);
-  return Object.fromEntries(mapped) as unknown as IRawTxnFields;
+  const lookedUp = Object.fromEntries(mapped) as unknown as Omit<IRawTxnFields, 'currency'>;
+  return { ...lookedUp, currency: findCurrencyHit(raw) };
 }
 
 /**

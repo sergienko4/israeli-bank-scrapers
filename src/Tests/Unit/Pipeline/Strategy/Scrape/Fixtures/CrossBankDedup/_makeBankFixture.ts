@@ -10,13 +10,14 @@
  *
  * <p>Per `testing-organization-guidlines.md`: single source of truth for
  * fixture loading; tests consume via `makeBankFixture(bank)` builder.
+ * The envelope read and empty-captures guard live in the neutral
+ * `../_readFixtureEnvelope` module shared by every fixture family.
  */
 
-import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import ScraperError from '../../../../../../../Scrapers/Base/ScraperError.js';
+import { type IFixtureCapture, readFixtureEnvelope } from '../_readFixtureEnvelope.js';
 
 const FIXTURE_FILE_PATH = fileURLToPath(import.meta.url);
 const FIXTURES_DIR = path.dirname(FIXTURE_FILE_PATH);
@@ -51,13 +52,7 @@ export interface IPhaseGFixtureMeta {
 }
 
 /** One capture entry inside the fixture's `captures` array. */
-export interface IPhaseGFixtureCapture {
-  readonly url: string;
-  readonly method: 'POST' | 'GET';
-  readonly captureIndex: number;
-  readonly postData?: string;
-  readonly responseBody: Record<string, unknown>;
-}
+export type IPhaseGFixtureCapture = IFixtureCapture;
 
 /** Full loaded fixture shape. */
 export interface IPhaseGFixture {
@@ -76,32 +71,14 @@ const FIXTURE_FILENAME: Readonly<Record<PhaseGBank, string>> = {
   discount: 'lastTransactions_homePage.json',
 };
 
-interface IRawFixture {
-  readonly _fixture: IPhaseGFixtureMeta;
-  readonly captures: readonly IPhaseGFixtureCapture[];
-}
-
 /**
  * Load and validate one bank's Phase G fixture.
  *
- * <p>Fail-fast capture guard (CodeRabbit review 2026-05-15): the
- * fixture envelope ships an array of captures and downstream
- * consumers expect a non-optional first entry. An empty array would
- * silently surface as `undefined` deep inside the auto-mapper. Throw
- * a fixture-path-tagged error here so the failure mode is obvious.
- *
  * @param bank - Bank name (PHASE_G_BANKS).
  * @returns Parsed fixture with metadata + first capture entry.
- * @throws {Error} When the fixture's `captures` array is empty.
+ * @throws {ScraperError} When the fixture's `captures` array is empty.
  */
 export function makeBankFixture(bank: PhaseGBank): IPhaseGFixture {
   const filePath = path.join(FIXTURES_DIR, bank, FIXTURE_FILENAME[bank]);
-  const raw = fs.readFileSync(filePath, 'utf8');
-  const parsed: IRawFixture = JSON.parse(raw) as IRawFixture;
-  if (parsed.captures.length === 0) {
-    throw new ScraperError(
-      `PHASE_G_FIXTURE_EMPTY_CAPTURES: ${filePath} — captures[] must be non-empty`,
-    );
-  }
-  return { meta: parsed._fixture, capture: parsed.captures[0] };
+  return readFixtureEnvelope<IPhaseGFixtureMeta>(filePath, 'PHASE_G_FIXTURE_EMPTY_CAPTURES');
 }
