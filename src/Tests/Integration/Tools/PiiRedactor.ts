@@ -31,6 +31,7 @@
  * never commit a customer's real name, account number, or balance.
  */
 
+import { Buffer } from 'node:buffer';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -146,6 +147,28 @@ const OPERATOR_ACCOUNT_ESC = escapeRegexLiteral(SECRETS.operatorAccountLiteral);
 /** Escaped form of the operator's Hebrew surname literal. */
 const HE_SURNAME_ESC = escapeRegexLiteral(SECRETS.hebrewSurnameLiteral);
 
+/** Transliterated Hebrew money keys (Mizrahi `YitraAdkanit`, `itra`,
+ *  `MC02SchumEZ`, `Remain`, `misgeret`) — balances, amounts, credit line. */
+const TRANSLIT_MONEY_KEYS = String.raw`\w*[Yy]itra\w*|[Ii]tra\w*|\w*[Ss]chum\w*|Remain|[Mm]isgeret\w*`;
+/** A JSON key from {@link TRANSLIT_MONEY_KEYS} up to its value (quotes may be NDJSON-escaped). */
+const TRANSLIT_MONEY_KEY_PREFIX = String.raw`"(?:${TRANSLIT_MONEY_KEYS})\\?"\s*:\s*`;
+/** The `<uuid>$<IPv4>` payload inside a Radware bot-manager token, once base64-decoded. */
+const DECODED_EMBEDDED_IP = /\$(?:\d{1,3}\.){3}\d{1,3}/;
+/** The all-zero GUID that stands in for a redacted server GUID. */
+const ZERO_GUID = '00000000-0000-0000-0000-000000000000';
+
+/**
+ * Whether a base64 run decodes to a payload that carries an IPv4 address
+ * (Radware's `__uzdbm_*` bot token is `base64(<uuid>$<IPv4>)`).
+ *
+ * @param b64 - Candidate base64 run.
+ * @returns True when the decoded bytes hold `$<IPv4>`.
+ */
+function decodesToEmbeddedIp(b64: string): boolean {
+  const decoded = Buffer.from(b64, 'base64').toString('latin1');
+  return DECODED_EMBEDDED_IP.test(decoded);
+}
+
 /** Replacement string OR replacement function (for patterns whose
  * substitution depends on captured groups in non-trivial ways). */
 type PiiReplacement = string | ((match: string, ...groups: string[]) => string);
@@ -157,6 +180,25 @@ const PII_PATTERNS = {
   recaptchaAnchorInit: /(recaptcha\.anchor\.Main\.init\(\s*)"[^"]+"/g,
   bearerToken: /(Bearer\s+)[\w.~+/=-]{20,}/g,
   jwtToken: /\beyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}\b/g,
+  /** Radware bot-manager token whose base64 payload embeds the client's
+   *  IPv4 (`__uzdbm_2 = '<base64(uuid$ip)>'`). Runs before the digit
+   *  patterns so no 9-digit rule shreds the base64 first. */
+  base64EmbeddedIp: /[a-z0-9+/]{40,}={0,2}/gi,
+  /** Radware per-session UUID (`var __uzdbm_1 = '<uuid>'`) that links the
+   *  pre- and post-login pages of one capture. */
+  radwareSessionUuid:
+    /(?<=var __uzdbm_\d+\s*=\s*')[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?=')/gi,
+  /** ASP.NET anti-forgery token in a hidden input, in either attribute order. */
+  requestVerificationToken:
+    /(?<=name="__RequestVerificationToken"[^>]*?value=")[^"]+(?=")|(?<=value=")[^"]+(?="[^>]*?name="__RequestVerificationToken")/g,
+  /** JSON `<prefix>Token` string fields (`xsrfToken`) holding a live value
+   *  of 12+ chars. Already-redacted values and the corpus's synthetic
+   *  `FIXTURE`/`SYNTHETIC` placeholders are left alone. */
+  jsonTokenField:
+    /(?<="\w+Token\\?"\s*:\s*\\?")(?!\[redacted-|REDACTED|FIXTURE|SYNTHETIC)[^"\\]{12,}(?=\\?")/g,
+  /** Mizrahi `get428Index` paging GUID — a server session handle. */
+  jsonActionGuid:
+    /(?<="actionGUID\\?"\s*:\s*\\?")[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
   cookieAuthValue: /((?:Set-Cookie|cookie)[^\n]*?(?:auth|token|session)=)[^;\s"]+/gi,
   /** Discount/Telebank session token in marketing-pixel query strings
    *  (`&LSESSIONID=<opaque>`). Must run BEFORE generic id/jwt patterns
@@ -205,10 +247,41 @@ const PII_PATTERNS = {
    *  match here because `\b` never fires between `_` and a digit. */
   roleEmbeddedAccount: /(\bAC_)\d{5,}(?=_)/g,
   lastLoginText: /(class="last-login"[^>]*>)[^<]*\d\d?\/\d\d?\/\d{2}[^<]*\d\d?:\d{2}[^<]*(?=<)/g,
+  /** Last-login timestamp after its Hebrew label (`כניסתך האחרונה לשירות:`
+   *  or `ביקורך האחרון`), possibly inside nested tags: `DD/MM/YYYY , HH:MM`. */
+  hebrewLastLoginLabel:
+    /((?:כניסתך האחרונה|ביקורך האחרון)[^<]*?(?:<[^>]*>\s*)*)\d{1,2}\/\d{1,2}\/\d{2,4}[\s,|]*\d{1,2}:\d{2}/g,
+  /** JSON last-visit timestamps (Mizrahi logon `LastTimeVisited`,
+   *  `_LastTime*`, account `TaarichPeulaAhrona`). */
+  jsonLastLoginField:
+    /(?<="(?:LastTimeVisited|TaarichPeulaAhrona|_LastTime\w*)\\?"\s*:\s*\\?")(?!\[redacted-)[^"\\]+(?=\\?")/g,
   numericBalanceSpan:
     /(<span[^>]*class="[^"]*number-(?:negative|positive|strong|amount|value|balance)[^"]*"[^>]*>\s*)-?\d[\d,]*(?:\.\d+)?(?=\s*<\/span>)/g,
+  /** Mizrahi Angular amount text: the rendered number inside an element
+   *  carrying a `miz-numeric-*` attribute (may open with U+202A). */
+  mizNumericText: /(?<=miz-numeric-[\w-]+="[^"]*"[^>]*>\s*\u202A?)-?\d[\d,]*(?:\.\d+)?/g,
+  /** Mizrahi rendered amount attributes (`miz-numeric-colorup="150"`). */
+  mizNumericAttr: /(?<=\smiz-numeric-[\w-]+=")-?\d[\d,]*(?:\.\d+)?(?=")/g,
+  /** Rendered `currency="<amount>"` attribute (not the `vm.currency` binding). */
+  currencyAmountAttr: /(?<=\scurrency=")-?\d[\d,]*(?:\.\d+)?(?=")/g,
+  /** Mizrahi rendered transaction reference (the `MC02AsmEZ` table cell). */
+  mizrahiReferenceCell: /(?<=isCloseToZero\(dataItem\.MC\d{2}AsmEZ\)"[^>]*>\s*)\d+/g,
   jsonMonetaryField:
     /(\\?"\w*(?:Balance|Amount|Total|Sum|Withdrawal|Deposit|Credit|Debit|Charge|Payment|Cost|Price|Fee)\\?"\s*:\s*)-?\d+(?:\.\d+)?/g,
+  /** Transliterated money fields with a bare number (`"YitraAdkanit": 150`). */
+  jsonTranslitMoneyNumber: new RegExp(
+    String.raw`(?<=${TRANSLIT_MONEY_KEY_PREFIX})-?\d+(?:\.\d+)?(?![\d.])`,
+    'g',
+  ),
+  /** Transliterated money fields with a quoted number (`"itra": "150"`). */
+  jsonTranslitMoneyString: new RegExp(
+    String.raw`(?<=${TRANSLIT_MONEY_KEY_PREFIX}\\?")-?\d+(?:\.\d+)?(?=\\?")`,
+    'g',
+  ),
+  /** Mizrahi movement reference number (`"MC02AsmEZ": 1234`). */
+  jsonMizrahiReference: /(?<="MC\d{2}AsmEZ\\?"\s*:\s*)\d+/g,
+  /** Mizrahi branch fields (`Branch`, `BranchForDispaly`, `BranchForMF`). */
+  jsonBranchField: /(?<="Branch(?:ForDispaly|ForDisplay|ForMF)?\\?"\s*:\s*\\?")\d{2,3}(?=\\?")/g,
   /** JSON numeric account-id fields. Hapoalim's `/general/accounts` and
    *  `/home-page/composite/myAccount` responses expose the customer's
    *  6-7 digit account number as `"accountNumber": NNNNNN` (no quotes).
@@ -231,6 +304,10 @@ const PII_PATTERNS = {
   email: /[\w.+-]+@[\w-]+\.[\w.-]+/g,
   ilsAmount: /(₪|NIS|ILS|ש"ח|ש״ח)\s*[-+]?\d[\d,]*(?:\.\d+)?/g,
   ilsAmountSuffix: /-?\d[\d,]*(?:\.\d+)?\s*(₪|NIS|ILS|ש"ח|ש״ח)/g,
+  /** Branch prefix left beside a redacted account (`123-[redacted-account]`).
+   *  Every copy becomes `000-`, so equal accounts stay equal. Runs after
+   *  every rule that emits `[redacted-account]`. */
+  branchBeforeRedactedAccount: /\b\d{2,3}-(?=\[redacted-account\])/g,
   /** Sanitize redactor-output `tel:[redacted-id]` and `tel:[redacted-landline]`
    *  (neither is a valid `tel:` URI; trips parsers extracting dialable values)
    *  into a deterministic zero-numeric placeholder. Runs LAST to clean up
@@ -250,6 +327,19 @@ const PII_REPLACEMENTS: Readonly<Record<keyof typeof PII_PATTERNS, PiiReplacemen
   recaptchaAnchorInit: '$1"REDACTED_RECAPTCHA_PAYLOAD"',
   bearerToken: '$1[redacted-bearer]',
   jwtToken: '[redacted-jwt]',
+  /**
+   * Function replacement: only a base64 run that decodes to `$<IPv4>` is
+   * replaced; every other long alphanumeric run is returned unchanged.
+   *
+   * @param match - The base64 candidate.
+   * @returns The placeholder, or the match itself.
+   */
+  base64EmbeddedIp: (match: string): string =>
+    decodesToEmbeddedIp(match) ? 'REDACTED_BOT_TOKEN' : match,
+  radwareSessionUuid: ZERO_GUID,
+  requestVerificationToken: 'REDACTED_REQUEST_VERIFICATION_TOKEN',
+  jsonTokenField: '[redacted-token]',
+  jsonActionGuid: ZERO_GUID,
   cookieAuthValue: '$1[redacted-cookie]',
   hebrewGreetingName: '$1[redacted-name]$2',
   hebrewSurnameLiteral: '[redacted-name]',
@@ -263,7 +353,13 @@ const PII_REPLACEMENTS: Readonly<Record<keyof typeof PII_PATTERNS, PiiReplacemen
   glassboxUserIdAttr: '$1[redacted-user-id]$2',
   roleEmbeddedAccount: '$1[redacted-account]',
   lastLoginText: '$1[redacted-last-login]',
+  hebrewLastLoginLabel: '$1[redacted-last-login]',
+  jsonLastLoginField: '[redacted-last-login]',
   numericBalanceSpan: '$1[redacted-amount]',
+  mizNumericText: '[redacted-amount]',
+  mizNumericAttr: '0',
+  currencyAmountAttr: '0',
+  mizrahiReferenceCell: '[redacted-id]',
   /**
    * Function replacement: capture group 1 is the JSON field name + `": "`,
    * we replace the captured raw number with the sentinel `0` so committed
@@ -284,6 +380,10 @@ const PII_REPLACEMENTS: Readonly<Record<keyof typeof PII_PATTERNS, PiiReplacemen
    * @returns Prefix followed by zero sentinel.
    */
   jsonAccountNumberField: (_match: string, prefix: string): string => `${prefix}0`,
+  jsonTranslitMoneyNumber: '0',
+  jsonTranslitMoneyString: '0',
+  jsonMizrahiReference: '0',
+  jsonBranchField: '000',
   ilIban: '[redacted-iban]',
   ilBankAccount: '[redacted-account]',
   hapoalimBranchAccount: '[redacted-account]',
@@ -293,6 +393,7 @@ const PII_REPLACEMENTS: Readonly<Record<keyof typeof PII_PATTERNS, PiiReplacemen
   email: '[redacted-email]',
   ilsAmount: '$1 [redacted-amount]',
   ilsAmountSuffix: '[redacted-amount] $1',
+  branchBeforeRedactedAccount: '000-',
   lsessionIdParam: '$1REDACTED_SESSION_ID',
   trackingIdParam: '$1ti=REDACTED_TRACKING_ID',
   trackingIdInAssetPath: '$1REDACTED_TRACKING_ID',
