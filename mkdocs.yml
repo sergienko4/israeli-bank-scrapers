@@ -135,6 +135,7 @@ nav:
       - Config Contracts (api-direct-call): architecture/config-contracts.md
       - JSON algebra: architecture/json-algebra.md
       - Transaction sign: architecture/transaction-sign.md
+      - Transaction currency: architecture/transaction-currency.md
       - Bank calendar (dates & time zone): architecture/bank-calendar.md
       - BALANCE-RESOLVE (v6): architecture/balance-resolve.md
       - WAF challenge interceptor: architecture/waf-interceptor.md

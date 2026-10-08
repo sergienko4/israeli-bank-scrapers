@@ -20,15 +20,20 @@
  *   <li>an alias reorder changes the precedence pinned below: other
  *       aliases keep their currency, `currency` still beats
  *       `originalCurrencyIso`, and a numeric-only row still reports
- *       its raw digits (enum translation is deferred, not done).</li>
+ *       its raw digits (enum translation is deferred, not done), OR</li>
+ *   <li>a blank or whitespace-only alias value wins the match and masks
+ *       the next usable alias (emits `"ILS"` or `"   "`).</li>
  * </ul>
  *
  * <p>GREEN once `originalCurrencyIso` precedes the numeric alias.
  */
 
+import { jest } from '@jest/globals';
+
 import { mergeAmexRows } from '../../../../Scrapers/Pipeline/Banks/Amex/scrape/AmexShapeExtract.js';
 import { mergeIsracardRows } from '../../../../Scrapers/Pipeline/Banks/Isracard/scrape/IsracardShapeExtract.js';
 import { autoMapTransaction } from '../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
+import { findCurrencyHit } from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnCurrency.js';
 import type { ITransaction } from '../../../../Transactions.js';
 import {
   CURRENCY_BANKS,
@@ -137,8 +142,53 @@ describe('CrossBankCurrency — pinned alias precedence outside the ISO pair', (
     ['currencyCode', { currencyCode: 'GBP' }, 'GBP'],
     ['currencyBeforeIso', { currency: 'EUR', originalCurrencyIso: 'USD' }, 'EUR'],
     ['numericOnly', { originalCurrency: 999 }, '999'],
+    ['numericZero', { originalCurrency: 0 }, '0'],
+    ['stringZero', { originalCurrency: '0' }, '0'],
   ])('alias_%s_ShouldResolvePinnedCurrency', (_alias, extra, expected): void => {
     const txn = mapped(extra);
     expect(txn.originalCurrency).toBe(expected);
+  });
+});
+
+describe('CrossBankCurrency — blank currency alias falls through (#614)', () => {
+  it.each([
+    ['emptyIso', { originalCurrencyIso: '', originalCurrency: 19 }, '19'],
+    ['whitespaceIso', { originalCurrencyIso: '   ', originalCurrency: 100 }, '100'],
+    ['blankIsoNumericZero', { originalCurrencyIso: '', originalCurrency: 0 }, '0'],
+    ['blankCurrencyBeforeIso', { currency: '', originalCurrencyIso: 'EUR' }, 'EUR'],
+    [
+      'blankRootNestedIso',
+      { originalCurrencyIso: ' ', details: { originalCurrencyIso: 'USD' } },
+      'USD',
+    ],
+    [
+      'blankRootIsoRootNumericBeatsNestedIso',
+      { originalCurrencyIso: ' ', originalCurrency: 19, details: { originalCurrencyIso: 'USD' } },
+      '19',
+    ],
+  ])('blank_%s_ShouldSkipToNextUsableAlias', (_case, extra, expected): void => {
+    const txn = mapped(extra);
+    expect(txn.originalCurrency).toBe(expected);
+  });
+
+  it('baseline_nullIso_ShouldFallThroughToNumericAlias', (): void => {
+    const txn = mapped({ originalCurrencyIso: null, originalCurrency: 19 });
+    expect(txn.originalCurrency).toBe('19');
+  });
+
+  it('allBlank_ShouldYieldNoCurrencyHit', (): void => {
+    const hit = findCurrencyHit({ originalCurrencyIso: '', originalCurrency: '  ' });
+    expect(hit).toBe(false);
+  });
+
+  it('rootHit_ShouldNotReadNestedRecords', (): void => {
+    const readNested = jest.fn((): string => 'EUR');
+    const details = Object.defineProperty({}, 'originalCurrencyIso', {
+      enumerable: true,
+      get: readNested,
+    });
+    const hit = findCurrencyHit({ originalCurrencyIso: 'USD', details });
+    expect(hit).toBe('USD');
+    expect(readNested).not.toHaveBeenCalled();
   });
 });
