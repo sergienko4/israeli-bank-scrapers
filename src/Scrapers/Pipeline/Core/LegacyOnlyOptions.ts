@@ -25,17 +25,18 @@ import type { CompanyTypes } from '../../../Definitions.js';
 import type { ScraperOptions } from '../../Base/Interface.js';
 
 /**
- * Options declared in the public `ScraperOptions` type that only the
- * deprecated non-Pipeline scrapers implement. Alphabetical, so the warning
+ * Options declared in the public `ScraperOptions` type that the Pipeline does
+ * not implement. Alphabetical, so the warning
  * lists them in a stable order regardless of caller insertion order.
  *
- * <p>Each entry is pinned to its legacy reader; if a Pipeline implementation
- * ever lands, delete the entry here in the same change.
+ * <p>Each entry is pinned to its legacy reader, or to "no reader" once that
+ * scraper was removed; if a Pipeline implementation ever lands, delete the
+ * entry here in the same change.
  * - `includeRawTransaction` — `Common/Transactions.ts` `getRawTransaction`
  * - `navigationRetryCount` — `Base/BaseScraperWithBrowser.ts`
- * - `optInFeatures` — `Mizrahi/MizrahiScraper.ts`
+ * - `optInFeatures` — no reader (legacy Mizrahi removed)
  * - `outputData` — `BeyahadBishvilha/BeyahadBishvilhaScraper.ts`
- * - `shouldAddTransactionInformation` — `Mizrahi/MizrahiScraper.ts`
+ * - `shouldAddTransactionInformation` — no reader (legacy Mizrahi removed)
  * - `shouldCombineInstallments` — `Common/Transactions.ts`
  * - `skipCloseBrowser` — `Base/BaseScraperWithBrowser.ts`
  * - `storeFailureScreenShotPath` — `Base/BaseScraperWithBrowser.ts`
@@ -100,7 +101,7 @@ function buildMessage(companyId: CompanyTypes, ignored: readonly LegacyOnlyOptio
     `"${companyId}" runs on the Pipeline, which does not implement these`,
     `Legacy (deprecated) scraper options: ${ignored.join(', ')}.`,
     'They are ignored here — only the deprecated non-Pipeline scrapers',
-    '(Behatsdaa, Beyahad Bishvilha, Mizrahi) read them, and that path is',
+    '(Behatsdaa, Beyahad Bishvilha) read them, and that path is',
     `closed to new work. Remove them, or see ${DOCS_URL}`,
   ].join(' ');
 }

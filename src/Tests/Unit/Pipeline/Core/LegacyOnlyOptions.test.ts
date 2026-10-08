@@ -1,8 +1,10 @@
 /**
  * LegacyOnlyOptions — the Pipeline guard for deprecated non-Pipeline options.
  *
- * <p>Eight fields declared in the shared public `ScraperOptions` type are read
- * only by the deprecated non-Pipeline scrapers. Passing one alongside a
+ * <p>Eight fields declared in the shared public `ScraperOptions` type have no
+ * Pipeline implementation; only the deprecated non-Pipeline scrapers read
+ * them, and two have no reader at all since legacy Mizrahi was removed.
+ * Passing one alongside a
  * Pipeline bank has no effect at all, which issue #540 reported as a silent
  * drop. These tests pin the guard that makes that drop audible.
  *
@@ -130,6 +132,13 @@ describe('warnLegacyOnlyOptions — caller-visible warning', () => {
     const { emitted } = captureWarnings(reported);
     expect(emitted[0]).toContain('ignored');
     expect(emitted[0]).toContain('Legacy (deprecated)');
+  });
+
+  it('names only the legacy scrapers that still exist as readers', () => {
+    const reported = makeOptions({ optInFeatures: [] });
+    const { emitted } = captureWarnings(reported);
+    expect(emitted[0]).toContain('(Behatsdaa, Beyahad Bishvilha) read them');
+    expect(emitted[0]).not.toContain('Mizrahi');
   });
 
   it('returns the ignored options so a caller can assert on them programmatically', () => {

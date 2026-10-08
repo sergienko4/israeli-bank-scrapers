@@ -24,7 +24,6 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     // --- CSS fallback ---
     { kind: 'css', value: '#username' }, // Beinleumi group, Yahav
     { kind: 'css', value: '#user-name' }, // Max
-    { kind: 'css', value: '#userNumberDesktopHeb' }, // Mizrahi
     { kind: 'css', value: '[formcontrolname="userName"]' }, // VisaCal
     // --- walk-up DOM (absolute last resort) ---
     { kind: 'textContent', value: 'שם משתמש' },
@@ -63,7 +62,6 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     { kind: 'css', value: '#password' }, // Hapoalim, Max, Beinleumi, Yahav
     { kind: 'css', value: '#loginPassword' }, // Behatsdaa, BeyahadBishvilha
     { kind: 'css', value: '#tzPassword' }, // Discount
-    { kind: 'css', value: '#passwordDesktopHeb' }, // Mizrahi
     { kind: 'css', value: '[formcontrolname="password"]' }, // VisaCal
     // --- walk-up DOM (absolute last resort) ---
     { kind: 'textContent', value: 'סיסמה' },

@@ -3441,7 +3441,6 @@ export default tseslint.config(
       'src/Scrapers/Base/**/*.ts',
       'src/Scrapers/Leumi/**/*.ts',
       'src/Scrapers/Yahav/**/*.ts',
-      'src/Scrapers/Mizrahi/**/*.ts',
       'src/Scrapers/BeyahadBishvilha/**/*.ts',
       'src/Scrapers/Behatsdaa/**/*.ts',
       'src/Common/**/*.ts',
@@ -3804,8 +3803,6 @@ export default tseslint.config(
       'src/Scrapers/Base/BaseScraperWithBrowser.ts',
       'src/Scrapers/Behatsdaa/BehatsdaaScraper.ts',
       'src/Scrapers/BeyahadBishvilha/BeyahadBishvilhaScraper.ts',
-      'src/Scrapers/Mizrahi/MizrahiConverters.ts',
-      'src/Scrapers/Mizrahi/MizrahiScraper.ts',
     ],
     rules: {
       '@typescript-eslint/no-deprecated': 'off',
