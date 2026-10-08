@@ -160,7 +160,7 @@ validated at runtime.
 | Discount Bank        | Bank        | Browser    | `id`, `password`, `num`         |
 | Massad               | Bank        | Browser    | `username`, `password`, OTP     |
 | Mercantile Bank      | Bank        | Browser    | `id`, `password`, `num`         |
-| Mizrahi Bank         | Bank        | Browser    | `username`, `password`          |
+| Mizrahi Bank†        | Bank        | Browser    | `username`, `password`          |
 | One Zero             | Bank        | API-direct | `email`, `password`, OTP        |
 | Pagi                 | Bank        | Browser    | `username`, `password`, OTP     |
 | Pepper (by Leumi)    | Bank        | API-direct | `phoneNumber`, `password`, OTP  |
@@ -172,14 +172,17 @@ validated at runtime.
 
 \* Hapoalim prompts for OTP only on unrecognised devices.
 
+† Mizrahi runs on the pipeline but is not production-ready yet: real runs are
+still proving the login and the hard-model scrape. See the
+[Mizrahi page](https://sergienko4.github.io/israeli-bank-scrapers/banks/mizrahi/).
+
 Per-bank notes live in the
 [bank documentation](https://sergienko4.github.io/israeli-bank-scrapers/banks/).
 
 > **Legacy path:** Behatsdaa and Beyahad Bishvilha still run on the
 > pre-pipeline scraper. They work through the same `createScraper(...)`
 > entry point and their public behaviour is preserved, but new features target
-> the pipeline architecture. Mizrahi Bank is migrating to the pipeline; its
-> legacy scraper was removed, and the pipeline bank is not production-ready yet.
+> the pipeline architecture.
 
 ## OTP (two-factor authentication)
 
