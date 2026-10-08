@@ -4,12 +4,14 @@
  *
  * The invariant: the gate flags every raw value the redactor rewrites, with
  * the rule that mirrors it, and passes the redacted output; it never flags a
- * look-alike the redactor leaves alone. Both sides share one zero policy: a
- * value with no non-zero digit is not personal data, so the redactor keeps
- * it and the gate passes it. The one deliberate asymmetry is pinned in
- * CONTEXT_EXEMPT_CASES. When either side drifts, this suite fails, so the
- * gate can't stay red on text the redactor won't touch, or pass PII the
- * redactor would have caught.
+ * look-alike the redactor leaves alone. Both sides share one zero policy
+ * (ZERO_MATCH_CASES): a value with no non-zero digit is not personal data,
+ * so the redactor keeps it and the gate passes it. Zeroed and NDJSON-escaped
+ * variants of every positive row are checked for the same drift. The only
+ * deliberate asymmetries, the gate's context exemptions, are pinned one per
+ * exemption in CONTEXT_EXEMPT_CASES. When either side drifts, this suite
+ * fails, so the gate can't stay red on text the redactor won't touch, or
+ * pass PII the redactor would have caught.
  */
 
 import { type AuditHit, auditText, RULE_IDS } from '../../../../../scripts/audit-fixtures-pii.cjs';
@@ -50,8 +52,41 @@ function zeroed(row: IRuleText): IRuleText {
   return { key: row.key, input: row.input.replace(/[1-9]/g, '0') };
 }
 
-/** Every positive row with a non-zero digit, zeroed. */
+/** Every positive row with a non-zero digit, zeroed: a drift fuzz, since
+ *  zeroing structural digits can stop a row matching its own rule. */
 const ZEROED_CASES = POSITIVE_CASES.filter(row => /[1-9]/.test(row.input)).map(zeroed);
+
+/**
+ * A positive row as an NDJSON trace stores it: every double quote escaped.
+ *
+ * @param row - A positive row.
+ * @returns The same rule over the escaped text.
+ */
+function escapedQuotes(row: IRuleText): IRuleText {
+  return { key: row.key, input: row.input.replaceAll('"', String.raw`\"`) };
+}
+
+/** Every positive row with a bare double quote, NDJSON-escaped. */
+const ESCAPED_CASES = POSITIVE_CASES.filter(
+  row => row.input.includes('"') && !row.input.includes(String.raw`\"`),
+).map(escapedQuotes);
+
+/**
+ * A positive row with only its own rule's matches zeroed. A shape with a
+ * structural non-zero digit (`05x` phones, `</h1>`) then stops matching, and
+ * both sides must agree it is no longer PII.
+ *
+ * @param row - A positive row.
+ * @returns The same rule over the text with its matched values zeroed.
+ */
+function zeroMatches(row: IRuleText): IRuleText {
+  const input = row.input.replace(PII_PATTERNS[row.key], match => match.replace(/[1-9]/g, '0'));
+  return { key: row.key, input };
+}
+
+/** Every positive row, only its own rule's values zeroed: each rule's zero
+ *  policy is derived per row, so no hand-kept list of rules can drift. */
+const ZERO_MATCH_CASES = POSITIVE_CASES.map(zeroMatches);
 
 /** The gate rule that mirrors each redactor rule the shared cases pin. */
 const GATE_RULE_FOR: Partial<Record<PiiPatternKey, string>> = {
@@ -257,6 +292,25 @@ describe('fixtures-pii gate parity with PiiRedactor', () => {
     const redacted = redactPii(row.input);
     const fired = failingRules(redacted);
     expect(fired).toEqual([]);
+  });
+
+  it.each(ESCAPED_CASES)('flags every raw $key value in an escaped shape', row => {
+    const missed = unflaggedSpans(row.key, row.input);
+    expect(missed).toEqual([]);
+  });
+
+  it.each(ESCAPED_CASES)('passes the redacted escaped $key shape', row => {
+    const redacted = redactPii(row.input);
+    const fired = failingRules(redacted);
+    expect(fired).toEqual([]);
+  });
+
+  it.each(ZERO_MATCH_CASES)('flags a zeroed $key value only where it rewrites it', row => {
+    const isRewritten = rewrittenSpans(row.key, row.input).length > 0;
+    const mirror = GATE_RULE_FOR[row.key];
+    const isFlagged = auditText(row.input).some(hit => hit.pat.id === mirror);
+    const missed = unflaggedSpans(row.key, row.input);
+    expect({ isFlagged, missed }).toEqual({ isFlagged: isRewritten, missed: [] });
   });
 
   it.each(CONTEXT_EXEMPT_CASES)('rewrites a $reason the gate exempts ($key)', row => {

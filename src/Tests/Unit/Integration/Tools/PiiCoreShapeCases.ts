@@ -99,6 +99,11 @@ export const CORE_POSITIVE_CASES: readonly IShapeCase[] = [
     expected: '{"currentBalance": 0}',
   },
   {
+    key: 'jsonMonetaryField',
+    input: String.raw`{\"currentBalance\":123.45}`,
+    expected: String.raw`{\"currentBalance\":0}`,
+  },
+  {
     key: 'jsonAccountNumberField',
     input: '{"accountNumber": 4567123}',
     expected: '{"accountNumber": 0}',
@@ -144,6 +149,7 @@ export const CORE_NEGATIVE_CASES: readonly IShapeCase[] = [
   unchanged('lastLoginText', '<span class="last-login-hint">Last visit 07/10/26 10:15</span>'),
   unchanged('numericBalanceSpan', '<span class="number-label">1,234.50</span>'),
   unchanged('jsonMonetaryField', '{"currentBalanceDate": 20261007}'),
+  unchanged('jsonMonetaryField', '{"currentBalance":-0.00}'),
   unchanged('jsonAccountNumberField', '{"accountNumberMask": 4567123}'),
   unchanged('jsonAccountNumberField', '{"accountNumber": 0000000}'),
   unchanged('ilIban', 'ref IL62-0108'),
@@ -171,15 +177,22 @@ export interface IContextExemptCase {
 }
 
 /**
- * The deliberate redactor/gate asymmetry: the redactor still rewrites these
- * as a safety margin, while the gate exempts them by their surrounding
- * context because they are a bank's public data, not a customer's.
+ * The deliberate redactor/gate asymmetries, one row per gate context
+ * exemption: the redactor still rewrites these as a safety margin, while
+ * the gate exempts them by their surrounding context because they are a
+ * bank's public data (ads ids, published phones, marketing assets), not a
+ * customer's.
  */
 export const CONTEXT_EXEMPT_CASES: readonly IContextExemptCase[] = [
   {
     key: 'israeliId9',
     input: '<script src="https://www.googletagmanager.com/gtag/js?id=AW-123456789"></script>',
     reason: 'Google Ads conversion id',
+  },
+  {
+    key: 'israeliId9',
+    input: '<img src="https://ad.doubleclick.net/ddm/activity/ord=123456789">',
+    reason: 'DoubleClick ad beacon',
   },
   {
     key: 'israeliId9',
@@ -190,5 +203,15 @@ export const CONTEXT_EXEMPT_CASES: readonly IContextExemptCase[] = [
     key: 'israeliLandline',
     input: '<a href="tel:031234567">03-1234567</a>',
     reason: 'published phone link',
+  },
+  {
+    key: 'ilsAmountSuffix',
+    input: '<img src="/img/banner_100 NIS.png">',
+    reason: 'marketing banner asset name',
+  },
+  {
+    key: 'ilsAmountSuffix',
+    input: '<img src="/img/hero_shivuki_250 ₪.png">',
+    reason: 'marketing campaign asset name',
   },
 ];

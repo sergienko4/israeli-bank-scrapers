@@ -39,6 +39,9 @@ const ASSET_B64 = Buffer.from(
 ).toString('base64');
 /** A synthetic anti-forgery token value. */
 const RVT = 'CfDJ8abc-def_xyz';
+/** Twelve forwarded hops, more than any bounded chain rule would scan. */
+const HOP_COUNT = 12;
+const LONG_CHAIN = Array.from({ length: HOP_COUNT }, (_, hop) => `203.0.113.${String(hop + 1)}`);
 /** The placeholder the redactor writes for an anti-forgery token. */
 const RVT_REDACTED = 'REDACTED_REQUEST_VERIFICATION_TOKEN';
 
@@ -83,6 +86,21 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     key: 'clientIpField',
     input: '{"clientIp":"::ffff:192.0.2.10"}',
     expected: '{"clientIp":"::"}',
+  },
+  {
+    key: 'clientIpField',
+    input: 'X-Forwarded-For: [2001:db8::1]:443, 203.0.113.5:8080',
+    expected: 'X-Forwarded-For: [::]:443, 0.0.0.0:8080',
+  },
+  {
+    key: 'clientIpField',
+    input: 'X-Forwarded-For: 0.0.0.0, 203.0.113.5',
+    expected: 'X-Forwarded-For: 0.0.0.0, 0.0.0.0',
+  },
+  {
+    key: 'clientIpField',
+    input: `X-Forwarded-For: ${LONG_CHAIN.join(', ')}`,
+    expected: `X-Forwarded-For: ${LONG_CHAIN.map(() => '0.0.0.0').join(', ')}`,
   },
   {
     key: 'radwareSessionUuid',
@@ -319,6 +337,9 @@ export const NEGATIVE_CASES: readonly IShapeCase[] = [
   unchanged('clientIpField', '{"client_ip":"300.1.2.3"}'),
   unchanged('clientIpField', 'X-Forwarded-Port: 443, 8443'),
   unchanged('clientIpField', '{"client_ip":"unknown"}'),
+  unchanged('clientIpField', '{"clientIp":"12:34:56"}'),
+  unchanged('clientIpField', '{"clientIp":"aa:bb:cc:dd:ee:ff"}'),
+  unchanged('clientIpField', 'X-Forwarded-For: 0.0.0.0, ::'),
   unchanged('radwareSessionUuid', `var other = '${SESSION_UUID}';`),
   unchanged('requestVerificationToken', '<input name="query" value="CfDJ8abc">'),
   unchanged(
