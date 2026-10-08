@@ -1,7 +1,8 @@
 /**
  * Shared cases for the PiiRedactor bank-shape rules: Radware bot tokens,
- * client IPs, anti-forgery and JSON session tokens, last-login stamps, and
- * the Mizrahi transliterated money, reference and branch fields.
+ * client IPs, anti-forgery and JSON session tokens, last-login stamps,
+ * person names, opaque user ids, role-embedded accounts, and the Mizrahi
+ * transliterated money, reference and branch fields.
  *
  * Two suites read these tables. One pins the redactor's exact output; the
  * other proves the `fixtures-pii` audit gate agrees with the redactor. Every
@@ -89,6 +90,11 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     expected: `<input name="__RequestVerificationToken" data-acct="[redacted-account]" value="${RVT_REDACTED}">`,
   },
   {
+    key: 'requestVerificationToken',
+    input: `<input name="__RequestVerificationToken" value="REDACTED_${RVT}">`,
+    expected: `<input name="__RequestVerificationToken" value="${RVT_REDACTED}">`,
+  },
+  {
     key: 'cookieAuthValue',
     input: 'cookie: a=[redacted-cookie]; session=abc123live',
     expected: 'cookie: a=[redacted-cookie]; session=[redacted-cookie]',
@@ -102,6 +108,11 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     key: 'jsonTokenField',
     input: String.raw`{\"xsrfToken\":\"a1b2c3d4e5f6a7b8\"}`,
     expected: String.raw`{\"xsrfToken\":\"[redacted-token]\"}`,
+  },
+  {
+    key: 'jsonTokenField',
+    input: '{"xsrfToken":"[redacted-token]a1b2c3d4"}',
+    expected: '{"xsrfToken":"[redacted-token]"}',
   },
   {
     key: 'jsonActionGuid',
@@ -123,6 +134,52 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     input: '{"LastTimeVisited":"07/10/2026 18:54","TaarichPeulaAhrona":"2026-10-07T00:00:00"}',
     expected:
       '{"LastTimeVisited":"[redacted-last-login]","TaarichPeulaAhrona":"[redacted-last-login]"}',
+  },
+  {
+    key: 'jsonLastLoginField',
+    input: '{"LastTimeVisited":"[redacted-last-login] 18:54"}',
+    expected: '{"LastTimeVisited":"[redacted-last-login]"}',
+  },
+  {
+    key: 'jsonPersonNameField',
+    input: '{"FirstName": "Dana", "LastName": "Levi", "BankerName": "Moshe Cohen"}',
+    expected:
+      '{"FirstName": "[redacted-name]", "LastName": "[redacted-name]", "BankerName": "[redacted-name]"}',
+  },
+  {
+    key: 'jsonPersonNameField',
+    input: '{"LastName": "[redacted-name] Levi"}',
+    expected: '{"LastName": "[redacted-name]"}',
+  },
+  {
+    key: 'jsonOpaqueUserIdField',
+    input: '{"ClientGWIdentifier": "1a2345b6c7d8", "anonymousID": "ab12cd"}',
+    expected: '{"ClientGWIdentifier": "[redacted-user-id]", "anonymousID": "[redacted-user-id]"}',
+  },
+  {
+    key: 'jsonOpaqueUserIdField',
+    input: String.raw`{\"UserId\":\"[redacted-user-id]77\"}`,
+    expected: String.raw`{\"UserId\":\"[redacted-user-id]\"}`,
+  },
+  {
+    key: 'glassboxUserIdAttr',
+    input: '<div class="main-all-content" data.glassbox-id="1a2345b6c7d8">',
+    expected: '<div class="main-all-content" data.glassbox-id="[redacted-user-id]">',
+  },
+  {
+    key: 'glassboxUserIdAttr',
+    input: '<div data-glassbox-id="[redacted-user-id]x9">',
+    expected: '<div data-glassbox-id="[redacted-user-id]">',
+  },
+  {
+    key: 'roleEmbeddedAccount',
+    input: '{"Role": "AC_123456_FUNDS_ACTIVITY"}',
+    expected: '{"Role": "AC_[redacted-account]_FUNDS_ACTIVITY"}',
+  },
+  {
+    key: 'mizNumericAttr',
+    input: '<span miz-numeric-colorup="-1,250.75"></span>',
+    expected: '<span miz-numeric-colorup="0"></span>',
   },
   {
     key: 'mizNumericText',
@@ -191,6 +248,11 @@ export const NEGATIVE_CASES: readonly IShapeCase[] = [
   unchanged('clientIpField', '{"client_ip":"300.1.2.3"}'),
   unchanged('radwareSessionUuid', `var other = '${SESSION_UUID}';`),
   unchanged('requestVerificationToken', '<input name="query" value="CfDJ8abc">'),
+  unchanged(
+    'requestVerificationToken',
+    `<input name="__RequestVerificationToken" value="${RVT_REDACTED}">`,
+  ),
+  unchanged('cookieAuthValue', 'cookie: theme=dark; lang=he'),
   unchanged('jsonTokenField', '{"token":"a1b2c3d4e5f6a7b8","xsrfToken":"short"}'),
   unchanged(
     'jsonTokenField',
@@ -200,7 +262,15 @@ export const NEGATIVE_CASES: readonly IShapeCase[] = [
   unchanged('jsonActionGuid', '{"actionGUID":"abcdef12-not-a-guid"}'),
   unchanged('hebrewLastLoginLabel', '<p>תאריך ערך: 07/10/26 18:54</p>'),
   unchanged('jsonLastLoginField', '{"TaarichErech":"2026-10-07T00:00:00"}'),
+  unchanged('jsonPersonNameField', '{"BankerNameLabel": "Your banker"}'),
+  unchanged('jsonOpaqueUserIdField', '{"UserType": "private"}'),
+  unchanged('glassboxUserIdAttr', '<div class="main-all-content" data-role="shell">'),
+  unchanged('roleEmbeddedAccount', '{"Role": "AC_FUNDS_ACTIVITY", "Alt": "AC_1234_VIEW"}'),
+  unchanged('mizNumericText', '<span class="amt">\u202A120.00</span>'),
   unchanged('mizNumericAttr', '<span miz-numeric-colorup="1.2.3"></span>'),
+  unchanged('mizrahiReferenceCell', '<td ng-class="isCloseToZero(dataItem.MC02AsmEZDate)"> 7</td>'),
+  unchanged('jsonMizrahiReference', '{"MC02AsmEZSpecified": true, "MC02Asm": 4321}'),
+  unchanged('branchBeforeRedactedAccount', '{"Code":"1234-[redacted-account]"}'),
   unchanged('currencyAmountAttr', '<miz-amount currency="vm.currency"></miz-amount>'),
   unchanged('currencyAmountAttr', '<div class="flag" currency="840"></div>'),
   unchanged('jsonTranslitMoneyString', '{"YitraDate": "2026-10-07"}'),

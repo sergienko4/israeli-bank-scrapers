@@ -66,6 +66,9 @@ const DECODED_EMBEDDED_IP = new RegExp(String.raw`^[\da-z]{8}(?:-[\da-z]{4}){3}-
 const SKY_CURRENCY_ATTR = String.raw`\ssky-(?:on-)?currency`;
 const PLAIN_AMOUNT = String.raw`-?\d[\d,]*(?:\.\d+)?`;
 const ZERO_GUID = '00000000-0000-0000-0000-000000000000';
+/** The exact anti-forgery placeholder PiiRedactor.ts writes; only this
+ *  value is exempt, never anything that merely starts with `REDACTED_`. */
+const RVT_PLACEHOLDER = 'REDACTED_REQUEST_VERIFICATION_TOKEN';
 /** Rules that capture only an amount or reference; a zero value is the
  *  redacted sentinel, so it is not a hit. Tested in JS rather than with
  *  overlapping quantifiers, which backtrack on long near-misses. */
@@ -87,9 +90,9 @@ const PATTERNS = [
   { id: 'username-literal', re: new RegExp(`\\b(${alternation(SECRETS.operatorUsernames)})\\b`, 'g'), severity: 'CRITICAL', desc: 'Literal credential/username leaked' },
   { id: 'operator-account-literal', re: new RegExp(`\\b${escapeRegexLiteral(SECRETS.operatorAccountLiteral)}\\b`, 'g'), severity: 'CRITICAL', desc: 'Operator account number literal' },
   { id: 'bare-account-in-url', re: /(?:\/(?:gatewayAPI|portalserver|api|Titan|Lobby|apollo|retail|retail2|rb)(?:\/[A-Za-z][\w.-]*)+\/)\d{6,12}(?=\/|\?|$|"|\\")/g, severity: 'CRITICAL', desc: 'Bare account-id in REST URL path' },
-  { id: 'json-pascal-person-name', re: /\\?"(?:FirstName|LastName|BankerName)\\?"\s*:\s*\\?"(?!\[redacted-)[^"\\]+/g, severity: 'CRITICAL', desc: 'PascalCase JSON person-name field with raw value (Mizrahi logon)' },
-  { id: 'json-opaque-user-id', re: /\\?"(?:UserId|Username|UserIdentifier|ClientGWIdentifier|anonymousID)\\?"\s*:\s*\\?"(?!\[redacted-)[^"\\]+/g, severity: 'CRITICAL', desc: 'JSON per-user identifier field with raw value' },
-  { id: 'glassbox-user-id', re: /data[.-]glassbox-id="(?!\[redacted-)[^"]+"/g, severity: 'CRITICAL', desc: 'Glassbox session-replay user id attribute' },
+  { id: 'json-pascal-person-name', re: /\\?"(?:FirstName|LastName|BankerName)\\?"\s*:\s*\\?"(?!\[redacted-name\]\\?")[^"\\]+/g, severity: 'CRITICAL', desc: 'PascalCase JSON person-name field with raw value (Mizrahi logon)' },
+  { id: 'json-opaque-user-id', re: /\\?"(?:UserId|Username|UserIdentifier|ClientGWIdentifier|anonymousID)\\?"\s*:\s*\\?"(?!\[redacted-user-id\]\\?")[^"\\]+/g, severity: 'CRITICAL', desc: 'JSON per-user identifier field with raw value' },
+  { id: 'glassbox-user-id', re: /data[.-]glassbox-id="(?!\[redacted-user-id\]")[^"]+"/g, severity: 'CRITICAL', desc: 'Glassbox session-replay user id attribute' },
   { id: 'role-embedded-account', re: /\bAC_\d{5,}_/g, severity: 'CRITICAL', desc: 'Account number embedded in permission role (AC_<account>_...)' },
   { id: 'json-branch-field', re: /"Branch(?:ForDispaly|ForDisplay|ForMF)?\\?"\s*:\s*\\?"(?!000\\?")\d{2,3}(?=\\?")/g, severity: 'HIGH', desc: 'JSON branch-number field with a raw value (Mizrahi)' },
   { id: 'branch-before-redacted-account', re: /\b(?!000-)\d{2,3}-(?=\[redacted-account\])/g, severity: 'HIGH', desc: 'Raw branch prefix left beside a redacted account' },
@@ -136,13 +139,13 @@ const PATTERNS = [
   { id: 'client-ip-field', re: new RegExp(String.raw`(?<=\b(?:client_?ip|remote_?addr|ip_?address|user_?ip|x-forwarded-for|x-real-ip)\\?["']?\s*[:=]\s*\\?["'])${IPV4}(?=\\?["'])`, 'gi'), severity: 'CRITICAL', desc: 'IPv4 in a client-address field (client_ip, x-forwarded-for)' },
   { id: 'radware-session-uuid', re: /var __uzdbm_\d+\s*=\s*'(?!00000000-0000-0000-0000-000000000000')[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'/gi, severity: 'HIGH', desc: 'Radware per-session UUID (__uzdbm_N)' },
   { id: 'request-verification-token', re: /(?<=name=\\?["']__RequestVerificationToken\\?["'][^>]*?value=\\?["'])[^"'\\]+(?=\\?["'])|(?<=value=\\?["'])[^"'\\]+(?=\\?["'][^>]*?name=\\?["']__RequestVerificationToken\\?["'])/gi, severity: 'HIGH', desc: 'Unredacted ASP.NET anti-forgery token' },
-  { id: 'json-token-field', re: /"\w+Token\\?"\s*:\s*\\?"(?!\[redacted-|REDACTED|FIXTURE|SYNTHETIC)[^"\\]{12,}(?=\\?")/g, severity: 'CRITICAL', desc: 'JSON <prefix>Token field with a live value (xsrfToken)' },
+  { id: 'json-token-field', re: /"\w+Token\\?"\s*:\s*\\?"(?!\[redacted-token\]\\?"|REDACTED|FIXTURE|SYNTHETIC)[^"\\]{12,}(?=\\?")/g, severity: 'CRITICAL', desc: 'JSON <prefix>Token field with a live value (xsrfToken)' },
   { id: 'json-action-guid', re: /(?<="actionGUID\\?"\s*:\s*\\?")[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, severity: 'HIGH', desc: 'Mizrahi paging GUID (server session handle)' },
 
   // --- Temporal personal info ---
   { id: 'last-login-text', re: /class="last-login"[^>]*>[^<]*?\d{1,2}\/\d{1,2}\/\d{2,4}[^<]*?\d{1,2}:\d{2}/g, severity: 'HIGH', desc: 'Last-login timestamp (Hebrew "ביקורך האחרון")' },
   { id: 'hebrew-last-login-label', re: /(?:כניסתך האחרונה|ביקורך האחרון)[^<]*?(?:<[^>]*>\s*)*\d{1,2}\/\d{1,2}\/\d{2,4}[\s,|]*\d{1,2}:\d{2}/g, severity: 'HIGH', desc: 'Last-login timestamp after its Hebrew label' },
-  { id: 'json-last-login', re: /"(?:LastTimeVisited|TaarichPeulaAhrona|_LastTime\w*)\\?"\s*:\s*\\?"(?!\[redacted-)[^"\\]+/g, severity: 'HIGH', desc: 'JSON last-visit timestamp field' },
+  { id: 'json-last-login', re: /"(?:LastTimeVisited|TaarichPeulaAhrona|_LastTime\w*)\\?"\s*:\s*\\?"(?!\[redacted-last-login\]\\?")[^"\\]+/g, severity: 'HIGH', desc: 'JSON last-visit timestamp field' },
 
   // --- Already-redacted markers (NEGATIVE — informational only) ---
   { id: 'redacted-marker-name', re: /\[redacted-name\]/g, severity: 'INFO', desc: 'Already redacted name (good)' },
@@ -224,7 +227,7 @@ function isFalsePositive(hit) {
   if (hit.pat.id === 'b64-embedded-ip' && !decodesToEmbeddedIp(hit.match)) return true;
   if (ZERO_VALUE_IDS.has(hit.pat.id) && isZeroValue(hit.match)) return true;
   if (hit.pat.id === 'json-action-guid' && hit.match === ZERO_GUID) return true;
-  if (hit.pat.id === 'request-verification-token' && hit.match.startsWith('REDACTED_')) return true;
+  if (hit.pat.id === 'request-verification-token' && hit.match === RVT_PLACEHOLDER) return true;
   if (hit.pat.id === 'client-ip-field' && hit.match === '0.0.0.0') return true;
   return false;
 }

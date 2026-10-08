@@ -214,10 +214,10 @@ const PII_PATTERNS = {
   requestVerificationToken:
     /(?<=name=\\?["']__RequestVerificationToken\\?["'][^>]*?value=\\?["'])[^"'\\]+(?=\\?["'])|(?<=value=\\?["'])[^"'\\]+(?=\\?["'][^>]*?name=\\?["']__RequestVerificationToken\\?["'])/gi,
   /** JSON `<prefix>Token` string fields (`xsrfToken`) holding a live value
-   *  of 12+ chars. Already-redacted values and the corpus's synthetic
-   *  `FIXTURE`/`SYNTHETIC` placeholders are left alone. */
+   *  of 12+ chars. The exact `[redacted-token]` placeholder and the corpus's
+   *  synthetic `REDACTED`/`FIXTURE`/`SYNTHETIC` values are left alone. */
   jsonTokenField:
-    /(?<="\w+Token\\?"\s*:\s*\\?")(?!\[redacted-|REDACTED|FIXTURE|SYNTHETIC)[^"\\]{12,}(?=\\?")/g,
+    /(?<="\w+Token\\?"\s*:\s*\\?")(?!\[redacted-token\]\\?"|REDACTED|FIXTURE|SYNTHETIC)[^"\\]{12,}(?=\\?")/g,
   /** Mizrahi `get428Index` paging GUID — a server session handle. */
   jsonActionGuid:
     /(?<="actionGUID\\?"\s*:\s*\\?")[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
@@ -276,7 +276,7 @@ const PII_PATTERNS = {
   /** JSON last-visit timestamps (Mizrahi logon `LastTimeVisited`,
    *  `_LastTime*`, account `TaarichPeulaAhrona`). */
   jsonLastLoginField:
-    /(?<="(?:LastTimeVisited|TaarichPeulaAhrona|_LastTime\w*)\\?"\s*:\s*\\?")(?!\[redacted-)[^"\\]+(?=\\?")/g,
+    /(?<="(?:LastTimeVisited|TaarichPeulaAhrona|_LastTime\w*)\\?"\s*:\s*\\?")(?!\[redacted-last-login\]\\?")[^"\\]+(?=\\?")/g,
   numericBalanceSpan:
     /(<span[^>]*class="[^"]*number-(?:negative|positive|strong|amount|value|balance)[^"]*"[^>]*>\s*)-?\d[\d,]*(?:\.\d+)?(?=\s*<\/span>)/g,
   /** Mizrahi Angular amount text: the rendered number inside an element

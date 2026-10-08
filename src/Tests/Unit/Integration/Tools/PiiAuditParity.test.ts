@@ -25,6 +25,7 @@ const GATE_RULE_FOR: Partial<Record<PiiPatternKey, string>> = {
   hebrewLastLoginLabel: 'hebrew-last-login-label',
   jsonLastLoginField: 'json-last-login',
   mizNumericText: 'miz-numeric-text',
+  mizNumericAttr: 'miz-numeric-attr',
   currencyAmountAttr: 'currency-amount-attr',
   mizrahiReferenceCell: 'miz-reference-cell',
   jsonTranslitMoneyNumber: 'json-translit-money',
@@ -32,7 +33,16 @@ const GATE_RULE_FOR: Partial<Record<PiiPatternKey, string>> = {
   jsonMizrahiReference: 'json-mizrahi-reference',
   jsonBranchField: 'json-branch-field',
   branchBeforeRedactedAccount: 'branch-before-redacted-account',
+  jsonPersonNameField: 'json-pascal-person-name',
+  jsonOpaqueUserIdField: 'json-opaque-user-id',
+  glassboxUserIdAttr: 'glassbox-user-id',
+  roleEmbeddedAccount: 'role-embedded-account',
 };
+
+/** Every redactor rule the gate mirrors, i.e. the coverage manifest. */
+const MIRRORED_KEYS = Object.keys(GATE_RULE_FOR) as PiiPatternKey[];
+/** Every rule a shared case row is aimed at. */
+const CASE_KEYS = [...POSITIVE_CASES, ...NEGATIVE_CASES].map(row => row.key);
 
 /**
  * The gate rules that fail on a text, ignoring INFO placeholder markers.
@@ -46,6 +56,17 @@ function failingRules(text: string): string[] {
 }
 
 describe('fixtures-pii gate parity with PiiRedactor', () => {
+  it.each(MIRRORED_KEYS)('pins %s with a positive and a negative case', key => {
+    const hasPositive = POSITIVE_CASES.some(row => row.key === key);
+    const hasNegative = NEGATIVE_CASES.some(row => row.key === key);
+    expect({ hasPositive, hasNegative }).toEqual({ hasPositive: true, hasNegative: true });
+  });
+
+  it('maps every case row to its gate mirror', () => {
+    const unmapped = CASE_KEYS.filter(key => !(key in GATE_RULE_FOR));
+    expect(unmapped).toEqual([]);
+  });
+
   it.each(POSITIVE_CASES)('flags a raw $key shape with its mirror rule', row => {
     const mirror = GATE_RULE_FOR[row.key];
     const fired = failingRules(row.input);
