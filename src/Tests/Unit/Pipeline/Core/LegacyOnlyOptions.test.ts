@@ -137,8 +137,15 @@ describe('warnLegacyOnlyOptions — caller-visible warning', () => {
   it('names only the legacy scrapers that still exist as readers', () => {
     const reported = makeOptions({ optInFeatures: [] });
     const { emitted } = captureWarnings(reported);
-    expect(emitted[0]).toContain('(Behatsdaa, Beyahad Bishvilha) read them');
+    expect(emitted[0]).toContain('(Behatsdaa, Beyahad Bishvilha)');
     expect(emitted[0]).not.toContain('Mizrahi');
+  });
+
+  it('does not claim a legacy reader for an option that has none', () => {
+    const reported = makeOptions({ optInFeatures: [] });
+    const { emitted } = captureWarnings(reported);
+    expect(emitted[0]).not.toContain('read them');
+    expect(emitted[0]).toContain('Some legacy-only options are read only by');
   });
 
   it('returns the ignored options so a caller can assert on them programmatically', () => {

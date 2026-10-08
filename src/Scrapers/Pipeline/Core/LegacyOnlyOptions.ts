@@ -100,9 +100,9 @@ function buildMessage(companyId: CompanyTypes, ignored: readonly LegacyOnlyOptio
   return [
     `"${companyId}" runs on the Pipeline, which does not implement these`,
     `Legacy (deprecated) scraper options: ${ignored.join(', ')}.`,
-    'They are ignored here — only the deprecated non-Pipeline scrapers',
-    '(Behatsdaa, Beyahad Bishvilha) read them, and that path is',
-    `closed to new work. Remove them, or see ${DOCS_URL}`,
+    'They are ignored here. Some legacy-only options are read only by the',
+    'deprecated non-Pipeline scrapers (Behatsdaa, Beyahad Bishvilha), and',
+    `that path is closed to new work. Remove them, or see ${DOCS_URL}`,
   ].join(' ');
 }
 

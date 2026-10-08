@@ -44,9 +44,9 @@ process warning at `createScraper` time:
 ```text
 (node:12345) ScraperOptionsWarning: "isracard" runs on the Pipeline, which does not
 implement these Legacy (deprecated) scraper options: includeRawTransaction,
-shouldCombineInstallments. They are ignored here — only the deprecated non-Pipeline
-scrapers (Behatsdaa, Beyahad Bishvilha) read them, and that path is closed
-to new work. Remove them, or see
+shouldCombineInstallments. They are ignored here. Some legacy-only options are read
+only by the deprecated non-Pipeline scrapers (Behatsdaa, Beyahad Bishvilha), and
+that path is closed to new work. Remove them, or see
 https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/
 ```
 
