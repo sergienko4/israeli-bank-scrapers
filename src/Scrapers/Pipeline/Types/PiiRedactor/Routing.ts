@@ -10,6 +10,7 @@
  * Spec: pipeline-decoupling-master-2026-05-28 / phase-6 / spec.txt §3.
  */
 
+import BANK_PATH_TAIL_TO_CATEGORY from './RoutingBankKeys.js';
 import type { PiiCategory, PiiClassifierBool } from './Types.js';
 
 /** Path-tail key → PiiCategory routing table (Partial, missing keys → undefined). */
@@ -73,6 +74,7 @@ export const PATH_TAIL_TO_CATEGORY: Readonly<Partial<Record<string, PiiCategory>
   cookie: 'cookie',
   setCookie: 'cookie',
   otpCode: 'otp',
+  ...BANK_PATH_TAIL_TO_CATEGORY,
 };
 
 /** Path-tail suffix list matched by {@link isTokenSuffix} (lowercase). */
