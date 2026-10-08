@@ -76,7 +76,7 @@ The summary at the end names every failing gate. Detail logs are written to `.pr
 | `audit` | Supply-chain hygiene — fails on known CVEs in dependencies |
 | `architecture` + `canaries` + `lint:phases:strict` + `dead-code` + `cycles` | Architectural invariants — fails when a PR reaches across a layer boundary, breaks a canary fixture, leaves a dead export, or adds an import cycle |
 | `guideline-coverage` | Process invariant — fails when `eslint.config.mjs` drifts from CLEAN_CODE.md canonical caps |
-| `fixtures-pii` + `pii-staged` | Privacy — fails when captured fixtures or staged files carry real account data, live session or anti-forgery tokens, last-login stamps, or a client IP embedded in a bot-manager token |
+| `fixtures-pii` + `pii-staged` | Privacy — fails when captured fixtures or staged files carry real account data, live session or anti-forgery tokens, last-login stamps, or a client IP (plain, or embedded in a bot-manager token) |
 | `test-duplication` + `bank-coverage` + `node-support` | Suite health — duplicate test bodies, uncovered banks, unsupported Node syntax |
 | `docs-strict` + `docs-staleness` | Docs build correctness and freshness |
 | `docs-coverage` | Docs/code consistency — fails when a new `src/Scrapers/Pipeline/` export ships without a `docs/` mention or allowlist entry |

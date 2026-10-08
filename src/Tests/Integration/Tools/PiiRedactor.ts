@@ -147,13 +147,27 @@ const OPERATOR_ACCOUNT_ESC = escapeRegexLiteral(SECRETS.operatorAccountLiteral);
 /** Escaped form of the operator's Hebrew surname literal. */
 const HE_SURNAME_ESC = escapeRegexLiteral(SECRETS.hebrewSurnameLiteral);
 
-/** Transliterated Hebrew money keys (Mizrahi `YitraAdkanit`, `itra`,
- *  `MC02SchumEZ`, `Remain`, `misgeret`) — balances, amounts, credit line. */
-const TRANSLIT_MONEY_KEYS = String.raw`\w*[Yy]itra\w*|[Ii]tra\w*|\w*[Ss]chum\w*|Remain|[Mm]isgeret\w*`;
+/** The exact transliterated Hebrew money keys Mizrahi returns: balances
+ *  (`Yitra*`, `itra*`, `Remain`), amounts (`schum1`-`3`, `MC0xSchum*EZ`) and
+ *  credit lines (`misgeret*`). Their `*Date`, `*Hour` and `*Specified`
+ *  siblings are not money, so no wildcard is used. */
+const TRANSLIT_MONEY_KEYS = String.raw`Yitra(?:Adkanit(?:LeloChekim)?|LeloChekim|Pahak)?|itra(?:Lelo_shekim)?|[Mm]isgeret(?:_kolel|_zmani|Peiloot)?|schum[1-3]|Remain|MC\d{2}(?:Ofi)?(?:Schum\d?|Yitra)EZ`;
 /** A JSON key from {@link TRANSLIT_MONEY_KEYS} up to its value (quotes may be NDJSON-escaped). */
 const TRANSLIT_MONEY_KEY_PREFIX = String.raw`"(?:${TRANSLIT_MONEY_KEYS})\\?"\s*:\s*`;
-/** The `<uuid>$<IPv4>` payload inside a Radware bot-manager token, once base64-decoded. */
-const DECODED_EMBEDDED_IP = /\$(?:\d{1,3}\.){3}\d{1,3}/;
+/** One IPv4 octet, 0-255. */
+const IPV4_OCTET = String.raw`(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)`;
+/** A dotted IPv4 address whose every octet is in range. */
+const IPV4 = String.raw`${IPV4_OCTET}(?:\.${IPV4_OCTET}){3}`;
+/** The whole base64-decoded Radware bot token: `<uuid>$<IPv4>`. Radware's
+ *  UUID is not strict hex, so its groups accept any letter. */
+const DECODED_EMBEDDED_IP = new RegExp(
+  String.raw`^[\da-z]{8}(?:-[\da-z]{4}){3}-[\da-z]{12}\$${IPV4}$`,
+  'i',
+);
+/** The Mizrahi attribute that marks an element as a rendered amount. */
+const SKY_CURRENCY_ATTR = String.raw`\ssky-(?:on-)?currency`;
+/** A plain rendered amount (`-120.5`, `1,234`). */
+const PLAIN_AMOUNT = String.raw`-?\d[\d,]*(?:\.\d+)?`;
 /** The all-zero GUID that stands in for a redacted server GUID. */
 const ZERO_GUID = '00000000-0000-0000-0000-000000000000';
 
@@ -162,7 +176,7 @@ const ZERO_GUID = '00000000-0000-0000-0000-000000000000';
  * (Radware's `__uzdbm_*` bot token is `base64(<uuid>$<IPv4>)`).
  *
  * @param b64 - Candidate base64 run.
- * @returns True when the decoded bytes hold `$<IPv4>`.
+ * @returns True when the decoded bytes are exactly `<uuid>$<IPv4>`.
  */
 function decodesToEmbeddedIp(b64: string): boolean {
   const decoded = Buffer.from(b64, 'base64').toString('latin1');
@@ -181,16 +195,24 @@ const PII_PATTERNS = {
   bearerToken: /(Bearer\s+)[\w.~+/=-]{20,}/g,
   jwtToken: /\beyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}\b/g,
   /** Radware bot-manager token whose base64 payload embeds the client's
-   *  IPv4 (`__uzdbm_2 = '<base64(uuid$ip)>'`). Runs before the digit
-   *  patterns so no 9-digit rule shreds the base64 first. */
-  base64EmbeddedIp: /[a-z0-9+/]{40,}={0,2}/gi,
+   *  IPv4 (`__uzdbm_2 = '<base64(uuid$ip)>'`). Only a whole run of the
+   *  token's encoded length is decoded, so long assets are never touched.
+   *  Runs before the digit patterns so no 9-digit rule shreds it first. */
+  base64EmbeddedIp: /(?<![\da-z+/])[\da-z+/]{56,76}={0,2}(?![\da-z+/=])/gi,
+  /** IPv4 in a client-address field (`var client_ip = '<ip>'`,
+   *  `"clientIp": "<ip>"`, `x-forwarded-for`). */
+  clientIpField: new RegExp(
+    String.raw`(?<=\b(?:client_?ip|remote_?addr|ip_?address|user_?ip|x-forwarded-for|x-real-ip)\\?["']?\s*[:=]\s*\\?["'])${IPV4}(?=\\?["'])`,
+    'gi',
+  ),
   /** Radware per-session UUID (`var __uzdbm_1 = '<uuid>'`) that links the
    *  pre- and post-login pages of one capture. */
   radwareSessionUuid:
     /(?<=var __uzdbm_\d+\s*=\s*')[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?=')/gi,
-  /** ASP.NET anti-forgery token in a hidden input, in either attribute order. */
+  /** ASP.NET anti-forgery token in a hidden input, in either attribute
+   *  order, with single, double or NDJSON-escaped quotes. */
   requestVerificationToken:
-    /(?<=name="__RequestVerificationToken"[^>]*?value=")[^"]+(?=")|(?<=value=")[^"]+(?="[^>]*?name="__RequestVerificationToken")/g,
+    /(?<=name=\\?["']__RequestVerificationToken\\?["'][^>]*?value=\\?["'])[^"'\\]+(?=\\?["'])|(?<=value=\\?["'])[^"'\\]+(?=\\?["'][^>]*?name=\\?["']__RequestVerificationToken\\?["'])/gi,
   /** JSON `<prefix>Token` string fields (`xsrfToken`) holding a live value
    *  of 12+ chars. Already-redacted values and the corpus's synthetic
    *  `FIXTURE`/`SYNTHETIC` placeholders are left alone. */
@@ -262,8 +284,13 @@ const PII_PATTERNS = {
   mizNumericText: /(?<=miz-numeric-[\w-]+="[^"]*"[^>]*>\s*\u202A?)-?\d[\d,]*(?:\.\d+)?/g,
   /** Mizrahi rendered amount attributes (`miz-numeric-colorup="150"`). */
   mizNumericAttr: /(?<=\smiz-numeric-[\w-]+=")-?\d[\d,]*(?:\.\d+)?(?=")/g,
-  /** Rendered `currency="<amount>"` attribute (not the `vm.currency` binding). */
-  currencyAmountAttr: /(?<=\scurrency=")-?\d[\d,]*(?:\.\d+)?(?=")/g,
+  /** Mizrahi rendered `currency="<amount>"` attribute, only on the element
+   *  that also carries `sky-currency` or `sky-on-currency-change`, before
+   *  or after it (one linear alternative per order). */
+  currencyAmountAttr: new RegExp(
+    String.raw`(?<=${SKY_CURRENCY_ATTR}[^>]*\scurrency=")${PLAIN_AMOUNT}(?=")|(?<=\scurrency=")${PLAIN_AMOUNT}(?="[^>]*${SKY_CURRENCY_ATTR})`,
+    'g',
+  ),
   /** Mizrahi rendered transaction reference (the `MC02AsmEZ` table cell). */
   mizrahiReferenceCell: /(?<=isCloseToZero\(dataItem\.MC\d{2}AsmEZ\)"[^>]*>\s*)\d+/g,
   jsonMonetaryField:
@@ -336,6 +363,7 @@ const PII_REPLACEMENTS: Readonly<Record<keyof typeof PII_PATTERNS, PiiReplacemen
    */
   base64EmbeddedIp: (match: string): string =>
     decodesToEmbeddedIp(match) ? 'REDACTED_BOT_TOKEN' : match,
+  clientIpField: '0.0.0.0',
   radwareSessionUuid: ZERO_GUID,
   requestVerificationToken: 'REDACTED_REQUEST_VERIFICATION_TOKEN',
   jsonTokenField: '[redacted-token]',
