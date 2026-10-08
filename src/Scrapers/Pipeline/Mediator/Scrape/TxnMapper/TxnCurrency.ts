@@ -50,14 +50,18 @@ function matchUsableCurrency(record: ApiRecord): ScalarFieldHit {
 
 /**
  * Find a usable currency in the nested records once the root has none.
+ *
+ * <p>Index 0 of the flattened tree is the root, which the caller has
+ * already matched, so it is skipped; the search stops at the first
+ * record that yields a usable hit.
  * @param raw - Raw API record.
  * @returns First non-blank currency hit, or false when none exists.
  */
 function findInNestedRecords(raw: ApiRecord): ScalarFieldHit {
-  const records = flattenObjectTree(raw);
-  const hits = records.map(matchUsableCurrency);
-  const hit = hits.find((h): boolean => h !== false);
-  return hit ?? false;
+  const nested = flattenObjectTree(raw).slice(1);
+  const record = nested.find((r): boolean => matchUsableCurrency(r) !== false);
+  if (record === undefined) return false;
+  return matchUsableCurrency(record);
 }
 
 /**
