@@ -4,9 +4,12 @@
  *
  * The invariant: the gate flags every raw value the redactor rewrites, with
  * the rule that mirrors it, and passes the redacted output; it never flags a
- * look-alike the redactor leaves alone. When either side drifts, this suite
- * fails, so the gate can't stay red on text the redactor won't touch, or
- * pass PII the redactor would have caught.
+ * look-alike the redactor leaves alone. Both sides share one zero policy: a
+ * value with no non-zero digit is not personal data, so the redactor keeps
+ * it and the gate passes it. The one deliberate asymmetry is pinned in
+ * CONTEXT_EXEMPT_CASES. When either side drifts, this suite fails, so the
+ * gate can't stay red on text the redactor won't touch, or pass PII the
+ * redactor would have caught.
  */
 
 import { type AuditHit, auditText, RULE_IDS } from '../../../../../scripts/audit-fixtures-pii.cjs';
@@ -20,12 +23,35 @@ import {
   NEGATIVE_CASES as BANK_NEGATIVE,
   POSITIVE_CASES as BANK_POSITIVE,
 } from './PiiBankShapeCases.js';
-import { CORE_NEGATIVE_CASES, CORE_POSITIVE_CASES } from './PiiCoreShapeCases.js';
+import {
+  CONTEXT_EXEMPT_CASES,
+  CORE_NEGATIVE_CASES,
+  CORE_POSITIVE_CASES,
+} from './PiiCoreShapeCases.js';
 
 /** Every exact-output row. */
 const POSITIVE_CASES = [...BANK_POSITIVE, ...CORE_POSITIVE_CASES];
 /** Every look-alike row. */
 const NEGATIVE_CASES = [...BANK_NEGATIVE, ...CORE_NEGATIVE_CASES];
+
+/** A rule and a text, without an expected output. */
+interface IRuleText {
+  readonly key: PiiPatternKey;
+  readonly input: string;
+}
+
+/**
+ * A positive row with every non-zero digit turned to `0`.
+ *
+ * @param row - A positive row.
+ * @returns The same rule over the all-zero text.
+ */
+function zeroed(row: IRuleText): IRuleText {
+  return { key: row.key, input: row.input.replace(/[1-9]/g, '0') };
+}
+
+/** Every positive row with a non-zero digit, zeroed. */
+const ZEROED_CASES = POSITIVE_CASES.filter(row => /[1-9]/.test(row.input)).map(zeroed);
 
 /** The gate rule that mirrors each redactor rule the shared cases pin. */
 const GATE_RULE_FOR: Partial<Record<PiiPatternKey, string>> = {
@@ -152,6 +178,18 @@ function isCovered(hits: readonly AuditHit[], span: RegExpExecArray): boolean {
 }
 
 /**
+ * Every raw span a redactor rule rewrites in a text.
+ *
+ * @param key - Redactor rule.
+ * @param text - Fixture-shaped text.
+ * @returns The matches the rule changes.
+ */
+function rewrittenSpans(key: PiiPatternKey, text: string): RegExpExecArray[] {
+  const spans = [...text.matchAll(PII_PATTERNS[key])];
+  return spans.filter(span => rewritesAt(key, text, span.index));
+}
+
+/**
  * Start offsets of every raw span a redactor rule rewrites that no gate hit
  * of its mirror rule overlaps, so a gate that flags only one of several raw
  * values in a text still fails.
@@ -162,9 +200,7 @@ function isCovered(hits: readonly AuditHit[], span: RegExpExecArray): boolean {
  */
 function unflaggedSpans(key: PiiPatternKey, text: string): number[] {
   const hits = auditText(text).filter(hit => hit.pat.id === GATE_RULE_FOR[key]);
-  const spans = [...text.matchAll(PII_PATTERNS[key])];
-  const raw = spans.filter(span => rewritesAt(key, text, span.index));
-  const missed = raw.filter(span => !isCovered(hits, span));
+  const missed = rewrittenSpans(key, text).filter(span => !isCovered(hits, span));
   return missed.map(span => span.index);
 }
 
@@ -202,9 +238,31 @@ describe('fixtures-pii gate parity with PiiRedactor', () => {
     expect(fired).toContain(mirror);
   });
 
+  it.each(POSITIVE_CASES)('rewrites at least one raw $key value', row => {
+    const rewritten = rewrittenSpans(row.key, row.input);
+    expect(rewritten.length).toBeGreaterThan(0);
+  });
+
   it.each(POSITIVE_CASES)('flags every raw $key value the redactor rewrites', row => {
     const missed = unflaggedSpans(row.key, row.input);
     expect(missed).toEqual([]);
+  });
+
+  it.each(ZEROED_CASES)('flags every raw $key value in a zeroed shape', row => {
+    const missed = unflaggedSpans(row.key, row.input);
+    expect(missed).toEqual([]);
+  });
+
+  it.each(ZEROED_CASES)('passes the redacted zeroed $key shape', row => {
+    const redacted = redactPii(row.input);
+    const fired = failingRules(redacted);
+    expect(fired).toEqual([]);
+  });
+
+  it.each(CONTEXT_EXEMPT_CASES)('rewrites a $reason the gate exempts ($key)', row => {
+    const rewritten = rewrittenSpans(row.key, row.input).length;
+    const fired = failingRules(row.input);
+    expect({ rewritten: rewritten > 0, fired }).toEqual({ rewritten: true, fired: [] });
   });
 
   it.each(POSITIVE_CASES)('passes the redacted $key shape', row => {

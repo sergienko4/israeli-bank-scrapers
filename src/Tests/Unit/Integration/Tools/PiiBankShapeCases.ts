@@ -70,6 +70,21 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     expected: '{"x-forwarded-for":"0.0.0.0, 0.0.0.0"}',
   },
   {
+    key: 'clientIpField',
+    input: 'X-Forwarded-For: unknown, 203.0.113.5',
+    expected: 'X-Forwarded-For: unknown, 0.0.0.0',
+  },
+  {
+    key: 'clientIpField',
+    input: 'X-Forwarded-For: 2001:db8::1, 203.0.113.5',
+    expected: 'X-Forwarded-For: ::, 0.0.0.0',
+  },
+  {
+    key: 'clientIpField',
+    input: '{"clientIp":"::ffff:192.0.2.10"}',
+    expected: '{"clientIp":"::"}',
+  },
+  {
     key: 'radwareSessionUuid',
     input: `var __uzdbm_1 = '${SESSION_UUID}';`,
     expected: `var __uzdbm_1 = '${ZERO_GUID}';`,
@@ -114,6 +129,16 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     input: 'Set-Cookie: xauth=[redacted-cookie]; session=abc123live; token=def456live',
     expected:
       'Set-Cookie: xauth=[redacted-cookie]; session=[redacted-cookie]; token=[redacted-cookie]',
+  },
+  {
+    key: 'cookieAuthValue',
+    input: 'Set-Cookie: session="abc123live"; Path=/',
+    expected: 'Set-Cookie: session="[redacted-cookie]"; Path=/',
+  },
+  {
+    key: 'cookieAuthValue',
+    input: String.raw`{"h":"Set-Cookie: session=\"abc123live\"; token=\"def456live\""}`,
+    expected: String.raw`{"h":"Set-Cookie: session=\"[redacted-cookie]\"; token=\"[redacted-cookie]\""}`,
   },
   {
     key: 'jsonTokenField',
@@ -293,6 +318,7 @@ export const NEGATIVE_CASES: readonly IShapeCase[] = [
   unchanged('clientIpField', "var app_version = '1.20.30.4';"),
   unchanged('clientIpField', '{"client_ip":"300.1.2.3"}'),
   unchanged('clientIpField', 'X-Forwarded-Port: 443, 8443'),
+  unchanged('clientIpField', '{"client_ip":"unknown"}'),
   unchanged('radwareSessionUuid', `var other = '${SESSION_UUID}';`),
   unchanged('requestVerificationToken', '<input name="query" value="CfDJ8abc">'),
   unchanged(
@@ -301,6 +327,7 @@ export const NEGATIVE_CASES: readonly IShapeCase[] = [
   ),
   unchanged('cookieAuthValue', 'cookie: theme=dark; lang=he'),
   unchanged('cookieAuthValue', 'cookie: authorized=1; sessions_seen=2'),
+  unchanged('cookieAuthValue', 'Set-Cookie: session=""; Path=/'),
   unchanged('jsonTokenField', '{"token":"a1b2c3d4e5f6a7b8","xsrfToken":"short"}'),
   unchanged(
     'jsonTokenField',
@@ -317,6 +344,8 @@ export const NEGATIVE_CASES: readonly IShapeCase[] = [
   unchanged('roleEmbeddedAccount', '{"Role": "AC_FUNDS_ACTIVITY", "Alt": "AC_1234_VIEW"}'),
   unchanged('mizNumericText', '<span class="amt">\u202A120.00</span>'),
   unchanged('mizNumericAttr', '<span miz-numeric-colorup="1.2.3"></span>'),
+  unchanged('mizNumericAttr', '<span miz-numeric-colorup="-0.00"></span>'),
+  unchanged('mizrahiReferenceCell', '<td ng-class="isCloseToZero(dataItem.MC02AsmEZ)">0</td>'),
   unchanged('mizrahiReferenceCell', '<td ng-class="isCloseToZero(dataItem.MC02AsmEZDate)"> 7</td>'),
   unchanged('jsonMizrahiReference', '{"MC02AsmEZSpecified": true, "MC02Asm": 4321}'),
   unchanged('branchBeforeRedactedAccount', '{"Code":"1234-[redacted-account]"}'),

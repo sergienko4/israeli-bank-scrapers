@@ -158,6 +158,12 @@ const TRANSLIT_MONEY_KEY_PREFIX = String.raw`"(?:${TRANSLIT_MONEY_KEYS})\\?"\s*:
 const IPV4_OCTET = String.raw`(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)`;
 /** A dotted IPv4 address whose every octet is in range. */
 const IPV4 = String.raw`${IPV4_OCTET}(?:\.${IPV4_OCTET}){3}`;
+/** An IPv6 address, IPv4-mapped tail included (`2001:db8::1`,
+ *  `::ffff:192.0.2.1`); each group ends at its colon, so it is linear. */
+const IPV6 = String.raw`(?:[\da-f]{0,4}:){2,8}[\da-f.]*`;
+/** One earlier hop of a comma-separated address chain, whatever its form
+ *  (`unknown`, IPv6, IPv4), up to and including its comma. */
+const ADDRESS_HOP = String.raw`[^,\s"'\\]+\s*,\s*`;
 /** The whole base64-decoded Radware bot token: `<uuid>$<IPv4>`. Radware's
  *  UUID is not strict hex, so its groups accept any letter. */
 const DECODED_EMBEDDED_IP = new RegExp(
@@ -189,6 +195,30 @@ function decodesToEmbeddedIp(b64: string): boolean {
   return DECODED_EMBEDDED_IP.test(decoded);
 }
 
+/**
+ * Whether a matched value has no non-zero digit (`0`, `-0.00`, `0,000`,
+ * `000000000`, `00-000-0000`). Zero is the same for every customer, so it
+ * is not personal data, and the gate exempts it too.
+ *
+ * @param value - Matched value.
+ * @returns True when every digit in it is zero.
+ */
+function isZeroValue(value: string): boolean {
+  return !/[1-9]/.test(value);
+}
+
+/**
+ * Replacement that keeps an all-zero value as recorded and swaps any other
+ * value for the placeholder, so the redactor and the gate's zero exemption
+ * agree on what is personal data.
+ *
+ * @param placeholder - Replacement for a non-zero value.
+ * @returns Replacement function.
+ */
+function keepZero(placeholder: string): PiiReplacement {
+  return (match: string): string => (isZeroValue(match) ? match : placeholder);
+}
+
 /** Replacement string OR replacement function (for patterns whose
  * substitution depends on captured groups in non-trivial ways). */
 type PiiReplacement = string | ((match: string, ...groups: string[]) => string);
@@ -205,11 +235,12 @@ const PII_PATTERNS = {
    *  token's encoded length is decoded, so long assets are never touched.
    *  Runs before the digit patterns so no 9-digit rule shreds it first. */
   base64EmbeddedIp: /(?<![\da-z+/])[\da-z+/]{56,76}={0,2}(?![\da-z+/=])/gi,
-  /** Every IPv4 in a client-address field, quoted or not, including each
-   *  hop of a comma-separated chain (`var client_ip = '<ip>'`,
-   *  `"clientIp": "<ip>"`, `X-Forwarded-For: <ip>, <ip>`). */
+  /** Every IPv4 or IPv6 address in a client-address field, quoted or not,
+   *  including each hop of a comma-separated chain whatever the earlier
+   *  hops hold (`var client_ip = '<ip>'`, `"clientIp": "<ip>"`,
+   *  `X-Forwarded-For: unknown, <ip>`). */
   clientIpField: new RegExp(
-    String.raw`(?<=\b(?:client_?ip|remote_?addr|ip_?address|user_?ip|x-forwarded-for|x-real-ip)\\?["']?\s*[:=]\s*\\?["']?(?:${IPV4}\s*,\s*)*)${IPV4}(?![\d.])`,
+    String.raw`(?<=\b(?:client_?ip|remote_?addr|ip_?address|user_?ip|x-forwarded-for|x-real-ip)\\?["']?\s*[:=]\s*\\?["']?(?:${ADDRESS_HOP})*)(?:${IPV4}(?![\d.])|${IPV6}(?![\w.:]))`,
     'gi',
   ),
   /** Radware per-session UUID (`var __uzdbm_1 = '<uuid>'`) that links the
@@ -231,8 +262,10 @@ const PII_PATTERNS = {
   jsonActionGuid:
     /(?<="actionGUID\\?"\s*:\s*\\?")[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
   /** Every `*auth=`, `*token=` or `*session=` value on a cookie line, not
-   *  only the first one. */
-  cookieAuthValue: /(?<=(?:Set-Cookie|cookie)[^\n]*?(?:auth|token|session)=)[^;\s"]+/gi,
+   *  only the first one, bare or inside plain or NDJSON-escaped quotes
+   *  (`session="<v>"`, `session=\"<v>\"`); the quotes are kept. */
+  cookieAuthValue:
+    /(?<=(?:Set-Cookie|cookie)[^\n]*?(?:auth|token|session)=(?:\\?")?)(?:[^;\s"\\]|\\(?!"))+/gi,
   /** Discount/Telebank session token in marketing-pixel query strings
    *  (`&LSESSIONID=<opaque>`). Must run BEFORE generic id/jwt patterns
    *  so the long token isn't shredded into smaller-pattern matches. */
@@ -340,7 +373,7 @@ const PII_PATTERNS = {
   hapoalimBranchAccount: /\b\d{3}[-\s]\d{6}\b/g,
   israeliId9: /\b\d{9}\b/g,
   israeliPhone: /\b05\d[-\s]?\d{7}\b/g,
-  israeliLandline: /\b0[2-589][-\s]?\d{7}\b/g,
+  israeliLandline: /\b0[2-489][-\s]?\d{7}\b/g,
   email: /[\w.+-]+@[\w-]+\.[\w.-]+/g,
   ilsAmount: /(₪|NIS|ILS|ש"ח|ש״ח)\s*[-+]?\d[\d,]*(?:\.\d+)?/g,
   ilsAmountSuffix: /-?\d[\d,]*(?:\.\d+)?\s*(₪|NIS|ILS|ש"ח|ש״ח)/g,
@@ -376,7 +409,14 @@ const PII_REPLACEMENTS: Readonly<Record<keyof typeof PII_PATTERNS, PiiReplacemen
    */
   base64EmbeddedIp: (match: string): string =>
     decodesToEmbeddedIp(match) ? 'REDACTED_BOT_TOKEN' : match,
-  clientIpField: '0.0.0.0',
+  /**
+   * Function replacement: an IPv6 address becomes `::`, an IPv4 one
+   * `0.0.0.0`, so each hop keeps its address family.
+   *
+   * @param ip - The matched address.
+   * @returns The all-zero address of the same family.
+   */
+  clientIpField: (ip: string): string => (ip.includes(':') ? '::' : '0.0.0.0'),
   radwareSessionUuid: ZERO_GUID,
   requestVerificationToken: 'REDACTED_REQUEST_VERIFICATION_TOKEN',
   jsonTokenField: '[redacted-token]',
@@ -397,10 +437,10 @@ const PII_REPLACEMENTS: Readonly<Record<keyof typeof PII_PATTERNS, PiiReplacemen
   hebrewLastLoginLabel: '$1[redacted-last-login]',
   jsonLastLoginField: '[redacted-last-login]',
   numericBalanceSpan: '$1[redacted-amount]',
-  mizNumericText: '[redacted-amount]',
-  mizNumericAttr: '0',
-  currencyAmountAttr: '0',
-  mizrahiReferenceCell: '[redacted-id]',
+  mizNumericText: keepZero('[redacted-amount]'),
+  mizNumericAttr: keepZero('0'),
+  currencyAmountAttr: keepZero('0'),
+  mizrahiReferenceCell: keepZero('[redacted-id]'),
   /**
    * Function replacement: capture group 1 is the JSON field name + `": "`,
    * we replace the captured raw number with the sentinel `0` so committed
@@ -414,21 +454,25 @@ const PII_REPLACEMENTS: Readonly<Record<keyof typeof PII_PATTERNS, PiiReplacemen
   /**
    * Function replacement for `jsonAccountNumberField`: capture group 1
    * is the field name + colon + whitespace; we substitute sentinel `0`
-   * so the surrounding JSON remains parseable.
+   * so the surrounding JSON remains parseable. An all-zero value is kept,
+   * per the shared zero policy.
    *
-   * @param _match - Full match including the redactable numeric value.
+   * @param match - Full match including the redactable numeric value.
    * @param prefix - Captured `"accountNumber": ` (or escaped variant).
-   * @returns Prefix followed by zero sentinel.
+   * @returns The match when its value is zero, else prefix + zero sentinel.
    */
-  jsonAccountNumberField: (_match: string, prefix: string): string => `${prefix}0`,
-  jsonTranslitMoneyNumber: '0',
-  jsonTranslitMoneyString: '0',
-  jsonMizrahiReference: '0',
+  jsonAccountNumberField: (match: string, prefix: string): string => {
+    const value = match.slice(prefix.length);
+    return isZeroValue(value) ? match : `${prefix}0`;
+  },
+  jsonTranslitMoneyNumber: keepZero('0'),
+  jsonTranslitMoneyString: keepZero('0'),
+  jsonMizrahiReference: keepZero('0'),
   jsonBranchField: '000',
   ilIban: '[redacted-iban]',
-  ilBankAccount: '[redacted-account]',
-  hapoalimBranchAccount: '[redacted-account]',
-  israeliId9: '[redacted-id]',
+  ilBankAccount: keepZero('[redacted-account]'),
+  hapoalimBranchAccount: keepZero('[redacted-account]'),
+  israeliId9: keepZero('[redacted-id]'),
   israeliPhone: '[redacted-phone]',
   israeliLandline: '[redacted-landline]',
   email: '[redacted-email]',

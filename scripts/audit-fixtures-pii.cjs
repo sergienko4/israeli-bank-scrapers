@@ -60,6 +60,11 @@ const TRANSLIT_MONEY_KEY_PREFIX = String.raw`"(?:${TRANSLIT_MONEY_KEYS})\\?"\s*:
 /** A dotted IPv4 address whose every octet is in range (0-255). */
 const IPV4_OCTET = String.raw`(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)`;
 const IPV4 = String.raw`${IPV4_OCTET}(?:\.${IPV4_OCTET}){3}`;
+/** Mirrors IPV6 / ADDRESS_HOP in PiiRedactor.ts. */
+const IPV6 = String.raw`(?:[\da-f]{0,4}:){2,8}[\da-f.]*`;
+const ADDRESS_HOP = String.raw`[^,\s"'\\]+\s*,\s*`;
+/** The exact all-zero addresses PiiRedactor.ts writes for a client IP. */
+const CLIENT_IP_PLACEHOLDERS = new Set(['0.0.0.0', '::']);
 /** The whole base64-decoded Radware bot token: `<uuid>$<IPv4>`. */
 const DECODED_EMBEDDED_IP = new RegExp(String.raw`^[\da-z]{8}(?:-[\da-z]{4}){3}-[\da-z]{12}\$${IPV4}$`, 'i');
 /** Mirrors SKY_CURRENCY_ATTR / PLAIN_AMOUNT in PiiRedactor.ts. */
@@ -72,9 +77,10 @@ const TOKEN_PLACEHOLDER_VALUES = String.raw`\[redacted-[a-z-]+\]|FIXTURE-MAX-SES
 /** The exact anti-forgery placeholder PiiRedactor.ts writes; only this
  *  value is exempt, never anything that merely starts with `REDACTED_`. */
 const RVT_PLACEHOLDER = 'REDACTED_REQUEST_VERIFICATION_TOKEN';
-/** Rules that capture only an amount or reference; a zero value is the
- *  redacted sentinel, so it is not a hit. Tested in JS rather than with
- *  overlapping quantifiers, which backtrack on long near-misses. */
+/** Rules whose whole match is a value; an all-zero value is not personal
+ *  data, and PiiRedactor.ts keeps it (`keepZero`), so it is not a hit.
+ *  Tested in JS rather than with overlapping quantifiers, which backtrack
+ *  on long near-misses. */
 const ZERO_VALUE_IDS = new Set([
   'json-translit-money',
   'miz-numeric-attr',
@@ -82,6 +88,9 @@ const ZERO_VALUE_IDS = new Set([
   'currency-amount-attr',
   'json-mizrahi-reference',
   'miz-reference-cell',
+  'il-bank-account',
+  'hapoalim-branch-account',
+  'israeli-id-9',
 ]);
 
 const PATTERNS = [
@@ -129,7 +138,7 @@ const PATTERNS = [
   // --- Tokens / secrets ---
   { id: 'bearer-token', re: /Bearer\s+[\w.~+/=-]{20,}/g, severity: 'CRITICAL', desc: 'Bearer auth token' },
   { id: 'jwt', re: /\beyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}\b/g, severity: 'CRITICAL', desc: 'JWT token' },
-  { id: 'cookie-auth', re: /(?<=(?:Set-Cookie|cookie)[^\n]*?(?:auth|token|session)=)[^;\s"]+/gi, severity: 'CRITICAL', desc: 'Cookie session/auth value' },
+  { id: 'cookie-auth', re: /(?<=(?:Set-Cookie|cookie)[^\n]*?(?:auth|token|session)=(?:\\?")?)(?:[^;\s"\\]|\\(?!"))+/gi, severity: 'CRITICAL', desc: 'Cookie session/auth value' },
   { id: 'recaptcha-token', re: /<input[^>]*id="recaptcha-token"[^>]*value="(?!REDACTED_RECAPTCHA_TOKEN")[^"]+"/gi, severity: 'HIGH', desc: 'Unredacted recaptcha token' },
   { id: 'lsessionid-token', re: /LSESSIONID=(?!REDACTED_SESSION_ID(?![^&"'\s>]))[^&"'\s>]+/g, severity: 'CRITICAL', desc: 'Telebank session token in URL (LSESSIONID=...)' },
   { id: 'tracking-id-param', re: /[?&;]ti=\d{6,}/g, severity: 'HIGH', desc: 'Google-ads tracking-conversion ID (&ti=NNN)' },
@@ -139,7 +148,7 @@ const PATTERNS = [
   { id: 'tel-link-redacted-id', re: /\btel:\[redacted-(?:id|landline|phone)\]/g, severity: 'HIGH', desc: 'Invalid tel: URI containing a redacted id or phone placeholder' },
   { id: 'prettier-corrupt-redacted-id', re: /\[redacted - id\]/g, severity: 'CRITICAL', desc: 'JS-breaking [redacted - id] (prettier-corrupted) — would throw ReferenceError' },
   { id: 'b64-embedded-ip', re: /(?<![\da-z+/])[\da-z+/]{56,76}={0,2}(?![\da-z+/=])/gi, severity: 'CRITICAL', desc: 'Base64 run decoding to <uuid>$<IPv4> (Radware bot token embeds the client IP)' },
-  { id: 'client-ip-field', re: new RegExp(String.raw`(?<=\b(?:client_?ip|remote_?addr|ip_?address|user_?ip|x-forwarded-for|x-real-ip)\\?["']?\s*[:=]\s*\\?["']?(?:${IPV4}\s*,\s*)*)${IPV4}(?![\d.])`, 'gi'), severity: 'CRITICAL', desc: 'IPv4 in a client-address field (client_ip, x-forwarded-for)' },
+  { id: 'client-ip-field', re: new RegExp(String.raw`(?<=\b(?:client_?ip|remote_?addr|ip_?address|user_?ip|x-forwarded-for|x-real-ip)\\?["']?\s*[:=]\s*\\?["']?(?:${ADDRESS_HOP})*)(?:${IPV4}(?![\d.])|${IPV6}(?![\w.:]))`, 'gi'), severity: 'CRITICAL', desc: 'IPv4 or IPv6 in a client-address field (client_ip, x-forwarded-for)' },
   { id: 'radware-session-uuid', re: /var __uzdbm_\d+\s*=\s*'(?!00000000-0000-0000-0000-000000000000')[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'/gi, severity: 'HIGH', desc: 'Radware per-session UUID (__uzdbm_N)' },
   { id: 'request-verification-token', re: /(?<=name=\\?["']__RequestVerificationToken\\?["'][^>]*?value=\\?["'])[^"'\\]+(?=\\?["'])|(?<=value=\\?["'])[^"'\\]+(?=\\?["'][^>]*?name=\\?["']__RequestVerificationToken\\?["'])/gi, severity: 'HIGH', desc: 'Unredacted ASP.NET anti-forgery token' },
   { id: 'json-token-field', re: new RegExp(String.raw`"\w+Token\\?"\s*:\s*\\?"(?!(?:${TOKEN_PLACEHOLDER_VALUES})\\?")[^"\\]{12,}(?=\\?")`, 'g'), severity: 'CRITICAL', desc: 'JSON <prefix>Token field with a live value (xsrfToken)' },
@@ -184,9 +193,10 @@ function decodesToEmbeddedIp(b64) {
   const decoded = Buffer.from(b64, 'base64').toString('latin1');
   return DECODED_EMBEDDED_IP.test(decoded);
 }
-/** True when a captured amount or reference is zero (`0`, `-0.00`, `0,000`). */
+/** True when a matched value has no non-zero digit (`0`, `-0.00`,
+ *  `000000000`, `00-000-0000`) — mirrors isZeroValue in PiiRedactor.ts. */
 function isZeroValue(value) {
-  return Number(value.replace(/,/g, '')) === 0;
+  return !/[1-9]/.test(value);
 }
 /** Return true when a hit is a known false positive that the operator
  *  has accepted (already-redacted placeholder, public tracking ID, etc).
@@ -208,14 +218,10 @@ function isFalsePositive(hit) {
   }
   if (hit.pat.id === 'israeli-id-9') {
     if (/googletagmanager|gtag\/js\?id=AW-|gtm\.js|google-analytics|googleadservices|AW-\d{9}|UA-\d{4,}|G-[A-Z0-9]{6,}/.test(ctx)) return true;
-    if (/^0{9}$/.test(hit.match)) return true;
     if (/doubleclick\.net|viewthroughconversion|tag_exp=|dc_random=|dc_fmt=|gtm_ee=|gtm_ndx=/i.test(ctx)) return true;
     if (/href="tel:|tel:0\d{8,}/i.test(ctx)) return true;
   }
   if (hit.pat.id === 'israeli-landline' && /href="tel:|tel:0\d{8,}/i.test(ctx)) return true;
-  if (hit.pat.id === 'il-bank-account') {
-    if (/^00-00-00/.test(hit.match) || /^000-000-/.test(hit.match)) return true;
-  }
   if (hit.pat.id === 'json-monetary-field') {
     if (/:\s*-?0(\.0+)?$/.test(hit.match)) return true;
   }
@@ -230,7 +236,7 @@ function isFalsePositive(hit) {
   if (ZERO_VALUE_IDS.has(hit.pat.id) && isZeroValue(hit.match)) return true;
   if (hit.pat.id === 'json-action-guid' && hit.match === ZERO_GUID) return true;
   if (hit.pat.id === 'request-verification-token' && hit.match === RVT_PLACEHOLDER) return true;
-  if (hit.pat.id === 'client-ip-field' && hit.match === '0.0.0.0') return true;
+  if (hit.pat.id === 'client-ip-field' && CLIENT_IP_PLACEHOLDERS.has(hit.match)) return true;
   return false;
 }
 /**

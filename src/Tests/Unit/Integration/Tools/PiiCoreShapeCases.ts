@@ -7,6 +7,7 @@
  * `fixtures-pii` audit gate parity suite. Every value is synthetic.
  */
 
+import type { PiiPatternKey } from '../../../Integration/Tools/PiiRedactor.js';
 import { type IShapeCase, unchanged } from './PiiBankShapeCases.js';
 
 /** A synthetic JWT: three base64url segments. */
@@ -104,6 +105,7 @@ export const CORE_POSITIVE_CASES: readonly IShapeCase[] = [
   },
   { key: 'ilIban', input: 'IBAN IL620108000000099999999', expected: 'IBAN [redacted-iban]' },
   { key: 'ilBankAccount', input: 'acct 12-345-678901', expected: 'acct [redacted-account]' },
+  { key: 'ilBankAccount', input: 'acct 000-000-1234567', expected: 'acct [redacted-account]' },
   {
     key: 'hapoalimBranchAccount',
     input: 'חשבון 612 345678',
@@ -143,15 +145,50 @@ export const CORE_NEGATIVE_CASES: readonly IShapeCase[] = [
   unchanged('numericBalanceSpan', '<span class="number-label">1,234.50</span>'),
   unchanged('jsonMonetaryField', '{"currentBalanceDate": 20261007}'),
   unchanged('jsonAccountNumberField', '{"accountNumberMask": 4567123}'),
+  unchanged('jsonAccountNumberField', '{"accountNumber": 0000000}'),
   unchanged('ilIban', 'ref IL62-0108'),
   unchanged('ilBankAccount', 'date 2026-10-07'),
+  unchanged('ilBankAccount', 'acct 00-000-000000'),
   unchanged('hapoalimBranchAccount', 'ref 612 34567'),
+  unchanged('hapoalimBranchAccount', 'ref 000-000000'),
   unchanged('israeliId9', 'ref 1234567890'),
+  unchanged('israeliId9', 'ID 000000000'),
   unchanged('israeliPhone', 'ext 054-12345'),
   unchanged('israeliLandline', 'ext 03-12345'),
+  unchanged('israeliLandline', 'ref 05-1234567'),
   unchanged('email', 'mail support at example.com'),
   unchanged('ilsAmount', 'שער ₪ —'),
   unchanged('ilsAmountSuffix', 'סכום 1,234.50 USD'),
   unchanged('telLinkRedactedHref', '<a href="mailto:[redacted-email]">[redacted-email]</a>'),
   unchanged('telLinkRedactedIdHref', '{"phone":"tel:[redacted-email]"}'),
+];
+
+/** A shape the redactor rewrites but the gate exempts by its context. */
+export interface IContextExemptCase {
+  readonly key: PiiPatternKey;
+  readonly input: string;
+  readonly reason: string;
+}
+
+/**
+ * The deliberate redactor/gate asymmetry: the redactor still rewrites these
+ * as a safety margin, while the gate exempts them by their surrounding
+ * context because they are a bank's public data, not a customer's.
+ */
+export const CONTEXT_EXEMPT_CASES: readonly IContextExemptCase[] = [
+  {
+    key: 'israeliId9',
+    input: '<script src="https://www.googletagmanager.com/gtag/js?id=AW-123456789"></script>',
+    reason: 'Google Ads conversion id',
+  },
+  {
+    key: 'israeliId9',
+    input: '<a href="tel:123456789">call</a>',
+    reason: 'published phone link',
+  },
+  {
+    key: 'israeliLandline',
+    input: '<a href="tel:031234567">03-1234567</a>',
+    reason: 'published phone link',
+  },
 ];
