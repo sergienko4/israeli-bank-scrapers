@@ -164,12 +164,18 @@ const DECODED_EMBEDDED_IP = new RegExp(
   String.raw`^[\da-z]{8}(?:-[\da-z]{4}){3}-[\da-z]{12}\$${IPV4}$`,
   'i',
 );
-/** The Mizrahi attribute that marks an element as a rendered amount. */
-const SKY_CURRENCY_ATTR = String.raw`\ssky-(?:on-)?currency`;
+/** The exact Mizrahi attribute names that mark an element as a rendered
+ *  amount; each use adds an attribute-name boundary after it. */
+const SKY_CURRENCY_ATTR = String.raw`\s(?:sky-currency|sky-on-currency-change)`;
 /** A plain rendered amount (`-120.5`, `1,234`). */
 const PLAIN_AMOUNT = String.raw`-?\d[\d,]*(?:\.\d+)?`;
 /** The all-zero GUID that stands in for a redacted server GUID. */
 const ZERO_GUID = '00000000-0000-0000-0000-000000000000';
+/** JSON keys whose string value is a person's name. */
+const PERSON_NAME_KEYS = String.raw`partyFullName|partyFirstName|partyLastName|partyMiddleName|customerName|customerFullName|customerFirstName|customerLastName|userName|userFullName|firstName|lastName|fullName|middleName|FirstName|LastName|BankerName`;
+/** Whole token values that are not secrets: any redactor placeholder, or
+ *  the corpus's one synthetic session token. */
+const TOKEN_PLACEHOLDER_VALUES = String.raw`\[redacted-[a-z-]+\]|FIXTURE-MAX-SESSION-A`;
 
 /**
  * Whether a base64 run decodes to a payload that carries an IPv4 address
@@ -214,10 +220,12 @@ const PII_PATTERNS = {
   requestVerificationToken:
     /(?<=name=\\?["']__RequestVerificationToken\\?["'][^>]*?value=\\?["'])[^"'\\]+(?=\\?["'])|(?<=value=\\?["'])[^"'\\]+(?=\\?["'][^>]*?name=\\?["']__RequestVerificationToken\\?["'])/gi,
   /** JSON `<prefix>Token` string fields (`xsrfToken`) holding a live value
-   *  of 12+ chars. The exact `[redacted-token]` placeholder and the corpus's
-   *  synthetic `REDACTED`/`FIXTURE`/`SYNTHETIC` values are left alone. */
-  jsonTokenField:
-    /(?<="\w+Token\\?"\s*:\s*\\?")(?!\[redacted-token\]\\?"|REDACTED|FIXTURE|SYNTHETIC)[^"\\]{12,}(?=\\?")/g,
+   *  of 12+ chars. Only a whole {@link TOKEN_PLACEHOLDER_VALUES} value is
+   *  left alone, never a value that merely starts like one. */
+  jsonTokenField: new RegExp(
+    String.raw`(?<="\w+Token\\?"\s*:\s*\\?")(?!(?:${TOKEN_PLACEHOLDER_VALUES})\\?")[^"\\]{12,}(?=\\?")`,
+    'g',
+  ),
   /** Mizrahi `get428Index` paging GUID — a server session handle. */
   jsonActionGuid:
     /(?<="actionGUID\\?"\s*:\s*\\?")[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
@@ -254,8 +262,10 @@ const PII_PATTERNS = {
   operatorAccountLiteral: new RegExp(`\\b${OPERATOR_ACCOUNT_ESC}\\b`, 'g'),
   urlPathAccountId:
     /(\/(?:gatewayAPI|portalserver|api|Titan|Lobby|apollo|retail|retail2|rb)(?:\/[A-Za-z][\w.-]*)+\/)\d{6,12}(?=[/?"]|\\"|$)/g,
-  jsonPersonNameField:
-    /(\\?"(?:partyFullName|partyFirstName|partyLastName|partyMiddleName|customerName|customerFullName|customerFirstName|customerLastName|userName|userFullName|firstName|lastName|fullName|middleName|FirstName|LastName|BankerName)\\?"\s*:\s*\\?")[^"\\]+(\\?")/g,
+  jsonPersonNameField: new RegExp(
+    String.raw`(\\?"(?:${PERSON_NAME_KEYS})\\?"\s*:\s*\\?")[^"\\]+(\\?")`,
+    'g',
+  ),
   /** Opaque per-user identifiers in JSON string fields (Mizrahi `logon`
    *  and `LoginUser`: `UserId`, `UserIdentifier`, `ClientGWIdentifier`,
    *  `anonymousID`). `\\?"` tolerates NDJSON-escaped quotes. */
@@ -288,7 +298,7 @@ const PII_PATTERNS = {
    *  that also carries `sky-currency` or `sky-on-currency-change`, before
    *  or after it (one linear alternative per order). */
   currencyAmountAttr: new RegExp(
-    String.raw`(?<=${SKY_CURRENCY_ATTR}[^>]*\scurrency=")${PLAIN_AMOUNT}(?=")|(?<=\scurrency=")${PLAIN_AMOUNT}(?="[^>]*${SKY_CURRENCY_ATTR})`,
+    String.raw`(?<=${SKY_CURRENCY_ATTR}(?=[\s=/])[^>]*\scurrency=")${PLAIN_AMOUNT}(?=")|(?<=\scurrency=")${PLAIN_AMOUNT}(?="[^>]*${SKY_CURRENCY_ATTR}[\s=>/])`,
     'g',
   ),
   /** Mizrahi rendered transaction reference (the `MC02AsmEZ` table cell). */

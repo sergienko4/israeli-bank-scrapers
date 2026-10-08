@@ -33,7 +33,7 @@ const GATE_RULE_FOR: Partial<Record<PiiPatternKey, string>> = {
   jsonMizrahiReference: 'json-mizrahi-reference',
   jsonBranchField: 'json-branch-field',
   branchBeforeRedactedAccount: 'branch-before-redacted-account',
-  jsonPersonNameField: 'json-pascal-person-name',
+  jsonPersonNameField: 'json-person-name-field',
   jsonOpaqueUserIdField: 'json-opaque-user-id',
   glassboxUserIdAttr: 'glassbox-user-id',
   roleEmbeddedAccount: 'role-embedded-account',

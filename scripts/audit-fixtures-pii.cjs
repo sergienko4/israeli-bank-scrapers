@@ -63,9 +63,12 @@ const IPV4 = String.raw`${IPV4_OCTET}(?:\.${IPV4_OCTET}){3}`;
 /** The whole base64-decoded Radware bot token: `<uuid>$<IPv4>`. */
 const DECODED_EMBEDDED_IP = new RegExp(String.raw`^[\da-z]{8}(?:-[\da-z]{4}){3}-[\da-z]{12}\$${IPV4}$`, 'i');
 /** Mirrors SKY_CURRENCY_ATTR / PLAIN_AMOUNT in PiiRedactor.ts. */
-const SKY_CURRENCY_ATTR = String.raw`\ssky-(?:on-)?currency`;
+const SKY_CURRENCY_ATTR = String.raw`\s(?:sky-currency|sky-on-currency-change)`;
 const PLAIN_AMOUNT = String.raw`-?\d[\d,]*(?:\.\d+)?`;
 const ZERO_GUID = '00000000-0000-0000-0000-000000000000';
+/** Mirrors PERSON_NAME_KEYS / TOKEN_PLACEHOLDER_VALUES in PiiRedactor.ts. */
+const PERSON_NAME_KEYS = String.raw`partyFullName|partyFirstName|partyLastName|partyMiddleName|customerName|customerFullName|customerFirstName|customerLastName|userName|userFullName|firstName|lastName|fullName|middleName|FirstName|LastName|BankerName`;
+const TOKEN_PLACEHOLDER_VALUES = String.raw`\[redacted-[a-z-]+\]|FIXTURE-MAX-SESSION-A`;
 /** The exact anti-forgery placeholder PiiRedactor.ts writes; only this
  *  value is exempt, never anything that merely starts with `REDACTED_`. */
 const RVT_PLACEHOLDER = 'REDACTED_REQUEST_VERIFICATION_TOKEN';
@@ -90,7 +93,7 @@ const PATTERNS = [
   { id: 'username-literal', re: new RegExp(`\\b(${alternation(SECRETS.operatorUsernames)})\\b`, 'g'), severity: 'CRITICAL', desc: 'Literal credential/username leaked' },
   { id: 'operator-account-literal', re: new RegExp(`\\b${escapeRegexLiteral(SECRETS.operatorAccountLiteral)}\\b`, 'g'), severity: 'CRITICAL', desc: 'Operator account number literal' },
   { id: 'bare-account-in-url', re: /(?:\/(?:gatewayAPI|portalserver|api|Titan|Lobby|apollo|retail|retail2|rb)(?:\/[A-Za-z][\w.-]*)+\/)\d{6,12}(?=\/|\?|$|"|\\")/g, severity: 'CRITICAL', desc: 'Bare account-id in REST URL path' },
-  { id: 'json-pascal-person-name', re: /\\?"(?:FirstName|LastName|BankerName)\\?"\s*:\s*\\?"(?!\[redacted-name\]\\?")[^"\\]+/g, severity: 'CRITICAL', desc: 'PascalCase JSON person-name field with raw value (Mizrahi logon)' },
+  { id: 'json-person-name-field', re: new RegExp(String.raw`\\?"(?:${PERSON_NAME_KEYS})\\?"\s*:\s*\\?"(?!\[redacted-name\]\\?")[^"\\]+`, 'g'), severity: 'CRITICAL', desc: 'JSON person-name field with raw value' },
   { id: 'json-opaque-user-id', re: /\\?"(?:UserId|Username|UserIdentifier|ClientGWIdentifier|anonymousID)\\?"\s*:\s*\\?"(?!\[redacted-user-id\]\\?")[^"\\]+/g, severity: 'CRITICAL', desc: 'JSON per-user identifier field with raw value' },
   { id: 'glassbox-user-id', re: /data[.-]glassbox-id="(?!\[redacted-user-id\]")[^"]+"/g, severity: 'CRITICAL', desc: 'Glassbox session-replay user id attribute' },
   { id: 'role-embedded-account', re: /\bAC_\d{5,}_/g, severity: 'CRITICAL', desc: 'Account number embedded in permission role (AC_<account>_...)' },
@@ -121,7 +124,7 @@ const PATTERNS = [
   { id: 'json-translit-money', re: new RegExp(String.raw`(?<=${TRANSLIT_MONEY_KEY_PREFIX})-?\d+(?:\.\d+)?(?![\d.])|(?<=${TRANSLIT_MONEY_KEY_PREFIX}\\?")-?\d+(?:\.\d+)?(?=\\?")`, 'g'), severity: 'HIGH', desc: 'Transliterated Hebrew money field (Yitra/itra/schum/Remain/misgeret) with a non-zero value' },
   { id: 'miz-numeric-attr', re: /(?<=\smiz-numeric-[\w-]+=")-?\d[\d,]*(?:\.\d+)?(?=")/g, severity: 'HIGH', desc: 'Mizrahi miz-numeric-* attribute holding a rendered amount' },
   { id: 'miz-numeric-text', re: /(?<=miz-numeric-[\w-]+="[^"]*"[^>]*>\s*\u202A?)-?\d[\d,]*(?:\.\d+)?/g, severity: 'HIGH', desc: 'Rendered amount text inside a miz-numeric-* element' },
-  { id: 'currency-amount-attr', re: new RegExp(String.raw`(?<=${SKY_CURRENCY_ATTR}[^>]*\scurrency=")${PLAIN_AMOUNT}(?=")|(?<=\scurrency=")${PLAIN_AMOUNT}(?="[^>]*${SKY_CURRENCY_ATTR})`, 'g'), severity: 'HIGH', desc: 'Rendered Mizrahi currency="<amount>" attribute' },
+  { id: 'currency-amount-attr', re: new RegExp(String.raw`(?<=${SKY_CURRENCY_ATTR}(?=[\s=/])[^>]*\scurrency=")${PLAIN_AMOUNT}(?=")|(?<=\scurrency=")${PLAIN_AMOUNT}(?="[^>]*${SKY_CURRENCY_ATTR}[\s=>/])`, 'g'), severity: 'HIGH', desc: 'Rendered Mizrahi currency="<amount>" attribute' },
 
   // --- Tokens / secrets ---
   { id: 'bearer-token', re: /Bearer\s+[\w.~+/=-]{20,}/g, severity: 'CRITICAL', desc: 'Bearer auth token' },
@@ -139,7 +142,7 @@ const PATTERNS = [
   { id: 'client-ip-field', re: new RegExp(String.raw`(?<=\b(?:client_?ip|remote_?addr|ip_?address|user_?ip|x-forwarded-for|x-real-ip)\\?["']?\s*[:=]\s*\\?["'])${IPV4}(?=\\?["'])`, 'gi'), severity: 'CRITICAL', desc: 'IPv4 in a client-address field (client_ip, x-forwarded-for)' },
   { id: 'radware-session-uuid', re: /var __uzdbm_\d+\s*=\s*'(?!00000000-0000-0000-0000-000000000000')[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'/gi, severity: 'HIGH', desc: 'Radware per-session UUID (__uzdbm_N)' },
   { id: 'request-verification-token', re: /(?<=name=\\?["']__RequestVerificationToken\\?["'][^>]*?value=\\?["'])[^"'\\]+(?=\\?["'])|(?<=value=\\?["'])[^"'\\]+(?=\\?["'][^>]*?name=\\?["']__RequestVerificationToken\\?["'])/gi, severity: 'HIGH', desc: 'Unredacted ASP.NET anti-forgery token' },
-  { id: 'json-token-field', re: /"\w+Token\\?"\s*:\s*\\?"(?!\[redacted-token\]\\?"|REDACTED|FIXTURE|SYNTHETIC)[^"\\]{12,}(?=\\?")/g, severity: 'CRITICAL', desc: 'JSON <prefix>Token field with a live value (xsrfToken)' },
+  { id: 'json-token-field', re: new RegExp(String.raw`"\w+Token\\?"\s*:\s*\\?"(?!(?:${TOKEN_PLACEHOLDER_VALUES})\\?")[^"\\]{12,}(?=\\?")`, 'g'), severity: 'CRITICAL', desc: 'JSON <prefix>Token field with a live value (xsrfToken)' },
   { id: 'json-action-guid', re: /(?<="actionGUID\\?"\s*:\s*\\?")[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, severity: 'HIGH', desc: 'Mizrahi paging GUID (server session handle)' },
 
   // --- Temporal personal info ---

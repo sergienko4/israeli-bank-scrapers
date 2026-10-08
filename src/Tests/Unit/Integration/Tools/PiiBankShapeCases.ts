@@ -115,6 +115,11 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     expected: '{"xsrfToken":"[redacted-token]"}',
   },
   {
+    key: 'jsonTokenField',
+    input: '{"xsrfToken":"FIXTURE-a1b2c3d4e5f6","csrfToken":"REDACTEDa1b2c3d4e5"}',
+    expected: '{"xsrfToken":"[redacted-token]","csrfToken":"[redacted-token]"}',
+  },
+  {
     key: 'jsonActionGuid',
     input: `{"actionGUID":"${SESSION_UUID}","isHasMoreRows":false}`,
     expected: `{"actionGUID":"${ZERO_GUID}","isHasMoreRows":false}`,
@@ -150,6 +155,16 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     key: 'jsonPersonNameField',
     input: '{"LastName": "[redacted-name] Levi"}',
     expected: '{"LastName": "[redacted-name]"}',
+  },
+  {
+    key: 'jsonPersonNameField',
+    input: '{"customerFullName": "Dana Levi", "firstName": "Dana"}',
+    expected: '{"customerFullName": "[redacted-name]", "firstName": "[redacted-name]"}',
+  },
+  {
+    key: 'jsonPersonNameField',
+    input: String.raw`{\"partyLastName\":\"Levi\"}`,
+    expected: String.raw`{\"partyLastName\":\"[redacted-name]\"}`,
   },
   {
     key: 'jsonOpaqueUserIdField',
@@ -256,7 +271,7 @@ export const NEGATIVE_CASES: readonly IShapeCase[] = [
   unchanged('jsonTokenField', '{"token":"a1b2c3d4e5f6a7b8","xsrfToken":"short"}'),
   unchanged(
     'jsonTokenField',
-    '{"sessionToken":"FIXTURE-MAX-SESSION-A","token2Token":"SYNTHETIC_PLACEHOLDER"}',
+    '{"sessionToken":"FIXTURE-MAX-SESSION-A","accessToken":"[redacted-jwt]"}',
   ),
   unchanged('jsonActionGuid', `{"requestGUID":"${SESSION_UUID}"}`),
   unchanged('jsonActionGuid', '{"actionGUID":"abcdef12-not-a-guid"}'),
@@ -273,6 +288,8 @@ export const NEGATIVE_CASES: readonly IShapeCase[] = [
   unchanged('branchBeforeRedactedAccount', '{"Code":"1234-[redacted-account]"}'),
   unchanged('currencyAmountAttr', '<miz-amount currency="vm.currency"></miz-amount>'),
   unchanged('currencyAmountAttr', '<div class="flag" currency="840"></div>'),
+  unchanged('currencyAmountAttr', '<div sky-currency-format="x" currency="840"></div>'),
+  unchanged('currencyAmountAttr', '<div currency="840" sky-on-currency-changed="x"></div>'),
   unchanged('jsonTranslitMoneyString', '{"YitraDate": "2026-10-07"}'),
   unchanged(
     'jsonTranslitMoneyString',
