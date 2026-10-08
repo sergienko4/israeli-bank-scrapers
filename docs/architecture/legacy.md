@@ -41,7 +41,7 @@ Everything **outside `src/Scrapers/Pipeline/`** except the **layer-5 shared infr
 
 ## Legacy-only scraper options
 
-`ScraperOptions` is one flat type shared by both paths, so the compiler accepts every field for every bank. Eight of them have no Pipeline implementation and no effect on a Pipeline bank. Six are read **only** by the legacy scrapers; two lost their only reader when the legacy Mizrahi scraper was removed:
+`ScraperOptions` is one flat type shared by both paths, so the compiler accepts every field for every bank. Eight of them have no Pipeline implementation and no effect on a Pipeline bank. Five are read **only** by the legacy scrapers; three have no reader at all. Two lost their only reader when the legacy Mizrahi scraper was removed, and no scraper passes `shouldCombineInstallments` to the instalment filter:
 
 | Option                            | Legacy reader                                          |
 | --------------------------------- | ------------------------------------------------------ |
@@ -50,7 +50,7 @@ Everything **outside `src/Scrapers/Pipeline/`** except the **layer-5 shared infr
 | `optInFeatures`                   | none (legacy Mizrahi removed)                          |
 | `outputData`                      | `BeyahadBishvilhaScraper` (date filtering)             |
 | `shouldAddTransactionInformation` | none (legacy Mizrahi removed)                          |
-| `shouldCombineInstallments`       | `src/Common/Transactions.ts`                           |
+| `shouldCombineInstallments`       | none (`filterOldTransactions` takes a resolved flag)   |
 | `skipCloseBrowser`                | `src/Scrapers/Base/BaseScraperWithBrowser.ts`          |
 | `storeFailureScreenShotPath`      | `src/Scrapers/Base/BaseScraperWithBrowser.ts`          |
 

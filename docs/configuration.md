@@ -65,7 +65,8 @@ process.on('warning', w => {
 
 ### Legacy-only options
 
-Read solely by the [Legacy (deprecated)](architecture/legacy.md) scrapers.
+Not implemented by the Pipeline. Five are read only by the
+[Legacy (deprecated)](architecture/legacy.md) scrapers; three have no reader.
 
 | Option | What it does on the legacy path |
 | --- | --- |
@@ -74,7 +75,7 @@ Read solely by the [Legacy (deprecated)](architecture/legacy.md) scrapers.
 | `optInFeatures` | No active reader since the legacy Mizrahi scraper was removed; ignored with `ScraperOptionsWarning` |
 | `outputData` | Suppresses date filtering (Beyahad Bishvilha only) |
 | `shouldAddTransactionInformation` | No active reader since the legacy Mizrahi scraper was removed; ignored with `ScraperOptionsWarning` |
-| `shouldCombineInstallments` | Merges instalment rows into one transaction |
+| `shouldCombineInstallments` | No active reader: no scraper passes it to the instalment filter; ignored with `ScraperOptionsWarning` |
 | `skipCloseBrowser` | Leaves an externally supplied browser open |
 | `storeFailureScreenShotPath` | Writes a screenshot when a scrape fails |
 

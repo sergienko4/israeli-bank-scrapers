@@ -3,7 +3,8 @@
  * option audible instead of silent.
  *
  * <p>`ScraperOptions` is one flat type shared by both scraper paths, but eight
- * of its fields are read only by the deprecated non-Pipeline scrapers. A
+ * of its fields have no Pipeline implementation: five are read only by the
+ * deprecated non-Pipeline scrapers, and three have no reader at all. A
  * caller who sets one for a Pipeline bank gets no error, no warning and no
  * effect — the defect reported in issue #540. This module detects that case so
  * the caller hears about it.
@@ -29,15 +30,16 @@ import type { ScraperOptions } from '../../Base/Interface.js';
  * not implement. Alphabetical, so the warning lists them in a stable order
  * regardless of caller insertion order.
  *
- * <p>Each entry is pinned to its legacy reader, or to "no reader" once that
- * scraper was removed; if a Pipeline implementation ever lands, delete the
+ * <p>Each entry is pinned to its legacy reader, or to "no reader" when nothing
+ * reads it; if a Pipeline implementation ever lands, delete the
  * entry here in the same change.
  * - `includeRawTransaction` — `Common/Transactions.ts` `getRawTransaction`
  * - `navigationRetryCount` — `Base/BaseScraperWithBrowser.ts`
  * - `optInFeatures` — no reader (legacy Mizrahi removed)
  * - `outputData` — `BeyahadBishvilha/BeyahadBishvilhaScraper.ts`
  * - `shouldAddTransactionInformation` — no reader (legacy Mizrahi removed)
- * - `shouldCombineInstallments` — `Common/Transactions.ts`
+ * - `shouldCombineInstallments` — no reader (`filterOldTransactions` takes a
+ *   resolved flag; Beyahad Bishvilha passes `false`)
  * - `skipCloseBrowser` — `Base/BaseScraperWithBrowser.ts`
  * - `storeFailureScreenShotPath` — `Base/BaseScraperWithBrowser.ts`
  */
