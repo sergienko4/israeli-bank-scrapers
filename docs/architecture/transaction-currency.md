@@ -2,6 +2,7 @@
 title: Transaction currency
 source-files:
   - src/Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnCurrency.ts
+  - src/Scrapers/Pipeline/Registry/WK/ScrapeFieldMappings.ts
 ---
 
 # Transaction currency — which code `originalCurrency` reports
