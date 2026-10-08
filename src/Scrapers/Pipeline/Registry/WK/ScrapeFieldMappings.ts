@@ -193,9 +193,12 @@ export const PIPELINE_WELL_KNOWN_TXN_FIELDS = {
     'bancsCurrency',
     'trnCurrencySymbol',
     'currency',
+    // Amex/Isracard DigitalV3 — ISO-4217 text must win over the sibling
+    // `originalCurrency`, which carries a numeric enum (0=ILS, 19=USD,
+    // 100=EUR) on the same row. See issue #614.
+    'originalCurrencyIso',
     'originalCurrency',
     'currencyCode',
-    'originalCurrencyIso',
     'movementCurrency',
   ],
   balance: [
