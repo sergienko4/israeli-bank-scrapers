@@ -147,6 +147,24 @@ const REDACT_CASES: readonly IRedactCase[] = [
     expected: '>0000000000</a>',
     negative: '<a class="x" href="tel:0000000000">0000000000</a>',
   },
+  {
+    key: 'jsonOpaqueUserIdField',
+    positive: '{"ClientGWIdentifier": "1a2345b6c7d8", "anonymousID": "ab12cd"}',
+    expected: '"ClientGWIdentifier": "[redacted-user-id]"',
+    negative: '{"UserType": "private"}',
+  },
+  {
+    key: 'glassboxUserIdAttr',
+    positive: '<div class="main-all-content" data.glassbox-id="1a2345b6c7d8">',
+    expected: 'data.glassbox-id="[redacted-user-id]"',
+    negative: '<div class="main-all-content" data-role="shell">',
+  },
+  {
+    key: 'roleEmbeddedAccount',
+    positive: '{"Role": "AC_123456_FUNDS_ACTIVITY"}',
+    expected: '"AC_[redacted-account]_FUNDS_ACTIVITY"',
+    negative: '{"Role": "AC_FUNDS_ACTIVITY"}',
+  },
 ];
 
 describe('PiiRedactor', () => {
@@ -316,6 +334,14 @@ describe('PiiRedactor', () => {
       const out = redactPii(json);
       expect(out).toContain('[redacted-name]');
       expect(out).toContain('"bankName": "Hapoalim"');
+    });
+
+    it('redacts PascalCase FirstName / LastName / BankerName (Mizrahi logon)', () => {
+      const json = '{"FirstName": "Dana", "LastName": "Levi", "BankerName": "Moshe Cohen"}';
+      const out = redactPii(json);
+      expect(out).toBe(
+        '{"FirstName": "[redacted-name]", "LastName": "[redacted-name]", "BankerName": "[redacted-name]"}',
+      );
     });
   });
 

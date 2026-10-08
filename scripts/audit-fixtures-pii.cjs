@@ -62,6 +62,10 @@ const PATTERNS = [
   { id: 'username-literal', re: new RegExp(`\\b(${alternation(SECRETS.operatorUsernames)})\\b`, 'g'), severity: 'CRITICAL', desc: 'Literal credential/username leaked' },
   { id: 'operator-account-literal', re: new RegExp(`\\b${escapeRegexLiteral(SECRETS.operatorAccountLiteral)}\\b`, 'g'), severity: 'CRITICAL', desc: 'Operator account number literal' },
   { id: 'bare-account-in-url', re: /(?:\/(?:gatewayAPI|portalserver|api|Titan|Lobby|apollo|retail|retail2|rb)(?:\/[A-Za-z][\w.-]*)+\/)\d{6,12}(?=\/|\?|$|"|\\")/g, severity: 'CRITICAL', desc: 'Bare account-id in REST URL path' },
+  { id: 'json-pascal-person-name', re: /\\?"(?:FirstName|LastName|BankerName)\\?"\s*:\s*\\?"(?!\[redacted-)[^"\\]+/g, severity: 'CRITICAL', desc: 'PascalCase JSON person-name field with raw value (Mizrahi logon)' },
+  { id: 'json-opaque-user-id', re: /\\?"(?:UserId|Username|UserIdentifier|ClientGWIdentifier|anonymousID)\\?"\s*:\s*\\?"(?!\[redacted-)[^"\\]+/g, severity: 'CRITICAL', desc: 'JSON per-user identifier field with raw value' },
+  { id: 'glassbox-user-id', re: /data[.-]glassbox-id="(?!\[redacted-)[^"]+"/g, severity: 'CRITICAL', desc: 'Glassbox session-replay user id attribute' },
+  { id: 'role-embedded-account', re: /\bAC_\d{5,}_/g, severity: 'CRITICAL', desc: 'Account number embedded in permission role (AC_<account>_...)' },
 
   // --- Account / IBAN ---
   { id: 'il-iban', re: /\bIL\d{2}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{3,7}\b/g, severity: 'CRITICAL', desc: 'Israeli IBAN' },

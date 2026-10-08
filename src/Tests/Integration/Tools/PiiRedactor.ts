@@ -191,7 +191,19 @@ const PII_PATTERNS = {
   urlPathAccountId:
     /(\/(?:gatewayAPI|portalserver|api|Titan|Lobby|apollo|retail|retail2|rb)(?:\/[A-Za-z][\w.-]*)+\/)\d{6,12}(?=[/?"]|\\"|$)/g,
   jsonPersonNameField:
-    /(\\?"(?:partyFullName|partyFirstName|partyLastName|partyMiddleName|customerName|customerFullName|customerFirstName|customerLastName|userName|userFullName|firstName|lastName|fullName|middleName)\\?"\s*:\s*\\?")[^"\\]+(\\?")/g,
+    /(\\?"(?:partyFullName|partyFirstName|partyLastName|partyMiddleName|customerName|customerFullName|customerFirstName|customerLastName|userName|userFullName|firstName|lastName|fullName|middleName|FirstName|LastName|BankerName)\\?"\s*:\s*\\?")[^"\\]+(\\?")/g,
+  /** Opaque per-user identifiers in JSON string fields (Mizrahi `logon`
+   *  and `LoginUser`: `UserId`, `UserIdentifier`, `ClientGWIdentifier`,
+   *  `anonymousID`). `\\?"` tolerates NDJSON-escaped quotes. */
+  jsonOpaqueUserIdField:
+    /(\\?"(?:UserId|Username|UserIdentifier|ClientGWIdentifier|anonymousID)\\?"\s*:\s*\\?")[^"\\]+(\\?")/g,
+  /** Glassbox session-replay user id stamped on the Angular shell
+   *  (`data.glassbox-id="<id>"`) — a stable per-user identifier. */
+  glassboxUserIdAttr: /(data[.-]glassbox-id=")[^"]+(")/g,
+  /** Account number embedded in permission role names
+   *  (`AC_<account>_FUNDS_ACTIVITY`). The literal account pattern cannot
+   *  match here because `\b` never fires between `_` and a digit. */
+  roleEmbeddedAccount: /(\bAC_)\d{5,}(?=_)/g,
   lastLoginText: /(class="last-login"[^>]*>)[^<]*\d\d?\/\d\d?\/\d{2}[^<]*\d\d?:\d{2}[^<]*(?=<)/g,
   numericBalanceSpan:
     /(<span[^>]*class="[^"]*number-(?:negative|positive|strong|amount|value|balance)[^"]*"[^>]*>\s*)-?\d[\d,]*(?:\.\d+)?(?=\s*<\/span>)/g,
@@ -247,6 +259,9 @@ const PII_REPLACEMENTS: Readonly<Record<keyof typeof PII_PATTERNS, PiiReplacemen
   operatorAccountLiteral: '[redacted-account]',
   urlPathAccountId: '$1[redacted-account]',
   jsonPersonNameField: '$1[redacted-name]$2',
+  jsonOpaqueUserIdField: '$1[redacted-user-id]$2',
+  glassboxUserIdAttr: '$1[redacted-user-id]$2',
+  roleEmbeddedAccount: '$1[redacted-account]',
   lastLoginText: '$1[redacted-last-login]',
   numericBalanceSpan: '$1[redacted-amount]',
   /**
