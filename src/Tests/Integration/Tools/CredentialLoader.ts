@@ -48,6 +48,7 @@ const BANK_ENV_MAP: Readonly<Partial<Record<string, Readonly<Record<string, stri
   hapoalim: { userCode: 'HAPOALIM_USER_CODE', password: 'HAPOALIM_PASSWORD' },
   beinleumi: { username: 'BEINLEUMI_USERNAME', password: 'BEINLEUMI_PASSWORD' },
   leumi: { username: 'LEUMI_USERNAME', password: 'LEUMI_PASSWORD' },
+  mizrahi: { username: 'MIZRAHI_USERNAME', password: 'MIZRAHI_PASSWORD' },
 };
 
 /** Optional env-var holding a pre-loaded OTP value per OTP bank. */

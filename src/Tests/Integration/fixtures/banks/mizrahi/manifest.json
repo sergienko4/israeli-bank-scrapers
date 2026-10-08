@@ -1,0 +1,96 @@
+{
+  "bankId": "mizrahi",
+  "originUrl": "https://www.mizrahi-tefahot.co.il",
+  "startPhase": "INIT",
+  "endPhase": "TERMINATE",
+  "transitions": [
+    {
+      "phase": "INIT",
+      "method": "GET",
+      "urlPattern": "https://www.mizrahi-tefahot.co.il/",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "01-home.html"
+      },
+      "advanceTo": "HOME"
+    },
+    {
+      "phase": "HOME",
+      "method": "GET",
+      "urlPattern": "https://www.mizrahi-tefahot.co.il/login/index.html",
+      "resourceType": "document",
+      "response": {
+        "status": 200,
+        "contentType": "text/html; charset=utf-8",
+        "bodyFile": "02-login-modal/frame-2.html"
+      },
+      "advanceTo": "LOGIN"
+    },
+    {
+      "phase": "LOGIN",
+      "method": "POST",
+      "urlPattern": "https://mto.mizrahi-tefahot.co.il/Online/api/SkyBL/logon",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/logon.json"
+      },
+      "advanceTo": "AUTH_DISCOVERY"
+    },
+    {
+      "phase": "AUTH_DISCOVERY",
+      "method": "POST",
+      "urlPattern": "https://mto.mizrahi-tefahot.co.il/Online/api/OSH/Get428ODS",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/balance.json"
+      },
+      "advanceTo": "DASHBOARD"
+    },
+    {
+      "phase": "DASHBOARD",
+      "method": "POST",
+      "urlPattern": "https://mto.mizrahi-tefahot.co.il/Online/api/SkyOSH/get428Index",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/transactions.json"
+      },
+      "advanceTo": "SCRAPE"
+    },
+    {
+      "phase": "SCRAPE",
+      "method": "POST",
+      "urlPattern": "https://mto.mizrahi-tefahot.co.il/Online/api/SkyBL/logon",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/logon.json"
+      }
+    },
+    {
+      "phase": "SCRAPE",
+      "method": "POST",
+      "urlPattern": "https://mto.mizrahi-tefahot.co.il/Online/api/SkyBL/changeAccount",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/changeAccount.json"
+      }
+    },
+    {
+      "phase": "SCRAPE",
+      "method": "POST",
+      "urlPattern": "https://mto.mizrahi-tefahot.co.il/Online/api/SkyOSH/get428Index",
+      "response": {
+        "status": 200,
+        "contentType": "application/json; charset=utf-8",
+        "bodyFile": "responses/transactions.json"
+      },
+      "advanceTo": "TERMINATE"
+    }
+  ]
+}

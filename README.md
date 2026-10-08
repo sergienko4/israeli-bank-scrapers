@@ -179,7 +179,7 @@ Per-bank notes live in the
 > pre-pipeline scraper. They work through the same `createScraper(...)`
 > entry point and their public behaviour is preserved, but new features target
 > the pipeline architecture. Mizrahi Bank is migrating to the pipeline; its
-> legacy scraper was removed, so it is unavailable until that lands.
+> legacy scraper was removed, and the pipeline bank is not production-ready yet.
 
 ## OTP (two-factor authentication)
 

@@ -124,6 +124,28 @@ mid-navigation, for example — so it can never separate "the form went away bec
 logged in" from "we could not look". Reading the weaker signal first would report a
 genuine navigation as merely unknown, losing the one signal that can be trusted.
 
+## Auth-API body verdict — a declared success outranks inferred codes
+
+`.post` also asks the auth-failure watcher whether the bank's login API rejected the
+credentials. Layer 1 is the HTTP status (4xx). Layer 2 reads an HTTP 200 JSON body against
+`AUTH_BODY_FAILURE_PATTERNS`, a table of field rows taken from real captures, e.g.
+`LoginStatus` or `ReturnCode` ≠ 0 (Max) and `error_code` (Beinleumi). A match fails LOGIN
+with `INVALID_PASSWORD`.
+
+Field names are not contracts. Mizrahi's `LoginUser` uses Max's names with other values: a
+real success returns `{ ReturnCode: 1, LoginStatus: 1, Success: true }`. So before any
+failure row is tried, the classifier checks `AUTH_BODY_SUCCESS_MARKERS` (rows typed
+`IBodySuccessMarker`). A record that **declares** success is never a failure:
+
+| Body | Verdict |
+|---|---|
+| A record declares success | That record is skipped by every failure row |
+| A wrapper declares success, a nested record carries a failure | Still a failure: the veto is per record, so a wrapper's flag never hides a nested verdict |
+| No declaration, or `Success` is anything but the JSON boolean `true` | The failure rows decide, unchanged |
+
+The failure rows are not touched, so Max's meaning of `LoginStatus` / `ReturnCode` stays as
+it is. A new bank adds at most one row to either table, with no per-bank code.
+
 ## Phase 12d — `Form/Anchor/` & `Form/ErrorDiscovery/` sub-modules
 
 Phase 12d split `FormAnchor.ts` and `FormErrorDiscovery.ts` into focused sub-modules under

@@ -123,6 +123,13 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     clientVersionParam: 'v',
   },
   [CompanyTypes.Mercantile]: defineBank('https://www.mercantile.co.il', ACCOUNT, SESSION_COOKIE),
+  [CompanyTypes.Mizrahi]: {
+    ...defineBank('https://www.mizrahi-tefahot.co.il', ACCOUNT, SESSION_COOKIE),
+    // Every `mto` call needs the SPA's `mizrahixsrftoken` header; the bag
+    // replays it from the landing page's own get428Index request.
+    installDiscoveredHeaders: true,
+    discoveredHeadersUrlMatch: 'mto.mizrahi-tefahot.co.il',
+  },
   [CompanyTypes.Isracard]: {
     urls: { base: 'https://www.isracard.co.il' },
     balanceKind: CARD_CYCLE,

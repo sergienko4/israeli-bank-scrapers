@@ -11,9 +11,10 @@
  * card-issuer cursor module is the second shared shape to rely on that widening.
  *
  * <p>It asserts coverage in both directions: the two shared factories and a
- * per-bank shape are armed, while OneZero (a documented exclusion — it is
- * `providerCursor` and has no upper bound to narrow) and a non-transactions
- * module in the same folder are not. Asserting the negatives is what keeps a
+ * per-bank shape are armed, while OneZero and Mizrahi (documented exclusions —
+ * each reads the clock only for its provider's history floor on the window's
+ * START) and a non-transactions module in the same folder are not. Asserting
+ * the negatives is what keeps a
  * lazy "match everything" glob from passing this test. Because a missing file
  * also resolves to "not armed", every probe target is checked for existence
  * first — otherwise renaming one would silently turn its assertion into a
@@ -41,6 +42,7 @@ const CASES = {
   'shared card-issuer cursor policy': path.join(CARD_ISSUER, 'CardIssuerShapeTxns.ts'),
   'per-bank transactions shape': path.join(BANKS, 'Massad', 'scrape', 'MassadShapeTxns.ts'),
   'OneZero (documented exclusion)': path.join(BANKS, 'OneZero', 'scrape', 'OneZeroShapeTxns.ts'),
+  'Mizrahi (documented exclusion)': path.join(BANKS, 'Mizrahi', 'scrape', 'MizrahiShapeTxns.ts'),
   'non-transactions module beside the factory': path.join(FIBI_GROUP, 'FibiGroupShape.ts'),
 } as const;
 
@@ -49,6 +51,7 @@ const EXPECTED = {
   'shared card-issuer cursor policy': true,
   'per-bank transactions shape': true,
   'OneZero (documented exclusion)': false,
+  'Mizrahi (documented exclusion)': false,
   'non-transactions module beside the factory': false,
 } as const;
 
@@ -66,7 +69,7 @@ interface IResolvedConfig {
 /**
  * Maps every probe target to whether it exists on disk.
  *
- * <p>Two of the four cases assert `false`. A renamed or deleted probe file
+ * <p>Three of the six cases assert `false`. A renamed or deleted probe file
  * resolves to `false` as well, so those assertions would keep passing while
  * guarding nothing. Existence is therefore asserted separately, as part of the
  * contract rather than an assumption.

@@ -1,0 +1,40 @@
+{
+  "header": {
+    "success": null,
+    "ver": null,
+    "messages": null,
+    "action": null
+  },
+  "body": {
+    "ret_code": "1",
+    "ret_message": "תקין",
+    "itra": {
+      "itra": "0",
+      "itra_date": "07/10/2026 00:00:00",
+      "itraLelo_shekim": "0",
+      "itraLelo_shekim_date": "07/10/2026 00:00:00"
+    },
+    "misgeret": {
+      "misgeret": "0",
+      "misgeret_kolel": "0",
+      "misgeret_zmani": "0",
+      "schum1": "0",
+      "ribit1": "0",
+      "schum2": "0",
+      "ribit2": "0",
+      "schum3": "0",
+      "ribit3": "0",
+      "misgeret_date": "08/10/2026 10:02:54",
+      "ribit_hariga": "0",
+      "ribit_kvua": "17.11",
+      "ret_input": "i_Bank: 20, i_Snif: 172, i_Cheshbon: [redacted-account]",
+      "ribit_chova_bafoal_lo_med": "17.11",
+      "ribit_chova_standart": "18.55",
+      "sug_ochlos_code": "60",
+      "sug_ochlos_desc": "חשבון ללא מסגרת ",
+      "customer_benefit_note": "",
+      "sug_cheshbon_code": "1",
+      "sug_cheshbon_desk": "פרטי"
+    }
+  }
+}

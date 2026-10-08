@@ -1,6 +1,7 @@
 import { CompanyTypes } from '../../../Definitions.js';
 import type { PipelineFactory } from '../Core/PipelineDescriptor.js';
 import { buildMercantilePipeline } from './Mercantile/MercantilePipeline.js';
+import { buildMizrahiPipeline } from './Mizrahi/MizrahiPipeline.js';
 import { buildOneZeroPipeline } from './OneZero/OneZeroPipeline.js';
 import { buildOtsarHahayalPipeline } from './OtsarHahayal/OtsarHahayalPipeline.js';
 import { buildPagiPipeline } from './Pagi/PagiPipeline.js';
@@ -16,6 +17,7 @@ import { buildYahavPipeline } from './Yahav/YahavPipeline.js';
  */
 const PIPELINE_REGISTRY_MERCANTILE_TO_VISACAL: Partial<Record<CompanyTypes, PipelineFactory>> = {
   [CompanyTypes.Mercantile]: buildMercantilePipeline,
+  [CompanyTypes.Mizrahi]: buildMizrahiPipeline,
   [CompanyTypes.OneZero]: buildOneZeroPipeline,
   [CompanyTypes.OtsarHahayal]: buildOtsarHahayalPipeline,
   [CompanyTypes.Pagi]: buildPagiPipeline,

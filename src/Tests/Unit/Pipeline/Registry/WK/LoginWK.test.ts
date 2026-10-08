@@ -34,6 +34,20 @@ function hasNationalId(kind: string, value: string): boolean {
   );
 }
 
+describe('WK_LOGIN_FORM.username — Mizrahi label-only username', () => {
+  it('ends with labelText "משתמש" so every more specific label wins first', () => {
+    const last = WK_LOGIN_FORM.username.at(-1);
+    expect(last).toEqual({ kind: 'labelText', value: 'משתמש' });
+  });
+
+  it('uses only visible-text matchers — no name/id CSS coupling', () => {
+    const structural = WK_LOGIN_FORM.username.filter((entry: IFormEntry): boolean =>
+      STRUCTURAL_KINDS.includes(entry.kind),
+    );
+    expect(structural).toHaveLength(0);
+  });
+});
+
 describe('WK_LOGIN_FORM.nationalId — aria-label-only field coverage', () => {
   it('matches by aria-label "תעודת זהות" (Yahav empty-placeholder field)', () => {
     const isMatched = hasNationalId('ariaLabel', 'תעודת זהות');

@@ -3710,6 +3710,13 @@ export default tseslint.config(
   //     now — measuring it from a narrowed end would let the walk ask for data
   //     older than the provider serves.
   //
+  //     MizrahiShapeTxns.ts is excluded for the same reason, on a request
+  //     field: `get428Index` refuses (HTTP 500) any `inFromDate` older than
+  //     today − 365 days, measured live (real logins #9 and #13). Its END still
+  //     comes from `scrapeWindowEnd(ctx)`; only the START floor reads the clock.
+  //     Both exclusions are retired by a follow-up that moves the floor into a
+  //     shared helper beside `scrapeWindowEnd`.
+  //
   //     Widened 2026-08 (Phase 4) from `Banks/**/scrape/` to also cover
   //     `Phases/ApiDirectScrape/**`: a bank family that shares one neutral
   //     `*ShapeTxns.ts` factory moves the wire's window bound out of the bank
@@ -3721,7 +3728,10 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Banks/**/scrape/*ShapeTxns.ts',
       'src/Scrapers/Pipeline/Phases/ApiDirectScrape/**/*ShapeTxns.ts',
     ],
-    ignores: ['src/Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShapeTxns.ts'],
+    ignores: [
+      'src/Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShapeTxns.ts',
+      'src/Scrapers/Pipeline/Banks/Mizrahi/scrape/MizrahiShapeTxns.ts',
+    ],
     rules: {
       'no-restricted-syntax': [
         'error',

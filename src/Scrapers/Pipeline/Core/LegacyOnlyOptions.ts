@@ -26,8 +26,8 @@ import type { ScraperOptions } from '../../Base/Interface.js';
 
 /**
  * Options declared in the public `ScraperOptions` type that the Pipeline does
- * not implement. Alphabetical, so the warning
- * lists them in a stable order regardless of caller insertion order.
+ * not implement. Alphabetical, so the warning lists them in a stable order
+ * regardless of caller insertion order.
  *
  * <p>Each entry is pinned to its legacy reader, or to "no reader" once that
  * scraper was removed; if a Pipeline implementation ever lands, delete the

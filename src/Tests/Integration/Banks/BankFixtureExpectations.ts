@@ -124,6 +124,18 @@ const LEUMI_PHASE_11_STEPS = [
   { stepName: '11-balance' },
 ] as const;
 
+/** Mizrahi pre-login + post-login harvest (`MIZRAHI_POST_LOGIN` in PostLoginRecipes). */
+const MIZRAHI_STEPS = [
+  { stepName: '01-home' },
+  { stepName: '02-login-modal' },
+  { stepName: '07-auth-discovery' },
+  { stepName: '08-account-resolve' },
+  { stepName: '09-dashboard' },
+  { stepName: '10-transactions-view' },
+  { stepName: '10-scrape-transactions' },
+  { stepName: '11-balance' },
+] as const;
+
 const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
   {
     bankId: 'leumi',
@@ -234,6 +246,17 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     loginStep: '02-pre-login',
     requiresHydration: false,
     steps: [{ stepName: '01-home' }, { stepName: '02-pre-login' }],
+  },
+  {
+    bankId: 'mizrahi',
+    originUrl: 'https://www.mizrahi-tefahot.co.il',
+    // HOME's "כניסה לחשבון" opens a modal whose same-origin iframe
+    // (/login/index.html) holds the credential form. The harvester
+    // captures that iframe as 02-login-modal/frame-2.html; point
+    // loginStep at it (mirrors the Beinleumi / VisaCal pattern).
+    loginStep: '02-login-modal/frame-2',
+    requiresHydration: false,
+    steps: MIZRAHI_STEPS,
   },
   {
     bankId: 'massad',

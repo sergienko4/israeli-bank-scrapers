@@ -61,6 +61,12 @@ export interface ICoverageArgs {
    * is already per-account — only merged-response banks need it.
    */
   readonly ownsRow?: OwnsRow;
+  /**
+   * Whether a hunted row is a transaction at all. Omit when every row the
+   * mapper can read is one — only a bank whose transactions table also
+   * carries a readable non-transaction row (Mizrahi's balance line) needs it.
+   */
+  readonly isTxnRow?: (row: object) => boolean;
 }
 
 /**
@@ -125,15 +131,31 @@ function countsOf(rows: readonly object[], isCardIssuer?: boolean): Map<string, 
  * never existed. Multiplicity inside a single container, by contrast, is real.
  *
  * @param body - Raw response body for the round.
- * @param ownsRow - Ownership test for the account under audit.
+ * @param isCounted - Whether a hunted row is a transaction of the account under audit.
  * @param isCardIssuer - Card-issuer hint for key derivation.
  * @returns Mapped key to the number of genuine copies.
  */
-function huntedCounts(body: object, ownsRow: OwnsRow, isCardIssuer?: boolean): Map<string, number> {
+function huntedCounts(
+  body: object,
+  isCounted: OwnsRow,
+  isCardIssuer?: boolean,
+): Map<string, number> {
   const groups = huntTransactionGroups(body as ApiRecord);
-  const owned = groups.map((group): TxnGroup => group.filter(ownsRow));
+  const owned = groups.map((group): TxnGroup => group.filter(isCounted));
   const perContainer = owned.map((g): Map<string, number> => countsOf(g, isCardIssuer));
   return maxMerge(perContainer);
+}
+
+/**
+ * The hunted rows a round counts: the account's own, and transactions at all.
+ * @param args - Round inputs carrying the optional `ownsRow` and `isTxnRow`.
+ * @returns The combined row test.
+ */
+function countedRowOf(args: ICoverageArgs): OwnsRow {
+  const ownsRow = args.ownsRow ?? OWNS_EVERY_ROW;
+  const isTxnRow = args.isTxnRow;
+  if (!isTxnRow) return ownsRow;
+  return (row: object): boolean => isTxnRow(row) && ownsRow(row);
 }
 
 /**
@@ -254,9 +276,9 @@ function reportCoverage(label: string, result: ICoverageResult): ICoverageResult
  */
 export function auditCoverage(args: ICoverageArgs): ICoverageResult {
   const extracted = countsOf(args.extracted, args.isCardIssuer);
-  const ownsRow = args.ownsRow ?? OWNS_EVERY_ROW;
+  const isCounted = countedRowOf(args);
   const { body, isCardIssuer } = args;
-  const hunted = huntedCounts(body, ownsRow, isCardIssuer);
+  const hunted = huntedCounts(body, isCounted, isCardIssuer);
   const totals = { extracted: totalOf(extracted), hunted: totalOf(hunted) };
   const unread = unreadCount(hunted, extracted);
   const isBlind = isUnaudited(totals.hunted, args.extracted.length);

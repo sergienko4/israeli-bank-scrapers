@@ -40,6 +40,10 @@ export const WK_LOGIN_FORM = {
     { kind: 'labelText', value: LABEL_USER_CODE },
     { kind: 'placeholder', value: 'שם משתמש' },
     { kind: 'placeholder', value: LABEL_USER_CODE },
+    // Mizrahi labels its username input only `משתמש` (aria-label + <label for>).
+    // Last on purpose: `getByLabel` substring-matches, so every more specific
+    // label above wins first and the T1.4 cross-bank arbitration diff stays empty.
+    { kind: 'labelText', value: 'משתמש' },
   ],
   nationalId: [
     // Yahav's national-ID input is aria-label-only (empty placeholder): its

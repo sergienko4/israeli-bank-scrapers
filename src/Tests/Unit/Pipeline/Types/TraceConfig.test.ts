@@ -361,6 +361,7 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     ['hapoalim', './hapoalim.e2e-real.test.ts'],
     ['isracard', 'isracard.e2e-real.test.ts'],
     ['max', 'C:/repo/max.e2e-real.test.ts'],
+    ['mizrahi', 'src/Tests/E2eReal/Mizrahi.e2e-real.test.ts'],
     ['onezero', 'onezero.e2e-real.test.ts'],
     ['pepper', 'pepper.e2e-real.test.ts'],
     ['visacal', 'visacal.e2e-real.test.ts'],
