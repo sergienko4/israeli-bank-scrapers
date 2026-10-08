@@ -179,6 +179,16 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     expected: '{"xsrfToken":"[redacted-token]","csrfToken":"[redacted-token]"}',
   },
   {
+    key: 'jsonTokenField',
+    input: String.raw`{"accessToken":"a1b2c3\/d4e5f6\/a7b8"}`,
+    expected: '{"accessToken":"[redacted-token]"}',
+  },
+  {
+    key: 'jsonTokenField',
+    input: String.raw`{"xsrfToken":"[redacted-token]\"a1b2c3d4"}`,
+    expected: '{"xsrfToken":"[redacted-token]"}',
+  },
+  {
     key: 'jsonActionGuid',
     input: `{"actionGUID":"${SESSION_UUID}","isHasMoreRows":false}`,
     expected: `{"actionGUID":"${ZERO_GUID}","isHasMoreRows":false}`,
@@ -208,6 +218,16 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     key: 'jsonLastLoginField',
     input: '{"LastTimeVisited":"07/10/2026 [redacted-last-login]"}',
     expected: '{"LastTimeVisited":"[redacted-last-login]"}',
+  },
+  {
+    key: 'jsonLastLoginField',
+    input: String.raw`{"LastTimeVisited":"\/Date(1791360840000)\/"}`,
+    expected: '{"LastTimeVisited":"[redacted-last-login]"}',
+  },
+  {
+    key: 'jsonLastLoginField',
+    input: String.raw`{\"_LastTimeLogin\":\"07\\/10\\/2026\"}`,
+    expected: String.raw`{\"_LastTimeLogin\":\"[redacted-last-login]\"}`,
   },
   {
     key: 'jsonPersonNameField',
@@ -241,6 +261,26 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     expected: String.raw`{\"partyLastName\":\"[redacted-name]\"}`,
   },
   {
+    key: 'jsonPersonNameField',
+    input: String.raw`{"FirstName":"Dana \"Dee\" Levi"}`,
+    expected: '{"FirstName":"[redacted-name]"}',
+  },
+  {
+    key: 'jsonPersonNameField',
+    input: String.raw`{"LastName":"[redacted-name]\" Levi"}`,
+    expected: '{"LastName":"[redacted-name]"}',
+  },
+  {
+    key: 'jsonPersonNameField',
+    input: String.raw`{\"lastName\":\"Levi \\\"Jr\\\" Cohen\"}`,
+    expected: String.raw`{\"lastName\":\"[redacted-name]\"}`,
+  },
+  {
+    key: 'jsonPersonNameField',
+    input: String.raw`{"firstName":"\u05d3\u05e0\u05d4"}`,
+    expected: '{"firstName":"[redacted-name]"}',
+  },
+  {
     key: 'jsonOpaqueUserIdField',
     input: '{"ClientGWIdentifier": "1a2345b6c7d8", "anonymousID": "ab12cd"}',
     expected: '{"ClientGWIdentifier": "[redacted-user-id]", "anonymousID": "[redacted-user-id]"}',
@@ -249,6 +289,16 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     key: 'jsonOpaqueUserIdField',
     input: String.raw`{\"UserId\":\"[redacted-user-id]77\"}`,
     expected: String.raw`{\"UserId\":\"[redacted-user-id]\"}`,
+  },
+  {
+    key: 'jsonOpaqueUserIdField',
+    input: String.raw`{"UserIdentifier":"[redacted-user-id]\"ab12"}`,
+    expected: '{"UserIdentifier":"[redacted-user-id]"}',
+  },
+  {
+    key: 'jsonOpaqueUserIdField',
+    input: String.raw`{\"Username\":\"dana\\\\levi\"}`,
+    expected: String.raw`{\"Username\":\"[redacted-user-id]\"}`,
   },
   {
     key: 'glassboxUserIdAttr',
@@ -354,12 +404,16 @@ export const NEGATIVE_CASES: readonly IShapeCase[] = [
     'jsonTokenField',
     '{"sessionToken":"FIXTURE-MAX-SESSION-A","accessToken":"[redacted-jwt]"}',
   ),
+  unchanged('jsonTokenField', String.raw`{\"xsrfToken\":\"[redacted-token]\"}`),
+  unchanged('jsonTokenField', String.raw`{"xsrfToken":"a1b2\/c3d4"}`),
   unchanged('jsonActionGuid', `{"requestGUID":"${SESSION_UUID}"}`),
   unchanged('jsonActionGuid', '{"actionGUID":"abcdef12-not-a-guid"}'),
   unchanged('hebrewLastLoginLabel', '<p>תאריך ערך: 07/10/26 18:54</p>'),
   unchanged('jsonLastLoginField', '{"TaarichErech":"2026-10-07T00:00:00"}'),
+  unchanged('jsonLastLoginField', String.raw`{\"LastTimeVisited\":\"[redacted-last-login]\"}`),
   unchanged('jsonPersonNameField', '{"BankerNameLabel": "Your banker"}'),
   unchanged('jsonPersonNameField', '{"displayNameKey": "account.title"}'),
+  unchanged('jsonPersonNameField', '{"firstName": ""}'),
   unchanged('jsonOpaqueUserIdField', '{"UserType": "private"}'),
   unchanged('glassboxUserIdAttr', '<div class="main-all-content" data-role="shell">'),
   unchanged('roleEmbeddedAccount', '{"Role": "AC_FUNDS_ACTIVITY", "Alt": "AC_1234_VIEW"}'),

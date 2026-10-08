@@ -188,6 +188,31 @@ const PERSON_NAME_KEYS = String.raw`partyFullName|partyFirstName|partyLastName|p
 const TOKEN_PLACEHOLDER_VALUES = String.raw`\[redacted-[a-z-]+\]|FIXTURE-MAX-SESSION-A`;
 
 /**
+ * Regex source for a whole JSON string value with its quotes, plain
+ * (`"…"`) or NDJSON-escaped once (`\"…\"`). Each body token is one char
+ * or one whole escape pair, so `\"`, `\/` or `\uXXXX` never ends it early.
+ *
+ * @param count - Quantifier for the body tokens (`+`, `{12,}`).
+ * @returns The value's regex source.
+ */
+function jsonStringValue(count = '+'): string {
+  const plain = String.raw`"(?:[^"\\]|\\.)${count}"`;
+  const escaped = String.raw`\\"(?:[^"\\]|\\\\(?:\\["\\]|[^"\\]))${count}\\"`;
+  return `(?:${plain}|${escaped})`;
+}
+
+/**
+ * Regex source that rejects a JSON string value that is wholly one of the
+ * given values, in either quoting.
+ *
+ * @param values - Regex alternation of the allowed whole values.
+ * @returns A negative lookahead source.
+ */
+function notWholeValue(values: string): string {
+  return String.raw`(?!"(?:${values})"|\\"(?:${values})\\")`;
+}
+
+/**
  * Whether a base64 run decodes to a payload that carries an IPv4 address
  * (Radware's `__uzdbm_*` bot token is `base64(<uuid>$<IPv4>)`).
  *
@@ -247,6 +272,20 @@ function keepZero(placeholder: string): PiiReplacement {
   return (match: string): string => (isZeroValue(match) ? match : placeholder);
 }
 
+/**
+ * Replacement for a `(prefix)"value"` match: keeps the key and the value's
+ * quoting and swaps the whole string value for the placeholder.
+ *
+ * @param placeholder - Replacement for the value.
+ * @returns Replacement function.
+ */
+function jsonValuePlaceholder(placeholder: string): PiiReplacement {
+  return (match: string, prefix: string): string => {
+    const quote = match.startsWith('\\', prefix.length) ? String.raw`\"` : '"';
+    return `${prefix}${quote}${placeholder}${quote}`;
+  };
+}
+
 /** Replacement string OR replacement function (for patterns whose
  * substitution depends on captured groups in non-trivial ways). */
 type PiiReplacement = string | ((match: string, ...groups: string[]) => string);
@@ -284,7 +323,7 @@ const PII_PATTERNS = {
    *  of 12+ chars. Only a whole {@link TOKEN_PLACEHOLDER_VALUES} value is
    *  left alone, never a value that merely starts like one. */
   jsonTokenField: new RegExp(
-    String.raw`(?<="\w+Token\\?"\s*:\s*\\?")(?!(?:${TOKEN_PLACEHOLDER_VALUES})\\?")[^"\\]{12,}(?=\\?")`,
+    String.raw`("\w+Token\\?"\s*:\s*)${notWholeValue(TOKEN_PLACEHOLDER_VALUES)}${jsonStringValue('{12,}')}`,
     'g',
   ),
   /** Mizrahi `get428Index` paging GUID — a server session handle. */
@@ -328,14 +367,16 @@ const PII_PATTERNS = {
   urlPathAccountId:
     /(\/(?:gatewayAPI|portalserver|api|Titan|Lobby|apollo|retail|retail2|rb)(?:\/[A-Za-z][\w.-]*)+\/)\d{6,12}(?=[/?"]|\\"|$)/g,
   jsonPersonNameField: new RegExp(
-    String.raw`(\\?"(?:${PERSON_NAME_KEYS})\\?"\s*:\s*\\?")[^"\\]+(\\?")`,
+    String.raw`(\\?"(?:${PERSON_NAME_KEYS})\\?"\s*:\s*)${jsonStringValue()}`,
     'g',
   ),
   /** Opaque per-user identifiers in JSON string fields (Mizrahi `logon`
    *  and `LoginUser`: `UserId`, `UserIdentifier`, `ClientGWIdentifier`,
-   *  `anonymousID`). `\\?"` tolerates NDJSON-escaped quotes. */
-  jsonOpaqueUserIdField:
-    /(\\?"(?:UserId|Username|UserIdentifier|ClientGWIdentifier|anonymousID)\\?"\s*:\s*\\?")[^"\\]+(\\?")/g,
+   *  `anonymousID`), plain or NDJSON-escaped. */
+  jsonOpaqueUserIdField: new RegExp(
+    String.raw`(\\?"(?:UserId|Username|UserIdentifier|ClientGWIdentifier|anonymousID)\\?"\s*:\s*)${jsonStringValue()}`,
+    'g',
+  ),
   /** Glassbox session-replay user id stamped on the Angular shell
    *  (`data.glassbox-id="<id>"`) — a stable per-user identifier. */
   glassboxUserIdAttr: /(data[.-]glassbox-id=")[^"]+(")/g,
@@ -350,8 +391,10 @@ const PII_PATTERNS = {
     /((?:כניסתך האחרונה|ביקורך האחרון)[^<]*?(?:<[^>]*>\s*)*)\d{1,2}\/\d{1,2}\/\d{2,4}[\s,|]*\d{1,2}:\d{2}/g,
   /** JSON last-visit timestamps (Mizrahi logon `LastTimeVisited`,
    *  `_LastTime*`, account `TaarichPeulaAhrona`). */
-  jsonLastLoginField:
-    /(?<="(?:LastTimeVisited|TaarichPeulaAhrona|_LastTime\w*)\\?"\s*:\s*\\?")(?!\[redacted-last-login\]\\?")[^"\\]+(?=\\?")/g,
+  jsonLastLoginField: new RegExp(
+    String.raw`("(?:LastTimeVisited|TaarichPeulaAhrona|_LastTime\w*)\\?"\s*:\s*)${notWholeValue(String.raw`\[redacted-last-login\]`)}${jsonStringValue()}`,
+    'g',
+  ),
   numericBalanceSpan:
     /(<span[^>]*class="[^"]*number-(?:negative|positive|strong|amount|value|balance)[^"]*"[^>]*>\s*)-?\d[\d,]*(?:\.\d+)?(?=\s*<\/span>)/g,
   /** Mizrahi Angular amount text: the rendered number inside an element
@@ -448,7 +491,7 @@ const PII_REPLACEMENTS: Readonly<Record<keyof typeof PII_PATTERNS, PiiReplacemen
   clientIpField: (value: string): string => value.replace(CLIENT_ADDRESS, zeroAddress),
   radwareSessionUuid: ZERO_GUID,
   requestVerificationToken: 'REDACTED_REQUEST_VERIFICATION_TOKEN',
-  jsonTokenField: '[redacted-token]',
+  jsonTokenField: jsonValuePlaceholder('[redacted-token]'),
   jsonActionGuid: ZERO_GUID,
   cookieAuthValue: '[redacted-cookie]',
   hebrewGreetingName: '$1[redacted-name]$2',
@@ -458,13 +501,13 @@ const PII_REPLACEMENTS: Readonly<Record<keyof typeof PII_PATTERNS, PiiReplacemen
   operatorUsername: '[redacted-username]',
   operatorAccountLiteral: '[redacted-account]',
   urlPathAccountId: '$1[redacted-account]',
-  jsonPersonNameField: '$1[redacted-name]$2',
-  jsonOpaqueUserIdField: '$1[redacted-user-id]$2',
+  jsonPersonNameField: jsonValuePlaceholder('[redacted-name]'),
+  jsonOpaqueUserIdField: jsonValuePlaceholder('[redacted-user-id]'),
   glassboxUserIdAttr: '$1[redacted-user-id]$2',
   roleEmbeddedAccount: '$1[redacted-account]',
   lastLoginText: '$1[redacted-last-login]',
   hebrewLastLoginLabel: '$1[redacted-last-login]',
-  jsonLastLoginField: '[redacted-last-login]',
+  jsonLastLoginField: jsonValuePlaceholder('[redacted-last-login]'),
   numericBalanceSpan: '$1[redacted-amount]',
   mizNumericText: keepZero('[redacted-amount]'),
   mizNumericAttr: keepZero('0'),

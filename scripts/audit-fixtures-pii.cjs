@@ -74,6 +74,20 @@ const ZERO_GUID = '00000000-0000-0000-0000-000000000000';
 /** Mirrors PERSON_NAME_KEYS / TOKEN_PLACEHOLDER_VALUES in PiiRedactor.ts. */
 const PERSON_NAME_KEYS = String.raw`partyFullName|partyFirstName|partyLastName|partyMiddleName|customerName|customerFullName|customerFirstName|customerLastName|custFullName|displayName|userName|userFullName|firstName|lastName|fullName|middleName|FirstName|LastName|BankerName`;
 const TOKEN_PLACEHOLDER_VALUES = String.raw`\[redacted-[a-z-]+\]|FIXTURE-MAX-SESSION-A`;
+/** Regex source for a whole JSON string value with its quotes, plain or
+ *  NDJSON-escaped once; each body token is one char or one whole escape
+ *  pair, so `\"`, `\/` or `\uXXXX` never ends it — mirrors jsonStringValue
+ *  in PiiRedactor.ts. */
+function jsonStringValue(count = '+') {
+  const plain = String.raw`"(?:[^"\\]|\\.)${count}"`;
+  const escaped = String.raw`\\"(?:[^"\\]|\\\\(?:\\["\\]|[^"\\]))${count}\\"`;
+  return `(?:${plain}|${escaped})`;
+}
+/** Negative lookahead for a JSON string value that is wholly one of
+ *  `values`, in either quoting — mirrors notWholeValue in PiiRedactor.ts. */
+function notWholeValue(values) {
+  return String.raw`(?!"(?:${values})"|\\"(?:${values})\\")`;
+}
 /** The exact anti-forgery placeholder PiiRedactor.ts writes; only this
  *  value is exempt, never anything that merely starts with `REDACTED_`. */
 const RVT_PLACEHOLDER = 'REDACTED_REQUEST_VERIFICATION_TOKEN';
@@ -105,8 +119,8 @@ const PATTERNS = [
   { id: 'username-literal', re: new RegExp(`\\b(${alternation(SECRETS.operatorUsernames)})\\b`, 'g'), severity: 'CRITICAL', desc: 'Literal credential/username leaked' },
   { id: 'operator-account-literal', re: new RegExp(`\\b${escapeRegexLiteral(SECRETS.operatorAccountLiteral)}\\b`, 'g'), severity: 'CRITICAL', desc: 'Operator account number literal' },
   { id: 'bare-account-in-url', re: /(?:\/(?:gatewayAPI|portalserver|api|Titan|Lobby|apollo|retail|retail2|rb)(?:\/[A-Za-z][\w.-]*)+\/)\d{6,12}(?=\/|\?|$|"|\\")/g, severity: 'CRITICAL', desc: 'Bare account-id in REST URL path' },
-  { id: 'json-person-name-field', re: new RegExp(String.raw`\\?"(?:${PERSON_NAME_KEYS})\\?"\s*:\s*\\?"(?!\[redacted-name\]\\?")[^"\\]+`, 'g'), severity: 'CRITICAL', desc: 'JSON person-name field with raw value' },
-  { id: 'json-opaque-user-id', re: /\\?"(?:UserId|Username|UserIdentifier|ClientGWIdentifier|anonymousID)\\?"\s*:\s*\\?"(?!\[redacted-user-id\]\\?")[^"\\]+/g, severity: 'CRITICAL', desc: 'JSON per-user identifier field with raw value' },
+  { id: 'json-person-name-field', re: new RegExp(String.raw`\\?"(?:${PERSON_NAME_KEYS})\\?"\s*:\s*${notWholeValue(String.raw`\[redacted-name\]`)}${jsonStringValue()}`, 'g'), severity: 'CRITICAL', desc: 'JSON person-name field with raw value' },
+  { id: 'json-opaque-user-id', re: new RegExp(String.raw`\\?"(?:UserId|Username|UserIdentifier|ClientGWIdentifier|anonymousID)\\?"\s*:\s*${notWholeValue(String.raw`\[redacted-user-id\]`)}${jsonStringValue()}`, 'g'), severity: 'CRITICAL', desc: 'JSON per-user identifier field with raw value' },
   { id: 'glassbox-user-id', re: /data[.-]glassbox-id="(?!\[redacted-user-id\]")[^"]+"/g, severity: 'CRITICAL', desc: 'Glassbox session-replay user id attribute' },
   { id: 'role-embedded-account', re: /\bAC_\d{5,}_/g, severity: 'CRITICAL', desc: 'Account number embedded in permission role (AC_<account>_...)' },
   { id: 'json-branch-field', re: /"Branch(?:ForDispaly|ForDisplay|ForMF)?\\?"\s*:\s*\\?"(?!000\\?")\d{2,3}(?=\\?")/g, severity: 'HIGH', desc: 'JSON branch-number field with a raw value (Mizrahi)' },
@@ -154,13 +168,13 @@ const PATTERNS = [
   { id: 'client-ip-field', re: /[^\s"'\\,;<>](?<=\b(?:client_?ip|remote_?addr|ip_?address|user_?ip|x-forwarded-for|x-real-ip)\\?["']?\s*[:=]\s*\\?["']?.)[^\s"'\\,;<>]*(?:\s*,\s*[^\s"'\\,;<>]+)*/gi, severity: 'CRITICAL', desc: 'Client-address field value holding an IPv4 or IPv6 address (client_ip, x-forwarded-for)' },
   { id: 'radware-session-uuid', re: /var __uzdbm_\d+\s*=\s*'(?!00000000-0000-0000-0000-000000000000')[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'/gi, severity: 'HIGH', desc: 'Radware per-session UUID (__uzdbm_N)' },
   { id: 'request-verification-token', re: /(?<=name=\\?["']__RequestVerificationToken\\?["'][^>]*?value=\\?["'])[^"'\\]+(?=\\?["'])|(?<=value=\\?["'])[^"'\\]+(?=\\?["'][^>]*?name=\\?["']__RequestVerificationToken\\?["'])/gi, severity: 'HIGH', desc: 'Unredacted ASP.NET anti-forgery token' },
-  { id: 'json-token-field', re: new RegExp(String.raw`"\w+Token\\?"\s*:\s*\\?"(?!(?:${TOKEN_PLACEHOLDER_VALUES})\\?")[^"\\]{12,}(?=\\?")`, 'g'), severity: 'CRITICAL', desc: 'JSON <prefix>Token field with a live value (xsrfToken)' },
+  { id: 'json-token-field', re: new RegExp(String.raw`"\w+Token\\?"\s*:\s*${notWholeValue(TOKEN_PLACEHOLDER_VALUES)}${jsonStringValue('{12,}')}`, 'g'), severity: 'CRITICAL', desc: 'JSON <prefix>Token field with a live value (xsrfToken)' },
   { id: 'json-action-guid', re: /(?<="actionGUID\\?"\s*:\s*\\?")[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, severity: 'HIGH', desc: 'Mizrahi paging GUID (server session handle)' },
 
   // --- Temporal personal info ---
   { id: 'last-login-text', re: /class="last-login"[^>]*>[^<]*?\d{1,2}\/\d{1,2}\/\d{2,4}[^<]*?\d{1,2}:\d{2}/g, severity: 'HIGH', desc: 'Last-login timestamp (Hebrew "ביקורך האחרון")' },
   { id: 'hebrew-last-login-label', re: /(?:כניסתך האחרונה|ביקורך האחרון)[^<]*?(?:<[^>]*>\s*)*\d{1,2}\/\d{1,2}\/\d{2,4}[\s,|]*\d{1,2}:\d{2}/g, severity: 'HIGH', desc: 'Last-login timestamp after its Hebrew label' },
-  { id: 'json-last-login', re: /"(?:LastTimeVisited|TaarichPeulaAhrona|_LastTime\w*)\\?"\s*:\s*\\?"(?!\[redacted-last-login\]\\?")[^"\\]+/g, severity: 'HIGH', desc: 'JSON last-visit timestamp field' },
+  { id: 'json-last-login', re: new RegExp(String.raw`"(?:LastTimeVisited|TaarichPeulaAhrona|_LastTime\w*)\\?"\s*:\s*${notWholeValue(String.raw`\[redacted-last-login\]`)}${jsonStringValue()}`, 'g'), severity: 'HIGH', desc: 'JSON last-visit timestamp field' },
 
   // --- Already-redacted markers (NEGATIVE — informational only) ---
   { id: 'redacted-marker-name', re: /\[redacted-name\]/g, severity: 'INFO', desc: 'Already redacted name (good)' },
