@@ -5,7 +5,7 @@
     "user": {
       "firstName": "[redacted-name]",
       "lastName": "[redacted-name]",
-      "custFullName": "SYNTHETIC PLACEHOLDER",
+      "custFullName": "[redacted-name]",
       "custExtId": "[redacted-id]",
       "custExtTypeCode": "00",
       "custIntrId": "0",
