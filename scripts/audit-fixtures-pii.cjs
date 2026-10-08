@@ -66,6 +66,10 @@ const PATTERNS = [
   { id: 'json-opaque-user-id', re: /\\?"(?:UserId|Username|UserIdentifier|ClientGWIdentifier|anonymousID)\\?"\s*:\s*\\?"(?!\[redacted-)[^"\\]+/g, severity: 'CRITICAL', desc: 'JSON per-user identifier field with raw value' },
   { id: 'glassbox-user-id', re: /data[.-]glassbox-id="(?!\[redacted-)[^"]+"/g, severity: 'CRITICAL', desc: 'Glassbox session-replay user id attribute' },
   { id: 'role-embedded-account', re: /\bAC_\d{5,}_/g, severity: 'CRITICAL', desc: 'Account number embedded in permission role (AC_<account>_...)' },
+  { id: 'json-branch-field', re: /"Branch(?:ForDispaly|ForDisplay|ForMF)?\\?"\s*:\s*\\?"(?!000\\?")\d{2,3}(?=\\?")/g, severity: 'HIGH', desc: 'JSON branch-number field with a raw value (Mizrahi)' },
+  { id: 'branch-before-redacted-account', re: /\b(?!000-)\d{2,3}-(?=\[redacted-account\])/g, severity: 'HIGH', desc: 'Raw branch prefix left beside a redacted account' },
+  { id: 'json-mizrahi-reference', re: /"MC\d{2}AsmEZ\\?"\s*:\s*\d*[1-9]/g, severity: 'HIGH', desc: 'Mizrahi movement reference number with a raw value' },
+  { id: 'miz-reference-cell', re: /isCloseToZero\(dataItem\.MC\d{2}AsmEZ\)"[^>]*>\s*\d*[1-9]/g, severity: 'HIGH', desc: 'Rendered Mizrahi movement reference cell' },
 
   // --- Account / IBAN ---
   { id: 'il-iban', re: /\bIL\d{2}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{3,7}\b/g, severity: 'CRITICAL', desc: 'Israeli IBAN' },
@@ -86,6 +90,10 @@ const PATTERNS = [
   { id: 'ils-suffix-amount', re: /-?\d[\d,]*(?:\.\d+)?\s*(?:₪|NIS|ILS|ש"ח|ש״ח)/g, severity: 'HIGH', desc: 'ILS amount currency-SUFFIX' },
   { id: 'json-monetary-field', re: /"\w*(?:Balance|Amount|Total|Sum|Withdrawal|Deposit|Credit|Debit|Charge|Payment|Cost|Price|Fee)"\s*:\s*-?\d+(?:\.\d+)?/g, severity: 'HIGH', desc: 'JSON monetary field with raw numeric value' },
   { id: 'numeric-balance-span', re: /<span[^>]*class="[^"]*number-(?:negative|positive|strong|amount|value|balance)[^"]*"[^>]*>\s*-?\d[\d,]*(?:\.\d+)?\s*<\/span>/g, severity: 'HIGH', desc: 'Hapoalim balance span numeric' },
+  { id: 'json-translit-money', re: /"(?:\w*[Yy]itra\w*|[Ii]tra\w*|\w*[Ss]chum\w*|Remain|[Mm]isgeret\w*)\\?"\s*:\s*\\?"?-?[\d.]*[1-9][\d.]*(?=\\?"|\s*[,}\]])/g, severity: 'HIGH', desc: 'Transliterated Hebrew money field (Yitra/itra/Schum/Remain/misgeret) with a non-zero value' },
+  { id: 'miz-numeric-attr', re: /\smiz-numeric-[\w-]+="-?[\d,.]*[1-9][\d,.]*"/g, severity: 'HIGH', desc: 'Mizrahi miz-numeric-* attribute holding a rendered amount' },
+  { id: 'miz-numeric-text', re: /miz-numeric-[\w-]+="[^"]*"[^>]*>\s*\u202A?-?[\d,.]*[1-9]/g, severity: 'HIGH', desc: 'Rendered amount text inside a miz-numeric-* element' },
+  { id: 'currency-amount-attr', re: /\scurrency="-?[\d.,]*[1-9][\d.,]*"/g, severity: 'HIGH', desc: 'Rendered currency="<amount>" attribute' },
 
   // --- Tokens / secrets ---
   { id: 'bearer-token', re: /Bearer\s+[\w.~+/=-]{20,}/g, severity: 'CRITICAL', desc: 'Bearer auth token' },
@@ -99,9 +107,16 @@ const PATTERNS = [
   { id: 'tracking-sid-asset-path', re: /_sid_[0-9a-f]{15,}/gi, severity: 'HIGH', desc: 'MS Clarity / Bing UET session hex blob in asset filename (_sid_<hex>)' },
   { id: 'tel-link-redacted-id', re: /\btel:\[redacted-id\]/g, severity: 'HIGH', desc: 'Invalid tel: URI containing redacted-id placeholder' },
   { id: 'prettier-corrupt-redacted-id', re: /\[redacted - id\]/g, severity: 'CRITICAL', desc: 'JS-breaking [redacted - id] (prettier-corrupted) — would throw ReferenceError' },
+  { id: 'b64-embedded-ip', re: /[A-Za-z0-9+/]{40,}={0,2}/g, severity: 'CRITICAL', desc: 'Base64 run decoding to <uuid>$<IPv4> (Radware bot token embeds the client IP)' },
+  { id: 'radware-session-uuid', re: /var __uzdbm_\d+\s*=\s*'(?!00000000-0000-0000-0000-000000000000')[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'/gi, severity: 'HIGH', desc: 'Radware per-session UUID (__uzdbm_N)' },
+  { id: 'request-verification-token', re: /name="__RequestVerificationToken"[^>]*?value="(?!REDACTED_)[^"]+"|value="(?!REDACTED_)[^"]+"[^>]*?name="__RequestVerificationToken"/g, severity: 'HIGH', desc: 'Unredacted ASP.NET anti-forgery token' },
+  { id: 'json-token-field', re: /"\w+Token\\?"\s*:\s*\\?"(?!\[redacted-|REDACTED|FIXTURE|SYNTHETIC)[^"\\]{12,}(?=\\?")/g, severity: 'CRITICAL', desc: 'JSON <prefix>Token field with a live value (xsrfToken)' },
+  { id: 'json-action-guid', re: /"actionGUID\\?"\s*:\s*\\?"(?!00000000-0000-0000-0000-000000000000)[0-9a-f]{8}-/gi, severity: 'HIGH', desc: 'Mizrahi paging GUID (server session handle)' },
 
   // --- Temporal personal info ---
   { id: 'last-login-text', re: /class="last-login"[^>]*>[^<]*?\d{1,2}\/\d{1,2}\/\d{2,4}[^<]*?\d{1,2}:\d{2}/g, severity: 'HIGH', desc: 'Last-login timestamp (Hebrew "ביקורך האחרון")' },
+  { id: 'hebrew-last-login-label', re: /(?:כניסתך האחרונה|ביקורך האחרון)[^<]*?(?:<[^>]*>\s*)*\d{1,2}\/\d{1,2}\/\d{2,4}[\s,|]*\d{1,2}:\d{2}/g, severity: 'HIGH', desc: 'Last-login timestamp after its Hebrew label' },
+  { id: 'json-last-login', re: /"(?:LastTimeVisited|TaarichPeulaAhrona|_LastTime\w*)\\?"\s*:\s*\\?"(?!\[redacted-)[^"\\]+/g, severity: 'HIGH', desc: 'JSON last-visit timestamp field' },
 
   // --- Already-redacted markers (NEGATIVE — informational only) ---
   { id: 'redacted-marker-name', re: /\[redacted-name\]/g, severity: 'INFO', desc: 'Already redacted name (good)' },
@@ -128,6 +143,14 @@ function snippet(text, idx, ctx = 50) {
   const s = Math.max(0, idx - ctx);
   const e = Math.min(text.length, idx + ctx);
   return text.slice(s, e).replace(/\r?\n/g, ' ');
+}
+
+/** True when a base64 run decodes to a payload carrying `$<IPv4>` — the
+ *  shape of Radware's bot token, `base64(<uuid>$<ip>)`. Every other long
+ *  alphanumeric run (bundle hashes, nonces) is a false positive. */
+function decodesToEmbeddedIp(b64) {
+  const decoded = Buffer.from(b64, 'base64').toString('latin1');
+  return /\$(?:\d{1,3}\.){3}\d{1,3}/.test(decoded);
 }
 
 /** Return true when a hit is a known false positive that the operator
@@ -167,6 +190,7 @@ function isFalsePositive(hit) {
     if (/_atar_|_shivuki_|_marketing/i.test(ctx)) return true;
   }
   if (hit.pat.id === 'last-login-text' && /\[redacted-last-login\]/.test(hit.ctx)) return true;
+  if (hit.pat.id === 'b64-embedded-ip' && !decodesToEmbeddedIp(hit.match)) return true;
   return false;
 }
 
