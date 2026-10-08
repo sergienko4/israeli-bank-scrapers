@@ -181,7 +181,7 @@
           var y = f + '=';
           f = q.indexOf(y);
           if (0 > f) return '';
-          for (; 0 <= f; ) {
+          for (; 0 <= f;) {
             if (0 === f || ' ' === q.charAt(f - 1) || ';' === q.charAt(f - 1))
               return (
                 (y = f + y.length),
@@ -333,7 +333,7 @@
                   ? uh.call(f, q, y, Q)
                   : se.call(f, q, y, Q));
           Q = !1;
-          for (let U = Cd.length; 0 <= --U; ) {
+          for (let U = Cd.length; 0 <= --U;) {
             let wa = Cd[U];
             if (wa.object === f && wa.event === q && wa.Z === y) {
               Q = !0;
@@ -343,7 +343,7 @@
           Q || Cd.push({ object: f, event: q, Z: y });
         }
         function db(f, q, y, Q) {
-          for (let U = Cd.length; 0 <= --U; ) {
+          for (let U = Cd.length; 0 <= --U;) {
             let wa = Cd[U];
             if (wa.object === f && wa.event === q && wa.Z === y) {
               Cd.splice(U, 1);
@@ -375,7 +375,7 @@
         }
         function ua() {
           let f = Cd;
-          for (let q = f.length; 0 <= --q; ) {
+          for (let q = f.length; 0 <= --q;) {
             let y = f[q];
             db(y.object, y.event, y.Z);
           }
@@ -430,7 +430,7 @@
         }
         function X(f) {
           let q = ke.length;
-          for (; q--; )
+          for (; q--;)
             if (ke[q] === f) {
               ke.splice(q, 1);
               break;
@@ -650,7 +650,7 @@
           let f = Oa.dT_;
           try {
             let U = Oa.parent;
-            for (; U && U !== Oa; ) {
+            for (; U && U !== Oa;) {
               let wa = U.dT_;
               var q;
               if ((q = !!(wa && 'ea' in wa) && '10329260206100503' === wa.version)) {
@@ -1161,7 +1161,7 @@
               var y = Na('cssm');
               var Q = Dc();
               if (Q.length)
-                for (q = Q.slice(q); q.length; ) {
+                for (q = Q.slice(q); q.length;) {
                   if (ob(q.join('.'), y)) {
                     y = q.join('.');
                     break a;
@@ -1351,7 +1351,7 @@
           Vg(f, this);
         }
         function jd(f, q) {
-          for (; 3 === f.pa; ) f = f.ra;
+          for (; 3 === f.pa;) f = f.ra;
           0 === f.pa
             ? f.Ea.push(q)
             : ((f.Qb = !0),
@@ -3733,7 +3733,8 @@
                                       <thead>
                                         <tr>
                                           <th>
-                                            הודעות דואר <span class="ng-star-inserted">(207)</span
+                                            הודעות דואר
+                                            <span class="ng-star-inserted">(207)</span
                                             ><!----><!---->
                                           </th>
                                         </tr>
@@ -3847,7 +3848,7 @@
                         ><!---->
                         <section class="section-wrapper ng-star-inserted">
                           <div id="last-entry" class="side-dashboard-bottom">
-                            <p>כניסתך האחרונה: 07/06/26 19:21</p>
+                            <p>כניסתך האחרונה: [redacted-last-login]</p>
                           </div>
                           <div
                             id="bank-identity-top-link"
@@ -4400,8 +4401,7 @@
                   <router-outlet _ngcontent-ng-c1789304792=""></router-outlet
                   ><world-container class="ng-star-inserted"
                     ><div id="pageTitle" class="page-title">
-                      <router-outlet name="pageTitleView"></router-outlet
-                      ><!---->
+                      <router-outlet name="pageTitleView"></router-outlet><!---->
                     </div>
                     <div class="clearfix hidden-lg"></div>
                     <router-outlet class="ng-star-inserted"></router-outlet
@@ -4839,8 +4839,7 @@
                                                               >
                                                                 <span
                                                                   class="textTh noSortColumn ng-star-inserted"
-                                                                  ><span>תאריך</span
-                                                                  ><!----></span
+                                                                  ><span>תאריך</span><!----></span
                                                                 ><!----><!----><!----><!---->
                                                               </div>
                                                             </div>
@@ -4893,8 +4892,7 @@
                                                               >
                                                                 <span
                                                                   class="textTh noSortColumn ng-star-inserted"
-                                                                  ><span>יתרה ₪</span
-                                                                  ><!----></span
+                                                                  ><span>יתרה ₪</span><!----></span
                                                                 ><!----><!----><!----><!---->
                                                               </div>
                                                             </div>
