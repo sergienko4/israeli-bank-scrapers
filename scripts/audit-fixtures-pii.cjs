@@ -53,6 +53,63 @@ function loadPiiSecrets() {
 
 const SECRETS = loadPiiSecrets();
 
+/** The exact transliterated money keys Mizrahi returns — mirrors
+ *  TRANSLIT_MONEY_KEYS in src/Tests/Integration/Tools/PiiRedactor.ts. */
+const TRANSLIT_MONEY_KEYS = String.raw`Yitra(?:Adkanit(?:LeloChekim)?|LeloChekim|Pahak)?|itra(?:Lelo_shekim)?|[Mm]isgeret(?:_kolel|_zmani|Peiloot)?|schum[1-3]|Remain|MC\d{2}(?:Ofi)?(?:Schum\d?|Yitra)EZ`;
+const TRANSLIT_MONEY_KEY_PREFIX = String.raw`"(?:${TRANSLIT_MONEY_KEYS})\\?"\s*:\s*`;
+/** A dotted IPv4 address whose every octet is in range (0-255). */
+const IPV4_OCTET = String.raw`(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)`;
+const IPV4 = String.raw`${IPV4_OCTET}(?:\.${IPV4_OCTET}){3}`;
+/** Mirrors IPV6 / CLIENT_ADDRESS in PiiRedactor.ts. */
+const IPV6 = String.raw`(?:[\da-f]{1,4}:){7}[\da-f]{1,4}|(?:(?:[\da-f]{1,4}:){1,7}|:):[\da-f.:]*`;
+const CLIENT_ADDRESS = new RegExp(String.raw`(?<![\w.:])(?:${IPV4}(?![\d.])|(?:${IPV6})(?![\w.:]))`, 'gi');
+/** The exact all-zero addresses PiiRedactor.ts writes for a client IP. */
+const CLIENT_IP_PLACEHOLDERS = new Set(['0.0.0.0', '::']);
+/** The whole base64-decoded Radware bot token: `<uuid>$<IPv4>`. */
+const DECODED_EMBEDDED_IP = new RegExp(String.raw`^[\da-z]{8}(?:-[\da-z]{4}){3}-[\da-z]{12}\$${IPV4}$`, 'i');
+/** Mirrors SKY_CURRENCY_ATTR / PLAIN_AMOUNT in PiiRedactor.ts. */
+const SKY_CURRENCY_ATTR = String.raw`\s(?:sky-currency|sky-on-currency-change)`;
+const PLAIN_AMOUNT = String.raw`-?\d[\d,]*(?:\.\d+)?`;
+const ZERO_GUID = '00000000-0000-0000-0000-000000000000';
+/** Mirrors PERSON_NAME_KEYS / TOKEN_PLACEHOLDER_VALUES in PiiRedactor.ts. */
+const PERSON_NAME_KEYS = String.raw`partyFullName|partyFirstName|partyLastName|partyMiddleName|customerName|customerFullName|customerFirstName|customerLastName|custFullName|displayName|userName|userFullName|firstName|lastName|fullName|middleName|FirstName|LastName|BankerName`;
+const TOKEN_PLACEHOLDER_VALUES = String.raw`\[redacted-[a-z-]+\]|FIXTURE-MAX-SESSION-A`;
+/** Regex source for a whole JSON string value with its quotes, plain or
+ *  NDJSON-escaped once; each body token is one char or one whole escape
+ *  pair, so `\"`, `\/` or `\uXXXX` never ends it — mirrors jsonStringValue
+ *  in PiiRedactor.ts. */
+function jsonStringValue(count = '+') {
+  const plain = String.raw`"(?:[^"\\]|\\.)${count}"`;
+  const escaped = String.raw`\\"(?:[^"\\]|\\\\(?:\\["\\]|[^"\\]))${count}\\"`;
+  return `(?:${plain}|${escaped})`;
+}
+/** Negative lookahead for a JSON string value that is wholly one of
+ *  `values`, in either quoting — mirrors notWholeValue in PiiRedactor.ts. */
+function notWholeValue(values) {
+  return String.raw`(?!"(?:${values})"|\\"(?:${values})\\")`;
+}
+/** The exact anti-forgery placeholder PiiRedactor.ts writes; only this
+ *  value is exempt, never anything that merely starts with `REDACTED_`. */
+const RVT_PLACEHOLDER = 'REDACTED_REQUEST_VERIFICATION_TOKEN';
+/** Rules whose whole match is a value; an all-zero value is not personal
+ *  data, and PiiRedactor.ts keeps it (`keepZero`), so it is not a hit.
+ *  Tested in JS rather than with overlapping quantifiers, which backtrack
+ *  on long near-misses. */
+const ZERO_VALUE_IDS = new Set([
+  'json-translit-money',
+  'miz-numeric-attr',
+  'miz-numeric-text',
+  'currency-amount-attr',
+  'json-mizrahi-reference',
+  'miz-reference-cell',
+  'il-bank-account',
+  'hapoalim-branch-account',
+  'israeli-id-9',
+]);
+
+// A rule whose lookbehind ends in `\s*` consumes its first value character
+// before the lookbehind (`\d(?<=…\s*\d)`), so a whitespace run is not
+// rescanned backwards at every position in it (PiiRuleLinearity.test.ts).
 const PATTERNS = [
   // --- Customer identity (operator-specific literals loaded from .pii-secrets.json) ---
   { id: 'hebrew-greeting-name', re: />שלום\s*<\/h1>\s*<p[^>]*>([^<]+)<\/p>/g, severity: 'CRITICAL', desc: 'Hebrew greeting name <h1>שלום</h1><p>NAME</p>' },
@@ -62,6 +119,14 @@ const PATTERNS = [
   { id: 'username-literal', re: new RegExp(`\\b(${alternation(SECRETS.operatorUsernames)})\\b`, 'g'), severity: 'CRITICAL', desc: 'Literal credential/username leaked' },
   { id: 'operator-account-literal', re: new RegExp(`\\b${escapeRegexLiteral(SECRETS.operatorAccountLiteral)}\\b`, 'g'), severity: 'CRITICAL', desc: 'Operator account number literal' },
   { id: 'bare-account-in-url', re: /(?:\/(?:gatewayAPI|portalserver|api|Titan|Lobby|apollo|retail|retail2|rb)(?:\/[A-Za-z][\w.-]*)+\/)\d{6,12}(?=\/|\?|$|"|\\")/g, severity: 'CRITICAL', desc: 'Bare account-id in REST URL path' },
+  { id: 'json-person-name-field', re: new RegExp(String.raw`\\?"(?:${PERSON_NAME_KEYS})\\?"\s*:\s*${notWholeValue(String.raw`\[redacted-name\]`)}${jsonStringValue()}`, 'g'), severity: 'CRITICAL', desc: 'JSON person-name field with raw value' },
+  { id: 'json-opaque-user-id', re: new RegExp(String.raw`\\?"(?:UserId|Username|UserIdentifier|ClientGWIdentifier|anonymousID)\\?"\s*:\s*${notWholeValue(String.raw`\[redacted-user-id\]`)}${jsonStringValue()}`, 'g'), severity: 'CRITICAL', desc: 'JSON per-user identifier field with raw value' },
+  { id: 'glassbox-user-id', re: /data[.-]glassbox-id="(?!\[redacted-user-id\]")[^"]+"/g, severity: 'CRITICAL', desc: 'Glassbox session-replay user id attribute' },
+  { id: 'role-embedded-account', re: /\bAC_\d{5,}_/g, severity: 'CRITICAL', desc: 'Account number embedded in permission role (AC_<account>_...)' },
+  { id: 'json-branch-field', re: /"Branch(?:ForDispaly|ForDisplay|ForMF)?\\?"\s*:\s*\\?"(?!000\\?")\d{2,3}(?=\\?")/g, severity: 'HIGH', desc: 'JSON branch-number field with a raw value (Mizrahi)' },
+  { id: 'branch-before-redacted-account', re: /\b(?!000-)\d{2,3}-(?=\[redacted-account\])/g, severity: 'HIGH', desc: 'Raw branch prefix left beside a redacted account' },
+  { id: 'json-mizrahi-reference', re: /\d(?<="MC\d{2}AsmEZ\\?"\s*:\s*\d)\d*/g, severity: 'HIGH', desc: 'Mizrahi movement reference number with a raw value' },
+  { id: 'miz-reference-cell', re: /\d(?<=isCloseToZero\(dataItem\.MC\d{2}AsmEZ\)"[^>]*>\s*\d)\d*/g, severity: 'HIGH', desc: 'Rendered Mizrahi movement reference cell' },
 
   // --- Account / IBAN ---
   { id: 'il-iban', re: /\bIL\d{2}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{3,7}\b/g, severity: 'CRITICAL', desc: 'Israeli IBAN' },
@@ -80,24 +145,36 @@ const PATTERNS = [
   // --- Monetary ---
   { id: 'ils-prefix-amount', re: /(?:₪|NIS|ILS|ש"ח|ש״ח)\s*[-+]?\d[\d,]*(?:\.\d+)?/g, severity: 'HIGH', desc: 'ILS amount currency-PREFIX' },
   { id: 'ils-suffix-amount', re: /-?\d[\d,]*(?:\.\d+)?\s*(?:₪|NIS|ILS|ש"ח|ש״ח)/g, severity: 'HIGH', desc: 'ILS amount currency-SUFFIX' },
-  { id: 'json-monetary-field', re: /"\w*(?:Balance|Amount|Total|Sum|Withdrawal|Deposit|Credit|Debit|Charge|Payment|Cost|Price|Fee)"\s*:\s*-?\d+(?:\.\d+)?/g, severity: 'HIGH', desc: 'JSON monetary field with raw numeric value' },
+  { id: 'json-monetary-field', re: /\\?"\w*(?:Balance|Amount|Total|Sum|Withdrawal|Deposit|Credit|Debit|Charge|Payment|Cost|Price|Fee)\\?"\s*:\s*-?\d+(?:\.\d+)?/g, severity: 'HIGH', desc: 'JSON monetary field with raw numeric value' },
   { id: 'numeric-balance-span', re: /<span[^>]*class="[^"]*number-(?:negative|positive|strong|amount|value|balance)[^"]*"[^>]*>\s*-?\d[\d,]*(?:\.\d+)?\s*<\/span>/g, severity: 'HIGH', desc: 'Hapoalim balance span numeric' },
+  { id: 'json-translit-money', re: new RegExp(String.raw`-?\d(?<=${TRANSLIT_MONEY_KEY_PREFIX}-?\d)\d*(?:\.\d+)?(?![\d.])|(?<=${TRANSLIT_MONEY_KEY_PREFIX}\\?")-?\d+(?:\.\d+)?(?=\\?")`, 'g'), severity: 'HIGH', desc: 'Transliterated Hebrew money field (Yitra/itra/schum/Remain/misgeret) with a non-zero value' },
+  { id: 'miz-numeric-attr', re: /(?<=\smiz-numeric-[\w-]+=")-?\d[\d,]*(?:\.\d+)?(?=")/g, severity: 'HIGH', desc: 'Mizrahi miz-numeric-* attribute holding a rendered amount' },
+  { id: 'miz-numeric-text', re: /-?\d(?<=miz-numeric-[\w-]+="[^"]*"[^>]*>\s*\u202A?-?\d)[\d,]*(?:\.\d+)?/g, severity: 'HIGH', desc: 'Rendered amount text inside a miz-numeric-* element' },
+  { id: 'currency-amount-attr', re: new RegExp(String.raw`(?<=${SKY_CURRENCY_ATTR}(?=[\s=/])[^>]*\scurrency=")${PLAIN_AMOUNT}(?=")|(?<=\scurrency=")${PLAIN_AMOUNT}(?="[^>]*${SKY_CURRENCY_ATTR}[\s=>/])`, 'g'), severity: 'HIGH', desc: 'Rendered Mizrahi currency="<amount>" attribute' },
 
   // --- Tokens / secrets ---
   { id: 'bearer-token', re: /Bearer\s+[\w.~+/=-]{20,}/g, severity: 'CRITICAL', desc: 'Bearer auth token' },
   { id: 'jwt', re: /\beyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{10,}\b/g, severity: 'CRITICAL', desc: 'JWT token' },
-  { id: 'cookie-auth', re: /(?:Set-Cookie|cookie)[^\n]*?(?:auth|token|session)=[^;\s"]+/gi, severity: 'CRITICAL', desc: 'Cookie session/auth value' },
-  { id: 'recaptcha-token', re: /<input[^>]*id="recaptcha-token"[^>]*value="(?!REDACTED_)[^"]+"/gi, severity: 'HIGH', desc: 'Unredacted recaptcha token' },
-  { id: 'lsessionid-token', re: /LSESSIONID=(?!REDACTED_)[A-Za-z0-9%+/=._-]{12,}/g, severity: 'CRITICAL', desc: 'Telebank session token in URL (LSESSIONID=...)' },
+  { id: 'cookie-auth', re: /(?<=(?:Set-Cookie|cookie)[^\n]*?(?:auth|token|session)=(?:\\?")?)(?:[^;\s"\\]|\\(?!"))+/gi, severity: 'CRITICAL', desc: 'Cookie session/auth value' },
+  { id: 'recaptcha-token', re: /<input[^>]*id="recaptcha-token"[^>]*value="(?!REDACTED_RECAPTCHA_TOKEN")[^"]+"/gi, severity: 'HIGH', desc: 'Unredacted recaptcha token' },
+  { id: 'lsessionid-token', re: /LSESSIONID=(?!REDACTED_SESSION_ID(?![^&"'\s>]))[^&"'\s>]+/g, severity: 'CRITICAL', desc: 'Telebank session token in URL (LSESSIONID=...)' },
   { id: 'tracking-id-param', re: /[?&;]ti=\d{6,}/g, severity: 'HIGH', desc: 'Google-ads tracking-conversion ID (&ti=NNN)' },
   { id: 'tracking-id-asset-path', re: /_(?:tag_uet|p_action|action_\d+_ti|ti)_\d{6,}/g, severity: 'HIGH', desc: 'MS Clarity / Bing UET advertiser tag ID in asset filename' },
   { id: 'tracking-mid-asset-path', re: /_mid_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, severity: 'HIGH', desc: 'MS Clarity / Bing UET session UUID in asset filename (_mid_<uuid>)' },
   { id: 'tracking-sid-asset-path', re: /_sid_[0-9a-f]{15,}/gi, severity: 'HIGH', desc: 'MS Clarity / Bing UET session hex blob in asset filename (_sid_<hex>)' },
-  { id: 'tel-link-redacted-id', re: /\btel:\[redacted-id\]/g, severity: 'HIGH', desc: 'Invalid tel: URI containing redacted-id placeholder' },
+  { id: 'tel-link-redacted-id', re: /\btel:\[redacted-(?:id|landline|phone)\]/g, severity: 'HIGH', desc: 'Invalid tel: URI containing a redacted id or phone placeholder' },
   { id: 'prettier-corrupt-redacted-id', re: /\[redacted - id\]/g, severity: 'CRITICAL', desc: 'JS-breaking [redacted - id] (prettier-corrupted) — would throw ReferenceError' },
+  { id: 'b64-embedded-ip', re: /(?<![\da-z+/])[\da-z+/]{56,76}={0,2}(?![\da-z+/=])/gi, severity: 'CRITICAL', desc: 'Base64 run decoding to <uuid>$<IPv4> (Radware bot token embeds the client IP)' },
+  { id: 'client-ip-field', re: /[^\s"'\\,;<>](?<=\b(?:client_?ip|remote_?addr|ip_?address|user_?ip|x-forwarded-for|x-real-ip)\\?["']?\s*[:=]\s*\\?["']?.)[^\s"'\\,;<>]*(?:\s*,\s*[^\s"'\\,;<>]+)*/gi, severity: 'CRITICAL', desc: 'Client-address field value holding an IPv4 or IPv6 address (client_ip, x-forwarded-for)' },
+  { id: 'radware-session-uuid', re: /var __uzdbm_\d+\s*=\s*'(?!00000000-0000-0000-0000-000000000000')[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'/gi, severity: 'HIGH', desc: 'Radware per-session UUID (__uzdbm_N)' },
+  { id: 'request-verification-token', re: /(?<=name=\\?["']__RequestVerificationToken\\?["'][^>]*?value=\\?["'])[^"'\\]+(?=\\?["'])|(?<=value=\\?["'])[^"'\\]+(?=\\?["'][^>]*?name=\\?["']__RequestVerificationToken\\?["'])/gi, severity: 'HIGH', desc: 'Unredacted ASP.NET anti-forgery token' },
+  { id: 'json-token-field', re: new RegExp(String.raw`"\w+Token\\?"\s*:\s*${notWholeValue(TOKEN_PLACEHOLDER_VALUES)}${jsonStringValue('{12,}')}`, 'g'), severity: 'CRITICAL', desc: 'JSON <prefix>Token field with a live value (xsrfToken)' },
+  { id: 'json-action-guid', re: /(?<="actionGUID\\?"\s*:\s*\\?")[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, severity: 'HIGH', desc: 'Mizrahi paging GUID (server session handle)' },
 
   // --- Temporal personal info ---
   { id: 'last-login-text', re: /class="last-login"[^>]*>[^<]*?\d{1,2}\/\d{1,2}\/\d{2,4}[^<]*?\d{1,2}:\d{2}/g, severity: 'HIGH', desc: 'Last-login timestamp (Hebrew "ביקורך האחרון")' },
+  { id: 'hebrew-last-login-label', re: /(?:כניסתך האחרונה|ביקורך האחרון)[^<]*?(?:<[^>]*>\s*)*\d{1,2}\/\d{1,2}\/\d{2,4}[\s,|]*\d{1,2}:\d{2}/g, severity: 'HIGH', desc: 'Last-login timestamp after its Hebrew label' },
+  { id: 'json-last-login', re: new RegExp(String.raw`"(?:LastTimeVisited|TaarichPeulaAhrona|_LastTime\w*)\\?"\s*:\s*${notWholeValue(String.raw`\[redacted-last-login\]`)}${jsonStringValue()}`, 'g'), severity: 'HIGH', desc: 'JSON last-visit timestamp field' },
 
   // --- Already-redacted markers (NEGATIVE — informational only) ---
   { id: 'redacted-marker-name', re: /\[redacted-name\]/g, severity: 'INFO', desc: 'Already redacted name (good)' },
@@ -126,14 +203,33 @@ function snippet(text, idx, ctx = 50) {
   return text.slice(s, e).replace(/\r?\n/g, ' ');
 }
 
+/** True when a base64 run decodes to a payload carrying `$<IPv4>` — the
+ *  shape of Radware's bot token, `base64(<uuid>$<ip>)`. Every other long
+ *  alphanumeric run (bundle hashes, nonces) is a false positive. */
+function decodesToEmbeddedIp(b64) {
+  const decoded = Buffer.from(b64, 'base64').toString('latin1');
+  return DECODED_EMBEDDED_IP.test(decoded);
+}
+/** True when a matched value has no non-zero digit (`0`, `-0.00`,
+ *  `000000000`, `00-000-0000`) — mirrors isZeroValue in PiiRedactor.ts. */
+function isZeroValue(value) {
+  return !/[1-9]/.test(value);
+}
+/** True when a client-address value holds an address other than the
+ *  all-zero placeholders PiiRedactor.ts writes. */
+function hasRawClientAddress(value) {
+  return [...value.matchAll(CLIENT_ADDRESS)].some(address => !CLIENT_IP_PLACEHOLDERS.has(address[0]));
+}
 /** Return true when a hit is a known false positive that the operator
  *  has accepted (already-redacted placeholder, public tracking ID, etc).
  *  Centralised here so each pattern stays focused on detection and the
  *  "is this real PII?" decision is reviewable in one place. */
 function isFalsePositive(hit) {
   const ctx = hit.ctx;
-  if (/\[redacted-(name|account|amount|id|phone|landline|email|iban|jwt|cookie|bearer|last-login)\]/.test(hit.match)) return true;
-  if (hit.pat.id === 'hebrew-greeting-name' && /\[redacted-name\]/.test(hit.match)) return true;
+  // Only a match that IS a placeholder is safe. A placeholder after part of
+  // a raw value, or inside a wider match (`tel:[redacted-id]`), is a hit.
+  if (/^\[redacted-(name|account|amount|id|phone|landline|email|iban|jwt|cookie|bearer|last-login)\]$/.test(hit.match)) return true;
+  if (hit.pat.id === 'hebrew-greeting-name' && /<p[^>]*>\[redacted-name\]<\/p>$/.test(hit.match)) return true;
   if (hit.pat.id === 'card-full-16') {
     if (/facebook\.net|facebook\.com\\?\/tr|fbq\(|connect\.facebook|fbevents|googletagmanager|gtag\/js|google-analytics|googleadservices|googletag|vtp_pixelId|"pixelId"|fbPixelId/.test(ctx)) return true;
     if (/__uzdbm|__uzma|__uzmf|__uzmb|__uzmc|__uzmd|__uzme|_rbzid|_rbzsessionid|reblaze/i.test(ctx)) return true;
@@ -144,17 +240,11 @@ function isFalsePositive(hit) {
   }
   if (hit.pat.id === 'israeli-id-9') {
     if (/googletagmanager|gtag\/js\?id=AW-|gtm\.js|google-analytics|googleadservices|AW-\d{9}|UA-\d{4,}|G-[A-Z0-9]{6,}/.test(ctx)) return true;
-    if (/^0{9}$/.test(hit.match)) return true;
     if (/doubleclick\.net|viewthroughconversion|tag_exp=|dc_random=|dc_fmt=|gtm_ee=|gtm_ndx=/i.test(ctx)) return true;
     if (/href="tel:|tel:0\d{8,}/i.test(ctx)) return true;
   }
   if (hit.pat.id === 'israeli-landline' && /href="tel:|tel:0\d{8,}/i.test(ctx)) return true;
-  if (hit.pat.id === 'il-bank-account') {
-    if (/^00-00-00/.test(hit.match) || /^000-000-/.test(hit.match)) return true;
-  }
-  if (hit.pat.id === 'json-monetary-field') {
-    if (/:\s*-?0(\.0+)?$/.test(hit.match)) return true;
-  }
+  if (hit.pat.id === 'json-monetary-field' && isZeroValue(hit.match.slice(hit.match.lastIndexOf(':') + 1))) return true;
   if (hit.pat.id === 'bare-account-in-url') {
     if (/\[redacted-account\]/.test(hit.match)) return true;
   }
@@ -162,12 +252,21 @@ function isFalsePositive(hit) {
     if (/banner_|promo_|alt=['"]/i.test(ctx)) return true;
     if (/_atar_|_shivuki_|_marketing/i.test(ctx)) return true;
   }
-  if (hit.pat.id === 'last-login-text' && /\[redacted-last-login\]/.test(hit.ctx)) return true;
+  if (hit.pat.id === 'b64-embedded-ip' && !decodesToEmbeddedIp(hit.match)) return true;
+  if (ZERO_VALUE_IDS.has(hit.pat.id) && isZeroValue(hit.match)) return true;
+  if (hit.pat.id === 'json-action-guid' && hit.match === ZERO_GUID) return true;
+  if (hit.pat.id === 'request-verification-token' && hit.match === RVT_PLACEHOLDER) return true;
+  if (hit.pat.id === 'client-ip-field' && !hasRawClientAddress(hit.match)) return true;
   return false;
 }
-
-function auditFile(file) {
-  const raw = fs.readFileSync(file, 'utf8');
+/**
+ * Audit one fixture's text against every pattern.
+ *
+ * @param {string} raw - Fixture contents.
+ * @returns {{ pat: { id: string, severity: string }, match: string, at: number, ctx: string }[]}
+ *   Hits that are not known false positives, INFO markers included.
+ */
+function auditText(raw) {
   const hits = [];
   for (const p of PATTERNS) {
     p.re.lastIndex = 0;
@@ -179,6 +278,11 @@ function auditFile(file) {
     }
   }
   return hits;
+}
+
+/** Audit one fixture file on disk. */
+function auditFile(file) {
+  return auditText(fs.readFileSync(file, 'utf8'));
 }
 
 function main() {
@@ -225,4 +329,6 @@ function main() {
   console.log(`\n✅ PASS: no PII patterns detected.`);
 }
 
-main();
+module.exports = { auditText, RULE_IDS: PATTERNS.map(p => p.id) };
+
+if (require.main === module) main();

@@ -6,8 +6,8 @@
   },
   "data": {
     "isLoggedIn": true,
-    "firstName": "FIXTURE-FIRST",
-    "lastName": "FIXTURE-LAST",
+    "firstName": "[redacted-name]",
+    "lastName": "[redacted-name]",
     "lastLogin": "2026-01-01T00:00:00Z"
   },
   "errorCode": null,
