@@ -10,8 +10,11 @@
  * card last-4, address fragments, JSON monetary fields, and any
  * Hebrew text inside a known PII-bearing class context.
  *
- * Zero trust: prints EVERY hit so the operator can verify nothing leaked.
- * Exits non-zero when any pattern fires.
+ * Zero trust: every hit is reported as rule, severity and line:column
+ * only, never the matched text or its context, because the pre-commit
+ * hook writes this output to `.pre-commit-output.log`. Open the fixture
+ * at the reported location to inspect a hit.
+ * Exits non-zero when any CRITICAL or HIGH pattern fires.
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -185,7 +188,17 @@ const PATTERNS = [
 ];
 
 const SEV_ORDER = { CRITICAL: 0, HIGH: 1, INFO: 99 };
+/** Most hit lines printed, and counted, per fixture. */
+const MAX_HITS_PER_FILE = 15;
+const FAIL_LINE = '\n❌ FAIL: PII detected in committed fixtures. Re-run redactor and re-audit.';
+const PASS_LINE = '\n✅ PASS: no PII patterns detected.';
 
+/**
+ * List every auditable fixture file under a directory, recursively.
+ *
+ * @param {string} dir - Directory to walk; a missing one yields no files.
+ * @returns {string[]} Absolute paths of the `.html`, `.json` and `.ndjson` files.
+ */
 function walkDir(dir) {
   const out = [];
   if (!fs.existsSync(dir)) return out;
@@ -197,6 +210,15 @@ function walkDir(dir) {
   return out;
 }
 
+/**
+ * Single-line text around an offset, so the false-positive rules can judge
+ * a hit by its neighbourhood. It is never printed.
+ *
+ * @param {string} text - Fixture contents.
+ * @param {number} idx - Offset of the hit.
+ * @param {number} [ctx] - Characters kept on each side.
+ * @returns {string} The window, with line breaks folded to spaces.
+ */
 function snippet(text, idx, ctx = 50) {
   const s = Math.max(0, idx - ctx);
   const e = Math.min(text.length, idx + ctx);
@@ -280,55 +302,137 @@ function auditText(raw) {
   return hits;
 }
 
-/** Audit one fixture file on disk. */
-function auditFile(file) {
-  return auditText(fs.readFileSync(file, 'utf8'));
+/**
+ * 1-based line and column of an offset. Only `\n` starts a line, so a CRLF
+ * line keeps its `\r`; the column counts UTF-16 code units, as editors do.
+ *
+ * @param {string} raw - Fixture contents.
+ * @param {number} at - Offset in `raw`.
+ * @returns {string} The location as `line:column`.
+ */
+function lineCol(raw, at) {
+  const before = raw.slice(0, at);
+  const line = before.split('\n').length;
+  return `${line}:${at - before.lastIndexOf('\n')}`;
 }
-
+/**
+ * One report line for a hit: severity, rule id, location and match length.
+ * The matched text and its context are never printed, because the hook
+ * keeps this output in `.pre-commit-output.log`.
+ *
+ * @param {{ pat: { id: string, severity: string }, match: string, at: number }} hit - The hit.
+ * @param {string} raw - Fixture contents the hit was found in.
+ * @returns {string} The report line.
+ */
+function formatHit(hit, raw) {
+  return `  [${hit.pat.severity}] ${hit.pat.id} at ${lineCol(raw, hit.at)} (len ${hit.match.length})`;
+}
+/**
+ * Hits that fail the gate; INFO markers flag placeholders that are already safe.
+ *
+ * @param {{ pat: { severity: string } }[]} hits - Hits of one fixture.
+ * @returns {{ pat: { severity: string } }[]} The CRITICAL and HIGH hits, in scan order.
+ */
+function reportableHits(hits) {
+  return hits.filter(hit => hit.pat.severity !== 'INFO');
+}
+/**
+ * The hits a fixture's report prints and the summary counts: CRITICAL first,
+ * scan order kept within a severity, capped at {@link MAX_HITS_PER_FILE}.
+ *
+ * @param {{ pat: { severity: string } }[]} reportable - CRITICAL and HIGH hits of one fixture.
+ * @returns {{ pat: { severity: string } }[]} At most MAX_HITS_PER_FILE hits.
+ */
+function topHits(reportable) {
+  const sorted = [...reportable].sort((a, b) => SEV_ORDER[a.pat.severity] - SEV_ORDER[b.pat.severity]);
+  return sorted.slice(0, MAX_HITS_PER_FILE);
+}
+/**
+ * Report lines for one fixture: a header, one line per top hit and a count
+ * of the hits left out.
+ *
+ * @param {string} rel - Fixture path relative to the repo root.
+ * @param {string} raw - Fixture contents.
+ * @param {{ pat: { id: string, severity: string }, match: string, at: number }[]} hits - Hits of the fixture.
+ * @returns {string[]} The lines, or none when no CRITICAL or HIGH hit fired.
+ */
+function renderFileReport(rel, raw, hits) {
+  const reportable = reportableHits(hits);
+  if (reportable.length === 0) return [];
+  const lines = [`\n=== ${rel} ===`, ...topHits(reportable).map(hit => formatHit(hit, raw))];
+  const hidden = reportable.length - MAX_HITS_PER_FILE;
+  if (hidden > 0) lines.push(`  ... and ${hidden} more`);
+  return lines;
+}
+/**
+ * Count the hits of one severity.
+ *
+ * @param {{ pat: { severity: string } }[]} hits - Hits to count.
+ * @param {string} severity - Severity to match.
+ * @returns {number} The count.
+ */
+function countSeverity(hits, severity) {
+  return hits.filter(hit => hit.pat.severity === severity).length;
+}
+/**
+ * Tally every fixture's top hits into the audit verdict.
+ *
+ * @param {{ pat: { severity: string } }[][]} hitLists - Hits of each fixture.
+ * @returns {{ critical: number, high: number, filesWithHits: number, failed: boolean }}
+ *   Counts within each fixture's top hits, and whether the gate fails.
+ */
+function summarizeReports(hitLists) {
+  const tops = hitLists.map(hits => topHits(reportableHits(hits)));
+  const critical = tops.reduce((sum, top) => sum + countSeverity(top, 'CRITICAL'), 0);
+  const high = tops.reduce((sum, top) => sum + countSeverity(top, 'HIGH'), 0);
+  const filesWithHits = tops.filter(top => top.length > 0).length;
+  return { critical, high, filesWithHits, failed: critical > 0 || high > 0 };
+}
+/**
+ * The summary block and verdict line printed after every fixture report.
+ *
+ * @param {number} fileCount - Number of fixtures scanned.
+ * @param {{ critical: number, high: number, filesWithHits: number, failed: boolean }} summary - The tally.
+ * @returns {string[]} The lines, ending with the FAIL or PASS verdict.
+ */
+function renderSummary(fileCount, summary) {
+  return [
+    '\n========== AUDIT SUMMARY ==========',
+    `Files scanned: ${fileCount}`,
+    `Files with PII hits: ${summary.filesWithHits}`,
+    `CRITICAL hits (top ${MAX_HITS_PER_FILE}/file): ${summary.critical}`,
+    `HIGH     hits (top ${MAX_HITS_PER_FILE}/file): ${summary.high}`,
+    summary.failed ? FAIL_LINE : PASS_LINE,
+  ];
+}
+/**
+ * Audit one fixture file on disk and print its report.
+ *
+ * @param {string} file - Absolute fixture path.
+ * @returns {{ pat: { id: string, severity: string }, match: string, at: number, ctx: string }[]} Its hits.
+ */
+function printFileReport(file) {
+  const raw = fs.readFileSync(file, 'utf8');
+  const hits = auditText(raw);
+  for (const line of renderFileReport(path.relative(ROOT, file), raw, hits)) console.log(line);
+  return hits;
+}
+/** Audit every committed fixture; exit 2 when any CRITICAL or HIGH hit fires. */
 function main() {
   const files = walkDir(FIXTURES);
   console.log(`Scanning ${files.length} fixture files under ${path.relative(ROOT, FIXTURES)}`);
-  let critical = 0;
-  let high = 0;
-  const fileSummary = {};
-  for (const f of files) {
-    const hits = auditFile(f);
-    if (hits.length === 0) continue;
-    const rel = path.relative(ROOT, f);
-    const interesting = hits.filter((h) => h.pat.severity !== 'INFO');
-    if (interesting.length === 0) {
-      fileSummary[rel] = { c: 0, h: 0, ok: true };
-      continue;
-    }
-    fileSummary[rel] = { c: 0, h: 0, ok: false };
-    interesting.sort((a, b) => SEV_ORDER[a.pat.severity] - SEV_ORDER[b.pat.severity]);
-    console.log(`\n=== ${rel} ===`);
-    for (const hit of interesting.slice(0, 15)) {
-      const tag = `[${hit.pat.severity}] ${hit.pat.id}`;
-      console.log(`  ${tag}: "${hit.match.slice(0, 80)}"  ctx: ...${hit.ctx}...`);
-      if (hit.pat.severity === 'CRITICAL') {
-        critical++;
-        fileSummary[rel].c++;
-      }
-      if (hit.pat.severity === 'HIGH') {
-        high++;
-        fileSummary[rel].h++;
-      }
-    }
-    if (interesting.length > 15) console.log(`  ... and ${interesting.length - 15} more`);
-  }
-  console.log(`\n========== AUDIT SUMMARY ==========`);
-  console.log(`Files scanned: ${files.length}`);
-  console.log(`Files with PII hits: ${Object.values(fileSummary).filter((v) => !v.ok).length}`);
-  console.log(`CRITICAL hits (top 15/file): ${critical}`);
-  console.log(`HIGH     hits (top 15/file): ${high}`);
-  if (critical > 0 || high > 0) {
-    console.log(`\n❌ FAIL: PII detected in committed fixtures. Re-run redactor and re-audit.`);
-    process.exit(2);
-  }
-  console.log(`\n✅ PASS: no PII patterns detected.`);
+  const summary = summarizeReports(files.map(file => printFileReport(file)));
+  for (const line of renderSummary(files.length, summary)) console.log(line);
+  if (summary.failed) process.exit(2);
 }
 
-module.exports = { auditText, RULE_IDS: PATTERNS.map(p => p.id) };
+module.exports = {
+  auditText,
+  formatHit,
+  renderFileReport,
+  summarizeReports,
+  renderSummary,
+  RULE_IDS: PATTERNS.map(p => p.id),
+};
 
 if (require.main === module) main();
