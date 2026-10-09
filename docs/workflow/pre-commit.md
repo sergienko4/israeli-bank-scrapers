@@ -76,11 +76,23 @@ The summary at the end names every failing gate. Detail logs are written to `.pr
 | `audit` | Supply-chain hygiene — fails on known CVEs in dependencies |
 | `architecture` + `canaries` + `lint:phases:strict` + `dead-code` + `cycles` | Architectural invariants — fails when a PR reaches across a layer boundary, breaks a canary fixture, leaves a dead export, or adds an import cycle |
 | `guideline-coverage` | Process invariant — fails when `eslint.config.mjs` drifts from CLEAN_CODE.md canonical caps |
-| `fixtures-pii` + `pii-staged` | Privacy — `fixtures-pii` fails when captured fixtures carry real account data or person names, live session or anti-forgery tokens, a bot-manager session UUID (alone or embedded mid-value), last-login stamps, or a client IP (plain, or embedded in a bot-manager token), and reports at most 15 CRITICAL or HIGH hits per fixture as rule, severity, line:column and match length only (any further hits as a count), never the matched text, because the hook keeps its output in `.pre-commit-output.log`; `pii-staged` fails when any staged file re-adds a known scrubbed value from the hashed denylist |
+| `fixtures-pii` + `pii-staged` | Privacy — `fixtures-pii` fails on personal data in captured fixtures; `pii-staged` fails when a staged file re-adds a scrubbed value (see [Privacy gates](#privacy-gates)) |
 | `test-duplication` + `bank-coverage` + `node-support` | Suite health — duplicate test bodies, uncovered banks, unsupported Node syntax |
 | `docs-strict` + `docs-staleness` | Docs build correctness and freshness |
 | `docs-coverage` | Docs/code consistency — fails when a new `src/Scrapers/Pipeline/` export ships without a `docs/` mention or allowlist entry |
 | `build` | Produces the actual `lib/` ESM + CJS bundle, ensuring `tsup` can reach a green state, and asserts the exported API still matches `api-surface.d.ts` |
+
+### Privacy gates
+
+- `fixtures-pii` fails when captured fixtures carry any of:
+    - real account data or person names
+    - live session or anti-forgery tokens
+    - a bot-manager session UUID, alone or embedded mid-value
+    - last-login stamps
+    - a client IP, plain or embedded in a bot-manager token
+- It reports at most 15 CRITICAL or HIGH hits per fixture, and counts any further hits.
+- Each hit shows only its rule, severity, line:column and match length, never the matched text, because the hook keeps its output in `.pre-commit-output.log`.
+- `pii-staged` fails when any staged file re-adds a known scrubbed value from the hashed denylist.
 
 ## Skipping the hook (don't)
 
