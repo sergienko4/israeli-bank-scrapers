@@ -44,9 +44,9 @@ process warning at `createScraper` time:
 ```text
 (node:12345) ScraperOptionsWarning: "isracard" runs on the Pipeline, which does not
 implement these Legacy (deprecated) scraper options: includeRawTransaction,
-shouldCombineInstallments. They are ignored here — only the deprecated non-Pipeline
-scrapers (Behatsdaa, Beyahad Bishvilha, Mizrahi) read them, and that path is closed
-to new work. Remove them, or see
+shouldCombineInstallments. They are ignored here. Some legacy-only options are read
+only by the deprecated non-Pipeline scrapers (Behatsdaa, Beyahad Bishvilha), and
+that path is closed to new work. Remove them, or see
 https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/
 ```
 
@@ -65,16 +65,17 @@ process.on('warning', w => {
 
 ### Legacy-only options
 
-Read solely by the [Legacy (deprecated)](architecture/legacy.md) scrapers.
+Not implemented by the Pipeline. Five are read only by the
+[Legacy (deprecated)](architecture/legacy.md) scrapers; three have no reader.
 
 | Option | What it does on the legacy path |
 | --- | --- |
 | `includeRawTransaction` | Attaches the unparsed provider row to each transaction |
 | `navigationRetryCount` | Retries a phase on `TIMEOUT` before failing |
-| `optInFeatures` | Per-bank behaviour flags (Mizrahi only) |
+| `optInFeatures` | No active reader since the legacy Mizrahi scraper was removed; ignored with `ScraperOptionsWarning` |
 | `outputData` | Suppresses date filtering (Beyahad Bishvilha only) |
-| `shouldAddTransactionInformation` | Adds extra per-transaction metadata (Mizrahi only) |
-| `shouldCombineInstallments` | Merges instalment rows into one transaction |
+| `shouldAddTransactionInformation` | No active reader since the legacy Mizrahi scraper was removed; ignored with `ScraperOptionsWarning` |
+| `shouldCombineInstallments` | No active reader: no scraper passes it to the instalment filter; ignored with `ScraperOptionsWarning` |
 | `skipCloseBrowser` | Leaves an externally supplied browser open |
 | `storeFailureScreenShotPath` | Writes a screenshot when a scrape fails |
 

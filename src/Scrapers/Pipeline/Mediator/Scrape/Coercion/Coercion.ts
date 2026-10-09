@@ -23,22 +23,40 @@ function pickRawString(val: ScalarFieldHit): string {
 }
 
 /**
+ * Earliest calendar year a provider date can genuinely carry. An earlier year
+ * is a "not set" placeholder: .NET providers send `DateTime.MinValue`
+ * (`0001-01-01T00:00:00`) for an empty date, e.g. Mizrahi's value date
+ * `MC02ErehTaaEZ` on a movement that has none.
+ */
+const MIN_PLAUSIBLE_YEAR = 1900;
+
+/**
+ * The identity transform — keeps a raw string as it is.
+ * @param s - Raw string.
+ * @returns The same string.
+ */
+function keepAsIs(s: string): string {
+  return s;
+}
+
+/**
  * Coerce a field value to string, applying optional transform.
  * Numeric inputs are stringified so numeric YYYYMMDD dates survive.
  * @param val - Raw field value from findFieldValue.
- * @param transform - Optional string transform (e.g., parseAutoDate).
- * @param fallback - Fallback when val is missing.
+ * @param transform - Optional string transform (e.g., parseAutoDate); an
+ *   empty result means the transform rejected the value.
+ * @param fallback - Fallback when val is missing or rejected by the transform.
  * @returns Coerced string.
  */
 function coerceString(
   val: ScalarFieldHit,
-  transform?: (s: string) => string,
+  transform: (s: string) => string = keepAsIs,
   fallback = '',
 ): string {
   if (val === false) return fallback;
   const s = pickRawString(val);
-  if (s === '') return fallback;
-  return transform ? transform(s) : s;
+  const out = s === '' ? '' : transform(s);
+  return out === '' ? fallback : out;
 }
 
 /**
@@ -72,13 +90,18 @@ function coerceNumber(val: ScalarFieldHit, fallback: number): number {
  * same row produce different public values on different machines and in
  * different scrape orders. See {@link parseInBankZone} and issue #545.
  *
+ * A placeholder date (year before {@link MIN_PLAUSIBLE_YEAR}) parses to empty,
+ * so a processed date falls back to the transaction date and a row dated only
+ * by a placeholder can neither be mapped nor certify window coverage.
+ *
  * @param dateStr - Raw date string from API response.
- * @returns ISO date string, or original if no match.
+ * @returns ISO date string, empty for a placeholder, or original if no match.
  */
 function parseAutoDate(dateStr: string): string {
   const parsed = parseInBankZone(dateStr, KNOWN_DATE_FORMATS, true);
-  if (parsed.isValid()) return parsed.toISOString();
-  return dateStr;
+  if (!parsed.isValid()) return dateStr;
+  if (parsed.year() < MIN_PLAUSIBLE_YEAR) return '';
+  return parsed.toISOString();
 }
 
 export { coerceNumber, coerceString, parseAutoDate };

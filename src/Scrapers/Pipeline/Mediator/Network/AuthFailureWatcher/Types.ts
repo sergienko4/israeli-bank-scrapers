@@ -34,6 +34,19 @@ export interface IBodyFailurePattern {
   readonly note: string;
 }
 
+/**
+ * Explicit-success marker. A record that declares success outranks
+ * every failure pattern inferred from status codes in that record.
+ */
+export interface IBodySuccessMarker {
+  /** JSON field name to inspect on the parsed response body. */
+  readonly field: string;
+  /** Predicate — true means this value declares an auth success. */
+  readonly isSuccess: (value: JsonUnknown) => boolean;
+  /** Documents which bank's contract motivated the row. */
+  readonly note: string;
+}
+
 /** Auth-failure record produced by either detection layer. */
 export interface IAuthFailure {
   /** HTTP status code observed (200 for body-error layer, 4xx for status layer). */

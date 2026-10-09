@@ -283,6 +283,48 @@ const LEUMI_POST_LOGIN = {
   ],
 } as const satisfies IExtendedRecipe;
 
+/** Mizrahi: no OTP; LOGIN lands on the mto.…/OnlineApp Angular SPA
+ *  (side menu "עובר ושב שלי" › "מבט על"). SkyBL/logon fires during login
+ *  and carries the accounts + balance; the "יתרה ותנועות בחשבון" menu
+ *  item opens the transactions view, which fires SkyOSH/get428Index.
+ *  OSH/Get428ODS is the alternative balance source (spec §5 row 2). */
+const MIZRAHI_POST_LOGIN = {
+  bankId: 'mizrahi',
+  steps: [
+    { kind: 'login', stepName: '04-login-action', snapshot: false },
+    {
+      kind: 'waitFor',
+      stepName: '07-auth-discovery',
+      urlIncludes: 'OnlineApp',
+      textVisible: 'עובר ושב שלי',
+      timeoutMs: DASHBOARD_NETWORKIDLE_TIMEOUT_MS,
+    },
+    {
+      kind: 'recordResponse',
+      stepName: '08-account-resolve',
+      urlPattern: 'SkyBL/logon',
+      captureAs: 'logon',
+      methods: ['POST'],
+    },
+    { kind: 'reveal', stepName: '09-dashboard', revealText: 'יתרה ותנועות בחשבון' },
+    { kind: 'snapshot', stepName: '10-transactions-view', waitForLifecycle: 'networkidle' },
+    {
+      kind: 'recordResponse',
+      stepName: '10-scrape-transactions',
+      urlPattern: 'SkyOSH/get428Index',
+      captureAs: 'transactions',
+      methods: ['POST'],
+    },
+    {
+      kind: 'recordResponse',
+      stepName: '11-balance',
+      urlPattern: 'OSH/Get428ODS',
+      captureAs: 'balance',
+      methods: ['POST'],
+    },
+  ],
+} as const satisfies IExtendedRecipe;
+
 /**
  * Registry: bankId → post-login recipe.
  *
@@ -300,6 +342,7 @@ const POST_LOGIN_RECIPES: Readonly<Partial<Record<string, IExtendedRecipe>>> = {
   hapoalim: HAPOALIM_POST_LOGIN,
   beinleumi: BEINLEUMI_POST_LOGIN,
   leumi: LEUMI_POST_LOGIN,
+  mizrahi: MIZRAHI_POST_LOGIN,
 };
 
 /**
@@ -438,6 +481,12 @@ const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
       { stepName: '02-after-entry', revealText: 'כניסה לחשבון' },
       { stepName: '03-after-private', revealText: 'לקוח פרטי' },
       { stepName: '04-reveal-password', revealText: 'סיסמה קבועה' },
+    ],
+  },
+  mizrahi: {
+    steps: [
+      { stepName: '01-home', url: 'https://www.mizrahi-tefahot.co.il' },
+      { stepName: '02-login-modal', revealText: 'כניסה לחשבון', waitForCredentialInput: true },
     ],
   },
   visaCal: {

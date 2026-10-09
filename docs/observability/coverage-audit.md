@@ -48,6 +48,8 @@ The fix is a declaration, not an inference. A shape whose response carries every
 
 Crucially the narrowing happens **after** the hunt, not before it. Auditing a pre-filtered slice would compare the extractor against itself and always report zero — switching the guardrail off for Max while looking like it was on. Hunting first means a container the shape never reads is still discovered, and the rows in it that belong to this card still count as loss.
 
+Mizrahi needs the mirror-image declaration. Its `get428Index` table opens with a balance line — dated today, the balance as its amount, a description — that the canonical mapper reads as a transaction, while the extractor drops it (only `RecTypeSpecified` rows are movements). Undeclared, every page whose range reaches today reported the balance line as one unread row and downgraded a covered window to `lowerBoundReached` (real login #15). A shape whose table carries such a row declares `auditIsTxnRow`, and the driver passes it as `isTxnRow`; the audit counts a hunted row only when it is a transaction **and** owned. Mizrahi declares `IS_MIZRAHI_TXN_ROW`, the same predicate its extractor filters with, so the two cannot drift. Like ownership, the test applies after the hunt, so an unread container is still found.
+
 ## When dropping unmappable rows empties the hunt
 
 That drop is applied to the hunted side **after** the shape has already produced its own. The two sides therefore reach the comparison by different routes: `extracted` is whatever the shape handed back, while `hunted` is re-read from the **raw** body. A shape that merely slices its response leaves both sides speaking one vocabulary, and the drop removes only the descriptors and envelopes it was written for.

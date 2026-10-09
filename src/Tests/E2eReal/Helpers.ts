@@ -207,11 +207,20 @@ const DEFAULT_HAPPY_PATH_DAYS = 180;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
+ * Returns the start date a given number of whole days before now.
+ * @param days - Days back from now.
+ * @returns Date `days` days before now
+ */
+export function daysBackStartDate(days: number): Date {
+  return new Date(Date.now() - days * MS_PER_DAY);
+}
+
+/**
  * Returns the default start date for happy-path E2E scrapes (180 days back).
  * @returns Date 180 days before now
  */
 export function defaultStartDate(): Date {
-  return new Date(Date.now() - DEFAULT_HAPPY_PATH_DAYS * MS_PER_DAY);
+  return daysBackStartDate(DEFAULT_HAPPY_PATH_DAYS);
 }
 
 /**

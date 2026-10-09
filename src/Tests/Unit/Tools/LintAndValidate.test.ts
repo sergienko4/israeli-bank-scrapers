@@ -292,8 +292,8 @@ describe('issuesFromCode — Rule #10 Playwright leak', () => {
 // not because of any import handling. They are kept as a tripwire — broaden
 // the pattern beyond call shape and these two rows fail immediately.
 //
-// The legacy row encodes the maintainer's pipeline-only ruling: Mizrahi and
-// friends keep calling these helpers with literal CSS and must not fail the
+// The legacy row encodes the maintainer's pipeline-only ruling: the remaining
+// legacy scrapers keep calling these helpers with literal CSS and must not fail the
 // build. Ignoring legacy is not the same as breaking it.
 const RULE_16_CASES = [
   {

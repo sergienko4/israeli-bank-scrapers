@@ -1,7 +1,7 @@
 /**
  * Barrel of every bank shape reachable through the API-direct scrape phase.
  *
- * The window-narrowing contract needs all sixteen shapes in one place. Listing
+ * The window-narrowing contract needs all seventeen shapes in one place. Listing
  * them here rather than in the contract's own fixtures keeps that file inside
  * the repo's fifteen-dependency module cap, and gives the list a single home
  * that a review can read top to bottom.
@@ -21,6 +21,7 @@ export { LEUMI_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape
 export { MASSAD_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Massad/scrape/MassadShape.js';
 export { MAX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Max/scrape/MaxShape.js';
 export { MERCANTILE_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Mercantile/scrape/MercantileShape.js';
+export { MIZRAHI_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Mizrahi/scrape/MizrahiShape.js';
 export { ONE_ZERO_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OneZero/scrape/OneZeroShape.js';
 export { OTSAR_HAHAYAL_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShape.js';
 export { PAGI_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Pagi/scrape/PagiShape.js';

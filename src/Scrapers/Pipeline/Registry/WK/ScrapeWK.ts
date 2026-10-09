@@ -66,6 +66,10 @@ export const PIPELINE_WELL_KNOWN_API = {
     // outside `get\w*Transactions`, so it needs its own pattern. The
     // module name is Leumi-specific; no cross-bank overlap.
     /GetBusinessAccountTrx/i,
+    // Mizrahi account-movements endpoint `SkyOSH/get428Index`. Its landing
+    // call is the header donor that carries `mizrahixsrftoken` to the hard
+    // model. The module name is Mizrahi-specific; no cross-bank overlap.
+    /get428Index/i,
   ],
   // Negative patterns — URL paths that MATCH the `transactions` list
   // above but actually serve dashboard-PREVIEW / status-page WIDGET

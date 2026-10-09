@@ -31,7 +31,8 @@ import { type ApiRecord } from '../AutoMapperFacade/AutoMapperTypes.js';
  *   plain-key aliases still come from `WK.memo`, so adding a bank stays a
  *   dictionary edit.
  * - `installments`, derived from numeric ordinals or parsed out of free text.
- * - `status`, inferred from what the row omits rather than what it states.
+ * - `status`, read from a provider's own provisional-row marker, or inferred
+ *   from what the row omits.
  * - `type`, which follows from whether ordinals resolved.
  *
  * Misses are reported as `false` rather than `undefined`, per the pipeline's
@@ -255,6 +256,23 @@ function resolveInstallments(raw: ApiRecord): IInstallments | false {
   return noteInstallments(raw);
 }
 
+/** Tells whether one provider's record marks the row as not yet settled. */
+type PendingMarker = (raw: ApiRecord) => boolean;
+
+/**
+ * Every provider's provisional-row marker. A row matching any of them is
+ * pending, so covering another provider is adding an entry here.
+ */
+const PENDING_MARKERS: readonly PendingMarker[] = [
+  // Hapoalim: a row the bank has not given a serial number yet.
+  (raw): boolean => raw.serialNumber === 0,
+  // A purchase row that has not yet been assigned a debit date.
+  (raw): boolean => 'trnPurchaseDate' in raw && raw.debCrdDate === undefined,
+  // Mizrahi `get428Index`: today's movement, not yet posted. The key is
+  // Mizrahi-only, and only `true` marks a row.
+  (raw): boolean => raw.IsTodayTransaction === true,
+];
+
 /**
  * Resolve the settlement status, defaulting to the mapper's own `Completed`.
  *
@@ -262,11 +280,8 @@ function resolveInstallments(raw: ApiRecord): IInstallments | false {
  * @returns `Pending` where the payload says so, otherwise `false`.
  */
 function resolvePending(raw: ApiRecord): TransactionStatuses | false {
-  if (raw.serialNumber === 0) return TransactionStatuses.Pending;
-  // A purchase row that has not yet been assigned a debit date.
-  const isUnbilledPurchase = 'trnPurchaseDate' in raw && raw.debCrdDate === undefined;
-  if (isUnbilledPurchase) return TransactionStatuses.Pending;
-  return false;
+  const isPending = PENDING_MARKERS.some((marker): boolean => marker(raw));
+  return isPending ? TransactionStatuses.Pending : false;
 }
 
 /**

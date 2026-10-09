@@ -132,6 +132,7 @@ const KNOWN_BANK_SLUGS: readonly string[] = [
   'max',
   'massad',
   'mercantile',
+  'mizrahi',
   'onezero',
   'otsarhahayal',
   'pagi',

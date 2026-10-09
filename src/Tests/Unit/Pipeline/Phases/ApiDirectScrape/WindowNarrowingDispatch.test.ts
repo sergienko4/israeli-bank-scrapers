@@ -3,7 +3,7 @@
  *
  * The sibling contract proves each `windowNarrowing` declaration is *true* —
  * that moving the bound really does change the bytes on the wire. This one
- * proves the declaration is *used*: that for all sixteen banks the runtime
+ * proves the declaration is *used*: that for all seventeen banks the runtime
  * decision follows from it, and that no bank falls through the dispatch into
  * silence.
  *

@@ -36,7 +36,7 @@ npm install @sergienko4/israeli-bank-scrapers
 
 ```mermaid
 flowchart LR
-    subgraph BB["Browser banks (13 pipeline)"]
+    subgraph BB["Browser banks (14 pipeline)"]
       direction LR
       INIT --> HOME --> PRELOGIN["PRE-LOGIN (opt-in)"]
       PRELOGIN --> LOGIN --> OTP["OTP (opt-in)"]
@@ -55,7 +55,7 @@ flowchart LR
 
 | Surface | Counts | Source of truth |
 |---|---|---|
-| Banks supported | **19** total — 16 on Pipeline (13 browser + 3 api-direct), 3 on legacy migration path | [Banks](banks/index.md) |
+| Banks supported | **19** total — 17 on Pipeline (14 browser + 3 api-direct), 2 on legacy migration path | [Banks](banks/index.md) |
 | Phases | Browser: `INIT → HOME → [PRE-LOGIN] → LOGIN → [OTP] → AUTH-DISCOVERY → BIND-API-MEDIATOR → API-DIRECT-SCRAPE → TERMINATE` · api-direct: **2** | [Phases](phases/index.md) |
 | Test suites | 412, ~4,800 tests, 97.20% statements coverage | [Workflow → CI gates](workflow/ci.md) |
 | Pre-commit gates | 12 gates in parallel | [Workflow → Pre-commit](workflow/pre-commit.md) |
@@ -72,4 +72,4 @@ See [README → Version history](https://github.com/sergienko4/israeli-bank-scra
 
 ## Migration notice
 
-Everything **outside `src/Scrapers/Pipeline/`** is on a wide-net migration path: `src/Scrapers/Base/`, `src/Common/`, and the 5 legacy bank dirs will fold into Pipeline over time. Public API behavior is preserved. See [Architecture → Migration strategy](architecture/migration.md) for the plan.
+Everything **outside `src/Scrapers/Pipeline/`** is on a wide-net migration path: `src/Scrapers/Base/`, `src/Common/`, and the 2 legacy bank dirs will fold into Pipeline over time. Public API behavior is preserved. See [Architecture → Migration strategy](architecture/migration.md) for the plan.

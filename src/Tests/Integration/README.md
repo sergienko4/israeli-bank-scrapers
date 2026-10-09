@@ -150,7 +150,7 @@ directory under `src/Scrapers/Pipeline/Banks/` and verifies:
   `bankId`.
 - `fixtures/banks/<bankId>/` exists.
 
-Legacy non-pipeline banks (Mizrahi, Behatsdaa, BeyahadBishvilha) and
+Legacy non-pipeline banks (Behatsdaa, BeyahadBishvilha) and
 API-direct providers (OneZero, Pepper, PayBox) are explicitly
 allow-listed and exempted from the gate.
 

@@ -32,6 +32,7 @@ import { fillAndSubmit } from '../../../Scrapers/Pipeline/Mediator/Form/LoginFor
 import type { Option } from '../../../Scrapers/Pipeline/Types/Option.js';
 import type { Procedure } from '../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { BankCredentials } from './CredentialLoader.js';
+import { clickWithFallback } from './HarvestRevealHelpers.js';
 import {
   flushMatching,
   type IFlushArgs,
@@ -110,17 +111,19 @@ async function executeGotoStep(
 }
 
 /**
- * Click the reveal element identified by visible text.
+ * Wait for the reveal element (visible text) and click it through the
+ * shared {@link clickWithFallback} cascade.
  *
  * @param page - Playwright page.
  * @param revealText - Visible text to locate and click.
  * @returns Resolved promise after the click settles.
+ * @throws ScraperError when every click tier failed.
  */
-function clickRevealElement(page: Page, revealText: string): Promise<void> {
-  return page
-    .getByText(revealText, { exact: false })
-    .first()
-    .click({ timeout: REVEAL_CLICK_TIMEOUT_MS });
+async function clickRevealElement(page: Page, revealText: string): Promise<void> {
+  const target = page.getByText(revealText, { exact: false }).first();
+  await target.waitFor({ state: 'visible', timeout: REVEAL_CLICK_TIMEOUT_MS });
+  const didClick = await clickWithFallback(target);
+  if (!didClick) throw new ScraperError(`reveal click failed for "${revealText}"`);
 }
 
 /**

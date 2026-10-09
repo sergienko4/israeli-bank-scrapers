@@ -49,6 +49,7 @@ export const BANK_EXTRA_DNS_HOSTS: BankExtraDnsHosts = {
   [CompanyTypes.Leumi]: ['hb2.bankleumi.co.il'],
   [CompanyTypes.Massad]: ['online.bankmassad.co.il'],
   [CompanyTypes.Mercantile]: ['start.telebank.co.il'],
+  [CompanyTypes.Mizrahi]: ['mto.mizrahi-tefahot.co.il'],
   [CompanyTypes.OneZero]: ['identity.tfd-bank.com', 'mobile.tfd-bank.com'],
   [CompanyTypes.OtsarHahayal]: ['online.bankotsar.co.il'],
   [CompanyTypes.Pagi]: ['online.pagi.co.il'],

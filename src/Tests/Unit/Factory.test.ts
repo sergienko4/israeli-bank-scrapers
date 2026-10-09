@@ -54,7 +54,7 @@ describe('createScraper — legacy-only options on a Pipeline bank (issue #540)'
 
   it('stays silent for a legacy bank, which does read the option', () => {
     const emitted = warningsFromCreate({
-      companyId: CompanyTypes.Mizrahi,
+      companyId: CompanyTypes.Behatsdaa,
       startDate: new Date(),
       includeRawTransaction: true,
     });

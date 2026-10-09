@@ -27,10 +27,10 @@ For each legacy bank, the porting PR does:
 | 4 | Write fixtures under `src/Tests/E2eMocked/<Bank>/fixtures/` from a captured real-bank run |
 | 5 | Verify with `npm test -- --testPathPatterns=E2eMocked/<Bank>` and `npm test -- --testPathPatterns=E2eReal/<Bank>.e2e-real` |
 | 6 | **Options parity** — for each option in `LEGACY_ONLY_OPTIONS` (`src/Scrapers/Pipeline/Core/LegacyOnlyOptions.ts`), decide *implement on the Pipeline* or *drop*. Implementing one removes its manifest entry; dropping it is a behaviour change for that bank's callers and belongs in the PR body |
-| 7 | Once green, delete `src/Scrapers/<Bank>/` and remove from `SCRAPER_REGISTRY_LEUMI_TO_YAHAV.ts` or its sibling |
+| 7 | Once green, delete `src/Scrapers/<Bank>/` and remove its row from the legacy registry (`ScraperRegistryAmexToIsracard.ts`) |
 | 8 | Re-run `lint:dead-code` to confirm no unused exports remain |
 
-The 16 banks already on Pipeline followed exactly this sequence — except step 6, which was added after [#540](https://github.com/sergienko4/israeli-bank-scrapers/issues/540) showed that a migration can silently drop an option its callers relied on.
+The first 16 banks on the Pipeline followed exactly this sequence — except step 6, which was added after [#540](https://github.com/sergienko4/israeli-bank-scrapers/issues/540) showed that a migration can silently drop an option its callers relied on.
 
 ## Per-utility migration sequence
 
@@ -47,7 +47,9 @@ For each `src/Common/` helper that the Pipeline does NOT already use:
 ## Order of operations (proposed)
 
 > **Status:** Bank Leumi (wave 1) and Bank Yahav (wave 2) have since migrated to
-> the Pipeline; Mizrahi, Behatsdaa, and Beyahad Bishvilha remain.
+> the Pipeline. Mizrahi followed in one migration that replaced its legacy scraper
+> with the Pipeline bank, now being proven by real runs; Behatsdaa and Beyahad
+> Bishvilha remain.
 
 | Wave | Banks to migrate | Why this wave |
 |---|---|---|
@@ -66,7 +68,7 @@ Each wave is a separate PR, gated by:
 
 ## Why this order?
 
-- **Mizrahi + Leumi first** — the highest-traffic legacy banks (Leumi has since migrated), so any regression surfaces fastest in downstream consumers (Caspion, Moneyman, Actual Budget importer).
+- **Mizrahi + Leumi first** — the highest-traffic legacy banks (both have since moved to the Pipeline; Mizrahi is not production-ready yet), so any regression surfaces fastest in downstream consumers (Caspion, Moneyman, Actual Budget importer).
 - **Banks before utilities** — utilities can't safely be deleted while a single legacy bank still imports them. Migrate all bank surfaces, then fold the helpers.
 - **Base classes last** — they are an implementation detail; once no caller imports them, they go.
 

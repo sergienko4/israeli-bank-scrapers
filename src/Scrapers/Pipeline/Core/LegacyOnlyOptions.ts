@@ -3,7 +3,8 @@
  * option audible instead of silent.
  *
  * <p>`ScraperOptions` is one flat type shared by both scraper paths, but eight
- * of its fields are read only by the deprecated non-Pipeline scrapers. A
+ * of its fields have no Pipeline implementation: five are read only by the
+ * deprecated non-Pipeline scrapers, and three have no reader at all. A
  * caller who sets one for a Pipeline bank gets no error, no warning and no
  * effect — the defect reported in issue #540. This module detects that case so
  * the caller hears about it.
@@ -25,18 +26,20 @@ import type { CompanyTypes } from '../../../Definitions.js';
 import type { ScraperOptions } from '../../Base/Interface.js';
 
 /**
- * Options declared in the public `ScraperOptions` type that only the
- * deprecated non-Pipeline scrapers implement. Alphabetical, so the warning
- * lists them in a stable order regardless of caller insertion order.
+ * Options declared in the public `ScraperOptions` type that the Pipeline does
+ * not implement. Alphabetical, so the warning lists them in a stable order
+ * regardless of caller insertion order.
  *
- * <p>Each entry is pinned to its legacy reader; if a Pipeline implementation
- * ever lands, delete the entry here in the same change.
+ * <p>Each entry is pinned to its legacy reader, or to "no reader" when nothing
+ * reads it; if a Pipeline implementation ever lands, delete the
+ * entry here in the same change.
  * - `includeRawTransaction` — `Common/Transactions.ts` `getRawTransaction`
  * - `navigationRetryCount` — `Base/BaseScraperWithBrowser.ts`
- * - `optInFeatures` — `Mizrahi/MizrahiScraper.ts`
+ * - `optInFeatures` — no reader (legacy Mizrahi removed)
  * - `outputData` — `BeyahadBishvilha/BeyahadBishvilhaScraper.ts`
- * - `shouldAddTransactionInformation` — `Mizrahi/MizrahiScraper.ts`
- * - `shouldCombineInstallments` — `Common/Transactions.ts`
+ * - `shouldAddTransactionInformation` — no reader (legacy Mizrahi removed)
+ * - `shouldCombineInstallments` — no reader (`filterOldTransactions` takes a
+ *   resolved flag; Beyahad Bishvilha passes `false`)
  * - `skipCloseBrowser` — `Base/BaseScraperWithBrowser.ts`
  * - `storeFailureScreenShotPath` — `Base/BaseScraperWithBrowser.ts`
  */
@@ -99,9 +102,9 @@ function buildMessage(companyId: CompanyTypes, ignored: readonly LegacyOnlyOptio
   return [
     `"${companyId}" runs on the Pipeline, which does not implement these`,
     `Legacy (deprecated) scraper options: ${ignored.join(', ')}.`,
-    'They are ignored here — only the deprecated non-Pipeline scrapers',
-    '(Behatsdaa, Beyahad Bishvilha, Mizrahi) read them, and that path is',
-    `closed to new work. Remove them, or see ${DOCS_URL}`,
+    'They are ignored here. Some legacy-only options are read only by the',
+    'deprecated non-Pipeline scrapers (Behatsdaa, Beyahad Bishvilha), and',
+    `that path is closed to new work. Remove them, or see ${DOCS_URL}`,
   ].join(' ');
 }
 

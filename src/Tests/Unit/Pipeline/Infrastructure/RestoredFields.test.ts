@@ -87,6 +87,12 @@ describe('restoreProviderFields', () => {
     );
   });
 
+  it('marks a row its provider flags as today’s pending, and only on true', () => {
+    expect(mapped({ IsTodayTransaction: true }).status).toBe(TransactionStatuses.Pending);
+    expect(mapped({ IsTodayTransaction: false }).status).toBe(TransactionStatuses.Completed);
+    expect(mapped({ IsTodayTransaction: 'true' }).status).toBe(TransactionStatuses.Completed);
+  });
+
   it('recovers instalment ordinals from explicit numeric fields', () => {
     expect(mapped({ numOfPayments: 10, curPaymentNum: 3 }).installments).toEqual({
       number: 3,

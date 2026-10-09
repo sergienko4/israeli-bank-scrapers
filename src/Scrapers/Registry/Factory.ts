@@ -7,12 +7,10 @@ import { PipelineScraper } from '../Pipeline/Core/PipelineScraper.js';
 import SCRAPER_REGISTRY_AMEX_TO_ISRACARD, {
   type ScraperFactory,
 } from './ScraperRegistryAmexToIsracard.js';
-import SCRAPER_REGISTRY_LEUMI_TO_YAHAV from './ScraperRegistryLeumiToYahav.js';
 
 /** Combined registry of all supported bank scrapers (legacy). */
 const SCRAPER_REGISTRY: Partial<Record<CompanyTypes, ScraperFactory>> = {
   ...SCRAPER_REGISTRY_AMEX_TO_ISRACARD,
-  ...SCRAPER_REGISTRY_LEUMI_TO_YAHAV,
 };
 
 /**

@@ -37,6 +37,7 @@ describe('PostLoginRecipes', () => {
       'isracard',
       'leumi',
       'max',
+      'mizrahi',
       'visaCal',
     ];
     expect(banks).toEqual(expected);

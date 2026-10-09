@@ -4,12 +4,13 @@
  * Patterns derived from real network captures of every migrated
  * pipeline bank. New bank = optionally add ONE row.
  *
- * The predicates remain file-private; the table itself is the single
- * public default export consumed by BodyClassifier.
+ * The predicates remain file-private. The failure table is the default
+ * export; the explicit-success marker table is a named export. Both are
+ * consumed by BodyClassifier.
  */
 
 import type { JsonUnknown } from '../../../Types/JsonValue.js';
-import type { IBodyFailurePattern } from './Types.js';
+import type { IBodyFailurePattern, IBodySuccessMarker } from './Types.js';
 
 /**
  * Predicate: true when a numeric login-status field signals failure.
@@ -86,5 +87,26 @@ const AUTH_BODY_FAILURE_PATTERNS = [
     note: 'Discount — Login.Status !== "SUCCESS"',
   },
 ] as const satisfies readonly IBodyFailurePattern[];
+
+/**
+ * Predicate: true only for the JSON boolean `true`.
+ * @param v - JSON value at the field.
+ * @returns True when v is exactly true.
+ */
+function isTrueFlag(v: JsonUnknown): boolean {
+  return v === true;
+}
+
+/**
+ * Explicit-success markers. A record matching any row is never classified
+ * as a failure: a declared verdict outranks codes the failure rows infer.
+ */
+export const AUTH_BODY_SUCCESS_MARKERS = [
+  {
+    field: 'Success',
+    isSuccess: isTrueFlag,
+    note: 'Mizrahi — LoginUser { Success: true, LoginStatus: 1, ReturnCode: 1 } on success',
+  },
+] as const satisfies readonly IBodySuccessMarker[];
 
 export default AUTH_BODY_FAILURE_PATTERNS;

@@ -104,7 +104,7 @@ describe('CredentialLoader', () => {
   });
 
   describe('knownBanks', () => {
-    it('returns the eight onboarded pipeline banks sorted', () => {
+    it('returns the nine onboarded pipeline banks sorted', () => {
       const banks = knownBanks();
       const expected = [
         'amex',
@@ -114,6 +114,7 @@ describe('CredentialLoader', () => {
         'isracard',
         'leumi',
         'max',
+        'mizrahi',
         'visaCal',
       ];
       expect(banks).toEqual(expected);

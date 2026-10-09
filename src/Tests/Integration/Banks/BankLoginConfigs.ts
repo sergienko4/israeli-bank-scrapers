@@ -20,6 +20,7 @@ import { LEUMI_LOGIN } from '../../../Scrapers/Pipeline/Banks/Leumi/LeumiPipelin
 import { MASSAD_LOGIN } from '../../../Scrapers/Pipeline/Banks/Massad/MassadPipeline.js';
 import { MAX_LOGIN } from '../../../Scrapers/Pipeline/Banks/Max/MaxPipeline.js';
 import { MERCANTILE_LOGIN } from '../../../Scrapers/Pipeline/Banks/Mercantile/MercantilePipeline.js';
+import { MIZRAHI_LOGIN } from '../../../Scrapers/Pipeline/Banks/Mizrahi/MizrahiPipeline.js';
 import { OTSAR_HAHAYAL_LOGIN } from '../../../Scrapers/Pipeline/Banks/OtsarHahayal/OtsarHahayalPipeline.js';
 import { PAGI_LOGIN } from '../../../Scrapers/Pipeline/Banks/Pagi/PagiPipeline.js';
 import { VISACAL_LOGIN } from '../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.js';
@@ -41,6 +42,7 @@ const BANK_LOGIN_CONFIGS: Readonly<Partial<Record<string, ILoginConfig>>> = {
   massad: MASSAD_LOGIN,
   max: MAX_LOGIN,
   mercantile: MERCANTILE_LOGIN,
+  mizrahi: MIZRAHI_LOGIN,
   otsarHahayal: OTSAR_HAHAYAL_LOGIN,
   pagi: PAGI_LOGIN,
   visaCal: VISACAL_LOGIN,

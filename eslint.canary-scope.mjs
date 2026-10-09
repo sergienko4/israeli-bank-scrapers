@@ -27,7 +27,6 @@ export const SONAR_PARITY_IGNORE_PREFIXES = Object.freeze([
   'src/Scrapers/Behatsdaa/',
   'src/Scrapers/BeyahadBishvilha/',
   'src/Scrapers/Leumi/',
-  'src/Scrapers/Mizrahi/',
   'src/Scrapers/Yahav/',
   'src/Scrapers/Registry/',
   'src/scrapers/',

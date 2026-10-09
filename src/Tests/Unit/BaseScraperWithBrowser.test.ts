@@ -173,7 +173,7 @@ class TestBrowserScraper extends BASE_SCRAPER_WITH_BROWSER<ScraperCredentials> {
  * @returns Test scraper instance.
  */
 function createScraper(overrides: Partial<ScraperOptions> = {}): TestBrowserScraper {
-  return new TestBrowserScraper(CREATE_OPTS({ companyId: COMPANY_TYPES.Mizrahi, ...overrides }));
+  return new TestBrowserScraper(CREATE_OPTS({ companyId: COMPANY_TYPES.Behatsdaa, ...overrides }));
 }
 
 const TEST_CREDS = { userCode: 'test', password: 'test' };
