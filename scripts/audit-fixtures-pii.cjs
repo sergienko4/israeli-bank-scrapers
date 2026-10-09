@@ -10,10 +10,12 @@
  * card last-4, address fragments, JSON monetary fields, and any
  * Hebrew text inside a known PII-bearing class context.
  *
- * Zero trust: every hit is reported as rule, severity and line:column
- * only, never the matched text or its context, because the pre-commit
- * hook writes this output to `.pre-commit-output.log`. Open the fixture
- * at the reported location to inspect a hit.
+ * Zero trust: each fixture reports at most MAX_HITS_PER_FILE (15) CRITICAL
+ * or HIGH hits as rule, severity and line:column, and any further hits
+ * only as a count. It never prints the matched text or its context,
+ * because the pre-commit hook writes this output to
+ * `.pre-commit-output.log`. Open the fixture at a reported location to
+ * inspect a hit; re-run after fixing to surface the hits past the cap.
  * Exits non-zero when any CRITICAL or HIGH pattern fires.
  */
 const fs = require('node:fs');
