@@ -8,7 +8,11 @@
  * HTTP 500 however short the range (real logins #9 and #13; the UI picker
  * stops at a year too). So the start is clamped to today − 365 days. The floor
  * is pinned to the clock, not to the window end: a backfill round narrows only
- * `inToDate`, keeps the floor, and so never asks for a refused day. That clock
+ * `inToDate`, keeps the floor, and so never asks for a refused day. A round
+ * whose bound falls before the floor (bank midnight passed between rounds, or
+ * a row predates `inFromDate`) asks for the floor day alone rather than an
+ * inverted range the server answers with HTTP 500: that day is already held,
+ * so the bound stops moving and the backfill ends. That clock
  * read is why this file is excluded from the window-end lint rule
  * (eslint.config.mjs §20). Older days are reported by the shared
  * window-coverage audit, never dropped silently.
@@ -103,19 +107,29 @@ export function txnsUrl(): WKUrlOrLiteral {
   return literalUrl(`${MIZRAHI_API}/SkyOSH/get428Index`);
 }
 
+/** One request's window, as instants rendered to bank days on the wire. */
+interface IRequestRange {
+  readonly rangeStart: Date;
+  readonly rangeEnd: Date;
+}
+
 /**
- * The window start, clamped to the oldest day the server serves and never
- * past the window end (a future start asks for the end day alone).
+ * The request's window: the caller's start capped at the window end and
+ * floored at today − {@link HISTORY_DAYS}, and an end never before that start.
+ * A backfill bound that falls before the floor (bank midnight passed between
+ * rounds, or a row predates `inFromDate`) so asks for the floor day alone.
  * @param ctx - Action context (carries startDate).
  * @param windowEnd - The request's window end.
- * @returns The caller's start, capped at windowEnd, floored at today − {@link HISTORY_DAYS}.
+ * @returns A range whose start is ≤ its end and ≥ the floor.
  */
-function clampedStart(ctx: IActionContext, windowEnd: Date): Date {
+function requestRange(ctx: IActionContext, windowEnd: Date): IRequestRange {
   const now = new Date();
   const floor = bankMomentOfInstant(now).subtract(HISTORY_DAYS, 'days').toDate();
   const optionStart = ctx.options.startDate;
   const asked = optionStart > windowEnd ? windowEnd : optionStart;
-  return floor > asked ? floor : asked;
+  const rangeStart = floor > asked ? floor : asked;
+  const rangeEnd = rangeStart > windowEnd ? rangeStart : windowEnd;
+  return { rangeStart, rangeEnd };
 }
 
 /**
@@ -131,9 +145,9 @@ export function txnsVars(
   ctx: IActionContext,
 ): VarsMap {
   const windowEnd = scrapeWindowEnd(ctx);
-  const start = clampedStart(ctx, windowEnd);
-  const inFromDate = bankMomentOfInstant(start).format(MIZRAHI_DATE_FMT);
-  const inToDate = bankMomentOfInstant(windowEnd).format(MIZRAHI_DATE_FMT);
+  const { rangeStart, rangeEnd } = requestRange(ctx, windowEnd);
+  const inFromDate = bankMomentOfInstant(rangeStart).format(MIZRAHI_DATE_FMT);
+  const inToDate = bankMomentOfInstant(rangeEnd).format(MIZRAHI_DATE_FMT);
   const { startRowIndex, actionGuid } = positionOf(cursor);
   const table = { startRowIndex, maxRow: PAGE_SIZE, actionGuid, sortExpression: '' };
   return { inToDate, inFromDate, inSugTnua: '', table, isFromSearch: false };

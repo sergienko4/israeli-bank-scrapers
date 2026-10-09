@@ -57,7 +57,10 @@ header donor. There is no `postLoginNav`: a deep link loses the session.
 `inFromDate` gets HTTP 500 however short the range (measured live). The start is clamped to
 today − 365 days and capped at the window end (a start in the future asks for the end day alone), and older days are reported by the window-coverage audit (`windowCoverage`),
 never dropped silently. The end comes from `scrapeWindowEnd`, so a backfill round narrows only
-`inToDate` and keeps the floor. A page holds 50 rows; while `table.isHasMoreRows` is true, the
+`inToDate` and keeps the floor. A backfill bound that falls before the floor (bank midnight
+passed between rounds, or a row predates `inFromDate`) is lifted to the floor day, so the round
+asks for that day alone instead of a start after its end, which the server also answers with
+HTTP 500; the day is already held, so the bound stops moving and the backfill ends. A page holds 50 rows; while `table.isHasMoreRows` is true, the
 next page asks from the next row index and echoes the server's `actionGUID`; the shape carries
 both in its `IMizrahiCursor` paging position. A page offering more rows without an `actionGUID`
 fails the scrape. Later pages come back without `fields`; the `actionGUID` binds them to the

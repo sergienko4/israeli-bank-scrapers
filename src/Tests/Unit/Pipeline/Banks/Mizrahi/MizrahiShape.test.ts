@@ -186,6 +186,33 @@ const OWNER = { AccountNumber: ACCT.accountNumber };
 const TXN_ROW = { RecTypeSpecified: true, RecType: 1 } as const;
 const LABEL_ROW = { RecTypeSpecified: false } as const;
 const PAGE_2: IMizrahiCursor = { startRowIndex: 50, actionGuid: 'guid-1' };
+/** The oldest bank day the server serves when "today" is {@link NOW}. */
+const FLOOR_DAY = '15/03/2025';
+const DAY_MS = 86_400_000;
+/** Window edges, in days from {@link NOW}, on both sides of the 365-day floor. */
+const GRID_DAYS = [-800, -366, -365, -364, -30, 0, 5] as const;
+const WINDOW_GRID = GRID_DAYS.flatMap((start): (readonly [number, number])[] =>
+  GRID_DAYS.map((end): readonly [number, number] => [start, end] as const),
+);
+
+/**
+ * An instant a whole number of days from {@link NOW}.
+ * @param days - Offset in days (negative is the past).
+ * @returns The shifted instant.
+ */
+function daysFromNow(days: number): Date {
+  return new Date(NOW.getTime() + days * DAY_MS);
+}
+
+/**
+ * A `DD/MM/YYYY` wire day as a sortable `YYYYMMDD` number.
+ * @param wire - Day as sent in `inFromDate` / `inToDate`.
+ * @returns The same day, comparable with `<`.
+ */
+function bankDayValue(wire: unknown): number {
+  const [day, month, year] = String(wire).split('/').map(Number);
+  return year * 10_000 + month * 100 + day;
+}
 
 describe('MizrahiShape accounts', () => {
   it('extractAccounts maps the fixture account at its position', () => {
@@ -308,6 +335,38 @@ describe('MizrahiShape transactions window', () => {
     expect(vars.inFromDate).toBe('15/03/2025');
     expect(vars.inToDate).toBe('01/06/2025');
   });
+
+  it('asks for the floor day alone when a backfill bound falls before the floor', () => {
+    const preFloorEnd = new Date('2025-03-10T21:59:59.999Z');
+    const ctx = ctxWith(new Date('2024-01-01T00:00:00.000Z'), preFloorEnd);
+    const vars = txnsVars(ACCT, false, ctx);
+    expect(vars.inFromDate).toBe('15/03/2025');
+    expect(vars.inToDate).toBe('15/03/2025');
+  });
+
+  it('keeps the range ordered when bank midnight passes between backfill rounds', () => {
+    const oldFloorDayEnd = new Date('2025-03-15T21:59:59.999Z');
+    jest.setSystemTime(new Date('2026-03-16T10:00:00.000Z'));
+    const ctx = ctxWith(new Date('2024-01-01T00:00:00.000Z'), oldFloorDayEnd);
+    const vars = txnsVars(ACCT, false, ctx);
+    expect(vars.inFromDate).toBe('16/03/2025');
+    expect(vars.inToDate).toBe('16/03/2025');
+  });
+
+  it.each(WINDOW_GRID)(
+    'never sends a start after the end or before the floor (start %s, end %s days)',
+    (startDays, endDays) => {
+      const start = daysFromNow(startDays);
+      const end = daysFromNow(endDays);
+      const ctx = ctxWith(start, end);
+      const vars = txnsVars(ACCT, false, ctx);
+      const fromDay = bankDayValue(vars.inFromDate);
+      const toDay = bankDayValue(vars.inToDate);
+      const floorDay = bankDayValue(FLOOR_DAY);
+      expect(fromDay).toBeLessThanOrEqual(toDay);
+      expect(fromDay).toBeGreaterThanOrEqual(floorDay);
+    },
+  );
 
   it('asks for the end day alone when the start is after the window end', () => {
     const ctx = ctxWith(new Date('2026-04-01T10:00:00.000Z'), NOW);
