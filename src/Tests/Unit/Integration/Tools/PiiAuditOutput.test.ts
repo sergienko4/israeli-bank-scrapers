@@ -239,7 +239,7 @@ describe('renderSummary', () => {
     ]);
   });
 
-  it('TC-16 prints the PASS block unchanged', () => {
+  it('TC-16b prints the PASS block unchanged', () => {
     const summary = summaryOf({});
     const lines = renderSummary(4, summary);
     expect(lines).toEqual([
