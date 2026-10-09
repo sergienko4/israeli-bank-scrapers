@@ -164,12 +164,14 @@ nav:
           - Amex: banks/amex.md
           - Bank Hapoalim: banks/hapoalim.md
           - Bank Leumi: banks/leumi.md
+          - Bank Yahav: banks/yahav.md
           - Beinleumi: banks/beinleumi.md
           - Discount: banks/discount.md
           - Isracard: banks/isracard.md
           - Massad: banks/massad.md
           - Max: banks/max.md
           - Mercantile: banks/mercantile.md
+          - Mizrahi Bank: banks/mizrahi.md
           - Otsar Hahayal: banks/otsar-hahayal.md
           - Pagi: banks/pagi.md
           - Visa Cal: banks/visacal.md
@@ -180,8 +182,6 @@ nav:
       - Legacy (deprecated):
           - Behatsdaa: banks/behatsdaa.md
           - Beyahad Bishvilha: banks/beyahad-bishvilha.md
-          - Mizrahi Bank: banks/mizrahi.md
-          - Bank Yahav: banks/yahav.md
   - Observability:
       - Overview: observability/index.md
       - Structured events: observability/events.md

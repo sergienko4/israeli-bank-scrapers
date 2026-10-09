@@ -30,7 +30,7 @@ For each legacy bank, the porting PR does:
 | 7 | Once green, delete `src/Scrapers/<Bank>/` and remove its row from the legacy registry (`ScraperRegistryAmexToIsracard.ts`) |
 | 8 | Re-run `lint:dead-code` to confirm no unused exports remain |
 
-The 16 banks already on Pipeline followed exactly this sequence — except step 6, which was added after [#540](https://github.com/sergienko4/israeli-bank-scrapers/issues/540) showed that a migration can silently drop an option its callers relied on.
+The first 16 banks on the Pipeline followed exactly this sequence — except step 6, which was added after [#540](https://github.com/sergienko4/israeli-bank-scrapers/issues/540) showed that a migration can silently drop an option its callers relied on.
 
 ## Per-utility migration sequence
 
@@ -68,7 +68,7 @@ Each wave is a separate PR, gated by:
 
 ## Why this order?
 
-- **Mizrahi + Leumi first** — the highest-traffic legacy banks (Leumi has since migrated; Mizrahi is migrating), so any regression surfaces fastest in downstream consumers (Caspion, Moneyman, Actual Budget importer).
+- **Mizrahi + Leumi first** — the highest-traffic legacy banks (both have since moved to the Pipeline; Mizrahi is not production-ready yet), so any regression surfaces fastest in downstream consumers (Caspion, Moneyman, Actual Budget importer).
 - **Banks before utilities** — utilities can't safely be deleted while a single legacy bank still imports them. Migrate all bank surfaces, then fold the helpers.
 - **Base classes last** — they are an implementation detail; once no caller imports them, they go.
 

@@ -2,7 +2,7 @@
 
 > **Who this is for:** users picking the right `CompanyTypes` for their bank and looking up credentials, OTP behavior, or known quirks.
 
-19 institutions are listed. **16 are on the Pipeline architecture** (recommended), **2 are on the legacy path** (still ship, on the migration roadmap), and **Mizrahi Bank is migrating to the Pipeline** (the Pipeline bank replaced its legacy scraper).
+19 institutions are listed. **17 are on the Pipeline architecture** (recommended) and **2 are on the legacy path** (still ship, on the migration roadmap). Mizrahi Bank is the newest Pipeline bank and is not production-ready yet: see [its page](mizrahi.md).
 
 ## Quick directory
 
@@ -10,7 +10,7 @@
 
 - :material-bank: **Banks (browser engine)**
 
-  [Bank Hapoalim](hapoalim.md) · [Bank Leumi](leumi.md) · [Beinleumi](beinleumi.md) · [Discount](discount.md) · [Massad](massad.md) · [Mercantile](mercantile.md) · [Otsar Hahayal](otsar-hahayal.md) · [Pagi](pagi.md) · [Bank Yahav](yahav.md)
+  [Bank Hapoalim](hapoalim.md) · [Bank Leumi](leumi.md) · [Beinleumi](beinleumi.md) · [Discount](discount.md) · [Massad](massad.md) · [Mercantile](mercantile.md) · [Mizrahi Bank](mizrahi.md)† · [Otsar Hahayal](otsar-hahayal.md) · [Pagi](pagi.md) · [Bank Yahav](yahav.md)
 
 - :material-credit-card: **Credit cards (browser engine)**
 
@@ -24,13 +24,11 @@
 
   [Behatsdaa](behatsdaa.md) · [Beyahad Bishvilha](beyahad-bishvilha.md)
 
-- :material-progress-wrench: **Migrating to the Pipeline**
-
-  [Mizrahi Bank](mizrahi.md)
-
 </div>
 
-## Pipeline-backed banks (16) — credentials at a glance
+† Not production-ready yet: real runs are still proving the login and the hard-model scrape.
+
+## Pipeline-backed banks (17) — credentials at a glance
 
 | Bank            | `CompanyTypes` | Credential fields               | OTP            |
 | --------------- | -------------- | ------------------------------- | -------------- |
@@ -43,6 +41,7 @@
 | Massad          | `Massad`       | `username`, `password`          | required       |
 | Max             | `Max`          | `username`, `password`          | —              |
 | Mercantile Bank | `Mercantile`   | `id`, `password`, `num`         | —              |
+| Mizrahi Bank†   | `Mizrahi`      | `username`, `password`          | —              |
 | One Zero        | `OneZero`      | `email`, `password`             | required (API) |
 | Otsar Hahayal   | `OtsarHahayal` | `username`, `password`          | required       |
 | Pagi            | `Pagi`         | `username`, `password`          | required       |

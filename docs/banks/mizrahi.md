@@ -1,6 +1,6 @@
 # Mizrahi Bank
 
-!!! warning "Pipeline migration in progress"
+!!! warning "Not production-ready yet"
     The Pipeline bank replaced the legacy (non-Pipeline) Mizrahi scraper in one
     change: `createScraper` routes `CompanyTypes.Mizrahi` to the Pipeline, but the bank is not
     production-ready yet: the login and the hard-model scrape are still being
@@ -9,7 +9,7 @@
 | | |
 |---|---|
 | `CompanyTypes` | `Mizrahi` |
-| Engine | Browser (Pipeline) — **migration in progress** |
+| Engine | Browser (Pipeline) — **not production-ready yet** |
 | Credentials | `username`, `password` |
 | OTP | — |
 
