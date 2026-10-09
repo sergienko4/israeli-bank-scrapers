@@ -23,6 +23,8 @@ export interface IShapeCase {
 
 /** A synthetic Radware session UUID. */
 const SESSION_UUID = '1b2c3d4e-aaaa-4bbb-8ccc-abcdefabcdef';
+/** A second synthetic Radware UUID, for values that carry two. */
+const SESSION_UUID2 = '2c3d4e5f-bbbb-4ccc-8ddd-bcdefabcdef0';
 /** The all-zero GUID the redactor writes in place of a server GUID. */
 const ZERO_GUID = '00000000-0000-0000-0000-000000000000';
 /** Radware bot token shape: `base64(<uuid>$<IPv4>)`. */
@@ -106,6 +108,21 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     key: 'radwareSessionUuid',
     input: `var __uzdbm_1 = '${SESSION_UUID}';`,
     expected: `var __uzdbm_1 = '${ZERO_GUID}';`,
+  },
+  {
+    key: 'radwareSessionUuid',
+    input: `var __uzdbm_3 =\n  '1a2b3c${SESSION_UUID}1-17806608-0004c9027ee26c8d5';\nvar __uzdbm_2 = '${BOT_TOKEN}';`,
+    expected: `var __uzdbm_3 =\n  '1a2b3c${ZERO_GUID}1-17806608-0004c9027ee26c8d5';\nvar __uzdbm_2 = 'REDACTED_BOT_TOKEN';`,
+  },
+  {
+    key: 'radwareSessionUuid',
+    input: `var __uzdbm_6 = '${SESSION_UUID}-${SESSION_UUID2}';`,
+    expected: `var __uzdbm_6 = '${ZERO_GUID}-${ZERO_GUID}';`,
+  },
+  {
+    key: 'radwareSessionUuid',
+    input: `var __uzdbm_6 = '${ZERO_GUID}-${SESSION_UUID}';`,
+    expected: `var __uzdbm_6 = '${ZERO_GUID}-${ZERO_GUID}';`,
   },
   {
     key: 'requestVerificationToken',
@@ -391,6 +408,12 @@ export const NEGATIVE_CASES: readonly IShapeCase[] = [
   unchanged('clientIpField', '{"clientIp":"aa:bb:cc:dd:ee:ff"}'),
   unchanged('clientIpField', 'X-Forwarded-For: 0.0.0.0, ::'),
   unchanged('radwareSessionUuid', `var other = '${SESSION_UUID}';`),
+  unchanged('radwareSessionUuid', "var __uzdbm_4 = 'false';"),
+  unchanged('radwareSessionUuid', "var __uzdbm_6 = '';"),
+  unchanged(
+    'radwareSessionUuid',
+    `var __uzdbm_3 = '1a2b3c${ZERO_GUID}1-17806608-0004c9027ee26c8d5';`,
+  ),
   unchanged('requestVerificationToken', '<input name="query" value="CfDJ8abc">'),
   unchanged(
     'requestVerificationToken',

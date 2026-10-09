@@ -36,9 +36,11 @@ const PROBE_TIMEOUT_MS = 60_000;
 const RESULT_MARKER = 'LINEARITY:';
 
 /**
- * The probe: each whitespace run, bare and between a client-address key and
- * its value, through the whole redactor and the whole gate. It prints only
- * the side, the shape and the time of each scan over budget, never a text.
+ * The probe: each whitespace run, bare, between a client-address key and
+ * its value, between a `__uzdbm_N =` key and its quoted value, and as a
+ * closed or unterminated `__uzdbm_N` value, through the whole redactor and
+ * the whole gate. It prints only the side, the shape and the time of each
+ * scan over budget, never a text.
  */
 const PROBE_SOURCE = `
 import { redactPii } from ${JSON.stringify(REDACTOR_URL.href)};
@@ -49,7 +51,13 @@ const runs = [['space', ' '], ['newline', '\\n'], ['tab', '\\t']];
 const slow = [];
 for (const [name, ch] of runs) {
   const run = ch.repeat(${String(RUN_LENGTH)});
-  const shapes = [['bare ' + name, 'x' + run + 'y'], [name + ' after a key', 'clientIp =' + run + '203.0.113.5']];
+  const shapes = [
+    ['bare ' + name, 'x' + run + 'y'],
+    [name + ' after a key', 'clientIp =' + run + '203.0.113.5'],
+    [name + ' after uzdbm =', 'var __uzdbm_1 =' + run + "'abc'"],
+    [name + ' in uzdbm value', "var __uzdbm_1 = '" + run + "'"],
+    [name + ' unterminated uzdbm', "var __uzdbm_1 = '" + run],
+  ];
   for (const [shape, input] of shapes) {
     for (const [side, scan] of scans) {
       const start = performance.now();

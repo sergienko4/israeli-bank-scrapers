@@ -74,6 +74,8 @@ const DECODED_EMBEDDED_IP = new RegExp(String.raw`^[\da-z]{8}(?:-[\da-z]{4}){3}-
 const SKY_CURRENCY_ATTR = String.raw`\s(?:sky-currency|sky-on-currency-change)`;
 const PLAIN_AMOUNT = String.raw`-?\d[\d,]*(?:\.\d+)?`;
 const ZERO_GUID = '00000000-0000-0000-0000-000000000000';
+/** Mirrors UUID_GLOBAL in PiiRedactor.ts. */
+const UUID_GLOBAL = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 /** Mirrors PERSON_NAME_KEYS / TOKEN_PLACEHOLDER_VALUES in PiiRedactor.ts. */
 const PERSON_NAME_KEYS = String.raw`partyFullName|partyFirstName|partyLastName|partyMiddleName|customerName|customerFullName|customerFirstName|customerLastName|custFullName|displayName|userName|userFullName|firstName|lastName|fullName|middleName|FirstName|LastName|BankerName`;
 const TOKEN_PLACEHOLDER_VALUES = String.raw`\[redacted-[a-z-]+\]|FIXTURE-MAX-SESSION-A`;
@@ -169,7 +171,7 @@ const PATTERNS = [
   { id: 'prettier-corrupt-redacted-id', re: /\[redacted - id\]/g, severity: 'CRITICAL', desc: 'JS-breaking [redacted - id] (prettier-corrupted) — would throw ReferenceError' },
   { id: 'b64-embedded-ip', re: /(?<![\da-z+/])[\da-z+/]{56,76}={0,2}(?![\da-z+/=])/gi, severity: 'CRITICAL', desc: 'Base64 run decoding to <uuid>$<IPv4> (Radware bot token embeds the client IP)' },
   { id: 'client-ip-field', re: /[^\s"'\\,;<>](?<=\b(?:client_?ip|remote_?addr|ip_?address|user_?ip|x-forwarded-for|x-real-ip)\\?["']?\s*[:=]\s*\\?["']?.)[^\s"'\\,;<>]*(?:\s*,\s*[^\s"'\\,;<>]+)*/gi, severity: 'CRITICAL', desc: 'Client-address field value holding an IPv4 or IPv6 address (client_ip, x-forwarded-for)' },
-  { id: 'radware-session-uuid', re: /var __uzdbm_\d+\s*=\s*'(?!00000000-0000-0000-0000-000000000000')[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'/gi, severity: 'HIGH', desc: 'Radware per-session UUID (__uzdbm_N)' },
+  { id: 'radware-session-uuid', re: /[^'\r\n](?<=\bvar __uzdbm_\d+\s*=\s*'.)[^'\r\n]*/gi, severity: 'HIGH', desc: 'Radware per-session UUID anywhere in a __uzdbm_N value' },
   { id: 'request-verification-token', re: /(?<=name=\\?["']__RequestVerificationToken\\?["'][^>]*?value=\\?["'])[^"'\\]+(?=\\?["'])|(?<=value=\\?["'])[^"'\\]+(?=\\?["'][^>]*?name=\\?["']__RequestVerificationToken\\?["'])/gi, severity: 'HIGH', desc: 'Unredacted ASP.NET anti-forgery token' },
   { id: 'json-token-field', re: new RegExp(String.raw`"\w+Token\\?"\s*:\s*${notWholeValue(TOKEN_PLACEHOLDER_VALUES)}${jsonStringValue('{12,}')}`, 'g'), severity: 'CRITICAL', desc: 'JSON <prefix>Token field with a live value (xsrfToken)' },
   { id: 'json-action-guid', re: /(?<="actionGUID\\?"\s*:\s*\\?")[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, severity: 'HIGH', desc: 'Mizrahi paging GUID (server session handle)' },
@@ -242,6 +244,11 @@ function isZeroValue(value) {
 function hasRawClientAddress(value) {
   return [...value.matchAll(CLIENT_ADDRESS)].some(address => !CLIENT_IP_PLACEHOLDERS.has(address[0]));
 }
+/** True when a Radware `__uzdbm_N` value holds a UUID other than the
+ *  all-zero GUID PiiRedactor.ts writes. */
+function hasRawUuid(value) {
+  return [...value.matchAll(UUID_GLOBAL)].some(uuid => uuid[0] !== ZERO_GUID);
+}
 // Only a match that IS a placeholder is safe. A placeholder after part of
 // a raw value, or inside a wider match (`tel:[redacted-id]`), is a hit.
 const PLACEHOLDER_MATCH = /^\[redacted-(name|account|amount|id|phone|landline|email|iban|jwt|cookie|bearer|last-login)\]$/;
@@ -303,6 +310,7 @@ const RULE_EXEMPTIONS = new Map([
   ['json-action-guid', hit => hit.match === ZERO_GUID],
   ['request-verification-token', hit => hit.match === RVT_PLACEHOLDER],
   ['client-ip-field', hit => !hasRawClientAddress(hit.match)],
+  ['radware-session-uuid', hit => !hasRawUuid(hit.match)],
 ]);
 
 /** Return true when a hit is a known false positive that the operator

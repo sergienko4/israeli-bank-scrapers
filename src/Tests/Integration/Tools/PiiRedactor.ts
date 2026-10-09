@@ -181,6 +181,9 @@ const SKY_CURRENCY_ATTR = String.raw`\s(?:sky-currency|sky-on-currency-change)`;
 const PLAIN_AMOUNT = String.raw`-?\d[\d,]*(?:\.\d+)?`;
 /** The all-zero GUID that stands in for a redacted server GUID. */
 const ZERO_GUID = '00000000-0000-0000-0000-000000000000';
+/** Every UUID inside a value, wherever it sits (Radware embeds its
+ *  per-session UUID mid-value in `__uzdbm_3` and `__uzdbm_6`). */
+const UUID_GLOBAL = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 /** JSON keys whose string value is a person's name. */
 const PERSON_NAME_KEYS = String.raw`partyFullName|partyFirstName|partyLastName|partyMiddleName|customerName|customerFullName|customerFirstName|customerLastName|custFullName|displayName|userName|userFullName|firstName|lastName|fullName|middleName|FirstName|LastName|BankerName`;
 /** Whole token values that are not secrets: any redactor placeholder, or
@@ -311,10 +314,12 @@ const PII_PATTERNS = {
    *  once and its addresses replaced inside it, so the scan stays linear. */
   clientIpField:
     /[^\s"'\\,;<>](?<=\b(?:client_?ip|remote_?addr|ip_?address|user_?ip|x-forwarded-for|x-real-ip)\\?["']?\s*[:=]\s*\\?["']?.)[^\s"'\\,;<>]*(?:\s*,\s*[^\s"'\\,;<>]+)*/gi,
-  /** Radware per-session UUID (`var __uzdbm_1 = '<uuid>'`) that links the
-   *  pre- and post-login pages of one capture. */
-  radwareSessionUuid:
-    /(?<=var __uzdbm_\d+\s*=\s*')[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?=')/gi,
+  /** The whole single-line value of a Radware `var __uzdbm_N = '…'`, which
+   *  carries the per-session UUID that links the pre- and post-login pages
+   *  of one capture, alone (`__uzdbm_1`) or embedded (`__uzdbm_3`, `_6`).
+   *  The value is matched once and every UUID in it zeroed, so the scan
+   *  stays linear. A value with an escaped `\'` is matched only up to it. */
+  radwareSessionUuid: /[^'\r\n](?<=\bvar __uzdbm_\d+\s*=\s*'.)[^'\r\n]*/gi,
   /** ASP.NET anti-forgery token in a hidden input, in either attribute
    *  order, with single, double or NDJSON-escaped quotes. */
   requestVerificationToken:
@@ -489,7 +494,14 @@ const PII_REPLACEMENTS: Readonly<Record<keyof typeof PII_PATTERNS, PiiReplacemen
    * @returns The value with every address zeroed.
    */
   clientIpField: (value: string): string => value.replace(CLIENT_ADDRESS, zeroAddress),
-  radwareSessionUuid: ZERO_GUID,
+  /**
+   * Function replacement: each UUID in the value becomes the all-zero GUID;
+   * every other character of the value stays.
+   *
+   * @param value - A Radware `__uzdbm_N` field's whole value.
+   * @returns The value with every UUID zeroed.
+   */
+  radwareSessionUuid: (value: string): string => value.replace(UUID_GLOBAL, ZERO_GUID),
   requestVerificationToken: 'REDACTED_REQUEST_VERIFICATION_TOKEN',
   jsonTokenField: jsonValuePlaceholder('[redacted-token]'),
   jsonActionGuid: ZERO_GUID,
