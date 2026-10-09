@@ -362,23 +362,13 @@ describe('Mizrahi multi-account scrape (changeAccount)', () => {
     expect(statuses).toEqual(['covered', 'covered']);
   });
 
-  it('fails when the switch reply names the account the session stayed on', async () => {
-    const { run } = runScrape('staysNamingCurrent', false);
-    await expect(run).rejects.toThrow(ScraperError);
-  });
-
-  it('fails when the session stays put but the reply names the requested account', async () => {
-    const { run } = runScrape('staysNamingRequested', false);
-    await expect(run).rejects.toThrow(ScraperError);
-  });
-
-  it('fails when the switch reply names no account', async () => {
-    const { run } = runScrape('movesNamingNone', false);
-    await expect(run).rejects.toThrow(ScraperError);
-  });
-
-  it('fails at night when the switch reply names another account', async () => {
-    const { run } = runScrape('staysNamingCurrent', true);
+  it.each([
+    { mode: 'staysNamingCurrent', isNight: false, when: 'names the account the session stayed on' },
+    { mode: 'staysNamingRequested', isNight: false, when: 'stays put but names the requested one' },
+    { mode: 'movesNamingNone', isNight: false, when: 'names no account' },
+    { mode: 'staysNamingCurrent', isNight: true, when: 'names another account at night' },
+  ] as const)('fails when the switch reply $when', async ({ mode, isNight }) => {
+    const { run } = runScrape(mode, isNight);
     await expect(run).rejects.toThrow(ScraperError);
   });
 

@@ -91,7 +91,7 @@ function toAcct(raw: IRawAccount, index: number): IMizrahiAcct {
  */
 export function extractAccounts(args: IExtractAccountsArgs): readonly IMizrahiAcct[] {
   const raw = (args.body as ILogonResp).body?.user?.Accounts ?? [];
-  return raw.map(toAcct);
+  return raw.map((account, index): IMizrahiAcct => toAcct(account, index));
 }
 
 /**
