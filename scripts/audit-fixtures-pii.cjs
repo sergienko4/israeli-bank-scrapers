@@ -242,44 +242,78 @@ function isZeroValue(value) {
 function hasRawClientAddress(value) {
   return [...value.matchAll(CLIENT_ADDRESS)].some(address => !CLIENT_IP_PLACEHOLDERS.has(address[0]));
 }
+// Only a match that IS a placeholder is safe. A placeholder after part of
+// a raw value, or inside a wider match (`tel:[redacted-id]`), is a hit.
+const PLACEHOLDER_MATCH = /^\[redacted-(name|account|amount|id|phone|landline|email|iban|jwt|cookie|bearer|last-login)\]$/;
+/** Contexts in which a 16-digit run is a tracker, bot-manager,
+ *  session-recorder or correlation id rather than a card number. */
+const CARD_CTX_EXEMPT = [
+  /facebook\.net|facebook\.com\\?\/tr|fbq\(|connect\.facebook|fbevents|googletagmanager|gtag\/js|google-analytics|googleadservices|googletag|vtp_pixelId|"pixelId"|fbPixelId/,
+  /__uzdbm|__uzma|__uzmf|__uzmb|__uzmc|__uzmd|__uzme|_rbzid|_rbzsessionid|reblaze/i,
+  /runcontext|d-c-id=|v-c-at=|x-c-id=|x-content-id=/i,
+  /\\?"cls[sve]\\?"|\\?"clsid\\?"|glassbox|"sessionId"|"requestId"|"correlationId"|"traceId"|"transactionId"/i,
+];
+/** Contexts in which a 9-digit run is an ad-tag id or a phone link. */
+const ID9_CTX_EXEMPT = [
+  /googletagmanager|gtag\/js\?id=AW-|gtm\.js|google-analytics|googleadservices|AW-\d{9}|UA-\d{4,}|G-[A-Z0-9]{6,}/,
+  /doubleclick\.net|viewthroughconversion|tag_exp=|dc_random=|dc_fmt=|gtm_ee=|gtm_ndx=/i,
+  /href="tel:|tel:0\d{8,}/i,
+];
+/** Contexts in which a shekel amount is banner or marketing copy. */
+const ILS_SUFFIX_CTX_EXEMPT = [
+  /banner_|promo_|alt=['"]/i,
+  /_atar_|_shivuki_|_marketing/i,
+];
+
+/** True when any regex in `list` matches `text`. None of them is global,
+ *  so `test` keeps no state between calls. */
+function anyMatch(list, text) {
+  return list.some(re => re.test(text));
+}
+/** A 16-digit run is not a card in a known tracker context, after a hex
+ *  id (`<hex>-<16 digits>`), or when it is the all-zero placeholder. */
+function cardFull16Exemption(hit) {
+  if (anyMatch(CARD_CTX_EXEMPT, hit.ctx)) return true;
+  const masked = hit.ctx.replace(hit.match, '###');
+  if (/\b[\da-f]{16,}-(?=\d{16}\b)/i.test(masked)) return true;
+  return /^0000[-\s]?0000[-\s]?0000[-\s]?0000$/.test(hit.match);
+}
+/** A monetary JSON field is safe when the value after its last `:` is
+ *  zero, which PiiRedactor.ts keeps. */
+function monetaryZeroExemption(hit) {
+  const colon = hit.match.lastIndexOf(':');
+  const value = hit.match.slice(colon + 1);
+  return isZeroValue(value);
+}
+
+/** Per-rule false-positive predicates. Each takes a hit and returns true
+ *  when that hit is accepted as not personal data. A rule with no entry
+ *  has no rule-specific exemption. */
+const RULE_EXEMPTIONS = new Map([
+  ['hebrew-greeting-name', hit => /<p[^>]*>\[redacted-name\]<\/p>$/.test(hit.match)],
+  ['card-full-16', cardFull16Exemption],
+  ['israeli-id-9', hit => anyMatch(ID9_CTX_EXEMPT, hit.ctx)],
+  ['israeli-landline', hit => /href="tel:|tel:0\d{8,}/i.test(hit.ctx)],
+  ['json-monetary-field', monetaryZeroExemption],
+  // NOTE: unreachable today, since the rule's `\d{6,12}` never matches a
+  // placeholder. Kept so this map changes no audit result.
+  ['bare-account-in-url', hit => /\[redacted-account\]/.test(hit.match)],
+  ['ils-suffix-amount', hit => anyMatch(ILS_SUFFIX_CTX_EXEMPT, hit.ctx)],
+  ['b64-embedded-ip', hit => !decodesToEmbeddedIp(hit.match)],
+  ['json-action-guid', hit => hit.match === ZERO_GUID],
+  ['request-verification-token', hit => hit.match === RVT_PLACEHOLDER],
+  ['client-ip-field', hit => !hasRawClientAddress(hit.match)],
+]);
+
 /** Return true when a hit is a known false positive that the operator
- *  has accepted (already-redacted placeholder, public tracking ID, etc).
- *  Centralised here so each pattern stays focused on detection and the
- *  "is this real PII?" decision is reviewable in one place. */
+ *  has accepted (already-redacted placeholder, zero value, public
+ *  tracking ID, etc). Each rule's exemption lives in RULE_EXEMPTIONS, so
+ *  adding one is a map entry rather than another branch here. */
 function isFalsePositive(hit) {
-  const ctx = hit.ctx;
-  // Only a match that IS a placeholder is safe. A placeholder after part of
-  // a raw value, or inside a wider match (`tel:[redacted-id]`), is a hit.
-  if (/^\[redacted-(name|account|amount|id|phone|landline|email|iban|jwt|cookie|bearer|last-login)\]$/.test(hit.match)) return true;
-  if (hit.pat.id === 'hebrew-greeting-name' && /<p[^>]*>\[redacted-name\]<\/p>$/.test(hit.match)) return true;
-  if (hit.pat.id === 'card-full-16') {
-    if (/facebook\.net|facebook\.com\\?\/tr|fbq\(|connect\.facebook|fbevents|googletagmanager|gtag\/js|google-analytics|googleadservices|googletag|vtp_pixelId|"pixelId"|fbPixelId/.test(ctx)) return true;
-    if (/__uzdbm|__uzma|__uzmf|__uzmb|__uzmc|__uzmd|__uzme|_rbzid|_rbzsessionid|reblaze/i.test(ctx)) return true;
-    if (/runcontext|d-c-id=|v-c-at=|x-c-id=|x-content-id=/i.test(ctx)) return true;
-    if (/\\?"cls[sve]\\?"|\\?"clsid\\?"|glassbox|"sessionId"|"requestId"|"correlationId"|"traceId"|"transactionId"/i.test(ctx)) return true;
-    if (/\b[\da-f]{16,}-(?=\d{16}\b)/i.test(ctx.replace(hit.match, '###'))) return true;
-    if (/^0000[-\s]?0000[-\s]?0000[-\s]?0000$/.test(hit.match)) return true;
-  }
-  if (hit.pat.id === 'israeli-id-9') {
-    if (/googletagmanager|gtag\/js\?id=AW-|gtm\.js|google-analytics|googleadservices|AW-\d{9}|UA-\d{4,}|G-[A-Z0-9]{6,}/.test(ctx)) return true;
-    if (/doubleclick\.net|viewthroughconversion|tag_exp=|dc_random=|dc_fmt=|gtm_ee=|gtm_ndx=/i.test(ctx)) return true;
-    if (/href="tel:|tel:0\d{8,}/i.test(ctx)) return true;
-  }
-  if (hit.pat.id === 'israeli-landline' && /href="tel:|tel:0\d{8,}/i.test(ctx)) return true;
-  if (hit.pat.id === 'json-monetary-field' && isZeroValue(hit.match.slice(hit.match.lastIndexOf(':') + 1))) return true;
-  if (hit.pat.id === 'bare-account-in-url') {
-    if (/\[redacted-account\]/.test(hit.match)) return true;
-  }
-  if (hit.pat.id === 'ils-suffix-amount') {
-    if (/banner_|promo_|alt=['"]/i.test(ctx)) return true;
-    if (/_atar_|_shivuki_|_marketing/i.test(ctx)) return true;
-  }
-  if (hit.pat.id === 'b64-embedded-ip' && !decodesToEmbeddedIp(hit.match)) return true;
+  if (PLACEHOLDER_MATCH.test(hit.match)) return true;
   if (ZERO_VALUE_IDS.has(hit.pat.id) && isZeroValue(hit.match)) return true;
-  if (hit.pat.id === 'json-action-guid' && hit.match === ZERO_GUID) return true;
-  if (hit.pat.id === 'request-verification-token' && hit.match === RVT_PLACEHOLDER) return true;
-  if (hit.pat.id === 'client-ip-field' && !hasRawClientAddress(hit.match)) return true;
-  return false;
+  const exemption = RULE_EXEMPTIONS.get(hit.pat.id);
+  return exemption ? exemption(hit) : false;
 }
 /**
  * Audit one fixture's text against every pattern.
