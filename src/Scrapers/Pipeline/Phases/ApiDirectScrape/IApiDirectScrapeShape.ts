@@ -310,6 +310,20 @@ export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> extends IWindowRequest
    * generic audit should guess at.
    */
   readonly auditOwnsRow?: (row: object, acct: TAcct) => boolean;
+  /**
+   * Whether a hunted row is a transaction at all.
+   *
+   * Declared only by banks whose transactions table also carries a row the
+   * canonical mapper can read but that is not a movement — Mizrahi's balance
+   * line, dated today with the balance as its amount. Without it the coverage
+   * audit counts that row as unread and downgrades the window on every page
+   * that reaches today.
+   *
+   * Absent means every row the mapper can read is a transaction, which is the
+   * case for every bank but Mizrahi. Declare the same predicate the extractor
+   * filters with, so the audit and the extractor cannot drift.
+   */
+  readonly auditIsTxnRow?: (row: object) => boolean;
 }
 
 /**

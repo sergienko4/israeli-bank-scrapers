@@ -197,16 +197,6 @@ describe('wellKnownSelectors', () => {
   });
 
   describe('specific bank CSS present', () => {
-    it('Mizrahi: #userNumberDesktopHeb in username', () => {
-      const arr = WELL_KNOWN.username as readonly SelectorCandidate[];
-      expect(arr).toContainEqual({ kind: 'css', value: '#userNumberDesktopHeb' });
-    });
-
-    it('Mizrahi: #passwordDesktopHeb in password', () => {
-      const arr = WELL_KNOWN.password as readonly SelectorCandidate[];
-      expect(arr).toContainEqual({ kind: 'css', value: '#passwordDesktopHeb' });
-    });
-
     it('Max: #user-name in username', () => {
       const arr = WELL_KNOWN.username as readonly SelectorCandidate[];
       expect(arr).toContainEqual({ kind: 'css', value: '#user-name' });

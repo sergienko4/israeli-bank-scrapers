@@ -69,6 +69,11 @@ The first record that yields a usable hit decides; alias order applies
 no record yields a usable hit, the mapper falls back to `ILS`.
 `chargedCurrency` goes through the same `normalizeCurrency` step.
 
+Mizrahi relies on that fallback. Its `get428Index` rows carry `kodMatbea`,
+which is `null` in every captured row and is not in the alias list, so the rows
+report `ILS`, as the removed legacy scraper did. `MizrahiShape.test.ts` pins
+this.
+
 ## Known limitation — numeric code without an ISO sibling
 
 The enum table above is an observation, not a mapping the code applies. A row

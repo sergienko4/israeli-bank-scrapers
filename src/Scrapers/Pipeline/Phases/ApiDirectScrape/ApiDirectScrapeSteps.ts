@@ -170,6 +170,8 @@ function ownsRowFor<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): OwnsRow {
  * bound to this account by {@link ownsRowFor} it narrows hunted rows to the
  * ones this account owns. Without it the other accounts' rows would read as
  * loss on every page. Banks with a per-account response declare nothing.
+ * Likewise a shape whose table carries a readable non-transaction row declares
+ * `auditIsTxnRow`, so that row is never counted as loss.
  *
  * @param a - Per-account context.
  * @param body - Raw response body for this page.
@@ -184,7 +186,8 @@ function auditPageCoverage<TAcct, TCursor>(
   const label = `${a.ctx.companyId}/txns`;
   const isCardIssuer = a.shape.isCardIssuer;
   const ownsRow = ownsRowFor(a);
-  const result = auditCoverage({ body, extracted: items, isCardIssuer, label, ownsRow });
+  const isTxnRow = a.shape.transactions.auditIsTxnRow;
+  const result = auditCoverage({ body, extracted: items, isCardIssuer, label, ownsRow, isTxnRow });
   a.ledger.noteWhen('extractionShortfall', result.unread > 0);
   a.ledger.noteWhen('extractionAuditUnavailable', result.unaudited);
   return result;

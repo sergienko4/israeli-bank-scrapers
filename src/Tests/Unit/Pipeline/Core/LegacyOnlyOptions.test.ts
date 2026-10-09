@@ -1,8 +1,10 @@
 /**
  * LegacyOnlyOptions — the Pipeline guard for deprecated non-Pipeline options.
  *
- * <p>Eight fields declared in the shared public `ScraperOptions` type are read
- * only by the deprecated non-Pipeline scrapers. Passing one alongside a
+ * <p>Eight fields declared in the shared public `ScraperOptions` type have no
+ * Pipeline implementation: five are read only by the deprecated non-Pipeline
+ * scrapers, and three have no reader at all (two since legacy Mizrahi was
+ * removed). Passing one alongside a
  * Pipeline bank has no effect at all, which issue #540 reported as a silent
  * drop. These tests pin the guard that makes that drop audible.
  *
@@ -49,7 +51,7 @@ describe('findLegacyOnlyOptions — detection', () => {
     expect(found).toEqual(['includeRawTransaction']);
   });
 
-  it.each(LEGACY_ONLY_OPTIONS)('finds %s, which only the legacy path reads', option => {
+  it.each(LEGACY_ONLY_OPTIONS)('finds %s, which the Pipeline does not implement', option => {
     const single = makeOptions({ [option]: true });
     const found = findLegacyOnlyOptions(single);
     expect(found).toEqual([option]);
@@ -130,6 +132,20 @@ describe('warnLegacyOnlyOptions — caller-visible warning', () => {
     const { emitted } = captureWarnings(reported);
     expect(emitted[0]).toContain('ignored');
     expect(emitted[0]).toContain('Legacy (deprecated)');
+  });
+
+  it('names only the legacy scrapers that still exist as readers', () => {
+    const reported = makeOptions({ optInFeatures: [] });
+    const { emitted } = captureWarnings(reported);
+    expect(emitted[0]).toContain('(Behatsdaa, Beyahad Bishvilha)');
+    expect(emitted[0]).not.toContain('Mizrahi');
+  });
+
+  it('does not claim a legacy reader for an option that has none', () => {
+    const reported = makeOptions({ optInFeatures: [] });
+    const { emitted } = captureWarnings(reported);
+    expect(emitted[0]).not.toContain('read them');
+    expect(emitted[0]).toContain('Some legacy-only options are read only by');
   });
 
   it('returns the ignored options so a caller can assert on them programmatically', () => {

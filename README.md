@@ -160,7 +160,7 @@ validated at runtime.
 | Discount Bank        | Bank        | Browser    | `id`, `password`, `num`         |
 | Massad               | Bank        | Browser    | `username`, `password`, OTP     |
 | Mercantile Bank      | Bank        | Browser    | `id`, `password`, `num`         |
-| Mizrahi Bank         | Bank        | Browser    | `username`, `password`          |
+| Mizrahi Bank†        | Bank        | Browser    | `username`, `password`          |
 | One Zero             | Bank        | API-direct | `email`, `password`, OTP        |
 | Pagi                 | Bank        | Browser    | `username`, `password`, OTP     |
 | Pepper (by Leumi)    | Bank        | API-direct | `phoneNumber`, `password`, OTP  |
@@ -172,11 +172,15 @@ validated at runtime.
 
 \* Hapoalim prompts for OTP only on unrecognised devices.
 
+† Mizrahi runs on the pipeline but is not production-ready yet: real runs are
+still proving the login and the hard-model scrape. See the
+[Mizrahi page](https://sergienko4.github.io/israeli-bank-scrapers/banks/mizrahi/).
+
 Per-bank notes live in the
 [bank documentation](https://sergienko4.github.io/israeli-bank-scrapers/banks/).
 
-> **Legacy path:** Behatsdaa, Beyahad Bishvilha, and Mizrahi Bank still run on
-> the pre-pipeline scraper. They work through the same `createScraper(...)`
+> **Legacy path:** Behatsdaa and Beyahad Bishvilha still run on the
+> pre-pipeline scraper. They work through the same `createScraper(...)`
 > entry point and their public behaviour is preserved, but new features target
 > the pipeline architecture.
 
@@ -380,7 +384,7 @@ backwards compatibility. Full remedies, including WAF-specific ones, are in
 
 ```mermaid
 flowchart LR
-    subgraph BB["Pipeline browser banks (13)"]
+    subgraph BB["Pipeline browser banks (14)"]
       direction LR
       INIT --> HOME --> PRELOGIN["PRE-LOGIN (opt-in)"]
       PRELOGIN --> LOGIN
@@ -396,7 +400,7 @@ flowchart LR
       CALL["API-DIRECT-CALL<br/>(login + OTP via JSON API)"] --> SCR["API-DIRECT-SCRAPE"]
     end
 
-    subgraph LEG["Legacy banks (3) — Behatsdaa · Beyahad Bishvilha · Mizrahi"]
+    subgraph LEG["Legacy banks (2) — Behatsdaa · Beyahad Bishvilha"]
       direction LR
       LLOGIN["Declarative login"] --> LFETCH["Bank API or DOM parse"]
     end
@@ -413,11 +417,11 @@ list of REST/GraphQL calls — no post-login navigation, no DOM scraping. The
 API-direct banks reach that same phase through a headless JSON login instead of
 the browser prefix.
 
-The three legacy banks predate the phase chain. Behatsdaa and Mizrahi call the
-bank's API from the page; Beyahad Bishvilha still parses its transaction table
-out of the DOM. All three return the same `IScraperScrapingResult`, so callers
-cannot tell the difference — but they do not gain pipeline-only behaviour such
-as phase-scoped retries.
+The two legacy banks predate the phase chain. Behatsdaa calls the bank's API
+from the page; Beyahad Bishvilha still parses its transaction table out of the
+DOM. Both return the same `IScraperScrapingResult`, so callers cannot tell the
+difference — but they do not gain pipeline-only behaviour such as phase-scoped
+retries.
 
 Phases never read one another's state; they communicate through typed fields on
 a shared context. See

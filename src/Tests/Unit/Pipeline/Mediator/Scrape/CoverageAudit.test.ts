@@ -89,6 +89,25 @@ function payBoxish(name: string, amount: number): Record<string, unknown> {
   return { transactionId: name, ts: '2026-06-02T09:00:00.000Z', merchantName: name, amt: amount };
 }
 
+/**
+ * The non-transaction test a bank declares when its table carries a readable
+ * balance line beside the movements (Mizrahi).
+ * @param row - Raw row.
+ * @returns Whether the row is a movement.
+ */
+function isMovement(row: object): boolean {
+  return (row as { kind?: string }).kind !== 'balance';
+}
+
+/**
+ * A balance line the mapper can read: dated, an amount, a description.
+ * @param amount - The balance.
+ * @returns A synthetic non-transaction row.
+ */
+function balanceLine(amount: number): Record<string, unknown> {
+  return { ...txn('BALANCE', amount), kind: 'balance' };
+}
+
 describe('Coverage/auditCoverage', () => {
   it('reports no loss when the shape read every container', () => {
     const rows = [txn('SHOP', 10), txn('CAFE', 20)];
@@ -235,5 +254,26 @@ describe('Coverage/auditCoverage', () => {
     };
     const result = auditOwned(body, [seen]);
     expect(result.unread).toBe(1);
+  });
+
+  it('does not count a readable row the shape declared is no transaction', () => {
+    // Mizrahi's movements table opens with a balance line the mapper reads
+    // as a transaction; undeclared, the audit reports it as loss every run.
+    const moves = [txn('SHOP', 10)];
+    const body = { table: { rows: [balanceLine(4321.5), ...moves] } };
+    const bare = audit(body, moves);
+    const args = { body, extracted: moves, label: 'test/txns', isTxnRow: isMovement };
+    const declared = auditCoverage(args);
+    expect(bare.unread).toBe(1);
+    expect(declared.unread).toBe(0);
+  });
+
+  it('applies the declared ownership and transaction tests together', () => {
+    const seen = mine('SHOP', 10);
+    const rows = [seen, theirs('CAFE', 20), { ...balanceLine(4321.5), shortCardNumber: '1111' }];
+    const args = { body: { rows }, extracted: [seen], label: 'max/txns' };
+    const result = auditCoverage({ ...args, ownsRow: ownsCard1111, isTxnRow: isMovement });
+    expect(result.hunted).toBe(1);
+    expect(result.unread).toBe(0);
   });
 });

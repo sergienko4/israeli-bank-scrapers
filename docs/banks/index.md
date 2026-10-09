@@ -2,7 +2,7 @@
 
 > **Who this is for:** users picking the right `CompanyTypes` for their bank and looking up credentials, OTP behavior, or known quirks.
 
-19 institutions are supported. **16 are on the Pipeline architecture** (recommended), **3 are on the legacy path** (still ship, on the migration roadmap).
+19 institutions are listed. **17 are on the Pipeline architecture** (recommended) and **2 are on the legacy path** (still ship, on the migration roadmap). Mizrahi Bank is the newest Pipeline bank and is not production-ready yet: see [its page](mizrahi.md).
 
 ## Quick directory
 
@@ -10,7 +10,7 @@
 
 - :material-bank: **Banks (browser engine)**
 
-  [Bank Hapoalim](hapoalim.md) · [Bank Leumi](leumi.md) · [Beinleumi](beinleumi.md) · [Discount](discount.md) · [Massad](massad.md) · [Mercantile](mercantile.md) · [Otsar Hahayal](otsar-hahayal.md) · [Pagi](pagi.md) · [Bank Yahav](yahav.md)
+  [Bank Hapoalim](hapoalim.md) · [Bank Leumi](leumi.md) · [Beinleumi](beinleumi.md) · [Discount](discount.md) · [Massad](massad.md) · [Mercantile](mercantile.md) · [Mizrahi Bank](mizrahi.md)† · [Otsar Hahayal](otsar-hahayal.md) · [Pagi](pagi.md) · [Bank Yahav](yahav.md)
 
 - :material-credit-card: **Credit cards (browser engine)**
 
@@ -22,11 +22,13 @@
 
 - :material-archive: **Legacy (deprecated)**
 
-  [Behatsdaa](behatsdaa.md) · [Beyahad Bishvilha](beyahad-bishvilha.md) · [Mizrahi Bank](mizrahi.md)
+  [Behatsdaa](behatsdaa.md) · [Beyahad Bishvilha](beyahad-bishvilha.md)
 
 </div>
 
-## Pipeline-backed banks (16) — credentials at a glance
+† Not production-ready yet: real runs are still proving the login and the hard-model scrape.
+
+## Pipeline-backed banks (17) — credentials at a glance
 
 | Bank            | `CompanyTypes` | Credential fields               | OTP            |
 | --------------- | -------------- | ------------------------------- | -------------- |
@@ -39,6 +41,7 @@
 | Massad          | `Massad`       | `username`, `password`          | required       |
 | Max             | `Max`          | `username`, `password`          | —              |
 | Mercantile Bank | `Mercantile`   | `id`, `password`, `num`         | —              |
+| Mizrahi Bank†   | `Mizrahi`      | `username`, `password`          | —              |
 | One Zero        | `OneZero`      | `email`, `password`             | required (API) |
 | Otsar Hahayal   | `OtsarHahayal` | `username`, `password`          | required       |
 | Pagi            | `Pagi`         | `username`, `password`          | required       |
@@ -47,13 +50,12 @@
 | Visa Cal        | `VisaCal`      | `username`, `password`          | —              |
 | Bank Yahav      | `Yahav`        | `num`, `nationalID`, `password` | —              |
 
-## Legacy banks (3) — credentials at a glance
+## Legacy banks (2) — credentials at a glance
 
 | Bank              | `CompanyTypes`     | Credential fields      | OTP |
 | ----------------- | ------------------ | ---------------------- | --- |
 | Behatsdaa         | `Behatsdaa`        | `id`, `password`       | —   |
 | Beyahad Bishvilha | `BeyahadBishvilha` | `id`, `password`       | —   |
-| Mizrahi Bank      | `Mizrahi`          | `username`, `password` | —   |
 
 Source: [`src/Definitions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Definitions.ts).
 

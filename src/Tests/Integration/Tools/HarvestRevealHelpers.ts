@@ -19,7 +19,7 @@
  * anchors only, no CSS selectors.
  */
 
-import type { Frame, Page } from 'playwright-core';
+import type { Frame, Locator, Page } from 'playwright-core';
 
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
 
@@ -33,16 +33,68 @@ const REVEAL_POLL_INTERVAL_MS = 250;
 const REVEAL_FRAME_CLICK_TIMEOUT_MS = 5000;
 
 /**
- * Click `text` inside a single frame using a tight per-click timeout.
- * Extracted to keep {@link tryClickInFrame} under the 10-line cap.
- * @param frame - Playwright frame.
- * @param text - Visible text to match.
- * @returns True after the click succeeded.
+ * Promise sentinel — maps a settled click to `true`.
+ * @returns Always `true`.
  */
-async function clickRevealInFrame(frame: Frame, text: string): Promise<true> {
-  const target = frame.getByText(text, { exact: false }).first();
-  await target.click({ timeout: REVEAL_FRAME_CLICK_TIMEOUT_MS });
+function alwaysTrue(): true {
   return true;
+}
+
+/**
+ * Promise sentinel — maps a rejected click to `false`.
+ * @returns Always `false`.
+ */
+function alwaysFalse(): false {
+  return false;
+}
+
+/**
+ * Attempt a normal click, which runs Playwright's actionability checks.
+ * @param target - Reveal target locator.
+ * @returns True when the click succeeded, false when it timed out.
+ */
+async function tryNormalClick(target: Locator): Promise<boolean> {
+  const opts = { timeout: REVEAL_FRAME_CLICK_TIMEOUT_MS };
+  return target.click(opts).then(alwaysTrue, alwaysFalse);
+}
+
+/**
+ * Attempt a forced mouse click, skipping actionability checks.
+ * @param target - Reveal target locator.
+ * @returns True when the click succeeded, false when it timed out.
+ */
+async function tryForceClick(target: Locator): Promise<boolean> {
+  const opts = { timeout: REVEAL_FRAME_CLICK_TIMEOUT_MS, force: true };
+  return target.click(opts).then(alwaysTrue, alwaysFalse);
+}
+
+/**
+ * Dispatch a DOM `click` event straight to the target, bypassing the
+ * mouse-input pipeline entirely.
+ * @param target - Reveal target locator.
+ * @returns True when the event was dispatched, false when it timed out.
+ */
+async function tryDispatchClick(target: Locator): Promise<boolean> {
+  const opts = { timeout: REVEAL_FRAME_CLICK_TIMEOUT_MS };
+  return target.dispatchEvent('click', undefined, opts).then(alwaysTrue, alwaysFalse);
+}
+
+/**
+ * Click a target with the same tiers as the Pipeline's
+ * `ActionExecutors.clickForceCascade`: normal click, then a forced
+ * click, then a dispatched DOM `click` event. Mizrahi's pages
+ * intermittently hang inside Playwright's "performing click action"
+ * (mouse input never completes, even when forced), while a dispatched
+ * event lands at once. A hidden target is never forced, so a poll
+ * keeps waiting for it.
+ * @param target - Locator already bound to one element.
+ * @returns True after a tier succeeded, false otherwise.
+ */
+async function clickWithFallback(target: Locator): Promise<boolean> {
+  if (await tryNormalClick(target)) return true;
+  if (!(await target.isVisible())) return false;
+  if (await tryForceClick(target)) return true;
+  return tryDispatchClick(target);
 }
 
 /**
@@ -58,7 +110,7 @@ async function tryClickInFrame(frame: Frame, text: string): Promise<boolean> {
     const target = frame.getByText(text, { exact: false }).first();
     const found = await target.count();
     if (found === 0) return false;
-    return await clickRevealInFrame(frame, text);
+    return await clickWithFallback(target);
   } catch {
     return false;
   }
@@ -148,6 +200,7 @@ async function clickRevealAnyFrame(
 
 export {
   clickRevealAnyFrame,
+  clickWithFallback,
   DEFAULT_REVEAL_TIMEOUT_MS,
   REVEAL_FRAME_CLICK_TIMEOUT_MS,
   REVEAL_POLL_INTERVAL_MS,

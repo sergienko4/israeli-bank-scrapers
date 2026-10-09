@@ -207,9 +207,10 @@ export interface IPipelineBankConfig {
    * AUTH-DISCOVERY green path. BIND-API-MEDIATOR reads the login-inclusive
    * capture pool once, builds the bag via `buildDiscoveredHeadersFromCapture`,
    * and passes it to the browser-page mediator's fetch strategy as defaults
-   * (per-call and rawAuth headers still win). Set for `'token'` browser banks
+   * (per-call and rawAuth headers still win). Set for browser banks
    * whose SPA API rejects a bare cookie/Bearer without the negotiation headers
-   * (VisaCal needs X-Site-Id; the FIBI BFF needs Accept: application/json).
+   * (VisaCal needs X-Site-Id; the FIBI BFF needs Accept: application/json;
+   * the session-cookie Mizrahi `mto` API needs its `mizrahixsrftoken`).
    * Absent/false ⇒ empty bag ⇒ the mediator is byte-identical to no wrap.
    */
   readonly installDiscoveredHeaders?: boolean;

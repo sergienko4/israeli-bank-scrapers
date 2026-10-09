@@ -12,11 +12,13 @@ Everything **outside `src/Scrapers/Pipeline/`** except the **layer-5 shared infr
 | ----------------- | -------------------------------------------------- | -------------------------------------------- |
 | Behatsdaa         | `src/Scrapers/Behatsdaa/BehatsdaaScraper.ts`       | `SCRAPER_REGISTRY_AMEX_TO_ISRACARD` (subset) |
 | Beyahad Bishvilha | (registered in `ScraperRegistryAmexToIsracard.ts`) | `SCRAPER_REGISTRY_AMEX_TO_ISRACARD`          |
-| Mizrahi Bank      | `src/Scrapers/Mizrahi/MizrahiScraper.ts`           | `SCRAPER_REGISTRY_LEUMI_TO_YAHAV`            |
 
 > **Bank Leumi** and **Bank Yahav** were migrated to the Pipeline and their
 > legacy scrapers deleted — they are now pipeline-only (see
-> [Bank Leumi](../banks/leumi.md), [Bank Yahav](../banks/yahav.md)).
+> [Bank Leumi](../banks/leumi.md), [Bank Yahav](../banks/yahav.md)). **Mizrahi
+> Bank** moved to the Pipeline in one migration: the change that deleted its
+> legacy scraper also registered the Pipeline bank, so `createScraper` resolves
+> Mizrahi on every revision (see [Mizrahi Bank](../banks/mizrahi.md)).
 
 ### Legacy base classes
 
@@ -40,16 +42,16 @@ Everything **outside `src/Scrapers/Pipeline/`** except the **layer-5 shared infr
 
 ## Legacy-only scraper options
 
-`ScraperOptions` is one flat type shared by both paths, so the compiler accepts every field for every bank. Eight of them are implemented **only** by the legacy scrapers and have no effect on a Pipeline bank:
+`ScraperOptions` is one flat type shared by both paths, so the compiler accepts every field for every bank. Eight of them have no Pipeline implementation and no effect on a Pipeline bank. Five are read **only** by the legacy scrapers; three have no reader at all. Two lost their only reader when the legacy Mizrahi scraper was removed, and no scraper passes `shouldCombineInstallments` to the instalment filter:
 
 | Option                            | Legacy reader                                          |
 | --------------------------------- | ------------------------------------------------------ |
 | `includeRawTransaction`           | `src/Common/Transactions.ts` (`getRawTransaction`)     |
 | `navigationRetryCount`            | `src/Scrapers/Base/BaseScraperWithBrowser.ts`          |
-| `optInFeatures`                   | `src/Scrapers/Mizrahi/MizrahiScraper.ts`               |
+| `optInFeatures`                   | none (legacy Mizrahi removed)                          |
 | `outputData`                      | `BeyahadBishvilhaScraper` (date filtering)             |
-| `shouldAddTransactionInformation` | `src/Scrapers/Mizrahi/MizrahiScraper.ts`               |
-| `shouldCombineInstallments`       | `src/Common/Transactions.ts`                           |
+| `shouldAddTransactionInformation` | none (legacy Mizrahi removed)                          |
+| `shouldCombineInstallments`       | none (`filterOldTransactions` takes a resolved flag)   |
 | `skipCloseBrowser`                | `src/Scrapers/Base/BaseScraperWithBrowser.ts`          |
 | `storeFailureScreenShotPath`      | `src/Scrapers/Base/BaseScraperWithBrowser.ts`          |
 
@@ -95,8 +97,8 @@ A request to extend a legacy capability is answered by porting the bank, per [Mi
 
 ## Why ship deprecated code?
 
-1. **Public API compatibility** — `createScraper(CompanyTypes.Mizrahi, ...)` already works; removing it would be a breaking change.
-2. **Migration is incremental** — porting Mizrahi to Pipeline requires writing a `LoginConfig`, a `PipelineDescriptor`, and registering in `PIPELINE_REGISTRY`. That's a per-bank PR, not a single sweep.
+1. **Public API compatibility** — `createScraper(CompanyTypes.Behatsdaa, ...)` already works; removing it would be a breaking change.
+2. **Migration is incremental** — porting a legacy bank to Pipeline requires writing a `LoginConfig`, a `PipelineDescriptor`, and registering in `PIPELINE_REGISTRY`. That's a per-bank PR, not a single sweep.
 3. **Two-registry dispatch is safe** — `Factory.tryPipeline` is consulted first; legacy is a fallback. When a bank moves to Pipeline, `createScraper` automatically routes there with no caller change.
 
 ## What new code should NOT touch
@@ -105,7 +107,7 @@ A request to extend a legacy capability is answered by porting the bank, per [Mi
 - ❌ Adding a new bank to `src/Scrapers/<Name>/` (use `src/Scrapers/Pipeline/Banks/<Name>/` instead)
 - ❌ Importing from `src/Common/` — the one allowlisted edge is
   `src/Common/Config/BrowserConfig.ts` (browser bootstrap, no Pipeline duplicate)
-- ❌ Extending `SCRAPER_REGISTRY_LEUMI_TO_YAHAV` or `SCRAPER_REGISTRY_AMEX_TO_ISRACARD`
+- ❌ Extending `SCRAPER_REGISTRY_AMEX_TO_ISRACARD`
 
 ## What new code MAY touch
 

@@ -330,13 +330,14 @@ describe('HarvestStepExecutors', () => {
   });
 
   describe('executeRevealStep', () => {
-    it('clicks visible text + snapshots', async () => {
+    it('waits for the visible text, clicks it + snapshots', async () => {
       const mock = makePageMock();
       const args = makeExecArgs({ page: mock.page });
       const step: IRevealStep = { kind: 'reveal', stepName: '02', revealText: 'כניסה' };
       const result = await executeRevealStep(step, args);
       expect(result.snapshotWritten).toBe(true);
       expect(mock.calls.getByText).toEqual(['כניסה']);
+      expect(mock.calls.waitFor).toBe(1);
       expect(mock.calls.click).toBe(1);
     });
   });

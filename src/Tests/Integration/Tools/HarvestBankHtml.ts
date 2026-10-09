@@ -218,6 +218,8 @@ function buildFrameWrites(
  * Build the `frames.json` index write for the step. Emits a flat array
  * of `{ index, name, url, file }` rows — matches the on-disk schema
  * already used by the fixture corpus so re-harvest is idempotent.
+ * The index is redacted like every other artifact: third-party embeds
+ * (e.g. YouTube) get random numeric frame names that match PII patterns.
  * @param tasks - Pre-built frame write tasks (to extract meta from).
  * @param stepDir - Per-step directory under the fixture root.
  * @returns Pending write promise.
@@ -227,7 +229,8 @@ function buildFramesIndexWrite(
   stepDir: string,
 ): Promise<void> {
   const meta = tasks.map(([, , row]) => row);
-  const indexJson = JSON.stringify(meta, null, 2);
+  const rawIndexJson = JSON.stringify(meta, null, 2);
+  const indexJson = redactPii(rawIndexJson);
   const indexPath = join(stepDir, 'frames.json');
   return writeFile(indexPath, indexJson, 'utf8');
 }

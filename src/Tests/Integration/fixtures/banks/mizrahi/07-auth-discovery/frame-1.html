@@ -1,0 +1,521 @@
+<!doctype html>
+<html
+  class="sky-normal sky-ng-legacy k-ff k-ff152"
+  data-default-language="he-il"
+  data-fontfamily-mode="OpenSans"
+>
+  <head>
+    <style type="text/css">
+      [uib-typeahead-popup].dropdown-menu {
+        display: block;
+      }
+    </style>
+    <style type="text/css">
+      .uib-time input {
+        width: 50px;
+      }
+    </style>
+    <style type="text/css">
+      [uib-tooltip-popup].tooltip.top-left > .tooltip-arrow,
+      [uib-tooltip-popup].tooltip.top-right > .tooltip-arrow,
+      [uib-tooltip-popup].tooltip.bottom-left > .tooltip-arrow,
+      [uib-tooltip-popup].tooltip.bottom-right > .tooltip-arrow,
+      [uib-tooltip-popup].tooltip.left-top > .tooltip-arrow,
+      [uib-tooltip-popup].tooltip.left-bottom > .tooltip-arrow,
+      [uib-tooltip-popup].tooltip.right-top > .tooltip-arrow,
+      [uib-tooltip-popup].tooltip.right-bottom > .tooltip-arrow,
+      [uib-tooltip-html-popup].tooltip.top-left > .tooltip-arrow,
+      [uib-tooltip-html-popup].tooltip.top-right > .tooltip-arrow,
+      [uib-tooltip-html-popup].tooltip.bottom-left > .tooltip-arrow,
+      [uib-tooltip-html-popup].tooltip.bottom-right > .tooltip-arrow,
+      [uib-tooltip-html-popup].tooltip.left-top > .tooltip-arrow,
+      [uib-tooltip-html-popup].tooltip.left-bottom > .tooltip-arrow,
+      [uib-tooltip-html-popup].tooltip.right-top > .tooltip-arrow,
+      [uib-tooltip-html-popup].tooltip.right-bottom > .tooltip-arrow,
+      [uib-tooltip-template-popup].tooltip.top-left > .tooltip-arrow,
+      [uib-tooltip-template-popup].tooltip.top-right > .tooltip-arrow,
+      [uib-tooltip-template-popup].tooltip.bottom-left > .tooltip-arrow,
+      [uib-tooltip-template-popup].tooltip.bottom-right > .tooltip-arrow,
+      [uib-tooltip-template-popup].tooltip.left-top > .tooltip-arrow,
+      [uib-tooltip-template-popup].tooltip.left-bottom > .tooltip-arrow,
+      [uib-tooltip-template-popup].tooltip.right-top > .tooltip-arrow,
+      [uib-tooltip-template-popup].tooltip.right-bottom > .tooltip-arrow,
+      [uib-popover-popup].popover.top-left > .arrow,
+      [uib-popover-popup].popover.top-right > .arrow,
+      [uib-popover-popup].popover.bottom-left > .arrow,
+      [uib-popover-popup].popover.bottom-right > .arrow,
+      [uib-popover-popup].popover.left-top > .arrow,
+      [uib-popover-popup].popover.left-bottom > .arrow,
+      [uib-popover-popup].popover.right-top > .arrow,
+      [uib-popover-popup].popover.right-bottom > .arrow,
+      [uib-popover-html-popup].popover.top-left > .arrow,
+      [uib-popover-html-popup].popover.top-right > .arrow,
+      [uib-popover-html-popup].popover.bottom-left > .arrow,
+      [uib-popover-html-popup].popover.bottom-right > .arrow,
+      [uib-popover-html-popup].popover.left-top > .arrow,
+      [uib-popover-html-popup].popover.left-bottom > .arrow,
+      [uib-popover-html-popup].popover.right-top > .arrow,
+      [uib-popover-html-popup].popover.right-bottom > .arrow,
+      [uib-popover-template-popup].popover.top-left > .arrow,
+      [uib-popover-template-popup].popover.top-right > .arrow,
+      [uib-popover-template-popup].popover.bottom-left > .arrow,
+      [uib-popover-template-popup].popover.bottom-right > .arrow,
+      [uib-popover-template-popup].popover.left-top > .arrow,
+      [uib-popover-template-popup].popover.left-bottom > .arrow,
+      [uib-popover-template-popup].popover.right-top > .arrow,
+      [uib-popover-template-popup].popover.right-bottom > .arrow {
+        top: auto;
+        bottom: auto;
+        left: auto;
+        right: auto;
+        margin: 0;
+      }
+      [uib-popover-popup].popover,
+      [uib-popover-html-popup].popover,
+      [uib-popover-template-popup].popover {
+        display: block !important;
+      }
+    </style>
+    <style type="text/css">
+      .uib-datepicker-popup.dropdown-menu {
+        display: block;
+        float: none;
+        margin: 0;
+      }
+      .uib-button-bar {
+        padding: 10px 9px 2px;
+      }
+    </style>
+    <style type="text/css">
+      .uib-position-measure {
+        display: block !important;
+        visibility: hidden !important;
+        position: absolute !important;
+        top: -9999px !important;
+        left: -9999px !important;
+      }
+      .uib-position-scrollbar-measure {
+        position: absolute !important;
+        top: -9999px !important;
+        width: 50px !important;
+        height: 50px !important;
+        overflow: scroll !important;
+      }
+      .uib-position-body-scrollbar-measure {
+        overflow: scroll !important;
+      }
+    </style>
+    <style type="text/css">
+      .uib-datepicker .uib-title {
+        width: 100%;
+      }
+      .uib-day button,
+      .uib-month button,
+      .uib-year button {
+        min-width: 100%;
+      }
+      .uib-left,
+      .uib-right {
+        width: 100%;
+      }
+    </style>
+    <style type="text/css">
+      .ng-animate.item:not(.left):not(.right) {
+        -webkit-transition: 0s ease-in-out left;
+        transition: 0s ease-in-out left;
+      }
+    </style>
+    <style>
+      @charset "UTF-8";
+      [ng\:cloak],
+      [ng-cloak],
+      [data-ng-cloak],
+      [x-ng-cloak],
+      .ng-cloak,
+      .x-ng-cloak,
+      .ng-hide:not(.ng-hide-animate) {
+        display: none !important;
+      }
+      ng\:form {
+        display: block;
+      }
+      .ng-animate-shim {
+        visibility: hidden;
+      }
+      .ng-anchor {
+        position: absolute;
+      }
+    </style>
+    <title>מבט על</title>
+    <meta
+      name="description"
+      content="מזרחי-טפחות - הבנק השלישי בגודלו במתן אשראי לציבור ובנק למשכנתאות המוביל בישראל. באתר מידע על חשבונות עוש, פיקדונות וחסכונות, סוגי משכנתאות, שירותי בנקאות ישירה, הלוואות וכרטיס אשראי המעניק הטבות בנקאיות וצרכניות."
+    />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=1280" />
+    <meta name="format-detection" content="telephone=no" />
+    <script
+      async=""
+      src="https://mto.mizrahi-tefahot.co.il/18f5227b-e27b-445a-a53f-f845fbe69b40/stormcaster.js"
+    ></script>
+    <script
+      type="text/javascript"
+      src="/online/ruxitagentjs_ICA7NVfghqrtux_10343260715123811.js"
+      data-dtconfig="rid=RID_-1902440474|rpid=-2141081938|domain=mizrahi-tefahot.co.il|reportUrl=/rb_f051eba3-9d3c-4edf-8e4d-2121ef6fcd4c|app=6c8ae7c371fd5821|owasp=1|featureHash=ICA7NVfghqrtux|srsr=5000|xb=legacy - click on אימות לצורך השלמת עסקה^pשלח קוד^p1 @ page עדכון כתובת דוא''ל^phttps://mto.mizrahi-tefahot.co.il/ngOnline/index-en.html#/main/uis/legacy/GE/P012//legacy.GE.P012^phttps://mto.mizrahi-tefahot.co.il/ngOnline/index.html#/main/uis/legacy/GE/P012//legacy.GE.P012^phttps://mto.mizrahi-tefahot.co.il/OnlineApp/ge/legacy/legacy-GE-P012^phttps://mto.mizrahi-tefahot.co.il/Online/GE/P012.aspx|rdnt=1|uxrgce=1|cuc=jzm9xiig|mel=100000|md=mdcc1=a#container ^rb span ^rb span ^rb span.k-input.ng-scope ^rb div ^rb span:nth-child(3),mdcc2=a#dropdownBasic ^rb div ^rb div ^rb div ^rb b|lastModification=1791383851971|tp=500,50,0|tal=3|srbbv=2|agentUri=/online/ruxitagentjs_ICA7NVfghqrtux_10343260715123811.js"
+    ></script>
+    <link
+      rel="shortcut icon"
+      type="image/vnd.microsoft.icon"
+      href="shared-assets/images/favicon.ico"
+    />
+    <link rel="manifest" href="manifest.js?rel=1788432234039" />
+    <link rel="stylesheet" href="libs/kendo/kendo.common.min.css?rel=1788432234039" />
+    <link rel="stylesheet" href="libs/kendo/kendo.default.min.css?rel=1788432234039" />
+    <link rel="stylesheet" href="libs/kendo/kendo.rtl.min.css?rel=1788432234039" />
+    <link rel="stylesheet" href="libs/dx.chartjs/dx.common.css?rel=1788432234039" />
+    <link rel="stylesheet" href="libs/dx.chartjs/dx.light.css?rel=1788432234039" />
+    <link rel="stylesheet" href="libs/stockticker/XStockTicker.css?rel=1788432234039" />
+    <link
+      rel="stylesheet"
+      href="shared-assets/angularjs-slider/rzslider.min.css?rel=1788432234039"
+    />
+    <link rel="stylesheet" href="appModules/assets/css/style.gen.min.css?rel=1788432234039" />
+    <style>
+      .timeout-content {
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        margin: auto;
+        width: fit-content;
+        align-items: center;
+        background-color: white;
+        border: 1px solid rgba(0, 0, 0, 0.125);
+        border-radius: 0.25rem;
+        padding: 20px;
+      }
+
+      .timeout-content > * {
+        padding: 5px;
+      }
+    </style>
+    <script>
+      var __uzdbm_1 = '00000000-0000-0000-0000-000000000000';
+      var __uzdbm_2 = 'REDACTED_BOT_TOKEN';
+      var __uzdbm_3 = '';
+      var __uzdbm_4 = 'false';
+      var __uzdbm_5 = '';
+      var __uzdbm_6 = '';
+      var __uzdbm_7 = '';
+    </script>
+    <script>
+      (function (w, d, e, u, c, g, a, b) {
+        w['SSJSConnectorObj'] = w['SSJSConnectorObj'] || { ss_cid: c, domain_info: 'auto' };
+        w[g] = function (i, j) {
+          w['SSJSConnectorObj'][i] = j;
+        };
+        a = d.createElement(e);
+        a.async = true;
+        if (
+          navigator.userAgent.indexOf('MSIE') !== -1 ||
+          navigator.appVersion.indexOf('Trident/') > -1
+        ) {
+          u = u.replace('/advanced/', '/advanced/ie/');
+        }
+        a.src = u;
+        b = d.getElementsByTagName(e)[0];
+        b.parentNode.insertBefore(a, b);
+      })(
+        window,
+        document,
+        'script',
+        'https://mto.mizrahi-tefahot.co.il/18f5227b-e27b-445a-a53f-f845fbe69b40/stormcaster.js',
+        'cp7p',
+        'ssConf',
+      );
+      ssConf('c1', 'https://mto.mizrahi-tefahot.co.il');
+      ssConf('c3', 'c99a4269-161c-4242-a3f0-28d44fa6ce24');
+      ssConf('au', 'mto.mizrahi-tefahot.co.il');
+      ssConf('cu', 'validate.perfdrive.com, ssc');
+    </script>
+    <script
+      type="module"
+      id="_cls_detector"
+      src="https://www.mizrahi-tefahot.co.il/login/glassbox/SKYWEB/detector-bootstrap.min.js"
+      data-clsautoinjected="true"
+    ></script>
+    <script
+      type="text/javascript"
+      id="_cls_detector"
+      src="https://www.mizrahi-tefahot.co.il/login/glassbox/skyweb/detector-dom.min.js"
+      data-clsconfig="reportURI=https://report.mizrahi.gbqofs.io/lhlbdzxi/reporting/e599bd9a-cbf4-76fe-4b11-d4daeafd3f4c/cls_report;"
+      async=""
+    ></script>
+    <script
+      id="gbConfig"
+      src="https://www.mizrahi-tefahot.co.il/login/glassbox/skyweb/config.js"
+    ></script>
+    <script
+      id="_cls_detector"
+      src="https://www.mizrahi-tefahot.co.il/login/glassbox/SKYWEB/detector-bootstrap.min.js"
+      type="module"
+      data-clsconfig="reportURI=https://report.mizrahi.gbqofs.io/lhlbdzxi/reporting/e599bd9a-cbf4-76fe-4b11-d4daeafd3f4c/cls_report;"
+    ></script>
+  </head>
+  <body class="ng-scope">
+    <div
+      class="miz-status-notification ng-hide"
+      data-ng-hide="hideLoading"
+      id="IndexLoading"
+      aria-hidden="true"
+    >
+      <div sky-accessibility="" class="ng-isolate-scope">
+        <div class="sky-preloader" id="baseloading">
+          <div class="sky-loading">
+            <span class="sky-big3">אנא המתן...</span><br /><img
+              alt="טוען"
+              src="shared-assets/images/ajax-loader-2.gif"
+            />
+          </div>
+        </div>
+        <div
+          class="sky-preloader"
+          style="background-color: #f8f8f5; display: none"
+          id="IndexFailed"
+        >
+          <div class="timeout-content">
+            <img src="shared-assets/images/logo-color.png" width="150" />
+            <span style="color: #333">מיד מעבירים אותך לחשבון</span>
+            <span
+              >אם המעבר לחשבון מתעכב, יש לבצע
+              <a
+                style="text-decoration: underline"
+                href="javascript:void(0)"
+                onclick="preloading.indexRefresh()"
+                >טעינה מחודשת</a
+              ></span
+            >
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="container-fluid">
+      <!-- uiView: -->
+      <div data-ui-view="" class="ng-scope" style="">
+        <!--<div data-skip-menu ng-if="vm.userType !== 'MessageBoxUser'"></div>-->
+
+        <div class="center-block miz-status-notification-container ng-scope">
+          <!-- shell header region(logo + greeting + links)-->
+
+          <!--<div class="row sky-gray-dark hidden-print">
+        <div class="site-width-range clearfix center-block">
+            <div data-ui-view="headerView" class="col-xs-12 "></div>
+        </div>
+    </div>-->
+
+          <!--top menu region-->
+          <!-- ngIf: !vm.isUnSupportedBrowser -->
+          <div ng-if="!vm.isUnSupportedBrowser" class="ng-scope">
+            <div id="stickyHeaderScrollRegion1">
+              <!--toolbox region-->
+
+              <!--side menu + main content region-->
+              <div>
+                <div class="col-xs-12 site-width-range center-block">
+                  <!--<div class="bg-anker11">
+                        <div class="header-bg header-bg3" />
+                    </div>-->
+                  <div class="row">
+                    <!--<div data-ui-view="menuView" class="shell-side-menu-region col-xs-3 col-no-padding hidden-print"></div>-->
+                    <!-- uiView: -->
+                    <div data-ui-view="" class="shell-content-region col-xs-12 ng-scope">
+                      <div id="sky-content-region" class="hosted-content ng-scope">
+                        <div miz-print-header="" class="ng-isolate-scope">
+                          <div
+                            id="customHeader"
+                            class="sky-print visible-print d-print-none"
+                            ng-class="{'d-print-none': vm.isInIframe}"
+                          >
+                            <div id="headerPrintNew">
+                              <div class="sky-print-logo">
+                                <img
+                                  id="Img1"
+                                  src="shared-assets/images/print_Logo_color.jpg"
+                                  alt=""
+                                  height="74"
+                                  width="169"
+                                />
+                              </div>
+                              <div class="sky-print-header">
+                                <div class="ng-binding">
+                                  הדפסה בוצעה בתאריך 08/10/2026 בשעה 10:02
+                                </div>
+                                <!-- ngIf: !vm.isTefahot -->
+                                <div
+                                  ng-if="!vm.isTefahot"
+                                  id="printSnifAndNumber"
+                                  class="ng-binding ng-scope"
+                                >
+                                  חשבון מספר 000-[redacted-account]
+                                </div>
+                                <!-- end ngIf: !vm.isTefahot -->
+                                <div class="ng-binding">[redacted-name] [redacted-name]</div>
+                                <br />
+                                <div class="sky-big2">
+                                  <!-- ngIf: vm.mainTitle && !(vm.isActiveOvedBank && vm.titleHalvaa) --><span
+                                    ng-if="vm.mainTitle &amp;&amp; !(vm.isActiveOvedBank &amp;&amp; vm.titleHalvaa)"
+                                    class="ng-binding ng-scope"
+                                    >עובר ושב</span
+                                  ><!-- end ngIf: vm.mainTitle && !(vm.isActiveOvedBank && vm.titleHalvaa) -->
+                                  <!-- ngIf: vm.title && !(vm.isActiveOvedBank && vm.titleHalvaa) --><span
+                                    ng-if="vm.title &amp;&amp; !(vm.isActiveOvedBank &amp;&amp; vm.titleHalvaa)"
+                                    class="ng-binding ng-scope"
+                                    >-מבט על</span
+                                  ><!-- end ngIf: vm.title && !(vm.isActiveOvedBank && vm.titleHalvaa) -->
+                                  <!-- ngIf: vm.titleHalvaa && vm.isActiveOvedBank -->
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <!-- uiView: -->
+                        <div
+                          ui-view=""
+                          data-miz-focus=""
+                          data-s-id="MainContent"
+                          role="main"
+                          miztab="true"
+                          class="ng-scope ng-isolate-scope"
+                        >
+                          <div class="sky-legacy miz-status-notification-container ng-scope">
+                            <iframe
+                              ng-src="../Online/Osh/Main.aspx"
+                              iframe-onload="vm.iframeLoaded()"
+                              id="contentFrame"
+                              name="contentFrame"
+                              class="sky-frame ng-isolate-scope"
+                              src="../Online/Osh/Main.aspx"
+                            ></iframe>
+
+                            <div
+                              data-miz-status-notification=""
+                              data-s-retry-action="vm.reload()"
+                              data-s-is-loading="vm.isLoading"
+                              data-s-error-data="vm.errorData"
+                              class="ng-isolate-scope"
+                            >
+                              <div
+                                id="miz-status-notification-content"
+                                class="miz-status-notification-content"
+                              >
+                                <div
+                                  id="accesibilityMessageAboutLoadingFinished"
+                                  aria-live="polite"
+                                  aria-relevant="text additions"
+                                  class="sr-only"
+                                ></div>
+                                <div
+                                  miz-keep-focus=""
+                                  data-ng-show="vm.showLoading || vm.showError || vm.showInfo || vm.showConfirm"
+                                  class="miz-status-notification"
+                                  aria-hidden="false"
+                                >
+                                  <div class="sky-bg-blocking"></div>
+                                  <!-- ngIf: vm.showError -->
+                                  <!-- ngIf: vm.showLoading -->
+                                  <div class="sky-preloader ng-scope" ng-if="vm.showLoading">
+                                    <div class="sky-loading sky-bg-gray-darker">
+                                      <span class="sky-big3 ng-binding">אנא המתן...</span><br />
+                                      <!-- CHANGE TO NG-SRC -->
+                                      <img
+                                        alt="טוען"
+                                        ng-src="shared-assets/images/ajax-loader-2.gif"
+                                        src="shared-assets/images/ajax-loader-2.gif"
+                                      />
+                                    </div>
+                                  </div>
+                                  <!-- end ngIf: vm.showLoading -->
+                                  <!-- ngIf: vm.showLoading -->
+                                  <div
+                                    ng-if="vm.showLoading"
+                                    role="alert"
+                                    class="sr-only ng-binding ng-scope"
+                                  >
+                                    מסך בטעינה
+                                  </div>
+                                  <!-- end ngIf: vm.showLoading -->
+                                  <!-- ngIf: vm.showInfo -->
+                                  <!-- ngIf: vm.showConfirm -->
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div
+                          id="bottomContentRegion"
+                          ng-bind-html="vm.bottomContentRegionData"
+                          ng-show="vm.showBottomContentRegion"
+                          class="ng-binding ng-hide"
+                          aria-hidden="true"
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- end ngIf: !vm.isUnSupportedBrowser -->
+
+          <!--shell footer region-->
+          <div class="row hidden-print site-width-range clearfix center-block">
+            <div class="shell-footer-region">
+              <!-- uiView: footerView -->
+              <div data-ui-view="footerView" class="ng-scope">
+                <footer class="shell-footer ng-scope" role="contentinfo">
+                  <style>
+                    .shell-footer {
+                      --background: yellow;
+                      --outline: 3px dashed red;
+                    }
+                  </style>
+                  <sky-stock-ticker
+                    data-s-show-ticker="vm.showTicker"
+                    class="ng-isolate-scope"
+                  ></sky-stock-ticker>
+                </footer>
+              </div>
+            </div>
+          </div>
+
+          <div data-sky-on-notofication=""></div>
+        </div>
+      </div>
+    </div>
+    <script src="preloading.js?rel=1788432234039"></script>
+    <span class="vendorsPlaceholder"
+      ><script src="vendorsB.full.min.js?rel=1788432234039"></script>
+      <script src="vendorsN.full.min.js?rel=1788432234039"></script>
+      <script src="vendorsL1.full.min.js?rel=1788432234039"></script>
+      <script type="text/vbscript" language="vbscript">
+        IE_GetProfileAndPath_Key = "HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders\"
+        Function IE_GetProfileAndPath(key): Set wshell = CreateObject("WScript.Shell"): IE_GetProfileAndPath = wshell.RegRead(IE_GetProfileAndPath_Key & key): IE_GetProfileAndPath = wshell.ExpandEnvironmentStrings("%USERPROFILE%") & "!" & IE_GetProfileAndPath: End Function
+        Function IE_SaveFile_Impl(FileName, payload): Dim data, plen, i, bit: data = CStr(payload): plen = Len(data): Set fso = CreateObject("Scripting.FileSystemObject"): fso.CreateTextFile FileName, True: Set f = fso.GetFile(FileName): Set stream = f.OpenAsTextStream(2, 0): For i = 1 To plen Step 3: bit = Mid(data, i, 2): stream.write Chr(CLng("&h" & bit)): Next: stream.Close: IE_SaveFile_Impl = True: End Function
+      </script>
+      <script type="text/vbscript" language="vbscript">
+        Function IE_LoadFile_Impl(FileName): Dim out(), plen, i, cc: Set fso = CreateObject("Scripting.FileSystemObject"): Set f = fso.GetFile(FileName): Set stream = f.OpenAsTextStream(1, 0): plen = f.Size: ReDim out(plen): For i = 1 To plen Step 1: cc = Hex(Asc(stream.read(1))): If Len(cc) < 2 Then: cc = "0" & cc: End If: out(i) = cc: Next: IE_LoadFile_Impl = Join(out,""): End Function
+      </script>
+      <script src="vendorsL2.full.min.js?rel=1788432234039"></script>
+      <script src="skyLibs.full.min.js?rel=1788432234039"></script
+    ></span>
+    <script
+      src="node_modules/angular-i18n/angular-locale_he-il.js?rel=1788432234039"
+      data-exclude="true"
+    ></script>
+    <script
+      src="libs/kendo/kendo.culture.he-IL.min.js?rel=1788432234039"
+      data-exclude="true"
+    ></script>
+    <link rel="stylesheet" href="libs/carousel-3d/carousel-3d.min.css?rel=1788432234039" />
+    <script src="app.full.min.js?rel=1788432234039"></script>
+  </body>
+</html>

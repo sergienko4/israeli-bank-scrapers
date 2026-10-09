@@ -64,7 +64,7 @@ afterEach(() => {
 
 describe('window-narrowing contract', () => {
   it('covers every bank in the API-direct scrape phase', () => {
-    expect(WINDOW_NARROWING_CASES).toHaveLength(16);
+    expect(WINDOW_NARROWING_CASES).toHaveLength(17);
   });
 
   it('declares a known stance for every bank', () => {
@@ -74,7 +74,7 @@ describe('window-narrowing contract', () => {
   });
 
   it('splits the banks between narrowable and fixed', () => {
-    expect(NARROWABLE).toHaveLength(8);
+    expect(NARROWABLE).toHaveLength(9);
     expect(FIXED).toHaveLength(8);
   });
 });

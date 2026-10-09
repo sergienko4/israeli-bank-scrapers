@@ -1,0 +1,344 @@
+{
+  "body": {
+    "user": {
+      "UserId": "[redacted-user-id]",
+      "anonymousID": "[redacted-user-id]",
+      "FirstName": "[redacted-name]",
+      "LastName": "[redacted-name]",
+      "UserType": "User",
+      "Profile": {
+        "_AcceptedMailDisclaimer": false,
+        "_ConfirmHebrueGagula": false,
+        "_ContrastColor": null,
+        "_DefaultLanguage": null,
+        "_DefaultPage": "/osh/legacy/legacy-Osh-Main",
+        "_DefaultTab": 0,
+        "_FontFamily": "0",
+        "_FormWasDisplayed": false,
+        "_GenericMessagePageDisplayCount": 0,
+        "_HasApprovedPensionClearing": null,
+        "_HasAskPensionFishing": null,
+        "_HideBankerPicture": false,
+        "_HomePages": [],
+        "_IdPhraseMsgShowCount": 0,
+        "_IsWelcomePage": true,
+        "_KupotGemelMessagePageDisplayCount": 0,
+        "_LastTimeInboxShowed": "[redacted-last-login]",
+        "_LastTimePensionShowed": "[redacted-last-login]",
+        "_LastTimeUpdatedMail": "[redacted-last-login]",
+        "_LastTimeVisitMessageBox": "[redacted-last-login]",
+        "_MostViewedPages": null,
+        "_NotToShowAgainAbandonList": null,
+        "_PersonalRules": [],
+        "_ReplaceColumns": null,
+        "_ShowOshItratCheckBoxes": null,
+        "_SkyPersonalPagePreferences": null,
+        "_SortExpressionPortfolio": null,
+        "_TSRemoveConfirmationWasDisplayed": false,
+        "_UseComposeDoc": null,
+        "_menu": null
+      },
+      "PermissionVector": {
+        "Vector": "1801100000"
+      },
+      "Permissions": [
+        {
+          "Role": "UR_SUG_MANUI"
+        },
+        {
+          "Role": "UR_FUNDS_ACTIVITY"
+        },
+        {
+          "Role": "UR_FORIGEN_STOCKS"
+        },
+        {
+          "Role": "AC_[redacted-account]_FUNDS_ACTIVITY"
+        },
+        {
+          "Role": "AC_[redacted-account]_TRANSFER"
+        },
+        {
+          "Role": "AC_[redacted-account]_ORDER_CHECKS"
+        },
+        {
+          "Role": "AC_[redacted-account]_PAHAK"
+        },
+        {
+          "Role": "AC_[redacted-account]_PAKAM"
+        },
+        {
+          "Role": "AC_[redacted-account]_TRANSFER2"
+        },
+        {
+          "Role": "AC_[redacted-account]_SUG_LAKOAH"
+        },
+        {
+          "Role": "AC_[redacted-account]_BEZEQ_ELECTRICITY"
+        }
+      ],
+      "Roles": null,
+      "LastTimeVisited": "[redacted-last-login]",
+      "Accounts": [
+        {
+          "AccountTypes": [
+            "AccountInVirtualBranch",
+            "PersonalBusiness",
+            "Sky",
+            "NotZikaZara",
+            "VirtualAccount"
+          ],
+          "AccountStatus": "CentralMessageWithAlert",
+          "AccountTypeForCommisionPlans": "0",
+          "Ashrai": 0,
+          "BankerName": "[redacted-name]",
+          "Branch": "000",
+          "BranchForDispaly": "000",
+          "BranchForMF": "000",
+          "BrandingType": "0",
+          "CellServiceRegisterStatus": "NotJoined",
+          "Details": "000-[redacted-account] [redacted-name]        [redacted-name]",
+          "HarshaaMaslulAmlot": "1",
+          "HasJoinedBankMessaging": true,
+          "IsApproachable": false,
+          "IsAtrophied": false,
+          "IsBankerFrameDisplay": true,
+          "IsBusinessAccount": false,
+          "IsKodUserMeyuaz": false,
+          "IsMeukal": false,
+          "IsSubscribedToBankerMessageBox": true,
+          "IsVirtualBranch": true,
+          "MisgeretDate": null,
+          "MisgeretHour": null,
+          "MisgeretPeiloot": null,
+          "Name": "[redacted-name]        [redacted-name]",
+          "Number": "[redacted-account]",
+          "PermissionVector": {
+            "Vector": "1111101120"
+          },
+          "Permissions": [
+            {
+              "Role": "AC_[redacted-account]_FUNDS_ACTIVITY"
+            },
+            {
+              "Role": "AC_[redacted-account]_TRANSFER"
+            },
+            {
+              "Role": "AC_[redacted-account]_ORDER_CHECKS"
+            },
+            {
+              "Role": "AC_[redacted-account]_PAHAK"
+            },
+            {
+              "Role": "AC_[redacted-account]_PAKAM"
+            },
+            {
+              "Role": "AC_[redacted-account]_TRANSFER2"
+            },
+            {
+              "Role": "AC_[redacted-account]_SUG_LAKOAH"
+            },
+            {
+              "Role": "AC_[redacted-account]_BEZEQ_ELECTRICITY"
+            }
+          ],
+          "Remain": 0,
+          "RemainDate": "2026-10-08T00:00:00",
+          "SnifAndNumber": "000-[redacted-account]",
+          "SnifAndNumber400": "000-[redacted-account]",
+          "SugLakoh": "049",
+          "TaarichErech": null,
+          "TaarichErechOsh": null,
+          "TaarichPeulaAhrona": "[redacted-last-login]",
+          "TipulMishpati": "00",
+          "Type": "98",
+          "UnreadCentralizedMessageCount": 0,
+          "UnreadMessageFromBankerCount": 0,
+          "YitraAdkanit": 0,
+          "YitraAdkanitDate": "2026-10-08T10:02:00",
+          "YitraAdkanitLeloChekim": 0,
+          "YitraPahak": null,
+          "KodMaane": "1",
+          "StatusTofesBursa": null,
+          "SacharChutz": "0",
+          "OvedBank": "0",
+          "KodHodaatHatzbaot": null,
+          "MisparShutafim": false,
+          "HasEmail": true,
+          "InfoType": "Basic",
+          "InfoTypeCode": 0,
+          "OtpAtSessionDuration": 0,
+          "SkyAccountIndex": 0
+        }
+      ],
+      "CurrentAccountIndex": 0,
+      "LandingPage": {
+        "url": "/osh/legacy/legacy-Osh-Main",
+        "queryString": null,
+        "stateUrl": null
+      },
+      "MaslulBursa": "4",
+      "isBroker": false,
+      "isMzk": false,
+      "CampaignCode": 0
+    },
+    "xsrfToken": "[redacted-token]",
+    "FeaturesSettings": [
+      {
+        "Name": "Mortgage",
+        "APIMethodName": ["getMortgageOpenBankOds"],
+        "MenuNode": [],
+        "Flag": true
+      },
+      {
+        "Name": "campaignNew",
+        "APIMethodName": [],
+        "MenuNode": [],
+        "Flag": true
+      },
+      {
+        "Name": "AddSaharHutzOld",
+        "APIMethodName": [],
+        "MenuNode": ["saharHutzOld"],
+        "Flag": true
+      },
+      {
+        "Name": "AddSaharHutzNew",
+        "APIMethodName": [],
+        "MenuNode": ["saharHutzNew"],
+        "Flag": true
+      },
+      {
+        "Name": "datePickerIsGetTable823",
+        "APIMethodName": [],
+        "MenuNode": [],
+        "Flag": true
+      },
+      {
+        "Name": "isActiveOvedBank",
+        "APIMethodName": [],
+        "MenuNode": [],
+        "Flag": true
+      },
+      {
+        "Name": "showAptBuyersGaurantees",
+        "APIMethodName": [],
+        "MenuNode": ["aptBuyersGaurantees"],
+        "Flag": true
+      },
+      {
+        "Name": "BW",
+        "APIMethodName": [],
+        "MenuNode": [],
+        "Flag": true
+      },
+      {
+        "Name": "TR",
+        "APIMethodName": [],
+        "MenuNode": ["TipranksStocksFilters", "TipranksEtfScreener"],
+        "Flag": false
+      },
+      {
+        "Name": "consentCCBusinessNotSupported",
+        "APIMethodName": [],
+        "MenuNode": [],
+        "Flag": true
+      },
+      {
+        "Name": "ValidateUserPermissionShoham",
+        "APIMethodName": [],
+        "MenuNode": [],
+        "Flag": false
+      },
+      {
+        "Name": "interestOsh",
+        "APIMethodName": [],
+        "MenuNode": [],
+        "Flag": true
+      },
+      {
+        "Name": "NeemanutAccount",
+        "APIMethodName": [],
+        "MenuNode": [],
+        "Flag": true
+      },
+      {
+        "Name": "ShowRSignPopupInIframe",
+        "APIMethodName": [],
+        "MenuNode": [],
+        "Flag": true
+      },
+      {
+        "Name": "isActiveBrokerDealer",
+        "APIMethodName": [],
+        "MenuNode": [],
+        "Flag": true
+      },
+      {
+        "Name": "R2P",
+        "APIMethodName": [],
+        "MenuNode": [],
+        "Flag": true
+      },
+      {
+        "Name": "SecurityOB",
+        "APIMethodName": [
+          "getSecuritiesAccountAggOds",
+          "getSecuritiesAccountOds",
+          "getSecuritiesListOds"
+        ],
+        "MenuNode": [],
+        "Flag": false
+      },
+      {
+        "Name": "newMultiSign",
+        "APIMethodName": [],
+        "MenuNode": [],
+        "Flag": false
+      },
+      {
+        "Name": "oldLoanDisposal",
+        "APIMethodName": [],
+        "MenuNode": ["loanDisposalOld"],
+        "Flag": false
+      },
+      {
+        "Name": "newLoanDisposal",
+        "APIMethodName": [],
+        "MenuNode": ["loanDisposalNew"],
+        "Flag": true
+      },
+      {
+        "Name": "signMultipleButton",
+        "APIMethodName": [],
+        "MenuNode": [],
+        "Flag": true
+      },
+      {
+        "Name": "R2PListMenu",
+        "APIMethodName": [],
+        "MenuNode": ["showR2PMenu"],
+        "Flag": true
+      },
+      {
+        "Name": "go",
+        "APIMethodName": [],
+        "MenuNode": [],
+        "Flag": false
+      },
+      {
+        "Name": "hasidMatach",
+        "APIMethodName": [],
+        "MenuNode": [],
+        "Flag": true
+      },
+      {
+        "Name": "transferSalaryHundreds",
+        "APIMethodName": ["getSalariesP680Init"],
+        "MenuNode": [],
+        "Flag": false
+      }
+    ],
+    "ClientConfig": "{\r\n  \"version\":\"26.2\",\r\n  \"env\": \"production\",\r\n  \"isDNAHostMode\": false,\r\n  \"assetsUri\": \"assets-production/\",\r\n  \"mashkantaAkpaaLink\": \"https://sc.mizrahi-tefahot.co.il/SCMorgageFreez/index.html#/main/mortgageFreeze\",\r\n  \"server\": {\r\n    \"skyAngularBaseUrl\": \"../ngOnline/\",\r\n    \"skyLegacyBaseUrl\": \"../Online/\",\r\n    \"skyLegacyBaseUrl_comment\": \"leave this null to use relative url; (MizrahiSky-CM)\",\r\n    \"uriSkyBL\": \"/skyBL\",\r\n    \"getFields\": \"/GetFields\",\r\n    \"apiUri\": \"../Online/api\",\r\n    \"downloadAmlotIgud\": \"Local-igud_igud\",\r\n    \"apiShortPath\": \"../api\",\r\n    \"logoutCAUrl\": \"../Online/logout.htm\",\r\n    \"atarShivuki\": \"https://www.mizrahi-tefahot.co.il/he/Bank/Pages/Default.aspx\",\r\n    \"uriBanker\": \"/Banker\",\r\n    \"uriSkyMessaging\": \"/SkyMessaging\",\r\n    \"uriDrafts\": \"/SkyMessaging\",\r\n    \"uriCentralMessages\": \"/CentralMessagesV2\",\r\n    \"kupotGemel\": \"/KupotGemel\",\r\n    \"paymentsData\": \"/OSH\",\r\n    \"permissionsManagement\": \"/NihulHarshaot\",\r\n    \"uriMergedMessages\": \"/MergedMessagesV2\",\r\n    \"activateCC\": \"/ActivateCC\",\r\n    \"loan461\": \"/Loan461\",\r\n    \"intervaldataMana_6_7\": 5000,\r\n    \"pdfDownloadServiceUri\": \"../Online/DownloadForms.ashx?formCode=\",\r\n    \"userFormDownloadServiceUri\": \"../Online/GenericHandlers/GetFileHandler.ashx\",\r\n    \"exportPdfUri\": \"../Online/ExportPdf.ashx\",\r\n    \"offset\": \"../../\",\r\n    \"bufferLegacy\": \"../Online/GenericHandlers/Buffer.ashx\",\r\n    \"downloadUri\": \"/v/download.php\",\r\n    \"uploadUri\": \"/v/upload.php\",\r\n    \"exportExcelLegacy\": \"../Online/ExportExcel.ashx\",\r\n    \"exportExcelUri\": \"../Online/EchoHandler.ashx\",\r\n    \"getPhotoUri\": \"../Online/GenericHandlers/getPhoto.ashx\",\r\n    \"MailBoxLoginRedirect\": \"https://www.mizrahi-tefahot.co.il/login/loginMTO.aspx?goto=https://mto.mizrahi-tefahot.co.il/Online/Default.aspx?pageS=\",\r\n    \"timeout\": 15,\r\n    \"alertBeforeLogoutMinutes\": 2,\r\n    \"serverPingInterval\": 10,\r\n    \"serverTimeout\": 2,\r\n    \"uriGeneral\": \"/general\",\r\n    \"uriSkyOTP\": \"/SkyOTP\",\r\n    \"GetTickerRates\": \"../Online/GenericHandlers/ServicesNoSessionHandler.ashx\",\r\n    \"stockTickerData\": \"../Online/GenericHandlers/GetT1.ashx\",\r\n    \"englishVersionUrl\": \"https://mto.mizrahi-tefahot.co.il/Onlineng/default.aspx?language=en-GB\",\r\n    \"CalcBonds\": \"/trade1.web.mizrahi.front/Views/InstrumentCalc/Calc.aspx#/bonds\",\r\n    \"CalcDerivatives\": \"/trade1.web.mizrahi.front/Views/InstrumentCalc/Calc.aspx#/derivatives\",\r\n    \"T1_NewsItem\": \"/trade1.web.mizrahi.front/Views/Instrument/InstrumentNewsItem.aspx\",\r\n    \"ChatUrl\": \"https://vc.mizrahi-tefahot.co.il/sky/FloatingChatNGv2.aspx?profile={0}&lang=he&t={1}&url={2}&refer={3}&title={4}\",\r\n    \"VirtualCurrenciesPolicy\": \"https://www.mizrahi-tefahot.co.il/about-mizrahi-tefahot-he/disclosure-links/virtual-currencies-policy/\",\r\n    \"MoreInfoPopup\": \"https://www.mizrahi-tefahot.co.il/open-a-bank-account/mobility-bank-accounts/\",\r\n    \"transferToBeneficiaryShow\": true\r\n\r\n\r\n  },\r\n  \"Trade1\": {\r\n    \"ImagesUrldirectory\": \"https://t1imgs.mizrahi-tefahot.co.il/T1Imgs/gcache\",\r\n    \"GlobesImagesDomain\": \"http://images.globes.co.il\"\r\n  },\r\n  \"trade1\": {\r\n    \"WeeklyChartsUrl\": \"https://t1imgs.mizrahi-tefahot.co.il/T1Imgs/graphs/week\"\r\n  },\r\n  \"app\": {\r\n    \"tzBankaitManualVideoURL\": \"https://youtube.com/shorts/OUtMTUO1-dA\",\r\n    \"mutzareyShukHakesefURL\": \"https://www.mizrahi-tefahot.co.il/about-mizrahi-tefahot-he/disclosure-links/deposits-interest-rates\",\r\n    \"genericHandlers\": \"../Online/GenericHandlers/\",\r\n    \"prefixPikdonot377FilesUrl\":\"https://www.mizrahi-tefahot.co.il/MiniSites/Pikdonot-Terms/\",\r\n    \"depositsInterestRatesLink\":\"https://www.mizrahi-tefahot.co.il/about-mizrahi-tefahot/disclosure-links/deposits-interest-rates/?page=1&tb=fixed\",\r\n    \"paySumAndOrdersLink\": \"https://www.mizrahi-tefahot.co.il/mortgages/mortgage-repayment\",\r\n    \"legacyPath\": \"../ngOnline/index.html\",\r\n    \"langUrlTemplate\": \"./appModules/lang/{part}/{lang}.json\",\r\n    \"preferredLang\": \"he\",\r\n    \"minSumToSend377\": 50000,\r\n    \"digitalGuarantee\": \"https://govextra.gov.il/digital-guarantee/homepage/\",\r\n    \"digitalGuaranteeStandart\": \"https://govextra.gov.il/media/btahctgw/digital-guarantee-standard.pdf\",\r\n    \"linkSmallBusiness3_pdf\": \"https://www.mizrahi-tefahot.co.il/mizmedia/smallbusiness3.pdf\",\r\n    \"linkLargeBusiness3_pdf\": \"https://www.mizrahi-tefahot.co.il/mizmedia/largebusiness3.pdf\",\r\n    \"linkRisk\":  \"https://www.mizrahi-tefahot.co.il/media/y45f5v3m/%D7%97%D7%95%D7%91%D7%A8%D7%AA-%D7%A0%D7%99%D7%99%D7%A8%D7%95%D7%AA-%D7%A2%D7%A8%D7%9A-%D7%A2%D7%91%D7%A8%D7%99%D7%AA-0725.pdf\",\r\n    \"cerditLimit\": \"OSH/getCreditLimit\",\r\n    \"generalServiceUrl\": \"SkyGeneralServices/getGeneralService\",\r\n    \"logoutRootPathClient\": true,\r\n    \"isNewMessageBox\": true,\r\n    \"mailBoxMode\": \"Sky\",\r\n    \"openAsSkyDialog\": true,\r\n    \"areaViewWidth\": \"900px\",\r\n    \"hideBuySellEnglish\": true,\r\n    \"openLegacyTransactionsHeb\": true,\r\n    \"openLegacyTransactionsEng\": true,\r\n    \"displayTesuotReports\": true,\r\n    \"AdditionToBranchNum\": \"400\",\r\n    \"timeoutInMs\": 5000,\r\n    \"isShowIgudDoc\": false,\r\n    \"Show2FA\": false,\r\n    \"ShowPopupEmail\": true,\r\n    \"ShowPopupPhone\": false,\r\n    \"IsExtendMortgage\":true,\r\n    \"ShowPopupName\": true,\r\n    \"ShowPopupAddress\": true,\r\n    \"isMyDepositsUrl\": true,\r\n    \"showRequestPayment\":false,\r\n    \"depositShowCommentCrumble\":true,\r\n    \"depositShowCommentpPassionFruit\":true,\r\n    \"exportPdfUrl\":\"https://mto.mizrahi-tefahot.co.il/Online/ExportPdf.ashx\",\r\n      \"linkMismachTeken_pdf\":\"https://govextra.gov.il/digital-guarantee/homepage/\",\r\n    \"labelkeyLegacy\": [\r\n      { \"labelKey\": \"osh.myOsh.itraVeTnuot.title\",\"State\": \"osh/legacy/root-main-osh-p428New\"}, \r\n      { \"labelKey\": \"osh.transfersPayments.transfer.title\",\"State\": \"osh/legacy/root-main-osh-transfers\" }, \r\n      { \"labelKey\": \"loans.myLoans.halvaaRega.title\", \"State\": \"mashkanta/legacy/legacy-Loan-P461\"},\r\n      { \"labelKey\": \"DepositsAndSavings.myDepositsAndSavings.havkadaPakam.title\",\"State\": \"hs/legacy/legacy-HS-P377\" }, \r\n      { \"labelKey\": \"cc.myCC.orderTefahotCC.title\",\"State\": \"cc/legacy/sub-1\" }, \r\n        { \"labelKey\": \"cc.operationsCC.hiuvHodshiKavua.title\",\"State\": \"cc/legacy/P972\" }, \r\n      { \"labelKey\": \"osh.transfersPayments.kupotgemel.title\",\"State\": \"osh/legacy/root-main-osh-kupotgemel\"  },\r\n      { \"labelKey\": \"osh.cheques.orderCheque.title\",\"State\": \"osh/legacy/p385\" }\r\n    ],\r\n    \"ssoYatsilVisaLink\": \"https://online.yatzil.co.il/?LoginGUID=\",\r\n    \"dowloadUrl\": \"/v/download.php\",\r\n    \"uploadUrl\": \"/v/upload.php\",\r\n    \"genericFileHandler\": \"https://mto.mizrahi-tefahot.co.il/Online/GenericHandlers/GetFileHandler.ashx\"\r\n  },\r\n  \"T1SecurityDetail\": \"/trade1.web.mizrahi.front/Views/Instrument/Instrument.aspx\",\r\n  \"analytics\": {\r\n    \"printGALogs\": false,\r\n    \"gaMapping\": {\r\n      \"root.mashkanta.mash.maslolim({mashType:mashkanta})\": {\r\n        \"virtualPage\": \"/הלוואות ומשכנתאות/משכנתאות\",\r\n        \"pageTitle\": \"הלוואות ומשכנתאות | משכנתאות\"\r\n      },\r\n      \"root.tfasim.main\": {\r\n        \"virtualPage\": \"/הלוואות ומשכנתאות/טפסים ואישורים\",\r\n        \"pageTitle\": \"הלוואות ומשכנתאות | טפסים ואישורים\"\r\n      },\r\n      \"root.mashkanta.mash.maslolim({mashType:kartisim})\": {\r\n        \"virtualPage\": \"/הלוואות ומשכנתאות/כרטיס אשראי טפחות\",\r\n        \"pageTitle\": \"הלוואות ומשכנתאות | כרטיס אשראי טפחות\"\r\n      },\r\n      \"root.pazakim.main\": {\r\n        \"virtualPage\": \"/הלוואות ומשכנתאות/פקדונות וחסכונות\",\r\n        \"pageTitle\": \"הלוואות ומשכנתאות | פקדונות וחסכונות\"\r\n      }\r\n    },\r\n    \"GAKey\": \"UA-71783710-1\"\r\n  },\r\n  \"externalLinks\": [\r\n    {\r\n      \"key\": \"matahYetrotTnuot\",\r\n      \"url\": \"../OnlineApp/index.html?route=matahYetrotTnuot\"\r\n    },\r\n    {\r\n      \"key\": \"hodaaSilukMashkanta\",\r\n      \"url\": \"../OnlineApp/index.html?route=siluk\"\r\n    },\r\n    {\r\n      \"key\": \"changeMashAccount\",\r\n      \"url\": \"../OnlineApp/index.html?route=changeMashAccount\"\r\n    }\r\n  ],\r\n  \"portfolioOverview\": {\r\n    \"isShowAllNews\": \"false\"\r\n  },\r\n  \"MortgageFreeze\": {\r\n    \"disclaimer1\": \"לתשומת לבכם, הקפאת התשלומים בתנאי מתווה בנק ישראל (ללקוחות הנכללים במעגל הראשון) לא כרוכה בעלות ולא נכללת במחשבון. \",\r\n    \"disclaimer2\": \"אופן פריסת סכום התשלומים שנדחו בתנאי המתווה \",\r\n    \"disclaimer3\": \"יהיה באמצעות העמדת הלוואה חדשה וייעודית\",\r\n    \"disclaimer4\": \", בסכום הדחייה, ללא ריבית וללא הצמדה. \",\r\n    \"disclaimer5\": \" מועד פירעון ההלוואה יחל בחלוף שנה ממועד תום התקופה שאושרה בתנאי מתווה בנק ישראל, וייפרע במשך תקופה של 4 שנים. כלומר, ב-12 החודשים הראשונים לא תחויבו בתשלום כלשהו על חשבון חלק זה וב-48 החודשים הבאים תחויבו בתשלומים חודשיים שווים ורצופים.\",\r\n    \"disclaimer6\": \"מודגש כי סכומי החזר בגין ההלוואה שתינתן עבור הקפאת התשלומים בתנאי מתווה בנק ישראל, \",\r\n    \"disclaimer7\": \"לא כלולים בתוצאות המחשבון. \",\r\n    \"disclaimer8\": \"לכן הסכום המוצג תחת הכותרת 'סכום ההחזר לאחר תקופת ההקפאה' אינו סופי, וסכומי החזר ההלוואה החדשה והייעודית יתווספו, לפי מועד פירעונם.\"\r\n  },\r\n  \"InterestOsh\": {\r\n    \"annualInterest\": \"0.02\",\r\n    \"endDate\": \"31/03/2027\",\r\n    \"maxSurplusMonthlyAvarage\": \"100000\",\r\n    \"maxSurplusQualifiedMonthlyAvarage\": \"30000\",\r\n    \"startDate\": \"01/04/2025\"\r\n  },\r\n  \"madlan\": {\r\n    \"apiUri\": \"https://mizrahi.madlan.co.il/mizrahi/api/\",\r\n    \"areaViewHeight\": 750,\r\n    \"areaUri\": \"/Tefahot/index.html\",\r\n    \"areaViewWidth\": 1080,\r\n    \"openAsSkyDialog\": true\r\n  },\r\n  \"lovim\": {\r\n    \"areaUri\": \"/Tefahot/index.html\",\r\n    \"openAsSkyDialog\": true,\r\n    \"areaViewWidth\": 900\r\n  },\r\n  \"updateMail\": {\r\n    \"daysInterval\": 18000\r\n  },\r\n  \"pazakim\": {\r\n    \"apiUri\": \"../Online/api/\"\r\n  },\r\n  \"dashboard\": {\r\n    \"showDetailsCreditCard\": \"false\"\r\n  },\r\n  \"chat\": {\r\n    \"scriptUrl\": \"https://chat.mizrahi-tefahot.co.il\",\r\n    \"show\": false\r\n  },\r\n  \"chatMaxExposure\": 15,\r\n  \"withoutExposureMax\": true,\r\n  \"showHowItsCalculated\": true,\r\n  \"chatTopMenuIndex\": {\r\n    \"root.main.osh\": null,\r\n    \"root.main.pikdonot\": [\r\n      {\r\n        \"chatId\": 2,\r\n        \"profile\": \"11\",\r\n        \"urlId\": \"7700000.050.180\"\r\n      },\r\n      {\r\n        \"chatId\": 3,\r\n        \"profile\": \"11\",\r\n        \"urlId\": \"7700000.050.181\"\r\n      },\r\n      {\r\n        \"chatId\": 4,\r\n        \"profile\": \"11\",\r\n        \"urlId\": \"7700000.050.182\"\r\n      }\r\n    ],\r\n    \"root.main.ne\": [\r\n      {\r\n        \"chatId\": 5,\r\n        \"profile\": \"11\",\r\n        \"urlId\": \"7700000.050.184\"\r\n      },\r\n      {\r\n        \"chatId\": 6,\r\n        \"profile\": \"11\",\r\n        \"urlId\": \"7700000.050.185\"\r\n      },\r\n      {\r\n        \"chatId\": 7,\r\n        \"profile\": \"11\",\r\n        \"urlId\": \"7700000.050.186\"\r\n      },\r\n      {\r\n        \"chatId\": 8,\r\n        \"profile\": \"10\",\r\n        \"urlId\": \"7700000.050.187\"\r\n      },\r\n      {\r\n        \"chatId\": 9,\r\n        \"profile\": \"10\",\r\n        \"urlId\": \"7700000.050.188\"\r\n      },\r\n      {\r\n        \"chatId\": 10,\r\n        \"profile\": \"10\",\r\n        \"urlId\": \"7700000.050.189\"\r\n      }\r\n    ],\r\n    \"root.main.loans\": null\r\n  },\r\n  \"language\": {\r\n    \"he-il\": {\r\n      \"landingPage\": \"../onlineApp/index.html\"\r\n    },\r\n    \"en-gb\": {\r\n      \"landingPage\": \"../ngOnline/index-en.html\"\r\n    }\r\n  },\r\n  \"appId\": \"skyWeb\",\r\n  \"appVersion\": \"5.3.0\",\r\n  \"appModule\": \"sky\",\r\n  \"toolbarAsView\": true,\r\n  \"has3Levels\": true,\r\n  \"countOfAccountPartners\": 3,\r\n  \"alvaaBarRegaMaxDate\": 90,\r\n  \"loanMinAmount\": 0,\r\n  \"salaryMutavimMax\": 100,\r\n  \"subjectContactInvestmentConsult\": \"שאלה לגבי המלצות להשקעות מהיועץ\",\r\n  \"salaryMutavimMaxForFile\": 500,\r\n  \"loanPostponeMaxPrivate\": 3,\r\n  \"loanPostponeMaxBusiness\": 3,\r\n  \"itemBankerCalendarMinMonthDate\": 6,\r\n  \"itemBankerCalendarMaxYearsDate\": 2,\r\n  \"mashkantaNumOfYear\": 24,\r\n  \"regex\": {\r\n    \"RegexCheckEmail\": \"^[_a-zA-Z0-9]+(.[_a-zA-Z0-9]+)*@[a-zA-Z0-9-]+(.[a-zA-Z0-9-]+)*(.[a-zA-Z]{2,5})$\",\r\n    \"RegexCheckError\": \"^\\\\d{1,20}$\",\r\n    \"RegexCheckPassword\": \"^[A-Za-z0-9!@#$%^&amp;*~_\\\\-\\\\+]{0,30}$\",\r\n    \"RegexLeadsPhoneNumber\": \"^([0-9]{7})$\",\r\n    \"RegexOnlyNumber\": \"^([0-9])$\",\r\n    \"RegexPhoneNumber\": \"^([0-9]{10})$\",\r\n    \"RegexCheckNameAndLastName\": \"^[\\\\s- '\\\\.a-zA-Zא-ת]+$\",\r\n    \"RegexCheckPassport\": \"^[a-zA-Z0-9]{1,16}$\",\r\n    \"RegexNoSpecialCharacters\": \"^[0-9a-zA-Zא-ת]*$\",\r\n    \"RegexNoSpecialCharactersSpace\": \"^[0-9a-zA-Zא-ת ]*$\"\r\n  },\r\n  \"defaultRoute\": {\r\n    \"sky\": {\r\n      \"he\": {\r\n        \"route\": \"/empty-page\",\r\n        \"state\": \"root.empty-page\"\r\n      },\r\n      \"en\": {\r\n        \"route\": \"/osh/p428\",\r\n        \"state\": \"root.main.osh.p428\",\r\n        \"params\": {\r\n          \"module\": \"Osh\",\r\n          \"page\": \"P428\"\r\n        }\r\n      }\r\n    }\r\n  },\r\n  \"errors\": {\r\n    \"errorKeyBase\": \"s-errors.messages.\",\r\n    \"generalErrorKey\": \"general_error;*\"\r\n  },\r\n\r\n  \"securitysearch\": {\r\n    \"controller\": \"/SecuritySearch\"\r\n  },\r\n  \"fileDownload\": {\r\n    \"source_param\": \"sky\",\r\n    \"source_param_external\": \"sky_external\",\r\n    \"source_param_factoring\": \"factoring\"\r\n  },\r\n\r\n  \"skyLinks\": {\r\n    \"tnuotBeKartisAshrai\": \"~/CC/P419.aspx\",\r\n    \"pikdonotMain\": \"~/HS/Main.aspx\",\r\n    \"myDeposits\": \"root.main.hs.myDeposits\",\r\n    \"pahakim\": \"~/HS/P440.aspx\",\r\n    \"companyEventsQueryUrl\": \"~/NE/PCompanyEventsQuery.aspx?misparNeyar=\",\r\n    \"companyEventUrl\": \"NE/CompanyEvent.aspx?misparNeyar=\"\r\n  },\r\n  \"DepositsAndSavings\": {\r\n    \"MapArrFruitType\": {\r\n      \"01\": \"persimmon\",\r\n      \"02\": \"cherry\",\r\n      \"03\": \"lychee\",\r\n      \"04\": \"grapes\",\r\n      \"05\": \"pomely\",\r\n      \"06\": \"raspberry\",\r\n      \"07\": \"pitango\",\r\n      \"08\": \"coconut\",\r\n      \"09\": \"pomegranates\",\r\n      \"13\": \"crumble\",\r\n      \"14\": \"sabers\",\r\n      \"15\": \"orange\",\r\n      \"16\": \"pineapple\",\r\n      \"17\": \"strawberry\",\r\n      \"18\": \"passionFruit\"\r\n    }\r\n  },\r\n  \"formCodes\": {\r\n    \"tashlumhoraatKeva\": \"101.46_101.46\",\r\n    \"shinuiIdkunHoraatKeva\": \"101.46_101.46\",\r\n    \"shinuiTaarichHiuv\": \"2172_2172\",\r\n    \"tofesAmlotIgud\": \"Local-igud_igud.pdf\"\r\n  },\r\n  \"transactionApprovalListMisc\": {\r\n    \"monthesRangeAllowed\": 12,\r\n    \"defaultMonthsAgo\": 3\r\n  },\r\n  \"allGuaranteeTypes\": {\r\n    \"items\": [\r\n      {\r\n        \"id\": \"0\",\r\n        \"text\": \"s-allGuaranteeTypes.allGuaranteeTypes\"\r\n      },\r\n      {\r\n        \"id\": \"671\",\r\n        \"text\": \"s-allGuaranteeTypes.formal\"\r\n      },\r\n      {\r\n        \"id\": \"681\",\r\n        \"text\": \"s-allGuaranteeTypes.busyneses\"\r\n      },\r\n      {\r\n        \"id\": \"683\",\r\n        \"text\": \"s-allGuaranteeTypes.smallBusyneses\"\r\n      },\r\n      {\r\n        \"id\": \"680\",\r\n        \"text\": \"s-allGuaranteeTypes.invest\"\r\n      },\r\n      {\r\n        \"id\": \"684\",\r\n        \"text\": \"s-allGuaranteeTypes.actionBusyness\"\r\n      },\r\n      {\r\n        \"id\": \"686\",\r\n        \"text\": \"s-allGuaranteeTypes.ktavShipuiArison\"\r\n      },\r\n      {\r\n        \"id\": \"687\",\r\n        \"text\": \"s-allGuaranteeTypes.lising\"\r\n      },\r\n      {\r\n        \"id\": \"698\",\r\n        \"text\": \"s-allGuaranteeTypes.moneyGuarantee\"\r\n      },\r\n      {\r\n        \"id\": \"701\",\r\n        \"text\": \"s-allGuaranteeTypes.actionGuarantee\"\r\n      },\r\n      {\r\n        \"id\": \"702\",\r\n        \"text\": \"s-allGuaranteeTypes.ktavShipui\"\r\n      },\r\n      {\r\n        \"id\": \"703\",\r\n        \"text\": \"s-allGuaranteeTypes.stockExchangeFriend\"\r\n      },\r\n      {\r\n        \"id\": \"712\",\r\n        \"text\": \"s-allGuaranteeTypes.lis\"\r\n      },\r\n      {\r\n        \"id\": \"714\",\r\n        \"text\": \"s-allGuaranteeTypes.nazivim\"\r\n      },\r\n      {\r\n        \"id\": \"715\",\r\n        \"text\": \"s-allGuaranteeTypes.notSecretGuarantee\"\r\n      }\r\n    ]\r\n  },\r\n  \"allTransactions\": {\r\n    \"items\": [\r\n      {\r\n        \"id\": \"0\",\r\n        \"text\": \"s-allTransactions.allStatuses\"\r\n      },\r\n      {\r\n        \"id\": \"01\",\r\n        \"text\": \"s-allTransactions.waitingForMySignature\"\r\n      },\r\n      {\r\n        \"id\": \"02\",\r\n        \"text\": \"s-allTransactions.waitingAdditionalSigner\"\r\n      },\r\n      {\r\n        \"id\": \"03\",\r\n        \"text\": \"s-allTransactions.approved\"\r\n      },\r\n      {\r\n        \"id\": \"06\",\r\n        \"text\": \"s-allTransactions.mySignitureNotNeeded\"\r\n      },\r\n      {\r\n        \"id\": \"08\",\r\n        \"text\": \"s-allTransactions.canceled\"\r\n      },\r\n      {\r\n        \"id\": \"07\",\r\n        \"text\": \"s-allTransactions.canceledByBank\"\r\n      },\r\n      {\r\n        \"id\": \"09\",\r\n        \"text\": \"s-allTransactions.expired\"\r\n      }\r\n    ]\r\n  },\r\n  \"waitingForSignature\": {\r\n    \"items\": [\r\n      {\r\n        \"id\": \"0\",\r\n        \"text\": \"s-allTransactions.allStatuses\"\r\n      },\r\n      {\r\n        \"id\": \"01\",\r\n        \"text\": \"s-allTransactions.waitingForMySignature\"\r\n      },\r\n      {\r\n        \"id\": \"02\",\r\n        \"text\": \"s-allTransactions.waitingAdditionalSigner\"\r\n      },\r\n      {\r\n        \"id\": \"06\",\r\n        \"text\": \"s-allTransactions.mySignitureNotNeeded\"\r\n      }\r\n    ]\r\n  },\r\n  \"canceledTransactions\": {\r\n    \"items\": [\r\n      {\r\n        \"id\": \"0\",\r\n        \"text\": \"s-allTransactions.allStatuses\"\r\n      },\r\n      {\r\n        \"id\": \"08\",\r\n        \"text\": \"s-allTransactions.canceled\"\r\n      },\r\n      {\r\n        \"id\": \"07\",\r\n        \"text\": \"s-allTransactions.canceledByBank\"\r\n      },\r\n      {\r\n        \"id\": \"09\",\r\n        \"text\": \"s-allTransactions.expired\"\r\n      }\r\n    ]\r\n  },\r\n  \"transactionsApproval\": {\r\n    \"items\": [\r\n      {\r\n        \"id\": \"0\",\r\n        \"text\": \"s-transApproval.allTransactions\"\r\n      },\r\n      {\r\n        \"id\": \"278\",\r\n        \"text\": \"s-transApproval.transferToDifferentAcc\"\r\n      },\r\n      {\r\n        \"id\": \"272\",\r\n        \"text\": \"s-transApproval.transferMiyadit\"\r\n      },\r\n      {\r\n        \"id\": \"277\",\r\n        \"text\": \"s-transApproval.transferZahav\"\r\n      },\r\n      {\r\n        \"id\": \"210\",\r\n        \"text\": \"s-transApproval.paymentGov\"\r\n      },\r\n      {\r\n        \"id\": \"749\",\r\n        \"text\": \"s-transApproval.paymentMatah\"\r\n      },\r\n      {\r\n        \"id\": \"955\",\r\n        \"text\": \"s-transApproval.mazkiraPermissions\"\r\n      },\r\n      {\r\n        \"id\": \"maskorot\",\r\n        \"text\": \"s-transApproval.maskorot\"\r\n      }\r\n    ]\r\n  },\r\n  \"skipMenu\": {\r\n    \"items\": [\r\n      {\r\n        \"id\": \"mainMenu\",\r\n        \"text\": \"s-skipMenu.mainMenu\"\r\n      },\r\n      {\r\n        \"id\": \"MainContent\",\r\n        \"text\": \"s-skipMenu.MainContent\"\r\n      },\r\n      {\r\n        \"id\": \"AccountPicker\",\r\n        \"text\": \"s-skipMenu.AccountPicker\"\r\n      },\r\n      {\r\n        \"id\": \"Balance\",\r\n        \"text\": \"s-skipMenu.Balance\"\r\n      },\r\n      {\r\n        \"id\": \"SideMenu\",\r\n        \"text\": \"s-skipMenu.SideMenu\"\r\n      },\r\n      {\r\n        \"id\": \"Banker\",\r\n        \"text\": \"s-skipMenu.Banker\"\r\n      }\r\n    ]\r\n  },\r\n  \"ticker\": {\r\n    \"items\": [\r\n      {\r\n        \"id\": \"toolsMenu\",\r\n        \"title\": \"כלים\",\r\n        \"popupTitle\": \"כלים פיננסיים\",\r\n        \"items\": [\r\n          {\r\n            \"id\": \"bondsCalc\",\r\n            \"title\": \"מחשבון אג\\\"ח\"\r\n          },\r\n          {\r\n            \"id\": \"derivativesCalc\",\r\n            \"title\": \"מחשבון נגזרים\"\r\n          },\r\n          {\r\n            \"id\": \"monitoredSecurities\",\r\n            \"title\": \"ניירות במעקב\"\r\n          },\r\n          {\r\n            \"id\": \"optionsSim\",\r\n            \"title\": \"סימולצית בטחונות מעוף\"\r\n          },\r\n          {\r\n            \"id\": \"heatMap\",\r\n            \"title\": \"מפות חום\"\r\n          },\r\n          {\r\n            \"id\": \"secuerityCompare\",\r\n            \"title\": \"השוואת ניירות ערך\"\r\n          }\r\n        ]\r\n      },\r\n      {\r\n        \"id\": \"viewsMenu\",\r\n        \"popupTitle\": \"אפשרויות תצוגה\",\r\n        \"items\": [\r\n          {\r\n            \"id\": \"catTLV\",\r\n            \"title\": \"תל אביב\",\r\n            \"data\": \"142,143,137,147,149,164,172,170,167,707,145,166,148,169\",\r\n            \"type\": \"link\",\r\n            \"dataType\": \"index\",\r\n            \"Settings\": {\r\n              \"galumItems\": [\r\n                {\r\n                  \"itemDataIndex\": 0,\r\n                  \"itemDisplayPos\": 4\r\n                }\r\n              ]\r\n            }\r\n          },\r\n          {\r\n            \"id\": \"catUSA\",\r\n            \"title\": \"ארה\\\"ב\",\r\n            \"data\": \".IXIC,.DJI,.SPX,.GDOW,.RUT\",\r\n            \"type\": \"link\",\r\n            \"dataType\": \"index\",\r\n            \"Settings\": {\r\n              \"useEngName\": \"true\"\r\n            }\r\n          },\r\n          {\r\n            \"id\": \"catEurope\",\r\n            \"title\": \"אירופה\",\r\n            \"data\": \".GDAXI,.FTSE,.FCHI,.STOXX50E,.OMXS30,.SMSI,.FTMIB,.AEX,.BFX\",\r\n            \"type\": \"link\",\r\n            \"dataType\": \"index\",\r\n            \"Settings\": {\r\n              \"useEngName\": \"true\"\r\n            }\r\n          },\r\n          {\r\n            \"id\": \"catWorld\",\r\n            \"title\": \"בעולם\",\r\n            \"data\": \".SSE50,.N225,.KS11,.HSI,.NSEI,.BVSP,.AXJO\",\r\n            \"type\": \"link\",\r\n            \"dataType\": \"index\",\r\n            \"Settings\": {\r\n              \"useEngName\": \"true\"\r\n            }\r\n          },\r\n          {\r\n            \"id\": \"catCurrencies\",\r\n            \"title\": \"שערי מטבע\",\r\n            \"data\": \"ILS=,EURILS=,GBPILS=,JPYILS=,EUR=,GBPEUR=,JPY=\",\r\n            \"type\": \"link\",\r\n            \"dataType\": \"currency\"\r\n          }\r\n        ]\r\n      }\r\n    ]\r\n  },\r\n  \"disableP461P377AbandonLeads\": false,\r\n  \"skyAccessibility\": {\r\n    \"accessibilityStatementLink\": \"https://www.mizrahi-tefahot.co.il/he/Bank/about-mizrahi-tefahot-he-category/accessibility/Pages/accessibilty_statement.aspx\"\r\n  },\r\n  \"copyrightAndLinks\": {\r\n    \"fairNotice\": \"https://www.mizrahi-tefahot.co.il/he/Bank/Pages/disclosure-links.aspx\",\r\n    \"legalClarification\": \"https://www.mizrahi-tefahot.co.il/he/Bank/Pages/legal-notice-he.aspx\",\r\n    \"commissionRates\": \"https://www.mizrahi-tefahot.co.il/he/Bank/Pages/interest-list.aspx\"\r\n  },\r\n  \"copyrightAndLinksEn\": {\r\n    \"fairNotice\": \"https://www.mizrahi-tefahot.co.il/en/Bank/Pages/disclosure-links.aspx\",\r\n    \"legalClarification\": \"https://www.mizrahi-tefahot.co.il/en/Bank/Pages/legal-notice.aspx\",\r\n    \"commissionRates\": \"https://www.mizrahi-tefahot.co.il/Lists/BankMizrahiTaarifon/oshenglish.pdf\"\r\n  },\r\n\r\n  \"pikdonot\": [\r\n    {\r\n      \"title\": \"Sabra Deposits\",\r\n      \"imgCss\": \"sky-fruits-sabra\",\r\n      \"term\": \"Long-Term Liquid Deposits\",\r\n      \"descriptions\": \"Make a long-term investment and benefit from liquidity and pre-determined attractive interest.\"\r\n    },\r\n    {\r\n      \"title\": \"Oroblanco\",\r\n      \"imgCss\": \"sky-fruits-oroblanco\",\r\n      \"term\": \"Mid-Term Deposits (one to five years)\",\r\n      \"descriptions\": \"Make an investment of more than one year with various linkage channels, and save for a goal at a pre-determined time in the future.\"\r\n    },\r\n    {\r\n      \"title\": \"Raspberry\",\r\n      \"imgCss\": \"sky-fruits-raspberry\",\r\n      \"term\": \"Immediate Deposits\",\r\n      \"descriptions\": \"Make a short-term investment until you decide on a long-term investment, or use the money for a pre-determined purpose. The deposit has optional automatic renewal.\"\r\n    },\r\n    {\r\n      \"title\": \"Persimmon\",\r\n      \"imgCss\": \"sky-fruits-persimmon\",\r\n      \"term\": \"Short-Term Deposits (three months to one year)\",\r\n      \"descriptions\": \"Make a short-term or mid-term investment, until you decide on a long-term investment.\"\r\n    },\r\n    {\r\n      \"title\": \"Grapes\",\r\n      \"imgCss\": \"sky-fruits-grapes\",\r\n      \"term\": \"Standing Order Savings\",\r\n      \"descriptions\": \"Save for a purpose such as buying a car, a vacation, an apartment for a child, or any other purpose.\"\r\n    },\r\n    {\r\n      \"title\": \"Coconut\",\r\n      \"imgCss\": \"sky-fruits-coconut\",\r\n      \"term\": \"Long-Term Deposits (five years and over)\",\r\n      \"descriptions\": \"You don’t believe that a profit can be earned even when the interest rate is close to zero? A Coconut Deposit guarantees a return of up to 1.75 times the money you deposit.\"\r\n    },\r\n    {\r\n      \"title\": \"Pomegranate\",\r\n      \"imgCss\": \"sky-fruits-pomegranate\",\r\n      \"term\": \"Liquid Deposits (mid-term with high liquidity)\",\r\n      \"descriptions\": \"Make a mid-term investment with high availability of the money throughout the term.\"\r\n    },\r\n    {\r\n      \"title\": \"Lychee\",\r\n      \"imgCss\": \"sky-fruits-litchi\",\r\n      \"term\": \"Graduated Deposits (interest which increases throughout the term and exit points)\",\r\n      \"descriptions\": \"Make a mid to long-term investment with pre-determined interest and an option to withdraw the money during the term.\"\r\n    },\r\n    {\r\n      \"title\": \"Pitanga\",\r\n      \"imgCss\": \"sky-fruits-pitanga\",\r\n      \"term\": \"Two Track Deposits (combining two linkage channels in one product)\",\r\n      \"descriptions\": \"Make a mid-term investment to profit from a combination of several linkage channels in one deposit, both for risk diversification and in order to benefit from opportunities through investment diversification.\"\r\n    },\r\n    {\r\n      \"title\": \"Cherry\",\r\n      \"imgCss\": \"sky-fruits-cherry\",\r\n      \"term\": \"Deposits with Monthly Income\",\r\n      \"descriptions\": \"If you received a large sum of money and want to enjoy a “monthly salary”, or if you have a large sum to invest and want to enjoy the “fruits of your money” i.e. current interest throughout the term.\"\r\n    }\r\n  ],\r\n  \"consentAccountTypesGeneral\": [\r\n    {\r\n      \"key\": \"1\",\r\n      \"value\": \"פרטי\"\r\n    },\r\n    {\r\n      \"key\": \"2\",\r\n      \"value\": \"עסקי\"\r\n    }\r\n  ],\r\n  \"consentAccountTypesLimited\": [\r\n    {\r\n      \"key\": \"1\",\r\n      \"value\": \"פרטי\"\r\n    }\r\n  ],\r\n  \"documents\": [\r\n    {\r\n      \"title\": \"Declaration by an Israeli Citizen Residing Abroad\",\r\n      \"Codes\": [\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.heb\",\r\n          \"Value\": \"101.93_101.93\"\r\n        },\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.eng\",\r\n          \"Value\": \"901.93_901.93\"\r\n        }\r\n      ]\r\n    },\r\n    {\r\n      \"title\": \"Declaration of Beneficiaries\",\r\n      \"Codes\": [\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.heb\",\r\n          \"Value\": \"601.02_601.02\"\r\n        },\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.eng\",\r\n          \"Value\": \"901.02_901.02\"\r\n        },\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.fr\",\r\n          \"Value\": \"3901.02_3901.02\"\r\n        }\r\n      ]\r\n    },\r\n    {\r\n      \"title\": \"Declaration of Tax Residence and Waiver of confidentiality\",\r\n      \"Codes\": [\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.heb\",\r\n          \"Value\": \"106.18_106.18\"\r\n        },\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.eng\",\r\n          \"Value\": \"906.18_906.18\"\r\n        },\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.fr\",\r\n          \"Value\": \"3906.18_3906.18\"\r\n        }\r\n      ]\r\n    },\r\n    {\r\n      \"title\": \"Customer's Declaration Of Being A Non-Resident-For The Purposes of The Income Tax Ordinance\",\r\n      \"Codes\": [\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.heb\",\r\n          \"Value\": \"24021_24021\"\r\n        },\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.eng\",\r\n          \"Value\": \"24023_24023\"\r\n        }\r\n      ]\r\n    },\r\n    {\r\n      \"title\": \"Non Resident's Declaration\",\r\n      \"Codes\": [\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.heb\",\r\n          \"Value\": \"106.40_106.40\"\r\n        },\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.eng\",\r\n          \"Value\": \"906.40_906.40\"\r\n        },\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.fr\",\r\n          \"Value\": \"3906.40_3906.40\"\r\n        }\r\n      ]\r\n    },\r\n    {\r\n      \"title\": \"Request to Change Postal Address\",\r\n      \"Codes\": [\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.heb\",\r\n          \"Value\": \"101.25_101.25\"\r\n        },\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.eng\",\r\n          \"Value\": \"901.25_901.25\"\r\n        },\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.fr\",\r\n          \"Value\": \"3901.25_3901.25\"\r\n        }\r\n      ]\r\n    },\r\n    {\r\n      \"title\": \"Request to transfer foreign currency in Israel / overseas / cashier check\",\r\n      \"Codes\": [\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.heb\",\r\n          \"Value\": \"108.89_108.89\"\r\n        },\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.eng\",\r\n          \"Value\": \"908.89_908.89\"\r\n        },\r\n        {\r\n          \"Key\": \"s-useful-documents.languages.fr\",\r\n          \"Value\": \"3908.89_3908.89\"\r\n        }\r\n      ]\r\n    }\r\n  ],\r\n  \"timeRanges\": [\r\n    {\r\n      \"Key\": 0,\r\n      \"Text\": \"ב-3 החודשים האחרונים\"\r\n    },\r\n    {\r\n      \"Key\": 1,\r\n      \"Text\": \"מתחילת החודש\"\r\n    },\r\n    {\r\n      \"Key\": 2,\r\n      \"Text\": \"ב-30 הימים האחרונים\"\r\n    },\r\n    {\r\n      \"Key\": 3,\r\n      \"Text\": \"במהלך החודש הקודם\"\r\n    },\r\n    {\r\n      \"Key\": 4,\r\n      \"Text\": \"20 תנועות אחרונות\"\r\n    },\r\n    {\r\n      \"Key\": 5,\r\n      \"Text\": \"בשנה האחרונה\"\r\n    },\r\n    {\r\n      \"Key\": 6,\r\n      \"Text\": \"בטווח תאריכים\"\r\n    }\r\n  ],\r\n  \"currencies\": [\r\n    { \"name\": \"NIS\" },\r\n    { \"name\": \"USD\" },\r\n    { \"name\": \"EUR\" },\r\n    { \"name\": \"GBP\" },\r\n    { \"name\": \"CAD\" },\r\n    { \"name\": \"JPY\" }\r\n  ],\r\n\r\n  \"justForYou\": {\r\n    \"justForYouIds\": {\r\n      \"ASP.hs_main_aspx\": {\r\n        \"subChannelId\": \"62\",\r\n        \"zoneId\": \"620\"\r\n      },\r\n      \"cc_main\": {\r\n        \"subChannelId\": \"61\",\r\n        \"zoneId\": \"610\"\r\n      },\r\n      \"ASP.osh_main_aspx\": {\r\n        \"subChannelId\": \"60\",\r\n        \"zoneId\": \"600\"\r\n      },\r\n      \"Survey_exitFromSky\": {\r\n        \"subChannelId\": \"65\",\r\n        \"zoneId\": \"650\",\r\n        \"actionType\": \"2\"\r\n      },\r\n      \"osh_transfers\": {\r\n        \"subChannelId\": \"60\",\r\n        \"zoneId\": \"603\"\r\n      },\r\n      \"osh_p428\": {\r\n        \"subChannelId\": \"60\",\r\n        \"zoneId\": \"601\"\r\n      },\r\n      \"mash_main\": {\r\n        \"subChannelId\": \"64\",\r\n        \"zoneId\": \"640\"\r\n      },\r\n      \"ne_portfolio\": {\r\n        \"subChannelId\": \"63\",\r\n        \"zoneId\": \"636\"\r\n      }\r\n    },\r\n    \"translateFormLabelsDialog\": {\r\n      \"name\": \"s-mcm-justForYou.popupFormLink.fullName\",\r\n      \"id\": \"s-mcm-justForYou.popupFormLink.idOrPassport\",\r\n      \"phone\": \"s-mcm-justForYou.popupFormLink.phoneNumber\",\r\n      \"address\": \"s-mcm-justForYou.popupFormLink.mailingAddress\",\r\n      \"email\": \"s-mcm-justForYou.popupFormLink.Email\"\r\n    },\r\n    \"urls\": {\r\n      \"dialogHtmlRefernce\": \"appModules/templates/sky-mcm-justForYou-popup.html\",\r\n      \"dialogHtmlRefernceStep2\": \"appModules/templates/sky-mcm-justForYou-popupStep2.html\",\r\n      \"dialogHtmlRefernce2\": \"appModules/templates/sky-mcm-justForYou-popup-2.html\"\r\n    },\r\n    \"HttpReqGetOffer\": true\r\n  },\r\n  \"mzk\": {\r\n    \"secretaryPermissions\": [\r\n      {\r\n        \"key\": \"\",\r\n        \"value\": \"ללא הרשאה\"\r\n      },\r\n      {\r\n        \"key\": \"0\",\r\n        \"value\": \"הרשאה לצפייה במידע בלבד\"\r\n      },\r\n      {\r\n        \"key\": \"1\",\r\n        \"value\": \"הרשאה לצפייה במידע וייזום עסקאות\"\r\n      }\r\n    ],\r\n    \"secretaryAddPermissions\": [\r\n      {\r\n        \"key\": \"0\",\r\n        \"value\": \"הרשאה לצפייה במידע בלבד\"\r\n      },\r\n      {\r\n        \"key\": \"1\",\r\n        \"value\": \"הרשאה לצפייה במידע וייזום עסקאות\"\r\n      }\r\n    ],\r\n    \"secretaryEditPermissions\": [\r\n      {\r\n        \"key\": \"0\",\r\n        \"value\": \"הרשאה לצפייה במידע בלבד\"\r\n      },\r\n      {\r\n        \"key\": \"1\",\r\n        \"value\": \"הרשאה לצפייה במידע וייזום עסקאות\"\r\n      }\r\n    ],\r\n    \"PermissionsTofilterTabels\": [\r\n      {\r\n        \"key\": \"\",\r\n        \"value\": \"s-ge.sky-manage-users-permissions.ddlPermissionTypeCode.AllUsers\"\r\n      },\r\n\r\n      {\r\n        \"key\": \"1\",\r\n        \"value\": \"s-ge.sky-manage-users-permissions.ddlPermissionTypeCode.yesPermission\"\r\n      },\r\n      {\r\n        \"key\": \"0\",\r\n        \"value\": \"s-ge.sky-manage-users-permissions.ddlPermissionTypeCode.nosPermission\"\r\n      }\r\n    ],\r\n    \"TnaimMishpatiim\": [\r\n      {\r\n        \"key\": \"1\",\r\n        \"value\": \"אנו מעוניינים במתן הרשאה למשתמש חדש, לצפייה והכנת פעולות (שיבוצעו אך ורק אחרי מתן אישור החברה באינטרנט, על פי זכויות החתימה הרלבנטיות). זהות המשתמש ייקבע על ידי החברה ובאחריותה הבלעדית.\"\r\n      },\r\n      {\r\n        \"key\": \"2\",\r\n        \"value\": \"חברתנו תהיה אחראית באופן בלעדי לכל פעולה של מי שיוסמך מטעמה להשתמש בסיסמה.\"\r\n      },\r\n      {\r\n        \"key\": \"3\",\r\n        \"value\": \"ידוע לנו כי לבנק אין כל יכולת פיקוח על זהות המשתמשים בסיסמה מטעמינו.\"\r\n      },\r\n      {\r\n        \"key\": \"4\",\r\n        \"value\": \"אנו נהיה אחראים לכל הסיכונים הנובעים והכרוכים בשימוש במאגר המידע בדרך המבוקשת על ידנו כאמור בסעיף 1.\"\r\n      },\r\n      {\r\n        \"key\": \"5\",\r\n        \"value\": \"פרט לאמור לעיל, בכל יתר תנאי ההצטרפות לא יחול כל שינוי, והם יישארו בתוקפם המלא.\"\r\n      },\r\n      {\r\n        \"key\": \"6\",\r\n        \"value\": \"המשתמש שהוגדר מטעם החברה יוכל לצפות בכל המידע המוצג באתר הבנק. בנוסף יוכל לייזום עסקאות שיבוצעו אך ורק לאחר אישור החברה באינטרנט, על פי זכויות החתימה הרלבנטיות.\"\r\n      },\r\n      {\r\n        \"key\": \"7\",\r\n        \"value\": \"ניתן לבטל ולערוך את המשתמש בכל עת באתר הפעולות של הבנק.\"\r\n      },\r\n      {\r\n        \"key\": \"8\",\r\n        \"value\": \"ברשות הבנק נתונה הזכות לבטל את הרשאה למשתמש בהתאם לשיקול דעתו.\"\r\n      }\r\n    ]\r\n  },\r\n  \"osh\": {\r\n    \"approvalAreaTitles\": {\r\n      \"4\": \"osh.ishurim.approvalsConcentration.areaId-4\",\r\n      \"5\": \"osh.ishurim.approvalsConcentration.areaId-5\",\r\n      \"6\": \"osh.ishurim.approvalsConcentration.areaId-6\",\r\n      \"7\": \"osh.ishurim.approvalsConcentration.areaId-7\"\r\n    }\r\n  },\r\n  \"WLToEnableMZKMenuItemLevel3\": {\r\n    \"osh.transfersPayments.payments.title\": \"true\",\r\n    \"osh.transfersPayments.transfer.title\": \"true\",\r\n    \"osh.transfersPayments.transferZaav.title\": \"true\",\r\n    \"preferences.updatePassword.title\": \"true\",\r\n    \"personal.settings.changePassword.title\": \"true\",\r\n    \"osh.havarot.OtherBankMatachTransfer.title\": \"true\",\r\n    \"osh.havarot.MizrahiMatachTransfer.title\": \"true\",\r\n    \"personal.settings.changeUserNumber.title\": \"true\"\r\n  },\r\n  \"buySellForeign\": {\r\n    \"StockValue\": 2500,\r\n    \"StockRemark\": \"לתשומת-לבך: כמות המניות בהוראתך גבוהה מ- {0} מניות.\",\r\n    \"OptionValue\": 10,\r\n    \"OptionRemark\": \"לתשומת-לבך: כמות האופציות בהוראתך גבוהה מ- {0} אופציות.\",\r\n    \"InstructionValue\": 10000,\r\n    \"InstructionRemark\": \"לתשומת-לבך: שווי ההוראה גבוה מ- {0} דולר.\"\r\n  },\r\n  \"ToTashloumim\": \"https://www.mizrahi-tefahot.co.il/Lists/BankMizrahiSiteAssets/PDF-Hebrew/payment.pdf\",\r\n  \"ShowNotificationSubscription\": \"true\",\r\n  \"versionFileOB\": \"0001\",\r\n  \"nameFileOB\": \"OB\",\r\n  \"bursaDelayMin\": \"15\",\r\n  \"bursaDelayMinForeign\": \"20\",\r\n  \"isLiveClientDeliveryEnabled385\": \"true\",\r\n  \"interestFromDate\": \"07/02/2023\",\r\n  \"interestToDate\": \"06/30/2024\",\r\n  \"interestPrecent\": \"2\",\r\n  \"interestMaxItra\": \"25000\",\r\n  \"interestMaxZecut\": \"50000\",\r\n  \"creditCardOrderSnooze\": \"25000\",\r\n  \"formsStatusAtlasSnooze\": \"60000\",\r\n    \"formsStatusAtlasSnoozeInterval\":\"2000\",\r\n  \"intervaldataMana_6_7_CC\": \"3000\",  \r\n  \"intervaldataMana_6_7\": 5000,\r\n  \"intervalApproveR2p\": \"5000\",\r\n  \"visaFormIdCC\":\"bb605e34-139e-43fb-b405-ac6f5ce7e2da\",\r\n   \"maxFormIdCC\":\"f202dbb0-3af1-467b-8786-4e7b666c9ed1\",\r\n\t\"israFormIdCC\":\"bb605e34-139e-43fb-b405-ac6f5ce7e2da\",\r\n  \"glassbox\": {\r\n    \"src\": \"https://www.mizrahi-tefahot.co.il/login/glassbox/skyweb/detector-dom.min.js\",\r\n    \"uuid\": \"e599bd9a-cbf4-76fe-4b11-d4daeafd3f4c\",\r\n    \"whiteListRoutes\": [\r\n      \"osh/legacy/root-main-osh-transfers\",\r\n      \"osh/legacy/root-main-osh-salaries\",\r\n      \"osh/transfersSummary\",\r\n      \"osh/transferToBeneficiaryList\",\r\n      \"osh/TransferFcToAnotherBank\",\r\n      \"saharHutz/TransferFcToAnotherBank\",\r\n      \"ge/personalData\",\r\n      \"ge/legacy/external-thirdPartyPermissions\",\r\n      \"ge/legacy/root-main-ge-changeUserNumber\",\r\n      \"ge/legacy/legacy-IC-LobbyMainPage\",\r\n      \"ge/messageBox\",\r\n      \"dashboard\",\r\n      \"osh/AccountBalance\"\r\n    ]\r\n  }\r\n} \r\n",
+    "ClientGWIdentifier": "[redacted-user-id]"
+  }
+}

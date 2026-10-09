@@ -41,7 +41,7 @@ export function getDebug(metaUrl: string): Logger {
  * dynamic bank identifier (e.g. `getDebug(options.companyId)`). Pipeline
  * code MUST keep using {@link getDebug} with `import.meta.url`; this
  * adapter is imported directly by the legacy scrapers (BaseScraper, Leumi,
- * Mizrahi, BeyahadBishvilha, …), conventionally as
+ * BeyahadBishvilha, …), conventionally as
  * `import { getDebugByName as getDebug }`, so their `module:` log values stay
  * verbatim without rewriting every call site to `import.meta.url`.
  *
