@@ -92,5 +92,16 @@ export function summarizeReports(selections: readonly AuditFileSelection[]): Aud
  */
 export function renderSummary(fileCount: number, summary: AuditSummary): string[];
 
+/**
+ * A fresh copy of one rule's raw pattern, so a test can pin what the rule
+ * matches before any exemption hides a match. Scanning the copy never
+ * moves the state {@link auditText} relies on.
+ *
+ * @param id - Rule id, one of {@link RULE_IDS}.
+ * @returns The rule's pattern.
+ * @throws Error when no rule has that id.
+ */
+export function ruleRegex(id: string): RegExp;
+
 /** The id of every `fixtures-pii` rule, in evaluation order. */
 export const RULE_IDS: readonly string[];

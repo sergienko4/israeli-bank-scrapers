@@ -173,7 +173,7 @@ const PATTERNS = [
   { id: 'prettier-corrupt-redacted-id', re: /\[redacted - id\]/g, severity: 'CRITICAL', desc: 'JS-breaking [redacted - id] (prettier-corrupted) — would throw ReferenceError' },
   { id: 'b64-embedded-ip', re: /(?<![\da-z+/])[\da-z+/]{56,76}={0,2}(?![\da-z+/=])/gi, severity: 'CRITICAL', desc: 'Base64 run decoding to <uuid>$<IPv4> (Radware bot token embeds the client IP)' },
   { id: 'client-ip-field', re: /[^\s"'\\,;<>](?<=\b(?:client_?ip|remote_?addr|ip_?address|user_?ip|x-forwarded-for|x-real-ip)\\?["']?\s*[:=]\s*\\?["']?.)[^\s"'\\,;<>]*(?:\s*,\s*[^\s"'\\,;<>]+)*/gi, severity: 'CRITICAL', desc: 'Client-address field value holding an IPv4 or IPv6 address (client_ip, x-forwarded-for)' },
-  { id: 'radware-session-uuid', re: /[^'\r\n](?<=\bvar __uzdbm_\d+\s*=\s*'.)[^'\r\n]*/gi, severity: 'HIGH', desc: 'Radware per-session UUID anywhere in a __uzdbm_N value' },
+  { id: 'radware-session-uuid', re: /[^'\r\n](?<=\bvar __uzdbm_\d+\s*=\s*'.)(?<=(?=[^'\r\n]*?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}).)[^'\r\n]*/gi, severity: 'HIGH', desc: 'Radware per-session UUID in a __uzdbm_N value that holds one' },
   { id: 'request-verification-token', re: /(?<=name=\\?["']__RequestVerificationToken\\?["'][^>]*?value=\\?["'])[^"'\\]+(?=\\?["'])|(?<=value=\\?["'])[^"'\\]+(?=\\?["'][^>]*?name=\\?["']__RequestVerificationToken\\?["'])/gi, severity: 'HIGH', desc: 'Unredacted ASP.NET anti-forgery token' },
   { id: 'json-token-field', re: new RegExp(String.raw`"\w+Token\\?"\s*:\s*${notWholeValue(TOKEN_PLACEHOLDER_VALUES)}${jsonStringValue('{12,}')}`, 'g'), severity: 'CRITICAL', desc: 'JSON <prefix>Token field with a live value (xsrfToken)' },
   { id: 'json-action-guid', re: /(?<="actionGUID\\?"\s*:\s*\\?")[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, severity: 'HIGH', desc: 'Mizrahi paging GUID (server session handle)' },
@@ -360,6 +360,20 @@ function auditText(raw) {
   }
   return hits;
 }
+/**
+ * A fresh copy of one rule's raw pattern, so a test can pin what the rule
+ * matches before any exemption hides a match. A copy, so a caller's scan
+ * never moves the lastIndex auditText resets and advances.
+ *
+ * @param {string} id - Rule id, one of RULE_IDS.
+ * @returns {RegExp} The rule's pattern.
+ * @throws {Error} When no rule has that id.
+ */
+function ruleRegex(id) {
+  const pat = PATTERNS.find(p => p.id === id);
+  if (!pat) throw new Error(`unknown fixtures-pii rule: ${id}`);
+  return new RegExp(pat.re.source, pat.re.flags);
+}
 
 /**
  * 1-based line and column of an offset. Only `\n` starts a line, so a CRLF
@@ -488,6 +502,7 @@ module.exports = {
   renderFileReport,
   summarizeReports,
   renderSummary,
+  ruleRegex,
   RULE_IDS: PATTERNS.map(p => p.id),
 };
 

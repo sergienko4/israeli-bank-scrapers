@@ -317,9 +317,12 @@ const PII_PATTERNS = {
   /** The whole single-line value of a Radware `var __uzdbm_N = '…'`, which
    *  carries the per-session UUID that links the pre- and post-login pages
    *  of one capture, alone (`__uzdbm_1`) or embedded (`__uzdbm_3`, `_6`).
-   *  The value is matched once and every UUID in it zeroed, so the scan
-   *  stays linear. A value with an escaped `\'` is matched only up to it. */
-  radwareSessionUuid: /[^'\r\n](?<=\bvar __uzdbm_\d+\s*=\s*'.)[^'\r\n]*/gi,
+   *  Only a value holding a UUID (the zero GUID included) is matched, once,
+   *  and every UUID in it zeroed. The UUID check runs once, at the value's
+   *  first character, so the scan stays linear. A UUID after an escaped
+   *  `\'` is not seen, as the value is read only up to it. */
+  radwareSessionUuid:
+    /[^'\r\n](?<=\bvar __uzdbm_\d+\s*=\s*'.)(?<=(?=[^'\r\n]*?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}).)[^'\r\n]*/gi,
   /** ASP.NET anti-forgery token in a hidden input, in either attribute
    *  order, with single, double or NDJSON-escaped quotes. */
   requestVerificationToken:
