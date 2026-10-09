@@ -226,12 +226,12 @@ The bound now lives on `IActionContext.windowEnd` (an `Option<Date>`) and is rea
 
 Moving the bound only helps where it reaches the wire, so every shape declares `transactions.windowNarrowing` — a claim about what a narrower bound would actually change:
 
-| Stance              | Banks                                                                 | Meaning                                                                                                                           |
-| ------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `windowEnd`         | Hapoalim, Beinleumi, Massad, OtsarHahayal, Pagi, Leumi, Pepper, Yahav | The bound reaches the request. A gap can be closed by re-asking with an earlier end.                                              |
-| `periodEnumeration` | Isracard, Amex, Max, VisaCal                                          | The request names a fixed provider **billing period**, derived from `startDate`. The bound only decides how many periods to walk. |
-| `lowerBoundOnly`    | Discount, Mercantile                                                  | The provider accepts no upper bound at all.                                                                                       |
-| `providerCursor`    | OneZero, PayBox                                                       | The walk is driven by a provider cursor, not by dates.                                                                            |
+| Stance              | Banks                                                                          | Meaning                                                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `windowEnd`         | Hapoalim, Beinleumi, Massad, OtsarHahayal, Pagi, Leumi, Pepper, Yahav, Mizrahi | The bound reaches the request. A gap can be closed by re-asking with an earlier end.                                              |
+| `periodEnumeration` | Isracard, Amex, Max, VisaCal                                                   | The request names a fixed provider **billing period**, derived from `startDate`. The bound only decides how many periods to walk. |
+| `lowerBoundOnly`    | Discount, Mercantile                                                           | The provider accepts no upper bound at all.                                                                                       |
+| `providerCursor`    | OneZero, PayBox                                                                | The walk is driven by a provider cursor, not by dates.                                                                            |
 
 A declaration is worth exactly as much as the test behind it, so `WindowNarrowing.test.ts` builds each bank's real request twice under two different bounds and compares the bytes — in both directions, so a bank cannot be quietly under-claimed either.
 

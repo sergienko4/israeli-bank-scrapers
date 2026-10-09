@@ -60,7 +60,10 @@ never dropped silently. The end comes from `scrapeWindowEnd`, so a backfill roun
 `inToDate` and keeps the floor. A backfill bound that falls before the floor (bank midnight
 passed between rounds, or a row predates `inFromDate`) is lifted to the floor day, so the round
 asks for that day alone instead of a start after its end, which the server also answers with
-HTTP 500; the day is already held, so the bound stops moving and the backfill ends. A page holds 50 rows; while `table.isHasMoreRows` is true, the
+HTTP 500. When the reply adds no row older than the held one that set the bound (an empty day,
+or rows inside the range), the next bound repeats and the planner refuses it
+(`BOUND_DID_NOT_MOVE`); a reply straying older can move it again, and the 12-request
+`MAX_BACKFILL_ASKS` ceiling still ends the loop. A page holds 50 rows; while `table.isHasMoreRows` is true, the
 next page asks from the next row index and echoes the server's `actionGUID`; the shape carries
 both in its `IMizrahiCursor` paging position. A page offering more rows without an `actionGUID`
 fails the scrape. Later pages come back without `fields`; the `actionGUID` binds them to the

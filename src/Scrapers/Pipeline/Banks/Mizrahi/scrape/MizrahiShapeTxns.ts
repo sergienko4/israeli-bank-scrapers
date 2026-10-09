@@ -11,8 +11,11 @@
  * `inToDate`, keeps the floor, and so never asks for a refused day. A round
  * whose bound falls before the floor (bank midnight passed between rounds, or
  * a row predates `inFromDate`) asks for the floor day alone rather than an
- * inverted range the server answers with HTTP 500: that day is already held,
- * so the bound stops moving and the backfill ends. That clock
+ * inverted range the server answers with HTTP 500. When the reply adds no row
+ * older than the held one that set the bound (an empty day, or rows inside
+ * the range), the next bound repeats and the planner refuses it
+ * (`BOUND_DID_NOT_MOVE`); a reply straying older can move it again, and the
+ * `MAX_BACKFILL_ASKS` ceiling still ends the loop. That clock
  * read is why this file is excluded from the window-end lint rule
  * (eslint.config.mjs §20). Older days are reported by the shared
  * window-coverage audit, never dropped silently.
