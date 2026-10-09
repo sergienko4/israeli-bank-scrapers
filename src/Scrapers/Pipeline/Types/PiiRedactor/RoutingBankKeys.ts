@@ -3,8 +3,9 @@
  * camelCase table in `Routing.ts` does not cover.
  *
  * Mizrahi's SkyBL responses (logon, changeAccount, balance, get428Index)
- * name owner identity, account numbers, balances, credit lines and
- * transaction text in PascalCase and transliterated Hebrew. Without
+ * name owner identity, account numbers, balances, credit lines,
+ * transaction text and transaction references in PascalCase and
+ * transliterated Hebrew. Without
  * these entries `classifyKey` returns `unknown` and `redactJsonBody`
  * writes the raw values into dumps and traces. Spread into
  * `PATH_TAIL_TO_CATEGORY`; kept apart so the table stays under the
@@ -55,6 +56,9 @@ const BANK_PATH_TAIL_TO_CATEGORY: Readonly<Partial<Record<string, PiiCategory>>>
   anonymousID: 'token',
   ClientGWIdentifier: 'token',
   actionGUID: 'token',
+  /** Transaction reference numbers, opaque IDs like the ones above. */
+  MC02AsmEZ: 'token',
+  MC02AsmahtaMekoritEZ: 'token',
 };
 
 export default BANK_PATH_TAIL_TO_CATEGORY;
