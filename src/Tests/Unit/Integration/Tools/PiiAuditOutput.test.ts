@@ -289,9 +289,10 @@ describe('selectFileHits', () => {
 
   it('TC-11 tallies exactly the hit lines the report prints', () => {
     const hits = [...makeHits('HIGH', 10), ...makeHits('CRITICAL', 10)];
+    const selection = selectFileHits(hits);
     const raw = 'x'.repeat(20);
-    const lines = renderHits(raw, hits);
-    const summary = summarizeHits([hits]);
+    const lines = renderFileReport('f.json', raw, selection);
+    const summary = summarizeReports([selection]);
     const printedCritical = countLines(lines, 'CRITICAL');
     const printedHigh = countLines(lines, 'HIGH');
     expect(summary.critical).toBe(printedCritical);
