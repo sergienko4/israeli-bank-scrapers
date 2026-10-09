@@ -25,6 +25,10 @@ export interface IShapeCase {
 const SESSION_UUID = '1b2c3d4e-aaaa-4bbb-8ccc-abcdefabcdef';
 /** A second synthetic Radware UUID, for values that carry two. */
 const SESSION_UUID2 = '2c3d4e5f-bbbb-4ccc-8ddd-bcdefabcdef0';
+/** The upper-case form, which pins the `i` flag on both UUID matchers. */
+const SESSION_UUID_UPPER = SESSION_UUID.toUpperCase();
+/** One hex digit short of a UUID: the matchers must stay length-exact. */
+const NEAR_MISS_UUID = SESSION_UUID.slice(0, -1);
 /** The all-zero GUID the redactor writes in place of a server GUID. */
 const ZERO_GUID = '00000000-0000-0000-0000-000000000000';
 /** Radware bot token shape: `base64(<uuid>$<IPv4>)`. */
@@ -123,6 +127,11 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
     key: 'radwareSessionUuid',
     input: `var __uzdbm_6 = '${ZERO_GUID}-${SESSION_UUID}';`,
     expected: `var __uzdbm_6 = '${ZERO_GUID}-${ZERO_GUID}';`,
+  },
+  {
+    key: 'radwareSessionUuid',
+    input: `var __uzdbm_1 = '${SESSION_UUID_UPPER}';`,
+    expected: `var __uzdbm_1 = '${ZERO_GUID}';`,
   },
   {
     key: 'requestVerificationToken',
@@ -410,6 +419,7 @@ export const NEGATIVE_CASES: readonly IShapeCase[] = [
   unchanged('radwareSessionUuid', `var other = '${SESSION_UUID}';`),
   unchanged('radwareSessionUuid', "var __uzdbm_4 = 'false';"),
   unchanged('radwareSessionUuid', "var __uzdbm_6 = '';"),
+  unchanged('radwareSessionUuid', `var __uzdbm_5 = '${NEAR_MISS_UUID}';`),
   unchanged(
     'radwareSessionUuid',
     `var __uzdbm_3 = '1a2b3c${ZERO_GUID}1-17806608-0004c9027ee26c8d5';`,
