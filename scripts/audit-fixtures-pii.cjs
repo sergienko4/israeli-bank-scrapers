@@ -191,7 +191,22 @@ const PATTERNS = [
   { id: 'redacted-marker-unique-id', re: /\[redacted-id-\d+\]/g, severity: 'INFO', desc: 'Already redacted + uniquified id (good)' },
 ];
 
-const SEV_ORDER = { CRITICAL: 0, HIGH: 1, INFO: 99 };
+/** Severities that fail the gate, in report order: CRITICAL hits print first. */
+const REPORTED_SEVERITIES = ['CRITICAL', 'HIGH'];
+/** Every severity a rule may carry; INFO marks a placeholder that is already safe. */
+const SUPPORTED_SEVERITIES = new Set([...REPORTED_SEVERITIES, 'INFO']);
+/**
+ * Fail closed on a severity the report does not know, so a hit can never be
+ * dropped from both the report and the verdict without anyone noticing.
+ *
+ * @param {string} severity - Severity of a rule or a hit.
+ * @returns {void}
+ * @throws {Error} When the severity is not CRITICAL, HIGH or INFO.
+ */
+function assertSupportedSeverity(severity) {
+  if (!SUPPORTED_SEVERITIES.has(severity)) throw new Error(`Unsupported PII severity: ${severity}`);
+}
+PATTERNS.forEach(pat => assertSupportedSeverity(pat.severity));
 /** Most hit lines printed, and counted, per fixture. */
 const MAX_HITS_PER_FILE = 15;
 const FAIL_LINE = '\n❌ FAIL: PII detected in committed fixtures. Re-run redactor and re-audit.';
@@ -372,40 +387,35 @@ function formatHit(hit, raw) {
   return `  [${hit.pat.severity}] ${hit.pat.id} at ${lineCol(raw, hit.at)} (len ${hit.match.length})`;
 }
 /**
- * Hits that fail the gate; INFO markers flag placeholders that are already safe.
+ * The hits one fixture's report prints and the summary counts, picked once so
+ * both always agree: CRITICAL hits first, scan order kept within a severity,
+ * capped at {@link MAX_HITS_PER_FILE}. INFO hits are never selected.
  *
- * @param {{ pat: { severity: string } }[]} hits - Hits of one fixture.
- * @returns {{ pat: { severity: string } }[]} The CRITICAL and HIGH hits, in scan order.
+ * @param {{ pat: { severity: string } }[]} hits - Hits of one fixture, in scan order.
+ * @returns {{ top: { pat: { severity: string } }[], hidden: number }}
+ *   The selected hits and how many CRITICAL or HIGH hits the cap left out.
+ * @throws {Error} When a hit carries a severity other than CRITICAL, HIGH or INFO.
  */
-function reportableHits(hits) {
-  return hits.filter(hit => hit.pat.severity !== 'INFO');
+function selectFileHits(hits) {
+  hits.forEach(hit => assertSupportedSeverity(hit.pat.severity));
+  const ranked = REPORTED_SEVERITIES.flatMap(severity => hits.filter(hit => hit.pat.severity === severity));
+  const top = ranked.slice(0, MAX_HITS_PER_FILE);
+  return { top, hidden: ranked.length - top.length };
 }
 /**
- * The hits a fixture's report prints and the summary counts: CRITICAL first,
- * scan order kept within a severity, capped at {@link MAX_HITS_PER_FILE}.
- *
- * @param {{ pat: { severity: string } }[]} reportable - CRITICAL and HIGH hits of one fixture.
- * @returns {{ pat: { severity: string } }[]} At most MAX_HITS_PER_FILE hits.
- */
-function topHits(reportable) {
-  const sorted = [...reportable].sort((a, b) => SEV_ORDER[a.pat.severity] - SEV_ORDER[b.pat.severity]);
-  return sorted.slice(0, MAX_HITS_PER_FILE);
-}
-/**
- * Report lines for one fixture: a header, one line per top hit and a count
- * of the hits left out.
+ * Report lines for one fixture: a header, one line per selected hit and a
+ * count of the hits the cap left out.
  *
  * @param {string} rel - Fixture path relative to the repo root.
  * @param {string} raw - Fixture contents.
- * @param {{ pat: { id: string, severity: string }, match: string, at: number }[]} hits - Hits of the fixture.
+ * @param {{ top: { pat: { id: string, severity: string }, match: string, at: number }[], hidden: number }} selection
+ *   The fixture's hits as picked by {@link selectFileHits}.
  * @returns {string[]} The lines, or none when no CRITICAL or HIGH hit fired.
  */
-function renderFileReport(rel, raw, hits) {
-  const reportable = reportableHits(hits);
-  if (reportable.length === 0) return [];
-  const lines = [`\n=== ${rel} ===`, ...topHits(reportable).map(hit => formatHit(hit, raw))];
-  const hidden = reportable.length - MAX_HITS_PER_FILE;
-  if (hidden > 0) lines.push(`  ... and ${hidden} more`);
+function renderFileReport(rel, raw, selection) {
+  if (selection.top.length === 0) return [];
+  const lines = [`\n=== ${rel} ===`, ...selection.top.map(hit => formatHit(hit, raw))];
+  if (selection.hidden > 0) lines.push(`  ... and ${selection.hidden} more`);
   return lines;
 }
 /**
@@ -419,14 +429,15 @@ function countSeverity(hits, severity) {
   return hits.filter(hit => hit.pat.severity === severity).length;
 }
 /**
- * Tally every fixture's top hits into the audit verdict.
+ * Tally every fixture's selected hits into the audit verdict.
  *
- * @param {{ pat: { severity: string } }[][]} hitLists - Hits of each fixture.
+ * @param {{ top: { pat: { severity: string } }[] }[]} selections - Each fixture's
+ *   hits as picked by {@link selectFileHits}.
  * @returns {{ critical: number, high: number, filesWithHits: number, failed: boolean }}
- *   Counts within each fixture's top hits, and whether the gate fails.
+ *   Counts within each fixture's selected hits, and whether the gate fails.
  */
-function summarizeReports(hitLists) {
-  const tops = hitLists.map(hits => topHits(reportableHits(hits)));
+function summarizeReports(selections) {
+  const tops = selections.map(selection => selection.top);
   const critical = tops.reduce((sum, top) => sum + countSeverity(top, 'CRITICAL'), 0);
   const high = tops.reduce((sum, top) => sum + countSeverity(top, 'HIGH'), 0);
   const filesWithHits = tops.filter(top => top.length > 0).length;
@@ -453,13 +464,13 @@ function renderSummary(fileCount, summary) {
  * Audit one fixture file on disk and print its report.
  *
  * @param {string} file - Absolute fixture path.
- * @returns {{ pat: { id: string, severity: string }, match: string, at: number, ctx: string }[]} Its hits.
+ * @returns {{ top: { pat: { severity: string } }[], hidden: number }} The hits its report printed.
  */
 function printFileReport(file) {
   const raw = fs.readFileSync(file, 'utf8');
-  const hits = auditText(raw);
-  for (const line of renderFileReport(path.relative(ROOT, file), raw, hits)) console.log(line);
-  return hits;
+  const selection = selectFileHits(auditText(raw));
+  for (const line of renderFileReport(path.relative(ROOT, file), raw, selection)) console.log(line);
+  return selection;
 }
 /** Audit every committed fixture; exit 2 when any CRITICAL or HIGH hit fires. */
 function main() {
@@ -473,6 +484,7 @@ function main() {
 module.exports = {
   auditText,
   formatHit,
+  selectFileHits,
   renderFileReport,
   summarizeReports,
   renderSummary,

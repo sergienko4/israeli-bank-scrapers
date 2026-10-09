@@ -25,7 +25,7 @@ export interface AuditHit {
  */
 export function auditText(raw: string): AuditHit[];
 
-/** Tally of every fixture's top hits, and the gate verdict. */
+/** Tally of every fixture's selected hits, and the gate verdict. */
 export interface AuditSummary {
   readonly critical: number;
   readonly high: number;
@@ -44,23 +44,44 @@ export interface AuditSummary {
 export function formatHit(hit: AuditHit, raw: string): string;
 
 /**
- * Report lines for one fixture: a header, its top 15 CRITICAL and HIGH hits
- * (CRITICAL first) and a count of the hits left out.
+ * The hits one fixture's report prints and the summary counts. Both read the
+ * same selection, so they always agree.
+ */
+export interface AuditFileSelection {
+  /** At most 15 CRITICAL and HIGH hits: CRITICAL first, scan order kept within a severity. */
+  readonly top: readonly AuditHit[];
+  /** CRITICAL and HIGH hits the cap left out. */
+  readonly hidden: number;
+}
+
+/**
+ * Pick the hits one fixture reports: CRITICAL first, scan order kept within a
+ * severity, capped at 15. INFO hits are never selected.
+ *
+ * @param hits - Hits of one fixture, in scan order, INFO markers included.
+ * @returns The selected hits and how many the cap left out.
+ * @throws Error when a hit carries a severity other than CRITICAL, HIGH or INFO.
+ */
+export function selectFileHits(hits: readonly AuditHit[]): AuditFileSelection;
+
+/**
+ * Report lines for one fixture: a header, one line per selected hit and a
+ * count of the hits the cap left out.
  *
  * @param rel - Fixture path relative to the repo root.
  * @param raw - Fixture contents.
- * @param hits - Hits of the fixture, INFO markers included.
- * @returns The lines, or none when no CRITICAL or HIGH hit fired.
+ * @param selection - The fixture's hits as picked by {@link selectFileHits}.
+ * @returns The lines, or none when no CRITICAL or HIGH hit was selected.
  */
-export function renderFileReport(rel: string, raw: string, hits: readonly AuditHit[]): string[];
+export function renderFileReport(rel: string, raw: string, selection: AuditFileSelection): string[];
 
 /**
- * Tally every fixture's top 15 CRITICAL and HIGH hits into the verdict.
+ * Tally every fixture's selected hits into the verdict.
  *
- * @param hitLists - Hits of each fixture, INFO markers included.
+ * @param selections - Each fixture's hits as picked by {@link selectFileHits}.
  * @returns The counts, and whether the gate fails.
  */
-export function summarizeReports(hitLists: readonly (readonly AuditHit[])[]): AuditSummary;
+export function summarizeReports(selections: readonly AuditFileSelection[]): AuditSummary;
 
 /**
  * The summary block and FAIL or PASS verdict line the gate prints last.
