@@ -51,7 +51,7 @@ flowchart TB
 
 **Layer 6 (legacy)** still works through `createScraper` but is on the migration path:
 
-- The 2 legacy bank dirs (Behatsdaa, BeyahadBishvilha) — Leumi + Yahav migrated to Pipeline; the legacy Mizrahi dir was removed ahead of its Pipeline onboarding
+- The 2 legacy bank dirs (Behatsdaa, BeyahadBishvilha) — Leumi + Yahav migrated to Pipeline; Mizrahi's legacy dir was replaced by its Pipeline bank in the same migration
 - The 5 legacy base classes (`BaseScraper`, `BaseScraperWithBrowser`, `BaseScraperHelpers`, `ConcreteGenericScraper`, `GenericBankScraper`)
 - The legacy registry rows in `ScraperRegistryAmexToIsracard.ts` (Behatsdaa, Beyahad Bishvilha)
 

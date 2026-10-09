@@ -47,8 +47,9 @@ For each `src/Common/` helper that the Pipeline does NOT already use:
 ## Order of operations (proposed)
 
 > **Status:** Bank Leumi (wave 1) and Bank Yahav (wave 2) have since migrated to
-> the Pipeline. The legacy Mizrahi scraper was removed and its Pipeline onboarding is
-> in progress; Behatsdaa and Beyahad Bishvilha remain.
+> the Pipeline. Mizrahi followed in one migration that replaced its legacy scraper
+> with the Pipeline bank, now being proven by real runs; Behatsdaa and Beyahad
+> Bishvilha remain.
 
 | Wave | Banks to migrate | Why this wave |
 |---|---|---|

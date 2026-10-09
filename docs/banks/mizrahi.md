@@ -1,8 +1,8 @@
 # Mizrahi Bank
 
 !!! warning "Pipeline migration in progress"
-    The legacy (non-Pipeline) Mizrahi scraper was removed. `createScraper` now
-    routes `CompanyTypes.Mizrahi` to the Pipeline, but the bank is not
+    The Pipeline bank replaced the legacy (non-Pipeline) Mizrahi scraper in one
+    change: `createScraper` routes `CompanyTypes.Mizrahi` to the Pipeline, but the bank is not
     production-ready yet: the login and the hard-model scrape are still being
     proven by real runs.
 
@@ -69,7 +69,7 @@ first page.
 **Mapping.** The shared auto-mapper reads Mizrahi's `MC02*` keys through Well-Known aliases:
 `MC02PeulaTaaEZ` (date), `MC02ErehTaaEZ` (processed date), `MC02SchumEZ` (signed amount),
 `MC02TnuaTeurEZ` (description) and `MC02AsmahtaMekoritEZ` (reference). The identifier keeps
-the legacy scraper's value: `withIdentifier` adds `mizrahiIdentifier` to each owned `MizrahiRow`
+the legacy scraper's value: `withIdentifier` adds `mizrahiIdentifier` to each owned row
 — `<reference>-<TransactionNumber>` when the number is set and not `1`, else the numeric
 reference — so two movements sharing a reference stay distinct. A row with
 `IsTodayTransaction: true` (today's movement, not yet posted) maps as `pending`; every other row
@@ -77,6 +77,7 @@ is `completed`. See [api-direct-scrape](../phases/api-direct-scrape.md) for the 
 
 ## Migration status
 
-**Wave 1** target in the [migration plan](../architecture/migration.md). The legacy scraper was
-removed first; the Pipeline bank lands phase by phase (login form, then the hard-model API-direct
-scrape), each phase proven by a real run.
+**Wave 1** target in the [migration plan](../architecture/migration.md). Removal and onboarding
+are one migration: the change that deleted the legacy scraper also registered the Pipeline bank
+(login form plus the hard-model API-direct scrape), so `createScraper(CompanyTypes.Mizrahi)` never
+lacks a scraper. Real runs prove each phase before the bank is marked production-ready.

@@ -2,7 +2,7 @@
 
 > **Who this is for:** users picking the right `CompanyTypes` for their bank and looking up credentials, OTP behavior, or known quirks.
 
-19 institutions are listed. **16 are on the Pipeline architecture** (recommended), **2 are on the legacy path** (still ship, on the migration roadmap), and **Mizrahi Bank is migrating to the Pipeline** (its legacy scraper was removed).
+19 institutions are listed. **16 are on the Pipeline architecture** (recommended), **2 are on the legacy path** (still ship, on the migration roadmap), and **Mizrahi Bank is migrating to the Pipeline** (the Pipeline bank replaced its legacy scraper).
 
 ## Quick directory
 

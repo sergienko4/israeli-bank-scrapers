@@ -15,9 +15,10 @@ Everything **outside `src/Scrapers/Pipeline/`** except the **layer-5 shared infr
 
 > **Bank Leumi** and **Bank Yahav** were migrated to the Pipeline and their
 > legacy scrapers deleted — they are now pipeline-only (see
-> [Bank Leumi](../banks/leumi.md), [Bank Yahav](../banks/yahav.md)). The legacy
-> **Mizrahi Bank** scraper was removed ahead of its Pipeline onboarding (see
-> [Mizrahi Bank](../banks/mizrahi.md)).
+> [Bank Leumi](../banks/leumi.md), [Bank Yahav](../banks/yahav.md)). **Mizrahi
+> Bank** moved to the Pipeline in one migration: the change that deleted its
+> legacy scraper also registered the Pipeline bank, so `createScraper` resolves
+> Mizrahi on every revision (see [Mizrahi Bank](../banks/mizrahi.md)).
 
 ### Legacy base classes
 
