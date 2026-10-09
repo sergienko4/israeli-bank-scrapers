@@ -9,8 +9,7 @@
  * reference stay apart.
  */
 
-/** One raw `body.table.rows[]` entry. */
-export type MizrahiRow = Readonly<Record<string, unknown>>;
+import type { JsonUnknownRecord } from '../../../Types/JsonValue.js';
 
 /** Synthesized identifier key — first in the WK identifier aliases. */
 const IDENTIFIER_KEY = 'mizrahiIdentifier';
@@ -26,10 +25,10 @@ interface IIdentifierFields {
 /**
  * The legacy identifier of one row. A reference that is not numeric is kept
  * as the string, where the legacy scraper would have published NaN.
- * @param row - Raw transaction row.
+ * @param row - Raw `body.table.rows[]` entry.
  * @returns The identifier, or false when the row has no reference.
  */
-function legacyIdentifierOf(row: MizrahiRow): string | number | false {
+function legacyIdentifierOf(row: Readonly<JsonUnknownRecord>): string | number | false {
   const { MC02AsmahtaMekoritEZ: ref, TransactionNumber: txnNo } = row as IIdentifierFields;
   if (typeof ref !== 'string' || ref === '') return false;
   const isSplit = Boolean(txnNo) && String(txnNo) !== SOLE_TXN_NUMBER;
@@ -43,7 +42,9 @@ function legacyIdentifierOf(row: MizrahiRow): string | number | false {
  * @param row - Raw transaction row.
  * @returns A copy carrying the identifier, or the row when it has none.
  */
-export function withIdentifier(row: MizrahiRow): MizrahiRow {
+export default function withIdentifier(
+  row: Readonly<JsonUnknownRecord>,
+): Readonly<JsonUnknownRecord> {
   const identifier = legacyIdentifierOf(row);
   if (identifier === false) return row;
   return { ...row, [IDENTIFIER_KEY]: identifier };

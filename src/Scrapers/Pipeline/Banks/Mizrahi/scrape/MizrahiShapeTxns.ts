@@ -43,9 +43,10 @@ import type {
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
+import type { JsonUnknownRecord } from '../../../Types/JsonValue.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import { type IMizrahiAcct, MIZRAHI_API } from './MizrahiShapeHelpers.js';
-import { type MizrahiRow, withIdentifier } from './MizrahiShapeIdentifier.js';
+import withIdentifier from './MizrahiShapeIdentifier.js';
 
 /** Wire date format of `inFromDate` / `inToDate`. */
 const MIZRAHI_DATE_FMT = 'DD/MM/YYYY';
@@ -81,7 +82,7 @@ interface ITxnsResp {
   readonly body?: {
     readonly fields?: { readonly AccountNumber?: string } | null;
     readonly table?: {
-      readonly rows?: readonly MizrahiRow[];
+      readonly rows?: readonly Readonly<JsonUnknownRecord>[];
       readonly actionGUID?: string;
       readonly isHasMoreRows?: boolean;
     };
@@ -97,7 +98,7 @@ interface ITxnsResp {
  * @returns Whether the row is a transaction.
  */
 export const IS_MIZRAHI_TXN_ROW = (row: object): boolean =>
-  (row as MizrahiRow).RecTypeSpecified === true;
+  (row as Readonly<JsonUnknownRecord>).RecTypeSpecified === true;
 
 /**
  * Transactions URL — the account-movements endpoint.
@@ -162,8 +163,8 @@ export function txnsVars(
  */
 function ownedRows(
   args: IExtractPageArgs<IMizrahiAcct, IMizrahiCursor>,
-  items: readonly MizrahiRow[],
-): readonly MizrahiRow[] {
+  items: readonly Readonly<JsonUnknownRecord>[],
+): readonly Readonly<JsonUnknownRecord>[] {
   const owner = (args.body as ITxnsResp).body?.fields?.AccountNumber;
   if (owner === undefined || owner === args.acct.accountNumber) return items;
   throw new ScraperError(FOREIGN_PAGE);
