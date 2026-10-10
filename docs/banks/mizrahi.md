@@ -69,6 +69,12 @@ both in its `IMizrahiCursor` paging position. A page offering more rows without 
 fails the scrape. Later pages come back without `fields`; the `actionGUID` binds them to the
 first page.
 
+**Row position.** `get428Index` numbers its rows within each reply: `RowNumber` from 1, and
+`TotalRows` is the reply's size. A backfill round re-serves the held movements of the oldest day
+under new numbers. The backfill drops re-served rows by byte identity (`RawOverlap`), so the
+extractor removes both keys (`withoutRowPosition`). Otherwise the round would file the same
+movement twice (seen live: 3 transactions for 2). Nothing downstream reads them.
+
 **Mapping.** The shared auto-mapper reads Mizrahi's `MC02*` keys through Well-Known aliases:
 `MC02PeulaTaaEZ` (date), `MC02ErehTaaEZ` (processed date), `MC02SchumEZ` (signed amount),
 `MC02TnuaTeurEZ` (description) and `MC02AsmahtaMekoritEZ` (reference). The identifier keeps

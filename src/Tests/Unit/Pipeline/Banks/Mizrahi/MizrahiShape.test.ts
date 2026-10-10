@@ -121,6 +121,18 @@ function extractLater(args: PageArgs): () => unknown {
 }
 
 /**
+ * The items a first page with these rows extracts to, for {@link ACCT}.
+ * @param fields - The reply's `fields` (owner, or none on a backfill round).
+ * @param rows - The table rows.
+ * @returns Extracted items.
+ */
+function extractedItems(fields: object, rows: readonly object[]): readonly object[] {
+  const body = txnsBody(fields, rows);
+  const args = pageArgs(body, false);
+  return txnsExtractPage(args).items;
+}
+
+/**
  * The bank-calendar day of a mapped ISO instant.
  * @param iso - Mapped transaction date.
  * @returns `YYYY-MM-DD` in the bank's zone.
@@ -445,6 +457,28 @@ describe('MizrahiShape transactions rows', () => {
     const page = txnsExtractPage(args);
     expect(page.items).toEqual([]);
     expect(page.nextCursor).toBe(false);
+  });
+
+  it('extracts a movement identically wherever a reply numbers it', () => {
+    const inFullReply = { ...TXN_ROW, RowNumber: '2', TotalRows: '2' };
+    const inBackfillReply = { ...TXN_ROW, RowNumber: '1', TotalRows: '1' };
+    const full = extractedItems(OWNER, [inFullReply]);
+    const backfill = extractedItems({}, [inBackfillReply]);
+    expect(backfill).toStrictEqual(full);
+    expect(full).toStrictEqual([TXN_ROW]);
+  });
+
+  it('keeps two movements that differ only by their position', () => {
+    const rows = [1, 2].map((n): object => ({ ...TXN_ROW, RowNumber: String(n), TotalRows: '2' }));
+    const items = extractedItems(OWNER, rows);
+    expect(items).toStrictEqual([TXN_ROW, TXN_ROW]);
+  });
+
+  it('extracts a movement the bank left unnumbered (pending)', () => {
+    const pending = { ...TXN_ROW, IsTodayTransaction: true };
+    const row = { ...pending, RowNumber: null, TotalRows: null };
+    const items = extractedItems(OWNER, [row]);
+    expect(items).toStrictEqual([pending]);
   });
 });
 
