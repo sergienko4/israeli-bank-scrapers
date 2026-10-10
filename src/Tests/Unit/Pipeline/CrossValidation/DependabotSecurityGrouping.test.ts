@@ -20,9 +20,11 @@
  *       `dependency-type`, `update-types`) falls back to the UI toggle or
  *       drops packages or updates, and nothing in the repository records
  *       it.</li>
- *   <li>Adding `applies-to` to a version group, or a second security group,
- *       changes which group claims a package. Dependabot assigns each
- *       dependency to the first group it matches.</li>
+ *   <li>Scoping a version group to security updates, or adding a second
+ *       security group, changes which group claims a package. Dependabot
+ *       assigns each dependency to the first group it matches. An absent
+ *       `applies-to` and an explicit `version-updates` are equivalent:
+ *       Dependabot defaults the key to version updates.</li>
  * </ul>
  */
 
@@ -42,6 +44,9 @@ const SECURITY_GROUP_NAME = 'npm-security';
 
 /** `applies-to` value scoping a group to security updates. */
 const SECURITY_UPDATES = 'security-updates';
+
+/** `applies-to` value Dependabot assumes when the key is absent. */
+const VERSION_UPDATES = 'version-updates';
 
 /** Pattern matching every package in the ecosystem. */
 const ALL_PACKAGES = '*';
@@ -115,6 +120,17 @@ function isSecurityGroup(group: IDependabotGroup): boolean {
 }
 
 /**
+ * Whether a group is scoped to version updates, explicitly or by default.
+ *
+ * @param group - Group to classify.
+ * @returns True when `applies-to` is absent or set to version updates.
+ */
+function isVersionGroup(group: IDependabotGroup): boolean {
+  const appliesTo = group['applies-to'] ?? VERSION_UPDATES;
+  return appliesTo === VERSION_UPDATES;
+}
+
+/**
  * Whether a group sets any key that shrinks its package or update set.
  *
  * @param group - Group to inspect.
@@ -135,7 +151,7 @@ describe('Dependabot npm security grouping', () => {
 
   it('[DSG-2] keeps every other npm group on version updates', () => {
     const others = npmGroups().filter(group => !isSecurityGroup(group));
-    const scoped = others.filter(group => group['applies-to'] !== undefined);
+    const scoped = others.filter(group => !isVersionGroup(group));
     expect(others.length).toBeGreaterThan(0);
     expect(scoped).toEqual([]);
   });
