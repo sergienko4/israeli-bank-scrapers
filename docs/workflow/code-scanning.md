@@ -8,6 +8,8 @@ source-files:
   - scripts/filter-scorecard-sarif.mjs
   - package.json
   - package-lock.json
+  - .github/dependabot.yml
+  - src/Tests/Unit/Pipeline/CrossValidation/DependabotSecurityGrouping.test.ts
 ---
 
 # Code scanning: two scanners, one authority
