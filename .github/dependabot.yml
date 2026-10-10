@@ -67,6 +67,18 @@ updates:
           - '@hieutran094/camoufox-js'
           - 'playwright-core'
           - 'playwright'
+      # Security updates are the ONLY Dependabot path that targets an npm
+      # transitive (lockfile-only) dependency, and only while its alert is
+      # OPEN. Version updates target direct dependencies only (npm has no
+      # `dependency-type: indirect`). GitHub's auto-triage preset
+      # "Dismiss low impact issues for development-scoped dependencies"
+      # must be disabled: it auto-dismisses matching low-impact dev-scoped
+      # npm alerts, which then get no fix PR (code-scanning alert #63,
+      # fast-copy). See docs/workflow/code-scanning.md "Standing finding 4".
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - '*'
 
   - package-ecosystem: github-actions
     directory: /
