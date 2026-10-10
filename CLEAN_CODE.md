@@ -271,7 +271,12 @@ git commit
 ESLint reports only — the hook never runs `eslint --fix`. These gates are
 commented out of the hook: `test:pipeline`, `bank-tests`, `test:mock`,
 `test:e2e:mock`, `e2e-factory-tests`, Integration Mode A and live
-real-bank E2E. Integration Mode B was removed from the hook entirely.
-Per the hook's notes, CI covers each of them in `pr.yml` (Unit tests,
-E2E mocked, E2E factory, Integration Mode and the approval-gated E2E
-Real jobs).
+real-bank E2E. The executable Integration Mode B gate was removed from
+the hook. When change detection enables the relevant jobs, `pr.yml`
+covers all of these gates except `test:mock`: Unit tests runs
+`test:pipeline` (which includes the `bank-tests` suite), E2E mocked
+runs `test:e2e:mock`, E2E factory covers the `e2e-factory-tests` gate
+by running `npm run test:e2e-factory-tests`, the Integration Mode
+matrix runs modes A and B, and the environment-gated E2E Real jobs run
+live E2E. `test:mock` (`scripts/run-mock-suite.ts`) has no CI job; run
+it manually with `npm run test:mock`.
