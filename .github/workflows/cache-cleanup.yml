@@ -13,9 +13,9 @@ name: Cache cleanup
 #
 # Only `refs/pull/<N>/merge` with a numeric `N` is ever deleted, so `main`'s
 # caches are out of reach. An open PR is always skipped: the state is read
-# right before deleting, so a PR reopened after `closed` fired keeps its
-# caches. If a PR is reopened between that read and the delete, it loses
-# one cache hit on its next run; correctness is unaffected.
+# right before deleting, so a PR reopened before that read keeps its caches.
+# If a PR is reopened between that read and the delete, it loses one cache
+# hit on its next run; correctness is unaffected.
 
 on:
   pull_request:
@@ -49,14 +49,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          # Empty on the sweep, which then lists every PR ref with caches.
+          # Empty on the sweep, which reads PR refs from the cache list.
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           if [[ -n "$PR_NUMBER" ]]; then
             numbers="$PR_NUMBER"
           else
-            # A command of its own, so an API failure fails the job.
-            refs=$(gh cache list --limit 1000 --json ref --jq '.[].ref')
+            # Every page, not a capped list: a cap misses a closed PR's caches
+            # whenever more than that many sit ahead of them. A command of its
+            # own, so an API failure fails the job.
+            refs=$(gh api --paginate "repos/$GH_REPO/actions/caches?per_page=100" --jq '.actions_caches[].ref')
             numbers=$(sed -nE 's#^refs/pull/([0-9]+)/merge$#\1#p' <<<"$refs" | sort -un)
           fi
           for n in $numbers; do

@@ -8,7 +8,8 @@
  *
  * Rules:
  *   CCG-1  only a closed PR's own `refs/pull/<N>/merge` caches are deleted;
- *          open PRs, `main` and look-alike branch refs keep theirs
+ *          open PRs, `main` and look-alike branch refs keep theirs; the sweep
+ *          reads every page of the cache list
  *   CCG-2  an API failure, a non-numeric PR number, or caches left after a
  *          failed delete fail the job; a delete another run won does not
  *   CCG-3  least privilege, per-PR uncancelled groups, and no expression
@@ -45,9 +46,11 @@ function prRef(n: number): string {
 
 /**
  * `gh` stub. Models only the calls the script makes, as the real CLI does
- * (`cache delete --all` with no `--ref` deletes every cache); anything else
- * exits 99 so a changed command fails the suite instead of passing against
- * a guess.
+ * (`cache delete --all` with no `--ref` deletes every cache; `cache list`
+ * returns the most recently used 30 unless `--order` / `--limit` say
+ * otherwise; `api` without `--paginate` returns the first page only);
+ * anything else exits 99 so a changed command fails the suite instead of
+ * passing against a guess. `caches` is least recently used first.
  */
 const GH_STUB = `#!/usr/bin/env node
 const fs = require('node:fs');
@@ -64,10 +67,23 @@ if (cmd === 'pr view' && jq === '.state') {
   out(prState);
   process.exit(0);
 }
+if (args[0] === 'api') {
+  if (state.failList) process.exit(1);
+  const endpoint = 'repos/' + process.env.GH_REPO + '/actions/caches';
+  const path = args.find(arg => arg.startsWith('repos/')) ?? '';
+  const [base, query = ''] = path.split('?');
+  if (base !== endpoint || jq !== '.actions_caches[].ref') process.exit(99);
+  const perPage = Number(new URLSearchParams(query).get('per_page') ?? 30);
+  const newestFirst = [...state.caches].reverse();
+  out((args.includes('--paginate') ? newestFirst : newestFirst.slice(0, perPage)).join('\\n'));
+  process.exit(0);
+}
 if (cmd === 'cache list') {
   if (state.failList) process.exit(1);
   const ref = flag('--ref');
-  const rows = state.caches.filter(row => ref === undefined || row === ref);
+  const matched = state.caches.filter(row => ref === undefined || row === ref);
+  const ordered = flag('--order') === 'asc' ? matched : [...matched].reverse();
+  const rows = ordered.slice(0, Number(flag('--limit') ?? 30));
   if (jq === '.[].ref') out(rows.join('\\n'));
   else if (jq === 'length') out(String(rows.length));
   else process.exit(99);
@@ -130,6 +146,9 @@ function stateOf(
 const ALL_KINDS = [prRef(7), prRef(7), prRef(8), prRef(9), MAIN, LOOK_ALIKE];
 const MIXED_PRS = { '7': 'MERGED', '8': 'OPEN', '9': 'CLOSED' };
 
+/** Open-PR caches: more than any one page or capped list would reach past. */
+const OPEN_CACHES = Array.from({ length: 1000 }, (): string => prRef(8));
+
 const CCG1_ROWS: readonly IScenario[] = [
   {
     label: 'closing a merged PR deletes its caches only',
@@ -165,6 +184,13 @@ const CCG1_ROWS: readonly IScenario[] = [
     state: stateOf(MIXED_PRS, [MAIN]),
     shouldPass: true,
     cachesLeft: [MAIN],
+  },
+  {
+    label: 'the sweep reads every page, so no cap hides a closed PR',
+    prNumber: '',
+    state: stateOf(MIXED_PRS, [...OPEN_CACHES, prRef(9), ...OPEN_CACHES]),
+    shouldPass: true,
+    cachesLeft: [...OPEN_CACHES, ...OPEN_CACHES],
   },
 ];
 
@@ -304,7 +330,12 @@ function installStub(dir: string, state: IStubState): string {
 function stubEnv(dir: string, prNumber: string): NodeJS.ProcessEnv {
   const path = `${dir}${delimiter}${process.env.PATH ?? ''}`;
   const stateFile = join(dir, 'state.json');
-  const step = { PR_NUMBER: prNumber, GITHUB_REF: MAIN, GH_STUB_STATE: stateFile };
+  const step = {
+    PR_NUMBER: prNumber,
+    GITHUB_REF: MAIN,
+    GH_REPO: 'owner/repo',
+    GH_STUB_STATE: stateFile,
+  };
   return { ...process.env, PATH: path, ...step };
 }
 

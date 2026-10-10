@@ -96,14 +96,16 @@ quota and push `main`'s caches out. `.github/workflows/cache-cleanup.yml`
 deletes them in two ways:
 
 - **On `closed`** it deletes that PR's caches straight away.
-- **Daily**, and on manual dispatch, a sweep lists every
-  `refs/pull/<N>/merge` that still has caches and deletes those of PRs that
-  are no longer open. It exists because some closes never start the
+- **Daily**, and on manual dispatch, a sweep reads every page of the
+  repository's cache list and deletes the caches on `refs/pull/<N>/merge` of
+  PRs that are no longer open. It exists because some closes never start the
   `closed` run: a PR closed or merged with `GITHUB_TOKEN` (the fork policy
   above, Dependabot auto-merge), or one closed with a merge conflict.
 
 Both read the PR's state right before deleting and skip an open PR, so a PR
-reopened in the meantime keeps its caches. Only `refs/pull/<N>/merge` with a
+reopened before that read keeps its caches. The read and the delete are not
+atomic: a PR reopened between them loses its caches, which costs it one cache
+miss on its next run. Only `refs/pull/<N>/merge` with a
 numeric `N` is ever deleted, so `main`'s caches are out of reach. A failed
 delete is re-checked: if another run already removed the caches, the job
 still passes; if any are left, it fails. `CacheCleanupGate.test.ts` runs the
