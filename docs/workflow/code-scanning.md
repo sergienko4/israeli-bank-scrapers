@@ -18,7 +18,7 @@ source-files:
 This repository uploads SARIF from three tools: **CodeQL**, **zizmor**, and
 **OpenSSF Scorecard**. For anything concerning GitHub Actions, **zizmor is the
 authority and Scorecard is advisory**. This page explains why, and records the
-three standing findings that should not be "fixed" the obvious way.
+four standing findings that should not be "fixed" the obvious way.
 
 ## Why zizmor decides
 
@@ -330,6 +330,71 @@ forces a fresh look. Re-evaluate sooner if braces publishes above 3.0.3 or
 `eslint-plugin-check-file` drops micromatch. After the file lands on `main`,
 run `gh workflow run scorecard.yml` to clear the alert.
 
+## Standing finding 4: dev-scoped transitive alerts were auto-dismissed
+
+**A fixable transitive advisory stayed open for weeks because GitHub's
+auto-triage dismissed its Dependabot alert, and an open alert is the only thing
+that makes Dependabot target an npm transitive.** The obvious fix — hand-editing
+`package-lock.json` — clears today's alert and leaves the gap for the next one.
+
+[`GHSA-jggr-w7fw-pc2j`][fast-copy-advisory] — fast-copy recurses without a
+depth limit and exhausts the stack on deeply nested values. CWE-674, medium —
+CVSS v4.0 6.3 — fixed in 4.1.0. The lockfile held 4.0.3, reached through one
+dev-only chain: `pino-pretty` (a root `devDependency`) → `fast-copy`.
+
+The cause chain:
+
+1. The repository-level preset rule "Dismiss low impact issues for
+   development-scoped dependencies" was enabled.
+2. Dependabot alert 52 (fast-copy, scope `development`, transitive) was set to
+   `auto_dismissed`.
+3. A dismissed alert gets no Dependabot security pull request.
+4. Version updates target direct dependencies only. None of them re-resolved
+   fast-copy, so the lockfile stayed at 4.0.3.
+5. Scorecard's OSV scan reads the lockfile on `main`, so code-scanning alert 63
+   kept listing the advisory.
+
+| Dependabot path  | targets an npm transitive?                                   | runs when                                   |
+| ---------------- | ------------------------------------------------------------ | ------------------------------------------- |
+| version updates  | **no** — direct only; npm has no `dependency-type: indirect` | the weekly schedule in `dependabot.yml`     |
+| security updates | yes — a lockfile-only bump to the first patched version      | an alert is **open** and a fix is published |
+
+**Action:** disable that preset rule and leave it off (Settings → Advanced
+Security → Dependabot rules). The `npm-security` group in `.github/dependabot.yml` puts
+every npm security update into one pull request. That pull request still needs
+code-owner approval, like any other. The group uses the pattern `'*'`, so one
+bump that fails CI holds back the rest. Narrow the pattern or close the pull
+request, and Dependabot recreates it.
+`src/Tests/Unit/Pipeline/CrossValidation/DependabotSecurityGrouping.test.ts`
+fails if the group is removed, renamed, or narrowed.
+
+Turning the rule off is not documented to reopen alerts it already dismissed.
+If alert 52 still reads `auto_dismissed`, reopen it (Security → Dependabot →
+the alert → Reopen) so Dependabot can raise the pull request. Reopen only an
+alert that has a patched version; without one there is nothing to bump.
+
+**Limit:** Dependabot never targets a transitive that has no open alert. It
+moves only when a direct-dependency bump happens to re-resolve it. Keeping
+those current needs a lockfile refresh such as `npm update`, which this page
+does not cover.
+
+Verify after a change:
+
+```bash
+gh api repos/sergienko4/israeli-bank-scrapers/dependabot/alerts/52 --jq .state
+gh pr list --author app/dependabot --search fast-copy --state all
+npm ls fast-copy
+gh workflow run scorecard.yml
+gh run list --workflow scorecard.yml --limit 1 # copy the new run's id
+gh run watch <run-id> --exit-status
+gh api repos/sergienko4/israeli-bank-scrapers/code-scanning/alerts/63 --jq .state
+```
+
+The Dependabot alert should be `open` with a Dependabot pull request listed,
+or `fixed` once that pull request merges. `npm ls` should show 4.1.0 or later.
+Read alert 63 only after the Scorecard run finishes — SARIF processing can lag
+a few minutes more — and expect `fixed`.
+
 ## Triage checklist
 
 1. **zizmor finding?** Real. It blocks; fix it, or suppress it in-file with a
@@ -354,7 +419,11 @@ run `gh workflow run scorecard.yml` to clear the alert.
    lockfile first; the check is a weekly snapshot and is often already fixed —
    an earlier snapshot of alert 63 named two browserslist advisories that
    `9ebcbc7` had already closed. It is one aggregate alert over all the OSV
-   findings it lists, so it clears only when every one of them does. braces is
+   findings it lists, so it clears only when every one of them does. If a GHSA
+   still reproduces against the lockfile but no Dependabot pull request exists,
+   open the matching Dependabot alert: `auto_dismissed` means an auto-triage
+   rule closed it, as happened with fast-copy
+   [`GHSA-jggr-w7fw-pc2j`][fast-copy-advisory] (standing finding 4). braces is
    suppressed through `osv-scanner.toml` (standing finding 3). Any new entry
    there needs a matching standing finding on this page, a `reason`, and an
    `ignoreUntil` date. Note that the alert has never listed adm-zip, whose
@@ -378,3 +447,4 @@ run `gh workflow run scorecard.yml` to clear the alert.
 [stale-config]: https://docs.github.com/en/code-security/how-tos/manage-security-alerts/manage-code-scanning-alerts/resolve-alerts#removing-stale-configurations-and-alerts-from-a-branch
 [adm-zip-advisory]: https://github.com/advisories/GHSA-vwc7-r8mq-g2x9
 [braces-advisory]: https://github.com/advisories/GHSA-vfj7-8cjw-p6xm
+[fast-copy-advisory]: https://github.com/advisories/GHSA-jggr-w7fw-pc2j
