@@ -26,7 +26,13 @@
  * <p>Every workflow rule (ISG-1..ISG-9) is also run against mutated copies
  * of the job, and the actions scan (ISG-10) against a planted fixture file,
  * so a check that stopped checking anything fails here instead of passing
- * silently.
+ * silently. ISG-11 requires a mutant test for every workflow rule, and ISG-12
+ * makes each step mutator throw unless its target step is unique, so a
+ * mutant can never be rejected for an unrelated reason. ISG-13 checks that
+ * the declared rule ids are exactly 1..N, that each has a test behind it,
+ * and that this header and the one pin comment in `pr.yml` name ISG-N.
+ * Every test that marks a rule live also checks the real workflow or
+ * documents, so deleting a rule's other tests leaves no green tombstone.
  * The comparisons are exact on purpose: an equivalent rewrite (another
  * spelling of the Mode B guard, a `fromJSON` matrix) fails here and must
  * update this file in the same change.
@@ -411,16 +417,36 @@ function patchStrategy(doc: IWorkflow, patch: Patch): IWorkflow {
 }
 
 /**
- * Copy of the workflow with keys overwritten on every matching step.
+ * Index of the one step a mutator edits.
+ *
+ * <p>Throws unless exactly one step matches: a missing target would leave
+ * the copy unchanged or corrupt it, and a duplicated one would edit only
+ * part of the job, so the rule could reject the mutant for an unrelated
+ * reason.
+ *
+ * @param steps - Steps to search.
+ * @param isTarget - Selects the step.
+ * @returns Index of the only matching step.
+ */
+function indexOfOnly(steps: readonly IStep[], isTarget: (step: IStep) => boolean): number {
+  const matches = steps.filter(isTarget);
+  const count = String(matches.length);
+  if (matches.length !== 1) throw new RangeError(`${isTarget.name} matched ${count} steps, want 1`);
+  return steps.findIndex(isTarget);
+}
+
+/**
+ * Copy of the workflow with keys overwritten on the one matching step.
  *
  * @param doc - Parsed workflow.
- * @param isTarget - Selects the steps to patch.
+ * @param isTarget - Selects the step to patch; exactly one must match.
  * @param patch - Keys to overwrite.
  * @returns The mutated workflow; `doc` is untouched.
  */
 function patchSteps(doc: IWorkflow, isTarget: (step: IStep) => boolean, patch: Patch): IWorkflow {
   const steps = stepsOf(doc);
-  const patched = steps.map((step): IStep => (isTarget(step) ? applyPatch(step, patch) : step));
+  const target = indexOfOnly(steps, isTarget);
+  const patched = steps.map((step, at): IStep => (at === target ? applyPatch(step, patch) : step));
   return patchJob(doc, { steps: patched });
 }
 
@@ -465,8 +491,8 @@ function patchModeB(doc: IWorkflow, patch: Patch): IWorkflow {
  */
 function swapModes(doc: IWorkflow): IWorkflow {
   const steps = stepsOf(doc);
-  const modeA = steps.findIndex(isModeAStep);
-  const modeB = steps.findIndex(isModeBStep);
+  const modeA = indexOfOnly(steps, isModeAStep);
+  const modeB = indexOfOnly(steps, isModeBStep);
   const swapped = [...steps];
   swapped[modeA] = steps[modeB];
   swapped[modeB] = steps[modeA];
@@ -483,6 +509,74 @@ const MUTATORS: Readonly<Record<MutantTarget, (doc: IWorkflow, patch: Patch) => 
   modeB: patchModeB,
   order: swapModes,
 };
+
+/** A lookup a step-targeting mutator makes; it must find exactly one step. */
+interface IStepLookup {
+  readonly target: MutantTarget;
+  readonly located: (step: IStep) => boolean;
+}
+
+/** Every lookup the step-targeting mutators make; `order` locates both modes. */
+const STEP_LOOKUPS: readonly IStepLookup[] = [
+  { target: 'setup', located: isSetupStep },
+  { target: 'modeA', located: isModeAStep },
+  { target: 'modeB', located: isModeBStep },
+  { target: 'order', located: isModeAStep },
+  { target: 'order', located: isModeBStep },
+];
+
+/**
+ * Copy of the workflow without the located steps; every other step stays.
+ *
+ * @param doc - Parsed workflow.
+ * @param isTarget - Selects the steps to drop.
+ * @returns The mutated workflow; `doc` is untouched.
+ */
+function withoutSteps(doc: IWorkflow, isTarget: (step: IStep) => boolean): IWorkflow {
+  const steps = stepsOf(doc);
+  const kept = steps.filter((step): boolean => !isTarget(step));
+  return patchJob(doc, { steps: kept });
+}
+
+/**
+ * Copy of the workflow with each located step doubled; every other step stays.
+ *
+ * @param doc - Parsed workflow.
+ * @param isTarget - Selects the steps to double.
+ * @returns The mutated workflow; `doc` is untouched.
+ */
+function withDoubledSteps(doc: IWorkflow, isTarget: (step: IStep) => boolean): IWorkflow {
+  const steps = stepsOf(doc);
+  const doubled = steps.flatMap((step): IStep[] => (isTarget(step) ? [step, step] : [step]));
+  return patchJob(doc, { steps: doubled });
+}
+
+/** Ways to make one located step non-unique. */
+const NOT_UNIQUE = { missing: withoutSteps, duplicated: withDoubledSteps } as const;
+
+type NotUnique = keyof typeof NOT_UNIQUE;
+
+const NOT_UNIQUE_SHAPES: readonly NotUnique[] = ['missing', 'duplicated'];
+
+/** One lookup broken one way; `step` names the lookup that must throw. */
+interface IUniquenessCase extends IStepLookup {
+  readonly shape: NotUnique;
+  readonly step: string;
+}
+
+/**
+ * The cases that break one lookup.
+ *
+ * @param lookup - The lookup to break.
+ * @returns One case per way of breaking it.
+ */
+function casesOf(lookup: IStepLookup): readonly IUniquenessCase[] {
+  const step = lookup.located.name;
+  return NOT_UNIQUE_SHAPES.map((shape): IUniquenessCase => ({ ...lookup, shape, step }));
+}
+
+/** Each lookup made missing and duplicated while every other step stays unique. */
+const UNIQUENESS_CASES = STEP_LOOKUPS.flatMap(casesOf);
 
 const FILTER = { [FILTER_ENV]: 'amex' } as const;
 
@@ -682,43 +776,366 @@ function makeLeakyActionsDir(): string {
   return root;
 }
 
+/** Rules checked outside `RULES`; each test marks its rule live in its title. */
+const OTHER_RULES = {
+  actionsScan: 'ISG-10',
+  mutantCoverage: 'ISG-11',
+  uniqueTarget: 'ISG-12',
+  docRange: 'ISG-13',
+} as const;
+
+/** Rule ids with a test behind them; complete once Jest has collected this file. */
+const REGISTERED_RULES = new Set<string>();
+
+/**
+ * Record a rule as live while a test title is built, so an id with no test
+ * behind it leaves a gap that ISG-13 rejects.
+ *
+ * @param id - Rule id, e.g. `ISG-10`.
+ * @returns The id, for the title.
+ */
+function liveRule(id: string): string {
+  REGISTERED_RULES.add(id);
+  return id;
+}
+
+/** Workflow rule ids with a mutant test behind them; complete once Jest has collected this file. */
+const MUTATED_RULES = new Set<string>();
+
+/**
+ * Record a workflow rule as mutation-tested while a mutant test title is built.
+ *
+ * @param id - Rule id the mutant targets.
+ * @returns The id, for the title.
+ */
+function liveMutant(id: string): string {
+  MUTATED_RULES.add(id);
+  return id;
+}
+
+/** Prefix of every rule id. */
+const RULE_PREFIX = 'ISG-';
+
+/** A well-formed rule id; group 1 is a positive number with no leading zero. */
+const RULE_ID = /^ISG-([1-9]\d*)$/u;
+
+/** Every `pr.yml` comment naming the rules this file pins; group 1 is the last. */
+const PIN_COMMENT = /Pinned by IntegrationShardGate\.test\.ts \[ISG-1\.\.ISG-(\d+)\]/gu;
+
+/** A pin comment left behind after rules were added. */
+const STALE_PIN = 'Pinned by IntegrationShardGate.test.ts [ISG-1..ISG-1]';
+
+/** Closes the file header, the first block comment. */
+const HEADER_END = '*/';
+
+/** What ISG-13 compares: the declared rule ids, those with tests, and two documents. */
+interface IDocs {
+  readonly declared: readonly string[];
+  readonly live: ReadonlySet<string>;
+  readonly workflow: string;
+  readonly header: string;
+}
+
+/** ISG-13's clauses; each doc mutant breaks exactly one. */
+interface IDocClauses {
+  /** The declared ids are exactly ISG-1..ISG-N. */
+  readonly range: boolean;
+  /** Every declared id has a test behind it. */
+  readonly live: boolean;
+  /** `pr.yml` holds one pin comment, and it names ISG-N. */
+  readonly pin: boolean;
+  /** This file's header names ISG-N. */
+  readonly header: boolean;
+}
+
+/** Every ISG-13 clause held. */
+const ALL_CLAUSES_HELD: IDocClauses = { range: true, live: true, pin: true, header: true };
+
+/**
+ * Collect the declared and live rule ids, `pr.yml`, and this file's header.
+ *
+ * @returns The ids and both documents' raw text.
+ */
+function readDocs(): IDocs {
+  const workflowRules = RULES.map((rule): string => rule.id);
+  const otherRules = Object.values(OTHER_RULES);
+  const workflow = readFileSync(PR_YAML, 'utf8');
+  const source = readFileSync(THIS_FILE_PATH, 'utf8');
+  const headerEnd = source.indexOf(HEADER_END);
+  const header = source.slice(0, headerEnd);
+  return { declared: [...workflowRules, ...otherRules], live: REGISTERED_RULES, workflow, header };
+}
+
+/**
+ * The number in a rule id.
+ *
+ * @param id - Rule id, e.g. `ISG-13`.
+ * @returns Its number; NaN for a malformed id.
+ */
+function ruleNumberOf(id: string): number {
+  const digits = RULE_ID.exec(id)?.[1];
+  return Number(digits);
+}
+
+/**
+ * The highest well-formed rule number, as an id. Malformed ids are skipped,
+ * so they break only the range clause.
+ *
+ * @param numbers - Rule numbers.
+ * @returns The id, e.g. `ISG-13`.
+ */
+function lastRuleId(numbers: readonly number[]): string {
+  const wellFormed = numbers.filter((n): boolean => Number.isInteger(n));
+  const highest = Math.max(...wellFormed);
+  return `${RULE_PREFIX}${String(highest)}`;
+}
+
+/**
+ * Whether numbers are exactly 1..N, each once.
+ *
+ * @param numbers - Rule numbers.
+ * @returns True for a permutation of 1..N.
+ */
+function runsOneToN(numbers: readonly number[]): boolean {
+  const count = numbers.length;
+  const isUnique = new Set(numbers).size === count;
+  return isUnique && numbers.every((n): boolean => Number.isInteger(n) && n >= 1 && n <= count);
+}
+
+/**
+ * Whether a workflow holds exactly one pin comment, and it names a rule.
+ *
+ * @param workflow - Raw `pr.yml`.
+ * @param lastId - Rule id the pin must end at.
+ * @returns True for a single pin naming the id.
+ */
+function pinsOnce(workflow: string, lastId: string): boolean {
+  const pins = [...workflow.matchAll(PIN_COMMENT)];
+  const pinned = pins.map((pin): string => `${RULE_PREFIX}${pin[1]}`);
+  return pinned.length === 1 && pinned[0] === lastId;
+}
+
+/**
+ * Whether a text names a rule id, not merely a longer id it prefixes.
+ *
+ * @param text - Text to search.
+ * @param id - Rule id, e.g. `ISG-1`.
+ * @returns True when the id appears with no digit after it.
+ */
+function namesRule(text: string, id: string): boolean {
+  const exact = new RegExp(`${id}(?!\\d)`, 'u');
+  return exact.test(text);
+}
+
+/**
+ * ISG-13: the declared rule ids are exactly 1..N, each has a test behind it,
+ * and both the `pr.yml` pin comment and this file's header name ISG-N.
+ *
+ * @param docs - Rule ids and both documents.
+ * @returns Which clauses hold.
+ */
+function docClauses(docs: IDocs): IDocClauses {
+  const numbers = docs.declared.map(ruleNumberOf);
+  const lastId = lastRuleId(numbers);
+  return {
+    range: runsOneToN(numbers),
+    live: docs.declared.every((id): boolean => docs.live.has(id)),
+    pin: pinsOnce(docs.workflow, lastId),
+    header: namesRule(docs.header, lastId),
+  };
+}
+
+/**
+ * Mutant: rules were added but the pin comment was not updated.
+ *
+ * @param docs - Real rule ids and documents.
+ * @returns Copy with a pin comment naming an older last rule.
+ */
+function stalePinComment(docs: IDocs): IDocs {
+  const workflow = docs.workflow.replace(PIN_COMMENT, STALE_PIN);
+  return { ...docs, workflow };
+}
+
+/**
+ * Mutant: a stale pin comment left elsewhere beside the right one.
+ *
+ * @param docs - Real rule ids and documents.
+ * @returns Copy with a second, older pin comment.
+ */
+function secondPinComment(docs: IDocs): IDocs {
+  const workflow = `${docs.workflow}\n# ${STALE_PIN}.\n`;
+  return { ...docs, workflow };
+}
+
+/**
+ * Mutant: the header stopped naming the last rule.
+ *
+ * @param docs - Real rule ids and documents.
+ * @returns Copy whose header no longer names the last rule.
+ */
+function staleHeader(docs: IDocs): IDocs {
+  const numbers = docs.declared.map(ruleNumberOf);
+  const lastId = lastRuleId(numbers);
+  const header = docs.header.replaceAll(lastId, `${RULE_PREFIX}?`);
+  return { ...docs, header };
+}
+
+/**
+ * Mutant: a rule's tests were deleted while its id stays declared.
+ *
+ * @param docs - Real rule ids and documents.
+ * @returns Copy whose first declared id has no test behind it.
+ */
+function untestedRule(docs: IDocs): IDocs {
+  const [first = ''] = docs.declared;
+  const live = new Set(docs.live);
+  live.delete(first);
+  return { ...docs, live };
+}
+
+/**
+ * Mutant: a rule was removed without renumbering the rest.
+ *
+ * @param docs - Real rule ids and documents.
+ * @returns Copy without the first declared id.
+ */
+function gapInRange(docs: IDocs): IDocs {
+  const [, ...declared] = docs.declared;
+  return { ...docs, declared };
+}
+
+/**
+ * Rename the first rule, in its declaration and its tests alike.
+ *
+ * @param docs - Real rule ids and documents.
+ * @param id - The new id.
+ * @returns Copy whose first rule is named `id`.
+ */
+function renameFirstRule(docs: IDocs, id: string): IDocs {
+  const [first = '', ...rest] = docs.declared;
+  const live = new Set(docs.live);
+  live.delete(first);
+  live.add(id);
+  return { ...docs, declared: [id, ...rest], live };
+}
+
+/**
+ * Mutant: a rule renumbered to zero, below the range.
+ *
+ * @param docs - Real rule ids and documents.
+ * @returns Copy whose first rule is `ISG-0`.
+ */
+function zeroRuleId(docs: IDocs): IDocs {
+  return renameFirstRule(docs, `${RULE_PREFIX}0`);
+}
+
+/**
+ * Mutant: a rule id written with a leading zero, so a loose parse reads it as 1.
+ *
+ * @param docs - Real rule ids and documents.
+ * @returns Copy whose first rule is `ISG-01`.
+ */
+function paddedRuleId(docs: IDocs): IDocs {
+  return renameFirstRule(docs, `${RULE_PREFIX}01`);
+}
+
+/**
+ * Mutant: two rules share an id; the count and last id stay the same.
+ *
+ * @param docs - Real rule ids and documents.
+ * @returns Copy with the second declared id replaced by the first.
+ */
+function sharedRuleId(docs: IDocs): IDocs {
+  const [first = '', , ...rest] = docs.declared;
+  return { ...docs, declared: [first, first, ...rest] };
+}
+
+/** Each a way the rule ids and their documentation drift apart, and the clause it breaks. */
+const DOC_MUTANTS = [
+  { name: 'pin comment names an older last rule', mutate: stalePinComment, breaks: 'pin' },
+  { name: 'a second, stale pin comment', mutate: secondPinComment, breaks: 'pin' },
+  { name: 'header no longer names the last rule', mutate: staleHeader, breaks: 'header' },
+  { name: 'a rule lost its tests but stays declared', mutate: untestedRule, breaks: 'live' },
+  { name: 'a gap in the rule ids', mutate: gapInRange, breaks: 'range' },
+  { name: 'a rule id below the range', mutate: zeroRuleId, breaks: 'range' },
+  { name: 'a rule id with a leading zero', mutate: paddedRuleId, breaks: 'range' },
+  { name: 'two rules share an id', mutate: sharedRuleId, breaks: 'range' },
+] as const;
+
 describe('IntegrationShardGate', () => {
-  it.each(RULES)('[$id] IntegrationJob_$name', ({ holds }) => {
-    const doc = loadPrYaml();
-    const isHeld = holds(doc);
-    expect(isHeld).toBe(true);
-  });
+  for (const rule of RULES) {
+    it(`[${liveRule(rule.id)}] IntegrationJob_${rule.name}`, () => {
+      const doc = loadPrYaml();
+      const isHeld = rule.holds(doc);
+      expect(isHeld).toBe(true);
+    });
+  }
 
-  it.each(MUTANTS)('[$rule] Mutant_ShouldBeRejected: $name', mutant => {
-    const doc = loadPrYaml();
-    const mutated = applyMutant(doc, mutant);
-    const rule = ruleById(mutant.rule);
-    const isHeldOnReal = rule.holds(doc);
-    const isHeldOnMutant = rule.holds(mutated);
-    expect(isHeldOnReal).toBe(true);
-    expect(isHeldOnMutant).toBe(false);
-  });
+  for (const mutant of MUTANTS) {
+    it(`[${liveMutant(mutant.rule)}] Mutant_ShouldBeRejected: ${mutant.name}`, () => {
+      const doc = loadPrYaml();
+      const mutated = applyMutant(doc, mutant);
+      const rule = ruleById(mutant.rule);
+      const isHeldOnReal = rule.holds(doc);
+      const isHeldOnMutant = rule.holds(mutated);
+      expect(isHeldOnReal).toBe(true);
+      expect(isHeldOnMutant).toBe(false);
+    });
+  }
 
-  it('[ISG-10] CompositeActions_BankFilter_ShouldNotBeExported', () => {
+  it(`[${liveRule(OTHER_RULES.actionsScan)}] CompositeActions_BankFilter_ShouldNotBeExported`, () => {
     const scanned = filesUnder(ACTIONS_DIR);
     const leaking = filesNamingFilter(ACTIONS_DIR);
     expect(scanned).toContain(SETUP_ACTION_FILE);
     expect(leaking).toEqual([]);
   });
 
-  it('[ISG-10] Mutant_ShouldBeRejected: helper script exporting the filter', () => {
+  it(`[${liveRule(OTHER_RULES.actionsScan)}] Mutant_ShouldBeRejected: helper script exporting the filter`, () => {
+    const scanned = filesUnder(ACTIONS_DIR);
+    const realLeaking = filesNamingFilter(ACTIONS_DIR);
     const root = makeLeakyActionsDir();
     try {
       const leaking = filesNamingFilter(root);
+      expect(scanned).toContain(SETUP_ACTION_FILE);
+      expect(realLeaking).toEqual([]);
       expect(leaking).toEqual([LEAK_SCRIPT]);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it('[ISG-11] Mutants_EveryWorkflowRule_ShouldHaveAtLeastOne', () => {
-    const covered = new Set(MUTANTS.map((mutant): string => mutant.rule));
-    const uncovered = RULES.filter((rule): boolean => !covered.has(rule.id));
+  it(`[${liveRule(OTHER_RULES.mutantCoverage)}] Mutants_EveryWorkflowRule_ShouldHaveAtLeastOne`, () => {
+    const uncovered = RULES.filter((rule): boolean => !MUTATED_RULES.has(rule.id));
     expect(uncovered).toEqual([]);
   });
+
+  it.each(UNIQUENESS_CASES)(
+    `[${liveRule(OTHER_RULES.uniqueTarget)}] Mutator_TargetNotUnique_ShouldThrow: $target, $step $shape`,
+    ({ target, located, shape, step }) => {
+      const doc = loadPrYaml();
+      const broken = NOT_UNIQUE[shape](doc, located);
+      const mutate = MUTATORS[target];
+      expect(() => mutate(doc, {})).not.toThrow();
+      expect(() => mutate(broken, {})).toThrow(RangeError);
+      expect(() => mutate(broken, {})).toThrow(step);
+    },
+  );
+
+  it(`[${liveRule(OTHER_RULES.docRange)}] Docs_RuleRange_ShouldNameTheLastRule`, () => {
+    const docs = readDocs();
+    const clauses = docClauses(docs);
+    expect(clauses).toEqual(ALL_CLAUSES_HELD);
+  });
+
+  it.each(DOC_MUTANTS)(
+    `[${liveRule(OTHER_RULES.docRange)}] Mutant_ShouldBeRejected: $name`,
+    ({ mutate, breaks }) => {
+      const docs = readDocs();
+      const realClauses = docClauses(docs);
+      const mutated = mutate(docs);
+      const mutantClauses = docClauses(mutated);
+      expect(realClauses).toEqual(ALL_CLAUSES_HELD);
+      expect(mutantClauses).toEqual({ ...ALL_CLAUSES_HELD, [breaks]: false });
+    },
+  );
 });
