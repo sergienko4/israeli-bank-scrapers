@@ -31,6 +31,7 @@ and release together — covered in
 | **Decoupling** | n/a (`scripts/decoupling-metrics/measure.mjs`) | A new import cycle, a new `any`, a deleted canary or ESLint rule, or fan-out growing more than 10% | [`decoupling-compare.sh`](#decoupling-regression-gate) |
 | **PR body compliance** | n/a (server-side `actions/github-script`) | PR body missing one of the 3 mandatory sections (`## Why`, `## What`, `## Guideline compliance`) | `.github/workflows/pr-body-check.yml` — mirrored locally by [`npm run lint:pr-body`](pre-push.md) |
 | **Cited paths** | `lint:doc-paths` | An agent doc or PR body cites a repo path that does not exist | `scripts/check-doc-paths.mjs` — see [Doc path gate](doc-paths.md) |
+| **Links** | n/a (Lychee step in `pr.yml`) | A link in `README.md` or `docs/**/*.md` is broken; runs when a PR touches Markdown, and on every manual run | [Link checking](#link-checking) |
 | **Fork PRs** | n/a (server-side `gh`) | A pull request opened from a fork is commented on and closed automatically — see [Pull requests come from this repository only](#pull-requests-come-from-this-repository-only) | `.github/workflows/no-fork-prs.yml` |
 
 ## Pull requests come from this repository only
@@ -59,6 +60,61 @@ Two notes on the mechanism:
 
 Contributors without write access should open an issue instead; the
 [Contributing overview](../contributing/index.md) says the same thing.
+
+## Link checking
+
+BLUF: Lychee checks every link in `README.md` and `docs/**/*.md`, but it
+checks links into this repository on `main` or the branch placeholder
+against the files tracked in the checked-out commit, not against github.com.
+
+The step runs in the `Lint & Types` job. On a pull request it runs when the
+PR touches a Markdown file and checks the PR's merge commit. On a manual
+`workflow_dispatch` run, change detection has no base to compare with, so it
+always runs and checks the selected branch. Files under `tasks/` are not
+checked. Links are handled in four ways:
+
+| Link | How it is checked |
+| --- | --- |
+| A `blob/` or `tree/` link into this repository, on the branch placeholder or on `main` | Mapped onto a `git archive` export of the checked-out commit; the path must be a tracked file or directory |
+| Any other `blob/` link on github.com, including this repository on another branch or commit | Mapped onto `raw.githubusercontent.com`, which answers 404 for a missing file |
+| A relative link | Resolved against the files in the checkout |
+| Any other web link | Fetched directly: at most 4 requests in flight per host, at least 200 ms apart. A timeout, 429 or 5xx answer is retried up to 3 times, waiting at least 2, 4 and 8 s; a 404 fails at once |
+
+Why not just fetch github.com: under Lychee's burst of requests, github.com
+intermittently answers `/blob/` pages with an HTML 503 page — no 429, no
+`Retry-After` — while the REST API and `raw.githubusercontent.com` return 200
+for the same file. Every one of the 194 errors across four attempts of one
+failing run was such a 503, and 192 of them were links into this repository.
+Accepting 503 would also hide a real outage. Checking the tracked tree is
+faster and stricter: a link to a gitignored file such as `lib/index.mjs` now
+fails, because the export holds tracked files only.
+
+Limits worth knowing:
+
+- Anchors (`#section`) and query strings on links into this repository are
+  not validated.
+- A link into this repository whose path contains a percent-encoded
+  character is not mapped onto the export, so it cannot escape it with an
+  encoded `../`. It is fetched from GitHub instead.
+- A file marked `export-ignore` in `.gitattributes` is missing from the
+  export, so links to it fail. No file is marked today.
+- Symlinks are deleted from the export, so a link to or through a tracked
+  symlink fails. This stops a symlink that points outside the export from
+  passing a link GitHub cannot serve. No symlink is tracked today.
+- A link to a directory in another repository must use `/tree/`, not `/blob/`.
+  `raw.githubusercontent.com` has no directory listing and answers 404.
+- Links to the published docs site and to npm package pages are excluded.
+  The docs-site links are checked by `.github/scripts/ci/check-docs-links.sh`
+  instead.
+
+To reproduce locally, start from an empty `<dir>/lychee-tree` so stale files
+cannot satisfy a link:
+
+1. `rm -rf <dir>/lychee-tree && mkdir -p <dir>/lychee-tree`
+2. `git archive HEAD | tar -xf - -C <dir>/lychee-tree`
+3. `find <dir>/lychee-tree -type l -delete`
+4. Run Lychee with the arguments from `pr.yml`, replacing
+   `${{ runner.temp }}` with `<dir>`.
 
 ## Memory regression gate
 
