@@ -330,22 +330,47 @@ jobs:
         if: needs.changes.outputs.md == 'true' || needs.changes.outputs.docs == 'true'
         run: bash .github/scripts/ci/check-docs-links.sh
 
-      - name: Substitute {{BRANCH}} placeholders for Lychee
+      # Lychee resolves our own blob/tree links against an export of the
+      # checked-out commit instead of github.com. The workspace itself
+      # would not do: it also holds gitignored build output (lib/,
+      # node_modules/) and .git, so a link to an untracked file would
+      # wrongly pass. `git archive` writes tracked files only; an
+      # `export-ignore` entry in .gitattributes would drop that file
+      # from the check. Tracked symlinks are deleted: one pointing out
+      # of the tree (e.g. to /etc) would let a link GitHub cannot serve
+      # pass here. See docs/workflow/ci.md "Link checking".
+      - name: Materialize tracked tree for Lychee
         if: needs.changes.outputs.md == 'true'
         run: |
-          set -euo pipefail
-          BRANCH="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-main}}"
-          BRANCH_SED=$(printf '%s\n' "$BRANCH" | sed -e 's/[\\&|]/\\&/g')
-          find docs README.md -name '*.md' -type f -print0 |
-            xargs -0 sed -i "s|{{BRANCH}}|$BRANCH_SED|g"
+          rm -rf -- "$RUNNER_TEMP/lychee-tree"
+          mkdir -p "$RUNNER_TEMP/lychee-tree"
+          git archive --format=tar HEAD | tar -xf - -C "$RUNNER_TEMP/lychee-tree"
+          find "$RUNNER_TEMP/lychee-tree" -type l -delete
+
+      # github.com serves intermittent HTML 503 pages for /blob/ under
+      # Lychee's burst load (no 429, no Retry-After), while the API and
+      # raw.githubusercontent.com return 200 for the same files. So:
+      # own-repo blob/tree links ({{BRANCH}} arrives URL-encoded, or
+      # main) map to the tracked tree above; any other github.com blob
+      # maps to raw (404 when missing); the rest is throttled per host
+      # with a 2+4+8s retry backoff. The first matching remap wins.
+      # The own-repo path excludes `%` so an encoded `../` or `\` can
+      # never step outside the tree; such a link falls through to raw
+      # or github.com, which answers 404.
       - name: Lychee link checker
         if: needs.changes.outputs.md == 'true'
+        timeout-minutes: 8
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.4.1
         with:
           args: >-
-            --cache
-            --max-cache-age 1d
             --no-progress
+            --host-stats
+            --host-concurrency 4
+            --host-request-interval 200ms
+            --max-retries 3
+            --retry-wait-time 2
+            --remap '^https://github\.com/sergienko4/israeli-bank-scrapers/(?:blob|tree)/(?:%7B%7BBRANCH%7D%7D|main)(?:/([^?#%]*))?(?:[?#].*)?$ file://${{ runner.temp }}/lychee-tree/$1'
+            --remap '^https://github\.com/([^/]+/[^/]+)/blob/([^?#]+).*$ https://raw.githubusercontent.com/$1/$2'
             --exclude 'sergienko4.github.io/israeli-bank-scrapers/'
             --exclude 'npmjs.com/package/'
             'README.md' 'docs/**/*.md'
