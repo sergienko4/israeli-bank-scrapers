@@ -16,7 +16,7 @@ source-files:
 This repository uploads SARIF from three tools: **CodeQL**, **zizmor**, and
 **OpenSSF Scorecard**. For anything concerning GitHub Actions, **zizmor is the
 authority and Scorecard is advisory**. This page explains why, and records the
-three standing findings that should not be "fixed".
+three standing findings that should not be "fixed" the obvious way.
 
 ## Why zizmor decides
 
@@ -248,14 +248,20 @@ Trigger one on demand with `gh workflow run scorecard.yml`. Re-evaluate — and
 remove the filter — if Scorecard adds `$/` support: upstream tracking issue
 [ossf/scorecard#5191][scorecard-5191] is still open.
 
-## Standing finding 2: adm-zip — accepted risk, no fix exists
+## Standing finding 2: adm-zip — patched here, accepted risk for consumers
 
 [`GHSA-vwc7-r8mq-g2x9`][adm-zip-advisory] — extraction follows destination
 symlinks, allowing arbitrary file overwrite. CWE-59, moderate — CVSS v3.1 6.5,
-v4.0 6.8 — affecting `>=0.5.9 <=0.6.0`.
+v4.0 6.8 — affecting `>=0.5.9 <=0.6.0`. The advisory lists no patched version.
 
-**The latest published adm-zip is 0.6.0 — inside the affected range.** There is
-no version to upgrade to and nothing for an `overrides` entry to point at.
+**Our lockfile is patched.** adm-zip 0.6.1 (2026-09-11) is outside the range,
+and its release notes block extraction from writing through symlinks. The root
+`overrides` entry `"adm-zip": "^0.6.1"` forces the lock's single adm-zip entry
+to 0.6.1, although `@hieutran094/camoufox-js` itself still declares `^0.5.16`.
+
+**Consumers are not.** npm applies `overrides` only from the root project, so
+an app installing this package resolves camoufox-js's own `^0.5.16` — today
+0.5.18, inside the range. The residual-risk reasoning below is for them.
 
 We never import adm-zip. It arrives under `@hieutran094/camoufox-js`, and only
 half of its call sites are even the vulnerable shape:
@@ -276,8 +282,10 @@ Residual risk is low for three independent reasons:
 3. CI mostly avoids the path: `install-camoufox` prefers `gh release download`
    plus system `unzip`, and clears the directory first.
 
-**Action:** accepted. Re-evaluate when adm-zip publishes above 0.6.0. Consumers
-on shared or multi-user hosts can set `CAMOUFOX_INSTALL_DIR` to a private
+**Action:** keep the override until camoufox-js declares `>=0.6.1` itself, then
+drop it. Watch the advisory: it bounds the range by `last_affected`, so a
+widened range would re-cover 0.6.1. Consumers can add the same `overrides`
+entry, or on shared or multi-user hosts set `CAMOUFOX_INSTALL_DIR` to a private
 directory.
 
 ## Standing finding 3: braces — accepted risk, no fix exists
@@ -344,8 +352,8 @@ run `gh workflow run scorecard.yml` to clear the alert.
    there needs a matching standing finding on this page, a `reason`, and an
    `ignoreUntil` date. Note that the alert has never listed adm-zip, whose
    advisory bounds the range with `last_affected: 0.6.0` rather than a `fixed`
-   version; if Scorecard's handling of that shape changes, this alert re-raises
-   on something we cannot fix (standing finding 2).
+   version; the lockfile now holds 0.6.1, outside that range, so a re-raise
+   means the override was lost or the advisory widened (standing finding 2).
 6. Need a fresh Scorecard result now? `gh workflow run scorecard.yml`. The
    weekly cadence alone meant a dependency fixed on a Tuesday stayed reported
    until the following Monday.
