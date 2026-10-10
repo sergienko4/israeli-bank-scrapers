@@ -1,6 +1,11 @@
 ---
 source-files:
   - osv-scanner.toml
+  - .github/workflows/scorecard.yml
+  - .github/workflows/workflow-security.yml
+  - .github/scripts/ci/scorecard-npm-pins.sh
+  - .github/scripts/ci/check-scorecard-npm-pins.mjs
+  - scripts/filter-scorecard-sarif.mjs
 ---
 
 # Code scanning: two scanners, one authority
