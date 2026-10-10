@@ -172,6 +172,10 @@ engine, so they apply to the scheduled scan too:
   `.github/actions/`, at any depth. The same test holds their steps to
   `bash`/`sh`, but review npm commands there by hand (today they use only
   `npm ci`, `npm run` and `npx`).
+- **`package.json` scripts.** Scorecard reads workflows, Dockerfiles and shell
+  scripts, never `package.json`, so a step's `npm run test:pipeline` counts as
+  `npm run` whatever the script expands to. No script there runs `npm install`,
+  `npm i` or `npm update` today; review a new or changed script by hand.
 - **Parser errors Scorecard does not report.** A script it fails to parse
   without emitting `Possibly incomplete results` passes silently.
 - **Commands assembled at runtime** (`eval`, variables).

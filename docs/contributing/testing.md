@@ -29,6 +29,9 @@ Five test suites, picked by **what you're testing**.
 - Same Jest config as unit, but with coverage collection + thresholds.
 - Fails if statements/branches/functions/lines drop below 97/95/97/98.
 - HTML report: `src/coverage/lcov-report/`.
+- Runs on 2 Jest workers. Set `JEST_MAX_WORKERS` to change that (a positive
+  integer or `1%`–`100%`); any other value fails the run. CI's `Unit tests`
+  job sets 4. `test:memory` shares the base config but ignores this variable.
 
 ### Mocked-E2E (`test:e2e:mock`)
 

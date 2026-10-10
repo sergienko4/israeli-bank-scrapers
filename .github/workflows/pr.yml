@@ -556,6 +556,11 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+    # `test:pipeline` defaults to 2 workers (jest.pipeline.suite.config.cjs).
+    # A public-repo ubuntu-latest runner has 4 vCPUs, so 2 left half of it
+    # idle. Only this job raises it; local runs and hooks keep the default.
+    env:
+      JEST_MAX_WORKERS: 4
     strategy:
       fail-fast: false
       matrix:
