@@ -365,10 +365,13 @@ The cause chain:
 Security → Dependabot rules). The `npm-security` group in `.github/dependabot.yml` puts
 every npm security update into one pull request. That pull request still needs
 code-owner approval, like any other. The group uses the pattern `'*'`, so one
-bump that fails CI holds back the rest. Narrow the pattern or close the pull
-request, and Dependabot recreates it.
+bump that fails CI holds back the rest. To unblock it, open a separate pull
+request that bumps the failing package. Once that merges, Dependabot rebases
+the group without it ([GitHub's recovery steps][grouped-security-errors]). Do
+not narrow the group instead.
 `src/Tests/Unit/Pipeline/CrossValidation/DependabotSecurityGrouping.test.ts`
-fails if the group is removed, renamed, or narrowed.
+fails if the group is removed, renamed, or narrowed (`exclude-patterns`,
+`dependency-type`, `update-types`).
 
 Turning the rule off is not documented to reopen alerts it already dismissed.
 If alert 52 still reads `auto_dismissed`, reopen it (Security → Dependabot →
@@ -450,3 +453,4 @@ a few minutes more — and expect `fixed`.
 [adm-zip-advisory]: https://github.com/advisories/GHSA-vwc7-r8mq-g2x9
 [braces-advisory]: https://github.com/advisories/GHSA-vfj7-8cjw-p6xm
 [fast-copy-advisory]: https://github.com/advisories/GHSA-jggr-w7fw-pc2j
+[grouped-security-errors]: https://docs.github.com/en/code-security/reference/supply-chain-security/troubleshoot-dependabot/dependabot-errors#failed-to-update-dependency-in-grouped-pull-request
