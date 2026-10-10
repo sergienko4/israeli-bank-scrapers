@@ -20,9 +20,13 @@
  *       `dependency-type`, `update-types`) falls back to the UI toggle or
  *       drops packages or updates, and nothing in the repository records
  *       it.</li>
- *   <li>Adding `applies-to` to a version group, or a second security group,
- *       changes which group claims a package. Dependabot assigns each
- *       dependency to the first group it matches.</li>
+ *   <li>Scoping a version group to security updates, or adding a second
+ *       security group, changes which group claims a package. Dependabot
+ *       assigns each dependency to the first group it matches. An absent
+ *       `applies-to` and an explicit `version-updates` are equivalent:
+ *       Dependabot defaults the key to version updates. A key that is
+ *       present but empty or null is not a valid scope, so it is flagged
+ *       rather than defaulted.</li>
  * </ul>
  */
 
@@ -43,6 +47,12 @@ const SECURITY_GROUP_NAME = 'npm-security';
 /** `applies-to` value scoping a group to security updates. */
 const SECURITY_UPDATES = 'security-updates';
 
+/** `applies-to` value Dependabot assumes when the key is absent. */
+const VERSION_UPDATES = 'version-updates';
+
+/** Group key that scopes a group to version or security updates. */
+const APPLIES_TO_KEY = 'applies-to';
+
 /** Pattern matching every package in the ecosystem. */
 const ALL_PACKAGES = '*';
 
@@ -53,7 +63,8 @@ const SECURITY_GROUP_COUNT = 1;
 const NARROWING_KEYS = ['exclude-patterns', 'dependency-type', 'update-types'] as const;
 
 interface IDependabotGroup {
-  readonly 'applies-to'?: string;
+  /** YAML parses an empty `applies-to:` value as null, not as absent. */
+  readonly 'applies-to'?: string | null;
   readonly patterns?: readonly string[];
   readonly 'exclude-patterns'?: readonly string[];
   readonly 'dependency-type'?: string;
@@ -69,6 +80,22 @@ interface IDependabotUpdate {
 interface IDependabotDoc {
   readonly updates?: readonly IDependabotUpdate[];
 }
+
+interface IScopeCase {
+  readonly name: string;
+  readonly yaml: string;
+  readonly isVersion: boolean;
+}
+
+/** Group snippets pinning how each `applies-to` shape is classified. */
+const SCOPE_CASES: readonly IScopeCase[] = [
+  { name: 'an absent key', yaml: "patterns: ['*']", isVersion: true },
+  { name: 'explicit version-updates', yaml: 'applies-to: version-updates', isVersion: true },
+  { name: 'explicit security-updates', yaml: 'applies-to: security-updates', isVersion: false },
+  { name: 'an empty value', yaml: 'applies-to:', isVersion: false },
+  { name: 'an explicit null', yaml: 'applies-to: null', isVersion: false },
+  { name: 'an empty string', yaml: "applies-to: ''", isVersion: false },
+];
 
 /**
  * Parse the Dependabot configuration.
@@ -115,6 +142,22 @@ function isSecurityGroup(group: IDependabotGroup): boolean {
 }
 
 /**
+ * Whether a group is scoped to version updates, explicitly or by default.
+ *
+ * <p>Only a missing key takes Dependabot's default. A present key whose
+ * value is empty or null is malformed, so it is not a version group.
+ *
+ * @param group - Group to classify.
+ * @returns True when `applies-to` is absent or set to version updates.
+ */
+function isVersionGroup(group: IDependabotGroup): boolean {
+  if (!Object.hasOwn(group, APPLIES_TO_KEY)) {
+    return true;
+  }
+  return group[APPLIES_TO_KEY] === VERSION_UPDATES;
+}
+
+/**
  * Whether a group sets any key that shrinks its package or update set.
  *
  * @param group - Group to inspect.
@@ -135,7 +178,7 @@ describe('Dependabot npm security grouping', () => {
 
   it('[DSG-2] keeps every other npm group on version updates', () => {
     const others = npmGroups().filter(group => !isSecurityGroup(group));
-    const scoped = others.filter(group => group['applies-to'] !== undefined);
+    const scoped = others.filter(group => !isVersionGroup(group));
     expect(others.length).toBeGreaterThan(0);
     expect(scoped).toEqual([]);
   });
@@ -150,5 +193,11 @@ describe('Dependabot npm security grouping', () => {
     const narrowed = security.filter(isNarrowed);
     expect(security.length).toBeGreaterThan(0);
     expect(narrowed).toEqual([]);
+  });
+
+  it.each(SCOPE_CASES)('[DSG-5] $name is a version group: $isVersion', row => {
+    const group = parse(row.yaml) as IDependabotGroup;
+    const isVersion = isVersionGroup(group);
+    expect(isVersion).toBe(row.isVersion);
   });
 });
