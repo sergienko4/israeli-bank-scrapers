@@ -23,6 +23,12 @@ export interface IShapeCase {
 
 /** A synthetic Radware session UUID. */
 const SESSION_UUID = '1b2c3d4e-aaaa-4bbb-8ccc-abcdefabcdef';
+/** A second synthetic Radware UUID, for values that carry two. */
+const SESSION_UUID2 = '2c3d4e5f-bbbb-4ccc-8ddd-bcdefabcdef0';
+/** The upper-case form, which pins the `i` flag on both UUID matchers. */
+const SESSION_UUID_UPPER = SESSION_UUID.toUpperCase();
+/** One hex digit short of a UUID: the matchers must stay length-exact. */
+const NEAR_MISS_UUID = SESSION_UUID.slice(0, -1);
 /** The all-zero GUID the redactor writes in place of a server GUID. */
 const ZERO_GUID = '00000000-0000-0000-0000-000000000000';
 /** Radware bot token shape: `base64(<uuid>$<IPv4>)`. */
@@ -105,6 +111,26 @@ export const POSITIVE_CASES: readonly IShapeCase[] = [
   {
     key: 'radwareSessionUuid',
     input: `var __uzdbm_1 = '${SESSION_UUID}';`,
+    expected: `var __uzdbm_1 = '${ZERO_GUID}';`,
+  },
+  {
+    key: 'radwareSessionUuid',
+    input: `var __uzdbm_3 =\n  '1a2b3c${SESSION_UUID}1-17806608-0004c9027ee26c8d5';\nvar __uzdbm_2 = '${BOT_TOKEN}';`,
+    expected: `var __uzdbm_3 =\n  '1a2b3c${ZERO_GUID}1-17806608-0004c9027ee26c8d5';\nvar __uzdbm_2 = 'REDACTED_BOT_TOKEN';`,
+  },
+  {
+    key: 'radwareSessionUuid',
+    input: `var __uzdbm_6 = '${SESSION_UUID}-${SESSION_UUID2}';`,
+    expected: `var __uzdbm_6 = '${ZERO_GUID}-${ZERO_GUID}';`,
+  },
+  {
+    key: 'radwareSessionUuid',
+    input: `var __uzdbm_6 = '${ZERO_GUID}-${SESSION_UUID}';`,
+    expected: `var __uzdbm_6 = '${ZERO_GUID}-${ZERO_GUID}';`,
+  },
+  {
+    key: 'radwareSessionUuid',
+    input: `var __uzdbm_1 = '${SESSION_UUID_UPPER}';`,
     expected: `var __uzdbm_1 = '${ZERO_GUID}';`,
   },
   {
@@ -391,6 +417,14 @@ export const NEGATIVE_CASES: readonly IShapeCase[] = [
   unchanged('clientIpField', '{"clientIp":"aa:bb:cc:dd:ee:ff"}'),
   unchanged('clientIpField', 'X-Forwarded-For: 0.0.0.0, ::'),
   unchanged('radwareSessionUuid', `var other = '${SESSION_UUID}';`),
+  unchanged('radwareSessionUuid', "var __uzdbm_4 = 'false';"),
+  unchanged('radwareSessionUuid', "var __uzdbm_7 = 'pagi.co.il';"),
+  unchanged('radwareSessionUuid', "var __uzdbm_6 = '';"),
+  unchanged('radwareSessionUuid', `var __uzdbm_5 = '${NEAR_MISS_UUID}';`),
+  unchanged(
+    'radwareSessionUuid',
+    `var __uzdbm_3 = '1a2b3c${ZERO_GUID}1-17806608-0004c9027ee26c8d5';`,
+  ),
   unchanged('requestVerificationToken', '<input name="query" value="CfDJ8abc">'),
   unchanged(
     'requestVerificationToken',
@@ -437,4 +471,47 @@ export const NEGATIVE_CASES: readonly IShapeCase[] = [
   unchanged('jsonTranslitMoneyNumber', '{"MisgeretHour": 1854, "itra_date": 20261007}'),
   unchanged('jsonTranslitMoneyNumber', '{"itra": 1.2.3}'),
   unchanged('jsonBranchField', '{"Branch":"Tel Aviv"}'),
+];
+
+/** One raw-match row: a text and every value the rule matches in it. */
+export interface IRawMatchCase {
+  readonly input: string;
+  readonly matches: readonly string[];
+}
+
+/** The embedded-UUID value the Radware cases share. */
+const EMBEDDED_ZERO = `1a2b3c${ZERO_GUID}1-17806608-0004c9027ee26c8d5`;
+
+/** Raw `radwareSessionUuid` matches: a whole `__uzdbm_N` value, and only
+ *  one that holds a UUID, the zero GUID included. The output tables can't
+ *  pin this, since redacting a value with no UUID changes nothing. */
+export const RADWARE_MATCH_CASES: readonly IRawMatchCase[] = [
+  { input: "var __uzdbm_4 = 'false';", matches: [] },
+  { input: "var __uzdbm_7 = 'pagi.co.il';", matches: [] },
+  { input: "var __uzdbm_6 = '';", matches: [] },
+  { input: `var __uzdbm_5 = '${NEAR_MISS_UUID}';`, matches: [] },
+  { input: String.raw`var __uzdbm_8 = 'a\'${SESSION_UUID}';`, matches: [] },
+  { input: `var __uzdbm_2 = 'abc\n${SESSION_UUID}';`, matches: [] },
+  { input: `var __uzdbm_2 = 'abc\r${SESSION_UUID}';`, matches: [] },
+  { input: `var __uzdbm_1 = "${SESSION_UUID}";`, matches: [] },
+  { input: `var __uzdbm_x = '${SESSION_UUID}';`, matches: [] },
+  { input: `var __uzdbm_ = '${SESSION_UUID}';`, matches: [] },
+  { input: `let __uzdbm_1 = '${SESSION_UUID}';`, matches: [] },
+  { input: `xvar __uzdbm_1 = '${SESSION_UUID}';`, matches: [] },
+  { input: `var __uzdbm_12 = '${SESSION_UUID}';`, matches: [SESSION_UUID] },
+  { input: `var __uzdbm_1='${SESSION_UUID}';`, matches: [SESSION_UUID] },
+  { input: `var __uzdbm_1 = '${ZERO_GUID}`, matches: [ZERO_GUID] },
+  { input: `var __uzdbm_3 = '${EMBEDDED_ZERO}';`, matches: [EMBEDDED_ZERO] },
+  {
+    input: `var __uzdbm_4 = 'false'; var __uzdbm_1 = '${SESSION_UUID}';`,
+    matches: [SESSION_UUID],
+  },
+  {
+    input: `var __uzdbm_4 = 'false';\nvar __uzdbm_1 = '${SESSION_UUID}';`,
+    matches: [SESSION_UUID],
+  },
+  {
+    input: `var __uzdbm_4 = 'false';\r\nvar __uzdbm_1 = '${SESSION_UUID}';`,
+    matches: [SESSION_UUID],
+  },
 ];

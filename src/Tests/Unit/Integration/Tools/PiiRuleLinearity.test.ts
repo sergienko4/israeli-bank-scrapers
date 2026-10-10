@@ -9,6 +9,8 @@
  * such rules unoptimized at seconds per scan. So the probe runs in a child
  * process with `--no-regexp-optimization`, the worst case made
  * deterministic, and every scan on both sides must stay linear in it.
+ * The `__uzdbm_N` rule also scans each value for a UUID, so the probe adds
+ * dense near-miss values and long assignment chains to the whitespace runs.
  */
 
 import { spawnSync } from 'node:child_process';
@@ -36,9 +38,16 @@ const PROBE_TIMEOUT_MS = 60_000;
 const RESULT_MARKER = 'LINEARITY:';
 
 /**
- * The probe: each whitespace run, bare and between a client-address key and
- * its value, through the whole redactor and the whole gate. It prints only
- * the side, the shape and the time of each scan over budget, never a text.
+ * The probe: each whitespace run, bare, between a client-address key and
+ * its value, between a `__uzdbm_N =` key and its quoted value, as a closed
+ * or unterminated `__uzdbm_N` value, and in front of a UUID in such a
+ * value; plus the non-whitespace shapes that make the UUID scan inside a
+ * `__uzdbm_N` value retry: a value packed with comma-separated near-miss
+ * UUIDs, and long chains of short or near-miss assignments. The commas keep
+ * every word run short, so the packed value loads the UUID scan and not
+ * the scans over long word runs. Every shape runs through the whole
+ * redactor and the whole gate. It prints only the side, the shape and the
+ * time of each scan over budget, never a text.
  */
 const PROBE_SOURCE = `
 import { redactPii } from ${JSON.stringify(REDACTOR_URL.href)};
@@ -46,17 +55,33 @@ import gate from ${JSON.stringify(GATE_URL.href)};
 
 const scans = [['redactor', redactPii], ['gate', gate.auditText]];
 const runs = [['space', ' '], ['newline', '\\n'], ['tab', '\\t']];
-const slow = [];
+const shapes = [];
 for (const [name, ch] of runs) {
   const run = ch.repeat(${String(RUN_LENGTH)});
-  const shapes = [['bare ' + name, 'x' + run + 'y'], [name + ' after a key', 'clientIp =' + run + '203.0.113.5']];
-  for (const [shape, input] of shapes) {
-    for (const [side, scan] of scans) {
-      const start = performance.now();
-      scan(input);
-      const ms = Math.round(performance.now() - start);
-      if (ms > ${String(BUDGET_MS)}) slow.push(side + ': ' + shape + ' run took ' + ms + 'ms');
-    }
+  shapes.push(
+    ['bare ' + name, 'x' + run + 'y'],
+    [name + ' after a key', 'clientIp =' + run + '203.0.113.5'],
+    [name + ' after uzdbm =', 'var __uzdbm_1 =' + run + "'abc'"],
+    [name + ' in uzdbm value', "var __uzdbm_1 = '" + run + "'"],
+    [name + ' unterminated uzdbm', "var __uzdbm_1 = '" + run],
+    [name + ' before uzdbm uuid', "var __uzdbm_1 = '" + run + "12345678-1234-1234-1234-123456789abc'"],
+  );
+}
+const times = text => Math.ceil(${String(RUN_LENGTH)} / text.length);
+const nearMiss = '12345678-1234-1234-1234-12345678901,';
+const nearMissValue = "var __uzdbm_1='12345678-1234-1234-1234-1234';";
+shapes.push(
+  ['dense near-miss uuids in uzdbm value', "var __uzdbm_1 = '" + nearMiss.repeat(times(nearMiss)) + "'"],
+  ['repeated uzdbm assignments', "var __uzdbm_1='x';".repeat(times("var __uzdbm_1='x';"))],
+  ['repeated near-miss uzdbm values', nearMissValue.repeat(times(nearMissValue))],
+);
+const slow = [];
+for (const [shape, input] of shapes) {
+  for (const [side, scan] of scans) {
+    const start = performance.now();
+    scan(input);
+    const ms = Math.round(performance.now() - start);
+    if (ms > ${String(BUDGET_MS)}) slow.push(side + ': ' + shape + ' run took ' + ms + 'ms');
   }
 }
 console.log('${RESULT_MARKER}' + JSON.stringify(slow));
@@ -102,7 +127,7 @@ function slowScans(output: string): readonly string[] {
   return JSON.parse(json) as readonly string[];
 }
 
-describe('PII rule linearity on whitespace runs', () => {
+describe('PII rule linearity on whitespace runs and dense uzdbm values', () => {
   let workDir = '';
 
   beforeAll(() => {
@@ -116,7 +141,7 @@ describe('PII rule linearity on whitespace runs', () => {
   });
 
   it(
-    'scans every whitespace run in linear time on both sides, unoptimized',
+    'scans every probe shape in linear time on both sides, unoptimized',
     () => {
       const output = runProbe(workDir);
       const slow = slowScans(output);

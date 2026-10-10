@@ -9,12 +9,21 @@
  * so the redactor keeps it and the gate passes it. Zeroed and NDJSON-escaped
  * variants of every positive row are checked for the same drift. The only
  * deliberate asymmetries, the gate's context exemptions, are pinned one per
- * exemption in CONTEXT_EXEMPT_CASES. When either side drifts, this suite
- * fails, so the gate can't stay red on text the redactor won't touch, or
- * pass PII the redactor would have caught.
+ * exemption in CONTEXT_EXEMPT_CASES. An exemption can hide a raw match
+ * the gate should never make, so the radware rule is also pinned on its
+ * raw matches, the same list for both regexes (RADWARE_MATCH_CASES): a
+ * drift in either regex fails the suite even while the exemption masks the
+ * hit. When either side drifts, this suite fails, so the gate can't stay
+ * red on text the redactor won't touch, or pass PII the redactor would
+ * have caught.
  */
 
-import { type AuditHit, auditText, RULE_IDS } from '../../../../../scripts/audit-fixtures-pii.cjs';
+import {
+  type AuditHit,
+  auditText,
+  RULE_IDS,
+  ruleRegex,
+} from '../../../../../scripts/audit-fixtures-pii.cjs';
 import {
   PII_PATTERNS,
   PII_REPLACEMENTS,
@@ -24,6 +33,7 @@ import {
 import {
   NEGATIVE_CASES as BANK_NEGATIVE,
   POSITIVE_CASES as BANK_POSITIVE,
+  RADWARE_MATCH_CASES,
 } from './PiiBankShapeCases.js';
 import {
   CONTEXT_EXEMPT_CASES,
@@ -171,6 +181,19 @@ const MIRRORED_KEYS = Object.keys(GATE_RULE_FOR) as PiiPatternKey[];
 /** Every rule a shared case row is aimed at. */
 const CASE_KEYS = [...POSITIVE_CASES, ...NEGATIVE_CASES].map(row => row.key);
 
+/** Both sides of the Radware rule, as raw patterns: the gate exempts a
+ *  match that holds no raw UUID, so only its raw pattern shows the gate
+ *  still matching a value with no UUID in it. */
+const RADWARE_SIDES = [
+  ['redactor', PII_PATTERNS.radwareSessionUuid],
+  ['gate', ruleRegex('radware-session-uuid')],
+] as const;
+
+/** Every Radware raw-match row, once per side. */
+const RADWARE_SIDE_CASES = RADWARE_SIDES.flatMap(([side, pattern]) =>
+  RADWARE_MATCH_CASES.map(row => ({ side, pattern, ...row })),
+);
+
 /**
  * The gate rules that fail on a text, ignoring INFO placeholder markers.
  *
@@ -317,6 +340,17 @@ describe('fixtures-pii gate parity with PiiRedactor', () => {
     const rewritten = rewrittenSpans(row.key, row.input).length;
     const fired = failingRules(row.input);
     expect({ rewritten: rewritten > 0, fired }).toEqual({ rewritten: true, fired: [] });
+  });
+
+  it.each(RADWARE_SIDE_CASES)('$side radware rule matches $matches in $input', row => {
+    const matched = [...row.input.matchAll(row.pattern)].map(match => match[0]);
+    expect(matched).toEqual(row.matches);
+  });
+
+  it('rejects a rule id the gate does not define', () => {
+    expect((): RegExp => ruleRegex('missing-rule')).toThrow(
+      'unknown fixtures-pii rule: missing-rule',
+    );
   });
 
   it.each(POSITIVE_CASES)('passes the redacted $key shape', row => {

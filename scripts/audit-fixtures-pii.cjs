@@ -10,8 +10,13 @@
  * card last-4, address fragments, JSON monetary fields, and any
  * Hebrew text inside a known PII-bearing class context.
  *
- * Zero trust: prints EVERY hit so the operator can verify nothing leaked.
- * Exits non-zero when any pattern fires.
+ * Zero trust: each fixture reports at most MAX_HITS_PER_FILE (15) CRITICAL
+ * or HIGH hits as rule, severity, line:column and match length, and any
+ * further hits only as a count. It never prints the matched text or its
+ * context, because the pre-commit hook writes this output to
+ * `.pre-commit-output.log`. Open the fixture at a reported location to
+ * inspect a hit; re-run after fixing to surface the hits past the cap.
+ * Exits non-zero when any CRITICAL or HIGH pattern fires.
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -71,6 +76,8 @@ const DECODED_EMBEDDED_IP = new RegExp(String.raw`^[\da-z]{8}(?:-[\da-z]{4}){3}-
 const SKY_CURRENCY_ATTR = String.raw`\s(?:sky-currency|sky-on-currency-change)`;
 const PLAIN_AMOUNT = String.raw`-?\d[\d,]*(?:\.\d+)?`;
 const ZERO_GUID = '00000000-0000-0000-0000-000000000000';
+/** Mirrors UUID_GLOBAL in PiiRedactor.ts. */
+const UUID_GLOBAL = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 /** Mirrors PERSON_NAME_KEYS / TOKEN_PLACEHOLDER_VALUES in PiiRedactor.ts. */
 const PERSON_NAME_KEYS = String.raw`partyFullName|partyFirstName|partyLastName|partyMiddleName|customerName|customerFullName|customerFirstName|customerLastName|custFullName|displayName|userName|userFullName|firstName|lastName|fullName|middleName|FirstName|LastName|BankerName`;
 const TOKEN_PLACEHOLDER_VALUES = String.raw`\[redacted-[a-z-]+\]|FIXTURE-MAX-SESSION-A`;
@@ -166,7 +173,7 @@ const PATTERNS = [
   { id: 'prettier-corrupt-redacted-id', re: /\[redacted - id\]/g, severity: 'CRITICAL', desc: 'JS-breaking [redacted - id] (prettier-corrupted) — would throw ReferenceError' },
   { id: 'b64-embedded-ip', re: /(?<![\da-z+/])[\da-z+/]{56,76}={0,2}(?![\da-z+/=])/gi, severity: 'CRITICAL', desc: 'Base64 run decoding to <uuid>$<IPv4> (Radware bot token embeds the client IP)' },
   { id: 'client-ip-field', re: /[^\s"'\\,;<>](?<=\b(?:client_?ip|remote_?addr|ip_?address|user_?ip|x-forwarded-for|x-real-ip)\\?["']?\s*[:=]\s*\\?["']?.)[^\s"'\\,;<>]*(?:\s*,\s*[^\s"'\\,;<>]+)*/gi, severity: 'CRITICAL', desc: 'Client-address field value holding an IPv4 or IPv6 address (client_ip, x-forwarded-for)' },
-  { id: 'radware-session-uuid', re: /var __uzdbm_\d+\s*=\s*'(?!00000000-0000-0000-0000-000000000000')[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'/gi, severity: 'HIGH', desc: 'Radware per-session UUID (__uzdbm_N)' },
+  { id: 'radware-session-uuid', re: /[^'\r\n](?<=\bvar __uzdbm_\d+\s*=\s*'.)(?<=(?=[^'\r\n]*?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}).)[^'\r\n]*/gi, severity: 'HIGH', desc: 'Radware per-session UUID in a __uzdbm_N value that holds one' },
   { id: 'request-verification-token', re: /(?<=name=\\?["']__RequestVerificationToken\\?["'][^>]*?value=\\?["'])[^"'\\]+(?=\\?["'])|(?<=value=\\?["'])[^"'\\]+(?=\\?["'][^>]*?name=\\?["']__RequestVerificationToken\\?["'])/gi, severity: 'HIGH', desc: 'Unredacted ASP.NET anti-forgery token' },
   { id: 'json-token-field', re: new RegExp(String.raw`"\w+Token\\?"\s*:\s*${notWholeValue(TOKEN_PLACEHOLDER_VALUES)}${jsonStringValue('{12,}')}`, 'g'), severity: 'CRITICAL', desc: 'JSON <prefix>Token field with a live value (xsrfToken)' },
   { id: 'json-action-guid', re: /(?<="actionGUID\\?"\s*:\s*\\?")[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, severity: 'HIGH', desc: 'Mizrahi paging GUID (server session handle)' },
@@ -184,8 +191,33 @@ const PATTERNS = [
   { id: 'redacted-marker-unique-id', re: /\[redacted-id-\d+\]/g, severity: 'INFO', desc: 'Already redacted + uniquified id (good)' },
 ];
 
-const SEV_ORDER = { CRITICAL: 0, HIGH: 1, INFO: 99 };
+/** Severities that fail the gate, in report order: CRITICAL hits print first. */
+const REPORTED_SEVERITIES = ['CRITICAL', 'HIGH'];
+/** Every severity a rule may carry; INFO marks a placeholder that is already safe. */
+const SUPPORTED_SEVERITIES = new Set([...REPORTED_SEVERITIES, 'INFO']);
+/**
+ * Fail closed on a severity the report does not know, so a hit can never be
+ * dropped from both the report and the verdict without anyone noticing.
+ *
+ * @param {string} severity - Severity of a rule or a hit.
+ * @returns {void}
+ * @throws {Error} When the severity is not CRITICAL, HIGH or INFO.
+ */
+function assertSupportedSeverity(severity) {
+  if (!SUPPORTED_SEVERITIES.has(severity)) throw new Error(`Unsupported PII severity: ${severity}`);
+}
+PATTERNS.forEach(pat => assertSupportedSeverity(pat.severity));
+/** Most hit lines printed, and counted, per fixture. */
+const MAX_HITS_PER_FILE = 15;
+const FAIL_LINE = '\n❌ FAIL: PII detected in committed fixtures. Re-run redactor and re-audit.';
+const PASS_LINE = '\n✅ PASS: no PII patterns detected.';
 
+/**
+ * List every auditable fixture file under a directory, recursively.
+ *
+ * @param {string} dir - Directory to walk; a missing one yields no files.
+ * @returns {string[]} Absolute paths of the `.html`, `.json` and `.ndjson` files.
+ */
 function walkDir(dir) {
   const out = [];
   if (!fs.existsSync(dir)) return out;
@@ -197,6 +229,15 @@ function walkDir(dir) {
   return out;
 }
 
+/**
+ * Single-line text around an offset, so the false-positive rules can judge
+ * a hit by its neighbourhood. It is never printed.
+ *
+ * @param {string} text - Fixture contents.
+ * @param {number} idx - Offset of the hit.
+ * @param {number} [ctx] - Characters kept on each side.
+ * @returns {string} The window, with line breaks folded to spaces.
+ */
 function snippet(text, idx, ctx = 50) {
   const s = Math.max(0, idx - ctx);
   const e = Math.min(text.length, idx + ctx);
@@ -220,44 +261,84 @@ function isZeroValue(value) {
 function hasRawClientAddress(value) {
   return [...value.matchAll(CLIENT_ADDRESS)].some(address => !CLIENT_IP_PLACEHOLDERS.has(address[0]));
 }
+/** True when a Radware `__uzdbm_N` value holds a UUID other than the
+ *  all-zero GUID PiiRedactor.ts writes. */
+function hasRawUuid(value) {
+  return [...value.matchAll(UUID_GLOBAL)].some(uuid => uuid[0] !== ZERO_GUID);
+}
+// Only a match that IS a placeholder is safe. A placeholder after part of
+// a raw value, or inside a wider match (`tel:[redacted-id]`), is a hit.
+const PLACEHOLDER_MATCH = /^\[redacted-(name|account|amount|id|phone|landline|email|iban|jwt|cookie|bearer|last-login)\]$/;
+/** Contexts in which a 16-digit run is a tracker, bot-manager,
+ *  session-recorder or correlation id rather than a card number. */
+const CARD_CTX_EXEMPT = [
+  /facebook\.net|facebook\.com\\?\/tr|fbq\(|connect\.facebook|fbevents|googletagmanager|gtag\/js|google-analytics|googleadservices|googletag|vtp_pixelId|"pixelId"|fbPixelId/,
+  /__uzdbm|__uzma|__uzmf|__uzmb|__uzmc|__uzmd|__uzme|_rbzid|_rbzsessionid|reblaze/i,
+  /runcontext|d-c-id=|v-c-at=|x-c-id=|x-content-id=/i,
+  /\\?"cls[sve]\\?"|\\?"clsid\\?"|glassbox|"sessionId"|"requestId"|"correlationId"|"traceId"|"transactionId"/i,
+];
+/** Contexts in which a 9-digit run is an ad-tag id or a phone link. */
+const ID9_CTX_EXEMPT = [
+  /googletagmanager|gtag\/js\?id=AW-|gtm\.js|google-analytics|googleadservices|AW-\d{9}|UA-\d{4,}|G-[A-Z0-9]{6,}/,
+  /doubleclick\.net|viewthroughconversion|tag_exp=|dc_random=|dc_fmt=|gtm_ee=|gtm_ndx=/i,
+  /href="tel:|tel:0\d{8,}/i,
+];
+/** Contexts in which a shekel amount is banner or marketing copy. */
+const ILS_SUFFIX_CTX_EXEMPT = [
+  /banner_|promo_|alt=['"]/i,
+  /_atar_|_shivuki_|_marketing/i,
+];
+
+/** True when any regex in `list` matches `text`. None of them is global,
+ *  so `test` keeps no state between calls. */
+function anyMatch(list, text) {
+  return list.some(re => re.test(text));
+}
+/** A 16-digit run is not a card in a known tracker context, after a hex
+ *  id (`<hex>-<16 digits>`), or when it is the all-zero placeholder. */
+function cardFull16Exemption(hit) {
+  if (anyMatch(CARD_CTX_EXEMPT, hit.ctx)) return true;
+  const masked = hit.ctx.replace(hit.match, '###');
+  if (/\b[\da-f]{16,}-(?=\d{16}\b)/i.test(masked)) return true;
+  return /^0000[-\s]?0000[-\s]?0000[-\s]?0000$/.test(hit.match);
+}
+/** A monetary JSON field is safe when the value after its last `:` is
+ *  zero, which PiiRedactor.ts keeps. */
+function monetaryZeroExemption(hit) {
+  const colon = hit.match.lastIndexOf(':');
+  const value = hit.match.slice(colon + 1);
+  return isZeroValue(value);
+}
+
+/** Per-rule false-positive predicates. Each takes a hit and returns true
+ *  when that hit is accepted as not personal data. A rule with no entry
+ *  has no rule-specific exemption. */
+const RULE_EXEMPTIONS = new Map([
+  ['hebrew-greeting-name', hit => /<p[^>]*>\[redacted-name\]<\/p>$/.test(hit.match)],
+  ['card-full-16', cardFull16Exemption],
+  ['israeli-id-9', hit => anyMatch(ID9_CTX_EXEMPT, hit.ctx)],
+  ['israeli-landline', hit => /href="tel:|tel:0\d{8,}/i.test(hit.ctx)],
+  ['json-monetary-field', monetaryZeroExemption],
+  // NOTE: unreachable today, since the rule's `\d{6,12}` never matches a
+  // placeholder. Kept so this map changes no audit result.
+  ['bare-account-in-url', hit => /\[redacted-account\]/.test(hit.match)],
+  ['ils-suffix-amount', hit => anyMatch(ILS_SUFFIX_CTX_EXEMPT, hit.ctx)],
+  ['b64-embedded-ip', hit => !decodesToEmbeddedIp(hit.match)],
+  ['json-action-guid', hit => hit.match === ZERO_GUID],
+  ['request-verification-token', hit => hit.match === RVT_PLACEHOLDER],
+  ['client-ip-field', hit => !hasRawClientAddress(hit.match)],
+  ['radware-session-uuid', hit => !hasRawUuid(hit.match)],
+]);
+
 /** Return true when a hit is a known false positive that the operator
- *  has accepted (already-redacted placeholder, public tracking ID, etc).
- *  Centralised here so each pattern stays focused on detection and the
- *  "is this real PII?" decision is reviewable in one place. */
+ *  has accepted (already-redacted placeholder, zero value, public
+ *  tracking ID, etc). Each rule's exemption lives in RULE_EXEMPTIONS, so
+ *  adding one is a map entry rather than another branch here. */
 function isFalsePositive(hit) {
-  const ctx = hit.ctx;
-  // Only a match that IS a placeholder is safe. A placeholder after part of
-  // a raw value, or inside a wider match (`tel:[redacted-id]`), is a hit.
-  if (/^\[redacted-(name|account|amount|id|phone|landline|email|iban|jwt|cookie|bearer|last-login)\]$/.test(hit.match)) return true;
-  if (hit.pat.id === 'hebrew-greeting-name' && /<p[^>]*>\[redacted-name\]<\/p>$/.test(hit.match)) return true;
-  if (hit.pat.id === 'card-full-16') {
-    if (/facebook\.net|facebook\.com\\?\/tr|fbq\(|connect\.facebook|fbevents|googletagmanager|gtag\/js|google-analytics|googleadservices|googletag|vtp_pixelId|"pixelId"|fbPixelId/.test(ctx)) return true;
-    if (/__uzdbm|__uzma|__uzmf|__uzmb|__uzmc|__uzmd|__uzme|_rbzid|_rbzsessionid|reblaze/i.test(ctx)) return true;
-    if (/runcontext|d-c-id=|v-c-at=|x-c-id=|x-content-id=/i.test(ctx)) return true;
-    if (/\\?"cls[sve]\\?"|\\?"clsid\\?"|glassbox|"sessionId"|"requestId"|"correlationId"|"traceId"|"transactionId"/i.test(ctx)) return true;
-    if (/\b[\da-f]{16,}-(?=\d{16}\b)/i.test(ctx.replace(hit.match, '###'))) return true;
-    if (/^0000[-\s]?0000[-\s]?0000[-\s]?0000$/.test(hit.match)) return true;
-  }
-  if (hit.pat.id === 'israeli-id-9') {
-    if (/googletagmanager|gtag\/js\?id=AW-|gtm\.js|google-analytics|googleadservices|AW-\d{9}|UA-\d{4,}|G-[A-Z0-9]{6,}/.test(ctx)) return true;
-    if (/doubleclick\.net|viewthroughconversion|tag_exp=|dc_random=|dc_fmt=|gtm_ee=|gtm_ndx=/i.test(ctx)) return true;
-    if (/href="tel:|tel:0\d{8,}/i.test(ctx)) return true;
-  }
-  if (hit.pat.id === 'israeli-landline' && /href="tel:|tel:0\d{8,}/i.test(ctx)) return true;
-  if (hit.pat.id === 'json-monetary-field' && isZeroValue(hit.match.slice(hit.match.lastIndexOf(':') + 1))) return true;
-  if (hit.pat.id === 'bare-account-in-url') {
-    if (/\[redacted-account\]/.test(hit.match)) return true;
-  }
-  if (hit.pat.id === 'ils-suffix-amount') {
-    if (/banner_|promo_|alt=['"]/i.test(ctx)) return true;
-    if (/_atar_|_shivuki_|_marketing/i.test(ctx)) return true;
-  }
-  if (hit.pat.id === 'b64-embedded-ip' && !decodesToEmbeddedIp(hit.match)) return true;
+  if (PLACEHOLDER_MATCH.test(hit.match)) return true;
   if (ZERO_VALUE_IDS.has(hit.pat.id) && isZeroValue(hit.match)) return true;
-  if (hit.pat.id === 'json-action-guid' && hit.match === ZERO_GUID) return true;
-  if (hit.pat.id === 'request-verification-token' && hit.match === RVT_PLACEHOLDER) return true;
-  if (hit.pat.id === 'client-ip-field' && !hasRawClientAddress(hit.match)) return true;
-  return false;
+  const exemption = RULE_EXEMPTIONS.get(hit.pat.id);
+  return exemption ? exemption(hit) : false;
 }
 /**
  * Audit one fixture's text against every pattern.
@@ -279,56 +360,150 @@ function auditText(raw) {
   }
   return hits;
 }
-
-/** Audit one fixture file on disk. */
-function auditFile(file) {
-  return auditText(fs.readFileSync(file, 'utf8'));
+/**
+ * A fresh copy of one rule's raw pattern, so a test can pin what the rule
+ * matches before any exemption hides a match. A copy, so a caller's scan
+ * never moves the lastIndex auditText resets and advances.
+ *
+ * @param {string} id - Rule id, one of RULE_IDS.
+ * @returns {RegExp} The rule's pattern.
+ * @throws {Error} When no rule has that id.
+ */
+function ruleRegex(id) {
+  const pat = PATTERNS.find(p => p.id === id);
+  if (!pat) throw new Error(`unknown fixtures-pii rule: ${id}`);
+  return new RegExp(pat.re.source, pat.re.flags);
 }
 
+/**
+ * 1-based line and column of an offset. Only `\n` starts a line, so a CRLF
+ * line keeps its `\r`; the column counts UTF-16 code units, as editors do.
+ *
+ * @param {string} raw - Fixture contents.
+ * @param {number} at - Offset in `raw`.
+ * @returns {string} The location as `line:column`.
+ */
+function lineCol(raw, at) {
+  const before = raw.slice(0, at);
+  const line = before.split('\n').length;
+  return `${line}:${at - before.lastIndexOf('\n')}`;
+}
+/**
+ * One report line for a hit: severity, rule id, location and match length.
+ * The matched text and its context are never printed, because the hook
+ * keeps this output in `.pre-commit-output.log`.
+ *
+ * @param {{ pat: { id: string, severity: string }, match: string, at: number }} hit - The hit.
+ * @param {string} raw - Fixture contents the hit was found in.
+ * @returns {string} The report line.
+ */
+function formatHit(hit, raw) {
+  return `  [${hit.pat.severity}] ${hit.pat.id} at ${lineCol(raw, hit.at)} (len ${hit.match.length})`;
+}
+/**
+ * The hits one fixture's report prints and the summary counts, picked once so
+ * both always agree: CRITICAL hits first, scan order kept within a severity,
+ * capped at {@link MAX_HITS_PER_FILE}. INFO hits are never selected.
+ *
+ * @param {{ pat: { severity: string } }[]} hits - Hits of one fixture, in scan order.
+ * @returns {{ top: { pat: { severity: string } }[], hidden: number }}
+ *   The selected hits and how many CRITICAL or HIGH hits the cap left out.
+ * @throws {Error} When a hit carries a severity other than CRITICAL, HIGH or INFO.
+ */
+function selectFileHits(hits) {
+  hits.forEach(hit => assertSupportedSeverity(hit.pat.severity));
+  const ranked = REPORTED_SEVERITIES.flatMap(severity => hits.filter(hit => hit.pat.severity === severity));
+  const top = ranked.slice(0, MAX_HITS_PER_FILE);
+  return { top, hidden: ranked.length - top.length };
+}
+/**
+ * Report lines for one fixture: a header, one line per selected hit and a
+ * count of the hits the cap left out.
+ *
+ * @param {string} rel - Fixture path relative to the repo root.
+ * @param {string} raw - Fixture contents.
+ * @param {{ top: { pat: { id: string, severity: string }, match: string, at: number }[], hidden: number }} selection
+ *   The fixture's hits as picked by {@link selectFileHits}.
+ * @returns {string[]} The lines, or none when no CRITICAL or HIGH hit fired.
+ */
+function renderFileReport(rel, raw, selection) {
+  if (selection.top.length === 0) return [];
+  const lines = [`\n=== ${rel} ===`, ...selection.top.map(hit => formatHit(hit, raw))];
+  if (selection.hidden > 0) lines.push(`  ... and ${selection.hidden} more`);
+  return lines;
+}
+/**
+ * Count the hits of one severity.
+ *
+ * @param {{ pat: { severity: string } }[]} hits - Hits to count.
+ * @param {string} severity - Severity to match.
+ * @returns {number} The count.
+ */
+function countSeverity(hits, severity) {
+  return hits.filter(hit => hit.pat.severity === severity).length;
+}
+/**
+ * Tally every fixture's selected hits into the audit verdict.
+ *
+ * @param {{ top: { pat: { severity: string } }[] }[]} selections - Each fixture's
+ *   hits as picked by {@link selectFileHits}.
+ * @returns {{ critical: number, high: number, filesWithHits: number, failed: boolean }}
+ *   Counts within each fixture's selected hits, and whether the gate fails.
+ */
+function summarizeReports(selections) {
+  const tops = selections.map(selection => selection.top);
+  const critical = tops.reduce((sum, top) => sum + countSeverity(top, 'CRITICAL'), 0);
+  const high = tops.reduce((sum, top) => sum + countSeverity(top, 'HIGH'), 0);
+  const filesWithHits = tops.filter(top => top.length > 0).length;
+  return { critical, high, filesWithHits, failed: critical > 0 || high > 0 };
+}
+/**
+ * The summary block and verdict line printed after every fixture report.
+ *
+ * @param {number} fileCount - Number of fixtures scanned.
+ * @param {{ critical: number, high: number, filesWithHits: number, failed: boolean }} summary - The tally.
+ * @returns {string[]} The lines, ending with the FAIL or PASS verdict.
+ */
+function renderSummary(fileCount, summary) {
+  return [
+    '\n========== AUDIT SUMMARY ==========',
+    `Files scanned: ${fileCount}`,
+    `Files with PII hits: ${summary.filesWithHits}`,
+    `CRITICAL hits (top ${MAX_HITS_PER_FILE}/file): ${summary.critical}`,
+    `HIGH     hits (top ${MAX_HITS_PER_FILE}/file): ${summary.high}`,
+    summary.failed ? FAIL_LINE : PASS_LINE,
+  ];
+}
+/**
+ * Audit one fixture file on disk and print its report.
+ *
+ * @param {string} file - Absolute fixture path.
+ * @returns {{ top: { pat: { severity: string } }[], hidden: number }} The hits its report printed.
+ */
+function printFileReport(file) {
+  const raw = fs.readFileSync(file, 'utf8');
+  const selection = selectFileHits(auditText(raw));
+  for (const line of renderFileReport(path.relative(ROOT, file), raw, selection)) console.log(line);
+  return selection;
+}
+/** Audit every committed fixture; exit 2 when any CRITICAL or HIGH hit fires. */
 function main() {
   const files = walkDir(FIXTURES);
   console.log(`Scanning ${files.length} fixture files under ${path.relative(ROOT, FIXTURES)}`);
-  let critical = 0;
-  let high = 0;
-  const fileSummary = {};
-  for (const f of files) {
-    const hits = auditFile(f);
-    if (hits.length === 0) continue;
-    const rel = path.relative(ROOT, f);
-    const interesting = hits.filter((h) => h.pat.severity !== 'INFO');
-    if (interesting.length === 0) {
-      fileSummary[rel] = { c: 0, h: 0, ok: true };
-      continue;
-    }
-    fileSummary[rel] = { c: 0, h: 0, ok: false };
-    interesting.sort((a, b) => SEV_ORDER[a.pat.severity] - SEV_ORDER[b.pat.severity]);
-    console.log(`\n=== ${rel} ===`);
-    for (const hit of interesting.slice(0, 15)) {
-      const tag = `[${hit.pat.severity}] ${hit.pat.id}`;
-      console.log(`  ${tag}: "${hit.match.slice(0, 80)}"  ctx: ...${hit.ctx}...`);
-      if (hit.pat.severity === 'CRITICAL') {
-        critical++;
-        fileSummary[rel].c++;
-      }
-      if (hit.pat.severity === 'HIGH') {
-        high++;
-        fileSummary[rel].h++;
-      }
-    }
-    if (interesting.length > 15) console.log(`  ... and ${interesting.length - 15} more`);
-  }
-  console.log(`\n========== AUDIT SUMMARY ==========`);
-  console.log(`Files scanned: ${files.length}`);
-  console.log(`Files with PII hits: ${Object.values(fileSummary).filter((v) => !v.ok).length}`);
-  console.log(`CRITICAL hits (top 15/file): ${critical}`);
-  console.log(`HIGH     hits (top 15/file): ${high}`);
-  if (critical > 0 || high > 0) {
-    console.log(`\n❌ FAIL: PII detected in committed fixtures. Re-run redactor and re-audit.`);
-    process.exit(2);
-  }
-  console.log(`\n✅ PASS: no PII patterns detected.`);
+  const summary = summarizeReports(files.map(file => printFileReport(file)));
+  for (const line of renderSummary(files.length, summary)) console.log(line);
+  if (summary.failed) process.exit(2);
 }
 
-module.exports = { auditText, RULE_IDS: PATTERNS.map(p => p.id) };
+module.exports = {
+  auditText,
+  formatHit,
+  selectFileHits,
+  renderFileReport,
+  summarizeReports,
+  renderSummary,
+  ruleRegex,
+  RULE_IDS: PATTERNS.map(p => p.id),
+};
 
 if (require.main === module) main();
