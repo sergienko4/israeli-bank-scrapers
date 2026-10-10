@@ -74,8 +74,13 @@ on:
         default: ''
         type: string
 
+# A new push cancels the run it supersedes. Keyed on the PR number, not
+# `head_ref`: a fork can reuse a branch name and would cancel another PR's
+# required checks. `event_name` keeps a PR number from matching a `run_id`.
+# Other events fall back to the unique `run_id` and never cancel each other.
+# pr-title.yml, pr-body-check.yml and codeql.yml use the same key.
 concurrency:
-  group: pr-${{ github.head_ref || github.run_id }}
+  group: pr-validation-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 # Top-level (file-scope) least-privilege baseline — closes code-scanning

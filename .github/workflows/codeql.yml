@@ -10,6 +10,12 @@ on:
   schedule:
     - cron: '0 6 * * 1' # Weekly Monday 6am UTC
 
+# A newer push to the same PR cancels this run; see pr.yml. A main-pipeline
+# call or a scheduled run keys on its own `run_id`, so it is never cancelled.
+concurrency:
+  group: codeql-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 permissions: {}
 
 jobs:

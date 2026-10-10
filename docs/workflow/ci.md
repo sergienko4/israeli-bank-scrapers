@@ -64,6 +64,25 @@ Two notes on the mechanism:
 Contributors without write access should open an issue instead; the
 [Contributing overview](../contributing/index.md) says the same thing.
 
+## Superseded runs are cancelled
+
+A new push to a PR cancels the runs of the head it replaces. `pr.yml`,
+`pr-title.yml`, `pr-body-check.yml` and `codeql.yml` each declare a
+workflow-level `concurrency` group with `cancel-in-progress: true`, keyed
+`<workflow>-<event>-<PR number>`:
+
+- **PR number, not branch name.** A fork PR can reuse any branch name; keyed
+  on `head_ref`, opening one would cancel this repository's PR runs before
+  the fork policy above closes it.
+- **Event name included.** Runs with no PR — a manual dispatch, the weekly
+  CodeQL schedule, or `main-pipeline.yml` calling `codeql.yml` — key on their
+  own `run_id` instead, and the event name stops that id from matching a PR
+  number.
+
+`WorkflowConcurrencyGate.test.ts` pins these keys. It also checks that no
+workflow calls any of the four twice, because both calls would share the
+caller's `run_id` and the second would cancel the first.
+
 ## Link checking
 
 BLUF: Lychee checks every link in `README.md` and `docs/**/*.md`, but it
