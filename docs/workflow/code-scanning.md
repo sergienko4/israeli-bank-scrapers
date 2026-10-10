@@ -10,6 +10,12 @@ source-files:
   - package-lock.json
   - .github/dependabot.yml
   - renovate.json
+  - .nvmrc
+  - release-please-config.json
+  - .github/scripts/ci/is-bot-pr.cjs
+  - .github/scripts/ci/compute-gate-booleans.sh
+  - .github/scripts/ci/detect-changes.sh
+  - .github/workflows/pr-body-check.yml
   - src/Tests/Unit/Pipeline/CrossValidation/DependabotSecurityGrouping.test.ts
   - src/Tests/Unit/Pipeline/CrossValidation/RenovateLockfileMaintenancePolicy.test.ts
 ---
@@ -424,7 +430,24 @@ commit that added `renovate.json`. Confirm no onboarding pull request appears.
 fails if `renovate.json` enables another update type, if `packageRules`
 drifts from the exact catch-all and update-type pair, if the cooldown or the
 schedule is dropped, if automerge is turned on, or if either bot exemption
-drifts.
+drifts. It also pins the wiring in `pr.yml`. The workflow must run on every
+pull request to `main`, with no path filter. The detector must flag
+`package-lock.json` as `deps`, and the `changes` job must export that flag.
+The `changes` job and its detector and gate steps must carry no `if:` or
+`continue-on-error:`. The gate step must receive the PR author.
+`real_gates_enabled` must reach `validate`. The unit, factory E2E and mocked
+E2E jobs must need only `changes` and run whenever `deps` is set. Conditions
+are compared after unwrapping `${{ }}` and every layer of outer parentheses.
+In `pr-body-check.yml`, each gate is found by its step id (`section-check`,
+`stage-body`). It must require `is-bot-pr.cjs` once, at the top level, with
+only declarations before the guard. It must return on `isBotPr(pr)` before it
+fails the check or stages the body. For a bot pull request, `stage-body` sets
+`skip` to `true`, and the path check runs only when `skip` is not `true`. The
+test also checks that there is exactly one `chore` changelog section and that
+it stays hidden, so lockfile commits stay out of release notes. `pr.yml`
+changes too often to bind to this page, so the test guards it instead. The
+pre-commit docs-staleness hook flags this page when a bound file changes. CI
+runs that check only when `src/` changes.
 
 Verify after a change:
 
