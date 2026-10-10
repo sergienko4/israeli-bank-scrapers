@@ -834,56 +834,64 @@ jobs:
 
   # ──────────────────────────────────────────────────────────────
   # Integration Mode A + Mode B — Static HTML drive + Mirror Origin
-  # (HARD GATE). Unified 9-bank × 2-mode matrix → 18 parallel runners.
+  # (HARD GATE). Three Jest shards (`--shard=i/3`) → 3 runners.
   #
-  # `INTEGRATION_BANK_FILTER` env var narrows the cross-bank
-  # `describe.each(BANK_FIXTURE_EXPECTATIONS)` loops in
-  # LoginFormDiscovery.integration.test.ts (Mode A) and
-  # LoginNavigation.mirror.test.ts (Mode B) to the matrix bank — that
-  # is where the wall-time wins come from (the cross-bank mirror cell
-  # is ~60-90 s per bank vs ~130 s for all banks serial).
+  # Why shards and not a per-bank matrix: the former 9-bank × 2-mode
+  # matrix took 18 of the Free plan's 20 concurrent-job slots, yet the
+  # bank filter narrowed only the two cross-bank loops — every per-bank
+  # `*.modeA` / `*.modeB` file still ran in all 9 cells of its mode, so
+  # one failing per-bank file red-blocked all 9. Jest splits the file
+  # list after path filtering, so the 3 shards run disjoint files whose
+  # union is exactly the unsharded suite.
   #
-  # Per-bank simulator tests (`*.modeB.test.ts`) and per-bank Mode A
-  # drives (`*.modeA.test.ts`) run on every matrix cell — they are
-  # individually fast (sub-second simulators, ~5-10 s per Playwright
-  # static drive). The matrix gives fail-isolation (one bank's
-  # regression does not red-block the other eight) plus wall-time
-  # reduction from parallelism. See Banks/IntegrationBankFilter.ts
-  # for the filter implementation.
+  # `INTEGRATION_BANK_FILTER` is left unset here, so the two cross-bank
+  # loops (LoginFormDiscovery.integration, Mirror/LoginNavigation.mirror)
+  # enumerate every bank in BANK_FIXTURE_EXPECTATIONS — including the
+  # five the old matrix never listed. As before, `requiresHydration`
+  # banks skip their drive case in both modes, and Mode B also skips
+  # banks listed in `.github/banks-pending-reharvest.txt`. The filter
+  # stays a local debugging knob.
+  #
+  # The `:bank` scripts pin the gate's file set; the non-bank scripts
+  # would also pick up any future `static` or `Mirror/` file. No
+  # `--passWithNoTests`: an empty shard must fail, not pass.
+  #
+  # Mode B runs even when Mode A fails (not when setup failed), so one
+  # run reports both modes. A hang hits the job timeout instead, which
+  # cancels the whole shard and fails Validate. There are no step
+  # timeouts: a step kill can leave Camoufox children running while
+  # Mode B starts.
+  #
+  # Pinned by IntegrationShardGate.test.ts [ISG-1..ISG-11].
   # ──────────────────────────────────────────────────────────────
   integration:
-    name: Integration Mode ${{ matrix.mode }} (${{ matrix.bank }})
+    name: Integration (shard ${{ matrix.shard }}/3)
     needs: changes
     if: needs.changes.outputs.full_suite == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Hang guard for both modes back to back (slowest shard estimated
+    # at ≈ 5.5 min including setup).
+    timeout-minutes: 15
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        mode: [a, b]
-        bank:
-          - amex
-          - beinleumi
-          - discount
-          - hapoalim
-          - isracard
-          - leumi
-          - max
-          - mizrahi
-          - visaCal
-    env:
-      INTEGRATION_BANK_FILTER: ${{ matrix.bank }}
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: $/.github/actions/setup-test-runner
+      - name: Set up test runner
+        id: setup
+        uses: $/.github/actions/setup-test-runner
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Integration Mode ${{ matrix.mode }} — bank=${{ matrix.bank }}
-        run: npm run test:integration:mode-${{ matrix.mode }}:bank
+      - name: Integration Mode A — shard ${{ matrix.shard }}/3
+        run: npm run test:integration:mode-a:bank -- --shard=${{ matrix.shard }}/3
+      - name: Integration Mode B — shard ${{ matrix.shard }}/3
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: npm run test:integration:mode-b:bank -- --shard=${{ matrix.shard }}/3
 
   # ──────────────────────────────────────────────────────────────
   # Build + dry-run publish — independent of test jobs (build can

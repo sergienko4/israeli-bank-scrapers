@@ -76,12 +76,6 @@ jobs:
         if: steps.changes.outputs.src == 'true'
         uses: $/.github/actions/setup-node-deps
 
-      - name: Install Camoufox
-        if: steps.changes.outputs.src == 'true'
-        uses: $/.github/actions/install-camoufox
-        with:
-          gh-token: ${{ github.token }}
-
       - name: Run unit tests with coverage
         if: steps.changes.outputs.src == 'true'
         run: npm run test:pipeline
