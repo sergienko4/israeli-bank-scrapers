@@ -1,27 +1,20 @@
 name: SonarCloud
 
-# No `paths:` filter anymore. Branch protection requires the
-# `SonarCloud Scan` context on every PR; with a path filter the
-# context never fired on non-src PRs and we used to satisfy the gate
-# via the `sonarcloud-noop.yml` echo-shim. Folded in 2026-05-28 CI
-# consolidation (PR #275): the job now always runs and the heavy
-# scan steps gate on a `detect-changes` step output. Non-src PRs see
-# the `SonarCloud Scan` context report green within ~30s.
+# The post-merge scan of `main`, which sets SonarCloud's new-code baseline.
+# Pull requests are scanned by the `SonarCloud Scan` job in `pr.yml`, which
+# reuses the floor `Unit tests` leg's coverage instead of running the suite
+# again; that job is what produces the required `SonarCloud Scan` context.
 on:
   # `push: main` intentionally absent — main-pipeline.yml calls this via
-  # workflow_call. The main-branch analysis still runs on every merge (it
-  # is what establishes SonarCloud's new-code baseline); it just runs
-  # inside the pipeline DAG. The `SonarCloud Scan` context that branch
-  # protection requires comes from the `pull_request` trigger below and is
-  # unaffected.
+  # workflow_call, so the scan runs inside the pipeline DAG on every merge.
   workflow_call:
     # Declared explicitly rather than relying on `secrets: inherit` at the
     # call site: inherit hands the callee *every* repo secret, which zizmor
     # flags (`secrets-inherit`) because it widens the blast radius of a
     # compromised action far beyond the three Sonar credentials this
-    # workflow actually reads. Optional so the `pull_request` /
-    # `workflow_dispatch` triggers below keep resolving them from repo
-    # secrets; the "Verify secrets" step already fails loudly if unset.
+    # workflow actually reads. Optional so the `workflow_dispatch` trigger
+    # below keeps resolving them from repo secrets; the "Verify secrets"
+    # step already fails loudly if unset.
     secrets:
       SONAR_TOKEN:
         required: false
@@ -29,8 +22,6 @@ on:
         required: false
       SONAR_PROJECT_KEY:
         required: false
-  pull_request:
-    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions: {}
@@ -53,23 +44,21 @@ jobs:
           # Closes zizmor `artipacked` (persisted credentials warning).
           persist-credentials: false
 
-      # Single source of truth for "did src/** change?" — identical
-      # script wired into pr.yml's `validate` job. Keeps the two
-      # path-decision surfaces from drifting.
+      # Single source of truth for "did src/** change?" — the same script
+      # pr.yml's `changes` job runs. Keeps the two path decisions in step.
       - name: Detect changed file groups
         id: changes
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ github.event.before }}
         run: bash .github/scripts/ci/detect-changes.sh
 
-      # Non-src PRs: short-circuit and report the `SonarCloud Scan`
-      # context green. Replaces the former sonarcloud-noop.yml shim.
+      # Merges that touch no src/**: short-circuit and report green.
       - name: Skip — no src/** changes
         if: steps.changes.outputs.src == 'false'
         run: |
           set -euo pipefail
-          echo "No src/** changes in this PR/push — SonarCloud Scan reports green without running."
-          echo "Real-scan trigger paths: src/**. If this PR DOES include src/** changes,"
+          echo "No src/** changes in this push — SonarCloud Scan reports green without running."
+          echo "Real-scan trigger paths: src/**. If this push DOES include src/** changes,"
           echo "recheck .github/scripts/ci/detect-changes.sh — the real scan should have run."
 
       - name: Setup Node + Dependencies
@@ -109,33 +98,3 @@ jobs:
             -Dsonar.organization=${{ secrets.SONAR_ORG }}
             -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
 
-      - name: Fail on any new SonarCloud issues (count gate)
-        if: github.event_name == 'pull_request' && steps.changes.outputs.src == 'true'
-        env:
-          SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
-          PR_NUMBER: ${{ github.event.number }}
-        run: |
-          set -euo pipefail
-          # The MQR quality gate checks RATINGS (A-E), which can stay
-          # green at hundreds of code-smell hits. This step enforces the
-          # COUNT — any new issue introduced by this PR fails the gate.
-          api="https://sonarcloud.io/api/issues/search"
-          query="componentKeys=${SONAR_PROJECT_KEY}&pullRequest=${PR_NUMBER}&issueStatuses=OPEN,CONFIRMED&sinceLeakPeriod=true&ps=1"
-          attempt=1
-          total=""
-          while [ "${attempt}" -le 5 ]; do
-            total=$(curl -sS "${api}?${query}" | jq -r '.total // empty')
-            if [ -n "${total}" ]; then break; fi
-            echo "::warning::SonarCloud API returned empty body, retrying (${attempt}/5)"
-            sleep 5
-            attempt=$((attempt + 1))
-          done
-          if [ -z "${total}" ]; then
-            echo "::error::Could not read SonarCloud issue count after 5 attempts."
-            exit 1
-          fi
-          echo "SonarCloud reports ${total} new issues on PR #${PR_NUMBER}."
-          if [ "${total}" -gt 0 ]; then
-            echo "::error::SonarCloud reports ${total} new issues — blocking merge. See https://sonarcloud.io/project/issues?id=${SONAR_PROJECT_KEY}&pullRequest=${PR_NUMBER}&issueStatuses=OPEN,CONFIRMED&sinceLeakPeriod=true"
-            exit 1
-          fi

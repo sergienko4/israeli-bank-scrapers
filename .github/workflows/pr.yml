@@ -1085,6 +1085,104 @@ jobs:
         run: bash .github/scripts/ci/docs-staleness.sh
 
   # ──────────────────────────────────────────────────────────────
+  # SonarCloud Scan — the required `SonarCloud Scan` context for PRs.
+  #
+  # It scans the lcov the floor `Unit tests` leg already produced instead of
+  # running `test:pipeline` a second time. `sonarcloud.yml` keeps the
+  # post-merge scan on `main` (called from `main-pipeline.yml`).
+  #
+  # `always()` and not `!cancelled()`: if `changes` or `unit-tests` failed or
+  # was cancelled, a plain or `!cancelled()` job would be skipped, and a
+  # skipped required check counts as passed. Running anyway lets the first
+  # step fail it. PRs that touch no `src/**` skip the job, which passes the
+  # required check as the old no-op step did.
+  # ──────────────────────────────────────────────────────────────
+  sonarcloud:
+    name: SonarCloud Scan
+    needs: [changes, unit-tests]
+    if: always() && github.event_name == 'pull_request' && (needs.changes.result != 'success' || needs.changes.outputs.src == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Require trusted inputs
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          UNIT_TESTS_RESULT: ${{ needs.unit-tests.result }}
+        run: |
+          if [ "$CHANGES_RESULT" != "success" ] || [ "$UNIT_TESTS_RESULT" != "success" ]; then
+            echo "::error::Needs a successful changes job and unit-tests run (changes=${CHANGES_RESULT}, unit-tests=${UNIT_TESTS_RESULT})."
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # SonarCloud reads git blame to tell new code from old.
+          fetch-depth: 0
+          persist-credentials: false
+      # Installed so SonarJS can resolve types for its type-aware rules.
+      - uses: $/.github/actions/setup-node-deps
+      - name: Download coverage report
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: coverage-report
+          path: src/coverage/
+      - name: Verify SonarCloud secrets
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_ORG: ${{ secrets.SONAR_ORG }}
+          SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
+        run: |
+          missing=""
+          [ -z "${SONAR_TOKEN}" ] && missing="${missing} SONAR_TOKEN"
+          [ -z "${SONAR_ORG}" ] && missing="${missing} SONAR_ORG"
+          [ -z "${SONAR_PROJECT_KEY}" ] && missing="${missing} SONAR_PROJECT_KEY"
+          if [ -n "${missing}" ]; then
+            echo "::error::Missing secrets:${missing} — add in Settings → Secrets → Actions."
+            exit 1
+          fi
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.organization=${{ secrets.SONAR_ORG }}
+            -Dsonar.projectKey=${{ secrets.SONAR_PROJECT_KEY }}
+      # The quality gate checks ratings (A-E), which can stay green across
+      # hundreds of code smells. This step enforces the count: any new issue
+      # this PR introduces fails the job.
+      - name: Fail on any new SonarCloud issues (count gate)
+        if: github.event_name == 'pull_request'
+        env:
+          SONAR_PROJECT_KEY: ${{ secrets.SONAR_PROJECT_KEY }}
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          api="https://sonarcloud.io/api/issues/search"
+          query="componentKeys=${SONAR_PROJECT_KEY}&pullRequest=${PR_NUMBER}&issueStatuses=OPEN,CONFIRMED&sinceLeakPeriod=true&ps=1"
+          attempt=1
+          total=""
+          while [ "${attempt}" -le 5 ]; do
+            total=$(curl -sS "${api}?${query}" | jq -r '.total // empty')
+            if [ -n "${total}" ]; then break; fi
+            echo "::warning::SonarCloud API returned empty body, retrying (${attempt}/5)"
+            sleep 5
+            attempt=$((attempt + 1))
+          done
+          if [ -z "${total}" ]; then
+            echo "::error::Could not read SonarCloud issue count after 5 attempts."
+            exit 1
+          fi
+          echo "SonarCloud reports ${total} new issues on PR #${PR_NUMBER}."
+          if [ "${total}" -gt 0 ]; then
+            echo "::error::SonarCloud reports ${total} new issues — blocking merge. See https://sonarcloud.io/project/issues?id=${SONAR_PROJECT_KEY}&pullRequest=${PR_NUMBER}&issueStatuses=OPEN,CONFIRMED&sinceLeakPeriod=true"
+            exit 1
+          fi
+
+  # ──────────────────────────────────────────────────────────────
   # Validate aggregator — preserves the external `Validate` status
   # context name AND the outputs that downstream jobs (dns-preflight,
   # e2e-real-group-*, dependency-review) consume.
