@@ -1,12 +1,11 @@
 /**
- * Per-bank filter for integration test matrix execution.
+ * Per-bank filter for the cross-bank integration loops.
  *
  * <p>When `INTEGRATION_BANK_FILTER` env var is set, the suite restricts
- * itself to the single bank whose `bankId` matches. Used by the CI
- * matrix-per-bank refactor (see `.github/workflows/pr.yml` `integration`
- * matrix job) to shard the otherwise-serial 7-bank cross-bank tests
- * across 7 parallel runners — wall time drops from ~3-6 min to ~30-60s
- * per shard.
+ * itself to the single bank whose `bankId` matches — a local debugging
+ * knob for iterating on one bank's fixtures. CI leaves it unset and
+ * splits the suite into Jest shards instead (see the `integration` job
+ * in `.github/workflows/pr.yml`).
  *
  * <p>Unset env var preserves the default behaviour: every bank in
  * {@link BANK_FIXTURE_EXPECTATIONS} runs in one process — what

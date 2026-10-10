@@ -276,8 +276,8 @@ the hook. When change detection enables the relevant jobs, `pr.yml`
 covers all of these gates except `test:mock`: Unit tests runs
 `test:pipeline` (which includes the `bank-tests` suite), E2E mocked
 runs `test:e2e:mock`, E2E factory covers the `e2e-factory-tests` gate
-by running `npm run test:e2e-factory-tests`, the Integration Mode
-matrix runs modes A and B, and the environment-gated E2E Real jobs run
+by running `npm run test:e2e-factory-tests`, the Integration shards
+run modes A and B, and the environment-gated E2E Real jobs run
 live E2E. `test:mock` has no CI job, and its runner is a git-ignored
 local script that is not committed, so `npm run test:mock` cannot run
 from a clean checkout.

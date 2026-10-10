@@ -26,6 +26,7 @@ and release together — covered in
 | **Mock E2E** | `test:e2e:mock` | Fixture-driven E2E for 3 banks | `src/Tests/E2eMocked/` |
 | **Mock suite (orchestrated)** | `test:mock` | `scripts/run-mock-suite.ts` driving all configured banks | Same fixtures |
 | **Bank tests** | `test:e2e-factory-tests` | Phase H cross-bank factory drives every phase per bank | `src/Tests/Unit/Pipeline/CrossValidation/Phases/` |
+| **Integration** | `test:integration:mode-a:bank`, `test:integration:mode-b:bank` | A static-HTML drive (Mode A) or a mirror-origin replay (Mode B) fails for a fixture bank. CI splits both scripts into 3 Jest shards (`--shard=i/3`, job `Integration (shard i/3)`); an empty shard fails | `src/Tests/Integration/`, `src/Tests/Unit/Integration/Banks/` |
 | **Build** | `build` | `tsup` ESM + CJS bundle | `lib/index.{mjs,cjs,d.ts,d.cts}` produced |
 | **Memory** | `test:memory` | Peak memory grows more than 10% against the merge base | `.github/scripts/ci/memory-measure.sh` + [`memory-compare.sh`](#memory-regression-gate) |
 | **Decoupling** | n/a (`scripts/decoupling-metrics/measure.mjs`) | A new import cycle, a new `any`, a deleted canary or ESLint rule, or fan-out growing more than 10% | [`decoupling-compare.sh`](#decoupling-regression-gate) |

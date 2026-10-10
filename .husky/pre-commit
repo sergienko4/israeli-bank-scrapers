@@ -425,11 +425,11 @@ run_integration_modes() {
     log "🧪 Phase 4: Integration Mode A (HARD GATE — no relaxation)"
     # Mode B was REMOVED from pre-commit on 2026-06-10 — it averages
     # ~3 min wall (mirror test 179s dominates) and is fully covered by
-    # the `integration-mode-b` CI job (pr.yml). Keeping it local meant
-    # 6 min Phase 4 every commit; CI catches the same regressions in
-    # parallel with no operator wait. Mode A stays local because it
+    # the `Integration (shard i/3)` CI jobs (pr.yml). Keeping it local
+    # meant 6 min Phase 4 every commit; CI catches the same regressions
+    # in parallel with no operator wait. Mode A stays local because it
     # IS our primary bank-coverage safety net — LoginFormDiscovery +
-    # 7 bank static drivers — and catches the highest-frequency
+    # the per-bank `*.modeA` drives — and catches the highest-frequency
     # regressions during interactive development. Run Mode B manually
     # via `npm run test:integration:mode-b` when validating mirror
     # contract changes locally.
@@ -444,11 +444,11 @@ run_integration_modes() {
         exit 1
     fi
     [ -n "$CACHE_KEY" ] && touch "$(cache_marker "test:integration:mode-a")"
-    log "  ✅ Mode A green for all 11 pipeline banks (Mode B runs in CI)"
+    log "  ✅ Mode A green for all fixture banks (Mode B runs in CI)"
     log ""
 }
 # Disabled 2026-06-14: Integration Mode A is fully covered by the
-# `Integration Mode a (<bank>)` CI matrix (pr.yml) — 7 parallel jobs vs.
+# `Integration (shard i/3)` CI jobs (pr.yml) — 3 parallel shards vs.
 # the sequential ~2 min local run. Mode B already runs CI-only. Re-enable
 # for local validation via `npm run test:integration:mode-a`.
 #run_integration_modes
