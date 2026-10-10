@@ -83,6 +83,11 @@ workflow-level `concurrency` group with `cancel-in-progress: true`, keyed
 workflow calls any of the four twice, because both calls would share the
 caller's `run_id` and the second would cancel the first.
 
+`Validate` and `SonarCloud Scan` run under a job-level `always()`, which a
+cancellation does not stop. Their steps still stop: GitHub re-checks each
+unfinished step's `if`, and a step that names no status function means
+`success()`. `SonarPrScanGate.test.ts` SPS-4 keeps the Sonar steps that way.
+
 ## Closed PRs' caches are deleted
 
 A PR's Actions caches live on `refs/pull/<N>/merge`. Nothing reads them once

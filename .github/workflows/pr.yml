@@ -1101,6 +1101,10 @@ jobs:
   # skipped required check counts as passed. Running anyway lets the first
   # step fail it. PRs that touch no `src/**` skip the job, which passes the
   # required check as the old no-op step did.
+  #
+  # A superseded run still stops the scan: on cancellation GitHub re-checks
+  # each unfinished step's `if`, which means `success()` unless it names
+  # another status function. SonarPrScanGate SPS-4 keeps every step that way.
   # ──────────────────────────────────────────────────────────────
   sonarcloud:
     name: SonarCloud Scan

@@ -9,6 +9,10 @@
  * skip the scan and leave the job green; and a second `pull_request` workflow
  * reporting the same name would leave two contexts with one name.
  *
+ * <p>SPS-4 also keeps a superseded run from holding a runner: the job-level
+ * `always()` survives cancellation, but GitHub then re-checks each step's
+ * `if`, and a step that names no status function means `success()`.
+ *
  * Rules:
  *   SPS-1  only `pr.yml`'s `sonarcloud` job reports `SonarCloud Scan` on PRs
  *   SPS-2  the job needs `changes` and `unit-tests` under the pinned `always()` guard
