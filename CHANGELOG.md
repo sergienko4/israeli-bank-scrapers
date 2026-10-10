@@ -1,5 +1,22 @@
 # Changelog
 
+## [8.8.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.7.4...v8.8.0) (2026-10-10)
+
+
+### Features
+
+* **mizrahi:** move Mizrahi to the api-direct hard model ([#618](https://github.com/sergienko4/israeli-bank-scrapers/issues/618)) ([e3ff2a0](https://github.com/sergienko4/israeli-bank-scrapers/commit/e3ff2a05c6c19c9ae1df2269e9b4159d572c86c3))
+
+
+### Bug Fixes
+
+* **ci:** replace unpinned npm installs ([#607](https://github.com/sergienko4/israeli-bank-scrapers/issues/607)) ([b3de24c](https://github.com/sergienko4/israeli-bank-scrapers/commit/b3de24c43629902d819c6c7eb8e1085f26e954ef))
+* **mizrahi:** ignore row position in overlap check ([#623](https://github.com/sergienko4/israeli-bank-scrapers/issues/623)) ([efbb979](https://github.com/sergienko4/israeli-bank-scrapers/commit/efbb9799358949fbc110118a1273e53050ac0017))
+* **scrape:** prefer ISO currency over numeric enum ([#616](https://github.com/sergienko4/israeli-bank-scrapers/issues/616)) ([e451b32](https://github.com/sergienko4/israeli-bank-scrapers/commit/e451b32f9c93e5b2032f4a2cd8bee9f4c002a7ee))
+* **security:** redact JSON parse excerpts ([#609](https://github.com/sergienko4/israeli-bank-scrapers/issues/609)) ([664cdb5](https://github.com/sergienko4/israeli-bank-scrapers/commit/664cdb5b82c625f5bd2b093b11d158df781dfa97))
+* **test-tools:** harden fixture PII redaction and gate ([#615](https://github.com/sergienko4/israeli-bank-scrapers/issues/615)) ([04b7d67](https://github.com/sergienko4/israeli-bank-scrapers/commit/04b7d67347ab05f5f01413abc1f86053e196e762))
+* **test-tools:** resolve PR [#615](https://github.com/sergienko4/israeli-bank-scrapers/issues/615) PII gate review ([#619](https://github.com/sergienko4/israeli-bank-scrapers/issues/619)) ([ff3fcd5](https://github.com/sergienko4/israeli-bank-scrapers/commit/ff3fcd5f0e5d33dc2251bff83f70daa50d5e2e50))
+
 ## [8.7.4](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.7.3...v8.7.4) (2026-10-02)
 
 
