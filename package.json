@@ -188,7 +188,10 @@
     "@babel/core": "^7.29.6",
     "esbuild": "^0.28.1",
     "ws": "^8.21.0",
-    "minimatch": "^10"
+    "minimatch": "^10",
+    "@istanbuljs/load-nyc-config": {
+      "js-yaml": "^4.1.0"
+    }
   },
   "lint-staged": {
     "src/**/*.{ts,tsx}": [
