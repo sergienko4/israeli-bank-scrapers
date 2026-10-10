@@ -13,7 +13,11 @@
  * server's `actionGUID` and omitting the owner, like the captured page. A
  * start older than the movements earns each account a backfill round whose
  * range ends before today, so it comes back unnamed, like the live reply
- * (real login #14); it must run before the next account's switch. A first
+ * (real login #14); it must run before the next account's switch. Like the
+ * live server, a reply holds only the requested range's movements, numbered
+ * within that reply (`RowNumber` / `TotalRows`), so the round re-serves the
+ * oldest day's movements at new positions; each must still be filed exactly
+ * once (the duplicate the real-bank gate caught). A first
  * page reaching today opens with the balance line, which maps like a
  * movement; the coverage audit must not count it as one (real login #15).
  *
@@ -154,16 +158,73 @@ function switchReply(session: ISession, body: Readonly<Record<string, unknown>>)
 }
 
 /**
- * One page's rows: the section label — after the balance line on a named
- * first page — then up to 50 of the current account's movements.
+ * A `DD/MM/YYYY` wire day as a sortable `YYYY-MM-DD` key.
+ * @param wireDay - `inFromDate` / `inToDate` value.
+ * @returns Sortable day key.
+ */
+function dayKeyOf(wireDay: unknown): string {
+  const [day, month, year] = String(wireDay).split('/');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Whether a movement's day falls inside a requested range.
+ * @param row - Simulated movement.
+ * @param body - Request body carrying `inFromDate` / `inToDate`.
+ * @returns True when the movement is in range.
+ */
+function isInRange(row: object, body: Readonly<Record<string, unknown>>): boolean {
+  const day = (row as { readonly MC02PeulaTaaEZ: string }).MC02PeulaTaaEZ.slice(0, 10);
+  return day >= dayKeyOf(body.inFromDate) && day <= dayKeyOf(body.inToDate);
+}
+
+/**
+ * The current account's movements in the requested range, numbered within
+ * this reply like the live server (`RowNumber` from 1, `TotalRows` the
+ * reply's size).
  * @param session - Simulated session.
+ * @param body - Request body.
+ * @returns The reply's movements, in order.
+ */
+function servedMovements(session: ISession, body: Readonly<Record<string, unknown>>): object[] {
+  const inRange = MOVEMENTS[session.current].filter((row): boolean => isInRange(row, body));
+  const total = String(inRange.length);
+  return inRange.map((row, i): object => ({ ...row, RowNumber: String(i + 1), TotalRows: total }));
+}
+
+/** One page of a reply's movements, and whether the reply holds more. */
+interface IServedPage {
+  readonly movements: readonly object[];
+  readonly isHasMoreRows: boolean;
+}
+
+/**
+ * The page of the reply's movements starting at a row index.
+ * @param session - Simulated session.
+ * @param body - Request body.
  * @param startRowIndex - The page's first movement index.
+ * @returns The page's movements and whether more remain.
+ */
+function servedPage(
+  session: ISession,
+  body: Readonly<Record<string, unknown>>,
+  startRowIndex: number,
+): IServedPage {
+  const served = servedMovements(session, body);
+  const movements = served.slice(startRowIndex, startRowIndex + PAGE_SIZE);
+  return { movements, isHasMoreRows: startRowIndex + PAGE_SIZE < served.length };
+}
+
+/**
+ * One page's rows: the section label — after the balance line on a named
+ * first page — then the page's movements.
+ * @param session - Simulated session.
+ * @param movements - The page's movements.
  * @param isNamed - Whether the page is the named first page.
  * @returns Raw get428Index rows.
  */
-function pageRowsOf(session: ISession, startRowIndex: number, isNamed: boolean): object[] {
+function pageRowsOf(session: ISession, movements: readonly object[], isNamed: boolean): object[] {
   const head = isNamed ? [balanceLineOf(session.current), LABEL_ROW] : [LABEL_ROW];
-  const movements = MOVEMENTS[session.current].slice(startRowIndex, startRowIndex + PAGE_SIZE);
   return [...head, ...movements];
 }
 
@@ -181,12 +242,11 @@ function pageReply(session: ISession, body: Readonly<Record<string, unknown>>): 
   if (session.isNight) return { body: { table: { rows: [] } } };
   const { startRowIndex } = body.table as { readonly startRowIndex: number };
   const isNamed = startRowIndex === 0 && body.inToDate === TODAY;
-  const rows = pageRowsOf(session, startRowIndex, isNamed);
-  const isHasMoreRows = startRowIndex + PAGE_SIZE < MOVEMENTS[session.current].length;
-  const owner = { AccountNumber: ACCOUNTS[session.current].SnifAndNumber400 };
-  const fields = isNamed ? owner : null;
+  const page = servedPage(session, body, startRowIndex);
+  const rows = pageRowsOf(session, page.movements, isNamed);
+  const fields = isNamed ? { AccountNumber: ACCOUNTS[session.current].SnifAndNumber400 } : null;
   const actionGUID = `guid-${String(session.current)}`;
-  return { body: { fields, table: { rows, actionGUID, isHasMoreRows } } };
+  return { body: { fields, table: { rows, actionGUID, isHasMoreRows: page.isHasMoreRows } } };
 }
 
 const ROUTES: ReadonlyMap<string, Route> = new Map<string, Route>([
@@ -251,6 +311,26 @@ function labelOf(call: ICall): string {
 function callStages(session: ISession): readonly string[] {
   const labels = session.calls.map(labelOf);
   return labels.filter((label, i): boolean => label !== labels[i - 1]);
+}
+
+/**
+ * Descriptions sorted, so two lists compare as multisets.
+ * @param descriptions - Descriptions in any order.
+ * @returns The same descriptions, sorted.
+ */
+function sortedDescriptions(descriptions: readonly string[]): string[] {
+  return [...descriptions].sort((a, b): number => a.localeCompare(b));
+}
+
+/**
+ * Each account's movement descriptions — what a scrape must file, each once.
+ * @returns Sorted descriptions per account, in account order.
+ */
+function movementDescriptions(): string[][] {
+  return MOVEMENTS.map((rows): string[] => {
+    const texts = rows.map((row): string => (row as { MC02TnuaTeurEZ: string }).MC02TnuaTeurEZ);
+    return sortedDescriptions(texts);
+  });
 }
 
 describe('Mizrahi multi-account scrape (changeAccount)', () => {
@@ -337,6 +417,12 @@ describe('Mizrahi multi-account scrape (changeAccount)', () => {
     assertHas(scrape);
     const counts = scrape.value.accounts.map((acct): number => acct.txns.length);
     expect(counts).toEqual([1, PAGE_SIZE + 1]);
+    const filed = scrape.value.accounts.map((acct): string[] => {
+      const descriptions = acct.txns.map((txn): string => txn.description);
+      return sortedDescriptions(descriptions);
+    });
+    const movements = movementDescriptions();
+    expect(filed).toEqual(movements);
     const stages = callStages(session);
     expect(stages).toEqual([
       'SkyBL/logon',

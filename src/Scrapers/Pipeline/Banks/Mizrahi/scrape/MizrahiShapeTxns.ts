@@ -26,7 +26,9 @@
  * <p>The table holds a balance header row and section-label rows beside the
  * transactions; only rows with `RecTypeSpecified` are transactions (the
  * filter the legacy scraper used). Rows flow downstream to the field-mapping
- * Data Mapper unchanged but for the legacy identifier (MizrahiShapeIdentifier).
+ * Data Mapper unchanged but for the legacy identifier (MizrahiShapeIdentifier)
+ * and the reply-relative row number, which would defeat the backfill's
+ * overlap drop (MizrahiShapeRowPosition).
  *
  * <p>The call serves the session's current account, which the balance step
  * switched to (MizrahiShapeBalance, plan D17). The driver runs that switch,
@@ -50,6 +52,7 @@ import type { JsonUnknownRecord } from '../../../Types/JsonValue.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import { type IMizrahiAcct, MIZRAHI_API } from './MizrahiShapeHelpers.js';
 import withIdentifier from './MizrahiShapeIdentifier.js';
+import withoutRowPosition from './MizrahiShapeRowPosition.js';
 
 /** Wire date format of `inFromDate` / `inToDate`. */
 const MIZRAHI_DATE_FMT = 'DD/MM/YYYY';
@@ -201,6 +204,6 @@ export function txnsExtractPage(
   const rows = resp.body?.table?.rows ?? [];
   const txns = rows.filter(IS_MIZRAHI_TXN_ROW);
   const owned = ownedRows(args, txns);
-  const items = owned.map(withIdentifier);
+  const items = owned.map(withoutRowPosition).map(withIdentifier);
   return { items, nextCursor: nextCursorOf(args.cursor, resp) };
 }
