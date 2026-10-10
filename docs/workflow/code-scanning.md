@@ -1,3 +1,15 @@
+---
+source-files:
+  - osv-scanner.toml
+  - .github/workflows/scorecard.yml
+  - .github/workflows/workflow-security.yml
+  - .github/scripts/ci/scorecard-npm-pins.sh
+  - .github/scripts/ci/check-scorecard-npm-pins.mjs
+  - scripts/filter-scorecard-sarif.mjs
+  - package.json
+  - package-lock.json
+---
+
 # Code scanning: two scanners, one authority
 
 > **Who this is for:** maintainers triaging GitHub **Security → Code scanning**
@@ -6,7 +18,7 @@
 This repository uploads SARIF from three tools: **CodeQL**, **zizmor**, and
 **OpenSSF Scorecard**. For anything concerning GitHub Actions, **zizmor is the
 authority and Scorecard is advisory**. This page explains why, and records the
-two standing findings that should not be "fixed".
+three standing findings that should not be "fixed" the obvious way.
 
 ## Why zizmor decides
 
@@ -238,14 +250,20 @@ Trigger one on demand with `gh workflow run scorecard.yml`. Re-evaluate — and
 remove the filter — if Scorecard adds `$/` support: upstream tracking issue
 [ossf/scorecard#5191][scorecard-5191] is still open.
 
-## Standing finding 2: adm-zip — accepted risk, no fix exists
+## Standing finding 2: adm-zip — patched here, accepted risk for consumers
 
 [`GHSA-vwc7-r8mq-g2x9`][adm-zip-advisory] — extraction follows destination
 symlinks, allowing arbitrary file overwrite. CWE-59, moderate — CVSS v3.1 6.5,
-v4.0 6.8 — affecting `>=0.5.9 <=0.6.0`.
+v4.0 6.8 — affecting `>=0.5.9 <=0.6.0`. The advisory lists no patched version.
 
-**The latest published adm-zip is 0.6.0 — inside the affected range.** There is
-no version to upgrade to and nothing for an `overrides` entry to point at.
+**Our lockfile is patched.** adm-zip 0.6.1 (2026-09-11) is outside the range,
+and its release notes block extraction from writing through symlinks. The root
+`overrides` entry `"adm-zip": "^0.6.1"` forces the lock's single adm-zip entry
+to 0.6.1, although `@hieutran094/camoufox-js` itself still declares `^0.5.16`.
+
+**Consumers are not.** npm applies `overrides` only from the root project, so
+an app installing this package resolves camoufox-js's own `^0.5.16` — today
+0.5.18, inside the range. The residual-risk reasoning below is for them.
 
 We never import adm-zip. It arrives under `@hieutran094/camoufox-js`, and only
 half of its call sites are even the vulnerable shape:
@@ -257,18 +275,60 @@ half of its call sites are even the vulnerable shape:
 | `camoufox-js` `extractAllTo(dir, true)`           | extraction, overwrite on     | yes                | **yes**    |
 | `camoufox-js` `extractEntryTo(e, p, false, true)` | extraction, overwrite on     | yes                | **yes**    |
 
-Residual risk is low for three independent reasons:
+Residual risk for consumers is low for two independent reasons:
 
 1. An attacker must pre-plant a symlink inside `~/.cache/camoufox`. Anyone who
    can write there already holds the user's permissions.
 2. The archive is a `daijro/camoufox` GitHub release fetched over HTTPS, not
    attacker-supplied input.
-3. CI mostly avoids the path: `install-camoufox` prefers `gh release download`
-   plus system `unzip`, and clears the directory first.
 
-**Action:** accepted. Re-evaluate when adm-zip publishes above 0.6.0. Consumers
-on shared or multi-user hosts can set `CAMOUFOX_INSTALL_DIR` to a private
+Our own CI relies on the override, not on avoiding the path. Every
+`install-camoufox` call follows `setup-node-deps` (`npm ci`). A cache hit skips
+extraction. A cache miss runs `camoufox-js fetch` first, which extracts with the
+locked adm-zip 0.6.1. Only when that fails or yields the wrong version does the
+action clear the cache and fall back to `gh release download` plus system
+`unzip`.
+
+**Action:** keep the override until camoufox-js declares `>=0.6.1` itself, then
+drop it. Watch the advisory: it bounds the range by `last_affected`, so a
+widened range would re-cover 0.6.1. Consumers can add the same `overrides`
+entry, or on shared or multi-user hosts set `CAMOUFOX_INSTALL_DIR` to a private
 directory.
+
+## Standing finding 3: braces — accepted risk, no fix exists
+
+[`GHSA-vfj7-8cjw-p6xm`][braces-advisory] — deeply nested brace patterns
+exhaust the stack (uncontrolled recursion, denial of service). CWE-674, high —
+CVSS v3.1 7.5, v4.0 8.7 — affecting `<=3.0.3`.
+
+**The latest published braces is 3.0.3 — inside the affected range.** There is
+no version to upgrade to and nothing for an `overrides` entry to point at.
+
+We never import braces. It is a dev-only dependency, reached through exactly
+one chain: `eslint-plugin-check-file` → `micromatch` → `braces`.
+
+| call site                                   | pattern source                       | matched against | runtime |
+| ------------------------------------------- | ------------------------------------ | --------------- | ------- |
+| `check-file/filename-naming-convention`     | literal globs in `eslint.config.mjs` | repo file paths | no      |
+| `check-file/folder-naming-convention`       | literal globs in `eslint.config.mjs` | repo dir paths  | no      |
+| `check-file/folder-match-with-fex`          | literal globs in `eslint.config.mjs` | repo file paths | no      |
+| plugin naming presets (`PASCAL_CASE`, etc.) | constants inside the plugin          | path segments   | no      |
+
+Residual risk is negligible for three independent reasons:
+
+1. The only patterns that reach braces are written by maintainers, such as
+   `'src/**/*.{ts,tsx}'`. Nothing user-supplied or network-supplied is ever
+   expanded.
+2. The worst outcome is a crashed lint run on a developer machine or in CI —
+   no data exposure and no persistent effect.
+3. braces is not in `lib/`, not in the published tarball, and not in any
+   runtime dependency, so consumers of the package never install it.
+
+**Action:** accepted, and suppressed for Scorecard in the root
+`osv-scanner.toml` with `ignoreUntil = 2027-04-03`, so the ignore expires and
+forces a fresh look. Re-evaluate sooner if braces publishes above 3.0.3 or
+`eslint-plugin-check-file` drops micromatch. After the file lands on `main`,
+run `gh workflow run scorecard.yml` to clear the alert.
 
 ## Triage checklist
 
@@ -292,12 +352,17 @@ directory.
    spots listed under "The pull-request gate".
 5. **Scorecard `VulnerabilitiesID`?** Check the named GHSAs against the current
    lockfile first; the check is a weekly snapshot and is often already fixed —
-   alert 63 named two browserslist advisories that `9ebcbc7` had already
-   closed. It is one aggregate alert over all the OSV findings it lists, so it
-   clears only when every one of them does. Note that it has never listed
-   adm-zip, whose advisory bounds the range with `last_affected: 0.6.0` rather
-   than a `fixed` version; if Scorecard's handling of that shape changes, this
-   alert re-raises on something we cannot fix (standing finding 2).
+   an earlier snapshot of alert 63 named two browserslist advisories that
+   `9ebcbc7` had already closed. It is one aggregate alert over all the OSV
+   findings it lists, so it clears only when every one of them does. braces is
+   suppressed through `osv-scanner.toml` (standing finding 3). Any new entry
+   there needs a matching standing finding on this page, a `reason`, and an
+   `ignoreUntil` date. Note that the alert has never listed adm-zip, whose
+   advisory bounds the range with `last_affected: 0.6.0` rather than a `fixed`
+   version; the lockfile now holds 0.6.1, outside that range. If it is ever
+   raised, check that the override still holds, which adm-zip entries the lock
+   carries, whether the advisory range widened, and how the scanner reads
+   `last_affected` (standing finding 2).
 6. Need a fresh Scorecard result now? `gh workflow run scorecard.yml`. The
    weekly cadence alone meant a dependency fixed on a Tuesday stayed reported
    until the following Monday.
@@ -312,3 +377,4 @@ directory.
 [scorecard-restrictions]: https://github.com/ossf/scorecard-action#workflow-restrictions
 [stale-config]: https://docs.github.com/en/code-security/how-tos/manage-security-alerts/manage-code-scanning-alerts/resolve-alerts#removing-stale-configurations-and-alerts-from-a-branch
 [adm-zip-advisory]: https://github.com/advisories/GHSA-vwc7-r8mq-g2x9
+[braces-advisory]: https://github.com/advisories/GHSA-vfj7-8cjw-p6xm

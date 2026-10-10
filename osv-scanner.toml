@@ -1,0 +1,9 @@
+# OSV-Scanner config, read by the OpenSSF Scorecard Vulnerabilities check.
+# Every entry is an accepted risk with no available fix. Each one must be
+# documented in docs/workflow/code-scanning.md and carry an ignoreUntil date,
+# so the ignore expires and forces a re-evaluation.
+
+[[IgnoredVulns]]
+id = "GHSA-vfj7-8cjw-p6xm"
+ignoreUntil = 2027-04-03
+reason = "braces <=3.0.3 has no fix (latest is 3.0.3). Reached only via eslint-plugin-check-file -> micromatch at lint time, with trusted literal patterns from eslint.config.mjs; not in lib/ or runtime deps. See docs/workflow/code-scanning.md standing finding 3."
