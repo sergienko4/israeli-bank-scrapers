@@ -91,7 +91,10 @@ const MODE_B_CONDITION = "${{ !cancelled() && steps.setup.outcome == 'success' }
 const FILTER_ENV = 'INTEGRATION_BANK_FILTER';
 
 type ModeKey = keyof typeof MODES;
-type Env = Readonly<Record<string, unknown>>;
+
+/** A GitHub Actions `env:` value; the runner stringifies scalars. */
+type EnvValue = string | number | boolean;
+type Env = Readonly<Record<string, EnvValue>>;
 
 /** The exact command each mode step must run: same shard, same N. */
 const EXPECTED_RUN: Readonly<Record<ModeKey, string>> = {
@@ -132,7 +135,7 @@ interface IContractRule {
 }
 
 /** Keys a mutant overwrites on its target; an `undefined` value deletes the key. */
-type Patch = Readonly<Record<string, unknown>>;
+type Patch = Readonly<Partial<IWorkflow & IJob & IStrategy & IStep>>;
 
 /** Where a mutant applies its patch; `order` swaps the two mode steps. */
 type MutantTarget = 'workflow' | 'job' | 'strategy' | 'setup' | 'modeA' | 'modeB' | 'order';
