@@ -17,8 +17,9 @@
  *
  * <ul>
  *   <li>Deleting, renaming, or narrowing the group (`exclude-patterns`,
- *       `dependency-type`) falls back to the UI toggle or drops packages,
- *       and nothing in the repository records it.</li>
+ *       `dependency-type`, `update-types`) falls back to the UI toggle or
+ *       drops packages or updates, and nothing in the repository records
+ *       it.</li>
  *   <li>Adding `applies-to` to a version group, or a second security group,
  *       changes which group claims a package. Dependabot assigns each
  *       dependency to the first group it matches.</li>
@@ -48,14 +49,15 @@ const ALL_PACKAGES = '*';
 /** Expected number of npm security groups: one group for every advisory. */
 const SECURITY_GROUP_COUNT = 1;
 
-/** Group keys that shrink the set of packages a group matches. */
-const NARROWING_KEYS = ['exclude-patterns', 'dependency-type'] as const;
+/** Group keys that shrink the set of packages or updates a group matches. */
+const NARROWING_KEYS = ['exclude-patterns', 'dependency-type', 'update-types'] as const;
 
 interface IDependabotGroup {
   readonly 'applies-to'?: string;
   readonly patterns?: readonly string[];
   readonly 'exclude-patterns'?: readonly string[];
   readonly 'dependency-type'?: string;
+  readonly 'update-types'?: readonly string[];
 }
 
 interface IDependabotUpdate {
@@ -113,7 +115,7 @@ function isSecurityGroup(group: IDependabotGroup): boolean {
 }
 
 /**
- * Whether a group sets any key that shrinks its package set.
+ * Whether a group sets any key that shrinks its package or update set.
  *
  * @param group - Group to inspect.
  * @returns True when a narrowing key is present.
