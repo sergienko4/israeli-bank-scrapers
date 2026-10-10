@@ -371,7 +371,9 @@ the group without it ([GitHub's recovery steps][grouped-security-errors]). Do
 not narrow the group instead.
 `src/Tests/Unit/Pipeline/CrossValidation/DependabotSecurityGrouping.test.ts`
 fails if the group is removed, renamed, or narrowed (`exclude-patterns`,
-`dependency-type`, `update-types`).
+`dependency-type`, `update-types`). It also fails if another npm group is
+scoped to anything but version updates. Only a missing `applies-to` defaults
+to version updates; a key with an empty value fails.
 
 Turning the rule off is not documented to reopen alerts it already dismissed.
 If alert 52 still reads `auto_dismissed`, reopen it (Security → Dependabot →
