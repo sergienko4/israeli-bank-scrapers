@@ -519,9 +519,9 @@ jobs:
         run: /bin/bash .github/scripts/ci/tests/extract-exports.test.sh
 
   # ──────────────────────────────────────────────────────────────
-  # Unit tests with coverage — parallel with the e2e and integration
-  # jobs. Camoufox is NOT needed here (jest.pipeline.config.cjs
-  # excludes the browser-driven suites).
+  # Unit tests (coverage on the floor leg only) — parallel with the e2e
+  # and integration jobs. Camoufox is NOT needed here
+  # (jest.pipeline.config.cjs excludes the browser-driven suites).
   #
   # Also runs when only `deps` or `test_config` changed. A test-time
   # dependency bump (`@jest/globals`, `@types/*`) or a Jest config edit
@@ -572,13 +572,34 @@ jobs:
         with:
           camoufox: 'false'
           node-version: ${{ matrix.node }}
-      - name: Unit tests with coverage
-        run: npm run test:pipeline
-      # Only the floor leg publishes coverage. All legs run the same suite,
-      # so the extra copies add nothing, and `actions/upload-artifact` v4+
+      # Coverage runs on the floor leg only: every leg runs the same suite, so
+      # the other legs' copies add nothing and cost about a third of their
+      # test time. The floor is read from `.nvmrc`, not repeated here:
+      # `scripts/check-node-support.mjs` already fails the build unless
+      # `.nvmrc`, the `engines.node` floor and one matrix leg agree, so exactly
+      # one leg always matches. A literal here could go stale after a floor
+      # bump and silently switch the thresholds off on every leg.
+      - name: Pick the coverage leg
+        id: leg
+        env:
+          NODE_LEG: ${{ matrix.node }}
+        run: |
+          floor="$(tr -d '[:space:]' < .nvmrc)"
+          floor="${floor#v}"
+          if [ "$NODE_LEG" = "$floor" ]; then echo "coverage=true"; else echo "coverage=false"; fi >> "$GITHUB_OUTPUT"
+      - name: Unit tests
+        env:
+          COVERAGE: ${{ steps.leg.outputs.coverage }}
+        run: |
+          if [ "$COVERAGE" = "true" ]; then
+            npm run test:pipeline
+          else
+            npm run test:pipeline -- --coverage=false
+          fi
+      # Only the floor leg writes coverage, and `actions/upload-artifact` v4+
       # rejects a duplicate artifact name outright.
       - name: Upload coverage artifact
-        if: always() && matrix.node == '22.14.0'
+        if: always() && steps.leg.outputs.coverage == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: coverage-report

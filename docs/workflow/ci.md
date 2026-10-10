@@ -234,6 +234,10 @@ GITHUB_STEP_SUMMARY=/dev/stdout bash .github/scripts/ci/decoupling-compare.sh
 
 A PR that drops any threshold fails `test:pipeline`. The post-Commit-1 numbers (v8.4.0) are **97.20% / 95.23% / 97.19% / 98.45%**.
 
+In CI, only the floor-version leg of `Unit tests (Node …)` collects coverage and
+enforces these thresholds. It is the leg matching `.nvmrc`, and it uploads
+`coverage-report`. The other legs run the same suite with `--coverage=false`.
+
 ## Where to find logs
 
 | Where it ran | Log location |
