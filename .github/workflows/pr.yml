@@ -180,7 +180,8 @@ jobs:
       # Single-source-of-truth booleans for downstream `if:` conditions.
       # `trusted_event` — true unless this is a PR from a fork (untrusted secrets).
       # `real_gates_enabled` — true only when ALL prerequisites for running real-network /
-      # CPU-heavy gates hold: trusted_event AND non-dependabot author AND full_suite.
+      # CPU-heavy gates hold: trusted_event AND non-dependency-bot author
+      # (dependabot[bot] / renovate[bot]) AND full_suite.
       # Use `needs.validate.outputs.<name>` from downstream jobs (validate re-emits these).
       trusted_event: ${{ steps.gate.outputs.trusted_event }}
       real_gates_enabled: ${{ steps.gate.outputs.real_gates_enabled }}
@@ -1171,13 +1172,14 @@ jobs:
   dns-preflight:
     name: DNS Preflight (IL bank resolution)
     needs: validate
-    # Dependabot PRs SKIP the real-bank gate prerequisites — the validate
+    # Dependency-bot PRs (Dependabot, Renovate lockfile maintenance) SKIP
+    # the real-bank gate prerequisites — the validate
     # tier above (lint/types/unit/mocked/integration/build) is sufficient
     # to gate a dependency bump. The real-bank E2E happy-path remains
     # optional (manual approval) on human-authored PRs only. To exercise
     # the real gates for a browser-stack bump, re-raise it on a
     # maintainer-owned branch: `full_suite` then unlocks them.
-    # `real_gates_enabled` = trusted_event AND non-dependabot AND full_suite
+    # `real_gates_enabled` = trusted_event AND non-dependency-bot AND full_suite
     # (see .github/scripts/ci/compute-gate-booleans.sh for the predicate).
     # `!cancelled()` is load-bearing: `validate` runs under `always()`, and a
     # bare boolean `if:` here inherits the `skipped` GitHub propagates

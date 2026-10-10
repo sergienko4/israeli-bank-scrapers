@@ -544,6 +544,10 @@ else
 
   assert_eq "a bot author is exempt" "true" \
     "$(is_bot "{\"user\":{\"login\":\"dependabot[bot]\"},\"head\":$SAME,\"base\":$SAME}")"
+  assert_eq "a renovate author is exempt" "true" \
+    "$(is_bot "{\"user\":{\"login\":\"renovate[bot]\"},\"head\":$SAME,\"base\":$SAME}")"
+  assert_eq "a human on a renovate/ branch is not exempt" "false" \
+    "$(is_bot "{\"user\":{\"login\":\"human\"},\"head\":{\"ref\":\"renovate/x\",\"repo\":{\"full_name\":\"o/r\"}},\"base\":$SAME}")"
   assert_eq "a same-repo bot branch is exempt" "true" \
     "$(is_bot "{\"user\":{\"login\":\"human\"},\"head\":{\"ref\":\"release-please--x\",\"repo\":{\"full_name\":\"o/r\"}},\"base\":$SAME}")"
   assert_eq "a fork cannot claim a bot branch" "false" \
@@ -553,6 +557,67 @@ else
   assert_eq "a payload missing repo data is not exempt" "false" \
     "$(is_bot '{"user":{"login":"human"},"head":{"ref":"dependabot/x"}}')"
 fi
+
+# The real-gate half of the bot policy: a same-repo Renovate PR would
+# otherwise receive the bank secrets, so it must never unlock the real-bank
+# gates even when its lockfile refresh moves the browser stack and sets
+# full_suite.
+gate_out() {
+  local out
+  out="$(mktemp)"
+  EVENT_NAME="$1" HEAD_REPO="$2" BASE_REPO="o/r" PR_AUTHOR="$3" FULL_SUITE="$4" \
+    GITHUB_OUTPUT="$out" bash "$SCRIPT_DIR/compute-gate-booleans.sh" >/dev/null
+  paste -sd ' ' "$out"
+  rm -f "$out"
+}
+
+assert_eq "a renovate PR never unlocks the real gates" \
+  "trusted_event=true real_gates_enabled=false" \
+  "$(gate_out pull_request o/r 'renovate[bot]' true)"
+assert_eq "a dependabot PR never unlocks the real gates" \
+  "trusted_event=true real_gates_enabled=false" \
+  "$(gate_out pull_request o/r 'dependabot[bot]' true)"
+assert_eq "a same-repo human full-suite PR unlocks the real gates" \
+  "trusted_event=true real_gates_enabled=true" \
+  "$(gate_out pull_request o/r human true)"
+assert_eq "a fork PR is neither trusted nor gated" \
+  "trusted_event=false real_gates_enabled=false" \
+  "$(gate_out pull_request fork/r human true)"
+assert_eq "a manual dispatch unlocks the real gates" \
+  "trusted_event=true real_gates_enabled=true" \
+  "$(gate_out workflow_dispatch '' '' false)"
+
+# The detector half: `renovate.json` decides what Renovate may change, so a
+# config-only PR must still run the dependency gates. Build a throwaway
+# history so the detector diffs a real commit rather than a mocked list.
+DET_DIR="$(mktemp -d "${TMPDIR:-/tmp}/detect-smoke.XXXXXX")"
+trap 'rm -f "$SUMMARY_FILE" "$MEM_FILE"; rm -rf "$DEC_DIR" "$DOC_DIR" "$DET_DIR"' EXIT
+(
+  cd "$DET_DIR" || exit 1
+  git init -q .
+  git config user.email smoke@example.com
+  git config user.name smoke
+  git config commit.gpgsign false
+  printf 'x\n' > README.md
+  git add -A && git commit -qm base
+  printf '{}\n' > renovate.json
+  git add -A && git commit -qm renovate
+) > /dev/null 2>&1
+detect_flag() {
+  local out
+  out="$(mktemp)"
+  (cd "$DET_DIR" && BASE_SHA="$(git rev-parse HEAD~1)" GITHUB_OUTPUT="$out" \
+    bash "$SCRIPT_DIR/detect-changes.sh") > /dev/null 2>&1
+  grep -E "^$1=" "$out"
+  rm -f "$out"
+}
+
+assert_eq "a renovate.json-only change runs the dependency gates" \
+  "deps=true" "$(detect_flag deps)"
+assert_eq "a renovate.json-only change leaves the browser stack alone" \
+  "critical_deps=false" "$(detect_flag critical_deps)"
+assert_eq "a renovate.json-only change does not force the full suite" \
+  "full_suite=false" "$(detect_flag full_suite)"
 
 # ── 9. npm publish verification ──
 # `verify-npm-publish.sh` is what turns "npm publish exited 0" into "a consumer

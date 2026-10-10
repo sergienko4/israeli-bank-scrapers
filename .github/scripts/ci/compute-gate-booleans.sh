@@ -11,8 +11,9 @@
 #   real_gates_enabled  ? true ONLY when ALL prerequisites hold for running the heavy
 #                         real-network / CPU-intensive gates:
 #                           1. trusted_event             (excludes fork PRs)
-#                           2. PR author ? dependabot[bot] (stable across reruns; uses
-#                              pull_request.user.login, NOT github.actor)
+#                           2. PR author is not a dependency bot (dependabot[bot] or
+#                              renovate[bot]); stable across reruns because it uses
+#                              pull_request.user.login, NOT github.actor
 #                           3. full_suite                 (src/ touched OR the browser
 #                              stack moved ? see detect-changes.sh `critical_deps`;
 #                              skips docs-only / chore PRs)
@@ -24,6 +25,10 @@
 # bank credentials would resolve empty. The supported path for validating a browser
 # stack bump end-to-end is to re-raise it on a maintainer-owned branch, where
 # `full_suite` then unlocks the same gates a `src/` PR gets.
+#
+# Renovate's weekly lockfile-maintenance PR is excluded for the opposite reason:
+# it lives on a same-repo branch, so it WOULD receive the full bank secrets while
+# `npm ci` runs install scripts from packages no maintainer has reviewed yet.
 #
 # Inputs come via env (set in the calling workflow step):
 #   EVENT_NAME   ? github.event_name
@@ -59,8 +64,12 @@ is_trusted_event() {
   return 1
 }
 
-is_dependabot_pr() {
-  [[ "$EVENT_NAME" == "pull_request" && "$PR_AUTHOR" == "dependabot[bot]" ]]
+is_dependency_bot_pr() {
+  [[ "$EVENT_NAME" == "pull_request" ]] || return 1
+  case "$PR_AUTHOR" in
+    "dependabot[bot]" | "renovate[bot]") return 0 ;;
+  esac
+  return 1
 }
 
 full_suite_or_dispatch() {
@@ -74,7 +83,7 @@ if is_trusted_event; then
 fi
 
 real="false"
-if [[ "$trusted" == "true" ]] && ! is_dependabot_pr && full_suite_or_dispatch; then
+if [[ "$trusted" == "true" ]] && ! is_dependency_bot_pr && full_suite_or_dispatch; then
   real="true"
 fi
 

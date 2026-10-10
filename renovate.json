@@ -1,0 +1,42 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [],
+  "ignorePresets": ["mergeConfidence:all-badges"],
+  "forkProcessing": "enabled",
+  "enabledManagers": ["npm"],
+  "dependencyDashboard": false,
+  "vulnerabilityAlerts": { "enabled": false },
+  "osvVulnerabilityAlerts": false,
+  "timezone": "Asia/Jerusalem",
+  "labels": ["dependencies"],
+  "semanticCommits": "enabled",
+  "constraints": { "npm": "10.9.2" },
+  "packageRules": [
+    {
+      "description": "Fail closed: disable every dependency update, including future update types. Lock file maintenance has no package name, so this rule never matches it.",
+      "matchPackageNames": ["*"],
+      "enabled": false
+    },
+    {
+      "description": "Defense in depth: name each known non-lockfile update type explicitly.",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "pinDigest",
+        "digest",
+        "rollback",
+        "bump",
+        "replacement"
+      ],
+      "enabled": false
+    }
+  ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["* 0-5 * * 5"],
+    "minimumReleaseAge": "3 days",
+    "automerge": false
+  }
+}

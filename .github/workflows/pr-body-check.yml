@@ -26,7 +26,7 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
-            // Bot-authored PRs (Dependabot, release-please) cannot generate the §10
+            // Bot-authored PRs (Dependabot, Renovate, release-please) cannot generate the §10
             // guideline-compliance table by design. Exempt them so dependency bumps and
             // release PRs are not blocked from auto-merge. Human PRs remain enforced.
             // Shared with the cited-path check below so both gates exempt the same set.

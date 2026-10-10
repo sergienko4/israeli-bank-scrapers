@@ -39,10 +39,12 @@
 #                 group: a change to `transformIgnorePatterns`, `moduleNameMapper`
 #                 or `testEnvironment` used to reach main with the unit suite
 #                 never having run under the new config. Forces `unit-tests`.
-#   deps        — `package.json`, `package-lock.json`, or
-#                 `.github/dependabot.yml` was modified. Forces the
+#   deps        — `package.json`, `package-lock.json`,
+#                 `.github/dependabot.yml` or `renovate.json` was modified.
+#                 Forces the
 #                 browser E2E gates (e2e-mocked + e2e-factory) to RUN on
-#                 dependency-only PRs (e.g. dependabot bumps) that touch
+#                 dependency-only PRs (e.g. dependabot bumps, Renovate's
+#                 weekly lockfile maintenance) that touch
 #                 no `src/` file. Without this a runtime-dep bump such as
 #                 playwright-core could land UNvalidated against Camoufox
 #                 (the 1.61.0 `Browser.setDefaultViewport` regression that
@@ -238,7 +240,7 @@ if has '\.md$'; then md=true; fi
 if has '^docs/|^mkdocs\.yml$|^requirements-docs\.txt$|^typedoc\.json$|^compatibility\.json$|^scripts/build-compatibility\.mjs$'; then docs=true; fi
 if has '^src/Scrapers/Pipeline/.*\.ts$'; then pipeline_ts=true; fi
 if has '^\.github/scripts/ci/|^\.github/workflows/|^\.github/actions/|^\.husky/|^scripts/check-shell-portability\.mjs$'; then ci_scripts=true; fi
-if has '^package\.json$|^package-lock\.json$|^\.github/dependabot\.yml$'; then deps=true; fi
+if has '^package\.json$|^package-lock\.json$|^\.github/dependabot\.yml$|^renovate\.json$'; then deps=true; fi
 if has '^jest\..*\.(js|cjs|mjs|ts)$|^jest\.config\.(js|cjs|mjs|ts)$'; then test_config=true; fi
 if has '^scripts/decoupling-metrics/'; then metrics=true; fi
 # Everything that defines the published API surface or the check that guards

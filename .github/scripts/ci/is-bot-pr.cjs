@@ -1,15 +1,25 @@
 /**
  * Accounts and branch prefixes that identify repository automation.
  *
- * Bot PRs are exempt from the PR-body gates: Dependabot and release-please
- * generate their bodies, so they cannot produce the §10 guideline-compliance
- * table, and their changelogs cite paths from across the whole history —
- * including files that have since moved.
+ * Bot PRs are exempt from the PR-body gates: Dependabot, Renovate's weekly
+ * lockfile maintenance and release-please generate their bodies, so they
+ * cannot produce the §10 guideline-compliance table, and their changelogs
+ * cite paths from across the whole history — including files that have since
+ * moved.
+ *
+ * `renovate/` is deliberately NOT a trusted branch prefix: Renovate opens its
+ * PRs as `renovate[bot]`, so the author check is enough, and a prefix would
+ * let any collaborator exempt a hand-written PR just by naming the branch.
  *
  * `.cjs` because the package is `"type": "module"` and `actions/github-script`
  * loads this with `require`.
  */
-const BOT_AUTHORS = new Set(['dependabot[bot]', 'release-please[bot]', 'github-actions[bot]']);
+const BOT_AUTHORS = new Set([
+  'dependabot[bot]',
+  'renovate[bot]',
+  'release-please[bot]',
+  'github-actions[bot]',
+]);
 
 const BOT_BRANCH_PREFIXES = ['dependabot/', 'release-please--'];
 

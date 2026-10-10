@@ -9,7 +9,9 @@ source-files:
   - package.json
   - package-lock.json
   - .github/dependabot.yml
+  - renovate.json
   - src/Tests/Unit/Pipeline/CrossValidation/DependabotSecurityGrouping.test.ts
+  - src/Tests/Unit/Pipeline/CrossValidation/RenovateLockfileMaintenancePolicy.test.ts
 ---
 
 # Code scanning: two scanners, one authority
@@ -381,9 +383,48 @@ the alert → Reopen) so Dependabot can raise the pull request. Reopen only an
 alert that has a patched version; without one there is nothing to bump.
 
 **Limit:** Dependabot never targets a transitive that has no open alert. It
-moves only when a direct-dependency bump happens to re-resolve it. Keeping
-those current needs a lockfile refresh such as `npm update`, which this page
-does not cover.
+moves only when a direct-dependency bump happens to re-resolve it. A second
+lane covers the rest: [Renovate lockfile maintenance][renovate-lfm], configured
+in `renovate.json` with every other update type disabled, so it never
+competes with Dependabot. The first `packageRules` entry disables every
+package by name (`"*"`), so an update type Renovate adds later stays off too.
+Lockfile maintenance has no package name, so that rule never matches it.
+
+- Once a week (Friday, 00:00–05:59 Asia/Jerusalem) it regenerates the whole
+  `package-lock.json` within the ranges in `package.json`. It opens at most one
+  pull request, `chore(deps): lock file maintenance`, and only when the
+  lockfile changes.
+- `minimumReleaseAge: "3 days"` is a best-effort cooldown. Renovate resolves
+  against the registry as it stood three days earlier, so a version published
+  in the last three days is normally not picked up. If that snapshot cannot
+  satisfy a range, Renovate retries without the cooldown and notes the
+  fallback in the pull request. Friday keeps Monday's Dependabot bumps at
+  least four days old, so that retry stays rare. The controls that do not
+  fail open are the ones below: no automerge, code-owner review, the full
+  unit and mocked E2E run, and no bank secrets.
+- `constraints.npm` pins npm 10.9.2, the version bundled with the Node release
+  in `.nvmrc` that CI installs, so the lockfile format matches `npm ci`.
+- Dependabot security pull requests take precedence. When one merges first and
+  the lockfiles conflict, Renovate regenerates its branch on its next run
+  (`rebaseWhen` defaults to rebasing a conflicted branch).
+- The pull request is authored by `renovate[bot]`. `is-bot-pr.cjs` exempts it
+  from the PR-body gates, and `compute-gate-booleans.sh` keeps it off the
+  real-bank gates, so bank secrets never reach freshly installed package code.
+  The unit and mocked E2E suites still run (`deps` covers the lockfile).
+- It is never auto-merged: it needs code-owner approval like any other pull
+  request. `chore` is a hidden changelog type in `release-please-config.json`.
+- The [Renovate app][renovate-app] must run this repository in Interactive
+  mode; in Silent mode it opens no pull requests.
+
+To roll back: switch the app to Silent (or uninstall it), close the open pull
+request and delete its `renovate/lock-file-maintenance` branch, then revert the
+commit that added `renovate.json`. Confirm no onboarding pull request appears.
+
+`src/Tests/Unit/Pipeline/CrossValidation/RenovateLockfileMaintenancePolicy.test.ts`
+fails if `renovate.json` enables another update type, if `packageRules`
+drifts from the exact catch-all and update-type pair, if the cooldown or the
+schedule is dropped, if automerge is turned on, or if either bot exemption
+drifts.
 
 Verify after a change:
 
@@ -456,3 +497,5 @@ a few minutes more — and expect `fixed`.
 [braces-advisory]: https://github.com/advisories/GHSA-vfj7-8cjw-p6xm
 [fast-copy-advisory]: https://github.com/advisories/GHSA-jggr-w7fw-pc2j
 [grouped-security-errors]: https://docs.github.com/en/code-security/reference/supply-chain-security/troubleshoot-dependabot/dependabot-errors#failed-to-update-dependency-in-grouped-pull-request
+[renovate-lfm]: https://docs.renovatebot.com/configuration-options/#lockfilemaintenance
+[renovate-app]: https://github.com/apps/renovate
