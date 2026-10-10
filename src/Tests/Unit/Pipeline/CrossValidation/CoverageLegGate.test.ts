@@ -10,11 +10,16 @@
  * scripts under the workflow's own shell, against the committed `.nvmrc`
  * bytes. That file is CRLF today.
  *
+ * <p>The picker only helps if a PR that moves `.nvmrc` runs it. `.nvmrc` sits
+ * at the repo root, outside every path group but `deps`, so that group must
+ * list it and the gates that read it must fire on `deps`.
+ *
  * Rules:
  *   CLG-1  exactly one matrix leg picks coverage, and it is the `.nvmrc` version
  *   CLG-2  the picker ignores line endings, padding and a leading `v`
  *   CLG-3  the test step passes `--coverage=false` on every leg but the picked one
  *   CLG-4  the steps are wired in order, and the upload runs only on the picked leg
+ *   CLG-5  a `.nvmrc` change sets `deps`, and `deps` alone runs this job and the drift check
  */
 
 import { spawnSync } from 'node:child_process';
@@ -33,11 +38,33 @@ const THIS_DIR = dirname(THIS_FILE_PATH);
 const REPO_ROOT = join(THIS_DIR, '../../../../../');
 const PR_YAML = join(REPO_ROOT, '.github/workflows/pr.yml');
 const NVMRC = join(REPO_ROOT, '.nvmrc');
+const DETECTOR = join(REPO_ROOT, '.github/scripts/ci/detect-changes.sh');
 
 const PICK_STEP = 'Pick the coverage leg';
 const TEST_STEP = 'Unit tests';
 const UPLOAD_STEP = 'Upload coverage artifact';
 const UPLOAD_IF = "always() && steps.leg.outputs.coverage == 'true'";
+const UNIT_JOB = 'unit-tests';
+const DEPS_FLAG = "needs.changes.outputs.deps == 'true'";
+
+/** The detector's `deps` test, kept on one line so its alternation can be read back. */
+const DEPS_LINE = /^if has '([^']+)'; then deps=true; fi\r?$/mu;
+
+/** A job, or one named step in it, whose `if:` decides whether it runs. */
+interface IGateSite {
+  readonly job: string;
+  readonly step?: string;
+}
+
+/**
+ * Everything that must run when `.nvmrc` alone moves: the matrix that picks the
+ * coverage leg from it, and the check that ties it to `engines.node` and a leg.
+ */
+const NVMRC_GATES: readonly IGateSite[] = [
+  { job: UNIT_JOB },
+  { job: 'lint-and-types' },
+  { job: 'lint-and-types', step: 'Advertised Node range matches the tested one' },
+];
 
 /** Arguments the test step hands to `npm`, keyed by the picker's verdict. */
 const NPM_ARGS = {
@@ -67,6 +94,7 @@ interface IPrYamlDoc {
     Record<
       string,
       {
+        readonly if?: string;
         readonly strategy?: { readonly matrix?: { readonly node?: readonly string[] } };
         readonly steps: readonly IStep[];
       }
@@ -90,22 +118,14 @@ function loadPrYaml(): IPrYamlDoc {
 }
 
 /**
- * The `unit-tests` job's steps.
- * @param doc - Parsed workflow.
- * @returns Its steps, in order.
- */
-function unitSteps(doc: IPrYamlDoc): readonly IStep[] {
-  return doc.jobs['unit-tests'].steps;
-}
-
-/**
- * Index of the one `unit-tests` step with this name.
+ * Index of the one step with this name in a job.
  * @param doc - Parsed workflow.
  * @param name - Step name.
+ * @param job - Job key; `unit-tests` unless given.
  * @returns Its index; throws unless exactly one step carries the name.
  */
-function stepIndex(doc: IPrYamlDoc, name: string): number {
-  const steps = unitSteps(doc);
+function stepIndex(doc: IPrYamlDoc, name: string, job = UNIT_JOB): number {
+  const steps = doc.jobs[job].steps;
   const hits = steps.filter((step): boolean => step.name === name);
   if (hits.length !== 1)
     throw new RangeError(`expected one "${name}" step, found ${String(hits.length)}`);
@@ -113,14 +133,52 @@ function stepIndex(doc: IPrYamlDoc, name: string): number {
 }
 
 /**
- * The one `unit-tests` step with this name.
+ * The one step with this name in a job.
  * @param doc - Parsed workflow.
  * @param name - Step name.
+ * @param job - Job key; `unit-tests` unless given.
  * @returns The step.
  */
-function stepNamed(doc: IPrYamlDoc, name: string): IStep {
-  const index = stepIndex(doc, name);
-  return unitSteps(doc)[index];
+function stepNamed(doc: IPrYamlDoc, name: string, job = UNIT_JOB): IStep {
+  const index = stepIndex(doc, name, job);
+  return doc.jobs[job].steps[index];
+}
+
+/**
+ * Collapse every parenthesised group, innermost first, so only top-level
+ * operators are left.
+ * @param condition - An `if:` expression.
+ * @returns The expression with each group replaced by `<group>`.
+ */
+function flattenGroups(condition: string): string {
+  const flat = condition.replace(/\([^()]*\)/gu, '<group>');
+  return flat === condition ? flat : flattenGroups(flat);
+}
+
+/**
+ * The `if:` that decides whether a job or step runs, split into its top-level
+ * `||` terms. A flag that is a whole term fires on its own. One joined by `&&`
+ * or inside a group, as in `a && (b || deps)`, does not.
+ * @param doc - Parsed workflow.
+ * @param site - The job, and optionally the step, to read.
+ * @returns The terms; empty when there is no condition.
+ */
+function orTerms(doc: IPrYamlDoc, site: IGateSite): readonly string[] {
+  const source = site.step === undefined ? doc.jobs[site.job] : stepNamed(doc, site.step, site.job);
+  const condition = source.if ?? '';
+  return flattenGroups(condition).split(' || ');
+}
+
+/**
+ * The detector's `deps` pattern, exactly as `has` passes it to `grep -E`.
+ * @returns The alternation; throws when the line is gone, since an empty
+ *   pattern would match every path.
+ */
+function depsPattern(): string {
+  const script = readFileSync(DETECTOR, 'utf8');
+  const line = DEPS_LINE.exec(script);
+  if (line === null) throw new RangeError('detect-changes.sh: no one-line `deps=true` test');
+  return line[1];
 }
 
 /**
@@ -129,7 +187,7 @@ function stepNamed(doc: IPrYamlDoc, name: string): IStep {
  * @returns The legs, in declaration order.
  */
 function matrixLegs(doc: IPrYamlDoc): readonly string[] {
-  return doc.jobs['unit-tests'].strategy?.matrix?.node ?? [];
+  return doc.jobs[UNIT_JOB].strategy?.matrix?.node ?? [];
 }
 
 /**
@@ -264,5 +322,19 @@ describe('CoverageLegGate', () => {
       COVERAGE: '${{ steps.leg.outputs.coverage }}',
     });
     expect(stepNamed(doc, UPLOAD_STEP).if).toBe(UPLOAD_IF);
+  });
+
+  it('[CLG-5] Detector_NvmrcChange_ShouldSetDeps', () => {
+    if (canRunPosixBash(process.platform)) {
+      const pattern = depsPattern();
+      const grep = spawnSync('grep', ['-qE', pattern], { input: '.nvmrc\n' });
+      expect(grep.status).toBe(0);
+    }
+  });
+
+  it.each(NVMRC_GATES)('[CLG-5] PrYaml_%j_ShouldRunOnDepsAlone', site => {
+    const doc = loadPrYaml();
+    const terms = orTerms(doc, site);
+    expect(terms).toContain(DEPS_FLAG);
   });
 });

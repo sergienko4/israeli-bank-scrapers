@@ -40,8 +40,8 @@
 #                 or `testEnvironment` used to reach main with the unit suite
 #                 never having run under the new config. Forces `unit-tests`.
 #   deps        — `package.json`, `package-lock.json`,
-#                 `.github/dependabot.yml` or `renovate.json` was modified.
-#                 Forces the
+#                 `.github/dependabot.yml`, `renovate.json` or `.nvmrc` was
+#                 modified. Forces the
 #                 browser E2E gates (e2e-mocked + e2e-factory) to RUN on
 #                 dependency-only PRs (e.g. dependabot bumps, Renovate's
 #                 weekly lockfile maintenance) that touch
@@ -52,6 +52,11 @@
 #                 Also forces `unit-tests`: a bump to a test-time dependency
 #                 (`@jest/globals`, `@types/*`, `ts-jest`) can only surface
 #                 there, and those bumps touch no `src/` file either.
+#                 `.nvmrc` is the Node every single-version job installs and
+#                 the version `unit-tests` picks its coverage leg from, yet it
+#                 matched NO group: a PR moving it alone skipped `unit-tests`
+#                 and the `lint:node-support` check that ties it to
+#                 `engines.node` and the matrix.
 #   critical_deps — the BROWSER STACK moved: `playwright-core` or Camoufox
 #                 (`@hieutran094/camoufox-js`, the pinned browser binary, or
 #                 the `scripts/patch-playwright-core.mjs` guard). `deps` alone
@@ -240,7 +245,7 @@ if has '\.md$'; then md=true; fi
 if has '^docs/|^mkdocs\.yml$|^requirements-docs\.txt$|^typedoc\.json$|^compatibility\.json$|^scripts/build-compatibility\.mjs$'; then docs=true; fi
 if has '^src/Scrapers/Pipeline/.*\.ts$'; then pipeline_ts=true; fi
 if has '^\.github/scripts/ci/|^\.github/workflows/|^\.github/actions/|^\.husky/|^scripts/check-shell-portability\.mjs$'; then ci_scripts=true; fi
-if has '^package\.json$|^package-lock\.json$|^\.github/dependabot\.yml$|^renovate\.json$'; then deps=true; fi
+if has '^package\.json$|^package-lock\.json$|^\.github/dependabot\.yml$|^renovate\.json$|^\.nvmrc$'; then deps=true; fi
 if has '^jest\..*\.(js|cjs|mjs|ts)$|^jest\.config\.(js|cjs|mjs|ts)$'; then test_config=true; fi
 if has '^scripts/decoupling-metrics/'; then metrics=true; fi
 # Everything that defines the published API surface or the check that guards

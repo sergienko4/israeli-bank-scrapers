@@ -286,6 +286,8 @@ In CI, only the floor-version leg of `Unit tests (Node …)` collects coverage a
 enforces these thresholds. It is the leg matching `.nvmrc`, and it uploads
 `coverage-report`. The other legs run the same suite with `--coverage=false`.
 `SonarCloud Scan` downloads that artifact rather than running the suite again.
+Changing `.nvmrc` sets the `deps` flag, so even a PR that changes nothing else
+runs these legs and the check that ties `.nvmrc` to `engines.node`.
 
 ## Where to find logs
 
