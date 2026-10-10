@@ -6,6 +6,8 @@ source-files:
   - .github/scripts/ci/scorecard-npm-pins.sh
   - .github/scripts/ci/check-scorecard-npm-pins.mjs
   - scripts/filter-scorecard-sarif.mjs
+  - package.json
+  - package-lock.json
 ---
 
 # Code scanning: two scanners, one authority
