@@ -1,3 +1,8 @@
+---
+source-files:
+  - osv-scanner.toml
+---
+
 # Code scanning: two scanners, one authority
 
 > **Who this is for:** maintainers triaging GitHub **Security → Code scanning**
@@ -6,7 +11,7 @@
 This repository uploads SARIF from three tools: **CodeQL**, **zizmor**, and
 **OpenSSF Scorecard**. For anything concerning GitHub Actions, **zizmor is the
 authority and Scorecard is advisory**. This page explains why, and records the
-two standing findings that should not be "fixed".
+three standing findings that should not be "fixed".
 
 ## Why zizmor decides
 
@@ -270,6 +275,41 @@ Residual risk is low for three independent reasons:
 on shared or multi-user hosts can set `CAMOUFOX_INSTALL_DIR` to a private
 directory.
 
+## Standing finding 3: braces — accepted risk, no fix exists
+
+[`GHSA-vfj7-8cjw-p6xm`][braces-advisory] — deeply nested brace patterns
+exhaust the stack (uncontrolled recursion, denial of service). CWE-674, high —
+CVSS v3.1 7.5, v4.0 8.7 — affecting `<=3.0.3`.
+
+**The latest published braces is 3.0.3 — inside the affected range.** There is
+no version to upgrade to and nothing for an `overrides` entry to point at.
+
+We never import braces. It is a dev-only dependency, reached through exactly
+one chain: `eslint-plugin-check-file` → `micromatch` → `braces`.
+
+| call site                                   | pattern source                       | matched against | runtime |
+| ------------------------------------------- | ------------------------------------ | --------------- | ------- |
+| `check-file/filename-naming-convention`     | literal globs in `eslint.config.mjs` | repo file paths | no      |
+| `check-file/folder-naming-convention`       | literal globs in `eslint.config.mjs` | repo dir paths  | no      |
+| `check-file/folder-match-with-fex`          | literal globs in `eslint.config.mjs` | repo file paths | no      |
+| plugin naming presets (`PASCAL_CASE`, etc.) | constants inside the plugin          | path segments   | no      |
+
+Residual risk is negligible for three independent reasons:
+
+1. The only patterns that reach braces are written by maintainers, such as
+   `'src/**/*.{ts,tsx}'`. Nothing user-supplied or network-supplied is ever
+   expanded.
+2. The worst outcome is a crashed lint run on a developer machine or in CI —
+   no data exposure and no persistent effect.
+3. braces is not in `lib/`, not in the published tarball, and not in any
+   runtime dependency, so consumers of the package never install it.
+
+**Action:** accepted, and suppressed for Scorecard in the root
+`osv-scanner.toml` with `ignoreUntil = 2027-04-03`, so the ignore expires and
+forces a fresh look. Re-evaluate sooner if braces publishes above 3.0.3 or
+`eslint-plugin-check-file` drops micromatch. After the file lands on `main`,
+run `gh workflow run scorecard.yml` to clear the alert.
+
 ## Triage checklist
 
 1. **zizmor finding?** Real. It blocks; fix it, or suppress it in-file with a
@@ -292,12 +332,15 @@ directory.
    spots listed under "The pull-request gate".
 5. **Scorecard `VulnerabilitiesID`?** Check the named GHSAs against the current
    lockfile first; the check is a weekly snapshot and is often already fixed —
-   alert 63 named two browserslist advisories that `9ebcbc7` had already
-   closed. It is one aggregate alert over all the OSV findings it lists, so it
-   clears only when every one of them does. Note that it has never listed
-   adm-zip, whose advisory bounds the range with `last_affected: 0.6.0` rather
-   than a `fixed` version; if Scorecard's handling of that shape changes, this
-   alert re-raises on something we cannot fix (standing finding 2).
+   an earlier snapshot of alert 63 named two browserslist advisories that
+   `9ebcbc7` had already closed. It is one aggregate alert over all the OSV
+   findings it lists, so it clears only when every one of them does. braces is
+   suppressed through `osv-scanner.toml` (standing finding 3). Any new entry
+   there needs a matching standing finding on this page, a `reason`, and an
+   `ignoreUntil` date. Note that the alert has never listed adm-zip, whose
+   advisory bounds the range with `last_affected: 0.6.0` rather than a `fixed`
+   version; if Scorecard's handling of that shape changes, this alert re-raises
+   on something we cannot fix (standing finding 2).
 6. Need a fresh Scorecard result now? `gh workflow run scorecard.yml`. The
    weekly cadence alone meant a dependency fixed on a Tuesday stayed reported
    until the following Monday.
@@ -312,3 +355,4 @@ directory.
 [scorecard-restrictions]: https://github.com/ossf/scorecard-action#workflow-restrictions
 [stale-config]: https://docs.github.com/en/code-security/how-tos/manage-security-alerts/manage-code-scanning-alerts/resolve-alerts#removing-stale-configurations-and-alerts-from-a-branch
 [adm-zip-advisory]: https://github.com/advisories/GHSA-vwc7-r8mq-g2x9
+[braces-advisory]: https://github.com/advisories/GHSA-vfj7-8cjw-p6xm
