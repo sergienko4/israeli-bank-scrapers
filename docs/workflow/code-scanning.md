@@ -273,14 +273,19 @@ half of its call sites are even the vulnerable shape:
 | `camoufox-js` `extractAllTo(dir, true)`           | extraction, overwrite on     | yes                | **yes**    |
 | `camoufox-js` `extractEntryTo(e, p, false, true)` | extraction, overwrite on     | yes                | **yes**    |
 
-Residual risk is low for three independent reasons:
+Residual risk for consumers is low for two independent reasons:
 
 1. An attacker must pre-plant a symlink inside `~/.cache/camoufox`. Anyone who
    can write there already holds the user's permissions.
 2. The archive is a `daijro/camoufox` GitHub release fetched over HTTPS, not
    attacker-supplied input.
-3. CI mostly avoids the path: `install-camoufox` prefers `gh release download`
-   plus system `unzip`, and clears the directory first.
+
+Our own CI relies on the override, not on avoiding the path. Every
+`install-camoufox` call follows `setup-node-deps` (`npm ci`). A cache hit skips
+extraction. A cache miss runs `camoufox-js fetch` first, which extracts with the
+locked adm-zip 0.6.1. Only when that fails or yields the wrong version does the
+action clear the cache and fall back to `gh release download` plus system
+`unzip`.
 
 **Action:** keep the override until camoufox-js declares `>=0.6.1` itself, then
 drop it. Watch the advisory: it bounds the range by `last_affected`, so a
@@ -352,8 +357,10 @@ run `gh workflow run scorecard.yml` to clear the alert.
    there needs a matching standing finding on this page, a `reason`, and an
    `ignoreUntil` date. Note that the alert has never listed adm-zip, whose
    advisory bounds the range with `last_affected: 0.6.0` rather than a `fixed`
-   version; the lockfile now holds 0.6.1, outside that range, so a re-raise
-   means the override was lost or the advisory widened (standing finding 2).
+   version; the lockfile now holds 0.6.1, outside that range. If it is ever
+   raised, check that the override still holds, which adm-zip entries the lock
+   carries, whether the advisory range widened, and how the scanner reads
+   `last_affected` (standing finding 2).
 6. Need a fresh Scorecard result now? `gh workflow run scorecard.yml`. The
    weekly cadence alone meant a dependency fixed on a Tuesday stayed reported
    until the following Monday.
