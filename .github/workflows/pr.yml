@@ -861,6 +861,8 @@ jobs:
   # cancels the whole shard and fails Validate. There are no step
   # timeouts: a step kill can leave Camoufox children running while
   # Mode B starts.
+  #
+  # Pinned by IntegrationShardGate.test.ts [ISG-1..ISG-11].
   # ──────────────────────────────────────────────────────────────
   integration:
     name: Integration (shard ${{ matrix.shard }}/3)
