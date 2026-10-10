@@ -83,6 +83,27 @@ workflow-level `concurrency` group with `cancel-in-progress: true`, keyed
 workflow calls any of the four twice, because both calls would share the
 caller's `run_id` and the second would cancel the first.
 
+## Closed PRs' caches are deleted
+
+A PR's Actions caches live on `refs/pull/<N>/merge`. Nothing reads them once
+the PR closes, but they still count against the repository's 10 GB cache
+quota and push `main`'s caches out. `.github/workflows/cache-cleanup.yml`
+deletes them in two ways:
+
+- **On `closed`** it deletes that PR's caches straight away.
+- **Daily**, and on manual dispatch, a sweep lists every
+  `refs/pull/<N>/merge` that still has caches and deletes those of PRs that
+  are no longer open. It exists because some closes never start the
+  `closed` run: a PR closed or merged with `GITHUB_TOKEN` (the fork policy
+  above, Dependabot auto-merge), or one closed with a merge conflict.
+
+Both read the PR's state right before deleting and skip an open PR, so a PR
+reopened in the meantime keeps its caches. Only `refs/pull/<N>/merge` with a
+numeric `N` is ever deleted, so `main`'s caches are out of reach. A failed
+delete is re-checked: if another run already removed the caches, the job
+still passes; if any are left, it fails. `CacheCleanupGate.test.ts` runs the
+committed script against a stubbed `gh` to pin all of this.
+
 ## Link checking
 
 BLUF: Lychee checks every link in `README.md` and `docs/**/*.md`, but it

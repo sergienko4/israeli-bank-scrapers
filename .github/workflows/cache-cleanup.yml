@@ -1,0 +1,84 @@
+name: Cache cleanup
+
+# Deletes the Actions caches of closed pull requests. A PR's caches live on
+# `refs/pull/<N>/merge`, where nothing reads them after it closes, but they
+# still count against the 10 GB repository quota and evict `main`'s caches.
+#
+# Two paths, one script:
+#   - `closed` deletes that PR's caches straight away.
+#   - The daily sweep catches PRs that never fire `closed` for this
+#     workflow. No run starts for a PR closed or merged with `GITHUB_TOKEN`
+#     (`no-fork-prs.yml`, Dependabot auto-merge), or for one closed while it
+#     has a merge conflict.
+#
+# Only `refs/pull/<N>/merge` with a numeric `N` is ever deleted, so `main`'s
+# caches are out of reach. An open PR is always skipped: the state is read
+# right before deleting, so a PR reopened after `closed` fired keeps its
+# caches. If a PR is reopened between that read and the delete, it loses
+# one cache hit on its next run; correctness is unaffected.
+
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: '43 3 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+# One group per PR, never cancelled: a global group would keep only one
+# pending run and silently drop the rest. The sweep and a dispatch share one.
+concurrency:
+  group: cache-cleanup-${{ github.event.pull_request.number || 'sweep' }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
+jobs:
+  cleanup:
+    name: Delete closed PR caches
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write # delete caches
+      pull-requests: read # `gh pr view` state check
+    steps:
+      - name: Delete closed PR caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          # Empty on the sweep, which then lists every PR ref with caches.
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [[ -n "$PR_NUMBER" ]]; then
+            numbers="$PR_NUMBER"
+          else
+            # A command of its own, so an API failure fails the job.
+            refs=$(gh cache list --limit 1000 --json ref --jq '.[].ref')
+            numbers=$(sed -nE 's#^refs/pull/([0-9]+)/merge$#\1#p' <<<"$refs" | sort -un)
+          fi
+          for n in $numbers; do
+            if [[ ! "$n" =~ ^[0-9]+$ ]]; then
+              echo "::error::Not a PR number: '$n'"
+              exit 1
+            fi
+            state=$(gh pr view "$n" --json state --jq .state)
+            if [[ "$state" == OPEN ]]; then
+              echo "PR #$n is open; keeping its caches."
+              continue
+            fi
+            # Built from the number, never from GITHUB_REF: on a merged PR's
+            # `closed` run that is the base branch, i.e. `main`'s caches.
+            ref="refs/pull/$n/merge"
+            if ! gh cache delete --all --ref "$ref" --succeed-on-no-caches; then
+              # Another run may have deleted them first; only leftovers fail.
+              left=$(gh cache list --ref "$ref" --json id --jq length)
+              if [[ "$left" != 0 ]]; then
+                echo "::error::$left caches left on $ref"
+                exit 1
+              fi
+            fi
+            echo "PR #$n is $state; deleted its caches."
+          done
