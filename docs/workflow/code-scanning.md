@@ -444,8 +444,10 @@ pull request to `main`, with no path filter. The detector must flag
 `package-lock.json` as `deps`, and the `changes` job must export that flag.
 The `changes` job and its detector and gate steps must carry no `if:` or
 `continue-on-error:`. The gate step must receive the PR author.
-`real_gates_enabled` must reach `validate`. The unit, factory E2E and mocked
-E2E jobs must need only `changes` and run whenever `deps` is set. Conditions
+`real_gates_enabled` must reach `validate`. The unit, mocked E2E and
+`package-factory` jobs must need only `changes` and run whenever `deps` is
+set. Inside `package-factory`, the factory E2E step keeps its own `deps` term
+(PackageFactoryJob PFJ-4). Conditions
 are compared after unwrapping `${{ }}` and every layer of outer parentheses.
 In `pr-body-check.yml`, a newer push or body edit of the same pull request
 cancels the run it supersedes, so the check reports the latest body

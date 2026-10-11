@@ -95,12 +95,12 @@ or snapshot missing). `2` is never a pass.
 | Pre-commit | Folded into the `build` gate in `.husky/pre-commit`, immediately after `tsup` produces `lib/`. Gates run in parallel, so it shares the gate that guarantees the build exists rather than racing it. |
 | CI | The `Check public API surface` step in `.github/actions/build-package/action.yml`, alongside the existing output checks and `publint`. |
 
-The CI step only runs if the `build` job runs. That job used to be gated solely
-on `full_suite` (`src` or `critical_deps`), which meant a change to
-`api-surface.d.ts`, to the checker, or to the build action itself — changes
-whose entire purpose is this gate — would skip it. `detect-changes.sh` now emits
-a separate `public_surface` flag for those paths and the `build` job gates on
-either. `full_suite` was deliberately left alone: its definition is pinned by
+The CI step only runs if the build step of the `package-factory` job runs. The
+build used to be gated solely on `full_suite` (`src` or `critical_deps`), which
+meant a change to `api-surface.d.ts`, to the checker, or to the build action
+itself — changes whose entire purpose is this gate — would skip it.
+`detect-changes.sh` now emits a separate `public_surface` flag for those paths
+and the build step gates on either. `full_suite` was deliberately left alone: its definition is pinned by
 `CriticalDepsFullSuiteGate.test.ts`, and widening it would have pulled the whole
 heavy suite along with it.
 

@@ -506,7 +506,7 @@ jobs:
         run: npm run type-check
 
       # The published .d.ts is emitted by TS 6 (tsup DTS), and ts-jest and
-      # typescript-eslint also read the tree through TS 6. The Build job
+      # typescript-eslint also read the tree through TS 6. The build step
       # already gates the emission itself, but it does so through
       # tsconfig.build.json, which excludes src/Tests and *.test.ts — so
       # most of the repo was only ever seen by TS 7. This gate closes that:
@@ -697,28 +697,35 @@ jobs:
           retention-days: 7
 
   # ──────────────────────────────────────────────────────────────
-  # Memory regression — measures peak RSS of the memory-sensitive suites
-  # for this PR AND for its merge base, on the SAME runner inside the SAME
-  # job. Peak memory varies with the runner's CPU count and kernel, so an
-  # absolute MB ceiling drifts and eventually fails for reasons unrelated
-  # to the change; measuring both sides together cancels the machine out
-  # and leaves only what the PR did. See memory-compare.sh for the verdict.
+  # Package & E2E factory — the build and dry-run publish, the consumer
+  # install, the E2E factory tests and the memory regression gate.
+  # They used to be four jobs; one runner now serves them, so a push
+  # stays inside the Free plan's 20 concurrent jobs.
+  #
+  # E2E factory is the only background step. It imports `src/`, not
+  # `lib/`, so the build beside it cannot change what it tests. The
+  # package chain stays in the foreground and in order — build, dry-run
+  # pack, upload, consumer install — because `npm pack` runs `prepare`,
+  # which rebuilds `lib/`: beside the upload it would rewrite `lib/`
+  # while it is uploaded.
+  #
+  # Memory runs after `wait-all`, alone, so its PR-vs-merge-base
+  # comparison sees no sibling load. A failed earlier step skips it on
+  # that run; the job is red and `Validate` fails either way.
+  #
+  # The job `if:` is the OR of the four old jobs' conditions. Each step
+  # keeps its old job's condition AND-ed with its own, and its old job's
+  # time limit. The job limit is the longest chain: 10 + 20 + 30
+  # minutes. See docs/workflow/ci.md "Package & E2E factory".
   # ──────────────────────────────────────────────────────────────
-  memory:
-    name: Memory
+  package-factory:
+    name: Package & E2E factory
     needs: changes
-    # `ci_scripts` is included so that a change to this gate always exercises
-    # it. Without that, the job that measures memory could be modified and
-    # merged without ever having run.
-    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.test_config == 'true' || needs.changes.outputs.ci_scripts == 'true'
+    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.public_surface == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci_scripts == 'true' || needs.changes.outputs.test_config == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       contents: read
-    env:
-      MEMORY_WORKLOAD: test:memory
-      MEMORY_SAMPLES: '3'
-      THRESHOLD_PCT: '10'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -726,10 +733,80 @@ jobs:
           # commit has to be present locally rather than just the tip.
           fetch-depth: 0
           persist-credentials: false
+      # Camoufox only when the E2E factory tests run. Consumer install then
+      # runs with it on disk; its scrape still fails at the unbuilt
+      # better-sqlite3 binding, so its verdict is unchanged.
       - uses: $/.github/actions/setup-test-runner
         with:
-          camoufox: 'false'
+          camoufox: ${{ (needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true') && 'true' || 'false' }}
+          gh-token: ${{ (needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true') && secrets.GITHUB_TOKEN || '' }}
+      # E2E factory tests — independent of Mode A / Mode B / e2e-mocked.
+      # Also runs on dependency-only PRs (`deps`) so runtime-dep bumps that
+      # touch no `src/` file are still validated against the real Camoufox
+      # browser launch. See detect-changes.sh `deps` output.
+      - name: E2E factory tests
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
+        background: true
+        timeout-minutes: 15
+        run: npm run test:e2e-factory-tests -- --ci --verbose
+      # Build + dry-run publish — independent of test jobs (build can
+      # succeed even if tests fail; the `validate` aggregator below
+      # blocks merge when tests are red).
+      # `public_surface` is here so a snapshot-only, checker-only or
+      # build-config-only change still runs `Check public API surface`. Gating
+      # this job on `full_suite` alone let exactly those edits skip the gate.
+      - uses: $/.github/actions/build-package
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.public_surface == 'true'
+        timeout-minutes: 10
+      - name: Dry-run publish (catch packaging errors early)
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.public_surface == 'true'
+        timeout-minutes: 10
+        run: npm pack --dry-run
+      - name: Upload build artifact
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.public_surface == 'true'
+        timeout-minutes: 10
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: build-output
+          path: lib/
+          retention-days: 7
+      # Consumer install — the only gate that leaves the working tree.
+      #
+      # Every other job runs from the repo, where devDependencies are on
+      # disk and the runner sets `CI=true`. A defect that needs a
+      # production install and an unset `CI` is unreachable from all of
+      # them by construction. This step packs the real tarball, installs
+      # it with `--omit=dev` into a scratch project — the production graph
+      # comes from our lockfile via `npm ci`, which Scorecard counts as
+      # pinned (alert #131) — and runs a scrape with `CI` and `NODE_ENV`
+      # unset, the ordinary state of a consumer's app. See
+      # .github/scripts/ci/consumer-install.sh.
+      #
+      # Hermetic: no bank is contacted (see the script's header).
+      # The script packs (and therefore builds, via `prepare`) itself, so
+      # there is no separate build step to keep in sync with it.
+      - name: Package works for consumers
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci_scripts == 'true'
+        timeout-minutes: 20
+        run: /bin/bash .github/scripts/ci/consumer-install.sh
+      - name: Wait for the E2E factory tests
+        wait-all:
+      # Memory regression — measures peak RSS of the memory-sensitive suites
+      # for this PR AND for its merge base, on the SAME runner inside the SAME
+      # job. Peak memory varies with the runner's CPU count and kernel, so an
+      # absolute MB ceiling drifts and eventually fails for reasons unrelated
+      # to the change; measuring both sides together cancels the machine out
+      # and leaves only what the PR did. See memory-compare.sh for the verdict.
+      # `ci_scripts` is included so that a change to this gate always exercises
+      # it. Without that, the job that measures memory could be modified and
+      # merged without ever having run.
       - name: Ensure GNU time is available
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.test_config == 'true' || needs.changes.outputs.ci_scripts == 'true'
+        timeout-minutes: 30
+        env:
+          MEMORY_WORKLOAD: test:memory
+          MEMORY_SAMPLES: '3'
+          THRESHOLD_PCT: '10'
         run: |
           set -euo pipefail
           # Measured explicitly rather than relying on the runner image: if
@@ -742,10 +819,21 @@ jobs:
           /usr/bin/time --version
       - name: Measure this PR
         id: head
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.test_config == 'true' || needs.changes.outputs.ci_scripts == 'true'
+        timeout-minutes: 30
+        env:
+          MEMORY_WORKLOAD: test:memory
+          MEMORY_SAMPLES: '3'
+          THRESHOLD_PCT: '10'
         run: echo "mb=$(bash .github/scripts/ci/memory-measure.sh .)" >> "$GITHUB_OUTPUT"
       - name: Check out the merge base
         id: base_tree
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.test_config == 'true' || needs.changes.outputs.ci_scripts == 'true'
+        timeout-minutes: 30
         env:
+          MEMORY_WORKLOAD: test:memory
+          MEMORY_SAMPLES: '3'
+          THRESHOLD_PCT: '10'
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
@@ -788,37 +876,23 @@ jobs:
           echo "ready=true" >> "$GITHUB_OUTPUT"
       - name: Measure the merge base
         id: base
-        if: steps.base_tree.outputs.ready == 'true'
+        if: (needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.test_config == 'true' || needs.changes.outputs.ci_scripts == 'true') && steps.base_tree.outputs.ready == 'true'
+        timeout-minutes: 30
+        env:
+          MEMORY_WORKLOAD: test:memory
+          MEMORY_SAMPLES: '3'
+          THRESHOLD_PCT: '10'
         run: echo "mb=$(bash .github/scripts/ci/memory-measure.sh ../base)" >> "$GITHUB_OUTPUT"
       - name: Compare against the merge base
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.test_config == 'true' || needs.changes.outputs.ci_scripts == 'true'
+        timeout-minutes: 30
         env:
+          MEMORY_WORKLOAD: test:memory
+          MEMORY_SAMPLES: '3'
+          THRESHOLD_PCT: '10'
           BASE_MB: ${{ steps.base.outputs.mb }}
           HEAD_MB: ${{ steps.head.outputs.mb }}
         run: bash .github/scripts/ci/memory-compare.sh
-
-  # ──────────────────────────────────────────────────────────────
-  # E2E factory tests — independent of Mode A / Mode B / e2e-mocked.
-  # Also runs on dependency-only PRs (`deps`) so runtime-dep bumps that
-  # touch no `src/` file are still validated against the real Camoufox
-  # browser launch. See detect-changes.sh `deps` output.
-  # ──────────────────────────────────────────────────────────────
-  e2e-factory:
-    name: E2E factory
-    needs: changes
-    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: $/.github/actions/setup-test-runner
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: E2E factory tests
-        run: npm run test:e2e-factory-tests -- --ci --verbose
 
   # ──────────────────────────────────────────────────────────────
   # E2E mocked tests — flake-prone under high worker counts; the
@@ -909,76 +983,6 @@ jobs:
       - name: Integration Mode B — shard ${{ matrix.shard }}/3
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: npm run test:integration:mode-b:bank -- --shard=${{ matrix.shard }}/3
-
-  # ──────────────────────────────────────────────────────────────
-  # Build + dry-run publish — independent of test jobs (build can
-  # succeed even if tests fail; the `validate` aggregator below
-  # blocks merge when tests are red).
-  # ──────────────────────────────────────────────────────────────
-  build:
-    name: Build
-    needs: changes
-    # `public_surface` is here so a snapshot-only, checker-only or
-    # build-config-only change still runs `Check public API surface`. Gating
-    # this job on `full_suite` alone let exactly those edits skip the gate.
-    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.public_surface == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: $/.github/actions/setup-test-runner
-        with:
-          camoufox: 'false'
-          tests-config: 'false'
-      - uses: $/.github/actions/build-package
-      - name: Dry-run publish (catch packaging errors early)
-        run: npm pack --dry-run
-      - name: Upload build artifact
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: build-output
-          path: lib/
-          retention-days: 7
-
-  # ──────────────────────────────────────────────────────────────
-  # Consumer install — the only job that leaves the working tree.
-  #
-  # Every other job runs from the repo, where devDependencies are on
-  # disk and the runner sets `CI=true`. A defect that needs a
-  # production install and an unset `CI` is unreachable from all of
-  # them by construction. This job packs the real tarball, installs
-  # it with `--omit=dev` into a scratch project — the production graph
-  # comes from our lockfile via `npm ci`, which Scorecard counts as
-  # pinned (alert #131) — and runs a scrape with `CI` and `NODE_ENV`
-  # unset, the ordinary state of a consumer's app. See
-  # .github/scripts/ci/consumer-install.sh.
-  #
-  # Hermetic: no bank is contacted (see the script's header).
-  # ──────────────────────────────────────────────────────────────
-  consumer-install:
-    name: Consumer install
-    needs: changes
-    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci_scripts == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: $/.github/actions/setup-test-runner
-        with:
-          camoufox: 'false'
-          tests-config: 'false'
-      # The script packs (and therefore builds, via `prepare`) itself, so
-      # there is no separate build step to keep in sync with it.
-      - name: Package works for consumers
-        run: /bin/bash .github/scripts/ci/consumer-install.sh
 
   # ──────────────────────────────────────────────────────────────
   # SonarCloud Scan — the required `SonarCloud Scan` context for PRs.
@@ -1111,12 +1115,9 @@ jobs:
       - static-checks
       - portability-macos
       - unit-tests
-      - memory
-      - e2e-factory
+      - package-factory
       - e2e-mocked
       - integration
-      - build
-      - consumer-install
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

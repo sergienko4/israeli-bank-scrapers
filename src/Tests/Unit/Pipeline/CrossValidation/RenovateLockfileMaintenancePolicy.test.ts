@@ -65,8 +65,12 @@ const PR_YAML = join(REPO_ROOT, '.github/workflows/pr.yml');
 const PR_BODY_CHECK = join(REPO_ROOT, '.github/workflows/pr-body-check.yml');
 const RELEASE_PLEASE_CONFIG = join(REPO_ROOT, 'release-please-config.json');
 
-/** Jobs that must run when a lockfile-only PR changes `package-lock.json`. */
-const DEPS_JOB_KEYS = ['unit-tests', 'e2e-factory', 'e2e-mocked'] as const;
+/**
+ * Jobs that must run when a lockfile-only PR changes `package-lock.json`. In
+ * `package-factory` the E2E factory step's own `deps` term is pinned by
+ * `PackageFactoryJob` [PFJ-4].
+ */
+const DEPS_JOB_KEYS = ['unit-tests', 'e2e-mocked', 'package-factory'] as const;
 
 /** The `deps` term each {@link DEPS_JOB_KEYS} job condition must keep. */
 const DEPS_TERM = "needs.changes.outputs.deps == 'true'";

@@ -19,7 +19,7 @@ explicit `@typescript/native` name.
 The published `.d.ts` is emitted by **tsup's DTS rollup, which runs on TS 6**.
 Consumers therefore install types produced by TS 6.
 
-That emission was already gated: CI's Build job runs `npx tsup`, then asserts
+That emission was already gated: CI's build step runs `npx tsup`, then asserts
 the emitted `lib/index.d.ts` / `lib/index.d.cts` exist and that the public
 surface is unchanged. What was missing is a TS 6 check over the **whole tree**.
 `tsup` reads `tsconfig.build.json`, which excludes `src/Tests/**` and `*.test.ts`
@@ -37,7 +37,7 @@ surface is unchanged. What was missing is a TS 6 check over the **whole tree**.
 
 These two steps are whole-tree compatibility checks over `tsconfig.json`. They
 are **not** configuration-equivalent to the DTS build, which uses
-`tsconfig.build.json` and a narrower file set; the Build job remains what gates
+`tsconfig.build.json` and a narrower file set; the build step remains what gates
 actual declaration emission. The pair is complementary, not redundant.
 
 They are two steps rather than one `&&` so the CI log names which compiler

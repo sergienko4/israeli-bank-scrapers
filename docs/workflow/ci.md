@@ -150,6 +150,48 @@ push inside the account's concurrent-job limit.
   shares a job with the build, whose guardrails hash `lib/`, or with the
   memory gate, which adds the same `../base` worktree.
 
+## Package & E2E factory
+
+BLUF: one job, `Package & E2E factory`, runs four gates that used to be jobs
+of their own — the build and dry-run publish, the consumer install, the E2E
+factory tests and the memory regression gate. Fewer jobs keep a push inside
+the account's concurrent-job limit.
+
+- **Order.** The E2E factory tests are the only `background` step. They
+  import `src/`, not `lib/`, so the build beside them cannot change what they
+  test. The package chain runs in the foreground, in order: build,
+  `npm pack --dry-run`, the `build-output` upload, then the consumer install.
+  The consumer install packs the package, and `npm pack` runs `prepare`,
+  which rebuilds `lib/`; beside the upload it would rewrite `lib/` while it
+  is uploaded.
+- **Memory runs alone.** A `wait-all` step follows the consumer install and
+  fails the job if the E2E factory tests failed. The memory steps run after
+  it, with nothing beside them, so the PR and its merge base are measured
+  under the same load.
+- **Conditions.** Each step keeps the `if:` its old job had, joined with its
+  own. The job's `if:` is the OR of the four. Setup installs Camoufox, and
+  passes it a token, only when the E2E factory tests run.
+- **Full history.** Checkout keeps `fetch-depth: 0`. With a shallow clone
+  the memory gate cannot check out the merge base, reports "not measured"
+  and passes.
+- **Camoufox and the consumer install.** When the E2E factory tests run,
+  Camoufox is on disk during the consumer install. Its scrape still ends in
+  the expected `camoufox launch failed`, at the unbuilt `better-sqlite3`
+  binding. Without Camoufox, `camoufox-js` first downloads it and then fails
+  to start, so the verdict is the same either way.
+- **Time limits.** Each step keeps its old job's limit: 10 minutes for each
+  build step, 15 for the E2E factory tests, 20 for the consumer install and
+  30 for each memory step. The job limit is the longest chain,
+  10 + 20 + 30 = 60 minutes. A timed-out job is cancelled, and `Validate`
+  fails on `cancelled`.
+- **First failure ends the job.** A failed build step skips the consumer
+  install and memory; failed E2E factory tests skip memory. The job is red
+  and `Validate` fails either way, and the skipped gates report on the re-run
+  after the fix.
+
+`PackageFactoryJob.test.ts` pins each step whole, the order, the job's
+condition and limit, and that `Validate` needs the job.
+
 ## Link checking
 
 BLUF: Lychee checks every link in `README.md` and `docs/**/*.md`, but it
@@ -213,12 +255,13 @@ fixed ceiling.
 
 Peak memory depends on the runner's CPU count, kernel and Node build, so an
 absolute megabyte limit drifts and eventually fails for reasons that have
-nothing to do with the change under review. The `Memory` job instead measures
+nothing to do with the change under review. The gate instead measures
 **both** sides in the same job on the same runner, which cancels the machine
 out, and fails only when the PR's peak grows by more than `THRESHOLD_PCT`
-(default 10%).
+(default 10%). Its steps run last in the
+`Package & E2E factory` job, after every other step there has finished.
 
-The job runs when a PR touches source, dependencies, the test configuration or
+The gate runs when a PR touches source, dependencies, the test configuration or
 the CI scripts themselves (`full_suite`, `deps`, `test_config`, `ci_scripts`).
 A docs-only PR cannot move memory, so it is skipped rather than measured twice
 to prove nothing.

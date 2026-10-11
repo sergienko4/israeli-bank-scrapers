@@ -30,13 +30,22 @@ const GATE_SCRIPT = join(REPO_ROOT, '.github/scripts/ci/compute-gate-booleans.sh
 const PACKAGE_JSON = join(REPO_ROOT, 'package.json');
 
 /** Jobs that must run whenever the browser stack moves, not just on `src`. */
-const HEAVY_JOB_KEYS = ['unit-tests', 'e2e-factory', 'e2e-mocked', 'integration', 'build'] as const;
+const HEAVY_JOB_KEYS = ['unit-tests', 'e2e-mocked', 'integration', 'package-factory'] as const;
 
 /** The job that runs the lint, type and short repository gates as its steps. */
 const STATIC_CHECKS_JOB_KEY = 'static-checks';
 
-/** Steps of {@link STATIC_CHECKS_JOB_KEY} that must run on `full_suite`, not just on `src`. */
-const HEAVY_STEP_NAMES = ['Bank integration coverage gate'] as const;
+/** The job that runs the build, consumer install, E2E factory and memory gates as its steps. */
+const PACKAGE_JOB_KEY = 'package-factory';
+
+/** Steps of a merged job, as `[job, step name]`, that must run on `full_suite`, not just on `src`. */
+const HEAVY_STEPS = [
+  [STATIC_CHECKS_JOB_KEY, 'Bank integration coverage gate'],
+  [PACKAGE_JOB_KEY, 'E2E factory tests'],
+] as const;
+
+/** The build step's action; it also runs the public-surface check. */
+const BUILD_PACKAGE = '$/.github/actions/build-package';
 
 /** The install step's action; every Node step of the job needs what it installs. */
 const SETUP_NODE_DEPS = '$/.github/actions/setup-node-deps';
@@ -48,7 +57,7 @@ const CRITICAL_PACKAGES = ['playwright-core', '@hieutran094/camoufox-js'] as con
  * Paths that define the published API surface or the gate guarding it.
  *
  * <p>`full_suite` is `src OR critical_deps`, so a snapshot-only or
- * checker-only edit left the Build job — and with it the public-surface
+ * checker-only edit left the build — and with it the public-surface
  * gate — skipped. These must keep feeding the separate `public_surface`
  * flag.
  */
@@ -295,13 +304,16 @@ describe('CriticalDepsFullSuiteGate', () => {
     expect(condition).toContain("full_suite == 'true'");
   });
 
-  it.each(HEAVY_STEP_NAMES)('[CI-CRIT-GATE] PrYaml_HeavyStep_%s_ShouldGateOnFullSuite', name => {
-    const conditions = stepConditions(STATIC_CHECKS_JOB_KEY, name);
-    expect(conditions).toHaveLength(1);
-    const condition = conditions.join('');
-    expect(condition).toContain("full_suite == 'true'");
-    expect(condition).not.toContain("outputs.src == 'true'");
-  });
+  it.each(HEAVY_STEPS)(
+    '[CI-CRIT-GATE] PrYaml_HeavyStep_%s_%s_ShouldGateOnFullSuite',
+    (jobKey, name) => {
+      const conditions = stepConditions(jobKey, name);
+      expect(conditions).toHaveLength(1);
+      const condition = conditions.join('');
+      expect(condition).toContain("full_suite == 'true'");
+      expect(condition).not.toContain("outputs.src == 'true'");
+    },
+  );
 
   it.each(CRITICAL_PACKAGES)('[CI-CRIT-GATE] Detector_Package_%s_ShouldStayDeclared', pkg => {
     const rawManifest = read(PACKAGE_JSON);
@@ -401,11 +413,16 @@ describe('CriticalDepsFullSuiteGate', () => {
     expect(validateOutputs).toContain('full_suite');
   });
 
-  it('[CI-CRIT-GATE] PrYaml_Build_ShouldAlsoGateOnPublicSurface', () => {
+  it('[CI-CRIT-GATE] PrYaml_Build_ShouldGateOnFullSuiteAndPublicSurface', () => {
     const changesOutputs = jobOutputKeys('changes');
-    const condition = jobCondition('build');
+    const conditions = usesConditions(PACKAGE_JOB_KEY, BUILD_PACKAGE);
+    const jobGate = jobCondition(PACKAGE_JOB_KEY);
+    const condition = conditions.join('');
     expect(changesOutputs).toContain('public_surface');
+    expect(conditions).toHaveLength(1);
+    expect(condition).toContain("full_suite == 'true'");
     expect(condition).toContain("public_surface == 'true'");
+    expect(jobGate).toContain("public_surface == 'true'");
   });
 
   it.each(PUBLIC_SURFACE_PATHS)(
@@ -417,7 +434,8 @@ describe('CriticalDepsFullSuiteGate', () => {
   );
 
   it('[CI-CRIT-GATE] PrYaml_Build_ShouldUnionNotIntersectTheFlags', () => {
-    const condition = jobCondition('build');
+    const conditions = usesConditions(PACKAGE_JOB_KEY, BUILD_PACKAGE);
+    const condition = conditions.join('');
     const isConjunction = condition.includes('&&');
     expect(condition).toContain('||');
     expect(isConjunction).toBe(false);

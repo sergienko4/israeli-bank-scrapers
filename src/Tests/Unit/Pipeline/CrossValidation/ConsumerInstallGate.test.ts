@@ -13,7 +13,7 @@
  * edit without anything else going red:
  *
  * <ul>
- *   <li>the job is wired into the `Validate` aggregator, so it can block a merge;</li>
+ *   <li>the gate's job is wired into the `Validate` aggregator, so it can block a merge;</li>
  *   <li>it installs without devDependencies, or `pino-pretty` resolves and the gate is vacuous;</li>
  *   <li>it runs with `CI`/`NODE_ENV` unset, the one environment CI cannot otherwise reach;</li>
  *   <li>the consumer program holds no timer of its own, or it would mask the abandonment defect.</li>
@@ -33,8 +33,11 @@ const PR_YAML = join(REPO_ROOT, '.github/workflows/pr.yml');
 const GATE_SCRIPT = join(REPO_ROOT, '.github/scripts/ci/consumer-install.sh');
 const SMOKE_PROGRAM = join(REPO_ROOT, '.github/scripts/ci/consumer-smoke.cjs');
 
-/** YAML job key the workflow uses for the gate. */
-const GATE_JOB_KEY = 'consumer-install';
+/** YAML job key of the job that runs the gate as a step. */
+const GATE_JOB_KEY = 'package-factory';
+
+/** The gate step's command. */
+const GATE_COMMAND = '/bin/bash .github/scripts/ci/consumer-install.sh';
 
 /** Aggregator whose `needs` list decides what can block a merge. */
 const VALIDATE_JOB_KEY = 'validate';
@@ -82,6 +85,17 @@ function needsOf(doc: IWorkflowDoc, jobKey: string): readonly string[] {
   return needs ?? [];
 }
 
+/**
+ * The steps of a job that run the gate script.
+ *
+ * @param job - Workflow job to inspect.
+ * @returns Matching steps, none when the job does not run the gate.
+ */
+function gateStepsOf(job: IWorkflowJob): readonly { readonly run?: string }[] {
+  const steps = job.steps ?? [];
+  return steps.filter(step => step.run === GATE_COMMAND);
+}
+
 /** One property of the gate script that a single substring proves present. */
 interface IGateScriptProperty {
   readonly id: string;
@@ -123,10 +137,11 @@ const GATE_SCRIPT_PROPERTIES: readonly IGateScriptProperty[] = [
 ];
 
 describe('consumer-install CI gate', () => {
-  it('[CIG-1] pr.yml defines the gate as a job', () => {
+  it('[CIG-1] pr.yml runs the gate in one step, in the package job', () => {
     const doc = loadWorkflow();
-    const jobKeys = Object.keys(doc.jobs ?? {});
-    expect(jobKeys).toContain(GATE_JOB_KEY);
+    const jobs = Object.entries(doc.jobs ?? {});
+    const holders = jobs.flatMap(([key, job]) => gateStepsOf(job).map(() => key));
+    expect(holders).toStrictEqual([GATE_JOB_KEY]);
   });
 
   it('[CIG-2] the Validate aggregator blocks on the gate', () => {
