@@ -14,8 +14,8 @@ name: Cache cleanup
 # Only `refs/pull/<N>/merge` with a numeric `N` is ever deleted, so `main`'s
 # caches are out of reach. An open PR is always skipped: the state is read
 # right before deleting, so a PR reopened before that read keeps its caches.
-# If a PR is reopened between that read and the delete, it loses one cache
-# hit on its next run; correctness is unaffected.
+# If a PR is reopened between that read and the delete, it loses all its
+# caches and its next run starts cold; correctness is unaffected.
 
 on:
   pull_request:

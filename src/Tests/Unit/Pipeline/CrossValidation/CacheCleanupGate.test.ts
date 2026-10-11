@@ -46,11 +46,12 @@ function prRef(n: number): string {
 
 /**
  * `gh` stub. Models only the calls the script makes, as the real CLI does
- * (`cache delete --all` with no `--ref` deletes every cache; `cache list`
- * returns the most recently used 30 unless `--order` / `--limit` say
- * otherwise; `api` without `--paginate` returns the first page only);
- * anything else exits 99 so a changed command fails the suite instead of
- * passing against a guess. `caches` is least recently used first.
+ * (`--jq` on `pr view` and `cache list` needs a `--json` field list;
+ * `cache delete --all` with no `--ref` deletes every cache; `cache list`
+ * returns at most 30 unless `--limit` says otherwise; `api` without
+ * `--paginate` returns the first page only); anything else exits 99 so a
+ * changed command fails the suite instead of passing against a guess.
+ * `caches` is least recently used first.
  */
 const GH_STUB = `#!/usr/bin/env node
 const fs = require('node:fs');
@@ -61,7 +62,8 @@ const flag = name => (args.includes(name) ? args[args.indexOf(name) + 1] : undef
 const out = text => process.stdout.write(text === '' ? '' : text + '\\n');
 const cmd = args.slice(0, 2).join(' ');
 const jq = flag('--jq');
-if (cmd === 'pr view' && jq === '.state') {
+const fields = flag('--json');
+if (cmd === 'pr view' && fields === 'state' && jq === '.state') {
   const prState = state.prs[args[2]];
   if (prState === undefined) process.exit(1);
   out(prState);
@@ -78,15 +80,11 @@ if (args[0] === 'api') {
   out((args.includes('--paginate') ? newestFirst : newestFirst.slice(0, perPage)).join('\\n'));
   process.exit(0);
 }
-if (cmd === 'cache list') {
+if (cmd === 'cache list' && fields === 'id' && jq === 'length') {
   if (state.failList) process.exit(1);
   const ref = flag('--ref');
   const matched = state.caches.filter(row => ref === undefined || row === ref);
-  const ordered = flag('--order') === 'asc' ? matched : [...matched].reverse();
-  const rows = ordered.slice(0, Number(flag('--limit') ?? 30));
-  if (jq === '.[].ref') out(rows.join('\\n'));
-  else if (jq === 'length') out(String(rows.length));
-  else process.exit(99);
+  out(String(Math.min(matched.length, Number(flag('--limit') ?? 30))));
   process.exit(0);
 }
 if (cmd === 'cache delete' && args.includes('--all')) {

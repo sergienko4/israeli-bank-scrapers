@@ -104,8 +104,8 @@ deletes them in two ways:
 
 Both read the PR's state right before deleting and skip an open PR, so a PR
 reopened before that read keeps its caches. The read and the delete are not
-atomic: a PR reopened between them loses its caches, which costs it one cache
-miss on its next run. Only `refs/pull/<N>/merge` with a
+atomic: a PR reopened between them loses all its caches, so its next run
+starts cold. Only `refs/pull/<N>/merge` with a
 numeric `N` is ever deleted, so `main`'s caches are out of reach. A failed
 delete is re-checked: if another run already removed the caches, the job
 still passes; if any are left, it fails. `CacheCleanupGate.test.ts` runs the
