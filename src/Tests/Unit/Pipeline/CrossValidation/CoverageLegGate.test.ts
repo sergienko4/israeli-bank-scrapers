@@ -19,7 +19,8 @@
  *   CLG-2  the picker ignores line endings, padding and a leading `v`
  *   CLG-3  the test step passes `--coverage=false` on every leg but the picked one
  *   CLG-4  the steps are wired in order, and the upload runs only on the picked leg
- *   CLG-5  a `.nvmrc` change sets `deps`, and `deps` alone runs this job and the drift check
+ *   CLG-5  a `.nvmrc` change sets `deps`, the `changes` job passes it on, and `deps`
+ *          alone runs this job and the drift check
  */
 
 import { spawnSync } from 'node:child_process';
@@ -47,6 +48,12 @@ const UPLOAD_IF = "always() && steps.leg.outputs.coverage == 'true'";
 const UNIT_JOB = 'unit-tests';
 const DEPS_FLAG = "needs.changes.outputs.deps == 'true'";
 
+/**
+ * A single-quoted expression literal. An escaped `''` splits one literal into
+ * two adjacent matches, which still cover every character inside it.
+ */
+const STRING_LITERAL = /'[^']*'/gu;
+
 /** The detector's `deps` test, kept on one line so its alternation can be read back. */
 const DEPS_LINE = /^if has '([^']+)'; then deps=true; fi\r?$/mu;
 
@@ -65,6 +72,19 @@ const NVMRC_GATES: readonly IGateSite[] = [
   { job: 'lint-and-types' },
   { job: 'lint-and-types', step: 'Advertised Node range matches the tested one' },
 ];
+
+/**
+ * Conditions that do NOT run on `deps` alone, so CLG-5 must not read `deps`
+ * as a top-level term in any of them. The `contains` rows hide grouping
+ * characters in string literals, which a parenthesis count alone would pair.
+ */
+const NOT_ON_DEPS_ALONE = [
+  `a == 'true' && ${DEPS_FLAG}`,
+  `a == 'true' && (b == 'true' || ${DEPS_FLAG} || c == 'true')`,
+  `a == 'true' && (contains(github.ref, ')') || ${DEPS_FLAG} || c == 'true')`,
+  `a == 'true' && (contains(github.ref, 'it''s )') || ${DEPS_FLAG} || c == 'true')`,
+  `!(${DEPS_FLAG} || a == 'true')`,
+] as const;
 
 /** Arguments the test step hands to `npm`, keyed by the picker's verdict. */
 const NPM_ARGS = {
@@ -95,6 +115,7 @@ interface IPrYamlDoc {
       string,
       {
         readonly if?: string;
+        readonly outputs?: Readonly<Record<string, string>>;
         readonly strategy?: { readonly matrix?: { readonly node?: readonly string[] } };
         readonly steps: readonly IStep[];
       }
@@ -145,6 +166,16 @@ function stepNamed(doc: IPrYamlDoc, name: string, job = UNIT_JOB): IStep {
 }
 
 /**
+ * Blank out parentheses inside string literals, so only the expression's own
+ * groups are left to pair.
+ * @param condition - An `if:` expression.
+ * @returns The expression with each parenthesis in a literal replaced by `_`.
+ */
+function maskLiterals(condition: string): string {
+  return condition.replace(STRING_LITERAL, (literal): string => literal.replace(/[()]/gu, '_'));
+}
+
+/**
  * Collapse every parenthesised group, innermost first, so only top-level
  * operators are left.
  * @param condition - An `if:` expression.
@@ -156,17 +187,26 @@ function flattenGroups(condition: string): string {
 }
 
 /**
- * The `if:` that decides whether a job or step runs, split into its top-level
- * `||` terms. A flag that is a whole term fires on its own. One joined by `&&`
- * or inside a group, as in `a && (b || deps)`, does not.
+ * An `if:` expression split into its top-level `||` terms. A flag that is a
+ * whole term fires on its own. One joined by `&&` or inside a group, as in
+ * `a && (b || deps)`, does not.
+ * @param condition - An `if:` expression.
+ * @returns The terms.
+ */
+function topLevelOrTerms(condition: string): readonly string[] {
+  const masked = maskLiterals(condition);
+  return flattenGroups(masked).split(' || ');
+}
+
+/**
+ * The top-level `||` terms of the `if:` that decides whether a job or step runs.
  * @param doc - Parsed workflow.
  * @param site - The job, and optionally the step, to read.
- * @returns The terms; empty when there is no condition.
+ * @returns The terms; a single empty term when there is no condition.
  */
 function orTerms(doc: IPrYamlDoc, site: IGateSite): readonly string[] {
   const source = site.step === undefined ? doc.jobs[site.job] : stepNamed(doc, site.step, site.job);
-  const condition = source.if ?? '';
-  return flattenGroups(condition).split(' || ');
+  return topLevelOrTerms(source.if ?? '');
 }
 
 /**
@@ -332,9 +372,24 @@ describe('CoverageLegGate', () => {
     }
   });
 
+  it('[CLG-5] PrYaml_ChangesJob_ShouldPassTheDetectorsDepsOn', () => {
+    const doc = loadPrYaml();
+    const detect = stepNamed(doc, 'Detect changed file groups', 'changes');
+    expect(detect).toMatchObject({
+      id: 'changes',
+      run: 'bash .github/scripts/ci/detect-changes.sh',
+    });
+    expect(doc.jobs.changes.outputs?.deps).toBe('${{ steps.changes.outputs.deps }}');
+  });
+
   it.each(NVMRC_GATES)('[CLG-5] PrYaml_%j_ShouldRunOnDepsAlone', site => {
     const doc = loadPrYaml();
     const terms = orTerms(doc, site);
     expect(terms).toContain(DEPS_FLAG);
+  });
+
+  it.each(NOT_ON_DEPS_ALONE)('[CLG-5] Condition_ShouldNotCountAsDepsAlone: %s', condition => {
+    const terms = topLevelOrTerms(condition);
+    expect(terms).not.toContain(DEPS_FLAG);
   });
 });
