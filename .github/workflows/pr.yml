@@ -1173,9 +1173,11 @@ jobs:
           # retried: under `-e` a failure would end the step unretried. The
           # total is then compared as text, not with `-gt`: a number too big
           # for a shell integer makes `-gt` error inside its `if`, and an
-          # erroring `if` lets the step pass.
+          # erroring `if` lets the step pass. `--max-time` bounds each call, so
+          # a stalled API cannot use up the job's timeout before the retries;
+          # `--fail` sends an HTTP error down the same retry path.
           while [ "${attempt}" -le 5 ]; do
-            total=$(curl -sS "${api}?${query}" | jq -r '.total // empty') || total=""
+            total=$(curl -sS --fail --max-time 30 "${api}?${query}" | jq -r '.total // empty') || total=""
             if [[ "${total}" =~ ^[0-9]+$ ]]; then break; fi
             total=""
             echo "::warning::SonarCloud API gave no issue count, retrying (${attempt}/5)"

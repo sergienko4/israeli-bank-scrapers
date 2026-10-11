@@ -21,10 +21,20 @@
  *   SPS-5  it scans the artifact the coverage leg uploads, where Sonar reads it
  *   SPS-6  the count gate retries until it reads a whole number, fails closed,
  *          and fails on any count but zero, however long
+ *   SPS-7  every count-gate call fails on an HTTP error and has a time limit,
+ *          and all its calls and waits fit inside the job's timeout
  */
 
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -48,6 +58,8 @@ const UPLOAD_STEP = 'Upload coverage artifact';
 const COUNT_GATE_STEP = 'Fail on any new SonarCloud issues (count gate)';
 const PR_ONLY_IF = "github.event_name == 'pull_request'";
 const SCAN_ACTION = 'SonarSource/sonarqube-scan-action@';
+/** `--fail` or `--fail-with-body` as a whole argument, not `--fail-early`. */
+const FAIL_FLAG = /(?:^| )--fail(?:-with-body)?(?: |$)/u;
 
 /**
  * The job's `if:`. `always()` keeps a failed or cancelled upstream from
@@ -71,10 +83,12 @@ const RESULT_PAIRS = RESULTS.flatMap((changes): (readonly [string, string])[] =>
  * Count-gate stubs. Each queued attempt is `<curl exit> [<jq exit> [<jq output>]]`:
  * `curl` takes the next one and fails with its exit, or passes the rest to
  * `jq`, which prints the output and exits with its own code. `sleep` returns.
+ * `curl` logs its arguments and `sleep` its seconds, one line per call.
  */
 const COUNT_GATE_STUBS: Readonly<Record<string, string>> = {
   curl: [
     '#!/bin/bash',
+    'printf \'%s\\n\' "$*" >> "$SPS_QUEUE.curl-args"',
     'IFS= read -r line < "$SPS_QUEUE" || exit 99',
     'tail -n +2 "$SPS_QUEUE" > "$SPS_QUEUE.next" && mv "$SPS_QUEUE.next" "$SPS_QUEUE"',
     'read -r curl_rc rest <<< "$line"',
@@ -88,8 +102,11 @@ const COUNT_GATE_STUBS: Readonly<Record<string, string>> = {
     '[ -z "$out" ] || printf \'%s\\n\' "$out"',
     'exit "$jq_rc"',
   ].join('\n'),
-  sleep: '#!/bin/bash\nexit 0',
+  sleep: '#!/bin/bash\nprintf \'%s\\n\' "$1" >> "$SPS_QUEUE.sleeps"\nexit 0',
 };
+
+/** Every call fails: the run that waits longest before giving up. */
+const ALL_CALLS_FAIL: readonly string[] = Array.from({ length: 5 }, (): string => '7');
 
 /** Count-gate cases: queued attempts and whether the step passes. */
 const COUNT_GATE_CASES: readonly (readonly [string, readonly string[], boolean])[] = [
@@ -120,7 +137,24 @@ interface IJob {
   readonly name?: string;
   readonly needs?: string | readonly string[];
   readonly if?: string;
+  readonly 'timeout-minutes'?: number;
   readonly steps?: readonly IStep[];
+}
+
+/** What the count gate's calls asked for over one run. */
+interface ICountGateCalls {
+  /** Each `curl` call's arguments, joined by spaces. */
+  readonly curlArgs: readonly string[];
+  /** The seconds passed to every `sleep`, added up. */
+  readonly sleepSeconds: number;
+}
+
+/** One count-gate run measured against SPS-7. */
+interface ICallBudget {
+  readonly calls: number;
+  readonly unflagged: readonly string[];
+  readonly unbounded: readonly string[];
+  readonly worstSeconds: number;
 }
 
 /** Workflow fields this suite reads. */
@@ -205,7 +239,7 @@ function stepNamed(jobKey: string, name: string): IStep {
  * @param body - Receives the directory.
  * @returns What the callback returns.
  */
-function inTempDir(body: (dir: string) => number): number {
+function inTempDir<T>(body: (dir: string) => T): T {
   const temp = tmpdir();
   const prefix = join(temp, 'sps-');
   const dir = mkdtempSync(prefix);
@@ -268,19 +302,79 @@ function writeCountGateStubs(dir: string): readonly string[] {
 }
 
 /**
+ * Run the count gate in a directory, with the API calls going as queued.
+ * @param dir - Working directory; the queue and the stubs' logs land here.
+ * @param bin - Directory holding the count-gate stubs.
+ * @param attempts - One queued attempt per API call (see the stubs).
+ * @returns The exit status.
+ */
+function runCountGate(dir: string, bin: string, attempts: readonly string[]): number {
+  const queue = join(dir, 'queue');
+  writeFileSync(queue, `${attempts.join('\n')}\n`);
+  const path = `${bin}:${process.env.PATH ?? ''}`;
+  const env = { PATH: path, SPS_QUEUE: queue, SONAR_PROJECT_KEY: 'key', PR_NUMBER: '1' };
+  return runStep(dir, COUNT_GATE_STEP, env);
+}
+
+/**
  * Exit status of the count gate when the API calls go as queued.
  * @param bin - Directory holding the count-gate stubs.
  * @param attempts - One queued attempt per API call (see the stubs).
  * @returns The exit status.
  */
 function countGateStatus(bin: string, attempts: readonly string[]): number {
-  return inTempDir((dir): number => {
+  return inTempDir((dir): number => runCountGate(dir, bin, attempts));
+}
+
+/**
+ * The lines of a stub log, none when the stub never ran.
+ * @param file - Log path.
+ * @returns One entry per logged call.
+ */
+function logLines(file: string): readonly string[] {
+  if (!existsSync(file)) return [];
+  const text = readFileSync(file, 'utf8');
+  return text.split('\n').filter((line): boolean => line !== '');
+}
+
+/**
+ * What the count gate's calls asked for when the API calls go as queued.
+ * @param bin - Directory holding the count-gate stubs.
+ * @param attempts - One queued attempt per API call (see the stubs).
+ * @returns The `curl` arguments and the total `sleep` seconds.
+ */
+function countGateCalls(bin: string, attempts: readonly string[]): ICountGateCalls {
+  return inTempDir((dir): ICountGateCalls => {
+    runCountGate(dir, bin, attempts);
     const queue = join(dir, 'queue');
-    writeFileSync(queue, `${attempts.join('\n')}\n`);
-    const path = `${bin}:${process.env.PATH ?? ''}`;
-    const env = { PATH: path, SPS_QUEUE: queue, SONAR_PROJECT_KEY: 'key', PR_NUMBER: '1' };
-    return runStep(dir, COUNT_GATE_STEP, env);
+    const sleeps = logLines(`${queue}.sleeps`).map(Number);
+    const sleepSeconds = sleeps.reduce((sum, seconds): number => sum + seconds, 0);
+    return { curlArgs: logLines(`${queue}.curl-args`), sleepSeconds };
   });
+}
+
+/**
+ * The `--max-time` seconds one `curl` call was given.
+ * @param args - The call's arguments, joined by spaces.
+ * @returns The limit, or 0 when the call has none.
+ */
+function maxTimeOf(args: string): number {
+  const match = /(?:^| )--max-time (\d+)(?: |$)/u.exec(args);
+  return Number(match?.[1] ?? '0');
+}
+
+/**
+ * Check one count-gate run's calls against SPS-7.
+ * @param calls - What the run's calls asked for.
+ * @returns The call count, the calls without `--fail` or a time limit, and
+ *   the longest the run could take: every limit plus every wait.
+ */
+function callBudget(calls: ICountGateCalls): ICallBudget {
+  const limits = calls.curlArgs.map(maxTimeOf);
+  const worstSeconds = limits.reduce((sum, seconds): number => sum + seconds, calls.sleepSeconds);
+  const unflagged = calls.curlArgs.filter((args): boolean => !FAIL_FLAG.test(args));
+  const unbounded = calls.curlArgs.filter((args): boolean => maxTimeOf(args) <= 0);
+  return { calls: limits.length, unflagged, unbounded, worstSeconds };
 }
 
 /**
@@ -377,6 +471,17 @@ describe('SonarPrScanGate', () => {
         const bin = join(stubRoot.dir, 'bin');
         const status = countGateStatus(bin, attempts);
         expect({ attempts, isPassed: status === 0 }).toEqual({ attempts, isPassed: isPass });
+      }
+    });
+
+    it('[SPS-7] CountGate_EveryCall_ShouldFailOnHttpErrorsAndFitTheJobTimeout', () => {
+      if (canRunPosixBash(process.platform)) {
+        const bin = join(stubRoot.dir, 'bin');
+        const calls = countGateCalls(bin, ALL_CALLS_FAIL);
+        const { worstSeconds, ...faults } = callBudget(calls);
+        const jobSeconds = (sonarJob()['timeout-minutes'] ?? 0) * 60;
+        expect(faults).toEqual({ calls: ALL_CALLS_FAIL.length, unflagged: [], unbounded: [] });
+        expect(worstSeconds).toBeLessThan(jobSeconds);
       }
     });
   });
