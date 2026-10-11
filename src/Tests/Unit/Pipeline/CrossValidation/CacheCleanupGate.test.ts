@@ -12,7 +12,8 @@
  *          reads every page of the cache list
  *   CCG-2  an API failure, a non-numeric PR number, or caches left after a
  *          failed delete fail the job; a delete another run won does not
- *   CCG-3  least privilege, per-PR uncancelled groups, and no expression
+ *   CCG-3  least privilege (a fork PR's close, whose token is read-only, is
+ *          left to the sweep), per-PR uncancelled groups, and no expression
  *          inside the script
  */
 
@@ -34,6 +35,9 @@ const WORKFLOW = join(REPO_ROOT, '.github/workflows/cache-cleanup.yml');
 
 const MAIN = 'refs/heads/main';
 const LOOK_ALIKE = 'refs/heads/pull/9/merge';
+/** The job runs on the sweep, a dispatch, and a same-repo PR's close. */
+const SKIP_FORK_CLOSE =
+  "github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository";
 
 /**
  * A PR's cache ref.
@@ -234,6 +238,7 @@ interface IWorkflowDoc {
 
 /** Job fields this suite reads. */
 interface IJobDoc {
+  readonly if?: string;
   readonly 'timeout-minutes'?: number;
   readonly permissions?: Readonly<Record<string, string>>;
   readonly steps: readonly IStepDoc[];
@@ -406,6 +411,7 @@ describe('CacheCleanupGate', () => {
     expect(doc.on.pull_request?.types).toEqual(['closed']);
     expect(doc.permissions).toEqual({});
     expect(job.permissions).toEqual({ actions: 'write', 'pull-requests': 'read' });
+    expect(job.if).toBe(SKIP_FORK_CLOSE);
     expect(job['timeout-minutes']).toBe(5);
     expect(doc.concurrency).toEqual({
       group: "cache-cleanup-${{ github.event.pull_request.number || 'sweep' }}",

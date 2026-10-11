@@ -100,7 +100,10 @@ deletes them in two ways:
   repository's cache list and deletes the caches on `refs/pull/<N>/merge` of
   PRs that are no longer open. It exists because some closes never start the
   `closed` run: a PR closed or merged with `GITHUB_TOKEN` (the fork policy
-  above, Dependabot auto-merge), or one closed with a merge conflict.
+  above, Dependabot auto-merge), or one closed with a merge conflict. It
+  also covers a fork PR that someone closes first: GitHub gives that
+  `closed` run a read-only token, which cannot delete caches, so the job
+  skips it.
 
 Both read the PR's state right before deleting and skip an open PR, so a PR
 reopened before that read keeps its caches. The read and the delete are not

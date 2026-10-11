@@ -9,7 +9,8 @@ name: Cache cleanup
 #   - The daily sweep catches PRs that never fire `closed` for this
 #     workflow. No run starts for a PR closed or merged with `GITHUB_TOKEN`
 #     (`no-fork-prs.yml`, Dependabot auto-merge), or for one closed while it
-#     has a merge conflict.
+#     has a merge conflict. It also covers fork PRs: their `closed` run gets
+#     a read-only token that cannot delete caches, so the job skips it.
 #
 # Only `refs/pull/<N>/merge` with a numeric `N` is ever deleted, so `main`'s
 # caches are out of reach. An open PR is always skipped: the state is read
@@ -39,6 +40,8 @@ defaults:
 jobs:
   cleanup:
     name: Delete closed PR caches
+    # A fork PR's `closed` run gets a read-only token; leave it to the sweep.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
