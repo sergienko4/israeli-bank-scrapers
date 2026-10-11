@@ -29,13 +29,17 @@ const BOT_AUTHORS = new Set([
 const BOT_BRANCH_PREFIXES = ['dependabot/', 'release-please--'];
 
 /**
- * Whether a pull request was raised by repository automation rather than a
- * person.
+ * Whether a pull request carries a bot author or a trusted bot branch name.
+ *
+ * The branch-name path cannot tell who pushed the branch: a person with write
+ * access who names a same-repo branch `dependabot/…` or `release-please--…`
+ * is treated as a bot too.
  *
  * @param {{user?: {login?: string}, head?: {ref?: string, repo?: {full_name?: string}}, base?: {repo?: {full_name?: string}}}} pr
  *   The `pull_request` payload.
- * @returns {boolean} True when the PR should skip the body and docs-staleness
- *   gates.
+ * @returns {boolean} True when the author is a known bot account, or the PR
+ *   comes from a same-repo branch with a bot prefix; such a PR skips the body
+ *   and docs-staleness gates.
  */
 module.exports = function isBotPr(pr) {
   const author = (pr.user && pr.user.login) || '';

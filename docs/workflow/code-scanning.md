@@ -469,13 +469,23 @@ pre-commit docs-staleness hook flags this page when a bound file changes, and
 the `docs-staleness` job in `pr.yml` runs the same check on every human pull
 request. Bot pull requests are exempt through the same `is-bot-pr.cjs`
 predicate: Dependabot action bumps and release-please version bumps routinely
-touch bound files, and a bot cannot update this page. Three controls cover the
-gap. The `scorecard-npm-pins` gate fails a `scorecard-action` bump until a
-person moves its pin. The pre-commit hook still runs on any human commit
-pushed to a bot branch. The guard tests still run on bot pull requests that
-touch CI scripts or dependencies. A bot-only change to behaviour this page
-states, such as the `scorecard-action` image tag quoted above, still needs a
-person to update the page. `DocsStalenessGate.test.ts` pins the job's wiring.
+touch bound files, and a bot cannot update this page. The predicate also
+exempts any same-repository branch named `dependabot/…` or
+`release-please--…`, so a person with write access can exempt a hand-written
+pull request by naming its branch that way. Three controls narrow the gap. The
+`scorecard-npm-pins` gate fails a `scorecard-action` bump that changes the
+embedded Scorecard engine until a person moves its pin. The pre-commit hook
+runs on a human commit pushed to a bot branch only when that commit stages
+source code; it skips commits that touch only `.github/`, `.husky/`, Markdown,
+JSON or YAML files, which covers most files bound to this page. The guard
+tests still run on bot pull requests that touch CI scripts or dependencies.
+Two gaps remain, and each needs a person to update the page: a bot bump that
+keeps the same engine, such as a change to the `scorecard-action` image tag
+quoted above, and a human commit on a bot branch that touches only non-code
+bound files. On an exempt pull request the job still runs its
+`actions/github-script` bot check, which receives the job's token; the job
+grants only `contents: read`, so that token cannot write.
+`DocsStalenessGate.test.ts` pins the job's wiring.
 
 Verify after a change:
 
