@@ -7,12 +7,18 @@
  * cite paths from across the whole history — including files that have since
  * moved.
  *
+ * The same predicate exempts bot PRs from the docs-staleness check: Dependabot
+ * action-SHA bumps and release-please version bumps routinely touch files bound
+ * to a docs page, and a bot cannot update that page. See
+ * docs/workflow/code-scanning.md for the controls that narrow the gap.
+ *
  * `renovate/` is deliberately NOT a trusted branch prefix: Renovate opens its
  * PRs as `renovate[bot]`, so the author check is enough, and a prefix would
  * let any collaborator exempt a hand-written PR just by naming the branch.
  *
- * `.cjs` because the package is `"type": "module"` and `actions/github-script`
- * loads this with `require`.
+ * `.cjs` because the package is `"type": "module"` and both callers load this
+ * with `require`: `actions/github-script` in the PR-body gates, and
+ * `docs-staleness-bot-skip.cjs` under plain `node` in the docs-staleness job.
  */
 const BOT_AUTHORS = new Set([
   'dependabot[bot]',
@@ -24,12 +30,17 @@ const BOT_AUTHORS = new Set([
 const BOT_BRANCH_PREFIXES = ['dependabot/', 'release-please--'];
 
 /**
- * Whether a pull request was raised by repository automation rather than a
- * person.
+ * Whether a pull request carries a bot author or a trusted bot branch name.
+ *
+ * The branch-name path cannot tell who pushed the branch: a person with write
+ * access who names a same-repo branch `dependabot/…` or `release-please--…`
+ * is treated as a bot too.
  *
  * @param {{user?: {login?: string}, head?: {ref?: string, repo?: {full_name?: string}}, base?: {repo?: {full_name?: string}}}} pr
  *   The `pull_request` payload.
- * @returns {boolean} True when the PR should skip the body gates.
+ * @returns {boolean} True when the author is a known bot account, or the PR
+ *   comes from a same-repo branch with a bot prefix; such a PR skips the body
+ *   and docs-staleness gates.
  */
 module.exports = function isBotPr(pr) {
   const author = (pr.user && pr.user.login) || '';

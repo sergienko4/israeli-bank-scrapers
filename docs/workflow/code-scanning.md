@@ -18,6 +18,8 @@ source-files:
   - .github/workflows/pr-body-check.yml
   - src/Tests/Unit/Pipeline/CrossValidation/DependabotSecurityGrouping.test.ts
   - src/Tests/Unit/Pipeline/CrossValidation/RenovateLockfileMaintenancePolicy.test.ts
+  - .github/scripts/ci/docs-staleness-bot-skip.cjs
+  - src/Tests/Unit/Pipeline/CrossValidation/DocsStalenessGate.test.ts
 ---
 
 # Code scanning: two scanners, one authority
@@ -417,7 +419,8 @@ Lockfile maintenance has no package name, so that rule never matches it.
   the lockfiles conflict, Renovate regenerates its branch on its next run
   (`rebaseWhen` defaults to rebasing a conflicted branch).
 - The pull request is authored by `renovate[bot]`. `is-bot-pr.cjs` exempts it
-  from the PR-body gates, and `compute-gate-booleans.sh` keeps it off the
+  from the PR-body gates and the docs-staleness check, and
+  `compute-gate-booleans.sh` keeps it off the
   real-bank gates, so bank secrets never reach freshly installed package code.
   The unit and mocked E2E suites still run (`deps` covers the lockfile).
 - It is never auto-merged: it needs code-owner approval like any other pull
@@ -463,9 +466,39 @@ not a semantic proof. It does not defend against deliberate obfuscation,
 which code-owner review covers. The test also checks that there
 is exactly one `chore` changelog section and that it stays hidden, so
 lockfile commits stay out of release notes. `pr.yml`
-changes too often to bind to this page, so the test guards it instead. The
-pre-commit docs-staleness hook flags this page when a bound file changes. CI
-runs that check only when `src/` changes.
+changes too often to bind to this page, so the test guards it instead. When
+the pre-commit quality gates run, the docs-staleness hook flags this page if a
+bound file changes. The `docs-staleness` job in `pr.yml` runs the same check
+on every pull request that `is-bot-pr.cjs` does not exempt. Bot pull requests
+are exempt through that predicate: Dependabot action bumps and release-please
+version bumps routinely touch bound files, and a bot cannot update this page.
+The predicate also exempts any same-repository branch named `dependabot/…` or
+`release-please--…`, so a person with write access can exempt a hand-written
+pull request by naming its branch that way. Three controls narrow the gap. The
+`scorecard-npm-pins` gate fails a `scorecard-action` bump that changes the
+embedded Scorecard engine until a person moves its pin. The pre-commit hook
+runs on a human commit pushed to a bot branch only when that commit stages
+source code; it skips commits that touch only `.github/`, `.husky/`, Markdown,
+JSON or YAML files, which covers most files bound to this page. The guard
+tests still run on bot pull requests that touch CI scripts or dependencies.
+Two gaps remain, and each needs a person to update the page: a bot bump that
+keeps the same engine, such as a change to the `scorecard-action` image tag
+quoted above, and a human commit on a bot branch that touches only non-code
+bound files. The job decides the exemption in a plain `node` step that runs
+`docs-staleness-bot-skip.cjs`. It does not use `actions/github-script`, which
+would hand the job's token to code loaded from the pull request's checkout. The
+script reads the event payload and fails the job if the payload carries no pull
+request, rather than skipping the scan.
+`DocsStalenessGate.test.ts` pins the job's wiring. It pins each of the job's
+three steps whole, the checkout action to any full commit SHA, and pins the
+bot script's code and the `validate` aggregator step line for line. It
+requires the workflow's strict `bash` shell with no job `defaults:` or step
+`shell:` override, so a decoy step, an early `exit 0` or a lax shell cannot
+quietly turn the gate off. It fixes the job's own fields, which keeps it on a
+GitHub-hosted `ubuntu-latest` runner with no `container:` or `services:`. It
+limits the `env:` keys the workflow and the job declare to a fixed allowlist,
+so a preload declared there, such as `BASH_ENV` or `NODE_OPTIONS`, cannot run
+code ahead of the pinned steps.
 
 Verify after a change:
 

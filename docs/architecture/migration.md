@@ -48,8 +48,8 @@ For each `src/Common/` helper that the Pipeline does NOT already use:
 
 > **Status:** Bank Leumi (wave 1) and Bank Yahav (wave 2) have since migrated to
 > the Pipeline. Mizrahi followed in one migration that replaced its legacy scraper
-> with the Pipeline bank, now being proven by real runs; Behatsdaa and Beyahad
-> Bishvilha remain.
+> with the Pipeline bank (real end-to-end CI runs proved its live login and
+> hard-model scrape); Behatsdaa and Beyahad Bishvilha remain.
 
 | Wave | Banks to migrate | Why this wave |
 |---|---|---|
@@ -68,7 +68,7 @@ Each wave is a separate PR, gated by:
 
 ## Why this order?
 
-- **Mizrahi + Leumi first** — the highest-traffic legacy banks (both have since moved to the Pipeline; Mizrahi is not production-ready yet), so any regression surfaces fastest in downstream consumers (Caspion, Moneyman, Actual Budget importer).
+- **Mizrahi + Leumi first** — the highest-traffic legacy banks (both have since moved to the Pipeline), so any regression surfaces fastest in downstream consumers (Caspion, Moneyman, Actual Budget importer).
 - **Banks before utilities** — utilities can't safely be deleted while a single legacy bank still imports them. Migrate all bank surfaces, then fold the helpers.
 - **Base classes last** — they are an implementation detail; once no caller imports them, they go.
 
