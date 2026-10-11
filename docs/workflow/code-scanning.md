@@ -485,7 +485,10 @@ quoted above, and a human commit on a bot branch that touches only non-code
 bound files. On an exempt pull request the job still runs its
 `actions/github-script` bot check, which receives the job's token; the job
 grants only `contents: read`, so that token cannot write.
-`DocsStalenessGate.test.ts` pins the job's wiring.
+`DocsStalenessGate.test.ts` pins the job's wiring. It pins the bot check and
+the `validate` aggregator step line for line, and requires the workflow's
+strict `bash` shell with no job `defaults:` or step `shell:` override, so a
+decoy step, an early `exit 0` or a lax shell cannot quietly turn the gate off.
 
 Verify after a change:
 
