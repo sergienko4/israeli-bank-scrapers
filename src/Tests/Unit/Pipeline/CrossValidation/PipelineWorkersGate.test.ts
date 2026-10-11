@@ -17,11 +17,12 @@
  * joined; shell drops whole-line comments and joins `\`-continued lines; JS is
  * reprinted without comments by the TypeScript printer. The result is split
  * into commands at shell separators, and a command that runs the suite (the
- * npm script or the suite config directly) must carry no worker flag. A
- * mention of the knob anywhere in that code fails outright. PWG-6 pins the
- * scanner against every spelling it must catch and every comment it must
- * skip. It is a syntactic check: a name assembled at run time is out of its
- * reach, and code-owner review covers that.
+ * npm script or the suite config directly) must carry no worker flag and take
+ * only literal arguments: a variable, substitution, expression, `xargs` or
+ * `eval` could hand it a flag the scan cannot see. JS cannot run the suite at
+ * all, since its arguments can come from any variable. A mention of the knob
+ * anywhere in that code fails outright. PWG-6 pins the scanner against every
+ * spelling and hiding place it must catch and every comment it must skip.
  *
  * Rules:
  *   PWG-1  `test:pipeline` uses the suite config; no npm script overrides its workers
@@ -29,7 +30,7 @@
  *   PWG-3  the suite config is the shared config plus `JEST_MAX_WORKERS` (default 2)
  *   PWG-4  a value Jest would quietly turn into one worker fails the config load
  *   PWG-5  no CI code overrides the worker count, so CI runs the default 2
- *   PWG-6  the scanner catches every override spelling and skips comments
+ *   PWG-6  the scanner catches every override spelling and indirection, and skips comments
  */
 
 import { spawnSync } from 'node:child_process';
@@ -60,6 +61,15 @@ const WORKER_FLAG =
 
 /** A command that runs the suite: the npm script, or Jest on the suite config. */
 const SUITE_RUN = /test:pipeline|jest\.pipeline\.suite\.config/;
+
+/**
+ * Arguments a text scan cannot read: a variable, a command substitution, a
+ * workflow expression, or arguments built by `xargs` or `eval`.
+ */
+const INDIRECT = /[$`]|\b(?:xargs|eval)\b/;
+
+/** File types whose argument flow a text scan cannot follow: no suite run there. */
+const OPAQUE: ReadonlySet<string> = new Set(['.js', '.cjs', '.mjs']);
 
 /** Shell command separators: a flag past one belongs to another command. */
 const COMMAND_BREAK = /[\n;|&]/;
@@ -261,15 +271,26 @@ function codeOf(path: string, text: string): string {
 }
 
 /**
+ * Whether one command may take the suite off its default worker count.
+ * @param command - One command.
+ * @param isOpaque - Whether it comes from a file type in {@link OPAQUE}.
+ * @returns True when it runs the suite with a flag, unread arguments, or from JS.
+ */
+function overridesSuite(command: string, isOpaque: boolean): boolean {
+  if (!SUITE_RUN.test(command)) return false;
+  return isOpaque || WORKER_FLAG.test(command) || INDIRECT.test(command);
+}
+
+/**
  * What in a piece of code takes the suite off its default worker count:
- * any mention of the knob, and each command that runs the suite with a
- * worker flag.
+ * any mention of the knob, and each command {@link overridesSuite} flags.
  * @param code - Code from {@link codeOf}.
+ * @param isOpaque - Whether the code comes from a file type in {@link OPAQUE}.
  * @returns The offending snippets; empty when the default holds.
  */
-function workerOverrides(code: string): string[] {
+function workerOverrides(code: string, isOpaque: boolean): string[] {
   const commands = code.split(COMMAND_BREAK);
-  const flagged = commands.filter((cmd): boolean => SUITE_RUN.test(cmd) && WORKER_FLAG.test(cmd));
+  const flagged = commands.filter((cmd): boolean => overridesSuite(cmd, isOpaque));
   const knob = code.includes(KNOB) ? [KNOB] : [];
   return [...knob, ...flagged.map((cmd): string => cmd.trim())];
 }
@@ -283,7 +304,9 @@ function fileOverrides(path: string): string[] {
   const absolute = join(REPO_ROOT, path);
   const text = readFileSync(absolute, 'utf8');
   const code = codeOf(path, text);
-  const found = workerOverrides(code);
+  const type = extname(path);
+  const isOpaque = OPAQUE.has(type);
+  const found = workerOverrides(code, isOpaque);
   return found.map((hit): string => `${path}: ${hit}`);
 }
 
@@ -304,7 +327,7 @@ function ciOverrides(): string[] {
  */
 function scriptOverrides(name: string, command: string): string[] {
   const code = shellCode(command);
-  const found = workerOverrides(code);
+  const found = workerOverrides(code, false);
   return found.map((hit): string => `${name}: ${hit}`);
 }
 
@@ -337,6 +360,18 @@ const CAUGHT: readonly ScanCase[] = [
   ['code after a comment ending in \\', 's.sh', '# note \\\nnpm run test:pipeline -- -w4\n'],
   ['code after a block comment', 'a.cjs', "/* note */ execSync('npm run test:pipeline -- -w4');\n"],
   ['an argv array', 'a.mjs', "spawn('npm', ['run', 'test:pipeline', '--', '--maxWorkers=4']);\n"],
+  ['JS that runs the suite at all', 'a.cjs', "spawn('npm', ['run', 'test:pipeline', ...args]);\n"],
+  [
+    'arguments from a step env',
+    'w.yml',
+    'env:\n  JEST_ARGS: --maxWorkers=4\nrun: npm run test:pipeline -- $JEST_ARGS\n',
+  ],
+  ['arguments from an expression', 'w.yml', 'run: npm run test:pipeline -- ${{ inputs.args }}\n'],
+  ['forwarded script arguments', 's.sh', 'npm run test:pipeline -- "$@"\n'],
+  ['a command substitution', 's.sh', 'npm run test:pipeline -- $(cat jest-args)\n'],
+  ['backticks', 's.sh', 'npm run test:pipeline -- `cat jest-args`\n'],
+  ['xargs', 's.sh', 'echo -- -w4 | xargs npm run test:pipeline\n'],
+  ['eval', 's.sh', 'eval "npm run test:pipeline $ARGS"\n'],
 ];
 
 /** Text the scanner must pass: comments, other commands, the plain default. */
@@ -346,7 +381,12 @@ const IGNORED: readonly ScanCase[] = [
   [
     'JS comments',
     'a.cjs',
-    "// npm run test:pipeline -w4\n/* JEST_MAX_WORKERS */\nrun('npm run test:pipeline');\n",
+    "// npm run test:pipeline -w4\n/* JEST_MAX_WORKERS */\nrun('npm run lint');\n",
+  ],
+  [
+    'a variable on the line before',
+    'w.yml',
+    'run: |\n  if [ "$COVERAGE" = true ]; then\n    npm run test:pipeline\n  fi\n',
   ],
   ['a flag on the next command', 's.sh', 'npm run test:pipeline && npx jest -w4\n'],
   ['the default run', 'w.yml', 'run: npm run test:pipeline -- --coverage=false\n'],
@@ -361,7 +401,9 @@ const IGNORED: readonly ScanCase[] = [
  */
 function scan(name: string, text: string): string[] {
   const code = codeOf(name, text);
-  return workerOverrides(code);
+  const type = extname(name);
+  const isOpaque = OPAQUE.has(type);
+  return workerOverrides(code, isOpaque);
 }
 
 describe('PipelineWorkersGate — test:pipeline worker count', () => {
