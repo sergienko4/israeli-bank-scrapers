@@ -25,13 +25,24 @@
  * must need exactly `changes`. `pr.yml` conditions are compared after the
  * `${{ }}` wrapper and any nested whole-expression parentheses are removed.
  * Each PR-body gate in `pr-body-check.yml`, selected by step id, must
- * require `is-bot-pr.cjs` once at the top level, run only declarations
- * before it, and return on `isBotPr(pr)` before any enforcing call; the
- * inline script is parsed, so comments and string literals cannot satisfy
- * the check. `stage-body` must set `skip=true` for a bot PR, and the
- * cited-path check must run only when `skip != 'true'`. Exactly one
- * `chore` changelog section exists and it stays hidden, so the weekly
- * refresh never cuts a release note.
+ * require `is-bot-pr.cjs` once at the top level and return on `isBotPr(pr)`
+ * before any enforcing call. Before the guard, each gate declares exactly
+ * its own set of approved `const` bindings, each with its exact
+ * initializer, so none can be added or dropped. For a bot PR the guard
+ * only calls `core.info` (in `stage-body`, then exactly
+ * `core.setOutput('skip', 'true')`) before a bare `return`, no top-level
+ * function is hoisted, and every `core.setOutput` call is pinned by text
+ * and placement: none in `section-check`, and in `stage-body` the guard's
+ * `skip=true` plus one unconditional top-level `skip=false`. The statements
+ * after the `stage-body` guard are pinned verbatim, so the staged body
+ * cannot be blanked or the skip flipped back. Neither gate step, nor the
+ * `body-check` job, may set `if` or `continue-on-error`. The cited-path
+ * check is found by its exact `run`, must exist once, run only when
+ * `skip != 'true'` and never set `continue-on-error`. This is an exact
+ * syntactic check of the parsed inline script, not a semantic proof: it
+ * does not defend against deliberate obfuscation, which code-owner review
+ * covers. Exactly one `chore` changelog section exists and it stays
+ * hidden, so the weekly refresh never cuts a release note.
  */
 
 import { readFileSync } from 'node:fs';
@@ -69,8 +80,33 @@ const PR_BODY_GATE_IDS = ['section-check', 'stage-body'] as const;
 /** The action every scripted PR-body gate runs on. */
 const GITHUB_SCRIPT_ACTION = 'actions/github-script@';
 
-/** The workspace-relative tail of the shared bot-exemption module path. */
-const IS_BOT_PR_SUFFIX = '/.github/scripts/ci/is-bot-pr.cjs';
+/**
+ * The only `const` bindings a gate may declare before its guard, each
+ * mapped to the exact initializer text it must use.
+ */
+const APPROVED_BINDINGS: ReadonlyMap<string, string> = new Map([
+  ['fs', "require('node:fs')"],
+  ['isBotPr', 'require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/ci/is-bot-pr.cjs`)'],
+  ['pr', 'context.payload.pull_request'],
+]);
+
+/** Node kinds a `core.info` message may hold: literals, templates and plain reads. */
+const INFO_ARGUMENT_KINDS: ReadonlySet<ts.SyntaxKind> = new Set([
+  ts.SyntaxKind.StringLiteral,
+  ts.SyntaxKind.NoSubstitutionTemplateLiteral,
+  ts.SyntaxKind.TemplateExpression,
+  ts.SyntaxKind.TemplateHead,
+  ts.SyntaxKind.TemplateMiddle,
+  ts.SyntaxKind.TemplateTail,
+  ts.SyntaxKind.TemplateSpan,
+  ts.SyntaxKind.Identifier,
+  ts.SyntaxKind.PropertyAccessExpression,
+  ts.SyntaxKind.DotToken,
+  ts.SyntaxKind.QuestionDotToken,
+  ts.SyntaxKind.BinaryExpression,
+  ts.SyntaxKind.QuestionQuestionToken,
+  ts.SyntaxKind.SyntaxList,
+]);
 
 /** The exemption call each PR-body gate must branch on. */
 const BOT_PR_GUARD = 'isBotPr(pr)';
@@ -96,18 +132,11 @@ const STAGED_BODY_CONDITION = "steps.stage-body.outputs.skip != 'true'";
 /** The cited-path check a bot PR body must never reach. */
 const PATH_CHECK_RUN = 'node scripts/check-doc-paths.mjs --diff-base "$BASE_SHA" pr-body-ci.md';
 
-/** Every known update type Renovate could open besides lockfile maintenance. */
-const DISABLED_UPDATE_TYPES = [
-  'major',
-  'minor',
-  'patch',
-  'pin',
-  'pinDigest',
-  'digest',
-  'rollback',
-  'bump',
-  'replacement',
-] as const;
+/** Version-bump update types Renovate could open besides lockfile maintenance. */
+const VERSION_UPDATE_TYPES = ['major', 'minor', 'patch', 'pin', 'pinDigest', 'digest'] as const;
+
+/** The remaining non-lockfile update types, in Renovate's documented order. */
+const OTHER_UPDATE_TYPES = ['rollback', 'bump', 'replacement'] as const;
 
 /**
  * The only packageRules allowed, minus their free-text descriptions. The
@@ -117,17 +146,21 @@ const DISABLED_UPDATE_TYPES = [
  */
 const EXPECTED_PACKAGE_RULES = [
   { matchPackageNames: ['*'], enabled: false },
-  { matchUpdateTypes: [...DISABLED_UPDATE_TYPES], enabled: false },
+  { matchUpdateTypes: [...VERSION_UPDATE_TYPES, ...OTHER_UPDATE_TYPES], enabled: false },
 ] as const;
 
-/** Friday 00:00-05:59 — four days after Dependabot's Monday run. */
+/**
+ * Friday 00:00-05:59 Asia/Jerusalem, apart from Dependabot's Monday run.
+ * The gap separates the two lanes; it guarantees no package age.
+ */
 const EXPECTED_SCHEDULE = ['* 0-5 * * 5'] as const;
 
 /**
- * Best-effort cooldown against freshly published (possibly hijacked)
- * versions. Renovate passes it to npm as `--before`, but drops the flag
- * and posts a PR notice when an already-locked package is newer than the
- * cutoff, so human review — not this value — is the fail-closed control.
+ * Best-effort only: Renovate lists lockFileMaintenance as not supporting
+ * `minimumReleaseAge`. It passes a `--before` cutoff three days back; if
+ * npm fails with `ETARGET` it retries without `--before` and logs a
+ * warning, so a version published in the last three days can still land.
+ * Human review limits exposure.
  */
 const EXPECTED_RELEASE_AGE = '3 days';
 
@@ -142,6 +175,83 @@ const EXPECTED_IGNORED_PRESETS = ['mergeConfidence:all-badges'] as const;
 
 /** The single repo both pull-request heads and bases point at. */
 const SAME_REPO = { full_name: 'sergienko4/israeli-bank-scrapers' } as const;
+
+/** The approved shared-module require every synthetic gate script starts with. */
+const SAFE_REQUIRE =
+  'const isBotPr = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/ci/is-bot-pr.cjs`);';
+
+/** The repo-relative path of the shared bot-PR module, leading slash included. */
+const BOT_PR_PATH = '/.github/scripts/ci/is-bot-pr.cjs';
+
+/** The exact statement a skip guard must run to mark the staged body skipped. */
+const SKIP_TRUE = "core.setOutput('skip', 'true');";
+
+/** The unconditional statement that lets `stage-body`'s path check run. */
+const SKIP_FALSE = "core.setOutput('skip', 'false');";
+
+/** Guard bodies that only look like they set `skip=true` and log, plus real ones. */
+const SKIP_GUARD_CASES = [
+  { label: 'deferred', body: "setTimeout(() => core.setOutput('skip', 'true'));", expected: false },
+  { label: 'unreachable', body: "if (false) core.setOutput('skip', 'true');", expected: false },
+  { label: 'early return', body: `if (pr.draft) return; ${SKIP_TRUE}`, expected: false },
+  { label: 'short-circuit', body: "pr.draft && core.setOutput('skip', 'true');", expected: false },
+  { label: 'missing', body: "core.info('x');", expected: false },
+  { label: 'straight-line', body: `core.info('x'); ${SKIP_TRUE}`, expected: true },
+  { label: 'reset', body: `${SKIP_TRUE} core['setOutput']('skip', 'false');`, expected: false },
+  { label: 'optional', body: "core?.setOutput('skip', 'true');", expected: false },
+  { label: 'optional call', body: "core.setOutput?.('skip', 'true');", expected: false },
+  { label: 'third argument', body: "core.setOutput('skip', 'true', x);", expected: false },
+  { label: 'spread', body: "core.setOutput(...['skip', 'true']);", expected: false },
+  { label: 'call first', body: `explode(); ${SKIP_TRUE}`, expected: false },
+  { label: 'template call', body: 'core.info(`${explode()}`); ' + SKIP_TRUE, expected: false },
+  { label: 'real', body: "core.info(`${pr.user?.login ?? ''}`); " + SKIP_TRUE, expected: true },
+] as const;
+
+/** The approved built-in require the `stage-body` gate declares. */
+const FS_REQUIRE = "const fs = require('node:fs');";
+
+/** The pull-request binding every gate declares right before its guard. */
+const PR_BINDING = 'const pr = context.payload.pull_request;';
+
+/**
+ * Pre-guard code for the `stage-body` bindings: a bad `fs` initializer or
+ * keyword, a missing, extra or duplicate binding, plus the exact set.
+ */
+const PRE_GUARD_CASES = [
+  { label: 'missing binding', code: '', expected: false },
+  { label: 'call', code: "const fs = require('node:fs').writeFileSync('x', '');", expected: false },
+  { label: 'constructor', code: 'const fs = new Job();', expected: false },
+  { label: 'binding default', code: "const { fs = core.setFailed('x') } = {};", expected: false },
+  { label: 'tagged template', code: 'const fs = core.setFailed`x`;', expected: false },
+  { label: 'local require', code: "const fs = require('./side-effect.cjs');", expected: false },
+  { label: 'assignment', code: 'const fs = (x = 1);', expected: false },
+  { label: 'let', code: "let fs = require('node:fs');", expected: false },
+  { label: 'using', code: "using fs = require('node:fs');", expected: false },
+  { label: 'await using', code: "await using fs = require('node:fs');", expected: false },
+  { label: 'reference', code: 'const fs = context.payload.pull_request.head;', expected: false },
+  { label: 'wrong builtin', code: "const fs = require('node:path');", expected: false },
+  { label: 'shadowed core', code: `${FS_REQUIRE}\nconst core = {};`, expected: false },
+  { label: 'duplicate isBotPr', code: `${FS_REQUIRE}\n${SAFE_REQUIRE}`, expected: false },
+  { label: 'duplicate pr', code: `${FS_REQUIRE}\n${PR_BINDING}`, expected: false },
+  { label: 'exact set', code: FS_REQUIRE, expected: true },
+] as const;
+
+/** Shared-module requires whose arguments can or cannot run code first. */
+const REQUIRE_CASES = [
+  {
+    label: 'call in path',
+    code: "const isBotPr = require(`${core.setFailed('x')}/.github/scripts/ci/is-bot-pr.cjs`);",
+    expected: false,
+  },
+  {
+    label: 'extra argument',
+    code: "const isBotPr = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/ci/is-bot-pr.cjs`, core.setFailed('x'));",
+    expected: false,
+  },
+  { label: 'absolute', code: `const isBotPr = require('/evil${BOT_PR_PATH}');`, expected: false },
+  { label: 'relative', code: `const isBotPr = require('.${BOT_PR_PATH}');`, expected: false },
+  { label: 'workspace path', code: SAFE_REQUIRE, expected: true },
+] as const;
 
 interface IPackageRule {
   readonly description?: string;
@@ -182,6 +292,9 @@ interface IBotPrPayload {
 }
 
 type IsBotPr = (pr: IBotPrPayload) => boolean;
+
+/** Variable declarations collected from a script's statements. */
+type Declarations = readonly ts.VariableDeclaration[];
 
 interface IWorkflowStep {
   readonly id?: string;
@@ -224,6 +337,11 @@ interface IReleasePackage {
 
 interface IReleasePleaseConfig {
   readonly packages?: Readonly<Partial<Record<string, IReleasePackage>>>;
+}
+
+interface IParsedGate {
+  readonly source: ts.SourceFile;
+  readonly guards: readonly ts.Statement[];
 }
 
 const LOAD_COMMON_JS = createRequire(import.meta.url);
@@ -310,9 +428,7 @@ function findJob(key: string, path = PR_YAML): readonly IWorkflowJob[] {
  * @returns The job keys it names, empty when absent or malformed.
  */
 function needsList(needs: unknown): readonly string[] {
-  if (typeof needs === 'string') {
-    return [needs];
-  }
+  if (typeof needs === 'string') return [needs];
   const list: readonly unknown[] = Array.isArray(needs) ? needs : [];
   return list.filter((need): need is string => typeof need === 'string');
 }
@@ -438,21 +554,20 @@ function unwrapCondition(condition: string): string {
  */
 function closesAtEnd(expression: string): boolean {
   const indices = Array.from({ length: expression.length }, (_unused, index): number => index);
-  const depths = indices.map((index): number => {
-    const prefix = expression.slice(0, index + 1);
-    return depthAfter(prefix);
-  });
+  const depths = indices.map((index): number => depthAfter(expression, index + 1));
   const firstClose = depths.indexOf(0);
   return expression.startsWith('(') && firstClose === expression.length - 1;
 }
 
 /**
- * Parenthesis nesting depth after reading a prefix.
+ * Parenthesis nesting depth after reading the first characters.
  *
- * @param prefix - Characters read so far.
- * @returns Open minus close parentheses in the prefix.
+ * @param expression - Single-spaced expression.
+ * @param end - How many leading characters are read.
+ * @returns Open minus close parentheses in that prefix.
  */
-function depthAfter(prefix: string): number {
+function depthAfter(expression: string, end: number): number {
+  const prefix = expression.slice(0, end);
   const opens = prefix.replaceAll(/[^(]/gu, '').length;
   const closes = prefix.replaceAll(/[^)]/gu, '').length;
   return opens - closes;
@@ -481,30 +596,16 @@ function nodesIn(node: ts.Node): readonly ts.Node[] {
 }
 
 /**
- * Read the literal text after the last `${…}` of a `require` argument.
+ * Whether a declaration binds an approved name to its exact approved
+ * initializer, so no pre-guard binding can run other code.
  *
- * @param argument - The `require` call argument.
- * @returns The trailing literal text, empty for any other expression.
+ * @param declaration - A top-level `const` declaration.
+ * @returns True for an approved binding; destructuring is rejected.
  */
-function literalTail(argument: ts.Expression): string {
-  if (ts.isTemplateExpression(argument)) return argument.templateSpans.at(-1)?.literal.text ?? '';
-  if (ts.isStringLiteralLike(argument)) return argument.text;
-  return '';
-}
-
-/**
- * Whether a node declares `isBotPr` as `require(<…/is-bot-pr.cjs>)`.
- *
- * @param node - Any script node.
- * @returns True for the shared-module require.
- */
-function isBotPrRequire(node: ts.Node): boolean {
-  if (!ts.isVariableDeclaration(node) || node.name.getText() !== 'isBotPr') return false;
-  const call = node.initializer;
-  if (call === undefined || !ts.isCallExpression(call)) return false;
-  const argument = call.arguments.at(0);
-  if (call.expression.getText() !== 'require' || argument === undefined) return false;
-  return literalTail(argument).endsWith(IS_BOT_PR_SUFFIX);
+function isApprovedBinding(declaration: ts.VariableDeclaration): boolean {
+  const { name, initializer } = declaration;
+  if (!ts.isIdentifier(name) || initializer === undefined) return false;
+  return APPROVED_BINDINGS.get(name.text) === initializer.getText();
 }
 
 /**
@@ -521,45 +622,145 @@ function isReturningGuard(statement: ts.Statement): boolean {
 }
 
 /**
- * Whether a node is a call a bot PR must never reach: failing the check,
- * staging the body, or releasing the path check with `skip=false`.
+ * Whether a node is a call a bot PR must never reach: failing the check
+ * or staging the body. `core.setOutput` calls are pinned separately.
  *
  * @param node - Any script node.
  * @returns True for an enforcing call.
  */
 function isEnforcement(node: ts.Node): boolean {
   if (!ts.isCallExpression(node)) return false;
-  const callee = node.expression.getText();
-  if (ENFORCING_CALLEES.has(callee)) return true;
-  const value = node.arguments.at(1);
-  const isFalse = value !== undefined && ts.isStringLiteralLike(value) && value.text === 'false';
-  return callee === 'core.setOutput' && isFalse;
+  const callee = calleeName(node);
+  return ENFORCING_CALLEES.has(callee);
 }
 
 /**
- * Whether a node is `core.setOutput('skip', 'true')`.
+ * Name a call's callee as `owner.member`, folding optional chaining and a
+ * string-keyed element access, so `core?.setFailed` and
+ * `core['setFailed']` match the same entry as `core.setFailed`.
+ *
+ * @param call - Any call expression.
+ * @returns The normalized callee name, or the raw callee text.
+ */
+function calleeName(call: ts.CallExpression): string {
+  const callee = call.expression;
+  if (ts.isPropertyAccessExpression(callee)) {
+    return `${callee.expression.getText()}.${callee.name.text}`;
+  }
+  if (!ts.isElementAccessExpression(callee)) return callee.getText();
+  const key = callee.argumentExpression;
+  if (!ts.isStringLiteralLike(key)) return callee.getText();
+  return `${callee.expression.getText()}.${key.text}`;
+}
+
+/**
+ * Whether a node is a plain `object.name(…)` call with no optional
+ * chaining, so the call can be neither skipped nor redirected.
+ *
+ * @param node - Any script node.
+ * @param object - The receiver identifier, such as `core`.
+ * @param name - The method name.
+ * @returns True for the exact, non-optional method call.
+ */
+function isPlainCall(node: ts.Node, object: string, name: string): node is ts.CallExpression {
+  if (!ts.isCallExpression(node) || node.questionDotToken !== undefined) return false;
+  const callee = node.expression;
+  if (!ts.isPropertyAccessExpression(callee) || callee.questionDotToken !== undefined) return false;
+  const isObject = ts.isIdentifier(callee.expression) && callee.expression.text === object;
+  return isObject && callee.name.text === name;
+}
+
+/**
+ * Whether a node is exactly `core.setOutput('skip', 'true')`.
  *
  * @param node - Any script node.
  * @returns True for the call that tells the path check to stand down.
  */
-function isSkipTrue(node: ts.Node): boolean {
-  if (!ts.isCallExpression(node) || node.expression.getText() !== 'core.setOutput') return false;
-  const name = node.arguments.at(0);
-  const value = node.arguments.at(1);
-  const isSkip = name !== undefined && ts.isStringLiteralLike(name) && name.text === 'skip';
-  return isSkip && value !== undefined && ts.isStringLiteralLike(value) && value.text === 'true';
+function isSkipTrueCall(node: ts.Node): boolean {
+  if (!isPlainCall(node, 'core', 'setOutput') || node.arguments.length !== 2) return false;
+  const [name, value] = node.arguments;
+  const isSkip = ts.isStringLiteral(name) && name.text === 'skip';
+  return isSkip && ts.isStringLiteral(value) && value.text === 'true';
 }
 
 /**
- * Whether a bot-exemption guard sets `skip=true` inside its branch.
+ * Whether a statement is `core.info(<message>)` whose single message only
+ * holds literals, templates and plain reads, so logging runs no other code.
+ *
+ * @param statement - A guard-body statement.
+ * @returns True for an inert log call.
+ */
+function isInertInfoStatement(statement: ts.Statement): boolean {
+  if (!ts.isExpressionStatement(statement)) return false;
+  const call = statement.expression;
+  if (!isPlainCall(call, 'core', 'info') || call.arguments.length !== 1) return false;
+  const [message] = call.arguments;
+  return nodesIn(message).every((node): boolean => INFO_ARGUMENT_KINDS.has(node.kind));
+}
+
+/**
+ * Whether a statement list ends in a `return` with no value.
+ *
+ * @param statements - Block statements.
+ * @returns True when the last statement is a bare `return`.
+ */
+function endsInBareReturn(statements: readonly ts.Statement[]): boolean {
+  const last = statements.at(-1);
+  if (last === undefined || !ts.isReturnStatement(last)) return false;
+  return last.expression === undefined;
+}
+
+/**
+ * List the statements a guard runs before its final bare `return`.
  *
  * @param statement - The returning guard statement.
- * @returns True when the branch calls `core.setOutput('skip', 'true')`.
+ * @returns The block statements before the `return`, or none when the
+ * guard is not a block ending in a bare `return`.
+ */
+function guardPrelude(statement: ts.Statement): readonly ts.Statement[] {
+  if (!ts.isIfStatement(statement) || !ts.isBlock(statement.thenStatement)) return [];
+  const body = statement.thenStatement.statements;
+  return endsInBareReturn(body) ? body.slice(0, -1) : [];
+}
+
+/**
+ * Whether a guard only logs with inert `core.info` calls before a bare
+ * `return`, so a bot PR runs no other code in `section-check`.
+ *
+ * @param statement - The returning guard statement.
+ * @returns True for a log-only guard body.
+ */
+function guardOnlyLogs(statement: ts.Statement): boolean {
+  if (!ts.isIfStatement(statement) || !ts.isBlock(statement.thenStatement)) return false;
+  const isReturn = endsInBareReturn(statement.thenStatement.statements);
+  return isReturn && guardPrelude(statement).every(isInertInfoStatement);
+}
+
+/**
+ * Whether a guard runs inert `core.info` calls, then exactly
+ * `core.setOutput('skip', 'true')`, then a bare `return`, so the output
+ * cannot be deferred, reset, skipped or made conditional.
+ *
+ * @param statement - The returning guard statement.
+ * @returns True for the exact `stage-body` guard shape.
  */
 function guardSetsSkip(statement: ts.Statement): boolean {
-  if (!ts.isIfStatement(statement)) return false;
-  const branchNodes = nodesIn(statement.thenStatement);
-  return branchNodes.some(isSkipTrue);
+  const prelude = guardPrelude(statement);
+  const last = prelude.at(-1);
+  const isSkip = last !== undefined && ts.isExpressionStatement(last);
+  const isSkipCall = isSkip && isSkipTrueCall(last.expression);
+  return isSkipCall && prelude.slice(0, -1).every(isInertInfoStatement);
+}
+
+/**
+ * Flatten the declarations of the variable statements in a list.
+ *
+ * @param statements - Script statements.
+ * @returns Every declaration made by a variable statement in the list.
+ */
+function variableDeclarations(statements: readonly ts.Statement[]): Declarations {
+  const variables = statements.filter(ts.isVariableStatement);
+  return variables.flatMap((statement): Declarations => statement.declarationList.declarations);
 }
 
 /**
@@ -569,61 +770,93 @@ function guardSetsSkip(statement: ts.Statement): boolean {
  * @param source - Parsed gate script.
  * @returns The top-level shared-module require declarations.
  */
-function topLevelRequires(source: ts.SourceFile): readonly ts.VariableDeclaration[] {
-  const variables = source.statements.filter(ts.isVariableStatement);
-  const declarations = variables.flatMap(
-    (statement): readonly ts.VariableDeclaration[] => statement.declarationList.declarations,
-  );
-  return declarations.filter(isBotPrRequire);
+function topLevelRequires(source: ts.SourceFile): Declarations {
+  const approved = variableDeclarations(source.statements).filter(isApprovedBinding);
+  return approved.filter((node): boolean => node.name.getText() === 'isBotPr');
 }
 
 /**
- * Whether only declarations run before the guard, so no call can act on a
- * bot PR first.
+ * Whether a statement is a `const` declaration, so `let`, `var`, `using`
+ * and `await using` (which runs a disposer) are all rejected.
+ *
+ * @param statement - A top-level script statement.
+ * @returns True for a `const` variable statement.
+ */
+function isConstStatement(statement: ts.Statement): boolean {
+  if (!ts.isVariableStatement(statement)) return false;
+  return statement.declarationList.getFirstToken()?.kind === ts.SyntaxKind.ConstKeyword;
+}
+
+/**
+ * Whether the gate declares exactly its required `const` bindings before
+ * the guard, each once and with its exact initializer, so no call can act
+ * on a bot PR first and no binding can be dropped. Fails closed.
+ *
+ * @param guard - The returning bot-exemption guard.
+ * @param required - The distinct binding names this gate must declare.
+ * @returns True when the earlier top-level statements are `const`
+ * declarations of exactly the required approved bindings.
+ */
+function preGuardHasExactBindings(guard: ts.Statement, required: readonly string[]): boolean {
+  const { statements } = guard.getSourceFile();
+  const guardIndex = statements.indexOf(guard);
+  const before = statements.slice(0, guardIndex);
+  if (guardIndex <= 0 || !before.every(isConstStatement)) return false;
+  const declarations = variableDeclarations(before);
+  const names = declarations.map((declaration): string => declaration.name.getText());
+  const hasEach = required.every((name): boolean => names.includes(name));
+  return hasEach && names.length === required.length && declarations.every(isApprovedBinding);
+}
+
+/**
+ * List every `core.setOutput` call with its placement, so an output cannot
+ * be dropped, flipped, made conditional, or added.
  *
  * @param source - Parsed gate script.
- * @param guard - The returning bot-exemption guard.
- * @returns True when every earlier top-level statement is a declaration.
+ * @returns Each call as `top <text>` for a top-level statement, else
+ * `nested <text>`, in source order.
  */
-function preGuardAreDeclarations(source: ts.SourceFile, guard: ts.Statement): boolean {
-  const guardIndex = source.statements.indexOf(guard);
-  const before = source.statements.slice(0, guardIndex);
-  return guardIndex > 0 && before.every((statement): boolean => ts.isVariableStatement(statement));
-}
-
-/**
- * Find the body-check steps that run only when `stage-body` did not skip.
- *
- * @returns Every step gated on `steps.stage-body.outputs.skip != 'true'`.
- */
-function stagedBodySteps(): readonly IWorkflowStep[] {
-  const jobs = findJob(PR_BODY_JOB, PR_BODY_CHECK);
-  const steps = jobs.flatMap((job): readonly IWorkflowStep[] => job.steps ?? []);
-  return steps.filter((step): boolean => {
-    const condition = typeof step.if === 'string' ? unwrapCondition(step.if) : '';
-    return condition === STAGED_BODY_CONDITION;
+function outputCalls(source: ts.SourceFile): readonly string[] {
+  const nodes = nodesIn(source);
+  const calls = nodes.filter(ts.isCallExpression);
+  const outputs = calls.filter((call): boolean => calleeName(call) === 'core.setOutput');
+  return outputs.map((call): string => {
+    const isTop = ts.isExpressionStatement(call.parent) && call.parent.parent === source;
+    return `${isTop ? 'top' : 'nested'} ${call.getText()}`;
   });
 }
 
 /**
- * Read the script of every `pr-body-check.yml` step with a given id.
+ * Build a minimal gate script so the guard helpers can be shown to reject
+ * code that only looks safe.
  *
- * @param gateId - Step `id:` in the body-check job.
- * @returns One `uses`/script pair per matching step.
+ * @param preGuard - Statements placed before the guard.
+ * @param guardBody - Statements placed before the guard's `return`.
+ * @returns The parsed script and its returning guards.
  */
-function gateSteps(gateId: string): readonly IWorkflowStep[] {
-  return stepsById(PR_BODY_JOB, gateId, PR_BODY_CHECK);
+function syntheticGate(preGuard: string, guardBody: string): IParsedGate {
+  const lines = [preGuard, PR_BINDING];
+  const guard = ['if (isBotPr(pr)) {', guardBody, 'return;', '}', "core.setFailed('x');"];
+  const script = [...lines, ...guard].join('\n');
+  const source = parseScript(script);
+  const guards = source.statements.filter(isReturningGuard);
+  return { source, guards };
 }
 
 /**
- * Parse the committed release-please configuration.
- *
- * @returns Parsed config document.
+ * The exact shape each real gate must keep: its pre-guard bindings, its
+ * guard body, every `core.setOutput` call with its placement and, for
+ * `stage-body`, its exact post-guard statements.
  */
-function loadReleasePlease(): IReleasePleaseConfig {
-  const raw = read(RELEASE_PLEASE_CONFIG);
-  return JSON.parse(raw) as IReleasePleaseConfig;
-}
+const GATE_SHAPES = {
+  'section-check': { bindings: ['isBotPr', 'pr'], guardBody: guardOnlyLogs, outputs: [] },
+  'stage-body': {
+    bindings: ['fs', 'isBotPr', 'pr'],
+    guardBody: guardSetsSkip,
+    outputs: ["nested core.setOutput('skip', 'true')", "top core.setOutput('skip', 'false')"],
+    postGuard: ["fs.writeFileSync('pr-body-ci.md', pr.body || '');", SKIP_FALSE],
+  },
+} as const;
 
 describe('RenovateLockfileMaintenancePolicy', () => {
   it('[RLM-1] Config_OnlyLockFileMaintenance_ShouldBeEnabled', () => {
@@ -751,32 +984,40 @@ describe('RenovateLockfileMaintenancePolicy', () => {
   });
 
   it.each(PR_BODY_GATE_IDS)('[RLM-18] PrBodyCheck_%s_ShouldReturnForBotPrsFirst', gateId => {
-    const steps = gateSteps(gateId);
+    const shape = GATE_SHAPES[gateId];
+    const steps = stepsById(PR_BODY_JOB, gateId, PR_BODY_CHECK);
     expect(steps).toHaveLength(1);
     const [step] = steps;
-    const action = step.uses ?? '';
-    const isScriptAction = action.startsWith(GITHUB_SCRIPT_ACTION);
+    const stepMasks = failureMasks(step).filter((mask): boolean => mask !== undefined);
+    expect(stepMasks).toStrictEqual([]);
+    const isScriptAction = (step.uses ?? '').startsWith(GITHUB_SCRIPT_ACTION);
     expect(isScriptAction).toBe(true);
     const source = parseScript(step.with?.script ?? '');
-    const nodes = nodesIn(source);
-    const requires = topLevelRequires(source);
     const guards = source.statements.filter(isReturningGuard);
-    expect(requires).toHaveLength(1);
     expect(guards).toHaveLength(1);
-    const isDeclarationsOnly = preGuardAreDeclarations(source, guards[0]);
-    expect(isDeclarationsOnly).toBe(true);
-    const requireEnd = requires[0].getEnd();
-    const guardStart = guards[0].getStart();
+    const isExactBindings = preGuardHasExactBindings(guards[0], shape.bindings);
+    expect(isExactBindings).toBe(true);
+    const isGuardBodyOk = shape.guardBody(guards[0]);
+    expect(isGuardBodyOk).toBe(true);
+    const outputs = outputCalls(source);
+    expect(outputs).toStrictEqual(shape.outputs);
+    const guardIndex = source.statements.indexOf(guards[0]);
+    const post = source.statements.slice(guardIndex + 1);
+    const postText = post.map((statement): string => statement.getText());
+    const expectedPost = 'postGuard' in shape ? [...shape.postGuard] : postText;
+    expect(postText).toStrictEqual(expectedPost);
+    const hoisted = source.statements.filter(ts.isFunctionDeclaration);
+    expect(hoisted).toStrictEqual([]);
     const guardEnd = guards[0].getEnd();
-    expect(requireEnd).toBeLessThan(guardStart);
-    const enforcing = nodes.filter(isEnforcement);
+    const enforcing = nodesIn(source).filter(isEnforcement);
     const early = enforcing.filter((node): boolean => node.getStart() < guardEnd);
     expect(enforcing.length).toBeGreaterThan(0);
     expect(early).toStrictEqual([]);
   });
 
   it('[RLM-19] ReleasePlease_ChoreSection_ShouldStayHidden', () => {
-    const config = loadReleasePlease();
+    const raw = read(RELEASE_PLEASE_CONFIG);
+    const config = JSON.parse(raw) as IReleasePleaseConfig;
     const sections = config.packages?.['.']?.['changelog-sections'] ?? [];
     const chores = sections.filter((section): boolean => section.type === 'chore');
     expect(chores).toStrictEqual([HIDDEN_CHORE_SECTION]);
@@ -791,16 +1032,48 @@ describe('RenovateLockfileMaintenancePolicy', () => {
     expect(trigger?.['paths-ignore']).toBeUndefined();
   });
 
-  it('[RLM-21] PrBodyCheck_StageBody_ShouldSkipPathCheckForBotPrs', () => {
-    const steps = gateSteps('stage-body');
-    expect(steps).toHaveLength(1);
-    const source = parseScript(steps[0].with?.script ?? '');
-    const guards = source.statements.filter(isReturningGuard);
-    expect(guards).toHaveLength(1);
-    const isSkipSet = guardSetsSkip(guards[0]);
-    expect(isSkipSet).toBe(true);
-    const staged = stagedBodySteps();
-    const runs = staged.map((step): string => runOf(step));
-    expect(runs).toStrictEqual([PATH_CHECK_RUN]);
+  it('[RLM-21] PrBodyCheck_PathCheck_ShouldRunOnlyWhenNotSkipped', () => {
+    const jobs = findJob(PR_BODY_JOB, PR_BODY_CHECK);
+    const jobMasks = jobs.flatMap((job): readonly unknown[] => failureMasks(job));
+    const setJobMasks = jobMasks.filter((mask): boolean => mask !== undefined);
+    expect(setJobMasks).toStrictEqual([]);
+    const steps = jobs.flatMap((job): readonly IWorkflowStep[] => job.steps ?? []);
+    const pathChecks = steps.filter((step): boolean => runOf(step) === PATH_CHECK_RUN);
+    expect(pathChecks).toHaveLength(1);
+    const [check] = pathChecks;
+    const condition = unwrapCondition(typeof check.if === 'string' ? check.if : '');
+    expect(condition).toBe(STAGED_BODY_CONDITION);
+    expect(check['continue-on-error']).toBeUndefined();
   });
+
+  it.each(SKIP_GUARD_CASES)(
+    '[RLM-22] GuardSetsSkip_ShouldRequireStraightLineSkip ($label)',
+    ({ body, expected }) => {
+      const { guards } = syntheticGate(SAFE_REQUIRE, body);
+      expect(guards).toHaveLength(1);
+      const isSkipSet = guardSetsSkip(guards[0]);
+      expect(isSkipSet).toBe(expected);
+    },
+  );
+
+  it.each(PRE_GUARD_CASES)(
+    '[RLM-23] PreGuard_ShouldAllowOnlyExactBindings ($label)',
+    ({ code, expected }) => {
+      const { guards } = syntheticGate(`${SAFE_REQUIRE}\n${code}`, '');
+      expect(guards).toHaveLength(1);
+      const isExact = preGuardHasExactBindings(guards[0], GATE_SHAPES['stage-body'].bindings);
+      expect(isExact).toBe(expected);
+    },
+  );
+
+  it.each(REQUIRE_CASES)(
+    '[RLM-24] BotPrRequire_ShouldRejectArgumentsThatRunCode ($label)',
+    ({ code, expected }) => {
+      const { source, guards } = syntheticGate(code, '');
+      const requires = topLevelRequires(source);
+      expect(requires).toHaveLength(expected ? 1 : 0);
+      const isExact = preGuardHasExactBindings(guards[0], GATE_SHAPES['section-check'].bindings);
+      expect(isExact).toBe(expected);
+    },
+  );
 });
