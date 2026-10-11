@@ -10,11 +10,11 @@
  *
  * <p>Bot PRs are exempt through the same `is-bot-pr.cjs` predicate the PR-body
  * gates use: a bot cannot update the bound page. What this test pins is that
- * the gate stays a gate — it runs on every pull request, can block the merge,
- * cannot swallow its own failure, is handed no secret, runs exactly once, and
- * skips only what the shared predicate calls a bot PR. The bot step still gets
- * the job token github-script always receives; `contents: read` keeps it
- * read-only.
+ * the gate stays a gate — it runs on every pull request, `Validate` fails when
+ * it fails or is cancelled, it cannot swallow its own failure, it runs exactly
+ * once, and it skips only what the shared predicate calls a bot PR. The job
+ * references no repository secret and receives only the implicit job token,
+ * which `contents: read` keeps read-only.
  */
 
 import { readFileSync } from 'node:fs';
@@ -86,6 +86,23 @@ const PLAIN_BRANCH = 'chore/x';
 /** A maintainer, who can push branches to the base repository. */
 const MAINTAINER = 'a-maintainer';
 
+/**
+ * The aggregator must run even when a job it needs failed: under the default
+ * `success()` it would be skipped, and a skipped required check counts as passed.
+ */
+const AGGREGATOR_CONDITION = 'always()';
+
+/** How the aggregator step receives every needed job's result. */
+const AGGREGATOR_NEEDS_ENV = '${{ toJSON(needs) }}';
+
+/** What the aggregator script needs to fail on a failed or cancelled job. */
+const AGGREGATOR_FAILS_ON = [
+  'set -euo pipefail',
+  '.value.result == "failure"',
+  '.value.result == "cancelled"',
+  'exit 1',
+];
+
 /** Shell that would let a failing command pass. */
 const SWALLOWED_FAILURE = /\|\|\s*(?:true|:)(?![\w-])|set \+e/;
 
@@ -101,7 +118,7 @@ interface IWorkflowStep {
   readonly uses?: string;
   readonly run?: string;
   readonly with?: Readonly<Record<string, string | number | boolean | undefined>>;
-  readonly env?: unknown;
+  readonly env?: Readonly<Record<string, string>>;
   readonly 'continue-on-error'?: unknown;
 }
 
@@ -177,14 +194,34 @@ function gateSteps(): readonly IWorkflowStep[] {
 }
 
 /**
+ * The merge-blocking aggregator job.
+ *
+ * @returns The job, or an empty job when it is missing.
+ */
+function validateJob(): IWorkflowJob {
+  const doc = loadWorkflow();
+  return doc.jobs[VALIDATE_JOB_KEY] ?? { steps: [] };
+}
+
+/**
  * The jobs the merge-blocking aggregator waits for.
  *
  * @returns Job keys in its `needs`.
  */
 function validateNeeds(): readonly string[] {
-  const doc = loadWorkflow();
-  const needs = doc.jobs[VALIDATE_JOB_KEY].needs ?? [];
+  const needs = validateJob().needs ?? [];
   return typeof needs === 'string' ? [needs] : needs;
+}
+
+/**
+ * The aggregator step's script that reads every needed job's result.
+ *
+ * @returns The `run` script, or empty when no step is handed the results.
+ */
+function aggregatorScript(): string {
+  const steps = validateJob().steps ?? [];
+  const reader = steps.find(step => step.env?.NEEDS_JSON === AGGREGATOR_NEEDS_ENV);
+  return reader?.run ?? '';
 }
 
 /**
@@ -414,5 +451,17 @@ describe('Docs staleness gate', () => {
   it('[DSG-11] triggers on every pull request into main, with no type or path filter', () => {
     const doc = loadWorkflow();
     expect(doc.on.pull_request).toEqual(PR_TRIGGER);
+  });
+
+  it('[DSG-12] Validate fails when any job it needs fails or is cancelled', () => {
+    const job = validateJob();
+    const lenientSteps = (job.steps ?? []).filter(step => step['continue-on-error'] !== undefined);
+    const script = aggregatorScript();
+    const missing = AGGREGATOR_FAILS_ON.filter(fragment => !script.includes(fragment));
+    expect(job.if).toBe(AGGREGATOR_CONDITION);
+    expect(job['continue-on-error']).toBeUndefined();
+    expect(lenientSteps).toEqual([]);
+    expect(script).not.toMatch(SWALLOWED_FAILURE);
+    expect(missing).toEqual([]);
   });
 });
