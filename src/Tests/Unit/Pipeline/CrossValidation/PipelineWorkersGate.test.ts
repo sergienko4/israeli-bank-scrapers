@@ -12,18 +12,33 @@
  * <p>CI stays on the default 2: a trial at 4 hit Jest's ESM "module not been
  * linked" race on the Node 22 leg (see the `unit-tests` job in `pr.yml`).
  *
+ * <p>PWG-1 and PWG-5 read code, not lines. Each file is first reduced to what
+ * actually runs: YAML is parsed, so comments vanish and folded scalars are
+ * joined; shell drops whole-line comments and joins `\`-continued lines; JS is
+ * reprinted without comments by the TypeScript printer. The result is split
+ * into commands at shell separators, and a command that runs the suite (the
+ * npm script or the suite config directly) must carry no worker flag. A
+ * mention of the knob anywhere in that code fails outright. PWG-6 pins the
+ * scanner against every spelling it must catch and every comment it must
+ * skip. It is a syntactic check: a name assembled at run time is out of its
+ * reach, and code-owner review covers that.
+ *
  * Rules:
- *   PWG-1  `test:pipeline` uses the suite config and sets no worker flag
+ *   PWG-1  `test:pipeline` uses the suite config; no npm script overrides its workers
  *   PWG-2  `test:memory` and the shared config stay free of a worker count
  *   PWG-3  the suite config is the shared config plus `JEST_MAX_WORKERS` (default 2)
  *   PWG-4  a value Jest would quietly turn into one worker fails the config load
- *   PWG-5  no CI code line raises the worker count, so CI runs the default 2
+ *   PWG-5  no CI code overrides the worker count, so CI runs the default 2
+ *   PWG-6  the scanner catches every override spelling and skips comments
  */
 
 import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import * as ts from 'typescript';
+import { parse } from 'yaml';
 
 const THIS_FILE_URL = import.meta.url;
 const THIS_FILE_PATH = fileURLToPath(THIS_FILE_URL);
@@ -34,14 +49,29 @@ const BASE_CONFIG = 'jest.pipeline.config.cjs';
 const SUITE_CONFIG = 'jest.pipeline.suite.config.cjs';
 const KNOB = 'JEST_MAX_WORKERS';
 
-/** Any Jest CLI flag that fixes the worker count and so overrides the config. */
-const WORKER_FLAG = /(?:^|\s)(?:--maxWorkers|-w|--runInBand|-i)(?:[=\s]|$)/;
+/**
+ * A Jest CLI flag that fixes the worker count and so overrides the config:
+ * `--maxWorkers` / `--max-workers` / `-w` (with `=`, a space or attached
+ * digits) or `--runInBand` / `--run-in-band` / `-i`. The boundaries admit a
+ * quote, comma or bracket, so an argv array entry counts as well.
+ */
+const WORKER_FLAG =
+  /(?:^|[\s'"`,[(])(?:--maxWorkers|--max-workers|-w\d*|--runInBand|--run-in-band|-i)(?=[\s=,'"`\])]|$)/;
+
+/** A command that runs the suite: the npm script, or Jest on the suite config. */
+const SUITE_RUN = /test:pipeline|jest\.pipeline\.suite\.config/;
+
+/** Shell command separators: a flag past one belongs to another command. */
+const COMMAND_BREAK = /[\n;|&]/;
+
+/** A whole-line shell comment; its newline stays, so it never joins two lines. */
+const SHELL_COMMENT = /^[ \t]*#.*$/gm;
+
+/** A backslash-newline, which the shell joins into one line. */
+const CONTINUATION = /\\\r?\n/g;
 
 /** Every place a CI job's environment or command line can come from. */
 const CI_DIRS = ['.github/workflows', '.github/actions', '.github/scripts'] as const;
-
-/** A whole-line comment: YAML or shell `#`, JS `//`, or a block-comment line. */
-const COMMENT_LINE = /^\s*(?:#|\/\/|\/?\*)/;
 
 /** Loads both configs in a fresh process and reports how the suite one differs. */
 const PROBE = [
@@ -85,14 +115,23 @@ interface IProbeRun {
 }
 
 /**
+ * Every npm script in `package.json`.
+ * @returns Script names mapped to their command lines.
+ */
+function npmScripts(): Readonly<Record<string, string>> {
+  const text = readFileSync(PACKAGE_JSON, 'utf8');
+  const pkg = JSON.parse(text) as { readonly scripts: Readonly<Record<string, string>> };
+  return pkg.scripts;
+}
+
+/**
  * One npm script from `package.json`.
  * @param name - Script name.
  * @returns Its command line.
  */
 function npmScript(name: string): string {
-  const text = readFileSync(PACKAGE_JSON, 'utf8');
-  const pkg = JSON.parse(text) as { readonly scripts: Readonly<Record<string, string>> };
-  return pkg.scripts[name];
+  const scripts = npmScripts();
+  return scripts[name];
 }
 
 /**
@@ -153,46 +192,187 @@ function isFile(path: string): boolean {
 }
 
 /**
- * Whether a line, outside a comment, sets the knob or passes `test:pipeline`
- * a worker flag. Either route (job, step or workflow `env`, `$GITHUB_ENV`, a
- * script, the command line) takes CI off the default.
- * @param line - One line of a CI file.
- * @returns True when the line raises the worker count.
+ * Shell text as the shell runs it: whole-line comments dropped first (a
+ * comment's trailing backslash continues nothing), then continuations joined.
+ * @param text - Shell source, or one YAML string value.
+ * @returns The code.
  */
-function raisesWorkers(line: string): boolean {
-  if (COMMENT_LINE.test(line)) return false;
-  return line.includes(KNOB) || (line.includes('test:pipeline') && WORKER_FLAG.test(line));
+function shellCode(text: string): string {
+  const uncommented = text.replace(SHELL_COMMENT, '');
+  return uncommented.replace(CONTINUATION, ' ');
 }
 
 /**
- * The lines in one CI file that raise the worker count.
+ * JS source reprinted without comments, so code after a block comment stays.
+ * @param text - JS source.
+ * @returns The code.
+ */
+function jsCode(text: string): string {
+  const kind = ts.ScriptKind.JS;
+  const source = ts.createSourceFile('ci.js', text, ts.ScriptTarget.Latest, true, kind);
+  const printer = ts.createPrinter({ removeComments: true });
+  return printer.printFile(source);
+}
+
+/**
+ * Every key and string value of a parsed YAML node, depth first.
+ * @param node - A parsed YAML value.
+ * @returns The strings; numbers and booleans carry no command.
+ */
+function yamlStrings(node: unknown): string[] {
+  if (typeof node === 'string') return [node];
+  if (Array.isArray(node)) return node.flatMap((item: unknown): string[] => yamlStrings(item));
+  if (node === null || typeof node !== 'object') return [];
+  const entries = Object.entries(node);
+  return entries.flatMap(([key, value]): string[] => [key, ...yamlStrings(value)]);
+}
+
+/**
+ * YAML as the runner sees it: comments gone, folded scalars joined, each
+ * string read as shell (`run:` bodies and `env:` keys alike).
+ * @param text - YAML source.
+ * @returns The code.
+ */
+function yamlCode(text: string): string {
+  const doc: unknown = parse(text);
+  const strings = yamlStrings(doc);
+  return strings.map((value): string => shellCode(value)).join('\n');
+}
+
+/** How to read each CI file type; any other type is scanned as raw text. */
+const CODE_OF: Readonly<Record<string, (text: string) => string>> = {
+  '.yml': yamlCode,
+  '.yaml': yamlCode,
+  '.sh': shellCode,
+  '.js': jsCode,
+  '.cjs': jsCode,
+  '.mjs': jsCode,
+};
+
+/**
+ * A file's code, read by its type.
+ * @param path - File path; only its extension matters.
+ * @param text - File contents.
+ * @returns The code.
+ */
+function codeOf(path: string, text: string): string {
+  const read = CODE_OF[extname(path)] ?? ((raw: string): string => raw);
+  return read(text);
+}
+
+/**
+ * What in a piece of code takes the suite off its default worker count:
+ * any mention of the knob, and each command that runs the suite with a
+ * worker flag.
+ * @param code - Code from {@link codeOf}.
+ * @returns The offending snippets; empty when the default holds.
+ */
+function workerOverrides(code: string): string[] {
+  const commands = code.split(COMMAND_BREAK);
+  const flagged = commands.filter((cmd): boolean => SUITE_RUN.test(cmd) && WORKER_FLAG.test(cmd));
+  const knob = code.includes(KNOB) ? [KNOB] : [];
+  return [...knob, ...flagged.map((cmd): string => cmd.trim())];
+}
+
+/**
+ * The overrides in one CI file.
  * @param path - Repo-relative file path.
- * @returns `path:line` for each offending line.
+ * @returns `path: snippet` for each.
  */
-function workerLines(path: string): string[] {
+function fileOverrides(path: string): string[] {
   const absolute = join(REPO_ROOT, path);
-  const lines = readFileSync(absolute, 'utf8').split('\n');
-  const hits = lines.map((line, index): string => {
-    const lineNumber = String(index + 1);
-    return raisesWorkers(line) ? `${path}:${lineNumber}` : '';
-  });
-  return hits.filter((hit): boolean => hit !== '');
+  const text = readFileSync(absolute, 'utf8');
+  const code = codeOf(path, text);
+  const found = workerOverrides(code);
+  return found.map((hit): string => `${path}: ${hit}`);
 }
 
 /**
- * Every CI line that raises the worker count.
- * @returns `path:line` entries; empty when CI keeps the default.
+ * Every CI override of the suite's worker count.
+ * @returns `path: snippet` entries; empty when CI keeps the default.
  */
-function ciWorkerLines(): string[] {
+function ciOverrides(): string[] {
   const files = CI_DIRS.flatMap((dir): string[] => filesUnder(dir));
-  return files.flatMap((path): string[] => workerLines(path));
+  return files.flatMap((path): string[] => fileOverrides(path));
+}
+
+/**
+ * The overrides in one npm script, which CI may call instead of the suite.
+ * @param name - Script name.
+ * @param command - Its command line.
+ * @returns `name: snippet` for each.
+ */
+function scriptOverrides(name: string, command: string): string[] {
+  const code = shellCode(command);
+  const found = workerOverrides(code);
+  return found.map((hit): string => `${name}: ${hit}`);
+}
+
+/** `[label, file name, text]` for the scanner's self-test. */
+type ScanCase = readonly [string, string, string];
+
+/** Overrides the scanner must report, one per spelling or hiding place. */
+const CAUGHT: readonly ScanCase[] = [
+  ['the knob in a job env', 'w.yml', "jobs:\n  t:\n    env:\n      JEST_MAX_WORKERS: '4'\n"],
+  ['the knob written to $GITHUB_ENV', 'w.yml', 'run: echo "JEST_MAX_WORKERS=4" >> "$GITHUB_ENV"\n'],
+  ['the knob in JS', 'a.cjs', "process.env.JEST_MAX_WORKERS = '4';\n"],
+  ['a folded run', 'w.yml', 'run: >\n  npm run test:pipeline\n  -- --maxWorkers=4\n'],
+  ['a continued run', 'w.yml', 'run: |\n  npm run test:pipeline \\\n    -- -w4\n'],
+  ['-w=4', 's.sh', 'npm run test:pipeline -- -w=4\n'],
+  ['-w 4', 's.sh', 'npm run test:pipeline -- -w 4\n'],
+  ['--max-workers=4', 's.sh', 'npm run test:pipeline -- --max-workers=4\n'],
+  ['--maxWorkers 4', 's.sh', 'npm run test:pipeline -- --maxWorkers 4\n'],
+  ['--run-in-band', 's.sh', 'npm run test:pipeline -- --run-in-band\n'],
+  ['-i', 's.sh', 'npm run test:pipeline -- -i\n'],
+  [
+    'Jest run on the suite config',
+    's.sh',
+    'npx jest --config=jest.pipeline.suite.config.cjs --runInBand\n',
+  ],
+  [
+    'a case arm starting with *',
+    's.sh',
+    'case "$x" in\n  *) npm run test:pipeline -- -w4 ;;\nesac\n',
+  ],
+  ['code after a comment ending in \\', 's.sh', '# note \\\nnpm run test:pipeline -- -w4\n'],
+  ['code after a block comment', 'a.cjs', "/* note */ execSync('npm run test:pipeline -- -w4');\n"],
+  ['an argv array', 'a.mjs', "spawn('npm', ['run', 'test:pipeline', '--', '--maxWorkers=4']);\n"],
+];
+
+/** Text the scanner must pass: comments, other commands, the plain default. */
+const IGNORED: readonly ScanCase[] = [
+  ['a YAML comment', 'w.yml', '# JEST_MAX_WORKERS: 4 was a NO-GO\non: push\n'],
+  ['a shell comment', 's.sh', '# npm run test:pipeline -- -w4\nnpm run test:pipeline\n'],
+  [
+    'JS comments',
+    'a.cjs',
+    "// npm run test:pipeline -w4\n/* JEST_MAX_WORKERS */\nrun('npm run test:pipeline');\n",
+  ],
+  ['a flag on the next command', 's.sh', 'npm run test:pipeline && npx jest -w4\n'],
+  ['the default run', 'w.yml', 'run: npm run test:pipeline -- --coverage=false\n'],
+  ['another suite', 's.sh', 'npm run test:e2e:mock -- --maxWorkers=2\n'],
+];
+
+/**
+ * Scan one self-test case.
+ * @param name - File name, for its type.
+ * @param text - File contents.
+ * @returns What the scanner reported.
+ */
+function scan(name: string, text: string): string[] {
+  const code = codeOf(name, text);
+  return workerOverrides(code);
 }
 
 describe('PipelineWorkersGate — test:pipeline worker count', () => {
-  it('PWG-1: test:pipeline reads the suite config and sets no worker flag', () => {
-    const script = npmScript('test:pipeline');
-    expect(script).toContain(`--config=${SUITE_CONFIG}`);
-    expect(script).not.toMatch(WORKER_FLAG);
+  it('PWG-1: test:pipeline reads the suite config; no npm script overrides its workers', () => {
+    const all = npmScripts();
+    const scripts = Object.entries(all);
+    const offenders = scripts.flatMap(([name, command]): string[] =>
+      scriptOverrides(name, command),
+    );
+    expect(all['test:pipeline']).toContain(`--config=${SUITE_CONFIG}`);
+    expect(offenders).toEqual([]);
   });
 
   it('PWG-2: test:memory reads the shared config, which sets no worker count', () => {
@@ -216,9 +396,19 @@ describe('PipelineWorkersGate — test:pipeline worker count', () => {
     expect(run.stderr).toContain(`${KNOB} must be a positive integer or 1-100%`);
   });
 
-  it('PWG-5: no CI code line raises the worker count, so CI runs the default 2', () => {
-    const offenders = ciWorkerLines();
+  it('PWG-5: no CI code overrides the worker count, so CI runs the default 2', () => {
+    const offenders = ciOverrides();
     expect(offenders).toEqual([]);
     expect(probe(UNSET).maxWorkers).toBe('2');
+  });
+
+  it.each(CAUGHT)('PWG-6: the scanner catches %s', (_label, name, text) => {
+    const found = scan(name, text);
+    expect(found).not.toEqual([]);
+  });
+
+  it.each(IGNORED)('PWG-6: the scanner skips %s', (_label, name, text) => {
+    const found = scan(name, text);
+    expect(found).toEqual([]);
   });
 });
