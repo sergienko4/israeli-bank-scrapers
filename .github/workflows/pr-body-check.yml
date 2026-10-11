@@ -28,8 +28,10 @@ jobs:
         with:
           script: |
             // Bot-authored PRs (Dependabot, Renovate, release-please) cannot generate the §10
-            // guideline-compliance table by design. Exempt them so dependency bumps and
-            // release PRs are not blocked from auto-merge. Human PRs remain enforced.
+            // guideline-compliance table by design. Exempt them from this body gate so
+            // Dependabot auto-merge and release PRs are not blocked. The exemption does not
+            // enable auto-merge: Renovate PRs set automerge false and still need code-owner
+            // review. Human PRs remain enforced.
             // Shared with the cited-path check below so both gates exempt the same set.
             const isBotPr = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/ci/is-bot-pr.cjs`);
             const pr = context.payload.pull_request;
