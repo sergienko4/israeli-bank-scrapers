@@ -12,7 +12,7 @@ inputs:
     required: false
     default: ''
   camoufox:
-    description: Install the Camoufox browser (skip for unit-tests / bank-coverage / build / lint-only jobs).
+    description: Install the Camoufox browser (skip for unit-tests / build / lint-only jobs).
     required: false
     default: 'true'
   tests-config:

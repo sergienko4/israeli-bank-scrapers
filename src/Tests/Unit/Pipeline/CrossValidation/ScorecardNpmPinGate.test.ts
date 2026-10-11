@@ -7,7 +7,8 @@
  * scan (`scorecard.yml`) raises those alerts only after a change has merged, so
  * the pull-request workflow runs the same engine, pinned by version and
  * checksum, over the merge tree: `.github/scripts/ci/scorecard-npm-pins.sh`,
- * with `check-scorecard-npm-pins.mjs` deciding the verdict.
+ * run as a background step of the `Static checks` job, with
+ * `check-scorecard-npm-pins.mjs` deciding the verdict.
  *
  * <p>Mirroring the engine rather than re-implementing its shell parser is the
  * point: the gate sees exactly what the scan sees. What this test pins is that
@@ -43,11 +44,24 @@ const GATE_SCRIPT = join(REPO_ROOT, GATE_SCRIPT_PATH);
 const ACTION_WORKFLOW_PATH = '.github/workflows/scorecard.yml';
 const ACTION_WORKFLOW = join(REPO_ROOT, ACTION_WORKFLOW_PATH);
 
-/** YAML key of the gate job, and of the aggregator that decides what can block a merge. */
-const GATE_JOB_KEY = 'scorecard-npm-pins';
+/**
+ * YAML key of the job that runs the gate as one of its steps, and of the
+ * aggregator that decides what can block a merge.
+ */
+const GATE_JOB_KEY = 'static-checks';
 const VALIDATE_JOB_KEY = 'validate';
 
-/** How the gate job invokes its script. */
+/** The gate step's name in that job. */
+const GATE_STEP_NAME = 'npm commands are pinned as Scorecard reads them';
+
+/**
+ * The job's last step, pinned whole. The gate runs in the background, and a
+ * failed background step fails the job only at a `wait-all` that includes it,
+ * so a `continue-on-error` here would let the gate fail unseen.
+ */
+const WAIT_ALL_STEP = { name: 'Wait for the background gates', 'wait-all': null };
+
+/** How the gate step invokes its script. */
 const GATE_COMMAND = '/bin/bash .github/scripts/ci/scorecard-npm-pins.sh';
 
 /** Longest the gate job may run; Scorecard itself takes seconds. */
@@ -90,6 +104,10 @@ const SCORECARD_ACTION = 'ossf/scorecard-action@';
 const FULL_SHA = /^[0-9a-f]{40}$/;
 
 interface IWorkflowStep {
+  readonly name?: string;
+  readonly if?: unknown;
+  readonly background?: unknown;
+  readonly 'timeout-minutes'?: number;
   readonly uses?: string;
   readonly run?: string;
   readonly with?: Readonly<Record<string, string | number | boolean | undefined>>;
@@ -156,14 +174,34 @@ function gateJob(): IWorkflowJob {
 }
 
 /**
+ * The gate step of the job that runs it.
+ *
+ * @returns The step, or an empty step when it is missing.
+ */
+function gateStep(): IWorkflowStep {
+  const steps = gateJob().steps;
+  return steps.find(step => step.name === GATE_STEP_NAME) ?? {};
+}
+
+/**
+ * The jobs a job waits for.
+ *
+ * @param job - The job.
+ * @returns Job keys in its `needs`.
+ */
+function needsOf(job: IWorkflowJob): readonly string[] {
+  const needs = job.needs ?? [];
+  return typeof needs === 'string' ? [needs] : needs;
+}
+
+/**
  * The jobs the merge-blocking aggregator waits for.
  *
  * @returns Job keys in its `needs`.
  */
 function validateNeeds(): readonly string[] {
   const doc = loadWorkflow(PR_YAML);
-  const needs = doc.jobs[VALIDATE_JOB_KEY].needs ?? [];
-  return typeof needs === 'string' ? [needs] : needs;
+  return needsOf(doc.jobs[VALIDATE_JOB_KEY]);
 }
 
 /**
@@ -434,22 +472,44 @@ const PIN_CASES: readonly IPinCase[] = [
 ];
 
 describe('Scorecard npm-pin gate', () => {
+  /**
+   * The job also waits for `changes`; `Validate` needs every job it needs, so a
+   * failed `changes` fails `Validate` rather than silently skipping the gate.
+   */
   it('[SNP-1] runs on every pull request and can block the merge', () => {
     const job = gateJob();
-    expect(job.steps.length).toBeGreaterThan(0);
+    const step = gateStep();
     const needs = validateNeeds();
+    const unwaited = needsOf(job).filter(key => !needs.includes(key));
     expect(job.if).toBeUndefined();
+    expect(step.if).toBeUndefined();
     expect(needs).toContain(GATE_JOB_KEY);
+    expect(unwaited).toEqual([]);
     expect(job.permissions).toEqual({ contents: 'read' });
     expect(job['timeout-minutes']).toBeLessThanOrEqual(MAX_GATE_MINUTES);
+    expect(step['timeout-minutes']).toBeLessThanOrEqual(MAX_GATE_MINUTES);
   });
 
+  it('[SNP-1] runs in the background, and the job fails at the closing wait-all', () => {
+    const steps = gateJob().steps;
+    const step = gateStep();
+    const index = steps.findIndex(candidate => candidate.name === GATE_STEP_NAME);
+    const last = steps.at(-1);
+    expect(step.background).toBe(true);
+    expect(index).toBeGreaterThan(0);
+    expect(last).toStrictEqual(WAIT_ALL_STEP);
+  });
+
+  /**
+   * Other steps of the job may tolerate their own failure; only the gate step,
+   * the wait-all that surfaces it, and the job itself must not.
+   */
   it('[SNP-2] cannot pass by ignoring its own failure', () => {
     const job = gateJob();
-    const lenientSteps = job.steps.filter(step => step['continue-on-error'] !== undefined);
+    const step = gateStep();
     expect(job['continue-on-error']).toBeUndefined();
-    expect(lenientSteps).toEqual([]);
-    const commands = job.steps.map(step => step.run);
+    expect(step['continue-on-error']).toBeUndefined();
+    const commands = [step.run];
     const script = gateScript();
     const verdict = lastCommand(script);
     expect(commands).toContain(GATE_COMMAND);

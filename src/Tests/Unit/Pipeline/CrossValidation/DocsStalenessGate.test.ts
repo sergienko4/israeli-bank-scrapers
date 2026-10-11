@@ -4,9 +4,9 @@
  * <p>`.github/scripts/ci/docs-staleness.sh` fails a pull request that changes a
  * file bound to a docs page by its `source-files:` front-matter without
  * changing a page bound to it. Bindings reach beyond `src/` — workflows, CI
- * scripts and package manifests are bound too — so the gate runs as its own
- * job on every pull request rather than behind the `src/` path filter, and the
- * merge-blocking `Validate` aggregator waits for it.
+ * scripts and package manifests are bound too — so the gate's steps in the
+ * `Static checks` job run on every pull request, behind no path filter, and
+ * the merge-blocking `Validate` aggregator waits for that job.
  *
  * <p>Bot PRs are exempt through the same `is-bot-pr.cjs` predicate the PR-body
  * gates use: a bot cannot update the bound page. What this test pins is that
@@ -40,8 +40,12 @@ const THIS_DIR = dirname(THIS_FILE_PATH);
 const REPO_ROOT = join(THIS_DIR, '../../../../../');
 const PR_YAML = join(REPO_ROOT, '.github/workflows/pr.yml');
 
-/** YAML key of the gate job, and of the aggregator that decides what can block a merge. */
-const GATE_JOB_KEY = 'docs-staleness';
+/**
+ * YAML key of the job the gate's steps run in, of the job it waits for, and of
+ * the aggregator that decides what can block a merge.
+ */
+const GATE_JOB_KEY = 'static-checks';
+const CHANGES_JOB_KEY = 'changes';
 const VALIDATE_JOB_KEY = 'validate';
 
 /** Only pull-request events carry a base to diff against; no `src/` filter. */
@@ -50,6 +54,9 @@ const GATE_CONDITION = "github.event_name == 'pull_request'";
 /** The scan runs unless the bot step reported a bot PR. */
 const SKIP_CONDITION = "steps.bot.outputs.skip != 'true'";
 const BOT_STEP_ID = 'bot';
+
+/** Longest either gate step may run; each takes seconds. */
+const STEP_MINUTES = 10;
 
 /** How the gate job invokes its script, and the name any invocation contains. */
 const GATE_COMMAND = 'bash .github/scripts/ci/docs-staleness.sh';
@@ -78,9 +85,16 @@ const BOT_TMP_PREFIX = join(TEMP_ROOT, 'docs-staleness-bot-');
 
 /**
  * The bot step, pinned whole: no `uses`, `with` or `env` can hand it a token
- * or extra input, and no step-level `if:` can add a skip condition.
+ * or extra input, and its `if:` is the pull-request condition alone, so no
+ * extra skip condition can hide there.
  */
-const BOT_STEP = { name: 'Skip bot PRs', id: BOT_STEP_ID, run: BOT_COMMAND };
+const BOT_STEP = {
+  name: 'Skip bot PRs',
+  if: GATE_CONDITION,
+  'timeout-minutes': STEP_MINUTES,
+  id: BOT_STEP_ID,
+  run: BOT_COMMAND,
+};
 
 /**
  * The bot script's code below its header comment, as {@link scriptLines}.
@@ -124,23 +138,40 @@ const CHECKOUT_INPUTS = { 'fetch-depth': 0, 'persist-credentials': false };
 
 /**
  * The scan step, pinned whole: no `working-directory`, `shell` or
- * `continue-on-error` can point it elsewhere or let it pass on failure.
+ * `continue-on-error` can point it elsewhere or let it pass on failure. It
+ * runs in the background, beside the job's other steps.
  */
 const SCAN_STEP = {
   name: 'Docs staleness canary',
-  if: SKIP_CONDITION,
+  if: `${GATE_CONDITION} && ${SKIP_CONDITION}`,
+  background: true,
+  'timeout-minutes': STEP_MINUTES,
   env: BASE_ENV,
   run: GATE_COMMAND,
 };
+
+/**
+ * The job's last step, pinned whole. A failed background step fails the job
+ * only at a `wait-all` that includes it, so this is where a failed scan blocks.
+ */
+const WAIT_ALL_STEP = { name: 'Wait for the background gates', 'wait-all': null };
 
 /** The runner the gate needs: GitHub-hosted, so no self-hosted state leaks in. */
 const HOSTED_RUNNER = 'ubuntu-latest';
 
 /**
  * The gate job's only fields. An allowlist, so no `container`, `services`,
- * `strategy`, `defaults` or `needs` can change where or whether it runs.
+ * `strategy`, `defaults` or job-level `if` can change where or whether it runs.
  */
-const GATE_JOB_FIELDS = ['name', 'if', 'runs-on', 'timeout-minutes', 'env', 'permissions', 'steps'];
+const GATE_JOB_FIELDS = [
+  'name',
+  'needs',
+  'runs-on',
+  'timeout-minutes',
+  'env',
+  'permissions',
+  'steps',
+];
 
 /**
  * Any expression that would hand the job a secret or a token: the `secrets`
@@ -206,6 +237,8 @@ interface IWorkflowStep {
   readonly name?: string;
   readonly id?: string;
   readonly if?: unknown;
+  readonly background?: unknown;
+  readonly 'timeout-minutes'?: number;
   readonly uses?: string;
   readonly run?: string;
   readonly with?: Readonly<Record<string, string | number | boolean | undefined>>;
@@ -367,6 +400,15 @@ function botStep(): IWorkflowStep {
 }
 
 /**
+ * The gate job's scan step.
+ *
+ * @returns The step, comparable to {@link SCAN_STEP}.
+ */
+function scanStep(): IWorkflowStep {
+  return gateSteps().find(step => step.run === GATE_COMMAND) ?? {};
+}
+
+/**
  * The bot script split at its header comment: the first line must open the
  * header and the first `*` + `/` must close it, so no code can hide in it.
  *
@@ -477,11 +519,21 @@ const BRANCH_CASES: readonly IBotCase[] = [
 const BOT_CASES: readonly IBotCase[] = [...AUTHOR_CASES, ...BRANCH_CASES];
 
 describe('Docs staleness gate', () => {
+  /**
+   * The job waits for `changes` only for its other steps: neither gate step
+   * reads an output of it, and `Validate` needs `changes` too, so a failed
+   * `changes` fails the merge instead of silently skipping the gate.
+   */
   it('[DSG-1] runs on every pull request, not only when src/ changes', () => {
     const job = gateJob();
-    expect(gateSteps().length).toBeGreaterThan(0);
-    expect(job.if).toBe(GATE_CONDITION);
-    expect(job.needs).toBeUndefined();
+    const bot = botStep();
+    const scan = scanStep();
+    const needs = validateNeeds();
+    expect(job.if).toBeUndefined();
+    expect(job.needs).toBe(CHANGES_JOB_KEY);
+    expect(bot.if).toBe(GATE_CONDITION);
+    expect(scan.if).toBe(`${GATE_CONDITION} && ${SKIP_CONDITION}`);
+    expect(needs).toContain(CHANGES_JOB_KEY);
   });
 
   it('[DSG-2] holds read-only repository access', () => {
@@ -489,13 +541,16 @@ describe('Docs staleness gate', () => {
     expect(job.permissions).toEqual({ contents: 'read' });
   });
 
-  it('[DSG-3] checks out, then decides the bot skip, then scans', () => {
+  it('[DSG-3] checks out, then decides the bot skip, then scans, then waits for the scan', () => {
     const steps = gateSteps();
-    const [checkout, bot, scan] = steps;
-    expect(steps).toHaveLength(3);
+    const [checkout] = steps;
+    const bot = steps.findIndex(step => step.id === BOT_STEP_ID);
+    const scan = steps.findIndex(step => step.run === GATE_COMMAND);
+    const last = steps.at(-1);
     expect(checkout.uses).toMatch(PINNED_CHECKOUT);
-    expect(bot.id).toBe(BOT_STEP_ID);
-    expect(scan.run).toBe(GATE_COMMAND);
+    expect(bot).toBeGreaterThan(0);
+    expect(scan).toBeGreaterThan(bot);
+    expect(last).toStrictEqual(WAIT_ALL_STEP);
   });
 
   it('[DSG-4] checks out full history with no stored credential', () => {
@@ -506,7 +561,7 @@ describe('Docs staleness gate', () => {
   });
 
   it('[DSG-5] decides the bot skip in a plain node step that holds no token', () => {
-    const [, bot] = gateSteps();
+    const bot = botStep();
     expect(bot.uses).toBeUndefined();
     expect(bot.with).toBeUndefined();
     expect(bot.env).toBeUndefined();
@@ -514,7 +569,7 @@ describe('Docs staleness gate', () => {
   });
 
   it('[DSG-6] scans unless the bot step skipped, against the PR base', () => {
-    const [, , scan] = gateSteps();
+    const scan = scanStep();
     expect(scan).toStrictEqual(SCAN_STEP);
   });
 
@@ -528,15 +583,23 @@ describe('Docs staleness gate', () => {
     expect(invocations).toEqual([GATE_COMMAND]);
   });
 
+  /**
+   * Other steps of the job may tolerate their own failure — the informational
+   * audit, an optional fetch — so only the gate's own steps, the wait-all that
+   * surfaces the scan, and the job are held to it. No step of the job, gate or
+   * not, may reference a credential.
+   */
   it('[DSG-9] cannot pass by ignoring its own failure or reference a secret', () => {
     const workflow = loadWorkflow();
     const job = gateJob();
-    const lenientSteps = gateSteps().filter(step => step['continue-on-error'] !== undefined);
+    const gate = [botStep(), scanStep(), gateSteps().at(-1) ?? {}];
+    const lenientSteps = gate.filter(step => step['continue-on-error'] !== undefined);
+    const gateSource = JSON.stringify({ env: workflow.env, gate });
     const inReach = JSON.stringify({ env: workflow.env, job });
     expect(job['timeout-minutes']).toBeLessThanOrEqual(MAX_GATE_MINUTES);
     expect(job['continue-on-error']).toBeUndefined();
     expect(lenientSteps).toEqual([]);
-    expect(inReach).not.toMatch(SWALLOWED_FAILURE);
+    expect(gateSource).not.toMatch(SWALLOWED_FAILURE);
     expect(inReach).not.toMatch(CREDENTIAL);
   });
 

@@ -46,6 +46,7 @@ const TEST_STEP = 'Unit tests';
 const UPLOAD_STEP = 'Upload coverage artifact';
 const UPLOAD_IF = "always() && steps.leg.outputs.coverage == 'true'";
 const UNIT_JOB = 'unit-tests';
+const STATIC_CHECKS_JOB = 'static-checks';
 const DEPS_FLAG = "needs.changes.outputs.deps == 'true'";
 
 /**
@@ -66,11 +67,11 @@ interface IGateSite {
 /**
  * Everything that must run when `.nvmrc` alone moves: the matrix that picks the
  * coverage leg from it, and the check that ties it to `engines.node` and a leg.
+ * That check's job, {@link STATIC_CHECKS_JOB}, has no `if:` of its own.
  */
 const NVMRC_GATES: readonly IGateSite[] = [
   { job: UNIT_JOB },
-  { job: 'lint-and-types' },
-  { job: 'lint-and-types', step: 'Advertised Node range matches the tested one' },
+  { job: STATIC_CHECKS_JOB, step: 'Advertised Node range matches the tested one' },
 ];
 
 /**
@@ -408,6 +409,13 @@ describe('CoverageLegGate', () => {
     const doc = loadPrYaml();
     const terms = orTerms(doc, site);
     expect(terms).toContain(DEPS_FLAG);
+  });
+
+  it('[CLG-5] PrYaml_StaticChecksJob_ShouldRunOnEveryChange', () => {
+    const doc = loadPrYaml();
+    const job = doc.jobs[STATIC_CHECKS_JOB];
+    expect(job).toBeDefined();
+    expect(job.if).toBeUndefined();
   });
 
   it.each(NOT_ON_DEPS_ALONE)('[CLG-5] Condition_ShouldNotCountAsDepsAlone: %s', condition => {

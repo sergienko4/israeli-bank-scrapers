@@ -211,17 +211,27 @@ jobs:
         run: bash .github/scripts/ci/compute-gate-booleans.sh
 
   # ──────────────────────────────────────────────────────────────
-  # Lint + types + docs canaries — independent of test jobs.
-  # Runs whenever ANY of the conditionally-gated child steps could
-  # fire, so the umbrella job's status reflects reality.
+  # Static checks — lint, types and docs canaries, plus four short
+  # gates: bank coverage, decoupling, Scorecard npm pins and docs
+  # staleness. They used to be five jobs; one runner now
+  # serves them, so a push stays inside the Free plan's 20
+  # concurrent jobs.
+  #
+  # The four gates are background steps started right after setup,
+  # so each one finishes and reports even when a lint step fails.
+  # The closing `wait-all` always runs and fails the job if any of
+  # them failed. No step writes a file another step reads — see
+  # docs/workflow/ci.md "Static checks".
+  #
+  # No job `if:`: Scorecard pins always run, so the OR of the
+  # members' conditions is true. Each step keeps its old job's
+  # condition AND-ed with its own. Scorecard pins and docs
+  # staleness now also wait for `Detect changes`; if it fails they
+  # are skipped, and `Validate` fails on `changes` itself.
   # ──────────────────────────────────────────────────────────────
-  lint-and-types:
-    name: Lint & Types
+  static-checks:
+    name: Static checks
     needs: changes
-    # `full_suite` already subsumes `src` (it is `src OR critical_deps`), so it
-    # stands in for it here — see CriticalDepsFullSuiteGate.test.ts, which pins
-    # that invariant so this umbrella cannot silently stop covering src PRs.
-    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.md == 'true' || needs.changes.outputs.docs == 'true' || needs.changes.outputs.ci_scripts == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.syntax_guardrails == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -233,6 +243,30 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      # Docs staleness gate — fails when a file bound to a docs page by
+      # its `source-files:` front-matter changes and no page bound to it
+      # changes in the same PR.
+      #
+      # Always on (no `changes` filter): bindings are not limited to
+      # `src/` — workflows, CI scripts and package manifests are bound
+      # too, and a path filter would let those drift silently. The scan
+      # itself takes seconds.
+      #
+      # Bot PRs are exempt (same predicate as the PR-body gates): a bot
+      # cannot update the bound page, and Dependabot action-SHA bumps and
+      # release-please version bumps routinely touch bound files. See
+      # docs/workflow/code-scanning.md for the compensating controls and
+      # .github/scripts/ci/docs-staleness.sh for the algorithm.
+      #
+      # The bot check is a plain `node` step, not `actions/github-script`:
+      # it loads code checked out from the PR, and github-script would
+      # hand that code the job's GITHUB_TOKEN. A `run:` step receives no
+      # token, and `persist-credentials: false` leaves none in .git/config.
+      - name: Skip bot PRs
+        if: github.event_name == 'pull_request'
+        timeout-minutes: 10
+        id: bot
+        run: node .github/scripts/ci/docs-staleness-bot-skip.cjs
       # `ci_scripts` is here because the CI scripts smoke test below exercises
       # `scripts/decoupling-metrics`, and a workflow-only PR would otherwise run
       # it against an empty `node_modules`. That is belt-and-braces, not the
@@ -246,8 +280,56 @@ jobs:
       # `syntax_guardrails=true` without setting `full_suite`/`deps`, so without
       # this the gate would run against an empty `node_modules` and fail on a
       # clean runner. That is the exact PR shape most able to disarm the guard.
+      # `metrics` is here for the decoupling gate below: `full_suite` and
+      # `ci_scripts` already cover its other two triggers.
       - uses: $/.github/actions/setup-node-deps
-        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci_scripts == 'true' || needs.changes.outputs.syntax_guardrails == 'true'
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci_scripts == 'true' || needs.changes.outputs.syntax_guardrails == 'true' || needs.changes.outputs.metrics == 'true'
+      # Scorecard npm-pin gate — the scheduled OpenSSF Scorecard scan
+      # (scorecard.yml) raises PinnedDependenciesID for any npm command
+      # that downloads without a lockfile pin, but only after the change
+      # has merged. This runs the same engine, pinned by version and
+      # checksum and coupled to the scan's own scorecard-action pin, over
+      # the merge commit, and fails before the merge instead.
+      #
+      # Always on (no `changes` filter): a pin can be broken from any
+      # file Scorecard reads, and the scan itself takes seconds. No token
+      # reaches the downloaded binary — `--local` mode only reads files —
+      # and checkout keeps no credential behind. See
+      # .github/scripts/ci/scorecard-npm-pins.sh.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        timeout-minutes: 10
+        with:
+          node-version-file: .nvmrc
+      - name: npm commands are pinned as Scorecard reads them
+        background: true
+        timeout-minutes: 10
+        run: /bin/bash .github/scripts/ci/scorecard-npm-pins.sh
+      # Bank integration coverage gate — fast structural lint.
+      - name: Bank integration coverage gate
+        if: needs.changes.outputs.full_suite == 'true'
+        background: true
+        timeout-minutes: 5
+        run: npm run lint:bank-coverage
+      # Decoupling regression — see .github/actions/decoupling-gate.
+      # `metrics` and `ci_scripts` are included so a change to the measuring
+      # tool or to this gate always exercises it. Without them the thing that
+      # detects architectural regressions could be weakened and merged without
+      # ever having run.
+      - name: Decoupling
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.metrics == 'true' || needs.changes.outputs.ci_scripts == 'true'
+        background: true
+        timeout-minutes: 15
+        uses: $/.github/actions/decoupling-gate
+        env:
+          THRESHOLD_PCT: '10'
+      - name: Docs staleness canary
+        if: github.event_name == 'pull_request' && steps.bot.outputs.skip != 'true'
+        background: true
+        timeout-minutes: 10
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: bash .github/scripts/ci/docs-staleness.sh
       - if: needs.changes.outputs.full_suite == 'true'
         run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
 
@@ -475,10 +557,13 @@ jobs:
         run: npm audit --audit-level=high
         continue-on-error: true
 
+      - name: Wait for the background gates
+        wait-all:
+
   # ──────────────────────────────────────────────────────────────
   # The gate scripts' bash-3.2 claim, actually exercised.
   #
-  # `lint-and-types` already runs these two test scripts, but on
+  # `static-checks` already runs these two test scripts, but on
   # ubuntu-latest — bash 5.x, where every construct the portable
   # helpers exist to avoid works fine. So the step named "gate
   # scripts must run on bash 3.2" could not fail for the reason it
@@ -712,98 +797,6 @@ jobs:
         run: bash .github/scripts/ci/memory-compare.sh
 
   # ──────────────────────────────────────────────────────────────
-  # Decoupling regression — measures the architecture of this PR AND of its
-  # merge base, then refuses changes that loosen it.
-  #
-  # Against the merge base rather than the committed baseline snapshot: that
-  # baseline is refreshed by hand, so it drifts behind main and a diff against
-  # it measures everything merged since it was taken. The merge base is exact
-  # and needs no maintenance.
-  #
-  # Guardrail metrics are ratchets, not budgets — a new import cycle, a new
-  # `any`, or a deleted canary / ESLint rule fails outright. See
-  # decoupling-compare.sh for the policy.
-  # ──────────────────────────────────────────────────────────────
-  decoupling:
-    name: Decoupling
-    needs: changes
-    # `metrics` and `ci_scripts` are included so a change to the measuring
-    # tool or to this gate always exercises it. Without them the thing that
-    # detects architectural regressions could be weakened and merged without
-    # ever having run.
-    if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.metrics == 'true' || needs.changes.outputs.ci_scripts == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    env:
-      THRESHOLD_PCT: '10'
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # The base tree is checked out as a second worktree, so the base
-          # commit has to be present locally rather than just the tip.
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: $/.github/actions/setup-node-deps
-      # HEAD's `node_modules` serves both measurements: the tool is always
-      # HEAD's copy, so `typescript` resolves from HEAD's tree even when the
-      # target is the base worktree. The base tree needs no install of its own.
-      - name: Measure this PR
-        run: node scripts/decoupling-metrics/measure.mjs . head head.json
-      - name: Check out the merge base
-        id: base_tree
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: |
-          set -euo pipefail
-          # The base SHA comes from the event rather than `HEAD^1`: if the PR
-          # is not cleanly mergeable there is no merge commit to take a first
-          # parent from, and that would silently compare against the wrong
-          # tree instead of failing loudly.
-          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
-            echo "::notice::Base commit ${BASE_SHA} is not available - skipping the comparison."
-            exit 0
-          fi
-          git worktree add ../base "$BASE_SHA" \
-            || echo "::notice::Could not materialise the base tree - skipping the comparison."
-      # HEAD's copy of the tool measures BOTH trees, so a change to the tool
-      # itself cannot masquerade as a change in the architecture.
-      - name: Measure the merge base
-        run: |
-          set -euo pipefail
-          if [ ! -d ../base ]; then
-            exit 0
-          fi
-          # A base tree that cannot be measured must not block the PR. Drop any
-          # half-written snapshot so the comparison reports "not measured"
-          # rather than failing on invalid JSON, which is reserved for a tool
-          # that is genuinely broken.
-          if ! node scripts/decoupling-metrics/measure.mjs ../base base base.json; then
-            rm -f scripts/decoupling-metrics/snapshots/base.json
-            echo "::notice::Could not measure the merge base - skipping the comparison."
-          fi
-      - name: Compare against the merge base
-        env:
-          BASE_SNAPSHOT: scripts/decoupling-metrics/snapshots/base.json
-          HEAD_SNAPSHOT: scripts/decoupling-metrics/snapshots/head.json
-        run: bash .github/scripts/ci/decoupling-compare.sh
-      - name: Append the full decoupling matrix
-        if: hashFiles('scripts/decoupling-metrics/snapshots/base.json') != ''
-        run: |
-          set -euo pipefail
-          {
-            echo ""
-            echo "<details><summary>Full decoupling matrix</summary>"
-            echo ""
-            node scripts/decoupling-metrics/diff.mjs \
-              scripts/decoupling-metrics/snapshots/base.json \
-              scripts/decoupling-metrics/snapshots/head.json
-            echo ""
-            echo "</details>"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  # ──────────────────────────────────────────────────────────────
   # E2E factory tests — independent of Mode A / Mode B / e2e-mocked.
   # Also runs on dependency-only PRs (`deps`) so runtime-dep bumps that
   # touch no `src/` file are still validated against the real Camoufox
@@ -855,28 +848,6 @@ jobs:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
       - name: E2E mocked tests
         run: npm run test:e2e:mock -- --ci --verbose
-
-  # ──────────────────────────────────────────────────────────────
-  # Bank integration coverage gate — fast structural lint.
-  # ──────────────────────────────────────────────────────────────
-  bank-coverage:
-    name: Bank coverage gate
-    needs: changes
-    if: needs.changes.outputs.full_suite == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: $/.github/actions/setup-test-runner
-        with:
-          camoufox: 'false'
-          tests-config: 'false'
-      - name: Bank integration coverage gate
-        run: npm run lint:bank-coverage
 
   # ──────────────────────────────────────────────────────────────
   # Integration Mode A + Mode B — Static HTML drive + Mirror Origin
@@ -1010,81 +981,6 @@ jobs:
         run: /bin/bash .github/scripts/ci/consumer-install.sh
 
   # ──────────────────────────────────────────────────────────────
-  # Scorecard npm-pin gate — the scheduled OpenSSF Scorecard scan
-  # (scorecard.yml) raises PinnedDependenciesID for any npm command
-  # that downloads without a lockfile pin, but only after the change
-  # has merged. This runs the same engine, pinned by version and
-  # checksum and coupled to the scan's own scorecard-action pin, over
-  # the merge commit, and fails before the merge instead.
-  #
-  # Always on (no `changes` filter): a pin can be broken from any
-  # file Scorecard reads, and the scan itself takes seconds. No token
-  # reaches the downloaded binary — `--local` mode only reads files —
-  # and checkout keeps no credential behind. See
-  # .github/scripts/ci/scorecard-npm-pins.sh.
-  # ──────────────────────────────────────────────────────────────
-  scorecard-npm-pins:
-    name: Scorecard npm pins
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
-        with:
-          node-version-file: .nvmrc
-      - name: npm commands are pinned as Scorecard reads them
-        run: /bin/bash .github/scripts/ci/scorecard-npm-pins.sh
-
-  # ──────────────────────────────────────────────────────────────
-  # Docs staleness gate — fails when a file bound to a docs page by
-  # its `source-files:` front-matter changes and no page bound to it
-  # changes in the same PR.
-  #
-  # Always on (no `changes` filter): bindings are not limited to
-  # `src/` — workflows, CI scripts and package manifests are bound
-  # too, and a path filter would let those drift silently. The scan
-  # itself takes seconds.
-  #
-  # Bot PRs are exempt (same predicate as the PR-body gates): a bot
-  # cannot update the bound page, and Dependabot action-SHA bumps and
-  # release-please version bumps routinely touch bound files. See
-  # docs/workflow/code-scanning.md for the compensating controls and
-  # .github/scripts/ci/docs-staleness.sh for the algorithm.
-  #
-  # The bot check is a plain `node` step, not `actions/github-script`:
-  # it loads code checked out from the PR, and github-script would
-  # hand that code the job's GITHUB_TOKEN. A `run:` step receives no
-  # token, and `persist-credentials: false` leaves none in .git/config.
-  # ──────────────────────────────────────────────────────────────
-  docs-staleness:
-    name: Docs staleness
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - name: Skip bot PRs
-        id: bot
-        run: node .github/scripts/ci/docs-staleness-bot-skip.cjs
-      - name: Docs staleness canary
-        if: steps.bot.outputs.skip != 'true'
-        env:
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: bash .github/scripts/ci/docs-staleness.sh
-
-  # ──────────────────────────────────────────────────────────────
   # SonarCloud Scan — the required `SonarCloud Scan` context for PRs.
   #
   # It scans the lcov the floor `Unit tests` leg already produced instead of
@@ -1212,19 +1108,15 @@ jobs:
     name: Validate
     needs:
       - changes
-      - lint-and-types
+      - static-checks
       - portability-macos
       - unit-tests
       - memory
-      - decoupling
       - e2e-factory
       - e2e-mocked
-      - bank-coverage
       - integration
       - build
       - consumer-install
-      - scorecard-npm-pins
-      - docs-staleness
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

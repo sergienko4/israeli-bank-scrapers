@@ -111,11 +111,12 @@ production graph with `npm ci` and unpacks the tarball in place.
 
 ### The pull-request gate
 
-The `scorecard-npm-pins` job in `pr.yml` runs **the same engine** on every pull
+The `npm commands are pinned as Scorecard reads them` step of the
+`Static checks` job in `pr.yml` runs **the same engine** on every pull
 request, so an unpinned npm command blocks the merge instead of surfacing as
 an alert after the next scheduled scan. It does not re-implement Scorecard's
 shell parser, so it sees exactly what the scan sees. The job checks out the
-merge commit with no credentials and runs
+merge commit with no credentials, and the step runs
 `.github/scripts/ci/scorecard-npm-pins.sh`, which:
 
 1. reads the `ossf/scorecard-action` commit that `scorecard.yml` pins (every
@@ -142,7 +143,7 @@ merge commit with no credentials and runs
 Run it locally with `bash .github/scripts/ci/scorecard-npm-pins.sh`. It needs
 `curl`, `tar`, `git`, `node` and `sha256sum` or `shasum`, runs on Linux or macOS (amd64 or arm64), uses
 no token, and scans the committed `HEAD`, not the working tree.
-`ScorecardNpmPinGate.test.ts` pins the wiring: the job can block a merge,
+`ScorecardNpmPinGate.test.ts` pins the wiring: the step can block a merge,
 cannot swallow its own failure, verifies the download before unpacking it, and
 runs the canary before the real scan.
 
@@ -473,14 +474,15 @@ is exactly one `chore` changelog section and that it stays hidden, so
 lockfile commits stay out of release notes. `pr.yml`
 changes too often to bind to this page, so the test guards it instead. When
 the pre-commit quality gates run, the docs-staleness hook flags this page if a
-bound file changes. The `docs-staleness` job in `pr.yml` runs the same check
+bound file changes. The docs staleness step of the `Static checks` job in
+`pr.yml` runs the same check
 on every pull request that `is-bot-pr.cjs` does not exempt. Bot pull requests
 are exempt through that predicate: Dependabot action bumps and release-please
 version bumps routinely touch bound files, and a bot cannot update this page.
 The predicate also exempts any same-repository branch named `dependabot/…` or
 `release-please--…`, so a person with write access can exempt a hand-written
 pull request by naming its branch that way. Three controls narrow the gap. The
-`scorecard-npm-pins` gate fails a `scorecard-action` bump that changes the
+Scorecard npm-pin gate fails a `scorecard-action` bump that changes the
 embedded Scorecard engine until a person moves its pin. The pre-commit hook
 runs on a human commit pushed to a bot branch only when that commit stages
 source code; it skips commits that touch only `.github/`, `.husky/`, Markdown,
@@ -538,7 +540,7 @@ a few minutes more — and expect `fixed`.
    upload) — fix the filter, do not dismiss the alert.
 4. **Scorecard `PinnedDependenciesID` on an `npm` line?** Real. Replace the
    command with `npm ci` from a lockfile (see "npm installs" above) — an exact
-   version does not clear it. The `scorecard-npm-pins` pull-request job runs
+   version does not clear it. The Scorecard npm-pin pull-request gate runs
    the same engine and should have caught it first; if it did not, check
    whether the engine pins have drifted, or the line sits in one of the blind
    spots listed under "The pull-request gate".

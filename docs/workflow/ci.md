@@ -43,7 +43,7 @@ and release together — covered in
 | **Decoupling** | n/a (`scripts/decoupling-metrics/measure.mjs`) | A new import cycle, a new `any`, a deleted canary or ESLint rule, or fan-out growing more than 10% | [`decoupling-compare.sh`](#decoupling-regression-gate) |
 | **PR body compliance** | n/a (server-side `actions/github-script`) | PR body missing one of the 3 mandatory sections (`## Why`, `## What`, `## Guideline compliance`) | `.github/workflows/pr-body-check.yml` — mirrored locally by [`npm run lint:pr-body`](pre-push.md) |
 | **Cited paths** | `lint:doc-paths` | An agent doc or PR body cites a repo path that does not exist | `scripts/check-doc-paths.mjs` — see [Doc path gate](doc-paths.md) |
-| **Docs staleness** | n/a (`docs-staleness` job in `pr.yml`; also the pre-commit hook) | A file listed in a docs page's `source-files:` front matter changed, but no page that lists it changed. Runs on every PR that `is-bot-pr.cjs` does not exempt: bot PRs and same-repository `dependabot/…` or `release-please--…` branches skip it — see [Code scanning](code-scanning.md) | `.github/scripts/ci/docs-staleness.sh` |
+| **Docs staleness** | n/a (`Docs staleness canary` step of the [`Static checks`](#static-checks) job in `pr.yml`; also the pre-commit hook) | A file listed in a docs page's `source-files:` front matter changed, but no page that lists it changed. Runs on every PR that `is-bot-pr.cjs` does not exempt: bot PRs and same-repository `dependabot/…` or `release-please--…` branches skip it — see [Code scanning](code-scanning.md) | `.github/scripts/ci/docs-staleness.sh` |
 | **Links** | n/a (Lychee step in `pr.yml`) | A link in `README.md` or `docs/**/*.md` is broken; runs when a PR touches Markdown, and on every manual run | [Link checking](#link-checking) |
 | **Fork PRs** | n/a (server-side `gh`) | A pull request opened from a fork is commented on and closed automatically — see [Pull requests come from this repository only](#pull-requests-come-from-this-repository-only) | `.github/workflows/no-fork-prs.yml` |
 
@@ -124,14 +124,41 @@ delete is re-checked: if another run already removed the caches, the job
 still passes; if any are left, it fails. `CacheCleanupGate.test.ts` runs the
 committed script against a stubbed `gh` to pin all of this.
 
+## Static checks
+
+BLUF: one job, `Static checks`, runs the lint and type steps plus four short
+repository gates — Scorecard npm pins, bank integration coverage, decoupling
+and docs staleness — that used to be jobs of their own. Fewer jobs keep a
+push inside the account's concurrent-job limit.
+
+- **Background steps.** The four gates are `background` steps that run beside
+  the lint steps. The job's last step, `wait-all`, fails the job when any of
+  them failed. It always runs, even after a lint step fails, so no gate's
+  failure is lost.
+- **Conditions.** Each step keeps the `if:` its old job had, joined with its
+  own. The job has no `if:` of its own, because Scorecard npm pins runs on
+  every run. The job waits for `Detect changes`, so Scorecard npm pins and
+  docs staleness start a few seconds later than they did as separate jobs.
+  `Validate` needs `Detect changes` too, so a failed change detection fails
+  the merge rather than silently skipping them.
+- **No shared writes.** Background steps share the working tree with the
+  foreground ones, so none may write a file another step reads. Scorecard
+  scans a `git archive` copy in a temporary directory. Decoupling writes its
+  git-ignored snapshots and a sibling `../base` worktree. Bank coverage and
+  docs staleness only read. `StaticChecksJob.test.ts` pins the background
+  set, so adding a step there means repeating this check. Decoupling never
+  shares a job with the build, whose guardrails hash `lib/`, or with the
+  memory gate, which adds the same `../base` worktree.
+
 ## Link checking
 
 BLUF: Lychee checks every link in `README.md` and `docs/**/*.md`, but it
 checks links into this repository on `main` or the branch placeholder
 against the files tracked in the checked-out commit, not against github.com.
 
-The step runs in the `Lint & Types` job. On a pull request it runs when the
-PR touches a Markdown file and checks the PR's merge commit. On a manual
+The step runs in the [`Static checks`](#static-checks) job. On a pull
+request it runs when the PR touches a Markdown file and checks the PR's
+merge commit. On a manual
 `workflow_dispatch` run, change detection has no base to compare with, so it
 always runs and checks the selected branch. Files under `tasks/` are not
 checked. Links are handled in four ways:
@@ -232,7 +259,8 @@ GITHUB_STEP_SUMMARY=/dev/stdout bash .github/scripts/ci/memory-compare.sh
 BLUF: guardrails are ratchets. They may get stronger on any PR; they may
 never get weaker.
 
-The `Decoupling` job measures the architecture of the PR **and** of its merge
+The decoupling gate, a background step of the [`Static checks`](#static-checks)
+job, measures the architecture of the PR **and** of its merge
 base, using HEAD's copy of the measuring tool for both sides so a change to
 the tool cannot masquerade as a change in the code. `measure.mjs` parses
 TypeScript, so HEAD's dependencies are installed before it runs. The base
@@ -269,7 +297,7 @@ Exit codes distinguish two situations that must not be collapsed:
   produced garbage; failing loudly is what stops a broken tool from silently
   disabling the gate.
 
-The job also appends the full cluster-level matrix from `diff.mjs` to the run
+The gate also appends the full cluster-level matrix from `diff.mjs` to the run
 summary, so per-cluster LoC, cohesion and fan-out shifts are visible without
 running anything locally.
 

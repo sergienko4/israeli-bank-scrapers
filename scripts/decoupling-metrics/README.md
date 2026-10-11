@@ -30,7 +30,8 @@ a Markdown matrix suitable for pasting into a PR body.
 
 ## On a pull request, CI does this for you
 
-The `Decoupling` job in `pr.yml` is a required dependency of `Validate`. It
+The decoupling step of the `Static checks` job in `pr.yml` blocks the merge
+through `Validate`, which needs that job. It
 measures the branch, measures the merge base in a worktree, and fails when a
 ratchet goes backwards (import cycles, canaries, ESLint rules, `any` usages) or
 average fan-out grows by more than 10%. The full matrix is posted to the job
