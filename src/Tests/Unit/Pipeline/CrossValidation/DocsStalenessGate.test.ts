@@ -15,6 +15,11 @@
  * once, and it skips only what the shared predicate calls a bot PR. The job
  * references no repository secret and receives only the implicit job token,
  * which `contents: read` keeps read-only.
+ *
+ * <p>The bot step and the aggregator's step are pinned line for line: finite
+ * cases and fragment checks cannot rule out an extra skip condition, a decoy
+ * step, or a script that keeps the right lines behind an early exit. Changing
+ * either step on purpose means updating its pin here.
  */
 
 import { readFileSync } from 'node:fs';
@@ -57,17 +62,52 @@ const BASE_ENV = {
 /** The shared predicate the bot step must load, rather than an inline copy. */
 const BOT_PREDICATE = '/.github/scripts/ci/is-bot-pr.cjs';
 
+/** The github-script commit every bot step in the repo runs. */
+const GITHUB_SCRIPT = 'actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3';
+
+/**
+ * The bot step, its script as {@link scriptLines}. Pinned whole because the
+ * pull-request cases below are finite: they cannot show that the shared
+ * predicate is the only way to `skip=true` — an extra condition, or a
+ * step-level `if:`, would pass them. An intended edit updates this pin.
+ */
+const BOT_STEP = {
+  name: 'Skip bot PRs',
+  id: BOT_STEP_ID,
+  uses: GITHUB_SCRIPT,
+  with: {
+    script: [
+      'const isBotPr = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/ci/is-bot-pr.cjs`);',
+      'const pr = context.payload.pull_request;',
+      'if (isBotPr(pr)) {',
+      "core.info(`Docs staleness skipped — bot PR (author='${pr.user?.login ?? ''}').`);",
+      "core.setOutput('skip', 'true');",
+      'return;',
+      '}',
+      "core.setOutput('skip', 'false');",
+    ],
+  },
+};
+
+/**
+ * The shell every `run:` step gets. A job or step that overrides it could run
+ * the gate's command as a no-op, so neither job may.
+ */
+const STRICT_DEFAULTS = { run: { shell: 'bash --noprofile --norc -euo pipefail {0}' } };
+
 /** Longest the gate job may run; the scan itself takes seconds. */
 const MAX_GATE_MINUTES = 15;
 
 /** A pinned action reference: owner/name at a full commit SHA. */
 const PINNED_CHECKOUT = /^actions\/checkout@[0-9a-f]{40}$/;
 
-/** The github-script commit every bot step in the repo runs. */
-const GITHUB_SCRIPT = 'actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3';
-
-/** Any explicit reference that would hand the job a secret or a token. */
-const CREDENTIAL = /secrets\.|github\.token|GH_TOKEN|GITHUB_TOKEN/;
+/**
+ * Any expression that would hand the job a secret or a token: the `secrets`
+ * context however it is indexed or passed; `github.token`; any key lookup on
+ * `github`, or the whole `github` context passed on, either of which can reach
+ * the token; or a token variable. Expression names are case-insensitive.
+ */
+const CREDENTIAL = /\bsecrets\b|\bgithub\s*(?:\.\s*token|[),[}])|GH_TOKEN|GITHUB_TOKEN/i;
 
 /** The trigger: every pull request into main, with no event-type or path filter. */
 const PR_TRIGGER = { branches: ['main'] };
@@ -92,16 +132,27 @@ const MAINTAINER = 'a-maintainer';
  */
 const AGGREGATOR_CONDITION = 'always()';
 
-/** How the aggregator step receives every needed job's result. */
-const AGGREGATOR_NEEDS_ENV = '${{ toJSON(needs) }}';
-
-/** What the aggregator script needs to fail on a failed or cancelled job. */
-const AGGREGATOR_FAILS_ON = [
-  'set -euo pipefail',
-  '.value.result == "failure"',
-  '.value.result == "cancelled"',
-  'exit 1',
-];
+/**
+ * The aggregator's only step, its script as {@link scriptLines}. Pinned whole:
+ * a guard that looks for fragments passes a script that keeps them in a
+ * comment, or behind an early `exit 0`, or in a decoy step that never runs.
+ * An intended edit updates this pin.
+ */
+const AGGREGATOR_STEP = {
+  name: 'Verify all gates green',
+  env: { NEEDS_JSON: '${{ toJSON(needs) }}' },
+  run: [
+    'set -euo pipefail',
+    'echo "Aggregator inputs:"',
+    'echo "$NEEDS_JSON" | jq -r \'to_entries | map("  \\(.key): \\(.value.result)") | .[]\'',
+    'FAILED=$(echo "$NEEDS_JSON" | jq -r \'to_entries | map(select(.value.result == "failure" or .value.result == "cancelled")) | map(.key) | join(",")\')',
+    'if [ -n "$FAILED" ]; then',
+    'echo "::error::Validate gate FAILED — these jobs reported failure or cancelled: $FAILED"',
+    'exit 1',
+    'fi',
+    'echo "✅ All parallel validate gates green (success or skipped)."',
+  ],
+};
 
 /** Shell that would let a failing command pass. */
 const SWALLOWED_FAILURE = /\|\|\s*(?:true|:)(?![\w-])|set \+e/;
@@ -119,6 +170,7 @@ interface IWorkflowStep {
   readonly run?: string;
   readonly with?: Readonly<Record<string, string | number | boolean | undefined>>;
   readonly env?: Readonly<Record<string, string>>;
+  readonly shell?: unknown;
   readonly 'continue-on-error'?: unknown;
 }
 
@@ -128,12 +180,14 @@ interface IWorkflowJob {
   readonly permissions?: unknown;
   readonly 'timeout-minutes'?: number;
   readonly 'continue-on-error'?: unknown;
+  readonly defaults?: unknown;
   readonly steps?: readonly IWorkflowStep[];
 }
 
 interface IWorkflowDoc {
   readonly on: Readonly<Record<string, unknown>>;
   readonly env?: unknown;
+  readonly defaults?: unknown;
   readonly jobs: Readonly<Record<string, IWorkflowJob>>;
 }
 
@@ -214,14 +268,25 @@ function validateNeeds(): readonly string[] {
 }
 
 /**
- * The aggregator step's script that reads every needed job's result.
+ * A script as its trimmed, non-blank lines: re-indenting it changes nothing,
+ * while adding, removing or editing any line, comments included, does.
  *
- * @returns The `run` script, or empty when no step is handed the results.
+ * @param script - Shell or JavaScript source.
+ * @returns The lines, in order.
  */
-function aggregatorScript(): string {
+function scriptLines(script: string): readonly string[] {
+  const lines = script.split('\n').map(line => line.trim());
+  return lines.filter(line => line !== '');
+}
+
+/**
+ * The aggregator's steps, each `run` script reduced to its lines.
+ *
+ * @returns Steps in order, comparable to {@link AGGREGATOR_STEP}.
+ */
+function aggregatorSteps(): readonly unknown[] {
   const steps = validateJob().steps ?? [];
-  const reader = steps.find(step => step.env?.NEEDS_JSON === AGGREGATOR_NEEDS_ENV);
-  return reader?.run ?? '';
+  return steps.map(step => ({ ...step, run: scriptLines(step.run ?? '') }));
 }
 
 /**
@@ -245,6 +310,18 @@ function botScript(): string {
   const bot = gateSteps().find(step => step.id === BOT_STEP_ID);
   const script = bot?.with?.script;
   return typeof script === 'string' ? script : '';
+}
+
+/**
+ * The gate job's bot step, its script reduced to its lines.
+ *
+ * @returns The step, comparable to {@link BOT_STEP}.
+ */
+function botStep(): unknown {
+  const bot = gateSteps().find(step => step.id === BOT_STEP_ID) ?? {};
+  const source = botScript();
+  const script = scriptLines(source);
+  return { ...bot, with: { ...bot.with, script } };
 }
 
 /**
@@ -455,13 +532,27 @@ describe('Docs staleness gate', () => {
 
   it('[DSG-12] Validate fails when any job it needs fails or is cancelled', () => {
     const job = validateJob();
-    const lenientSteps = (job.steps ?? []).filter(step => step['continue-on-error'] !== undefined);
-    const script = aggregatorScript();
-    const missing = AGGREGATOR_FAILS_ON.filter(fragment => !script.includes(fragment));
     expect(job.if).toBe(AGGREGATOR_CONDITION);
     expect(job['continue-on-error']).toBeUndefined();
-    expect(lenientSteps).toEqual([]);
-    expect(script).not.toMatch(SWALLOWED_FAILURE);
-    expect(missing).toEqual([]);
+    const steps = aggregatorSteps();
+    expect(job.if).toBe(AGGREGATOR_CONDITION);
+    expect(job['continue-on-error']).toBeUndefined();
+    expect(job.defaults).toBeUndefined();
+    expect(steps).toStrictEqual([AGGREGATOR_STEP]);
+  });
+
+  it('[DSG-13] skips only on the shared predicate verdict', () => {
+    const step = botStep();
+    expect(step).toStrictEqual(BOT_STEP);
+  });
+
+  it('[DSG-14] runs its commands under the strict workflow shell', () => {
+    const doc = loadWorkflow();
+    const job = gateJob();
+    const steps = gateSteps();
+    const overrides = steps.filter(step => step.shell !== undefined);
+    expect(doc.defaults).toStrictEqual(STRICT_DEFAULTS);
+    expect(job.defaults).toBeUndefined();
+    expect(overrides).toEqual([]);
   });
 });
