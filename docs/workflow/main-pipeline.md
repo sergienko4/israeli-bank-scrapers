@@ -147,8 +147,9 @@ not Scorecard, is the authority on GitHub Actions hardening here.
 Both are produced by `pull_request` triggers, which this change does not
 touch. No check was renamed, so no protection rule needed editing.
 `SonarCloud Scan` has since moved from `sonarcloud.yml` into `pr.yml`, under
-the same name, so it can reuse the unit tests' coverage; `sonarcloud.yml` now
-runs only after merge.
+the same name, so it can reuse the unit tests' coverage. `sonarcloud.yml` no
+longer runs on pull requests; it keeps the post-merge scan and manual
+`workflow_dispatch` runs.
 
 Removing `push: main` from `pr.yml` does not affect the `Validate` context: it
 is a PR context, and PR runs are unchanged.

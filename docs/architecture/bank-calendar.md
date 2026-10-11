@@ -5,6 +5,10 @@ source-files:
   - src/Scrapers/Pipeline/Mediator/Scrape/BankMonth.ts
   - src/Scrapers/Pipeline/Mediator/Scrape/MonthRangeBudget.ts
   - src/Scrapers/Pipeline/Types/WindowNarrowing.ts
+  - src/Tests/Helpers/AmbientZone.ts
+  - jest.config.js
+  - jest.pipeline.config.cjs
+  - jest.pipeline.suite.config.cjs
 ---
 
 # Bank calendar — the zone every date decision resolves in
