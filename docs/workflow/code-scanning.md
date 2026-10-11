@@ -172,10 +172,6 @@ engine, so they apply to the scheduled scan too:
   `.github/actions/`, at any depth. The same test holds their steps to
   `bash`/`sh`, but review npm commands there by hand (today they use only
   `npm ci`, `npm run` and `npx`).
-- **`package.json` scripts.** Scorecard reads workflows, Dockerfiles and shell
-  scripts, never `package.json`, so a step's `npm run test:pipeline` counts as
-  `npm run` whatever the script expands to. No script there runs `npm install`,
-  `npm i` or `npm update` today; review a new or changed script by hand.
 - **Parser errors Scorecard does not report.** A script it fails to parse
   without emitting `Possibly incomplete results` passes silently.
 - **Commands assembled at runtime** (`eval`, variables).
@@ -418,7 +414,9 @@ Lockfile maintenance has no package name, so that rule never matches it.
   and mocked E2E run, and keeping bank secrets out limit what a fresh release
   can reach before a human approves it. None of them enforces an age.
 - `constraints.npm` pins npm 10.9.2, the version bundled with the Node release
-  in `.nvmrc` that CI installs, so the lockfile format matches `npm ci`.
+  in `.nvmrc` that CI installs, so the lockfile format matches `npm ci`. The
+  detector flags a `.nvmrc` change as `deps` too, so a Node bump on its own
+  still runs the unit legs and `lint:node-support` (CoverageLegGate CLG-5).
 - Dependabot security pull requests take precedence. When one merges first and
   the lockfiles conflict, Renovate regenerates its branch on its next run
   (`rebaseWhen` defaults to rebasing a conflicted branch).
@@ -448,9 +446,12 @@ The `changes` job and its detector and gate steps must carry no `if:` or
 `real_gates_enabled` must reach `validate`. The unit, factory E2E and mocked
 E2E jobs must need only `changes` and run whenever `deps` is set. Conditions
 are compared after unwrapping `${{ }}` and every layer of outer parentheses.
-In `pr-body-check.yml`, each gate is found by its step id (`section-check`,
-`stage-body`). It must require `is-bot-pr.cjs` once, at the top level, and
-return on `isBotPr(pr)` before it fails the check or stages the body. Before
+In `pr-body-check.yml`, a newer push or body edit of the same pull request
+cancels the run it supersedes, so the check reports the latest body
+(WorkflowConcurrencyGate pins the key). Each gate is found by its step id
+(`section-check`, `stage-body`). It must require `is-bot-pr.cjs` once, at the
+top level, and return on `isBotPr(pr)` before it fails the check or stages
+the body. Before
 the guard, each gate declares exactly its own `const` bindings, none missing,
 repeated or extra, each with its exact initializer: `fs` from
 `require('node:fs')` (`stage-body` only), `isBotPr` from the workspace

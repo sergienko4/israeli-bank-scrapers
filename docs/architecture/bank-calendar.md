@@ -5,10 +5,6 @@ source-files:
   - src/Scrapers/Pipeline/Mediator/Scrape/BankMonth.ts
   - src/Scrapers/Pipeline/Mediator/Scrape/MonthRangeBudget.ts
   - src/Scrapers/Pipeline/Types/WindowNarrowing.ts
-  - src/Tests/Helpers/AmbientZone.ts
-  - jest.config.js
-  - jest.pipeline.config.cjs
-  - jest.pipeline.suite.config.cjs
 ---
 
 # Bank calendar — the zone every date decision resolves in
@@ -149,9 +145,8 @@ The change is confined to values that were ambiguous in the first place:
 !!! note "Why the test suite could not see this"
 `jest.config.js` pins `TZ='Asia/Jerusalem'`, and Jerusalem is the one zone
 in which the ambient reading and the bank-anchored reading agree. CI's
-`test:pipeline` uses `jest.pipeline.config.cjs` (through
-`jest.pipeline.suite.config.cjs`), which pins nothing and so runs in the
-runner's UTC. The divergence is deliberate: pinning the pipeline
+`test:pipeline` uses `jest.pipeline.config.cjs`, which pins nothing and so
+runs in the runner's UTC. The divergence is deliberate: pinning the pipeline
 config would buy a green suite by hiding this whole class of defect. Zone
 contracts are asserted explicitly instead, with the shared `underZone`
 helper in `src/Tests/Helpers/AmbientZone.ts`, which moves `moment`'s default
