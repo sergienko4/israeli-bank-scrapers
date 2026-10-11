@@ -1,15 +1,9 @@
 # Mizrahi Bank
 
-!!! warning "Not production-ready yet"
-    The Pipeline bank replaced the legacy (non-Pipeline) Mizrahi scraper in one
-    change: `createScraper` routes `CompanyTypes.Mizrahi` to the Pipeline, but the bank is not
-    production-ready yet: the login and the hard-model scrape are still being
-    proven by real runs.
-
 | | |
 |---|---|
 | `CompanyTypes` | `Mizrahi` |
-| Engine | Browser (Pipeline) — **not production-ready yet** |
+| Engine | Browser (Pipeline) |
 | Credentials | `username`, `password` |
 | OTP | — |
 
@@ -89,4 +83,4 @@ is `completed`. See [api-direct-scrape](../phases/api-direct-scrape.md) for the 
 **Wave 1** target in the [migration plan](../architecture/migration.md). Removal and onboarding
 are one migration: the change that deleted the legacy scraper also registered the Pipeline bank
 (login form plus the hard-model API-direct scrape), so `createScraper(CompanyTypes.Mizrahi)` never
-lacks a scraper. Real runs prove each phase before the bank is marked production-ready.
+lacks a scraper. Real end-to-end runs in CI proved the live login and the hard-model scrape.
