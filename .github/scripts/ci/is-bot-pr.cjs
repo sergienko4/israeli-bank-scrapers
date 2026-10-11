@@ -10,7 +10,7 @@
  * The same predicate exempts bot PRs from the docs-staleness check: Dependabot
  * action-SHA bumps and release-please version bumps routinely touch files bound
  * to a docs page, and a bot cannot update that page. See
- * docs/workflow/code-scanning.md for the controls that cover the gap.
+ * docs/workflow/code-scanning.md for the controls that narrow the gap.
  *
  * `renovate/` is deliberately NOT a trusted branch prefix: Renovate opens its
  * PRs as `renovate[bot]`, so the author check is enough, and a prefix would

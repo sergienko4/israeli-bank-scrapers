@@ -464,13 +464,13 @@ not a semantic proof. It does not defend against deliberate obfuscation,
 which code-owner review covers. The test also checks that there
 is exactly one `chore` changelog section and that it stays hidden, so
 lockfile commits stay out of release notes. `pr.yml`
-changes too often to bind to this page, so the test guards it instead. The
-pre-commit docs-staleness hook flags this page when a bound file changes, and
-the `docs-staleness` job in `pr.yml` runs the same check on every human pull
-request. Bot pull requests are exempt through the same `is-bot-pr.cjs`
-predicate: Dependabot action bumps and release-please version bumps routinely
-touch bound files, and a bot cannot update this page. The predicate also
-exempts any same-repository branch named `dependabot/…` or
+changes too often to bind to this page, so the test guards it instead. When
+the pre-commit quality gates run, the docs-staleness hook flags this page if a
+bound file changes. The `docs-staleness` job in `pr.yml` runs the same check
+on every pull request that `is-bot-pr.cjs` does not exempt. Bot pull requests
+are exempt through that predicate: Dependabot action bumps and release-please
+version bumps routinely touch bound files, and a bot cannot update this page.
+The predicate also exempts any same-repository branch named `dependabot/…` or
 `release-please--…`, so a person with write access can exempt a hand-written
 pull request by naming its branch that way. Three controls narrow the gap. The
 `scorecard-npm-pins` gate fails a `scorecard-action` bump that changes the
