@@ -16,16 +16,19 @@
  * actually runs: YAML is parsed, so comments vanish and folded scalars are
  * joined; shell drops whole-line comments and joins `\`-continued lines; JS is
  * reprinted without comments by the TypeScript printer. The result is split
- * into commands at shell separators, and a command that runs the suite (the
- * npm script or the suite config directly) must carry no worker flag and take
- * only literal arguments: a variable, substitution, expression, `xargs` or
- * `eval` could hand it a flag the scan cannot see. JS cannot run the suite at
- * all, since its arguments can come from any variable. A mention of the knob
- * anywhere in that code fails outright. PWG-6 pins the scanner against every
- * spelling and hiding place it must catch and every comment it must skip.
+ * into commands at shell separators. A command that runs the suite (the npm
+ * script or the suite config directly) must be one of the known-safe runs:
+ * `npm run test:pipeline`, bare or with `-- --coverage=false`. Any other
+ * argument can move the worker count: a worker flag, a second `--config`, an
+ * option that forces one worker, or a variable, substitution, expression,
+ * `xargs` or `eval` that hides one. So the scan allows known runs instead of
+ * hunting known flags; even a step name that mentions the suite must change.
+ * JS cannot run the suite at all. A mention of the knob anywhere in that code
+ * fails outright. PWG-6 pins the scanner against every spelling and hiding
+ * place it must catch and every comment it must skip.
  *
  * Rules:
- *   PWG-1  `test:pipeline` uses the suite config; no npm script overrides its workers
+ *   PWG-1  `test:pipeline` passes Jest only allowed arguments; no npm script overrides it
  *   PWG-2  `test:memory` and the shared config stay free of a worker count
  *   PWG-3  the suite config is the shared config plus `JEST_MAX_WORKERS` (default 2)
  *   PWG-4  a value Jest would quietly turn into one worker fails the config load
@@ -62,11 +65,15 @@ const WORKER_FLAG =
 /** A command that runs the suite: the npm script, or Jest on the suite config. */
 const SUITE_RUN = /test:pipeline|jest\.pipeline\.suite\.config/;
 
-/**
- * Arguments a text scan cannot read: a variable, a command substitution, a
- * workflow expression, or arguments built by `xargs` or `eval`.
- */
-const INDIRECT = /[$`]|\b(?:xargs|eval)\b/;
+/** The only suite runs CI code may contain, with runs of whitespace collapsed. */
+const SAFE_SUITE_RUNS: ReadonlySet<string> = new Set([
+  'npm run test:pipeline',
+  'npm run test:pipeline -- --coverage=false',
+]);
+
+/** Each word `test:pipeline` itself may pass: none of them sets the worker count. */
+const SUITE_SCRIPT_WORD =
+  /^(?:node|--experimental-vm-modules|--expose-gc|node_modules\/jest\/bin\/jest\.js|--config=jest\.pipeline\.suite\.config\.cjs|--ci|--coverage|--testPathIgnorePatterns=[\w./-]+)$/;
 
 /** File types whose argument flow a text scan cannot follow: no suite run there. */
 const OPAQUE: ReadonlySet<string> = new Set(['.js', '.cjs', '.mjs']);
@@ -274,11 +281,13 @@ function codeOf(path: string, text: string): string {
  * Whether one command may take the suite off its default worker count.
  * @param command - One command.
  * @param isOpaque - Whether it comes from a file type in {@link OPAQUE}.
- * @returns True when it runs the suite with a flag, unread arguments, or from JS.
+ * @returns True when it runs the suite from JS, or as anything but a safe run.
  */
 function overridesSuite(command: string, isOpaque: boolean): boolean {
   if (!SUITE_RUN.test(command)) return false;
-  return isOpaque || WORKER_FLAG.test(command) || INDIRECT.test(command);
+  const words = command.trim().split(/\s+/);
+  const normalised = words.join(' ');
+  return isOpaque || !SAFE_SUITE_RUNS.has(normalised);
 }
 
 /**
@@ -320,12 +329,23 @@ function ciOverrides(): string[] {
 }
 
 /**
+ * The words of `test:pipeline` that {@link SUITE_SCRIPT_WORD} does not allow.
+ * @returns The offending words; empty when the script keeps the default.
+ */
+function suiteScriptExtras(): string[] {
+  const words = npmScript('test:pipeline').split(/\s+/);
+  return words.filter((word): boolean => !SUITE_SCRIPT_WORD.test(word));
+}
+
+/**
  * The overrides in one npm script, which CI may call instead of the suite.
+ * `test:pipeline` itself defines the suite, so {@link suiteScriptExtras} checks it.
  * @param name - Script name.
  * @param command - Its command line.
  * @returns `name: snippet` for each.
  */
 function scriptOverrides(name: string, command: string): string[] {
+  if (name === 'test:pipeline') return [];
   const code = shellCode(command);
   const found = workerOverrides(code, false);
   return found.map((hit): string => `${name}: ${hit}`);
@@ -372,6 +392,10 @@ const CAUGHT: readonly ScanCase[] = [
   ['backticks', 's.sh', 'npm run test:pipeline -- `cat jest-args`\n'],
   ['xargs', 's.sh', 'echo -- -w4 | xargs npm run test:pipeline\n'],
   ['eval', 's.sh', 'eval "npm run test:pipeline $ARGS"\n'],
+  ['a second config', 's.sh', 'npm run test:pipeline -- --config=jest.pipeline.config.cjs\n'],
+  ['-c', 's.sh', 'npm run test:pipeline -- -c jest.pipeline.config.cjs\n'],
+  ['an option that forces one worker', 's.sh', 'npm run test:pipeline -- --detectOpenHandles\n'],
+  ['a wrapping command', 'w.yml', 'run: timeout 600 npm run test:pipeline\n'],
 ];
 
 /** Text the scanner must pass: comments, other commands, the plain default. */
@@ -407,13 +431,19 @@ function scan(name: string, text: string): string[] {
 }
 
 describe('PipelineWorkersGate — test:pipeline worker count', () => {
-  it('PWG-1: test:pipeline reads the suite config; no npm script overrides its workers', () => {
+  it('PWG-1: test:pipeline reads the suite config and passes Jest only allowed words', () => {
+    const script = npmScript('test:pipeline');
+    const extras = suiteScriptExtras();
+    expect(script).toContain(`--config=${SUITE_CONFIG}`);
+    expect(extras).toEqual([]);
+  });
+
+  it('PWG-1: no other npm script overrides the suite workers', () => {
     const all = npmScripts();
     const scripts = Object.entries(all);
     const offenders = scripts.flatMap(([name, command]): string[] =>
       scriptOverrides(name, command),
     );
-    expect(all['test:pipeline']).toContain(`--config=${SUITE_CONFIG}`);
     expect(offenders).toEqual([]);
   });
 
