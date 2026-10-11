@@ -1170,9 +1170,10 @@ jobs:
           attempt=1
           total=""
           # A failed curl or jq, or a total that is not a whole number, is
-          # retried. Under `-e` a failure would end the step unretried, and a
-          # non-numeric total would make the `-gt` test below error inside its
-          # `if` and let the step pass.
+          # retried: under `-e` a failure would end the step unretried. The
+          # total is then compared as text, not with `-gt`: a number too big
+          # for a shell integer makes `-gt` error inside its `if`, and an
+          # erroring `if` lets the step pass.
           while [ "${attempt}" -le 5 ]; do
             total=$(curl -sS "${api}?${query}" | jq -r '.total // empty') || total=""
             if [[ "${total}" =~ ^[0-9]+$ ]]; then break; fi
@@ -1186,7 +1187,7 @@ jobs:
             exit 1
           fi
           echo "SonarCloud reports ${total} new issues on PR #${PR_NUMBER}."
-          if [ "${total}" -gt 0 ]; then
+          if [[ ! "${total}" =~ ^0+$ ]]; then
             echo "::error::SonarCloud reports ${total} new issues — blocking merge. See https://sonarcloud.io/project/issues?id=${SONAR_PROJECT_KEY}&pullRequest=${PR_NUMBER}&issueStatuses=OPEN,CONFIRMED&sinceLeakPeriod=true"
             exit 1
           fi

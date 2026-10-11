@@ -19,7 +19,8 @@
  *   SPS-3  its first step passes only when both needs succeeded
  *   SPS-4  no step can be skipped except the PR-only count gate
  *   SPS-5  it scans the artifact the coverage leg uploads, where Sonar reads it
- *   SPS-6  the count gate retries until it reads a whole number, and fails closed
+ *   SPS-6  the count gate retries until it reads a whole number, fails closed,
+ *          and fails on any count but zero, however long
  */
 
 import { spawnSync } from 'node:child_process';
@@ -99,6 +100,9 @@ const COUNT_GATE_CASES: readonly (readonly [string, readonly string[], boolean])
   ['curl fails five times', ['7', '7', '7', '7', '7'], false],
   ['3 new issues', ['0 0 3'], false],
   ['0 new issues', ['0 0 0'], true],
+  ['0 written with leading zeros', ['0 0 000'], true],
+  ['1 written with a leading zero', ['0 0 01'], false],
+  ['count above the shell integer range', ['0 0 9223372036854775808'], false],
 ];
 
 /** Step fields this suite reads. */
