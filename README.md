@@ -160,7 +160,7 @@ validated at runtime.
 | Discount Bank        | Bank        | Browser    | `id`, `password`, `num`         |
 | Massad               | Bank        | Browser    | `username`, `password`, OTP     |
 | Mercantile Bank      | Bank        | Browser    | `id`, `password`, `num`         |
-| Mizrahi Bank†        | Bank        | Browser    | `username`, `password`          |
+| Mizrahi Bank         | Bank        | Browser    | `username`, `password`          |
 | One Zero             | Bank        | API-direct | `email`, `password`, OTP        |
 | Pagi                 | Bank        | Browser    | `username`, `password`, OTP     |
 | Pepper (by Leumi)    | Bank        | API-direct | `phoneNumber`, `password`, OTP  |
@@ -171,10 +171,6 @@ validated at runtime.
 | PayBox (by Discount) | Wallet      | API-direct | `phoneNumber`, OTP              |
 
 \* Hapoalim prompts for OTP only on unrecognised devices.
-
-† Mizrahi runs on the pipeline but is not production-ready yet: real runs are
-still proving the login and the hard-model scrape. See the
-[Mizrahi page](https://sergienko4.github.io/israeli-bank-scrapers/banks/mizrahi/).
 
 Per-bank notes live in the
 [bank documentation](https://sergienko4.github.io/israeli-bank-scrapers/banks/).
