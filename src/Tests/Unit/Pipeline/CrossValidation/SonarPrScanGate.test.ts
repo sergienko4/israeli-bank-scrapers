@@ -19,10 +19,11 @@
  *   SPS-3  its first step passes only when both needs succeeded
  *   SPS-4  no step can be skipped except the PR-only count gate
  *   SPS-5  it scans the artifact the coverage leg uploads, where Sonar reads it
+ *   SPS-6  the count gate retries until it reads a whole number, and fails closed
  */
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,6 +65,41 @@ const RESULTS = ['success', 'failure', 'cancelled', 'skipped', ''] as const;
 const RESULT_PAIRS = RESULTS.flatMap((changes): (readonly [string, string])[] =>
   RESULTS.map((unit): readonly [string, string] => [changes, unit]),
 );
+
+/**
+ * Count-gate stubs. Each queued attempt is `<curl exit> [<jq exit> [<jq output>]]`:
+ * `curl` takes the next one and fails with its exit, or passes the rest to
+ * `jq`, which prints the output and exits with its own code. `sleep` returns.
+ */
+const COUNT_GATE_STUBS: Readonly<Record<string, string>> = {
+  curl: [
+    '#!/bin/bash',
+    'IFS= read -r line < "$SPS_QUEUE" || exit 99',
+    'tail -n +2 "$SPS_QUEUE" > "$SPS_QUEUE.next" && mv "$SPS_QUEUE.next" "$SPS_QUEUE"',
+    'read -r curl_rc rest <<< "$line"',
+    '[ "$curl_rc" = 0 ] || exit "$curl_rc"',
+    'printf \'%s\\n\' "$rest"',
+  ].join('\n'),
+  jq: [
+    '#!/bin/bash',
+    'IFS= read -r line || exit 0',
+    'read -r jq_rc out <<< "$line"',
+    '[ -z "$out" ] || printf \'%s\\n\' "$out"',
+    'exit "$jq_rc"',
+  ].join('\n'),
+  sleep: '#!/bin/bash\nexit 0',
+};
+
+/** Count-gate cases: queued attempts and whether the step passes. */
+const COUNT_GATE_CASES: readonly (readonly [string, readonly string[], boolean])[] = [
+  ['curl fails, then 0 issues', ['7', '0 0 0'], true],
+  ['jq fails, then 0 issues', ['0 5', '0 0 0'], true],
+  ['no count five times', ['0 0', '0 0', '0 0', '0 0', '0 0'], false],
+  ['non-numeric count five times', Array.from({ length: 5 }, (): string => '0 0 abc'), false],
+  ['curl fails five times', ['7', '7', '7', '7', '7'], false],
+  ['3 new issues', ['0 0 3'], false],
+  ['0 new issues', ['0 0 0'], true],
+];
 
 /** Step fields this suite reads. */
 interface IStep {
@@ -161,36 +197,86 @@ function stepNamed(jobKey: string, name: string): IStep {
 }
 
 /**
- * Exit status of the trust step for one pair of upstream results, run the way
- * Actions does: from a file, under `pr.yml`'s `defaults.run.shell`.
- * @param pair - `[changes result, unit-tests result]`.
- * @returns The exit status.
+ * Run a callback in a fresh temp directory, removed afterwards.
+ * @param body - Receives the directory.
+ * @returns What the callback returns.
  */
-function trustStatus(pair: readonly [string, string]): number {
+function inTempDir(body: (dir: string) => number): number {
   const temp = tmpdir();
   const prefix = join(temp, 'sps-');
   const dir = mkdtempSync(prefix);
   try {
-    return runTrustStep(dir, pair);
+    return body(dir);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
 /**
- * Run the trust step from a file in a directory.
+ * Run a `pr.yml` step script the way Actions does: from a file, under the
+ * workflow's `defaults.run.shell`.
  * @param dir - Working directory.
- * @param pair - `[changes result, unit-tests result]`.
+ * @param stepName - Step name in the `sonarcloud` job.
+ * @param env - Variables added to the environment.
  * @returns The exit status.
  */
-function runTrustStep(dir: string, pair: readonly [string, string]): number {
+function runStep(dir: string, stepName: string, env: Readonly<Record<string, string>>): number {
   const file = join(dir, 'step.sh');
-  writeFileSync(file, stepNamed(JOB_KEY, TRUST_STEP).run ?? '');
+  writeFileSync(file, stepNamed(JOB_KEY, stepName).run ?? '');
   const shell = loadWorkflow('pr.yml').defaults?.run?.shell ?? '';
   const argv = shell.split(' ').filter((token): boolean => token !== '');
   const [command, ...rest] = argv.map((token): string => (token === '{0}' ? file : token));
-  const env = { ...process.env, CHANGES_RESULT: pair[0], UNIT_TESTS_RESULT: pair[1] };
-  return spawnSync(command, rest, { cwd: dir, env }).status ?? -1;
+  return spawnSync(command, rest, { cwd: dir, env: { ...process.env, ...env } }).status ?? -1;
+}
+
+/**
+ * Exit status of the trust step for one pair of upstream results.
+ * @param pair - `[changes result, unit-tests result]`.
+ * @returns The exit status.
+ */
+function trustStatus(pair: readonly [string, string]): number {
+  const env = { CHANGES_RESULT: pair[0], UNIT_TESTS_RESULT: pair[1] };
+  return inTempDir((dir): number => runStep(dir, TRUST_STEP, env));
+}
+
+/**
+ * Write one executable stub.
+ * @param bin - Stub directory.
+ * @param stub - `[command name, script]`.
+ * @returns The stub's path.
+ */
+function writeStub(bin: string, stub: readonly [string, string]): string {
+  const file = join(bin, stub[0]);
+  writeFileSync(file, `${stub[1]}\n`, { mode: 0o755 });
+  return file;
+}
+
+/**
+ * Write the count-gate stubs into `<dir>/bin`.
+ * @param dir - Working directory.
+ * @returns The stub paths.
+ */
+function writeCountGateStubs(dir: string): readonly string[] {
+  const bin = join(dir, 'bin');
+  mkdirSync(bin);
+  const stubs = Object.entries(COUNT_GATE_STUBS);
+  return stubs.map((stub): string => writeStub(bin, stub));
+}
+
+/**
+ * Exit status of the count gate when the API calls go as queued.
+ * @param bin - Directory holding the count-gate stubs.
+ * @param attempts - One queued attempt per API call (see the stubs).
+ * @returns The exit status.
+ */
+function countGateStatus(bin: string, attempts: readonly string[]): number {
+  return inTempDir((dir): number => {
+    const queue = join(dir, 'queue');
+    writeFileSync(queue, `${attempts.join('\n')}\n`);
+    const path = `${bin}:${process.env.PATH ?? ''}`;
+    const env = { PATH: path, SPS_QUEUE: queue, SONAR_PROJECT_KEY: 'key', PR_NUMBER: '1' };
+    return runStep(dir, COUNT_GATE_STEP, env);
+  });
 }
 
 /**
@@ -266,5 +352,28 @@ describe('SonarPrScanGate', () => {
     );
     expect(order[0]).toBeGreaterThanOrEqual(0);
     expect(order[0]).toBeLessThan(order[1]);
+  });
+
+  describe('[SPS-6] count gate', () => {
+    // One stub directory for every case: a freshly written executable can be
+    // slow on its first run (seen on macOS), so the stubs are written once.
+    const stubRoot = { dir: '' };
+    beforeAll(() => {
+      const temp = tmpdir();
+      const prefix = join(temp, 'sps-stubs-');
+      stubRoot.dir = mkdtempSync(prefix);
+      writeCountGateStubs(stubRoot.dir);
+    });
+    afterAll(() => {
+      rmSync(stubRoot.dir, { recursive: true, force: true });
+    });
+
+    it.each(COUNT_GATE_CASES)('[SPS-6] CountGate_%s_ShouldGate', (_label, attempts, isPass) => {
+      if (canRunPosixBash(process.platform)) {
+        const bin = join(stubRoot.dir, 'bin');
+        const status = countGateStatus(bin, attempts);
+        expect({ attempts, isPassed: status === 0 }).toEqual({ attempts, isPassed: isPass });
+      }
+    });
   });
 });

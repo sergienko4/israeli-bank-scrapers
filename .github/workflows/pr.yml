@@ -1169,10 +1169,15 @@ jobs:
           query="componentKeys=${SONAR_PROJECT_KEY}&pullRequest=${PR_NUMBER}&issueStatuses=OPEN,CONFIRMED&sinceLeakPeriod=true&ps=1"
           attempt=1
           total=""
+          # A failed curl or jq, or a total that is not a whole number, is
+          # retried. Under `-e` a failure would end the step unretried, and a
+          # non-numeric total would make the `-gt` test below error inside its
+          # `if` and let the step pass.
           while [ "${attempt}" -le 5 ]; do
-            total=$(curl -sS "${api}?${query}" | jq -r '.total // empty')
-            if [ -n "${total}" ]; then break; fi
-            echo "::warning::SonarCloud API returned empty body, retrying (${attempt}/5)"
+            total=$(curl -sS "${api}?${query}" | jq -r '.total // empty') || total=""
+            if [[ "${total}" =~ ^[0-9]+$ ]]; then break; fi
+            total=""
+            echo "::warning::SonarCloud API gave no issue count, retrying (${attempt}/5)"
             sleep 5
             attempt=$((attempt + 1))
           done
