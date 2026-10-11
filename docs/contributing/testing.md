@@ -31,7 +31,9 @@ Five test suites, picked by **what you're testing**.
 - HTML report: `src/coverage/lcov-report/`.
 - Runs on 2 Jest workers. Set `JEST_MAX_WORKERS` to change that (a positive
   integer or `1%`–`100%`); any other value fails the run. CI's `Unit tests`
-  job sets 4. `test:memory` shares the base config but ignores this variable.
+  job keeps the default: a trial at 4 hit Jest's ESM "module not been linked"
+  race on the Node 22 leg, and CI stays on 2 until that race is fixed.
+  `test:memory` shares the base config but ignores this variable.
 
 ### Mocked-E2E (`test:e2e:mock`)
 

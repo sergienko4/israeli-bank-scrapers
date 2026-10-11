@@ -1,6 +1,6 @@
 // Config for `npm run test:pipeline` only: jest.pipeline.config.cjs plus a
-// worker count that CI can raise through JEST_MAX_WORKERS. The default stays
-// 2, so local runs and the hooks behave as before.
+// worker count a run can raise through JEST_MAX_WORKERS. The default is 2,
+// and CI keeps it (see the `unit-tests` job in .github/workflows/pr.yml).
 //
 // This is a separate file because `test:memory` also reads
 // jest.pipeline.config.cjs and sets no --maxWorkers. A default there would

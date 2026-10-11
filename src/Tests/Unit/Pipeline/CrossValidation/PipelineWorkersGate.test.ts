@@ -2,34 +2,33 @@
  * Worker-count contract for `npm run test:pipeline`.
  *
  * <p>`test:pipeline` reads `jest.pipeline.suite.config.cjs`, which is the
- * shared `jest.pipeline.config.cjs` plus a `maxWorkers` that CI raises through
+ * shared `jest.pipeline.config.cjs` plus a `maxWorkers` a run can raise through
  * `JEST_MAX_WORKERS`. Each link fails silently when it breaks. A `--maxWorkers`
  * flag in the script beats the config and switches the knob off. A
  * `maxWorkers` in the shared config changes the Memory gate's workload. A value
  * Jest cannot parse becomes one worker. So this suite pins every link: the
- * script, the shared config, the resolved config, and the CI job that sets the
- * variable.
+ * script, the shared config, the resolved config, and CI's worker count.
+ *
+ * <p>CI stays on the default 2: a trial at 4 hit Jest's ESM "module not been
+ * linked" race on the Node 22 leg (see the `unit-tests` job in `pr.yml`).
  *
  * Rules:
  *   PWG-1  `test:pipeline` uses the suite config and sets no worker flag
  *   PWG-2  `test:memory` and the shared config stay free of a worker count
  *   PWG-3  the suite config is the shared config plus `JEST_MAX_WORKERS` (default 2)
  *   PWG-4  a value Jest would quietly turn into one worker fails the config load
- *   PWG-5  the `unit-tests` job sets `JEST_MAX_WORKERS` to 4, which the config accepts
+ *   PWG-5  no CI code line raises the worker count, so CI runs the default 2
  */
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-import { parse } from 'yaml';
 
 const THIS_FILE_URL = import.meta.url;
 const THIS_FILE_PATH = fileURLToPath(THIS_FILE_URL);
 const THIS_DIR = dirname(THIS_FILE_PATH);
 const REPO_ROOT = join(THIS_DIR, '../../../../../');
-const PR_YAML = join(REPO_ROOT, '.github/workflows/pr.yml');
 const PACKAGE_JSON = join(REPO_ROOT, 'package.json');
 const BASE_CONFIG = 'jest.pipeline.config.cjs';
 const SUITE_CONFIG = 'jest.pipeline.suite.config.cjs';
@@ -37,6 +36,12 @@ const KNOB = 'JEST_MAX_WORKERS';
 
 /** Any Jest CLI flag that fixes the worker count and so overrides the config. */
 const WORKER_FLAG = /(?:^|\s)(?:--maxWorkers|-w|--runInBand|-i)(?:[=\s]|$)/;
+
+/** Every place a CI job's environment or command line can come from. */
+const CI_DIRS = ['.github/workflows', '.github/actions', '.github/scripts'] as const;
+
+/** A whole-line comment: YAML or shell `#`, JS `//`, or a block-comment line. */
+const COMMENT_LINE = /^\s*(?:#|\/\/|\/?\*)/;
 
 /** Loads both configs in a fresh process and reports how the suite one differs. */
 const PROBE = [
@@ -77,13 +82,6 @@ interface IProbeRun {
   readonly status: number;
   readonly stdout: string;
   readonly stderr: string;
-}
-
-/** Workflow fields this suite reads. */
-interface IPrYamlDoc {
-  readonly jobs: Readonly<
-    Record<string, { readonly env?: Readonly<Record<string, string | number>> }>
-  >;
 }
 
 /**
@@ -132,14 +130,62 @@ function probe(overrides: Readonly<Record<string, string>>): IProbe {
 }
 
 /**
- * The `unit-tests` job's `JEST_MAX_WORKERS`, as Actions hands it to the step.
- * @returns The value as a string; empty when the job does not set it.
+ * Every file under one CI directory.
+ * @param dir - Directory relative to the repo root.
+ * @returns Repo-relative file paths.
  */
-function ciWorkers(): string {
-  const text = readFileSync(PR_YAML, 'utf8');
-  const doc = parse(text) as IPrYamlDoc;
-  const value = doc.jobs['unit-tests'].env?.[KNOB] ?? '';
-  return String(value);
+function filesUnder(dir: string): string[] {
+  const root = join(REPO_ROOT, dir);
+  const names = readdirSync(root, { recursive: true, encoding: 'utf8' });
+  const paths = names.map((name): string => join(dir, name));
+  return paths.filter((path): boolean => isFile(path));
+}
+
+/**
+ * Whether a repo-relative path is a regular file.
+ * @param path - Repo-relative path.
+ * @returns True for a file, false for a directory.
+ */
+function isFile(path: string): boolean {
+  const absolute = join(REPO_ROOT, path);
+  const stats = statSync(absolute);
+  return stats.isFile();
+}
+
+/**
+ * Whether a line, outside a comment, sets the knob or passes `test:pipeline`
+ * a worker flag. Either route (job, step or workflow `env`, `$GITHUB_ENV`, a
+ * script, the command line) takes CI off the default.
+ * @param line - One line of a CI file.
+ * @returns True when the line raises the worker count.
+ */
+function raisesWorkers(line: string): boolean {
+  if (COMMENT_LINE.test(line)) return false;
+  return line.includes(KNOB) || (line.includes('test:pipeline') && WORKER_FLAG.test(line));
+}
+
+/**
+ * The lines in one CI file that raise the worker count.
+ * @param path - Repo-relative file path.
+ * @returns `path:line` for each offending line.
+ */
+function workerLines(path: string): string[] {
+  const absolute = join(REPO_ROOT, path);
+  const lines = readFileSync(absolute, 'utf8').split('\n');
+  const hits = lines.map((line, index): string => {
+    const lineNumber = String(index + 1);
+    return raisesWorkers(line) ? `${path}:${lineNumber}` : '';
+  });
+  return hits.filter((hit): boolean => hit !== '');
+}
+
+/**
+ * Every CI line that raises the worker count.
+ * @returns `path:line` entries; empty when CI keeps the default.
+ */
+function ciWorkerLines(): string[] {
+  const files = CI_DIRS.flatMap((dir): string[] => filesUnder(dir));
+  return files.flatMap((path): string[] => workerLines(path));
 }
 
 describe('PipelineWorkersGate — test:pipeline worker count', () => {
@@ -170,9 +216,9 @@ describe('PipelineWorkersGate — test:pipeline worker count', () => {
     expect(run.stderr).toContain(`${KNOB} must be a positive integer or 1-100%`);
   });
 
-  it('PWG-5: the unit-tests job sets 4 workers, and the config accepts it', () => {
-    const value = ciWorkers();
-    expect(value).toBe('4');
-    expect(probe({ [KNOB]: value }).maxWorkers).toBe('4');
+  it('PWG-5: no CI code line raises the worker count, so CI runs the default 2', () => {
+    const offenders = ciWorkerLines();
+    expect(offenders).toEqual([]);
+    expect(probe(UNSET).maxWorkers).toBe('2');
   });
 });

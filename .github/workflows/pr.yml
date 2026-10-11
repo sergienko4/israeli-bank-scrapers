@@ -561,11 +561,12 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-    # `test:pipeline` defaults to 2 workers (jest.pipeline.suite.config.cjs).
-    # A public-repo ubuntu-latest runner has 4 vCPUs, so 2 left half of it
-    # idle. Only this job raises it; local runs and hooks keep the default.
-    env:
-      JEST_MAX_WORKERS: 4
+    # `test:pipeline` runs on its default 2 workers (jest.pipeline.suite.config.cjs).
+    # A trial at 4 (JEST_MAX_WORKERS) cut the slowest leg from 335 s to 205 s,
+    # but its Node 22 leg failed with Jest's ESM "module not been linked" race.
+    # The race has also hit a 2-worker run, so 4 did not cause it, but 4 cannot
+    # be shown safe until it is fixed. PipelineWorkersGate PWG-5 keeps every CI
+    # file from setting the variable until then.
     strategy:
       fail-fast: false
       matrix:
