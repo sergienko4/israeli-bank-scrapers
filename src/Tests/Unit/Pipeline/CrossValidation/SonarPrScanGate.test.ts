@@ -171,16 +171,26 @@ function trustStatus(pair: readonly [string, string]): number {
   const prefix = join(temp, 'sps-');
   const dir = mkdtempSync(prefix);
   try {
-    const file = join(dir, 'step.sh');
-    writeFileSync(file, stepNamed(JOB_KEY, TRUST_STEP).run ?? '');
-    const shell = loadWorkflow('pr.yml').defaults?.run?.shell ?? '';
-    const argv = shell.split(' ').filter((token): boolean => token !== '');
-    const [command, ...rest] = argv.map((token): string => (token === '{0}' ? file : token));
-    const env = { ...process.env, CHANGES_RESULT: pair[0], UNIT_TESTS_RESULT: pair[1] };
-    return spawnSync(command, rest, { cwd: dir, env }).status ?? -1;
+    return runTrustStep(dir, pair);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+}
+
+/**
+ * Run the trust step from a file in a directory.
+ * @param dir - Working directory.
+ * @param pair - `[changes result, unit-tests result]`.
+ * @returns The exit status.
+ */
+function runTrustStep(dir: string, pair: readonly [string, string]): number {
+  const file = join(dir, 'step.sh');
+  writeFileSync(file, stepNamed(JOB_KEY, TRUST_STEP).run ?? '');
+  const shell = loadWorkflow('pr.yml').defaults?.run?.shell ?? '';
+  const argv = shell.split(' ').filter((token): boolean => token !== '');
+  const [command, ...rest] = argv.map((token): string => (token === '{0}' ? file : token));
+  const env = { ...process.env, CHANGES_RESULT: pair[0], UNIT_TESTS_RESULT: pair[1] };
+  return spawnSync(command, rest, { cwd: dir, env }).status ?? -1;
 }
 
 /**
@@ -218,12 +228,9 @@ describe('SonarPrScanGate', () => {
   it.each(RESULT_PAIRS)('[SPS-3] TrustStep_Changes_%j_UnitTests_%j_ShouldGate', (changes, unit) => {
     if (canRunPosixBash(process.platform)) {
       const status = trustStatus([changes, unit]);
+      const isPassed = status === 0;
       const shouldPass = changes === 'success' && unit === 'success';
-      expect({ changes, unit, passes: status === 0 }).toEqual({
-        changes,
-        unit,
-        passes: shouldPass,
-      });
+      expect({ changes, unit, isPassed }).toEqual({ changes, unit, isPassed: shouldPass });
     }
   });
 
@@ -236,20 +243,27 @@ describe('SonarPrScanGate', () => {
     expect(scans).toHaveLength(1);
   });
 
-  it('[SPS-5] Download_ShouldFetchTheUploadedCoverage_WhereSonarReadsIt', () => {
+  it('[SPS-5] Download_ShouldFetchTheUploadedCoverage', () => {
     const upload = stepNamed('unit-tests', UPLOAD_STEP).with ?? {};
     const download = stepNamed(JOB_KEY, DOWNLOAD_STEP).with ?? {};
-    const steps = sonarJob().steps ?? [];
-    const order = [DOWNLOAD_STEP, CONTEXT].map((name): number =>
-      steps.findIndex((step): boolean => step.name === name),
-    );
     expect({ name: download.name, path: download.path }).toEqual({
       name: upload.name,
       path: upload.path,
     });
+  });
+
+  it('[SPS-5] Download_ShouldLandWhereSonarReadsIt', () => {
+    const download = stepNamed(JOB_KEY, DOWNLOAD_STEP).with ?? {};
     const lcov = posix.join(download.path, 'lcov.info');
     const sonarReads = lcovReportPaths();
     expect(sonarReads).toContain(lcov);
+  });
+
+  it('[SPS-5] Download_ShouldRunBeforeTheScan', () => {
+    const steps = sonarJob().steps ?? [];
+    const order = [DOWNLOAD_STEP, CONTEXT].map((name): number =>
+      steps.findIndex((step): boolean => step.name === name),
+    );
     expect(order[0]).toBeGreaterThanOrEqual(0);
     expect(order[0]).toBeLessThan(order[1]);
   });

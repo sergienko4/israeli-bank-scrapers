@@ -333,13 +333,8 @@ function installStub(dir: string, state: IStubState): string {
 function stubEnv(dir: string, prNumber: string): NodeJS.ProcessEnv {
   const path = `${dir}${delimiter}${process.env.PATH ?? ''}`;
   const stateFile = join(dir, 'state.json');
-  const step = {
-    PR_NUMBER: prNumber,
-    GITHUB_REF: MAIN,
-    GH_REPO: 'owner/repo',
-    GH_STUB_STATE: stateFile,
-  };
-  return { ...process.env, PATH: path, ...step };
+  const step = { PR_NUMBER: prNumber, GITHUB_REF: MAIN, GH_REPO: 'owner/repo' };
+  return { ...process.env, PATH: path, ...step, GH_STUB_STATE: stateFile };
 }
 
 /**
@@ -384,6 +379,36 @@ function expectedOf(scenario: IScenario): IOutcome {
   return { isPassed: scenario.shouldPass, cachesLeft: scenario.cachesLeft };
 }
 
+/** `[what, how to read it from the workflow, expected]` for one CCG-3 pin. */
+type WorkflowPin = readonly [string, (doc: IWorkflowDoc) => unknown, unknown];
+
+// CCG-3: triggers, least privilege, the fork-close skip and per-PR groups.
+const WORKFLOW_PINS: readonly WorkflowPin[] = [
+  [
+    'Triggers',
+    (doc): unknown => Object.keys(doc.on).sort(),
+    ['pull_request', 'schedule', 'workflow_dispatch'],
+  ],
+  ['PrTypes', (doc): unknown => doc.on.pull_request?.types, ['closed']],
+  ['WorkflowPermissions', (doc): unknown => doc.permissions, {}],
+  [
+    'JobPermissions',
+    (doc): unknown => onlyJob(doc).permissions,
+    { actions: 'write', 'pull-requests': 'read' },
+  ],
+  ['JobCondition', (doc): unknown => onlyJob(doc).if, SKIP_FORK_CLOSE],
+  ['Timeout', (doc): unknown => onlyJob(doc)['timeout-minutes'], 5],
+  [
+    'Concurrency',
+    (doc): unknown => doc.concurrency,
+    {
+      group: "cache-cleanup-${{ github.event.pull_request.number || 'sweep' }}",
+      'cancel-in-progress': false,
+    },
+  ],
+  ['ScriptExpressions', (doc): unknown => cleanupScript(doc).includes('${{'), false],
+];
+
 describe('CacheCleanupGate', () => {
   it.each(CCG1_ROWS)('[CCG-1] $label', scenario => {
     if (canRunPosixBash(process.platform)) {
@@ -401,23 +426,10 @@ describe('CacheCleanupGate', () => {
     }
   });
 
-  it('[CCG-3] Workflow_ShouldHoldLeastPrivilegeAndPerPrGroups', () => {
+  it.each(WORKFLOW_PINS)('[CCG-3] Workflow_%s_ShouldBePinned', (_label, read, expected) => {
     const doc = loadWorkflow();
-    const job = onlyJob(doc);
-    const script = cleanupScript(doc);
-    const hasExpression = script.includes('${{');
-    const triggers = Object.keys(doc.on).sort();
-    expect(triggers).toEqual(['pull_request', 'schedule', 'workflow_dispatch']);
-    expect(doc.on.pull_request?.types).toEqual(['closed']);
-    expect(doc.permissions).toEqual({});
-    expect(job.permissions).toEqual({ actions: 'write', 'pull-requests': 'read' });
-    expect(job.if).toBe(SKIP_FORK_CLOSE);
-    expect(job['timeout-minutes']).toBe(5);
-    expect(doc.concurrency).toEqual({
-      group: "cache-cleanup-${{ github.event.pull_request.number || 'sweep' }}",
-      'cancel-in-progress': false,
-    });
-    expect(hasExpression).toBe(false);
+    const actual = read(doc);
+    expect(actual).toEqual(expected);
   });
 
   it('[CCG-3] Step_ShouldTakeEveryInputThroughEnv', () => {

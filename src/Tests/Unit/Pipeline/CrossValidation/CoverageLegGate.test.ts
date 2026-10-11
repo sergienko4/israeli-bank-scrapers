@@ -284,13 +284,24 @@ function pickFor(doc: IPrYamlDoc, leg: string, nvmrc: string): string {
   return inTempDir((dir): string => {
     const nvmrcPath = join(dir, '.nvmrc');
     writeFileSync(nvmrcPath, nvmrc);
-    const output = join(dir, 'github-output');
-    const script = stepNamed(doc, PICK_STEP).run ?? '';
-    const run = runStep(doc, script, { STEP_DIR: dir, NODE_LEG: leg, GITHUB_OUTPUT: output });
-    if (run.status !== 0) return `exit ${String(run.status)}`;
-    const written = readFileSync(output, 'utf8');
-    return written.replace(/^coverage=/u, '').trim();
+    return pickIn(doc, dir, leg);
   });
+}
+
+/**
+ * Run the picker in a directory that already holds `.nvmrc`.
+ * @param doc - Parsed workflow.
+ * @param dir - Working directory.
+ * @param leg - The `matrix.node` value.
+ * @returns The `coverage=` value the step wrote to `$GITHUB_OUTPUT`, or `exit N` if it failed.
+ */
+function pickIn(doc: IPrYamlDoc, dir: string, leg: string): string {
+  const output = join(dir, 'github-output');
+  const script = stepNamed(doc, PICK_STEP).run ?? '';
+  const run = runStep(doc, script, { STEP_DIR: dir, NODE_LEG: leg, GITHUB_OUTPUT: output });
+  if (run.status !== 0) return `exit ${String(run.status)}`;
+  const written = readFileSync(output, 'utf8');
+  return written.replace(/^coverage=/u, '').trim();
 }
 
 /**
@@ -311,14 +322,23 @@ function coverageLegs(doc: IPrYamlDoc, nvmrc: string): readonly string[] {
  */
 function npmArgsFor(doc: IPrYamlDoc, coverage: string): string {
   return inTempDir((dir): string => {
-    const stub = join(dir, 'npm');
-    writeFileSync(stub, '#!/bin/sh\necho "$*"\n');
-    chmodSync(stub, 0o755);
+    const path = pathWithNpmStub(dir);
     const script = stepNamed(doc, TEST_STEP).run ?? '';
-    const path = `${dir}${delimiter}${process.env.PATH ?? ''}`;
     const run = runStep(doc, script, { STEP_DIR: dir, PATH: path, COVERAGE: coverage });
     return run.stdout.trim();
   });
+}
+
+/**
+ * Install an `npm` stub that echoes its arguments.
+ * @param dir - Directory to hold the stub.
+ * @returns A `PATH` that finds the stub first.
+ */
+function pathWithNpmStub(dir: string): string {
+  const stub = join(dir, 'npm');
+  writeFileSync(stub, '#!/bin/sh\necho "$*"\n');
+  chmodSync(stub, 0o755);
+  return `${dir}${delimiter}${process.env.PATH ?? ''}`;
 }
 
 describe('CoverageLegGate', () => {
@@ -327,9 +347,7 @@ describe('CoverageLegGate', () => {
       const doc = loadPrYaml();
       const nvmrc = readFileSync(NVMRC, 'utf8');
       const picked = coverageLegs(doc, nvmrc);
-      const legs = matrixLegs(doc);
       const floor = floorOf(nvmrc);
-      expect(legs).toContain(floor);
       expect(picked).toEqual([floor]);
     }
   });
@@ -351,11 +369,15 @@ describe('CoverageLegGate', () => {
     }
   });
 
-  it('[CLG-4] Steps_ShouldBeWiredInOrder_AndUploadOnlyThePickedLeg', () => {
+  it('[CLG-4] Steps_ShouldRunPickThenTestThenUpload', () => {
     const doc = loadPrYaml();
     const order = [PICK_STEP, TEST_STEP, UPLOAD_STEP].map((name): number => stepIndex(doc, name));
     const sorted = [...order].sort((left, right): number => left - right);
     expect(order).toEqual(sorted);
+  });
+
+  it('[CLG-4] Steps_ShouldPassTheVerdict_AndUploadOnlyThePickedLeg', () => {
+    const doc = loadPrYaml();
     const pick = stepNamed(doc, PICK_STEP);
     expect(pick).toMatchObject({ id: 'leg', env: { NODE_LEG: '${{ matrix.node }}' } });
     expect(stepNamed(doc, TEST_STEP).env).toEqual({
