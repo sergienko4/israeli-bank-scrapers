@@ -1028,6 +1028,11 @@ jobs:
   # release-please version bumps routinely touch bound files. See
   # docs/workflow/code-scanning.md for the compensating controls and
   # .github/scripts/ci/docs-staleness.sh for the algorithm.
+  #
+  # The bot check is a plain `node` step, not `actions/github-script`:
+  # it loads code checked out from the PR, and github-script would
+  # hand that code the job's GITHUB_TOKEN. A `run:` step receives no
+  # token, and `persist-credentials: false` leaves none in .git/config.
   # ──────────────────────────────────────────────────────────────
   docs-staleness:
     name: Docs staleness
@@ -1045,17 +1050,7 @@ jobs:
           persist-credentials: false
       - name: Skip bot PRs
         id: bot
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const isBotPr = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/ci/is-bot-pr.cjs`);
-            const pr = context.payload.pull_request;
-            if (isBotPr(pr)) {
-              core.info(`Docs staleness skipped — bot PR (author='${pr.user?.login ?? ''}').`);
-              core.setOutput('skip', 'true');
-              return;
-            }
-            core.setOutput('skip', 'false');
+        run: node .github/scripts/ci/docs-staleness-bot-skip.cjs
       - name: Docs staleness canary
         if: steps.bot.outputs.skip != 'true'
         env:

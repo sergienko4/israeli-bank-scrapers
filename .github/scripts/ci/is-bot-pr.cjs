@@ -16,8 +16,9 @@
  * PRs as `renovate[bot]`, so the author check is enough, and a prefix would
  * let any collaborator exempt a hand-written PR just by naming the branch.
  *
- * `.cjs` because the package is `"type": "module"` and `actions/github-script`
- * loads this with `require`.
+ * `.cjs` because the package is `"type": "module"` and both callers load this
+ * with `require`: `actions/github-script` in the PR-body gates, and
+ * `docs-staleness-bot-skip.cjs` under plain `node` in the docs-staleness job.
  */
 const BOT_AUTHORS = new Set([
   'dependabot[bot]',

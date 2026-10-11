@@ -18,6 +18,8 @@ source-files:
   - .github/workflows/pr-body-check.yml
   - src/Tests/Unit/Pipeline/CrossValidation/DependabotSecurityGrouping.test.ts
   - src/Tests/Unit/Pipeline/CrossValidation/RenovateLockfileMaintenancePolicy.test.ts
+  - .github/scripts/ci/docs-staleness-bot-skip.cjs
+  - src/Tests/Unit/Pipeline/CrossValidation/DocsStalenessGate.test.ts
 ---
 
 # Code scanning: two scanners, one authority
@@ -482,13 +484,21 @@ tests still run on bot pull requests that touch CI scripts or dependencies.
 Two gaps remain, and each needs a person to update the page: a bot bump that
 keeps the same engine, such as a change to the `scorecard-action` image tag
 quoted above, and a human commit on a bot branch that touches only non-code
-bound files. On an exempt pull request the job still runs its
-`actions/github-script` bot check, which receives the job's token; the job
-grants only `contents: read`, so that token cannot write.
-`DocsStalenessGate.test.ts` pins the job's wiring. It pins the bot check and
-the `validate` aggregator step line for line, and requires the workflow's
-strict `bash` shell with no job `defaults:` or step `shell:` override, so a
-decoy step, an early `exit 0` or a lax shell cannot quietly turn the gate off.
+bound files. The job decides the exemption in a plain `node` step that runs
+`docs-staleness-bot-skip.cjs`. It does not use `actions/github-script`, which
+would hand the job's token to code loaded from the pull request's checkout. The
+script reads the event payload and fails the job if the payload carries no pull
+request, rather than skipping the scan.
+`DocsStalenessGate.test.ts` pins the job's wiring. It pins each of the job's
+three steps whole, the checkout action to any full commit SHA, and pins the
+bot script's code and the `validate` aggregator step line for line. It
+requires the workflow's strict `bash` shell with no job `defaults:` or step
+`shell:` override, so a decoy step, an early `exit 0` or a lax shell cannot
+quietly turn the gate off. It fixes the job's own fields, which keeps it on a
+GitHub-hosted `ubuntu-latest` runner with no `container:` or `services:`. It
+limits the `env:` keys the workflow and the job declare to a fixed allowlist,
+so a preload declared there, such as `BASH_ENV` or `NODE_OPTIONS`, cannot run
+code ahead of the pinned steps.
 
 Verify after a change:
 

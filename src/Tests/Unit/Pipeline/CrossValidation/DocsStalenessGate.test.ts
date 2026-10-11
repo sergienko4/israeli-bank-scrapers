@@ -13,20 +13,25 @@
  * the gate stays a gate — it runs on every pull request, `Validate` fails when
  * it fails or is cancelled, it cannot swallow its own failure, it runs exactly
  * once, and it skips only what the shared predicate calls a bot PR. The job
- * references no repository secret and receives only the implicit job token,
- * which `contents: read` keeps read-only.
+ * references no repository secret, and the bot check runs as a plain `node`
+ * step, so the pull request's code it loads receives no token. The job's own
+ * fields are fixed, which keeps it on a GitHub-hosted `ubuntu-latest` runner
+ * with no container or services, and the `env:` keys the workflow and the job
+ * declare are allowlisted, so no preload declared there runs code ahead of the
+ * pinned steps.
  *
- * <p>The bot step and the aggregator's step are pinned line for line: finite
- * cases and fragment checks cannot rule out an extra skip condition, a decoy
- * step, or a script that keeps the right lines behind an early exit. Changing
- * either step on purpose means updating its pin here.
+ * <p>The gate's steps are pinned whole, and the code of the bot script and the
+ * aggregator's step line for line: finite cases and fragment checks cannot
+ * rule out an extra skip condition, a decoy step, a moved working directory,
+ * or a script that keeps the right lines behind an early exit. Changing any of
+ * them on purpose means updating its pin here.
  */
 
-import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import * as vm from 'node:vm';
 
 import { parse } from 'yaml';
 
@@ -34,9 +39,6 @@ const THIS_FILE_PATH = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE_PATH);
 const REPO_ROOT = join(THIS_DIR, '../../../../../');
 const PR_YAML = join(REPO_ROOT, '.github/workflows/pr.yml');
-
-/** The checkout root GitHub hands the bot step, without a trailing separator. */
-const WORKSPACE = REPO_ROOT.replace(/[\\/]+$/, '');
 
 /** YAML key of the gate job, and of the aggregator that decides what can block a merge. */
 const GATE_JOB_KEY = 'docs-staleness';
@@ -59,35 +61,47 @@ const BASE_ENV = {
   BASE_SHA: '${{ github.event.pull_request.base.sha }}',
 };
 
-/** The shared predicate the bot step must load, rather than an inline copy. */
-const BOT_PREDICATE = '/.github/scripts/ci/is-bot-pr.cjs';
+/**
+ * The only variables the gate inherits from the workflow and its job. An
+ * allowlist, so a preload such as `BASH_ENV` or `NODE_OPTIONS` cannot run code
+ * ahead of the pinned steps.
+ */
+const INHERITED_ENV_KEYS = ['FORCE_JAVASCRIPT_ACTIONS_TO_NODE24'];
 
-/** The github-script commit every bot step in the repo runs. */
-const GITHUB_SCRIPT = 'actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3';
+/** How the bot step runs its script: plain `node`, which hands it no token. */
+const BOT_COMMAND = 'node .github/scripts/ci/docs-staleness-bot-skip.cjs';
+const BOT_SKIP_SCRIPT = join(REPO_ROOT, '.github/scripts/ci/docs-staleness-bot-skip.cjs');
+
+/** Where {@link runBotSkip} makes the throwaway directory for each run. */
+const TEMP_ROOT = tmpdir();
+const BOT_TMP_PREFIX = join(TEMP_ROOT, 'docs-staleness-bot-');
 
 /**
- * The bot step, its script as {@link scriptLines}. Pinned whole because the
- * pull-request cases below are finite: they cannot show that the shared
- * predicate is the only way to `skip=true` — an extra condition, or a
- * step-level `if:`, would pass them. An intended edit updates this pin.
+ * The bot step, pinned whole: no `uses`, `with` or `env` can hand it a token
+ * or extra input, and no step-level `if:` can add a skip condition.
  */
-const BOT_STEP = {
-  name: 'Skip bot PRs',
-  id: BOT_STEP_ID,
-  uses: GITHUB_SCRIPT,
-  with: {
-    script: [
-      'const isBotPr = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/ci/is-bot-pr.cjs`);',
-      'const pr = context.payload.pull_request;',
-      'if (isBotPr(pr)) {',
-      "core.info(`Docs staleness skipped — bot PR (author='${pr.user?.login ?? ''}').`);",
-      "core.setOutput('skip', 'true');",
-      'return;',
-      '}',
-      "core.setOutput('skip', 'false');",
-    ],
-  },
-};
+const BOT_STEP = { name: 'Skip bot PRs', id: BOT_STEP_ID, run: BOT_COMMAND };
+
+/**
+ * The bot script's code below its header comment, as {@link scriptLines}.
+ * Pinned whole because the pull-request cases below are finite: they cannot
+ * show that the shared predicate is the only way to `skip=true` — an extra
+ * condition would pass them. An intended edit updates this pin.
+ */
+const BOT_SKIP_CODE = [
+  "const fs = require('node:fs');",
+  "const isBotPr = require('./is-bot-pr.cjs');",
+  "const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));",
+  'const pr = event.pull_request;',
+  "const skip = isBotPr(pr) ? 'true' : 'false';",
+  "if (skip === 'true') {",
+  "console.log(`Docs staleness skipped — bot PR (author='${pr.user?.login ?? ''}').`);",
+  '}',
+  'fs.appendFileSync(process.env.GITHUB_OUTPUT, `skip=${skip}\\n`);',
+];
+
+/** The comment delimiters the bot script's header must open and close with. */
+const BOT_SKIP_HEADER = { opens: '/**', closes: '*/' };
 
 /**
  * The shell every `run:` step gets. A job or step that overrides it could run
@@ -100,6 +114,33 @@ const MAX_GATE_MINUTES = 15;
 
 /** A pinned action reference: owner/name at a full commit SHA. */
 const PINNED_CHECKOUT = /^actions\/checkout@[0-9a-f]{40}$/;
+
+/**
+ * The checkout step's only inputs: full history, and no stored credential.
+ * Pinned whole, so no `ref`, `path`, `sparse-checkout` or `env` can change
+ * what the scan reads.
+ */
+const CHECKOUT_INPUTS = { 'fetch-depth': 0, 'persist-credentials': false };
+
+/**
+ * The scan step, pinned whole: no `working-directory`, `shell` or
+ * `continue-on-error` can point it elsewhere or let it pass on failure.
+ */
+const SCAN_STEP = {
+  name: 'Docs staleness canary',
+  if: SKIP_CONDITION,
+  env: BASE_ENV,
+  run: GATE_COMMAND,
+};
+
+/** The runner the gate needs: GitHub-hosted, so no self-hosted state leaks in. */
+const HOSTED_RUNNER = 'ubuntu-latest';
+
+/**
+ * The gate job's only fields. An allowlist, so no `container`, `services`,
+ * `strategy`, `defaults` or `needs` can change where or whether it runs.
+ */
+const GATE_JOB_FIELDS = ['name', 'if', 'runs-on', 'timeout-minutes', 'env', 'permissions', 'steps'];
 
 /**
  * Any expression that would hand the job a secret or a token: the `secrets`
@@ -161,9 +202,8 @@ const SWALLOWED_FAILURE = /\|\|\s*(?:true|:)(?![\w-])|set \+e/;
 const BASE_REPO = 'owner/repo';
 const FORK_REPO = 'fork-owner/repo';
 
-const LOAD_COMMON_JS = createRequire(import.meta.url);
-
 interface IWorkflowStep {
+  readonly name?: string;
   readonly id?: string;
   readonly if?: unknown;
   readonly uses?: string;
@@ -175,18 +215,21 @@ interface IWorkflowStep {
 }
 
 interface IWorkflowJob {
+  readonly name?: string;
   readonly if?: unknown;
+  readonly 'runs-on'?: unknown;
   readonly needs?: readonly string[] | string;
   readonly permissions?: unknown;
   readonly 'timeout-minutes'?: number;
   readonly 'continue-on-error'?: unknown;
   readonly defaults?: unknown;
+  readonly env?: Readonly<Record<string, unknown>>;
   readonly steps?: readonly IWorkflowStep[];
 }
 
 interface IWorkflowDoc {
   readonly on: Readonly<Record<string, unknown>>;
-  readonly env?: unknown;
+  readonly env?: Readonly<Record<string, unknown>>;
   readonly defaults?: unknown;
   readonly jobs: Readonly<Record<string, IWorkflowJob>>;
 }
@@ -205,17 +248,19 @@ interface IBotCase {
   readonly skip: string;
 }
 
-/** What one run of the bot step reported: outputs, modules loaded and log lines. */
+/** What one run of the bot script reported. */
 interface IBotRun {
-  readonly outputs: Map<string, string>;
-  readonly loaded: string[];
-  readonly infos: string[];
+  readonly status: number;
+  readonly stdout: string;
+  readonly stderr: string;
+  readonly output: string;
 }
 
-/** The part of github-script's `core` the bot step uses. */
-interface IRecordingCore {
-  readonly info: (message: string) => number;
-  readonly setOutput: (key: string, value: string) => Map<string, string>;
+/** The bot script's header delimiters and the code that follows the header. */
+interface IBotSkipSource {
+  readonly opens: string;
+  readonly closes: string;
+  readonly code: readonly string[];
 }
 
 /**
@@ -280,6 +325,17 @@ function scriptLines(script: string): readonly string[] {
 }
 
 /**
+ * A copy of a list in a fixed order, so comparing key sets ignores the order
+ * the YAML happens to declare them in.
+ *
+ * @param list - Strings to order.
+ * @returns A sorted copy; the input is left untouched.
+ */
+function sorted(list: readonly string[]): readonly string[] {
+  return [...list].sort((left, right) => left.localeCompare(right));
+}
+
+/**
  * The aggregator's steps, each `run` script reduced to its lines.
  *
  * @returns Steps in order, comparable to {@link AGGREGATOR_STEP}.
@@ -302,26 +358,26 @@ function gateInvocations(): readonly string[] {
 }
 
 /**
- * The bot step's inline github-script body.
- *
- * @returns Script source, or empty when the step carries none.
- */
-function botScript(): string {
-  const bot = gateSteps().find(step => step.id === BOT_STEP_ID);
-  const script = bot?.with?.script;
-  return typeof script === 'string' ? script : '';
-}
-
-/**
- * The gate job's bot step, its script reduced to its lines.
+ * The gate job's bot step.
  *
  * @returns The step, comparable to {@link BOT_STEP}.
  */
-function botStep(): unknown {
-  const bot = gateSteps().find(step => step.id === BOT_STEP_ID) ?? {};
-  const source = botScript();
-  const script = scriptLines(source);
-  return { ...bot, with: { ...bot.with, script } };
+function botStep(): IWorkflowStep {
+  return gateSteps().find(step => step.id === BOT_STEP_ID) ?? {};
+}
+
+/**
+ * The bot script split at its header comment: the first line must open the
+ * header and the first `*` + `/` must close it, so no code can hide in it.
+ *
+ * @returns The header delimiters and the code after the header, as {@link scriptLines}.
+ */
+function botSkipSource(): IBotSkipSource {
+  const lines = readFileSync(BOT_SKIP_SCRIPT, 'utf8').split('\n');
+  const headerEnd = lines.findIndex(line => line.includes('*/'));
+  const codeSource = lines.slice(headerEnd + 1).join('\n');
+  const code = scriptLines(codeSource);
+  return { opens: lines[0].trimEnd(), closes: lines[headerEnd].trim(), code };
 }
 
 /**
@@ -339,71 +395,38 @@ function makePr(login: string, ref: string, headRepo: string): IPullRequest {
 }
 
 /**
- * A `require` that records each module id before loading it.
+ * Run the bot script on a payload in `dir`, as the plain `node` step would.
  *
- * @param run - Recorder for modules loaded.
- * @returns The recording loader.
+ * @param dir - Throwaway directory for the event and output files.
+ * @param payload - The event payload.
+ * @returns What the script reported.
  */
-function recordingRequire(run: IBotRun): (id: string) => unknown {
-  return (id: string): unknown => {
-    run.loaded.push(id);
-    return LOAD_COMMON_JS(id);
-  };
+function runBotSkipIn(dir: string, payload: unknown): IBotRun {
+  const eventPath = join(dir, 'event.json');
+  const outputPath = join(dir, 'output');
+  const eventJson = JSON.stringify(payload);
+  writeFileSync(eventPath, eventJson, 'utf8');
+  writeFileSync(outputPath, '', 'utf8');
+  const env = { ...process.env, GITHUB_EVENT_PATH: eventPath, GITHUB_OUTPUT: outputPath };
+  const result = spawnSync(process.execPath, [BOT_SKIP_SCRIPT], { env, encoding: 'utf8' });
+  if (result.error) throw result.error;
+  const output = readFileSync(outputPath, 'utf8');
+  return { status: result.status ?? -1, stdout: result.stdout, stderr: result.stderr, output };
 }
 
 /**
- * A github-script `core` that records each output and log line.
+ * Run the bot script as a child process on a throwaway event file.
  *
- * @param run - Recorder for outputs set and lines logged.
- * @returns The recording `core`.
+ * @param payload - The event payload.
+ * @returns What the script reported.
  */
-function recordingCore(run: IBotRun): IRecordingCore {
-  return {
-    /**
-     * Record a log line.
-     *
-     * @param message - The line logged.
-     * @returns How many lines are recorded.
-     */
-    info: (message: string): number => run.infos.push(message),
-    /**
-     * Record a step output.
-     *
-     * @param key - The output name.
-     * @param value - The output value.
-     * @returns The outputs recorded so far.
-     */
-    setOutput: (key: string, value: string): Map<string, string> => run.outputs.set(key, value),
-  };
-}
-
-/**
- * The globals github-script gives a step, recording what the step does.
- *
- * @param pr - The `pull_request` payload.
- * @param run - Recorder for outputs set, modules loaded and lines logged.
- * @returns The sandbox.
- */
-function makeSandbox(pr: IPullRequest, run: IBotRun): vm.Context {
-  const core = recordingCore(run);
-  const env = { GITHUB_WORKSPACE: WORKSPACE };
-  const payload = { pull_request: pr };
-  return { context: { payload }, core, require: recordingRequire(run), process: { env } };
-}
-
-/**
- * Run the bot step's script as github-script would, inside an async function
- * so its top-level `return` is legal.
- *
- * @param pr - The `pull_request` payload.
- * @returns What the step reported.
- */
-async function runBotStep(pr: IPullRequest): Promise<IBotRun> {
-  const run: IBotRun = { outputs: new Map(), loaded: [], infos: [] };
-  const sandbox = makeSandbox(pr, run);
-  const wrapped = `(async () => {\n${botScript()}\n})()`;
-  await (vm.runInNewContext(wrapped, sandbox) as Promise<unknown>);
-  return run;
+function runBotSkip(payload: unknown): IBotRun {
+  const dir = mkdtempSync(BOT_TMP_PREFIX);
+  try {
+    return runBotSkipIn(dir, payload);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 /** Each bot account is skipped on its author alone, on a branch no prefix covers. */
@@ -477,21 +500,22 @@ describe('Docs staleness gate', () => {
 
   it('[DSG-4] checks out full history with no stored credential', () => {
     const [checkout] = gateSteps();
-    expect(checkout.uses).toMatch(PINNED_CHECKOUT);
-    expect(checkout.with?.['fetch-depth']).toBe(0);
-    expect(checkout.with?.['persist-credentials']).toBe(false);
-    expect(checkout.with?.ref).toBeUndefined();
+    const { uses, ...rest } = checkout;
+    expect(uses).toMatch(PINNED_CHECKOUT);
+    expect(rest).toStrictEqual({ with: CHECKOUT_INPUTS });
   });
 
-  it('[DSG-5] decides the bot skip with the pinned github-script', () => {
+  it('[DSG-5] decides the bot skip in a plain node step that holds no token', () => {
     const [, bot] = gateSteps();
-    expect(bot.uses).toBe(GITHUB_SCRIPT);
+    expect(bot.uses).toBeUndefined();
+    expect(bot.with).toBeUndefined();
+    expect(bot.env).toBeUndefined();
+    expect(bot.run).toBe(BOT_COMMAND);
   });
 
   it('[DSG-6] scans unless the bot step skipped, against the PR base', () => {
     const [, , scan] = gateSteps();
-    expect(scan.if).toBe(SKIP_CONDITION);
-    expect(scan.env).toEqual(BASE_ENV);
+    expect(scan).toStrictEqual(SCAN_STEP);
   });
 
   it('[DSG-7] can block the merge', () => {
@@ -516,13 +540,14 @@ describe('Docs staleness gate', () => {
     expect(inReach).not.toMatch(CREDENTIAL);
   });
 
-  it.each(BOT_CASES)('[DSG-10] $name', async ({ pullRequest, skip }) => {
-    const run = await runBotStep(pullRequest);
-    const keys = [...run.outputs.keys()];
-    const skipOutput = run.outputs.get('skip');
-    expect(run.loaded).toEqual([`${WORKSPACE}${BOT_PREDICATE}`]);
-    expect(keys).toEqual(['skip']);
-    expect(skipOutput).toBe(skip);
+  it.each(BOT_CASES)('[DSG-10] $name', ({ pullRequest, skip }) => {
+    const run = runBotSkip({ pull_request: pullRequest });
+    const login = pullRequest.user.login;
+    const logged = `Docs staleness skipped — bot PR (author='${login}').\n`;
+    expect(run.status).toBe(0);
+    expect(run.stderr).toBe('');
+    expect(run.output).toBe(`skip=${skip}\n`);
+    expect(run.stdout).toBe(skip === 'true' ? logged : '');
   });
 
   it('[DSG-11] triggers on every pull request into main, with no type or path filter', () => {
@@ -532,8 +557,6 @@ describe('Docs staleness gate', () => {
 
   it('[DSG-12] Validate fails when any job it needs fails or is cancelled', () => {
     const job = validateJob();
-    expect(job.if).toBe(AGGREGATOR_CONDITION);
-    expect(job['continue-on-error']).toBeUndefined();
     const steps = aggregatorSteps();
     expect(job.if).toBe(AGGREGATOR_CONDITION);
     expect(job['continue-on-error']).toBeUndefined();
@@ -543,7 +566,9 @@ describe('Docs staleness gate', () => {
 
   it('[DSG-13] skips only on the shared predicate verdict', () => {
     const step = botStep();
+    const source = botSkipSource();
     expect(step).toStrictEqual(BOT_STEP);
+    expect(source).toStrictEqual({ ...BOT_SKIP_HEADER, code: BOT_SKIP_CODE });
   });
 
   it('[DSG-14] runs its commands under the strict workflow shell', () => {
@@ -554,5 +579,30 @@ describe('Docs staleness gate', () => {
     expect(doc.defaults).toStrictEqual(STRICT_DEFAULTS);
     expect(job.defaults).toBeUndefined();
     expect(overrides).toEqual([]);
+  });
+
+  it('[DSG-15] fails, rather than skips, on an event without a pull request', () => {
+    const run = runBotSkip({});
+    expect(run.status).not.toBe(0);
+    expect(run.output).toBe('');
+  });
+
+  it('[DSG-16] declares no workflow or job env beyond the allowlist', () => {
+    const workflow = loadWorkflow();
+    const job = gateJob();
+    const inherited = { ...workflow.env, ...job.env };
+    const keys = Object.keys(inherited);
+    const actual = sorted(keys);
+    const allowed = sorted(INHERITED_ENV_KEYS);
+    expect(actual).toEqual(allowed);
+  });
+
+  it('[DSG-17] runs on a GitHub-hosted runner, with no container or services', () => {
+    const job = gateJob();
+    const fields = Object.keys(job);
+    const actual = sorted(fields);
+    const allowed = sorted(GATE_JOB_FIELDS);
+    expect(job['runs-on']).toBe(HOSTED_RUNNER);
+    expect(actual).toEqual(allowed);
   });
 });
