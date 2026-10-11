@@ -11,8 +11,10 @@
  * <p>Bot PRs are exempt through the same `is-bot-pr.cjs` predicate the PR-body
  * gates use: a bot cannot update the bound page. What this test pins is that
  * the gate stays a gate — it runs on every pull request, can block the merge,
- * cannot swallow its own failure, holds no credential, runs exactly once, and
- * skips only what the shared predicate calls a bot PR.
+ * cannot swallow its own failure, is handed no secret, runs exactly once, and
+ * skips only what the shared predicate calls a bot PR. The bot step still gets
+ * the job token github-script always receives; `contents: read` keeps it
+ * read-only.
  */
 
 import { readFileSync } from 'node:fs';
@@ -64,8 +66,25 @@ const PINNED_CHECKOUT = /^actions\/checkout@[0-9a-f]{40}$/;
 /** The github-script commit every bot step in the repo runs. */
 const GITHUB_SCRIPT = 'actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3';
 
-/** Anything that would hand a credential to the job. */
+/** Any explicit reference that would hand the job a secret or a token. */
 const CREDENTIAL = /secrets\.|github\.token|GH_TOKEN|GITHUB_TOKEN/;
+
+/** The trigger: every pull request into main, with no event-type or path filter. */
+const PR_TRIGGER = { branches: ['main'] };
+
+/** Every account the shared predicate treats as automation. */
+const BOT_LOGINS = [
+  'dependabot[bot]',
+  'renovate[bot]',
+  'release-please[bot]',
+  'github-actions[bot]',
+];
+
+/** A branch name no bot prefix covers, so only the author decides the skip. */
+const PLAIN_BRANCH = 'chore/x';
+
+/** A maintainer, who can push branches to the base repository. */
+const MAINTAINER = 'a-maintainer';
 
 /** Shell that would let a failing command pass. */
 const SWALLOWED_FAILURE = /\|\|\s*(?:true|:)(?![\w-])|set \+e/;
@@ -96,6 +115,7 @@ interface IWorkflowJob {
 }
 
 interface IWorkflowDoc {
+  readonly on: Readonly<Record<string, unknown>>;
   readonly env?: unknown;
   readonly jobs: Readonly<Record<string, IWorkflowJob>>;
 }
@@ -272,28 +292,52 @@ async function runBotStep(pr: IPullRequest): Promise<IBotRun> {
   return run;
 }
 
-const BOT_CASES: readonly IBotCase[] = [
+/** Each bot account is skipped on its author alone, on a branch no prefix covers. */
+const AUTHOR_CASES: readonly IBotCase[] = BOT_LOGINS.map(login => ({
+  name: `a PR by ${login} is skipped`,
+  pullRequest: makePr(login, PLAIN_BRANCH, BASE_REPO),
+  skip: 'true',
+}));
+
+/**
+ * Branch prefixes are trusted only in the base repository, where pushing a
+ * branch already needs write access — so a maintainer's branch there is
+ * skipped too, while the same name on a fork, or a `renovate/` name, is not.
+ */
+const BRANCH_CASES: readonly IBotCase[] = [
   {
-    name: 'a Dependabot PR is skipped',
-    pullRequest: makePr('dependabot[bot]', 'dependabot/github_actions/x', BASE_REPO),
+    name: 'a release-please branch in this repo is skipped',
+    pullRequest: makePr(MAINTAINER, 'release-please--branches--main', BASE_REPO),
     skip: 'true',
   },
   {
-    name: 'a release-please branch in this repo is skipped',
-    pullRequest: makePr('a-maintainer', 'release-please--branches--main', BASE_REPO),
+    name: 'a Dependabot branch in this repo is skipped, whoever pushed it',
+    pullRequest: makePr(MAINTAINER, 'dependabot/npm_and_yarn/x', BASE_REPO),
     skip: 'true',
   },
   {
     name: 'a human PR is scanned',
-    pullRequest: makePr('a-maintainer', 'ci/some-change', BASE_REPO),
+    pullRequest: makePr(MAINTAINER, 'ci/some-change', BASE_REPO),
     skip: 'false',
   },
   {
-    name: 'a fork branch named like a bot branch is scanned',
+    name: 'a renovate branch pushed by a human is scanned',
+    pullRequest: makePr(MAINTAINER, 'renovate/lock-file-maintenance', BASE_REPO),
+    skip: 'false',
+  },
+  {
+    name: 'a fork branch named like a Dependabot branch is scanned',
     pullRequest: makePr('a-contributor', 'dependabot/npm_and_yarn/x', FORK_REPO),
     skip: 'false',
   },
+  {
+    name: 'a fork branch named like a release-please branch is scanned',
+    pullRequest: makePr('a-contributor', 'release-please--branches--main', FORK_REPO),
+    skip: 'false',
+  },
 ];
+
+const BOT_CASES: readonly IBotCase[] = [...AUTHOR_CASES, ...BRANCH_CASES];
 
 describe('Docs staleness gate', () => {
   it('[DSG-1] runs on every pull request, not only when src/ changes', () => {
@@ -346,7 +390,7 @@ describe('Docs staleness gate', () => {
     expect(invocations).toEqual([GATE_COMMAND]);
   });
 
-  it('[DSG-9] cannot pass by ignoring its own failure or reach a credential', () => {
+  it('[DSG-9] cannot pass by ignoring its own failure or reference a secret', () => {
     const workflow = loadWorkflow();
     const job = gateJob();
     const lenientSteps = gateSteps().filter(step => step['continue-on-error'] !== undefined);
@@ -365,5 +409,10 @@ describe('Docs staleness gate', () => {
     expect(run.loaded).toEqual([`${WORKSPACE}${BOT_PREDICATE}`]);
     expect(keys).toEqual(['skip']);
     expect(skipOutput).toBe(skip);
+  });
+
+  it('[DSG-11] triggers on every pull request into main, with no type or path filter', () => {
+    const doc = loadWorkflow();
+    expect(doc.on.pull_request).toEqual(PR_TRIGGER);
   });
 });
