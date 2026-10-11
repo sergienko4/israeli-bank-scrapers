@@ -98,6 +98,43 @@ cancellation does not stop. Their steps still stop: GitHub re-checks each
 unfinished step's `if`, and a step that names no status function means
 `success()`. `SonarPrScanGate.test.ts` SPS-4 keeps the Sonar steps that way.
 
+## A push stays under the job limit
+
+BLUF: one push to a PR needs at most 18 runners at once, and an open event
+at most 19. The account runs at most 20 jobs at once. After `Validate`, the
+count also rests on measured timing (below).
+`PushConcurrencyBound.test.ts` pins the count, so a PR that adds a job, a
+matrix leg or a PR-triggered workflow has to update it.
+
+- **`pr.yml`.** Once `Detect changes` ends, it starts 12 runners: Static
+  checks, the bash 3.2 (macOS) check, 4 Unit tests legs, Package & E2E
+  factory, E2E mocked, 3 Integration shards and Dependency Review.
+  `SonarCloud Scan` waits for all 4 Unit tests legs, so it never adds to the
+  peak.
+- **Other workflows.** A push also starts CodeQL, Validate PR Title, PR Body
+  Compliance and the Workflow Security Scan, one job each. GitHub adds 2
+  runs of its own: Copilot Code Review and GitHub Advanced Security's Code
+  scanning AI findings. 12 + 4 + 2 = 18.
+- **Open events.** Dependabot Auto-Merge (`opened`) or Block Fork PRs
+  (`opened`, `reopened`) adds 1 job; Dependabot's PRs never come from a
+  fork, so both never run on one PR. `cache-cleanup.yml` runs only on
+  `closed`.
+- **After Validate.** Once `Validate` passes and a reviewer approves a group,
+  its E2E-real legs start: 13 across the 5 groups (4, 2, 3, 1 and 3). A
+  group holds its approval gate's runner or its legs', never both. Only
+  `SonarCloud Scan` and CodeQL may still be running beside them, plus
+  GitHub's 2 runs: 13 + 2 + 2 = 17. Dependency Review, Validate PR Title, PR
+  Body Compliance and the Workflow Security Scan are not counted: on 31
+  full-suite runs (12 with the scan), each ended at least 180 s before
+  `Validate` did. Timing, not `needs:`, keeps them apart, so any other run is
+  counted. If they did overlap the legs, the peak would be 21 (20 without
+  the scan), and GitHub would queue the jobs over 20.
+- **One run per PR.** Every workflow a push or an edit starts cancels the
+  run it supersedes (above), except the Workflow Security Scan, which runs
+  for about a minute and only when workflow or action files change. Overlap
+  between two pushes or two PRs is left to GitHub, which queues jobs over the
+  limit.
+
 ## Closed PRs' caches are deleted
 
 A PR's Actions caches live on `refs/pull/<N>/merge`. Nothing reads them once
