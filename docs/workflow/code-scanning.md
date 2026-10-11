@@ -417,7 +417,8 @@ Lockfile maintenance has no package name, so that rule never matches it.
   the lockfiles conflict, Renovate regenerates its branch on its next run
   (`rebaseWhen` defaults to rebasing a conflicted branch).
 - The pull request is authored by `renovate[bot]`. `is-bot-pr.cjs` exempts it
-  from the PR-body gates, and `compute-gate-booleans.sh` keeps it off the
+  from the PR-body gates and the docs-staleness check, and
+  `compute-gate-booleans.sh` keeps it off the
   real-bank gates, so bank secrets never reach freshly installed package code.
   The unit and mocked E2E suites still run (`deps` covers the lockfile).
 - It is never auto-merged: it needs code-owner approval like any other pull
@@ -464,8 +465,17 @@ which code-owner review covers. The test also checks that there
 is exactly one `chore` changelog section and that it stays hidden, so
 lockfile commits stay out of release notes. `pr.yml`
 changes too often to bind to this page, so the test guards it instead. The
-pre-commit docs-staleness hook flags this page when a bound file changes. CI
-runs that check only when `src/` changes.
+pre-commit docs-staleness hook flags this page when a bound file changes, and
+the `docs-staleness` job in `pr.yml` runs the same check on every human pull
+request. Bot pull requests are exempt through the same `is-bot-pr.cjs`
+predicate: Dependabot action bumps and release-please version bumps routinely
+touch bound files, and a bot cannot update this page. Three controls cover the
+gap. The `scorecard-npm-pins` gate fails a `scorecard-action` bump until a
+person moves its pin. The pre-commit hook still runs on any human commit
+pushed to a bot branch. The guard tests still run on bot pull requests that
+touch CI scripts or dependencies. A bot-only change to behaviour this page
+states, such as the `scorecard-action` image tag quoted above, still needs a
+person to update the page. `DocsStalenessGate.test.ts` pins the job's wiring.
 
 Verify after a change:
 

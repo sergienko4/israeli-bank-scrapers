@@ -32,6 +32,7 @@ and release together — covered in
 | **Decoupling** | n/a (`scripts/decoupling-metrics/measure.mjs`) | A new import cycle, a new `any`, a deleted canary or ESLint rule, or fan-out growing more than 10% | [`decoupling-compare.sh`](#decoupling-regression-gate) |
 | **PR body compliance** | n/a (server-side `actions/github-script`) | PR body missing one of the 3 mandatory sections (`## Why`, `## What`, `## Guideline compliance`) | `.github/workflows/pr-body-check.yml` — mirrored locally by [`npm run lint:pr-body`](pre-push.md) |
 | **Cited paths** | `lint:doc-paths` | An agent doc or PR body cites a repo path that does not exist | `scripts/check-doc-paths.mjs` — see [Doc path gate](doc-paths.md) |
+| **Docs staleness** | n/a (`docs-staleness` job in `pr.yml`; also the pre-commit hook) | A file listed in a docs page's `source-files:` front matter changed, but no page that lists it changed. Runs on every human PR; bot PRs are exempt — see [Code scanning](code-scanning.md) | `.github/scripts/ci/docs-staleness.sh` |
 | **Links** | n/a (Lychee step in `pr.yml`) | A link in `README.md` or `docs/**/*.md` is broken; runs when a PR touches Markdown, and on every manual run | [Link checking](#link-checking) |
 | **Fork PRs** | n/a (server-side `gh`) | A pull request opened from a fork is commented on and closed automatically — see [Pull requests come from this repository only](#pull-requests-come-from-this-repository-only) | `.github/workflows/no-fork-prs.yml` |
 

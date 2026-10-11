@@ -7,6 +7,11 @@
  * cite paths from across the whole history — including files that have since
  * moved.
  *
+ * The same predicate exempts bot PRs from the docs-staleness check: Dependabot
+ * action-SHA bumps and release-please version bumps routinely touch files bound
+ * to a docs page, and a bot cannot update that page. See
+ * docs/workflow/code-scanning.md for the controls that cover the gap.
+ *
  * `renovate/` is deliberately NOT a trusted branch prefix: Renovate opens its
  * PRs as `renovate[bot]`, so the author check is enough, and a prefix would
  * let any collaborator exempt a hand-written PR just by naming the branch.
@@ -29,7 +34,8 @@ const BOT_BRANCH_PREFIXES = ['dependabot/', 'release-please--'];
  *
  * @param {{user?: {login?: string}, head?: {ref?: string, repo?: {full_name?: string}}, base?: {repo?: {full_name?: string}}}} pr
  *   The `pull_request` payload.
- * @returns {boolean} True when the PR should skip the body gates.
+ * @returns {boolean} True when the PR should skip the body and docs-staleness
+ *   gates.
  */
 module.exports = function isBotPr(pr) {
   const author = (pr.user && pr.user.login) || '';
