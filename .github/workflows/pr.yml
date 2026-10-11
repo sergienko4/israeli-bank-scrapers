@@ -405,12 +405,6 @@ jobs:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: bash .github/scripts/ci/docs-coverage.sh
-      - name: Docs staleness canary
-        if: github.event_name == 'pull_request' && needs.changes.outputs.src == 'true'
-        env:
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: bash .github/scripts/ci/docs-staleness.sh
 
       - name: CI scripts smoke test
         if: needs.changes.outputs.ci_scripts == 'true'
@@ -1020,6 +1014,56 @@ jobs:
         run: /bin/bash .github/scripts/ci/scorecard-npm-pins.sh
 
   # ──────────────────────────────────────────────────────────────
+  # Docs staleness gate — fails when a file bound to a docs page by
+  # its `source-files:` front-matter changes and no page bound to it
+  # changes in the same PR.
+  #
+  # Always on (no `changes` filter): bindings are not limited to
+  # `src/` — workflows, CI scripts and package manifests are bound
+  # too, and a path filter would let those drift silently. The scan
+  # itself takes seconds.
+  #
+  # Bot PRs are exempt (same predicate as the PR-body gates): a bot
+  # cannot update the bound page, and Dependabot action-SHA bumps and
+  # release-please version bumps routinely touch bound files. See
+  # docs/workflow/code-scanning.md for the compensating controls and
+  # .github/scripts/ci/docs-staleness.sh for the algorithm.
+  # ──────────────────────────────────────────────────────────────
+  docs-staleness:
+    name: Docs staleness
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Skip bot PRs
+        id: bot
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const isBotPr = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/ci/is-bot-pr.cjs`);
+            const pr = context.payload.pull_request;
+            if (isBotPr(pr)) {
+              core.info(`Docs staleness skipped — bot PR (author='${pr.user?.login ?? ''}').`);
+              core.setOutput('skip', 'true');
+              return;
+            }
+            core.setOutput('skip', 'false');
+      - name: Docs staleness canary
+        if: steps.bot.outputs.skip != 'true'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: bash .github/scripts/ci/docs-staleness.sh
+
+  # ──────────────────────────────────────────────────────────────
   # Validate aggregator — preserves the external `Validate` status
   # context name AND the outputs that downstream jobs (dns-preflight,
   # e2e-real-group-*, dependency-review) consume.
@@ -1049,6 +1093,7 @@ jobs:
       - build
       - consumer-install
       - scorecard-npm-pins
+      - docs-staleness
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
