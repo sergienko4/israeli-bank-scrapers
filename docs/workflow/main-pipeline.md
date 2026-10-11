@@ -1,3 +1,9 @@
+---
+source-files:
+  - .github/workflows/pr.yml
+  - .github/workflows/sonarcloud.yml
+---
+
 # Main pipeline (post-merge CI)
 
 BLUF: every merge to `main` starts **exactly one workflow run** — `Main Pipeline`

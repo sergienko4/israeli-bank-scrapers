@@ -1,3 +1,13 @@
+---
+source-files:
+  - .github/workflows/pr.yml
+  - .github/workflows/pr-title.yml
+  - .github/workflows/pr-body-check.yml
+  - .github/workflows/codeql.yml
+  - .github/workflows/cache-cleanup.yml
+  - .github/scripts/ci/detect-changes.sh
+---
+
 # CI gates
 
 GitHub Actions runs these gates on every PR, except for the heavier jobs that
