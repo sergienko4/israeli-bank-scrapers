@@ -895,6 +895,54 @@ jobs:
         run: bash .github/scripts/ci/memory-compare.sh
 
   # ──────────────────────────────────────────────────────────────
+  # Browser stack contract — fails a browser-stack change before E2E
+  # mocked and the Integration shards spend a runner each on a
+  # Camoufox build that cannot drive this playwright-core.
+  #
+  # Two checks, both on a scripts-free install (the `postinstall`
+  # patcher would swallow its own failure):
+  #   1. `patch-playwright-core.mjs --strict` — every patch anchor
+  #      still matches the resolved playwright-core.
+  #   2. `npm run lint:browser-stack` — the Juggler protocol that
+  #      playwright-core speaks matches the pinned Camoufox tag's,
+  #      apart from the deltas `browser-stack.json` accepts.
+  #
+  # Step-gated, not job-gated: the job always runs after `changes`
+  # and its steps run only when `critical_deps` is true. Without a
+  # browser-stack change it succeeds as a no-op, so E2E mocked and
+  # Integration (which need it) keep their own `if:` unchanged; when
+  # the contract fails, both are skipped and Validate fails.
+  #
+  # Pinned by BrowserStackGateWiring.test.ts [BSW-1..BSW-7].
+  # ──────────────────────────────────────────────────────────────
+  browser-stack:
+    name: Browser stack contract
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: needs.changes.outputs.critical_deps == 'true'
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        if: needs.changes.outputs.critical_deps == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Install without lifecycle scripts
+        if: needs.changes.outputs.critical_deps == 'true'
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Patch anchors match playwright-core
+        if: needs.changes.outputs.critical_deps == 'true'
+        run: node scripts/patch-playwright-core.mjs --strict
+      - name: Juggler protocol matches the pinned Camoufox
+        if: needs.changes.outputs.critical_deps == 'true'
+        run: npm run lint:browser-stack
+
+  # ──────────────────────────────────────────────────────────────
   # E2E mocked tests — flake-prone under high worker counts; the
   # package.json `test:e2e:mock` script pins `--maxWorkers=2` to
   # avoid CPU-contention timeouts documented in the husky pre-commit
@@ -904,10 +952,11 @@ jobs:
   # so a playwright-core bump can no longer land UNvalidated (the
   # 1.61.0 `setDefaultViewport` regression slipped onto main because a
   # dependency-only PR skipped this job).
+  # Waits for the Browser stack contract: a broken stack skips it.
   # ──────────────────────────────────────────────────────────────
   e2e-mocked:
     name: E2E mocked
-    needs: changes
+    needs: [changes, browser-stack]
     if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -953,11 +1002,13 @@ jobs:
   # timeouts: a step kill can leave Camoufox children running while
   # Mode B starts.
   #
+  # Waits for the Browser stack contract: a broken stack skips it.
+  #
   # Pinned by IntegrationShardGate.test.ts [ISG-1..ISG-13].
   # ──────────────────────────────────────────────────────────────
   integration:
     name: Integration (shard ${{ matrix.shard }}/3)
-    needs: changes
+    needs: [changes, browser-stack]
     if: needs.changes.outputs.full_suite == 'true'
     runs-on: ubuntu-latest
     # Hang guard for both modes back to back (slowest shard estimated
@@ -1116,6 +1167,7 @@ jobs:
       - portability-macos
       - unit-tests
       - package-factory
+      - browser-stack
       - e2e-mocked
       - integration
     if: always()

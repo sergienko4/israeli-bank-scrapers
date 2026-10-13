@@ -22,7 +22,8 @@
  * `real_gates_enabled` to `validate`, and run the unit and both E2E jobs
  * whenever `deps` changes. The detector must flag `package-lock.json` as
  * `deps`, `changes` must export that flag, and each of those three jobs
- * must need exactly `changes`. `pr.yml` conditions are compared after the
+ * must need exactly `changes`, plus the always-run `browser-stack` for
+ * `e2e-mocked`. `pr.yml` conditions are compared after the
  * `${{ }}` wrapper and any nested whole-expression parentheses are removed.
  * Each PR-body gate in `pr-body-check.yml`, selected by step id, must
  * require `is-bot-pr.cjs` once at the top level and return on `isBotPr(pr)`
@@ -71,6 +72,14 @@ const RELEASE_PLEASE_CONFIG = join(REPO_ROOT, 'release-please-config.json');
  * `PackageFactoryJob` [PFJ-4].
  */
 const DEPS_JOB_KEYS = ['unit-tests', 'e2e-mocked', 'package-factory'] as const;
+
+/**
+ * Extra `needs`, beyond `changes`, a {@link DEPS_JOB_KEYS} job waits for.
+ * `browser-stack` has no job `if:` and passes when its steps are skipped,
+ * so a dependency-only PR outside the browser stack still runs
+ * `e2e-mocked`: `BrowserStackGateWiring` [BSW-5] pins that row.
+ */
+const DEPS_JOB_GATES = new Map<string, readonly string[]>([['e2e-mocked', ['browser-stack']]]);
 
 /** The `deps` term each {@link DEPS_JOB_KEYS} job condition must keep. */
 const DEPS_TERM = "needs.changes.outputs.deps == 'true'";
@@ -983,7 +992,7 @@ describe('RenovateLockfileMaintenancePolicy', () => {
     const condition = jobCondition(jobKey);
     const needs = needsOf(jobKey);
     const isAdmitted = admitsFlag(DEPS_TERM, condition);
-    expect(needs).toStrictEqual(['changes']);
+    expect(needs).toStrictEqual(['changes', ...(DEPS_JOB_GATES.get(jobKey) ?? [])]);
     expect(isAdmitted).toBe(true);
   });
 

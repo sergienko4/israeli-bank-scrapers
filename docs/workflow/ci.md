@@ -43,6 +43,7 @@ and release together — covered in
 | **Unit tests** | `test:unit` | 4807 tests; all must pass | `--testPathIgnorePatterns=E2eReal --testPathIgnorePatterns=E2eMocked` |
 | **Pipeline + coverage** | `test:pipeline` | Coverage drops below 97/95/97/98 | `src/coverage/lcov-report/` |
 | **SonarCloud** | n/a (job `SonarCloud Scan`) | On a PR touching `src/**`: the quality gate fails, the PR adds any new issue, SonarCloud's new-issue count cannot be read in 5 tries of at most 30 s each, or `Detect changes` / `Unit tests` did not succeed | `sonar-project.properties`; [SonarCloud query protocol](code-review-tooling.md#sonarcloud--query-protocol) |
+| **Browser stack** | `lint:browser-stack`, after `node scripts/patch-playwright-core.mjs --strict` (job `Browser stack contract`) | On a PR where `critical_deps` is true: a patch anchor no longer matches the resolved playwright-core, or its Juggler protocol differs from the pinned Camoufox tag's beyond the deltas `browser-stack.json` accepts. Mock E2E and Integration then never start. On other PRs its steps are skipped and the job passes | `browser-stack.json`, `scripts/browser-stack/`; wiring pinned by `BrowserStackGateWiring.test.ts` |
 | **Mock E2E** | `test:e2e:mock` | Fixture-driven E2E for 3 banks | `src/Tests/E2eMocked/` |
 | **Mock suite (orchestrated)** | `test:mock` | `scripts/run-mock-suite.ts` driving all configured banks | Same fixtures |
 | **Bank tests** | `test:e2e-factory-tests` | Phase H cross-bank factory drives every phase per bank | `src/Tests/Unit/Pipeline/CrossValidation/Phases/` |
@@ -115,11 +116,12 @@ count also rests on measured timing (below).
 `PushConcurrencyBound.test.ts` pins the count, so a PR that adds a job, a
 matrix leg or a PR-triggered workflow has to update it.
 
-- **`pr.yml`.** Once `Detect changes` ends, it starts 12 runners: Static
+- **`pr.yml`.** Once `Detect changes` ends, it starts 9 runners: Static
   checks, the bash 3.2 (macOS) check, 4 Unit tests legs, Package & E2E
-  factory, E2E mocked, 3 Integration shards and Dependency Review.
-  `SonarCloud Scan` waits for all 4 Unit tests legs, so it never adds to the
-  peak.
+  factory, Browser stack contract and Dependency Review. E2E mocked and the
+  3 Integration shards wait for the 1-runner Browser stack contract, so
+  their 4 runners add 3: at most 12. `SonarCloud Scan` waits for all 4 Unit
+  tests legs, so it never adds to the peak.
 - **Other workflows.** A push also starts CodeQL, Validate PR Title, PR Body
   Compliance and the Workflow Security Scan, one job each. GitHub adds 2
   runs of its own: Copilot Code Review and GitHub Advanced Security's Code

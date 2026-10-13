@@ -5,17 +5,20 @@
  * a PR must need at most 18 of them, and an `opened` or `reopened` event at
  * most 19, so at least one stays free for overlap. A push peaks once `changes`
  * ends: the `pr.yml` jobs that need only `changes` (one runner per matrix
- * leg), every job of the other workflows the push starts, and the runs GitHub
+ * leg) plus what the jobs that wait for them add over the runners they free,
+ * every job of the other workflows the push starts, and the runs GitHub
  * starts outside this repo's YAML. Once `Validate` passes and a reviewer
  * approves, the E2E-real legs start beside whatever is still running. Any
  * change to those sets must change this suite, so the bound is re-checked by
  * whoever adds a job.
  *
  * Rules:
- *   PCB-1  the jobs that need only `changes` are exactly the modelled table,
- *          and start at most 12 runners
- *   PCB-2  before `Validate`, only `sonarcloud` starts later, and it waits for
- *          more runners than it starts
+ *   PCB-1  the jobs that need only `changes` are exactly the modelled table;
+ *          with what the later jobs add, `pr.yml` holds at most 12 runners
+ *          before `Validate`
+ *   PCB-2  before `Validate`, only the modelled jobs start later; grouped by
+ *          the level-1 jobs they wait for, the groups wait for disjoint jobs
+ *          and each adds exactly the modelled runners over them
  *   PCB-3  the other workflows a PR event starts, their activity types and
  *          their runners are exactly the modelled set
  *   PCB-4  a push peaks at ≤ 18 runners, an open event at ≤ 19; `changes`
@@ -48,7 +51,7 @@ const VALIDATE_JOB_KEY = 'validate';
 /** The account's concurrent-job limit (GitHub Free) less a margin of 2. */
 const PUSH_BOUND = 18;
 
-/** The most runners `pr.yml` may start once `changes` ends. */
+/** The most runners `pr.yml` may hold at once between `changes` and `Validate`. */
 const LEVEL_1_CAP = 12;
 
 /**
@@ -64,13 +67,23 @@ const LEVEL_1_RUNNERS = {
   'portability-macos': 1,
   'unit-tests': 4,
   'package-factory': 1,
-  'e2e-mocked': 1,
-  integration: 3,
+  'browser-stack': 1,
   'dependency-review': 1,
 };
 
 /** `pr.yml` jobs that start after level 1 and before `Validate`, with their needs. */
-const LATE_JOBS = { sonarcloud: ['changes', 'unit-tests'] };
+const LATE_JOBS = {
+  sonarcloud: ['changes', 'unit-tests'],
+  'e2e-mocked': ['changes', 'browser-stack'],
+  integration: ['changes', 'browser-stack'],
+};
+
+/**
+ * Runners each group of late jobs adds over the level-1 jobs it waits for,
+ * keyed by those jobs: Sonar's 1 waits for the 4 Unit tests legs, and E2E
+ * mocked's 1 plus Integration's 3 wait for the 1-runner Browser stack contract.
+ */
+const LATE_EXTRA = { 'unit-tests': 0, 'browser-stack': 3 };
 
 /** The `pr.yml` jobs that open and close the level-1 stage, one runner each. */
 const STAGE_RUNNERS = { [ROOT_JOB_KEY]: 1, [VALIDATE_JOB_KEY]: 1 };
@@ -386,33 +399,75 @@ function siblings(): Readonly<Record<string, ISibling>> {
 }
 
 /**
- * The level-1 runners a job waits for.
+ * The level-1 jobs a late job waits for, as a group key.
  *
- * @param needs - The job's needs.
- * @param level1 - Level-1 runner counts by job key.
- * @returns Their total.
+ * @param needs - The late job's needs.
+ * @param levelOne - The level-1 jobs.
+ * @returns Their keys, sorted and joined with `+`.
  */
-function awaitedRunners(
-  needs: readonly string[],
-  level1: Readonly<Record<string, number>>,
-): number {
-  return needs.reduce((sum, need) => sum + (level1[need] ?? 0), 0);
+function awaitedKey(needs: readonly string[], levelOne: Jobs): string {
+  const awaited = needs.filter(need => need in levelOne);
+  return awaited.sort().join('+');
 }
 
 /**
- * The late jobs that start more runners than the level-1 runners they await.
+ * The late jobs, grouped by the level-1 jobs they wait for.
  *
- * @returns Their keys.
+ * @returns Late job keys, by group key.
  */
-function lateJobsAddingRunners(): readonly string[] {
+function lateGroups(): Readonly<Record<string, readonly string[]>> {
+  const levelOne = levelOneJobs();
+  const lateTable = lateJobs();
+  const rows = Object.entries(lateTable);
+  return rows.reduce<Record<string, readonly string[]>>((groups, [key, needs]) => {
+    const group = awaitedKey(needs, levelOne);
+    return { ...groups, [group]: [...(groups[group] ?? []), key] };
+  }, {});
+}
+
+/**
+ * The runners one group of late jobs adds over the jobs it waits for.
+ *
+ * <p>The group starts only once every job it waits for has ended, so the two
+ * never hold more than the larger of their runner counts at once.
+ *
+ * @param group - The group key: the awaited level-1 jobs.
+ * @param members - The late jobs in the group.
+ * @returns How many runners the group adds; never negative.
+ */
+function groupExtra(group: string, members: readonly string[]): number {
   const jobs = prJobs();
   const runners = runnersByJob(jobs);
+  const started = members.reduce((sum, key) => sum + runners[key], 0);
+  const awaited = group.split('+').reduce((sum, key) => sum + (runners[key] ?? 0), 0);
+  return Math.max(0, started - awaited);
+}
+
+/**
+ * The runners each group of late jobs adds.
+ *
+ * @returns Added runners by group key.
+ */
+function lateExtras(): Readonly<Record<string, number>> {
+  const table = lateGroups();
+  const groups = Object.entries(table);
+  const rows = groups.map(([group, members]) => [group, groupExtra(group, members)] as const);
+  return Object.fromEntries(rows);
+}
+
+/**
+ * The most runners `pr.yml` holds at once between `changes` and `Validate`.
+ *
+ * <p>Sound while the groups wait for disjoint jobs (PCB-2): no runner a
+ * level-1 job frees is credited to two groups.
+ *
+ * @returns Level-1 runners plus what every group of late jobs adds.
+ */
+function prPeak(): number {
   const levelOne = levelOneJobs();
   const level1 = runnersByJob(levelOne);
-  const lateTable = lateJobs();
-  const late = Object.entries(lateTable);
-  const adding = late.filter(([key, needs]) => runners[key] > awaitedRunners(needs, level1));
-  return adding.map(([key]) => key);
+  const extras = lateExtras();
+  return total(level1) + total(extras);
 }
 
 /**
@@ -573,19 +628,22 @@ function runsBesideLegs(): Readonly<Record<string, number>> {
 }
 
 describe('PushConcurrencyBound', () => {
-  it('[PCB-1] starts exactly the modelled level-1 jobs, at most 12 runners', () => {
+  it('[PCB-1] starts exactly the modelled level-1 jobs, at most 12 runners before Validate', () => {
     const level1 = levelOneJobs();
     const runners = runnersByJob(level1);
-    const level1Total = total(runners);
+    const peak = prPeak();
     expect(runners).toStrictEqual(LEVEL_1_RUNNERS);
-    expect(level1Total).toBeLessThanOrEqual(LEVEL_1_CAP);
+    expect(peak).toBeLessThanOrEqual(LEVEL_1_CAP);
   });
 
-  it('[PCB-2] starts only sonarcloud between level 1 and Validate, after more runners', () => {
+  it('[PCB-2] starts only the modelled late jobs, each group after its own level-1 jobs', () => {
     const late = lateJobs();
-    const adding = lateJobsAddingRunners();
+    const groups = lateGroups();
+    const awaited = Object.keys(groups).flatMap(group => group.split('+'));
+    const extras = lateExtras();
     expect(late).toStrictEqual(LATE_JOBS);
-    expect(adding).toStrictEqual([]);
+    expect(new Set(awaited).size).toBe(awaited.length);
+    expect(extras).toStrictEqual(LATE_EXTRA);
   });
 
   it('[PCB-3] is started beside exactly the modelled sibling workflows', () => {
@@ -594,9 +652,7 @@ describe('PushConcurrencyBound', () => {
   });
 
   it('[PCB-4] needs at most 18 runners on a push and 19 on an open event', () => {
-    const levelOne = levelOneJobs();
-    const levelOneRunners = runnersByJob(levelOne);
-    const level1 = total(levelOneRunners);
+    const level1 = prPeak();
     const table = siblings();
     const all = Object.values(table);
     const onPush = all.filter(({ types }) => types.includes(PUSH_TYPE));
