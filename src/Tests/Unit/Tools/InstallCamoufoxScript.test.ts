@@ -12,7 +12,8 @@
  * in place of a kept copy that failed the hash, leave anything else at that
  * name alone, and report `downloaded` for the action's cache save; install
  * only into an absolute directory that does not exist yet, refusing any
- * other before the download; extract into a staging dir and rename it into
+ * other before the download; extract into a staging dir, passing unzip's
+ * warnings-only exit 1 and failing any higher status, and rename it into
  * place only after the binary checks out, never into a directory that
  * appeared meanwhile; never print the token, never record a version it did
  * not install, and install nothing when the manifest is invalid.
@@ -72,6 +73,10 @@ const NOT_ABSOLUTE = 'CAMOUFOX_INSTALL_DIR must be an absolute path';
 
 /** Archive contents the script must refuse to record as installed. */
 const UNUSABLE_ARCHIVES: readonly BinaryEntry[] = ['nothing', 'directory'];
+/** Info-ZIP's status for warnings after a complete extract. */
+const UNZIP_WARNINGS = 1;
+/** Info-ZIP error statuses: format, severe format, unsupported method. */
+const UNZIP_ERRORS: readonly number[] = [2, 3, 81];
 
 /** Every asset-dir state. */
 const ASSET_CACHES: readonly AssetCache[] = [
@@ -395,10 +400,19 @@ describe('install-camoufox/install.sh', () => {
     expect([run.keptSha256, run.ghOutput]).toEqual([STUB_ASSET_SHA256, 'downloaded=true\n']);
   });
 
-  it('[ICS-16] an unzip error part-way through installs nothing', () => {
-    const run = install({ ...COLD, unzipExit: 3 });
-    expect(run.status).toBe(3);
+  it.each(UNZIP_ERRORS)('[ICS-16] unzip exit %d fails, naming it, and installs nothing', code => {
+    const run = install({ ...COLD, unzipExit: code });
+    expect(run.status).toBe(1);
+    expect(run.output).toContain(`ERROR: unzip exit ${String(code)} extracting ${SAMPLE_ASSET}`);
     expect(run.installDirExists).toBe(false);
+  });
+
+  it('[ICS-26] unzip warnings after a complete extract still install the pin', () => {
+    const run = install({ ...COLD, unzipExit: UNZIP_WARNINGS });
+    const tools = run.calls.map(call => call.split(' ')[0]);
+    expect(run.status).toBe(0);
+    expect(tools).toEqual(['curl', 'unzip']);
+    expect([run.versionJson, run.binaryText]).toEqual([SAMPLE_VERSION_JSON, INSTALLED_BINARY]);
   });
 
   it('[ICS-17] an install dir filled while the asset downloads is left as it is', () => {

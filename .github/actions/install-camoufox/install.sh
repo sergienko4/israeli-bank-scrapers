@@ -169,6 +169,16 @@ refuse_unless_absent() {
   fi
 }
 
+# Info-ZIP exits 1 for warnings after a complete extract. Some release
+# assets trigger it with entries whose local and central filenames differ,
+# which unzip resolves to the central name. So 1 passes; 2 and up (format,
+# I/O, unsupported method, missing archive) fail.
+extract_asset() {
+  local status=0
+  unzip -o "$ASSET_PATH" -d "$1/" || status=$?
+  [ "$status" -le 1 ] || fail "unzip exit ${status} extracting ${ASSET}"
+}
+
 # A sibling of INSTALL_DIR, so a failed run installs nothing and the move
 # into place is a rename within one filesystem. version.json goes last,
 # after the binary check, so no partial tree is ever recorded.
@@ -177,7 +187,7 @@ stage_install() {
   parent=$(dirname -- "$INSTALL_DIR")
   mkdir -p -- "$parent"
   STAGE_DIR=$(mktemp -d "${parent}/.camoufox-stage.XXXXXX")
-  unzip -o "$ASSET_PATH" -d "$STAGE_DIR/"
+  extract_asset "$STAGE_DIR"
   chmod -R 755 "$STAGE_DIR"
   binary_ok "$STAGE_DIR" || fail "no usable camoufox-bin after extracting ${ASSET}"
   printf '{"version":"%s","release":"%s"}' "${EXPECTED%%-*}" "${EXPECTED#*-}" > "$STAGE_DIR/version.json"
