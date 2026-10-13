@@ -92,29 +92,31 @@ function at(/** @type {unknown} */ doc, /** @type {string} */ pointer) {
 /** RFC 6901 escape of one reference token. */
 const token = (/** @type {string} */ key) => key.replaceAll('~', '~0').replaceAll('/', '~1');
 
-/** @returns {ManifestIssue[]} Non-object, missing-key and extra-key findings. */
-function shapeIssues(
-  /** @type {unknown} */ node,
-  /** @type {string} */ pointer,
-  /** @type {readonly string[]} */ keys,
-) {
+/** @type {(pointer: string) => (reason: string) => (key: string) => ManifestIssue} */
+const keyIssue = pointer => reason => key => ({ pointer: `${pointer}/${token(key)}`, reason });
+
+/**
+ * @param {unknown} node - Value at `pointer`.
+ * @param {string} pointer - JSON pointer of `node`.
+ * @param {readonly string[]} keys - Exact key set `node` must have.
+ * @returns {ManifestIssue[]} Non-object, missing-key and extra-key findings.
+ */
+function shapeIssues(node, pointer, keys) {
   if (node === undefined) return [];
   if (!isRecord(node)) return [{ pointer, reason: 'must be an object' }];
   const missing = keys.filter(key => !Object.hasOwn(node, key));
   const extra = Object.keys(node).filter(key => !keys.includes(key));
-  const tag = (/** @type {string} */ reason) => (/** @type {string} */ key) => ({
-    pointer: `${pointer}/${token(key)}`,
-    reason,
-  });
+  const tag = keyIssue(pointer);
   return [...missing.map(tag('is required')), ...extra.map(tag('is not allowed'))];
 }
 
-/** @returns {ManifestIssue[]} Every present value under `base` that breaks its rule. */
-function ruleIssues(
-  /** @type {unknown} */ doc,
-  /** @type {string} */ base,
-  /** @type {readonly FieldRule[]} */ rules,
-) {
+/**
+ * @param {unknown} doc - Parsed manifest.
+ * @param {string} base - JSON pointer the rule paths are relative to.
+ * @param {readonly FieldRule[]} rules - Field rules to apply under `base`.
+ * @returns {ManifestIssue[]} Every present value under `base` that breaks its rule.
+ */
+function ruleIssues(doc, base, rules) {
   const node = at(doc, base);
   return rules
     .map(([path, ok, reason]) => ({ pointer: `${base}${path}`, value: at(node, path), ok, reason }))
@@ -128,21 +130,33 @@ function deltaIssues(/** @type {unknown} */ doc, /** @type {number} */ index) {
   return [...shapeIssues(at(doc, base), base, DELTA_KEYS), ...ruleIssues(doc, base, DELTA_RULES)];
 }
 
+/** @type {(delta: unknown) => string} Identity of an object delta; '' for anything else. */
+const identityOf = delta =>
+  isRecord(delta) ? JSON.stringify([delta.channel, delta.kind, delta.path, delta.signature]) : '';
+
+/** @type {(index: number, first: number) => ManifestIssue} */
+const duplicateIssue = (index, first) => ({
+  pointer: `/acceptedDeltas/${index}`,
+  reason: `duplicates the identity of /acceptedDeltas/${first}`,
+});
+
 /** @returns {ManifestIssue[]} One finding per accepted delta repeating an earlier identity. */
 function duplicateIssues(/** @type {readonly unknown[]} */ deltas) {
-  const identities = deltas.map(d =>
-    isRecord(d) ? JSON.stringify([d.channel, d.kind, d.path, d.signature]) : '',
-  );
+  const identities = deltas.map(identityOf);
   return identities.flatMap((identity, index) => {
     const first = identities.indexOf(identity);
-    if (identity === '' || first === index) return [];
-    return [
-      {
-        pointer: `/acceptedDeltas/${index}`,
-        reason: `duplicates the identity of /acceptedDeltas/${first}`,
-      },
-    ];
+    return identity === '' || first === index ? [] : [duplicateIssue(index, first)];
   });
+}
+
+/** @returns {ManifestIssue[]} Fixed-object shape findings, then a non-array `acceptedDeltas`. */
+function structureIssues(/** @type {Record<string, unknown>} */ doc) {
+  const shapes = Object.entries(SHAPES).flatMap(([pointer, keys]) =>
+    shapeIssues(at(doc, pointer), pointer, keys),
+  );
+  const deltas = doc.acceptedDeltas;
+  if (deltas === undefined || Array.isArray(deltas)) return shapes;
+  return [...shapes, { pointer: '/acceptedDeltas', reason: 'must be an array' }];
 }
 
 /**
@@ -153,15 +167,10 @@ function duplicateIssues(/** @type {readonly unknown[]} */ deltas) {
  */
 export function validateManifest(doc) {
   if (!isRecord(doc)) return [{ pointer: '', reason: 'must be an object' }];
-  const shapes = Object.entries(SHAPES).flatMap(([pointer, keys]) =>
-    shapeIssues(at(doc, pointer), pointer, keys),
-  );
-  const deltas = doc.acceptedDeltas;
-  if (deltas !== undefined && !Array.isArray(deltas))
-    shapes.push({ pointer: '/acceptedDeltas', reason: 'must be an array' });
-  const list = Array.isArray(deltas) ? deltas : [];
+  const list = Array.isArray(doc.acceptedDeltas) ? doc.acceptedDeltas : [];
   const perDelta = list.flatMap((_, index) => deltaIssues(doc, index));
-  return [...shapes, ...ruleIssues(doc, '', ROOT_RULES), ...perDelta, ...duplicateIssues(list)];
+  const fields = ruleIssues(doc, '', ROOT_RULES);
+  return [...structureIssues(doc), ...fields, ...perDelta, ...duplicateIssues(list)];
 }
 
 /**
@@ -186,16 +195,21 @@ const COMMANDS = Object.freeze({
   tag: (/** @type {{ camoufox: { tag: string } }} */ m) => m.camoufox.tag,
 });
 
+/** @type {(issue: ManifestIssue) => string} One stderr line per finding. */
+const invalidLine = ({ pointer, reason }) => `MANIFEST-INVALID ${pointer || '(root)'} ${reason}\n`;
+
+/** Print the usage line and exit 2. */
+function usageError() {
+  stderr.write(`${USAGE}\n`);
+  exit(2);
+}
+
 /** CLI entry: print the selected field of a valid manifest, else fail closed. */
 function main() {
   const [command = '', file = DEFAULT_MANIFEST] = argv.slice(2);
-  if (!Object.hasOwn(COMMANDS, command)) {
-    stderr.write(`${USAGE}\n`);
-    exit(2);
-  }
+  if (!Object.hasOwn(COMMANDS, command)) usageError();
   const { manifest, issues } = loadManifest(file);
-  for (const { pointer, reason } of issues)
-    stderr.write(`MANIFEST-INVALID ${pointer || '(root)'} ${reason}\n`);
+  for (const issue of issues) stderr.write(invalidLine(issue));
   if (manifest === undefined) exit(2);
   stdout.write(`${COMMANDS[/** @type {'tag'} */ (command)](manifest)}\n`);
 }
