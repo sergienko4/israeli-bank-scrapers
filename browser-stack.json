@@ -48,7 +48,7 @@
       "kind": "ENUM-VALUE",
       "path": "Page.screenshot.mimeType=image/webp",
       "signature": "src:Enum(image/jpeg|image/png|image/webp)|dst:Enum(image/jpeg|image/png)",
-      "reason": "src takes screenshots only in SafeScreenshot.ts (path + fullPage) and never asks for WebP (0 webp in src), so mimeType is never image/webp."
+      "reason": "safeScreenshot (SafeScreenshot.ts) passes a path; playwright-core infers WebP from a consumer .webp storeFailureScreenShotPath, this Camoufox rejects it, and the best-effort capture is skipped (returns false)."
     },
     {
       "channel": "request",
