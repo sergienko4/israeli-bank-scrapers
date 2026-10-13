@@ -953,6 +953,11 @@ jobs:
   # 1.61.0 `setDefaultViewport` regression slipped onto main because a
   # dependency-only PR skipped this job).
   # Waits for the Browser stack contract: a broken stack skips it.
+  # Its first step runs the runtime contract alone (routing and
+  # multi-value headers through the real Camoufox), so a client/browser
+  # pair that breaks them fails with the invariant named before the
+  # full suite starts. `--runTestsByPath` selects the one file: an
+  # extra `--testPathPatterns` would be ORed with the script's own.
   # ──────────────────────────────────────────────────────────────
   e2e-mocked:
     name: E2E mocked
@@ -969,6 +974,8 @@ jobs:
       - uses: $/.github/actions/setup-test-runner
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Browser stack runtime contract
+        run: npm run test:e2e:mock -- --ci --verbose --runTestsByPath src/Tests/E2eMocked/BrowserStackContract.e2e-mocked.test.ts
       - name: E2E mocked tests
         run: npm run test:e2e:mock -- --ci --verbose
 

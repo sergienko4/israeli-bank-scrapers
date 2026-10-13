@@ -48,7 +48,7 @@ Five test suites, picked by **what you're testing**.
 - Orchestrated by `scripts/run-real-suite.ts` — `WORKER_GROUPS` defines which banks run together (Amex + Isracard sequential; others parallel).
 - Single bank: `npm test -- --testPathPatterns=E2eReal/<Bank>.e2e-real`.
 - Window: a suite starts 180 days back (`defaultStartDate()`). A bank can opt into a `<BANK>_E2E_DAYS_BACK` override (`Tests/E2eReal/WindowOverride.ts`) capped at the history it serves — Mizrahi reads `MIZRAHI_E2E_DAYS_BACK`, a whole number from 1 to 365. A bad value fails the suite before the scraper is created, so it costs no login.
-- Don't append `--testPathPatterns` to `test:e2e:real:single` or `test:e2e:mock`. Jest ORs it with the pattern the script already passes, so every suite runs instead of one — for real banks, a live login (and SMS) for every bank with credentials in `.env`.
+- Don't append `--testPathPatterns` to `test:e2e:real:single` or `test:e2e:mock`. Jest ORs it with the pattern the script already passes, so every suite runs instead of one — for real banks, a live login (and SMS) for every bank with credentials in `.env`. To run one mocked file, pass its path: `npm run test:e2e:mock -- --runTestsByPath src/Tests/E2eMocked/<File>.e2e-mocked.test.ts`.
 - `test:e2e:real` itself does not run in CI. CI runs the happy-path suites of selected banks (Mizrahi among them) in the `e2e-real-group-*` jobs of `pr.yml`, each behind a maintainer-approved environment gate.
 
 ### Memory regression gate (`test:memory`)

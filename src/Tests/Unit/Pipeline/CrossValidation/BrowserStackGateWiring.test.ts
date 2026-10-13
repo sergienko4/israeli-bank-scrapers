@@ -21,9 +21,11 @@
  *   BSW-6  every wiring mutant changes at least one row
  *   BSW-7  the commands it runs exist: the `lint:browser-stack` script and the
  *          patcher's `--strict` flag
+ *   BSW-8  E2E mocked runs the runtime contract file alone, unconditionally,
+ *          before its full suite, and that file exists
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -55,6 +57,15 @@ const EXPECTED_STEPS = [
 
 /** The steps whose outcome is the gate's verdict. */
 const CHECK_STEPS = EXPECTED_STEPS.slice(3);
+
+/** The runtime contract E2E mocked runs on its own first. */
+const CONTRACT_TEST = 'src/Tests/E2eMocked/BrowserStackContract.e2e-mocked.test.ts';
+
+/** E2E mocked's commands: the runtime contract alone, then the full suite. */
+const E2E_MOCKED_RUNS = [
+  `npm run test:e2e:mock -- --ci --verbose --runTestsByPath ${CONTRACT_TEST}`,
+  'npm run test:e2e:mock -- --ci --verbose',
+];
 
 /** Where a step's `if:` is checked: every earlier step succeeded. */
 const STEP_STATUS: IGhaStatus = { success: true, failure: false, cancelled: false };
@@ -400,5 +411,17 @@ describe('BrowserStackGateWiring', () => {
     const patcher = readFileSync(patcherPath, 'utf8');
     expect(scripts[CHECK_SCRIPT]).toBe('node scripts/check-browser-stack.mjs');
     expect(patcher).toContain("const STRICT_FLAG = '--strict';");
+  });
+
+  it('[BSW-8] E2E mocked runs the runtime contract alone before the full suite', () => {
+    const job = jobOf(JOBS, 'e2e-mocked');
+    const runSteps = (job.steps ?? []).filter(step => step.run !== undefined);
+    const runs = runSteps.map(signatureOf);
+    const contractKeys = Object.keys(runSteps[0] ?? {});
+    const contractPath = join(REPO_ROOT, CONTRACT_TEST);
+    const isContractPresent = existsSync(contractPath);
+    expect(runs).toStrictEqual(E2E_MOCKED_RUNS);
+    expect(contractKeys).toStrictEqual(['name', 'run']);
+    expect(isContractPresent).toBe(true);
   });
 });
