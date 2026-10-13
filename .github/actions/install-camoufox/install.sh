@@ -169,14 +169,25 @@ refuse_unless_absent() {
   fi
 }
 
-# Info-ZIP exits 1 for warnings after a complete extract. Some release
-# assets trigger it with entries whose local and central filenames differ,
-# which unzip resolves to the central name. So 1 passes; 2 and up (format,
-# I/O, unsupported method, missing archive) fail.
+# Every central-directory entry of the asset that is not under $1.
+missing_entries() {
+  unzip -Z1 "$ASSET_PATH" | while IFS= read -r entry; do
+    [ -e "$1/$entry" ] || [ -L "$1/$entry" ] || printf '%s\n' "$entry"
+  done
+}
+
+# Info-ZIP exit 1 means warnings, and those include entries it skipped
+# (unsupported compression, unknown password). Some release assets exit 1
+# only because local and central filenames differ, which unzip resolves to
+# the central name. So 1 passes only when every archive entry is on disk;
+# 2 and up (format, I/O, unsupported method, missing archive) fail.
 extract_asset() {
-  local status=0
+  local status=0 missing
   unzip -o "$ASSET_PATH" -d "$1/" || status=$?
   [ "$status" -le 1 ] || fail "unzip exit ${status} extracting ${ASSET}"
+  [ "$status" -eq 1 ] || return 0
+  missing=$(missing_entries "$1") || fail "cannot list the entries of ${ASSET}"
+  [ -z "$missing" ] || fail "unzip exit 1 left entries of ${ASSET} unextracted: ${missing}"
 }
 
 # A sibling of INSTALL_DIR, so a failed run installs nothing and the move

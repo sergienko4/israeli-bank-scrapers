@@ -324,9 +324,10 @@ entry instead of every later job paying for one. The script extracts with system
 binary, writes `version.json` last, and only then renames the staging directory
 into place with rename(2). That rename fails, leaving the path as it is, if
 anything but an empty directory appeared there during the download, so a failed
-run installs nothing. Exit 1, unzip's warnings-only status, passes because the
-extract still completes; a pinned asset can trigger it with entries whose local
-and central filenames differ. Any higher status fails the install. It never
+run installs nothing. Exit 1 is unzip's warnings status, which a pinned asset
+can trigger with entries whose local and central filenames differ, but which
+also covers entries unzip skipped. So exit 1 passes only when every entry that
+`unzip -Z1` lists is on disk. Any higher status fails the install. It never
 runs `camoufox-js fetch`, which would resolve
 camoufox-js's own newest release instead of the pin. CI downloads the exact
 asset with `gh release download`; the Docker build has no token and uses `curl`

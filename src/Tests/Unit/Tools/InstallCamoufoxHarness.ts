@@ -107,7 +107,9 @@ const PLANT_AT_DOWNLOAD = `[ "$MID_RUN" != plant-at-download ] || { ${PLANT}; }`
  * runs. `unzip` fails on a missing archive and puts at `camoufox-bin` what
  * `UNZIP_BINARY` names: a `file` holding `ELF` plus the archive's bytes (so
  * the asset that was extracted shows in the binary), a `directory`, or
- * `nothing`, then exits with `UNZIP_EXIT`.
+ * `nothing`, then exits with `UNZIP_EXIT`. `unzip -Z1` lists the archive:
+ * `camoufox-bin`, plus `UNZIP_SKIPPED` (an entry it never extracts) when
+ * set, then exits with `UNZIP_LIST_EXIT`.
  */
 const STUBS: readonly (readonly [string, string])[] = [
   ['npx', 'echo "npx $*" >> "$STUB_LOG"; exit 1'],
@@ -124,6 +126,8 @@ const STUBS: readonly (readonly [string, string])[] = [
   [
     'unzip',
     'echo "unzip $*" >> "$STUB_LOG"; [ -f "$2" ] || exit 9; a="$2"; ' +
+      'if [ "$1" = -Z1 ]; then echo camoufox-bin; ' +
+      '[ -z "$UNZIP_SKIPPED" ] || echo "$UNZIP_SKIPPED"; exit "$UNZIP_LIST_EXIT"; fi; ' +
       'while [ $# -gt 0 ]; do [ "$1" = -d ] && d="$2"; shift; done; ' +
       `case "$UNZIP_BINARY" in file) printf '${INSTALLED_BINARY}%s' "$(cat "$a")" > "$d/camoufox-bin" ;; ` +
       'directory) mkdir -p "$d/camoufox-bin/lib" ;; esac; exit "$UNZIP_EXIT"',
@@ -230,7 +234,8 @@ const KEPT_ASSETS: Readonly<Partial<Record<AssetCache, (asset: string) => string
 /**
  * One scenario: the manifest tag and digest, the token, a previous install
  * (its `version.json`, beside a `camoufox-bin`; none when empty), what the
- * release archive holds and how `unzip` exits, any install-dir override and
+ * release archive holds, how `unzip` exits, any entry its listing names but
+ * it never extracts and how that listing exits, any install-dir override and
  * whether it is passed absolute or relative to the run's working directory
  * (the tree root), a tree-relative `linkTo` that makes the install dir an
  * absolute or relative symlink to it (any previous install is seeded there;
@@ -246,6 +251,8 @@ interface IScenario {
   readonly cachedVersionJson: string;
   readonly archiveBinary: BinaryEntry;
   readonly unzipExit: number;
+  readonly skippedEntry: string;
+  readonly listExit: number;
   readonly installDir: string;
   readonly installDirAs: 'absolute' | 'relative';
   readonly linkTo: string;
@@ -288,6 +295,8 @@ const COLD: IScenario = {
   cachedVersionJson: '',
   archiveBinary: 'file',
   unzipExit: 0,
+  skippedEntry: '',
+  listExit: 0,
   installDir: '',
   installDirAs: 'absolute',
   linkTo: '',
@@ -549,9 +558,13 @@ function assetCacheEnv(root: string, scenario: IScenario): NodeJS.ProcessEnv {
  */
 function stubEnv(root: string, scenario: IScenario): NodeJS.ProcessEnv {
   const stubLog = join(root, STUB_LOG_REL);
-  const unzipExit = String(scenario.unzipExit);
   const plantFile = scenario.plant === '' ? '' : join(root, scenario.plant);
-  const unzip = { UNZIP_BINARY: scenario.archiveBinary, UNZIP_EXIT: unzipExit };
+  const unzip = {
+    UNZIP_BINARY: scenario.archiveBinary,
+    UNZIP_EXIT: String(scenario.unzipExit),
+    UNZIP_SKIPPED: scenario.skippedEntry,
+    UNZIP_LIST_EXIT: String(scenario.listExit),
+  };
   const midRun = { MID_RUN: scenario.midRun, PLANT_FILE: plantFile };
   return { ...unzip, ...midRun, STUB_LOG: stubLog };
 }
