@@ -36,6 +36,9 @@ const SERVER_COOKIES = ['a=1; Path=/', 'b=2; Path=/'] as const;
 /** Two cookies a route fulfils as one newline-separated header value (C3). */
 const FULFILLED_COOKIES = 'c=3; Path=/\nd=4; Path=/';
 
+/** The entries C3's fulfilled header must read back as, one per line. */
+const FULFILLED_ENTRIES = FULFILLED_COOKIES.split('\n');
+
 /** Ceiling for launching the browser once for the file. */
 const LAUNCH_TIMEOUT_MS = 60_000;
 
@@ -146,17 +149,15 @@ async function setCookieEntries(response: Response): Promise<readonly string[]> 
 }
 
 /**
- * Expected cookie names the jar is missing.
+ * Expected items the actual list is missing, in any order. Paired with a
+ * length check it proves the list holds exactly the expected items.
  *
- * @param cookieNames - Names in the context's cookie jar.
- * @param expected - Names the invariant requires.
- * @returns Required names absent from the jar; empty when all are set.
+ * @param actual - Cookie names or header values the stack produced.
+ * @param expected - Items the invariant requires.
+ * @returns Required items absent from `actual`; empty when all are there.
  */
-function missingCookies(
-  cookieNames: readonly string[],
-  expected: readonly string[],
-): readonly string[] {
-  return expected.filter((name): boolean => !cookieNames.includes(name));
+function missingFrom(actual: readonly string[], expected: readonly string[]): readonly string[] {
+  return expected.filter((item): boolean => !actual.includes(item));
 }
 
 beforeAll(async () => {
@@ -195,15 +196,20 @@ describe('Browser stack contract (playwright-core × Camoufox)', () => {
     expect(body).toBe('ok-ctx');
   });
 
-  it('C3: a fulfilled two-cookie header sets both cookies and reads back as 2 values', async () => {
+  it('C3: a fulfilled two-cookie header sets both cookies and reads back as 2 entries', async () => {
     const headers = { [SET_COOKIE]: FULFILLED_COOKIES };
     await tab.context.route('**/c3', route => route.fulfill({ status: 200, body: 'x', headers }));
     const { response, cookieNames } = await navigate(tab, '/c3');
+    const entries = await setCookieEntries(response);
     const values = await response.headerValues(SET_COOKIE);
-    const missing = missingCookies(cookieNames, ['c', 'd']);
-    const distinctValues = new Set(values);
+    const missing = missingFrom(cookieNames, ['c', 'd']);
+    const missingEntries = missingFrom(entries, FULFILLED_ENTRIES);
+    const missingValues = missingFrom(values, FULFILLED_ENTRIES);
     expect(missing).toEqual([]);
-    expect(distinctValues.size).toBe(2);
+    expect(entries).toHaveLength(2);
+    expect(missingEntries).toEqual([]);
+    expect(values).toHaveLength(2);
+    expect(missingValues).toEqual([]);
   });
 
   it('C4: two server Set-Cookie headers stay 2 entries and set both cookies', async () => {
@@ -212,9 +218,13 @@ describe('Browser stack contract (playwright-core × Camoufox)', () => {
     const values = await response.headerValues(SET_COOKIE);
     const allHeaders = await response.allHeaders();
     const merged = allHeaders[SET_COOKIE];
-    const missing = missingCookies(cookieNames, ['a', 'b']);
-    expect(entries).toEqual([...SERVER_COOKIES]);
+    const missing = missingFrom(cookieNames, ['a', 'b']);
+    const missingEntries = missingFrom(entries, SERVER_COOKIES);
+    const missingValues = missingFrom(values, SERVER_COOKIES);
+    expect(entries).toHaveLength(2);
+    expect(missingEntries).toEqual([]);
     expect(values).toHaveLength(2);
+    expect(missingValues).toEqual([]);
     expect(merged).toContain('a=1');
     expect(merged).toContain('b=2');
     expect(missing).toEqual([]);
