@@ -1,5 +1,5 @@
 {
-  "$comment": "Single source of the tested browser stack. CI installs camoufox.tag and the browser-stack gate checks playwright-core against it. Bump both together; scripts/browser-stack/manifest.mjs validates this file.",
+  "$comment": "Single source of the tested browser stack. CI installs camoufox.tag and the browser-stack gate checks playwright-core against it. The values are the tested pair: change only the component being upgraded, and raise testedMinor only after its gate and contract tests pass; scripts/browser-stack/manifest.mjs validates this file.",
   "camoufox": {
     "tag": "v152.0.4-beta.28"
   },
