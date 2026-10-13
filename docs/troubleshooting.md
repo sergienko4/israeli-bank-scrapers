@@ -110,6 +110,28 @@ moved a site, so its pageError reads need a fresh review.
     `postinstall` hook has to be able to run it from `node_modules`. No other
     repo script is published.
 
+## `Protocol error (Network.setRequestInterception)`
+
+Any `page.route()` or `context.route()` call fails with:
+
+```text
+Protocol error (Network.setRequestInterception): ERROR: failed to call method 'Network.setRequestInterception' with parameters {
+```
+
+`playwright-core` 1.64 added a `bypassServiceWorker` field to that call, and
+no released Camoufox accepts it. The same `postinstall` script from the previous
+section rewrites the call to send `{ enabled }` alone, as 1.63 did. If you
+installed with `--ignore-scripts`, run it by hand with the command shown there.
+
+Under `--strict` the call must be sent at exactly 1 site, in that form. A
+mismatch prints `SHIM-SITES <shimmed>/<reviewed> (<sent> sent) <shimmed form>`,
+which means your `playwright-core` build changed the call and needs a fresh
+review.
+
+The shim restores routing only. 1.64 also changed how multi-value `Set-Cookie`
+headers are reported, so this library is still tested against the
+`playwright-core` minor pinned in `browser-stack.json`.
+
 ## `WAF_BLOCKED`
 
 Camoufox passes most Cloudflare challenges automatically. When it does not:

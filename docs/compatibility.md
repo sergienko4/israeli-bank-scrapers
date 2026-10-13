@@ -21,6 +21,14 @@ From 1.63, `playwright-core` sends a context's `httpCredentials` as a list, and 
 
 **What to do:** Don't create a context with `httpCredentials` for this library, for example one you pass in as `browserContext`. No `playwright-core` minor this library tests supports it with Camoufox yet.
 
+### 8.9.0 - Request routing restored on `playwright-core` 1.64
+
+**Impact:** Behavior
+
+`playwright-core` 1.64 sends a new `bypassServiceWorker` field when it turns on request interception. No released Camoufox accepts it, so every `page.route()` or `context.route()` failed with a protocol error. The `postinstall` patch now drops that field and sends the 1.63 payload. It restores routing only: 1.64 still reports multi-value `Set-Cookie` headers differently, so this library stays tested on the `playwright-core` minor it pins in CI.
+
+**What to do:** None when install scripts run. With `--ignore-scripts`, run `node node_modules/@sergienko4/israeli-bank-scrapers/scripts/patch-playwright-core.mjs` after installing. See Troubleshooting for the error text.
+
 ### 8.6.1 - Camoufox browser engine upgraded to 0.11.x
 
 **Impact:** Dependency

@@ -2,15 +2,18 @@
  * Unit test for `scripts/patch-playwright-core.mjs`.
  *
  * <p>The patcher null-guards three `pageError.location` reads inside the
- * installed playwright-core. Postinstall must never fail an install, so the
- * default mode always exits 0 — which is exactly why a playwright-core bump
- * that renames one read would drop the fix silently. `--strict` is the CI
+ * installed playwright-core, and shims Juggler's request-interception call
+ * back to the payload every released Camoufox accepts. Postinstall must
+ * never fail an install, so the default mode always exits 0 — which is
+ * exactly why a playwright-core bump that renames one read, or reshapes the
+ * interception call, would drop the fix silently. `--strict` is the CI
  * proof: exit 0 only when, after patching, each guarded form appears at
- * exactly the reviewed number of sites. It is checked per guard and per
- * site, so one lost read cannot hide behind the other two, nor behind its
- * own copy at the other site. Any argument other than a single `--strict`
- * is a usage error that touches nothing, so a mistyped flag cannot pass as
- * an unproven run.
+ * exactly the reviewed number of sites, and every interception call is one
+ * of the reviewed sends with the shimmed payload. Guards are checked per
+ * guard and per site, so one lost read cannot hide behind the other two,
+ * nor behind its own copy at the other site. Any argument other than a
+ * single `--strict` is a usage error that touches nothing, so a mistyped
+ * flag cannot pass as an unproven run.
  *
  * <p>Every case runs the real script as a consumer's install does: a copy
  * sits in `<root>/scripts/` and resolves `playwright-core` from a synthetic
@@ -63,12 +66,27 @@ const RENAMED = [
 ] as const;
 
 const PREFIX = 'playwright-core pageError guard: ';
+const SHIM_PREFIX = 'playwright-core interception shim: ';
 const NOT_APPLIED = 'NOT APPLIED — no known pageError.location read in this build';
+const SHIM_CLEAN = 'no bypassServiceWorker sent';
 const OPT_OUT_ENV = 'SKIP_PLAYWRIGHT_CORE_PATCH';
 const SITES_TAG = 'GUARD-SITES';
+const SHIM_TAG = 'SHIM-SITES';
 
 /** pageError sites in the reviewed playwright-core: the dispatcher and the trace recorder. */
 const REVIEWED_SITES = 2;
+
+/** Interception sends in the reviewed playwright-core: the Firefox network manager's one. */
+const REVIEWED_CALLS = 1;
+
+/** The interception payload every released Camoufox accepts, as playwright-core 1.63 sends it. */
+const SENT_163 = '"Network.setRequestInterception", { enabled }';
+
+/** playwright-core 1.64's payload, whose `bypassServiceWorker` no released Camoufox accepts. */
+const SENT_164 = '"Network.setRequestInterception", { enabled, bypassServiceWorker }';
+
+/** A future payload the shim does not know. */
+const SENT_UNKNOWN = '"Network.setRequestInterception", { enabled, bypassServiceWorker: true }';
 
 /** A fixed past mtime; any write by the script moves it to "now". */
 const UNTOUCHED_MTIME = new Date('2000-01-01T00:00:00Z');
@@ -100,6 +118,15 @@ interface IBundleCase {
   readonly id: string;
   readonly what: string;
   readonly sites: readonly (readonly string[])[];
+  readonly outcome: string;
+  readonly strict: readonly string[];
+}
+
+/** A guarded bundle's interception sends, the shim outcome, and the lines `--strict` adds. */
+interface IShimCase {
+  readonly id: string;
+  readonly what: string;
+  readonly calls: readonly string[];
   readonly outcome: string;
   readonly strict: readonly string[];
 }
@@ -159,34 +186,45 @@ function bothSitesWithRead(
 }
 
 /**
- * Render one `_onPageError` event-builder per site, as upstream ships it.
+ * Render one `_onPageError` event-builder per site, as upstream ships it,
+ * then the network manager's interception sends.
  *
  * @param sites - Location fields of each site, one per line.
+ * @param calls - Interception sends; one 1.63 send by default.
  * @returns Synthetic `coreBundle.js` text.
  */
-function bundleOf(sites: readonly (readonly string[])[]): string {
-  return sites
-    .map((reads): string => {
-      const fields = reads.join(',\n        ');
-      return `_onPageError(pageError, page) {\n  const event = {\n    params: {\n      location: {\n        ${fields}\n      },\n    },\n  };\n}\n`;
-    })
-    .join('');
+function bundleOf(
+  sites: readonly (readonly string[])[],
+  calls: readonly string[] = [SENT_163],
+): string {
+  const builders = sites.map((reads): string => {
+    const fields = reads.join(',\n        ');
+    return `_onPageError(pageError, page) {\n  const event = {\n    params: {\n      location: {\n        ${fields}\n      },\n    },\n  };\n}\n`;
+  });
+  const sends = calls.map((call): string => `this._session.send(${call});\n`);
+  return [...builders, ...sends].join('');
 }
 
 /**
- * The bundle text after a correct patch: every known read guarded.
+ * The bundle text after a correct patch: every known read guarded, every
+ * 1.64 send shimmed.
  *
  * @param sites - Reads of each site of the original bundle.
+ * @param calls - Interception sends of the original bundle.
  * @returns Expected text.
  */
-function patchedBundleOf(sites: readonly (readonly string[])[]): string {
+function patchedBundleOf(
+  sites: readonly (readonly string[])[],
+  calls: readonly string[] = [SENT_163],
+): string {
   const guarded = sites.map((reads): string[] =>
     reads.map((read): string => {
       const index = UNGUARDED.findIndex((form): boolean => form === read);
       return index < 0 ? read : GUARDED[index];
     }),
   );
-  return bundleOf(guarded);
+  const shimmed = calls.map((call): string => (call === SENT_164 ? SENT_163 : call));
+  return bundleOf(guarded, shimmed);
 }
 
 /**
@@ -222,27 +260,32 @@ function sandboxWithoutBundle(): ISandbox {
 }
 
 /**
- * Create a sandbox whose bundle holds the given sites, with a fixed past mtime.
+ * Create a sandbox whose bundle holds the given sites and sends, with a fixed past mtime.
  *
  * @param sites - Location reads of each site written into the bundle.
+ * @param calls - Interception sends written into the bundle.
  * @returns The sandbox.
  */
-function sandboxWithBundle(sites: readonly (readonly string[])[]): ISandbox {
+function sandboxWithBundle(
+  sites: readonly (readonly string[])[],
+  calls: readonly string[] = [SENT_163],
+): ISandbox {
   const sandbox = sandboxWithoutBundle();
-  const text = bundleOf(sites);
+  const text = bundleOf(sites, calls);
   writeFileSync(sandbox.bundle, text);
   utimesSync(sandbox.bundle, UNTOUCHED_MTIME, UNTOUCHED_MTIME);
   return sandbox;
 }
 
 /**
- * Create a sandbox whose bundle ships every read unguarded at both sites.
+ * Create a sandbox whose bundle ships as upstream 1.64 does: every read
+ * unguarded at both sites, the interception send carrying `bypassServiceWorker`.
  *
  * @returns The sandbox.
  */
 function sandboxUnguarded(): ISandbox {
   const sites = atBothSites(UNGUARDED);
-  return sandboxWithBundle(sites);
+  return sandboxWithBundle(sites, [SENT_164]);
 }
 
 /**
@@ -306,6 +349,40 @@ function allSitesLines(found: number): string[] {
 }
 
 /**
+ * The `SHIM-SITES` line `--strict` prints when the sends differ from the review.
+ *
+ * @param shimmed - Sends carrying the shimmed payload after patching.
+ * @param sent - All interception sends after patching.
+ * @returns Expected line.
+ */
+function shimLine(shimmed: number, sent: number): string {
+  return `${SHIM_TAG} ${String(shimmed)}/${String(REVIEWED_CALLS)} (${String(sent)} sent) ${SENT_163}`;
+}
+
+/**
+ * The shim outcome when some interception send is in no known form.
+ *
+ * @param shimmed - Sends carrying the shimmed payload after patching.
+ * @param sent - All interception sends after patching.
+ * @returns Expected outcome text.
+ */
+function shimNotApplied(shimmed: number, sent: number): string {
+  const known = `${String(shimmed)} of ${String(sent)} Network.setRequestInterception send(s)`;
+  return `NOT APPLIED — ${known} in a known form`;
+}
+
+/**
+ * The two report lines every run prints, guard first.
+ *
+ * @param guard - Guard outcome.
+ * @param shim - Shim outcome.
+ * @returns Expected stdout.
+ */
+function reportOf(guard: string, shim: string): string {
+  return linesOf([PREFIX + guard, SHIM_PREFIX + shim]);
+}
+
+/**
  * Read the sandbox's bundle text.
  *
  * @param sandbox - Sandbox whose bundle exists.
@@ -316,14 +393,14 @@ function readBundle(sandbox: ISandbox): string {
 }
 
 /**
- * The outcome text of a run, without the fixed prefix and trailing newline.
+ * The outcome text of each report line of a run, without the fixed prefixes.
  *
  * @param run - A patcher run.
- * @returns Outcome text.
+ * @returns The guard outcome and the shim outcome.
  */
-function outcomeOf(run: IRun): string {
-  const rest = run.stdout.slice(PREFIX.length);
-  return rest.trimEnd();
+function outcomesOf(run: IRun): readonly [string, string] {
+  const [guardLine = '', shimText = ''] = run.stdout.split('\n');
+  return [guardLine.slice(PREFIX.length), shimText.slice(SHIM_PREFIX.length)];
 }
 
 /**
@@ -409,6 +486,55 @@ const BUNDLE_CASES: readonly IBundleCase[] = [
   },
 ];
 
+/** Both pageError sites already guarded, so only the shim varies. */
+const GUARDED_SITES = atBothSites(GUARDED);
+
+const SHIM_CASES: readonly IShimCase[] = [
+  { id: 'PPC-40', what: 'a 1.63 send', calls: [SENT_163], outcome: SHIM_CLEAN, strict: [] },
+  {
+    id: 'PPC-41',
+    what: 'a 1.64 send carrying bypassServiceWorker',
+    calls: [SENT_164],
+    outcome: 'dropped bypassServiceWorker from 1 call(s)',
+    strict: [],
+  },
+  {
+    id: 'PPC-42',
+    what: 'a payload the shim does not know',
+    calls: [SENT_UNKNOWN],
+    outcome: shimNotApplied(0, 1),
+    strict: [shimLine(0, 1)],
+  },
+  {
+    id: 'PPC-43',
+    what: 'no interception send at all',
+    calls: [],
+    outcome: shimNotApplied(0, 0),
+    strict: [shimLine(0, 0)],
+  },
+  {
+    id: 'PPC-44',
+    what: 'a second 1.64 send the review never saw',
+    calls: [SENT_164, SENT_164],
+    outcome: 'dropped bypassServiceWorker from 2 call(s)',
+    strict: [shimLine(2, 2)],
+  },
+  {
+    id: 'PPC-45',
+    what: 'a 1.64 send beside an unknown one',
+    calls: [SENT_164, SENT_UNKNOWN],
+    outcome: 'dropped bypassServiceWorker from 1 call(s)',
+    strict: [shimLine(1, 2)],
+  },
+  {
+    id: 'PPC-46',
+    what: 'a 1.63 send beside an unknown one',
+    calls: [SENT_163, SENT_UNKNOWN],
+    outcome: shimNotApplied(1, 2),
+    strict: [shimLine(1, 2)],
+  },
+];
+
 const SKIP_CASES: readonly ISkipCase[] = [
   {
     id: 'PPC-20',
@@ -437,7 +563,8 @@ describe('patch-playwright-core default mode (postinstall)', () => {
   it.each(BUNDLE_CASES)('[$id] $what → exit 0, "$outcome", no GUARD-SITES', bundleCase => {
     const sandbox = sandboxWithBundle(bundleCase.sites);
     const run = runPatcher(sandbox, []);
-    expect(run).toEqual({ status: 0, stdout: linesOf([PREFIX + bundleCase.outcome]), stderr: '' });
+    const expectedOut = reportOf(bundleCase.outcome, SHIM_CLEAN);
+    expect(run).toEqual({ status: 0, stdout: expectedOut, stderr: '' });
   });
 
   it.each(BUNDLE_CASES)('[$id] $what → every known read guarded in place', bundleCase => {
@@ -459,7 +586,7 @@ describe('patch-playwright-core default mode (postinstall)', () => {
     expect(mtime).toBe(UNTOUCHED_MS);
   });
 
-  it('[PPC-13] is idempotent: the second run reports already guarded and rewrites nothing', () => {
+  it('[PPC-13] is idempotent: the second run reports nothing left to patch and rewrites nothing', () => {
     const sandbox = sandboxUnguarded();
     runPatcher(sandbox, []);
     const once = readBundle(sandbox);
@@ -467,7 +594,7 @@ describe('patch-playwright-core default mode (postinstall)', () => {
     const second = runPatcher(sandbox, ['--strict']);
     const twice = readBundle(sandbox);
     const mtime = mtimeOf(sandbox.bundle);
-    const expectedOut = linesOf([`${PREFIX}already guarded`]);
+    const expectedOut = reportOf('already guarded', SHIM_CLEAN);
     expect(second).toEqual({ status: 0, stdout: expectedOut, stderr: '' });
     expect(twice).toBe(once);
     expect(mtime).toBe(UNTOUCHED_MS);
@@ -480,7 +607,11 @@ describe('patch-playwright-core --strict (CI proof)', () => {
     bundleCase => {
       const sandbox = sandboxWithBundle(bundleCase.sites);
       const run = runPatcher(sandbox, ['--strict']);
-      const expected = [PREFIX + bundleCase.outcome, ...bundleCase.strict];
+      const expected = [
+        PREFIX + bundleCase.outcome,
+        SHIM_PREFIX + SHIM_CLEAN,
+        ...bundleCase.strict,
+      ];
       const status = bundleCase.strict.length > 0 ? 1 : 0;
       expect(run).toEqual({ status, stdout: linesOf(expected), stderr: '' });
     },
@@ -495,33 +626,75 @@ describe('patch-playwright-core --strict (CI proof)', () => {
   });
 });
 
+describe('patch-playwright-core interception shim', () => {
+  it.each(SHIM_CASES)('[$id] $what → exit 0, "$outcome", no SHIM-SITES', shimCase => {
+    const sandbox = sandboxWithBundle(GUARDED_SITES, shimCase.calls);
+    const run = runPatcher(sandbox, []);
+    const expectedOut = reportOf('already guarded', shimCase.outcome);
+    expect(run).toEqual({ status: 0, stdout: expectedOut, stderr: '' });
+  });
+
+  it.each(SHIM_CASES)(
+    '[$id] $what → --strict exits 1 iff the sends differ from the review, named once',
+    shimCase => {
+      const sandbox = sandboxWithBundle(GUARDED_SITES, shimCase.calls);
+      const run = runPatcher(sandbox, ['--strict']);
+      const expected = [
+        `${PREFIX}already guarded`,
+        SHIM_PREFIX + shimCase.outcome,
+        ...shimCase.strict,
+      ];
+      const status = shimCase.strict.length > 0 ? 1 : 0;
+      expect(run).toEqual({ status, stdout: linesOf(expected), stderr: '' });
+    },
+  );
+
+  it.each(SHIM_CASES)('[$id] $what → only 1.64 sends are rewritten', shimCase => {
+    const sandbox = sandboxWithBundle(GUARDED_SITES, shimCase.calls);
+    runPatcher(sandbox, ['--strict']);
+    const text = readBundle(sandbox);
+    const expected = patchedBundleOf(GUARDED_SITES, shimCase.calls);
+    expect(text).toBe(expected);
+  });
+
+  it.each([
+    ['a 1.63 send', SENT_163],
+    ['an unknown send', SENT_UNKNOWN],
+  ])('[PPC-47] never writes when no send needs the shim (%s)', (_what, call) => {
+    const sandbox = sandboxWithBundle(GUARDED_SITES, [call]);
+    runPatcher(sandbox, []);
+    const mtime = mtimeOf(sandbox.bundle);
+    expect(mtime).toBe(UNTOUCHED_MS);
+  });
+});
+
 describe('patch-playwright-core skips', () => {
   it.each(SKIP_CASES)('[$id] $what → default exits 0 and leaves the bundle alone', skipCase => {
     const sandbox = skipCase.make();
     const run = runPatcher(sandbox, [], skipCase.env);
-    const outcome = outcomeOf(run);
-    const hasPrefix = run.stdout.startsWith(PREFIX);
+    const [outcome] = outcomesOf(run);
+    const expectedOut = reportOf(outcome, outcome);
     expect({ status: run.status, stderr: run.stderr }).toEqual({ status: 0, stderr: '' });
-    expect(hasPrefix).toBe(true);
+    expect(run.stdout).toBe(expectedOut);
     expect(outcome).toMatch(skipCase.outcome);
-    expect(run.stdout).not.toContain(SITES_TAG);
   });
 
   it.each(SKIP_CASES)('[$id] $what → --strict fails closed: exit 1, nothing verified', skipCase => {
     const sandbox = skipCase.make();
     const run = runPatcher(sandbox, ['--strict'], skipCase.env);
-    const outcome = outcomeOf(run);
+    const [outcome] = outcomesOf(run);
+    const expectedOut = reportOf(outcome, outcome);
     expect({ status: run.status, stderr: run.stderr }).toEqual({ status: 1, stderr: '' });
+    expect(run.stdout).toBe(expectedOut);
     expect(outcome).toMatch(skipCase.outcome);
-    expect(run.stdout).not.toContain(SITES_TAG);
   });
 
-  it('[PPC-23] the opt-out leaves an unguarded bundle untouched', () => {
+  it('[PPC-23] the opt-out leaves an unpatched 1.64 bundle untouched', () => {
     const sandbox = sandboxUnguarded();
     runPatcher(sandbox, ['--strict'], { [OPT_OUT_ENV]: '1' });
     const text = readBundle(sandbox);
     const unguardedSites = atBothSites(UNGUARDED);
-    const original = bundleOf(unguardedSites);
+    const original = bundleOf(unguardedSites, [SENT_164]);
     const mtime = mtimeOf(sandbox.bundle);
     expect(text).toBe(original);
     expect(mtime).toBe(UNTOUCHED_MS);
