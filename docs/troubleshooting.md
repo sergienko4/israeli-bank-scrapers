@@ -93,20 +93,25 @@ compared with that pair, and each component that differs is logged once:
 A different version often works. If a scrape then breaks, this line is the
 first place to look.
 
-**`camoufox`** — camoufox-js downloads the newest Camoufox release on first
-launch and never replaces it, so an old cache keeps its old build. Delete
-the cache directory (see the table under
+**`camoufox`** — on first launch camoufox-js downloads the newest stable
+(non-prerelease) Camoufox release. After that it reuses the cache for as long
+as it still supports the cached version, and a newer release alone never
+replaces it, so an old cache keeps its old build. Only a missing, empty or
+unsupported cache is fetched again. To refetch, delete the cache directory
+(see the table under
 [`Version information not found`](#version-information-not-found)) and launch
-again to refetch. That fetches the *newest* release, which is the tested one
-only while no later release exists. When it is not, upgrade this package,
-which may test a newer build.
+again. That fetches the newest stable release, which is the tested one only
+while no later release exists. When it is not, upgrade this package, which
+may test a newer build.
 
 **`playwright-core`** — compared by minor; a patch release of the tested minor
-counts as tested. The dependency range accepts later minors, so a fresh
-install can resolve one newer than the tested minor. An `overrides` entry can
-also force one. Run `npm ls playwright-core` to see which version resolves.
-To get back to the tested minor, pin it in your own `package.json`, replacing
-`1.63` with the `tested` value from the log:
+counts as tested. The version read is the copy camoufox-js loads, since that
+copy drives the browser; it can differ from the copy beside this package when
+npm installs one nested under camoufox-js. The dependency range accepts later
+minors, so a fresh install can resolve one newer than the tested minor. An
+`overrides` entry can also force one. Run `npm ls playwright-core` to see
+every copy that resolves. To get back to the tested minor, pin it in your own
+`package.json`, replacing `1.63` with the `tested` value from the log:
 
 ```json
 "overrides": { "playwright-core": "~1.63.0" }

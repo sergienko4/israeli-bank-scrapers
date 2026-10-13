@@ -3,11 +3,11 @@
  * is tested on: the Camoufox tag and playwright-core minor in
  * `browser-stack.json`, read from the module generated from it.
  *
- * camoufox-js downloads the newest Camoufox release on first launch and
- * keeps that cache afterwards, so a consumer can run an older or newer build
- * than the tested one. A mismatch may still work, so it never fails a
- * launch; it is logged once per process so the cause is on record if a
- * scrape then breaks.
+ * camoufox-js downloads the newest stable Camoufox release on first launch
+ * and reuses that cache while it still supports its version, so a consumer
+ * can run an older or newer build than the tested one. A mismatch may still
+ * work, so it never fails a launch; it is logged once per process so the
+ * cause is on record if a scrape then breaks.
  */
 
 import { createRequire } from 'node:module';
@@ -46,6 +46,9 @@ interface IComponentRule {
   readonly comparable: (installed: string) => string;
   readonly remedy: string;
 }
+
+/** camoufox-js's manifest, which anchors resolution at its package root. */
+const CAMOUFOX_MANIFEST = '@hieutran094/camoufox-js/package.json';
 
 /** Every reader, in report order. */
 const COMPONENT_KEYS = Object.freeze(['camoufox', 'playwright'] as const);
@@ -105,27 +108,44 @@ async function readCamoufox(): Promise<string> {
 }
 
 /**
- * Version of the playwright-core this package resolves, read with a require
- * anchored at this module. Not a JSON import: the build's Rollup tree-shake
- * pass rewrites import attributes to the `assert` keyword, which Node 22
- * rejects, so that read would fail in the published package alone.
+ * Version of the playwright-core that drives the browser. camoufox-js takes
+ * playwright-core as a peer and imports it from its own location, which can
+ * be a different copy from the one beside this package, so the read resolves
+ * camoufox-js's package root first and playwright-core from there. Not a
+ * JSON import: the build's Rollup tree-shake pass rewrites import attributes
+ * to the `assert` keyword, which Node 22 rejects, so that read would fail in
+ * the published package alone.
  *
+ * @param anchor - Module path or file URL to resolve camoufox-js from.
  * @returns Its `package.json` version.
  */
-function readPlaywrightManifest(): string {
-  const requireHere = createRequire(import.meta.url);
-  const manifest = requireHere('playwright-core/package.json') as IPackageManifest;
+function readPlaywrightManifest(anchor: string): string {
+  const requireFromAnchor = createRequire(anchor);
+  const camoufoxRoot = requireFromAnchor.resolve(CAMOUFOX_MANIFEST);
+  const requireFromCamoufox = createRequire(camoufoxRoot);
+  const manifest = requireFromCamoufox('playwright-core/package.json') as IPackageManifest;
   return manifest.version;
 }
 
 /**
- * The playwright-core version, with any throw turned into a rejection.
+ * Version of the playwright-core camoufox-js resolves from `anchor`, with
+ * any throw turned into a rejection.
+ *
+ * @param anchor - Module path or file URL to resolve camoufox-js from.
+ * @returns Its `package.json` version.
+ */
+export function readPlaywrightVersion(anchor: string): Promise<string> {
+  const settled = Promise.resolve(anchor);
+  return settled.then(readPlaywrightManifest);
+}
+
+/**
+ * Version of the playwright-core the camoufox-js this package loads uses.
  *
  * @returns Its `package.json` version.
  */
 function readPlaywright(): Promise<string> {
-  const settled = Promise.resolve();
-  return settled.then(readPlaywrightManifest);
+  return readPlaywrightVersion(import.meta.url);
 }
 
 /**

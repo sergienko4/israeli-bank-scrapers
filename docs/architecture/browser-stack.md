@@ -45,7 +45,17 @@ versions with the tested pair:
 | Component | Installed version read from | Counts as tested when |
 |---|---|---|
 | `camoufox` | camoufox-js's cache record, `<version>-<release>` | It equals the tag without its leading `v` |
-| `playwright-core` | the `package.json` this package resolves | Its `major.minor` equals the tested minor |
+| `playwright-core` | the `package.json` of the copy camoufox-js resolves | Its `major.minor` equals the tested minor |
+
+camoufox-js takes `playwright-core` as a peer and imports it from its own
+location, and that copy drives the browser. When npm cannot hoist one copy for
+both packages, camoufox-js gets a nested one that can differ from the copy
+beside this package. So `readPlaywrightVersion(anchor)` resolves
+`@hieutran094/camoufox-js/package.json` from the anchor first, then
+`playwright-core/package.json` from camoufox-js's package root. The default
+reader anchors at its own module; tests anchor at temp trees with nested and
+hoisted copies. The anchor is the manifest, not the bare package name, because
+Jest's config maps that name to a mock.
 
 Each component that differs is logged once at `warn` level, with
 `{ component, installed, tested, remedy }`. A different version may still
@@ -75,7 +85,8 @@ on the first call, and 0 after it.
 Rollup rewrites import attributes to the `assert` keyword, which Node 22
 rejects. So `import(..., { with: { type: 'json' } })` passes every
 source-level test and then fails in the published package alone. The
-`playwright-core` reader therefore uses `createRequire(import.meta.url)`, which
-works in both bundles because Rollup shims `import.meta.url` in CommonJS.
+`playwright-core` reader therefore uses `createRequire`, anchored at
+`import.meta.url` in production, which works in both bundles because Rollup
+shims `import.meta.url` in CommonJS.
 `BundleImportAttributesPolicy.test.ts` fails if any bundled source file uses
 import attributes.
