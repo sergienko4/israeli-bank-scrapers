@@ -43,8 +43,12 @@
 import { lstatSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-/** Directories scanned for shell code, relative to the repo root. */
-const ROOTS = ['.husky', '.github/scripts', 'scripts'];
+/**
+ * Directories scanned for shell code, relative to the repo root.
+ * `.github/actions` holds composite-action scripts (the Camoufox install
+ * that CI and the Docker mirror share); only its `.sh` files are scanned.
+ */
+const ROOTS = ['.husky', '.github/scripts', '.github/actions', 'scripts'];
 
 /** Paths skipped: husky's generated helpers are not ours to fix. */
 const SKIP = new Set(['_', 'node_modules']);

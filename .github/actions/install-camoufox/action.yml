@@ -36,9 +36,9 @@ runs:
       # Single source of truth for the pinned tag: `camoufox.tag` in
       # browser-stack.json, read through the manifest validator, which fails
       # closed (exit 2, MANIFEST-INVALID) unless the WHOLE manifest is valid.
-      # The cache key AND the gh-release fallback below both derive from
-      # this output, so a tag bump in the manifest invalidates the cache and
-      # re-pins the fallback in one edit; never hardcode the version here.
+      # The cache key below uses this output and install.sh reads the same
+      # manifest, so a tag bump in the manifest invalidates the cache and
+      # re-pins the install in one edit; never hardcode the version here.
       run: |
         set -euo pipefail
         tag=$(node "${GITHUB_WORKSPACE}/scripts/browser-stack/manifest.mjs" tag)
@@ -55,48 +55,7 @@ runs:
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.gh-token }}
-        # Derived from the resolve-tag step so the fallback download and
-        # the cache key above stay coupled to one pinned-tag literal.
-        PINNED_TAG: ${{ steps.camoufox-tag.outputs.tag }}
-      run: |
-        set -euo pipefail
-        CACHE_DIR="$HOME/.cache/camoufox"
-        # camoufox-js records the install as {"version","release"} and reads
-        # it back on launch; `<version>-<release>` is the tag minus the `v`.
-        EXPECTED="${PINNED_TAG#v}"
-
-        installed_version() {
-          [ -f "$CACHE_DIR/version.json" ] || return 1
-          node -e 'const fs = require("fs");
-            const v = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-            process.stdout.write(v.version + "-" + v.release);' "$CACHE_DIR/version.json"
-        }
-
-        install_pinned_release() {
-          # PINNED_TAG comes from the step env (single source of truth, see
-          # the resolve-tag step). Never track LATEST here: v150.0.2-beta.25's
-          # locale regression (navigator.language he-IL to en-US) breaks
-          # AntiDetection.e2e-mocked.test.ts.
-          echo "Downloading pinned daijro/camoufox release: ${PINNED_TAG}"
-          ASSET_DIR=$(mktemp -d)
-          gh release download "${PINNED_TAG}" --repo daijro/camoufox --pattern 'camoufox-*-lin.x86_64.zip' --dir "$ASSET_DIR" --clobber
-          rm -rf "$CACHE_DIR"
-          mkdir -p "$CACHE_DIR"
-          unzip -o "$ASSET_DIR"/*.zip -d "$CACHE_DIR/"
-          rm -rf "$ASSET_DIR"
-          printf '{"version":"%s","release":"%s"}' "${EXPECTED%%-*}" "${EXPECTED#*-}" > "$CACHE_DIR/version.json"
-          chmod -R 755 "$CACHE_DIR"
-        }
-
-        if [ "$(installed_version || true)" = "$EXPECTED" ]; then
-          echo "Camoufox ${PINNED_TAG} already cached, skipping fetch"
-        else
-          echo "Cache miss — attempting camoufox-js fetch..."
-          if npx @hieutran094/camoufox-js fetch && [ "$(installed_version || true)" = "$EXPECTED" ]; then
-            echo "Camoufox ${PINNED_TAG} installed via camoufox-js"
-          else
-            echo "camoufox-js produced '$(installed_version || echo none)', want ${EXPECTED} — installing the pinned asset instead"
-            install_pinned_release
-          fi
-        fi
-        test -f "$CACHE_DIR/camoufox-bin" || (echo "ERROR: camoufox-bin not found in $CACHE_DIR" && exit 1)
+      # The same script builds docker/Dockerfile.ci-mirror. It reads the tag
+      # from browser-stack.json (as the cache key above does), skips a cache
+      # hit and installs the pinned release asset on a miss.
+      run: bash "${GITHUB_WORKSPACE}/.github/actions/install-camoufox/install.sh"

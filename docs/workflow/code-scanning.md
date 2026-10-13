@@ -16,6 +16,8 @@ source-files:
   - .github/scripts/ci/compute-gate-booleans.sh
   - .github/scripts/ci/detect-changes.sh
   - .github/actions/install-camoufox/action.yml
+  - .github/actions/install-camoufox/install.sh
+  - docker/Dockerfile.ci-mirror
   - .github/workflows/pr-body-check.yml
   - src/Tests/Unit/Pipeline/CrossValidation/DependabotSecurityGrouping.test.ts
   - src/Tests/Unit/Pipeline/CrossValidation/RenovateLockfileMaintenancePolicy.test.ts
@@ -297,11 +299,14 @@ Residual risk for consumers is low for two independent reasons:
    attacker-supplied input.
 
 Our own CI relies on the override, not on avoiding the path. Every
-`install-camoufox` call follows `setup-node-deps` (`npm ci`). A cache hit skips
-extraction. A cache miss runs `camoufox-js fetch` first, which extracts with the
-locked adm-zip 0.6.1. Only when that fails or yields a build other than the tag
-pinned in `browser-stack.json` does the action clear the cache and fall back to
-`gh release download` plus system `unzip`. A manifest edit is a browser-stack
+`install-camoufox` call follows `setup-node-deps` (`npm ci`) and runs
+`.github/actions/install-camoufox/install.sh`, which also builds the Docker CI
+mirror. A cache hit skips extraction. A cache miss runs `camoufox-js fetch`
+first, which extracts with the locked adm-zip 0.6.1. Only when that fails or
+yields a build other than the tag pinned in `browser-stack.json` does the
+script clear the cache and fall back to the release asset plus system `unzip`.
+CI downloads it with `gh release download`; the Docker build has no token and
+uses `curl` on the public release URL. A manifest edit is a browser-stack
 change: the detector arms `critical_deps`, so the pull request runs the full
 suite.
 

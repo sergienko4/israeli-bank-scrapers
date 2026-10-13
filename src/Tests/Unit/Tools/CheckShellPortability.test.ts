@@ -2,9 +2,10 @@
  * Regression test for symbolic-link handling in
  * `scripts/check-shell-portability.mjs`.
  *
- * The gate walks `.husky`, `.github/scripts` and `scripts` looking for shell
- * constructs that only work on GNU/bash-5. Its directory walk asked
- * `statSync(...).isDirectory()`, and `stat` FOLLOWS links. Two consequences,
+ * The gate walks `.husky`, `.github/scripts`, `.github/actions` and `scripts`
+ * looking for shell constructs that only work on GNU/bash-5. Its directory
+ * walk asked `statSync(...).isDirectory()`, and `stat` FOLLOWS links. Two
+ * consequences,
  * both of which stop the gate doing its job:
  *
  *   - a broken link makes `stat` throw `ENOENT`, so the gate dies before
@@ -159,6 +160,46 @@ describe('check-shell-portability — links never stop the gate running', () => 
     const root = makeTree();
     const good = scriptPath(root, 'good.sh');
     fs.writeFileSync(good, PORTABLE);
+
+    const { status, output } = spawnGate(root);
+
+    expect(output).toContain('PASS');
+    expect(status).toBe(0);
+  });
+});
+
+/**
+ * Write a file under the tree's `.github/actions/<action>/` directory.
+ * @param root - Tree root.
+ * @param name - File name inside the action directory.
+ * @param text - File contents.
+ * @returns The written path.
+ */
+function writeActionFile(root: string, name: string, text: string): string {
+  const actionDir = path.join(root, '.github', 'actions', 'install-camoufox');
+  fs.mkdirSync(actionDir, { recursive: true });
+  const file = path.join(actionDir, name);
+  fs.writeFileSync(file, text);
+  return file;
+}
+
+describe('check-shell-portability — composite-action scripts are scanned', () => {
+  it('SHP-ROOT-1 a violation in a .github/actions shell script fails the gate', () => {
+    // install-camoufox/install.sh runs in CI and in the Docker mirror; it is
+    // shell we own, so the gate must see it.
+    const root = makeTree();
+    writeActionFile(root, 'install.sh', NON_PORTABLE);
+
+    const { status, output } = spawnGate(root);
+
+    expect(output).toContain('install.sh');
+    expect(status).toBe(1);
+  });
+
+  it('SHP-ROOT-2 action.yml is not scanned as shell', () => {
+    // The guard against the new root dragging YAML into a shell-only scan.
+    const root = makeTree();
+    writeActionFile(root, 'action.yml', NON_PORTABLE);
 
     const { status, output } = spawnGate(root);
 
