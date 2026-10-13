@@ -15,8 +15,9 @@
  *
  * Interception shim. playwright-core 1.64 added `bypassServiceWorker` to
  * Juggler's `Network.setRequestInterception`. No released Camoufox accepts
- * the field, so every `page.route()` / `context.route()` fails with a
- * protocol error. A consumer whose `^` range resolves 1.64 gets that build,
+ * the field, so `page.route()` fails with a protocol error;
+ * `context.route()` uses `Browser.setRequestInterception`, which did not
+ * change. A consumer whose `^` range resolves 1.64 gets that build,
  * so the shim drops the field and sends the 1.63 payload `{ enabled }`.
  * It restores routing only: 1.64's other changes (multi-value `Set-Cookie`
  * headers) remain, which is why this library stays tested on the

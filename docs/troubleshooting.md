@@ -112,16 +112,18 @@ moved a site, so its pageError reads need a fresh review.
 
 ## `Protocol error (Network.setRequestInterception)`
 
-Any `page.route()` or `context.route()` call fails with:
+A `page.route()` call fails with:
 
 ```text
 Protocol error (Network.setRequestInterception): ERROR: failed to call method 'Network.setRequestInterception' with parameters {
 ```
 
 `playwright-core` 1.64 added a `bypassServiceWorker` field to that call, and
-no released Camoufox accepts it. The same `postinstall` script from the previous
-section rewrites the call to send `{ enabled }` alone, as 1.63 did. If you
-installed with `--ignore-scripts`, run it by hand with the command shown there.
+no released Camoufox accepts it. `context.route()` is unaffected: Firefox turns
+on context-wide interception through `Browser.setRequestInterception`, which did
+not change. The same `postinstall` script from the previous section rewrites
+the call to send `{ enabled }` alone, as 1.63 did. If you installed with
+`--ignore-scripts`, run it by hand with the command shown there.
 
 Under `--strict` the call must be sent at exactly 1 site, in that form. A
 mismatch prints `SHIM-SITES <shimmed>/<reviewed> (<sent> sent) <shimmed form>`,
