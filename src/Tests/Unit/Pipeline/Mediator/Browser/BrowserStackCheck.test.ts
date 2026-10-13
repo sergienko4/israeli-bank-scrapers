@@ -5,8 +5,8 @@
  * minor with the tested pair generated from `browser-stack.json`. It logs one
  * warning per mismatched component, once per process, and never rejects: a
  * reader failure is logged at debug level with its message redacted and only
- * skips that component. Expected values come from the generated module, so
- * no test copies a pinned version.
+ * skips that component, as does a logger that throws. Expected values come
+ * from the generated module, so no test copies a pinned version.
  */
 
 import { readFileSync } from 'node:fs';
@@ -134,6 +134,15 @@ function settleRead(reading: Promise<string>): Promise<string | false> {
   return reading.catch((): false => false);
 }
 
+/**
+ * A logger call that fails, as a broken log sink would.
+ *
+ * @returns Never; it throws.
+ */
+function failLogging(): never {
+  throw new ScraperError('log sink unavailable');
+}
+
 describe('checkBrowserStack', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -234,5 +243,23 @@ describe('checkBrowserStack', () => {
     const reading = DEFAULT_READERS.camoufox();
     const installed = await settleRead(reading);
     expect(installed).toBe(expected);
+  });
+
+  it('[BSC-11] skips only the component whose warning throws, and still resolves', async () => {
+    LOG.warn.mockImplementationOnce(failLogging);
+    const readers = makeReaders(OTHER_CAMOUFOX, OTHER_PLAYWRIGHT);
+    const count = await runCheck(readers);
+    expect(count).toBe(1);
+    expect(LOG.warn).toHaveBeenCalledTimes(2);
+  });
+
+  it('[BSC-12] skips a failed reader whose debug line throws, and still checks the other', async () => {
+    LOG.debug.mockImplementationOnce(failLogging);
+    const failure = new ScraperError(SECRET_FAILURE);
+    const readers = makeReaders(failure, OTHER_PLAYWRIGHT);
+    const count = await runCheck(readers);
+    expect(count).toBe(1);
+    expect(LOG.debug).toHaveBeenCalledTimes(1);
+    expect(LOG.warn).toHaveBeenCalledTimes(1);
   });
 });

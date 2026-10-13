@@ -170,6 +170,20 @@ async function checkComponent(key: ComponentKey, readers: IStackReaders): Promis
   return 1;
 }
 
+/**
+ * Check one component, counting any failure, the logger's own included, as
+ * no warning. Nothing is logged here, since a throwing logger is one of the
+ * failures this absorbs.
+ *
+ * @param key - Reader to check.
+ * @param readers - Reader set.
+ * @returns 1 when a warning was logged, else 0.
+ */
+function settleComponent(key: ComponentKey, readers: IStackReaders): Promise<number> {
+  const checking = checkComponent(key, readers);
+  return checking.catch((): number => 0);
+}
+
 /** Run state of one check. */
 interface ICheckState {
   hasRun: boolean;
@@ -185,15 +199,15 @@ interface ICheckState {
 async function runOnce(state: ICheckState, readers: IStackReaders): Promise<WarningCount> {
   if (state.hasRun) return 0 as WarningCount;
   state.hasRun = true;
-  const pending = COMPONENT_KEYS.map(key => checkComponent(key, readers));
+  const pending = COMPONENT_KEYS.map(key => settleComponent(key, readers));
   const counts = await Promise.all(pending);
   return counts.reduce((sum, count) => sum + count, 0) as WarningCount;
 }
 
 /**
  * Build a check that reads and compares only on its first call; later calls
- * return 0 at once. Never rejects: a reader failure only skips that
- * component.
+ * return 0 at once. Never rejects: a reader or logger failure only skips
+ * that component.
  *
  * @param readers - Version readers; production uses {@link DEFAULT_STACK_READERS}.
  * @returns The check.

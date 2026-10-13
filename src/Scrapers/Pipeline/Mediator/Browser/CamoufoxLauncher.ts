@@ -332,6 +332,23 @@ async function boundedStart(headless: boolean): Promise<Browser> {
 }
 
 /**
+ * Run the browser-stack check without letting it cost the caller a launched
+ * browser. The check is advisory and is built never to reject; if it ever
+ * does, an unguarded await would drop the live browser with no reference left
+ * to close it. Nothing is logged, since a throwing logger is one way the
+ * check can fail.
+ *
+ * @returns Resolves once the check settled.
+ */
+async function checkStackSafely(): Promise<void> {
+  try {
+    await checkBrowserStack();
+  } catch {
+    // Advisory only: the launched browser must still reach the caller.
+  }
+}
+
+/**
  * Launch a Camoufox browser (Firefox with C++-level anti-detect stealth).
  * Uses dynamic import() because camoufox-js is ESM-only.
  *
@@ -361,7 +378,8 @@ async function boundedStart(headless: boolean): Promise<Browser> {
  *
  * <p>After a successful launch, {@link checkBrowserStack} warns once per
  * process when the installed Camoufox or playwright-core is not the tested
- * pair. It runs outside the bound and never fails the launch.
+ * pair. It runs outside the bound and never fails the launch:
+ * {@link checkStackSafely} hands the browser back even if the check rejects.
  *
  * @param headless - Whether to launch in headless mode.
  * @returns A Playwright-compatible Browser instance.
@@ -370,6 +388,6 @@ async function boundedStart(headless: boolean): Promise<Browser> {
  */
 export async function launchCamoufox(headless: boolean): Promise<Browser> {
   const browser = await boundedStart(headless);
-  await checkBrowserStack();
+  await checkStackSafely();
   return browser;
 }

@@ -11,6 +11,8 @@
 
 import { jest } from '@jest/globals';
 
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
+
 /** The part of a launched browser this module is responsible for. */
 interface IClosableBrowser {
   close: () => Promise<unknown>;
@@ -87,6 +89,45 @@ function closeSpy(shouldFail: boolean): IClosableBrowser['close'] {
   });
 }
 
+/** Failure text of a broken stack check. */
+const CHECK_FAILURE = 'stack check broke its never-reject contract';
+
+/**
+ * A stack check that rejects.
+ *
+ * @returns A rejected check result.
+ */
+function rejectingCheck(): Promise<number> {
+  return Promise.reject(new ScraperError(CHECK_FAILURE));
+}
+
+/**
+ * A stack check that throws before returning a promise.
+ *
+ * @returns Never; it throws.
+ */
+function throwingCheck(): Promise<number> {
+  throw new ScraperError(CHECK_FAILURE);
+}
+
+/**
+ * Launch with a stack check that fails, and report what the caller got.
+ *
+ * @param failingCheck - The check implementation for this launch.
+ * @returns The browser handed back plus its close spy.
+ */
+async function launchWithFailingCheck(
+  failingCheck: () => Promise<number>,
+): Promise<{ browser: unknown; close: IClosableBrowser['close'] }> {
+  STACK_CHECK_MOCK.mockImplementationOnce(failingCheck);
+  const close = closeSpy(false);
+  const launched = Promise.resolve({ close });
+  CAMOUFOX_MOCK.mockReturnValue(launched);
+  const browser = await LAUNCH_CAMOUFOX(true);
+  await flushPendingCallbacks();
+  return { browser, close };
+}
+
 describe('CamoufoxLauncher abandoned-launch disposal', () => {
   beforeEach(() => {
     process.env[CAMOUFOX_LAUNCH_TIMEOUT_ENV] = '5';
@@ -141,5 +182,17 @@ describe('CamoufoxLauncher abandoned-launch disposal', () => {
     deferred.arrive({ close });
     await launching;
     expect(STACK_CHECK_MOCK).toHaveBeenCalledTimes(1);
+  });
+
+  it('hands back the browser when the stack check rejects', async () => {
+    const { browser, close } = await launchWithFailingCheck(rejectingCheck);
+    expect(browser).toEqual({ close });
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it('hands back the browser when the stack check throws synchronously', async () => {
+    const { browser, close } = await launchWithFailingCheck(throwingCheck);
+    expect(browser).toEqual({ close });
+    expect(close).not.toHaveBeenCalled();
   });
 });
