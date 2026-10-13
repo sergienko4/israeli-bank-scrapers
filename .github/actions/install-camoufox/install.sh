@@ -8,10 +8,10 @@
 # the WHOLE manifest is valid. Never hardcode a version here.
 #
 # A cache hit — version.json records the pinned tag AND camoufox-bin is a
-# non-empty executable — skips the download; anything less is a miss. A
-# miss tries `camoufox-js fetch` first; camoufox-js resolves
-# the newest release inside its own supported range rather than an exact
-# tag, so any other result is replaced by the pinned release asset. Do
+# non-empty executable regular file — skips the download; anything less is a
+# miss. A miss tries `camoufox-js fetch` first; camoufox-js resolves the
+# newest release inside its own supported range rather than an exact tag, so
+# any other result is replaced by the pinned release asset. Do
 # NOT let that fallback track LATEST: v150.0.2-beta.25's locale
 # regression (navigator.language he-IL to en-US) broke
 # AntiDetection.e2e-mocked.test.ts.
@@ -40,8 +40,9 @@ fail() {
   exit 1
 }
 
+# -f first: -s and -x also hold for a searchable, non-empty directory.
 binary_ok() {
-  [ -s "$CACHE_DIR/camoufox-bin" ] && [ -x "$CACHE_DIR/camoufox-bin" ]
+  [ -f "$CACHE_DIR/camoufox-bin" ] && [ -s "$CACHE_DIR/camoufox-bin" ] && [ -x "$CACHE_DIR/camoufox-bin" ]
 }
 
 installed_version() {
@@ -73,7 +74,7 @@ install_pinned_release() {
   chmod -R 755 "$CACHE_DIR"
   # version.json goes last: a failed or partial extract leaves none, so the
   # next run sees a miss instead of trusting a half-installed cache.
-  binary_ok || fail "camoufox-bin missing or empty after extracting ${ASSET}"
+  binary_ok || fail "no usable camoufox-bin after extracting ${ASSET}"
   printf '{"version":"%s","release":"%s"}' "${EXPECTED%%-*}" "${EXPECTED#*-}" > "$CACHE_DIR/version.json"
 }
 
@@ -88,4 +89,4 @@ else
     install_pinned_release
   fi
 fi
-binary_ok || fail "camoufox-bin missing or empty in $CACHE_DIR"
+binary_ok || fail "no usable camoufox-bin in $CACHE_DIR"

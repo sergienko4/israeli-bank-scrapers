@@ -69,7 +69,8 @@ const BASE_ENV: NodeJS.ProcessEnv = Object.fromEntries(CLEAN_ENV);
  * the per-user cache); it fails unless `NPX_VERSION_JSON` says what to record.
  * `gh` writes the file its `--pattern` names, so a glob pattern would not
  * produce the asset the script unzips; `unzip` fails on a missing archive and
- * extracts a browser only when `UNZIP_BINARY` is set.
+ * puts at `camoufox-bin` what `UNZIP_BINARY` names: a `file`, a `directory`,
+ * or `nothing`.
  */
 const STUBS: readonly (readonly [string, string])[] = [
   [
@@ -92,23 +93,63 @@ const STUBS: readonly (readonly [string, string])[] = [
     'unzip',
     'echo "unzip $*" >> "$STUB_LOG"; [ -f "$2" ] || exit 9; ' +
       'while [ $# -gt 0 ]; do [ "$1" = -d ] && d="$2"; shift; done; ' +
-      '[ -n "$UNZIP_BINARY" ] && printf ELF > "$d/camoufox-bin"; exit 0',
+      'case "$UNZIP_BINARY" in file) printf ELF > "$d/camoufox-bin" ;; ' +
+      'directory) mkdir -p "$d/camoufox-bin/lib" ;; esac; exit 0',
   ],
 ];
 
 /** State of a seeded cache's `camoufox-bin`. */
-type CachedBinary = 'ok' | 'empty' | 'not-executable' | 'missing';
+type CachedBinary = 'ok' | 'empty' | 'not-executable' | 'missing' | 'directory';
 
-/** How each state is seeded: contents and mode (`-1` = not written). */
-const BINARY_SEEDS: Readonly<Record<CachedBinary, readonly [string, number]>> = {
-  ok: ['ELF', 0o755],
-  empty: ['', 0o755],
-  'not-executable': ['ELF', 0o644],
-  missing: ['', -1],
+/** What sits at `camoufox-bin`, in a seeded cache or an extracted archive. */
+type BinaryEntry = 'file' | 'directory' | 'nothing';
+
+/**
+ * Write a `camoufox-bin` file.
+ *
+ * @param file - Binary path.
+ * @param content - File contents.
+ * @param mode - File mode.
+ * @returns The binary path.
+ */
+function writeBinary(file: string, content: string, mode: number): string {
+  writeFileSync(file, content);
+  chmodSync(file, mode);
+  return file;
+}
+
+/**
+ * Make `camoufox-bin` a non-empty, searchable directory: `-s` and `-x` both
+ * hold for it, so only a regular-file check rejects it.
+ *
+ * @param file - Binary path.
+ * @returns The binary path.
+ */
+function makeBinaryDirectory(file: string): string {
+  const inner = join(file, 'lib');
+  mkdirSync(inner, { recursive: true, mode: 0o755 });
+  return file;
+}
+
+/** How each state is seeded: the entry, a file's contents, a file's mode. */
+const BINARY_SEEDS: Readonly<Record<CachedBinary, readonly [BinaryEntry, string, number]>> = {
+  ok: ['file', 'ELF', 0o755],
+  empty: ['file', '', 0o755],
+  'not-executable': ['file', 'ELF', 0o644],
+  missing: ['nothing', '', 0],
+  directory: ['directory', '', 0],
 };
 
 /** Cached-binary states that must count as a cache miss. */
-const UNUSABLE_BINARIES: readonly CachedBinary[] = ['empty', 'not-executable', 'missing'];
+const UNUSABLE_BINARIES: readonly CachedBinary[] = [
+  'empty',
+  'not-executable',
+  'missing',
+  'directory',
+];
+
+/** Archive contents the script must refuse to record as installed. */
+const UNUSABLE_ARCHIVES: readonly BinaryEntry[] = ['nothing', 'directory'];
 
 /**
  * One scenario: the manifest tag, the token, what camoufox-js does, the
@@ -120,7 +161,7 @@ interface IScenario {
   readonly npxVersionJson: string;
   readonly cachedVersionJson: string;
   readonly cachedBinary: CachedBinary;
-  readonly archiveHasBinary: boolean;
+  readonly archiveBinary: BinaryEntry;
   readonly installDir: string;
 }
 
@@ -141,7 +182,7 @@ const COLD: IScenario = {
   npxVersionJson: '',
   cachedVersionJson: '',
   cachedBinary: 'ok',
-  archiveHasBinary: true,
+  archiveBinary: 'file',
   installDir: '',
 };
 
@@ -238,11 +279,10 @@ function seedCache(cache: string, scenario: IScenario): string {
   mkdirSync(cache, { recursive: true });
   const versionFile = join(cache, 'version.json');
   writeFileSync(versionFile, scenario.cachedVersionJson);
-  const [content, mode] = BINARY_SEEDS[scenario.cachedBinary];
-  if (mode < 0) return cache;
+  const [entry, content, mode] = BINARY_SEEDS[scenario.cachedBinary];
   const binary = join(cache, 'camoufox-bin');
-  writeFileSync(binary, content);
-  chmodSync(binary, mode);
+  if (entry === 'file') writeBinary(binary, content, mode);
+  if (entry === 'directory') makeBinaryDirectory(binary);
   return cache;
 }
 
@@ -300,7 +340,7 @@ function scenarioEnv(root: string, scenario: IScenario): NodeJS.ProcessEnv {
   const stubLog = join(root, 'stub.log');
   const stubs = {
     NPX_VERSION_JSON: scenario.npxVersionJson,
-    UNZIP_BINARY: scenario.archiveHasBinary ? '1' : '',
+    UNZIP_BINARY: scenario.archiveBinary,
     STUB_LOG: stubLog,
   };
   return { ...BASE_ENV, ...token, ...installDir, ...stubs, HOME: home, TMPDIR: temp, PATH: path };
@@ -417,15 +457,18 @@ describe('install-camoufox/install.sh', () => {
     expect(run.versionJson).toBe(SAMPLE_VERSION_JSON);
   });
 
-  it('[ICS-8] an archive without camoufox-bin fails and records no version', () => {
-    const run = runInstall({ ...COLD, archiveHasBinary: false });
-    expect(run.status).toBe(1);
-    expect(run.output).toContain(
-      `ERROR: camoufox-bin missing or empty after extracting ${SAMPLE_ASSET}`,
-    );
-    expect(run.versionJson).toBe('');
-    expect(run.tempLeft).toBe(0);
-  });
+  it.each(UNUSABLE_ARCHIVES)(
+    '[ICS-8] an archive extracting %s as camoufox-bin fails and records no version',
+    content => {
+      const run = runInstall({ ...COLD, archiveBinary: content });
+      expect(run.status).toBe(1);
+      expect(run.output).toContain(
+        `ERROR: no usable camoufox-bin after extracting ${SAMPLE_ASSET}`,
+      );
+      expect(run.versionJson).toBe('');
+      expect(run.tempLeft).toBe(0);
+    },
+  );
 
   it('[ICS-9] CAMOUFOX_INSTALL_DIR is where the pin lands, not the per-user cache', () => {
     const run = runInstall({ ...COLD, installDir: CUSTOM_DIR_REL });

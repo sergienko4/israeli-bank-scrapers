@@ -303,9 +303,10 @@ Our own CI relies on the override, not on avoiding the path. Every
 `.github/actions/install-camoufox/install.sh`, which also builds the Docker CI
 mirror. The script works in the directory camoufox-js launches from:
 `CAMOUFOX_INSTALL_DIR` when set, else `~/.cache/camoufox`. A cache hit, meaning
-the pinned `version.json` plus a non-empty executable `camoufox-bin`, skips
-extraction. A cache miss runs `camoufox-js fetch` first, which extracts with
-the locked adm-zip 0.6.1. Only when that fails or yields anything other than a
+the pinned `version.json` plus a non-empty executable regular-file
+`camoufox-bin`, skips extraction. A cache miss runs `camoufox-js fetch` first,
+which extracts with the locked adm-zip 0.6.1. Only when that fails or yields
+anything other than a
 usable build of the tag pinned in `browser-stack.json` does the script clear
 the cache and fall back to the release asset plus system `unzip`. It writes
 `version.json` last, so a failed extract is never recorded as installed. CI
