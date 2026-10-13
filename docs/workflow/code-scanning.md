@@ -301,14 +301,18 @@ Residual risk for consumers is low for two independent reasons:
 Our own CI relies on the override, not on avoiding the path. Every
 `install-camoufox` call follows `setup-node-deps` (`npm ci`) and runs
 `.github/actions/install-camoufox/install.sh`, which also builds the Docker CI
-mirror. A cache hit skips extraction. A cache miss runs `camoufox-js fetch`
-first, which extracts with the locked adm-zip 0.6.1. Only when that fails or
-yields a build other than the tag pinned in `browser-stack.json` does the
-script clear the cache and fall back to the release asset plus system `unzip`.
-CI downloads it with `gh release download`; the Docker build has no token and
-uses `curl` on the public release URL. A manifest edit is a browser-stack
-change: the detector arms `critical_deps`, so the pull request runs the full
-suite.
+mirror. The script works in the directory camoufox-js launches from:
+`CAMOUFOX_INSTALL_DIR` when set, else `~/.cache/camoufox`. A cache hit, meaning
+the pinned `version.json` plus a non-empty executable `camoufox-bin`, skips
+extraction. A cache miss runs `camoufox-js fetch` first, which extracts with
+the locked adm-zip 0.6.1. Only when that fails or yields anything other than a
+usable build of the tag pinned in `browser-stack.json` does the script clear
+the cache and fall back to the release asset plus system `unzip`. It writes
+`version.json` last, so a failed extract is never recorded as installed. CI
+downloads the exact asset with `gh release download`; the Docker build has no
+token and uses `curl` on the public release URL. A manifest edit is a
+browser-stack change: the detector arms `critical_deps`, so the pull request
+runs the full suite.
 
 **Action:** keep the override until camoufox-js declares `>=0.6.1` itself, then
 drop it. Watch the advisory: it bounds the range by `last_affected`, so a

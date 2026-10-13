@@ -49,7 +49,9 @@ runs:
         path: ~/.cache/camoufox
         # Cache the deterministic v152 binary, keyed by the exact pinned
         # tag; the install step below refuses to populate this key with
-        # any other release.
+        # any other release. The path is install.sh's default directory: a
+        # job that sets CAMOUFOX_INSTALL_DIR still gets the pinned build,
+        # only uncached.
         key: camoufox-bin-${{ steps.camoufox-tag.outputs.tag }}
     - name: Install Camoufox browser
       shell: bash

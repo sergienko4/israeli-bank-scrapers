@@ -30,7 +30,7 @@ const REAL_MANIFEST = join(REPO_ROOT, 'browser-stack.json');
 const MISSING_MANIFEST = join(REPO_ROOT, 'no-such-browser-stack.json');
 
 /** Matches the Camoufox release tag shape the CI cache key is built from. */
-const CAMOUFOX_TAG = /^v\d+\.\d+\.\d+-(alpha|beta)\.\d+$/u;
+const CAMOUFOX_TAG = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-(alpha|beta)\.(0|[1-9]\d*)$/u;
 
 /**
  * A well-formed tag that is deliberately NOT the pinned one, so the live tag
@@ -242,10 +242,33 @@ const INVALID_CASES: readonly IInvalidCase[] = [
     value: { ...BASE_DELTA, reason: 'another ten-plus reason' },
     pointer: '/acceptedDeltas/1',
   },
+  {
+    id: 'BSM-33',
+    what: 'a leading-zero tag version',
+    at: '/camoufox/tag',
+    value: 'v0100.0.0-beta.1',
+    pointer: '/camoufox/tag',
+  },
+  {
+    id: 'BSM-34',
+    what: 'a leading-zero prerelease number',
+    at: '/camoufox/tag',
+    value: 'v100.0.0-beta.01',
+    pointer: '/camoufox/tag',
+  },
+  {
+    id: 'BSM-35',
+    what: 'a leading-zero minor',
+    at: '/playwrightCore/testedMinor',
+    value: '1.063',
+    pointer: '/playwrightCore/testedMinor',
+  },
 ];
 
 const VALID_EDITS: readonly IEdit[] = [
   { what: 'an alpha tag', at: '/camoufox/tag', value: 'v156.0.1-alpha.3' },
+  { what: 'zero version components', at: '/camoufox/tag', value: 'v0.0.0-beta.0' },
+  { what: 'a zero minor', at: '/playwrightCore/testedMinor', value: '2.0' },
   { what: 'no accepted deltas', at: '/acceptedDeltas', value: [] },
   {
     what: 'an ENUM-VALUE suffix',

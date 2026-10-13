@@ -409,6 +409,20 @@ function detectFor(path: string): Readonly<Record<string, string>> {
   }
 }
 
+/**
+ * Ask the REAL repo's ignore rules about one path, as a new untracked file.
+ *
+ * @param path - Repo-relative path.
+ * @returns The deciding pattern (`''` when none matches; a `!` prefix means
+ *   re-included) and the path git reported, which proves git actually ran.
+ */
+function ignoreVerdict(path: string): readonly [string, string] {
+  const line = git(REPO_ROOT, 'check-ignore', '-v', '-n', '--no-index', path);
+  const [source = '', reported = ''] = line.split('\t');
+  const pattern = source.split(':').slice(2).join(':');
+  return [pattern, reported];
+}
+
 describe('CriticalDepsFullSuiteGate', () => {
   it.each(HEAVY_JOB_KEYS)('[CI-CRIT-GATE] PrYaml_HeavyJob_%s_ShouldGateOnFullSuite', jobKey => {
     const condition = jobCondition(jobKey);
@@ -465,6 +479,14 @@ describe('CriticalDepsFullSuiteGate', () => {
       expect(flags).toMatchObject({ src: 'false', critical_deps: 'false', full_suite: 'false' });
     },
   );
+
+  // An ignored critical path needs `git add -f` to land, so the detector
+  // entry above would guard a file the tree can silently drop.
+  it.each(BROWSER_STACK_PATHS)('[CI-CRIT-GATE] GitIgnore_%s_ShouldStayTrackable', path => {
+    const [pattern, reported] = ignoreVerdict(path);
+    expect(reported).toBe(path);
+    expect(pattern).toMatch(/^(!.*)?$/u);
+  });
 
   it('[CI-CRIT-GATE] Detector_FullSuite_ShouldBeSrcOrCriticalDeps', () => {
     const script = read(DETECTOR);

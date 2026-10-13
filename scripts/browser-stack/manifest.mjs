@@ -20,8 +20,11 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { argv, exit, stderr, stdout } from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const CAMOUFOX_TAG = /^v\d+\.\d+\.\d+-(alpha|beta)\.\d+$/u;
-const SEMVER_MINOR = /^\d+\.\d+$/u;
+// Numeric identifiers follow SemVer §2/§9: `0` or no leading zero, so
+// `v01.0.0-beta.02` fails here as MANIFEST-INVALID, not later as a
+// missing release.
+const CAMOUFOX_TAG = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-(alpha|beta)\.(0|[1-9]\d*)$/u;
+const SEMVER_MINOR = /^(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
 const DELTA_PATH = /^[A-Z][A-Za-z]+\.[A-Za-z]+(\.[A-Za-z]+|\[\])*(=[^=\s]+)?$/u;
 const DELTA_SIGNATURE = /^src:.+\|dst:.+$/u;
 const DEFAULT_MANIFEST = fileURLToPath(new URL('../../browser-stack.json', import.meta.url));
@@ -90,17 +93,28 @@ function at(/** @type {unknown} */ doc, /** @type {string} */ pointer) {
 const token = (/** @type {string} */ key) => key.replaceAll('~', '~0').replaceAll('/', '~1');
 
 /** @returns {ManifestIssue[]} Non-object, missing-key and extra-key findings. */
-function shapeIssues(/** @type {unknown} */ node, /** @type {string} */ pointer, /** @type {readonly string[]} */ keys) {
+function shapeIssues(
+  /** @type {unknown} */ node,
+  /** @type {string} */ pointer,
+  /** @type {readonly string[]} */ keys,
+) {
   if (node === undefined) return [];
   if (!isRecord(node)) return [{ pointer, reason: 'must be an object' }];
   const missing = keys.filter(key => !Object.hasOwn(node, key));
   const extra = Object.keys(node).filter(key => !keys.includes(key));
-  const tag = (/** @type {string} */ reason) => (/** @type {string} */ key) => ({ pointer: `${pointer}/${token(key)}`, reason });
+  const tag = (/** @type {string} */ reason) => (/** @type {string} */ key) => ({
+    pointer: `${pointer}/${token(key)}`,
+    reason,
+  });
   return [...missing.map(tag('is required')), ...extra.map(tag('is not allowed'))];
 }
 
 /** @returns {ManifestIssue[]} Every present value under `base` that breaks its rule. */
-function ruleIssues(/** @type {unknown} */ doc, /** @type {string} */ base, /** @type {readonly FieldRule[]} */ rules) {
+function ruleIssues(
+  /** @type {unknown} */ doc,
+  /** @type {string} */ base,
+  /** @type {readonly FieldRule[]} */ rules,
+) {
   const node = at(doc, base);
   return rules
     .map(([path, ok, reason]) => ({ pointer: `${base}${path}`, value: at(node, path), ok, reason }))
@@ -116,11 +130,18 @@ function deltaIssues(/** @type {unknown} */ doc, /** @type {number} */ index) {
 
 /** @returns {ManifestIssue[]} One finding per accepted delta repeating an earlier identity. */
 function duplicateIssues(/** @type {readonly unknown[]} */ deltas) {
-  const identities = deltas.map(d => (isRecord(d) ? JSON.stringify([d.channel, d.kind, d.path, d.signature]) : ''));
+  const identities = deltas.map(d =>
+    isRecord(d) ? JSON.stringify([d.channel, d.kind, d.path, d.signature]) : '',
+  );
   return identities.flatMap((identity, index) => {
     const first = identities.indexOf(identity);
     if (identity === '' || first === index) return [];
-    return [{ pointer: `/acceptedDeltas/${index}`, reason: `duplicates the identity of /acceptedDeltas/${first}` }];
+    return [
+      {
+        pointer: `/acceptedDeltas/${index}`,
+        reason: `duplicates the identity of /acceptedDeltas/${first}`,
+      },
+    ];
   });
 }
 
@@ -132,9 +153,12 @@ function duplicateIssues(/** @type {readonly unknown[]} */ deltas) {
  */
 export function validateManifest(doc) {
   if (!isRecord(doc)) return [{ pointer: '', reason: 'must be an object' }];
-  const shapes = Object.entries(SHAPES).flatMap(([pointer, keys]) => shapeIssues(at(doc, pointer), pointer, keys));
+  const shapes = Object.entries(SHAPES).flatMap(([pointer, keys]) =>
+    shapeIssues(at(doc, pointer), pointer, keys),
+  );
   const deltas = doc.acceptedDeltas;
-  if (deltas !== undefined && !Array.isArray(deltas)) shapes.push({ pointer: '/acceptedDeltas', reason: 'must be an array' });
+  if (deltas !== undefined && !Array.isArray(deltas))
+    shapes.push({ pointer: '/acceptedDeltas', reason: 'must be an array' });
   const list = Array.isArray(deltas) ? deltas : [];
   const perDelta = list.flatMap((_, index) => deltaIssues(doc, index));
   return [...shapes, ...ruleIssues(doc, '', ROOT_RULES), ...perDelta, ...duplicateIssues(list)];
@@ -158,7 +182,9 @@ export function loadManifest(file) {
 }
 
 /** Selectors a CLI command prints from a valid manifest. */
-const COMMANDS = Object.freeze({ tag: (/** @type {{ camoufox: { tag: string } }} */ m) => m.camoufox.tag });
+const COMMANDS = Object.freeze({
+  tag: (/** @type {{ camoufox: { tag: string } }} */ m) => m.camoufox.tag,
+});
 
 /** CLI entry: print the selected field of a valid manifest, else fail closed. */
 function main() {
@@ -168,7 +194,8 @@ function main() {
     exit(2);
   }
   const { manifest, issues } = loadManifest(file);
-  for (const { pointer, reason } of issues) stderr.write(`MANIFEST-INVALID ${pointer || '(root)'} ${reason}\n`);
+  for (const { pointer, reason } of issues)
+    stderr.write(`MANIFEST-INVALID ${pointer || '(root)'} ${reason}\n`);
   if (manifest === undefined) exit(2);
   stdout.write(`${COMMANDS[/** @type {'tag'} */ (command)](manifest)}\n`);
 }
@@ -176,4 +203,8 @@ function main() {
 /** Canonical file URL, so a symlinked entry still matches `import.meta.url`. */
 const canonicalHref = (/** @type {string} */ path) => pathToFileURL(realpathSync(path)).href;
 
-if (argv[1] !== undefined && canonicalHref(argv[1]) === canonicalHref(fileURLToPath(import.meta.url))) main();
+if (
+  argv[1] !== undefined &&
+  canonicalHref(argv[1]) === canonicalHref(fileURLToPath(import.meta.url))
+)
+  main();
