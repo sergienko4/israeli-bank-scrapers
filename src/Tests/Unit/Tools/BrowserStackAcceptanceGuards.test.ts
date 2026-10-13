@@ -2,24 +2,23 @@
  * Browser-stack acceptance guards.
  *
  * <p>`browser-stack.json` accepts Juggler deltas that break only a feature
- * this package does not use: a fixed viewport, HTTP credentials, screencast,
- * WebSocket frames. The gate that reads the manifest runs only when the
- * browser stack moves, so a src-only change could start using one of them
- * and leave a now-harmful delta accepted. This suite runs with the unit tests
- * on every src change and checks the premise of each acceptance.
+ * this package does not use (HTTP credentials) or a method playwright-core
+ * never sends (`Browser.setScreencastOptions`). The gate that reads the
+ * manifest runs only when the browser stack moves, so a src-only change
+ * could start using one of them and leave a now-harmful delta accepted. This
+ * suite runs with the unit tests on every src change and checks the premise
+ * of each acceptance.
  *
  * Rules:
  *   BSG-1  every accepted delta has exactly one guard, and every guard a delta
  *   BSG-2  no usage guard matches non-test src
- *   BSG-3  both context builders keep the viewport null and set no option
- *          that sends a guarded command
+ *   BSG-3  both context builders set no option that sends a guarded command
  *   BSG-4  every context src creates takes its options from a builder: each
  *          newContext gets an untouched const the checker resolves to a
  *          builder, each newPage runs on a playwright BrowserContext, and no
  *          persistent context exists
  *   BSG-5  playwright-core still never sends a method Camoufox lacks
- *   BSG-6  the test that pins the screenshot as best-effort still exists
- *   BSG-7  each pattern flags a planted use and passes clean code
+ *   BSG-6  each pattern flags a planted use and passes clean code
  */
 
 import * as fs from 'node:fs';
@@ -40,26 +39,18 @@ const SRC_DIR = path.join(REPO_ROOT, 'src');
 const TESTS_DIR = path.join(SRC_DIR, 'Tests');
 const CORE_LIB_DIR = path.join(REPO_ROOT, 'node_modules', 'playwright-core', 'lib');
 const MANIFEST = path.join(REPO_ROOT, 'browser-stack.json');
-const SCREENSHOT_PIN = path.join(TESTS_DIR, 'Unit', 'Common', 'SafeScreenshot.test.ts');
-const SCREENSHOT_PIN_TITLE = 'safeScreenshot — swallows capture errors';
 
 /** A Juggler send playwright-core makes, proving the core scan reads its send sites. */
 const KNOWN_CORE_SEND = '"Browser.setDefaultViewport"';
 
 /** Context options that would send a guarded command. */
-const GUARDED_OPTIONS: readonly string[] = [
-  'screen',
-  'isMobile',
-  'deviceScaleFactor',
-  'httpCredentials',
-  'recordVideo',
-];
+const GUARDED_OPTIONS: readonly string[] = ['httpCredentials'];
 
 const MODULE_RE = /\.[cm]?ts$/u;
 const TEST_MODULE_RE = /\.test\.[cm]?ts$/u;
 
 /** Where a guard looks for the use that would make its delta harmful. */
-type GuardScope = 'src' | 'playwright-core' | 'consumer';
+type GuardScope = 'src' | 'playwright-core';
 
 /** The premise of one acceptance. */
 interface IGuard {
@@ -80,61 +71,27 @@ interface IAcceptedDelta {
   readonly path: string;
 }
 
-/** Viewport emulation: the page call, its options and device descriptors. */
-const VIEWPORT: IGuard = {
-  scope: 'src',
-  patterns: [
-    /\bsetViewportSize\b/u,
-    /\bisMobile\b/u,
-    /\bscreenSize\b/u,
-    /\bdeviceScaleFactor\b/u,
-    /\bdevices\s*\[/u,
-  ],
-};
 const CREDENTIALS: IGuard = {
   scope: 'src',
   patterns: [/\bhttpCredentials\b/u, /\bsetHTTPCredentials\b/u],
 };
-const SCREENCAST: IGuard = { scope: 'src', patterns: [/\brecordVideo\b/u, /screencast/iu] };
-const WEBSOCKET: IGuard = { scope: 'src', patterns: [/websocket/iu] };
 const SCREENCAST_OPTIONS: IGuard = {
   scope: 'playwright-core',
   patterns: [/\bsetScreencastOptions\b/u],
 };
-/** A consumer's `.webp` screenshot path; the capture is best-effort (BSG-6). */
-const WEBP_SCREENSHOT: IGuard = { scope: 'consumer', patterns: [] };
 
 /** Each accepted delta, as `channel kind path`, and the guard on its premise. */
 const GUARDS: Readonly<Record<string, IGuard>> = {
-  'request UNKNOWN-FIELD Browser.setDefaultViewport.viewport.isMobile': VIEWPORT,
-  'request UNKNOWN-FIELD Browser.setDefaultViewport.viewport.screenSize': VIEWPORT,
   'request TYPE-MISMATCH Browser.setHTTPCredentials.credentials': CREDENTIALS,
   'request MISSING-METHOD Browser.setScreencastOptions': SCREENCAST_OPTIONS,
-  'request MISSING-REQUIRED-FIELD Page.screencastFrameAck.screencastId': SCREENCAST,
-  'request ENUM-VALUE Page.screenshot.mimeType="image/webp"': WEBP_SCREENSHOT,
-  'request UNKNOWN-FIELD Page.setViewportSize.deviceScaleFactor': VIEWPORT,
-  'request UNKNOWN-FIELD Page.setViewportSize.isMobile': VIEWPORT,
-  'request UNKNOWN-FIELD Page.setViewportSize.screenSize': VIEWPORT,
-  'event MISSING-REQUIRED-FIELD Page.screencastFrame.timestamp': SCREENCAST,
-  'event MISSING-REQUIRED-FIELD Page.webSocketFrameReceived.timestamp': WEBSOCKET,
-  'event MISSING-REQUIRED-FIELD Page.webSocketFrameSent.timestamp': WEBSOCKET,
 };
 const SRC_GUARDS = Object.values(GUARDS).filter(guard => guard.scope === 'src');
 const SRC_PATTERNS = [...new Set(SRC_GUARDS.flatMap(guard => guard.patterns))];
 
 /** Planted uses; each must be flagged, and together they hit every src pattern. */
 const PLANTED: readonly string[] = [
-  'await page.setViewportSize({ width: 1, height: 1 });',
-  'const options = { isMobile: true };',
-  'const screenSize = { width: 1, height: 1 };',
-  'const options = { deviceScaleFactor: 2 };',
-  "const phone = devices['Pixel 5'];",
   "await browser.newContext({ httpCredentials: { username: 'u', password: 'p' } });",
   "await context.setHTTPCredentials({ username: 'u', password: 'p' });",
-  "await browser.newContext({ recordVideo: { dir: 'v' } });",
-  'await page.screencast.start();',
-  "page.on('websocket', socket => socket.url());",
-  "await page.routeWebSocket('wss://x', socket => socket.close());",
 ];
 
 /** Builder options, then a statement that reaches them. */
@@ -353,10 +310,9 @@ describe('browser-stack acceptance guards', () => {
     ['src/Common/Browser.ts', commonContextOptions()],
     ['BrowserContextBuilder, cold', pipelineContextOptions()],
     ['BrowserContextBuilder, saved session', pipelineContextOptions('state.json')],
-  ])('[BSG-3] %s keeps the viewport null and sets no guarded option', (_name, options) => {
+  ])('[BSG-3] %s sets no guarded option', (_name, options) => {
     const keys = Object.keys(options);
     const guarded = keys.filter(key => GUARDED_OPTIONS.includes(key));
-    expect(options.viewport).toBeNull();
     expect(guarded).toEqual([]);
   });
 
@@ -390,18 +346,13 @@ describe('browser-stack acceptance guards', () => {
     expect(findings).toEqual([]);
   });
 
-  it('[BSG-6] the test that pins the screenshot as best-effort still exists', () => {
-    const pin = fs.readFileSync(SCREENSHOT_PIN, 'utf8');
-    expect(pin).toContain(SCREENSHOT_PIN_TITLE);
-  });
-
-  it.each(PLANTED)('[BSG-7] flags the planted use %s', snippet => {
+  it.each(PLANTED)('[BSG-6] flags the planted use %s', snippet => {
     const source = planted(snippet);
     const findings = usageFindings([source], SRC_PATTERNS);
     expect(findings).not.toEqual([]);
   });
 
-  it('[BSG-7] every src pattern flags some planted use', () => {
+  it('[BSG-6] every src pattern flags some planted use', () => {
     const plantedSources = PLANTED.map(planted);
     const dead = SRC_PATTERNS.filter(pattern => {
       const hits = usageFindings(plantedSources, [pattern]);
@@ -410,12 +361,12 @@ describe('browser-stack acceptance guards', () => {
     expect(dead).toEqual([]);
   });
 
-  it.each(unbuiltCases)('[BSG-7] flags the unbuilt context %s', (_snippet, file) => {
+  it.each(unbuiltCases)('[BSG-6] flags the unbuilt context %s', (_snippet, file) => {
     const findings = contextFindings(scan, file.path);
     expect(findings).not.toEqual([]);
   });
 
-  it('[BSG-7] passes clean code', () => {
+  it('[BSG-6] passes clean code', () => {
     const source = planted(CLEAN);
     const usage = usageFindings([source], SRC_PATTERNS);
     const contexts = contextFindings(scan, cleanFile.path);

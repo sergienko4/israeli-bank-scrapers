@@ -1,9 +1,9 @@
 {
   "$comment": "Single source of the tested browser stack. CI installs camoufox.tag and the browser-stack gate checks playwright-core against it. camoufox.linuxX64Sha256 is the SHA-256 of that release's lin.x86_64.zip asset (its GitHub digest without the sha256: prefix); the installer refuses any other bytes, so move it with the tag. camoufox.protocolSha256 and playwrightCore.protocolSha256 (keyed by exact x.y.z version) are the SHA-256 of each side's Juggler Protocol.js as the gate fetches it; the gate refuses bytes that differ from a pin, but only reports, never fails, a version or tag that no pin covers, so move the Camoufox pin with the tag and add the version pin with the playwright-core bump. The values are the tested pair: change only the component being upgraded, and raise testedMinor only after its gate and contract tests pass; scripts/browser-stack/manifest.mjs validates this file.",
   "camoufox": {
-    "tag": "v152.0.4-beta.28",
-    "linuxX64Sha256": "924f3109ccd6d47cd6a0384d67a345fadf975d48b6319f8dbbd5954c588982bd",
-    "protocolSha256": "7e6f0dcd4c26ce8a0040c4c75aa58de494eef63622d13af6f904dc6e218d7e04"
+    "tag": "v156.0.1-beta.36",
+    "linuxX64Sha256": "72637885ee67c93466ad377831c647192f8f08fb5c6fd9279de1320b49dd2b53",
+    "protocolSha256": "d7bad1be5746cf6e71774963bc0e9d859f8edc4a003a0705fefb4d525034c9ec"
   },
   "playwrightCore": {
     "testedMinor": "1.63",
@@ -12,20 +12,6 @@
     }
   },
   "acceptedDeltas": [
-    {
-      "channel": "request",
-      "kind": "UNKNOWN-FIELD",
-      "path": "Browser.setDefaultViewport.viewport.isMobile",
-      "signature": "src:Optional(Boolean)|dst:absent",
-      "reason": "Sent only for a context with a fixed viewport; buildContextOptions (src/Common/Browser.ts) sets viewport: null and never sets isMobile."
-    },
-    {
-      "channel": "request",
-      "kind": "UNKNOWN-FIELD",
-      "path": "Browser.setDefaultViewport.viewport.screenSize",
-      "signature": "src:Optional(Object)|dst:absent",
-      "reason": "Sent only for a context with a fixed viewport; buildContextOptions (src/Common/Browser.ts) sets viewport: null and never sets a screen size."
-    },
     {
       "channel": "request",
       "kind": "TYPE-MISMATCH",
@@ -39,62 +25,6 @@
       "path": "Browser.setScreencastOptions",
       "signature": "src:{browserContextId,options}|dst:absent",
       "reason": "playwright-core 1.63.0 never sends it (0 occurrences in lib/coreBundle.js); re-check when playwright-core is upgraded."
-    },
-    {
-      "channel": "request",
-      "kind": "MISSING-REQUIRED-FIELD",
-      "path": "Page.screencastFrameAck.screencastId",
-      "signature": "src:absent|dst:String",
-      "reason": "Screencast only (recordVideo, page.screencast); src uses neither (0 recordVideo or screencast in src)."
-    },
-    {
-      "channel": "request",
-      "kind": "ENUM-VALUE",
-      "path": "Page.screenshot.mimeType=\"image/webp\"",
-      "signature": "src:Enum(\"image/jpeg\"|\"image/png\"|\"image/webp\")|dst:Enum(\"image/jpeg\"|\"image/png\")",
-      "reason": "safeScreenshot (SafeScreenshot.ts) passes a path; playwright-core infers WebP from a consumer .webp storeFailureScreenShotPath, this Camoufox rejects it, and the best-effort capture is skipped (returns false)."
-    },
-    {
-      "channel": "request",
-      "kind": "UNKNOWN-FIELD",
-      "path": "Page.setViewportSize.deviceScaleFactor",
-      "signature": "src:Optional(Number)|dst:absent",
-      "reason": "Sent only to emulate a viewport (page.setViewportSize or a fixed context viewport); src never calls setViewportSize and contexts use viewport: null."
-    },
-    {
-      "channel": "request",
-      "kind": "UNKNOWN-FIELD",
-      "path": "Page.setViewportSize.isMobile",
-      "signature": "src:Optional(Boolean)|dst:absent",
-      "reason": "Sent only to emulate a viewport (page.setViewportSize or a fixed context viewport); src never calls setViewportSize and contexts use viewport: null."
-    },
-    {
-      "channel": "request",
-      "kind": "UNKNOWN-FIELD",
-      "path": "Page.setViewportSize.screenSize",
-      "signature": "src:Optional(Object)|dst:absent",
-      "reason": "Sent only to emulate a viewport (page.setViewportSize or a fixed context viewport); src never calls setViewportSize and contexts use viewport: null."
-    },
-    {
-      "channel": "event",
-      "kind": "MISSING-REQUIRED-FIELD",
-      "path": "Page.screencastFrame.timestamp",
-      "signature": "src:absent|dst:Number",
-      "reason": "Camoufox omits timestamp, which playwright-core reads to place video frames. Screencast only (recordVideo, page.screencast); src uses neither (0 recordVideo or screencast in src)."
-    },
-    {
-      "channel": "event",
-      "kind": "MISSING-REQUIRED-FIELD",
-      "path": "Page.webSocketFrameReceived.timestamp",
-      "signature": "src:absent|dst:Number",
-      "reason": "WebSocket frame events only; Camoufox omits timestamp, which matters only to WebSocket listeners, and src has none (0 webSocket in src)."
-    },
-    {
-      "channel": "event",
-      "kind": "MISSING-REQUIRED-FIELD",
-      "path": "Page.webSocketFrameSent.timestamp",
-      "signature": "src:absent|dst:Number",
-      "reason": "WebSocket frame events only; Camoufox omits timestamp, which matters only to WebSocket listeners, and src has none (0 webSocket in src)."
     }
   ]
 }

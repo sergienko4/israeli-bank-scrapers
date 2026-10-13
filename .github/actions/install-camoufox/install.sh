@@ -11,8 +11,8 @@
 # Every run installs from release-asset bytes that hash to the pinned
 # digest, and trusts nothing already on disk: an install left by an earlier
 # run, or restored from a cache, could hold any binary. Checking it would
-# need a second pin per release for the ~1.3 GB extracted tree, so the
-# script checks the ~663 MB asset instead and extracts it on every run.
+# need a second pin per release for the whole extracted tree, so the
+# script checks the one asset file instead and extracts it on every run.
 #
 # The asset is the copy kept in CAMOUFOX_ASSET_DIR when that is set and the
 # copy still hashes to the pin; the action restores that directory from its
@@ -30,11 +30,11 @@
 # never replaces one. CI jobs and the Docker build always start without one;
 # to reinstall, remove the old install first.
 #
-# It never runs `camoufox-js fetch`: that resolves the newest release inside
-# camoufox-js's own range (`>=alpha.1, <1`), not an exact tag, so it matches
-# the pin only when the pin is the newest release. Do NOT track LATEST:
-# v150.0.2-beta.25's locale regression (navigator.language he-IL to en-US)
-# broke AntiDetection.e2e-mocked.test.ts.
+# It never runs `camoufox-js fetch`: that resolves the newest non-prerelease
+# release inside camoufox-js's own range (`>=alpha.1, <1`), not an exact tag,
+# so it matches the pin only when the pin is that release. Do NOT track
+# LATEST: a past release's locale regression (navigator.language he-IL to
+# en-US) broke AntiDetection.e2e-mocked.test.ts.
 set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -94,7 +94,8 @@ download_asset() {
 }
 
 # Streamed through node, which this script already needs, rather than
-# sha256sum: macOS ships shasum instead, and the asset is over 600 MB.
+# sha256sum: macOS ships shasum instead, and streaming keeps the large asset
+# out of memory.
 sha256_of() {
   node -e 'const h = require("crypto").createHash("sha256");
     require("fs").createReadStream(process.argv[1])

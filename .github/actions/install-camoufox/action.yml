@@ -9,25 +9,20 @@ inputs:
 runs:
   using: composite
   steps:
-    # Camoufox is pinned to the v152 stable line (exact tag: browser-stack.json),
-    # matching @hieutran094/camoufox-js ^0.11.2 and playwright-core
-    # ^1.62.0 in package.json (Firefox 152 juggler protocol). playwright
-    # 1.61 shipped the Firefox 151 client and 1.62 ships Firefox 153, so
-    # v152 is the only Camoufox line inside that window. Upstream
-    # declared the previous v135 pin obsolete ("terribly out of date and
-    # unsuitable for modern anti-bot systems"), and v152.0.4-beta.26
-    # restored locale-from-launch-argument handling plus the screenshot,
-    # popup-event and tap/touch paths Firefox 152 initially broke.
-    # playwright still needs the guard on pageError.location (Camoufox
-    # omits it) — see scripts/patch-playwright-core.mjs. camoufox-js
-    # resolves the newest release inside its own supported range rather
-    # than an exact tag, so the install step never asks it: it installs
-    # the pinned tag's release asset. Do NOT track LATEST: v150.0.2's
-    # locale handling regressed `navigator.language` (returned `en-US`
-    # even when the context declared `he-IL`), breaking
-    # `AntiDetection.e2e-mocked.test.ts`.
-    # From v152.0.2-alpha upstream no longer builds 32-bit or macOS
-    # x86_64 assets; CI only consumes `camoufox-*-lin.x86_64.zip`.
+    # Camoufox is pinned to one exact release: `camoufox.tag` in
+    # browser-stack.json, the single source of the tested browser stack.
+    # The pinned build must speak the juggler protocol of the playwright-core
+    # in package.json; `npm run lint:browser-stack` diffs the two and fails
+    # on any difference the manifest does not list as reviewed. playwright
+    # still needs the guard on pageError.location (Camoufox omits it) — see
+    # scripts/patch-playwright-core.mjs. camoufox-js resolves the newest
+    # non-prerelease release inside its own supported range rather than an
+    # exact tag, so the install step never asks it: it installs the pinned
+    # tag's release asset. Move the pin only by editing the manifest; do NOT
+    # track LATEST: a past release regressed `navigator.language` (returned
+    # `en-US` even when the context declared `he-IL`), breaking
+    # `AntiDetection.e2e-mocked.test.ts`. CI only consumes
+    # `camoufox-*-lin.x86_64.zip`.
     - name: Resolve pinned Camoufox tag
       id: camoufox-tag
       shell: bash
@@ -45,7 +40,7 @@ runs:
         sha256=$(node "$validator" sha256)
         echo "tag=${tag}" >> "$GITHUB_OUTPUT"
         echo "sha256=${sha256}" >> "$GITHUB_OUTPUT"
-    # The cache holds the ~663 MB release asset, never the install: a
+    # The cache holds the release asset, never the install: a
     # restored install could hold any binary, while install.sh re-hashes a
     # restored asset against the pin and downloads again on a mismatch.
     # Each run saves under its own key and restore-keys picks the newest

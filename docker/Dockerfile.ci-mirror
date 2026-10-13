@@ -67,7 +67,8 @@ RUN npm ci --prefer-offline --ignore-scripts
 # the asset unzips flat, putting `camoufox-bin` at the path the tests
 # expect. Copied after `npm ci` so a tag bump rebuilds only this layer.
 # The image bundles the browser so per-bank containers don't re-download
-# on every run; ~705 MB cache lives at `/root/.cache/camoufox`.
+# on every run; the cache lives at `/root/.cache/camoufox` and its size
+# follows the pinned release.
 COPY browser-stack.json ./
 COPY scripts/browser-stack/manifest.mjs scripts/browser-stack/
 COPY .github/actions/install-camoufox/install.sh .github/actions/install-camoufox/
