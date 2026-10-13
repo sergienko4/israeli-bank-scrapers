@@ -2,10 +2,11 @@
  * Bounded HTTPS fetch of one Juggler `Protocol.js` for the browser-stack gate.
  *
  * Only `https://raw.githubusercontent.com` is reachable, redirect hops
- * included. Each attempt has a timeout; network errors (timeouts included)
- * and HTTP 5xx are retried with backoff, a 4xx never is, and the body is
- * capped while it streams. Every failure is a {@link FetchFailedError}, which
- * the gate reports as infrastructure (exit 2) — never as a pass.
+ * included. Each attempt has a timeout; network errors (timeouts included),
+ * HTTP 5xx and HTTP 429 (rate limited) are retried with backoff, any other
+ * 4xx never is, and the body is capped while it streams. Every failure is a
+ * {@link FetchFailedError}, which the gate reports as infrastructure
+ * (exit 2) — never as a pass.
  *
  * Camoufox has moved its source tree before, so the browser side is a list of
  * candidate URLs, newest layout first; only an HTTP 404 moves on to the next.
@@ -23,6 +24,9 @@ export const MAX_BODY_BYTES = 524_288;
 const BACKOFF_MS = Object.freeze([1000, 2000]);
 const MAX_REDIRECTS = 3;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+/** GitHub's rate-limit answer; it clears on its own, so it is retried like a 5xx. */
+const RATE_LIMITED = 429;
 
 /** Camoufox source roots, newest first: `browser/` wraps them from v156.0.1-beta.37. */
 const CAMOUFOX_ROOTS = Object.freeze(['browser/additions', 'additions']);
@@ -117,11 +121,11 @@ const networkReason = (error, io) =>
     ? `timed out after ${io.timeoutMs} ms`
     : `network error (${String(error?.cause?.code ?? error?.message ?? error)})`;
 
-/** A non-2xx answer: 5xx may be transient, anything else is final. */
+/** A non-2xx answer: 5xx and 429 may be transient, anything else is final. */
 async function statusFailure(/** @type {string} */ href, /** @type {Response} */ response) {
   await response.body?.cancel();
   const failure = new FetchFailedError(href, `HTTP ${response.status}`, response.status);
-  return { failure, retry: response.status >= 500 };
+  return { failure, retry: response.status >= 500 || response.status === RATE_LIMITED };
 }
 
 /** One attempt: `{ bytes }`, or `{ failure, retry }`. */

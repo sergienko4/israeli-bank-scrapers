@@ -497,6 +497,22 @@ const INFRA_CASES: readonly IInfraCase[] = [
     sleeps: BACKOFF,
   },
   {
+    id: 'BSG-43',
+    what: 'a 429 on all 3 attempts',
+    scenario: { client: statuses([429, 429, 429]) },
+    err: `FETCH-FAILED ${CLIENT_URL} HTTP 429`,
+    fetches: 4,
+    sleeps: BACKOFF,
+  },
+  {
+    id: 'BSG-44',
+    what: 'a 403 is final',
+    scenario: { client: statuses([403]) },
+    err: `FETCH-FAILED ${CLIENT_URL} HTTP 403`,
+    fetches: 2,
+    sleeps: [],
+  },
+  {
     id: 'BSG-24',
     what: 'a body that never ends is cut at the cap',
     scenario: { client: endless },
@@ -667,13 +683,16 @@ describe('browser-stack gate verdict', () => {
 });
 
 describe('browser-stack gate fetch policy', () => {
-  it('[BSG-10] recovers when a 5xx clears, after backing off 1 s then 2 s', async () => {
-    const run = await gate([], { client: statuses([503, 503]) });
-    expect(run.code).toBe(0);
-    expect(run.sleeps).toEqual(BACKOFF);
-    const clientCalls = run.urls.filter((url): boolean => url === CLIENT_URL);
-    expect(clientCalls).toHaveLength(3);
-  });
+  it.each([503, 429])(
+    '[BSG-10] recovers when a %i clears, after backing off 1 s then 2 s',
+    async status => {
+      const run = await gate([], { client: statuses([status, status]) });
+      expect(run.code).toBe(0);
+      expect(run.sleeps).toEqual(BACKOFF);
+      const clientCalls = run.urls.filter((url): boolean => url === CLIENT_URL);
+      expect(clientCalls).toHaveLength(3);
+    },
+  );
 
   it('[BSG-11] accepts a body of exactly the cap', async () => {
     const padded = CLIENT.padEnd(MAX_BODY_BYTES, ' ');
