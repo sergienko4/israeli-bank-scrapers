@@ -97,6 +97,10 @@ The script is idempotent and never fails an install — re-running it on an
 already-guarded tree is a no-op. Set `SKIP_PLAYWRIGHT_CORE_PATCH=1` to opt out
 entirely if you manage `playwright-core` patches yourself.
 
+To check that the guard is in place, add `--strict`. It exits 0 only when every
+guarded read is present, and otherwise exits 1, printing
+`MISSING-GUARD <index> <unguarded read>` for each one it could not guard.
+
 !!! note "Why a `scripts/` path exists in an installed package"
     Only `lib/**` ships normally. `scripts/patch-playwright-core.mjs` is the
     one deliberate exception in the package `files` allowlist, because the

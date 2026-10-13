@@ -20,11 +20,18 @@
  *
  * Guarantees: never fails an install (always exits 0) and never writes when
  * the guard is already present. Set `SKIP_PLAYWRIGHT_CORE_PATCH=1` to opt out.
+ *
+ * `--strict` (CI only; postinstall never passes it) turns the outcome into
+ * proof: exit 0 only when every guarded form is present after patching,
+ * checked per guard because one renamed read can hide behind the others.
+ * Each absent form prints `MISSING-GUARD <index> <unguarded read>`. Any
+ * skip — unresolvable package, opt-out, read or write error — exits 1,
+ * because nothing was verified.
  */
 import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { env, exit, stdout } from 'node:process';
+import { argv, env, exit, stdout } from 'node:process';
 
 /** Unguarded reads and their optional-chained replacements. */
 const GUARDS = [
@@ -37,6 +44,8 @@ const GUARDS = [
 ];
 
 const BUNDLE_SUBPATH = ['lib', 'coreBundle.js'];
+
+const STRICT_FLAG = '--strict';
 
 /**
  * Locate `coreBundle.js` in whichever `playwright-core` the host tree resolved.
@@ -74,13 +83,13 @@ function applyGuards(source) {
 }
 
 /**
- * Decide whether every guard is already present in the bundle source.
+ * List the guards whose optional-chained form is absent from the source.
  *
- * @param source - Current `coreBundle.js` contents.
- * @returns True only when all guarded forms are found.
+ * @param source - `coreBundle.js` contents after patching.
+ * @returns Indexes into `GUARDS`; empty when every guard is present.
  */
-function isAlreadyGuarded(source) {
-  return GUARDS.every(guard => source.includes(guard.to));
+function missingGuards(source) {
+  return GUARDS.flatMap((guard, index) => (source.includes(guard.to) ? [] : [index]));
 }
 
 /**
@@ -92,39 +101,65 @@ function isAlreadyGuarded(source) {
  * not there, so the guarded forms are confirmed before claiming success.
  *
  * @param bundlePath - Absolute path to `coreBundle.js`.
- * @returns Human-readable outcome for the install log.
+ * @returns Outcome for the install log plus the guards still missing.
  */
 function patchBundle(bundlePath) {
-  const source = readFileSync(bundlePath, 'utf8');
-  const result = applyGuards(source);
+  const result = applyGuards(readFileSync(bundlePath, 'utf8'));
+  const missing = missingGuards(result.text);
   if (result.count > 0) {
     writeFileSync(bundlePath, result.text, 'utf8');
-    return `guarded ${result.count} pageError.location read(s)`;
+    return { outcome: `guarded ${result.count} pageError.location read(s)`, missing };
   }
-  if (isAlreadyGuarded(source)) return 'already guarded';
-  return 'NOT APPLIED — no known pageError.location read in this build';
+  if (missing.length === 0) return { outcome: 'already guarded', missing };
+  return { outcome: 'NOT APPLIED — no known pageError.location read in this build', missing };
 }
 
 /**
- * Report progress on one line so the outcome is visible in install output.
+ * Build the result of a run that never inspected the bundle.
  *
- * @param outcome - Message describing what happened.
+ * @param reason - Why the bundle was not inspected.
+ * @returns Outcome with `missing: null`, which strict mode never accepts.
  */
-function report(outcome) {
-  stdout.write(`playwright-core pageError guard: ${outcome}\n`);
+function skipped(reason) {
+  return { outcome: `skipped (${reason})`, missing: null };
 }
 
-/** Run the patch, absorbing every failure so an install can never break. */
-function main() {
-  if (env['SKIP_PLAYWRIGHT_CORE_PATCH']) return report('skipped (SKIP_PLAYWRIGHT_CORE_PATCH set)');
+/**
+ * Run the patch, absorbing every failure so an install can never break.
+ *
+ * @returns Outcome plus missing guard indexes (`null` when not inspected).
+ */
+function run() {
+  if (env['SKIP_PLAYWRIGHT_CORE_PATCH']) return skipped('SKIP_PLAYWRIGHT_CORE_PATCH set');
   const bundlePath = resolveBundlePath();
-  if (!bundlePath) return report('skipped (playwright-core not resolvable)');
+  if (!bundlePath) return skipped('playwright-core not resolvable');
   try {
-    return report(patchBundle(bundlePath));
+    return patchBundle(bundlePath);
   } catch (error) {
-    return report(`skipped (${error instanceof Error ? error.message : 'unknown error'})`);
+    return skipped(error instanceof Error ? error.message : 'unknown error');
   }
 }
 
-main();
-exit(0);
+/**
+ * Write one line to stdout so the outcome is visible in install output.
+ *
+ * @param line - Text to print.
+ */
+function report(line) {
+  stdout.write(`${line}\n`);
+}
+
+/**
+ * Report the run and decide the exit code.
+ *
+ * @returns 0 by default; under `--strict`, 0 only when every guard is present.
+ */
+function main() {
+  const result = run();
+  report(`playwright-core pageError guard: ${result.outcome}`);
+  if (!argv.slice(2).includes(STRICT_FLAG)) return 0;
+  for (const index of result.missing ?? []) report(`MISSING-GUARD ${index} ${GUARDS[index].from}`);
+  return result.missing?.length === 0 ? 0 : 1;
+}
+
+exit(main());
