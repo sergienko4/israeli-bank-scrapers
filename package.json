@@ -60,6 +60,7 @@
     "api:update": "node scripts/check-public-surface.mjs --update",
     "lint": "eslint src --max-warnings 0 && npm run lint:syntax-guardrails && npm run lint:architecture src && npm run lint:retired-shims && bash src/Scrapers/Pipeline/EslintCanaries/verify.sh && npm run format:check",
     "lint:biome": "biome lint src --max-diagnostics=50",
+    "lint:browser-stack": "node scripts/check-browser-stack.mjs",
     "lint:canaries": "bash src/Scrapers/Pipeline/EslintCanaries/verify.sh",
     "lint:dead-code": "npx tsx src/Tests/Tools/detect-dead-code.ts",
     "lint:cycles": "npx tsx src/Tests/Tools/lint-import-cycles.ts",

@@ -25,7 +25,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 // Numeric identifiers follow SemVer §2/§9: `0` or no leading zero, so
 // `v01.0.0-beta.02` fails here as MANIFEST-INVALID, not later as a
 // missing release.
-const CAMOUFOX_TAG = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-(alpha|beta)\.(0|[1-9]\d*)$/u;
+export const CAMOUFOX_TAG =
+  /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-(alpha|beta)\.(0|[1-9]\d*)$/u;
 const SEMVER_MINOR = /^(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
 // Bare lowercase hex, as `sha256sum` prints it; GitHub's asset `digest`
 // carries a `sha256:` prefix that must be dropped.
@@ -203,8 +204,9 @@ const COMMANDS = Object.freeze({
   sha256: (/** @type {{ camoufox: Camoufox }} */ m) => m.camoufox.linuxX64Sha256,
 });
 
-/** @type {(issue: ManifestIssue) => string} One stderr line per finding. */
-const invalidLine = ({ pointer, reason }) => `MANIFEST-INVALID ${pointer || '(root)'} ${reason}\n`;
+/** @type {(issue: ManifestIssue) => string} One report line per finding, without newline. */
+export const issueLine = ({ pointer, reason }) =>
+  `MANIFEST-INVALID ${pointer || '(root)'} ${reason}`;
 
 /** Print the usage line and exit 2. */
 function usageError() {
@@ -218,7 +220,7 @@ function main() {
   const [command = '', file = DEFAULT_MANIFEST] = args;
   if (args.length > 2 || !Object.hasOwn(COMMANDS, command)) usageError();
   const { manifest, issues } = loadManifest(file);
-  for (const issue of issues) stderr.write(invalidLine(issue));
+  for (const issue of issues) stderr.write(`${issueLine(issue)}\n`);
   if (manifest === undefined) exit(2);
   stdout.write(`${COMMANDS[/** @type {keyof typeof COMMANDS} */ (command)](manifest)}\n`);
 }

@@ -12,6 +12,9 @@ export interface ManifestIssue {
   readonly reason: string;
 }
 
+/** Strict SemVer `v<major>.<minor>.<patch>-(alpha|beta).<n>` Camoufox release tag. */
+export declare const CAMOUFOX_TAG: RegExp;
+
 /** Juggler message direction a delta was found on. */
 export declare const DELTA_CHANNELS: readonly ['request', 'return', 'event'];
 
@@ -46,3 +49,11 @@ export function loadManifest(file: string): {
   };
   readonly issues: ManifestIssue[];
 };
+
+/**
+ * Render one finding as a report line.
+ *
+ * @param issue - Finding to render.
+ * @returns `MANIFEST-INVALID <pointer|(root)> <reason>`, without newline.
+ */
+export function issueLine(issue: ManifestIssue): string;
