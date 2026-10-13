@@ -140,6 +140,7 @@ nav:
       - BALANCE-RESOLVE (v6): architecture/balance-resolve.md
       - WAF challenge interceptor: architecture/waf-interceptor.md
       - WAF fetch bounce: architecture/waf-fetch-bounce.md
+      - Browser stack: architecture/browser-stack.md
       - Legacy (deprecated): architecture/legacy.md
       - Migration strategy: architecture/migration.md
   - Phases:

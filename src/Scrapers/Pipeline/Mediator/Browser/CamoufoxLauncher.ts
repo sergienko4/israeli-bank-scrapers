@@ -9,6 +9,7 @@ import {
 import type { Brand, DurationMs } from '../../Types/Brand.js';
 import { mintDurationMs } from '../../Types/Brand.js';
 import { timeoutPromise } from '../Timing/TimingActions.js';
+import { checkBrowserStack } from './BrowserStackCheck.js';
 
 export { ISRAEL_LOCALE } from '../../../../Common/Config/BrowserConfig.js';
 
@@ -313,6 +314,24 @@ function closeAbandonedLaunch(launch: Promise<Browser>): Promise<boolean> {
 }
 
 /**
+ * Start Camoufox within {@link resolveLaunchTimeoutMs}'s bound, disposing of
+ * a browser that arrives after the bound elapsed.
+ *
+ * @param headless - Whether to launch in headless mode.
+ * @returns A Playwright-compatible Browser instance.
+ */
+async function boundedStart(headless: boolean): Promise<Browser> {
+  const launch = startCamoufox(headless);
+  const timeoutMs = resolveLaunchTimeoutMs();
+  try {
+    return await withLaunchBound(launch, timeoutMs);
+  } catch (error) {
+    closeAbandonedLaunch(launch).catch(() => false);
+    throw withNativeBindingDiagnostic(error);
+  }
+}
+
+/**
  * Launch a Camoufox browser (Firefox with C++-level anti-detect stealth).
  * Uses dynamic import() because camoufox-js is ESM-only.
  *
@@ -340,18 +359,17 @@ function closeAbandonedLaunch(launch: Promise<Browser>): Promise<boolean> {
  * {@link closeAbandonedLaunch} disposes of a browser that still arrives
  * after the bound elapsed.
  *
+ * <p>After a successful launch, {@link checkBrowserStack} warns once per
+ * process when the installed Camoufox or playwright-core is not the tested
+ * pair. It runs outside the bound and never fails the launch.
+ *
  * @param headless - Whether to launch in headless mode.
  * @returns A Playwright-compatible Browser instance.
  * @throws Error naming the native-binding remedy when better-sqlite3 is
  *   unavailable, or {@link launchTimeoutMessage} when the bound elapses.
  */
 export async function launchCamoufox(headless: boolean): Promise<Browser> {
-  const launch = startCamoufox(headless);
-  const timeoutMs = resolveLaunchTimeoutMs();
-  try {
-    return await withLaunchBound(launch, timeoutMs);
-  } catch (error) {
-    closeAbandonedLaunch(launch).catch(() => false);
-    throw withNativeBindingDiagnostic(error);
-  }
+  const browser = await boundedStart(headless);
+  await checkBrowserStack();
+  return browser;
 }

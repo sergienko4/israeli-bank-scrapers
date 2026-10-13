@@ -9,7 +9,8 @@
  * - STALE — an accepted delta no longer found: fixed upstream, or its type
  *   signature changed (the changed delta is then NEW as well);
  * - DRIFT — the playwright-core minor differs from `testedMinor`;
- * - GENERATED-STALE — `src/Common/Config/BrowserStackConfig.ts` is not what
+ * - GENERATED-STALE — the generated
+ *   `src/Scrapers/Pipeline/Mediator/Browser/BrowserStackConfig.ts` is not what
  *   `npm run browser-stack:gen` would write from the manifest.
  *
  * Both bodies are checked against their pinned sha256 before either is parsed

@@ -23,8 +23,13 @@ interface IDeferredLaunch {
 }
 
 const CAMOUFOX_MOCK = jest.fn();
+const STACK_CHECK_MOCK = jest.fn(() => Promise.resolve(0));
 
 jest.unstable_mockModule('@hieutran094/camoufox-js', () => ({ Camoufox: CAMOUFOX_MOCK }));
+jest.unstable_mockModule(
+  '../../../../../Scrapers/Pipeline/Mediator/Browser/BrowserStackCheck.js',
+  () => ({ checkBrowserStack: STACK_CHECK_MOCK }),
+);
 
 const { CAMOUFOX_LAUNCH_TIMEOUT_ENV, launchCamoufox: LAUNCH_CAMOUFOX } =
   await import('../../../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js');
@@ -86,6 +91,7 @@ describe('CamoufoxLauncher abandoned-launch disposal', () => {
   beforeEach(() => {
     process.env[CAMOUFOX_LAUNCH_TIMEOUT_ENV] = '5';
     CAMOUFOX_MOCK.mockReset();
+    STACK_CHECK_MOCK.mockClear();
   });
 
   afterEach(() => {
@@ -100,6 +106,7 @@ describe('CamoufoxLauncher abandoned-launch disposal', () => {
     deferred.arrive({ close });
     await flushPendingCallbacks();
     expect(close).toHaveBeenCalledTimes(1);
+    expect(STACK_CHECK_MOCK).not.toHaveBeenCalled();
   });
 
   it('swallows a close failure rather than raising unhandled', async () => {
@@ -120,5 +127,19 @@ describe('CamoufoxLauncher abandoned-launch disposal', () => {
     await flushPendingCallbacks();
     expect(browser).toEqual({ close });
     expect(close).not.toHaveBeenCalled();
+    expect(STACK_CHECK_MOCK).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs the stack check only after the browser arrived', async () => {
+    const deferred = deferLaunch();
+    CAMOUFOX_MOCK.mockReturnValue(deferred.launch);
+    process.env[CAMOUFOX_LAUNCH_TIMEOUT_ENV] = '60000';
+    const launching = LAUNCH_CAMOUFOX(true);
+    await flushPendingCallbacks();
+    expect(STACK_CHECK_MOCK).not.toHaveBeenCalled();
+    const close = closeSpy(false);
+    deferred.arrive({ close });
+    await launching;
+    expect(STACK_CHECK_MOCK).toHaveBeenCalledTimes(1);
   });
 });

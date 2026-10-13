@@ -13,8 +13,9 @@ The package is a **typed phase-based pipeline**. Banks register a declarative `P
 5. **[Transaction sign](transaction-sign.md)** — which side of zero a mapped amount lands on; the card-issuer inversion, and why a bank's numeric direction code outranks a worded one.
 6. **[Transaction currency](transaction-currency.md)** — which code `originalCurrency` reports; why an ISO alias outranks a numeric enum, and why a blank value never wins.
 7. **[BALANCE-RESOLVE (v6)](balance-resolve.md)** — the single-phase ownership rewrite that lands in v8.4; the example that defines how new phases should be structured.
-8. **[Legacy (deprecated)](legacy.md)** — what counts as legacy under the wide-net policy, why it still ships, and what to read instead.
-9. **[Migration strategy](migration.md)** — how legacy code folds into Pipeline; staging plan.
+8. **[Browser stack](browser-stack.md)** — the tested Camoufox × `playwright-core` pair; how one manifest feeds CI and the runtime warning, and why the readers avoid JSON imports.
+9. **[Legacy (deprecated)](legacy.md)** — what counts as legacy under the wide-net policy, why it still ships, and what to read instead.
+10. **[Migration strategy](migration.md)** — how legacy code folds into Pipeline; staging plan.
 
 ## At a glance
 

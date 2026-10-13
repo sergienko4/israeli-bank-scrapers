@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Writes `src/Common/Config/BrowserStackConfig.ts` from
+ * Writes `src/Scrapers/Pipeline/Mediator/Browser/BrowserStackConfig.ts` from
  * `browser-stack.json`, so runtime code reads the tested Camoufox tag and
  * playwright-core minor from the manifest rather than from a copied literal.
  *
@@ -19,7 +19,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { issueLine, loadManifest } from './manifest.mjs';
 
 /** Repo-relative path of the generated module. */
-export const GENERATED_REL = 'src/Common/Config/BrowserStackConfig.ts';
+export const GENERATED_REL = 'src/Scrapers/Pipeline/Mediator/Browser/BrowserStackConfig.ts';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 

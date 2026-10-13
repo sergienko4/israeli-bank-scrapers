@@ -76,6 +76,45 @@ rm -rf ~/Library/Caches/camoufox   # macOS; ~/.cache/camoufox on Linux
 Set `CAMOUFOX_INSTALL_DIR` to relocate the cache — useful when the home
 directory is ephemeral, as in a container without a persisted volume.
 
+## `browser stack differs from the tested pair`
+
+A `warn` log line, not an error. The scrape carries on. Each release is
+tested against one Camoufox build and one `playwright-core` minor. After the
+first successful Camoufox launch in a process, the installed versions are
+compared with that pair, and each component that differs is logged once:
+
+| Field | Meaning |
+|---|---|
+| `component` | `camoufox` or `playwright-core` |
+| `installed` | The version found on this machine |
+| `tested` | The version this release is tested against |
+| `remedy` | How to get back to the tested version |
+
+A different version often works. If a scrape then breaks, this line is the
+first place to look.
+
+**`camoufox`** — camoufox-js downloads the newest Camoufox release on first
+launch and never replaces it, so an old cache keeps its old build. Delete
+the cache directory (see the table under
+[`Version information not found`](#version-information-not-found)) and launch
+again to refetch. That fetches the *newest* release, which is the tested one
+only while no later release exists. When it is not, upgrade this package,
+which may test a newer build.
+
+**`playwright-core`** — compared by minor; a patch release of the tested minor
+counts as tested. The dependency range accepts later minors, so a fresh
+install can resolve one newer than the tested minor. An `overrides` entry can
+also force one. Run `npm ls playwright-core` to see which version resolves.
+To get back to the tested minor, pin it in your own `package.json`, replacing
+`1.63` with the `tested` value from the log:
+
+```json
+"overrides": { "playwright-core": "~1.63.0" }
+```
+
+A version that cannot be read, such as Camoufox before its first download,
+is skipped and noted at `debug` level only.
+
 ## `Cannot read properties of undefined (reading 'url')`
 
 A scrape dies inside `playwright-core` with this `TypeError` and no stack frame

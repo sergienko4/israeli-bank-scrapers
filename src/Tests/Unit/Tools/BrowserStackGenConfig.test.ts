@@ -2,12 +2,13 @@
  * Unit test for `scripts/browser-stack/gen-config.mjs`.
  *
  * <p>Runtime code reads the tested Camoufox tag and playwright-core minor
- * from `src/Common/Config/BrowserStackConfig.ts`, which the script renders
- * from `browser-stack.json`. Its contract: the committed module is the render
- * of the committed manifest; a run writes only when the module is stale, so
- * a second run changes nothing; a missing module is stale while any other
- * read error surfaces; an invalid manifest exits 2 with MANIFEST-INVALID and
- * writes nothing; and no other `src` file copies the pinned tag.
+ * from `src/Scrapers/Pipeline/Mediator/Browser/BrowserStackConfig.ts`, which
+ * the script renders from `browser-stack.json`. Its contract: the committed
+ * module is the render of the committed manifest; a run writes only when the
+ * module is stale, so a second run changes nothing; a missing module is stale
+ * while any other read error surfaces; an invalid manifest exits 2 with
+ * MANIFEST-INVALID and writes nothing; and no other `src` file copies the
+ * pinned tag.
  */
 
 import {
@@ -32,11 +33,11 @@ import {
   renderConfig,
 } from '../../../../scripts/browser-stack/gen-config.mjs';
 import { type IValidManifest, loadManifest } from '../../../../scripts/browser-stack/manifest.mjs';
+import ScraperError from '../../../Scrapers/Base/ScraperError.js';
 import {
   TESTED_CAMOUFOX_TAG,
   TESTED_PLAYWRIGHT_MINOR,
-} from '../../../Common/Config/BrowserStackConfig.js';
-import ScraperError from '../../../Scrapers/Base/ScraperError.js';
+} from '../../../Scrapers/Pipeline/Mediator/Browser/BrowserStackConfig.js';
 
 const THIS_FILE = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE);

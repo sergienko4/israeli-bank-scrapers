@@ -63,8 +63,8 @@ const DRIFT_LINE =
   'DRIFT     playwright-core minor 1.64 ≠ testedMinor 1.63' +
   ' (bump testedMinor only after the contract test passes)';
 const GENERATED_LINE =
-  'GENERATED-STALE src/Common/Config/BrowserStackConfig.ts differs from browser-stack.json' +
-  ' (run npm run browser-stack:gen)';
+  'GENERATED-STALE src/Scrapers/Pipeline/Mediator/Browser/BrowserStackConfig.ts' +
+  ' differs from browser-stack.json (run npm run browser-stack:gen)';
 const MODE_ERROR = 'USAGE --mode must be gate or candidate';
 const USAGE_LINE =
   'usage: node scripts/check-browser-stack.mjs [--playwright <x.y.z>] [--camoufox <tag>]' +
