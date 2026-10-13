@@ -298,20 +298,21 @@ Residual risk for consumers is low for two independent reasons:
 2. The archive is a `daijro/camoufox` GitHub release fetched over HTTPS, not
    attacker-supplied input.
 
-Our own CI relies on the override, not on avoiding the path. Every
+Our own CI relies on the override at launch, not at install. Every
 `install-camoufox` call follows `setup-node-deps` (`npm ci`) and runs
 `.github/actions/install-camoufox/install.sh`, which also builds the Docker CI
 mirror. The script works in the directory camoufox-js launches from:
 `CAMOUFOX_INSTALL_DIR` when set, else `~/.cache/camoufox`. A cache hit, meaning
 the pinned `version.json` plus a non-empty executable regular-file
-`camoufox-bin`, skips extraction. A cache miss runs `camoufox-js fetch` first,
-which extracts with the locked adm-zip 0.6.1. Only when that fails or yields
-anything other than a
-usable build of the tag pinned in `browser-stack.json` does the script clear
-the cache and fall back to the release asset plus system `unzip`. It writes
-`version.json` last, so a failed extract is never recorded as installed. CI
-downloads the exact asset with `gh release download`; the Docker build has no
-token and uses `curl` on the public release URL. A manifest edit is a
+`camoufox-bin`, skips extraction. A cache miss clears the directory and
+extracts the release asset of the tag pinned in `browser-stack.json` with
+system `unzip`. It never runs `camoufox-js fetch`, which would resolve
+camoufox-js's own newest release instead of the pin. It writes `version.json`
+last, so a failed extract is never recorded as installed. CI downloads the
+exact asset with `gh release download`; the Docker build has no token and uses
+`curl` on the public release URL. At launch, camoufox-js downloads its default
+uBlock Origin addon into that directory when it is missing and extracts it with
+`extractEntryTo`, which runs on the locked adm-zip 0.6.1. A manifest edit is a
 browser-stack change: the detector arms `critical_deps`, so the pull request
 runs the full suite.
 

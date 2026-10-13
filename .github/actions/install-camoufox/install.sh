@@ -9,12 +9,12 @@
 #
 # A cache hit — version.json records the pinned tag AND camoufox-bin is a
 # non-empty executable regular file — skips the download; anything less is a
-# miss. A miss tries `camoufox-js fetch` first; camoufox-js resolves the
-# newest release inside its own supported range rather than an exact tag, so
-# any other result is replaced by the pinned release asset. Do
-# NOT let that fallback track LATEST: v150.0.2-beta.25's locale
-# regression (navigator.language he-IL to en-US) broke
-# AntiDetection.e2e-mocked.test.ts.
+# miss. A miss downloads the pinned release asset directly. It never runs
+# `camoufox-js fetch`: that resolves the newest release inside camoufox-js's
+# own range (`>=alpha.1, <1`), not an exact tag, so it matches the pin only
+# when the pin is the newest release and otherwise costs a second ~700 MB
+# download. Do NOT track LATEST: v150.0.2-beta.25's locale regression
+# (navigator.language he-IL to en-US) broke AntiDetection.e2e-mocked.test.ts.
 #
 # Download: `gh release download` when GH_TOKEN is set (CI); otherwise
 # curl from the public release URL (the Docker build has no token). gh
@@ -79,14 +79,9 @@ install_pinned_release() {
 }
 
 if pinned_cache_ok; then
-  echo "Camoufox ${PINNED_TAG} already cached, skipping fetch"
+  echo "Camoufox ${PINNED_TAG} already cached, skipping download"
 else
-  echo "Cache miss — attempting camoufox-js fetch..."
-  if npx @hieutran094/camoufox-js fetch && pinned_cache_ok; then
-    echo "Camoufox ${PINNED_TAG} installed via camoufox-js"
-  else
-    echo "camoufox-js produced '$(installed_version || echo none)', want ${EXPECTED} — installing the pinned asset instead"
-    install_pinned_release
-  fi
+  echo "Cache miss: found '$(installed_version 2>/dev/null || echo none)', want ${EXPECTED}"
+  install_pinned_release
 fi
 binary_ok || fail "no usable camoufox-bin in $CACHE_DIR"

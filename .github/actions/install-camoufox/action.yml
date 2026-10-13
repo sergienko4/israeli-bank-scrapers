@@ -20,11 +20,10 @@ runs:
     # popup-event and tap/touch paths Firefox 152 initially broke.
     # playwright still needs the guard on pageError.location (Camoufox
     # omits it) — see scripts/patch-playwright-core.mjs. camoufox-js
-    # resolves the
-    # newest release inside its own supported range rather than an exact
-    # tag, so the install step below rejects anything but the pinned tag
-    # and re-installs it from the release asset, keeping the pinned cache
-    # key deterministic. Do
+    # resolves the newest release inside its own supported range rather
+    # than an exact tag, so the install step never asks it: it installs
+    # the pinned tag's release asset, keeping the pinned cache key
+    # deterministic. Do
     # NOT let the fallback track LATEST: v150.0.2's locale handling
     # regressed `navigator.language` (returned `en-US` even when the
     # context declared `he-IL`), breaking `AntiDetection.e2e-mocked.test.ts`.

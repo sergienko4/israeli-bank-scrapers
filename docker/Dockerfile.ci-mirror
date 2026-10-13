@@ -59,10 +59,7 @@ RUN curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-l
     && ln -s /opt/node-v${NODE_VERSION}-linux-x64/bin/npm  /usr/local/bin/npm \
     && ln -s /opt/node-v${NODE_VERSION}-linux-x64/bin/npx  /usr/local/bin/npx
 
-# Project deps — cached layer keyed on package*.json. Installed
-# BEFORE Camoufox because the install script tries
-# `@hieutran094/camoufox-js fetch` from devDependencies first, exactly
-# as it does in CI.
+# Project deps — cached layer keyed on package*.json.
 #
 # `--ignore-scripts` skips the project's `prepare` hook (tsup build +
 # `rimraf lib/...`) which would fail at image-build time because the

@@ -4,11 +4,12 @@
  * <p>The script is the one Camoufox install shared by the CI composite action
  * and the Docker CI mirror. Its contract: install exactly the tag pinned in
  * `browser-stack.json` into the directory camoufox-js launches from, skip the
- * download only on a cache that holds the pin AND a usable binary, use `gh`
- * only when a token exists (CI) and the public release URL otherwise
- * (Docker), never print the token, never record a version it did not
- * install, leave no temp files, and install nothing when the manifest is
- * invalid.
+ * download only on a cache that holds the pin AND a usable binary, download
+ * the pin exactly once on a miss and never through `camoufox-js fetch` (which
+ * resolves its own newest release, not the pin), use `gh` only when a token
+ * exists (CI) and the public release URL otherwise (Docker), never print the
+ * token, never record a version it did not install, leave no temp files, and
+ * install nothing when the manifest is invalid.
  *
  * <p>Each case runs the REAL script in a throwaway tree that mirrors the repo
  * layout (script + validator + its own `browser-stack.json`), with `npx`,
@@ -45,7 +46,7 @@ const CACHE_REL = 'home/.cache/camoufox';
 /** A well-formed tag that is deliberately NOT the pinned one. */
 const SAMPLE_TAG = 'v100.0.0-beta.1';
 const SAMPLE_VERSION_JSON = '{"version":"100.0.0","release":"beta.1"}';
-/** What camoufox-js records when it resolves its own newest release instead. */
+/** A cache left by another release, e.g. camoufox-js's own newest one. */
 const OTHER_VERSION_JSON = '{"version":"156.0.1","release":"beta.36"}';
 const SAMPLE_ASSET = 'camoufox-100.0.0-beta.1-lin.x86_64.zip';
 const SAMPLE_ASSET_URL = `https://github.com/daijro/camoufox/releases/download/${SAMPLE_TAG}/${SAMPLE_ASSET}`;
@@ -64,22 +65,15 @@ const BASE_ENV: NodeJS.ProcessEnv = Object.fromEntries(CLEAN_ENV);
 
 /**
  * Stub bodies. Each appends `<name> <argv>` to `$STUB_LOG`, then creates only
- * the file the real command would have produced. The `npx` stub plays
- * `camoufox-js fetch`, installing where camoufox-js would (the override, else
- * the per-user cache); it fails unless `NPX_VERSION_JSON` says what to record.
+ * the file the real command would have produced. The `npx` stub is a
+ * tripwire: it only logs and fails, so a `camoufox-js fetch` shows in the log.
  * `gh` writes the file its `--pattern` names, so a glob pattern would not
  * produce the asset the script unzips; `unzip` fails on a missing archive and
  * puts at `camoufox-bin` what `UNZIP_BINARY` names: a `file`, a `directory`,
  * or `nothing`.
  */
 const STUBS: readonly (readonly [string, string])[] = [
-  [
-    'npx',
-    'echo "npx $*" >> "$STUB_LOG"; [ -n "$NPX_VERSION_JSON" ] || exit 1; ' +
-      'd="$HOME/.cache/camoufox"; [ -n "$CAMOUFOX_INSTALL_DIR" ] && d="$CAMOUFOX_INSTALL_DIR"; ' +
-      'mkdir -p "$d"; printf %s "$NPX_VERSION_JSON" > "$d/version.json"; ' +
-      'printf ELF > "$d/camoufox-bin"; chmod 755 "$d/camoufox-bin"',
-  ],
+  ['npx', 'echo "npx $*" >> "$STUB_LOG"; exit 1'],
   [
     'gh',
     'echo "gh $*" >> "$STUB_LOG"; while [ $# -gt 0 ]; do case "$1" in ' +
@@ -152,13 +146,12 @@ const UNUSABLE_BINARIES: readonly CachedBinary[] = [
 const UNUSABLE_ARCHIVES: readonly BinaryEntry[] = ['nothing', 'directory'];
 
 /**
- * One scenario: the manifest tag, the token, what camoufox-js does, the
- * cache, what the release archive holds, and any install-dir override.
+ * One scenario: the manifest tag, the token, the cache, what the release
+ * archive holds, and any install-dir override.
  */
 interface IScenario {
   readonly tag: string;
   readonly token: string;
-  readonly npxVersionJson: string;
   readonly cachedVersionJson: string;
   readonly cachedBinary: CachedBinary;
   readonly archiveBinary: BinaryEntry;
@@ -175,16 +168,29 @@ interface IInstallRun {
   readonly homeCacheExists: boolean;
 }
 
-/** A cold cache, no token, and camoufox-js failing: the baseline scenario. */
+/** A cold cache and no token: the baseline scenario. */
 const COLD: IScenario = {
   tag: SAMPLE_TAG,
   token: '',
-  npxVersionJson: '',
   cachedVersionJson: '',
   cachedBinary: 'ok',
   archiveBinary: 'file',
   installDir: '',
 };
+
+/** Commands that download a release asset. */
+const DOWNLOADERS: readonly string[] = ['gh', 'curl'];
+
+/** Every kind of cache miss; each must download the pinned asset exactly once. */
+const MISSES: readonly { readonly label: string; readonly scenario: IScenario }[] = [
+  { label: 'cold tokenless', scenario: COLD },
+  { label: 'cold token', scenario: { ...COLD, token: TOKEN } },
+  { label: 'stale-version', scenario: { ...COLD, cachedVersionJson: OTHER_VERSION_JSON } },
+  {
+    label: 'unusable-binary',
+    scenario: { ...COLD, cachedVersionJson: SAMPLE_VERSION_JSON, cachedBinary: 'empty' },
+  },
+];
 
 /** Every tree this suite created, removed in `afterAll`. */
 const CREATED: string[] = [];
@@ -338,11 +344,7 @@ function scenarioEnv(root: string, scenario: IScenario): NodeJS.ProcessEnv {
   const token = scenario.token === '' ? {} : { GH_TOKEN: scenario.token };
   const installDir = scenario.installDir === '' ? {} : { CAMOUFOX_INSTALL_DIR: cache };
   const stubLog = join(root, 'stub.log');
-  const stubs = {
-    NPX_VERSION_JSON: scenario.npxVersionJson,
-    UNZIP_BINARY: scenario.archiveBinary,
-    STUB_LOG: stubLog,
-  };
+  const stubs = { UNZIP_BINARY: scenario.archiveBinary, STUB_LOG: stubLog };
   return { ...BASE_ENV, ...token, ...installDir, ...stubs, HOME: home, TMPDIR: temp, PATH: path };
 }
 
@@ -403,12 +405,13 @@ describe('install-camoufox/install.sh', () => {
     expect(run.output).toContain(`Camoufox ${SAMPLE_TAG} already cached`);
   });
 
-  it('[ICS-2] a miss where camoufox-js installs another release re-installs the pin via gh', () => {
-    const run = runInstall({ ...COLD, token: TOKEN, npxVersionJson: OTHER_VERSION_JSON });
+  it('[ICS-2] with a token a miss downloads the pinned asset via gh', () => {
+    const run = runInstall({ ...COLD, token: TOKEN });
     const ghCall = `gh release download ${SAMPLE_TAG} --repo daijro/camoufox --pattern ${SAMPLE_ASSET} `;
+    const tools = run.calls.map(call => call.split(' ')[0]);
     expect(run.status).toBe(0);
-    expect(run.calls).toHaveLength(3);
-    expect(run.calls[1]).toContain(ghCall);
+    expect(tools).toEqual(['gh', 'unzip']);
+    expect(run.calls[0]).toContain(ghCall);
     expect(run.versionJson).toBe(SAMPLE_VERSION_JSON);
     expect(run.output).not.toContain(TOKEN);
   });
@@ -417,8 +420,8 @@ describe('install-camoufox/install.sh', () => {
     const run = runInstall(COLD);
     const tools = run.calls.map(call => call.split(' ')[0]);
     expect(run.status).toBe(0);
-    expect(tools).toEqual(['npx', 'curl', 'unzip']);
-    expect(run.calls[1]).toContain(SAMPLE_ASSET_URL);
+    expect(tools).toEqual(['curl', 'unzip']);
+    expect(run.calls[0]).toContain(SAMPLE_ASSET_URL);
     expect(run.versionJson).toBe(SAMPLE_VERSION_JSON);
     expect(run.tempLeft).toBe(0);
   });
@@ -426,15 +429,18 @@ describe('install-camoufox/install.sh', () => {
   it('[ICS-4] a cache whose version differs from the pin is replaced', () => {
     const run = runInstall({ ...COLD, cachedVersionJson: OTHER_VERSION_JSON });
     expect(run.status).toBe(0);
-    expect(run.calls[1]).toContain(SAMPLE_ASSET_URL);
+    expect(run.calls[0]).toContain(SAMPLE_ASSET_URL);
     expect(run.versionJson).toBe(SAMPLE_VERSION_JSON);
   });
 
-  it('[ICS-5] camoufox-js installing the pinned release itself needs no asset download', () => {
-    const run = runInstall({ ...COLD, token: TOKEN, npxVersionJson: SAMPLE_VERSION_JSON });
+  it.each(MISSES)('[ICS-5] a miss ($label) downloads the pin once, never via camoufox-js', row => {
+    const run = runInstall(row.scenario);
+    const tools = run.calls.map(call => call.split(' ')[0]);
+    const downloads = tools.filter(tool => DOWNLOADERS.includes(tool));
     expect(run.status).toBe(0);
-    expect(run.calls).toEqual(['npx @hieutran094/camoufox-js fetch']);
-    expect(run.output).toContain(`Camoufox ${SAMPLE_TAG} installed via camoufox-js`);
+    expect(tools).not.toContain('npx');
+    expect(downloads).toHaveLength(1);
+    expect(run.versionJson).toBe(SAMPLE_VERSION_JSON);
   });
 
   it('[ICS-6] an invalid manifest fails closed before any install step', () => {
@@ -453,7 +459,7 @@ describe('install-camoufox/install.sh', () => {
     });
     const tools = run.calls.map(call => call.split(' ')[0]);
     expect(run.status).toBe(0);
-    expect(tools).toEqual(['npx', 'curl', 'unzip']);
+    expect(tools).toEqual(['curl', 'unzip']);
     expect(run.versionJson).toBe(SAMPLE_VERSION_JSON);
   });
 
