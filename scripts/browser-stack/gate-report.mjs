@@ -1,12 +1,14 @@
 /**
  * Verdict and text output of one browser-stack gate run.
  *
- * `gate` (PR CI, `npm run lint:browser-stack`) fails on any NEW, STALE or
- * DRIFT finding, and stops with DIGEST-MISMATCH (exit 2) when a fetched
- * `Protocol.js` is not the pinned one. `candidate` ("could this pair work?")
- * fails on NEW only and prints STALE, DRIFT and MISMATCH marked `[info]`.
- * UNPINNED — no pin covers a side — is `[info]` in both modes.
+ * `gate` (PR CI, `npm run lint:browser-stack`) fails on any NEW, STALE,
+ * DRIFT or GENERATED-STALE finding, and stops with DIGEST-MISMATCH (exit 2)
+ * when a fetched `Protocol.js` is not the pinned one. `candidate` ("could
+ * this pair work?") fails on NEW only and prints STALE, DRIFT, GENERATED-STALE
+ * and MISMATCH marked `[info]`. UNPINNED — no pin covers a side — is
+ * `[info]` in both modes.
  */
+import { GENERATED_REL } from './gen-config.mjs';
 
 /** @typedef {import('./juggler-diff.d.mts').IJugglerDelta} IJugglerDelta */
 
@@ -30,15 +32,21 @@
  * @property {IJugglerDelta[]} stale - Accepted deltas no longer found.
  * @property {IJugglerDelta[]} accepted - Accepted deltas still found.
  * @property {boolean} drift - Whether the playwright-core minor differs from `testedMinor`.
+ * @property {boolean} generatedStale - Whether the generated config differs from `browser-stack.json`.
  * @property {0 | 1} exit - 1 when a finding fails the mode, else 0.
  */
 
-/** @typedef {Pick<Report, 'new' | 'stale' | 'drift'>} Findings - What a verdict reads. */
+/**
+ * What a verdict reads.
+ *
+ * @typedef {Pick<Report, 'new' | 'stale' | 'drift' | 'generatedStale'>} Findings
+ */
 
 /** Per mode: which findings fail the run, whether a digest mismatch stops it, the info mark. */
 const MODES = Object.freeze({
   gate: Object.freeze({
-    failsOn: (/** @type {Findings} */ r) => r.new.length > 0 || r.stale.length > 0 || r.drift,
+    failsOn: (/** @type {Findings} */ r) =>
+      r.new.length > 0 || r.stale.length > 0 || r.drift || r.generatedStale,
     stopsOnMismatch: true,
     infoMark: '',
   }),
@@ -77,7 +85,7 @@ export function sideName(pair, side) {
 /**
  * Exit code of a report: 1 when a finding fails its mode, else 0.
  *
- * @param {Pick<Report, 'mode' | 'new' | 'stale' | 'drift'>} report - Findings.
+ * @param {Pick<Report, 'mode' | 'new' | 'stale' | 'drift' | 'generatedStale'>} report - Findings.
  * @returns {0 | 1} Exit code.
  */
 export function exitOf(report) {
@@ -112,6 +120,11 @@ function pinRows(/** @type {Report} */ r) {
   });
 }
 
+/** The GENERATED-STALE finding text. */
+const GENERATED_TEXT =
+  `GENERATED-STALE ${GENERATED_REL} differs from browser-stack.json` +
+  ' (run npm run browser-stack:gen)';
+
 /** Finding rows: NEW and STALE carry the signature a manifest edit needs. */
 function findingRows(/** @type {Report} */ r) {
   const mark = MODES[/** @type {'gate'} */ (r.mode)].infoMark;
@@ -120,6 +133,7 @@ function findingRows(/** @type {Report} */ r) {
     ...r.new.map(d => row('NEW', `${cells(d)}  ${d.signature}`)),
     ...r.stale.map(d => row('STALE', `${cells(d)}  ${d.signature}${mark}`)),
     ...(r.drift ? [row('DRIFT', `${driftText(r)}${mark}`)] : []),
+    ...(r.generatedStale ? [`${GENERATED_TEXT}${mark}`] : []),
     ...r.accepted.map(d => row('ACCEPTED', cells(d))),
   ];
 }
@@ -127,7 +141,8 @@ function findingRows(/** @type {Report} */ r) {
 /** @type {(r: Report) => string} Verdict and counts. */
 const summary = r =>
   `${r.exit === 0 ? 'PASS' : 'FAIL'}: ${r.new.length} new, ${r.stale.length} stale, ` +
-  `${r.accepted.length} accepted${r.drift ? ', drift' : ''}`;
+  `${r.accepted.length} accepted${r.drift ? ', drift' : ''}` +
+  `${r.generatedStale ? ', generated stale' : ''}`;
 
 /**
  * Human-readable report: pair, both sha256 values, every finding, verdict.

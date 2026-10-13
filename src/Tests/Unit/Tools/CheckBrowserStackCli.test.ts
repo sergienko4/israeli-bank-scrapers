@@ -62,6 +62,9 @@ const STALE_LINE = `STALE     ${CELLS}  src:Optional(Boolean)|dst:absent`;
 const DRIFT_LINE =
   'DRIFT     playwright-core minor 1.64 ≠ testedMinor 1.63' +
   ' (bump testedMinor only after the contract test passes)';
+const GENERATED_LINE =
+  'GENERATED-STALE src/Common/Config/BrowserStackConfig.ts differs from browser-stack.json' +
+  ' (run npm run browser-stack:gen)';
 const MODE_ERROR = 'USAGE --mode must be gate or candidate';
 const USAGE_LINE =
   'usage: node scripts/check-browser-stack.mjs [--playwright <x.y.z>] [--camoufox <tag>]' +
@@ -164,6 +167,22 @@ const VERDICT_CASES: readonly IVerdictCase[] = [
     scenario: { manifest: manifestOf([DELTA], '1.64', MOVED_CLIENT_PIN) },
     code: 0,
     lines: [MISMATCH_CLIENT, 'PASS: 0 new, 0 stale, 1 accepted'],
+  },
+  {
+    id: 'BSG-14',
+    what: 'gate fails a generated config that differs from the manifest',
+    args: [],
+    scenario: { generated: '// hand-edited\n' },
+    code: 1,
+    lines: [GENERATED_LINE, 'FAIL: 0 new, 0 stale, 1 accepted, generated stale'],
+  },
+  {
+    id: 'BSG-15',
+    what: 'candidate passes a stale generated config, marked [info]',
+    args: ['--mode', 'candidate'],
+    scenario: { generated: '' },
+    code: 0,
+    lines: [`${GENERATED_LINE} [info]`, 'PASS: 0 new, 0 stale, 1 accepted, generated stale'],
   },
 ];
 
@@ -503,6 +522,7 @@ describe('browser-stack gate output', () => {
       stale: [],
       accepted: [{ ...DELTA, reason: REASON }],
       drift: false,
+      generatedStale: false,
       exit: 0,
     });
   });

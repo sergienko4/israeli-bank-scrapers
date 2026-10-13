@@ -16,6 +16,7 @@ export interface IFetchIo {
 export interface IGateIo {
   readonly manifestPath?: string;
   readonly lockfilePath?: string;
+  readonly generatedPath?: string;
   readonly fetch?: IFetchIo;
   readonly stdout?: (text: string) => boolean;
   readonly stderr?: (text: string) => boolean;

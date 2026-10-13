@@ -12,6 +12,19 @@ export interface ManifestIssue {
   readonly reason: string;
 }
 
+/** A manifest that passed `validateManifest`. */
+export interface IValidManifest {
+  readonly camoufox: {
+    readonly tag: string;
+    readonly linuxX64Sha256: string;
+    readonly protocolSha256: string;
+  };
+  readonly playwrightCore: {
+    readonly testedMinor: string;
+    readonly protocolSha256: Readonly<Record<string, string>>;
+  };
+}
+
 /** Strict SemVer `v<major>.<minor>.<patch>-(alpha|beta).<n>` Camoufox release tag. */
 export declare const CAMOUFOX_TAG: RegExp;
 
@@ -47,17 +60,7 @@ export function validateManifest(doc: unknown): ManifestIssue[];
  * @returns The manifest only when it is fully valid, plus every finding.
  */
 export function loadManifest(file: string): {
-  readonly manifest?: {
-    readonly camoufox: {
-      readonly tag: string;
-      readonly linuxX64Sha256: string;
-      readonly protocolSha256: string;
-    };
-    readonly playwrightCore: {
-      readonly testedMinor: string;
-      readonly protocolSha256: Readonly<Record<string, string>>;
-    };
-  };
+  readonly manifest?: IValidManifest;
   readonly issues: ManifestIssue[];
 };
 

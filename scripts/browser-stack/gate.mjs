@@ -8,7 +8,9 @@
  * - NEW — a delta the manifest does not accept;
  * - STALE — an accepted delta no longer found: fixed upstream, or its type
  *   signature changed (the changed delta is then NEW as well);
- * - DRIFT — the playwright-core minor differs from `testedMinor`.
+ * - DRIFT — the playwright-core minor differs from `testedMinor`;
+ * - GENERATED-STALE — `src/Common/Config/BrowserStackConfig.ts` is not what
+ *   `npm run browser-stack:gen` would write from the manifest.
  *
  * Both bodies are checked against their pinned sha256 before either is parsed
  * (see gate-pins.mjs).
@@ -24,6 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { FetchFailedError, fetchFirst, fetchProtocol, protocolUrls } from './fetch-protocol.mjs';
 import { GateInfraError, lockedPlaywright, parseCli, readManifest } from './gate-inputs.mjs';
 import { checkPins } from './gate-pins.mjs';
+import { GENERATED_PATH, isGeneratedStale } from './gen-config.mjs';
 import { exitOf, minorOf, renderText } from './gate-report.mjs';
 import { diffSchemas } from './juggler-diff.mjs';
 import { parseJugglerSchema, UnparseableSchemaError } from './juggler-schema.mjs';
@@ -46,6 +49,7 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const DEFAULT_IO = Object.freeze({
   manifestPath: `${ROOT}browser-stack.json`,
   lockfilePath: `${ROOT}package-lock.json`,
+  generatedPath: GENERATED_PATH,
   fetch: {},
   stdout: (/** @type {string} */ text) => process.stdout.write(text),
   stderr: (/** @type {string} */ text) => process.stderr.write(text),
@@ -117,16 +121,26 @@ async function compare(pair, mode, io) {
   return { sha256, pins, deltas };
 }
 
+/** Findings that need no network: DRIFT and GENERATED-STALE. */
+function localFindings(
+  /** @type {any} */ manifest,
+  /** @type {string} */ playwright,
+  /** @type {string} */ generatedPath,
+) {
+  const drift = minorOf(playwright) !== manifest.playwrightCore.testedMinor;
+  return { drift, generatedStale: isGeneratedStale(manifest, generatedPath) };
+}
+
 /** The full report of one run, exit code included. */
 async function evaluate(/** @type {CliOptions} */ options, /** @type {GateIo} */ io) {
   const pair = resolvePair(options, io);
   const { manifest, playwright, camoufox } = pair;
   const { sha256, pins, deltas } = await compare(pair, options.mode, io.fetch);
   const { testedMinor } = manifest.playwrightCore;
-  const drift = minorOf(playwright) !== testedMinor;
+  const local = localFindings(manifest, playwright, io.generatedPath);
   const found = classify(deltas, manifest.acceptedDeltas);
   const head = { playwright, camoufox, mode: options.mode, testedMinor, sha256, pins };
-  const report = { ...head, ...found, drift };
+  const report = { ...head, ...found, ...local };
   return { ...report, exit: exitOf(report) };
 }
 

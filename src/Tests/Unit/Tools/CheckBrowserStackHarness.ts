@@ -16,6 +16,8 @@ import { join } from 'node:path';
 import { ReadableStream as NodeReadableStream } from 'node:stream/web';
 
 import { type IFetchIo, runGate } from '../../../../scripts/browser-stack/gate.mjs';
+import { renderConfig } from '../../../../scripts/browser-stack/gen-config.mjs';
+import { loadManifest } from '../../../../scripts/browser-stack/manifest.mjs';
 
 /** A well-formed tag that is deliberately NOT the pinned one. */
 const TAG = 'v100.0.0-beta.1';
@@ -266,12 +268,22 @@ function refused(): Promise<Response> {
 /**
  * Files and network of one run; omitted members are the passing baseline.
  * `client` answers the exact client URL only; `respond` answers every URL.
+ * `generated` replaces the generated config, which otherwise matches the
+ * scenario's manifest.
  */
 interface IScenario {
   readonly manifest?: unknown;
   readonly lockfile?: unknown;
+  readonly generated?: string;
   readonly client?: Responder;
   readonly respond?: Responder;
+}
+
+/** The input files of one run. */
+interface IGateFiles {
+  readonly manifestPath: string;
+  readonly lockfilePath: string;
+  readonly generatedPath: string;
 }
 
 /** What one run did. */
@@ -325,6 +337,26 @@ function tempDir(): string {
 }
 
 /**
+ * Write a run's manifest, lockfile and generated config. The config is the
+ * render of the manifest unless the scenario replaces it, and empty when
+ * the manifest is invalid (the gate exits 2 before reading it).
+ *
+ * @param dir - Directory.
+ * @param scenario - Files of the run.
+ * @returns Paths of the three files.
+ */
+function writeFiles(dir: string, scenario: IScenario): IGateFiles {
+  const manifestPath = writeJson(dir, 'browser-stack.json', scenario.manifest ?? manifestOf());
+  const lockfileDoc = scenario.lockfile ?? lockfileOf('1.64.0');
+  const lockfilePath = writeJson(dir, 'package-lock.json', lockfileDoc);
+  const generatedPath = join(dir, 'BrowserStackConfig.ts');
+  const { manifest } = loadManifest(manifestPath);
+  const rendered = manifest === undefined ? '' : renderConfig(manifest);
+  writeFileSync(generatedPath, scenario.generated ?? rendered);
+  return { manifestPath, lockfilePath, generatedPath };
+}
+
+/**
  * Run the gate in-process against temp files and a recording fake network.
  *
  * @param args - CLI arguments.
@@ -363,8 +395,7 @@ async function gate(args: readonly string[], scenario: IScenario = {}): Promise<
   };
   const output = { out: '', err: '' };
   const code = await runGate(args, {
-    manifestPath: writeJson(dir, 'browser-stack.json', scenario.manifest ?? manifestOf()),
-    lockfilePath: writeJson(dir, 'package-lock.json', scenario.lockfile ?? lockfileOf('1.64.0')),
+    ...writeFiles(dir, scenario),
     fetch: fetchIo,
     /**
      * Capture stdout.
