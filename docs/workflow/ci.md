@@ -15,6 +15,16 @@ are skipped when the changed files cannot affect them —
 `.github/scripts/ci/detect-changes.sh` classifies the diff and each job's `if:`
 in `pr.yml` states its own condition. The matrix below is the source of truth.
 
+Unit tests, mocked E2E, integration and the package job gate on `full_suite`:
+`src` or `critical_deps`. `critical_deps` catches a browser-stack change that
+leaves `src/` untouched. That is a moved range or resolved version of
+`playwright-core` or `@hieutran094/camoufox-js`, or an edit to a file that pins
+the stack: `browser-stack.json` (the Camoufox tag and the tested playwright-core
+minor), `scripts/patch-playwright-core.mjs`, `.github/actions/install-camoufox/`,
+or the tooling that validates the manifest (`scripts/browser-stack/`,
+`scripts/check-browser-stack.mjs`). `CriticalDepsFullSuiteGate.test.ts` pins
+this list.
+
 Post-merge is a different pipeline: one `Main Pipeline` run per merge — scans
 and release together — covered in
 [Main pipeline (post-merge CI)](main-pipeline.md).

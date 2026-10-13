@@ -9,7 +9,7 @@ inputs:
 runs:
   using: composite
   steps:
-    # Camoufox is pinned to the v152 stable line (v152.0.4-beta.28),
+    # Camoufox is pinned to the v152 stable line (exact tag: browser-stack.json),
     # matching @hieutran094/camoufox-js ^0.11.2 and playwright-core
     # ^1.62.0 in package.json (Firefox 152 juggler protocol). playwright
     # 1.61 shipped the Firefox 151 client and 1.62 ships Firefox 153, so
@@ -33,11 +33,16 @@ runs:
     - name: Resolve pinned Camoufox tag
       id: camoufox-tag
       shell: bash
-      # Single source of truth for the pinned tag (v152 stable line). The
-      # cache key AND the gh-release fallback below both derive from this
-      # output, so a tag bump invalidates the cache and re-pins the
-      # fallback in one edit; never hardcode the version in two places.
-      run: echo "tag=v152.0.4-beta.28" >> "$GITHUB_OUTPUT"
+      # Single source of truth for the pinned tag: `camoufox.tag` in
+      # browser-stack.json, read through the manifest validator, which fails
+      # closed (exit 2, MANIFEST-INVALID) unless the WHOLE manifest is valid.
+      # The cache key AND the gh-release fallback below both derive from
+      # this output, so a tag bump in the manifest invalidates the cache and
+      # re-pins the fallback in one edit; never hardcode the version here.
+      run: |
+        set -euo pipefail
+        tag=$(node "${GITHUB_WORKSPACE}/scripts/browser-stack/manifest.mjs" tag)
+        echo "tag=${tag}" >> "$GITHUB_OUTPUT"
     - name: Cache Camoufox browser
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:

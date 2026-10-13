@@ -15,6 +15,7 @@ source-files:
   - .github/scripts/ci/is-bot-pr.cjs
   - .github/scripts/ci/compute-gate-booleans.sh
   - .github/scripts/ci/detect-changes.sh
+  - .github/actions/install-camoufox/action.yml
   - .github/workflows/pr-body-check.yml
   - src/Tests/Unit/Pipeline/CrossValidation/DependabotSecurityGrouping.test.ts
   - src/Tests/Unit/Pipeline/CrossValidation/RenovateLockfileMaintenancePolicy.test.ts
@@ -298,9 +299,11 @@ Residual risk for consumers is low for two independent reasons:
 Our own CI relies on the override, not on avoiding the path. Every
 `install-camoufox` call follows `setup-node-deps` (`npm ci`). A cache hit skips
 extraction. A cache miss runs `camoufox-js fetch` first, which extracts with the
-locked adm-zip 0.6.1. Only when that fails or yields the wrong version does the
-action clear the cache and fall back to `gh release download` plus system
-`unzip`.
+locked adm-zip 0.6.1. Only when that fails or yields a build other than the tag
+pinned in `browser-stack.json` does the action clear the cache and fall back to
+`gh release download` plus system `unzip`. A manifest edit is a browser-stack
+change: the detector arms `critical_deps`, so the pull request runs the full
+suite.
 
 **Action:** keep the override until camoufox-js declares `>=0.6.1` itself, then
 drop it. Watch the advisory: it bounds the range by `last_affected`, so a

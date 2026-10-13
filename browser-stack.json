@@ -1,0 +1,10 @@
+{
+  "$comment": "Single source of the tested browser stack. CI installs camoufox.tag and the browser-stack gate checks playwright-core against it. Bump both together; scripts/browser-stack/manifest.mjs validates this file.",
+  "camoufox": {
+    "tag": "v152.0.4-beta.28"
+  },
+  "playwrightCore": {
+    "testedMinor": "1.63"
+  },
+  "acceptedDeltas": []
+}
