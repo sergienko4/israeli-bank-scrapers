@@ -958,13 +958,20 @@ jobs:
   # pair that breaks them fails with the invariant named before the
   # full suite starts. `--runTestsByPath` selects the one file: an
   # extra `--testPathPatterns` would be ORed with the script's own.
+  # 20 minutes: in one Linux container the Camoufox 156 build ran the
+  # suite 1.5x slower than 152 (363 s vs 240 s). The cache keeps only
+  # the asset, so each job's first launch also fetches uBlock Origin
+  # from addons.mozilla.org: 9-18 s in later runs, 113 s once. With
+  # that host unreachable every launch retries for ~25 s, and the suite
+  # still passed in 334 s. A cold cache also downloads a larger asset.
+  # That projects to ~6 minutes here, under a third of the limit.
   # ──────────────────────────────────────────────────────────────
   e2e-mocked:
     name: E2E mocked
     needs: [changes, browser-stack]
     if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
