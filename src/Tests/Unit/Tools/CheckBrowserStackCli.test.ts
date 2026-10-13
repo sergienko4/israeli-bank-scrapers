@@ -33,7 +33,10 @@ const TAG = 'v100.0.0-beta.1';
 const RAW = 'https://raw.githubusercontent.com';
 const JUGGLER = 'juggler/protocol/Protocol.js';
 const CLIENT_URL = `${RAW}/microsoft/playwright/v1.64.0/browser_patches/firefox/${JUGGLER}`;
-const BROWSER_URL = `${RAW}/daijro/camoufox/${TAG}/additions/${JUGGLER}`;
+/** Camoufox's newest source layout, tried first. */
+const BROWSER_URL = `${RAW}/daijro/camoufox/${TAG}/browser/additions/${JUGGLER}`;
+/** The layout before v156.0.1-beta.37, tried only after a 404 on the newest. */
+const LEGACY_URL = `${RAW}/daijro/camoufox/${TAG}/additions/${JUGGLER}`;
 
 /** The fetcher's body cap, restated as the contract under test. */
 const MAX_BODY_BYTES = 524_288;
@@ -150,9 +153,34 @@ function statuses(codes: readonly number[]): Responder {
     const status = codes[call] ?? 200;
     call += 1;
     if (status === 200) return SERVE(url, init);
-    const response = new Response('upstream says no', { status });
-    return Promise.resolve(response);
+    return refusal(status);
   };
+}
+
+/**
+ * Each listed URL answers with its status; every other URL is served normally.
+ *
+ * @param routes - `[url, status]` pairs.
+ * @returns The responder.
+ */
+function failing(routes: readonly (readonly [string, number])[]): Responder {
+  const statusOf = new Map(routes);
+  return (url: string, init: RequestInit): Promise<Response> => {
+    const status = statusOf.get(url) ?? 200;
+    if (status === 200) return SERVE(url, init);
+    return refusal(status);
+  };
+}
+
+/**
+ * A non-2xx answer.
+ *
+ * @param status - HTTP status.
+ * @returns The response.
+ */
+function refusal(status: number): Promise<Response> {
+  const response = new Response('upstream says no', { status });
+  return Promise.resolve(response);
 }
 
 /**
@@ -585,6 +613,27 @@ const INFRA_CASES: readonly IInfraCase[] = [
     fetches: 0,
     sleeps: [],
   },
+  {
+    id: 'BSG-38',
+    what: 'a 404 at every Camoufox layout, naming each URL tried',
+    scenario: {
+      respond: failing([
+        [BROWSER_URL, 404],
+        [LEGACY_URL, 404],
+      ]),
+    },
+    err: `FETCH-FAILED ${BROWSER_URL} | ${LEGACY_URL} HTTP 404`,
+    fetches: 3,
+    sleeps: [],
+  },
+  {
+    id: 'BSG-39',
+    what: 'a 5xx at the newest layout, which never falls back to the legacy one',
+    scenario: { respond: failing([[BROWSER_URL, 500]]) },
+    err: `FETCH-FAILED ${BROWSER_URL} HTTP 500`,
+    fetches: 4,
+    sleeps: BACKOFF,
+  },
 ];
 
 describe('browser-stack gate verdict', () => {
@@ -610,7 +659,8 @@ describe('browser-stack gate verdict', () => {
     const args = ['--playwright', '1.65.2', '--camoufox', 'v1.2.3-beta.4'];
     const run = await gate(args, { lockfile: {} });
     const client = `${RAW}/microsoft/playwright/v1.65.2/browser_patches/firefox/${JUGGLER}`;
-    expect(run.urls).toEqual([client, `${RAW}/daijro/camoufox/v1.2.3-beta.4/additions/${JUGGLER}`]);
+    const browser = `${RAW}/daijro/camoufox/v1.2.3-beta.4/browser/additions/${JUGGLER}`;
+    expect(run.urls).toEqual([client, browser]);
     expect(run.out).toContain('playwright-core 1.65.2 × Camoufox v1.2.3-beta.4 (mode=gate)\n');
     expect(run.code).toBe(1);
   });
@@ -635,6 +685,13 @@ describe('browser-stack gate fetch policy', () => {
     const run = await gate([], { client: redirectTo('/microsoft/playwright/moved.js') });
     expect(run.code).toBe(0);
     expect(run.urls).toContain(`${RAW}/microsoft/playwright/moved.js`);
+  });
+
+  it('[BSG-13] falls back to the legacy Camoufox layout after a 404 on the newest', async () => {
+    const run = await gate([], { respond: failing([[BROWSER_URL, 404]]) });
+    expect(run.code).toBe(0);
+    expect(run.urls).toEqual([CLIENT_URL, BROWSER_URL, LEGACY_URL]);
+    expect(run.out).toContain(`browser sha256=${BROWSER_SHA}\n`);
   });
 
   it.each(INFRA_CASES)('[$id] exits 2 on $what', async ({ args, scenario, ...expected }) => {

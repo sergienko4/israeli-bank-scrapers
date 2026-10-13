@@ -17,7 +17,7 @@
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { FetchFailedError, fetchProtocol, protocolUrls } from './fetch-protocol.mjs';
+import { FetchFailedError, fetchFirst, fetchProtocol, protocolUrls } from './fetch-protocol.mjs';
 import { GateInfraError, lockedPlaywright, parseCli, readManifest } from './gate-inputs.mjs';
 import { exitOf, minorOf, renderText } from './gate-report.mjs';
 import { diffSchemas } from './juggler-diff.mjs';
@@ -37,12 +37,12 @@ const DEFAULT_IO = Object.freeze({
 /**
  * Both bodies. Waits for both fetches, so every failure is reported and none is left pending.
  *
- * @param {{ client: string, browser: string }} urls - Schema URLs.
+ * @param {{ client: string, browser: string[] }} urls - Client URL; browser candidates.
  * @param {object} io - Fetch I/O overrides.
  * @returns {Promise<{ text: string, sha256: string }[]>} Client, then browser.
  */
 async function fetchBoth(urls, io) {
-  const runs = [urls.client, urls.browser].map(url => fetchProtocol(url, io));
+  const runs = [fetchProtocol(urls.client, io), fetchFirst(urls.browser, io)];
   const settled = await Promise.allSettled(runs);
   const failures = settled.flatMap(s => (s.status === 'rejected' ? [s.reason] : []));
   if (failures.length === 0) return settled.map(s => /** @type {any} */ (s).value);

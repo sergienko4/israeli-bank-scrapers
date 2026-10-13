@@ -6,6 +6,9 @@
  * and HTTP 5xx are retried with backoff, a 4xx never is, and the body is
  * capped while it streams. Every failure is a {@link FetchFailedError}, which
  * the gate reports as infrastructure (exit 2) — never as a pass.
+ *
+ * Camoufox has moved its source tree before, so the browser side is a list of
+ * candidate URLs, newest layout first; only an HTTP 404 moves on to the next.
  */
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -20,6 +23,9 @@ export const MAX_BODY_BYTES = 524_288;
 const BACKOFF_MS = Object.freeze([1000, 2000]);
 const MAX_REDIRECTS = 3;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+
+/** Camoufox source roots, newest first: `browser/` wraps them from v156.0.1-beta.37. */
+const CAMOUFOX_ROOTS = Object.freeze(['browser/additions', 'additions']);
 
 /** Final, non-retryable failure reasons. */
 const REASONS = Object.freeze({
@@ -39,10 +45,12 @@ export class FetchFailedError extends Error {
   /**
    * @param {string} url - URL that failed.
    * @param {string} reason - What went wrong.
+   * @param {number} [status] - HTTP status of a final non-2xx answer, else 0.
    */
-  constructor(url, reason) {
+  constructor(url, reason, status = 0) {
     super(`${url} ${reason}`);
     this.name = 'FetchFailedError';
+    this.status = status;
   }
 }
 
@@ -51,15 +59,15 @@ export class FetchFailedError extends Error {
  *
  * @param {string} playwright - playwright-core version, `x.y.z`.
  * @param {string} tag - Camoufox release tag.
- * @returns {{ client: string, browser: string }} Client and browser `Protocol.js` URLs.
+ * @returns {{ client: string, browser: string[] }} Client URL; browser candidates, newest first.
  */
 export function protocolUrls(playwright, tag) {
   const juggler = 'juggler/protocol/Protocol.js';
   const client = `microsoft/playwright/v${playwright}/browser_patches/firefox/${juggler}`;
-  const browser = `daijro/camoufox/${tag}/additions/${juggler}`;
+  const browser = CAMOUFOX_ROOTS.map(root => `daijro/camoufox/${tag}/${root}/${juggler}`);
   return {
     client: `https://${ALLOWED_HOST}/${client}`,
-    browser: `https://${ALLOWED_HOST}/${browser}`,
+    browser: browser.map(path => `https://${ALLOWED_HOST}/${path}`),
   };
 }
 
@@ -112,7 +120,7 @@ const networkReason = (error, io) =>
 /** A non-2xx answer: 5xx may be transient, anything else is final. */
 async function statusFailure(/** @type {string} */ href, /** @type {Response} */ response) {
   await response.body?.cancel();
-  const failure = new FetchFailedError(href, `HTTP ${response.status}`);
+  const failure = new FetchFailedError(href, `HTTP ${response.status}`, response.status);
   return { failure, retry: response.status >= 500 };
 }
 
@@ -150,4 +158,26 @@ export async function fetchProtocol(href, overrides = {}) {
     if (!outcome.retry || index === BACKOFF_MS.length) throw outcome.failure;
     await io.sleep(BACKOFF_MS[index]);
   }
+}
+
+/** @type {(error: unknown) => boolean} Whether a fetch failed with a final HTTP 404. */
+const isNotFound = error => error instanceof FetchFailedError && error.status === 404;
+
+/**
+ * The first candidate that exists. Only a 404 moves on; any other failure is final.
+ *
+ * @param {string[]} hrefs - Candidate URLs, most likely first.
+ * @param {{ fetchImpl?: Function, sleep?: Function, timeoutMs?: number }} [overrides] - Test I/O.
+ * @returns {Promise<{ text: string, sha256: string }>} Body text and the sha256 of its bytes.
+ * @throws {FetchFailedError} On a non-404 failure, or a 404 at every candidate.
+ */
+export async function fetchFirst(hrefs, overrides = {}) {
+  for (const href of hrefs) {
+    try {
+      return await fetchProtocol(href, overrides);
+    } catch (error) {
+      if (!isNotFound(error)) throw error;
+    }
+  }
+  throw new FetchFailedError(hrefs.join(' | '), 'HTTP 404', 404);
 }
