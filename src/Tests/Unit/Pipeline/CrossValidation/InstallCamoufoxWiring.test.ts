@@ -29,13 +29,26 @@ const VALIDATOR_REL = 'scripts/browser-stack/manifest.mjs';
 
 const RESOLVE_ID = 'camoufox-tag';
 const CACHE_ACTION = 'actions/cache@';
-const CACHE_KEY = 'camoufox-bin-${{ steps.camoufox-tag.outputs.tag }}';
+const CACHE_KEY = `camoufox-bin-\${{ steps.${RESOLVE_ID}.outputs.tag }}`;
 const TOKEN_INPUT = '${{ inputs.gh-token }}';
+
+/**
+ * The resolve step's whole script: the validator prints the tag (or fails
+ * closed) and the step exports exactly that as the output the key reads.
+ */
+const RESOLVE_RUN = [
+  'set -euo pipefail',
+  `tag=$(node "\${GITHUB_WORKSPACE}/${VALIDATOR_REL}" tag)`,
+  'echo "tag=${tag}" >> "$GITHUB_OUTPUT"',
+  '',
+].join('\n');
 
 /** `install.sh`'s default install directory, below `$HOME`. */
 const DEFAULT_DIR_RE = /CACHE_DIR="\$\{CAMOUFOX_INSTALL_DIR:-\$HOME\/(?<dir>[^}"]+)\}"/u;
 /** A Dockerfile line continuation plus the next line's indent. */
 const CONTINUATION_RE = /\\\n\s*/gu;
+/** A Dockerfile instruction that starts a build stage. */
+const FROM_RE = /^FROM\s/iu;
 
 /**
  * The Docker mirror's Camoufox instructions, in order: the files
@@ -54,6 +67,7 @@ const CONSUMERS: readonly string[] = [ACTION_REL, SCRIPT_REL, DOCKERFILE_REL];
 /** One step of the composite. */
 interface IStep {
   readonly id?: string;
+  readonly shell?: string;
   readonly uses?: string;
   readonly run?: string;
   readonly with?: Readonly<Record<string, string>>;
@@ -139,6 +153,22 @@ function dockerInstructions(): readonly string[] {
 }
 
 /**
+ * The instructions of the Dockerfile's final stage. Only that stage is the
+ * image; Camoufox installed in an earlier stage the final one does not build
+ * on would be left out, so the install is checked there (conservatively: a
+ * final stage that builds on an earlier one fails too).
+ *
+ * @returns The final stage, starting with its `FROM`.
+ */
+function finalDockerStage(): readonly string[] {
+  const instructions = dockerInstructions();
+  const starts = instructions.map(line => FROM_RE.test(line));
+  const last = starts.lastIndexOf(true);
+  const first = Math.max(last, 0);
+  return instructions.slice(first);
+}
+
+/**
  * The tag `browser-stack.json` pins.
  *
  * @returns The tag, `v`-prefixed.
@@ -155,10 +185,9 @@ describe('install-camoufox wiring', () => {
     expect(roles).toEqual(['resolve', 'cache', 'install']);
   });
 
-  it('[ICW-2] the tag comes from the manifest validator', () => {
+  it('[ICW-2] the step the cache key reads exports the validated manifest tag', () => {
     const resolve = stepWithRole('resolve');
-    expect(resolve.run).toContain(`node "\${GITHUB_WORKSPACE}/${VALIDATOR_REL}" tag`);
-    expect(resolve.run).toContain('echo "tag=${tag}" >> "$GITHUB_OUTPUT"');
+    expect(resolve).toMatchObject({ id: RESOLVE_ID, shell: 'bash', run: RESOLVE_RUN });
   });
 
   it('[ICW-3] the cache is keyed on that tag and holds install.sh default directory', () => {
@@ -175,11 +204,12 @@ describe('install-camoufox wiring', () => {
     expect(install.env).toEqual({ GH_TOKEN: TOKEN_INPUT });
   });
 
-  it('[ICW-5] the Docker mirror copies what install.sh reads, then runs it', () => {
-    const instructions = dockerInstructions();
+  it('[ICW-5] the Docker image copies what install.sh reads, then runs it', () => {
+    const instructions = finalDockerStage();
     const camoufoxRuns = instructions.filter(line => /^RUN .*camoufox/iu.test(line));
     const positions = DOCKER_INSTALL.map(line => instructions.indexOf(line));
     const sorted = [...positions].sort((a, b) => a - b);
+    expect(instructions[0]).toMatch(FROM_RE);
     expect(positions).not.toContain(-1);
     expect(positions).toEqual(sorted);
     expect(camoufoxRuns).toEqual([`RUN bash ${SCRIPT_REL}`]);
