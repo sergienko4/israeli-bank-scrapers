@@ -5,8 +5,10 @@
  * installed playwright-core. Postinstall must never fail an install, so the
  * default mode always exits 0 — which is exactly why a playwright-core bump
  * that renames one read would drop the fix silently. `--strict` is the CI
- * proof: exit 0 only when every guarded form is present after patching,
- * checked per guard so one lost form cannot hide behind the other two.
+ * proof: exit 0 only when, after patching, each guarded form appears at
+ * exactly the reviewed number of sites. It is checked per guard and per
+ * site, so one lost read cannot hide behind the other two, nor behind its
+ * own copy at the other site.
  *
  * <p>Every case runs the real script as a consumer's install does: a copy
  * sits in `<root>/scripts/` and resolves `playwright-core` from a synthetic
@@ -61,6 +63,10 @@ const RENAMED = [
 const PREFIX = 'playwright-core pageError guard: ';
 const NOT_APPLIED = 'NOT APPLIED — no known pageError.location read in this build';
 const OPT_OUT_ENV = 'SKIP_PLAYWRIGHT_CORE_PATCH';
+const SITES_TAG = 'GUARD-SITES';
+
+/** pageError sites in the reviewed playwright-core: the dispatcher and the trace recorder. */
+const REVIEWED_SITES = 2;
 
 /** A fixed past mtime; any write by the script moves it to "now". */
 const UNTOUCHED_MTIME = new Date('2000-01-01T00:00:00Z');
@@ -79,13 +85,13 @@ interface ISandbox {
   readonly bundle: string;
 }
 
-/** A synthetic bundle, the outcome line it yields, and the guards it lacks after patching. */
+/** A synthetic bundle, the outcome line it yields, and the lines `--strict` adds. */
 interface IBundleCase {
   readonly id: string;
   readonly what: string;
-  readonly reads: readonly string[];
+  readonly sites: readonly (readonly string[])[];
   readonly outcome: string;
-  readonly missing: readonly number[];
+  readonly strict: readonly string[];
 }
 
 /** A run that never inspects the bundle, so `--strict` must fail closed. */
@@ -116,27 +122,60 @@ function withRead(reads: readonly string[], index: number, read: string): string
 }
 
 /**
- * Render reads as the `_onPageError` event-builder upstream ships.
+ * The same reads at both reviewed sites.
  *
- * @param reads - Location fields, one per line.
+ * @param reads - Location reads of one site.
+ * @returns Two sites with those reads.
+ */
+function atBothSites(reads: readonly string[]): readonly (readonly string[])[] {
+  return [reads, reads];
+}
+
+/**
+ * Replace one read of a list, then place the result at both reviewed sites.
+ *
+ * @param reads - Base reads.
+ * @param index - Position to replace.
+ * @param read - Replacement read.
+ * @returns Two sites with the replaced reads.
+ */
+function bothSitesWithRead(
+  reads: readonly string[],
+  index: number,
+  read: string,
+): readonly (readonly string[])[] {
+  const site = withRead(reads, index, read);
+  return atBothSites(site);
+}
+
+/**
+ * Render one `_onPageError` event-builder per site, as upstream ships it.
+ *
+ * @param sites - Location fields of each site, one per line.
  * @returns Synthetic `coreBundle.js` text.
  */
-function bundleOf(reads: readonly string[]): string {
-  const fields = reads.join(',\n        ');
-  return `_onPageError(pageError, page) {\n  const event = {\n    params: {\n      location: {\n        ${fields}\n      },\n    },\n  };\n}\n`;
+function bundleOf(sites: readonly (readonly string[])[]): string {
+  return sites
+    .map((reads): string => {
+      const fields = reads.join(',\n        ');
+      return `_onPageError(pageError, page) {\n  const event = {\n    params: {\n      location: {\n        ${fields}\n      },\n    },\n  };\n}\n`;
+    })
+    .join('');
 }
 
 /**
  * The bundle text after a correct patch: every known read guarded.
  *
- * @param reads - Reads of the original bundle.
+ * @param sites - Reads of each site of the original bundle.
  * @returns Expected text.
  */
-function patchedBundleOf(reads: readonly string[]): string {
-  const guarded = reads.map((read): string => {
-    const index = UNGUARDED.findIndex((form): boolean => form === read);
-    return index < 0 ? read : GUARDED[index];
-  });
+function patchedBundleOf(sites: readonly (readonly string[])[]): string {
+  const guarded = sites.map((reads): string[] =>
+    reads.map((read): string => {
+      const index = UNGUARDED.findIndex((form): boolean => form === read);
+      return index < 0 ? read : GUARDED[index];
+    }),
+  );
   return bundleOf(guarded);
 }
 
@@ -173,26 +212,27 @@ function sandboxWithoutBundle(): ISandbox {
 }
 
 /**
- * Create a sandbox whose bundle holds the given reads, with a fixed past mtime.
+ * Create a sandbox whose bundle holds the given sites, with a fixed past mtime.
  *
- * @param reads - Location reads written into the bundle.
+ * @param sites - Location reads of each site written into the bundle.
  * @returns The sandbox.
  */
-function sandboxWithBundle(reads: readonly string[]): ISandbox {
+function sandboxWithBundle(sites: readonly (readonly string[])[]): ISandbox {
   const sandbox = sandboxWithoutBundle();
-  const text = bundleOf(reads);
+  const text = bundleOf(sites);
   writeFileSync(sandbox.bundle, text);
   utimesSync(sandbox.bundle, UNTOUCHED_MTIME, UNTOUCHED_MTIME);
   return sandbox;
 }
 
 /**
- * Create a sandbox whose bundle ships every read unguarded.
+ * Create a sandbox whose bundle ships every read unguarded at both sites.
  *
  * @returns The sandbox.
  */
 function sandboxUnguarded(): ISandbox {
-  return sandboxWithBundle(UNGUARDED);
+  const sites = atBothSites(UNGUARDED);
+  return sandboxWithBundle(sites);
 }
 
 /**
@@ -235,13 +275,24 @@ function linesOf(lines: readonly string[]): string {
 }
 
 /**
- * The `MISSING-GUARD` line `--strict` prints for one absent guard.
+ * The `GUARD-SITES` line `--strict` prints for one guard off the reviewed count.
  *
  * @param index - Index into the script's `GUARDS`.
+ * @param found - Guarded sites of that read after patching.
  * @returns Expected line.
  */
-function missingLine(index: number): string {
-  return `MISSING-GUARD ${String(index)} ${UNGUARDED[index]}`;
+function sitesLine(index: number, found: number): string {
+  return `${SITES_TAG} ${String(index)} ${String(found)}/${String(REVIEWED_SITES)} ${UNGUARDED[index]}`;
+}
+
+/**
+ * The `GUARD-SITES` line of every guard, all with the same found count.
+ *
+ * @param found - Guarded sites of each read after patching.
+ * @returns Expected lines, in `GUARDS` order.
+ */
+function allSitesLines(found: number): string[] {
+  return UNGUARDED.map((_read, index): string => sitesLine(index, found));
 }
 
 /**
@@ -278,41 +329,74 @@ function mtimeOf(path: string): number {
 const BUNDLE_CASES: readonly IBundleCase[] = [
   {
     id: 'PPC-1',
-    what: 'unguarded',
-    reads: UNGUARDED,
-    outcome: 'guarded 3 pageError.location read(s)',
-    missing: [],
+    what: 'unguarded at both sites, as upstream ships',
+    sites: atBothSites(UNGUARDED),
+    outcome: 'guarded 6 pageError.location read(s)',
+    strict: [],
   },
-  { id: 'PPC-2', what: 'already guarded', reads: GUARDED, outcome: 'already guarded', missing: [] },
+  {
+    id: 'PPC-2',
+    what: 'already guarded',
+    sites: atBothSites(GUARDED),
+    outcome: 'already guarded',
+    strict: [],
+  },
   {
     id: 'PPC-3',
-    what: 'two unguarded sites, as upstream ships',
-    reads: [...UNGUARDED, ...UNGUARDED],
-    outcome: 'guarded 6 pageError.location read(s)',
-    missing: [],
+    what: 'a build with one site only',
+    sites: [UNGUARDED],
+    outcome: 'guarded 3 pageError.location read(s)',
+    strict: allSitesLines(1),
   },
   {
     id: 'PPC-4',
     what: 'one read guarded, two unguarded',
-    reads: withRead(UNGUARDED, 0, GUARDED[0]),
-    outcome: 'guarded 2 pageError.location read(s)',
-    missing: [],
+    sites: bothSitesWithRead(UNGUARDED, 0, GUARDED[0]),
+    outcome: 'guarded 4 pageError.location read(s)',
+    strict: [],
   },
-  { id: 'PPC-5', what: 'no known reads', reads: RENAMED, outcome: NOT_APPLIED, missing: [0, 1, 2] },
+  {
+    id: 'PPC-5',
+    what: 'no known reads',
+    sites: atBothSites(RENAMED),
+    outcome: NOT_APPLIED,
+    strict: allSitesLines(0),
+  },
   ...UNGUARDED.map((_read, index): IBundleCase => ({
     id: `PPC-${String(6 + index)}`,
-    what: `partial loss: read ${String(index)} renamed, the others unguarded`,
-    reads: withRead(UNGUARDED, index, RENAMED[index]),
-    outcome: 'guarded 2 pageError.location read(s)',
-    missing: [index],
+    what: `partial loss: read ${String(index)} renamed at both sites, the others unguarded`,
+    sites: bothSitesWithRead(UNGUARDED, index, RENAMED[index]),
+    outcome: 'guarded 4 pageError.location read(s)',
+    strict: [sitesLine(index, 0)],
   })),
   ...GUARDED.map((_read, index): IBundleCase => ({
     id: `PPC-${String(9 + index)}`,
-    what: `partial loss: read ${String(index)} renamed, the others already guarded`,
-    reads: withRead(GUARDED, index, RENAMED[index]),
+    what: `partial loss: read ${String(index)} renamed at both sites, the others guarded`,
+    sites: bothSitesWithRead(GUARDED, index, RENAMED[index]),
     outcome: NOT_APPLIED,
-    missing: [index],
+    strict: [sitesLine(index, 0)],
   })),
+  ...UNGUARDED.map((_read, index): IBundleCase => ({
+    id: `PPC-${String(14 + index)}`,
+    what: `site loss: read ${String(index)} renamed at one site, the rest unguarded`,
+    sites: [withRead(UNGUARDED, index, RENAMED[index]), UNGUARDED],
+    outcome: 'guarded 5 pageError.location read(s)',
+    strict: [sitesLine(index, 1)],
+  })),
+  ...GUARDED.map((_read, index): IBundleCase => ({
+    id: `PPC-${String(17 + index)}`,
+    what: `site loss: read ${String(index)} renamed at one site, the rest guarded`,
+    sites: [GUARDED, withRead(GUARDED, index, RENAMED[index])],
+    outcome: 'already guarded',
+    strict: [sitesLine(index, 1)],
+  })),
+  {
+    id: 'PPC-24',
+    what: 'a third site the review never saw',
+    sites: [UNGUARDED, UNGUARDED, UNGUARDED],
+    outcome: 'guarded 9 pageError.location read(s)',
+    strict: allSitesLines(3),
+  },
 ];
 
 const SKIP_CASES: readonly ISkipCase[] = [
@@ -340,17 +424,17 @@ const SKIP_CASES: readonly ISkipCase[] = [
 ];
 
 describe('patch-playwright-core default mode (postinstall)', () => {
-  it.each(BUNDLE_CASES)('[$id] $what → exit 0, "$outcome", no MISSING-GUARD', bundleCase => {
-    const sandbox = sandboxWithBundle(bundleCase.reads);
+  it.each(BUNDLE_CASES)('[$id] $what → exit 0, "$outcome", no GUARD-SITES', bundleCase => {
+    const sandbox = sandboxWithBundle(bundleCase.sites);
     const run = runPatcher(sandbox, []);
     expect(run).toEqual({ status: 0, stdout: linesOf([PREFIX + bundleCase.outcome]), stderr: '' });
   });
 
   it.each(BUNDLE_CASES)('[$id] $what → every known read guarded in place', bundleCase => {
-    const sandbox = sandboxWithBundle(bundleCase.reads);
+    const sandbox = sandboxWithBundle(bundleCase.sites);
     runPatcher(sandbox, []);
     const text = readBundle(sandbox);
-    const expected = patchedBundleOf(bundleCase.reads);
+    const expected = patchedBundleOf(bundleCase.sites);
     expect(text).toBe(expected);
   });
 
@@ -358,14 +442,15 @@ describe('patch-playwright-core default mode (postinstall)', () => {
     ['already guarded', GUARDED],
     ['no known reads', RENAMED],
   ])('[PPC-12] never writes when there is nothing to guard (%s)', (_what, reads) => {
-    const sandbox = sandboxWithBundle(reads);
+    const sites = atBothSites(reads);
+    const sandbox = sandboxWithBundle(sites);
     runPatcher(sandbox, []);
     const mtime = mtimeOf(sandbox.bundle);
     expect(mtime).toBe(UNTOUCHED_MS);
   });
 
   it('[PPC-13] is idempotent: the second run reports already guarded and rewrites nothing', () => {
-    const sandbox = sandboxWithBundle(UNGUARDED);
+    const sandbox = sandboxUnguarded();
     runPatcher(sandbox, []);
     const once = readBundle(sandbox);
     utimesSync(sandbox.bundle, UNTOUCHED_MTIME, UNTOUCHED_MTIME);
@@ -381,21 +466,21 @@ describe('patch-playwright-core default mode (postinstall)', () => {
 
 describe('patch-playwright-core --strict (CI proof)', () => {
   it.each(BUNDLE_CASES)(
-    '[$id] $what → exit 1 iff a guard is missing, each one named',
+    '[$id] $what → exit 1 iff a guard is off the reviewed site count, each one named',
     bundleCase => {
-      const sandbox = sandboxWithBundle(bundleCase.reads);
+      const sandbox = sandboxWithBundle(bundleCase.sites);
       const run = runPatcher(sandbox, ['--strict']);
-      const expected = [PREFIX + bundleCase.outcome, ...bundleCase.missing.map(missingLine)];
-      const status = bundleCase.missing.length > 0 ? 1 : 0;
+      const expected = [PREFIX + bundleCase.outcome, ...bundleCase.strict];
+      const status = bundleCase.strict.length > 0 ? 1 : 0;
       expect(run).toEqual({ status, stdout: linesOf(expected), stderr: '' });
     },
   );
 
   it.each(BUNDLE_CASES)('[$id] $what → patches exactly as the default mode does', bundleCase => {
-    const sandbox = sandboxWithBundle(bundleCase.reads);
+    const sandbox = sandboxWithBundle(bundleCase.sites);
     runPatcher(sandbox, ['--strict']);
     const text = readBundle(sandbox);
-    const expected = patchedBundleOf(bundleCase.reads);
+    const expected = patchedBundleOf(bundleCase.sites);
     expect(text).toBe(expected);
   });
 });
@@ -409,7 +494,7 @@ describe('patch-playwright-core skips', () => {
     expect({ status: run.status, stderr: run.stderr }).toEqual({ status: 0, stderr: '' });
     expect(hasPrefix).toBe(true);
     expect(outcome).toMatch(skipCase.outcome);
-    expect(run.stdout).not.toContain('MISSING-GUARD');
+    expect(run.stdout).not.toContain(SITES_TAG);
   });
 
   it.each(SKIP_CASES)('[$id] $what → --strict fails closed: exit 1, nothing verified', skipCase => {
@@ -418,14 +503,15 @@ describe('patch-playwright-core skips', () => {
     const outcome = outcomeOf(run);
     expect({ status: run.status, stderr: run.stderr }).toEqual({ status: 1, stderr: '' });
     expect(outcome).toMatch(skipCase.outcome);
-    expect(run.stdout).not.toContain('MISSING-GUARD');
+    expect(run.stdout).not.toContain(SITES_TAG);
   });
 
   it('[PPC-23] the opt-out leaves an unguarded bundle untouched', () => {
-    const sandbox = sandboxWithBundle(UNGUARDED);
+    const sandbox = sandboxUnguarded();
     runPatcher(sandbox, ['--strict'], { [OPT_OUT_ENV]: '1' });
     const text = readBundle(sandbox);
-    const original = bundleOf(UNGUARDED);
+    const unguardedSites = atBothSites(UNGUARDED);
+    const original = bundleOf(unguardedSites);
     const mtime = mtimeOf(sandbox.bundle);
     expect(text).toBe(original);
     expect(mtime).toBe(UNTOUCHED_MS);
