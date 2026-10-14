@@ -32,6 +32,19 @@ const NODE = "const ns = {}; ns.Node = { v: t.String, kids: t.Array(t.Recursive(
 const NODE_NO_V = "const ns = {}; ns.Node = { kids: t.Array(t.Recursive(ns, 'Node')) };";
 
 /**
+ * Two namespaces that both declare `Node`; `A.Node` refers to `B.Node`.
+ *
+ * @param bNode - Object literal of `B.Node`.
+ * @returns Prelude line.
+ */
+function twoNamespaces(bNode: string): string {
+  return `const A = {}; const B = {}; B.Node = ${bNode}; A.Node = { b: t.Recursive(B, 'Node') };`;
+}
+
+const TWO_NS_B_HAS_V = twoNamespaces('{ v: t.String }');
+const TWO_NS_B_EMPTY = twoNamespaces('{}');
+
+/**
  * A one-domain `Protocol.js` source. Lines: 1 import, 2 prelude, 3 domain `D`, 4 root.
  *
  * @param domain - Object literal of domain `D`.
@@ -281,6 +294,20 @@ const DIFF_CASES: readonly IDiffCase[] = [
     client: method("{ a: t.Enum(['mixed', true]) }"),
     browser: method('{ a: t.String }'),
     expected: [delta('request TYPE-MISMATCH D.m.a', 'src:Enum("mixed"|true)|dst:String')],
+  },
+  {
+    id: 'BSD-47',
+    what: 'a difference inside a same-named type of another namespace',
+    client: method("{ n: t.Recursive(A, 'Node') }", '{}', TWO_NS_B_HAS_V),
+    browser: method("{ n: t.Recursive(A, 'Node') }", '{}', TWO_NS_B_EMPTY),
+    expected: [delta('request UNKNOWN-FIELD D.m.n.b.v', 'src:String|dst:absent')],
+  },
+  {
+    id: 'BSD-48',
+    what: 'a Ref signed with its namespace',
+    client: method("{ a: t.Array(t.Recursive(B, 'Node')) }", '{}', TWO_NS_B_EMPTY),
+    browser: method('{ a: t.String }'),
+    expected: [delta('request TYPE-MISMATCH D.m.a', 'src:Array(Ref(B.Node))|dst:String')],
   },
 ];
 

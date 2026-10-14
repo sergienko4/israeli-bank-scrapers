@@ -8,7 +8,8 @@
  * - primitives by name; `Enum(<sorted JSON literals joined by |>)`, so the
  *   string `"true"` and the boolean `true` differ and a `|` inside a value
  *   stays inside its quotes;
- * - `Array(<sig>)`, `Nullable(<sig>)`, `Optional(<sig>)` (fields only), `Ref(<name>)`;
+ * - `Array(<sig>)`, `Nullable(<sig>)`, `Optional(<sig>)` (fields only), `Ref(<ns>.<name>)`,
+ *   since two namespaces may declare the same name;
  * - an object is `{<sorted keys>}` at the top of a signature, `Object` when nested;
  * - a missing side is `absent`.
  */
@@ -36,7 +37,7 @@ const SIG = Object.freeze({
     `Array(${sig(type.item, depth + 1)})`,
   Nullable: (/** @type {NullableType} */ type, /** @type {number} */ depth) =>
     `Nullable(${sig(type.inner, depth + 1)})`,
-  Ref: (/** @type {RefType} */ type) => `Ref(${type.name})`,
+  Ref: (/** @type {RefType} */ type) => `Ref(${type.ns}.${type.name})`,
 });
 
 /**
