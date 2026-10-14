@@ -4,17 +4,18 @@
 
 ## In this section
 
-| Page                                           | What it covers                                                                                           |
-| ---------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| [CI gates](ci.md)                              | Every check that runs on a PR, what fails it, where to look for the log                                  |
-| [Pre-commit hook](pre-commit.md)               | 12 quality gates run in parallel before any commit lands locally                                         |
-| [Pre-push hook](pre-push.md)                   | Opt-in PR-body validator mirroring the `Validate PR body sections` CI gate                               |
-| [Branch flow & release-please](branch-flow.md) | Branch policy, PR rules, release-please automated versioning                                             |
-| [Releases & consumer signals](releases.md)     | What a publish proves, the guards behind it, and the compatibility score                                 |
-| [Code-review tooling](code-review-tooling.md)  | How to query CodeRabbit + SonarCloud findings via API + the OSS rate-limit posture in `.coderabbit.yaml` |
-| [Code scanning triage](code-scanning.md)       | Which scanner to believe when zizmor and Scorecard disagree, plus the four standing findings             |
-| [Issue triage automation](issue-triage.md)     | The two staleness lanes, the `needs-info` label state machine, and how to opt out                        |
-| [LSP (code intelligence)](lsp.md)              | `.github/lsp.json`, the `typescript-language-server` prerequisite, and how to activate it                |
+| Page                                              | What it covers                                                                                                |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| [CI gates](ci.md)                                 | Every check that runs on a PR, what fails it, where to look for the log                                       |
+| [Pre-commit hook](pre-commit.md)                  | 12 quality gates run in parallel before any commit lands locally                                              |
+| [Pre-push hook](pre-push.md)                      | Opt-in PR-body validator mirroring the `Validate PR body sections` CI gate                                    |
+| [Branch flow & release-please](branch-flow.md)    | Branch policy, PR rules, release-please automated versioning                                                  |
+| [Releases & consumer signals](releases.md)        | What a publish proves, the guards behind it, and the compatibility score                                      |
+| [Browser stack upgrade](browser-stack-upgrade.md) | Landing a Camoufox × `playwright-core` pair: the gate, accepting a delta, the packed-consumer smoke, rollback |
+| [Code-review tooling](code-review-tooling.md)     | How to query CodeRabbit + SonarCloud findings via API + the OSS rate-limit posture in `.coderabbit.yaml`      |
+| [Code scanning triage](code-scanning.md)          | Which scanner to believe when zizmor and Scorecard disagree, plus the four standing findings                  |
+| [Issue triage automation](issue-triage.md)        | The two staleness lanes, the `needs-info` label state machine, and how to opt out                             |
+| [LSP (code intelligence)](lsp.md)                 | `.github/lsp.json`, the `typescript-language-server` prerequisite, and how to activate it                     |
 
 ## Two lines of defense
 
