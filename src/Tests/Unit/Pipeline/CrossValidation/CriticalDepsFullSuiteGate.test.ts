@@ -328,19 +328,47 @@ const INHERITED_ENV = Object.entries(process.env);
 const NON_GIT_ENV = INHERITED_ENV.filter(([key]): boolean => !key.startsWith('GIT_'));
 const CLEAN_ENV: NodeJS.ProcessEnv = Object.fromEntries(NON_GIT_ENV);
 
+/** Git options that isolate a run from the user's hooks, signing and identity. */
+const GIT_ISOLATION = [
+  ...['-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false'],
+  ...['-c', 'user.name=t', '-c', 'user.email=t@example.invalid'],
+];
+
+/** Where and how a checked command runs. */
+interface ICheckedRun {
+  readonly cwd: string;
+  readonly env: NodeJS.ProcessEnv;
+  /** Exit statuses that mean success; only 0 when omitted. */
+  readonly okStatuses?: readonly number[];
+}
+
+/**
+ * Run a command and fail on a spawn error or any other exit status, so a
+ * crashed git or detector cannot pass as an empty or partial result.
+ *
+ * @param command - Executable.
+ * @param args - Its arguments.
+ * @param run - Working directory, environment and accepted exit statuses.
+ * @returns Trimmed stdout.
+ */
+function checkedRun(command: string, args: readonly string[], run: ICheckedRun): string {
+  const { okStatuses = [0], ...options } = run;
+  const result = spawnSync(command, args, { ...options, encoding: 'utf8' });
+  if (result.error !== undefined) throw result.error;
+  if (okStatuses.includes(result.status ?? -1)) return result.stdout.trim();
+  const commandLine = [command, ...args].join(' ');
+  throw new RangeError(`${commandLine} exited ${String(result.status)}: ${result.stderr}`);
+}
+
 /**
  * Run git in a throwaway repo, isolated from the user's hooks and signing.
  *
  * @param dir - Repository root.
  * @param args - Git arguments.
- * @returns Trimmed stdout.
+ * @returns Trimmed stdout; throws when git fails.
  */
 function git(dir: string, ...args: string[]): string {
-  const isolation = ['-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false'];
-  const identity = ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid'];
-  const options = { cwd: dir, encoding: 'utf8' as const, env: CLEAN_ENV };
-  const result = spawnSync('git', [...isolation, ...identity, ...args], options);
-  return result.stdout.trim();
+  return checkedRun('git', [...GIT_ISOLATION, ...args], { cwd: dir, env: CLEAN_ENV });
 }
 
 /**
@@ -375,20 +403,42 @@ function parseOutputLine(line: string): readonly [string, string] {
 }
 
 /**
- * Run the real detector against a seeded repo.
+ * Run the detector against a seeded repo.
  *
  * @param dir - Repository root.
  * @param base - Commit the detector diffs against.
+ * @param detector - Detector script; the real one unless a test stubs it.
  * @returns Every `key=value` the detector wrote to `$GITHUB_OUTPUT`.
  */
-function runDetector(dir: string, base: string): Readonly<Record<string, string>> {
+function runDetector(
+  dir: string,
+  base: string,
+  detector = DETECTOR,
+): Readonly<Record<string, string>> {
   const output = join(dir, 'github-output');
   const env = { ...CLEAN_ENV, BASE_SHA: base, GITHUB_OUTPUT: output };
-  spawnSync('bash', [DETECTOR], { cwd: dir, env, encoding: 'utf8' });
+  checkedRun('bash', [detector], { cwd: dir, env });
   const text = readFileSync(output, 'utf8');
   const lines = text.trim().split('\n');
   const pairs = lines.map(parseOutputLine);
   return Object.fromEntries(pairs);
+}
+
+/**
+ * Run a body in a fresh temp directory, removed afterwards.
+ *
+ * @param body - Work to do in the directory.
+ * @returns What the body returns.
+ */
+function inTempDir<T>(body: (dir: string) => T): T {
+  const tempRoot = tmpdir();
+  const prefix = join(tempRoot, 'critical-deps-');
+  const dir = mkdtempSync(prefix);
+  try {
+    return body(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 /**
@@ -398,16 +448,39 @@ function runDetector(dir: string, base: string): Readonly<Record<string, string>
  * @returns Every `key=value` the detector wrote to `$GITHUB_OUTPUT`.
  */
 function detectFor(path: string): Readonly<Record<string, string>> {
-  const tempRoot = tmpdir();
-  const prefix = join(tempRoot, 'critical-deps-');
-  const dir = mkdtempSync(prefix);
-  try {
+  return inTempDir((dir: string): Readonly<Record<string, string>> => {
     const base = seedRepo(dir, path);
     return runDetector(dir, base);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
+  });
 }
+
+/**
+ * Run a detector that writes its flags and then fails.
+ *
+ * @param dir - Empty directory for the stub and its output.
+ * @returns The flags, if the harness wrongly accepts the failed run.
+ */
+function runFailingDetector(dir: string): Readonly<Record<string, string>> {
+  const stub = join(dir, 'detector.sh');
+  writeFileSync(stub, 'echo "src=true" >> "$GITHUB_OUTPUT"\nexit 1\n');
+  return runDetector(dir, 'base', stub);
+}
+
+/**
+ * Run git where it must fail: `rev-parse HEAD` outside any repository.
+ *
+ * @param dir - Empty directory that is not a repository.
+ * @returns Git's stdout, if the harness wrongly accepts the failed run.
+ */
+function runFailingGit(dir: string): string {
+  return git(dir, 'rev-parse', 'HEAD');
+}
+
+/** Runs the harness must reject, each failing after any output it writes. */
+const FAILING_RUNS: readonly (readonly [string, (dir: string) => unknown])[] = [
+  ['detector', runFailingDetector],
+  ['git', runFailingGit],
+];
 
 /**
  * Ask the REAL repo's ignore rules about one path, as a new untracked file.
@@ -417,7 +490,9 @@ function detectFor(path: string): Readonly<Record<string, string>> {
  *   re-included) and the path git reported, which proves git actually ran.
  */
 function ignoreVerdict(path: string): readonly [string, string] {
-  const line = git(REPO_ROOT, 'check-ignore', '-v', '-n', '--no-index', path);
+  const args = [...GIT_ISOLATION, 'check-ignore', '-v', '-n', '--no-index', path];
+  // check-ignore exits 1 when no pattern matches, which -n still reports.
+  const line = checkedRun('git', args, { cwd: REPO_ROOT, env: CLEAN_ENV, okStatuses: [0, 1] });
   const [source = '', reported = ''] = line.split('\t');
   const pattern = source.split(':').slice(2).join(':');
   return [pattern, reported];
@@ -486,6 +561,12 @@ describe('CriticalDepsFullSuiteGate', () => {
     const [pattern, reported] = ignoreVerdict(path);
     expect(reported).toBe(path);
     expect(pattern).toMatch(/^(!.*)?$/u);
+  });
+
+  // A detector or git that fails must fail the test, never pass as flags
+  // it wrote before failing or as an empty result.
+  it.each(FAILING_RUNS)('[CI-CRIT-GATE] Harness_Failing_%s_ShouldThrow', (_name, run) => {
+    expect(() => inTempDir(run)).toThrow(/exited/u);
   });
 
   it('[CI-CRIT-GATE] Detector_FullSuite_ShouldBeSrcOrCriticalDeps', () => {
