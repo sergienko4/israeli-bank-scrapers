@@ -39,6 +39,7 @@ import { parseJugglerSchema, UnparseableSchemaError } from './juggler-schema.mjs
  * @typedef {import('./gate-inputs.mjs').AcceptedDelta} AcceptedDelta
  * @typedef {import('./gate-inputs.mjs').CliOptions} CliOptions
  * @typedef {import('./gate-pins.mjs').Pair} Pair
+ * @typedef {import('./gate-inputs.mjs').Manifest} Manifest
  * @typedef {import('./gate-report.mjs').Report} Report
  * @typedef {import('./juggler-diff.d.mts').IJugglerDelta} IJugglerDelta
  * @typedef {{ text: string, sha256: string }} Body - One fetched `Protocol.js`.
@@ -124,7 +125,7 @@ async function compare(pair, mode, io) {
 
 /** Findings that need no network: DRIFT and GENERATED-STALE. */
 function localFindings(
-  /** @type {any} */ manifest,
+  /** @type {Manifest} */ manifest,
   /** @type {string} */ playwright,
   /** @type {string} */ generatedPath,
 ) {

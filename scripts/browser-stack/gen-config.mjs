@@ -66,7 +66,7 @@ export function renderConfig(manifest) {
  * Whether the file at `path` differs from the render of `manifest`. A
  * missing file is stale; any other read error propagates.
  *
- * @param {any} manifest - Valid manifest.
+ * @param {import('./manifest.d.mts').IValidManifest} manifest - Valid manifest.
  * @param {string} path - Path of the generated module.
  * @returns {boolean} True when regeneration would change the file.
  */
