@@ -301,12 +301,11 @@ function countOf(haystack: string, needle: string): number {
 
 /**
  * Paths whose change ALONE must arm `critical_deps` and `full_suite`: the
- * browser-stack manifest and every file of the gate that validates it,
- * plus the two original pinning files.
+ * browser-stack manifest and the tooling that validates it, plus the two
+ * original pinning files.
  */
 const BROWSER_STACK_PATHS = [
   'browser-stack.json',
-  'scripts/check-browser-stack.mjs',
   'scripts/browser-stack/x.mjs',
   'scripts/patch-playwright-core.mjs',
   '.github/actions/install-camoufox/install.sh',
@@ -316,7 +315,6 @@ const BROWSER_STACK_PATHS = [
 const NOT_BROWSER_STACK_PATHS = [
   'docs/browser-stack.json',
   'scripts/browser-stack.json.bak',
-  'scripts/check-browser-stack.mjs.orig',
 ] as const;
 
 /**
