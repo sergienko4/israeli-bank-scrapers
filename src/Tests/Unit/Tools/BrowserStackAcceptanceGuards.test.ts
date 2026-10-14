@@ -13,9 +13,10 @@
  *   BSG-2  no usage guard matches non-test src
  *   BSG-3  both context builders keep the viewport null and set no option
  *          that sends a guarded command
- *   BSG-4  every context src creates takes its options from a builder: by
- *          syntax, each newContext gets an untouched builder const, each
- *          newPage runs on a context, and no persistent context exists
+ *   BSG-4  every context src creates takes its options from a builder: each
+ *          newContext gets an untouched const the checker resolves to a
+ *          builder, each newPage runs on a playwright BrowserContext, and no
+ *          persistent context exists
  *   BSG-5  playwright-core still never sends a method Camoufox lacks
  *   BSG-6  the test that pins the screenshot as best-effort still exists
  *   BSG-7  each pattern flags a planted use and passes clean code
@@ -24,10 +25,15 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import * as ts from 'typescript';
-
 import { buildContextOptions as commonContextOptions } from '../../../Common/Browser.js';
 import { buildContextOptions as pipelineContextOptions } from '../../../Scrapers/Pipeline/Mediator/Browser/BrowserContextBuilder.js';
+import {
+  builtContextCount,
+  CONTEXT_NAME_RE,
+  contextFindings,
+  type IContextProgram,
+} from '../../Helpers/ContextCreationGuard.js';
+import { type IMemoryFile, programOf, repoCompilerOptions } from '../../Helpers/TsProgram.js';
 
 const REPO_ROOT = process.cwd();
 const SRC_DIR = path.join(REPO_ROOT, 'src');
@@ -49,16 +55,8 @@ const GUARDED_OPTIONS: readonly string[] = [
   'recordVideo',
 ];
 
-const CONTEXT_BUILDER = 'buildContextOptions';
-/** Names that create a context; a source naming none of them needs no parse. */
-const CONTEXT_NAME_RE = /newContext|newPage|launchPersistentContext/u;
-/** A receiver named as a context; `newPage` on anything else opens a default context. */
-const CONTEXT_RECEIVER_RE = /context$/iu;
 const MODULE_RE = /\.[cm]?ts$/u;
 const TEST_MODULE_RE = /\.test\.[cm]?ts$/u;
-
-/** Whether one mention of a context-creating name is safe. */
-type MentionRule = (mention: ts.Node, tree: ts.SourceFile) => boolean;
 
 /** Where a guard looks for the use that would make its delta harmful. */
 type GuardScope = 'src' | 'playwright-core' | 'consumer';
@@ -142,6 +140,18 @@ const PLANTED: readonly string[] = [
 /** Builder options, then a statement that reaches them. */
 const BUILT = 'const opts = buildContextOptions();\n';
 
+/** What a planted context snippet sees: the builders and typed browsers, no context. */
+const PRELUDE = [
+  "import type { Browser, BrowserContext, BrowserType } from 'playwright-core';",
+  "import { buildContextOptions } from './Common/Browser.js';",
+  "import { buildContextOptions as buildSessionOptions } from './Scrapers/Pipeline/Mediator/Browser/BrowserContextBuilder.js';",
+  'declare const browser: Browser;',
+  'declare const camoufoxBrowser: Browser;',
+  'declare const chromium: BrowserType;',
+  'declare const options: { readonly browserContext: BrowserContext };',
+  '',
+].join('\n');
+
 /** Context creation src must not do: options not from a builder, or none at all. */
 const UNBUILT_CONTEXTS: readonly string[] = [
   'await browser.newContext({ viewport: { width: 1, height: 1 } });',
@@ -156,6 +166,25 @@ const UNBUILT_CONTEXTS: readonly string[] = [
   `${BUILT}{\n  const opts = { isMobile: true };\n  await browser.newContext(opts);\n}`,
   `${BUILT}await browser.newContext({ ...opts, isMobile: true });`,
   `${BUILT}await browser.newContext(opts, extra);`,
+  [
+    'function open() {',
+    '  function buildContextOptions() {',
+    '    return { viewport: { width: 1, height: 1 } };',
+    '  }',
+    '  const opts = buildContextOptions();',
+    '  return browser.newContext(opts);',
+    '}',
+  ].join('\n'),
+  [
+    'const opts = { isMobile: true };',
+    'function open() {',
+    '  {',
+    '    const opts = buildContextOptions();',
+    '  }',
+    '  return browser.newContext(opts);',
+    '}',
+  ].join('\n'),
+  'export const opts = buildContextOptions();\nawait browser.newContext(opts);',
   'await browser /* c */ .newContext /* c */ ({ isMobile: true });',
   "await browser['newContext']({ isMobile: true });",
   'const open = browser.newContext;',
@@ -163,17 +192,21 @@ const UNBUILT_CONTEXTS: readonly string[] = [
   'await browser.newPage();',
   'await this.browser.newPage();',
   'await camoufoxBrowser.newPage();',
+  'const context = browser;\nawait context.newPage();',
+  'const browserContext = browser;\nawait browserContext.newPage();',
   "await chromium.launchPersistentContext('dir');",
 ];
 
 /** Code that uses none of the guarded features. */
 const CLEAN = [
-  'const contextOpts = buildContextOptions(saved);',
+  "const contextOpts = buildSessionOptions('state.json');",
   'const context = await browser.newContext(contextOpts);',
   'const multi = buildContextOptions();',
   'const second = await browser.newContext(\n  multi,\n);',
   'const page = await context.newPage();',
-  'await this.options.browserContext.newPage();',
+  'await second.newPage();',
+  'await options.browserContext.newPage();',
+  'function open(held: BrowserContext) {\n  return held.newPage();\n}',
   "type Context = Awaited<ReturnType<Browser['newContext']>>;",
   'const snapshot = { viewport: { width: 0, height: 0 } };',
   "await page.screenshot({ path: 'a.png' });",
@@ -233,258 +266,47 @@ function isSrcModule(file: string): boolean {
 }
 
 /**
- * Parse a source as TypeScript, with parent links.
+ * A snippet as a typed module beside the real src, so its names resolve.
  *
- * @param source - The source.
- * @returns Its syntax tree.
+ * @param name - A file name for the snippet.
+ * @param snippet - The planted code.
+ * @returns The in-memory file.
  */
-function parseSource(source: ISource): ts.SourceFile {
-  const { rel, text } = source;
-  return ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+function plantedFile(name: string, snippet: string): IMemoryFile {
+  return { path: path.join(SRC_DIR, `${name}.ts`), text: `${PRELUDE}${snippet}` };
 }
 
 /**
- * A node and every code node under it; JSDoc is not code.
- *
- * @param node - Where to start.
- * @param tree - The tree the node belongs to.
- * @returns The nodes, outermost first.
- */
-function codeNodes(node: ts.Node, tree: ts.SourceFile): ts.Node[] {
-  const children = node.getChildren(tree).filter(child => !ts.isJSDoc(child));
-  const nested = children.flatMap((child: ts.Node): ts.Node[] => codeNodes(child, tree));
-  return [node, ...nested];
-}
-
-/**
- * Whether a node sits in a type, where a name is not a call.
- *
- * @param node - A syntax node.
- * @returns True under a type node.
- */
-function isInType(node: ts.Node): boolean {
-  const parent = node.parent as ts.Node | undefined;
-  if (parent === undefined) return false;
-  return ts.isTypeNode(parent) || isInType(parent);
-}
-
-/**
- * The name a code node spells: an identifier or a string key.
- *
- * @param node - A syntax node.
- * @returns The name, or '' for any other node and for names in types.
- */
-function mentionName(node: ts.Node): string {
-  const isName = ts.isIdentifier(node) || ts.isStringLiteralLike(node);
-  return isName && !isInType(node) ? node.text : '';
-}
-
-/**
- * The call that invokes a mention as a member: `x.name(…)` or `x['name'](…)`.
- *
- * @param mention - A name node.
- * @returns That call, or none when the name is used any other way.
- */
-function calleeOf(mention: ts.Node): ts.CallExpression[] {
-  const access = mention.parent;
-  const isProperty = ts.isPropertyAccessExpression(access) && access.name === mention;
-  const isElement = ts.isElementAccessExpression(access) && access.argumentExpression === mention;
-  const call = access.parent;
-  const isCall = ts.isCallExpression(call) && call.expression === access;
-  return (isProperty || isElement) && isCall ? [call] : [];
-}
-
-/**
- * The last name of a member call's receiver: `context` for `this.context.newPage()`.
- *
- * @param call - A member call.
- * @returns The name, or '' when the receiver is not a plain name.
- */
-function receiverName(call: ts.CallExpression): string {
-  const callee = call.expression;
-  const isMember = ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee);
-  const receiver = isMember ? callee.expression : callee;
-  if (ts.isIdentifier(receiver)) return receiver.text;
-  return ts.isPropertyAccessExpression(receiver) ? receiver.name.text : '';
-}
-
-/**
- * Whether a declaration's initializer is a direct builder call.
- *
- * @param declaration - A variable declaration.
- * @returns True for `<name> = buildContextOptions(…)`.
- */
-function isBuilderCall(declaration: ts.VariableDeclaration): boolean {
-  const value = declaration.initializer;
-  if (!value || !ts.isCallExpression(value)) return false;
-  const callee = value.expression;
-  return ts.isIdentifier(callee) && callee.text === CONTEXT_BUILDER;
-}
-
-/**
- * Whether an identifier declares a `const` set straight from the builder.
- *
- * @param name - An identifier.
- * @returns True for `const <name> = buildContextOptions(…)`.
- */
-function isBuiltConst(name: ts.Node): boolean {
-  const declaration = name.parent;
-  if (!ts.isVariableDeclaration(declaration) || declaration.name !== name) return false;
-  const keyword = declaration.parent.getFirstToken();
-  const isConst = keyword?.kind === ts.SyntaxKind.ConstKeyword;
-  return isConst && isBuilderCall(declaration);
-}
-
-/**
- * The nearest function or file around a node: where its name must be declared.
- *
- * @param node - A syntax node.
- * @returns The scope node.
- */
-function scopeOf(node: ts.Node): ts.Node {
-  const parent = node.parent;
-  return ts.isFunctionLike(parent) || ts.isSourceFile(parent) ? parent : scopeOf(parent);
-}
-
-/**
- * Whether an argument is a builder `const` of its scope that nothing else touches.
- * Exactly two uses, the declaration and this argument, rule out a later
- * write, a `delete`, an alias and a shadowing name.
- *
- * @param arg - The `newContext` argument.
- * @param tree - Its tree.
- * @returns True when the options reach `newContext` as built.
- */
-function isUntouchedBuild(arg: ts.Identifier, tree: ts.SourceFile): boolean {
-  const scope = scopeOf(arg);
-  const uses = codeNodes(scope, tree).filter(node => mentionName(node) === arg.text);
-  const isDeclared = uses.some(isBuiltConst);
-  return uses.length === 2 && isDeclared;
-}
-
-/**
- * Whether a call passes one argument, an untouched builder result.
- *
- * @param call - A `newContext` call.
- * @param tree - Its tree.
- * @returns True for `newContext(<untouched builder const>)`.
- */
-function isBuiltCall(call: ts.CallExpression, tree: ts.SourceFile): boolean {
-  const [arg] = call.arguments;
-  const isSole = call.arguments.length === 1 && ts.isIdentifier(arg);
-  return isSole && isUntouchedBuild(arg, tree);
-}
-
-/**
- * Whether a `newContext` mention is a call with untouched builder options.
- *
- * @param mention - A `newContext` name node.
- * @param tree - Its tree.
- * @returns True for `x.newContext(<untouched builder const>)`.
- */
-function isBuiltContext(mention: ts.Node, tree: ts.SourceFile): boolean {
-  const calls = calleeOf(mention);
-  return calls.some(call => isBuiltCall(call, tree));
-}
-
-/**
- * Whether a `newPage` mention is a call on a context.
- *
- * @param mention - A `newPage` name node.
- * @returns True for `context.newPage()`.
- */
-function isContextPage(mention: ts.Node): boolean {
-  const calls = calleeOf(mention);
-  return calls.some(isOnContext);
-}
-
-/**
- * A persistent context never takes builder options.
- *
- * @returns False.
- */
-function isNeverSafe(): boolean {
-  return false;
-}
-
-/**
- * Whether a member call's receiver is named as a context.
- *
- * @param call - A member call.
- * @returns True for `context.newPage()` and `this.options.browserContext.newPage()`.
- */
-function isOnContext(call: ts.CallExpression): boolean {
-  const name = receiverName(call);
-  return CONTEXT_RECEIVER_RE.test(name);
-}
-
-/** Per context-creating name: when one mention of it is safe. */
-const MENTION_RULES: Readonly<Record<string, MentionRule>> = {
-  newContext: isBuiltContext,
-  newPage: isContextPage,
-  launchPersistentContext: isNeverSafe,
-};
-
-/**
- * Whether a node names a context-creating member in an unsafe way.
- *
- * @param node - A syntax node.
- * @param tree - Its tree.
- * @returns True for a mention its rule rejects.
- */
-function isUnsafeMention(node: ts.Node, tree: ts.SourceFile): boolean {
-  const name = mentionName(node);
-  if (!Object.hasOwn(MENTION_RULES, name)) return false;
-  return !MENTION_RULES[name](node, tree);
-}
-
-/**
- * One finding: where a node is, and its text.
- *
- * @param node - The unsafe mention.
- * @param tree - Its tree.
- * @returns `file:line name`.
- */
-function findingAt(node: ts.Node, tree: ts.SourceFile): string {
-  const start = node.getStart(tree);
-  const { line } = tree.getLineAndCharacterOfPosition(start);
-  return `${tree.fileName}:${String(line + 1)} ${node.getText(tree)}`;
-}
-
-/**
- * Where a source creates a context whose options do not come from a builder.
- *
- * @param source - The source to scan.
- * @returns One `file:line name` finding per unsafe mention.
- */
-function contextFindings(source: ISource): string[] {
-  if (!CONTEXT_NAME_RE.test(source.text)) return [];
-  const tree = parseSource(source);
-  const unsafe = codeNodes(tree, tree).filter(node => isUnsafeMention(node, tree));
-  return unsafe.map(node => findingAt(node, tree));
-}
-
-/**
- * How many `newContext` calls a source makes with untouched builder options.
- *
- * @param source - The source to scan.
- * @returns The count.
- */
-function builtContextCount(source: ISource): number {
-  if (!source.text.includes('newContext')) return 0;
-  const tree = parseSource(source);
-  const mentions = codeNodes(tree, tree).filter(node => mentionName(node) === 'newContext');
-  return mentions.filter(mention => MENTION_RULES.newContext(mention, tree)).length;
-}
-
-/**
- * A planted snippet as a source.
+ * A planted snippet as a source, for the usage patterns.
  *
  * @param text - The snippet.
  * @returns The source.
  */
 function planted(text: string): ISource {
   return { rel: 'planted.ts', text };
+}
+
+/**
+ * The src files that name a context-creating member, as in-memory files.
+ *
+ * @param sources - Every src module.
+ * @returns The files the context guard checks.
+ */
+function contextFiles(sources: readonly ISource[]): IMemoryFile[] {
+  const named = sources.filter(source => CONTEXT_NAME_RE.test(source.text));
+  return named.map(source => ({ path: path.join(REPO_ROOT, source.rel), text: source.text }));
+}
+
+/**
+ * One program over the context-creating src and every planted context snippet.
+ *
+ * @param files - The real and planted files.
+ * @returns The program to check, rooted at the repo.
+ */
+function contextProgram(files: readonly IMemoryFile[]): IContextProgram {
+  const options = repoCompilerOptions(REPO_ROOT);
+  const program = programOf(files, options);
+  return { program, root: REPO_ROOT };
 }
 
 /**
@@ -501,6 +323,16 @@ function acceptedKeys(): string[] {
 describe('browser-stack acceptance guards', () => {
   const srcFiles = walk(SRC_DIR, isSrcModule);
   const srcSources = readSources(srcFiles);
+  const realContextFiles = contextFiles(srcSources);
+  const unbuiltFiles = UNBUILT_CONTEXTS.map((snippet, index) => {
+    const name = `BsgUnbuilt${String(index)}`;
+    return plantedFile(name, snippet);
+  });
+  const unbuiltCases = UNBUILT_CONTEXTS.map((snippet, index): [string, IMemoryFile] => {
+    return [snippet, unbuiltFiles[index]];
+  });
+  const cleanFile = plantedFile('BsgClean', CLEAN);
+  const scan = contextProgram([...realContextFiles, ...unbuiltFiles, cleanFile]);
 
   it('[BSG-1] every accepted delta has exactly one guard, and every guard a delta', () => {
     const accepted = acceptedKeys().sort();
@@ -529,8 +361,8 @@ describe('browser-stack acceptance guards', () => {
   });
 
   it('[BSG-4] every context src creates takes its options from a builder', () => {
-    const findings = srcSources.flatMap(contextFindings);
-    const builtCalls = srcSources.map(builtContextCount);
+    const findings = realContextFiles.flatMap(file => contextFindings(scan, file.path));
+    const builtCalls = realContextFiles.map(file => builtContextCount(scan, file.path));
     const total = builtCalls.reduce((sum, count) => sum + count, 0);
     expect(total).toBeGreaterThan(0);
     expect(findings).toEqual([]);
@@ -578,17 +410,18 @@ describe('browser-stack acceptance guards', () => {
     expect(dead).toEqual([]);
   });
 
-  it.each(UNBUILT_CONTEXTS)('[BSG-7] flags the unbuilt context %s', snippet => {
-    const source = planted(snippet);
-    const findings = contextFindings(source);
+  it.each(unbuiltCases)('[BSG-7] flags the unbuilt context %s', (_snippet, file) => {
+    const findings = contextFindings(scan, file.path);
     expect(findings).not.toEqual([]);
   });
 
   it('[BSG-7] passes clean code', () => {
     const source = planted(CLEAN);
     const usage = usageFindings([source], SRC_PATTERNS);
-    const contexts = contextFindings(source);
+    const contexts = contextFindings(scan, cleanFile.path);
+    const built = builtContextCount(scan, cleanFile.path);
     expect(usage).toEqual([]);
     expect(contexts).toEqual([]);
+    expect(built).toBe(2);
   });
 });
