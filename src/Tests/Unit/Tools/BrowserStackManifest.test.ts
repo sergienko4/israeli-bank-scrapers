@@ -271,6 +271,20 @@ const INVALID_CASES: readonly IInvalidCase[] = [
     value: '1.063',
     pointer: '/playwrightCore/testedMinor',
   },
+  {
+    id: 'BSM-36',
+    what: 'an ENUM-VALUE suffix that is not a JSON literal',
+    at: `${D0}/path`,
+    value: 'Page.navigate.referrerPolicy=no-referrer',
+    pointer: `${D0}/path`,
+  },
+  {
+    id: 'BSM-37',
+    what: 'a number ENUM-VALUE suffix',
+    at: `${D0}/path`,
+    value: 'Page.navigate.flag=1',
+    pointer: `${D0}/path`,
+  },
   { id: 'BSM-38', what: 'a missing asset digest', at: SHA_AT, value: REMOVE, pointer: SHA_AT },
   {
     id: 'BSM-39',
@@ -299,8 +313,10 @@ const VALID_EDITS: readonly IEdit[] = [
   {
     what: 'an ENUM-VALUE suffix',
     at: `${D0}/path`,
-    value: 'Page.navigate.referrerPolicy=no-referrer',
+    value: 'Page.navigate.referrerPolicy="no-referrer"',
   },
+  { what: 'a boolean ENUM-VALUE suffix', at: `${D0}/path`, value: 'Page.navigate.flag=true' },
+  { what: 'an escaped quote in a suffix', at: `${D0}/path`, value: 'Page.navigate.a="a\\"b c"' },
   { what: 'an array segment', at: `${D0}/path`, value: 'Browser.setHTTPCredentials.credentials[]' },
   { what: 'a 10-character reason', at: `${D0}/reason`, value: '0123456789' },
   { what: 'a 240-character reason', at: `${D0}/reason`, value: 'r'.repeat(240) },

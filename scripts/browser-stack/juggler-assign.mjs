@@ -12,7 +12,7 @@
  * `objectAssign` and `typeAssign` recurse into each other, so they share this
  * module (no import cycle). The top level lives in `juggler-diff.mjs`.
  */
-import { fieldSig, pairSig, sig } from './juggler-sig.mjs';
+import { enumLiteral, fieldSig, pairSig, sig } from './juggler-sig.mjs';
 
 /**
  * @typedef {object} Cursor
@@ -105,8 +105,11 @@ function refAssign(/** @type {any} */ pair, /** @type {Cursor} */ cur) {
 /** Step 5: every `src` enum value the `dst` enum lacks. */
 function enumAssign(/** @type {any} */ s, /** @type {any} */ d, /** @type {Cursor} */ cur) {
   const signature = pairSig(sig(s), sig(d));
-  const extra = s.values.filter((/** @type {string} */ value) => !d.values.includes(value));
-  for (const value of extra) push(at(cur, `${cur.path}=${value}`), 'ENUM-VALUE', signature);
+  const extra = s.values.filter(
+    (/** @type {string | boolean} */ value) => !d.values.includes(value),
+  );
+  for (const value of extra)
+    push(at(cur, `${cur.path}=${enumLiteral(value)}`), 'ENUM-VALUE', signature);
 }
 
 /** `<src kind>><dst kind>` → comparison; unlisted pairs match only on equal kinds. */

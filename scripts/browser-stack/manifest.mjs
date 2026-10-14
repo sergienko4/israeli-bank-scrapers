@@ -31,7 +31,9 @@ const SEMVER_MINOR = /^(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
 // Bare lowercase hex, as `sha256sum` prints it; GitHub's asset `digest`
 // carries a `sha256:` prefix that must be dropped.
 const SHA256_HEX = /^[0-9a-f]{64}$/u;
-const DELTA_PATH = /^[A-Z][A-Za-z]+\.[A-Za-z]+(\.[A-Za-z]+|\[\])*(=[^=\s]+)?$/u;
+// An ENUM-VALUE path ends in `=` and the value as a JSON literal: a string or a boolean.
+const DELTA_PATH =
+  /^[A-Z][A-Za-z]+\.[A-Za-z]+(\.[A-Za-z]+|\[\])*(=("([^"\\]|\\.)*"|true|false))?$/u;
 const DELTA_SIGNATURE = /^src:.+\|dst:.+$/u;
 const DEFAULT_MANIFEST = fileURLToPath(new URL('../../browser-stack.json', import.meta.url));
 const USAGE = 'usage: node scripts/browser-stack/manifest.mjs <tag|sha256> [manifest-path]';

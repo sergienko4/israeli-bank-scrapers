@@ -5,17 +5,22 @@
  * an upstream type change at the same path re-opens review (STALE + NEW)
  * instead of riding on an old acceptance.
  *
- * - primitives by name; `Enum(<sorted values joined by |>)`;
+ * - primitives by name; `Enum(<sorted JSON literals joined by |>)`, so the
+ *   string `"true"` and the boolean `true` differ and a `|` inside a value
+ *   stays inside its quotes;
  * - `Array(<sig>)`, `Nullable(<sig>)`, `Optional(<sig>)` (fields only), `Ref(<name>)`;
  * - an object is `{<sorted keys>}` at the top of a signature, `Object` when nested;
  * - a missing side is `absent`.
  */
 
+/** An enum value as a JSON literal: `"image/png"`, `true`. */
+export const enumLiteral = (/** @type {string | boolean} */ value) => JSON.stringify(value);
+
 /** Type kind → signature builder; any other kind signs as its own name. */
 const SIG = Object.freeze({
   Object: (/** @type {any} */ type, /** @type {number} */ depth) =>
     depth > 0 ? 'Object' : `{${Object.keys(type.fields).sort().join(',')}}`,
-  Enum: (/** @type {any} */ type) => `Enum(${type.values.map(String).sort().join('|')})`,
+  Enum: (/** @type {any} */ type) => `Enum(${type.values.map(enumLiteral).sort().join('|')})`,
   Array: (/** @type {any} */ type, /** @type {number} */ depth) =>
     `Array(${sig(type.item, depth + 1)})`,
   Nullable: (/** @type {any} */ type, /** @type {number} */ depth) =>

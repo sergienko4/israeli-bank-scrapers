@@ -136,7 +136,7 @@ const DIFF_CASES: readonly IDiffCase[] = [
     what: 'request ENUM-VALUE',
     client: method("{ a: t.Enum(['y', 'x']) }"),
     browser: method("{ a: t.Enum(['x']) }"),
-    expected: [delta('request ENUM-VALUE D.m.a=y', 'src:Enum(x|y)|dst:Enum(x)')],
+    expected: [delta('request ENUM-VALUE D.m.a="y"', 'src:Enum("x"|"y")|dst:Enum("x")')],
   },
   {
     id: 'BSD-6',
@@ -157,7 +157,7 @@ const DIFF_CASES: readonly IDiffCase[] = [
     what: 'request TYPE-MISMATCH (String to Enum)',
     client: method('{ a: t.String }'),
     browser: method("{ a: t.Enum(['x']) }"),
-    expected: [delta('request TYPE-MISMATCH D.m.a', 'src:String|dst:Enum(x)')],
+    expected: [delta('request TYPE-MISMATCH D.m.a', 'src:String|dst:Enum("x")')],
   },
   {
     id: 'BSD-9',
@@ -178,7 +178,7 @@ const DIFF_CASES: readonly IDiffCase[] = [
     what: 'return ENUM-VALUE',
     client: method('{}', "{ r: t.Enum(['a']) }"),
     browser: method('{}', "{ r: t.Enum(['a', 'b']) }"),
-    expected: [delta('return ENUM-VALUE D.m.r=b', 'src:Enum(a|b)|dst:Enum(a)')],
+    expected: [delta('return ENUM-VALUE D.m.r="b"', 'src:Enum("a"|"b")|dst:Enum("a")')],
   },
   {
     id: 'BSD-12',
@@ -220,7 +220,9 @@ const DIFF_CASES: readonly IDiffCase[] = [
     what: 'a boolean enum value against its string spelling',
     client: method('{}', "{ r: t.Enum(['mixed', 'true']) }"),
     browser: method('{}', "{ r: t.Enum(['mixed', true]) }"),
-    expected: [delta('return ENUM-VALUE D.m.r=true', 'src:Enum(mixed|true)|dst:Enum(mixed|true)')],
+    expected: [
+      delta('return ENUM-VALUE D.m.r=true', 'src:Enum("mixed"|true)|dst:Enum("mixed"|"true")'),
+    ],
   },
   {
     id: 'BSD-18',
@@ -266,7 +268,24 @@ const DIFF_CASES: readonly IDiffCase[] = [
       delta('request MISSING-METHOD D.n', 'src:{}|dst:absent'),
     ],
   },
+  {
+    id: 'BSD-43',
+    what: 'a | inside an enum value, which cannot pose as two values',
+    client: method("{ a: t.Enum(['a|b']) }"),
+    browser: method("{ a: t.Enum(['a', 'b']) }"),
+    expected: [delta('request ENUM-VALUE D.m.a="a|b"', 'src:Enum("a|b")|dst:Enum("a"|"b")')],
+  },
 ];
+
+/**
+ * Identity the gate matches an accepted delta by.
+ *
+ * @param d - A delta.
+ * @returns Channel, kind, path and signature, joined.
+ */
+function identityOf(d: IJugglerDelta): string {
+  return JSON.stringify([d.channel, d.kind, d.path, d.signature]);
+}
 
 /** A client/browser source pair that must yield no delta. */
 interface INoDeltaCase {
@@ -412,6 +431,25 @@ describe('Juggler directional diff', () => {
   it.each(DIFF_CASES)('[$id] reports $what', c => {
     const deltas = diffProtocols(c.client, c.browser);
     expect(deltas).toEqual(c.expected);
+  });
+
+  it('[BSD-44] keeps a boolean enum value apart from its string spelling', () => {
+    const browser = method("{ a: t.Enum(['x']) }");
+    const stringClient = method("{ a: t.Enum(['x', 'true']) }");
+    const booleanClient = method("{ a: t.Enum(['x', true]) }");
+    const asString = diffProtocols(stringClient, browser);
+    const asBoolean = diffProtocols(booleanClient, browser);
+    expect([asString.length, asBoolean.length]).toEqual([1, 1]);
+    const identities = [...asString, ...asBoolean].map(identityOf);
+    expect(new Set(identities).size).toBe(2);
+  });
+
+  it('[BSD-45] signs both sides of every ENUM-VALUE differently', () => {
+    const deltas = DIFF_CASES.flatMap((c): IJugglerDelta[] => diffProtocols(c.client, c.browser));
+    const enumDeltas = deltas.filter((d): boolean => d.kind === 'ENUM-VALUE');
+    const sides = enumDeltas.map((d): string[] => d.signature.slice('src:'.length).split('|dst:'));
+    expect(enumDeltas.length).toBeGreaterThan(3);
+    for (const [src, dst] of sides) expect(src).not.toBe(dst);
   });
 
   it.each(NO_DELTA_CASES)('[BSD-23] reports nothing for $what', c => {
