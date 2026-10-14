@@ -301,22 +301,38 @@ Residual risk for consumers is low for two independent reasons:
 Our own CI relies on the override at launch, not at install. Every
 `install-camoufox` call follows `setup-node-deps` (`npm ci`) and runs
 `.github/actions/install-camoufox/install.sh`, which also builds the Docker CI
-mirror. The script works in the directory camoufox-js launches from:
-`CAMOUFOX_INSTALL_DIR` when set, else `~/.cache/camoufox`. A cache hit, meaning
-the pinned `version.json` plus a non-empty executable regular-file
-`camoufox-bin`, skips extraction. On a cache miss it first refuses, before
-any download, to replace a directory that is relative, is `$HOME`, or holds
-anything but a Camoufox install (a `camoufox-bin` entry or a tag-shaped
-`version.json`), so a mistyped override cannot erase unrelated files. It then
-downloads the release asset of the tag pinned in `browser-stack.json` and
-checks it against `camoufox.linuxX64Sha256`, the SHA-256 pinned beside the
-tag. A mismatch fails before the directory is touched. Only then does it clear
-the directory and extract the asset with system `unzip`. It never runs
-`camoufox-js fetch`, which would resolve
-camoufox-js's own newest release instead of the pin. It writes `version.json`
-last, so a failed extract is never recorded as installed. CI downloads the
+mirror. The script installs into the directory camoufox-js launches from:
+`CAMOUFOX_INSTALL_DIR` when set, else `~/.cache/camoufox`. It first refuses,
+before any download, to replace a directory that is relative, is `$HOME`, or
+holds anything but a Camoufox install (a `camoufox-bin` entry or a tag-shaped
+`version.json`), so a mistyped override cannot erase unrelated files. Every
+run then installs from the release asset of the tag pinned in
+`browser-stack.json`, checked against `camoufox.linuxX64Sha256`, the SHA-256
+pinned beside the tag; it trusts no install already on disk. In CI the asset
+comes from the action's cache, which holds the asset and never the install,
+and is hashed again after every restore. A mismatch, no cached asset, or
+anything but a file at the asset's name means a download, which replaces
+that entry, and a download that misses the pin fails before anything
+is extracted. The action saves a fresh download under a key unique to the run
+and restores the newest entry for the tag and digest, so the next download
+supersedes a corrupt entry instead of every later job paying for one. The
+script extracts with system `unzip` into a staging directory beside the
+install directory, checks the binary, writes `version.json` last, repeats the
+refusal check (the directory can change during the download), and only then
+renames the staging directory into place, so a failed extract leaves the
+previous install untouched. The swap sets the previous install aside first,
+then checks again what it set aside, since the directory can change between
+the refusal check and the move: anything no longer replaceable is renamed
+back and the run fails. Renaming the staging directory into place is the
+commit. A failure, or the job being terminated, before it renames the
+previous install back; after it, the new install stays. The swap never nests
+the staging directory into a directory that reappeared in between: it fails
+instead, and leaves the previous install set aside, naming its path, when
+that directory blocks the way back. It never runs `camoufox-js fetch`, which would
+resolve camoufox-js's own newest release instead of the pin. CI downloads the
 exact asset with `gh release download`; the Docker build has no token and uses
-`curl` on the public release URL, so the image carries no GitHub CLI. At launch, camoufox-js downloads its default
+`curl` on the public release URL, so the image carries no GitHub CLI and no
+copy of the asset. At launch, camoufox-js downloads its default
 uBlock Origin addon into that directory when it is missing and extracts it with
 `extractEntryTo`, which runs on the locked adm-zip 0.6.1. A manifest edit is a
 browser-stack change: the detector arms `critical_deps`, so the pull request

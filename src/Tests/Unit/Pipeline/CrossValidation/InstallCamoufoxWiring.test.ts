@@ -4,14 +4,16 @@
  * <p>`InstallCamoufoxScript` proves what `install.sh` does; this suite pins
  * that both of its consumers still run it and that the CI cache follows the
  * manifest. The composite action must resolve the tag and asset digest
- * through the manifest validator, key the cache on both outputs, cache the
- * directory `install.sh` installs to by default, and run `install.sh` with
- * the token. The Docker CI mirror must copy what `install.sh` reads and run
- * it as its only Camoufox install, tokenless, so it needs no GitHub CLI and
- * must not ship one. No consumer may spell the pinned tag or
- * digest: a literal there would survive a manifest bump, so a static cache
- * key would keep restoring the old build, or Docker would install a
- * different one from CI.
+ * through the manifest validator; restore the release asset under a key
+ * prefixed by both outputs and unique to the run, so the newest entry wins
+ * and a re-download supersedes a corrupt one; run `install.sh` with the
+ * token and that asset dir; save only when `install.sh` reports a download;
+ * and never cache the install dir, which `install.sh` does not trust. The
+ * Docker CI mirror must copy what `install.sh` reads and run it as its only
+ * Camoufox install, tokenless, so it needs no GitHub CLI and must not ship
+ * one. No consumer may spell the pinned tag or digest: a literal there
+ * would survive a manifest bump, so a static cache key would keep restoring
+ * the old asset, or Docker would install a different one from CI.
  */
 
 import { readFileSync } from 'node:fs';
@@ -30,9 +32,18 @@ const MANIFEST_REL = 'browser-stack.json';
 const VALIDATOR_REL = 'scripts/browser-stack/manifest.mjs';
 
 const RESOLVE_ID = 'camoufox-tag';
-const CACHE_ACTION = 'actions/cache@';
+const RESTORE_ID = 'asset-cache';
+const INSTALL_ID = 'install';
+const RESTORE_ACTION = 'actions/cache/restore@';
+const SAVE_ACTION = 'actions/cache/save@';
 const RESOLVED = `steps.${RESOLVE_ID}.outputs`;
-const CACHE_KEY = `camoufox-bin-\${{ ${RESOLVED}.tag }}-\${{ ${RESOLVED}.sha256 }}`;
+/** Every entry for the pinned tag and digest; restore takes the newest. */
+const ASSET_KEY_PREFIX = `camoufox-asset-\${{ ${RESOLVED}.tag }}-\${{ ${RESOLVED}.sha256 }}-`;
+/** The run's own key, so its save never collides with an older entry. */
+const RUN_KEY = `${ASSET_KEY_PREFIX}\${{ github.run_id }}-\${{ github.run_attempt }}`;
+const SAVE_KEY = `\${{ steps.${RESTORE_ID}.outputs.cache-primary-key }}`;
+const SAVE_IF = `steps.${INSTALL_ID}.outputs.downloaded == 'true'`;
+const ASSET_DIR = '${{ runner.temp }}/camoufox-asset';
 const TOKEN_INPUT = '${{ inputs.gh-token }}';
 
 /**
@@ -51,7 +62,7 @@ const RESOLVE_RUN = [
 ].join('\n');
 
 /** `install.sh`'s default install directory, below `$HOME`. */
-const DEFAULT_DIR_RE = /CACHE_DIR="\$\{CAMOUFOX_INSTALL_DIR:-\$HOME\/(?<dir>[^}"]+)\}"/u;
+const DEFAULT_DIR_RE = /INSTALL_DIR="\$\{CAMOUFOX_INSTALL_DIR:-\$HOME\/(?<dir>[^}"]+)\}"/u;
 /** A Dockerfile line continuation plus the next line's indent. */
 const CONTINUATION_RE = /\\\n\s*/gu;
 /** A Dockerfile instruction that starts a build stage. */
@@ -79,6 +90,7 @@ const CONSUMERS: readonly string[] = [ACTION_REL, SCRIPT_REL, DOCKERFILE_REL];
 /** One step of the composite. */
 interface IStep {
   readonly id?: string;
+  readonly if?: string;
   readonly shell?: string;
   readonly uses?: string;
   readonly run?: string;
@@ -94,8 +106,9 @@ interface IComposite {
 /** How a step is recognised: the role, the field read, and what it holds. */
 const ROLE_MARKERS: readonly (readonly [string, 'id' | 'uses' | 'run', string])[] = [
   ['resolve', 'id', RESOLVE_ID],
-  ['cache', 'uses', CACHE_ACTION],
+  ['restore', 'uses', RESTORE_ACTION],
   ['install', 'run', SCRIPT_REL],
+  ['save', 'uses', SAVE_ACTION],
 ];
 
 /**
@@ -123,7 +136,7 @@ function actionSteps(): readonly IStep[] {
  * The role a step plays in the install.
  *
  * @param step - The step.
- * @returns `resolve`, `cache` or `install`; `other` for anything else.
+ * @returns `resolve`, `restore`, `install` or `save`; `other` for anything else.
  */
 function roleOf(step: IStep): string {
   const hit = ROLE_MARKERS.find(([, field, needle]) => (step[field] ?? '').includes(needle));
@@ -198,28 +211,36 @@ function pinnedCamoufox(): IPinnedCamoufox {
 }
 
 describe('install-camoufox wiring', () => {
-  it('[ICW-1] the action resolves the tag, then caches, then installs', () => {
+  it('[ICW-1] the action resolves the tag, restores the asset, installs, then saves', () => {
     const roles = actionSteps().map(roleOf);
-    expect(roles).toEqual(['resolve', 'cache', 'install']);
+    expect(roles).toEqual(['resolve', 'restore', 'install', 'save']);
   });
 
-  it('[ICW-2] the step the cache key reads exports the validated tag and digest', () => {
+  it('[ICW-2] the step the cache keys read exports the validated tag and digest', () => {
     const resolve = stepWithRole('resolve');
     expect(resolve).toMatchObject({ id: RESOLVE_ID, shell: 'bash', run: RESOLVE_RUN });
   });
 
-  it('[ICW-3] the cache is keyed on both and holds install.sh default directory', () => {
-    const cache = stepWithRole('cache');
-    const defaultDir = scriptDefaultDir();
-    expect(cache.with?.key).toBe(CACHE_KEY);
-    expect(defaultDir).not.toBe('');
-    expect(cache.with?.path).toBe(defaultDir);
+  it('[ICW-3] the asset is restored newest-first and saved per run only after a download', () => {
+    const restore = stepWithRole('restore');
+    const save = stepWithRole('save');
+    const restoreWith = { path: ASSET_DIR, key: RUN_KEY, 'restore-keys': ASSET_KEY_PREFIX };
+    expect(restore).toMatchObject({ id: RESTORE_ID, with: restoreWith });
+    expect(save).toMatchObject({ if: SAVE_IF, with: { path: ASSET_DIR, key: SAVE_KEY } });
   });
 
-  it('[ICW-4] the action installs through install.sh with the token', () => {
+  it('[ICW-4] the action installs through install.sh with the token and asset dir', () => {
     const install = stepWithRole('install');
+    expect(install.id).toBe(INSTALL_ID);
     expect(install.run).toBe(`bash "\${GITHUB_WORKSPACE}/${SCRIPT_REL}"`);
-    expect(install.env).toEqual({ GH_TOKEN: TOKEN_INPUT });
+    expect(install.env).toEqual({ GH_TOKEN: TOKEN_INPUT, CAMOUFOX_ASSET_DIR: ASSET_DIR });
+  });
+
+  it('[ICW-8] no step caches the install dir, which install.sh never trusts', () => {
+    const defaultDir = scriptDefaultDir();
+    const paths = actionSteps().map(step => step.with?.path ?? '');
+    expect(defaultDir).not.toBe('');
+    expect(paths).not.toContain(defaultDir);
   });
 
   it('[ICW-5] the Docker image copies what install.sh reads, then runs it', () => {

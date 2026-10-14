@@ -1,5 +1,5 @@
 name: Install Camoufox Browser
-description: Cache and install the Camoufox anti-detect browser with authenticated fallback
+description: Install the pinned Camoufox browser from a verified, cached release asset
 
 inputs:
   gh-token:
@@ -22,11 +22,10 @@ runs:
     # omits it) — see scripts/patch-playwright-core.mjs. camoufox-js
     # resolves the newest release inside its own supported range rather
     # than an exact tag, so the install step never asks it: it installs
-    # the pinned tag's release asset, keeping the pinned cache key
-    # deterministic. Do
-    # NOT let the fallback track LATEST: v150.0.2's locale handling
-    # regressed `navigator.language` (returned `en-US` even when the
-    # context declared `he-IL`), breaking `AntiDetection.e2e-mocked.test.ts`.
+    # the pinned tag's release asset. Do NOT track LATEST: v150.0.2's
+    # locale handling regressed `navigator.language` (returned `en-US`
+    # even when the context declared `he-IL`), breaking
+    # `AntiDetection.e2e-mocked.test.ts`.
     # From v152.0.2-alpha upstream no longer builds 32-bit or macOS
     # x86_64 assets; CI only consumes `camoufox-*-lin.x86_64.zip`.
     - name: Resolve pinned Camoufox tag
@@ -35,10 +34,10 @@ runs:
       # Single source of truth for the pinned tag and its asset digest:
       # `camoufox.tag` and `camoufox.linuxX64Sha256` in browser-stack.json,
       # read through the manifest validator, which fails closed (exit 2,
-      # MANIFEST-INVALID) unless the WHOLE manifest is valid. The cache key
-      # below uses both outputs and install.sh reads the same manifest, so a
-      # tag or digest edit invalidates the cache and re-pins the install in
-      # one edit; never hardcode either value here.
+      # MANIFEST-INVALID) unless the WHOLE manifest is valid. The asset
+      # cache keys below use both outputs and install.sh reads the same
+      # manifest, so a tag or digest edit retires the cached asset and
+      # re-pins the install in one edit; never hardcode either value here.
       run: |
         set -euo pipefail
         validator="${GITHUB_WORKSPACE}/scripts/browser-stack/manifest.mjs"
@@ -46,22 +45,35 @@ runs:
         sha256=$(node "$validator" sha256)
         echo "tag=${tag}" >> "$GITHUB_OUTPUT"
         echo "sha256=${sha256}" >> "$GITHUB_OUTPUT"
-    - name: Cache Camoufox browser
-      uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+    # The cache holds the ~663 MB release asset, never the install: a
+    # restored install could hold any binary, while install.sh re-hashes a
+    # restored asset against the pin and downloads again on a mismatch.
+    # Each run saves under its own key and restore-keys picks the newest
+    # entry for this tag and digest, so a download that replaced a corrupt
+    # entry supersedes it instead of every later job paying the download.
+    # Only a run that downloaded saves; a save that collides with another
+    # job's only warns.
+    - name: Restore the Camoufox release asset
+      id: asset-cache
+      uses: actions/cache/restore@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
-        path: ~/.cache/camoufox
-        # Cache the deterministic v152 binary, keyed by the exact pinned
-        # tag and asset digest; the install step below refuses to populate
-        # this key with any other release or bytes. The path is install.sh's
-        # default directory: a job that sets CAMOUFOX_INSTALL_DIR still gets
-        # the pinned build, only uncached.
-        key: camoufox-bin-${{ steps.camoufox-tag.outputs.tag }}-${{ steps.camoufox-tag.outputs.sha256 }}
+        path: ${{ runner.temp }}/camoufox-asset
+        key: camoufox-asset-${{ steps.camoufox-tag.outputs.tag }}-${{ steps.camoufox-tag.outputs.sha256 }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: camoufox-asset-${{ steps.camoufox-tag.outputs.tag }}-${{ steps.camoufox-tag.outputs.sha256 }}-
     - name: Install Camoufox browser
+      id: install
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.gh-token }}
+        CAMOUFOX_ASSET_DIR: ${{ runner.temp }}/camoufox-asset
       # The same script builds docker/Dockerfile.ci-mirror. It reads the tag
-      # and digest from browser-stack.json (as the cache key above does),
-      # skips a cache hit and, on a miss, installs the pinned release asset
-      # only when it hashes to the pinned digest.
+      # and digest from browser-stack.json (as the cache keys above do),
+      # installs on every run from an asset that hashes to the pinned
+      # digest, and reports `downloaded` so only a fresh asset is saved.
       run: bash "${GITHUB_WORKSPACE}/.github/actions/install-camoufox/install.sh"
+    - name: Save the Camoufox release asset
+      if: steps.install.outputs.downloaded == 'true'
+      uses: actions/cache/save@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+      with:
+        path: ${{ runner.temp }}/camoufox-asset
+        key: ${{ steps.asset-cache.outputs.cache-primary-key }}
