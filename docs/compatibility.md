@@ -13,6 +13,14 @@ Unchanged for every 8.x release. Enforced by the `engines` field, so npm warns (
 
 ## Release notes
 
+### 8.9.0 - Known limitation: `httpCredentials` fails on `playwright-core` 1.63 and 1.64
+
+**Impact:** Behavior
+
+From 1.63, `playwright-core` sends a context's `httpCredentials` as a list, and no Camoufox release checked so far accepts one. `browser.newContext({ httpCredentials })` then fails with `Protocol error (Browser.setHTTPCredentials)`. This library never sets `httpCredentials`, so its own scrapes are unaffected. CI has tested 1.63 since 8.7.2, and the `^1.62.0` range let a fresh install resolve 1.63 before that.
+
+**What to do:** Don't create a context with `httpCredentials` for this library, for example one you pass in as `browserContext`. No `playwright-core` minor this library tests supports it with Camoufox yet.
+
 ### 8.6.1 - Camoufox browser engine upgraded to 0.11.x
 
 **Impact:** Dependency
