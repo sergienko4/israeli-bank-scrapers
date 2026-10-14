@@ -11,6 +11,7 @@ import {
   fetchBounded,
   type IFetchPolicy,
 } from '../../../../scripts/browser-stack/fetch-protocol.mjs';
+import { fakeFetch, type IFetchFake, serving } from '../../Helpers/FakeFetch.js';
 
 const API_HOST = 'api.example.test';
 const API_URL = `https://${API_HOST}/releases`;
@@ -22,47 +23,6 @@ const POLICY: IFetchPolicy = Object.freeze({
   maxBodyBytes: 64,
   headers: Object.freeze({ accept: 'application/json' }),
 });
-
-/** A fetch fake and the requests it saw. */
-interface IFetchFake {
-  readonly fetchImpl: (url: string, init: RequestInit) => Promise<Response>;
-  readonly calls: { url: string; init: RequestInit }[];
-}
-
-/**
- * Build a fetch that records each request and answers it with `reply()`.
- *
- * @param reply - Builds the response.
- * @returns The fake.
- */
-function fakeFetch(reply: () => Response): IFetchFake {
-  const calls: IFetchFake['calls'] = [];
-  return {
-    calls,
-    /**
-     * Record, then answer.
-     *
-     * @param url - Requested URL.
-     * @param init - Request options.
-     * @returns The response.
-     */
-    fetchImpl: (url: string, init: RequestInit): Promise<Response> => {
-      calls.push({ url, init });
-      const response = reply();
-      return Promise.resolve(response);
-    },
-  };
-}
-
-/**
- * Build a fetch that answers every request with one body.
- *
- * @param body - Response body.
- * @returns The fake.
- */
-function serving(body: string): IFetchFake {
-  return fakeFetch((): Response => new Response(body, { status: 200 }));
-}
 
 /**
  * Build a fetch that redirects every request to `location`.
