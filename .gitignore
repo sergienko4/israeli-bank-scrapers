@@ -99,11 +99,13 @@ scripts/**
 # Browser-stack tooling. The
 # install-camoufox action and the Docker CI mirror read the pinned Camoufox
 # tag through manifest.mjs, so it must be in the tree for either to work. The
-# `.d.mts` files type the unit tests (tsconfig sets `allowJs: false`).
+# `.d.mts` files type the unit tests (tsconfig sets `allowJs: false`). The
+# gate CLI runs the contract in CI and from `npm run lint:browser-stack`.
 # CriticalDepsFullSuiteGate asserts every critical path is trackable.
 !scripts/browser-stack/
 !scripts/browser-stack/*.mjs
 !scripts/browser-stack/*.d.mts
+!scripts/check-browser-stack.mjs
 # Generates docs/compatibility.md from compatibility.json; CI runs it with
 # --check, so it has to be in the tree for the docs gate to work.
 !scripts/build-compatibility.mjs

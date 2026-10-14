@@ -184,11 +184,12 @@ has() {
 #      patch, the composite action that installs the Camoufox browser
 #      build, `browser-stack.json` (the single source of the pinned
 #      Camoufox tag and the tested playwright-core minor), or the
-#      tooling that validates it (`scripts/browser-stack/`).
+#      browser-stack gate tooling that validates it
+#      (`scripts/check-browser-stack.mjs`, `scripts/browser-stack/`).
 #      None is under `src/`, and `.github/actions/**` is not covered by
 #      `ci_scripts` either — so they used to be invisible to this
-#      detector. The tooling is listed for the same self-testing reason
-#      `metrics` exists: editing the validator must run the suite. The
+#      detector. The gate tooling is listed for the same self-testing
+#      reason `metrics` exists: editing the gate must run the gate. The
 #      patch signal was `^patches/` until the `patch-package` overlay was
 #      replaced by the dependency-free `scripts/patch-playwright-core.mjs`,
 #      which now carries the same guard for consumers as well as CI.
@@ -205,7 +206,7 @@ has() {
 # into a second, noisier copy of `deps`.
 CRITICAL_DEP_PATHS='^scripts/patch-playwright-core\.mjs|^\.github/actions/install-camoufox/'
 CRITICAL_DEP_PATHS="${CRITICAL_DEP_PATHS}|^browser-stack\.json$"
-CRITICAL_DEP_PATHS="${CRITICAL_DEP_PATHS}|^scripts/browser-stack/"
+CRITICAL_DEP_PATHS="${CRITICAL_DEP_PATHS}|^scripts/check-browser-stack\.mjs$|^scripts/browser-stack/"
 CRITICAL_PACKAGES=('playwright-core' '@hieutran094/camoufox-js')
 
 # Declared range from package.json, e.g. `"playwright-core": "^1.62.1"`.

@@ -20,8 +20,9 @@ Unit tests, mocked E2E, integration and the package job gate on `full_suite`:
 leaves `src/` untouched. That is a moved range or resolved version of
 `playwright-core` or `@hieutran094/camoufox-js`, or an edit to a file that pins
 the stack: `browser-stack.json` (the Camoufox tag, its asset SHA-256 and the
-tested playwright-core minor), `scripts/patch-playwright-core.mjs`, `.github/actions/install-camoufox/`,
-or the tooling that validates the manifest (`scripts/browser-stack/`).
+tested playwright-core minor), `scripts/patch-playwright-core.mjs`,
+`.github/actions/install-camoufox/`, or the tooling that validates the manifest
+(`scripts/browser-stack/`, `scripts/check-browser-stack.mjs`).
 `CriticalDepsFullSuiteGate.test.ts` pins this list.
 
 Post-merge is a different pipeline: one `Main Pipeline` run per merge — scans
