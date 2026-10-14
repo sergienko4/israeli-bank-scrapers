@@ -15,14 +15,16 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   chmodSync,
+  closeSync,
   copyFileSync,
   existsSync,
+  fstatSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readdirSync,
   readFileSync,
   rmSync,
-  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -577,15 +579,58 @@ function scenarioEnv(root: string, scenario: IScenario): NodeJS.ProcessEnv {
 }
 
 /**
+ * Whether an fs error means nothing is at the path.
+ *
+ * @param error - The thrown value.
+ * @returns True for `ENOENT` and `ENOTDIR`.
+ */
+function isNoEntry(error: unknown): boolean {
+  const { code } = error as NodeJS.ErrnoException;
+  return code === 'ENOENT' || code === 'ENOTDIR';
+}
+
+/**
+ * Open a path for reading.
+ *
+ * @param file - File path.
+ * @returns The descriptor, or `absent` when nothing is there.
+ */
+function openIfPresent(file: string): number | 'absent' {
+  try {
+    return openSync(file, 'r');
+  } catch (error) {
+    if (isNoEntry(error)) return 'absent';
+    throw error;
+  }
+}
+
+/**
+ * Read a path through one descriptor, so the regular-file check and the
+ * read see the same file even if the path is replaced in between.
+ *
+ * @param file - File path.
+ * @returns Its bytes, `absent`, or `not a file`.
+ */
+function readRegularFile(file: string): Buffer | 'absent' | 'not a file' {
+  const fd = openIfPresent(file);
+  if (fd === 'absent') return fd;
+  try {
+    const stat = fstatSync(fd);
+    return stat.isFile() ? readFileSync(fd) : 'not a file';
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/**
  * Read a file the run may or may not have produced.
  *
  * @param file - File path.
  * @returns Its contents, or `''` when it is absent or not a regular file.
  */
 function readIfPresent(file: string): string {
-  const stat = statSync(file, { throwIfNoEntry: false });
-  if (stat?.isFile() !== true) return '';
-  return readFileSync(file, 'utf8');
+  const read = readRegularFile(file);
+  return typeof read === 'string' ? '' : read.toString('utf8');
 }
 
 /**
@@ -625,11 +670,10 @@ function stubCalls(root: string): readonly string[] {
  */
 function keptSha256Of(root: string): string {
   const file = join(root, ASSET_DIR_REL, SAMPLE_ASSET);
-  const stat = statSync(file, { throwIfNoEntry: false });
-  if (stat === undefined) return '';
-  if (!stat.isFile()) return 'not a file';
-  const bytes = readFileSync(file);
-  return createHash('sha256').update(bytes).digest('hex');
+  const read = readRegularFile(file);
+  if (read === 'absent') return '';
+  if (read === 'not a file') return read;
+  return createHash('sha256').update(read).digest('hex');
 }
 
 /**
