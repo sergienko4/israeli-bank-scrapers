@@ -122,12 +122,14 @@ jobs:
     runs-on: ubuntu-latest
     # npm scans every publish before the version becomes installable, so most
     # of this job is spent waiting for the registry rather than working. The
-    # cap has to clear `verify-npm-publish.sh`'s whole budget plus checkout,
-    # `npm ci` and the build, or the runner kills the poll before the gate can
-    # pass — which is exactly how release 8.7.2 went red after shipping fine.
+    # cap has to clear `verify-npm-publish.sh`'s whole worst case — every
+    # attempt's sleep plus its time-bounded registry read, 80 x (15s + 15s)
+    # = 40 minutes — plus checkout, `npm ci` and the build. Below that, the
+    # runner kills the poll before the gate can pass, which is exactly how
+    # release 8.7.2 went red after shipping fine.
     # `ReleasePublishAvailabilityGate.test.ts` fails if this drops below the
-    # verifier's budget.
-    timeout-minutes: 30
+    # verifier's worst case.
+    timeout-minutes: 45
     environment: npm-publish
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

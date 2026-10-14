@@ -43,7 +43,7 @@ for raw_pkg in "${PKGS[@]}"; do
   CHECKED=$((CHECKED + 1))
 
   # 1. Resolve PyPI metadata → GitHub repo URL.
-  pypi_json=$(curl -fsS "https://pypi.org/pypi/${raw_pkg}/json" 2>/dev/null || echo '{}')
+  pypi_json=$(curl -fsS --max-time 30 "https://pypi.org/pypi/${raw_pkg}/json" 2>/dev/null || echo '{}')
   repo_url=$(printf '%s' "$pypi_json" | jq -r '
     [
       (.info.project_urls // {}) | to_entries[]? | .value,
@@ -70,7 +70,7 @@ for raw_pkg in "${PKGS[@]}"; do
   fi
 
   # 3. Query Scorecard API. 404 = not yet scanned.
-  score_json=$(curl -fsS "https://api.securityscorecards.dev/projects/github.com/${owner_repo_full}" 2>/dev/null || echo '{}')
+  score_json=$(curl -fsS --max-time 30 "https://api.securityscorecards.dev/projects/github.com/${owner_repo_full}" 2>/dev/null || echo '{}')
   score=$(printf '%s' "$score_json" | jq -r '.score // empty')
 
   if [ -z "$score" ]; then

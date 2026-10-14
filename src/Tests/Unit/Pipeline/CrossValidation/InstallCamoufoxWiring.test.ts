@@ -27,6 +27,14 @@ import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
 
+import {
+  CONNECT_BOUND,
+  curlCallsIn,
+  logicalLines,
+  TOTAL_BOUND,
+  unboundedCalls,
+} from '../../../Helpers/CurlCalls.js';
+
 const THIS_FILE_PATH = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE_PATH);
 const REPO_ROOT = join(THIS_DIR, '../../../../../');
@@ -68,8 +76,6 @@ const RESOLVE_RUN = [
 
 /** `install.sh`'s default install directory, below `$HOME`. */
 const DEFAULT_DIR_RE = /INSTALL_DIR="\$\{CAMOUFOX_INSTALL_DIR:-\$HOME\/(?<dir>[^}"]+)\}"/u;
-/** A Dockerfile line continuation plus the next line's indent. */
-const CONTINUATION_RE = /\\\n\s*/gu;
 /** A Dockerfile instruction that starts a build stage. */
 const FROM_RE = /^FROM\s/iu;
 /**
@@ -92,17 +98,8 @@ const DOCKER_INSTALL: readonly string[] = [
 /** Every file that consumes the pinned tag without owning it. */
 const CONSUMERS: readonly string[] = [ACTION_REL, SCRIPT_REL, DOCKERFILE_REL];
 
-/** Where one shell command ends and the next begins within a line. */
-const COMMAND_SPLIT_RE = /&&|\|\||[;|]/u;
-/** A package install (single-spaced, as joined), whose arguments name packages. */
-const PACKAGE_INSTALL_RE = /^(?:RUN )?(?:apt-get|apk)(?: -\S+)* (?:install|add) /u;
-/** A curl call, from the word `curl` to the end of its command. */
-const CURL_CALL_RE = /\bcurl\b.*/gu;
-/** The options that bound how long a curl download may hang, with their values. */
-const CURL_TIME_BOUNDS: readonly RegExp[] = [
-  /--connect-timeout(?:=|\s+)(?<value>\S+)/gu,
-  /--max-time(?:=|\s+)(?<value>\S+)/gu,
-];
+/** A download bounds both how long it may wait to connect and how long it may take. */
+const CURL_TIME_BOUNDS: readonly RegExp[] = [CONNECT_BOUND, TOTAL_BOUND];
 
 /** One step of the composite. */
 interface IStep {
@@ -182,21 +179,6 @@ function scriptDefaultDir(): string {
 }
 
 /**
- * The logical code lines of a Dockerfile or shell script: comment lines
- * dropped and continued lines joined, so one command is one line.
- *
- * @param text - The file.
- * @returns One trimmed, non-empty line per command.
- */
-function logicalLines(text: string): readonly string[] {
-  const lines = text.split('\n');
-  const code = lines.filter(line => !line.trimStart().startsWith('#'));
-  const joined = code.join('\n').replaceAll(CONTINUATION_RE, ' ');
-  const trimmed = joined.split('\n').map(line => line.trim());
-  return trimmed.filter(line => line !== '');
-}
-
-/**
  * The Dockerfile's instructions: comments dropped, continuations joined.
  *
  * @returns One trimmed instruction per entry.
@@ -238,47 +220,6 @@ const DOWNLOADER_CODE: Readonly<Record<string, () => readonly string[]>> = {
   [DOCKERFILE_REL]: dockerInstructions,
 };
 const DOWNLOADERS = Object.keys(DOWNLOADER_CODE);
-
-/**
- * Every curl call in some logical code lines. Any word `curl` outside a
- * package install counts, wherever it sits in its command, so a call after
- * `if`, inside `$(…)` or with a bare URL is not missed.
- *
- * @param lines - Logical code lines.
- * @returns Each call, up to the end of its command.
- */
-function curlCallsIn(lines: readonly string[]): readonly string[] {
-  const commands = lines.flatMap(line => line.split(COMMAND_SPLIT_RE));
-  const trimmed = commands.map(command => command.trim());
-  const runnable = trimmed.filter(command => !PACKAGE_INSTALL_RE.test(command));
-  return runnable.flatMap(command => command.match(CURL_CALL_RE) ?? []);
-}
-
-/**
- * Whether a curl call sets a time bound, every time, to a positive number
- * of seconds (curl reads 0 as no limit).
- *
- * @param call - One curl call.
- * @param bound - A `CURL_TIME_BOUNDS` pattern.
- * @returns True when bounded.
- */
-function isBounded(call: string, bound: RegExp): boolean {
-  const matches = [...call.matchAll(bound)];
-  const seconds = matches.map(match => Number(match.groups?.value));
-  const isPositive = seconds.every(value => Number.isFinite(value) && value > 0);
-  return seconds.length > 0 && isPositive;
-}
-
-/**
- * The curl calls in some logical code lines that do not bound their time.
- *
- * @param lines - Logical code lines.
- * @returns Each unbounded call.
- */
-function unboundedCalls(lines: readonly string[]): readonly string[] {
-  const calls = curlCallsIn(lines);
-  return calls.filter(call => !CURL_TIME_BOUNDS.every(bound => isBounded(call, bound)));
-}
 
 /** A curl that bounds both its connect and its total time. */
 const BOUNDED_CURL = 'curl -fsSL --connect-timeout 30 --max-time 60 -o "$1/a" "$url"';
@@ -370,21 +311,21 @@ describe('install-camoufox wiring', () => {
   it.each(DOWNLOADERS)('[ICW-9] every curl in %s bounds its time', rel => {
     const code = DOWNLOADER_CODE[rel]();
     const calls = curlCallsIn(code);
-    const unbounded = unboundedCalls(code);
+    const unbounded = unboundedCalls(code, CURL_TIME_BOUNDS);
     expect(calls.length).toBeGreaterThan(0);
     expect(unbounded).toEqual([]);
   });
 
   it.each(UNBOUNDED_CURLS)('[ICW-9] flags %s next to a bounded curl', (_name, snippet) => {
     const code = logicalLines(`${BOUNDED_CURL}\n${snippet}`);
-    const unbounded = unboundedCalls(code);
+    const unbounded = unboundedCalls(code, CURL_TIME_BOUNDS);
     expect(unbounded).toHaveLength(1);
   });
 
   it('[ICW-9] passes bounded curls and curl named as a package', () => {
     const code = logicalLines(BOUNDED_CODE);
     const calls = curlCallsIn(code);
-    const unbounded = unboundedCalls(code);
+    const unbounded = unboundedCalls(code, CURL_TIME_BOUNDS);
     expect(calls).toHaveLength(2);
     expect(unbounded).toEqual([]);
   });

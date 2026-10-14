@@ -52,14 +52,17 @@ polls rather than checks once, and why nothing in the workflow tries to infer
 publish state by pre-reading the registry.
 
 **2. The poll budget targets npm's documented ceiling, not its typical case.**
-Defaults are 80 attempts × 15 s = **20 minutes**, and the `publish` job's
-`timeout-minutes` is sized to contain that plus checkout, install and build.
+Defaults are 80 attempts × 15 s = **20 minutes** of waiting. Each registry read
+is also capped at 15 s, so a stalled read cannot hold the poll; the worst case
+is 80 × (15 s + 15 s) = 40 minutes, and the `publish` job's `timeout-minutes`
+(45) is sized to contain that plus checkout, install and build.
 A budget sized for the typical five minutes would go red on any slower-than-
 average scan. Version `8.7.2` is the worked example: the publish succeeded, the
 old 120-second budget expired, and the registry recorded the version 16 seconds
-later. Both numbers are pinned by
+later. These numbers are pinned by
 `src/Tests/Unit/Pipeline/CrossValidation/ReleasePublishAvailabilityGate.test.ts`,
-so shrinking one without the other fails the build.
+so shrinking the cap below the worst case, or dropping the read's bound, fails
+the build.
 
 **3. Re-running a failed release is safe, but it does not re-publish.**
 `npm publish` is not idempotent: once a tarball is accepted, a second attempt

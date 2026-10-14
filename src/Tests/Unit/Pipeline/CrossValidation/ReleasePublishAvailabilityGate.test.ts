@@ -21,8 +21,10 @@
  * <ul>
  *   <li>the verifier waits for npm's documented ceiling, not its typical
  *       case, because 8.7.2 was already faster than typical;</li>
- *   <li>the job lives long enough to spend that whole budget, or the runner
- *       kills the poll before the gate can pass;</li>
+ *   <li>the job lives long enough to spend that whole budget, counting each
+ *       attempt's registry read as well as its wait, or the runner kills the
+ *       poll before the gate can pass. Each read is time-bounded, or one
+ *       stalled read would hold the poll until the runner kills it;</li>
  *   <li>a non-zero `npm publish` does not by itself fail the job, or a
  *       re-run can never recover a release whose verification timed out;</li>
  *   <li>the outcome of that publish is both recorded and reported, or the
@@ -65,6 +67,15 @@ const NON_POLL_MINUTES = 5;
 /** Defaults the verifier applies when the environment overrides nothing. */
 const ATTEMPTS_DEFAULT_RE = /VERIFY_MAX_ATTEMPTS:-(\d+)/;
 const SLEEP_DEFAULT_RE = /VERIFY_SLEEP_SECONDS:-(\d+)/;
+/** The total-time bound on the verifier's registry read, in whole seconds. */
+const READ_BOUND_RE = /--max-time (\d+)/;
+
+/** The verifier's poll defaults, the times in seconds. */
+interface IVerifierPoll {
+  readonly attempts: number;
+  readonly sleep: number;
+  readonly readBound: number;
+}
 
 /**
  * Ways a `run` block can keep a non-zero `npm publish` from failing the job.
@@ -174,28 +185,50 @@ function verifyStep(): IWorkflowStep {
 }
 
 /**
+ * The time bound on the verifier's registry read: the curl call that fetches
+ * the package document.
+ *
+ * @param script - The verifier.
+ * @returns The bound in seconds, or 0 when the read sets none.
+ */
+function registryReadBound(script: string): number {
+  const lines = script.split('\n');
+  const code = lines.filter(line => !line.trimStart().startsWith('#'));
+  const read = code.find(line => line.includes('curl ') && line.includes('REGISTRY_URL'));
+  const bound = READ_BOUND_RE.exec(read ?? '');
+  return Number(bound?.[1] ?? 0);
+}
+
+/**
  * Read the verifier's own defaults rather than restating them, so this test
  * tracks what the script will actually wait for.
  *
- * @returns Default poll budget in seconds, or 0 when the script declares none.
+ * @returns The defaults, each 0 when the script declares none.
  */
-function verifierBudgetSeconds(): number {
+function verifierPoll(): IVerifierPoll {
   const script = readFileSync(VERIFY_SCRIPT, 'utf8');
   const attempts = ATTEMPTS_DEFAULT_RE.exec(script);
   const sleep = SLEEP_DEFAULT_RE.exec(script);
-  return Number(attempts?.[1] ?? 0) * Number(sleep?.[1] ?? 0);
+  const readBound = registryReadBound(script);
+  return { attempts: Number(attempts?.[1] ?? 0), sleep: Number(sleep?.[1] ?? 0), readBound };
 }
 
 describe('release.yml — the publish job can outlast npm publish-time scanning', () => {
   it('waits at least as long as npm documents a scan can take', () => {
-    const budget = verifierBudgetSeconds();
+    const { attempts, sleep } = verifierPoll();
 
-    expect(budget).toBeGreaterThanOrEqual(NPM_SCAN_CEILING_SECONDS);
+    expect(attempts * sleep).toBeGreaterThanOrEqual(NPM_SCAN_CEILING_SECONDS);
+  });
+
+  it('bounds each registry read, so one stalled read cannot hold the poll', () => {
+    const { readBound } = verifierPoll();
+
+    expect(readBound).toBeGreaterThan(0);
   });
 
   it('allows the verifier to spend its whole budget before the runner kills it', () => {
-    const budget = verifierBudgetSeconds();
-    const pollMinutes = Math.ceil(budget / 60);
+    const { attempts, sleep, readBound } = verifierPoll();
+    const pollMinutes = Math.ceil((attempts * (sleep + readBound)) / 60);
     const timeout = publishJob()['timeout-minutes'];
 
     expect(timeout).toBeGreaterThanOrEqual(pollMinutes + NON_POLL_MINUTES);

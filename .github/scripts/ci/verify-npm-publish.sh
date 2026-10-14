@@ -85,7 +85,11 @@ attempt=1
 did_read_document=no
 while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
   # A 404 while the CDN catches up is normal; treat any non-200 as "not yet".
-  if body=$(curl --fail --silent --show-error --location "${REGISTRY_URL}" 2>/dev/null); then
+  # Each read is bounded (the document is ~400 KB and reads in under a
+  # second), so a stalled one counts as an unreadable attempt rather than
+  # holding the poll. The job cap in release.yml covers attempts x (sleep +
+  # this bound); ReleasePublishAvailabilityGate.test.ts checks it.
+  if body=$(curl --fail --silent --show-error --location --max-time 15 "${REGISTRY_URL}" 2>/dev/null); then
     did_read_document=yes
     fields=$(printf '%s' "${body}" | node -e "${READ_FIELDS}" "${PKG_VERSION}")
     published="${fields%% *}"

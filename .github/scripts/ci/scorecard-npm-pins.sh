@@ -66,9 +66,12 @@ release_asset() {
   esac
 }
 
+# Each attempt is bounded, so a stalled transfer times out and is retried
+# (curl counts a timeout as transient) instead of holding the step until
+# its own cap kills it.
 download() {
   curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
-    --retry 3 --output "$2" "$1"
+    --retry 3 --max-time 60 --output "$2" "$1"
 }
 
 sha256_of() {

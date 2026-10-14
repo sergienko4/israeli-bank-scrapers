@@ -74,11 +74,12 @@ probe_status() {
 # that fails OR answers empty reports UNKNOWN, never a blank value — a
 # blank field is indistinguishable from a field that was never emitted.
 # $1   - field label.
-# $2.. - curl arguments (including the URL).
+# $2.. - curl arguments (including the URL). The 5s ceiling comes first, so
+#        a caller's own `-m` replaces it (curl keeps the last value given).
 report_field() {
   local label="$1" value
   shift
-  value=$(curl -s "$@" 2>/dev/null || true)
+  value=$(curl -s --max-time 5 "$@" 2>/dev/null || true)
   echo "${label}=${value:-UNKNOWN}"
 }
 
