@@ -18,8 +18,11 @@
  * script is dependency-free, version-agnostic, and idempotent, so it works
  * for contributors and consumers through the same code path.
  *
- * Guarantees: never fails an install (always exits 0) and never writes when
- * the guard is already present. Set `SKIP_PLAYWRIGHT_CORE_PATCH=1` to opt out.
+ * Guarantees: never fails an install (postinstall passes no arguments, and
+ * that default mode always exits 0) and never writes when the guard is
+ * already present. Set `SKIP_PLAYWRIGHT_CORE_PATCH=1` to opt out. Any
+ * argument other than a single `--strict` is a usage error (exit 2, nothing
+ * resolved or written), so a mistyped flag cannot pass as an unproven run.
  *
  * `--strict` (CI only; postinstall never passes it) turns the outcome into
  * proof: exit 0 only when, after patching, each guarded form appears at
@@ -33,7 +36,7 @@
 import { createRequire } from 'node:module';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { argv, env, exit, stdout } from 'node:process';
+import { argv, env, exit, stderr, stdout } from 'node:process';
 
 /** Unguarded reads and their optional-chained replacements. */
 const GUARDS = [
@@ -48,6 +51,7 @@ const GUARDS = [
 const BUNDLE_SUBPATH = ['lib', 'coreBundle.js'];
 
 const STRICT_FLAG = '--strict';
+const USAGE = `usage: node scripts/patch-playwright-core.mjs [${STRICT_FLAG}]`;
 
 /**
  * Sites per read in the reviewed playwright-core: the BrowserContext
@@ -173,15 +177,30 @@ function siteMismatches(sites) {
 }
 
 /**
+ * Read the mode before anything is resolved or written.
+ *
+ * @returns Whether `--strict` was passed. Any other argument prints the
+ *   usage and exits 2, so a mistyped flag cannot pass as an unproven run.
+ */
+function strictMode() {
+  const args = argv.slice(2);
+  if (args.length === 0) return false;
+  if (args.length === 1 && args[0] === STRICT_FLAG) return true;
+  stderr.write(`${USAGE}\n`);
+  return exit(2);
+}
+
+/**
  * Report the run and decide the exit code.
  *
  * @returns 0 by default; under `--strict`, 0 only when every guard has
  *   exactly `REVIEWED_SITES` guarded sites.
  */
 function main() {
+  const isStrict = strictMode();
   const result = run();
   report(`playwright-core pageError guard: ${result.outcome}`);
-  if (!argv.slice(2).includes(STRICT_FLAG)) return 0;
+  if (!isStrict) return 0;
   const mismatches = siteMismatches(result.sites ?? []);
   for (const line of mismatches) report(line);
   return result.sites !== null && mismatches.length === 0 ? 0 : 1;

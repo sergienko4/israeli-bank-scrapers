@@ -8,7 +8,9 @@
  * proof: exit 0 only when, after patching, each guarded form appears at
  * exactly the reviewed number of sites. It is checked per guard and per
  * site, so one lost read cannot hide behind the other two, nor behind its
- * own copy at the other site.
+ * own copy at the other site. Any argument other than a single `--strict`
+ * is a usage error that touches nothing, so a mistyped flag cannot pass as
+ * an unproven run.
  *
  * <p>Every case runs the real script as a consumer's install does: a copy
  * sits in `<root>/scripts/` and resolves `playwright-core` from a synthetic
@@ -71,6 +73,14 @@ const REVIEWED_SITES = 2;
 /** A fixed past mtime; any write by the script moves it to "now". */
 const UNTOUCHED_MTIME = new Date('2000-01-01T00:00:00Z');
 const UNTOUCHED_MS = UNTOUCHED_MTIME.getTime();
+
+/** Arguments the CLI must reject: a typo, a positional, extras. */
+const BAD_ARGS: readonly { readonly args: readonly string[] }[] = [
+  { args: ['--strcit'] },
+  { args: ['strict'] },
+  { args: ['--strict', '--strict'] },
+  { args: ['--strict', 'extra'] },
+];
 
 /** One run of the patcher. */
 interface IRun {
@@ -514,6 +524,17 @@ describe('patch-playwright-core skips', () => {
     const original = bundleOf(unguardedSites);
     const mtime = mtimeOf(sandbox.bundle);
     expect(text).toBe(original);
+    expect(mtime).toBe(UNTOUCHED_MS);
+  });
+});
+
+describe('patch-playwright-core arguments', () => {
+  it.each(BAD_ARGS)('[PPC-25] $args → usage error: exit 2, bundle untouched', ({ args }) => {
+    const sandbox = sandboxUnguarded();
+    const run = runPatcher(sandbox, args);
+    const mtime = mtimeOf(sandbox.bundle);
+    expect({ status: run.status, stdout: run.stdout }).toEqual({ status: 2, stdout: '' });
+    expect(run.stderr).toMatch(/^usage: .* \[--strict\]\n$/u);
     expect(mtime).toBe(UNTOUCHED_MS);
   });
 });
