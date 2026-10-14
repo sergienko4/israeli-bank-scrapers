@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 
 import { MODE_NAMES } from './gate-report.mjs';
-import { CAMOUFOX_TAG, issueLine, loadManifest } from './manifest.mjs';
+import { CAMOUFOX_TAG, issueLine, loadManifest, PLAYWRIGHT_VERSION } from './manifest.mjs';
 
 /**
  * Valid CLI options.
@@ -24,9 +24,12 @@ import { CAMOUFOX_TAG, issueLine, loadManifest } from './manifest.mjs';
  *
  * @typedef {object} Manifest
  * @property {string} $comment - Free-text note.
- * @property {{ tag: string, linuxX64Sha256: string }} camoufox - Camoufox release tag the
- *   stack is tested with, and the SHA-256 of its Linux x64 asset.
- * @property {{ testedMinor: string }} playwrightCore - playwright-core minor it is tested with.
+ * @property {{ tag: string, linuxX64Sha256: string, protocolSha256: string }} camoufox - Camoufox
+ *   release tag the stack is tested with, the SHA-256 of its Linux x64 asset and of its
+ *   Juggler `Protocol.js`.
+ * @property {{ testedMinor: string, protocolSha256: Readonly<Record<string, string>> }}
+ *   playwrightCore - playwright-core minor it is tested with, and the SHA-256 of the Juggler
+ *   `Protocol.js` per exact version.
  * @property {AcceptedDelta[]} acceptedDeltas - Reviewed deltas.
  */
 
@@ -42,8 +45,6 @@ import { CAMOUFOX_TAG, issueLine, loadManifest } from './manifest.mjs';
  * @typedef {readonly [name: 'playwright' | 'camoufox' | 'mode', re: RegExp, what: string]} ArgRule
  */
 
-/** A stable `x.y.z` version; prereleases have no upstream `Protocol.js` tag. */
-const PLAYWRIGHT_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
 const LOCK_KEY = 'node_modules/playwright-core';
 const USAGE =
   'usage: node scripts/check-browser-stack.mjs [--playwright <x.y.z>] [--camoufox <tag>]' +

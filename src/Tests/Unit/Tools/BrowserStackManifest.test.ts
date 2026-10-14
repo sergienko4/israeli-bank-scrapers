@@ -43,7 +43,12 @@ const SHA256_HEX = /^[0-9a-f]{64}$/u;
 const SAMPLE_TAG = 'v100.0.0-beta.1';
 /** A well-formed digest, likewise NOT the pinned one. */
 const SAMPLE_SHA256 = 'ab'.repeat(32);
+/** A well-formed Protocol.js digest, distinct from the asset digest. */
+const SAMPLE_PROTOCOL_SHA256 = 'cd'.repeat(32);
 const SHA_AT = '/camoufox/linuxX64Sha256';
+const BROWSER_PIN_AT = '/camoufox/protocolSha256';
+const CLIENT_PINS_AT = '/playwrightCore/protocolSha256';
+const CLIENT_PIN_AT = `${CLIENT_PINS_AT}/1.63.0`;
 
 /** Written at a pointer to delete the key instead of overwriting it. */
 const REMOVE = Symbol('remove');
@@ -77,8 +82,13 @@ interface IInvalidCase extends IEdit {
  */
 function validDoc(): Record<string, unknown> {
   const meta = { $comment: 'Tested browser stack.', acceptedDeltas: [{ ...BASE_DELTA }] };
-  const camoufox = { tag: SAMPLE_TAG, linuxX64Sha256: SAMPLE_SHA256 };
-  return { ...meta, camoufox, playwrightCore: { testedMinor: '1.63' } };
+  const camoufox = {
+    tag: SAMPLE_TAG,
+    linuxX64Sha256: SAMPLE_SHA256,
+    protocolSha256: SAMPLE_PROTOCOL_SHA256,
+  };
+  const pins = { '1.63.0': SAMPLE_PROTOCOL_SHA256 };
+  return { ...meta, camoufox, playwrightCore: { testedMinor: '1.63', protocolSha256: pins } };
 }
 
 /**
@@ -302,6 +312,69 @@ const INVALID_CASES: readonly IInvalidCase[] = [
   },
   { id: 'BSM-41', what: 'a 63-digit digest', at: SHA_AT, value: 'a'.repeat(63), pointer: SHA_AT },
   { id: 'BSM-42', what: 'a 65-digit digest', at: SHA_AT, value: 'a'.repeat(65), pointer: SHA_AT },
+  {
+    id: 'BSM-45',
+    what: 'a missing browser Protocol.js pin',
+    at: BROWSER_PIN_AT,
+    value: REMOVE,
+    pointer: BROWSER_PIN_AT,
+  },
+  {
+    id: 'BSM-46',
+    what: 'an uppercase browser Protocol.js pin',
+    at: BROWSER_PIN_AT,
+    value: SAMPLE_PROTOCOL_SHA256.toUpperCase(),
+    pointer: BROWSER_PIN_AT,
+  },
+  {
+    id: 'BSM-47',
+    what: 'missing client Protocol.js pins',
+    at: CLIENT_PINS_AT,
+    value: REMOVE,
+    pointer: CLIENT_PINS_AT,
+  },
+  {
+    id: 'BSM-48',
+    what: 'client Protocol.js pins as an array',
+    at: CLIENT_PINS_AT,
+    value: [SAMPLE_PROTOCOL_SHA256],
+    pointer: CLIENT_PINS_AT,
+  },
+  {
+    id: 'BSM-49',
+    what: 'a client pin keyed by a minor',
+    at: `${CLIENT_PINS_AT}/1.64`,
+    value: SAMPLE_PROTOCOL_SHA256,
+    pointer: `${CLIENT_PINS_AT}/1.64`,
+  },
+  {
+    id: 'BSM-50',
+    what: 'a client pin keyed by a prerelease',
+    at: `${CLIENT_PINS_AT}/1.64.0-beta.1`,
+    value: SAMPLE_PROTOCOL_SHA256,
+    pointer: `${CLIENT_PINS_AT}/1.64.0-beta.1`,
+  },
+  {
+    id: 'BSM-51',
+    what: 'a client pin keyed by a leading-zero version',
+    at: `${CLIENT_PINS_AT}/1.064.0`,
+    value: SAMPLE_PROTOCOL_SHA256,
+    pointer: `${CLIENT_PINS_AT}/1.064.0`,
+  },
+  {
+    id: 'BSM-52',
+    what: "a client pin in GitHub's sha256: form",
+    at: CLIENT_PIN_AT,
+    value: `sha256:${SAMPLE_PROTOCOL_SHA256}`,
+    pointer: CLIENT_PIN_AT,
+  },
+  {
+    id: 'BSM-53',
+    what: 'a numeric client pin',
+    at: CLIENT_PIN_AT,
+    value: 1,
+    pointer: CLIENT_PIN_AT,
+  },
 ];
 
 const VALID_EDITS: readonly IEdit[] = [
@@ -325,6 +398,8 @@ const VALID_EDITS: readonly IEdit[] = [
     at: '/acceptedDeltas/1',
     value: { ...BASE_DELTA, signature: 'src:String|dst:Number' },
   },
+  { what: 'no client Protocol.js pins', at: CLIENT_PINS_AT, value: {} },
+  { what: 'a second pinned client version', at: `${CLIENT_PINS_AT}/1.64.2`, value: SAMPLE_SHA256 },
 ];
 
 /** Exit status and output of one CLI run. */
@@ -411,9 +486,11 @@ describe('browser-stack manifest contract', () => {
     const { manifest, issues } = loadManifest(REAL_MANIFEST);
     const tag = manifest?.camoufox.tag ?? '';
     const digest = manifest?.camoufox.linuxX64Sha256 ?? '';
+    const browserPin = manifest?.camoufox.protocolSha256 ?? '';
     expect(issues).toEqual([]);
     expect(tag).toMatch(CAMOUFOX_TAG);
     expect(digest).toMatch(SHA256_HEX);
+    expect(browserPin).toMatch(SHA256_HEX);
   });
 });
 

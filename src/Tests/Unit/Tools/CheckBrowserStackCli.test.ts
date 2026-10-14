@@ -1,75 +1,61 @@
 /**
  * Unit test for the browser-stack gate CLI (`scripts/check-browser-stack.mjs`
- * and `scripts/browser-stack/{gate,gate-inputs,gate-report,fetch-protocol}.mjs`).
+ * and `scripts/browser-stack/{gate,gate-inputs,gate-pins,gate-report,fetch-protocol}.mjs`).
  *
  * <p>The gate is the PR check that the locked playwright-core can still drive
  * the pinned Camoufox over Juggler. Its verdict must be exact — NEW, STALE and
  * DRIFT, per mode — and a gate that cannot decide must never pass or fail as
- * if it had: every usage, manifest, lockfile, network or parse problem exits
- * 2. The network is a fake `fetch` routed by URL, so no case leaves the
- * machine; `npm run lint:browser-stack` checks the real upstream files.
+ * if it had: every usage, manifest, lockfile, network or parse problem, and in
+ * gate mode a Protocol.js that differs from its pinned sha256, exits 2. Each
+ * run goes through `CheckBrowserStackHarness`, whose network is a fake
+ * `fetch` routed by URL, so no case leaves the machine;
+ * `npm run lint:browser-stack` checks the real upstream files.
  *
  * <p>Expected lines are written out literally rather than rebuilt from the
  * renderer, so a formatting change is a visible test change.
  */
 
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { once } from 'node:events';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import { fileURLToPath } from 'node:url';
 
-import { type IFetchIo, runGate } from '../../../../scripts/browser-stack/gate.mjs';
+import {
+  body,
+  BROWSER,
+  BROWSER_SHA,
+  BROWSER_URL,
+  CLIENT,
+  CLIENT_SHA,
+  CLIENT_URL,
+  DELTA,
+  endless,
+  failing,
+  gate,
+  hang,
+  IMPORT_LINE,
+  type IPins,
+  type IScenario,
+  JUGGLER,
+  LEGACY_URL,
+  lockfileOf,
+  manifestOf,
+  MAX_BODY_BYTES,
+  PINS,
+  RAW,
+  REASON,
+  redirectTo,
+  refused,
+  removeGateRoots,
+  serve,
+  sha256Of,
+  statuses,
+  TAG,
+} from './CheckBrowserStackHarness.js';
 
 const THIS_FILE = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE);
 const ENTRY = join(THIS_DIR, '../../../../scripts/check-browser-stack.mjs');
 
-/** A well-formed tag that is deliberately NOT the pinned one. */
-const TAG = 'v100.0.0-beta.1';
-/** A well-formed asset digest; the gate validates its shape, never its bytes. */
-const ASSET_SHA256 = 'f'.repeat(64);
-const RAW = 'https://raw.githubusercontent.com';
-const JUGGLER = 'juggler/protocol/Protocol.js';
-const CLIENT_URL = `${RAW}/microsoft/playwright/v1.64.0/browser_patches/firefox/${JUGGLER}`;
-/** Camoufox's newest source layout, tried first. */
-const BROWSER_URL = `${RAW}/daijro/camoufox/${TAG}/browser/additions/${JUGGLER}`;
-/** The layout before v156.0.1-beta.37, tried only after a 404 on the newest. */
-const LEGACY_URL = `${RAW}/daijro/camoufox/${TAG}/additions/${JUGGLER}`;
-
-/** The fetcher's body cap, restated as the contract under test. */
-const MAX_BODY_BYTES = 524_288;
-
-const IMPORT_LINE = "const {t} = ChromeUtils.importESModule('resource://testing/t.js');";
-
-/**
- * A one-domain `Protocol.js` whose `Network.setRequestInterception` takes `params`.
- *
- * @param params - Params object literal.
- * @returns Source text.
- */
-function protocolOf(params: string): string {
-  const network = `const Network = { methods: { setRequestInterception: { params: ${params} } } };`;
-  const lines = [IMPORT_LINE, network, 'export const protocol = { domains: { Network } };'];
-  return lines.join('\n');
-}
-
-const BROWSER = protocolOf('{ enabled: t.Boolean }');
-const CLIENT = protocolOf('{ enabled: t.Boolean, bypassServiceWorker: t.Optional(t.Boolean) }');
-const CLIENT_SHA = createHash('sha256').update(CLIENT).digest('hex');
-const BROWSER_SHA = createHash('sha256').update(BROWSER).digest('hex');
-
-/** The single delta between {@link CLIENT} and {@link BROWSER}. */
-const DELTA = {
-  channel: 'request',
-  kind: 'UNKNOWN-FIELD',
-  path: 'Network.setRequestInterception.bypassServiceWorker',
-  signature: 'src:Optional(Boolean)|dst:absent',
-} as const;
-const REASON = 'synthetic: the browser ignores this optional field';
 const CELLS = 'request UNKNOWN-FIELD          Network.setRequestInterception.bypassServiceWorker';
 const NEW_LINE = `NEW       ${CELLS}  src:Optional(Boolean)|dst:absent`;
 const STALE_LINE = `STALE     ${CELLS}  src:Optional(Boolean)|dst:absent`;
@@ -81,303 +67,9 @@ const USAGE_LINE =
   'usage: node scripts/check-browser-stack.mjs [--playwright <x.y.z>] [--camoufox <tag>]' +
   ' [--mode gate|candidate] [--json]';
 
-/** Identity of an accepted delta; the manifest adds the reason. */
-interface IDeltaId {
-  readonly channel: string;
-  readonly kind: string;
-  readonly path: string;
-  readonly signature: string;
-}
-
-/**
- * A valid manifest pinning {@link TAG}.
- *
- * @param accepted - Accepted deltas, without reasons.
- * @param testedMinor - playwright-core minor the stack was tested with.
- * @returns The document.
- */
-function manifestOf(accepted: readonly IDeltaId[] = [DELTA], testedMinor = '1.64'): object {
-  const acceptedDeltas = accepted.map((d): object => ({ ...d, reason: REASON }));
-  const camoufox = { tag: TAG, linuxX64Sha256: ASSET_SHA256 };
-  return { $comment: 'test', camoufox, playwrightCore: { testedMinor }, acceptedDeltas };
-}
-
-/**
- * A lockfile resolving playwright-core to `version`.
- *
- * @param version - Locked version.
- * @returns The document.
- */
-function lockfileOf(version: string): object {
-  return { packages: { 'node_modules/playwright-core': { version } } };
-}
-
-/** Answers one request; `init.signal` aborts it when the attempt times out. */
-type Responder = (url: string, init: RequestInit) => Promise<Response>;
-
-/**
- * Serves each side's source by URL.
- *
- * @param client - Body of every playwright URL.
- * @param browser - Body of every other URL.
- * @returns The responder.
- */
-function serve(client: string, browser: string = BROWSER): Responder {
-  return (url: string): Promise<Response> => {
-    const text = url.includes('/microsoft/playwright/') ? client : browser;
-    const response = new Response(text);
-    return Promise.resolve(response);
-  };
-}
-
-const SERVE = serve(CLIENT);
-
-/**
- * `respond` for the exact client URL; every other URL is served normally.
- *
- * @param respond - Client behaviour under test.
- * @returns The responder.
- */
-function onClient(respond: Responder): Responder {
-  return (url: string, init: RequestInit): Promise<Response> =>
-    url === CLIENT_URL ? respond(url, init) : SERVE(url, init);
-}
-
-/**
- * One status per call, then 200 with {@link CLIENT}.
- *
- * @param codes - Status of the 1st, 2nd, … call.
- * @returns The responder.
- */
-function statuses(codes: readonly number[]): Responder {
-  let call = 0;
-  return (url: string, init: RequestInit): Promise<Response> => {
-    const status = codes[call] ?? 200;
-    call += 1;
-    if (status === 200) return SERVE(url, init);
-    return refusal(status);
-  };
-}
-
-/**
- * Each listed URL answers with its status; every other URL is served normally.
- *
- * @param routes - `[url, status]` pairs.
- * @returns The responder.
- */
-function failing(routes: readonly (readonly [string, number])[]): Responder {
-  const statusOf = new Map(routes);
-  return (url: string, init: RequestInit): Promise<Response> => {
-    const status = statusOf.get(url) ?? 200;
-    if (status === 200) return SERVE(url, init);
-    return refusal(status);
-  };
-}
-
-/**
- * A non-2xx answer.
- *
- * @param status - HTTP status.
- * @returns The response.
- */
-function refusal(status: number): Promise<Response> {
-  const response = new Response('upstream says no', { status });
-  return Promise.resolve(response);
-}
-
-/**
- * A response with a fixed body.
- *
- * @param text - Body.
- * @returns The responder.
- */
-function body(text: string): Responder {
-  return (): Promise<Response> => {
-    const response = new Response(text);
-    return Promise.resolve(response);
-  };
-}
-
-/**
- * A 302 to `location`.
- *
- * @param location - `Location` header, absolute or relative.
- * @returns The responder.
- */
-function redirectTo(location: string): Responder {
-  return (): Promise<Response> => {
-    const response = new Response(null, { status: 302, headers: { location } });
-    return Promise.resolve(response);
-  };
-}
-
-/**
- * Never answers; rejects with the abort reason once the attempt times out.
- *
- * @param _url - Unused.
- * @param init - Carries the attempt's signal.
- * @returns A promise that only rejects.
- */
-async function hang(_url: string, init: RequestInit): Promise<Response> {
-  const missing = new Error('the gate sent no abort signal');
-  const signal = init.signal ?? AbortSignal.abort(missing);
-  signal.throwIfAborted();
-  await once(signal, 'abort');
-  throw signal.reason as Error;
-}
-
-/**
- * 64 KiB chunks, about 64 GiB in total: only a cap applied while streaming stops in time.
- *
- * @returns The chunks, produced lazily.
- */
-function* hugeBody(): Generator<Uint8Array> {
-  const chunk = new Uint8Array(65_536);
-  for (let index = 0; index < 1_000_000; index += 1) yield chunk;
-}
-
-/**
- * A response whose body is {@link hugeBody}.
- *
- * @returns The response.
- */
-function endless(): Promise<Response> {
-  const chunks = hugeBody();
-  // node:stream/web and the DOM lib type the same runtime ReadableStream separately.
-  const stream = NodeReadableStream.from(chunks) as ReadableStream<Uint8Array>;
-  const response = new Response(stream);
-  return Promise.resolve(response);
-}
-
-/**
- * Fails like `fetch` does on a refused connection.
- *
- * @returns A rejected promise.
- */
-function refused(): Promise<Response> {
-  const error = new TypeError('fetch failed');
-  return Promise.reject(error);
-}
-
-/**
- * Files and network of one run; omitted members are the passing baseline.
- * `client` answers the exact client URL only; `respond` answers every URL.
- */
-interface IScenario {
-  readonly manifest?: unknown;
-  readonly lockfile?: unknown;
-  readonly client?: Responder;
-  readonly respond?: Responder;
-}
-
-/** What one run did. */
-interface IRun {
-  readonly code: number;
-  readonly out: string;
-  readonly err: string;
-  readonly urls: readonly string[];
-  readonly sleeps: readonly number[];
-}
-
-const ROOTS: string[] = [];
-
 afterEach(() => {
-  for (const root of ROOTS.splice(0)) rmSync(root, { recursive: true, force: true });
+  removeGateRoots();
 });
-
-/**
- * Write a JSON document into a directory.
- *
- * @param dir - Directory.
- * @param name - File name.
- * @param doc - Document.
- * @returns Path of the file.
- */
-function writeJson(dir: string, name: string, doc: unknown): string {
-  const file = join(dir, name);
-  const text = JSON.stringify(doc);
-  writeFileSync(file, text);
-  return file;
-}
-
-/**
- * A fresh temp dir, removed after the test.
- *
- * @returns Its path.
- */
-function tempDir(): string {
-  const tempRoot = tmpdir();
-  const prefix = join(tempRoot, 'browser-stack-gate-');
-  const dir = mkdtempSync(prefix);
-  ROOTS.push(dir);
-  return dir;
-}
-
-/**
- * Run the gate in-process against temp files and a recording fake network.
- *
- * @param args - CLI arguments.
- * @param scenario - Files and network; defaults pass.
- * @returns What the run did.
- */
-async function gate(args: readonly string[], scenario: IScenario = {}): Promise<IRun> {
-  const dir = tempDir();
-  const urls: string[] = [];
-  const sleeps: number[] = [];
-  const network = scenario.respond ?? SERVE;
-  const respond = scenario.client === undefined ? network : onClient(scenario.client);
-  const fetchIo: IFetchIo = {
-    /**
-     * Record, then answer.
-     *
-     * @param url - Requested URL.
-     * @param init - Request options.
-     * @returns The response.
-     */
-    fetchImpl: (url: string, init: RequestInit): Promise<Response> => {
-      urls.push(url);
-      return respond(url, init);
-    },
-    /**
-     * Record the backoff instead of waiting.
-     *
-     * @param ms - Requested wait.
-     * @returns Resolved at once.
-     */
-    sleep: (ms: number): Promise<number> => {
-      sleeps.push(ms);
-      return Promise.resolve(ms);
-    },
-    timeoutMs: 5,
-  };
-  const output = { out: '', err: '' };
-  const code = await runGate(args, {
-    manifestPath: writeJson(dir, 'browser-stack.json', scenario.manifest ?? manifestOf()),
-    lockfilePath: writeJson(dir, 'package-lock.json', scenario.lockfile ?? lockfileOf('1.64.0')),
-    fetch: fetchIo,
-    /**
-     * Capture stdout.
-     *
-     * @param text - Written text.
-     * @returns Like `process.stdout.write`.
-     */
-    stdout: (text: string): boolean => {
-      output.out += text;
-      return true;
-    },
-    /**
-     * Capture stderr.
-     *
-     * @param text - Written text.
-     * @returns Like `process.stderr.write`.
-     */
-    stderr: (text: string): boolean => {
-      output.err += text;
-      return true;
-    },
-  });
-  return { code, ...output, urls, sleeps };
-}
 
 /** A run whose findings decide the exit code. */
 interface IVerdictCase {
@@ -390,6 +82,15 @@ interface IVerdictCase {
 }
 
 const CHANGED_SIGNATURE = { ...DELTA, signature: 'src:Optional(String)|dst:absent' };
+/** Pins for a run whose client is served {@link BROWSER}. */
+const BROWSER_AS_CLIENT: IPins = { client: { '1.64.0': BROWSER_SHA }, browser: BROWSER_SHA };
+const NO_CLIENT_PIN: IPins = { client: {}, browser: BROWSER_SHA };
+const OTHER_SHA = 'e'.repeat(64);
+const MOVED_CLIENT_PIN: IPins = { client: { '1.64.0': OTHER_SHA }, browser: BROWSER_SHA };
+const UNPINNED_TEXT = 'browser-stack.json pins no Protocol.js sha256 [info]';
+const UNPINNED_CLIENT = `UNPINNED  client playwright-core 1.64.0: ${UNPINNED_TEXT}`;
+const MISMATCH_CLIENT =
+  'MISMATCH  client playwright-core 1.64.0: Protocol.js sha256 differs from its pin [info]';
 
 const VERDICT_CASES: readonly IVerdictCase[] = [
   {
@@ -404,7 +105,7 @@ const VERDICT_CASES: readonly IVerdictCase[] = [
     id: 'BSG-3',
     what: 'gate fails an accepted delta that is gone',
     args: [],
-    scenario: { respond: serve(BROWSER) },
+    scenario: { respond: serve(BROWSER), manifest: manifestOf([DELTA], '1.64', BROWSER_AS_CLIENT) },
     code: 1,
     lines: [STALE_LINE, 'FAIL: 0 new, 1 stale, 0 accepted'],
   },
@@ -440,13 +141,29 @@ const VERDICT_CASES: readonly IVerdictCase[] = [
     id: 'BSG-7',
     what: 'candidate passes STALE and DRIFT, marked [info]',
     args: ['--mode', 'candidate'],
-    scenario: { respond: serve(BROWSER), manifest: manifestOf([DELTA], '1.63') },
+    scenario: { respond: serve(BROWSER), manifest: manifestOf([DELTA], '1.63', BROWSER_AS_CLIENT) },
     code: 0,
     lines: [
       `${STALE_LINE} [info]`,
       `${DRIFT_LINE} [info]`,
       'PASS: 0 new, 1 stale, 0 accepted, drift',
     ],
+  },
+  {
+    id: 'BSG-45',
+    what: 'gate passes a playwright-core version with no Protocol.js pin, marked [info]',
+    args: [],
+    scenario: { manifest: manifestOf([DELTA], '1.64', NO_CLIENT_PIN) },
+    code: 0,
+    lines: [UNPINNED_CLIENT, 'PASS: 0 new, 0 stale, 1 accepted'],
+  },
+  {
+    id: 'BSG-46',
+    what: 'candidate reports a Protocol.js that differs from its pin, marked [info]',
+    args: ['--mode', 'candidate'],
+    scenario: { manifest: manifestOf([DELTA], '1.64', MOVED_CLIENT_PIN) },
+    code: 0,
+    lines: [MISMATCH_CLIENT, 'PASS: 0 new, 0 stale, 1 accepted'],
   },
 ];
 
@@ -464,6 +181,14 @@ interface IInfraCase {
 const BACKOFF = [1000, 2000] as const;
 const OFF_LIST = 'https://example.com/Protocol.js';
 const OVER_CAP = CLIENT.padEnd(MAX_BODY_BYTES + 1, ' ');
+/** Outside the grammar: parsing it would fail as UNPARSEABLE. */
+const UNPARSEABLE = `${IMPORT_LINE}\nexport const protocol = eval(1);`;
+const UNPARSEABLE_SHA = sha256Of(UNPARSEABLE);
+const UNPARSEABLE_BROWSER_PIN: IPins = { client: PINS.client, browser: UNPARSEABLE_SHA };
+const MOVED_BROWSER = `${BROWSER}\n`;
+const MOVED_BROWSER_SHA = sha256Of(MOVED_BROWSER);
+const CLIENT_MISMATCH = `DIGEST-MISMATCH client playwright-core 1.64.0 sha256=${UNPARSEABLE_SHA} pinned=${CLIENT_SHA}`;
+const BROWSER_MISMATCH = `DIGEST-MISMATCH browser Camoufox ${TAG} sha256=${MOVED_BROWSER_SHA} pinned=${BROWSER_SHA}`;
 
 const INFRA_CASES: readonly IInfraCase[] = [
   {
@@ -581,8 +306,35 @@ const INFRA_CASES: readonly IInfraCase[] = [
   {
     id: 'BSG-32',
     what: 'a browser source outside the grammar',
-    scenario: { respond: serve(CLIENT, `${IMPORT_LINE}\nexport const protocol = eval(1);`) },
+    scenario: {
+      respond: serve(CLIENT, UNPARSEABLE),
+      manifest: manifestOf([DELTA], '1.64', UNPARSEABLE_BROWSER_PIN),
+    },
     err: 'UNPARSEABLE browser line 2: expected an object literal',
+    fetches: 2,
+    sleeps: [],
+  },
+  {
+    id: 'BSG-47',
+    what: 'a client Protocol.js that differs from its pin, before parsing it',
+    scenario: { client: body(UNPARSEABLE) },
+    err: `${CLIENT_MISMATCH}\n`,
+    fetches: 2,
+    sleeps: [],
+  },
+  {
+    id: 'BSG-48',
+    what: 'a browser Protocol.js that differs from its pin',
+    scenario: { respond: serve(CLIENT, MOVED_BROWSER) },
+    err: `${BROWSER_MISMATCH}\n`,
+    fetches: 2,
+    sleeps: [],
+  },
+  {
+    id: 'BSG-49',
+    what: 'both Protocol.js files differing from their pins, one line each',
+    scenario: { respond: serve(UNPARSEABLE, MOVED_BROWSER) },
+    err: `${CLIENT_MISMATCH}\n${BROWSER_MISMATCH}\n`,
     fetches: 2,
     sleeps: [],
   },
@@ -680,7 +432,14 @@ describe('browser-stack gate verdict', () => {
     const browser = `${RAW}/daijro/camoufox/v1.2.3-beta.4/browser/additions/${JUGGLER}`;
     expect(run.urls).toEqual([client, browser]);
     expect(run.out).toContain('playwright-core 1.65.2 × Camoufox v1.2.3-beta.4 (mode=gate)\n');
+    expect(run.out).toContain(`UNPINNED  client playwright-core 1.65.2: ${UNPINNED_TEXT}\n`);
+    expect(run.out).toContain(`UNPINNED  browser Camoufox v1.2.3-beta.4: ${UNPINNED_TEXT}\n`);
     expect(run.code).toBe(1);
+  });
+
+  it('[BSG-50] a pinned pair prints no pin rows', async () => {
+    const run = await gate([]);
+    expect(run.out).not.toMatch(/^(UNPINNED|MISMATCH) /mu);
   });
 });
 
@@ -698,7 +457,9 @@ describe('browser-stack gate fetch policy', () => {
 
   it('[BSG-11] accepts a body of exactly the cap', async () => {
     const padded = CLIENT.padEnd(MAX_BODY_BYTES, ' ');
-    const run = await gate([], { client: body(padded) });
+    const pins = { client: { '1.64.0': sha256Of(padded) }, browser: BROWSER_SHA };
+    const manifest = manifestOf([DELTA], '1.64', pins);
+    const run = await gate([], { client: body(padded), manifest });
     expect(run.code).toBe(0);
   });
 
@@ -737,12 +498,23 @@ describe('browser-stack gate output', () => {
       mode: 'gate',
       testedMinor: '1.64',
       sha256: { client: CLIENT_SHA, browser: BROWSER_SHA },
+      pins: { client: 'match', browser: 'match' },
       new: [],
       stale: [],
       accepted: [{ ...DELTA, reason: REASON }],
       drift: false,
       exit: 0,
     });
+  });
+
+  it.each([
+    ['unpinned', ['--json'], NO_CLIENT_PIN],
+    ['mismatch', ['--json', '--mode', 'candidate'], MOVED_CLIENT_PIN],
+  ])('[BSG-51] --json reports the client pin as %s', async (state, args, pins) => {
+    const manifest = manifestOf([DELTA], '1.64', pins);
+    const run = await gate(args, { manifest });
+    const report: unknown = JSON.parse(run.out);
+    expect(report).toMatchObject({ pins: { client: state, browser: 'match' }, exit: 0 });
   });
 
   it('[BSG-41] --json prints an infrastructure failure as JSON and on stderr', async () => {

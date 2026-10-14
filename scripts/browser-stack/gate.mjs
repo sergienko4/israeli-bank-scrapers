@@ -10,15 +10,20 @@
  *   signature changed (the changed delta is then NEW as well);
  * - DRIFT — the playwright-core minor differs from `testedMinor`.
  *
+ * Both bodies are checked against their pinned sha256 before either is parsed
+ * (see gate-pins.mjs).
+ *
  * Exit codes (closed set): 0 pass · 1 a finding fails the mode (see
  * gate-report.mjs) · 2 the gate cannot decide: USAGE, MANIFEST-INVALID,
- * LOCKFILE-INVALID (see gate-inputs.mjs), FETCH-FAILED or UNPARSEABLE.
+ * LOCKFILE-INVALID (see gate-inputs.mjs), FETCH-FAILED, DIGEST-MISMATCH (gate
+ * mode) or UNPARSEABLE.
  */
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { FetchFailedError, fetchFirst, fetchProtocol, protocolUrls } from './fetch-protocol.mjs';
 import { GateInfraError, lockedPlaywright, parseCli, readManifest } from './gate-inputs.mjs';
+import { checkPins } from './gate-pins.mjs';
 import { exitOf, minorOf, renderText } from './gate-report.mjs';
 import { diffSchemas } from './juggler-diff.mjs';
 import { parseJugglerSchema, UnparseableSchemaError } from './juggler-schema.mjs';
@@ -29,6 +34,7 @@ import { parseJugglerSchema, UnparseableSchemaError } from './juggler-schema.mjs
  * @typedef {Required<IGateIo>} GateIo - Gate I/O, defaults filled in.
  * @typedef {import('./gate-inputs.mjs').AcceptedDelta} AcceptedDelta
  * @typedef {import('./gate-inputs.mjs').CliOptions} CliOptions
+ * @typedef {import('./gate-pins.mjs').Pair} Pair
  * @typedef {import('./gate-report.mjs').Report} Report
  * @typedef {import('./juggler-diff.d.mts').IJugglerDelta} IJugglerDelta
  * @typedef {{ text: string, sha256: string }} Body - One fetched `Protocol.js`.
@@ -95,27 +101,32 @@ function resolvePair(/** @type {CliOptions} */ options, /** @type {GateIo} */ io
 }
 
 /**
- * sha256 of both sources and every delta between them.
+ * sha256 of both sources, each against its pin, and every delta between them.
  *
- * @param {string} playwright - playwright-core version.
- * @param {string} camoufox - Camoufox tag.
+ * @param {Pair} pair - Manifest and the pair under test.
+ * @param {string} mode - `--mode`; decides whether a pin mismatch stops the run.
  * @param {IFetchIo} io - Fetch I/O overrides.
- * @returns {Promise<{ sha256: Report['sha256'], deltas: IJugglerDelta[] }>} Comparison.
+ * @returns {Promise<Pick<Report, 'sha256' | 'pins'> & { deltas: IJugglerDelta[] }>} Comparison.
  */
-async function compare(playwright, camoufox, io) {
-  const [client, browser] = await fetchBoth(protocolUrls(playwright, camoufox), io);
+async function compare(pair, mode, io) {
+  const urls = protocolUrls(pair.playwright, pair.camoufox);
+  const [client, browser] = await fetchBoth(urls, io);
+  const sha256 = { client: client.sha256, browser: browser.sha256 };
+  const pins = checkPins(pair, mode, sha256);
   const deltas = diffSchemas(parseSide('client', client.text), parseSide('browser', browser.text));
-  return { sha256: { client: client.sha256, browser: browser.sha256 }, deltas };
+  return { sha256, pins, deltas };
 }
 
 /** The full report of one run, exit code included. */
 async function evaluate(/** @type {CliOptions} */ options, /** @type {GateIo} */ io) {
-  const { manifest, playwright, camoufox } = resolvePair(options, io);
-  const { sha256, deltas } = await compare(playwright, camoufox, io.fetch);
+  const pair = resolvePair(options, io);
+  const { manifest, playwright, camoufox } = pair;
+  const { sha256, pins, deltas } = await compare(pair, options.mode, io.fetch);
   const { testedMinor } = manifest.playwrightCore;
   const drift = minorOf(playwright) !== testedMinor;
   const found = classify(deltas, manifest.acceptedDeltas);
-  const report = { playwright, camoufox, mode: options.mode, testedMinor, sha256, ...found, drift };
+  const head = { playwright, camoufox, mode: options.mode, testedMinor, sha256, pins };
+  const report = { ...head, ...found, drift };
   return { ...report, exit: exitOf(report) };
 }
 

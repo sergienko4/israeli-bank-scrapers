@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Validate `browser-stack.json`, the single source of the tested browser
- * stack: Camoufox tag, playwright-core minor and accepted Juggler deltas.
+ * stack: Camoufox tag, playwright-core minor, the pinned SHA-256 of each
+ * Juggler `Protocol.js`, and accepted Juggler deltas.
  *
  * Contract: every field
  * required, no extra keys, accepted-delta identity
@@ -27,10 +28,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 // missing release.
 export const CAMOUFOX_TAG =
   /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-(alpha|beta)\.(0|[1-9]\d*)$/u;
+/** A stable `x.y.z` version; prereleases have no upstream `Protocol.js` tag. */
+export const PLAYWRIGHT_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
 const SEMVER_MINOR = /^(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
 // Bare lowercase hex, as `sha256sum` prints it; GitHub's asset `digest`
 // carries a `sha256:` prefix that must be dropped.
 const SHA256_HEX = /^[0-9a-f]{64}$/u;
+/** Where the client `Protocol.js` digests are pinned, one per exact version. */
+const CLIENT_PINS = '/playwrightCore/protocolSha256';
 // An ENUM-VALUE path ends in `=` and the value as a JSON literal: a string or a boolean.
 const DELTA_PATH =
   /^[A-Z][A-Za-z]+\.[A-Za-z]+(\.[A-Za-z]+|\[\])*(=("([^"\\]|\\.)*"|true|false))?$/u;
@@ -54,7 +59,18 @@ export const DELTA_KINDS = Object.freeze([
 
 /** @typedef {{ readonly pointer: string, readonly reason: string }} ManifestIssue */
 /** @typedef {readonly [string, (value: unknown) => boolean, string]} FieldRule */
-/** @typedef {{ readonly tag: string, readonly linuxX64Sha256: string }} Camoufox */
+/**
+ * @typedef {object} Camoufox
+ * @property {string} tag - Release tag.
+ * @property {string} linuxX64Sha256 - SHA-256 of its Linux x86_64 asset.
+ * @property {string} protocolSha256 - SHA-256 of its Juggler `Protocol.js`.
+ */
+/**
+ * @typedef {object} PlaywrightCore
+ * @property {string} testedMinor - Minor the stack is tested with.
+ * @property {Readonly<Record<string, string>>} protocolSha256 - SHA-256 of the Juggler
+ *   `Protocol.js` per exact `x.y.z` version.
+ */
 
 /**
  * @param {unknown} value - Parsed JSON value.
@@ -72,8 +88,8 @@ const text = (min, max) => value =>
 /** Exact key set of every fixed object, by JSON pointer. */
 const SHAPES = Object.freeze({
   '': ['$comment', 'camoufox', 'playwrightCore', 'acceptedDeltas'],
-  '/camoufox': ['tag', 'linuxX64Sha256'],
-  '/playwrightCore': ['testedMinor'],
+  '/camoufox': ['tag', 'linuxX64Sha256', 'protocolSha256'],
+  '/playwrightCore': ['testedMinor', 'protocolSha256'],
 });
 const DELTA_KEYS = Object.freeze(['channel', 'kind', 'path', 'signature', 'reason']);
 
@@ -82,6 +98,7 @@ const ROOT_RULES = [
   ['/$comment', text(1, Infinity), 'must be a non-blank string'],
   ['/camoufox/tag', matching(CAMOUFOX_TAG), `must match ${CAMOUFOX_TAG.source}`],
   ['/camoufox/linuxX64Sha256', matching(SHA256_HEX), `must match ${SHA256_HEX.source}`],
+  ['/camoufox/protocolSha256', matching(SHA256_HEX), `must match ${SHA256_HEX.source}`],
   ['/playwrightCore/testedMinor', matching(SEMVER_MINOR), `must match ${SEMVER_MINOR.source}`],
 ];
 
@@ -165,6 +182,23 @@ function duplicateIssues(/** @type {readonly unknown[]} */ deltas) {
   });
 }
 
+/** @type {(version: string, digest: unknown) => string} Why one pin is malformed; '' if not. */
+const pinReason = (version, digest) => {
+  if (!PLAYWRIGHT_VERSION.test(version)) return `key must match ${PLAYWRIGHT_VERSION.source}`;
+  return matching(SHA256_HEX)(digest) ? '' : `must match ${SHA256_HEX.source}`;
+};
+
+/** @returns {ManifestIssue[]} A non-object pin map, else one finding per malformed pin. */
+function pinIssues(/** @type {unknown} */ doc) {
+  const pins = at(doc, CLIENT_PINS);
+  if (pins === undefined) return [];
+  if (!isRecord(pins)) return [{ pointer: CLIENT_PINS, reason: 'must be an object' }];
+  return Object.entries(pins)
+    .map(([version, digest]) => ({ version, reason: pinReason(version, digest) }))
+    .filter(({ reason }) => reason !== '')
+    .map(({ version, reason }) => keyIssue(CLIENT_PINS)(reason)(version));
+}
+
 /** @returns {ManifestIssue[]} Fixed-object shape findings, then a non-array `acceptedDeltas`. */
 function structureIssues(/** @type {Record<string, unknown>} */ doc) {
   const shapes = Object.entries(SHAPES).flatMap(([pointer, keys]) =>
@@ -179,13 +213,13 @@ function structureIssues(/** @type {Record<string, unknown>} */ doc) {
  * Every way a parsed document breaks the manifest contract.
  *
  * @param {unknown} doc - Parsed `browser-stack.json`.
- * @returns {ManifestIssue[]} Shape, then field, then per-delta findings; empty when valid.
+ * @returns {ManifestIssue[]} Shape, field, pin, then per-delta findings; empty when valid.
  */
 export function validateManifest(doc) {
   if (!isRecord(doc)) return [{ pointer: '', reason: 'must be an object' }];
   const list = Array.isArray(doc.acceptedDeltas) ? doc.acceptedDeltas : [];
   const perDelta = list.flatMap((_, index) => deltaIssues(doc, index));
-  const fields = ruleIssues(doc, '', ROOT_RULES);
+  const fields = [...ruleIssues(doc, '', ROOT_RULES), ...pinIssues(doc)];
   return [...structureIssues(doc), ...fields, ...perDelta, ...duplicateIssues(list)];
 }
 
@@ -193,8 +227,8 @@ export function validateManifest(doc) {
  * Read and validate a manifest file.
  *
  * @param {string} file - Path to `browser-stack.json`.
- * @returns {{ manifest?: { camoufox: Camoufox }, issues: ManifestIssue[] }}
- *   The manifest only when it is fully valid.
+ * @returns {{ manifest?: { camoufox: Camoufox, playwrightCore: PlaywrightCore },
+ *   issues: ManifestIssue[] }} The manifest only when it is fully valid.
  */
 export function loadManifest(file) {
   try {

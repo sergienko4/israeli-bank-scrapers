@@ -339,8 +339,10 @@ function copyIntoTree(root: string, rel: string): string {
  */
 function writeManifest(root: string, scenario: IScenario): string {
   const meta = { $comment: 'Install-script test manifest.', acceptedDeltas: [] };
-  const camoufox = { tag: scenario.tag, linuxX64Sha256: scenario.sha256 };
-  const doc = { ...meta, camoufox, playwrightCore: { testedMinor: '1.63' } };
+  const protocolSha256 = '0'.repeat(64);
+  const camoufox = { tag: scenario.tag, linuxX64Sha256: scenario.sha256, protocolSha256 };
+  const playwrightCore = { testedMinor: '1.63', protocolSha256: {} };
+  const doc = { ...meta, camoufox, playwrightCore };
   const file = join(root, 'browser-stack.json');
   const text = JSON.stringify(doc);
   writeFileSync(file, text);

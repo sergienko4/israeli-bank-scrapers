@@ -1,11 +1,15 @@
 {
-  "$comment": "Single source of the tested browser stack. CI installs camoufox.tag and the browser-stack gate checks playwright-core against it. camoufox.linuxX64Sha256 is the SHA-256 of that release's lin.x86_64.zip asset (its GitHub digest without the sha256: prefix); the installer refuses any other bytes, so move it with the tag. The values are the tested pair: change only the component being upgraded, and raise testedMinor only after its gate and contract tests pass; scripts/browser-stack/manifest.mjs validates this file.",
+  "$comment": "Single source of the tested browser stack. CI installs camoufox.tag and the browser-stack gate checks playwright-core against it. camoufox.linuxX64Sha256 is the SHA-256 of that release's lin.x86_64.zip asset (its GitHub digest without the sha256: prefix); the installer refuses any other bytes, so move it with the tag. camoufox.protocolSha256 and playwrightCore.protocolSha256 (keyed by exact x.y.z version) are the SHA-256 of each side's Juggler Protocol.js as the gate fetches it; the gate refuses other bytes, so move the Camoufox pin with the tag and add the version pin with the playwright-core bump. The values are the tested pair: change only the component being upgraded, and raise testedMinor only after its gate and contract tests pass; scripts/browser-stack/manifest.mjs validates this file.",
   "camoufox": {
     "tag": "v152.0.4-beta.28",
-    "linuxX64Sha256": "924f3109ccd6d47cd6a0384d67a345fadf975d48b6319f8dbbd5954c588982bd"
+    "linuxX64Sha256": "924f3109ccd6d47cd6a0384d67a345fadf975d48b6319f8dbbd5954c588982bd",
+    "protocolSha256": "7e6f0dcd4c26ce8a0040c4c75aa58de494eef63622d13af6f904dc6e218d7e04"
   },
   "playwrightCore": {
-    "testedMinor": "1.63"
+    "testedMinor": "1.63",
+    "protocolSha256": {
+      "1.63.0": "bab39c6dd66564dd0ad15c2de4faf54608e5013b880b46711c0c993f0c814583"
+    }
   },
   "acceptedDeltas": [
     {

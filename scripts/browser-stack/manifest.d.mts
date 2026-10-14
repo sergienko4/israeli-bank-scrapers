@@ -15,6 +15,9 @@ export interface ManifestIssue {
 /** Strict SemVer `v<major>.<minor>.<patch>-(alpha|beta).<n>` Camoufox release tag. */
 export declare const CAMOUFOX_TAG: RegExp;
 
+/** A stable `x.y.z` playwright-core version: the key of a client `Protocol.js` pin. */
+export declare const PLAYWRIGHT_VERSION: RegExp;
+
 /** Juggler message direction a delta was found on. */
 export declare const DELTA_CHANNELS: readonly ['request', 'return', 'event'];
 
@@ -45,7 +48,15 @@ export function validateManifest(doc: unknown): ManifestIssue[];
  */
 export function loadManifest(file: string): {
   readonly manifest?: {
-    readonly camoufox: { readonly tag: string; readonly linuxX64Sha256: string };
+    readonly camoufox: {
+      readonly tag: string;
+      readonly linuxX64Sha256: string;
+      readonly protocolSha256: string;
+    };
+    readonly playwrightCore: {
+      readonly testedMinor: string;
+      readonly protocolSha256: Readonly<Record<string, string>>;
+    };
   };
   readonly issues: ManifestIssue[];
 };
