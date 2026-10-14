@@ -33,8 +33,11 @@ jest.unstable_mockModule(
   () => ({ checkBrowserStack: STACK_CHECK_MOCK }),
 );
 
-const { CAMOUFOX_LAUNCH_TIMEOUT_ENV, launchCamoufox: LAUNCH_CAMOUFOX } =
-  await import('../../../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js');
+const {
+  CAMOUFOX_LAUNCH_TIMEOUT_ENV,
+  STACK_CHECK_DEADLINE_MS,
+  launchCamoufox: LAUNCH_CAMOUFOX,
+} = await import('../../../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js');
 
 /**
  * Build a launch promise the test settles by hand.
@@ -111,6 +114,16 @@ function throwingCheck(): Promise<number> {
 }
 
 /**
+ * A stack check that never settles.
+ *
+ * @returns A promise that stays pending.
+ */
+function hangingCheck(): Promise<number> {
+  const { launch } = deferLaunch();
+  return launch.then((): number => 0);
+}
+
+/**
  * Launch with a stack check that fails, and report what the caller got.
  *
  * @param failingCheck - The check implementation for this launch.
@@ -128,6 +141,32 @@ async function launchWithFailingCheck(
   return { browser, close };
 }
 
+/** What a launch that has not settled yet reads as. */
+const STILL_PENDING = Symbol('still pending');
+
+/**
+ * Launch with a stack check that never settles, move fake time past the
+ * check's deadline, and look at the launch without waiting on it: a launch
+ * the deadline failed to release reads as {@link STILL_PENDING} rather than
+ * hanging the suite.
+ *
+ * @returns What the launch settled to, plus the browser's close spy.
+ */
+async function launchWithHangingCheck(): Promise<{
+  outcome: unknown;
+  close: IClosableBrowser['close'];
+}> {
+  STACK_CHECK_MOCK.mockImplementationOnce(hangingCheck);
+  const close = closeSpy(false);
+  const launched = Promise.resolve({ close });
+  CAMOUFOX_MOCK.mockReturnValue(launched);
+  const launching = LAUNCH_CAMOUFOX(true);
+  await jest.advanceTimersByTimeAsync(STACK_CHECK_DEADLINE_MS);
+  const looked = flushPendingCallbacks().then((): symbol => STILL_PENDING);
+  const outcome = await Promise.race([launching, looked]);
+  return { outcome, close };
+}
+
 describe('CamoufoxLauncher abandoned-launch disposal', () => {
   beforeEach(() => {
     process.env[CAMOUFOX_LAUNCH_TIMEOUT_ENV] = '5';
@@ -136,6 +175,7 @@ describe('CamoufoxLauncher abandoned-launch disposal', () => {
   });
 
   afterEach(() => {
+    jest.useRealTimers();
     Reflect.deleteProperty(process.env, CAMOUFOX_LAUNCH_TIMEOUT_ENV);
   });
 
@@ -193,6 +233,14 @@ describe('CamoufoxLauncher abandoned-launch disposal', () => {
   it('hands back the browser when the stack check throws synchronously', async () => {
     const { browser, close } = await launchWithFailingCheck(throwingCheck);
     expect(browser).toEqual({ close });
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it('hands back the browser once a never-settling stack check hits its deadline', async () => {
+    jest.useFakeTimers({ doNotFake: ['setImmediate'] });
+    process.env[CAMOUFOX_LAUNCH_TIMEOUT_ENV] = '60000';
+    const { outcome, close } = await launchWithHangingCheck();
+    expect(outcome).toEqual({ close });
     expect(close).not.toHaveBeenCalled();
   });
 });

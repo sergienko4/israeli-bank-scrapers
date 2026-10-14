@@ -67,8 +67,9 @@ work, so the check never fails a launch. It never rejects. A reader that
 throws, as the Camoufox reader does before the first download, skips its
 component with a `debug` line that carries only the redacted message length.
 A logger that throws also only skips its component. `launchCamoufox` guards
-the call as well, so a check that ever broke that contract would still not
-cost the caller its launched browser.
+the call as well and bounds it by `STACK_CHECK_DEADLINE_MS` (2 s), so a check
+that ever rejected or hung would still not cost the caller its launched
+browser.
 The consumer-facing guide is in
 [Troubleshooting](../troubleshooting.md#browser-stack-differs-from-the-tested-pair).
 
