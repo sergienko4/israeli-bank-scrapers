@@ -14,6 +14,12 @@
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
+/**
+ * @typedef {import('./gate.d.mts').IFetchIo} IFetchIo
+ * @typedef {Required<IFetchIo>} FetchIo - Fetch I/O, defaults filled in.
+ * @typedef {FetchIo & { readonly signal: AbortSignal }} AttemptIo - I/O of one attempt.
+ */
+
 /** The only host the gate may contact. */
 export const ALLOWED_HOST = 'raw.githubusercontent.com';
 
@@ -90,7 +96,7 @@ const locationOf = response =>
  * First non-redirect response; every hop is checked against the allowlist before it is sent.
  *
  * @param {string} href - URL of this hop.
- * @param {any} io - Fetch I/O, with the attempt's abort signal.
+ * @param {AttemptIo} io - Fetch I/O, with the attempt's abort signal.
  * @param {number} hops - Redirects followed so far.
  * @returns {Promise<Response>} The final response.
  */
@@ -115,7 +121,17 @@ async function readCapped(/** @type {string} */ href, /** @type {Response} */ re
   return Buffer.concat(chunks);
 }
 
-/** @type {(error: any, io: any) => string} Reason of a network-level failure. */
+/**
+ * What a failed attempt threw, as far as {@link networkReason} reads it — defensively,
+ * with `?.`: a `TimeoutError` DOMException, or a `TypeError` whose `cause` has a code.
+ *
+ * @typedef {object} NetworkFailure
+ * @property {string} [name] - `TimeoutError` when the attempt's signal fired.
+ * @property {string} [message] - What went wrong.
+ * @property {{ code?: string }} [cause] - Underlying system error, e.g. `ECONNRESET`.
+ */
+
+/** @type {(error: NetworkFailure, io: FetchIo) => string} Reason of a network-level failure. */
 const networkReason = (error, io) =>
   error?.name === 'TimeoutError'
     ? `timed out after ${io.timeoutMs} ms`
@@ -128,15 +144,25 @@ async function statusFailure(/** @type {string} */ href, /** @type {Response} */
   return { failure, retry: response.status >= 500 || response.status === RATE_LIMITED };
 }
 
-/** One attempt: `{ bytes }`, or `{ failure, retry }`. */
-async function attempt(/** @type {string} */ href, /** @type {any} */ io) {
+/**
+ * Outcome of one attempt: the body, or a failure and whether it may be retried.
+ *
+ * @typedef {{ bytes: Buffer, failure?: undefined, retry?: undefined }} AttemptBody
+ * @typedef {{ bytes?: undefined, failure: FetchFailedError, retry: boolean }} AttemptFailure
+ */
+
+/** @returns {Promise<AttemptBody | AttemptFailure>} `{ bytes }`, or `{ failure, retry }`. */
+async function attempt(/** @type {string} */ href, /** @type {FetchIo} */ io) {
   try {
     const response = await follow(href, { ...io, signal: AbortSignal.timeout(io.timeoutMs) }, 0);
     if (!response.ok) return await statusFailure(href, response);
     return { bytes: await readCapped(href, response) };
   } catch (error) {
     if (error instanceof FetchFailedError) return { failure: error, retry: false };
-    return { failure: new FetchFailedError(href, networkReason(error, io)), retry: true };
+    return {
+      failure: new FetchFailedError(href, networkReason(/** @type {NetworkFailure} */ (error), io)),
+      retry: true,
+    };
   }
 }
 
@@ -150,7 +176,7 @@ const digest = bytes => ({
  * Fetch one schema under the gate's policy.
  *
  * @param {string} href - Absolute URL on {@link ALLOWED_HOST}.
- * @param {{ fetchImpl?: Function, sleep?: Function, timeoutMs?: number }} [overrides] - Test I/O.
+ * @param {IFetchIo} [overrides] - Test I/O.
  * @returns {Promise<{ text: string, sha256: string }>} Body text and the sha256 of its bytes.
  * @throws {FetchFailedError} When no attempt yields a body.
  */
@@ -171,7 +197,7 @@ const isNotFound = error => error instanceof FetchFailedError && error.status ==
  * The first candidate that exists. Only a 404 moves on; any other failure is final.
  *
  * @param {string[]} hrefs - Candidate URLs, most likely first.
- * @param {{ fetchImpl?: Function, sleep?: Function, timeoutMs?: number }} [overrides] - Test I/O.
+ * @param {IFetchIo} [overrides] - Test I/O.
  * @returns {Promise<{ text: string, sha256: string }>} Body text and the sha256 of its bytes.
  * @throws {FetchFailedError} On a non-404 failure, or a 404 at every candidate.
  */

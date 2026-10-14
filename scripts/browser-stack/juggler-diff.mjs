@@ -16,15 +16,41 @@ import { parseJugglerSchema } from './juggler-schema.mjs';
 import { fieldsSig, pairSig } from './juggler-sig.mjs';
 import { DELTA_CHANNELS } from './manifest.mjs';
 
-/** Own property or undefined — names such as `constructor` stay data. */
-const own = (/** @type {any} */ obj, /** @type {string} */ key) =>
-  Object.hasOwn(obj, key) ? obj[key] : undefined;
+/**
+ * @typedef {import('./juggler-schema.d.mts').NormalizedSchema} NormalizedSchema
+ * @typedef {import('./juggler-schema.d.mts').IMethod} IMethod
+ * @typedef {import('./juggler-schema.d.mts').IDomain['events'][string]} Fields
+ * @typedef {import('./juggler-diff.d.mts').IJugglerDelta} IJugglerDelta
+ */
+
+/**
+ * Both schemas of one diff and the deltas collected so far.
+ *
+ * @typedef {object} Run
+ * @property {NormalizedSchema} client - playwright-core's schema.
+ * @property {NormalizedSchema} browser - Camoufox's schema.
+ * @property {IJugglerDelta[]} out - Collected deltas.
+ */
+
+/**
+ * Own property or undefined — names such as `constructor` stay data.
+ *
+ * @template T
+ * @param {Readonly<Record<string, T>>} obj - Map to read.
+ * @param {string} key - Property name.
+ * @returns {T | undefined} The own value, else undefined.
+ */
+const own = (obj, key) => (Object.hasOwn(obj, key) ? obj[key] : undefined);
 
 /** Sorted own keys. */
 const keysOf = (/** @type {object} */ obj) => Object.keys(obj).sort();
 
-/** A cursor at `path` on `channel` with fresh cycle state. */
-function cursor(/** @type {any} */ run, /** @type {string} */ channel, /** @type {string} */ path) {
+/** @returns {import('./juggler-assign.mjs').Cursor} A cursor at `path` on `channel`, fresh. */
+function cursor(
+  /** @type {Run} */ run,
+  /** @type {import('./juggler-diff.d.mts').DeltaChannel} */ channel,
+  /** @type {string} */ path,
+) {
   const toBrowser = channel === 'request';
   const [src, dst] = toBrowser ? [run.client, run.browser] : [run.browser, run.client];
   const types = { srcTypes: src.namespaces, dstTypes: dst.namespaces };
@@ -32,7 +58,11 @@ function cursor(/** @type {any} */ run, /** @type {string} */ channel, /** @type
 }
 
 /** Request and return deltas of one client method. */
-function diffMethod(/** @type {any} */ run, /** @type {string} */ path, /** @type {any[]} */ pair) {
+function diffMethod(
+  /** @type {Run} */ run,
+  /** @type {string} */ path,
+  /** @type {[IMethod, IMethod | undefined]} */ pair,
+) {
   const [mine, theirs] = pair;
   if (theirs === undefined) {
     const signature = pairSig(fieldsSig(mine.params), 'absent');
@@ -43,7 +73,11 @@ function diffMethod(/** @type {any} */ run, /** @type {string} */ path, /** @typ
 }
 
 /** Event deltas of one client event. */
-function diffEvent(/** @type {any} */ run, /** @type {string} */ path, /** @type {any[]} */ pair) {
+function diffEvent(
+  /** @type {Run} */ run,
+  /** @type {string} */ path,
+  /** @type {[Fields, Fields | undefined]} */ pair,
+) {
   const [mine, theirs] = pair;
   if (theirs !== undefined) return objectAssign(theirs, mine, cursor(run, 'event', path));
   const signature = pairSig('absent', fieldsSig(mine));
@@ -51,7 +85,7 @@ function diffEvent(/** @type {any} */ run, /** @type {string} */ path, /** @type
 }
 
 /** Every client method and event of one domain against the browser's. */
-function diffDomain(/** @type {any} */ run, /** @type {string} */ name) {
+function diffDomain(/** @type {Run} */ run, /** @type {string} */ name) {
   const mine = run.client.domains[name];
   const theirs = own(run.browser.domains, name) ?? { methods: {}, events: {} };
   for (const m of keysOf(mine.methods))
@@ -67,8 +101,8 @@ const byCodepoint = (/** @type {string} */ a, /** @type {string} */ b) =>
 /**
  * Deterministic delta order: channel (request, return, event), path, kind.
  *
- * @param {{channel: string, path: string, kind: string}} a - First delta.
- * @param {{channel: string, path: string, kind: string}} b - Second delta.
+ * @param {Pick<IJugglerDelta, 'channel' | 'path' | 'kind'>} a - First delta.
+ * @param {Pick<IJugglerDelta, 'channel' | 'path' | 'kind'>} b - Second delta.
  * @returns {number} Negative, zero or positive.
  */
 export function compareDeltas(a, b) {
@@ -79,11 +113,12 @@ export function compareDeltas(a, b) {
 /**
  * Deltas between a client and a browser schema, sorted by {@link compareDeltas}.
  *
- * @param {import('./juggler-schema.d.mts').NormalizedSchema} client - playwright-core's schema.
- * @param {import('./juggler-schema.d.mts').NormalizedSchema} browser - Camoufox's schema.
- * @returns {import('./juggler-diff.d.mts').IJugglerDelta[]} Every delta, deterministic.
+ * @param {NormalizedSchema} client - playwright-core's schema.
+ * @param {NormalizedSchema} browser - Camoufox's schema.
+ * @returns {IJugglerDelta[]} Every delta, deterministic.
  */
 export function diffSchemas(client, browser) {
+  /** @type {Run} */
   const run = { client, browser, out: [] };
   for (const name of keysOf(client.domains)) diffDomain(run, name);
   return run.out.sort(compareDeltas);

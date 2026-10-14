@@ -23,6 +23,17 @@ import { exitOf, minorOf, renderText } from './gate-report.mjs';
 import { diffSchemas } from './juggler-diff.mjs';
 import { parseJugglerSchema, UnparseableSchemaError } from './juggler-schema.mjs';
 
+/**
+ * @typedef {import('./gate.d.mts').IFetchIo} IFetchIo
+ * @typedef {import('./gate.d.mts').IGateIo} IGateIo
+ * @typedef {Required<IGateIo>} GateIo - Gate I/O, defaults filled in.
+ * @typedef {import('./gate-inputs.mjs').AcceptedDelta} AcceptedDelta
+ * @typedef {import('./gate-inputs.mjs').CliOptions} CliOptions
+ * @typedef {import('./gate-report.mjs').Report} Report
+ * @typedef {import('./juggler-diff.d.mts').IJugglerDelta} IJugglerDelta
+ * @typedef {{ text: string, sha256: string }} Body - One fetched `Protocol.js`.
+ */
+
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
 /** Production I/O; tests override any member. */
@@ -38,14 +49,15 @@ const DEFAULT_IO = Object.freeze({
  * Both bodies. Waits for both fetches, so every failure is reported and none is left pending.
  *
  * @param {{ client: string, browser: string[] }} urls - Client URL; browser candidates.
- * @param {object} io - Fetch I/O overrides.
- * @returns {Promise<{ text: string, sha256: string }[]>} Client, then browser.
+ * @param {IFetchIo} io - Fetch I/O overrides.
+ * @returns {Promise<Body[]>} Client, then browser.
  */
 async function fetchBoth(urls, io) {
   const runs = [fetchProtocol(urls.client, io), fetchFirst(urls.browser, io)];
   const settled = await Promise.allSettled(runs);
   const failures = settled.flatMap(s => (s.status === 'rejected' ? [s.reason] : []));
-  if (failures.length === 0) return settled.map(s => /** @type {any} */ (s).value);
+  if (failures.length === 0)
+    return settled.map(s => /** @type {PromiseFulfilledResult<Body>} */ (s).value);
   const unexpected = failures.find(f => !(f instanceof FetchFailedError));
   throw unexpected ?? new GateInfraError(failures.map(f => `FETCH-FAILED ${f.message}`));
 }
@@ -60,11 +72,14 @@ function parseSide(/** @type {string} */ side, /** @type {string} */ text) {
   }
 }
 
-/** @type {(d: any) => string} Identity of a delta or accepted entry. */
+/** @type {(d: IJugglerDelta) => string} Identity of a delta or accepted entry. */
 const identity = d => JSON.stringify([d.channel, d.kind, d.path, d.signature]);
 
 /** Deltas the manifest does not accept, accepted entries not found, and those found. */
-function classify(/** @type {any[]} */ deltas, /** @type {any[]} */ accepted) {
+function classify(
+  /** @type {readonly IJugglerDelta[]} */ deltas,
+  /** @type {readonly AcceptedDelta[]} */ accepted,
+) {
   const found = new Set(deltas.map(identity));
   const known = new Set(accepted.map(identity));
   const fresh = deltas.filter(d => !known.has(identity(d)));
@@ -73,7 +88,7 @@ function classify(/** @type {any[]} */ deltas, /** @type {any[]} */ accepted) {
 }
 
 /** Manifest, and the pair under test: options win, else lockfile and manifest. */
-function resolvePair(/** @type {Record<string, any>} */ options, /** @type {any} */ io) {
+function resolvePair(/** @type {CliOptions} */ options, /** @type {GateIo} */ io) {
   const manifest = readManifest(io.manifestPath);
   const playwright = options.playwright ?? lockedPlaywright(io.lockfilePath);
   return { manifest, playwright, camoufox: options.camoufox ?? manifest.camoufox.tag };
@@ -84,8 +99,8 @@ function resolvePair(/** @type {Record<string, any>} */ options, /** @type {any}
  *
  * @param {string} playwright - playwright-core version.
  * @param {string} camoufox - Camoufox tag.
- * @param {object} io - Fetch I/O overrides.
- * @returns {Promise<{ sha256: { client: string, browser: string }, deltas: any[] }>} Comparison.
+ * @param {IFetchIo} io - Fetch I/O overrides.
+ * @returns {Promise<{ sha256: Report['sha256'], deltas: IJugglerDelta[] }>} Comparison.
  */
 async function compare(playwright, camoufox, io) {
   const [client, browser] = await fetchBoth(protocolUrls(playwright, camoufox), io);
@@ -94,7 +109,7 @@ async function compare(playwright, camoufox, io) {
 }
 
 /** The full report of one run, exit code included. */
-async function evaluate(/** @type {Record<string, any>} */ options, /** @type {any} */ io) {
+async function evaluate(/** @type {CliOptions} */ options, /** @type {GateIo} */ io) {
   const { manifest, playwright, camoufox } = resolvePair(options, io);
   const { sha256, deltas } = await compare(playwright, camoufox, io.fetch);
   const { testedMinor } = manifest.playwrightCore;
@@ -109,7 +124,7 @@ async function evaluate(/** @type {Record<string, any>} */ options, /** @type {a
  *
  * @param {GateInfraError} error - What stopped the gate.
  * @param {boolean} json - Whether `--json` was given.
- * @param {any} io - Output sinks.
+ * @param {Pick<GateIo, 'stdout' | 'stderr'>} io - Output sinks.
  * @returns {2} Exit code.
  */
 function reportInfra(error, json, io) {
@@ -122,7 +137,7 @@ function reportInfra(error, json, io) {
  * Evaluate and print one report.
  *
  * @param {readonly string[]} args - CLI arguments.
- * @param {any} io - Full I/O.
+ * @param {GateIo} io - Full I/O.
  * @param {boolean} json - Whether `--json` was given.
  * @returns {Promise<0 | 1>} Exit code of the report.
  */
@@ -136,7 +151,7 @@ async function decide(args, io, json) {
  * Run the gate once.
  *
  * @param {readonly string[]} args - CLI arguments after the script path.
- * @param {object} [overrides] - Test I/O: paths, fetch options, output sinks.
+ * @param {IGateIo} [overrides] - Test I/O: paths, fetch options, output sinks.
  * @returns {Promise<0 | 1 | 2>} Exit code.
  * @throws {Error} Only on a bug: anything that is not a {@link GateInfraError}.
  */

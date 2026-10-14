@@ -56,7 +56,10 @@ export const DELTA_KINDS = Object.freeze([
 /** @typedef {readonly [string, (value: unknown) => boolean, string]} FieldRule */
 /** @typedef {{ readonly tag: string, readonly linuxX64Sha256: string }} Camoufox */
 
-/** @type {(value: unknown) => value is Record<string, unknown>} */
+/**
+ * @param {unknown} value - Parsed JSON value.
+ * @returns {value is Record<string, unknown>} Whether it is a non-array object.
+ */
 const isRecord = value => typeof value === 'object' && value !== null && !Array.isArray(value);
 /** @type {(re: RegExp) => (value: unknown) => boolean} */
 const matching = re => value => typeof value === 'string' && re.test(value);
@@ -95,7 +98,10 @@ const DELTA_RULES = [
 function at(/** @type {unknown} */ doc, /** @type {string} */ pointer) {
   const keys = pointer.split('/').slice(1);
   /** @type {(node: unknown, key: string) => unknown} */
-  const step = (node, key) => (typeof node === 'object' && node !== null ? node[key] : undefined);
+  const step = (node, key) =>
+    typeof node === 'object' && node !== null
+      ? /** @type {Record<string, unknown>} */ (node)[key]
+      : undefined;
   return keys.reduce(step, doc);
 }
 

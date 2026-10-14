@@ -13,37 +13,50 @@
  * - a missing side is `absent`.
  */
 
+/**
+ * @typedef {import('./juggler-schema.d.mts').SchemaType} SchemaType
+ * @typedef {import('./juggler-schema.d.mts').IField} IField
+ * @typedef {Extract<SchemaType, { t: 'Object' }>} ObjectType
+ * @typedef {Extract<SchemaType, { t: 'Enum' }>} EnumType
+ * @typedef {Extract<SchemaType, { t: 'Array' }>} ArrayType
+ * @typedef {Extract<SchemaType, { t: 'Nullable' }>} NullableType
+ * @typedef {Extract<SchemaType, { t: 'Ref' }>} RefType
+ * @typedef {(type: SchemaType, depth: number) => string} SigRule - Signature of one type kind.
+ */
+
 /** An enum value as a JSON literal: `"image/png"`, `true`. */
 export const enumLiteral = (/** @type {string | boolean} */ value) => JSON.stringify(value);
 
 /** Type kind → signature builder; any other kind signs as its own name. */
 const SIG = Object.freeze({
-  Object: (/** @type {any} */ type, /** @type {number} */ depth) =>
+  Object: (/** @type {ObjectType} */ type, /** @type {number} */ depth) =>
     depth > 0 ? 'Object' : `{${Object.keys(type.fields).sort().join(',')}}`,
-  Enum: (/** @type {any} */ type) => `Enum(${type.values.map(enumLiteral).sort().join('|')})`,
-  Array: (/** @type {any} */ type, /** @type {number} */ depth) =>
+  Enum: (/** @type {EnumType} */ type) => `Enum(${type.values.map(enumLiteral).sort().join('|')})`,
+  Array: (/** @type {ArrayType} */ type, /** @type {number} */ depth) =>
     `Array(${sig(type.item, depth + 1)})`,
-  Nullable: (/** @type {any} */ type, /** @type {number} */ depth) =>
+  Nullable: (/** @type {NullableType} */ type, /** @type {number} */ depth) =>
     `Nullable(${sig(type.inner, depth + 1)})`,
-  Ref: (/** @type {any} */ type) => `Ref(${type.name})`,
+  Ref: (/** @type {RefType} */ type) => `Ref(${type.name})`,
 });
 
 /**
  * Signature of a normalized type.
  *
- * @param {any} type - Normalized type, or undefined for a missing side.
+ * @param {SchemaType | undefined} type - Normalized type, or undefined for a missing side.
  * @param {number} [depth] - Nesting depth; objects below the top sign as `Object`.
  * @returns {string} Deterministic signature.
  */
 export function sig(type, depth = 0) {
   if (type === undefined) return 'absent';
-  return Object.hasOwn(SIG, type.t) ? SIG[type.t](type, depth) : type.t;
+  return Object.hasOwn(SIG, type.t)
+    ? /** @type {Readonly<Record<string, SigRule>>} */ (SIG)[type.t](type, depth)
+    : type.t;
 }
 
 /**
  * Signature of an object field, wrapping optional fields in `Optional(…)`.
  *
- * @param {any} field - `{optional, type}`, or undefined for a missing key.
+ * @param {IField | undefined} field - `{optional, type}`, or undefined for a missing key.
  * @returns {string} Deterministic signature.
  */
 export function fieldSig(field) {
@@ -52,7 +65,8 @@ export function fieldSig(field) {
 }
 
 /** Signature of a whole params/payload field map (`MISSING-METHOD`, `MISSING-EVENT`). */
-export const fieldsSig = (/** @type {object} */ fields) => sig({ t: 'Object', fields });
+export const fieldsSig = (/** @type {ObjectType['fields']} */ fields) =>
+  sig({ t: 'Object', fields });
 
 /** The `src:<sig>|dst:<sig>` identity part of a delta. */
 export const pairSig = (/** @type {string} */ src, /** @type {string} */ dst) =>
