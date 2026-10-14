@@ -1,13 +1,13 @@
 name: Browser stack watch
 
 # Which playwright-core × Camoufox pairs does the browser-stack gate accept
-# today? npm `latest` of playwright-core, which a `^` range resolves to, and
-# the Camoufox release camoufox-js installs both move without a PR here, so
-# nothing else in CI would notice either one change.
+# today? The playwright-core version this library's `^` range resolves to
+# and the Camoufox release camoufox-js installs both move without a PR here,
+# so nothing else in CI would notice either one change.
 #
 # Once a week, `scripts/browser-stack-watch.mjs` runs the gate in candidate
 # mode on every candidate pair and writes one markdown report: the consumer
-# pair (npm latest × the release camoufox-js selects), CI drift (is the
+# pair (the range's version × the release camoufox-js selects), CI drift (is the
 # manifest's tag that release?) and a candidate table. This workflow keeps the
 # report as the body of one open issue labelled `browser-stack` that the
 # workflow itself opened. It edits that body and never comments, so a re-run

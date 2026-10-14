@@ -3,17 +3,25 @@
  *
  * <p>The watch pairs three playwright-core versions with each Camoufox
  * release: the lockfile one, the highest stable patch of the next minor and
- * npm `latest`. These tests pin that set: numeric patch order, prereleases
- * never listed, duplicates merged with every label kept.
+ * what a consumer's install resolves from the library's own `^` range. These
+ * tests pin that set: numeric patch order, npm's choice inside the range
+ * (`latest` when it satisfies it, else the highest stable that does),
+ * prereleases never listed, duplicates merged with every label kept, and any
+ * range form other than `^x.y.z` refused.
  */
 
+import { join } from 'node:path';
+
 import {
+  caretRange,
+  dependencyRange,
   fetchPackument,
   highestPatch,
   type IPackument,
   nextMinor,
   PACKUMENT_URL,
   playwrightCandidates,
+  resolveRange,
 } from '../../../../scripts/browser-stack/playwright-versions.mjs';
 import { serving } from '../../Helpers/FakeFetch.js';
 
@@ -28,6 +36,12 @@ const VERSIONS = [
   '1.65.0-alpha-2026-05-01',
 ];
 
+/** The library's range in these tests. */
+const RANGE = caretRange('^1.62.0');
+
+/** What `^1.62.0` resolves to among {@link VERSIONS} when `latest` is not in it. */
+const HIGHEST_IN_RANGE = '1.64.10';
+
 /**
  * An abbreviated packument with `versions` and a `latest` dist-tag.
  *
@@ -38,6 +52,20 @@ const VERSIONS = [
 function packument(latest: string, versions: readonly string[] = VERSIONS): IPackument {
   const entries = versions.map((v): [string, object] => [v, {}]);
   return { 'dist-tags': { latest }, versions: Object.fromEntries(entries) };
+}
+
+/**
+ * The candidates for a packument, with lockfile 1.63.1 and the test range.
+ *
+ * @param doc - The packument.
+ * @param testedMinor - `playwrightCore.testedMinor`.
+ * @returns The candidate rows.
+ */
+function candidatesOf(
+  doc: IPackument,
+  testedMinor: string,
+): ReturnType<typeof playwrightCandidates> {
+  return playwrightCandidates(doc, { locked: '1.63.1', testedMinor, range: RANGE });
 }
 
 describe('playwright candidate versions', () => {
@@ -58,25 +86,28 @@ describe('playwright candidate versions', () => {
     expect(highest).toBeUndefined();
   });
 
-  it('[PV-4] lists lockfile, next minor and latest; merges duplicates', () => {
+  it('[PV-4] lists lockfile, next minor and the range; merges duplicates', () => {
     const doc = packument('1.64.10');
-    const rows = playwrightCandidates(doc, '1.63.1', '1.63');
+    const rows = candidatesOf(doc, '1.63');
     expect(rows).toEqual([
       { version: '1.63.1', labels: ['lockfile'] },
-      { version: '1.64.10', labels: ['next minor 1.64', 'npm latest'] },
+      { version: '1.64.10', labels: ['next minor 1.64', 'range ^1.62.0'] },
     ]);
   });
 
   it('[PV-5] drops the next-minor row before that minor ships', () => {
     const doc = packument('1.63.1');
-    const rows = playwrightCandidates(doc, '1.63.1', '1.64');
-    expect(rows).toEqual([{ version: '1.63.1', labels: ['lockfile', 'npm latest'] }]);
+    const rows = candidatesOf(doc, '1.64');
+    expect(rows).toEqual([{ version: '1.63.1', labels: ['lockfile', 'range ^1.62.0'] }]);
   });
 
-  it('[PV-6] never lists a latest tag that is not a stable version', () => {
+  it('[PV-6] never lists a prerelease latest; the range row is the highest stable', () => {
     const doc = packument('1.65.0-alpha-2026-05-01');
-    const rows = playwrightCandidates(doc, '1.63.1', '1.64');
-    expect(rows).toEqual([{ version: '1.63.1', labels: ['lockfile'] }]);
+    const rows = candidatesOf(doc, '1.64');
+    expect(rows).toEqual([
+      { version: '1.63.1', labels: ['lockfile'] },
+      { version: HIGHEST_IN_RANGE, labels: ['range ^1.62.0'] },
+    ]);
   });
 
   it('[PV-7] reads the abbreviated packument', async () => {
@@ -87,5 +118,59 @@ describe('playwright candidate versions', () => {
     expect(read).toEqual(doc);
     expect(fake.calls[0].url).toBe(PACKUMENT_URL);
     expect(fake.calls[0].init.headers).toEqual({ accept: 'application/vnd.npm.install-v1+json' });
+  });
+});
+
+describe('what a consumer range resolves to', () => {
+  it('[PV-8] takes latest when it satisfies the range, even below a higher match', () => {
+    const doc = packument('1.63.1');
+    const resolved = resolveRange(doc, RANGE);
+    expect(resolved).toBe('1.63.1');
+  });
+
+  it('[PV-9] takes the highest stable in range when latest is a new major', () => {
+    const versions = [...VERSIONS, '2.0.0'];
+    const doc = packument('2.0.0', versions);
+    const resolved = resolveRange(doc, RANGE);
+    expect(resolved).toBe(HIGHEST_IN_RANGE);
+  });
+
+  it('[PV-10] never picks a prerelease, even the highest version in range', () => {
+    const versions = ['1.62.0', '1.62.1-beta-1', '1.63.0-alpha-1'];
+    const doc = packument('1.63.0-alpha-1', versions);
+    const resolved = resolveRange(doc, RANGE);
+    expect(resolved).toBe('1.62.0');
+  });
+
+  it('[PV-11] lists no range row when no stable version satisfies the range', () => {
+    const doc = packument('2.0.0', ['1.61.9', '2.0.0']);
+    const resolved = resolveRange(doc, RANGE);
+    const rows = candidatesOf(doc, '1.63');
+    expect(resolved).toBeUndefined();
+    expect(rows).toEqual([{ version: '1.63.1', labels: ['lockfile'] }]);
+  });
+
+  it.each([
+    ['^1.62.0', [1, 62, 0], [2, 0, 0]],
+    ['^0.4.1', [0, 4, 1], [0, 5, 0]],
+    ['^0.0.3', [0, 0, 3], [0, 0, 4]],
+  ])('[PV-12] bounds %s as npm does', (text: string, low: number[], high: number[]) => {
+    const range = caretRange(text);
+    expect(range).toEqual({ text, low, high });
+  });
+
+  it.each(['~1.62.0', '1.62.0', '>=1.62.0', '^1.62', '^1.62.0-beta.1', '^1.62.0 || ^2.0.0', '*'])(
+    '[PV-13] refuses %s as RANGE-UNSUPPORTED',
+    (text: string) => {
+      expect(() => caretRange(text)).toThrow(`RANGE-UNSUPPORTED ${text}`);
+    },
+  );
+
+  it('[PV-14] supports the range the library declares', () => {
+    const root = process.cwd();
+    const packagePath = join(root, 'package.json');
+    const declared = dependencyRange(packagePath);
+    const range = caretRange(declared);
+    expect(range.text).toBe(declared);
   });
 });

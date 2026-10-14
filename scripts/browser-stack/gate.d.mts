@@ -5,11 +5,19 @@
  * that drive it need this to type their I/O rather than import `any`.
  */
 
+/**
+ * `Protocol.js` fetches by URL; a promise, settled or not, is shared by every later call.
+ * The body is `IFetchedBody` of `fetch-protocol.mjs`, spelt out to keep the types acyclic.
+ */
+export type ProtocolCache = Map<string, Promise<{ readonly text: string; readonly sha256: string }>>;
+
 /** Injectable network I/O of the bounded fetcher (`fetch-protocol.mjs`). */
 export interface IFetchIo {
   readonly fetchImpl?: (url: string, init: RequestInit) => Promise<Response>;
   readonly sleep?: (ms: number) => Promise<unknown>;
   readonly timeoutMs?: number;
+  /** Read by `fetchProtocol` only: without it, every call fetches. */
+  readonly cache?: ProtocolCache;
 }
 
 /** Injectable I/O of one gate run; production defaults fill every omitted member. */

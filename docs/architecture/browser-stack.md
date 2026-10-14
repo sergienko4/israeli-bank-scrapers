@@ -105,9 +105,9 @@ on the first call, and 0 after it.
 
 ## The weekly watch
 
-Two things move upstream without a PR here: npm `latest` of
-`playwright-core`, which a consumer's `^` range resolves to, and the Camoufox
-release camoufox-js downloads. Every Monday at 06:00 UTC,
+Two things move upstream without a PR here: the `playwright-core` version a
+consumer's `^` range resolves to, and the Camoufox release camoufox-js
+downloads. Every Monday at 06:00 UTC,
 `.github/workflows/browser-stack-watch.yml` runs
 `scripts/browser-stack-watch.mjs` to report what the gate says about them.
 
@@ -119,16 +119,25 @@ The watch reads two upstream sources:
   prerelease nor a draft and has an asset for the runner's platform, judged by
   camoufox-js's own asset check.
 - **The `playwright-core` packument.** It takes up to three versions: the
-  lockfile's, the highest patch of the minor after the tested one, and npm
-  `latest`. Versions that coincide are merged into one.
+  lockfile's, the highest patch of the minor after the tested one, and the
+  version a consumer's install resolves. That last one comes from the
+  library's own `dependencies['playwright-core']` range in `package.json`,
+  picked the way npm picks it: npm `latest` when it satisfies the range, else
+  the highest stable version that does. A prerelease is never picked. Only a
+  caret range `^X.Y.Z` is supported; any other form exits 2 with
+  `RANGE-UNSUPPORTED`. Versions that coincide are merged into one.
 
 It runs the gate in `candidate` mode, with `--json`, on every version × the
 ten newest version-tagged releases on that page, plus the selected release
-when it is older. The report has three sections:
+when it is older. It judges four pairs at a time and keeps the rows in pair
+order. Each `Protocol.js` URL is fetched at most once per run, and pairs that
+share it share the result, a failure included. So even when every fetch times
+out on every attempt, the report is written well inside the job's 10-minute
+limit. The report has three sections:
 
 | Section | What it says |
 |---|---|
-| Consumer pair | npm `latest` × the selected release: compatible, or the NEW protocol paths. With no selected release, a consumer's Camoufox install fails. |
+| Consumer pair | The version the range resolves to × the selected release: compatible, or the NEW protocol paths. With no stable version in range, it says so. With no selected release, a consumer's Camoufox install fails. |
 | CI drift | Whether the tag in `browser-stack.json` is the selected release. |
 | Candidates | One row per pair: prerelease, selected, NEW paths, verdict, and selected-compatible (compatible and selected). The verdict is `compatible`, `new`, or `unknown` when the gate could not decide; the gate's errors are listed under the table. |
 
@@ -141,9 +150,12 @@ The workflow keeps the report as the body of one open issue labelled
 comments, and an issue that a person labels keeps its body. The job holds
 `contents: read` and `issues: write` only. A manual run is a dry run unless
 `dry_run` is cleared: it prints the report to the log and the job summary and
-leaves the issue alone. When the watch cannot read its inputs it exits 2, the
-job fails, and the issue keeps the previous report. `BrowserStackWatch.test.ts`
-pins the report, and `BrowserStackWatchWiring.test.ts` pins the workflow.
+leaves the issue alone. When the watch cannot read its inputs (the manifest,
+the lockfile, the `playwright-core` range in `package.json`, the releases page
+or the packument) it exits 2, the job fails, and the issue keeps the previous
+report. `BrowserStackWatch.test.ts` pins the report,
+`BrowserStackWatchBounds.test.ts` the time bound and the one fetch per URL,
+and `BrowserStackWatchWiring.test.ts` the workflow.
 
 To run it locally, use `node scripts/browser-stack-watch.mjs [--out <file>]`;
 a `GITHUB_TOKEN` in the environment raises the GitHub API rate limit.

@@ -90,22 +90,22 @@ const CASES: readonly ISelectionCase[] = [
     releases: [
       release('v156.0.1-beta.38', 'prerelease'),
       release('v156.0.1-beta.37', 'draft'),
-      release('v156.0.1-beta.36', 'stable'),
+      release('v156.0.1-beta.35', 'stable'),
       release('v156.0.1-beta.34', 'stable'),
     ],
-    expected: 'v156.0.1-beta.36',
+    expected: 'v156.0.1-beta.35',
   },
   {
     name: 'skips a stable release with no asset for this platform',
     releases: [
-      release('v156.0.1-beta.36', 'stable', [ELSEWHERE]),
+      release('v156.0.1-beta.35', 'stable', [ELSEWHERE]),
       release('v156.0.1-beta.34', 'stable'),
     ],
     expected: 'v156.0.1-beta.34',
   },
   {
     name: 'skips a stable release with no assets at all',
-    releases: [release('v156.0.1-beta.36', 'stable', []), release('v152.0.4-beta.30', 'stable')],
+    releases: [release('v156.0.1-beta.35', 'stable', []), release('v152.0.4-beta.30', 'stable')],
     expected: 'v152.0.4-beta.30',
   },
   {
@@ -117,7 +117,7 @@ const CASES: readonly ISelectionCase[] = [
     name: 'selects none when no stable release on the page has an asset',
     releases: [
       release('v156.0.1-beta.38', 'prerelease'),
-      release('v156.0.1-beta.36', 'stable', [ELSEWHERE]),
+      release('v156.0.1-beta.35', 'stable', [ELSEWHERE]),
     ],
     expected: NONE,
   },
@@ -189,7 +189,7 @@ describe('selectRelease', () => {
   });
 
   it('[CR-3] returns null, not a tag, when camoufox-js would fail', () => {
-    const page = [release('v156.0.1-beta.36', 'stable', [ELSEWHERE])];
+    const page = [release('v156.0.1-beta.35', 'stable', [ELSEWHERE])];
     const selected = selectRelease(page, check.acceptsAsset);
     expect(selected).toBeNull();
   });
@@ -222,7 +222,7 @@ describe('candidateReleases', () => {
 
 describe('fetchReleases', () => {
   it('[CR-6] reads the page camoufox-js reads and sends the token as a bearer', async () => {
-    const page = [release('v156.0.1-beta.36', 'stable')];
+    const page = [release('v156.0.1-beta.35', 'stable')];
     const body = JSON.stringify(page);
     const fake = serving(body);
     const releases = await fetchReleases({ GITHUB_TOKEN: 'token-1' }, fake);

@@ -15,11 +15,19 @@ import process from 'node:process';
 import { FetchFailedError, fetchBounded } from './fetch-protocol.mjs';
 import { CAMOUFOX_TAG } from './manifest.mjs';
 
+/**
+ * @typedef {import('./camoufox-releases.d.mts').IRelease} IRelease
+ * @typedef {import('./camoufox-releases.d.mts').IReleaseAsset} IReleaseAsset
+ * @typedef {import('./camoufox-releases.d.mts').ICandidateRelease} ICandidateRelease
+ * @typedef {import('./camoufox-releases.d.mts').IPlatformAssetCheck} IPlatformAssetCheck
+ * @typedef {import('./gate.d.mts').IFetchIo} IFetchIo
+ */
+
 /** The page camoufox-js reads. */
 export const RELEASES_URL = 'https://api.github.com/repos/daijro/camoufox/releases';
 
 /** How many of the newest version-tagged releases the candidate table lists. */
-const CANDIDATE_COUNT = 10;
+export const CANDIDATE_COUNT = 10;
 
 /** The page is about 0.5 MB and grows with release notes; leave room. */
 const MAX_RELEASES_BYTES = 8 * 1024 * 1024;
@@ -44,8 +52,8 @@ export function githubHeaders(token) {
  * The first page of releases, newest first.
  *
  * @param {{ GITHUB_TOKEN?: string }} [env] - Environment; the token raises the rate limit.
- * @param {object} [io] - Fetch I/O overrides.
- * @returns {Promise<any[]>} Releases as the API returns them.
+ * @param {IFetchIo} [io] - Fetch I/O overrides.
+ * @returns {Promise<IRelease[]>} Releases as the API returns them.
  * @throws {FetchFailedError} When the page cannot be read or is not a list.
  */
 export async function fetchReleases(env = process.env, io = {}) {
@@ -57,14 +65,14 @@ export async function fetchReleases(env = process.env, io = {}) {
   throw new FetchFailedError(RELEASES_URL, 'is not a list of releases');
 }
 
-/** @type {(release: any) => boolean} Whether camoufox-js looks at the release at all. */
+/** @type {(release: IRelease) => boolean} Whether camoufox-js looks at the release at all. */
 const eligible = release => !release.prerelease && !release.draft;
 
 /**
  * The tag camoufox-js would install from `releases`, or `null` when it would fail.
  *
- * @param {readonly any[]} releases - The releases page, newest first.
- * @param {(asset: any) => boolean} acceptsAsset - camoufox-js's asset check for this platform.
+ * @param {readonly IRelease[]} releases - The releases page, newest first.
+ * @param {(asset: IReleaseAsset) => boolean} acceptsAsset - camoufox-js's asset check for this platform.
  * @returns {string | null} Release tag.
  */
 export function selectRelease(releases, acceptsAsset) {
@@ -77,8 +85,8 @@ export function selectRelease(releases, acceptsAsset) {
  *
  * Tags such as `font-bundle-v1` are not browser versions the gate can compare, so they are left out.
  *
- * @param {readonly any[]} releases - The releases page, newest first.
- * @returns {{ tag: string, prerelease: boolean }[]} Up to {@link CANDIDATE_COUNT} rows.
+ * @param {readonly IRelease[]} releases - The releases page, newest first.
+ * @returns {ICandidateRelease[]} Up to {@link CANDIDATE_COUNT} rows.
  */
 export function candidateReleases(releases) {
   const tagged = releases.filter(r => CAMOUFOX_TAG.test(String(r.tag_name)));
@@ -89,11 +97,11 @@ export function candidateReleases(releases) {
 /**
  * camoufox-js's own asset check for this machine, and the platform it checks.
  *
- * @returns {Promise<{ platform: string, acceptsAsset: (asset: any) => boolean }>} The check.
+ * @returns {Promise<IPlatformAssetCheck>} The check.
  */
 export async function platformAssetCheck() {
   const { CamoufoxFetcher, OS_NAME } = await import(PKGMAN);
   const fetcher = new CamoufoxFetcher();
-  const acceptsAsset = (/** @type {any} */ asset) => fetcher.checkAsset(asset) !== null;
+  const acceptsAsset = (/** @type {IReleaseAsset} */ asset) => fetcher.checkAsset(asset) !== null;
   return { platform: `${OS_NAME} ${fetcher.arch}`, acceptsAsset };
 }

@@ -114,15 +114,18 @@ test.
 
 ## Upgrading the pair
 
-Start when the weekly watch's consumer pair is selected-compatible: npm
-`latest` of `playwright-core` (what a consumer's `^` range resolves to) against
-the release camoufox-js selects. A compatible prerelease is not enough.
+Start when the weekly watch's consumer pair is selected-compatible: the
+`playwright-core` version that this library's `^` range in `package.json`
+resolves to (npm `latest` when it is in range, else the highest stable version
+in range), against the release camoufox-js selects. A compatible prerelease is
+not enough.
 
 In one PR, either the Dependabot PR rebased with your commits or a PR that
 supersedes it:
 
 1. Set `camoufox.tag` to the selected release and `playwrightCore.testedMinor`
-   to npm `latest`'s minor. The lockfile must resolve that minor.
+   to the minor of the consumer pair's version. The lockfile must resolve that
+   minor.
 2. Run `npm run browser-stack:gen` to rewrite `BrowserStackConfig.ts`.
 3. Run `node scripts/patch-playwright-core.mjs --strict`. A `GUARD-SITES` or
    `SHIM-SITES` line means the new minor moved a patched call; review and

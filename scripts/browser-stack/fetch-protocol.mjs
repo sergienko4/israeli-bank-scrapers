@@ -14,13 +14,20 @@
  *
  * Camoufox has moved its source tree before, so the browser side is a list of
  * candidate URLs, newest layout first; only an HTTP 404 moves on to the next.
+ *
+ * Given a cache, {@link fetchProtocol} fetches each URL once: the weekly watch
+ * passes one per run, so pairs that share a `Protocol.js` share its fetch and
+ * its failure. The gate CLI passes none and fetches on every call.
  */
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
 /**
  * @typedef {import('./gate.d.mts').IFetchIo} IFetchIo
- * @typedef {Required<IFetchIo>} FetchIo - Fetch I/O, defaults filled in.
+ * @typedef {import('./fetch-protocol.d.mts').IFetchPolicy} IFetchPolicy
+ * @typedef {import('./fetch-protocol.d.mts').IFetchedBody} IFetchedBody
+ * @typedef {Required<Omit<IFetchIo, 'cache'>> & { readonly policy: IFetchPolicy }} FetchIo
+ *   - Fetch I/O, defaults and policy filled in.
  * @typedef {FetchIo & { readonly signal: AbortSignal }} AttemptIo - I/O of one attempt.
  */
 
@@ -31,7 +38,11 @@ export const ALLOWED_HOST = 'raw.githubusercontent.com';
 export const MAX_BODY_BYTES = 524_288;
 
 /** Waits before the 2nd and 3rd attempt; its length + 1 is the attempt cap. */
-const BACKOFF_MS = Object.freeze([1000, 2000]);
+export const BACKOFF_MS = Object.freeze([1000, 2000]);
+
+/** Timeout of one attempt unless the caller sets `timeoutMs`. */
+export const ATTEMPT_TIMEOUT_MS = 15_000;
+
 const MAX_REDIRECTS = 3;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
@@ -58,7 +69,7 @@ const GATE_POLICY = Object.freeze({
 const DEFAULT_IO = Object.freeze({
   fetchImpl: (/** @type {string} */ url, /** @type {RequestInit} */ init) => fetch(url, init),
   sleep: (/** @type {number} */ ms) => delay(ms),
-  timeoutMs: 15_000,
+  timeoutMs: ATTEMPT_TIMEOUT_MS,
 });
 
 /** A fetch that cannot yield a trustworthy body. */
@@ -113,6 +124,7 @@ const locationOf = response =>
  */
 async function follow(href, io, hops) {
   const { hosts, headers } = io.policy;
+  /** @type {RequestInit} */
   const init = { redirect: 'manual', signal: io.signal, headers };
   const response = await io.fetchImpl(allowed(href, hosts), init);
   const location = locationOf(response);
@@ -183,7 +195,7 @@ async function attempt(/** @type {string} */ href, /** @type {FetchIo} */ io) {
   }
 }
 
-/** @type {(bytes: Buffer) => { text: string, sha256: string }} */
+/** @type {(bytes: Buffer) => IFetchedBody} */
 const digest = bytes => ({
   text: bytes.toString('utf8'),
   sha256: createHash('sha256').update(bytes).digest('hex'),
@@ -193,10 +205,9 @@ const digest = bytes => ({
  * Fetch one body under `policy`.
  *
  * @param {string} href - Absolute HTTPS URL on a policy host.
- * @param {{ hosts: readonly string[], maxBodyBytes: number, headers: Record<string, string> }} policy
- *   - Reachable hosts, body cap and request headers.
- * @param {{ fetchImpl?: Function, sleep?: Function, timeoutMs?: number }} [overrides] - Test I/O.
- * @returns {Promise<{ text: string, sha256: string }>} Body text and the sha256 of its bytes.
+ * @param {IFetchPolicy} policy - Reachable hosts, body cap and request headers.
+ * @param {IFetchIo} [overrides] - Test I/O.
+ * @returns {Promise<IFetchedBody>} Body text and the sha256 of its bytes.
  * @throws {FetchFailedError} When no attempt yields a body.
  */
 export async function fetchBounded(href, policy, overrides = {}) {
@@ -210,15 +221,21 @@ export async function fetchBounded(href, policy, overrides = {}) {
 }
 
 /**
- * Fetch one schema under the gate's policy.
+ * Fetch one schema under the gate's policy, once per URL when `overrides.cache` is given.
+ *
+ * A cached promise is returned whether it is pending, fulfilled or rejected,
+ * so a failure is reused rather than retried; the retries are fetchBounded's.
  *
  * @param {string} href - Absolute URL on {@link ALLOWED_HOST}.
- * @param {IFetchIo} [overrides] - Test I/O.
- * @returns {Promise<{ text: string, sha256: string }>} Body text and the sha256 of its bytes.
+ * @param {IFetchIo} [overrides] - Test I/O, and the cache of one watch run.
+ * @returns {Promise<IFetchedBody>} Body text and the sha256 of its bytes.
  * @throws {FetchFailedError} When no attempt yields a body.
  */
 export function fetchProtocol(href, overrides = {}) {
-  return fetchBounded(href, GATE_POLICY, overrides);
+  const cache = overrides.cache ?? new Map();
+  const body = cache.get(href) ?? fetchBounded(href, GATE_POLICY, overrides);
+  cache.set(href, body);
+  return body;
 }
 
 /** @type {(error: unknown) => boolean} Whether a fetch failed with a final HTTP 404. */
@@ -228,8 +245,8 @@ const isNotFound = error => error instanceof FetchFailedError && error.status ==
  * The first candidate that exists. Only a 404 moves on; any other failure is final.
  *
  * @param {string[]} hrefs - Candidate URLs, most likely first.
- * @param {IFetchIo} [overrides] - Test I/O.
- * @returns {Promise<{ text: string, sha256: string }>} Body text and the sha256 of its bytes.
+ * @param {IFetchIo} [overrides] - Test I/O, and the cache of one watch run.
+ * @returns {Promise<IFetchedBody>} Body text and the sha256 of its bytes.
  * @throws {FetchFailedError} On a non-404 failure, or a 404 at every candidate.
  */
 export async function fetchFirst(hrefs, overrides = {}) {

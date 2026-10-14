@@ -6,34 +6,34 @@
  * fake `runGate` that records its arguments and answers per pair. So each
  * case pins one part of the contract: which pairs run, in which mode, and
  * how the body reports the consumer pair, CI drift, the candidate table and
- * input failures.
+ * input failures. The library's playwright-core range is a package.json
+ * fixture, so the consumer pair follows the range, not npm `latest`.
  */
-
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import type {
   IPlatformAssetCheck,
   IRelease,
-  IReleaseAsset,
 } from '../../../../scripts/browser-stack/camoufox-releases.mjs';
 import { RELEASES_URL } from '../../../../scripts/browser-stack/camoufox-releases.mjs';
 import type { IGateIo } from '../../../../scripts/browser-stack/gate.mjs';
 import { PACKUMENT_URL } from '../../../../scripts/browser-stack/playwright-versions.mjs';
-import { type IWatchIo, runWatch } from '../../../../scripts/browser-stack/watch.mjs';
-import { fakeFetch } from '../../Helpers/FakeFetch.js';
+import { runWatch } from '../../../../scripts/browser-stack/watch.mjs';
+import {
+  ASSET_CHECK,
+  type IPrinted,
+  lockfileWith,
+  packageWith,
+  printingIo,
+  RANGE,
+  release,
+  removeInputs,
+  writeInputs,
+} from '../../Helpers/BrowserStackWatchFixtures.js';
+import { fakeFetch, type IFetchFake } from '../../Helpers/FakeFetch.js';
 
-const HERE = fileURLToPath(import.meta.url);
-const HERE_DIR = dirname(HERE);
-const ROOT = join(HERE_DIR, '../../../..');
-const MANIFEST_PATH = join(ROOT, 'browser-stack.json');
-const MANIFEST_TEXT = readFileSync(MANIFEST_PATH, 'utf8');
-const PLATFORM = 'lin.x86_64';
 const LOCKED = '1.63.1';
 const NEXT = '1.64.2';
-const STABLE_TAG = 'v156.0.1-beta.36';
+const STABLE_TAG = 'v156.0.1-beta.35';
 const PRE_TAG = 'v156.0.1-beta.38';
 const OLD_TAG = 'v152.0.4-beta.30';
 const REPO = 'owner/repo';
@@ -62,38 +62,19 @@ const UNDECIDED: IGateOutcome = {
   report: { exit: 2, errors: ['FETCH-FAILED https://x HTTP 503'] },
 };
 
-/**
- * One release; stable ones carry an asset for {@link PLATFORM}.
- *
- * @param tag - Release tag.
- * @param prerelease - Whether it is a prerelease.
- * @returns The release.
- */
-function release(tag: string, prerelease = false): IRelease {
-  const name = `camoufox-${tag.slice(1)}-${PLATFORM}.zip`;
-  const assets: IReleaseAsset[] = [{ name, browser_download_url: `https://x/${name}` }];
-  return { tag_name: tag, prerelease, draft: false, assets };
-}
-
 const PAGE = [release(PRE_TAG, true), release(STABLE_TAG), release(OLD_TAG)];
 
-/** A camoufox-js asset check for {@link PLATFORM}. */
-const ASSET_CHECK: IPlatformAssetCheck = {
-  platform: 'lin x86_64',
-  /**
-   * Accept assets built for {@link PLATFORM}.
-   *
-   * @param asset - Release asset.
-   * @returns Whether camoufox-js would install it.
-   */
-  acceptsAsset: (asset: IReleaseAsset): boolean => asset.name.endsWith(`-${PLATFORM}.zip`),
-};
+/** Published playwright-core versions: two stable lines and a prerelease. */
+const PUBLISHED = [LOCKED, '1.64.0', NEXT, '1.65.0-alpha-1'];
 
 /** What one scenario changes from the default upstream state. */
 interface IScenario {
   readonly page?: readonly IRelease[];
   readonly manifestTag?: string;
   readonly lockfile?: string;
+  readonly packageJson?: string;
+  readonly published?: readonly string[];
+  readonly latest?: string;
   readonly releasesStatus?: number;
   readonly outcomes?: Readonly<Record<string, IGateOutcome>>;
   readonly args?: readonly string[];
@@ -101,74 +82,36 @@ interface IScenario {
 }
 
 /** What one run captured. */
-interface ICapture {
-  out: string;
-  err: string;
+interface ICapture extends IPrinted {
   readonly gateArgs: (readonly string[])[];
   readonly gateIo: IGateIo[];
-  readonly written: Record<string, string>;
 }
 
 /** What one run produced. */
 interface IRun extends ICapture {
   readonly code: 0 | 2;
+  /** Every URL the watch itself fetched (the fake gate fetches nothing). */
+  readonly fetched: readonly string[];
 }
 
-const DIRS: string[] = [];
+/** The recording fetch and the back-off it skips. */
+type UpstreamFetch = IFetchFake & { readonly sleep: () => Promise<number> };
 
 afterAll(() => {
-  for (const dir of DIRS) rmSync(dir, { recursive: true, force: true });
-});
-
-const LOCK_TEXT = JSON.stringify({
-  packages: { 'node_modules/playwright-core': { version: LOCKED } },
+  removeInputs();
 });
 
 /**
- * The real manifest with another Camoufox tag.
+ * The packument: `published`, with `latest` on the next line by default.
  *
- * @param tag - Camoufox tag.
- * @returns Manifest JSON.
- */
-function manifestWith(tag: string): string {
-  const manifest = JSON.parse(MANIFEST_TEXT) as { camoufox: { tag: string } };
-  manifest.camoufox.tag = tag;
-  return JSON.stringify(manifest);
-}
-
-/**
- * Write a manifest with `tag` and a lockfile resolving {@link LOCKED}.
- *
- * @param tag - Manifest Camoufox tag.
- * @param lockfile - Lockfile text; a valid one by default.
- * @returns Both paths.
- */
-function writeInputs(
-  tag: string,
-  lockfile = LOCK_TEXT,
-): { manifestPath: string; lockfilePath: string } {
-  const temp = tmpdir();
-  const prefix = join(temp, 'bs-watch-');
-  const dir = mkdtempSync(prefix);
-  DIRS.push(dir);
-  const manifestPath = join(dir, 'browser-stack.json');
-  const lockfilePath = join(dir, 'package-lock.json');
-  const manifestText = manifestWith(tag);
-  writeFileSync(manifestPath, manifestText);
-  writeFileSync(lockfilePath, lockfile);
-  return { manifestPath, lockfilePath };
-}
-
-/**
- * The packument: two stable lines, `latest` on the next one.
- *
+ * @param scenario - Upstream state.
  * @returns Packument JSON.
  */
-function packumentBody(): string {
-  const published = [LOCKED, '1.64.0', NEXT, '1.65.0-alpha-1'];
+function packumentBody(scenario: IScenario): string {
+  const published = scenario.published ?? PUBLISHED;
   const entries = published.map((version): [string, object] => [version, {}]);
   const versions = Object.fromEntries(entries);
-  return JSON.stringify({ 'dist-tags': { latest: NEXT }, versions });
+  return JSON.stringify({ 'dist-tags': { latest: scenario.latest ?? NEXT }, versions });
 }
 
 /**
@@ -177,9 +120,9 @@ function packumentBody(): string {
  * @param scenario - Upstream state.
  * @returns The fetch I/O.
  */
-function upstream(scenario: IScenario): IWatchIo['fetch'] {
+function upstream(scenario: IScenario): UpstreamFetch {
   const page = JSON.stringify(scenario.page ?? PAGE);
-  const packument = packumentBody();
+  const packument = packumentBody(scenario);
   /**
    * Answer one upstream URL.
    *
@@ -203,6 +146,20 @@ function upstream(scenario: IScenario): IWatchIo['fetch'] {
 }
 
 /**
+ * Write the scenario's manifest, lockfile and package.json.
+ *
+ * @param scenario - What differs from the default.
+ * @returns The three paths.
+ */
+function inputsOf(scenario: IScenario): ReturnType<typeof writeInputs> {
+  return writeInputs({
+    manifestTag: scenario.manifestTag ?? STABLE_TAG,
+    lockfile: scenario.lockfile ?? lockfileWith(LOCKED),
+    packageJson: scenario.packageJson ?? packageWith(RANGE),
+  });
+}
+
+/**
  * Run the watch against one scenario.
  *
  * @param scenario - What differs from the default.
@@ -211,10 +168,12 @@ function upstream(scenario: IScenario): IWatchIo['fetch'] {
 async function watch(scenario: IScenario = {}): Promise<IRun> {
   const run: ICapture = { out: '', err: '', gateArgs: [], gateIo: [], written: {} };
   const outcomes = scenario.outcomes ?? {};
+  const fetchIo = upstream(scenario);
   const code = await runWatch(scenario.args ?? [], {
-    ...writeInputs(scenario.manifestTag ?? STABLE_TAG, scenario.lockfile),
+    ...inputsOf(scenario),
+    ...printingIo(run),
     env: scenario.env ?? {},
-    fetch: upstream(scenario),
+    fetch: fetchIo,
     /**
      * camoufox-js's check, faked.
      *
@@ -235,45 +194,9 @@ async function watch(scenario: IScenario = {}): Promise<IRun> {
       io.stdout?.(`${JSON.stringify(outcome.report)}\n`);
       return Promise.resolve(outcome.exit);
     },
-    /**
-     * A fixed clock.
-     *
-     * @returns The check date.
-     */
-    now: (): Date => new Date('2026-05-04T06:00:00Z'),
-    /**
-     * Record a written file.
-     *
-     * @param path - File path.
-     * @param text - File text.
-     * @returns Always true.
-     */
-    writeFile: (path: string, text: string): boolean => {
-      run.written[path] = text;
-      return true;
-    },
-    /**
-     * Capture stdout.
-     *
-     * @param text - Written text.
-     * @returns Like `process.stdout.write`.
-     */
-    stdout: (text: string): boolean => {
-      run.out += text;
-      return true;
-    },
-    /**
-     * Capture stderr.
-     *
-     * @param text - Written text.
-     * @returns Like `process.stderr.write`.
-     */
-    stderr: (text: string): boolean => {
-      run.err += text;
-      return true;
-    },
   });
-  return { ...run, code };
+  const fetched = fetchIo.calls.map(call => call.url);
+  return { ...run, code, fetched };
 }
 
 /**
@@ -315,13 +238,13 @@ describe('browser-stack watch report', () => {
     expect(first.fetch?.fetchImpl).toBeDefined();
   });
 
-  it('[WCH-3] reports the consumer pair (npm latest × selected) with its NEW paths', async () => {
+  it('[WCH-3] reports the consumer pair (range × selected) with its NEW paths', async () => {
     const outcomes = {
       [`${NEXT} ${STABLE_TAG}`]: incompatible('Network.setRequestInterception.bypassServiceWorker'),
     };
     const run = await watch({ outcomes });
     expect(run.out).toContain(
-      `playwright-core \`${NEXT}\` (npm \`latest\`, what a \`^\` range resolves to) × Camoufox \`${STABLE_TAG}\` (what camoufox-js installs): **not compatible** — NEW: \`Network.setRequestInterception.bypassServiceWorker\`.`,
+      `playwright-core \`${NEXT}\` (what a consumer's \`${RANGE}\` resolves to) × Camoufox \`${STABLE_TAG}\` (what camoufox-js installs): **not compatible** — NEW: \`Network.setRequestInterception.bypassServiceWorker\`.`,
     );
   });
 
@@ -337,7 +260,7 @@ describe('browser-stack watch report', () => {
     expect(selectedOkFlags).toEqual(['no', 'yes', '0', 'yes', 'yes']);
     expect(prereleaseOkFlags).toEqual(['yes', 'no', '0', 'yes', 'no']);
     expect(selectedNewFlags).toEqual(['no', 'yes', '1: `A.b`', 'no', 'no']);
-    expect(selectedNew[0]).toBe(`${NEXT} (next minor 1.64, npm latest)`);
+    expect(selectedNew[0]).toBe(`${NEXT} (next minor 1.64, range ${RANGE})`);
   });
 
   it('[WCH-5] reports CI drift when the manifest tag is not the selected release', async () => {
@@ -412,5 +335,48 @@ describe('browser-stack watch input failures', () => {
     const run = await watch({ args: ['--bogus'] });
     expect(run.code).toBe(2);
     expect(run.err).toMatch(/^USAGE /u);
+  });
+
+  it('[WCH-14] exits 2 with RANGE-UNSUPPORTED before any fetch or gate on a non-caret range', async () => {
+    const packageJson = packageWith('~1.62.0');
+    const run = await watch({ packageJson });
+    expect(run.code).toBe(2);
+    expect(run.err).toBe('RANGE-UNSUPPORTED ~1.62.0\n');
+    expect(run.out).toBe('');
+    expect(run.fetched).toEqual([]);
+    expect(run.gateArgs).toHaveLength(0);
+  });
+
+  it('[WCH-15] exits 2 with PACKAGE-INVALID when package.json declares no playwright-core', async () => {
+    const run = await watch({ packageJson: '{}' });
+    expect(run.code).toBe(2);
+    expect(run.err).toMatch(
+      /^PACKAGE-INVALID .*dependencies\["playwright-core"\] is not a string\n$/u,
+    );
+    expect(run.gateArgs).toHaveLength(0);
+  });
+});
+
+describe('browser-stack watch consumer range', () => {
+  it('[WCH-16] pairs the highest stable version in range when latest is a new major', async () => {
+    const inRange = '1.65.1';
+    const published = [...PUBLISHED, '1.65.0', inRange, '2.0.0'];
+    const run = await watch({ published, latest: '2.0.0' });
+    const versions = run.gateArgs.map(args => args[1]);
+    const distinct = new Set(versions);
+    expect([...distinct]).toEqual([LOCKED, NEXT, inRange]);
+    expect(run.out).toContain(
+      `playwright-core \`${inRange}\` (what a consumer's \`${RANGE}\` resolves to) × Camoufox \`${STABLE_TAG}\``,
+    );
+    expect(rowOf(run.out, inRange, STABLE_TAG)[0]).toBe(`${inRange} (range ${RANGE})`);
+  });
+
+  it('[WCH-17] says so when no stable version satisfies the range', async () => {
+    const packageJson = packageWith('^3.0.0');
+    const run = await watch({ packageJson });
+    expect(run.code).toBe(0);
+    expect(run.out).toContain(
+      `No stable playwright-core version satisfies \`^3.0.0\` to pair with \`${STABLE_TAG}\`.`,
+    );
   });
 });

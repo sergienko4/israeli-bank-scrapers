@@ -36,6 +36,9 @@ export interface IPlatformAssetCheck {
 /** The page camoufox-js reads. */
 export declare const RELEASES_URL: string;
 
+/** How many of the newest version-tagged releases the candidate table lists. */
+export declare const CANDIDATE_COUNT: number;
+
 /**
  * GitHub API request headers, with the token as a bearer when one is set.
  *

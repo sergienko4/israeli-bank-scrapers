@@ -26,6 +26,12 @@ export const ALLOWED_HOST: string;
 /** The gate policy's body cap. */
 export const MAX_BODY_BYTES: number;
 
+/** Waits before the 2nd and 3rd attempt; its length + 1 is the attempt cap. */
+export const BACKOFF_MS: readonly number[];
+
+/** Timeout of one attempt unless the caller sets `timeoutMs`. */
+export const ATTEMPT_TIMEOUT_MS: number;
+
 /** A fetch that cannot yield a trustworthy body. */
 export class FetchFailedError extends Error {
   public readonly status: number;
@@ -48,11 +54,33 @@ export function fetchBounded(
 ): Promise<IFetchedBody>;
 
 /**
- * Fetch one schema under the gate's policy.
+ * Raw URLs of the two schemas the gate compares.
+ *
+ * @param playwright - playwright-core version, `x.y.z`.
+ * @param tag - Camoufox release tag.
+ * @returns Client URL; browser candidates, newest first.
+ */
+export function protocolUrls(
+  playwright: string,
+  tag: string,
+): { readonly client: string; readonly browser: string[] };
+
+/**
+ * Fetch one schema under the gate's policy, once per URL when `overrides.cache` is given.
  *
  * @param href - Absolute URL on {@link ALLOWED_HOST}.
- * @param overrides - Test I/O.
+ * @param overrides - Test I/O, and the cache of one watch run.
  * @returns The body and its sha256.
  * @throws {FetchFailedError} When no attempt yields a body.
  */
 export function fetchProtocol(href: string, overrides?: IFetchIo): Promise<IFetchedBody>;
+
+/**
+ * The first candidate that exists. Only a 404 moves on; any other failure is final.
+ *
+ * @param hrefs - Candidate URLs, most likely first.
+ * @param overrides - Test I/O, and the cache of one watch run.
+ * @returns The body and its sha256.
+ * @throws {FetchFailedError} On a non-404 failure, or a 404 at every candidate.
+ */
+export function fetchFirst(hrefs: string[], overrides?: IFetchIo): Promise<IFetchedBody>;
