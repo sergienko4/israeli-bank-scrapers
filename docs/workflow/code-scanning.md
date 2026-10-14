@@ -304,11 +304,15 @@ Our own CI relies on the override at launch, not at install. Every
 mirror. The script works in the directory camoufox-js launches from:
 `CAMOUFOX_INSTALL_DIR` when set, else `~/.cache/camoufox`. A cache hit, meaning
 the pinned `version.json` plus a non-empty executable regular-file
-`camoufox-bin`, skips extraction. A cache miss downloads the release asset of
-the tag pinned in `browser-stack.json` and checks it against
-`camoufox.linuxX64Sha256`, the SHA-256 pinned beside the tag. A mismatch
-fails before the directory is touched. Only then does it clear the directory
-and extract the asset with system `unzip`. It never runs `camoufox-js fetch`, which would resolve
+`camoufox-bin`, skips extraction. On a cache miss it first refuses, before
+any download, to replace a directory that is relative, is `$HOME`, or holds
+anything but a Camoufox install (a `camoufox-bin` entry or a tag-shaped
+`version.json`), so a mistyped override cannot erase unrelated files. It then
+downloads the release asset of the tag pinned in `browser-stack.json` and
+checks it against `camoufox.linuxX64Sha256`, the SHA-256 pinned beside the
+tag. A mismatch fails before the directory is touched. Only then does it clear
+the directory and extract the asset with system `unzip`. It never runs
+`camoufox-js fetch`, which would resolve
 camoufox-js's own newest release instead of the pin. It writes `version.json`
 last, so a failed extract is never recorded as installed. CI downloads the
 exact asset with `gh release download`; the Docker build has no token and uses

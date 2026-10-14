@@ -83,7 +83,33 @@ verify_asset() {
     fail "${ASSET} has sha256 ${actual}, but browser-stack.json pins ${PINNED_SHA256}"
 }
 
+# A miss deletes CACHE_DIR, and CAMOUFOX_INSTALL_DIR is caller input, so a
+# mistyped override must fail here, before the download, rather than erase
+# unrelated files. Only an absolute path other than $HOME that is absent,
+# empty, or already a Camoufox install (a camoufox-bin entry or a
+# tag-shaped version.json) may be replaced. A populated / is none of those.
+TAG_SHAPE='^[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$'
+
+camoufox_install() {
+  [ -e "$CACHE_DIR/camoufox-bin" ] || [ -L "$CACHE_DIR/camoufox-bin" ] ||
+    [[ "$(installed_version 2>/dev/null || true)" =~ $TAG_SHAPE ]]
+}
+
+# `ls` failing (an unreadable directory) must refuse, not read as empty.
+replaceable_dir() {
+  local real home entries
+  case "$CACHE_DIR" in /*) ;; *) return 1 ;; esac
+  [ -e "$CACHE_DIR" ] || [ -L "$CACHE_DIR" ] || return 0
+  real=$(cd -P -- "$CACHE_DIR" 2>/dev/null && pwd -P) || return 1
+  home=$(cd -P -- "${HOME:-/}" 2>/dev/null && pwd -P) || home=/
+  [ "$real" != "$home" ] || return 1
+  entries=$(ls -A -- "$real") || return 1
+  [ -z "$entries" ] || camoufox_install
+}
+
 install_pinned_release() {
+  replaceable_dir || fail "refusing to replace ${CACHE_DIR}: CAMOUFOX_INSTALL_DIR must be" \
+    "an absolute path, not \$HOME, that is absent, empty or a Camoufox install"
   echo "Downloading pinned daijro/camoufox release: ${PINNED_TAG}"
   ASSET_DIR=$(mktemp -d "${TMPDIR:-/tmp}/camoufox-asset.XXXXXX")
   download_asset "$ASSET_DIR"

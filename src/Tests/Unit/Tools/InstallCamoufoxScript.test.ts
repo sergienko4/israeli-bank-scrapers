@@ -9,8 +9,10 @@
  * resolves its own newest release, not the pin), use `gh` only when a token
  * exists (CI) and the public release URL otherwise (Docker), extract only an
  * asset that hashes to the pinned SHA-256 and touch the cache only after that
- * check, never print the token, never record a version it did not install,
- * leave no temp files, and install nothing when the manifest is invalid.
+ * check, refuse to replace an install dir that is relative, is `$HOME`, or
+ * holds anything but a Camoufox install, never print the token, never record
+ * a version it did not install, leave no temp files, and install nothing
+ * when the manifest is invalid.
  *
  * <p>Each case runs the REAL script in a throwaway tree that mirrors the repo
  * layout (script + validator + its own `browser-stack.json`), with `npx`,
@@ -59,6 +61,11 @@ const STUB_ASSET_SHA256 = createHash('sha256').update('').digest('hex');
 const FOREIGN_SHA256 = createHash('sha256').update('another asset').digest('hex');
 /** Tree-relative `CAMOUFOX_INSTALL_DIR` for the relocation case. */
 const CUSTOM_DIR_REL = 'opt/camoufox';
+/** A file the user keeps in the install dir; a refused run must not touch it. */
+const FOREIGN_FILE_REL = `${CUSTOM_DIR_REL}/notes.txt`;
+const FOREIGN_TEXT = 'not camoufox';
+/** A `version.json` that some other tool wrote: not tag-shaped. */
+const FOREIGN_VERSION_JSON = '{"name":"notes","version":"1.0.0"}';
 
 /**
  * Variables a developer shell may export that would change the script's
@@ -153,7 +160,10 @@ const UNUSABLE_ARCHIVES: readonly BinaryEntry[] = ['nothing', 'directory'];
 
 /**
  * One scenario: the manifest tag and digest, the token, the cache, what the
- * release archive holds, and any install-dir override.
+ * release archive holds, any install-dir override and whether it is passed
+ * absolute or relative to the run's working directory (the tree root), and
+ * a tree-relative `foreign` entry planted before the run: a file holding
+ * `FOREIGN_TEXT`, or an empty directory when it ends in `/`.
  */
 interface IScenario {
   readonly tag: string;
@@ -163,6 +173,8 @@ interface IScenario {
   readonly cachedBinary: CachedBinary;
   readonly archiveBinary: BinaryEntry;
   readonly installDir: string;
+  readonly installDirAs: 'absolute' | 'relative';
+  readonly foreign: string;
 }
 
 /** What one run of the script did. */
@@ -173,6 +185,7 @@ interface IInstallRun {
   readonly versionJson: string;
   readonly tempLeft: number;
   readonly homeCacheExists: boolean;
+  readonly foreignText: string;
 }
 
 /** A cold cache and no token: the baseline scenario. */
@@ -184,6 +197,8 @@ const COLD: IScenario = {
   cachedBinary: 'ok',
   archiveBinary: 'file',
   installDir: '',
+  installDirAs: 'absolute',
+  foreign: '',
 };
 
 /** Commands that download a release asset. */
@@ -203,6 +218,51 @@ const MISSES: readonly { readonly label: string; readonly scenario: IScenario }[
   {
     label: 'unusable-binary',
     scenario: { ...COLD, cachedVersionJson: SAMPLE_VERSION_JSON, cachedBinary: 'empty' },
+  },
+];
+
+/** The custom install dir holding a stale Camoufox install. */
+const STALE_CUSTOM: IScenario = {
+  ...COLD,
+  installDir: CUSTOM_DIR_REL,
+  cachedVersionJson: OTHER_VERSION_JSON,
+  foreign: FOREIGN_FILE_REL,
+};
+
+/**
+ * Install dirs a miss must refuse to replace. Each row breaks exactly one
+ * rule, so it fails only if that rule is enforced.
+ */
+const REFUSED: readonly { readonly label: string; readonly scenario: IScenario }[] = [
+  { label: 'a relative path', scenario: { ...STALE_CUSTOM, installDirAs: 'relative' } },
+  {
+    label: '$HOME, even one holding Camoufox',
+    scenario: { ...STALE_CUSTOM, installDir: 'home', foreign: 'home/notes.txt' },
+  },
+  {
+    label: 'a directory of other files',
+    scenario: { ...COLD, installDir: CUSTOM_DIR_REL, foreign: FOREIGN_FILE_REL },
+  },
+  {
+    label: "another tool's version.json",
+    scenario: { ...STALE_CUSTOM, cachedVersionJson: FOREIGN_VERSION_JSON, cachedBinary: 'missing' },
+  },
+  {
+    label: 'a regular file',
+    scenario: { ...COLD, installDir: CUSTOM_DIR_REL, foreign: CUSTOM_DIR_REL },
+  },
+];
+
+/** Install dirs a miss may replace: empty, or marked by either Camoufox entry. */
+const REPLACEABLE: readonly { readonly label: string; readonly scenario: IScenario }[] = [
+  {
+    label: 'an empty directory',
+    scenario: { ...COLD, installDir: CUSTOM_DIR_REL, foreign: `${CUSTOM_DIR_REL}/` },
+  },
+  { label: 'a dir marked by camoufox-bin', scenario: { ...STALE_CUSTOM, cachedVersionJson: '{}' } },
+  {
+    label: 'a dir marked by a tag-shaped version.json',
+    scenario: { ...STALE_CUSTOM, cachedBinary: 'missing' },
   },
 ];
 
@@ -308,7 +368,24 @@ function seedCache(cache: string, scenario: IScenario): string {
 }
 
 /**
- * Create the private temp dir and seed the cache the scenario starts with.
+ * Plant the scenario's foreign entry: an empty directory when the path ends
+ * in `/`, else a file holding `FOREIGN_TEXT`.
+ *
+ * @param root - Tree root.
+ * @param foreign - Tree-relative path.
+ * @returns The planted path.
+ */
+function plantForeign(root: string, foreign: string): string {
+  const target = join(root, foreign);
+  const parent = foreign.endsWith('/') ? target : dirname(target);
+  mkdirSync(parent, { recursive: true });
+  if (!foreign.endsWith('/')) writeFileSync(target, FOREIGN_TEXT);
+  return target;
+}
+
+/**
+ * Create `HOME` and the private temp dir, seed the cache the scenario starts
+ * with, and plant its foreign entry.
  *
  * @param root - Tree root.
  * @param scenario - The scenario.
@@ -317,8 +394,11 @@ function seedCache(cache: string, scenario: IScenario): string {
 function prepareState(root: string, scenario: IScenario): string {
   const temp = join(root, 'tmp');
   mkdirSync(temp);
+  const home = join(root, 'home');
+  mkdirSync(home);
   const cache = cacheDirOf(root, scenario);
   if (scenario.cachedVersionJson !== '') seedCache(cache, scenario);
+  if (scenario.foreign !== '') plantForeign(root, scenario.foreign);
   return cache;
 }
 
@@ -343,6 +423,20 @@ function makeTree(scenario: IScenario): string {
 }
 
 /**
+ * The `CAMOUFOX_INSTALL_DIR` a scenario exports, if any.
+ *
+ * @param root - Tree root.
+ * @param scenario - The scenario.
+ * @returns The override, absolute or as given, or nothing.
+ */
+function installDirEnv(root: string, scenario: IScenario): NodeJS.ProcessEnv {
+  if (scenario.installDir === '') return {};
+  const isRelative = scenario.installDirAs === 'relative';
+  const value = isRelative ? scenario.installDir : cacheDirOf(root, scenario);
+  return { CAMOUFOX_INSTALL_DIR: value };
+}
+
+/**
  * The environment the script runs with: stubs first on `PATH`, a private
  * `HOME` and `TMPDIR`, and only the scenario's token and install dir.
  *
@@ -355,9 +449,8 @@ function scenarioEnv(root: string, scenario: IScenario): NodeJS.ProcessEnv {
   const path = `${bin}${delimiter}${BASE_ENV.PATH ?? ''}`;
   const home = join(root, 'home');
   const temp = join(root, 'tmp');
-  const cache = cacheDirOf(root, scenario);
   const token = scenario.token === '' ? {} : { GH_TOKEN: scenario.token };
-  const installDir = scenario.installDir === '' ? {} : { CAMOUFOX_INSTALL_DIR: cache };
+  const installDir = installDirEnv(root, scenario);
   const stubLog = join(root, 'stub.log');
   const stubs = { UNZIP_BINARY: scenario.archiveBinary, STUB_LOG: stubLog };
   return { ...BASE_ENV, ...token, ...installDir, ...stubs, HOME: home, TMPDIR: temp, PATH: path };
@@ -375,28 +468,54 @@ function readIfPresent(file: string): string {
 }
 
 /**
+ * The text of the scenario's foreign file after the run.
+ *
+ * @param root - Tree root.
+ * @param foreign - Tree-relative path; `''` or a trailing `/` is no file.
+ * @returns Its contents, or `''` when there is no such file.
+ */
+function foreignTextOf(root: string, foreign: string): string {
+  if (foreign === '' || foreign.endsWith('/')) return '';
+  const file = join(root, foreign);
+  return readIfPresent(file);
+}
+
+/**
+ * The stub calls a run logged, in order.
+ *
+ * @param root - Tree root.
+ * @returns One `<name> <argv>` line per call.
+ */
+function stubCalls(root: string): readonly string[] {
+  const logFile = join(root, 'stub.log');
+  const log = readIfPresent(logFile);
+  return log.split('\n').filter(line => line !== '');
+}
+
+/**
  * What a finished run left behind: the stub call log, `version.json` in the
- * install dir, leftover temp entries, and whether the default cache exists.
+ * install dir, leftover temp entries, whether the default cache exists, and
+ * the foreign file's text.
  *
  * @param root - Tree root.
  * @param scenario - The scenario that ran.
  * @returns Every run artifact except status and output.
  */
 function runArtifacts(root: string, scenario: IScenario): Omit<IInstallRun, 'status' | 'output'> {
-  const logFile = join(root, 'stub.log');
-  const log = readIfPresent(logFile);
-  const calls = log.split('\n').filter(line => line !== '');
+  const calls = stubCalls(root);
   const cache = cacheDirOf(root, scenario);
   const versionFile = join(cache, 'version.json');
   const versionJson = readIfPresent(versionFile);
   const temp = join(root, 'tmp');
   const tempLeft = readdirSync(temp).length;
   const homeCache = join(root, CACHE_REL);
-  return { calls, versionJson, tempLeft, homeCacheExists: existsSync(homeCache) };
+  const foreignText = foreignTextOf(root, scenario.foreign);
+  return { calls, versionJson, tempLeft, homeCacheExists: existsSync(homeCache), foreignText };
 }
 
 /**
- * Run the real script for one scenario.
+ * Run the real script for one scenario, from the tree root so a relative
+ * install dir stays inside the tree.
  *
  * @param scenario - The scenario.
  * @returns Exit status (-1 when killed), combined output, and the run's
@@ -406,7 +525,7 @@ function runInstall(scenario: IScenario): IInstallRun {
   const root = makeTree(scenario);
   const env = scenarioEnv(root, scenario);
   const script = join(root, SCRIPT_REL);
-  const result = spawnSync('bash', [script], { env, encoding: 'utf8' });
+  const result = spawnSync('bash', [script], { cwd: root, env, encoding: 'utf8' });
   const output = `${result.stdout}${result.stderr}`;
   const artifacts = runArtifacts(root, scenario);
   return { status: result.status ?? -1, output, ...artifacts };
@@ -526,5 +645,21 @@ describe('install-camoufox/install.sh', () => {
     expect(run.status).toBe(2);
     expect(run.calls).toEqual([]);
     expect(run.output).toContain('MANIFEST-INVALID /camoufox/linuxX64Sha256');
+  });
+
+  it.each(REFUSED)('[ICS-13] a miss refuses to replace $label, before downloading', row => {
+    const run = runInstall(row.scenario);
+    expect(run.status).toBe(1);
+    expect(run.calls).toEqual([]);
+    expect(run.output).toContain('ERROR: refusing to replace ');
+    expect(run.foreignText).toBe(FOREIGN_TEXT);
+    expect(run.versionJson).toBe(row.scenario.cachedVersionJson);
+  });
+
+  it.each(REPLACEABLE)('[ICS-14] a miss replaces $label with the pin', row => {
+    const run = runInstall(row.scenario);
+    expect(run.status).toBe(0);
+    expect(run.versionJson).toBe(SAMPLE_VERSION_JSON);
+    expect(run.foreignText).toBe('');
   });
 });
