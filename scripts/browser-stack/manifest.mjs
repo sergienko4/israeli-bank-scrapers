@@ -15,8 +15,8 @@
  *   0 — manifest valid; the Camoufox tag (`tag`) or the SHA-256 of its
  *       Linux x86_64 release asset (`sha256`) is printed on stdout
  *   2 — `MANIFEST-INVALID <json-pointer> <reason>` on stderr, or a usage
- *       error. Fails closed: nothing is printed unless the whole file is
- *       valid.
+ *       error (unknown command, extra argument). Fails closed: nothing is
+ *       printed unless the whole file is valid.
  */
 import { readFileSync, realpathSync } from 'node:fs';
 import { argv, exit, stderr, stdout } from 'node:process';
@@ -214,8 +214,9 @@ function usageError() {
 
 /** CLI entry: print the selected field of a valid manifest, else fail closed. */
 function main() {
-  const [command = '', file = DEFAULT_MANIFEST] = argv.slice(2);
-  if (!Object.hasOwn(COMMANDS, command)) usageError();
+  const args = argv.slice(2);
+  const [command = '', file = DEFAULT_MANIFEST] = args;
+  if (args.length > 2 || !Object.hasOwn(COMMANDS, command)) usageError();
   const { manifest, issues } = loadManifest(file);
   for (const issue of issues) stderr.write(invalidLine(issue));
   if (manifest === undefined) exit(2);

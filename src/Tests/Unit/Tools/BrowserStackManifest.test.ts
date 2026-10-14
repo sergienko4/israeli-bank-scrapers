@@ -429,4 +429,10 @@ describe('browser-stack manifest CLI', () => {
       expect(run).toMatchObject({ status: 2, stdout: '' });
     },
   );
+
+  it.each([['tag'], ['sha256']])('[BSM-44] %s with an extra argument is a usage error', cmd => {
+    const run = runCli([cmd, REAL_MANIFEST, 'unexpected']);
+    expect(run).toMatchObject({ status: 2, stdout: '' });
+    expect(run.stderr).toMatch(/^usage: /u);
+  });
 });
