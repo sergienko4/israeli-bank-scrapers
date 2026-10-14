@@ -23,6 +23,15 @@
  * headers) remain, which is why this library stays tested on the
  * playwright-core minor named in `browser-stack.json`.
  *
+ * Every copy. camoufox-js takes playwright-core as a peer and imports it
+ * from its own location, and that copy drives the browser. A dependency
+ * tree can hold more than one copy — nested under camoufox-js, hoisted at
+ * another version, or symlinked by pnpm — so the script patches each
+ * distinct real copy: the one this package resolves and the one camoufox-js
+ * resolves. With one copy the output is unchanged; with more, each copy's
+ * lines follow a `playwright-core copy: <path>` header, the path relative
+ * to this package.
+ *
  * Why not `patch-package`. Its patch file is keyed to an exact version
  * (`playwright-core+1.62.0.patch`) and it is a dev-only tool, so a published
  * consumer never runs it and the fix silently never reached them. This
@@ -30,13 +39,14 @@
  * for contributors and consumers through the same code path.
  *
  * Guarantees: never fails an install (postinstall passes no arguments, and
- * that default mode always exits 0) and never writes when the guard is
- * already present. Set `SKIP_PLAYWRIGHT_CORE_PATCH=1` to opt out. Any
- * argument other than a single `--strict` is a usage error (exit 2, nothing
- * resolved or written), so a mistyped flag cannot pass as an unproven run.
+ * that default mode always exits 0) and never writes a copy whose guard and
+ * shim are already present. Set `SKIP_PLAYWRIGHT_CORE_PATCH=1` to opt out.
+ * Any argument other than a single `--strict` is a usage error (exit 2,
+ * nothing resolved or written), so a mistyped flag cannot pass as an
+ * unproven run.
  *
  * `--strict` (CI only; postinstall never passes it) turns the outcome into
- * proof: exit 0 only when, after patching, each guarded form appears at
+ * proof: exit 0 only when, after patching, every copy has each guarded form at
  * exactly `REVIEWED_SITES` sites. It is checked per guard and per site,
  * because a renamed read can hide behind the other reads or behind its own
  * copy at another site. Each mismatch prints
@@ -44,13 +54,14 @@
  * interception call must be sent at exactly `REVIEWED_CALLS` sites, each
  * with `{ enabled }` alone; otherwise it prints
  * `SHIM-SITES <shimmed>/<reviewed> (<sent> sent) <shimmed form>`. Any skip —
- * unresolvable package, opt-out, read or write error — exits 1, because
- * nothing was verified.
+ * no copy found, opt-out, or a read or write error on any copy — exits 1,
+ * because that copy was not verified.
  */
 import { createRequire } from 'node:module';
-import { readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 import { argv, env, exit, stderr, stdout } from 'node:process';
+import { fileURLToPath } from 'node:url';
 
 /** Unguarded reads and their optional-chained replacements. */
 const GUARDS = [
@@ -63,6 +74,14 @@ const GUARDS = [
 ];
 
 const BUNDLE_SUBPATH = ['lib', 'coreBundle.js'];
+
+const PLAYWRIGHT_PACKAGE = 'playwright-core';
+
+/** camoufox-js, whose own playwright-core copy drives the browser. */
+const CAMOUFOX_PACKAGE = '@hieutran094/camoufox-js';
+
+/** This package's root, which copy labels are relative to. */
+const PACKAGE_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const STRICT_FLAG = '--strict';
 const USAGE = `usage: node scripts/patch-playwright-core.mjs [${STRICT_FLAG}]`;
@@ -87,20 +106,47 @@ const SHIM = {
 const REVIEWED_CALLS = 1;
 
 /**
- * Locate `coreBundle.js` in whichever `playwright-core` the host tree resolved.
+ * The real directory of the `packageName` copy Node loads from `from`.
  *
- * <p>Resolves via `package.json` because the package's `exports` map does not
- * expose internal `lib/` paths.
+ * <p>The directory is looked up along Node's own search paths rather than
+ * resolved, because an `exports` map need not expose `package.json`. The real
+ * path keeps symlinked layouts, such as pnpm's, pointing where the package
+ * really lives, and makes two routes to one copy compare equal.
  *
- * @returns Absolute bundle path, or empty string when unresolvable.
+ * @param from - Module path or file URL the lookup starts from.
+ * @param packageName - Package to find.
+ * @returns Real package directory, or empty string when not found.
  */
-function resolveBundlePath() {
+function findPackageDir(from, packageName) {
+  const searchDirs = createRequire(from).resolve.paths(packageName) ?? [];
+  const dirs = searchDirs.map(dir => join(dir, packageName));
+  const found = dirs.find(dir => existsSync(join(dir, 'package.json')));
+  return found === undefined ? '' : realpathSync(found);
+}
+
+/**
+ * The playwright-core copy camoufox-js loads.
+ *
+ * @returns Its real directory, or empty string when either is missing.
+ */
+function camoufoxPlaywrightDir() {
+  const camoufoxDir = findPackageDir(import.meta.url, CAMOUFOX_PACKAGE);
+  if (camoufoxDir === '') return '';
+  return findPackageDir(join(camoufoxDir, 'package.json'), PLAYWRIGHT_PACKAGE);
+}
+
+/**
+ * Every distinct playwright-core copy to patch: this package's and
+ * camoufox-js's, deduplicated by real path.
+ *
+ * @returns Real package directories; empty when none resolves.
+ */
+function resolveCopies() {
   try {
-    const require = createRequire(import.meta.url);
-    const manifest = require.resolve('playwright-core/package.json');
-    return join(dirname(manifest), ...BUNDLE_SUBPATH);
+    const dirs = [findPackageDir(import.meta.url, PLAYWRIGHT_PACKAGE), camoufoxPlaywrightDir()];
+    return [...new Set(dirs.filter(dir => dir !== ''))];
   } catch {
-    return '';
+    return [];
   }
 }
 
@@ -198,19 +244,34 @@ function skipped(reason) {
 }
 
 /**
- * Run the patch, absorbing every failure so an install can never break.
+ * Patch one copy, absorbing every failure so an install can never break.
  *
+ * @param copyDir - Real playwright-core directory.
  * @returns Guard and shim results (`null` counts when not inspected).
  */
-function run() {
-  if (env['SKIP_PLAYWRIGHT_CORE_PATCH']) return skipped('SKIP_PLAYWRIGHT_CORE_PATCH set');
-  const bundlePath = resolveBundlePath();
-  if (!bundlePath) return skipped('playwright-core not resolvable');
+function patchCopy(copyDir) {
   try {
-    return patchBundle(bundlePath);
+    return patchBundle(join(copyDir, ...BUNDLE_SUBPATH));
   } catch (error) {
     return skipped(error instanceof Error ? error.message : 'unknown error');
   }
+}
+
+/**
+ * Run the patch on every copy.
+ *
+ * @returns One result per copy, labelled with its path when there are
+ *   several; a single skipped result when no copy was inspected.
+ */
+function run() {
+  if (env['SKIP_PLAYWRIGHT_CORE_PATCH']) return [skipped('SKIP_PLAYWRIGHT_CORE_PATCH set')];
+  const copies = resolveCopies();
+  if (copies.length === 0) return [skipped('playwright-core not resolvable')];
+  const isSeveral = copies.length > 1;
+  return copies.map(copyDir => ({
+    ...patchCopy(copyDir),
+    label: isSeveral ? relative(PACKAGE_ROOT, copyDir) : '',
+  }));
 }
 
 /**
@@ -263,21 +324,33 @@ function strictMode() {
 }
 
 /**
+ * Report one copy and, under `--strict`, whether it was proven.
+ *
+ * @param result - Guard, shim and label of one copy.
+ * @param isStrict - Whether `--strict` was passed.
+ * @returns `true` when not strict, or every check of the copy matched the review.
+ */
+function reportCopy({ guard, shim, label }, isStrict) {
+  if (label) report(`playwright-core copy: ${label}`);
+  report(`playwright-core pageError guard: ${guard.outcome}`);
+  report(`playwright-core interception shim: ${shim.outcome}`);
+  if (!isStrict) return true;
+  const mismatches = [...siteMismatches(guard.sites ?? []), ...shimMismatches(shim.calls)];
+  for (const line of mismatches) report(line);
+  return guard.sites !== null && mismatches.length === 0;
+}
+
+/**
  * Report the run and decide the exit code.
  *
- * @returns 0 by default; under `--strict`, 0 only when every guard has
- *   exactly `REVIEWED_SITES` guarded sites and every interception call
- *   is one of the `REVIEWED_CALLS` shimmed sends.
+ * @returns 0 by default; under `--strict`, 0 only when, in every copy, every
+ *   guard has exactly `REVIEWED_SITES` guarded sites and every interception
+ *   call is one of the `REVIEWED_CALLS` shimmed sends.
  */
 function main() {
   const isStrict = strictMode();
-  const { guard, shim } = run();
-  report(`playwright-core pageError guard: ${guard.outcome}`);
-  report(`playwright-core interception shim: ${shim.outcome}`);
-  if (!isStrict) return 0;
-  const mismatches = [...siteMismatches(guard.sites ?? []), ...shimMismatches(shim.calls)];
-  for (const line of mismatches) report(line);
-  return guard.sites !== null && mismatches.length === 0 ? 0 : 1;
+  const proven = run().map(result => reportCopy(result, isStrict));
+  return proven.every(Boolean) ? 0 : 1;
 }
 
 exit(main());

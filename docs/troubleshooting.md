@@ -97,11 +97,19 @@ The script is idempotent and never fails an install — re-running it on an
 already-guarded tree is a no-op. Set `SKIP_PLAYWRIGHT_CORE_PATCH=1` to opt out
 entirely if you manage `playwright-core` patches yourself.
 
-To check that the guard is in place, add `--strict`. It exits 0 only when each
-read is guarded at exactly the 2 sites the reviewed `playwright-core` has (the
-BrowserContext dispatcher and the trace recorder). Otherwise it exits 1 and
-prints `GUARD-SITES <index> <found>/<reviewed> <unguarded read>` for each read
-off that count. A count other than 0 usually means your `playwright-core` build
+The copy that matters is the one Camoufox's launcher, `camoufox-js`, loads. A
+dependency tree can hold more than one `playwright-core`: one nested under
+`camoufox-js`, another hoisted at a different version, or pnpm symlinks. The
+script patches each distinct copy, the one this package resolves and the one
+`camoufox-js` resolves. When there are two, each copy's lines follow a
+`playwright-core copy: <path>` header.
+
+To check that the guard is in place, add `--strict`. It exits 0 only when, in
+every copy, each read is guarded at exactly the 2 sites the reviewed
+`playwright-core` has (the BrowserContext dispatcher and the trace recorder).
+Otherwise it exits 1 and prints
+`GUARD-SITES <index> <found>/<reviewed> <unguarded read>` for each read off
+that count. A count other than 0 usually means your `playwright-core` build
 moved a site, so its pageError reads need a fresh review.
 
 !!! note "Why a `scripts/` path exists in an installed package"
