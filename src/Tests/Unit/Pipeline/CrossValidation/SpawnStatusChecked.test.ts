@@ -9,12 +9,15 @@
  * vacuous. Every tracked script and TypeScript file is parsed, and each
  * `spawnSync` result must have `status` read: off the call itself, from a
  * destructured `status`, or off the variable holding it, anywhere in the
- * function that declares that variable.
+ * function that declares that variable. That variable is resolved by the
+ * checker, not by its name, so a shadowing parameter or block variable
+ * whose `status` is read does not count.
  */
 
 import * as ts from 'typescript';
 
 import { readRepoFile, trackedFiles } from '../../../Helpers/RepoFiles.js';
+import { type IMemoryFile, isSameBinding, programOf } from '../../../Helpers/TsProgram.js';
 
 /** A TypeScript or JavaScript source file. */
 const CODE_FILE_RE = /\.[cm]?[jt]s$/u;
@@ -25,6 +28,8 @@ const KNOWN_SPAWNERS = [
 ] as const;
 /** Fewer sites than this means the scan stopped seeing them. */
 const MIN_SITES = 20;
+/** Local names only: no imports, no lib, scripts included. */
+const LOCAL_NAMES: ts.CompilerOptions = { allowJs: true, noLib: true, noResolve: true, types: [] };
 
 /** One `spawnSync` call and whether its status is read. */
 interface ISpawnSite {
@@ -99,15 +104,16 @@ function bindsStatus(binding: ts.ObjectBindingPattern): boolean {
 }
 
 /**
- * Whether a node reads `status` off a named variable.
+ * Whether a node reads `status` off one variable.
  *
  * @param node - Any node.
- * @param name - The variable.
- * @returns True for `name.status`.
+ * @param declared - The variable's name where it is declared.
+ * @param checker - Resolves the name the node reads from.
+ * @returns True for `<that variable>.status`.
  */
-function readsStatusOf(node: ts.Node, name: string): boolean {
+function readsStatusOf(node: ts.Node, declared: ts.Node, checker: ts.TypeChecker): boolean {
   if (!ts.isPropertyAccessExpression(node) || node.name.text !== 'status') return false;
-  return ts.isIdentifier(node.expression) && node.expression.text === name;
+  return isSameBinding(checker, node.expression, declared);
 }
 
 /**
@@ -115,33 +121,65 @@ function readsStatusOf(node: ts.Node, name: string): boolean {
  *
  * @param call - The call.
  * @param source - Its source file.
+ * @param checker - Resolves names to their declarations.
  * @returns True when checked.
  */
-function isStatusRead(call: ts.CallExpression, source: ts.SourceFile): boolean {
+function isStatusRead(
+  call: ts.CallExpression,
+  source: ts.SourceFile,
+  checker: ts.TypeChecker,
+): boolean {
   const parent = call.parent;
   if (ts.isPropertyAccessExpression(parent)) return parent.name.text === 'status';
   if (!ts.isVariableDeclaration(parent)) return false;
   if (ts.isObjectBindingPattern(parent.name)) return bindsStatus(parent.name);
-  const name = parent.name.getText(source);
   const scope = scopeOf(parent);
-  return someNode(scope, source, node => readsStatusOf(node, name));
+  return someNode(scope, source, node => readsStatusOf(node, parent.name, checker));
 }
 
 /**
- * Every `spawnSync` call in one file.
+ * Every `spawnSync` call in one compiled file.
  *
- * @param path - The file's name, used in each site.
- * @param text - Its source.
+ * @param source - The file, rooted at `/`.
+ * @param checker - Its program's checker.
  * @returns One entry per call, named `path:line`.
  */
-function sitesIn(path: string, text: string): readonly ISpawnSite[] {
-  const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
+function sitesOf(source: ts.SourceFile, checker: ts.TypeChecker): readonly ISpawnSite[] {
   const calls = spawnCalls(source, source);
+  const path = source.fileName.slice(1);
   return calls.map(call => {
     const start = call.getStart(source);
     const { line } = source.getLineAndCharacterOfPosition(start);
-    return { site: `${path}:${String(line + 1)}`, isChecked: isStatusRead(call, source) };
+    const isChecked = isStatusRead(call, source, checker);
+    return { site: `${path}:${String(line + 1)}`, isChecked };
   });
+}
+
+/**
+ * One root file of a program.
+ *
+ * @param program - The program.
+ * @param path - The root's path.
+ * @returns Its source file; throws when the program lost it.
+ */
+function rootOf(program: ts.Program, path: string): ts.SourceFile {
+  const source = program.getSourceFile(path);
+  if (source === undefined) throw new RangeError(`not compiled: ${path}`);
+  return source;
+}
+
+/**
+ * Every `spawnSync` call in some files, compiled together.
+ *
+ * @param files - Each file's repo-relative path, used in its sites, and text.
+ * @returns One entry per call, named `path:line`.
+ */
+function sitesIn(files: readonly IMemoryFile[]): readonly ISpawnSite[] {
+  const rooted = files.map(file => ({ path: `/${file.path}`, text: file.text }));
+  const program = programOf(rooted, LOCAL_NAMES);
+  const checker = program.getTypeChecker();
+  const sources = rooted.map(file => rootOf(program, file.path));
+  return sources.flatMap(source => sitesOf(source, checker));
 }
 
 /**
@@ -154,7 +192,7 @@ function repoSites(): readonly ISpawnSite[] {
   const code = paths.filter(path => CODE_FILE_RE.test(path));
   const texts = code.map(path => ({ path, text: readRepoFile(path) }));
   const spawning = texts.filter(file => file.text.includes('spawnSync'));
-  return spawning.flatMap(file => sitesIn(file.path, file.text));
+  return sitesIn(spawning);
 }
 
 const SITES = repoSites();
@@ -170,6 +208,16 @@ const UNCHECKED: readonly (readonly [string, string])[] = [
     'status read only in another function',
     "function f() { const r = spawnSync('x', []); return r.stdout; }\n" +
       'function g(r: { status: number }) { return r.status; }',
+  ],
+  [
+    'status read off a nested parameter of the same name',
+    "function f() { const r = spawnSync('x', []);\n" +
+      '  function g(r: { status: number }) { return r.status; }\n  return r.stdout; }',
+  ],
+  [
+    'status read off a block variable of the same name',
+    "function f() { const r = spawnSync('x', []);\n" +
+      '  { const r = { status: 0 }; if (r.status) return 1; }\n  return r.stdout; }',
   ],
 ];
 
@@ -206,13 +254,13 @@ describe('Spawn status checked', () => {
   });
 
   it.each(UNCHECKED)('SSC-3: flags %s', (_name, code) => {
-    const sites = sitesIn('control.ts', code);
+    const sites = sitesIn([{ path: 'control.ts', text: code }]);
     const checked = sites.map(site => site.isChecked);
     expect(checked).toEqual([false]);
   });
 
   it.each(CHECKED)('SSC-4: accepts %s', (_name, code) => {
-    const sites = sitesIn('control.ts', code);
+    const sites = sitesIn([{ path: 'control.ts', text: code }]);
     const checked = sites.map(site => site.isChecked);
     expect(checked).toEqual([true]);
   });
