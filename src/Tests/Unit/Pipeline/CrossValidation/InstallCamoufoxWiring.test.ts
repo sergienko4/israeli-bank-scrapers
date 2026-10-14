@@ -14,8 +14,11 @@
  * one. No consumer may spell the pinned tag or digest: a literal there
  * would survive a manifest bump, so a static cache key would keep restoring
  * the old asset, or Docker would install a different one from CI. Every curl
- * in `install.sh` and the Docker mirror bounds its connect and total time,
- * so a stalled download fails rather than hangs the job or the build.
+ * in `install.sh` and the Docker mirror bounds its connect and total time to
+ * a positive number of seconds, so a stalled download fails rather than hangs
+ * the job or the build. Lines are joined at continuations and every word
+ * `curl` outside a package install counts as a call, so a continued, bare or
+ * substituted call cannot slip past.
  */
 
 import { readFileSync } from 'node:fs';
@@ -89,10 +92,17 @@ const DOCKER_INSTALL: readonly string[] = [
 /** Every file that consumes the pinned tag without owning it. */
 const CONSUMERS: readonly string[] = [ACTION_REL, SCRIPT_REL, DOCKERFILE_REL];
 
-/** A curl call, from `curl` to the end of its pipeline segment. */
-const CURL_CALL_RE = /\bcurl\s+-[^|;&\n]*/gu;
-/** The options that bound how long a curl download may hang. */
-const CURL_TIME_BOUNDS: readonly string[] = ['--connect-timeout ', '--max-time '];
+/** Where one shell command ends and the next begins within a line. */
+const COMMAND_SPLIT_RE = /&&|\|\||[;|]/u;
+/** A package install (single-spaced, as joined), whose arguments name packages. */
+const PACKAGE_INSTALL_RE = /^(?:RUN )?(?:apt-get|apk)(?: -\S+)* (?:install|add) /u;
+/** A curl call, from the word `curl` to the end of its command. */
+const CURL_CALL_RE = /\bcurl\b.*/gu;
+/** The options that bound how long a curl download may hang, with their values. */
+const CURL_TIME_BOUNDS: readonly RegExp[] = [
+  /--connect-timeout(?:=|\s+)(?<value>\S+)/gu,
+  /--max-time(?:=|\s+)(?<value>\S+)/gu,
+];
 
 /** One step of the composite. */
 interface IStep {
@@ -172,16 +182,28 @@ function scriptDefaultDir(): string {
 }
 
 /**
+ * The logical code lines of a Dockerfile or shell script: comment lines
+ * dropped and continued lines joined, so one command is one line.
+ *
+ * @param text - The file.
+ * @returns One trimmed, non-empty line per command.
+ */
+function logicalLines(text: string): readonly string[] {
+  const lines = text.split('\n');
+  const code = lines.filter(line => !line.trimStart().startsWith('#'));
+  const joined = code.join('\n').replaceAll(CONTINUATION_RE, ' ');
+  const trimmed = joined.split('\n').map(line => line.trim());
+  return trimmed.filter(line => line !== '');
+}
+
+/**
  * The Dockerfile's instructions: comments dropped, continuations joined.
  *
  * @returns One trimmed instruction per entry.
  */
 function dockerInstructions(): readonly string[] {
-  const lines = readRepoFile(DOCKERFILE_REL).split('\n');
-  const code = lines.filter(line => !line.trimStart().startsWith('#'));
-  const joined = code.join('\n').replaceAll(CONTINUATION_RE, ' ');
-  const instructions = joined.split('\n').map(line => line.trim());
-  return instructions.filter(line => line !== '');
+  const text = readRepoFile(DOCKERFILE_REL);
+  return logicalLines(text);
 }
 
 /**
@@ -201,14 +223,13 @@ function finalDockerStage(): readonly string[] {
 }
 
 /**
- * The code lines of `install.sh`: comments dropped.
+ * The logical code lines of `install.sh`.
  *
- * @returns One trimmed line per entry.
+ * @returns One trimmed line per command.
  */
 function scriptCode(): readonly string[] {
-  const lines = readRepoFile(SCRIPT_REL).split('\n');
-  const trimmed = lines.map(line => line.trim());
-  return trimmed.filter(line => !line.startsWith('#'));
+  const text = readRepoFile(SCRIPT_REL);
+  return logicalLines(text);
 }
 
 /** How to read the code of each file that downloads with curl. */
@@ -219,15 +240,66 @@ const DOWNLOADER_CODE: Readonly<Record<string, () => readonly string[]>> = {
 const DOWNLOADERS = Object.keys(DOWNLOADER_CODE);
 
 /**
- * Every curl call in a file's code.
+ * Every curl call in some logical code lines. Any word `curl` outside a
+ * package install counts, wherever it sits in its command, so a call after
+ * `if`, inside `$(…)` or with a bare URL is not missed.
  *
- * @param rel - A key of `DOWNLOADER_CODE`.
- * @returns Each call, up to the end of its pipeline segment.
+ * @param lines - Logical code lines.
+ * @returns Each call, up to the end of its command.
  */
-function curlCalls(rel: string): readonly string[] {
-  const code = DOWNLOADER_CODE[rel]();
-  return code.flatMap(line => line.match(CURL_CALL_RE) ?? []);
+function curlCallsIn(lines: readonly string[]): readonly string[] {
+  const commands = lines.flatMap(line => line.split(COMMAND_SPLIT_RE));
+  const trimmed = commands.map(command => command.trim());
+  const runnable = trimmed.filter(command => !PACKAGE_INSTALL_RE.test(command));
+  return runnable.flatMap(command => command.match(CURL_CALL_RE) ?? []);
 }
+
+/**
+ * Whether a curl call sets a time bound, every time, to a positive number
+ * of seconds (curl reads 0 as no limit).
+ *
+ * @param call - One curl call.
+ * @param bound - A `CURL_TIME_BOUNDS` pattern.
+ * @returns True when bounded.
+ */
+function isBounded(call: string, bound: RegExp): boolean {
+  const matches = [...call.matchAll(bound)];
+  const seconds = matches.map(match => Number(match.groups?.value));
+  const isPositive = seconds.every(value => Number.isFinite(value) && value > 0);
+  return seconds.length > 0 && isPositive;
+}
+
+/**
+ * The curl calls in some logical code lines that do not bound their time.
+ *
+ * @param lines - Logical code lines.
+ * @returns Each unbounded call.
+ */
+function unboundedCalls(lines: readonly string[]): readonly string[] {
+  const calls = curlCallsIn(lines);
+  return calls.filter(call => !CURL_TIME_BOUNDS.every(bound => isBounded(call, bound)));
+}
+
+/** A curl that bounds both its connect and its total time. */
+const BOUNDED_CURL = 'curl -fsSL --connect-timeout 30 --max-time 60 -o "$1/a" "$url"';
+
+/** Curl uses ICW-9 must flag, each next to a bounded call. */
+const UNBOUNDED_CURLS: readonly (readonly [string, string])[] = [
+  ['zero bounds', 'curl -fsSL --connect-timeout 0 --max-time 0 -o a "$url"'],
+  ['a missing total bound', 'curl -fsSL --connect-timeout 30 -o a "$url"'],
+  ['a continued call in a function', 'fallback() {\n  curl \\\n    -fsSL "$url"\n}'],
+  ['a bare URL', 'curl "$url"'],
+  ['a call in a command substitution', 'body="$(curl "$url")"'],
+];
+
+/** Code with bounded curls only, and curl named as a package to install. */
+const BOUNDED_CODE = [
+  BOUNDED_CURL,
+  'RUN curl -fsSL --connect-timeout=30 --max-time 600 "$url" \\',
+  '        | tar -xJ -C /opt',
+  'RUN apt-get update && apt-get install -y --no-install-recommends \\',
+  '        ca-certificates curl git',
+].join('\n');
 
 /** The `camoufox` block `browser-stack.json` pins. */
 interface IPinnedCamoufox {
@@ -296,9 +368,24 @@ describe('install-camoufox wiring', () => {
   });
 
   it.each(DOWNLOADERS)('[ICW-9] every curl in %s bounds its time', rel => {
-    const calls = curlCalls(rel);
-    const unbounded = calls.filter(call => !CURL_TIME_BOUNDS.every(flag => call.includes(flag)));
+    const code = DOWNLOADER_CODE[rel]();
+    const calls = curlCallsIn(code);
+    const unbounded = unboundedCalls(code);
     expect(calls.length).toBeGreaterThan(0);
+    expect(unbounded).toEqual([]);
+  });
+
+  it.each(UNBOUNDED_CURLS)('[ICW-9] flags %s next to a bounded curl', (_name, snippet) => {
+    const code = logicalLines(`${BOUNDED_CURL}\n${snippet}`);
+    const unbounded = unboundedCalls(code);
+    expect(unbounded).toHaveLength(1);
+  });
+
+  it('[ICW-9] passes bounded curls and curl named as a package', () => {
+    const code = logicalLines(BOUNDED_CODE);
+    const calls = curlCallsIn(code);
+    const unbounded = unboundedCalls(code);
+    expect(calls).toHaveLength(2);
     expect(unbounded).toEqual([]);
   });
 
