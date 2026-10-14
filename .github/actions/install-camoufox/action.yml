@@ -32,31 +32,36 @@ runs:
     - name: Resolve pinned Camoufox tag
       id: camoufox-tag
       shell: bash
-      # Single source of truth for the pinned tag: `camoufox.tag` in
-      # browser-stack.json, read through the manifest validator, which fails
-      # closed (exit 2, MANIFEST-INVALID) unless the WHOLE manifest is valid.
-      # The cache key below uses this output and install.sh reads the same
-      # manifest, so a tag bump in the manifest invalidates the cache and
-      # re-pins the install in one edit; never hardcode the version here.
+      # Single source of truth for the pinned tag and its asset digest:
+      # `camoufox.tag` and `camoufox.linuxX64Sha256` in browser-stack.json,
+      # read through the manifest validator, which fails closed (exit 2,
+      # MANIFEST-INVALID) unless the WHOLE manifest is valid. The cache key
+      # below uses both outputs and install.sh reads the same manifest, so a
+      # tag or digest edit invalidates the cache and re-pins the install in
+      # one edit; never hardcode either value here.
       run: |
         set -euo pipefail
-        tag=$(node "${GITHUB_WORKSPACE}/scripts/browser-stack/manifest.mjs" tag)
+        validator="${GITHUB_WORKSPACE}/scripts/browser-stack/manifest.mjs"
+        tag=$(node "$validator" tag)
+        sha256=$(node "$validator" sha256)
         echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+        echo "sha256=${sha256}" >> "$GITHUB_OUTPUT"
     - name: Cache Camoufox browser
       uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
       with:
         path: ~/.cache/camoufox
         # Cache the deterministic v152 binary, keyed by the exact pinned
-        # tag; the install step below refuses to populate this key with
-        # any other release. The path is install.sh's default directory: a
-        # job that sets CAMOUFOX_INSTALL_DIR still gets the pinned build,
-        # only uncached.
-        key: camoufox-bin-${{ steps.camoufox-tag.outputs.tag }}
+        # tag and asset digest; the install step below refuses to populate
+        # this key with any other release or bytes. The path is install.sh's
+        # default directory: a job that sets CAMOUFOX_INSTALL_DIR still gets
+        # the pinned build, only uncached.
+        key: camoufox-bin-${{ steps.camoufox-tag.outputs.tag }}-${{ steps.camoufox-tag.outputs.sha256 }}
     - name: Install Camoufox browser
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.gh-token }}
       # The same script builds docker/Dockerfile.ci-mirror. It reads the tag
-      # from browser-stack.json (as the cache key above does), skips a cache
-      # hit and installs the pinned release asset on a miss.
+      # and digest from browser-stack.json (as the cache key above does),
+      # skips a cache hit and, on a miss, installs the pinned release asset
+      # only when it hashes to the pinned digest.
       run: bash "${GITHUB_WORKSPACE}/.github/actions/install-camoufox/install.sh"

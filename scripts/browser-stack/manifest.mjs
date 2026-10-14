@@ -9,12 +9,14 @@
  * install action and the Docker mirror run it before `npm ci`.
  *
  * Usage:
- *   node scripts/browser-stack/manifest.mjs tag [manifest-path]
+ *   node scripts/browser-stack/manifest.mjs <tag|sha256> [manifest-path]
  *
  * Exit codes:
- *   0 — manifest valid; the Camoufox tag is printed on stdout
+ *   0 — manifest valid; the Camoufox tag (`tag`) or the SHA-256 of its
+ *       Linux x86_64 release asset (`sha256`) is printed on stdout
  *   2 — `MANIFEST-INVALID <json-pointer> <reason>` on stderr, or a usage
- *       error. Fails closed: no tag is printed unless the whole file is valid.
+ *       error. Fails closed: nothing is printed unless the whole file is
+ *       valid.
  */
 import { readFileSync, realpathSync } from 'node:fs';
 import { argv, exit, stderr, stdout } from 'node:process';
@@ -25,10 +27,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 // missing release.
 const CAMOUFOX_TAG = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-(alpha|beta)\.(0|[1-9]\d*)$/u;
 const SEMVER_MINOR = /^(0|[1-9]\d*)\.(0|[1-9]\d*)$/u;
+// Bare lowercase hex, as `sha256sum` prints it; GitHub's asset `digest`
+// carries a `sha256:` prefix that must be dropped.
+const SHA256_HEX = /^[0-9a-f]{64}$/u;
 const DELTA_PATH = /^[A-Z][A-Za-z]+\.[A-Za-z]+(\.[A-Za-z]+|\[\])*(=[^=\s]+)?$/u;
 const DELTA_SIGNATURE = /^src:.+\|dst:.+$/u;
 const DEFAULT_MANIFEST = fileURLToPath(new URL('../../browser-stack.json', import.meta.url));
-const USAGE = 'usage: node scripts/browser-stack/manifest.mjs tag [manifest-path]';
+const USAGE = 'usage: node scripts/browser-stack/manifest.mjs <tag|sha256> [manifest-path]';
 
 /** Juggler message direction a delta was found on. */
 export const DELTA_CHANNELS = Object.freeze(['request', 'return', 'event']);
@@ -46,6 +51,7 @@ export const DELTA_KINDS = Object.freeze([
 
 /** @typedef {{ readonly pointer: string, readonly reason: string }} ManifestIssue */
 /** @typedef {readonly [string, (value: unknown) => boolean, string]} FieldRule */
+/** @typedef {{ readonly tag: string, readonly linuxX64Sha256: string }} Camoufox */
 
 /** @type {(value: unknown) => value is Record<string, unknown>} */
 const isRecord = value => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -60,7 +66,7 @@ const text = (min, max) => value =>
 /** Exact key set of every fixed object, by JSON pointer. */
 const SHAPES = Object.freeze({
   '': ['$comment', 'camoufox', 'playwrightCore', 'acceptedDeltas'],
-  '/camoufox': ['tag'],
+  '/camoufox': ['tag', 'linuxX64Sha256'],
   '/playwrightCore': ['testedMinor'],
 });
 const DELTA_KEYS = Object.freeze(['channel', 'kind', 'path', 'signature', 'reason']);
@@ -69,6 +75,7 @@ const DELTA_KEYS = Object.freeze(['channel', 'kind', 'path', 'signature', 'reaso
 const ROOT_RULES = [
   ['/$comment', text(1, Infinity), 'must be a non-blank string'],
   ['/camoufox/tag', matching(CAMOUFOX_TAG), `must match ${CAMOUFOX_TAG.source}`],
+  ['/camoufox/linuxX64Sha256', matching(SHA256_HEX), `must match ${SHA256_HEX.source}`],
   ['/playwrightCore/testedMinor', matching(SEMVER_MINOR), `must match ${SEMVER_MINOR.source}`],
 ];
 
@@ -177,7 +184,7 @@ export function validateManifest(doc) {
  * Read and validate a manifest file.
  *
  * @param {string} file - Path to `browser-stack.json`.
- * @returns {{ manifest?: { camoufox: { tag: string } }, issues: ManifestIssue[] }}
+ * @returns {{ manifest?: { camoufox: Camoufox }, issues: ManifestIssue[] }}
  *   The manifest only when it is fully valid.
  */
 export function loadManifest(file) {
@@ -192,7 +199,8 @@ export function loadManifest(file) {
 
 /** Selectors a CLI command prints from a valid manifest. */
 const COMMANDS = Object.freeze({
-  tag: (/** @type {{ camoufox: { tag: string } }} */ m) => m.camoufox.tag,
+  tag: (/** @type {{ camoufox: Camoufox }} */ m) => m.camoufox.tag,
+  sha256: (/** @type {{ camoufox: Camoufox }} */ m) => m.camoufox.linuxX64Sha256,
 });
 
 /** @type {(issue: ManifestIssue) => string} One stderr line per finding. */
@@ -211,7 +219,7 @@ function main() {
   const { manifest, issues } = loadManifest(file);
   for (const issue of issues) stderr.write(invalidLine(issue));
   if (manifest === undefined) exit(2);
-  stdout.write(`${COMMANDS[/** @type {'tag'} */ (command)](manifest)}\n`);
+  stdout.write(`${COMMANDS[/** @type {keyof typeof COMMANDS} */ (command)](manifest)}\n`);
 }
 
 /** Canonical file URL, so a symlinked entry still matches `import.meta.url`. */

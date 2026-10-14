@@ -3,13 +3,14 @@
  *
  * <p>`InstallCamoufoxScript` proves what `install.sh` does; this suite pins
  * that both of its consumers still run it and that the CI cache follows the
- * manifest. The composite action must resolve the tag through the manifest
- * validator, key the cache on that output, cache the directory `install.sh`
- * installs to by default, and run `install.sh` with the token. The Docker CI
- * mirror must copy what `install.sh` reads and run it as its only Camoufox
- * install. No consumer may spell the pinned tag: a literal there would
- * survive a manifest bump, so a static cache key would keep restoring the
- * old build, or Docker would install a different one from CI.
+ * manifest. The composite action must resolve the tag and asset digest
+ * through the manifest validator, key the cache on both outputs, cache the
+ * directory `install.sh` installs to by default, and run `install.sh` with
+ * the token. The Docker CI mirror must copy what `install.sh` reads and run
+ * it as its only Camoufox install. No consumer may spell the pinned tag or
+ * digest: a literal there would survive a manifest bump, so a static cache
+ * key would keep restoring the old build, or Docker would install a
+ * different one from CI.
  */
 
 import { readFileSync } from 'node:fs';
@@ -29,17 +30,22 @@ const VALIDATOR_REL = 'scripts/browser-stack/manifest.mjs';
 
 const RESOLVE_ID = 'camoufox-tag';
 const CACHE_ACTION = 'actions/cache@';
-const CACHE_KEY = `camoufox-bin-\${{ steps.${RESOLVE_ID}.outputs.tag }}`;
+const RESOLVED = `steps.${RESOLVE_ID}.outputs`;
+const CACHE_KEY = `camoufox-bin-\${{ ${RESOLVED}.tag }}-\${{ ${RESOLVED}.sha256 }}`;
 const TOKEN_INPUT = '${{ inputs.gh-token }}';
 
 /**
- * The resolve step's whole script: the validator prints the tag (or fails
- * closed) and the step exports exactly that as the output the key reads.
+ * The resolve step's whole script: the validator prints the tag and the
+ * digest (or fails closed) and the step exports exactly those as the outputs
+ * the key reads.
  */
 const RESOLVE_RUN = [
   'set -euo pipefail',
-  `tag=$(node "\${GITHUB_WORKSPACE}/${VALIDATOR_REL}" tag)`,
+  `validator="\${GITHUB_WORKSPACE}/${VALIDATOR_REL}"`,
+  'tag=$(node "$validator" tag)',
+  'sha256=$(node "$validator" sha256)',
   'echo "tag=${tag}" >> "$GITHUB_OUTPUT"',
+  'echo "sha256=${sha256}" >> "$GITHUB_OUTPUT"',
   '',
 ].join('\n');
 
@@ -168,15 +174,21 @@ function finalDockerStage(): readonly string[] {
   return instructions.slice(first);
 }
 
+/** The `camoufox` block `browser-stack.json` pins. */
+interface IPinnedCamoufox {
+  readonly tag: string;
+  readonly linuxX64Sha256: string;
+}
+
 /**
- * The tag `browser-stack.json` pins.
+ * The Camoufox release `browser-stack.json` pins.
  *
- * @returns The tag, `v`-prefixed.
+ * @returns The tag, `v`-prefixed, and its asset digest.
  */
-function pinnedTag(): string {
+function pinnedCamoufox(): IPinnedCamoufox {
   const text = readRepoFile(MANIFEST_REL);
-  const doc = JSON.parse(text) as { readonly camoufox: { readonly tag: string } };
-  return doc.camoufox.tag;
+  const doc = JSON.parse(text) as { readonly camoufox: IPinnedCamoufox };
+  return doc.camoufox;
 }
 
 describe('install-camoufox wiring', () => {
@@ -185,12 +197,12 @@ describe('install-camoufox wiring', () => {
     expect(roles).toEqual(['resolve', 'cache', 'install']);
   });
 
-  it('[ICW-2] the step the cache key reads exports the validated manifest tag', () => {
+  it('[ICW-2] the step the cache key reads exports the validated tag and digest', () => {
     const resolve = stepWithRole('resolve');
     expect(resolve).toMatchObject({ id: RESOLVE_ID, shell: 'bash', run: RESOLVE_RUN });
   });
 
-  it('[ICW-3] the cache is keyed on that tag and holds install.sh default directory', () => {
+  it('[ICW-3] the cache is keyed on both and holds install.sh default directory', () => {
     const cache = stepWithRole('cache');
     const defaultDir = scriptDefaultDir();
     expect(cache.with?.key).toBe(CACHE_KEY);
@@ -215,11 +227,13 @@ describe('install-camoufox wiring', () => {
     expect(camoufoxRuns).toEqual([`RUN bash ${SCRIPT_REL}`]);
   });
 
-  it.each(CONSUMERS)('[ICW-6] %s never spells the pinned tag', rel => {
-    const tag = pinnedTag();
+  it.each(CONSUMERS)('[ICW-6] %s never spells the pinned tag or digest', rel => {
+    const { tag, linuxX64Sha256 } = pinnedCamoufox();
     const version = tag.replace(/^v/u, '');
     const text = readRepoFile(rel);
     expect(version).not.toBe('');
+    expect(linuxX64Sha256).not.toBe('');
     expect(text).not.toContain(version);
+    expect(text).not.toContain(linuxX64Sha256);
   });
 });

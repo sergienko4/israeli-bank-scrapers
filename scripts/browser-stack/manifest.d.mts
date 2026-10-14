@@ -41,6 +41,8 @@ export function validateManifest(doc: unknown): ManifestIssue[];
  * @returns The manifest only when it is fully valid, plus every finding.
  */
 export function loadManifest(file: string): {
-  readonly manifest?: { readonly camoufox: { readonly tag: string } };
+  readonly manifest?: {
+    readonly camoufox: { readonly tag: string; readonly linuxX64Sha256: string };
+  };
   readonly issues: ManifestIssue[];
 };

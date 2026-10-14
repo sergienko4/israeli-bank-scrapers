@@ -19,8 +19,8 @@ Unit tests, mocked E2E, integration and the package job gate on `full_suite`:
 `src` or `critical_deps`. `critical_deps` catches a browser-stack change that
 leaves `src/` untouched. That is a moved range or resolved version of
 `playwright-core` or `@hieutran094/camoufox-js`, or an edit to a file that pins
-the stack: `browser-stack.json` (the Camoufox tag and the tested playwright-core
-minor), `scripts/patch-playwright-core.mjs`, `.github/actions/install-camoufox/`,
+the stack: `browser-stack.json` (the Camoufox tag, its asset SHA-256 and the
+tested playwright-core minor), `scripts/patch-playwright-core.mjs`, `.github/actions/install-camoufox/`,
 or the tooling that validates the manifest (`scripts/browser-stack/`).
 `CriticalDepsFullSuiteGate.test.ts` pins this list.
 

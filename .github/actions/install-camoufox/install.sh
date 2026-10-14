@@ -19,11 +19,14 @@
 # Download: `gh release download` when GH_TOKEN is set (CI); otherwise
 # curl from the public release URL (the Docker build has no token). gh
 # reads the token from the environment; this script never prints it.
+# Either way the asset must hash to `camoufox.linuxX64Sha256`, pinned in
+# the manifest beside the tag, before anything is deleted or extracted.
 set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "${SCRIPT_DIR}/../../.." && pwd)
 PINNED_TAG=$(node "${REPO_ROOT}/scripts/browser-stack/manifest.mjs" tag)
+PINNED_SHA256=$(node "${REPO_ROOT}/scripts/browser-stack/manifest.mjs" sha256)
 # The directory camoufox-js installs to and launches from on Linux: the
 # CAMOUFOX_INSTALL_DIR override, else the per-user cache. Pinning any other
 # directory would leave the runtime on whatever camoufox-js put there.
@@ -64,10 +67,27 @@ download_asset() {
   fi
 }
 
+# Streamed through node, which this script already needs, rather than
+# sha256sum: macOS ships shasum instead, and the asset is over 1 GB.
+sha256_of() {
+  node -e 'const h = require("crypto").createHash("sha256");
+    require("fs").createReadStream(process.argv[1])
+      .on("data", d => h.update(d))
+      .on("end", () => process.stdout.write(h.digest("hex")));' "$1"
+}
+
+verify_asset() {
+  local actual
+  actual=$(sha256_of "$ASSET_DIR/$ASSET") || fail "cannot hash ${ASSET}"
+  [ "$actual" = "$PINNED_SHA256" ] ||
+    fail "${ASSET} has sha256 ${actual}, but browser-stack.json pins ${PINNED_SHA256}"
+}
+
 install_pinned_release() {
   echo "Downloading pinned daijro/camoufox release: ${PINNED_TAG}"
   ASSET_DIR=$(mktemp -d "${TMPDIR:-/tmp}/camoufox-asset.XXXXXX")
   download_asset "$ASSET_DIR"
+  verify_asset
   rm -rf "$CACHE_DIR"
   mkdir -p "$CACHE_DIR"
   unzip -o "$ASSET_DIR/$ASSET" -d "$CACHE_DIR/"

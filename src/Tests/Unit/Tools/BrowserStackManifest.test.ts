@@ -4,9 +4,10 @@
  *
  * <p>The manifest is the single source of the tested browser stack: the
  * install-camoufox action and the Docker CI mirror read the pinned Camoufox
- * tag through this validator, and later the Juggler gate reads the accepted
- * deltas from it. A malformed value must therefore fail closed — no tag
- * printed, exit 2 — rather than install an unpinned or mistyped browser.
+ * tag and its asset SHA-256 through this validator, and later the Juggler
+ * gate reads the accepted deltas from it. A malformed value must therefore
+ * fail closed — nothing printed, exit 2 — rather than install an unpinned,
+ * mistyped or unverified browser.
  *
  * <p>Every invalid variant below is paired with positive controls, so a rule
  * that is merely too strict (and would reject a legitimate future bump) fails
@@ -32,11 +33,17 @@ const MISSING_MANIFEST = join(REPO_ROOT, 'no-such-browser-stack.json');
 /** Matches the Camoufox release tag shape the CI cache key is built from. */
 const CAMOUFOX_TAG = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-(alpha|beta)\.(0|[1-9]\d*)$/u;
 
+/** Matches the bare lowercase-hex SHA-256 install.sh compares the asset with. */
+const SHA256_HEX = /^[0-9a-f]{64}$/u;
+
 /**
  * A well-formed tag that is deliberately NOT the pinned one, so the live tag
  * stays a single literal in browser-stack.json.
  */
 const SAMPLE_TAG = 'v100.0.0-beta.1';
+/** A well-formed digest, likewise NOT the pinned one. */
+const SAMPLE_SHA256 = 'ab'.repeat(32);
+const SHA_AT = '/camoufox/linuxX64Sha256';
 
 /** Written at a pointer to delete the key instead of overwriting it. */
 const REMOVE = Symbol('remove');
@@ -70,7 +77,8 @@ interface IInvalidCase extends IEdit {
  */
 function validDoc(): Record<string, unknown> {
   const meta = { $comment: 'Tested browser stack.', acceptedDeltas: [{ ...BASE_DELTA }] };
-  return { ...meta, camoufox: { tag: SAMPLE_TAG }, playwrightCore: { testedMinor: '1.63' } };
+  const camoufox = { tag: SAMPLE_TAG, linuxX64Sha256: SAMPLE_SHA256 };
+  return { ...meta, camoufox, playwrightCore: { testedMinor: '1.63' } };
 }
 
 /**
@@ -263,12 +271,30 @@ const INVALID_CASES: readonly IInvalidCase[] = [
     value: '1.063',
     pointer: '/playwrightCore/testedMinor',
   },
+  { id: 'BSM-38', what: 'a missing asset digest', at: SHA_AT, value: REMOVE, pointer: SHA_AT },
+  {
+    id: 'BSM-39',
+    what: "GitHub's sha256:-prefixed digest",
+    at: SHA_AT,
+    value: `sha256:${SAMPLE_SHA256}`,
+    pointer: SHA_AT,
+  },
+  {
+    id: 'BSM-40',
+    what: 'an uppercase digest',
+    at: SHA_AT,
+    value: SAMPLE_SHA256.toUpperCase(),
+    pointer: SHA_AT,
+  },
+  { id: 'BSM-41', what: 'a 63-digit digest', at: SHA_AT, value: 'a'.repeat(63), pointer: SHA_AT },
+  { id: 'BSM-42', what: 'a 65-digit digest', at: SHA_AT, value: 'a'.repeat(65), pointer: SHA_AT },
 ];
 
 const VALID_EDITS: readonly IEdit[] = [
   { what: 'an alpha tag', at: '/camoufox/tag', value: 'v156.0.1-alpha.3' },
   { what: 'zero version components', at: '/camoufox/tag', value: 'v0.0.0-beta.0' },
   { what: 'a zero minor', at: '/playwrightCore/testedMinor', value: '2.0' },
+  { what: 'an all-digit digest', at: SHA_AT, value: '0123456789'.repeat(6).concat('0123') },
   { what: 'no accepted deltas', at: '/acceptedDeltas', value: [] },
   {
     what: 'an ENUM-VALUE suffix',
@@ -365,11 +391,13 @@ describe('browser-stack manifest contract', () => {
     expect(pointers).toEqual([]);
   });
 
-  it('[BSM-29] the real browser-stack.json is valid and pins a Camoufox release tag', () => {
+  it('[BSM-29] the real browser-stack.json is valid and pins a release tag and digest', () => {
     const { manifest, issues } = loadManifest(REAL_MANIFEST);
     const tag = manifest?.camoufox.tag ?? '';
+    const digest = manifest?.camoufox.linuxX64Sha256 ?? '';
     expect(issues).toEqual([]);
     expect(tag).toMatch(CAMOUFOX_TAG);
+    expect(digest).toMatch(SHA256_HEX);
   });
 });
 
@@ -379,6 +407,13 @@ describe('browser-stack manifest CLI', () => {
     const tag = manifest?.camoufox.tag ?? '';
     const run = runCli(['tag']);
     expect(run).toEqual({ status: 0, stdout: `${tag}\n`, stderr: '' });
+  });
+
+  it('[BSM-43] prints only the pinned asset digest for the real manifest', () => {
+    const { manifest } = loadManifest(REAL_MANIFEST);
+    const digest = manifest?.camoufox.linuxX64Sha256 ?? '';
+    const run = runCli(['sha256']);
+    expect(run).toEqual({ status: 0, stdout: `${digest}\n`, stderr: '' });
   });
 
   it('[BSM-31] fails closed on an invalid manifest: exit 2, no tag, MANIFEST-INVALID', () => {

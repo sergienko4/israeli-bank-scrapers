@@ -1,15 +1,16 @@
 /**
  * Unit test for `.github/actions/install-camoufox/install.sh`.
  *
- * <p>The script is the one Camoufox install shared by the CI composite action
- * and the Docker CI mirror. Its contract: install exactly the tag pinned in
+ * <p>The script is the one Camoufox installer shared by the CI composite
+ * action and the Docker CI mirror. Its contract: install exactly the tag pinned in
  * `browser-stack.json` into the directory camoufox-js launches from, skip the
  * download only on a cache that holds the pin AND a usable binary, download
  * the pin exactly once on a miss and never through `camoufox-js fetch` (which
  * resolves its own newest release, not the pin), use `gh` only when a token
- * exists (CI) and the public release URL otherwise (Docker), never print the
- * token, never record a version it did not install, leave no temp files, and
- * install nothing when the manifest is invalid.
+ * exists (CI) and the public release URL otherwise (Docker), extract only an
+ * asset that hashes to the pinned SHA-256 and touch the cache only after that
+ * check, never print the token, never record a version it did not install,
+ * leave no temp files, and install nothing when the manifest is invalid.
  *
  * <p>Each case runs the REAL script in a throwaway tree that mirrors the repo
  * layout (script + validator + its own `browser-stack.json`), with `npx`,
@@ -19,6 +20,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   chmodSync,
   copyFileSync,
@@ -51,6 +53,10 @@ const OTHER_VERSION_JSON = '{"version":"156.0.1","release":"beta.36"}';
 const SAMPLE_ASSET = 'camoufox-100.0.0-beta.1-lin.x86_64.zip';
 const SAMPLE_ASSET_URL = `https://github.com/daijro/camoufox/releases/download/${SAMPLE_TAG}/${SAMPLE_ASSET}`;
 const TOKEN = 'fake-token-that-must-never-print';
+/** SHA-256 of the empty asset the `gh` and `curl` stubs download. */
+const STUB_ASSET_SHA256 = createHash('sha256').update('').digest('hex');
+/** A well-formed digest that no stub download matches. */
+const FOREIGN_SHA256 = createHash('sha256').update('another asset').digest('hex');
 /** Tree-relative `CAMOUFOX_INSTALL_DIR` for the relocation case. */
 const CUSTOM_DIR_REL = 'opt/camoufox';
 
@@ -146,11 +152,12 @@ const UNUSABLE_BINARIES: readonly CachedBinary[] = [
 const UNUSABLE_ARCHIVES: readonly BinaryEntry[] = ['nothing', 'directory'];
 
 /**
- * One scenario: the manifest tag, the token, the cache, what the release
- * archive holds, and any install-dir override.
+ * One scenario: the manifest tag and digest, the token, the cache, what the
+ * release archive holds, and any install-dir override.
  */
 interface IScenario {
   readonly tag: string;
+  readonly sha256: string;
   readonly token: string;
   readonly cachedVersionJson: string;
   readonly cachedBinary: CachedBinary;
@@ -171,6 +178,7 @@ interface IInstallRun {
 /** A cold cache and no token: the baseline scenario. */
 const COLD: IScenario = {
   tag: SAMPLE_TAG,
+  sha256: STUB_ASSET_SHA256,
   token: '',
   cachedVersionJson: '',
   cachedBinary: 'ok',
@@ -180,6 +188,12 @@ const COLD: IScenario = {
 
 /** Commands that download a release asset. */
 const DOWNLOADERS: readonly string[] = ['gh', 'curl'];
+
+/** Each download path and the token that selects it. */
+const DOWNLOAD_PATHS: readonly { readonly via: string; readonly token: string }[] = [
+  { via: 'curl', token: '' },
+  { via: 'gh', token: TOKEN },
+];
 
 /** Every kind of cache miss; each must download the pinned asset exactly once. */
 const MISSES: readonly { readonly label: string; readonly scenario: IScenario }[] = [
@@ -219,15 +233,16 @@ function copyIntoTree(root: string, rel: string): string {
 }
 
 /**
- * Write the tree's `browser-stack.json`, valid unless the tag is not.
+ * Write the tree's `browser-stack.json`, valid unless the tag or digest is not.
  *
  * @param root - Tree root.
- * @param tag - Value of `camoufox.tag`.
+ * @param scenario - Supplies `camoufox.tag` and `camoufox.linuxX64Sha256`.
  * @returns The manifest path.
  */
-function writeManifest(root: string, tag: string): string {
+function writeManifest(root: string, scenario: IScenario): string {
   const meta = { $comment: 'Install-script test manifest.', acceptedDeltas: [] };
-  const doc = { ...meta, camoufox: { tag }, playwrightCore: { testedMinor: '1.63' } };
+  const camoufox = { tag: scenario.tag, linuxX64Sha256: scenario.sha256 };
+  const doc = { ...meta, camoufox, playwrightCore: { testedMinor: '1.63' } };
   const file = join(root, 'browser-stack.json');
   const text = JSON.stringify(doc);
   writeFileSync(file, text);
@@ -321,7 +336,7 @@ function makeTree(scenario: IScenario): string {
   CREATED.push(root);
   copyIntoTree(root, SCRIPT_REL);
   copyIntoTree(root, VALIDATOR_REL);
-  writeManifest(root, scenario.tag);
+  writeManifest(root, scenario);
   writeStubs(root);
   prepareState(root, scenario);
   return root;
@@ -489,5 +504,27 @@ describe('install-camoufox/install.sh', () => {
     expect(run.status).toBe(0);
     expect(run.calls).toEqual([]);
     expect(run.homeCacheExists).toBe(false);
+  });
+
+  it.each(DOWNLOAD_PATHS)(
+    '[ICS-11] an asset off the pinned SHA-256 (via $via) fails before the cache is touched',
+    ({ via, token }) => {
+      const stale = { cachedVersionJson: OTHER_VERSION_JSON, sha256: FOREIGN_SHA256 };
+      const run = runInstall({ ...COLD, ...stale, token });
+      const tools = run.calls.map(call => call.split(' ')[0]);
+      const pinned = `has sha256 ${STUB_ASSET_SHA256}, but browser-stack.json pins ${FOREIGN_SHA256}`;
+      expect(run.status).toBe(1);
+      expect(tools).toEqual([via]);
+      expect(run.output).toContain(`ERROR: ${SAMPLE_ASSET} ${pinned}`);
+      expect(run.versionJson).toBe(OTHER_VERSION_JSON);
+      expect(run.tempLeft).toBe(0);
+    },
+  );
+
+  it("[ICS-12] GitHub's sha256:-prefixed digest form fails closed as MANIFEST-INVALID", () => {
+    const run = runInstall({ ...COLD, sha256: `sha256:${STUB_ASSET_SHA256}`, token: TOKEN });
+    expect(run.status).toBe(2);
+    expect(run.calls).toEqual([]);
+    expect(run.output).toContain('MANIFEST-INVALID /camoufox/linuxX64Sha256');
   });
 });
