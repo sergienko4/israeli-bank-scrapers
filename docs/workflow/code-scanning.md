@@ -23,6 +23,8 @@ source-files:
   - src/Tests/Unit/Pipeline/CrossValidation/RenovateLockfileMaintenancePolicy.test.ts
   - .github/scripts/ci/docs-staleness-bot-skip.cjs
   - src/Tests/Unit/Pipeline/CrossValidation/DocsStalenessGate.test.ts
+  - .github/workflows/pr.yml
+  - src/Tests/Unit/Pipeline/CrossValidation/BrowserStackGateWiring.test.ts
 ---
 
 # Code scanning: two scanners, one authority

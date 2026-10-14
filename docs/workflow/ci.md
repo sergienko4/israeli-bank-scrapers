@@ -6,6 +6,7 @@ source-files:
   - .github/workflows/codeql.yml
   - .github/workflows/cache-cleanup.yml
   - .github/scripts/ci/detect-changes.sh
+  - scripts/check-browser-stack.mjs
 ---
 
 # CI gates
