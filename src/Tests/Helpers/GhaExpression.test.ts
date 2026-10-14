@@ -42,6 +42,15 @@ function contextWith(result: string, isCancelled = false): IGhaContext {
   return { needs, status };
 }
 
+/** Names every object inherits; none is a boolean, function, job, field or output. */
+const PROTOTYPE_NAMES = ['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__'];
+const PROTOTYPE_CASES = PROTOTYPE_NAMES.flatMap((name): (readonly [string, RegExp])[] => [
+  [name, /unmodelled lookup/u],
+  [`${name}()`, /unmodelled function/u],
+  [`needs.${name}.result`, /unmodelled lookup/u],
+  [`needs.a.${name}`, /unmodelled lookup/u],
+  [`needs.a.outputs.${name}`, /unmodelled lookup/u],
+]);
 const SUCCEEDED = contextWith('success');
 const FAILED = contextWith('failure');
 const SKIPPED = contextWith('skipped');
@@ -137,6 +146,10 @@ describe('GhaExpression', () => {
     ['an empty condition', '', SyntaxError],
   ])('[GHX-7] throws on %s', (_name, source, error) => {
     expect(() => evaluateIf(source, SUCCEEDED)).toThrow(error);
+  });
+
+  it.each(PROTOTYPE_CASES)('[GHX-7] throws on the inherited name in %s', (source, message) => {
+    expect(() => evaluateIf(source, SUCCEEDED)).toThrow(message);
   });
 
   it.each([

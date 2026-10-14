@@ -135,7 +135,7 @@ const NEED_FIELDS: Readonly<Record<string, (need: INeed, rest: readonly string[]
    */
   outputs: (need, rest) => {
     const [name = ''] = rest;
-    const isModelled = rest.length === 1 && name in need.outputs;
+    const isModelled = rest.length === 1 && Object.hasOwn(need.outputs, name);
     return isModelled ? need.outputs[name] : unmodelled(rest);
   },
 };
@@ -309,10 +309,10 @@ function parsePrimary(cursor: ICursor): Node {
  * @returns The expression tree.
  */
 function parseWord(word: string, cursor: ICursor): Node {
-  if (word in BOOLEANS) return { kind: 'literal', value: BOOLEANS[word] ?? false };
+  if (Object.hasOwn(BOOLEANS, word)) return { kind: 'literal', value: BOOLEANS[word] ?? false };
   if (!accept(cursor, '(')) return { kind: 'path', path: word.split('.') };
   expectOp(cursor, ')');
-  if (word in STATUS_FUNCTIONS) return { kind: 'call', name: word };
+  if (Object.hasOwn(STATUS_FUNCTIONS, word)) return { kind: 'call', name: word };
   throw new SyntaxError(`unmodelled function ${word}()`);
 }
 
@@ -363,7 +363,8 @@ function equals(left: GhaValue, right: GhaValue): boolean {
  */
 function lookup(path: readonly string[], context: IGhaContext): GhaValue {
   const [root, job = '', field = '', ...rest] = path;
-  const isModelled = root === 'needs' && job in context.needs && field in NEED_FIELDS;
+  const isNeed = Object.hasOwn(context.needs, job) && Object.hasOwn(NEED_FIELDS, field);
+  const isModelled = root === 'needs' && isNeed;
   if (!isModelled) return unmodelled(path);
   return NEED_FIELDS[field](context.needs[job], rest);
 }
