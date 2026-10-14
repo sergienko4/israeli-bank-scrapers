@@ -474,8 +474,11 @@ pull request to `main`, with no path filter. The detector must flag
 The `changes` job and its detector and gate steps must carry no `if:` or
 `continue-on-error:`. The gate step must receive the PR author.
 `real_gates_enabled` must reach `validate`. The unit, mocked E2E and
-`package-factory` jobs must need only `changes` and run whenever `deps` is
-set. Inside `package-factory`, the factory E2E step keeps its own `deps` term
+`package-factory` jobs must run whenever `deps` is set. The unit and
+`package-factory` jobs must need only `changes`. Mocked E2E also needs the
+`browser-stack` job, which has no `if:` and passes when its steps are
+skipped, so a dependency-only pull request outside the browser stack still
+runs it. Inside `package-factory`, the factory E2E step keeps its own `deps` term
 (PackageFactoryJob PFJ-4). Conditions
 are compared after unwrapping `${{ }}` and every layer of outer parentheses.
 In `pr-body-check.yml`, a newer push or body edit of the same pull request
