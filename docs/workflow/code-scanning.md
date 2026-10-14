@@ -316,7 +316,7 @@ the directory and extract the asset with system `unzip`. It never runs
 camoufox-js's own newest release instead of the pin. It writes `version.json`
 last, so a failed extract is never recorded as installed. CI downloads the
 exact asset with `gh release download`; the Docker build has no token and uses
-`curl` on the public release URL. At launch, camoufox-js downloads its default
+`curl` on the public release URL, so the image carries no GitHub CLI. At launch, camoufox-js downloads its default
 uBlock Origin addon into that directory when it is missing and extracts it with
 `extractEntryTo`, which runs on the locked adm-zip 0.6.1. A manifest edit is a
 browser-stack change: the detector arms `critical_deps`, so the pull request

@@ -7,7 +7,8 @@
  * through the manifest validator, key the cache on both outputs, cache the
  * directory `install.sh` installs to by default, and run `install.sh` with
  * the token. The Docker CI mirror must copy what `install.sh` reads and run
- * it as its only Camoufox install. No consumer may spell the pinned tag or
+ * it as its only Camoufox install, tokenless, so it needs no GitHub CLI and
+ * must not ship one. No consumer may spell the pinned tag or
  * digest: a literal there would survive a manifest bump, so a static cache
  * key would keep restoring the old build, or Docker would install a
  * different one from CI.
@@ -55,6 +56,11 @@ const DEFAULT_DIR_RE = /CACHE_DIR="\$\{CAMOUFOX_INSTALL_DIR:-\$HOME\/(?<dir>[^}"
 const CONTINUATION_RE = /\\\n\s*/gu;
 /** A Dockerfile instruction that starts a build stage. */
 const FROM_RE = /^FROM\s/iu;
+/**
+ * What only the token path of `install.sh` needs: the GitHub CLI, its apt
+ * source, or a token.
+ */
+const GH_PATH_RE = /\bgh\b|cli\.github\.com|GH_TOKEN/u;
 
 /**
  * The Docker mirror's Camoufox instructions, in order: the files
@@ -225,6 +231,11 @@ describe('install-camoufox wiring', () => {
     expect(positions).not.toContain(-1);
     expect(positions).toEqual(sorted);
     expect(camoufoxRuns).toEqual([`RUN bash ${SCRIPT_REL}`]);
+  });
+
+  it('[ICW-7] the Docker image installs tokenless and carries no GitHub CLI', () => {
+    const ghLines = finalDockerStage().filter(line => GH_PATH_RE.test(line));
+    expect(ghLines).toEqual([]);
   });
 
   it.each(CONSUMERS)('[ICW-6] %s never spells the pinned tag or digest', rel => {
