@@ -145,6 +145,18 @@ function enumAssign(
     push(at(cur, `${cur.path}=${enumLiteral(value)}`), 'ENUM-VALUE', signature);
 }
 
+/** An Enum fits a String only when every value is a string, not a boolean. */
+function enumStringAssign(
+  /** @type {EnumType} */ s,
+  /** @type {SchemaType} */ d,
+  /** @type {Cursor} */ cur,
+) {
+  const allStrings = s.values.every(
+    (/** @type {string | boolean} */ value) => typeof value === 'string',
+  );
+  if (!allStrings) push(cur, 'TYPE-MISMATCH', pairSig(sig(s), sig(d)));
+}
+
 /** `<src kind>><dst kind>` → comparison; unlisted pairs match only on equal kinds. */
 const SHAPES = Object.freeze({
   'Object>Object': (
@@ -158,7 +170,7 @@ const SHAPES = Object.freeze({
     /** @type {Cursor} */ cur,
   ) => typeAssign(s.item, d.item, at(cur, `${cur.path}[]`)),
   'Enum>Enum': enumAssign,
-  'Enum>String': () => undefined,
+  'Enum>String': enumStringAssign,
 });
 
 /**

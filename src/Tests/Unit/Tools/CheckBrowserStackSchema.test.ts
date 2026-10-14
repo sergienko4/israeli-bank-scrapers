@@ -275,6 +275,13 @@ const DIFF_CASES: readonly IDiffCase[] = [
     browser: method("{ a: t.Enum(['a', 'b']) }"),
     expected: [delta('request ENUM-VALUE D.m.a="a|b"', 'src:Enum("a|b")|dst:Enum("a"|"b")')],
   },
+  {
+    id: 'BSD-46',
+    what: 'a boolean enum value where a String is expected',
+    client: method("{ a: t.Enum(['mixed', true]) }"),
+    browser: method('{ a: t.String }'),
+    expected: [delta('request TYPE-MISMATCH D.m.a', 'src:Enum("mixed"|true)|dst:String')],
+  },
 ];
 
 /**
@@ -316,8 +323,8 @@ const NO_DELTA_CASES: readonly INoDeltaCase[] = [
     browser: method('{ a: t.Any }'),
   },
   {
-    what: 'Enum to String',
-    client: method("{ a: t.Enum(['x']) }"),
+    what: 'a string-only Enum to String',
+    client: method("{ a: t.Enum(['x', 'y']) }"),
     browser: method('{ a: t.String }'),
   },
   {
