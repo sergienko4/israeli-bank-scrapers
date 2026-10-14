@@ -340,6 +340,10 @@ pin moves. At launch, camoufox-js downloads its default uBlock Origin addon into
 that directory when it is missing and extracts it with `extractEntryTo`, which
 runs on the locked adm-zip 0.6.1. A manifest edit is a browser-stack change: the
 detector arms `critical_deps`, so the pull request runs the full suite.
+The same pull request must regenerate
+`src/Scrapers/Pipeline/Mediator/Browser/BrowserStackConfig.ts` with
+`npm run browser-stack:gen`, or `npm run lint:browser-stack` fails with
+`GENERATED-STALE`.
 
 **Action:** keep the override until camoufox-js declares `>=0.6.1` itself, then
 drop it. Watch the advisory: it bounds the range by `last_affected`, so a

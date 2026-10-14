@@ -13,6 +13,14 @@ Unchanged for every 8.x release. Enforced by the `engines` field, so npm warns (
 
 ## Release notes
 
+### 8.9.0 - A `warn` line when the browser stack differs from the tested pair
+
+**Impact:** Behavior
+
+Each release is tested against one Camoufox build and one `playwright-core` minor. After the first successful Camoufox launch in a process, the installed versions are compared with that pair, and each component that differs is logged once at `warn` level as `browser stack differs from the tested pair`, with `component`, `installed`, `tested` and `remedy`. A different version often works, so the check never fails a launch.
+
+**What to do:** None. If a scrape breaks while this line is logged, follow its `remedy`. See Troubleshooting for each field and how to return to the tested pair.
+
 ### 8.9.0 - Known limitation: `httpCredentials` fails on `playwright-core` 1.63 and 1.64
 
 **Impact:** Behavior

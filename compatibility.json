@@ -10,6 +10,15 @@
     {
       "version": "8.9.0",
       "impact": "behavior",
+      "title": "A `warn` line when the browser stack differs from the tested pair",
+      "detail": "Each release is tested against one Camoufox build and one `playwright-core` minor. After the first successful Camoufox launch in a process, the installed versions are compared with that pair, and each component that differs is logged once at `warn` level as `browser stack differs from the tested pair`, with `component`, `installed`, `tested` and `remedy`. A different version often works, so the check never fails a launch.",
+      "action": "None. If a scrape breaks while this line is logged, follow its `remedy`. See Troubleshooting for each field and how to return to the tested pair.",
+      "before": null,
+      "after": null
+    },
+    {
+      "version": "8.9.0",
+      "impact": "behavior",
       "title": "Known limitation: `httpCredentials` fails on `playwright-core` 1.63 and 1.64",
       "detail": "From 1.63, `playwright-core` sends a context's `httpCredentials` as a list, and no Camoufox release checked so far accepts one. `browser.newContext({ httpCredentials })` then fails with `Protocol error (Browser.setHTTPCredentials)`. This library never sets `httpCredentials`, so its own scrapes are unaffected. CI has tested 1.63 since 8.7.2, and the `^1.62.0` range let a fresh install resolve 1.63 before that.",
       "action": "Don't create a context with `httpCredentials` for this library, for example one you pass in as `browserContext`. No `playwright-core` minor this library tests supports it with Camoufox yet.",
