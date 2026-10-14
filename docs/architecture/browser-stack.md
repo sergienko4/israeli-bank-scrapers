@@ -1,8 +1,14 @@
 ---
 title: Browser stack
 source-files:
+  - .github/workflows/browser-stack-watch.yml
   - browser-stack.json
+  - scripts/browser-stack-watch.mjs
+  - scripts/browser-stack/camoufox-releases.mjs
   - scripts/browser-stack/gen-config.mjs
+  - scripts/browser-stack/playwright-versions.mjs
+  - scripts/browser-stack/watch-report.mjs
+  - scripts/browser-stack/watch.mjs
   - src/Scrapers/Pipeline/Mediator/Browser/BrowserStackConfig.ts
   - src/Scrapers/Pipeline/Mediator/Browser/BrowserStackCheck.ts
   - src/Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.ts
@@ -96,6 +102,51 @@ The check runs after the launch bound, not inside it, for three reasons:
 uses `DEFAULT_STACK_READERS`, and tests inject their own `IStackReaders`. A
 check is a `BrowserStackCheck` that resolves to a `WarningCount`: 0, 1 or 2
 on the first call, and 0 after it.
+
+## The weekly watch
+
+Two things move upstream without a PR here: npm `latest` of
+`playwright-core`, which a consumer's `^` range resolves to, and the Camoufox
+release camoufox-js downloads. Every Monday at 06:00 UTC,
+`.github/workflows/browser-stack-watch.yml` runs
+`scripts/browser-stack-watch.mjs` to report what the gate says about them.
+
+The watch reads two upstream sources:
+
+- **Camoufox releases.** It reads the page camoufox-js reads: the first page
+  of `daijro/camoufox` releases, 30 by default. It picks the release
+  camoufox-js would install by the same rule: the first one that is neither a
+  prerelease nor a draft and has an asset for the runner's platform, judged by
+  camoufox-js's own asset check.
+- **The `playwright-core` packument.** It takes up to three versions: the
+  lockfile's, the highest patch of the minor after the tested one, and npm
+  `latest`. Versions that coincide are merged into one.
+
+It runs the gate in `candidate` mode, with `--json`, on every version × the
+ten newest version-tagged releases on that page, plus the selected release
+when it is older. The report has three sections:
+
+| Section | What it says |
+|---|---|
+| Consumer pair | npm `latest` × the selected release: compatible, or the NEW protocol paths. With no selected release, a consumer's Camoufox install fails. |
+| CI drift | Whether the tag in `browser-stack.json` is the selected release. |
+| Candidates | One row per pair: prerelease, selected, NEW paths, verdict, and selected-compatible (compatible and selected). The verdict is `compatible`, `new`, or `unknown` when the gate could not decide; the gate's errors are listed under the table. |
+
+Compatible only means the Juggler protocols match within the accepted
+deltas. It does not make a pair landable: that still takes a PR that pins
+the pair and passes CI.
+
+The workflow keeps the report as the body of one open issue labelled
+`browser-stack` that the workflow opened. Each run edits that body and never
+comments, and an issue that a person labels keeps its body. The job holds
+`contents: read` and `issues: write` only. A manual run is a dry run unless
+`dry_run` is cleared: it prints the report to the log and the job summary and
+leaves the issue alone. When the watch cannot read its inputs it exits 2, the
+job fails, and the issue keeps the previous report. `BrowserStackWatch.test.ts`
+pins the report, and `BrowserStackWatchWiring.test.ts` pins the workflow.
+
+To run it locally, use `node scripts/browser-stack-watch.mjs [--out <file>]`;
+a `GITHUB_TOKEN` in the environment raises the GitHub API rate limit.
 
 ## Why the readers avoid JSON imports
 

@@ -181,6 +181,14 @@ delete is re-checked: if another run already removed the caches, the job
 still passes; if any are left, it fails. `CacheCleanupGate.test.ts` runs the
 committed script against a stubbed `gh` to pin all of this.
 
+## The browser stack is watched weekly
+
+`.github/workflows/browser-stack-watch.yml` is not a gate, and no PR runs it.
+Every Monday it reports which `playwright-core` × Camoufox pairs the Browser
+stack gate accepts, given what npm and camoufox-js serve that day. The report
+is the body of one issue labelled `browser-stack`. See
+[Browser stack](../architecture/browser-stack.md#the-weekly-watch).
+
 ## Static checks
 
 BLUF: one job, `Static checks`, runs the lint and type steps plus four short
