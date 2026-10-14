@@ -63,8 +63,11 @@ Each delta row reads status, channel, kind, path and signature:
   browser validates strictly. On `return` and `event` the browser sends and
   the client reads only the fields it knows.
 - **Path** is the method or event, then the field.
-- **Signature** is `src:<type>|dst:<type>`: the client's type, then the
-  browser's. `absent` means that side has no such field.
+- **Signature** is `src:<type>|dst:<type>`: the type on the side that
+  produces the message, then the type on the side that consumes it. On
+  `request`, `src` is the client (`playwright-core`'s params) and `dst` the
+  browser (Camoufox). On `return` and `event`, `src` is the browser and `dst`
+  the client. `absent` means that side has no such field, method or event.
 
 The two `sha256` values identify the protocol files that were compared, so two
 runs can be checked against each other.

@@ -437,6 +437,18 @@ If alert 52 still reads `auto_dismissed`, reopen it (Security → Dependabot →
 the alert → Reopen) so Dependabot can raise the pull request. Reopen only an
 alert that has a patched version; without one there is nothing to bump.
 
+**Browser stack.** The `playwright` version-update group bumps
+`playwright-core` on `patch` and `minor` releases, in a pull request of its
+own. Its other pattern, `playwright`, matches no dependency here. The
+`dev-dependencies` and `production-dependencies` groups exclude both names, so
+no other group moves them. The browser-stack gate decides whether such a bump
+lands. It compares the bumped `playwright-core` with the Camoufox tag pinned in
+`browser-stack.json`, so a new minor fails until the same pull request raises
+`testedMinor`. A consumer installs through the `^` range in `package.json`,
+not through this lockfile, so the weekly browser-stack watch reports the
+minors that range can resolve. See
+[Upgrading the browser stack](browser-stack-upgrade.md).
+
 **Limit:** Dependabot never targets a transitive that has no open alert. It
 moves only when a direct-dependency bump happens to re-resolve it. A second
 lane covers the rest: [Renovate lockfile maintenance][renovate-lfm], configured
