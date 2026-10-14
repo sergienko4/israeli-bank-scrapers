@@ -7,6 +7,7 @@ source-files:
   - .github/workflows/cache-cleanup.yml
   - .github/scripts/ci/detect-changes.sh
   - scripts/check-browser-stack.mjs
+  - src/Tests/Unit/Tools/BrowserStackAcceptanceGuards.test.ts
 ---
 
 # CI gates
@@ -45,7 +46,7 @@ and release together — covered in
 | **Unit tests** | `test:unit` | 4807 tests; all must pass | `--testPathIgnorePatterns=E2eReal --testPathIgnorePatterns=E2eMocked` |
 | **Pipeline + coverage** | `test:pipeline` | Coverage drops below 97/95/97/98 | `src/coverage/lcov-report/` |
 | **SonarCloud** | n/a (job `SonarCloud Scan`) | On a PR touching `src/**`: the quality gate fails, the PR adds any new issue, SonarCloud's new-issue count cannot be read in 5 tries of at most 30 s each, or `Detect changes` / `Unit tests` did not succeed | `sonar-project.properties`; [SonarCloud query protocol](code-review-tooling.md#sonarcloud--query-protocol) |
-| **Browser stack** | `lint:browser-stack`, after `node scripts/patch-playwright-core.mjs --strict` (job `Browser stack contract`) | On a PR where `critical_deps` is true: a patch anchor no longer matches the resolved playwright-core, or its Juggler protocol differs from the pinned Camoufox tag's beyond the deltas `browser-stack.json` accepts. Mock E2E and Integration then never start. On other PRs its steps are skipped and the job passes | `browser-stack.json`, `scripts/browser-stack/`; wiring pinned by `BrowserStackGateWiring.test.ts` |
+| **Browser stack** | `lint:browser-stack`, after `node scripts/patch-playwright-core.mjs --strict` (job `Browser stack contract`) | On a PR where `critical_deps` is true: a patch anchor no longer matches the resolved playwright-core, or its Juggler protocol differs from the pinned Camoufox tag's beyond the deltas `browser-stack.json` accepts. Mock E2E and Integration then never start. On other PRs its steps are skipped and the job passes; there Unit tests run `BrowserStackAcceptanceGuards.test.ts`, which fails when src starts to use a feature an accepted delta breaks | `browser-stack.json`, `scripts/browser-stack/`; wiring pinned by `BrowserStackGateWiring.test.ts` |
 | **Mock E2E** | `test:e2e:mock` | Fixture-driven E2E for 3 banks | `src/Tests/E2eMocked/` |
 | **Mock suite (orchestrated)** | `test:mock` | `scripts/run-mock-suite.ts` driving all configured banks | Same fixtures |
 | **Bank tests** | `test:e2e-factory-tests` | Phase H cross-bank factory drives every phase per bank | `src/Tests/Unit/Pipeline/CrossValidation/Phases/` |
