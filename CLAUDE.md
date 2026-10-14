@@ -104,6 +104,8 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 - `src/Scrapers/Base/BaseScraperWithBrowser.ts` — base class; `launchCamoufox()` → `newContext()` → `newPage()`
 - `src/Scrapers/Base/Interface.ts` — type definitions (`ScraperOptions`, `ScraperCredentials`, etc.)
 - `src/Scrapers/Registry/ScraperRegistryAmexToIsracard.ts` — Amex→Isracard scraper registry entries
+- `browser-stack.json` — the tested Camoufox tag + `playwright-core` minor, and the accepted protocol deltas; run `npm run browser-stack:gen` after editing it
+- `scripts/check-browser-stack.mjs` — browser-stack gate CLI: diffs the Juggler protocols of a `playwright-core` × Camoufox pair (`--mode gate|candidate`)
 
 ## Changes from upstream
 

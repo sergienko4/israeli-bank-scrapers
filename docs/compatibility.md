@@ -33,7 +33,7 @@ From 1.63, `playwright-core` sends a context's `httpCredentials` as a list, and 
 
 **Impact:** Behavior
 
-`playwright-core` 1.64 sends a new `bypassServiceWorker` field when it turns on request interception. No released Camoufox accepts it, so `page.route()` failed with a protocol error. `context.route()` was unaffected: Firefox turns on context-wide interception through a different call. The `postinstall` patch now drops that field and sends the 1.63 payload. It restores routing only: 1.64 still reports multi-value `Set-Cookie` headers differently, so this library stays tested on the `playwright-core` minor it pins in CI.
+`playwright-core` 1.64 sends a new `bypassServiceWorker` field when it turns on request interception. No released Camoufox accepts it, so `page.route()` failed with a protocol error. `context.route()` was unaffected: Firefox turns on context-wide interception through a different call. The `postinstall` patch now drops that field and sends the 1.63 payload. It restores routing only. On 1.64, `headersArray()` and `headerValues('set-cookie')` return a response's `Set-Cookie` lines as one merged entry instead of one entry per cookie, and nothing reports an error. `headers()` and the cookie jar still see every cookie. This library reads only `headers()`, but it stays tested on the `playwright-core` minor it pins in CI until Camoufox catches up with 1.64.
 
 **What to do:** None when install scripts run. With `--ignore-scripts`, run `node node_modules/@sergienko4/israeli-bank-scrapers/scripts/patch-playwright-core.mjs` after installing. See Troubleshooting for the error text.
 

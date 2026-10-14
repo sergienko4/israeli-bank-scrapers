@@ -23,11 +23,15 @@ updates:
           - minor
           - major
       # Playwright is the other critical browser-automation surface.
-      # Auto-bump on patch + minor so upstream regression fixes flow
-      # in as their own PR; CI (E2e.test.ts invalid-creds regression
-      # guard) gates whether the bump lands. The ~range in
-      # package.json is the install-time safety gate; this group
-      # is the discovery gate.
+      # Auto-bump on patch + minor so upstream fixes arrive as their
+      # own PR. A bump moves the resolved playwright-core, so CI runs
+      # the browser-stack gate against the Camoufox tag pinned in
+      # browser-stack.json: a patch of the tested minor lands when the
+      # gate and Mock E2E pass, and a new minor fails the gate until
+      # the same PR raises testedMinor there. The ^ range in
+      # package.json accepts any later minor, so a consumer's fresh
+      # install can resolve one first; the weekly browser-stack watch
+      # reports how that minor fares.
       playwright:
         patterns:
           - 'playwright-core'
