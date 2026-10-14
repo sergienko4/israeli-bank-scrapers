@@ -1,5 +1,5 @@
 {
-  "$comment": "Single source of the tested browser stack. CI installs camoufox.tag, and playwrightCore.testedMinor records the playwright-core minor tested with it. camoufox.linuxX64Sha256 is the SHA-256 of that release's lin.x86_64.zip asset (its GitHub digest without the sha256: prefix); the installer refuses any other bytes, so move it with the tag. The values are the tested pair: change only the component being upgraded; scripts/browser-stack/manifest.mjs validates this file.",
+  "$comment": "Single source of the tested browser stack. CI installs camoufox.tag and the browser-stack gate checks playwright-core against it. camoufox.linuxX64Sha256 is the SHA-256 of that release's lin.x86_64.zip asset (its GitHub digest without the sha256: prefix); the installer refuses any other bytes, so move it with the tag. The values are the tested pair: change only the component being upgraded, and raise testedMinor only after its gate and contract tests pass; scripts/browser-stack/manifest.mjs validates this file.",
   "camoufox": {
     "tag": "v152.0.4-beta.28",
     "linuxX64Sha256": "924f3109ccd6d47cd6a0384d67a345fadf975d48b6319f8dbbd5954c588982bd"
