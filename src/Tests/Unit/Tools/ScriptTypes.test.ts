@@ -8,8 +8,9 @@
  * declaration file it is the code itself. This test carries the rule into
  * `scripts/`: it walks the tree, extracts every JSDoc type expression (brace
  * balanced, so `{{ a: any }}` and multi-line object types are caught) and,
- * for TypeScript sources, every code line with comments and strings blanked,
- * and fails on the word `any`.
+ * for TypeScript sources, every `any` keyword in the syntax tree, so code
+ * inside a template substitution counts and strings, comments and an
+ * identifier named `any` do not; it fails on any of them.
  *
  * <p>The extractor is pinned by positive and negative controls first, and the
  * repo-wide case asserts it actually read the gate scripts, so a scanner that
@@ -18,6 +19,8 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+
+import * as ts from 'typescript';
 
 const REPO_ROOT = process.cwd();
 const SCRIPTS_DIR = path.join(REPO_ROOT, 'scripts');
@@ -33,10 +36,6 @@ const JSDOC_BLOCK = /\/\*\*[\s\S]*?\*\//gu;
 
 /** A block tag that opens a type expression, e.g. `@param {` or `@returns{`. */
 const TYPE_TAG = /@[a-z]+\s*\{/gu;
-
-/** Strings and comments in one left-to-right pass, so a `//` inside a URL stays a string. */
-const NON_CODE =
-  /'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`|\/\*[\s\S]*?\*\/|\/\/[^\n]*/gu;
 
 /** The forbidden type, as a whole word so `Many` or `anything` stay legal. */
 const ANY_TYPE = /\bany\b/u;
@@ -103,26 +102,33 @@ function jsDocTypes(source: string): ITypeExpression[] {
 }
 
 /**
- * Blank a non-code span but keep its newlines, so line numbers survive.
- * @param span - A string literal or comment.
- * @returns The span with every other character turned into a space.
+ * Every `any` keyword under a syntax node. JSDoc is skipped here; the JSDoc
+ * scan above covers it.
+ * @param node - A syntax node.
+ * @param tree - The source file holding it.
+ * @returns The `any` keyword nodes, in source order.
  */
-function blank(span: string): string {
-  return span.replace(/[^\n]/gu, ' ');
+function anyKeywords(node: ts.Node, tree: ts.SourceFile): ts.Node[] {
+  if (node.kind === ts.SyntaxKind.AnyKeyword) return [node];
+  const children = node.getChildren(tree).filter((child: ts.Node): boolean => !ts.isJSDoc(child));
+  return children.flatMap((child: ts.Node): ts.Node[] => anyKeywords(child, tree));
 }
 
 /**
  * The `any` findings in the code of a TypeScript source.
  * @param file - Repo-relative path, which also decides whether code is typed.
  * @param source - The whole file.
- * @returns One finding per code line naming `any`.
+ * @returns One finding per `any` keyword, with the line that holds it.
  */
 function codeFindings(file: string, source: string): string[] {
   if (!TS_SOURCE.test(file)) return [];
-  const lines = source.replace(NON_CODE, blank).split('\n');
-  return lines.flatMap((line: string, index: number): string[] =>
-    ANY_TYPE.test(line) ? [`${file}:${String(index + 1)} code ${line.trim()}`] : [],
-  );
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const lines = source.split('\n');
+  return anyKeywords(tree, tree).map((keyword: ts.Node): string => {
+    const start = keyword.getStart(tree);
+    const { line } = tree.getLineAndCharacterOfPosition(start);
+    return `${file}:${String(line + 1)} code ${lines[line].trim()}`;
+  });
 }
 
 /**
@@ -163,6 +169,10 @@ const FLAGGED: readonly (readonly [string, string, string])[] = [
   ['a multi-line object type', 'a.mjs', '/**\n * @param {{\n *   b: any\n * }} x - In.\n */'],
   ['a declaration-file parameter', 'a.d.mts', 'export function f(x: any): void;'],
   ['a TypeScript cast', 'a.ts', 'const v = x as any;'],
+  ['a cast inside a template substitution', 'a.ts', 'const s = `${v as any}`;'],
+  ['a cast inside a nested template', 'a.ts', 'const s = `a${`b${v as any}`}`;'],
+  ['a cast after a regex holding a quote', 'a.ts', "const r = /'/u, v = x as any, s = 'k';"],
+  ['a TypeScript JSDoc type, once', 'a.ts', '/** @type {any} */\nconst v = 1;'],
 ];
 
 /** Sources that mention the word but declare no `any` type. */
@@ -173,6 +183,9 @@ const CLEAN: readonly (readonly [string, string, string])[] = [
   ['a declaration-file comment', 'a.d.mts', '/** Never returns any. */\nexport const x: string;'],
   ['a TypeScript string', 'a.ts', "const label: string = 'any';"],
   ['untyped JavaScript code', 'a.mjs', 'const any = 1;'],
+  ['a TypeScript template text', 'a.ts', 'const s = `any ${v} any`;'],
+  ['a TypeScript comment', 'a.ts', '// any\nconst x = 1; /* any */'],
+  ['a TypeScript identifier', 'a.ts', 'const any = 1;'],
 ];
 
 describe('script type scan — extractor controls', () => {
