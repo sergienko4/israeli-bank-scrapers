@@ -54,6 +54,8 @@ const OTHER_CAMOUFOX = '1.0.0-beta.1';
 const OTHER_PLAYWRIGHT = '9.99.0';
 /** Reader failure text; must never reach a log line. */
 const SECRET_FAILURE = 'cannot read /home/someone/.cache/camoufox/version.json';
+/** The same failure thrown as a bare string, as a non-Error throw would be. */
+const NON_ERROR_FAILURE: unknown = SECRET_FAILURE;
 
 const CAMOUFOX_REMEDY =
   'Clear the Camoufox cache to refetch, or upgrade @sergienko4/israeli-bank-scrapers';
@@ -261,5 +263,18 @@ describe('checkBrowserStack', () => {
     expect(count).toBe(1);
     expect(LOG.debug).toHaveBeenCalledTimes(1);
     expect(LOG.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('[BSC-13] skips a reader that throws a non-Error with a redacted debug line', async () => {
+    const readers = makeReaders(TESTED_CAMOUFOX, OTHER_PLAYWRIGHT);
+    readers.camoufox.mockImplementation(() => {
+      throw NON_ERROR_FAILURE;
+    });
+    const count = await runCheck(readers);
+    expect(count).toBe(1);
+    const debugLine = { component: 'camoufox', error: `<msg:${String(SECRET_FAILURE.length)}>` };
+    expect(LOG.debug).toHaveBeenCalledWith(debugLine);
+    const logged = JSON.stringify([LOG.debug.mock.calls, LOG.warn.mock.calls]);
+    expect(logged).not.toContain('someone');
   });
 });
