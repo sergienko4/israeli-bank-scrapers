@@ -631,6 +631,16 @@ a few minutes more — and expect `fixed`.
    successful snapshot until a run succeeds again. Read the log first. A
    `workflow verification failed` warning means the `scorecard` job holds a
    step the scorecard.dev API does not accept (`SCP-1` should have caught it).
+8. **Retiring an `overrides` entry?** An entry is worth keeping only while it
+   changes what npm installs. Remove it, then check three things:
+   `npm install --package-lock-only` leaves `package-lock.json` byte-identical;
+   a resolve from scratch, without the lockfile, still picks a patched version
+   for every copy; and `npm audit` reports nothing for the package. If all
+   three hold, the entry goes. The `@babel/core` entry, added in #392 for
+   Dependabot alert 32, passed all three: Jest and istanbul-lib-instrument ask
+   for `^7.23.9` or later, and the single copy in the lock is 7.29.7. adm-zip
+   fails the first check: camoufox-js still declares `^0.5.16`, which excludes
+   the patched 0.6.1, so its entry stays (standing finding 2).
 
 [self-repo-blog]: https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/
 [scorecard-5191]: https://github.com/ossf/scorecard/issues/5191
