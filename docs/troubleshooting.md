@@ -94,21 +94,22 @@ A different version often works. If a scrape then breaks, this line is the
 first place to look.
 
 **`camoufox`** — on first launch camoufox-js downloads the newest stable
-(non-prerelease) Camoufox release. After that it reuses the cache for as long
-as it still supports the cached version, and a newer release alone never
-replaces it, so an old cache keeps its old build. Only a missing, empty or
-unsupported cache is fetched again. To refetch, delete the cache directory
-(see the table under
-[`Version information not found`](#version-information-not-found)) and launch
-again. That fetches the newest stable release, which is the tested one only
-while no later release exists. When it is not, upgrade this package, which
-may test a newer build.
+(non-prerelease) Camoufox release that its version supports and that has a
+build for your platform. After that it reuses the cache for as long as it
+still supports the cached version, and a newer release alone never replaces
+it, so an old cache keeps its old build. Only a missing, empty or unsupported
+cache is fetched again. To refetch, delete the cache directory (see the table
+under [`Version information not found`](#version-information-not-found)) and
+launch again. That fetches the same kind of release, which is the tested one
+only when the newest supported release is the tested tag. When it is not,
+upgrade this package, which may test a newer build.
 
 **`playwright-core`** — compared by minor; a patch release of the tested minor
 counts as tested. The version read is the copy camoufox-js loads, since that
-copy drives the browser; it can differ from the copy beside this package when
-npm installs one nested under camoufox-js. The dependency range accepts later
-minors, so a fresh install can resolve one newer than the tested minor. An
+copy drives the browser; the dependency tree can hold more than one copy, and
+the one beside this package is not necessarily it. The dependency range
+accepts later minors, so a fresh install can resolve one newer than the tested
+minor. An
 `overrides` entry can also force one. Run `npm ls playwright-core` to see
 every copy that resolves. To get back to the tested minor, pin it in your own
 `package.json`, replacing `1.63` with the `tested` value from the log:

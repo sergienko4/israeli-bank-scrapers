@@ -3,15 +3,19 @@
  * is tested on: the Camoufox tag and playwright-core minor in
  * `browser-stack.json`, read from the module generated from it.
  *
- * camoufox-js downloads the newest stable Camoufox release on first launch
- * and reuses that cache while it still supports its version, so a consumer
- * can run an older or newer build than the tested one. A mismatch may still
+ * camoufox-js downloads, on first launch, the newest stable Camoufox release
+ * it supports that has a build for the platform, and reuses that cache while
+ * it still supports its version, so a consumer can run an older or newer
+ * build than the tested one. A mismatch may still
  * work, so it never fails a launch; it is logged once per process so the
  * cause is on record if a scrape then breaks.
  */
 
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import * as path from 'node:path';
 
+import ScraperError from '../../../Base/ScraperError.js';
 import { getDebug } from '../../Logging/Debug.js';
 import type { Brand } from '../../Types/Brand.js';
 import { redactErrorMessage } from '../../Types/PiiRedactor.js';
@@ -47,8 +51,11 @@ interface IComponentRule {
   readonly remedy: string;
 }
 
-/** camoufox-js's manifest, which anchors resolution at its package root. */
-const CAMOUFOX_MANIFEST = '@hieutran094/camoufox-js/package.json';
+/** The package that imports playwright-core and launches the browser. */
+const CAMOUFOX_PACKAGE = '@hieutran094/camoufox-js';
+
+/** The package whose version the playwright reader reports. */
+const PLAYWRIGHT_PACKAGE = 'playwright-core';
 
 /** Every reader, in report order. */
 const COMPONENT_KEYS = Object.freeze(['camoufox', 'playwright'] as const);
@@ -108,30 +115,49 @@ async function readCamoufox(): Promise<string> {
 }
 
 /**
+ * The real path of the manifest of the `packageName` copy Node loads from
+ * `from`. The package directory is looked up along Node's own search paths
+ * rather than resolved, since an `exports` map without `./package.json`
+ * would make resolving the manifest fail. The real path keeps symlinked
+ * layouts, such as pnpm's, resolving from where the package really lives.
+ *
+ * @param from - Module path or file URL the lookup starts from.
+ * @param packageName - Package to find.
+ * @returns Its `package.json` path; throws when no search path has it.
+ */
+function findManifest(from: string, packageName: string): string {
+  const searchDirs = createRequire(from).resolve.paths(packageName) ?? [];
+  const manifests = searchDirs.map((dir): string => path.join(dir, packageName, 'package.json'));
+  const found = manifests.find((manifest): boolean => existsSync(manifest));
+  if (found === undefined) throw new ScraperError(`${packageName} is not installed`);
+  return realpathSync(found);
+}
+
+/**
  * Version of the playwright-core that drives the browser. camoufox-js takes
- * playwright-core as a peer and imports it from its own location, which can
- * be a different copy from the one beside this package, so the read resolves
- * camoufox-js's package root first and playwright-core from there. Not a
+ * playwright-core as a peer and imports it from its own location, and the
+ * dependency tree can hold more than one copy, so the read finds
+ * camoufox-js first and playwright-core from there. Read as a file, not a
  * JSON import: the build's Rollup tree-shake pass rewrites import attributes
  * to the `assert` keyword, which Node 22 rejects, so that read would fail in
  * the published package alone.
  *
- * @param anchor - Module path or file URL to resolve camoufox-js from.
+ * @param anchor - Module path or file URL to find camoufox-js from.
  * @returns Its `package.json` version.
  */
 function readPlaywrightManifest(anchor: string): string {
-  const requireFromAnchor = createRequire(anchor);
-  const camoufoxRoot = requireFromAnchor.resolve(CAMOUFOX_MANIFEST);
-  const requireFromCamoufox = createRequire(camoufoxRoot);
-  const manifest = requireFromCamoufox('playwright-core/package.json') as IPackageManifest;
+  const camoufoxManifest = findManifest(anchor, CAMOUFOX_PACKAGE);
+  const playwrightManifest = findManifest(camoufoxManifest, PLAYWRIGHT_PACKAGE);
+  const text = readFileSync(playwrightManifest, 'utf8');
+  const manifest = JSON.parse(text) as IPackageManifest;
   return manifest.version;
 }
 
 /**
- * Version of the playwright-core camoufox-js resolves from `anchor`, with
- * any throw turned into a rejection.
+ * Version of the playwright-core camoufox-js loads when found from `anchor`,
+ * with any throw turned into a rejection.
  *
- * @param anchor - Module path or file URL to resolve camoufox-js from.
+ * @param anchor - Module path or file URL to find camoufox-js from.
  * @returns Its `package.json` version.
  */
 export function readPlaywrightVersion(anchor: string): Promise<string> {

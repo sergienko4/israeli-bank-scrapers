@@ -48,14 +48,18 @@ versions with the tested pair:
 | `playwright-core` | the `package.json` of the copy camoufox-js resolves | Its `major.minor` equals the tested minor |
 
 camoufox-js takes `playwright-core` as a peer and imports it from its own
-location, and that copy drives the browser. When npm cannot hoist one copy for
-both packages, camoufox-js gets a nested one that can differ from the copy
-beside this package. So `readPlaywrightVersion(anchor)` resolves
-`@hieutran094/camoufox-js/package.json` from the anchor first, then
-`playwright-core/package.json` from camoufox-js's package root. The default
-reader anchors at its own module; tests anchor at temp trees with nested and
-hoisted copies. The anchor is the manifest, not the bare package name, because
-Jest's config maps that name to a mock.
+location, and that copy drives the browser. The dependency tree can hold more
+than one copy, so the copy beside this package is not necessarily the one
+camoufox-js loads. `readPlaywrightVersion(anchor)` therefore finds
+camoufox-js from the anchor first, then `playwright-core` from camoufox-js's
+real path. Each package directory is looked up along Node's own search paths
+(`require.resolve.paths`) rather than resolved: an `exports` map that hides
+`./package.json`, which a later camoufox-js release may add, would make
+resolving the manifest fail, and Jest's config maps camoufox-js's bare name to
+a mock. The real path keeps symlinked layouts, such as pnpm's, reading the
+copy beside camoufox-js's real directory. The default reader anchors at its
+own module; tests anchor at temp trees with nested, hoisted, conflicting,
+`exports`-restricted and symlinked copies.
 
 Each component that differs is logged once at `warn` level, with
 `{ component, installed, tested, remedy }`. A different version may still
