@@ -89,7 +89,7 @@ download_asset() {
   if [ -n "${GH_TOKEN:-}" ]; then
     gh release download "${PINNED_TAG}" --repo daijro/camoufox --pattern "${ASSET}" --dir "$1" --clobber
   else
-    curl -fsSL --retry 3 -o "$1/${ASSET}" "https://github.com/daijro/camoufox/releases/download/${PINNED_TAG}/${ASSET}"
+    curl -fsSL --retry 3 --connect-timeout 30 --max-time 1800 -o "$1/${ASSET}" "https://github.com/daijro/camoufox/releases/download/${PINNED_TAG}/${ASSET}"
   fi
 }
 

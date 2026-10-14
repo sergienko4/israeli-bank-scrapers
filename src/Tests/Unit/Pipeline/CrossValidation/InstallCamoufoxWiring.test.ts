@@ -13,7 +13,9 @@
  * Camoufox install, tokenless, so it needs no GitHub CLI and must not ship
  * one. No consumer may spell the pinned tag or digest: a literal there
  * would survive a manifest bump, so a static cache key would keep restoring
- * the old asset, or Docker would install a different one from CI.
+ * the old asset, or Docker would install a different one from CI. Every curl
+ * in `install.sh` and the Docker mirror bounds its connect and total time,
+ * so a stalled download fails rather than hangs the job or the build.
  */
 
 import { readFileSync } from 'node:fs';
@@ -86,6 +88,11 @@ const DOCKER_INSTALL: readonly string[] = [
 
 /** Every file that consumes the pinned tag without owning it. */
 const CONSUMERS: readonly string[] = [ACTION_REL, SCRIPT_REL, DOCKERFILE_REL];
+
+/** A curl call, from `curl` to the end of its pipeline segment. */
+const CURL_CALL_RE = /\bcurl\s+-[^|;&\n]*/gu;
+/** The options that bound how long a curl download may hang. */
+const CURL_TIME_BOUNDS: readonly string[] = ['--connect-timeout ', '--max-time '];
 
 /** One step of the composite. */
 interface IStep {
@@ -193,6 +200,35 @@ function finalDockerStage(): readonly string[] {
   return instructions.slice(first);
 }
 
+/**
+ * The code lines of `install.sh`: comments dropped.
+ *
+ * @returns One trimmed line per entry.
+ */
+function scriptCode(): readonly string[] {
+  const lines = readRepoFile(SCRIPT_REL).split('\n');
+  const trimmed = lines.map(line => line.trim());
+  return trimmed.filter(line => !line.startsWith('#'));
+}
+
+/** How to read the code of each file that downloads with curl. */
+const DOWNLOADER_CODE: Readonly<Record<string, () => readonly string[]>> = {
+  [SCRIPT_REL]: scriptCode,
+  [DOCKERFILE_REL]: dockerInstructions,
+};
+const DOWNLOADERS = Object.keys(DOWNLOADER_CODE);
+
+/**
+ * Every curl call in a file's code.
+ *
+ * @param rel - A key of `DOWNLOADER_CODE`.
+ * @returns Each call, up to the end of its pipeline segment.
+ */
+function curlCalls(rel: string): readonly string[] {
+  const code = DOWNLOADER_CODE[rel]();
+  return code.flatMap(line => line.match(CURL_CALL_RE) ?? []);
+}
+
 /** The `camoufox` block `browser-stack.json` pins. */
 interface IPinnedCamoufox {
   readonly tag: string;
@@ -257,6 +293,13 @@ describe('install-camoufox wiring', () => {
   it('[ICW-7] the Docker image installs tokenless and carries no GitHub CLI', () => {
     const ghLines = finalDockerStage().filter(line => GH_PATH_RE.test(line));
     expect(ghLines).toEqual([]);
+  });
+
+  it.each(DOWNLOADERS)('[ICW-9] every curl in %s bounds its time', rel => {
+    const calls = curlCalls(rel);
+    const unbounded = calls.filter(call => !CURL_TIME_BOUNDS.every(flag => call.includes(flag)));
+    expect(calls.length).toBeGreaterThan(0);
+    expect(unbounded).toEqual([]);
   });
 
   it.each(CONSUMERS)('[ICW-6] %s never spells the pinned tag or digest', rel => {
