@@ -24,7 +24,8 @@ import { CAMOUFOX_TAG, issueLine, loadManifest } from './manifest.mjs';
  *
  * @typedef {object} Manifest
  * @property {string} $comment - Free-text note.
- * @property {{ tag: string }} camoufox - Camoufox release tag the stack is tested with.
+ * @property {{ tag: string, linuxX64Sha256: string }} camoufox - Camoufox release tag the
+ *   stack is tested with, and the SHA-256 of its Linux x64 asset.
  * @property {{ testedMinor: string }} playwrightCore - playwright-core minor it is tested with.
  * @property {AcceptedDelta[]} acceptedDeltas - Reviewed deltas.
  */

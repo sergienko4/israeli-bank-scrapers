@@ -30,6 +30,8 @@ const ENTRY = join(THIS_DIR, '../../../../scripts/check-browser-stack.mjs');
 
 /** A well-formed tag that is deliberately NOT the pinned one. */
 const TAG = 'v100.0.0-beta.1';
+/** A well-formed asset digest; the gate validates its shape, never its bytes. */
+const ASSET_SHA256 = 'f'.repeat(64);
 const RAW = 'https://raw.githubusercontent.com';
 const JUGGLER = 'juggler/protocol/Protocol.js';
 const CLIENT_URL = `${RAW}/microsoft/playwright/v1.64.0/browser_patches/firefox/${JUGGLER}`;
@@ -96,7 +98,7 @@ interface IDeltaId {
  */
 function manifestOf(accepted: readonly IDeltaId[] = [DELTA], testedMinor = '1.64'): object {
   const acceptedDeltas = accepted.map((d): object => ({ ...d, reason: REASON }));
-  const camoufox = { tag: TAG };
+  const camoufox = { tag: TAG, linuxX64Sha256: ASSET_SHA256 };
   return { $comment: 'test', camoufox, playwrightCore: { testedMinor }, acceptedDeltas };
 }
 
