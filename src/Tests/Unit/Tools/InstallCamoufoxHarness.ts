@@ -4,32 +4,38 @@
  * what it left behind.
  *
  * <p>Each run gets a throwaway tree that mirrors the repo layout (script +
- * validator + its own `browser-stack.json`), with `npx`, `gh`, `curl`,
- * `unzip`, `mv` and `node` replaced by stubs on `PATH`. A stub fakes only the
- * file the real command would have produced (`mv` and `node` run the real
- * one), and all but those two record their argv, so no run touches the
- * network and every download decision is visible in the call log.
+ * validator + its own `browser-stack.json`), with `npx`, `gh`, `curl` and
+ * `unzip` replaced by stubs on `PATH`. A stub records its argv and fakes only
+ * the file the real command would have produced, so no run touches the
+ * network and every download decision is visible in the call log. The tree
+ * is snapshotted before and after the run, ctime included, so a case can see
+ * every entry the run changed, removed or added, even one it moved away and
+ * put back.
  */
 
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
+  type BigIntStats,
   chmodSync,
   closeSync,
+  constants,
   copyFileSync,
   existsSync,
   fstatSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   openSync,
   readdirSync,
   readFileSync,
+  readlinkSync,
   rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { delimiter, dirname, join } from 'node:path';
+import { delimiter, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
@@ -40,6 +46,8 @@ const REPO_ROOT = join(THIS_DIR, '../../../../');
 const SCRIPT_REL = '.github/actions/install-camoufox/install.sh';
 const VALIDATOR_REL = 'scripts/browser-stack/manifest.mjs';
 const CACHE_REL = 'home/.cache/camoufox';
+/** Tree-relative `TMPDIR`. */
+const TEMP_REL = 'tmp';
 
 /** A well-formed tag that is deliberately NOT the pinned one. */
 const SAMPLE_TAG = 'v100.0.0-beta.1';
@@ -55,6 +63,17 @@ const PREVIOUS_BINARY = 'ELF from an earlier run';
 /** Tree-relative `CAMOUFOX_ASSET_DIR` and `GITHUB_OUTPUT`, as the action sets. */
 const ASSET_DIR_REL = 'assets';
 const GITHUB_OUTPUT_REL = 'github-output';
+/** Tree-relative kept asset and stub call log. */
+const KEPT_REL = join(ASSET_DIR_REL, SAMPLE_ASSET);
+const STUB_LOG_REL = 'stub.log';
+/** Entries a run may add besides the install dir and its parents. */
+const OWN_OUTPUTS: readonly string[] = [ASSET_DIR_REL, KEPT_REL, GITHUB_OUTPUT_REL, STUB_LOG_REL];
+/** A signature's ctime suffix, ` @<ns>`. */
+const CTIME_SUFFIX = / @\d+$/;
+/** Long enough for the clock to pass the coarse tick a seeded ctime fell in. */
+const SETTLE_MS = 50;
+const SETTLE_BUFFER = new SharedArrayBuffer(4);
+const SETTLE_CELL = new Int32Array(SETTLE_BUFFER);
 /** What every planted file holds. */
 const FOREIGN_TEXT = 'not camoufox';
 
@@ -79,21 +98,16 @@ const PLANT = `mkdir -p "$(dirname "$PLANT_FILE")"; printf '${FOREIGN_TEXT}' > "
 const PLANT_AT_DOWNLOAD = `[ "$MID_RUN" != plant-at-download ] || { ${PLANT}; }`;
 
 /**
- * Stub bodies. Each but `mv` and `node` appends `<name> <argv>` to `$STUB_LOG`, then
- * creates only the file the real command would have produced. The `npx` stub
- * is a tripwire: it only logs and fails, so a `camoufox-js fetch` shows in
- * the log. `gh` writes the file its `--pattern` names, so a glob pattern
- * would not produce the asset the script unzips. Both downloaders then plant
- * when `MID_RUN` is `plant-at-download`: a directory changing while the
- * download runs. `unzip` fails on a missing archive and puts at
- * `camoufox-bin` what `UNZIP_BINARY` names: a `file` holding `ELF` plus the
- * archive's bytes (so the asset that was extracted shows in the binary), a
- * `directory`, or `nothing`, then exits with `UNZIP_EXIT`. `mv` runs the real
- * one; when it moves a directory (the old install being set aside) it may
- * plant just before, and just after it may plant, remove the staging dir
- * beside it, or send the script SIGTERM, as `MID_RUN` says. `node` runs the
- * real one (`REAL_NODE`) without logging, and sends the script SIGTERM once a
- * rename of the staging dir succeeds when `MID_RUN` is `terminate-at-commit`.
+ * Stub bodies. Each appends `<name> <argv>` to `$STUB_LOG`, then creates
+ * only the file the real command would have produced. The `npx` stub is a
+ * tripwire: it only logs and fails, so a `camoufox-js fetch` shows in the
+ * log. `gh` writes the file its `--pattern` names, so a glob pattern would
+ * not produce the asset the script unzips. Both downloaders then plant when
+ * `MID_RUN` is `plant-at-download`: a directory changing while the download
+ * runs. `unzip` fails on a missing archive and puts at `camoufox-bin` what
+ * `UNZIP_BINARY` names: a `file` holding `ELF` plus the archive's bytes (so
+ * the asset that was extracted shows in the binary), a `directory`, or
+ * `nothing`, then exits with `UNZIP_EXIT`.
  */
 const STUBS: readonly (readonly [string, string])[] = [
   ['npx', 'echo "npx $*" >> "$STUB_LOG"; exit 1'],
@@ -114,24 +128,9 @@ const STUBS: readonly (readonly [string, string])[] = [
       `case "$UNZIP_BINARY" in file) printf '${INSTALLED_BINARY}%s' "$(cat "$a")" > "$d/camoufox-bin" ;; ` +
       'directory) mkdir -p "$d/camoufox-bin/lib" ;; esac; exit "$UNZIP_EXIT"',
   ],
-  [
-    'mv',
-    'h=; d=; for a; do s="$d"; d="$a"; done; [ -d "$s" ] && h="$MID_RUN"; ' +
-      `[ "$h" != plant-before-set-aside ] || { ${PLANT}; }; ` +
-      `command -p mv "$@" || exit; case "$h" in plant-at-set-aside) ${PLANT} ;; ` +
-      'drop-stage) rm -rf "$(dirname "$s")"/.camoufox-stage.* ;; terminate) kill -TERM "$PPID" ;; esac',
-  ],
-  [
-    'node',
-    '"$REAL_NODE" "$@" || exit; case "$MID_RUN:$2:$3" in ' +
-      'terminate-at-commit:*renameSync*:*/.camoufox-stage.*) kill -TERM "$PPID" ;; esac',
-  ],
 ];
 
-/** State of a seeded cache's `camoufox-bin`. */
-type CachedBinary = 'ok' | 'empty' | 'not-executable' | 'missing' | 'directory';
-
-/** What sits at `camoufox-bin`, in a seeded cache or an extracted archive. */
+/** What sits at `camoufox-bin` in an extracted archive. */
 type BinaryEntry = 'file' | 'directory' | 'nothing';
 
 /**
@@ -143,20 +142,10 @@ type BinaryEntry = 'file' | 'directory' | 'nothing';
 type AssetCache = 'off' | 'miss' | 'pinned' | 'swapped' | 'directory' | 'linked';
 
 /**
- * What happens part-way through a run: nothing; `FOREIGN_TEXT` planted at
- * the scenario's `plant` while the asset downloads, or just before or just
- * after the old install is set aside; just after it is set aside, the
- * staging dir vanishing or the script getting SIGTERM; or SIGTERM just after
- * the staging dir is renamed into place.
+ * What happens part-way through a run: nothing, or `FOREIGN_TEXT` planted at
+ * the scenario's `plant` while the asset downloads.
  */
-type MidRun =
-  | 'none'
-  | 'plant-at-download'
-  | 'plant-before-set-aside'
-  | 'plant-at-set-aside'
-  | 'drop-stage'
-  | 'terminate'
-  | 'terminate-at-commit';
+type MidRun = 'none' | 'plant-at-download';
 
 /**
  * Write a `camoufox-bin` file.
@@ -184,18 +173,6 @@ function makeNonEmptyDirectory(path: string): string {
   mkdirSync(inner, { recursive: true, mode: 0o755 });
   return path;
 }
-
-/** How each state is seeded: the entry, a file's contents, a file's mode. */
-const BINARY_SEEDS: Readonly<Record<CachedBinary, readonly [BinaryEntry, string, number]>> = {
-  ok: ['file', PREVIOUS_BINARY, 0o755],
-  empty: ['file', '', 0o755],
-  'not-executable': ['file', PREVIOUS_BINARY, 0o644],
-  missing: ['nothing', '', 0],
-  directory: ['directory', '', 0],
-};
-
-/** Every seeded-binary state; none may skip the install. */
-const CACHED_BINARIES: readonly CachedBinary[] = Object.keys(BINARY_SEEDS) as CachedBinary[];
 
 /**
  * Keep an asset holding the given bytes.
@@ -251,33 +228,44 @@ const KEPT_ASSETS: Readonly<Partial<Record<AssetCache, (asset: string) => string
 };
 
 /**
- * One scenario: the manifest tag and digest, the token, the cache, what the
+ * One scenario: the manifest tag and digest, the token, a previous install
+ * (its `version.json`, beside a `camoufox-bin`; none when empty), what the
  * release archive holds and how `unzip` exits, any install-dir override and
  * whether it is passed absolute or relative to the run's working directory
- * (the tree root), a tree-relative `slashedLinkTo` that makes the install
- * dir a symlink to it (seeded there) passed with a trailing slash, the asset
- * dir's state, a tree-relative `foreign` entry planted before the run (a
- * file holding `FOREIGN_TEXT`, or an empty directory when it ends in `/`),
- * what happens part-way through, and the tree-relative file it plants.
+ * (the tree root), a tree-relative `linkTo` that makes the install dir an
+ * absolute or relative symlink to it (any previous install is seeded there;
+ * with none the link dangles) passed with a trailing slash, the asset dir's
+ * state, a tree-relative `foreign` entry planted before the run (a file
+ * holding `FOREIGN_TEXT`, or an empty directory when it ends in `/`), what
+ * happens part-way through, and the tree-relative file it plants.
  */
 interface IScenario {
   readonly tag: string;
   readonly sha256: string;
   readonly token: string;
   readonly cachedVersionJson: string;
-  readonly cachedBinary: CachedBinary;
   readonly archiveBinary: BinaryEntry;
   readonly unzipExit: number;
   readonly installDir: string;
   readonly installDirAs: 'absolute' | 'relative';
-  readonly slashedLinkTo: string;
+  readonly linkTo: string;
+  readonly linkAs: 'absolute' | 'relative';
   readonly assetCache: AssetCache;
   readonly foreign: string;
   readonly midRun: MidRun;
   readonly plant: string;
 }
 
-/** What one run of the script did. */
+/**
+ * What one run of the script did. `touched` lists, as `changed <path>` or
+ * `added <path>`, every entry the run had no business changing: any entry
+ * that existed before the run and is gone or differs after it, in type,
+ * mode, bytes or ctime (so a move put back shows too), except a dir the run
+ * writes into changing only its ctime and a regular file at the kept
+ * asset's name that failed the pin being replaced by a file; and any new
+ * entry outside the install dir it created, that dir's parents and its own
+ * outputs.
+ */
 interface IInstallRun {
   readonly status: number;
   readonly output: string;
@@ -286,11 +274,10 @@ interface IInstallRun {
   readonly binaryText: string;
   readonly keptSha256: string;
   readonly ghOutput: string;
-  readonly tempLeft: number;
-  readonly debris: number;
-  readonly setAside: string;
+  readonly installDirExists: boolean;
   readonly homeCacheExists: boolean;
-  readonly foreignText: string;
+  readonly plantedText: string;
+  readonly touched: readonly string[];
 }
 
 /** A cold cache, no token, no asset dir: the baseline (Docker) scenario. */
@@ -299,12 +286,12 @@ const COLD: IScenario = {
   sha256: STUB_ASSET_SHA256,
   token: '',
   cachedVersionJson: '',
-  cachedBinary: 'ok',
   archiveBinary: 'file',
   unzipExit: 0,
   installDir: '',
   installDirAs: 'absolute',
-  slashedLinkTo: '',
+  linkTo: '',
+  linkAs: 'absolute',
   assetCache: 'off',
   foreign: '',
   midRun: 'none',
@@ -401,20 +388,18 @@ function cacheDirOf(root: string, scenario: IScenario): string {
 }
 
 /**
- * Seed the cache as a previous run (or the CI cache restore) would leave it.
+ * Seed a previous install: the scenario's `version.json` and a binary.
  *
- * @param cache - Cache directory.
- * @param scenario - Supplies `version.json` and the binary's state.
- * @returns The cache directory.
+ * @param cache - Install directory.
+ * @param scenario - Supplies `version.json`.
+ * @returns The install directory.
  */
 function seedCache(cache: string, scenario: IScenario): string {
   mkdirSync(cache, { recursive: true });
   const versionFile = join(cache, 'version.json');
   writeFileSync(versionFile, scenario.cachedVersionJson);
-  const [entry, content, mode] = BINARY_SEEDS[scenario.cachedBinary];
   const binary = join(cache, 'camoufox-bin');
-  if (entry === 'file') writeBinary(binary, content, mode);
-  if (entry === 'directory') makeNonEmptyDirectory(binary);
+  writeBinary(binary, PREVIOUS_BINARY, 0o755);
   return cache;
 }
 
@@ -435,8 +420,24 @@ function plantForeign(root: string, foreign: string): string {
 }
 
 /**
+ * Make the install dir a symlink to the seeded target.
+ *
+ * @param link - The install dir.
+ * @param target - The link's target.
+ * @param linkAs - Whether the link holds an absolute or a relative path.
+ * @returns The install dir.
+ */
+function linkInstallDir(link: string, target: string, linkAs: IScenario['linkAs']): string {
+  const parent = dirname(link);
+  mkdirSync(parent, { recursive: true });
+  const value = linkAs === 'relative' ? relative(parent, target) : target;
+  symlinkSync(value, link);
+  return link;
+}
+
+/**
  * Seed the install the scenario starts with: in the install dir, or, with
- * `slashedLinkTo`, in that target, the install dir being a symlink to it.
+ * `linkTo`, in that target, the install dir being a symlink to it.
  *
  * @param root - Tree root.
  * @param scenario - The scenario.
@@ -444,13 +445,10 @@ function plantForeign(root: string, foreign: string): string {
  */
 function seedInstall(root: string, scenario: IScenario): string {
   const cache = cacheDirOf(root, scenario);
-  const isLinked = scenario.slashedLinkTo !== '';
-  const seeded = isLinked ? join(root, scenario.slashedLinkTo) : cache;
+  const isLinked = scenario.linkTo !== '';
+  const seeded = isLinked ? join(root, scenario.linkTo) : cache;
   if (scenario.cachedVersionJson !== '') seedCache(seeded, scenario);
-  if (!isLinked) return cache;
-  const parent = dirname(cache);
-  mkdirSync(parent, { recursive: true });
-  symlinkSync(seeded, cache);
+  if (isLinked) linkInstallDir(cache, seeded, scenario.linkAs);
   return cache;
 }
 
@@ -480,7 +478,7 @@ function seedAssetCache(root: string, assetCache: AssetCache): string {
  * @returns The scenario's install directory.
  */
 function prepareState(root: string, scenario: IScenario): string {
-  const temp = join(root, 'tmp');
+  const temp = join(root, TEMP_REL);
   mkdirSync(temp);
   const home = join(root, 'home');
   mkdirSync(home);
@@ -521,7 +519,7 @@ function installDirEnv(root: string, scenario: IScenario): NodeJS.ProcessEnv {
   if (scenario.installDir === '') return {};
   const isRelative = scenario.installDirAs === 'relative';
   const value = isRelative ? scenario.installDir : cacheDirOf(root, scenario);
-  const slash = scenario.slashedLinkTo === '' ? '' : '/';
+  const slash = scenario.linkTo === '' ? '' : '/';
   return { CAMOUFOX_INSTALL_DIR: `${value}${slash}` };
 }
 
@@ -548,12 +546,12 @@ function assetCacheEnv(root: string, scenario: IScenario): NodeJS.ProcessEnv {
  * @returns Stub environment variables.
  */
 function stubEnv(root: string, scenario: IScenario): NodeJS.ProcessEnv {
-  const stubLog = join(root, 'stub.log');
+  const stubLog = join(root, STUB_LOG_REL);
   const unzipExit = String(scenario.unzipExit);
   const plantFile = scenario.plant === '' ? '' : join(root, scenario.plant);
   const unzip = { UNZIP_BINARY: scenario.archiveBinary, UNZIP_EXIT: unzipExit };
   const midRun = { MID_RUN: scenario.midRun, PLANT_FILE: plantFile };
-  return { ...unzip, ...midRun, STUB_LOG: stubLog, REAL_NODE: process.execPath };
+  return { ...unzip, ...midRun, STUB_LOG: stubLog };
 }
 
 /**
@@ -569,7 +567,7 @@ function scenarioEnv(root: string, scenario: IScenario): NodeJS.ProcessEnv {
   const bin = join(root, 'bin');
   const path = `${bin}${delimiter}${BASE_ENV.PATH ?? ''}`;
   const home = join(root, 'home');
-  const temp = join(root, 'tmp');
+  const temp = join(root, TEMP_REL);
   const token = scenario.token === '' ? {} : { GH_TOKEN: scenario.token };
   const installDir = installDirEnv(root, scenario);
   const assets = assetCacheEnv(root, scenario);
@@ -634,19 +632,15 @@ function readIfPresent(file: string): string {
 }
 
 /**
- * The text of the scenario's foreign file after the run: the one planted
- * before it, else (none, or only a directory) the one planted part-way
- * through.
+ * The text of the file planted part-way through the run, after it.
  *
  * @param root - Tree root.
- * @param scenario - The scenario; an empty path or a trailing `/` is no file.
+ * @param scenario - The scenario; an empty `plant` is no file.
  * @returns Its contents, or `''` when there is no such file.
  */
-function foreignTextOf(root: string, scenario: IScenario): string {
-  const isPlantedBefore = scenario.foreign !== '' && !scenario.foreign.endsWith('/');
-  const foreign = isPlantedBefore ? scenario.foreign : scenario.plant;
-  if (foreign === '' || foreign.endsWith('/')) return '';
-  const file = join(root, foreign);
+function plantedTextOf(root: string, scenario: IScenario): string {
+  if (scenario.plant === '') return '';
+  const file = join(root, scenario.plant);
   return readIfPresent(file);
 }
 
@@ -657,7 +651,7 @@ function foreignTextOf(root: string, scenario: IScenario): string {
  * @returns One `<name> <argv>` line per call.
  */
 function stubCalls(root: string): readonly string[] {
-  const logFile = join(root, 'stub.log');
+  const logFile = join(root, STUB_LOG_REL);
   const log = readIfPresent(logFile);
   return log.split('\n').filter(line => line !== '');
 }
@@ -669,7 +663,7 @@ function stubCalls(root: string): readonly string[] {
  * @returns Its hex digest, `''` when nothing was kept, or `not a file`.
  */
 function keptSha256Of(root: string): string {
-  const file = join(root, ASSET_DIR_REL, SAMPLE_ASSET);
+  const file = join(root, KEPT_REL);
   const read = readRegularFile(file);
   if (read === 'absent') return '';
   if (read === 'not a file') return read;
@@ -677,28 +671,223 @@ function keptSha256Of(root: string): string {
 }
 
 /**
- * What a run left beside the install dir: how many `.camoufox-*` staging or
- * set-aside dirs, and the `version.json` of any previous install set aside.
+ * Open an entry itself, never a symlink's target.
  *
- * @param installDir - The scenario's install directory.
- * @returns The `.camoufox-*` count and the set-aside install's version.
+ * @param path - Entry path.
+ * @returns The descriptor, or `symlink` when the entry is one.
  */
-function besideInstall(installDir: string): Pick<IInstallRun, 'debris' | 'setAside'> {
-  const parent = dirname(installDir);
-  const entries = existsSync(parent) ? readdirSync(parent) : [];
-  const debris = entries.filter(name => name.startsWith('.camoufox-'));
-  const held = debris.filter(name => name.startsWith('.camoufox-old.'));
-  const versions = held.map(name => {
-    const file = join(parent, name, 'install', 'version.json');
-    return readIfPresent(file);
-  });
-  return { debris: debris.length, setAside: versions.join('') };
+function openNoFollow(path: string): number | 'symlink' {
+  try {
+    return openSync(path, constants.O_NOFOLLOW);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ELOOP') return 'symlink';
+    throw error;
+  }
 }
 
 /**
- * What a finished run left in and beside the install dir: `version.json`,
- * the binary's text, what sits beside it, and whether the default cache
- * exists.
+ * An entry's ctime as a signature suffix: a rename, mode change or write
+ * moves it, even one undone before the snapshot.
+ *
+ * @param stat - The entry's stat, with nanosecond times.
+ * @returns ` @<ns>`.
+ */
+function ctimeOf(stat: BigIntStats): string {
+  return ` @${String(stat.ctimeNs)}`;
+}
+
+/**
+ * Describe what a descriptor holds: a directory and its mode, or a file,
+ * its mode and the SHA-256 of its bytes; each with its ctime.
+ *
+ * @param fd - Open descriptor.
+ * @returns The description.
+ */
+function describeOpen(fd: number): string {
+  const stat = fstatSync(fd, { bigint: true });
+  const mode = (stat.mode % 0o10000n).toString(8);
+  const ctime = ctimeOf(stat);
+  if (stat.isDirectory()) return `dir ${mode}${ctime}`;
+  if (!stat.isFile()) return `other ${mode}${ctime}`;
+  const bytes = readFileSync(fd);
+  const digest = createHash('sha256').update(bytes).digest('hex');
+  return `file ${mode} ${digest}${ctime}`;
+}
+
+/**
+ * Describe one entry: a symlink by its target and ctime, anything else
+ * through one descriptor, so the type check and the read see the same entry.
+ *
+ * @param path - Entry path.
+ * @returns The description.
+ */
+function signatureOf(path: string): string {
+  const fd = openNoFollow(path);
+  if (fd === 'symlink') {
+    const stat = lstatSync(path, { bigint: true });
+    return `link ${readlinkSync(path)}${ctimeOf(stat)}`;
+  }
+  try {
+    return describeOpen(fd);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/**
+ * Describe every entry under a tree-relative path, recursing into
+ * directories but not through symlinks.
+ *
+ * @param root - Tree root.
+ * @param rel - Tree-relative path (`''` for the root).
+ * @param out - Collects path to description.
+ * @returns The collected descriptions.
+ */
+function snapshotInto(root: string, rel: string, out: Map<string, string>): Map<string, string> {
+  const path = join(root, rel);
+  const signature = signatureOf(path);
+  out.set(rel, signature);
+  if (!signature.startsWith('dir ')) return out;
+  const children = readdirSync(path).map(name => join(rel, name));
+  for (const child of children) snapshotInto(root, child, out);
+  return out;
+}
+
+/**
+ * Describe every entry in a tree.
+ *
+ * @param root - Tree root.
+ * @returns Tree-relative path to description.
+ */
+function snapshotTree(root: string): ReadonlyMap<string, string> {
+  const out = new Map<string, string>();
+  return snapshotInto(root, '', out);
+}
+
+/** What a run is held to: the tree after it, the dirs it writes into, the pin. */
+interface IOracle {
+  readonly after: ReadonlyMap<string, string>;
+  readonly writtenDirs: ReadonlySet<string>;
+  readonly pinnedSha256: string;
+}
+
+/**
+ * A signature without its ctime.
+ *
+ * @param signature - Entry description.
+ * @returns The description minus ` @<ns>`.
+ */
+function withoutCtime(signature: string): string {
+  return signature.replace(CTIME_SUFFIX, '');
+}
+
+/**
+ * The tree-relative install dir a scenario targets.
+ *
+ * @param scenario - The scenario.
+ * @returns Its install dir, or the per-user cache.
+ */
+function installRelOf(scenario: IScenario): string {
+  return scenario.installDir === '' ? CACHE_REL : scenario.installDir;
+}
+
+/**
+ * Dirs a run adds entries to or removes them from, so their ctime alone may
+ * change: the tree root, `TMPDIR`, the asset dir and the install dir's parents.
+ *
+ * @param scenario - The scenario.
+ * @returns Their tree-relative paths.
+ */
+function writtenDirsOf(scenario: IScenario): ReadonlySet<string> {
+  const installRel = installRelOf(scenario);
+  const parts = installRel.split('/');
+  const depths = parts.slice(1).map((_, index) => index + 1);
+  const parents = depths.map(depth => parts.slice(0, depth).join('/'));
+  return new Set(['', TEMP_REL, ASSET_DIR_REL, ...parents]);
+}
+
+/**
+ * Whether a change is the one rewrite the contract allows: a regular file at
+ * the kept asset's name that failed the pin, replaced by a regular file.
+ *
+ * @param entry - Tree-relative path and its description before the run.
+ * @param now - Its description after the run.
+ * @param pinnedSha256 - The digest the manifest pins.
+ * @returns True for that rewrite.
+ */
+function isFailedAssetReplaced(
+  entry: readonly [string, string],
+  now: string,
+  pinnedSha256: string,
+): boolean {
+  const [rel, before] = entry;
+  const [kind, , digest] = before.split(' ');
+  const isFailedFile = kind === 'file' && digest !== pinnedSha256;
+  return rel === KEPT_REL && isFailedFile && now.startsWith('file ');
+}
+
+/**
+ * Whether a run broke a pre-existing entry: changed, moved or removed it.
+ *
+ * @param entry - Tree-relative path and its description before the run.
+ * @param oracle - What the run is held to.
+ * @returns True when the entry may not differ but does.
+ */
+function isBroken(entry: readonly [string, string], oracle: IOracle): boolean {
+  const [rel, before] = entry;
+  const now = oracle.after.get(rel) ?? 'absent';
+  if (now === before) return false;
+  const isWrittenDir = oracle.writtenDirs.has(rel) && before.startsWith('dir ');
+  if (isWrittenDir && withoutCtime(now) === withoutCtime(before)) return false;
+  return !isFailedAssetReplaced(entry, now, oracle.pinnedSha256);
+}
+
+/**
+ * Whether a run may add an entry: the install dir it created and anything
+ * in it, a parent it made for that dir, or one of its own outputs.
+ *
+ * @param rel - Tree-relative path of the new entry.
+ * @param installRel - Tree-relative install dir.
+ * @param before - The tree before the run.
+ * @returns True when the run may add it.
+ */
+function isOwnAddition(
+  rel: string,
+  installRel: string,
+  before: ReadonlyMap<string, string>,
+): boolean {
+  const isParent = installRel.startsWith(`${rel}/`);
+  const isInside = rel === installRel || rel.startsWith(`${installRel}/`);
+  const isCreated = isInside && !before.has(installRel);
+  return isParent || isCreated || OWN_OUTPUTS.includes(rel);
+}
+
+/**
+ * Every entry a run had no business changing, removing or adding.
+ *
+ * @param scenario - The scenario that ran.
+ * @param before - The tree before the run.
+ * @param after - The tree after it.
+ * @returns `changed <path>` and `added <path>` lines.
+ */
+function touchedEntries(
+  scenario: IScenario,
+  before: ReadonlyMap<string, string>,
+  after: ReadonlyMap<string, string>,
+): readonly string[] {
+  const installRel = installRelOf(scenario);
+  const writtenDirs = writtenDirsOf(scenario);
+  const oracle: IOracle = { after, writtenDirs, pinnedSha256: scenario.sha256 };
+  const broken = [...before].filter(entry => isBroken(entry, oracle));
+  const fresh = [...after.keys()].filter(rel => !before.has(rel));
+  const stray = fresh.filter(rel => !isOwnAddition(rel, installRel, before));
+  const changed = broken.map(([rel]) => `changed ${rel}`);
+  return [...changed, ...stray.map(rel => `added ${rel}`)];
+}
+
+/**
+ * What a finished run left in the install dir: `version.json`, the binary's
+ * text, whether anything is there, and whether the default cache exists.
  *
  * @param root - Tree root.
  * @param scenario - The scenario that ran.
@@ -707,36 +896,41 @@ function besideInstall(installDir: string): Pick<IInstallRun, 'debris' | 'setAsi
 function installArtifacts(
   root: string,
   scenario: IScenario,
-): Pick<IInstallRun, 'versionJson' | 'binaryText' | 'debris' | 'setAside' | 'homeCacheExists'> {
+): Pick<IInstallRun, 'versionJson' | 'binaryText' | 'installDirExists' | 'homeCacheExists'> {
   const cache = cacheDirOf(root, scenario);
   const versionFile = join(cache, 'version.json');
   const versionJson = readIfPresent(versionFile);
   const binaryFile = join(cache, 'camoufox-bin');
   const binaryText = readIfPresent(binaryFile);
   const homeCache = join(root, CACHE_REL);
-  const beside = besideInstall(cache);
-  return { versionJson, binaryText, ...beside, homeCacheExists: existsSync(homeCache) };
+  const exists = { installDirExists: existsSync(cache), homeCacheExists: existsSync(homeCache) };
+  return { versionJson, binaryText, ...exists };
 }
 
 /**
  * What a finished run left behind: the stub call log, the install-dir
- * artifacts, leftover temp entries, the kept asset's digest, the step
- * output, and the foreign file's text.
+ * artifacts, the kept asset's digest, the step output, the planted file's
+ * text, and every entry it had no business touching.
  *
  * @param root - Tree root.
  * @param scenario - The scenario that ran.
+ * @param before - The tree before the run.
  * @returns Every run artifact except status and output.
  */
-function runArtifacts(root: string, scenario: IScenario): Omit<IInstallRun, 'status' | 'output'> {
+function runArtifacts(
+  root: string,
+  scenario: IScenario,
+  before: ReadonlyMap<string, string>,
+): Omit<IInstallRun, 'status' | 'output'> {
   const calls = stubCalls(root);
   const installed = installArtifacts(root, scenario);
-  const temp = join(root, 'tmp');
-  const tempLeft = readdirSync(temp).length;
   const keptSha256 = keptSha256Of(root);
   const ghOutputFile = join(root, GITHUB_OUTPUT_REL);
   const ghOutput = readIfPresent(ghOutputFile);
-  const foreignText = foreignTextOf(root, scenario);
-  return { calls, ...installed, tempLeft, keptSha256, ghOutput, foreignText };
+  const plantedText = plantedTextOf(root, scenario);
+  const after = snapshotTree(root);
+  const touched = touchedEntries(scenario, before, after);
+  return { calls, ...installed, keptSha256, ghOutput, plantedText, touched };
 }
 
 /**
@@ -749,25 +943,43 @@ function runArtifacts(root: string, scenario: IScenario): Omit<IInstallRun, 'sta
  */
 function runInstall(scenario: IScenario): IInstallRun {
   const root = makeTree(scenario);
+  const before = snapshotTree(root);
   const env = scenarioEnv(root, scenario);
   const script = join(root, SCRIPT_REL);
   const result = spawnSync('bash', [script], { cwd: root, env, encoding: 'utf8' });
   const output = `${result.stdout}${result.stderr}`;
-  const artifacts = runArtifacts(root, scenario);
+  const artifacts = runArtifacts(root, scenario, before);
   return { status: result.status ?? -1, output, ...artifacts };
 }
 
-export type { AssetCache, BinaryEntry, IInstallRun, IScenario, MidRun };
+/**
+ * What the oracle reports when a stand-in action, not the script, changes a
+ * scenario's tree, so a case can prove the oracle sees that kind of change.
+ *
+ * @param scenario - The scenario whose tree the action runs in.
+ * @param act - Changes the tree, given its root; returns what it changed.
+ * @returns The `touched` lines.
+ */
+function touchedBy(scenario: IScenario, act: (root: string) => string): readonly string[] {
+  const root = makeTree(scenario);
+  const before = snapshotTree(root);
+  Atomics.wait(SETTLE_CELL, 0, 0, SETTLE_MS);
+  act(root);
+  const after = snapshotTree(root);
+  return touchedEntries(scenario, before, after);
+}
+
+export type { AssetCache, BinaryEntry, IInstallRun, IScenario };
 export {
-  CACHED_BINARIES,
   COLD,
   FOREIGN_ASSET,
   FOREIGN_TEXT,
   INSTALLED_BINARY,
-  PREVIOUS_BINARY,
+  KEPT_REL,
   removeCreatedTrees,
   runInstall,
   SAMPLE_ASSET,
   SAMPLE_TAG,
   STUB_ASSET_SHA256,
+  touchedBy,
 };

@@ -25,6 +25,11 @@
 # action saves it. Unset, the asset sits in a temp directory removed on exit,
 # so the Docker image keeps no copy.
 #
+# The run changes nothing it did not create, except a kept asset that
+# failed the hash: it installs into a directory that does not exist yet and
+# never replaces one. CI jobs and the Docker build always start without one;
+# to reinstall, remove the old install first.
+#
 # It never runs `camoufox-js fetch`: that resolves the newest release inside
 # camoufox-js's own range (`>=alpha.1, <1`), not an exact tag, so it matches
 # the pin only when the pin is the newest release. Do NOT track LATEST:
@@ -39,7 +44,7 @@ PINNED_SHA256=$(node "${REPO_ROOT}/scripts/browser-stack/manifest.mjs" sha256)
 # The directory camoufox-js installs to and launches from on Linux: the
 # CAMOUFOX_INSTALL_DIR override, else the per-user cache. Pinning any other
 # directory would leave the runtime on whatever camoufox-js put there.
-# Trailing slashes go: on a symlink they would make mv act on its target.
+# Trailing slashes go, so a symlink there is seen as the link it is.
 INSTALL_DIR="${CAMOUFOX_INSTALL_DIR:-$HOME/.cache/camoufox}"
 while [ "$INSTALL_DIR" != / ] && [ "${INSTALL_DIR%/}" != "$INSTALL_DIR" ]; do
   INSTALL_DIR="${INSTALL_DIR%/}"
@@ -53,43 +58,18 @@ ASSET_PATH=""
 DOWNLOADED=false
 TEMP_DIR=""
 STAGE_DIR=""
-OLD_DIR=""
-BACKUP=""
-STAGE_ID=""
 
 # rename(2) through node: unlike mv, it never moves into an existing
-# directory, and it fails rather than replace a non-empty one.
+# directory; a directory replaces only an absent or empty one, and a file
+# never replaces a directory.
 rename_exact() {
   node -e 'try { require("fs").renameSync(process.argv[1], process.argv[2]); }
     catch (e) { console.error(e.message); process.exit(1); }' "$1" "$2"
 }
 
-# The device and inode of an entry itself (not a symlink's target); a rename
-# keeps both, so they show where the staged tree went.
-entry_id() {
-  node -e 'const s = require("fs").lstatSync(process.argv[1], { bigint: true });
-    process.stdout.write(s.dev + ":" + s.ino);' "$1" 2>/dev/null
-}
-
-# Renaming the checked staging dir into place is the commit. Before it, an
-# exit puts the previous install back, or leaves it set aside when something
-# else now holds INSTALL_DIR; once INSTALL_DIR is the staged tree itself, the
-# previous install is dropped, even if the run is stopped right after.
-restore_backup() {
-  [ -n "$BACKUP" ] || return 0
-  [ -e "$BACKUP" ] || [ -L "$BACKUP" ] || return 0
-  if [ -n "$STAGE_ID" ] && [ "$(entry_id "$INSTALL_DIR")" = "$STAGE_ID" ]; then
-    return 0
-  fi
-  rename_exact "$BACKUP" "$INSTALL_DIR" && return 0
-  echo "WARNING: the previous install is left at ${BACKUP}" >&2
-  OLD_DIR=""
-}
-
 cleanup() {
   local dir
-  restore_backup
-  for dir in "$TEMP_DIR" "$STAGE_DIR" "$OLD_DIR"; do
+  for dir in "$TEMP_DIR" "$STAGE_DIR"; do
     [ -z "$dir" ] || rm -rf -- "$dir"
   done
 }
@@ -103,13 +83,6 @@ fail() {
 # -f first: -s and -x also hold for a searchable, non-empty directory.
 binary_ok() {
   [ -f "$1/camoufox-bin" ] && [ -s "$1/camoufox-bin" ] && [ -x "$1/camoufox-bin" ]
-}
-
-installed_version() {
-  [ -f "$1/version.json" ] || return 1
-  node -e 'const fs = require("fs");
-    const v = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-    process.stdout.write(v.version + "-" + v.release);' "$1/version.json"
 }
 
 download_asset() {
@@ -149,58 +122,55 @@ verify_download() {
     fail "${ASSET} has sha256 ${actual}, but browser-stack.json pins ${PINNED_SHA256}"
 }
 
+# Only a regular file at the kept name, which failed the hash, gives way to
+# the verified download; anything else a restored cache left there stays.
+# The download sits in ASSET_DIR already, so keeping it is one rename(2).
+keep_asset() {
+  local kept="$ASSET_DIR/$ASSET"
+  if [ -L "$kept" ] || { [ -e "$kept" ] && [ ! -f "$kept" ]; } ||
+    ! rename_exact "$ASSET_PATH" "$kept"; then
+    echo "WARNING: not keeping ${ASSET}: ${kept} is not a regular file" >&2
+    return 0
+  fi
+  ASSET_PATH="$kept"
+  DOWNLOADED=true
+}
+
 download_pinned_asset() {
+  local dir="${TMPDIR:-/tmp}"
   echo "Downloading pinned daijro/camoufox release: ${PINNED_TAG}"
-  TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/camoufox-asset.XXXXXX")
+  if [ -n "$ASSET_DIR" ]; then
+    mkdir -p -- "$ASSET_DIR"
+    dir="$ASSET_DIR"
+  fi
+  TEMP_DIR=$(mktemp -d "${dir}/.camoufox-asset.XXXXXX")
   download_asset "$TEMP_DIR"
   verify_download "$TEMP_DIR/$ASSET"
   ASSET_PATH="$TEMP_DIR/$ASSET"
-  [ -n "$ASSET_DIR" ] || return 0
-  # Whatever sits at the kept path failed the hash, and mv would move the
-  # asset into a directory a restored cache left there, so it goes first.
-  mkdir -p -- "$ASSET_DIR"
-  rm -rf -- "${ASSET_DIR:?}/$ASSET"
-  mv -f -- "$ASSET_PATH" "$ASSET_DIR/$ASSET"
-  ASSET_PATH="$ASSET_DIR/$ASSET"
-  DOWNLOADED=true
+  [ -z "$ASSET_DIR" ] || keep_asset
 }
 
 report_download() {
   [ -z "${GITHUB_OUTPUT:-}" ] || echo "downloaded=${DOWNLOADED}" >> "$GITHUB_OUTPUT"
 }
 
-# Installing replaces INSTALL_DIR, and CAMOUFOX_INSTALL_DIR is caller input,
-# so a mistyped override must fail rather than erase unrelated files. Only
-# an absolute path other than $HOME that is absent, empty, or already a
-# Camoufox install (a camoufox-bin entry or a tag-shaped version.json) may
-# be replaced. A populated / is none of those.
-TAG_SHAPE='^[0-9]+\.[0-9]+\.[0-9]+-(alpha|beta)\.[0-9]+$'
-
-camoufox_install() {
-  [ -e "$1/camoufox-bin" ] || [ -L "$1/camoufox-bin" ] ||
-    [[ "$(installed_version "$1" 2>/dev/null || true)" =~ $TAG_SHAPE ]]
+# Whatever is at INSTALL_DIR, even an older Camoufox install, an empty
+# directory or a symlink, is left as it is: the run fails before the
+# download. CAMOUFOX_INSTALL_DIR is caller input, so it must be absolute.
+refuse_unless_absent() {
+  case "$INSTALL_DIR" in
+    /*) ;;
+    *) fail "refusing to install into ${INSTALL_DIR}: CAMOUFOX_INSTALL_DIR must be an absolute path" ;;
+  esac
+  if [ -e "$INSTALL_DIR" ] || [ -L "$INSTALL_DIR" ]; then
+    fail "refusing to install into ${INSTALL_DIR}: it already exists; set CAMOUFOX_INSTALL_DIR" \
+      "to a path that does not, or remove an old Camoufox install there first"
+  fi
 }
 
-# `ls` failing (an unreadable directory) must refuse, not read as empty.
-replaceable_dir() {
-  local dir="$1" real home entries
-  case "$dir" in /*) ;; *) return 1 ;; esac
-  [ -e "$dir" ] || [ -L "$dir" ] || return 0
-  real=$(cd -P -- "$dir" 2>/dev/null && pwd -P) || return 1
-  home=$(cd -P -- "${HOME:-/}" 2>/dev/null && pwd -P) || home=/
-  [ "$real" != "$home" ] || return 1
-  entries=$(ls -A -- "$real") || return 1
-  [ -z "$entries" ] || camoufox_install "$dir"
-}
-
-refuse_unless_replaceable() {
-  replaceable_dir "$INSTALL_DIR" || fail "refusing to replace ${INSTALL_DIR}: CAMOUFOX_INSTALL_DIR must be" \
-    "an absolute path, not \$HOME, that is absent, empty or a Camoufox install"
-}
-
-# A sibling of INSTALL_DIR, so a failed extract leaves the current install
-# untouched and the swap is a rename within one filesystem. version.json
-# goes last, after the binary check, so no partial tree is ever recorded.
+# A sibling of INSTALL_DIR, so a failed run installs nothing and the move
+# into place is a rename within one filesystem. version.json goes last,
+# after the binary check, so no partial tree is ever recorded.
 stage_install() {
   local parent
   parent=$(dirname -- "$INSTALL_DIR")
@@ -212,33 +182,20 @@ stage_install() {
   printf '{"version":"%s","release":"%s"}' "${EXPECTED%%-*}" "${EXPECTED#*-}" > "$STAGE_DIR/version.json"
 }
 
-# The guard runs again here, not only before the download: the directory
-# can change while minutes of download pass. The old install is set aside
-# under a name made just now, so mv cannot nest it, and what was set aside
-# is checked once more, since it can change between the guard and the mv.
-# The staged tree passed its checks, and rename(2) moves that same
-# directory, so it is not checked again once in place.
-swap_in_stage() {
-  refuse_unless_replaceable
-  STAGE_ID=$(entry_id "$STAGE_DIR") || fail "cannot stat ${STAGE_DIR}"
-  if [ -e "$INSTALL_DIR" ] || [ -L "$INSTALL_DIR" ]; then
-    OLD_DIR=$(mktemp -d "$(dirname -- "$INSTALL_DIR")/.camoufox-old.XXXXXX")
-    BACKUP="$OLD_DIR/install"
-    mv -- "$INSTALL_DIR" "$BACKUP"
-    replaceable_dir "$BACKUP" ||
-      fail "refusing to replace ${INSTALL_DIR}: it changed as it was set aside"
-  fi
+# Minutes of download pass after the refusal check, so rename(2) is the
+# final one: it fails, leaving INSTALL_DIR as it is, if anything but an
+# empty directory appeared there meanwhile.
+move_into_place() {
   rename_exact "$STAGE_DIR" "$INSTALL_DIR" ||
-    fail "cannot move the staged install into ${INSTALL_DIR}"
+    fail "cannot rename the staged install to ${INSTALL_DIR}"
   STAGE_DIR=""
-  BACKUP=""
 }
 
-refuse_unless_replaceable
+refuse_unless_absent
 if ! use_kept_asset; then
   download_pinned_asset
 fi
 report_download
 stage_install
-swap_in_stage
+move_into_place
 echo "Installed Camoufox ${PINNED_TAG} into ${INSTALL_DIR}"

@@ -3,49 +3,53 @@
  *
  * <p>The script is the one Camoufox installer shared by the CI composite
  * action and the Docker CI mirror. Its contract: install exactly the tag pinned in
- * `browser-stack.json` into the directory camoufox-js launches from, on every
- * run, from asset bytes that hash to the pinned SHA-256, trusting no install
- * already on disk; use a kept asset (`CAMOUFOX_ASSET_DIR`) only when it
- * hashes to the pin, else download the pin exactly once and never through
- * `camoufox-js fetch` (which resolves its own newest release, not the pin);
- * use `gh` only when a token exists (CI) and the public release URL
- * otherwise (Docker); keep a verified download, replacing whatever a
- * restored cache left at its name, and report `downloaded` for the action's
- * cache save; extract into a staging dir and swap it in only after the
- * binary checks out, so a failed run keeps the previous install; put the
- * previous install back when a run fails or is stopped after setting it
- * aside but before the staged tree is renamed in, and keep the new install
- * once it is; never move the staged tree into a directory that appeared
- * meanwhile; refuse to replace an install dir that is relative, is `$HOME`,
- * or holds anything but a Camoufox install, before the download, again at
- * the swap, and on what the swap set aside; never print the token, never
- * record a version it did not install, leave no temp or staging files, and
- * install nothing when the manifest is invalid.
+ * `browser-stack.json` into the directory camoufox-js launches from, from
+ * asset bytes that hash to the pinned SHA-256; use a kept asset
+ * (`CAMOUFOX_ASSET_DIR`) only when it hashes to the pin, else download the
+ * pin exactly once and never through `camoufox-js fetch` (which resolves its
+ * own newest release, not the pin); use `gh` only when a token exists (CI)
+ * and the public release URL otherwise (Docker); keep a verified download
+ * in place of a kept copy that failed the hash, leave anything else at that
+ * name alone, and report `downloaded` for the action's cache save; install
+ * only into an absolute directory that does not exist yet, refusing any
+ * other before the download; extract into a staging dir and rename it into
+ * place only after the binary checks out, never into a directory that
+ * appeared meanwhile; never print the token, never record a version it did
+ * not install, and install nothing when the manifest is invalid.
+ *
+ * <p>Every case is held to one oracle: the run changes, moves or removes no
+ * entry that existed before it (ctime included, so a move put back shows),
+ * except that the dirs it writes into gain and lose entries and a regular
+ * file at the kept asset's name that failed the pin is replaced; and it adds
+ * nothing outside the install dir it created, that dir's parents and its own
+ * outputs, so it also leaves no temp or staging files. ICS-25 proves the
+ * oracle sees such changes.
  *
  * <p>Each case runs the REAL script through `InstallCamoufoxHarness`, in a
- * throwaway tree with stubbed downloaders, `unzip`, `mv` and a `node`
- * wrapper, so no case touches the network and every download decision is
- * visible in the call log.
+ * throwaway tree with stubbed downloaders and `unzip`, so no case touches
+ * the network and every download decision is visible in the call log.
  */
 
 import { createHash } from 'node:crypto';
+import { chmodSync, renameSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 import {
   type AssetCache,
   type BinaryEntry,
-  CACHED_BINARIES,
   COLD,
   FOREIGN_ASSET,
   FOREIGN_TEXT,
+  type IInstallRun,
   INSTALLED_BINARY,
   type IScenario,
-  type MidRun,
-  PREVIOUS_BINARY,
+  KEPT_REL,
   removeCreatedTrees,
   runInstall,
   SAMPLE_ASSET,
   SAMPLE_TAG,
   STUB_ASSET_SHA256,
+  touchedBy,
 } from './InstallCamoufoxHarness.js';
 
 const SAMPLE_VERSION_JSON = '{"version":"100.0.0","release":"beta.1"}';
@@ -55,12 +59,16 @@ const SAMPLE_ASSET_URL = `https://github.com/daijro/camoufox/releases/download/$
 const TOKEN = 'fake-token-that-must-never-print';
 /** A well-formed digest that no stub download matches. */
 const FOREIGN_SHA256 = createHash('sha256').update(FOREIGN_ASSET).digest('hex');
-/** Tree-relative `CAMOUFOX_INSTALL_DIR` for the relocation case. */
+/** Tree-relative `CAMOUFOX_INSTALL_DIR` for the relocation cases. */
 const CUSTOM_DIR_REL = 'opt/camoufox';
-/** A file the user keeps in the install dir; a refused run must not touch it. */
+/** A file the user keeps in the install dir. */
 const FOREIGN_FILE_REL = `${CUSTOM_DIR_REL}/notes.txt`;
-/** A `version.json` that some other tool wrote: not tag-shaped. */
-const FOREIGN_VERSION_JSON = '{"name":"notes","version":"1.0.0"}';
+/** Where a symlinked install dir points. */
+const LINK_TARGET_REL = `${CUSTOM_DIR_REL}.target`;
+/** The refusal for an install dir that exists, naming the remedy. */
+const EXISTS = 'it already exists; set CAMOUFOX_INSTALL_DIR to a path that does not';
+/** The refusal for a relative install dir. */
+const NOT_ABSOLUTE = 'CAMOUFOX_INSTALL_DIR must be an absolute path';
 
 /** Archive contents the script must refuse to record as installed. */
 const UNUSABLE_ARCHIVES: readonly BinaryEntry[] = ['nothing', 'directory'];
@@ -81,12 +89,18 @@ const ASSET_OUTCOMES: Readonly<Record<AssetCache, readonly [number, string, stri
   miss: [1, STUB_ASSET_SHA256, 'downloaded=true\n'],
   pinned: [0, STUB_ASSET_SHA256, 'downloaded=false\n'],
   swapped: [1, STUB_ASSET_SHA256, 'downloaded=true\n'],
-  directory: [1, STUB_ASSET_SHA256, 'downloaded=true\n'],
-  linked: [1, STUB_ASSET_SHA256, 'downloaded=true\n'],
+  directory: [1, 'not a file', 'downloaded=false\n'],
+  linked: [1, 'not a file', 'downloaded=false\n'],
 };
 
-/** A stale install of another release: what a failed run must keep. */
-const PREVIOUS: IScenario = { ...COLD, cachedVersionJson: OTHER_VERSION_JSON };
+/** Asset-dir states with something other than a regular file at the asset's name. */
+const IN_THE_WAY: readonly AssetCache[] = ['directory', 'linked'];
+
+/** The custom install dir, absent. */
+const CUSTOM: IScenario = { ...COLD, installDir: CUSTOM_DIR_REL };
+
+/** The custom install dir holding a Camoufox install of another release. */
+const STALE_CUSTOM: IScenario = { ...CUSTOM, cachedVersionJson: OTHER_VERSION_JSON };
 
 /** Commands that download a release asset. */
 const DOWNLOADERS: readonly string[] = ['gh', 'curl'];
@@ -101,74 +115,76 @@ const DOWNLOAD_PATHS: readonly { readonly via: string; readonly token: string }[
 const MISSES: readonly { readonly label: string; readonly scenario: IScenario }[] = [
   { label: 'cold tokenless', scenario: COLD },
   { label: 'cold token', scenario: { ...COLD, token: TOKEN } },
-  { label: 'stale-version', scenario: { ...COLD, cachedVersionJson: OTHER_VERSION_JSON } },
-  {
-    label: 'unusable-binary',
-    scenario: { ...COLD, cachedVersionJson: SAMPLE_VERSION_JSON, cachedBinary: 'empty' },
-  },
+  { label: 'custom dir', scenario: CUSTOM },
 ];
 
-/** The custom install dir holding a stale Camoufox install. */
-const STALE_CUSTOM: IScenario = {
-  ...COLD,
-  installDir: CUSTOM_DIR_REL,
-  cachedVersionJson: OTHER_VERSION_JSON,
-  foreign: FOREIGN_FILE_REL,
-};
-
 /**
- * Install dirs a run must refuse to replace. Each row breaks exactly one
- * rule, so it fails only if that rule is enforced.
+ * Install dirs a run must refuse, and why. Each row breaks exactly one
+ * rule: the relative path is absent, every other path is absolute and
+ * exists. The two symlinks and the newline-named file pin review findings
+ * against the replace-in-place installer this one superseded.
  */
-const REFUSED: readonly { readonly label: string; readonly scenario: IScenario }[] = [
-  { label: 'a relative path', scenario: { ...STALE_CUSTOM, installDirAs: 'relative' } },
+const REFUSED: readonly {
+  readonly label: string;
+  readonly scenario: IScenario;
+  readonly reason: string;
+}[] = [
   {
-    label: '$HOME, even one holding Camoufox',
-    scenario: { ...STALE_CUSTOM, installDir: 'home', foreign: 'home/notes.txt' },
+    label: 'a relative path',
+    scenario: { ...CUSTOM, installDirAs: 'relative' },
+    reason: NOT_ABSOLUTE,
+  },
+  {
+    label: 'an install already on the pin',
+    scenario: { ...COLD, cachedVersionJson: SAMPLE_VERSION_JSON },
+    reason: EXISTS,
+  },
+  {
+    label: 'an install of another release',
+    scenario: { ...COLD, cachedVersionJson: OTHER_VERSION_JSON },
+    reason: EXISTS,
   },
   {
     label: 'a directory of other files',
-    scenario: { ...COLD, installDir: CUSTOM_DIR_REL, foreign: FOREIGN_FILE_REL },
+    scenario: { ...CUSTOM, foreign: FOREIGN_FILE_REL },
+    reason: EXISTS,
   },
   {
-    label: "another tool's version.json",
-    scenario: { ...STALE_CUSTOM, cachedVersionJson: FOREIGN_VERSION_JSON, cachedBinary: 'missing' },
+    label: 'an empty directory',
+    scenario: { ...CUSTOM, foreign: `${CUSTOM_DIR_REL}/` },
+    reason: EXISTS,
   },
   {
-    label: 'a regular file',
-    scenario: { ...COLD, installDir: CUSTOM_DIR_REL, foreign: CUSTOM_DIR_REL },
+    label: 'a directory holding only a file named by a newline',
+    scenario: { ...CUSTOM, foreign: `${CUSTOM_DIR_REL}/\n` },
+    reason: EXISTS,
+  },
+  { label: 'a regular file', scenario: { ...CUSTOM, foreign: CUSTOM_DIR_REL }, reason: EXISTS },
+  {
+    label: 'an absolute symlink to an install',
+    scenario: { ...STALE_CUSTOM, linkTo: LINK_TARGET_REL },
+    reason: EXISTS,
+  },
+  {
+    label: 'a relative symlink to an install',
+    scenario: { ...STALE_CUSTOM, linkTo: LINK_TARGET_REL, linkAs: 'relative' },
+    reason: EXISTS,
+  },
+  { label: 'a dangling symlink', scenario: { ...CUSTOM, linkTo: LINK_TARGET_REL }, reason: EXISTS },
+  {
+    label: '$HOME',
+    scenario: { ...COLD, installDir: 'home', foreign: 'home/notes.txt' },
+    reason: EXISTS,
   },
 ];
 
-/** The custom install dir, empty: replaceable, and nothing to put back. */
-const EMPTY_CUSTOM: IScenario = {
-  ...COLD,
-  installDir: CUSTOM_DIR_REL,
-  foreign: `${CUSTOM_DIR_REL}/`,
-};
-
-/** Install dirs a run may replace: empty, or marked by either Camoufox entry. */
-const REPLACEABLE: readonly { readonly label: string; readonly scenario: IScenario }[] = [
-  { label: 'an empty directory', scenario: EMPTY_CUSTOM },
-  { label: 'a dir marked by camoufox-bin', scenario: { ...STALE_CUSTOM, cachedVersionJson: '{}' } },
-  {
-    label: 'a dir marked by a tag-shaped version.json',
-    scenario: { ...STALE_CUSTOM, cachedBinary: 'missing' },
-  },
-];
-
-/** Install-dir states the oracle crosses with every asset-dir state. */
+/** Absent install dirs the oracle crosses with every asset-dir state. */
 const INSTALL_STATES: readonly { readonly label: string; readonly scenario: IScenario }[] = [
-  { label: 'no install', scenario: COLD },
-  { label: 'a stale install', scenario: PREVIOUS },
-  { label: 'a pinned install', scenario: { ...COLD, cachedVersionJson: SAMPLE_VERSION_JSON } },
-  {
-    label: 'a pinned install with a directory binary',
-    scenario: { ...COLD, cachedVersionJson: SAMPLE_VERSION_JSON, cachedBinary: 'directory' },
-  },
+  { label: 'the per-user cache', scenario: COLD },
+  { label: 'a custom dir', scenario: CUSTOM },
 ];
 
-/** Every install-dir state under every asset-dir state. */
+/** Every absent install dir under every asset-dir state. */
 const ORACLE_ROWS = INSTALL_STATES.flatMap(state =>
   ASSET_CACHES.map(assetCache => ({
     label: `${state.label}, asset dir ${assetCache}`,
@@ -177,34 +193,101 @@ const ORACLE_ROWS = INSTALL_STATES.flatMap(state =>
 );
 
 /**
- * Ways a run ends after the old install is set aside but before the staged
- * one is in place, and the status each exits with (-1: killed by a signal).
+ * Move the seeded install aside and put it back, as a swap that rolled back
+ * would.
+ *
+ * @param root - Tree root.
+ * @returns The install dir.
  */
-const CUT_SHORT: readonly {
+function setAsideInstall(root: string): string {
+  const install = join(root, CUSTOM_DIR_REL);
+  const aside = `${install}.previous`;
+  renameSync(install, aside);
+  renameSync(aside, install);
+  return install;
+}
+
+/**
+ * Make the kept asset executable.
+ *
+ * @param root - Tree root.
+ * @returns The kept asset.
+ */
+function chmodKeptAsset(root: string): string {
+  const kept = join(root, KEPT_REL);
+  chmodSync(kept, 0o755);
+  return kept;
+}
+
+/**
+ * Replace the kept asset with the stub download's bytes in one rename, as
+ * keeping a download does.
+ *
+ * @param root - Tree root.
+ * @returns The kept asset.
+ */
+function replaceKeptAsset(root: string): string {
+  const kept = join(root, KEPT_REL);
+  const fresh = `${kept}.fresh`;
+  writeFileSync(fresh, '');
+  renameSync(fresh, kept);
+  return kept;
+}
+
+/** Changes the oracle must report, and the one rewrite it must allow. */
+const ORACLE_PROBES: readonly {
   readonly label: string;
-  readonly midRun: MidRun;
-  readonly status: number;
+  readonly scenario: IScenario;
+  readonly act: (root: string) => string;
+  readonly touched: readonly string[];
 }[] = [
-  { label: 'the staged tree cannot be moved in', midRun: 'drop-stage', status: 1 },
-  { label: 'the run gets SIGTERM', midRun: 'terminate', status: -1 },
+  {
+    label: 'reports an install set aside and put back',
+    scenario: STALE_CUSTOM,
+    act: setAsideInstall,
+    touched: [`changed ${CUSTOM_DIR_REL}`],
+  },
+  {
+    label: 'reports a mode change on a kept asset that hashes to the pin',
+    scenario: { ...COLD, assetCache: 'pinned' },
+    act: chmodKeptAsset,
+    touched: [`changed ${KEPT_REL}`],
+  },
+  {
+    label: 'reports a kept asset on the pin replaced by the same bytes',
+    scenario: { ...COLD, assetCache: 'pinned' },
+    act: replaceKeptAsset,
+    touched: [`changed ${KEPT_REL}`],
+  },
+  {
+    label: 'allows a kept asset off the pin to be replaced',
+    scenario: { ...COLD, assetCache: 'swapped' },
+    act: replaceKeptAsset,
+    touched: [],
+  },
 ];
+
+/**
+ * Run the real script for a scenario and hold it to the oracle in the
+ * header: `touched` lists every entry the run had no business changing,
+ * removing or adding.
+ *
+ * @param scenario - The scenario.
+ * @returns What the run did.
+ */
+function install(scenario: IScenario): IInstallRun {
+  const run = runInstall(scenario);
+  expect(run.touched).toEqual([]);
+  return run;
+}
 
 afterAll(() => {
   removeCreatedTrees();
 });
 
 describe('install-camoufox/install.sh', () => {
-  it('[ICS-1] an install already on the pin is re-installed from the verified asset', () => {
-    const run = runInstall({ ...COLD, token: TOKEN, cachedVersionJson: SAMPLE_VERSION_JSON });
-    const tools = run.calls.map(call => call.split(' ')[0]);
-    expect(run.status).toBe(0);
-    expect(tools).toEqual(['gh', 'unzip']);
-    expect(run.binaryText).toBe(INSTALLED_BINARY);
-    expect(run.versionJson).toBe(SAMPLE_VERSION_JSON);
-  });
-
   it('[ICS-2] with a token the pinned asset downloads via gh', () => {
-    const run = runInstall({ ...COLD, token: TOKEN });
+    const run = install({ ...COLD, token: TOKEN });
     const ghCall = `gh release download ${SAMPLE_TAG} --repo daijro/camoufox --pattern ${SAMPLE_ASSET} `;
     const tools = run.calls.map(call => call.split(' ')[0]);
     expect(run.status).toBe(0);
@@ -215,18 +298,10 @@ describe('install-camoufox/install.sh', () => {
   });
 
   it('[ICS-3] without a token the pinned asset comes from the public release URL', () => {
-    const run = runInstall(COLD);
+    const run = install(COLD);
     const tools = run.calls.map(call => call.split(' ')[0]);
     expect(run.status).toBe(0);
     expect(tools).toEqual(['curl', 'unzip']);
-    expect(run.calls[0]).toContain(SAMPLE_ASSET_URL);
-    expect(run.versionJson).toBe(SAMPLE_VERSION_JSON);
-    expect([run.debris, run.tempLeft]).toEqual([0, 0]);
-  });
-
-  it('[ICS-4] an install whose version differs from the pin is replaced', () => {
-    const run = runInstall(PREVIOUS);
-    expect(run.status).toBe(0);
     expect(run.calls[0]).toContain(SAMPLE_ASSET_URL);
     expect(run.versionJson).toBe(SAMPLE_VERSION_JSON);
   });
@@ -234,7 +309,7 @@ describe('install-camoufox/install.sh', () => {
   it.each(MISSES)(
     '[ICS-5] with no kept asset ($label) the pin downloads once, never via camoufox-js',
     row => {
-      const run = runInstall(row.scenario);
+      const run = install(row.scenario);
       const tools = run.calls.map(call => call.split(' ')[0]);
       const downloads = tools.filter(tool => DOWNLOADERS.includes(tool));
       expect(run.status).toBe(0);
@@ -245,52 +320,34 @@ describe('install-camoufox/install.sh', () => {
   );
 
   it('[ICS-6] an invalid manifest fails closed before any install step', () => {
-    const run = runInstall({ ...COLD, tag: 'latest', token: TOKEN });
+    const run = install({ ...COLD, tag: 'latest', token: TOKEN });
     expect(run.status).toBe(2);
     expect(run.calls).toEqual([]);
     expect(run.output).toContain('MANIFEST-INVALID /camoufox/tag');
-    expect(run.versionJson).toBe('');
+    expect(run.installDirExists).toBe(false);
   });
 
-  it.each(CACHED_BINARIES)(
-    '[ICS-7] a pinned version.json with a %s binary is re-installed',
-    state => {
-      const run = runInstall({
-        ...COLD,
-        cachedVersionJson: SAMPLE_VERSION_JSON,
-        cachedBinary: state,
-      });
-      const tools = run.calls.map(call => call.split(' ')[0]);
-      expect(run.status).toBe(0);
-      expect(tools).toEqual(['curl', 'unzip']);
-      expect(run.binaryText).toBe(INSTALLED_BINARY);
-      expect(run.versionJson).toBe(SAMPLE_VERSION_JSON);
-    },
-  );
-
   it.each(UNUSABLE_ARCHIVES)(
-    '[ICS-8] an archive extracting %s as camoufox-bin fails and keeps the previous install',
+    '[ICS-8] an archive extracting %s as camoufox-bin fails and installs nothing',
     content => {
-      const run = runInstall({ ...PREVIOUS, archiveBinary: content });
+      const run = install({ ...COLD, archiveBinary: content });
       expect(run.status).toBe(1);
       expect(run.output).toContain(
         `ERROR: no usable camoufox-bin after extracting ${SAMPLE_ASSET}`,
       );
-      expect([run.versionJson, run.binaryText]).toEqual([OTHER_VERSION_JSON, PREVIOUS_BINARY]);
-      expect([run.debris, run.tempLeft]).toEqual([0, 0]);
+      expect(run.installDirExists).toBe(false);
     },
   );
 
   it('[ICS-9] CAMOUFOX_INSTALL_DIR is where the pin lands, not the per-user cache', () => {
-    const run = runInstall({ ...COLD, installDir: CUSTOM_DIR_REL });
+    const run = install(CUSTOM);
     expect(run.status).toBe(0);
     expect(run.versionJson).toBe(SAMPLE_VERSION_JSON);
     expect(run.homeCacheExists).toBe(false);
-    expect(run.debris).toBe(0);
   });
 
   it('[ICS-10] a kept asset that hashes to the pin installs with no download', () => {
-    const run = runInstall({ ...PREVIOUS, token: TOKEN, assetCache: 'pinned' });
+    const run = install({ ...COLD, token: TOKEN, assetCache: 'pinned' });
     const tools = run.calls.map(call => call.split(' ')[0]);
     expect(run.status).toBe(0);
     expect(tools).toEqual(['unzip']);
@@ -300,44 +357,36 @@ describe('install-camoufox/install.sh', () => {
   });
 
   it.each(DOWNLOAD_PATHS)(
-    '[ICS-11] an asset off the pinned SHA-256 (via $via) fails before anything is kept or replaced',
+    '[ICS-11] an asset off the pinned SHA-256 (via $via) fails before anything is kept or installed',
     ({ via, token }) => {
-      const run = runInstall({ ...PREVIOUS, sha256: FOREIGN_SHA256, assetCache: 'miss', token });
+      const run = install({ ...COLD, sha256: FOREIGN_SHA256, assetCache: 'miss', token });
       const tools = run.calls.map(call => call.split(' ')[0]);
       const pinned = `has sha256 ${STUB_ASSET_SHA256}, but browser-stack.json pins ${FOREIGN_SHA256}`;
       expect(run.status).toBe(1);
       expect(tools).toEqual([via]);
       expect(run.output).toContain(`ERROR: ${SAMPLE_ASSET} ${pinned}`);
-      expect([run.versionJson, run.binaryText]).toEqual([OTHER_VERSION_JSON, PREVIOUS_BINARY]);
-      expect([run.keptSha256, run.ghOutput, run.tempLeft]).toEqual(['', '', 0]);
+      expect(run.installDirExists).toBe(false);
+      expect([run.keptSha256, run.ghOutput]).toEqual(['', '']);
     },
   );
 
   it("[ICS-12] GitHub's sha256:-prefixed digest form fails closed as MANIFEST-INVALID", () => {
-    const run = runInstall({ ...COLD, sha256: `sha256:${STUB_ASSET_SHA256}`, token: TOKEN });
+    const run = install({ ...COLD, sha256: `sha256:${STUB_ASSET_SHA256}`, token: TOKEN });
     expect(run.status).toBe(2);
     expect(run.calls).toEqual([]);
     expect(run.output).toContain('MANIFEST-INVALID /camoufox/linuxX64Sha256');
   });
 
-  it.each(REFUSED)('[ICS-13] a run refuses to replace $label, before downloading', row => {
-    const run = runInstall(row.scenario);
+  it.each(REFUSED)('[ICS-13] a run refuses to install into $label, before downloading', row => {
+    const run = install(row.scenario);
     expect(run.status).toBe(1);
     expect(run.calls).toEqual([]);
-    expect(run.output).toContain('ERROR: refusing to replace ');
-    expect(run.foreignText).toBe(FOREIGN_TEXT);
-    expect(run.versionJson).toBe(row.scenario.cachedVersionJson);
-  });
-
-  it.each(REPLACEABLE)('[ICS-14] a run replaces $label with the pin', row => {
-    const run = runInstall(row.scenario);
-    expect(run.status).toBe(0);
-    expect(run.versionJson).toBe(SAMPLE_VERSION_JSON);
-    expect(run.foreignText).toBe('');
+    expect(run.output).toContain('ERROR: refusing to install into ');
+    expect(run.output).toContain(row.reason);
   });
 
   it('[ICS-15] a kept asset off the pin is downloaded again and overwritten', () => {
-    const run = runInstall({ ...PREVIOUS, assetCache: 'swapped' });
+    const run = install({ ...COLD, assetCache: 'swapped' });
     const tools = run.calls.map(call => call.split(' ')[0]);
     expect(run.status).toBe(0);
     expect(tools).toEqual(['curl', 'unzip']);
@@ -346,26 +395,24 @@ describe('install-camoufox/install.sh', () => {
     expect([run.keptSha256, run.ghOutput]).toEqual([STUB_ASSET_SHA256, 'downloaded=true\n']);
   });
 
-  it('[ICS-16] an unzip error part-way through keeps the previous install', () => {
-    const run = runInstall({ ...PREVIOUS, unzipExit: 3 });
+  it('[ICS-16] an unzip error part-way through installs nothing', () => {
+    const run = install({ ...COLD, unzipExit: 3 });
     expect(run.status).toBe(3);
-    expect([run.versionJson, run.binaryText]).toEqual([OTHER_VERSION_JSON, PREVIOUS_BINARY]);
-    expect([run.debris, run.tempLeft]).toEqual([0, 0]);
+    expect(run.installDirExists).toBe(false);
   });
 
-  it('[ICS-17] an install dir filled while the asset downloads is refused at the swap', () => {
+  it('[ICS-17] an install dir filled while the asset downloads is left as it is', () => {
     const plant = { plant: FOREIGN_FILE_REL, midRun: 'plant-at-download' as const };
-    const run = runInstall({ ...COLD, installDir: CUSTOM_DIR_REL, ...plant });
+    const run = install({ ...CUSTOM, ...plant });
     const tools = run.calls.map(call => call.split(' ')[0]);
     expect(run.status).toBe(1);
     expect(tools).toEqual(['curl', 'unzip']);
-    expect(run.output).toContain(`${CUSTOM_DIR_REL}: CAMOUFOX_INSTALL_DIR must be`);
-    expect([run.foreignText, run.versionJson]).toEqual([FOREIGN_TEXT, '']);
-    expect([run.debris, run.tempLeft]).toEqual([0, 0]);
+    expect(run.output).toContain('ERROR: cannot rename the staged install to ');
+    expect([run.plantedText, run.versionJson]).toEqual([FOREIGN_TEXT, '']);
   });
 
-  it.each(ORACLE_ROWS)('[ICS-18] $label ends on the verified pin with no debris', row => {
-    const run = runInstall(row.scenario);
+  it.each(ORACLE_ROWS)('[ICS-18] $label ends on the verified pin', row => {
+    const run = install(row.scenario);
     const tools = run.calls.map(call => call.split(' ')[0]);
     const downloads = tools.filter(tool => DOWNLOADERS.includes(tool));
     const [downloadCount, kept, report] = ASSET_OUTCOMES[row.scenario.assetCache];
@@ -373,54 +420,20 @@ describe('install-camoufox/install.sh', () => {
     expect([run.versionJson, run.binaryText]).toEqual([SAMPLE_VERSION_JSON, INSTALLED_BINARY]);
     expect(downloads).toHaveLength(downloadCount);
     expect([run.keptSha256, run.ghOutput]).toEqual([kept, report]);
-    expect([run.debris, run.tempLeft]).toEqual([0, 0]);
   });
 
-  it('[ICS-19] a slashed symlink install dir is swapped as the link, leaving its target', () => {
-    const target = `${CUSTOM_DIR_REL}.target`;
-    const linked = { slashedLinkTo: target, foreign: `${target}/notes.txt` };
-    const run = runInstall({ ...STALE_CUSTOM, ...linked });
-    expect(run.status).toBe(0);
-    expect([run.versionJson, run.binaryText]).toEqual([SAMPLE_VERSION_JSON, INSTALLED_BINARY]);
-    expect(run.foreignText).toBe(FOREIGN_TEXT);
-    expect(run.debris).toBe(0);
-  });
-
-  it('[ICS-20] an install dir refilled once the old install is set aside is neither nested into nor lost', () => {
-    const refill = { plant: FOREIGN_FILE_REL, midRun: 'plant-at-set-aside' as const };
-    const run = runInstall({ ...PREVIOUS, installDir: CUSTOM_DIR_REL, ...refill });
-    expect(run.status).toBe(1);
-    expect(run.output).toContain('ERROR: cannot move the staged install into ');
-    expect(run.output).toContain('WARNING: the previous install is left at ');
-    expect([run.foreignText, run.versionJson, run.binaryText]).toEqual([FOREIGN_TEXT, '', '']);
-    expect(run.setAside).toBe(OTHER_VERSION_JSON);
-    expect([run.debris, run.tempLeft]).toEqual([1, 0]);
-  });
-
-  it.each(CUT_SHORT)(
-    '[ICS-21] when $label once the old install is set aside, it is put back',
-    row => {
-      const run = runInstall({ ...PREVIOUS, midRun: row.midRun });
-      expect(run.status).toBe(row.status);
-      expect([run.versionJson, run.binaryText]).toEqual([OTHER_VERSION_JSON, PREVIOUS_BINARY]);
-      expect([run.setAside, run.debris, run.tempLeft]).toEqual(['', 0, 0]);
+  it.each(IN_THE_WAY)(
+    "[ICS-24] a %s at the kept asset's name is left alone and the download is not kept",
+    assetCache => {
+      const run = install({ ...COLD, assetCache });
+      expect(run.status).toBe(0);
+      expect(run.output).toContain(`WARNING: not keeping ${SAMPLE_ASSET}: `);
+      expect([run.versionJson, run.ghOutput]).toEqual([SAMPLE_VERSION_JSON, 'downloaded=false\n']);
     },
   );
 
-  it('[ICS-22] an empty install dir filled just before it is set aside is refused and put back', () => {
-    const fill = { plant: FOREIGN_FILE_REL, midRun: 'plant-before-set-aside' as const };
-    const run = runInstall({ ...EMPTY_CUSTOM, ...fill });
-    expect(run.status).toBe(1);
-    expect(run.output).toContain(`${CUSTOM_DIR_REL}: it changed as it was set aside`);
-    expect([run.foreignText, run.versionJson, run.binaryText]).toEqual([FOREIGN_TEXT, '', '']);
-    expect([run.setAside, run.debris, run.tempLeft]).toEqual(['', 0, 0]);
-  });
-
-  it('[ICS-23] a run stopped once the staged install is in place keeps it, not the old one', () => {
-    const run = runInstall({ ...PREVIOUS, midRun: 'terminate-at-commit' });
-    expect(run.status).toBe(-1);
-    expect([run.versionJson, run.binaryText]).toEqual([SAMPLE_VERSION_JSON, INSTALLED_BINARY]);
-    expect(run.output).not.toContain('WARNING');
-    expect([run.setAside, run.debris, run.tempLeft]).toEqual(['', 0, 0]);
+  it.each(ORACLE_PROBES)('[ICS-25] the oracle $label', row => {
+    const touched = touchedBy(row.scenario, row.act);
+    expect(touched).toEqual(row.touched);
   });
 });
