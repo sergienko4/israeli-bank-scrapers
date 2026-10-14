@@ -7,7 +7,9 @@
  * newest Camoufox releases plus the older one camoufox-js selects — against a
  * fake network on a virtual clock. In the worst case each input answers on
  * its last attempt at the edge of its timeout (any later and the watch exits
- * 2 without judging anything), and every `Protocol.js` attempt times out.
+ * 2 without judging anything), and every `Protocol.js` attempt times out —
+ * or the newest Camoufox layout answers 404 only on its last attempt, so the
+ * gate falls back to the older layout, whose attempts all time out.
  * Elapsed time is simulated and the bound is computed from the real timeout,
  * back-off and concurrency constants, never from wall-clock time.
  */
@@ -25,6 +27,7 @@ import {
   ALLOWED_HOST,
   ATTEMPT_TIMEOUT_MS,
   BACKOFF_MS,
+  protocolUrls,
 } from '../../../../scripts/browser-stack/fetch-protocol.mjs';
 import type { IFetchIo, IGateIo } from '../../../../scripts/browser-stack/gate.mjs';
 import {
@@ -101,6 +104,12 @@ const PAIRS = VERSIONS.flatMap(version => TAGS.map(tag => `${version} ${tag}`));
 /** One client schema per version, one first browser candidate per tag. */
 const PROTOCOL_URLS = VERSIONS.length + TAGS.length;
 
+/** Browser layouts tried per tag, newest first; only a 404 moves on to the next. */
+const BROWSER_ROOTS = protocolUrls(LOCKED, SELECTED_TAG).browser.length;
+
+/** Every client schema and every browser layout of every tag. */
+const EVERY_PROTOCOL_URL = VERSIONS.length + BROWSER_ROOTS * TAGS.length;
+
 const PUBLISHED = [LOCKED, '1.64.0', NEXT, '1.65.0', IN_RANGE, '2.0.0'];
 const PUBLISHED_ENTRIES = PUBLISHED.map((version): [string, object] => [version, {}]);
 
@@ -122,12 +131,18 @@ const RELEASES_WORST_MS = slowestFetchMs(ATTEMPT_TIMEOUT_MS);
 const INPUTS_WORST_MS = Math.max(PACKUMENT_WORST_MS, RELEASES_WORST_MS);
 
 /**
+ * The slowest browser schema: every layout but the last answers 404 at the edge of
+ * its last attempt, and the last one times out on every attempt.
+ */
+const BROWSER_WORST_MS = BROWSER_ROOTS * RELEASES_WORST_MS;
+
+/**
  * Gate runs: each `Protocol.js` URL is fetched once and {@link GATE_CONCURRENCY} gates
- * run at once, so the URLs take this many rounds of the slowest fetch. One gate at a
- * time with no cache, the same 33 pairs would need about half an hour.
+ * run at once, so the URLs take this many rounds of the slowest browser schema. One
+ * gate at a time with no cache, the same 33 pairs would need about an hour.
  */
 const WAVES = Math.ceil(PROTOCOL_URLS / GATE_CONCURRENCY);
-const GATES_WORST_MS = WAVES * RELEASES_WORST_MS;
+const GATES_WORST_MS = WAVES * BROWSER_WORST_MS;
 const BOUND_MS = INPUTS_WORST_MS + GATES_WORST_MS;
 
 /** Per-host attempt timeout: the packument has its own. */
@@ -167,23 +182,54 @@ function timedOut(): never {
   throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
 }
 
+/** What the last attempt at a URL gets: a response, or a thrown timeout. */
+type LastAnswer = (url: string) => Response;
+
 /**
- * The slowest network: every attempt takes its whole timeout; inputs answer on
- * their last attempt, `Protocol.js` never does.
+ * Inputs answer; every `Protocol.js` URL times out.
+ *
+ * @param url - Fetched URL.
+ * @returns The input's body; throws a timeout for any other URL.
+ */
+function inputsOnly(url: string): Response {
+  const body = INPUT_BODIES[url];
+  if (body === undefined) return timedOut();
+  return new Response(body);
+}
+
+/**
+ * As {@link inputsOnly}, but the newest browser layout answers 404, so the gate
+ * falls back to the older one.
+ *
+ * @param url - Fetched URL.
+ * @returns A 404 at the newest layout, else what {@link inputsOnly} answers.
+ */
+function newestLayoutGone(url: string): Response {
+  if (url.includes('/browser/additions/')) return new Response('', { status: 404 });
+  return inputsOnly(url);
+}
+
+/**
+ * The slowest network: every attempt takes its whole timeout, and only the last
+ * one may answer.
  *
  * @param clock - The virtual clock.
  * @param calls - Receives every fetched URL.
+ * @param lastAnswer - What the last attempt at a URL gets.
  * @returns The fetch implementation.
  */
-function slowestNetwork(clock: IVirtualClock, calls: string[]): FetchImpl {
+function slowestNetwork(
+  clock: IVirtualClock,
+  calls: string[],
+  lastAnswer: LastAnswer = inputsOnly,
+): FetchImpl {
   return async (url: string): Promise<Response> => {
     calls.push(url);
     const timeoutMs = timeoutOf(url);
     await clock.sleep(timeoutMs);
     const attempt = calls.filter(call => call === url).length;
-    const body = INPUT_BODIES[url];
-    if (body === undefined || attempt < ATTEMPTS) return timedOut();
-    return new Response(body);
+    if (attempt < ATTEMPTS) return timedOut();
+    return lastAnswer(url);
   };
 }
 
@@ -353,5 +399,26 @@ describe('browser-stack watch bounds', () => {
     expect(gate.inFlight.peak).toBe(GATE_CONCURRENCY);
     expect(gate.finished).not.toEqual(PAIRS);
     expect(pairs).toEqual(PAIRS);
+  });
+
+  it('[WCB-4] stays inside the job limit when every newest layout 404s late and the fallback times out', async () => {
+    const clock = virtualClock();
+    const calls: string[] = [];
+    const network = slowestNetwork(clock, calls, newestLayoutGone);
+    const run = await watchOn(clock, network);
+    const rows = tableRows(run.out);
+    const verdicts = new Set(rows.map(([, verdict]) => verdict));
+    const protocol = protocolCalls(calls);
+    const counts = fetchCounts(protocol);
+    const pairs = rows.map(([pair]) => pair);
+    const everyAttempt = new Array<number>(EVERY_PROTOCOL_URL).fill(ATTEMPTS);
+    const elapsedMs = clock.now();
+    expect(run.code).toBe(0);
+    expect(pairs).toEqual(PAIRS);
+    expect([...verdicts]).toEqual(['unknown']);
+    expect(counts).toEqual(everyAttempt);
+    expect(elapsedMs).toBeGreaterThan(INPUTS_WORST_MS + BROWSER_WORST_MS);
+    expect(elapsedMs).toBeLessThanOrEqual(BOUND_MS);
+    expect(BOUND_MS).toBeLessThanOrEqual(JOB_LIMIT_MS - SETUP_ALLOWANCE_MS);
   });
 });

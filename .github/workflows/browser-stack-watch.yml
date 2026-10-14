@@ -44,7 +44,7 @@ jobs:
   watch:
     name: Report compatible browser-stack pairs
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read # checkout
       issues: write # create the label and the issue, edit its body

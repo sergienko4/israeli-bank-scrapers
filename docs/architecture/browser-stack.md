@@ -131,9 +131,10 @@ It runs the gate in `candidate` mode, with `--json`, on every version × the
 ten newest version-tagged releases on that page, plus the selected release
 when it is older. It judges four pairs at a time and keeps the rows in pair
 order. Each `Protocol.js` URL is fetched at most once per run, and pairs that
-share it share the result, a failure included. So even when every fetch times
-out on every attempt, the report is written well inside the job's 10-minute
-limit. The report has three sections:
+share it share the result, a failure included. So the report is written well
+inside the job's 15-minute limit even when every fetch times out on every
+attempt, or when the newest Camoufox layout answers 404 only on its last attempt
+and the older one then times out. The report has three sections:
 
 | Section | What it says |
 |---|---|
