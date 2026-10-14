@@ -14,11 +14,6 @@
  * with a stub, which CTB-5 checks.
  */
 
-import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { parse } from 'yaml';
 
 import {
@@ -27,10 +22,7 @@ import {
   TOTAL_BOUND,
   unboundedCalls,
 } from '../../../Helpers/CurlCalls.js';
-
-const THIS_FILE_PATH = fileURLToPath(import.meta.url);
-const THIS_DIR = dirname(THIS_FILE_PATH);
-const REPO_ROOT = join(THIS_DIR, '../../../../../');
+import { readRepoFile, trackedFiles } from '../../../Helpers/RepoFiles.js';
 
 /** The bound every call must set. */
 const BOUNDS: readonly RegExp[] = [TOTAL_BOUND];
@@ -50,29 +42,6 @@ const CURL_STUB_RE = /^\s*curl\(\)\s*\{|\/bin\/curl\b/mu;
 interface IFileCalls {
   readonly path: string;
   readonly lines: readonly string[];
-}
-
-/**
- * Every file git tracks, relative to the repo root.
- *
- * @returns Repo-relative paths; throws when git fails.
- */
-function trackedFiles(): readonly string[] {
-  const result = spawnSync('git', ['ls-files', '-z'], { cwd: REPO_ROOT, encoding: 'utf8' });
-  if (result.error !== undefined) throw result.error;
-  if (result.status !== 0) throw new RangeError(`git ls-files exited ${String(result.status)}`);
-  return result.stdout.split('\0').filter(path => path !== '');
-}
-
-/**
- * Read a tracked file.
- *
- * @param path - Repo-relative path.
- * @returns Its text.
- */
-function readRepoFile(path: string): string {
-  const absolute = join(REPO_ROOT, path);
-  return readFileSync(absolute, 'utf8');
 }
 
 /**

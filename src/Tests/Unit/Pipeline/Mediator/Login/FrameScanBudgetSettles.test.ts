@@ -69,13 +69,19 @@ function resolveTsxCli(): string {
   return require.resolve('tsx/cli');
 }
 
+/** What the probe printed, and how it exited. */
+interface IProbeRun {
+  readonly status: number;
+  readonly output: string;
+}
+
 /**
- * Run the probe in a process of its own and return everything it printed.
+ * Run the probe in a process of its own.
  *
  * @param workDir - Scratch directory to write the probe into.
- * @returns Combined stdout and stderr of the child.
+ * @returns The child's exit status (-1 when killed) and its stdout and stderr.
  */
-function runProbe(workDir: string): string {
+function runProbe(workDir: string): IProbeRun {
   const probePath = join(workDir, 'probe.ts');
   writeFileSync(probePath, PROBE_SOURCE, 'utf8');
   const runner = resolveTsxCli();
@@ -83,7 +89,7 @@ function runProbe(workDir: string): string {
     encoding: 'utf8',
     timeout: PROBE_TIMEOUT_MS,
   });
-  return `${child.stdout}${child.stderr}`;
+  return { status: child.status ?? -1, output: `${child.stdout}${child.stderr}` };
 }
 
 describe('safeScanFrame budget', () => {
@@ -105,8 +111,11 @@ describe('safeScanFrame budget', () => {
   it(
     '[SCAN-1] settles a hung scan even when nothing else keeps the process alive',
     () => {
-      const output = runProbe(workDir);
-      expect(output).toContain(SETTLED_MARKER);
+      // The child must also exit cleanly: one killed at the timeout after
+      // printing the marker settled the race but still held its process.
+      const run = runProbe(workDir);
+      expect(run.output).toContain(SETTLED_MARKER);
+      expect(run.status).toBe(0);
     },
     PROBE_TIMEOUT_MS,
   );

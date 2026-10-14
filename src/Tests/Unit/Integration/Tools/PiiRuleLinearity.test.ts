@@ -100,18 +100,24 @@ function tsxLoaderUrl(): string {
   return pathToFileURL(loaderPath).href;
 }
 
+/** What the probe printed, and how it exited. */
+interface IProbeRun {
+  readonly status: number;
+  readonly output: string;
+}
+
 /**
- * Run the probe with the regexp optimizer off and return its result line.
+ * Run the probe with the regexp optimizer off.
  *
  * @param workDir - Scratch directory to write the probe into.
- * @returns The probe's stdout and stderr.
+ * @returns The probe's exit status (-1 when killed) and its stdout and stderr.
  */
-function runProbe(workDir: string): string {
+function runProbe(workDir: string): IProbeRun {
   const probePath = join(workDir, 'probe.ts');
   writeFileSync(probePath, PROBE_SOURCE, 'utf8');
   const args = ['--no-regexp-optimization', '--import', tsxLoaderUrl(), probePath];
   const child = spawnSync(process.execPath, args, { encoding: 'utf8', timeout: PROBE_TIMEOUT_MS });
-  return `${child.stdout}${child.stderr}`;
+  return { status: child.status ?? -1, output: `${child.stdout}${child.stderr}` };
 }
 
 /**
@@ -143,9 +149,9 @@ describe('PII rule linearity on whitespace runs and dense uzdbm values', () => {
   it(
     'scans every probe shape in linear time on both sides, unoptimized',
     () => {
-      const output = runProbe(workDir);
-      const slow = slowScans(output);
-      expect(slow).toEqual([]);
+      const run = runProbe(workDir);
+      const slow = slowScans(run.output);
+      expect({ slow, status: run.status }).toEqual({ slow: [], status: 0 });
     },
     PROBE_TIMEOUT_MS,
   );

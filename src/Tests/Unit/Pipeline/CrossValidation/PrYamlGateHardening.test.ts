@@ -436,14 +436,18 @@ function versionGuardScript(): string {
 }
 
 /**
- * Ask a bash binary for its own `major.minor`.
+ * Ask a bash binary for its own `major.minor`. The answer decides which exit
+ * the guard must give, so a binary that cannot answer fails the test rather
+ * than reading as "not 3.2".
  * @param bin - Absolute path to a bash binary.
- * @returns The version, e.g. `3.2`.
+ * @returns The version, e.g. `3.2`; throws when the binary does not run.
  */
 function versionOf(bin: string): string {
   const probe = 'echo "${BASH_VERSINFO[0]}.${BASH_VERSINFO[1]}"';
   const result = spawnSync(bin, ['-c', probe], { encoding: 'utf8' });
-  return (result.stdout || '').trim();
+  if (result.error !== undefined) throw result.error;
+  if (result.status !== 0) throw new RangeError(`${bin} exited ${String(result.status)}`);
+  return result.stdout.trim();
 }
 
 /**

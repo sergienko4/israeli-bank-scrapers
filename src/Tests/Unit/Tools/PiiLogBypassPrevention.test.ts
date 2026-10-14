@@ -46,10 +46,14 @@ interface IEslintFileReport {
   readonly messages: readonly IEslintMessage[];
 }
 
+/** ESLint's exits for a run that finished: no lint errors, or some. */
+const ESLINT_FINISHED: readonly number[] = [0, 1];
+
 /**
  * Spawn ESLint with stdin input and return the parsed JSON report.
  * @param code - Source code to lint (passed via stdin).
- * @returns Parsed ESLint per-file reports.
+ * @returns Parsed ESLint per-file reports; throws when ESLint itself failed,
+ *   so a crash cannot read as an empty report.
  */
 function lintWithStdin(code: string): readonly IEslintFileReport[] {
   const result = spawnSync(
@@ -57,8 +61,9 @@ function lintWithStdin(code: string): readonly IEslintFileReport[] {
     ['eslint', '--stdin', '--stdin-filename', STDIN_PATH, '--no-ignore', '--format', 'json'],
     { input: code, encoding: 'utf8', shell: true },
   );
-  const stdout = result.stdout || '[]';
-  return JSON.parse(stdout) as readonly IEslintFileReport[];
+  const status = result.status ?? -1;
+  if (!ESLINT_FINISHED.includes(status)) throw new RangeError(`eslint exited ${String(status)}`);
+  return JSON.parse(result.stdout) as readonly IEslintFileReport[];
 }
 
 /**
