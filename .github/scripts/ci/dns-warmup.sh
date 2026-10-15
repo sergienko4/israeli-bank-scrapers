@@ -74,12 +74,12 @@ probe_status() {
 # that fails OR answers empty reports UNKNOWN, never a blank value — a
 # blank field is indistinguishable from a field that was never emitted.
 # $1   - field label.
-# $2.. - curl arguments (including the URL). The 5s ceiling comes first, so
-#        a caller's own `-m` replaces it (curl keeps the last value given).
+# $2.. - curl arguments (including the URL). The 5s ceiling comes after
+#        them: curl keeps the last value given, so no caller can lift it.
 report_field() {
   local label="$1" value
   shift
-  value=$(curl -s --max-time 5 "$@" 2>/dev/null || true)
+  value=$(curl -s "$@" --max-time 5 2>/dev/null || true)
   echo "${label}=${value:-UNKNOWN}"
 }
 
@@ -241,9 +241,9 @@ echo ""
 # hypothesis cannot be tested at all. Non-fatal: a blocked lookup must
 # never fail the preflight.
 echo "===Runner egress identity==="
-report_field region -m 3 -H Metadata:true \
+report_field region -H Metadata:true \
   "http://169.254.169.254/metadata/instance/compute/location?api-version=2021-02-01&format=text"
-report_field egress_ip -m 5 https://api.ipify.org
+report_field egress_ip https://api.ipify.org
 echo ""
 
 if [ "$failed" -gt 0 ]; then

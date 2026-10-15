@@ -6,8 +6,8 @@
  * is hours away. So every curl call in a tracked shell script, git hook,
  * Dockerfile or workflow / composite-action `run:` step must set a positive
  * `--max-time` (or `-m`). A wrapper that passes its arguments on must set
- * one too, as a ceiling; curl keeps the last value given, so a caller's
- * tighter bound still wins. The installer and its Docker mirror are held to
+ * its bound after them: curl keeps the last value given, so a bound placed
+ * before them lets a caller's `-m 0` lift it. The installer and its Docker mirror are held to
  * the stricter connect-and-total rule by `InstallCamoufoxWiring`.
  *
  * <p>Test harnesses under a `tests/` directory are skipped: they replace curl
@@ -137,6 +137,9 @@ const UNBOUNDED_CURLS: readonly (readonly [string, string])[] = [
   ['a bound that is not a number', 'curl -m "$limit" "$url"'],
   ['a bound later set to zero', 'curl -m 5 --max-time 0 "$url"'],
   ['a wrapper passing its arguments', 'fetch() { curl -s "$@"; }'],
+  ['a ceiling its caller can lift', 'fetch() { curl -s --max-time 5 "$@"; }'],
+  ['a ceiling before $*', 'fetch() { curl -m 5 $*; }'],
+  ['a ceiling before a forwarded array', 'curl -m 5 "${args[@]}"'],
   ['a call in a command substitution', 'body="$(curl "$url")"'],
   ['a continued call', 'curl \\\n  -fsSL "$url"'],
   ['a bound only in an inline comment', 'curl "$url" # TODO add --max-time 5'],
@@ -152,7 +155,7 @@ const BOUNDED_CURLS: readonly (readonly [string, string])[] = [
   ['-mN', 'curl -sS -m5 "$url"'],
   ['--max-time=N', 'curl -sS --max-time=30 "$url"'],
   ['--max-time N with retries', 'curl -sS --retry 3 --max-time 60 "$url"'],
-  ['a wrapper ceiling', 'fetch() { curl -s --max-time 5 "$@"; }'],
+  ['a ceiling after the forwarded arguments', 'fetch() { curl -s "$@" --max-time 5; }'],
   ['an apt-get install', 'RUN apt-get install -y --no-install-recommends curl'],
   ['an apk add', 'RUN apk add --no-cache curl'],
   ['a comment after a bounded call', 'curl -m 5 "$url" # fetch it'],

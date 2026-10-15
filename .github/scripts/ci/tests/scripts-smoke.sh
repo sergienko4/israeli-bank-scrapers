@@ -921,6 +921,13 @@ assert_eq "a failed field lookup reads UNKNOWN" \
 # diagnostic, and a blocked lookup must never fail the preflight.
 assert_eq "a failed field lookup never aborts the preflight" "0" \
   "$( ( set -e; report_field region https://example.invalid ) >/dev/null 2>&1; echo $? )"
+
+# curl keeps the last bound it is given, so the 5s ceiling must follow the
+# caller's arguments: placed before them, a caller's `-m 0` would lift it.
+curl() { echo "$*"; }
+assert_eq "a caller cannot lift the 5s ceiling" \
+  "egress_ip=-s -m 0 https://example.invalid --max-time 5" \
+  "$(report_field egress_ip -m 0 https://example.invalid)"
 unset -f curl
 
 # ── Final summary ──

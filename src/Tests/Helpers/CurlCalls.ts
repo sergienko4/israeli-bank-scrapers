@@ -8,8 +8,10 @@
  * slip past. A call runs to the next `curl`, the end of its command, or the
  * `)` or backtick that closes its substitution, so no other text lends it a
  * bound. A bound counts only when every occurrence of its option sets a
- * positive number of seconds: curl reads 0 as no limit, and a value that is
- * not a literal number cannot be checked.
+ * positive number of seconds, and no argument a wrapper passes on follows
+ * it: curl reads 0 as no limit, a value that is not a literal number cannot
+ * be checked, and curl keeps the last value given, so a caller's `-m 0`
+ * passed on after the bound would lift it.
  */
 
 /** A shell or Dockerfile line continuation plus the next line's indent. */
@@ -33,6 +35,8 @@ const DEPTH_STEP: Readonly<Record<string, number>> = { '(': 1, ')': -1, '`': -In
 const CONNECT_BOUND = /--connect-timeout(?:=|\s+)(?<value>\S+)/gu;
 /** `--max-time` or `-m`: how long the whole transfer may take. */
 const TOTAL_BOUND = /(?<![\w-])(?:--max-time(?:=|\s+)|-m\s*)(?<value>\S+)/gu;
+/** Arguments a wrapper passes on, `$@`, `$*` or a whole array, which may hold a bound. */
+const FORWARDED_RE = /\$\{?(?:\w+\[)?[@*]/u;
 
 /** A scan for the bracket that closes a call: depth below 0 once closed. */
 interface ICloseScan {
@@ -112,7 +116,7 @@ function curlCallsIn(lines: readonly string[]): readonly string[] {
 
 /**
  * Whether a curl call sets a time bound, every time, to a positive number
- * of seconds.
+ * of seconds, with no passed-on arguments after the last one.
  *
  * @param call - One curl call.
  * @param bound - {@link CONNECT_BOUND} or {@link TOTAL_BOUND}.
@@ -122,7 +126,10 @@ function isBounded(call: string, bound: RegExp): boolean {
   const matches = [...call.matchAll(bound)];
   const seconds = matches.map(match => Number(match.groups?.value));
   const isPositive = seconds.every(value => Number.isFinite(value) && value > 0);
-  return seconds.length > 0 && isPositive;
+  const last = matches.at(-1)?.index ?? 0;
+  const tail = call.slice(last);
+  const isFinal = !FORWARDED_RE.test(tail);
+  return seconds.length > 0 && isPositive && isFinal;
 }
 
 /**
