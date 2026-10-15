@@ -163,6 +163,19 @@ const UNBOUNDED_CURLS: readonly (readonly [string, string])[] = [
   ['a bound only in a comment inside a program', 'bash -c \'curl "$url" # -m 5\''],
   ['a bound lent by a background command', 'curl "$url" & echo --max-time 5'],
   ['a bound lent across an unspaced &', 'curl "$url"&echo -m 5'],
+  ['a bound only inside a substituted argument', 'curl $(opts --max-time 5 x) "$url"'],
+  ['a bound only inside a backtick argument', 'curl `opts -m 5 x` "$url"'],
+  ['a bound only inside an arithmetic argument', 'curl "$url" $((t -m 5 + 1))'],
+  ['a bound only inside a parameter default', 'curl ${opts:- -m 5 x} "$url"'],
+  ['a bound only in a curl run for a header', 'curl -H "$(curl -m 5 tok)" "$url"'],
+  ['an unbounded curl run for the header of a bounded call', 'curl -H "$(curl tok)" -m 5 "$url"'],
+  ['a ceiling before a substitution passing arguments on', 'curl -m 5 $(printf "%s " "$@")'],
+  ['a bound only inside a substitution the line leaves open', 'curl "$url" $(opts -m 5\n  x)'],
+  ['a bound only two substitutions deep', 'body="$(curl $(opts -m 5 x) "$url")"'],
+  [
+    'a bound only inside a substitution after a case pattern',
+    'case "$x" in a) curl $(opts -m 5 x) "$url" ;; esac',
+  ],
 ];
 
 /** Code the oracle must accept. */
@@ -193,6 +206,13 @@ const BOUNDED_CURLS: readonly (readonly [string, string])[] = [
   ['both streams redirected before the bound', 'curl "$url" &>log -m 5'],
   ['descriptor dups before the bound', 'curl "$url" >&2 <&3 -m 5'],
   ['a bounded call sent to the background', 'curl -m 5 "$url" &'],
+  ['an arithmetic &', 'curl "$url" $((flags & 1)) -m 5'],
+  ['an arithmetic | and &&', 'curl "$url" $((a | b && c)) -m 5'],
+  ['a command list in a substituted argument', 'curl $(cat a && cat b) -m 5'],
+  ['a pipeline in a quoted substitution', 'curl "$(printf x | tr x y)" -m 5'],
+  ['an & in a parameter expansion', 'curl "${u//&/%26}" -m 5'],
+  ['a ; in a parameter expansion', 'curl "${u//;/%3B}" -m 5'],
+  ['a bounded curl run for the header of a bounded call', 'curl -H "$(curl -m 5 tok)" -m 5 "$url"'],
 ];
 
 /** A bounded call placed next to each control, so a flag names the control. */

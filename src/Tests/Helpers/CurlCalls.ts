@@ -5,20 +5,25 @@
  * outside quotes, and continued lines are joined, so one command is one line.
  * Each line is then read through its shell mask ({@link spanOf}), so text the
  * shell takes literally, quoted or escaped, never starts a call, ends a
- * command, closes a substitution or sets a bound. Every word `curl` outside a
- * package install starts a call, wherever it sits in its command, so a
- * continued, bare, wrapped or substituted call cannot slip past. A call runs
- * to the next `curl`, the end of its command, or the `)` or backtick that
- * closes its substitution, so no other text lends it a bound. A backtick
- * that opens a substitution inside the call does not end it. A quoted
- * program handed to a shell's `-c` or to `eval` is code too, so it is read
- * as a line of its own, as are the programs it hands on. A substitution in
- * a double-quoted program is read for both shells, which only repeats a
- * flag. A bound counts only when every occurrence of its option sets a
- * positive number of seconds, quoted or not, and no argument a wrapper
- * passes on follows it: curl reads 0 as no limit, a value that is not a
- * literal number cannot be checked, and curl keeps the last value given, so
- * a caller's `-m 0` passed on after the bound would lift it.
+ * command or sets a bound. Code is read one depth at a time: the inside of
+ * each `( … )`, `$( … )`, backtick or `$(( … ))` group, and of each `${…}`
+ * expansion, is hidden from the code around it, and the inside of each group
+ * is read as code of its own. So a separator or an option inside an argument
+ * neither ends the call nor bounds it, and a call in a substitution ends
+ * where the substitution does. Every word `curl` outside a package install
+ * starts a call, wherever it sits in its command, so a continued, bare,
+ * wrapped or substituted call cannot slip past. A call runs to the next
+ * `curl` or the end of its command at its own depth, so no other text lends
+ * it a bound. A quoted program handed to a shell's `-c` or to `eval` is
+ * code too, so it is read as a line of its own, as are the programs it
+ * hands on. A substitution in a double-quoted program is read for both
+ * shells, which only repeats a flag. A bound counts only when every
+ * occurrence of its option sets a positive number of seconds, quoted or
+ * not, and no argument a wrapper passes on follows it at any depth, since
+ * a substitution's output becomes arguments too: curl reads 0 as no limit,
+ * a value that is not a literal number cannot be checked, and curl keeps
+ * the last value given, so a caller's `-m 0` passed on after the bound
+ * would lift it.
  */
 
 import type { IShellSpan } from './ShellMask.js';
@@ -41,9 +46,11 @@ const CALL_HEAD_RE = /^curl\b(?!\/)/u;
 /** An escape, a quoted string or, outside them, a comment to the end of the line. */
 const COMMENT_RE = /\\.|'[^']*'|"(?:[^"\\]|\\.)*"|(?<!\S)#.*/gu;
 /** A parenthesis in a mask, where backticks are parentheses too. */
-const CLOSE_RE = /[()]/gu;
+const PAREN_RE = /[()]/gu;
 /** How each parenthesis moves the nesting depth. */
 const DEPTH_STEP: Readonly<Record<string, number>> = { '(': 1, ')': -1 };
+/** A `${…}` expansion in a mask. */
+const BRACED_RE = /\$\{[^}]*\}/gu;
 /** In a mask, a shell given `-c`, or `eval`, just before a quoted program. */
 const PROGRAM_HEAD_RE =
   /(?<![\w-])(?:(?:(?:ba|da|k|z)?sh|su)(?:\s+[-+]\S+)*?\s+-[^\Wc]*c\w*|eval)\s+(?=_)/gu;
@@ -61,10 +68,17 @@ const TOTAL_BOUND = /(?<![\w-])(?:--max-time(?:=|\s+)|-m\s*)(?<value>\S+)/dgu;
 /** Arguments a wrapper passes on, `$@`, `$*` or a whole array, which may hold a bound. */
 const FORWARDED_RE = /\$\{?(?:\w+\[)?[@*]/u;
 
-/** A scan for the bracket that closes a call: depth below 0 once closed. */
-interface ICloseScan {
+/** An outermost pair of parentheses in a mask: where it opens and where it closes. */
+interface IGroup {
+  readonly open: number;
+  readonly close: number;
+}
+
+/** A scan for the outermost groups: the depth, the open group's start, the closed ones. */
+interface IGroupScan {
   readonly depth: number;
-  readonly end: number;
+  readonly open: number;
+  readonly groups: readonly IGroup[];
 }
 
 /**
@@ -95,29 +109,70 @@ function logicalLines(text: string): readonly string[] {
 }
 
 /**
- * One step of the scan for a call's closing parenthesis.
+ * One step of the scan for the outermost groups. A `)` that closes nothing
+ * opened in the scanned text is left as it is.
  *
  * @param scan - The scan so far.
- * @param token - The next {@link CLOSE_RE} match in the call's mask.
- * @returns The scan after it; once closed, unchanged.
+ * @param token - The next {@link PAREN_RE} match in the mask.
+ * @returns The scan after it.
  */
-function stepClose(scan: ICloseScan, token: RegExpExecArray): ICloseScan {
-  if (scan.depth < 0) return scan;
-  const depth = scan.depth + DEPTH_STEP[token[0]];
-  return { depth, end: depth < 0 ? token.index : scan.end };
+function stepGroup(scan: IGroupScan, token: RegExpExecArray): IGroupScan {
+  const depth = Math.max(0, scan.depth + DEPTH_STEP[token[0]]);
+  if (scan.depth === 0 && depth === 1) return { ...scan, depth, open: token.index };
+  const isClosed = scan.depth === 1 && depth === 0;
+  const closed = { open: scan.open, close: token.index };
+  return { ...scan, depth, groups: isClosed ? [...scan.groups, closed] : scan.groups };
 }
 
 /**
- * A call cut where its substitution closes.
+ * The outermost groups of a mask; one left open runs to the end.
  *
- * @param call - From the word `curl` to the next call or the end of the command.
- * @returns The call, up to the first `)` or closing backtick it did not open.
+ * @param mask - A mask.
+ * @returns Each outermost group, in order.
  */
-function closedCall(call: IShellSpan): IShellSpan {
-  const tokens = [...call.mask.matchAll(CLOSE_RE)];
-  const scan = tokens.reduce(stepClose, { depth: 0, end: call.mask.length });
-  const closed = sliceSpan(call, 0, scan.end);
-  return trimSpan(closed);
+function groupsIn(mask: string): readonly IGroup[] {
+  const tokens = [...mask.matchAll(PAREN_RE)];
+  const scan = tokens.reduce(stepGroup, { depth: 0, open: 0, groups: [] });
+  const unclosed = scan.depth > 0 ? [{ open: scan.open, close: mask.length }] : [];
+  return [...scan.groups, ...unclosed];
+}
+
+/**
+ * A mask with the inside of one group blanked.
+ *
+ * @param mask - A mask.
+ * @param group - A group in it.
+ * @returns The mask, the group's parentheses kept.
+ */
+function hideGroup(mask: string, group: IGroup): string {
+  const inside = '_'.repeat(group.close - group.open - 1);
+  return mask.slice(0, group.open + 1) + inside + mask.slice(group.close);
+}
+
+/**
+ * A `${…}` expansion with its inside blanked.
+ *
+ * @param braced - A {@link BRACED_RE} match.
+ * @returns `${`, blanks and `}`.
+ */
+function hideBraced(braced: string): string {
+  return `\${${'_'.repeat(braced.length - 3)}}`;
+}
+
+/**
+ * Some code and each group in it, every one read at its own depth: the code
+ * around the groups with their insides and every `${…}` blanked, then each
+ * group's inside, read the same way.
+ *
+ * @param span - Code with its mask.
+ * @returns One span per depth, outermost first, each with its text unchanged.
+ */
+function levelsOf(span: IShellSpan): readonly IShellSpan[] {
+  const groups = groupsIn(span.mask);
+  const hidden = groups.reduce(hideGroup, span.mask);
+  const surface = { text: span.text, mask: hidden.replaceAll(BRACED_RE, hideBraced) };
+  const insides = groups.map(group => sliceSpan(span, group.open + 1, group.close));
+  return [surface, ...insides.flatMap(levelsOf)];
 }
 
 /**
@@ -150,20 +205,21 @@ function withPrograms(line: string): readonly string[] {
 }
 
 /**
- * Every curl call in some logical code lines, with its mask.
+ * Every curl call in some logical code lines, with its mask at its own depth.
  *
  * @param lines - Logical code lines.
- * @returns Each call, up to the next call, the end of its command or its close.
+ * @returns Each call, up to the next call or the end of its command at its depth.
  */
 function callSpansIn(lines: readonly string[]): readonly IShellSpan[] {
   const code = lines.flatMap(withPrograms);
   const spans = code.map(line => spanOf(line));
-  const commands = spans.flatMap(span => splitSpan(span, COMMAND_SPLIT_RE));
+  const levels = spans.flatMap(levelsOf);
+  const commands = levels.flatMap(level => splitSpan(level, COMMAND_SPLIT_RE));
   const trimmed = commands.map(command => trimSpan(command));
   const runnable = trimmed.filter(command => !PACKAGE_INSTALL_RE.test(command.text));
   const pieces = runnable.flatMap(command => splitSpan(command, CALL_START_RE));
   const calls = pieces.filter(piece => CALL_HEAD_RE.test(piece.mask));
-  return calls.map(closedCall);
+  return calls.map(call => trimSpan(call));
 }
 
 /**
@@ -173,7 +229,7 @@ function callSpansIn(lines: readonly string[]): readonly IShellSpan[] {
  * missed.
  *
  * @param lines - Logical code lines.
- * @returns Each call's text, up to the next call, the end of its command or its close.
+ * @returns Each call's text, up to the next call or the end of its command at its depth.
  */
 function curlCallsIn(lines: readonly string[]): readonly string[] {
   const calls = callSpansIn(lines);
@@ -197,10 +253,12 @@ function secondsOf(call: IShellSpan, match: RegExpExecArray): number {
 
 /**
  * Whether a curl call sets a time bound, every time, to a positive number
- * of seconds, with no passed-on arguments after the last one. Both are found
- * in the mask, so quoted text neither sets a bound nor hides `"$@"`.
+ * of seconds, with no passed-on arguments after the last one. Bounds are
+ * found in the call's own depth of the mask, so quoted or nested text never
+ * sets one; passed-on arguments are found in the whole mask, since a
+ * substitution's output is arguments too.
  *
- * @param call - One curl call.
+ * @param call - One curl call, its mask at its own depth.
  * @param bound - {@link CONNECT_BOUND} or {@link TOTAL_BOUND}.
  * @returns True when bounded.
  */
@@ -209,7 +267,8 @@ function isBounded(call: IShellSpan, bound: RegExp): boolean {
   const seconds = matches.map(match => secondsOf(call, match));
   const isPositive = seconds.every(value => Number.isFinite(value) && value > 0);
   const last = matches.at(-1)?.index ?? 0;
-  const tail = call.mask.slice(last);
+  const { mask: wholeMask } = spanOf(call.text);
+  const tail = wholeMask.slice(last);
   const isFinal = !FORWARDED_RE.test(tail);
   return seconds.length > 0 && isPositive && isFinal;
 }
