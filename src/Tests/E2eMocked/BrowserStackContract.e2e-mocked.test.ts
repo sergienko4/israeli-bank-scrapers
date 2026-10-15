@@ -59,7 +59,7 @@ interface INavigation {
 }
 
 let browser: Browser;
-let server: Server;
+let server: Server | undefined;
 let origin: string;
 
 /**
@@ -115,12 +115,12 @@ async function stopServer(listening: Server): Promise<boolean> {
 }
 
 /**
- * Open a fresh context and page so no route or cookie outlives an invariant.
+ * Open a page in a fresh context so no route or cookie outlives an invariant.
  *
- * @returns The new context and its page.
+ * @param context - The test's fresh context.
+ * @returns The context and its new page.
  */
-async function openTab(): Promise<IContractTab> {
-  const context = await browser.newContext();
+async function openTab(context: BrowserContext): Promise<IContractTab> {
   const page = await context.newPage();
   return { context, page };
 }
@@ -172,18 +172,22 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await closeSharedBrowser();
-  await stopServer(server);
+  if (server) await stopServer(server);
 });
 
 describe('Browser stack contract (playwright-core × Camoufox)', () => {
   let tab: IContractTab;
+  /** This test's context, kept on open so cleanup closes it even if `newPage` fails. */
+  let opened: BrowserContext | undefined;
 
   beforeEach(async () => {
-    tab = await openTab();
+    opened = await browser.newContext();
+    tab = await openTab(opened);
   });
 
   afterEach(async () => {
-    await tab.context.close();
+    await opened?.close();
+    opened = undefined;
   });
 
   it('C1: page.route fulfils a request', async () => {
