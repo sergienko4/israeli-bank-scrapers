@@ -26,8 +26,12 @@ import { sliceSpan, spanOf, splitSpan, trimSpan } from './ShellMask.js';
 
 /** A shell or Dockerfile line continuation plus the next line's indent. */
 const CONTINUATION_RE = /\\\n\s*/gu;
-/** Where one shell command ends and the next begins within a line. */
-const COMMAND_SPLIT_RE = /&&|\|\||[;|]/gu;
+/**
+ * Where one shell command ends and the next begins within a line: `&&`, `||`,
+ * `;`, `|`, or a `&` that sends a command to the background, which is not the
+ * `&` of a redirection such as `2>&1`, `<&3` or `&>log`.
+ */
+const COMMAND_SPLIT_RE = /&&|\|\||[;|]|(?<![<>])&(?!>)/gu;
 /** A package install (single-spaced, as joined), whose arguments name packages. */
 const PACKAGE_INSTALL_RE = /^(?:RUN )?(?:apt-get|apk)(?: -\S+)* (?:install|add) /u;
 /** Before each word `curl`, except a `curl/…` agent string: where a call starts. */

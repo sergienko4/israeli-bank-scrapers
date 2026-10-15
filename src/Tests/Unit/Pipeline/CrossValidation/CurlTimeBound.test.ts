@@ -157,6 +157,8 @@ const UNBOUNDED_CURLS: readonly (readonly [string, string])[] = [
   ['a call in an eval string', 'eval \'curl "$url"\''],
   ['a call in a program nested in a program', 'bash -c "sh -c \'curl x\'"'],
   ['a bound only in a comment inside a program', 'bash -c \'curl "$url" # -m 5\''],
+  ['a bound lent by a background command', 'curl "$url" & echo --max-time 5'],
+  ['a bound lent across an unspaced &', 'curl "$url"&echo -m 5'],
 ];
 
 /** Code the oracle must accept. */
@@ -183,6 +185,10 @@ const BOUNDED_CURLS: readonly (readonly [string, string])[] = [
   ['a bounded call in a bash -c program', 'bash -lc \'curl -m 5 "$url"\''],
   ['curl named only in quoted text of a program', 'sh -c \'echo "use curl"\''],
   ['escaped quotes in a double-quoted program', 'bash -c "curl -H \\"a; b\\" -m 5 x"'],
+  ['stderr joined before the bound', 'curl "$url" 2>&1 -m 5'],
+  ['both streams redirected before the bound', 'curl "$url" &>log -m 5'],
+  ['descriptor dups before the bound', 'curl "$url" >&2 <&3 -m 5'],
+  ['a bounded call sent to the background', 'curl -m 5 "$url" &'],
 ];
 
 /** A bounded call placed next to each control, so a flag names the control. */
