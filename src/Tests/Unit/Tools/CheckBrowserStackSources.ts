@@ -99,10 +99,11 @@ function method(params: string, returns = '{}', prelude = ''): string {
  * Source whose domain `D` has one event `e`.
  *
  * @param payload - Payload object literal.
+ * @param prelude - Line 2 of the source.
  * @returns Source text.
  */
-function event(payload: string): string {
-  return protocolOf(`{ events: { e: ${payload} } }`);
+function event(payload: string, prelude = ''): string {
+  return protocolOf(`{ events: { e: ${payload} } }`, prelude);
 }
 
 /**

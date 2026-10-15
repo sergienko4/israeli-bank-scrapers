@@ -6,7 +6,8 @@
  * `checkScheme` rejects unknown keys), `return` and `event` are lenient (the
  * playwright-core client validates nothing, so extra browser keys are
  * harmless). Each finding is pushed to `cursor.out` as
- * `{channel, kind, path, signature}`.
+ * `{channel, kind, path, signature}`. A key `dst` requires is missing when
+ * `src` may leave it out, unless `dst` takes `undefined` there too.
  *
  * Named types nest as deep as a schema chains them, so the walk keeps its own
  * stack instead of the call stack: a field, an Array item or a resolved Ref
@@ -117,9 +118,28 @@ function fieldAssign(
     if (STRICT.has(cur.channel)) push(cur, 'UNKNOWN-FIELD', pairSig(fieldSig(s), 'absent'));
     return;
   }
-  const required = !d.optional && (s === undefined || s.optional);
-  if (required) push(cur, 'MISSING-REQUIRED-FIELD', pairSig(fieldSig(s), fieldSig(d)));
+  const mayOmit = s === undefined || s.optional;
+  if (mayOmit && !omittable(d, cur.dstTypes))
+    push(cur, 'MISSING-REQUIRED-FIELD', pairSig(fieldSig(s), fieldSig(d)));
   if (s !== undefined) typeAssign(s.type, d.type, cur);
+}
+
+/**
+ * Whether a key may be left out, as Juggler's `checkScheme` decides it: an
+ * absent key is checked as `undefined`, which `t.Optional` and `t.Any`
+ * take, and `t.Nullable` and a Ref take when what they wrap does. So the
+ * Nullable and Ref layers are peeled in a loop, in the namespaces of the
+ * field's own schema; the parser rejects a Ref that only renames itself.
+ *
+ * @param {IField} field - The consuming field.
+ * @param {Namespaces} types - Namespaces of the schema the field came from.
+ * @returns {boolean} True when `undefined` passes the field's check.
+ */
+function omittable(field, types) {
+  if (field.optional) return true;
+  let type = unwrap(field.type);
+  while (type.t === 'Ref') type = unwrap(types[type.ns][type.name]);
+  return type.t === 'Any';
 }
 
 /**

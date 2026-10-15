@@ -16,6 +16,13 @@
  * and a type that two fields share must be compared under each of them.
  * Deltas come out depth-first in key order, so two at one path keep the
  * order of the keys that reach it.
+ *
+ * <p>A key the consuming side requires may still be left out when its type
+ * takes `undefined`. In Juggler's `checkScheme` `t.Any` takes every value,
+ * `t.Optional` takes `undefined`, and `t.Nullable` and `t.Recursive` take
+ * what they wrap; a String, an Enum, an Array or an object never does. So a
+ * key whose Nullable and named layers end in Any is never missing, however
+ * many layers there are, and the names count on the consuming side only.
  */
 
 import {
@@ -29,6 +36,7 @@ import {
   CHAIN_LINKS,
   type ChainLinkName,
   delta,
+  event,
   method,
   typeChain,
 } from './CheckBrowserStackSources.js';
@@ -90,6 +98,69 @@ const TIE_DELTAS: readonly IJugglerDelta[] = [
   delta('request TYPE-MISMATCH D.m.a.b', 'src:String|dst:Number'),
   delta('request TYPE-MISMATCH D.m.a.b', 'src:String|dst:Boolean'),
 ];
+
+/** How the producing side holds key `a`, and whether that may leave it out. */
+interface IPresence {
+  readonly field: string;
+  readonly isOmittable: boolean;
+}
+
+/** A consuming type of key `a`, and whether `checkScheme` takes `undefined` for it. */
+interface IDestination {
+  readonly type: string;
+  readonly isUndefinedTaken: boolean;
+}
+
+/** One channel's two sources around key `a`, and the path `a` is reported at. */
+interface IPlacement {
+  readonly client: string;
+  readonly browser: string;
+  readonly path: string;
+}
+
+/** Two sources with key `a` in one channel: produced as `field`, consumed as `type`. */
+type Placement = (field: string, type: string) => IPlacement;
+
+const PRESENCES = {
+  absent: { field: '', isOmittable: true },
+  optional: { field: 'a: t.Optional(t.String)', isOmittable: true },
+  required: { field: 'a: t.String', isOmittable: false },
+} as const satisfies Readonly<Record<string, IPresence>>;
+
+/** A key of {@link PRESENCES}. */
+type PresenceName = keyof typeof PRESENCES;
+
+/** `W` renames `Z`, a Nullable of `Y`, which is Any; `V` renames `S`, a String. */
+const DESTINATION_PRELUDE = [
+  "const ns = {}; ns.Y = t.Any; ns.Z = t.Nullable(t.Recursive(ns, 'Y'));",
+  "ns.W = t.Recursive(ns, 'Z'); ns.S = t.String; ns.V = t.Recursive(ns, 'S');",
+].join(' ');
+/** The same names on the producing side, each a String: a name resolved there never ends in Any. */
+const SOURCE_PRELUDE = [
+  'const ns = {}; ns.Y = t.String; ns.Z = t.String;',
+  'ns.W = t.String; ns.S = t.String; ns.V = t.String;',
+].join(' ');
+
+/** Consuming types under {@link DESTINATION_PRELUDE}, judged as `checkScheme` judges them. */
+const DESTINATIONS: readonly IDestination[] = [
+  { type: 't.Any', isUndefinedTaken: true },
+  { type: 't.Nullable(t.Any)', isUndefinedTaken: true },
+  { type: 't.Nullable(t.Nullable(t.Any))', isUndefinedTaken: true },
+  { type: "t.Recursive(ns, 'Y')", isUndefinedTaken: true },
+  { type: "t.Nullable(t.Recursive(ns, 'Y'))", isUndefinedTaken: true },
+  { type: "t.Recursive(ns, 'W')", isUndefinedTaken: true },
+  { type: 't.Optional(t.String)', isUndefinedTaken: true },
+  { type: 't.String', isUndefinedTaken: false },
+  { type: 't.Nullable(t.String)', isUndefinedTaken: false },
+  { type: "t.Recursive(ns, 'S')", isUndefinedTaken: false },
+  { type: "t.Nullable(t.Recursive(ns, 'V'))", isUndefinedTaken: false },
+  { type: 't.Array(t.Any)', isUndefinedTaken: false },
+  { type: '{ v: t.Any }', isUndefinedTaken: false },
+  { type: "t.Enum(['x'])", isUndefinedTaken: false },
+];
+
+/** Chain links that take `undefined` when the next type does: a rename and a Nullable. */
+const LINKS_TAKING_UNDEFINED: ReadonlySet<ChainLinkName> = new Set(['rename', 'nullable']);
 
 const DIFF_CASES: readonly IDiffCase[] = [
   {
@@ -237,6 +308,136 @@ function sharedSource(end: string): string {
   return method(SHARED_PARAMS, '{}', prelude);
 }
 
+/**
+ * Key `a` sent: the client produces it, the browser consumes it.
+ *
+ * @param field - The client's params member.
+ * @param type - The browser's type of `a`.
+ * @returns The two sources and the path of `a`.
+ */
+function requestPlacement(field: string, type: string): IPlacement {
+  const client = method(`{ ${field} }`, '{}', SOURCE_PRELUDE);
+  const browser = method(`{ a: ${type} }`, '{}', DESTINATION_PRELUDE);
+  return { client, browser, path: 'D.m.a' };
+}
+
+/**
+ * Key `a` returned: the browser produces it, the client consumes it.
+ *
+ * @param field - The browser's returns member.
+ * @param type - The client's type of `a`.
+ * @returns The two sources and the path of `a`.
+ */
+function returnPlacement(field: string, type: string): IPlacement {
+  const client = method('{}', `{ a: ${type} }`, DESTINATION_PRELUDE);
+  const browser = method('{}', `{ ${field} }`, SOURCE_PRELUDE);
+  return { client, browser, path: 'D.m.a' };
+}
+
+/**
+ * Key `a` in an event: the browser produces it, the client consumes it.
+ *
+ * @param field - The browser's payload member.
+ * @param type - The client's type of `a`.
+ * @returns The two sources and the path of `a`.
+ */
+function eventPlacement(field: string, type: string): IPlacement {
+  const client = event(`{ a: ${type} }`, DESTINATION_PRELUDE);
+  const browser = event(`{ ${field} }`, SOURCE_PRELUDE);
+  return { client, browser, path: 'D.e.a' };
+}
+
+const PLACEMENTS = {
+  request: requestPlacement,
+  return: returnPlacement,
+  event: eventPlacement,
+} as const satisfies Readonly<Record<string, Placement>>;
+
+/** A key of {@link PLACEMENTS}. */
+type ChannelName = keyof typeof PLACEMENTS;
+
+/** One way to produce key `a`, one type to consume it as, in one channel. */
+interface IPresenceCase {
+  readonly presence: PresenceName;
+  readonly destination: IDestination;
+  readonly channel: ChannelName;
+}
+
+/** What one presence case yields: its MISSING-REQUIRED-FIELD deltas, or all of them. */
+interface IPresenceVerdict {
+  readonly presence: PresenceName;
+  readonly type: string;
+  readonly channel: ChannelName;
+  readonly deltas: readonly string[];
+}
+
+const PRESENCE_NAMES = Object.keys(PRESENCES) as readonly PresenceName[];
+const CHANNEL_NAMES = Object.keys(PLACEMENTS) as readonly ChannelName[];
+const PRESENCE_CASES: readonly IPresenceCase[] = PRESENCE_NAMES.flatMap(presence =>
+  DESTINATIONS.flatMap(destination =>
+    CHANNEL_NAMES.map((channel): IPresenceCase => ({ presence, destination, channel })),
+  ),
+);
+const UNDEFINED_TAKEN_CASES = PRESENCE_CASES.filter(c => c.destination.isUndefinedTaken);
+
+/**
+ * The deltas the differ reports for one presence case, as `<channel> <kind> <path>`.
+ *
+ * @param c - The case.
+ * @returns Every delta, in order.
+ */
+function presenceDeltas(c: IPresenceCase): string[] {
+  const placement = PLACEMENTS[c.channel](PRESENCES[c.presence].field, c.destination.type);
+  const deltas = diffProtocols(placement.client, placement.browser);
+  return deltas.map((d): string => `${d.channel} ${d.kind} ${d.path}`);
+}
+
+/**
+ * The MISSING-REQUIRED-FIELD deltas the differ reports for one presence case.
+ *
+ * @param c - The case.
+ * @returns The case and those deltas.
+ */
+function observePresence(c: IPresenceCase): IPresenceVerdict {
+  const deltas = presenceDeltas(c).filter(line => line.includes(' MISSING-REQUIRED-FIELD '));
+  return { presence: c.presence, type: c.destination.type, channel: c.channel, deltas };
+}
+
+/**
+ * What must be missing: key `a`, exactly when the producer may leave it out
+ * and the consuming type does not take `undefined`.
+ *
+ * @param c - The case.
+ * @returns The case and the delta it must yield, if any.
+ */
+function predictPresence(c: IPresenceCase): IPresenceVerdict {
+  const isMissing = PRESENCES[c.presence].isOmittable && !c.destination.isUndefinedTaken;
+  const { path } = PLACEMENTS[c.channel]('', c.destination.type);
+  const deltas = isMissing ? [`${c.channel} MISSING-REQUIRED-FIELD ${path}`] : [];
+  return { presence: c.presence, type: c.destination.type, channel: c.channel, deltas };
+}
+
+/**
+ * Every delta the differ reports for one presence case.
+ *
+ * @param c - The case.
+ * @returns The case and all its deltas.
+ */
+function observeAll(c: IPresenceCase): IPresenceVerdict {
+  const deltas = presenceDeltas(c);
+  return { presence: c.presence, type: c.destination.type, channel: c.channel, deltas };
+}
+
+/**
+ * No delta at all for one presence case.
+ *
+ * @param c - The case.
+ * @returns The case with no deltas.
+ */
+function nothingFor(c: IPresenceCase): IPresenceVerdict {
+  return { presence: c.presence, type: c.destination.type, channel: c.channel, deltas: [] };
+}
+
 describe('Juggler differ between Boolean and Enum', () => {
   it.each(DIFF_CASES)('[$id] reports $what', c => {
     const deltas = diffProtocols(c.client, c.browser);
@@ -284,5 +485,35 @@ describe('Juggler differ through named types', () => {
     const browser = method(TIE_BROWSER_PARAMS, '{}', TIE_BROWSER_PRELUDE);
     const deltas = diffProtocols(client, browser);
     expect(deltas).toEqual(TIE_DELTAS);
+  });
+});
+
+describe('Juggler differ on a key the producer may leave out', () => {
+  it('[BSD-71] reports a missing key exactly where the consuming type refuses undefined', () => {
+    const observed = PRESENCE_CASES.map(observePresence);
+    const predicted = PRESENCE_CASES.map(predictPresence);
+    expect(PRESENCE_CASES).toHaveLength(126);
+    expect(observed).toEqual(predicted);
+  });
+
+  it('[BSD-72] reports nothing at all where the consuming type takes undefined', () => {
+    const observed = UNDEFINED_TAKEN_CASES.map(observeAll);
+    const expected = UNDEFINED_TAKEN_CASES.map(nothingFor);
+    expect(UNDEFINED_TAKEN_CASES).toHaveLength(63);
+    expect(observed).toEqual(expected);
+  });
+
+  it.each(CHAIN_LINK_NAMES)('[BSD-73] follows a long %s chain to the Any at its end', name => {
+    const prelude = typeChain(name, CHAIN_LENGTH, 't.Any');
+    const browser = method(CHAIN_PARAM, '{}', prelude);
+    const client = method('{}');
+    const startedAt = Date.now();
+    const deltas = diffProtocols(client, browser);
+    const elapsedMs = Date.now() - startedAt;
+    const lines = deltas.map((d): string => `${d.kind} ${d.path}`);
+    const isUndefinedTaken = LINKS_TAKING_UNDEFINED.has(name);
+    const expected = isUndefinedTaken ? [] : ['MISSING-REQUIRED-FIELD D.m.a'];
+    expect(lines).toEqual(expected);
+    expect(elapsedMs).toBeLessThan(CHAIN_BUDGET_MS);
   });
 });
