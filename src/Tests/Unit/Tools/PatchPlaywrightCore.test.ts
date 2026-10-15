@@ -66,6 +66,13 @@ const REVIEWED_CALLS = 1;
 /** A future payload the shim does not know. */
 const SENT_UNKNOWN = '"Network.setRequestInterception", { enabled, bypassServiceWorker: true }';
 
+/** A send whose payload starts on the next line, a layout the exact rewrite does not read. */
+const SENT_164_SPLIT =
+  '"Network.setRequestInterception",\n  { enabled, bypassServiceWorker: true }';
+
+/** A 1.64 send in single quotes, a quoting the exact rewrite does not read. */
+const SENT_164_SINGLE = "'Network.setRequestInterception', { enabled, bypassServiceWorker }";
+
 /** A fixed past mtime; any write by the script moves it to "now". */
 const UNTOUCHED_MTIME = new Date('2000-01-01T00:00:00Z');
 const UNTOUCHED_MS = UNTOUCHED_MTIME.getTime();
@@ -361,6 +368,34 @@ const SHIM_CASES: readonly IShimCase[] = [
     calls: [SENT_163, SENT_UNKNOWN],
     outcome: shimNotApplied(1, 2),
     strict: [shimLine(1, 2)],
+  },
+  {
+    id: 'PPC-60',
+    what: 'a 1.64 send beside one split across lines',
+    calls: [SENT_164, SENT_164_SPLIT],
+    outcome: 'dropped bypassServiceWorker from 1 call(s)',
+    strict: [shimLine(1, 2)],
+  },
+  {
+    id: 'PPC-61',
+    what: 'a 1.63 send beside a 1.64 one split across lines',
+    calls: [SENT_163, SENT_164_SPLIT],
+    outcome: shimNotApplied(1, 2),
+    strict: [shimLine(1, 2)],
+  },
+  {
+    id: 'PPC-62',
+    what: 'a 1.64 send beside one in single quotes',
+    calls: [SENT_164, SENT_164_SINGLE],
+    outcome: 'dropped bypassServiceWorker from 1 call(s)',
+    strict: [shimLine(1, 2)],
+  },
+  {
+    id: 'PPC-63',
+    what: 'only a send split across lines',
+    calls: [SENT_164_SPLIT],
+    outcome: shimNotApplied(0, 1),
+    strict: [shimLine(0, 1)],
   },
 ];
 

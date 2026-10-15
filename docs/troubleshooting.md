@@ -133,10 +133,12 @@ not change. The same `postinstall` script from the previous section rewrites
 the call to send `{ enabled }` alone, as 1.63 did. If you installed with
 `--ignore-scripts`, run it by hand with the command shown there.
 
-Under `--strict` the call must be sent at exactly 1 site, in that form. A
-mismatch prints `SHIM-SITES <shimmed>/<reviewed> (<sent> sent) <shimmed form>`,
-which means your `playwright-core` build changed the call and needs a fresh
-review.
+Under `--strict` the call must be sent at exactly 1 site, in that form. Every
+mention of `Network.setRequestInterception` counts as a send, whatever its
+quoting or line breaks, so a send the rewrite cannot read still fails the
+check. A mismatch prints
+`SHIM-SITES <shimmed>/<reviewed> (<sent> sent) <shimmed form>`, which means
+your `playwright-core` build changed the call and needs a fresh review.
 
 The shim restores routing only. 1.64 also changed how multi-value `Set-Cookie`
 headers are reported, so this library is still tested against the

@@ -52,7 +52,8 @@
  * copy at another site. Each mismatch prints
  * `GUARD-SITES <index> <found>/<reviewed> <unguarded read>`. Likewise the
  * interception call must be sent at exactly `REVIEWED_CALLS` sites, each
- * with `{ enabled }` alone; otherwise it prints
+ * with `{ enabled }` alone; every mention of the method name counts as a
+ * send, whatever its quoting or line breaks. Otherwise it prints
  * `SHIM-SITES <shimmed>/<reviewed> (<sent> sent) <shimmed form>`. Any skip —
  * no copy found, opt-out, or a read or write error on any copy — exits 1,
  * because that copy was not verified.
@@ -93,8 +94,11 @@ const USAGE = `usage: node scripts/patch-playwright-core.mjs [${STRICT_FLAG}]`;
  */
 const REVIEWED_SITES = 2;
 
-/** Juggler's interception call as playwright-core's Firefox network manager sends it. */
-const INTERCEPTION_CALL = '"Network.setRequestInterception", ';
+/** Juggler's request-interception method. */
+const INTERCEPTION_METHOD = 'Network.setRequestInterception';
+
+/** The method as playwright-core's Firefox network manager sends it, the payload next. */
+const INTERCEPTION_CALL = `"${INTERCEPTION_METHOD}", `;
 
 /** The 1.64 payload no released Camoufox accepts, and the 1.63 payload it becomes. */
 const SHIM = {
@@ -203,13 +207,16 @@ function guardResult(count, text) {
  *
  * <p>A 1.63 build already sends `{ enabled }` alone, as does an already
  * shimmed 1.64 build, so both report that no `bypassServiceWorker` is sent.
+ * Every mention of the method name counts as a send, whatever its quoting or
+ * line breaks, so a send the exact rewrite cannot read is still counted.
  *
  * @param count - Calls shimmed by this run.
  * @param text - Bundle text after patching.
  * @returns Outcome plus the shimmed and the total interception calls.
  */
 function shimResult(count, text) {
-  const calls = { shimmed: occurrences(text, SHIM.to), sent: occurrences(text, INTERCEPTION_CALL) };
+  const sent = occurrences(text, INTERCEPTION_METHOD);
+  const calls = { shimmed: occurrences(text, SHIM.to), sent };
   if (count > 0) return { outcome: `dropped bypassServiceWorker from ${count} call(s)`, calls };
   const isEnabledOnly = calls.sent > 0 && calls.shimmed === calls.sent;
   if (isEnabledOnly) return { outcome: 'no bypassServiceWorker sent', calls };
