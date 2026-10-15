@@ -137,6 +137,21 @@ function scriptFiles(dir: string): string[] {
   });
 }
 
+/**
+ * The `any` keyword. TypeScript fixtures write it as `ANY`, because the
+ * decoupling gate counts `any` usages by their text, string literals too.
+ */
+const ANY_KEYWORD = 'any';
+
+/**
+ * A fixture with each `ANY` placeholder spelled as the `any` keyword.
+ * @param text - Fixture text.
+ * @returns The text the scan reads.
+ */
+function spelled(text: string): string {
+  return text.replaceAll(/\bANY\b/gu, ANY_KEYWORD);
+}
+
 /** Sources that declare `any` somewhere the scan must see it. */
 const FLAGGED: readonly (readonly [string, string, string])[] = [
   ['a bare JSDoc type', 'a.mjs', 'const v = /** @type {any} */ (x);'],
@@ -145,11 +160,11 @@ const FLAGGED: readonly (readonly [string, string, string])[] = [
   ['a record value', 'a.mjs', '/** @typedef {Record<string, any>} Bag */'],
   ['a nested object type', 'a.mjs', '/** @returns {{ a: { b: any } }} Out. */'],
   ['a multi-line object type', 'a.mjs', '/**\n * @param {{\n *   b: any\n * }} x - In.\n */'],
-  ['a declaration-file parameter', 'a.d.mts', 'export function f(x: any): void;'],
-  ['a TypeScript cast', 'a.ts', 'const v = x as any;'],
-  ['a cast inside a template substitution', 'a.ts', 'const s = `${v as any}`;'],
-  ['a cast inside a nested template', 'a.ts', 'const s = `a${`b${v as any}`}`;'],
-  ['a cast after a regex holding a quote', 'a.ts', "const r = /'/u, v = x as any, s = 'k';"],
+  ['a declaration-file parameter', 'a.d.mts', 'export function f(x: ANY): void;'],
+  ['a TypeScript cast', 'a.ts', 'const v = x as ANY;'],
+  ['a cast inside a template substitution', 'a.ts', 'const s = `${v as ANY}`;'],
+  ['a cast inside a nested template', 'a.ts', 'const s = `a${`b${v as ANY}`}`;'],
+  ['a cast after a regex holding a quote', 'a.ts', "const r = /'/u, v = x as ANY, s = 'k';"],
   ['a TypeScript JSDoc type, once', 'a.ts', '/** @type {any} */\nconst v = 1;'],
   ['a JSDoc type after a quoted brace', 'a.mjs', '/** @type {Record<"}", any>} */\nconst v = {};'],
   ['a type under a tag the parser skips', 'a.mjs', '/** @yields {string} x */\nfunction* g() {}'],
@@ -172,7 +187,8 @@ const CLEAN: readonly (readonly [string, string, string])[] = [
 
 describe('script type scan — extractor controls', () => {
   it.each(FLAGGED)('[SCT-1] flags %s', (_name: string, file: string, source: string) => {
-    const findings = anyFindings(file, source);
+    const code = spelled(source);
+    const findings = anyFindings(file, code);
     expect(findings).toHaveLength(1);
   });
 
@@ -183,7 +199,8 @@ describe('script type scan — extractor controls', () => {
 
   it('[SCT-3] reports the line that holds the keyword', () => {
     const findings = anyFindings('a.mjs', '\n\n/**\n * @param {{\n *   b: any\n * }} x - In.\n */');
-    expect(findings).toEqual(['a.mjs:5 *   b: any']);
+    const expected = spelled('a.mjs:5 *   b: ANY');
+    expect(findings).toEqual([expected]);
   });
 });
 
