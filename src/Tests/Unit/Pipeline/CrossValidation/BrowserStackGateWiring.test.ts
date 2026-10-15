@@ -23,6 +23,9 @@
  *          patcher's `--strict` flag
  *   BSW-8  E2E mocked runs the runtime contract file alone, unconditionally,
  *          before its full suite, and that file exists
+ *   BSW-9  that file's setup, which takes the job's first Camoufox launch, is
+ *          bounded only by the shared first-launch bound, which outlasts the
+ *          launcher's own, so a slow launch fails with the launcher's error
  */
 
 import { existsSync, readFileSync } from 'node:fs';
@@ -31,6 +34,8 @@ import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
 
+import { DEFAULT_CAMOUFOX_LAUNCH_TIMEOUT_MS } from '../../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js';
+import { FIRST_LAUNCH_HOOK_TIMEOUT_MS } from '../../../E2eMocked/Helpers/BrowserFixture.js';
 import type { IGhaStatus, INeed } from '../../../Helpers/GhaExpression.js';
 import { evaluateIf, jobStatus } from '../../../Helpers/GhaExpression.js';
 
@@ -60,6 +65,12 @@ const CHECK_STEPS = EXPECTED_STEPS.slice(3);
 
 /** The runtime contract E2E mocked runs on its own first. */
 const CONTRACT_TEST = 'src/Tests/E2eMocked/BrowserStackContract.e2e-mocked.test.ts';
+
+/** The call that takes the shared browser's first launch. */
+const SHARED_LAUNCH = 'getSharedBrowser()';
+
+/** How a top-level hook with an explicit bound closes: `}, <bound>);`. */
+const HOOK_CLOSE = '\n}, ';
 
 /** E2E mocked's commands: the runtime contract alone, then the full suite. */
 const E2E_MOCKED_RUNS = [
@@ -359,6 +370,22 @@ const MUTANTS: readonly (readonly [string, string, IJob])[] = [
   ['the checks key on full_suite', GATE, stepsUnder("needs.changes.outputs.full_suite == 'true'")],
 ];
 
+/**
+ * The bound of the top-level `beforeAll` that launches the shared browser.
+ *
+ * @param source - Jest file source.
+ * @returns The text between `}, ` and `);` that closes that hook; empty when absent.
+ */
+function launchHookBound(source: string): string {
+  const hookAt = source.indexOf('beforeAll(');
+  const launchAt = source.indexOf(SHARED_LAUNCH, hookAt);
+  const closeAt = source.indexOf(HOOK_CLOSE, launchAt);
+  if (hookAt < 0 || launchAt < 0 || closeAt < 0) return '';
+  const boundAt = closeAt + HOOK_CLOSE.length;
+  const endAt = source.indexOf(');', boundAt);
+  return source.slice(boundAt, endAt);
+}
+
 describe('BrowserStackGateWiring', () => {
   it('[BSW-1] needs only changes, has no job-level if and reads only the repository', () => {
     const job = jobOf(JOBS, GATE);
@@ -423,5 +450,13 @@ describe('BrowserStackGateWiring', () => {
     expect(runs).toStrictEqual(E2E_MOCKED_RUNS);
     expect(contractKeys).toStrictEqual(['name', 'run']);
     expect(isContractPresent).toBe(true);
+  });
+
+  it('[BSW-9] the contract setup outlasts the launcher bound on the first launch', () => {
+    const contractPath = join(REPO_ROOT, CONTRACT_TEST);
+    const contract = readFileSync(contractPath, 'utf8');
+    const bound = launchHookBound(contract);
+    expect(bound).toBe('FIRST_LAUNCH_HOOK_TIMEOUT_MS');
+    expect(FIRST_LAUNCH_HOOK_TIMEOUT_MS).toBeGreaterThan(DEFAULT_CAMOUFOX_LAUNCH_TIMEOUT_MS);
   });
 });

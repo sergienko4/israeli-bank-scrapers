@@ -22,7 +22,11 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 
 import type { Browser, BrowserContext, Page, Response } from 'playwright-core';
 
-import { closeSharedBrowser, getSharedBrowser } from './Helpers/BrowserFixture.js';
+import {
+  closeSharedBrowser,
+  FIRST_LAUNCH_HOOK_TIMEOUT_MS,
+  getSharedBrowser,
+} from './Helpers/BrowserFixture.js';
 
 /** Loopback host the contract server binds to. */
 const LOOPBACK = '127.0.0.1';
@@ -38,9 +42,6 @@ const FULFILLED_COOKIES = 'c=3; Path=/\nd=4; Path=/';
 
 /** The entries C3's fulfilled header must read back as, one per line. */
 const FULFILLED_ENTRIES = FULFILLED_COOKIES.split('\n');
-
-/** Ceiling for launching the browser once for the file. */
-const LAUNCH_TIMEOUT_MS = 60_000;
 
 /** Context and page an invariant runs in. */
 interface IContractTab {
@@ -164,7 +165,7 @@ beforeAll(async () => {
   browser = await getSharedBrowser();
   server = await startServer();
   origin = originOf(server);
-}, LAUNCH_TIMEOUT_MS);
+}, FIRST_LAUNCH_HOOK_TIMEOUT_MS);
 
 afterAll(async () => {
   await closeSharedBrowser();
