@@ -11,6 +11,8 @@ source-files:
   - src/Tests/Unit/Tools/BrowserStackAcceptanceGuards.test.ts
   - scripts/browser-stack/gate-report.mjs
   - scripts/browser-stack/gen-config.mjs
+  - scripts/browser-stack/gate.mjs
+  - src/Tests/Unit/Tools/BrowserStackGenConfig.test.ts
 ---
 
 # CI gates

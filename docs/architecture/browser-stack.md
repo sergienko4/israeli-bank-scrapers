@@ -6,6 +6,13 @@ source-files:
   - src/Scrapers/Pipeline/Mediator/Browser/BrowserStackConfig.ts
   - src/Scrapers/Pipeline/Mediator/Browser/BrowserStackCheck.ts
   - src/Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.ts
+  - scripts/browser-stack/manifest.mjs
+  - scripts/browser-stack/gate.mjs
+  - scripts/browser-stack/gate-report.mjs
+  - tsup.config.ts
+  - src/Tests/Unit/Tools/BrowserStackGenConfig.test.ts
+  - src/Tests/Unit/BundleImportAttributesPolicy.test.ts
+  - src/Tests/Unit/Pipeline/Mediator/Browser/BrowserStackPlaywrightReader.test.ts
 ---
 
 # Browser stack — the tested Camoufox × playwright-core pair

@@ -18,6 +18,9 @@ source-files:
   - .github/actions/install-camoufox/action.yml
   - .github/actions/install-camoufox/install.sh
   - docker/Dockerfile.ci-mirror
+  - scripts/browser-stack/gate.mjs
+  - scripts/browser-stack/gen-config.mjs
+  - scripts/browser-stack/gate-report.mjs
   - .github/workflows/pr-body-check.yml
   - src/Tests/Unit/Pipeline/CrossValidation/DependabotSecurityGrouping.test.ts
   - src/Tests/Unit/Pipeline/CrossValidation/RenovateLockfileMaintenancePolicy.test.ts
