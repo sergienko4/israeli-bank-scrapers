@@ -10,25 +10,64 @@ import type { IJugglerDelta } from '../../../../scripts/browser-stack/juggler-di
 
 const IMPORT_LINE = "const {t} = ChromeUtils.importESModule('resource://testing/t.js');";
 
+/** Types in a chain long enough to overflow a walk that recurses once per link. */
+const CHAIN_LENGTH = 20_000;
 /**
- * One type that only renames the next one in a chain.
+ * Time to parse or diff that chain: far above a walk that passes each link
+ * once (under a second), far below one that walks it again from every link
+ * (over a minute).
+ */
+const CHAIN_BUDGET_MS = 10_000;
+/** The type a chain ends in unless a case names another. */
+const CHAIN_END = '{ v: t.String }';
+
+/**
+ * How one type in a chain holds the next: the text around its reference,
+ * and the step that adds to a delta path.
+ */
+interface IChainLink {
+  readonly open: string;
+  readonly close: string;
+  readonly step: string;
+}
+
+/** Every way the grammar lets one named type hold the next. */
+const CHAIN_LINKS = {
+  rename: { open: '', close: '', step: '' },
+  field: { open: '{ n: ', close: ' }', step: '.n' },
+  item: { open: 't.Array(', close: ')', step: '[]' },
+  nullable: { open: 't.Nullable(', close: ')', step: '' },
+} as const satisfies Readonly<Record<string, IChainLink>>;
+
+/** A key of {@link CHAIN_LINKS}. */
+type ChainLinkName = keyof typeof CHAIN_LINKS;
+
+/** Every key of {@link CHAIN_LINKS}. */
+const CHAIN_LINK_NAMES = Object.keys(CHAIN_LINKS) as readonly ChainLinkName[];
+
+/**
+ * One type in a chain: `A<at>`, holding `A<at + 1>`.
  *
+ * @param link - How it holds the next.
  * @param at - Its place in the chain.
  * @returns Its assignment.
  */
-function chainLink(at: number): string {
-  return `ns.A${String(at)} = t.Recursive(ns, 'A${String(at + 1)}');`;
+function chainLink(link: IChainLink, at: number): string {
+  const next = `t.Recursive(ns, 'A${String(at + 1)}')`;
+  return `ns.A${String(at)} = ${link.open}${next}${link.close};`;
 }
 
 /**
- * A namespace whose `A0` renames `A1`, and so on, the last one an object.
+ * A namespace whose `A0` holds `A1`, and so on, the last one `end`.
  *
- * @param length - How many types only rename the next.
+ * @param name - How each type holds the next.
+ * @param length - How many types hold the next.
+ * @param end - The last type.
  * @returns Prelude line.
  */
-function aliasChain(length: number): string {
-  const links = Array.from({ length }, (_, at) => chainLink(at));
-  return `const ns = {}; ${links.join(' ')} ns.A${String(length)} = { v: t.String };`;
+function typeChain(name: ChainLinkName, length: number, end = CHAIN_END): string {
+  const links = Array.from({ length }, (_, at) => chainLink(CHAIN_LINKS[name], at));
+  return `const ns = {}; ${links.join(' ')} ns.A${String(length)} = ${end};`;
 }
 
 /**
@@ -78,4 +117,16 @@ function delta(line: string, signature: string): IJugglerDelta {
   return { channel, kind, path, signature } as IJugglerDelta;
 }
 
-export { aliasChain, delta, event, IMPORT_LINE, method, protocolOf };
+export {
+  CHAIN_BUDGET_MS,
+  CHAIN_LENGTH,
+  CHAIN_LINK_NAMES,
+  CHAIN_LINKS,
+  type ChainLinkName,
+  delta,
+  event,
+  IMPORT_LINE,
+  method,
+  protocolOf,
+  typeChain,
+};

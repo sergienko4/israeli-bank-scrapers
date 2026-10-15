@@ -25,12 +25,15 @@ import {
   UnparseableSchemaError,
 } from '../../../../scripts/browser-stack/juggler-schema.mjs';
 import {
-  aliasChain,
+  CHAIN_BUDGET_MS,
+  CHAIN_LENGTH,
+  CHAIN_LINK_NAMES,
   delta,
   event,
   IMPORT_LINE,
   method,
   protocolOf,
+  typeChain,
 } from './CheckBrowserStackSources.js';
 const NO_DOMAINS = `${IMPORT_LINE}\nexport const protocol = { domains: {} };`;
 const LEAF = 'const ns = {}; ns.Leaf = { v: t.String };';
@@ -48,14 +51,6 @@ const MUTUAL_ALIAS =
 const ALIAS_CHAIN =
   "const ns = {}; ns.A = t.Nullable(t.Recursive(ns, 'B')); ns.B = { v: t.String };";
 const SELF_ARRAY = "const ns = {}; ns.A = t.Nullable(t.Array(t.Recursive(ns, 'A')));";
-/** Renames in a chain long enough to overflow a walk that recurses once per rename. */
-const ALIAS_CHAIN_LENGTH = 20_000;
-/**
- * Time to parse that chain: far above a walk that passes each rename once
- * (under a second), far below one that walks it again from every name (over
- * a minute).
- */
-const ALIAS_CHAIN_BUDGET_MS = 10_000;
 
 /**
  * Two namespaces that both declare `Node`; `A.Node` refers to `B.Node`.
@@ -622,13 +617,16 @@ describe('Juggler schema parser', () => {
     expect(line).toBe(c.line);
   });
 
-  it('[BSD-59] accepts a long chain of renames that ends in an object, walked once', () => {
-    const prelude = aliasChain(ALIAS_CHAIN_LENGTH);
-    const source = method('{}', '{}', prelude);
-    const startedAt = Date.now();
-    const line = thrownLine(source);
-    const elapsedMs = Date.now() - startedAt;
-    expect(line).toBe(-1);
-    expect(elapsedMs).toBeLessThan(ALIAS_CHAIN_BUDGET_MS);
-  });
+  it.each(CHAIN_LINK_NAMES)(
+    '[BSD-59] accepts a long %s chain that ends in an object, walked once',
+    name => {
+      const prelude = typeChain(name, CHAIN_LENGTH);
+      const source = method('{}', '{}', prelude);
+      const startedAt = Date.now();
+      const line = thrownLine(source);
+      const elapsedMs = Date.now() - startedAt;
+      expect(line).toBe(-1);
+      expect(elapsedMs).toBeLessThan(CHAIN_BUDGET_MS);
+    },
+  );
 });

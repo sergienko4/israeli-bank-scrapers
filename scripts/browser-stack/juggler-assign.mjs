@@ -1,6 +1,5 @@
 /**
- * Directional assignability between two Juggler field maps or types
- * (`objectAssign` for field maps, `typeAssign` for types).
+ * Directional assignability between two Juggler field maps (`objectAssign`).
  *
  * The question is always "can every value `src` permits be consumed by
  * `dst`?". The cursor carries the channel: `request` is strict (the browser's
@@ -9,8 +8,10 @@
  * harmless). Each finding is pushed to `cursor.out` as
  * `{channel, kind, path, signature}`.
  *
- * `objectAssign` and `typeAssign` recurse into each other, so they share this
- * module (no import cycle). The top level lives in `juggler-diff.mjs`.
+ * Named types nest as deep as a schema chains them, so the walk keeps its own
+ * stack instead of the call stack: a field, an Array item or a resolved Ref
+ * is scheduled, not called, and the last one scheduled runs first, so deltas
+ * come out depth-first in key order. The top level lives in `juggler-diff.mjs`.
  */
 import { enumLiteral, fieldSig, pairSig, sig } from './juggler-sig.mjs';
 
@@ -31,10 +32,18 @@ import { enumLiteral, fieldSig, pairSig, sig } from './juggler-sig.mjs';
  *   `event`.
  * @property {string} path - Delta path so far, e.g. `Browser.newPage.browserContextId`.
  * @property {IJugglerDelta[]} out - Collected deltas.
- * @property {ReadonlySet<string>} seen - Ref pairs already on this path (cycle guard; one
- *   channel per cursor).
  * @property {Namespaces} srcTypes - Namespaces of the `src` schema, for Ref resolution.
  * @property {Namespaces} dstTypes - Namespaces of the `dst` schema, for Ref resolution.
+ */
+
+/**
+ * A cursor inside one `objectAssign` walk.
+ *
+ * @typedef {object} WalkState
+ * @property {(() => void)[]} todo - Steps still to run; the last one runs next.
+ * @property {Set<string>} seen - Ref pairs on the current path (cycle guard): a pair
+ *   joins when the walk enters it and leaves once its subtree is done.
+ * @typedef {Cursor & WalkState} Walk
  */
 
 /** Channels where a key unknown to `dst` is rejected. */
@@ -50,8 +59,15 @@ const STRICT = new Set(['request']);
  */
 const own = (obj, key) => (Object.hasOwn(obj, key) ? obj[key] : undefined);
 
-/** Cursor moved to another path. */
-const at = (/** @type {Cursor} */ cur, /** @type {string} */ path) => ({ ...cur, path });
+/**
+ * Cursor moved to another path.
+ *
+ * @template {Cursor} C
+ * @param {C} cur - Cursor to move.
+ * @param {string} path - New path.
+ * @returns {C} The cursor at `path`.
+ */
+const at = (cur, path) => ({ ...cur, path });
 
 /** Record one delta at the cursor's path. */
 function push(
@@ -63,7 +79,8 @@ function push(
 }
 
 /**
- * Compare two field maps over the union of their keys.
+ * Compare two field maps over the union of their keys, to the end of every
+ * type they reach.
  *
  * @param {Fields} src - Fields of the producing side.
  * @param {Fields} dst - Fields of the consuming side.
@@ -71,15 +88,30 @@ function push(
  * @returns {void}
  */
 export function objectAssign(src, dst, cur) {
-  const keys = [...new Set([...Object.keys(src), ...Object.keys(dst)])].sort();
-  for (const key of keys) fieldAssign(own(src, key), own(dst, key), at(cur, `${cur.path}.${key}`));
+  /** @type {Walk} */
+  const walk = { ...cur, todo: [], seen: new Set() };
+  fieldsLater(src, dst, walk);
+  for (let step = walk.todo.pop(); step !== undefined; step = walk.todo.pop()) step();
 }
 
-/** One key of `objectAssign`: presence and optionality, then the types. */
+/** Schedule every key of two field maps, so they run in sorted order. */
+function fieldsLater(
+  /** @type {Fields} */ src,
+  /** @type {Fields} */ dst,
+  /** @type {Walk} */ cur,
+) {
+  const keys = [...new Set([...Object.keys(src), ...Object.keys(dst)])].sort().reverse();
+  for (const key of keys) {
+    const next = at(cur, `${cur.path}.${key}`);
+    cur.todo.push(() => fieldAssign(own(src, key), own(dst, key), next));
+  }
+}
+
+/** One key of a field map: presence and optionality, then the types. */
 function fieldAssign(
   /** @type {IField | undefined} */ s,
   /** @type {IField | undefined} */ d,
-  /** @type {Cursor} */ cur,
+  /** @type {Walk} */ cur,
 ) {
   if (d === undefined) {
     if (STRICT.has(cur.channel)) push(cur, 'UNKNOWN-FIELD', pairSig(fieldSig(s), 'absent'));
@@ -102,14 +134,14 @@ function unwrap(type) {
 }
 
 /**
- * Compare two types.
+ * Compare two types; what they nest is scheduled on the walk.
  *
  * @param {SchemaType} s - Producing type.
  * @param {SchemaType} d - Consuming type.
- * @param {Cursor} cur - Channel, path and output.
+ * @param {Walk} cur - Channel, path, output and the walk's stack.
  * @returns {void}
  */
-export function typeAssign(s, d, cur) {
+function typeAssign(s, d, cur) {
   if (d.t === 'Any') return;
   const [su, du] = [unwrap(s), unwrap(d)];
   if (su.t === 'Ref' || du.t === 'Ref') return refAssign(s, d, cur);
@@ -141,17 +173,19 @@ function resolve(type, types) {
 /**
  * Step 3: resolve Refs once per (src, dst) pair on the current path. The pair
  * is keyed whole, Nullable and inline field types included, since `sig`
- * folds those away; a Ref keys by its name, so the keys stay finite.
+ * folds those away; a Ref keys by its name, so the keys stay finite. The
+ * pair leaves `seen` only after everything scheduled above its leave step.
  */
 function refAssign(
   /** @type {SchemaType} */ s,
   /** @type {SchemaType} */ d,
-  /** @type {Cursor} */ cur,
+  /** @type {Walk} */ cur,
 ) {
   const key = JSON.stringify([s, d]);
   if (cur.seen.has(key)) return;
-  const next = { ...cur, seen: new Set(cur.seen).add(key) };
-  typeAssign(resolve(s, cur.srcTypes), resolve(d, cur.dstTypes), next);
+  cur.seen.add(key);
+  cur.todo.push(() => cur.seen.delete(key));
+  cur.todo.push(() => typeAssign(resolve(s, cur.srcTypes), resolve(d, cur.dstTypes), cur));
 }
 
 /** Both values a Boolean admits. */
@@ -199,13 +233,16 @@ const SHAPES = Object.freeze({
   'Object>Object': (
     /** @type {ObjectType} */ s,
     /** @type {ObjectType} */ d,
-    /** @type {Cursor} */ cur,
-  ) => objectAssign(s.fields, d.fields, cur),
+    /** @type {Walk} */ cur,
+  ) => fieldsLater(s.fields, d.fields, cur),
   'Array>Array': (
     /** @type {ArrayType} */ s,
     /** @type {ArrayType} */ d,
-    /** @type {Cursor} */ cur,
-  ) => typeAssign(s.item, d.item, at(cur, `${cur.path}[]`)),
+    /** @type {Walk} */ cur,
+  ) => {
+    const item = at(cur, `${cur.path}[]`);
+    cur.todo.push(() => typeAssign(s.item, d.item, item));
+  },
   'Enum>Enum': enumAssign,
   'Boolean>Enum': enumAssign,
   'Enum>String': enumPrimitiveAssign,
@@ -215,14 +252,14 @@ const SHAPES = Object.freeze({
 /**
  * One `SHAPES` comparison; its `<src kind>><dst kind>` key fixes both kinds.
  *
- * @typedef {(s: SchemaType, d: SchemaType, cur: Cursor) => void} ShapeRule
+ * @typedef {(s: SchemaType, d: SchemaType, cur: Walk) => void} ShapeRule
  */
 
 /** Steps 4–6 on unwrapped, resolved types. */
 function shapeAssign(
   /** @type {SchemaType} */ s,
   /** @type {SchemaType} */ d,
-  /** @type {Cursor} */ cur,
+  /** @type {Walk} */ cur,
 ) {
   const rule = own(SHAPES, `${s.t}>${d.t}`);
   if (rule !== undefined) return /** @type {ShapeRule} */ (rule)(s, d, cur);

@@ -54,7 +54,7 @@ function cursor(
   const toBrowser = channel === 'request';
   const [src, dst] = toBrowser ? [run.client, run.browser] : [run.browser, run.client];
   const types = { srcTypes: src.namespaces, dstTypes: dst.namespaces };
-  return { channel, path, out: run.out, seen: new Set(), ...types };
+  return { channel, path, out: run.out, ...types };
 }
 
 /** Request and return deltas of one client method. */
