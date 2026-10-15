@@ -34,14 +34,15 @@ import {
   UNGUARDED,
 } from '../../Helpers/PatchPlaywrightCoreSandbox.js';
 
-const CAMOUFOX_DIR = 'node_modules/@hieutran094/camoufox-js';
-const HOISTED_COPY = 'node_modules/playwright-core';
-const NESTED_COPY = `${CAMOUFOX_DIR}/node_modules/playwright-core`;
-const PNPM_COPY_1 = 'node_modules/.pnpm/playwright-core@1.63.0/node_modules/playwright-core';
-const PNPM_COPY_2 = 'node_modules/.pnpm/playwright-core@1.64.0/node_modules/playwright-core';
-const PNPM_STORE = 'node_modules/.pnpm/@hieutran094+camoufox-js@0.0.0/node_modules';
-const PNPM_CAMOUFOX = `${PNPM_STORE}/@hieutran094/camoufox-js`;
-const PNPM_PEER = `${PNPM_STORE}/playwright-core`;
+/** Sandbox-relative paths in native separators, as the script's copy labels are. */
+const CAMOUFOX_DIR = join('node_modules', '@hieutran094', 'camoufox-js');
+const HOISTED_COPY = join('node_modules', 'playwright-core');
+const NESTED_COPY = join(CAMOUFOX_DIR, HOISTED_COPY);
+const PNPM_COPY_1 = join('node_modules', '.pnpm', 'playwright-core@1.63.0', HOISTED_COPY);
+const PNPM_COPY_2 = join('node_modules', '.pnpm', 'playwright-core@1.64.0', HOISTED_COPY);
+const PNPM_STORE = join('node_modules', '.pnpm', '@hieutran094+camoufox-js@0.0.0', 'node_modules');
+const PNPM_CAMOUFOX = join(PNPM_STORE, '@hieutran094', 'camoufox-js');
+const PNPM_PEER = join(PNPM_STORE, 'playwright-core');
 const COPY_PREFIX = 'playwright-core copy: ';
 
 /** Outcomes of patching an upstream 1.64 bundle: six reads, one send. */
