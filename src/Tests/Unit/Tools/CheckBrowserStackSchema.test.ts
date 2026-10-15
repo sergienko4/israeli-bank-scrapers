@@ -29,6 +29,7 @@ const IMPORT_LINE = "const {t} = ChromeUtils.importESModule('resource://testing/
 const NO_DOMAINS = `${IMPORT_LINE}\nexport const protocol = { domains: {} };`;
 const LEAF = 'const ns = {}; ns.Leaf = { v: t.String };';
 const NODE = "const ns = {}; ns.Node = { v: t.String, kids: t.Array(t.Recursive(ns, 'Node')) };";
+const NULLABLE_LEAF = 'const ns = {}; ns.Leaf = t.Nullable(t.String);';
 const NODE_NO_V = "const ns = {}; ns.Node = { kids: t.Array(t.Recursive(ns, 'Node')) };";
 
 /**
@@ -309,6 +310,20 @@ const DIFF_CASES: readonly IDiffCase[] = [
     browser: method('{ a: t.String }'),
     expected: [delta('request TYPE-MISMATCH D.m.a', 'src:Array(Ref(B.Node))|dst:String')],
   },
+  {
+    id: 'BSD-49',
+    what: 'one NULLABLE for a Nullable Ref to a Nullable type',
+    client: method("{ a: t.Nullable(t.Recursive(ns, 'Leaf')) }", '{}', NULLABLE_LEAF),
+    browser: method('{ a: t.String }'),
+    expected: [delta('request NULLABLE D.m.a', 'src:String|dst:String')],
+  },
+  {
+    id: 'BSD-50',
+    what: 'NULLABLE for a Ref to a Nullable type the browser takes bare',
+    client: method("{ a: t.Recursive(ns, 'Leaf') }", '{}', NULLABLE_LEAF),
+    browser: method('{ a: t.String }'),
+    expected: [delta('request NULLABLE D.m.a', 'src:String|dst:String')],
+  },
 ];
 
 /**
@@ -363,6 +378,21 @@ const NO_DELTA_CASES: readonly INoDeltaCase[] = [
     what: 'a self-recursive Ref',
     client: method('{ n: ns.Node }', '{}', NODE),
     browser: method('{ n: ns.Node }', '{}', NODE),
+  },
+  {
+    what: 'a Ref to a Nullable type the browser takes Nullable',
+    client: method("{ a: t.Recursive(ns, 'Leaf') }", '{}', NULLABLE_LEAF),
+    browser: method('{ a: t.Nullable(t.String) }'),
+  },
+  {
+    what: 'a Nullable Ref to a Nullable type the browser takes Nullable',
+    client: method("{ a: t.Nullable(t.Recursive(ns, 'Leaf')) }", '{}', NULLABLE_LEAF),
+    browser: method('{ a: t.Nullable(t.String) }'),
+  },
+  {
+    what: 'a Nullable the browser takes as a Ref to a Nullable type',
+    client: method('{ a: t.Nullable(t.String) }'),
+    browser: method("{ a: t.Recursive(ns, 'Leaf') }", '{}', NULLABLE_LEAF),
   },
   {
     what: 'a browser-only method and event',

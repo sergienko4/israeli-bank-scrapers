@@ -102,33 +102,43 @@ const unwrap = (/** @type {SchemaType} */ type) => (type.t === 'Nullable' ? type
  */
 export function typeAssign(s, d, cur) {
   if (d.t === 'Any') return;
-  const lostNull = s.t === 'Nullable' && d.t !== 'Nullable';
   const [su, du] = [unwrap(s), unwrap(d)];
-  if (su.t === 'Ref' || du.t === 'Ref') return refAssign({ su, du, lostNull }, cur);
-  if (lostNull) push(cur, 'NULLABLE', pairSig(sig(su), sig(du)));
+  if (su.t === 'Ref' || du.t === 'Ref') return refAssign(s, d, cur);
+  if (s.t === 'Nullable' && d.t !== 'Nullable') push(cur, 'NULLABLE', pairSig(sig(su), sig(du)));
   if (du.t !== 'Any') shapeAssign(su, du, cur);
 }
 
-/** A Ref resolved in the namespaces of the schema it came from. */
-function resolve(/** @type {SchemaType} */ type, /** @type {Namespaces} */ types) {
-  return type.t === 'Ref' ? types[type.ns][type.name] : type;
+/** A type made Nullable, never wrapped twice. */
+function nullable(/** @type {SchemaType} */ type) {
+  /** @type {SchemaType} */
+  const wrapped = { t: 'Nullable', inner: type };
+  return type.t === 'Nullable' ? type : wrapped;
 }
 
 /**
- * Unwrapped types of a `typeAssign` step, and whether `src` dropped a `Nullable` `dst` lacks.
+ * A type with its Ref resolved in the namespaces of the schema it came from,
+ * keeping its own `Nullable`: a Ref to a Nullable type stays one Nullable.
  *
- * @typedef {{ su: SchemaType, du: SchemaType, lostNull: boolean }} RefPair
+ * @param {SchemaType} type - A type, maybe a Ref, maybe wrapped in `Nullable`.
+ * @param {Namespaces} types - Namespaces of the schema the type came from.
+ * @returns {SchemaType} The resolved type.
  */
+function resolve(type, types) {
+  const inner = unwrap(type);
+  const target = inner.t === 'Ref' ? types[inner.ns][inner.name] : inner;
+  return type.t === 'Nullable' ? nullable(target) : target;
+}
 
 /** Step 3: resolve Refs once per (channel, src, dst) pair on the current path. */
-function refAssign(/** @type {RefPair} */ pair, /** @type {Cursor} */ cur) {
-  const key = `${cur.channel}:${sig(pair.su)}>${sig(pair.du)}`;
+function refAssign(
+  /** @type {SchemaType} */ s,
+  /** @type {SchemaType} */ d,
+  /** @type {Cursor} */ cur,
+) {
+  const key = `${cur.channel}:${sig(unwrap(s))}>${sig(unwrap(d))}`;
   if (cur.seen.has(key)) return;
   const next = { ...cur, seen: new Set(cur.seen).add(key) };
-  const rs = resolve(pair.su, cur.srcTypes);
-  /** @type {SchemaType} */
-  const src = pair.lostNull ? { t: 'Nullable', inner: rs } : rs;
-  typeAssign(src, resolve(pair.du, cur.dstTypes), next);
+  typeAssign(resolve(s, cur.srcTypes), resolve(d, cur.dstTypes), next);
 }
 
 /** Step 5: every `src` enum value the `dst` enum lacks. */
