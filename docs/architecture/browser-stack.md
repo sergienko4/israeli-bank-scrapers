@@ -75,8 +75,12 @@ throws, as the Camoufox reader does before the first download, skips its
 component with a `debug` line that carries only the redacted message length.
 A logger that throws also only skips its component. `launchCamoufox` guards
 the call as well and bounds it by `STACK_CHECK_DEADLINE_MS` (2 s), so a check
-that ever rejected or hung would still not cost the caller its launched
-browser.
+that ever rejected or never settled would still not cost the caller its
+launched browser. The deadline is a timer, so it bounds only asynchronous
+waiting: it cannot interrupt the readers' synchronous reads of the Camoufox
+version file and the two package manifests. A file system that stalls during
+them blocks the event loop and the deadline with it, as it would block
+camoufox-js's own synchronous reads of the same install at launch.
 The consumer-facing guide is in
 [Troubleshooting](../troubleshooting.md#browser-stack-differs-from-the-tested-pair).
 

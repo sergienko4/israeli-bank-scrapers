@@ -334,7 +334,12 @@ async function boundedStart(headless: boolean): Promise<Browser> {
 /**
  * Upper bound on the browser-stack check after a launch, in milliseconds.
  * The check only reads two installed versions and settles far sooner; the
- * bound matters only if it ever hangs, so the caller still gets the browser.
+ * bound matters only if its promise ever stays pending, so the caller still
+ * gets the browser. It is a timer, so it bounds only asynchronous waiting:
+ * it cannot interrupt the readers' synchronous reads of the Camoufox version
+ * file and the two package manifests. A file system that stalls during them
+ * blocks the event loop and this deadline with it, as it would block
+ * camoufox-js's own synchronous reads of the same install at launch.
  */
 export const STACK_CHECK_DEADLINE_MS = 2_000;
 
@@ -344,8 +349,8 @@ const STACK_CHECK_LABEL = 'browser-stack check';
 /**
  * Run the browser-stack check without letting it cost the caller a launched
  * browser. The check is advisory and is built never to reject; if it ever
- * rejected or hung, an unguarded await would withhold the live browser with
- * no reference left to close it, so it is bounded by
+ * rejected or never settled, an unguarded await would withhold the live
+ * browser with no reference left to close it, so it is bounded by
  * {@link STACK_CHECK_DEADLINE_MS} and every failure is swallowed. Nothing is
  * logged, since a throwing logger is one way the check can fail.
  *
@@ -392,7 +397,7 @@ async function checkStackSafely(): Promise<void> {
  * process when the installed Camoufox or playwright-core is not the tested
  * pair. It runs outside the launch bound, under its own short deadline, and
  * never fails the launch: {@link checkStackSafely} hands the browser back
- * even if the check rejects or hangs.
+ * even if the check rejects or never settles.
  *
  * @param headless - Whether to launch in headless mode.
  * @returns A Playwright-compatible Browser instance.
