@@ -7,10 +7,12 @@
  * module is the render of the committed manifest; a run writes only when the
  * module is stale, so a second run changes nothing; a missing module is stale
  * while any other read error surfaces; an invalid manifest exits 2 with
- * MANIFEST-INVALID and writes nothing; and no other `src` file copies the
- * pinned tag.
+ * MANIFEST-INVALID and writes nothing; no other `src` file copies the
+ * pinned tag; and the CLI takes no argument, so any argument is a usage
+ * error that runs nothing, even through a symlinked entry path.
  */
 
+import { spawnSync } from 'node:child_process';
 import {
   existsSync,
   mkdirSync,
@@ -18,6 +20,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -39,6 +42,7 @@ import {
   TESTED_CAMOUFOX_TAG,
   TESTED_PLAYWRIGHT_MINOR,
 } from '../../../Scrapers/Pipeline/Mediator/Browser/BrowserStackConfig.js';
+import { canCreateSymlinks } from '../../Helpers/HostCapabilities.js';
 
 const THIS_FILE = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE);
@@ -47,6 +51,8 @@ const SRC_ROOT = join(REPO_ROOT, 'src');
 const REAL_MANIFEST = join(REPO_ROOT, 'browser-stack.json');
 const SAMPLE_TAG = 'v100.0.0-beta.1';
 const EDITED_TAG = 'v100.0.1-beta.2';
+const GEN_CLI = join(REPO_ROOT, 'scripts/browser-stack/gen-config.mjs');
+const GEN_USAGE = 'usage: node scripts/browser-stack/gen-config.mjs\n';
 
 /** One generator run's files and captured output. */
 interface ISandbox {
@@ -134,6 +140,25 @@ function sandbox(tag: string): ISandbox {
     stderr: err.push.bind(err),
   };
   return { manifestPath, generatedPath, out, err, io };
+}
+
+/** One spawned CLI run. */
+interface ICliRun {
+  readonly status: number;
+  readonly stdout: string;
+  readonly stderr: string;
+}
+
+/**
+ * Spawn the generator CLI.
+ *
+ * @param entry - Script path given to node.
+ * @param args - CLI arguments.
+ * @returns Exit status (-1 when killed) and both output streams.
+ */
+function runGenCli(entry: string, args: readonly string[]): ICliRun {
+  const result = spawnSync(process.execPath, [entry, ...args], { encoding: 'utf8' });
+  return { status: result.status ?? -1, stdout: result.stdout, stderr: result.stderr };
 }
 
 /** What one `generate` run returned and left on disk. */
@@ -271,5 +296,20 @@ describe('browser-stack gen-config', () => {
     const entry = below.replaceAll('/', path.win32.sep);
     const rel = repoRelOf(entry, path.win32);
     expect(rel).toBe(GENERATED_REL);
+  });
+
+  it('[BGC-9] any argument is a usage error that runs nothing', () => {
+    const run = runGenCli(GEN_CLI, ['--check']);
+    expect(run).toEqual({ status: 2, stdout: '', stderr: GEN_USAGE });
+  });
+
+  it('[BGC-10] a symlinked entry path still runs the CLI', () => {
+    if (canCreateSymlinks(process.platform)) {
+      const dir = tempDir();
+      const link = join(dir, 'gen-config.mjs');
+      symlinkSync(GEN_CLI, link);
+      const run = runGenCli(link, ['--check']);
+      expect(run).toEqual({ status: 2, stdout: '', stderr: GEN_USAGE });
+    }
   });
 });

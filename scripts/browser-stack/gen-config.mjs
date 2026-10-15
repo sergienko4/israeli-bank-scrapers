@@ -4,15 +4,17 @@
  * `browser-stack.json`, so runtime code reads the tested Camoufox tag and
  * playwright-core minor from the manifest rather than from a copied literal.
  *
- * Usage: `npm run browser-stack:gen` after editing the manifest. The run is
- * idempotent: an unchanged manifest leaves the file untouched. The
- * browser-stack gate (`npm run lint:browser-stack`) fails GENERATED-STALE in
- * gate mode when the committed file differs from what this would write.
+ * Usage: `npm run browser-stack:gen` after editing the manifest. It takes
+ * no arguments. The run is idempotent: an unchanged manifest leaves the
+ * file untouched. The browser-stack gate (`npm run lint:browser-stack`)
+ * fails GENERATED-STALE in gate mode when the committed file differs from
+ * what this would write.
  *
- * Exit codes: 0 written or already current · 2 the manifest is invalid
- * (MANIFEST-INVALID lines on stderr; nothing is written).
+ * Exit codes: 0 written or already current · 2 an argument was given (the
+ * usage line on stderr) or the manifest is invalid (MANIFEST-INVALID lines
+ * on stderr); either way nothing is written.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -23,6 +25,7 @@ import { issueLine, loadManifest } from './manifest.mjs';
 export const GENERATED_REL = 'src/Scrapers/Pipeline/Mediator/Browser/BrowserStackConfig.ts';
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
+const USAGE = 'usage: node scripts/browser-stack/gen-config.mjs';
 
 /** Production I/O; tests override any member. */
 const DEFAULT_IO = Object.freeze({
@@ -108,6 +111,21 @@ export function generate(overrides = {}) {
   return 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+/** CLI entry: regenerate, or print the usage line and exit 2 on any argument. */
+function main() {
+  if (process.argv.length > 2) {
+    process.stderr.write(`${USAGE}\n`);
+    process.exitCode = 2;
+    return;
+  }
   process.exitCode = generate();
 }
+
+/** Canonical file URL, so a symlinked entry still matches `import.meta.url`. */
+const canonicalHref = (/** @type {string} */ path) => pathToFileURL(realpathSync(path)).href;
+
+if (
+  process.argv[1] !== undefined &&
+  canonicalHref(process.argv[1]) === canonicalHref(fileURLToPath(import.meta.url))
+)
+  main();
