@@ -7,8 +7,9 @@
  * shell takes literally, quoted or escaped, never starts a call, ends a
  * command or sets a bound. Code is read one depth at a time: the inside of
  * each `( … )`, `$( … )`, backtick or `$(( … ))` group, and of each `${…}`
- * expansion, is hidden from the code around it, and the inside of each group
- * is read as code of its own. So a separator or an option inside an argument
+ * expansion up to the `}` that closes it, nested ones included, is hidden
+ * from the code around it, and the inside of each group, in an expansion or
+ * not, is read as code of its own. So a separator or an option inside an argument
  * neither ends the call nor bounds it, and a call in a substitution ends
  * where the substitution does. Every word `curl` outside a package install
  * starts a call, wherever it sits in its command, so a continued, bare,
@@ -45,12 +46,6 @@ const CALL_START_RE = /(?=\bcurl\b(?!\/))/gu;
 const CALL_HEAD_RE = /^curl\b(?!\/)/u;
 /** An escape, a quoted string or, outside them, a comment to the end of the line. */
 const COMMENT_RE = /\\.|'[^']*'|"(?:[^"\\]|\\.)*"|(?<!\S)#.*/gu;
-/** A parenthesis in a mask, where backticks are parentheses too. */
-const PAREN_RE = /[()]/gu;
-/** How each parenthesis moves the nesting depth. */
-const DEPTH_STEP: Readonly<Record<string, number>> = { '(': 1, ')': -1 };
-/** A `${…}` expansion in a mask. */
-const BRACED_RE = /\$\{[^}]*\}/gu;
 /** In a mask, a shell given `-c`, or `eval`, just before a quoted program. */
 const PROGRAM_HEAD_RE =
   /(?<![\w-])(?:(?:(?:ba|da|k|z)?sh|su)(?:\s+[-+]\S+)*?\s+-[^\Wc]*c\w*|eval)\s+(?=_)/gu;
@@ -68,7 +63,7 @@ const TOTAL_BOUND = /(?<![\w-])(?:--max-time(?:=|\s+)|-m\s*)(?<value>\S+)/dgu;
 /** Arguments a wrapper passes on, `$@`, `$*` or a whole array, which may hold a bound. */
 const FORWARDED_RE = /\$\{?(?:\w+\[)?[@*]/u;
 
-/** An outermost pair of parentheses in a mask: where it opens and where it closes. */
+/** An outermost group in a mask: where it opens and where it closes. */
 interface IGroup {
   readonly open: number;
   readonly close: number;
@@ -80,6 +75,20 @@ interface IGroupScan {
   readonly open: number;
   readonly groups: readonly IGroup[];
 }
+
+/** A kind of group: the tokens that open or close one, and how each moves the depth. */
+interface IGroupKind {
+  readonly tokens: RegExp;
+  readonly steps: Readonly<Record<string, number>>;
+}
+
+/** Parentheses in a mask, where backticks are parentheses too. */
+const PAREN_GROUPS: IGroupKind = { tokens: /[()]/gu, steps: { '(': 1, ')': -1 } };
+/**
+ * `${…}` expansions in a mask once the groups at their depth are hidden: a
+ * bare `{` does not nest in one, and a `}` that closes nothing is code.
+ */
+const BRACE_GROUPS: IGroupKind = { tokens: /\$\{|\}/gu, steps: { '${': 1, '}': -1 } };
 
 /**
  * A shell token with its comment, if it is one, removed.
@@ -109,15 +118,16 @@ function logicalLines(text: string): readonly string[] {
 }
 
 /**
- * One step of the scan for the outermost groups. A `)` that closes nothing
- * opened in the scanned text is left as it is.
+ * One step of the scan for the outermost groups. A closer that closes
+ * nothing opened in the scanned text is left as it is.
  *
  * @param scan - The scan so far.
- * @param token - The next {@link PAREN_RE} match in the mask.
+ * @param token - The next opener or closer in the mask.
+ * @param kind - The kind of group scanned for.
  * @returns The scan after it.
  */
-function stepGroup(scan: IGroupScan, token: RegExpExecArray): IGroupScan {
-  const depth = Math.max(0, scan.depth + DEPTH_STEP[token[0]]);
+function stepGroup(scan: IGroupScan, token: RegExpExecArray, kind: IGroupKind): IGroupScan {
+  const depth = Math.max(0, scan.depth + kind.steps[token[0]]);
   if (scan.depth === 0 && depth === 1) return { ...scan, depth, open: token.index };
   const isClosed = scan.depth === 1 && depth === 0;
   const closed = { open: scan.open, close: token.index };
@@ -125,14 +135,16 @@ function stepGroup(scan: IGroupScan, token: RegExpExecArray): IGroupScan {
 }
 
 /**
- * The outermost groups of a mask; one left open runs to the end.
+ * The outermost groups of a kind in a mask; one left open runs to the end.
  *
  * @param mask - A mask.
+ * @param kind - The kind of group.
  * @returns Each outermost group, in order.
  */
-function groupsIn(mask: string): readonly IGroup[] {
-  const tokens = [...mask.matchAll(PAREN_RE)];
-  const scan = tokens.reduce(stepGroup, { depth: 0, open: 0, groups: [] });
+function groupsIn(mask: string, kind: IGroupKind): readonly IGroup[] {
+  const tokens = [...mask.matchAll(kind.tokens)];
+  const start: IGroupScan = { depth: 0, open: 0, groups: [] };
+  const scan = tokens.reduce((done, token) => stepGroup(done, token, kind), start);
   const unclosed = scan.depth > 0 ? [{ open: scan.open, close: mask.length }] : [];
   return [...scan.groups, ...unclosed];
 }
@@ -142,21 +154,11 @@ function groupsIn(mask: string): readonly IGroup[] {
  *
  * @param mask - A mask.
  * @param group - A group in it.
- * @returns The mask, the group's parentheses kept.
+ * @returns The mask, the group's first and last characters kept.
  */
 function hideGroup(mask: string, group: IGroup): string {
   const inside = '_'.repeat(group.close - group.open - 1);
   return mask.slice(0, group.open + 1) + inside + mask.slice(group.close);
-}
-
-/**
- * A `${…}` expansion with its inside blanked.
- *
- * @param braced - A {@link BRACED_RE} match.
- * @returns `${`, blanks and `}`.
- */
-function hideBraced(braced: string): string {
-  return `\${${'_'.repeat(braced.length - 3)}}`;
 }
 
 /**
@@ -168,9 +170,10 @@ function hideBraced(braced: string): string {
  * @returns One span per depth, outermost first, each with its text unchanged.
  */
 function levelsOf(span: IShellSpan): readonly IShellSpan[] {
-  const groups = groupsIn(span.mask);
+  const groups = groupsIn(span.mask, PAREN_GROUPS);
   const hidden = groups.reduce(hideGroup, span.mask);
-  const surface = { text: span.text, mask: hidden.replaceAll(BRACED_RE, hideBraced) };
+  const expansions = groupsIn(hidden, BRACE_GROUPS);
+  const surface = { text: span.text, mask: expansions.reduce(hideGroup, hidden) };
   const insides = groups.map(group => sliceSpan(span, group.open + 1, group.close));
   return [surface, ...insides.flatMap(levelsOf)];
 }

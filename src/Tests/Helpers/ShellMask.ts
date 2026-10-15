@@ -7,11 +7,14 @@
  * double quotes a `$(…)` substitution and a parameter expansion (`$x`, `${x}`,
  * `$@`) stay, as the shell still runs and expands them there. A backtick
  * becomes `(` where it opens a substitution and `)` where it closes one, so
- * both kinds of substitution nest as parentheses.
+ * both kinds of substitution nest as parentheses. Inside a `${…}`, quoted or
+ * not, quotes, substitutions and nested expansions are read as in code, but
+ * a bare parenthesis is a literal pattern character, so it is masked; the
+ * expansion ends at the `}` that closes it, not at one quoted or nested.
  */
 
-/** Where the lexer is: plain code, `( … )`, backticks, or a quoted string. */
-type Frame = 'code' | 'paren' | 'tick' | 'double' | 'single';
+/** Where the lexer is: plain code, `( … )`, backticks, `${…}`, or a quoted string. */
+type Frame = 'code' | 'paren' | 'tick' | 'braced' | 'double' | 'single';
 /** What a lexeme becomes in the mask: itself, `_`s, or a parenthesis for a backtick. */
 type Emit = 'keep' | 'mask' | '(' | ')';
 /** Whether a lexeme keeps, leaves or enters a frame. */
@@ -26,11 +29,13 @@ type Kind =
   | 'open'
   | 'close'
   | 'tick'
+  | 'brace'
+  | 'unbrace'
   | 'expansion'
   | 'text';
 
 /** One lexeme per match, every character covered; a lone `\` or `$` is one character. */
-const LEXEME_RE = /\\[\s\S]|\$\(|\$(?:\{[^}]*\}|\w+|[@*#?$!-])|['"`()\\$]|[^\\'"$()`]+/gu;
+const LEXEME_RE = /\\[\s\S]|\$\(|\$\{|\$(?:\w+|[@*#?$!-])|['"`()\\$}]|[^\\'"$()`}]+/gu;
 
 /** The kind of a lexeme, by the first pattern it matches; anything else is text. */
 const KIND_PATTERNS: readonly (readonly [RegExp, Kind])[] = [
@@ -42,6 +47,8 @@ const KIND_PATTERNS: readonly (readonly [RegExp, Kind])[] = [
   [/^\($/u, 'open'],
   [/^\)$/u, 'close'],
   [/^`$/u, 'tick'],
+  [/^\$\{$/u, 'brace'],
+  [/^\}$/u, 'unbrace'],
   [/^\$./su, 'expansion'],
 ];
 
@@ -56,6 +63,7 @@ const MASK: IStep = { emit: 'mask', move: 'stay' };
 const LEAVE_QUOTE: IStep = { emit: 'mask', move: 'pop' };
 const ENTER_SUBST: IStep = { emit: 'keep', move: 'paren' };
 const ENTER_TICK: IStep = { emit: '(', move: 'tick' };
+const ENTER_BRACED: IStep = { emit: 'keep', move: 'braced' };
 
 /** Steps in code; a `)` or backtick that closes nothing it opened stays as is. */
 const CODE_STEPS: Readonly<Record<Kind, IStep>> = {
@@ -67,6 +75,8 @@ const CODE_STEPS: Readonly<Record<Kind, IStep>> = {
   open: ENTER_SUBST,
   close: KEEP,
   tick: ENTER_TICK,
+  brace: ENTER_BRACED,
+  unbrace: KEEP,
   expansion: KEEP,
   text: KEEP,
 };
@@ -81,6 +91,8 @@ const DOUBLE_STEPS: Readonly<Record<Kind, IStep>> = {
   open: MASK,
   close: MASK,
   tick: ENTER_TICK,
+  brace: ENTER_BRACED,
+  unbrace: MASK,
   expansion: KEEP,
   text: MASK,
 };
@@ -93,6 +105,7 @@ const SINGLE_STEPS: Readonly<Record<Kind, IStep>> = {
   double: MASK,
   subst: MASK,
   tick: MASK,
+  brace: MASK,
   expansion: MASK,
 };
 
@@ -101,6 +114,7 @@ const STEPS: Readonly<Record<Frame, Readonly<Record<Kind, IStep>>>> = {
   code: CODE_STEPS,
   paren: { ...CODE_STEPS, close: { emit: 'keep', move: 'pop' } },
   tick: { ...CODE_STEPS, tick: { emit: ')', move: 'pop' } },
+  braced: { ...CODE_STEPS, open: MASK, close: MASK, unbrace: { emit: 'keep', move: 'pop' } },
   double: DOUBLE_STEPS,
   single: SINGLE_STEPS,
 };

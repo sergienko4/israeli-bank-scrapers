@@ -176,6 +176,14 @@ const UNBOUNDED_CURLS: readonly (readonly [string, string])[] = [
     'a bound only inside a substitution after a case pattern',
     'case "$x" in a) curl $(opts -m 5 x) "$url" ;; esac',
   ],
+  ['a call in a backtick inside a parameter default', 'x=${y:-`curl "$url"`}'],
+  ['a call in a substitution inside a parameter default', 'x=${y:-$(curl "$url")}'],
+  ['a bound only in a quoted parameter default', 'curl "${o:-"-m 5"}" "$url"'],
+  ['a bound only after a nested expansion in a default', 'curl ${a:-${b} -m 5 } "$url"'],
+  ['a bound only after a double-quoted } in a default', 'curl ${u:-"}" -m 5 } "$url"'],
+  ['a bound only after a single-quoted } in a default', 'curl ${u:-\'}\' -m 5 } "$url"'],
+  ['a bound only after a code } in a default', 'curl ${a:-$( { :; } ) -m 5 } "$url"'],
+  ['a call after a single-quoted ${', 'echo \'${\'; curl "$url"'],
 ];
 
 /** Code the oracle must accept. */
@@ -213,6 +221,15 @@ const BOUNDED_CURLS: readonly (readonly [string, string])[] = [
   ['an & in a parameter expansion', 'curl "${u//&/%26}" -m 5'],
   ['a ; in a parameter expansion', 'curl "${u//;/%3B}" -m 5'],
   ['a bounded curl run for the header of a bounded call', 'curl -H "$(curl -m 5 tok)" -m 5 "$url"'],
+  ['a ( in a parameter expansion', 'curl "${u//(/%28}" -m 5'],
+  ['an unquoted ( in a parameter expansion', 'curl ${u//(/%28} -m 5'],
+  ['a ) in a parameter expansion in a substitution', 'body=$(curl "${u//)/%29}" -m 5)'],
+  ['a quoted ; in a substitution in a parameter default', 'x=${y:-$(curl "a;b" -m 5)}'],
+  ['a bounded call in a backtick in a parameter default', 'x=${y:-`curl -m 5 "$url"`}'],
+  ['a pattern ( ) around a substitution', 'curl "${u//(a$(echo b)c)/x}" -m 5'],
+  ['a quoted substitution in a quoted default', 'curl "${u:-"$(date)"}" -m 5'],
+  ['a workflow expression in a header', 'curl -H "x: ${{ secrets.T }}" -m 5 "$url"'],
+  ['a bare { in a parameter default', 'curl ${x:-{a} -m 5 "$url"'],
 ];
 
 /** A bounded call placed next to each control, so a flag names the control. */
