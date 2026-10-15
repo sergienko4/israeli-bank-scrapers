@@ -147,6 +147,10 @@ const UNBOUNDED_CURLS: readonly (readonly [string, string])[] = [
   ['a bound lent by a background call', 'curl "$a" & curl -m 5 "$b"'],
   ['a bound after its substitution closes', 'echo $(curl "$url") --max-time 5'],
   ['a bound after its backticks close', 'echo `curl "$url"` -m 5'],
+  ['a bound only inside a double-quoted header', 'curl -H "X-Note: -m 5 s" "$url"'],
+  ['a bound only inside single-quoted data', 'curl -d \'x -m 5 s\' "$url"'],
+  ['a call after a quoted substitution', 'when="$(date)"; curl "$url"'],
+  ['a call after a single-quoted backslash', 'printf \'\\\' ; curl "$url"'],
 ];
 
 /** Code the oracle must accept. */
@@ -163,6 +167,11 @@ const BOUNDED_CURLS: readonly (readonly [string, string])[] = [
   ['a substituted output path', 'curl -o $(mktemp) -m 5 "$url"'],
   ['an arithmetic retry count', 'curl --retry $((n + 1)) -m 5 "$url"'],
   ['a URL fragment and an array length', 'curl --retry ${#urls[@]} -m 5 http://x/#a'],
+  ['curl named inside a quoted header', 'curl -m 5 -H "X-Client: my curl client" "$url"'],
+  ['a backtick substitution as an argument', 'curl `get_url` -m 5'],
+  ['a quoted semicolon', 'curl -H "Accept: a; b" -m 5 "$url"'],
+  ['a quoted pipe and &&', 'curl -d \'a | b && c\' -m 5 "$url"'],
+  ['a bounded call in a quoted substitution', 'body="$(curl -m 5 "$url")"'],
 ];
 
 /** A bounded call placed next to each control, so a flag names the control. */
