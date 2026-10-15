@@ -139,6 +139,11 @@ const UNBOUNDED_CURLS: readonly (readonly [string, string])[] = [
   ['a wrapper passing its arguments', 'fetch() { curl -s "$@"; }'],
   ['a call in a command substitution', 'body="$(curl "$url")"'],
   ['a continued call', 'curl \\\n  -fsSL "$url"'],
+  ['a bound only in an inline comment', 'curl "$url" # TODO add --max-time 5'],
+  ['a bound lent by a later call', 'body="$(curl "$a") $(curl -m 5 "$b")"'],
+  ['a bound lent by a background call', 'curl "$a" & curl -m 5 "$b"'],
+  ['a bound after its substitution closes', 'echo $(curl "$url") --max-time 5'],
+  ['a bound after its backticks close', 'echo `curl "$url"` -m 5'],
 ];
 
 /** Code the oracle must accept. */
@@ -150,6 +155,11 @@ const BOUNDED_CURLS: readonly (readonly [string, string])[] = [
   ['a wrapper ceiling', 'fetch() { curl -s --max-time 5 "$@"; }'],
   ['an apt-get install', 'RUN apt-get install -y --no-install-recommends curl'],
   ['an apk add', 'RUN apk add --no-cache curl'],
+  ['a comment after a bounded call', 'curl -m 5 "$url" # fetch it'],
+  ['a user agent naming curl', 'curl -A "curl/8" -m 5 "$url"'],
+  ['a substituted output path', 'curl -o $(mktemp) -m 5 "$url"'],
+  ['an arithmetic retry count', 'curl --retry $((n + 1)) -m 5 "$url"'],
+  ['a URL fragment and an array length', 'curl --retry ${#urls[@]} -m 5 http://x/#a'],
 ];
 
 /** A bounded call placed next to each control, so a flag names the control. */
