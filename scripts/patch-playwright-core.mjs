@@ -51,8 +51,9 @@
  * because a renamed read can hide behind the other reads or behind its own
  * copy at another site. Each mismatch prints
  * `GUARD-SITES <index> <found>/<reviewed> <unguarded read>`. No
- * `pageError.location` member read may stay unguarded, in whatever layout, so
- * a read the exact forms missed prints
+ * `pageError.location` member read may stay unguarded, whether written with
+ * `.`, `?.` on `pageError`, or quoted brackets, so a read the exact forms
+ * missed prints
  * `GUARD-LEFT <count> unguarded pageError.location read(s)`. Likewise the
  * interception call must be sent at exactly `REVIEWED_CALLS` sites, each
  * with `{ enabled }` alone; every mention of the method name counts as a
@@ -80,11 +81,14 @@ const GUARDS = [
 const BUNDLE_SUBPATH = ['lib', 'coreBundle.js'];
 
 /**
- * A member read of `pageError.location` without optional chaining, in any
- * layout. In the reviewed bundles every such read is one the guards rewrite,
- * so one left after patching is a read their exact forms missed.
+ * A member read of `pageError.location` that `?.` does not protect: `location`
+ * reached by `.`, `?.` or a quoted bracket key, then a field read by `.` or
+ * `[`, with any spacing. Text, not syntax: a mention in a comment also counts,
+ * so it fails closed. In the reviewed bundles every such read is one the
+ * guards rewrite, so one left after patching is a read their exact forms missed.
  */
-const UNGUARDED_READ = /\bpageError\s*\.\s*location\s*\./g;
+const UNGUARDED_READ =
+  /\bpageError\s*(?:\??\.\s*location|(?:\?\.\s*)?\[\s*(["'`])location\1\s*\])\s*[.[]/g;
 
 const PLAYWRIGHT_PACKAGE = 'playwright-core';
 
@@ -204,7 +208,7 @@ function occurrences(source, form) {
  * @param count - Reads guarded by this run.
  * @param text - Bundle text after patching.
  * @returns Outcome, guarded sites per guard (index-aligned with `GUARDS`),
- *   and the reads left unguarded in any layout.
+ *   and the `UNGUARDED_READ` matches left after patching.
  */
 function guardResult(count, text) {
   const sites = GUARDS.map(guard => occurrences(text, guard.to));
@@ -319,7 +323,7 @@ function siteMismatches(sites) {
 /**
  * Describe the `pageError.location` reads still unguarded after patching.
  *
- * @param left - Unguarded reads in any layout; `null` when not inspected.
+ * @param left - `UNGUARDED_READ` matches left; `null` when not inspected.
  * @returns One `GUARD-LEFT` line when any remain; empty otherwise.
  */
 function leftMismatches(left) {

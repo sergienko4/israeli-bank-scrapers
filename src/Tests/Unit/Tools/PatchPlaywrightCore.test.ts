@@ -9,7 +9,7 @@
  * interception call, would drop the fix silently. `--strict` is the CI
  * proof: exit 0 only when, after patching, each guarded form appears at
  * exactly the reviewed number of sites, no `pageError.location` read is left
- * unguarded in any layout, and every interception call is one of the
+ * unguarded (by `.`, `?.` on `pageError`, or quoted brackets), and every interception call is one of the
  * reviewed sends with the shimmed payload; every mention of the method counts
  * as a send, whatever its quoting or line breaks. Guards are checked per
  * guard and per site, so one lost read cannot hide behind the other two,
@@ -78,6 +78,22 @@ const SENT_164_SINGLE = "'Network.setRequestInterception', { enabled, bypassServ
 
 /** Upstream's reads without the space after the colon, a layout the exact guards do not read. */
 const COMPACT = UNGUARDED.map((read): string => read.replace(': ', ':'));
+
+/** Upstream's reads with `?.` on `pageError`, which still leaves `location` unguarded. */
+const OPTIONAL_HEAD = UNGUARDED.map((read): string => read.replace('pageError.', 'pageError?.'));
+
+/** Upstream's reads with `location` named in brackets. */
+const BRACKET_KEY = UNGUARDED.map((read): string => read.replace('.location', "['location']"));
+
+/** Upstream's reads with the field named in brackets after `location`. */
+const BRACKET_FIELD = UNGUARDED.map((read): string =>
+  read.replace(/\.location\.(\w+)/, ".location['$1']"),
+);
+
+/** Reads already safe in a form the guards never write: `?.` into a bracketed field. */
+const SAFE_BRACKET = UNGUARDED.map((read): string =>
+  read.replace(/\.location\.(\w+)/, ".location?.['$1']"),
+);
 
 /** A fixed past mtime; any write by the script moves it to "now". */
 const UNTOUCHED_MTIME = new Date('2000-01-01T00:00:00Z');
@@ -332,6 +348,34 @@ const BUNDLE_CASES: readonly IBundleCase[] = [
     sites: [UNGUARDED, UNGUARDED, COMPACT],
     outcome: 'guarded 6 pageError.location read(s)',
     strict: [leftLine(3)],
+  },
+  {
+    id: 'PPC-27',
+    what: 'a third site with ?. on pageError but none on location',
+    sites: [UNGUARDED, UNGUARDED, OPTIONAL_HEAD],
+    outcome: 'guarded 6 pageError.location read(s)',
+    strict: [leftLine(3)],
+  },
+  {
+    id: 'PPC-28',
+    what: 'a third site naming location in brackets',
+    sites: [UNGUARDED, UNGUARDED, BRACKET_KEY],
+    outcome: 'guarded 6 pageError.location read(s)',
+    strict: [leftLine(3)],
+  },
+  {
+    id: 'PPC-29',
+    what: 'a third site naming the field in brackets',
+    sites: [UNGUARDED, UNGUARDED, BRACKET_FIELD],
+    outcome: 'guarded 6 pageError.location read(s)',
+    strict: [leftLine(3)],
+  },
+  {
+    id: 'PPC-32',
+    what: 'a third site already safe in a form the guards never write',
+    sites: [UNGUARDED, UNGUARDED, SAFE_BRACKET],
+    outcome: 'guarded 6 pageError.location read(s)',
+    strict: [],
   },
 ];
 

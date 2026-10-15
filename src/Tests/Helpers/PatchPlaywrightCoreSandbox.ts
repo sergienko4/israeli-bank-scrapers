@@ -201,7 +201,7 @@ export function allSitesLines(found: number): string[] {
 /**
  * The `GUARD-LEFT` line `--strict` prints when unguarded reads remain after patching.
  *
- * @param left - `pageError.location` member reads still unguarded, in any layout.
+ * @param left - `pageError.location` member reads still unguarded after patching.
  * @returns Expected line.
  */
 export function leftLine(left: number): string {

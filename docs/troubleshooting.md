@@ -111,8 +111,10 @@ Otherwise it exits 1 and prints
 `GUARD-SITES <index> <found>/<reviewed> <unguarded read>` for each read off
 that count. A count other than 0 usually means your `playwright-core` build
 moved a site, so its pageError reads need a fresh review. It also exits 1 when
-any `pageError.location` read is left unguarded, in whatever layout, printing
-`GUARD-LEFT <count> unguarded pageError.location read(s)`.
+any `pageError.location` read is left unguarded, whether written with `.`,
+`?.` on `pageError`, or quoted brackets, printing
+`GUARD-LEFT <count> unguarded pageError.location read(s)`. The check reads
+text, so a mention inside a comment also fails it.
 
 !!! note "Why a `scripts/` path exists in an installed package"
     Only `lib/**` ships normally. `scripts/patch-playwright-core.mjs` is the
