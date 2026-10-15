@@ -154,30 +154,44 @@ function refAssign(
   typeAssign(resolve(s, cur.srcTypes), resolve(d, cur.dstTypes), next);
 }
 
-/** Step 5: every `src` enum value the `dst` enum lacks. */
+/** Both values a Boolean admits. */
+const BOOLEANS = Object.freeze([false, true]);
+
+/**
+ * Values a `src` kind with a finite value set admits, by kind. A String or
+ * a Number admits no finite set, so it stays a TYPE-MISMATCH against an Enum.
+ *
+ * @type {Readonly<Record<string, (type: SchemaType) => readonly (string | boolean)[]>>}
+ */
+const VALUE_SETS = Object.freeze({
+  Enum: type => /** @type {EnumType} */ (type).values,
+  Boolean: () => BOOLEANS,
+});
+
+/** Step 5: one ENUM-VALUE per value `src` admits that the `dst` enum lacks. */
 function enumAssign(
-  /** @type {EnumType} */ s,
+  /** @type {SchemaType} */ s,
   /** @type {EnumType} */ d,
   /** @type {Cursor} */ cur,
 ) {
   const signature = pairSig(sig(s), sig(d));
-  const extra = s.values.filter(
-    (/** @type {string | boolean} */ value) => !d.values.includes(value),
-  );
+  const extra = VALUE_SETS[s.t](s).filter(value => !d.values.includes(value));
   for (const value of extra)
     push(at(cur, `${cur.path}=${enumLiteral(value)}`), 'ENUM-VALUE', signature);
 }
 
-/** An Enum fits a String only when every value is a string, not a boolean. */
-function enumStringAssign(
+/** The `typeof` every Enum value must have to fit each primitive kind. */
+const ENUM_VALUE_TYPES = Object.freeze({ String: 'string', Boolean: 'boolean' });
+
+/** An Enum fits a String or a Boolean only when every value has its type. */
+function enumPrimitiveAssign(
   /** @type {EnumType} */ s,
   /** @type {SchemaType} */ d,
   /** @type {Cursor} */ cur,
 ) {
-  const allStrings = s.values.every(
-    (/** @type {string | boolean} */ value) => typeof value === 'string',
-  );
-  if (!allStrings) push(cur, 'TYPE-MISMATCH', pairSig(sig(s), sig(d)));
+  const type = own(ENUM_VALUE_TYPES, d.t);
+  const fits = s.values.every((/** @type {string | boolean} */ value) => typeof value === type);
+  if (!fits) push(cur, 'TYPE-MISMATCH', pairSig(sig(s), sig(d)));
 }
 
 /** `<src kind>><dst kind>` → comparison; unlisted pairs match only on equal kinds. */
@@ -193,7 +207,9 @@ const SHAPES = Object.freeze({
     /** @type {Cursor} */ cur,
   ) => typeAssign(s.item, d.item, at(cur, `${cur.path}[]`)),
   'Enum>Enum': enumAssign,
-  'Enum>String': enumStringAssign,
+  'Boolean>Enum': enumAssign,
+  'Enum>String': enumPrimitiveAssign,
+  'Enum>Boolean': enumPrimitiveAssign,
 });
 
 /**
