@@ -35,8 +35,12 @@ const DOCKERFILE_RE = /(?:^|\/)Dockerfile[^/]*$/u;
 const ACTIONS_YAML_RE = /^\.github\/.+\.ya?ml$/u;
 /** A file in a test harness directory. */
 const HARNESS_RE = /(?:^|\/)tests\//u;
-/** A shell function or a PATH executable named `curl`, replacing the real one. */
-const CURL_STUB_RE = /^\s*curl\(\)\s*\{|\/bin\/curl\b/mu;
+/** A shell function named `curl`, defined at the start of a line. */
+const CURL_FUNCTION_RE = /^\s*curl\(\)\s*\{/mu;
+/** A PATH executable named `curl`, anywhere in the text. */
+const CURL_BINARY_RE = /\/bin\/curl\b/u;
+/** Each way a harness replaces the real curl with a stub. */
+const CURL_STUBS: readonly RegExp[] = [CURL_FUNCTION_RE, CURL_BINARY_RE];
 
 /** One file's curl calls. */
 interface IFileCalls {
@@ -222,7 +226,7 @@ describe('Curl time bound', () => {
     const harnesses = filesCallingCurl(HARNESSES);
     const unstubbed = harnesses.filter(path => {
       const text = readRepoFile(path);
-      return !CURL_STUB_RE.test(text);
+      return !CURL_STUBS.some(stub => stub.test(text));
     });
     expect(harnesses.length).toBeGreaterThan(0);
     expect(unstubbed).toEqual([]);
