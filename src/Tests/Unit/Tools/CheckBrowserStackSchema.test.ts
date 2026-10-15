@@ -30,6 +30,9 @@ const NO_DOMAINS = `${IMPORT_LINE}\nexport const protocol = { domains: {} };`;
 const LEAF = 'const ns = {}; ns.Leaf = { v: t.String };';
 const NODE = "const ns = {}; ns.Node = { v: t.String, kids: t.Array(t.Recursive(ns, 'Node')) };";
 const NULLABLE_LEAF = 'const ns = {}; ns.Leaf = t.Nullable(t.String);';
+const NEXT = "const ns = {}; ns.Node = { next: t.Recursive(ns, 'Node') };";
+const NULLABLE_NEXT = "const ns = {}; ns.Node = { next: t.Nullable(t.Recursive(ns, 'Node')) };";
+const KID = "const ns = {}; ns.P = { x: t.String, kid: t.Recursive(ns, 'P') };";
 const NODE_NO_V = "const ns = {}; ns.Node = { kids: t.Array(t.Recursive(ns, 'Node')) };";
 
 /**
@@ -324,6 +327,20 @@ const DIFF_CASES: readonly IDiffCase[] = [
     browser: method('{ a: t.String }'),
     expected: [delta('request NULLABLE D.m.a', 'src:String|dst:String')],
   },
+  {
+    id: 'BSD-51',
+    what: 'NULLABLE one step into a recursion that entered through the same Ref pair',
+    client: method("{ n: t.Recursive(ns, 'Node') }", '{}', NULLABLE_NEXT),
+    browser: method("{ n: t.Recursive(ns, 'Node') }", '{}', NEXT),
+    expected: [delta('request NULLABLE D.m.n.next', 'src:{next}|dst:{next}')],
+  },
+  {
+    id: 'BSD-52',
+    what: 'a field type of an inline object with the keys of one met before',
+    client: method("{ a: t.Recursive(ns, 'P') }", '{}', KID),
+    browser: method('{ a: { x: t.String, kid: { x: t.Number, kid: t.Any } } }'),
+    expected: [delta('request TYPE-MISMATCH D.m.a.kid.x', 'src:String|dst:Number')],
+  },
 ];
 
 /**
@@ -393,6 +410,16 @@ const NO_DELTA_CASES: readonly INoDeltaCase[] = [
     what: 'a Nullable the browser takes as a Ref to a Nullable type',
     client: method('{ a: t.Nullable(t.String) }'),
     browser: method("{ a: t.Recursive(ns, 'Leaf') }", '{}', NULLABLE_LEAF),
+  },
+  {
+    what: 'a self-recursive Ref Nullable on both sides',
+    client: method("{ n: t.Recursive(ns, 'Node') }", '{}', NULLABLE_NEXT),
+    browser: method("{ n: t.Recursive(ns, 'Node') }", '{}', NULLABLE_NEXT),
+  },
+  {
+    what: 'a recursive Ref the browser takes as matching inline objects',
+    client: method("{ a: t.Recursive(ns, 'P') }", '{}', KID),
+    browser: method('{ a: { x: t.String, kid: { x: t.String, kid: t.Any } } }'),
   },
   {
     what: 'a browser-only method and event',

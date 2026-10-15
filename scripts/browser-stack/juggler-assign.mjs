@@ -31,7 +31,8 @@ import { enumLiteral, fieldSig, pairSig, sig } from './juggler-sig.mjs';
  *   `event`.
  * @property {string} path - Delta path so far, e.g. `Browser.newPage.browserContextId`.
  * @property {IJugglerDelta[]} out - Collected deltas.
- * @property {ReadonlySet<string>} seen - Ref pairs already on this path (cycle guard).
+ * @property {ReadonlySet<string>} seen - Ref pairs already on this path (cycle guard; one
+ *   channel per cursor).
  * @property {Namespaces} srcTypes - Namespaces of the `src` schema, for Ref resolution.
  * @property {Namespaces} dstTypes - Namespaces of the `dst` schema, for Ref resolution.
  */
@@ -129,13 +130,17 @@ function resolve(type, types) {
   return type.t === 'Nullable' ? nullable(target) : target;
 }
 
-/** Step 3: resolve Refs once per (channel, src, dst) pair on the current path. */
+/**
+ * Step 3: resolve Refs once per (src, dst) pair on the current path. The pair
+ * is keyed whole, Nullable and inline field types included, since `sig`
+ * folds those away; a Ref keys by its name, so the keys stay finite.
+ */
 function refAssign(
   /** @type {SchemaType} */ s,
   /** @type {SchemaType} */ d,
   /** @type {Cursor} */ cur,
 ) {
-  const key = `${cur.channel}:${sig(unwrap(s))}>${sig(unwrap(d))}`;
+  const key = JSON.stringify([s, d]);
   if (cur.seen.has(key)) return;
   const next = { ...cur, seen: new Set(cur.seen).add(key) };
   typeAssign(resolve(s, cur.srcTypes), resolve(d, cur.dstTypes), next);
