@@ -10,12 +10,15 @@
  * continued, bare, wrapped or substituted call cannot slip past. A call runs
  * to the next `curl`, the end of its command, or the `)` or backtick that
  * closes its substitution, so no other text lends it a bound. A backtick
- * that opens a substitution inside the call does not end it. A bound counts
- * only when every occurrence of its option sets a
- * positive number of seconds, and no argument a wrapper passes on follows
- * it: curl reads 0 as no limit, a value that is not a literal number cannot
- * be checked, and curl keeps the last value given, so a caller's `-m 0`
- * passed on after the bound would lift it.
+ * that opens a substitution inside the call does not end it. A quoted
+ * program handed to a shell's `-c` or to `eval` is code too, so it is read
+ * as a line of its own, as are the programs it hands on. A substitution in
+ * a double-quoted program is read for both shells, which only repeats a
+ * flag. A bound counts only when every occurrence of its option sets a
+ * positive number of seconds, quoted or not, and no argument a wrapper
+ * passes on follows it: curl reads 0 as no limit, a value that is not a
+ * literal number cannot be checked, and curl keeps the last value given, so
+ * a caller's `-m 0` passed on after the bound would lift it.
  */
 
 import type { IShellSpan } from './ShellMask.js';
@@ -37,11 +40,20 @@ const COMMENT_RE = /\\.|'[^']*'|"(?:[^"\\]|\\.)*"|(?<!\S)#.*/gu;
 const CLOSE_RE = /[()]/gu;
 /** How each parenthesis moves the nesting depth. */
 const DEPTH_STEP: Readonly<Record<string, number>> = { '(': 1, ')': -1 };
+/** In a mask, a shell given `-c`, or `eval`, just before a quoted program. */
+const PROGRAM_HEAD_RE =
+  /(?<![\w-])(?:(?:(?:ba|da|k|z)?sh|su)(?:\s+[-+]\S+)*?\s+-[^\Wc]*c\w*|eval)\s+(?=_)/gu;
+/** A quoted program at the start of some text; an unclosed one runs to the end. */
+const QUOTED_PROGRAM_RE = /^(?:'(?<single>[^']*)|"(?<double>(?:[^"\\]|\\.)*))/u;
+/** A backslash double quotes drop: the one before `\`, `"`, `$` or a backtick. */
+const DOUBLE_ESCAPE_RE = /\\(?<kept>[\\"$`])/gu;
+/** A bound's value in one pair of quotes. */
+const QUOTED_VALUE_RE = /^(?<quote>['"])(?<inner>[^'"\s]*)\k<quote>$/u;
 
 /** `--connect-timeout`: how long curl may wait for the connection. */
-const CONNECT_BOUND = /--connect-timeout(?:=|\s+)(?<value>\S+)/gu;
+const CONNECT_BOUND = /--connect-timeout(?:=|\s+)(?<value>\S+)/dgu;
 /** `--max-time` or `-m`: how long the whole transfer may take. */
-const TOTAL_BOUND = /(?<![\w-])(?:--max-time(?:=|\s+)|-m\s*)(?<value>\S+)/gu;
+const TOTAL_BOUND = /(?<![\w-])(?:--max-time(?:=|\s+)|-m\s*)(?<value>\S+)/dgu;
 /** Arguments a wrapper passes on, `$@`, `$*` or a whole array, which may hold a bound. */
 const FORWARDED_RE = /\$\{?(?:\w+\[)?[@*]/u;
 
@@ -105,13 +117,43 @@ function closedCall(call: IShellSpan): IShellSpan {
 }
 
 /**
+ * The program a shell is handed just after `head`.
+ *
+ * @param line - A logical code line.
+ * @param head - A {@link PROGRAM_HEAD_RE} match in the line's mask.
+ * @returns The program's text as that shell reads it; '' when not quoted.
+ */
+function programAt(line: string, head: RegExpExecArray): string {
+  const rest = line.slice(head.index + head[0].length);
+  const quoted = QUOTED_PROGRAM_RE.exec(rest);
+  const double = quoted?.groups?.double ?? '';
+  const unescaped = double.replaceAll(DOUBLE_ESCAPE_RE, '$<kept>');
+  return quoted?.groups?.single ?? unescaped;
+}
+
+/**
+ * A logical code line and every program it hands a shell, in turn.
+ *
+ * @param line - A logical code line.
+ * @returns The line, then each program's own logical lines, nested ones included.
+ */
+function withPrograms(line: string): readonly string[] {
+  const { mask } = spanOf(line);
+  const heads = [...mask.matchAll(PROGRAM_HEAD_RE)];
+  const programs = heads.map(head => programAt(line, head));
+  const programLines = programs.flatMap(program => logicalLines(program));
+  return [line, ...programLines.flatMap(withPrograms)];
+}
+
+/**
  * Every curl call in some logical code lines, with its mask.
  *
  * @param lines - Logical code lines.
  * @returns Each call, up to the next call, the end of its command or its close.
  */
 function callSpansIn(lines: readonly string[]): readonly IShellSpan[] {
-  const spans = lines.map(line => spanOf(line));
+  const code = lines.flatMap(withPrograms);
+  const spans = code.map(line => spanOf(line));
   const commands = spans.flatMap(span => splitSpan(span, COMMAND_SPLIT_RE));
   const trimmed = commands.map(command => trimSpan(command));
   const runnable = trimmed.filter(command => !PACKAGE_INSTALL_RE.test(command.text));
@@ -135,9 +177,24 @@ function curlCallsIn(lines: readonly string[]): readonly string[] {
 }
 
 /**
+ * The seconds one bound sets, its value read from the call's text with one
+ * pair of quotes around it dropped.
+ *
+ * @param call - One curl call.
+ * @param match - A bound's match in the call's mask.
+ * @returns The seconds; NaN or 0 when the value is not a positive literal.
+ */
+function secondsOf(call: IShellSpan, match: RegExpExecArray): number {
+  const [start, end] = match.indices?.groups?.value ?? [0, 0];
+  const value = call.text.slice(start, end);
+  const literal = value.replace(QUOTED_VALUE_RE, '$<inner>');
+  return Number(literal);
+}
+
+/**
  * Whether a curl call sets a time bound, every time, to a positive number
- * of seconds, with no passed-on arguments after the last one. Both are read
- * from the mask, so quoted text neither sets a bound nor hides `"$@"`.
+ * of seconds, with no passed-on arguments after the last one. Both are found
+ * in the mask, so quoted text neither sets a bound nor hides `"$@"`.
  *
  * @param call - One curl call.
  * @param bound - {@link CONNECT_BOUND} or {@link TOTAL_BOUND}.
@@ -145,7 +202,7 @@ function curlCallsIn(lines: readonly string[]): readonly string[] {
  */
 function isBounded(call: IShellSpan, bound: RegExp): boolean {
   const matches = [...call.mask.matchAll(bound)];
-  const seconds = matches.map(match => Number(match.groups?.value));
+  const seconds = matches.map(match => secondsOf(call, match));
   const isPositive = seconds.every(value => Number.isFinite(value) && value > 0);
   const last = matches.at(-1)?.index ?? 0;
   const tail = call.mask.slice(last);

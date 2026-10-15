@@ -151,6 +151,12 @@ const UNBOUNDED_CURLS: readonly (readonly [string, string])[] = [
   ['a bound only inside single-quoted data', 'curl -d \'x -m 5 s\' "$url"'],
   ['a call after a quoted substitution', 'when="$(date)"; curl "$url"'],
   ['a call after a single-quoted backslash', 'printf \'\\\' ; curl "$url"'],
+  ['an empty quoted bound', 'curl -m "" "$url"'],
+  ['a call in a single-quoted bash -c program', 'bash -c \'curl "$url"\''],
+  ['a call in a double-quoted sh -ec program', 'sh -ec "curl $url"'],
+  ['a call in an eval string', 'eval \'curl "$url"\''],
+  ['a call in a program nested in a program', 'bash -c "sh -c \'curl x\'"'],
+  ['a bound only in a comment inside a program', 'bash -c \'curl "$url" # -m 5\''],
 ];
 
 /** Code the oracle must accept. */
@@ -172,6 +178,11 @@ const BOUNDED_CURLS: readonly (readonly [string, string])[] = [
   ['a quoted semicolon', 'curl -H "Accept: a; b" -m 5 "$url"'],
   ['a quoted pipe and &&', 'curl -d \'a | b && c\' -m 5 "$url"'],
   ['a bounded call in a quoted substitution', 'body="$(curl -m 5 "$url")"'],
+  ['a double-quoted bound', 'curl --max-time "5" "$url"'],
+  ['a single-quoted -m', 'curl -m \'5\' "$url"'],
+  ['a bounded call in a bash -c program', 'bash -lc \'curl -m 5 "$url"\''],
+  ['curl named only in quoted text of a program', 'sh -c \'echo "use curl"\''],
+  ['escaped quotes in a double-quoted program', 'bash -c "curl -H \\"a; b\\" -m 5 x"'],
 ];
 
 /** A bounded call placed next to each control, so a flag names the control. */
