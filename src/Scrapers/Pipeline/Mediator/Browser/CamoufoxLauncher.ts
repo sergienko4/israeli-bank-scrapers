@@ -6,7 +6,8 @@ import {
   DESKTOP_VIEWPORT_WIDTH,
   ISRAEL_LOCALE,
 } from '../../../../Common/Config/BrowserConfig.js';
-import type { Brand } from '../../Types/Brand.js';
+import type { Brand, DurationMs } from '../../Types/Brand.js';
+import { mintDurationMs } from '../../Types/Brand.js';
 import { timeoutPromise } from '../Timing/TimingActions.js';
 
 export { ISRAEL_LOCALE } from '../../../../Common/Config/BrowserConfig.js';
@@ -227,11 +228,15 @@ export const DEFAULT_CAMOUFOX_LAUNCH_TIMEOUT_MS = 300_000;
 /**
  * Resolve the launch bound from {@link CAMOUFOX_LAUNCH_TIMEOUT_ENV}.
  *
+ * Exported so a caller that bounds a launch from outside, such as a test
+ * hook, can outlast the bound the launcher will actually apply.
+ *
  * @returns A positive millisecond bound; the default for unset or invalid values.
  */
-function resolveLaunchTimeoutMs(): number {
+export function resolveLaunchTimeoutMs(): DurationMs {
   const raw = Number(process.env[CAMOUFOX_LAUNCH_TIMEOUT_ENV]);
-  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_CAMOUFOX_LAUNCH_TIMEOUT_MS;
+  const timeoutMs = Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_CAMOUFOX_LAUNCH_TIMEOUT_MS;
+  return mintDurationMs(timeoutMs);
 }
 
 /**

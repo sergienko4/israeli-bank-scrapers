@@ -24,7 +24,7 @@ import type { Browser, BrowserContext, Page, Response } from 'playwright-core';
 
 import {
   closeSharedBrowser,
-  FIRST_LAUNCH_HOOK_TIMEOUT_MS,
+  firstLaunchHookTimeoutMs,
   getSharedBrowser,
 } from './Helpers/BrowserFixture.js';
 
@@ -42,6 +42,9 @@ const FULFILLED_COOKIES = 'c=3; Path=/\nd=4; Path=/';
 
 /** The entries C3's fulfilled header must read back as, one per line. */
 const FULFILLED_ENTRIES = FULFILLED_COOKIES.split('\n');
+
+/** Bound for the setup hook, which takes the job's first Camoufox launch. */
+const SETUP_TIMEOUT_MS = firstLaunchHookTimeoutMs();
 
 /** Context and page an invariant runs in. */
 interface IContractTab {
@@ -165,7 +168,7 @@ beforeAll(async () => {
   browser = await getSharedBrowser();
   server = await startServer();
   origin = originOf(server);
-}, FIRST_LAUNCH_HOOK_TIMEOUT_MS);
+}, SETUP_TIMEOUT_MS);
 
 afterAll(async () => {
   await closeSharedBrowser();

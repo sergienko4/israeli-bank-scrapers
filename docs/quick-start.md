@@ -30,7 +30,11 @@ the likely cause, rather than leaving the launch promise permanently unsettled.
 An unsettled launch drains the event loop, and a caller using top-level `await`
 then exits silently with code `13` and no diagnostic output. The environment
 variable name is exported as `CAMOUFOX_LAUNCH_TIMEOUT_ENV` and its default as
-`DEFAULT_CAMOUFOX_LAUNCH_TIMEOUT_MS`.
+`DEFAULT_CAMOUFOX_LAUNCH_TIMEOUT_MS`. `resolveLaunchTimeoutMs` returns the
+bound the launcher will apply: the variable when it is a positive number, the
+default otherwise. A caller that bounds the launch from outside, such as a test
+setup hook, adds its slack to that value so a raised bound still fails with the
+launcher's error first.
 
 If a launch instead fails with `Could not locate the bindings file`, the
 `better-sqlite3` native binding was never compiled. This happens when
