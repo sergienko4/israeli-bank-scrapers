@@ -42,6 +42,7 @@ export const PREFIX = 'playwright-core pageError guard: ';
 export const SHIM_PREFIX = 'playwright-core interception shim: ';
 export const NOT_APPLIED = 'NOT APPLIED — no known pageError.location read in this build';
 const SITES_TAG = 'GUARD-SITES';
+const LEFT_TAG = 'GUARD-LEFT';
 
 /** pageError sites in the reviewed playwright-core: the dispatcher and the trace recorder. */
 export const REVIEWED_SITES = 2;
@@ -195,6 +196,16 @@ export function sitesLine(index: number, found: number): string {
  */
 export function allSitesLines(found: number): string[] {
   return UNGUARDED.map((_read, index): string => sitesLine(index, found));
+}
+
+/**
+ * The `GUARD-LEFT` line `--strict` prints when unguarded reads remain after patching.
+ *
+ * @param left - `pageError.location` member reads still unguarded, in any layout.
+ * @returns Expected line.
+ */
+export function leftLine(left: number): string {
+  return `${LEFT_TAG} ${String(left)} unguarded pageError.location read(s)`;
 }
 
 /**

@@ -8,8 +8,10 @@
  * exactly why a playwright-core bump that renames one read, or reshapes the
  * interception call, would drop the fix silently. `--strict` is the CI
  * proof: exit 0 only when, after patching, each guarded form appears at
- * exactly the reviewed number of sites, and every interception call is one
- * of the reviewed sends with the shimmed payload. Guards are checked per
+ * exactly the reviewed number of sites, no `pageError.location` read is left
+ * unguarded in any layout, and every interception call is one of the
+ * reviewed sends with the shimmed payload; every mention of the method counts
+ * as a send, whatever its quoting or line breaks. Guards are checked per
  * guard and per site, so one lost read cannot hide behind the other two,
  * nor behind its own copy at the other site. Any argument other than a
  * single `--strict` is a usage error that touches nothing, so a mistyped
@@ -33,6 +35,7 @@ import {
   GUARDED,
   type IRun,
   type ISandbox,
+  leftLine,
   linesOf,
   makeRoot,
   NOT_APPLIED,
@@ -72,6 +75,9 @@ const SENT_164_SPLIT =
 
 /** A 1.64 send in single quotes, a quoting the exact rewrite does not read. */
 const SENT_164_SINGLE = "'Network.setRequestInterception', { enabled, bypassServiceWorker }";
+
+/** Upstream's reads without the space after the colon, a layout the exact guards do not read. */
+const COMPACT = UNGUARDED.map((read): string => read.replace(': ', ':'));
 
 /** A fixed past mtime; any write by the script moves it to "now". */
 const UNTOUCHED_MTIME = new Date('2000-01-01T00:00:00Z');
@@ -283,35 +289,35 @@ const BUNDLE_CASES: readonly IBundleCase[] = [
     what: 'no known reads',
     sites: atBothSites(RENAMED),
     outcome: NOT_APPLIED,
-    strict: allSitesLines(0),
+    strict: [...allSitesLines(0), leftLine(6)],
   },
   ...UNGUARDED.map((_read, index): IBundleCase => ({
     id: `PPC-${String(6 + index)}`,
     what: `partial loss: read ${String(index)} renamed at both sites, the others unguarded`,
     sites: bothSitesWithRead(UNGUARDED, index, RENAMED[index]),
     outcome: 'guarded 4 pageError.location read(s)',
-    strict: [sitesLine(index, 0)],
+    strict: [sitesLine(index, 0), leftLine(2)],
   })),
   ...GUARDED.map((_read, index): IBundleCase => ({
     id: `PPC-${String(9 + index)}`,
     what: `partial loss: read ${String(index)} renamed at both sites, the others guarded`,
     sites: bothSitesWithRead(GUARDED, index, RENAMED[index]),
     outcome: NOT_APPLIED,
-    strict: [sitesLine(index, 0)],
+    strict: [sitesLine(index, 0), leftLine(2)],
   })),
   ...UNGUARDED.map((_read, index): IBundleCase => ({
     id: `PPC-${String(14 + index)}`,
     what: `site loss: read ${String(index)} renamed at one site, the rest unguarded`,
     sites: [withRead(UNGUARDED, index, RENAMED[index]), UNGUARDED],
     outcome: 'guarded 5 pageError.location read(s)',
-    strict: [sitesLine(index, 1)],
+    strict: [sitesLine(index, 1), leftLine(1)],
   })),
   ...GUARDED.map((_read, index): IBundleCase => ({
     id: `PPC-${String(17 + index)}`,
     what: `site loss: read ${String(index)} renamed at one site, the rest guarded`,
     sites: [GUARDED, withRead(GUARDED, index, RENAMED[index])],
     outcome: 'already guarded',
-    strict: [sitesLine(index, 1)],
+    strict: [sitesLine(index, 1), leftLine(1)],
   })),
   {
     id: 'PPC-24',
@@ -319,6 +325,13 @@ const BUNDLE_CASES: readonly IBundleCase[] = [
     sites: [UNGUARDED, UNGUARDED, UNGUARDED],
     outcome: 'guarded 9 pageError.location read(s)',
     strict: allSitesLines(3),
+  },
+  {
+    id: 'PPC-26',
+    what: 'a third site in a layout the guards do not read',
+    sites: [UNGUARDED, UNGUARDED, COMPACT],
+    outcome: 'guarded 6 pageError.location read(s)',
+    strict: [leftLine(3)],
   },
 ];
 

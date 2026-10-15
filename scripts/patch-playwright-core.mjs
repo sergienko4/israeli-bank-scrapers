@@ -50,7 +50,10 @@
  * exactly `REVIEWED_SITES` sites. It is checked per guard and per site,
  * because a renamed read can hide behind the other reads or behind its own
  * copy at another site. Each mismatch prints
- * `GUARD-SITES <index> <found>/<reviewed> <unguarded read>`. Likewise the
+ * `GUARD-SITES <index> <found>/<reviewed> <unguarded read>`. No
+ * `pageError.location` member read may stay unguarded, in whatever layout, so
+ * a read the exact forms missed prints
+ * `GUARD-LEFT <count> unguarded pageError.location read(s)`. Likewise the
  * interception call must be sent at exactly `REVIEWED_CALLS` sites, each
  * with `{ enabled }` alone; every mention of the method name counts as a
  * send, whatever its quoting or line breaks. Otherwise it prints
@@ -75,6 +78,13 @@ const GUARDS = [
 ];
 
 const BUNDLE_SUBPATH = ['lib', 'coreBundle.js'];
+
+/**
+ * A member read of `pageError.location` without optional chaining, in any
+ * layout. In the reviewed bundles every such read is one the guards rewrite,
+ * so one left after patching is a read their exact forms missed.
+ */
+const UNGUARDED_READ = /\bpageError\s*\.\s*location\s*\./g;
 
 const PLAYWRIGHT_PACKAGE = 'playwright-core';
 
@@ -193,13 +203,15 @@ function occurrences(source, form) {
  *
  * @param count - Reads guarded by this run.
  * @param text - Bundle text after patching.
- * @returns Outcome plus guarded sites per guard, index-aligned with `GUARDS`.
+ * @returns Outcome, guarded sites per guard (index-aligned with `GUARDS`),
+ *   and the reads left unguarded in any layout.
  */
 function guardResult(count, text) {
   const sites = GUARDS.map(guard => occurrences(text, guard.to));
-  if (count > 0) return { outcome: `guarded ${count} pageError.location read(s)`, sites };
-  if (!sites.includes(0)) return { outcome: 'already guarded', sites };
-  return { outcome: 'NOT APPLIED — no known pageError.location read in this build', sites };
+  const found = { sites, left: text.match(UNGUARDED_READ)?.length ?? 0 };
+  if (count > 0) return { outcome: `guarded ${count} pageError.location read(s)`, ...found };
+  if (!sites.includes(0)) return { outcome: 'already guarded', ...found };
+  return { outcome: 'NOT APPLIED — no known pageError.location read in this build', ...found };
 }
 
 /**
@@ -247,7 +259,7 @@ function patchBundle(bundlePath) {
  */
 function skipped(reason) {
   const outcome = `skipped (${reason})`;
-  return { guard: { outcome, sites: null }, shim: { outcome, calls: null } };
+  return { guard: { outcome, sites: null, left: null }, shim: { outcome, calls: null } };
 }
 
 /**
@@ -305,6 +317,17 @@ function siteMismatches(sites) {
 }
 
 /**
+ * Describe the `pageError.location` reads still unguarded after patching.
+ *
+ * @param left - Unguarded reads in any layout; `null` when not inspected.
+ * @returns One `GUARD-LEFT` line when any remain; empty otherwise.
+ */
+function leftMismatches(left) {
+  if (!left) return [];
+  return [`GUARD-LEFT ${left} unguarded pageError.location read(s)`];
+}
+
+/**
  * Describe the interception shim when its calls differ from the review.
  *
  * @param calls - Shimmed and total interception calls; `null` when not inspected.
@@ -342,7 +365,8 @@ function reportCopy({ guard, shim, label }, isStrict) {
   report(`playwright-core pageError guard: ${guard.outcome}`);
   report(`playwright-core interception shim: ${shim.outcome}`);
   if (!isStrict) return true;
-  const mismatches = [...siteMismatches(guard.sites ?? []), ...shimMismatches(shim.calls)];
+  const guardLines = [...siteMismatches(guard.sites ?? []), ...leftMismatches(guard.left)];
+  const mismatches = [...guardLines, ...shimMismatches(shim.calls)];
   for (const line of mismatches) report(line);
   return guard.sites !== null && mismatches.length === 0;
 }
@@ -351,8 +375,9 @@ function reportCopy({ guard, shim, label }, isStrict) {
  * Report the run and decide the exit code.
  *
  * @returns 0 by default; under `--strict`, 0 only when, in every copy, every
- *   guard has exactly `REVIEWED_SITES` guarded sites and every interception
- *   call is one of the `REVIEWED_CALLS` shimmed sends.
+ *   guard has exactly `REVIEWED_SITES` guarded sites, no read is left
+ *   unguarded, and every interception call is one of the `REVIEWED_CALLS`
+ *   shimmed sends.
  */
 function main() {
   const isStrict = strictMode();

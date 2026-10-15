@@ -20,6 +20,7 @@ import {
   atBothSites,
   bundleOf,
   type ISandbox,
+  leftLine,
   linesOf,
   makeRoot,
   NOT_APPLIED,
@@ -258,7 +259,7 @@ describe('patch-playwright-core every copy', () => {
     const bundle = writeCopy(root, NESTED_COPY, RENAMED_SITES);
     writeCamoufox(root, CAMOUFOX_DIR);
     const run = runPatcher({ root, bundle }, ['--strict']);
-    const nested = [NOT_APPLIED, UPSTREAM_SHIMMED, ...allSitesLines(0)];
+    const nested = [NOT_APPLIED, UPSTREAM_SHIMMED, ...allSitesLines(0), leftLine(6)];
     const lines = [
       ...copyLines(HOISTED_COPY, [UPSTREAM_GUARDED, UPSTREAM_SHIMMED]),
       ...copyLines(NESTED_COPY, nested),
