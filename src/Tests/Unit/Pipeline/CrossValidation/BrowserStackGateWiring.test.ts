@@ -369,7 +369,7 @@ describe('BrowserStackGateWiring', () => {
   it('[BSW-3] runs every step only when critical_deps is true', () => {
     const steps = gateSteps(JOBS);
     const conditions = steps.map(step => step.if);
-    expect(steps.length).toBe(EXPECTED_STEPS.length);
+    expect(steps).toHaveLength(EXPECTED_STEPS.length);
     expect(new Set(conditions)).toStrictEqual(new Set([STEP_IF]));
   });
 
