@@ -12,6 +12,7 @@
  *   GHX-6  a `${{ … }}` wrapper reads the same as the bare condition
  *   GHX-7  any syntax, lookup, function or comparison it does not model throws
  *   GHX-8  the job-level status follows the needed jobs and the run
+ *   GHX-9  `&&` and `||` yield the operand that decides them, not a boolean
  */
 
 import type { IGhaContext, INeed } from './GhaExpression.js';
@@ -139,6 +140,8 @@ describe('GhaExpression', () => {
     ['a path past result', "needs.a.result.x == 'success'", RangeError],
     ['a non-needs context', "github.event_name == 'push'", RangeError],
     ['a mixed-type comparison', 'needs.a.outputs.on == true', RangeError],
+    ['a string yielded by && compared to a boolean', "(true && 'false') == true", RangeError],
+    ['a boolean yielded by || compared to a string', "(false || true) == 'true'", RangeError],
     ['an unmodelled function', "contains(needs.a.result, 'succ')", SyntaxError],
     ['an unmodelled operator', "needs.a.result > 'a'", SyntaxError],
     ['an unclosed parenthesis', "(needs.a.result == 'success'", SyntaxError],
@@ -162,5 +165,20 @@ describe('GhaExpression', () => {
     const needs = Object.fromEntries(rows);
     const status = jobStatus(needs, isCancelled);
     expect(status).toStrictEqual(expected);
+  });
+
+  it.each([
+    ["(needs.a.outputs.on && 'x') == 'x'", true],
+    ["(needs.a.outputs.blank && 'x') == ''", true],
+    ['(false && needs.a.outputs.on) == false', true],
+    ["(needs.a.outputs.blank || 'y') == 'y'", true],
+    ["(needs.a.outputs.mixed || 'y') == 'TRUE'", true],
+    ["(false || needs.a.outputs.off) == 'false'", true],
+    ["(needs.a.outputs.off || 'y') == 'false'", true],
+    ['(false && needs.ghost.result) == false', true],
+    ["(needs.a.outputs.on || needs.ghost.result) == 'true'", true],
+  ])('[GHX-9] %s is %s', (source, expected) => {
+    const isRun = evaluateIf(source, SUCCEEDED);
+    expect(isRun).toBe(expected);
   });
 });

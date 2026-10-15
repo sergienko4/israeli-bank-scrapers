@@ -5,9 +5,9 @@
  * `==`, `!=`, parentheses, string and boolean literals, `needs.<job>.result`,
  * `needs.<job>.outputs.<name>` and the four status functions. As on GitHub, a
  * condition that names no status function runs as `success() && (<it>)`,
- * `&&` / `||` short-circuit, and strings compare case-insensitively. Anything
- * outside the subset throws, so an unmodelled condition fails its test rather
- * than evaluating to a guess.
+ * `&&` / `||` short-circuit and yield the operand that decides them, and
+ * strings compare case-insensitively. Anything outside the subset throws, so
+ * an unmodelled condition fails its test rather than evaluating to a guess.
  */
 
 /** A value an expression yields. */
@@ -369,22 +369,54 @@ function lookup(path: readonly string[], context: IGhaContext): GhaValue {
   return NEED_FIELDS[field](context.needs[job], rest);
 }
 
+/**
+ * Whether the left operand of `&&` / `||` decides it: `&&` stops at a falsy
+ * one, `||` at a truthy one.
+ */
+const DECIDED_BY_LEFT: Readonly<Record<'and' | 'or', (left: GhaValue) => boolean>> = {
+  /**
+   * `a && b`.
+   * @param left - The value of `a`.
+   * @returns Whether `a` is falsy.
+   */
+  and: left => !truthy(left),
+  /**
+   * `a || b`.
+   * @param left - The value of `a`.
+   * @returns Whether `a` is truthy.
+   */
+  or: left => truthy(left),
+};
+
+/**
+ * `a && b` or `a || b` as GitHub evaluates it: the left operand when it
+ * decides the result, else the right one, which is read only then.
+ *
+ * @param node - The node.
+ * @param context - The condition's context.
+ * @returns The operand that decides it.
+ */
+function logical(node: IBinary<'and' | 'or'>, context: IGhaContext): GhaValue {
+  const left = evaluate(node.left, context);
+  return DECIDED_BY_LEFT[node.kind](left) ? left : evaluate(node.right, context);
+}
+
 /** How each kind of node evaluates; `&&` and `||` short-circuit. */
 const EVALUATORS: Evaluators = {
   /**
    * `a && b`.
    * @param node - The node.
    * @param context - The condition's context.
-   * @returns Whether both sides are truthy.
+   * @returns `a` when it is falsy, else `b`.
    */
-  and: (node, context) => holds(node.left, context) && holds(node.right, context),
+  and: (node, context) => logical(node, context),
   /**
    * `a || b`.
    * @param node - The node.
    * @param context - The condition's context.
-   * @returns Whether either side is truthy.
+   * @returns `a` when it is truthy, else `b`.
    */
-  or: (node, context) => holds(node.left, context) || holds(node.right, context),
+  or: (node, context) => logical(node, context),
   /**
    * `a == b`.
    * @param node - The node.
