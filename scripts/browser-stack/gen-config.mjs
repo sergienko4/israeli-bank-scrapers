@@ -13,6 +13,7 @@
  * (MANIFEST-INVALID lines on stderr; nothing is written).
  */
 import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -25,8 +26,8 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 
 /** Production I/O; tests override any member. */
 const DEFAULT_IO = Object.freeze({
-  manifestPath: `${ROOT}browser-stack.json`,
-  generatedPath: `${ROOT}${GENERATED_REL}`,
+  manifestPath: join(ROOT, 'browser-stack.json'),
+  generatedPath: join(ROOT, GENERATED_REL),
   stdout: (/** @type {string} */ text) => process.stdout.write(text),
   stderr: (/** @type {string} */ text) => process.stderr.write(text),
 });

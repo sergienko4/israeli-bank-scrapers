@@ -21,6 +21,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
+import * as path from 'node:path';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -166,6 +167,18 @@ function staleIn(run: ISandbox): boolean {
 }
 
 /**
+ * Repo-relative path of a file that `readdirSync` listed under `src`.
+ *
+ * @param entry - Path below `src`, in the platform's separators.
+ * @param flavour - Path module of the platform; `path.win32` simulates Windows.
+ * @returns The path, such as `src/Common/Browser.ts`.
+ */
+function repoRelOf(entry: string, flavour: typeof path.win32 = path): string {
+  const native = flavour.join('src', entry);
+  return native.split(flavour.sep).join(path.posix.sep);
+}
+
+/**
  * Every `.ts` file under `src`, repo-relative.
  *
  * @returns Paths such as `src/Common/Browser.ts`.
@@ -173,7 +186,7 @@ function staleIn(run: ISandbox): boolean {
 function srcTsFiles(): string[] {
   const entries = readdirSync(SRC_ROOT, { recursive: true, encoding: 'utf8' });
   const tsFiles = entries.filter((rel): boolean => rel.endsWith('.ts'));
-  return tsFiles.map((rel): string => join('src', rel));
+  return tsFiles.map((rel): string => repoRelOf(rel));
 }
 
 /**
@@ -251,5 +264,12 @@ describe('browser-stack gen-config', () => {
     const files = srcTsFiles();
     const holders = files.filter((rel): boolean => fileHolds(rel, tag));
     expect(holders).toEqual([GENERATED_REL]);
+  });
+
+  it('[BGC-8] a Windows listing maps to the POSIX GENERATED_REL', () => {
+    const below = GENERATED_REL.slice('src/'.length);
+    const entry = below.replaceAll('/', path.win32.sep);
+    const rel = repoRelOf(entry, path.win32);
+    expect(rel).toBe(GENERATED_REL);
   });
 });
