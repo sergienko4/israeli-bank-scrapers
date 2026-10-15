@@ -24,14 +24,16 @@
  *   BSW-8  E2E mocked runs the runtime contract file alone, unconditionally,
  *          before its full suite, and that file exists
  *   BSW-9  that file's setup, which takes the job's first Camoufox launch, is
- *          bounded only by the shared first-launch bound, which outlasts the
- *          launcher's own, so a slow launch fails with the launcher's error
+ *          bounded only by the shared first-launch bound, read from the syntax
+ *          tree, and that bound outlasts the launcher's own, so a slow launch
+ *          fails with the launcher's error
  */
 
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import * as ts from 'typescript';
 import { parse } from 'yaml';
 
 import { DEFAULT_CAMOUFOX_LAUNCH_TIMEOUT_MS } from '../../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js';
@@ -66,11 +68,21 @@ const CHECK_STEPS = EXPECTED_STEPS.slice(3);
 /** The runtime contract E2E mocked runs on its own first. */
 const CONTRACT_TEST = 'src/Tests/E2eMocked/BrowserStackContract.e2e-mocked.test.ts';
 
-/** The call that takes the shared browser's first launch. */
-const SHARED_LAUNCH = 'getSharedBrowser()';
+/** The fixture function that takes the shared browser's first launch. */
+const SHARED_LAUNCH = 'getSharedBrowser';
 
-/** How a top-level hook with an explicit bound closes: `}, <bound>);`. */
-const HOOK_CLOSE = '\n}, ';
+/** The Jest hook a file launches the shared browser in. */
+const SETUP_HOOK = 'beforeAll';
+
+/** A launching hook bounded at 1 ms, with the expected bound only in a comment. */
+const PLANTED_COMMENT_BOUND = [
+  'beforeAll(async () => {',
+  '  browser = await getSharedBrowser();',
+  '  /* keep:',
+  '}, FIRST_LAUNCH_HOOK_TIMEOUT_MS);',
+  '  */',
+  '}, 1);',
+].join('\n');
 
 /** E2E mocked's commands: the runtime contract alone, then the full suite. */
 const E2E_MOCKED_RUNS = [
@@ -371,19 +383,62 @@ const MUTANTS: readonly (readonly [string, string, IJob])[] = [
 ];
 
 /**
- * The bound of the top-level `beforeAll` that launches the shared browser.
+ * Whether a node is a call to the named function.
+ *
+ * @param node - Any node.
+ * @param name - Function name as written at the call.
+ * @returns True for `name(...)`.
+ */
+function isCallTo(node: ts.Node, name: string): node is ts.CallExpression {
+  return ts.isCallExpression(node) && node.expression.getText() === name;
+}
+
+/**
+ * Whether a node or any descendant calls the named function.
+ *
+ * @param node - Root node.
+ * @param name - Function name as written at the call.
+ * @returns True when some call in the subtree is to `name`.
+ */
+function callsWithin(node: ts.Node, name: string): boolean {
+  if (isCallTo(node, name)) return true;
+  return node.getChildren().some((child): boolean => callsWithin(child, name));
+}
+
+/**
+ * Whether a hook's setup function launches the shared browser.
+ *
+ * @param hook - A `beforeAll(...)` call.
+ * @returns True when its first argument calls {@link SHARED_LAUNCH}.
+ */
+function launchesShared(hook: ts.CallExpression): boolean {
+  const setup = hook.arguments.at(0);
+  return setup !== undefined && callsWithin(setup, SHARED_LAUNCH);
+}
+
+/**
+ * The bound a hook passes Jest, as written.
+ *
+ * @param hook - A `beforeAll(...)` call.
+ * @returns Its second argument's source text; empty when it passes none.
+ */
+function boundOf(hook: ts.CallExpression): string {
+  const bound = hook.arguments.at(1);
+  return bound === undefined ? '' : bound.getText();
+}
+
+/**
+ * The bounds of every top-level `beforeAll` that launches the shared browser,
+ * read from the syntax tree so comments and strings cannot stand in for them.
  *
  * @param source - Jest file source.
- * @returns The text between `}, ` and `);` that closes that hook; empty when absent.
+ * @returns One bound per launching hook, in source order.
  */
-function launchHookBound(source: string): string {
-  const hookAt = source.indexOf('beforeAll(');
-  const launchAt = source.indexOf(SHARED_LAUNCH, hookAt);
-  const closeAt = source.indexOf(HOOK_CLOSE, launchAt);
-  if (hookAt < 0 || launchAt < 0 || closeAt < 0) return '';
-  const boundAt = closeAt + HOOK_CLOSE.length;
-  const endAt = source.indexOf(');', boundAt);
-  return source.slice(boundAt, endAt);
+function launchHookBounds(source: string): readonly string[] {
+  const file = ts.createSourceFile('contract.ts', source, ts.ScriptTarget.Latest, true);
+  const calls = file.statements.filter(ts.isExpressionStatement).map(s => s.expression);
+  const hooks = calls.filter((call): call is ts.CallExpression => isCallTo(call, SETUP_HOOK));
+  return hooks.filter(launchesShared).map(boundOf);
 }
 
 describe('BrowserStackGateWiring', () => {
@@ -455,8 +510,13 @@ describe('BrowserStackGateWiring', () => {
   it('[BSW-9] the contract setup outlasts the launcher bound on the first launch', () => {
     const contractPath = join(REPO_ROOT, CONTRACT_TEST);
     const contract = readFileSync(contractPath, 'utf8');
-    const bound = launchHookBound(contract);
-    expect(bound).toBe('FIRST_LAUNCH_HOOK_TIMEOUT_MS');
+    const bounds = launchHookBounds(contract);
+    expect(bounds).toStrictEqual(['FIRST_LAUNCH_HOOK_TIMEOUT_MS']);
     expect(FIRST_LAUNCH_HOOK_TIMEOUT_MS).toBeGreaterThan(DEFAULT_CAMOUFOX_LAUNCH_TIMEOUT_MS);
+  });
+
+  it('[BSW-9] reads the bound the hook passes, not text in a comment', () => {
+    const bounds = launchHookBounds(PLANTED_COMMENT_BOUND);
+    expect(bounds).toStrictEqual(['1']);
   });
 });
