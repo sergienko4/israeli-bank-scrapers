@@ -42,6 +42,35 @@ const MUTUAL_ALIAS =
 const ALIAS_CHAIN =
   "const ns = {}; ns.A = t.Nullable(t.Recursive(ns, 'B')); ns.B = { v: t.String };";
 const SELF_ARRAY = "const ns = {}; ns.A = t.Nullable(t.Array(t.Recursive(ns, 'A')));";
+/** Renames in a chain long enough to overflow a walk that recurses once per rename. */
+const ALIAS_CHAIN_LENGTH = 20_000;
+/**
+ * Time to parse that chain: far above a walk that passes each rename once
+ * (under a second), far below one that walks it again from every name (over
+ * a minute).
+ */
+const ALIAS_CHAIN_BUDGET_MS = 10_000;
+
+/**
+ * One type that only renames the next one in a chain.
+ *
+ * @param at - Its place in the chain.
+ * @returns Its assignment.
+ */
+function chainLink(at: number): string {
+  return `ns.A${String(at)} = t.Recursive(ns, 'A${String(at + 1)}');`;
+}
+
+/**
+ * A namespace whose `A0` renames `A1`, and so on, the last one an object.
+ *
+ * @param length - How many types only rename the next.
+ * @returns Prelude line.
+ */
+function aliasChain(length: number): string {
+  const links = Array.from({ length }, (_, at) => chainLink(at));
+  return `const ns = {}; ${links.join(' ')} ns.A${String(length)} = { v: t.String };`;
+}
 
 /**
  * Two namespaces that both declare `Node`; `A.Node` refers to `B.Node`.
@@ -653,5 +682,15 @@ describe('Juggler schema parser', () => {
   it.each(UNPARSEABLE_CASES)('[$id] rejects $what at line $line', c => {
     const line = thrownLine(c.source);
     expect(line).toBe(c.line);
+  });
+
+  it('[BSD-59] accepts a long chain of renames that ends in an object, walked once', () => {
+    const prelude = aliasChain(ALIAS_CHAIN_LENGTH);
+    const source = method('{}', '{}', prelude);
+    const startedAt = Date.now();
+    const line = thrownLine(source);
+    const elapsedMs = Date.now() - startedAt;
+    expect(line).toBe(-1);
+    expect(elapsedMs).toBeLessThan(ALIAS_CHAIN_BUDGET_MS);
   });
 });

@@ -233,23 +233,34 @@ function aliasOf(/** @type {SchemaType} */ type) {
 /**
  * Fail when the names `name` only renames lead back to one already passed:
  * such a type has no object or array to stop at, so Juggler recurses on any
- * non-null value and the differ would never reach a check.
+ * non-null value and the differ would never reach a check. The renames are
+ * followed in a loop, and a chain stops at a name already proven to end in
+ * a shape, so a long chain is walked once.
  *
  * @param {SchemaIndex} ix - Declaration index.
  * @param {string} name - `X.Name`.
- * @param {Set<string>} [passed] - Names renamed on the way here.
+ * @param {Set<string>} proven - Names known to end in a shape; this chain's are added.
  * @returns {void}
  */
-function checkProductive(ix, name, passed = new Set()) {
-  if (passed.has(name)) fail(ix.decls.get(name), `${name} only renames itself via t.Recursive`);
-  const next = aliasOf(named(ix, name));
-  if (next !== undefined) checkProductive(ix, next, passed.add(name));
+function checkProductive(ix, name, proven) {
+  /** @type {Set<string>} */
+  const passed = new Set();
+  /** @type {string | undefined} */
+  let at = name;
+  while (at !== undefined && !proven.has(at)) {
+    if (passed.has(at)) fail(ix.decls.get(at), `${at} only renames itself via t.Recursive`);
+    passed.add(at);
+    at = aliasOf(named(ix, at));
+  }
+  for (const done of passed) proven.add(done);
 }
 
 /** @returns {Readonly<Record<string, SchemaType>>} Every type assigned into `ns`, by name. */
 function namespaceOf(/** @type {string} */ ns, /** @type {SchemaIndex} */ ix) {
   const names = [...ix.decls.keys()].filter(name => name.startsWith(`${ns}.`));
-  for (const name of names) checkProductive(ix, name);
+  /** @type {Set<string>} */
+  const proven = new Set();
+  for (const name of names) checkProductive(ix, name, proven);
   return Object.fromEntries(names.map(name => [name.slice(ns.length + 1), named(ix, name)]));
 }
 
