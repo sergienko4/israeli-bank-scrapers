@@ -116,7 +116,7 @@ function makePnpmTree(): string {
   const linkParent = dirname(linkPath);
   mkdirSync(linkParent, { recursive: true });
   const storeDir = dirname(storeManifest);
-  symlinkSync(storeDir, linkPath, 'dir');
+  symlinkSync(storeDir, linkPath, 'junction');
   return root;
 }
 
