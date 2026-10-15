@@ -13,7 +13,9 @@
  * 3. `export const protocol = {domains: {Name, …}}`.
  *
  * Types follow `juggler-types.mjs`. Anything else throws
- * {@link UnparseableSchemaError} with its line.
+ * {@link UnparseableSchemaError} with its line, as does a `t.Recursive`
+ * cycle that only renames, with no object or array between (`X.A =
+ * t.Nullable(t.Recursive(X, 'A'))`).
  *
  * Output: `{ domains, namespaces }` — `domains[D] = { methods, events }` with
  * `methods[M] = { params, returns }` (field maps, `{}` when absent) and
@@ -222,9 +224,32 @@ function domainOf(/** @type {PropValue} */ ref, /** @type {SchemaIndex} */ ix) {
   return domain;
 }
 
+/** @returns {string | undefined} The `X.Name` a type only renames, under any `Nullable` layers. */
+function aliasOf(/** @type {SchemaType} */ type) {
+  if (type.t === 'Nullable') return aliasOf(type.inner);
+  return type.t === 'Ref' ? `${type.ns}.${type.name}` : undefined;
+}
+
+/**
+ * Fail when the names `name` only renames lead back to one already passed:
+ * such a type has no object or array to stop at, so Juggler recurses on any
+ * non-null value and the differ would never reach a check.
+ *
+ * @param {SchemaIndex} ix - Declaration index.
+ * @param {string} name - `X.Name`.
+ * @param {Set<string>} [passed] - Names renamed on the way here.
+ * @returns {void}
+ */
+function checkProductive(ix, name, passed = new Set()) {
+  if (passed.has(name)) fail(ix.decls.get(name), `${name} only renames itself via t.Recursive`);
+  const next = aliasOf(named(ix, name));
+  if (next !== undefined) checkProductive(ix, next, passed.add(name));
+}
+
 /** @returns {Readonly<Record<string, SchemaType>>} Every type assigned into `ns`, by name. */
 function namespaceOf(/** @type {string} */ ns, /** @type {SchemaIndex} */ ix) {
   const names = [...ix.decls.keys()].filter(name => name.startsWith(`${ns}.`));
+  for (const name of names) checkProductive(ix, name);
   return Object.fromEntries(names.map(name => [name.slice(ns.length + 1), named(ix, name)]));
 }
 

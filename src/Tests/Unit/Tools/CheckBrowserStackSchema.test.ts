@@ -35,6 +35,13 @@ const NEXT = "const ns = {}; ns.Node = { next: t.Recursive(ns, 'Node') };";
 const NULLABLE_NEXT = "const ns = {}; ns.Node = { next: t.Nullable(t.Recursive(ns, 'Node')) };";
 const KID = "const ns = {}; ns.P = { x: t.String, kid: t.Recursive(ns, 'P') };";
 const NODE_NO_V = "const ns = {}; ns.Node = { kids: t.Array(t.Recursive(ns, 'Node')) };";
+const SELF_NULLABLE = "const ns = {}; ns.A = t.Nullable(t.Recursive(ns, 'A'));";
+const SELF_NESTED = "const ns = {}; ns.Node = t.Nullable(t.Nullable(t.Recursive(ns, 'Node')));";
+const MUTUAL_ALIAS =
+  "const ns = {}; ns.A = t.Nullable(t.Recursive(ns, 'B')); ns.B = t.Recursive(ns, 'A');";
+const ALIAS_CHAIN =
+  "const ns = {}; ns.A = t.Nullable(t.Recursive(ns, 'B')); ns.B = { v: t.String };";
+const SELF_ARRAY = "const ns = {}; ns.A = t.Nullable(t.Array(t.Recursive(ns, 'A')));";
 
 /**
  * Two namespaces that both declare `Node`; `A.Node` refers to `B.Node`.
@@ -447,6 +454,16 @@ const NO_DELTA_CASES: readonly INoDeltaCase[] = [
     browser: method('{ a: t.Nullable(t.String) }'),
   },
   {
+    what: 'a Ref through a Nullable alias to an object the browser takes Nullable',
+    client: method("{ a: t.Recursive(ns, 'A') }", '{}', ALIAS_CHAIN),
+    browser: method('{ a: t.Nullable({ v: t.String }) }'),
+  },
+  {
+    what: 'a self-recursive Nullable Array alias on both sides',
+    client: method("{ a: t.Recursive(ns, 'A') }", '{}', SELF_ARRAY),
+    browser: method("{ a: t.Recursive(ns, 'A') }", '{}', SELF_ARRAY),
+  },
+  {
     what: 'a Ref to a nested Nullable type the browser takes Nullable',
     client: method("{ a: t.Recursive(ns, 'Leaf') }", '{}', NESTED_LEAF),
     browser: method('{ a: t.Nullable(t.String) }'),
@@ -510,6 +527,30 @@ const UNPARSEABLE_CASES: readonly IUnparseableCase[] = [
     line: 1,
   },
   { id: 'BSD-42', what: 'no export const protocol', source: IMPORT_LINE, line: 0 },
+  {
+    id: 'BSD-55',
+    what: 'a t.Recursive cycle through a Nullable alone',
+    source: method("{ a: t.Recursive(ns, 'A') }", '{}', SELF_NULLABLE),
+    line: 2,
+  },
+  {
+    id: 'BSD-56',
+    what: 'a t.Recursive cycle through nested Nullable layers',
+    source: method("{ a: t.Recursive(ns, 'Node') }", '{}', SELF_NESTED),
+    line: 2,
+  },
+  {
+    id: 'BSD-57',
+    what: 'a t.Recursive cycle across two names',
+    source: method("{ a: t.Recursive(ns, 'A') }", '{}', MUTUAL_ALIAS),
+    line: 2,
+  },
+  {
+    id: 'BSD-58',
+    what: 'an unused bare t.Recursive self-alias',
+    source: method('{}', '{}', "const ns = {}; ns.A = t.Recursive(ns, 'A');"),
+    line: 2,
+  },
 ];
 
 const LEAF_TYPE: SchemaType = {
