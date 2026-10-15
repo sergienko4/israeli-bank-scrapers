@@ -90,8 +90,16 @@ function fieldAssign(
   if (s !== undefined) typeAssign(s.type, d.type, cur);
 }
 
-/** The type inside one `Nullable`, else the type itself. */
-const unwrap = (/** @type {SchemaType} */ type) => (type.t === 'Nullable' ? type.inner : type);
+/**
+ * The type inside every `Nullable` layer, else the type itself: a Nullable
+ * nested in a Nullable admits the same values as one.
+ *
+ * @param {SchemaType} type - A type, maybe wrapped in `Nullable`.
+ * @returns {SchemaType} The type with no `Nullable` on top.
+ */
+function unwrap(type) {
+  return type.t === 'Nullable' ? unwrap(type.inner) : type;
+}
 
 /**
  * Compare two types.
@@ -109,11 +117,11 @@ export function typeAssign(s, d, cur) {
   if (du.t !== 'Any') shapeAssign(su, du, cur);
 }
 
-/** A type made Nullable, never wrapped twice. */
+/** A type made Nullable: exactly one layer, however many it had. */
 function nullable(/** @type {SchemaType} */ type) {
   /** @type {SchemaType} */
-  const wrapped = { t: 'Nullable', inner: type };
-  return type.t === 'Nullable' ? type : wrapped;
+  const wrapped = { t: 'Nullable', inner: unwrap(type) };
+  return wrapped;
 }
 
 /**

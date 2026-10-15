@@ -30,6 +30,7 @@ const NO_DOMAINS = `${IMPORT_LINE}\nexport const protocol = { domains: {} };`;
 const LEAF = 'const ns = {}; ns.Leaf = { v: t.String };';
 const NODE = "const ns = {}; ns.Node = { v: t.String, kids: t.Array(t.Recursive(ns, 'Node')) };";
 const NULLABLE_LEAF = 'const ns = {}; ns.Leaf = t.Nullable(t.String);';
+const NESTED_LEAF = 'const ns = {}; ns.Leaf = t.Nullable(t.Nullable(t.String));';
 const NEXT = "const ns = {}; ns.Node = { next: t.Recursive(ns, 'Node') };";
 const NULLABLE_NEXT = "const ns = {}; ns.Node = { next: t.Nullable(t.Recursive(ns, 'Node')) };";
 const KID = "const ns = {}; ns.P = { x: t.String, kid: t.Recursive(ns, 'P') };";
@@ -341,6 +342,20 @@ const DIFF_CASES: readonly IDiffCase[] = [
     browser: method('{ a: { x: t.String, kid: { x: t.Number, kid: t.Any } } }'),
     expected: [delta('request TYPE-MISMATCH D.m.a.kid.x', 'src:String|dst:Number')],
   },
+  {
+    id: 'BSD-53',
+    what: 'one NULLABLE for a Nullable nested in a Nullable',
+    client: method('{ a: t.Nullable(t.Nullable(t.String)) }'),
+    browser: method('{ a: t.String }'),
+    expected: [delta('request NULLABLE D.m.a', 'src:String|dst:String')],
+  },
+  {
+    id: 'BSD-54',
+    what: 'one NULLABLE for a Ref to a nested Nullable type',
+    client: method("{ a: t.Recursive(ns, 'Leaf') }", '{}', NESTED_LEAF),
+    browser: method('{ a: t.String }'),
+    expected: [delta('request NULLABLE D.m.a', 'src:String|dst:String')],
+  },
 ];
 
 /**
@@ -420,6 +435,21 @@ const NO_DELTA_CASES: readonly INoDeltaCase[] = [
     what: 'a recursive Ref the browser takes as matching inline objects',
     client: method("{ a: t.Recursive(ns, 'P') }", '{}', KID),
     browser: method('{ a: { x: t.String, kid: { x: t.String, kid: t.Any } } }'),
+  },
+  {
+    what: 'a Nullable the browser nests in a Nullable',
+    client: method('{ a: t.Nullable(t.String) }'),
+    browser: method('{ a: t.Nullable(t.Nullable(t.String)) }'),
+  },
+  {
+    what: 'a nested Nullable the browser takes Nullable',
+    client: method('{ a: t.Nullable(t.Nullable(t.String)) }'),
+    browser: method('{ a: t.Nullable(t.String) }'),
+  },
+  {
+    what: 'a Ref to a nested Nullable type the browser takes Nullable',
+    client: method("{ a: t.Recursive(ns, 'Leaf') }", '{}', NESTED_LEAF),
+    browser: method('{ a: t.Nullable(t.String) }'),
   },
   {
     what: 'a browser-only method and event',
