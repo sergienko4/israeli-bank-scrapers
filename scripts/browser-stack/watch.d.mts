@@ -11,7 +11,6 @@ import type { IFetchIo, IGateIo } from './gate.mjs';
 /** Injectable I/O of one watch run; production defaults fill every omitted member. */
 export interface IWatchIo {
   readonly manifestPath?: string;
-  readonly lockfilePath?: string;
   /** The library's `package.json`, whose `playwright-core` range a consumer resolves. */
   readonly packagePath?: string;
   readonly env?: Readonly<Record<string, string | undefined>>;
@@ -23,9 +22,6 @@ export interface IWatchIo {
   readonly stdout?: (text: string) => boolean;
   readonly stderr?: (text: string) => boolean;
 }
-
-/** How many gate runs are in flight at once. */
-export declare const GATE_CONCURRENCY: number;
 
 /**
  * Run the watch once.

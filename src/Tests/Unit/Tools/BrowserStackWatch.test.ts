@@ -4,10 +4,10 @@
  * <p>The network is a fake `fetch` serving a releases page and a packument,
  * camoufox-js's asset check is a fake for `lin x86_64`, and the gate is a
  * fake `runGate` that records its arguments and answers per pair. So each
- * case pins one part of the contract: which pairs run, in which mode, and
- * how the body reports the consumer pair, CI drift, the candidate table and
- * input failures. The library's playwright-core range is a package.json
- * fixture, so the consumer pair follows the range, not npm `latest`.
+ * case pins one part of the contract: which pair runs, in which mode, and
+ * how the body reports the consumer pair, CI drift and input failures. The
+ * library's playwright-core range is a package.json fixture, so the consumer
+ * pair follows the range, not npm `latest`.
  */
 
 import type {
@@ -21,7 +21,6 @@ import { runWatch } from '../../../../scripts/browser-stack/watch.mjs';
 import {
   ASSET_CHECK,
   type IPrinted,
-  lockfileWith,
   packageWith,
   printingIo,
   RANGE,
@@ -31,7 +30,7 @@ import {
 } from '../../Helpers/BrowserStackWatchFixtures.js';
 import { fakeFetch, type IFetchFake } from '../../Helpers/FakeFetch.js';
 
-const LOCKED = '1.63.1';
+const OLDER = '1.63.1';
 const NEXT = '1.64.2';
 const STABLE_TAG = 'v156.0.1-beta.35';
 const PRE_TAG = 'v156.0.1-beta.38';
@@ -65,13 +64,12 @@ const UNDECIDED: IGateOutcome = {
 const PAGE = [release(PRE_TAG, true), release(STABLE_TAG), release(OLD_TAG)];
 
 /** Published playwright-core versions: two stable lines and a prerelease. */
-const PUBLISHED = [LOCKED, '1.64.0', NEXT, '1.65.0-alpha-1'];
+const PUBLISHED = [OLDER, '1.64.0', NEXT, '1.65.0-alpha-1'];
 
 /** What one scenario changes from the default upstream state. */
 interface IScenario {
   readonly page?: readonly IRelease[];
   readonly manifestTag?: string;
-  readonly lockfile?: string;
   readonly packageJson?: string;
   readonly published?: readonly string[];
   readonly latest?: string;
@@ -146,15 +144,14 @@ function upstream(scenario: IScenario): UpstreamFetch {
 }
 
 /**
- * Write the scenario's manifest, lockfile and package.json.
+ * Write the scenario's manifest and package.json.
  *
  * @param scenario - What differs from the default.
- * @returns The three paths.
+ * @returns The two paths.
  */
 function inputsOf(scenario: IScenario): ReturnType<typeof writeInputs> {
   return writeInputs({
     manifestTag: scenario.manifestTag ?? STABLE_TAG,
-    lockfile: scenario.lockfile ?? lockfileWith(LOCKED),
     packageJson: scenario.packageJson ?? packageWith(RANGE),
   });
 }
@@ -200,67 +197,59 @@ async function watch(scenario: IScenario = {}): Promise<IRun> {
 }
 
 /**
- * The candidate table row for one pair, split into cells.
+ * The consumer-pair line for `playwright` × `tag`, up to its verdict.
  *
- * @param body - Issue body.
  * @param playwright - playwright-core version.
  * @param tag - Camoufox tag.
- * @returns Cells, without the outer pipes.
+ * @returns The line's fixed prefix.
  */
-function rowOf(body: string, playwright: string, tag: string): string[] {
-  const lines = body.split('\n');
-  const line = lines.find(l => l.startsWith(`| ${playwright} `) && l.includes(`\`${tag}\``)) ?? '';
-  return line.split(' | ').map(cell => cell.replace(/^\| | \|$/gu, ''));
+function pairPrefix(playwright: string, tag: string): string {
+  const consumer = `playwright-core \`${playwright}\` (what a consumer's \`${RANGE}\` resolves to)`;
+  return `${consumer} × Camoufox \`${tag}\` (what camoufox-js installs): `;
+}
+
+/**
+ * The body's section headings, in order.
+ *
+ * @param body - Issue body.
+ * @returns Every `### ` line.
+ */
+function headingsOf(body: string): string[] {
+  return body.split('\n').filter(line => line.startsWith('### '));
 }
 
 describe('browser-stack watch report', () => {
-  it('[WCH-1] runs the gate in candidate mode on every version × release', async () => {
+  it('[WCH-1] runs the gate once, in candidate mode, on range × selected release', async () => {
     const run = await watch();
-    const pairs = run.gateArgs.map(args => `${args[1]} ${args[3]}`);
     expect(run.code).toBe(0);
-    expect(pairs).toEqual([
-      `${LOCKED} ${PRE_TAG}`,
-      `${LOCKED} ${STABLE_TAG}`,
-      `${LOCKED} ${OLD_TAG}`,
-      `${NEXT} ${PRE_TAG}`,
-      `${NEXT} ${STABLE_TAG}`,
-      `${NEXT} ${OLD_TAG}`,
+    expect(run.gateArgs).toEqual([
+      ['--playwright', NEXT, '--camoufox', STABLE_TAG, '--mode', 'candidate', '--json'],
     ]);
-    for (const args of run.gateArgs)
-      expect(args).toEqual([...args.slice(0, 4), '--mode', 'candidate', '--json']);
+    const headings = headingsOf(run.out);
+    expect(headings).toEqual(['### Consumer pair', '### CI drift']);
   });
 
-  it('[WCH-2] hands the gate the same manifest, lockfile and fetch I/O', async () => {
+  it('[WCH-2] hands the gate the manifest and fetch I/O, and no lockfile', async () => {
     const run = await watch();
     const [first] = run.gateIo;
     expect(first.manifestPath).toMatch(/browser-stack\.json$/u);
-    expect(first.lockfilePath).toMatch(/package-lock\.json$/u);
+    expect(first.lockfilePath).toBeUndefined();
     expect(first.fetch?.fetchImpl).toBeDefined();
   });
 
-  it('[WCH-3] reports the consumer pair (range × selected) with its NEW paths', async () => {
-    const outcomes = {
-      [`${NEXT} ${STABLE_TAG}`]: incompatible('Network.setRequestInterception.bypassServiceWorker'),
-    };
+  it('[WCH-3] reports the consumer pair as not compatible with its NEW paths', async () => {
+    const path = 'Network.setRequestInterception.bypassServiceWorker';
+    const outcomes = { [`${NEXT} ${STABLE_TAG}`]: incompatible(path) };
     const run = await watch({ outcomes });
-    expect(run.out).toContain(
-      `playwright-core \`${NEXT}\` (what a consumer's \`${RANGE}\` resolves to) × Camoufox \`${STABLE_TAG}\` (what camoufox-js installs): **not compatible** — NEW: \`Network.setRequestInterception.bypassServiceWorker\`.`,
-    );
+    const prefix = pairPrefix(NEXT, STABLE_TAG);
+    expect(run.out).toContain(`${prefix}**not compatible** — NEW: \`${path}\`.`);
   });
 
-  it('[WCH-4] marks selected-compatible only on a compatible, selected pair', async () => {
-    const outcomes = { [`${NEXT} ${STABLE_TAG}`]: incompatible('A.b') };
-    const run = await watch({ outcomes });
-    const selectedOk = rowOf(run.out, LOCKED, STABLE_TAG);
-    const prereleaseOk = rowOf(run.out, LOCKED, PRE_TAG);
-    const selectedNew = rowOf(run.out, NEXT, STABLE_TAG);
-    const selectedOkFlags = selectedOk.slice(2);
-    const prereleaseOkFlags = prereleaseOk.slice(2);
-    const selectedNewFlags = selectedNew.slice(2);
-    expect(selectedOkFlags).toEqual(['no', 'yes', '0', 'yes', 'yes']);
-    expect(prereleaseOkFlags).toEqual(['yes', 'no', '0', 'yes', 'no']);
-    expect(selectedNewFlags).toEqual(['no', 'yes', '1: `A.b`', 'no', 'no']);
-    expect(selectedNew[0]).toBe(`${NEXT} (next minor 1.64, range ${RANGE})`);
+  it('[WCH-4] reports a compatible consumer pair with no NEW paths or errors', async () => {
+    const run = await watch();
+    const prefix = pairPrefix(NEXT, STABLE_TAG);
+    expect(run.out).toContain(`${prefix}**compatible**.\n`);
+    expect(run.out).not.toContain('The gate could not decide');
   });
 
   it('[WCH-5] reports CI drift when the manifest tag is not the selected release', async () => {
@@ -272,40 +261,29 @@ describe('browser-stack watch report', () => {
     );
   });
 
-  it('[WCH-6] says a consumer install fails when no stable release has an asset', async () => {
+  it('[WCH-6] says a consumer install fails, and runs no gate, when no stable release has an asset', async () => {
     const run = await watch({ page: [release(PRE_TAG, true)] });
+    expect(run.code).toBe(0);
     expect(run.out).toContain('camoufox-js finds no stable release with a lin x86_64 asset');
     expect(run.out).toContain('camoufox-js installs none: **drift**.');
-    expect(run.gateArgs).toHaveLength(2);
+    expect(run.gateArgs).toHaveLength(0);
   });
 
-  it('[WCH-7] still runs the selected release when it is older than the newest ten', async () => {
-    const prereleases = Array.from({ length: 10 }, (_, i) =>
-      release(`v156.0.1-beta.${String(50 - i)}`, true),
-    );
-    const run = await watch({ page: [...prereleases, release(OLD_TAG)] });
-    const tags = run.gateArgs.map(args => args[3]);
-    expect(tags).toContain(OLD_TAG);
-    expect(run.out).toContain(`playwright-core \`${NEXT}\``);
-    expect(rowOf(run.out, NEXT, OLD_TAG)[3]).toBe('yes');
-  });
-
-  it('[WCH-8] lists a pair the gate cannot decide as unknown, with its errors, and exits 0', async () => {
-    const run = await watch({ outcomes: { [`${LOCKED} ${OLD_TAG}`]: UNDECIDED } });
+  it('[WCH-7] reports a pair the gate cannot decide as unknown, with its errors, and exits 0', async () => {
+    const run = await watch({ outcomes: { [`${NEXT} ${STABLE_TAG}`]: UNDECIDED } });
+    const prefix = pairPrefix(NEXT, STABLE_TAG);
     expect(run.code).toBe(0);
-    const row = rowOf(run.out, LOCKED, OLD_TAG);
-    const verdictCells = row.slice(4);
-    expect(verdictCells).toEqual(['—', 'unknown', 'no']);
-    expect(run.out).toContain(`- ${LOCKED} × \`${OLD_TAG}\`: FETCH-FAILED https://x HTTP 503`);
+    expect(run.out).toContain(`${prefix}**unknown (the gate could not decide)**.`);
+    expect(run.out).toContain('The gate could not decide:\n- FETCH-FAILED https://x HTTP 503\n');
   });
 
-  it('[WCH-9] shows three NEW paths, then how many more', async () => {
-    const outcomes = { [`${LOCKED} ${OLD_TAG}`]: incompatible('A.a', 'A.b', 'A.c', 'A.d', 'A.e') };
+  it('[WCH-8] shows three NEW paths, then how many more', async () => {
+    const outcomes = { [`${NEXT} ${STABLE_TAG}`]: incompatible('A.a', 'A.b', 'A.c', 'A.d', 'A.e') };
     const run = await watch({ outcomes });
-    expect(rowOf(run.out, LOCKED, OLD_TAG)[4]).toBe('5: `A.a`, `A.b`, `A.c`, 2 more');
+    expect(run.out).toContain('— NEW: `A.a`, `A.b`, `A.c`, 2 more.');
   });
 
-  it('[WCH-10] writes the printed body to --out and links open updates in a repository', async () => {
+  it('[WCH-9] writes the printed body to --out and links open updates in a repository', async () => {
     const run = await watch({ args: ['--out', '/tmp/body.md'], env: { GITHUB_REPOSITORY: REPO } });
     const local = await watch();
     expect(run.written['/tmp/body.md']).toBe(run.out);
@@ -317,7 +295,7 @@ describe('browser-stack watch report', () => {
 });
 
 describe('browser-stack watch input failures', () => {
-  it('[WCH-11] exits 2 with FETCH-FAILED and runs no gate when the releases page fails', async () => {
+  it('[WCH-10] exits 2 with FETCH-FAILED and runs no gate when the releases page fails', async () => {
     const run = await watch({ releasesStatus: 404 });
     expect(run.code).toBe(2);
     expect(run.err).toBe(`FETCH-FAILED ${RELEASES_URL} HTTP 404\n`);
@@ -325,19 +303,13 @@ describe('browser-stack watch input failures', () => {
     expect(run.gateArgs).toHaveLength(0);
   });
 
-  it('[WCH-12] exits 2 on an unreadable lockfile', async () => {
-    const run = await watch({ lockfile: '{' });
-    expect(run.code).toBe(2);
-    expect(run.err).toMatch(/^LOCKFILE-INVALID /u);
-  });
-
-  it('[WCH-13] exits 2 on an unknown argument', async () => {
+  it('[WCH-11] exits 2 on an unknown argument', async () => {
     const run = await watch({ args: ['--bogus'] });
     expect(run.code).toBe(2);
     expect(run.err).toMatch(/^USAGE /u);
   });
 
-  it('[WCH-14] exits 2 with RANGE-UNSUPPORTED before any fetch or gate on a non-caret range', async () => {
+  it('[WCH-12] exits 2 with RANGE-UNSUPPORTED before any fetch or gate on a non-caret range', async () => {
     const packageJson = packageWith('~1.62.0');
     const run = await watch({ packageJson });
     expect(run.code).toBe(2);
@@ -347,7 +319,7 @@ describe('browser-stack watch input failures', () => {
     expect(run.gateArgs).toHaveLength(0);
   });
 
-  it('[WCH-15] exits 2 with PACKAGE-INVALID when package.json declares no playwright-core', async () => {
+  it('[WCH-13] exits 2 with PACKAGE-INVALID when package.json declares no playwright-core', async () => {
     const run = await watch({ packageJson: '{}' });
     expect(run.code).toBe(2);
     expect(run.err).toMatch(
@@ -358,25 +330,23 @@ describe('browser-stack watch input failures', () => {
 });
 
 describe('browser-stack watch consumer range', () => {
-  it('[WCH-16] pairs the highest stable version in range when latest is a new major', async () => {
+  it('[WCH-14] pairs the highest stable version in range when latest is a new major', async () => {
     const inRange = '1.65.1';
     const published = [...PUBLISHED, '1.65.0', inRange, '2.0.0'];
     const run = await watch({ published, latest: '2.0.0' });
     const versions = run.gateArgs.map(args => args[1]);
-    const distinct = new Set(versions);
-    expect([...distinct]).toEqual([LOCKED, NEXT, inRange]);
-    expect(run.out).toContain(
-      `playwright-core \`${inRange}\` (what a consumer's \`${RANGE}\` resolves to) × Camoufox \`${STABLE_TAG}\``,
-    );
-    expect(rowOf(run.out, inRange, STABLE_TAG)[0]).toBe(`${inRange} (range ${RANGE})`);
+    expect(versions).toEqual([inRange]);
+    const prefix = pairPrefix(inRange, STABLE_TAG);
+    expect(run.out).toContain(prefix);
   });
 
-  it('[WCH-17] says so when no stable version satisfies the range', async () => {
+  it('[WCH-15] says so, and runs no gate, when no stable version satisfies the range', async () => {
     const packageJson = packageWith('^3.0.0');
     const run = await watch({ packageJson });
     expect(run.code).toBe(0);
     expect(run.out).toContain(
       `No stable playwright-core version satisfies \`^3.0.0\` to pair with \`${STABLE_TAG}\`.`,
     );
+    expect(run.gateArgs).toHaveLength(0);
   });
 });

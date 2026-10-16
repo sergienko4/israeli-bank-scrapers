@@ -3,15 +3,14 @@
  *
  * <p>The workflow gives the job `timeout-minutes`; the watch must write its
  * report within it even when upstream is at its slowest. Here the real gate
- * judges the largest candidate set — three playwright-core versions × the ten
- * newest Camoufox releases plus the older one camoufox-js selects — against a
- * fake network on a virtual clock. In the worst case each input answers on
- * its last attempt at the edge of its timeout (any later and the watch exits
- * 2 without judging anything), and every `Protocol.js` attempt times out —
- * or the newest Camoufox layout answers 404 only on its last attempt, so the
- * gate falls back to the older layout, whose attempts all time out.
- * Elapsed time is simulated and the bound is computed from the real timeout,
- * back-off and concurrency constants, never from wall-clock time.
+ * judges the consumer pair against a fake network on a virtual clock. In the
+ * worst case each input answers on its last attempt at the edge of its
+ * timeout (any later and the watch exits 2 without judging anything), and
+ * every `Protocol.js` attempt times out — or the newest Camoufox layout
+ * answers 404 only on its last attempt, so the gate falls back to the older
+ * layout, whose attempts all time out. Elapsed time is simulated and the
+ * bound is computed from the real timeout and back-off constants, never from
+ * wall-clock time.
  */
 
 import { readFileSync } from 'node:fs';
@@ -19,30 +18,22 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { IPlatformAssetCheck } from '../../../../scripts/browser-stack/camoufox-releases.mjs';
-import {
-  CANDIDATE_COUNT,
-  RELEASES_URL,
-} from '../../../../scripts/browser-stack/camoufox-releases.mjs';
+import { RELEASES_URL } from '../../../../scripts/browser-stack/camoufox-releases.mjs';
 import {
   ALLOWED_HOST,
   ATTEMPT_TIMEOUT_MS,
   BACKOFF_MS,
   protocolUrls,
 } from '../../../../scripts/browser-stack/fetch-protocol.mjs';
-import type { IFetchIo, IGateIo } from '../../../../scripts/browser-stack/gate.mjs';
+import type { IFetchIo } from '../../../../scripts/browser-stack/gate.mjs';
 import {
   PACKUMENT_TIMEOUT_MS,
   PACKUMENT_URL,
 } from '../../../../scripts/browser-stack/playwright-versions.mjs';
-import {
-  GATE_CONCURRENCY,
-  type IWatchIo,
-  runWatch,
-} from '../../../../scripts/browser-stack/watch.mjs';
+import { runWatch } from '../../../../scripts/browser-stack/watch.mjs';
 import {
   ASSET_CHECK,
   type IPrinted,
-  lockfileWith,
   packageWith,
   printingIo,
   RANGE,
@@ -50,7 +41,6 @@ import {
   removeInputs,
   writeInputs,
 } from '../../Helpers/BrowserStackWatchFixtures.js';
-import { fakeFetch } from '../../Helpers/FakeFetch.js';
 import { type IVirtualClock, virtualClock } from '../../Helpers/VirtualClock.js';
 
 const HERE = fileURLToPath(import.meta.url);
@@ -83,34 +73,19 @@ function slowestFetchMs(timeoutMs: number): number {
   return ATTEMPTS * timeoutMs + BACKOFF_TOTAL_MS;
 }
 
-const LOCKED = '1.63.1';
-const NEXT = '1.64.2';
 const IN_RANGE = '1.65.1';
-const VERSIONS = [LOCKED, NEXT, IN_RANGE];
 const SELECTED_TAG = 'v152.0.4-beta.30';
 
-/** The ten newest releases are prereleases, so the selected one is an eleventh tag. */
-const PAGE = [
-  ...Array.from({ length: CANDIDATE_COUNT }, (_, i) =>
-    release(`v156.0.1-beta.${String(50 - i)}`, true),
-  ),
-  release(SELECTED_TAG),
-];
-const TAGS = PAGE.map(r => r.tag_name);
+/** A newer prerelease first, so the selected release is the second tag. */
+const PAGE = [release('v156.0.1-beta.50', true), release(SELECTED_TAG)];
 
-/** Every pair, in report order: version-major. */
-const PAIRS = VERSIONS.flatMap(version => TAGS.map(tag => `${version} ${tag}`));
-
-/** One client schema per version, one first browser candidate per tag. */
-const PROTOCOL_URLS = VERSIONS.length + TAGS.length;
+/** The consumer pair: the range's highest stable version × the selected release. */
+const PAIR = `${IN_RANGE} ${SELECTED_TAG}`;
 
 /** Browser layouts tried per tag, newest first; only a 404 moves on to the next. */
-const BROWSER_ROOTS = protocolUrls(LOCKED, SELECTED_TAG).browser.length;
+const BROWSER_ROOTS = protocolUrls(IN_RANGE, SELECTED_TAG).browser.length;
 
-/** Every client schema and every browser layout of every tag. */
-const EVERY_PROTOCOL_URL = VERSIONS.length + BROWSER_ROOTS * TAGS.length;
-
-const PUBLISHED = [LOCKED, '1.64.0', NEXT, '1.65.0', IN_RANGE, '2.0.0'];
+const PUBLISHED = ['1.63.1', '1.64.0', '1.64.2', '1.65.0', IN_RANGE, '2.0.0'];
 const PUBLISHED_ENTRIES = PUBLISHED.map((version): [string, object] => [version, {}]);
 
 /** `latest` is the in-range version, beside a new major. */
@@ -132,18 +107,13 @@ const INPUTS_WORST_MS = Math.max(PACKUMENT_WORST_MS, RELEASES_WORST_MS);
 
 /**
  * The slowest browser schema: every layout but the last answers 404 at the edge of
- * its last attempt, and the last one times out on every attempt.
+ * its last attempt, and the last one times out on every attempt. The gate fetches
+ * the client schema at the same time, and one client fetch is never slower.
  */
 const BROWSER_WORST_MS = BROWSER_ROOTS * RELEASES_WORST_MS;
 
-/**
- * Gate runs: each `Protocol.js` URL is fetched once and {@link GATE_CONCURRENCY} gates
- * run at once, so the URLs take this many rounds of the slowest browser schema. One
- * gate at a time with no cache, the same 33 pairs would need about an hour.
- */
-const WAVES = Math.ceil(PROTOCOL_URLS / GATE_CONCURRENCY);
-const GATES_WORST_MS = WAVES * BROWSER_WORST_MS;
-const BOUND_MS = INPUTS_WORST_MS + GATES_WORST_MS;
+/** The one gate run starts once the inputs are read. */
+const BOUND_MS = INPUTS_WORST_MS + BROWSER_WORST_MS;
 
 /** Per-host attempt timeout: the packument has its own. */
 const HOST_TIMEOUT_MS: Readonly<Record<string, number>> = {
@@ -234,37 +204,16 @@ function slowestNetwork(
 }
 
 /**
- * A prompt network: the inputs, a 404 at the newest browser layout, and a
- * body that is no Juggler schema everywhere else.
- *
- * @param url - Fetched URL.
- * @returns The response.
- */
-function promptAnswer(url: string): Response {
-  const status = url.includes('/browser/additions/') ? 404 : 200;
-  return new Response(INPUT_BODIES[url] ?? 'not a schema', { status });
-}
-
-/**
  * Run the watch to completion on the virtual clock.
  *
  * @param clock - The virtual clock.
  * @param fetchImpl - The network.
- * @param overrides - Further watch I/O.
  * @returns What the run produced.
  */
-async function watchOn(
-  clock: IVirtualClock,
-  fetchImpl: FetchImpl,
-  overrides: IWatchIo = {},
-): Promise<IRun> {
+async function watchOn(clock: IVirtualClock, fetchImpl: FetchImpl): Promise<IRun> {
   const printed: IPrinted = { out: '', err: '', written: {} };
   const running = runWatch([], {
-    ...writeInputs({
-      manifestTag: SELECTED_TAG,
-      lockfile: lockfileWith(LOCKED),
-      packageJson: packageWith(RANGE),
-    }),
+    ...writeInputs({ manifestTag: SELECTED_TAG, packageJson: packageWith(RANGE) }),
     ...printingIo(printed),
     env: {},
     fetch: { fetchImpl, sleep: clock.sleep },
@@ -274,25 +223,21 @@ async function watchOn(
      * @returns The check.
      */
     assetCheck: (): Promise<IPlatformAssetCheck> => Promise.resolve(ASSET_CHECK),
-    ...overrides,
   });
   const code = await clock.run(running);
   return { ...printed, code };
 }
 
 /**
- * The candidate table rows as `version tag`, in body order, with their verdicts.
+ * The consumer pair as `version tag`, with its verdict.
  *
  * @param body - Issue body.
- * @returns One `[pair, compatible cell]` per row.
+ * @returns `[pair, verdict]`, or empty strings when the body has no pair line.
  */
-function tableRows(body: string): [string, string][] {
-  const rows = body.split('\n').filter(line => /^\| \d/u.test(line));
-  return rows.map((line): [string, string] => {
-    const cells = line.slice(2, -2).split(' | ');
-    const [version] = cells[0].split(' ');
-    return [`${version} ${cells[1].replaceAll('`', '')}`, cells[5]];
-  });
+function consumerVerdict(body: string): [string, string] {
+  const pattern = /^playwright-core `([^`]+)` .* × Camoufox `([^`]+)` .*: \*\*([^*]+)\*\*/mu;
+  const [, version = '', tag = '', verdict = ''] = pattern.exec(body) ?? [];
+  return [`${version} ${tag}`, verdict];
 }
 
 /**
@@ -317,108 +262,40 @@ function protocolCalls(urls: readonly string[]): string[] {
   return urls.filter(url => url.startsWith(`https://${ALLOWED_HOST}/`));
 }
 
-/** A fake gate whose later pairs answer sooner, recording how many run at once. */
-interface IStaggeredGate {
-  readonly runGate: NonNullable<IWatchIo['runGate']>;
-  readonly finished: string[];
-  readonly inFlight: { now: number; peak: number };
-}
-
-/**
- * A fake gate on the virtual clock: the n-th pair started answers after
- * (pairs − n) seconds, compatible.
- *
- * @param clock - The virtual clock.
- * @returns The gate and what it recorded.
- */
-function staggeredGate(clock: IVirtualClock): IStaggeredGate {
-  const finished: string[] = [];
-  const inFlight = { now: 0, peak: 0, started: 0 };
-  /**
-   * Answer one pair after its delay.
-   *
-   * @param args - Gate arguments.
-   * @param io - Gate I/O.
-   * @returns Exit 0.
-   */
-  const runGate = async (args: readonly string[], io: IGateIo): Promise<0> => {
-    inFlight.now += 1;
-    inFlight.peak = Math.max(inFlight.peak, inFlight.now);
-    inFlight.started += 1;
-    await clock.sleep((PAIRS.length - inFlight.started + 1) * 1000);
-    inFlight.now -= 1;
-    finished.push(`${args[1]} ${args[3]}`);
-    io.stdout?.('{"exit":0,"new":[]}\n');
-    return 0;
-  };
-  return { runGate, finished, inFlight };
-}
+const UNKNOWN = 'unknown (the gate could not decide)';
 
 describe('browser-stack watch bounds', () => {
-  it('[WCB-1] reports every pair inside the job limit when every Protocol.js fetch times out', async () => {
+  it('[WCB-1] reports the consumer pair inside the job limit when every Protocol.js fetch times out', async () => {
     const clock = virtualClock();
     const calls: string[] = [];
     const network = slowestNetwork(clock, calls);
     const run = await watchOn(clock, network);
-    const rows = tableRows(run.out);
-    const verdicts = new Set(rows.map(([, verdict]) => verdict));
     const protocol = protocolCalls(calls);
     const counts = fetchCounts(protocol);
-    const pairs = rows.map(([pair]) => pair);
-    const everyAttempt = new Array<number>(PROTOCOL_URLS).fill(ATTEMPTS);
+    const judged = consumerVerdict(run.out);
     const elapsedMs = clock.now();
     expect(run.code).toBe(0);
-    expect(pairs).toEqual(PAIRS);
-    expect([...verdicts]).toEqual(['unknown']);
-    expect(counts).toEqual(everyAttempt);
+    expect(judged).toEqual([PAIR, UNKNOWN]);
+    expect(counts).toEqual([ATTEMPTS, ATTEMPTS]);
     expect(elapsedMs).toBeGreaterThan(INPUTS_WORST_MS);
     expect(elapsedMs).toBeLessThanOrEqual(BOUND_MS);
     expect(BOUND_MS).toBeLessThanOrEqual(JOB_LIMIT_MS - SETUP_ALLOWANCE_MS);
   });
 
-  it('[WCB-2] fetches each Protocol.js URL once per run, 404s included', async () => {
-    const clock = virtualClock();
-    const network = fakeFetch(promptAnswer);
-    const run = await watchOn(clock, network.fetchImpl);
-    const urls = network.calls.map(call => call.url);
-    const protocol = protocolCalls(urls);
-    const counts = fetchCounts(protocol);
-    const distinct = VERSIONS.length + 2 * TAGS.length;
-    const once = new Array<number>(distinct).fill(1);
-    expect(run.code).toBe(0);
-    expect(counts).toEqual(once);
-  });
-
-  it('[WCB-3] runs at most GATE_CONCURRENCY gates at once and keeps rows in pair order', async () => {
-    const clock = virtualClock();
-    const gate = staggeredGate(clock);
-    const network = fakeFetch(promptAnswer);
-    const run = await watchOn(clock, network.fetchImpl, { runGate: gate.runGate });
-    const rows = tableRows(run.out);
-    const pairs = rows.map(([pair]) => pair);
-    expect(gate.inFlight.peak).toBe(GATE_CONCURRENCY);
-    expect(gate.finished).not.toEqual(PAIRS);
-    expect(pairs).toEqual(PAIRS);
-  });
-
-  it('[WCB-4] stays inside the job limit when every newest layout 404s late and the fallback times out', async () => {
+  it('[WCB-2] reaches the bound, inside the job limit, when the newest layout 404s late and the fallback times out', async () => {
     const clock = virtualClock();
     const calls: string[] = [];
     const network = slowestNetwork(clock, calls, newestLayoutGone);
     const run = await watchOn(clock, network);
-    const rows = tableRows(run.out);
-    const verdicts = new Set(rows.map(([, verdict]) => verdict));
     const protocol = protocolCalls(calls);
     const counts = fetchCounts(protocol);
-    const pairs = rows.map(([pair]) => pair);
-    const everyAttempt = new Array<number>(EVERY_PROTOCOL_URL).fill(ATTEMPTS);
+    const judged = consumerVerdict(run.out);
+    const everyAttempt = new Array<number>(1 + BROWSER_ROOTS).fill(ATTEMPTS);
     const elapsedMs = clock.now();
     expect(run.code).toBe(0);
-    expect(pairs).toEqual(PAIRS);
-    expect([...verdicts]).toEqual(['unknown']);
+    expect(judged).toEqual([PAIR, UNKNOWN]);
     expect(counts).toEqual(everyAttempt);
-    expect(elapsedMs).toBeGreaterThan(INPUTS_WORST_MS + BROWSER_WORST_MS);
-    expect(elapsedMs).toBeLessThanOrEqual(BOUND_MS);
+    expect(elapsedMs).toBe(BOUND_MS);
     expect(BOUND_MS).toBeLessThanOrEqual(JOB_LIMIT_MS - SETUP_ALLOWANCE_MS);
   });
 });

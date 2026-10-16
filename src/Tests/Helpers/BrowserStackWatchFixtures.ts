@@ -2,9 +2,9 @@
  * Fixtures shared by the browser-stack watch tests.
  *
  * Camoufox releases with an asset for one platform, camoufox-js's asset check
- * for that platform, the watch's three input files (manifest, lockfile,
- * package.json) written to a fresh temporary directory, and output I/O that
- * captures what a run prints.
+ * for that platform, the watch's two input files (manifest, package.json)
+ * written to a fresh temporary directory, and output I/O that captures what a
+ * run prints.
  */
 
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -40,17 +40,15 @@ const CHECKED_AT = '2026-05-04T06:00:00Z';
 /** Temporary directories to remove after the tests. */
 const DIRS: string[] = [];
 
-/** The texts of the watch's three input files. */
+/** The texts of the watch's two input files. */
 export interface IInputTexts {
   readonly manifestTag: string;
-  readonly lockfile: string;
   readonly packageJson: string;
 }
 
-/** Where the watch's three input files were written. */
+/** Where the watch's two input files were written. */
 export interface IInputPaths {
   readonly manifestPath: string;
-  readonly lockfilePath: string;
   readonly packagePath: string;
 }
 
@@ -88,16 +86,6 @@ export const ASSET_CHECK: IPlatformAssetCheck = {
    */
   acceptsAsset: (asset: IReleaseAsset): boolean => asset.name.endsWith(`-${PLATFORM}.zip`),
 };
-
-/**
- * A lockfile resolving playwright-core to `version`.
- *
- * @param version - The locked version.
- * @returns Lockfile JSON.
- */
-export function lockfileWith(version: string): string {
-  return JSON.stringify({ packages: { 'node_modules/playwright-core': { version } } });
-}
 
 /**
  * A package.json declaring `range` for playwright-core.
@@ -139,21 +127,19 @@ function freshDir(): string {
 }
 
 /**
- * Write the watch's three input files to a fresh temporary directory.
+ * Write the watch's two input files to a fresh temporary directory.
  *
- * @param texts - Manifest tag, lockfile and package.json texts.
- * @returns The three paths.
+ * @param texts - Manifest tag and package.json texts.
+ * @returns The two paths.
  */
 export function writeInputs(texts: IInputTexts): IInputPaths {
   const dir = freshDir();
   const paths: IInputPaths = {
     manifestPath: join(dir, 'browser-stack.json'),
-    lockfilePath: join(dir, 'package-lock.json'),
     packagePath: join(dir, 'package.json'),
   };
   const manifestText = manifestWith(texts.manifestTag);
   writeFileSync(paths.manifestPath, manifestText);
-  writeFileSync(paths.lockfilePath, texts.lockfile);
   writeFileSync(paths.packagePath, texts.packageJson);
   return paths;
 }
