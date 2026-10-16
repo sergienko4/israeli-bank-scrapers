@@ -5,6 +5,7 @@ source-files:
   - .github/workflows/pr-body-check.yml
   - .github/workflows/codeql.yml
   - .github/workflows/cache-cleanup.yml
+  - .github/workflows/browser-stack-watch.yml
   - .github/scripts/ci/detect-changes.sh
   - scripts/check-browser-stack.mjs
   - scripts/browser-stack/gate-pins.mjs
@@ -184,9 +185,10 @@ committed script against a stubbed `gh` to pin all of this.
 ## The browser stack is watched weekly
 
 `.github/workflows/browser-stack-watch.yml` is not a gate, and no PR runs it.
-Every Monday it reports which `playwright-core` × Camoufox pairs the Browser
-stack gate accepts, given what npm and camoufox-js serve that day. The report
-is the body of one issue labelled `browser-stack`. See
+Every Monday it reports whether the Browser stack gate accepts the
+`playwright-core` × Camoufox pair a consumer install gets that day, and
+whether CI tests the release camoufox-js installs. The report is the body of
+one issue labelled `browser-stack`. See
 [Browser stack](../architecture/browser-stack.md#the-weekly-watch).
 
 ## Static checks

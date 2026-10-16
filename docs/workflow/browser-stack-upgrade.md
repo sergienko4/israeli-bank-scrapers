@@ -8,6 +8,10 @@ source-files:
   - .github/actions/install-camoufox/install.sh
   - src/Scrapers/Pipeline/Mediator/Browser/BrowserStackCheck.ts
   - scripts/patch-playwright-core.mjs
+  - scripts/browser-stack/playwright-versions.mjs
+  - scripts/browser-stack/gen-config.mjs
+  - src/Tests/E2eMocked/BrowserStackContract.e2e-mocked.test.ts
+  - .github/workflows/pr.yml
 ---
 
 # Upgrading the browser stack
@@ -101,23 +105,22 @@ that review signs off each new reason. Remove a `STALE` delta in the same PR:
 either upstream fixed it, or its signature changed and it is reported as `NEW`
 as well.
 
-## Compatible, selected-compatible, landable
+## Compatible and landable
 
 - **Compatible:** `--mode candidate` exits 0. The two protocols match within
   the accepted deltas.
-- **Selected-compatible:** compatible, and the tag is the release camoufox-js
-  installs for a consumer today.
-- **Landable:** selected-compatible, and the pair passes everything in
+- **Landable:** compatible, the tag is the release camoufox-js installs for a
+  consumer today, and the pair passes everything in
   [Upgrading the pair](#upgrading-the-pair).
 
 The [weekly watch](../architecture/browser-stack.md#the-weekly-watch) reports
-the first two for every candidate. Only a PR proves the third: a protocol
-match says nothing about behaviour, which is what the contract and the smoke
-test.
+the first for the consumer pair, whose tag is that release by construction.
+Only a PR proves the second: a protocol match says nothing about behaviour,
+which is what the contract and the smoke test.
 
 ## Upgrading the pair
 
-Start when the weekly watch's consumer pair is selected-compatible: the
+Start when the weekly watch reports the consumer pair compatible: the
 `playwright-core` version that this library's `^` range in `package.json`
 resolves to (npm `latest` when it is in range, else the highest stable version
 in range), against the release camoufox-js selects. A compatible prerelease is

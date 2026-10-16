@@ -5,6 +5,7 @@ source-files:
   - browser-stack.json
   - scripts/browser-stack-watch.mjs
   - scripts/browser-stack/camoufox-releases.mjs
+  - scripts/browser-stack/fetch-protocol.mjs
   - scripts/browser-stack/gen-config.mjs
   - scripts/browser-stack/playwright-versions.mjs
   - scripts/browser-stack/watch-report.mjs
@@ -118,29 +119,26 @@ The watch reads two upstream sources:
   camoufox-js would install by the same rule: the first one that is neither a
   prerelease nor a draft and has an asset for the runner's platform, judged by
   camoufox-js's own asset check.
-- **The `playwright-core` packument.** It takes up to three versions: the
-  lockfile's, the highest patch of the minor after the tested one, and the
-  version a consumer's install resolves. That last one comes from the
-  library's own `dependencies['playwright-core']` range in `package.json`,
-  picked the way npm picks it: npm `latest` when it satisfies the range, else
-  the highest stable version that does. A prerelease is never picked. Only a
-  caret range `^X.Y.Z` is supported; any other form exits 2 with
-  `RANGE-UNSUPPORTED`. Versions that coincide are merged into one.
+- **The `playwright-core` packument.** It takes the version a consumer's
+  install resolves from the library's own `dependencies['playwright-core']`
+  range in `package.json`, picked the way npm picks it: npm `latest` when it
+  satisfies the range, else the highest stable version that does. A
+  prerelease is never picked. Only a caret range `^X.Y.Z` is supported; any
+  other form exits 2 with `RANGE-UNSUPPORTED`.
 
-It runs the gate in `candidate` mode, with `--json`, on every version × the
-ten newest version-tagged releases on that page, plus the selected release
-when it is older. It judges four pairs at a time and keeps the rows in pair
-order. Each `Protocol.js` URL is fetched at most once per run, and pairs that
-share it share the result, a failure included. So the report is written well
-inside the job's 15-minute limit even when every fetch times out on every
-attempt, or when the newest Camoufox layout answers 404 only on its last attempt
-and the older one then times out. The report has three sections:
+It runs the gate once, in `candidate` mode with `--json`, on that version ×
+the selected release: the pair a consumer install gets today. It judges no
+other pair. The Dependabot PR's own `Browser stack contract` job judges the
+lockfile pair, and a prerelease or a later minor is for the PR that lands it.
+The report is written well inside the job's 15-minute limit even when every
+`Protocol.js` fetch times out on every attempt, or when the newest Camoufox
+layout answers 404 only on its last attempt and the older one then times out.
+The report has two sections:
 
 | Section | What it says |
 |---|---|
-| Consumer pair | The version the range resolves to × the selected release: compatible, or the NEW protocol paths. With no stable version in range, it says so. With no selected release, a consumer's Camoufox install fails. |
+| Consumer pair | The version the range resolves to × the selected release, and the gate's verdict: compatible; not compatible, with its NEW protocol paths; or unknown, with the gate's errors, when it could not decide. With no stable version in range, it says so. With no selected release, a consumer's Camoufox install fails. |
 | CI drift | Whether the tag in `browser-stack.json` is the selected release. |
-| Candidates | One row per pair: prerelease, selected, NEW paths, verdict, and selected-compatible (compatible and selected). The verdict is `compatible`, `new`, or `unknown` when the gate could not decide; the gate's errors are listed under the table. |
 
 Compatible only means the Juggler protocols match within the accepted
 deltas. It does not make a pair landable: that still takes a PR that pins
@@ -152,11 +150,10 @@ comments, and an issue that a person labels keeps its body. The job holds
 `contents: read` and `issues: write` only. A manual run is a dry run unless
 `dry_run` is cleared: it prints the report to the log and the job summary and
 leaves the issue alone. When the watch cannot read its inputs (the manifest,
-the lockfile, the `playwright-core` range in `package.json`, the releases page
-or the packument) it exits 2, the job fails, and the issue keeps the previous
-report. `BrowserStackWatch.test.ts` pins the report,
-`BrowserStackWatchBounds.test.ts` the time bound and the one fetch per URL,
-and `BrowserStackWatchWiring.test.ts` the workflow.
+the `playwright-core` range in `package.json`, the releases page or the
+packument) it exits 2, the job fails, and the issue keeps the previous report.
+`BrowserStackWatch.test.ts` pins the report, `BrowserStackWatchBounds.test.ts`
+the time bound, and `BrowserStackWatchWiring.test.ts` the workflow.
 
 To run it locally, use `node scripts/browser-stack-watch.mjs [--out <file>]`;
 a `GITHUB_TOKEN` in the environment raises the GitHub API rate limit.
