@@ -71,6 +71,7 @@ const RESPONSE_NESTED = RESPONSE_164.replace(
   'request2.request',
   'resolveRequest(request2, event.requestId)',
 );
+const RESPONSE_QUALIFIED = RESPONSE_164.replace('new Response2(', 'new import_network.Response(');
 
 /** Both pageError sites guarded and the 1.63 send, so only the response varies. */
 const GUARDED_SITES = atBothSites(GUARDED);
@@ -249,6 +250,13 @@ const COOKIE_CASES: readonly ICookieCase[] = [
     id: 'PPC-85',
     what: 'a 1.64 response beside one whose first argument holds a comma',
     responses: [RESPONSE_164, RESPONSE_NESTED],
+    outcome: COOKIE_SPLIT,
+    strict: [cookieLine(1, 2)],
+  },
+  {
+    id: 'PPC-91',
+    what: 'a 1.64 response beside one built through a qualified constructor',
+    responses: [RESPONSE_164, RESPONSE_QUALIFIED],
     outcome: COOKIE_SPLIT,
     strict: [cookieLine(1, 2)],
   },
