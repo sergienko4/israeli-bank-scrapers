@@ -287,9 +287,9 @@ jobs:
       # Scorecard npm-pin gate — the scheduled OpenSSF Scorecard scan
       # (scorecard.yml) raises PinnedDependenciesID for any npm command
       # that downloads without a lockfile pin, but only after the change
-      # has merged. This runs the same engine, pinned by version and
-      # checksum and coupled to the scan's own scorecard-action pin, over
-      # the merge commit, and fails before the merge instead.
+      # has merged. This runs the same engine — the release the scan's own
+      # scorecard-action pin requires, provenance-verified before use —
+      # over the merge commit, and fails before the merge instead.
       #
       # Always on (no `changes` filter): a pin can be broken from any
       # file Scorecard reads, and the scan itself takes seconds. No token

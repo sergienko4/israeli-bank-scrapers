@@ -79,7 +79,7 @@ function pinnedCheckOf(result) {
  * Whether the result came from the expected engine.
  *
  * @param {Record<string, unknown>} result - Parsed Scorecard result.
- * @param {string} expected - Engine version the gate pins, e.g. `v5.5.0`.
+ * @param {string} expected - Engine version the gate ran, e.g. `v5.6.0`.
  * @returns {string[]} Problems found.
  */
 function engineProblems(result, expected) {

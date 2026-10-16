@@ -127,18 +127,26 @@ shell parser, so it sees exactly what the scan sees. The job checks out the
 merge commit with no credentials, and the step runs
 `.github/scripts/ci/scorecard-npm-pins.sh`, which:
 
-1. reads the `ossf/scorecard-action` commit that `scorecard.yml` pins (every
-   mention outside a comment line must be a plain `uses:` line, and together
-   they must name one full commit SHA), fetches that commit's `go.mod`, and
-   stops unless it embeds the Scorecard version the script pins
-   (`SCORECARD_VERSION`), so a bump of the action cannot move the scan to
-   another engine unnoticed. That check reads lines, so it cannot tell a step
-   from text inside a `run: |` block; `ScorecardNpmPinGate.test.ts` parses the
-   workflow as YAML and requires the fetched commit to be the one its action
-   step runs. The action runs that engine from an image it names by tag
-   (`ghcr.io/ossf/scorecard-action:v2.4.4`), not by digest; an upstream
-   rebuild of that tag is beyond what the gate can check;
-2. downloads that release's CLI and checks its SHA-256 **before** unpacking it;
+1. takes the engine from `scorecard.yml`: reads the `ossf/scorecard-action`
+   commit it pins (every mention outside a comment line must be a plain
+   `uses:` line, and together they must name one full commit SHA), fetches
+   that commit's `go.mod`, and runs the one tagged
+   `github.com/ossf/scorecard/v5` release it requires — a `replace` or
+   `exclude` of the module, a pseudo-version or anything but exactly one
+   `require` stops it.
+   The script names no version, so the gate always runs the scan's engine.
+   That check reads lines, so it cannot tell a step from text inside a
+   `run: |` block; `ScorecardNpmPinGate.test.ts` parses the workflow as YAML
+   and requires the fetched commit to be the one its action step runs. The
+   action runs that engine from an image it names by tag, not by digest; an
+   upstream rebuild of that tag is beyond what the gate can check;
+2. asks the Go module proxy, which never changes what it serves for a
+   version, for the commit that release was tagged on, then downloads the
+   release's CLI and its `multiple.intoto.jsonl` and, **before** unpacking
+   it, verifies the asset's SLSA provenance with `gh attestation verify`:
+   signed by the SLSA generator's `generator_generic_slsa3.yml` on a
+   GitHub-hosted runner, building `ossf/scorecard` at that tag and that
+   commit;
 3. scans a one-line `npm install` canary and requires the verdict to fail, so
    a gate that has gone blind cannot pass;
 4. scans `git archive HEAD` — tracked files only, minus the symlinks and empty
@@ -149,20 +157,29 @@ merge commit with no credentials, and the step runs
    does not recognise.
 
 Run it locally with `bash .github/scripts/ci/scorecard-npm-pins.sh`. It needs
-`curl`, `tar`, `git`, `node` and `sha256sum` or `shasum`, runs on Linux or macOS (amd64 or arm64), uses
-no token, and scans the committed `HEAD`, not the working tree.
+`curl`, `tar`, `git`, `node` and a GitHub CLI (`gh`) whose
+`attestation verify` has `--source-digest`, runs on Linux or macOS (amd64 or
+arm64), uses no token, and scans the committed `HEAD`, not the working tree.
 `ScorecardNpmPinGate.test.ts` pins the wiring: the step can block a merge,
-cannot swallow its own failure, verifies the download before unpacking it, and
-runs the canary before the real scan.
+cannot swallow its own failure, verifies the download's provenance with the
+full policy before unpacking it, refuses an engine it cannot tie to a tagged
+release, and runs the canary before the real scan.
 
-**Bumping the engine.** When Dependabot moves `ossf/scorecard-action` to a
-commit that embeds another Scorecard version, the gate fails with
-`does not embed Scorecard v…`. Move `SCORECARD_VERSION` and the four SHA-256s
-in the script (from the release's `scorecard_checksums.txt`) and the
-`v5.5.0` constants in `ScorecardNpmPinGate.test.ts` and
-`CheckScorecardNpmPins.test.ts` in the same pull request. If the new engine
-changes its JSON, regenerate the fixtures under
-`src/Tests/Unit/Tools/Fixtures/ScorecardNpmPins/` from real output.
+**Bumping the engine.** Nothing to edit: when Dependabot moves
+`ossf/scorecard-action` to a commit that requires another Scorecard release,
+the gate runs that release in the same pull request. It still needs a person
+when:
+
+- the action moves to another engine major (`github.com/ossf/scorecard/v6`)
+  — the gate fails with `does not require exactly one … release`; move
+  `ENGINE_MODULE` in the script;
+- Scorecard changes how it signs releases (another signer workflow or
+  provenance type) — the gate fails with `failed provenance verification`;
+  check the change upstream before moving `SIGNER_WORKFLOW` or
+  `PROVENANCE_TYPE`;
+- the new engine changes its JSON — `check-scorecard-npm-pins.mjs` fails
+  closed on a shape it does not recognise; regenerate the fixtures under
+  `src/Tests/Unit/Tools/Fixtures/ScorecardNpmPins/` from real output.
 
 **What neither the gate nor the scan can see.** These limits belong to the
 engine, so they apply to the scheduled scan too:
@@ -544,17 +561,17 @@ are exempt through that predicate: Dependabot action bumps and release-please
 version bumps routinely touch bound files, and a bot cannot update this page.
 The predicate also exempts any same-repository branch named `dependabot/…` or
 `release-please--…`, so a person with write access can exempt a hand-written
-pull request by naming its branch that way. Three controls narrow the gap. The
-Scorecard npm-pin gate fails a `scorecard-action` bump that changes the
-embedded Scorecard engine until a person moves its pin. The pre-commit hook
-runs on a human commit pushed to a bot branch only when that commit stages
-source code; it skips commits that touch only `.github/`, `.husky/`, Markdown,
-JSON or YAML files, which covers most files bound to this page. The guard
-tests still run on bot pull requests that touch CI scripts or dependencies.
+pull request by naming its branch that way. Two controls narrow the gap. The
+pre-commit hook runs on a human commit pushed to a bot branch only when that
+commit stages source code; it skips commits that touch only `.github/`,
+`.husky/`, Markdown, JSON or YAML files, which covers most files bound to this
+page. The guard tests still run on bot pull requests that touch CI scripts or
+dependencies.
 Two gaps remain, and each needs a person to update the page: a bot bump that
-keeps the same engine, such as a change to the `scorecard-action` image tag
-quoted above, and a human commit on a bot branch that touches only non-code
-bound files. The job decides the exemption in a plain `node` step that runs
+changes behaviour this page describes, such as a `scorecard-action` bump
+whose engine fixes a finding recorded below, and a human commit on a bot
+branch that touches only non-code bound files. The npm-pin gate needs no such
+update: it follows the action's engine on its own. The job decides the exemption in a plain `node` step that runs
 `docs-staleness-bot-skip.cjs`. It does not use `actions/github-script`, which
 would hand the job's token to code loaded from the pull request's checkout. The
 script reads the event payload and fails the job if the payload carries no pull
