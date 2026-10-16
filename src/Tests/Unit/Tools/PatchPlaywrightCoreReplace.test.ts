@@ -46,11 +46,25 @@ const ORIGINAL = bundleOf(UNGUARDED_SITES, [SENT_164], [RESPONSE_164]) + PADDING
 /** The same bundle after a correct patch. */
 const PATCHED = patchedBundleOf(UNGUARDED_SITES, [SENT_164], [RESPONSE_164]) + PADDING;
 
-/** Permission bits no default umask produces, so only a kept mode can show them. */
-const BUNDLE_MODE = 0o640;
+/**
+ * Permission bits with an execute bit, which a newly created file never gets
+ * from the umask, so on POSIX only a kept mode can show them. Windows records
+ * only the write bit, so the test compares against the mode the host recorded.
+ */
+const BUNDLE_MODE = 0o740;
 
 /** Bits of `st_mode` that `chmod` sets. */
 const PERMISSION_BITS = 0o777;
+
+/**
+ * Read the permission bits of a file.
+ *
+ * @param path - File to inspect.
+ * @returns The `chmod` bits of its mode.
+ */
+function permissionBitsOf(path: string): number {
+  return statSync(path).mode & PERMISSION_BITS;
+}
 
 /**
  * Run the script in default mode, as `postinstall` does.
@@ -146,8 +160,9 @@ describe('patch-playwright-core bundle replacement', () => {
   it('[PPC-90] keeps the permission bits of the bundle it replaces', () => {
     const sandbox = sandboxToPatch();
     chmodSync(sandbox.bundle, BUNDLE_MODE);
+    const recorded = permissionBitsOf(sandbox.bundle);
     runPatcher(sandbox, []);
-    const mode = statSync(sandbox.bundle).mode & PERMISSION_BITS;
-    expect({ mode, text: readBundle(sandbox) }).toEqual({ mode: BUNDLE_MODE, text: PATCHED });
+    const mode = permissionBitsOf(sandbox.bundle);
+    expect({ mode, text: readBundle(sandbox) }).toEqual({ mode: recorded, text: PATCHED });
   });
 });
