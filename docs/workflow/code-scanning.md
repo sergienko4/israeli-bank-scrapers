@@ -160,9 +160,11 @@ merge commit with no credentials, and the step runs
    does not recognise.
 
 Run it locally with `bash .github/scripts/ci/scorecard-npm-pins.sh`. It needs
-`curl`, `tar`, `git`, `node` and a GitHub CLI (`gh`) whose
-`attestation verify` has `--source-digest`, runs on Linux or macOS (amd64 or
-arm64), uses no token, and scans the committed `HEAD`, not the working tree.
+`curl`, `tar`, `git`, `node` and GitHub CLI (`gh`) 2.102.0 or newer, whose
+`attestation verify` has `--source-digest` and matches `--source-ref` exactly
+(2.68.0–2.101.0 ignore its case, GHSA-4mq3-hpgx-9cx8), runs on Linux or
+macOS (amd64 or arm64), uses no token, and scans the committed `HEAD`, not
+the working tree.
 `ScorecardNpmPinGate.test.ts` pins the wiring: the step can block a merge,
 cannot swallow its own failure, verifies the download's provenance with the
 full policy before unpacking it, refuses an engine it cannot tie to a tagged

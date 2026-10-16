@@ -62,6 +62,10 @@ RELEASES_URL="https://github.com/${SOURCE_REPO}/releases/download"
 SIGNER_WORKFLOW="slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml"
 PROVENANCE_TYPE="https://slsa.dev/provenance/v0.2"
 OIDC_ISSUER="https://token.actions.githubusercontent.com"
+# gh 2.68.0–2.101.0 `attestation verify` matched `--source-ref` without
+# regard to case (GHSA-4mq3-hpgx-9cx8), so `refs/tags/V5.6.0` passed for
+# `refs/tags/v5.6.0`.
+GH_MIN_VERSION="2.102.0"
 
 # Release asset platform for this machine. CI uses linux_amd64; the others
 # serve local runs.
@@ -78,13 +82,27 @@ release_platform() {
   esac
 }
 
+# Whether `gh --version` names a release at or above $1; a version that is
+# not plain `major.minor.patch` counts as below.
+gh_at_least() {
+  gh --version 2>/dev/null | awk -v min="$1" '
+    NR == 1 && $1 == "gh" && $2 == "version" && $3 ~ /^[0-9]+\.[0-9]+\.[0-9]+$/ {
+      split($3, v, "."); split(min, m, ".")
+      for (i = 1; i < 3 && v[i] + 0 == m[i] + 0; i++) ;
+      ok = v[i] + 0 >= m[i] + 0
+    }
+    END { exit !ok }
+  '
+}
+
 # The provenance check needs a gh whose `attestation verify` can pin the
-# source commit.
+# source commit and matches the tag exactly.
 require_verifier() {
-  if ! command -v gh >/dev/null 2>&1 ||
+  if ! command -v gh >/dev/null 2>&1 || ! gh_at_least "${GH_MIN_VERSION}" ||
     ! gh attestation verify --help >"${WORK}/gh-help.txt" 2>&1 ||
     ! grep -qF -- '--source-digest' "${WORK}/gh-help.txt"; then
-    echo "the gate needs the GitHub CLI with 'gh attestation verify --source-digest'" \
+    echo "the gate needs GitHub CLI ${GH_MIN_VERSION} or newer, for" \
+      "'gh attestation verify --source-digest' and an exact --source-ref match," \
       "to verify the Scorecard release; install or upgrade gh" >&2
     return 1
   fi

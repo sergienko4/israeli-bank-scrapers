@@ -195,6 +195,12 @@ interface IEngineCase {
   readonly message: string;
 }
 
+/** A `gh --version` answer, and whether the gate may verify with that gh. */
+interface IGhCase {
+  readonly version: string;
+  readonly accepted: boolean;
+}
+
 /** A Trusted Publishing npm version, and whether the release guard must accept it. */
 interface IGuardCase {
   readonly version: string;
@@ -304,8 +310,9 @@ function writeCommand(dir: string, name: string, body: string): string {
 /**
  * A `curl` that records each URL and serves `$STUB_GO_MOD` for a go.mod,
  * `$STUB_INFO` for a module-proxy reply, and anything else as a file that is
- * not the release asset; a `gh` that answers `--help` with `$STUB_GH_HELP` and
- * records a verify call's arguments before exiting `$STUB_GH_STATUS`; and a
+ * not the release asset; a `gh` that answers `--version` with
+ * `$STUB_GH_VERSION` and `--help` with `$STUB_GH_HELP`, and records a verify
+ * call's arguments before exiting `$STUB_GH_STATUS`; and a
  * `tar` that only records it ran. Nothing reaches the network.
  *
  * @returns Directory holding the stubs, to prepend to `PATH`.
@@ -326,6 +333,7 @@ function makeDownloadStubs(): string {
     'esac',
   ];
   const gh = [
+    'if [ "$1" = "--version" ]; then printf "%s\\n" "$STUB_GH_VERSION"; exit 0; fi',
     'if [ "$3" = "--help" ]; then printf "%s\\n" "$STUB_GH_HELP"; exit 0; fi',
     'printf "%s\\n" "$@" > "$STUB_GH_LOG"',
     'exit "$STUB_GH_STATUS"',
@@ -362,6 +370,7 @@ function stubSettings(engine: string): StubSettings {
   return {
     STUB_GO_MOD: goMod,
     STUB_INFO: info,
+    STUB_GH_VERSION: 'gh version 2.102.0 (2026-09-30)',
     STUB_GH_HELP: '--source-digest',
     STUB_GH_STATUS: '1',
   };
@@ -584,85 +593,47 @@ const QUOTED_MODULE = '"github.com/ossf/scorecard/v5"';
 /** The same path with its last slash escaped (`\x2f`), which Go unquotes to the engine. */
 const ESCAPED_MODULE = '"github.com/ossf/scorecard\\\\x2fv5"';
 const FORKED = `=> github.com/fork/scorecard/v5 ${OTHER_ENGINE}`;
+/**
+ * A case whose action go.mod the gate cannot tie to one tagged release.
+ *
+ * @param name - What the go.mod does.
+ * @param goMod - The go.mod text, escaped for `printf "%b"`.
+ * @returns The case.
+ */
+function untied(name: string, goMod: string): IEngineCase {
+  return { name, stub: { STUB_GO_MOD: goMod }, message: UNTIED };
+}
 const ENGINE_CASES: readonly IEngineCase[] = [
-  {
-    name: 'no engine module',
-    stub: { STUB_GO_MOD: 'require (\\n\\tgithub.com/other/mod v1.0.0\\n)\\n' },
-    message: UNTIED,
-  },
-  {
-    name: 'a mention only in a comment',
-    stub: { STUB_GO_MOD: `// github.com/ossf/scorecard/v5 ${ENGINE}\\n` },
-    message: UNTIED,
-  },
-  {
-    name: 'a replaced engine',
-    stub: { STUB_GO_MOD: `${REQUIRED}replace ${FORK}\\n` },
-    message: UNTIED,
-  },
-  {
-    name: 'a replace block and no require',
-    stub: { STUB_GO_MOD: `replace (\\n\\t${FORK}\\n)\\n` },
-    message: UNTIED,
-  },
-  {
-    name: 'an exclude beside the require',
-    stub: { STUB_GO_MOD: `${REQUIRED}exclude github.com/ossf/scorecard/v5 v5.5.0\\n` },
-    message: UNTIED,
-  },
-  {
-    name: 'a quoted replace',
-    stub: { STUB_GO_MOD: `${REQUIRED}replace ${QUOTED_MODULE} ${FORKED}\\n` },
-    message: UNTIED,
-  },
-  {
-    name: 'a quoted replace in a block',
-    stub: { STUB_GO_MOD: `${REQUIRED}replace (\\n\\t${QUOTED_MODULE} ${FORKED}\\n)\\n` },
-    message: UNTIED,
-  },
-  {
-    name: 'a quoted exclude',
-    stub: { STUB_GO_MOD: `${REQUIRED}exclude ${QUOTED_MODULE} v5.5.0\\n` },
-    message: UNTIED,
-  },
-  {
-    name: 'a quoted replace with an escaped slash',
-    stub: { STUB_GO_MOD: `${REQUIRED}replace ${ESCAPED_MODULE} ${FORKED}\\n` },
-    message: UNTIED,
-  },
-  {
-    name: 'a replace block opened with no space',
-    stub: { STUB_GO_MOD: `${REQUIRED}replace(\\n\\t${FORK}\\n)\\n` },
-    message: UNTIED,
-  },
-  {
-    name: 'an exclude block opened with no space',
-    stub: { STUB_GO_MOD: `${REQUIRED}exclude(\\n\\tgithub.com/ossf/scorecard/v5 v5.5.0\\n)\\n` },
-    message: UNTIED,
-  },
-  {
-    name: 'a replace split by a carriage return',
-    stub: { STUB_GO_MOD: `${REQUIRED}replace\\r${FORK}\\n` },
-    message: UNTIED,
-  },
-  {
-    name: 'a replace after an empty one-line block',
-    stub: { STUB_GO_MOD: `${REQUIRED}exclude ( )\\nreplace ${FORK}\\n` },
-    message: UNTIED,
-  },
-  {
-    name: 'a block opened by a quoted word',
-    stub: { STUB_GO_MOD: `${REQUIRED}"junk" (\\n)\\n` },
-    message: UNTIED,
-  },
-  {
-    name: 'a pseudo-version',
-    stub: {
-      STUB_GO_MOD:
-        'require (\\n\\tgithub.com/ossf/scorecard/v5 v5.6.1-0.20261001000000-61e847433562\\n)\\n',
-    },
-    message: UNTIED,
-  },
+  untied('no engine module', 'require (\\n\\tgithub.com/other/mod v1.0.0\\n)\\n'),
+  untied('a mention only in a comment', `// github.com/ossf/scorecard/v5 ${ENGINE}\\n`),
+  untied('a replaced engine', `${REQUIRED}replace ${FORK}\\n`),
+  untied('a replace block and no require', `replace (\\n\\t${FORK}\\n)\\n`),
+  untied(
+    'an exclude beside the require',
+    `${REQUIRED}exclude github.com/ossf/scorecard/v5 v5.5.0\\n`,
+  ),
+  untied('a quoted replace', `${REQUIRED}replace ${QUOTED_MODULE} ${FORKED}\\n`),
+  untied(
+    'a quoted replace in a block',
+    `${REQUIRED}replace (\\n\\t${QUOTED_MODULE} ${FORKED}\\n)\\n`,
+  ),
+  untied('a quoted exclude', `${REQUIRED}exclude ${QUOTED_MODULE} v5.5.0\\n`),
+  untied(
+    'a quoted replace with an escaped slash',
+    `${REQUIRED}replace ${ESCAPED_MODULE} ${FORKED}\\n`,
+  ),
+  untied('a replace block opened with no space', `${REQUIRED}replace(\\n\\t${FORK}\\n)\\n`),
+  untied(
+    'an exclude block opened with no space',
+    `${REQUIRED}exclude(\\n\\tgithub.com/ossf/scorecard/v5 v5.5.0\\n)\\n`,
+  ),
+  untied('a replace split by a carriage return', `${REQUIRED}replace\\r${FORK}\\n`),
+  untied('a replace after an empty one-line block', `${REQUIRED}exclude ( )\\nreplace ${FORK}\\n`),
+  untied('a block opened by a quoted word', `${REQUIRED}"junk" (\\n)\\n`),
+  untied(
+    'a pseudo-version',
+    'require (\\n\\tgithub.com/ossf/scorecard/v5 v5.6.1-0.20261001000000-61e847433562\\n)\\n',
+  ),
   {
     name: 'an origin on a branch',
     stub: { STUB_INFO: proxyInfo(ENGINE, { Ref: 'refs/heads/main' }) },
@@ -684,6 +655,17 @@ const ENGINE_CASES: readonly IEngineCase[] = [
     message: UNTAGGED,
   },
   { name: 'a reply that is not JSON', stub: { STUB_INFO: 'not json' }, message: UNTAGGED },
+];
+
+/** Text the gate prints when its `gh` is too old to enforce the policy exactly. */
+const GH_NEEDED = 'GitHub CLI 2.102.0 or newer';
+const GH_CASES: readonly IGhCase[] = [
+  { version: 'gh version 2.102.0 (2026-09-30)', accepted: true },
+  { version: 'gh version 10.0.0', accepted: true },
+  { version: 'gh version 2.101.0 (2026-09-15)', accepted: false },
+  { version: 'gh version 2.99.9', accepted: false },
+  { version: 'gh version 2.102.0-rc.1', accepted: false },
+  { version: 'gh version DEV', accepted: false },
 ];
 
 describe('Scorecard npm-pin gate', () => {
@@ -847,6 +829,17 @@ describe('Scorecard npm-pin gate', () => {
     expect(run.urls).toEqual([]);
     expect(run.status).not.toBe(0);
   });
+
+  it.each(GH_CASES)(
+    '[SNP-14] verifies only with a gh that matches the tag exactly: $version',
+    row => {
+      const run = runGate(ENGINE, { STUB_GH_VERSION: row.version });
+      const didAskForNewerGh = run.output.includes(GH_NEEDED);
+      expect(run.urls.length > 0).toBe(row.accepted);
+      expect(run.verifyArgs.length > 0).toBe(row.accepted);
+      expect(didAskForNewerGh).toBe(!row.accepted);
+    },
+  );
 
   it('[SNP-9] proves the scan can fail, then checks the tree the scheduled scan reads', () => {
     const script = gateScript();
