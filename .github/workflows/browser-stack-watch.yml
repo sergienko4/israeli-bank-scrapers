@@ -79,6 +79,7 @@ jobs:
         run: |
           gh label create browser-stack --force --color 5319e7 \
             --description 'Weekly browser-stack watch report'
+          # gh --json names a bot author app/<slug>; REST says <slug>[bot].
           number=$(gh issue list --label browser-stack --state open --limit 100 \
             --json number,author \
             --jq '[.[] | select(.author.login == "app/github-actions")][0].number // empty')
