@@ -14,9 +14,11 @@
 
 import { spawnSync } from 'node:child_process';
 import {
+  closeSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
   readdirSync,
   readFileSync,
   rmSync,
@@ -53,6 +55,7 @@ const SAMPLE_TAG = 'v100.0.0-beta.1';
 const EDITED_TAG = 'v100.0.1-beta.2';
 const GEN_CLI = join(REPO_ROOT, 'scripts/browser-stack/gen-config.mjs');
 const GEN_USAGE = 'usage: node scripts/browser-stack/gen-config.mjs\n';
+const STALE_MODULE = "export const TESTED_CAMOUFOX_TAG = 'stale';\n";
 
 /** One generator run's files and captured output. */
 interface ISandbox {
@@ -178,6 +181,20 @@ function generateIn(run: ISandbox): IGenerateRun {
   const isWritten = existsSync(run.generatedPath);
   const text = isWritten ? readFileSync(run.generatedPath, 'utf8') : '';
   return { code, text };
+}
+
+/**
+ * Read a descriptor opened before a run from its start, then close it.
+ *
+ * @param descriptor - Descriptor of the file as it was when opened.
+ * @returns What the descriptor reads now.
+ */
+function readHeld(descriptor: number): string {
+  try {
+    return readFileSync(descriptor, 'utf8');
+  } finally {
+    closeSync(descriptor);
+  }
 }
 
 /**
@@ -311,5 +328,23 @@ describe('browser-stack gen-config', () => {
       const run = runGenCli(link, ['--check']);
       expect(run).toEqual({ status: 2, stdout: '', stderr: GEN_USAGE });
     }
+  });
+
+  it('[BGC-11] a stale module is replaced, never rewritten in place', () => {
+    const run = sandbox(SAMPLE_TAG);
+    writeFileSync(run.generatedPath, STALE_MODULE);
+    const reader = openSync(run.generatedPath, 'r');
+    const rerun = generateIn(run);
+    const held = readHeld(reader);
+    expect(held).toBe(STALE_MODULE);
+    expect(rerun.text).toContain(`export const TESTED_CAMOUFOX_TAG = '${SAMPLE_TAG}';`);
+  });
+
+  it('[BGC-12] a write leaves no temporary file beside the module', () => {
+    const run = sandbox(SAMPLE_TAG);
+    generateIn(run);
+    const dir = dirname(run.generatedPath);
+    const entries = readdirSync(dir).sort();
+    expect(entries).toEqual(['BrowserStackConfig.ts', 'browser-stack.json']);
   });
 });

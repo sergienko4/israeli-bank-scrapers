@@ -35,8 +35,10 @@ it, and the gate checks `playwright-core` against it.
 Runtime code cannot read a repository JSON file from the published package,
 so `npm run browser-stack:gen` renders the pair into
 [`BrowserStackConfig.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Browser/BrowserStackConfig.ts),
-which exports `TESTED_CAMOUFOX_TAG` and `TESTED_PLAYWRIGHT_MINOR`. Never edit
-it by hand. A unit test fails when it is not the render of the manifest, and
+which exports `TESTED_CAMOUFOX_TAG` and `TESTED_PLAYWRIGHT_MINOR`. A stale
+module is replaced by renaming a complete new file over it, so if writing or
+renaming that file fails, the old module stays intact rather than truncated.
+Never edit it by hand. A unit test fails when it is not the render of the manifest, and
 the CI gate reports `GENERATED-STALE`. See the Browser stack row in
 [CI gates](../workflow/ci.md).
 

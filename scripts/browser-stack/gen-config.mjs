@@ -6,15 +6,17 @@
  *
  * Usage: `npm run browser-stack:gen` after editing the manifest. It takes
  * no arguments. The run is idempotent: an unchanged manifest leaves the
- * file untouched. The browser-stack gate (`npm run lint:browser-stack`)
- * fails GENERATED-STALE in gate mode when the committed file differs from
- * what this would write.
+ * file untouched. A stale file is replaced by a complete new one, never
+ * rewritten in place, so a failed run cannot leave it truncated. The
+ * browser-stack gate (`npm run lint:browser-stack`) fails GENERATED-STALE
+ * in gate mode when the committed file differs from what this would write.
  *
  * Exit codes: 0 written or already current · 2 an argument was given (the
  * usage line on stderr) or the manifest is invalid (MANIFEST-INVALID lines
  * on stderr); either way nothing is written.
  */
-import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -96,6 +98,40 @@ function reportInvalid(issues, io) {
 }
 
 /**
+ * Remove an abandoned temporary file without masking the failure that
+ * abandoned it.
+ *
+ * @param {string} tempPath - Temporary file path.
+ */
+function discardTemp(tempPath) {
+  try {
+    rmSync(tempPath, { force: true });
+  } catch {
+    // The original write or rename error is the one to report.
+  }
+}
+
+/**
+ * Replace the file at `path` with `text`: write a new, uniquely named file
+ * in the same directory, then rename it over the target. The rename is
+ * atomic, so a reader sees the whole old file or the whole new one, and a
+ * failed write leaves the old file as it was.
+ *
+ * @param {string} path - File to replace.
+ * @param {string} text - New contents.
+ */
+function replaceFile(path, text) {
+  const tempPath = `${path}.${randomUUID()}.tmp`;
+  try {
+    writeFileSync(tempPath, text, { flag: 'wx' });
+    renameSync(tempPath, path);
+  } catch (error) {
+    discardTemp(tempPath);
+    throw error;
+  }
+}
+
+/**
  * Write the module when it is stale.
  *
  * @param {Partial<typeof DEFAULT_IO>} [overrides] - Test paths and sinks.
@@ -106,7 +142,7 @@ export function generate(overrides = {}) {
   const { manifest, issues } = loadManifest(io.manifestPath);
   if (manifest === undefined) return reportInvalid(issues, io);
   const stale = isGeneratedStale(manifest, io.generatedPath);
-  if (stale) writeFileSync(io.generatedPath, renderConfig(manifest));
+  if (stale) replaceFile(io.generatedPath, renderConfig(manifest));
   io.stdout(`${GENERATED_REL} ${stale ? 'written' : 'already current'}\n`);
   return 0;
 }
