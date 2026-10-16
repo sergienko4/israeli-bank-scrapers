@@ -1,6 +1,7 @@
 ---
 title: Browser stack
 source-files:
+  - .github/dependabot.yml
   - .github/workflows/browser-stack-watch.yml
   - browser-stack.json
   - scripts/browser-stack-watch.mjs
@@ -118,7 +119,10 @@ The watch reads two upstream sources:
   of `daijro/camoufox` releases, 30 by default. It picks the release
   camoufox-js would install by the same rule: the first one that is neither a
   prerelease nor a draft and has an asset for the runner's platform, judged by
-  camoufox-js's own asset check.
+  camoufox-js's own asset check. That check is the one in the camoufox-js the
+  lockfile installs. A newer camoufox-js in the library's `^` range reaches a
+  fresh consumer install first; Dependabot opens it as its own `camoufox`
+  group PR, which CI tests, and the watch judges with it once that PR lands.
 - **The `playwright-core` packument.** It takes the version a consumer's
   install resolves from the library's own `dependencies['playwright-core']`
   range in `package.json`, picked the way npm picks it: npm `latest` when it
@@ -127,7 +131,7 @@ The watch reads two upstream sources:
   other form exits 2 with `RANGE-UNSUPPORTED`.
 
 It runs the gate once, in `candidate` mode with `--json`, on that version ×
-the selected release: the pair a consumer install gets today. It judges no
+the selected release: the consumer pair. It judges no
 other pair. The Dependabot PR's own `Browser stack contract` job judges the
 lockfile pair, and a prerelease or a later minor is for the PR that lands it.
 The report is written well inside the job's 15-minute limit even when every

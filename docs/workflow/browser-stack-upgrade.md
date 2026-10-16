@@ -4,6 +4,7 @@ source-files:
   - scripts/check-browser-stack.mjs
   - scripts/browser-stack/gate.mjs
   - scripts/browser-stack/gate-report.mjs
+  - scripts/browser-stack/gate-pins.mjs
   - scripts/browser-stack/manifest.mjs
   - .github/actions/install-camoufox/install.sh
   - src/Scrapers/Pipeline/Mediator/Browser/BrowserStackCheck.ts
@@ -11,7 +12,11 @@ source-files:
   - scripts/browser-stack/playwright-versions.mjs
   - scripts/browser-stack/gen-config.mjs
   - src/Tests/E2eMocked/BrowserStackContract.e2e-mocked.test.ts
+  - src/Tests/Mocks/CamoufoxJsMock.js
+  - jest.config.js
+  - src/Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.ts
   - .github/workflows/pr.yml
+  - docker/Dockerfile.ci-mirror
 ---
 
 # Upgrading the browser stack
@@ -114,9 +119,10 @@ as well.
   [Upgrading the pair](#upgrading-the-pair).
 
 The [weekly watch](../architecture/browser-stack.md#the-weekly-watch) reports
-the first for the consumer pair, whose tag is that release by construction.
-Only a PR proves the second: a protocol match says nothing about behaviour,
-which is what the contract and the smoke test.
+the first for the consumer pair, whose tag is the release the lockfile's
+camoufox-js selects; the packed-consumer smoke checks that a fresh consumer
+gets the same one. Only a PR proves the second: a protocol match says nothing
+about behaviour, which is what the contract and the smoke test.
 
 ## Upgrading the pair
 
@@ -131,16 +137,16 @@ supersedes it:
 
 1. Set `camoufox.tag` to the selected release and `playwrightCore.testedMinor`
    to the minor of the consumer pair's version. The lockfile must resolve that
-   minor.
+   minor. Move the digests with them, as [Moving the pins](#moving-the-pins)
+   describes.
 2. Run `npm run browser-stack:gen` to rewrite `BrowserStackConfig.ts`.
 3. Run `node scripts/patch-playwright-core.mjs --strict`. A `GUARD-SITES` or
    `SHIM-SITES` line means the new minor moved a patched call; review and
    update the patcher before going on.
 4. Run `npm run lint:browser-stack` until it exits 0, removing `STALE` deltas
    and accepting `NEW` ones only as described above.
-5. Run the runtime contract against the new Camoufox:
-   `npm run test:e2e:mock -- --runTestsByPath src/Tests/E2eMocked/BrowserStackContract.e2e-mocked.test.ts`.
-   Its invariants come from Playwright's documented API and never change per
+5. Install the new Camoufox and run the runtime contract against it, as
+   [Contract run](#contract-run) describes. Its invariants come from Playwright's documented API and never change per
    pair: C1 `page.route` and C2 `context.route` fulfil a request, and C3 and C4
    keep each `Set-Cookie` as its own entry in `headersArray()` and
    `headerValues()` and in the cookie jar. CI runs the same file as the first
@@ -148,6 +154,56 @@ supersedes it:
 6. Add a `compatibility.json` entry and run `npm run compat:build`.
 7. Run the packed-consumer smoke below.
 8. Push. Full CI must pass, and a maintainer runs the E2E-real smoke.
+
+### Moving the pins
+
+`browser-stack.json` pins the bytes of both sides. A pin that does not move
+with its component either stops the upgrade or stops covering it:
+
+| Pin                                      | Value                                                     | Left unchanged                                                  |
+| ---------------------------------------- | --------------------------------------------------------- | --------------------------------------------------------------- |
+| `camoufox.linuxX64Sha256`                | The release's `lin.x86_64.zip` digest, without `sha256:`  | `install.sh` refuses the new asset                              |
+| `camoufox.protocolSha256`                | The `browser sha256` the gate prints for the pair         | The gate stops with `DIGEST-MISMATCH` (exit 2)                  |
+| `playwrightCore.protocolSha256["x.y.z"]` | The `client sha256` the gate prints, keyed by the version | The gate reports the client file `UNPINNED` and checks no bytes |
+
+Read the three values with:
+
+```bash
+gh api repos/daijro/camoufox/releases/tags/<tag> \
+  --jq '.assets[] | select(.name | endswith("-lin.x86_64.zip")) | .digest | sub("^sha256:"; "")'
+node scripts/check-browser-stack.mjs --mode candidate --playwright <x.y.z> --camoufox <tag>
+```
+
+The gate's second line always reads `client sha256=<hex>  browser sha256=<hex>`.
+Candidate mode never stops on a digest that differs from its pin, so the
+command prints both before and after the manifest edit.
+
+### Contract run
+
+Editing the manifest installs nothing, and the launcher only warns when the
+installed Camoufox is not `camoufox.tag`. A run on an older cached build would
+pass for the wrong pair, so install the new pin before the run. Under Jest the
+test launches the build in `~/.cache/camoufox`, where CI installs it, and
+ignores `CAMOUFOX_INSTALL_DIR`. `install.sh` installs only into a directory
+that does not exist yet, and only the Linux x86_64 asset, so on Linux x86_64,
+with `CAMOUFOX_INSTALL_DIR` unset, remove the old build first:
+
+```bash
+rm -rf "$HOME/.cache/camoufox"
+bash .github/actions/install-camoufox/install.sh
+npm run test:e2e:mock -- --runTestsByPath src/Tests/E2eMocked/BrowserStackContract.e2e-mocked.test.ts
+```
+
+Elsewhere, build the CI mirror from the edited tree, which runs the same
+installer on the new pin, and run the contract in it. The image carries
+x86_64 Node and Camoufox, so name the platform; an ARM host runs it under
+emulation:
+
+```bash
+docker build --platform linux/amd64 -f docker/Dockerfile.ci-mirror -t isbs-ci:latest .
+docker run --rm --platform linux/amd64 -v "$PWD:/work" -v /work/node_modules -w /work isbs-ci:latest \
+  npm run test:e2e:mock -- --runTestsByPath src/Tests/E2eMocked/BrowserStackContract.e2e-mocked.test.ts
+```
 
 ### Packed-consumer smoke
 
@@ -191,9 +247,10 @@ server.close();
 Then pack the library and pipe the tarball into a fresh consumer:
 
 ```bash
-docker build -f docker/Dockerfile.ci-mirror -t isbs-ci:latest .
+docker build --platform linux/amd64 -f docker/Dockerfile.ci-mirror -t isbs-ci:latest .
+rm -rf /tmp/pack && mkdir /tmp/pack
 npm pack --pack-destination /tmp/pack
-docker run --rm -i -e PROBE="$(cat probe.mjs)" --entrypoint bash isbs-ci:latest -c '
+docker run --rm -i --platform linux/amd64 -e PROBE="$(cat probe.mjs)" --entrypoint bash isbs-ci:latest -c '
   set -e
   cat > /tmp/pkg.tgz
   mkdir /tmp/consumer && cd /tmp/consumer

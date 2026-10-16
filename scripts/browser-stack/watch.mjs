@@ -1,11 +1,13 @@
 /**
- * Weekly browser-stack watch: does the pair a consumer installs today pass the gate?
+ * Weekly browser-stack watch: does the consumer pair pass the gate?
  *
  * A consumer install gets the playwright-core version the library's own
  * range resolves to and the Camoufox release camoufox-js installs; neither
  * moves through a PR here. The watch reads that range, the playwright-core
  * packument and the Camoufox releases page camoufox-js reads, then runs the
  * browser-stack gate once, in `candidate` mode with `--json`, on that pair.
+ * The release is the one the lockfile's camoufox-js selects; a newer
+ * camoufox-js in range arrives as its own Dependabot PR.
  * The result is the markdown body of one issue (see watch-report.mjs),
  * printed and optionally written to `--out <file>`.
  *
@@ -110,7 +112,7 @@ async function readInputs(io) {
 }
 
 /**
- * The pair a consumer install gets, or `null` when it gets none.
+ * The consumer pair, or `null` when there is none.
  *
  * @param {Inputs} inputs - Everything the watch reads.
  * @param {string | null} selected - The tag camoufox-js installs, if any.

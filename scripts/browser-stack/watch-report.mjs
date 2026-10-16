@@ -78,7 +78,7 @@ const errorLines = pair =>
     ? ['', 'The gate could not decide:', ...pair.errors.map(e => `- ${e}`)]
     : [];
 
-/** The pair a consumer install gets today and its verdict, or why there is none. */
+/** The consumer pair and its verdict, or why there is none. */
 function consumerSection(/** @type {Watch} */ watch) {
   if (watch.selected === null) return noRelease(watch.platform);
   if (watch.pair === null) return noVersion(watch.range, watch.selected);

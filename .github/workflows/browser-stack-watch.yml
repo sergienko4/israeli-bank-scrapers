@@ -1,9 +1,10 @@
 name: Browser stack watch
 
-# Does the browser-stack gate accept the pair a consumer installs today? The
+# Does the browser-stack gate accept the consumer pair? The
 # playwright-core version this library's `^` range resolves to and the
 # Camoufox release camoufox-js installs both move without a PR here, so
-# nothing else in CI would notice either one change.
+# nothing else in CI would notice either one change. The release is the one
+# the lockfile's camoufox-js selects; Dependabot moves camoufox-js itself.
 #
 # Once a week, `scripts/browser-stack-watch.mjs` runs the gate in candidate
 # mode on that consumer pair and writes one markdown report: the consumer

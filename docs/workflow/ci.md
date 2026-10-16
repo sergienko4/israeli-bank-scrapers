@@ -185,9 +185,9 @@ committed script against a stubbed `gh` to pin all of this.
 ## The browser stack is watched weekly
 
 `.github/workflows/browser-stack-watch.yml` is not a gate, and no PR runs it.
-Every Monday it reports whether the Browser stack gate accepts the
-`playwright-core` × Camoufox pair a consumer install gets that day, and
-whether CI tests the release camoufox-js installs. The report is the body of
+Every Monday it reports whether the Browser stack gate accepts the consumer
+`playwright-core` × Camoufox pair, and whether CI tests the release
+camoufox-js installs. The report is the body of
 one issue labelled `browser-stack`. See
 [Browser stack](../architecture/browser-stack.md#the-weekly-watch).
 
