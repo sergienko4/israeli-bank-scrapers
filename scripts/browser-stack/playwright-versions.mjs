@@ -12,7 +12,7 @@
  */
 import { readFileSync } from 'node:fs';
 
-import { fetchBounded } from './fetch-protocol.mjs';
+import { FetchFailedError, fetchJson, isJsonObject } from './fetch-protocol.mjs';
 import { GateInfraError } from './gate-inputs.mjs';
 
 /**
@@ -44,16 +44,34 @@ const CARET = /^\^((?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/u;
 const DEPENDENCY = 'playwright-core';
 
 /**
+ * Whether `doc` has what {@link resolveRange} reads: a version map holding the `latest` tag.
+ *
+ * npm always sets `latest` to a published version, so a body without one is
+ * not the packument, and reading it as one would report "no version in range"
+ * for a bad answer.
+ *
+ * @param {unknown} doc - The parsed body.
+ * @returns {boolean} Whether it is a packument.
+ */
+function isPackument(doc) {
+  if (!isJsonObject(doc) || !isJsonObject(doc.versions)) return false;
+  const tags = doc['dist-tags'];
+  if (!isJsonObject(tags) || typeof tags.latest !== 'string') return false;
+  return Object.hasOwn(doc.versions, tags.latest);
+}
+
+/**
  * The abbreviated packument of playwright-core.
  *
  * @param {IFetchIo} [io] - Fetch I/O overrides.
  * @returns {Promise<IPackument>} The packument.
- * @throws {import('./fetch-protocol.mjs').FetchFailedError} When it cannot be read.
+ * @throws {FetchFailedError} When it cannot be read, or is not a packument.
  */
 export async function fetchPackument(io = {}) {
   const overrides = { timeoutMs: PACKUMENT_TIMEOUT_MS, ...io };
-  const { text } = await fetchBounded(PACKUMENT_URL, PACKUMENT_POLICY, overrides);
-  return JSON.parse(text);
+  const doc = await fetchJson(PACKUMENT_URL, PACKUMENT_POLICY, overrides);
+  if (isPackument(doc)) return /** @type {IPackument} */ (doc);
+  throw new FetchFailedError(PACKUMENT_URL, 'is not a packument');
 }
 
 /** @type {(path: string, detail: string) => GateInfraError} */
@@ -139,7 +157,7 @@ function highest(versions, keep) {
  */
 export function resolveRange(packument, range) {
   const inRange = satisfies(range);
-  const latest = packument['dist-tags']?.latest;
-  if (latest !== undefined && inRange(latest)) return latest;
-  return highest(Object.keys(packument.versions ?? {}), inRange);
+  const { latest } = packument['dist-tags'];
+  if (inRange(latest)) return latest;
+  return highest(Object.keys(packument.versions), inRange);
 }

@@ -12,7 +12,7 @@
  */
 import process from 'node:process';
 
-import { FetchFailedError, fetchBounded } from './fetch-protocol.mjs';
+import { FetchFailedError, fetchJson, isJsonObject } from './fetch-protocol.mjs';
 
 /**
  * @typedef {import('./camoufox-releases.d.mts').IRelease} IRelease
@@ -38,10 +38,25 @@ const PKGMAN = '@hieutran094/camoufox-js/dist/pkgman.js';
  * @param {string | undefined} token - `GITHUB_TOKEN`, if any.
  * @returns {Record<string, string>} Headers.
  */
-export function githubHeaders(token) {
+function githubHeaders(token) {
   const base = { accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28' };
   return token ? { ...base, authorization: `Bearer ${token}` } : base;
 }
+
+/** @type {(value: unknown) => boolean} Whether `value` has both fields camoufox-js's `checkAsset` reads. */
+const isAsset = value =>
+  isJsonObject(value) &&
+  typeof value.name === 'string' &&
+  typeof value.browser_download_url === 'string';
+
+/** @type {(value: unknown) => boolean} Whether `value` has every field {@link selectRelease} reads. */
+const isRelease = value =>
+  isJsonObject(value) &&
+  typeof value.tag_name === 'string' &&
+  typeof value.prerelease === 'boolean' &&
+  typeof value.draft === 'boolean' &&
+  Array.isArray(value.assets) &&
+  value.assets.every(isAsset);
 
 /**
  * The first page of releases, newest first.
@@ -49,14 +64,13 @@ export function githubHeaders(token) {
  * @param {{ GITHUB_TOKEN?: string }} [env] - Environment; the token raises the rate limit.
  * @param {IFetchIo} [io] - Fetch I/O overrides.
  * @returns {Promise<IRelease[]>} Releases as the API returns them.
- * @throws {FetchFailedError} When the page cannot be read or is not a list.
+ * @throws {FetchFailedError} When the page cannot be read, or is not a list of releases.
  */
 export async function fetchReleases(env = process.env, io = {}) {
   const headers = githubHeaders(env.GITHUB_TOKEN);
   const policy = { hosts: ['api.github.com'], maxBodyBytes: MAX_RELEASES_BYTES, headers };
-  const { text } = await fetchBounded(RELEASES_URL, policy, io);
-  const releases = JSON.parse(text);
-  if (Array.isArray(releases)) return releases;
+  const releases = await fetchJson(RELEASES_URL, policy, io);
+  if (Array.isArray(releases) && releases.every(isRelease)) return releases;
   throw new FetchFailedError(RELEASES_URL, 'is not a list of releases');
 }
 

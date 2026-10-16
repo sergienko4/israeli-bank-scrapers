@@ -31,19 +31,12 @@ export interface IPlatformAssetCheck {
 export declare const RELEASES_URL: string;
 
 /**
- * GitHub API request headers, with the token as a bearer when one is set.
- *
- * @param token - `GITHUB_TOKEN`, if any.
- * @returns Headers.
- */
-export function githubHeaders(token: string | undefined): Record<string, string>;
-
-/**
  * The first page of releases, newest first.
  *
  * @param env - Environment; the token raises the rate limit.
  * @param io - Fetch I/O overrides.
  * @returns Releases as the API returns them.
+ * @throws {FetchFailedError} When the page cannot be read, or is not a list of releases.
  */
 export function fetchReleases(
   env?: { readonly GITHUB_TOKEN?: string },

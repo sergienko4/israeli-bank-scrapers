@@ -166,6 +166,16 @@ function selectedBy(releases: readonly IRelease[], check: IPlatformAssetCheck): 
   return selectRelease(releases, check.acceptsAsset) ?? NONE;
 }
 
+/**
+ * A one-release page whose only release carries `assets`.
+ *
+ * @param assets - The release's assets, as the page would hold them.
+ * @returns Page JSON.
+ */
+function pageWithAssets(assets: unknown): string {
+  return JSON.stringify([{ tag_name: 'v1', prerelease: false, draft: false, assets }]);
+}
+
 describe('selectRelease', () => {
   let check: IPlatformAssetCheck;
 
@@ -221,5 +231,27 @@ describe('fetchReleases', () => {
     const fake = serving('{"message":"Not Found"}');
     const fetching = fetchReleases({}, fake);
     await expect(fetching).rejects.toThrow('is not a list of releases');
+  });
+
+  it.each([
+    ['a null entry', '[null]'],
+    ['an entry with no tag', '[{"prerelease":false,"draft":false,"assets":[]}]'],
+    ['an entry with no prerelease flag', '[{"tag_name":"v1","draft":false,"assets":[]}]'],
+    ['an entry with no draft flag', '[{"tag_name":"v1","prerelease":false,"assets":[]}]'],
+    ['assets that are not a list', pageWithAssets({})],
+    ['a null asset', pageWithAssets([null])],
+    ['an asset with no name', pageWithAssets([{ browser_download_url: 'https://x/a.zip' }])],
+    ['an asset with no download URL', pageWithAssets([{ name: 'a.zip' }])],
+  ])('[CR-8] refuses a page with %s', async (_name, body) => {
+    const fake = serving(body);
+    const fetching = fetchReleases({}, fake);
+    await expect(fetching).rejects.toThrow(`${RELEASES_URL} is not a list of releases`);
+    await expect(fetching).rejects.toHaveProperty('name', 'FetchFailedError');
+  });
+
+  it('[CR-9] refuses a body that is not JSON', async () => {
+    const fake = serving('<html>');
+    const fetching = fetchReleases({}, fake);
+    await expect(fetching).rejects.toThrow(`${RELEASES_URL} is not JSON`);
   });
 });

@@ -54,6 +54,29 @@ export function fetchBounded(
 ): Promise<IFetchedBody>;
 
 /**
+ * Fetch one JSON body under `policy`.
+ *
+ * @param href - Absolute HTTPS URL on a policy host.
+ * @param policy - Reachable hosts, body cap and request headers.
+ * @param overrides - Test I/O.
+ * @returns The parsed body; its shape is the caller's to check.
+ * @throws {FetchFailedError} When no attempt yields a body, or the body is not JSON.
+ */
+export function fetchJson(
+  href: string,
+  policy: IFetchPolicy,
+  overrides?: IFetchIo,
+): Promise<unknown>;
+
+/**
+ * Whether `value` is a JSON object: not null, not a list.
+ *
+ * @param value - A parsed JSON value.
+ * @returns Whether it is an object.
+ */
+export function isJsonObject(value: unknown): value is Record<string, unknown>;
+
+/**
  * Raw URLs of the two schemas the gate compares.
  *
  * @param playwright - playwright-core version, `x.y.z`.

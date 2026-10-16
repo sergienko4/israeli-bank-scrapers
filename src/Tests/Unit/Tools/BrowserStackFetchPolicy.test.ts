@@ -3,12 +3,14 @@
  *
  * <p>The gate's own policy is covered by CheckBrowserStackCli.test.ts. These
  * tests cover what a caller-supplied policy changes: the hosts a fetch may
- * reach, redirect hops included; the body cap; and the headers sent. The
- * network is a fake `fetch`, so no case leaves the machine.
+ * reach, redirect hops included; the body cap; and the headers sent; and
+ * that a JSON body which does not parse is a fetch failure. The network is a
+ * fake `fetch`, so no case leaves the machine.
  */
 
 import {
   fetchBounded,
+  fetchJson,
   type IFetchPolicy,
 } from '../../../../scripts/browser-stack/fetch-protocol.mjs';
 import { fakeFetch, type IFetchFake, serving } from '../../Helpers/FakeFetch.js';
@@ -61,5 +63,21 @@ describe('fetchBounded policy', () => {
     const fake = serving(oversized);
     const fetching = fetchBounded(API_URL, POLICY, fake);
     await expect(fetching).rejects.toThrow(`body exceeds ${String(POLICY.maxBodyBytes)} bytes`);
+  });
+});
+
+describe('fetchJson', () => {
+  it('[BFP-5] parses the body under the policy', async () => {
+    const fake = serving(BODY);
+    const parsed = await fetchJson(API_URL, POLICY, fake);
+    expect(parsed).toEqual([{ tag_name: 'v1' }]);
+    expect(fake.calls[0].init.headers).toEqual({ accept: 'application/json' });
+  });
+
+  it('[BFP-6] fails the fetch, rather than throw a SyntaxError, on a body that is not JSON', async () => {
+    const fake = serving('<html>');
+    const fetching = fetchJson(API_URL, POLICY, fake);
+    await expect(fetching).rejects.toThrow(`${API_URL} is not JSON`);
+    await expect(fetching).rejects.toHaveProperty('name', 'FetchFailedError');
   });
 });

@@ -152,6 +152,10 @@ comments, and an issue that a person labels keeps its body. The job holds
 leaves the issue alone. When the watch cannot read its inputs (the manifest,
 the `playwright-core` range in `package.json`, the releases page or the
 packument) it exits 2, the job fails, and the issue keeps the previous report.
+A body that is not JSON, a packument whose `latest` tag is not in its version
+map, or a releases page whose releases or assets lack a field camoufox-js reads
+counts as unreadable: reading it anyway would report a missing version or
+release that upstream never removed.
 `BrowserStackWatch.test.ts` pins the report, `BrowserStackWatchBounds.test.ts`
 the time bound, and `BrowserStackWatchWiring.test.ts` the workflow.
 

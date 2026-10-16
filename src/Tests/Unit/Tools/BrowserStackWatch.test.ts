@@ -74,6 +74,10 @@ interface IScenario {
   readonly published?: readonly string[];
   readonly latest?: string;
   readonly releasesStatus?: number;
+  /** A raw releases page body, in place of {@link IScenario.page}. */
+  readonly rawPage?: string;
+  /** A raw packument body, in place of the one built from `published` and `latest`. */
+  readonly rawPackument?: string;
   readonly outcomes?: Readonly<Record<string, IGateOutcome>>;
   readonly args?: readonly string[];
   readonly env?: Readonly<Record<string, string>>;
@@ -119,8 +123,8 @@ function packumentBody(scenario: IScenario): string {
  * @returns The fetch I/O.
  */
 function upstream(scenario: IScenario): UpstreamFetch {
-  const page = JSON.stringify(scenario.page ?? PAGE);
-  const packument = packumentBody(scenario);
+  const page = scenario.rawPage ?? JSON.stringify(scenario.page ?? PAGE);
+  const packument = scenario.rawPackument ?? packumentBody(scenario);
   /**
    * Answer one upstream URL.
    *
@@ -327,6 +331,21 @@ describe('browser-stack watch input failures', () => {
     );
     expect(run.gateArgs).toHaveLength(0);
   });
+
+  it.each([
+    ['the packument is not one', { rawPackument: '{}' }, `${PACKUMENT_URL} is not a packument`],
+    ['the packument is not JSON', { rawPackument: '<html>' }, `${PACKUMENT_URL} is not JSON`],
+    ['the releases page is not JSON', { rawPage: '<html>' }, `${RELEASES_URL} is not JSON`],
+  ])(
+    '[WCH-16] exits 2 with FETCH-FAILED, prints nothing and runs no gate when %s',
+    async (_name: string, scenario: IScenario, reason: string) => {
+      const run = await watch(scenario);
+      expect(run.code).toBe(2);
+      expect(run.err).toBe(`FETCH-FAILED ${reason}\n`);
+      expect(run.out).toBe('');
+      expect(run.gateArgs).toHaveLength(0);
+    },
+  );
 });
 
 describe('browser-stack watch consumer range', () => {

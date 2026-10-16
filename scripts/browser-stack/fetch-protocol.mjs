@@ -217,6 +217,28 @@ export async function fetchBounded(href, policy, overrides = {}) {
 }
 
 /**
+ * Fetch one JSON body under `policy`.
+ *
+ * @param {string} href - Absolute HTTPS URL on a policy host.
+ * @param {IFetchPolicy} policy - Reachable hosts, body cap and request headers.
+ * @param {IFetchIo} [overrides] - Test I/O.
+ * @returns {Promise<unknown>} The parsed body; its shape is the caller's to check.
+ * @throws {FetchFailedError} When no attempt yields a body, or the body is not JSON.
+ */
+export async function fetchJson(href, policy, overrides = {}) {
+  const { text } = await fetchBounded(href, policy, overrides);
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new FetchFailedError(href, 'is not JSON');
+  }
+}
+
+/** @type {(value: unknown) => value is Record<string, unknown>} A JSON object: not null, not a list. */
+export const isJsonObject = value =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/**
  * Fetch one schema under the gate's policy.
  *
  * @param {string} href - Absolute URL on {@link ALLOWED_HOST}.

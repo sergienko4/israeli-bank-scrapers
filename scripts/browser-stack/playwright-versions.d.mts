@@ -7,10 +7,11 @@
 
 import type { IFetchIo } from './gate.mjs';
 
-/** The fields of the abbreviated packument the watch reads. */
+/** The fields of the abbreviated packument the watch reads; `fetchPackument` checks both. */
 export interface IPackument {
-  readonly 'dist-tags'?: Readonly<Record<string, string>>;
-  readonly versions?: Readonly<Record<string, unknown>>;
+  /** `latest` is a key of `versions`. */
+  readonly 'dist-tags': { readonly latest: string };
+  readonly versions: Readonly<Record<string, unknown>>;
 }
 
 /** A caret range on a stable version: `^1.62.0` is >=1.62.0 <2.0.0. */
@@ -33,6 +34,7 @@ export declare const PACKUMENT_TIMEOUT_MS: number;
  *
  * @param io - Fetch I/O overrides.
  * @returns The packument.
+ * @throws {FetchFailedError} When it cannot be read, or is not a packument.
  */
 export function fetchPackument(io?: IFetchIo): Promise<IPackument>;
 

@@ -60,6 +60,28 @@ describe('playwright-core packument', () => {
     expect(fake.calls[0].url).toBe(PACKUMENT_URL);
     expect(fake.calls[0].init.headers).toEqual({ accept: 'application/vnd.npm.install-v1+json' });
   });
+
+  it.each([
+    ['an empty object', '{}'],
+    ['versions as a list', '{"dist-tags":{"latest":"1.64.1"},"versions":[]}'],
+    ['no latest tag', '{"dist-tags":{},"versions":{}}'],
+    ['a numeric latest tag', '{"dist-tags":{"latest":1},"versions":{}}'],
+    ['an empty version map', '{"dist-tags":{"latest":"1.64.1"},"versions":{}}'],
+    ['latest missing from versions', '{"dist-tags":{"latest":"1.64.1"},"versions":{"1.63.0":{}}}'],
+    ['a list', '[]'],
+    ['null', 'null'],
+  ])('[PV-9] refuses %s as a packument', async (_name, body) => {
+    const fake = serving(body);
+    const reading = fetchPackument(fake);
+    await expect(reading).rejects.toThrow(`${PACKUMENT_URL} is not a packument`);
+    await expect(reading).rejects.toHaveProperty('name', 'FetchFailedError');
+  });
+
+  it('[PV-10] refuses a body that is not JSON', async () => {
+    const fake = serving('<html>');
+    const reading = fetchPackument(fake);
+    await expect(reading).rejects.toThrow(`${PACKUMENT_URL} is not JSON`);
+  });
 });
 
 describe('what a consumer range resolves to', () => {
