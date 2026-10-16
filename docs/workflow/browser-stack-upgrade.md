@@ -230,18 +230,21 @@ const context = await browser.newContext();
 const page = await context.newPage();
 await page.route('**/routed', route => route.fulfill({ status: 200, body: 'routed' }));
 const routed = await page.goto(`${base}routed`);
-console.log('C1 page.route fulfils:', (await routed.text()) === 'routed');
+const fulfils = (await routed.text()) === 'routed';
+console.log('C1 page.route fulfils:', fulfils);
 const response = await page.goto(base);
-console.log('C4 Set-Cookie entries:', (await response.headerValues('set-cookie')).length);
-console.log(
-  'C4 cookie jar:',
-  (await context.cookies())
-    .map(c => c.name)
-    .sort()
-    .join(','),
-);
+const entries = (await response.headerValues('set-cookie')).length;
+console.log('C4 Set-Cookie entries:', entries);
+const jar = (await context.cookies())
+  .map(c => c.name)
+  .sort()
+  .join(',');
+console.log('C4 cookie jar:', jar);
 await browser.close();
 server.close();
+if (!fulfils || entries !== 2 || jar !== 'a,b') {
+  throw new Error('Packed-consumer smoke failed: expected true, 2 and a,b');
+}
 ```
 
 Then pack the library and pipe the tarball into a fresh consumer:
@@ -271,7 +274,8 @@ hold:
 - `version.json` reads as `camoufox.tag` without its `v`: a version of
   `156.0.1` and a release of `beta.36` match `v156.0.1-beta.36`.
 - Every `playwright-core` copy `npm ls` lists has the `testedMinor` minor.
-- The probe prints `true`, `2` and `a,b`.
+- The probe prints `true`, `2` and `a,b`. Otherwise it throws, and
+  `docker run` exits non-zero.
 
 ## The routing shim
 
