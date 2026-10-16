@@ -19,6 +19,7 @@ import {
   allSitesLines,
   atBothSites,
   bundleOf,
+  COOKIE_PREFIX,
   type ISandbox,
   leftLine,
   linesOf,
@@ -28,6 +29,7 @@ import {
   PREFIX,
   removeRoots,
   RENAMED,
+  RESPONSE_164,
   runPatcher,
   SENT_164,
   SHIM_PREFIX,
@@ -45,9 +47,13 @@ const PNPM_CAMOUFOX = join(PNPM_STORE, '@hieutran094', 'camoufox-js');
 const PNPM_PEER = join(PNPM_STORE, 'playwright-core');
 const COPY_PREFIX = 'playwright-core copy: ';
 
-/** Outcomes of patching an upstream 1.64 bundle: six reads, one send. */
+/** Outcomes of patching an upstream 1.64 bundle: six reads, one send, one response. */
 const UPSTREAM_GUARDED = 'guarded 6 pageError.location read(s)';
 const UPSTREAM_SHIMMED = 'dropped bypassServiceWorker from 1 call(s)';
+const UPSTREAM_SPLIT = 'split Set-Cookie at 1 response site(s)';
+
+/** Every outcome of an upstream 1.64 copy, in report order. */
+const UPSTREAM_OUTCOMES = [UPSTREAM_GUARDED, UPSTREAM_SHIMMED, UPSTREAM_SPLIT];
 
 /** Upstream 1.64's reads at both sites, every one unguarded. */
 const UPSTREAM_SITES = atBothSites(UNGUARDED);
@@ -136,7 +142,8 @@ function writeManifest(root: string, copy: string): string {
 }
 
 /**
- * Write one playwright-core copy with a bundle sending the 1.64 payload.
+ * Write one playwright-core copy with a bundle sending the 1.64 payload and
+ * building the 1.64 response.
  *
  * @param root - Sandbox root.
  * @param copy - Copy directory, relative to the root.
@@ -145,7 +152,7 @@ function writeManifest(root: string, copy: string): string {
  */
 function writeCopy(root: string, copy: string, sites = UPSTREAM_SITES): string {
   const bundle = writeManifest(root, copy);
-  const text = bundleOf(sites, [SENT_164]);
+  const text = bundleOf(sites, [SENT_164], [RESPONSE_164]);
   writeFileSync(bundle, text);
   return bundle;
 }
@@ -209,16 +216,18 @@ function readCopy(sandbox: ISandbox, copy: string): string {
 }
 
 /**
- * The lines one copy prints: its header when labelled, then both outcomes.
+ * The lines one copy prints: its header when labelled, then all three outcomes.
  *
  * @param label - Copy label; empty for a single copy.
- * @param outcomes - Guard outcome, shim outcome, then any mismatch lines.
+ * @param outcomes - Guard, shim and Set-Cookie split outcomes, then any
+ *   mismatch lines.
  * @returns Expected lines.
  */
 function copyLines(label: string, outcomes: readonly string[]): string[] {
   const header = label === '' ? [] : [COPY_PREFIX + label];
-  const [guard = '', shim = '', ...mismatches] = outcomes;
-  return [...header, PREFIX + guard, SHIM_PREFIX + shim, ...mismatches];
+  const [guard = '', shim = '', cookie = '', ...mismatches] = outcomes;
+  const reported = [PREFIX + guard, SHIM_PREFIX + shim, COOKIE_PREFIX + cookie];
+  return [...header, ...reported, ...mismatches];
 }
 
 /**
@@ -228,8 +237,7 @@ function copyLines(label: string, outcomes: readonly string[]): string[] {
  * @returns Expected stdout.
  */
 function copiesReport(labels: readonly string[]): string {
-  const outcomes = [UPSTREAM_GUARDED, UPSTREAM_SHIMMED];
-  const lines = labels.flatMap((label): string[] => copyLines(label, outcomes));
+  const lines = labels.flatMap((label): string[] => copyLines(label, UPSTREAM_OUTCOMES));
   return linesOf(lines);
 }
 
@@ -249,7 +257,7 @@ describe('patch-playwright-core every copy', () => {
     const sandbox = sandboxWithLayout(layout);
     runPatcher(sandbox, []);
     const texts = layout.copies.map((copy): string => readCopy(sandbox, copy));
-    const patched = patchedBundleOf(UPSTREAM_SITES, [SENT_164]);
+    const patched = patchedBundleOf(UPSTREAM_SITES, [SENT_164], [RESPONSE_164]);
     const expected = layout.copies.map((): string => patched);
     expect(texts).toEqual(expected);
   });
@@ -260,9 +268,15 @@ describe('patch-playwright-core every copy', () => {
     const bundle = writeCopy(root, NESTED_COPY, RENAMED_SITES);
     writeCamoufox(root, CAMOUFOX_DIR);
     const run = runPatcher({ root, bundle }, ['--strict']);
-    const nested = [NOT_APPLIED, UPSTREAM_SHIMMED, ...allSitesLines(0), leftLine(6)];
+    const nested = [
+      NOT_APPLIED,
+      UPSTREAM_SHIMMED,
+      UPSTREAM_SPLIT,
+      ...allSitesLines(0),
+      leftLine(6),
+    ];
     const lines = [
-      ...copyLines(HOISTED_COPY, [UPSTREAM_GUARDED, UPSTREAM_SHIMMED]),
+      ...copyLines(HOISTED_COPY, UPSTREAM_OUTCOMES),
       ...copyLines(NESTED_COPY, nested),
     ];
     expect(run).toEqual({ status: 1, stdout: linesOf(lines), stderr: '' });
@@ -277,7 +291,7 @@ describe('patch-playwright-core every copy', () => {
     const runs = [runPatcher(sandbox, []), runPatcher(sandbox, ['--strict'])];
     const statuses = runs.map((run): number => run.status);
     const hoisted = readCopy(sandbox, HOISTED_COPY);
-    const patched = patchedBundleOf(UPSTREAM_SITES, [SENT_164]);
+    const patched = patchedBundleOf(UPSTREAM_SITES, [SENT_164], [RESPONSE_164]);
     const nestedSkip = `${COPY_PREFIX + NESTED_COPY}\n${PREFIX}skipped (`;
     expect(statuses).toEqual([0, 1]);
     expect(hoisted).toBe(patched);

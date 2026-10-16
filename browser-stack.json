@@ -6,9 +6,10 @@
     "protocolSha256": "d7bad1be5746cf6e71774963bc0e9d859f8edc4a003a0705fefb4d525034c9ec"
   },
   "playwrightCore": {
-    "testedMinor": "1.63",
+    "testedMinor": "1.64",
     "protocolSha256": {
-      "1.63.0": "bab39c6dd66564dd0ad15c2de4faf54608e5013b880b46711c0c993f0c814583"
+      "1.63.0": "bab39c6dd66564dd0ad15c2de4faf54608e5013b880b46711c0c993f0c814583",
+      "1.64.1": "5a39c4109ee86f45326e529e8122376cf9b9a411755eac740c095e7f86269e9c"
     }
   },
   "acceptedDeltas": [
@@ -24,7 +25,14 @@
       "kind": "MISSING-METHOD",
       "path": "Browser.setScreencastOptions",
       "signature": "src:{browserContextId,options}|dst:absent",
-      "reason": "playwright-core 1.63.0 never sends it (0 occurrences in lib/coreBundle.js); re-check when playwright-core is upgraded."
+      "reason": "playwright-core 1.63.0 and 1.64.1 never send it (0 occurrences in lib/coreBundle.js); re-check when playwright-core is upgraded."
+    },
+    {
+      "channel": "request",
+      "kind": "UNKNOWN-FIELD",
+      "path": "Network.setRequestInterception.bypassServiceWorker",
+      "signature": "src:Optional(Boolean)|dst:absent",
+      "reason": "Added in playwright-core 1.64; no released Camoufox accepts it. The postinstall patcher drops it from the one send, which patch-playwright-core.mjs --strict proves in CI, so Camoufox never receives it."
     }
   ]
 }

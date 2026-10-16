@@ -443,10 +443,10 @@ own. Its other pattern, `playwright`, matches no dependency here. The
 `dev-dependencies` and `production-dependencies` groups exclude both names, so
 no other group moves them. The browser-stack gate decides whether such a bump
 lands. It compares the bumped `playwright-core` with the Camoufox tag pinned in
-`browser-stack.json`, so a new minor fails until the same pull request raises
-`testedMinor`. A consumer installs through the `^` range in `package.json`,
-not through this lockfile, so the weekly browser-stack watch reports the
-version that range resolves to today. See
+`browser-stack.json`, so a new minor fails until the same pull request, or one
+that supersedes it, raises `testedMinor`. A consumer installs through the `^`
+range in `package.json`, not through this lockfile, so the weekly
+browser-stack watch reports the version that range resolves to today. See
 [Upgrading the browser stack](browser-stack-upgrade.md).
 
 **Limit:** Dependabot never targets a transitive that has no open alert. It

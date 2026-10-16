@@ -2,12 +2,13 @@
  * Browser-stack acceptance guards.
  *
  * <p>`browser-stack.json` accepts Juggler deltas that break only a feature
- * this package does not use (HTTP credentials) or a method playwright-core
- * never sends (`Browser.setScreencastOptions`). The gate that reads the
- * manifest runs only when the browser stack moves, so a src-only change
- * could start using one of them and leave a now-harmful delta accepted. This
- * suite runs with the unit tests on every src change and checks the premise
- * of each acceptance.
+ * this package does not use (HTTP credentials), a method playwright-core
+ * never sends (`Browser.setScreencastOptions`), or a field the postinstall
+ * patcher drops from its one send (`bypassServiceWorker`). The gate that
+ * reads the manifest runs only when the browser stack moves, so a src-only
+ * change could start using one of them and leave a now-harmful delta
+ * accepted. This suite runs with the unit tests on every src change and
+ * checks the premise of each acceptance.
  *
  * Rules:
  *   BSG-1  every accepted delta has exactly one guard, and every guard a delta
@@ -17,7 +18,8 @@
  *          newContext gets an untouched const the checker resolves to a
  *          builder, each newPage runs on a playwright BrowserContext, and no
  *          persistent context exists
- *   BSG-5  playwright-core still never sends a method Camoufox lacks
+ *   BSG-5  the installed playwright-core never sends a method or field
+ *          Camoufox lacks
  *   BSG-6  each pattern flags a planted use and passes clean code
  */
 
@@ -79,20 +81,42 @@ const SCREENCAST_OPTIONS: IGuard = {
   scope: 'playwright-core',
   patterns: [/\bsetScreencastOptions\b/u],
 };
+/** Every mention of the method except the `{ enabled }` send the patcher leaves, as `--strict` counts. */
+const INTERCEPTION_BYPASS: IGuard = {
+  scope: 'playwright-core',
+  patterns: [/Network\.setRequestInterception(?!["'`],\s*\{\s*enabled\s*\}\s*\))/u],
+};
 
 /** Each accepted delta, as `channel kind path`, and the guard on its premise. */
 const GUARDS: Readonly<Record<string, IGuard>> = {
   'request TYPE-MISMATCH Browser.setHTTPCredentials.credentials': CREDENTIALS,
   'request MISSING-METHOD Browser.setScreencastOptions': SCREENCAST_OPTIONS,
+  'request UNKNOWN-FIELD Network.setRequestInterception.bypassServiceWorker': INTERCEPTION_BYPASS,
 };
 const SRC_GUARDS = Object.values(GUARDS).filter(guard => guard.scope === 'src');
 const SRC_PATTERNS = [...new Set(SRC_GUARDS.flatMap(guard => guard.patterns))];
+const CORE_GUARDS = Object.values(GUARDS).filter(guard => guard.scope === 'playwright-core');
+const CORE_PATTERNS = [...new Set(CORE_GUARDS.flatMap(guard => guard.patterns))];
 
 /** Planted uses; each must be flagged, and together they hit every src pattern. */
 const PLANTED: readonly string[] = [
   "await browser.newContext({ httpCredentials: { username: 'u', password: 'p' } });",
   "await context.setHTTPCredentials({ username: 'u', password: 'p' });",
 ];
+
+/** Planted playwright-core sends; each hits a core pattern, together every one. */
+const CORE_PLANTED: readonly string[] = [
+  'this._session.send("Browser.setScreencastOptions", { width, height, quality }),',
+  'this._session.send("Network.setRequestInterception", { enabled, bypassServiceWorker }),',
+  "this._session.send('Network.setRequestInterception', { enabled, bypassServiceWorker }),",
+  'this._session.send("Network.setRequestInterception", payload),',
+];
+
+/** playwright-core as the patcher leaves it: the field is declared, never sent. */
+const CORE_CLEAN = [
+  'async setRequestInterception(enabled, bypassServiceWorker) {',
+  '  this._session.send("Network.setRequestInterception", { enabled }),',
+].join('\n');
 
 /** Builder options, then a statement that reaches them. */
 const BUILT = 'const opts = buildContextOptions();\n';
@@ -337,13 +361,30 @@ describe('browser-stack acceptance guards', () => {
     expect(isKept).toBe(isScanned);
   });
 
-  it('[BSG-5] playwright-core still never sends a method Camoufox lacks', () => {
+  it('[BSG-5] the installed playwright-core never sends a method or field Camoufox lacks', () => {
     const coreFiles = walk(CORE_LIB_DIR, file => file.endsWith('.js'));
     const coreSources = readSources(coreFiles);
     const hasKnownSend = coreSources.some(source => source.text.includes(KNOWN_CORE_SEND));
-    const findings = usageFindings(coreSources, SCREENCAST_OPTIONS.patterns);
+    const findings = usageFindings(coreSources, CORE_PATTERNS);
     expect(hasKnownSend).toBe(true);
     expect(findings).toEqual([]);
+  });
+
+  it('[BSG-6] every core pattern flags a planted send and passes patched code', () => {
+    const plantedSources = CORE_PLANTED.map(planted);
+    const dead = CORE_PATTERNS.filter(pattern => {
+      const hits = usageFindings(plantedSources, [pattern]);
+      return hits.length === 0;
+    });
+    const clean = usageFindings([planted(CORE_CLEAN)], CORE_PATTERNS);
+    expect(dead).toEqual([]);
+    expect(clean).toEqual([]);
+  });
+
+  it.each(CORE_PLANTED)('[BSG-6] flags the planted send %s', snippet => {
+    const source = planted(snippet);
+    const findings = usageFindings([source], CORE_PATTERNS);
+    expect(findings).not.toEqual([]);
   });
 
   it.each(PLANTED)('[BSG-6] flags the planted use %s', snippet => {

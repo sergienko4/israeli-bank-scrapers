@@ -1,12 +1,21 @@
 /**
  * Sandbox for `scripts/patch-playwright-core.mjs` tests: a copy of the real
  * script under `<root>/scripts/`, a synthetic `<root>/node_modules/`, and a
- * run with a minimal environment. Shared by the single-copy and the
- * multi-copy suites so both drive the script exactly as an install does.
+ * run with a minimal environment. Shared by the single-copy, multi-copy and
+ * Set-Cookie suites so each drives the script exactly as an install does.
  */
 
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +49,10 @@ export const RENAMED = [
 
 export const PREFIX = 'playwright-core pageError guard: ';
 export const SHIM_PREFIX = 'playwright-core interception shim: ';
+export const COOKIE_PREFIX = 'playwright-core Set-Cookie split: ';
+
+/** The split outcome when every response site already splits Set-Cookie per line. */
+export const COOKIE_CLEAN = 'Set-Cookie already split';
 export const NOT_APPLIED = 'NOT APPLIED — no known pageError.location read in this build';
 const SITES_TAG = 'GUARD-SITES';
 const LEFT_TAG = 'GUARD-LEFT';
@@ -52,6 +65,32 @@ export const SENT_163 = '"Network.setRequestInterception", { enabled }';
 
 /** playwright-core 1.64's payload, whose `bypassServiceWorker` no released Camoufox accepts. */
 export const SENT_164 = '"Network.setRequestInterception", { enabled, bypassServiceWorker }';
+
+/**
+ * The Firefox network manager's response, as upstream builds it, around its header list.
+ *
+ * @param headers - The header-list argument.
+ * @returns The constructor call.
+ */
+export function responseOf(headers: string): string {
+  const head = 'new Response2(request2.request, event.status, event.statusText, ';
+  return `${head}${headers}, timing, getResponseBody, event.fromServiceWorker)`;
+}
+
+/** playwright-core 1.63's response: it splits Juggler's newline-joined Set-Cookie itself. */
+export const RESPONSE_163 = responseOf('parseMultivalueHeaders(event.headers)');
+
+/** 1.64's response, which passes Juggler's newline-joined Set-Cookie through as one header. */
+export const RESPONSE_164 = responseOf('event.headers');
+
+/** 1.64's response after the patch: Set-Cookie split per trimmed line, every other header as sent. */
+export const RESPONSE_SPLIT = responseOf(
+  'event.headers.flatMap((header) => header.name.toLowerCase() === "set-cookie" ? header.value.split("\\n").map((value) => ({ name: header.name, value: value.trim() })) : [header])',
+);
+
+/** A fixed past mtime; any write by the script moves it to "now". */
+export const UNTOUCHED_MTIME = new Date('2000-01-01T00:00:00Z');
+export const UNTOUCHED_MS = UNTOUCHED_MTIME.getTime();
 
 /** One run of the patcher. */
 export interface IRun {
@@ -91,35 +130,40 @@ export function atBothSites(reads: readonly string[]): readonly (readonly string
 
 /**
  * Render one `_onPageError` event-builder per site, as upstream ships it,
- * then the network manager's interception sends.
+ * then the network manager's interception sends and response constructions.
  *
  * @param sites - Location fields of each site, one per line.
  * @param calls - Interception sends; one 1.63 send by default.
+ * @param responses - Firefox response constructions; one 1.63 response by default.
  * @returns Synthetic `coreBundle.js` text.
  */
 export function bundleOf(
   sites: readonly (readonly string[])[],
   calls: readonly string[] = [SENT_163],
+  responses: readonly string[] = [RESPONSE_163],
 ): string {
   const builders = sites.map((reads): string => {
     const fields = reads.join(',\n        ');
     return `_onPageError(pageError, page) {\n  const event = {\n    params: {\n      location: {\n        ${fields}\n      },\n    },\n  };\n}\n`;
   });
   const sends = calls.map((call): string => `this._session.send(${call});\n`);
-  return [...builders, ...sends].join('');
+  const built = responses.map((response): string => `const response2 = ${response};\n`);
+  return [...builders, ...sends, ...built].join('');
 }
 
 /**
  * The bundle text after a correct patch: every known read guarded, every
- * 1.64 send shimmed.
+ * 1.64 send shimmed, every 1.64 response split.
  *
  * @param sites - Reads of each site of the original bundle.
  * @param calls - Interception sends of the original bundle.
+ * @param responses - Response constructions of the original bundle.
  * @returns Expected text.
  */
 export function patchedBundleOf(
   sites: readonly (readonly string[])[],
   calls: readonly string[] = [SENT_163],
+  responses: readonly string[] = [RESPONSE_163],
 ): string {
   const guarded = sites.map((reads): string[] =>
     reads.map((read): string => {
@@ -128,7 +172,8 @@ export function patchedBundleOf(
     }),
   );
   const shimmed = calls.map((call): string => (call === SENT_164 ? SENT_163 : call));
-  return bundleOf(guarded, shimmed);
+  const split = responses.map((made): string => (made === RESPONSE_164 ? RESPONSE_SPLIT : made));
+  return bundleOf(guarded, shimmed, split);
 }
 
 /**
@@ -146,6 +191,62 @@ export function makeRoot(): string {
   const copy = join(scriptsDir, SCRIPT_NAME);
   copyFileSync(SCRIPT, copy);
   return root;
+}
+
+/**
+ * Create a sandbox whose `playwright-core` resolves but ships no bundle file.
+ *
+ * @returns The sandbox; its bundle path does not exist yet.
+ */
+export function sandboxWithoutBundle(): ISandbox {
+  const root = makeRoot();
+  const pkgDir = join(root, 'node_modules', 'playwright-core');
+  const libDir = join(pkgDir, 'lib');
+  mkdirSync(libDir, { recursive: true });
+  const manifest = join(pkgDir, 'package.json');
+  writeFileSync(manifest, '{"name":"playwright-core","version":"0.0.0"}');
+  return { root, bundle: join(libDir, 'coreBundle.js') };
+}
+
+/**
+ * Create a sandbox whose bundle holds the given sites, sends and responses,
+ * with a fixed past mtime.
+ *
+ * @param sites - Location reads of each site written into the bundle.
+ * @param calls - Interception sends written into the bundle.
+ * @param responses - Response constructions written into the bundle.
+ * @returns The sandbox.
+ */
+export function sandboxWithBundle(
+  sites: readonly (readonly string[])[],
+  calls: readonly string[] = [SENT_163],
+  responses: readonly string[] = [RESPONSE_163],
+): ISandbox {
+  const sandbox = sandboxWithoutBundle();
+  const text = bundleOf(sites, calls, responses);
+  writeFileSync(sandbox.bundle, text);
+  utimesSync(sandbox.bundle, UNTOUCHED_MTIME, UNTOUCHED_MTIME);
+  return sandbox;
+}
+
+/**
+ * Read the sandbox's bundle text.
+ *
+ * @param sandbox - Sandbox whose bundle exists.
+ * @returns Bundle text.
+ */
+export function readBundle(sandbox: ISandbox): string {
+  return readFileSync(sandbox.bundle, 'utf8');
+}
+
+/**
+ * Read a file's modification time.
+ *
+ * @param path - File path.
+ * @returns Modification time in ms since the epoch.
+ */
+export function mtimeOf(path: string): number {
+  return statSync(path).mtimeMs;
 }
 
 /**
@@ -209,12 +310,13 @@ export function leftLine(left: number): string {
 }
 
 /**
- * The two report lines every run prints, guard first.
+ * The three report lines every run prints: guard, shim, then Set-Cookie split.
  *
  * @param guard - Guard outcome.
  * @param shim - Shim outcome.
+ * @param cookie - Set-Cookie split outcome.
  * @returns Expected stdout.
  */
-export function reportOf(guard: string, shim: string): string {
-  return linesOf([PREFIX + guard, SHIM_PREFIX + shim]);
+export function reportOf(guard: string, shim: string, cookie: string): string {
+  return linesOf([PREFIX + guard, SHIM_PREFIX + shim, COOKIE_PREFIX + cookie]);
 }

@@ -38,7 +38,11 @@ were tested together. Each release is tested against one Camoufox tag and one
 [`browser-stack.json`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/browser-stack.json)
 holds the pair: `camoufox.tag` and `playwrightCore.testedMinor`, plus the
 protocol deltas the CI gate accepts for it. CI installs the Camoufox tag from
-it, and the gate checks `playwright-core` against it.
+it, and the gate checks `playwright-core` against it. A delta can be accepted
+because the `postinstall` patch removes it on the client side, as it does for
+1.64's `bypassServiceWorker`; a unit test then fails if the patched copy still
+sends it. See
+[The 1.64 patches](../workflow/browser-stack-upgrade.md#the-164-patches).
 
 Runtime code cannot read a repository JSON file from the published package,
 so `npm run browser-stack:gen` renders the pair into

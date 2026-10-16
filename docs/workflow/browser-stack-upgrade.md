@@ -140,9 +140,9 @@ supersedes it:
    minor. Move the digests with them, as [Moving the pins](#moving-the-pins)
    describes.
 2. Run `npm run browser-stack:gen` to rewrite `BrowserStackConfig.ts`.
-3. Run `node scripts/patch-playwright-core.mjs --strict`. A `GUARD-SITES` or
-   `SHIM-SITES` line means the new minor moved a patched call; review and
-   update the patcher before going on.
+3. Run `node scripts/patch-playwright-core.mjs --strict`. A `GUARD-SITES`,
+   `SHIM-SITES` or `COOKIE-SITES` line means the new minor moved a patched
+   call or site; review and update the patcher before going on.
 4. Run `npm run lint:browser-stack` until it exits 0, removing `STALE` deltas
    and accepting `NEW` ones only as described above.
 5. Install the new Camoufox and run the runtime contract against it, as
@@ -277,15 +277,28 @@ hold:
 - The probe prints `true`, `2` and `a,b`. Otherwise it throws, and
   `docker run` exits non-zero.
 
-## The routing shim
+## The 1.64 patches
 
-`playwright-core` 1.64 sends `bypassServiceWorker` when it turns on request
-interception, and no released Camoufox accepts it. The `postinstall` patch
-rewrites that call to the 1.63 form, so `page.route()` works for a consumer
-who resolves 1.64. The gate diffs the protocol schemas, not the calls a
-patched client sends, so it still reports the field as `NEW` for 1.64. The
-shim does not change how 1.64 reports multi-value `Set-Cookie`, so it does not
-make 1.64 landable. See
+`playwright-core` 1.64 changed two things no released Camoufox follows yet.
+The `postinstall` patch adapts both, and the contract proves the result:
+
+- **Routing shim.** 1.64 sends `bypassServiceWorker` when it turns on request
+  interception, and Camoufox rejects it. The patch rewrites that call to the
+  1.63 form, so `page.route()` works. The gate diffs the protocol schemas, not
+  the calls a patched client sends, so it still finds the field.
+  `browser-stack.json` accepts it as
+  `request UNKNOWN-FIELD Network.setRequestInterception.bypassServiceWorker`,
+  and `BrowserStackAcceptanceGuards.test.ts` fails if the patched copy still
+  sends it.
+- **Set-Cookie split.** Camoufox reports a response's `Set-Cookie` lines as one
+  header joined by newlines. 1.63 split it, 1.64 does not, so C3 and C4 fail
+  without the patch. The patch splits `Set-Cookie` alone, one trimmed entry
+  per line as 1.63 did, at the Firefox client's one response site; other
+  headers keep the value Juggler sent.
+
+`--strict` checks both: `SHIM-SITES` and `COOKIE-SITES` report a call or a
+response site the patch no longer recognises. When Camoufox follows 1.64,
+both become no-ops; drop them and the accepted delta in one PR. See
 [`Protocol error (Network.setRequestInterception)`](../troubleshooting.md#protocol-error-networksetrequestinterception)
 for the consumer side.
 

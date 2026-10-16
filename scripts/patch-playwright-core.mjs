@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Keeps the installed `playwright-core` working against Camoufox: it
- * null-guards `pageError.location` and shims request interception.
+ * null-guards `pageError.location`, shims request interception, and splits
+ * multi-value `Set-Cookie` headers.
  *
  * pageError guard. This library subscribes to `page.on('pageerror')`
  * (see `Mediator/Init/PageObservers.ts` and
@@ -11,7 +12,7 @@
  * uncaught page error with NO location, so that read throws
  * `TypeError: Cannot read properties of undefined` from inside
  * playwright-core — killing a scrape for a reason no stack trace of ours
- * explains. Upstream 1.62.1 (latest stable) still ships the unguarded read.
+ * explains. Upstream 1.64.1 (latest stable) still ships the unguarded read.
  *
  * Interception shim. playwright-core 1.64 added `bypassServiceWorker` to
  * Juggler's `Network.setRequestInterception`. No released Camoufox accepts
@@ -19,9 +20,15 @@
  * `context.route()` uses `Browser.setRequestInterception`, which did not
  * change. A consumer whose `^` range resolves 1.64 gets that build,
  * so the shim drops the field and sends the 1.63 payload `{ enabled }`.
- * It restores routing only: 1.64's other changes (multi-value `Set-Cookie`
- * headers) remain, which is why this library stays tested on the
- * playwright-core minor named in `browser-stack.json`.
+ *
+ * Set-Cookie split. Camoufox's Juggler reports every `Set-Cookie` of a
+ * response as one header whose value joins the cookies with newlines.
+ * playwright-core 1.63 split it; 1.64 expects one field per header, as
+ * upstream Firefox now sends, so `headersArray()` and `headerValues()` would
+ * return one entry for several cookies. The split restores 1.63's result for
+ * `Set-Cookie` only, at the Firefox network manager's one response site;
+ * other headers keep the value Juggler sent, as 1.64 intends. A 1.63 build
+ * needs neither the shim nor the split and is left as it is.
  *
  * Every copy. camoufox-js takes playwright-core as a peer and imports it
  * from its own location, and that copy drives the browser. A dependency
@@ -39,8 +46,9 @@
  * for contributors and consumers through the same code path.
  *
  * Guarantees: never fails an install (postinstall passes no arguments, and
- * that default mode always exits 0) and never writes a copy whose guard and
- * shim are already present. Set `SKIP_PLAYWRIGHT_CORE_PATCH=1` to opt out.
+ * that default mode always exits 0) and never writes a copy whose guard,
+ * shim and split are already present. Set `SKIP_PLAYWRIGHT_CORE_PATCH=1` to
+ * opt out.
  * Any argument other than a single `--strict` is a usage error (exit 2,
  * nothing resolved or written), so a mistyped flag cannot pass as an
  * unproven run.
@@ -58,9 +66,13 @@
  * interception call must be sent at exactly `REVIEWED_CALLS` sites, each
  * with `{ enabled }` alone; every mention of the method name counts as a
  * send, whatever its quoting or line breaks. Otherwise it prints
- * `SHIM-SITES <shimmed>/<reviewed> (<sent> sent) <shimmed form>`. Any skip —
- * no copy found, opt-out, or a read or write error on any copy — exits 1,
- * because that copy was not verified.
+ * `SHIM-SITES <shimmed>/<reviewed> (<sent> sent) <shimmed form>`. The
+ * Firefox response must be built from a Juggler event at exactly
+ * `REVIEWED_RESPONSES` sites, whatever their later arguments, each splitting
+ * `Set-Cookie` in a known form (1.63's own or the patched one); otherwise it
+ * prints `COOKIE-SITES <known>/<reviewed> (<sites> sites) <site>`.
+ * Any skip — no copy found, opt-out, or a read or write error on any copy —
+ * exits 1, because that copy was not verified.
  */
 import { createRequire } from 'node:module';
 import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
@@ -124,6 +136,54 @@ const SHIM = {
 const REVIEWED_CALLS = 1;
 
 /**
+ * The arguments after the header list in the Firefox network manager's
+ * `new Response(...)`, which locate a response site in every reviewed build.
+ */
+const RESPONSE_SITE = 'timing, getResponseBody, event.fromServiceWorker';
+
+/** How the Firefox network manager starts a response built from a Juggler event. */
+const RESPONSE_HEAD = String.raw`new [\w$]+\([\w$.]+, event\.status, `;
+
+/**
+ * Every response built from a Juggler event, whatever its header list or
+ * later arguments, so a site the exact rewrite cannot read is still counted.
+ */
+const RESPONSE_BUILD = new RegExp(String.raw`${RESPONSE_HEAD}event\.statusText, `, 'gu');
+
+/**
+ * A header-list form, matched only where a response build starts it, so the
+ * same text anywhere else is neither rewritten nor counted.
+ *
+ * @param form - Exact text that follows the response head.
+ * @returns Pattern `rewrite` and `occurrences` split on.
+ */
+function atResponse(form) {
+  const literal = form.replace(/[\\^$.*+?()[\]{}|]/gu, String.raw`\$&`);
+  return new RegExp(`(?<=${RESPONSE_HEAD})${literal}`, 'u');
+}
+
+/**
+ * 1.64's header list, which passes Juggler's newline-joined `Set-Cookie`
+ * through as one header, and the split it becomes: `Set-Cookie` only, one
+ * trimmed header per line as 1.63 made them, every other header as Juggler
+ * sent it. Self-contained, so it never calls a bundle-internal helper that a
+ * later build could rename.
+ */
+const COOKIE = {
+  from: atResponse(`event.statusText, event.headers, ${RESPONSE_SITE}`),
+  to: `event.statusText, event.headers.flatMap((header) => header.name.toLowerCase() === "set-cookie" ? header.value.split("\\n").map((value) => ({ name: header.name, value: value.trim() })) : [header]), ${RESPONSE_SITE}`,
+};
+
+/** Header lists that split `Set-Cookie`: 1.63's own and the patched 1.64 one. */
+const COOKIE_KNOWN = [
+  atResponse(`event.statusText, parseMultivalueHeaders(event.headers), ${RESPONSE_SITE}`),
+  atResponse(COOKIE.to),
+];
+
+/** Response sites in the reviewed playwright-core: the Firefox network manager's one. */
+const REVIEWED_RESPONSES = 1;
+
+/**
  * The real directory of the `packageName` copy Node loads from `from`.
  *
  * <p>The directory is looked up along Node's own search paths rather than
@@ -172,7 +232,8 @@ function resolveCopies() {
  * Apply each rewrite to the bundle source.
  *
  * @param source - Current `coreBundle.js` contents.
- * @param rewrites - `{ from, to }` pairs, applied in order.
+ * @param rewrites - `{ from, to }` pairs, applied in order; `from` is exact
+ *   text or a pattern.
  * @returns Rewritten source plus the number of substitutions made.
  */
 function rewrite(source, rewrites) {
@@ -190,7 +251,7 @@ function rewrite(source, rewrites) {
  * Count the occurrences of a form in the source.
  *
  * @param source - `coreBundle.js` contents.
- * @param form - Exact text to count.
+ * @param form - Exact text or pattern to count.
  * @returns Occurrences.
  */
 function occurrences(source, form) {
@@ -241,36 +302,63 @@ function shimResult(count, text) {
 }
 
 /**
- * Rewrite the bundle in place when a guard or the shim is missing.
+ * Describe the Set-Cookie split after patching.
+ *
+ * <p>A 1.63 build splits `Set-Cookie` itself, as does an already patched 1.64
+ * build, so both report it already split. Every response built from a Juggler
+ * event counts as a site, whatever its later arguments, so a site the exact
+ * rewrite cannot read is still counted; a known form counts only where a
+ * response build starts it.
+ *
+ * @param count - Response sites split by this run.
+ * @param text - Bundle text after patching.
+ * @returns Outcome plus the known-form and the total response sites.
+ */
+function cookieResult(count, text) {
+  const known = COOKIE_KNOWN.reduce((sum, form) => sum + occurrences(text, form), 0);
+  const responses = { known, sites: text.match(RESPONSE_BUILD)?.length ?? 0 };
+  if (count > 0) return { outcome: `split Set-Cookie at ${count} response site(s)`, responses };
+  const isSplit = responses.sites > 0 && responses.known === responses.sites;
+  if (isSplit) return { outcome: 'Set-Cookie already split', responses };
+  const sites = `${responses.known} of ${responses.sites} response site(s)`;
+  return { outcome: `NOT APPLIED — ${sites} in a known form`, responses };
+}
+
+/**
+ * Rewrite the bundle in place when a guard, the shim or the split is missing.
  *
  * @param bundlePath - Absolute path to `coreBundle.js`.
- * @returns Guard and shim results for the install log.
+ * @returns Guard, shim and split results for the install log.
  */
 function patchBundle(bundlePath) {
   const guarded = rewrite(readFileSync(bundlePath, 'utf8'), GUARDS);
   const shimmed = rewrite(guarded.text, [SHIM]);
-  if (guarded.count + shimmed.count > 0) writeFileSync(bundlePath, shimmed.text, 'utf8');
-  const guard = guardResult(guarded.count, shimmed.text);
-  return { guard, shim: shimResult(shimmed.count, shimmed.text) };
+  const split = rewrite(shimmed.text, [COOKIE]);
+  const count = guarded.count + shimmed.count + split.count;
+  if (count > 0) writeFileSync(bundlePath, split.text, 'utf8');
+  const guard = guardResult(guarded.count, split.text);
+  const shim = shimResult(shimmed.count, split.text);
+  return { guard, shim, cookie: cookieResult(split.count, split.text) };
 }
 
 /**
  * Build the result of a run that never inspected the bundle.
  *
  * @param reason - Why the bundle was not inspected.
- * @returns Guard and shim results with `null` counts, which strict mode
- *   never accepts.
+ * @returns Guard, shim and split results with `null` counts, which strict
+ *   mode never accepts.
  */
 function skipped(reason) {
   const outcome = `skipped (${reason})`;
-  return { guard: { outcome, sites: null, left: null }, shim: { outcome, calls: null } };
+  const guard = { outcome, sites: null, left: null };
+  return { guard, shim: { outcome, calls: null }, cookie: { outcome, responses: null } };
 }
 
 /**
  * Patch one copy, absorbing every failure so an install can never break.
  *
  * @param copyDir - Real playwright-core directory.
- * @returns Guard and shim results (`null` counts when not inspected).
+ * @returns Guard, shim and split results (`null` counts when not inspected).
  */
 function patchCopy(copyDir) {
   try {
@@ -344,6 +432,30 @@ function shimMismatches(calls) {
 }
 
 /**
+ * Describe the Set-Cookie split when its response sites differ from the review.
+ *
+ * @param responses - Known-form and total response sites; `null` when not inspected.
+ * @returns One `COOKIE-SITES` line on a mismatch; empty otherwise.
+ */
+function cookieMismatches(responses) {
+  if (responses === null) return [];
+  const { known, sites } = responses;
+  if (known === REVIEWED_RESPONSES && sites === REVIEWED_RESPONSES) return [];
+  return [`COOKIE-SITES ${known}/${REVIEWED_RESPONSES} (${sites} sites) ${RESPONSE_SITE}`];
+}
+
+/**
+ * Every mismatch `--strict` reports for one copy, guard first.
+ *
+ * @param result - Guard, shim and split results of one copy.
+ * @returns The mismatch lines; empty when the copy matches the review.
+ */
+function strictMismatches({ guard, shim, cookie }) {
+  const guardLines = [...siteMismatches(guard.sites ?? []), ...leftMismatches(guard.left)];
+  return [...guardLines, ...shimMismatches(shim.calls), ...cookieMismatches(cookie.responses)];
+}
+
+/**
  * Read the mode before anything is resolved or written.
  *
  * @returns Whether `--strict` was passed. Any other argument prints the
@@ -360,17 +472,18 @@ function strictMode() {
 /**
  * Report one copy and, under `--strict`, whether it was proven.
  *
- * @param result - Guard, shim and label of one copy.
+ * @param result - Guard, shim, split and label of one copy.
  * @param isStrict - Whether `--strict` was passed.
  * @returns `true` when not strict, or every check of the copy matched the review.
  */
-function reportCopy({ guard, shim, label }, isStrict) {
+function reportCopy(result, isStrict) {
+  const { guard, shim, cookie, label } = result;
   if (label) report(`playwright-core copy: ${label}`);
   report(`playwright-core pageError guard: ${guard.outcome}`);
   report(`playwright-core interception shim: ${shim.outcome}`);
+  report(`playwright-core Set-Cookie split: ${cookie.outcome}`);
   if (!isStrict) return true;
-  const guardLines = [...siteMismatches(guard.sites ?? []), ...leftMismatches(guard.left)];
-  const mismatches = [...guardLines, ...shimMismatches(shim.calls)];
+  const mismatches = strictMismatches(result);
   for (const line of mismatches) report(line);
   return guard.sites !== null && mismatches.length === 0;
 }
@@ -380,8 +493,9 @@ function reportCopy({ guard, shim, label }, isStrict) {
  *
  * @returns 0 by default; under `--strict`, 0 only when, in every copy, every
  *   guard has exactly `REVIEWED_SITES` guarded sites, no read is left
- *   unguarded, and every interception call is one of the `REVIEWED_CALLS`
- *   shimmed sends.
+ *   unguarded, every interception call is one of the `REVIEWED_CALLS`
+ *   shimmed sends, and every response site is one of the
+ *   `REVIEWED_RESPONSES` that split `Set-Cookie`.
  */
 function main() {
   const isStrict = strictMode();

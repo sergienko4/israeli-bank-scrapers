@@ -29,13 +29,13 @@ From 1.63, `playwright-core` sends a context's `httpCredentials` as a list, and 
 
 **What to do:** Don't create a context with `httpCredentials` for this library, for example one you pass in as `browserContext`. No `playwright-core` minor this library tests supports it with Camoufox yet.
 
-### 8.9.0 - Request routing restored on `playwright-core` 1.64
+### 8.9.0 - `playwright-core` 1.64 supported
 
 **Impact:** Behavior
 
-`playwright-core` 1.64 sends a new `bypassServiceWorker` field when it turns on request interception. No released Camoufox accepts it, so `page.route()` failed with a protocol error. `context.route()` was unaffected: Firefox turns on context-wide interception through a different call. The `postinstall` patch now drops that field and sends the 1.63 payload. It restores routing only. On 1.64, `headersArray()` and `headerValues('set-cookie')` return a response's `Set-Cookie` lines as one merged entry instead of one entry per cookie, and nothing reports an error. `headers()` and the cookie jar still see every cookie. This library reads only `headers()`, but it stays tested on the `playwright-core` minor it pins in CI until Camoufox catches up with 1.64.
+`playwright-core` 1.64 changed two things no released Camoufox follows yet, and the `postinstall` patch now adapts both. It sends a new `bypassServiceWorker` field when it turns on request interception, which Camoufox rejects, so `page.route()` failed with a protocol error. `context.route()` was unaffected: Firefox turns on context-wide interception through a different call. The patch drops that field and sends the 1.63 payload. 1.64 also stopped splitting the `Set-Cookie` lines Camoufox reports as one header, so `headersArray()` and `headerValues('set-cookie')` returned one merged entry instead of one per cookie, and nothing reported an error. The patch splits them again. CI now tests this library on 1.64.
 
-**What to do:** None when install scripts run. With `--ignore-scripts`, run `node node_modules/@sergienko4/israeli-bank-scrapers/scripts/patch-playwright-core.mjs` after installing. See Troubleshooting for the error text.
+**What to do:** None when install scripts run. With `--ignore-scripts`, run `node node_modules/@sergienko4/israeli-bank-scrapers/scripts/patch-playwright-core.mjs` after installing. See Troubleshooting for the routing error text.
 
 ### 8.6.1 - Camoufox browser engine upgraded to 0.11.x
 

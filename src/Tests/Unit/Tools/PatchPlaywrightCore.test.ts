@@ -24,7 +24,7 @@
  * a real playwright-core into the "not resolvable" case.
  */
 
-import { mkdirSync, readFileSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { readFileSync, utimesSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -32,19 +32,26 @@ import {
   allSitesLines,
   atBothSites,
   bundleOf,
+  COOKIE_CLEAN,
+  COOKIE_PREFIX,
   GUARDED,
   type IRun,
   type ISandbox,
   leftLine,
   linesOf,
   makeRoot,
+  mtimeOf,
   NOT_APPLIED,
   patchedBundleOf,
   PREFIX,
+  readBundle,
   removeRoots,
   RENAMED,
   reportOf,
+  RESPONSE_164,
   runPatcher,
+  sandboxWithBundle,
+  sandboxWithoutBundle,
   SCRIPT,
   SCRIPT_NAME,
   SENT_163,
@@ -52,6 +59,8 @@ import {
   SHIM_PREFIX,
   sitesLine,
   UNGUARDED,
+  UNTOUCHED_MS,
+  UNTOUCHED_MTIME,
 } from '../../Helpers/PatchPlaywrightCoreSandbox.js';
 
 const THIS_FILE = fileURLToPath(import.meta.url);
@@ -94,10 +103,6 @@ const BRACKET_FIELD = UNGUARDED.map((read): string =>
 const SAFE_BRACKET = UNGUARDED.map((read): string =>
   read.replace(/\.location\.(\w+)/, ".location?.['$1']"),
 );
-
-/** A fixed past mtime; any write by the script moves it to "now". */
-const UNTOUCHED_MTIME = new Date('2000-01-01T00:00:00Z');
-const UNTOUCHED_MS = UNTOUCHED_MTIME.getTime();
 
 /** Arguments the CLI must reject: a typo, a positional, extras. */
 const BAD_ARGS: readonly { readonly args: readonly string[] }[] = [
@@ -164,47 +169,15 @@ function bothSitesWithRead(
 }
 
 /**
- * Create a sandbox whose `playwright-core` resolves but ships no bundle file.
- *
- * @returns The sandbox; its bundle path does not exist yet.
- */
-function sandboxWithoutBundle(): ISandbox {
-  const root = makeRoot();
-  const pkgDir = join(root, 'node_modules', 'playwright-core');
-  const libDir = join(pkgDir, 'lib');
-  mkdirSync(libDir, { recursive: true });
-  const manifest = join(pkgDir, 'package.json');
-  writeFileSync(manifest, '{"name":"playwright-core","version":"0.0.0"}');
-  return { root, bundle: join(libDir, 'coreBundle.js') };
-}
-
-/**
- * Create a sandbox whose bundle holds the given sites and sends, with a fixed past mtime.
- *
- * @param sites - Location reads of each site written into the bundle.
- * @param calls - Interception sends written into the bundle.
- * @returns The sandbox.
- */
-function sandboxWithBundle(
-  sites: readonly (readonly string[])[],
-  calls: readonly string[] = [SENT_163],
-): ISandbox {
-  const sandbox = sandboxWithoutBundle();
-  const text = bundleOf(sites, calls);
-  writeFileSync(sandbox.bundle, text);
-  utimesSync(sandbox.bundle, UNTOUCHED_MTIME, UNTOUCHED_MTIME);
-  return sandbox;
-}
-
-/**
  * Create a sandbox whose bundle ships as upstream 1.64 does: every read
- * unguarded at both sites, the interception send carrying `bypassServiceWorker`.
+ * unguarded at both sites, the interception send carrying `bypassServiceWorker`,
+ * the response passing Set-Cookie through unsplit.
  *
  * @returns The sandbox.
  */
 function sandboxUnguarded(): ISandbox {
   const sites = atBothSites(UNGUARDED);
-  return sandboxWithBundle(sites, [SENT_164]);
+  return sandboxWithBundle(sites, [SENT_164], [RESPONSE_164]);
 }
 
 /**
@@ -241,34 +214,15 @@ function shimNotApplied(shimmed: number, sent: number): string {
 }
 
 /**
- * Read the sandbox's bundle text.
- *
- * @param sandbox - Sandbox whose bundle exists.
- * @returns Bundle text.
- */
-function readBundle(sandbox: ISandbox): string {
-  return readFileSync(sandbox.bundle, 'utf8');
-}
-
-/**
  * The outcome text of each report line of a run, without the fixed prefixes.
  *
  * @param run - A patcher run.
- * @returns The guard outcome and the shim outcome.
+ * @returns The guard, shim and Set-Cookie split outcomes.
  */
-function outcomesOf(run: IRun): readonly [string, string] {
-  const [guardLine = '', shimText = ''] = run.stdout.split('\n');
-  return [guardLine.slice(PREFIX.length), shimText.slice(SHIM_PREFIX.length)];
-}
-
-/**
- * Read a file's modification time.
- *
- * @param path - File path.
- * @returns Modification time in ms since the epoch.
- */
-function mtimeOf(path: string): number {
-  return statSync(path).mtimeMs;
+function outcomesOf(run: IRun): readonly [string, string, string] {
+  const [guardLine = '', shimText = '', cookieText = ''] = run.stdout.split('\n');
+  const guard = guardLine.slice(PREFIX.length);
+  return [guard, shimText.slice(SHIM_PREFIX.length), cookieText.slice(COOKIE_PREFIX.length)];
 }
 
 const BUNDLE_CASES: readonly IBundleCase[] = [
@@ -488,7 +442,7 @@ describe('patch-playwright-core default mode (postinstall)', () => {
   it.each(BUNDLE_CASES)('[$id] $what → exit 0, "$outcome", no GUARD-SITES', bundleCase => {
     const sandbox = sandboxWithBundle(bundleCase.sites);
     const run = runPatcher(sandbox, []);
-    const expectedOut = reportOf(bundleCase.outcome, SHIM_CLEAN);
+    const expectedOut = reportOf(bundleCase.outcome, SHIM_CLEAN, COOKIE_CLEAN);
     expect(run).toEqual({ status: 0, stdout: expectedOut, stderr: '' });
   });
 
@@ -519,7 +473,7 @@ describe('patch-playwright-core default mode (postinstall)', () => {
     const second = runPatcher(sandbox, ['--strict']);
     const twice = readBundle(sandbox);
     const mtime = mtimeOf(sandbox.bundle);
-    const expectedOut = reportOf('already guarded', SHIM_CLEAN);
+    const expectedOut = reportOf('already guarded', SHIM_CLEAN, COOKIE_CLEAN);
     expect(second).toEqual({ status: 0, stdout: expectedOut, stderr: '' });
     expect(twice).toBe(once);
     expect(mtime).toBe(UNTOUCHED_MS);
@@ -535,6 +489,7 @@ describe('patch-playwright-core --strict (CI proof)', () => {
       const expected = [
         PREFIX + bundleCase.outcome,
         SHIM_PREFIX + SHIM_CLEAN,
+        COOKIE_PREFIX + COOKIE_CLEAN,
         ...bundleCase.strict,
       ];
       const status = bundleCase.strict.length > 0 ? 1 : 0;
@@ -555,7 +510,7 @@ describe('patch-playwright-core interception shim', () => {
   it.each(SHIM_CASES)('[$id] $what → exit 0, "$outcome", no SHIM-SITES', shimCase => {
     const sandbox = sandboxWithBundle(GUARDED_SITES, shimCase.calls);
     const run = runPatcher(sandbox, []);
-    const expectedOut = reportOf('already guarded', shimCase.outcome);
+    const expectedOut = reportOf('already guarded', shimCase.outcome, COOKIE_CLEAN);
     expect(run).toEqual({ status: 0, stdout: expectedOut, stderr: '' });
   });
 
@@ -567,6 +522,7 @@ describe('patch-playwright-core interception shim', () => {
       const expected = [
         `${PREFIX}already guarded`,
         SHIM_PREFIX + shimCase.outcome,
+        COOKIE_PREFIX + COOKIE_CLEAN,
         ...shimCase.strict,
       ];
       const status = shimCase.strict.length > 0 ? 1 : 0;
@@ -598,7 +554,7 @@ describe('patch-playwright-core skips', () => {
     const sandbox = skipCase.make();
     const run = runPatcher(sandbox, [], skipCase.env);
     const [outcome] = outcomesOf(run);
-    const expectedOut = reportOf(outcome, outcome);
+    const expectedOut = reportOf(outcome, outcome, outcome);
     expect({ status: run.status, stderr: run.stderr }).toEqual({ status: 0, stderr: '' });
     expect(run.stdout).toBe(expectedOut);
     expect(outcome).toMatch(skipCase.outcome);
@@ -608,7 +564,7 @@ describe('patch-playwright-core skips', () => {
     const sandbox = skipCase.make();
     const run = runPatcher(sandbox, ['--strict'], skipCase.env);
     const [outcome] = outcomesOf(run);
-    const expectedOut = reportOf(outcome, outcome);
+    const expectedOut = reportOf(outcome, outcome, outcome);
     expect({ status: run.status, stderr: run.stderr }).toEqual({ status: 1, stderr: '' });
     expect(run.stdout).toBe(expectedOut);
     expect(outcome).toMatch(skipCase.outcome);
@@ -619,7 +575,7 @@ describe('patch-playwright-core skips', () => {
     runPatcher(sandbox, ['--strict'], { [OPT_OUT_ENV]: '1' });
     const text = readBundle(sandbox);
     const unguardedSites = atBothSites(UNGUARDED);
-    const original = bundleOf(unguardedSites, [SENT_164]);
+    const original = bundleOf(unguardedSites, [SENT_164], [RESPONSE_164]);
     const mtime = mtimeOf(sandbox.bundle);
     expect(text).toBe(original);
     expect(mtime).toBe(UNTOUCHED_MS);

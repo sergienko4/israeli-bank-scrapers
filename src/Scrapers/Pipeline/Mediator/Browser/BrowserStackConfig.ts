@@ -8,4 +8,4 @@
 export const TESTED_CAMOUFOX_TAG = 'v156.0.1-beta.36';
 
 /** playwright-core minor (`major.minor`) this package is tested on. */
-export const TESTED_PLAYWRIGHT_MINOR = '1.63';
+export const TESTED_PLAYWRIGHT_MINOR = '1.64';
