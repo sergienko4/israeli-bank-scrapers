@@ -579,6 +579,11 @@ const UNTIED = 'does not require exactly one';
 const UNTAGGED = 'names no tagged ossf/scorecard commit';
 const REQUIRED = `require (\\n\\tgithub.com/ossf/scorecard/v5 ${ENGINE}\\n)\\n`;
 const FORK = `github.com/ossf/scorecard/v5 ${ENGINE} => github.com/fork/scorecard/v5 ${ENGINE}`;
+/** The engine module as a Go quoted string, which go.mod reads as the bare path. */
+const QUOTED_MODULE = '"github.com/ossf/scorecard/v5"';
+/** The same path with its last slash escaped (`\x2f`), which Go unquotes to the engine. */
+const ESCAPED_MODULE = '"github.com/ossf/scorecard\\\\x2fv5"';
+const FORKED = `=> github.com/fork/scorecard/v5 ${OTHER_ENGINE}`;
 const ENGINE_CASES: readonly IEngineCase[] = [
   {
     name: 'no engine module',
@@ -603,6 +608,51 @@ const ENGINE_CASES: readonly IEngineCase[] = [
   {
     name: 'an exclude beside the require',
     stub: { STUB_GO_MOD: `${REQUIRED}exclude github.com/ossf/scorecard/v5 v5.5.0\\n` },
+    message: UNTIED,
+  },
+  {
+    name: 'a quoted replace',
+    stub: { STUB_GO_MOD: `${REQUIRED}replace ${QUOTED_MODULE} ${FORKED}\\n` },
+    message: UNTIED,
+  },
+  {
+    name: 'a quoted replace in a block',
+    stub: { STUB_GO_MOD: `${REQUIRED}replace (\\n\\t${QUOTED_MODULE} ${FORKED}\\n)\\n` },
+    message: UNTIED,
+  },
+  {
+    name: 'a quoted exclude',
+    stub: { STUB_GO_MOD: `${REQUIRED}exclude ${QUOTED_MODULE} v5.5.0\\n` },
+    message: UNTIED,
+  },
+  {
+    name: 'a quoted replace with an escaped slash',
+    stub: { STUB_GO_MOD: `${REQUIRED}replace ${ESCAPED_MODULE} ${FORKED}\\n` },
+    message: UNTIED,
+  },
+  {
+    name: 'a replace block opened with no space',
+    stub: { STUB_GO_MOD: `${REQUIRED}replace(\\n\\t${FORK}\\n)\\n` },
+    message: UNTIED,
+  },
+  {
+    name: 'an exclude block opened with no space',
+    stub: { STUB_GO_MOD: `${REQUIRED}exclude(\\n\\tgithub.com/ossf/scorecard/v5 v5.5.0\\n)\\n` },
+    message: UNTIED,
+  },
+  {
+    name: 'a replace split by a carriage return',
+    stub: { STUB_GO_MOD: `${REQUIRED}replace\\r${FORK}\\n` },
+    message: UNTIED,
+  },
+  {
+    name: 'a replace after an empty one-line block',
+    stub: { STUB_GO_MOD: `${REQUIRED}exclude ( )\\nreplace ${FORK}\\n` },
+    message: UNTIED,
+  },
+  {
+    name: 'a block opened by a quoted word',
+    stub: { STUB_GO_MOD: `${REQUIRED}"junk" (\\n)\\n` },
     message: UNTIED,
   },
   {

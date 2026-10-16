@@ -99,20 +99,25 @@ download() {
 }
 
 # The version a go.mod requires of the engine module, read per directive, in
-# its one-line or `( … )` block form, with `//` comments dropped. Prints
-# nothing unless exactly one `require` and no other directive names it.
+# its one-line or `( … )` block form, with `//` comments dropped and `\r`
+# read as a space, as Go reads it. Prints nothing unless exactly one
+# `require` and no other directive names it, and nothing either when a line
+# holds a quote or a parenthesis outside a bare `verb (` or `)` line: Go
+# reads `"…"` as an escaped path and `replace(` as a block, so those could
+# name the module without this reader seeing it.
 engine_requirement() {
   awk -v module="${ENGINE_MODULE}" '
-    { sub(/\r$/, ""); sub(/[[:space:]]*\/\/.*/, "") }
-    $1 == ")" { block = ""; next }
-    $2 == "(" { block = $1; next }
+    { gsub(/\r/, " "); sub(/[[:space:]]*\/\/.*/, "") }
+    NF == 1 && $1 == ")" { block = ""; next }
+    NF == 2 && $2 == "(" && $1 ~ /^[a-z]+$/ { block = $1; next }
+    /["`()]/ { unread++; next }
     {
       directive = (block == "") ? $1 : block
       at = (block == "") ? 2 : 1
       if ($at != module) next
       if (directive == "require") { n++; v = $(at + 1) } else { other++ }
     }
-    END { if (n == 1 && other == 0) print v }
+    END { if (n == 1 && other == 0 && unread == 0) print v }
   ' "$1"
 }
 
@@ -122,7 +127,8 @@ engine_requirement() {
 # commented-out pin does not count. Its go.mod must name the engine module in
 # exactly one `require` — a `replace` or `exclude` naming it too would build
 # something other than that release — at a release version, not a
-# pseudo-version.
+# pseudo-version, and with no quote or glued `(` outside a `//` comment,
+# so neither can hide such a directive.
 read_action_engine() {
   local mentions uses refs sha
   mentions="$(awk '!/^[[:space:]]*#/ && /ossf\/scorecard-action@/ { n++ } END { print n + 0 }' \
@@ -142,7 +148,8 @@ read_action_engine() {
   SCORECARD_VERSION="$(engine_requirement "${WORK}/action-go.mod")"
   if ! [[ "${SCORECARD_VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "scorecard-action ${sha} (${ACTION_WORKFLOW}) does not require exactly one" \
-      "${ENGINE_MODULE} release; its go.mod says: $(grep -F "${ENGINE_MODULE}" \
+      "${ENGINE_MODULE} release in plain go.mod syntax (no quotes, parentheses" \
+      "only on block lines); its go.mod says: $(grep -F "${ENGINE_MODULE}" \
       "${WORK}/action-go.mod" | tr -s '[:space:]' ' ')" >&2
     return 1
   fi

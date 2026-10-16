@@ -133,7 +133,10 @@ merge commit with no credentials, and the step runs
    that commit's `go.mod`, and runs the one tagged
    `github.com/ossf/scorecard/v5` release it requires — a `replace` or
    `exclude` of the module, a pseudo-version or anything but exactly one
-   `require` stops it.
+   `require` stops it. It reads only a narrow form of `go.mod`: outside `//`
+   comments, a quote (even on an unrelated line) or a parenthesis anywhere
+   but a bare `verb (` or `)` line stops it too, since Go reads `"…"` as an
+   escaped path and `replace(` as a block.
    The script names no version, so the gate always runs the scan's engine.
    That check reads lines, so it cannot tell a step from text inside a
    `run: |` block; `ScorecardNpmPinGate.test.ts` parses the workflow as YAML
