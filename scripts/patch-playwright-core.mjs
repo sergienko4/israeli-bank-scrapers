@@ -68,9 +68,10 @@
  * send, whatever its quoting or line breaks. Otherwise it prints
  * `SHIM-SITES <shimmed>/<reviewed> (<sent> sent) <shimmed form>`. The
  * Firefox response must be built from a Juggler event at exactly
- * `REVIEWED_RESPONSES` sites, whatever their later arguments, each splitting
- * `Set-Cookie` in a known form (1.63's own or the patched one); otherwise it
- * prints `COOKIE-SITES <known>/<reviewed> (<sites> sites) <site>`.
+ * `REVIEWED_RESPONSES` sites, whatever their formatting or arguments,
+ * each splitting `Set-Cookie` in a known form (1.63's own or the patched
+ * one); otherwise it prints
+ * `COOKIE-SITES <known>/<reviewed> (<sites> sites) <site>`.
  * Any skip — no copy found, opt-out, or a read or write error on any copy —
  * exits 1, because that copy was not verified.
  */
@@ -145,10 +146,12 @@ const RESPONSE_SITE = 'timing, getResponseBody, event.fromServiceWorker';
 const RESPONSE_HEAD = String.raw`new [\w$]+\([\w$.]+, event\.status, `;
 
 /**
- * Every response built from a Juggler event, whatever its header list or
- * later arguments, so a site the exact rewrite cannot read is still counted.
+ * Every response built from a Juggler event: a `new` expression that reads
+ * `event.status` within its statement, whatever its formatting or arguments,
+ * so a site the exact rewrite cannot read is still counted. It over-counts
+ * rather than under-counts, so a stray match fails `--strict` loudly.
  */
-const RESPONSE_BUILD = new RegExp(String.raw`${RESPONSE_HEAD}event\.statusText, `, 'gu');
+const RESPONSE_BUILD = /new\s+[\w$]+\s*\([^;]*?\bevent\.status\b/gu;
 
 /**
  * A header-list form, matched only where a response build starts it, so the
@@ -306,9 +309,9 @@ function shimResult(count, text) {
  *
  * <p>A 1.63 build splits `Set-Cookie` itself, as does an already patched 1.64
  * build, so both report it already split. Every response built from a Juggler
- * event counts as a site, whatever its later arguments, so a site the exact
- * rewrite cannot read is still counted; a known form counts only where a
- * response build starts it.
+ * event counts as a site, whatever its formatting or arguments, so a
+ * site the exact rewrite cannot read is still counted; a known form counts
+ * only where a response build starts it.
  *
  * @param count - Response sites split by this run.
  * @param text - Bundle text after patching.

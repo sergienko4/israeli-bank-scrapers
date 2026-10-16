@@ -61,6 +61,17 @@ const RESPONSE_RETAILED = RESPONSE_164.replace('event.fromServiceWorker)', 'fals
 /** 1.64's header-list text outside any response build: never rewritten, never counted. */
 const STRAY_TAIL = `report(event.statusText, event.headers, ${RESPONSE_SITE})`;
 
+/** 1.64 responses the exact rewrite cannot read but the count still sees. */
+const RESPONSE_STATUS_FALLBACK = RESPONSE_164.replace(
+  'event.statusText,',
+  'event.statusText || "",',
+);
+const RESPONSE_WRAPPED = RESPONSE_164.replace('event.status, ', 'event.status,\n          ');
+const RESPONSE_NESTED = RESPONSE_164.replace(
+  'request2.request',
+  'resolveRequest(request2, event.requestId)',
+);
+
 /** Both pageError sites guarded and the 1.63 send, so only the response varies. */
 const GUARDED_SITES = atBothSites(GUARDED);
 const CALLS = [SENT_163];
@@ -219,6 +230,27 @@ const COOKIE_CASES: readonly ICookieCase[] = [
     responses: [RESPONSE_UNKNOWN, STRAY_TAIL],
     outcome: cookieNotApplied(0, 1),
     strict: [cookieLine(0, 1)],
+  },
+  {
+    id: 'PPC-83',
+    what: 'a 1.64 response beside one with a status-text fallback',
+    responses: [RESPONSE_164, RESPONSE_STATUS_FALLBACK],
+    outcome: COOKIE_SPLIT,
+    strict: [cookieLine(1, 2)],
+  },
+  {
+    id: 'PPC-84',
+    what: 'a 1.64 response beside one wrapped onto a new line',
+    responses: [RESPONSE_164, RESPONSE_WRAPPED],
+    outcome: COOKIE_SPLIT,
+    strict: [cookieLine(1, 2)],
+  },
+  {
+    id: 'PPC-85',
+    what: 'a 1.64 response beside one whose first argument holds a comma',
+    responses: [RESPONSE_164, RESPONSE_NESTED],
+    outcome: COOKIE_SPLIT,
+    strict: [cookieLine(1, 2)],
   },
 ];
 
