@@ -13,7 +13,6 @@ import { CamoufoxFetcher, OS_NAME } from '@hieutran094/camoufox-js/dist/pkgman.j
 import { jest } from '@jest/globals';
 
 import {
-  candidateReleases,
   fetchReleases,
   type IPlatformAssetCheck,
   type IRelease,
@@ -201,27 +200,8 @@ describe('selectRelease', () => {
   });
 });
 
-describe('candidateReleases', () => {
-  it('[CR-5] lists the ten newest version tags and drops other tags', () => {
-    const versions = Array.from({ length: 12 }, (_, i): IRelease => {
-      const kind = i % 2 === 0 ? 'prerelease' : 'stable';
-      return release(`v156.0.1-beta.${String(40 - i)}`, kind);
-    });
-    const page = [versions[0], release('font-bundle-v1', 'stable'), ...versions.slice(1)];
-    const rows = candidateReleases(page);
-    const [first, second] = rows;
-    const tags = rows.map(r => r.tag);
-    expect(rows).toHaveLength(10);
-    expect([first, second]).toEqual([
-      { tag: 'v156.0.1-beta.40', prerelease: true },
-      { tag: 'v156.0.1-beta.39', prerelease: false },
-    ]);
-    expect(tags).not.toContain('font-bundle-v1');
-  });
-});
-
 describe('fetchReleases', () => {
-  it('[CR-6] reads the page camoufox-js reads and sends the token as a bearer', async () => {
+  it('[CR-5] reads the page camoufox-js reads and sends the token as a bearer', async () => {
     const page = [release('v156.0.1-beta.35', 'stable')];
     const body = JSON.stringify(page);
     const fake = serving(body);
@@ -231,13 +211,13 @@ describe('fetchReleases', () => {
     expect(fake.calls[0].init.headers).toMatchObject({ authorization: 'Bearer token-1' });
   });
 
-  it('[CR-7] sends no authorization without a token', async () => {
+  it('[CR-6] sends no authorization without a token', async () => {
     const fake = serving('[]');
     await fetchReleases({}, fake);
     expect(fake.calls[0].init.headers).not.toHaveProperty('authorization');
   });
 
-  it('[CR-8] refuses a body that is not a list', async () => {
+  it('[CR-7] refuses a body that is not a list', async () => {
     const fake = serving('{"message":"Not Found"}');
     const fetching = fetchReleases({}, fake);
     await expect(fetching).rejects.toThrow('is not a list of releases');

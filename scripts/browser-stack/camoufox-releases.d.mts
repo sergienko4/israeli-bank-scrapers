@@ -21,12 +21,6 @@ export interface IRelease {
   readonly assets: readonly IReleaseAsset[];
 }
 
-/** One row of the candidate table. */
-export interface ICandidateRelease {
-  readonly tag: string;
-  readonly prerelease: boolean;
-}
-
 /** camoufox-js's asset check for one platform. */
 export interface IPlatformAssetCheck {
   readonly platform: string;
@@ -35,9 +29,6 @@ export interface IPlatformAssetCheck {
 
 /** The page camoufox-js reads. */
 export declare const RELEASES_URL: string;
-
-/** How many of the newest version-tagged releases the candidate table lists. */
-export declare const CANDIDATE_COUNT: number;
 
 /**
  * GitHub API request headers, with the token as a bearer when one is set.
@@ -70,14 +61,6 @@ export function selectRelease(
   releases: readonly IRelease[],
   acceptsAsset: (asset: IReleaseAsset) => boolean,
 ): string | null;
-
-/**
- * The newest version-tagged releases, for the candidate table.
- *
- * @param releases - The releases page, newest first.
- * @returns Up to ten rows.
- */
-export function candidateReleases(releases: readonly IRelease[]): ICandidateRelease[];
 
 /**
  * camoufox-js's own asset check for this machine, and the platform it checks.

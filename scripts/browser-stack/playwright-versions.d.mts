@@ -22,22 +22,6 @@ export interface ICaretRange {
   readonly high: readonly number[];
 }
 
-/** Where the candidate versions come from besides the packument. */
-export interface ICandidateSources {
-  /** The lockfile version. */
-  readonly locked: string;
-  /** `playwrightCore.testedMinor` of the manifest. */
-  readonly testedMinor: string;
-  /** The library's own playwright-core range. */
-  readonly range: ICaretRange;
-}
-
-/** One candidate version and every reason it is listed. */
-export interface IPlaywrightCandidate {
-  readonly version: string;
-  readonly labels: readonly string[];
-}
-
 /** The abbreviated packument URL. */
 export declare const PACKUMENT_URL: string;
 
@@ -79,40 +63,3 @@ export function caretRange(text: string): ICaretRange;
  * @returns Version.
  */
 export function resolveRange(packument: IPackument, range: ICaretRange): string | undefined;
-
-/**
- * The row label of the version a range resolves to.
- *
- * @param range - The range as written.
- * @returns `range <range>`.
- */
-export function rangeLabel(range: string): string;
-
-/**
- * The minor after `minor`: `1.63` → `1.64`.
- *
- * @param minor - `major.minor`.
- * @returns `major.minor`.
- */
-export function nextMinor(minor: string): string;
-
-/**
- * The highest stable patch of `minor`, or `undefined` when none is published.
- *
- * @param versions - Every published version.
- * @param minor - `major.minor`.
- * @returns Version.
- */
-export function highestPatch(versions: readonly string[], minor: string): string | undefined;
-
-/**
- * Candidate versions, deduplicated, each with every reason it is listed.
- *
- * @param packument - The abbreviated packument.
- * @param sources - Lockfile version, `testedMinor`, consumer range.
- * @returns Rows in lockfile, next-minor, range order.
- */
-export function playwrightCandidates(
-  packument: IPackument,
-  sources: ICandidateSources,
-): IPlaywrightCandidate[];

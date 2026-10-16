@@ -1,32 +1,24 @@
 /**
- * The playwright-core versions the weekly watch pairs with Camoufox releases.
+ * The playwright-core version a consumer install resolves, for the weekly watch.
  *
- * - the lockfile version — what CI runs;
- * - the highest stable patch of the minor after `testedMinor` — the next
- *   Dependabot bump;
- * - what a consumer's install resolves from the library's own
- *   `dependencies['playwright-core']` range in package.json: `latest` when it
- *   satisfies the range, else the highest stable version that does, as npm picks.
- *
- * Duplicates collapse into one row that keeps every label. The registry does
- * not resolve ranges, so both come from the abbreviated packument's version
- * list; prereleases (`-alpha`, `-beta`, `-next`) are never candidates. Only a
- * caret range on a stable version (`^1.62.0`) is resolved: any other form is
- * RANGE-UNSUPPORTED, an input failure, rather than a guess.
+ * A consumer's install resolves the library's own
+ * `dependencies['playwright-core']` range in package.json: `latest` when it
+ * satisfies the range, else the highest stable version that does, as npm picks.
+ * The registry does not resolve ranges, so the version comes from the
+ * abbreviated packument's version list; prereleases (`-alpha`, `-beta`,
+ * `-next`) never count. Only a caret range on a stable version (`^1.62.0`) is
+ * resolved: any other form is RANGE-UNSUPPORTED, an input failure, rather
+ * than a guess.
  */
 import { readFileSync } from 'node:fs';
 
 import { fetchBounded } from './fetch-protocol.mjs';
 import { GateInfraError } from './gate-inputs.mjs';
-import { minorOf } from './gate-report.mjs';
 
 /**
  * @typedef {import('./gate.d.mts').IFetchIo} IFetchIo
  * @typedef {import('./playwright-versions.d.mts').IPackument} IPackument
  * @typedef {import('./playwright-versions.d.mts').ICaretRange} ICaretRange
- * @typedef {import('./playwright-versions.d.mts').ICandidateSources} ICandidateSources
- * @typedef {import('./playwright-versions.d.mts').IPlaywrightCandidate} IPlaywrightCandidate
- * @typedef {[string | undefined, string]} Listed - A version, if any, and why it is listed.
  */
 
 /** The abbreviated packument: every version and the dist-tags. */
@@ -136,23 +128,6 @@ function highest(versions, keep) {
   return kept.sort(compareParts).at(-1)?.join('.');
 }
 
-/** @type {(minor: string) => string} The minor after `minor`: `1.63` → `1.64`. */
-export const nextMinor = minor => {
-  const [major, value] = minor.split('.');
-  return `${major}.${Number(value) + 1}`;
-};
-
-/**
- * The highest stable patch of `minor`, or `undefined` when none is published.
- *
- * @param {readonly string[]} versions - Every published version.
- * @param {string} minor - `major.minor`.
- * @returns {string | undefined} Version.
- */
-export function highestPatch(versions, minor) {
-  return highest(versions, v => minorOf(v) === minor);
-}
-
 /**
  * What npm installs for `range`, or `undefined` when no stable version satisfies it.
  *
@@ -167,34 +142,4 @@ export function resolveRange(packument, range) {
   const latest = packument['dist-tags']?.latest;
   if (latest !== undefined && inRange(latest)) return latest;
   return highest(Object.keys(packument.versions ?? {}), inRange);
-}
-
-/** @type {(range: string) => string} The row label of the version a range resolves to. */
-export const rangeLabel = range => `range ${range}`;
-
-/** Listed versions as rows: each version once, with every label, unlisted ones dropped. */
-function collapse(/** @type {readonly Listed[]} */ listed) {
-  /** @type {Map<string, string[]>} */
-  const rows = new Map();
-  for (const [version, label] of listed.filter(([v]) => STABLE.test(String(v)))) {
-    rows.set(String(version), [...(rows.get(String(version)) ?? []), label]);
-  }
-  return [...rows].map(([version, labels]) => ({ version, labels }));
-}
-
-/**
- * Candidate versions, deduplicated, each with every reason it is listed.
- *
- * @param {IPackument} packument - The abbreviated packument.
- * @param {ICandidateSources} sources - Lockfile version, `testedMinor`, consumer range.
- * @returns {IPlaywrightCandidate[]} Rows in lockfile, next-minor, range order.
- */
-export function playwrightCandidates(packument, sources) {
-  const next = nextMinor(sources.testedMinor);
-  const versions = Object.keys(packument.versions ?? {});
-  return collapse([
-    [sources.locked, 'lockfile'],
-    [highestPatch(versions, next), `next minor ${next}`],
-    [resolveRange(packument, sources.range), rangeLabel(sources.range.text)],
-  ]);
 }

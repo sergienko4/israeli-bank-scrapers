@@ -14,10 +14,6 @@
  *
  * Camoufox has moved its source tree before, so the browser side is a list of
  * candidate URLs, newest layout first; only an HTTP 404 moves on to the next.
- *
- * Given a cache, {@link fetchProtocol} fetches each URL once: the weekly watch
- * passes one per run, so pairs that share a `Protocol.js` share its fetch and
- * its failure. The gate CLI passes none and fetches on every call.
  */
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -26,7 +22,7 @@ import { setTimeout as delay } from 'node:timers/promises';
  * @typedef {import('./gate.d.mts').IFetchIo} IFetchIo
  * @typedef {import('./fetch-protocol.d.mts').IFetchPolicy} IFetchPolicy
  * @typedef {import('./fetch-protocol.d.mts').IFetchedBody} IFetchedBody
- * @typedef {Required<Omit<IFetchIo, 'cache'>> & { readonly policy: IFetchPolicy }} FetchIo
+ * @typedef {Required<IFetchIo> & { readonly policy: IFetchPolicy }} FetchIo
  *   - Fetch I/O, defaults and policy filled in.
  * @typedef {FetchIo & { readonly signal: AbortSignal }} AttemptIo - I/O of one attempt.
  */
@@ -221,21 +217,15 @@ export async function fetchBounded(href, policy, overrides = {}) {
 }
 
 /**
- * Fetch one schema under the gate's policy, once per URL when `overrides.cache` is given.
- *
- * A cached promise is returned whether it is pending, fulfilled or rejected,
- * so a failure is reused rather than retried; the retries are fetchBounded's.
+ * Fetch one schema under the gate's policy.
  *
  * @param {string} href - Absolute URL on {@link ALLOWED_HOST}.
- * @param {IFetchIo} [overrides] - Test I/O, and the cache of one watch run.
+ * @param {IFetchIo} [overrides] - Test I/O.
  * @returns {Promise<IFetchedBody>} Body text and the sha256 of its bytes.
  * @throws {FetchFailedError} When no attempt yields a body.
  */
 export function fetchProtocol(href, overrides = {}) {
-  const cache = overrides.cache ?? new Map();
-  const body = cache.get(href) ?? fetchBounded(href, GATE_POLICY, overrides);
-  cache.set(href, body);
-  return body;
+  return fetchBounded(href, GATE_POLICY, overrides);
 }
 
 /** @type {(error: unknown) => boolean} Whether a fetch failed with a final HTTP 404. */
@@ -245,7 +235,7 @@ const isNotFound = error => error instanceof FetchFailedError && error.status ==
  * The first candidate that exists. Only a 404 moves on; any other failure is final.
  *
  * @param {string[]} hrefs - Candidate URLs, most likely first.
- * @param {IFetchIo} [overrides] - Test I/O, and the cache of one watch run.
+ * @param {IFetchIo} [overrides] - Test I/O.
  * @returns {Promise<IFetchedBody>} Body text and the sha256 of its bytes.
  * @throws {FetchFailedError} On a non-404 failure, or a 404 at every candidate.
  */

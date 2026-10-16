@@ -13,21 +13,16 @@
 import process from 'node:process';
 
 import { FetchFailedError, fetchBounded } from './fetch-protocol.mjs';
-import { CAMOUFOX_TAG } from './manifest.mjs';
 
 /**
  * @typedef {import('./camoufox-releases.d.mts').IRelease} IRelease
  * @typedef {import('./camoufox-releases.d.mts').IReleaseAsset} IReleaseAsset
- * @typedef {import('./camoufox-releases.d.mts').ICandidateRelease} ICandidateRelease
  * @typedef {import('./camoufox-releases.d.mts').IPlatformAssetCheck} IPlatformAssetCheck
  * @typedef {import('./gate.d.mts').IFetchIo} IFetchIo
  */
 
 /** The page camoufox-js reads. */
 export const RELEASES_URL = 'https://api.github.com/repos/daijro/camoufox/releases';
-
-/** How many of the newest version-tagged releases the candidate table lists. */
-export const CANDIDATE_COUNT = 10;
 
 /** The page is about 0.5 MB and grows with release notes; leave room. */
 const MAX_RELEASES_BYTES = 8 * 1024 * 1024;
@@ -78,20 +73,6 @@ const eligible = release => !release.prerelease && !release.draft;
 export function selectRelease(releases, acceptsAsset) {
   const chosen = releases.find(r => eligible(r) && (r.assets ?? []).some(acceptsAsset));
   return chosen?.tag_name ?? null;
-}
-
-/**
- * The newest version-tagged releases, for the candidate table.
- *
- * Tags such as `font-bundle-v1` are not browser versions the gate can compare, so they are left out.
- *
- * @param {readonly IRelease[]} releases - The releases page, newest first.
- * @returns {ICandidateRelease[]} Up to {@link CANDIDATE_COUNT} rows.
- */
-export function candidateReleases(releases) {
-  const tagged = releases.filter(r => CAMOUFOX_TAG.test(String(r.tag_name)));
-  const newest = tagged.slice(0, CANDIDATE_COUNT);
-  return newest.map(r => ({ tag: r.tag_name, prerelease: Boolean(r.prerelease) }));
 }
 
 /**

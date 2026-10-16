@@ -66,10 +66,10 @@ export function protocolUrls(
 ): { readonly client: string; readonly browser: string[] };
 
 /**
- * Fetch one schema under the gate's policy, once per URL when `overrides.cache` is given.
+ * Fetch one schema under the gate's policy.
  *
  * @param href - Absolute URL on {@link ALLOWED_HOST}.
- * @param overrides - Test I/O, and the cache of one watch run.
+ * @param overrides - Test I/O.
  * @returns The body and its sha256.
  * @throws {FetchFailedError} When no attempt yields a body.
  */
@@ -79,7 +79,7 @@ export function fetchProtocol(href: string, overrides?: IFetchIo): Promise<IFetc
  * The first candidate that exists. Only a 404 moves on; any other failure is final.
  *
  * @param hrefs - Candidate URLs, most likely first.
- * @param overrides - Test I/O, and the cache of one watch run.
+ * @param overrides - Test I/O.
  * @returns The body and its sha256.
  * @throws {FetchFailedError} On a non-404 failure, or a 404 at every candidate.
  */
