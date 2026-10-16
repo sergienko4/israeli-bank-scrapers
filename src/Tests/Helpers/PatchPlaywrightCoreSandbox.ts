@@ -250,6 +250,32 @@ export function mtimeOf(path: string): number {
 }
 
 /**
+ * A bash line that caps every file its command writes at one block, then
+ * runs the command: a write past the cap fails with `EFBIG`, as a full disk
+ * would fail it.
+ */
+const ONE_BLOCK_FILES = 'ulimit -f 1 && exec "$0" "$@"';
+
+/**
+ * Spawn a command in the sandbox with a minimal environment.
+ *
+ * @param sandbox - Sandbox to run in.
+ * @param command - Executable, then its arguments.
+ * @param env - Extra environment variables.
+ * @returns Exit status (-1 when killed) and both output streams.
+ */
+function spawnIn(
+  sandbox: ISandbox,
+  command: readonly [string, ...string[]],
+  env: Readonly<Record<string, string>>,
+): IRun {
+  const [file, ...args] = command;
+  const fullEnv = { PATH: process.env.PATH ?? '', HOME: sandbox.root, ...env };
+  const result = spawnSync(file, args, { encoding: 'utf8', env: fullEnv });
+  return { status: result.status ?? -1, stdout: result.stdout, stderr: result.stderr };
+}
+
+/**
  * Run the sandbox's copy of the script with a minimal environment.
  *
  * @param sandbox - Sandbox to run in.
@@ -263,9 +289,20 @@ export function runPatcher(
   env: Readonly<Record<string, string>> = {},
 ): IRun {
   const script = join(sandbox.root, 'scripts', SCRIPT_NAME);
-  const fullEnv = { PATH: process.env.PATH ?? '', HOME: sandbox.root, ...env };
-  const result = spawnSync(process.execPath, [script, ...args], { encoding: 'utf8', env: fullEnv });
-  return { status: result.status ?? -1, stdout: result.stdout, stderr: result.stderr };
+  return spawnIn(sandbox, [process.execPath, script, ...args], env);
+}
+
+/**
+ * Run the script in default mode under `/bin/bash` while every file it writes
+ * is capped at one block, so a write of a larger bundle fails part-way. Only
+ * a host where `canRunPosixBash` holds can run it.
+ *
+ * @param sandbox - Sandbox to run in.
+ * @returns Exit status (-1 when killed) and both output streams.
+ */
+export function runPatcherWithFullDisk(sandbox: ISandbox): IRun {
+  const script = join(sandbox.root, 'scripts', SCRIPT_NAME);
+  return spawnIn(sandbox, ['/bin/bash', '-c', ONE_BLOCK_FILES, process.execPath, script], {});
 }
 
 /**

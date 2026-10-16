@@ -139,8 +139,11 @@ node node_modules/@sergienko4/israeli-bank-scrapers/scripts/patch-playwright-cor
 ```
 
 The script is idempotent and never fails an install — re-running it on an
-already-guarded tree is a no-op. Set `SKIP_PLAYWRIGHT_CORE_PATCH=1` to opt out
-entirely if you manage `playwright-core` patches yourself.
+already-patched tree is a no-op. It writes the patched bundle to a scratch file
+beside it and renames that file over it, so a write that fails, for example on a
+full disk, leaves the original bundle whole and reports the copy as skipped. Set
+`SKIP_PLAYWRIGHT_CORE_PATCH=1` to opt out entirely if you manage
+`playwright-core` patches yourself.
 
 The copy that matters is the one Camoufox's launcher, `camoufox-js`, loads. A
 dependency tree can hold more than one `playwright-core`: one nested under

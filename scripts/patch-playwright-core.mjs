@@ -46,9 +46,11 @@
  * for contributors and consumers through the same code path.
  *
  * Guarantees: never fails an install (postinstall passes no arguments, and
- * that default mode always exits 0) and never writes a copy whose guard,
- * shim and split are already present. Set `SKIP_PLAYWRIGHT_CORE_PATCH=1` to
- * opt out.
+ * that default mode always exits 0), never writes a copy whose guard,
+ * shim and split are already present, and never leaves a bundle half
+ * written: the patched text goes to a scratch file that is renamed over the
+ * bundle, so a write that fails leaves the original whole. Set
+ * `SKIP_PLAYWRIGHT_CORE_PATCH=1` to opt out.
  * Any argument other than a single `--strict` is a usage error (exit 2,
  * nothing resolved or written), so a mistyped flag cannot pass as an
  * unproven run.
@@ -75,8 +77,18 @@
  * Any skip — no copy found, opt-out, or a read or write error on any copy —
  * exits 1, because that copy was not verified.
  */
+import { randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { argv, env, exit, stderr, stdout } from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -92,6 +104,9 @@ const GUARDS = [
 ];
 
 const BUNDLE_SUBPATH = ['lib', 'coreBundle.js'];
+
+/** Bits of `st_mode` that `chmod` sets. */
+const PERMISSION_BITS = 0o777;
 
 /**
  * A member read of `pageError.location` that `?.` does not protect: `location`
@@ -328,7 +343,42 @@ function cookieResult(count, text) {
 }
 
 /**
- * Rewrite the bundle in place when a guard, the shim or the split is missing.
+ * Remove an abandoned scratch file without masking the failure that
+ * abandoned it.
+ *
+ * @param tempPath - Scratch file path.
+ */
+function discardTemp(tempPath) {
+  try {
+    rmSync(tempPath, { force: true });
+  } catch {
+    // The original write or rename error is the one to report.
+  }
+}
+
+/**
+ * Replace the file at `path` with `text`: write a new, uniquely named file
+ * in the same directory with the old file's permission bits, then rename it
+ * over the target. The rename is atomic, so a reader sees the whole old file
+ * or the whole new one, and a failed write leaves the old file as it was.
+ *
+ * @param path - File to replace.
+ * @param text - New contents.
+ */
+function replaceFile(path, text) {
+  const tempPath = `${path}.${randomUUID()}.tmp`;
+  try {
+    writeFileSync(tempPath, text, { encoding: 'utf8', flag: 'wx' });
+    chmodSync(tempPath, statSync(path).mode & PERMISSION_BITS);
+    renameSync(tempPath, path);
+  } catch (error) {
+    discardTemp(tempPath);
+    throw error;
+  }
+}
+
+/**
+ * Replace the bundle when a guard, the shim or the split is missing.
  *
  * @param bundlePath - Absolute path to `coreBundle.js`.
  * @returns Guard, shim and split results for the install log.
@@ -338,7 +388,7 @@ function patchBundle(bundlePath) {
   const shimmed = rewrite(guarded.text, [SHIM]);
   const split = rewrite(shimmed.text, [COOKIE]);
   const count = guarded.count + shimmed.count + split.count;
-  if (count > 0) writeFileSync(bundlePath, split.text, 'utf8');
+  if (count > 0) replaceFile(bundlePath, split.text);
   const guard = guardResult(guarded.count, split.text);
   const shim = shimResult(shimmed.count, split.text);
   return { guard, shim, cookie: cookieResult(split.count, split.text) };
