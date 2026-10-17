@@ -1,5 +1,19 @@
 # Changelog
 
+## [8.9.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.8.0...v8.9.0) (2026-10-17)
+
+
+### Features
+
+* **browser-stack:** gate the Juggler protocol in CI (part 2/5) ([#644](https://github.com/sergienko4/israeli-bank-scrapers/issues/644)) ([9400e67](https://github.com/sergienko4/israeli-bank-scrapers/commit/9400e675b13ddd0920780a2a2b36f2089ade5840))
+* **launcher:** warn on an untested browser stack (part 4/5) ([#646](https://github.com/sergienko4/israeli-bank-scrapers/issues/646)) ([30f96cd](https://github.com/sergienko4/israeli-bank-scrapers/commit/30f96cd6ffaf880c86e26e0a69711e7126e4f978))
+
+
+### Bug Fixes
+
+* **browser-stack:** Camoufox v156 and the 1.64 routing shim (part 3/5) ([#645](https://github.com/sergienko4/israeli-bank-scrapers/issues/645)) ([9c644d0](https://github.com/sergienko4/israeli-bank-scrapers/commit/9c644d0c89897b89951fd1fad24473b1e8e00103))
+* **browser-stack:** support playwright-core 1.64 ([#656](https://github.com/sergienko4/israeli-bank-scrapers/issues/656)) ([9a475e2](https://github.com/sergienko4/israeli-bank-scrapers/commit/9a475e2fc42c895879a9c69d92e45e335168b7b3))
+
 ## [8.8.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.7.4...v8.8.0) (2026-10-11)
 
 
