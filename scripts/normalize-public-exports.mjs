@@ -1,5 +1,11 @@
 import ts from 'typescript';
 
+function hasRedundantTypeModifier(statement) {
+  if (!ts.isExportDeclaration(statement) || !statement.isTypeOnly) return false;
+  const clause = statement.exportClause;
+  return clause && ts.isNamedExports(clause) && clause.elements.some(element => element.isTypeOnly);
+}
+
 /** Only the local named-export footer may change spelling without review. */
 function isLocalExport(statement) {
   return (
@@ -48,7 +54,8 @@ function comparableFooter(text, source, footer) {
  */
 export function normalizePublicExports(text) {
   const source = ts.createSourceFile('surface.d.ts', text, ts.ScriptTarget.Latest, true);
-  if (source.parseDiagnostics.length) throw new SyntaxError('malformed declaration source');
+  const invalid = source.parseDiagnostics.length || source.statements.some(hasRedundantTypeModifier);
+  if (invalid) throw new SyntaxError('malformed declaration source');
   const footer = exportFooter(source);
   return footer.length ? comparableFooter(text, source, footer) : JSON.stringify({ exact: text });
 }

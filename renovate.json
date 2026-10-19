@@ -10,7 +10,7 @@
   "timezone": "Asia/Jerusalem",
   "labels": ["dependencies"],
   "semanticCommits": "enabled",
-  "constraints": { "npm": "10.9.2" },
+  "constraints": { "npm": "11.19.1" },
   "packageRules": [
     {
       "description": "Fail closed: disable every dependency update, including future update types. Lock file maintenance has no package name, so this rule never matches it.",

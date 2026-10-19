@@ -94,6 +94,17 @@ describe('public surface export compatibility', () => {
     expect(missing.status).toBe(2);
   });
 
+  it.each([
+    SPLIT.replace('export type {', 'export type { type'),
+    `${PREFIX}export type { type Options as Settings } from './other.js';\n`,
+    `${PREFIX}export type { type Options as Settings };\ninterface Extra {}\n`,
+  ])('rejects redundant type-only modifiers as unverifiable: %s', built => {
+    const root = makeTree(built);
+    const result = runGate(root);
+    expect(result.status).toBe(2);
+    expect(result.output).toContain('CANNOT VERIFY');
+  });
+
   it('continues refusing automatic baseline updates in CI', () => {
     const root = makeTree(SPLIT);
     const result = runGate(root, ['--update']);

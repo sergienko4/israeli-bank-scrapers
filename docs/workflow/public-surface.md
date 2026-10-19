@@ -69,7 +69,8 @@ signature, and nothing internal. `tsup` generates it from `src/index.ts` under
    Every declaration outside that footer remains byte-exact. Re-exports and
    commented or non-footer export statements also retain byte-exact comparison.
 
-Malformed declarations fail as unverifiable. CJS/ESM parity remains byte-exact,
+Parse errors and redundant type-only export modifiers fail as unverifiable.
+CJS/ESM parity remains byte-exact,
 and CI still refuses to update the snapshot. Changes to names, aliases,
 type/value identities or signatures still require review; normalization never
 writes a new baseline.

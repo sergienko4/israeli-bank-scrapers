@@ -177,11 +177,11 @@ const EXPECTED_SCHEDULE = ['* 0-5 * * 5'] as const;
  */
 const EXPECTED_RELEASE_AGE = '3 days';
 
-/** Node version CI installs; its bundled npm is {@link EXPECTED_NPM}. */
-const EXPECTED_NODE = 'v22.14.0';
+/** Node build pin CI installs; its bundled npm is {@link EXPECTED_NPM}. */
+const EXPECTED_NODE = 'v24.22.0';
 
 /** npm bundled with {@link EXPECTED_NODE}; Renovate must regenerate with it. */
-const EXPECTED_NPM = '10.9.2';
+const EXPECTED_NPM = '11.19.1';
 
 /** Hosted-app preset that would otherwise inject merge-confidence badges. */
 const EXPECTED_IGNORED_PRESETS = ['mergeConfidence:all-badges'] as const;
