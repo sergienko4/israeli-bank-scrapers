@@ -420,8 +420,10 @@ the committed manifests, not `node_modules` or a GitHub token:
 node scripts/npm-audit-watch.mjs --out /tmp/npm-audit.md
 ```
 
-Findings are a successful **monitoring** result; command, JSON and schema errors
-fail the job. Read the summary and issue, not just a green workflow badge.
+Findings are a successful **monitoring** result; npm's exit status is checked at
+the subprocess boundary, allowing status 1 only with a valid, nonempty audit.
+Command, JSON and schema errors fail the job. Read the summary and issue, not
+just a green workflow badge.
 The report describes the latest successful scan; its issue includes the source
 commit and workflow run. Reports exceeding the issue-body budget fail instead
 of silently dropping advisories.

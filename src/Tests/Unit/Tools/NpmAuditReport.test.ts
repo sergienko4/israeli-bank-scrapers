@@ -89,16 +89,16 @@ describe('npm advisory report', () => {
     }
   });
 
-  it('[NAR-9] never copies advisory titles or arbitrary metadata into Markdown', () => {
+  it.each([
+    '<script>@maintainer</script> [click](https://evil.invalid)',
+    '<SCRIPT>@maintainer</SCRIPT> [click](https://evil.invalid)',
+  ])('[NAR-9] ignores untrusted advisory titles entirely: %s', title => {
     const all = toolingAudit();
-    const advisory = {
-      url: AUDIT_URL,
-      severity: 'high',
-      title: '<script>@maintainer</script> [click](https://evil.invalid)',
-    };
+    const expected = reportOf(all);
+    const advisory = { url: AUDIT_URL, severity: 'high', title };
     all.vulnerabilities.braces.via = [advisory];
     const report = reportOf(all);
-    expect(report.body).not.toMatch(/<script>|@maintainer|evil\.invalid/u);
+    expect(report).toEqual(expected);
   });
 
   it('[NAR-10] deduplicates repeated advisory objects across affected packages', () => {

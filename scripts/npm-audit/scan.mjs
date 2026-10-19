@@ -16,7 +16,9 @@ const AUDIT_LIMITS = { encoding: 'utf8', timeout: 120_000, maxBuffer: 8 * 1024 *
 
 function runNpm(args, limits) {
   const windows = process.platform === 'win32';
-  return spawnSync(windows ? 'npm.cmd' : 'npm', args, { ...limits, shell: windows });
+  const result = spawnSync(windows ? 'npm.cmd' : 'npm', args, { ...limits, shell: windows });
+  requireAudit(!result.error && [0, 1].includes(result.status), 'AUDIT_COMMAND');
+  return result;
 }
 
 function auditResult(result) {
