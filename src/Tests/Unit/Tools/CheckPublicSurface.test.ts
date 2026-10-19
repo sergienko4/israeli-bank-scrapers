@@ -57,6 +57,16 @@ describe('public surface export compatibility', () => {
     expect(baseline).toBe(BASE);
   });
 
+  it.each(['x//y', 'x/*y'])('normalizes reordered string-literal export name %s', name => {
+    const baseline = BASE.replace('factory,', `factory as "${name}",`);
+    const built = SPLIT.replace('export { factory };', `export { factory as "${name}" };`);
+    const root = makeTree(built);
+    writeTempFile(root, 'api-surface.d.ts', baseline);
+    const result = runGate(root);
+    expect(result.status).toBe(0);
+    expect(result.output).not.toContain('PUBLIC API DRIFT');
+  });
+
   it.each([
     SPLIT.replace('Settings', 'Renamed'),
     SPLIT.replace('Options as Settings', 'Options'),
@@ -66,6 +76,7 @@ describe('public surface export compatibility', () => {
     `${SPLIT}export { factory as anotherFactory };\n`,
     SPLIT.replace('export { factory };', "export { factory } from './other.js';"),
     SPLIT.replace('export { factory };', 'export { /* reviewed export */ factory };'),
+    SPLIT.replace('export { factory };', 'export {\n// reviewed export\nfactory\n};'),
     `${SPLIT}interface Extra { value: number; }\n`,
     // Plain declaration text must never collide with serialized export identities.
     `${PREFIX}["[false,\\"factory\\",\\"factory\\"]","[true,\\"Options\\",\\"Settings\\"]"]\n`,

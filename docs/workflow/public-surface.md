@@ -68,6 +68,8 @@ signature, and nothing internal. `tsup` generates it from `src/index.ts` under
    into `export type { T }`, or reordering exports, needs no snapshot update.
    Every declaration outside that footer remains byte-exact. Re-exports and
    commented or non-footer export statements also retain byte-exact comparison.
+   Comment detection uses scanner trivia, so `//` or `/*` inside a string-literal
+   export name does not count as a comment.
 
 Parse errors and redundant type-only export modifiers fail as unverifiable.
 CJS/ESM parity remains byte-exact,

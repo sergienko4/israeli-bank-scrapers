@@ -1,5 +1,20 @@
 import ts from 'typescript';
 
+const COMMENT_TRIVIA = new Set([
+  ts.SyntaxKind.SingleLineCommentTrivia,
+  ts.SyntaxKind.MultiLineCommentTrivia,
+]);
+
+function hasComment(text) {
+  const scanner = ts.createScanner(ts.ScriptTarget.Latest, false, ts.LanguageVariant.Standard, text);
+  let token = scanner.scan();
+  while (token !== ts.SyntaxKind.EndOfFileToken) {
+    if (COMMENT_TRIVIA.has(token)) return true;
+    token = scanner.scan();
+  }
+  return false;
+}
+
 function hasRedundantTypeModifier(statement) {
   if (!ts.isExportDeclaration(statement) || !statement.isTypeOnly) return false;
   const clause = statement.exportClause;
@@ -39,7 +54,7 @@ function sortedExportEntries(footer) {
 function comparableFooter(text, source, footer) {
   const start = footer[0].getStart(source);
   const end = footer.at(-1).end;
-  if (/\/[/*]/u.test(text.slice(start, end))) return JSON.stringify({ exact: text });
+  if (hasComment(text.slice(start, end))) return JSON.stringify({ exact: text });
   const entries = sortedExportEntries(footer);
   const prefix = text.slice(0, start);
   const suffix = text.slice(end);
