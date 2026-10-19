@@ -6,6 +6,11 @@ source-files:
   - .github/scripts/ci/scorecard-npm-pins.sh
   - .github/scripts/ci/check-scorecard-npm-pins.mjs
   - scripts/filter-scorecard-sarif.mjs
+  - scripts/npm-audit-watch.mjs
+  - scripts/npm-audit/input.mjs
+  - scripts/npm-audit/report.mjs
+  - scripts/npm-audit/scan.mjs
+  - scripts/npm-audit/issue.mjs
   - package.json
   - package-lock.json
   - .github/dependabot.yml
@@ -375,6 +380,59 @@ drop it. Watch the advisory: it bounds the range by `last_affected`, so a
 widened range would re-cover 0.6.1. Consumers can add the same `overrides`
 entry, or on shared or multi-user hosts set `CAMOUFOX_INSTALL_DIR` to a private
 directory.
+
+## npm advisory monitoring: visibility even without a fix
+
+**The weekly Scorecard workflow also reports npm advisories in one bot-owned
+issue.** This independent job audits the committed lockfile twice: all
+dependencies, then production dependencies. It installs no packages, executes
+no lifecycle scripts and receives no bank secrets. Scorecard publication and
+the existing `analysis` SARIF configuration stay separate.
+
+npm counts affected **package entries**, including inherited vulnerabilities;
+the report deduplicates **advisories** by canonical GHSA URL. For example, the
+current `eslint-plugin-check-file` → `micromatch` → `braces` chain means three
+high affected-package entries but one development-only advisory. The separate
+production scan determines scope; development-only means absent from that
+scan, not proof that tooling cannot be exploited.
+
+Scheduled scans update the marked issue created by `github-actions[bot]`.
+Repeated scans replace its body without comments or duplicate issues.
+A verified clean scan closes that issue; recurrence reopens it. Human-created
+issues remain untouched. Ownership ambiguity, more than 1,000 bot-authored
+issue/PR entries, unsupported audit schemas, inconsistent results and GitHub
+request failures fail explicitly. A failed scan keeps the previous report and
+writes a failure summary; it never closes an issue or reports clean. Audit
+processes have a two-minute timeout and an 8-MiB output limit each.
+
+Manual runs on the default branch report to the workflow summary without
+changing issues by default:
+
+```bash
+gh workflow run scorecard.yml -f audit_dry_run=true
+```
+
+Set `audit_dry_run=false` to publish a manually requested rescan. Feature-branch
+dispatches skip the npm reporting job. A local dry run needs only Node/npm and
+the committed manifests, not `node_modules` or a GitHub token:
+
+```bash
+node scripts/npm-audit-watch.mjs --out /tmp/npm-audit.md
+```
+
+Findings are a successful **monitoring** result; command, JSON and schema errors
+fail the job. Read the summary and issue, not just a green workflow badge.
+The report describes the latest successful scan; its issue includes the source
+commit and workflow run. Reports exceeding the issue-body budget fail instead
+of silently dropping advisories.
+
+**Monitoring does not remove vulnerabilities.** Dependabot continues to open
+fixable security updates, and Renovate maintains the lockfile. npm's
+`fixAvailable` describes the remediation npm offers for the locked graph; it
+does not prove an upstream patched release exists or is safe. Accepted risks
+in `osv-scanner.toml` affect Scorecard only: this report keeps those advisories
+visible. When npm offers no fix, the warning persists until a reviewed upgrade
+or tooling replacement removes the affected dependency.
 
 ## Standing finding 3: braces — accepted risk, no fix exists
 

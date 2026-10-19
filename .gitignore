@@ -108,6 +108,11 @@ scripts/**
 !scripts/check-browser-stack.mjs
 # Entry point of the weekly browser-stack watch, which its workflow runs.
 !scripts/browser-stack-watch.mjs
+# Scheduled npm advisory reports run without node_modules.
+!scripts/npm-audit-watch.mjs
+!scripts/npm-audit/
+!scripts/npm-audit/*.mjs
+!scripts/npm-audit/*.d.mts
 # Generates docs/compatibility.md from compatibility.json; CI runs it with
 # --check, so it has to be in the tree for the docs gate to work.
 !scripts/build-compatibility.mjs

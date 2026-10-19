@@ -9,6 +9,11 @@ on:
   # advisories it named, with no way to ask for a re-scan. See
   # docs/workflow/code-scanning.md for how to triage what it reports.
   workflow_dispatch:
+    inputs:
+      audit_dry_run:
+        description: Report npm advisories without creating, editing or closing the report issue.
+        type: boolean
+        default: true
 
 permissions: {}
 
@@ -20,6 +25,51 @@ permissions: {}
 #   https://github.com/ossf/scorecard-action#workflow-restrictions
 
 jobs:
+  npm-audit:
+    name: npm dependency audit
+    if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: npm-dependency-audit
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version-file: .nvmrc
+      - name: Audit the locked dependency graph
+        id: audit
+        run: node scripts/npm-audit-watch.mjs --out "$RUNNER_TEMP/npm-audit.md"
+      - name: Update the dependency audit issue
+        if: ${{ !inputs.audit_dry_run }}
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          AUDIT_CLEAN: ${{ steps.audit.outputs.clean }}
+        with:
+          github-token: ${{ github.token }}
+          retries: 0
+          script: |
+            const { readFileSync } = await import('node:fs');
+            const { join } = await import('node:path');
+            const { updateAuditIssue } = await import(
+              `${process.env.GITHUB_WORKSPACE}/scripts/npm-audit/issue.mjs`
+            );
+            if (!['true', 'false'].includes(process.env.AUDIT_CLEAN)) {
+              throw new Error('Missing verified npm audit result');
+            }
+            const body = readFileSync(join(process.env.RUNNER_TEMP, 'npm-audit.md'), 'utf8');
+            const source = `\nScanned commit: ${context.sha}. Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n`;
+            await updateAuditIssue(github.rest.issues, context.repo, {
+              body: body + source,
+              clean: process.env.AUDIT_CLEAN === 'true',
+            });
+
   # With `publish_results: true` the scorecard.dev API rejects the run unless
   # every step of this job is an approved `uses:` action (checkout,
   # upload-artifact, upload-sarif, scorecard-action, harden-runner), and only
