@@ -66,6 +66,7 @@ const CRITICAL_PACKAGES = ['playwright-core', '@hieutran094/camoufox-js'] as con
 const PUBLIC_SURFACE_PATHS = [
   '^api-surface\\.d\\.ts$',
   '^scripts/check-public-surface\\.mjs$',
+  '^scripts/normalize-public-exports\\.mjs$',
   '^tsup\\.config\\.ts$',
   '^tsconfig\\.build\\.json$',
   '^tsconfig\\.json$',

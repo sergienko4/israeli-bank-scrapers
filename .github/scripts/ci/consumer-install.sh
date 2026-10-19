@@ -43,7 +43,8 @@
 # with and without that flag, so nothing is lost by using it.
 #
 # Usage:
-#   consumer-install.sh
+#   CONSUMER_NODE=/absolute/path/to/floor-node consumer-install.sh
+# Run with the build-tool Node on PATH; only smoke programs use CONSUMER_NODE.
 #
 # Exit codes:
 #   0  the package settles with an actionable outcome in every environment
@@ -53,6 +54,14 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "${REPO_ROOT}"
+
+CONSUMER_NODE="${CONSUMER_NODE:-node}"
+RUNTIME_FLOOR="$(node -p "require('./package.json').engines.node.match(/^>=\s*(\d+\.\d+\.\d+)$/)?.[1] ?? ''")"
+if [ -z "$RUNTIME_FLOOR" ] || [ "$("$CONSUMER_NODE" -p 'process.versions.node')" != "$RUNTIME_FLOOR" ]; then
+  echo "consumer-install: CONSUMER_NODE must run the engines.node floor ($RUNTIME_FLOOR)" >&2
+  exit 1
+fi
+echo "==> Consumer runtime: $("$CONSUMER_NODE" --version)"
 
 # Proof that the scrape produced an outcome at all. Its absence is the
 # silent-abandonment failure, which prints nothing by definition.
@@ -120,6 +129,7 @@ PKG_DIR="node_modules/${PKG_NAME}"
 mkdir -p "${PKG_DIR}"
 tar -xzf "${TARBALL}" -C "${PKG_DIR}" --strip-components=1
 cp "${REPO_ROOT}/.github/scripts/ci/consumer-smoke.cjs" ./smoke.cjs
+cp "${REPO_ROOT}/.github/scripts/ci/consumer-smoke.mjs" ./smoke.mjs
 
 # `pino-pretty` must be absent, or the gate proves nothing: the transport
 # would resolve and the defect would stay hidden exactly as it does in CI.
@@ -163,12 +173,12 @@ assert_expected_outcome() {
 
 # Run the consumer program under one environment and assert on the outcome.
 #
-# $1 - human-readable label for the log
-# $2 - `env` arguments describing the consumer's environment
+# $1 - consumer entrypoint program
+# $2 - human-readable environment label; remaining arguments go to `env`
 run_environment() {
-  local label="$1"
-  shift
-  echo "==> Consumer environment: ${label}"
+  local program="$1" label="$2"
+  shift 2
+  echo "==> Consumer environment: ${label} (${program})"
 
   # The exit status is part of the verdict, so it is captured rather than
   # discarded: the smoke program exits non-zero when an exception escapes to
@@ -176,7 +186,7 @@ run_environment() {
   # `set -e` while still recording what happened.
   local output
   local status=0
-  output="$(env "$@" node ./smoke.cjs 2>&1)" || status=$?
+  output="$(env "$@" "$CONSUMER_NODE" "./${program}" 2>&1)" || status=$?
 
   case "${output}" in
     *"${SETTLED_MARKER}"*)
@@ -217,10 +227,10 @@ run_environment() {
 # This is the environment no CI job can reproduce. PRETTY_LOGS is unset
 # explicitly so a developer who exports it cannot silently run this gate
 # down a different transport branch than CI does.
-run_environment "default (CI and NODE_ENV unset)" -u CI -u NODE_ENV -u PRETTY_LOGS
-
-# A consumer who does set NODE_ENV. Different transport branch, same contract.
-run_environment "NODE_ENV=production" -u CI -u PRETTY_LOGS NODE_ENV=production
+for program in smoke.cjs smoke.mjs; do
+  run_environment "$program" "default (CI and NODE_ENV unset)" -u CI -u NODE_ENV -u PRETTY_LOGS
+  run_environment "$program" "NODE_ENV=production" -u CI -u PRETTY_LOGS NODE_ENV=production
+done
 
 if [ "${FAILED}" -ne 0 ]; then
   echo "" >&2

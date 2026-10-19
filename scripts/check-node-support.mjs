@@ -10,16 +10,16 @@
  * Dependabot compatibility score once one exists: the score is the percentage
  * of downstream CI runs that passed after bumping us.
  *
- * Three sources have to agree, and each drifts for a different reason:
+ * Build and consumer runtimes are separate contracts:
  *   - `.nvmrc`              — bumped when a developer needs a newer toolchain.
  *   - `engines.node`        — edited when someone widens or narrows support.
- *   - the unit-test matrix  — trimmed when CI minutes are under pressure.
+ *   - the unit-test matrix  — includes the build pin; the packed-consumer gate
+ *                             derives its runtime floor from engines.node.
  *   - the README table      — the only one a consumer ever reads, so the one
  *                             most likely to rot unnoticed.
  *
  * Scope, stated honestly: this proves the four declarations are CONSISTENT.
- * It cannot prove the suite passes on those versions — that is the matrix's
- * job. Consistency is what rots silently; a failing matrix leg is loud.
+ * It cannot prove those tests pass — that is CI's job.
  *
  * Deliberately dependency-free: the likeliest drift is a docs-only PR editing
  * the README table, and CI skips `npm ci` for those. A gate that needs
@@ -77,7 +77,7 @@ function devVersion() {
  */
 function declaredFloor() {
   const range = JSON.parse(readFileSync(PKG, 'utf8')).engines?.node ?? '';
-  const found = /(\d+\.\d+\.\d+)/.exec(range);
+  const found = /^>=\s*(\d+\.\d+\.\d+)$/.exec(range);
   return found ? found[1] : fail(`${PKG}: engines.node ("${range}") states no floor version`);
 }
 
@@ -90,7 +90,7 @@ function matrixVersions() {
   if (!job) fail(`${WORKFLOW}: no \`unit-tests:\` job found`);
   const legs = NODE_LEGS.exec(job[1]);
   if (!legs) fail(`${WORKFLOW}: the \`unit-tests\` job declares no \`node:\` matrix`);
-  return legs[1].split(',').map((leg) => leg.trim().replace(/^['"]|['"]$/g, ''));
+  return legs[1].split(',').map(leg => leg.trim().replace(/^['"]|['"]$/g, ''));
 }
 
 /**
@@ -99,24 +99,45 @@ function matrixVersions() {
  */
 function readmeVersions() {
   const block = README_BLOCK.exec(readFileSync(README, 'utf8'));
-  if (!block) fail(`${README}: missing <!-- node-support:start --> / <!-- node-support:end --> markers`);
-  return [...block[1].matchAll(TABLE_ROW)].map((row) => row[1]);
+  if (!block)
+    fail(`${README}: missing <!-- node-support:start --> / <!-- node-support:end --> markers`);
+  return [...block[1].matchAll(TABLE_ROW)].map(row => row[1]);
 }
 
 const dev = devVersion();
 const floor = declaredFloor();
 const matrix = matrixVersions();
 const readme = readmeVersions();
+const advertised = [...new Set([floor, ...matrix])];
 
-if (floor !== dev) {
-  fail(`floor drift — ${PKG} engines.node floor is ${floor}, but ${NVMRC} pins ${dev}. ` + 'Move both together, or the advertised minimum is one nobody builds on.');
+if (compareVersions(dev, floor) < 0) {
+  fail(`build pin ${dev} is below the consumer floor ${floor}.`);
 }
 if (!matrix.includes(dev)) {
-  fail(`matrix gap — ${NVMRC} pins ${dev}, which the unit-test matrix never runs: [${matrix.join(', ')}].`);
+  fail(
+    `matrix gap — ${NVMRC} pins ${dev}, which the unit-test matrix never runs: [${matrix.join(', ')}].`,
+  );
 }
-if (readme.join(',') !== matrix.join(',')) {
-  fail(`README drift — the table advertises [${readme.join(', ')}] but CI runs [${matrix.join(', ')}]. ` + 'Both lists must agree in the same order, so the table reads as the run order.');
+if (readme.join(',') !== advertised.join(',')) {
+  fail(
+    `README drift — expected consumer floor and unit matrix [${advertised.join(', ')}], got [${readme.join(', ')}].`,
+  );
 }
 
-stdout.write(`check-node-support: floor ${floor}, matrix [${matrix.join(', ')}], README in sync ✓\n`);
+function versionParts(version) {
+  if (!/^\d+\.\d+\.\d+$/.test(version)) fail(`invalid version pin: ${version}`);
+  return version.split('.').map(Number);
+}
+
+/** Compare explicit pins without constraining the size of their components. */
+function compareVersions(left, right) {
+  const a = versionParts(left);
+  const b = versionParts(right);
+  const index = a.findIndex((part, i) => part !== b[i]);
+  return index === -1 ? 0 : a[index] - b[index];
+}
+
+stdout.write(
+  `check-node-support: consumer floor ${floor}, build ${dev}, matrix [${matrix.join(', ')}], README in sync ✓\n`,
+);
 exit(0);

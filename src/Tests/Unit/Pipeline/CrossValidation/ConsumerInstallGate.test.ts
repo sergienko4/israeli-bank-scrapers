@@ -45,7 +45,12 @@ const VALIDATE_JOB_KEY = 'validate';
 /** Job-level shape this test reads — everything else is irrelevant. */
 interface IWorkflowJob {
   readonly needs?: readonly string[] | string;
-  readonly steps?: readonly { readonly run?: string }[];
+  readonly steps?: readonly {
+    readonly run?: string;
+    readonly uses?: string;
+    readonly id?: string;
+    readonly env?: Readonly<Record<string, string>>;
+  }[];
 }
 
 interface IWorkflowDoc {
@@ -187,5 +192,15 @@ describe('consumer-install CI gate', () => {
     expect(smoke).toContain('process.exitCode = 1');
     const script = readText(GATE_SCRIPT);
     expect(script).toContain('an exception escaped to the consumer');
+  });
+
+  it('[CIG-12] runs the packed consumer with the separately installed runtime floor', () => {
+    const steps = loadWorkflow().jobs?.[GATE_JOB_KEY].steps ?? [];
+    const setup = steps.findIndex(step => step.uses === '$/.github/actions/setup-consumer-runtime');
+    const gate = steps.findIndex(step => step.run === GATE_COMMAND);
+    expect(setup).toBeGreaterThan(-1);
+    expect(setup).toBeLessThan(gate);
+    expect(steps[setup].id).toBe('consumer-runtime');
+    expect(steps[gate].env?.CONSUMER_NODE).toBe('${{ steps.consumer-runtime.outputs.node-path }}');
   });
 });

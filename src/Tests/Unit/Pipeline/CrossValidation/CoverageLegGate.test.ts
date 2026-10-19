@@ -4,11 +4,12 @@
  * <p>Only one Node leg collects coverage, enforces the thresholds and uploads
  * `coverage-report`; the other legs run the same suite with `--coverage=false`.
  * The leg is picked at run time by comparing `matrix.node` with `.nvmrc`, which
- * `scripts/check-node-support.mjs` already ties to the `engines.node` floor and
- * to one matrix leg. If the picker matched no leg, the thresholds would switch
+ * `scripts/check-node-support.mjs` already ties to one matrix leg. The consumer
+ * floor is tested separately with the packed package. If the picker matched no
+ * leg, the thresholds would switch
  * off on every leg while CI stayed green. So this suite runs the real step
  * scripts under the workflow's own shell, against the committed `.nvmrc`
- * bytes. That file is CRLF today.
+ * bytes.
  *
  * <p>The picker only helps if a PR that moves `.nvmrc` runs it. `.nvmrc` sits
  * at the repo root, outside every path group but `deps`, so that group must
@@ -66,7 +67,7 @@ interface IGateSite {
 
 /**
  * Everything that must run when `.nvmrc` alone moves: the matrix that picks the
- * coverage leg from it, and the check that ties it to `engines.node` and a leg.
+ * coverage leg from it, and the check that ties it to a matrix leg.
  * That check's job, {@link STATIC_CHECKS_JOB}, has no `if:` of its own.
  */
 const NVMRC_GATES: readonly IGateSite[] = [

@@ -1,4 +1,4 @@
-# CI mirror — Ubuntu 24.04 + Node 22.14.0 + Camoufox (the tag pinned in
+# CI mirror — Ubuntu + the build Node from .nvmrc + Camoufox (the tag pinned in
 # browser-stack.json, installed by the same script as the CI composite
 # action .github/actions/install-camoufox; package.json is the single
 # source of truth for the npm package version).
@@ -27,7 +27,6 @@
 FROM ubuntu:25.10@sha256:7cc5e35f6567ee8c66d2abb4aab0fd866669e6207c237c3a8f0947a5c7f17092
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG NODE_VERSION=22.14.0
 
 # Mirror the apt set that the GitHub `ubuntu-24.04` runner image carries
 # that Camoufox / Firefox needs at runtime. Source list cross-checked
@@ -42,8 +41,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node from the prebuilt tarball — same channel that
-# actions/setup-node uses when given a `.nvmrc` containing v22.14.0.
-RUN curl -fsSL --connect-timeout 30 --max-time 600 "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
+# actions/setup-node uses. Read the same pin instead of maintaining a second one.
+COPY .nvmrc /tmp/.nvmrc
+RUN NODE_VERSION="$(tr -d '[:space:]' < /tmp/.nvmrc)" \
+    && NODE_VERSION="${NODE_VERSION#v}" \
+    && curl -fsSL --connect-timeout 30 --max-time 600 "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
         | tar -xJ -C /opt \
     && ln -s /opt/node-v${NODE_VERSION}-linux-x64/bin/node /usr/local/bin/node \
     && ln -s /opt/node-v${NODE_VERSION}-linux-x64/bin/npm  /usr/local/bin/npm \

@@ -6,7 +6,8 @@ inputs:
     description: >-
       Explicit Node.js version to install. Leave empty (the default) to use the
       repository's canonical .nvmrc version. Set only by the unit-test matrix,
-      which proves the range advertised in package.json `engines.node`.
+      which checks the build pin and latest supported majors. The consumer
+      floor is exercised separately against the packed package.
     required: false
     default: ''
 

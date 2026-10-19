@@ -28,8 +28,6 @@
  * absent — Camoufox therefore refuses to start long before any navigation.
  */
 
-const { createScraper, CompanyTypes } = require('@sergienko4/israeli-bank-scrapers');
-
 /** Printed only when the scrape produced an outcome the caller can act on. */
 const SETTLED_MARKER = 'SETTLED';
 
@@ -50,15 +48,22 @@ function report(label, detail) {
   console.log(`${SETTLED_MARKER} ${label} ${detail}`);
 }
 
-const scraper = createScraper({
-  companyId: CompanyTypes.Pepper,
-  startDate: new Date('2026-01-01'),
-});
-
-scraper
-  .scrape(DUMMY_CREDENTIALS)
-  .then(result => report('result', JSON.stringify(result)))
-  .catch(error => {
-    report('throw', error && error.message ? error.message : String(error));
-    process.exitCode = 1;
+function createConsumerScraper({ createScraper, CompanyTypes }) {
+  return createScraper({
+    companyId: CompanyTypes.Pepper,
+    startDate: new Date('2026-01-01'),
   });
+}
+
+function runScrape(exports) {
+  return createConsumerScraper(exports)
+    .scrape(DUMMY_CREDENTIALS)
+    .then(result => report('result', JSON.stringify(result)))
+    .catch(error => {
+      report('throw', error && error.message ? error.message : String(error));
+      process.exitCode = 1;
+    });
+}
+
+module.exports = { runScrape };
+if (require.main === module) runScrape(require('@sergienko4/israeli-bank-scrapers'));

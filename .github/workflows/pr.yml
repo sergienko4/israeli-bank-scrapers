@@ -619,13 +619,10 @@ jobs:
   # can ONLY regress here, and neither touches a `src/` file — so
   # gating on `src` alone let those land unvalidated.
   #
-  # The suite runs across the Node range that `package.json`
-  # `engines.node` advertises, not just the single `.nvmrc` version we
-  # develop against. Publishing `">= 22.14.0"` while testing exactly
-  # 22.14.0 is an untested claim: a consumer on 24.x has our word and
-  # nothing else. The legs are the declared floor, the newest 22.x and
-  # the newest 24.x; `scripts/check-node-support.mjs` fails the build if
-  # this list, `.nvmrc`, `engines.node` and the README table disagree.
+  # The suite runs on the build pin and newest supported majors. The package
+  # job separately exercises packed consumers at the engines.node floor, where
+  # development tools need not run. check-node-support.mjs keeps both contracts
+  # aligned with the README.
   #
   # `fail-fast: false` so one bad leg reports every other leg's result
   # too — knowing 24 fails while 22 passes is the whole point. A failing
@@ -653,7 +650,7 @@ jobs:
         # a regex that matches `node: [...]` only; a block-style list would make
         # the drift gate fail loudly rather than silently, but it would still
         # need fixing there first.
-        node: ['22.14.0', '22', '24', '26']
+        node: ['24.22.0', '22', '24', '26']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -662,11 +659,11 @@ jobs:
         with:
           camoufox: 'false'
           node-version: ${{ matrix.node }}
-      # Coverage runs on the floor leg only: every leg runs the same suite, so
+      # Coverage runs on the build-pin leg only: every leg runs the same suite, so
       # the other legs' copies add nothing and cost about a third of their
       # test time. The floor is read from `.nvmrc`, not repeated here:
       # `scripts/check-node-support.mjs` already fails the build unless
-      # `.nvmrc`, the `engines.node` floor and one matrix leg agree, so exactly
+      # `.nvmrc` and one matrix leg agree, so exactly
       # one leg always matches. A literal here could go stale after a floor
       # bump and silently switch the thresholds off on every leg.
       - name: Pick the coverage leg
@@ -785,9 +782,15 @@ jobs:
       # Hermetic: no bank is contacted (see the script's header).
       # The script packs (and therefore builds, via `prepare`) itself, so
       # there is no separate build step to keep in sync with it.
+      - uses: $/.github/actions/setup-consumer-runtime
+        id: consumer-runtime
+        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci_scripts == 'true'
+        timeout-minutes: 10
       - name: Package works for consumers
         if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci_scripts == 'true'
         timeout-minutes: 20
+        env:
+          CONSUMER_NODE: ${{ steps.consumer-runtime.outputs.node-path }}
         run: /bin/bash .github/scripts/ci/consumer-install.sh
       - name: Wait for the E2E factory tests
         wait-all:

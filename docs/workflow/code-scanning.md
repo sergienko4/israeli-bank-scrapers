@@ -494,10 +494,14 @@ Lockfile maintenance has no package name, so that rule never matches it.
   guarantee any package age. No automerge, code-owner review, the full unit
   and mocked E2E run, and keeping bank secrets out limit what a fresh release
   can reach before a human approves it. None of them enforces an age.
-- `constraints.npm` pins npm 10.9.2, the version bundled with the Node release
-  in `.nvmrc` that CI installs, so the lockfile format matches `npm ci`. The
-  detector flags a `.nvmrc` change as `deps` too, so a Node bump on its own
-  still runs the unit legs and `lint:node-support` (CoverageLegGate CLG-5).
+- `constraints.npm` pins npm 10.9.2 for reproducible lockfile maintenance.
+  CI uses the npm bundled with the build runtime in `.nvmrc`; both consume
+  lockfile format 3. The build pin is independent of the published consumer
+  minimum: the package job derives that minimum from `engines.node` and
+  runs packed CJS/ESM consumers with its exact Node binary. Docker also reads
+  `.nvmrc`, rather than maintaining another build-runtime pin. The detector
+  flags a `.nvmrc` change as `deps`, so a Node bump on its own still runs
+  the unit legs and `lint:node-support` (CoverageLegGate CLG-5).
 - Dependabot security pull requests take precedence. When one merges first and
   the lockfiles conflict, Renovate regenerates its branch on its next run
   (`rebaseWhen` defaults to rebasing a conflicted branch).

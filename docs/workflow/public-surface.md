@@ -1,3 +1,9 @@
+---
+source-files:
+  - scripts/check-public-surface.mjs
+  - scripts/normalize-public-exports.mjs
+---
+
 # Public API surface gate
 
 `npm run lint:public-surface` asserts that the package's exported API matches
@@ -57,7 +63,16 @@ signature, and nothing internal. `tsup` generates it from `src/index.ts` under
    and `import` consumers see different APIs, which no single snapshot could
    represent honestly.
 3. Compares `lib/index.d.ts` against `api-surface.d.ts` and prints a unified
-   diff on mismatch.
+   diff on mismatch. The local named-export footer is compared by sorted
+   `(type-only, local name, exported name)` entries. Regrouping `export { type T }`
+   into `export type { T }`, or reordering exports, needs no snapshot update.
+   Every declaration outside that footer remains byte-exact. Re-exports and
+   commented or non-footer export statements also retain byte-exact comparison.
+
+Malformed declarations fail as unverifiable. CJS/ESM parity remains byte-exact,
+and CI still refuses to update the snapshot. Changes to names, aliases,
+type/value identities or signatures still require review; normalization never
+writes a new baseline.
 
 Because the snapshot is a tracked `.ts` file, `origin/main` genuinely holds a
 baseline, and an API change shows up in the PR diff in a form a reviewer can

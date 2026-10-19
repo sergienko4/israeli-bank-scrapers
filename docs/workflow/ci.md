@@ -7,6 +7,11 @@ source-files:
   - .github/workflows/cache-cleanup.yml
   - .github/workflows/browser-stack-watch.yml
   - .github/scripts/ci/detect-changes.sh
+  - .github/actions/setup-consumer-runtime/action.yml
+  - .github/scripts/ci/consumer-install.sh
+  - .github/scripts/ci/consumer-smoke.cjs
+  - .github/scripts/ci/consumer-smoke.mjs
+  - scripts/check-node-support.mjs
   - scripts/check-browser-stack.mjs
   - scripts/browser-stack/gate-pins.mjs
   - src/Tests/Unit/Tools/BrowserStackAcceptanceGuards.test.ts
@@ -433,12 +438,16 @@ GITHUB_STEP_SUMMARY=/dev/stdout bash .github/scripts/ci/decoupling-compare.sh
 
 A PR that drops any threshold fails `test:pipeline`. The post-Commit-1 numbers (v8.4.0) are **97.20% / 95.23% / 97.19% / 98.45%**.
 
-In CI, only the floor-version leg of `Unit tests (Node …)` collects coverage and
+In CI, only the build-pin leg of `Unit tests (Node …)` collects coverage and
 enforces these thresholds. It is the leg matching `.nvmrc`, and it uploads
 `coverage-report`. The other legs run the same suite with `--coverage=false`.
 `SonarCloud Scan` downloads that artifact rather than running the suite again.
 Changing `.nvmrc` sets the `deps` flag, so even a PR that changes nothing else
-runs these legs and the check that ties `.nvmrc` to `engines.node`.
+runs these legs and the support check. `.nvmrc` pins build tooling independently
+of `engines.node`, which retains the consumer minimum. The package job derives
+that exact minimum from the manifest, captures its Node binary, then restores
+the build runtime. The packed CJS/ESM consumer smoke runs with the captured
+binary and without devDependencies. Docker reads the same `.nvmrc` build pin.
 
 ## Where to find logs
 

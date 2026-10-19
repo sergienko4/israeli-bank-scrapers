@@ -263,6 +263,7 @@ if has '^scripts/decoupling-metrics/'; then metrics=true; fi
 # TypeScript versions that generate the declarations.
 public_surface_paths='^api-surface\.d\.ts$'
 public_surface_paths="${public_surface_paths}|^scripts/check-public-surface\.mjs$"
+public_surface_paths="${public_surface_paths}|^scripts/normalize-public-exports\.mjs$"
 public_surface_paths="${public_surface_paths}|^tsup\.config\.ts$"
 public_surface_paths="${public_surface_paths}|^tsconfig\.build\.json$|^tsconfig\.json$"
 public_surface_paths="${public_surface_paths}|^\.github/actions/build-package/"

@@ -50,6 +50,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { argv, env, exit, stderr, stdout } from 'node:process';
 
+import { normalizePublicExports } from './normalize-public-exports.mjs';
+
 const BUILT_ESM = 'lib/index.d.ts';
 const BUILT_CJS = 'lib/index.d.cts';
 const SNAPSHOT = 'api-surface.d.ts';
@@ -69,6 +71,16 @@ function readLf(path) {
     return readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
   } catch (err) {
     return cannotVerify(`cannot read ${path} — ${err.code ?? err.message}`, BUILD_HINT);
+  }
+}
+
+/** Fail closed when a declaration cannot be parsed for comparison. */
+function readSurface(path) {
+  const text = readLf(path);
+  try {
+    return normalizePublicExports(text);
+  } catch (err) {
+    return cannotVerify(`cannot compare ${path} — ${err.message}`, BUILD_HINT);
   }
 }
 
@@ -119,6 +131,7 @@ function printDiff() {
 
 /** Write the built surface to the tracked snapshot. */
 function update() {
+  readSurface(BUILT_ESM);
   try {
     writeFileSync(SNAPSHOT, readLf(BUILT_ESM), 'utf8');
   } catch (err) {
@@ -131,7 +144,7 @@ function update() {
 /** Compare the built surface against the tracked snapshot. */
 function check() {
   if (!existsSync(SNAPSHOT)) cannotVerify(`${SNAPSHOT} not found`, UPDATE_HINT);
-  if (readLf(SNAPSHOT) === readLf(BUILT_ESM)) {
+  if (readSurface(SNAPSHOT) === readSurface(BUILT_ESM)) {
     stdout.write(`check-public-surface: public API surface unchanged ✓ (${SNAPSHOT})\n`);
     return;
   }

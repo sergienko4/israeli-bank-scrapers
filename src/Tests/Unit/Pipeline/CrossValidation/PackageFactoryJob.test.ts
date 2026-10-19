@@ -110,9 +110,16 @@ const PACKAGE_CHAIN = [
     with: { name: 'build-output', path: 'lib/', 'retention-days': 7 },
   },
   {
+    uses: '$/.github/actions/setup-consumer-runtime',
+    id: 'consumer-runtime',
+    if: CONSUMER_IF,
+    'timeout-minutes': 10,
+  },
+  {
     name: 'Package works for consumers',
     if: CONSUMER_IF,
     'timeout-minutes': 20,
+    env: { CONSUMER_NODE: '${{ steps.consumer-runtime.outputs.node-path }}' },
     run: '/bin/bash .github/scripts/ci/consumer-install.sh',
   },
 ];

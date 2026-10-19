@@ -1,3 +1,9 @@
+---
+source-files:
+  - tsconfig.build.json
+  - tsup.config.ts
+---
+
 # TypeScript compilers — why there are two, and which gates them
 
 This repository builds against **two TypeScript compilers at once**. That is
@@ -47,10 +53,10 @@ A deliberate `const x: number = 'str'` was confirmed to fail **both** gates
 with the same `TS2322`, so neither is a no-op.
 
 !!! note "`tsconfig.build.json` is a third configuration"
-    tsup reads `tsconfig.build.json`, which adds `"ignoreDeprecations": "6.0"`
-    because tsup's DTS rollup unconditionally injects a `baseUrl` that TS 6
-    reports as `TS5101`. That suppression is confined to the build config;
-    the `tsconfig.json` used by both type-check gates stays free of it.
+    tsup reads `tsconfig.build.json`, which uses ESNext/Bundler resolution for
+    declaration bundling. The whole-tree checks retain NodeNext. tsup 9
+    removed the injected `baseUrl`, so the former TS6 deprecation suppression
+    is no longer needed.
 
 ## Why we are not on TS 7 alone
 
@@ -61,7 +67,7 @@ verifiable from installed metadata rather than from release notes:
 |---|---|---|---|
 | `typescript-eslint` | 8.67.0 | `>=4.8.4 <6.1.0` | No |
 | `ts-jest` | 29.4.12 | `>=4.3 <7` | No — excluded by an explicit upper bound |
-| `tsup` | 8.5.1 | `>=4.5.0` | No upper bound, but its DTS rollup needs the TS API |
+| `tsup` | 9.0.0 | `>=4.5.0` | No upper bound, but its DTS rollup needs the TS API |
 
 The common root cause is that **TS 7.0 exposes no stable programmatic API**.
 `@typescript/native@7.0.2` publishes its API only under `./unstable/*` export

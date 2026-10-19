@@ -113,15 +113,16 @@ Windows, macOS, and Linux are all supported.
 
 ### Tested Node versions
 
-`engines.node` advertises a range; these are the versions CI actually runs the
-full unit suite against on every pull request. Anything outside this list may
-work, but nothing here proves it.
+`engines.node` advertises the consumer runtime range. CI runs the packed CJS/ESM
+consumer smoke on its exact floor and the unit suite on the build pin and
+latest supported majors. Build tooling uses `.nvmrc` independently of consumers.
 
 <!-- node-support:start -->
 
 | Node      | Why this leg                                                            |
 | --------- | ----------------------------------------------------------------------- |
-| `22.14.0` | The declared minimum in `engines.node` — the oldest version we promise  |
+| `22.14.0` | Packed CJS/ESM consumer smoke at the minimum from `engines.node`       |
+| `24.22.0` | Build-tool pin in `.nvmrc`; unit suite with coverage                  |
 | `22`      | Latest 22.x, so a patched LTS cannot regress us unnoticed               |
 | `24`      | Latest 24.x, so the open-ended `>=` is an evidenced claim, not a hope   |
 | `26`      | Active LTS from Oct 2026 — we meet the next default before consumers do |
@@ -129,7 +130,8 @@ work, but nothing here proves it.
 <!-- node-support:end -->
 
 `npm run lint:node-support` fails the build if this table, `.nvmrc`,
-`engines.node` and the CI matrix ever disagree.
+`engines.node` and CI coverage ever disagree. The consumer runtime is derived
+from `engines.node`; dependency upgrades do not raise the published minimum.
 
 ### Roadmap: Node 24 will become the minimum
 

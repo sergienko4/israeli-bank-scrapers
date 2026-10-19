@@ -1,0 +1,29 @@
+name: Setup consumer runtime
+description: Install the advertised consumer floor and restore the build Node without reinstalling dependencies.
+
+outputs:
+  node-path:
+    description: Absolute path to the consumer-floor Node binary.
+    value: ${{ steps.binary.outputs.path }}
+
+runs:
+  using: composite
+  steps:
+    - id: floor
+      shell: bash
+      run: |
+        version="$(node -p "require('./package.json').engines.node.match(/^>=\s*(\d+\.\d+\.\d+)$/)?.[1] ?? ''")"
+        if [ -z "$version" ]; then
+          echo "Cannot derive a consumer floor from engines.node" >&2
+          exit 1
+        fi
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+    - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+      with:
+        node-version: ${{ steps.floor.outputs.version }}
+    - id: binary
+      shell: bash
+      run: echo "path=$(node -p 'process.execPath')" >> "$GITHUB_OUTPUT"
+    - uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6
+      with:
+        node-version-file: .nvmrc

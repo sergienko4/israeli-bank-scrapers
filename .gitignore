@@ -130,6 +130,7 @@ scripts/**
 # Run by `npm run lint:public-surface` from the pre-commit build gate and
 # the Package & E2E factory job, so it has to be in the tree for either to work.
 !scripts/check-public-surface.mjs
+!scripts/normalize-public-exports.mjs
 # Run by `npm run lint:shell-portability` from the Static checks job, so it
 # has to be in the tree for the gate to work. It is what keeps the husky
 # hooks and the CI shell scripts runnable on macOS (bash 3.2 + BSD tools)
