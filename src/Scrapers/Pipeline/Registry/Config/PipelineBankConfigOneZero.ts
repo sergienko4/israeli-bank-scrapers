@@ -1,9 +1,12 @@
 /**
  * OneZero IApiDirectCallConfig literal — data-only bank surface.
  * Describes the 5-step identity-server SMS-OTP flow OneZero uses
- * to mint its gateway JWT. No signer, no fingerprint, no cookie
- * jar — just POSTs with plain JSON bodies and /resultData/*
- * response extraction.
+ * to mint its gateway JWT. No request signer and no cookie jar —
+ * just POSTs with plain JSON bodies and /resultData/* response
+ * extraction. The transport identity the edge checks (client
+ * certificate, TLS fingerprint, User-Agent) is declared in
+ * PipelineBankConfigOneZeroHeadless; only the User-Agent rides on
+ * these steps, via `staticHeaders`.
  *
  * Warm-start: creds.otpLongTermToken holds the durable `idToken` minted by
  * /getIdToken, so the warm path pre-seeds carry.idToken and re-runs only the
@@ -16,6 +19,7 @@
  */
 
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { ONEZERO_USER_AGENT } from './PipelineBankConfigOneZeroHeadless.js';
 
 /**
  * The five login steps, in order.
@@ -111,6 +115,8 @@ const ONEZERO_API_DIRECT_CALL: IApiDirectCallConfig = {
   flow: 'sms-otp',
   envelope: {},
   authScheme: 'bearer',
+  // The identity host's WAF rejects any other client; see ONEZERO_USER_AGENT.
+  staticHeaders: { 'User-Agent': ONEZERO_USER_AGENT },
   // Matches Pepper and PayBox: lets pickWarmSeed retire a stale stored token
   // client-side instead of spending a round-trip to learn it from the bank,
   // and makes a legacy non-JWT token fall through to the cold path, so an
