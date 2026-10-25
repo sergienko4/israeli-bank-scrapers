@@ -57,7 +57,7 @@ function floorFor(range: string): { status: number; output: string } {
 }
 
 describe('consumer runtime setup', () => {
-  it.each(['22.14.0', '24.22.0'])(
+  it.each(['24.11.0', '26.1.0'])(
     'derives %s from the manifest instead of a second pin',
     version => {
       if (canRunPosixBash(process.platform)) {

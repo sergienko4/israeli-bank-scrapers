@@ -139,8 +139,8 @@ function findManifest(from: string, packageName: string): string {
  * dependency tree can hold more than one copy, so the read finds
  * camoufox-js first and playwright-core from there. Read as a file, not a
  * JSON import: the build's Rollup tree-shake pass rewrites import attributes
- * to the `assert` keyword, which Node 22 rejects, so that read would fail in
- * the published package alone.
+ * to the `assert` keyword, which Node 22 and later reject, so that read would
+ * fail in the published package alone.
  *
  * @param anchor - Module path or file URL to find camoufox-js from.
  * @returns Its `package.json` version.

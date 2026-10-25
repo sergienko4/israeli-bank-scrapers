@@ -2,22 +2,31 @@
   "$comment": "Source of truth for docs/compatibility.md. Edit this file, then run `npm run compat:build`. CI fails if the generated page drifts from this data (`npm run compat:check`).",
   "package": "@sergienko4/israeli-bank-scrapers",
   "runtime": {
-    "node": ">= 22.14.0",
-    "since": "8.0.0",
-    "note": "Unchanged for every 8.x release. Enforced by the `engines` field, so npm warns (or errors under `engine-strict`) on older runtimes."
+    "node": ">= 24.11.0",
+    "since": "9.0.0",
+    "note": "Raised from `>= 22.14.0` in 9.0.0. Enforced by the `engines` field, so npm warns (or errors under `engine-strict`) on older runtimes."
   },
   "entries": [
     {
-      "version": "8.9.0",
-      "impact": "behavior",
-      "title": "OneZero needs Node 22.20+ or 24.5+",
-      "detail": "OneZero's Cloudflare edge now admits only clients whose TLS handshake matches the OneZero Android app. The scraper sends that handshake, but only OpenSSL 3.5 or later can produce it. Node bundles OpenSSL 3.5 from 22.20 on the 22.x line, from 24.5 on the 24.x line, and in every 25.x and 26.x release. On an older runtime, building the OneZero transport logs a `warn` line, `[tls] runtime OpenSSL cannot emit this TLS profile; the bank edge may block requests`, and the login fails with `WAF_BLOCKED`. `engines.node` is unchanged, and no other institution is affected.",
-      "action": "If you scrape OneZero, run Node 22.20 or later on 22.x, or 24.5 or later on 24.x. `node -p process.versions.openssl` must print 3.5 or higher.",
+      "version": "9.0.0",
+      "impact": "breaking",
+      "title": "Node 24.11 or later required; Node 22 is no longer supported",
+      "detail": "`engines.node` is now `>= 24.11.0`, the first Node 24 LTS release, and the published bundle is compiled for Node 24. CI no longer tests Node 22, which reaches end-of-life on 2027-04-30. On an older runtime npm warns at install, or fails under `engine-strict`. The public API is unchanged.",
+      "action": "Upgrade to Node 24.11 or later before installing 9.x; `node --version` must print v24.11.0 or higher. If you must stay on Node 22, pin `^8` until you can upgrade; 8.x does not get the other 9.0.0 changes, including the OneZero fix.",
       "before": null,
       "after": null
     },
     {
-      "version": "8.9.0",
+      "version": "9.0.0",
+      "impact": "behavior",
+      "title": "OneZero needs OpenSSL 3.5",
+      "detail": "OneZero's Cloudflare edge now admits only clients whose TLS handshake matches the OneZero Android app. The scraper sends that handshake, but only OpenSSL 3.5 or later can produce it. Every official Node build from 24.11.0, the new minimum, bundles it. A Node built against an older shared or system OpenSSL does not: building the OneZero transport then logs a `warn` line, `[tls] runtime OpenSSL cannot emit this TLS profile; the bank edge may block requests`, and the login fails with `WAF_BLOCKED`. No other institution is affected.",
+      "action": "None on an official Node build. If your Node links a shared or system OpenSSL and you scrape OneZero, `node -p process.versions.openssl` must print 3.5 or higher.",
+      "before": null,
+      "after": null
+    },
+    {
+      "version": "9.0.0",
       "impact": "behavior",
       "title": "API-direct Cloudflare block pages and challenges report `WAF_BLOCKED`",
       "detail": "When Cloudflare refuses an API-direct request with a `4xx` block page, OneZero now reports `WAF_BLOCKED` instead of `GENERIC`. The message keeps its `<VERB> <url> <status>: ` prefix but ends `blocked by Cloudflare edge (WAF) before reaching the API` instead of quoting the page, which embeds your IP and a Ray ID. A Cloudflare challenge, recognised by its `cf-mitigated: challenge` response header at any status, is reported the same way with a message ending `challenged by Cloudflare edge (WAF) before reaching the API`. `WAF_BLOCKED` is terminal: the call is not re-minted, and a blocked warm start no longer falls back to an SMS login. PayBox and Pepper already reported `WAF_BLOCKED` when a page contained any Cloudflare marker. They now need a `4xx` HTML page carrying Cloudflare's block markers, or the challenge header, so a Cloudflare `5xx` origin error, or an unrelated page that happens to contain `oldie`, reports `GENERIC`. `errorDetails` is not set on this path.",
@@ -26,7 +35,7 @@
       "after": null
     },
     {
-      "version": "8.9.0",
+      "version": "9.0.0",
       "impact": "behavior",
       "title": "A `warn` line when the browser stack differs from the tested pair",
       "detail": "Each release is tested against one Camoufox build and one `playwright-core` minor. After the first successful Camoufox launch in a process, the installed versions are compared with that pair, and each component that differs is logged once at `warn` level as `browser stack differs from the tested pair`, with `component`, `installed`, `tested` and `remedy`. A different version often works, so the check never fails a launch.",
@@ -35,7 +44,7 @@
       "after": null
     },
     {
-      "version": "8.9.0",
+      "version": "9.0.0",
       "impact": "behavior",
       "title": "Known limitation: `httpCredentials` fails on `playwright-core` 1.63 and 1.64",
       "detail": "From 1.63, `playwright-core` sends a context's `httpCredentials` as a list, and no Camoufox release checked so far accepts one. `browser.newContext({ httpCredentials })` then fails with `Protocol error (Browser.setHTTPCredentials)`. This library never sets `httpCredentials`, so its own scrapes are unaffected. CI has tested 1.63 since 8.7.2, and the `^1.62.0` range let a fresh install resolve 1.63 before that.",
@@ -44,7 +53,7 @@
       "after": null
     },
     {
-      "version": "8.9.0",
+      "version": "9.0.0",
       "impact": "behavior",
       "title": "`playwright-core` 1.64 supported",
       "detail": "`playwright-core` 1.64 changed two things no released Camoufox follows yet, and the `postinstall` patch now adapts both. It sends a new `bypassServiceWorker` field when it turns on request interception, which Camoufox rejects, so `page.route()` failed with a protocol error. `context.route()` was unaffected: Firefox turns on context-wide interception through a different call. The patch drops that field and sends the 1.63 payload. 1.64 also stopped splitting the `Set-Cookie` lines Camoufox reports as one header, so `headersArray()` and `headerValues('set-cookie')` returned one merged entry instead of one per cookie, and nothing reported an error. The patch splits them again. CI now tests this library on 1.64.",

@@ -6,7 +6,7 @@ import { createTempRepo, writeTempFile } from '../../Helpers/TempRepoTree.js';
 
 const ROOT = process.cwd();
 const GATE = join(ROOT, 'scripts/check-node-support.mjs');
-const MATRIX = ['24.22.0', '22', '24', '26'];
+const MATRIX = ['24.22.0', '24', '26'];
 
 /**
  * Runs the support gate against a disposable policy.
@@ -42,7 +42,7 @@ function checkPolicy(dev: string, matrix: string[], advertised: string[]): numbe
  */
 function writePolicy(root: string, dev: string, matrix: string[]): string {
   writeTempFile(root, '.nvmrc', `v${dev}\n`);
-  const manifest = JSON.stringify({ engines: { node: '>=22.14.0' } });
+  const manifest = JSON.stringify({ engines: { node: '>=24.11.0' } });
   writeTempFile(root, 'package.json', manifest);
   const yaml = `  unit-tests:\n    strategy:\n      matrix:\n        node: ${JSON.stringify(matrix)}\n  next-job:\n`;
   return writeTempFile(root, '.github/workflows/pr.yml', yaml);
@@ -50,12 +50,12 @@ function writePolicy(root: string, dev: string, matrix: string[]): string {
 
 describe('separate build and consumer Node support', () => {
   it('accepts newer tooling without raising the consumer floor', () => {
-    const result = checkPolicy('24.22.0', MATRIX, ['22.14.0', ...MATRIX]);
+    const result = checkPolicy('24.22.0', MATRIX, ['24.11.0', ...MATRIX]);
     expect(result).toBe(0);
   });
 
   it('rejects a tooling version missing from its test matrix', () => {
-    const result = checkPolicy('24.22.0', ['22', '24', '26'], ['22.14.0', '22', '24', '26']);
+    const result = checkPolicy('24.22.0', ['24', '26'], ['24.11.0', '24', '26']);
     expect(result).toBe(1);
   });
 
@@ -65,12 +65,12 @@ describe('separate build and consumer Node support', () => {
   });
 
   it('rejects tooling below the supported consumer floor', () => {
-    const result = checkPolicy('20.0.0', ['20.0.0'], ['22.14.0', '20.0.0']);
+    const result = checkPolicy('24.10.0', ['24.10.0'], ['24.11.0', '24.10.0']);
     expect(result).toBe(1);
   });
 
   it('rejects a malformed build pin instead of treating it as a compatible version', () => {
-    const result = checkPolicy('latest', ['latest'], ['22.14.0', 'latest']);
+    const result = checkPolicy('latest', ['latest'], ['24.11.0', 'latest']);
     expect(result).toBe(1);
   });
 });

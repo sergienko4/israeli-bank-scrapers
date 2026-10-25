@@ -173,8 +173,8 @@ a `GITHUB_TOKEN` in the environment raises the GitHub API rate limit.
 ## Why the readers avoid JSON imports
 
 `tsup.config.ts` enables `treeshake`, which sends every chunk through Rollup.
-Rollup rewrites import attributes to the `assert` keyword, which Node 22
-rejects. So `import(..., { with: { type: 'json' } })` passes every
+Rollup rewrites import attributes to the `assert` keyword, which Node 22 and
+later reject, so every supported runtime does. So `import(..., { with: { type: 'json' } })` passes every
 source-level test and then fails in the published package alone. The
 `playwright-core` reader therefore uses `createRequire`, anchored at
 `import.meta.url` in production, which works in both bundles because Rollup

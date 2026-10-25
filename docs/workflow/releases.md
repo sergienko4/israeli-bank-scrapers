@@ -112,7 +112,7 @@ than re-running.
 | --- | --- | --- |
 | Provenance attestation | `publishConfig.provenance` + Trusted Publishing OIDC | Release workflow fails if the published version has no attestation |
 | `dist-tags.latest` | `npm publish` | Polled back from the registry after every publish |
-| Supported Node range | `engines.node` | Unit matrix covers the floor, latest 22.x, latest 24.x and latest 26.x (see [Node support policy](#node-support-policy) for when it runs); `npm run lint:node-support` fails the build if `.nvmrc`, `engines.node`, the CI matrix and the README table disagree |
+| Supported Node range | `engines.node` | The packed-consumer smoke runs on the floor, and the unit matrix on the `.nvmrc` pin, latest 24.x and latest 26.x (see [Node support policy](#node-support-policy) for when it runs); `npm run lint:node-support` fails the build if `.nvmrc`, `engines.node`, the CI matrix and the README table disagree |
 | Upgrade notes | `compatibility.json` | `npm run compat:check` diffs the generated page against its source |
 
 ## Node support policy
@@ -124,18 +124,18 @@ Two claims are easy to conflate, and only one of them can break someone:
 | What we **build and publish on** | `.nvmrc` for `docs.yml` and CI; Node 24 for the `publish` job in `release.yml`, because Trusted Publishing needs npm 11.5.1+ | Any time — it is invisible to consumers |
 | What we **require of consumers** | `engines.node`, plus `target` in `tsup.config.ts` | Only in a **major** — raising the floor breaks working installs |
 
-Raising `engines.node` also moves `tsup`'s `target` from `node22` to `node24`,
-because the emitted bundle is downlevelled to the **oldest** runtime we promise,
-not the one we develop on. Those two move together or we ship a bundle using
-syntax the advertised floor cannot parse.
+Raising `engines.node` to a new major also moves `tsup`'s `target` with it
+(`node24` since 9.0.0), because the emitted bundle is downlevelled to the
+**oldest** runtime we promise, not the one we develop on. Those two move
+together or we ship a bundle using syntax the advertised floor cannot parse.
 
 **Current state**, against Node's
 [release schedule](https://github.com/nodejs/release#release-schedule):
 
 | Node | Upstream status | Our position |
 | --- | --- | --- |
-| 22.x | Maintenance LTS, EOL 2027-04-30 | The `engines.node` floor; supported for all of `8.x` |
-| 24.x | Active LTS since 2025-10-28 | In the unit matrix; the intended floor after the next major |
+| 22.x | Maintenance LTS, EOL 2027-04-30 | Unsupported since 9.0.0; the floor for all of `8.x` |
+| 24.x | Maintenance LTS since 2026-10-20, EOL 2028-04-30 | The `engines.node` floor (`>= 24.11.0`, its first LTS release); in the unit matrix |
 | 26.x | Current, LTS from 2026-10-28 | In the unit matrix; not a candidate floor until it reaches LTS |
 
 Every leg in that matrix runs under one shared condition rather than on every
@@ -146,11 +146,11 @@ docs-only PR does not run it. The condition lives on that job in
 which is the authority; this page deliberately describes it rather than
 restating the flag list, so the two cannot drift apart.
 
-So the roadmap is: **a future major raises the floor to `>= 24` and drops 22.x.**
-It is announced in the README rather than done quietly at the moment 22 goes
-EOL, because a consumer who reads `>= 22.14.0` today should not discover the
-change from a failed install. `npm run lint:node-support` fails the build if only
-some of these declarations move.
+9.0.0 raised the floor to `>= 24.11.0` and dropped 22.x, ahead of its EOL and
+announced in the README beforehand, so no consumer learned of it from a failed
+install. The next floor move follows the same rule: a major release, announced
+first. `npm run lint:node-support` fails the build if only some of these
+declarations move.
 
 ## Why the Dependabot compatibility score says "unknown"
 
