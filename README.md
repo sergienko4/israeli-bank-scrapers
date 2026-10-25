@@ -68,7 +68,7 @@ Playwright, and TypeScript strict mode.
 - [Why this fork](#why-this-fork)
 - [Requirements](#requirements)
   - [Tested Node versions](#tested-node-versions)
-- [Roadmap: Node 24 will become the minimum](#roadmap-node-24-will-become-the-minimum)
+  - [Node 22 is no longer supported](#node-22-is-no-longer-supported)
 - [Supported institutions](#supported-institutions)
 - [OTP (two-factor authentication)](#otp-two-factor-authentication)
 - [What you get back](#what-you-get-back)
