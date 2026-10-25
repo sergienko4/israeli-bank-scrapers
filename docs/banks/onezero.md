@@ -262,9 +262,33 @@ the floor. This error therefore means the connection did not reach OneZero
 directly: look for a proxy or TLS-inspecting middlebox that re-signs traffic
 with its own certificate.
 
-The floor covers certificates only. Under TLS 1.2 a server may still sign the
-handshake itself with `rsa_pkcs1_sha1`, which the profile offers to match the
-app; TLS 1.3, which the OneZero edge negotiates, forbids it.
+### Session protocol
+
+The floor covers certificates only. Under TLS 1.2 the server also signs the
+handshake, and the profile still offers `rsa_pkcs1_sha1` to match the app, so
+a TLS 1.2 server could sign it with SHA-1. The Android profile therefore pins
+every session to TLS 1.3, which forbids SHA-1 and PKCS#1 v1.5 handshake
+signatures: its `sessionProtocol` is `TLSv1.3`, and `buildMtlsAgent` builds
+each agent as a `SessionProtocolAgent`. The ClientHello still offers TLS 1.2,
+so the fingerprint is unchanged. Once the handshake completes, the agent reads
+the negotiated protocol and, unless it is TLS 1.3, destroys the socket before
+any request byte is written. The call fails as `GENERIC`, its message ending in
+`SESSION_PROTOCOL_REASON`:
+
+```text
+POST https://identity.tfd-bank.com/v1/devices/token mtls error: server negotiated a TLS version the profile does not allow
+```
+
+The OneZero edge negotiates TLS 1.3, so as with the floor, this error means
+something other than OneZero terminated the TLS connection. The
+`node-default` profile sets no session protocol and accepts whatever OpenSSL
+negotiates.
+
+The field's type, `SessionProtocol`, is a Node `SecureVersion` or the empty
+string, which means "no pin". The agent applies the check through
+`guardSessionProtocol`, which runs on every connection the agent creates,
+including resumed sessions. A connection that is not a TLS socket is
+destroyed, so a pinned profile fails closed instead of sending in clear.
 
 ### Client certificate
 

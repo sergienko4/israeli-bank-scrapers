@@ -15,6 +15,7 @@ import { constants as cryptoConstants } from 'node:crypto';
 import type { ConnectionOptions } from 'node:tls';
 
 import { getDebug } from '../../../Logging/Debug.js';
+import type { SessionProtocol } from './SessionProtocolAgent.js';
 
 /** Module logger — name derived from source filename per project convention. */
 const LOG = getDebug(import.meta.url);
@@ -54,6 +55,12 @@ interface ITlsClientProfile {
   readonly expectedJa4: string;
   /** Lowest OpenSSL that emits `expectedJa4`. */
   readonly minOpenSsl: OpenSslVersion;
+  /**
+   * Protocol every session must settle on; empty accepts what OpenSSL
+   * negotiates. A profile that lowers the security level pins TLS 1.3, so the
+   * weak TLS 1.2 options it offers for its fingerprint are never used.
+   */
+  readonly sessionProtocol: SessionProtocol;
 }
 
 /**
@@ -67,7 +74,9 @@ const SSL_OP_TLSEXT_PADDING = 0x10;
  * OpenSSL from dropping `rsa_pkcs1_sha1` from the offered signature algorithms;
  * without it the JA4 signature-algorithm hash no longer matches. The level also
  * governs certificate verification, so the transport's server-certificate
- * floor (ServerCertificateFloor) restores the level-2 key and signature checks.
+ * floor (ServerCertificateFloor) restores the level-2 key and signature checks,
+ * and the profile pins sessions to TLS 1.3 (SessionProtocolAgent) so a server
+ * cannot sign the handshake with SHA-1 under TLS 1.2.
  */
 const ANDROID_11_CIPHERS = [
   '@SECLEVEL=0',
@@ -119,11 +128,20 @@ const ANDROID_11_OKHTTP: ITlsClientProfile = {
   },
   expectedJa4: 't13d1513h1_8daaf6152771_eca864cca44a',
   minOpenSsl: [3, 5],
+  sessionProtocol: 'TLSv1.3',
+};
+
+/** Node's stock handshake: no fingerprint, no OpenSSL floor, any protocol. */
+const NODE_DEFAULT: ITlsClientProfile = {
+  options: {},
+  expectedJa4: '',
+  minOpenSsl: [0, 0],
+  sessionProtocol: '',
 };
 
 /** Registry of every ClientHello profile, keyed by kind. */
 const TLS_CLIENT_PROFILES: Readonly<Record<TlsClientProfileKind, ITlsClientProfile>> = {
-  'node-default': { options: {}, expectedJa4: '', minOpenSsl: [0, 0] },
+  'node-default': NODE_DEFAULT,
   'android-11-okhttp': ANDROID_11_OKHTTP,
 };
 

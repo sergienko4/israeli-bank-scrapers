@@ -230,6 +230,14 @@ the bank — usually a proxy or TLS-inspecting middlebox — presented its own
 certificate. Route the scraper around it. See
 [Server certificate checks](banks/onezero.md#server-certificate-checks).
 
+## `server negotiated a TLS version the profile does not allow`
+
+An API-direct bank whose TLS profile pins the session protocol (OneZero pins
+TLS 1.3) reached a server that settled on an older version, and the request
+was not sent. The bank's real edge negotiates the pinned version, so a proxy
+or TLS-inspecting middlebox is terminating the connection. Route the scraper
+around it. See [Session protocol](banks/onezero.md#session-protocol).
+
 ## Error types
 
 Returned as `result.errorType` when `result.success` is `false`.

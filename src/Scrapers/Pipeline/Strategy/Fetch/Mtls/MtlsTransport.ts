@@ -6,12 +6,12 @@
  * the shared dispatchFetch pipeline (parsing, cookies, logging) is reused
  * unchanged. The same Agent can also present a registered TLS ClientHello
  * profile (see TlsClientProfiles) for edges that fingerprint the handshake,
- * which globalThis.fetch cannot shape either. This is the ONLY node:https
- * usage in the Pipeline by design.
+ * which globalThis.fetch cannot shape either. This is the ONLY module that
+ * sends requests over node:https in the Pipeline by design.
  */
 
 import type { ClientRequest, IncomingMessage } from 'node:http';
-import { Agent, request as httpsRequest, type RequestOptions } from 'node:https';
+import { type Agent, request as httpsRequest, type RequestOptions } from 'node:https';
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { toError } from '../../../Types/ErrorUtils.js';
@@ -20,6 +20,7 @@ import { fail, succeed } from '../../../Types/Procedure.js';
 import type { FetchInvoke, HttpVerb } from '../NativeFetchStrategy.js';
 import { safeUrlForLog, scrubUrlFromText } from '../SafeUrlForLog.js';
 import { checkServerCertificate } from '../Tls/ServerCertificateFloor.js';
+import { SessionProtocolAgent } from '../Tls/SessionProtocolAgent.js';
 import { getTlsClientProfile, type TlsClientProfileKind } from '../Tls/TlsClientProfiles.js';
 import type { ICertBundle } from './OneZeroClientCert.js';
 
@@ -88,9 +89,10 @@ function toCertOptions(clientCert: ICertBundle | false): Partial<ICertBundle> {
  * Builds the keep-alive-off HTTPS agent a node:https transport sends through.
  * The agent presents the optional client certificate and shapes its
  * ClientHello with the named profile; the default profile leaves Node's stock
- * handshake untouched. Every agent enforces the server-certificate floor, so a
- * profile that lowers OpenSSL's security level for its handshake cannot lower
- * the bar for the server's chain.
+ * handshake untouched. Every agent enforces the server-certificate floor and
+ * the profile's session protocol, so a profile that lowers OpenSSL's security
+ * level for its handshake cannot lower the bar for the server's chain or for
+ * the handshake signature.
  * @param clientCert - PEM cert + key to present, or false to present none.
  * @param tlsProfile - Registered ClientHello profile to present.
  * @returns An https.Agent carrying the certificate and profile options.
@@ -99,10 +101,11 @@ function buildMtlsAgent(
   clientCert: ICertBundle | false,
   tlsProfile: TlsClientProfileKind = 'node-default',
 ): Agent {
-  const { options } = getTlsClientProfile(tlsProfile);
+  const { options, sessionProtocol } = getTlsClientProfile(tlsProfile);
   const certOptions = toCertOptions(clientCert);
   const checkServerIdentity = checkServerCertificate;
-  return new Agent({ ...options, ...certOptions, checkServerIdentity, keepAlive: false });
+  const agentOptions = { ...options, ...certOptions, checkServerIdentity, keepAlive: false };
+  return new SessionProtocolAgent(agentOptions, sessionProtocol);
 }
 
 /**
