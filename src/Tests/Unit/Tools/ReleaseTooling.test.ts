@@ -224,6 +224,10 @@ describe('upgrade-notes', () => {
     const secondAt = section.indexOf('Node 22 dropped');
     expect(firstAt).toBeGreaterThan(-1);
     expect(secondAt).toBeGreaterThan(firstAt);
+    const firstAction = '**What to do:** Call `createScraper` instead.';
+    expect(section).toContain(`${firstAction}\n\n**Breaking — Node 22 dropped**`);
+    const secondActionAt = section.indexOf('**What to do:** Upgrade Node.');
+    expect(secondActionAt).toBeGreaterThan(secondAt);
   });
 
   it('renders before and after snippets when present', () => {
