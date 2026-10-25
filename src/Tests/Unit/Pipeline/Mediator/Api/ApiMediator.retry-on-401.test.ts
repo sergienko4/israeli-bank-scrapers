@@ -288,6 +288,20 @@ describe('ApiMediator.retryOn401 — strategy registered via withTokenStrategy',
     if (!result.success) expect(result.errorMessage).toContain('not authorised');
   });
 
+  it('returns the refresh WAF block instead of the original 401', async () => {
+    const initial401 = fail(ScraperErrorTypes.Generic, MSG_401_FIRST);
+    const retriedOk = succeed({ ok: 'must not be retried' });
+    const fetchStrat = scriptedFetchStrategy([initial401, retriedOk]);
+    const graphql = stubGraphqlStrategy();
+    const mediator = createApiMediator(CompanyTypes.OneZero, fetchStrat, graphql);
+    const refreshBlocked = fail(ScraperErrorTypes.WafBlocked, 'identity host refused by the edge');
+    const strategy = scriptedStrategy([refreshBlocked]);
+    const ctx0 = makeStubCtx();
+    mediator.withTokenStrategy(strategy, ctx0, { marker: 'x' });
+    const result = await mediator.apiPost(TEST_URL_TAG, {});
+    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.WafBlocked });
+  });
+
   it('converts a thrown primeFresh into a failure + returns the original 401', async () => {
     const initial401 = fail(ScraperErrorTypes.Generic, MSG_401_FIRST);
     const fetchStrat = scriptedFetchStrategy([initial401]);

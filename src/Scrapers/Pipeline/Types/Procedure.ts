@@ -87,6 +87,25 @@ function isWafBlocked<T>(proc: Procedure<T>): boolean {
 }
 
 /**
+ * Answer with a repair attempt's edge (WAF) refusal when it has one.
+ * A token refresh or session recovery runs because an earlier outcome looked
+ * broken. When the edge refuses that repair, keeping the earlier outcome — an
+ * auth rejection, or a degraded success — would hide the block from every
+ * WAF guard downstream, so the refusal replaces it.
+ * @param repair - The refresh or recovery procedure.
+ * @param earlier - The outcome the repair was meant to fix.
+ * @returns The repair's WAF failure, else the earlier outcome.
+ */
+function preferWafBlock<T, TRepair>(
+  repair: Procedure<TRepair>,
+  earlier: Procedure<T>,
+): Procedure<T> {
+  if (isOk(repair)) return earlier;
+  if (isWafBlocked(repair)) return repair;
+  return earlier;
+}
+
+/**
  * Convert legacy IScraperScrapingResult to Procedure.
  * @param result - Legacy result from existing scrapers.
  * @returns A typed Procedure.
@@ -120,4 +139,4 @@ function toLegacy<T>(proc: Procedure<T>): IScraperScrapingResult {
 }
 
 export type { IProcedureFailure, IProcedureSuccess, Procedure };
-export { fail, failWithDetails, fromLegacy, isOk, isWafBlocked, succeed, toLegacy };
+export { fail, failWithDetails, fromLegacy, isOk, isWafBlocked, preferWafBlock, succeed, toLegacy };

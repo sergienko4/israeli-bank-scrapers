@@ -124,7 +124,12 @@ re-mint nor the warm-to-cold fallback fires on it, the scrape phase does not
 recover the session over it (a cold re-login could send an SMS while the host
 stays blocked), and a balance `fallbackOnFail` never masks it. All four paths
 ask the one predicate `isWafBlocked`
-(`src/Scrapers/Pipeline/Types/Procedure.ts`).
+(`src/Scrapers/Pipeline/Types/Procedure.ts`). A block on the repair itself
+is not dropped either: when the edge refuses the re-mint, the request answers
+with that `WAF_BLOCKED` instead of the original `401`/`403`, and when it
+refuses the scrape phase's session recovery, the phase answers with it
+instead of its first outcome. Both go through `preferWafBlock` in the same
+file.
 
 ## One SMS per run
 

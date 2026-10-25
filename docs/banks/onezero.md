@@ -202,7 +202,10 @@ The page itself is never quoted — it carries your client IP and a Cloudflare
 Ray ID — and this path sets no `errorDetails`. `WAF_BLOCKED` is terminal:
 the call is not retried, a blocked warm start does not fall back to an SMS
 login, a block on a later accounts or balance call does not trigger a re-login,
-and the balance is never reported as `0` in its place.
+and the balance is never reported as `0` in its place. The same applies when
+the identity host refuses the token refresh or re-login that follows an
+expired session: the run reports that `WAF_BLOCKED`, not the earlier `401`
+or a degraded scrape.
 
 Work through these in order:
 

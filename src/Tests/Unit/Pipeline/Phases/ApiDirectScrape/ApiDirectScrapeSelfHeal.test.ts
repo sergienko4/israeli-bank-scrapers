@@ -386,5 +386,41 @@ describe.each([SYN_CASE, PEPPER_CASE, ONEZERO_CASE] as readonly AnyBankCase[])(
       expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.WafBlocked });
       expect(recoverSession).not.toHaveBeenCalled();
     });
+
+    it('SH-W3 — warm + degraded balance + edge-refused recovery fails WAF_BLOCKED', async () => {
+      const { bus, recoverSession } = makeSelfHealBus({
+        router: {
+          customer: [succeed(bankCase.fixtures.customer)],
+          balance: [BALANCE_REJECTED],
+          transactions: [succeed(bankCase.fixtures.transactions)],
+        },
+        isWarm: true,
+        recover: EDGE_REFUSED,
+      });
+      const shape = degradedShape(bankCase);
+      const phase = createApiDirectScrapePhase(shape);
+
+      const ctx = ctxOf(bus, bankCase.name);
+      const result = await phase(ctx);
+
+      expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.WafBlocked });
+      expect(recoverSession).toHaveBeenCalledTimes(1);
+    });
+
+    it('SH-W4 — warm + failed accounts call + edge-refused recovery fails WAF_BLOCKED', async () => {
+      const { bus, recoverSession } = makeSelfHealBus({
+        router: { customer: [fail(ScraperErrorTypes.Generic, 'accounts down')] },
+        isWarm: true,
+        recover: EDGE_REFUSED,
+      });
+      const shape = degradedShape(bankCase);
+      const phase = createApiDirectScrapePhase(shape);
+
+      const ctx = ctxOf(bus, bankCase.name);
+      const result = await phase(ctx);
+
+      expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.WafBlocked });
+      expect(recoverSession).toHaveBeenCalledTimes(1);
+    });
   },
 );
