@@ -237,27 +237,35 @@ describe('ServerCertificateFloor — enforced by the transport agent on a real h
     expect({ outcome, requests }).toEqual({ outcome: { status: 200, error: '' }, requests: 1 });
   });
 
-  it.each([
+  const weakLeaves = [
     { name: 'an RSA-1024 leaf', certB64: FLOOR_WEAK_KEY_CERT_B64, keyB64: FLOOR_WEAK_KEY_KEY_B64 },
     { name: 'a SHA-1 signed leaf', certB64: FLOOR_SHA1_CERT_B64, keyB64: FLOOR_GOOD_KEY_B64 },
-  ])('refuses $name before the request reaches the server', async ({ certB64, keyB64 }) => {
-    const server = await startLeafServer(certB64, keyB64);
-    const outcome = await fetchOutcome(server.port, agent);
-    const requests = server.requests();
-    await server.close();
-    const refused = { status: 0, error: SERVER_CERT_FLOOR_REASON };
-    expect({ outcome, requests }).toEqual({ outcome: refused, requests: 0 });
-  });
+  ];
 
-  it('is what refuses the weak chain: the profile alone accepts it', async () => {
-    const { options } = getTlsClientProfile('android-11-okhttp');
-    const profileOnly = new Agent({ ...options, keepAlive: false });
-    const server = await startLeafServer(FLOOR_WEAK_KEY_CERT_B64, FLOOR_WEAK_KEY_KEY_B64);
-    const outcome = await fetchOutcome(server.port, profileOnly);
-    profileOnly.destroy();
-    await server.close();
-    expect(outcome).toEqual({ status: 200, error: '' });
-  });
+  it.each(weakLeaves)(
+    'refuses $name before the request reaches the server',
+    async ({ certB64, keyB64 }) => {
+      const server = await startLeafServer(certB64, keyB64);
+      const outcome = await fetchOutcome(server.port, agent);
+      const requests = server.requests();
+      await server.close();
+      const refused = { status: 0, error: SERVER_CERT_FLOOR_REASON };
+      expect({ outcome, requests }).toEqual({ outcome: refused, requests: 0 });
+    },
+  );
+
+  it.each(weakLeaves)(
+    'is what refuses $name: the profile alone accepts it',
+    async ({ certB64, keyB64 }) => {
+      const { options } = getTlsClientProfile('android-11-okhttp');
+      const profileOnly = new Agent({ ...options, keepAlive: false });
+      const server = await startLeafServer(certB64, keyB64);
+      const outcome = await fetchOutcome(server.port, profileOnly);
+      profileOnly.destroy();
+      await server.close();
+      expect(outcome).toEqual({ status: 200, error: '' });
+    },
+  );
 
   it('still runs the hostname check first', async () => {
     const server = await startLeafServer(FLOOR_GOOD_CERT_B64, FLOOR_GOOD_KEY_B64);
