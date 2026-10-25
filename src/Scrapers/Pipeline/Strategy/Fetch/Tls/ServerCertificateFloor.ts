@@ -45,6 +45,9 @@ const STRONG_CURVES: ReadonlySet<string> = new Set([
   'secp521r1',
 ]);
 
+/** The arc RFC 8410 registers the EdDSA algorithms under. */
+const EDDSA_ARC = '1.3.101';
+
 /** Signature algorithms at 112-bit security or better, by dotted OID. */
 const STRONG_SIGNATURE_OIDS: ReadonlySet<string> = new Set([
   '1.2.840.113549.1.1.11', // sha256WithRSAEncryption
@@ -55,8 +58,8 @@ const STRONG_SIGNATURE_OIDS: ReadonlySet<string> = new Set([
   '1.2.840.10045.4.3.2', // ecdsa-with-SHA256
   '1.2.840.10045.4.3.3', // ecdsa-with-SHA384
   '1.2.840.10045.4.3.4', // ecdsa-with-SHA512
-  '1.3.101.112', // Ed25519
-  '1.3.101.113', // Ed448
+  `${EDDSA_ARC}.112`, // Ed25519
+  `${EDDSA_ARC}.113`, // Ed448
 ]);
 
 /** RSASSA-PSS; its strength is that of the hash named in its parameters. */
