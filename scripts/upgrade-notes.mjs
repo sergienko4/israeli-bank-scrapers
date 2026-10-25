@@ -75,14 +75,25 @@ function renderNoAction() {
 }
 
 /**
- * Renders the whole section.
+ * Renders every entry for a release, separated by a blank line.
+ * @param entries Matching compatibility entries, in document order.
+ * @returns Markdown lines.
+ */
+function renderActions(entries) {
+  return entries.flatMap((entry, index) =>
+    index === 0 ? renderAction(entry) : ['', ...renderAction(entry)],
+  );
+}
+
+/**
+ * Renders the whole section, listing every entry for the version.
  * @param version Target version, without a leading `v`.
  * @param data Parsed compatibility document.
  * @returns Complete Markdown section.
  */
 export function renderSection(version, data) {
-  const entry = data.entries.find((e) => e.version === version);
-  const body = entry ? renderAction(entry) : renderNoAction();
+  const entries = data.entries.filter((e) => e.version === version);
+  const body = entries.length > 0 ? renderActions(entries) : renderNoAction();
   const lines = [`## Upgrading to ${version}`, '', ...body, '', `Requires Node ${data.runtime.node}.`, '', `Full upgrade notes: ${DOCS_URL}`];
   return `${lines.join('\n')}\n`;
 }

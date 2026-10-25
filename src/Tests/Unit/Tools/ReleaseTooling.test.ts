@@ -30,6 +30,7 @@ interface ICompatData {
 interface IBreakingNoteModule {
   findBreaking: (messages: string[]) => string[];
   footerOf: (message: string) => string;
+  hasNewEntry: (before: ICompatEntry[], after: ICompatEntry[]) => boolean;
 }
 
 interface IUpgradeNotesModule {
@@ -147,6 +148,30 @@ describe('check-breaking-note', () => {
     const footer = mod.footerOf('BREAKING CHANGE: not a real footer');
     expect(footer).toBe('');
   });
+
+  // Regression: entries were keyed by version, so several unchanged notes
+  // for one release overwrote each other and looked like a new note.
+  it('finds no new entry when several unchanged notes share a version', () => {
+    const entries = [buildEntry(), buildEntry({ title: 'Node 22 dropped' })];
+    const hasNew = mod.hasNewEntry(entries, [...entries]);
+    expect(hasNew).toBe(false);
+  });
+
+  it('finds an edited note among several that share a version', () => {
+    const entries = [buildEntry(), buildEntry({ title: 'Node 22 dropped' })];
+    const edited = [entries[0], buildEntry({ title: 'Node 22 dropped', action: 'Pin ^8.' })];
+    const hasNew = mod.hasNewEntry(entries, edited);
+    expect(hasNew).toBe(true);
+  });
+
+  // Reordering keys documents nothing, so it must not satisfy the gate.
+  it('finds no new entry when only key order changes', () => {
+    const entry = buildEntry();
+    const { action, detail, impact, title, version } = entry;
+    const reordered: ICompatEntry = { action, detail, impact, title, version };
+    const hasNew = mod.hasNewEntry([entry], [reordered]);
+    expect(hasNew).toBe(false);
+  });
 });
 
 describe('upgrade-notes', () => {
@@ -187,6 +212,22 @@ describe('upgrade-notes', () => {
     expect(section).toContain('## Upgrading to 9.0.0');
     expect(section).toContain('OneZeroScraper export removed');
     expect(section).toContain('**What to do:** Call `createScraper` instead.');
+  });
+
+  // Regression: only the first matching entry was rendered, so a release
+  // with several upgrade notes silently dropped all but one.
+  it('renders every entry for the version in document order', () => {
+    const second = buildEntry({ title: 'Node 22 dropped', action: 'Upgrade Node.' });
+    const data = buildData([buildEntry(), second]);
+    const section = mod.renderSection('9.0.0', data);
+    const firstAt = section.indexOf('OneZeroScraper export removed');
+    const secondAt = section.indexOf('Node 22 dropped');
+    expect(firstAt).toBeGreaterThan(-1);
+    expect(secondAt).toBeGreaterThan(firstAt);
+    const firstAction = '**What to do:** Call `createScraper` instead.';
+    expect(section).toContain(`${firstAction}\n\n**Breaking — Node 22 dropped**`);
+    const secondActionAt = section.indexOf('**What to do:** Upgrade Node.');
+    expect(secondActionAt).toBeGreaterThan(secondAt);
   });
 
   it('renders before and after snippets when present', () => {
