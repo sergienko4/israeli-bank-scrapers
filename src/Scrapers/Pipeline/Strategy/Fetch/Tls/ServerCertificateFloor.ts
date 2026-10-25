@@ -34,6 +34,9 @@ type KeyFloor = (key: KeyObject) => boolean;
 /** Smallest RSA / DSA modulus at 112-bit security. */
 const MIN_MODULUS_BITS = 2048;
 
+/** Smallest DSA subgroup order (q) at 112-bit security. */
+const MIN_DSA_DIVISOR_BITS = 224;
+
 /** Named curves whose order is at least 224 bits. */
 const STRONG_CURVES: ReadonlySet<string> = new Set([
   'secp224r1',
@@ -78,6 +81,17 @@ function hasStrongModulus(key: KeyObject): boolean {
 }
 
 /**
+ * DSA key floor. Its strength is the lesser of the modulus and half the
+ * subgroup order, so a 2048-bit modulus over a 160-bit q is only 80-bit.
+ * @param key - Public key.
+ * @returns True when the modulus is at least 2048 bits and q at least 224.
+ */
+function hasStrongDsaGroup(key: KeyObject): boolean {
+  const divisorBits = key.asymmetricKeyDetails?.divisorLength ?? 0;
+  return hasStrongModulus(key) && divisorBits >= MIN_DSA_DIVISOR_BITS;
+}
+
+/**
  * EC key floor.
  * @param key - Public key.
  * @returns True when the named curve is at least 224 bits.
@@ -99,7 +113,7 @@ function isFixedStrength(): boolean {
 const KEY_FLOORS: Readonly<Partial<Record<string, KeyFloor>>> = {
   rsa: hasStrongModulus,
   'rsa-pss': hasStrongModulus,
-  dsa: hasStrongModulus,
+  dsa: hasStrongDsaGroup,
   ec: hasStrongCurve,
   ed25519: isFixedStrength,
   ed448: isFixedStrength,

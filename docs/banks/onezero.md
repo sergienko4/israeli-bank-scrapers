@@ -238,12 +238,13 @@ whatever the profile. After Node's standard hostname check,
 `isServerChainAboveFloor` requires 112-bit strength — OpenSSL security level 2
 — from every certificate in the chain the server presented:
 
-- **Keys:** RSA or DSA of at least 2048 bits, EC on a named curve of at least
-  224 bits, or Ed25519/Ed448. Any other key type is refused.
+- **Keys:** RSA of at least 2048 bits, DSA with at least a 2048-bit modulus
+  and a 224-bit subgroup order, EC on a named curve of at least 224 bits, or
+  Ed25519/Ed448. Any other key type is refused.
 - **Signatures:** RSA or ECDSA with SHA-2, EdDSA, or RSASSA-PSS naming a SHA-2
   hash. `readSignatureAlgorithm` reads the algorithm from the certificate's
-  DER. A self-signed root's own signature is not checked, because it carries
-  no trust; its key is.
+  DER, and a certificate it cannot read is refused. A self-signed root's own
+  signature is not checked, because it carries no trust; its key is.
 
 A chain below the floor ends the connection before any request byte — or any
 credential — is written. The call fails as `GENERIC`, its message ending in

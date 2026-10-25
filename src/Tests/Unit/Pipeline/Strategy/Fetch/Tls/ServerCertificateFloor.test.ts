@@ -20,6 +20,8 @@ import { getTlsClientProfile } from '../../../../../../Scrapers/Pipeline/Strateg
 import { boundPort, decodePem, makeClose } from '../Mtls/MtlsTestServer.js';
 import {
   FLOOR_CA_CERT_B64,
+  FLOOR_DSA_Q160_CERT_B64,
+  FLOOR_DSA_Q224_CERT_B64,
   FLOOR_ECDSA_CERT_B64,
   FLOOR_ED25519_CERT_B64,
   FLOOR_GOOD_CERT_B64,
@@ -84,6 +86,7 @@ describe('ServerCertificateFloor.isServerChainAboveFloor', () => {
   it.each([
     { name: 'a P-256 SHA-256 leaf under a SHA-1 self-signed anchor', b64: FLOOR_GOOD_CERT_B64 },
     { name: 'a leaf signed RSASSA-PSS with SHA-256', b64: FLOOR_PSS_SHA256_CERT_B64 },
+    { name: 'a DSA-2048 leaf over a 224-bit q', b64: FLOOR_DSA_Q224_CERT_B64 },
   ])('accepts $name', ({ b64 }) => {
     const leaf = leafUnderCa(b64);
     const isAbove = isServerChainAboveFloor(leaf);
@@ -94,6 +97,7 @@ describe('ServerCertificateFloor.isServerChainAboveFloor', () => {
     { name: 'an RSA-1024 leaf', b64: FLOOR_WEAK_KEY_CERT_B64 },
     { name: 'a SHA-1 signed leaf', b64: FLOOR_SHA1_CERT_B64 },
     { name: 'a leaf signed RSASSA-PSS with the SHA-1 default', b64: FLOOR_PSS_SHA1_CERT_B64 },
+    { name: 'a DSA-2048 leaf over a 160-bit q', b64: FLOOR_DSA_Q160_CERT_B64 },
   ])('rejects $name', ({ b64 }) => {
     const leaf = leafUnderCa(b64);
     const isAbove = isServerChainAboveFloor(leaf);

@@ -21,6 +21,22 @@ import {
 /** Result for anything the reader cannot parse. */
 const UNREADABLE = { oid: '', pssHashOid: '' };
 
+/** Content bytes of sha256WithRSAEncryption, 1.2.840.113549.1.1.11. */
+const SHA256_WITH_RSA_BYTES = [0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x0b];
+
+/**
+ * The smallest certificate shape the reader walks — an empty TBS SEQUENCE and a
+ * signatureAlgorithm holding only the given OID content bytes.
+ * @param oidBytes - Content of the OBJECT IDENTIFIER, which may be malformed.
+ * @returns DER bytes.
+ */
+function certWithOidBytes(oidBytes: readonly number[]): Buffer {
+  const oid = [0x06, oidBytes.length, ...oidBytes];
+  const algorithm = [0x30, oid.length, ...oid];
+  const fields = [0x30, 0x00, ...algorithm];
+  return Buffer.from([0x30, fields.length, ...fields]);
+}
+
 /**
  * DER bytes of a base64-wrapped PEM fixture.
  * @param b64 - Fixture constant.
@@ -85,6 +101,32 @@ describe('DerSignatureAlgorithm.readSignatureAlgorithm', () => {
     { name: 'an empty certificate SEQUENCE', bytes: [0x30, 0x00] },
   ])('reports nothing for $name', ({ bytes }) => {
     const der = Buffer.from(bytes);
+    const algorithm = readSignatureAlgorithm(der);
+    expect(algorithm).toEqual(UNREADABLE);
+  });
+
+  it.each([
+    { name: 'sha256WithRSAEncryption', bytes: SHA256_WITH_RSA_BYTES, oid: '1.2.840.113549.1.1.11' },
+    {
+      name: 'a first sub-identifier spanning two bytes',
+      bytes: [0x88, 0x37, 0x01],
+      oid: '2.999.1',
+    },
+    { name: 'a zero arc', bytes: [0x00], oid: '0.0' },
+  ])('decodes the OID content of $name', ({ bytes, oid }) => {
+    const der = certWithOidBytes(bytes);
+    const algorithm = readSignatureAlgorithm(der);
+    expect(algorithm).toEqual({ oid, pssHashOid: '' });
+  });
+
+  it.each([
+    { name: 'an unterminated trailing byte', bytes: [...SHA256_WITH_RSA_BYTES, 0x80] },
+    { name: 'an unterminated last arc', bytes: [...SHA256_WITH_RSA_BYTES.slice(0, -1), 0x8b] },
+    { name: 'a padded sub-identifier', bytes: [0x2a, 0x80, 0x86, 0x48, 0x86, 0xf7, 0x0d] },
+    { name: 'a padded first sub-identifier', bytes: [0x80, 0x2a] },
+    { name: 'a sub-identifier past 2^53', bytes: [0x2a, ...Array<number>(8).fill(0xff), 0x7f] },
+  ])('reports nothing for OID content with $name', ({ bytes }) => {
+    const der = certWithOidBytes(bytes);
     const algorithm = readSignatureAlgorithm(der);
     expect(algorithm).toEqual(UNREADABLE);
   });

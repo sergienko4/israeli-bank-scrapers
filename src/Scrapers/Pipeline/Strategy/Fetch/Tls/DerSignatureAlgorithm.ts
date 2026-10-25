@@ -5,7 +5,8 @@
  * the server-certificate floor reads the field itself. The reader walks just
  * the path it needs (Certificate → signatureAlgorithm → OID, plus the
  * RSASSA-PSS hash), bounds-checks every length against its parent, and yields
- * empty OIDs on any malformed input so the caller fails closed.
+ * empty OIDs on any malformed input — including an OID with a padded,
+ * unterminated or oversized sub-identifier — so the caller fails closed.
  */
 
 /** Universal SEQUENCE tag. */
@@ -23,14 +24,17 @@ const LONG_FORM = 0x80;
 /** Most length bytes accepted; a certificate never needs more than four. */
 const MAX_LENGTH_BYTES = 4;
 
-/** Radix of an OID sub-identifier byte. */
+/** Radix of an OID sub-identifier byte; bytes at or above it continue the value. */
 const OID_RADIX = 0x80;
 
-/** Arcs folded into an OID's first byte (`first = 40 * arc0 + arc1`). */
-const FIRST_BYTE_ARCS = 40;
+/** Largest sub-identifier decoded exactly; anything larger is malformed here. */
+const MAX_SUBIDENTIFIER = Number.MAX_SAFE_INTEGER;
 
-/** Highest first arc (`joint-iso-itu-t`); larger values belong to arc 2. */
-const MAX_FIRST_ARC = 2;
+/** Arcs under roots 0 and 1; the first sub-identifier is `40 * arc0 + arc1`. */
+const SECOND_ARC_SPAN = 40;
+
+/** Highest root arc (`joint-iso-itu-t`), which takes every larger value. */
+const MAX_ROOT_ARC = 2;
 
 /** A certificate's outer signature algorithm, as dotted OIDs. */
 interface ISignatureAlgorithm {
@@ -56,11 +60,15 @@ interface IDerNode {
 /** Sentinel for a missing or malformed element; every read from it fails. */
 const NO_NODE: IDerNode = { start: -1, end: -1 };
 
-/** OID accumulator: completed arcs plus the sub-identifier being built. */
+/** OID accumulator: completed sub-identifiers plus the one being built. */
 interface IOidAccumulator {
-  readonly arcs: readonly number[];
+  readonly values: readonly number[];
   readonly pending: number;
+  readonly isWellFormed: boolean;
 }
+
+/** Accumulator before the first OID byte. */
+const OID_SEED: IOidAccumulator = { values: [], pending: 0, isWellFormed: true };
 
 /**
  * Decode a DER length field.
@@ -104,32 +112,46 @@ function contentOf(raw: Buffer, node: IDerNode): IDerCursor {
 }
 
 /**
- * Fold one OID byte into the accumulator.
- * @param acc - Arcs so far.
+ * Fold one OID byte into the accumulator. A sub-identifier that opens with a
+ * zero continuation byte is padded (not minimal DER), and one past
+ * MAX_SUBIDENTIFIER cannot be decoded exactly; either marks the OID malformed.
+ * @param acc - Sub-identifiers so far.
  * @param byte - Next base-128 byte.
  * @returns The updated accumulator.
  */
 function appendOidByte(acc: IOidAccumulator, byte: number): IOidAccumulator {
+  const isPadding = acc.pending === 0 && byte === OID_RADIX;
   const pending = acc.pending * OID_RADIX + (byte % OID_RADIX);
-  if (byte >= OID_RADIX) return { arcs: acc.arcs, pending };
-  return { arcs: [...acc.arcs, pending], pending: 0 };
+  const isWellFormed = acc.isWellFormed && !isPadding && pending <= MAX_SUBIDENTIFIER;
+  if (byte >= OID_RADIX) return { values: acc.values, pending, isWellFormed };
+  return { values: [...acc.values, pending], pending: 0, isWellFormed };
+}
+
+/**
+ * Split the first sub-identifier into the root arc and the second arc.
+ * @param values - Decoded sub-identifiers, at least one.
+ * @returns The OID's arcs.
+ */
+function splitRootArc(values: readonly number[]): readonly number[] {
+  const [combined = 0, ...rest] = values;
+  const quotient = Math.floor(combined / SECOND_ARC_SPAN);
+  const root = Math.min(quotient, MAX_ROOT_ARC);
+  return [root, combined - root * SECOND_ARC_SPAN, ...rest];
 }
 
 /**
  * Decode an OBJECT IDENTIFIER's content to dotted form.
  * @param raw - Certificate bytes.
  * @param node - The OID element.
- * @returns The dotted OID, or empty when the element is missing.
+ * @returns The dotted OID; empty when the element is missing or malformed.
  */
 function decodeOid(raw: Buffer, node: IDerNode): string {
   if (node.end <= node.start) return '';
-  const first = raw.readUInt8(node.start);
-  const firstQuotient = Math.floor(first / FIRST_BYTE_ARCS);
-  const arc0 = Math.min(firstQuotient, MAX_FIRST_ARC);
-  const seed: IOidAccumulator = { arcs: [arc0, first - arc0 * FIRST_BYTE_ARCS], pending: 0 };
-  const tail = raw.subarray(node.start + 1, node.end);
-  const decoded = [...tail].reduce(appendOidByte, seed);
-  return decoded.arcs.join('.');
+  const content = raw.subarray(node.start, node.end);
+  const decoded = [...content].reduce(appendOidByte, OID_SEED);
+  if (!decoded.isWellFormed || decoded.pending !== 0) return '';
+  const arcs = splitRootArc(decoded.values);
+  return arcs.join('.');
 }
 
 /**
