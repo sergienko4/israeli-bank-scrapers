@@ -57,7 +57,8 @@ function buildResponse(status: number, bodyText: string): Response {
    * @returns Promise resolving to the canned body text.
    */
   const textFn = (): Promise<string> => Promise.resolve(bodyText);
-  const responseLike = { ok: isOkStatus, status, text: textFn };
+  const headers = new Headers();
+  const responseLike = { ok: isOkStatus, status, text: textFn, headers };
   return responseLike as unknown as Response;
 }
 

@@ -132,8 +132,9 @@ function setBusAuth(bus: IApiMediator, strategy: IConfigTokenStrategy, header: s
  * Name the cause that matches what actually happened to the stored seed.
  *
  * <p>Only the local-freshness rejection is knowable here. Everything else the
- * cold retry swallows — refusal, timeout, transport, WAF — so the warm
- * attempt's error tag is reported rather than a guess at which one it was.
+ * cold retry swallows — refusal, timeout, transport — so the warm attempt's
+ * error tag is reported rather than a guess at which one it was. (A WAF block
+ * is terminal and never reaches the cold retry.)
  * The tag is passed through `redactSensitiveEnum` because password-class tags
  * are themselves credential metadata. An absent tag is a defensive default —
  * `fail()` always carries a `ScraperErrorTypes` value — so the clause degrades

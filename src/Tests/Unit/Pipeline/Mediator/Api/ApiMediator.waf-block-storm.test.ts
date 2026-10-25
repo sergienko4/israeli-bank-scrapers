@@ -21,10 +21,17 @@ import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/A
 import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { IFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 import type { GraphQLFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
+import { classifyHttpFailure } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HttpFailureClassifier.js';
 import type { ITokenBus } from '../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import {
+  CLOUDFLARE_BLOCK_PAGE,
+  CLOUDFLARE_CHALLENGE_HEADERS,
+  CLOUDFLARE_CHALLENGE_PAGE,
+  CLOUDFRONT_BLOCK_PAGE,
+} from '../../../../Helpers/EdgeBlockPages.js';
 
 /** Test-only creds shape — opaque to the mediator + builder. */
 interface ITestCreds {
@@ -43,12 +50,44 @@ const FRESH_HEADER = '******';
 /** Reuse an existing WKUrlGroup so the factory's URL resolver succeeds. */
 const TEST_URL_TAG = 'auth.bind' as const;
 
-/** Message shape emitted by CamoufoxIdentityFetchStrategy for a WAF block. */
-const MSG_WAF_403 =
-  'POST https://bank.example.com/customer 403: blocked by the site edge (WAF) before reaching the API';
+/** URL the fake edge answers for. */
+const EDGE_URL = 'https://bank.example.com/customer';
+
+/** What the fetch strategies return for a Cloudflare block page. */
+const CLOUDFLARE_BLOCKED = classifyHttpFailure<unknown>({
+  verb: 'POST',
+  url: EDGE_URL,
+  status: 403,
+  body: CLOUDFLARE_BLOCK_PAGE,
+  headers: {},
+});
+
+/** What they return for a Cloudflare challenge, which no API client can solve. */
+const CLOUDFLARE_CHALLENGED = classifyHttpFailure<unknown>({
+  verb: 'POST',
+  url: EDGE_URL,
+  status: 403,
+  body: CLOUDFLARE_CHALLENGE_PAGE,
+  headers: CLOUDFLARE_CHALLENGE_HEADERS,
+});
+
+/** Every edge refusal the fetch strategies classify as WafBlocked. */
+const EDGE_REFUSALS = [
+  { label: 'block page', refusal: CLOUDFLARE_BLOCKED },
+  { label: 'challenge', refusal: CLOUDFLARE_CHALLENGED },
+] as const;
+
+/** What they return for Pepper's CloudFront 403 — a stale-bearer signal. */
+const CLOUDFRONT_REJECTED = classifyHttpFailure<unknown>({
+  verb: 'POST',
+  url: EDGE_URL,
+  status: 403,
+  body: CLOUDFRONT_BLOCK_PAGE,
+  headers: {},
+});
 
 /** Genuine auth rejection — must still earn exactly one re-mint. */
-const MSG_401 = 'POST https://bank.example.com/customer 401: not authorised';
+const MSG_401 = `POST ${EDGE_URL} 401: not authorised`;
 
 /**
  * Ceiling on fetches for one guarded `apiPost` against a rejecting edge:
@@ -172,25 +211,32 @@ function buildMediator(
 
 /** Register a fake URL before the suite runs so apiPost can resolve it. */
 beforeAll(() => {
-  registerWkUrl(TEST_URL_TAG, CompanyTypes.OneZero, 'https://bank.example.com/customer');
+  registerWkUrl(TEST_URL_TAG, CompanyTypes.OneZero, EDGE_URL);
 });
 
 describe('ApiMediator — WAF block is terminal', () => {
-  it('never re-mints a token when the edge blocks the request', async () => {
-    const tally: ITally = { fetches: 0, refreshes: 0 };
-    const blocked = fail(ScraperErrorTypes.WafBlocked, MSG_WAF_403);
-    const result = await buildMediator(blocked, tally).apiPost(TEST_URL_TAG, {});
-    expect(result.success).toBe(false);
-    expect(tally.refreshes).toBe(0);
-    expect(tally.fetches).toBe(1);
-  });
+  it.each(EDGE_REFUSALS)(
+    'never re-mints a token after a Cloudflare $label',
+    async ({ refusal }) => {
+      const tally: ITally = { fetches: 0, refreshes: 0 };
+      const result = await buildMediator(refusal, tally).apiPost(TEST_URL_TAG, {});
+      expect(result.success).toBe(false);
+      expect(tally.refreshes).toBe(0);
+      expect(tally.fetches).toBe(1);
+    },
+  );
 
-  it('surfaces the block as WafBlocked rather than an auth failure', async () => {
+  it.each(EDGE_REFUSALS)('surfaces a Cloudflare $label as WafBlocked', async ({ refusal }) => {
     const tally: ITally = { fetches: 0, refreshes: 0 };
-    const blocked = fail(ScraperErrorTypes.WafBlocked, MSG_WAF_403);
-    const result = await buildMediator(blocked, tally).apiPost(TEST_URL_TAG, {});
+    const result = await buildMediator(refusal, tally).apiPost(TEST_URL_TAG, {});
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorType).toBe(ScraperErrorTypes.WafBlocked);
+  });
+
+  it('still re-mints once on a CloudFront 403, which signals a stale bearer', async () => {
+    const tally: ITally = { fetches: 0, refreshes: 0 };
+    await buildMediator(CLOUDFRONT_REJECTED, tally).apiPost(TEST_URL_TAG, {});
+    expect(tally.refreshes).toBe(1);
   });
 });
 

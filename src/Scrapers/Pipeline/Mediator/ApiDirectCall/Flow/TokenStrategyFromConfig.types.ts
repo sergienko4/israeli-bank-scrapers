@@ -62,8 +62,9 @@ interface IConfigTokenStrategy extends ITokenStrategy<GenericCreds> {
   warmSeedRejectedLocally(): boolean;
   /**
    * How the warm attempt failed, as a ScraperErrorTypes tag, or '' when none
-   * was attempted or it succeeded. The cold retry fires on *any* primeInitial
-   * failure, so without this the fallback warning can only guess.
+   * was attempted or it succeeded. The cold retry fires on any primeInitial
+   * failure except a WAF block, so without this the fallback warning can only
+   * guess.
    *
    * <p>The tag, never the message: banks echo credentials into `errorMessage`
    * (see PiiRedactor/ErrorLog, CodeQL js/clear-text-logging #28).

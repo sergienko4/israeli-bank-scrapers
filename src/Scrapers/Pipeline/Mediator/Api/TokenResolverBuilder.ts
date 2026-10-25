@@ -7,14 +7,17 @@
  *
  * Ladder semantics (spec.txt §A.3):
  *   resolve()  runs primeInitial; on fail + warm state, retries
- *              via primeFresh; else returns the failure verbatim.
+ *              via primeFresh — unless the edge blocked the call
+ *              (WafBlocked is terminal); else returns the failure
+ *              verbatim.
  *   refresh()  always runs primeFresh (invoked by ApiMediator's
  *              retryOn401 wrapper on any 401 mid-session).
  */
 
+import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { ITokenBus } from '../../Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
-import type { Procedure } from '../../Types/Procedure.js';
+import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
 import type { ITokenResolver } from './ITokenResolver.js';
 import type { ITokenStrategy } from './ITokenStrategy.js';
@@ -38,18 +41,30 @@ async function runFresh<TCreds>(deps: IBuilderDeps<TCreds>): Promise<Procedure<s
 }
 
 /**
+ * Whether a failed stored-token attempt may escalate to primeFresh.
+ * A WAF block is terminal: the edge refused the request before the bank saw
+ * it, so a cold login would hit the same edge and could spend an SMS OTP.
+ * @param first - The failed primeInitial outcome.
+ * @param deps - Closure deps bag.
+ * @returns True when warm state exists and the edge did not block the call.
+ */
+function canEscalate<TCreds>(first: IProcedureFailure, deps: IBuilderDeps<TCreds>): boolean {
+  if (first.errorType === ScraperErrorTypes.WafBlocked) return false;
+  return deps.strategy.hasWarmState(deps.creds);
+}
+
+/**
  * Prime ladder — stored-first, fresh-fallback when a warm state
  * was supplied. Preserves rev11 belt-and-suspenders semantic
  * (spec.txt §A.3: "Stored path failure + warm state → ONE
- * retry via primeFresh").
+ * retry via primeFresh"), except after a WAF block.
  * @param deps - Closure deps bag.
  * @returns Header-value procedure.
  */
 async function runInitial<TCreds>(deps: IBuilderDeps<TCreds>): Promise<Procedure<string>> {
   const first = await deps.strategy.primeInitial(deps.bus, deps.ctx, deps.creds);
   if (isOk(first)) return first;
-  const hasWarm = deps.strategy.hasWarmState(deps.creds);
-  if (!hasWarm) return first;
+  if (!canEscalate(first, deps)) return first;
   return runFresh(deps);
 }
 

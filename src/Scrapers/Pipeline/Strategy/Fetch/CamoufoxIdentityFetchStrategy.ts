@@ -2,7 +2,7 @@
  * Camoufox-backed identity fetch strategy — routes REST calls through a
  * Camoufox browser session so the underlying TLS ClientHello carries a
  * Firefox JA3/JA4 fingerprint. Used by banks whose Cloudflare edge rejects
- * Node undici's TLS handshake (currently: OneZero identity host).
+ * Node undici's TLS handshake (those declaring `requiresBrowserTls`).
  *
  * Lifecycle: lazy-launches Camoufox on first call, navigates the page to the
  * constructor's originUrl so subsequent page.evaluate(fetch) calls are
@@ -27,20 +27,11 @@ import { describeJsonParseFailure } from '../../Types/JsonParseFailure.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
+import { classifyHttpFailure, hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
 import { digestResponse, type IResponseDigest } from './ResponseDigest.js';
 import { safeUrlForLog, scrubUrlFromText } from './SafeUrlForLog.js';
 
 const LOG = getDebug(import.meta.url);
-
-/** Maximum length of a response-body snippet embedded in an error message. */
-const ERROR_BODY_SNIPPET_LEN = 120;
-
-/**
- * Cloudflare IE7-fallback HTML markers. A non-2xx response body containing
- * any of these substrings is classified as WafBlocked — symmetry with
- * WAF_BLOCK_PATTERNS observability without touching the shared list.
- */
-const CF_HTML_MARKERS = ['oldie', 'cf-error'] as const;
 
 type LaunchDurationMs = Brand<number, 'LaunchDurationMs'>;
 type SetCookieEmitCount = Brand<number, 'SetCookieEmitCount'>;
@@ -52,6 +43,8 @@ interface IPageFetchEnvelope {
   readonly status: number;
   readonly bodyText: string;
   readonly setCookies: readonly string[];
+  /** Response headers the page can read, keyed by lower-case name. */
+  readonly headers: Readonly<Record<string, string>>;
 }
 
 /** Args bundle for the in-page fetch invocation. */
@@ -96,7 +89,8 @@ async function evalFetchBody(input: IInPageFetchArgs): Promise<IPageFetchEnvelop
   const response = await fetch(input.url, init);
   const bodyText = await response.text();
   const setCookies = response.headers.getSetCookie();
-  return { ok: response.ok, status: response.status, bodyText, setCookies };
+  const headers = Object.fromEntries(response.headers);
+  return { ok: response.ok, status: response.status, bodyText, setCookies, headers };
 }
 
 /**
@@ -120,40 +114,19 @@ async function runFetchInPage(page: Page, args: IInPageFetchArgs): Promise<IPage
 }
 
 /**
- * Determines whether a body snippet matches a known Cloudflare interstitial.
- * @param body - Raw response body text.
- * @returns True when any CF_HTML_MARKERS substring is present.
- */
-function isCloudflareHtml(body: string): boolean {
-  const lower = body.toLowerCase();
-  return CF_HTML_MARKERS.some((m): boolean => lower.includes(m));
-}
-
-/**
- * Resolves the error category for a non-2xx body — Cloudflare HTML interstitials
- * surface as WafBlocked, all other shapes stay Generic. Map-driven to satisfy
- * the project's no-ternary rule.
- * @param body - Raw response body text.
- * @returns ScraperErrorTypes category.
- */
-function classifyBody(body: string): ScraperErrorTypes {
-  if (isCloudflareHtml(body)) return ScraperErrorTypes.WafBlocked;
-  return ScraperErrorTypes.Generic;
-}
-
-/**
- * Classifies a non-2xx envelope into a Procedure failure.
- * @param env - In-page fetch envelope.
+ * Classifies a failed or challenged envelope into a Procedure failure.
+ * @param env - In-page fetch envelope: non-2xx, or a 2xx challenge.
  * @param verb - HTTP verb.
  * @param url - Target URL.
- * @returns Structured failure with status + body snippet.
+ * @returns WafBlocked for a Cloudflare edge refusal, else Generic with a snippet.
  */
-function classifyNon2xx<T>(env: IPageFetchEnvelope, verb: HttpVerb, url: string): Procedure<T> {
-  const snippet = env.bodyText.slice(0, ERROR_BODY_SNIPPET_LEN);
-  const safeUrl = safeUrlForLog(url);
-  const message = `${verb} ${safeUrl} ${String(env.status)}: ${snippet}`;
-  const errorType = classifyBody(env.bodyText);
-  return fail(errorType, message);
+function classifyFailedEnvelope<T>(
+  env: IPageFetchEnvelope,
+  verb: HttpVerb,
+  url: string,
+): Procedure<T> {
+  const failure = { verb, url, status: env.status, body: env.bodyText, headers: env.headers };
+  return classifyHttpFailure<T>(failure);
 }
 
 /**
@@ -172,6 +145,20 @@ function parseJsonEnvelope<T>(env: IPageFetchEnvelope, verb: HttpVerb, url: stri
     const safeUrl = safeUrlForLog(url);
     return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} parse error: ${reason}`);
   }
+}
+
+/**
+ * Routes an envelope to the JSON parser or the failure classifier. A 2xx
+ * carrying Cloudflare's challenge header is classified, not parsed.
+ * @param env - In-page fetch envelope.
+ * @param verb - HTTP verb.
+ * @param url - Target URL.
+ * @returns Parsed body, parse-error failure, or classified failure.
+ */
+function routeEnvelope<T>(env: IPageFetchEnvelope, verb: HttpVerb, url: string): Procedure<T> {
+  const isChallenged = hasCloudflareChallengeHeader(env.headers);
+  if (env.ok && !isChallenged) return parseJsonEnvelope<T>(env, verb, url);
+  return classifyFailedEnvelope<T>(env, verb, url);
 }
 
 /**
@@ -322,8 +309,7 @@ async function dispatch<T>(page: Page, args: IDispatchArgs): Promise<Procedure<T
   }
   logFetchStatus(args.verb, safeUrl, env);
   emitSetCookies(env.setCookies, args.opts.onSetCookie);
-  if (!env.ok) return classifyNon2xx<T>(env, args.verb, args.url);
-  return parseJsonEnvelope<T>(env, args.verb, args.url);
+  return routeEnvelope<T>(env, args.verb, args.url);
 }
 
 /**
