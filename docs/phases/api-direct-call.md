@@ -120,7 +120,11 @@ and GraphQL variants) and Camoufox page fetch share this one rule,
 reasons are `CLOUDFLARE_BLOCK_REASON` and `CLOUDFLARE_CHALLENGE_REASON`. The
 `<status>: ` prefix is kept
 in both cases, and `WAF_BLOCKED` is terminal — neither the in-request `401`/`403`
-re-mint nor the warm-to-cold fallback fires on it.
+re-mint nor the warm-to-cold fallback fires on it, the scrape phase does not
+recover the session over it (a cold re-login could send an SMS while the host
+stays blocked), and a balance `fallbackOnFail` never masks it. All four paths
+ask the one predicate `isWafBlocked`
+(`src/Scrapers/Pipeline/Types/Procedure.ts`).
 
 ## One SMS per run
 

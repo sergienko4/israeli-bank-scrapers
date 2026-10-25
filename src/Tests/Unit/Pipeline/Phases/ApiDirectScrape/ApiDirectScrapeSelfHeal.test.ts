@@ -344,3 +344,47 @@ describe('ApiDirectScrape self-heal — Pepper deployed shape (issue #550)', () 
     expect(account.balance).toBeUndefined();
   });
 });
+
+/** An edge (WAF) refusal of an authenticated call on the scrape host. */
+const EDGE_REFUSED = fail(ScraperErrorTypes.WafBlocked, 'Cloudflare edge blocked the request');
+
+describe.each([SYN_CASE, PEPPER_CASE, ONEZERO_CASE] as readonly AnyBankCase[])(
+  'ApiDirectScrape self-heal — edge refusal is terminal — $name',
+  bankCase => {
+    it('SH-W1 — warm + WAF-blocked balance fails WAF_BLOCKED: no fallback, no re-login', async () => {
+      const { bus, recoverSession } = makeSelfHealBus({
+        router: {
+          customer: [succeed(bankCase.fixtures.customer)],
+          balance: [EDGE_REFUSED],
+          transactions: [succeed(bankCase.fixtures.transactions)],
+        },
+        isWarm: true,
+        recover: succeed('fresh-cold-token'),
+      });
+      const shape = degradedShape(bankCase);
+      const phase = createApiDirectScrapePhase(shape);
+
+      const ctx = ctxOf(bus, bankCase.name);
+      const result = await phase(ctx);
+
+      expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.WafBlocked });
+      expect(recoverSession).not.toHaveBeenCalled();
+    });
+
+    it('SH-W2 — warm + WAF-blocked accounts call fails WAF_BLOCKED without re-login', async () => {
+      const { bus, recoverSession } = makeSelfHealBus({
+        router: { customer: [EDGE_REFUSED] },
+        isWarm: true,
+        recover: succeed('fresh-cold-token'),
+      });
+      const shape = degradedShape(bankCase);
+      const phase = createApiDirectScrapePhase(shape);
+
+      const ctx = ctxOf(bus, bankCase.name);
+      const result = await phase(ctx);
+
+      expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.WafBlocked });
+      expect(recoverSession).not.toHaveBeenCalled();
+    });
+  },
+);

@@ -8,7 +8,7 @@
  */
 
 import type { Procedure } from '../../Types/Procedure.js';
-import { isOk, succeed } from '../../Types/Procedure.js';
+import { isOk, isWafBlocked, succeed } from '../../Types/Procedure.js';
 import { dispatchStep } from './ApiDirectScrapeDispatch.js';
 import type { IAcctCtx } from './ApiDirectScrapeDispatchArgs.js';
 import { buildBalanceDispatchArgs } from './ApiDirectScrapeDispatchArgs.js';
@@ -65,7 +65,8 @@ async function dispatchBalance<TAcct, TCursor>(
  *
  * `extract` receives the account as well as the response so a shape whose
  * balance already rode an earlier step can answer from it (Max) rather than
- * issue a second call.
+ * issue a second call. An edge (WAF) refusal is never answered from the
+ * fallback: a degraded success would hide the block from the caller.
  * @param a - Per-account context.
  * @returns Balance outcome procedure (value + degraded flag).
  */
@@ -78,7 +79,7 @@ export async function fetchBalance<TAcct, TCursor>(
     return succeed(fetched);
   }
   const fb = a.shape.balance.fallbackOnFail;
-  if (fb === undefined) return resp;
+  if (fb === undefined || isWafBlocked(resp)) return resp;
   const fallback = balanceFallback(fb);
   return succeed(fallback);
 }

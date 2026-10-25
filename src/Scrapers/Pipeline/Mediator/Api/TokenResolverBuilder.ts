@@ -14,11 +14,10 @@
  *              retryOn401 wrapper on any 401 mid-session).
  */
 
-import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { ITokenBus } from '../../Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
 import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
-import { isOk } from '../../Types/Procedure.js';
+import { isOk, isWafBlocked } from '../../Types/Procedure.js';
 import type { ITokenResolver } from './ITokenResolver.js';
 import type { ITokenStrategy } from './ITokenStrategy.js';
 
@@ -49,7 +48,7 @@ async function runFresh<TCreds>(deps: IBuilderDeps<TCreds>): Promise<Procedure<s
  * @returns True when warm state exists and the edge did not block the call.
  */
 function canEscalate<TCreds>(first: IProcedureFailure, deps: IBuilderDeps<TCreds>): boolean {
-  if (first.errorType === ScraperErrorTypes.WafBlocked) return false;
+  if (isWafBlocked(first)) return false;
   return deps.strategy.hasWarmState(deps.creds);
 }
 

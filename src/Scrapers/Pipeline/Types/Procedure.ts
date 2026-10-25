@@ -74,6 +74,19 @@ function isOk<T>(proc: Procedure<T>): proc is IProcedureSuccess<T> {
 }
 
 /**
+ * Whether a procedure failed because the bank's edge (WAF) refused the call.
+ * Such a failure is terminal: the bank never saw the request, so re-minting a
+ * token, re-running the login (which may send an SMS OTP) or answering from a
+ * fallback cannot help and would only hide the block.
+ * @param proc - Any procedure.
+ * @returns True only for a failure typed `WafBlocked`.
+ */
+function isWafBlocked<T>(proc: Procedure<T>): boolean {
+  if (isOk(proc)) return false;
+  return proc.errorType === ScraperErrorTypes.WafBlocked;
+}
+
+/**
  * Convert legacy IScraperScrapingResult to Procedure.
  * @param result - Legacy result from existing scrapers.
  * @returns A typed Procedure.
@@ -107,4 +120,4 @@ function toLegacy<T>(proc: Procedure<T>): IScraperScrapingResult {
 }
 
 export type { IProcedureFailure, IProcedureSuccess, Procedure };
-export { fail, failWithDetails, fromLegacy, isOk, succeed, toLegacy };
+export { fail, failWithDetails, fromLegacy, isOk, isWafBlocked, succeed, toLegacy };

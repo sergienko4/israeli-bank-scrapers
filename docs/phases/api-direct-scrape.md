@@ -98,6 +98,13 @@ a figure; a shape can additionally declare `isAbsent` (Pepper supplies
 `balanceIsAbsent`) so a payload that carries no balance at all is
 treated as unknown rather than as a parse failure.
 
+An edge refusal is the exception. A balance call the bank's WAF refused
+fails the run with `WAF_BLOCKED` whatever `fallbackOnFail` declares, and
+the phase does not recover the session over it: the bank never saw the
+call, so a masked figure would report a blocked host as a healthy scrape,
+and a cold re-login could send an SMS without unblocking it. Both checks
+use `isWafBlocked`, the same predicate the login transport uses.
+
 ## Per-bank shape extractors
 
 Each api-direct bank declares its own `IApiDirectScrapeShape`:
