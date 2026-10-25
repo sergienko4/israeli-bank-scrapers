@@ -221,6 +221,15 @@ the browser paths. API-direct banks report `WAF_BLOCKED` without
 For how the challenge interceptor works, see
 [WAF interceptor](architecture/waf-interceptor.md).
 
+## `server certificate chain is below the TLS security floor`
+
+An API-direct bank on the `node:https` transport (OneZero) refused the
+server's certificate chain for a weak key or signature, before sending the
+request. The bank's real edge clears this check, so something between you and
+the bank — usually a proxy or TLS-inspecting middlebox — presented its own
+certificate. Route the scraper around it. See
+[Server certificate checks](banks/onezero.md#server-certificate-checks).
+
 ## Error types
 
 Returned as `result.errorType` when `result.success` is `false`.

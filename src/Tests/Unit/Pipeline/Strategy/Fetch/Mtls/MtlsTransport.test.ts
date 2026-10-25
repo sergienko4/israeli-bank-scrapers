@@ -20,6 +20,7 @@ import {
   setMtlsRequestTimeoutMs,
   toResponse,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
+import { checkServerCertificate } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/ServerCertificateFloor.js';
 import { isOk } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { IGateServer } from './MtlsTestServer.js';
 import {
@@ -77,6 +78,16 @@ describe('MtlsTransport.buildMtlsAgent', () => {
     expect(options.keepAlive).toBe(false);
     agent.destroy();
   });
+
+  it.each(['node-default', 'android-11-okhttp'] as const)(
+    'enforces the server-certificate floor under the %s profile',
+    tlsProfile => {
+      const agent = buildMtlsAgent(false, tlsProfile);
+      const { checkServerIdentity } = agent.options;
+      agent.destroy();
+      expect(checkServerIdentity).toBe(checkServerCertificate);
+    },
+  );
 });
 
 describe('MtlsTransport.mtlsInvoke — against the simulated mTLS gate', () => {

@@ -1553,3 +1553,8 @@ TlsProfileOptions
 # status, body, headers). Internal to the fetch strategies; the rule it feeds
 # is documented in docs/phases/api-direct-call.md.
 IHttpFailure
+# Reason: ServerCertificateFloor / DerSignatureAlgorithm -- the chain-link
+# shape the floor walks and the decoded signature-algorithm pair. Internal to
+# the TLS floor; the floor is documented in docs/banks/onezero.md.
+IChainLink
+ISignatureAlgorithm

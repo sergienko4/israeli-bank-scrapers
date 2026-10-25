@@ -224,4 +224,13 @@ function buildNoCertAgent(): Agent {
 }
 
 export type { IGateServer };
-export { buildCertAgent, buildNoCertAgent, GATE_COOKIES, startGateServer, testCertBundle };
+export {
+  boundPort,
+  buildCertAgent,
+  buildNoCertAgent,
+  decodePem,
+  GATE_COOKIES,
+  makeClose,
+  startGateServer,
+  testCertBundle,
+};

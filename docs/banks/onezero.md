@@ -227,6 +227,41 @@ is built, `getTlsClientProfile` resolves the profile's ClientHello options,
 logs the OpenSSL warning above whenever `isTlsProfileSupported` finds the
 runtime below the profile's floor.
 
+### Server certificate checks
+
+The Android profile lowers OpenSSL's security level to 0 so that its
+ClientHello still offers `rsa_pkcs1_sha1`, as the app does. OpenSSL applies
+the same level when it verifies the server's certificate chain, so the
+transport restores those checks itself. `buildMtlsAgent` sets
+`checkServerCertificate` as the `checkServerIdentity` of every agent it builds,
+whatever the profile. After Node's standard hostname check,
+`isServerChainAboveFloor` requires 112-bit strength — OpenSSL security level 2
+— from every certificate in the chain the server presented:
+
+- **Keys:** RSA or DSA of at least 2048 bits, EC on a named curve of at least
+  224 bits, or Ed25519/Ed448. Any other key type is refused.
+- **Signatures:** RSA or ECDSA with SHA-2, EdDSA, or RSASSA-PSS naming a SHA-2
+  hash. `readSignatureAlgorithm` reads the algorithm from the certificate's
+  DER. A self-signed root's own signature is not checked, because it carries
+  no trust; its key is.
+
+A chain below the floor ends the connection before any request byte — or any
+credential — is written. The call fails as `GENERIC`, its message ending in
+`SERVER_CERT_FLOOR_REASON`, which names no host or certificate field:
+
+```text
+POST https://identity.tfd-bank.com/v1/devices/token mtls error: server certificate chain is below the TLS security floor (weak key or signature)
+```
+
+OneZero's own chain (ECDSA P-256 with SHA-256 and SHA-384 signatures) clears
+the floor. This error therefore means the connection did not reach OneZero
+directly: look for a proxy or TLS-inspecting middlebox that re-signs traffic
+with its own certificate.
+
+The floor covers certificates only. Under TLS 1.2 a server may still sign the
+handshake itself with `rsa_pkcs1_sha1`, which the profile offers to match the
+app; TLS 1.3, which the OneZero edge negotiates, forbids it.
+
 ### Client certificate
 
 The scraper presents a client certificate on every OneZero request.

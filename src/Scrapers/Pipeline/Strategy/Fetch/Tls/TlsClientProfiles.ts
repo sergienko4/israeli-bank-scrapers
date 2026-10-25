@@ -26,7 +26,11 @@ const UNSUPPORTED_MSG =
 /** Registered profile names. `node-default` keeps Node's stock handshake. */
 type TlsClientProfileKind = 'node-default' | 'android-11-okhttp';
 
-/** The handshake-shaping subset of `tls.ConnectionOptions` a profile may set. */
+/**
+ * The handshake-shaping subset of `tls.ConnectionOptions` a profile may set.
+ * Verification options such as `checkServerIdentity` are deliberately absent,
+ * so no profile can replace the transport's server-certificate floor.
+ */
 type TlsProfileOptions = Pick<
   ConnectionOptions,
   | 'ALPNProtocols'
@@ -61,7 +65,9 @@ const SSL_OP_TLSEXT_PADDING = 0x10;
 /**
  * Cipher order of the Android 11 OkHttp/Conscrypt client. `@SECLEVEL=0` keeps
  * OpenSSL from dropping `rsa_pkcs1_sha1` from the offered signature algorithms;
- * without it the JA4 signature-algorithm hash no longer matches.
+ * without it the JA4 signature-algorithm hash no longer matches. The level also
+ * governs certificate verification, so the transport's server-certificate
+ * floor (ServerCertificateFloor) restores the level-2 key and signature checks.
  */
 const ANDROID_11_CIPHERS = [
   '@SECLEVEL=0',
