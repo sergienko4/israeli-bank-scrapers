@@ -134,6 +134,27 @@ function entriesAt(ref) {
 }
 
 /**
+ * Rebuilds a parsed JSON value with every object's keys sorted.
+ * @param value Parsed JSON value.
+ * @returns The same value, independent of source key order.
+ */
+function sortKeys(value) {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value === null || typeof value !== 'object') return value;
+  const keys = Object.keys(value).sort();
+  return Object.fromEntries(keys.map((k) => [k, sortKeys(value[k])]));
+}
+
+/**
+ * Serialises an entry so that equal content compares equal.
+ * @param entry Compatibility entry.
+ * @returns Canonical JSON text.
+ */
+function entryKey(entry) {
+  return JSON.stringify(sortKeys(entry));
+}
+
+/**
  * Reports whether the PR adds or edits a real compatibility entry.
  *
  * Comparing parsed entries rather than the file path is what makes the
@@ -141,15 +162,30 @@ function entriesAt(ref) {
  * `runtime` block, or a deletion all touch `compatibility.json` while
  * documenting nothing, and each used to satisfy the check.
  *
+ * Entries are compared whole, not keyed by version: one release can carry
+ * several notes, and a version-keyed lookup let them overwrite each other
+ * so unchanged notes looked new. Keys are sorted first, so reordering an
+ * entry's fields does not count as a note either.
+ *
  * One entry can legitimately cover several breaking commits in the same
  * release, so this deliberately requires *an* entry rather than one per
  * commit.
+ * @param beforeEntries Entries at the merge base.
+ * @param afterEntries Entries at HEAD.
+ * @returns True when an entry was added or changed.
+ */
+export function hasNewEntry(beforeEntries, afterEntries) {
+  const before = new Set(beforeEntries.map(entryKey));
+  return afterEntries.some((e) => !before.has(entryKey(e)));
+}
+
+/**
+ * Reports whether the PR's `compatibility.json` gained a new or edited entry.
  * @param base Merge-base sha.
  * @returns True when an entry was added or changed.
  */
 function hasNote(base) {
-  const before = new Map(entriesAt(base).map((e) => [e.version, JSON.stringify(e)]));
-  return entriesAt('HEAD').some((e) => before.get(e.version) !== JSON.stringify(e));
+  return hasNewEntry(entriesAt(base), entriesAt('HEAD'));
 }
 
 /**
