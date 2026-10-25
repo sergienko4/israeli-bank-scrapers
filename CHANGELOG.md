@@ -1,5 +1,26 @@
 # Changelog
 
+## [9.0.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.8.0...v9.0.0) (2026-10-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* Node 22 is no longer supported. engines.node is now >= 24.11.0 and the published bundle targets Node 24.
+
+### Features
+
+* **browser-stack:** gate the Juggler protocol in CI (part 2/5) ([#644](https://github.com/sergienko4/israeli-bank-scrapers/issues/644)) ([9400e67](https://github.com/sergienko4/israeli-bank-scrapers/commit/9400e675b13ddd0920780a2a2b36f2089ade5840))
+* **launcher:** warn on an untested browser stack (part 4/5) ([#646](https://github.com/sergienko4/israeli-bank-scrapers/issues/646)) ([30f96cd](https://github.com/sergienko4/israeli-bank-scrapers/commit/30f96cd6ffaf880c86e26e0a69711e7126e4f978))
+* require Node 24.11 or later ([#667](https://github.com/sergienko4/israeli-bank-scrapers/issues/667)) ([03979b4](https://github.com/sergienko4/israeli-bank-scrapers/commit/03979b41b71db7625e5460d3e8d99a63070c8278))
+
+
+### Bug Fixes
+
+* **browser-stack:** Camoufox v156 and the 1.64 routing shim (part 3/5) ([#645](https://github.com/sergienko4/israeli-bank-scrapers/issues/645)) ([9c644d0](https://github.com/sergienko4/israeli-bank-scrapers/commit/9c644d0c89897b89951fd1fad24473b1e8e00103))
+* **browser-stack:** support playwright-core 1.64 ([#656](https://github.com/sergienko4/israeli-bank-scrapers/issues/656)) ([9a475e2](https://github.com/sergienko4/israeli-bank-scrapers/commit/9a475e2fc42c895879a9c69d92e45e335168b7b3))
+* **onezero:** pass the Cloudflare edge with the app TLS fingerprint ([#666](https://github.com/sergienko4/israeli-bank-scrapers/issues/666)) ([a919268](https://github.com/sergienko4/israeli-bank-scrapers/commit/a9192684e75f47c460631864ab0881e49a2d7155))
+* **release:** handle several notes per version ([#668](https://github.com/sergienko4/israeli-bank-scrapers/issues/668)) ([d86d133](https://github.com/sergienko4/israeli-bank-scrapers/commit/d86d13356b35a35e716f9bbba9011eca041ecddd))
+
 ## [8.8.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.7.4...v8.8.0) (2026-10-11)
 
 
