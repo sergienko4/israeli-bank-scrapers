@@ -44,7 +44,7 @@ whether the OTP callback belongs in the options or the credentials
 [![npm downloads](https://img.shields.io/npm/dm/@sergienko4/israeli-bank-scrapers?logo=npm&logoColor=white)](https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers)
 [![CI](https://img.shields.io/github/actions/workflow/status/sergienko4/israeli-bank-scrapers/main-pipeline.yml?branch=main&logo=github&label=CI)](https://github.com/sergienko4/israeli-bank-scrapers/actions/workflows/main-pipeline.yml)
 [![Quality Gate](https://img.shields.io/sonar/quality_gate/sergienko4_israeli-bank-scrapers?server=https%3A%2F%2Fsonarcloud.io&logo=sonarcloud&logoColor=white)](https://sonarcloud.io/summary/overall?id=sergienko4_israeli-bank-scrapers)
-[![Node.js](https://img.shields.io/badge/node-%E2%89%A5%2022.14-green?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/node-%E2%89%A5%2024.11-green?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License](https://img.shields.io/github/license/sergienko4/israeli-bank-scrapers)](./LICENSE)
 
 > **Documentation** — [User guide](https://sergienko4.github.io/israeli-bank-scrapers/)
@@ -68,7 +68,7 @@ Playwright, and TypeScript strict mode.
 - [Why this fork](#why-this-fork)
 - [Requirements](#requirements)
   - [Tested Node versions](#tested-node-versions)
-- [Roadmap: Node 24 will become the minimum](#roadmap-node-24-will-become-the-minimum)
+  - [Node 22 is no longer supported](#node-22-is-no-longer-supported)
 - [Supported institutions](#supported-institutions)
 - [OTP (two-factor authentication)](#otp-two-factor-authentication)
 - [What you get back](#what-you-get-back)
@@ -104,7 +104,7 @@ Playwright, and TypeScript strict mode.
 
 | Requirement     | Minimum         | Note                                                                                                                                                                                                                                |
 | --------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Node.js         | `>= 22.14.0`    | ESM-by-default + `node:crypto` `randomUUID`                                                                                                                                                                                         |
+| Node.js         | `>= 24.11.0`    | First Node 24 LTS; bundles OpenSSL 3.5, which OneZero's TLS handshake needs                                                                                                                                                         |
 | npm             | `>= 10`         | Provenance-signed publishes                                                                                                                                                                                                         |
 | Disk            | ~1.3 GB         | Camoufox bundle, cached on **first launch** (not at install)                                                                                                                                                                        |
 | Install scripts | must be allowed | `--ignore-scripts` breaks the native build. npm 12 blocks them by default too, so `better-sqlite3` needs `npm install-scripts approve` — see [Troubleshooting](https://sergienko4.github.io/israeli-bank-scrapers/troubleshooting/) |
@@ -119,13 +119,12 @@ latest supported majors. Build tooling uses `.nvmrc` independently of consumers.
 
 <!-- node-support:start -->
 
-| Node      | Why this leg                                                            |
-| --------- | ----------------------------------------------------------------------- |
-| `22.14.0` | Packed CJS/ESM consumer smoke at the minimum from `engines.node`       |
-| `24.22.0` | Build-tool pin in `.nvmrc`; unit suite with coverage                  |
-| `22`      | Latest 22.x, so a patched LTS cannot regress us unnoticed               |
-| `24`      | Latest 24.x, so the open-ended `>=` is an evidenced claim, not a hope   |
-| `26`      | Active LTS from Oct 2026 — we meet the next default before consumers do |
+| Node      | Why this leg                                                                                                         |
+| --------- | -------------------------------------------------------------------------------------------------------------------- |
+| `24.11.0` | Packed CJS/ESM consumer smoke at the minimum from `engines.node`                                                     |
+| `24.22.0` | Build-tool pin in `.nvmrc`; unit suite with coverage                                                                 |
+| `24`      | Latest 24.x, so a patched LTS cannot regress us unnoticed, and the open-ended `>=` is an evidenced claim, not a hope |
+| `26`      | Current; LTS scheduled for 2026-10-28 — we meet the next default before consumers do                                 |
 
 <!-- node-support:end -->
 
@@ -133,17 +132,12 @@ latest supported majors. Build tooling uses `.nvmrc` independently of consumers.
 `engines.node` and CI coverage ever disagree. The consumer runtime is derived
 from `engines.node`; dependency upgrades do not raise the published minimum.
 
-### Roadmap: Node 24 will become the minimum
+### Node 22 is no longer supported
 
-Node 22 entered [maintenance](https://github.com/nodejs/release#release-schedule)
-on 2025-10-21 and reaches **end-of-life on 2027-04-30**. Node 24 has been Active
-LTS since 2025-10-28. A future **major** release will therefore raise
-`engines.node` to `>= 24` and retire the `22.x` rows above.
-
-Nothing breaks before then: `>= 22.14.0` stays valid for every `8.x` release, and
-the table above is build-enforced, so the floor cannot move without this section
-moving with it. If you are choosing a Node version for a new deployment today,
-choose 24.
+Since **9.0.0** the minimum is Node **24.11.0**, the first Node 24 LTS. Node 22
+is in [maintenance](https://github.com/nodejs/release#release-schedule) until its
+end-of-life on 2027-04-30, so stay on `8.x` only until you can move to Node 24.
+See [Compatibility](https://sergienko4.github.io/israeli-bank-scrapers/compatibility/) for what changed.
 
 ## Supported institutions
 

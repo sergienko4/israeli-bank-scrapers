@@ -7,21 +7,29 @@ mentioned here is a drop-in upgrade.
 
 ## Runtime requirement
 
-Node **>= 22.14.0**, unchanged since 8.0.0.
+Node **>= 24.11.0**, unchanged since 9.0.0.
 
-Unchanged for every 8.x release. Enforced by the `engines` field, so npm warns (or errors under `engine-strict`) on older runtimes.
+Raised from `>= 22.14.0` in 9.0.0. Enforced by the `engines` field, so npm warns (or errors under `engine-strict`) on older runtimes.
 
 ## Release notes
 
-### 8.9.0 - OneZero needs Node 22.20+ or 24.5+
+### 9.0.0 - Node 24.11 or later required; Node 22 is no longer supported
+
+**Impact:** Breaking
+
+`engines.node` is now `>= 24.11.0`, the first Node 24 LTS release, and the published bundle is compiled for Node 24. CI no longer tests Node 22, which reaches end-of-life on 2027-04-30. On an older runtime npm warns at install, or fails under `engine-strict`. The public API is unchanged.
+
+**What to do:** Upgrade to Node 24.11 or later before installing 9.x; `node --version` must print v24.11.0 or higher. If you must stay on Node 22, pin `^8` until you can upgrade; 8.x does not get the other 9.0.0 changes, including the OneZero fix.
+
+### 9.0.0 - OneZero needs OpenSSL 3.5
 
 **Impact:** Behavior
 
-OneZero's Cloudflare edge now admits only clients whose TLS handshake matches the OneZero Android app. The scraper sends that handshake, but only OpenSSL 3.5 or later can produce it. Node bundles OpenSSL 3.5 from 22.20 on the 22.x line, from 24.5 on the 24.x line, and in every 25.x and 26.x release. On an older runtime, building the OneZero transport logs a `warn` line, `[tls] runtime OpenSSL cannot emit this TLS profile; the bank edge may block requests`, and the login fails with `WAF_BLOCKED`. `engines.node` is unchanged, and no other institution is affected.
+OneZero's Cloudflare edge now admits only clients whose TLS handshake matches the OneZero Android app. The scraper sends that handshake, but only OpenSSL 3.5 or later can produce it. Every official Node build from 24.11.0, the new minimum, bundles it. A Node built against an older shared or system OpenSSL does not: building the OneZero transport then logs a `warn` line, `[tls] runtime OpenSSL cannot emit this TLS profile; the bank edge may block requests`, and the login fails with `WAF_BLOCKED`. No other institution is affected.
 
-**What to do:** If you scrape OneZero, run Node 22.20 or later on 22.x, or 24.5 or later on 24.x. `node -p process.versions.openssl` must print 3.5 or higher.
+**What to do:** None on an official Node build. If your Node links a shared or system OpenSSL and you scrape OneZero, `node -p process.versions.openssl` must print 3.5 or higher.
 
-### 8.9.0 - API-direct Cloudflare block pages and challenges report `WAF_BLOCKED`
+### 9.0.0 - API-direct Cloudflare block pages and challenges report `WAF_BLOCKED`
 
 **Impact:** Behavior
 
@@ -29,7 +37,7 @@ When Cloudflare refuses an API-direct request with a `4xx` block page, OneZero n
 
 **What to do:** If you branch on `errorType`, handle `WAF_BLOCKED` for API-direct banks as well. Code that matched Cloudflare page text inside `errorMessage` should match the new reason instead.
 
-### 8.9.0 - A `warn` line when the browser stack differs from the tested pair
+### 9.0.0 - A `warn` line when the browser stack differs from the tested pair
 
 **Impact:** Behavior
 
@@ -37,7 +45,7 @@ Each release is tested against one Camoufox build and one `playwright-core` mino
 
 **What to do:** None. If a scrape breaks while this line is logged, follow its `remedy`. See Troubleshooting for each field and how to return to the tested pair.
 
-### 8.9.0 - Known limitation: `httpCredentials` fails on `playwright-core` 1.63 and 1.64
+### 9.0.0 - Known limitation: `httpCredentials` fails on `playwright-core` 1.63 and 1.64
 
 **Impact:** Behavior
 
@@ -45,7 +53,7 @@ From 1.63, `playwright-core` sends a context's `httpCredentials` as a list, and 
 
 **What to do:** Don't create a context with `httpCredentials` for this library, for example one you pass in as `browserContext`. No `playwright-core` minor this library tests supports it with Camoufox yet.
 
-### 8.9.0 - `playwright-core` 1.64 supported
+### 9.0.0 - `playwright-core` 1.64 supported
 
 **Impact:** Behavior
 

@@ -98,7 +98,7 @@ const NPM_ARGS = {
 const NPM_CASES = Object.entries(NPM_ARGS);
 
 /** `.nvmrc` spellings the picker must read as the same version. */
-const NVMRC_SPELLINGS = ['v22.14.0\r\n', 'v22.14.0\n', '22.14.0', '  v22.14.0 \n'] as const;
+const NVMRC_SPELLINGS = ['v24.22.0\r\n', 'v24.22.0\n', '24.22.0', '  v24.22.0 \n'] as const;
 
 /** Step fields this suite reads. */
 interface IStep {
@@ -357,8 +357,8 @@ describe('CoverageLegGate', () => {
   it.each(NVMRC_SPELLINGS)('[CLG-2] NvmrcSpelling_ShouldStillPickTheFloor: %j', spelling => {
     if (canRunPosixBash(process.platform)) {
       const doc = loadPrYaml();
-      const onFloor = pickFor(doc, '22.14.0', spelling);
-      const offFloor = pickFor(doc, '22', spelling);
+      const onFloor = pickFor(doc, '24.22.0', spelling);
+      const offFloor = pickFor(doc, '24', spelling);
       expect([onFloor, offFloor]).toEqual(['true', 'false']);
     }
   });

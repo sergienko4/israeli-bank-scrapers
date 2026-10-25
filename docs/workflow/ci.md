@@ -125,22 +125,22 @@ unfinished step's `if`, and a step that names no status function means
 
 ## A push stays under the job limit
 
-BLUF: one push to a PR needs at most 18 runners at once, and an open event
-at most 19. The account runs at most 20 jobs at once. After `Validate`, the
+BLUF: one push to a PR needs at most 17 runners at once, and an open event
+at most 18. The account runs at most 20 jobs at once. After `Validate`, the
 count also rests on measured timing (below).
 `PushConcurrencyBound.test.ts` pins the count, so a PR that adds a job, a
 matrix leg or a PR-triggered workflow has to update it.
 
-- **`pr.yml`.** Once `Detect changes` ends, it starts 9 runners: Static
-  checks, the bash 3.2 (macOS) check, 4 Unit tests legs, Package & E2E
+- **`pr.yml`.** Once `Detect changes` ends, it starts 8 runners: Static
+  checks, the bash 3.2 (macOS) check, 3 Unit tests legs, Package & E2E
   factory, Browser stack contract and Dependency Review. E2E mocked and the
   3 Integration shards wait for the 1-runner Browser stack contract, so
-  their 4 runners add 3: at most 12. `SonarCloud Scan` waits for all 4 Unit
+  their 4 runners add 3: at most 11. `SonarCloud Scan` waits for all 3 Unit
   tests legs, so it never adds to the peak.
 - **Other workflows.** A push also starts CodeQL, Validate PR Title, PR Body
   Compliance and the Workflow Security Scan, one job each. GitHub adds 2
   runs of its own: Copilot Code Review and GitHub Advanced Security's Code
-  scanning AI findings. 12 + 4 + 2 = 18.
+  scanning AI findings. 11 + 4 + 2 = 17.
 - **Open events.** Dependabot Auto-Merge (`opened`) or Block Fork PRs
   (`opened`, `reopened`) adds 1 job; Dependabot's PRs never come from a
   fork, so both never run on one PR. `cache-cleanup.yml` runs only on

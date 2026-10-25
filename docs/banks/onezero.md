@@ -168,11 +168,11 @@ user-agent change can stand in for it. Every OneZero request goes through one
 
 ### Runtime requirement — OpenSSL 3.5 or later
 
-Only OpenSSL 3.5 or later can produce the app's ClientHello. Node bundles it
-from **22.20** on the 22.x line, from **24.5** on the 24.x line, and in every
-25.x and 26.x release. Earlier runtimes ship OpenSSL 3.0, whose handshake
-differs in ways the profile cannot override, so the edge blocks them even with
-the profile applied.
+Only OpenSSL 3.5 or later can produce the app's ClientHello. Every official
+Node build this package supports (`>= 24.11.0`) bundles it. A Node built
+against a shared or system OpenSSL can still link an older one, and OpenSSL
+3.0's handshake differs in ways the profile cannot override, so the edge
+blocks it even with the profile applied.
 
 Check yours with:
 
@@ -180,7 +180,7 @@ Check yours with:
 node -p process.versions.openssl
 ```
 
-On an older runtime the scraper logs a `WARN` when it builds the OneZero
+On an older OpenSSL the scraper logs a `WARN` when it builds the OneZero
 transport — `[tls] runtime OpenSSL cannot emit this TLS profile; the bank edge
 may block requests`, with the profile, the detected version and the minimum —
 and the login then fails with `WAF_BLOCKED`.

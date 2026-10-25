@@ -558,7 +558,8 @@ Lockfile maintenance has no package name, so that rule never matches it.
   for reproducible lockfile maintenance. The Renovate policy regression
   checks pin that Node/npm pair; both consume lockfile format 3.
   The build pin is independent of the published consumer
-  minimum: the package job derives that minimum from `engines.node` and
+  minimum, so 9.0.0 raised `engines.node` to `>= 24.11.0` without touching
+  `constraints.npm` or `.nvmrc`: the package job derives that minimum from `engines.node` and
   runs packed CJS/ESM consumers with its exact Node binary. Docker also reads
   `.nvmrc`, rather than maintaining another build-runtime pin. The detector
   flags a `.nvmrc` change as `deps`, so a Node bump on its own still runs

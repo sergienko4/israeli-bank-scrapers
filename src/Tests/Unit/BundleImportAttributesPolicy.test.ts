@@ -6,7 +6,7 @@
  * `importAttributesKey`, and Rollup 4 defaults that key to `assert`. Any
  * `with { type: 'json' }` in source is therefore rewritten to
  * `assert { type: 'json' }` in `lib/index.cjs` and `lib/index.mjs`. Node 22
- * no longer honours `assert`, so a JSON import that passes every
+ * and later no longer honour `assert`, so a JSON import that passes every
  * source-level test throws `ERR_IMPORT_ATTRIBUTE_MISSING` in the published
  * package alone.
  *

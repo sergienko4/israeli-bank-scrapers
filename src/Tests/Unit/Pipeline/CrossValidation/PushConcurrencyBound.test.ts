@@ -65,7 +65,7 @@ const DYNAMIC_RUNS = 2;
 const LEVEL_1_RUNNERS = {
   'static-checks': 1,
   'portability-macos': 1,
-  'unit-tests': 4,
+  'unit-tests': 3,
   'package-factory': 1,
   'browser-stack': 1,
   'dependency-review': 1,
@@ -80,7 +80,7 @@ const LATE_JOBS = {
 
 /**
  * Runners each group of late jobs adds over the level-1 jobs it waits for,
- * keyed by those jobs: Sonar's 1 waits for the 4 Unit tests legs, and E2E
+ * keyed by those jobs: Sonar's 1 waits for the 3 Unit tests legs, and E2E
  * mocked's 1 plus Integration's 3 wait for the 1-runner Browser stack contract.
  */
 const LATE_EXTRA = { 'unit-tests': 0, 'browser-stack': 3 };

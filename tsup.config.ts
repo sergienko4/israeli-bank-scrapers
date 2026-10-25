@@ -13,5 +13,5 @@ export default defineConfig({
   tsconfig: './tsconfig.build.json',
   outExtension: ({ format }) => ({ js: format === 'cjs' ? '.cjs' : '.mjs' }),
   platform: 'node',
-  target: 'node22',
+  target: 'node24',
 });

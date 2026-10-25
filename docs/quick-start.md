@@ -10,11 +10,11 @@ npm install @sergienko4/israeli-bank-scrapers
 
 Requirements:
 
-| Tool    | Minimum      | Why                                               |
-| ------- | ------------ | ------------------------------------------------- |
-| Node.js | `>= 22.14.0` | ESM-by-default + `node:crypto` `randomUUID`       |
-| npm     | `>= 10`      | Workspaces + `--access public` provenance         |
-| Disk    | ~1.3 GB      | Camoufox bundle cached under `~/.cache/camoufox/` |
+| Tool    | Minimum      | Why                                                                         |
+| ------- | ------------ | --------------------------------------------------------------------------- |
+| Node.js | `>= 24.11.0` | First Node 24 LTS; bundles OpenSSL 3.5, which OneZero's TLS handshake needs |
+| npm     | `>= 10`      | Workspaces + `--access public` provenance                                   |
+| Disk    | ~1.3 GB      | Camoufox bundle cached under `~/.cache/camoufox/`                           |
 
 > The bundle is downloaded on **first launch**, not at install time, so the
 > first scrape on a cold cache is substantially slower than later ones.
