@@ -8,6 +8,7 @@
  * Env overrides are snapshotted and restored around the suite.
  */
 
+import { createPrivateKey, X509Certificate } from 'node:crypto';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -26,6 +27,9 @@ import { MTLS_TEST_KEY_B64 } from './MtlsTestCertData.js';
 
 const CERT_ENV = 'ONEZERO_MTLS_CERT';
 const KEY_ENV = 'ONEZERO_MTLS_KEY';
+
+/** How far before the bundled cert's validTo the near-expiry test pins "now". */
+const NEAR_EXPIRY_LEAD_MS = 15 * 24 * 60 * 60 * 1000;
 
 /**
  * A syntactically valid PEM private key from an unrelated keypair (the loopback
@@ -107,6 +111,14 @@ describe('resolveOneZeroClientCert', () => {
     expect(bundle.key).toContain('PRIVATE KEY');
   });
 
+  it('bundles a private key that pairs with the bundled certificate', () => {
+    const bundle = resolveOneZeroClientCert();
+    const x509 = new X509Certificate(bundle.cert);
+    const privateKey = createPrivateKey(bundle.key);
+    const isPaired = x509.checkPrivateKey(privateKey);
+    expect(isPaired).toBe(true);
+  });
+
   it('uses an inline-PEM env override verbatim for the cert', () => {
     const reference = resolveOneZeroClientCert();
     process.env[CERT_ENV] = reference.cert;
@@ -159,8 +171,10 @@ describe('resolveOneZeroClientCert', () => {
   });
 
   it('emits the near-expiry branch and reports a warning when now is within the window', () => {
-    const nearDate = new Date('2027-06-20T00:00:00Z');
-    const nearMs = nearDate.getTime();
+    const reference = resolveOneZeroClientCert();
+    const x509 = new X509Certificate(reference.cert);
+    const validToMs = Date.parse(x509.validTo);
+    const nearMs = validToMs - NEAR_EXPIRY_LEAD_MS;
     jest.spyOn(Date, 'now').mockReturnValue(nearMs);
     const bundle = resolveOneZeroClientCert();
     expect(bundle.cert).toContain('BEGIN CERTIFICATE');
