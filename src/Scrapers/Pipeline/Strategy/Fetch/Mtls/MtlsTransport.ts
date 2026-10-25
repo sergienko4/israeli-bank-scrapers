@@ -4,7 +4,10 @@
  * client certificate, so this module performs the request over node:https with
  * an Agent carrying the client cert + key, then synthesises a Web Response so
  * the shared dispatchFetch pipeline (parsing, cookies, logging) is reused
- * unchanged. This is the ONLY node:https usage in the Pipeline by design.
+ * unchanged. The same Agent can also present a registered TLS ClientHello
+ * profile (see TlsClientProfiles) for edges that fingerprint the handshake,
+ * which globalThis.fetch cannot shape either. This is the ONLY node:https
+ * usage in the Pipeline by design.
  */
 
 import type { ClientRequest, IncomingMessage } from 'node:http';
@@ -16,6 +19,7 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import type { FetchInvoke, HttpVerb } from '../NativeFetchStrategy.js';
 import { safeUrlForLog, scrubUrlFromText } from '../SafeUrlForLog.js';
+import { getTlsClientProfile, type TlsClientProfileKind } from '../Tls/TlsClientProfiles.js';
 import type { ICertBundle } from './OneZeroClientCert.js';
 
 /**
@@ -70,12 +74,31 @@ function setMtlsRequestTimeoutMs(ms: number): number {
 }
 
 /**
- * Build a keep-alive-off HTTPS agent carrying the client cert + key.
- * @param bundle - Resolved PEM cert + key.
- * @returns An https.Agent that presents the client certificate on handshake.
+ * Selects the agent's client-certificate options.
+ * @param clientCert - PEM cert + key to present, or false to present none.
+ * @returns The cert + key options, or no options when no cert is presented.
  */
-function buildMtlsAgent(bundle: ICertBundle): Agent {
-  return new Agent({ cert: bundle.cert, key: bundle.key, keepAlive: false });
+function toCertOptions(clientCert: ICertBundle | false): Partial<ICertBundle> {
+  if (clientCert === false) return {};
+  return { cert: clientCert.cert, key: clientCert.key };
+}
+
+/**
+ * Builds the keep-alive-off HTTPS agent a node:https transport sends through.
+ * The agent presents the optional client certificate and shapes its
+ * ClientHello with the named profile; the default profile leaves Node's stock
+ * handshake untouched.
+ * @param clientCert - PEM cert + key to present, or false to present none.
+ * @param tlsProfile - Registered ClientHello profile to present.
+ * @returns An https.Agent carrying the certificate and profile options.
+ */
+function buildMtlsAgent(
+  clientCert: ICertBundle | false,
+  tlsProfile: TlsClientProfileKind = 'node-default',
+): Agent {
+  const { options } = getTlsClientProfile(tlsProfile);
+  const certOptions = toCertOptions(clientCert);
+  return new Agent({ ...options, ...certOptions, keepAlive: false });
 }
 
 /**

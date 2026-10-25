@@ -68,6 +68,15 @@ describe('MtlsTransport.buildMtlsAgent', () => {
     expect(options.keepAlive).toBe(false);
     agent.destroy();
   });
+
+  it('omits the cert/key when the bank needs no client certificate', () => {
+    const agent = buildMtlsAgent(false);
+    const options = agent.options;
+    expect(options.cert).toBeUndefined();
+    expect(options.key).toBeUndefined();
+    expect(options.keepAlive).toBe(false);
+    agent.destroy();
+  });
 });
 
 describe('MtlsTransport.mtlsInvoke — against the simulated mTLS gate', () => {
