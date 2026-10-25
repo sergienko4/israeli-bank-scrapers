@@ -176,7 +176,7 @@ function collectChain(link: IChainLink, seen: readonly IChainLink[]): readonly I
 function isServerChainAboveFloor(leaf: IChainLink): boolean {
   try {
     const chain = collectChain(leaf, []);
-    return chain.every(isLinkAboveFloor);
+    return chain.every((link): boolean => isLinkAboveFloor(link));
   } catch {
     return false;
   }

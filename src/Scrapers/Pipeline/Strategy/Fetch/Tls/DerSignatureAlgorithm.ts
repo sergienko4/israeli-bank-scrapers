@@ -148,7 +148,10 @@ function splitRootArc(values: readonly number[]): readonly number[] {
 function decodeOid(raw: Buffer, node: IDerNode): string {
   if (node.end <= node.start) return '';
   const content = raw.subarray(node.start, node.end);
-  const decoded = [...content].reduce(appendOidByte, OID_SEED);
+  const decoded = [...content].reduce(
+    (acc: IOidAccumulator, byte: number): IOidAccumulator => appendOidByte(acc, byte),
+    OID_SEED,
+  );
   if (!decoded.isWellFormed || decoded.pending !== 0) return '';
   const arcs = splitRootArc(decoded.values);
   return arcs.join('.');
