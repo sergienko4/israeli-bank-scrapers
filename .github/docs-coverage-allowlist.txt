@@ -1534,3 +1534,27 @@ IMizrahiAcct
 # Reason: MIZRAHI_API - Mizrahi `mto` data-API origin shared by the shape's accounts and
 # transactions urlTag builders. Bank contract constant, not user-facing.
 MIZRAHI_API
+# --- Headless node:https transport (TLS profile + client certificate) ---
+# Reason: INodeTlsMediatorArgs -- args bundle of the node:https headless
+# mediator factory (bank hint, URLs, client-cert flag, TLS profile).
+# Framework-internal; the transport is documented in docs/banks/onezero.md.
+INodeTlsMediatorArgs
+# Reason: PipelineBankConfigOneZeroHeadless -- OneZero's headless transport
+# literal, moved out of PipelineBankConfig.ts to keep that file under its size
+# cap. Registry-internal data; OneZero's transport contract is documented in
+# docs/banks/onezero.md. Not user-facing.
+ONEZERO_HEADLESS
+# Reason: TlsClientProfiles -- the registry's entry shape and the node:tls
+# option subset a profile sets. Internal to the registry and MtlsTransport;
+# the profile mechanism is documented in docs/banks/onezero.md.
+ITlsClientProfile
+TlsProfileOptions
+# Reason: HttpFailureClassifier -- the classifier's input shape (verb, URL,
+# status, body, headers). Internal to the fetch strategies; the rule it feeds
+# is documented in docs/phases/api-direct-call.md.
+IHttpFailure
+# Reason: ServerCertificateFloor / DerSignatureAlgorithm -- the chain-link
+# shape the floor walks and the decoded signature-algorithm pair. Internal to
+# the TLS floor; the floor is documented in docs/banks/onezero.md.
+IChainLink
+ISignatureAlgorithm

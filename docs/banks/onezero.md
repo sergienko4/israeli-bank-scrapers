@@ -113,11 +113,16 @@ was revoked underneath you.
 
 `COLD_FALLBACK_WARM_FAILED` is deliberately neutral about *why* the warm
 attempt failed. The cold retry fires on any failure of the initial prime — a
-refusal by the bank, but equally a timeout, a transport error or a WAF block —
-and those are indistinguishable once the retry has swallowed them. Calling all
+refusal by the bank, but equally a timeout or a transport error — and those
+are indistinguishable once the retry has swallowed them. Calling all
 of them "not accepted" would blame your stored token for an outage, so the
 scraper reports the attempt's own error tag — `TIMEOUT`, `NETWORK_ERROR` and
 so on — instead of guessing which it was.
+
+A WAF block is the one failure that does **not** fall back. The edge refused
+the request before OneZero saw it, so a cold login from the same runtime would
+meet the same refusal and could spend an SMS doing it. The run fails with
+`WAF_BLOCKED` instead — see [What happens when the edge refuses](#what-happens-when-the-edge-refuses).
 
 Only the tag is reported, never the failure text. Banks echo credentials into
 error messages, so putting that text in an operator-facing log is exactly the
@@ -125,7 +130,10 @@ cleartext-logging leak `redactErrorMessage` exists to prevent; password-class
 tags are themselves credential metadata and are redacted in turn.
 
 A mid-run rejection is repaired wherever it surfaces. Any API call that comes
-back `401`/`403` re-mints in place and retries, and that in-request repair
+back `401`/`403` re-mints in place and retries — unless the `403` is a
+Cloudflare refusal, which is terminal (see
+[What happens when the edge refuses](#what-happens-when-the-edge-refuses)) —
+and that in-request repair
 re-surfaces the newly minted token through `onAuthFlowComplete` exactly as an
 explicit recovery does. Without that, the replacement token would exist only for
 the remainder of the process: your stored copy would keep the dead value and the
@@ -138,15 +146,154 @@ different route.
 
 [issue-576]: https://github.com/sergienko4/israeli-bank-scrapers/issues/576
 
-## Transport — Cloudflare mutual TLS (mTLS)
+## Transport — what the Cloudflare edge requires
 
-The OneZero identity + GraphQL endpoints sit behind **Cloudflare API Shield**, which
-requires a **client certificate** on the TLS handshake. A request without one is
-rejected at the transport layer with `403` and a Cloudflare block page — no
-application-layer header, cookie, or user-agent change can satisfy it.
+The OneZero identity (`identity.tfd-bank.com`) and GraphQL
+(`mobile.tfd-bank.com`) hosts sit behind Cloudflare. A request reaches OneZero
+only when it looks like the OneZero Android app on **all three** of the
+following. Miss any one and the edge answers `403` with a Cloudflare
+"Attention Required" block page:
 
-The scraper therefore presents a client certificate on every OneZero request
-(`MtlsTransport` over `node:https`). Resolution:
+| Requirement        | What the scraper sends                                                                         | Where it lives                                                                                       |
+| ------------------ | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Client certificate | The app-level OneZero certificate (mutual TLS) — see [Client certificate](#client-certificate) | `src/Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.ts`                                     |
+| TLS fingerprint    | A ClientHello matching the app's OkHttp stack on Android 11 (`android-11-okhttp`)              | `src/Scrapers/Pipeline/Strategy/Fetch/Tls/TlsClientProfiles.ts`                                      |
+| User-Agent         | The app's User-Agent, on identity **and** GraphQL calls                                        | `ONEZERO_USER_AGENT` in `src/Scrapers/Pipeline/Registry/Config/PipelineBankConfigOneZeroHeadless.ts` |
+
+The fingerprint is a property of the TLS handshake itself — cipher and
+signature-algorithm order, curves, extensions — so no header, cookie or
+user-agent change can stand in for it. Every OneZero request goes through one
+`node:https` agent that carries both the certificate and the profile
+(`MtlsTransport`).
+
+### Runtime requirement — OpenSSL 3.5 or later
+
+Only OpenSSL 3.5 or later can produce the app's ClientHello. Node bundles it
+from **22.20** on the 22.x line, from **24.5** on the 24.x line, and in every
+25.x and 26.x release. Earlier runtimes ship OpenSSL 3.0, whose handshake
+differs in ways the profile cannot override, so the edge blocks them even with
+the profile applied.
+
+Check yours with:
+
+```bash
+node -p process.versions.openssl
+```
+
+On an older runtime the scraper logs a `WARN` when it builds the OneZero
+transport — `[tls] runtime OpenSSL cannot emit this TLS profile; the bank edge
+may block requests`, with the profile, the detected version and the minimum —
+and the login then fails with `WAF_BLOCKED`.
+
+### What happens when the edge refuses
+
+A `4xx` Cloudflare block page is reported as `WAF_BLOCKED`, not `GENERIC`:
+
+```text
+POST https://identity.tfd-bank.com/v1/devices/token 403: blocked by Cloudflare edge (WAF) before reaching the API
+```
+
+So is a Cloudflare challenge — any response carrying Cloudflare's
+`cf-mitigated: challenge` header, whatever its status — which no API client
+can solve; its message ends `challenged by Cloudflare edge (WAF) before
+reaching the API`.
+
+The page itself is never quoted — it carries your client IP and a Cloudflare
+Ray ID — and this path sets no `errorDetails`. `WAF_BLOCKED` is terminal:
+the call is not retried, a blocked warm start does not fall back to an SMS
+login, a block on a later accounts or balance call does not trigger a re-login,
+and the balance is never reported as `0` in its place. The same applies when
+the identity host refuses the token refresh or re-login that follows an
+expired session: the run reports that `WAF_BLOCKED`, not the earlier `401`
+or a degraded scrape.
+
+Work through these in order:
+
+1. **Runtime** — confirm OpenSSL 3.5 or later (above).
+2. **Package version** — upgrade. The edge accepts what the current app sends,
+   so a OneZero app release can retire the fingerprint or User-Agent shipped
+   here.
+
+When the app's network stack changes, update `ONEZERO_USER_AGENT` for the new
+app version, and register a new profile in `TlsClientProfiles.ts` with its
+expected JA4 hash and OpenSSL floor. `TlsClientProfilesJa4.test.ts` captures
+the ClientHello the profile really emits and asserts it hashes to that JA4
+exactly on runtimes at or above the floor, so a profile that drifts from its
+target fails in CI rather than at the edge.
+
+The transport is not specific to OneZero. A bank's headless config opts in with
+`tlsProfile` (a `TlsClientProfileKind`), `requiresClientCert`, or both; either
+one moves its identity and GraphQL calls onto `node:https`. When the transport
+is built, `getTlsClientProfile` resolves the profile's ClientHello options,
+`resolveClientCert` looks up the bank's certificate in `ClientCertRegistry.ts`
+(failing fast when none is registered), and `warnIfTlsProfileUnsupported`
+logs the OpenSSL warning above whenever `isTlsProfileSupported` finds the
+runtime below the profile's floor.
+
+### Server certificate checks
+
+The Android profile lowers OpenSSL's security level to 0 so that its
+ClientHello still offers `rsa_pkcs1_sha1`, as the app does. OpenSSL applies
+the same level when it verifies the server's certificate chain, so the
+transport restores those checks itself. `buildMtlsAgent` sets
+`checkServerCertificate` as the `checkServerIdentity` of every agent it builds,
+whatever the profile. After Node's standard hostname check,
+`isServerChainAboveFloor` requires 112-bit strength — OpenSSL security level 2
+— from every certificate in the chain the server presented:
+
+- **Keys:** RSA of at least 2048 bits, DSA with at least a 2048-bit modulus
+  and a 224-bit subgroup order, EC on a named curve of at least 224 bits, or
+  Ed25519/Ed448. Any other key type is refused.
+- **Signatures:** RSA or ECDSA with SHA-2, EdDSA, or RSASSA-PSS naming a SHA-2
+  hash. `readSignatureAlgorithm` reads the algorithm from the certificate's
+  DER, and a certificate it cannot read is refused. A self-signed root's own
+  signature is not checked, because it carries no trust; its key is.
+
+A chain below the floor ends the connection before any request byte — or any
+credential — is written. The call fails as `GENERIC`, its message ending in
+`SERVER_CERT_FLOOR_REASON`, which names no host or certificate field:
+
+```text
+POST https://identity.tfd-bank.com/v1/devices/token mtls error: server certificate chain is below the TLS security floor (weak key or signature)
+```
+
+OneZero's own chain (ECDSA P-256 with SHA-256 and SHA-384 signatures) clears
+the floor. This error therefore means the connection did not reach OneZero
+directly: look for a proxy or TLS-inspecting middlebox that re-signs traffic
+with its own certificate.
+
+### Session protocol
+
+The floor covers certificates only. Under TLS 1.2 the server also signs the
+handshake, and the profile still offers `rsa_pkcs1_sha1` to match the app, so
+a TLS 1.2 server could sign it with SHA-1. The Android profile therefore pins
+every session to TLS 1.3, which forbids SHA-1 and PKCS#1 v1.5 handshake
+signatures: its `sessionProtocol` is `TLSv1.3`, and `buildMtlsAgent` builds
+each agent as a `SessionProtocolAgent`. The ClientHello still offers TLS 1.2,
+so the fingerprint is unchanged. Once the handshake completes, the agent reads
+the negotiated protocol and, unless it is TLS 1.3, destroys the socket before
+any request byte is written. The call fails as `GENERIC`, its message ending in
+`SESSION_PROTOCOL_REASON`:
+
+```text
+POST https://identity.tfd-bank.com/v1/devices/token mtls error: server negotiated a TLS version the profile does not allow
+```
+
+The OneZero edge negotiates TLS 1.3, so as with the floor, this error means
+something other than OneZero terminated the TLS connection. The
+`node-default` profile sets no session protocol and accepts whatever OpenSSL
+negotiates.
+
+The field's type, `SessionProtocol`, is a Node `SecureVersion` or the empty
+string, which means "no pin". The agent applies the check through
+`guardSessionProtocol`, which runs on every connection the agent creates,
+including resumed sessions. A connection that is not a TLS socket is
+destroyed, so a pinned profile fails closed instead of sending in clear.
+
+### Client certificate
+
+The scraper presents a client certificate on every OneZero request.
+Resolution:
 
 | Step | Source                                   | Notes                                                                                                                                                                        |
 | ---- | ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -212,10 +212,31 @@ Camoufox passes most Cloudflare challenges automatically. When it does not:
 | Datacenter IP blocked | Use a residential `proxy` (see [Configuration](configuration.md)) |
 | Turnstile CAPTCHA | Run once headed (`headless: false`) to pass the initial challenge |
 | Parallel-run failures | Share one browser and add a 2–5 s delay between banks |
+| API-direct bank, message ends `blocked by Cloudflare edge (WAF) before reaching the API` | No browser is involved — the edge refused the request's TLS fingerprint or client identity. For OneZero, see [What happens when the edge refuses](banks/onezero.md#what-happens-when-the-edge-refuses) |
+| API-direct bank, message ends `challenged by Cloudflare edge (WAF) before reaching the API` | The edge answered with a challenge (`cf-mitigated: challenge`), which no API client can solve. Wait before retrying and reduce scrape frequency |
 
-Read `result.errorDetails.suggestions` first — it is populated per provider.
+Read `result.errorDetails.suggestions` first — it is populated per provider on
+the browser paths. API-direct banks report `WAF_BLOCKED` without
+`errorDetails`; the `errorMessage` names the call and status.
 For how the challenge interceptor works, see
 [WAF interceptor](architecture/waf-interceptor.md).
+
+## `server certificate chain is below the TLS security floor`
+
+An API-direct bank on the `node:https` transport (OneZero) refused the
+server's certificate chain for a weak key or signature, before sending the
+request. The bank's real edge clears this check, so something between you and
+the bank — usually a proxy or TLS-inspecting middlebox — presented its own
+certificate. Route the scraper around it. See
+[Server certificate checks](banks/onezero.md#server-certificate-checks).
+
+## `server negotiated a TLS version the profile does not allow`
+
+An API-direct bank whose TLS profile pins the session protocol (OneZero pins
+TLS 1.3) reached a server that settled on an older version, and the request
+was not sent. The bank's real edge negotiates the pinned version, so a proxy
+or TLS-inspecting middlebox is terminating the connection. Route the scraper
+around it. See [Session protocol](banks/onezero.md#session-protocol).
 
 ## Error types
 
@@ -229,14 +250,15 @@ Returned as `result.errorType` when `result.success` is `false`.
 | `INVALID_PHONE_NUMBER` | `phoneNumber` is not usable for this bank. Pass digits-only international form (`972000000000`) or the bank's own wire form from its [bank guide](banks/index.md). Raised before any network call, so nothing was sent — the Israeli local form `0500000001` is refused on purpose rather than forwarded and rejected as an opaque auth failure |
 | `CHANGE_PASSWORD` | The bank is forcing a password change — log in manually first |
 | `ACCOUNT_BLOCKED` | The bank locked the account |
-| `WAF_BLOCKED` | Cloudflare block — read `errorDetails.suggestions` |
+| `WAF_BLOCKED` | Cloudflare block — read `errorDetails.suggestions` on browser paths; API-direct banks carry the context in `errorMessage` |
 | `TIMEOUT` | Page load, or an in-page request that exceeded its budget — see [Request deadlines](#request-deadlines) |
 | `NETWORK_ERROR` | Transport failure reaching the bank |
 | `GENERIC` | Pipeline phase failure — read `errorMessage` |
 | `GENERAL_ERROR` | Deprecated alias of `GENERIC`, kept for older consumers |
 
-`errorDetails` is populated for `WAF_BLOCKED` only; every other type carries its
-context in `errorMessage`.
+`errorDetails` is populated only for `WAF_BLOCKED` raised on a browser path;
+API-direct `WAF_BLOCKED` and every other type carry their context in
+`errorMessage`.
 
 ## Request deadlines
 

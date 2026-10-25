@@ -8,6 +8,7 @@ import type { CompanyTypes } from '../../../../Definitions.js';
 import type { CamoufoxIdentityFetchStrategy } from '../../Strategy/Fetch/CamoufoxIdentityFetchStrategy.js';
 import type { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { NativeFetchStrategy } from '../../Strategy/Fetch/NativeFetchStrategy.js';
+import type { TlsClientProfileKind } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
 
 /** Args bundle for the headless-mediator factory. */
 interface IHeadlessMediatorArgs {
@@ -16,6 +17,14 @@ interface IHeadlessMediatorArgs {
   readonly graphqlUrl: string;
   readonly graphqlHeaders?: Readonly<Record<string, string>>;
   readonly staticAuth?: string;
+}
+
+/** Args bundle for the node:https (client-cert and/or TLS-profile) mediator factory. */
+interface INodeTlsMediatorArgs extends IHeadlessMediatorArgs {
+  /** Present the bank's registered client certificate on every handshake. */
+  readonly requiresClientCert?: boolean;
+  /** ClientHello profile both transports present; absent keeps Node's default. */
+  readonly tlsProfile?: TlsClientProfileKind;
 }
 
 /** Bundled strategy pair returned by the headless builder. */
@@ -53,4 +62,5 @@ export type {
   IGraphQLTransportArgs,
   IHeadlessMediatorArgs,
   IHeadlessStrategies,
+  INodeTlsMediatorArgs,
 };

@@ -8,6 +8,7 @@
 import { CompanyTypes } from '../../../../Definitions.js';
 import { ANGULAR_LOGIN_POLL } from '../../Mediator/Timing/LoginTimingConfig.js';
 import { calConfig } from './PipelineBankConfigCal.js';
+import { ONEZERO_HEADLESS } from './PipelineBankConfigOneZeroHeadless.js';
 import { PEPPER_HEADLESS } from './PipelineBankConfigPepperHeadless.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
 import type {
@@ -140,19 +141,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     urls: { base: 'https://www.onezerobank.com' },
     balanceKind: ACCOUNT,
     authStrategyKind: API_DIRECT,
-    headless: {
-      identityBase: 'https://identity.tfd-bank.com/v1/',
-      graphql: 'https://mobile.tfd-bank.com/mobile-graph/graphql',
-      paths: {
-        'identity.deviceToken': 'https://identity.tfd-bank.com/v1/devices/token',
-        'identity.otpPrepare': 'https://identity.tfd-bank.com/v1/otp/prepare',
-        'identity.otpVerify': 'https://identity.tfd-bank.com/v1/otp/verify',
-        'identity.getIdToken': 'https://identity.tfd-bank.com/v1/getIdToken',
-        'identity.sessionToken': 'https://identity.tfd-bank.com/v1/sessions/token',
-      },
-      requiresClientCert: true,
-      phoneNumberFormat: 'international-plus',
-    },
+    headless: ONEZERO_HEADLESS,
   },
   [CompanyTypes.PayBox]: {
     urls: { base: 'https://www.payboxapp.com/' },

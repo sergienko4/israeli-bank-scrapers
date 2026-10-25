@@ -27,8 +27,8 @@ const COLD_FALLBACK_DETAIL = 'fell back to the full SMS login';
 /**
  * Cause named when a warm attempt was made and did not carry the session.
  *
- * <p>Deliberately neutral. The cold retry fires on any warm failure — a bank
- * refusal, a timeout, a transport error, a WAF block — and those are not
+ * <p>Deliberately neutral. The cold retry fires on any warm failure except a
+ * WAF block — a bank refusal, a timeout, a transport error — and those are not
  * distinguishable from the warm flag alone. Naming one of them would be a
  * guess, so the warm attempt's own failure is appended instead.
  */

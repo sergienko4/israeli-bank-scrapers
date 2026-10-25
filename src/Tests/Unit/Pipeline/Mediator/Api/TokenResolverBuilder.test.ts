@@ -172,6 +172,19 @@ describe('buildResolverFromStrategy — resolve() ladder', () => {
     expect(counts.primeInitial).toBe(1);
     expect(counts.primeFresh).toBe(1);
   });
+
+  it('primeInitial WAF block + warm state → returns the block, never primeFresh', async () => {
+    const edgeBlock = fail(ScraperErrorTypes.WafBlocked, 'edge block');
+    const freshOk = succeed(FRESH_HEADER);
+    const { strategy, counts } = makeScriptedStrategy(edgeBlock, freshOk, true);
+    const bus = makeStubMediator();
+    const ctx = makeStubCtx();
+    const creds: ITestCreds = { storedToken: 'stale' };
+    const resolver = buildResolverFromStrategy({ strategy, bus, ctx, creds });
+    const result = await resolver.resolve();
+    expect(result).toBe(edgeBlock);
+    expect(counts.primeFresh).toBe(0);
+  });
 });
 
 describe('buildResolverFromStrategy — refresh() path', () => {

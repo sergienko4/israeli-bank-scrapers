@@ -12,6 +12,7 @@ import { describeJsonParseFailure } from '../../Types/JsonParseFailure.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
+import { classifyHttpFailure, hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
 import { safeUrlForLog, scrubUrlFromText } from './SafeUrlForLog.js';
 
 type SetCookieEmitCount = Brand<number, 'SetCookieEmitCount'>;
@@ -19,9 +20,6 @@ type FullyQualifiedUrl = Brand<string, 'FullyQualifiedUrl'>;
 
 /** Module logger — name derived from source filename per project convention. */
 const LOG = getDebug(import.meta.url);
-
-/** Maximum length of a response-body snippet embedded in an error message. */
-const ERROR_BODY_SNIPPET_LEN = 120;
 
 /** HTTP method verbs used by this strategy. */
 type HttpVerb = 'GET' | 'POST';
@@ -69,33 +67,43 @@ async function parseJsonResponse<T>(
 }
 
 /**
- * Classify a non-2xx Response into a Procedure failure with status + body snippet.
- * @param response - The fetch Response with a non-2xx status.
+ * Classify a failed or challenged Response into a Procedure failure.
+ * @param response - The fetch Response: non-2xx, or a 2xx challenge.
  * @param verb - HTTP verb (for the error-message prefix).
  * @param url - Target URL (for the error-message prefix).
- * @returns A Generic failure Procedure annotated with status + body snippet.
+ * @returns WafBlocked for a Cloudflare edge refusal, else Generic with a snippet.
  */
 async function classifyStatus<T>(
   response: Response,
   verb: HttpVerb,
   url: string,
 ): Promise<Procedure<T>> {
-  const rawText = await response.text();
-  const snippet = rawText.slice(0, ERROR_BODY_SNIPPET_LEN);
-  const safeUrl = safeUrlForLog(url);
-  const message = `${verb} ${safeUrl} ${String(response.status)}: ${snippet}`;
-  return fail(ScraperErrorTypes.Generic, message);
+  const body = await response.text();
+  const headers = Object.fromEntries(response.headers);
+  return classifyHttpFailure<T>({ verb, url, status: response.status, body, headers });
 }
 
 /**
- * Route a Response through parse vs classify based on ok-ness.
+ * Whether a Response carries an API body: a 2xx that is not an edge
+ * challenge (Cloudflare does not tie its challenge header to a status).
+ * @param response - The fetch Response returned by globalThis.fetch.
+ * @returns True when the body should be parsed as the API's JSON.
+ */
+function isApiSuccess(response: Response): boolean {
+  if (!response.ok) return false;
+  const headers = Object.fromEntries(response.headers);
+  return !hasCloudflareChallengeHeader(headers);
+}
+
+/**
+ * Route a Response to the JSON parser or the failure classifier.
  * @param response - The fetch Response returned by globalThis.fetch.
  * @param verb - HTTP verb (for error-message prefixing).
  * @param url - Target URL (for error-message prefixing).
  * @returns Procedure with parsed body or classified failure.
  */
 function routeResponse<T>(response: Response, verb: HttpVerb, url: string): Promise<Procedure<T>> {
-  if (response.ok) return parseJsonResponse<T>(response, verb, url);
+  if (isApiSuccess(response)) return parseJsonResponse<T>(response, verb, url);
   return classifyStatus<T>(response, verb, url);
 }
 

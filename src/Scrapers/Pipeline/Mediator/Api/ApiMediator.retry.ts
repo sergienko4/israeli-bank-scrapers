@@ -5,7 +5,7 @@
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, isOk } from '../../Types/Procedure.js';
+import { fail, isOk, isWafBlocked, preferWafBlock } from '../../Types/Procedure.js';
 import { isAuthRejectionMessage } from './ApiMediator.authReject.js';
 import { getSessionWarmOp, setRawAuthOp, setSessionWarmOp } from './ApiMediator.state.js';
 import type { IMediatorState } from './ApiMediator.types.js';
@@ -16,6 +16,12 @@ import type { IMediatorState } from './ApiMediator.types.js';
 interface IRetryOn401Args<T> {
   readonly state: IMediatorState;
   readonly fire: () => Promise<Procedure<T>>;
+}
+
+/** What a re-arm attempt produced: readiness plus the refresh behind it. */
+interface IRearmOutcome {
+  readonly isRearmed: boolean;
+  readonly refreshed: Procedure<string>;
 }
 
 /**
@@ -88,7 +94,7 @@ function applyRefreshedAuth(state: IMediatorState, refreshed: Procedure<string>)
  */
 function isUnauthorizedFailure<T>(first: Procedure<T>): boolean {
   if (first.success) return false;
-  if (first.errorType === ScraperErrorTypes.WafBlocked) return false;
+  if (isWafBlocked(first)) return false;
   return isAuthRejectionMessage(first.errorMessage);
 }
 
@@ -124,16 +130,16 @@ async function runRecoveredHook(
  * fires, which is what carries the fresh long-term token out to
  * `onAuthFlowComplete` instead of letting it die in memory.
  * @param state - Mediator state.
- * @returns True when a fresh bearer is installed and the retry may proceed.
+ * @returns Whether a fresh bearer is installed, plus the refresh outcome.
  */
-async function rearmAfterAuthRejection(state: IMediatorState): Promise<boolean> {
+async function rearmAfterAuthRejection(state: IMediatorState): Promise<IRearmOutcome> {
   const wasWarm = getSessionWarmOp(state);
   const refreshed = await guardedRefreshOp(state);
-  const isReady = applyRefreshedAuth(state, refreshed);
-  if (!isReady) return false;
+  const isRearmed = applyRefreshedAuth(state, refreshed);
+  if (!isRearmed) return { isRearmed, refreshed };
   setSessionWarmOp(state, false);
   await runRecoveredHook(state, refreshed, wasWarm);
-  return true;
+  return { isRearmed, refreshed };
 }
 
 /**
@@ -147,15 +153,18 @@ async function rearmAfterAuthRejection(state: IMediatorState): Promise<boolean> 
  * dead one, and the next run would spend another SMS OTP replaying it.
  * Re-arming happens *before* the retry so the retried attempt is signed
  * with the session context the refresh just minted rather than the dead one.
+ * A failed refresh answers with the original rejection, except when the edge
+ * refused the refresh itself: that WAF block is returned instead, so the
+ * caller's WAF guards see it rather than an ordinary auth failure.
  * @param args - Bundled mediator-state + fire-callable.
- * @returns Procedure from the first or second attempt.
+ * @returns Procedure from the first or second attempt, or the refresh's block.
  */
 async function retryOn401Op<T>(args: IRetryOn401Args<T>): Promise<Procedure<T>> {
   const first = await args.fire();
   if (!isUnauthorizedFailure(first)) return first;
-  const isRearmed = await rearmAfterAuthRejection(args.state);
-  if (!isRearmed) return first;
-  return args.fire();
+  const rearm = await rearmAfterAuthRejection(args.state);
+  if (rearm.isRearmed) return args.fire();
+  return preferWafBlock(rearm.refreshed, first);
 }
 
 /**

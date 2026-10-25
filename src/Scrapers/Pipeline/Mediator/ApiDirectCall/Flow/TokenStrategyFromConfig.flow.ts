@@ -153,9 +153,9 @@ async function runConfiguredFlow(
 /**
  * Run the warm attempt, recording why it failed when it does.
  *
- * <p>`TokenResolverBuilder` retries the cold flow on *any* primeInitial
- * failure — a bank refusal, but equally a timeout, a transport error or a WAF
- * block. It discards the failure on the way, so unless it is captured here the
+ * <p>`TokenResolverBuilder` retries the cold flow on any primeInitial failure
+ * except a WAF block — a bank refusal, but equally a timeout or a transport
+ * error. It discards the failure on the way, so unless it is captured here the
  * fallback warning has nothing left to name and can only assume.
  *
  * <p>Only the error *tag* is kept. `errorMessage` is not safe to carry into an

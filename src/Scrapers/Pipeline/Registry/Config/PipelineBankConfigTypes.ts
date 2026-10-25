@@ -4,6 +4,8 @@
  * Rule #15 named-alias discipline.
  */
 
+import type { TlsClientProfileKind } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
+
 /** Generic auth-path keys — per-bank subsets plug into `paths` below. */
 export type AuthPathKey =
   | 'identity.deviceToken'
@@ -81,15 +83,24 @@ export interface IHeadlessUrlsConfig {
    */
   readonly requiresBrowserTls?: boolean;
   /**
-   * When true, identity + graphql calls present a bundled client certificate
-   * over `node:https` (mutual-TLS) to satisfy a Cloudflare API Shield mTLS
-   * gate. Default: undefined (treated as false). Mutually exclusive with
-   * `requiresBrowserTls` — an mTLS host is gated by the client cert, not by
-   * the Node-TLS fingerprint, so it does NOT need the Camoufox route.
+   * When true, identity + graphql calls present the bank's registered client
+   * certificate (see ClientCertRegistry) over `node:https` (mutual-TLS) to
+   * satisfy a Cloudflare API Shield mTLS gate. Default: undefined (treated as
+   * false). Mutually exclusive with `requiresBrowserTls`, because both cannot
+   * drive identity. The certificate alone does not always pass the edge: a host
+   * that also fingerprints the handshake needs `tlsProfile` as well.
    * Only set for banks whose identity host returns 403 without a client cert
    * (e.g. OneZero's `*.tfd-bank.com`).
    */
   readonly requiresClientCert?: boolean;
+  /**
+   * ClientHello profile that identity + graphql calls present over
+   * `node:https`, for edges that admit only the bank app's TLS fingerprint.
+   * Setting it selects the node:https transport, with or without a client
+   * certificate. Mutually exclusive with `requiresBrowserTls`. Default:
+   * undefined (Node's stock handshake).
+   */
+  readonly tlsProfile?: TlsClientProfileKind;
   /**
    * When set, the Camoufox identity strategy route-intercepts the
    * initial navigation to the identity origin URL and serves a blank

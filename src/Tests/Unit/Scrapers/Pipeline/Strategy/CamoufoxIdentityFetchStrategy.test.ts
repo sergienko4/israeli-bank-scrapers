@@ -15,7 +15,16 @@ import {
   createPromise,
   createTimeoutError,
 } from '../../../../../Scrapers/Pipeline/Mediator/Timing/TimingActions.js';
+import {
+  CLOUDFLARE_BLOCK_REASON,
+  CLOUDFLARE_CHALLENGE_REASON,
+} from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HttpFailureClassifier.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import {
+  CLOUDFLARE_BLOCK_PAGE,
+  CLOUDFLARE_CHALLENGE_HEADERS,
+  CLOUDFLARE_CHALLENGE_PAGE,
+} from '../../../../Helpers/EdgeBlockPages.js';
 import foreignRealmError from '../../../../Helpers/ForeignRealmError.js';
 
 /** Envelope returned by the in-page fetch wrapper. */
@@ -24,6 +33,7 @@ interface IPageFetchEnvelope {
   readonly status: number;
   readonly bodyText: string;
   readonly setCookies: readonly string[];
+  readonly headers: Readonly<Record<string, string>>;
 }
 
 /** Per-test launch + fetch behaviour controlled by the shared state. */
@@ -47,6 +57,7 @@ const ENV_OK_DEFAULT: IPageFetchEnvelope = {
   status: 200,
   bodyText: '{"ok":true}',
   setCookies: [],
+  headers: {},
 };
 const STATE: IMockState = {
   envelope: ENV_OK_DEFAULT,
@@ -177,24 +188,42 @@ const ENV_OK: IPageFetchEnvelope = {
   status: 200,
   bodyText: '{"deviceToken":"jwt"}',
   setCookies: ['sid=abc'],
+  headers: {},
 };
-const ENV_CF_OLDIE: IPageFetchEnvelope = {
+const ENV_OLD_IE_HTML: IPageFetchEnvelope = {
   ok: false,
   status: 403,
   bodyText: '<html class="ie6 oldie">',
   setCookies: [],
+  headers: {},
 };
-const ENV_CF_ERROR: IPageFetchEnvelope = {
+const ENV_CF_BLOCK: IPageFetchEnvelope = {
   ok: false,
   status: 403,
-  bodyText: '<html class="cf-error">',
+  bodyText: CLOUDFLARE_BLOCK_PAGE,
   setCookies: [],
+  headers: {},
+};
+const ENV_CF_CHALLENGE: IPageFetchEnvelope = {
+  ok: false,
+  status: 403,
+  bodyText: CLOUDFLARE_CHALLENGE_PAGE,
+  setCookies: [],
+  headers: CLOUDFLARE_CHALLENGE_HEADERS,
+};
+const ENV_CF_CHALLENGE_2XX: IPageFetchEnvelope = {
+  ok: true,
+  status: 200,
+  bodyText: CLOUDFLARE_CHALLENGE_PAGE,
+  setCookies: [],
+  headers: CLOUDFLARE_CHALLENGE_HEADERS,
 };
 const ENV_APP_400: IPageFetchEnvelope = {
   ok: false,
   status: 400,
   bodyText: '{"error":"bad request"}',
   setCookies: [],
+  headers: {},
 };
 
 beforeEach(() => {
@@ -249,19 +278,31 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
     },
     {
       id: 'OZ-CIT-05a',
-      envelope: ENV_CF_OLDIE,
-      expectedType: ScraperErrorTypes.WafBlocked,
+      envelope: ENV_OLD_IE_HTML,
+      expectedType: ScraperErrorTypes.Generic,
       expectedSnippet: 'oldie',
     },
     {
       id: 'OZ-CIT-05b',
-      envelope: ENV_CF_ERROR,
+      envelope: ENV_CF_BLOCK,
       expectedType: ScraperErrorTypes.WafBlocked,
-      expectedSnippet: 'cf-error',
+      expectedSnippet: CLOUDFLARE_BLOCK_REASON,
+    },
+    {
+      id: 'OZ-CIT-05c',
+      envelope: ENV_CF_CHALLENGE,
+      expectedType: ScraperErrorTypes.WafBlocked,
+      expectedSnippet: CLOUDFLARE_CHALLENGE_REASON,
+    },
+    {
+      id: 'OZ-CIT-05d',
+      envelope: ENV_CF_CHALLENGE_2XX,
+      expectedType: ScraperErrorTypes.WafBlocked,
+      expectedSnippet: CLOUDFLARE_CHALLENGE_REASON,
     },
   ] as const;
 
-  it.each(classifyCases)('$id — non-2xx classified', async (row: IClassifyCase) => {
+  it.each(classifyCases)('$id — failure classified', async (row: IClassifyCase) => {
     STATE.envelope = row.envelope;
     const r = await new STRATEGY(ORIGIN, false).fetchPost(URL_OK, {}, OPTS);
     const wasOk = isOk(r);
@@ -282,7 +323,7 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
   });
 
   it('OZ-CIT-07 — malformed JSON 2xx returns parse-error failure', async () => {
-    STATE.envelope = { ok: true, status: 200, bodyText: 'not-json{', setCookies: [] };
+    STATE.envelope = { ok: true, status: 200, bodyText: 'not-json{', setCookies: [], headers: {} };
     const r = await new STRATEGY(ORIGIN, false).fetchPost(URL_OK, {}, OPTS);
     const wasOk = isOk(r);
     expect(wasOk).toBe(false);
@@ -350,7 +391,7 @@ describe('CamoufoxIdentityFetchStrategy/fetchPost', () => {
     const hook = (lines: readonly string[]): number => captured.push(lines);
     const s = new STRATEGY(ORIGIN, false);
     await s.fetchPost(URL_OK, {}, { extraHeaders: {}, onSetCookie: hook });
-    STATE.envelope = { ok: true, status: 200, bodyText: '{}', setCookies: [] };
+    STATE.envelope = { ok: true, status: 200, bodyText: '{}', setCookies: [], headers: {} };
     await s.fetchPost(URL_OK, {}, { extraHeaders: {}, onSetCookie: hook });
     expect(captured).toEqual([['sid=abc'], []]);
   });
@@ -416,7 +457,7 @@ interface IStubResponse {
   readonly ok: boolean;
   readonly status: number;
   readonly text: () => Promise<string>;
-  readonly headers: { readonly getSetCookie: () => readonly string[] };
+  readonly headers: Headers;
 }
 
 /**
@@ -425,18 +466,13 @@ interface IStubResponse {
  * @returns Resolved IStubResponse with success envelope shape.
  */
 function resolveStubResponse(): Promise<IStubResponse> {
-  const captureCookies: readonly string[] = ['cf_clearance=abc'];
+  const headers = new Headers([['set-cookie', 'cf_clearance=abc']]);
   /**
    * Resolves the synthetic response body text.
    * @returns Resolved JSON string.
    */
   const text = (): Promise<string> => Promise.resolve('{"ok":true}');
-  /**
-   * Returns the captured Set-Cookie list.
-   * @returns The synthetic cookie array.
-   */
-  const getSetCookie = (): readonly string[] => captureCookies;
-  return Promise.resolve({ ok: true, status: 200, text, headers: { getSetCookie } });
+  return Promise.resolve({ ok: true, status: 200, text, headers });
 }
 
 describe('CamoufoxIdentityFetchStrategy/coverage edges', () => {

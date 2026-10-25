@@ -7,8 +7,17 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import {
+  CLOUDFLARE_BLOCK_REASON,
+  CLOUDFLARE_CHALLENGE_REASON,
+} from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HttpFailureClassifier.js';
 import { NativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import {
+  CLOUDFLARE_BLOCK_PAGE,
+  CLOUDFLARE_CHALLENGE_HEADERS,
+  CLOUDFLARE_CHALLENGE_PAGE,
+} from '../../../../Helpers/EdgeBlockPages.js';
 import foreignRealmError from '../../../../Helpers/ForeignRealmError.js';
 
 type MockFetchImpl = (url: string, init: RequestInit) => Promise<Response>;
@@ -48,12 +57,8 @@ function buildResponse(
    * @returns Promise resolving to the canned body text.
    */
   const textFn = (): Promise<string> => Promise.resolve(bodyText);
-  /**
-   * Stub for Headers.getSetCookie() — returns the configured cookie list.
-   * @returns Set-Cookie line array.
-   */
-  const getSetCookieFn = (): readonly string[] => setCookies;
-  const headers = { getSetCookie: getSetCookieFn };
+  const cookieEntries = setCookies.map((line): [string, string] => ['set-cookie', line]);
+  const headers = new Headers(cookieEntries);
   const responseLike = { ok: isOkStatus, status, text: textFn, headers };
   return responseLike as unknown as Response;
 }
@@ -250,6 +255,39 @@ describe('NativeFetchStrategy — failure paths', () => {
       expect(result.errorMessage).toContain('502');
     }
   });
+
+  it('classifies a Cloudflare 403 block page as WafBlocked without quoting it', async () => {
+    const impl = respondWith(403, CLOUDFLARE_BLOCK_PAGE);
+    installFetchMock(impl);
+    const strategy = new NativeFetchStrategy('https://api.example');
+    const result = await strategy.fetchPost('https://api.example/x', {}, { extraHeaders: {} });
+    const expectedMessage = `POST https://api.example/x 403: ${CLOUDFLARE_BLOCK_REASON}`;
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.WafBlocked,
+      errorMessage: expectedMessage,
+    });
+  });
+
+  it.each([503, 200])(
+    'classifies a Cloudflare challenge header as WafBlocked on a %i',
+    async (status: number) => {
+      const response = buildResponse(status, CLOUDFLARE_CHALLENGE_PAGE);
+      const [[headerName, headerValue]] = Object.entries(CLOUDFLARE_CHALLENGE_HEADERS);
+      response.headers.set(headerName, headerValue);
+      const promised = Promise.resolve(response);
+      installFetchMock(() => promised);
+      const strategy = new NativeFetchStrategy('https://api.example');
+      const result = await strategy.fetchGet('https://api.example/x', { extraHeaders: {} });
+      const statusText = String(status);
+      const expectedMessage = `GET https://api.example/x ${statusText}: ${CLOUDFLARE_CHALLENGE_REASON}`;
+      expect(result).toMatchObject({
+        success: false,
+        errorType: ScraperErrorTypes.WafBlocked,
+        errorMessage: expectedMessage,
+      });
+    },
+  );
 
   it('returns fail with "parse error" when the body is not valid JSON', async () => {
     const impl = respondWith(200, 'not-json-at-all');

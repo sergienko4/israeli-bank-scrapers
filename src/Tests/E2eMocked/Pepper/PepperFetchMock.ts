@@ -62,17 +62,13 @@ const MAX_OK = 300;
 
 type JsonObject = Record<string, unknown>;
 
-/** Minimal Headers stub used by NativeFetchStrategy.emitSetCookies. */
-interface IHeadersLike {
-  readonly getSetCookie: () => readonly string[];
-}
-
 /** Minimal Response shape the project consumes. */
 interface IResponseLike {
   readonly ok: boolean;
   readonly status: number;
   readonly text: () => Promise<string>;
-  readonly headers: IHeadersLike;
+  /** Real, empty Headers — read for Set-Cookie lines and edge verdicts. */
+  readonly headers: Headers;
 }
 
 /** Accumulates call counts. */
@@ -102,16 +98,8 @@ function buildResponse(status: number, bodyText: string): IResponseLike {
    * @returns Body text promise.
    */
   const textFn = (): Promise<string> => Promise.resolve(bodyText);
-  const headers: IHeadersLike = { getSetCookie: noopCookies };
+  const headers = new Headers();
   return { ok: isOk, status, text: textFn, headers };
-}
-
-/**
- * Empty cookie header accessor — stable reference used by all synthetic responses.
- * @returns Empty frozen cookie array.
- */
-function noopCookies(): readonly string[] {
-  return [];
 }
 
 /**
