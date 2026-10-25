@@ -100,6 +100,28 @@ never reach an error message or a log line. Native fetch and Camoufox also pass
 a caught exception's text through `scrubUrlFromText`, so an engine message that
 quotes the request URL keeps only its origin and path as well.
 
+A non-2xx response becomes `GENERIC`, with the message
+`<VERB> <url> <status>: ` followed by the first 120 characters of the body.
+The exception is a Cloudflare block page: a `4xx` HTML page carrying
+Cloudflare's `cf-error` markers becomes `WAF_BLOCKED`, and a fixed reason
+replaces the body, because that page embeds the caller's IP and a Ray ID.
+Cloudflare's `5xx` origin-error pages carry the same markers but mean the bank
+itself is unreachable, so they stay `GENERIC`. A Cloudflare challenge is also
+`WAF_BLOCKED`, at any status, and is recognised only by its
+`cf-mitigated: challenge` response header: Cloudflare injects its
+challenge-platform script into ordinary origin pages too, so no body marker
+can tell a challenge apart. Cloudflare does not tie that header to a status, so
+both strategies check it with `hasCloudflareChallengeHeader` before parsing a
+`2xx` body; a challenged `2xx` is classified, not parsed. Native fetch
+(including its mTLS
+and GraphQL variants) and Camoufox page fetch share this one rule,
+`classifyHttpFailure`
+(`src/Scrapers/Pipeline/Strategy/Fetch/HttpFailureClassifier.ts`), whose fixed
+reasons are `CLOUDFLARE_BLOCK_REASON` and `CLOUDFLARE_CHALLENGE_REASON`. The
+`<status>: ` prefix is kept
+in both cases, and `WAF_BLOCKED` is terminal — neither the in-request `401`/`403`
+re-mint nor the warm-to-cold fallback fires on it.
+
 ## One SMS per run
 
 **A single scrape of a single api-direct bank sends at most one SMS.** That is

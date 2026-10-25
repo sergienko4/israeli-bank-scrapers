@@ -13,6 +13,22 @@ Unchanged for every 8.x release. Enforced by the `engines` field, so npm warns (
 
 ## Release notes
 
+### 8.9.0 - OneZero needs Node 22.20+ or 24.5+
+
+**Impact:** Behavior
+
+OneZero's Cloudflare edge now admits only clients whose TLS handshake matches the OneZero Android app. The scraper sends that handshake, but only OpenSSL 3.5 or later can produce it. Node bundles OpenSSL 3.5 from 22.20 on the 22.x line, from 24.5 on the 24.x line, and in every 25.x and 26.x release. On an older runtime, building the OneZero transport logs a `warn` line, `[tls] runtime OpenSSL cannot emit this TLS profile; the bank edge may block requests`, and the login fails with `WAF_BLOCKED`. `engines.node` is unchanged, and no other institution is affected.
+
+**What to do:** If you scrape OneZero, run Node 22.20 or later on 22.x, or 24.5 or later on 24.x. `node -p process.versions.openssl` must print 3.5 or higher.
+
+### 8.9.0 - API-direct Cloudflare block pages and challenges report `WAF_BLOCKED`
+
+**Impact:** Behavior
+
+When Cloudflare refuses an API-direct request with a `4xx` block page, OneZero now reports `WAF_BLOCKED` instead of `GENERIC`. The message keeps its `<VERB> <url> <status>: ` prefix but ends `blocked by Cloudflare edge (WAF) before reaching the API` instead of quoting the page, which embeds your IP and a Ray ID. A Cloudflare challenge, recognised by its `cf-mitigated: challenge` response header at any status, is reported the same way with a message ending `challenged by Cloudflare edge (WAF) before reaching the API`. `WAF_BLOCKED` is terminal: the call is not re-minted, and a blocked warm start no longer falls back to an SMS login. PayBox and Pepper already reported `WAF_BLOCKED` when a page contained any Cloudflare marker. They now need a `4xx` HTML page carrying Cloudflare's block markers, or the challenge header, so a Cloudflare `5xx` origin error, or an unrelated page that happens to contain `oldie`, reports `GENERIC`. `errorDetails` is not set on this path.
+
+**What to do:** If you branch on `errorType`, handle `WAF_BLOCKED` for API-direct banks as well. Code that matched Cloudflare page text inside `errorMessage` should match the new reason instead.
+
 ### 8.9.0 - A `warn` line when the browser stack differs from the tested pair
 
 **Impact:** Behavior
