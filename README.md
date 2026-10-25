@@ -124,7 +124,7 @@ latest supported majors. Build tooling uses `.nvmrc` independently of consumers.
 | `24.11.0` | Packed CJS/ESM consumer smoke at the minimum from `engines.node`                                                     |
 | `24.22.0` | Build-tool pin in `.nvmrc`; unit suite with coverage                                                                 |
 | `24`      | Latest 24.x, so a patched LTS cannot regress us unnoticed, and the open-ended `>=` is an evidenced claim, not a hope |
-| `26`      | Active LTS from Oct 2026 — we meet the next default before consumers do                                              |
+| `26`      | Current; LTS scheduled for 2026-10-28 — we meet the next default before consumers do                                 |
 
 <!-- node-support:end -->
 
