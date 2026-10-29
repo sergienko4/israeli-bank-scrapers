@@ -4,12 +4,15 @@ source-files:
   - .github/workflows/dev-tooling-watch.yml
   - scripts/dev-tooling-watch.mjs
   - scripts/dev-tooling/watch.mjs
+  - .github/workflows/dependabot-auto-merge.yml
 ---
 
 # Dependency updates
 
 > **Who this is for:** maintainers reviewing a Dependabot pull request, and
-> anyone changing how `.github/dependabot.yml` groups updates.
+> anyone changing how `.github/dependabot.yml` groups updates. When a
+> lint-tooling update or the watch is red, go to
+> [When the watch or a lint-tooling update is red](#when-the-watch-or-a-lint-tooling-update-is-red).
 
 Dependabot opens version updates every Monday; npm updates at 07:00 UTC, after
 that day's [dev-tooling watch](#the-dev-tooling-watch) has run. Each npm update
@@ -88,3 +91,39 @@ the probe on your machine:
 node scripts/dev-tooling-watch.mjs --out /tmp/dev-tooling-watch.md
 npm ci   # the probe changed node_modules; this restores the locked tree
 ```
+
+## When the watch or a lint-tooling update is red
+
+1. **Read the failing gate.** The watch issue, or the update's `Static checks`
+   job, lists every failing gate: a failure no longer skips the gates after
+   it.
+2. **Fix forward on `main`.** Change the code so it passes the new rule, in
+   an ordinary pull request. The fix must also pass the locked version, which
+   it does for almost every rule: replacing a deprecated call or an unsafe
+   pattern satisfies both. #673 was fixed this way: `no-deprecated` flagged
+   object-literal properties in four tests, and a typed helper fixed them on
+   the old typescript-eslint too.
+3. **Rebase the update.** Comment `@dependabot rebase` on it. Dependabot
+   rebases on its own only when the pull request conflicts, and `main`
+   requires a branch to be up to date before it merges.
+4. **Approve once it is green.** `main` needs one code-owner approval and
+   dismisses an approval when new commits are pushed, so approve after the
+   last rebase, when every check is green.
+
+When no fix passes both versions, push it to the Dependabot branch instead.
+Dependabot then stops rebasing that pull request, so bring it up to date with
+GitHub's **Update branch** button rather than `@dependabot rebase`.
+
+## What is not automatic
+
+- **The code fix.** The watch finds a new lint failure before the update
+  does; it does not write the fix. A finding `eslint --fix` cannot fix needs a
+  person.
+- **The approval.** `dependabot-auto-merge.yml` approves and enables
+  auto-merge when a Dependabot pull request opens, but `main` requires a
+  code owner's approval, and a rebase dismisses earlier approvals.
+- **Releases after the watch.** A release published between the watch at
+  03:00 UTC and Dependabot's run at 07:00 UTC is not probed before the update
+  opens.
+- **Majors.** `lint-tooling` takes minor and patch updates. A major arrives
+  as a pull request of its own, and the watch does not probe it.
