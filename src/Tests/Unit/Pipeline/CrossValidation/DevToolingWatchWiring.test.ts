@@ -44,6 +44,7 @@ import { join } from 'node:path';
 import { parse } from 'yaml';
 
 import { PROBE_BUDGET_MS } from '../../../../../scripts/dev-tooling/watch.mjs';
+import { canRunPosixBash } from '../../../Helpers/HostCapabilities.js';
 import { readRepoFile, trackedFiles } from '../../../Helpers/RepoFiles.js';
 import { createTempRepo, writeTempFile } from '../../../Helpers/TempRepoTree.js';
 
@@ -478,21 +479,25 @@ describe('DevToolingWatchWiring', () => {
     ['pass', WITH_WATCH_ISSUE, [editCall('pass'), closeCall('pass')]],
     ['no-candidate', DECOYS, []],
   ])('[DWW-11] on %s, run for real, writes only its own body', (verdict, open, writes) => {
-    const run = runIssueStep(verdict, open);
-    expect(run.status).toBe(0);
-    const first = run.calls.slice(0, 2).map(call => call.slice(0, 2));
-    expect(first).toEqual([
-      ['label', 'create'],
-      ['issue', 'list'],
-    ]);
-    const written = issueWrites(run);
-    expect(written).toEqual(writes);
-    expect(run.log).not.toContain(HOSTILE);
+    if (canRunPosixBash(process.platform)) {
+      const run = runIssueStep(verdict, open);
+      expect(run.status).toBe(0);
+      const first = run.calls.slice(0, 2).map(call => call.slice(0, 2));
+      expect(first).toEqual([
+        ['label', 'create'],
+        ['issue', 'list'],
+      ]);
+      const written = issueWrites(run);
+      expect(written).toEqual(writes);
+      expect(run.log).not.toContain(HOSTILE);
+    }
   });
 
   it('[DWW-11] fails on an unknown verdict before it calls gh', () => {
-    const run = runIssueStep(`fail; ${HOSTILE}`, WITH_WATCH_ISSUE);
-    expect(run.status).not.toBe(0);
-    expect(run.calls).toEqual([]);
+    if (canRunPosixBash(process.platform)) {
+      const run = runIssueStep(`fail; ${HOSTILE}`, WITH_WATCH_ISSUE);
+      expect(run.status).not.toBe(0);
+      expect(run.calls).toEqual([]);
+    }
   });
 });

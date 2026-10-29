@@ -8,8 +8,9 @@
  * `npm view`, the installed tree for `npm ls`, and exit 1 for any command
  * line the scenario fails. So each case pins one part of the contract: which
  * packages are candidates, the exact install, which gates run, the time each
- * gets, the verdict, and exit 2 when an input cannot be read. One case runs
- * the real `runCommand`, to pin that a timed-out command is killed for sure.
+ * gets, the verdict, and exit 2 when an input cannot be read. Two cases run
+ * real processes: one pins that a timed-out command is killed for sure, and
+ * one that npm starts through its Windows launcher and a shell.
  */
 
 import {
@@ -17,10 +18,17 @@ import {
   matchingPackages,
   toolingPatterns,
 } from '../../../../scripts/dev-tooling/tooling-group.mjs';
-import type { IRunResult } from '../../../../scripts/dev-tooling/watch.mjs';
-import { GATES, runCommand, runWatch } from '../../../../scripts/dev-tooling/watch.mjs';
+import type { ILauncher, IRunResult } from '../../../../scripts/dev-tooling/watch.mjs';
+import {
+  GATES,
+  launcherFor,
+  runCommand,
+  runCommandOn,
+  runWatch,
+} from '../../../../scripts/dev-tooling/watch.mjs';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
 import { type IPrinted, printingIo } from '../../Helpers/BrowserStackWatchFixtures.js';
+import { canRunPosixBash } from '../../Helpers/HostCapabilities.js';
 import { readRepoFile, trackedFiles } from '../../Helpers/RepoFiles.js';
 
 const DEPENDABOT_PATH = '/repo/.github/dependabot.yml';
@@ -417,6 +425,17 @@ const KILL_AFTER_MS = 300;
 /** The most DTW-16 lets `runCommand` take: well under the command's 5 s. */
 const RETURNS_WITHIN_MS = 4000;
 
+/**
+ * DTW-18 runs `npm` as Windows starts it, on a host with no `npm.cmd`. Only the
+ * launcher run through a shell exits with the shell's "command not found"
+ * status: without a shell the spawn fails (status 1), and `npm` itself prints
+ * its version (status 0).
+ */
+const WINDOWS_ON_POSIX = { timeout: 10_000, platform: 'win32' } as const;
+
+/** POSIX shell status for a command it cannot find. */
+const SHELL_NOT_FOUND = 127;
+
 describe('dev-tooling watch', () => {
   it('[DTW-1] installs the newest same-major stable release of each tooling package', () => {
     const run = watch();
@@ -554,6 +573,26 @@ describe('dev-tooling watch', () => {
     expect(result.unfinished).toMatch(/ETIMEDOUT/u);
     expect(result.status).toBe(1);
     expect(elapsed).toBeLessThan(RETURNS_WITHIN_MS);
+  });
+
+  it.each<[string, NodeJS.Platform, ILauncher]>([
+    ['npm', 'win32', { file: 'npm.cmd', shell: true }],
+    ['npx', 'win32', { file: 'npx.cmd', shell: true }],
+    ['npm', 'linux', { file: 'npm', shell: false }],
+    ['npx', 'darwin', { file: 'npx', shell: false }],
+    ['node', 'win32', { file: 'node', shell: false }],
+    ['constructor', 'win32', { file: 'constructor', shell: false }],
+  ])('[DTW-17] starts %s on %s as %j', (command, platform, expected) => {
+    const launcher = launcherFor(command, platform);
+    expect(launcher).toEqual(expected);
+  });
+
+  it('[DTW-18] runs npm through its Windows launcher and a shell', () => {
+    if (canRunPosixBash(process.platform)) {
+      const result = runCommandOn('npm', ['--version'], WINDOWS_ON_POSIX);
+      expect(result.status).toBe(SHELL_NOT_FOUND);
+      expect(result.stderr).toMatch(/npm\.cmd/u);
+    }
   });
 
   it.each<[string, IScenario, readonly string[]]>([

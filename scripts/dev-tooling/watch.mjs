@@ -99,7 +99,34 @@ export const GATES = Object.freeze(
 );
 
 /**
- * Run a command in the repository root; a non-zero exit is a result, not a throw.
+ * npm's Windows launchers: `.cmd` files that only a shell can start. A Map, so
+ * a key such as `constructor` finds nothing.
+ */
+const WINDOWS_LAUNCHERS = new Map([
+  ['npm', 'npm.cmd'],
+  ['npx', 'npx.cmd'],
+]);
+
+/**
+ * What to spawn for a command on a platform.
+ *
+ * On Windows npm and npx start through a shell, as scripts/npm-audit/scan.mjs
+ * does. The watch passes them no shell metacharacter, only package names from
+ * the lockfile, versions matching STABLE, and the fixed gate arguments. Any
+ * other command, such as node, is spawned directly.
+ *
+ * @param {string} command - Executable.
+ * @param {NodeJS.Platform} platform - Host platform.
+ * @returns {{ file: string, shell: boolean }} What to spawn, and whether through a shell.
+ */
+export function launcherFor(command, platform) {
+  const launcher = platform === 'win32' ? WINDOWS_LAUNCHERS.get(command) : undefined;
+  return { file: launcher ?? command, shell: launcher !== undefined };
+}
+
+/**
+ * Run a command in the repository root as it starts on a platform; a non-zero
+ * exit is a result, not a throw.
  *
  * A timed-out command gets SIGKILL: the candidate tooling is untrusted, and a
  * SIGTERM it ignores would block this call past the budget. Node closes the
@@ -109,19 +136,33 @@ export const GATES = Object.freeze(
  *
  * @param {string} command - Executable.
  * @param {readonly string[]} args - Its arguments.
- * @param {number} timeout - Milliseconds before it is killed.
+ * @param {{ timeout: number, platform: NodeJS.Platform }} host - Milliseconds before
+ *   it is killed, and the platform whose launcher starts it.
  * @returns {IRunResult} Exit status (1 when it did not finish), output, and why it did not finish.
  */
-export function runCommand(command, args, timeout) {
+export function runCommandOn(command, args, { timeout, platform }) {
   const encoding = /** @type {const} */ ('utf8');
   const killSignal = /** @type {const} */ ('SIGKILL');
-  const options = { cwd: ROOT, encoding, killSignal, maxBuffer: MAX_BUFFER, timeout };
-  const result = spawnSync(command, [...args], options);
+  const { file, shell } = launcherFor(command, platform);
+  const options = { cwd: ROOT, encoding, killSignal, maxBuffer: MAX_BUFFER, shell, timeout };
+  const result = spawnSync(file, [...args], options);
   const killed = result.signal === null ? undefined : `killed by ${result.signal}`;
   const unfinished = result.error?.message ?? killed;
   const stderr = `${result.stderr ?? ''}${unfinished === undefined ? '' : `${unfinished}\n`}`;
   const output = { status: result.status ?? 1, stdout: result.stdout ?? '', stderr };
   return unfinished === undefined ? output : { ...output, unfinished };
+}
+
+/**
+ * Run a command in the repository root on this host; see runCommandOn.
+ *
+ * @param {string} command - Executable.
+ * @param {readonly string[]} args - Its arguments.
+ * @param {number} timeout - Milliseconds before it is killed.
+ * @returns {IRunResult} Exit status (1 when it did not finish), output, and why it did not finish.
+ */
+export function runCommand(command, args, timeout) {
+  return runCommandOn(command, args, { timeout, platform: process.platform });
 }
 
 /** Production I/O; tests override any member. */

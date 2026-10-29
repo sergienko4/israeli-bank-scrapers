@@ -44,8 +44,45 @@ export const GATES: readonly IGate[];
 /** What one run may spend on every command together, in milliseconds. */
 export const PROBE_BUDGET_MS: number;
 
+/** What the watch spawns for a command, and whether through a shell. */
+export interface ILauncher {
+  readonly file: string;
+  readonly shell: boolean;
+}
+
 /**
- * Run a command in the repository root, with SIGKILL after `timeout`.
+ * What to spawn for a command: npm's `.cmd` launcher through a shell for npm
+ * and npx on Windows, else the command itself.
+ *
+ * @param command - Executable.
+ * @param platform - Host platform.
+ * @returns What to spawn, and whether through a shell.
+ */
+export function launcherFor(command: string, platform: NodeJS.Platform): ILauncher;
+
+/** How long a command may run, and the platform whose launcher starts it. */
+export interface ICommandHost {
+  readonly timeout: number;
+  readonly platform: NodeJS.Platform;
+}
+
+/**
+ * Run a command in the repository root as it starts on `host.platform`, with
+ * SIGKILL after `host.timeout`.
+ *
+ * @param command - Executable.
+ * @param args - Its arguments.
+ * @param host - Timeout in milliseconds, and the platform.
+ * @returns Exit status (1 when it did not finish), output, and why it did not finish.
+ */
+export function runCommandOn(
+  command: string,
+  args: readonly string[],
+  host: ICommandHost,
+): IRunResult;
+
+/**
+ * Run a command in the repository root on this host, with SIGKILL after `timeout`.
  *
  * @param command - Executable.
  * @param args - Its arguments.
