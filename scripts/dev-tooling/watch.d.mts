@@ -45,6 +45,16 @@ export const GATES: readonly IGate[];
 export const PROBE_BUDGET_MS: number;
 
 /**
+ * Run a command in the repository root, with SIGKILL after `timeout`.
+ *
+ * @param command - Executable.
+ * @param args - Its arguments.
+ * @param timeout - Milliseconds before it is killed.
+ * @returns Exit status (1 when it did not finish), output, and why it did not finish.
+ */
+export function runCommand(command: string, args: readonly string[], timeout: number): IRunResult;
+
+/**
  * Run the watch once.
  *
  * @param args - CLI arguments after the script path.

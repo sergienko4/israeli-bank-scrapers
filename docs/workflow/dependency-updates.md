@@ -77,7 +77,8 @@ the top of the hour, hence the odd minute. Its job `probe` runs
    one of them even after a failure.
 
 Each command gets at most 10 minutes, and all of them together 30; a command
-the budget leaves no time for is not started. The probe job's 45-minute
+the budget leaves no time for is not started, and one that runs out of time is
+killed with `SIGKILL`, which it cannot ignore. The probe job's 45-minute
 timeout covers that budget plus setup, so the probe writes its verdict before
 the job is killed.
 

@@ -8,7 +8,8 @@
  * `npm view`, the installed tree for `npm ls`, and exit 1 for any command
  * line the scenario fails. So each case pins one part of the contract: which
  * packages are candidates, the exact install, which gates run, the time each
- * gets, the verdict, and exit 2 when an input cannot be read.
+ * gets, the verdict, and exit 2 when an input cannot be read. One case runs
+ * the real `runCommand`, to pin that a timed-out command is killed for sure.
  */
 
 import {
@@ -17,7 +18,7 @@ import {
   toolingPatterns,
 } from '../../../../scripts/dev-tooling/tooling-group.mjs';
 import type { IRunResult } from '../../../../scripts/dev-tooling/watch.mjs';
-import { GATES, runWatch } from '../../../../scripts/dev-tooling/watch.mjs';
+import { GATES, runCommand, runWatch } from '../../../../scripts/dev-tooling/watch.mjs';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
 import { type IPrinted, printingIo } from '../../Helpers/BrowserStackWatchFixtures.js';
 import { readRepoFile, trackedFiles } from '../../Helpers/RepoFiles.js';
@@ -398,6 +399,24 @@ function lintToolingScripts(): readonly string[] {
   return loading.map(([name]) => name);
 }
 
+/**
+ * A command that ignores SIGTERM and starts a child that inherits its pipes;
+ * both exit after 5 s. If `runCommand` sends SIGTERM, or waits for the pipes
+ * to close, the case outlasts its bound and fails rather than hanging Jest.
+ */
+const IGNORES_SIGTERM = [
+  "process.on('SIGTERM', () => {});",
+  "const holder = ['-e', 'setTimeout(() => {}, 5000)'];",
+  "require('node:child_process').spawn(process.execPath, holder, { stdio: 'inherit' });",
+  'setTimeout(() => {}, 5000);',
+].join(' ');
+
+/** How long DTW-16 gives the command before `runCommand` kills it. */
+const KILL_AFTER_MS = 300;
+
+/** The most DTW-16 lets `runCommand` take: well under the command's 5 s. */
+const RETURNS_WITHIN_MS = 4000;
+
 describe('dev-tooling watch', () => {
   it('[DTW-1] installs the newest same-major stable release of each tooling package', () => {
     const run = watch();
@@ -526,6 +545,15 @@ describe('dev-tooling watch', () => {
     expect(scripts).toContain('lint:guideline-coverage');
     const ungated = scripts.filter(name => !GATE_LINES.includes(`npm run ${name}`));
     expect(ungated).toEqual([]);
+  });
+
+  it('[DTW-16] kills a timed-out command that ignores SIGTERM and has a child', () => {
+    const started = Date.now();
+    const result = runCommand(process.execPath, ['-e', IGNORES_SIGTERM], KILL_AFTER_MS);
+    const elapsed = Date.now() - started;
+    expect(result.unfinished).toMatch(/ETIMEDOUT/u);
+    expect(result.status).toBe(1);
+    expect(elapsed).toBeLessThan(RETURNS_WITHIN_MS);
   });
 
   it.each<[string, IScenario, readonly string[]]>([

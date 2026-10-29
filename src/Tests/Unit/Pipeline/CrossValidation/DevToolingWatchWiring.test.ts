@@ -31,12 +31,21 @@
  *          has had its whole job time
  *   DWW-10 the probe job outlasts the probe's time budget plus setup, so the
  *          probe writes its verdict before the job is killed
+ *   DWW-11 run for real under bash with real jq, a recording `gh` and an
+ *          artifact that carries hostile text, the issue step writes only
+ *          the body it builds, to the issue the workflow opened, and calls no
+ *          `gh` at all on an unknown verdict
  */
+
+import { spawnSync } from 'node:child_process';
+import { chmodSync, readFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 
 import { parse } from 'yaml';
 
 import { PROBE_BUDGET_MS } from '../../../../../scripts/dev-tooling/watch.mjs';
 import { readRepoFile, trackedFiles } from '../../../Helpers/RepoFiles.js';
+import { createTempRepo, writeTempFile } from '../../../Helpers/TempRepoTree.js';
 
 const WORKFLOW_FILE = '.github/workflows/dev-tooling-watch.yml';
 const ENTRY = 'scripts/dev-tooling-watch.mjs';
@@ -83,6 +92,67 @@ const ISSUE_COMMANDS = [
 
 /** A token or a secret, by expression. */
 const CREDENTIAL = /github\.token|secrets\./u;
+
+/** Text a hostile artifact carries where the issue step must not read it. */
+const HOSTILE = 'HOSTILE-ARTIFACT-TEXT';
+
+/** The run the issue step links to, as the runner names it. */
+const RUN_ENV = {
+  GITHUB_SERVER_URL: 'https://github.com',
+  GITHUB_REPOSITORY: 'o/r',
+  GITHUB_RUN_ID: '42',
+};
+const RUN_URL = 'https://github.com/o/r/actions/runs/42';
+
+/** Ends each argument, then each call, in the stub `gh`'s log. */
+const ARG_END = '\u001f';
+const CALL_END = '\u001e';
+
+/**
+ * A `gh` that logs each call's arguments to `$GH_LOG`, and answers
+ * `issue list` by applying the step's own `--jq` to `$STUB_ISSUES`.
+ */
+const GH_STUB = [
+  '#!/bin/sh',
+  'set -e',
+  'printf \'%s\\037\' "$@" >> "$GH_LOG"',
+  'printf \'\\036\' >> "$GH_LOG"',
+  'if [ "$1 $2" != "issue list" ]; then exit 0; fi',
+  'while [ "$#" -gt 1 ] && [ "$1" != --jq ]; do shift; done',
+  'exec jq -r "$2" "$STUB_ISSUES"',
+].join('\n');
+
+/** An open issue as `gh issue list --json number,author,title` lists it. */
+interface IOpenIssue {
+  readonly number: number;
+  readonly author: { readonly login: string };
+  readonly title: string;
+}
+
+/** Open issues the watch must not touch: another author's, and another title. */
+const DECOYS: readonly IOpenIssue[] = [
+  { number: 3, author: { login: 'someone' }, title: 'Dev-tooling watch' },
+  { number: 5, author: { login: 'app/github-actions' }, title: 'Something else' },
+];
+
+/** The issue the watch opened, with the decoys. */
+const WITH_WATCH_ISSUE: readonly IOpenIssue[] = [
+  ...DECOYS,
+  { number: 7, author: { login: 'app/github-actions' }, title: 'Dev-tooling watch' },
+];
+
+/** One `gh` call's arguments. */
+type GhCall = readonly string[];
+
+/** What one run of the issue step did. */
+interface IIssueRun {
+  readonly status: number;
+  readonly log: string;
+  readonly calls: readonly GhCall[];
+}
+
+/** Fixture roots to remove after each case. */
+const TREES: string[] = [];
 
 interface IStep {
   readonly name?: string;
@@ -197,6 +267,126 @@ function minutesOfDay(time: string): number {
   return Number(hours) * 60 + Number(minutes);
 }
 
+/**
+ * The issue body the step must write for a verdict.
+ *
+ * @param verdict - The verdict.
+ * @returns The body, as `printf '%s\n\n%s\n'` builds it.
+ */
+function bodyFor(verdict: string): string {
+  const summary = `The dev-tooling watch reports \`${verdict}\`.`;
+  const link = `Each gate's result, with the output of a failing one, is on the run's summary: ${RUN_URL}`;
+  return `${summary}\n\n${link}\n`;
+}
+
+/**
+ * A downloaded artifact whose verdict file and report both carry `HOSTILE`.
+ *
+ * @param runnerTemp - The fake `$RUNNER_TEMP`.
+ * @param verdict - The verdict to write.
+ * @returns The verdict file's path.
+ */
+function writeArtifact(runnerTemp: string, verdict: string): string {
+  const verdictText = JSON.stringify({ verdict, errors: [HOSTILE], gates: [] });
+  writeTempFile(runnerTemp, `${ARTIFACT}/report.md`, `# ${HOSTILE}\n`);
+  return writeTempFile(runnerTemp, `${ARTIFACT}/verdict.json`, verdictText);
+}
+
+/**
+ * The stub `gh` and its fixtures.
+ *
+ * @param root - Fixture root.
+ * @param open - The open issues `gh issue list` sees.
+ * @returns The environment that puts the stub first on `PATH`.
+ */
+function ghEnv(root: string, open: readonly IOpenIssue[]): NodeJS.ProcessEnv {
+  const gh = writeTempFile(root, 'bin/gh', GH_STUB);
+  chmodSync(gh, 0o755);
+  const openText = JSON.stringify(open);
+  const issues = writeTempFile(root, 'issues.json', openText);
+  const log = writeTempFile(root, 'gh.log', '');
+  const path = `${join(root, 'bin')}:${process.env.PATH ?? ''}`;
+  const stub = { PATH: path, RUNNER_TEMP: root, STUB_ISSUES: issues, GH_LOG: log };
+  return { ...process.env, ...RUN_ENV, ...stub };
+}
+
+/**
+ * `gh issue create` for the watch issue.
+ *
+ * @param verdict - The verdict.
+ * @returns Its arguments.
+ */
+function createCall(verdict: string): GhCall {
+  const body = bodyFor(verdict);
+  return ['issue', 'create', '--title', 'Dev-tooling watch', '--label', LABEL, '--body', body];
+}
+
+/**
+ * `gh issue edit` of the watch issue, #7.
+ *
+ * @param verdict - The verdict.
+ * @returns Its arguments.
+ */
+function editCall(verdict: string): GhCall {
+  const body = bodyFor(verdict);
+  return ['issue', 'edit', '7', '--body', body];
+}
+
+/**
+ * `gh issue close` of the watch issue, #7.
+ *
+ * @param verdict - The verdict.
+ * @returns Its arguments.
+ */
+function closeCall(verdict: string): GhCall {
+  return ['issue', 'close', '7', '--comment', `The dev-tooling watch now reports \`${verdict}\`.`];
+}
+
+/**
+ * Run the issue step's real script as the workflow's default shell does.
+ *
+ * @param verdict - The verdict in the downloaded artifact.
+ * @param open - The open issues `gh issue list` sees.
+ * @returns Its exit status and the `gh` calls it made.
+ */
+function runIssueStep(verdict: string, open: readonly IOpenIssue[]): IIssueRun {
+  const root = createTempRepo();
+  TREES.push(root);
+  writeArtifact(root, verdict);
+  const env = ghEnv(root, open);
+  const script = stepNamed(REPORT, ISSUE_STEP).run ?? '';
+  const shell = ['--noprofile', '--norc', '-euo', 'pipefail', '-c', script];
+  const result = spawnSync('bash', shell, { env, encoding: 'utf8', timeout: 30_000 });
+  const log = readFileSync(env.GH_LOG ?? '', 'utf8');
+  const calls = callsIn(log);
+  return { status: result.status ?? -1, log, calls };
+}
+
+/**
+ * The calls the stub `gh` logged.
+ *
+ * @param log - Its log.
+ * @returns Each call's arguments, in order.
+ */
+function callsIn(log: string): readonly GhCall[] {
+  const records = log.split(CALL_END).slice(0, -1);
+  return records.map(record => record.split(ARG_END).slice(0, -1));
+}
+
+/**
+ * The calls that write an issue: every `gh issue` call but the list.
+ *
+ * @param run - The step's run.
+ * @returns Those calls, in order.
+ */
+function issueWrites(run: IIssueRun): readonly GhCall[] {
+  return run.calls.filter(([group, verb]) => group === 'issue' && verb !== 'list');
+}
+
+afterEach(() => {
+  for (const root of TREES.splice(0)) rmSync(root, { recursive: true, force: true });
+});
+
 describe('DevToolingWatchWiring', () => {
   it('[DWW-1] runs daily at 03:17 UTC and by hand, never on a PR or push', () => {
     const triggers = Object.keys(WORKFLOW.on).sort();
@@ -280,5 +470,29 @@ describe('DevToolingWatchWiring', () => {
   it('[DWW-10] the probe job outlasts the probe budget plus setup', () => {
     const budgetMinutes = PROBE_BUDGET_MS / MINUTE_MS;
     expect(PROBE['timeout-minutes']).toBeGreaterThanOrEqual(budgetMinutes + SETUP_MINUTES);
+  });
+
+  it.each<[string, readonly IOpenIssue[], readonly GhCall[]]>([
+    ['fail', DECOYS, [createCall('fail')]],
+    ['error', WITH_WATCH_ISSUE, [editCall('error')]],
+    ['pass', WITH_WATCH_ISSUE, [editCall('pass'), closeCall('pass')]],
+    ['no-candidate', DECOYS, []],
+  ])('[DWW-11] on %s, run for real, writes only its own body', (verdict, open, writes) => {
+    const run = runIssueStep(verdict, open);
+    expect(run.status).toBe(0);
+    const first = run.calls.slice(0, 2).map(call => call.slice(0, 2));
+    expect(first).toEqual([
+      ['label', 'create'],
+      ['issue', 'list'],
+    ]);
+    const written = issueWrites(run);
+    expect(written).toEqual(writes);
+    expect(run.log).not.toContain(HOSTILE);
+  });
+
+  it('[DWW-11] fails on an unknown verdict before it calls gh', () => {
+    const run = runIssueStep(`fail; ${HOSTILE}`, WITH_WATCH_ISSUE);
+    expect(run.status).not.toBe(0);
+    expect(run.calls).toEqual([]);
   });
 });

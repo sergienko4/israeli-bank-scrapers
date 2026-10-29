@@ -101,14 +101,21 @@ export const GATES = Object.freeze(
 /**
  * Run a command in the repository root; a non-zero exit is a result, not a throw.
  *
+ * A timed-out command gets SIGKILL: the candidate tooling is untrusted, and a
+ * SIGTERM it ignores would block this call past the budget. Node closes the
+ * pipes on the kill, so a grandchild still holding them cannot block it either.
+ * spawnSync cannot kill a process group, so such a grandchild may outlive the
+ * command; the runner ends it with the job.
+ *
  * @param {string} command - Executable.
  * @param {readonly string[]} args - Its arguments.
  * @param {number} timeout - Milliseconds before it is killed.
  * @returns {IRunResult} Exit status (1 when it did not finish), output, and why it did not finish.
  */
-function runCommand(command, args, timeout) {
+export function runCommand(command, args, timeout) {
   const encoding = /** @type {const} */ ('utf8');
-  const options = { cwd: ROOT, encoding, maxBuffer: MAX_BUFFER, timeout };
+  const killSignal = /** @type {const} */ ('SIGKILL');
+  const options = { cwd: ROOT, encoding, killSignal, maxBuffer: MAX_BUFFER, timeout };
   const result = spawnSync(command, [...args], options);
   const killed = result.signal === null ? undefined : `killed by ${result.signal}`;
   const unfinished = result.error?.message ?? killed;
