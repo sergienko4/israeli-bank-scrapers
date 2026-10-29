@@ -10,14 +10,14 @@
  * runs the static gates that PR must pass. A failure shows up early, the fix
  * lands on `main` first, and the update is green when it arrives.
  *
- * The result is the markdown body of one issue (see watch-report.mjs),
- * printed and optionally written to `--out <file>`, and a JSON verdict
- * written to `--verdict <file>`.
+ * The result is a markdown report (see watch-report.mjs), printed and
+ * optionally written to `--out <file>`, and a JSON verdict written to
+ * `--verdict <file>`.
  *
  * Exit codes: 0 verdict written, whatever it is · 2 the watch cannot read its
  * inputs (USAGE, CONFIG-INVALID, PACKAGE-INVALID, LOCK-INVALID,
- * REGISTRY-FAILED). Candidates that fail to install, and a gate that times out
- * or is killed, are the verdict `error`, not exit 2.
+ * REGISTRY-FAILED). Candidates that fail to install, and a gate that times
+ * out, is killed or is left no time, are the verdict `error`, not exit 2.
  */
 import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -31,7 +31,9 @@ import { renderWatch } from './watch-report.mjs';
 /**
  * @typedef {import('./watch.d.mts').IDevToolingWatchIo} IDevToolingWatchIo
  * @typedef {import('./watch.d.mts').IRunResult} IRunResult
- * @typedef {Required<IDevToolingWatchIo>} WatchIo - Watch I/O, defaults filled in.
+ * @typedef {Required<IDevToolingWatchIo>} RawIo - Watch I/O, defaults filled in.
+ * @typedef {(command: string, args: readonly string[]) => IRunResult} BudgetedRun - Runs a command on the probe's budget.
+ * @typedef {Omit<RawIo, 'run'> & { run: BudgetedRun }} WatchIo - Watch I/O, its `run` on the budget.
  * @typedef {import('./watch-report.mjs').Candidate} Candidate
  * @typedef {import('./watch-report.mjs').GateResult} GateResult
  * @typedef {import('./watch-report.mjs').Watch} Watch
@@ -53,6 +55,17 @@ const MAX_BUFFER = 64 * 1024 * 1024;
  */
 const COMMAND_TIMEOUT_MS = 10 * 60 * 1000;
 
+/**
+ * Every command of one run shares this; a command gets what is left, and none
+ * starts once it is spent. The probe job's `timeout-minutes` must cover it plus
+ * setup, or the job is killed before it writes a verdict;
+ * DevToolingWatchWiring.test.ts checks that.
+ */
+export const PROBE_BUDGET_MS = 30 * 60 * 1000;
+
+/** Why a command the budget left no time for did not run. */
+const OUT_OF_TIME = 'not started: the probe used up its time budget';
+
 /** A stable release: no prerelease or build suffix. */
 const STABLE = /^\d+\.\d+\.\d+$/u;
 
@@ -68,8 +81,9 @@ const INSTALL = Object.freeze([
 /**
  * The static gates the grouped update must pass, in run order: the
  * static-checks gates in pr.yml the lint tooling feeds, then the pre-commit
- * Biome gate. DevToolingWatch.test.ts checks that each command is one CI or
- * the hook runs.
+ * gates that load it: Biome and guideline coverage, which resolves the ESLint
+ * config. DevToolingWatch.test.ts checks that each command is one CI or the
+ * hook runs, and that every lint script loading a lint-tooling package is here.
  */
 export const GATES = Object.freeze(
   /** @type {const} */ ([
@@ -80,6 +94,7 @@ export const GATES = Object.freeze(
     ['Type check', 'npm', ['run', 'type-check']],
     ['Type check (TS 6)', 'npm', ['run', 'type-check:ts6']],
     ['Biome', 'npx', ['biome', 'lint', 'src', '--max-diagnostics=50']],
+    ['Guideline coverage', 'npm', ['run', 'lint:guideline-coverage']],
   ]).map(([name, command, args]) => Object.freeze({ name, command, args })),
 );
 
@@ -88,11 +103,12 @@ export const GATES = Object.freeze(
  *
  * @param {string} command - Executable.
  * @param {readonly string[]} args - Its arguments.
+ * @param {number} timeout - Milliseconds before it is killed.
  * @returns {IRunResult} Exit status (1 when it did not finish), output, and why it did not finish.
  */
-function runCommand(command, args) {
+function runCommand(command, args, timeout) {
   const encoding = /** @type {const} */ ('utf8');
-  const options = { cwd: ROOT, encoding, maxBuffer: MAX_BUFFER, timeout: COMMAND_TIMEOUT_MS };
+  const options = { cwd: ROOT, encoding, maxBuffer: MAX_BUFFER, timeout };
   const result = spawnSync(command, [...args], options);
   const killed = result.signal === null ? undefined : `killed by ${result.signal}`;
   const unfinished = result.error?.message ?? killed;
@@ -281,8 +297,9 @@ function lsTree(stdout) {
 /**
  * The candidates whose installed version is not the one asked for.
  *
- * `npm ls` exits non-zero when the tree no longer matches the lockfile,
- * which it does on purpose here, so only its JSON is read.
+ * Same-major releases satisfy the caret ranges in package.json, so `npm ls`
+ * exits 0 after the install; anything else is a broken tree, or it did not
+ * finish.
  *
  * @param {WatchIo} io - Watch I/O.
  * @param {readonly Candidate[]} candidates - What was installed.
@@ -290,6 +307,7 @@ function lsTree(stdout) {
  */
 function mismatches(io, candidates) {
   const result = io.run('npm', ['ls', '--json', '--depth=0', ...candidates.map(c => c.name)]);
+  if (result.status !== 0) return [`npm ls exited ${result.status}:\n${tailOf(result)}`];
   const tree = lsTree(result.stdout);
   if (tree === null) return [`npm ls printed no JSON:\n${tailOf(result)}`];
   const wrong = candidates.filter(c => tree[c.name]?.version !== c.to);
@@ -349,7 +367,7 @@ const verdictJson = watch => ({
 });
 
 /**
- * Print the body, write it to `--out` and the verdict to `--verdict` when given.
+ * Print the report, write it to `--out` and the verdict to `--verdict` when given.
  *
  * @param {readonly string[]} args - CLI arguments after the script path.
  * @param {WatchIo} io - Watch I/O.
@@ -369,6 +387,26 @@ function writeReport(args, io) {
 }
 
 /**
+ * `io` whose `run` gives each command what is left of PROBE_BUDGET_MS, at most
+ * COMMAND_TIMEOUT_MS, and starts none once the budget is spent.
+ *
+ * @param {RawIo} io - Watch I/O.
+ * @returns {WatchIo} The same I/O, its `run` on the budget.
+ */
+function withBudget(io) {
+  const deadline = io.now().getTime() + PROBE_BUDGET_MS;
+  /** @type {BudgetedRun} */
+  const run = (command, args) => {
+    const left = deadline - io.now().getTime();
+    if (left <= 0) {
+      return { status: 1, stdout: '', stderr: `${OUT_OF_TIME}\n`, unfinished: OUT_OF_TIME };
+    }
+    return io.run(command, args, Math.min(COMMAND_TIMEOUT_MS, left));
+  };
+  return { ...io, run };
+}
+
+/**
  * Run the watch once.
  *
  * @param {readonly string[]} args - CLI arguments after the script path.
@@ -377,7 +415,7 @@ function writeReport(args, io) {
  * @throws {Error} Only on a bug: anything that is not an input failure.
  */
 export function runWatch(args, overrides = {}) {
-  const io = { ...DEFAULT_IO, ...overrides };
+  const io = withBudget({ ...DEFAULT_IO, ...overrides });
   try {
     return writeReport(args, io);
   } catch (error) {

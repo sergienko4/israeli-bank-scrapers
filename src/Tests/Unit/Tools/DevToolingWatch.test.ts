@@ -3,20 +3,24 @@
  *
  * <p>The watch reads three files and runs `npm` and every gate through one
  * `run` function. Here the files are fixed texts behind a fake `readFile`,
- * and `run` is a fake that records each command line and answers from the
- * scenario: published versions for `npm view`, the installed tree for
- * `npm ls`, and exit 1 for any command line the scenario fails. So each case
- * pins one part of the contract: which packages are candidates, the exact
- * install, which gates run, the verdict, and exit 2 when an input cannot be
- * read.
+ * and `run` is a fake that records each command line and its timeout, moves
+ * a fake clock on, and answers from the scenario: published versions for
+ * `npm view`, the installed tree for `npm ls`, and exit 1 for any command
+ * line the scenario fails. So each case pins one part of the contract: which
+ * packages are candidates, the exact install, which gates run, the time each
+ * gets, the verdict, and exit 2 when an input cannot be read.
  */
 
-import { matchesPattern } from '../../../../scripts/dev-tooling/tooling-group.mjs';
+import {
+  matchesPattern,
+  matchingPackages,
+  toolingPatterns,
+} from '../../../../scripts/dev-tooling/tooling-group.mjs';
 import type { IRunResult } from '../../../../scripts/dev-tooling/watch.mjs';
 import { GATES, runWatch } from '../../../../scripts/dev-tooling/watch.mjs';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
 import { type IPrinted, printingIo } from '../../Helpers/BrowserStackWatchFixtures.js';
-import { readRepoFile } from '../../Helpers/RepoFiles.js';
+import { readRepoFile, trackedFiles } from '../../Helpers/RepoFiles.js';
 
 const DEPENDABOT_PATH = '/repo/.github/dependabot.yml';
 const PACKAGE_PATH = '/repo/package.json';
@@ -74,6 +78,12 @@ const FAILURE_LINES = 40;
 /** What a failing command prints: numbered lines, so the tail is checkable. */
 const FAILURE_OUTPUT = Array.from({ length: FAILURE_LINES }, (_, i) => `line ${String(i + 1)}`);
 
+/** A minute, in milliseconds. */
+const MINUTE_MS = 60_000;
+
+/** Why the watch did not run a command it had no time left for. */
+const NOT_STARTED = 'not started: the probe used up its time budget';
+
 /** What one scenario changes from the default state. */
 interface IScenario {
   readonly dependabot?: string;
@@ -86,10 +96,22 @@ interface IScenario {
   readonly timingOut?: readonly string[];
   /** What `npm ls` reports as installed; the candidates' `to` by default. */
   readonly installed?: Readonly<Record<string, string>>;
+  /** Minutes each command takes on the fake clock; none by default. */
+  readonly minutesPerCommand?: number;
 }
 
 /** A package and its version, as a lockfile or `npm ls` keys it. */
 type LockEntry = [string, { readonly version: string }];
+
+/** The watch's `run`: a command, its arguments and the milliseconds it gets. */
+type Run = (command: string, args: readonly string[], timeoutMs: number) => IRunResult;
+
+/** What the fake `run` saw, and the time it let pass. */
+interface ICommandLog {
+  readonly calls: string[];
+  readonly timeoutsMs: number[];
+  elapsedMs: number;
+}
 
 /** What one run returned, printed, wrote and ran. */
 interface IRun {
@@ -98,6 +120,8 @@ interface IRun {
   readonly err: string;
   readonly written: Readonly<Record<string, string>>;
   readonly calls: readonly string[];
+  /** The timeout each command got, in call order. */
+  readonly timeoutsMs: readonly number[];
 }
 
 /** The parts of the verdict file the tests read. */
@@ -194,11 +218,11 @@ function answer(scenario: IScenario, args: readonly string[]): IRunResult {
      */
     view: () => ({ status: 0, stdout: JSON.stringify(PUBLISHED[args[1]]), stderr: '' }),
     /**
-     * `npm ls --json`, which exits 1 on a tree that no longer matches the lockfile.
+     * `npm ls --json`, which exits 0: same-major releases satisfy the caret ranges.
      *
      * @returns The installed tree.
      */
-    ls: () => ({ status: 1, stdout: lsOutput(scenario), stderr: 'npm error invalid' }),
+    ls: () => ({ status: 0, stdout: lsOutput(scenario), stderr: '' }),
   };
   const reply = replies[args[0]] as (() => IRunResult) | undefined;
   return reply ? reply() : { status: 0, stdout: '', stderr: '' };
@@ -227,23 +251,35 @@ function isListed(listed: readonly string[], line: string): boolean {
 }
 
 /**
- * A fake `run` that records every command line and answers from the scenario.
+ * A fake `run` that logs every command line and its timeout, moves the clock
+ * on, and answers from the scenario.
  *
  * @param scenario - The scenario.
- * @param calls - Where the command lines go.
+ * @param log - Where the command lines, timeouts and elapsed time go.
  * @returns The fake.
  */
-function fakeRun(
-  scenario: IScenario,
-  calls: string[],
-): (command: string, args: readonly string[]) => IRunResult {
-  return (command: string, args: readonly string[]): IRunResult => {
+function fakeRun(scenario: IScenario, log: ICommandLog): Run {
+  return (command: string, args: readonly string[], timeoutMs: number): IRunResult => {
     const line = [command, ...args].join(' ');
-    calls.push(line);
+    log.calls.push(line);
+    log.timeoutsMs.push(timeoutMs);
+    log.elapsedMs += (scenario.minutesPerCommand ?? 0) * MINUTE_MS;
     if (isListed(scenario.timingOut ?? [], line)) return TIMED_OUT;
     if (isListed(scenario.failing ?? [], line)) return FAILURE;
     return answer(scenario, args);
   };
+}
+
+/**
+ * A clock that starts at `start` and moves on as the fake `run` lets time pass.
+ *
+ * @param start - The time of the first reading.
+ * @param log - Holds the elapsed time.
+ * @returns The clock.
+ */
+function fakeNow(start: Date, log: ICommandLog): () => Date {
+  const startMs = start.getTime();
+  return (): Date => new Date(startMs + log.elapsedMs);
 }
 
 /**
@@ -255,13 +291,15 @@ function fakeRun(
  */
 function watch(scenario: IScenario = {}, args: readonly string[] = REPORT_ARGS): IRun {
   const printed: IPrinted = { out: '', err: '', written: {} };
-  const calls: string[] = [];
+  const log: ICommandLog = { calls: [], timeoutsMs: [], elapsedMs: 0 };
   const readFile = fakeReadFile(scenario);
-  const run = fakeRun(scenario, calls);
+  const run = fakeRun(scenario, log);
   const output = printingIo(printed);
+  const start = output.now();
+  const now = fakeNow(start, log);
   const paths = { dependabotPath: DEPENDABOT_PATH, packagePath: PACKAGE_PATH, lockPath: LOCK_PATH };
-  const exit = runWatch(args, { ...paths, readFile, run, ...output });
-  return { exit, ...printed, calls };
+  const exit = runWatch(args, { ...paths, readFile, run, ...output, now });
+  return { exit, ...printed, calls: log.calls, timeoutsMs: log.timeoutsMs };
 }
 
 /**
@@ -303,6 +341,62 @@ const ALL_PASSED = GATES.map(gate => ({ name: gate.name, passed: true }));
 
 /** Locked versions already on the newest same-major release. */
 const UP_TO_DATE = { ...LOCKED, eslint: '10.2.0', 'typescript-eslint': '8.72.0' };
+
+/** A script that runs one file: `npx tsx <file>` or `node <file>`. */
+const SCRIPT_ENTRY = /(?:npx tsx|node) (\S+\.(?:ts|mjs|cjs))/u;
+
+/** The specifier of a static or dynamic import. */
+const IMPORT_SPECIFIER = /(?:from|import)\s*(?:\(\s*)?'([^']+)'/gu;
+
+/**
+ * The package a bare import specifier names.
+ *
+ * @param specifier - `name`, `name/sub`, `@scope/name` or `@scope/name/sub`.
+ * @returns `name` or `@scope/name`.
+ */
+function packageOf(specifier: string): string {
+  const parts = specifier.split('/');
+  const length = specifier.startsWith('@') ? 2 : 1;
+  return parts.slice(0, length).join('/');
+}
+
+/**
+ * Whether a script's entry file, if it is tracked, imports a lint-tooling package.
+ *
+ * @param command - The script's command line.
+ * @param tracked - The files git tracks.
+ * @param patterns - The `lint-tooling` group's patterns.
+ * @returns True when it does.
+ */
+function importsTooling(
+  command: string,
+  tracked: ReadonlySet<string>,
+  patterns: readonly string[],
+): boolean {
+  const entry = SCRIPT_ENTRY.exec(command)?.[1];
+  if (entry === undefined || !tracked.has(entry)) return false;
+  const source = readRepoFile(entry);
+  const imports = source.matchAll(IMPORT_SPECIFIER);
+  const bare = Array.from(imports, match => match[1]).filter(s => !/^(?:\.|node:)/u.test(s));
+  const packages = bare.map(packageOf);
+  return matchingPackages(packages, patterns).length > 0;
+}
+
+/**
+ * The package.json scripts whose entry file imports a lint-tooling package.
+ *
+ * @returns Their names.
+ */
+function lintToolingScripts(): readonly string[] {
+  const dependabot = readRepoFile('.github/dependabot.yml');
+  const patterns = toolingPatterns(dependabot);
+  const tracked = new Set(trackedFiles());
+  const manifest = readRepoFile('package.json');
+  const { scripts } = JSON.parse(manifest) as { readonly scripts: Record<string, string> };
+  const entries = Object.entries(scripts);
+  const loading = entries.filter(([, command]) => importsTooling(command, tracked, patterns));
+  return loading.map(([name]) => name);
+}
 
 describe('dev-tooling watch', () => {
   it('[DTW-1] installs the newest same-major stable release of each tooling package', () => {
@@ -398,6 +492,40 @@ describe('dev-tooling watch', () => {
     const ran = gatesRun(run);
     expect(ran).toEqual(GATE_LINES);
     expect(run.out).toContain('**error**');
+  });
+
+  it('[DTW-13] gives each command what is left of 30 minutes, and starts none after that', () => {
+    const run = watch({ minutesPerCommand: 4 });
+    const minutes = run.timeoutsMs.map(ms => ms / MINUTE_MS);
+    expect(minutes).toEqual([10, 10, 10, 10, 10, 10, 6, 2]);
+    const ran = gatesRun(run);
+    const firstThree = GATE_LINES.slice(0, 3);
+    expect(ran).toEqual(firstThree);
+    const verdict = verdictOf(run);
+    expect(verdict.verdict).toBe('error');
+    const notStarted = GATES.slice(3).map(gate => `${gate.name} did not finish: ${NOT_STARTED}`);
+    expect(verdict.errors).toEqual(notStarted);
+  });
+
+  it.each<[string, IScenario, string]>([
+    ['fails', { failing: ['npm ls'] }, `line ${String(FAILURE_LINES)}`],
+    ['times out', { timingOut: ['npm ls'] }, 'ETIMEDOUT'],
+  ])('[DTW-14] reports an error and runs no gate when npm ls %s', (_, scenario, tail) => {
+    const run = watch(scenario);
+    const verdict = verdictOf(run);
+    expect(verdict).toMatchObject({ verdict: 'error', gates: [] });
+    expect(verdict.errors).toHaveLength(1);
+    expect(verdict.errors[0]).toMatch(/^npm ls exited 1:\n/);
+    expect(verdict.errors[0]).toContain(tail);
+    const ran = gatesRun(run);
+    expect(ran).toEqual([]);
+  });
+
+  it('[DTW-15] runs every package.json script that imports a lint-tooling package', () => {
+    const scripts = lintToolingScripts();
+    expect(scripts).toContain('lint:guideline-coverage');
+    const ungated = scripts.filter(name => !GATE_LINES.includes(`npm run ${name}`));
+    expect(ungated).toEqual([]);
   });
 
   it.each<[string, IScenario, readonly string[]]>([

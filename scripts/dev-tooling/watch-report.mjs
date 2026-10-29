@@ -1,5 +1,5 @@
 /**
- * Markdown body of the dev-tooling watch issue.
+ * Markdown report of the dev-tooling watch, shown on the probe job's summary.
  *
  * Three sections: the verdict; the candidates (each `lint-tooling` package,
  * locked version → newest same-major release); and, when the gates ran,
@@ -20,9 +20,9 @@
  * @property {string} name - Gate name.
  * @property {boolean} passed - Whether it exited 0.
  * @property {string} tail - The last lines of its output when it failed, else empty.
- * @property {string} [unfinished] - Why it did not finish (timed out, killed); absent when it exited.
+ * @property {string} [unfinished] - Why it did not finish (timed out, killed, left no time); absent when it exited.
  *
- * @typedef {object} Watch - Everything the issue body reports.
+ * @typedef {object} Watch - Everything the report holds.
  * @property {string} checkedOn - `yyyy-mm-dd`.
  * @property {Verdict} verdict - What the probe found.
  * @property {readonly Candidate[]} candidates - What it installed.
@@ -43,7 +43,8 @@ const VERDICTS = Object.freeze({
     ` \`main\` first, as ${RUNBOOK} describes, and the update goes green when it arrives.`,
   error:
     '**error** — the probe could not finish: the candidates did not install, or a gate' +
-    ' timed out or was killed. Its result says nothing about the update; see Errors.',
+    ' timed out, was killed or was left no time. Its result says nothing about the update;' +
+    ' see Errors.',
   'no-candidate':
     '**no candidate** — every lint-tooling package is on its newest same-major release.',
 });

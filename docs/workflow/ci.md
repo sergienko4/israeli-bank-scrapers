@@ -200,11 +200,12 @@ one issue labelled `browser-stack`. See
 ## The lint tooling is probed daily
 
 `.github/workflows/dev-tooling-watch.yml` is not a gate either. Every day at
-03:00 UTC it installs the newest same-major release of each `lint-tooling`
+03:17 UTC it installs the newest same-major release of each `lint-tooling`
 package and runs the static gates on them, so a rule that breaks the next
-lint-tooling update shows up before that update opens. The report is the
-body of one issue labelled `dev-tooling-watch`, open only while the probe is
-red. See
+lint-tooling update normally shows up before that update opens. The report is
+on the run's summary. One issue labelled `dev-tooling-watch` follows the last
+verdict written: open, with a link to that run, after `fail` or `error`, and
+closed after `pass` or `no-candidate`. See
 [Dependency updates](dependency-updates.md#the-dev-tooling-watch).
 
 ## Static checks

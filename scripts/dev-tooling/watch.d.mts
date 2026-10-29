@@ -27,8 +27,11 @@ export interface IDevToolingWatchIo {
   readonly packagePath?: string;
   readonly lockPath?: string;
   readonly readFile?: (path: string) => string;
-  /** Runs `npm view`, `npm install`, `npm ls` and every gate, in the repository root. */
-  readonly run?: (command: string, args: readonly string[]) => IRunResult;
+  /**
+   * Runs `npm view`, `npm install`, `npm ls` and every gate, in the repository
+   * root, killing it after `timeoutMs`: what is left of the probe's budget.
+   */
+  readonly run?: (command: string, args: readonly string[], timeoutMs: number) => IRunResult;
   readonly now?: () => Date;
   readonly writeFile?: (path: string, text: string) => void;
   readonly stdout?: (text: string) => boolean;
@@ -37,6 +40,9 @@ export interface IDevToolingWatchIo {
 
 /** The static gates, in run order. */
 export const GATES: readonly IGate[];
+
+/** What one run may spend on every command together, in milliseconds. */
+export const PROBE_BUDGET_MS: number;
 
 /**
  * Run the watch once.

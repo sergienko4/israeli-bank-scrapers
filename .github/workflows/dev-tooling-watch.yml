@@ -10,21 +10,26 @@ name: Dev-tooling watch
 # node_modules — package.json and the lockfile stay as they are — and runs
 # the static gates that PR must pass. That is code no one here has reviewed,
 # so the job holds `contents: read` only, keeps no credential and gets no
-# token. It uploads the report and a JSON verdict.
+# token. It writes the report to the job summary and uploads it with a JSON
+# verdict.
 #
 # Job `report` holds `issues: write` and runs nothing it downloads: no
-# checkout, no npm. It checks the verdict and keeps one open issue labelled
-# `dev-tooling-watch` that the workflow itself opened: opened or edited on
-# `fail` or `error`, closed on `pass` or `no-candidate`. Fix the code on main
-# while that issue is open, and the update is green when it arrives. See
-# docs/workflow/dependency-updates.md.
+# checkout, no npm. It reads only the verdict, checks it, and keeps one open
+# issue titled `Dev-tooling watch`, labelled `dev-tooling-watch`, that the
+# workflow itself opened: opened or edited on `fail` or `error`, closed on
+# `pass` or `no-candidate`. Its body is written here from the checked verdict
+# and this run's URL; nothing else the probe wrote reaches the issue. Fix the
+# code on main while that issue is open, and the update is green when it
+# arrives. See docs/workflow/dependency-updates.md.
 #
 # A manual run is a dry run unless `dry_run` is cleared: the probe prints
 # the report to the job summary and the issue is left alone.
 
 on:
   schedule:
-    - cron: '0 3 * * *'
+    # Off the hour: GitHub delays, or under load drops, scheduled runs at the
+    # top of the hour most. Dependabot's npm run is at 07:00 UTC on Monday.
+    - cron: '17 3 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -48,6 +53,9 @@ jobs:
   probe:
     name: Probe the newest lint tooling
     runs-on: ubuntu-latest
+    # Setup, then the probe's 30-minute budget (PROBE_BUDGET_MS in
+    # scripts/dev-tooling/watch.mjs), so the probe writes its verdict before
+    # the job is killed.
     timeout-minutes: 45
     permissions:
       contents: read # checkout
@@ -103,24 +111,28 @@ jobs:
           # Anything but a known verdict fails the job and leaves the issue as it is.
           verdict=$(jq -er '.verdict | select(IN("pass", "fail", "error", "no-candidate"))' \
             "$dir/verdict.json")
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          printf -v body '%s\n\n%s\n' \
+            "The dev-tooling watch reports \`$verdict\`." \
+            "Each gate's result, with the output of a failing one, is on the run's summary: $run_url"
           gh label create dev-tooling-watch --force --color d93f0b \
             --description 'Daily dev-tooling watch report'
           # gh --json names a bot author app/<slug>; REST says <slug>[bot].
           number=$(gh issue list --label dev-tooling-watch --state open --limit 100 \
-            --json number,author \
-            --jq '[.[] | select(.author.login == "app/github-actions")][0].number // empty')
+            --json number,author,title \
+            --jq '[.[] | select(.author.login == "app/github-actions" and .title == "Dev-tooling watch")][0].number // empty')
           case "$verdict" in
             fail | error)
               if [[ -n "$number" ]]; then
-                gh issue edit "$number" --body-file "$dir/report.md"
+                gh issue edit "$number" --body "$body"
               else
                 gh issue create --title 'Dev-tooling watch' --label dev-tooling-watch \
-                  --body-file "$dir/report.md"
+                  --body "$body"
               fi
               ;;
             pass | no-candidate)
               if [[ -n "$number" ]]; then
-                gh issue edit "$number" --body-file "$dir/report.md"
+                gh issue edit "$number" --body "$body"
                 gh issue close "$number" --comment "The dev-tooling watch now reports \`$verdict\`."
               fi
               ;;

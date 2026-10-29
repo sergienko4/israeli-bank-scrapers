@@ -5,8 +5,9 @@ updates:
     schedule:
       interval: weekly
       day: monday
-      # After the daily dev-tooling watch (03:00 UTC), so a lint-tooling update
-      # never arrives before the watch has probed the same releases.
+      # After the daily dev-tooling watch (03:17 UTC), so a lint-tooling update
+      # is normally probed before it arrives. GitHub can delay or drop a
+      # scheduled run, so that order is best effort.
       time: '07:00'
       timezone: UTC
     open-pull-requests-limit: 10

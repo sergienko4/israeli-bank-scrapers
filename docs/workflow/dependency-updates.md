@@ -14,8 +14,8 @@ source-files:
 > lint-tooling update or the watch is red, go to
 > [When the watch or a lint-tooling update is red](#when-the-watch-or-a-lint-tooling-update-is-red).
 
-Dependabot opens version updates every Monday; npm updates at 07:00 UTC, after
-that day's [dev-tooling watch](#the-dev-tooling-watch) has run. Each npm update
+Dependabot opens version updates every Monday; npm updates at 07:00 UTC,
+scheduled after that day's [dev-tooling watch](#the-dev-tooling-watch). Each npm update
 lands in the first group it matches, so a group only claims what no earlier
 group took.
 Every group that overlaps a later one also lists the overlap in the later
@@ -58,10 +58,12 @@ until the pattern is added to both lists.
 
 ## The dev-tooling watch
 
-`.github/workflows/dev-tooling-watch.yml` runs every day at 03:00 UTC, and
-Dependabot opens the npm updates on Monday at 07:00 UTC, so the watch has
-looked at the newest releases before every grouped update. Its job `probe`
-runs `scripts/dev-tooling-watch.mjs`, which:
+`.github/workflows/dev-tooling-watch.yml` runs every day at 03:17 UTC, and
+Dependabot opens the npm updates on Monday at 07:00 UTC, so the watch normally
+looks at the newest releases before every grouped update. That order is best
+effort: GitHub can delay a scheduled run, or drop it under load, most often at
+the top of the hour, hence the odd minute. Its job `probe` runs
+`scripts/dev-tooling-watch.mjs`, which:
 
 1. reads the `lint-tooling` patterns from `.github/dependabot.yml` and takes
    every devDependency they match;
@@ -71,17 +73,26 @@ runs `scripts/dev-tooling-watch.mjs`, which:
    `package.json` or the lockfile (`npm install --no-save --ignore-scripts`),
    and checks with `npm ls` that each one is what got installed;
 4. runs ESLint, the restricted-syntax guardrails, the architectural
-   canaries, Prettier, both type checks and Biome, every one of them even
-   after a failure.
+   canaries, Prettier, both type checks, Biome and guideline coverage, every
+   one of them even after a failure.
+
+Each command gets at most 10 minutes, and all of them together 30; a command
+the budget leaves no time for is not started. The probe job's 45-minute
+timeout covers that budget plus setup, so the probe writes its verdict before
+the job is killed.
 
 The verdict is `pass`, `fail`, `error` (the install or the `npm ls` check
-failed, or a gate timed out or was killed, so the result says nothing about
-the update) or `no-candidate` (every package is on its newest release). The probe runs releases no one here has reviewed, so it holds
-`contents: read` only, keeps no credential, gets no token and saves no npm
-cache. Job `report` holds `issues: write` and runs nothing it downloads: it
-opens or edits one issue labelled `dev-tooling-watch` on `fail` or `error`,
-and closes it on `pass` or `no-candidate`. A registry outage fails the probe
-(exit 2) and leaves the issue as it was.
+failed, or a gate timed out, was killed or was never started, so the result
+says nothing about the update) or `no-candidate` (every package is on its
+newest release). The probe runs releases no one here has reviewed, so it
+holds `contents: read` only, keeps no credential, gets no token and saves no
+npm cache. It writes the report to its job summary. Job `report` holds
+`issues: write`, runs nothing it downloads and reads only the verdict: it
+opens or edits one issue titled `Dev-tooling watch`, labelled
+`dev-tooling-watch`, on `fail` or `error`, and closes it on `pass` or
+`no-candidate`. It writes the issue body itself, from the checked verdict and
+a link to the run. A registry outage fails the probe (exit 2) and leaves the
+issue as it was.
 
 A manual run (**Actions → Dev-tooling watch → Run workflow**) is a dry run
 unless `dry_run` is cleared: the report goes to the job summary only. To run
@@ -94,9 +105,10 @@ npm ci   # the probe changed node_modules; this restores the locked tree
 
 ## When the watch or a lint-tooling update is red
 
-1. **Read the failing gate.** The watch issue, or the update's `Static checks`
-   job, lists every failing gate: a failure no longer skips the gates after
-   it.
+1. **Read the failing gate.** Open the run the watch issue links to: its
+   summary lists every gate, with the output of each failing one. The
+   update's `Static checks` job lists them too: a failure no longer skips the
+   gates after it.
 2. **Fix forward on `main`.** Change the code so it passes the new rule, in
    an ordinary pull request. The fix must also pass the locked version, which
    it does for almost every rule: replacing a deprecated call or an unsafe
@@ -122,8 +134,9 @@ GitHub's **Update branch** button rather than `@dependabot rebase`.
 - **The approval.** `dependabot-auto-merge.yml` approves and enables
   auto-merge when a Dependabot pull request opens, but `main` requires a
   code owner's approval, and a rebase dismisses earlier approvals.
-- **Releases after the watch.** A release published between the watch at
-  03:00 UTC and Dependabot's run at 07:00 UTC is not probed before the update
-  opens.
+- **Releases after the watch, and late runs.** A release published between
+  the watch at 03:17 UTC and Dependabot's run at 07:00 UTC is not probed
+  before the update opens, nor is anything on a day GitHub delays the watch
+  past 07:00 UTC or drops it.
 - **Majors.** `lint-tooling` takes minor and patch updates. A major arrives
   as a pull request of its own, and the watch does not probe it.
