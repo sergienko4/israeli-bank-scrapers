@@ -23,6 +23,8 @@ import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
 
+import gateTrigger from '../../../Helpers/StaticGateGuard.js';
+
 const THIS_FILE_PATH = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE_PATH);
 const REPO_ROOT = join(THIS_DIR, '../../../../../');
@@ -223,6 +225,28 @@ function admitsGuardrailOnlyChange(condition?: string): boolean {
   return admitsTerm(GUARDRAIL_TERM, condition);
 }
 
+/** The guard every gate after the `Static checks` job's `ready` step carries. */
+const STATIC_GUARD = "!cancelled() && steps.ready.outcome == 'success'";
+
+/**
+ * Whether a step's `if:` admits a change that sets one given flag, read inside
+ * the static-gate guard.
+ *
+ * <p>The guard (`StaticGateGuard`) only adds "setup finished, run not
+ * cancelled", and a failed setup already fails the job. Only the exact guard
+ * around one group is stripped, so a mask written inside it, or a guard
+ * rewritten to skip, still fails {@link admitsTerm}.
+ *
+ * @param term - The flag comparison that must be present.
+ * @param step - Step definition.
+ * @returns True when a change setting only that flag reaches this step.
+ */
+function stepAdmitsTerm(term: string, step: IStep): boolean {
+  if (step.if === undefined) return true;
+  const trigger = gateTrigger(step.if);
+  return admitsTerm(term, trigger);
+}
+
 /**
  * The term set by a dependency-only change.
  *
@@ -417,10 +441,19 @@ describe('CanarySuiteCiGate', () => {
     expect(hasAnyAccepted).toBe(false);
   });
 
+  it('[CI-CANARY] Detector_GuardedSkippedCondition_ShouldNotAdmitGuardrailChange', () => {
+    const steps = REJECTED_CONDITIONS.map(condition => ({
+      if: `\${{ ${STATIC_GUARD} && (${condition}) }}`,
+    }));
+    const verdicts = steps.map(step => stepAdmitsTerm(GUARDRAIL_TERM, step));
+    const hasAnyAccepted = verdicts.some(verdict => verdict);
+    expect(hasAnyAccepted).toBe(false);
+  });
+
   it('[CI-CANARY] PrYaml_GuardrailSteps_ShouldRunOnDependencyBumps', () => {
     const steps = canaryJobSteps().filter(isGuardrailStep);
     expect(steps).toHaveLength(GUARDRAIL_RUNS.length);
-    const verdicts = steps.map(step => admitsTerm(DEPS_TERM, step.if));
+    const verdicts = steps.map(step => stepAdmitsTerm(DEPS_TERM, step));
     const skipped = verdicts.filter(verdict => !verdict);
     expect(skipped).toHaveLength(0);
   });
@@ -474,7 +507,7 @@ describe('CanarySuiteCiGate', () => {
     const steps = canaryJobSteps();
     const canaries = steps.filter(isCanaryStep);
     expect(canaries.length).toBeGreaterThan(0);
-    const verdicts = canaries.map(step => admitsGuardrailOnlyChange(step.if));
+    const verdicts = canaries.map(step => stepAdmitsTerm(GUARDRAIL_TERM, step));
     const hasAnyGated = verdicts.some(verdict => !verdict);
     expect(hasAnyGated).toBe(false);
   });
