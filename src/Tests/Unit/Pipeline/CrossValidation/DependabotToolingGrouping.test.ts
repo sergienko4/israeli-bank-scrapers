@@ -16,12 +16,13 @@
  * group order.
  */
 
+import {
+  matchesPattern,
+  TOOLING_GROUP,
+} from '../../../../../scripts/dev-tooling/tooling-group.mjs';
 import type { IDependabotGroup } from '../../../Helpers/DependabotConfig.js';
 import { npmGroupMap } from '../../../Helpers/DependabotConfig.js';
 import { readRepoFile } from '../../../Helpers/RepoFiles.js';
-
-/** Group name cited by `.github/dependabot.yml` and the dependency-updates doc. */
-const TOOLING_GROUP = 'lint-tooling';
 
 /** Update types the group takes; a major still gets a pull request of its own. */
 const TOOLING_UPDATE_TYPES = ['minor', 'patch'];
@@ -43,9 +44,6 @@ const TYPESCRIPT_ESLINT = 'typescript-eslint';
 
 /** A package import in `eslint.config.mjs`; relative imports start with `.`. */
 const PACKAGE_IMPORT = /^import .+ from '(?<specifier>[^'.][^']*)';$/gm;
-
-/** Characters a Dependabot pattern must not pass to a RegExp unescaped. */
-const REGEXP_SPECIAL = /[$()+./?[\\\]^{|}]/g;
 
 interface IPackageJson {
   readonly devDependencies?: Readonly<Record<string, string>>;
@@ -74,21 +72,6 @@ function toolingPackages(): readonly string[] {
   const wanted = [...RUNNERS, ...imports];
   const names = Object.keys(devDependencies);
   return names.filter(name => wanted.includes(name));
-}
-
-/**
- * Whether a Dependabot pattern, where `*` matches any run of characters,
- * names a package.
- *
- * @param pattern - The pattern.
- * @param name - The package name.
- * @returns True when the pattern matches the whole name.
- */
-function matchesPattern(pattern: string, name: string): boolean {
-  const parts = pattern.split('*');
-  const escaped = parts.map(part => part.replaceAll(REGEXP_SPECIAL, String.raw`\$&`));
-  const source = escaped.join('.*');
-  return new RegExp(`^${source}$`, 'u').test(name);
 }
 
 /**
