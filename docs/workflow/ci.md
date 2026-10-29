@@ -207,6 +207,17 @@ push inside the account's concurrent-job limit.
   the lint steps. The job's last step, `wait-all`, fails the job when any of
   them failed. It always runs, even after a lint step fails, so no gate's
   failure is lost.
+- **Keep going after a failure.** A `Setup complete` step (`id: ready`) closes
+  setup. Every foreground gate after it runs under
+  `!cancelled() && steps.ready.outcome == 'success' && (<trigger>)` instead
+  of the implicit `success()`. One failing gate therefore no longer skips the
+  rest: a dependency bump that breaks ESLint still reports the type checks,
+  audits and docs gates in the same run. When setup itself failed, the gates
+  stay skipped rather than failing on an empty tree. A gate that consumes
+  another step's output, such as Lychee or the mkdocs build, also requires
+  that step's `outcome` to be `success`. `StaticChecksJob.test.ts` runs every
+  gate's condition through the `if:` evaluator, so a gate added without the
+  guard fails the suite.
 - **Conditions.** Each step keeps the `if:` its old job had, joined with its
   own. The job has no `if:` of its own, because Scorecard npm pins runs on
   every run. The job waits for `Detect changes`, so Scorecard npm pins and

@@ -3,7 +3,9 @@
  *
  * <p>It covers the subset the workflows' conditions use: `!`, `&&`, `||`,
  * `==`, `!=`, parentheses, string and boolean literals, `needs.<job>.result`,
- * `needs.<job>.outputs.<name>` and the four status functions. As on GitHub, a
+ * `needs.<job>.outputs.<name>`, `steps.<id>.outcome`,
+ * `steps.<id>.outputs.<name>`, `github.<name>` and the four status
+ * functions. As on GitHub, a
  * condition that names no status function runs as `success() && (<it>)`,
  * `&&` / `||` short-circuit and yield the operand that decides them, and
  * strings compare case-insensitively. Anything outside the subset throws, so
@@ -19,6 +21,12 @@ export interface INeed {
   readonly outputs: Readonly<Record<string, string>>;
 }
 
+/** One earlier step of the same job, as `steps.<id>` exposes it. */
+export interface IStepState {
+  readonly outcome: string;
+  readonly outputs: Readonly<Record<string, string>>;
+}
+
 /** What the status functions report where the condition is checked. */
 export interface IGhaStatus {
   readonly success: boolean;
@@ -26,10 +34,15 @@ export interface IGhaStatus {
   readonly cancelled: boolean;
 }
 
-/** Everything a condition can read. */
+/**
+ * Everything a condition can read. `steps` and `github` are for step-level
+ * conditions; a lookup into one the caller did not supply throws.
+ */
 export interface IGhaContext {
   readonly needs: Readonly<Record<string, INeed>>;
   readonly status: IGhaStatus;
+  readonly steps?: Readonly<Record<string, IStepState>>;
+  readonly github?: Readonly<Record<string, string>>;
 }
 
 type TokenKind = 'op' | 'str' | 'word' | 'end';
@@ -126,18 +139,34 @@ const NEED_FIELDS: Readonly<Record<string, (need: INeed, rest: readonly string[]
    * @param rest - The path after `result`; must be empty.
    * @returns The job's result.
    */
-  result: (need, rest) => (rest.length === 0 ? need.result : unmodelled(rest)),
+  result: (need, rest) => readLeaf(need.result, rest),
   /**
    * `needs.<job>.outputs.<name>`.
    * @param need - The needed job.
    * @param rest - The path after `outputs`; must be one modelled name.
    * @returns The output's value.
    */
-  outputs: (need, rest) => {
-    const [name = ''] = rest;
-    const isModelled = rest.length === 1 && Object.hasOwn(need.outputs, name);
-    return isModelled ? need.outputs[name] : unmodelled(rest);
-  },
+  outputs: (need, rest) => readOutput(need.outputs, rest),
+};
+
+/** How a `steps.<id>.<field>…` lookup reads the rest of its path. */
+const STEP_FIELDS: Readonly<
+  Record<string, (step: IStepState, rest: readonly string[]) => GhaValue>
+> = {
+  /**
+   * `steps.<id>.outcome`.
+   * @param step - The earlier step.
+   * @param rest - The path after `outcome`; must be empty.
+   * @returns The step's outcome.
+   */
+  outcome: (step, rest) => readLeaf(step.outcome, rest),
+  /**
+   * `steps.<id>.outputs.<name>`.
+   * @param step - The earlier step.
+   * @param rest - The path after `outputs`; must be one modelled name.
+   * @returns The output's value.
+   */
+  outputs: (step, rest) => readOutput(step.outputs, rest),
 };
 
 /**
@@ -148,6 +177,30 @@ const NEED_FIELDS: Readonly<Record<string, (need: INeed, rest: readonly string[]
  */
 function unmodelled(path: readonly string[]): never {
   throw new RangeError(`unmodelled lookup: ${path.join('.')}`);
+}
+
+/**
+ * A field that ends the path, such as `result` or `outcome`.
+ *
+ * @param value - The field's value.
+ * @param rest - The path after the field; must be empty.
+ * @returns The value.
+ */
+function readLeaf(value: string, rest: readonly string[]): GhaValue {
+  return rest.length === 0 ? value : unmodelled(rest);
+}
+
+/**
+ * One named output.
+ *
+ * @param outputs - The outputs on offer.
+ * @param rest - The path after `outputs`; must be one modelled name.
+ * @returns The output's value.
+ */
+function readOutput(outputs: Readonly<Record<string, string>>, rest: readonly string[]): GhaValue {
+  const [name = ''] = rest;
+  const isModelled = rest.length === 1 && Object.hasOwn(outputs, name);
+  return isModelled ? outputs[name] : unmodelled(rest);
 }
 
 /**
@@ -361,12 +414,57 @@ function equals(left: GhaValue, right: GhaValue): boolean {
  * @param context - The condition's context.
  * @returns The value; throws on any lookup the evaluator does not model.
  */
-function lookup(path: readonly string[], context: IGhaContext): GhaValue {
-  const [root, job = '', field = '', ...rest] = path;
+function lookupNeed(path: readonly string[], context: IGhaContext): GhaValue {
+  const [, job = '', field = '', ...rest] = path;
   const isNeed = Object.hasOwn(context.needs, job) && Object.hasOwn(NEED_FIELDS, field);
-  const isModelled = root === 'needs' && isNeed;
-  if (!isModelled) return unmodelled(path);
+  if (!isNeed) return unmodelled(path);
   return NEED_FIELDS[field](context.needs[job], rest);
+}
+
+/**
+ * Read a `steps.<id>…` lookup.
+ *
+ * @param path - The lookup path.
+ * @param context - The condition's context.
+ * @returns The value; throws on any lookup the evaluator does not model.
+ */
+function lookupStep(path: readonly string[], context: IGhaContext): GhaValue {
+  const [, id = '', field = '', ...rest] = path;
+  const steps = context.steps ?? {};
+  const isStep = Object.hasOwn(steps, id) && Object.hasOwn(STEP_FIELDS, field);
+  if (!isStep) return unmodelled(path);
+  return STEP_FIELDS[field](steps[id], rest);
+}
+
+/**
+ * Read a `github.<name>` lookup.
+ *
+ * @param path - The lookup path.
+ * @param context - The condition's context.
+ * @returns The value; throws on any lookup the evaluator does not model.
+ */
+function lookupGithub(path: readonly string[], context: IGhaContext): GhaValue {
+  const [, name = '', ...rest] = path;
+  const github = context.github ?? {};
+  const isModelled = rest.length === 0 && Object.hasOwn(github, name);
+  return isModelled ? github[name] : unmodelled(path);
+}
+
+/** Each modelled context, by the first segment of its lookup path. */
+const ROOTS: Readonly<Record<string, (path: readonly string[], context: IGhaContext) => GhaValue>> =
+  { needs: lookupNeed, steps: lookupStep, github: lookupGithub };
+
+/**
+ * Read a lookup path from the context it names.
+ *
+ * @param path - The lookup path.
+ * @param context - The condition's context.
+ * @returns The value; throws on any lookup the evaluator does not model.
+ */
+function lookup(path: readonly string[], context: IGhaContext): GhaValue {
+  const [root = ''] = path;
+  if (!Object.hasOwn(ROOTS, root)) return unmodelled(path);
+  return ROOTS[root](path, context);
 }
 
 /**
@@ -452,7 +550,7 @@ const EVALUATORS: Evaluators = {
    */
   literal: node => node.value,
   /**
-   * A `needs` lookup.
+   * A context lookup.
    * @param node - The node.
    * @param context - The condition's context.
    * @returns The looked-up value.

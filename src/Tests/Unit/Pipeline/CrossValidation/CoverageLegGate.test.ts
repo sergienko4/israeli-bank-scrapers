@@ -33,6 +33,7 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 
 import { canRunPosixBash } from '../../../Helpers/HostCapabilities.js';
+import gateTrigger from '../../../Helpers/StaticGateGuard.js';
 
 const THIS_FILE_URL = import.meta.url;
 const THIS_FILE_PATH = fileURLToPath(THIS_FILE_URL);
@@ -202,13 +203,16 @@ function topLevelOrTerms(condition: string): readonly string[] {
 
 /**
  * The top-level `||` terms of the `if:` that decides whether a job or step runs.
+ * A static gate's shared guard (`StaticGateGuard`) is stripped first: it only
+ * adds "setup finished, run not cancelled", so the terms are its trigger's.
  * @param doc - Parsed workflow.
  * @param site - The job, and optionally the step, to read.
  * @returns The terms; a single empty term when there is no condition.
  */
 function orTerms(doc: IPrYamlDoc, site: IGateSite): readonly string[] {
   const source = site.step === undefined ? doc.jobs[site.job] : stepNamed(doc, site.step, site.job);
-  return topLevelOrTerms(source.if ?? '');
+  const trigger = gateTrigger(source.if ?? '');
+  return topLevelOrTerms(trigger);
 }
 
 /**

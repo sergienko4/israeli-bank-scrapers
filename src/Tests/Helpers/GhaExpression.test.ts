@@ -13,6 +13,8 @@
  *   GHX-7  any syntax, lookup, function or comparison it does not model throws
  *   GHX-8  the job-level status follows the needed jobs and the run
  *   GHX-9  `&&` and `||` yield the operand that decides them, not a boolean
+ *   GHX-10 `steps.<id>.outcome`, `steps.<id>.outputs.<name>` and
+ *          `github.<name>` read the step and event the context supplies
  */
 
 import type { IGhaContext, INeed } from './GhaExpression.js';
@@ -51,11 +53,23 @@ const PROTOTYPE_CASES = PROTOTYPE_NAMES.flatMap((name): (readonly [string, RegEx
   [`needs.${name}.result`, /unmodelled lookup/u],
   [`needs.a.${name}`, /unmodelled lookup/u],
   [`needs.a.outputs.${name}`, /unmodelled lookup/u],
+  [`steps.${name}.outcome`, /unmodelled lookup/u],
+  [`steps.ready.${name}`, /unmodelled lookup/u],
+  [`steps.ready.outputs.${name}`, /unmodelled lookup/u],
+  [`github.${name}`, /unmodelled lookup/u],
 ]);
 const SUCCEEDED = contextWith('success');
 const FAILED = contextWith('failure');
 const SKIPPED = contextWith('skipped');
 const CANCELLED = contextWith('success', true);
+
+/** The steps and event a step-level condition reads: `ready` succeeded, on a pull request. */
+const STEP_LEVEL = {
+  steps: { ready: { outcome: 'success', outputs: { skip: 'true' } } },
+  github: { event_name: 'pull_request' },
+};
+const SUCCEEDED_AT_STEP_LEVEL: IGhaContext = { ...SUCCEEDED, ...STEP_LEVEL };
+const AFTER_A_FAILED_STEP: IGhaContext = { ...FAILED, ...STEP_LEVEL };
 
 describe('GhaExpression', () => {
   it.each([
@@ -138,7 +152,8 @@ describe('GhaExpression', () => {
     ['an unknown output', "needs.a.outputs.ghost == 'true'", RangeError],
     ['an unknown field', "needs.a.status == 'success'", RangeError],
     ['a path past result', "needs.a.result.x == 'success'", RangeError],
-    ['a non-needs context', "github.event_name == 'push'", RangeError],
+    ['a context the caller did not supply', "github.event_name == 'push'", RangeError],
+    ['a step the caller did not supply', "steps.ready.outcome == 'success'", RangeError],
     ['a mixed-type comparison', 'needs.a.outputs.on == true', RangeError],
     ['a string yielded by && compared to a boolean', "(true && 'false') == true", RangeError],
     ['a boolean yielded by || compared to a string', "(false || true) == 'true'", RangeError],
@@ -152,7 +167,18 @@ describe('GhaExpression', () => {
   });
 
   it.each(PROTOTYPE_CASES)('[GHX-7] throws on the inherited name in %s', (source, message) => {
-    expect(() => evaluateIf(source, SUCCEEDED)).toThrow(message);
+    expect(() => evaluateIf(source, SUCCEEDED_AT_STEP_LEVEL)).toThrow(message);
+  });
+
+  it.each([
+    ['an unknown step', "steps.ghost.outcome == 'success'"],
+    ['an unmodelled step field', "steps.ready.conclusion == 'success'"],
+    ['an unknown step output', "steps.ready.outputs.ghost == 'true'"],
+    ['a path past outcome', "steps.ready.outcome.x == 'success'"],
+    ['an unknown github field', "github.ref == 'main'"],
+    ['a path past a github field', "github.event_name.x == 'push'"],
+  ])('[GHX-7] throws on %s', (_name, source) => {
+    expect(() => evaluateIf(source, SUCCEEDED_AT_STEP_LEVEL)).toThrow(RangeError);
   });
 
   it.each([
@@ -179,6 +205,18 @@ describe('GhaExpression', () => {
     ["(needs.a.outputs.on || needs.ghost.result) == 'true'", true],
   ])('[GHX-9] %s is %s', (source, expected) => {
     const isRun = evaluateIf(source, SUCCEEDED);
+    expect(isRun).toBe(expected);
+  });
+
+  it.each([
+    ["!cancelled() && steps.ready.outcome == 'success'", true],
+    ["!cancelled() && steps.ready.outcome == 'skipped'", false],
+    ["!cancelled() && steps.ready.outputs.skip == 'true'", true],
+    ["!cancelled() && github.event_name == 'PULL_REQUEST'", true],
+    ["!cancelled() && github.event_name == 'push'", false],
+    ["steps.ready.outcome == 'success'", false],
+  ])('[GHX-10] after a failed step, %s is %s', (source, expected) => {
+    const isRun = evaluateIf(source, AFTER_A_FAILED_STEP);
     expect(isRun).toBe(expected);
   });
 });
