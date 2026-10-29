@@ -1,15 +1,17 @@
 /**
  * Headless-mediator wiring — resolves which ApiMediator (if any) a headless
- * descriptor needs, and which identity transport it uses. A bank that needs a
- * client certificate and/or a TLS ClientHello profile (OneZero) runs over
- * node:https; Pepper / PayBox route identity REST through the Camoufox
- * strategy. Extracted from PipelineContextFactory to keep that file under the
- * strict 150-LoC cap.
+ * descriptor needs, and which identity transport it uses. An ordered rule
+ * table picks the transport: a bank that needs a client certificate and/or a
+ * TLS ClientHello profile (OneZero) runs over node:https; a bank that opts in
+ * with `nativeFetch` runs over Node's own fetch; every other bank (Pepper /
+ * PayBox) routes identity REST through the Camoufox strategy. Extracted from
+ * PipelineContextFactory to keep that file under the strict 150-LoC cap.
  */
 
 import ScraperError from '../../Base/ScraperError.js';
 import {
   createBrowserBackedHeadlessApiMediator,
+  createHeadlessApiMediator,
   createMtlsHeadlessApiMediator,
   type IApiMediator,
 } from '../Mediator/Api/ApiMediator.js';
@@ -28,7 +30,12 @@ interface IWiringFlags {
   readonly requiresClientCert: boolean;
   /** When true, the Camoufox strategy route-intercepts the initial origin nav. */
   readonly bypassOriginChallenge: boolean;
+  /** When true, identity REST runs over Node's own fetch (no browser, stock TLS). */
+  readonly nativeFetch: boolean;
 }
+
+/** Identity transport a headless bank runs over. */
+type HeadlessTransportKind = 'node-tls' | 'native' | 'browser';
 
 /** Pair of URLs + flags needed to wire the headless ApiMediator. */
 interface IHeadlessWiring extends IWiringFlags {
@@ -59,13 +66,14 @@ type TTransportArgs = Pick<
 /**
  * Decode the optional transport flags into explicit booleans.
  * @param headless - Headless URL block from PIPELINE_BANK_CONFIG.
- * @returns The three transport flags, each defaulted to false when absent.
+ * @returns The four transport flags, each defaulted to false when absent.
  */
 function toWiringFlags(headless: IHeadlessUrlsConfig): IWiringFlags {
   return {
     requiresBrowserTls: headless.requiresBrowserTls === true,
     requiresClientCert: headless.requiresClientCert === true,
     bypassOriginChallenge: headless.bypassOriginChallenge === true,
+    nativeFetch: headless.nativeFetch === true,
   };
 }
 
@@ -147,7 +155,7 @@ function buildMediatorArgsForWiring(
 
 /** Message when a bank misconfigures two identity transports at once. */
 const TRANSPORT_CONFLICT_MSG =
-  'Conflicting headless transport: node:https (client cert / TLS profile) and browser-TLS are mutually exclusive';
+  'Conflicting headless transport: node:https (client cert / TLS profile), native fetch and browser-TLS are mutually exclusive';
 
 /**
  * Report whether the bank needs the node:https transport — a client
@@ -160,10 +168,52 @@ function usesNodeTls(wiring: IHeadlessWiring): boolean {
 }
 
 /**
+ * Report whether the bank opted into Node's own fetch.
+ * @param wiring - Resolved wiring entry (URLs + flags).
+ * @returns True when identity REST must run over native fetch.
+ */
+function usesNativeFetch(wiring: IHeadlessWiring): boolean {
+  return wiring.nativeFetch;
+}
+
+/**
+ * Report whether the bank explicitly asked for browser TLS.
+ * @param wiring - Resolved wiring entry (URLs + flags).
+ * @returns True when identity REST must run through Camoufox.
+ */
+function usesBrowserTls(wiring: IHeadlessWiring): boolean {
+  return wiring.requiresBrowserTls;
+}
+
+/** One transport rule: the first rule whose predicate holds picks the kind. */
+interface ITransportRule {
+  readonly kind: HeadlessTransportKind;
+  readonly applies: (wiring: IHeadlessWiring) => boolean;
+}
+
+/** Ordered transport rules; a bank matching none runs browser-backed. */
+const TRANSPORT_RULES: readonly ITransportRule[] = [
+  { kind: 'node-tls', applies: usesNodeTls },
+  { kind: 'native', applies: usesNativeFetch },
+];
+
+/** Every explicit transport declaration; a bank may make at most one. */
+const TRANSPORT_DECLARATIONS = [usesNodeTls, usesNativeFetch, usesBrowserTls] as const;
+
+/** Mediator factory per transport kind. */
+const MEDIATOR_FACTORIES: Readonly<
+  Record<HeadlessTransportKind, (args: TMediatorArgs) => IApiMediator>
+> = {
+  'node-tls': createMtlsHeadlessApiMediator,
+  native: createHeadlessApiMediator,
+  browser: createBrowserBackedHeadlessApiMediator,
+};
+
+/**
  * Guard against a bank requesting two mutually-exclusive identity transports.
- * node:https (client cert and/or TLS profile) and browser-TLS (Camoufox)
- * cannot both drive identity, so a config with both is a wiring bug we fail
- * fast.
+ * node:https (client cert and/or TLS profile), native fetch and browser-TLS
+ * (Camoufox) cannot share identity, so a config declaring more than one is a
+ * wiring bug we fail fast.
  * @param companyId - Target bank company type (for the error message).
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns True when the transport selection is unambiguous.
@@ -172,15 +222,23 @@ function assertSingleTransport(
   companyId: IPipelineContext['companyId'],
   wiring: IHeadlessWiring,
 ): boolean {
-  const hasConflict = usesNodeTls(wiring) && wiring.requiresBrowserTls;
-  if (hasConflict) throw new ScraperError(`${TRANSPORT_CONFLICT_MSG} (${companyId})`);
+  const declared = TRANSPORT_DECLARATIONS.filter((isDeclared): boolean => isDeclared(wiring));
+  if (declared.length > 1) throw new ScraperError(`${TRANSPORT_CONFLICT_MSG} (${companyId})`);
   return true;
 }
 
 /**
+ * Pick the transport kind from the ordered rule table.
+ * @param wiring - Resolved wiring entry (URLs + flags).
+ * @returns The first matching rule's kind, else the browser-backed default.
+ */
+function pickTransportKind(wiring: IHeadlessWiring): HeadlessTransportKind {
+  const match = TRANSPORT_RULES.find((rule): boolean => rule.applies(wiring));
+  return match?.kind ?? 'browser';
+}
+
+/**
  * Select + invoke the headless mediator factory for the resolved wiring.
- * Banks that need a client certificate or a ClientHello profile run over
- * node:https; all others route identity REST through the Camoufox strategy.
  * @param companyId - Target bank company type.
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns A fully-wired IApiMediator for the bank's transport requirements.
@@ -191,8 +249,8 @@ function selectHeadlessMediator(
 ): IApiMediator {
   assertSingleTransport(companyId, wiring);
   const args = buildMediatorArgsForWiring(companyId, wiring);
-  if (usesNodeTls(wiring)) return createMtlsHeadlessApiMediator(args);
-  return createBrowserBackedHeadlessApiMediator(args);
+  const kind = pickTransportKind(wiring);
+  return MEDIATOR_FACTORIES[kind](args);
 }
 
 /**

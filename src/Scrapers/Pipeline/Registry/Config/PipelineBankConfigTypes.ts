@@ -105,6 +105,14 @@ export interface IHeadlessUrlsConfig {
    */
   readonly tlsProfile?: TlsClientProfileKind;
   /**
+   * When true, identity calls run over Node's built-in `fetch` with no
+   * browser and no custom TLS handshake — for banks whose edge admits a
+   * plain Node client. Mutually exclusive with `requiresBrowserTls`,
+   * `requiresClientCert` and `tlsProfile`. Default: undefined (the bank
+   * keeps the browser-backed identity transport).
+   */
+  readonly nativeFetch?: true;
+  /**
    * When set, the Camoufox identity strategy route-intercepts the
    * initial navigation to the identity origin URL and serves a blank
    * HTML stub (`<!doctype html><html><head></head><body></body></html>`).

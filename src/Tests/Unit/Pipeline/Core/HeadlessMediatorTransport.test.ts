@@ -2,10 +2,11 @@
  * Unit tests for the transport rule in Core/HeadlessMediatorWiring.
  *
  * A headless bank that declares a client certificate or a TLS ClientHello
- * profile runs over node:https; any other headless bank runs over browser
- * TLS; a bank that asks for both fails fast. The bank registry and both
- * mediator factories are replaced, so each case states only its transport
- * flags and observes which factory was chosen and what it received.
+ * profile runs over node:https; a bank that opts into `nativeFetch` runs over
+ * Node's own fetch; any other headless bank runs over browser TLS; a bank that
+ * declares more than one transport fails fast. The bank registry and every
+ * mediator factory are replaced, so each case states only its transport flags
+ * and observes which factory was chosen and what it received.
  */
 
 import { jest } from '@jest/globals';
@@ -20,6 +21,7 @@ interface ITransportFlags {
   readonly requiresBrowserTls?: boolean;
   readonly requiresClientCert?: boolean;
   readonly tlsProfile?: TlsClientProfileKind;
+  readonly nativeFetch?: true;
 }
 
 /** URLs every case shares; only the transport flags vary. */
@@ -35,6 +37,7 @@ const ANDROID_PROFILE: TlsClientProfileKind = 'android-11-okhttp';
 const RESOLVE_CONFIG = jest.fn<unknown, [CompanyTypes]>();
 const CREATE_NODE_TLS = jest.fn((): object => ({}));
 const CREATE_BROWSER_TLS = jest.fn((): object => ({}));
+const CREATE_NATIVE = jest.fn((): object => ({}));
 
 jest.unstable_mockModule(
   '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js',
@@ -46,6 +49,7 @@ jest.unstable_mockModule(
 jest.unstable_mockModule('../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js', () => ({
   createMtlsHeadlessApiMediator: CREATE_NODE_TLS,
   createBrowserBackedHeadlessApiMediator: CREATE_BROWSER_TLS,
+  createHeadlessApiMediator: CREATE_NATIVE,
 }));
 
 const WIRING = await import('../../../../Scrapers/Pipeline/Core/HeadlessMediatorWiring.js');
@@ -70,11 +74,12 @@ function resolveWith(flags: ITransportFlags): boolean {
 
 /**
  * Name the factories the resolver invoked.
- * @returns `node-tls`, `browser-tls`, both joined with `+`, or empty.
+ * @returns `node-tls`, `native`, `browser-tls`, several joined with `+`, or empty.
  */
 function chosenTransport(): string {
   const calls = {
     'node-tls': CREATE_NODE_TLS.mock.calls.length,
+    native: CREATE_NATIVE.mock.calls.length,
     'browser-tls': CREATE_BROWSER_TLS.mock.calls.length,
   };
   const chosen = Object.entries(calls).filter(([, count]): boolean => count > 0);
@@ -85,6 +90,7 @@ describe('HeadlessMediatorWiring — transport selection', () => {
   beforeEach(() => {
     CREATE_NODE_TLS.mockClear();
     CREATE_BROWSER_TLS.mockClear();
+    CREATE_NATIVE.mockClear();
   });
 
   it.each<[string, ITransportFlags, string]>([
@@ -95,6 +101,7 @@ describe('HeadlessMediatorWiring — transport selection', () => {
       { requiresClientCert: true, tlsProfile: ANDROID_PROFILE },
       'node-tls',
     ],
+    ['native fetch', { nativeFetch: true }, 'native'],
     ['browser TLS', { requiresBrowserTls: true }, 'browser-tls'],
     ['no transport flag', {}, 'browser-tls'],
   ])('routes %s to %s', (_label, flags, expected) => {
@@ -109,10 +116,22 @@ describe('HeadlessMediatorWiring — transport selection', () => {
     expect(args).toMatchObject({ tlsProfile: ANDROID_PROFILE, requiresClientCert: false });
   });
 
+  it('hands the identity base URL to the native factory', () => {
+    resolveWith({ nativeFetch: true });
+    const [args] = CREATE_NATIVE.mock.calls[0] as unknown[];
+    expect(args).toMatchObject({ identityBaseUrl: BASE_HEADLESS.identityBase });
+  });
+
   it.each<[string, ITransportFlags]>([
-    ['a TLS profile', { tlsProfile: ANDROID_PROFILE, requiresBrowserTls: true }],
-    ['a client certificate', { requiresClientCert: true, requiresBrowserTls: true }],
-  ])('fails fast when %s is combined with browser TLS', (_label, flags) => {
+    ['a TLS profile and browser TLS', { tlsProfile: ANDROID_PROFILE, requiresBrowserTls: true }],
+    [
+      'a client certificate and browser TLS',
+      { requiresClientCert: true, requiresBrowserTls: true },
+    ],
+    ['native fetch and browser TLS', { nativeFetch: true, requiresBrowserTls: true }],
+    ['native fetch and a client certificate', { nativeFetch: true, requiresClientCert: true }],
+    ['native fetch and a TLS profile', { nativeFetch: true, tlsProfile: ANDROID_PROFILE }],
+  ])('fails fast when %s are combined', (_label, flags) => {
     /**
      * Resolve the mediator for the conflicting config.
      * @returns Never; the resolver throws.
