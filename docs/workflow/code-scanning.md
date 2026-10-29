@@ -512,7 +512,9 @@ not narrow the group instead.
 fails if the group is removed, renamed, or narrowed (`exclude-patterns`,
 `dependency-type`, `update-types`). It also fails if another npm group is
 scoped to anything but version updates. Only a missing `applies-to` defaults
-to version updates; a key with an empty value fails.
+to version updates; a key with an empty value fails. The version groups, and
+why lint tooling has one of its own, are in
+[Dependency updates](dependency-updates.md).
 
 Turning the rule off is not documented to reopen alerts it already dismissed.
 If alert 52 still reads `auto_dismissed`, reopen it (Security → Dependabot →

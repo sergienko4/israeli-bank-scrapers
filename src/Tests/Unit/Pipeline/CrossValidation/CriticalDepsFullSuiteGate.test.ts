@@ -23,6 +23,8 @@ import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
 
+import gateTrigger from '../../../Helpers/StaticGateGuard.js';
+
 const THIS_FILE_PATH = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE_PATH);
 const REPO_ROOT = join(THIS_DIR, '../../../../../');
@@ -150,7 +152,9 @@ const GATED_STEP_NAMES = [...DEPS_GATED_STEP_NAMES, ...CONFIG_GATED_STEP_NAMES];
  * <p>`full_suite == 'true' && deps == 'true'` satisfies every membership
  * assertion above and still skips the step on the deps-only bump those
  * assertions exist to catch. The operator is the invariant, so it is pinned
- * separately from the flag names.
+ * separately from the flag names. It is read inside the guard every static
+ * gate carries (`StaticGateGuard`), whose own `&&` only adds "setup finished,
+ * run not cancelled".
  */
 const OR_ONLY_STEP_NAMES = [...new Set(GATED_STEP_NAMES)];
 
@@ -620,8 +624,9 @@ describe('CriticalDepsFullSuiteGate', () => {
     stepName => {
       const conditions = stepConditions(STATIC_CHECKS_JOB_KEY, stepName);
       const condition = conditions.join('');
-      expect(condition).toContain('||');
-      expect(condition).not.toContain('&&');
+      const trigger = gateTrigger(condition);
+      expect(trigger).toContain('||');
+      expect(trigger).not.toContain('&&');
     },
   );
 

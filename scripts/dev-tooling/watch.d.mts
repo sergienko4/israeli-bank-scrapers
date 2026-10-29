@@ -1,0 +1,102 @@
+/**
+ * Type declarations for `scripts/dev-tooling/watch.mjs`.
+ *
+ * The script is plain Node (`allowJs: false` in tsconfig), so the `.ts` tests
+ * that drive it need this to type their I/O rather than import `any`.
+ */
+
+/** What one command did: its exit status (1 when it did not finish) and output. */
+export interface IRunResult {
+  readonly status: number;
+  readonly stdout: string;
+  readonly stderr: string;
+  /** Why it did not finish (timed out, killed, could not start); absent when it exited. */
+  readonly unfinished?: string;
+}
+
+/** One static gate the grouped update must pass. */
+export interface IGate {
+  readonly name: string;
+  readonly command: string;
+  readonly args: readonly string[];
+}
+
+/** Injectable I/O of one watch run; production defaults fill every omitted member. */
+export interface IDevToolingWatchIo {
+  readonly dependabotPath?: string;
+  readonly packagePath?: string;
+  readonly lockPath?: string;
+  readonly readFile?: (path: string) => string;
+  /**
+   * Runs `npm view`, `npm install`, `npm ls` and every gate, in the repository
+   * root, killing it after `timeoutMs`: what is left of the probe's budget.
+   */
+  readonly run?: (command: string, args: readonly string[], timeoutMs: number) => IRunResult;
+  readonly now?: () => Date;
+  readonly writeFile?: (path: string, text: string) => void;
+  readonly stdout?: (text: string) => boolean;
+  readonly stderr?: (text: string) => boolean;
+}
+
+/** The static gates, in run order. */
+export const GATES: readonly IGate[];
+
+/** What one run may spend on every command together, in milliseconds. */
+export const PROBE_BUDGET_MS: number;
+
+/** What the watch spawns for a command, and whether through a shell. */
+export interface ILauncher {
+  readonly file: string;
+  readonly shell: boolean;
+}
+
+/**
+ * What to spawn for a command: npm's `.cmd` launcher through a shell for npm
+ * and npx on Windows, else the command itself.
+ *
+ * @param command - Executable.
+ * @param platform - Host platform.
+ * @returns What to spawn, and whether through a shell.
+ */
+export function launcherFor(command: string, platform: NodeJS.Platform): ILauncher;
+
+/** How long a command may run, and the platform whose launcher starts it. */
+export interface ICommandHost {
+  readonly timeout: number;
+  readonly platform: NodeJS.Platform;
+}
+
+/**
+ * Run a command in the repository root as it starts on `host.platform`, with
+ * SIGKILL after `host.timeout`.
+ *
+ * @param command - Executable.
+ * @param args - Its arguments.
+ * @param host - Timeout in milliseconds, and the platform.
+ * @returns Exit status (1 when it did not finish), output, and why it did not finish.
+ */
+export function runCommandOn(
+  command: string,
+  args: readonly string[],
+  host: ICommandHost,
+): IRunResult;
+
+/**
+ * Run a command in the repository root on this host, with SIGKILL after `timeout`.
+ *
+ * @param command - Executable.
+ * @param args - Its arguments.
+ * @param timeout - Milliseconds before it is killed.
+ * @returns Exit status (1 when it did not finish), output, and why it did not finish.
+ */
+export function runCommand(command: string, args: readonly string[], timeout: number): IRunResult;
+
+/**
+ * Run the watch once.
+ *
+ * @param args - CLI arguments after the script path.
+ * @param overrides - Test I/O.
+ * @returns 0 verdict written, 2 the watch cannot read its inputs.
+ * @throws {Error} Only on a bug: anything that is not an input failure.
+ */
+export function runWatch(args: readonly string[], overrides?: IDevToolingWatchIo): 0 | 2;

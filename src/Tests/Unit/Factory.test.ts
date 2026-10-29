@@ -3,6 +3,7 @@ import { jest } from '@jest/globals';
 import { CompanyTypes } from '../../Definitions.js';
 import type { ScraperOptions } from '../../Scrapers/Base/Interface.js';
 import createScraper from '../../Scrapers/Registry/Factory.js';
+import withLegacyOnlyOptions from '../Helpers/LegacyOnlyOptionsBag.js';
 
 /**
  * Build a scraper and capture any process warning `createScraper` emitted.
@@ -35,11 +36,9 @@ describe('Factory', () => {
 
 describe('createScraper — legacy-only options on a Pipeline bank (issue #540)', () => {
   it('warns the caller that includeRawTransaction is ignored on a Pipeline bank', () => {
-    const emitted = warningsFromCreate({
-      companyId: CompanyTypes.Isracard,
-      startDate: new Date(),
-      includeRawTransaction: true,
-    });
+    const base: ScraperOptions = { companyId: CompanyTypes.Isracard, startDate: new Date() };
+    const options = withLegacyOnlyOptions(base, { includeRawTransaction: true });
+    const emitted = warningsFromCreate(options);
     expect(emitted).toHaveLength(1);
     expect(emitted[0]).toContain('includeRawTransaction');
   });
@@ -53,11 +52,9 @@ describe('createScraper — legacy-only options on a Pipeline bank (issue #540)'
   });
 
   it('stays silent for a legacy bank, which does read the option', () => {
-    const emitted = warningsFromCreate({
-      companyId: CompanyTypes.Behatsdaa,
-      startDate: new Date(),
-      includeRawTransaction: true,
-    });
+    const base: ScraperOptions = { companyId: CompanyTypes.Behatsdaa, startDate: new Date() };
+    const options = withLegacyOnlyOptions(base, { includeRawTransaction: true });
+    const emitted = warningsFromCreate(options);
     expect(emitted).toEqual([]);
   });
 });

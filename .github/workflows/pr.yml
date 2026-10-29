@@ -223,6 +223,12 @@ jobs:
   # them failed. No step writes a file another step reads — see
   # docs/workflow/ci.md "Static checks".
   #
+  # The foreground gates also keep going after one fails: each runs
+  # under `!cancelled() && steps.ready.outcome == 'success'` rather
+  # than the implicit `success()`, so a run reports every failing
+  # gate at once instead of stopping at the first. See the `ready`
+  # step below.
+  #
   # No job `if:`: Scorecard pins always run, so the OR of the
   # members' conditions is true. Each step keeps its old job's
   # condition AND-ed with its own. Scorecard pins and docs
@@ -284,6 +290,25 @@ jobs:
       # `ci_scripts` already cover its other two triggers.
       - uses: $/.github/actions/setup-node-deps
         if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci_scripts == 'true' || needs.changes.outputs.syntax_guardrails == 'true' || needs.changes.outputs.metrics == 'true'
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        timeout-minutes: 10
+        with:
+          node-version-file: .nvmrc
+      - if: needs.changes.outputs.full_suite == 'true'
+        run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
+      # Setup ends here. Every foreground gate after this step runs under
+      # `!cancelled() && steps.ready.outcome == 'success' && (<trigger>)`, not
+      # the implicit `success()`: one failing gate no longer skips the rest,
+      # so a single run lists every failure — a dependency bump that breaks
+      # ESLint still reports the type checks, audits and docs gates. This step
+      # itself keeps the implicit `success()`, so it succeeds only when every
+      # setup step above did; when setup failed the gates stay skipped instead
+      # of failing on an empty tree. It sits above the background steps so
+      # none of them can affect it. A step that consumes another gate's output
+      # also checks that gate's `outcome`. Pinned by StaticChecksJob.test.ts.
+      - name: Setup complete
+        id: ready
+        run: echo "Setup complete; every gate below runs even if an earlier one fails."
       # Scorecard npm-pin gate — the scheduled OpenSSF Scorecard scan
       # (scorecard.yml) raises PinnedDependenciesID for any npm command
       # that downloads without a lockfile pin, but only after the change
@@ -296,10 +321,6 @@ jobs:
       # reaches the downloaded binary — `--local` mode only reads files —
       # and checkout keeps no credential behind. See
       # .github/scripts/ci/scorecard-npm-pins.sh.
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
-        timeout-minutes: 10
-        with:
-          node-version-file: .nvmrc
       - name: npm commands are pinned as Scorecard reads them
         background: true
         timeout-minutes: 10
@@ -330,8 +351,6 @@ jobs:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: bash .github/scripts/ci/docs-staleness.sh
-      - if: needs.changes.outputs.full_suite == 'true'
-        run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
 
       # `deps` is here, not just `full_suite`, because a lint-rule bump lands
       # as `deps` alone — `critical_deps` covers only the browser stack, so
@@ -346,7 +365,7 @@ jobs:
       # below, which already carry it.
       # Pinned by CriticalDepsFullSuiteGate.test.ts.
       - name: ESLint (warnings as errors)
-        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.syntax_guardrails == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.syntax_guardrails == 'true') }}
         run: npx eslint src --max-warnings 0 --ignore-pattern '**/*.cjs'
 
       # ESLint flat config REPLACES `no-restricted-syntax` options instead of
@@ -362,7 +381,7 @@ jobs:
       # config and its checker). Without it the resolution gate is skipped on
       # the one PR shape most able to silently shrink the armed set.
       - name: Restricted-syntax guardrails resolve
-        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.syntax_guardrails == 'true' || needs.changes.outputs.deps == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.syntax_guardrails == 'true' || needs.changes.outputs.deps == 'true') }}
         run: npm run lint:syntax-guardrails
 
       # The canary suite proves each guardrail still FIRES; the step above only
@@ -380,13 +399,13 @@ jobs:
       # `deps` for the reason given on the resolution gate above: a lint-toolchain
       # bump can stop a canary firing without touching src/ or this config.
       - name: Architectural canaries fire
-        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.syntax_guardrails == 'true' || needs.changes.outputs.deps == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.syntax_guardrails == 'true' || needs.changes.outputs.deps == 'true') }}
         run: npm run lint:canaries
       - name: Prettier check
-        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true') }}
         run: npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,md}"
       - name: Lint Markdown
-        if: needs.changes.outputs.md == 'true' || needs.changes.outputs.src == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.md == 'true' || needs.changes.outputs.src == 'true') }}
         uses: DavidAnson/markdownlint-cli2-action@696eb3f2509270d7b882d2aa68347bc676e7af34 # v25.0.0
         with:
           globs: '*.md docs/**/*.md tasks/**/*.md'
@@ -397,7 +416,7 @@ jobs:
       # upgrade notes cannot silently rot the way the 8.3.0 removal of the
       # `OneZeroScraper` export did.
       - name: Compatibility page is in sync
-        if: needs.changes.outputs.docs == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.docs == 'true') }}
         run: node scripts/build-compatibility.mjs --check
 
       # The Node range we advertise and the range we test drift apart in four
@@ -405,7 +424,7 @@ jobs:
       # check, so it runs whenever any of its four inputs could have moved —
       # it needs no dependencies installed and costs a second.
       - name: Advertised Node range matches the tested one
-        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.md == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci_scripts == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.md == 'true' || needs.changes.outputs.deps == 'true' || needs.changes.outputs.ci_scripts == 'true') }}
         run: npm run lint:node-support
 
       # Lychee (below) cannot check links into our own docs site — a PR
@@ -415,7 +434,7 @@ jobs:
       # human noticed. This maps each site URL back to the docs/ page
       # that must render it.
       - name: Docs-site links resolve to a page
-        if: needs.changes.outputs.md == 'true' || needs.changes.outputs.docs == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.md == 'true' || needs.changes.outputs.docs == 'true') }}
         run: bash .github/scripts/ci/check-docs-links.sh
 
       # Lychee resolves our own blob/tree links against an export of the
@@ -428,7 +447,8 @@ jobs:
       # of the tree (e.g. to /etc) would let a link GitHub cannot serve
       # pass here. See docs/workflow/ci.md "Link checking".
       - name: Materialize tracked tree for Lychee
-        if: needs.changes.outputs.md == 'true'
+        id: lychee_tree
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.md == 'true') }}
         run: |
           rm -rf -- "$RUNNER_TEMP/lychee-tree"
           mkdir -p "$RUNNER_TEMP/lychee-tree"
@@ -444,9 +464,10 @@ jobs:
       # with a 2+4+8s retry backoff. The first matching remap wins.
       # The own-repo path excludes `%` so an encoded `../` or `\` can
       # never step outside the tree; such a link falls through to raw
-      # or github.com, which answers 404.
+      # or github.com, which answers 404. Skipped when the tree above
+      # was not built, rather than failing on every own-repo link.
       - name: Lychee link checker
-        if: needs.changes.outputs.md == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.md == 'true' && steps.lychee_tree.outcome == 'success') }}
         timeout-minutes: 8
         uses: lycheeverse/lychee-action@e7477775783ea5526144ba13e8db5eec57747ce8 # v2.4.1
         with:
@@ -464,37 +485,40 @@ jobs:
             'README.md' 'docs/**/*.md'
           fail: true
 
+      # Each docs-build step runs only when the one before it succeeded.
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        if: needs.changes.outputs.docs == 'true'
+        id: python
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.docs == 'true') }}
         with:
           python-version: '3.13'
           cache: pip
           cache-dependency-path: requirements-docs.txt
       - name: Install mkdocs + plugins
-        if: needs.changes.outputs.docs == 'true'
+        id: mkdocs_deps
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.docs == 'true' && steps.python.outcome == 'success') }}
         run: pip install -r requirements-docs.txt
       - name: mkdocs build --strict (catches dead links / undefined refs)
-        if: needs.changes.outputs.docs == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.docs == 'true' && steps.mkdocs_deps.outcome == 'success') }}
         run: python -m mkdocs build --strict
 
       - name: Docs coverage extractor unit test
-        if: needs.changes.outputs.ci_scripts == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.ci_scripts == 'true') }}
         run: bash .github/scripts/ci/tests/extract-exports.test.sh
       - name: Portable map unit test (gate scripts must run on bash 3.2)
-        if: needs.changes.outputs.ci_scripts == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.ci_scripts == 'true') }}
         run: bash .github/scripts/ci/tests/portable-map.test.sh
       - name: Shell portability (gates must run on macOS/Windows too)
-        if: needs.changes.outputs.ci_scripts == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.ci_scripts == 'true') }}
         run: npm run lint:shell-portability
       - name: Docs coverage canary
-        if: github.event_name == 'pull_request' && needs.changes.outputs.pipeline_ts == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (github.event_name == 'pull_request' && needs.changes.outputs.pipeline_ts == 'true') }}
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: bash .github/scripts/ci/docs-coverage.sh
 
       - name: CI scripts smoke test
-        if: needs.changes.outputs.ci_scripts == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.ci_scripts == 'true') }}
         run: bash .github/scripts/ci/tests/scripts-smoke.sh
 
       # Both `typescript` (the TS 6 API alias) and `@typescript/native`
@@ -502,7 +526,7 @@ jobs:
       # resolves to whichever won the node_modules/.bin race at install
       # time. Go through the script, which names TS 7 explicitly.
       - name: Type check
-        if: needs.changes.outputs.full_suite == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.full_suite == 'true') }}
         run: npm run type-check
 
       # The published .d.ts is emitted by TS 6 (tsup DTS), and ts-jest and
@@ -513,7 +537,7 @@ jobs:
       # the WHOLE tree must satisfy BOTH compilers. It costs ~10s, and it is
       # a distinct step rather than a `&&` so the log names which objected.
       - name: Type check (TS 6 API — the compiler that emits our .d.ts)
-        if: needs.changes.outputs.full_suite == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.full_suite == 'true') }}
         run: npm run type-check:ts6
 
       # Rules ESLint cannot express: Pipeline structure, Phase isolation,
@@ -522,18 +546,18 @@ jobs:
       # it had never run — and no CI step would say so. Running it here makes
       # it a gate in the sense the docs already claimed it was.
       - name: Architecture linter
-        if: needs.changes.outputs.full_suite == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.full_suite == 'true') }}
         run: npm run lint:architecture src
 
       - name: Acyclic-dependencies gate
-        if: needs.changes.outputs.full_suite == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.full_suite == 'true') }}
         run: npm run lint:cycles
 
       # Tamper-guard: the ratchet above trusts the working-tree baseline, so a
       # PR could add a cycle AND widen import-cycles.baseline.json in one diff.
       # Assert the committed baseline only SHRINKS vs. the PR's base branch.
       - name: Cycle baseline tamper-guard
-        if: github.event_name == 'pull_request' && needs.changes.outputs.src == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (github.event_name == 'pull_request' && needs.changes.outputs.src == 'true') }}
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
@@ -550,10 +574,10 @@ jobs:
       # change that can pull in a vulnerable transitive dependency, so these
       # carry the same `|| deps` fallback as setup-node-deps above.
       - name: Audit production dependencies
-        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true') }}
         run: npm audit --audit-level=high --omit=dev
       - name: Audit all dependencies (informational)
-        if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
+        if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true') }}
         run: npm audit --audit-level=high
         continue-on-error: true
 

@@ -113,6 +113,12 @@ scripts/**
 !scripts/npm-audit/
 !scripts/npm-audit/*.mjs
 !scripts/npm-audit/*.d.mts
+# The daily dev-tooling watch: the entry point its workflow runs, and the
+# modules behind it. The `.d.mts` files type the unit tests.
+!scripts/dev-tooling-watch.mjs
+!scripts/dev-tooling/
+!scripts/dev-tooling/*.mjs
+!scripts/dev-tooling/*.d.mts
 # Generates docs/compatibility.md from compatibility.json; CI runs it with
 # --check, so it has to be in the tree for the docs gate to work.
 !scripts/build-compatibility.mjs
