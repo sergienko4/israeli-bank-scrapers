@@ -18,7 +18,6 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import type { ScraperOptions } from '../../../../../Scrapers/Base/Interface.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import { buildGenericHeadlessScrape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeActions.js';
 import type { IApiDirectScrapeShape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
@@ -32,6 +31,7 @@ import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { ITransaction } from '../../../../../Transactions.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
+import withLegacyOnlyOptions from '../../../../Helpers/LegacyOnlyOptionsBag.js';
 import { makeMockContext, makeRecoverySessionStubs } from '../../Infrastructure/MockFactories.js';
 
 /** Synthetic account ref — the minimum the shape needs. */
@@ -182,7 +182,7 @@ function busOf(queues: Record<string, Procedure<unknown>[]>): IApiMediator {
  */
 function ctxWithOption(bus: IApiMediator, includeRawTransaction: boolean): IActionContext {
   const base = makeMockContext();
-  const options: ScraperOptions = { ...base.options, includeRawTransaction };
+  const options = withLegacyOnlyOptions(base.options, { includeRawTransaction });
   const withBus: IPipelineContext = { ...base, options, apiMediator: some(bus) };
   return { ...withBus, windowEnd: none() } as unknown as IActionContext;
 }

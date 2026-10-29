@@ -32,7 +32,6 @@ describe.skip('Error Scenarios: Mocked E2E', () => {
       browser,
       skipCloseBrowser: true,
       defaultTimeout: 10000,
-      navigationRetryCount: 0,
       /**
        * Set up mock routes returning HTTP 500.
        * @param page - page to prepare
