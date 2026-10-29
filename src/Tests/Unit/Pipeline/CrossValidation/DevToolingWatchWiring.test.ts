@@ -35,6 +35,8 @@
  *          artifact that carries hostile text, the issue step writes only
  *          the body it builds, to the issue the workflow opened, and calls no
  *          `gh` at all on an unknown verdict
+ *   DWW-12 a change to the watch's files alone sets `ci_scripts`, which runs
+ *          the unit tests that pin the watch
  */
 
 import { spawnSync } from 'node:child_process';
@@ -50,6 +52,12 @@ import { createTempRepo, writeTempFile } from '../../../Helpers/TempRepoTree.js'
 
 const WORKFLOW_FILE = '.github/workflows/dev-tooling-watch.yml';
 const ENTRY = 'scripts/dev-tooling-watch.mjs';
+const WATCH_DIR = 'scripts/dev-tooling/';
+const DETECTOR_FILE = '.github/scripts/ci/detect-changes.sh';
+const PR_WORKFLOW_FILE = '.github/workflows/pr.yml';
+const RUNS_ON_CI_SCRIPTS = "needs.changes.outputs.ci_scripts == 'true'";
+/** The detector's `ci_scripts` test, kept on one line so its alternation can be read back. */
+const CI_SCRIPTS_LINE = /^if has '([^']+)'; then ci_scripts=true; fi\r?$/mu;
 const LABEL = 'dev-tooling-watch';
 const ARTIFACT = 'dev-tooling-watch';
 const OUT_DIR = '"$RUNNER_TEMP/dev-tooling-watch';
@@ -180,6 +188,11 @@ interface IWorkflow {
   };
   readonly permissions?: unknown;
   readonly concurrency?: unknown;
+  readonly jobs: Readonly<Record<string, IJob>>;
+}
+
+/** pr.yml, read only for its jobs. */
+interface IPrWorkflow {
   readonly jobs: Readonly<Record<string, IJob>>;
 }
 
@@ -384,6 +397,51 @@ function issueWrites(run: IIssueRun): readonly GhCall[] {
   return run.calls.filter(([group, verb]) => group === 'issue' && verb !== 'list');
 }
 
+/**
+ * The detector's `ci_scripts` pattern, exactly as `has` passes it to `grep -E`.
+ *
+ * @returns The alternation; throws when the line is gone, since an empty
+ *   pattern would match every path.
+ */
+function ciScriptsPattern(): string {
+  const script = readRepoFile(DETECTOR_FILE);
+  const line = CI_SCRIPTS_LINE.exec(script);
+  if (line === null) throw new RangeError('detect-changes.sh: no one-line `ci_scripts=true` test');
+  return line[1];
+}
+
+/**
+ * The watch's tracked files: its entry and every module beside it.
+ *
+ * @returns Repo-relative paths.
+ */
+function watchFiles(): readonly string[] {
+  return trackedFiles().filter(path => path === ENTRY || path.startsWith(WATCH_DIR));
+}
+
+/**
+ * Whether the detector's `has` admits a path, through the same `grep -E`.
+ *
+ * @param pattern - The detector's alternation.
+ * @param path - Repo-relative path.
+ * @returns True when the path sets the flag.
+ */
+function detectorAdmits(pattern: string, path: string): boolean {
+  const grep = spawnSync('grep', ['-qE', pattern], { input: `${path}\n` });
+  return grep.status === 0;
+}
+
+/**
+ * The condition pr.yml's unit-test job runs under.
+ *
+ * @returns Its `if`, or empty when it has none.
+ */
+function unitTestsCondition(): string {
+  const text = readRepoFile(PR_WORKFLOW_FILE);
+  const pr = parse(text) as IPrWorkflow;
+  return pr.jobs['unit-tests'].if ?? '';
+}
+
 afterEach(() => {
   for (const root of TREES.splice(0)) rmSync(root, { recursive: true, force: true });
 });
@@ -498,6 +556,20 @@ describe('DevToolingWatchWiring', () => {
       const run = runIssueStep(`fail; ${HOSTILE}`, WITH_WATCH_ISSUE);
       expect(run.status).not.toBe(0);
       expect(run.calls).toEqual([]);
+    }
+  });
+
+  it('[DWW-12] a change to the watch alone runs the unit tests that pin it', () => {
+    const files = watchFiles();
+    expect(files).toContain(ENTRY);
+    expect(files).toContain(`${WATCH_DIR}watch.mjs`);
+    const condition = unitTestsCondition();
+    expect(condition).toContain(RUNS_ON_CI_SCRIPTS);
+    const pattern = ciScriptsPattern();
+    // `has` pipes into POSIX grep, which native Windows lacks.
+    if (canRunPosixBash(process.platform)) {
+      const missed = files.filter(path => !detectorAdmits(pattern, path));
+      expect(missed).toEqual([]);
     }
   });
 });
