@@ -18,12 +18,13 @@ import type { Agent } from 'node:https';
 
 import { CamoufoxIdentityFetchStrategy } from '../../Strategy/Fetch/CamoufoxIdentityFetchStrategy.js';
 import { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
+import { HeadlessNativeFetchStrategy } from '../../Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import { resolveClientCert } from '../../Strategy/Fetch/Mtls/ClientCertRegistry.js';
 import { MtlsFetchStrategy } from '../../Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
 import { MtlsGraphQLFetchStrategy } from '../../Strategy/Fetch/Mtls/MtlsGraphQLFetchStrategy.js';
 import { buildMtlsAgent } from '../../Strategy/Fetch/Mtls/MtlsTransport.js';
 import type { ICertBundle } from '../../Strategy/Fetch/Mtls/OneZeroClientCert.js';
-import { NativeFetchStrategy } from '../../Strategy/Fetch/NativeFetchStrategy.js';
+import type { NativeFetchStrategy } from '../../Strategy/Fetch/NativeFetchStrategy.js';
 import { warnIfTlsProfileUnsupported } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
 import { createApiMediator } from './ApiMediator.factory.js';
 import type { INodeTlsMediatorArgs } from './ApiMediator.headless.types.js';
@@ -62,12 +63,14 @@ function buildGqlStrategy(args: IGraphQLTransportArgs): GraphQLFetchStrategy {
 }
 
 /**
- * Construct the native + GraphQL strategies for a headless mediator.
+ * Construct the capped native + GraphQL strategies for a headless mediator.
  * @param args - Mediator args bundle.
  * @returns Strategy pair.
  */
 function buildHeadlessStrategies(args: IHeadlessMediatorArgs): IHeadlessStrategies {
-  const fetch: NativeFetchStrategy = Reflect.construct(NativeFetchStrategy, [args.identityBaseUrl]);
+  const fetch: NativeFetchStrategy = Reflect.construct(HeadlessNativeFetchStrategy, [
+    args.identityBaseUrl,
+  ]);
   const gql = buildGqlStrategy(args);
   return { fetch, gql };
 }

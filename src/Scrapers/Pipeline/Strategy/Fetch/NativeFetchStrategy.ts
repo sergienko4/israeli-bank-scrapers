@@ -32,14 +32,26 @@ type HttpVerb = 'GET' | 'POST';
  */
 type FetchInvoke = (url: string, init: RequestInit, verb: HttpVerb) => Promise<Procedure<Response>>;
 
+/** Default request headers per verb, merged under the caller's headers. */
+type DefaultHeadersByVerb = Readonly<Record<HttpVerb, Readonly<Record<string, string>>>>;
+
+/** JSON content-type on every verb — the base strategy's defaults. */
+const JSON_DEFAULT_HEADERS: DefaultHeadersByVerb = {
+  GET: { 'content-type': 'application/json' },
+  POST: { 'content-type': 'application/json' },
+};
+
 /**
- * Merge the default JSON content-type with caller-supplied headers.
+ * Merge a verb's default headers with caller-supplied headers.
  * Caller wins on collision (e.g., text/plain overrides application/json).
+ * @param defaults - The verb's default headers.
  * @param extraHeaders - Caller-supplied headers (may override defaults).
  * @returns Merged headers record ready for fetch.
  */
-function mergeHeaders(extraHeaders: Record<string, string>): Record<string, string> {
-  const defaults: Record<string, string> = { 'content-type': 'application/json' };
+function mergeHeaders(
+  defaults: Readonly<Record<string, string>>,
+  extraHeaders: Record<string, string>,
+): Record<string, string> {
   return { ...defaults, ...extraHeaders };
 }
 
@@ -205,6 +217,13 @@ class NativeFetchStrategy implements IFetchStrategy {
   protected _invoke: FetchInvoke = invokeFetch;
 
   /**
+   * Default-headers seam — the headers each verb sends under the caller's.
+   * Subclasses replace it in their constructor; the base sends JSON
+   * content-type on every verb.
+   */
+  protected _verbDefaults: DefaultHeadersByVerb = JSON_DEFAULT_HEADERS;
+
+  /**
    * Create a NativeFetchStrategy.
    * @param baseUrl - The base URL for API requests.
    */
@@ -221,7 +240,7 @@ class NativeFetchStrategy implements IFetchStrategy {
    */
   public async fetchPost<T>(url: string, data: PostData, opts: IFetchOpts): Promise<Procedure<T>> {
     const fullUrl = this.resolveUrl(url);
-    const headers = mergeHeaders(opts.extraHeaders);
+    const headers = mergeHeaders(this._verbDefaults.POST, opts.extraHeaders);
     const body = JSON.stringify(data);
     const init: RequestInit = { method: 'POST', headers, body };
     const invoke = this._invoke;
@@ -242,7 +261,7 @@ class NativeFetchStrategy implements IFetchStrategy {
    */
   public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
     const fullUrl = this.resolveUrl(url);
-    const headers = mergeHeaders(opts.extraHeaders);
+    const headers = mergeHeaders(this._verbDefaults.GET, opts.extraHeaders);
     const init: RequestInit = { method: 'GET', headers };
     const invoke = this._invoke;
     return dispatchFetch<T>({
@@ -266,5 +285,5 @@ class NativeFetchStrategy implements IFetchStrategy {
 }
 
 export default NativeFetchStrategy;
-export { invokeFetch, NativeFetchStrategy };
-export type { FetchInvoke, HttpVerb };
+export { invokeFetch, NativeFetchStrategy, toNetworkFailure };
+export type { DefaultHeadersByVerb, FetchInvoke, HttpVerb };
