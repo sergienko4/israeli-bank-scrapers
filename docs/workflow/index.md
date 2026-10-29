@@ -12,6 +12,7 @@
 | [Branch flow & release-please](branch-flow.md)    | Branch policy, PR rules, release-please automated versioning                                                  |
 | [Releases & consumer signals](releases.md)        | What a publish proves, the guards behind it, and the compatibility score                                      |
 | [Browser stack upgrade](browser-stack-upgrade.md) | Landing a Camoufox × `playwright-core` pair: the gate, accepting a delta, the packed-consumer smoke, rollback |
+| [Dependency updates](dependency-updates.md)       | How Dependabot groups npm updates, and why lint tooling gets a pull request of its own                        |
 | [Code-review tooling](code-review-tooling.md)     | How to query CodeRabbit + SonarCloud findings via API + the OSS rate-limit posture in `.coderabbit.yaml`      |
 | [Code scanning triage](code-scanning.md)          | Which scanner to believe when zizmor and Scorecard disagree, plus the four standing findings                  |
 | [Issue triage automation](issue-triage.md)        | The two staleness lanes, the `needs-info` label state machine, and how to opt out                             |

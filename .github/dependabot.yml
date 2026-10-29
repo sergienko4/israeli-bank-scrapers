@@ -52,6 +52,28 @@ updates:
         update-types:
           - patch
           - minor
+      # Lint and format tooling gets a pull request of its own. A minor
+      # release here can add or tighten a rule — typescript-eslint 8.72
+      # extended `no-deprecated` to object-literal properties (#673) —
+      # and then needs a code fix before CI goes green. Kept apart, such
+      # a bump no longer holds the inert dev-dependency bumps red. Each
+      # pattern is mirrored in dev-dependencies' exclude-patterns, so the
+      # split does not depend on group order. A major still arrives as
+      # its own pull request. See docs/workflow/dependency-updates.md;
+      # pinned by DependabotToolingGrouping.test.ts.
+      lint-tooling:
+        patterns:
+          - 'eslint'
+          - 'eslint-*'
+          - '@eslint/*'
+          - 'typescript-eslint'
+          - '@typescript-eslint/*'
+          - 'globals'
+          - 'prettier'
+          - '@biomejs/biome'
+        update-types:
+          - minor
+          - patch
       dev-dependencies:
         dependency-type: development
         update-types:
@@ -63,6 +85,14 @@ updates:
           - 'playwright'
           - '@typescript/native'
           - 'typescript'
+          - 'eslint'
+          - 'eslint-*'
+          - '@eslint/*'
+          - 'typescript-eslint'
+          - '@typescript-eslint/*'
+          - 'globals'
+          - 'prettier'
+          - '@biomejs/biome'
       production-dependencies:
         dependency-type: production
         update-types:
