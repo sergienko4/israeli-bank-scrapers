@@ -6,6 +6,7 @@ source-files:
   - .github/workflows/codeql.yml
   - .github/workflows/cache-cleanup.yml
   - .github/workflows/browser-stack-watch.yml
+  - .github/workflows/dev-tooling-watch.yml
   - .github/scripts/ci/detect-changes.sh
   - .github/actions/setup-consumer-runtime/action.yml
   - .github/scripts/ci/consumer-install.sh
@@ -195,6 +196,16 @@ Every Monday it reports whether the Browser stack gate accepts the consumer
 camoufox-js installs. The report is the body of
 one issue labelled `browser-stack`. See
 [Browser stack](../architecture/browser-stack.md#the-weekly-watch).
+
+## The lint tooling is probed daily
+
+`.github/workflows/dev-tooling-watch.yml` is not a gate either. Every day at
+03:00 UTC it installs the newest same-major release of each `lint-tooling`
+package and runs the static gates on them, so a rule that breaks the next
+lint-tooling update shows up before that update opens. The report is the
+body of one issue labelled `dev-tooling-watch`, open only while the probe is
+red. See
+[Dependency updates](dependency-updates.md#the-dev-tooling-watch).
 
 ## Static checks
 

@@ -1,6 +1,9 @@
 ---
 source-files:
   - .github/dependabot.yml
+  - .github/workflows/dev-tooling-watch.yml
+  - scripts/dev-tooling-watch.mjs
+  - scripts/dev-tooling/watch.mjs
 ---
 
 # Dependency updates
@@ -8,8 +11,10 @@ source-files:
 > **Who this is for:** maintainers reviewing a Dependabot pull request, and
 > anyone changing how `.github/dependabot.yml` groups updates.
 
-Dependabot opens version updates every Monday. Each npm update lands in the
-first group it matches, so a group only claims what no earlier group took.
+Dependabot opens version updates every Monday; npm updates at 07:00 UTC, after
+that day's [dev-tooling watch](#the-dev-tooling-watch) has run. Each npm update
+lands in the first group it matches, so a group only claims what no earlier
+group took.
 Every group that overlaps a later one also lists the overlap in the later
 group's `exclude-patterns`, so the split does not depend on group order.
 
@@ -47,3 +52,39 @@ reads the lint packages from the repository: every dev dependency
 one of them is not in `lint-tooling`, or is also taken by another
 version-update group. A new ESLint plugin that matches no pattern fails it
 until the pattern is added to both lists.
+
+## The dev-tooling watch
+
+`.github/workflows/dev-tooling-watch.yml` runs every day at 03:00 UTC, and
+Dependabot opens the npm updates on Monday at 07:00 UTC, so the watch has
+looked at the newest releases before every grouped update. Its job `probe`
+runs `scripts/dev-tooling-watch.mjs`, which:
+
+1. reads the `lint-tooling` patterns from `.github/dependabot.yml` and takes
+   every devDependency they match;
+2. finds the newest stable release with the locked major of each one, as
+   Dependabot's minor and patch updates do;
+3. installs those releases into `node_modules` without touching
+   `package.json` or the lockfile (`npm install --no-save --ignore-scripts`),
+   and checks with `npm ls` that each one is what got installed;
+4. runs ESLint, the restricted-syntax guardrails, the architectural
+   canaries, Prettier, both type checks and Biome, every one of them even
+   after a failure.
+
+The verdict is `pass`, `fail`, `error` (the install or the `npm ls` check
+failed, or a gate timed out or was killed, so the result says nothing about
+the update) or `no-candidate` (every package is on its newest release). The probe runs releases no one here has reviewed, so it holds
+`contents: read` only, keeps no credential, gets no token and saves no npm
+cache. Job `report` holds `issues: write` and runs nothing it downloads: it
+opens or edits one issue labelled `dev-tooling-watch` on `fail` or `error`,
+and closes it on `pass` or `no-candidate`. A registry outage fails the probe
+(exit 2) and leaves the issue as it was.
+
+A manual run (**Actions → Dev-tooling watch → Run workflow**) is a dry run
+unless `dry_run` is cleared: the report goes to the job summary only. To run
+the probe on your machine:
+
+```bash
+node scripts/dev-tooling-watch.mjs --out /tmp/dev-tooling-watch.md
+npm ci   # the probe changed node_modules; this restores the locked tree
+```

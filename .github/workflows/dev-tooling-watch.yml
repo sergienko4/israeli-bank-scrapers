@@ -1,0 +1,127 @@
+name: Dev-tooling watch
+
+# Would the next lint-tooling update go green? Dependabot bumps the lint
+# tooling in one grouped PR (`lint-tooling` in .github/dependabot.yml). A
+# release can add a rule that fails code which was clean the day before, and
+# that PR stays red until someone changes the code.
+#
+# Every day, job `probe` runs `scripts/dev-tooling-watch.mjs`: it installs
+# the newest same-major release of each lint-tooling package into
+# node_modules — package.json and the lockfile stay as they are — and runs
+# the static gates that PR must pass. That is code no one here has reviewed,
+# so the job holds `contents: read` only, keeps no credential and gets no
+# token. It uploads the report and a JSON verdict.
+#
+# Job `report` holds `issues: write` and runs nothing it downloads: no
+# checkout, no npm. It checks the verdict and keeps one open issue labelled
+# `dev-tooling-watch` that the workflow itself opened: opened or edited on
+# `fail` or `error`, closed on `pass` or `no-candidate`. Fix the code on main
+# while that issue is open, and the update is green when it arrives. See
+# docs/workflow/dependency-updates.md.
+#
+# A manual run is a dry run unless `dry_run` is cleared: the probe prints
+# the report to the job summary and the issue is left alone.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Print the report only; do not open, edit or close the issue.
+        type: boolean
+        default: true
+
+permissions: {}
+
+# A dispatch during the scheduled run waits instead of racing it to open
+# the issue.
+concurrency:
+  group: dev-tooling-watch
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash --noprofile --norc -euo pipefail {0}
+
+jobs:
+  probe:
+    name: Probe the newest lint tooling
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read # checkout
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # No npm cache: the probe downloads releases the lockfile does not
+      # pin, and a cache saved here would be restored by every other job.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version-file: .nvmrc
+      - name: Install without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      # Exits 2 when it cannot read its inputs (the registry is down, the
+      # group is gone); the job fails and the issue keeps its last report.
+      - name: Probe the newest lint tooling
+        run: |
+          mkdir -p "$RUNNER_TEMP/dev-tooling-watch"
+          node scripts/dev-tooling-watch.mjs \
+            --out "$RUNNER_TEMP/dev-tooling-watch/report.md" \
+            --verdict "$RUNNER_TEMP/dev-tooling-watch/verdict.json"
+          cat "$RUNNER_TEMP/dev-tooling-watch/report.md" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dev-tooling-watch
+          path: ${{ runner.temp }}/dev-tooling-watch/
+          if-no-files-found: error
+          retention-days: 7
+
+  # `inputs` is empty on the schedule, so `!inputs.dry_run` holds there.
+  # `github.event.inputs.dry_run` would be the string 'false', which `!`
+  # turns into false: the boolean `inputs` context is the one to read.
+  report:
+    name: Update the watch issue
+    needs: probe
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      issues: write # create the label; open, edit and close the issue
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dev-tooling-watch
+          path: ${{ runner.temp }}/dev-tooling-watch
+      - name: Update the watch issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          dir="$RUNNER_TEMP/dev-tooling-watch"
+          # Anything but a known verdict fails the job and leaves the issue as it is.
+          verdict=$(jq -er '.verdict | select(IN("pass", "fail", "error", "no-candidate"))' \
+            "$dir/verdict.json")
+          gh label create dev-tooling-watch --force --color d93f0b \
+            --description 'Daily dev-tooling watch report'
+          # gh --json names a bot author app/<slug>; REST says <slug>[bot].
+          number=$(gh issue list --label dev-tooling-watch --state open --limit 100 \
+            --json number,author \
+            --jq '[.[] | select(.author.login == "app/github-actions")][0].number // empty')
+          case "$verdict" in
+            fail | error)
+              if [[ -n "$number" ]]; then
+                gh issue edit "$number" --body-file "$dir/report.md"
+              else
+                gh issue create --title 'Dev-tooling watch' --label dev-tooling-watch \
+                  --body-file "$dir/report.md"
+              fi
+              ;;
+            pass | no-candidate)
+              if [[ -n "$number" ]]; then
+                gh issue edit "$number" --body-file "$dir/report.md"
+                gh issue close "$number" --comment "The dev-tooling watch now reports \`$verdict\`."
+              fi
+              ;;
+          esac
