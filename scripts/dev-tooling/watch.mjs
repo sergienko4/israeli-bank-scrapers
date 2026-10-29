@@ -46,6 +46,14 @@ const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 /** How many lines of a failing command's output the report keeps. */
 const TAIL_LINES = 30;
 
+/**
+ * How many characters of those lines it keeps. A line has no length limit, and
+ * the report fences each excerpt in a run of backticks longer than any in it,
+ * so this keeps every gate's excerpt together far below the job summary's
+ * 1 MiB limit.
+ */
+const TAIL_CHARS = 8000;
+
 /** Room for the output of a gate over the whole tree. */
 const MAX_BUFFER = 64 * 1024 * 1024;
 
@@ -193,9 +201,12 @@ class WatchInputError extends Error {
 /** @type {(error: unknown) => string} */
 const messageOf = error => (error instanceof Error ? error.message : String(error));
 
-/** @type {(result: IRunResult) => string} The last lines of a command's output. */
-const tailOf = result =>
-  `${result.stdout}${result.stderr}`.trimEnd().split('\n').slice(-TAIL_LINES).join('\n');
+/** @type {(result: IRunResult) => string} The end of a command's output, cut with `…`. */
+const tailOf = result => {
+  const output = `${result.stdout}${result.stderr}`.trimEnd();
+  const tail = output.split('\n').slice(-TAIL_LINES).join('\n');
+  return tail.length > TAIL_CHARS ? `…${tail.slice(-TAIL_CHARS)}` : tail;
+};
 
 /** `--out` and `--verdict`, or USAGE. */
 function parseWatchArgs(/** @type {readonly string[]} */ args) {

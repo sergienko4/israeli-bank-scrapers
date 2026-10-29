@@ -7,8 +7,10 @@
  * `@typescript-eslint/no-deprecated`, which checks deprecated properties in object
  * literals since https://github.com/typescript-eslint/typescript-eslint/pull/12704.
  * This helper is the one named place where tests opt in: keys are limited to the
- * production manifest and values keep their `ScraperOptions` types, so a
- * typo or a wrong value is still a compile error.
+ * production manifest and values keep their `ScraperOptions` types. A wrong
+ * value is a compile error. A misspelled key is one only in an object literal,
+ * through TypeScript's excess-property check; a prebuilt variable that also
+ * holds a valid key passes it through unchecked, so callers pass literals.
  */
 
 import type { ScraperOptions } from '../../Scrapers/Base/Interface.js';

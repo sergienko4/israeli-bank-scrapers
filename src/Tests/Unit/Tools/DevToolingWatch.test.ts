@@ -101,6 +101,8 @@ interface IScenario {
   readonly unlocked?: readonly string[];
   /** Command lines, or their leading words, that exit 1. */
   readonly failing?: readonly string[];
+  /** What a failing command prints; the numbered lines by default. */
+  readonly failureOutput?: string;
   /** Command lines, or their leading words, that time out. */
   readonly timingOut?: readonly string[];
   /** What `npm ls` reports as installed; the candidates' `to` by default. */
@@ -240,6 +242,19 @@ function answer(scenario: IScenario, args: readonly string[]): IRunResult {
 /** What a failing command returns. */
 const FAILURE: IRunResult = { status: 1, stdout: FAILURE_OUTPUT.join('\n'), stderr: '' };
 
+/** GitHub's limit on one step's job summary, which the report is written to. */
+const STEP_SUMMARY_BYTES = 1024 * 1024;
+
+/**
+ * What a failing command returns in a scenario.
+ *
+ * @param scenario - The scenario.
+ * @returns The failure, printing the scenario's output when it sets one.
+ */
+function failureFor(scenario: IScenario): IRunResult {
+  return { ...FAILURE, stdout: scenario.failureOutput ?? FAILURE.stdout };
+}
+
 /** What `runCommand` returns for a command it killed at its timeout. */
 const TIMED_OUT: IRunResult = {
   status: 1,
@@ -274,7 +289,7 @@ function fakeRun(scenario: IScenario, log: ICommandLog): Run {
     log.timeoutsMs.push(timeoutMs);
     log.elapsedMs += (scenario.minutesPerCommand ?? 0) * MINUTE_MS;
     if (isListed(scenario.timingOut ?? [], line)) return TIMED_OUT;
-    if (isListed(scenario.failing ?? [], line)) return FAILURE;
+    if (isListed(scenario.failing ?? [], line)) return failureFor(scenario);
     return answer(scenario, args);
   };
 }
@@ -593,6 +608,25 @@ describe('dev-tooling watch', () => {
       expect(result.status).toBe(SHELL_NOT_FOUND);
       expect(result.stderr).toMatch(/npm\.cmd/u);
     }
+  });
+
+  it.each<[string, number, string]>([
+    ['plain output', 3, 'plain'],
+    ['a line of five backticks', 6, ['before', '`'.repeat(5), 'after'].join('\n')],
+  ])('[DTW-19] fences %s in %i backticks, so none of it closes the fence', (_, width, output) => {
+    const run = watch({ failing: [GATE_LINES[0]], failureOutput: output });
+    const fence = '`'.repeat(width);
+    expect(run.out).toContain(`\n${fence}\n${output}\n${fence}\n`);
+  });
+
+  it('[DTW-20] cuts a huge failing output to its end, so the report fits a job summary', () => {
+    const output = `START${'`'.repeat(2 * STEP_SUMMARY_BYTES)}END`;
+    const run = watch({ failing: [GATE_LINES[0]], failureOutput: output });
+    const bytes = Buffer.byteLength(run.out);
+    expect(bytes).toBeLessThan(STEP_SUMMARY_BYTES);
+    expect(run.out).toContain('\n…`');
+    expect(run.out).toContain('`END\n');
+    expect(run.out).not.toContain('START');
   });
 
   it.each<[string, IScenario, readonly string[]]>([

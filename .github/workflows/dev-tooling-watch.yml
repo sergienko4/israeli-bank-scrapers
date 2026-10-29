@@ -53,9 +53,10 @@ jobs:
   probe:
     name: Probe the newest lint tooling
     runs-on: ubuntu-latest
-    # Setup, then the probe's 30-minute budget (PROBE_BUDGET_MS in
-    # scripts/dev-tooling/watch.mjs), so the probe writes its verdict before
-    # the job is killed.
+    # The probe's 30-minute budget (PROBE_BUDGET_MS in
+    # scripts/dev-tooling/watch.mjs) plus 15 minutes for checkout, setup-node
+    # and `npm ci`. The budget starts with the probe, so only a setup longer
+    # than that ends the job before the verdict is written.
     timeout-minutes: 45
     permissions:
       contents: read # checkout

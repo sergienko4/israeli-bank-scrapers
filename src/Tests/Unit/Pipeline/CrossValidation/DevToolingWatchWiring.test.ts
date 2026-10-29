@@ -29,8 +29,8 @@
  *          or error, and closes it on pass or no-candidate
  *   DWW-9  Dependabot's npm run is Monday 07:00 UTC, after that day's watch
  *          has had its whole job time
- *   DWW-10 the probe job outlasts the probe's time budget plus setup, so the
- *          probe writes its verdict before the job is killed
+ *   DWW-10 the probe job leaves at least 10 minutes of setup beyond the
+ *          probe's time budget, which starts only when the probe does
  *   DWW-11 run for real under bash with real jq, a recording `gh` and an
  *          artifact that carries hostile text, the issue step writes only
  *          the body it builds, to the issue the workflow opened, and calls no

@@ -30,8 +30,8 @@
  * @property {readonly string[]} errors - Why the probe could not finish: the install, or a gate.
  */
 
-/** A fence no gate output closes early: gate output may hold ``` itself. */
-const FENCE = '````';
+/** The shortest code fence CommonMark accepts. */
+const MIN_FENCE = 3;
 
 const RUNBOOK = '`docs/workflow/dependency-updates.md`';
 
@@ -57,8 +57,21 @@ const INTRO =
 /** @type {(text: string) => string} */
 const code = text => `\`${text}\``;
 
+/**
+ * @type {(text: string) => string} A fence longer than any backtick run in the
+ *   text, so no line of the text can close it early.
+ */
+const fenceFor = text => {
+  const runs = text.match(/`+/gu) ?? [];
+  const longest = runs.reduce((max, run) => Math.max(max, run.length), 0);
+  return '`'.repeat(Math.max(MIN_FENCE, longest + 1));
+};
+
 /** @type {(text: string) => string[]} Text in a fence. */
-const fenced = text => [FENCE, text, FENCE];
+const fenced = text => {
+  const fence = fenceFor(text);
+  return [fence, text, fence];
+};
 
 /** @type {(candidate: Candidate) => string} One table row. */
 const candidateRow = c => `| ${code(c.name)} | ${code(c.from)} | ${code(c.to)} |`;

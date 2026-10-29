@@ -79,13 +79,15 @@ the top of the hour, hence the odd minute. Its job `probe` runs
 Each command gets at most 10 minutes, and all of them together 30; a command
 the budget leaves no time for is not started, and one that runs out of time is
 killed with `SIGKILL`, which it cannot ignore. The probe job's 45-minute
-timeout covers that budget plus setup, so the probe writes its verdict before
-the job is killed.
+timeout leaves 15 minutes beyond that budget for checkout, Node setup and
+`npm ci`. The budget starts with the probe script, so only a setup that takes
+longer ends the job before the probe writes its verdict.
 
 The verdict is `pass`, `fail`, `error` (the install or the `npm ls` check
 failed, or a gate timed out, was killed or was never started, so the result
 says nothing about the update) or `no-candidate` (every package is on its
-newest release). The probe runs releases no one here has reviewed, so it
+newest same-major release; a newer major is not probed, see **Majors** below).
+The probe runs releases no one here has reviewed, so it
 holds `contents: read` only, keeps no credential, gets no token and saves no
 npm cache. It writes the report to its job summary. Job `report` holds
 `issues: write`, runs nothing it downloads and reads only the verdict: it
