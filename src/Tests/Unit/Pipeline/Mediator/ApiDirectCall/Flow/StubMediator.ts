@@ -184,6 +184,7 @@ function makeStubMediator(args: IStubMediatorArgs): IApiMediator {
     setSessionWarm: ackTrue,
     wasSessionWarm: ackFalse,
     recoverSession: recoverSessionStub,
+    setAuthPolicy: ackTrue,
     apiPost: makeApiPost(args, next),
     apiGet: makeApiGet(args, next),
     apiQuery: apiQueryStub,

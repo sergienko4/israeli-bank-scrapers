@@ -377,8 +377,9 @@ bearer.
 
 `IAuthModePolicy` carries both flags. The mediator needs only
 `rearmOnReject`, so it receives the narrower `IMediatorAuthPolicy` through the
-optional `setAuthPolicy` port, which `setAuthPolicyOp` stores in mediator
-state. The ACTION calls `applyAuthPolicy` before the first login, so a
+`setAuthPolicy` port, which `setAuthPolicyOp` stores in mediator state. Every
+mediator must implement the port, so a missing wire fails to compile instead
+of silently dropping the policy. The ACTION calls `applyAuthPolicy` before the first login, so a
 rejection during the login steps obeys the policy too. `primeAndCheck` then
 primes the session. It rejects an empty header only when `installHeader` is
 set.

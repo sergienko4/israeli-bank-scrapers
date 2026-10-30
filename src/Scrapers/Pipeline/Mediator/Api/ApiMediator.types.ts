@@ -58,7 +58,7 @@ interface IApiMediator {
   wasSessionWarm: () => boolean;
   recoverSession: () => Promise<Procedure<string>>;
   withRecoveryHook?: (hook: RecoveredHook) => boolean;
-  setAuthPolicy?: (policy: IMediatorAuthPolicy) => boolean;
+  setAuthPolicy: (policy: IMediatorAuthPolicy) => boolean;
   apiPost: <T>(
     wkUrl: WKUrlOrLiteral,
     body: Record<string, unknown>,

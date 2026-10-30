@@ -127,6 +127,7 @@ function makeBus(args: IStubArgs): IApiMediator {
     setSessionWarm: okSet,
     wasSessionWarm: okWarmFalse,
     recoverSession: okPrime,
+    setAuthPolicy: okSet,
     apiPost,
     apiGet,
     apiQuery,

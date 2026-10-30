@@ -47,7 +47,7 @@ async function primeAndCheck(
  */
 function applyAuthPolicy(bus: IApiMediator, config: IApiDirectCallConfig): IAuthModePolicy {
   const policy = authPolicyOf(config);
-  bus.setAuthPolicy?.(policy);
+  bus.setAuthPolicy(policy);
   return policy;
 }
 
