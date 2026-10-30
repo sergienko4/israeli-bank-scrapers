@@ -42,7 +42,33 @@ type MockFetch = jest.Mock<Promise<Response>, [string, RequestInit]>;
 const BASE_URL = 'https://api.bank.example/v1/';
 const LOGIN_URL = `${BASE_URL}login`;
 const ITEMS_URL = `${BASE_URL}items`;
+const SSO_URL = 'https://sso.other.example/done';
 const SECRET = 'S3SSION-VALUE-9f2';
+
+/** One canned response: its Set-Cookie lines and, after a redirect, its final URL. */
+interface IServed {
+  readonly lines: readonly string[];
+  readonly url?: string;
+}
+
+/**
+ * Install a fetch mock that answers each call with the next canned response.
+ * A response with a `url` reports it the way fetch does after a redirect.
+ * @param served - Canned responses, in call order.
+ * @returns The jest mock for call-capture assertions.
+ */
+function serveResponses(served: readonly IServed[]): MockFetch {
+  const queue = [...served];
+  const mock = jest.fn<Promise<Response>, [string, RequestInit]>(() => {
+    const next = queue.shift() ?? { lines: [] };
+    const headers = next.lines.map((line): [string, string] => ['set-cookie', line]);
+    const response = new Response('{"ok":true}', { status: 200, headers });
+    if (next.url !== undefined) Object.defineProperty(response, 'url', { value: next.url });
+    return Promise.resolve(response);
+  });
+  (globalThis as unknown as { fetch: MockFetch }).fetch = mock;
+  return mock;
+}
 
 /**
  * Install a fetch mock that answers each call with the next Set-Cookie set.
@@ -50,15 +76,8 @@ const SECRET = 'S3SSION-VALUE-9f2';
  * @returns The jest mock for call-capture assertions.
  */
 function serveCookies(cookieSets: readonly (readonly string[])[]): MockFetch {
-  const queue = [...cookieSets];
-  const mock = jest.fn<Promise<Response>, [string, RequestInit]>(() => {
-    const lines = queue.shift() ?? [];
-    const headers = lines.map((line): [string, string] => ['set-cookie', line]);
-    const response = new Response('{"ok":true}', { status: 200, headers });
-    return Promise.resolve(response);
-  });
-  (globalThis as unknown as { fetch: MockFetch }).fetch = mock;
-  return mock;
+  const served = cookieSets.map((lines): IServed => ({ lines }));
+  return serveResponses(served);
 }
 
 /**
@@ -127,7 +146,19 @@ describe('SessionCookieFetchStrategy', () => {
     const callerHook = jest.fn((lines: readonly string[]): number => lines.length);
     const transport = makeTransport();
     await transport.fetchGet(ITEMS_URL, { extraHeaders: {}, onSetCookie: callerHook });
-    expect(callerHook).toHaveBeenCalledWith(['sid=abc']);
+    expect(callerHook).toHaveBeenCalledWith(['sid=abc'], '');
+  });
+
+  it('files a redirected response under the origin that answered', async () => {
+    const mock = serveResponses([{ lines: [`sso=${SECRET}`], url: SSO_URL }]);
+    const callerHook = jest.fn((lines: readonly string[]): number => lines.length);
+    const transport = makeTransport();
+    await transport.fetchPost(LOGIN_URL, {}, { extraHeaders: {}, onSetCookie: callerHook });
+    await transport.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    await transport.fetchGet(SSO_URL, { extraHeaders: {} });
+    const sent = [1, 2].map((index): string => cookieSent(mock, index));
+    expect(sent).toEqual(['', `sso=${SECRET}`]);
+    expect(callerHook).toHaveBeenCalledWith([`sso=${SECRET}`], SSO_URL);
   });
 
   it.each([

@@ -451,6 +451,17 @@ describe('NativeFetchStrategy — onSetCookie hook + relative URL resolution', (
     expect(captured[0]).toEqual(cookieLines);
   });
 
+  it("passes the response's own URL, the final one after a redirect", async () => {
+    const finalUrl = 'https://sso.example/done';
+    const base = buildResponse(200, '{"ok":true}', ['SSO=1']);
+    const response = Object.assign(base, { url: finalUrl });
+    installFetchMock(() => Promise.resolve(response));
+    const onSetCookie = jest.fn((lines: readonly string[]): number => lines.length);
+    const strategy = new NativeFetchStrategy('https://api.example');
+    await strategy.fetchGet('https://api.example/auth', { extraHeaders: {}, onSetCookie });
+    expect(onSetCookie).toHaveBeenCalledWith(['SSO=1'], finalUrl);
+  });
+
   it('skips the onSetCookie hook when the response carries no Set-Cookie lines', async () => {
     const impl = respondWith(200, '{"ok":true}', []);
     installFetchMock(impl);

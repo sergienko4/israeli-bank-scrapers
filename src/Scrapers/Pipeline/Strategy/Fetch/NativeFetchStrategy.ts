@@ -120,7 +120,8 @@ function routeResponse<T>(response: Response, verb: HttpVerb, url: string): Prom
 }
 
 /**
- * Invoke onSetCookie hook when present, passing raw Set-Cookie lines.
+ * Invoke onSetCookie hook when present, passing raw Set-Cookie lines and the
+ * response's own URL, which is the final one when fetch followed a redirect.
  * Uses Headers.getSetCookie() (Node 18+) to preserve multi-value arrays.
  * @param response - Raw fetch Response.
  * @param hook - Optional caller-supplied callback.
@@ -130,7 +131,7 @@ function emitSetCookies(response: Response, hook?: IFetchOpts['onSetCookie']): S
   if (!hook) return 0 as SetCookieEmitCount;
   const list = response.headers.getSetCookie();
   if (list.length === 0) return 0 as SetCookieEmitCount;
-  hook(list);
+  hook(list, response.url);
   return list.length as SetCookieEmitCount;
 }
 

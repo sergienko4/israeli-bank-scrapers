@@ -1,11 +1,13 @@
 /**
  * Session cookie decorator — one run-scoped, origin-scoped cookie jar in front
  * of a fetch strategy. Every response's Set-Cookie lines feed the jar of the
- * request's origin; every request sends that origin's jar as one `cookie`
- * header (an empty jar adds nothing), so a cookie never reaches another host.
- * Built only for node transports whose headless block sets `sessionCookies`;
- * the browser transport keeps the page's own jar. Cookie values are never
- * logged.
+ * origin that answered: the response's final URL when fetch followed a
+ * redirect, else the request URL. Every request sends its origin's jar as one
+ * `cookie` header (an empty jar adds nothing), so a cookie never reaches
+ * another host. Fetch follows redirects itself, so a redirect hop's own
+ * Set-Cookie lines never reach the jar. Built only for node transports whose
+ * headless block sets `sessionCookies`; the browser transport keeps the page's
+ * own jar. Cookie values are never logged.
  */
 
 import type { Procedure } from '../../Types/Procedure.js';
@@ -36,16 +38,30 @@ function withCookieHeader(
 }
 
 /**
- * Feed Set-Cookie lines to the origin's jar, then to the caller's own hook.
+ * The URL whose origin set the cookies: the response's own URL, or the
+ * request URL when the transport reports none (node:https and test doubles).
+ * @param requestUrl - Request URL.
+ * @param responseUrl - Response URL from the transport, when it has one.
+ * @returns The URL the cookies are filed under.
+ */
+function answeringUrl(requestUrl: string, responseUrl?: string): string {
+  if (responseUrl === undefined || responseUrl === '') return requestUrl;
+  return responseUrl;
+}
+
+/**
+ * Feed Set-Cookie lines to the answering origin's jar, then to the caller's
+ * own hook.
  * @param jar - Session jar.
  * @param url - Request URL.
  * @param hook - The caller's own onSetCookie hook, when it has one.
  * @returns Combined sink returning the origin jar's size.
  */
 function chainCookieSink(jar: IOriginCookieJar, url: string, hook?: OnSetCookie): OnSetCookie {
-  return (lines): number => {
-    const size = jar.add(url, lines);
-    if (hook) hook(lines);
+  return (lines, responseUrl): number => {
+    const origin = answeringUrl(url, responseUrl);
+    const size = jar.add(origin, lines);
+    if (hook) hook(lines, responseUrl);
     return size;
   };
 }
