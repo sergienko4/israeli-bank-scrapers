@@ -214,6 +214,29 @@ An outcome failure in a warm resume is a failure like any other, so the
 resolver still falls back to one cold flow. When the cold flow also fails, its
 own failure type is the one reported.
 
+### Build-time config checks
+
+`validateApiDirectConfig` in `Core/Builder/ApiDirectConfigRules.ts` runs when
+the pipeline is built (`build()` → `buildDescriptor` → `validateBuilderFields`).
+Its input, `IApiDirectRuleInput`, is the call config plus the bank's `headless`
+block from the registry, so a config that cannot work fails before any request
+is sent. The first broken rule fails the build with `Generic` and
+`<field>: <rule>`:
+
+| Broken when                                                             | Message                                                     |
+| ----------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `authScheme: 'prefixed'` with a missing or blank `authPrefix`           | `authPrefix: required when authScheme is prefixed`          |
+| `authScheme: 'none'` without `headless.sessionCookies: true`            | `headless.sessionCookies: required when authScheme is none` |
+| `headless.sessionCookies` and any login or resume step with `cookieJar` | `steps.cookieJar: not allowed with headless.sessionCookies` |
+| any login or resume step whose `outcome.successCodes` is empty          | `outcome.successCodes: must not be empty`                   |
+| `warmStart` validated as `'jwt'` (the default) with no `jwtClaims`      | `jwtClaims: required when warmStart.validation is jwt`      |
+
+`warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
+reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
+readable expiry, so the first warm step sent to the bank is the check.
+Conflicting transport flags in the headless block are a separate check
+(`assertSingleTransport`), run when the headless mediator is wired.
+
 ### Transport errors
 
 Every transport — native fetch, Camoufox page fetch and mTLS — names a URL in

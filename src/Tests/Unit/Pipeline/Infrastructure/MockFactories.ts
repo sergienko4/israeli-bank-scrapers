@@ -266,7 +266,7 @@ const MOCK_SCRAPE = (ctx: IActionContext): Promise<Procedure<IPipelineContext>> 
 const MOCK_OTP_CONFIG: OtpConfig = { kind: 'api' };
 
 /** Minimal IApiDirectCallConfig for builder tests. */
-const MOCK_API_DIRECT = {} as unknown as IApiDirectCallConfig;
+const MOCK_API_DIRECT = { steps: [] } as unknown as IApiDirectCallConfig;
 
 /** Minimal IApiDirectScrapeShape for builder tests (paired with MOCK_API_DIRECT). */
 const MOCK_API_DIRECT_SHAPE = {} as unknown as IApiDirectScrapeShape<unknown, unknown>;

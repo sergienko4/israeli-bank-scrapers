@@ -24,6 +24,12 @@ interface IWarmStartConfig {
   readonly credsField: string;
   readonly carryField: string;
   readonly fromStepIndex: number;
+  /**
+   * How a stored token is judged before reuse. `'jwt'` (default) reads its
+   * expiry locally through `jwtClaims`; `'bank-call'` is for a token with no
+   * readable expiry, so the first warm step sent to the bank is the check.
+   */
+  readonly validation?: 'jwt' | 'bank-call';
 }
 
 /**

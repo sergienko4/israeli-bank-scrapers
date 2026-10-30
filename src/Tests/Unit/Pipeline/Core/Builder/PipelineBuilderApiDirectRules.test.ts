@@ -1,0 +1,132 @@
+/**
+ * E14 at the builder — `build()` reads the bank's headless block from the
+ * registry and refuses an api-direct call config that cannot work with it.
+ *
+ * The bank-config resolver is mocked so one bank keeps a session cookie jar
+ * and every other bank has no config, which pins that the rules see the
+ * block of the bank named in the options.
+ */
+
+import { jest } from '@jest/globals';
+
+import type { CompanyTypes } from '../../../../../Definitions.js';
+import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import type { ScraperOptions } from '../../../../../Scrapers/Base/Interface.js';
+import type { IPipelineDescriptor } from '../../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
+import type {
+  IApiDirectCallConfig,
+  IStepConfig,
+} from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import type {
+  IActionContext,
+  IPipelineContext,
+} from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { makeMockOptions, MOCK_API_DIRECT_SHAPE } from '../../Infrastructure/MockFactories.js';
+
+const JAR_BANK = 'jarBank' as unknown as CompanyTypes;
+
+/**
+ * Mocked resolver: only the jar bank has a config.
+ * @param companyId - Bank named in the options.
+ * @returns A config whose headless block keeps a cookie jar, or false.
+ */
+function resolveMocked(companyId: CompanyTypes): object | false {
+  if (companyId !== JAR_BANK) return false;
+  return { headless: { sessionCookies: true } };
+}
+
+jest.unstable_mockModule(
+  '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js',
+  () => ({
+    default: resolveMocked,
+    resolvePipelineBankConfig: resolveMocked,
+    PIPELINE_BANK_CONFIG: {},
+  }),
+);
+
+const BUILDER_FACTORY =
+  await import('../../../../../Scrapers/Pipeline/Core/Builder/PipelineBuilderFactory.js');
+
+const STEP: IStepConfig = {
+  name: 'bind',
+  urlTag: 'auth.bind',
+  body: { shape: { x: { $literal: 1 } } },
+  extractsToCarry: { token: '/data/accessToken' },
+};
+
+const NONE_CALL: IApiDirectCallConfig = {
+  flow: 'sms-otp',
+  envelope: {},
+  authScheme: 'none',
+  steps: [STEP],
+};
+
+const JAR_STEP_CALL: IApiDirectCallConfig = {
+  flow: 'sms-otp',
+  envelope: {},
+  steps: [{ ...STEP, cookieJar: true }],
+};
+
+/**
+ * Stub scrape function — succeeds without mutation.
+ * @param ctx - Sealed action context.
+ * @returns Resolved succeed procedure.
+ */
+function stubScrape(ctx: IActionContext): Promise<Procedure<IPipelineContext>> {
+  const full = ctx as unknown as IPipelineContext;
+  const ok = succeed(full);
+  return Promise.resolve(ok);
+}
+
+/**
+ * Build a headless api-direct pipeline for the given bank and call config.
+ * @param opts - Scraper options naming the bank.
+ * @param call - Call config under test.
+ * @returns Build result.
+ */
+function buildWith(
+  opts: ScraperOptions,
+  call: IApiDirectCallConfig,
+): Procedure<IPipelineDescriptor> {
+  const builder = BUILDER_FACTORY.createPipelineBuilder();
+  const seeded = builder.withOptions(opts);
+  const headless = seeded.withHeadlessMediator();
+  const withLogin = headless.withApiDirect(call, MOCK_API_DIRECT_SHAPE);
+  const withScrape = withLogin.withScraper(stubScrape);
+  return withScrape.build();
+}
+
+describe('PipelineBuilder — api-direct config rules (E14)', () => {
+  it('builds authScheme none for a bank whose headless block keeps a jar', () => {
+    const opts = makeMockOptions({ companyId: JAR_BANK });
+    const result = buildWith(opts, NONE_CALL);
+    expect(result.success).toBe(true);
+  });
+
+  it('refuses authScheme none for a bank with no headless block', () => {
+    const opts = makeMockOptions();
+    const result = buildWith(opts, NONE_CALL);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'headless.sessionCookies: required when authScheme is none',
+    });
+  });
+
+  it('refuses a step jar for a bank whose headless block keeps a jar', () => {
+    const opts = makeMockOptions({ companyId: JAR_BANK });
+    const result = buildWith(opts, JAR_STEP_CALL);
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'steps.cookieJar: not allowed with headless.sessionCookies',
+    });
+  });
+
+  it('builds a step jar for a bank with no headless block', () => {
+    const opts = makeMockOptions();
+    const result = buildWith(opts, JAR_STEP_CALL);
+    expect(result.success).toBe(true);
+  });
+});

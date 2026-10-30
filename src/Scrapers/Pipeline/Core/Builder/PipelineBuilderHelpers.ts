@@ -14,9 +14,9 @@ import type { IPipelineDescriptor } from '../PipelineDescriptor.js';
 import type { IBuilderState } from './PipelineAssembly.js';
 import { assemblePhases } from './PipelineAssembly.js';
 import {
-  assertRequiredFields,
   type IBuilderFields,
   toBuilderState,
+  validateBuilderFields,
 } from './PipelineBuilderValidation.js';
 
 /**
@@ -129,7 +129,7 @@ function buildDescriptor(
   fields: IBuilderFields,
   options: ScraperOptions,
 ): Procedure<IPipelineDescriptor> {
-  const validation = assertRequiredFields(fields);
+  const validation = validateBuilderFields(fields, options);
   if (!validation.success) return validation;
   const descriptor = assembleDescriptor({ options, fields });
   return succeed(descriptor);
