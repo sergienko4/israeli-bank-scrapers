@@ -183,6 +183,33 @@ describe('ApiMediator.recoverSession — re-cache hook (F3)', () => {
   });
 });
 
+describe('ApiMediator.recoverSession — a cookie session has no header', () => {
+  it('re-installs the cookie session after a cold re-login', async () => {
+    const noHeader = succeed('');
+    const strategy = strategyWithFresh(noHeader);
+    const mediator = makeMediator(strategy);
+    mediator.setAuthPolicy({ installHeader: false, rearmOnReject: false });
+    const captured: string[] = [];
+    const hook = recordingHook(captured);
+    mediator.withRecoveryHook?.(hook);
+    const result = await mediator.recoverSession();
+    expect(result.success).toBe(true);
+    expect(captured).toEqual(['']);
+  });
+
+  it('still treats an empty header as no session for a header bank', async () => {
+    const noHeader = succeed('');
+    const strategy = strategyWithFresh(noHeader);
+    const mediator = makeMediator(strategy);
+    mediator.setAuthPolicy({ installHeader: true, rearmOnReject: true });
+    const captured: string[] = [];
+    const hook = recordingHook(captured);
+    mediator.withRecoveryHook?.(hook);
+    await mediator.recoverSession();
+    expect(captured).toEqual([]);
+  });
+});
+
 describe('ApiMediator.recoverSession — cold re-mint', () => {
   it('returns the fresh header and flips the session cold on success', async () => {
     const okFresh = succeed(FRESH_HEADER);

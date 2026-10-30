@@ -9,11 +9,12 @@
 import type { IMediatorAuthPolicy } from '../../../Types/Domain/MediatorAuthPolicy.js';
 import type { AuthScheme, IApiDirectCallConfig } from '../ConfigContracts/index.js';
 
-/** What one auth scheme asks of the login flow and the mediator. */
-interface IAuthModePolicy extends IMediatorAuthPolicy {
-  /** The flow must end with a `carry.token`, sent as the Authorization header. */
-  readonly installHeader: boolean;
-}
+/**
+ * What one auth scheme asks of the login flow and the mediator. With
+ * `installHeader` the flow must end with a `carry.token`, sent as the
+ * Authorization header.
+ */
+type IAuthModePolicy = IMediatorAuthPolicy;
 
 /** Builds the header value from the login token and the configured prefix. */
 type AuthFormatter = (token: string, prefix: string) => string;

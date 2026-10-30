@@ -8,6 +8,8 @@
 
 /** The mediator's slice of the bank's auth-mode policy. */
 interface IMediatorAuthPolicy {
+  /** The session rides an Authorization header, so a re-mint must yield one. */
+  readonly installHeader: boolean;
   /** Re-mint the session and retry once when a call is rejected as unauthorised. */
   readonly rearmOnReject: boolean;
 }

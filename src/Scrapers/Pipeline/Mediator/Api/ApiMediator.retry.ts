@@ -70,13 +70,17 @@ async function guardedRefreshOp(state: IMediatorState): Promise<Procedure<string
 }
 
 /**
- * Apply a refreshed Authorization header when present and non-empty.
+ * Apply a refreshed Authorization header when present and non-empty. A cookie
+ * session (`installHeader` off) re-mints with no header, so a successful
+ * refresh is ready on its own: the new session lives in the cookie jar and in
+ * the context the recovery hook re-installs.
  * @param state - Mediator state.
  * @param refreshed - Refresh procedure result.
- * @returns True iff the new header was installed and a retry should proceed.
+ * @returns True iff the session is re-armed and a retry should proceed.
  */
 function applyRefreshedAuth(state: IMediatorState, refreshed: Procedure<string>): boolean {
   if (!isOk(refreshed)) return false;
+  if (!state.installHeader) return true;
   if (refreshed.value.length === 0) return false;
   setRawAuthOp(state, refreshed.value);
   return true;

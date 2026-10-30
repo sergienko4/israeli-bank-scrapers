@@ -114,6 +114,8 @@ interface IMediatorState {
   isRefreshing: boolean;
   /** False when an auth rejection must fail at once (cookie sessions). */
   rearmOnReject: boolean;
+  /** False when the session is a cookie, so a re-mint yields no header. */
+  installHeader: boolean;
 }
 
 /** Per-call context shared by apiPost/apiGet/apiQuery operations. */

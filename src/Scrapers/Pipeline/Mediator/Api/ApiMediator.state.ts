@@ -16,6 +16,9 @@ import type { ITokenResolver } from './ITokenResolver.js';
 import { NULL_RESOLVER } from './ITokenResolver.js';
 import { buildResolverFromStrategy } from './TokenResolverBuilder.js';
 
+/** A fresh mediator assumes a header session until the bank's policy lands. */
+const HEADER_SESSION_POLICY: IMediatorAuthPolicy = { installHeader: true, rearmOnReject: true };
+
 /**
  * Construct the initial frozen-snapshot state for a fresh mediator.
  * @returns Initial state record.
@@ -27,7 +30,7 @@ function makeInitialMediatorState(): IMediatorState {
     sessionContext: Object.freeze({}),
     sessionWarm: false,
     isRefreshing: false,
-    rearmOnReject: true,
+    ...HEADER_SESSION_POLICY,
   };
 }
 
@@ -81,6 +84,7 @@ function setSessionWarmOp(state: IMediatorState, value: boolean): boolean {
  */
 function setAuthPolicyOp(state: IMediatorState, policy: IMediatorAuthPolicy): boolean {
   state.rearmOnReject = policy.rearmOnReject;
+  state.installHeader = policy.installHeader;
   return true;
 }
 

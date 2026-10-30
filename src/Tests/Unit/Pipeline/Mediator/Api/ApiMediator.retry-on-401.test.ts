@@ -388,7 +388,7 @@ describe('ApiMediator.retryOn401 — auth-mode policy', () => {
     const strategy = loggingRefreshStrategy(calls);
     const ctx = makeStubCtx();
     mediator.withTokenStrategy(strategy, ctx, { marker: 'x' });
-    mediator.setAuthPolicy({ rearmOnReject });
+    mediator.setAuthPolicy({ installHeader: true, rearmOnReject });
     const result = await mediator.apiPost(TEST_URL_TAG, {});
     expect(calls).toHaveLength(refreshes);
     expect(result).toMatchObject(shape);
