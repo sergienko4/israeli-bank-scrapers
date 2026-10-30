@@ -1,0 +1,57 @@
+/**
+ * Optional extracts — carry slots a response may omit. A slot is written only
+ * when its pointer resolves to a non-empty string, so a blank field never
+ * overwrites a value an earlier step stored.
+ */
+
+import { isOk } from '../../../Types/Procedure.js';
+import type { IOptionalExtract, IStepConfig } from '../ConfigContracts/index.js';
+import { walkPointer } from '../Envelope/JsonPointer.js';
+import type { CarryMap, JsonValue } from './RunStep.types.js';
+
+/** One optional slot: its carry name and how to read it. */
+type OptionalEntry = readonly [string, IOptionalExtract];
+
+/**
+ * Read a non-empty string at a pointer.
+ * @param resp - Response JSON.
+ * @param pointer - RFC-6901 pointer.
+ * @returns The string, or false when absent, empty or not a string.
+ */
+function presentText(resp: JsonValue, pointer: string): string | false {
+  const walked = walkPointer(resp, pointer);
+  if (!isOk(walked)) return false;
+  const value = walked.value;
+  if (typeof value !== 'string' || value.length === 0) return false;
+  return value;
+}
+
+/**
+ * Fold one optional slot into the carry addition.
+ * @param acc - Carry addition so far.
+ * @param entry - Slot name and extract rule.
+ * @param resp - Response JSON.
+ * @returns The addition with the slot written, or unchanged to keep the slot.
+ */
+function absorbOptional(acc: CarryMap, entry: OptionalEntry, resp: JsonValue): CarryMap {
+  const [slot, extract] = entry;
+  const text = presentText(resp, extract.pointer);
+  if (text !== false) return { ...acc, [slot]: text };
+  if (extract.fallback === undefined) return acc;
+  return { ...acc, [slot]: extract.fallback };
+}
+
+/**
+ * Read the step's optional extracts from its response.
+ * @param resp - Response JSON.
+ * @param step - Step config.
+ * @returns Carry addition holding only the slots to write.
+ */
+function extractOptional(resp: JsonValue, step: IStepConfig): CarryMap {
+  const entries = Object.entries(step.optionalExtractsToCarry ?? {});
+  const empty: CarryMap = {};
+  return entries.reduce((acc, entry): CarryMap => absorbOptional(acc, entry, resp), empty);
+}
+
+export default extractOptional;
+export { extractOptional };

@@ -50,11 +50,25 @@ interface IStepOutcome {
   readonly defaultFailure: ScraperErrorTypes;
 }
 
+/**
+ * A carry slot read only when the response has it. A pointer that resolves
+ * to a non-empty string writes that string; otherwise `fallback` is written
+ * when set, and the slot keeps its earlier value when not.
+ */
+interface IOptionalExtract {
+  /** RFC-6901 pointer into the response body. */
+  readonly pointer: string;
+  /** Value written when the response lacks the field. */
+  readonly fallback?: string;
+}
+
 /** Fields every login step has, whatever its HTTP method. */
 interface IStepBase {
   readonly name: StepName;
   readonly urlTag: WKUrlGroup;
   readonly extractsToCarry: IEnvelopeSelectors;
+  /** Carry slots the response may omit; read after `extractsToCarry`. */
+  readonly optionalExtractsToCarry?: Readonly<Record<string, IOptionalExtract>>;
   /** Optional hook — awaited before the step fires. */
   readonly preHook?: IPreStepHook;
   /**
@@ -100,6 +114,7 @@ type StepMethod = NonNullable<IStepConfig['method']>;
 export type {
   FlowKind,
   IGetStep,
+  IOptionalExtract,
   IPostStep,
   IStepBase,
   IStepConfig,

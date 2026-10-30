@@ -140,6 +140,28 @@ headers: {
 }
 ```
 
+### Optional extracts
+
+`extractsToCarry` fails the step when a field is missing. For fields that only
+some responses carry, use `optionalExtractsToCarry`, a map of carry slot to
+`IOptionalExtract` (`pointer`, optional `fallback`). It is read after the
+required extracts and is applied by `extractOptional` in
+`Flow/RunStep.optional.ts`:
+
+- When the pointer resolves to a non-empty string, that string is written.
+- Otherwise, when `fallback` is set, the fallback is written.
+- Otherwise the slot keeps the value an earlier step stored.
+
+A blank string, a number, `null` or an object all count as missing, so a
+blank field never overwrites a live value.
+
+```ts
+optionalExtractsToCarry: {
+  bcKey: { pointer: '/bean/bcKey' },
+  userName: { pointer: '/bean/userName', fallback: '' },
+}
+```
+
 ### Step outcome
 
 Some banks refuse a login with HTTP 200 and a status code in the body. A step

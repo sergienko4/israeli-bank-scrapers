@@ -11,6 +11,7 @@ import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { sanitiseStepFailure } from './RunStep.failure.js';
 import { fireStep } from './RunStep.fire.js';
+import { extractOptional } from './RunStep.optional.js';
 import { judgeStepOutcome } from './RunStep.outcome.js';
 import { buildDispatchBundle, mergeScopeCarry } from './RunStep.prepare.js';
 import type { IDispatchBundle, IRespDescriptor, IRunStepArgs, JsonValue } from './RunStep.types.js';
@@ -57,17 +58,20 @@ function describeResponse(resp: JsonValue): IRespDescriptor {
 
 /**
  * Judge the step's outcome, then fold the response carry into the prepared
- * scope. A refused outcome fails before any extract runs.
+ * scope. A refused outcome fails before any extract runs. Optional extracts
+ * are read after the required ones.
  * @param bundle - Dispatch bundle.
  * @param resp - Successful response JSON.
  * @returns Procedure with the merged scope.
  */
 function extractAndMerge(bundle: IDispatchBundle, resp: JsonValue): Procedure<ITemplateScope> {
-  const judged = judgeStepOutcome(bundle.fireScope.step, resp);
+  const step = bundle.fireScope.step;
+  const judged = judgeStepOutcome(step, resp);
   if (!isOk(judged)) return judged;
-  const carryProc = extractFields(resp, bundle.fireScope.step.extractsToCarry);
+  const carryProc = extractFields(resp, step.extractsToCarry);
   if (!isOk(carryProc)) return carryProc;
-  const merged = mergeScopeCarry(bundle.preparedScope, carryProc.value);
+  const optional = extractOptional(resp, step);
+  const merged = mergeScopeCarry(bundle.preparedScope, { ...carryProc.value, ...optional });
   return succeed(merged);
 }
 
