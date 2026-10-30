@@ -1,6 +1,6 @@
 /**
  * Unit tests for Strategy/Fetch/SessionCookieFetchStrategy — the opt-in
- * run-scoped cookie jar in front of a node transport. A real
+ * run-scoped, origin-scoped cookie jar in front of a node transport. A real
  * HeadlessNativeFetchStrategy sends the requests; globalThis.fetch is replaced
  * with a queue of canned responses, and the shared logger is replaced so the
  * cases can prove no cookie value is ever logged.
@@ -79,7 +79,7 @@ function cookieSent(mock: MockFetch, index: number): string {
  */
 function makeTransport(): InstanceType<typeof SESSION.SessionCookieFetchStrategy> {
   const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
-  return new SESSION.SessionCookieFetchStrategy(inner);
+  return new SESSION.SessionCookieFetchStrategy(inner, BASE_URL);
 }
 
 describe('SessionCookieFetchStrategy', () => {
@@ -130,6 +130,35 @@ describe('SessionCookieFetchStrategy', () => {
     expect(callerHook).toHaveBeenCalledWith(['sid=abc']);
   });
 
+  it.each([
+    ['another host', 'https://other.example/v1/items'],
+    ['another scheme', 'http://api.bank.example/v1/items'],
+    ['another port', 'https://api.bank.example:8443/v1/items'],
+    ['an unparseable URL', 'https://'],
+  ])('sends no cookie to %s', async (_label, foreignUrl) => {
+    const mock = serveCookies([[`sid=${SECRET}`], ['foreign=1']]);
+    const transport = makeTransport();
+    await transport.fetchPost(LOGIN_URL, {}, { extraHeaders: {} });
+    await transport.fetchGet(foreignUrl, { extraHeaders: {} });
+    await transport.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    const sent = [1, 2].map((index): string => cookieSent(mock, index));
+    expect(sent).toEqual(['', `sid=${SECRET}`]);
+  });
+
+  it('drops a cookie the server deletes, Max-Age winning over Expires', async () => {
+    const past = 'Thu, 01 Jan 1970 00:00:00 GMT';
+    const mock = serveCookies([
+      ['sid=abc', 'tok=1', 'keep=1', 'live=1'],
+      ['sid=; Max-Age=0', `tok=1; Expires=${past}`, `keep=2; Max-Age=60; Expires=${past}`],
+    ]);
+    const transport = makeTransport();
+    await transport.fetchPost(LOGIN_URL, {}, { extraHeaders: {} });
+    await transport.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    await transport.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    const cookie = cookieSent(mock, 2);
+    expect(cookie).toBe('keep=2; live=1');
+  });
+
   it('never logs a cookie value', async () => {
     serveCookies([[`sid=${SECRET}`]]);
     const transport = makeTransport();
@@ -146,15 +175,16 @@ describe('withSessionCookies', () => {
   const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
 
   it.each([
-    ['absent', {}],
-    ['false', { sessionCookies: false }],
+    ['absent', { identityBaseUrl: BASE_URL }],
+    ['false', { identityBaseUrl: BASE_URL, sessionCookies: false }],
   ])('returns the same transport when the flag is %s', (_label, args) => {
     const transport = SESSION.withSessionCookies(inner, args);
     expect(transport).toBe(inner);
   });
 
   it('wraps the transport when the flag is true', () => {
-    const transport = SESSION.withSessionCookies(inner, { sessionCookies: true });
+    const args = { identityBaseUrl: BASE_URL, sessionCookies: true };
+    const transport = SESSION.withSessionCookies(inner, args);
     expect(transport).toBeInstanceOf(SESSION.SessionCookieFetchStrategy);
   });
 });

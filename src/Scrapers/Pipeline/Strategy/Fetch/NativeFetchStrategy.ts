@@ -168,6 +168,18 @@ async function invokeFetch(
   }
 }
 
+/**
+ * Resolve a request URL the way every node transport does: an absolute
+ * http(s) URL passes through, anything else is appended to the base URL.
+ * @param baseUrl - The transport's base URL.
+ * @param url - Caller-supplied URL (absolute or relative).
+ * @returns The fully-qualified URL suitable for globalThis.fetch.
+ */
+function resolveFetchUrl(baseUrl: string, url: string): FullyQualifiedUrl {
+  if (url.startsWith('http://') || url.startsWith('https://')) return url as FullyQualifiedUrl;
+  return `${baseUrl}${url}` as FullyQualifiedUrl;
+}
+
 /** Args bundle for dispatchFetch — keeps params under the 3-ceiling. */
 interface IDispatchArgs {
   readonly url: string;
@@ -279,11 +291,10 @@ class NativeFetchStrategy implements IFetchStrategy {
    * @returns The fully-qualified URL suitable for globalThis.fetch.
    */
   protected resolveUrl(url: string): FullyQualifiedUrl {
-    if (url.startsWith('http://') || url.startsWith('https://')) return url as FullyQualifiedUrl;
-    return `${this._baseUrl}${url}` as FullyQualifiedUrl;
+    return resolveFetchUrl(this._baseUrl, url);
   }
 }
 
 export default NativeFetchStrategy;
-export { invokeFetch, NativeFetchStrategy, toNetworkFailure };
-export type { DefaultHeadersByVerb, FetchInvoke, HttpVerb };
+export { invokeFetch, NativeFetchStrategy, resolveFetchUrl, toNetworkFailure };
+export type { DefaultHeadersByVerb, FetchInvoke, FullyQualifiedUrl, HttpVerb };
