@@ -25,30 +25,22 @@ import {
   CAL_WEB_SITE_ID,
 } from '../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeHelpers.js';
 import type { JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonValue.js';
-
-/** Tally values returned alongside dispose for wiring assertions. */
-export interface IMockCallCounts {
-  readonly identity: number;
-  readonly graphql: number;
-}
-
-/** One request the pipeline sent, as the gateway saw it. */
-export interface IRecordedCall {
-  readonly url: string;
-  readonly method: string;
-  readonly headers: Headers;
-  readonly body: string;
-}
-
-/** Installer handle — `dispose()` restores the original fetch. */
-export interface IMockHandle {
-  readonly dispose: () => boolean;
-  readonly callCounts: () => IMockCallCounts;
-  readonly calls: () => readonly IRecordedCall[];
-}
+import type {
+  CallKind,
+  IMockHandle,
+  IRecordedCall,
+  NetworkFault,
+} from '../Helpers/FetchMockKit.js';
+import {
+  errorReply,
+  installFetchMock,
+  jsonReply,
+  NETWORK_FAULTS,
+  parseBody,
+} from '../Helpers/FetchMockKit.js';
 
 /** A fault the regularLogin route can answer with instead of logging in. */
-export type LoginFault = 'none' | 'http500' | 'reject' | 'nonJson' | 'timeout';
+export type LoginFault = 'none' | NetworkFault;
 
 /** Synthetic credentials for mock-mode runs — safe for public fixtures. */
 export const VISACAL_MOCK_CREDS = Object.freeze({
@@ -138,25 +130,6 @@ function makeRow(card: ISynCard, amount: number, index: number): JsonUnknownReco
 }
 
 /**
- * A JSON 200 response.
- * @param payload - Body to serialise.
- * @returns A real Response carrying the JSON.
- */
-function jsonReply(payload: JsonUnknownRecord): Response {
-  const bodyText = JSON.stringify(payload);
-  return new Response(bodyText, { status: 200, headers: { 'content-type': 'application/json' } });
-}
-
-/**
- * A non-2xx response with a plain-text body.
- * @param status - HTTP status.
- * @returns A real Response with that status.
- */
-function errorReply(status: number): Response {
-  return new Response(`synthetic ${String(status)}`, { status });
-}
-
-/**
  * A successful login answer.
  * @param token - Session token to issue.
  * @param hash - Long-term hash to issue.
@@ -173,19 +146,6 @@ function loginOk(token: string, hash: string): Response {
  */
 function loginRefused(statusCode: number): Response {
   return jsonReply({ statusCode, result: null });
-}
-
-/**
- * Parse a JSON request body.
- * @param body - Raw request body.
- * @returns The parsed object, or an empty one when the body is not JSON.
- */
-function parseBody(body: string): JsonUnknownRecord {
-  try {
-    return JSON.parse(body) as JsonUnknownRecord;
-  } catch {
-    return {};
-  }
 }
 
 /**
@@ -214,35 +174,6 @@ function routeBioLogin(body: JsonUnknownRecord, issuedHashes: Set<string>): Resp
   issuedHashes.add(nextHash);
   return loginOk(SYN_BIO_TOKEN, nextHash);
 }
-
-/** How regularLogin misbehaves under each injected fault. */
-const LOGIN_FAULTS: Readonly<Record<Exclude<LoginFault, 'none'>, () => Promise<Response>>> = {
-  /**
-   * The gateway failed.
-   * @returns A 500.
-   */
-  http500: (): Promise<Response> => {
-    const reply = errorReply(500);
-    return Promise.resolve(reply);
-  },
-  /**
-   * The network dropped the request.
-   * @returns A rejection, as fetch gives.
-   */
-  reject: (): Promise<Response> => Promise.reject(new TypeError('fetch failed')),
-  /**
-   * A maintenance page served as 200.
-   * @returns A 200 whose body is not JSON.
-   */
-  nonJson: (): Promise<Response> =>
-    Promise.resolve(new Response('<html>synthetic maintenance</html>', { status: 200 })),
-  /**
-   * The request ran past the transport's deadline.
-   * @returns The rejection an expired AbortSignal gives.
-   */
-  timeout: (): Promise<Response> =>
-    Promise.reject(new DOMException('The operation timed out.', 'TimeoutError')),
-};
 
 /**
  * The synthetic cards a request names.
@@ -352,24 +283,21 @@ function routeData(call: IRecordedCall): Response {
 const CAL_HOST = `${CAL_API}/`;
 const LOGIN_PATH = 'Authentication/api/login/';
 
-/** Mutable state one installed mock keeps. */
-interface IMockState {
+/** What one installed mock remembers between calls. */
+interface ICalSession {
   readonly fault: LoginFault;
   readonly issuedHashes: Set<string>;
-  readonly log: IRecordedCall[];
-  identity: number;
-  graphql: number;
 }
 
 /**
  * Route a login-gateway call.
  * @param call - The recorded request.
- * @param state - Installed mock state.
+ * @param session - Installed mock session.
  * @returns The login answer; 404 for an unknown path.
  */
-function routeLogin(call: IRecordedCall, state: IMockState): Response {
+function routeLogin(call: IRecordedCall, session: ICalSession): Response {
   const body = parseBody(call.body);
-  if (call.url.endsWith('/login/bioLogin')) return routeBioLogin(body, state.issuedHashes);
+  if (call.url.endsWith('/login/bioLogin')) return routeBioLogin(body, session.issuedHashes);
   if (call.url.endsWith('/login/regularLogin')) return routeRegularLogin(body);
   return errorReply(404);
 }
@@ -377,112 +305,53 @@ function routeLogin(call: IRecordedCall, state: IMockState): Response {
 /**
  * Answer a login-gateway call, injecting the fault into regularLogin.
  * @param call - The recorded request.
- * @param state - Installed mock state.
+ * @param session - Installed mock session.
  * @returns The login answer; rejects for a network-level fault.
  */
-function answerLogin(call: IRecordedCall, state: IMockState): Promise<Response> {
+function answerLogin(call: IRecordedCall, session: ICalSession): Promise<Response> {
   const isPasswordLogin = call.url.endsWith('/login/regularLogin');
-  if (isPasswordLogin && state.fault !== 'none') return LOGIN_FAULTS[state.fault]();
-  const reply = routeLogin(call, state);
+  if (isPasswordLogin && session.fault !== 'none') return NETWORK_FAULTS[session.fault]();
+  const reply = routeLogin(call, session);
   return Promise.resolve(reply);
 }
 
 /**
- * Tally and route a data call on CAL's gateway.
+ * The kind of call a request is on CAL's gateway.
  * @param call - The recorded request.
- * @param state - Mock state, tallied in place.
- * @returns The data gateway's answer; 404 for any other host.
+ * @returns `identity` for a login path, `graphql` for any other gateway path.
  */
-function answerData(call: IRecordedCall, state: IMockState): Response {
-  if (!call.url.startsWith(CAL_HOST)) return errorReply(404);
-  state.graphql += 1;
-  return routeData(call);
+function classifyCal(call: IRecordedCall): CallKind {
+  if (call.url.startsWith(`${CAL_HOST}${LOGIN_PATH}`)) return 'identity';
+  return call.url.startsWith(CAL_HOST) ? 'graphql' : 'other';
 }
 
 /**
- * Tally and route one request by the gateway it targets.
+ * Route one request by the kind of call it is.
  * @param call - The recorded request.
- * @param state - Mock state, tallied in place.
+ * @param session - Installed mock session.
  * @returns The gateway's answer; 404 for any other host.
  */
-function dispatch(call: IRecordedCall, state: IMockState): Promise<Response> {
-  if (call.url.startsWith(`${CAL_HOST}${LOGIN_PATH}`)) {
-    state.identity += 1;
-    return answerLogin(call, state);
-  }
-  const reply = answerData(call, state);
+function answerCal(call: IRecordedCall, session: ICalSession): Promise<Response> {
+  const kind = classifyCal(call);
+  if (kind === 'identity') return answerLogin(call, session);
+  const reply = kind === 'graphql' ? routeData(call) : errorReply(404);
   return Promise.resolve(reply);
 }
 
-/** First argument accepted by globalThis.fetch. */
-type FetchInput = string | Request | URL;
-
 /**
- * Normalise a fetch input into its URL string.
- * @param input - First argument passed to fetch().
- * @returns The URL.
- */
-function toUrlString(input: FetchInput): string {
-  if (typeof input === 'string') return input;
-  if (input instanceof URL) return input.toString();
-  return input.url;
-}
-
-/**
- * Capture a request as the gateway sees it.
- * @param input - First argument passed to fetch().
- * @param init - Fetch init.
- * @returns The recorded call.
- */
-function recordCall(input: FetchInput, init?: RequestInit): IRecordedCall {
-  const url = toUrlString(input);
-  const method = init?.method ?? 'GET';
-  const headers = new Headers(init?.headers);
-  const body = typeof init?.body === 'string' ? init.body : '';
-  return { url, method, headers, body };
-}
-
-/**
- * Build the fetch replacement over one state.
- * @param state - Mock state the calls are logged and tallied in.
- * @returns A function with fetch's signature.
- */
-function makeMockFetch(state: IMockState): typeof fetch {
-  return (input: FetchInput, init?: RequestInit): Promise<Response> => {
-    const call = recordCall(input, init);
-    state.log.push(call);
-    return dispatch(call, state);
-  };
-}
-
-/**
- * Install the synthetic CAL gateways over globalThis.fetch.
+ * Install the synthetic CAL gateway over globalThis.fetch.
  * @param fault - Fault regularLogin answers with; `'none'` logs in normally.
  * @returns Handle with dispose, call counts and the call log.
  */
 export function installVisaCalFetchMock(fault: LoginFault = 'none'): IMockHandle {
-  const previousFetch = globalThis.fetch;
-  const issuedHashes = new Set<string>(SEED_HASHES);
-  const state: IMockState = { fault, issuedHashes, log: [], identity: 0, graphql: 0 };
-  globalThis.fetch = makeMockFetch(state);
-  return {
+  const session: ICalSession = { fault, issuedHashes: new Set<string>(SEED_HASHES) };
+  return installFetchMock({
+    classify: classifyCal,
     /**
-     * Restore the original fetch.
-     * @returns True once restored.
+     * Answer one call.
+     * @param call - The recorded request.
+     * @returns The gateway's answer.
      */
-    dispose: (): boolean => {
-      globalThis.fetch = previousFetch;
-      return true;
-    },
-    /**
-     * Snapshot the identity and data-call tallies.
-     * @returns Immutable counts.
-     */
-    callCounts: (): IMockCallCounts => ({ identity: state.identity, graphql: state.graphql }),
-    /**
-     * Every request sent so far, in order.
-     * @returns The call log.
-     */
-    calls: (): readonly IRecordedCall[] => [...state.log],
-  };
+    answer: (call: IRecordedCall): Promise<Response> => answerCal(call, session),
+  });
 }

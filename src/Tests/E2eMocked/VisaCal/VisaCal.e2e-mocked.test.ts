@@ -19,7 +19,8 @@ import {
 } from '../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeHelpers.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
 import { getLaunchCount } from '../../Mocks/CamoufoxJsMock.js';
-import type { IMockHandle, IRecordedCall, LoginFault } from './VisaCalFetchMock.js';
+import type { IMockHandle, IRecordedCall } from '../Helpers/FetchMockKit.js';
+import type { LoginFault } from './VisaCalFetchMock.js';
 import {
   installVisaCalFetchMock,
   rotatedHash,
