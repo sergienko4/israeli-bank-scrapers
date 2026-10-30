@@ -34,7 +34,10 @@ Five test suites, picked by **what you're testing**.
 
 - Uses pre-recorded fixtures (HAR-like JSON) under `src/Tests/E2eMocked/<Bank>/fixtures/`.
 - Drives the **real pipeline** against the fixtures — no live network, no browser.
-- Currently: 3 suites pass (Amex, Discount, Visa Cal), 11 skip (waiting for fixtures).
+- API-direct banks (Pepper, OneZero, Visa Cal) use synthetic gateways instead: a
+  `<Bank>FetchMock.ts` stands in for `fetch`, and `ApiDirect/ApiDirectFlow.e2e-mocked.test.ts`
+  runs each bank's login and scrape. The Visa Cal suite also proves a run never launches a browser.
+- Currently: 12 suites (66 tests) pass; 6 suites (15 tests) are marked `describe.skip`.
 
 ### Bank factory tests (`test:e2e-factory-tests`)
 

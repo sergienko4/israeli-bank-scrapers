@@ -205,6 +205,11 @@ docker run --rm --platform linux/amd64 -v "$PWD:/work" -v /work/node_modules -w 
   npm run test:e2e:mock -- --runTestsByPath src/Tests/E2eMocked/BrowserStackContract.e2e-mocked.test.ts
 ```
 
+The Jest stand-in for camoufox-js (`src/Tests/Mocks/CamoufoxJsMock.js`) also
+counts launch requests; `getLaunchCount()` lets a browserless bank's mocked
+suite prove its run never asked for a browser. The count does not change what
+the contract run launches.
+
 ### Packed-consumer smoke
 
 CI tests the repository with its lockfile. A consumer installs the tarball and
