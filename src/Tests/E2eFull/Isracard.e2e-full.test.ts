@@ -1,10 +1,8 @@
-import { jest } from '@jest/globals';
 import * as dotenv from 'dotenv';
 
 import { CompanyTypes, createScraper } from '../../index.js';
 import {
   assertSuccessfulScrape,
-  BROWSER_ARGS,
   lastMonthStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
@@ -19,32 +17,22 @@ const hasCredentials = !!(
 );
 const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
 
-DESCRIBE_IF('E2E: Isracard (real credentials)', () => {
-  beforeAll(() => {
-    jest.setTimeout(SCRAPE_TIMEOUT * 1.5);
-  });
-
+DESCRIBE_IF('E2E: Isracard (real credentials, API-direct)', () => {
   it(
-    'scrapes transactions successfully',
+    'scrapes last month over the API and returns a device key',
     async () => {
-      const scraper = createScraper({
-        companyId: CompanyTypes.Isracard,
-        startDate: lastMonthStartDate(),
-        shouldShowBrowser: false,
-        args: BROWSER_ARGS,
-      });
-      const isracardId = process.env.ISRACARD_ID ?? '';
-      const isracardCard = process.env.ISRACARD_CARD6DIGITS ?? '';
-      const isracardPassword = process.env.ISRACARD_PASSWORD ?? '';
-      const result = await scraper.scrape({
-        id: isracardId,
-        card6Digits: isracardCard,
-        password: isracardPassword,
-      });
+      const startDate = lastMonthStartDate();
+      const scraper = createScraper({ companyId: CompanyTypes.Isracard, startDate });
+      const id = process.env.ISRACARD_ID ?? '';
+      const card6Digits = process.env.ISRACARD_CARD6DIGITS ?? '';
+      const password = process.env.ISRACARD_PASSWORD ?? '';
+      const result = await scraper.scrape({ id, card6Digits, password });
 
       assertSuccessfulScrape(result);
+      const key = result.persistentOtpToken ?? '';
+      expect(key.length).toBeGreaterThan(0);
       logScrapedTransactions(result);
     },
-    SCRAPE_TIMEOUT * 1.5,
+    SCRAPE_TIMEOUT,
   );
 });
