@@ -98,6 +98,20 @@ function isJwtWarmWithoutClaims(input: IApiDirectRuleInput): boolean {
   return validation === 'jwt' && input.call.jwtClaims === undefined;
 }
 
+/**
+ * 'bank-call' trusts the first warm step as the token check, so a warm
+ * start must run at least one step.
+ * @param input - Rule input.
+ * @returns True when 'bank-call' validation starts outside the step list.
+ */
+function isBankCallWarmWithoutStep(input: IApiDirectRuleInput): boolean {
+  const warm = input.call.warmStart;
+  if (warm?.validation !== 'bank-call') return false;
+  const index = warm.fromStepIndex;
+  const isStep = Number.isInteger(index) && index >= 0 && index < input.call.steps.length;
+  return !isStep;
+}
+
 /** Every rule, checked in order. */
 const API_DIRECT_RULES: readonly IApiDirectRule[] = [
   { message: 'authPrefix: required when authScheme is prefixed', isBroken: isPrefixMissing },
@@ -113,6 +127,10 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
   {
     message: 'jwtClaims: required when warmStart.validation is jwt',
     isBroken: isJwtWarmWithoutClaims,
+  },
+  {
+    message: 'warmStart.fromStepIndex: must name a step when validation is bank-call',
+    isBroken: isBankCallWarmWithoutStep,
   },
 ];
 
