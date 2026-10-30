@@ -6,7 +6,6 @@
  */
 
 import type { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { maskVisibleText } from '../../../Types/LogEvent.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IStepConfig, IStepOutcome } from '../ConfigContracts/index.js';
@@ -37,8 +36,10 @@ function readOutcomeCode(resp: JsonValue, pointer: string): string | false {
 }
 
 /**
- * Judge a present code: success passes; anything else fails with its mapped
- * type, or the default.
+ * Judge a present code: success passes; a code the map owns fails with its
+ * type; any other code fails with the default. Only the map's own keys count,
+ * so `toString` is unmapped. An unmapped code is never echoed: it comes from
+ * the bank, not the config, and may carry a secret.
  * @param name - Step name, for the failure message.
  * @param outcome - The step's outcome policy.
  * @param code - Code read from the body.
@@ -47,9 +48,10 @@ function readOutcomeCode(resp: JsonValue, pointer: string): string | false {
 function judgeCode(name: string, outcome: IStepOutcome, code: string): Procedure<true> {
   if (outcome.successCodes.includes(code)) return succeed(true);
   const failureMap: Partial<Record<string, ScraperErrorTypes>> = outcome.failureMap;
+  const isMapped = Object.hasOwn(failureMap, code);
+  if (!isMapped) return fail(outcome.defaultFailure, `${name} outcome unmapped`);
   const errorType = failureMap[code] ?? outcome.defaultFailure;
-  const shown = maskVisibleText(code);
-  return fail(errorType, `${name} outcome ${shown}`);
+  return fail(errorType, `${name} outcome ${code}`);
 }
 
 /**

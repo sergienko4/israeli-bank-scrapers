@@ -46,6 +46,13 @@ const PLAIN_STEP: IStepConfig = {
 /** The same step, judged by OUTCOME. */
 const STEP: IStepConfig = { ...PLAIN_STEP, outcome: OUTCOME };
 
+/** Expected failure for a code the failure map does not own. */
+const UNMAPPED = {
+  success: false,
+  errorType: ScraperErrorTypes.Generic,
+  errorMessage: 'login outcome unmapped',
+};
+
 /** Expected failure when the body carries no usable code. */
 const MISSING = {
   success: false,
@@ -70,11 +77,10 @@ describe('judgeStepOutcome', () => {
         errorMessage: 'login outcome 7',
       },
     ],
-    [
-      'an unmapped code',
-      { status: '9' },
-      { success: false, errorType: ScraperErrorTypes.Generic, errorMessage: 'login outcome 9' },
-    ],
+    ['an unmapped code', { status: '9' }, UNMAPPED],
+    ['an unmapped code holding a secret', { status: 'tok_9f8e7d6c5b4a' }, UNMAPPED],
+    ['an inherited property name', { status: 'toString' }, UNMAPPED],
+    ['the prototype key', { status: '__proto__' }, UNMAPPED],
     ['a missing code', {}, MISSING],
     ['a non-scalar code', { status: { nested: 1 } }, MISSING],
     ['an empty code', { status: '' }, MISSING],

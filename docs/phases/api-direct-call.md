@@ -205,10 +205,13 @@ outcome: {
 
 The code is compared as text, so a numeric `0` matches `'0'`. A code in
 `successCodes` lets the step continue. Any other code fails the step with its
-`failureMap` type, or `defaultFailure` when it is unmapped. A missing, empty
-or non-scalar code also fails with `defaultFailure`. The message is
-`<step> outcome <code>` (or `<step> outcome missing`), and the code is cut to
-the log-safe length. A step without `outcome` behaves as before.
+`failureMap` type, or `defaultFailure` when it is unmapped. Only the map's own
+keys count, so a code such as `toString` is unmapped. A missing, empty or
+non-scalar code also fails with `defaultFailure`. The message is
+`<step> outcome <code>` for a mapped code, `<step> outcome unmapped` for any
+other code, and `<step> outcome missing` when there is none. An unmapped code
+is never echoed: it comes from the bank, not the config, and may carry a
+secret. A step without `outcome` behaves as before.
 
 An outcome failure in a warm resume is a failure like any other, so the
 resolver still falls back to one cold flow. When the cold flow also fails, its
