@@ -140,6 +140,25 @@ map_put B_MAP 'shared-key' 'from-b'
 assert_eq "maps are independent (a)" "$(map_get A_MAP 'shared-key')" 'from-a'
 assert_eq "maps are independent (b)" "$(map_get B_MAP 'shared-key')" 'from-b'
 
+# --- Lookups on a map bigger than a pipe buffer -----------------------
+# The gates run under `set -o pipefail`. A lookup that stops reading at
+# its first match leaves the rest of the map unwritten, so the writer
+# hits a broken pipe and the whole lookup fails. A ~200 KB map, well past
+# the default 64 KiB pipe buffer, with the key first makes that certain.
+BIG=''
+PAD="$(printf '%01000d' 0)"
+for i in $(seq 1 200); do map_put BIG "src/Big/Key$i.ts" "$PAD-$i"; done
+
+# Succeeds only when the lookup itself exits 0 and prints the value.
+big_get_ok() {
+    local value
+    value="$(map_get BIG "$1")" && [ "$value" = "$2" ]
+}
+assert_status "get on a map past a pipe buffer succeeds" yes \
+    big_get_ok 'src/Big/Key1.ts' "$PAD-1"
+assert_status "has on a map past a pipe buffer succeeds" yes \
+    map_has BIG 'src/Big/Key1.ts'
+
 # --- Mutation inside a while-read loop --------------------------------
 # Both gate scripts populate their maps from `while read ... done < <(...)`.
 # That must mutate the CALLER's variable, not a subshell copy.

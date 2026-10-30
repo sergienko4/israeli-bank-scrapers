@@ -22,6 +22,10 @@
 # caller uses repo-relative paths or TypeScript identifiers, neither of
 # which can contain either character.
 #
+# Lookups read the whole map even after a match. The gates run under
+# `set -o pipefail`, so an awk that exits early would leave a map larger
+# than the pipe buffer half-written and fail the lookup on a broken pipe.
+#
 # Tested by `.github/scripts/ci/tests/portable-map.test.sh`, run by
 # `npm run lint:shell-tests` and by the "Docs coverage extractor unit
 # test" job in `.github/workflows/pr.yml`. On macOS that test executes
@@ -46,7 +50,7 @@ map_put() {
 map_get() {
     local __map_var="$1"
     printf '%s' "${!__map_var:-}" \
-        | awk -F'\t' -v k="$2" '$1 == k { print $2; exit }'
+        | awk -F'\t' -v k="$2" '!found && $1 == k { print $2; found = 1 }'
 }
 
 # map_get_all <map-var-name> <key>
@@ -66,5 +70,5 @@ map_get_all() {
 map_has() {
     local __map_var="$1"
     printf '%s' "${!__map_var:-}" \
-        | awk -F'\t' -v k="$2" '$1 == k { found = 1; exit } END { exit !found }'
+        | awk -F'\t' -v k="$2" '$1 == k { found = 1 } END { exit !found }'
 }
