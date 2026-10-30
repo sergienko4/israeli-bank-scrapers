@@ -156,12 +156,15 @@ async function rearmAfterAuthRejection(state: IMediatorState): Promise<IRearmOut
  * A failed refresh answers with the original rejection, except when the edge
  * refused the refresh itself: that WAF block is returned instead, so the
  * caller's WAF guards see it rather than an ordinary auth failure.
+ * A bank whose policy turns `rearmOnReject` off (a cookie session) gets the
+ * rejection back at once: no refresh, no second login, no retry.
  * @param args - Bundled mediator-state + fire-callable.
  * @returns Procedure from the first or second attempt, or the refresh's block.
  */
 async function retryOn401Op<T>(args: IRetryOn401Args<T>): Promise<Procedure<T>> {
   const first = await args.fire();
   if (!isUnauthorizedFailure(first)) return first;
+  if (!args.state.rearmOnReject) return first;
   const rearm = await rearmAfterAuthRejection(args.state);
   if (rearm.isRearmed) return args.fire();
   return preferWafBlock(rearm.refreshed, first);

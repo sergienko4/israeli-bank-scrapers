@@ -69,6 +69,8 @@ interface IApiDirectCallConfig {
   readonly staticHeaders?: Readonly<Record<string, string>>;
   /** How to format the final Authorization header value (default 'raw'). */
   readonly authScheme?: AuthScheme;
+  /** Scheme word sent before the token when `authScheme` is 'prefixed'. */
+  readonly authPrefix?: string;
   /** Optional warm-start shortcut — see IWarmStartConfig for semantics. */
   readonly warmStart?: IWarmStartConfig;
   /**

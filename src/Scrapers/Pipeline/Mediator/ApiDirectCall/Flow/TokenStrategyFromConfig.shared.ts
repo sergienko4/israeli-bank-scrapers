@@ -1,6 +1,7 @@
 /**
  * Shared helpers for the TokenStrategyFromConfig cluster:
- * creds reading, auth-header formatting, warm-seed picking,
+ * creds reading, warm-seed picking (auth-header formatting is re-exported
+ * from AuthModePolicy),
  * warm-arg assembly, and flow-kind gating.
  */
 
@@ -29,17 +30,6 @@ function readCredsString(creds: GenericCreds, field: string): string {
   const value = creds[field];
   if (typeof value !== 'string') return '';
   return value;
-}
-
-/**
- * Format the Authorization header value per config.authScheme.
- * @param config - API-direct-call config.
- * @param token - Raw token string (no prefix).
- * @returns Authorization header value.
- */
-function formatAuthValue(config: IApiDirectCallConfig, token: string): string {
-  if (config.authScheme === 'bearer') return `Bearer ${token}`;
-  return token;
 }
 
 /**
@@ -82,11 +72,5 @@ function gateFlowKind(config: IApiDirectCallConfig): Procedure<true> {
   return fail(ScraperErrorTypes.Generic, `unsupported flow-kind: ${config.flow}`);
 }
 
-export {
-  formatAuthValue,
-  gateFlowKind,
-  makeWarmArgs,
-  pickWarmSeed,
-  readCredsString,
-  STRATEGY_NAME_DEFAULT,
-};
+export { formatAuthValue } from './AuthModePolicy.js';
+export { gateFlowKind, makeWarmArgs, pickWarmSeed, readCredsString, STRATEGY_NAME_DEFAULT };

@@ -3,6 +3,7 @@
  * registration, and session priming.
  */
 
+import type { IMediatorAuthPolicy } from '../../Types/Domain/MediatorAuthPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type {
   IMediatorState,
@@ -26,6 +27,7 @@ function makeInitialMediatorState(): IMediatorState {
     sessionContext: Object.freeze({}),
     sessionWarm: false,
     isRefreshing: false,
+    rearmOnReject: true,
   };
 }
 
@@ -69,6 +71,17 @@ function getSessionContextOp(state: IMediatorState): SessionContext {
 function setSessionWarmOp(state: IMediatorState, value: boolean): boolean {
   state.sessionWarm = value;
   return value;
+}
+
+/**
+ * Apply the bank's auth-mode policy to the mediator.
+ * @param state - Mediator state.
+ * @param policy - The mediator's slice of the policy.
+ * @returns True once applied.
+ */
+function setAuthPolicyOp(state: IMediatorState, policy: IMediatorAuthPolicy): boolean {
+  state.rearmOnReject = policy.rearmOnReject;
+  return true;
 }
 
 /**
@@ -137,6 +150,7 @@ export {
   getSessionWarmOp,
   makeInitialMediatorState,
   primeSessionOp,
+  setAuthPolicyOp,
   setBearerOp,
   setRawAuthOp,
   setRecoveryHookOp,

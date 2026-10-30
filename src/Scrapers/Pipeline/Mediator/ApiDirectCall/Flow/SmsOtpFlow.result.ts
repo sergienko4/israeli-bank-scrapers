@@ -9,6 +9,7 @@ import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import { authPolicyOf } from './AuthModePolicy.js';
 import { createSimpleCookieJar } from './RunStep.js';
 import { createPreHookCache } from './SmsOtpFlow.prehookCache.js';
 import { seedScope, signerSlotOf } from './SmsOtpFlow.prep.js';
@@ -36,6 +37,19 @@ function extractTokenFromCarry(scope: ITemplateScope): Procedure<string> {
     return fail(ScraperErrorTypes.Generic, 'sms-otp flow produced no carry.token');
   }
   return succeed(token);
+}
+
+/**
+ * Read the bearer the bank's auth scheme needs. A cookie-session scheme
+ * (`'none'`) needs none, so its flow succeeds without a `carry.token`.
+ * @param scope - Final scope.
+ * @param config - Bank config.
+ * @returns Procedure with the bearer token, or `''` when no header is sent.
+ */
+function extractBearer(scope: ITemplateScope, config: IApiDirectCallConfig): Procedure<string> {
+  const policy = authPolicyOf(config);
+  if (!policy.installHeader) return succeed('');
+  return extractTokenFromCarry(scope);
 }
 
 /**
@@ -163,7 +177,7 @@ function buildFlowResult(
   config: IApiDirectCallConfig,
   keypairs: IKeypairBundle,
 ): Procedure<IFlowResult> {
-  const bearerProc = extractTokenFromCarry(scope);
+  const bearerProc = extractBearer(scope, config);
   if (!isOk(bearerProc)) return bearerProc;
   const outputs = snapshotFlowOutputs(scope, config);
   return succeed({ ...outputs, bearer: bearerProc.value, keypairs });

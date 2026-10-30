@@ -200,6 +200,43 @@ describe('SmsOtpFlow warm-start', () => {
   });
 });
 
+describe('SmsOtpFlow auth scheme without a header', () => {
+  /**
+   * Build a one-step config whose step yields a session id but no carry.token.
+   * @param authScheme - Scheme under test.
+   * @returns IApiDirectCallConfig literal.
+   */
+  function makeCookieConfig(authScheme: IApiDirectCallConfig['authScheme']): IApiDirectCallConfig {
+    return {
+      flow: 'sms-otp',
+      envelope: {},
+      authScheme,
+      steps: [
+        {
+          name: 'getIdToken',
+          urlTag: BRANCH_TAG,
+          body: { shape: {} },
+          extractsToCarry: { sid: '/sid' },
+        },
+      ],
+    };
+  }
+
+  it("succeeds with an empty bearer under 'none' when no step yields carry.token", async () => {
+    const bus = makeStubMediator({ responses: [succeed({ sid: 's1' })], captures: [] });
+    const config = makeCookieConfig('none');
+    const result = await runSmsOtpFlow({ config, bus, creds: {}, companyId: HINT });
+    expect(result).toMatchObject({ success: true, value: { bearer: '' } });
+  });
+
+  it('still requires carry.token under a header scheme', async () => {
+    const bus = makeStubMediator({ responses: [succeed({ sid: 's1' })], captures: [] });
+    const config = makeCookieConfig('raw');
+    const result = await runSmsOtpFlow({ config, bus, creds: {}, companyId: HINT });
+    expect(result).toMatchObject({ success: false, errorMessage: /no carry\.token/ });
+  });
+});
+
 describe('SmsOtpFlow longTermToken edge cases', () => {
   it('returns empty longTermToken when warmStart carryField holds non-string', async (): Promise<void> => {
     const captures: IApiPostCapture[] = [];

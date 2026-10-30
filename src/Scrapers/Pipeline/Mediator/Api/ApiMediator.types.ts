@@ -8,6 +8,7 @@ import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IFetchStrategy } from '../../Strategy/Fetch/FetchStrategy.js';
 import type { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { IApiQueryOpts } from '../../Types/Domain/ApiQueryOpts.js';
+import type { IMediatorAuthPolicy } from '../../Types/Domain/MediatorAuthPolicy.js';
 import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { ITokenResolver } from './ITokenResolver.js';
@@ -57,6 +58,7 @@ interface IApiMediator {
   wasSessionWarm: () => boolean;
   recoverSession: () => Promise<Procedure<string>>;
   withRecoveryHook?: (hook: RecoveredHook) => boolean;
+  setAuthPolicy?: (policy: IMediatorAuthPolicy) => boolean;
   apiPost: <T>(
     wkUrl: WKUrlOrLiteral,
     body: Record<string, unknown>,
@@ -110,6 +112,8 @@ interface IMediatorState {
   onRecovered?: RecoveredHook;
   /** True while a token re-mint is in flight — blocks refresh re-entrancy. */
   isRefreshing: boolean;
+  /** False when an auth rejection must fail at once (cookie sessions). */
+  rearmOnReject: boolean;
 }
 
 /** Per-call context shared by apiPost/apiGet/apiQuery operations. */
@@ -159,7 +163,7 @@ type IResolverMethods = Pick<
 /** Picked subset of `IApiMediator` produced by `buildRecoveryMethods`. */
 type IRecoveryMethods = Pick<
   IApiMediator,
-  'setSessionWarm' | 'wasSessionWarm' | 'recoverSession' | 'withRecoveryHook'
+  'setSessionWarm' | 'wasSessionWarm' | 'recoverSession' | 'withRecoveryHook' | 'setAuthPolicy'
 >;
 
 /** Picked subset of `IApiMediator` produced by `buildCallMethods`. */

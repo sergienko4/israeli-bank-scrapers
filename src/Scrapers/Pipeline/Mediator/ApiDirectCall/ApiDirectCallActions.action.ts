@@ -4,28 +4,28 @@
  * runApiDirectCallAction entry that orchestrates them.
  */
 
-import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IDurableAuthState } from '../../Types/Domain/DurableAuthState.js';
 import { some } from '../../Types/Option.js';
 import { redactSensitiveEnum } from '../../Types/PiiRedactor.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../Types/Procedure.js';
+import { isOk, succeed } from '../../Types/Procedure.js';
 import type { IApiMediator } from '../Api/ApiMediator.js';
 import { resolveApiMediator } from '../Api/ApiMediatorAccessor.js';
 import { invokeAuthFlowComplete } from './ApiDirectCallActions.callback.js';
 import { withNormalisedCreds } from './ApiDirectCallActions.phone.js';
 import { mergeOptionsIntoCreds } from './ApiDirectCallActions.pre.js';
+import { applyAuthPolicy, primeAndCheck } from './ApiDirectCallActions.prime.js';
 import { makeRecoveryHook } from './ApiDirectCallActions.recovery.js';
 import {
   COLD_FALLBACK_DETAIL,
   COLD_FALLBACK_STALE,
   COLD_FALLBACK_WARM_FAILED,
   PHASE_LABEL,
-  safeInvoke,
 } from './ApiDirectCallActions.shared.js';
 import { createContextStrategy } from './ApiDirectCallActions.strategy.js';
 import type { IApiDirectCallConfig } from './ConfigContracts/index.js';
+import type { IAuthModePolicy } from './Flow/AuthModePolicy.js';
 import type { GenericCreds, IConfigTokenStrategy } from './Flow/TokenStrategyFromConfig.js';
 
 /** Booted ACTION bundle — bus + strategy + ctx + creds. */
@@ -92,26 +92,6 @@ function bootApiAction(
   const ctxProc = withNormalisedCreds(rawCtx);
   if (!isOk(ctxProc)) return ctxProc;
   return bootFromNormalised(config, ctxProc.value);
-}
-
-/**
- * Standard empty-header failure builder.
- * @returns Procedure failure for empty primeSession result.
- */
-function emptyHeaderFail<T>(): Procedure<T> {
-  return fail(ScraperErrorTypes.Generic, `${PHASE_LABEL} ACTION empty header`);
-}
-
-/**
- * Run primeSession with safeInvoke + empty-header guard.
- * @param bus - ApiMediator.
- * @returns Header string procedure.
- */
-async function primeAndCheck(bus: IApiMediator): Promise<Procedure<string>> {
-  const primed = await safeInvoke('ACTION primeSession', () => bus.primeSession());
-  if (!isOk(primed)) return primed;
-  if (primed.value.length === 0) return emptyHeaderFail();
-  return primed;
 }
 
 /**
@@ -268,11 +248,15 @@ async function completePrimedAuth(
 /**
  * Run primeSession on the booted bus, then install auth + session context.
  * @param booted - Booted ACTION bundle.
+ * @param policy - The bank's auth-mode policy.
  * @returns Updated context procedure.
  */
-async function installPrimedAuth(booted: IBootedAction): Promise<Procedure<IPipelineContext>> {
+async function installPrimedAuth(
+  booted: IBootedAction,
+  policy: IAuthModePolicy,
+): Promise<Procedure<IPipelineContext>> {
   registerStrategy(booted);
-  const primed = await primeAndCheck(booted.bus);
+  const primed = await primeAndCheck(booted.bus, policy);
   if (!isOk(primed)) return primed;
   const published = await completePrimedAuth(booted, primed.value);
   return succeed(published);
@@ -291,7 +275,8 @@ async function runApiDirectCallAction(
 ): Promise<Procedure<IPipelineContext>> {
   const bootProc = bootApiAction(config, rawCtx);
   if (!isOk(bootProc)) return bootProc;
-  return installPrimedAuth(bootProc.value);
+  const policy = applyAuthPolicy(bootProc.value.bus, config);
+  return installPrimedAuth(bootProc.value, policy);
 }
 
 export default runApiDirectCallAction;

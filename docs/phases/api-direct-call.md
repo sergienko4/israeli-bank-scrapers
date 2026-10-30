@@ -192,6 +192,42 @@ each silent re-mint invalidated the token the run was trying to keep.
 
 If a run legitimately needs a second login, start a second scrape.
 
+## Auth-mode policy
+
+`authScheme` decides two things: how a login token becomes the
+`Authorization` header, and whether a rejected request may log in again.
+`formatAuthValue` renders the header value and `authPolicyOf` looks up the
+policy. Both read maps keyed by scheme in `AuthModePolicy.ts`, so a new scheme
+is a new row, not a new branch.
+
+| `authScheme` | Header value | `installHeader` | `rearmOnReject` |
+|---|---|---|---|
+| `raw` (default) | the token | yes | yes |
+| `bearer` | `Bearer` + space + the token | yes | yes |
+| `prefixed` | `authPrefix` + the token | yes | yes |
+| `none` | no header | no | no |
+
+`prefixed` is for a bank whose header starts with its own scheme word. That
+word goes in `authPrefix`, trailing space included. `none` is for a bank whose
+session is a cookie. It needs `sessionCookies: true` (see
+[Headless transports](../architecture/pipeline.md#headless-transports)). Its
+login may end without a `carry.token`, and the flow then reports an empty
+bearer.
+
+`IAuthModePolicy` carries both flags. The mediator needs only
+`rearmOnReject`, so it receives the narrower `IMediatorAuthPolicy` through the
+optional `setAuthPolicy` port, which `setAuthPolicyOp` stores in mediator
+state. The ACTION calls `applyAuthPolicy` before the first login, so a
+rejection during the login steps obeys the policy too. `primeAndCheck` then
+primes the session. It rejects an empty header only when `installHeader` is
+set.
+
+With `rearmOnReject` off, `retryOn401Op` returns the bank's first 401/403 as
+is and does not log in again. A cookie session has no header to swap, so a
+fresh login would only repeat the one the bank just refused. A mediator that
+never receives a policy keeps the default of `rearmOnReject: true`, so banks
+that send a header behave exactly as before.
+
 ## Persistent (durable) device auth
 
 A bank whose config declares a `persistentAuth` block can keep its bound device
