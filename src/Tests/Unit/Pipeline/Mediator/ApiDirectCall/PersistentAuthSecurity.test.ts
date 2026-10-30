@@ -292,7 +292,7 @@ describe('persistent-auth secrets stay out of errors and trace logs', () => {
     await resolveScenario(scenario, FIXTURES.makeRecorder().onUpdate);
     const emitted = LOG_LINES.join('\n');
     const leaked = secretsOfEncoded(STORED_EXPIRED.encoded).filter(s => emitted.includes(s));
-    expect(emitted).toContain('firePost FAIL');
+    expect(emitted).toContain('fireStep FAIL');
     expect(leaked).toEqual([]);
   });
 });

@@ -259,7 +259,7 @@ describe('E15 SEC-02 through the native transport and the mediator', () => {
     const result = await runBind(bus);
     const emitted = LOG_LINES.join('\n');
     expect(result).toMatchObject({ success: false, errorMessage: 'bind HTTP 401' });
-    expect(emitted).toContain('firePost FAIL');
+    expect(emitted).toContain('fireStep FAIL');
     const exposed = JSON.stringify(result) + emitted;
     const leaked = leaksIn(exposed);
     expect(leaked).toEqual([]);

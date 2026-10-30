@@ -109,7 +109,7 @@ function attachSink(fireBase: IFireArgs, maybe: OnSetCookie | false): IFireArgs 
 /**
  * Build the final IFireArgs bundle including the optional cookie sink.
  * @param opts - Assemble args bundle.
- * @returns Fire-call args ready for firePost.
+ * @returns Fire-call args ready for fireStep.
  */
 function assembleFire(opts: IAssembleFireArgs): IFireArgs {
   const fireBase: IFireArgs = {

@@ -1,5 +1,5 @@
 /**
- * Dispatch + response folding — firePost, log helpers, extract +
+ * Dispatch + response folding — fireStep, log helpers, extract +
  * merge carry, and the top-level `runStep` entrypoint.
  */
 
@@ -76,27 +76,27 @@ function extractAndMerge(bundle: IDispatchBundle, resp: JsonValue): Procedure<IT
 }
 
 /**
- * Log a fire-post failure (PII-safe): the bank may quote request secrets back
+ * Log a fire-step failure (PII-safe): the bank may quote request secrets back
  * in its error body, so only the message length is logged.
  * @param bundle - Dispatch bundle.
- * @param errorMessage - Error message from the failed post.
+ * @param errorMessage - Error message from the failed step.
  * @returns Sentinel true.
  */
 function logFireFail(bundle: IDispatchBundle, errorMessage: string): true {
   const errCtx = { ...bundle.baseCtx, errorMessage: redactErrorMessage(errorMessage) };
-  LOG.debug({ ...errCtx, message: 'firePost FAIL' });
+  LOG.debug({ ...errCtx, message: 'fireStep FAIL' });
   return true;
 }
 
 /**
- * Log a successful fire-post outcome (PII-safe).
+ * Log a successful fire-step outcome (PII-safe).
  * @param bundle - Dispatch bundle.
  * @param resp - Successful response JSON.
  * @returns Sentinel true.
  */
 function logFireOk(bundle: IDispatchBundle, resp: JsonValue): true {
   const okCtx = { ...bundle.baseCtx, ...describeResponse(resp) };
-  LOG.debug({ ...okCtx, message: '[runStep] firePost OK' });
+  LOG.debug({ ...okCtx, message: '[runStep] fireStep OK' });
   return true;
 }
 
