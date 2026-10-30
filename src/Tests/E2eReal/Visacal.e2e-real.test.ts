@@ -69,7 +69,7 @@ DESCRIBE_IF('E2E: VisaCal (real credentials, API-direct)', () => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
 
-  it('logs in cold, then warm with the returned token', async () => {
+  it('scrapes transactions successfully (cold, then warm with the returned token)', async () => {
     const creds = coldCreds();
     const cold = await scrapeCal(creds);
     const coldToken = assertTokenReturned(cold);
