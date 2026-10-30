@@ -157,6 +157,16 @@ refuses the scrape phase's session recovery, the phase answers with it
 instead of its first outcome. Both go through `preferWafBlock` in the same
 file.
 
+A login step does not pass that message on, because a bank can echo the
+password, the OTP or a device id back in its reply. `sanitiseStepFailure`
+(`src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.failure.ts`)
+reports a failed step as `<step> HTTP <status>` when the bank answered, or as
+`<step> <errorType>` (for example `bind TIMEOUT`) when no reply arrived. It
+keeps `errorType` and `errorDetails`, and leaves a `WAF_BLOCKED` failure as it
+is, since that message carries a fixed reason instead of the page. The
+in-request re-mint runs below the step, so it still reads the original
+` <status>: ` marker. Scrape-phase requests keep the transport message.
+
 ## One SMS per run
 
 **A single scrape of a single api-direct bank sends at most one SMS.** That is
@@ -282,8 +292,10 @@ combination fails there, so it never reaches the network.
   `onPersistentAuthStateUpdate` resolves.
 - **No stored value in errors.** Transports drop the query string (see
   [Transport errors](#transport-errors)), so the persisted device id never
-  reaches an error or a log line. A renewal failure is passed through with any
-  stored value it quotes replaced by `[REDACTED]`.
+  reaches an error or a log line. A renewal failure reaches the caller as its
+  step name and status, never the reply (see
+  [Transport errors](#transport-errors)); any stored value a message still
+  quotes is replaced by `[REDACTED]` as a second guard.
 
 A durable run therefore performs at most two auth requests on resume, at most
 one state callback, and no SMS outside enrollment.
@@ -296,7 +308,7 @@ Where each piece lives, for maintainers:
 | Mode resolution | `createContextStrategy` → `resolveContextAuthMode` → `resolvePersistentAuthMode`, producing a `PersistentAuthMode`: legacy, or a `DurableAuthMode` (enroll / resume) |
 | State codec | `encodePersistentAuthState` / `decodePersistentAuthState` over `IPersistentAuthStateV1`. Decoding checks the state against an `IPersistentAuthExpectation` and returns an `IRehydratedPersistentAuth` with the EC key ready to sign |
 | Strategy branch | `primeDurable` (replay, renew or enroll) and `refuseDurableRefresh` (the local `primeFresh` refusal) |
-| Secrets in failures | `scrubPersistedValues` redacts stored values a renewal failure quotes; transports already strip the query string with `safeUrlForLog` |
+| Secrets in failures | `sanitiseStepFailure` reports a failed step by name and status, never its reply; `scrubPersistedValues` still redacts any stored value a renewal failure quotes; transports strip the query string with `safeUrlForLog` |
 | Bank data | Pepper's `PEPPER_RESUME_STEPS`: signed `/auth/login`, then one password assertion |
 
 ## Sub-step contract
@@ -317,6 +329,7 @@ Where each piece lives, for maintainers:
 | `INVALID_OTP` | Wrong code |
 | `TWO_FACTOR_RETRIEVER_MISSING` | OTP step reached without callback |
 | `INVALID_PHONE_NUMBER` | `phoneNumber` cannot be normalised to the bank's wire format — see [Phone normaliser](#phone-normaliser) |
-| `TIMEOUT` | A step's HTTP call didn't complete |
+| `TIMEOUT` | A step's HTTP call didn't complete (`<step> TIMEOUT`) |
+| `GENERIC` | A step's HTTP call failed: `<step> HTTP <status>` for a non-2xx reply, `<step> GENERIC` for a network error — see [Transport errors](#transport-errors) |
 | `GENERIC` | Signer key missing, response shape drift, a `cryptoField` failure, or a second cold login refused by the [one-SMS budget](#one-sms-per-run) |
 | `GENERIC` | `persistent auth options invalid: <category>`, `persistent auth state invalid: <category>` or `persistent auth failed: <category>` — a [durable device auth](#persistent-durable-device-auth) failure; the categories are listed in [Pepper](../banks/pepper.md#failures-never-fall-back) |

@@ -291,7 +291,7 @@ describe('SmsOtpFlow fingerprint failure propagation', () => {
     expect(captures).toHaveLength(0);
   });
 
-  it('propagates transport failure verbatim without setting up longTermToken', async (): Promise<void> => {
+  it('reports a transport failure by step without setting up longTermToken', async (): Promise<void> => {
     const captures: IApiPostCapture[] = [];
     const responses = [fail(ScraperErrorTypes.Generic, 'transport wipe')];
     const bus = makeStubMediator({ responses, captures });
@@ -310,6 +310,6 @@ describe('SmsOtpFlow fingerprint failure propagation', () => {
     };
     const result = await runSmsOtpFlow({ config: cfg, bus, creds: {}, companyId: HINT });
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toBe('transport wipe');
+    if (!result.success) expect(result.errorMessage).toBe('getIdToken GENERIC');
   });
 });

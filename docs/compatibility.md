@@ -13,6 +13,14 @@ Raised from `>= 22.14.0` in 9.0.0. Enforced by the `engines` field, so npm warns
 
 ## Release notes
 
+### 9.1.0 - API-direct login failures name the step and HTTP status
+
+**Impact:** Behavior
+
+When a login request fails for OneZero, PayBox or Pepper, `errorMessage` is now `<step> HTTP <status>`, for example `login HTTP 401`, or `<step> <errorType>`, for example `bind TIMEOUT`, when no reply arrived. It used to read `<VERB> <url> <status>: ` followed by up to 120 characters of the bank's reply, and a bank can echo the password, the OTP or a device id back in that reply. `errorType` and `errorDetails` are unchanged. A `WAF_BLOCKED` login failure keeps its 9.0.0 message, and failures after login keep the old form.
+
+**What to do:** If you read the URL or the bank's reply out of a login failure's `errorMessage`, branch on `errorType` instead; the new message still names the step and the status.
+
 ### 9.0.0 - Node 24.11 or later required; Node 22 is no longer supported
 
 **Impact:** Breaking

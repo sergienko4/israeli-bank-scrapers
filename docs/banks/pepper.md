@@ -113,10 +113,11 @@ When Pepper itself refuses the renewal — an unknown device or a rejected
 signature — the run fails with the error the login step reports, still
 without an SMS. It keeps that step's type: usually `GENERIC`, or `WAF_BLOCKED`
 / `TIMEOUT` when the request itself was blocked or timed out. That error names
-the endpoint and Pepper's reply but never the
-query string, and any stored value the reply quotes back is replaced with
-`[REDACTED]`. An enrollment that fails mid-flow also reports its step's error
-without the query string; it stores nothing.
+the login step and the HTTP status, such as `login HTTP 401`, never Pepper's
+reply, so a stored value the reply quotes back cannot reach it. A
+`WAF_BLOCKED` error instead keeps the endpoint, without its query string, and
+the fixed Cloudflare reason. An enrollment that fails mid-flow reports its
+step's error the same way; it stores nothing.
 
 **Recovery is always explicit.** Remove the stored state and run once with the
 callback only to re-enroll (one SMS). The library never re-enrolls on its own.

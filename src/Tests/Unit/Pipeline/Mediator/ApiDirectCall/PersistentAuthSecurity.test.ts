@@ -277,13 +277,13 @@ describe('persistent-auth secrets stay out of errors and trace logs', () => {
     expect(leaked).toEqual([]);
   });
 
-  it('redacts stored values a renewal failure quotes back', async () => {
+  it('drops stored values a renewal failure quotes back from the message', async () => {
     const failure = echoingRenewalFailure();
     const scenario = { label: 'echo', responses: [failure], stored: STORED_EXPIRED };
     const message = await resolveScenario(scenario, FIXTURES.makeRecorder().onUpdate);
     const leaked = secretsOfEncoded(STORED_EXPIRED.encoded).filter(s => message.includes(s));
     expect(leaked).toEqual([]);
-    expect(message).toContain('POST https://sa.pepper.co.il/x 401: {"uid":"[REDACTED]"');
+    expect(message).toBe('login HTTP 401');
   });
 
   it('keeps stored values a renewal failure quotes back out of the trace log', async () => {

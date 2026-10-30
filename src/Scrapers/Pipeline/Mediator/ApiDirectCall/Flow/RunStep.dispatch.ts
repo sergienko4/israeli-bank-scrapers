@@ -9,6 +9,7 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import { sanitiseStepFailure } from './RunStep.failure.js';
 import { judgeStepOutcome } from './RunStep.outcome.js';
 import { buildDispatchBundle, mergeScopeCarry } from './RunStep.prepare.js';
 import type {
@@ -115,7 +116,8 @@ function logFireOk(bundle: IDispatchBundle, resp: JsonValue): true {
 }
 
 /**
- * Dispatch the prepared call and fold the extracted carry into scope.
+ * Dispatch the prepared call and fold the extracted carry into scope. A
+ * transport failure is returned under a safe `<step> HTTP <status>` message.
  * @param bundle - Dispatch bundle from `buildDispatchBundle`.
  * @returns Procedure with the merged scope, or fail.
  */
@@ -123,7 +125,7 @@ async function fireAndMergeScope(bundle: IDispatchBundle): Promise<Procedure<ITe
   const respProc = await firePost(bundle.fireScope, bundle.fireArgs);
   if (!isOk(respProc)) {
     logFireFail(bundle, respProc.errorMessage);
-    return respProc;
+    return sanitiseStepFailure(bundle.fireScope.step.name, respProc);
   }
   logFireOk(bundle, respProc.value);
   return extractAndMerge(bundle, respProc.value);

@@ -8,6 +8,15 @@
   },
   "entries": [
     {
+      "version": "9.1.0",
+      "impact": "behavior",
+      "title": "API-direct login failures name the step and HTTP status",
+      "detail": "When a login request fails for OneZero, PayBox or Pepper, `errorMessage` is now `<step> HTTP <status>`, for example `login HTTP 401`, or `<step> <errorType>`, for example `bind TIMEOUT`, when no reply arrived. It used to read `<VERB> <url> <status>: ` followed by up to 120 characters of the bank's reply, and a bank can echo the password, the OTP or a device id back in that reply. `errorType` and `errorDetails` are unchanged. A `WAF_BLOCKED` login failure keeps its 9.0.0 message, and failures after login keep the old form.",
+      "action": "If you read the URL or the bank's reply out of a login failure's `errorMessage`, branch on `errorType` instead; the new message still names the step and the status.",
+      "before": null,
+      "after": null
+    },
+    {
       "version": "9.0.0",
       "impact": "breaking",
       "title": "Node 24.11 or later required; Node 22 is no longer supported",

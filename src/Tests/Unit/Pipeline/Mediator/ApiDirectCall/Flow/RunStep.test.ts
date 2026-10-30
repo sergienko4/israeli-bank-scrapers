@@ -180,14 +180,14 @@ describe('api-direct-call RunStep body hydrate failure', () => {
 });
 
 describe('api-direct-call RunStep apiPost failure', () => {
-  it('propagates the apiPost failure verbatim', async (): Promise<void> => {
+  it('reports the apiPost failure by step name and error type', async (): Promise<void> => {
     const captures: IApiPostCapture[] = [];
     const responses = [fail(ScraperErrorTypes.Generic, 'transport boom')];
     const bus = makeStubMediator({ responses, captures });
     const scope = makeScope(PLAIN_CONFIG);
     const result = await runStep({ step: makeStep(), bus, scope, companyId: TEST_HINT });
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toBe('transport boom');
+    if (!result.success) expect(result.errorMessage).toBe('bind GENERIC');
   });
 });
 
