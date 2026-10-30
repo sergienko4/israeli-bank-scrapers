@@ -47,15 +47,20 @@ case is observed in practice rather than defensive.
 
 Visa Cal's figure needs a call of its own. `GetTotalFrameStatus` answers one
 card per request with that card's `nextTotalDebit`, the total of its charges
-on the next debit date. The frame is matched by `cardUniqueId` only, never
-summed across cards; a card with no frame, or a non-numeric figure, reports
-`0`. A failed frames call is masked to `BALANCE_UNKNOWN`, so the card keeps
-its transactions and publishes no balance rather than a `0` the bank never
-sent.
+on the next debit date. The frame is matched by `cardUniqueId` only, across
+both the CAL-issued and bank-issued groups, and never summed across cards. A
+reply CAL confirmed (`statusCode` 1 with a `result`) that has no frame for
+the card reports `0`, since nothing is pending. A reply CAL did not confirm,
+or a frame whose figure is not a finite number, is declared absent by
+`balanceIsAbsent`: the card publishes no balance and the scrape is marked
+degraded. A failed frames call is masked to `BALANCE_UNKNOWN` the same way,
+so the card keeps its transactions rather than reporting a `0` the bank
+never sent.
 
 | Symbol | Role |
 |---|---|
-| [`nextTotalDebitOf`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeBalance.ts) | Returns one card's next ILS debit from the frames response, or `0` when no frame names the card |
+| [`nextTotalDebitOf`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeBalance.ts) | Returns one card's next ILS debit from the frames response, or `0` when a confirmed reply has no frame for the card |
+| `balanceIsAbsent` | Declares the figure missing when CAL did not confirm the reply or the card's frame has no finite `nextTotalDebit`; consulted before `nextTotalDebitOf` |
 | `VisaCalNextDebit` | Nominal brand for that debit (Rule&nbsp;#15) |
 | `balanceVars` / `balanceUrl` | The frames request body (one `cardUniqueId`) and its literal URL |
 

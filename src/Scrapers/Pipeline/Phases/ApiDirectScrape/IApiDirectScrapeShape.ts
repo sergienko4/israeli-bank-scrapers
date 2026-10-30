@@ -179,8 +179,9 @@ export interface IApiDirectScrapeBalanceStep<TAcct> {
    * Declaring absence instead makes the driver omit the account's `balance`
    * field and mark the scrape degraded.
    *
-   * A shape whose balance is definitionally zero (the `card-cycle` issuers)
-   * must NOT declare this — their `0` is the true figure, not a missing one.
+   * A shape whose balance is definitionally zero must NOT declare this — its
+   * `0` is the true figure, not a missing one. A `card-cycle` issuer that
+   * publishes a real next-debit figure (VisaCal) should.
    */
   readonly isAbsent?: (body: ApiBody, acct: TAcct) => boolean;
   readonly extraHeaders?: ApiDirectScrapeHeadersLike;

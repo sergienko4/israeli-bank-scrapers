@@ -65,7 +65,9 @@ calls:
   the still-open cycle.
 - **Balance** — `GetTotalFrameStatus`, one request per card. `nextTotalDebitOf`
   (`Banks/VisaCal/scrape/VisaCalShapeBalance.ts`) returns that card's
-  `nextTotalDebit` as a `VisaCalNextDebit`; a card with no frame reports `0`. A
-  failed frames call publishes no balance for the card (`BALANCE_UNKNOWN`) and
-  keeps its transactions. See
+  `nextTotalDebit` as a `VisaCalNextDebit`; a confirmed reply with no frame
+  for the card reports `0`. When CAL does not confirm the reply, or the
+  card's figure is not a number, `balanceIsAbsent` publishes no balance and
+  marks the scrape degraded. A failed frames call also publishes no balance
+  for the card (`BALANCE_UNKNOWN`) and keeps its transactions. See
   [Balance resolution](../architecture/balance-resolve.md).

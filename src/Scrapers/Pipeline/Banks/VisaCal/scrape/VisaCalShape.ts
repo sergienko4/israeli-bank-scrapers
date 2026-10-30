@@ -14,7 +14,12 @@ import {
   type HeaderMap,
   type IApiDirectScrapeShape,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import { balanceUrl, balanceVars, nextTotalDebitOf } from './VisaCalShapeBalance.js';
+import {
+  balanceIsAbsent,
+  balanceUrl,
+  balanceVars,
+  nextTotalDebitOf,
+} from './VisaCalShapeBalance.js';
 import {
   accountNumberOf,
   CAL_WEB_SITE_ID,
@@ -57,6 +62,9 @@ const VISACAL_SHAPE: IApiDirectScrapeShape<IVisaCalCard, number> = {
   },
   balance: {
     buildVars: balanceVars,
+    // CAL publishes a real figure, so an unconfirmed or malformed reply is
+    // unknown, not 0.
+    isAbsent: balanceIsAbsent,
     extract: nextTotalDebitOf,
     // A failed frames call keeps the cards and their transactions and
     // publishes no balance, rather than a 0 the bank never sent.
