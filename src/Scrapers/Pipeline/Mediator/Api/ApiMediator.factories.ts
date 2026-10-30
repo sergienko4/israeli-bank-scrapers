@@ -25,6 +25,7 @@ import { MtlsGraphQLFetchStrategy } from '../../Strategy/Fetch/Mtls/MtlsGraphQLF
 import { buildMtlsAgent } from '../../Strategy/Fetch/Mtls/MtlsTransport.js';
 import type { ICertBundle } from '../../Strategy/Fetch/Mtls/OneZeroClientCert.js';
 import type { NativeFetchStrategy } from '../../Strategy/Fetch/NativeFetchStrategy.js';
+import { withSessionCookies } from '../../Strategy/Fetch/SessionCookieFetchStrategy.js';
 import { warnIfTlsProfileUnsupported } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
 import { createApiMediator } from './ApiMediator.factory.js';
 import type { INodeTlsMediatorArgs } from './ApiMediator.headless.types.js';
@@ -82,7 +83,8 @@ function buildHeadlessStrategies(args: IHeadlessMediatorArgs): IHeadlessStrategi
  */
 function createHeadlessApiMediator(args: IHeadlessMediatorArgs): IApiMediator {
   const { fetch, gql } = buildHeadlessStrategies(args);
-  const mediator = createApiMediator(args.bankHint, fetch, gql);
+  const transport = withSessionCookies(fetch, args);
+  const mediator = createApiMediator(args.bankHint, transport, gql);
   return applyStaticAuth(mediator, args);
 }
 
@@ -194,7 +196,8 @@ function buildMtlsStrategies(args: IHeadlessMediatorArgs, agent: Agent): IHeadle
 function createMtlsHeadlessApiMediator(args: INodeTlsMediatorArgs): IApiMediator {
   const agent = buildTransportAgent(args);
   const { fetch, gql } = buildMtlsStrategies(args, agent);
-  const mediator = createApiMediator(args.bankHint, fetch, gql);
+  const transport = withSessionCookies(fetch, args);
+  const mediator = createApiMediator(args.bankHint, transport, gql);
   return applyStaticAuth(mediator, args);
 }
 

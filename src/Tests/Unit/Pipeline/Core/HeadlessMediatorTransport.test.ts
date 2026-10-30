@@ -22,6 +22,7 @@ interface ITransportFlags {
   readonly requiresClientCert?: boolean;
   readonly tlsProfile?: TlsClientProfileKind;
   readonly nativeFetch?: true;
+  readonly sessionCookies?: boolean;
 }
 
 /** URLs every case shares; only the transport flags vary. */
@@ -120,6 +121,21 @@ describe('HeadlessMediatorWiring — transport selection', () => {
     resolveWith({ nativeFetch: true });
     const [args] = CREATE_NATIVE.mock.calls[0] as unknown[];
     expect(args).toMatchObject({ identityBaseUrl: BASE_HEADLESS.identityBase });
+  });
+
+  it.each<[string, ITransportFlags, typeof CREATE_NATIVE]>([
+    ['native', { nativeFetch: true, sessionCookies: true }, CREATE_NATIVE],
+    ['node:https', { tlsProfile: ANDROID_PROFILE, sessionCookies: true }, CREATE_NODE_TLS],
+  ])('hands the cookie jar flag to the %s factory', (_label, flags, factory) => {
+    resolveWith(flags);
+    const [args] = factory.mock.calls[0] as unknown[];
+    expect(args).toMatchObject({ sessionCookies: true });
+  });
+
+  it('defaults the cookie jar flag to false', () => {
+    resolveWith({ nativeFetch: true });
+    const [args] = CREATE_NATIVE.mock.calls[0] as unknown[];
+    expect(args).toMatchObject({ sessionCookies: false });
   });
 
   it.each<[string, ITransportFlags]>([

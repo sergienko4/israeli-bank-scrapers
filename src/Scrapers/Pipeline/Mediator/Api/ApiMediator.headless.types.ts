@@ -17,6 +17,8 @@ interface IHeadlessMediatorArgs {
   readonly graphqlUrl: string;
   readonly graphqlHeaders?: Readonly<Record<string, string>>;
   readonly staticAuth?: string;
+  /** Keep one run-scoped cookie jar on the identity transport. */
+  readonly sessionCookies?: boolean;
 }
 
 /** Args bundle for the node:https (client-cert and/or TLS-profile) mediator factory. */

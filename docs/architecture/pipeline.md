@@ -97,6 +97,8 @@ The native transport is [`HeadlessNativeFetchStrategy`](https://github.com/sergi
 - Every request, body included, is capped at `NATIVE_REQUEST_TIMEOUT_MS` (the shared 30 s `NETWORK_FETCH_TIMEOUT_MS`). A hung socket fails as `Generic` with `"<VERB> <url> network error: timeout"`; any other rejection keeps the inherited `toNetworkFailure` message. Tests lower the cap with `setNativeRequestTimeoutMs`.
 - A GET sends no default `content-type`; a POST still sends `application/json`. The per-verb defaults are the strategy's `DefaultHeadersByVerb` seam; the base strategy sends JSON on both verbs.
 
+A bank whose session is a cookie, not an auth header, sets `sessionCookies: true`. Both node factories then pass their transport through `withSessionCookies`, which wraps it in [`SessionCookieFetchStrategy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/SessionCookieFetchStrategy.ts): one run-scoped `ICookieJar` (built by `createSimpleCookieJar`) that every response's `Set-Cookie` feeds and every POST and GET sends as one `cookie` header. A later cookie of the same name replaces the earlier one; an empty jar adds no header; a caller's own `onSetCookie` hook still runs; cookie values are never logged. Without the flag the transport is returned unchanged. The browser transport ignores the flag, because the Camoufox page keeps its own jar.
+
 ## contextIds — addressing a frame across the PRE→ACTION seal
 
 `buildActionContext` seals the raw `Page` away before `action()` runs, so

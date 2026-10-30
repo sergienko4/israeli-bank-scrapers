@@ -113,6 +113,14 @@ export interface IHeadlessUrlsConfig {
    */
   readonly nativeFetch?: true;
   /**
+   * When true, the node identity transport keeps one cookie jar for the
+   * run: every response's Set-Cookie feeds it and every POST and GET sends
+   * it as one `cookie` header. For banks whose session is a cookie rather
+   * than an auth header. The browser transport ignores it (the page has its
+   * own jar). Default: undefined (no jar; headers unchanged).
+   */
+  readonly sessionCookies?: boolean;
+  /**
    * When set, the Camoufox identity strategy route-intercepts the
    * initial navigation to the identity origin URL and serves a blank
    * HTML stub (`<!doctype html><html><head></head><body></body></html>`).

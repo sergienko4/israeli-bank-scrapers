@@ -32,6 +32,8 @@ interface IWiringFlags {
   readonly bypassOriginChallenge: boolean;
   /** When true, identity REST runs over Node's own fetch (no browser, stock TLS). */
   readonly nativeFetch: boolean;
+  /** When true, a node transport keeps one run-scoped cookie jar. */
+  readonly sessionCookies: boolean;
 }
 
 /** Identity transport a headless bank runs over. */
@@ -60,13 +62,13 @@ type TGraphqlArgs = Pick<TMediatorArgs, 'graphqlUrl' | 'graphqlHeaders' | 'stati
 /** Transport-requirement slice of the mediator args. */
 type TTransportArgs = Pick<
   TMediatorArgs,
-  'bypassOriginChallenge' | 'requiresClientCert' | 'tlsProfile'
+  'bypassOriginChallenge' | 'requiresClientCert' | 'tlsProfile' | 'sessionCookies'
 >;
 
 /**
  * Decode the optional transport flags into explicit booleans.
  * @param headless - Headless URL block from PIPELINE_BANK_CONFIG.
- * @returns The four transport flags, each defaulted to false when absent.
+ * @returns The transport flags, each defaulted to false when absent.
  */
 function toWiringFlags(headless: IHeadlessUrlsConfig): IWiringFlags {
   return {
@@ -74,6 +76,7 @@ function toWiringFlags(headless: IHeadlessUrlsConfig): IWiringFlags {
     requiresClientCert: headless.requiresClientCert === true,
     bypassOriginChallenge: headless.bypassOriginChallenge === true,
     nativeFetch: headless.nativeFetch === true,
+    sessionCookies: headless.sessionCookies === true,
   };
 }
 
@@ -127,13 +130,14 @@ function toGraphqlArgs(wiring: IHeadlessWiring): TGraphqlArgs {
 /**
  * Build the transport-requirement slice of the mediator args.
  * @param wiring - Resolved wiring entry (URLs + flags).
- * @returns Origin-challenge bypass, client-cert flag and TLS profile.
+ * @returns Origin-challenge bypass, client-cert flag, TLS profile and cookie jar flag.
  */
 function toTransportArgs(wiring: IHeadlessWiring): TTransportArgs {
   return {
     bypassOriginChallenge: wiring.bypassOriginChallenge,
     requiresClientCert: wiring.requiresClientCert,
     tlsProfile: wiring.tlsProfile,
+    sessionCookies: wiring.sessionCookies,
   };
 }
 

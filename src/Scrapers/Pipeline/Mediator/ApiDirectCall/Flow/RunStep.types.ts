@@ -3,6 +3,7 @@
  */
 
 import type { resolveWkUrl } from '../../../Registry/WK/UrlsWK.js';
+import type { ICookieJar } from '../../../Strategy/Fetch/CookieJar.js';
 import type { ITokenBus } from '../../../Types/Domain/TokenBus.js';
 import type { IAsymmetricSignerConfig, IStepConfig } from '../ConfigContracts/index.js';
 import type { IGenericKeypair } from '../Crypto/CryptoKeyFactory.js';
@@ -30,12 +31,9 @@ type NonAesSignerConfig = IAsymmetricSignerConfig;
 /**
  * Minimal cookie-jar port used across a single config-driven flow.
  * SmsOtpFlow constructs one instance and passes it to every RunStep
- * invocation.
+ * invocation. Same shape as the transport's session jar.
  */
-interface IStepCookieJar {
-  add: (setCookieLines: readonly string[]) => number;
-  header: () => string;
-}
+type IStepCookieJar = ICookieJar;
 
 /** Run-step args bundle — respects the 3-param ceiling. */
 interface IRunStepArgs {
