@@ -162,6 +162,32 @@ optionalExtractsToCarry: {
 }
 ```
 
+### Required credentials
+
+`requiredCreds` maps a creds field to a `CredRule`. `checkRequiredCreds` in
+`Flow/RequiredCreds.ts` runs first in `prepareSmsOtpFlow`, before keys are
+generated or any request is sent:
+
+| Rule        | Accepts                          |
+| ----------- | -------------------------------- |
+| `nonEmpty`  | a string that is not blank       |
+| `digits`    | one or more digits, nothing else |
+| `sixDigits` | exactly six digits               |
+
+A missing or non-string value fails every rule. When any field fails, the flow
+stops with `Generic` and `Missing or malformed credentials: <names>`. The
+message lists field names only, never values.
+
+```ts
+requiredCreds: { id: 'digits', password: 'nonEmpty', card6Digits: 'sixDigits' }
+```
+
+The stored warm token is checked too, before the warm path replays it. It must
+be printable ASCII (so no CR/LF or other control characters) and no longer
+than `MAX_ACCESS_TOKEN_CHARS` (16 KiB, the cap the durable state already uses
+for access tokens). A token that fails is dropped with a warning that names
+the creds field, not the value, and the cold login runs instead.
+
 ### Step outcome
 
 Some banks refuse a login with HTTP 200 and a status code in the body. A step

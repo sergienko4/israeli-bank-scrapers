@@ -7,12 +7,19 @@
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import ScraperError from '../../../../Base/ScraperError.js';
+import { getDebug } from '../../../Logging/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import { isJwtFresh } from '../Jwt/GenericJwtClaims.js';
+import { MAX_ACCESS_TOKEN_CHARS } from '../PersistentAuthStateRules.js';
 import type { GenericCreds, IMakeWarmArgs, IRunFlowArgs } from './TokenStrategyFromConfig.types.js';
+
+const LOG = getDebug(import.meta.url);
+
+/** A replayable token: printable ASCII only, so no CR/LF or control bytes. */
+const PRINTABLE_ASCII = /^[\x20-\x7E]+$/;
 
 /** Default strategy display name. */
 const STRATEGY_NAME_DEFAULT = 'ApiDirectCall';
@@ -33,6 +40,37 @@ function readCredsString(creds: GenericCreds, field: string): string {
 }
 
 /**
+ * Whether a stored seed looks like a token: printable ASCII within the
+ * access-token length cap.
+ * @param stored - Non-empty stored seed.
+ * @returns True when the seed may be replayed.
+ */
+function isSeedShaped(stored: string): boolean {
+  return stored.length <= MAX_ACCESS_TOKEN_CHARS && PRINTABLE_ASCII.test(stored);
+}
+
+/**
+ * Drop a malformed seed, warning with the field name only — never the value.
+ * @param credsField - Creds field the seed came from.
+ * @returns False, so the cold path runs.
+ */
+function dropMalformedSeed(credsField: string): false {
+  LOG.warn({ credsField }, 'Stored warm token is malformed — running the cold login');
+  return false;
+}
+
+/**
+ * Whether the seed passes the config's local JWT freshness check, if any.
+ * @param config - API-direct-call config.
+ * @param stored - Stored seed.
+ * @returns True when there is no JWT check or the token is fresh.
+ */
+function isJwtGateOpen(config: IApiDirectCallConfig, stored: string): boolean {
+  if (config.jwtClaims === undefined) return true;
+  return isJwtFresh(stored, config.jwtClaims);
+}
+
+/**
  * Decide whether to take the warm-start path.
  * @param config - API-direct-call config.
  * @param creds - Caller credentials.
@@ -43,9 +81,8 @@ function pickWarmSeed(config: IApiDirectCallConfig, creds: GenericCreds): string
   if (warm === undefined) return false;
   const stored = readCredsString(creds, warm.credsField);
   if (stored.length === 0) return false;
-  if (config.jwtClaims !== undefined && !isJwtFresh(stored, config.jwtClaims)) {
-    return false;
-  }
+  if (!isSeedShaped(stored)) return dropMalformedSeed(warm.credsField);
+  if (!isJwtGateOpen(config, stored)) return false;
   return stored;
 }
 
