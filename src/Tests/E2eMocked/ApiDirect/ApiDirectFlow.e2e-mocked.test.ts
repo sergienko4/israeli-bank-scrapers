@@ -1,6 +1,6 @@
 /**
  * Unified API-DIRECT E2E mock — exercises the offline pipeline flow shared
- * by every API-DIRECT bank (Pepper, OneZero, Visa Cal, Isracard, ...) through one parameterized
+ * by every API-DIRECT bank (Pepper, OneZero, Visa Cal, Isracard, Amex, ...) through one parameterized
  * spec backed by the per-bank synthetic fetch mocks.
  *
  * Rule #17: mock suite parity stays intact — every bank case in this file
@@ -21,6 +21,7 @@ import {
 import type { IMockHandle as IPepperMockHandle } from '../Pepper/PepperFetchMock.js';
 import { installPepperFetchMock, PEPPER_MOCK_CREDS } from '../Pepper/PepperFetchMock.js';
 import {
+  AMEX_RING_TARGET,
   installRingFetchMock,
   ISRACARD_RING_TARGET,
   RING_MOCK_CARDS,
@@ -257,6 +258,24 @@ const ISRACARD_WARM_CASE: IApiDirectFlowCase = {
   expectedPersistentToken: SYN_STORED_KEY,
 };
 
+const AMEX_COLD_CASE: IApiDirectFlowCase = {
+  ...ISRACARD_COLD_CASE,
+  displayName: 'Amex (cold)',
+  companyId: CompanyTypes.Amex,
+  /**
+   * Install the synthetic ring as Amex.
+   * @returns Mock handle.
+   */
+  installFetchMock: (): IKitMockHandle => installRingFetchMock(AMEX_RING_TARGET),
+};
+
+const AMEX_WARM_CASE: IApiDirectFlowCase = {
+  ...ISRACARD_WARM_CASE,
+  displayName: 'Amex (warm)',
+  companyId: CompanyTypes.Amex,
+  installFetchMock: AMEX_COLD_CASE.installFetchMock,
+};
+
 const CASES: readonly IApiDirectFlowCase[] = [
   PEPPER_CASE,
   ONEZERO_CASE,
@@ -265,6 +284,8 @@ const CASES: readonly IApiDirectFlowCase[] = [
   VISACAL_WARM_CASE,
   ISRACARD_COLD_CASE,
   ISRACARD_WARM_CASE,
+  AMEX_COLD_CASE,
+  AMEX_WARM_CASE,
 ];
 
 /** Minimal scraper-options shape exercised by this parameterized spec. */

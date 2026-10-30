@@ -290,15 +290,14 @@ If a future regression introduces the anti-pattern, the **T7.10 canary** will bl
 
 | File                                             | Skip reason                                                         | Required fix                          |
 | ------------------------------------------------ | ------------------------------------------------------------------- | ------------------------------------- |
-| `E2eMocked/Amex.e2e-mocked.test.ts`              | `amexRoutes()` shared route table needs reauthoring                 | reauthor `Helpers/AmexRoutes.ts`      |
-| `E2eMocked/Isracard/Isracard.e2e-mocked.test.ts` | Resolved: Isracard is browserless; `RingFetchMock.ts` serves it     | none                                  |
+| `E2eMocked/Ring/Ring.e2e-mocked.test.ts`         | Resolved: Isracard and Amex are browserless; `RingFetchMock.ts` serves both | none                          |
 | `E2eMocked/Discount/Discount.e2e-mocked.test.ts` | `fixtures.json` URL globs do NOT match Discount's real URL topology | author `fixtures.json` + capture HTML |
 | `E2eMocked/Max/Max.e2e-mocked.test.ts`           | Same fixture-scaffold root cause                                    | author `fixtures.json` + capture HTML |
 | `E2eMocked/VisaCal/VisaCal.e2e-mocked.test.ts`   | Resolved: VisaCal is browserless; `VisaCalFetchMock.ts` serves it   | none                                  |
 
 **OUT OF SCOPE for T7.5** (other `describe.skip` exists but is NOT this PR's responsibility):
 
-- `ErrorScenarios.e2e-mocked.test.ts` — different infrastructure debt
+- `ErrorScenarios.e2e-mocked.test.ts` — deleted with the Amex browser path it drove
 - `ExternalBrowser.e2e-mocked.test.ts` — same
 - `OtpDetection.e2e-mocked.test.ts` — same
 - `SelectorFallbackAdvanced.e2e-mocked.test.ts` — 3 `describe.skip` blocks
@@ -317,8 +316,7 @@ If a future regression introduces the anti-pattern, the **T7.10 canary** will bl
 **T7.5 follow-up PR scope** (separate from this Phase 7 PR):
 
 - Open `fix/e2e-mocked-fixture-debt` branch
-- Implement repo-local safe fixtures under `src/Tests/E2eMocked/fixtures/{discount,max,visacal,amex,isracard}/` (committed, synthetic HTML)
-- Reauthor `Helpers/AmexRoutes.ts` against current `digital.{amex,isracard}` topology
+- Implement repo-local safe fixtures under `src/Tests/E2eMocked/fixtures/{discount,max}/` (committed, synthetic HTML); Visa Cal, Isracard and Amex are browserless and need none
 - Un-`skip` the 5 files; verify all pass in `test:e2e:mock`
 - Document the fixture authoring pattern for future banks
 
