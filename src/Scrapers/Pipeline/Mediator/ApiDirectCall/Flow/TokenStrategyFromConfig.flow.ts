@@ -9,15 +9,11 @@ import { getDebug } from '../../../Logging/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
+import { formatAuthValue } from './AuthModePolicy.js';
 import { runSmsOtpFlow } from './SmsOtpFlow.js';
 import { isColdStart, mayStartFlow } from './TokenStrategyFromConfig.budget.js';
 import { primeDurable, refuseDurableRefresh } from './TokenStrategyFromConfig.persistent.js';
-import {
-  formatAuthValue,
-  makeWarmArgs,
-  pickWarmSeed,
-  readCredsString,
-} from './TokenStrategyFromConfig.shared.js';
+import { makeWarmArgs, pickWarmSeed, readCredsString } from './TokenStrategyFromConfig.shared.js';
 import type {
   GenericCreds,
   IFlowCapture,

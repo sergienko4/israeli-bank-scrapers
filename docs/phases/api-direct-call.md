@@ -358,8 +358,8 @@ If a run legitimately needs a second login, start a second scrape.
 `authScheme` decides two things: how a login token becomes the
 `Authorization` header, and whether a rejected request may log in again.
 `formatAuthValue` renders the header value and `authPolicyOf` looks up the
-policy. Both read maps keyed by scheme in `AuthModePolicy.ts`, so a new scheme
-is a new row, not a new branch.
+policy. Both read one table keyed by scheme in `AuthModePolicy.ts`, so a new
+scheme is a new row, not a new branch.
 
 | `authScheme` | Header value | `installHeader` | `rearmOnReject` |
 |---|---|---|---|

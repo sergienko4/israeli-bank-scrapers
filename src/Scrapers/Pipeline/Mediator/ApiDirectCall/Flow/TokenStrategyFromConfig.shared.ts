@@ -1,8 +1,6 @@
 /**
  * Shared helpers for the TokenStrategyFromConfig cluster:
- * creds reading, warm-seed picking (auth-header formatting is re-exported
- * from AuthModePolicy),
- * warm-arg assembly, and flow-kind gating.
+ * creds reading, warm-seed picking, warm-arg assembly, and flow-kind gating.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
@@ -109,5 +107,4 @@ function gateFlowKind(config: IApiDirectCallConfig): Procedure<true> {
   return fail(ScraperErrorTypes.Generic, `unsupported flow-kind: ${config.flow}`);
 }
 
-export { formatAuthValue } from './AuthModePolicy.js';
 export { gateFlowKind, makeWarmArgs, pickWarmSeed, readCredsString, STRATEGY_NAME_DEFAULT };

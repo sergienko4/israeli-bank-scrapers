@@ -23,10 +23,10 @@ import {
   type IPersistentAuthStateV1,
   type IRehydratedPersistentAuth,
 } from '../PersistentAuthStateCodec.js';
+import { formatAuthValue } from './AuthModePolicy.js';
 import { type IFlowResult, type IRunSmsOtpArgs, runSmsOtpFlow } from './SmsOtpFlow.js';
 import { mayStartFlow } from './TokenStrategyFromConfig.budget.js';
 import { scrubPersistedValues } from './TokenStrategyFromConfig.scrub.js';
-import { formatAuthValue } from './TokenStrategyFromConfig.shared.js';
 import type { DurableAuthMode, IPrimeArgs, IRunFlowArgs } from './TokenStrategyFromConfig.types.js';
 
 const LOG = getDebug(import.meta.url);

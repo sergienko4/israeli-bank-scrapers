@@ -18,18 +18,17 @@ interface IAuthModePolicy extends IMediatorAuthPolicy {
 /** Builds the header value from the login token and the configured prefix. */
 type AuthFormatter = (token: string, prefix: string) => string;
 
+/** One scheme's row: the policy it hands out and how it renders the header. */
+interface IAuthSchemeRow {
+  readonly policy: IAuthModePolicy;
+  readonly format: AuthFormatter;
+}
+
 /** Policy shared by every scheme that sends an Authorization header. */
 const HEADER_POLICY: IAuthModePolicy = { installHeader: true, rearmOnReject: true };
 
 /** Cookie-session policy: no header, and no re-login on a rejection. */
 const COOKIE_POLICY: IAuthModePolicy = { installHeader: false, rearmOnReject: false };
-
-const AUTH_MODE_POLICY: Readonly<Record<AuthScheme, IAuthModePolicy>> = {
-  raw: HEADER_POLICY,
-  bearer: HEADER_POLICY,
-  prefixed: HEADER_POLICY,
-  none: COOKIE_POLICY,
-};
 
 /**
  * Send the token as is.
@@ -67,20 +66,22 @@ function formatNone(): string {
   return '';
 }
 
-const AUTH_FORMATTERS: Readonly<Record<AuthScheme, AuthFormatter>> = {
-  raw: formatRaw,
-  bearer: formatBearer,
-  prefixed: formatPrefixed,
-  none: formatNone,
+/** Every auth scheme, one row each. */
+const AUTH_SCHEMES: Readonly<Record<AuthScheme, IAuthSchemeRow>> = {
+  raw: { policy: HEADER_POLICY, format: formatRaw },
+  bearer: { policy: HEADER_POLICY, format: formatBearer },
+  prefixed: { policy: HEADER_POLICY, format: formatPrefixed },
+  none: { policy: COOKIE_POLICY, format: formatNone },
 };
 
 /**
- * Read the bank's auth scheme.
+ * Look up the row for the bank's auth scheme.
  * @param config - API-direct-call config.
- * @returns The configured scheme, `'raw'` by default.
+ * @returns The row for the configured scheme, `'raw'` by default.
  */
-function schemeOf(config: IApiDirectCallConfig): AuthScheme {
-  return config.authScheme ?? 'raw';
+function schemeRowOf(config: IApiDirectCallConfig): IAuthSchemeRow {
+  const scheme = config.authScheme ?? 'raw';
+  return AUTH_SCHEMES[scheme];
 }
 
 /**
@@ -89,8 +90,7 @@ function schemeOf(config: IApiDirectCallConfig): AuthScheme {
  * @returns The policy for the configured scheme.
  */
 function authPolicyOf(config: IApiDirectCallConfig): IAuthModePolicy {
-  const scheme = schemeOf(config);
-  return AUTH_MODE_POLICY[scheme];
+  return schemeRowOf(config).policy;
 }
 
 /**
@@ -100,8 +100,7 @@ function authPolicyOf(config: IApiDirectCallConfig): IAuthModePolicy {
  * @returns Authorization header value (`''` for `'none'`).
  */
 function formatAuthValue(config: IApiDirectCallConfig, token: string): string {
-  const scheme = schemeOf(config);
-  const format = AUTH_FORMATTERS[scheme];
+  const { format } = schemeRowOf(config);
   return format(token, config.authPrefix ?? '');
 }
 
