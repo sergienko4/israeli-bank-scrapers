@@ -1273,7 +1273,7 @@ txnsExtractPage
 # consumed only by DISCOUNT_SHAPE. Not user-facing.
 txnsVars
 
-# --- P3 VisaCal hard-model post-auth scrape shape (card-cycle browser bank) ---
+# --- P3 VisaCal hard-model post-auth scrape shape (card-cycle, browserless) ---
 # Reason: CAL_API â€” CAL API gateway origin const shared by the VisaCal shape's
 # customer/transactions urlTag builders. Framework-internal bank contract constant.
 CAL_API
