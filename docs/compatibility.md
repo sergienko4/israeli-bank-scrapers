@@ -21,6 +21,14 @@ When a login request fails for OneZero, PayBox or Pepper, `errorMessage` is now 
 
 **What to do:** If you read the URL or the bank's reply out of a login failure's `errorMessage`, branch on `errorType` instead; the new message still names the step and the status.
 
+### 9.1.0 - Browser options on a browserless bank log a `ScraperOptionsWarning`
+
+**Impact:** Behavior
+
+A bank that never opens a browser — OneZero today — ignores browser options. It used to ignore them silently. `createScraper` now emits one `ScraperOptionsWarning` that names every browser option passed for such a bank: `args`, `browser`, `browserContext`, `defaultTimeout`, `executablePath`, `prepareBrowser`, `preparePage`, `shouldShowBrowser`, `timeout` or `viewportSize`. Only option names are printed, never values. The scrape itself is unchanged.
+
+**What to do:** Remove the named options from that bank's `createScraper` call to silence the warning. See [Browser options on browserless banks](configuration.md#browser-options-on-browserless-banks).
+
 ### 9.0.0 - Node 24.11 or later required; Node 22 is no longer supported
 
 **Impact:** Breaking
