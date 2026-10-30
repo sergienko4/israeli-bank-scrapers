@@ -53,6 +53,14 @@ Amex now logs in and scrapes over its mobile gateway with Node's own `fetch` and
 
 **What to do:** Remove browser options from Amex's `createScraper` call. To skip the password step, store `result.persistentOtpToken` and pass it as `otpLongTermToken`; keep `id`, `card6Digits` and `password` too, because a rejected key falls back to a full login. Do not read `bearer` from `onAuthFlowComplete` for Amex.
 
+### 9.1.0 - Max signs in without a browser
+
+**Impact:** Behavior
+
+Max now logs in and scrapes over its website's API with Node's own `fetch`, keeping the run's cookies, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`. There is no long-term token: every run logs in with the password, and `persistentOtpToken` stays unset. A wrong password still fails as `INVALID_PASSWORD`, now with the message `login outcome 4`.
+
+**What to do:** Remove browser options from Max's `createScraper` call. Nothing else changes.
+
 ### 9.0.0 - Node 24.11 or later required; Node 22 is no longer supported
 
 **Impact:** Breaking

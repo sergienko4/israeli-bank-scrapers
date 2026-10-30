@@ -53,6 +53,15 @@
       "after": null
     },
     {
+      "version": "9.1.0",
+      "impact": "behavior",
+      "title": "Max signs in without a browser",
+      "detail": "Max now logs in and scrapes over its website's API with Node's own `fetch`, keeping the run's cookies, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`. There is no long-term token: every run logs in with the password, and `persistentOtpToken` stays unset. A wrong password still fails as `INVALID_PASSWORD`, now with the message `login outcome 4`.",
+      "action": "Remove browser options from Max's `createScraper` call. Nothing else changes.",
+      "before": null,
+      "after": null
+    },
+    {
       "version": "9.0.0",
       "impact": "breaking",
       "title": "Node 24.11 or later required; Node 22 is no longer supported",
