@@ -1,6 +1,6 @@
 /**
- * Outbound header assembly — static + signer + optional cookies.
- * Tight branching: one validation gate in `attachSignerHeader`, the
+ * Outbound header assembly — static + step headers + optional cookies +
+ * signer. Tight branching: one validation gate in `attachSignerHeader`, the
  * non-AES signer narrowed and threaded explicitly into the canonical
  * builder so no defensive re-checks duplicate branches downstream.
  */
@@ -8,15 +8,19 @@
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
+import type { JsonValueTemplate } from '../ConfigContracts/index.js';
 import type { IGenericKeypair } from '../Crypto/CryptoKeyFactory.js';
 import { buildCanonical } from '../Crypto/GenericCanonicalStringBuilder.js';
 import { signCanonical } from '../Crypto/GenericCryptoSigner.js';
+import { hydrate } from '../Template/GenericBodyTemplate.js';
+import type { ITemplateScope } from '../Template/RefResolver.js';
 import type {
   HeaderMap,
   IAttachSignerArgs,
   IHeaderAssembly,
   IRunStepArgs,
   ISignerInput,
+  JsonValue,
   MutableHeaderMap,
   NonAesSignerConfig,
 } from './RunStep.types.js';
@@ -97,16 +101,74 @@ function attachSignerHeader(args: IAttachSignerArgs): Procedure<HeaderMap> {
   return attachWithKeypair({ args, signer, keypair });
 }
 
+/** Headers built so far, or the first failure. */
+type HeadersProc = Procedure<MutableHeaderMap>;
+
+/** One step header: its name and value template. */
+type HeaderEntry = readonly [string, JsonValueTemplate];
+
 /**
- * Build the outbound header map — static + signer + optional cookies.
+ * A hydrated header value as text: a string as it is, anything else as JSON.
+ * @param value - Hydrated header value.
+ * @returns Header text.
+ */
+function headerText(value: JsonValue): string {
+  if (typeof value === 'string') return value;
+  return JSON.stringify(value);
+}
+
+/**
+ * Drop every header whose name matches `name` ignoring case.
+ * @param headers - Header map.
+ * @param name - Header name to drop.
+ * @returns A copy without that name.
+ */
+function withoutHeader(headers: HeaderMap, name: string): MutableHeaderMap {
+  const lower = name.toLowerCase();
+  const kept = Object.entries(headers).filter(([key]): boolean => key.toLowerCase() !== lower);
+  return Object.fromEntries(kept);
+}
+
+/**
+ * Hydrate one step header and set it over any same-name header.
+ * @param acc - Headers so far, or the first failure.
+ * @param entry - Header name and value template.
+ * @param scope - Step template scope.
+ * @returns Headers with this one set, or the hydration failure.
+ */
+function setStepHeader(acc: HeadersProc, entry: HeaderEntry, scope: ITemplateScope): HeadersProc {
+  if (!isOk(acc)) return acc;
+  const [name, template] = entry;
+  const valueProc = hydrate(template, scope);
+  if (!isOk(valueProc)) return valueProc;
+  const kept = withoutHeader(acc.value, name);
+  const text = headerText(valueProc.value);
+  return succeed({ ...kept, [name]: text });
+}
+
+/**
+ * Hydrate the step's own headers over the static ones.
+ * @param seeded - Static headers.
+ * @param args - Run-step args (scope already primed for this step).
+ * @returns Merged headers, or the first hydration failure.
+ */
+function applyStepHeaders(seeded: HeaderMap, args: IRunStepArgs): HeadersProc {
+  const entries = Object.entries(args.step.headers ?? {});
+  const start: HeadersProc = succeed({ ...seeded });
+  return entries.reduce((acc, entry): HeadersProc => setStepHeader(acc, entry, args.scope), start);
+}
+
+/**
+ * Build the outbound header map — static, then step headers, cookies, signer.
  * @param args - Run-step args.
  * @param assembly - Body JSON + computed pathAndQuery.
- * @returns Procedure with the header map, or signer-failure.
+ * @returns Procedure with the header map, or a hydration / signer failure.
  */
 function buildStepHeaders(args: IRunStepArgs, assembly: IHeaderAssembly): Procedure<HeaderMap> {
   const staticHeaders = args.scope.config.staticHeaders ?? {};
-  const seeded: MutableHeaderMap = { ...staticHeaders };
-  const out = applyCookieHeader(seeded, args);
+  const seeded = applyStepHeaders(staticHeaders, args);
+  if (!isOk(seeded)) return seeded;
+  const out = applyCookieHeader(seeded.value, args);
   return attachSignerHeader({ args, assembly, out });
 }
 

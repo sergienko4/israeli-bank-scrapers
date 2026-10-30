@@ -69,6 +69,12 @@ interface IStepBase {
    * include those cookies on the outbound Cookie header.
    */
   readonly cookieJar?: boolean;
+  /**
+   * Optional per-step headers, hydrated against the step scope on every
+   * call. Non-string values are sent as their JSON text. A step header
+   * replaces a static header of the same name, compared case-insensitively.
+   */
+  readonly headers?: Readonly<Record<string, JsonValueTemplate>>;
   /** Optional outcome policy, judged after HTTP 2xx and before the extracts. */
   readonly outcome?: IStepOutcome;
 }

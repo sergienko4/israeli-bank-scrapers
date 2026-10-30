@@ -122,6 +122,24 @@ header, when one is set, signs the empty body `{}`. On the headless native
 transport a GET goes out with no body and no `content-type` header, while a
 POST still sends `application/json`.
 
+### Step headers
+
+A step can add its own headers with `headers`, a map of header name to
+`JsonValueTemplate`. They are hydrated against the step's scope on every call,
+so `{ $ref: 'carry.<slot>' }` reads the value an earlier step extracted and
+`{ $ref: 'uuid' }` is fresh each time. A string value is sent as it is; any
+other value is sent as its JSON text (`7` → `"7"`, `true` → `"true"`). A step
+header replaces a `staticHeaders` entry of the same name, compared
+case-insensitively. The cookie jar and the signature header are added after
+it. A reference that does not resolve fails the step before anything is sent.
+
+```ts
+headers: {
+  'X-Request-Id': { $ref: 'uuid' },
+  'X-Session-Key': { $ref: 'carry.sessionKey' },
+}
+```
+
 ### Step outcome
 
 Some banks refuse a login with HTTP 200 and a status code in the body. A step
