@@ -63,7 +63,7 @@ from (cross-package imports such as `Registry/WK/*` are omitted for brevity).
 | **SignerTypes** | `SignerAlgorithm`, `AsymmetricSignerAlgorithm`, `SignerEncoding`, `CanonicalPart`, `ICanonicalStringConfig`, `IAsymmetricSignerConfig`, `IAesSignerConfig`, `ISignerConfig`, `ICryptoFieldConfig` | (none) |
 | **CarryTypes** | `IWarmStartConfig`, `ISeedCarrySource`, `IRandomHex16Bootstrap`, `IRandomUuidBootstrap`, `ISha256Prefix16Bootstrap`, `IJwtClaimBootstrap`, `SeedCarryBootstrapKind`, `IDerivedCarry` | TemplateTypes |
 | **EnvelopeTypes** | `IFingerprintConfig`, `AuthScheme`, `IJwtClaimsConfig`, `IProbeConfig`, `IPreStepHook` | TemplateTypes, SignerTypes |
-| **FlowTypes** | `FlowKind`, `StepName`, `IStepConfig` | TemplateTypes, EnvelopeTypes |
+| **FlowTypes** | `FlowKind`, `StepName`, `IStepConfig`, `IStepOutcome` | TemplateTypes, EnvelopeTypes |
 | **ApiDirectCallConfig** | `IApiDirectCallConfig`, `IPersistentAuthConfig` | all five above |
 
 Notes:

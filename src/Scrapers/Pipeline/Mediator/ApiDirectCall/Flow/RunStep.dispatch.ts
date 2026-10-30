@@ -9,6 +9,7 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import { judgeStepOutcome } from './RunStep.outcome.js';
 import { buildDispatchBundle, mergeScopeCarry } from './RunStep.prepare.js';
 import type {
   IDispatchBundle,
@@ -73,12 +74,15 @@ function describeResponse(resp: JsonValue): IRespDescriptor {
 }
 
 /**
- * Fold the response carry into the prepared scope.
+ * Judge the step's outcome, then fold the response carry into the prepared
+ * scope. A refused outcome fails before any extract runs.
  * @param bundle - Dispatch bundle.
  * @param resp - Successful response JSON.
  * @returns Procedure with the merged scope.
  */
 function extractAndMerge(bundle: IDispatchBundle, resp: JsonValue): Procedure<ITemplateScope> {
+  const judged = judgeStepOutcome(bundle.fireScope.step, resp);
+  if (!isOk(judged)) return judged;
   const carryProc = extractFields(resp, bundle.fireScope.step.extractsToCarry);
   if (!isOk(carryProc)) return carryProc;
   const merged = mergeScopeCarry(bundle.preparedScope, carryProc.value);

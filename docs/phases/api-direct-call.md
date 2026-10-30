@@ -91,6 +91,32 @@ unusable value went to the bank as-is and came back as an opaque auth failure
 that named nothing. See
 [#552](https://github.com/sergienko4/israeli-bank-scrapers/issues/552).
 
+### Step outcome
+
+Some banks refuse a login with HTTP 200 and a status code in the body. A step
+that declares `outcome` (an `IStepOutcome`) has that code judged by
+`judgeStepOutcome` after the 2xx and before its extracts run:
+
+```ts
+outcome: {
+  codePointer: '/status',          // RFC-6901 pointer to the code
+  successCodes: ['0'],
+  failureMap: { '7': ScraperErrorTypes.InvalidPassword },
+  defaultFailure: ScraperErrorTypes.Generic,
+}
+```
+
+The code is compared as text, so a numeric `0` matches `'0'`. A code in
+`successCodes` lets the step continue. Any other code fails the step with its
+`failureMap` type, or `defaultFailure` when it is unmapped. A missing, empty
+or non-scalar code also fails with `defaultFailure`. The message is
+`<step> outcome <code>` (or `<step> outcome missing`), and the code is cut to
+the log-safe length. A step without `outcome` behaves as before.
+
+An outcome failure in a warm resume is a failure like any other, so the
+resolver still falls back to one cold flow. When the cold flow also fails, its
+own failure type is the one reported.
+
 ### Transport errors
 
 Every transport — native fetch, Camoufox page fetch and mTLS — names a URL in
@@ -287,6 +313,7 @@ Where each piece lives, for maintainers:
 | `errorType` | Cause |
 |---|---|
 | `INVALID_PASSWORD` | Bank rejected credentials |
+| any type a step's `failureMap` names, else its `defaultFailure` | The step's 2xx body reported a non-success [outcome](#step-outcome) code |
 | `INVALID_OTP` | Wrong code |
 | `TWO_FACTOR_RETRIEVER_MISSING` | OTP step reached without callback |
 | `INVALID_PHONE_NUMBER` | `phoneNumber` cannot be normalised to the bank's wire format — see [Phone normaliser](#phone-normaliser) |

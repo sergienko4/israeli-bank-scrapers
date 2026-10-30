@@ -11,6 +11,7 @@
  * Rule #11 compliance: zero bank-name strings.
  */
 
+import type { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { WKUrlGroup } from '../../../Registry/WK/UrlsWK.js';
 import type { IPreStepHook } from './EnvelopeTypes.js';
 import type { IBodyTemplate, IEnvelopeSelectors, JsonValueTemplate } from './TemplateTypes.js';
@@ -32,6 +33,23 @@ type StepName =
   | 'register'
   | 'resume';
 
+/**
+ * How a step's HTTP 2xx body says whether the step worked. The code at
+ * `codePointer` is compared as text; a code outside `successCodes` fails the
+ * step with its `failureMap` type, or `defaultFailure` when it is unmapped or
+ * missing.
+ */
+interface IStepOutcome {
+  /** JSON pointer to the bank's status code in the response body. */
+  readonly codePointer: string;
+  /** Codes that mean the step worked. */
+  readonly successCodes: readonly string[];
+  /** Failure type per known code, e.g. a wrong-password code. */
+  readonly failureMap: Readonly<Record<string, ScraperErrorTypes>>;
+  /** Failure type for any other code, or when the code is missing. */
+  readonly defaultFailure: ScraperErrorTypes;
+}
+
 /** Per-step config: name, URL tag, body template, response-extract selectors. */
 interface IStepConfig {
   readonly name: StepName;
@@ -52,6 +70,8 @@ interface IStepConfig {
    * include those cookies on the outbound Cookie header.
    */
   readonly cookieJar?: boolean;
+  /** Optional outcome policy, judged after HTTP 2xx and before the extracts. */
+  readonly outcome?: IStepOutcome;
 }
 
-export type { FlowKind, IStepConfig, StepName };
+export type { FlowKind, IStepConfig, IStepOutcome, StepName };
