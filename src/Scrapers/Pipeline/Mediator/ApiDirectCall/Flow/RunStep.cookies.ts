@@ -1,6 +1,6 @@
 /**
  * On-set-cookie sink builder. The jar itself is the shared
- * `Strategy/Fetch/CookieJar` leaf, re-exported here for the flow.
+ * `Strategy/Fetch/CookieJar` leaf, re-exported by the RunStep barrel.
  */
 
 import type { IRunStepArgs, IStepCookieJar, OnSetCookie } from './RunStep.types.js';
@@ -25,5 +25,4 @@ function buildOnSetCookie(args: IRunStepArgs): OnSetCookie | false {
   return bindJarSink(args.cookieJar);
 }
 
-export { createSimpleCookieJar } from '../../../Strategy/Fetch/CookieJar.js';
-export { buildOnSetCookie };
+export default buildOnSetCookie;
