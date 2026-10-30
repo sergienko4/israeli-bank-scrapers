@@ -503,6 +503,11 @@ type ScraperCredentials = {
     password: string;
     card6Digits: string;
 } | {
+    id: string;
+    password: string;
+    card6Digits: string;
+    otpLongTermToken?: string;
+} | {
     username: string;
     nationalID: string;
     password: string;

@@ -37,7 +37,7 @@ import { PIPELINE_BANK_CONFIG } from '../../../Scrapers/Pipeline/Registry/Config
 const LOG = getDebug(import.meta.url);
 
 /** Supported bank keys — mirrors IBankFixtures.bankKey in the mock loader. */
-type BankKey = 'discount' | 'max' | 'hapoalim' | 'beinleumi' | 'isracard' | 'amex';
+type BankKey = 'discount' | 'max' | 'hapoalim' | 'beinleumi' | 'amex';
 
 /** Minimal invalid-creds payload for each bank — shape used by the real scraper. */
 interface IBankCaptureConfig {
@@ -67,7 +67,6 @@ const CAPTURES: Readonly<Record<BankKey, IBankCaptureConfig>> = {
   max: { bankKey: 'max', companyId: CompanyTypes.Max, postSubmitWaitMs: 10000 },
   hapoalim: { bankKey: 'hapoalim', companyId: CompanyTypes.Hapoalim, postSubmitWaitMs: 10000 },
   beinleumi: { bankKey: 'beinleumi', companyId: CompanyTypes.Beinleumi, postSubmitWaitMs: 8000 },
-  isracard: { bankKey: 'isracard', companyId: CompanyTypes.Isracard, postSubmitWaitMs: 8000 },
   amex: { bankKey: 'amex', companyId: CompanyTypes.Amex, postSubmitWaitMs: 8000 },
 };
 

@@ -1,8 +1,11 @@
 /**
  * Unit tests for every bank pipeline builder.
  * Each pipeline factory must produce a success Procedure wrapping a descriptor.
+ * Each builder runs under its own bank id, as in production: build-time
+ * config rules read that bank's registry entry.
  */
 
+import { CompanyTypes } from '../../../../Definitions.js';
 import { buildAmexPipeline } from '../../../../Scrapers/Pipeline/Banks/Amex/AmexPipeline.js';
 import { buildBeinleumiPipeline } from '../../../../Scrapers/Pipeline/Banks/Beinleumi/BeinleumiPipeline.js';
 import { buildDiscountPipeline } from '../../../../Scrapers/Pipeline/Banks/Discount/DiscountPipeline.js';
@@ -18,45 +21,42 @@ import { buildPayBoxPipeline } from '../../../../Scrapers/Pipeline/Banks/PayBox/
 import { buildVisaCalPipeline } from '../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockOptions } from '../Infrastructure/MockFactories.js';
 
 /** Signature of each bank's pipeline builder. */
 type BankBuilder = (opts: ReturnType<typeof makeMockOptions>) => Procedure<IPipelineDescriptor>;
 
 /** Labelled entry for parameterised tests. */
-const BANK_BUILDERS: readonly (readonly [string, BankBuilder])[] = [
-  ['amex', buildAmexPipeline],
-  ['beinleumi', buildBeinleumiPipeline],
-  ['discount', buildDiscountPipeline],
-  ['hapoalim', buildHapoalimPipeline],
-  ['isracard', buildIsracardPipeline],
-  ['massad', buildMassadPipeline],
-  ['max', buildMaxPipeline],
-  ['mercantile', buildMercantilePipeline],
-  ['oneZero', buildOneZeroPipeline],
-  ['otsarHahayal', buildOtsarHahayalPipeline],
-  ['pagi', buildPagiPipeline],
-  ['payBox', buildPayBoxPipeline],
-  ['visaCal', buildVisaCalPipeline],
+const BANK_BUILDERS: readonly (readonly [CompanyTypes, BankBuilder])[] = [
+  [CompanyTypes.Amex, buildAmexPipeline],
+  [CompanyTypes.Beinleumi, buildBeinleumiPipeline],
+  [CompanyTypes.Discount, buildDiscountPipeline],
+  [CompanyTypes.Hapoalim, buildHapoalimPipeline],
+  [CompanyTypes.Isracard, buildIsracardPipeline],
+  [CompanyTypes.Massad, buildMassadPipeline],
+  [CompanyTypes.Max, buildMaxPipeline],
+  [CompanyTypes.Mercantile, buildMercantilePipeline],
+  [CompanyTypes.OneZero, buildOneZeroPipeline],
+  [CompanyTypes.OtsarHahayal, buildOtsarHahayalPipeline],
+  [CompanyTypes.Pagi, buildPagiPipeline],
+  [CompanyTypes.PayBox, buildPayBoxPipeline],
+  [CompanyTypes.VisaCal, buildVisaCalPipeline],
 ];
 
 describe('All bank pipelines', () => {
-  it.each(BANK_BUILDERS)('%s builder returns success Procedure', (_name, build) => {
-    const opts = makeMockOptions();
+  it.each(BANK_BUILDERS)('%s builder returns success Procedure', (companyId, build) => {
+    const opts = makeMockOptions({ companyId });
     const result = build(opts);
-    const isOkResult1 = isOk(result);
-    expect(isOkResult1).toBe(true);
+    expect(result.success).toBe(true);
   });
 
   it.each(BANK_BUILDERS)(
     '%s descriptor carries options + phases + interceptors',
-    (_name, build) => {
-      const opts = makeMockOptions();
+    (companyId, build) => {
+      const opts = makeMockOptions({ companyId });
       const result = build(opts);
-      const isOkResult2 = isOk(result);
-      expect(isOkResult2).toBe(true);
-      if (isOk(result)) {
+      expect(result.success).toBe(true);
+      if (result.success) {
         expect(result.value.options).toBe(opts);
         const isArrayResult3 = Array.isArray(result.value.phases);
         expect(isArrayResult3).toBe(true);

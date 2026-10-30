@@ -17,10 +17,13 @@
  * supposed to contain it. Normalising through `toError` is what prevents that.
  */
 
+import { jest } from '@jest/globals';
+
+import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import type { IDriverCtx } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeDispatchArgs.js';
 import { fetchAccounts } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeSteps.js';
-import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /**
  * Post-login session context stand-in — the extract boundary never reads it.
@@ -76,5 +79,53 @@ describe('fetchAccounts identity-extraction failure contract', () => {
     const result = await fetchAccounts(d);
     const accounts = isOk(result) ? result.value : [];
     expect(accounts).toEqual(['acct-1']);
+  });
+});
+
+/** A secondary identity body that reports an expired session. */
+const EXPIRED_BODY = { Header: { Status: '-2' } };
+
+/**
+ * Answer the secondary identity GET with the expired body.
+ * @returns The bus reply.
+ */
+async function expiredReply(): Promise<ReturnType<typeof succeed>> {
+  await Promise.resolve();
+  return succeed(EXPIRED_BODY);
+}
+
+/**
+ * A shape check that rejects every body.
+ * @returns The failure.
+ */
+function rejectBody(): ReturnType<typeof fail> {
+  return fail(ScraperErrorTypes.Generic, 'expired');
+}
+
+/**
+ * Build a driver whose secondary identity GET returns the expired body and
+ * whose shape check rejects it.
+ * @param extractAccounts - The shape extractor, which must not run.
+ * @returns Driver context.
+ */
+function driverWithRejectedSecondary(
+  extractAccounts: () => readonly string[],
+): IDriverCtx<string, number> {
+  const customer = { skipFetch: true, secondaryUrlTag: 'data.customerSecondary', extractAccounts };
+  const bus = { getSessionContext: emptySessionContext, apiGet: expiredReply };
+  return { shape: { customer, checkBody: rejectBody }, bus } as unknown as IDriverCtx<
+    string,
+    number
+  >;
+}
+
+describe('fetchAccounts secondary identity body check', () => {
+  it('fails when the shape check rejects the secondary identity body', async () => {
+    const extractAccounts = jest.fn((): readonly string[] => ['acct-1']);
+    const d = driverWithRejectedSecondary(extractAccounts);
+    const result = await fetchAccounts(d);
+    const message = isOk(result) ? '' : result.errorMessage;
+    expect(message).toBe('expired');
+    expect(extractAccounts).not.toHaveBeenCalled();
   });
 });

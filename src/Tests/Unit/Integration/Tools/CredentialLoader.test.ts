@@ -104,28 +104,19 @@ describe('CredentialLoader', () => {
   });
 
   describe('knownBanks', () => {
-    it('returns the eight onboarded browser banks sorted', () => {
+    it('returns the seven onboarded browser banks sorted', () => {
       const banks = knownBanks();
-      const expected = [
-        'amex',
-        'beinleumi',
-        'discount',
-        'hapoalim',
-        'isracard',
-        'leumi',
-        'max',
-        'mizrahi',
-      ];
+      const expected = ['amex', 'beinleumi', 'discount', 'hapoalim', 'leumi', 'max', 'mizrahi'];
       expect(banks).toEqual(expected);
     });
   });
 
   describe('loadCredentials', () => {
-    it('loads isracard credentials from process.env', () => {
-      process.env.ISRACARD_ID = '305000001';
-      process.env.ISRACARD_CARD6DIGITS = '123456';
-      process.env.ISRACARD_PASSWORD = 's3cret';
-      const creds = loadCredentials('isracard');
+    it('loads amex credentials from process.env', () => {
+      process.env.AMEX_ID = '305000001';
+      process.env.AMEX_CARD6DIGITS = '123456';
+      process.env.AMEX_PASSWORD = 's3cret';
+      const creds = loadCredentials('amex');
       expect(creds).toEqual({ id: '305000001', card6Digits: '123456', password: 's3cret' });
     });
 
@@ -204,7 +195,7 @@ describe('CredentialLoader', () => {
     });
 
     it('returns None for non-OTP banks', () => {
-      const optResult = loadOtpFromEnv('isracard');
+      const optResult = loadOtpFromEnv('amex');
       const isPresent = isSome(optResult);
       expect(isPresent).toBe(false);
     });

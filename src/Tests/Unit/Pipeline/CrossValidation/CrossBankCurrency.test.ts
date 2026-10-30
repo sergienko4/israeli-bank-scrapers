@@ -31,9 +31,9 @@
 import { jest } from '@jest/globals';
 
 import { mergeAmexRows } from '../../../../Scrapers/Pipeline/Banks/Amex/scrape/AmexShapeExtract.js';
-import { mergeIsracardRows } from '../../../../Scrapers/Pipeline/Banks/Isracard/scrape/IsracardShapeExtract.js';
 import { autoMapTransaction } from '../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
 import { findCurrencyHit } from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnCurrency.js';
+import { mergeRingRows } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShapeExtract.js';
 import type { ITransaction } from '../../../../Transactions.js';
 import {
   CURRENCY_BANKS,
@@ -51,7 +51,7 @@ type MergeRows = (body: object) => readonly object[];
 /** Production row flattener per DigitalV3 bank — one entry per bank. */
 const MERGE_ROWS: Readonly<Record<CurrencyBank, MergeRows>> = {
   amex: mergeAmexRows,
-  isracard: mergeIsracardRows,
+  isracard: mergeRingRows,
 };
 
 /** Minimum a record needs to survive the mapper's date/amount gate. */

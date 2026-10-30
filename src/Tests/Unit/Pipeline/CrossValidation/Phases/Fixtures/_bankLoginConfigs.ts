@@ -13,7 +13,6 @@ import { AMEX_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/Amex/AmexP
 import { BEINLEUMI_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/Beinleumi/BeinleumiPipeline.js';
 import { DISCOUNT_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/Discount/DiscountPipeline.js';
 import { HAPOALIM_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.js';
-import { ISRACARD_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/Isracard/IsracardPipeline.js';
 import { MAX_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/Max/MaxPipeline.js';
 import type { PhaseHBank } from './_makePhaseFixture.js';
 
@@ -27,7 +26,6 @@ const BANK_LOGIN_CONFIGS: Readonly<Record<PhaseHBank, ILoginConfig>> = {
   beinleumi: BEINLEUMI_LOGIN,
   discount: DISCOUNT_LOGIN,
   amex: AMEX_LOGIN,
-  isracard: ISRACARD_LOGIN,
   max: MAX_LOGIN,
 };
 

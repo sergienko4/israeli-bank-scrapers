@@ -16,27 +16,6 @@
 
 import type { IBankFixtureExpectations } from './FixtureExpectations.js';
 
-const ISRACARD_PHASE_11_STEPS = [
-  { stepName: '01-home' },
-  {
-    stepName: '02-pre-login',
-    requiredFormIds: ['otpLobbyFormSms'],
-    requiredInputIds: ['otpLoginId_SMS'],
-    revealText: 'או כניסה עם סיסמה קבועה',
-  },
-  {
-    stepName: '03-after-flip',
-    requiredFormIds: ['otpLobbyFormSms', 'otpLobbyFormPassword'],
-    requiredInputIds: ['otpLoginId_ID', 'otpLoginPwd'],
-  },
-  { stepName: '04-login-action' },
-  { stepName: '07-auth-discovery' },
-  { stepName: '08-account-resolve' },
-  { stepName: '09-dashboard' },
-  { stepName: '10-scrape-cycle-billing' },
-  { stepName: '11-balance' },
-] as const;
-
 const AMEX_PHASE_11_STEPS = [
   { stepName: '01-home' },
   {
@@ -60,17 +39,17 @@ const AMEX_PHASE_11_STEPS = [
 
 /**
  * Beinleumi Phase-11 step inventory — distinct from MAX / AMEX /
- * Isracard / Hapoalim:
+ * Hapoalim:
  * <ul>
  *   <li>`02-modal-opened` + `03-after-prelogin` are Beinleumi-distinct
  *       (real-captured Angular-iframe lobby, NOT the SMS / password
- *       flip shared by Isracard / AMEX).</li>
+ *       flip AMEX uses).</li>
  *   <li>`05-otp-trigger` + `06-otp-fill` are the FIRST occurrence of
  *       explicit OTP phases in the Phase-11 series — Beinleumi is
  *       OTP-gated per `BeinleumiPipeline.ts`
  *       (`.withOtpTrigger().withOtpFill()`); Hapoalim's Mode B
  *       COLLAPSES OTP into a single LOGIN→AUTH_DISCOVERY transition;
- *       MAX / AMEX / Isracard / Discount are password-only
+ *       MAX / AMEX / Discount are password-only
  *       (no OTP leg at all).</li>
  *   <li>`10-scrape-transactions` is named after Beinleumi's
  *       `bff-balancetransactions/api/v1/transactions/list` BFF
@@ -131,14 +110,6 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     loginStep: '04-login-action',
     requiresHydration: false,
     steps: LEUMI_PHASE_11_STEPS,
-  },
-  {
-    bankId: 'isracard',
-    originUrl: 'https://digital.isracard.co.il',
-    loginStep: '03-after-flip',
-    loginFormId: 'otpLobbyFormPassword',
-    requiresHydration: false,
-    steps: ISRACARD_PHASE_11_STEPS,
   },
   {
     bankId: 'amex',

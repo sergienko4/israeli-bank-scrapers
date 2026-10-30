@@ -32,10 +32,6 @@ import {
   HAPOALIM_LOGIN,
 } from '../../../../Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.js';
 import {
-  buildIsracardPipeline,
-  ISRACARD_LOGIN,
-} from '../../../../Scrapers/Pipeline/Banks/Isracard/IsracardPipeline.js';
-import {
   buildMassadPipeline,
   MASSAD_LOGIN,
 } from '../../../../Scrapers/Pipeline/Banks/Massad/MassadPipeline.js';
@@ -86,7 +82,7 @@ const BASE_PHASES = [
   'terminate',
 ] as const;
 
-/** Base + `pre-login` (Amex / Isracard / Max). */
+/** Base + `pre-login` (Amex / Max). */
 const PRE_LOGIN_PHASES = [
   'init',
   'home',
@@ -152,15 +148,6 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     company: CompanyTypes.Amex,
     loginConfig: AMEX_LOGIN,
     buildPipeline: buildAmexPipeline,
-    expectedFieldKeys: ['id', 'password', 'card6Digits'],
-    expectedPhaseCount: PRE_LOGIN_PHASES.length,
-    expectedPhaseNames: PRE_LOGIN_PHASES,
-  },
-  {
-    bank: 'isracard',
-    company: CompanyTypes.Isracard,
-    loginConfig: ISRACARD_LOGIN,
-    buildPipeline: buildIsracardPipeline,
     expectedFieldKeys: ['id', 'password', 'card6Digits'],
     expectedPhaseCount: PRE_LOGIN_PHASES.length,
     expectedPhaseNames: PRE_LOGIN_PHASES,

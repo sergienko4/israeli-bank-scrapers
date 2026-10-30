@@ -108,11 +108,12 @@ const BANK_IDS: readonly string[] = readdirSync(BANKS_FIXTURE_ROOT, { withFileTy
 /**
  * Floors proving discovery actually walked the corpus, not an empty dir.
  *
- * The corpus measures 13 banks / 298 files today. The regression this
+ * The corpus measures 12 banks / 261 files today; banks scraped over a
+ * direct API carry no page fixtures and leave it. The regression this
  * guards is a top-level-only walk, which yields 82 — so the floor sits
  * far above that while leaving room for fixtures to come and go.
  */
-const MIN_BANKS = 13;
+const MIN_BANKS = 12;
 const MIN_FIXTURES = 250;
 
 /**
@@ -305,9 +306,9 @@ async function flaggedFilesFor(bankId: string): Promise<readonly string[]> {
  * One captured page from every bank, for the session-reuse guard.
  *
  * <p>Breadth matters more than depth here: one page per bank exercises
- * 13 different inline-script payloads against a single reused document,
- * which is the widest contamination surface the corpus can offer for
- * the cost of 13 parses.
+ * a different inline-script payload per bank against a single reused
+ * document, which is the widest contamination surface the corpus can
+ * offer for the cost of one parse per bank.
  *
  * @returns One fixture path per bank that has any.
  */

@@ -15,10 +15,11 @@ The four issuers split two ways:
 |---|---|---|---|
 | **Max** | `getHomePageData` → `Result.UserCards.Cards[].CycleSummary[]`, sitting on the same object as `Last4Digits` | ✅ yes | real per-card debit |
 | **Visa Cal** | `GetTotalFrameStatus`, one request per card → `result.calIssuedCards.accountLevelFrames[]`; the frame whose `cardUniqueId` is the card's own carries `nextTotalDebit` | ✅ yes | real per-card next debit |
-| Isracard / Amex | `GetBillingsForMonthsOverview` → `data[]` is one row per **billing month**; the request submits every card at once and the response has no card dimension | ❌ household aggregate | `0` |
+| **Isracard** | GatewayV2 `GetTransactionsList`, one request per card for its next debit month → `data.israelAbroadVouchers.vouchers.totalForStatement.totalIlsBillingDate` | ✅ yes | real per-card next debit |
+| Amex | `GetBillingsForMonthsOverview` → `data[]` is one row per **billing month**; the request submits every card at once and the response has no card dimension | ❌ household aggregate | `0` |
 
-The `0` on the two aggregate issuers is a **deliberate sentinel, not a stub**.
-Their only figure covers the whole household, so publishing it per card would
+The `0` on Amex, the one aggregate issuer, is a **deliberate sentinel, not a
+stub**. Its only figure covers the whole household, so publishing it per card would
 repeat one total across every card and multiply the user's apparent debt by
 their card count. An honest `0` is preferable to fabricated attribution.
 
@@ -67,6 +68,25 @@ the bank never sent.
 | `balanceIsAbsent` | Declares the figure missing only when CAL did not confirm the reply or its frame structure is malformed; an unusable figure in a well-formed frame is `0`, not absence. Consulted before `nextTotalDebitOf` |
 | `VisaCalNextDebit` | Nominal brand for that debit (Rule&nbsp;#15) |
 | `balanceVars` / `balanceUrl` | The frames request body (one `cardUniqueId`) and its literal URL |
+
+Isracard's figure comes from the transactions endpoint, in one extra request
+per card. `balanceVars` asks GatewayV2 `GetTransactionsList` for the card's
+next debit month: this month on or before the card's payment day, the next
+month after it. That month's statement total is the card's next debit. A
+month with no vouchers node reports `0`, since nothing is pending. A card with
+no payment day, or vouchers whose total is missing or not a finite number, is
+declared absent by `balanceIsAbsent`: the card publishes no balance and the
+scrape is marked degraded. A reply the bank did not confirm (`isSuccess` not
+`true`) fails its call in the shape's body check, so the balance step's
+`fallbackOnFail` publishes no balance either.
+
+| Symbol | Role |
+|---|---|
+| [`nextDebitOf`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShapeBalance.ts) | Returns one card's next ILS debit from the statement total, or `0` for a month with no vouchers |
+| `nextDebitMonth` | Picks the card's next debit month from today and its payment day |
+| `balanceIsAbsent` | Declares the figure missing when the card has no payment day, or the month has vouchers but no finite total |
+| `RingNextDebit` | Nominal brand for that debit (Rule&nbsp;#15) |
+| `balanceVars` | The GatewayV2 request body for the card's next debit month |
 
 ## What changed
 

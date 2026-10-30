@@ -23,7 +23,7 @@ import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
-import type { ApiBody, ScrapeHttpMethod, VarsMap } from './IApiDirectScrapeShape.js';
+import type { ApiBody, BodyCheck, ScrapeHttpMethod, VarsMap } from './IApiDirectScrapeShape.js';
 
 /** Synthetic IApiDirectCallConfig sentinel used by scrape-phase scope. */
 const SCRAPE_CONFIG_SENTINEL: IApiDirectCallConfig = Object.freeze({
@@ -92,6 +92,23 @@ export interface IDispatchArgs {
   readonly opts: IApiQueryOpts;
   /** Shape-level secrets — threaded into scope.config.secrets for signing. */
   readonly secrets?: Readonly<Record<string, string>>;
+  /** Shape-level response check — see `IApiDirectScrapeShape.checkBody`. */
+  readonly checkBody?: BodyCheck;
+}
+
+/**
+ * Run the shape's body check on a successful response; a failed response,
+ * or a shape with no check, passes through unchanged.
+ * @param response - The call's result.
+ * @param checkBody - The shape's check, when it declares one.
+ * @returns The response, or the check's failure.
+ */
+export function applyBodyCheck(
+  response: Procedure<ApiBody>,
+  checkBody?: BodyCheck,
+): Procedure<ApiBody> {
+  if (!isOk(response) || checkBody === undefined) return response;
+  return checkBody(response.value);
 }
 
 /**
@@ -190,16 +207,27 @@ async function dispatchRestPost(
 }
 
 /**
- * Dispatch one scrape step against the mediator. Routes GraphQL when
- * `urlTag` is absent, REST GET when `method === 'GET'` (no body, same opts), and
- * REST POST otherwise (body hydrated/signed).
+ * Route one scrape call: GraphQL when `urlTag` is absent, REST GET when
+ * `method === 'GET'` (no body, same opts), and REST POST otherwise (body
+ * hydrated/signed).
  * @param args - Dispatch bundle.
  * @returns Procedure with the typed payload.
  */
-export async function dispatchStep(args: IDispatchArgs): Promise<Procedure<ApiBody>> {
+async function routeStep(args: IDispatchArgs): Promise<Procedure<ApiBody>> {
   if (args.urlTag === false) {
     return args.bus.apiQuery<ApiBody>(args.queryTag, args.vars, args.opts);
   }
   if (args.method === 'GET') return args.bus.apiGet<ApiBody>(args.urlTag, args.opts);
   return dispatchRestPost(args, args.urlTag);
+}
+
+/**
+ * Dispatch one scrape step against the mediator, then run the shape's
+ * body check on a successful response.
+ * @param args - Dispatch bundle.
+ * @returns Procedure with the typed payload.
+ */
+export async function dispatchStep(args: IDispatchArgs): Promise<Procedure<ApiBody>> {
+  const response = await routeStep(args);
+  return applyBodyCheck(response, args.checkBody);
 }

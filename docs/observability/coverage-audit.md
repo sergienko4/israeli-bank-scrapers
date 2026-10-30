@@ -166,7 +166,7 @@ The count that does hold is scoped to a single group:
 
 The container it watches is not an arbitrary one. It is the same `outOfStatementChargeDateVouchers` container whose omission cost a real Isracard statement around 47% of its rows. Had this check existed, that defect would have warned on its first run.
 
-Two banks declare it today — `ISRACARD_DECLARED_ROWS` and `AMEX_DECLARED_ROWS`, each a single literal beside the extractor that reads the container, wired onto the shape's `transactions.declaredRowSpecs`. Any bank whose response carries a sibling count can adopt it the same way; a bank that declares nothing is unaffected, because an empty spec list disables the check. Once a spec is configured, an absent container or a non-finite, negative, fractional, or otherwise unreadable count marks the audit unavailable rather than clean.
+Two banks declare it today — `RING_DECLARED_ROWS` (Isracard, via the Ring family factory) and `AMEX_DECLARED_ROWS`, each a single literal beside the extractor that reads the container, wired onto the shape's `transactions.declaredRowSpecs`. Any bank whose response carries a sibling count can adopt it the same way; a bank that declares nothing is unaffected, because an empty spec list disables the check. Once a spec is configured, an absent container or a non-finite, negative, fractional, or otherwise unreadable count marks the audit unavailable rather than clean.
 
 ### Why a shortfall always warns
 

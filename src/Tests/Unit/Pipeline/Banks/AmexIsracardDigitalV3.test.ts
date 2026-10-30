@@ -1,21 +1,19 @@
 /**
- * Amex + Isracard DigitalV3 hard-model shapes — cross-bank unit coverage for
- * the shared GetCardList customer step + the three-container transactions row
- * merge. Both banks ride the identical Isracard-issued DigitalV3 backbone, so
- * ONE `describe.each` over the pair exercises card-list parsing (string-encoded
- * array, malformed, non-array, missing fields) and the
- * approvals+vouchers+out-of-statement merge (null data, absent containers), plus
- * the declared-row reconciliation both banks adopt for that same container.
- * Bodies are synthetic — zero PII.
+ * Amex DigitalV3 + ring shapes — cross-bank unit coverage for the Amex
+ * GetCardList customer step and the three-container transactions row merge.
+ * Amex's web path and the ring issuers (Isracard) read the identical
+ * GetTransactionsList response, so ONE `describe.each` over both mergers
+ * exercises the approvals+vouchers+out-of-statement merge (null data, absent
+ * containers) and the declared-row reconciliation both adopt for that same
+ * container. Bodies are synthetic — zero PII.
  */
 
 import * as amexE from '../../../../Scrapers/Pipeline/Banks/Amex/scrape/AmexShapeExtract.js';
 import * as amexH from '../../../../Scrapers/Pipeline/Banks/Amex/scrape/AmexShapeHelpers.js';
-import * as isracardE from '../../../../Scrapers/Pipeline/Banks/Isracard/scrape/IsracardShapeExtract.js';
-import * as isracardH from '../../../../Scrapers/Pipeline/Banks/Isracard/scrape/IsracardShapeHelpers.js';
 import type { IDeclaredRowSpec } from '../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/DeclaredRows.js';
 import { auditDeclaredRows } from '../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/DeclaredRows.js';
 import type { IExtractAccountsArgs } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import * as ringE from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShapeExtract.js';
 
 interface ICard {
   readonly cardSuffix: string;
@@ -29,39 +27,20 @@ interface IDigitalV3Mod {
   customerUrl(): string;
   primeUrl(): string;
   noVars(): object;
-  mergeRows(body: object): readonly object[];
 }
 
-interface IBank {
+interface IMerger {
   readonly name: string;
-  readonly api: string;
-  readonly mod: IDigitalV3Mod;
+  readonly mergeRows: (body: object) => readonly object[];
   readonly declared: readonly IDeclaredRowSpec[];
 }
 
-/**
- * Combine a DigitalV3 bank's helpers + row-merge into one accessor.
- * @param h - Helpers module namespace.
- * @param merge - The bank's transactions row-merge function.
- * @returns Uniform DigitalV3 module.
- */
-function asMod(h: object, merge: (body: object) => readonly object[]): IDigitalV3Mod {
-  return Object.assign({}, h, { mergeRows: merge }) as unknown as IDigitalV3Mod;
-}
+const AMEX = amexH as unknown as IDigitalV3Mod;
+const AMEX_API = amexH.AMEX_API;
 
-const BANKS: readonly IBank[] = [
-  {
-    name: 'Amex',
-    api: amexH.AMEX_API,
-    mod: asMod(amexH, amexE.mergeAmexRows),
-    declared: amexE.AMEX_DECLARED_ROWS,
-  },
-  {
-    name: 'Isracard',
-    api: isracardH.ISRACARD_API,
-    mod: asMod(isracardH, isracardE.mergeIsracardRows),
-    declared: isracardE.ISRACARD_DECLARED_ROWS,
-  },
+const MERGERS: readonly IMerger[] = [
+  { name: 'Amex', mergeRows: amexE.mergeAmexRows, declared: amexE.AMEX_DECLARED_ROWS },
+  { name: 'Ring', mergeRows: ringE.mergeRingRows, declared: ringE.RING_DECLARED_ROWS },
 ];
 
 /**
@@ -89,18 +68,18 @@ function outOfStatementBody(groups: readonly (readonly object[])[]): object {
   return { data: { israelAbroadVouchers } };
 }
 
-describe.each(BANKS)('$name DigitalV3 shape', bank => {
+describe('Amex DigitalV3 card list', () => {
   it('extractCards parses the string-encoded cardsList', () => {
     const body = { data: { cardsList: JSON.stringify([{ cardSuffix: '1234', companyCode: 77 }]) } };
     const args = cardsArgs(body);
-    const cards = bank.mod.extractCards(args);
+    const cards = AMEX.extractCards(args);
     expect(cards).toEqual([{ cardSuffix: '1234', companyCode: '77' }]);
   });
 
   it('extractCards passes an array cardsList through and defaults missing fields', () => {
     const body = { data: { cardsList: [{}] } };
     const args = cardsArgs(body);
-    const cards = bank.mod.extractCards(args);
+    const cards = AMEX.extractCards(args);
     expect(cards).toEqual([{ cardSuffix: '', companyCode: '' }]);
   });
 
@@ -108,9 +87,9 @@ describe.each(BANKS)('$name DigitalV3 shape', bank => {
     const malformedArgs = cardsArgs({ data: { cardsList: 'not-json{' } });
     const absentArgs = cardsArgs({ data: {} });
     const nullArgs = cardsArgs({ data: { cardsList: null } });
-    const malformed = bank.mod.extractCards(malformedArgs);
-    const absent = bank.mod.extractCards(absentArgs);
-    const nulled = bank.mod.extractCards(nullArgs);
+    const malformed = AMEX.extractCards(malformedArgs);
+    const absent = AMEX.extractCards(absentArgs);
+    const nulled = AMEX.extractCards(nullArgs);
     expect(malformed).toEqual([]);
     expect(absent).toEqual([]);
     expect(nulled).toEqual([]);
@@ -118,23 +97,25 @@ describe.each(BANKS)('$name DigitalV3 shape', bank => {
 
   it('extractCards yields no cards when the JSON payload is not an array', () => {
     const args = cardsArgs({ data: { cardsList: '{"x":1}' } });
-    const cards = bank.mod.extractCards(args);
+    const cards = AMEX.extractCards(args);
     expect(cards).toEqual([]);
   });
 
   it('customer step targets GetCardList with the fixed query body', () => {
-    const vars = bank.mod.customerVars();
-    const url = bank.mod.customerUrl();
-    const prime = bank.mod.primeUrl();
-    const emptyVars = bank.mod.noVars();
-    const number = bank.mod.accountNumberOf({ cardSuffix: '1234', companyCode: '77' });
+    const vars = AMEX.customerVars();
+    const url = AMEX.customerUrl();
+    const prime = AMEX.primeUrl();
+    const emptyVars = AMEX.noVars();
+    const number = AMEX.accountNumberOf({ cardSuffix: '1234', companyCode: '77' });
     expect(vars).toEqual({ companyCode: '99', cardSuffixLength: 4 });
-    expect(url).toContain(`${bank.api}/ocp/transactions/DigitalV3.Transactions/GetCardList`);
-    expect(prime).toBe(`${bank.api}/transactions`);
+    expect(url).toContain(`${AMEX_API}/ocp/transactions/DigitalV3.Transactions/GetCardList`);
+    expect(prime).toBe(`${AMEX_API}/transactions`);
     expect(emptyVars).toEqual({});
     expect(number).toBe('1234');
   });
+});
 
+describe.each(MERGERS)('$name three-container merge', bank => {
   it('mergeRows joins approvals + vouchers and tolerates absent containers', () => {
     const body = {
       data: {
@@ -142,20 +123,20 @@ describe.each(BANKS)('$name DigitalV3 shape', bank => {
         israelAbroadVouchers: { vouchers: { israelAbroadVouchersList: [{ v: 2 }] } },
       },
     };
-    const merged = bank.mod.mergeRows(body);
-    const emptyData = bank.mod.mergeRows({ data: {} });
+    const merged = bank.mergeRows(body);
+    const emptyData = bank.mergeRows({ data: {} });
     expect(merged).toHaveLength(2);
     expect(emptyData).toEqual([]);
   });
 
   it('mergeRows yields no rows when the data block is null', () => {
-    const merged = bank.mod.mergeRows({ data: null });
+    const merged = bank.mergeRows({ data: null });
     expect(merged).toEqual([]);
   });
 
   it('mergeRows includes charges posting outside the statement cycle', () => {
     const body = outOfStatementBody([[{ o: 1 }, { o: 2 }]]);
-    const merged = bank.mod.mergeRows(body);
+    const merged = bank.mergeRows(body);
     expect(merged).toHaveLength(2);
   });
 
@@ -169,13 +150,13 @@ describe.each(BANKS)('$name DigitalV3 shape', bank => {
         },
       },
     };
-    const merged = bank.mod.mergeRows(body);
+    const merged = bank.mergeRows(body);
     expect(merged).toEqual([{ a: 1 }, { v: 2 }, { o: 3 }]);
   });
 
   it('mergeRows flattens several per-currency-date groups', () => {
     const body = outOfStatementBody([[{ o: 1 }], [{ o: 2 }, { o: 3 }]]);
-    const merged = bank.mod.mergeRows(body);
+    const merged = bank.mergeRows(body);
     expect(merged).toHaveLength(3);
   });
 
@@ -188,7 +169,7 @@ describe.each(BANKS)('$name DigitalV3 shape', bank => {
         },
       },
     };
-    const merged = bank.mod.mergeRows(body);
+    const merged = bank.mergeRows(body);
     expect(merged).toEqual([]);
   });
 

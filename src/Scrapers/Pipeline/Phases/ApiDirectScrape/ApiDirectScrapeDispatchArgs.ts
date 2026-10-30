@@ -68,14 +68,15 @@ function toOpts(ctx: IActionContext, extra?: ApiDirectScrapeHeadersLike): IApiQu
 }
 
 /**
- * Pull shape-level signer + secrets onto a dispatch-args slice.
+ * Pull the shape-level signer, secrets and body check onto a dispatch-args
+ * slice — the fields every step of one shape shares.
  * @param shape - Bank shape literal.
- * @returns Slice with signer + secrets fields.
+ * @returns Slice with the shape-level fields.
  */
-function pickShapeSigning<TAcct, TCursor>(
+function pickShapeLevel<TAcct, TCursor>(
   shape: IApiDirectScrapeShape<TAcct, TCursor>,
-): Pick<IDispatchArgs, 'signer' | 'secrets'> {
-  return { signer: shape.signer ?? false, secrets: shape.secrets };
+): Pick<IDispatchArgs, 'signer' | 'secrets' | 'checkBody'> {
+  return { signer: shape.signer ?? false, secrets: shape.secrets, checkBody: shape.checkBody };
 }
 
 /**
@@ -96,7 +97,7 @@ export function buildBootstrapDispatchArgs<TAcct, TCursor>(
   const method = step.method ?? 'POST';
   const bodyTemplate = step.bodyTemplate ?? false;
   const opts = toOpts(d.ctx, step.extraHeaders);
-  return { ...head, method, vars, bodyTemplate, ...pickShapeSigning(d.shape), opts };
+  return { ...head, method, vars, bodyTemplate, ...pickShapeLevel(d.shape), opts };
 }
 
 /**
@@ -146,7 +147,7 @@ export function buildCustomerDispatchArgs<TAcct, TCursor>(
     method: d.shape.customer.method ?? 'POST',
     vars: d.shape.customer.buildVars(d.ctx),
     bodyTemplate: d.shape.customer.bodyTemplate ?? false,
-    ...pickShapeSigning(d.shape),
+    ...pickShapeLevel(d.shape),
     opts: toOpts(d.ctx, d.shape.customer.extraHeaders),
   };
 }
@@ -179,7 +180,7 @@ export function buildBalanceDispatchArgs<TAcct, TCursor>(
     method: a.shape.balance.method ?? 'POST',
     vars: a.shape.balance.buildVars(a.acct, a.ctx),
     bodyTemplate: a.shape.balance.bodyTemplate ?? false,
-    ...pickShapeSigning(a.shape),
+    ...pickShapeLevel(a.shape),
     opts: toOpts(a.ctx, a.shape.balance.extraHeaders),
   };
 }
@@ -217,5 +218,5 @@ export function buildTxnsDispatchArgs<TAcct, TCursor>(
   const bodyTemplate = t.bodyTemplate ?? false;
   const method = t.method ?? 'POST';
   const opts = toOpts(a.ctx, t.extraHeaders);
-  return { ...head, urlTag, method, bodyTemplate, ...pickShapeSigning(a.shape), opts };
+  return { ...head, urlTag, method, bodyTemplate, ...pickShapeLevel(a.shape), opts };
 }

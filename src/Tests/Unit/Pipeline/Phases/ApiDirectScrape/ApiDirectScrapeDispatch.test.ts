@@ -15,6 +15,7 @@
 
 import { jest } from '@jest/globals';
 
+import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { IAesSignerConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import {
@@ -25,7 +26,7 @@ import { literalUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 
 /** AES signer literal — keyRef points at the (empty) sentinel secrets. */
@@ -213,5 +214,30 @@ describe('ApiDirectScrapeDispatch.dispatchStep — REST GET branch', () => {
     await dispatchStep(args);
     const [, dispatchedOpts] = apiGet.mock.calls[0] as unknown as [unknown, unknown];
     expect(dispatchedOpts).toBe(opts);
+  });
+});
+
+describe('ApiDirectScrapeDispatch.dispatchStep — shape body check', () => {
+  it('fails a 2xx response whose body the shape check rejects', async () => {
+    // A bank that reports an expired session inside an HTTP 200 body must
+    // fail the call, not hand an empty body to the step's extractor.
+    const expired = succeed({ Header: { Status: '-2' } });
+    const bus = makeOneShotBus(expired);
+    const rejection = fail(ScraperErrorTypes.Generic, 'session expired');
+    const checkBody = jest.fn((): typeof rejection => rejection);
+    const args = makeDispatchArgs({ bus, checkBody });
+    const result = await dispatchStep(args);
+    expect(result).toBe(rejection);
+    expect(checkBody).toHaveBeenCalledWith({ Header: { Status: '-2' } });
+  });
+
+  it('passes a failed response through without running the check', async () => {
+    const networkFailure = fail(ScraperErrorTypes.NetworkError, 'socket hang up');
+    const bus = makeOneShotBus(networkFailure);
+    const checkBody = jest.fn();
+    const args = makeDispatchArgs({ bus, checkBody });
+    const result = await dispatchStep(args);
+    expect(result).toBe(networkFailure);
+    expect(checkBody).not.toHaveBeenCalled();
   });
 });

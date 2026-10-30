@@ -12,6 +12,7 @@ import {
   type IDriverCtx,
   resolveSecondaryUrlTag,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeDispatchArgs.js';
+import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /**
  * Producer form of a customer secondary-identity urlTag.
@@ -85,5 +86,15 @@ describe('ApiDirectScrapeDispatchArgs.buildBalanceDispatchArgs (edge)', () => {
     const args = buildBalanceDispatchArgs(acct);
     expect(args.urlTag).toBe('data.sync');
     expect(args.queryTag).toBe('balance');
+  });
+});
+
+describe('ApiDirectScrapeDispatchArgs — shape body check', () => {
+  it('hands the shape-level body check to every step it builds', () => {
+    const acct = acctWithBalanceProducer();
+    const checkBody = succeed;
+    const shape = { ...acct.shape, checkBody };
+    const args = buildBalanceDispatchArgs({ ...acct, shape });
+    expect(args.checkBody).toBe(checkBody);
   });
 });
