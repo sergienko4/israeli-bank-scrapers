@@ -27,52 +27,6 @@ on:
           - info
           - debug
           - trace
-      # ── Amex Camoufox/WAF knob A/B bisect overrides ──
-      # Blank = production default (byte-identical run). Set ONE value to flip
-      # ONE knob for the Amex E2E-Real run from the CI datacenter IP, to
-      # pinpoint the v8.4.0 fingerprint/WAF regression with ZERO production-code
-      # change (the knobs already exist in CamoufoxLauncher.ts /
-      # WafChallengeConfig.ts). CAMOUFOX_* truthy set = {true,1,yes,on}; flip a
-      # knob OFF with 0/false/off/no. WAF: set 1/true to DISABLE the challenge
-      # interceptor. On a PR-branch run (no dispatch form), use repo variables
-      # instead: AMEX_AB_CAMOUFOX_HUMANIZE / _DISABLE_COOP / _BLOCK_WEBRTC /
-      # _CAMOUFOX_OS / AMEX_AB_WAF_INTERCEPTOR_DISABLED (input OR variable).
-      amex_camoufox_humanize:
-        description: 'Amex A/B CAMOUFOX_HUMANIZE (blank=default on; 0/false=off)'
-        required: false
-        default: ''
-        type: string
-      amex_camoufox_disable_coop:
-        description: 'Amex A/B CAMOUFOX_DISABLE_COOP (blank=default on; 0/false=off)'
-        required: false
-        default: ''
-        type: string
-      amex_camoufox_block_webrtc:
-        description: 'Amex A/B CAMOUFOX_BLOCK_WEBRTC (blank=default on; 0/false=off)'
-        required: false
-        default: ''
-        type: string
-      amex_camoufox_os:
-        description: 'Amex A/B CAMOUFOX_OS fingerprint (blank=windows; linux|macos|windows)'
-        required: false
-        default: ''
-        type: string
-      amex_waf_interceptor_disabled:
-        description: 'Amex A/B WAF_INTERCEPTOR_DISABLED (blank=enabled; 1/true=disable)'
-        required: false
-        default: ''
-        type: string
-      # ── Amex auth-egress diagnostic (not a regression knob) ──
-      # Opt-in PIPELINE_AUTH_REQ_TRACE: when 1/true, AuthFailureWatcher
-      # attaches gated request/requestfailed listeners that classify a
-      # dropped/hung auth POST and a failed Cloudflare JSD handshake.
-      # Blank = off (byte-identical, zero extra fingerprint surface).
-      # PR-branch runs (no dispatch form) use repo var AMEX_AB_AUTH_REQ_TRACE.
-      amex_auth_req_trace:
-        description: 'Amex diag PIPELINE_AUTH_REQ_TRACE (blank=off; 1/true=trace auth+JSD egress)'
-        required: false
-        default: ''
-        type: string
 
 # A new push cancels the run it supersedes. Keyed on the PR number, not
 # `head_ref`: a fork can reuse a branch name and would cancel another PR's
@@ -122,7 +76,8 @@ defaults:
 #   e2e-real-group-c      — Stage 3 (parallel, gate-C approval):
 #                           api-direct banks
 #                           (OneZero, Pepper, PayBox).
-#   e2e-real-group-d      — Amex, ISOLATED under its OWN gate-D
+#   e2e-real-group-d      — Amex (api-direct, no browser),
+#                           ISOLATED under its OWN gate-D
 #                           approval (independent of gate-A so the
 #                           maintainer can approve an Amex-only run).
 #                           Rule #16 (Amex never co-runs with
@@ -1273,10 +1228,10 @@ jobs:
   #     — OneZero, Pepper, PayBox
   #     (TELEGRAM_* secrets exposed for OTP delivery).
   #   Group D, gate-D (single runner):
-  #     Amex, isolated under its own gate so it can be approved
-  #     independently. Rule #16 (Amex never co-runs with Isracard)
-  #     is honored by approving gate-D alone — Group A stays
-  #     unreleased for an Amex-only run.
+  #     Amex (api-direct, no browser), isolated under its own gate
+  #     so it can be approved independently. Rule #16 (Amex never
+  #     co-runs with Isracard) is honored by approving gate-D
+  #     alone — Group A stays unreleased for an Amex-only run.
   #
   # Four approval clicks per PR — one per category. The 4-gate
   # design lets each category be approved independently (e.g. skip
@@ -1290,8 +1245,7 @@ jobs:
   # Wall time (gates approved in parallel ⇒ longest group dominates):
   #   validate                         ≈ 10–12 min
   #   dns-preflight                    ≈ 1–2 min
-  #   max(Group A, B, C, D)            ≈ 9–11 min (Amex's Group D
-  #                                      run dominates when released)
+  #   max(Group A, B, C, D)            ≈ 9–11 min
   #
   # Same-repo PRs and manual dispatch only — secrets are not exposed
   # to forks (mirrors the prior gating of the now-removed E2eFull
@@ -1550,7 +1504,8 @@ jobs:
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # ──────────────────────────────────────────────────────────────
-  # Group D — Amex, ISOLATED under its own gate-D approval.
+  # Group D — Amex (api-direct, no browser), ISOLATED under its own
+  # gate-D approval.
   # Added 2026-06-26 to decouple Amex from gate-A so the maintainer
   # can approve an Amex-only run. Rule #16 (Amex never co-runs with
   # Isracard) is honored by releasing gate-D alone — Group A stays
@@ -1634,44 +1589,7 @@ jobs:
       - name: Force reliable DNS for ${{ matrix.bank }}
         run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
       - uses: $/.github/actions/setup-node-deps
-      - uses: $/.github/actions/install-camoufox
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
-      # ── Amex Camoufox/WAF knob A/B overrides (v8.4.0 regression bisect) ──
-      # Writes a knob to $GITHUB_ENV ONLY when a non-empty override is supplied
-      # via workflow_dispatch input OR repo variable. Blank/unset → the env var
-      # is never set, so CamoufoxLauncher.envFlag() / WafChallenge isDisabled()
-      # fall back to their code defaults → byte-identical to a normal Amex run.
-      # CRITICAL: envFlag() returns its default ONLY when the var is UNDEFINED;
-      # an empty string parses as falsy, so we must NOT export an empty value.
-      # Zero production-code change — the knobs already exist. Lets the
-      # maintainer pinpoint the datacenter-IP fingerprint/WAF regression.
-      - name: Apply Amex knob A/B overrides (bisect)
-        env:
-          IN_HUMANIZE: ${{ inputs.amex_camoufox_humanize || vars.AMEX_AB_CAMOUFOX_HUMANIZE }}
-          IN_DISABLE_COOP: ${{ inputs.amex_camoufox_disable_coop || vars.AMEX_AB_CAMOUFOX_DISABLE_COOP }}
-          IN_BLOCK_WEBRTC: ${{ inputs.amex_camoufox_block_webrtc || vars.AMEX_AB_CAMOUFOX_BLOCK_WEBRTC }}
-          IN_CAMOUFOX_OS: ${{ inputs.amex_camoufox_os || vars.AMEX_AB_CAMOUFOX_OS }}
-          IN_WAF_DISABLED: ${{ inputs.amex_waf_interceptor_disabled || vars.AMEX_AB_WAF_INTERCEPTOR_DISABLED }}
-          IN_AUTH_REQ_TRACE: ${{ inputs.amex_auth_req_trace || vars.AMEX_AB_AUTH_REQ_TRACE }}
-        run: |
-          set -euo pipefail
-          apply() {
-            if [ -n "$2" ]; then
-              printf '%s=%s\n' "$1" "$2" >> "$GITHUB_ENV"
-              printf 'A/B override applied: %s=%s\n' "$1" "$2"
-            else
-              printf 'A/B override absent: %s (code default in effect)\n' "$1"
-            fi
-          }
-          apply CAMOUFOX_HUMANIZE "$IN_HUMANIZE"
-          apply CAMOUFOX_DISABLE_COOP "$IN_DISABLE_COOP"
-          apply CAMOUFOX_BLOCK_WEBRTC "$IN_BLOCK_WEBRTC"
-          apply CAMOUFOX_OS "$IN_CAMOUFOX_OS"
-          apply WAF_INTERCEPTOR_DISABLED "$IN_WAF_DISABLED"
-          apply PIPELINE_AUTH_REQ_TRACE "$IN_AUTH_REQ_TRACE"
-          echo 'Knob override step done (blank values leave code defaults intact).'
       - name: E2E real (${{ matrix.bank }})
         env:
           # FORENSIC_TRACE (repo variable) gates per-run artefact capture
