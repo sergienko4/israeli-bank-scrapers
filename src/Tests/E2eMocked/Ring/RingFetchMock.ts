@@ -73,9 +73,12 @@ export type RingFault =
   | 'unnamedCard'
   | 'refuseMonth';
 
-/** Synthetic credentials for mock-mode runs — safe for public fixtures. */
+/**
+ * Synthetic credentials for mock-mode runs — safe for public fixtures. The
+ * id fails the Israeli ID check digit, so it can never name a real person.
+ */
 export const RING_MOCK_CREDS = Object.freeze({
-  id: '000000018',
+  id: '000000019',
   card6Digits: '123456',
   password: 'synthetic-ring-pass',
 });
@@ -85,7 +88,7 @@ export const RING_MOCK_CREDS = Object.freeze({
  * resumes only with it, so a run that derived another would orphan every
  * key users already hold.
  */
-export const SYN_DEVICE_UDID = 'e707587a95cad93c';
+export const SYN_DEVICE_UDID = 'dbbfee49579444a8';
 
 /** A key registered on an earlier run — the warm-start seed. */
 export const SYN_STORED_KEY = 'syn-ring-stored-key-7c2e';
