@@ -3414,6 +3414,32 @@ export default tseslint.config(
     },
   },
 
+  // 19.3b NEW CORE FILES LOCK — new Pipeline/Core files at the canonical cap.
+  //
+  // §19.3 (above) grandfathers ALL of `Core/**` to 15 lines per function;
+  // its 10-statement cap and the 150-line file cap are already canonical.
+  // The browserless card work adds Core modules written fresh to the
+  // canonical caps, so, per `eslint-rules-guidlines.md` §1, this block pins
+  // exactly those files to 10 lines per function. Flat config is last-wins
+  // and this block sits AFTER §19.3, so the strict cap wins for these paths
+  // while the rest of Core keeps its grandfather. §4 (narrow, never revert):
+  // scope is the listed new files only.
+  //
+  // Canary: `core-new-file-fn-over-cap.canary.ts` over-sizes one function,
+  // so `npm run lint:canaries` confirms `max-lines-per-function` fires.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/core-new-file-fn-over-cap.canary.ts',
+    ],
+    rules: {
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+    },
+  },
+
   // 19.4 GRANDFATHER — Pipeline/Mediator/{Elements,Form} (not covered by
   // existing §14b.* cluster blocks; Network already passes 10/10).
   {

@@ -49,6 +49,8 @@ export interface IClusterExpectations {
  *     per-function cap is deferred by name rather than pretended.
  *   • §19.1d is not a drain: it pins the new Strategy/Fetch transport
  *     files to the canonical caps from the day they land.
+ *   • §19.3b is not a drain either: it pins new Core files to the
+ *     canonical 10-line function cap from the day they land.
  * Per-cluster overrides are allowed to be STRICTER but never laxer.
  */
 export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
@@ -167,6 +169,16 @@ export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
   {
     clusterName: 'Strategy Fetch transport (§19.1d)',
     representativeFile: 'src/Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.ts',
+    expectations: [
+      { ruleId: 'max-lines', maxAllowed: 150 },
+      { ruleId: 'max-lines-per-function', maxAllowed: 10 },
+      { ruleId: 'complexity', maxAllowed: 10 },
+      { ruleId: '@typescript-eslint/max-params', maxAllowed: 3 },
+    ],
+  },
+  {
+    clusterName: 'Core new files (§19.3b)',
+    representativeFile: 'src/Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.ts',
     expectations: [
       { ruleId: 'max-lines', maxAllowed: 150 },
       { ruleId: 'max-lines-per-function', maxAllowed: 10 },

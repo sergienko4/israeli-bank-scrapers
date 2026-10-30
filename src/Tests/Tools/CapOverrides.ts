@@ -30,6 +30,7 @@ const DRAINED_FN_PIN = 'Drained file pinned back to the canonical function cap.'
 const DRAINED_TREE_FILE_PIN = 'Drained sub-tree pinned back to the canonical file cap.';
 const DRAINED_TREE_FN_PIN = 'Drained sub-tree pinned back to the canonical function cap.';
 const NEW_FETCH_FILE_PIN = 'New Strategy/Fetch file pinned to the canonical cap (§19.1d).';
+const NEW_CORE_FILE_PIN = 'New Core file pinned to the canonical function cap (§19.3b).';
 
 /** New Strategy/Fetch transport files that §19.1d pins past the Strategy grandfather. */
 const FETCH_TRANSPORT_FILES: readonly string[] = [
@@ -190,6 +191,11 @@ const MAX_LINES_PER_FUNCTION_OVERRIDES: readonly ICapOverride[] = [
     reason: DRAINED_FN_PIN,
   },
   ...pinFetchTransportFiles(10),
+  {
+    prefix: 'src/Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.ts',
+    cap: 10,
+    reason: NEW_CORE_FILE_PIN,
+  },
 ];
 
 /**
