@@ -14,9 +14,9 @@
  *   every PRODUCTION glob were deleted from that array. It proves the rule
  *   still exists; it does not prove the rule still reaches production.
  *   That gap is closed separately by assert-rule10-boundary.cjs, which reads
- *   the resolved config for a real Phase file, a Mediator file and the §21a
- *   grandfather — so arming, exemption and grandfather are each asserted
- *   against production paths rather than against this fixture.
+ *   the resolved config for a real file under each armed root and a Mediator
+ *   file — so arming and exemption are each asserted against production
+ *   paths rather than against this fixture.
  *
  * Rule granularity used to be a second limit: `canary-expects-rule` names the
  * shared rule `no-restricted-syntax`, so any of its ~58 selectors could have
