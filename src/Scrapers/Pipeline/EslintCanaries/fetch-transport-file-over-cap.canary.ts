@@ -6,7 +6,7 @@
 
 // Canary: per-file size guard for the new Strategy/Fetch transport files
 // — asserts max-lines: 150 (skipBlankLines + skipComments) fires under
-// §19.1c (eslint.config.mjs), which turns the file-size guard back on for
+// §19.1d (eslint.config.mjs), which turns the file-size guard back on for
 // those files where §7 switches it off for Strategy/**. Sits one line
 // above the 150-effective-line ceiling so "npm run lint:canaries"
 // confirms max-lines fires — its body must stay exactly 151 non-blank,
