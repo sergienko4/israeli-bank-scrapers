@@ -2,8 +2,7 @@
  * Beinleumi bank — per-phase structural-invariant configuration.
  *
  * <p>Mirrors {@link ../Discount/DiscountPhaseConfig.ts},
- * {@link ../Hapoalim/HapoalimPhaseConfig.ts},
- * {@link ../Amex/AmexPhaseConfig.ts}, and
+ * {@link ../Hapoalim/HapoalimPhaseConfig.ts}, and
  * {@link ../Max/MaxPhaseConfig.ts}. Markers are GENERIC bank-identity
  * substrings (no PII) that survive both real operator harvests AND
  * the synthetic stubs shipped here. The Mode A static drive proves

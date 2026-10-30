@@ -9,7 +9,6 @@
  */
 
 import type { ILoginConfig } from '../../../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
-import { AMEX_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/Amex/AmexPipeline.js';
 import { BEINLEUMI_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/Beinleumi/BeinleumiPipeline.js';
 import { DISCOUNT_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/Discount/DiscountPipeline.js';
 import { HAPOALIM_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.js';
@@ -25,7 +24,6 @@ const BANK_LOGIN_CONFIGS: Readonly<Record<PhaseHBank, ILoginConfig>> = {
   hapoalim: HAPOALIM_LOGIN,
   beinleumi: BEINLEUMI_LOGIN,
   discount: DISCOUNT_LOGIN,
-  amex: AMEX_LOGIN,
   max: MAX_LOGIN,
 };
 

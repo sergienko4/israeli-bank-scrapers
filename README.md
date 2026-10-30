@@ -160,7 +160,7 @@ validated at runtime.
 | One Zero             | Bank        | API-direct | `email`, `password`, OTP        |
 | Pagi                 | Bank        | Browser    | `username`, `password`, OTP     |
 | Pepper (by Leumi)    | Bank        | API-direct | `phoneNumber`, `password`, OTP  |
-| Amex                 | Credit card | Browser    | `id`, `card6Digits`, `password` |
+| Amex                 | Credit card | API-direct | `id`, `card6Digits`, `password` |
 | Isracard             | Credit card | API-direct | `id`, `card6Digits`, `password` |
 | Max                  | Credit card | Browser    | `username`, `password`          |
 | Visa Cal             | Credit card | API-direct | `username`, `password`          |
@@ -202,10 +202,11 @@ const result = await scraper.scrape({
 result.persistentOtpToken; // pass back as `otpLongTermToken` on the next run
 ```
 
-Visa Cal and Isracard are API-direct too but send no OTP: their
+Visa Cal, Isracard and Amex are API-direct too but send no OTP: their
 `persistentOtpToken` skips the password step on the next run — see the
-[Visa Cal](https://sergienko4.github.io/israeli-bank-scrapers/banks/visacal/) and
-[Isracard](https://sergienko4.github.io/israeli-bank-scrapers/banks/isracard/) guides.
+[Visa Cal](https://sergienko4.github.io/israeli-bank-scrapers/banks/visacal/),
+[Isracard](https://sergienko4.github.io/israeli-bank-scrapers/banks/isracard/) and
+[Amex](https://sergienko4.github.io/israeli-bank-scrapers/banks/amex/) guides.
 
 Pass `phoneNumber` in digits-only international form. Each bank wants a
 different wire format (`+972…`, `972…`, `972-…`) and the mediator rewrites it
@@ -381,7 +382,7 @@ backwards compatibility. Full remedies, including WAF-specific ones, are in
 
 ```mermaid
 flowchart LR
-    subgraph BB["Pipeline browser banks (12)"]
+    subgraph BB["Pipeline browser banks (11)"]
       direction LR
       INIT --> HOME --> PRELOGIN["PRE-LOGIN (opt-in)"]
       PRELOGIN --> LOGIN
@@ -392,7 +393,7 @@ flowchart LR
       SCRAPE --> TERM["TERMINATE"]
     end
 
-    subgraph API["API-direct banks (5) — OneZero · Pepper · PayBox · Visa Cal · Isracard"]
+    subgraph API["API-direct banks (6) — OneZero · Pepper · PayBox · Visa Cal · Isracard · Amex"]
       direction LR
       CALL["API-DIRECT-CALL<br/>(login + OTP via JSON API)"] --> SCR["API-DIRECT-SCRAPE"]
     end

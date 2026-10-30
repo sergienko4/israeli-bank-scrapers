@@ -16,45 +16,22 @@
 
 import type { IBankFixtureExpectations } from './FixtureExpectations.js';
 
-const AMEX_PHASE_11_STEPS = [
-  { stepName: '01-home' },
-  {
-    stepName: '02-pre-login',
-    requiredFormIds: ['otpLobbyFormSms'],
-    requiredInputIds: ['otpLoginId_SMS'],
-    revealText: 'או כניסה עם סיסמה קבועה',
-  },
-  {
-    stepName: '03-after-flip',
-    requiredFormIds: ['otpLobbyFormSms', 'otpLobbyFormPassword'],
-    requiredInputIds: ['otpLoginId_ID', 'otpLoginPwd'],
-  },
-  { stepName: '04-login-action' },
-  { stepName: '07-auth-discovery' },
-  { stepName: '08-account-resolve' },
-  { stepName: '09-dashboard' },
-  { stepName: '10-scrape-transactions' },
-  { stepName: '11-balance' },
-] as const;
-
 /**
- * Beinleumi Phase-11 step inventory — distinct from MAX / AMEX /
- * Hapoalim:
+ * Beinleumi Phase-11 step inventory — distinct from MAX / Hapoalim:
  * <ul>
  *   <li>`02-modal-opened` + `03-after-prelogin` are Beinleumi-distinct
- *       (real-captured Angular-iframe lobby, NOT the SMS / password
- *       flip AMEX uses).</li>
+ *       (real-captured Angular-iframe lobby, NOT an SMS / password
+ *       flip).</li>
  *   <li>`05-otp-trigger` + `06-otp-fill` are the FIRST occurrence of
  *       explicit OTP phases in the Phase-11 series — Beinleumi is
  *       OTP-gated per `BeinleumiPipeline.ts`
  *       (`.withOtpTrigger().withOtpFill()`); Hapoalim's Mode B
  *       COLLAPSES OTP into a single LOGIN→AUTH_DISCOVERY transition;
- *       MAX / AMEX / Discount are password-only
+ *       MAX / Discount are password-only
  *       (no OTP leg at all).</li>
  *   <li>`10-scrape-transactions` is named after Beinleumi's
  *       `bff-balancetransactions/api/v1/transactions/list` BFF
- *       endpoint, NOT MAX's `getTransactionsAndGraphs` or AMEX's
- *       `CardsTransactionsList`.</li>
+ *       endpoint, NOT MAX's `getTransactionsAndGraphs`.</li>
  * </ul>
  * Beinleumi now uses the captured iframe content (`03-after-prelogin/
  * frame-2.html`, 51KB, with full `<input type="password">` + form
@@ -110,24 +87,6 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     loginStep: '04-login-action',
     requiresHydration: false,
     steps: LEUMI_PHASE_11_STEPS,
-  },
-  {
-    bankId: 'amex',
-    originUrl: 'https://he.americanexpress.co.il',
-    // Point at the harvested top-document file (03-after-flip/main.html)
-    // instead of the directory-style step name. The directory siblings
-    // (frames.json + frame-0..8.html) describe analytics/recaptcha
-    // iframes that DO NOT contain the credential form (it lives in the
-    // top document under <form id="otpLobbyFormPassword">). Using the
-    // `<dir>/main` path keeps MirrorInterceptor from loading
-    // `<dir>/frames.json` for replay, so the resolver never wastes
-    // discovery time probing third-party iframes (reCAPTCHA,
-    // DoubleClick) — mirrors the beinleumi pattern of pointing
-    // loginStep at the file that actually holds the credential form.
-    loginStep: '03-after-flip/main',
-    loginFormId: 'otpLobbyFormPassword',
-    requiresHydration: false,
-    steps: AMEX_PHASE_11_STEPS,
   },
   {
     bankId: 'beinleumi',

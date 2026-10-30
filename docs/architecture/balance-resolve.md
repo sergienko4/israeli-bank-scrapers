@@ -9,19 +9,14 @@
 With `BALANCE-RESOLVE` retired for pipeline banks, each shape's `balance` step
 owns the figure. For a card issuer the pipeline's account unit is the **card**,
 so a balance is only publishable when the provider attributes it to a card.
-The four issuers split two ways:
+All four issuers do:
 
 | Bank | Provider figure | Attributable to a card? | `balance.extract` |
 |---|---|---|---|
 | **Max** | `getHomePageData` → `Result.UserCards.Cards[].CycleSummary[]`, sitting on the same object as `Last4Digits` | ✅ yes | real per-card debit |
 | **Visa Cal** | `GetTotalFrameStatus`, one request per card → `result.calIssuedCards.accountLevelFrames[]`; the frame whose `cardUniqueId` is the card's own carries `nextTotalDebit` | ✅ yes | real per-card next debit |
 | **Isracard** | GatewayV2 `GetTransactionsList`, one request per card for its next debit month → `data.israelAbroadVouchers.vouchers.totalForStatement.totalIlsBillingDate` | ✅ yes | real per-card next debit |
-| Amex | `GetBillingsForMonthsOverview` → `data[]` is one row per **billing month**; the request submits every card at once and the response has no card dimension | ❌ household aggregate | `0` |
-
-The `0` on Amex, the one aggregate issuer, is a **deliberate sentinel, not a
-stub**. Its only figure covers the whole household, so publishing it per card would
-repeat one total across every card and multiply the user's apparent debt by
-their card count. An honest `0` is preferable to fabricated attribution.
+| **Amex** | The same Ring-family GatewayV2 `GetTransactionsList` as Isracard, on Amex's ring host | ✅ yes | real per-card next debit |
 
 Max's figure rides the card object itself. Reading
 it costs **no extra request** — the customer step already fetches

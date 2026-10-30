@@ -833,10 +833,13 @@ assert_eq "VisaCal warms its own apex" "yes" \
 assert_eq "VisaCal does not bleed the neighbouring Amex apex" "no" \
   "$(contains www.americanexpress.co.il "$VISACAL_HOSTS")"
 
-# Isracard runs headless on its ring host. That origin lives in the ring
-# constants, not in the registry block, so it must come from the manifest.
+# Isracard and Amex run headless on their ring hosts. Those origins live in
+# the ring constants, not in the registry block, so they must come from the
+# manifest.
 assert_eq "Isracard warms its ring API host" "yes" \
   "$(contains ring.isracard.co.il "$(warm_set Isracard)")"
+assert_eq "Amex warms its ring API host" "yes" \
+  "$(contains ring.americanexpress.co.il "$(warm_set Amex)")"
 
 # A bank whose whole flow lives on urls.base has no manifest entry; that
 # is a valid answer, not an error, and must not abort under `set -e`.

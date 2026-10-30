@@ -19,7 +19,6 @@ import { fetchAccountTxns } from './ApiDirectScrapeAccountTxns.js';
 import { fetchBalance } from './ApiDirectScrapeBalance.js';
 import runBootstrap from './ApiDirectScrapeBootstrap.js';
 import type { IAcctCtx, IDriverCtx } from './ApiDirectScrapeDispatchArgs.js';
-import runPrime from './ApiDirectScrapePrime.js';
 import { fetchAccounts } from './ApiDirectScrapeSteps.js';
 import type { ApiDirectScrapeResult } from './ApiDirectScrapeTypes.js';
 import type { IApiDirectScrapeShape, IBalanceOutcome } from './IApiDirectScrapeShape.js';
@@ -115,7 +114,6 @@ function summarizeScrape(results: readonly IAccountResult[]): IScrapeState {
 async function runScrape<TAcct, TCursor>(
   d: IDriverCtx<TAcct, TCursor>,
 ): Promise<Procedure<ApiDirectScrapeResult>> {
-  await runPrime(d);
   const primed = await runBootstrap(d);
   if (!isOk(primed)) return primed;
   const accts = await fetchAccounts(d);

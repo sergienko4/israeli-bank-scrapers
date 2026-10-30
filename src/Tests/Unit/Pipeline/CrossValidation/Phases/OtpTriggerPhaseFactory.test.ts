@@ -22,7 +22,7 @@
  * shared {@link unwrapOrThrow} from `_deepPhaseHelpers.ts`.
  *
  * <p>Scope: 3 OTP-using banks (hapoalim, beinleumi, max).
- * Discount/Amex use password-only login.
+ * Discount uses password-only login.
  */
 
 import {

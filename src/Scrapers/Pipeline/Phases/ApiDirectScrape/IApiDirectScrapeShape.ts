@@ -208,12 +208,13 @@ export interface IApiDirectScrapeBalanceStep<TAcct> {
   /**
    * Skip the balance-step network call entirely.
    *
-   * Two kinds of shape use it. Amex publishes no figure attributable to a
-   * single card, so it declares `extract: () => 0` for a deterministic
-   * zero. Max instead carries its per-card cycle debit on the account
-   * itself, so it skips the fetch because the value is already in hand —
-   * not because none exists. VisaCal and Isracard fetch each card's next
-   * debit and do not skip. Mirrors {@link IApiDirectScrapeCustomerStep.skipFetch}.
+   * Two kinds of shape use it. PayBox's balance call answers 400 and
+   * poisons the session, so it is never made and `extract` yields a
+   * deterministic zero. Max instead carries its per-card cycle debit on the
+   * account itself, so it skips the fetch because the value is already in
+   * hand — not because none exists. VisaCal, Isracard and Amex fetch each
+   * card's next debit and do not skip. Mirrors
+   * {@link IApiDirectScrapeCustomerStep.skipFetch}.
    */
   readonly skipFetch?: boolean;
 }
@@ -356,24 +357,6 @@ export interface IApiDirectScrapeGuardSummary {
 }
 
 /**
- * Optional post-login PRIME navigation. Some browser banks (Amex,
- * Isracard) authorize their login-origin service via first-party cookies
- * but gate the transactions service behind a separate session the SPA only
- * establishes after navigating to its frontend route. Declaring `prime`
- * makes the driver navigate the live login page there once, before any
- * scrape fetch, so the transactions service returns 200 rather than
- * 302→login. Absent ⇒ no navigation (cookie-only + headless banks).
- */
-export interface IApiDirectScrapePrime {
-  /**
-   * Absolute SPA route the driver navigates for the priming handshake.
-   * Receives `ctx` so a bank whose route embeds a session value can build
-   * it dynamically; static routes ignore the argument.
-   */
-  readonly navUrl: (ctx: IActionContext) => string;
-}
-
-/**
  * Session-context patch a bootstrap step deposits. The driver MERGES it
  * into the existing session-context snapshot (never replaces), so the
  * post-login identity fields (`uId`, `token`, `deviceId16Hex`) survive.
@@ -387,8 +370,8 @@ export interface IBootstrapExtractArgs {
 }
 
 /**
- * Optional pre-scrape BOOTSTRAP step. Dispatched exactly once, after
- * `prime` and before the customer step, through the same signed-POST
+ * Optional pre-scrape BOOTSTRAP step. Dispatched exactly once, before
+ * the customer step, through the same signed-POST
  * machinery the scrape steps use (shape-level `signer` + `secrets`). Its
  * parsed response body is handed to `extractPatch`, whose returned patch
  * is merged into the mediator session-context so later steps — and the
@@ -431,14 +414,9 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    */
   readonly isCardIssuer?: boolean;
   /**
-   * Optional post-login prime navigation — see {@link IApiDirectScrapePrime}.
-   * Absent ⇒ no prime (cookie-only session banks + headless banks).
-   */
-  readonly prime?: IApiDirectScrapePrime;
-  /**
    * Optional pre-scrape bootstrap step — see
-   * {@link IApiDirectScrapeBootstrapStep}. Runs once after `prime` and
-   * before the customer step; its patch is merged into session-context.
+   * {@link IApiDirectScrapeBootstrapStep}. Runs once before the customer
+   * step; its patch is merged into session-context.
    * Absent ⇒ no bootstrap (every bank except PayBox getKey).
    */
   readonly bootstrap?: IApiDirectScrapeBootstrapStep;

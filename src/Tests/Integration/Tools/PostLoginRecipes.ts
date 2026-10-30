@@ -31,35 +31,6 @@ import type { IExtendedRecipe } from './RecipeStepTypes.js';
 /** Generic dashboard wait — captures hydrated DOM regardless of bank UX. */
 const DASHBOARD_NETWORKIDLE_TIMEOUT_MS = 30000;
 
-/** Amex: card-only flow, password login. */
-const AMEX_POST_LOGIN = {
-  bankId: 'amex',
-  steps: [
-    { kind: 'login', stepName: '04-login-action' },
-    {
-      kind: 'waitFor',
-      stepName: '07-auth-discovery',
-      urlIncludes: 'NewAccountTransactions',
-      timeoutMs: DASHBOARD_NETWORKIDLE_TIMEOUT_MS,
-    },
-    { kind: 'snapshot', stepName: '09-dashboard', waitForLifecycle: 'networkidle' },
-    {
-      kind: 'recordResponse',
-      stepName: '10-scrape-current-billing',
-      urlPattern: '/CurrentBillingDate',
-      captureAs: 'CurrentBillingDate',
-      methods: ['POST'],
-    },
-    {
-      kind: 'recordResponse',
-      stepName: '10-scrape-transactions',
-      urlPattern: '/Transactions',
-      captureAs: 'Transactions',
-      methods: ['POST'],
-    },
-  ],
-} as const satisfies IExtendedRecipe;
-
 /** Discount: legacy banking app, no OTP, has account-resolve picker. */
 const DISCOUNT_POST_LOGIN = {
   bankId: 'discount',
@@ -265,7 +236,6 @@ const MIZRAHI_POST_LOGIN = {
  * constants above already carry `as const satisfies IExtendedRecipe`.
  */
 const POST_LOGIN_RECIPES: Readonly<Partial<Record<string, IExtendedRecipe>>> = {
-  amex: AMEX_POST_LOGIN,
   discount: DISCOUNT_POST_LOGIN,
   max: MAX_POST_LOGIN,
   hapoalim: HAPOALIM_POST_LOGIN,
@@ -338,12 +308,6 @@ interface IBankRecipe {
  * are referenced by name, not dynamically indexed.
  */
 const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
-  amex: {
-    steps: [
-      { stepName: '02-pre-login', url: 'https://digital.americanexpress.co.il' },
-      { stepName: '03-after-flip', revealText: 'או כניסה עם סיסמה קבועה' },
-    ],
-  },
   hapoalim: {
     steps: [
       { stepName: '01-home', url: 'https://www.bankhapoalim.co.il' },

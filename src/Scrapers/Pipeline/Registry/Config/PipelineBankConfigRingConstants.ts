@@ -25,6 +25,14 @@ const ISRACARD_RING: IRingConstants = {
   companyCode: '11',
 };
 
+/** Amex on the ring gateway. */
+const AMEX_RING: IRingConstants = {
+  base: 'https://ring.americanexpress.co.il',
+  applicationId: 'ma',
+  isrdomain: 'amex',
+  companyCode: '77',
+};
+
 /** The app's wallet id, sent by the session-token login and the card list alike. */
 const RING_WALLET_ID = '216';
 
@@ -53,4 +61,4 @@ function ringStaticHeaders(ring: IRingConstants): Readonly<Record<string, string
 }
 
 export type { IRingConstants };
-export { ISRACARD_RING, RING_WALLET_ID, ringStaticHeaders };
+export { AMEX_RING, ISRACARD_RING, RING_WALLET_ID, ringStaticHeaders };

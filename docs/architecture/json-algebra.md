@@ -137,9 +137,9 @@ active rule set.
 
 `JsonUnknown` is the top type today because the consolidation described in
 *History* covered the **declaration sites** but not the **call sites**. The
-codebase still carries **31 duplicate open-record aliases** — 24 spelled
+codebase still carries **30 duplicate open-record aliases** — 23 spelled
 `Record<string, unknown>` and 7 spelled `Readonly<Record<string, unknown>>` —
-of which 25 sit inside the Pipeline (`ApiRecord`, `ApiBody`, `ApiPayload`,
+of which 24 sit inside the Pipeline (`ApiRecord`, `ApiBody`, `ApiPayload`,
 `VarsMap`, plus a per-bank `…Txn` for most banks).
 
 Read that number for what it is: a **related open-record debt population**,
@@ -149,11 +149,11 @@ test and logging helpers (`RecordedOptions`, `LogEvent`, `LogLine`) that do not
 feed `JsonUnknown` at all. The evidence that narrowing the arm is a real
 refactor is the 29 type errors below, not this count.
 
-That 31 is a **ratchet**, not a footnote. `JsonValueSingleSource.test.ts`
+That 30 is a **ratchet**, not a footnote. `JsonValueSingleSource.test.ts`
 counts them through the TypeScript AST — a lexical grep misses the `Readonly`
 wrapper, multi-line declarations and anything nested in a namespace — and
 asserts **exact equality**, not a ceiling. A ceiling would let the count fall
-to 30 and drift back to 31 unnoticed; exact equality means paying the debt
+to 29 and drift back to 30 unnoticed; exact equality means paying the debt
 down has to edit the baseline in the same commit.
 
 Closing the gap is a genuine refactor, not a mechanical rename. The cost is

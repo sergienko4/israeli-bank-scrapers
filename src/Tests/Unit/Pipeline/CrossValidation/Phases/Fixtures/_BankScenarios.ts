@@ -69,17 +69,6 @@ export const BANK_SCENARIOS: readonly IBankScenario[] = [
     cookieCount: 0,
   },
   {
-    bank: 'amex',
-    homepageUrl: 'https://www.amex.example/',
-    postNavUrl: 'https://digital.amex.example/login',
-    loginUrl: 'https://digital.amex.example/login',
-    dashboardUrl: 'https://digital.amex.example/account',
-    accountsUrl: 'https://digital.amex.example/api/accounts',
-    frameCount: 0,
-    usesOtp: false,
-    cookieCount: 0,
-  },
-  {
     bank: 'max',
     homepageUrl: 'https://www.max.example/',
     postNavUrl: 'https://www.max.example/login-page',

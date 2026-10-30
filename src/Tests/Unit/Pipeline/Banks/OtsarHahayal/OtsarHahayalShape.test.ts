@@ -178,8 +178,4 @@ describe('OTSAR_HAHAYAL_SHAPE wiring', () => {
   it('carries the OtsarHahayalScrape step name', () => {
     expect(OTSAR_HAHAYAL_SHAPE.stepName).toBe('OtsarHahayalScrape');
   });
-
-  it('declares no prime nav — AUTH-DISCOVERY handles the appsng session hand-off', () => {
-    expect(OTSAR_HAHAYAL_SHAPE.prime).toBeUndefined();
-  });
 });

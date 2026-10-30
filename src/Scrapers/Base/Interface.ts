@@ -57,7 +57,7 @@ export type ScraperCredentials =
   | { id: string; password: string }
   | { id: string; password: string; num: string }
   | { id: string; password: string; card6Digits: string }
-  | { id: string; password: string; card6Digits: string; otpLongTermToken?: string } // Isracard: a stored device key skips the login steps
+  | { id: string; password: string; card6Digits: string; otpLongTermToken?: string } // Isracard / Amex: a stored device key skips the login steps
   | { username: string; nationalID: string; password: string } // Yahav (legacy key): username == num
   | { num: string; nationalID: string; password: string } // Yahav (pipeline): user code (num) + ת.ז.; num accepts legacy `username`
   | ({ email: string; password: string } & (

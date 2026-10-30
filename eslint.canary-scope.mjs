@@ -52,9 +52,6 @@ export const SONAR_PARITY_IGNORE_GLOBS = Object.freeze(
  * @type {readonly string[]}
  */
 export const SKIP_ALLOWLIST_FILES = Object.freeze([
-  'src/Tests/E2eMocked/Amex.e2e-mocked.test.ts',
-  'src/Tests/E2eMocked/ErrorScenarios.e2e-mocked.test.ts',
-  'src/Tests/E2eMocked/ExternalBrowser.e2e-mocked.test.ts',
   'src/Tests/E2eMocked/Discount/Discount.e2e-mocked.test.ts',
   'src/Tests/E2eMocked/Max/Max.e2e-mocked.test.ts',
   'src/Tests/E2eMocked/VisaCal/VisaCal.e2e-mocked.test.ts',

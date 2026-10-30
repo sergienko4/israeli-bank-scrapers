@@ -247,8 +247,4 @@ describe('BEINLEUMI_SHAPE wiring', () => {
   it('carries the BeinleumiScrape step name', () => {
     expect(BEINLEUMI_SHAPE.stepName).toBe('BeinleumiScrape');
   });
-
-  it('declares no prime nav — AUTH-DISCOVERY handles the appsng session hand-off', () => {
-    expect(BEINLEUMI_SHAPE.prime).toBeUndefined();
-  });
 });

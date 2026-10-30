@@ -32,6 +32,7 @@ const CONFIG_PATHS: readonly (readonly [string, string])[] = [
   ['PayBox', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigPayBox.js'],
   ['VisaCal', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigVisaCal.js'],
   ['Isracard', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigIsracard.js'],
+  ['Amex', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigAmex.js'],
 ];
 
 /** Directory holding every bank call-config literal. */
@@ -215,7 +216,7 @@ describe('warm-start contract — every opted-in bank', () => {
   it('loads every bank this suite enumerates', async () => {
     const configs = await loadWarmStartConfigs();
     const labels = configs.map(([label]) => label);
-    expect(labels).toEqual(['OneZero', 'Pepper', 'PayBox', 'VisaCal', 'Isracard']);
+    expect(labels).toEqual(['OneZero', 'Pepper', 'PayBox', 'VisaCal', 'Isracard', 'Amex']);
   });
 
   it('holds every invariant below to the cookie-session fixture too', async () => {
@@ -227,6 +228,7 @@ describe('warm-start contract — every opted-in bank', () => {
       'PayBox',
       'VisaCal',
       'Isracard',
+      'Amex',
       'cookie-session fixture',
     ];
     expect(labels).toEqual(expected);
@@ -290,16 +292,16 @@ describe('warm-start contract — policy exemptions', () => {
     const configs = await loadWarmStartConfigs();
     const exempt = configs.filter(([, config]) => !isJwtValidated(config));
     const exemptLabels = exempt.map(([label]) => label);
-    // VisaCal stores an opaque login hash and Isracard a device key, not a
-    // JWT; for both, the resume call is the check.
-    expect(exemptLabels).toEqual(['VisaCal', 'Isracard']);
+    // VisaCal stores an opaque login hash and the ring issuers a device key,
+    // not a JWT; for each, the resume call is the check.
+    expect(exemptLabels).toEqual(['VisaCal', 'Isracard', 'Amex']);
   });
 
   it('lists the warm-start banks whose session rides on cookies, not a header', async () => {
     const configs = await loadWarmStartConfigs();
     const exempt = configs.filter(([, config]) => !isHeaderSent(config));
     const exemptLabels = exempt.map(([label]) => label);
-    expect(exemptLabels).toEqual(['Isracard']);
+    expect(exemptLabels).toEqual(['Isracard', 'Amex']);
   });
 
   it('the fixture is exempt from both policy-dependent invariants', () => {

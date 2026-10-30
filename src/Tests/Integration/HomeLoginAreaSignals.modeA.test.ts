@@ -62,7 +62,6 @@ interface IHomeSignalCase {
  * `false` means HOME has no DOM fallback and must genuinely navigate.
  */
 const CASES: readonly IHomeSignalCase[] = [
-  { bankId: 'amex', hasLoginForm: false },
   { bankId: 'beinleumi', hasLoginForm: false },
   { bankId: 'discount', hasLoginForm: false },
   { bankId: 'hapoalim', hasLoginForm: false },

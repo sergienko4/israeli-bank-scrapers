@@ -150,6 +150,7 @@ const BROWSERLESS_KINDS: readonly string[] = ['native', 'node-tls'];
  * moves a bank to a browserless transport adds it here.
  */
 const EXPECTED_BROWSERLESS: readonly CompanyTypes[] = [
+  CompanyTypes.Amex,
   CompanyTypes.Isracard,
   CompanyTypes.VisaCal,
   CompanyTypes.OneZero,

@@ -11,7 +11,6 @@
  */
 
 import type { ILoginConfig } from '../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
-import { AMEX_LOGIN } from '../../../Scrapers/Pipeline/Banks/Amex/AmexPipeline.js';
 import { BEINLEUMI_LOGIN } from '../../../Scrapers/Pipeline/Banks/Beinleumi/BeinleumiPipeline.js';
 import { DISCOUNT_LOGIN } from '../../../Scrapers/Pipeline/Banks/Discount/DiscountPipeline.js';
 import { HAPOALIM_LOGIN } from '../../../Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.js';
@@ -31,7 +30,6 @@ import { YAHAV_LOGIN } from '../../../Scrapers/Pipeline/Banks/Yahav/YahavPipelin
  * every bank in {@link BankFixtureExpectations} has a config entry).
  */
 const BANK_LOGIN_CONFIGS: Readonly<Partial<Record<string, ILoginConfig>>> = {
-  amex: AMEX_LOGIN,
   beinleumi: BEINLEUMI_LOGIN,
   discount: DISCOUNT_LOGIN,
   hapoalim: HAPOALIM_LOGIN,

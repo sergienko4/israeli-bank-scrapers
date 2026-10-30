@@ -178,8 +178,4 @@ describe('PAGI_SHAPE wiring', () => {
   it('carries the PagiScrape step name', () => {
     expect(PAGI_SHAPE.stepName).toBe('PagiScrape');
   });
-
-  it('declares no prime nav — AUTH-DISCOVERY handles the appsng session hand-off', () => {
-    expect(PAGI_SHAPE.prime).toBeUndefined();
-  });
 });

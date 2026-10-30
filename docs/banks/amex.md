@@ -3,10 +3,10 @@
 | | |
 |---|---|
 | `CompanyTypes` | `Amex` |
-| Engine | Browser (Pipeline) |
-| Credentials | `id`, `card6Digits`, `password` |
+| Engine | **API-direct** (no browser) |
+| Credentials | `id`, `card6Digits`, `password` (optional `otpLongTermToken`) |
 | OTP | — |
-| Phase chain | INIT → HOME → **PRE-LOGIN** → LOGIN → BIND-API-MEDIATOR → API-DIRECT-SCRAPE → TERMINATE |
+| Phase chain | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md) |
 | Source | [`Banks/Amex/AmexPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Amex/AmexPipeline.ts) |
 
 ## Quick example
@@ -23,21 +23,39 @@ const result = await scraper.scrape({
   id: '123456789',
   card6Digits: '123456',
   password: 'mypassword',
+  otpLongTermToken: storedKey, // optional — the previous run's persistentOtpToken
 });
+
+storedKey = result.persistentOtpToken; // the same key every run — keep it
 ```
+
+## Login
+
+Amex logs in over its ring mobile gateway, `ring.americanexpress.co.il`, and
+sends no SMS. It is a member of [the Ring family](../phases/api-direct-scrape.md#the-ring-family-isracard-and-amex):
+the login steps, their success codes and the warm start are Isracard's, step for
+step — see [Isracard → Login](isracard.md#login) and
+[Isracard → Warm start](isracard.md#warm-start). Only the ring constants differ.
+`AMEX_API_DIRECT_CALL` (`Registry/Config/PipelineBankConfigAmex.ts`) builds the
+steps from Amex's ring constants (`AMEX_RING`): host
+`ring.americanexpress.co.il`, app id `ma`, domain `amex` and company code `77`.
+
+`AMEX_HEADLESS` registers the `service` URL and selects Node's own `fetch`
+(`nativeFetch`) with a cookie jar, so no browser starts. Browser options passed
+to `createScraper` are ignored with a
+[warning](../configuration.md#browser-options-on-browserless-banks).
+
+## Scrape
+
+The `AMEX_SHAPE` `IApiDirectScrapeShape` (`Banks/Amex/scrape/AmexShape.ts`) is
+built by the shared ring factory, so cards, transactions and balance follow
+[Isracard → Scrape](isracard.md#scrape): one account per card, one
+`GetTransactionsList` request per card per billing month, and the card's next
+debit as its balance. See [Balance resolution](../architecture/balance-resolve.md).
 
 ## Known quirks
 
-- Two-screen login — the **PRE-LOGIN** phase clicks "המשך עם סיסמה" (continue with password) before the password field becomes visible.
-- Per-card response shape — `data.cardsList[].cardChargeNext.billingSumSekel`. The hard-model card-cycle path extracts this per-card via the `last4Digits` field match.
 - Amex + Isracard share a sequential test group (`scripts/run-real-suite.ts` WORKER_GROUPS) — Amex must finish before Isracard logs in on the same customer-side session.
-
-## Hard-model post-auth
-
-After login, Amex uses the hard-model post-auth path (`withBrowserApiDirect`):
-instead of the generic AUTH-DISCOVERY / ACCOUNT-RESOLVE / DASHBOARD / SCRAPE /
-BALANCE-RESOLVE chain, the `AMEX_SHAPE` `IApiDirectScrapeShape`
-(`Banks/Amex/scrape/AmexShape.ts`) declares the exact card-list and transactions
-API calls, issued directly through the live login page; balance is card-cycle,
-so there is no separate balance call. See
-[api-direct-scrape](../phases/api-direct-scrape.md) for the phase contract.
+- Every ring reply carries the bank's verdict inside an HTTP 200; a reply the
+  bank did not confirm fails its call, and an expired session triggers the warm
+  run's one recovery re-login — as on Isracard.
