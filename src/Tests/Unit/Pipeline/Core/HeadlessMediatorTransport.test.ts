@@ -164,3 +164,40 @@ describe('HeadlessMediatorWiring — transport selection', () => {
     expect(transport).toBe('');
   });
 });
+
+/** Transport kind for each factory name {@link chosenTransport} reports. */
+const KIND_OF_FACTORY: Readonly<Record<string, string>> = {
+  'node-tls': 'node-tls',
+  native: 'native',
+  'browser-tls': 'browser',
+};
+
+describe('resolveHeadlessTransportKind — agrees with the wired factory', () => {
+  beforeEach(() => {
+    CREATE_NODE_TLS.mockClear();
+    CREATE_BROWSER_TLS.mockClear();
+    CREATE_NATIVE.mockClear();
+  });
+
+  it.each<[string, ITransportFlags]>([
+    ['a TLS profile', { tlsProfile: ANDROID_PROFILE }],
+    ['a client certificate', { requiresClientCert: true }],
+    ['native fetch', { nativeFetch: true }],
+    ['browser TLS', { requiresBrowserTls: true }],
+    ['no transport flag', {}],
+  ])('names the transport wired for %s', (_label, flags) => {
+    resolveWith(flags);
+    const transport = chosenTransport();
+    const kind = WIRING.resolveHeadlessTransportKind(CompanyTypes.OneZero);
+    expect(kind).toBe(KIND_OF_FACTORY[transport]);
+  });
+
+  it.each<[string, unknown]>([
+    ['an unregistered bank', false],
+    ['a bank with no headless block', {}],
+  ])('returns false for %s', (_label, config) => {
+    RESOLVE_CONFIG.mockReturnValue(config);
+    const kind = WIRING.resolveHeadlessTransportKind(CompanyTypes.OneZero);
+    expect(kind).toBe(false);
+  });
+});

@@ -92,6 +92,17 @@ An api-direct bank's `headless` config block picks the transport its identity ca
 
 A block that declares more than one of `requiresClientCert`/`tlsProfile`, `nativeFetch` and `requiresBrowserTls` fails fast with a `ScraperError` when the context is built.
 
+`resolveHeadlessTransportKind(companyId)` returns the kind these rules pick without building a mediator. `createScraper` uses it to warn when a bank on rule 1 or 2, which never opens a browser, is given browser options — see [Browser options on browserless banks](../configuration.md#browser-options-on-browserless-banks).
+
+| Symbol                         | Module                      | Role                                                                        |
+| ------------------------------ | --------------------------- | --------------------------------------------------------------------------- |
+| `HeadlessTransportKind`        | `HeadlessMediatorWiring.ts` | `'node-tls'`, `'native'` or `'browser'` — the rule a headless block matches |
+| `resolveHeadlessTransportKind` | `HeadlessMediatorWiring.ts` | The kind for a bank, or `false` when it has no `headless` block             |
+| `BROWSER_ONLY_OPTIONS`         | `BrowserOnlyOptions.ts`     | The browser option names, alphabetical, each pinned to its reader           |
+| `BrowserOnlyOption`            | `BrowserOnlyOptions.ts`     | Union of those names                                                        |
+| `findBrowserOnlyOptions`       | `BrowserOnlyOptions.ts`     | The browser options a caller actually supplied                              |
+| `warnBrowserOnlyOptions`       | `BrowserOnlyOptions.ts`     | Emits the warning on rule 1 or 2; called by `createScraper`                 |
+
 The native transport is [`HeadlessNativeFetchStrategy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.ts), a `NativeFetchStrategy` with two changes:
 
 - Every request, body included, is capped at the constructor's `timeoutMs` option (`IHeadlessNativeFetchOptions`), which defaults to the shared 30 s `NETWORK_FETCH_TIMEOUT_MS`. A hung socket fails as `Timeout` (like the browser-backed transports) with `"<VERB> <url> network error: timeout"`; any other rejection keeps the inherited `toNetworkFailure` message.

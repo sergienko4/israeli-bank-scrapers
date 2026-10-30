@@ -242,6 +242,22 @@ function pickTransportKind(wiring: IHeadlessWiring): HeadlessTransportKind {
 }
 
 /**
+ * Resolve the identity transport a bank's headless block selects, without
+ * building a mediator. Shares {@link pickTransportKind} with
+ * {@link selectHeadlessMediator}, so a caller asking "does this bank need a
+ * browser?" gets the answer the runtime acts on.
+ * @param companyId - Target bank company type.
+ * @returns The transport kind, or false when the bank has no headless block.
+ */
+function resolveHeadlessTransportKind(
+  companyId: IPipelineContext['companyId'],
+): HeadlessTransportKind | false {
+  const wiring = resolveHeadlessWiring(companyId);
+  if (wiring === false) return false;
+  return pickTransportKind(wiring);
+}
+
+/**
  * Select + invoke the headless mediator factory for the resolved wiring.
  * @param companyId - Target bank company type.
  * @param wiring - Resolved wiring entry (URLs + flags).
@@ -272,4 +288,5 @@ function resolveHeadlessApiMediator(descriptor: IPipelineDescriptor): Option<IAp
 }
 
 export default resolveHeadlessApiMediator;
-export { resolveHeadlessApiMediator };
+export type { HeadlessTransportKind };
+export { resolveHeadlessApiMediator, resolveHeadlessTransportKind };
