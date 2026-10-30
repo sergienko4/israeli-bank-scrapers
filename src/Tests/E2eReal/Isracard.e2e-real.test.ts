@@ -79,7 +79,7 @@ DESCRIBE_IF('E2E: Isracard (real credentials, API-direct)', () => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
 
-  it('logs in cold, then warm with the returned key', async () => {
+  it('scrapes transactions successfully (cold, then warm with the returned key)', async () => {
     const creds = coldCreds();
     const cold = await scrapeIsracard(creds);
     const coldKey = assertKeyReturned(cold);
