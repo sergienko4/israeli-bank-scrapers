@@ -84,24 +84,24 @@ The two paths converge on `balanceResolution` — that's the single source of tr
 
 An api-direct bank's `headless` config block picks the transport its identity calls run over. [`HeadlessMediatorWiring.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/HeadlessMediatorWiring.ts) applies the rules in order; the first match wins:
 
-| Order | Config                                   | Transport                                        | Factory                                  |
-| ----- | ---------------------------------------- | ------------------------------------------------ | ---------------------------------------- |
-| 1     | `requiresClientCert` and/or `tlsProfile` | `node:https` (client cert / ClientHello profile) | `createMtlsHeadlessApiMediator`          |
-| 2     | `nativeFetch: true`                      | Node's own `fetch`, no browser                   | `createHeadlessApiMediator`              |
-| 3     | anything else                            | Camoufox page (browser TLS)                      | `createBrowserBackedHeadlessApiMediator` |
+| Order | Config                                   | Kind       | Transport                                        | Opens a browser | Factory                                  |
+| ----- | ---------------------------------------- | ---------- | ------------------------------------------------ | --------------- | ---------------------------------------- |
+| 1     | `requiresClientCert` and/or `tlsProfile` | `node-tls` | `node:https` (client cert / ClientHello profile) | No              | `createMtlsHeadlessApiMediator`          |
+| 2     | `nativeFetch: true`                      | `native`   | Node's own `fetch`                               | No              | `createHeadlessApiMediator`              |
+| 3     | anything else                            | `browser`  | Camoufox page (browser TLS)                      | Yes             | `createBrowserBackedHeadlessApiMediator` |
 
 A block that declares more than one of `requiresClientCert`/`tlsProfile`, `nativeFetch` and `requiresBrowserTls` fails fast with a `ScraperError` when the context is built.
 
-`resolveHeadlessTransportKind(companyId)` returns the kind these rules pick without building a mediator. `createScraper` uses it to warn when a bank on rule 1 or 2, which never opens a browser, is given browser options — see [Browser options on browserless banks](../configuration.md#browser-options-on-browserless-banks).
+`resolveHeadlessTransportKind(companyId)` returns the kind these rules pick without building a mediator. `createScraper` uses it to warn when a bank whose kind opens no browser is given browser options — see [Browser options on browserless banks](../configuration.md#browser-options-on-browserless-banks).
 
 | Symbol                         | Module                      | Role                                                                        |
 | ------------------------------ | --------------------------- | --------------------------------------------------------------------------- |
-| `HeadlessTransportKind`        | `HeadlessMediatorWiring.ts` | `'node-tls'`, `'native'` or `'browser'` — the rule a headless block matches |
+| `HeadlessTransportKind`        | `HeadlessMediatorWiring.ts` | The `Kind` column above — the rule a headless block matches                 |
 | `resolveHeadlessTransportKind` | `HeadlessMediatorWiring.ts` | The kind for a bank, or `false` when it has no `headless` block             |
 | `BROWSER_ONLY_OPTIONS`         | `BrowserOnlyOptions.ts`     | The browser option names, alphabetical, each pinned to its reader           |
 | `BrowserOnlyOption`            | `BrowserOnlyOptions.ts`     | Union of those names                                                        |
 | `findBrowserOnlyOptions`       | `BrowserOnlyOptions.ts`     | The browser options a caller actually supplied                              |
-| `warnBrowserOnlyOptions`       | `BrowserOnlyOptions.ts`     | Emits the warning on rule 1 or 2; called by `createScraper`                 |
+| `warnBrowserOnlyOptions`       | `BrowserOnlyOptions.ts`     | Emits the warning when the kind opens no browser; called by `createScraper` |
 
 The native transport is [`HeadlessNativeFetchStrategy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.ts), a `NativeFetchStrategy` with two changes:
 
