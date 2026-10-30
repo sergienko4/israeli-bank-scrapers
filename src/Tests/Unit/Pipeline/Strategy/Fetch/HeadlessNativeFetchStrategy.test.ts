@@ -2,17 +2,14 @@
  * Unit tests for Strategy/Fetch/HeadlessNativeFetchStrategy — the capped
  * native transport behind `nativeFetch`. globalThis.fetch is replaced with
  * mocks that honour the request's abort signal, so the timeout path runs on a
- * real `AbortSignal.timeout` (no fake timers) with a lowered ceiling.
+ * real `AbortSignal.timeout` (no fake timers) on a strategy built with a
+ * lowered ceiling.
  */
 
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import {
-  HeadlessNativeFetchStrategy,
-  NATIVE_REQUEST_TIMEOUT_MS,
-  setNativeRequestTimeoutMs,
-} from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
+import { HeadlessNativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 type MockFetchImpl = (url: string, init: RequestInit) => Promise<Response>;
@@ -116,22 +113,21 @@ function sentHeaders(mock: MockFetch): Record<string, string> {
 describe('HeadlessNativeFetchStrategy', () => {
   let originalFetch: typeof globalThis.fetch;
   const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
+  const capped = new HeadlessNativeFetchStrategy(BASE_URL, { timeoutMs: LOWERED_CAP_MS });
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
   });
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    setNativeRequestTimeoutMs(NATIVE_REQUEST_TIMEOUT_MS);
   });
 
   it.each<[string, MockFetchImpl]>([
     ['headers never arrive', hangOnHeaders],
     ['the body never finishes', hangOnBody],
   ])('fails with a Generic timeout when %s', async (_label, impl) => {
-    setNativeRequestTimeoutMs(LOWERED_CAP_MS);
     installFetchMock(impl);
-    const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    const result = await capped.fetchGet(ITEMS_URL, { extraHeaders: {} });
     expect(result).toMatchObject({
       success: false,
       errorType: ScraperErrorTypes.Generic,

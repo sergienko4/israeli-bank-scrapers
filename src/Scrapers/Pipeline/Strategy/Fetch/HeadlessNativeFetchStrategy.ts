@@ -3,9 +3,9 @@
  * into `nativeFetch` runs on. It replaces two seams and inherits the rest
  * (response parsing, failure classification, Set-Cookie emission, PII-safe
  * logging):
- *  - the transport caps every request, body included, at
- *    {@link NATIVE_REQUEST_TIMEOUT_MS}, so a hung socket surfaces as a
- *    `Generic` timeout failure instead of stalling the run;
+ *  - the transport caps every request, body included, at the constructor's
+ *    `timeoutMs` (default {@link NETWORK_FETCH_TIMEOUT_MS}), so a hung socket
+ *    surfaces as a `Generic` timeout failure instead of stalling the run;
  *  - a GET carries no default JSON content-type, because it has no body.
  */
 
@@ -13,25 +13,14 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { NETWORK_FETCH_TIMEOUT_MS } from '../../Mediator/Network/FetchConfig.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
-import type { DefaultHeadersByVerb, HttpVerb } from './NativeFetchStrategy.js';
+import type { DefaultHeadersByVerb, FetchInvoke, HttpVerb } from './NativeFetchStrategy.js';
 import { NativeFetchStrategy, toNetworkFailure } from './NativeFetchStrategy.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 
-/** Ceiling (ms) for one native request, connect through the full body. */
-const NATIVE_REQUEST_TIMEOUT_MS = NETWORK_FETCH_TIMEOUT_MS;
-
-/** Active per-request ceiling (ms). Overridable for deterministic tests. */
-let requestTimeoutMs: number = NATIVE_REQUEST_TIMEOUT_MS;
-
-/**
- * Override the per-request ceiling (ms). Production keeps the default; the
- * test suite lowers it to prove the timeout path without fake timers.
- * @param ms - New ceiling in milliseconds.
- * @returns The ceiling now in effect.
- */
-function setNativeRequestTimeoutMs(ms: number): number {
-  requestTimeoutMs = ms;
-  return requestTimeoutMs;
+/** Construction options for the capped native transport. */
+interface IHeadlessNativeFetchOptions {
+  /** Ceiling (ms) for one request, connect through the full body. */
+  readonly timeoutMs?: number;
 }
 
 /** Error names a fetch rejects with once its abort signal fires. */
@@ -74,33 +63,34 @@ function toCappedFailure(error: unknown, verb: HttpVerb, url: string): Procedure
  * hangs past the cap rejects here, inside the transport's catch.
  * @param url - Target URL.
  * @param init - Native fetch RequestInit (method/headers/body).
+ * @param timeoutMs - Ceiling (ms) for the whole request.
  * @returns The fully-received Response.
  */
-async function fetchWithinCap(url: string, init: RequestInit): Promise<Response> {
-  const signal = AbortSignal.timeout(requestTimeoutMs);
+async function fetchWithinCap(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const signal = AbortSignal.timeout(timeoutMs);
   const response = await globalThis.fetch(url, { ...init, signal });
   await response.clone().arrayBuffer();
   return response;
 }
 
 /**
- * Capped transport for the `_invoke` seam.
- * @param url - Target URL.
- * @param init - Native fetch RequestInit (method/headers/body).
- * @param verb - HTTP verb (for error-message prefixing).
- * @returns Procedure carrying the Response, or a network/timeout failure.
+ * Build the capped transport for the `_invoke` seam.
+ * @param timeoutMs - Ceiling (ms) for each request.
+ * @returns A transport yielding the Response, or a network/timeout failure.
  */
-async function invokeCapped(
-  url: string,
-  init: RequestInit,
-  verb: HttpVerb,
-): Promise<Procedure<Response>> {
-  try {
-    const response = await fetchWithinCap(url, init);
-    return succeed(response);
-  } catch (error) {
-    return toCappedFailure(error, verb, url);
-  }
+function makeInvokeCapped(timeoutMs: number): FetchInvoke {
+  return async (url, init, verb): Promise<Procedure<Response>> => {
+    try {
+      const response = await fetchWithinCap(url, init, timeoutMs);
+      return succeed(response);
+    } catch (error) {
+      return toCappedFailure(error, verb, url);
+    }
+  };
 }
 
 /** Native fetch with a per-request cap and body-less GET defaults. */
@@ -108,13 +98,17 @@ class HeadlessNativeFetchStrategy extends NativeFetchStrategy {
   /**
    * Bind the strategy to a base URL and install the capped seams.
    * @param baseUrl - Base URL for API requests.
+   * @param options - Optional `timeoutMs` ceiling; defaults to the shared
+   *   {@link NETWORK_FETCH_TIMEOUT_MS}.
    */
-  constructor(baseUrl: string) {
+  constructor(baseUrl: string, options: IHeadlessNativeFetchOptions = {}) {
     super(baseUrl);
-    this._invoke = invokeCapped;
+    const timeoutMs = options.timeoutMs ?? NETWORK_FETCH_TIMEOUT_MS;
+    this._invoke = makeInvokeCapped(timeoutMs);
     this._verbDefaults = HEADLESS_DEFAULT_HEADERS;
   }
 }
 
 export default HeadlessNativeFetchStrategy;
-export { HeadlessNativeFetchStrategy, NATIVE_REQUEST_TIMEOUT_MS, setNativeRequestTimeoutMs };
+export type { IHeadlessNativeFetchOptions };
+export { HeadlessNativeFetchStrategy };
