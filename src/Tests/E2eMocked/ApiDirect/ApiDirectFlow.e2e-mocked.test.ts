@@ -1,6 +1,6 @@
 /**
  * Unified API-DIRECT E2E mock — exercises the offline pipeline flow shared
- * by every API-DIRECT bank (Pepper, OneZero, Visa Cal, ...) through one parameterized
+ * by every API-DIRECT bank (Pepper, OneZero, Visa Cal, Isracard, ...) through one parameterized
  * spec backed by the per-bank synthetic fetch mocks.
  *
  * Rule #17: mock suite parity stays intact — every bank case in this file
@@ -20,6 +20,15 @@ import {
 } from '../OneZero/OneZeroFetchMock.js';
 import type { IMockHandle as IPepperMockHandle } from '../Pepper/PepperFetchMock.js';
 import { installPepperFetchMock, PEPPER_MOCK_CREDS } from '../Pepper/PepperFetchMock.js';
+import {
+  installRingFetchMock,
+  ISRACARD_RING_TARGET,
+  RING_MOCK_CARDS,
+  RING_MOCK_CREDS,
+  RING_MOCK_START_DATE,
+  SYN_ISSUED_KEY,
+  SYN_STORED_KEY,
+} from '../Ring/RingFetchMock.js';
 import {
   installVisaCalFetchMock,
   rotatedHash,
@@ -212,12 +221,50 @@ const VISACAL_WARM_CASE: IApiDirectFlowCase = {
   expectedPersistentToken: rotatedHash(SYN_STORED_HASH),
 };
 
+const ISRACARD_COLD_CASE: IApiDirectFlowCase = {
+  displayName: 'Isracard (cold)',
+  companyId: CompanyTypes.Isracard,
+  /**
+   * Install the synthetic ring as Isracard.
+   * @returns Mock handle.
+   */
+  installFetchMock: (): IKitMockHandle => installRingFetchMock(ISRACARD_RING_TARGET),
+  mockCreds: { ...RING_MOCK_CREDS },
+  startDate: RING_MOCK_START_DATE,
+  expectedAccounts: RING_MOCK_CARDS.length,
+  expectedAccountNumber: RING_MOCK_CARDS[0].last4,
+  expectedBalance: RING_MOCK_CARDS[0].statementTotal,
+  minTxns: 2,
+  // The card list, then the debit month and at least one window month per card.
+  minGraphqlCalls: 1 + 2 * RING_MOCK_CARDS.length,
+  // Validate, logon, device key, register, key sign-in, session. No OTP step exists.
+  minIdentityCalls: 6,
+  maxIdentityCalls: 6,
+  expectsWarmStart: false,
+  // The device key the ring issued and registered; the caller stores it.
+  expectedPersistentToken: SYN_ISSUED_KEY,
+};
+
+const ISRACARD_WARM_CASE: IApiDirectFlowCase = {
+  ...ISRACARD_COLD_CASE,
+  displayName: 'Isracard (warm)',
+  mockCreds: { ...RING_MOCK_CREDS, otpLongTermToken: SYN_STORED_KEY },
+  // Key sign-in and session alone: the stored key replaces the password steps.
+  minIdentityCalls: 2,
+  maxIdentityCalls: 2,
+  expectsWarmStart: true,
+  // The key does not rotate, so the caller gets the stored one back.
+  expectedPersistentToken: SYN_STORED_KEY,
+};
+
 const CASES: readonly IApiDirectFlowCase[] = [
   PEPPER_CASE,
   ONEZERO_CASE,
   ONEZERO_COLD_CASE,
   VISACAL_COLD_CASE,
   VISACAL_WARM_CASE,
+  ISRACARD_COLD_CASE,
+  ISRACARD_WARM_CASE,
 ];
 
 /** Minimal scraper-options shape exercised by this parameterized spec. */
