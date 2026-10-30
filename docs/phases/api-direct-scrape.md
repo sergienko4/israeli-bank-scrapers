@@ -75,7 +75,7 @@ The zero-account floor is **universal**, so a shape's own guard must add
 to it rather than replace it. `withZeroAccountsFloor` composes the two:
 it runs the floor first and only then delegates to the shape's
 `ScrapeResultGuard`. The phase previously wired `shape.resultGuard ??
-zeroAccountsGuard`, which meant declaring a guard silently *lost* the
+zeroAccountsGuard`, which meant declaring a guard silently _lost_ the
 floor — PayBox was the only such shape, and so the only bank that could
 complete a scrape resolving no accounts as a silent success.
 
@@ -85,11 +85,11 @@ A shape's balance step may declare `fallbackOnFail` so a rejected
 balance degrades the run instead of failing it. The value chosen decides
 what the caller is told:
 
-| Declaration        | Balance reported     | Meaning to a consumer                     |
-| ------------------ | -------------------- | ----------------------------------------- |
-| numeric (e.g. `0`) | the number           | indistinguishable from a genuine zero     |
-| `BALANCE_UNKNOWN`  | key omitted entirely | explicitly "not known"                    |
-| none               | run fails            | loud failure, no partial result           |
+| Declaration        | Balance reported     | Meaning to a consumer                 |
+| ------------------ | -------------------- | ------------------------------------- |
+| numeric (e.g. `0`) | the number           | indistinguishable from a genuine zero |
+| `BALANCE_UNKNOWN`  | key omitted entirely | explicitly "not known"                |
+| none               | run fails            | loud failure, no partial result       |
 
 `BALANCE_UNKNOWN` (type `BalanceUnknown`) is the truthful option and the
 one Pepper uses. Because `ITransactionsAccount.balance` is optional,
@@ -144,7 +144,7 @@ The pattern generalises: any set of brands sharing one portal belongs behind one
 
 ## Shared card-issuer cursor — one calendar walk, four issuers
 
-The four card issuers (Amex, Isracard, Max, VisaCal) do not page by an opaque server token. They page by **billing month**, walking the scrape window one month at a time. That walk is the *fallback* path: when the billing-cycle catalog detector resolves a real cycle catalog, SCRAPE uses it instead and these helpers are not consulted.
+The four card issuers (Amex, Isracard, Max, VisaCal) do not page by an opaque server token. They page by **billing month**, walking the scrape window one month at a time. That walk is the _fallback_ path: when the billing-cycle catalog detector resolves a real cycle catalog, SCRAPE uses it instead and these helpers are not consulted.
 
 Each issuer previously kept a private copy of the same arithmetic, so the walk now lives once in [`Phases/ApiDirectScrape/CardIssuer/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/CardIssuer).
 
@@ -153,8 +153,8 @@ Each issuer previously kept a private copy of the same arithmetic, so the walk n
 Three constraints shape the split, and all three are load-bearing:
 
 - **The module is named `*ShapeTxns.ts` under `Phases/ApiDirectScrape/`.** That path is what keeps it inside the window-end ESLint rule's glob, which bans reading the clock and forces the bound to come from `scrapeWindowEnd(ctx)`. A shared module outside the glob would silently opt out of the coverage backfill and re-introduce the transaction loss the backfill exists to close.
-- **The open-cycle floor is an optional argument, not a defaulted `0`.** `getFutureMonths` does not clamp, and `futureMonthsToScrape` is an unconstrained public option, so a negative value reaches the walk. Flooring at `0` would *widen* the window for the three unfloored issuers rather than preserve their behaviour; omitting the floor passes the request through untouched.
-- **The ceiling is passed to `nextCursorOf`, never recomputed inside it.** VisaCal floors its walk at one month because CAL indexes a billing month by its *debit* date, so a purchase made today belongs to next month's cycle. Taking the ceiling as an argument lets that divergence live at VisaCal's call site instead of becoming a branch in shared code.
+- **The open-cycle floor is an optional argument, not a defaulted `0`.** `getFutureMonths` does not clamp, and `futureMonthsToScrape` is an unconstrained public option, so a negative value reaches the walk. Flooring at `0` would _widen_ the window for the three unfloored issuers rather than preserve their behaviour; omitting the floor passes the request through untouched.
+- **The ceiling is passed to `nextCursorOf`, never recomputed inside it.** VisaCal floors its walk at one month because CAL indexes a billing month by its _debit_ date, so a purchase made today belongs to next month's cycle. Taking the ceiling as an argument lets that divergence live at VisaCal's call site instead of becoming a branch in shared code.
 
 ## urlTag resolution — WK token or inline literal URL
 
@@ -164,7 +164,7 @@ Each shape step (`customer`, `balance`, `transactions`) carries a `urlTag` of ty
 
 ## REST verb — GET vs POST
 
-Each REST shape step carries an optional `method` of type `ScrapeHttpMethod` (`'GET' | 'POST'`). It defaults to `POST`, so every existing bank is unaffected. When a step sets `method: 'GET'`, `dispatchStep` routes it to `apiGet` with the resolved `urlTag` and sends **no** request body (GET carries its params in the path/query, built by the `urlTag` producer); `bodyTemplate` and `buildVars` are inert for that step. Banks whose whole contract is GET (e.g. the Discount/Titan family) declare `method: 'GET'` on all three steps. GraphQL steps (no `urlTag`) ignore `method` and keep routing through `apiQuery`.
+Each REST shape step carries an optional `method` of type `ScrapeHttpMethod` (`'GET' | 'POST'`). It defaults to `POST`, so every existing bank is unaffected. When a step sets `method: 'GET'`, `dispatchStep` routes it to `apiGet` with the resolved `urlTag` and the step's options (`extraHeaders`, exactly as a POST step gets them) and sends **no** request body (GET carries its params in the path/query, built by the `urlTag` producer); `bodyTemplate` and `buildVars` are inert for that step. A GET step without `extraHeaders` sends the same headers it always did. Banks whose whole contract is GET (e.g. the Discount/Titan family) declare `method: 'GET'` on all three steps. GraphQL steps (no `urlTag`) ignore `method` and keep routing through `apiQuery`.
 
 ## withBrowserApiDirect — wiring a browser bank to the hard model
 

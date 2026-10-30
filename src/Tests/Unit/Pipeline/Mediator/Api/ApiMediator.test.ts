@@ -161,6 +161,14 @@ function buildMediator(recorder: IRecorder): IApiMediator {
   return createApiMediator(HINT, fetchStrategy, graphqlStrategy);
 }
 
+/**
+ * Set-Cookie hook stub that keeps nothing.
+ * @returns Zero kept cookies.
+ */
+function keepNoCookies(): number {
+  return 0;
+}
+
 beforeEach(() => {
   resetRegistries();
 });
@@ -229,6 +237,32 @@ describe('ApiMediator/apiGet', () => {
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
     expect(recorder.getCalls.length).toBe(0);
+  });
+
+  it('threads opts query, extra headers and the Set-Cookie hook to fetchGet', async () => {
+    registerWkUrl('graphql', HINT, 'https://gql.example/query');
+    const recorder = makeRecorder();
+    const mediator = buildMediator(recorder);
+    mediator.setRawAuth('Bearer t');
+    const onSetCookie = keepNoCookies;
+    const opts = { query: { from: '2026-01' }, extraHeaders: { cid: 'c-1' }, onSetCookie };
+    await mediator.apiGet('graphql', opts);
+    const [call] = recorder.getCalls;
+    expect(call.url).toBe('https://gql.example/query?from=2026-01');
+    expect(call.opts.extraHeaders).toEqual({ cid: 'c-1', authorization: 'Bearer t' });
+    expect(call.opts.onSetCookie).toBe(onSetCookie);
+  });
+
+  it('sends only the stored auth header when called without opts', async () => {
+    registerWkUrl('graphql', HINT, 'https://gql.example/query');
+    const recorder = makeRecorder();
+    const mediator = buildMediator(recorder);
+    mediator.setRawAuth('Bearer t');
+    await mediator.apiGet('graphql');
+    const [call] = recorder.getCalls;
+    expect(call.url).toBe('https://gql.example/query');
+    expect(call.opts.extraHeaders).toEqual({ authorization: 'Bearer t' });
+    expect(call.opts.onSetCookie).toBeUndefined();
   });
 });
 

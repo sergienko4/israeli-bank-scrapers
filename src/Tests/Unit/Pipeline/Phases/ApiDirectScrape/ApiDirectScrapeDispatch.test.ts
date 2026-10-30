@@ -200,4 +200,18 @@ describe('ApiDirectScrapeDispatch.dispatchStep — REST GET branch', () => {
     expect(dispatchedUrl).toBe('https://start.telebank.co.il/Titan/gatewayAPI/userAccountsData');
     expect(apiPost).not.toHaveBeenCalled();
   });
+
+  it('forwards the step opts to apiGet as it does to apiPost', async () => {
+    const getOutcome = succeed({ ok: true });
+    const getResp = Promise.resolve(getOutcome);
+    const apiGet = jest.fn((): Promise<Procedure<unknown>> => getResp);
+    const baseBus = makeOneShotBus(getOutcome);
+    const bus = { ...baseBus, apiGet } as unknown as IApiMediator;
+    const opts = { extraHeaders: { cid: 'c-1' } };
+    const url = literalUrl('https://api.bank.example/v1/items');
+    const args = makeDispatchArgs({ bus, method: 'GET', urlTag: url, opts });
+    await dispatchStep(args);
+    const [, dispatchedOpts] = apiGet.mock.calls[0] as unknown as [unknown, unknown];
+    expect(dispatchedOpts).toBe(opts);
+  });
 });

@@ -15,6 +15,8 @@ import type {
   IApiCallContext,
   IApiPostOpArgs,
   IApiQueryOpArgs,
+  IApiQueryOpts,
+  IFireGetArgs,
   IFirePostArgs,
   IFireQueryArgs,
 } from './ApiMediator.types.js';
@@ -109,33 +111,64 @@ function buildGetHmacHeaders(ctx: IApiCallContext, url: string): Record<string, 
   return buildHmacHeaders({ session: ctx.state.sessionContext, method: 'GET', url });
 }
 
+/** Optional-extras subset merged into fireGet args. */
+type FireGetExtras = Pick<IFireGetArgs, 'extraHeaders' | 'query' | 'onSetCookie'>;
+
+/**
+ * Build the per-attempt GET extras. Caller headers sit under the fresh
+ * HMAC headers (HMAC wins a name clash, as on POST); query and the
+ * Set-Cookie hook pass through. No opts ⇒ HMAC headers only, as before.
+ * @param ctx - Per-call context.
+ * @param url - Resolved GET URL (pre-query, as signed on POST).
+ * @param opts - Optional per-call options.
+ * @returns GET extras subset.
+ */
+function buildFireGetExtras(
+  ctx: IApiCallContext,
+  url: string,
+  opts?: IApiQueryOpts,
+): FireGetExtras {
+  const hmac = buildGetHmacHeaders(ctx, url);
+  const callerHeaders = opts?.extraHeaders ?? NO_EXTRA_HEADERS;
+  const query = opts?.query ?? NO_EXTRA_HEADERS;
+  return { extraHeaders: { ...callerHeaders, ...hmac }, query, onSetCookie: opts?.onSetCookie };
+}
+
 /**
  * Build the per-attempt fireOnce for `apiGet`. GET bodies are empty, so
  * the HMAC body hash is the empty-body constant.
  * @param ctx - Per-call context.
  * @param urlValue - Resolved URL.
+ * @param opts - Optional per-call options.
  * @returns Async fire-once callable.
  */
 function makeApiGetFireOnce<T>(
   ctx: IApiCallContext,
   urlValue: string,
+  opts?: IApiQueryOpts,
 ): () => Promise<Procedure<T>> {
   return async (): Promise<Procedure<T>> => {
-    const extraHeaders = buildGetHmacHeaders(ctx, urlValue);
-    return fireGet<T>({ deps: ctx.deps, url: urlValue, rawAuth: ctx.state.rawAuth, extraHeaders });
+    const extras = buildFireGetExtras(ctx, urlValue, opts);
+    return fireGet<T>({ deps: ctx.deps, url: urlValue, rawAuth: ctx.state.rawAuth, ...extras });
   };
 }
 
 /**
- * GET with auth-header injection and WK URL resolution. Retries once on 401.
+ * GET with auth-header injection, WK URL resolution, optional query
+ * params and extraHeaders. Retries once on 401.
  * @param ctx - Per-call context.
  * @param wkUrl - WK URL group to resolve.
+ * @param opts - Optional per-call options.
  * @returns Procedure with typed payload.
  */
-async function apiGetOp<T>(ctx: IApiCallContext, wkUrl: WKUrlOrLiteral): Promise<Procedure<T>> {
+async function apiGetOp<T>(
+  ctx: IApiCallContext,
+  wkUrl: WKUrlOrLiteral,
+  opts?: IApiQueryOpts,
+): Promise<Procedure<T>> {
   const urlProc = resolveWkUrl(wkUrl, ctx.bankHint);
   if (!isOk(urlProc)) return urlProc;
-  const fire = makeApiGetFireOnce<T>(ctx, urlProc.value);
+  const fire = makeApiGetFireOnce<T>(ctx, urlProc.value, opts);
   return retryOn401Op<T>({ state: ctx.state, fire });
 }
 

@@ -186,7 +186,9 @@ async function firePost<T>(args: IFirePostArgs): Promise<Procedure<T>> {
  */
 async function fireGet<T>(args: IFireGetArgs): Promise<Procedure<T>> {
   const extraHeaders = mergeHeaders(args.rawAuth, args.extraHeaders);
-  return args.deps.fetchStrategy.fetchGet<T>(args.url, { extraHeaders });
+  const finalUrl = appendQuery(args.url, args.query);
+  const fetchOpts = { extraHeaders, onSetCookie: args.onSetCookie };
+  return args.deps.fetchStrategy.fetchGet<T>(finalUrl, fetchOpts);
 }
 
 /**

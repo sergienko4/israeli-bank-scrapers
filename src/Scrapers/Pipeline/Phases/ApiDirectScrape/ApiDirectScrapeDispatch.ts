@@ -191,7 +191,7 @@ async function dispatchRestPost(
 
 /**
  * Dispatch one scrape step against the mediator. Routes GraphQL when
- * `urlTag` is absent, REST GET when `method === 'GET'` (no body), and
+ * `urlTag` is absent, REST GET when `method === 'GET'` (no body, same opts), and
  * REST POST otherwise (body hydrated/signed).
  * @param args - Dispatch bundle.
  * @returns Procedure with the typed payload.
@@ -200,6 +200,6 @@ export async function dispatchStep(args: IDispatchArgs): Promise<Procedure<ApiBo
   if (args.urlTag === false) {
     return args.bus.apiQuery<ApiBody>(args.queryTag, args.vars, args.opts);
   }
-  if (args.method === 'GET') return args.bus.apiGet<ApiBody>(args.urlTag);
+  if (args.method === 'GET') return args.bus.apiGet<ApiBody>(args.urlTag, args.opts);
   return dispatchRestPost(args, args.urlTag);
 }
