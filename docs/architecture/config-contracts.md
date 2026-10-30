@@ -60,23 +60,50 @@ from (cross-package imports such as `Registry/WK/*` are omitted for brevity).
 | Bucket | Exports | Intra-cluster deps |
 |---|---|---|
 | **TemplateTypes** | `RefToken`, `JsonValueTemplate`, `IBodyTemplate`, `IEnvelopeSelectors` | (none) |
-| **SignerTypes** | `SignerAlgorithm`, `AsymmetricSignerAlgorithm`, `SignerEncoding`, `CanonicalPart`, `ICanonicalStringConfig`, `IAsymmetricSignerConfig`, `IAesSignerConfig`, `ISignerConfig`, `ICryptoFieldConfig` | (none) |
+| **SignerTypes** | `SignerAlgorithm`, `AsymmetricSignerAlgorithm`, `SignerEncoding`, `CanonicalPart`, `ICanonicalStringConfig`, `IAsymmetricSignerConfig`, `IAesSignerConfig`, `IHmacHeaderSignerConfig`, `ISignerConfig`, `ICryptoFieldConfig` | (none) |
 | **CarryTypes** | `IWarmStartConfig`, `ISeedCarrySource`, `IRandomHex16Bootstrap`, `IRandomUuidBootstrap`, `ISha256Prefix16Bootstrap`, `IJwtClaimBootstrap`, `SeedCarryBootstrapKind`, `IDerivedCarry` | TemplateTypes |
-| **EnvelopeTypes** | `IFingerprintConfig`, `AuthScheme`, `IJwtClaimsConfig`, `IProbeConfig`, `IPreStepHook` | TemplateTypes, SignerTypes |
-| **FlowTypes** | `FlowKind`, `StepName`, `IStepConfig`, `IStepOutcome` | TemplateTypes, EnvelopeTypes |
-| **ApiDirectCallConfig** | `IApiDirectCallConfig`, `IPersistentAuthConfig` | all five above |
+| **EnvelopeTypes** | `IFingerprintConfig`, `AuthScheme`, `IJwtClaimsConfig`, `IProbeConfig`, `IPreStepHook`, `PreHookReuse` | TemplateTypes, SignerTypes |
+| **FlowTypes** | `FlowKind`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract` | TemplateTypes, EnvelopeTypes |
+| **ApiDirectCallConfig** | `IApiDirectCallConfig`, `IPersistentAuthConfig`, `CredRule` | all five above |
 
 Notes:
 
 - `ICryptoFieldConfig` is owned by `SignerTypes` (it describes a crypto-signing
   side-effect on the outbound body) and is consumed by `EnvelopeTypes` via
   `IPreStepHook.cryptoField`.
-- `IPreStepHook` is owned by `EnvelopeTypes`; `FlowTypes.IStepConfig.preHook`
+- `IPreStepHook` is owned by `EnvelopeTypes`; `FlowTypes.IStepBase.preHook`
   references it.
 
-Every file is **≤ 150 effective LoC** (current max: `CarryTypes.ts` at 109)
-and is held there by an ESLint guard (`eslint.config.mjs` §14) plus a
-canary fixture (`EslintCanaries/no-api-direct-call-blob.canary.ts`).
+Every file is **≤ 150 effective LoC** (blank and comment lines skipped;
+current max: `FlowTypes.ts` at 59) and is held there by an ESLint guard
+(`eslint.config.mjs` §14) plus a canary fixture
+(`EslintCanaries/no-api-direct-call-blob.canary.ts`).
+
+## Which field does what
+
+Where each login capability lives, and where its behaviour is documented.
+Fields marked `headless.` sit in the bank's registry `headless` block, not in
+this contract; the build-time checks read both.
+
+| Capability | Field (type) | Bucket | Behaviour |
+|---|---|---|---|
+| GET or POST per step | `method` (`StepMethod`) | FlowTypes | [GET steps](../phases/api-direct-call.md#get-steps) |
+| Extra request headers per step | `headers` | FlowTypes | [Step headers](../phases/api-direct-call.md#step-headers) |
+| Response fields that may be absent | `optionalExtractsToCarry` (`IOptionalExtract`) | FlowTypes | [Optional extracts](../phases/api-direct-call.md#optional-extracts) |
+| Login refused with HTTP 200 | `outcome` (`IStepOutcome`) | FlowTypes | [Step outcome](../phases/api-direct-call.md#step-outcome) |
+| Step identity and URL | `name` (`StepName`), `urlTag` | FlowTypes | [Step names and URL tags](../phases/api-direct-call.md#step-names-and-url-tags) |
+| OTP prompt (absent: password-only) | `preHook` (`IPreStepHook`, `PreHookReuse`) | EnvelopeTypes | [Password-only chains](../phases/api-direct-call.md#password-only-chains) |
+| Auth header form | `authScheme` (`AuthScheme`), `authPrefix` | EnvelopeTypes, ApiDirectCallConfig | [Auth-mode policy](../phases/api-direct-call.md#auth-mode-policy) |
+| Credential shapes checked up front | `requiredCreds` (`CredRule`) | ApiDirectCallConfig | [Required credentials](../phases/api-direct-call.md#required-credentials) |
+| How a stored token is judged | `warmStart.validation` | CarryTypes | [Build-time config checks](../phases/api-direct-call.md#build-time-config-checks) |
+| Session held in cookies | `headless.sessionCookies` | — | [Headless transports](pipeline.md#headless-transports) |
+| Node's own `fetch`, no browser | `headless.nativeFetch` | — | [Headless transports](pipeline.md#headless-transports) |
+
+Cross-field rules (for example `authScheme: 'none'` needs
+`headless.sessionCookies`) fail the build; see
+[Build-time config checks](../phases/api-direct-call.md#build-time-config-checks).
+A browserless bank warns about browser options it ignores; see
+[Browser options on browserless banks](../configuration.md#browser-options-on-browserless-banks).
 
 ## Import patterns
 

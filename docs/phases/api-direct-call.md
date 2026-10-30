@@ -320,6 +320,34 @@ cut down. The in-request re-mint runs below the step, so it still reads the
 original ` <status>: ` marker. Scrape-phase requests keep the transport
 message.
 
+### Step names and URL tags
+
+A step's `name` is a `StepName` and its `urlTag` is a `WKUrlGroup`. Both are
+closed unions, so a misspelt value fails type-check. The flow never branches
+on a name: it labels the step in failure messages (`<step> HTTP <status>`,
+`<step> outcome <code>`) and in the per-step log context. The URL comes from
+the bank's `headless.paths`, keyed by `AuthPathKey`; the registry seeder
+registers each entry under the same key, and the step's `urlTag` selects it.
+
+| Kind       | Values                                                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Step names | `bind`, `login`, `assertPassword`, `assertOtp`, `getIdToken`, `sessionToken`, `prime`, `validate`, `deviceKey`, `register`, `resume` |
+| Auth tags  | `auth.bind`, `auth.login`, `auth.assert`, `auth.logout`, `auth.prime`, `auth.resume`, `auth.service`                                 |
+
+`identity.*` and `data.*` tags work the same way.
+
+### Password-only chains
+
+A bank that logs in with credentials alone still declares `flow: 'sms-otp'`,
+the only flow kind `gateFlowKind` accepts. The flow asks for a code only
+through a step's `preHook`: `resolveStepScope` (`Flow/SmsOtpFlow.reduce.ts`)
+skips a step with no `preHook`, and otherwise `applyPreHook` calls the creds
+function named by `awaitCredsField`. A chain with no `preHook` on any step
+therefore never prompts, even when the caller passes `otpCodeRetriever`.
+
+The PRE stage's diagnostic label (`classifyLoginKind`) still reads `sms-otp`
+for a cold run of such a chain. Nothing branches on that label.
+
 ## One SMS per run
 
 **A single scrape of a single api-direct bank sends at most one SMS.** That is
