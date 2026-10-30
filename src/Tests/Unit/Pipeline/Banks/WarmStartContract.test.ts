@@ -23,6 +23,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { IApiDirectCallConfig } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { authPolicyOf } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/AuthModePolicy.js';
 
 /** Bank label paired with the module path of its call-config literal. */
 const CONFIG_PATHS: readonly (readonly [string, string])[] = [
@@ -75,6 +76,58 @@ async function findWarmStartConfigFiles(): Promise<readonly string[]> {
   return flagged.filter(name => name.length > 0).sort();
 }
 
+/**
+ * A warm start the bank itself validates, on a cookie session. Its token has
+ * no readable expiry (`validation: 'bank-call'`, no `jwtClaims`) and no step
+ * yields a header token (`authScheme: 'none'`), so it pins that both
+ * policy-dependent invariants below exempt such a config while every other
+ * invariant still holds for it.
+ */
+const COOKIE_SESSION_FIXTURE: IApiDirectCallConfig = {
+  flow: 'sms-otp',
+  envelope: {},
+  authScheme: 'none',
+  warmStart: {
+    credsField: 'otpLongTermToken',
+    carryField: 'hash',
+    fromStepIndex: 1,
+    validation: 'bank-call',
+  },
+  steps: [
+    {
+      name: 'login',
+      urlTag: 'auth.login',
+      body: { shape: { x: { $literal: 1 } } },
+      extractsToCarry: { hash: '/data/hash' },
+    },
+    {
+      name: 'validate',
+      urlTag: 'auth.assert',
+      body: { shape: { hash: { $ref: 'carry.hash' } } },
+      extractsToCarry: { userName: '/data/userName' },
+    },
+  ],
+};
+
+/**
+ * Whether the stored token is judged by its JWT expiry before reuse.
+ * @param config - Bank call-config literal.
+ * @returns True for `'jwt'` validation, the default.
+ */
+function isJwtValidated(config: IApiDirectCallConfig): boolean {
+  const validation = config.warmStart?.validation ?? 'jwt';
+  return validation === 'jwt';
+}
+
+/**
+ * Whether the auth-mode policy sends the login token as a header.
+ * @param config - Bank call-config literal.
+ * @returns True when the scheme installs an Authorization header.
+ */
+function isHeaderSent(config: IApiDirectCallConfig): boolean {
+  return authPolicyOf(config).installHeader;
+}
+
 /** Module shape shared by every call-config literal — default export. */
 interface IConfigModule {
   readonly default: IApiDirectCallConfig;
@@ -103,6 +156,15 @@ async function loadWarmStartConfigs(): Promise<
   });
   const loaded = await Promise.all(pending);
   return loaded.filter(([, config]) => config.warmStart !== undefined);
+}
+
+/**
+ * Every warm-start bank plus the cookie-session fixture.
+ * @returns Label/config pairs every warm invariant must hold for.
+ */
+async function loadWarmPopulation(): Promise<readonly (readonly [string, IApiDirectCallConfig])[]> {
+  const banks = await loadWarmStartConfigs();
+  return [...banks, ['cookie-session fixture', COOKIE_SESSION_FIXTURE]];
 }
 
 /**
@@ -151,22 +213,29 @@ describe('warm-start contract — every opted-in bank', () => {
     expect(labels).toEqual(['OneZero', 'Pepper', 'PayBox']);
   });
 
-  it('declares a jwtClaims freshness gate, so staleness is caught client-side', async () => {
-    const configs = await loadWarmStartConfigs();
-    const missing = configs.filter(([, config]) => config.jwtClaims === undefined);
+  it('holds every invariant below to the cookie-session fixture too', async () => {
+    const configs = await loadWarmPopulation();
+    const labels = configs.map(([label]) => label);
+    expect(labels).toEqual(['OneZero', 'Pepper', 'PayBox', 'cookie-session fixture']);
+  });
+
+  it('declares a jwtClaims freshness gate when the token is validated as a jwt', async () => {
+    const configs = await loadWarmPopulation();
+    const jwtValidated = configs.filter(([, config]) => isJwtValidated(config));
+    const missing = jwtValidated.filter(([, config]) => config.jwtClaims === undefined);
     const missingLabels = missing.map(([label]) => label);
     expect(missingLabels).toEqual([]);
   });
 
   it('reads the stored token from the documented otpLongTermToken field', async () => {
-    const configs = await loadWarmStartConfigs();
+    const configs = await loadWarmPopulation();
     for (const [, config] of configs) {
       expect(config.warmStart?.credsField).toBe('otpLongTermToken');
     }
   });
 
   it('resumes within the step list rather than past the end of it', async () => {
-    const configs = await loadWarmStartConfigs();
+    const configs = await loadWarmPopulation();
     for (const [, config] of configs) {
       const index = config.warmStart?.fromStepIndex ?? -1;
       expect(index).toBeGreaterThan(0);
@@ -175,7 +244,7 @@ describe('warm-start contract — every opted-in bank', () => {
   });
 
   it('resumes past every OTP pre-hook, so a warm start can never send a message', async () => {
-    const configs = await loadWarmStartConfigs();
+    const configs = await loadWarmPopulation();
     for (const [, config] of configs) {
       const lastOtpStep = lastOtpPreHookIndex(config);
       const index = config.warmStart?.fromStepIndex ?? -1;
@@ -183,9 +252,10 @@ describe('warm-start contract — every opted-in bank', () => {
     }
   });
 
-  it('always ends the warm path holding a usable access token', async () => {
-    const configs = await loadWarmStartConfigs();
-    for (const [, config] of configs) {
+  it('ends the warm path holding a usable access token when a header is sent', async () => {
+    const configs = await loadWarmPopulation();
+    const headerSent = configs.filter(([, config]) => isHeaderSent(config));
+    for (const [, config] of headerSent) {
       const resumed = config.steps.slice(config.warmStart?.fromStepIndex ?? 0);
       const produced = resumed.flatMap(step => Object.keys(step.extractsToCarry));
       expect([...produced, config.warmStart?.carryField]).toContain('token');
@@ -193,12 +263,39 @@ describe('warm-start contract — every opted-in bank', () => {
   });
 
   it('persists a token that some login step actually produces', async () => {
-    const configs = await loadWarmStartConfigs();
+    const configs = await loadWarmPopulation();
     for (const [, config] of configs) {
       const carryField = config.warmStart?.carryField ?? '';
       const produced = config.steps.flatMap(step => Object.keys(step.extractsToCarry));
       expect(produced).toContain(carryField);
     }
+  });
+});
+
+describe('warm-start contract — policy exemptions', () => {
+  it('lists the warm-start banks whose token the bank itself validates', async () => {
+    const configs = await loadWarmStartConfigs();
+    const exempt = configs.filter(([, config]) => !isJwtValidated(config));
+    const exemptLabels = exempt.map(([label]) => label);
+    expect(exemptLabels).toEqual([]);
+  });
+
+  it('lists the warm-start banks whose session rides on cookies, not a header', async () => {
+    const configs = await loadWarmStartConfigs();
+    const exempt = configs.filter(([, config]) => !isHeaderSent(config));
+    const exemptLabels = exempt.map(([label]) => label);
+    expect(exemptLabels).toEqual([]);
+  });
+
+  it('the fixture is exempt from both policy-dependent invariants', () => {
+    const steps = COOKIE_SESSION_FIXTURE.steps.slice(1);
+    const produced = steps.flatMap(step => Object.keys(step.extractsToCarry));
+    const isJwt = isJwtValidated(COOKIE_SESSION_FIXTURE);
+    const isHeader = isHeaderSent(COOKIE_SESSION_FIXTURE);
+    expect(isJwt).toBe(false);
+    expect(COOKIE_SESSION_FIXTURE.jwtClaims).toBeUndefined();
+    expect(isHeader).toBe(false);
+    expect(produced).not.toContain('token');
   });
 });
 

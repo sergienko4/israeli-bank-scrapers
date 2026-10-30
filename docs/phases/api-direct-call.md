@@ -257,6 +257,10 @@ step 0: a resume from the first step replays the whole login, OTP step
 included, and `isColdStart` charges it to the one-SMS budget, leaving nothing
 for the cold retry if the bank rejects the seed. A config with no steps is
 no exception: `isColdStart` charges index 0 whether or not a step runs.
+The warm-start canary (`WarmStartContract`) follows the same policy. It
+requires `jwtClaims` only for `'jwt'` validation, and it requires the warm path
+to end holding a `token` only when the auth scheme sends a header (`none`
+does not).
 Conflicting transport flags in the headless block are a separate check
 (`assertSingleTransport`), run when the headless mediator is wired.
 
