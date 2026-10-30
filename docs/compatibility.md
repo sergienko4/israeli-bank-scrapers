@@ -29,6 +29,14 @@ A bank that never opens a browser — OneZero today — ignores browser options.
 
 **What to do:** Remove the named options from that bank's `createScraper` call to silence the warning. See [Browser options on browserless banks](configuration.md#browser-options-on-browserless-banks).
 
+### 9.1.0 - Visa Cal signs in without a browser
+
+**Impact:** Behavior
+
+Visa Cal now logs in and scrapes over the issuer's API with Node's own `fetch`, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`. A run now also returns `persistentOtpToken`, a hash that changes on every run; passed back as `otpLongTermToken`, it skips the password step. A wrong password fails as `INVALID_PASSWORD` with the message `login outcome 4`.
+
+**What to do:** Remove browser options from Visa Cal's `createScraper` call. To skip the password step, store `result.persistentOtpToken` after every run and pass it as `otpLongTermToken` next time; keep `username` and `password` too, because a rejected hash falls back to a full login.
+
 ### 9.0.0 - Node 24.11 or later required; Node 22 is no longer supported
 
 **Impact:** Breaking

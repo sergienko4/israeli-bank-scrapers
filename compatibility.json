@@ -26,6 +26,15 @@
       "after": null
     },
     {
+      "version": "9.1.0",
+      "impact": "behavior",
+      "title": "Visa Cal signs in without a browser",
+      "detail": "Visa Cal now logs in and scrapes over the issuer's API with Node's own `fetch`, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`. A run now also returns `persistentOtpToken`, a hash that changes on every run; passed back as `otpLongTermToken`, it skips the password step. A wrong password fails as `INVALID_PASSWORD` with the message `login outcome 4`.",
+      "action": "Remove browser options from Visa Cal's `createScraper` call. To skip the password step, store `result.persistentOtpToken` after every run and pass it as `otpLongTermToken` next time; keep `username` and `password` too, because a rejected hash falls back to a full login.",
+      "before": null,
+      "after": null
+    },
+    {
       "version": "9.0.0",
       "impact": "breaking",
       "title": "Node 24.11 or later required; Node 22 is no longer supported",
