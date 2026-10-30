@@ -17,6 +17,8 @@
  *   - T-DNS-3: Yahav declares `login.yahav.co.il`, the iframe origin.
  *   - T-DNS-4: no bank re-declares the host already in its `urls.base`.
  *   - T-DNS-5: every key is a bank the registry actually knows.
+ *   - T-DNS-6: every host a bank's headless block calls is declared, unless
+ *     it is the bank's own `urls.base` host.
  *
  * Import paths are inline string literals so TypeScript resolves the
  * module types, and the imports are dynamic to dodge the
@@ -72,6 +74,29 @@ async function allDeclaredHosts(): Promise<string[]> {
   return Object.values(manifest).flatMap(hosts => hosts);
 }
 
+/**
+ * Hosts one bank's headless block calls that the warm-up would leave cold:
+ * neither the bank's `urls.base` host nor declared in the manifest.
+ *
+ * @param companyId - Registry key.
+ * @param manifest - The declared extra hosts.
+ * @returns `bank:host` labels for every cold host; empty when none.
+ */
+async function coldHeadlessHosts(
+  companyId: CompanyTypes,
+  manifest: ExtraHostsByBank,
+): Promise<string[]> {
+  const { resolvePipelineBankConfig } =
+    await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
+  const config = resolvePipelineBankConfig(companyId);
+  if (config === false || !config.headless) return [];
+  const urls = [config.headless.identityBase, ...Object.values(config.headless.paths)];
+  const hosts = new Set(urls.map(url => new URL(url).hostname));
+  const warmed = [new URL(config.urls.base).hostname, ...(manifest[companyId] ?? [])];
+  const cold = [...hosts].filter(host => !warmed.includes(host));
+  return cold.map(host => `${companyId}:${host}`);
+}
+
 describe('PipelineBankHosts — CI DNS warm-up manifest (T-DNS)', () => {
   it('T-DNS-1: every declared host is a bare, well-formed hostname', async () => {
     const hosts = await allDeclaredHosts();
@@ -108,5 +133,13 @@ describe('PipelineBankHosts — CI DNS warm-up manifest (T-DNS)', () => {
     const baseUrlByBank = await loadBaseUrls();
     const unknown = Object.keys(manifest).filter(companyId => !baseUrlByBank.has(companyId));
     expect(unknown).toEqual([]);
+  });
+
+  it("T-DNS-6: declares every host a bank's headless block calls", async () => {
+    const manifest = await loadHosts();
+    const pending = Object.values(CompanyTypes).map(id => coldHeadlessHosts(id, manifest));
+    const perBank = await Promise.all(pending);
+    const cold = perBank.flat();
+    expect(cold).toEqual([]);
   });
 });

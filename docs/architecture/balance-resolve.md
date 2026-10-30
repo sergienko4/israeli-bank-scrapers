@@ -14,15 +14,15 @@ The four issuers split two ways:
 | Bank | Provider figure | Attributable to a card? | `balance.extract` |
 |---|---|---|---|
 | **Max** | `getHomePageData` → `Result.UserCards.Cards[].CycleSummary[]`, sitting on the same object as `Last4Digits` | ✅ yes | real per-card debit |
+| **Visa Cal** | `GetTotalFrameStatus`, one request per card → `result.calIssuedCards.accountLevelFrames[]`; the frame whose `cardUniqueId` is the card's own carries `nextTotalDebit` | ✅ yes | real per-card next debit |
 | Isracard / Amex | `GetBillingsForMonthsOverview` → `data[]` is one row per **billing month**; the request submits every card at once and the response has no card dimension | ❌ household aggregate | `0` |
-| Visa Cal | `getBigNumberAndDetails` → `result.bigNumbers[].totalDebits[].totalDebit`, keyed by `bankAccountUniqueId`; `account/init` maps no card to a bank account | ❌ bank-account level | `0` |
 
-The `0` on the three aggregate issuers is a **deliberate sentinel, not a stub**.
+The `0` on the two aggregate issuers is a **deliberate sentinel, not a stub**.
 Their only figure covers the whole household, so publishing it per card would
 repeat one total across every card and multiply the user's apparent debt by
 their card count. An honest `0` is preferable to fabricated attribution.
 
-Max is the exception because its figure rides the card object itself. Reading
+Max's figure rides the card object itself. Reading
 it costs **no extra request** — the customer step already fetches
 `getHomePageData` to enumerate cards — so the shape keeps `balance.skipFetch:
 true` and answers from the account instead of a response body. `skipFetch`
@@ -44,6 +44,20 @@ absent ILS row or a non-finite figure all degrade to `0`, so a wire-shape
 change cannot fail a scrape that has otherwise succeeded. Captures show the
 redaction writer can itself replace `Cards` with a string, so the non-array
 case is observed in practice rather than defensive.
+
+Visa Cal's figure needs a call of its own. `GetTotalFrameStatus` answers one
+card per request with that card's `nextTotalDebit`, the total of its charges
+on the next debit date. The frame is matched by `cardUniqueId` only, never
+summed across cards; a card with no frame, or a non-numeric figure, reports
+`0`. A failed frames call is masked to `BALANCE_UNKNOWN`, so the card keeps
+its transactions and publishes no balance rather than a `0` the bank never
+sent.
+
+| Symbol | Role |
+|---|---|
+| [`nextTotalDebitOf`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeBalance.ts) | Returns one card's next ILS debit from the frames response, or `0` when no frame names the card |
+| `VisaCalNextDebit` | Nominal brand for that debit (Rule&nbsp;#15) |
+| `balanceVars` / `balanceUrl` | The frames request body (one `cardUniqueId`) and its literal URL |
 
 ## What changed
 

@@ -1,10 +1,9 @@
 /**
- * VisaCal scrape shape — card list + balance extractors + the customer
- * POST body/URL for the CAL API gateway. Transactions helpers live in
- * VisaCalShapeTxns.ts. balanceKind=card-cycle (no account-level balance
- * call — `balance.skipFetch` returns a deterministic 0); auth=token
- * (the Bearer/CALAuthScheme value is primed onto the mediator by the
- * BIND-API-MEDIATOR phase, so nothing auth-related is declared here).
+ * VisaCal scrape shape — card list extractor + the customer POST body/URL
+ * for the CAL web gateway. Balance helpers live in VisaCalShapeBalance.ts,
+ * transactions helpers in VisaCalShapeTxns.ts. auth=token (the login flow
+ * installs the `CALAuthScheme` Authorization, so nothing auth-related is
+ * declared here).
  *
  * Grounded in the VisaCal network trace: customer =
  * POST /Authentication/api/account/init body {"tokenGuid":""} →
@@ -21,6 +20,9 @@ import type { Brand } from '../../../Types/Brand.js';
 
 /** CAL API gateway origin — VisaCal's fixed API-contract host. */
 export const CAL_API = 'https://api.cal-online.co.il';
+
+/** Site identifier CAL's own web app sends to the API gateway. */
+export const CAL_WEB_SITE_ID = '09031987-273E-2311-906C-8AF85B17C8D9';
 
 /** Card display number (last-4) — branded for Rule #15. */
 type CardNumberDisplay = Brand<string, 'VisaCalCardNumberDisplay'>;
@@ -87,12 +89,4 @@ export function customerVars(): VarsMap {
  */
 export function customerUrl(): WKUrlOrLiteral {
   return literalUrl(`${CAL_API}/Authentication/api/account/init`);
-}
-
-/**
- * No-op variables builder — the balance step never fetches (skipFetch).
- * @returns Empty variables map.
- */
-export function noVars(): VarsMap {
-  return {};
 }

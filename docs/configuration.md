@@ -122,7 +122,7 @@ for the rationale.
 
 Some API-direct banks never open a browser: their `headless` block selects
 Node's own `fetch` (`nativeFetch`) or `node:https` (a client certificate or a
-TLS profile) — today, OneZero. Nothing on such a run reads a browser option, so
+TLS profile) — today, OneZero and VisaCal. Nothing on such a run reads a browser option, so
 `createScraper` names every one you pass in a single `ScraperOptionsWarning`:
 
 ```text
@@ -156,6 +156,10 @@ API-direct banks (OneZero, Pepper, PayBox) additionally accept:
 | `phoneNumber` | Digits-only international form (no `+`, no dashes) — e.g. `972000000000`; a value already in the bank's own wire form is accepted unchanged. The mediator rewrites it to each bank's wire format, and fails the run with `INVALID_PHONE_NUMBER` when it cannot — including for the natural local form `0500000001`. |
 | `otpCodeRetriever` | Passed in **credentials**, not options, for these three banks |
 | `otpLongTermToken` | Persistent token returned in `result.persistentOtpToken` — supply it to skip the SMS round-trip on the next run |
+
+VisaCal is API-direct but has no OTP: it takes `username` and `password`, and
+an optional `otpLongTermToken` that skips the password step — see
+[Visa Cal](banks/visacal.md#warm-start).
 
 The phone-format rewrite is per-bank and automatic; see
 [API-DIRECT-CALL](phases/api-direct-call.md) for the normaliser contract.

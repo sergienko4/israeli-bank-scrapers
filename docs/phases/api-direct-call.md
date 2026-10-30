@@ -1,6 +1,6 @@
 # API-DIRECT-CALL
 
-Login + OTP via JSON API. Replaces INIT → HOME → PRE-LOGIN → LOGIN → OTP-TRIGGER → OTP-FILL for api-direct banks (OneZero, Pepper, PayBox) — six browser phases collapse into one headless phase with a declarative step list.
+Login + OTP via JSON API. Replaces INIT → HOME → PRE-LOGIN → LOGIN → OTP-TRIGGER → OTP-FILL for api-direct banks (OneZero, Pepper, PayBox, VisaCal) — six browser phases collapse into one headless phase with a declarative step list.
 
 | | |
 |---|---|

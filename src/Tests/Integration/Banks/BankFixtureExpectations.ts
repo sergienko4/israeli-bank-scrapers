@@ -58,21 +58,9 @@ const AMEX_PHASE_11_STEPS = [
   { stepName: '11-balance' },
 ] as const;
 
-const VISACAL_PHASE_11_STEPS = [
-  { stepName: '01-home' },
-  { stepName: '02-pre-login' },
-  { stepName: '03-after-username' },
-  { stepName: '04-password-entered' },
-  { stepName: '07-auth-discovery' },
-  { stepName: '08-account-resolve' },
-  { stepName: '09-dashboard' },
-  { stepName: '10-scrape-transactions' },
-  { stepName: '11-balance' },
-] as const;
-
 /**
  * Beinleumi Phase-11 step inventory — distinct from MAX / AMEX /
- * Isracard / VisaCal / Hapoalim:
+ * Isracard / Hapoalim:
  * <ul>
  *   <li>`02-modal-opened` + `03-after-prelogin` are Beinleumi-distinct
  *       (real-captured Angular-iframe lobby, NOT the SMS / password
@@ -82,7 +70,7 @@ const VISACAL_PHASE_11_STEPS = [
  *       OTP-gated per `BeinleumiPipeline.ts`
  *       (`.withOtpTrigger().withOtpFill()`); Hapoalim's Mode B
  *       COLLAPSES OTP into a single LOGIN→AUTH_DISCOVERY transition;
- *       MAX / AMEX / Isracard / VisaCal / Discount are password-only
+ *       MAX / AMEX / Isracard / Discount are password-only
  *       (no OTP leg at all).</li>
  *   <li>`10-scrape-transactions` is named after Beinleumi's
  *       `bff-balancetransactions/api/v1/transactions/list` BFF
@@ -163,7 +151,7 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     // `<dir>/main` path keeps MirrorInterceptor from loading
     // `<dir>/frames.json` for replay, so the resolver never wastes
     // discovery time probing third-party iframes (reCAPTCHA,
-    // DoubleClick) — mirrors the visaCal/beinleumi pattern of pointing
+    // DoubleClick) — mirrors the beinleumi pattern of pointing
     // loginStep at the file that actually holds the credential form.
     loginStep: '03-after-flip/main',
     loginFormId: 'otpLobbyFormPassword',
@@ -224,23 +212,6 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     ],
   },
   {
-    bankId: 'visaCal',
-    originUrl: 'https://www.cal-online.co.il',
-    // VisaCal moved to OTP-first UX; password login lives in the
-    // alternative tab "כניסה עם שם משתמש" which renders the form
-    // inside an iframe pointing at connect.cal-online.co.il/regular-login.
-    // The harvester captures that iframe content as
-    // 03-username-tab/frame-9.html (66KB with full <input type="password">
-    // + <input formcontrolname="userName">). Point loginStep at the
-    // nested iframe HTML so MirrorInterceptor + FixturePage serve the
-    // hydrated credential form as the main document at www.cal-online.co.il
-    // for cross-bank discovery to operate on (mirrors the Beinleumi
-    // 03-after-prelogin/frame-2 pattern).
-    loginStep: '03-username-tab/frame-9',
-    requiresHydration: false,
-    steps: VISACAL_PHASE_11_STEPS,
-  },
-  {
     bankId: 'mercantile',
     originUrl: 'https://start.telebank.co.il',
     loginStep: '02-pre-login',
@@ -253,7 +224,7 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     // HOME's "כניסה לחשבון" opens a modal whose same-origin iframe
     // (/login/index.html) holds the credential form. The harvester
     // captures that iframe as 02-login-modal/frame-2.html; point
-    // loginStep at it (mirrors the Beinleumi / VisaCal pattern).
+    // loginStep at it (mirrors the Beinleumi pattern).
     loginStep: '02-login-modal/frame-2',
     requiresHydration: false,
     steps: MIZRAHI_STEPS,

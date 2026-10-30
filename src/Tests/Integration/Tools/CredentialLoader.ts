@@ -44,7 +44,6 @@ const BANK_ENV_MAP: Readonly<Partial<Record<string, Readonly<Record<string, stri
   amex: { id: 'AMEX_ID', card6Digits: 'AMEX_CARD6DIGITS', password: 'AMEX_PASSWORD' },
   max: { username: 'MAX_USERNAME', password: 'MAX_PASSWORD' },
   discount: { id: 'DISCOUNT_ID', password: 'DISCOUNT_PASSWORD', num: 'DISCOUNT_NUM' },
-  visaCal: { username: 'VISACAL_USERNAME', password: 'VISACAL_PASSWORD' },
   hapoalim: { userCode: 'HAPOALIM_USER_CODE', password: 'HAPOALIM_PASSWORD' },
   beinleumi: { username: 'BEINLEUMI_USERNAME', password: 'BEINLEUMI_PASSWORD' },
   leumi: { username: 'LEUMI_USERNAME', password: 'LEUMI_PASSWORD' },

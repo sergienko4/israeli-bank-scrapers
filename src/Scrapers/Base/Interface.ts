@@ -52,6 +52,7 @@ export interface IAuthFlowInfo {
 export type ScraperCredentials =
   | { userCode: string; password: string }
   | { username: string; password: string }
+  | { username: string; password: string; otpLongTermToken?: string } // VisaCal: a stored login hash skips the password step
   | { username: string; password: string; id: string } // Max: second-login flow with ID (ת.ז.)
   | { id: string; password: string }
   | { id: string; password: string; num: string }

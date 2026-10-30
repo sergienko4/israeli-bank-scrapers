@@ -147,7 +147,8 @@ matrix leg or a PR-triggered workflow has to update it.
   fork, so both never run on one PR. `cache-cleanup.yml` runs only on
   `closed`.
 - **After Validate.** Once `Validate` passes and a reviewer approves a group,
-  its E2E-real legs start: 13 across the 5 groups (4, 2, 3, 1 and 3). A
+  its E2E-real legs start: 13 across the 5 groups (4, 2, 3, 1 and 3).
+  Group A's VisaCal leg logs in over the bank's API and opens no browser. A
   group holds its approval gate's runner or its legs', never both. Only
   `SonarCloud Scan` and CodeQL may still be running beside them, plus
   GitHub's 2 runs: 13 + 2 + 2 = 17. Dependency Review, Validate PR Title, PR

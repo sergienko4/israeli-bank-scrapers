@@ -3,24 +3,69 @@
 | | |
 |---|---|
 | `CompanyTypes` | `VisaCal` |
-| Engine | Browser (Pipeline) |
-| Credentials | `username`, `password` |
+| Engine | **API-direct** (no browser) |
+| Credentials | `username`, `password` (optional `otpLongTermToken`) |
 | OTP | — |
-| Phase chain | INIT → HOME → **PRE-LOGIN** → LOGIN → BIND-API-MEDIATOR → API-DIRECT-SCRAPE → TERMINATE |
+| Phase chain | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md) |
 | Source | [`Banks/VisaCal/VisaCalPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.ts) |
 
-## Known quirks
+## Quick example
 
-- **Per-card nested response shape** — `result.bigNumbers[].cards[]`. The hard-model per-card extractor walks `cardUniqueId` matches inside this nested structure.
-- A single Visa Cal customer can have **multiple bank accounts × multiple cards per BA**. The hard-model transactions step issues one request per unique `bankAccountUniqueId`, then re-attributes the per-card values from each response.
-- Balance is card-cycle (`balanceKind: CARD_CYCLE`) — the billing values come from each card's response, with no separate per-account balance call.
+```typescript
+const result = await scraper.scrape({
+  username: 'myuser',
+  password: 'mypassword',
+  otpLongTermToken: storedHash, // optional — the previous run's persistentOtpToken
+});
 
-## Hard-model post-auth
+storedHash = result.persistentOtpToken; // rotates on every run — always keep the latest
+```
 
-After login, Visa Cal uses the hard-model post-auth path (`withBrowserApiDirect`):
-instead of the generic AUTH-DISCOVERY / ACCOUNT-RESOLVE / DASHBOARD / SCRAPE /
-BALANCE-RESOLVE chain, the `VISACAL_SHAPE` `IApiDirectScrapeShape`
-(`Banks/VisaCal/scrape/VisaCalShape.ts`) declares the exact card-list and
-transactions API calls, issued directly through the live login page; balance is
-card-cycle, so there is no separate balance call. See
-[api-direct-scrape](../phases/api-direct-scrape.md) for the phase contract.
+## Login
+
+Visa Cal logs in over CAL's mobile JSON API with two POSTs and sends no SMS.
+`VISACAL_API_DIRECT_CALL` (`Registry/Config/PipelineBankConfigVisaCal.ts`)
+declares them:
+
+| Step | Endpoint | Sends | Returns |
+|---|---|---|---|
+| `login` | `Authentication/api/login/regularLogin` | `username`, `password`, a fresh device id | session token + long-term hash |
+| `resume` | `Authentication/api/login/bioLogin` | the hash | a fresh session token + a rotated hash |
+
+`VISACAL_HEADLESS` (`Registry/Config/PipelineBankConfigVisaCalHeadless.ts`)
+registers both paths on `api-cc.cal-online.co.il` and selects Node's own
+`fetch` (`nativeFetch`), so no browser starts. Browser options passed to
+`createScraper` are ignored with a
+[warning](../configuration.md#browser-options-on-browserless-banks).
+
+Every login response carries `statusCode`: `1` is success, `4` fails the run as
+`INVALID_PASSWORD` with the message `login outcome 4`, and any other code fails
+it as `GENERIC`.
+
+## Warm start
+
+Pass the previous run's `result.persistentOtpToken` as `otpLongTermToken` and
+the run starts at `resume`, skipping the password step. The hash carries no
+readable expiry, so the bank's answer is the check (`validation: 'bank-call'`);
+a rejected hash falls back to a cold login with `username` and `password`,
+which are therefore always required. `bioLogin` rotates the hash, so store the
+new `persistentOtpToken` after every run.
+
+## Scrape
+
+After login every data call goes to the web gateway `api.cal-online.co.il`
+with the session token as `Authorization: CALAuthScheme <token>` and CAL's web
+site id (`CAL_WEB_SITE_ID`) as `x-site-id`. The `VISACAL_SHAPE`
+`IApiDirectScrapeShape` (`Banks/VisaCal/scrape/VisaCalShape.ts`) declares the
+calls:
+
+- **Cards** — `account/init` lists the user's cards; each card is one account.
+- **Transactions** — `getCardTransactionsDetails`, one request per card per
+  billing month. CAL indexes a month by its debit date, so the walk includes
+  the still-open cycle.
+- **Balance** — `GetTotalFrameStatus`, one request per card. `nextTotalDebitOf`
+  (`Banks/VisaCal/scrape/VisaCalShapeBalance.ts`) returns that card's
+  `nextTotalDebit` as a `VisaCalNextDebit`; a card with no frame reports `0`. A
+  failed frames call publishes no balance for the card (`BALANCE_UNKNOWN`) and
+  keeps its transactions. See
+  [Balance resolution](../architecture/balance-resolve.md).

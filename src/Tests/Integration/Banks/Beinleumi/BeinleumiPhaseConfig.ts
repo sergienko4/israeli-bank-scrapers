@@ -4,9 +4,8 @@
  * <p>Mirrors {@link ../Discount/DiscountPhaseConfig.ts},
  * {@link ../Hapoalim/HapoalimPhaseConfig.ts},
  * {@link ../Isracard/IsracardPhaseConfig.ts},
- * {@link ../Amex/AmexPhaseConfig.ts},
- * {@link ../Max/MaxPhaseConfig.ts}, and
- * {@link ../VisaCal/VisaCalPhaseConfig.ts}. Markers are GENERIC bank-identity
+ * {@link ../Amex/AmexPhaseConfig.ts}, and
+ * {@link ../Max/MaxPhaseConfig.ts}. Markers are GENERIC bank-identity
  * substrings (no PII) that survive both real operator harvests AND
  * the synthetic stubs shipped here. The Mode A static drive proves
  * every fixture matches the marker contract the production scraper's

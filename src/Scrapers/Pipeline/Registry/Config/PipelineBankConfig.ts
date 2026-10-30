@@ -7,7 +7,6 @@
 
 import { CompanyTypes } from '../../../../Definitions.js';
 import { ANGULAR_LOGIN_POLL } from '../../Mediator/Timing/LoginTimingConfig.js';
-import { calConfig } from './PipelineBankConfigCal.js';
 import { ONEZERO_HEADLESS } from './PipelineBankConfigOneZeroHeadless.js';
 import { PEPPER_HEADLESS } from './PipelineBankConfigPepperHeadless.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
@@ -16,6 +15,7 @@ import type {
   BalanceKind,
   IPipelineBankConfig,
 } from './PipelineBankConfigTypes.js';
+import { VISACAL_HEADLESS } from './PipelineBankConfigVisaCalHeadless.js';
 
 export type {
   AuthPathKey,
@@ -111,7 +111,12 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     ...defineBank('https://www.yahav.co.il', ACCOUNT, SESSION_COOKIE),
     bancsSessionCapture: true,
   },
-  [CompanyTypes.VisaCal]: calConfig('https://www.cal-online.co.il/'),
+  [CompanyTypes.VisaCal]: {
+    urls: { base: 'https://www.cal-online.co.il/' },
+    balanceKind: CARD_CYCLE,
+    authStrategyKind: API_DIRECT,
+    headless: VISACAL_HEADLESS,
+  },
   [CompanyTypes.Amex]: {
     urls: { base: 'https://www.americanexpress.co.il' },
     balanceKind: CARD_CYCLE,

@@ -15,7 +15,6 @@ import { DISCOUNT_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/Discou
 import { HAPOALIM_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.js';
 import { ISRACARD_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/Isracard/IsracardPipeline.js';
 import { MAX_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/Max/MaxPipeline.js';
-import { VISACAL_LOGIN } from '../../../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.js';
 import type { PhaseHBank } from './_makePhaseFixture.js';
 
 /**
@@ -30,7 +29,6 @@ const BANK_LOGIN_CONFIGS: Readonly<Record<PhaseHBank, ILoginConfig>> = {
   amex: AMEX_LOGIN,
   isracard: ISRACARD_LOGIN,
   max: MAX_LOGIN,
-  visacal: VISACAL_LOGIN,
 };
 
 export default BANK_LOGIN_CONFIGS;

@@ -55,10 +55,6 @@ import {
   buildPagiPipeline,
   PAGI_LOGIN,
 } from '../../../../Scrapers/Pipeline/Banks/Pagi/PagiPipeline.js';
-import {
-  buildVisaCalPipeline,
-  VISACAL_LOGIN,
-} from '../../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 
@@ -90,7 +86,7 @@ const BASE_PHASES = [
   'terminate',
 ] as const;
 
-/** Base + `pre-login` (Amex / Isracard / Max / VisaCal). */
+/** Base + `pre-login` (Amex / Isracard / Max). */
 const PRE_LOGIN_PHASES = [
   'init',
   'home',
@@ -174,15 +170,6 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     company: CompanyTypes.Max,
     loginConfig: MAX_LOGIN,
     buildPipeline: buildMaxPipeline,
-    expectedFieldKeys: ['username', 'password'],
-    expectedPhaseCount: PRE_LOGIN_PHASES.length,
-    expectedPhaseNames: PRE_LOGIN_PHASES,
-  },
-  {
-    bank: 'visacal',
-    company: CompanyTypes.VisaCal,
-    loginConfig: VISACAL_LOGIN,
-    buildPipeline: buildVisaCalPipeline,
     expectedFieldKeys: ['username', 'password'],
     expectedPhaseCount: PRE_LOGIN_PHASES.length,
     expectedPhaseNames: PRE_LOGIN_PHASES,
