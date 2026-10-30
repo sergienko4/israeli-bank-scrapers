@@ -325,9 +325,10 @@ message.
 A step's `name` is a `StepName` and its `urlTag` is a `WKUrlGroup`. Both are
 closed unions, so a misspelt value fails type-check. The flow never branches
 on a name: it labels the step in failure messages (`<step> HTTP <status>`,
-`<step> outcome <code>`) and in the per-step log context. The URL comes from
-the bank's `headless.paths`, keyed by `AuthPathKey`; the registry seeder
-registers each entry under the same key, and the step's `urlTag` selects it.
+`<step> outcome <code>`, `<step> outcome unmapped`) and in the per-step log
+context. The URL comes from the bank's `headless.paths`, keyed by
+`AuthPathKey`; the registry seeder registers each entry under the same key,
+and the step's `urlTag` selects it.
 
 | Kind       | Values                                                                                                                               |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
