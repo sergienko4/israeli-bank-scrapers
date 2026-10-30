@@ -39,17 +39,13 @@ function withCookieHeader(
  * Feed Set-Cookie lines to the origin's jar, then to the caller's own hook.
  * @param jar - Session jar.
  * @param url - Request URL.
- * @param callerSink - Optional caller hook.
+ * @param hook - The caller's own onSetCookie hook, when it has one.
  * @returns Combined sink returning the origin jar's size.
  */
-function chainCookieSink(
-  jar: IOriginCookieJar,
-  url: string,
-  callerSink?: OnSetCookie,
-): OnSetCookie {
+function chainCookieSink(jar: IOriginCookieJar, url: string, hook?: OnSetCookie): OnSetCookie {
   return (lines): number => {
     const size = jar.add(url, lines);
-    if (callerSink) callerSink(lines);
+    if (hook) hook(lines);
     return size;
   };
 }
