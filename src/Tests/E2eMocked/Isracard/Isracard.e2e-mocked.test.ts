@@ -29,8 +29,8 @@ import {
   RING_MOCK_CARDS,
   RING_MOCK_CREDS,
   RING_MOCK_START_DATE,
+  ringBcKey,
   ringStepOf,
-  SYN_BC_KEY,
   SYN_DEVICE_UDID,
   SYN_ISSUED_KEY,
   SYN_STORED_KEY,
@@ -189,7 +189,8 @@ describe('Isracard browserless login', () => {
       call.headers.get('bckey'),
       call.headers.get('cookie')?.startsWith('RingSession=') ?? false,
     ]);
-    const required = run.data.map(() => [SYN_BC_KEY, true]);
+    const bcKey = ringBcKey(1);
+    const required = run.data.map(() => [bcKey, true]);
     expect(sent).toEqual(required);
     const udid = registeredUdid(run.calls);
     expect(udid).toBe(SYN_DEVICE_UDID);
@@ -238,6 +239,12 @@ describe('Isracard browserless login', () => {
     expect(run.steps).toEqual([...WARM_STEPS, ...COLD_STEPS]);
     expect(run.result.accounts).toHaveLength(RING_MOCK_CARDS.length);
     expect(run.result.persistentOtpToken).toBe(SYN_ISSUED_KEY);
+    const [expired, ...retried] = run.data.map(call => call.headers.get('bckey'));
+    const warmKey = ringBcKey(1);
+    const coldKey = ringBcKey(2);
+    const coldKeys = retried.map(() => coldKey);
+    expect(expired).toBe(warmKey);
+    expect(retried).toEqual(coldKeys);
   });
 
   it('fails a run whose card list has a row with no card number, before any month', async () => {

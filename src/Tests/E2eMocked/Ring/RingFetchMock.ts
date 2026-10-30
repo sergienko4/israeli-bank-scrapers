@@ -93,8 +93,19 @@ export const SYN_STORED_KEY = 'syn-ring-stored-key-7c2e';
 /** The key a cold login has the ring issue and register. */
 export const SYN_ISSUED_KEY = 'syn-ring-issued-key-3d9a';
 
-/** The bcKey the ring hands every session; later calls must echo it. */
-export const SYN_BC_KEY = 'syn-ring-bckey-6f1b';
+/** The stem of every session's bcKey. */
+const SYN_BC_KEY = 'syn-ring-bckey-6f1b';
+
+/**
+ * The bcKey the ring hands its nth session; later calls on that session
+ * must echo it. Each session gets its own, so a call that keeps an earlier
+ * session's key after a re-login fails here as it does on the live ring.
+ * @param sessionNumber - 1 for the first session the ring opens.
+ * @returns That session's bcKey.
+ */
+export function ringBcKey(sessionNumber: number): string {
+  return `${SYN_BC_KEY}-${String(sessionNumber)}`;
+}
 
 const SYN_USER_NAME = 'syn-ring-user';
 const SESSION_COOKIE = 'RingSession';
@@ -156,8 +167,8 @@ interface IRingSession {
 }
 
 /** A session just opened, with the cookie that names it. */
-interface IOpenedSession {
-  readonly session: IRingSession | false;
+interface IOpenedSession<TSession = IRingSession | false> {
+  readonly session: TSession;
   /** Set-Cookie line for the reply; empty when no session was opened. */
   readonly cookie: string;
 }
@@ -213,10 +224,11 @@ function sessionOf(state: IRingState, call: IRecordedCall): IRingSession | false
  * @param state - Mock state, updated in place.
  * @returns The session and the Set-Cookie line that names it.
  */
-function openSession(state: IRingState): IOpenedSession {
-  const id = `syn-ring-session-${String(state.sessions.size + 1)}`;
+function openSession(state: IRingState): IOpenedSession<IRingSession> {
+  const sessionNumber = state.sessions.size + 1;
+  const id = `syn-ring-session-${String(sessionNumber)}`;
   const session: IRingSession = {
-    bcKey: SYN_BC_KEY,
+    bcKey: ringBcKey(sessionNumber),
     isLoggedOn: false,
     pendingKey: '',
     pendingUdid: '',
@@ -269,20 +281,21 @@ function routeValidate(req: IRingRequest): Response {
   const isCard = req.body.cardSuffix === RING_MOCK_CREDS.card6Digits;
   if (!isCustomer(req.body, 'id') || !isCard) return beanReply(bean, { returnCode: '2' });
   if (req.state.fault === 'changePassword') return beanReply(bean, { returnCode: '4' });
-  const { cookie } = openSession(req.state);
-  const fields = { returnCode: '1', bcKey: SYN_BC_KEY, userName: SYN_USER_NAME };
+  const { session, cookie } = openSession(req.state);
+  const fields = { returnCode: '1', bcKey: session.bcKey, userName: SYN_USER_NAME };
   return beanReply(bean, fields, cookie);
 }
 
 /**
- * Whether a logon body carries the validated user, the password and the bcKey.
+ * Whether a logon body carries the validated user, the password and the session's bcKey.
  * @param body - Parsed request body.
+ * @param session - The validated session.
  * @returns True when every field matches.
  */
-function isLogonBody(body: JsonUnknownRecord): boolean {
+function isLogonBody(body: JsonUnknownRecord, session: IRingSession): boolean {
   const isUser = isCustomer(body, 'MisparZihuy') && body.KodMishtamesh === SYN_USER_NAME;
   const isPassword = body.Sisma === RING_MOCK_CREDS.password;
-  return isUser && isPassword && body.bcKey === SYN_BC_KEY;
+  return isUser && isPassword && body.bcKey === session.bcKey;
 }
 
 /**
@@ -294,7 +307,7 @@ function isLogonBody(body: JsonUnknownRecord): boolean {
 function routeLogon(req: IRingRequest): Response {
   const session = liveSession(req);
   if (session === false) return jsonReply({ Header: { Status: '-2' } });
-  if (!isLogonBody(req.body)) return jsonReply({ Header: { Status: '2' } });
+  if (!isLogonBody(req.body, session)) return jsonReply({ Header: { Status: '2' } });
   if (req.state.fault === 'passwordExpired') return jsonReply({ Header: { Status: '3' } });
   session.isLoggedOn = true;
   return jsonReply({ Header: { Status: '1' } });
