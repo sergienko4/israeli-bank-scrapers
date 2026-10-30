@@ -46,7 +46,7 @@ const isDefaultArmCovered: [Exclude<keyof IDefaultBrowserOptions, BrowserOnlyOpt
  * @returns A `ScraperOptions` bag.
  */
 function makeOptions(companyId: CompanyTypes, extra: Record<string, unknown> = {}): ScraperOptions {
-  const base = { companyId, startDate: new Date('2026-01-01') };
+  const base = makeMockOptions({ companyId });
   return { ...base, ...extra };
 }
 
