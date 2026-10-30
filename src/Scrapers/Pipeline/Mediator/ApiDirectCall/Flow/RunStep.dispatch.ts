@@ -10,32 +10,13 @@ import { isOk, succeed } from '../../../Types/Procedure.js';
 import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { sanitiseStepFailure } from './RunStep.failure.js';
+import { fireStep } from './RunStep.fire.js';
 import { judgeStepOutcome } from './RunStep.outcome.js';
 import { buildDispatchBundle, mergeScopeCarry } from './RunStep.prepare.js';
-import type {
-  IDispatchBundle,
-  IFireArgs,
-  IRespDescriptor,
-  IRunStepArgs,
-  JsonValue,
-} from './RunStep.types.js';
+import type { IDispatchBundle, IRespDescriptor, IRunStepArgs, JsonValue } from './RunStep.types.js';
 import { resolvePathAndQuery } from './RunStep.url.js';
 
 const LOG = getDebug(import.meta.url);
-
-/**
- * Fire the apiPost with the assembled pieces.
- * @param args - Run-step args.
- * @param fire - Fire-call bundle.
- * @returns Procedure with the parsed response JSON.
- */
-async function firePost(args: IRunStepArgs, fire: IFireArgs): Promise<Procedure<JsonValue>> {
-  return args.bus.apiPost<JsonValue>(args.step.urlTag, fire.body, {
-    extraHeaders: fire.extraHeaders,
-    query: fire.query,
-    onSetCookie: fire.onSetCookie,
-  });
-}
 
 /**
  * Read top-level keys from a JsonValue, returning [] for non-objects.
@@ -122,7 +103,7 @@ function logFireOk(bundle: IDispatchBundle, resp: JsonValue): true {
  * @returns Procedure with the merged scope, or fail.
  */
 async function fireAndMergeScope(bundle: IDispatchBundle): Promise<Procedure<ITemplateScope>> {
-  const respProc = await firePost(bundle.fireScope, bundle.fireArgs);
+  const respProc = await fireStep(bundle.fireScope, bundle.fireArgs);
   if (!isOk(respProc)) {
     logFireFail(bundle, respProc.errorMessage);
     return sanitiseStepFailure(bundle.fireScope.step.name, respProc);

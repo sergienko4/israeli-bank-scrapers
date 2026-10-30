@@ -91,6 +91,37 @@ unusable value went to the bank as-is and came back as an opaque auth failure
 that named nothing. See
 [#552](https://github.com/sergienko4/israeli-bank-scrapers/issues/552).
 
+### GET steps
+
+A step is a POST unless it says otherwise. `IStepConfig` is the union
+`IPostStep | IGetStep`, both built on the shared `IStepBase` fields, and
+`StepMethod` names the two verbs. An `IPostStep` (no `method`, or
+`method: 'POST'`) carries a `body`. An `IGetStep` sets `method: 'GET'` and
+cannot carry one: a GET with a `body` fails type-check, so there is no runtime
+check. Step literals written before GET existed name no `method`, so they stay
+POSTs and type-check unchanged.
+
+```ts
+{
+  name: 'bind',
+  urlTag: 'auth.bind',
+  method: 'GET',
+  queryTemplate: { lang: { $literal: 'he' } },
+  cookieJar: true,
+  extractsToCarry: { token: '/access_token' },
+}
+```
+
+A GET skips body hydration, the `cryptoField` hook and the AES body
+signature. It keeps the query template, the headers, the cookie jar and the
+extracts. `fireStep`
+(`src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.fire.ts`) picks
+the bus call by method, so a GET goes through `apiGet` with the query, headers
+and Set-Cookie sink that a POST hands to `apiPost`. A config-level signature
+header, when one is set, signs the empty body `{}`. On the headless native
+transport a GET goes out with no body and no `content-type` header, while a
+POST still sends `application/json`.
+
 ### Step outcome
 
 Some banks refuse a login with HTTP 200 and a status code in the body. A step
@@ -316,7 +347,7 @@ Where each piece lives, for maintainers:
 | Hook | What it does |
 |---|---|
 | `.pre` | Resolve `apiDirectCallConfig` from the bank's `PipelineDescriptor`; seed carry. |
-| `.action` | Run the declarative step list: each step has a body template + optional crypto hook + optional signer. The mediator hydrates, signs, sends, parses response, updates carry. OTP step calls `credentials.otpCodeRetriever` mid-flow. |
+| `.action` | Run the declarative step list: each POST step has a body template + optional crypto hook + optional signer; a [GET step](#get-steps) has no body. The mediator hydrates, signs, sends, parses response, updates carry. OTP step calls `credentials.otpCodeRetriever` mid-flow. |
 | `.post` | Validate the final carry has the required slots (auth token, user id). |
 | `.final` | Publish the final carry via `setSessionContext`; build `IApiFetchContext`; commit `api` + `login` slots. |
 

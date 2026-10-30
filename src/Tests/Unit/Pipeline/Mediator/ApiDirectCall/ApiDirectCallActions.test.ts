@@ -192,12 +192,13 @@ describe('ApiDirectCallActions.runApiDirectCallAction callback invocation', () =
 describe('ApiDirectCallActions.runApiDirectCallPost probe', () => {
   it('propagates the probe-url Procedure failure verbatim', async (): Promise<void> => {
     const captures: IApiPostCapture[] = [];
-    const bus = makeStubMediator({ responses: [], captures });
+    const responses = [fail(ScraperErrorTypes.Generic, 'probe refused')];
+    const bus = makeStubMediator({ responses, captures });
     const ctx = makeActionsCtx({ bus });
     const cfg: IApiDirectCallConfig = { ...makeBaseConfig(), probe: { urlTag: PROBE_TAG } };
     const result = await runApiDirectCallPost(cfg, ctx);
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toBe('unused');
+    if (!result.success) expect(result.errorMessage).toBe('probe refused');
   });
 
   it('propagates the probe-query Procedure failure verbatim', async (): Promise<void> => {

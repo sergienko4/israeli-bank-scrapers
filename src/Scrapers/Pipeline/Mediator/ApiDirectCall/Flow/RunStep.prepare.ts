@@ -6,6 +6,7 @@
 import { getDebug } from '../../../Logging/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
+import type { IBodyTemplate } from '../ConfigContracts/index.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import buildOnSetCookie from './RunStep.cookies.js';
@@ -45,6 +46,7 @@ function mergeScopeCarry(scope: ITemplateScope, addition: CarryMap): ITemplateSc
 interface IHydrateAndCryptoArgs {
   readonly args: IRunStepArgs;
   readonly primedScope: ITemplateScope;
+  readonly template: IBodyTemplate;
 }
 
 /**
@@ -53,8 +55,8 @@ interface IHydrateAndCryptoArgs {
  * @returns Procedure with the pre-signature prepared body.
  */
 function hydrateAndCrypto(input: IHydrateAndCryptoArgs): Procedure<IPreparedBody> {
-  const { args, primedScope } = input;
-  const bodyProc = hydrate(args.step.body.shape, primedScope);
+  const { args, primedScope, template } = input;
+  const bodyProc = hydrate(template.shape, primedScope);
   if (!isOk(bodyProc)) return bodyProc;
   const hydratedBody = bodyProc.value as Record<string, unknown>;
   const cryptoArgs = { step: args.step, scope: primedScope, body: hydratedBody };
@@ -78,14 +80,17 @@ function attachBodySig(preBody: IPreparedBody, pathAndQuery: string): Procedure<
 
 /**
  * Resolve the step's body — hydrate template, prime carry, apply
- * cryptoField encryption, attach the AES body-pointer signature.
+ * cryptoField encryption, attach the AES body-pointer signature. A GET step
+ * sends no body, so only its carry is primed.
  * @param args - Run-step args.
  * @param pathAndQuery - Canonical-string path+query.
- * @returns Procedure with the ready-to-POST body + the post-prep scope.
+ * @returns Procedure with the ready-to-send body + the post-prep scope.
  */
 function prepareStepBody(args: IRunStepArgs, pathAndQuery: string): Procedure<IPreparedBody> {
   const primedScope = primeStepCarry(args.scope, args.step);
-  const preProc = hydrateAndCrypto({ args, primedScope });
+  const step = args.step;
+  if (step.method === 'GET') return succeed({ body: {}, scope: primedScope });
+  const preProc = hydrateAndCrypto({ args, primedScope, template: step.body });
   if (!isOk(preProc)) return preProc;
   return attachBodySig(preProc.value, pathAndQuery);
 }

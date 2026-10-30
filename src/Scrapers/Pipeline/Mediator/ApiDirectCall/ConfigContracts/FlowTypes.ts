@@ -50,11 +50,10 @@ interface IStepOutcome {
   readonly defaultFailure: ScraperErrorTypes;
 }
 
-/** Per-step config: name, URL tag, body template, response-extract selectors. */
-interface IStepConfig {
+/** Fields every login step has, whatever its HTTP method. */
+interface IStepBase {
   readonly name: StepName;
   readonly urlTag: WKUrlGroup;
-  readonly body: IBodyTemplate;
   readonly extractsToCarry: IEnvelopeSelectors;
   /** Optional hook — awaited before the step fires. */
   readonly preHook?: IPreStepHook;
@@ -74,4 +73,31 @@ interface IStepConfig {
   readonly outcome?: IStepOutcome;
 }
 
-export type { FlowKind, IStepConfig, IStepOutcome, StepName };
+/** A POST step, the default when `method` is omitted: sends the hydrated body. */
+interface IPostStep extends IStepBase {
+  readonly method?: 'POST';
+  readonly body: IBodyTemplate;
+}
+
+/** A GET step: it sends no body, so the type rules one out. */
+interface IGetStep extends IStepBase {
+  readonly method: 'GET';
+  readonly body?: never;
+}
+
+/** Per-step config: a POST or a GET step. */
+type IStepConfig = IPostStep | IGetStep;
+
+/** HTTP method of a login step. */
+type StepMethod = NonNullable<IStepConfig['method']>;
+
+export type {
+  FlowKind,
+  IGetStep,
+  IPostStep,
+  IStepBase,
+  IStepConfig,
+  IStepOutcome,
+  StepMethod,
+  StepName,
+};
