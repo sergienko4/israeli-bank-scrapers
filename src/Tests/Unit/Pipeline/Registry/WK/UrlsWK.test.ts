@@ -19,6 +19,7 @@ import {
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 const HINT = CompanyTypes.OneZero;
+const PEPPER = CompanyTypes.Pepper;
 
 beforeEach(() => {
   WK_URLS.clear();
@@ -100,6 +101,18 @@ const PEPPER_AUTH_URLS = [
   { $label: 'auth.logout', url: 'https://sa.pepper.co.il/api/v2/auth/logout' },
 ] as const;
 
+/** Exact VisaCal auth endpoints on the CAL login gateway. */
+const CAL_AUTH_URLS = [
+  {
+    $label: 'auth.login',
+    url: 'https://api-cc.cal-online.co.il/Authentication/api/login/regularLogin',
+  },
+  {
+    $label: 'auth.resume',
+    url: 'https://api-cc.cal-online.co.il/Authentication/api/login/bioLogin',
+  },
+] as const;
+
 /**
  * Re-seed the registry from the real bank config after `beforeEach` cleared it.
  * Dynamic import dodges the DI rule banning static Registry/Config imports.
@@ -120,11 +133,12 @@ describe('UrlsWK/pepperAuthUrls', () => {
     expect(result).toEqual({ success: true, value: url });
   });
 
-  it('registers auth.login for Pepper only', async () => {
+  it('shares auth.login between exactly Pepper and VisaCal', async () => {
     await seedFromBankConfig();
     const owners = WK_URLS.get('auth.login');
-    const ownerHints = [...(owners?.keys() ?? [])];
-    expect(ownerHints).toEqual([CompanyTypes.Pepper]);
+    const ownerHints = new Set(owners?.keys());
+    const expected = new Set([CompanyTypes.Pepper, CompanyTypes.VisaCal]);
+    expect(ownerHints).toEqual(expected);
   });
 
   it('registers every Pepper auth.* URL as a single-slash full URL on the identity origin', async () => {
@@ -132,14 +146,22 @@ describe('UrlsWK/pepperAuthUrls', () => {
     const base = resolveWkUrl('identityBase', CompanyTypes.Pepper);
     const origin = isOk(base) ? new URL(base.value).origin : 'missing';
     const authUrls = [...WK_URLS.entries()]
-      .filter(([group]): boolean => group.startsWith('auth.'))
-      .map(([, owners]): string => owners.get(CompanyTypes.Pepper) ?? 'missing');
+      .filter(([group, owners]): boolean => group.startsWith('auth.') && owners.has(PEPPER))
+      .map(([, owners]): string => owners.get(PEPPER) ?? 'missing');
     expect(authUrls).toHaveLength(PEPPER_AUTH_URLS.length);
     const offenders = authUrls.filter((url): boolean => {
       const parsed = new URL(url);
       return parsed.origin !== origin || !/^\/api\/v2\/auth\/\w+$/.test(parsed.pathname);
     });
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('UrlsWK/calAuthUrls', () => {
+  it.each(CAL_AUTH_URLS)('resolves $label to its exact full URL', async ({ $label, url }) => {
+    await seedFromBankConfig();
+    const result = resolveWkUrl($label, CompanyTypes.VisaCal);
+    expect(result).toEqual({ success: true, value: url });
   });
 });
 

@@ -21,6 +21,7 @@
 import moment from 'moment';
 
 import { CAL_WEB_SITE_ID } from '../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeHelpers.js';
+import type { JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonValue.js';
 
 /** Tally values returned alongside dispose for wiring assertions. */
 export interface IMockCallCounts {
@@ -119,8 +120,6 @@ const BASE_ROW = Object.freeze({
   refundInd: false,
 });
 
-type JsonObject = Record<string, unknown>;
-
 /**
  * One synthetic transaction row for a card.
  * @param card - Card the row belongs to.
@@ -128,7 +127,7 @@ type JsonObject = Record<string, unknown>;
  * @param index - Row position, used in the row's id.
  * @returns A CAL-shaped transaction row.
  */
-function makeRow(card: ISynCard, amount: number, index: number): JsonObject {
+function makeRow(card: ISynCard, amount: number, index: number): JsonUnknownRecord {
   const ordinal = String(index + 1);
   const trnIntId = `${card.cardUniqueId}-txn-${ordinal}`;
   const merchantName = `SYNTHETIC Merchant ${ordinal}`;
@@ -140,7 +139,7 @@ function makeRow(card: ISynCard, amount: number, index: number): JsonObject {
  * @param payload - Body to serialise.
  * @returns A real Response carrying the JSON.
  */
-function jsonReply(payload: JsonObject): Response {
+function jsonReply(payload: JsonUnknownRecord): Response {
   const bodyText = JSON.stringify(payload);
   return new Response(bodyText, { status: 200, headers: { 'content-type': 'application/json' } });
 }
@@ -178,9 +177,9 @@ function loginRefused(statusCode: number): Response {
  * @param body - Raw request body.
  * @returns The parsed object, or an empty one when the body is not JSON.
  */
-function parseBody(body: string): JsonObject {
+function parseBody(body: string): JsonUnknownRecord {
   try {
-    return JSON.parse(body) as JsonObject;
+    return JSON.parse(body) as JsonUnknownRecord;
   } catch {
     return {};
   }
@@ -191,7 +190,7 @@ function parseBody(body: string): JsonObject {
  * @param body - Parsed request body.
  * @returns The login answer; statusCode 4 for anything else.
  */
-function routeRegularLogin(body: JsonObject): Response {
+function routeRegularLogin(body: JsonUnknownRecord): Response {
   const isKnownUser = body.username === VISACAL_MOCK_CREDS.username;
   const isRightPassword = body.password === VISACAL_MOCK_CREDS.password;
   const hasDeviceId = typeof body.uuid === 'string' && body.uuid.length > 0;
@@ -204,7 +203,7 @@ function routeRegularLogin(body: JsonObject): Response {
  * @param body - Parsed request body.
  * @returns The login answer; statusCode 2 for a stale hash.
  */
-function routeBioLogin(body: JsonObject): Response {
+function routeBioLogin(body: JsonUnknownRecord): Response {
   const hash = typeof body.hash === 'string' ? body.hash : '';
   if (!ISSUED_HASHES.has(hash)) return loginRefused(2);
   const nextHash = rotatedHash(hash);
@@ -254,7 +253,7 @@ function cardsWithId(cardUniqueId: unknown): readonly ISynCard[] {
  * @param card - Card the rows belong to.
  * @returns One row per synthetic amount.
  */
-function rowsOf(card: ISynCard): readonly JsonObject[] {
+function rowsOf(card: ISynCard): readonly JsonUnknownRecord[] {
   return VISACAL_ROW_AMOUNTS.map((amount, index) => makeRow(card, amount, index));
 }
 
@@ -275,7 +274,7 @@ function routeAccountInit(): Response {
  * @param body - Parsed request body {month, year}.
  * @returns True for the debit month.
  */
-function isDebitMonth(body: JsonObject): boolean {
+function isDebitMonth(body: JsonUnknownRecord): boolean {
   return body.month === DEBIT_MONTH && body.year === DEBIT_YEAR;
 }
 
@@ -284,7 +283,7 @@ function isDebitMonth(body: JsonObject): boolean {
  * @param body - Parsed request body {cardUniqueId, month, year}.
  * @returns The rows when the month is the debit month, else none.
  */
-function routeTransactions(body: JsonObject): Response {
+function routeTransactions(body: JsonUnknownRecord): Response {
   const cards = isDebitMonth(body) ? cardsWithId(body.cardUniqueId) : [];
   const rows = cards.flatMap(rowsOf);
   const bankAccounts = [
@@ -303,7 +302,7 @@ interface IFrameRequest {
  * @param body - Parsed request body {cardsForFrameData: [{cardUniqueId}]}.
  * @returns One frame per known requested card.
  */
-function routeFrames(body: JsonObject): Response {
+function routeFrames(body: JsonUnknownRecord): Response {
   const requested = (body.cardsForFrameData ?? []) as readonly IFrameRequest[];
   const known = requested.flatMap(entry => cardsWithId(entry.cardUniqueId));
   const accountLevelFrames = known.map(card => ({
@@ -314,7 +313,7 @@ function routeFrames(body: JsonObject): Response {
 }
 
 /** Data routes keyed by the path suffix that names them. */
-const DATA_ROUTES: readonly (readonly [string, (body: JsonObject) => Response])[] = [
+const DATA_ROUTES: readonly (readonly [string, (body: JsonUnknownRecord) => Response])[] = [
   ['/Authentication/api/account/init', routeAccountInit],
   ['/getCardTransactionsDetails', routeTransactions],
   ['/GetTotalFrameStatus', routeFrames],
