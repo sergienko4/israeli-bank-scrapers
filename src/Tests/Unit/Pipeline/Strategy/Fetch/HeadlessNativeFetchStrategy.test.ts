@@ -125,22 +125,25 @@ describe('HeadlessNativeFetchStrategy', () => {
   it.each<[string, MockFetchImpl]>([
     ['headers never arrive', hangOnHeaders],
     ['the body never finishes', hangOnBody],
-  ])('fails with a Generic timeout when %s', async (_label, impl) => {
+  ])('fails with a Timeout error when %s', async (_label, impl) => {
     installFetchMock(impl);
     const result = await capped.fetchGet(ITEMS_URL, { extraHeaders: {} });
     expect(result).toMatchObject({
       success: false,
-      errorType: ScraperErrorTypes.Generic,
+      errorType: ScraperErrorTypes.Timeout,
       errorMessage: TIMEOUT_MESSAGE,
     });
   });
 
-  it('maps a TimeoutError DOMException rejection to the timeout message', async () => {
+  it('maps a TimeoutError DOMException rejection to a Timeout failure', async () => {
     const timeout = new DOMException('The operation was aborted due to timeout', 'TimeoutError');
     installFetchMock(() => Promise.reject(timeout));
     const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
-    const message = !isOk(result) && result.errorMessage;
-    expect(message).toBe(TIMEOUT_MESSAGE);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Timeout,
+      errorMessage: TIMEOUT_MESSAGE,
+    });
   });
 
   it('keeps the inherited network-error message for other rejections', async () => {

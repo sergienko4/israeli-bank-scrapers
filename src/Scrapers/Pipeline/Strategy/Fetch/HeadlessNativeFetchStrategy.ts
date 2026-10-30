@@ -5,7 +5,7 @@
  * logging):
  *  - the transport caps every request, body included, at the constructor's
  *    `timeoutMs` (default {@link NETWORK_FETCH_TIMEOUT_MS}), so a hung socket
- *    surfaces as a `Generic` timeout failure instead of stalling the run;
+ *    surfaces as a `Timeout` failure instead of stalling the run;
  *  - a GET carries no default JSON content-type, because it has no body.
  */
 
@@ -49,12 +49,12 @@ function isAbortRejection(error: unknown): boolean {
  * @param error - The caught value.
  * @param verb - HTTP verb (for the error-message prefix).
  * @param url - Target URL (for the error-message prefix).
- * @returns A `Generic` timeout failure, or the inherited network failure.
+ * @returns A `Timeout` failure, or the inherited network failure.
  */
 function toCappedFailure(error: unknown, verb: HttpVerb, url: string): Procedure<Response> {
   if (!isAbortRejection(error)) return toNetworkFailure(error, verb, url);
   const safeUrl = safeUrlForLog(url);
-  return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} network error: timeout`);
+  return fail(ScraperErrorTypes.Timeout, `${verb} ${safeUrl} network error: timeout`);
 }
 
 /**
