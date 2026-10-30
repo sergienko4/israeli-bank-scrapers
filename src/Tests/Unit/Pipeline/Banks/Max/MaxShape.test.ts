@@ -1,8 +1,8 @@
 /**
  * Max hard-model scrape shape — unit coverage for the card, balance, and
  * per-card/per-month transactions extractors + the getHomePageData /
- * getTransactionsAndGraphs GET URLs (version-tagged), the month-offset cursor,
- * and the per-card row filter.
+ * getTransactionsAndGraphs GET URLs, the per-call headers, the month-offset
+ * cursor, and the per-card row filter.
  *
  * Bodies are synthetic (structural only, fake values) so the test is
  * self-contained and carries zero PII. Field paths mirror the captured Max
@@ -32,6 +32,11 @@ import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/Pipe
 
 const CARD: IMaxCard = { last4: '1234', cycleDebit: 0 };
 
+const MAX_API = 'https://www.max.co.il/api/registered';
+
+/** A v4 UUID, as `randomUUID()` produces. */
+const UUID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[\da-f]{4}-[\da-f]{12}$/;
+
 /**
  * Wrap a raw response body in the extractAccounts args bundle.
  * @param body - Synthetic response body.
@@ -42,25 +47,36 @@ function accountsArgs(body: ApiBody): IExtractAccountsArgs {
 }
 
 /**
- * Action context carrying startDate + a discovered client version.
+ * Action context carrying startDate + the post-login session context.
  * @param startDate - Window start.
- * @param version - Discovered SPA build version.
- * @returns Action context whose mediator session-context carries the version.
+ * @param sid - Session id the login stored.
+ * @returns Action context whose mediator session-context carries the sid.
  */
-function ctxWithVersion(startDate: Date, version: string): IActionContext {
-  const session = { clientVersion: version };
+function ctxWithSession(startDate: Date, sid: string): IActionContext {
+  const session = { flowId: sid };
   const mediator = { getSessionContext: jest.fn((): Readonly<Record<string, unknown>> => session) };
   return { options: { startDate }, apiMediator: some(mediator) } as unknown as IActionContext;
 }
 
 /**
- * Action context with no mediator (no version discovered) + optional
+ * Headers the shape sends on a call.
+ * @param ctx - Action context.
+ * @returns The customer step's headers.
+ */
+function headersFor(ctx: IActionContext): Readonly<Record<string, string>> {
+  const headers = MAX_SHAPE.customer.extraHeaders;
+  if (typeof headers !== 'function') throw new TypeError('Max headers must be per-call');
+  return headers(ctx);
+}
+
+/**
+ * Action context with no mediator (before login) + optional
  * futureMonths (0 pins lastOffset for deterministic cursor-termination tests).
  * @param startDate - Window start.
  * @param futureMonthsToScrape - Future months.
  * @returns Action context.
  */
-function ctxNoVersion(startDate: Date, futureMonthsToScrape?: number): IActionContext {
+function ctxBeforeLogin(startDate: Date, futureMonthsToScrape?: number): IActionContext {
   const options = { startDate, futureMonthsToScrape };
   return { options, apiMediator: none } as unknown as IActionContext;
 }
@@ -118,38 +134,55 @@ describe('MaxShape helpers', () => {
     expect(balance).toBe(0);
   });
 
-  it('customerUrl targets getHomePageData with the version param', () => {
-    const ctx = ctxWithVersion(new Date(), 'V4-TEST');
-    const raw = customerUrl(ctx);
+  it('customerUrl targets getHomePageData', () => {
+    const raw = customerUrl();
     const url = String(raw);
-    expect(url).toContain('/api/registered/getHomePageData?disableDefaultSpinnerBehavior=true');
-    expect(url).toContain('&v=V4-TEST');
+    expect(url).toBe(`${MAX_API}/getHomePageData?disableDefaultSpinnerBehavior=true`);
+  });
+});
+
+describe('MaxShape headers', () => {
+  it('sends the static set, the session id and a fresh call id', async () => {
+    const { MAX_STATIC_HEADERS: statics } =
+      await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigMaxConstants.js');
+    const ctx = ctxWithSession(new Date(), 'SID-1');
+    const first = headersFor(ctx);
+    const second = headersFor(ctx);
+    expect(first).toEqual({ ...statics, sid: 'SID-1', cid: first.cid });
+    expect(first.cid).toMatch(UUID_PATTERN);
+    expect(second.cid).not.toBe(first.cid);
   });
 
-  it('customerUrl omits the version when none is discovered', () => {
-    const ctx = ctxNoVersion(new Date());
-    const raw = customerUrl(ctx);
-    const url = String(raw);
-    expect(url).toContain('/getHomePageData?disableDefaultSpinnerBehavior=true');
-    expect(url).not.toContain('&v=');
+  it('sends an empty session id before login has stored one', () => {
+    const ctx = ctxBeforeLogin(new Date());
+    const headers = headersFor(ctx);
+    expect(headers.sid).toBe('');
+  });
+
+  it('sends the same headers on the transactions call', () => {
+    const { customer, transactions } = MAX_SHAPE;
+    expect(typeof transactions.extraHeaders).toBe('function');
+    expect(transactions.extraHeaders).toBe(customer.extraHeaders);
   });
 });
 
 describe('MaxShape transactions', () => {
-  it('txnsUrl encodes the show-all filterData with a YYYY-M-01 date + version (cursor 0)', () => {
-    const ctx = ctxWithVersion(new Date(2026, 3, 15), 'V4-TEST');
+  it('txnsUrl encodes the show-all filterData with a YYYY-M-01 date (cursor 0)', () => {
+    const ctx = ctxWithSession(new Date(2026, 3, 15), 'SID-1');
     const raw = txnsUrl(CARD, false, ctx);
-    const url = String(raw);
-    const filterData = new URL(url).searchParams.get('filterData') ?? '';
+    const url = new URL(String(raw));
+    const filterData = url.searchParams.get('filterData') ?? '';
     const parsed = JSON.parse(filterData) as { date: string; monthView: boolean };
     expect(parsed.date).toBe('2026-4-01');
     expect(parsed.monthView).toBe(true);
-    expect(url).toContain('&firstCallCardIndex=-1');
-    expect(url).toContain('&v=V4-TEST');
+    const keys = [...url.searchParams.keys()];
+    expect(keys).toEqual(['filterData', 'firstCallCardIndex']);
+    const cardIndex = url.searchParams.get('firstCallCardIndex');
+    expect(cardIndex).toBe('-1');
   });
 
   it('txnsUrl advances the filterData date month by the cursor offset', () => {
-    const ctx = ctxWithVersion(new Date(2026, 3, 15), 'V4-TEST');
+    const ctx = ctxWithSession(new Date(2026, 3, 15), 'SID-1');
     const raw = txnsUrl(CARD, 2, ctx);
     const url = String(raw);
     const filterData = new URL(url).searchParams.get('filterData') ?? '';
@@ -162,7 +195,7 @@ describe('MaxShape transactions', () => {
       { shortCardNumber: '1234', id: 'a' },
       { shortCardNumber: '9999', id: 'b' },
     ];
-    const ctx = ctxNoVersion(new Date(2000, 0, 1), 0);
+    const ctx = ctxBeforeLogin(new Date(2000, 0, 1), 0);
     const page = txnsExtractPage({
       body: { result: { transactions: rows } },
       cursor: false,
@@ -174,14 +207,14 @@ describe('MaxShape transactions', () => {
   });
 
   it('txnsExtractPage tolerates a null result block', () => {
-    const ctx = ctxNoVersion(new Date(2000, 0, 1), 0);
+    const ctx = ctxBeforeLogin(new Date(2000, 0, 1), 0);
     const page = txnsExtractPage({ body: { result: null }, cursor: false, acct: CARD, ctx });
     expect(page.items).toEqual([]);
     expect(page.nextCursor).toBe(1);
   });
 
   it('txnsExtractPage stops when the window is exhausted', () => {
-    const ctx = ctxNoVersion(new Date(), 0);
+    const ctx = ctxBeforeLogin(new Date(), 0);
     const page = txnsExtractPage({ body: {}, cursor: false, acct: CARD, ctx });
     expect(page.items).toEqual([]);
     expect(page.nextCursor).toBe(false);

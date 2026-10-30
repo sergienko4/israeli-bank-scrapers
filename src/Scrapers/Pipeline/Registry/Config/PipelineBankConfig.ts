@@ -8,6 +8,7 @@
 import { CompanyTypes } from '../../../../Definitions.js';
 import { AMEX_HEADLESS } from './PipelineBankConfigAmex.js';
 import { ISRACARD_HEADLESS } from './PipelineBankConfigIsracard.js';
+import { MAX_HEADLESS } from './PipelineBankConfigMax.js';
 import { ONEZERO_HEADLESS } from './PipelineBankConfigOneZeroHeadless.js';
 import { PEPPER_HEADLESS } from './PipelineBankConfigPepperHeadless.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
@@ -122,8 +123,10 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     headless: AMEX_HEADLESS,
   },
   [CompanyTypes.Max]: {
-    ...defineBank('https://www.max.co.il', CARD_CYCLE, SESSION_COOKIE),
-    clientVersionParam: 'v',
+    urls: { base: 'https://www.max.co.il' },
+    balanceKind: CARD_CYCLE,
+    authStrategyKind: API_DIRECT,
+    headless: MAX_HEADLESS,
   },
   [CompanyTypes.Mercantile]: defineBank('https://www.mercantile.co.il', ACCOUNT, SESSION_COOKIE),
   [CompanyTypes.Mizrahi]: {

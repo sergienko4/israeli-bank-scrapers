@@ -153,6 +153,7 @@ const EXPECTED_BROWSERLESS: readonly CompanyTypes[] = [
   CompanyTypes.Amex,
   CompanyTypes.Isracard,
   CompanyTypes.VisaCal,
+  CompanyTypes.Max,
   CompanyTypes.OneZero,
 ];
 

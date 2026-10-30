@@ -104,9 +104,9 @@ describe('CredentialLoader', () => {
   });
 
   describe('knownBanks', () => {
-    it('returns the six onboarded browser banks sorted', () => {
+    it('returns the five onboarded browser banks sorted', () => {
       const banks = knownBanks();
-      const expected = ['beinleumi', 'discount', 'hapoalim', 'leumi', 'max', 'mizrahi'];
+      const expected = ['beinleumi', 'discount', 'hapoalim', 'leumi', 'mizrahi'];
       expect(banks).toEqual(expected);
     });
   });
@@ -131,14 +131,14 @@ describe('CredentialLoader', () => {
     });
 
     it('throws when an env var is whitespace-only', () => {
-      process.env.MAX_USERNAME = '   ';
-      process.env.MAX_PASSWORD = 'pw';
+      process.env.LEUMI_USERNAME = '   ';
+      process.env.LEUMI_PASSWORD = 'pw';
       /**
        * Wrapper used by Jest's expect().toThrow() matcher.
        * @returns Never (loadCredentials throws).
        */
-      const attempt = (): unknown => loadCredentials('max');
-      expect(attempt).toThrow(/MAX_USERNAME/u);
+      const attempt = (): unknown => loadCredentials('leumi');
+      expect(attempt).toThrow(/LEUMI_USERNAME/u);
     });
 
     it('throws when no template is registered', () => {
@@ -153,15 +153,15 @@ describe('CredentialLoader', () => {
 
   describe('hasCredentials', () => {
     it('returns true when every required env var is present', () => {
-      process.env.MAX_USERNAME = 'alice';
-      process.env.MAX_PASSWORD = 'pw';
-      const hasAll = hasCredentials('max');
+      process.env.LEUMI_USERNAME = 'alice';
+      process.env.LEUMI_PASSWORD = 'pw';
+      const hasAll = hasCredentials('leumi');
       expect(hasAll).toBe(true);
     });
 
     it('returns false when any env var is missing', () => {
-      process.env.MAX_USERNAME = 'alice';
-      const hasAll = hasCredentials('max');
+      process.env.LEUMI_USERNAME = 'alice';
+      const hasAll = hasCredentials('leumi');
       expect(hasAll).toBe(false);
     });
 
@@ -195,7 +195,7 @@ describe('CredentialLoader', () => {
     });
 
     it('returns None for non-OTP banks', () => {
-      const optResult = loadOtpFromEnv('max');
+      const optResult = loadOtpFromEnv('leumi');
       const isPresent = isSome(optResult);
       expect(isPresent).toBe(false);
     });

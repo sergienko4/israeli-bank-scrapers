@@ -67,7 +67,6 @@ const CASES: readonly IHomeSignalCase[] = [
   { bankId: 'hapoalim', hasLoginForm: false },
   { bankId: 'leumi', hasLoginForm: true },
   { bankId: 'massad', hasLoginForm: false },
-  { bankId: 'max', hasLoginForm: false },
   { bankId: 'mercantile', hasLoginForm: false },
   // Not a form: FORM_CHECK's textContent 'סיסמה' matches the homepage's
   // "שחרור סיסמה" (unlock-password) menu link. Measured, so pinned as-is.

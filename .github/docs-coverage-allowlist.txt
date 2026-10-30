@@ -1288,7 +1288,7 @@ extractCards
 # Per-bank shape closure consumed only by VISACAL_SHAPE. Not user-facing.
 customerVars
 
-# --- P4 Max hard-model post-auth scrape shape (card-cycle browser bank) ---
+# --- P4 Max hard-model post-auth scrape shape (card-cycle, browserless) ---
 # Reason: MAX_API - Max registered API origin const shared by the Max shape's
 # customer/transactions urlTag builders. Framework-internal bank contract constant.
 MAX_API
@@ -1296,12 +1296,6 @@ MAX_API
 # shortCardNumber); consumed only by MAX_SHAPE + its helpers. Pipeline-internal,
 # not part of the @sergienko4/israeli-bank-scrapers public surface (not in src/index.ts).
 IMaxCard
-# Reason: clientVersionOf - Max shape reader for the SPA build-version stashed on the
-# mediator session-context at BIND-API-MEDIATOR. Per-bank shape closure, not user-facing.
-clientVersionOf
-# Reason: withVersion - Max shape URL helper appending the discovered &v= build param.
-# Per-bank shape closure consumed only by MAX_SHAPE helpers. Not user-facing.
-withVersion
 # Reason: filterMaxRows - Max transactions-step row filter (per-card last-4 filter over
 # the merged result.transactions[]). Per-bank shape closure consumed only by MAX_SHAPE.
 filterMaxRows

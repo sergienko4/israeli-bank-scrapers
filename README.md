@@ -162,7 +162,7 @@ validated at runtime.
 | Pepper (by Leumi)    | Bank        | API-direct | `phoneNumber`, `password`, OTP  |
 | Amex                 | Credit card | API-direct | `id`, `card6Digits`, `password` |
 | Isracard             | Credit card | API-direct | `id`, `card6Digits`, `password` |
-| Max                  | Credit card | Browser    | `username`, `password`          |
+| Max                  | Credit card | API-direct | `username`, `password`          |
 | Visa Cal             | Credit card | API-direct | `username`, `password`          |
 | PayBox (by Discount) | Wallet      | API-direct | `phoneNumber`, OTP              |
 
@@ -207,6 +207,9 @@ Visa Cal, Isracard and Amex are API-direct too but send no OTP: their
 [Visa Cal](https://sergienko4.github.io/israeli-bank-scrapers/banks/visacal/),
 [Isracard](https://sergienko4.github.io/israeli-bank-scrapers/banks/isracard/) and
 [Amex](https://sergienko4.github.io/israeli-bank-scrapers/banks/amex/) guides.
+Max is API-direct with no OTP and no token: every run logs in with the username
+and password — see the
+[Max](https://sergienko4.github.io/israeli-bank-scrapers/banks/max/) guide.
 
 Pass `phoneNumber` in digits-only international form. Each bank wants a
 different wire format (`+972…`, `972…`, `972-…`) and the mediator rewrites it
@@ -382,7 +385,7 @@ backwards compatibility. Full remedies, including WAF-specific ones, are in
 
 ```mermaid
 flowchart LR
-    subgraph BB["Pipeline browser banks (11)"]
+    subgraph BB["Pipeline browser banks (10)"]
       direction LR
       INIT --> HOME --> PRELOGIN["PRE-LOGIN (opt-in)"]
       PRELOGIN --> LOGIN
@@ -393,7 +396,7 @@ flowchart LR
       SCRAPE --> TERM["TERMINATE"]
     end
 
-    subgraph API["API-direct banks (6) — OneZero · Pepper · PayBox · Visa Cal · Isracard · Amex"]
+    subgraph API["API-direct banks (7) — OneZero · Pepper · PayBox · Visa Cal · Isracard · Amex · Max"]
       direction LR
       CALL["API-DIRECT-CALL<br/>(login + OTP via JSON API)"] --> SCR["API-DIRECT-SCRAPE"]
     end

@@ -206,14 +206,6 @@ export interface IPipelineBankConfig {
     readonly maxAttempts: number;
   };
   /**
-   * SPA build-version query key (e.g. Max's `'v'`). When set, BIND-API-MEDIATOR
-   * scans the live page's resource-timing buffer for the first request carrying
-   * `?<key>=<value>` and stashes `<value>` on the mediator session-context as
-   * `clientVersion`, letting browser hard-model shapes reconstruct versioned API
-   * URLs. Absent ⇒ no scan (banks whose APIs carry no build-version param).
-   */
-  readonly clientVersionParam?: string;
-  /**
    * Post-auth session-token capture — for banks whose API carries a body-borne
    * session id (e.g. Leumi's WCF `reqObj.SessionHeader.SessionID`) instead of a
    * header/cookie token. BIND-API-MEDIATOR reads the login-inclusive discovery

@@ -113,6 +113,12 @@ const CAL_AUTH_URLS = [
   },
 ] as const;
 
+/** Exact Max auth endpoints on the max.co.il origin. */
+const MAX_AUTH_URLS = [
+  { $label: 'auth.prime', url: 'https://www.max.co.il/api/registered/clientcontext' },
+  { $label: 'auth.login', url: 'https://www.max.co.il/api/login/login' },
+] as const;
+
 /**
  * Re-seed the registry from the real bank config after `beforeEach` cleared it.
  * Dynamic import dodges the DI rule banning static Registry/Config imports.
@@ -133,11 +139,11 @@ describe('UrlsWK/pepperAuthUrls', () => {
     expect(result).toEqual({ success: true, value: url });
   });
 
-  it('shares auth.login between exactly Pepper and VisaCal', async () => {
+  it('shares auth.login between exactly Pepper, VisaCal and Max', async () => {
     await seedFromBankConfig();
     const owners = WK_URLS.get('auth.login');
     const ownerHints = new Set(owners?.keys());
-    const expected = new Set([CompanyTypes.Pepper, CompanyTypes.VisaCal]);
+    const expected = new Set([CompanyTypes.Pepper, CompanyTypes.VisaCal, CompanyTypes.Max]);
     expect(ownerHints).toEqual(expected);
   });
 
@@ -178,6 +184,14 @@ describe('UrlsWK/calAuthUrls', () => {
   it.each(CAL_AUTH_URLS)('resolves $label to its exact full URL', async ({ $label, url }) => {
     await seedFromBankConfig();
     const result = resolveWkUrl($label, CompanyTypes.VisaCal);
+    expect(result).toEqual({ success: true, value: url });
+  });
+});
+
+describe('UrlsWK/maxAuthUrls', () => {
+  it.each(MAX_AUTH_URLS)('resolves $label to its exact full URL', async ({ $label, url }) => {
+    await seedFromBankConfig();
+    const result = resolveWkUrl($label, CompanyTypes.Max);
     expect(result).toEqual({ success: true, value: url });
   });
 });

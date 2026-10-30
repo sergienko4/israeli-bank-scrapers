@@ -68,15 +68,4 @@ export const BANK_SCENARIOS: readonly IBankScenario[] = [
     usesOtp: false,
     cookieCount: 0,
   },
-  {
-    bank: 'max',
-    homepageUrl: 'https://www.max.example/',
-    postNavUrl: 'https://www.max.example/login-page',
-    loginUrl: 'https://www.max.example/login-page',
-    dashboardUrl: 'https://www.max.example/account',
-    accountsUrl: 'https://www.max.example/api/accounts',
-    frameCount: 0,
-    usesOtp: true,
-    cookieCount: 3,
-  },
 ];

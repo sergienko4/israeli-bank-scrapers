@@ -59,28 +59,6 @@ const DISCOUNT_POST_LOGIN = {
   ],
 } as const satisfies IExtendedRecipe;
 
-/** Max: SPA-ish credit card site. */
-const MAX_POST_LOGIN = {
-  bankId: 'max',
-  steps: [
-    { kind: 'login', stepName: '04-login-action' },
-    {
-      kind: 'waitFor',
-      stepName: '07-auth-discovery',
-      urlIncludes: 'main/homepage',
-      timeoutMs: DASHBOARD_NETWORKIDLE_TIMEOUT_MS,
-    },
-    { kind: 'snapshot', stepName: '09-dashboard', waitForLifecycle: 'networkidle' },
-    {
-      kind: 'recordResponse',
-      stepName: '10-scrape-transactions',
-      urlPattern: '/transactions-search',
-      captureAs: 'transactions-search',
-      methods: ['POST'],
-    },
-  ],
-} as const satisfies IExtendedRecipe;
-
 /**
  * Hapoalim post-login recipe with DUAL scrape capture.
  *
@@ -237,7 +215,6 @@ const MIZRAHI_POST_LOGIN = {
  */
 const POST_LOGIN_RECIPES: Readonly<Partial<Record<string, IExtendedRecipe>>> = {
   discount: DISCOUNT_POST_LOGIN,
-  max: MAX_POST_LOGIN,
   hapoalim: HAPOALIM_POST_LOGIN,
   beinleumi: BEINLEUMI_POST_LOGIN,
   leumi: LEUMI_POST_LOGIN,
@@ -359,14 +336,6 @@ const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
         url: 'https://hb2.bankleumi.co.il/H/Login.html',
         waitForCredentialInput: true,
       },
-    ],
-  },
-  max: {
-    steps: [
-      { stepName: '01-home', url: 'https://www.max.co.il' },
-      { stepName: '02-after-entry', revealText: 'כניסה לחשבון' },
-      { stepName: '03-after-private', revealText: 'לקוח פרטי' },
-      { stepName: '04-reveal-password', revealText: 'סיסמה קבועה' },
     ],
   },
   mizrahi: {

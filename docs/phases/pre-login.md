@@ -5,7 +5,7 @@ Opt-in "show login" step for card banks that hide the password field behind a to
 | | |
 |---|---|
 | **Always-on?** | No — opt-in via `ifBrowserAndPreLogin` predicate |
-| **Banks that use it** | Max |
+| **Banks that use it** | None today — dormant; Max, its only user, logs in over its API |
 | **Owner slot** | `preLoginDiscovery: Option<IPreLoginDiscovery>` |
 | **Source** | [`FindLoginAreaPhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/PreLogin/FindLoginAreaPhase.ts) + [`PreLoginActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/PreLogin/PreLoginActions.ts) |
 
@@ -20,4 +20,4 @@ Opt-in "show login" step for card banks that hide the password field behind a to
 
 ## Why a separate phase?
 
-Some card banks (Max) show the username form first and reveal the password field only after a toggle. Splitting this from `LOGIN` keeps `LoginConfig` declarative — one config object describes "the form once it's interactive", PRE-LOGIN deals with the show/hide.
+Some card banks show the username form first and reveal the password field only after a toggle. Splitting this from `LOGIN` keeps `LoginConfig` declarative — one config object describes "the form once it's interactive", PRE-LOGIN deals with the show/hide.
