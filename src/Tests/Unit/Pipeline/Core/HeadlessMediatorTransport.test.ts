@@ -21,7 +21,7 @@ interface ITransportFlags {
   readonly requiresBrowserTls?: boolean;
   readonly requiresClientCert?: boolean;
   readonly tlsProfile?: TlsClientProfileKind;
-  readonly nativeFetch?: true;
+  readonly nativeFetch?: boolean;
   readonly sessionCookies?: boolean;
 }
 
@@ -103,6 +103,12 @@ describe('HeadlessMediatorWiring — transport selection', () => {
       'node-tls',
     ],
     ['native fetch', { nativeFetch: true }, 'native'],
+    ['native fetch switched off', { nativeFetch: false }, 'browser-tls'],
+    [
+      'native fetch off with a TLS profile',
+      { nativeFetch: false, tlsProfile: ANDROID_PROFILE },
+      'node-tls',
+    ],
     ['browser TLS', { requiresBrowserTls: true }, 'browser-tls'],
     ['no transport flag', {}, 'browser-tls'],
   ])('routes %s to %s', (_label, flags, expected) => {

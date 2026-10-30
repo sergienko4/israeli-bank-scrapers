@@ -111,7 +111,7 @@ export interface IHeadlessUrlsConfig {
    * `requiresClientCert` and `tlsProfile`. Default: undefined (the bank
    * keeps the browser-backed identity transport).
    */
-  readonly nativeFetch?: true;
+  readonly nativeFetch?: boolean;
   /**
    * When true, the node identity transport keeps one cookie jar for the
    * run: every response's Set-Cookie feeds it and every POST and GET sends
