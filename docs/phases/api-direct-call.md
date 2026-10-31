@@ -669,10 +669,14 @@ fails the build with `Generic` and `<field>: <rule>`:
 | `warmStart.fromStepIndex` below 1                                                                                                     | `warmStart.fromStepIndex: must start after the first step`               |
 | `warmStart.fromStepIndex` fractional, `NaN` or above `steps.length`                                                                   | `warmStart.fromStepIndex: must be a whole number up to the step count`   |
 | `warmStart` validated as `'bank-call'` whose `fromStepIndex` step has a `runIf` guard | `warmStart.fromStepIndex: a bank-call check step must not have runIf` |
-| a `kind: 'cookie-jar'` `warmStart` with a blank `provider` | `warmStart.provider: must not be blank` |
+| a `kind: 'cookie-jar'` or `'carry-bundle'` `warmStart` with a blank `provider` | `warmStart.provider: must not be blank` |
 | a `kind: 'cookie-jar'` `warmStart` with a blank `accountField` | `warmStart.accountField: must not be blank` |
-| a `kind: 'cookie-jar'` `warmStart` whose `maxTokenChars` is not an integer from 1 to 16384 | `warmStart.maxTokenChars: must be an integer from 1 to 16384` |
+| a `kind: 'cookie-jar'` or `'carry-bundle'` `warmStart` whose `maxTokenChars` is not an integer from 1 to 16384 | `warmStart.maxTokenChars: must be an integer from 1 to 16384` |
 | a `kind: 'cookie-jar'` `warmStart` without `headless.cookieDomains` | `warmStart.kind: cookie-jar not allowed without headless.cookieDomains` |
+| a `kind: 'carry-bundle'` `warmStart` with no `accountFields`, or a blank one (`API_DIRECT_WARM_BUNDLE_RULES`) | `warmStart.accountFields: must name a creds field, none blank` |
+| a `kind: 'carry-bundle'` `warmStart` with an empty `slots` | `warmStart.slots: must not be empty` |
+| a `kind: 'carry-bundle'` `warmStart` keeping a slot no login step extracts or generates | `warmStart.slots: each slot must be filled by a login step` |
+| a `kind: 'carry-bundle'` `warmStart` with `cookies: true`, without `headless.cookieDomains` | `warmStart.cookies: not allowed without headless.cookieDomains` |
 | a `response: 'document'` step with any `extractsToCarry`, `optionalExtractsToCarry`, `outcome` or nonempty `failIfPresent` | `steps.response: a document step reads no body extracts, outcome or failIfPresent` |
 | a `documentMarker` on any step whose `response` is not `'document'`                                                                   | `steps.documentMarker: only on a document step`                          |
 | a manual `redirect` on a step whose `method` is not `GET`                                                                             | `steps.redirect: manual only on GET steps`                               |
@@ -740,8 +744,9 @@ the input.
 `warmStart.kind` says what the stored token is. The default, `'carry'`, seeds
 it into the carry slot `carryField`. `'cookie-jar'` is for a cookie-session
 bank with no bearer to replay: the token is the session jar itself
-([Cookie-jar warm start](#cookie-jar-warm-start)).
-
+([Cookie-jar warm start](#cookie-jar-warm-start)). `'carry-bundle'` is for a
+bank whose warm login needs several slots a cold login filled, and optionally
+the jar ([Carry-bundle warm start](#carry-bundle-warm-start)).
 The warm-start canary (`WarmStartContract`) follows the same policy. It
 requires `jwtClaims` only for `'jwt'` validation, and it requires the warm path
 to end holding a `token` only when the auth scheme sends a header (`none`
@@ -769,7 +774,9 @@ The provider tag and account hash only stop one account's jar from being
 replayed for another. They are not authentication: like every stored warm
 token, the jar is a secret its caller keeps.
 
-`Flow/TokenStrategyFromConfig.warm.ts` runs the kind at three moments:
+`Flow/TokenStrategyFromConfig.warm.ts` runs the kind at three moments, through
+the kind's restore and publish ops (`TokenStrategyFromConfig.jar.ts` for this
+kind):
 
 - **Restore** (`restoreWarmSeed`). The stored token is checked in order —
   an account to bind, size, prefix, JSON, shape, provider, account — then imported into the run's
@@ -785,6 +792,42 @@ token, the jar is a secret its caller keeps.
   envelope. A token longer than `maxTokenChars`, or one for a blank account,
   is not published: the warning `warm start export skipped: <reason>` names
   the creds field and the reason only (with the length, when too long).
+
+### Carry-bundle warm start
+
+A `kind: 'carry-bundle'` warm start (`ICarryBundleWarmStart`) is always
+validated as `'bank-call'`. It keeps the listed carry `slots` a cold login
+filled — a body extract or a generator output of a login step — and, with
+`cookies: true`, the session jar too. It adds `provider`, `accountFields` (the
+creds fields the token is bound to, in order), `slots`, `maxTokenChars` and
+`cookies`. `carryBundleWarmOf` (`Flow/WarmStartKind.ts`) returns the config or
+`false`.
+`encodeWarmBundle` in `Flow/WarmCarryBundle.ts` encodes `v1.` plus unpadded
+base64url over the JSON `{p, a, s, c?}`: the provider tag, the first 16 hex
+characters of the SHA-256 of the JSON array of trimmed account values (never
+the values), the kept slots, and — only when the config keeps the jar — the
+cookies. `decodeWarmBundle` checks in order — an account to bind, size,
+prefix, canonical base64url, JSON, shape, provider, account, slots (exactly
+the config's, each non-empty text), then the jar (present exactly when the
+config keeps it, each cookie well-typed) — and refuses with a reason from
+`WARM_BUNDLE_REJECTIONS`, never a value. Every account value must be
+non-blank (`unbound`). `decodeWarmBundle` returns an `IWarmBundle`: the `BundleCarry` slots and the jar, or `false` when the config keeps none. The parts both codecs share live in `Flow/WarmTokenParts.ts`: `WARM_TOKEN_PREFIX`, `identityTag` (the 16-hex SHA-256 tag), `wrapJsonText` and `parseJsonBody` for the body, `isRecordValue`, `isListValue`, `isStoredCookie` and `projectCookie` for the shape and cookies, and `textAt` for a slot's text. The cookie-jar hash is unchanged, so stored jar tokens still open.
+
+Each kind's ops take an `IWarmRunArgs` (config, bus and creds) and restore a `WarmCarry` starting carry: `restoreJar` and `exportJar` (`TokenStrategyFromConfig.jar.ts`), and `restoreBundle` and `exportBundle` (`TokenStrategyFromConfig.bundle.ts`). Both skip a token through `skipWarmRestore` and publish through `publishWithin`, which applies `maxTokenChars`. The build rules read either bound kind through `boundWarmOf`, which returns a `BoundWarmStart` (a cookie-jar or carry-bundle config) or `false`, and check cookie domains through `hasCookieDomains` (`Core/Builder/ApiDirectRuleInput.ts`).
+
+The bundle's ops:
+
+- **Restore.** A token that opens has its jar imported into the run's cookie
+  session, when it keeps one, and its slots become the starting carry; the
+  flow resumes at `fromStepIndex`. A refused token, or a jar for a run with no
+  cookie session, is skipped with the warning `warm start skipped: <reason>`,
+  and the cold login runs.
+- **Export.** A finished flow reads each kept slot from its carry, and the jar
+  when kept, and encodes them as the next warm token. A slot left unfilled, an
+  unbound account or a token longer than `maxTokenChars` publishes nothing:
+  the warning `warm start export skipped: <reason>` names the creds field and
+  the reason only. The export reads the full carry; the `sessionCarry`
+  allowlist applies afterwards, to what the scrape is handed.
 
 ### Transport errors
 

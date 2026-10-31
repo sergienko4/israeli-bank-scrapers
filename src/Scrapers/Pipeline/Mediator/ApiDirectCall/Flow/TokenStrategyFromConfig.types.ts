@@ -136,6 +136,12 @@ interface IFlowCapture {
   readonly carrySnapshot: Readonly<Record<string, JsonValue>>;
 }
 
+/** What restoring and exporting a warm token read from a run. */
+type IWarmRunArgs = Pick<IRunFlowArgs, 'config' | 'bus' | 'creds'>;
+
+/** The carry a resumed flow starts from. */
+type WarmCarry = Readonly<Record<string, JsonValue>>;
+
 /** Args for makeWarmArgs — respects 3-param ceiling. */
 interface IMakeWarmArgs {
   readonly config: IApiDirectCallConfig;
@@ -185,5 +191,7 @@ export type {
   IRunFlowArgs,
   IStrategyBindings,
   IWarmSeedVerdict,
+  IWarmRunArgs,
   PersistentAuthMode,
+  WarmCarry,
 };

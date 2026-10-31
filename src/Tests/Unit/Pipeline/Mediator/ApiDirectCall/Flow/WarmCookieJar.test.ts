@@ -15,18 +15,20 @@ import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js
 import type { ScraperCredentials } from '../../../../../../Scrapers/Base/Interface.js';
 import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IConfigTokenStrategy } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
-import type {
-  ICookieSession,
-  IStoredCookie,
-} from '../../../../../../Scrapers/Pipeline/Types/Domain/CookieSession.js';
+import type { IStoredCookie } from '../../../../../../Scrapers/Pipeline/Types/Domain/CookieSession.js';
 import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
-import { none, type Option } from '../../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertOk } from '../../../../../Helpers/AssertProcedure.js';
 import { fakeFetch } from '../../../../../Helpers/FakeFetch.js';
 import { type IApiPostCapture, makeStubMediator } from './StubMediator.js';
+import {
+  COOKIE_MARKER as MARKER,
+  type IJarSpy,
+  makeJarSpy,
+  WARM_COOKIES as COOKIES,
+} from './WarmJarSpy.js';
 import { makeJwt, WARM_STEP_TAG, warmTwoStepConfig } from './WarmStartFixtures.js';
 
 /** Logger shared by the modules under test and the assertions. */
@@ -69,35 +71,12 @@ const PROVIDER = 'syn-bank';
 const ACCOUNT = 'syn-user';
 const IDENTITY = { provider: PROVIDER, account: ACCOUNT } as const;
 const LIMIT = 16384;
-/** Every cookie value carries this marker, so a leaked value is easy to spot. */
-const MARKER = 'syn-secret-';
 /** A bank answer carrying the bearer each step extracts to carry. */
 const STEP_OK: Procedure<unknown> = succeed({ access_token: makeJwt(36000) });
 /** Steps a cold flow walks — the whole list. */
 const COLD_STEPS = 2;
 /** Steps a warm resume walks — everything from `fromStepIndex` on. */
 const WARM_STEPS = 1;
-
-const COOKIES: readonly IStoredCookie[] = [
-  {
-    name: 'SMSESSION',
-    value: `${MARKER}session`,
-    domain: 'bank.example',
-    path: '/',
-    hostOnly: false,
-    secure: true,
-    expiresEpochS: 0,
-  },
-  {
-    name: 'XSRF-TOKEN',
-    value: `${MARKER}xsrf`,
-    domain: 'login.bank.example',
-    path: '/auth',
-    hostOnly: true,
-    secure: true,
-    expiresEpochS: 4102444800,
-  },
-];
 
 const GROWN_COOKIES = COOKIES.map((cookie): IStoredCookie => ({
   ...cookie,
@@ -251,101 +230,6 @@ describe('cookie-jar warm envelope', () => {
     expect(decoded).toEqual(unbound);
   });
 });
-
-/** A cookie session that records imports and clears against the request count. */
-interface IJarSpy {
-  readonly session: ICookieSession;
-  readonly events: string[];
-}
-
-/** The parts of a cookie session no warm start reads. */
-const INERT_SESSION: Pick<ICookieSession, 'cookieFor' | 'headerFor' | 'set'> = {
-  /**
-   * No cookie is read.
-   * @returns None.
-   */
-  cookieFor: (): Option<string> => none(),
-  /**
-   * No Cookie header.
-   * @returns None.
-   */
-  headerFor: (): Option<string> => none(),
-  /**
-   * Ignore a client cookie.
-   * @returns Jar size.
-   */
-  set: (): number => 0,
-};
-
-/** Where jar events land, tagged with how many requests had gone out. */
-interface IJarSink {
-  readonly events: string[];
-  readonly captures: readonly IApiPostCapture[];
-}
-
-/**
- * Record a jar event tagged with how many requests had gone out.
- * @param sink - Event log and the run's request log.
- * @param label - Event name.
- * @returns The event count.
- */
-function recordAt(sink: IJarSink, label: string): number {
-  const sent = String(sink.captures.length);
-  return sink.events.push(`${label}@${sent}`);
-}
-
-/**
- * Record an import.
- * @param sink - Event log and request log.
- * @param cookies - Imported cookies.
- * @returns Jar size.
- */
-function importInto(sink: IJarSink, cookies: readonly IStoredCookie[]): number {
-  const count = String(cookies.length);
-  recordAt(sink, `import${count}`);
-  return cookies.length;
-}
-
-/**
- * Record a clear.
- * @param sink - Event log and request log.
- * @returns Jar size (0).
- */
-function clearInto(sink: IJarSink): number {
-  recordAt(sink, 'clear');
-  return 0;
-}
-
-/**
- * A cookie session exporting the given cookies and recording imports/clears.
- * @param captures - The run's request log.
- * @param exported - What `exportAll` returns.
- * @returns The session and its event log.
- */
-function makeJarSpy(
-  captures: readonly IApiPostCapture[],
-  exported: readonly IStoredCookie[],
-): IJarSpy {
-  const events: string[] = [];
-  const sink: IJarSink = { events, captures };
-  /**
-   * Record an import.
-   * @param cookies - Imported cookies.
-   * @returns Jar size.
-   */
-  const importAll = (cookies: readonly IStoredCookie[]): number => importInto(sink, cookies);
-  /**
-   * Record a clear.
-   * @returns Jar size (0).
-   */
-  const clear = (): number => clearInto(sink);
-  /**
-   * Export the scripted cookies.
-   * @returns The cookies.
-   */
-  const exportAll = (): readonly IStoredCookie[] => exported;
-  return { session: { ...INERT_SESSION, importAll, clear, exportAll }, events };
-}
 
 /**
  * Cookie-jar call config over the shared two-step warm flow.

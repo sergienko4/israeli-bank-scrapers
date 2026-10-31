@@ -7,7 +7,7 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import ScraperError from '../../../../Base/ScraperError.js';
 import { getDebug } from '../../../Logging/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, succeed } from '../../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import { isJwtFresh } from '../Jwt/GenericJwtClaims.js';
 import { MAX_ACCESS_TOKEN_CHARS } from '../PersistentAuthStateRules.js';
@@ -112,6 +112,50 @@ function makeWarmArgs(args: IMakeWarmArgs): IRunFlowArgs {
   return { config, bus, creds, companyId, initialCarry, startStepIndex: warm.fromStepIndex };
 }
 
+/** Why a finished token that does not fit the limit is not published. */
+const OVER_LIMIT = 'over maxTokenChars';
+
+/** A bound warm start's creds field and token ceiling. */
+interface IWarmExportLimit {
+  readonly credsField: string;
+  readonly maxTokenChars: number;
+}
+
+/**
+ * Skip a stored token, naming the reason and the creds field — never the token.
+ * @param credsField - Creds field the token came from.
+ * @param reason - Rejection text.
+ * @returns False, so the cold login runs.
+ */
+function skipWarmRestore(credsField: string, reason: string): false {
+  LOG.warn({ credsField }, `warm start skipped: ${reason}`);
+  return false;
+}
+
+/**
+ * Publish no token, naming the reason and the creds field — never a value.
+ * @param credsField - Creds field the token is published for.
+ * @param reason - Why the export is skipped.
+ * @returns '' — no token.
+ */
+function skipWarmExport(credsField: string, reason: string): '' {
+  LOG.warn({ credsField }, `warm start export skipped: ${reason}`);
+  return '';
+}
+
+/**
+ * Publish an encoded token when it fits the warm start's ceiling.
+ * @param limit - Creds field and ceiling.
+ * @param token - Encoded token, or why it could not be encoded.
+ * @returns The token, or '' when it failed or does not fit.
+ */
+function publishWithin(limit: IWarmExportLimit, token: Procedure<string>): string {
+  if (!isOk(token)) return skipWarmExport(limit.credsField, token.errorMessage);
+  if (token.value.length <= limit.maxTokenChars) return token.value;
+  const chars = String(token.value.length);
+  return skipWarmExport(limit.credsField, `${OVER_LIMIT} (${chars} chars)`);
+}
+
 /**
  * Validate the config's flow-kind — only 'sms-otp' is implemented.
  * @param config - Config literal.
@@ -127,6 +171,8 @@ export {
   isWarmSeedSupplied,
   makeWarmArgs,
   pickWarmSeed,
+  publishWithin,
   readCredsString,
+  skipWarmRestore,
   STRATEGY_NAME_DEFAULT,
 };
