@@ -3,12 +3,14 @@
  * block. They run when the pipeline is built, so a config that cannot work
  * fails before any run starts. The first broken rule fails the build as
  * `Generic` with `"<field>: <rule>"`. The session-transport rules live in
- * `ApiDirectTransportRules.ts` and run after these.
+ * `ApiDirectTransportRules.ts` and run after these; the native-fetch rules in
+ * `ApiDirectNativeRules.ts` run last.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
+import { API_DIRECT_NATIVE_RULES } from './ApiDirectNativeRules.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
 import { API_DIRECT_TRANSPORT_RULES } from './ApiDirectTransportRules.js';
 
@@ -147,6 +149,7 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
     isBroken: isWarmOffStepBoundary,
   },
   ...API_DIRECT_TRANSPORT_RULES,
+  ...API_DIRECT_NATIVE_RULES,
 ];
 
 /**

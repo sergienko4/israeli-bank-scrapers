@@ -2,11 +2,11 @@
 
 Login + OTP via JSON API. Replaces INIT → HOME → PRE-LOGIN → LOGIN → OTP-TRIGGER → OTP-FILL for api-direct banks (OneZero, Pepper, PayBox, VisaCal, Isracard, Amex, Max) — six browser phases collapse into one headless phase with a declarative step list.
 
-| | |
-|---|---|
-| **Always-on?** | api-direct banks only |
-| **Owner slots** | `apiMediator`, `login`, `api` |
-| **Source** | [`ApiDirectCallPhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectCall/ApiDirectCallPhase.ts) + [`ApiDirectCallActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.ts) + [`Flow/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow) |
+|                 |                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Always-on?**  | api-direct banks only                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **Owner slots** | `apiMediator`, `login`, `api`                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **Source**      | [`ApiDirectCallPhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectCall/ApiDirectCallPhase.ts) + [`ApiDirectCallActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.ts) + [`Flow/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow) |
 
 ## Unified api-direct primitives
 
@@ -14,10 +14,10 @@ Every api-direct bank reuses the **same building blocks** below the phase, so ad
 
 ### Signer (discriminated union)
 
-| Kind | Used by | Algorithm | Signature placement |
-|---|---|---|---|
-| Asymmetric | Pepper | ECDSA-P256 / RSA-2048 | Header-attached |
-| Symmetric | PayBox | AES-CBC-PKCS7 | Body — RFC-6901 pointer |
+| Kind       | Used by | Algorithm             | Signature placement     |
+| ---------- | ------- | --------------------- | ----------------------- |
+| Asymmetric | Pepper  | ECDSA-P256 / RSA-2048 | Header-attached         |
+| Symmetric  | PayBox  | AES-CBC-PKCS7         | Body — RFC-6901 pointer |
 
 Banks declare the algorithm + canonical-string parts + key-ref in their `PipelineBankConfig.headless.signer` literal; the mediator dispatches without bank knowledge.
 
@@ -41,12 +41,12 @@ empty signer slot fails as `injected keypair missing: <slot>`.
 
 Declarative body literal with `$ref` tokens:
 
-| Token | Resolves to |
-|---|---|
-| `$literal: "v"` | Literal value `"v"` |
-| `$ref: creds.<field>` | The credential at that key |
-| `$ref: carry.<slot>` | The flow's per-step carry slot |
-| `$ref: config.<dotted.path>` | The bank's config object |
+| Token                        | Resolves to                    |
+| ---------------------------- | ------------------------------ |
+| `$literal: "v"`              | Literal value `"v"`            |
+| `$ref: creds.<field>`        | The credential at that key     |
+| `$ref: carry.<slot>`         | The flow's per-step carry slot |
+| `$ref: config.<dotted.path>` | The bank's config object       |
 
 One hydration engine serves both `API-DIRECT-CALL` and `API-DIRECT-SCRAPE` step bodies — no per-bank imperative body assembly.
 
@@ -66,11 +66,11 @@ Per-step optional encryption hook: takes a value from carry (e.g. the SMS OTP), 
 
 Every api-direct bank declares its wire format in `PipelineBankConfig.headless.phoneNumberFormat`:
 
-| Bank | Format | Example |
-|---|---|---|
+| Bank    | Format               | Example         |
+| ------- | -------------------- | --------------- |
 | OneZero | `international-plus` | `+972000000000` |
-| Pepper | `international-flat` | `972000000000` |
-| PayBox | `international-dash` | `972-000000000` |
+| Pepper  | `international-flat` | `972000000000`  |
+| PayBox  | `international-dash` | `972-000000000` |
 
 Callers always pass digits-only international form; the ACTION-stage mediator rewrites once before the flow runs.
 
@@ -282,6 +282,11 @@ headless: {
 }
 ```
 
+`cookieDomains` needs `sessionCookies`. List only the bank's own registrable
+domains, never a public suffix such as `co.il`: the jar trusts the list as
+reviewed config and keeps no public-suffix list
+([Headless transports](../architecture/pipeline.md#headless-transports)).
+
 A GET step that reaches a page through one allowed redirect:
 
 ```ts
@@ -340,8 +345,11 @@ is sent. `Core/Builder/ApiDirectRuleInput.ts` holds that input, the rule shape
 `IApiDirectRule` (a message and an `isBroken` check) and `allSteps`, which
 lists the login steps and any durable resume steps. The session-transport
 rules, `API_DIRECT_TRANSPORT_RULES` in `Core/Builder/ApiDirectTransportRules.ts`,
-run after the core rules. The first broken rule fails the build with `Generic`
-and `<field>: <rule>`:
+run after the core rules. The native-fetch rules, `API_DIRECT_NATIVE_RULES` in
+`Core/Builder/ApiDirectNativeRules.ts`, run last: the session-transport fields
+act only on the headless native fetch, and any other transport would ignore
+them and run unguarded, so naming one off native fetch fails the build. The
+first broken rule fails the build with `Generic` and `<field>: <rule>`:
 
 | Broken when                                                                      | Message                                                                  |
 | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
@@ -359,6 +367,10 @@ and `<field>: <rule>`:
 | a manual `redirect` whose `allow` list is empty                                       | `redirect.allow: must not be empty`                                      |
 | a manual `redirect` whose `maxHops` is not an integer from 1 to 10                    | `redirect.maxHops: must be an integer from 1 to 10`                      |
 | a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`     | `headless.redirectPolicy: must be reject when a step redirects manually` |
+| a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |
+| `headless.cookieDomains`, `redirectPolicy` or `statusPolicy` without `headless.nativeFetch: true`                                     | `headless.<field>: not allowed without headless.nativeFetch`             |
+| `headless.cookieDomains` without `headless.sessionCookies: true`                                                                      | `headless.cookieDomains: not allowed without headless.sessionCookies`    |
+| a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                            | `headerExtractsToCarry.header: must be an HTTP header name`              |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
@@ -476,16 +488,16 @@ every login flow passes through, and `COLD_FLOW_BUDGET` is the cap it draws on.
 (The guarantee is scoped to api-direct banks. Browser-OTP banks send their code
 from the `otp-trigger` phase, which this budget does not sit behind.)
 
-A *cold* flow replays the bank's login from the beginning, so it always walks
+A _cold_ flow replays the bank's login from the beginning, so it always walks
 the step that sends the message — which is not always the first step: PayBox
 sends at step 0, OneZero and Pepper at step 1. `isColdStart` is what tells the
 two apart: a warm resume carries a `startStepIndex` past the send step, a cold
-one does not. A *warm* resume starts strictly
+one does not. A _warm_ resume starts strictly
 after the last OTP pre-hook and so cannot send anything. That is enforced, not
 assumed: `WarmStartContract` fails any config whose `warmStart.fromStepIndex`
 does not clear every OTP step.
 
-The charge is taken when a cold flow *starts*, not when the message provably
+The charge is taken when a cold flow _starts_, not when the message provably
 leaves. This deliberately over-counts a flow that dies before reaching the send
 step. The alternative — charging when the code is collected — under-counts a
 flow that sends the message and then dies, and only over-counting keeps "at
@@ -494,8 +506,8 @@ most one" true.
 ### Why it needed enforcing
 
 Nothing counted the messages. `guardedRefreshOp` reads like a cap but is a
-re-entrancy latch: it blocks a refresh *nested inside* a refresh and releases
-in `finally`, leaving *sequential* refreshes unbounded. Since every `apiPost`,
+re-entrancy latch: it blocks a refresh _nested inside_ a refresh and releases
+in `finally`, leaving _sequential_ refreshes unbounded. Since every `apiPost`,
 `apiGet` and `apiQuery` funnels through `retryOn401Op`, a session the bank had
 decided to refuse bought one fresh login — and one fresh SMS — per rejected
 request. Ten rejected calls meant ten messages. This was found by reading the
@@ -536,12 +548,12 @@ If a run legitimately needs a second login, start a second scrape.
 policy. Both read one table keyed by scheme in `AuthModePolicy.ts`, so a new
 scheme is a new row, not a new branch.
 
-| `authScheme` | Header value | `installHeader` | `rearmOnReject` |
-|---|---|---|---|
-| `raw` (default) | the token | yes | yes |
-| `bearer` | `Bearer` + space + the token | yes | yes |
-| `prefixed` | `authPrefix` + the token | yes | yes |
-| `none` | no header | no | no |
+| `authScheme`    | Header value                 | `installHeader` | `rearmOnReject` |
+| --------------- | ---------------------------- | --------------- | --------------- |
+| `raw` (default) | the token                    | yes             | yes             |
+| `bearer`        | `Bearer` + space + the token | yes             | yes             |
+| `prefixed`      | `authPrefix` + the token     | yes             | yes             |
+| `none`          | no header                    | no              | no              |
 
 `prefixed` is for a bank whose header starts with its own scheme word. That
 word goes in `authPrefix`, trailing space included. `none` is for a bank whose
@@ -604,34 +616,34 @@ one state callback, and no SMS outside enrollment.
 
 Where each piece lives, for maintainers:
 
-| Concern | Symbols |
-|---|---|
-| Caller input | `IPersistentAuthInput` and `PersistentAuthStateCallback`, read from the options by `readPersistentAuthInput` |
-| Mode resolution | `createContextStrategy` → `resolveContextAuthMode` → `resolvePersistentAuthMode`, producing a `PersistentAuthMode`: legacy, or a `DurableAuthMode` (enroll / resume) |
-| State codec | `encodePersistentAuthState` / `decodePersistentAuthState` over `IPersistentAuthStateV1`. Decoding checks the state against an `IPersistentAuthExpectation` and returns an `IRehydratedPersistentAuth` with the EC key ready to sign |
-| Strategy branch | `primeDurable` (replay, renew or enroll) and `refuseDurableRefresh` (the local `primeFresh` refusal) |
-| Secrets in failures | `sanitiseStepFailure` reports a failed step by name and status, never its reply; `scrubPersistedValues` still redacts any stored value a renewal failure quotes; transports strip the query string with `safeUrlForLog` |
-| Bank data | Pepper's `PEPPER_RESUME_STEPS`: signed `/auth/login`, then one password assertion |
+| Concern             | Symbols                                                                                                                                                                                                                             |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Caller input        | `IPersistentAuthInput` and `PersistentAuthStateCallback`, read from the options by `readPersistentAuthInput`                                                                                                                        |
+| Mode resolution     | `createContextStrategy` → `resolveContextAuthMode` → `resolvePersistentAuthMode`, producing a `PersistentAuthMode`: legacy, or a `DurableAuthMode` (enroll / resume)                                                                |
+| State codec         | `encodePersistentAuthState` / `decodePersistentAuthState` over `IPersistentAuthStateV1`. Decoding checks the state against an `IPersistentAuthExpectation` and returns an `IRehydratedPersistentAuth` with the EC key ready to sign |
+| Strategy branch     | `primeDurable` (replay, renew or enroll) and `refuseDurableRefresh` (the local `primeFresh` refusal)                                                                                                                                |
+| Secrets in failures | `sanitiseStepFailure` reports a failed step by name and status, never its reply; `scrubPersistedValues` still redacts any stored value a renewal failure quotes; transports strip the query string with `safeUrlForLog`             |
+| Bank data           | Pepper's `PEPPER_RESUME_STEPS`: signed `/auth/login`, then one password assertion                                                                                                                                                   |
 
 ## Sub-step contract
 
-| Hook | What it does |
-|---|---|
-| `.pre` | Resolve `apiDirectCallConfig` from the bank's `PipelineDescriptor`; seed carry. |
+| Hook      | What it does                                                                                                                                                                                                                                                                   |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `.pre`    | Resolve `apiDirectCallConfig` from the bank's `PipelineDescriptor`; seed carry.                                                                                                                                                                                                |
 | `.action` | Run the declarative step list: each POST step has a body template + optional crypto hook + optional signer; a [GET step](#get-steps) has no body. The mediator hydrates, signs, sends, parses response, updates carry. OTP step calls `credentials.otpCodeRetriever` mid-flow. |
-| `.post` | Validate the final carry has the required slots (auth token, user id). |
-| `.final` | Publish the final carry via `setSessionContext`; build `IApiFetchContext`; commit `api` + `login` slots. |
+| `.post`   | Validate the final carry has the required slots (auth token, user id).                                                                                                                                                                                                         |
+| `.final`  | Publish the final carry via `setSessionContext`; build `IApiFetchContext`; commit `api` + `login` slots.                                                                                                                                                                       |
 
 ## Failure modes
 
-| `errorType` | Cause |
-|---|---|
-| `INVALID_PASSWORD` | Bank rejected credentials |
-| any type a step's `failureMap` names, else its `defaultFailure` | The step's 2xx body reported a non-success [outcome](#step-outcome) code |
-| `INVALID_OTP` | Wrong code |
-| `TWO_FACTOR_RETRIEVER_MISSING` | OTP step reached without callback |
-| `INVALID_PHONE_NUMBER` | `phoneNumber` cannot be normalised to the bank's wire format — see [Phone normaliser](#phone-normaliser) |
-| `TIMEOUT` | A step's HTTP call didn't complete (`<step> TIMEOUT`) |
-| `GENERIC` | A step's HTTP call failed: `<step> HTTP <status>` for a non-2xx reply, `<step> GENERIC` for a network error — see [Transport errors](#transport-errors) |
-| `GENERIC` | Signer key missing, response shape drift, a `cryptoField` failure, or a second cold login refused by the [one-SMS budget](#one-sms-per-run) |
-| `GENERIC` | `persistent auth options invalid: <category>`, `persistent auth state invalid: <category>` or `persistent auth failed: <category>` — a [durable device auth](#persistent-durable-device-auth) failure; the categories are listed in [Pepper](../banks/pepper.md#failures-never-fall-back) |
+| `errorType`                                                     | Cause                                                                                                                                                                                                                                                                                     |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INVALID_PASSWORD`                                              | Bank rejected credentials                                                                                                                                                                                                                                                                 |
+| any type a step's `failureMap` names, else its `defaultFailure` | The step's 2xx body reported a non-success [outcome](#step-outcome) code                                                                                                                                                                                                                  |
+| `INVALID_OTP`                                                   | Wrong code                                                                                                                                                                                                                                                                                |
+| `TWO_FACTOR_RETRIEVER_MISSING`                                  | OTP step reached without callback                                                                                                                                                                                                                                                         |
+| `INVALID_PHONE_NUMBER`                                          | `phoneNumber` cannot be normalised to the bank's wire format — see [Phone normaliser](#phone-normaliser)                                                                                                                                                                                  |
+| `TIMEOUT`                                                       | A step's HTTP call didn't complete (`<step> TIMEOUT`)                                                                                                                                                                                                                                     |
+| `GENERIC`                                                       | A step's HTTP call failed: `<step> HTTP <status>` for a non-2xx reply, `<step> GENERIC` for a network error — see [Transport errors](#transport-errors)                                                                                                                                   |
+| `GENERIC`                                                       | Signer key missing, response shape drift, a `cryptoField` failure, or a second cold login refused by the [one-SMS budget](#one-sms-per-run)                                                                                                                                               |
+| `GENERIC`                                                       | `persistent auth options invalid: <category>`, `persistent auth state invalid: <category>` or `persistent auth failed: <category>` — a [durable device auth](#persistent-durable-device-auth) failure; the categories are listed in [Pepper](../banks/pepper.md#failures-never-fall-back) |

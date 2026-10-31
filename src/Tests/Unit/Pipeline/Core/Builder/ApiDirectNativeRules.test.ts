@@ -1,0 +1,171 @@
+/**
+ * N8 — redirect, document, status and header-carry fields act only on the
+ * headless native fetch, so a config naming one on any other transport fails
+ * the build instead of being ignored. `cookieDomains` needs the session jar,
+ * and a carried header name must be a valid HTTP header name.
+ */
+
+import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import {
+  type IApiDirectRuleInput,
+  validateApiDirectConfig,
+} from '../../../../../Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.js';
+import type { IStepConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+
+/** The bank's headless block when it has one. */
+type HeadlessBlock = Exclude<IApiDirectRuleInput['headless'], false>;
+
+const HOST = 'https://native.example';
+const PLAIN: HeadlessBlock = { identityBase: HOST, graphql: `${HOST}/graphql`, paths: {} };
+const NATIVE: HeadlessBlock = { ...PLAIN, nativeFetch: true };
+const JAR: HeadlessBlock = { ...NATIVE, sessionCookies: true };
+
+const CALL: IStepConfig = {
+  name: 'landing',
+  urlTag: 'auth.landing',
+  method: 'GET',
+  extractsToCarry: {},
+};
+
+const PAGE: IStepConfig = { ...CALL, response: 'document' };
+const MARKED: IStepConfig = { ...CALL, documentMarker: 'welcome' };
+const REJECTING: IStepConfig = { ...CALL, redirect: 'reject' };
+
+/**
+ * The call step carrying one response header under the given name.
+ * @param header - Header name.
+ * @returns Step config.
+ */
+function carrying(header: string): IStepConfig {
+  return { ...CALL, headerExtractsToCarry: { slot: { header } } };
+}
+
+/**
+ * Rule input running the given steps beside the given headless block.
+ * @param steps - Login steps.
+ * @param headless - Bank headless block, or false when it has none.
+ * @returns Rule input.
+ */
+function runOf(
+  steps: readonly IStepConfig[],
+  headless: IApiDirectRuleInput['headless'],
+): IApiDirectRuleInput {
+  return { call: { flow: 'sms-otp', envelope: {}, steps }, headless };
+}
+
+/**
+ * Rule input whose only resume step is the given one.
+ * @param step - Resume step.
+ * @returns Rule input with a plain headless block.
+ */
+function resumeOf(step: IStepConfig): IApiDirectRuleInput {
+  const persistentAuth = {
+    provider: 'syn-provider',
+    clientInstanceIdField: 'clientInstanceId',
+    deviceIdField: 'deviceId',
+    accountField: 'account',
+    freshnessMarginSeconds: 60,
+    resumeSteps: [step],
+  };
+  return {
+    call: { flow: 'sms-otp', envelope: {}, steps: [CALL], persistentAuth },
+    headless: PLAIN,
+  };
+}
+
+const OFF = 'not allowed without headless.nativeFetch';
+const HEADER_MSG = 'headerExtractsToCarry.header: must be an HTTP header name';
+
+/** A config, the headless block beside it, and the text it fails with. */
+interface IBrokenCase {
+  readonly label: string;
+  readonly input: IApiDirectRuleInput;
+  readonly message: string;
+}
+
+const BROKEN: readonly IBrokenCase[] = [
+  {
+    label: 'document step, no headless',
+    input: runOf([PAGE], false),
+    message: `steps.response: ${OFF}`,
+  },
+  { label: 'document step, plain', input: runOf([PAGE], PLAIN), message: `steps.response: ${OFF}` },
+  {
+    label: 'marker, plain',
+    input: runOf([MARKED], PLAIN),
+    message: `steps.documentMarker: ${OFF}`,
+  },
+  {
+    label: 'reject step, plain',
+    input: runOf([REJECTING], PLAIN),
+    message: `steps.redirect: ${OFF}`,
+  },
+  { label: 'reject resume step', input: resumeOf(REJECTING), message: `steps.redirect: ${OFF}` },
+  {
+    label: 'header carry, native off',
+    input: runOf([carrying('x-id')], { ...PLAIN, nativeFetch: false }),
+    message: `steps.headerExtractsToCarry: ${OFF}`,
+  },
+  {
+    label: 'cookie domains, plain jar',
+    input: runOf([CALL], { ...PLAIN, sessionCookies: true, cookieDomains: ['native.example'] }),
+    message: `headless.cookieDomains: ${OFF}`,
+  },
+  {
+    label: 'bank redirect policy, plain',
+    input: runOf([CALL], { ...PLAIN, redirectPolicy: 'reject' }),
+    message: `headless.redirectPolicy: ${OFF}`,
+  },
+  {
+    label: 'bank status policy, plain',
+    input: runOf([CALL], { ...PLAIN, statusPolicy: { 204: 'empty' } }),
+    message: `headless.statusPolicy: ${OFF}`,
+  },
+  {
+    label: 'cookie domains, no jar',
+    input: runOf([CALL], { ...NATIVE, cookieDomains: ['native.example'] }),
+    message: 'headless.cookieDomains: not allowed without headless.sessionCookies',
+  },
+  { label: 'empty header name', input: runOf([carrying('')], NATIVE), message: HEADER_MSG },
+  { label: 'header name, space', input: runOf([carrying('x id')], NATIVE), message: HEADER_MSG },
+  { label: 'header name, colon', input: runOf([carrying('x:id')], NATIVE), message: HEADER_MSG },
+  { label: 'header name, newline', input: runOf([carrying('x\nid')], NATIVE), message: HEADER_MSG },
+];
+
+/** A config the rules accept. */
+interface ISoundCase {
+  readonly label: string;
+  readonly input: IApiDirectRuleInput;
+}
+
+const EVERY_FIELD: HeadlessBlock = {
+  ...JAR,
+  cookieDomains: ['native.example'],
+  redirectPolicy: 'reject',
+  statusPolicy: { 204: 'empty' },
+};
+
+const SOUND: readonly ISoundCase[] = [
+  { label: 'plain step, no headless', input: runOf([CALL], false) },
+  { label: 'plain step, native off', input: runOf([CALL], { ...PLAIN, nativeFetch: false }) },
+  {
+    label: 'every field on native fetch',
+    input: runOf([PAGE, MARKED, REJECTING, carrying("X-Trace_ID.v2!#$%&'*+^`|~")], EVERY_FIELD),
+  },
+];
+
+describe('validateApiDirectConfig — native-fetch fields', () => {
+  it.each(BROKEN)('$label → fails with the rule text', ({ input, message }) => {
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: message,
+    });
+  });
+
+  it.each(SOUND)('$label → passes', ({ input }) => {
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+  });
+});

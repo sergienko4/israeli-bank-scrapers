@@ -24,7 +24,12 @@ import type {
 type HeadlessBlock = Exclude<IApiDirectRuleInput['headless'], false>;
 
 const ORIGIN = 'https://session.example';
-const BANK: HeadlessBlock = { identityBase: ORIGIN, graphql: `${ORIGIN}/graphql`, paths: {} };
+const BANK: HeadlessBlock = {
+  identityBase: ORIGIN,
+  graphql: `${ORIGIN}/graphql`,
+  paths: {},
+  nativeFetch: true,
+};
 const MANUAL: IManualRedirect = { maxHops: 3, allow: [{ origin: ORIGIN, paths: ['/home'] }] };
 
 const BOOTSTRAP: IStepConfig = {
@@ -189,7 +194,6 @@ const SOUND: readonly ISoundCase[] = [
   { label: 'one hop', input: landingRun({ maxHops: 1 }) },
   { label: 'ten hops', input: landingRun({ maxHops: 10 }) },
   { label: 'fixed policies, follow default', input: runOf([LOGON], FOLLOW) },
-  { label: 'document step, no headless', input: runOf([BOOTSTRAP], false) },
 ];
 
 describe('validateApiDirectConfig — session transport', () => {

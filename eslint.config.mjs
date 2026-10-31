@@ -3444,6 +3444,7 @@ export default tseslint.config(
   {
     files: [
       'src/Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.ts',
+      'src/Scrapers/Pipeline/Core/Builder/ApiDirectNativeRules.ts',
       'src/Scrapers/Pipeline/Core/Builder/ApiDirectRuleInput.ts',
       'src/Scrapers/Pipeline/Core/Builder/ApiDirectTransportRules.ts',
       'src/Scrapers/Pipeline/Core/BrowserOnlyOptions.ts',

@@ -52,6 +52,7 @@ const FETCH_TRANSPORT_FILES: readonly string[] = [
 /** New Core files that §19.3b pins past the Core grandfather. */
 const NEW_CORE_FILES: readonly string[] = [
   'src/Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.ts',
+  'src/Scrapers/Pipeline/Core/Builder/ApiDirectNativeRules.ts',
   'src/Scrapers/Pipeline/Core/Builder/ApiDirectRuleInput.ts',
   'src/Scrapers/Pipeline/Core/Builder/ApiDirectTransportRules.ts',
   'src/Scrapers/Pipeline/Core/BrowserOnlyOptions.ts',
