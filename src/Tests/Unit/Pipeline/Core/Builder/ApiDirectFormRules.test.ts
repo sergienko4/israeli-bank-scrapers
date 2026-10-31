@@ -1,7 +1,7 @@
 /**
  * N9 — a form step's body (`form` or N23 `form-latin1`) must be a flat
- * record whose every value is one `$ref`, or one `$literal` string, finite
- * number or boolean. Anything nested fails the build; JSON steps keep any
+ * record whose every value is one `$ref`, one N24 `$join`, or one `$literal`
+ * string, finite number or boolean. Anything nested fails the build; JSON steps keep any
  * shape. An N23 `text` step's body must be exactly `{ text }`.
  */
 
@@ -26,6 +26,7 @@ const FLAT: JsonValueTemplate = {
   mfp: { $literal: '' },
   n: { $literal: 2 },
   ok: { $literal: true },
+  username: { $join: { parts: ['creds.num', { literal: '-' }, 'creds.nationalID'] } },
 };
 
 /**
@@ -55,6 +56,8 @@ const BROKEN: readonly (readonly [string, JsonValueTemplate])[] = [
   ['literal null', { a: { $literal: null } }],
   ['literal NaN', { a: { $literal: Number.NaN } }],
   ['ref plus literal', { a: { $ref: 'carry.x', $literal: 'y' } }],
+  ['join without parts', { a: { $join: {} } as unknown as JsonValueTemplate }],
+  ['join plus ref', { a: { $join: { parts: [] }, $ref: 'carry.x' } as JsonValueTemplate }],
   ['array root', [{ $literal: 'x' }]],
   ['ref root', { $ref: 'carry.form' }],
 ];
@@ -97,7 +100,7 @@ describe('validateApiDirectConfig — form bodies', () => {
   });
 
   it('a text body of exactly { text } passes', () => {
-    const shape = { text: { $join: { parts: [{ $ref: 'carry.csr' }] } } } as JsonValueTemplate;
+    const shape: JsonValueTemplate = { text: { $join: { parts: ['carry.csr'] } } };
     const step = stepWith(shape, 'text');
     const input = runOf(step);
     const result = validateApiDirectConfig(input);

@@ -55,14 +55,18 @@ function isUnknownKind(seal: ISealFieldConfig): boolean {
   return !Object.hasOwn(KNOWN_SEAL_KINDS, seal.kind);
 }
 
+/** Keys that make a template node one value, not a record. */
+const VALUE_NODE_KEYS = ['$ref', '$literal', '$join'] as const;
+
 /**
- * Whether a body shape is a plain record, not an array or a single ref/literal.
+ * Whether a body shape is a plain record, not an array or a single
+ * ref/literal/join.
  * @param shape - Body shape.
  * @returns True for a record shape.
  */
 function isRecordShape(shape: JsonValueTemplate): boolean {
   if (typeof shape !== 'object' || Array.isArray(shape)) return false;
-  return !Object.hasOwn(shape, '$ref') && !Object.hasOwn(shape, '$literal');
+  return !VALUE_NODE_KEYS.some(key => Object.hasOwn(shape, key));
 }
 
 /**

@@ -1,10 +1,11 @@
 /**
  * GenericBodyTemplate — recursive descent that hydrates a
- * JsonValueTemplate against an ITemplateScope. Handles three node
+ * JsonValueTemplate against an ITemplateScope. Handles five node
  * shapes:
  *   { $literal: JsonValue }      — pass value through
  *   { $ref: RefToken }           — resolve via RefResolver
- *   plain record                 — recurse each entry
+ *   { $join: IJoinTemplate }     — one joined string via JoinTemplate
+ *   array / plain record         — recurse each element / entry
  *
  * Zero bank knowledge. Rule #11 compliant.
  */
@@ -14,11 +15,12 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { JsonValueTemplate, RefToken } from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
+import { hydrateJoin } from './JoinTemplate.js';
 import type { ITemplateScope } from './RefResolver.js';
 import { resolveRef } from './RefResolver.js';
 
-/** Discriminator for template nodes — one of the four shapes above. */
-type TemplateShape = 'literal' | 'ref' | 'array' | 'record';
+/** Discriminator for template nodes — one of the five shapes above. */
+type TemplateShape = 'literal' | 'ref' | 'join' | 'array' | 'record';
 
 /** Acceptable literal-value shapes carried by `$literal` nodes. */
 type LiteralValue = JsonValue | object;
@@ -37,7 +39,7 @@ function coerceJson(value: LiteralValue): Procedure<JsonValue> {
 }
 
 /**
- * Classify a template node — $literal / $ref / record / invalid.
+ * Classify a template node — $literal / $ref / $join / array / record.
  * @param node - Template node to inspect.
  * @returns Discriminator.
  */
@@ -47,6 +49,7 @@ function classify(node: JsonValueTemplate): TemplateShape {
   const asRec = node as Record<string, unknown>;
   if (Object.hasOwn(asRec, '$literal')) return 'literal';
   if (Object.hasOwn(asRec, '$ref')) return 'ref';
+  if (Object.hasOwn(asRec, '$join')) return 'join';
   return 'record';
 }
 
@@ -160,6 +163,7 @@ const DISPATCH_LITERAL: ShapeHydrator = node => hydrateLiteral(node);
 const SHAPE_HYDRATORS: Readonly<Record<TemplateShape, ShapeHydrator>> = {
   literal: DISPATCH_LITERAL,
   ref: hydrateRef,
+  join: hydrateJoin,
   array: hydrateArray,
   record: hydrateRecord,
 };

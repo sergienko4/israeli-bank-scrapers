@@ -83,6 +83,10 @@ const GET_STEP: IGetStep = {
 
 const ARRAY_BODY_STEP: IPostStep = { ...postWith(SEAL), body: { shape: [{ $literal: '' }] } };
 const REF_BODY_STEP: IPostStep = { ...postWith(SEAL), body: { shape: { $ref: 'carry.body' } } };
+const JOIN_BODY_STEP: IPostStep = {
+  ...postWith(SEAL),
+  body: { shape: { $join: { parts: ['carry.body'] } } },
+};
 const UNKNOWN_KIND = { ...SEAL, kind: 'rsa-oaep' as unknown as SealKind };
 
 const BAD_PARAMS: readonly (readonly [
@@ -118,6 +122,7 @@ describe('validateApiDirectConfig — sealed fields', () => {
     ['a GET step', GET_STEP],
     ['an array body', ARRAY_BODY_STEP],
     ['a $ref body', REF_BODY_STEP],
+    ['a $join body', JOIN_BODY_STEP],
   ])('a seal on %s fails the build', (_label, step) => {
     const result = validate(step);
     expect(result).toMatchObject({ success: false, errorMessage: HOST_MSG });

@@ -1,8 +1,8 @@
 /**
  * Body-shape rules for an api-direct call config (N9, N23). A form body
  * (`form` or `form-latin1`) is written field by field, so its shape must be a
- * flat record whose every value is one `$ref`, or one `$literal` string,
- * finite number or boolean. A `text` body is sent as one string, so its shape
+ * flat record whose every value is one `$ref`, one `$join` (N24), or one
+ * `$literal` string, finite number or boolean. A `text` body is sent as one string, so its shape
  * must be exactly `{ text }`. A broken shape fails the build; a value that
  * hydrates to the wrong type fails the step at run time.
  */
@@ -26,7 +26,34 @@ function isScalarLiteral(value: unknown): boolean {
 }
 
 /**
- * Whether a template node is exactly one `$ref` or one scalar `$literal`.
+ * Whether a `$ref` payload is a token string.
+ * @param value - `$ref` payload.
+ * @returns True for a string.
+ */
+function isRefToken(value: unknown): boolean {
+  return typeof value === 'string';
+}
+
+/**
+ * Whether a `$join` payload carries a parts list.
+ * @param value - `$join` payload.
+ * @returns True for a record with a `parts` array.
+ */
+function isJoinSpec(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  return Array.isArray((value as JsonUnknownRecord).parts);
+}
+
+/** The payload check of each node key a form field may hold. */
+const FORM_LEAF_CHECKS: Readonly<Record<string, (value: unknown) => boolean>> = {
+  $ref: isRefToken,
+  $literal: isScalarLiteral,
+  $join: isJoinSpec,
+};
+
+/**
+ * Whether a template node is exactly one `$ref`, one `$join` or one scalar
+ * `$literal`.
  * @param node - Template node.
  * @returns True for a form leaf.
  */
@@ -34,9 +61,8 @@ function isFormLeaf(node: unknown): boolean {
   if (typeof node !== 'object' || node === null || Array.isArray(node)) return false;
   const leaf = node as JsonUnknownRecord;
   const keys = Object.keys(leaf);
-  if (keys.length !== 1) return false;
-  if (keys[0] === '$ref') return typeof leaf.$ref === 'string';
-  return keys[0] === '$literal' && isScalarLiteral(leaf.$literal);
+  if (keys.length !== 1 || !Object.hasOwn(FORM_LEAF_CHECKS, keys[0])) return false;
+  return FORM_LEAF_CHECKS[keys[0]](leaf[keys[0]]);
 }
 
 /**

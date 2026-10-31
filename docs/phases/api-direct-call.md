@@ -48,6 +48,30 @@ Declarative body literal with `$ref` tokens:
 | `$ref: carry.<slot>`         | The flow's per-step carry slot           |
 | `$ref: config.<dotted.path>` | The bank's config object                 |
 | `$ref: cookie.<name>`        | The cookie for the step URL, URL-decoded |
+| `$join: { parts, … }`        | One string built from refs and literals  |
+
+A `$join` node (`IJoinTemplate`, N24) concatenates its `parts` in order. Each
+`JoinPart` is a ref token (`'creds.password'`) or a literal (`{ literal: '-' }`).
+`encode: 'base64'` (`JoinEncoding`) encodes the joined text as base64 over its
+UTF-8 bytes, and `prefix` goes in front of the result. `hydrateJoin` computes
+the value at hydration time, so a Basic `authorization` header or a composed
+username never touches carry:
+
+```typescript
+headers: {
+  authorization: {
+    $join: {
+      parts: ['creds.username', { literal: ':' }, 'creds.password'],
+      encode: 'base64',
+      prefix: 'Basic ',
+    },
+  },
+},
+```
+
+A part that does not resolve fails hydration with the same error as a missing
+`$ref`. A part that resolves to a value that is not a string fails with
+`$join part <token> is not a string`.
 
 One hydration engine serves both `API-DIRECT-CALL` and `API-DIRECT-SCRAPE` step bodies — no per-bank imperative body assembly.
 
@@ -452,7 +476,7 @@ from what it extracted:
   ([Carry derivation](#carry-derivation)).
 - `encoding: 'form'` sends the body as `application/x-www-form-urlencoded`,
   and `encoding: 'form-latin1'` the same over ISO-8859-1; either shape must be
-  a flat record of `$ref` and scalar `$literal` values. `encoding: 'text'`
+  a flat record of `$ref`, `$join` and scalar `$literal` values. `encoding: 'text'`
   sends the string of a `{ text }` body verbatim, with no content-type
   ([Form bodies](../architecture/pipeline.md#form-bodies)). `isFlatFormBody`
   guards the hydrated form step and both form writers against arrays and
@@ -518,7 +542,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a manual `redirect` whose `allow` list is empty                                                                                       | `redirect.allow: must not be empty`                                      |
 | a manual `redirect` whose `maxHops` is not an integer from 1 to 10                                                                    | `redirect.maxHops: must be an integer from 1 to 10`                      |
 | a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`                                                     | `headless.redirectPolicy: must be reject when a step redirects manually` |
-| a form step (`form` or `form-latin1`) whose body shape is not a flat record of `$ref` and scalar `$literal` values                    | `steps.body: a form body must be a flat record`                          |
+| a form step (`form` or `form-latin1`) whose body shape is not a flat record of `$ref`, `$join` and scalar `$literal` values           | `steps.body: a form body must be a flat record`                          |
 | a `text` step whose body shape is not exactly `{ text }`                                                                              | `steps.body: a text body must be exactly { text }`                       |
 | a `seal` whose `kind` is not a `SealKind`                                                                                             | `steps.seal.kind: unknown seal kind`                                     |
 | a `seal` on a step that is not a `POST` with a record body                                                                            | `steps.seal: needs a POST step with a record body`                       |
