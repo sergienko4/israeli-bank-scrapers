@@ -21,12 +21,46 @@ import type {
 } from './TokenStrategyFromConfig.types.js';
 import { carryBundleWarmOf, cookieJarWarmOf, warmCarryField } from './WarmStartKind.js';
 
-/** How one warm-start kind restores a stored token and publishes the next. */
+/** How one warm-start kind restores a stored token, resets, and publishes the next. */
 interface IWarmKindOps {
   /** Turn a stored token into the resumed flow's starting carry; false runs cold. */
   readonly restore: (stored: string) => WarmCarry | false;
+  /** Clear what a stored token or a rejected resume left behind, before step 0. */
+  readonly resetCold: () => true;
   /** The token a finished flow publishes for the next warm start. */
   readonly publish: (capture: IFlowCapture) => string;
+}
+
+/**
+ * Empty the session jar, so neither a stored jar nor the cookies a rejected
+ * resume set reach the fresh session.
+ * @param args - Config, bus and creds.
+ * @returns True (ack contract).
+ */
+function clearJar(args: IWarmRunArgs): true {
+  args.bus.cookies?.clear();
+  return true;
+}
+
+/**
+ * Empty the jar and stop presenting the client cert an earlier login
+ * installed. The restored carry needs no reset: only a warm resume is
+ * handed it, so a cold start begins from an empty carry.
+ * @param args - Config, bus and creds.
+ * @returns True (ack contract).
+ */
+function clearBundle(args: IWarmRunArgs): true {
+  clearJar(args);
+  args.bus.clientCert?.clear();
+  return true;
+}
+
+/**
+ * Nothing to reset: a carry token lives only in the carry.
+ * @returns True (ack contract).
+ */
+function keepAll(): true {
+  return true;
 }
 
 /**
@@ -43,6 +77,11 @@ function jarOps(args: IWarmRunArgs, jar: ICookieJarWarmStart): IWarmKindOps {
      * @returns An empty carry, or false when skipped.
      */
     restore: (stored: string): WarmCarry | false => restoreJar({ ...args, jar, stored }),
+    /**
+     * Empty the jar.
+     * @returns True (ack contract).
+     */
+    resetCold: (): true => clearJar(args),
     /**
      * Encode the jar the login ended with.
      * @returns The jar token, or ''.
@@ -66,6 +105,11 @@ function bundleOps(args: IWarmRunArgs, bundle: ICarryBundleWarmStart): IWarmKind
      */
     restore: (stored: string): WarmCarry | false => restoreBundle({ ...args, bundle, stored }),
     /**
+     * Empty the jar and drop the client cert.
+     * @returns True (ack contract).
+     */
+    resetCold: (): true => clearBundle(args),
+    /**
      * Encode the slots (and jar) the login ended with.
      * @param capture - The flow's outputs.
      * @returns The bundle token, or ''.
@@ -88,6 +132,7 @@ function carryOps(carryField: string): IWarmKindOps {
      * @returns The starting carry.
      */
     restore: (stored: string): WarmCarry => ({ [carryField]: stored }),
+    resetCold: keepAll,
     /**
      * Publish the token the flow extracted.
      * @param capture - The flow's outputs.
@@ -124,15 +169,15 @@ function restoreWarmSeed(args: IWarmRunArgs): WarmCarry | false {
 }
 
 /**
- * Empty a cookie-jar run's jar before a cold login, so neither a stored jar
- * nor the cookies its rejected resume set reach the fresh session.
+ * Reset what the warm-start kind left behind before a cold login's step 0;
+ * a warm resume keeps everything.
  * @param args - Run args about to start a flow.
  * @returns True (ack contract).
  */
 function prepareColdStart(args: IRunFlowArgs): true {
-  const isJar = cookieJarWarmOf(args.config) !== false;
-  if (isJar && isColdStart(args)) args.bus.cookies?.clear();
-  return true;
+  if (!isColdStart(args)) return true;
+  const ops = warmOpsOf(args);
+  return ops.resetCold();
 }
 
 /**

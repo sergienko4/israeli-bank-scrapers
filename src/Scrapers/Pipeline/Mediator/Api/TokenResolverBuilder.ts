@@ -8,8 +8,9 @@
  * Ladder semantics (spec.txt §A.3):
  *   resolve()  runs primeInitial; on fail + warm state, retries
  *              via primeFresh — unless the edge blocked the call
- *              (WafBlocked is terminal); else returns the failure
- *              verbatim.
+ *              (WafBlocked is terminal) or the strategy's optional
+ *              mayEscalateWarmFailure refuses it; else returns the
+ *              failure verbatim.
  *   refresh()  always runs primeFresh (invoked by ApiMediator's
  *              retryOn401 wrapper on any 401 mid-session).
  */
@@ -43,13 +44,16 @@ async function runFresh<TCreds>(deps: IBuilderDeps<TCreds>): Promise<Procedure<s
  * Whether a failed stored-token attempt may escalate to primeFresh.
  * A WAF block is terminal: the edge refused the request before the bank saw
  * it, so a cold login would hit the same edge and could spend an SMS OTP.
+ * A strategy may narrow it further; one without the hook escalates as before.
  * @param first - The failed primeInitial outcome.
  * @param deps - Closure deps bag.
- * @returns True when warm state exists and the edge did not block the call.
+ * @returns True when warm state exists, the edge did not block the call and
+ *   the strategy lets this failure escalate.
  */
 function canEscalate<TCreds>(first: IProcedureFailure, deps: IBuilderDeps<TCreds>): boolean {
   if (isWafBlocked(first)) return false;
-  return deps.strategy.hasWarmState(deps.creds);
+  if (!deps.strategy.hasWarmState(deps.creds)) return false;
+  return deps.strategy.mayEscalateWarmFailure?.(first) ?? true;
 }
 
 /**

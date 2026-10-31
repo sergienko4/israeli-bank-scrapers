@@ -5,13 +5,17 @@
  * seed the flow, and the flow resumes at `fromStepIndex` — and a finished
  * login publishes its configured slots (and jar) as the next bundle. A token
  * failing any check, or a slot the login did not fill, is skipped with a
- * reason that never echoes a value.
+ * reason that never echoes a value. A cold start clears the jar and the client
+ * cert before step 0, and `coldFallback: 'auth-rejected'` lets only a bank's
+ * 401/403 to the warm resume escalate to a cold login.
  */
 
 import { jest } from '@jest/globals';
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
+import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import type { ScraperCredentials } from '../../../../../../Scrapers/Base/Interface.js';
+import { buildResolverFromStrategy } from '../../../../../../Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.js';
 import type {
   IApiDirectCallConfig,
   IStepConfig,
@@ -20,7 +24,7 @@ import type { IConfigTokenStrategy } from '../../../../../../Scrapers/Pipeline/M
 import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertOk } from '../../../../../Helpers/AssertProcedure.js';
 import { type IApiPostCapture, makeStubMediator } from './StubMediator.js';
 import { COOKIE_MARKER, type IJarSpy, makeJarSpy, WARM_COOKIES } from './WarmJarSpy.js';
@@ -79,6 +83,8 @@ const TOKEN_OK: Procedure<unknown> = succeed({ access_token: BEARER });
 const COLD_STEPS = 2;
 /** Steps a warm resume walks — everything from `fromStepIndex` on. */
 const WARM_STEPS = 1;
+/** The transport's prefix for a failed warm token request. */
+const WARM_CALL = 'POST https://example.test/api/warm-tag';
 
 /** The cold-only step: it fills the slot the bundle keeps. */
 const REGISTER: IStepConfig = {
@@ -105,11 +111,12 @@ interface IBundleOpts {
   readonly maxTokenChars?: number;
   readonly hasCookies?: boolean;
   readonly slots?: readonly string[];
+  readonly coldFallback?: 'any' | 'auth-rejected';
 }
 
 /**
  * Carry-bundle call config resuming at the token step.
- * @param opts - Ceiling, kept slots and whether the bundle keeps the jar.
+ * @param opts - Ceiling, kept slots, jar and cold fallback.
  * @returns Call config.
  */
 function bundleConfig(opts: IBundleOpts = {}): IApiDirectCallConfig {
@@ -123,6 +130,7 @@ function bundleConfig(opts: IBundleOpts = {}): IApiDirectCallConfig {
     slots: opts.slots ?? ['clientId'],
     maxTokenChars: opts.maxTokenChars ?? LIMIT,
     cookies: opts.hasCookies ?? true,
+    coldFallback: opts.coldFallback ?? 'any',
   } as const;
   const steps = [REGISTER, LOGON];
   return { flow: 'sms-otp', envelope: {}, probe: { queryTag: 'customer' }, steps, warmStart };
@@ -168,7 +176,8 @@ function makeRun(args: IBundleRunArgs): IBundleRun {
   const captures: IApiPostCapture[] = [];
   const stub = makeStubMediator({ responses: args.responses, captures });
   const jar = makeJarSpy(captures, WARM_COOKIES);
-  const bus = args.hasSession === false ? stub : { ...stub, cookies: jar.session };
+  const bus =
+    args.hasSession === false ? stub : { ...stub, cookies: jar.session, clientCert: jar.cert };
   const config = bundleConfig(args);
   const proc = STRATEGY.createTokenStrategyFromConfig({ config });
   assertOk(proc);
@@ -204,6 +213,18 @@ function sentClient(captures: readonly IApiPostCapture[]): string {
   const body = (first?.body ?? {}) as Readonly<Record<string, unknown>>;
   const cid = body.cid;
   return typeof cid === 'string' ? cid : '';
+}
+
+/**
+ * Resolve through the retry ladder, as the mediator does.
+ * @param run - The run's parts.
+ * @param creds - Credentials.
+ * @returns The header value, or the failure the ladder returned.
+ */
+async function resolveVia(run: IBundleRun, creds: ScraperCredentials): Promise<Procedure<string>> {
+  const deps = { strategy: run.strategy, bus: run.bus, ctx: CTX, creds };
+  const resolver = buildResolverFromStrategy(deps);
+  return resolver.resolve();
 }
 
 beforeAll((): void => {
@@ -314,5 +335,79 @@ describe('carry-bundle warm export', () => {
     expect(logged).toContain(`warm start export skipped: slot ${slot} is not filled`);
     expect(logged).not.toContain(COOKIE_MARKER);
     expect(logged).not.toContain(BEARER);
+  });
+});
+
+describe('carry-bundle cold start', () => {
+  it('clears the jar and the client cert before step 0', async (): Promise<void> => {
+    const run = makeRun({ responses: [REGISTER_OK, TOKEN_OK] });
+    const creds = credsWith('');
+    const proc = await run.strategy.primeFresh(run.bus, CTX, creds);
+    assertOk(proc);
+    expect(run.jar.events).toEqual(['clear@0', 'cert-clear@0']);
+  });
+
+  it('never sends a restored slot after a rejected warm start', async (): Promise<void> => {
+    const warmReject = fail(ScraperErrorTypes.Generic, `${WARM_CALL} 401: denied`);
+    const registerNoClient = succeed({ access_token: BEARER, serial: SERIAL });
+    const responses = [warmReject, registerNoClient, TOKEN_OK];
+    const run = makeRun({ responses, coldFallback: 'auth-rejected' });
+    const creds = credsWith(STORED);
+    await resolveVia(run, creds);
+    const coldRequests = run.captures.slice(WARM_STEPS);
+    const sent = JSON.stringify(coldRequests);
+    expect(coldRequests.length).toBeGreaterThan(0);
+    expect(sent).not.toContain(STORED_CLIENT);
+  });
+});
+
+describe('carry-bundle coldFallback', () => {
+  it.each<[string]>([['401'], ['403']])(
+    'auth-rejected: a warm token step answered %s runs one cold login',
+    async (status): Promise<void> => {
+      const warmReject = fail(ScraperErrorTypes.Generic, `${WARM_CALL} ${status}: denied`);
+      const responses = [warmReject, REGISTER_OK, TOKEN_OK];
+      const run = makeRun({ responses, coldFallback: 'auth-rejected' });
+      const creds = credsWith(STORED);
+      const proc = await resolveVia(run, creds);
+      assertOk(proc);
+      const imported = `import${String(WARM_COOKIES.length)}@0`;
+      expect(run.captures).toHaveLength(WARM_STEPS + COLD_STEPS);
+      expect(run.jar.events).toEqual([imported, 'clear@1', 'cert-clear@1']);
+    },
+  );
+
+  it.each<[string, Procedure<unknown>, string]>([
+    ['400', fail(ScraperErrorTypes.Generic, `${WARM_CALL} 400: bad`), 'login HTTP 400'],
+    ['500', fail(ScraperErrorTypes.Generic, `${WARM_CALL} 500: oops`), 'login HTTP 500'],
+    ['a timeout', fail(ScraperErrorTypes.Timeout, `${WARM_CALL} timed out`), 'login TIMEOUT'],
+  ])(
+    'auth-rejected: a warm token step answered %s returns it with no cold call',
+    async (_label, warmFail, errorMessage): Promise<void> => {
+      const run = makeRun({ responses: [warmFail], coldFallback: 'auth-rejected' });
+      const creds = credsWith(STORED);
+      const proc = await resolveVia(run, creds);
+      const imported = `import${String(WARM_COOKIES.length)}@0`;
+      expect(proc).toMatchObject({ success: false, errorMessage });
+      expect(run.captures).toHaveLength(WARM_STEPS);
+      expect(run.jar.events).toEqual([imported]);
+    },
+  );
+
+  it('auth-rejected: a token that fails to decode still runs cold', async (): Promise<void> => {
+    const run = makeRun({ responses: [REGISTER_OK, TOKEN_OK], coldFallback: 'auth-rejected' });
+    const creds = credsWith(STORED, 'syn-other');
+    const proc = await resolveVia(run, creds);
+    assertOk(proc);
+    expect(run.captures).toHaveLength(COLD_STEPS);
+  });
+
+  it('any: a warm token step answered 500 still runs one cold login', async (): Promise<void> => {
+    const warmFail = fail(ScraperErrorTypes.Generic, `${WARM_CALL} 500: oops`);
+    const run = makeRun({ responses: [warmFail, REGISTER_OK, TOKEN_OK] });
+    const creds = credsWith(STORED);
+    const proc = await resolveVia(run, creds);
+    assertOk(proc);
+    expect(run.captures).toHaveLength(WARM_STEPS + COLD_STEPS);
   });
 });

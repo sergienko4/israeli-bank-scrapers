@@ -775,8 +775,8 @@ replayed for another. They are not authentication: like every stored warm
 token, the jar is a secret its caller keeps.
 
 `Flow/TokenStrategyFromConfig.warm.ts` runs the kind at three moments, through
-the kind's restore and publish ops (`TokenStrategyFromConfig.jar.ts` for this
-kind):
+the kind's restore, `resetCold` and publish ops (`TokenStrategyFromConfig.jar.ts`
+for this kind):
 
 - **Restore** (`restoreWarmSeed`). The stored token is checked in order —
   an account to bind, size, prefix, JSON, shape, provider, account — then imported into the run's
@@ -799,8 +799,8 @@ A `kind: 'carry-bundle'` warm start (`ICarryBundleWarmStart`) is always
 validated as `'bank-call'`. It keeps the listed carry `slots` a cold login
 filled — a body extract or a generator output of a login step — and, with
 `cookies: true`, the session jar too. It adds `provider`, `accountFields` (the
-creds fields the token is bound to, in order), `slots`, `maxTokenChars` and
-`cookies`. `carryBundleWarmOf` (`Flow/WarmStartKind.ts`) returns the config or
+creds fields the token is bound to, in order), `slots`, `maxTokenChars`,
+`cookies` and `coldFallback`. `carryBundleWarmOf` (`Flow/WarmStartKind.ts`) returns the config or
 `false`.
 `encodeWarmBundle` in `Flow/WarmCarryBundle.ts` encodes `v1.` plus unpadded
 base64url over the JSON `{p, a, s, c?}`: the provider tag, the first 16 hex
@@ -822,6 +822,23 @@ The bundle's ops:
   flow resumes at `fromStepIndex`. A refused token, or a jar for a run with no
   cookie session, is skipped with the warning `warm start skipped: <reason>`,
   and the cold login runs.
+- **Cold start.** Before a cold flow's step 0 — after the one-SMS budget
+  allows it — the jar is emptied and the client cert an earlier login
+  installed is dropped through the bus's `clientCert` port, so a rejected
+  resume leaves nothing behind. The restored slots need no reset: only a warm
+  resume is handed them. The carry kind's `resetCold` resets nothing.
+- **Cold fallback** (`coldFallback`, a `ColdFallback`). When the warm resume
+  fails, `TokenResolverBuilder` asks the strategy's optional
+  `mayEscalateWarmFailure` whether to run the cold login — after its own
+  checks, so an edge block or missing warm state never asks.
+  `mayEscalateWarmFailureImpl` (`TokenStrategyFromConfig.fallback.ts`)
+  answers from the config: `'any'` lets every failure escalate, as every
+  other kind does; `'auth-rejected'` lets only a 401/403 the bank answered,
+  so a timeout, a 5xx or a 400 returns the warm failure and never starts a
+  registration. `isAuthRejectedFailure` (`Api/ApiMediator.authReject.ts`)
+  reads both the transport's `401:` marker and the `HTTP 401` a login step is
+  sanitised to, and never an edge block; `isAuthRejectionMessage` is
+  unchanged. A token refused locally never asks: it runs cold at once.
 - **Export.** A finished flow reads each kept slot from its carry, and the jar
   when kept, and encodes them as the next warm token. A slot left unfilled, an
   unbound account or a token longer than `maxTokenChars` publishes nothing:

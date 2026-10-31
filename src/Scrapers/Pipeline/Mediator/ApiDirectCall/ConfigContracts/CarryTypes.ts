@@ -57,6 +57,13 @@ interface ICookieJarWarmStart extends IWarmStartBase {
 }
 
 /**
+ * Which failed warm resumes may fall back to a cold login: `any` failure, or
+ * only the bank's 401/403 (`auth-rejected`, read by `isAuthRejectedFailure`),
+ * so a timeout or a 5xx never starts a registration.
+ */
+type ColdFallback = 'any' | 'auth-rejected';
+
+/**
  * Carry-bundle warm start — for a bank whose warm login needs several carry
  * slots (and optionally the session jar) a cold login fills. The stored token
  * (`Flow/WarmCarryBundle.ts`) restores the jar first, then seeds the listed
@@ -75,6 +82,8 @@ interface ICarryBundleWarmStart extends IWarmStartBase {
   readonly maxTokenChars: number;
   /** Whether the token also keeps the session jar the login ended with. */
   readonly cookies: boolean;
+  /** Which failed warm resumes may fall back to a cold login. */
+  readonly coldFallback: ColdFallback;
 }
 
 /** Warm-start config — the stored token's kind decides how it is restored. */
@@ -183,6 +192,7 @@ interface IDerivedCarry {
 }
 
 export type {
+  ColdFallback,
   ICarryBundleWarmStart,
   ICarryWarmStart,
   ICookieJarWarmStart,

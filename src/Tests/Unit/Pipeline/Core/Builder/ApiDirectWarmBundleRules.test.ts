@@ -89,6 +89,7 @@ function bundleWarm(bundleCase: IBundleCase = {}): IApiDirectRuleInput {
     slots: ['clientId', 'keyPem'],
     maxTokenChars: 16384,
     cookies: true,
+    coldFallback: 'auth-rejected',
     ...bundleCase.fields,
   } as const;
   const steps = bundleCase.steps ?? [REGISTER, LOGON];

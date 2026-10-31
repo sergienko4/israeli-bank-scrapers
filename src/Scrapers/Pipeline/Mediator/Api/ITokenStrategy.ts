@@ -4,6 +4,7 @@
  *   - primeInitial   cheap path (stored JWT / stored OTP)
  *   - primeFresh     full SMS/OTP flow
  *   - hasWarmState   may a failed primeInitial retry via primeFresh?
+ * An optional mayEscalateWarmFailure narrows which failures may fall back.
  * ApiMediator bridges strategy → ITokenResolver via
  * buildResolverFromStrategy, which owns the retry ladder.
  * This interface declares ZERO bank-specific types — Rule #11
@@ -12,7 +13,7 @@
 
 import type { ITokenBus } from '../../Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
-import type { Procedure } from '../../Types/Procedure.js';
+import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 
 /**
  * Generic-parameter helper alias for ITokenStrategy callers — a synonym
@@ -33,6 +34,12 @@ interface ITokenStrategy<TCreds> {
   primeInitial(bus: ITokenBus, ctx: ITokenContext, creds: TCreds): TokenPrimeProcedure;
   primeFresh(bus: ITokenBus, ctx: ITokenContext, creds: TCreds): TokenPrimeProcedure;
   hasWarmState(creds: TCreds): boolean;
+  /**
+   * Whether this failed primeInitial outcome may fall back to primeFresh.
+   * Asked only after the builder's own checks (not WAF, warm state present);
+   * absent, every such failure may.
+   */
+  mayEscalateWarmFailure?(failure: IProcedureFailure): boolean;
 }
 
 export type { ITokenStrategy, TokenPrimeProcedure };

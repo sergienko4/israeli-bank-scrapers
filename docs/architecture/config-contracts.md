@@ -63,7 +63,7 @@ from (cross-package imports such as `Registry/WK/*` are omitted for brevity).
 |---|---|---|
 | **TemplateTypes** | `RefToken`, `JsonValueTemplate`, `IBodyTemplate`, `IEnvelopeSelectors` | (none) |
 | **SignerTypes** | `SignerAlgorithm`, `AsymmetricSignerAlgorithm`, `SignerEncoding`, `CanonicalPart`, `ICanonicalStringConfig`, `IAsymmetricSignerConfig`, `IAesSignerConfig`, `IHmacHeaderSignerConfig`, `ISignerConfig`, `ICryptoFieldConfig`, `SealKind`, `ISealRsaBlockXorParams`, `ISealFieldConfig` | (none) |
-| **CarryTypes** | `IWarmStartConfig`, `ICarryWarmStart`, `ICookieJarWarmStart`, `ICarryBundleWarmStart`, `ISeedCarrySource`, `IRandomHex16Bootstrap`, `IRandomUuidBootstrap`, `ISha256Prefix16Bootstrap`, `IJwtClaimBootstrap`, `SeedCarryBootstrapKind`, `IDerivedCarry` | TemplateTypes |
+| **CarryTypes** | `IWarmStartConfig`, `ICarryWarmStart`, `ICookieJarWarmStart`, `ICarryBundleWarmStart`, `ColdFallback`, `ISeedCarrySource`, `IRandomHex16Bootstrap`, `IRandomUuidBootstrap`, `ISha256Prefix16Bootstrap`, `IJwtClaimBootstrap`, `SeedCarryBootstrapKind`, `IDerivedCarry` | TemplateTypes |
 | **EnvelopeTypes** | `IFingerprintConfig`, `AuthScheme`, `IJwtClaimsConfig`, `IProbeConfig`, `IPreStepHook`, `PreHookReuse` | TemplateTypes, SignerTypes |
 | **FlowTypes** | `FlowKind`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract`, `IHeaderExtract`, `ExtractValueType`, `IExtractRule`, `IRunIf` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes |
 | **ApiDirectCallConfig** | `IApiDirectCallConfig`, `IPersistentAuthConfig`, `CredRule` | all five above |
@@ -108,6 +108,7 @@ this contract; the build-time checks read both.
 | Keep bank reply text out of missed extracts and login diagnostics | `omitBankText` | ApiDirectCallConfig | [Bank text in failures](../phases/api-direct-call.md#bank-text-in-failures) |
 | Carry slots the scrape may see | `sessionCarry` | ApiDirectCallConfig | [Session carry](../phases/api-direct-call.md#session-carry) |
 | How a stored token is judged | `warmStart.validation` | CarryTypes | [Build-time config checks](../phases/api-direct-call.md#build-time-config-checks) |
+| Which failed warm resumes fall back to a cold login | `warmStart.coldFallback` (`ColdFallback`) | CarryTypes | [Carry-bundle warm start](../phases/api-direct-call.md#carry-bundle-warm-start) |
 | Session held in cookies | `headless.sessionCookies` | — | [Headless transports](pipeline.md#headless-transports) |
 | Cookies shared across sibling hosts | `headless.cookieDomains` | — | [Headless transports](pipeline.md#headless-transports) |
 | Node's own `fetch`, no browser | `headless.nativeFetch` | — | [Headless transports](pipeline.md#headless-transports) |
