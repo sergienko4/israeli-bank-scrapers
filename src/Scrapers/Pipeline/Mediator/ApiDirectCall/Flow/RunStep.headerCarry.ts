@@ -2,8 +2,9 @@
  * Response-header carry (N6) — a step's `headerExtractsToCarry` names a carry
  * slot per response header. The step hands its call a sink for exactly those
  * headers; after the answer each slot takes its header's value, else its
- * fallback, else the step fails `<step> header missing`. Values are never
- * logged.
+ * fallback, else the step fails `<step> header missing`. Only the last answer
+ * counts: a call retried after a 401 drops the first answer's headers. Values
+ * are never logged.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
@@ -22,12 +23,14 @@ type CarriedSlot = readonly [string, string];
 const NO_HEADERS: ReadonlyMap<string, string> = new Map();
 
 /**
- * File the declared headers a response carried into the step's capture.
+ * File the declared headers an answer carried into the step's capture. Each
+ * answer replaces the last, so a retried call keeps only its final answer's.
  * @param seen - The step's captured headers, by lower-case name.
- * @param headers - The declared headers the response carried.
+ * @param headers - The declared headers the answer carried.
  * @returns How many headers the step has captured.
  */
 function keepHeaders(seen: Map<string, string>, headers: Readonly<Record<string, string>>): number {
+  seen.clear();
   for (const [name, value] of Object.entries(headers)) seen.set(name, value);
   return seen.size;
 }

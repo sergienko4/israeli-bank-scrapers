@@ -9,7 +9,9 @@ import type {
   IApiDirectCallConfig,
   IGetStep,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { attachHeaderCapture } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.headerCarry.js';
 import { runStep } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.js';
+import type { IFireArgs } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.types.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { HeaderPair } from '../../../../../Helpers/NativeStepHarness.js';
@@ -82,5 +84,14 @@ describe('N6 response-header carry over the headless native transport', () => {
     const bus = makeNativeMediator(HINT, ORIGIN);
     const result = await runStep({ step: CARRY_STEP, bus, scope: makeScope(), companyId: HINT });
     expect(result).toMatchObject({ success: false, errorMessage: 'bind header missing' });
+  });
+
+  it('UT-HC-04 keeps only the last answer headers, never a superseded one', () => {
+    const fire: IFireArgs = { body: {}, query: {}, extraHeaders: {} };
+    const capture = attachHeaderCapture(fire, CARRY_STEP).headerCapture;
+    capture?.sink.take({ 'x-session-id': 'syn-stale' });
+    capture?.sink.take({});
+    const seen = [...(capture?.seen ?? [])];
+    expect(seen).toEqual([]);
   });
 });
