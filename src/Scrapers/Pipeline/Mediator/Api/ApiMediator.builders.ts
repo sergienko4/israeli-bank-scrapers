@@ -11,6 +11,7 @@
 
 import type { WKQueryOperation } from '../../Registry/WK/QueriesWK.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
+import type { ApiPostData } from '../../Types/Domain/ApiPostData.js';
 import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { apiGetOp, apiPostOp, apiQueryOp } from './ApiMediator.ops.js';
@@ -145,7 +146,7 @@ function buildResolverMethods(self: IApiMediator, state: IMediatorState): IResol
 function bindApiPost(ctx: IApiCallContext): ICallMethods['apiPost'] {
   return async <T>(
     wkUrl: WKUrlOrLiteral,
-    body: Record<string, unknown>,
+    body: ApiPostData,
     opts?: IApiQueryOpts,
   ): Promise<Procedure<T>> => apiPostOp<T>({ ctx, wkUrl, body, opts });
 }

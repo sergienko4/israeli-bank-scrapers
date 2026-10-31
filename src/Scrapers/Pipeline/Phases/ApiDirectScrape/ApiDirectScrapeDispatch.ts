@@ -20,6 +20,7 @@ import { attachBodySignature } from '../../Mediator/ApiDirectCall/Flow/RunStepBo
 import { hydrate } from '../../Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../../Mediator/ApiDirectCall/Template/RefResolver.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
+import type { ApiPostData } from '../../Types/Domain/ApiPostData.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
@@ -86,7 +87,8 @@ export interface IDispatchArgs {
   readonly urlTag: WKUrlOrLiteral | false;
   /** REST verb for the urlTag branch — GET sends no body, POST hydrates one. */
   readonly method: ScrapeHttpMethod;
-  readonly vars: VarsMap;
+  /** Step vars; an array is sent only by a plain REST POST step (N19). */
+  readonly vars: ApiPostData;
   readonly bodyTemplate: JsonValueTemplate | false;
   readonly signer: IAesSignerConfig | false;
   readonly opts: IApiQueryOpts;
@@ -94,6 +96,36 @@ export interface IDispatchArgs {
   readonly secrets?: Readonly<Record<string, string>>;
   /** Shape-level response check — see `IApiDirectScrapeShape.checkBody`. */
   readonly checkBody?: BodyCheck;
+}
+
+/** Dispatch args whose vars are an object — what templates and signing need. */
+interface IObjectDispatchArgs extends Omit<IDispatchArgs, 'vars'> {
+  readonly vars: VarsMap;
+}
+
+/** An object-only REST POST feature and its refusal of array vars. */
+interface IArrayPostRefusal {
+  readonly field: 'bodyTemplate' | 'signer';
+  readonly message: string;
+}
+
+/** Object-only REST POST features, in the order dispatch applies them. */
+const ARRAY_POST_REFUSALS: readonly IArrayPostRefusal[] = [
+  { field: 'bodyTemplate', message: 'scrape bodyTemplate needs object vars' },
+  { field: 'signer', message: 'scrape body signing needs an object' },
+];
+
+/** Refusal of array vars on a GraphQL step. */
+const GRAPHQL_ARRAY_VARS = 'scrape vars must be an object for GraphQL';
+
+/**
+ * Whether step vars are a top-level JSON array. `Array.isArray` alone
+ * does not narrow a readonly array out of the union.
+ * @param vars - Step vars.
+ * @returns True for an array.
+ */
+function isPostArray(vars: ApiPostData): vars is readonly JsonValue[] {
+  return Array.isArray(vars);
 }
 
 /**
@@ -129,14 +161,9 @@ function asPlainObject(value: JsonValue): Procedure<Record<string, unknown>> {
  * @param args - Dispatch bundle.
  * @returns Procedure with the body.
  */
-function resolveStepBody(args: IDispatchArgs): Procedure<Record<string, unknown>> {
+function resolveStepBody(args: IObjectDispatchArgs): Procedure<Record<string, unknown>> {
   if (args.bodyTemplate === false) return succeed(args.vars);
-  const scope = buildScrapeScope({
-    bus: args.bus,
-    ctx: args.ctx,
-    vars: args.vars,
-    secrets: args.secrets,
-  });
+  const scope = buildScrapeScope(args);
   const hydrated = hydrate(args.bodyTemplate, scope);
   if (!isOk(hydrated)) return hydrated;
   return asPlainObject(hydrated.value);
@@ -157,13 +184,11 @@ function freshIvHex(): string {
  * @param args - Dispatch args (bus + ctx + vars).
  * @returns Primed template scope.
  */
-function buildPrimedScrapeScope(signer: IAesSignerConfig, args: IDispatchArgs): ITemplateScope {
-  const scope = buildScrapeScope({
-    bus: args.bus,
-    ctx: args.ctx,
-    vars: args.vars,
-    secrets: args.secrets,
-  });
+function buildPrimedScrapeScope(
+  signer: IAesSignerConfig,
+  args: IObjectDispatchArgs,
+): ITemplateScope {
+  const scope = buildScrapeScope(args);
   const ivHex = freshIvHex();
   const nowMs = Date.now();
   const tsMs = String(nowMs);
@@ -179,7 +204,7 @@ function buildPrimedScrapeScope(signer: IAesSignerConfig, args: IDispatchArgs): 
  */
 function maybeSignBody(
   body: Record<string, unknown>,
-  args: IDispatchArgs,
+  args: IObjectDispatchArgs,
 ): Procedure<Record<string, unknown>> {
   if (args.signer === false) return succeed(body);
   const primedScope = buildPrimedScrapeScope(args.signer, args);
@@ -196,7 +221,7 @@ function maybeSignBody(
  * @returns Procedure with the typed payload.
  */
 async function dispatchRestPost(
-  args: IDispatchArgs,
+  args: IObjectDispatchArgs,
   url: WKUrlOrLiteral,
 ): Promise<Procedure<ApiBody>> {
   const bodyProc = resolveStepBody(args);
@@ -207,18 +232,43 @@ async function dispatchRestPost(
 }
 
 /**
+ * POST array vars as they are, unless the step uses a feature that needs
+ * an object — then fail with that feature's refusal.
+ * @param args - Dispatch bundle whose vars are an array.
+ * @param url - Resolved REST URL.
+ * @returns Procedure with the typed payload.
+ */
+async function dispatchArrayPost(
+  args: IDispatchArgs,
+  url: WKUrlOrLiteral,
+): Promise<Procedure<ApiBody>> {
+  const refusal = ARRAY_POST_REFUSALS.find((r): boolean => args[r.field] !== false);
+  if (refusal !== undefined) return fail(ScraperErrorTypes.Generic, refusal.message);
+  return args.bus.apiPost<ApiBody>(url, args.vars, args.opts);
+}
+
+/**
+ * Send a GraphQL step; its variables must be an object.
+ * @param args - Dispatch bundle.
+ * @returns Procedure with the typed payload.
+ */
+async function dispatchGraphQl(args: IDispatchArgs): Promise<Procedure<ApiBody>> {
+  if (isPostArray(args.vars)) return fail(ScraperErrorTypes.Generic, GRAPHQL_ARRAY_VARS);
+  return args.bus.apiQuery<ApiBody>(args.queryTag, args.vars, args.opts);
+}
+
+/**
  * Route one scrape call: GraphQL when `urlTag` is absent, REST GET when
- * `method === 'GET'` (no body, same opts), and REST POST otherwise (body
- * hydrated/signed).
+ * `method === 'GET'` (no body, same opts), REST POST of array vars as
+ * they are, and REST POST otherwise (body hydrated/signed).
  * @param args - Dispatch bundle.
  * @returns Procedure with the typed payload.
  */
 async function routeStep(args: IDispatchArgs): Promise<Procedure<ApiBody>> {
-  if (args.urlTag === false) {
-    return args.bus.apiQuery<ApiBody>(args.queryTag, args.vars, args.opts);
-  }
+  if (args.urlTag === false) return dispatchGraphQl(args);
   if (args.method === 'GET') return args.bus.apiGet<ApiBody>(args.urlTag, args.opts);
-  return dispatchRestPost(args, args.urlTag);
+  if (isPostArray(args.vars)) return dispatchArrayPost(args, args.urlTag);
+  return dispatchRestPost({ ...args, vars: args.vars }, args.urlTag);
 }
 
 /**

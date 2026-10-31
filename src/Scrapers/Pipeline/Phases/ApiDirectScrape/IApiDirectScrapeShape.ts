@@ -29,6 +29,7 @@ import type { IDeclaredRowSpec } from '../../Mediator/Scrape/CoverageAudit/Decla
 import type { IEvidenceLedger } from '../../Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
+import type { ApiPostData } from '../../Types/Domain/ApiPostData.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IWindowRequestPolicy } from '../../Types/WindowNarrowing.js';
@@ -52,7 +53,11 @@ export type ScrapeHttpMethod = 'GET' | 'POST';
  * the function at call time, never caches its result.
  */
 export type ApiDirectScrapeHeadersLike = HeaderMap | ((ctx: IActionContext) => HeaderMap);
-/** Opaque variables map (GraphQL variables OR REST body when urlTag is set). */
+/**
+ * Opaque variables object — GraphQL variables, a template scope, or a REST
+ * body. A REST POST step may instead return a top-level array
+ * ({@link ApiPostData}); dispatch refuses one wherever an object is needed.
+ */
 export type VarsMap = Record<string, unknown>;
 /** Generic API response body — shape's extractor narrows as needed. */
 export type ApiBody = Record<string, unknown>;
@@ -93,7 +98,7 @@ export interface IExtractAccountsArgs {
 
 /** Customer-step shape — fetches the account list once per scrape. */
 export interface IApiDirectScrapeCustomerStep<TAcct> {
-  readonly buildVars: (ctx: IActionContext) => VarsMap;
+  readonly buildVars: (ctx: IActionContext) => ApiPostData;
   readonly extractAccounts: (args: IExtractAccountsArgs) => readonly TAcct[];
   /**
    * Optional — how many products the payload held BEFORE `extractAccounts`
@@ -157,7 +162,7 @@ export interface IApiDirectScrapeBalanceStep<TAcct> {
    * `SessionHeader.SessionID`) can read it back from the mediator
    * session-context. Shapes that ignore it keep their `(acct) => …` form.
    */
-  readonly buildVars: (acct: TAcct, ctx: IActionContext) => VarsMap;
+  readonly buildVars: (acct: TAcct, ctx: IActionContext) => ApiPostData;
   /**
    * Read the balance for one account.
    *
@@ -249,7 +254,7 @@ export type { WindowNarrowing } from '../../Types/WindowNarrowing.js';
 
 /** Transactions-step shape — paginated per-account fetch. */
 export interface IApiDirectScrapeTxnsStep<TAcct, TCursor> extends IWindowRequestPolicy {
-  readonly buildVars: (acct: TAcct, cursor: TCursor | false, ctx: IActionContext) => VarsMap;
+  readonly buildVars: (acct: TAcct, cursor: TCursor | false, ctx: IActionContext) => ApiPostData;
   readonly extractPage: (args: IExtractPageArgs<TAcct, TCursor>) => IPage<object, TCursor>;
   /**
    * Whether consecutive pages of this step's walk can re-serve the same rows.

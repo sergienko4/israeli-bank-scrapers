@@ -9,15 +9,12 @@
 
 import type { WKUrlGroup } from '../../Registry/WK/UrlsWK.js';
 import type { Procedure } from '../Procedure.js';
+import type { ApiPostData } from './ApiPostData.js';
 import type { IApiQueryOpts } from './ApiQueryOpts.js';
 import type { ICookieSession } from './CookieSession.js';
 
 interface ITokenBus {
-  apiPost: <T>(
-    wkUrl: WKUrlGroup,
-    body: Record<string, unknown>,
-    opts?: IApiQueryOpts,
-  ) => Promise<Procedure<T>>;
+  apiPost: <T>(wkUrl: WKUrlGroup, body: ApiPostData, opts?: IApiQueryOpts) => Promise<Procedure<T>>;
   apiGet: <T>(wkUrl: WKUrlGroup, opts?: IApiQueryOpts) => Promise<Procedure<T>>;
   /** The run's cookie session; present only when the bank sets `cookieDomains`. */
   readonly cookies?: ICookieSession;

@@ -18,6 +18,7 @@ import {
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import type { WKUrlGroup } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import type { ApiPostData } from '../../../../../../Scrapers/Pipeline/Types/Domain/ApiPostData.js';
 import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { type IApiPostCapture, makeStubMediator } from './StubMediator.js';
 
@@ -256,7 +257,7 @@ describe('api-direct-call RunStep buildPathAndQuery branches', () => {
        */
       apiPost: async <T>(
         _url: WKUrlGroup,
-        _body: Record<string, unknown>,
+        _body: ApiPostData,
         opts?: { readonly query?: Record<string, string> },
       ): Promise<ReturnType<typeof succeed<T>>> => {
         await Promise.resolve();

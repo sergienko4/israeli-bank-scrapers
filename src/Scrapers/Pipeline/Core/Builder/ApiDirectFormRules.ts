@@ -9,10 +9,8 @@ import type {
   IStepConfig,
   JsonValueTemplate,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import type { JsonUnknownRecord } from '../../Types/JsonValue.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
-
-/** One leaf node of a template. */
-type LeafNode = Readonly<Record<string, unknown>>;
 
 /**
  * Whether a literal can travel as one form field.
@@ -31,7 +29,7 @@ function isScalarLiteral(value: unknown): boolean {
  */
 function isFormLeaf(node: unknown): boolean {
   if (typeof node !== 'object' || node === null || Array.isArray(node)) return false;
-  const leaf = node as LeafNode;
+  const leaf = node as JsonUnknownRecord;
   const keys = Object.keys(leaf);
   if (keys.length !== 1) return false;
   if (keys[0] === '$ref') return typeof leaf.$ref === 'string';
@@ -45,7 +43,7 @@ function isFormLeaf(node: unknown): boolean {
  */
 function isFlatShape(shape: JsonValueTemplate): boolean {
   if (Array.isArray(shape)) return false;
-  const values: readonly unknown[] = Object.values(shape as LeafNode);
+  const values: readonly unknown[] = Object.values(shape as JsonUnknownRecord);
   return values.every(isFormLeaf);
 }
 

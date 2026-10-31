@@ -37,6 +37,7 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { assertPostObject } from '../../../../Helpers/AssertPostData.js';
 
 const SEC_TOKEN = { Ver: 'SecurityToken_1.0.0', Token: [{ TokenId: 't-1', Signature: 'sig' }] };
 const ACCT: IYahavAcct = { id: 'fakeacct00001', iorId: 'fakeIor' };
@@ -337,6 +338,7 @@ describe('YahavShape transactions', () => {
   it('txnsVars builds a CURRENT_ACCOUNT payload at a numeric cursor', () => {
     const ctx = ctxWithBancs();
     const vars = YAHAV_SHAPE.transactions.buildVars(ACCT, 0, ctx);
+    assertPostObject(vars);
     const payload = vars.Payload as Record<string, unknown>;
     expect(payload.Category).toEqual(['CURRENT_ACCOUNT']);
   });
@@ -356,6 +358,7 @@ describe('YahavShape transactions', () => {
       windowEnd: some(new Date('2026-03-01T22:30:00.000Z')),
     };
     const vars = YAHAV_SHAPE.transactions.buildVars(ACCT, 0, ctx);
+    assertPostObject(vars);
     const payload = vars.Payload as Record<string, unknown>;
     const andFilter = (payload.Filters as Record<string, unknown>[])[0];
     const bounds = andFilter.Filters as Record<string, unknown>[];
@@ -397,6 +400,7 @@ describe('YAHAV_SHAPE step callables', () => {
   it('customer step builds the accounts envelope + targets /account', () => {
     const ctx = ctxWithBancs();
     const vars = YAHAV_SHAPE.customer.buildVars(ctx);
+    assertPostObject(vars);
     const url = tagUrl(YAHAV_SHAPE.customer.urlTag, [ctx]);
     expect(vars.SessionId).toBe('sessionId');
     expect(url).toContain('/BaNCSDigitalApp/account');
@@ -405,6 +409,7 @@ describe('YAHAV_SHAPE step callables', () => {
   it('balance step builds the portfolioBalance envelope + extracts CURRENT', () => {
     const ctx = ctxWithBancs();
     const vars = YAHAV_SHAPE.balance.buildVars(ACCT, ctx);
+    assertPostObject(vars);
     const payload = vars.Payload as Record<string, unknown>;
     expect(payload.Category).toEqual(['portfolioBalance']);
     const body = accountsBody('321.5');
@@ -420,6 +425,7 @@ describe('YAHAV_SHAPE step callables', () => {
   it('transactions step builds the CURRENT_ACCOUNT envelope + targets /account', () => {
     const ctx = ctxWithBancs();
     const vars = YAHAV_SHAPE.transactions.buildVars(ACCT, false, ctx);
+    assertPostObject(vars);
     const payload = vars.Payload as Record<string, unknown>;
     const url = tagUrl(YAHAV_SHAPE.transactions.urlTag, [ACCT, false, ctx]);
     expect(payload.Category).toEqual(['CURRENT_ACCOUNT']);

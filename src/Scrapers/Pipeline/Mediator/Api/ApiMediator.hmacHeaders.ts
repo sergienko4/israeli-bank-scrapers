@@ -9,6 +9,7 @@
  * Absent key or directive → no headers (the getKey bootstrap exemption).
  */
 
+import type { ApiPostData } from '../../Types/Domain/ApiPostData.js';
 import { isOk } from '../../Types/Procedure.js';
 import type { IHmacHeaderSignerConfig } from '../ApiDirectCall/ConfigContracts/SignerTypes.js';
 import type {
@@ -32,7 +33,7 @@ interface IHmacHeadersArgs {
   readonly session: SessionContext;
   readonly method: string;
   readonly url: string;
-  readonly body?: Record<string, unknown>;
+  readonly body?: ApiPostData;
 }
 
 /**
@@ -81,7 +82,7 @@ function isHmacSigner(value: unknown): value is IHmacHeaderSignerConfig {
  * @param body - Final outbound body (undefined for GET).
  * @returns UTF-8 body bytes.
  */
-function toBodyBytes(body?: Record<string, unknown>): Buffer {
+function toBodyBytes(body?: ApiPostData): Buffer {
   if (body === undefined) return Buffer.alloc(0);
   const json = JSON.stringify(body);
   return Buffer.from(json, 'utf8');

@@ -4,7 +4,6 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import type { PostData } from '../../Strategy/Fetch/FetchStrategy.js';
 import { overlayHeaders } from '../../Strategy/Fetch/HeaderOverlay.js';
 import { emptyAnswer } from '../../Strategy/Fetch/StatusPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -85,15 +84,6 @@ function buildHeaders(rawAuth: string): Record<string, string> {
 function mergeHeaders(rawAuth: string, extra: Record<string, string>): Record<string, string> {
   const stored = buildHeaders(rawAuth);
   return overlayHeaders(extra, stored);
-}
-
-/**
- * Convert an arbitrary body to the transport's PostData shape.
- * @param body - Caller-supplied body.
- * @returns Body typed for the fetch strategy.
- */
-function toPostData(body: Record<string, unknown>): PostData {
-  return body as PostData;
 }
 
 /**
@@ -207,10 +197,9 @@ function unwrapGraphql<T>(envelope: IGraphQLEnvelope<T>, operation: string): Pro
  */
 async function firePost<T>(args: IFirePostArgs): Promise<Procedure<T>> {
   const headers = mergeHeaders(args.rawAuth, args.extraHeaders);
-  const payload = toPostData(args.body);
   const finalUrl = appendQuery(args.url, args.query);
   const fetchOpts = { ...args.policy, extraHeaders: headers, onSetCookie: args.onSetCookie };
-  return args.deps.fetchStrategy.fetchPost<T>(finalUrl, payload, fetchOpts);
+  return args.deps.fetchStrategy.fetchPost<T>(finalUrl, args.body, fetchOpts);
 }
 
 /**

@@ -3,6 +3,7 @@
  * Returns Procedure<T> (never null/undefined).
  */
 
+import type { ApiPostData } from '../../Types/Domain/ApiPostData.js';
 import type { IFetchCallPolicy, IResponseReading } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 
@@ -57,8 +58,8 @@ interface IFetchOpts extends IFetchCallPolicy, Pick<IResponseReading, 'onEmptyRe
 /** Default fetch options — no extra headers. */
 const DEFAULT_FETCH_OPTS: IFetchOpts = { extraHeaders: {} };
 
-/** JSON-serializable POST body — strings, arrays, or nested objects. */
-type PostData = Record<string, string | string[] | object>;
+/** JSON-serializable POST body — an object or a top-level array (N19). */
+type PostData = ApiPostData;
 
 /** Fetch strategy interface — all fetches return strong-typed Procedure. */
 interface IFetchStrategy {

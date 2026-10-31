@@ -26,6 +26,7 @@ import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediato
 import type { WKUrlGroup } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { assertPostObject } from '../../../../../Helpers/AssertPostData.js';
 import { type IApiPostCapture, makeStubMediator } from './StubMediator.js';
 
 const URL_TAG: WKUrlGroup = 'auth.bind';
@@ -130,7 +131,9 @@ describe('api-direct-call RunStep — AES body-signer + cryptoField pre-hook', (
     });
     expect(result.success).toBe(true);
     expect(captures).toHaveLength(1);
-    const auth = captures[0].body.auth as { pinCipher: unknown; signature: unknown };
+    const sent = captures[0].body;
+    assertPostObject(sent);
+    const auth = sent.auth as { pinCipher: unknown; signature: unknown };
     expect(typeof auth.pinCipher).toBe('string');
     expect((auth.pinCipher as string).length).toBeGreaterThan(0);
     expect(typeof auth.signature).toBe('string');
@@ -178,7 +181,9 @@ describe('api-direct-call RunStep — AES body-signer + cryptoField pre-hook', (
     });
     expect(result.success).toBe(true);
     expect(captures).toHaveLength(1);
-    const auth = captures[0].body.auth as { pinCipher: unknown };
+    const sent = captures[0].body;
+    assertPostObject(sent);
+    const auth = sent.auth as { pinCipher: unknown };
     expect(typeof auth.pinCipher).toBe('string');
     expect((auth.pinCipher as string).length).toBeGreaterThan(0);
   });

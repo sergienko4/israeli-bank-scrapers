@@ -176,6 +176,20 @@ Each shape step (`customer`, `balance`, `transactions`) carries a `urlTag` of ty
 
 Each REST shape step carries an optional `method` of type `ScrapeHttpMethod` (`'GET' | 'POST'`). It defaults to `POST`, so every existing bank is unaffected. When a step sets `method: 'GET'`, `dispatchStep` routes it to `apiGet` with the resolved `urlTag` and the step's options (`extraHeaders`, exactly as a POST step gets them) and sends **no** request body (GET carries its params in the path/query, built by the `urlTag` producer); `bodyTemplate` and `buildVars` are inert for that step. A GET step without `extraHeaders` sends the same headers it always did. Banks whose whole contract is GET (e.g. the Discount/Titan family) declare `method: 'GET'` on all three steps. GraphQL steps (no `urlTag`) ignore `method` and keep routing through `apiQuery`.
 
+## REST body — an object or a top-level array
+
+A customer, balance or transactions step's `buildVars` returns `ApiPostData` ([`ApiPostData.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/Domain/ApiPostData.ts)): a JSON object, or a top-level JSON array for an endpoint that takes a list (a bank whose transactions POST carries `[]`). The fetch strategies write either as its JSON text, byte for byte (`[]` goes out as `[]`), and an HMAC header signer signs those same bytes. A bootstrap step's `buildVars` stays an object (`VarsMap`).
+
+GraphQL variables, `bodyTemplate` scopes and the shape `signer` need an object, so `dispatchStep` fails the call as `GENERIC` before anything is sent when a step pairs array vars with one of them:
+
+| Step uses        | Failure message                             |
+| ---------------- | ------------------------------------------- |
+| GraphQL (no URL) | `scrape vars must be an object for GraphQL` |
+| `bodyTemplate`   | `scrape bodyTemplate needs object vars`     |
+| shape `signer`   | `scrape body signing needs an object`       |
+
+A plain REST POST step sends array vars as they are; a GET step sends no body, so its vars stay inert. Form-encoded bodies are a login-step feature (`encoding: 'form'`) and always come from an object template.
+
 ## withBrowserApiDirect — wiring a browser bank to the hard model
 
 `PipelineBuilder.withBrowserApiDirect(shape)` is the public builder entry point that swaps a browser bank's generic post-auth chain (AUTH-DISCOVERY / ACCOUNT-RESOLVE / DASHBOARD / generic SCRAPE / BALANCE-RESOLVE) for a single `API-DIRECT-SCRAPE` phase driven by the bank's `IApiDirectScrapeShape`, while keeping the browser login phases (INIT / HOME / PRE-LOGIN / LOGIN / OTP-\*) for WAF bypass. The hard-model calls dispatch through the **live login page** (`BrowserFetchStrategy`), so session cookies + the TLS/JA3 fingerprint ride every request for free.
