@@ -1,6 +1,7 @@
 /**
  * derivedCarry evaluation: per-part collection, join + UTF-8 truncate,
- * and the top-level `applyDerivedCarry` reducer.
+ * the `applyDerivations` reducer and the flow-init `applyDerivedCarry`.
+ * Steps reuse `applyDerivations` for their own `deriveCarry` (N7).
  */
 
 import type { Procedure } from '../../../Types/Procedure.js';
@@ -137,20 +138,32 @@ interface IApplyDerivedCarryArgs {
 }
 
 /**
- * Apply every `derivedCarry` entry in order.
- * @param args - Config + creds + carry bundle.
- * @returns Procedure with the mutated carry.
+ * Apply derivation entries in order, each over the carry the earlier ones
+ * filled.
+ * @param entries - Derivation specs.
+ * @param args - Config + creds + carry bundle; the carry is filled in place.
+ * @returns Procedure with the filled carry, or the first part that failed.
  */
-function applyDerivedCarry(args: IApplyDerivedCarryArgs): Procedure<CarryMut> {
-  const { config, creds, carry } = args;
-  const entries = config.derivedCarry ?? [];
-  const seed: Procedure<CarryMut> = succeed(carry);
-  const shared: IDerivationSharedCtx = { creds, config, carry };
+function applyDerivations(
+  entries: readonly IDerivedCarry[],
+  args: IApplyDerivedCarryArgs,
+): Procedure<CarryMut> {
+  const seed: Procedure<CarryMut> = succeed(args.carry);
   return entries.reduce<Procedure<CarryMut>>((acc, derived) => {
-    const ctx = buildDerivationCtx(derived, shared);
+    const ctx = buildDerivationCtx(derived, args);
     return reduceDerivation(acc, ctx);
   }, seed);
 }
 
-export { applyDerivedCarry };
+/**
+ * Apply every flow-init `derivedCarry` entry of the bank config in order.
+ * @param args - Config + creds + carry bundle.
+ * @returns Procedure with the mutated carry.
+ */
+function applyDerivedCarry(args: IApplyDerivedCarryArgs): Procedure<CarryMut> {
+  const entries = args.config.derivedCarry ?? [];
+  return applyDerivations(entries, args);
+}
+
+export { applyDerivations, applyDerivedCarry };
 export type { IApplyDerivedCarryArgs };

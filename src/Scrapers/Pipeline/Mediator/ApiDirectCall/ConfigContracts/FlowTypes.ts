@@ -14,6 +14,7 @@
 import type { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { WKUrlGroup } from '../../../Registry/WK/UrlsWK.js';
 import type { RedirectPolicy, ResponseKind } from '../../../Types/Domain/FetchPolicy.js';
+import type { IDerivedCarry } from './CarryTypes.js';
 import type { IPreStepHook } from './EnvelopeTypes.js';
 import type { IBodyTemplate, IEnvelopeSelectors, JsonValueTemplate } from './TemplateTypes.js';
 
@@ -108,6 +109,8 @@ interface IStepBase {
   readonly documentMarker?: string;
   /** Carry slots read from the final response's headers, merged beside `extractsToCarry`. */
   readonly headerExtractsToCarry?: Readonly<Record<string, IHeaderExtract>>;
+  /** Carry slots derived, in order, once this step's extracts are in scope. */
+  readonly deriveCarry?: readonly IDerivedCarry[];
 }
 
 /** A POST step, the default when `method` is omitted: sends the hydrated body. */

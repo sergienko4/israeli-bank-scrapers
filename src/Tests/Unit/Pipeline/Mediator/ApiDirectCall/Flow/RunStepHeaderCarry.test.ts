@@ -5,7 +5,6 @@
  */
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
-import { createApiMediator } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type {
   IApiDirectCallConfig,
   IGetStep,
@@ -13,10 +12,8 @@ import type {
 import { runStep } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
-import type { GraphQLFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
-import { HeadlessNativeFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
-import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
-import { fakeFetch } from '../../../../../Helpers/FakeFetch.js';
+import type { HeaderPair } from '../../../../../Helpers/NativeStepHarness.js';
+import { installJsonAnswer, makeNativeMediator } from '../../../../../Helpers/NativeStepHarness.js';
 
 const HINT = CompanyTypes.OneZero;
 const ORIGIN = 'https://example.test';
@@ -36,7 +33,9 @@ const CARRY_STEP: IGetStep = {
   headerExtractsToCarry: { sessionId: { header: 'X-Session-Id' } },
 };
 
-const ANSWER_HEADERS: readonly [string, string][] = [
+const TOKEN_BODY = { access_token: 'syn-token' };
+
+const ANSWER_HEADERS: readonly HeaderPair[] = [
   ['x-session-id', 'syn-session'],
   ['x-trace', 'syn-trace'],
 ];
@@ -53,30 +52,6 @@ function makeScope(): ITemplateScope {
   return { carry: {}, creds: {}, config: PLAIN_CONFIG, keypair: undefined };
 }
 
-/**
- * Point globalThis.fetch at a fake that answers a token with these headers.
- * @param headers - Response headers.
- * @returns The number of headers served.
- */
-function installAnswer(headers: readonly [string, string][]): number {
-  const fake = fakeFetch((): Response => {
-    const init = { headers: new Headers([...headers]) };
-    return Response.json({ access_token: 'syn-token' }, init);
-  });
-  globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
-  return headers.length;
-}
-
-/**
- * Real mediator over the real headless native transport.
- * @returns Mediator bound to the fake fetch.
- */
-function makeNativeMediator(): ITokenBus {
-  const graphql = {} as unknown as GraphQLFetchStrategy;
-  const transport = new HeadlessNativeFetchStrategy(ORIGIN);
-  return createApiMediator(HINT, transport, graphql);
-}
-
 describe('N6 response-header carry over the headless native transport', () => {
   const originalFetch = globalThis.fetch;
 
@@ -85,8 +60,8 @@ describe('N6 response-header carry over the headless native transport', () => {
   });
 
   it('UT-HC-01 carries a declared header beside the body extracts, nothing else', async () => {
-    installAnswer(ANSWER_HEADERS);
-    const bus = makeNativeMediator();
+    installJsonAnswer(TOKEN_BODY, ANSWER_HEADERS);
+    const bus = makeNativeMediator(HINT, ORIGIN);
     const result = await runStep({ step: CARRY_STEP, bus, scope: makeScope(), companyId: HINT });
     const carry = result.success ? result.value.carry : {};
     const tsMs = expect.any(String) as unknown;
@@ -94,17 +69,17 @@ describe('N6 response-header carry over the headless native transport', () => {
   });
 
   it('UT-HC-02 carries the fallback when the header is missing', async () => {
-    installAnswer([]);
+    installJsonAnswer(TOKEN_BODY, []);
     const headerExtractsToCarry = { sessionId: { header: 'X-Session-Id', fallback: 'none' } };
     const step: IGetStep = { ...CARRY_STEP, headerExtractsToCarry };
-    const bus = makeNativeMediator();
+    const bus = makeNativeMediator(HINT, ORIGIN);
     const result = await runStep({ step, bus, scope: makeScope(), companyId: HINT });
     expect(result).toMatchObject({ success: true, value: { carry: { sessionId: 'none' } } });
   });
 
   it('UT-HC-03 fails the step when a header without fallback is missing', async () => {
-    installAnswer([['x-trace', 'syn-trace']]);
-    const bus = makeNativeMediator();
+    installJsonAnswer(TOKEN_BODY, [['x-trace', 'syn-trace']]);
+    const bus = makeNativeMediator(HINT, ORIGIN);
     const result = await runStep({ step: CARRY_STEP, bus, scope: makeScope(), companyId: HINT });
     expect(result).toMatchObject({ success: false, errorMessage: 'bind header missing' });
   });
