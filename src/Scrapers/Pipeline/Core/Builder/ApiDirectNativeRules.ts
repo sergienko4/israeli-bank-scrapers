@@ -1,9 +1,10 @@
 /**
  * Native-fetch rules for an api-direct call config (N8). Redirect, document,
- * status, failure-text and header-carry fields act only on native fetch; any
- * other transport would ignore them and run unguarded, so naming one off
- * native fetch fails the build. `cookieDomains` widens the session jar, so it
- * needs `sessionCookies`. A carried header name must be an HTTP token.
+ * status, failure-text, header-carry and body-encoding fields act only on
+ * native fetch; any other transport would ignore them and run unguarded, so
+ * naming one off native fetch fails the build. `cookieDomains` widens the
+ * session jar, so it needs `sessionCookies`. A carried header name must be an
+ * HTTP token.
  */
 
 import type { IHeaderExtract } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
@@ -15,6 +16,7 @@ const NATIVE_STEP_FIELDS = [
   'documentMarker',
   'redirect',
   'headerExtractsToCarry',
+  'encoding',
 ] as const;
 
 /** Headless fields only the headless native fetch acts on. */

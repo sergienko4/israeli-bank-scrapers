@@ -336,6 +336,9 @@ from what it extracted:
   ([Response-header carry](../architecture/pipeline.md#response-header-carry)).
 - `deriveCarry` runs once the step's extracts are in scope
   ([Carry derivation](#carry-derivation)).
+- `encoding: 'form'` sends the body as `application/x-www-form-urlencoded`;
+  its shape must be a flat record of `$ref` and scalar `$literal` values
+  ([Form bodies](../architecture/pipeline.md#form-bodies)).
 - `omitBankText: true` on the config keeps reply text out of a missed extract
   and records a length-only hint for `error_code` in login diagnostics
   ([Bank text in failures](#bank-text-in-failures)).
@@ -353,7 +356,8 @@ is sent. `Core/Builder/ApiDirectRuleInput.ts` holds that input, the rule shape
 `IApiDirectRule` (a message and an `isBroken` check) and `allSteps`, which
 lists the login steps and any durable resume steps. The session-transport
 rules, `API_DIRECT_TRANSPORT_RULES` in `Core/Builder/ApiDirectTransportRules.ts`,
-run after the core rules. The native-fetch rules, `API_DIRECT_NATIVE_RULES` in
+run after the core rules, then the form-body rules, `API_DIRECT_FORM_RULES` in
+`Core/Builder/ApiDirectFormRules.ts`. The native-fetch rules, `API_DIRECT_NATIVE_RULES` in
 `Core/Builder/ApiDirectNativeRules.ts`, run last: the session-transport fields
 act only on the headless native fetch, and any other transport would ignore
 them and run unguarded, so naming one off native fetch fails the build. Its
@@ -378,7 +382,9 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a manual `redirect` whose `allow` list is empty                                                                                       | `redirect.allow: must not be empty`                                      |
 | a manual `redirect` whose `maxHops` is not an integer from 1 to 10                                                                    | `redirect.maxHops: must be an integer from 1 to 10`                      |
 | a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`                                                     | `headless.redirectPolicy: must be reject when a step redirects manually` |
+| a form step whose body shape is not a flat record of `$ref` and scalar `$literal` values                                              | `steps.body: a form body must be a flat record`                          |
 | a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |
+| a login or resume step with `encoding`, without `headless.nativeFetch: true`                                                          | `steps.encoding: not allowed without headless.nativeFetch`               |
 | `headless.cookieDomains`, `redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, on an api-direct or node-tls bank | `headless.<field>: not allowed without headless.nativeFetch` |
 | `headless.cookieDomains` without `headless.sessionCookies: true`                                                                      | `headless.cookieDomains: not allowed without headless.sessionCookies`    |
 | a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                            | `headerExtractsToCarry.header: must be an HTTP header name`              |

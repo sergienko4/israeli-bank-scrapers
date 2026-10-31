@@ -190,6 +190,12 @@ A step can carry values the bank returns in response headers. `headerExtractsToC
 
 The native transport hands the final response to [`emitResponseHeaders`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/ResponseHeaderSink.ts), next to the Set-Cookie hook. `emitResponseHeaders` passes the sink only the declared headers the response carried. Each `take` replaces what the sink held, so when a call is retried after a 401 only the last answer's headers count. After the outcome is judged and the required extracts are read, `carryHeaders` fills each slot from its header, else from its `fallback`, else fails the step `Generic` with `"<step> header missing"`. Optional extracts are read after the header slots. The browser, Camoufox and TLS transports ignore the sink, so a declared header slot on them fails closed. Header values are never logged.
 
+### Form bodies
+
+A POST step sends JSON unless it names `encoding: 'form'` (a `BodyEncoding`). `callPolicyOf` carries the encoding down as `IFetchCallPolicy.bodyEncoding`, next to `redirect` and `responseKind`. [`writePostBody`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/PostBody.ts) then writes the body: `json` as JSON text, `form` as `application/x-www-form-urlencoded` pairs in config order. `withBodyContentType` puts the form content-type in place of any content-type the bank's headers name, so a form body never travels labelled as JSON. A call that names no encoding is sent byte for byte as before.
+
+A form body must be a flat record. The build refuses a nested form shape (`API_DIRECT_FORM_RULES`), and at run time [`guardFormBody`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.form.ts) fails the step with `<step> form body not flat` before any request when a `$ref` hydrates to an array, an object, `null` or a non-finite number. The failure names no value. Only the native transports write form bodies, so `encoding` off native fetch fails the build.
+
 ## contextIds — addressing a frame across the PRE→ACTION seal
 
 `buildActionContext` seals the raw `Page` away before `action()` runs, so

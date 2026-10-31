@@ -27,6 +27,7 @@ import type {
 } from './FetchStrategy.js';
 import { overlayHeaders } from './HeaderOverlay.js';
 import { classifyHttpFailure, hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
+import { withBodyContentType, writePostBody } from './PostBody.js';
 import type { IRedirectRun, IRunEnd } from './RedirectFollow.js';
 import { emitSetCookies, sendUnderPolicy } from './RedirectFollow.js';
 import { emitResponseHeaders } from './ResponseHeaderSink.js';
@@ -278,16 +279,18 @@ class NativeFetchStrategy implements IFetchStrategy {
   }
 
   /**
-   * POST a JSON body via the configured transport.
+   * POST a body via the configured transport, written under the call's
+   * body encoding (JSON when it names none).
    * @param url - Target URL (absolute, or relative to baseUrl).
-   * @param data - POST body, serialised as JSON.
+   * @param data - POST body.
    * @param opts - Fetch options (caller extraHeaders override defaults).
    * @returns Procedure with parsed response or structured failure.
    */
   public async fetchPost<T>(url: string, data: PostData, opts: IFetchOpts): Promise<Procedure<T>> {
-    const headers = overlayHeaders(this._verbDefaults.POST, opts.extraHeaders);
-    const body = JSON.stringify(data);
-    const init: RequestInit = { method: 'POST', headers, body };
+    const written = writePostBody(data, opts.bodyEncoding);
+    const merged = overlayHeaders(this._verbDefaults.POST, opts.extraHeaders);
+    const headers = withBodyContentType(merged, written);
+    const init: RequestInit = { method: 'POST', headers, body: written.body };
     const run = this.toRun({ url, init, verb: 'POST' }, opts);
     return dispatchFetch<T>(run);
   }

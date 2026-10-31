@@ -31,6 +31,13 @@ const PAGE: IStepConfig = { ...CALL, response: 'document' };
 const MARKED: IStepConfig = { ...CALL, response: 'document', documentMarker: 'welcome' };
 const MARKED_JSON: IStepConfig = { ...CALL, documentMarker: 'welcome' };
 const REJECTING: IStepConfig = { ...CALL, redirect: 'reject' };
+const FORM: IStepConfig = {
+  name: 'login',
+  urlTag: 'auth.login',
+  encoding: 'form',
+  body: { shape: { a: { $literal: 'x' } } },
+  extractsToCarry: {},
+};
 
 /**
  * The call step carrying one response header under the given name.
@@ -107,6 +114,7 @@ const BROKEN: readonly IBrokenCase[] = [
     message: `steps.redirect: ${OFF}`,
   },
   { label: 'reject resume step', input: resumeOf(REJECTING), message: `steps.redirect: ${OFF}` },
+  { label: 'form step, plain', input: runOf([FORM], PLAIN), message: `steps.encoding: ${OFF}` },
   {
     label: 'header carry, native off',
     input: runOf([carrying('x-id')], { ...PLAIN, nativeFetch: false }),
@@ -162,7 +170,10 @@ const SOUND: readonly ISoundCase[] = [
   { label: 'plain step, native off', input: runOf([CALL], { ...PLAIN, nativeFetch: false }) },
   {
     label: 'every field on native fetch',
-    input: runOf([PAGE, MARKED, REJECTING, carrying("X-Trace_ID.v2!#$%&'*+^`|~")], EVERY_FIELD),
+    input: runOf(
+      [PAGE, MARKED, REJECTING, FORM, carrying("X-Trace_ID.v2!#$%&'*+^`|~")],
+      EVERY_FIELD,
+    ),
   },
 ];
 

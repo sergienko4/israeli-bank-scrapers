@@ -13,7 +13,11 @@
 
 import type { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { WKUrlGroup } from '../../../Registry/WK/UrlsWK.js';
-import type { RedirectPolicy, ResponseKind } from '../../../Types/Domain/FetchPolicy.js';
+import type {
+  BodyEncoding,
+  RedirectPolicy,
+  ResponseKind,
+} from '../../../Types/Domain/FetchPolicy.js';
 import type { IDerivedCarry } from './CarryTypes.js';
 import type { IPreStepHook } from './EnvelopeTypes.js';
 import type { IBodyTemplate, IEnvelopeSelectors, JsonValueTemplate } from './TemplateTypes.js';
@@ -120,12 +124,15 @@ interface IStepBase {
 interface IPostStep extends IStepBase {
   readonly method?: 'POST';
   readonly body: IBodyTemplate;
+  /** How the body is written; `json` when absent. A `form` body must be a flat record. */
+  readonly encoding?: BodyEncoding;
 }
 
 /** A GET step: it sends no body, so the type rules one out. */
 interface IGetStep extends IStepBase {
   readonly method: 'GET';
   readonly body?: never;
+  readonly encoding?: never;
 }
 
 /** Per-step config: a POST or a GET step. */

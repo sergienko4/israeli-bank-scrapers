@@ -1,6 +1,7 @@
 /**
  * Body preparation + dispatch-bundle assembly — hydration, crypto
- * field, AES body-pointer signing, fire-args assembly, log-context.
+ * field, AES body-pointer signing, form-body guard, fire-args assembly,
+ * log-context.
  */
 
 import { getDebug } from '../../../Logging/Debug.js';
@@ -11,6 +12,7 @@ import type { IBodyTemplate } from '../ConfigContracts/index.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import buildOnSetCookie from './RunStep.cookies.js';
+import { guardFormBody } from './RunStep.form.js';
 import { attachHeaderCapture } from './RunStep.headerCarry.js';
 import { buildStepHeaders } from './RunStep.headers.js';
 import type {
@@ -94,7 +96,9 @@ function prepareStepBody(args: IRunStepArgs, pathAndQuery: string): Procedure<IP
   if (step.method === 'GET') return succeed({ body: {}, scope: primedScope });
   const preProc = hydrateAndCrypto({ args, primedScope, template: step.body });
   if (!isOk(preProc)) return preProc;
-  return attachBodySig(preProc.value, pathAndQuery);
+  const signed = attachBodySig(preProc.value, pathAndQuery);
+  if (!isOk(signed)) return signed;
+  return guardFormBody(step, signed.value);
 }
 
 /**
@@ -111,12 +115,12 @@ function attachSink(fireBase: IFireArgs, maybe: OnSetCookie | false): IFireArgs 
 /**
  * The call policy a step names, when it names one.
  * @param step - Step config.
- * @returns `{ policy }` with only the redirect policy, response kind and
- *   document marker the step names, or nothing.
+ * @returns `{ policy }` with only the redirect policy, response kind,
+ *   document marker and body encoding the step names, or nothing.
  */
 function callPolicyOf(step: IStepConfig): Pick<IFireArgs, 'policy'> {
-  const { redirect, response: responseKind, documentMarker } = step;
-  const fields = { redirect, responseKind, documentMarker };
+  const { redirect, response: responseKind, documentMarker, encoding: bodyEncoding } = step;
+  const fields = { redirect, responseKind, documentMarker, bodyEncoding };
   const named = Object.entries(fields).filter(([, value]): boolean => value !== undefined);
   if (named.length === 0) return {};
   const policy = Object.fromEntries(named) as IFetchCallPolicy;
