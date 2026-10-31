@@ -220,7 +220,7 @@ Beyond the three required steps (`customer` / `balance` / `transactions`), `IApi
   Both live in `ApiDirectScrapeBody.ts`: `resolveStepBody` hydrates the step body (or passes the bare object vars through) and `maybeSignBody` attaches the signature; `dispatchStep` calls them in that order on a REST POST step.
 - `resultGuard` — a fail-closed POST-stage guard over a PII-free `IApiDirectScrapeGuardSummary` that aborts a degraded run (e.g. zero transactions from a warm session).
 - `checkBody` (shape root, type `BodyCheck`) — a check run on every **successful** scrape response (bootstrap, customer and its secondary identity GET, balance, transactions) before the step reads it. For banks that report a failure inside an HTTP 200 body: a failed check fails the call exactly as a non-2xx would, so balance falls back to `fallbackOnFail` and the phase's recover-once re-login runs, instead of the body yielding no rows silently. `dispatchStep` and the secondary GET share one helper, `applyBodyCheck`; a failed response, or a shape with no check, passes through unchanged (the ring issuers fail a `Header.Status: -2` "session expired" body).
-- `bootstrap` — an `IApiDirectScrapeBootstrapStep` that runs **once before** the per-account scrape to seed the session context with material later steps need (PayBox's per-session HMAC key). See below.
+- `bootstrap` — an `IApiDirectScrapeBootstrapStep`, or an ordered list of them, that runs **once before** the per-account scrape to seed the session context with material later steps need (PayBox's per-session HMAC key). See below.
 - `isCardIssuer` — declares that this shape's rows are **card** transactions, so the mapper inverts the issuer's sign convention. See below.
 
 ## isCardIssuer — card amount signs
@@ -364,3 +364,11 @@ context that the phase read-merges onto the live session context,
 preserving `uId` / `token` / `deviceId16Hex` while adding the new
 material. The extract is fail-closed: a missing or malformed exchange
 response aborts the run rather than scraping unsigned.
+
+A bank that needs several calls before its reads declares `bootstrap`
+as an ordered list. The steps run one after another: each step's patch
+is merged before the next step dispatches, so a later step's
+`bodyTemplate` can `$ref` an earlier patch (`carry.<field>`). The first
+failed call or extraction stops the list and aborts the run; the later
+steps never dispatch. An empty list is the same as no bootstrap. A
+single step (PayBox) behaves exactly as before.

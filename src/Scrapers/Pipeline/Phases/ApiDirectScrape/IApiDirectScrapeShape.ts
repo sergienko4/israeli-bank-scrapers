@@ -382,9 +382,10 @@ export interface IBootstrapExtractArgs {
  * is merged into the mediator session-context so later steps — and the
  * transport-level request signer — can read the deposited values.
  *
- * <p>PayBox uses this to fetch + decrypt its per-session HMAC signing key
- * (`getKey`) before the authenticated reads that now require signed
- * request headers. Absent ⇒ no bootstrap (every other bank).
+ * <p>PayBox uses one step to fetch + decrypt its per-session HMAC signing
+ * key (`getKey`) before the authenticated reads that now require signed
+ * request headers. A bank that needs several calls first declares them as
+ * an ordered list; a later step's body can `$ref` an earlier step's patch.
  */
 export interface IApiDirectScrapeBootstrapStep {
   readonly urlTag: WKUrlOrLiteral;
@@ -419,12 +420,13 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    */
   readonly isCardIssuer?: boolean;
   /**
-   * Optional pre-scrape bootstrap step — see
+   * Optional pre-scrape bootstrap — one step or an ordered list of
    * {@link IApiDirectScrapeBootstrapStep}. Runs once before the customer
-   * step; its patch is merged into session-context.
-   * Absent ⇒ no bootstrap (every bank except PayBox getKey).
+   * step; each patch is merged into session-context before the next step
+   * dispatches, and the first failure aborts the scrape.
+   * Absent ⇒ no bootstrap.
    */
-  readonly bootstrap?: IApiDirectScrapeBootstrapStep;
+  readonly bootstrap?: IApiDirectScrapeBootstrapStep | readonly IApiDirectScrapeBootstrapStep[];
   /**
    * Optional class-y body-pointer signer applied to every scrape-step
    * body before POST. Same `IAesSignerConfig` type used by the login

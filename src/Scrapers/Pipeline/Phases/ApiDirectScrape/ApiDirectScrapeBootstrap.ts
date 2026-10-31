@@ -1,10 +1,11 @@
 /**
  * Generic pre-scrape BOOTSTRAP driver for the ApiDirectScrape phase.
- * Runs the shape's optional `bootstrap` step once (after prime, before
- * the customer step): dispatches a signed POST via the shared machinery,
- * hands the response to `extractPatch`, and MERGES the returned patch
- * into the mediator session-context (never replaces — post-login
- * identity fields must survive). Zero bank-name coupling.
+ * Runs the shape's optional `bootstrap` — one step or an ordered list —
+ * once (after prime, before the customer step). Each step dispatches a
+ * signed POST via the shared machinery, hands the response to
+ * `extractPatch`, and MERGES the returned patch into the mediator
+ * session-context (never replaces — post-login identity fields must
+ * survive) before the next step starts. Zero bank-name coupling.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
@@ -16,6 +17,7 @@ import { buildBootstrapDispatchArgs, type IDriverCtx } from './ApiDirectScrapeDi
 import type {
   ApiBody,
   IApiDirectScrapeBootstrapStep,
+  IApiDirectScrapeShape,
   SessionContextPatch,
 } from './IApiDirectScrapeShape.js';
 
@@ -63,21 +65,68 @@ function applyBootstrapPatch<TAcct, TCursor>(
   return succeed(undefined);
 }
 
+/** The bootstrap slot as a shape declares it: one step or a list. */
+type BootstrapSpec = IApiDirectScrapeShape<unknown, unknown>['bootstrap'];
+
+/** Pending result of the steps run so far. */
+type StepsDone = Promise<Procedure<void>>;
+
 /**
- * Run the shape's optional bootstrap step. No-op (success) when the
- * shape declares none, preserving every non-PayBox bank.
+ * Narrow a declared bootstrap to its list form.
+ * @param spec - Declared bootstrap (never undefined here).
+ * @returns True when the shape declared an ordered list.
+ */
+function isStepList(
+  spec: NonNullable<BootstrapSpec>,
+): spec is readonly IApiDirectScrapeBootstrapStep[] {
+  return Array.isArray(spec);
+}
+
+/**
+ * Normalise the declared bootstrap to an ordered list of steps.
+ * @param spec - Declared bootstrap, if any.
+ * @returns Steps to run, in order (empty when none is declared).
+ */
+function toStepList(spec: BootstrapSpec): readonly IApiDirectScrapeBootstrapStep[] {
+  if (spec === undefined) return [];
+  if (isStepList(spec)) return spec;
+  return [spec];
+}
+
+/**
+ * Dispatch one bootstrap step and merge its patch into session-context.
+ * @param d - Driver context.
+ * @param step - The bootstrap step to run.
+ * @returns Void procedure (failure aborts the scrape).
+ */
+async function runOneStep<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+  step: IApiDirectScrapeBootstrapStep,
+): Promise<Procedure<void>> {
+  const args = buildBootstrapDispatchArgs(d, step);
+  const resp = await dispatchStep(args);
+  if (!isOk(resp)) return resp;
+  return applyBootstrapPatch(d, step, resp.value);
+}
+
+/**
+ * Run the shape's bootstrap steps in order. Each step starts only after the
+ * previous one merged its patch, so a later body can read an earlier patch;
+ * the first failure stops the chain. No bootstrap declared ⇒ success.
  * @param d - Driver context.
  * @returns Void procedure (failure aborts the scrape).
  */
 async function runBootstrap<TAcct, TCursor>(
   d: IDriverCtx<TAcct, TCursor>,
 ): Promise<Procedure<void>> {
-  const step = d.shape.bootstrap;
-  if (step === undefined) return succeed(undefined);
-  const args = buildBootstrapDispatchArgs(d, step);
-  const resp = await dispatchStep(args);
-  if (!isOk(resp)) return resp;
-  return applyBootstrapPatch(d, step, resp.value);
+  const steps = toStepList(d.shape.bootstrap);
+  const none = succeed(undefined);
+  const seed: StepsDone = Promise.resolve(none);
+  return steps.reduce(async (prev, step): StepsDone => {
+    const done = await prev;
+    if (!isOk(done)) return done;
+    return runOneStep(d, step);
+  }, seed);
 }
 
 export default runBootstrap;
