@@ -1,23 +1,52 @@
 /**
  * Response side of the node:https transport: buffers an IncomingMessage body
  * and synthesises the Web Response the shared dispatchFetch pipeline parses.
- * Split from MtlsTransport so the request side stays under the file cap.
+ * Split from MtlsTransport so the request side stays under the file cap. The
+ * buffer is capped (N34): a body past MTLS_MAX_RESPONSE_BYTES destroys the
+ * stream and fails `response too large`.
  */
 
 import type { IncomingMessage } from 'node:http';
 
+/** Largest response body the node:https transport buffers, in bytes (8 MiB). */
+const MTLS_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
+
+/** Fixed reason a response past the cap fails with. */
+const RESPONSE_TOO_LARGE_REASON = 'response too large';
+
+/** Settles a body collection with a failure. */
+type BodyReject = (reason: Error) => unknown;
+
+/**
+ * Refuse a body past the cap: fail the collection, then destroy the stream so
+ * no more of it is read.
+ * @param message - The response IncomingMessage.
+ * @param reject - The collection's reject.
+ * @returns True once the stream is destroyed.
+ */
+function refuseOversize(message: IncomingMessage, reject: BodyReject): boolean {
+  reject(new Error(RESPONSE_TOO_LARGE_REASON));
+  message.destroy();
+  return true;
+}
+
 /**
  * Buffer the full response body as a UTF-8 string. Rejects on a stream error or
  * a premature close (socket dropped mid-body) so a truncated Cloudflare response
- * surfaces as a network failure instead of a silently-empty body.
+ * surfaces as a network failure instead of a silently-empty body, and rejects
+ * `response too large` once the body passes MTLS_MAX_RESPONSE_BYTES.
  * @param message - The response IncomingMessage.
  * @returns Promise resolving with the decoded body, or rejecting on stream error.
  */
 function collectBody(message: IncomingMessage): Promise<string> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
+    let size = 0;
     message.on('data', (chunk: Buffer) => {
+      size += chunk.byteLength;
+      if (size > MTLS_MAX_RESPONSE_BYTES) return refuseOversize(message, reject);
       chunks.push(chunk);
+      return true;
     });
     message.on('end', () => {
       const buffer = Buffer.concat(chunks);
@@ -89,4 +118,4 @@ function toResponse(message: IncomingMessage, body: string): Response {
   return new Response(body, { status, headers });
 }
 
-export { collectBody, toResponse };
+export { collectBody, MTLS_MAX_RESPONSE_BYTES, RESPONSE_TOO_LARGE_REASON, toResponse };

@@ -7,7 +7,8 @@
  * unchanged. The same Agent can also present a registered TLS ClientHello
  * profile (see TlsClientProfiles) for edges that fingerprint the handshake,
  * which globalThis.fetch cannot shape either. This is the ONLY module that
- * sends requests over node:https in the Pipeline by design.
+ * sends requests over node:https in the Pipeline by design. A string body is
+ * sent once as UTF-8 bytes under `Content-Length` — never chunked (N34).
  */
 
 import type { ClientRequest, IncomingMessage } from 'node:http';
@@ -124,29 +125,61 @@ function headersToRecord(headers?: HeadersInit): Record<string, string> {
   return { ...headers };
 }
 
+/** Headers that frame a body; the transport sets them from the bytes it sends. */
+const FRAMING_HEADERS: ReadonlySet<string> = new Set(['content-length', 'transfer-encoding']);
+
 /**
- * Assemble node:https RequestOptions from the agent, init and verb.
- * @param agent - The mTLS agent.
- * @param init - Native fetch RequestInit (method/headers/body).
- * @param verb - HTTP verb.
- * @returns RequestOptions ready for https.request.
+ * The request body as the UTF-8 bytes it travels as (string bodies only — the
+ * Pipeline always writes its body to a string before dispatch).
+ * @param init - Native fetch RequestInit.
+ * @returns The body bytes, or false when there is no string body.
  */
-function buildOptions(agent: Agent, init: RequestInit, verb: HttpVerb): RequestOptions {
-  const headers = headersToRecord(init.headers);
-  return { agent, method: verb, headers, signal: AbortSignal.timeout(requestTimeoutMs) };
+function bodyBytes(init: RequestInit): Buffer | false {
+  if (typeof init.body !== 'string') return false;
+  return Buffer.from(init.body, 'utf8');
 }
 
 /**
- * Write the request body when present (string bodies only — the Pipeline
- * always serialises JSON to a string before dispatch).
- * @param req - The active ClientRequest.
+ * Request headers, with a body framed by its byte length in place of any
+ * framing the caller named.
  * @param init - Native fetch RequestInit.
- * @returns True when a body was written, false otherwise.
+ * @param bytes - The body bytes, or false for no body.
+ * @returns Plain header record for node:https.
  */
-function writeBody(req: ClientRequest, init: RequestInit): boolean {
-  const body = init.body;
-  if (typeof body !== 'string') return false;
-  req.write(body);
+function framedHeaders(init: RequestInit, bytes: Buffer | false): Record<string, string> {
+  const headers = headersToRecord(init.headers);
+  if (bytes === false) return headers;
+  const kept = Object.entries(headers).filter(([name]): boolean => {
+    const lowered = name.toLowerCase();
+    return !FRAMING_HEADERS.has(lowered);
+  });
+  return { ...Object.fromEntries(kept), 'content-length': String(bytes.byteLength) };
+}
+
+/**
+ * Assemble node:https RequestOptions for one request.
+ * @param request - The fully-specified mTLS request.
+ * @param bytes - The body bytes, or false for no body.
+ * @returns RequestOptions ready for https.request.
+ */
+function buildOptions(request: IMtlsRequest, bytes: Buffer | false): RequestOptions {
+  const headers = framedHeaders(request.init, bytes);
+  const signal = AbortSignal.timeout(requestTimeoutMs);
+  return { agent: request.agent, method: request.verb, headers, signal };
+}
+
+/**
+ * End the request, sending the body bytes in one piece when there are any.
+ * @param req - The active ClientRequest.
+ * @param bytes - The body bytes, or false for no body.
+ * @returns True when a body was sent, false otherwise.
+ */
+function endRequest(req: ClientRequest, bytes: Buffer | false): boolean {
+  if (bytes === false) {
+    req.end();
+    return false;
+  }
+  req.end(bytes);
   return true;
 }
 
@@ -156,12 +189,12 @@ function writeBody(req: ClientRequest, init: RequestInit): boolean {
  * @returns Promise resolving with node's IncomingMessage (rejects on socket error).
  */
 function sendRequest(request: IMtlsRequest): Promise<IncomingMessage> {
-  const options = buildOptions(request.agent, request.init, request.verb);
+  const bytes = bodyBytes(request.init);
+  const options = buildOptions(request, bytes);
   return new Promise((resolve, reject) => {
     const req = httpsRequest(request.url, options, resolve);
     req.on('error', reject);
-    writeBody(req, request.init);
-    req.end();
+    endRequest(req, bytes);
   });
 }
 
