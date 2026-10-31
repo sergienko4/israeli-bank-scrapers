@@ -2,6 +2,7 @@
  * Type aliases + interfaces for the TokenStrategyFromConfig cluster.
  */
 
+import type { IStoredCookie } from '../../../Types/Domain/CookieSession.js';
 import type { PersistentAuthStateCallback } from '../../../Types/Domain/PersistentAuthInput.js';
 import type { ITokenBus } from '../../../Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../../Types/Domain/TokenContext.js';
@@ -122,6 +123,11 @@ interface ILongTermTokenSlot {
    * `idToken`) rather than the bearer.
    */
   latestHeaderValue?: string;
+  /**
+   * Cookies an `isolate` hand-off moved out of the jar when the last login
+   * finished. Values are secrets; never log them.
+   */
+  handoffCookies?: readonly IStoredCookie[];
   /**
    * Durable mode the strategy was built for; absent means legacy. Held here
    * rather than in creds or carry because it carries the caller's state and

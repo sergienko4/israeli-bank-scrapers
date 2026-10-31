@@ -2,9 +2,14 @@
  * A cookie session for warm-start suites: it exports scripted cookies and
  * records every import and clear against how many requests had gone out, so
  * a test can assert the order of jar events and bank calls. Its client-cert
- * port logs installs and clears into the same list.
+ * port logs installs and clears into the same list. A real domain jar backs
+ * the suites that assert what a later request would be sent.
  */
 
+import {
+  createDomainCookieJar,
+  type IDomainCookieJar,
+} from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/DomainCookieJar.js';
 import type { IClientCertControl } from '../../../../../../Scrapers/Pipeline/Types/Domain/ClientCertControl.js';
 import type {
   ICookieSession,
@@ -162,5 +167,25 @@ function makeJarSpy(
   return { session: { ...INERT_SESSION, importAll, clear, exportAll }, cert, events };
 }
 
+/** A real domain jar and the cookie-session port the transport hands the bus. */
+interface IDomainSession {
+  readonly jar: IDomainCookieJar;
+  readonly session: ICookieSession;
+}
+
+/** A scrape read on a sibling host of the login; `Path=/` gateway cookies match it. */
+const BANCS_URL = 'https://mobile.bank.example/BaNCSDigitalApp/account';
+
+/**
+ * An empty real domain jar for the warm cookies' domain, behind a session port.
+ * @returns The jar and its session.
+ */
+function makeDomainSession(): IDomainSession {
+  const jar = createDomainCookieJar('https://login.bank.example', ['bank.example']);
+  const { cookieFor, set, exportAll, importAll, clear } = jar;
+  const { headerFor } = INERT_SESSION;
+  return { jar, session: { cookieFor, headerFor, set, exportAll, importAll, clear } };
+}
+
 export type { IJarSpy };
-export { COOKIE_MARKER, makeJarSpy, WARM_COOKIES };
+export { BANCS_URL, COOKIE_MARKER, makeDomainSession, makeJarSpy, WARM_COOKIES };

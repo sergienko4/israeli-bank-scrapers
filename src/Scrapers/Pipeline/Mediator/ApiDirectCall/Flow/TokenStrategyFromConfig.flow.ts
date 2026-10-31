@@ -9,6 +9,7 @@ import { getDebug } from '../../../Logging/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import { formatAuthValue } from './AuthModePolicy.js';
+import { handOffCookies } from './CookieHandoff.js';
 import { runSmsOtpFlow } from './SmsOtpFlow.js';
 import { admitFlow, isColdStart } from './TokenStrategyFromConfig.budget.js';
 import { primeDurable, refuseDurableRefresh } from './TokenStrategyFromConfig.persistent.js';
@@ -68,12 +69,14 @@ interface IFinishFlowArgs {
 
 /**
  * Capture + format the SMS-OTP success result. The long-term token captured
- * is the one the warm-start kind publishes.
+ * is the one the warm-start kind publishes; the cookie hand-off runs after
+ * that export, so an `isolate` jar is published before it is emptied.
  * @param input - Run args, slot, and successful flow result.
  * @returns Authorization header value.
  */
 function finishFlow(input: IFinishFlowArgs): string {
   const longTermToken = exportWarmToken(input.args, input.result);
+  handOffCookies(input.args, input.slot);
   const replaceEmpty = boundWarmOf(input.args.config) !== false;
   captureFlowResult(input.slot, { ...input.result, longTermToken }, replaceEmpty);
   const headerValue = formatAuthValue(input.args.config, input.result.bearer);

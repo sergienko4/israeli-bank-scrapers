@@ -34,6 +34,13 @@ import type {
 /** Exhaustive flow-kind discriminator (spec.txt §B.3). */
 type FlowKind = 'sms-otp' | 'stored-jwt' | 'bearer-static';
 
+/**
+ * Where a finished login leaves its cookies. `shared` keeps them in the
+ * session jar for the scrape; `isolate` moves them to the run's private
+ * stash, so the scrape starts from an empty jar.
+ */
+type CookieHandoff = 'shared' | 'isolate';
+
 /** Step identifiers in the sms-otp flow. */
 type StepName =
   | 'bind'
@@ -235,6 +242,7 @@ type IStepConfig = IPostStep | IGetStep;
 type StepMethod = NonNullable<IStepConfig['method']>;
 
 export type {
+  CookieHandoff,
   ExtractValueType,
   FlowKind,
   IExtractRule,

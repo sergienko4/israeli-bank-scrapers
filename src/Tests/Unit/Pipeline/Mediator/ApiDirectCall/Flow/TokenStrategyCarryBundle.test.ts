@@ -7,7 +7,8 @@
  * failing any check, or a slot the login did not fill, is skipped with a
  * reason that never echoes a value. A cold start clears the jar and the client
  * cert before step 0, and `coldFallback: 'auth-rejected'` lets only a bank's
- * 401/403 to the warm resume escalate to a cold login.
+ * 401/403 to the warm resume escalate to a cold login. `cookieHandoff:
+ * 'isolate'` empties the jar once the bundle is published (N35).
  */
 
 import { jest } from '@jest/globals';
@@ -17,17 +18,26 @@ import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js
 import type { ScraperCredentials } from '../../../../../../Scrapers/Base/Interface.js';
 import { buildResolverFromStrategy } from '../../../../../../Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.js';
 import type {
+  CookieHandoff,
   IApiDirectCallConfig,
   IStepConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IConfigTokenStrategy } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
+import type { ICookieSession } from '../../../../../../Scrapers/Pipeline/Types/Domain/CookieSession.js';
 import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertOk } from '../../../../../Helpers/AssertProcedure.js';
 import { type IApiPostCapture, makeStubMediator } from './StubMediator.js';
-import { COOKIE_MARKER, type IJarSpy, makeJarSpy, WARM_COOKIES } from './WarmJarSpy.js';
+import {
+  BANCS_URL,
+  COOKIE_MARKER,
+  type IJarSpy,
+  makeDomainSession,
+  makeJarSpy,
+  WARM_COOKIES,
+} from './WarmJarSpy.js';
 import { makeJwt, WARM_STEP_TAG } from './WarmStartFixtures.js';
 
 /** Logger shared by the modules under test and the assertions. */
@@ -112,11 +122,12 @@ interface IBundleOpts {
   readonly hasCookies?: boolean;
   readonly slots?: readonly string[];
   readonly coldFallback?: 'any' | 'auth-rejected';
+  readonly cookieHandoff?: CookieHandoff;
 }
 
 /**
  * Carry-bundle call config resuming at the token step.
- * @param opts - Ceiling, kept slots, jar and cold fallback.
+ * @param opts - Ceiling, kept slots, jar, cold fallback and cookie hand-off.
  * @returns Call config.
  */
 function bundleConfig(opts: IBundleOpts = {}): IApiDirectCallConfig {
@@ -133,7 +144,9 @@ function bundleConfig(opts: IBundleOpts = {}): IApiDirectCallConfig {
     coldFallback: opts.coldFallback ?? 'any',
   } as const;
   const steps = [REGISTER, LOGON];
-  return { flow: 'sms-otp', envelope: {}, probe: { queryTag: 'customer' }, steps, warmStart };
+  const cookieHandoff = opts.cookieHandoff;
+  const probe = { queryTag: 'customer' } as const;
+  return { flow: 'sms-otp', envelope: {}, probe, steps, warmStart, cookieHandoff };
 }
 
 /**
@@ -165,6 +178,8 @@ interface IBundleRun {
 interface IBundleRunArgs extends IBundleOpts {
   readonly responses: readonly Procedure<unknown>[];
   readonly hasSession?: boolean;
+  /** Cookie session to use instead of the spy's. */
+  readonly session?: ICookieSession;
 }
 
 /**
@@ -176,8 +191,8 @@ function makeRun(args: IBundleRunArgs): IBundleRun {
   const captures: IApiPostCapture[] = [];
   const stub = makeStubMediator({ responses: args.responses, captures });
   const jar = makeJarSpy(captures, WARM_COOKIES);
-  const bus =
-    args.hasSession === false ? stub : { ...stub, cookies: jar.session, clientCert: jar.cert };
+  const cookies = args.session ?? jar.session;
+  const bus = args.hasSession === false ? stub : { ...stub, cookies, clientCert: jar.cert };
   const config = bundleConfig(args);
   const proc = STRATEGY.createTokenStrategyFromConfig({ config });
   assertOk(proc);
@@ -409,5 +424,35 @@ describe('carry-bundle coldFallback', () => {
     const proc = await resolveVia(run, creds);
     assertOk(proc);
     expect(run.captures).toHaveLength(WARM_STEPS + COLD_STEPS);
+  });
+});
+
+describe('carry-bundle cookie hand-off', () => {
+  it('isolate: publishes the gateway cookies, then no BaNCS read is sent them', async (): Promise<void> => {
+    const domain = makeDomainSession();
+    const session = domain.session;
+    const run = makeRun({ responses: [TOKEN_OK], cookieHandoff: 'isolate', session });
+    const creds = credsWith(STORED);
+    const proc = await run.strategy.primeInitial(run.bus, CTX, creds);
+    assertOk(proc);
+    const published = run.strategy.getLatestLongTermToken();
+    const restoredWithJar = bundleToken(STORED_CLIENT);
+    const left = domain.jar.exportAll();
+    const bancsHeader = domain.jar.header(BANCS_URL);
+    expect(published).toBe(restoredWithJar);
+    expect(left).toEqual([]);
+    expect(bancsHeader).toBe('');
+  });
+
+  it('shared: the gateway cookies stay in the jar for the scrape', async (): Promise<void> => {
+    const domain = makeDomainSession();
+    const run = makeRun({ responses: [TOKEN_OK], session: domain.session });
+    const creds = credsWith(STORED);
+    const proc = await run.strategy.primeInitial(run.bus, CTX, creds);
+    assertOk(proc);
+    const left = domain.jar.exportAll();
+    const bancsHeader = domain.jar.header(BANCS_URL);
+    expect(left).toEqual(WARM_COOKIES);
+    expect(bancsHeader).toContain('SMSESSION=');
   });
 });

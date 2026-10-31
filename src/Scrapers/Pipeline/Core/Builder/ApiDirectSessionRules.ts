@@ -3,11 +3,13 @@
  * client-certificate rules. Every `sessionCarry` slot (N32) must name a body
  * or header extract of some login or resume step: the scrape's session
  * context holds server-issued values only, so a generated key, a seeded
- * credential or a typo fails the build instead of reaching the scrape.
+ * credential or a typo fails the build instead of reaching the scrape. An
+ * `isolate` cookie hand-off (N35) needs a domain jar to empty.
  */
 
 import {
   allSteps,
+  hasCookieDomains,
   type IApiDirectRule,
   type IApiDirectRuleInput,
   isExtractSlot,
@@ -34,9 +36,22 @@ function hasUnknownSessionSlot(input: IApiDirectRuleInput): boolean {
   return !slots.every(slot => isStepExtract(input, slot));
 }
 
+/**
+ * Whether an `isolate` hand-off has no domain jar to empty.
+ * @param input - Rule input.
+ * @returns True for `isolate` without `headless.cookieDomains`.
+ */
+function isIsolateWithoutJar(input: IApiDirectRuleInput): boolean {
+  return input.call.cookieHandoff === 'isolate' && !hasCookieDomains(input);
+}
+
 /** Session rules, checked in order. */
 const API_DIRECT_SESSION_RULES: readonly IApiDirectRule[] = [
   { message: 'sessionCarry: each slot must name a step extract', isBroken: hasUnknownSessionSlot },
+  {
+    message: 'cookieHandoff: isolate not allowed without headless.cookieDomains',
+    isBroken: isIsolateWithoutJar,
+  },
 ];
 
 export default API_DIRECT_SESSION_RULES;

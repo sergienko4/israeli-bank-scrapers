@@ -482,6 +482,25 @@ Each slot must name a body or header extract of some login or resume step
 (a [build-time check](#build-time-config-checks)), so a generated key or a
 seeded credential can never be allowlisted.
 
+### Cookie hand-off
+
+A login on one gateway can leave cookies the scrape must not send: a `Path=/`
+cookie scoped to the bank's registrable domain matches every later read on a
+sibling host. `cookieHandoff` (a `CookieHandoff`, N35) decides what a finished
+login leaves in the session jar:
+
+- `shared` (the default) leaves the jar as the login left it.
+- `isolate` moves the jar's cookies to the run's private stash
+  (`ILongTermTokenSlot.handoffCookies`) and empties the jar, so the scrape
+  starts from an empty jar and sends only cookies its own calls set.
+
+`handOffCookies` (`Flow/CookieHandoff.ts`) runs in `finishFlow` after every
+successful cold or warm login, right after the warm export, so a kept jar is
+published in the next warm token before it is emptied. `isolate` needs a
+domain jar (`headless.cookieDomains`, a
+[build-time check](#build-time-config-checks)). Durable device auth
+(`persistentAuth`) runs its own flows and never hands off.
+
 ### OTP pre-hook guards
 
 A step's `preHook` (`IPreStepHook`) asks the caller for a code. Three optional
@@ -705,6 +724,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `headless.clientCert` whose `origin` is not exactly `https://host[:port]` (no path, user, trailing slash or default port)           | `headless.clientCert.origin: must be an exact https origin`              |
 | `headless.clientCert` together with `headless.requiresClientCert: true`                                                               | `headless.clientCert: not allowed with headless.requiresClientCert`      |
 | a `sessionCarry` slot that names no body or header extract of any login or resume step (`API_DIRECT_SESSION_RULES`)                   | `sessionCarry: each slot must name a step extract`                       |
+| `cookieHandoff: 'isolate'` without `headless.cookieDomains`                                                                           | `cookieHandoff: isolate not allowed without headless.cookieDomains`      |
 | a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |
 | a login or resume step with `encoding`, without `headless.nativeFetch: true`                                                          | `steps.encoding: not allowed without headless.nativeFetch`               |
 | `headless.cookieDomains`, `redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, on an api-direct or node-tls bank | `headless.<field>: not allowed without headless.nativeFetch` |
