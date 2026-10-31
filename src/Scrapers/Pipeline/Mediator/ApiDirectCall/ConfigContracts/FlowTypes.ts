@@ -13,6 +13,7 @@
 
 import type { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { WKUrlGroup } from '../../../Registry/WK/UrlsWK.js';
+import type { RedirectPolicy } from '../../../Types/Domain/FetchPolicy.js';
 import type { IPreStepHook } from './EnvelopeTypes.js';
 import type { IBodyTemplate, IEnvelopeSelectors, JsonValueTemplate } from './TemplateTypes.js';
 
@@ -91,6 +92,8 @@ interface IStepBase {
   readonly headers?: Readonly<Record<string, JsonValueTemplate>>;
   /** Optional outcome policy, judged after HTTP 2xx and before the extracts. */
   readonly outcome?: IStepOutcome;
+  /** Optional redirect policy for this step; overrides the bank's `redirectPolicy`. */
+  readonly redirect?: RedirectPolicy;
 }
 
 /** A POST step, the default when `method` is omitted: sends the hydrated body. */

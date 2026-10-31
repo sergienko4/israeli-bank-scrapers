@@ -8,6 +8,8 @@
 
 import { jest } from '@jest/globals';
 
+import type { IManualRedirect } from '../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
+
 /** Single logger instance shared by the modules under test and the assertions. */
 const LOG = {
   trace: jest.fn(),
@@ -316,5 +318,63 @@ describe('withCookieSession', () => {
     const header = cookies?.headerFor(MTO_ITEMS);
     const sent = cookieSent(mock, 1);
     expect([size, sent, header]).toEqual([0, '', { has: false }]);
+  });
+});
+
+const MTO_LANDING = 'https://mto.bank.example/Online/Default.aspx';
+const TO_MTO: IManualRedirect = {
+  maxHops: 1,
+  allow: [{ origin: 'https://mto.bank.example', paths: ['/Online/Default.aspx'] }],
+};
+
+describe('withCookieSession across manual redirect hops', () => {
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  /**
+   * Serve a www seed answer, then a www 302 to MTO, then the MTO page.
+   * @returns The jest mock for call-capture assertions.
+   */
+  function serveLogin(): MockFetch {
+    const seedCookies = ['wwwonly=1; Path=/', 'shared=1; Domain=bank.example; Path=/'];
+    const seedHeaders = seedCookies.map((line): [string, string] => ['set-cookie', line]);
+    const hopHeaders: [string, string][] = [
+      ['location', MTO_LANDING],
+      ['set-cookie', 'hop1=1; Domain=bank.example; Path=/'],
+    ];
+    const queue = [
+      new Response('{}', { status: 200, headers: seedHeaders }),
+      new Response(null, { status: 302, headers: hopHeaders }),
+      new Response('{}', { status: 200 }),
+    ];
+    const mock = jest.fn<Promise<Response>, [string, RequestInit]>(() => {
+      const next = queue.shift() ?? new Response('{}', { status: 200 });
+      return Promise.resolve(next);
+    });
+    (globalThis as unknown as { fetch: MockFetch }).fetch = mock;
+    return mock;
+  }
+
+  it('UT-RD-12 sends hop cookies and domain cookies on, never a host-only cookie of www', async () => {
+    const mock = serveLogin();
+    const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+    const { transport } = SESSION.withCookieSession(inner, DOMAIN_ARGS);
+    await transport.fetchGet(WWW_LOGIN, { extraHeaders: {} });
+    const result = await transport.fetchGet(`${WWW_LOGIN}/go`, {
+      extraHeaders: {},
+      redirect: TO_MTO,
+    });
+    expect(result.success).toBe(true);
+    expect(mock.mock.calls[2][0]).toBe(MTO_LANDING);
+    const loginCookies = cookieSent(mock, 1);
+    const hopCookies = cookieSent(mock, 2);
+    expect(loginCookies).toBe('wwwonly=1; shared=1');
+    expect(hopCookies).toBe('shared=1; hop1=1');
   });
 });

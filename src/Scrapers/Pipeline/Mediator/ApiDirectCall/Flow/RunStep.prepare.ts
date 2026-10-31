@@ -107,7 +107,18 @@ function attachSink(fireBase: IFireArgs, maybe: OnSetCookie | false): IFireArgs 
 }
 
 /**
- * Build the final IFireArgs bundle including the optional cookie sink.
+ * The call policy a step names, when it names one.
+ * @param step - Step config.
+ * @returns `{ policy }` with the step's redirect policy, or nothing.
+ */
+function callPolicyOf(step: IStepConfig): Pick<IFireArgs, 'policy'> {
+  if (step.redirect === undefined) return {};
+  return { policy: { redirect: step.redirect } };
+}
+
+/**
+ * Build the final IFireArgs bundle including the optional cookie sink and
+ * the step's optional call policy.
  * @param opts - Assemble args bundle.
  * @returns Fire-call args ready for fireStep.
  */
@@ -116,6 +127,7 @@ function assembleFire(opts: IAssembleFireArgs): IFireArgs {
     body: opts.preparedBody.body,
     query: opts.query,
     extraHeaders: opts.headers,
+    ...callPolicyOf(opts.args.step),
   };
   const onSetCookie = buildOnSetCookie(opts.args);
   return attachSink(fireBase, onSetCookie);

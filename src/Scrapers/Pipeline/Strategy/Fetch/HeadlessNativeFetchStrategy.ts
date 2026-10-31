@@ -7,10 +7,13 @@
  *    `timeoutMs` (default {@link NETWORK_FETCH_TIMEOUT_MS}), so a hung socket
  *    surfaces as a `Timeout` failure instead of stalling the run;
  *  - a GET carries no default JSON content-type, because it has no body.
+ * A bank may also set the default redirect policy a call runs under when it
+ * names none; every manual redirect hop goes through the same capped seam.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { NETWORK_FETCH_TIMEOUT_MS } from '../../Mediator/Network/FetchConfig.js';
+import type { RedirectPolicy } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { DefaultHeadersByVerb, FetchInvoke, HttpVerb } from './NativeFetchStrategy.js';
@@ -21,6 +24,8 @@ import { safeUrlForLog } from './SafeUrlForLog.js';
 interface IHeadlessNativeFetchOptions {
   /** Ceiling (ms) for one request, connect through the full body. */
   readonly timeoutMs?: number;
+  /** Redirect policy for calls that name none; `follow` when absent. */
+  readonly redirectPolicy?: RedirectPolicy;
 }
 
 /** Error names a fetch rejects with once its abort signal fires. */
@@ -98,14 +103,15 @@ class HeadlessNativeFetchStrategy extends NativeFetchStrategy {
   /**
    * Bind the strategy to a base URL and install the capped seams.
    * @param baseUrl - Base URL for API requests.
-   * @param options - Optional `timeoutMs` ceiling; defaults to the shared
-   *   {@link NETWORK_FETCH_TIMEOUT_MS}.
+   * @param options - Optional `timeoutMs` ceiling (defaults to the shared
+   *   {@link NETWORK_FETCH_TIMEOUT_MS}) and default `redirectPolicy`.
    */
   constructor(baseUrl: string, options: IHeadlessNativeFetchOptions = {}) {
     super(baseUrl);
     const timeoutMs = options.timeoutMs ?? NETWORK_FETCH_TIMEOUT_MS;
     this._invoke = makeInvokeCapped(timeoutMs);
     this._verbDefaults = HEADLESS_DEFAULT_HEADERS;
+    this._redirectDefault = options.redirectPolicy ?? this._redirectDefault;
   }
 }
 

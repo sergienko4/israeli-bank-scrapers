@@ -88,14 +88,13 @@ interface IApiMediatorDeps {
 }
 
 /** Args for firePost — bundled to satisfy the 3-parameter ceiling. */
-interface IFirePostArgs {
+interface IFirePostArgs extends Pick<IApiQueryOpts, 'onSetCookie' | 'policy'> {
   readonly deps: IApiMediatorDeps;
   readonly url: string;
   readonly body: Record<string, unknown>;
   readonly rawAuth: string;
   readonly extraHeaders: Record<string, string>;
   readonly query: Record<string, string>;
-  readonly onSetCookie?: (setCookies: readonly string[]) => number;
 }
 
 /** Args for fireGet — the firePost bundle minus the body (GET sends none). */

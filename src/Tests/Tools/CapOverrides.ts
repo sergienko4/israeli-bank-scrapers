@@ -41,6 +41,8 @@ const FETCH_TRANSPORT_FILES: readonly string[] = [
   'src/Scrapers/Pipeline/Strategy/Fetch/CookieMatch.ts',
   'src/Scrapers/Pipeline/Strategy/Fetch/SetCookieScope.ts',
   'src/Scrapers/Pipeline/Strategy/Fetch/DomainCookieJar.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/UrlRule.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/RedirectFollow.ts',
 ];
 
 /** New Core files that §19.3b pins past the Core grandfather. */

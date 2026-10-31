@@ -99,6 +99,8 @@ this contract; the build-time checks read both.
 | Session held in cookies | `headless.sessionCookies` | — | [Headless transports](pipeline.md#headless-transports) |
 | Cookies shared across sibling hosts | `headless.cookieDomains` | — | [Headless transports](pipeline.md#headless-transports) |
 | Node's own `fetch`, no browser | `headless.nativeFetch` | — | [Headless transports](pipeline.md#headless-transports) |
+| Bank-wide redirect handling | `headless.redirectPolicy` (`RedirectPolicy`) | — | [Redirect policies](pipeline.md#redirect-policies) |
+| Redirect handling of one step | `redirect` (`RedirectPolicy`) | FlowTypes | [Redirect policies](pipeline.md#redirect-policies) |
 
 Cross-field rules (for example `authScheme: 'none'` needs
 `headless.sessionCookies`) fail the build; see

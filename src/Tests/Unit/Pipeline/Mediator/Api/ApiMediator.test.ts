@@ -546,3 +546,51 @@ describe('ApiMediator/createBrowserBackedHeadlessApiMediator', () => {
     expect(hasCookies).toBe(isExposed);
   });
 });
+
+describe('ApiMediator — redirect policy', () => {
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    registerWkUrl('identity.deviceToken', HINT, 'https://id.example/devices/token');
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('hands a POST call policy to the transport', async () => {
+    const recorder = makeRecorder();
+    const mediator = buildMediator(recorder);
+    await mediator.apiPost('identity.deviceToken', {}, { policy: { redirect: 'reject' } });
+    const call = recorder.postCalls[0];
+    expect(call.opts.redirect).toBe('reject');
+  });
+
+  it('hands a GET call policy to the transport', async () => {
+    const recorder = makeRecorder();
+    const mediator = buildMediator(recorder);
+    await mediator.apiGet('identity.deviceToken', { policy: { redirect: 'follow' } });
+    const call = recorder.getCalls[0];
+    expect(call.opts.redirect).toBe('follow');
+  });
+
+  it('runs a native mediator under the bank redirect default', async () => {
+    const redirect = new Response(null, { status: 302, headers: { location: '/elsewhere' } });
+    /**
+     * Answer every request with the 302.
+     * @returns The redirect response.
+     */
+    function answerRedirect(): Promise<Response> {
+      return Promise.resolve(redirect);
+    }
+    globalThis.fetch = answerRedirect;
+    const mediator = createHeadlessApiMediator({
+      bankHint: HINT,
+      identityBaseUrl: 'https://id.example/v1/',
+      graphqlUrl: 'https://gql.example/graphql',
+      redirectPolicy: 'reject',
+    });
+    const result = await mediator.apiGet('identity.deviceToken');
+    const message = !isOk(result) && result.errorMessage;
+    expect(message).toBe('GET https://id.example/devices/token HTTP 302 redirect refused');
+  });
+});

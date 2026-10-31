@@ -6,11 +6,17 @@
  * cluster, keeping those ports outside the ApiMediator dependency SCC.
  */
 
-/** Per-call options — extraHeaders + optional URL query params + optional Set-Cookie hook. */
+import type { IFetchCallPolicy } from './FetchPolicy.js';
+
+/**
+ * Per-call options — extraHeaders + optional URL query params + optional
+ * Set-Cookie hook + optional transport policy (e.g. how to treat a redirect).
+ */
 interface IApiQueryOpts {
   readonly extraHeaders?: Record<string, string>;
   readonly query?: Record<string, string>;
   readonly onSetCookie?: (setCookies: readonly string[]) => number;
+  readonly policy?: IFetchCallPolicy;
 }
 
 export type { IApiQueryOpts };

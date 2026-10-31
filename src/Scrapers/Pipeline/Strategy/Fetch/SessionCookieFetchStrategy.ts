@@ -4,11 +4,13 @@
  * origin that answered: the response's final URL when fetch followed a
  * redirect, else the request URL. Every request sends its origin's jar as one
  * `cookie` header, replacing a caller cookie header in any letter case (an
- * empty jar adds nothing), so a cookie never reaches another host. Fetch
- * follows redirects itself, so a redirect hop's own Set-Cookie lines never
- * reach the jar. Built only for node transports whose headless block sets
- * `sessionCookies`; the browser transport keeps the page's own jar.
- * A bank that also sets `cookieDomains` gets the RFC 6265 domain jar
+ * empty jar adds nothing), so a cookie never reaches another host.
+ * Under the default `follow` policy fetch follows redirects
+ * itself, so a hop's own Set-Cookie lines never reach the jar; under a manual
+ * redirect policy the transport files each hop's lines under the hop URL and
+ * asks the jar (`cookieHeaderFor`) for each hop's header. Built only for node
+ * transports whose headless block sets `sessionCookies`; the browser transport
+ * keeps the page's own jar. A bank that also sets `cookieDomains` gets the RFC 6265 domain jar
  * instead, and `withCookieSession` hands its port (`ICookieSession`) to the
  * mediator so login steps can read, set, export, import and clear cookies.
  * Cookie values are never logged.
@@ -94,16 +96,30 @@ function chainCookieSink(jar: IOriginCookieJar, url: string, hook?: OnSetCookie)
 }
 
 /**
+ * The Cookie header a jar sends to a URL.
+ * @param jar - Session jar.
+ * @param url - Request URL.
+ * @returns The header, or none when no cookie applies.
+ */
+function headerOption(jar: IOriginCookieJar, url: string): Option<string> {
+  const header = jar.header(url);
+  if (header === '') return none();
+  return some(header);
+}
+
+/**
  * Fold the jar into one request's fetch options.
  * @param jar - Session jar.
  * @param url - Request URL.
  * @param opts - Caller fetch options.
- * @returns The caller's options plus the cookie header and the jar sink.
+ * @returns The caller's options plus the cookie header, the jar sink and
+ *   the per-hop header source.
  */
 function withJar(jar: IOriginCookieJar, url: string, opts: IFetchOpts): IFetchOpts {
   const extraHeaders = withCookieHeader(jar, url, opts.extraHeaders);
   const onSetCookie = chainCookieSink(jar, url, opts.onSetCookie);
-  return { ...opts, extraHeaders, onSetCookie };
+  const cookieHeaderFor = headerOption.bind(null, jar);
+  return { ...opts, extraHeaders, onSetCookie, cookieHeaderFor };
 }
 
 /** Fetch strategy decorator carrying one session cookie jar across calls. */
@@ -157,18 +173,6 @@ class SessionCookieFetchStrategy implements IFetchStrategy {
 function withSessionCookies(transport: IFetchStrategy, args: ISessionCookieArgs): IFetchStrategy {
   if (args.sessionCookies !== true) return transport;
   return Reflect.construct(SessionCookieFetchStrategy, [transport, args.identityBaseUrl]);
-}
-
-/**
- * The Cookie header a domain jar sends to a URL.
- * @param jar - Domain jar.
- * @param url - Request URL.
- * @returns The header, or none when no cookie applies.
- */
-function headerOption(jar: IDomainCookieJar, url: string): Option<string> {
-  const header = jar.header(url);
-  if (header === '') return none();
-  return some(header);
 }
 
 /**

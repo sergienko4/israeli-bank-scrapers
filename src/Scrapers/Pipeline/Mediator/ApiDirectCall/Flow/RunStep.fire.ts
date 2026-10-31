@@ -14,10 +14,11 @@ type FireStep = (args: IRunStepArgs, fire: IFireArgs) => Promise<Procedure<JsonV
 /**
  * Map the fire bundle onto the bus's per-call options.
  * @param fire - Fire-call bundle.
- * @returns Headers, query and Set-Cookie sink for the bus.
+ * @returns Headers, query, Set-Cookie sink and call policy for the bus.
  */
 function toBusOpts(fire: IFireArgs): IApiQueryOpts {
-  return { extraHeaders: fire.extraHeaders, query: fire.query, onSetCookie: fire.onSetCookie };
+  const { extraHeaders, query, onSetCookie, policy } = fire;
+  return { extraHeaders, query, onSetCookie, policy };
 }
 
 /**

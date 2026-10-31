@@ -4,6 +4,7 @@
 
 import type { resolveWkUrl } from '../../../Registry/WK/UrlsWK.js';
 import type { ICookieJar } from '../../../Strategy/Fetch/CookieJar.js';
+import type { IFetchCallPolicy } from '../../../Types/Domain/FetchPolicy.js';
 import type { ITokenBus } from '../../../Types/Domain/TokenBus.js';
 import type { IAsymmetricSignerConfig, IStepConfig } from '../ConfigContracts/index.js';
 import type { IGenericKeypair } from '../Crypto/CryptoKeyFactory.js';
@@ -83,6 +84,7 @@ interface IFireArgs {
   readonly query: QueryRecord;
   readonly extraHeaders: MutableHeaderMap;
   readonly onSetCookie?: OnSetCookie;
+  readonly policy?: IFetchCallPolicy;
 }
 
 /** Diagnostic context shape — PII-safe metadata for log calls. */

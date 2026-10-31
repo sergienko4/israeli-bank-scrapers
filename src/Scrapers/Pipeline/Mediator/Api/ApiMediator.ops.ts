@@ -22,23 +22,22 @@ import type {
   IFireQueryArgs,
 } from './ApiMediator.types.js';
 
+/** Optional-extras subset merged into firePost args. */
+type FirePostExtras = Pick<IFirePostArgs, 'extraHeaders' | 'query' | 'onSetCookie' | 'policy'>;
+
 /**
  * Build the optional extras subset of firePost args.
  * @param args - apiPost op args.
  * @returns Optional extras subset.
  */
-function buildFirePostExtras(
-  args: IApiPostOpArgs,
-): Pick<IFirePostArgs, 'extraHeaders' | 'query' | 'onSetCookie'> {
+function buildFirePostExtras(args: IApiPostOpArgs): FirePostExtras {
   return {
     extraHeaders: args.opts?.extraHeaders ?? NO_EXTRA_HEADERS,
     query: args.opts?.query ?? NO_EXTRA_HEADERS,
     onSetCookie: args.opts?.onSetCookie,
+    policy: args.opts?.policy,
   };
 }
-
-/** Optional-extras subset merged into firePost args. */
-type FirePostExtras = Pick<IFirePostArgs, 'extraHeaders' | 'query' | 'onSetCookie'>;
 
 /**
  * Merge the per-request HMAC signature headers into the POST extras.
@@ -114,12 +113,13 @@ function buildGetHmacHeaders(ctx: IApiCallContext, url: string): Record<string, 
 }
 
 /** Optional-extras subset merged into fireGet args. */
-type FireGetExtras = Pick<IFireGetArgs, 'extraHeaders' | 'query' | 'onSetCookie'>;
+type FireGetExtras = Pick<IFireGetArgs, 'extraHeaders' | 'query' | 'onSetCookie' | 'policy'>;
 
 /**
  * Build the per-attempt GET extras. Caller headers sit under the fresh
  * HMAC headers (HMAC wins a name clash in any letter case, as on POST);
- * query and the Set-Cookie hook pass through. No opts ⇒ HMAC headers only.
+ * query, the Set-Cookie hook and the call policy pass through.
+ * No opts ⇒ HMAC headers only.
  * @param ctx - Per-call context.
  * @param url - Resolved GET URL (pre-query, as signed on POST).
  * @param opts - Optional per-call options.
@@ -133,7 +133,8 @@ function buildFireGetExtras(
   const hmac = buildGetHmacHeaders(ctx, url);
   const callerHeaders = opts?.extraHeaders ?? NO_EXTRA_HEADERS;
   const extraHeaders = overlayHeaders(callerHeaders, hmac);
-  return { extraHeaders, query: opts?.query ?? NO_EXTRA_HEADERS, onSetCookie: opts?.onSetCookie };
+  const query = opts?.query ?? NO_EXTRA_HEADERS;
+  return { extraHeaders, query, onSetCookie: opts?.onSetCookie, policy: opts?.policy };
 }
 
 /**

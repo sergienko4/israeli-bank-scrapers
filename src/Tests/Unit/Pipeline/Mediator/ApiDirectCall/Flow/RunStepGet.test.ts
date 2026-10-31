@@ -95,6 +95,19 @@ function installFetch(): IFetchFake {
 }
 
 /**
+ * Point globalThis.fetch at a fake that answers every request with a 302.
+ * @returns The fake, for request assertions.
+ */
+function installRedirect(): IFetchFake {
+  const fake = fakeFetch((): Response => {
+    const headers = new Headers([['location', `${ORIGIN}/elsewhere`]]);
+    return new Response(null, { status: 302, headers });
+  });
+  globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
+  return fake;
+}
+
+/**
  * Real mediator over the real headless native transport.
  * @returns Mediator bound to the fake fetch.
  */
@@ -170,6 +183,24 @@ describe('E8 GET login step over the headless native transport', () => {
     expect(hasContentType).toBe(false);
     expect(jarHeader).toBe('sid=syn-sid');
     expect(result).toMatchObject({ success: true, value: { carry: { token: 'syn-token' } } });
+  });
+
+  it("refuses a redirect under the step's own policy", async (): Promise<void> => {
+    const fake = installRedirect();
+    const step: IGetStep = { ...GET_STEP, redirect: 'reject' };
+    const bus = makeNativeMediator();
+    const result = await runStep({ step, bus, scope: makeScope(), companyId: HINT });
+    const call = onlyCall(fake);
+    expect(call.init).toMatchObject({ redirect: 'manual' });
+    expect(result).toMatchObject({ success: false });
+  });
+
+  it('leaves redirects to fetch when the step names no policy', async (): Promise<void> => {
+    const fake = installFetch();
+    const bus = makeNativeMediator();
+    await runStep({ step: POST_STEP, bus, scope: makeScope(), companyId: HINT });
+    const call = onlyCall(fake);
+    expect(call.init).not.toHaveProperty('redirect');
   });
 
   it('still sends a POST step as JSON', async (): Promise<void> => {

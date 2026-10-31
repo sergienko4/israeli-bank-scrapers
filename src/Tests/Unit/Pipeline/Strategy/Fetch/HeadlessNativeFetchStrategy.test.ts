@@ -10,6 +10,7 @@ import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import { HeadlessNativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
+import type { IManualRedirect } from '../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 type MockFetchImpl = (url: string, init: RequestInit) => Promise<Response>;
@@ -167,5 +168,70 @@ describe('HeadlessNativeFetchStrategy', () => {
     await strategy.fetchPost('items', { id: '1' }, { extraHeaders });
     const headers = sentHeaders(mock);
     expect(headers).toEqual({ 'content-type': 'application/json', authorization: 'token' });
+  });
+});
+
+const START_URL = `${BASE_URL}start`;
+const HOP_URL = `${BASE_URL}next`;
+const ONE_HOP: IManualRedirect = {
+  maxHops: 1,
+  allow: [{ origin: 'https://api.bank.example', paths: ['/v1/next'] }],
+};
+
+/**
+ * Mock fetch: the start URL answers 302 to the hop, and the hop hangs until
+ * its own abort signal fires.
+ * @param url - Requested URL.
+ * @param init - The RequestInit carrying the abort signal.
+ * @returns The redirect, or a promise rejected by the hop's abort.
+ */
+function redirectThenHang(url: string, init: RequestInit): Promise<Response> {
+  if (url === HOP_URL) return rejectOnAbort<Response>(init);
+  const response = new Response(null, { status: 302, headers: { location: HOP_URL } });
+  return Promise.resolve(response);
+}
+
+describe('HeadlessNativeFetchStrategy — redirect policy', () => {
+  let originalFetch: typeof globalThis.fetch;
+  const plain = new HeadlessNativeFetchStrategy(BASE_URL);
+  const rejecting = new HeadlessNativeFetchStrategy(BASE_URL, { redirectPolicy: 'reject' });
+  const hopping = new HeadlessNativeFetchStrategy(BASE_URL, {
+    timeoutMs: LOWERED_CAP_MS,
+    redirectPolicy: ONE_HOP,
+  });
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('refuses a redirect under the bank default', async () => {
+    installFetchMock(redirectThenHang);
+    const result = await rejecting.fetchGet('start', { extraHeaders: {} });
+    const message = !isOk(result) && result.errorMessage;
+    expect(message).toBe(`GET ${START_URL} HTTP 302 redirect refused`);
+  });
+
+  it("lets a call's own policy override the bank default", async () => {
+    const mock = installFetchMock(serveJson);
+    await rejecting.fetchGet('start', { extraHeaders: {}, redirect: 'follow' });
+    const [, init] = mock.mock.calls[0];
+    expect(init).not.toHaveProperty('redirect');
+  });
+
+  it('leaves redirects to fetch without a policy', async () => {
+    const mock = installFetchMock(serveJson);
+    await plain.fetchPost('start', { id: '1' }, { extraHeaders: {} });
+    const [, init] = mock.mock.calls[0];
+    expect(init).not.toHaveProperty('redirect');
+  });
+
+  it('caps every redirect hop at the timeout', async () => {
+    const mock = installFetchMock(redirectThenHang);
+    const result = await hopping.fetchGet('start', { extraHeaders: {} });
+    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Timeout });
+    expect(mock).toHaveBeenCalledTimes(2);
   });
 });

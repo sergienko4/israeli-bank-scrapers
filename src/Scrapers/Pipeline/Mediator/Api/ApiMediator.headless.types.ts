@@ -9,6 +9,7 @@ import type { CamoufoxIdentityFetchStrategy } from '../../Strategy/Fetch/Camoufo
 import type { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { NativeFetchStrategy } from '../../Strategy/Fetch/NativeFetchStrategy.js';
 import type { TlsClientProfileKind } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
+import type { RedirectPolicy } from '../../Types/Domain/FetchPolicy.js';
 
 /** Args bundle for the headless-mediator factory. */
 interface IHeadlessMediatorArgs {
@@ -21,6 +22,8 @@ interface IHeadlessMediatorArgs {
   readonly sessionCookies?: boolean;
   /** Registrable domains whose `Domain` cookies the jar keeps (RFC 6265 jar). */
   readonly cookieDomains?: readonly string[];
+  /** Redirect policy for calls that name none; `follow` when absent. */
+  readonly redirectPolicy?: RedirectPolicy;
 }
 
 /** Args bundle for the node:https (client-cert and/or TLS-profile) mediator factory. */

@@ -38,15 +38,15 @@ interface IWiringFlags {
 /** Identity transport a headless bank runs over. */
 type HeadlessTransportKind = 'node-tls' | 'native' | 'browser';
 
-/**
- * Optional transport settings copied as-is: the node:https ClientHello profile
- * (absent keeps Node's default) and the domain-jar allow-list (absent keeps
- * the origin jar).
- */
-type TOptionalTransport = Pick<IHeadlessUrlsConfig, 'tlsProfile' | 'cookieDomains'>;
-
 /** Pair of URLs + flags needed to wire the headless ApiMediator. */
-interface IHeadlessWiring extends IWiringFlags, TOptionalTransport {
+interface IHeadlessWiring extends IWiringFlags {
+  /**
+   * Optional transport settings, handed to the factory untouched: the
+   * node:https ClientHello profile (absent keeps Node's default), the
+   * domain-jar allow-list (absent keeps the origin jar) and the native
+   * transport's default redirect policy (absent keeps `follow`).
+   */
+  readonly transport: Pick<IHeadlessUrlsConfig, 'tlsProfile' | 'cookieDomains' | 'redirectPolicy'>;
   readonly identity: string;
   readonly graphql: string;
   readonly graphqlHeaders?: Readonly<Record<string, string>>;
@@ -63,11 +63,9 @@ type TIdentityArgs = Pick<TMediatorArgs, 'bankHint' | 'identityBaseUrl' | 'ident
 /** GraphQL slice of the mediator args. */
 type TGraphqlArgs = Pick<TMediatorArgs, 'graphqlUrl' | 'graphqlHeaders' | 'staticAuth'>;
 
-/** Transport-requirement slice of the mediator args. */
-type TTransportArgs = Pick<
-  TMediatorArgs,
-  'bypassOriginChallenge' | 'requiresClientCert' | 'tlsProfile' | 'sessionCookies'
->;
+/** Transport-requirement slice of the mediator args, optional settings included. */
+type TTransportArgs = IHeadlessWiring['transport'] &
+  Pick<TMediatorArgs, 'bypassOriginChallenge' | 'requiresClientCert' | 'sessionCookies'>;
 
 /**
  * Decode the optional transport flags into explicit booleans.
@@ -91,9 +89,10 @@ function toWiringFlags(headless: IHeadlessUrlsConfig): IWiringFlags {
  */
 function toHeadlessWiring(headless: IHeadlessUrlsConfig): IHeadlessWiring {
   const flags = toWiringFlags(headless);
-  const { identityBase, graphql, graphqlHeaders, staticAuth, tlsProfile } = headless;
+  const { identityBase, graphql, graphqlHeaders, staticAuth } = headless;
+  const { tlsProfile, cookieDomains, redirectPolicy } = headless;
   const urls = { identity: identityBase, graphql, graphqlHeaders, staticAuth };
-  return { ...urls, tlsProfile, cookieDomains: headless.cookieDomains, ...flags };
+  return { ...urls, transport: { tlsProfile, cookieDomains, redirectPolicy }, ...flags };
 }
 
 /**
@@ -135,13 +134,14 @@ function toGraphqlArgs(wiring: IHeadlessWiring): TGraphqlArgs {
 /**
  * Build the transport-requirement slice of the mediator args.
  * @param wiring - Resolved wiring entry (URLs + flags).
- * @returns Origin-challenge bypass, client-cert flag, TLS profile and cookie jar flag.
+ * @returns Origin-challenge bypass, client-cert and cookie jar flags, plus
+ *   the TLS profile, the domain-jar allow-list and the redirect policy.
  */
 function toTransportArgs(wiring: IHeadlessWiring): TTransportArgs {
   return {
+    ...wiring.transport,
     bypassOriginChallenge: wiring.bypassOriginChallenge,
     requiresClientCert: wiring.requiresClientCert,
-    tlsProfile: wiring.tlsProfile,
     sessionCookies: wiring.sessionCookies,
   };
 }
@@ -150,8 +150,7 @@ function toTransportArgs(wiring: IHeadlessWiring): TTransportArgs {
  * Build the mediator-factory arg literal from the resolved wiring + companyId.
  * @param companyId - Target bank company type.
  * @param wiring - Resolved wiring entry (URLs + flags).
- * @returns Args bundle accepted by every headless mediator factory (the
- *   transport slice plus the domain-jar allow-list).
+ * @returns Args bundle accepted by every headless mediator factory.
  */
 function buildMediatorArgsForWiring(
   companyId: IPipelineContext['companyId'],
@@ -160,7 +159,7 @@ function buildMediatorArgsForWiring(
   const identityArgs = toIdentityArgs(companyId, wiring);
   const graphqlArgs = toGraphqlArgs(wiring);
   const transportArgs = toTransportArgs(wiring);
-  return { ...identityArgs, ...graphqlArgs, ...transportArgs, cookieDomains: wiring.cookieDomains };
+  return { ...identityArgs, ...graphqlArgs, ...transportArgs };
 }
 
 /** Message when a bank misconfigures two identity transports at once. */
@@ -174,7 +173,7 @@ const TRANSPORT_CONFLICT_MSG =
  * @returns True when identity + GraphQL must run over node:https.
  */
 function usesNodeTls(wiring: IHeadlessWiring): boolean {
-  return wiring.requiresClientCert || wiring.tlsProfile !== undefined;
+  return wiring.requiresClientCert || wiring.transport.tlsProfile !== undefined;
 }
 
 /**

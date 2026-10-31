@@ -7,31 +7,31 @@
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { getDebug } from '../../Logging/Debug.js';
 import type { Brand } from '../../Types/Brand.js';
+import type { RedirectPolicy } from '../../Types/Domain/FetchPolicy.js';
 import { toError } from '../../Types/ErrorUtils.js';
 import { describeJsonParseFailure } from '../../Types/JsonParseFailure.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, succeed } from '../../Types/Procedure.js';
-import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
+import { fail, isOk, succeed } from '../../Types/Procedure.js';
+import type {
+  FetchInvoke,
+  HttpVerb,
+  IFetchOpts,
+  IFetchStrategy,
+  PostData,
+} from './FetchStrategy.js';
 import { overlayHeaders } from './HeaderOverlay.js';
 import { classifyHttpFailure, hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
+import type { IRedirectRun } from './RedirectFollow.js';
+import { emitSetCookies, sendUnderPolicy } from './RedirectFollow.js';
 import { safeUrlForLog, scrubUrlFromText } from './SafeUrlForLog.js';
 
-type SetCookieEmitCount = Brand<number, 'SetCookieEmitCount'>;
 type FullyQualifiedUrl = Brand<string, 'FullyQualifiedUrl'>;
+
+/** The request half of a run — what a verb method builds before policy. */
+type TRequest = Pick<IRedirectRun, 'url' | 'init' | 'verb'>;
 
 /** Module logger — name derived from source filename per project convention. */
 const LOG = getDebug(import.meta.url);
-
-/** HTTP method verbs used by this strategy. */
-type HttpVerb = 'GET' | 'POST';
-
-/**
- * Transport seam — performs the raw request and yields a Procedure<Response>.
- * The default binds to globalThis.fetch; mTLS subclasses override it to route
- * the request through a client-certificate agent while reusing all downstream
- * response parsing, cookie emission, and logging.
- */
-type FetchInvoke = (url: string, init: RequestInit, verb: HttpVerb) => Promise<Procedure<Response>>;
 
 /** Default request headers per verb, merged under the caller's headers. */
 type DefaultHeadersByVerb = Readonly<Record<HttpVerb, Readonly<Record<string, string>>>>;
@@ -107,22 +107,6 @@ function routeResponse<T>(response: Response, verb: HttpVerb, url: string): Prom
 }
 
 /**
- * Invoke onSetCookie hook when present, passing raw Set-Cookie lines and the
- * response's own URL, which is the final one when fetch followed a redirect.
- * Uses Headers.getSetCookie() (Node 18+) to preserve multi-value arrays.
- * @param response - Raw fetch Response.
- * @param hook - Optional caller-supplied callback.
- * @returns Number of Set-Cookie lines emitted (0 when no hook / no cookies).
- */
-function emitSetCookies(response: Response, hook?: IFetchOpts['onSetCookie']): SetCookieEmitCount {
-  if (!hook) return 0 as SetCookieEmitCount;
-  const list = response.headers.getSetCookie();
-  if (list.length === 0) return 0 as SetCookieEmitCount;
-  hook(list, response.url);
-  return list.length as SetCookieEmitCount;
-}
-
-/**
  * Wrap a thrown fetch error into a network-error Procedure.
  * @param error - The caught value, from any realm.
  * @param verb - HTTP verb (for error-message prefixing).
@@ -168,40 +152,28 @@ function resolveFetchUrl(baseUrl: string, url: string): FullyQualifiedUrl {
   return `${baseUrl}${url}` as FullyQualifiedUrl;
 }
 
-/** Args bundle for dispatchFetch — keeps params under the 3-ceiling. */
-interface IDispatchArgs {
-  readonly url: string;
-  readonly init: RequestInit;
-  readonly verb: HttpVerb;
-  readonly invoke: FetchInvoke;
-  readonly onSetCookie?: IFetchOpts['onSetCookie'];
-}
-
 /**
- * Dispatch a fetch call and route success/non-2xx through the helpers.
- * Emits PII-safe DEBUG traces at fire and after-status. Per
- * `logging-pii-guidlines.txt`, the URL is stripped of query string
- * (which may carry session ids / tokens) before logging.
- * @param args - url + init + verb + invoke transport + optional cookie hook.
+ * Send a run under its redirect policy and route success/non-2xx through the
+ * helpers. The final response's Set-Cookie lines are filed under the URL that
+ * answered (manual hops file their own on the way). Emits PII-safe DEBUG
+ * traces at fire and after-status. Per `logging-pii-guidlines.txt`, the URL
+ * is stripped of query string (which may carry session ids / tokens) first.
+ * @param run - url + init + verb + invoke transport + policy + cookie hooks.
  * @returns Procedure with parsed body or structured failure.
  */
-async function dispatchFetch<T>(args: IDispatchArgs): Promise<Procedure<T>> {
-  const safeUrl = safeUrlForLog(args.url);
-  LOG.debug({ verb: args.verb, url: safeUrl, message: '[fetch] FIRE' });
-  const fetchResult = await args.invoke(args.url, args.init, args.verb);
-  if (!fetchResult.success) {
-    LOG.debug({
-      verb: args.verb,
-      url: safeUrl,
-      errorMessage: fetchResult.errorMessage,
-      message: '[fetch] NETWORK FAIL',
-    });
-    return fetchResult;
+async function dispatchFetch<T>(run: IRedirectRun): Promise<Procedure<T>> {
+  const safeUrl = safeUrlForLog(run.url);
+  LOG.debug({ verb: run.verb, url: safeUrl, message: '[fetch] FIRE' });
+  const sent = await sendUnderPolicy(run);
+  if (!isOk(sent)) {
+    const errorMessage = sent.errorMessage;
+    LOG.debug({ verb: run.verb, url: safeUrl, errorMessage, message: '[fetch] NETWORK FAIL' });
+    return sent;
   }
-  const status = fetchResult.value.status;
-  LOG.debug({ verb: args.verb, url: safeUrl, status, message: '[fetch] STATUS' });
-  emitSetCookies(fetchResult.value, args.onSetCookie);
-  return routeResponse<T>(fetchResult.value, args.verb, args.url);
+  const { response, responseUrl } = sent.value;
+  LOG.debug({ verb: run.verb, url: safeUrl, status: response.status, message: '[fetch] STATUS' });
+  emitSetCookies(response, responseUrl, run.onSetCookie);
+  return routeResponse<T>(response, run.verb, run.url);
 }
 
 /** Native fetch — uses globalThis.fetch with merged JSON headers. */
@@ -224,6 +196,13 @@ class NativeFetchStrategy implements IFetchStrategy {
   protected _verbDefaults: DefaultHeadersByVerb = JSON_DEFAULT_HEADERS;
 
   /**
+   * Redirect seam — the policy a call runs under when it names none. The
+   * base lets fetch follow redirects; transports built for a bank whose
+   * config names a policy replace it in their constructor.
+   */
+  protected _redirectDefault: RedirectPolicy = 'follow';
+
+  /**
    * Create a NativeFetchStrategy.
    * @param baseUrl - The base URL for API requests.
    */
@@ -239,18 +218,11 @@ class NativeFetchStrategy implements IFetchStrategy {
    * @returns Procedure with parsed response or structured failure.
    */
   public async fetchPost<T>(url: string, data: PostData, opts: IFetchOpts): Promise<Procedure<T>> {
-    const fullUrl = this.resolveUrl(url);
     const headers = overlayHeaders(this._verbDefaults.POST, opts.extraHeaders);
     const body = JSON.stringify(data);
     const init: RequestInit = { method: 'POST', headers, body };
-    const invoke = this._invoke;
-    return dispatchFetch<T>({
-      url: fullUrl,
-      init,
-      verb: 'POST',
-      invoke,
-      onSetCookie: opts.onSetCookie,
-    });
+    const run = this.toRun({ url, init, verb: 'POST' }, opts);
+    return dispatchFetch<T>(run);
   }
 
   /**
@@ -260,17 +232,24 @@ class NativeFetchStrategy implements IFetchStrategy {
    * @returns Procedure with parsed response or structured failure.
    */
   public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
-    const fullUrl = this.resolveUrl(url);
     const headers = overlayHeaders(this._verbDefaults.GET, opts.extraHeaders);
     const init: RequestInit = { method: 'GET', headers };
-    const invoke = this._invoke;
-    return dispatchFetch<T>({
-      url: fullUrl,
-      init,
-      verb: 'GET',
-      invoke,
-      onSetCookie: opts.onSetCookie,
-    });
+    const run = this.toRun({ url, init, verb: 'GET' }, opts);
+    return dispatchFetch<T>(run);
+  }
+
+  /**
+   * Complete a request into a run: resolved URL, this transport's seam, the
+   * call's redirect policy (else this transport's default) and its hooks.
+   * @param request - The verb method's URL, init and verb.
+   * @param opts - The call's fetch options.
+   * @returns The run dispatchFetch sends.
+   */
+  protected toRun(request: TRequest, opts: IFetchOpts): IRedirectRun {
+    const url = this.resolveUrl(request.url);
+    const policy = opts.redirect ?? this._redirectDefault;
+    const { onSetCookie, cookieHeaderFor } = opts;
+    return { ...request, url, invoke: this._invoke, policy, onSetCookie, cookieHeaderFor };
   }
 
   /**
@@ -285,4 +264,5 @@ class NativeFetchStrategy implements IFetchStrategy {
 
 export default NativeFetchStrategy;
 export { invokeFetch, NativeFetchStrategy, resolveFetchUrl, toNetworkFailure };
-export type { DefaultHeadersByVerb, FetchInvoke, FullyQualifiedUrl, HttpVerb };
+export type { DefaultHeadersByVerb, FullyQualifiedUrl };
+export type { FetchInvoke, HttpVerb } from './FetchStrategy.js';

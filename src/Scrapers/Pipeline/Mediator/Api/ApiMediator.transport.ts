@@ -191,7 +191,7 @@ async function firePost<T>(args: IFirePostArgs): Promise<Procedure<T>> {
   const headers = mergeHeaders(args.rawAuth, args.extraHeaders);
   const payload = toPostData(args.body);
   const finalUrl = appendQuery(args.url, args.query);
-  const fetchOpts = { extraHeaders: headers, onSetCookie: args.onSetCookie };
+  const fetchOpts = { ...args.policy, extraHeaders: headers, onSetCookie: args.onSetCookie };
   return args.deps.fetchStrategy.fetchPost<T>(finalUrl, payload, fetchOpts);
 }
 
@@ -203,7 +203,7 @@ async function firePost<T>(args: IFirePostArgs): Promise<Procedure<T>> {
 async function fireGet<T>(args: IFireGetArgs): Promise<Procedure<T>> {
   const extraHeaders = mergeHeaders(args.rawAuth, args.extraHeaders);
   const finalUrl = appendQuery(args.url, args.query);
-  const fetchOpts = { extraHeaders, onSetCookie: args.onSetCookie };
+  const fetchOpts = { ...args.policy, extraHeaders, onSetCookie: args.onSetCookie };
   return args.deps.fetchStrategy.fetchGet<T>(finalUrl, fetchOpts);
 }
 
