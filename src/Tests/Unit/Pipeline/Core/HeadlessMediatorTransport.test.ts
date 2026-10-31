@@ -23,6 +23,7 @@ interface ITransportFlags {
   readonly tlsProfile?: TlsClientProfileKind;
   readonly nativeFetch?: boolean;
   readonly sessionCookies?: boolean;
+  readonly cookieDomains?: readonly string[];
 }
 
 /** URLs every case shares; only the transport flags vary. */
@@ -155,6 +156,12 @@ describe('HeadlessMediatorWiring — transport selection', () => {
     resolveWith(flags);
     const [args] = factory.mock.calls[0] as unknown[];
     expect(args).toMatchObject({ sessionCookies: true });
+  });
+
+  it('hands the cookie domains to the factory', () => {
+    resolveWith({ nativeFetch: true, sessionCookies: true, cookieDomains: ['bank.example'] });
+    const [args] = CREATE_NATIVE.mock.calls[0] as unknown[];
+    expect(args).toMatchObject({ cookieDomains: ['bank.example'] });
   });
 
   it('defaults the cookie jar flag to false', () => {

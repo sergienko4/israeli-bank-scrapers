@@ -135,4 +135,4 @@ function createSimpleCookieJar(): ICookieJar {
 }
 
 export type { ICookieJar };
-export { createSimpleCookieJar };
+export { createSimpleCookieJar, MAX_AGE_RE, parseCookieLine, readAttribute };

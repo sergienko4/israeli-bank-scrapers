@@ -17,7 +17,6 @@ import {
 } from '../Mediator/Api/ApiMediator.js';
 import { resolvePipelineBankConfig } from '../Registry/Config/PipelineBankConfig.js';
 import type { IHeadlessUrlsConfig } from '../Registry/Config/PipelineBankConfigTypes.js';
-import type { TlsClientProfileKind } from '../Strategy/Fetch/Tls/TlsClientProfiles.js';
 import type { Option } from '../Types/Option.js';
 import { none, some } from '../Types/Option.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
@@ -39,14 +38,19 @@ interface IWiringFlags {
 /** Identity transport a headless bank runs over. */
 type HeadlessTransportKind = 'node-tls' | 'native' | 'browser';
 
+/**
+ * Optional transport settings copied as-is: the node:https ClientHello profile
+ * (absent keeps Node's default) and the domain-jar allow-list (absent keeps
+ * the origin jar).
+ */
+type TOptionalTransport = Pick<IHeadlessUrlsConfig, 'tlsProfile' | 'cookieDomains'>;
+
 /** Pair of URLs + flags needed to wire the headless ApiMediator. */
-interface IHeadlessWiring extends IWiringFlags {
+interface IHeadlessWiring extends IWiringFlags, TOptionalTransport {
   readonly identity: string;
   readonly graphql: string;
   readonly graphqlHeaders?: Readonly<Record<string, string>>;
   readonly staticAuth?: string;
-  /** ClientHello profile for the node:https transport; absent keeps Node's default. */
-  readonly tlsProfile?: TlsClientProfileKind;
 }
 
 /** Arg bundle accepted by every headless mediator factory (superset of each). */
@@ -88,7 +92,8 @@ function toWiringFlags(headless: IHeadlessUrlsConfig): IWiringFlags {
 function toHeadlessWiring(headless: IHeadlessUrlsConfig): IHeadlessWiring {
   const flags = toWiringFlags(headless);
   const { identityBase, graphql, graphqlHeaders, staticAuth, tlsProfile } = headless;
-  return { identity: identityBase, graphql, graphqlHeaders, staticAuth, tlsProfile, ...flags };
+  const urls = { identity: identityBase, graphql, graphqlHeaders, staticAuth };
+  return { ...urls, tlsProfile, cookieDomains: headless.cookieDomains, ...flags };
 }
 
 /**
@@ -145,7 +150,8 @@ function toTransportArgs(wiring: IHeadlessWiring): TTransportArgs {
  * Build the mediator-factory arg literal from the resolved wiring + companyId.
  * @param companyId - Target bank company type.
  * @param wiring - Resolved wiring entry (URLs + flags).
- * @returns Args bundle accepted by every headless mediator factory.
+ * @returns Args bundle accepted by every headless mediator factory (the
+ *   transport slice plus the domain-jar allow-list).
  */
 function buildMediatorArgsForWiring(
   companyId: IPipelineContext['companyId'],
@@ -154,7 +160,7 @@ function buildMediatorArgsForWiring(
   const identityArgs = toIdentityArgs(companyId, wiring);
   const graphqlArgs = toGraphqlArgs(wiring);
   const transportArgs = toTransportArgs(wiring);
-  return { ...identityArgs, ...graphqlArgs, ...transportArgs };
+  return { ...identityArgs, ...graphqlArgs, ...transportArgs, cookieDomains: wiring.cookieDomains };
 }
 
 /** Message when a bank misconfigures two identity transports at once. */

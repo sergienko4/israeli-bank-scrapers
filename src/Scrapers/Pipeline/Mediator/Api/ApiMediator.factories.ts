@@ -25,7 +25,10 @@ import { MtlsGraphQLFetchStrategy } from '../../Strategy/Fetch/Mtls/MtlsGraphQLF
 import { buildMtlsAgent } from '../../Strategy/Fetch/Mtls/MtlsTransport.js';
 import type { ICertBundle } from '../../Strategy/Fetch/Mtls/OneZeroClientCert.js';
 import type { NativeFetchStrategy } from '../../Strategy/Fetch/NativeFetchStrategy.js';
-import { withSessionCookies } from '../../Strategy/Fetch/SessionCookieFetchStrategy.js';
+import {
+  type ISessionTransport,
+  withCookieSession,
+} from '../../Strategy/Fetch/SessionCookieFetchStrategy.js';
 import { warnIfTlsProfileUnsupported } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
 import { createApiMediator } from './ApiMediator.factory.js';
 import type { INodeTlsMediatorArgs } from './ApiMediator.headless.types.js';
@@ -77,15 +80,40 @@ function buildHeadlessStrategies(args: IHeadlessMediatorArgs): IHeadlessStrategi
 }
 
 /**
+ * Expose the transport's cookie session on the mediator (the token bus).
+ * @param mediator - Mediator instance to extend.
+ * @param session - Decorated transport and its optional cookie session.
+ * @returns Same mediator, with `cookies` when the session has one.
+ */
+function attachCookieSession(mediator: IApiMediator, session: ISessionTransport): IApiMediator {
+  if (session.cookies === undefined) return mediator;
+  return Object.assign(mediator, { cookies: session.cookies });
+}
+
+/**
+ * Build a mediator over a node transport and its session jar.
+ * @param args - Mediator args bundle.
+ * @param strategies - The node identity transport and the GraphQL transport.
+ * @returns A fully-wired IApiMediator instance.
+ */
+function assembleNodeMediator(
+  args: IHeadlessMediatorArgs,
+  strategies: IHeadlessStrategies,
+): IApiMediator {
+  const session = withCookieSession(strategies.fetch, args);
+  const mediator = createApiMediator(args.bankHint, session.transport, strategies.gql);
+  applyStaticAuth(mediator, args);
+  return attachCookieSession(mediator, session);
+}
+
+/**
  * Build a ready-to-use ApiMediator for a headless (API-only) bank.
  * @param args - Bank hint + URLs + optional staticAuth header.
  * @returns A fully-wired IApiMediator instance.
  */
 function createHeadlessApiMediator(args: IHeadlessMediatorArgs): IApiMediator {
-  const { fetch, gql } = buildHeadlessStrategies(args);
-  const transport = withSessionCookies(fetch, args);
-  const mediator = createApiMediator(args.bankHint, transport, gql);
-  return applyStaticAuth(mediator, args);
+  const strategies = buildHeadlessStrategies(args);
+  return assembleNodeMediator(args, strategies);
 }
 
 /**
@@ -195,10 +223,8 @@ function buildMtlsStrategies(args: IHeadlessMediatorArgs, agent: Agent): IHeadle
  */
 function createMtlsHeadlessApiMediator(args: INodeTlsMediatorArgs): IApiMediator {
   const agent = buildTransportAgent(args);
-  const { fetch, gql } = buildMtlsStrategies(args, agent);
-  const transport = withSessionCookies(fetch, args);
-  const mediator = createApiMediator(args.bankHint, transport, gql);
-  return applyStaticAuth(mediator, args);
+  const strategies = buildMtlsStrategies(args, agent);
+  return assembleNodeMediator(args, strategies);
 }
 
 export {

@@ -123,6 +123,14 @@ export interface IHeadlessUrlsConfig {
    */
   readonly sessionCookies?: boolean;
   /**
+   * With `sessionCookies`, switches the jar to the RFC 6265 domain jar: a
+   * cookie whose `Domain` is one of these registrable domains (and matches
+   * the answering host) is shared with every host under it; any other
+   * `Domain` stays host-only or is dropped. Exposes the run's cookie session
+   * to login steps. Default: undefined (the origin-scoped jar).
+   */
+  readonly cookieDomains?: readonly string[];
+  /**
    * When set, the Camoufox identity strategy route-intercepts the
    * initial navigation to the identity origin URL and serves a blank
    * HTML stub (`<!doctype html><html><head></head><body></body></html>`).

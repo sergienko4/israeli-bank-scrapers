@@ -531,4 +531,18 @@ describe('ApiMediator/createBrowserBackedHeadlessApiMediator', () => {
     });
     expect(mediator.dispose).toBeUndefined();
   });
+
+  it.each([
+    ['without cookie domains', { sessionCookies: true }, false],
+    ['with cookie domains', { sessionCookies: true, cookieDomains: ['id.example'] }, true],
+  ])('UT-CS-06 — native mediator cookie session %s', (_label, flags, isExposed) => {
+    const mediator = createHeadlessApiMediator({
+      bankHint: HINT,
+      identityBaseUrl: 'https://id.example/v1/',
+      graphqlUrl: 'https://gql.example/graphql',
+      ...flags,
+    });
+    const hasCookies = mediator.cookies !== undefined;
+    expect(hasCookies).toBe(isExposed);
+  });
 });

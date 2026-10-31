@@ -7,18 +7,32 @@
  * empty jar adds nothing), so a cookie never reaches another host. Fetch
  * follows redirects itself, so a redirect hop's own Set-Cookie lines never
  * reach the jar. Built only for node transports whose headless block sets
- * `sessionCookies`; the browser transport keeps the page's own jar. Cookie
- * values are never logged.
+ * `sessionCookies`; the browser transport keeps the page's own jar.
+ * A bank that also sets `cookieDomains` gets the RFC 6265 domain jar
+ * instead, and `withCookieSession` hands its port (`ICookieSession`) to the
+ * mediator so login steps can read, set, export, import and clear cookies.
+ * Cookie values are never logged.
  */
 
+import type { ICookieSession } from '../../Types/Domain/CookieSession.js';
+import type { Option } from '../../Types/Option.js';
+import { none, some } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
+import { createDomainCookieJar, type IDomainCookieJar } from './DomainCookieJar.js';
 import type { IFetchOpts, IFetchStrategy, OnSetCookie, PostData } from './FetchStrategy.js';
 import { createOriginCookieJar, type IOriginCookieJar } from './OriginCookieJar.js';
 
-/** Mediator-args slice: the opt-in flag and the base URL relative paths join. */
+/** Mediator-args slice: the opt-in flags and the base URL relative paths join. */
 interface ISessionCookieArgs {
   readonly sessionCookies?: boolean;
+  readonly cookieDomains?: readonly string[];
   readonly identityBaseUrl: string;
+}
+
+/** A decorated transport and, for a domain jar, its cookie session. */
+interface ISessionTransport {
+  readonly transport: IFetchStrategy;
+  readonly cookies?: ICookieSession;
 }
 
 /**
@@ -102,10 +116,11 @@ class SessionCookieFetchStrategy implements IFetchStrategy {
    * Wrap a transport.
    * @param inner - The transport that sends the requests.
    * @param baseUrl - The transport's base URL, which relative URLs join.
+   * @param jar - The jar to keep; default a fresh origin-scoped jar.
    */
-  constructor(inner: IFetchStrategy, baseUrl: string) {
+  constructor(inner: IFetchStrategy, baseUrl: string, jar?: IOriginCookieJar) {
     this._inner = inner;
-    this._jar = createOriginCookieJar(baseUrl);
+    this._jar = jar ?? createOriginCookieJar(baseUrl);
   }
 
   /**
@@ -144,5 +159,47 @@ function withSessionCookies(transport: IFetchStrategy, args: ISessionCookieArgs)
   return Reflect.construct(SessionCookieFetchStrategy, [transport, args.identityBaseUrl]);
 }
 
+/**
+ * The Cookie header a domain jar sends to a URL.
+ * @param jar - Domain jar.
+ * @param url - Request URL.
+ * @returns The header, or none when no cookie applies.
+ */
+function headerOption(jar: IDomainCookieJar, url: string): Option<string> {
+  const header = jar.header(url);
+  if (header === '') return none();
+  return some(header);
+}
+
+/**
+ * The cookie-session port onto a domain jar.
+ * @param jar - Domain jar the transport keeps.
+ * @returns The port.
+ */
+function toCookieSession(jar: IDomainCookieJar): ICookieSession {
+  const { cookieFor, set, exportAll, importAll, clear } = jar;
+  const headerFor = headerOption.bind(null, jar);
+  return { cookieFor, headerFor, set, exportAll, importAll, clear };
+}
+
+/**
+ * Wrap a transport in its session jar and expose the domain jar's session.
+ * @param transport - The headless identity transport.
+ * @param args - Mediator args: `sessionCookies`, `cookieDomains`, base URL.
+ * @returns The transport (decorated when the flag is on) and, only with
+ *   `cookieDomains`, the cookie session sharing its jar.
+ */
+function withCookieSession(transport: IFetchStrategy, args: ISessionCookieArgs): ISessionTransport {
+  const domains = args.cookieDomains;
+  if (args.sessionCookies !== true || domains === undefined) {
+    return { transport: withSessionCookies(transport, args) };
+  }
+  const jar = createDomainCookieJar(args.identityBaseUrl, domains);
+  const ctorArgs = [transport, args.identityBaseUrl, jar] as const;
+  const decorated = Reflect.construct(SessionCookieFetchStrategy, ctorArgs);
+  return { transport: decorated, cookies: toCookieSession(jar) };
+}
+
 export default SessionCookieFetchStrategy;
-export { SessionCookieFetchStrategy, withSessionCookies };
+export type { ISessionTransport };
+export { SessionCookieFetchStrategy, withCookieSession, withSessionCookies };

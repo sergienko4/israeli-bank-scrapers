@@ -1151,9 +1151,7 @@ export const PIPELINE_SELECTOR_EXEMPTIONS = {
   // BankCalendar is the one sanctioned Moment boundary. It pins every parse
   // explicitly; allowing Moment anywhere else would recreate the shared
   // default-zone leak this provider exists to remove.
-  'src/Scrapers/Pipeline/Mediator/Scrape/BankCalendar.ts': [
-    BANK_CALENDAR_MOMENT_RULE.selector,
-  ],
+  'src/Scrapers/Pipeline/Mediator/Scrape/BankCalendar.ts': [BANK_CALENDAR_MOMENT_RULE.selector],
 };
 
 /**
@@ -1340,8 +1338,7 @@ const CANARY_EXTRA_RULES = {
     BALANCE_BULK_LITERAL_RULE,
   ],
   // §8i: `balance ?? 0` / `?? null` collapses unknown into a real value.
-  'src/Scrapers/Pipeline/EslintCanaries/balance-default-zero.canary.ts':
-    BALANCE_DEFAULT_DENY_RULES,
+  'src/Scrapers/Pipeline/EslintCanaries/balance-default-zero.canary.ts': BALANCE_DEFAULT_DENY_RULES,
   // §12C: `lower*Keys` implies membership testing — use a Set.
   'src/Scrapers/Pipeline/EslintCanaries/scrape-canonical10-lookup-array-shouldbe-set.canary.ts': [
     LOWER_KEYS_ARRAY_RULE,
@@ -3284,13 +3281,15 @@ export default tseslint.config(
   // 20-statement per-function cap, and §7 turns the file-size guard off
   // there. The browserless card transport adds four Fetch modules
   // (CookieJar, OriginCookieJar, SessionCookieFetchStrategy,
-  // HeadlessNativeFetchStrategy) written fresh to the canonical caps —
-  // so, per `eslint-rules-guidlines.md` §1, this block pins exactly those
-  // files to the three-rule lock §19.0 sets for new first-party code
-  // (10 lines / 10 statements per function, 150 lines per file). Flat
+  // HeadlessNativeFetchStrategy) and the session transport adds three
+  // (CookieMatch, SetCookieScope, DomainCookieJar), all written fresh to
+  // the canonical caps — so, per `eslint-rules-guidlines.md` §1, this
+  // block pins exactly those files to the three-rule lock §19.0 sets for
+  // new first-party code (10 lines / 10 statements per function, 150
+  // lines per file). Flat
   // config is last-wins and this block sits AFTER §19.1, so the strict
   // caps win for these paths while the rest of Strategy/Fetch keeps its
-  // grandfather. §4 (narrow, never revert): scope is the four new files
+  // grandfather. §4 (narrow, never revert): scope is the seven new files
   // only. 150 is justified: the largest (HeadlessNativeFetchStrategy)
   // measures well under it (skipBlankLines + skipComments).
   //
@@ -3304,6 +3303,9 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Strategy/Fetch/OriginCookieJar.ts',
       'src/Scrapers/Pipeline/Strategy/Fetch/SessionCookieFetchStrategy.ts',
       'src/Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.ts',
+      'src/Scrapers/Pipeline/Strategy/Fetch/CookieMatch.ts',
+      'src/Scrapers/Pipeline/Strategy/Fetch/SetCookieScope.ts',
+      'src/Scrapers/Pipeline/Strategy/Fetch/DomainCookieJar.ts',
       'src/Scrapers/Pipeline/EslintCanaries/fetch-transport-fn-over-cap.canary.ts',
       'src/Scrapers/Pipeline/EslintCanaries/fetch-transport-file-over-cap.canary.ts',
     ],

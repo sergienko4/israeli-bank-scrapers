@@ -9,6 +9,7 @@ import type { IFetchStrategy } from '../../Strategy/Fetch/FetchStrategy.js';
 import type { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { IApiQueryOpts } from '../../Types/Domain/ApiQueryOpts.js';
 import type { IMediatorAuthPolicy } from '../../Types/Domain/MediatorAuthPolicy.js';
+import type { ITokenBus } from '../../Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { ITokenResolver } from './ITokenResolver.js';
@@ -42,7 +43,7 @@ type SessionContext = Readonly<Record<string, unknown>>;
 type RecoveredHook = (header: string, wasWarm: boolean) => Promise<void>;
 
 /** Public ApiMediator surface — the only API phases/handlers see. */
-interface IApiMediator {
+interface IApiMediator extends Pick<ITokenBus, 'cookies'> {
   setBearer: (token: string) => boolean;
   setRawAuth: (headerValue: string) => boolean;
   setSessionContext: (ctx: SessionContext) => boolean;

@@ -243,3 +243,78 @@ describe('withSessionCookies', () => {
     expect(transport).toBeInstanceOf(SESSION.SessionCookieFetchStrategy);
   });
 });
+
+const WWW_LOGIN = 'https://www.bank.example/login';
+const MTO_ITEMS = 'https://mto.bank.example/items';
+const DOMAIN_ARGS = {
+  identityBaseUrl: BASE_URL,
+  sessionCookies: true,
+  cookieDomains: ['bank.example'],
+};
+
+describe('withCookieSession', () => {
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  /**
+   * Build a domain-jar session over a fresh native strategy.
+   * @returns The transport and its cookie session.
+   */
+  function makeSession(): ReturnType<typeof SESSION.withCookieSession> {
+    const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+    return SESSION.withCookieSession(inner, DOMAIN_ARGS);
+  }
+
+  it('UT-CS-01 exposes no session and keeps the transport without the flag', () => {
+    const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+    const session = SESSION.withCookieSession(inner, { identityBaseUrl: BASE_URL });
+    expect(session).toEqual({ transport: inner });
+  });
+
+  it('UT-CS-02 keeps the origin jar and exposes no session without cookieDomains', () => {
+    const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+    const args = { identityBaseUrl: BASE_URL, sessionCookies: true };
+    const session = SESSION.withCookieSession(inner, args);
+    expect(session.transport).toBeInstanceOf(SESSION.SessionCookieFetchStrategy);
+    expect(session.cookies).toBeUndefined();
+  });
+
+  it('UT-CS-03 shares one jar between a login step and a scrape call', async () => {
+    const mock = serveCookies([['sid=s1; Domain=bank.example; Path=/; Secure']]);
+    const { transport, cookies } = makeSession();
+    await transport.fetchPost(WWW_LOGIN, {}, { extraHeaders: {} });
+    await transport.fetchGet(MTO_ITEMS, { extraHeaders: {} });
+    const header = cookies?.headerFor(MTO_ITEMS);
+    const sent = cookieSent(mock, 1);
+    expect([sent, header]).toEqual(['sid=s1', { has: true, value: 'sid=s1' }]);
+  });
+
+  it('UT-CS-04 replaces the whole jar on import', async () => {
+    const mock = serveCookies([['old=1; Path=/'], []]);
+    const { transport, cookies } = makeSession();
+    await transport.fetchPost(WWW_LOGIN, {}, { extraHeaders: {} });
+    const imported = { name: 'new', value: '2', domain: 'bank.example', path: '/' };
+    cookies?.importAll([{ ...imported, hostOnly: false, secure: true, expiresEpochS: 0 }]);
+    await transport.fetchGet(MTO_ITEMS, { extraHeaders: {} });
+    const read = cookies?.cookieFor(WWW_LOGIN, 'old');
+    const sent = cookieSent(mock, 1);
+    expect([sent, read]).toEqual(['new=2', { has: false }]);
+  });
+
+  it('UT-CS-05 empties the jar on clear', async () => {
+    const mock = serveCookies([['sid=s1; Domain=bank.example; Path=/'], []]);
+    const { transport, cookies } = makeSession();
+    await transport.fetchPost(WWW_LOGIN, {}, { extraHeaders: {} });
+    const size = cookies?.clear();
+    await transport.fetchGet(MTO_ITEMS, { extraHeaders: {} });
+    const header = cookies?.headerFor(MTO_ITEMS);
+    const sent = cookieSent(mock, 1);
+    expect([size, sent, header]).toEqual([0, '', { has: false }]);
+  });
+});

@@ -19,6 +19,8 @@ interface IHeadlessMediatorArgs {
   readonly staticAuth?: string;
   /** Keep one run-scoped cookie jar on the identity transport. */
   readonly sessionCookies?: boolean;
+  /** Registrable domains whose `Domain` cookies the jar keeps (RFC 6265 jar). */
+  readonly cookieDomains?: readonly string[];
 }
 
 /** Args bundle for the node:https (client-cert and/or TLS-profile) mediator factory. */
