@@ -7,7 +7,6 @@ import type { INetworkDiscovery } from '../../Mediator/Network/NetworkDiscovery.
 import type { JsonUnknown } from '../../Types/JsonValue.js';
 import type {
   IApiFetchContext,
-  IBillingCycleCatalog,
   IDashboardTxnHarvest,
   ITxnEndpoint,
   ITxnFieldMap,
@@ -71,15 +70,6 @@ interface IAccountFetchCtx {
   readonly network: INetworkDiscovery;
   readonly startDate: string;
   readonly futureMonths?: number;
-  /**
-   * Phase E (PR-α'): per-card billing-cycle catalog committed by
-   * ACCOUNT-RESOLVE.POST. When present, {@link tryMatrixLoop} iterates
-   * the canonical cycles surfaced by the bank itself instead of the
-   * blind month-chunk plan. Absent for non-cycling banks (current
-   * accounts) — the matrix loop falls back to `generateMonthChunks`.
-   * Optional at the type level so legacy SCRAPE tests stay terse.
-   */
-  readonly billingCycleCatalog?: IBillingCycleCatalog;
   /**
    * Phase 7f: slim TXN endpoint committed by DASHBOARD.FINAL. Optional
    * at the type level so test fixtures that don't exercise the field

@@ -5,11 +5,6 @@
  * kept a private copy of the same arithmetic; this module is the single
  * place that walk is decided.
  *
- * The walk is the *fallback* path. When
- * {@link detectBillingCycleCatalog} resolves a real billing-cycle catalog
- * (Isracard / Max / VisaCal), SCRAPE uses that instead and these helpers
- * are not consulted. They cover the case where no catalog is available.
- *
  * The window's upper bound comes from `scrapeWindowEnd(ctx)`, never from
  * the clock: the coverage backfill re-asks for an older slice by handing
  * the shape a narrowed `windowEnd`, which only works while that helper is

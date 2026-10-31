@@ -154,7 +154,7 @@ The login side is config, not code. `buildRingSteps` (warm path from `RING_WARM_
 
 ## Shared card-issuer cursor — one calendar walk, four issuers
 
-The four card issuers (Amex, Isracard, Max, VisaCal) do not page by an opaque server token. They page by **billing month**, walking the scrape window one month at a time. That walk is the _fallback_ path: when the billing-cycle catalog detector resolves a real cycle catalog, SCRAPE uses it instead and these helpers are not consulted.
+The four card issuers (Amex, Isracard, Max, VisaCal) do not page by an opaque server token. They page by **billing month**, walking the scrape window one month at a time.
 
 Each issuer previously kept a private copy of the same arithmetic, so the walk now lives once in [`Phases/ApiDirectScrape/CardIssuer/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/CardIssuer).
 

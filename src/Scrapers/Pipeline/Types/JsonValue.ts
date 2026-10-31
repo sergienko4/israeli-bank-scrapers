@@ -55,9 +55,8 @@ type JsonArray = readonly JsonValue[];
  * Untyped JSON value crossing module boundaries.
  *
  * <p>The union is the *closed* JSON document algebra: a scalar, an
- * object, or an array — nothing else. Three modules
- * (`PiiRedactor/Types.ts`, `Envelope/JsonPointer.ts`,
- * `AccountResolve/BillingCycleCatalogShapes.ts`) independently
+ * object, or an array — nothing else. Several modules (including
+ * `PiiRedactor/Types.ts` and `Envelope/JsonPointer.ts`) independently
  * converged on exactly this shape before the consolidation landed,
  * which is the strongest available evidence that it is the right
  * contract for the pipeline.

@@ -13,7 +13,6 @@ import { EMPTY_TXN_ENDPOINT } from '../../../Strategy/Scrape/ScrapeTypes.js';
 import {
   EMPTY_TXN_HARVEST,
   type IActionContext,
-  type IBillingCycleCatalog,
   type IDashboardTxnHarvest,
   type IPipelineContext,
   type ITxnEndpoint,
@@ -115,30 +114,9 @@ function readDateWindowParams(harvest: IDashboardTxnHarvest): readonly string[] 
   return iterResult.value;
 }
 
-/** Empty catalog sentinel — used as the "no catalog" return value. */
-const EMPTY_CATALOG: IBillingCycleCatalog = { cycles: [] };
-
-/**
- * Reads the billing-cycle catalog committed by ACCOUNT-RESOLVE.POST
- * on `ctx.accountDiscovery.value.billingCycleCatalog`. Returns the
- * {@link EMPTY_CATALOG} sentinel when the option is absent or when
- * ACCOUNT-RESOLVE found no recognised cycle shape.
- *
- * @param input - Pipeline context.
- * @returns Catalog when present; empty sentinel otherwise.
- */
-function readBillingCycleCatalog(input: IPipelineContext | IActionContext): IBillingCycleCatalog {
-  const opt = (input as { readonly accountDiscovery?: IPipelineContext['accountDiscovery'] })
-    .accountDiscovery;
-  if (!opt?.has) return EMPTY_CATALOG;
-  return opt.value.billingCycleCatalog ?? EMPTY_CATALOG;
-}
-
 export {
-  EMPTY_CATALOG,
   EMPTY_DATE_WINDOW_PARAMS,
   type IPreDiscoveredAccounts,
-  readBillingCycleCatalog,
   readDashboardTxnHarvest,
   readDateWindowParams,
   readDedupKeyFields,

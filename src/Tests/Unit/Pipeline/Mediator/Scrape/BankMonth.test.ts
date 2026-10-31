@@ -10,7 +10,6 @@ import {
   bankMonthBounds,
   bankMonthOfInstant,
   bankMonthOfLabel,
-  bankMonthOfSlashedLabel,
   shiftBankInstant,
   shiftBankMonth,
 } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankMonth.js';
@@ -61,16 +60,6 @@ describe('BankMonth', () => {
       expect(parts).toBe(false);
     },
   );
-
-  it('reads a Backbase MM/YYYY billing label', () => {
-    const month = bankMonthOfSlashedLabel('03/2026');
-    expect(month).toEqual({ year: 2026, month: 3 });
-  });
-
-  it.each(['not-a-month', '13/2026'])('rejects invalid Backbase month label %s', label => {
-    const month = bankMonthOfSlashedLabel(label);
-    expect(month).toBe(false);
-  });
 
   it('projects an instant into the bank month', () => {
     const instant = new Date('2026-02-28T22:30:00.000Z');

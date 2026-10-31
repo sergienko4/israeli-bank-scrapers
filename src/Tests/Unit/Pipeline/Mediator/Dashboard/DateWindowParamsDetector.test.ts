@@ -1,10 +1,7 @@
 /**
  * Phase H'' — `detectDateWindowParams` contract.
  *
- * <p>Pure-function contract — synthetic minimal inputs, NO fixtures
- * (cross-bank happy paths via real-data fixtures are covered
- * end-to-end by the existing `CrossBankBillingCycleCatalog.test.ts`
- * shape recognisers).
+ * <p>Pure-function contract — synthetic minimal inputs, NO fixtures.
  *
  * <p>The detector resolves a WK-aliased `[fromAlias, toAlias]` tuple
  * deterministically by scanning EVERY captured URL's query string

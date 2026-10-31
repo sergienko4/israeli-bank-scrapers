@@ -9,7 +9,6 @@
  * composite tuple `['date', 'identifier', 'originalAmount']`.
  *
  * <p>Pure synchronous function: no I/O, no global state, deterministic.
- * Mirrors the SHAPE-driven pattern of `BillingCycleCatalogDetector`.
  * Empty input is unreachable in production (the caller in TxnParser
  * skips the detector when `records.length === 0`) — defensive
  * fallback to `['identifier']` keeps the contract total.

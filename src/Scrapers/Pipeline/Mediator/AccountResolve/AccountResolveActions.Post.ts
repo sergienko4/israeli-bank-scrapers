@@ -54,11 +54,10 @@ const RESOLVE_DISPATCH: ResolveDispatchMap = {
   /**
    * Commit branch — packages the discovery payload onto the context.
    * @param input - Pipeline context.
-   * @param c - Classification carrying pool + result.
+   * @param c - Classification carrying the result.
    * @returns Success procedure with `accountDiscovery` populated.
    */
-  commit: (input, c): Procedure<IPipelineContext> =>
-    buildAccountResolveSuccess(input, c.pool, c.result),
+  commit: (input, c): Procedure<IPipelineContext> => buildAccountResolveSuccess(input, c.result),
 };
 
 /**

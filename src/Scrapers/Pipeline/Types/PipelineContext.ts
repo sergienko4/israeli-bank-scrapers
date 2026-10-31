@@ -281,7 +281,6 @@ export type {
   IBalanceFetchTemplate,
   IBalanceValidation,
 } from './Domain/BalanceTypes.js';
-export { type IBillingCycle, type IBillingCycleCatalog } from './Domain/BillingCycleTypes.js';
 export { type IBrowserState } from './Domain/BrowserState.js';
 export { type IDashboardState } from './Domain/DashboardState.js';
 export { type IDiagnosticsState } from './Domain/DiagnosticsState.js';

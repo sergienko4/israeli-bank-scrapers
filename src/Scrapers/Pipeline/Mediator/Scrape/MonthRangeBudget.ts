@@ -29,13 +29,4 @@ function boundedMonthCount(first: IBankMonth, last: IBankMonth): number | false 
   return Math.max(0, count);
 }
 
-/**
- * Whether a prepared monthly request plan fits the shared provider budget.
- * @param plan - Validated monthly requests ready to schedule.
- * @returns True when the whole plan can run without truncation.
- */
-function fitsMonthRequestBudget(plan: readonly unknown[]): boolean {
-  return plan.length <= MAX_MONTH_REQUESTS;
-}
-
-export { boundedMonthCount, fitsMonthRequestBudget, MAX_MONTH_REQUESTS };
+export { boundedMonthCount, MAX_MONTH_REQUESTS };
