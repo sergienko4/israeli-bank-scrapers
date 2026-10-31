@@ -82,7 +82,7 @@ The two paths converge on `balanceResolution` — that's the single source of tr
 
 ## Headless transports
 
-An api-direct bank's `headless` config block picks the transport its identity calls run over. [`HeadlessMediatorWiring.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/HeadlessMediatorWiring.ts) applies the rules in order; the first match wins:
+An api-direct bank's `headless` config block picks the transport its identity calls run over. [`HeadlessMediatorWiring.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/HeadlessMediatorWiring.ts) decodes the block into an `IHeadlessWiring` (URLs plus the `IWiringFlags` booleans) and applies the rules in [`HeadlessTransportRules.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/HeadlessTransportRules.ts) in order; the first match wins:
 
 | Order | Config                                   | Kind       | Transport                                        | Opens a browser | Factory                                  |
 | ----- | ---------------------------------------- | ---------- | ------------------------------------------------ | --------------- | ---------------------------------------- |
@@ -92,13 +92,14 @@ An api-direct bank's `headless` config block picks the transport its identity ca
 
 A block that declares more than one of `requiresClientCert`/`tlsProfile`,
 `nativeFetch` and `requiresBrowserTls` fails with a `ScraperError` before a
-transport kind is returned or a mediator is built.
+transport kind is returned or a mediator is built. `assertSingleTransport`
+enforces this; `pickTransportKind` walks the table above.
 
 `resolveHeadlessTransportKind(companyId)` returns the kind these rules pick without building a mediator. `createScraper` uses it to warn when a bank whose kind opens no browser is given browser options — see [Browser options on browserless banks](../configuration.md#browser-options-on-browserless-banks).
 
 | Symbol                         | Module                      | Role                                                                        |
 | ------------------------------ | --------------------------- | --------------------------------------------------------------------------- |
-| `HeadlessTransportKind`        | `HeadlessMediatorWiring.ts` | The `Kind` column above — the rule a headless block matches                 |
+| `HeadlessTransportKind`        | `HeadlessWiringTypes.ts`    | The `Kind` column above — the rule a headless block matches                 |
 | `resolveHeadlessTransportKind` | `HeadlessMediatorWiring.ts` | The kind for a bank, or `false` when it has no `headless` block             |
 | `BROWSER_ONLY_OPTIONS`         | `BrowserOnlyOptions.ts`     | The browser option names, alphabetical, each pinned to its reader           |
 | `BrowserOnlyOption`            | `BrowserOnlyOptions.ts`     | Union of those names                                                        |

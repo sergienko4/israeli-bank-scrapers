@@ -12,13 +12,15 @@ import { Agent } from 'node:https';
 
 import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
 import {
-  buildMtlsAgent,
   collectBody,
+  toResponse,
+} from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsResponse.js';
+import {
+  buildMtlsAgent,
   makeMtlsInvoke,
   MTLS_REQUEST_TIMEOUT_MS,
   mtlsInvoke,
   setMtlsRequestTimeoutMs,
-  toResponse,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import { checkServerCertificate } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/ServerCertificateFloor.js';
 import { isOk } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';

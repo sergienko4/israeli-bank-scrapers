@@ -8,10 +8,10 @@
  * the uncovered hot paths in:
  *
  *   - ApiDirectScrapeDispatch.dispatchStep        (REST branch)
- *   - ApiDirectScrapeDispatch.resolveStepBody     (bodyTemplate hydrate)
- *   - ApiDirectScrapeDispatch.asPlainObject       (success branch)
- *   - ApiDirectScrapeDispatch.maybeSignBody       (no-signer short-circuit)
- *   - ApiDirectScrapeDispatch.buildScrapeScope    (session-context read)
+ *   - ApiDirectScrapeBody.resolveStepBody         (bodyTemplate hydrate)
+ *   - ApiDirectScrapeBody.asPlainObject           (success branch)
+ *   - ApiDirectScrapeBody.maybeSignBody           (no-signer short-circuit)
+ *   - ApiDirectScrapeBody.buildScrapeScope        (session-context read)
  *
  * Per test-guidlines.md ("integration test over unit test, unit test
  * for edge cases only") this is the primary flow surface — the parser

@@ -1,5 +1,6 @@
 /**
- * Targeted coverage for ApiDirectScrapeDispatch helpers that the
+ * Targeted coverage for ApiDirectScrapeDispatch (and the
+ * ApiDirectScrapeBody helpers it delegates to) that the
  * full-phase integration test cannot naturally reach. The scrape-phase
  * dispatcher's signer pipeline (`maybeSignBody` → `buildPrimedScrapeScope`
  * → `freshIvHex`) runs against the frozen `SCRAPE_CONFIG_SENTINEL`,

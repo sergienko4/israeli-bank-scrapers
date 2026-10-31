@@ -114,7 +114,7 @@ session; the attempt's error tag is reported in parentheses. And
 `COLD_FALLBACK_DEGRADED` means the token was accepted, carried a session, and
 was revoked underneath you.
 
-`COLD_FALLBACK_WARM_FAILED` is deliberately neutral about *why* the warm
+`COLD_FALLBACK_WARM_FAILED` is deliberately neutral about _why_ the warm
 attempt failed. The cold retry fires on any failure of the initial prime — a
 refusal by the bank, but equally a timeout or a transport error — and those
 are indistinguishable once the retry has swallowed them. Calling all
@@ -168,6 +168,9 @@ signature-algorithm order, curves, extensions — so no header, cookie or
 user-agent change can stand in for it. Every OneZero request goes through one
 `node:https` agent that carries both the certificate and the profile
 (`MtlsTransport`).
+`MtlsResponse.ts` turns the reply back into a Web `Response`: `collectBody`
+buffers the body (a socket closed mid-body is a network failure, not an empty
+body) and `toResponse` keeps every `Set-Cookie` line readable.
 
 ### Runtime requirement — OpenSSL 3.5 or later
 
