@@ -40,7 +40,7 @@ Five test suites, picked by **what you're testing**.
   ring mobile gateway; `Helpers/FetchMockKit.ts` holds the plumbing the newer mocks share. The
   Visa Cal, Ring (Isracard, Amex), Max, Mizrahi and Hapoalim suites also prove a run never launches a
   browser.
-- Currently: 17 suites (148 tests) pass; 1 suite (1 test) is marked `describe.skip`.
+- Currently: 22 suites (213 tests) pass; 1 suite (1 test) is marked `describe.skip`.
 
 ### Bank factory tests (`test:e2e-factory-tests`)
 
