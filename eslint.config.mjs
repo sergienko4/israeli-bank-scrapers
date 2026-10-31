@@ -1151,7 +1151,9 @@ export const PIPELINE_SELECTOR_EXEMPTIONS = {
   // BankCalendar is the one sanctioned Moment boundary. It pins every parse
   // explicitly; allowing Moment anywhere else would recreate the shared
   // default-zone leak this provider exists to remove.
-  'src/Scrapers/Pipeline/Mediator/Scrape/BankCalendar.ts': [BANK_CALENDAR_MOMENT_RULE.selector],
+  'src/Scrapers/Pipeline/Mediator/Scrape/BankCalendar.ts': [
+    BANK_CALENDAR_MOMENT_RULE.selector,
+  ],
 };
 
 /**
@@ -1338,7 +1340,8 @@ const CANARY_EXTRA_RULES = {
     BALANCE_BULK_LITERAL_RULE,
   ],
   // §8i: `balance ?? 0` / `?? null` collapses unknown into a real value.
-  'src/Scrapers/Pipeline/EslintCanaries/balance-default-zero.canary.ts': BALANCE_DEFAULT_DENY_RULES,
+  'src/Scrapers/Pipeline/EslintCanaries/balance-default-zero.canary.ts':
+    BALANCE_DEFAULT_DENY_RULES,
   // §12C: `lower*Keys` implies membership testing — use a Set.
   'src/Scrapers/Pipeline/EslintCanaries/scrape-canonical10-lookup-array-shouldbe-set.canary.ts': [
     LOWER_KEYS_ARRAY_RULE,
