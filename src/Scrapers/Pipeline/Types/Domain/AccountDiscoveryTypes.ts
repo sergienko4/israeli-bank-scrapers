@@ -10,8 +10,8 @@
  *       only when {@link IDashboardTxnHarvest.dedupKeyFieldsByAccount}
  *       requires display-side metadata (e.g. card-number masks).</li>
  *   <li>{@link containers} — per-id sub-record bundles for banks
- *       that ship a "card" wrapper alongside a list of "cycles"
- *       (Backbase) or "products" (Discount).</li>
+ *       that ship a wrapper alongside a list of sub-records, e.g.
+ *       "products" (Discount).</li>
  *   <li>{@link endpointCaptureIndex} — diagnostic only. Identifies
  *       which capture POST picked. `0` when no endpoint was
  *       chosen (request-side fallback).</li>

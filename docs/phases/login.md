@@ -130,7 +130,9 @@ genuine navigation as merely unknown, losing the one signal that can be trusted.
 credentials. Layer 1 is the HTTP status (4xx). Layer 2 reads an HTTP 200 JSON body against
 `AUTH_BODY_FAILURE_PATTERNS`, a table of field rows taken from real captures, e.g.
 `LoginStatus` or `ReturnCode` ≠ 0 (Max) and `error_code` (Beinleumi). A match fails LOGIN
-with `INVALID_PASSWORD`.
+with `INVALID_PASSWORD`. Max and Mizrahi, two of the banks the rows came from, now run
+API-direct and skip this phase; the table is kept because its rows are generic and still
+guard every browser-driven login.
 
 Field names are not contracts. Mizrahi's `LoginUser` uses Max's names with other values: a
 real success returns `{ ReturnCode: 1, LoginStatus: 1, Success: true }`. So before any
