@@ -6,8 +6,9 @@
  * `ApiDirectTransportRules.ts` and run after these; the form-body rules in
  * `ApiDirectFormRules.ts` follow, then the seal rules in
  * `ApiDirectSealRules.ts`, the step-guard rules in `ApiDirectStepRules.ts`
- * and the carry-generator rules in `ApiDirectGenerateRules.ts`; the
- * native-fetch rules in `ApiDirectNativeRules.ts` run last.
+ * the carry-generator rules in `ApiDirectGenerateRules.ts` and the dynamic
+ * client-certificate rules in `ApiDirectClientCertRules.ts`; the native-fetch
+ * rules in `ApiDirectNativeRules.ts` run last.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
@@ -15,6 +16,7 @@ import { cookieJarWarmOf } from '../../Mediator/ApiDirectCall/Flow/WarmStartKind
 import { MAX_ACCESS_TOKEN_CHARS } from '../../Mediator/ApiDirectCall/PersistentAuthStateRules.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
+import { API_DIRECT_CLIENT_CERT_RULES } from './ApiDirectClientCertRules.js';
 import { API_DIRECT_FORM_RULES } from './ApiDirectFormRules.js';
 import { API_DIRECT_GENERATE_RULES } from './ApiDirectGenerateRules.js';
 import { API_DIRECT_NATIVE_RULES } from './ApiDirectNativeRules.js';
@@ -261,6 +263,7 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
   ...API_DIRECT_SEAL_RULES,
   ...API_DIRECT_STEP_RULES,
   ...API_DIRECT_GENERATE_RULES,
+  ...API_DIRECT_CLIENT_CERT_RULES,
   ...API_DIRECT_NATIVE_RULES,
 ];
 

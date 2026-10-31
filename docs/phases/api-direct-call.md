@@ -410,6 +410,34 @@ A runner returns its slots as `GeneratedCarry`. A generator that fails or
 rejects fails the step `<step> generate <kind> failed` before any request.
 The message carries no generated material.
 
+### Device certificate
+
+A bank whose login obtains its device certificate at runtime declares a
+dynamic `clientCert` on its headless block
+([Dynamic client certificate](../architecture/pipeline.md#dynamic-client-certificate)).
+The step that has the key and the issued certificate in scope names them in
+its `clientCert` (`IStepClientCert`, N26): refs to the PEM private key and the
+PEM certificate.
+
+```ts
+clientCert: { key: 'carry.certKeyPem', cert: 'carry.certPem' },
+```
+
+`prepareStepSession` (in `Flow/RunStep.session.ts`) runs before the step's
+URL, body or headers resolve: it binds the step's client cookies, then
+`installStepCert` (in `Flow/RunStep.clientCert.ts`) resolves both refs and
+installs the pair through the bus's `clientCert` port. The step's own request
+already presents the certificate, and so does every later request to the
+bank origin, scrape phase included. The step fails before any request:
+
+- `<step> client certificate unsupported` when the bus has no certificate
+  port (the bank declares no dynamic `clientCert`);
+- `<step> client certificate invalid` when a ref is unresolved or not text,
+  or the port refuses the pair (it does not parse, or the certificate does not
+  certify the key). A refused pair keeps the certificate already installed.
+
+Neither message carries key or certificate text.
+
 ### OTP pre-hook guards
 
 A step's `preHook` (`IPreStepHook`) asks the caller for a code. Three optional
@@ -543,6 +571,8 @@ from what it extracted:
   before the step's request; `$ref: cookie.<name>` reads the cookie that
   applies to the step URL, URL-decoded
   ([Client cookies](../architecture/pipeline.md#client-cookies)).
+- `clientCert` installs a device certificate the run obtained, presented to
+  the bank origin from that step on ([Device certificate](#device-certificate)).
 - `extractRules` checks a body extract's type, text, length or URL before it
   reaches carry ([Extract rules](#extract-rules)).
 - `runIf` skips the step, pre-hook included, unless a carry slot holds one of
@@ -569,7 +599,11 @@ rules, `API_DIRECT_TRANSPORT_RULES` in `Core/Builder/ApiDirectTransportRules.ts`
 run after the core rules, then the form-body rules, `API_DIRECT_FORM_RULES` in
 `Core/Builder/ApiDirectFormRules.ts`, then the seal rules,
 `API_DIRECT_SEAL_RULES` in `Core/Builder/ApiDirectSealRules.ts`, then the
-step rules, `API_DIRECT_STEP_RULES` in `Core/Builder/ApiDirectStepRules.ts`. The native-fetch rules, `API_DIRECT_NATIVE_RULES` in
+step rules, `API_DIRECT_STEP_RULES` in `Core/Builder/ApiDirectStepRules.ts`,
+then the carry-generator rules, `API_DIRECT_GENERATE_RULES` in
+`Core/Builder/ApiDirectGenerateRules.ts`, then the dynamic client-certificate
+rules, `API_DIRECT_CLIENT_CERT_RULES` in
+`Core/Builder/ApiDirectClientCertRules.ts`. The native-fetch rules, `API_DIRECT_NATIVE_RULES` in
 `Core/Builder/ApiDirectNativeRules.ts`, run last: the session-transport fields
 act only on the headless native fetch, and any other transport would ignore
 them and run unguarded, so naming one off native fetch fails the build. Its
@@ -616,6 +650,9 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a login or resume step with a `pkcs10-csr` generator whose `subject` is empty or whose `into` is blank                                | `steps.generate: pkcs10-csr needs a subject and into`                    |
 | a login or resume step whose `preHook.valuePattern` does not start with `^`, end with `$` and compile with the `u` flag               | `steps.preHook.valuePattern: must be an anchored regex`                  |
 | a login or resume step whose `preHook.valuePattern` has a group, an alternation or a variable repeat before its last atom             | `steps.preHook.valuePattern: must be a flat regex`                       |
+| a login or resume step with `clientCert`, without a `headless.clientCert` block (`API_DIRECT_CLIENT_CERT_RULES`)                      | `steps.clientCert: not allowed without headless.clientCert`              |
+| a `headless.clientCert` whose `origin` is not exactly `https://host[:port]` (no path, user, trailing slash or default port)           | `headless.clientCert.origin: must be an exact https origin`              |
+| `headless.clientCert` together with `headless.requiresClientCert: true`                                                               | `headless.clientCert: not allowed with headless.requiresClientCert`      |
 | a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |
 | a login or resume step with `encoding`, without `headless.nativeFetch: true`                                                          | `steps.encoding: not allowed without headless.nativeFetch`               |
 | `headless.cookieDomains`, `redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, on an api-direct or node-tls bank | `headless.<field>: not allowed without headless.nativeFetch` |

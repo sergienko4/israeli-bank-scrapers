@@ -128,6 +128,18 @@ interface IRunIf {
   readonly oneOf: readonly string[];
 }
 
+/**
+ * A step's device certificate (N26): refs to the PEM private key and the PEM
+ * certificate, installed through the bus's certificate port before the step's
+ * request and presented to the bank origin from then on.
+ */
+interface IStepClientCert {
+  /** Ref to the PEM private key. */
+  readonly key: RefToken;
+  /** Ref to the PEM certificate that certifies the key. */
+  readonly cert: RefToken;
+}
+
 /** Fields every login step has, whatever its HTTP method. */
 interface IStepBase {
   readonly name: StepName;
@@ -174,6 +186,8 @@ interface IStepBase {
   readonly seal?: ISealFieldConfig;
   /** Client cookies (name → ref) set in the domain jar before the request (N11). */
   readonly setCookies?: Readonly<Record<string, RefToken>>;
+  /** Device certificate installed before the request; needs headless `clientCert` (N26). */
+  readonly clientCert?: IStepClientCert;
   /** Body pointers that, present and truthy, fail the step `<step> bank error` (N20). */
   readonly failIfPresent?: readonly string[];
   /** Rules per body-extract slot, checked once the body is extracted (N18). */
@@ -218,6 +232,7 @@ export type {
   IPostStep,
   IRunIf,
   IStepBase,
+  IStepClientCert,
   IStepConfig,
   IStepOutcome,
   StepMethod,

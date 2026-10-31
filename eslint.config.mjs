@@ -3449,6 +3449,7 @@ export default tseslint.config(
   // so `npm run lint:canaries` confirms `max-lines-per-function` fires.
   {
     files: [
+      'src/Scrapers/Pipeline/Core/Builder/ApiDirectClientCertRules.ts',
       'src/Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.ts',
       'src/Scrapers/Pipeline/Core/Builder/ApiDirectNativeRules.ts',
       'src/Scrapers/Pipeline/Core/Builder/ApiDirectRuleInput.ts',
