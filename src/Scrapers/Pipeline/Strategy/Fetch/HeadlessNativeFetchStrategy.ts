@@ -13,7 +13,7 @@
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { NETWORK_FETCH_TIMEOUT_MS } from '../../Mediator/Network/FetchConfig.js';
-import type { RedirectPolicy } from '../../Types/Domain/FetchPolicy.js';
+import type { RedirectPolicy, StatusPolicy } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { DefaultHeadersByVerb, FetchInvoke, HttpVerb } from './NativeFetchStrategy.js';
@@ -26,6 +26,8 @@ interface IHeadlessNativeFetchOptions {
   readonly timeoutMs?: number;
   /** Redirect policy for calls that name none; `follow` when absent. */
   readonly redirectPolicy?: RedirectPolicy;
+  /** 2xx statuses the bank decides itself; none when absent. */
+  readonly statusPolicy?: StatusPolicy;
 }
 
 /** Error names a fetch rejects with once its abort signal fires. */
@@ -104,7 +106,8 @@ class HeadlessNativeFetchStrategy extends NativeFetchStrategy {
    * Bind the strategy to a base URL and install the capped seams.
    * @param baseUrl - Base URL for API requests.
    * @param options - Optional `timeoutMs` ceiling (defaults to the shared
-   *   {@link NETWORK_FETCH_TIMEOUT_MS}) and default `redirectPolicy`.
+   *   {@link NETWORK_FETCH_TIMEOUT_MS}), default `redirectPolicy` and the
+   *   bank's `statusPolicy`.
    */
   constructor(baseUrl: string, options: IHeadlessNativeFetchOptions = {}) {
     super(baseUrl);
@@ -112,6 +115,7 @@ class HeadlessNativeFetchStrategy extends NativeFetchStrategy {
     this._invoke = makeInvokeCapped(timeoutMs);
     this._verbDefaults = HEADLESS_DEFAULT_HEADERS;
     this._redirectDefault = options.redirectPolicy ?? this._redirectDefault;
+    this._statusPolicy = options.statusPolicy ?? this._statusPolicy;
   }
 }
 

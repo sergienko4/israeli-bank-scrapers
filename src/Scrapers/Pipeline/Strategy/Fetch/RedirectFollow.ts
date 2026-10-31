@@ -13,6 +13,7 @@
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { IManualRedirect, IUrlRule, RedirectPolicy } from '../../Types/Domain/FetchPolicy.js';
+import { REDIRECT_REFUSED_REASON } from '../../Types/Domain/FetchPolicy.js';
 import type { Option } from '../../Types/Option.js';
 import { none, some } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
@@ -106,7 +107,7 @@ function emitSetCookies(
  */
 function refused(run: IRedirectRun): Procedure<IRunEnd> {
   const safeUrl = safeUrlForLog(run.url);
-  return fail(ScraperErrorTypes.Generic, `${run.verb} ${safeUrl} redirect refused`);
+  return fail(ScraperErrorTypes.Generic, `${run.verb} ${safeUrl} ${REDIRECT_REFUSED_REASON}`);
 }
 
 /**
@@ -131,7 +132,7 @@ async function sendReject(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
   const { status, url } = sent.value;
   if (!isRedirectStatus(status)) return succeed({ response: sent.value, responseUrl: url });
   const safeUrl = safeUrlForLog(run.url);
-  const message = `${run.verb} ${safeUrl} HTTP ${String(status)} redirect refused`;
+  const message = `${run.verb} ${safeUrl} HTTP ${String(status)} ${REDIRECT_REFUSED_REASON}`;
   return fail(ScraperErrorTypes.Generic, message);
 }
 

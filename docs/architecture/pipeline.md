@@ -135,6 +135,16 @@ The native transport sends every request under a `RedirectPolicy` ([`FetchPolicy
 - A relative `Location` resolves against the hop URL. [`matchesAnyUrlRule`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/UrlRule.ts) admits a target only when it is clean https (no userinfo, no fragment), its `URL.origin` equals an `IUrlRule`'s `origin`, its path is one of the rule's `paths`, and its query holds the rule's `query` pairs once each (with `exactQuery`, nothing else).
 - A missing or unparseable `Location`, a 300 or 304, a refused target or a hop past `maxHops` fails `Generic` with `"<VERB> <url> redirect refused"`, naming only the first request's log-safe URL; the `Location` is never logged. A hop's transport failure comes back unchanged.
 
+### Document responses and status policies
+
+Once a response answers, the native transport wraps it in an `IAnswer` (response, verb, URL and the `IResponseReading` built from the bank's status policy plus the call's `responseKind` and `documentMarker`) and routes it in a fixed order, so a bank without a policy reads its answers exactly as before:
+
+1. A non-2xx answer, or any answer carrying Cloudflare's challenge header, goes to the WAF classifier first. A block page or challenge on a document step is still a `WafBlocked` failure, never `{}`.
+2. [`applyStatusPolicy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/StatusPolicy.ts) then checks the bank's `headless.statusPolicy` (a `StatusPolicy`, handed to `HeadlessNativeFetchStrategy` as its `statusPolicy` option). Before the body is read, the `StatusAction` `empty` answers `{}` (`emptyAnswer`) and `fail` fails `Generic` with `"<VERB> <url> HTTP <status>"`. A document step skips `empty`, so a 204 reaches the document reader as an empty page.
+3. The reader the call's `responseKind` names reads the body. `json` (the default) parses it as before, so HTML on a json step is still a parse error. `document` ([`readDocument`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/DocumentResponse.ts)) reads it as text, checks it for the call's `documentMarker` when one is set (otherwise it fails `Generic` with `"<VERB> <url> document unverified"`), and answers `{}`. The fixed tails `DOCUMENT_UNVERIFIED_REASON` and `REDIRECT_REFUSED_REASON` live in `FetchPolicy.ts`, shared by the transport and the step sanitiser.
+
+An api-direct step opts in with `response: 'document'` and an optional `documentMarker`; `callPolicyOf` carries both down as `IFetchCallPolicy.responseKind` / `documentMarker`, next to `redirect`. The step-level sanitiser keeps these refusals' fixed tails (`bind HTTP 207`, `bind HTTP 302 redirect refused`, `bind document unverified`) only when the whole message has a policy refusal's shape, so no response text can pass for one.
+
 ## contextIds — addressing a frame across the PRE→ACTION seal
 
 `buildActionContext` seals the raw `Page` away before `action()` runs, so

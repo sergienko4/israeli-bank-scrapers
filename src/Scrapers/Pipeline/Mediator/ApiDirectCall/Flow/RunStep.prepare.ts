@@ -4,6 +4,7 @@
  */
 
 import { getDebug } from '../../../Logging/Debug.js';
+import type { IFetchCallPolicy } from '../../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import type { IBodyTemplate } from '../ConfigContracts/index.js';
@@ -109,11 +110,16 @@ function attachSink(fireBase: IFireArgs, maybe: OnSetCookie | false): IFireArgs 
 /**
  * The call policy a step names, when it names one.
  * @param step - Step config.
- * @returns `{ policy }` with the step's redirect policy, or nothing.
+ * @returns `{ policy }` with only the redirect policy, response kind and
+ *   document marker the step names, or nothing.
  */
 function callPolicyOf(step: IStepConfig): Pick<IFireArgs, 'policy'> {
-  if (step.redirect === undefined) return {};
-  return { policy: { redirect: step.redirect } };
+  const { redirect, response: responseKind, documentMarker } = step;
+  const fields = { redirect, responseKind, documentMarker };
+  const named = Object.entries(fields).filter(([, value]): boolean => value !== undefined);
+  if (named.length === 0) return {};
+  const policy = Object.fromEntries(named) as IFetchCallPolicy;
+  return { policy };
 }
 
 /**

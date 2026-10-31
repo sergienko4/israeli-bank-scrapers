@@ -144,6 +144,42 @@ const FAILURE_CASES: readonly IFailureCase[] = [
     message: `POST ${BIND_URL} network error: ${CAMOUFOX_LAUNCH_FAILED}`,
     expected: 'bind GENERIC',
   },
+  {
+    label: 'a status the bank fails',
+    type: ScraperErrorTypes.Generic,
+    message: `POST ${BIND_URL} HTTP 207`,
+    expected: 'bind HTTP 207',
+  },
+  {
+    label: 'a refused redirect',
+    type: ScraperErrorTypes.Generic,
+    message: `GET ${BIND_URL} HTTP 302 redirect refused`,
+    expected: 'bind HTTP 302 redirect refused',
+  },
+  {
+    label: 'a redirect refused before any status',
+    type: ScraperErrorTypes.Generic,
+    message: `GET ${BIND_URL} redirect refused`,
+    expected: 'bind redirect refused',
+  },
+  {
+    label: 'an unverified document',
+    type: ScraperErrorTypes.Generic,
+    message: `GET ${BIND_URL} document unverified`,
+    expected: 'bind document unverified',
+  },
+  {
+    label: 'a body echoing a fixed reason',
+    type: ScraperErrorTypes.Generic,
+    message: `POST ${BIND_URL} 500: ${ECHO_BODY} HTTP 207 document unverified`,
+    expected: 'bind HTTP 500',
+  },
+  {
+    label: 'a network failure ending in a fixed reason',
+    type: ScraperErrorTypes.Generic,
+    message: `POST ${BIND_URL} network error: proxy said redirect refused`,
+    expected: 'bind GENERIC',
+  },
 ];
 
 beforeAll((): void => {

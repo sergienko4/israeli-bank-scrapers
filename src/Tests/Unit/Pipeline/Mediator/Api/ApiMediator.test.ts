@@ -593,4 +593,25 @@ describe('ApiMediator — redirect policy', () => {
     const message = !isOk(result) && result.errorMessage;
     expect(message).toBe('GET https://id.example/devices/token HTTP 302 redirect refused');
   });
+
+  it('runs a native mediator under the bank status policy', async () => {
+    const partial = new Response('{}', { status: 207 });
+    /**
+     * Answer every request with the 207.
+     * @returns The partial-content response.
+     */
+    function answerPartial(): Promise<Response> {
+      return Promise.resolve(partial);
+    }
+    globalThis.fetch = answerPartial;
+    const mediator = createHeadlessApiMediator({
+      bankHint: HINT,
+      identityBaseUrl: 'https://id.example/v1/',
+      graphqlUrl: 'https://gql.example/graphql',
+      statusPolicy: { 207: 'fail' },
+    });
+    const result = await mediator.apiGet('identity.deviceToken');
+    const message = !isOk(result) && result.errorMessage;
+    expect(message).toBe('GET https://id.example/devices/token HTTP 207');
+  });
 });

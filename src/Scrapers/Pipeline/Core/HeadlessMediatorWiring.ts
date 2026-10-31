@@ -38,15 +38,19 @@ interface IWiringFlags {
 /** Identity transport a headless bank runs over. */
 type HeadlessTransportKind = 'node-tls' | 'native' | 'browser';
 
+/** Optional transport settings a headless config block hands to the factory. */
+type TTransportKey = 'tlsProfile' | 'cookieDomains' | 'redirectPolicy' | 'statusPolicy';
+
 /** Pair of URLs + flags needed to wire the headless ApiMediator. */
 interface IHeadlessWiring extends IWiringFlags {
   /**
    * Optional transport settings, handed to the factory untouched: the
    * node:https ClientHello profile (absent keeps Node's default), the
-   * domain-jar allow-list (absent keeps the origin jar) and the native
-   * transport's default redirect policy (absent keeps `follow`).
+   * domain-jar allow-list (absent keeps the origin jar), the native
+   * transport's default redirect policy (absent keeps `follow`) and its
+   * status policy (absent decides no status).
    */
-  readonly transport: Pick<IHeadlessUrlsConfig, 'tlsProfile' | 'cookieDomains' | 'redirectPolicy'>;
+  readonly transport: Pick<IHeadlessUrlsConfig, TTransportKey>;
   readonly identity: string;
   readonly graphql: string;
   readonly graphqlHeaders?: Readonly<Record<string, string>>;
@@ -90,9 +94,10 @@ function toWiringFlags(headless: IHeadlessUrlsConfig): IWiringFlags {
 function toHeadlessWiring(headless: IHeadlessUrlsConfig): IHeadlessWiring {
   const flags = toWiringFlags(headless);
   const { identityBase, graphql, graphqlHeaders, staticAuth } = headless;
-  const { tlsProfile, cookieDomains, redirectPolicy } = headless;
+  const { tlsProfile, cookieDomains, redirectPolicy, statusPolicy } = headless;
   const urls = { identity: identityBase, graphql, graphqlHeaders, staticAuth };
-  return { ...urls, transport: { tlsProfile, cookieDomains, redirectPolicy }, ...flags };
+  const transport = { tlsProfile, cookieDomains, redirectPolicy, statusPolicy };
+  return { ...urls, transport, ...flags };
 }
 
 /**
@@ -135,7 +140,8 @@ function toGraphqlArgs(wiring: IHeadlessWiring): TGraphqlArgs {
  * Build the transport-requirement slice of the mediator args.
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns Origin-challenge bypass, client-cert and cookie jar flags, plus
- *   the TLS profile, the domain-jar allow-list and the redirect policy.
+ *   the TLS profile, the domain-jar allow-list and the redirect and
+ *   status policies.
  */
 function toTransportArgs(wiring: IHeadlessWiring): TTransportArgs {
   return {

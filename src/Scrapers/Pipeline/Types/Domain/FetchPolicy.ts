@@ -1,7 +1,8 @@
 /**
- * Fetch policy — how one call treats a redirect (N2). A pure DTO leaf at
- * layer 5 so bank config (Registry), step config (Mediator), the per-call bus
- * options and the transports (Strategy) share one contract.
+ * Fetch policy — how one call treats a redirect (N2), how it reads its answer
+ * (N3) and which 2xx statuses the bank decides itself (N4). A pure DTO leaf
+ * at layer 5 so bank config (Registry), step config (Mediator), the per-call
+ * bus options and the transports (Strategy) share one contract.
  */
 
 /** One allowed redirect target: exact https origin, exact path, query rules. */
@@ -28,10 +29,46 @@ interface IManualRedirect {
  */
 type RedirectPolicy = 'follow' | 'reject' | IManualRedirect;
 
+/** `json` parses the body (the default); `document` reads it as text and discards it. */
+type ResponseKind = 'json' | 'document';
+
+/** `empty` answers `{}` without reading the body; `fail` refuses the call. */
+type StatusAction = 'empty' | 'fail';
+
+/** A bank's 2xx statuses it decides before the body is read. */
+type StatusPolicy = Readonly<Partial<Record<number, StatusAction>>>;
+
 /** Per-call transport policy a step hands to the bus. */
 interface IFetchCallPolicy {
   /** Overrides the bank's default redirect policy for this call. */
   readonly redirect?: RedirectPolicy;
+  /** How the call reads a 2xx answer; `json` when absent. */
+  readonly responseKind?: ResponseKind;
+  /** Text a `document` answer must contain, else the call fails. */
+  readonly documentMarker?: string;
 }
 
-export type { IFetchCallPolicy, IManualRedirect, IUrlRule, RedirectPolicy };
+/** How a transport reads one answered call: the bank's policy plus the call's own. */
+interface IResponseReading {
+  readonly statusPolicy: StatusPolicy;
+  readonly responseKind: ResponseKind;
+  readonly documentMarker?: string;
+}
+
+/** Fixed reason a transport reports for a refused redirect. */
+const REDIRECT_REFUSED_REASON = 'redirect refused';
+
+/** Fixed reason a transport reports for a document missing its marker. */
+const DOCUMENT_UNVERIFIED_REASON = 'document unverified';
+
+export type {
+  IFetchCallPolicy,
+  IManualRedirect,
+  IResponseReading,
+  IUrlRule,
+  RedirectPolicy,
+  ResponseKind,
+  StatusAction,
+  StatusPolicy,
+};
+export { DOCUMENT_UNVERIFIED_REASON, REDIRECT_REFUSED_REASON };

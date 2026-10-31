@@ -5,7 +5,7 @@
  */
 
 import type { TlsClientProfileKind } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
-import type { RedirectPolicy } from '../../Types/Domain/FetchPolicy.js';
+import type { RedirectPolicy, StatusPolicy } from '../../Types/Domain/FetchPolicy.js';
 
 /** Generic auth-path keys — per-bank subsets plug into `paths` below. */
 export type AuthPathKey =
@@ -138,6 +138,13 @@ export interface IHeadlessUrlsConfig {
    * Default: undefined (`follow` — fetch follows redirects itself).
    */
   readonly redirectPolicy?: RedirectPolicy;
+  /**
+   * With `nativeFetch`, the 2xx statuses every call of the bank (login and
+   * scrape) decides before its body is read: `empty` answers `{}` (not on a
+   * `response: 'document'` step), `fail` refuses the call. Default:
+   * undefined (no status decided; every 2xx is read).
+   */
+  readonly statusPolicy?: StatusPolicy;
   /**
    * When set, the Camoufox identity strategy route-intercepts the
    * initial navigation to the identity origin URL and serves a blank

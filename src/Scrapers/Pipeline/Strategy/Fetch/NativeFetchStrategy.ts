@@ -7,11 +7,17 @@
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { getDebug } from '../../Logging/Debug.js';
 import type { Brand } from '../../Types/Brand.js';
-import type { RedirectPolicy } from '../../Types/Domain/FetchPolicy.js';
+import type {
+  IResponseReading,
+  RedirectPolicy,
+  ResponseKind,
+  StatusPolicy,
+} from '../../Types/Domain/FetchPolicy.js';
 import { toError } from '../../Types/ErrorUtils.js';
 import { describeJsonParseFailure } from '../../Types/JsonParseFailure.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
+import { readDocument } from './DocumentResponse.js';
 import type {
   FetchInvoke,
   HttpVerb,
@@ -24,11 +30,21 @@ import { classifyHttpFailure, hasCloudflareChallengeHeader } from './HttpFailure
 import type { IRedirectRun } from './RedirectFollow.js';
 import { emitSetCookies, sendUnderPolicy } from './RedirectFollow.js';
 import { safeUrlForLog, scrubUrlFromText } from './SafeUrlForLog.js';
+import type { IAnswer } from './StatusPolicy.js';
+import { applyStatusPolicy } from './StatusPolicy.js';
 
 type FullyQualifiedUrl = Brand<string, 'FullyQualifiedUrl'>;
 
 /** The request half of a run — what a verb method builds before policy. */
 type TRequest = Pick<IRedirectRun, 'url' | 'init' | 'verb'>;
+
+/** A run plus how its answer is read. */
+interface IDispatch extends IRedirectRun {
+  readonly reading: IResponseReading;
+}
+
+/** Reads a 2xx answer the status policy left undecided. */
+type Reader = <T>(answer: IAnswer) => Promise<Procedure<T>>;
 
 /** Module logger — name derived from source filename per project convention. */
 const LOG = getDebug(import.meta.url);
@@ -43,40 +59,35 @@ const JSON_DEFAULT_HEADERS: DefaultHeadersByVerb = {
 };
 
 /**
- * Parse a Response body as JSON, with a structured failure on malformed input.
- * @param response - The fetch Response to parse.
- * @param verb - HTTP verb (for the error-message prefix).
- * @param url - Target URL (for the error-message prefix).
+ * Parse an answer's body as JSON, with a structured failure on malformed input.
+ * @param answer - The answered call.
  * @returns Procedure carrying the parsed body, or a parse-error failure.
  */
-async function parseJsonResponse<T>(
-  response: Response,
-  verb: HttpVerb,
-  url: string,
-): Promise<Procedure<T>> {
-  const rawText = await response.text();
+async function parseJsonResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
+  const rawText = await answer.response.text();
   try {
     const parsed = JSON.parse(rawText) as T;
     return succeed(parsed);
   } catch (error) {
     const reason = describeJsonParseFailure(error);
-    const safeUrl = safeUrlForLog(url);
-    return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} parse error: ${reason}`);
+    const safeUrl = safeUrlForLog(answer.url);
+    return fail(ScraperErrorTypes.Generic, `${answer.verb} ${safeUrl} parse error: ${reason}`);
   }
 }
 
+/** Reader per response kind; both run after WAF classification and the status policy. */
+const READERS: Readonly<Record<ResponseKind, Reader>> = {
+  json: parseJsonResponse,
+  document: readDocument,
+};
+
 /**
- * Classify a failed or challenged Response into a Procedure failure.
- * @param response - The fetch Response: non-2xx, or a 2xx challenge.
- * @param verb - HTTP verb (for the error-message prefix).
- * @param url - Target URL (for the error-message prefix).
+ * Classify a failed or challenged answer into a Procedure failure.
+ * @param answer - The answered call: non-2xx, or a 2xx challenge.
  * @returns WafBlocked for a Cloudflare edge refusal, else Generic with a snippet.
  */
-async function classifyStatus<T>(
-  response: Response,
-  verb: HttpVerb,
-  url: string,
-): Promise<Procedure<T>> {
+async function classifyStatus<T>(answer: IAnswer): Promise<Procedure<T>> {
+  const { response, verb, url } = answer;
   const body = await response.text();
   const headers = Object.fromEntries(response.headers);
   return classifyHttpFailure<T>({ verb, url, status: response.status, body, headers });
@@ -86,7 +97,7 @@ async function classifyStatus<T>(
  * Whether a Response carries an API body: a 2xx that is not an edge
  * challenge (Cloudflare does not tie its challenge header to a status).
  * @param response - The fetch Response returned by globalThis.fetch.
- * @returns True when the body should be parsed as the API's JSON.
+ * @returns True when the body should be read as the API's answer.
  */
 function isApiSuccess(response: Response): boolean {
   if (!response.ok) return false;
@@ -95,15 +106,16 @@ function isApiSuccess(response: Response): boolean {
 }
 
 /**
- * Route a Response to the JSON parser or the failure classifier.
- * @param response - The fetch Response returned by globalThis.fetch.
- * @param verb - HTTP verb (for error-message prefixing).
- * @param url - Target URL (for error-message prefixing).
- * @returns Procedure with parsed body or classified failure.
+ * Route an answer: WAF classification first, then the bank's status policy,
+ * then the reader its response kind names.
+ * @param answer - The answered call.
+ * @returns Procedure with the read body or a classified failure.
  */
-function routeResponse<T>(response: Response, verb: HttpVerb, url: string): Promise<Procedure<T>> {
-  if (isApiSuccess(response)) return parseJsonResponse<T>(response, verb, url);
-  return classifyStatus<T>(response, verb, url);
+function routeResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
+  if (!isApiSuccess(answer.response)) return classifyStatus<T>(answer);
+  const decided = applyStatusPolicy<T>(answer);
+  if (decided.has) return Promise.resolve(decided.value);
+  return READERS[answer.reading.responseKind]<T>(answer);
 }
 
 /**
@@ -158,10 +170,10 @@ function resolveFetchUrl(baseUrl: string, url: string): FullyQualifiedUrl {
  * answered (manual hops file their own on the way). Emits PII-safe DEBUG
  * traces at fire and after-status. Per `logging-pii-guidlines.txt`, the URL
  * is stripped of query string (which may carry session ids / tokens) first.
- * @param run - url + init + verb + invoke transport + policy + cookie hooks.
+ * @param run - url + init + verb + invoke transport + policies + cookie hooks.
  * @returns Procedure with parsed body or structured failure.
  */
-async function dispatchFetch<T>(run: IRedirectRun): Promise<Procedure<T>> {
+async function dispatchFetch<T>(run: IDispatch): Promise<Procedure<T>> {
   const safeUrl = safeUrlForLog(run.url);
   LOG.debug({ verb: run.verb, url: safeUrl, message: '[fetch] FIRE' });
   const sent = await sendUnderPolicy(run);
@@ -173,7 +185,7 @@ async function dispatchFetch<T>(run: IRedirectRun): Promise<Procedure<T>> {
   const { response, responseUrl } = sent.value;
   LOG.debug({ verb: run.verb, url: safeUrl, status: response.status, message: '[fetch] STATUS' });
   emitSetCookies(response, responseUrl, run.onSetCookie);
-  return routeResponse<T>(response, run.verb, run.url);
+  return routeResponse<T>({ response, verb: run.verb, url: run.url, reading: run.reading });
 }
 
 /** Native fetch — uses globalThis.fetch with merged JSON headers. */
@@ -201,6 +213,13 @@ class NativeFetchStrategy implements IFetchStrategy {
    * config names a policy replace it in their constructor.
    */
   protected _redirectDefault: RedirectPolicy = 'follow';
+
+  /**
+   * Status seam — the 2xx statuses this transport's bank decides itself.
+   * The base decides none; transports built for a bank whose config names a
+   * policy replace it in their constructor.
+   */
+  protected _statusPolicy: StatusPolicy = {};
 
   /**
    * Create a NativeFetchStrategy.
@@ -240,16 +259,31 @@ class NativeFetchStrategy implements IFetchStrategy {
 
   /**
    * Complete a request into a run: resolved URL, this transport's seam, the
-   * call's redirect policy (else this transport's default) and its hooks.
+   * call's redirect policy (else this transport's default), how its answer
+   * is read and its hooks.
    * @param request - The verb method's URL, init and verb.
    * @param opts - The call's fetch options.
    * @returns The run dispatchFetch sends.
    */
-  protected toRun(request: TRequest, opts: IFetchOpts): IRedirectRun {
+  protected toRun(request: TRequest, opts: IFetchOpts): IDispatch {
     const url = this.resolveUrl(request.url);
     const policy = opts.redirect ?? this._redirectDefault;
+    const reading = this.readingOf(opts);
     const { onSetCookie, cookieHeaderFor } = opts;
-    return { ...request, url, invoke: this._invoke, policy, onSetCookie, cookieHeaderFor };
+    const hooks = { onSetCookie, cookieHeaderFor };
+    return { ...request, ...hooks, url, invoke: this._invoke, policy, reading };
+  }
+
+  /**
+   * How a call's answer is read: this transport's status policy plus the
+   * call's response kind (`json` when absent) and document marker.
+   * @param opts - The call's fetch options.
+   * @returns The reading routeResponse applies.
+   */
+  protected readingOf(opts: IFetchOpts): IResponseReading {
+    const responseKind = opts.responseKind ?? 'json';
+    const { documentMarker } = opts;
+    return { statusPolicy: this._statusPolicy, responseKind, documentMarker };
   }
 
   /**
