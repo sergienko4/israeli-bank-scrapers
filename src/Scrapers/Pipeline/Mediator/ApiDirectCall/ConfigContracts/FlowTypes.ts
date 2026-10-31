@@ -48,7 +48,12 @@ type StepName =
   | 'resume'
   | 'bootstrap'
   | 'landing'
-  | 'logon';
+  | 'logon'
+  | 'encryptionKey'
+  | 'identify'
+  | 'verify'
+  | 'otpInit'
+  | 'otpVerify';
 
 /**
  * How a step's HTTP 2xx body says whether the step worked. The code at
