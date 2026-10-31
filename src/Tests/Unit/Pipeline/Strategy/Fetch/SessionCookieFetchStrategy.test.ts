@@ -378,3 +378,82 @@ describe('withCookieSession across manual redirect hops', () => {
     expect(hopCookies).toBe('shared=1; hop1=1');
   });
 });
+
+const DROPPED = '(dropped)';
+const WWW_ONLY = 'XSRF-TOKEN=www; Path=/';
+const DEEP = 'XSRF-TOKEN=deep; Domain=bank.example; Path=/secure';
+const MTO_SECURE = 'https://mto.bank.example/secure/x';
+const XSRF_SENTINEL = { 'X-XSRF-TOKEN': '@cookie:XSRF-TOKEN', accept: 'application/json' };
+
+/**
+ * Read every header of one fetch call.
+ * @param mock - The fetch mock.
+ * @param index - Zero-based call index.
+ * @returns The headers that call sent.
+ */
+function headersSent(mock: MockFetch, index: number): Readonly<Record<string, string>> {
+  const [, init] = mock.mock.calls[index];
+  return init.headers as Record<string, string>;
+}
+
+/**
+ * Seed a domain-jar session from one www answer, then send one GET carrying
+ * the XSRF sentinel.
+ * @param seed - Set-Cookie lines of the www answer.
+ * @param url - URL of the GET that carries the sentinel.
+ * @returns The headers the GET sent.
+ */
+async function sendSentinel(
+  seed: readonly string[],
+  url: string,
+): Promise<Readonly<Record<string, string>>> {
+  const mock = serveCookies([seed, []]);
+  const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+  const { transport } = SESSION.withCookieSession(inner, DOMAIN_ARGS);
+  await transport.fetchPost(WWW_LOGIN, {}, { extraHeaders: {} });
+  await transport.fetchGet(url, { extraHeaders: XSRF_SENTINEL });
+  return headersSent(mock, 1);
+}
+
+describe('withCookieSession resolving @cookie: sentinels', () => {
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('UT-SN-01 sends an encoded cookie decoded and keeps the other headers', async () => {
+    const seed = ['XSRF-TOKEN=a%2Bb%3D%3D; Domain=bank.example; Path=/'];
+    const sent = await sendSentinel(seed, MTO_ITEMS);
+    expect(sent['X-XSRF-TOKEN']).toBe('a+b==');
+    expect(sent.accept).toBe('application/json');
+    expect(sent.cookie).toBe('XSRF-TOKEN=a%2Bb%3D%3D');
+  });
+
+  it('UT-SN-02 drops the header when the cookie is missing', async () => {
+    const sent = await sendSentinel(['other=1; Domain=bank.example; Path=/'], MTO_ITEMS);
+    expect(sent).not.toHaveProperty('X-XSRF-TOKEN');
+    expect(sent.accept).toBe('application/json');
+  });
+
+  it('UT-SN-03 sends a malformed escape raw', async () => {
+    const sent = await sendSentinel(
+      ['XSRF-TOKEN=%E0%A4%A; Domain=bank.example; Path=/'],
+      MTO_ITEMS,
+    );
+    expect(sent['X-XSRF-TOKEN']).toBe('%E0%A4%A');
+  });
+
+  it.each([
+    { label: 'a host-only cookie of www on mto', line: WWW_ONLY, url: MTO_ITEMS, want: DROPPED },
+    { label: 'a path-scoped cookie outside its path', line: DEEP, url: MTO_ITEMS, want: DROPPED },
+    { label: 'a path-scoped cookie inside its path', line: DEEP, url: MTO_SECURE, want: 'deep' },
+  ])('UT-SN-04 respects path and domain: $label', async ({ line, url, want }) => {
+    const sent = await sendSentinel([line], url);
+    const xsrf = Object.hasOwn(sent, 'X-XSRF-TOKEN') ? sent['X-XSRF-TOKEN'] : DROPPED;
+    expect(xsrf).toBe(want);
+  });
+});
