@@ -237,17 +237,16 @@ function throwingNameError(): Error {
   });
 }
 
-const LONGEST_NAME = `A${'b'.repeat(63)}Error`;
-
 describe('errorNameOf — a caught value names itself only as a class', () => {
   it.each([
     ['a built-in error', new TypeError('syn-ltt-7741'), 'TypeError'],
-    ['a named subclass', new FixtureBoomError('syn-ltt-7741'), 'FixtureBoomError'],
-    ['an exception class', namedError('DOMException'), 'DOMException'],
-    ['the longest class name', namedError(LONGEST_NAME), LONGEST_NAME],
+    ['an abort', namedError('AbortError'), 'AbortError'],
+    ['a timeout', namedError('TimeoutError'), 'TimeoutError'],
+    ['a library error', namedError('ScraperError'), 'ScraperError'],
+    ['an unlisted subclass', new FixtureBoomError('syn-ltt-7741'), 'Error'],
+    ['a class-like name carrying a code', namedError('A123456Error'), 'Error'],
     ['a name carrying a token', namedError('syn-ltt-7741'), 'Error'],
     ['a name with spaces', namedError('Bearer syn-1209 Error'), 'Error'],
-    ['a name one char too long', namedError(`A${LONGEST_NAME}`), 'Error'],
     ['a name that is no string', namedError(42), 'Error'],
     ['a name getter that throws', throwingNameError(), 'Error'],
     ['a thrown string', 'syn-ltt-7741', 'Error'],

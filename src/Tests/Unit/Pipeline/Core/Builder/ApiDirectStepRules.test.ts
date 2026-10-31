@@ -130,6 +130,12 @@ describe('validateApiDirectConfig — extractRules', () => {
       { state: { pattern: '^([a-z]+){2,}$' } },
       NESTED_MSG,
     ],
+    ['an exact-count group holding a repeat', { state: { pattern: '^(a+){20}$' } }, NESTED_MSG],
+    [
+      'an exact-count group holding a deeper repeat',
+      { state: { pattern: String.raw`^(?:(\d+)-){2}$` } },
+      NESTED_MSG,
+    ],
     ['a zero maxChars', { state: { maxChars: 0 } }, MAX_MSG],
     ['a fractional maxChars', { state: { maxChars: 1.5 } }, MAX_MSG],
     ['a maxChars past 65536', { target: { maxChars: 65537 } }, MAX_MSG],
@@ -172,6 +178,8 @@ describe('validateApiDirectConfig — extractRules', () => {
     ['quantifier characters inside a class', '^[(+*]+$'],
     ['repeats side by side', String.raw`^(\d+)-(\d+)$`],
     ['a bounded range', String.raw`^\d{1,4}$`],
+    ['an exact-count group of fixed width', String.raw`^(?:\d{3}-){2}\d{4}$`],
+    ['an exact count after an escaped paren', String.raw`^(?:\){2})+$`],
   ])('a pattern with %s passes', (_label, pattern) => {
     const step = ruled({ state: { pattern } });
     const input = runOf(step);

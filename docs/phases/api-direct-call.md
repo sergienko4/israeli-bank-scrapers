@@ -367,8 +367,10 @@ with `preHook: creds.<field> is not a function`. A callback that throws fails
 `GENERIC` with `preHook: creds.<field>() threw <ErrorName>`; from the second
 call on it adds `on invocation #<n> of this login`. Only the error's
 name is reported: its message can echo a code or a token. `errorNameOf`
-(`Types/ErrorUtils.ts`) reports a name only when it reads as a class name
-ending in `Error` or `Exception`; any other name is reported as `Error`. A throwing
+(`Types/ErrorUtils.ts`) reports a name only when it is a platform error class
+(`TypeError`, `AbortError`, `TimeoutError` and the like) or one of this
+library's own (`ScraperError`, `WafBlockError`); any other name, however
+class-like, is reported as `Error`. A throwing
 `onAuthFlowComplete` callback is logged the same way
 (`api-direct-call onAuthFlowComplete callback threw <ErrorName>`).
 
@@ -547,11 +549,12 @@ failing the warm attempt into the cold retry. An index above `steps.length`
 fails it too: it would silently run no steps, which only a typo produces.
 
 A config `pattern` or `valuePattern` is tested against bank and caller text, so
-the build refuses the backtracking shape `(a+)+`. `hasNestedQuantifier`
-(`Core/Builder/NestedQuantifier.ts`) folds escapes, classes and exact `{n}`
-counts to one atom, then rejects any `*`, `+` or `{m,n}` group whose body
-already repeats. It is a conservative check: overlapping alternation such as
-`(a|a)*` is not detected, so keep patterns flat.
+the build refuses the backtracking shapes `(a+)+` and `(a+){20}`.
+`hasNestedQuantifier` (`Core/Builder/NestedQuantifier.ts`) reads escapes and
+classes as one atom and drops an exact `{n}` after an atom, then rejects any
+group whose body already repeats when that group carries a quantifier — `*`,
+`+`, a range or an exact `{n}`. It is a conservative check: overlapping
+alternation such as `(a|a)*` is not detected, so keep patterns flat.
 
 `warmStart.kind` says what the stored token is. The default, `'carry'`, seeds
 it into the carry slot `carryField`. `'cookie-jar'` is for a cookie-session

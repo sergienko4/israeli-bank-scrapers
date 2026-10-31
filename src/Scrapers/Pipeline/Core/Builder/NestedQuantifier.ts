@@ -1,29 +1,38 @@
 /**
  * NestedQuantifier — a build-time guard against catastrophic backtracking in
- * a configured regex. A group repeated by `*`, `+` or a `{n,}` / `{n,m}`
- * range that itself holds such a repeat, at any depth, can make a match take
- * exponential time, so a config naming one fails the build. Escapes,
- * character classes and exact `{n}` counts never repeat a variable amount, so
- * they are read as plain atoms first. Overlapping alternatives such as
- * `(a|a)*` are not detected; configured patterns stay simple and reviewed.
+ * a configured regex. A group repeated by any quantifier — `*`, `+`, a range
+ * or even an exact `{n}` — that itself holds a variable repeat, at any depth,
+ * can make a match take exponential or high-polynomial time, so a config
+ * naming one fails the build. Escapes and character classes are read as plain
+ * atoms first, and an exact `{n}` after an atom is dropped: it never repeats
+ * a variable amount. Overlapping alternatives such as `(a|a)*` are not
+ * detected; configured patterns stay simple and reviewed.
  */
 
-/** Text that cannot repeat a variable amount: an escape, a class or `{n}`. */
-const INERT = /\\.|\[(?:\\.|[^\]\\])*\]|\{\d+\}/gu;
+/** Text read as one atom: an escape or a character class. */
+const INERT = /\\.|\[(?:\\.|[^\]\\])*\]/gu;
+
+/** An exact `{n}` count after an atom rather than after a group. */
+const ATOM_COUNT = /(?<!\))\{\d+\}/gu;
 
 /** The leftmost group with no group inside, and the quantifier after it. */
-const INNERMOST_GROUP = /\(([^()]*)\)([*+{]?)/u;
+const INNERMOST_GROUP = /\(([^()]*)\)((?:\{\d+(?:,\d*)?\}|[*+])?)/u;
 
 /** A quantifier that repeats a variable number of times. */
 const REPEAT = /[*+{]/u;
 
+/** An exact `{n}` count. */
+const EXACT_COUNT = /^\{\d+\}$/u;
+
 /**
- * Read an inert token as a plain atom.
- * @param token - An escape, a character class or an exact count.
- * @returns '' for an exact count, else one atom.
+ * The atom a folded group reads as.
+ * @param isInnerRepeated - Whether the group body repeats.
+ * @param quantifier - The quantifier after the group, or ''.
+ * @returns 'x+' when the group matches a variable width, else 'x'.
  */
-function atomOf(token: string): string {
-  return token.startsWith('{') ? '' : 'x';
+function foldedAtom(isInnerRepeated: boolean, quantifier: string): string {
+  const isVariable = quantifier !== '' && !EXACT_COUNT.test(quantifier);
+  return isInnerRepeated || isVariable ? 'x+' : 'x';
 }
 
 /**
@@ -34,10 +43,10 @@ function atomOf(token: string): string {
 function isNested(source: string): boolean {
   const group = INNERMOST_GROUP.exec(source);
   if (group === null) return false;
-  const isInnerRepeated = REPEAT.test(group[1]);
-  const isGroupRepeated = group[2] !== '';
-  if (isInnerRepeated && isGroupRepeated) return true;
-  const atom = isInnerRepeated || isGroupRepeated ? 'x+' : 'x';
+  const [, body, quantifier] = group;
+  const isInnerRepeated = REPEAT.test(body);
+  if (isInnerRepeated && quantifier !== '') return true;
+  const atom = foldedAtom(isInnerRepeated, quantifier);
   const end = group.index + group[0].length;
   const folded = source.slice(0, group.index) + atom + source.slice(end);
   return isNested(folded);
@@ -49,7 +58,8 @@ function isNested(source: string): boolean {
  * @returns True for a nested quantifier.
  */
 function hasNestedQuantifier(pattern: string): boolean {
-  const source = pattern.replaceAll(INERT, atomOf);
+  const atoms = pattern.replaceAll(INERT, 'x');
+  const source = atoms.replaceAll(ATOM_COUNT, '');
   return isNested(source);
 }
 
