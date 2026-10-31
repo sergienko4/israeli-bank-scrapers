@@ -331,6 +331,45 @@ not text, skips the step: its pre-hook never asks for a code, no request is
 sent, and the scope passes to the next step unchanged. The debug log names the
 skipped step, never the slot's value.
 
+### OTP pre-hook guards
+
+A step's `preHook` (`IPreStepHook`) asks the caller for a code. Three optional
+fields shape that request, and `applyGuardedPreHook` (in
+`Flow/SmsOtpFlow.prehookGuard.ts`) runs them around it. The step reducer hands
+it one `IPreHookGuardArgs` bundle: the reduce args, the scope, the step and
+its hook.
+
+```ts
+preHook: {
+  awaitCredsField: 'otpCodeRetriever',
+  intoCarryField: 'otp',
+  hintFrom: 'carry.phone',
+  requires: ['cookie.csrfcookie', 'carry.flow'],
+  valuePattern: '^\\d{5}$',
+},
+```
+
+- `hintFrom` names a carry slot. Its text is passed to the callback as the
+  hint, such as the masked phone the bank sent the code to. A slot that is
+  missing or not text passes `''`. The hint is never logged.
+- `requires` lists refs that must resolve before the callback is asked.
+  `checkPreHookRequires` resolves them against the step's own cookie view,
+  bound to the step URL as `runStep` binds it. The first miss fails the step
+  with the resolver's message (`ref carry.<x> missing from scope.carry`,
+  `ref cookie.<x> miss`), so no code is spent on a login that cannot finish.
+- `valuePattern` is an anchored regex. `checkPreHookValue` tests the
+  deposited value; a value that does not match, or is not text, fails the
+  step `INVALID_OTP` with `<step> preHook value invalid` before its request
+  is sent. The message never names the value.
+
+A creds field that is not a function fails `TWO_FACTOR_RETRIEVER_MISSING`
+with `preHook: creds.<field> is not a function`. A callback that throws fails
+`GENERIC` with `preHook: creds.<field>() threw <ErrorName>`; from the second
+call on it adds `on invocation #<n> of this login`. Only the error's
+name is reported: its message can echo a code or a token. A throwing
+`onAuthFlowComplete` callback is logged the same way
+(`api-direct-call onAuthFlowComplete callback threw <ErrorName>`).
+
 ### Session-transport fields
 
 Some banks keep the session in cookies shared by sibling hosts, and answer
@@ -473,6 +512,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | an `extractRules` `maxChars` that is not an integer from 1 to 65536                                                                   | `steps.extractRules.maxChars: must be an integer from 1 to 65536`        |
 | an `extractRules` `oneOf` or `url` list that is empty                                                                                 | `steps.extractRules: oneOf and url must not be empty`                    |
 | a login or resume step whose `runIf` has a blank `carry` or an empty `oneOf`                                                          | `steps.runIf: carry and oneOf must not be empty`                         |
+| a login or resume step whose `preHook.valuePattern` does not start with `^`, end with `$` and compile with the `u` flag               | `steps.preHook.valuePattern: must be an anchored regex`                  |
 | a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |
 | a login or resume step with `encoding`, without `headless.nativeFetch: true`                                                          | `steps.encoding: not allowed without headless.nativeFetch`               |
 | `headless.cookieDomains`, `redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, on an api-direct or node-tls bank | `headless.<field>: not allowed without headless.nativeFetch` |
@@ -582,9 +622,10 @@ A bank that logs in with credentials alone still declares `flow: 'sms-otp'`,
 the only flow kind `gateFlowKind` accepts. The flow asks for a code only
 through a step's `preHook`. For a step with no `preHook`, `resolveStepScope`
 (`Flow/SmsOtpFlow.reduce.ts`) leaves the scope unchanged and the step still
-sends its request; otherwise `applyPreHook` first calls the creds function
-named by `awaitCredsField`. A chain with no `preHook` on any step therefore
-never prompts, even when the caller passes `otpCodeRetriever`.
+sends its request; otherwise `applyGuardedPreHook` runs its
+[guards](#otp-pre-hook-guards) around `applyPreHook`, which calls the creds
+function named by `awaitCredsField`. A chain with no `preHook` on any step
+therefore never prompts, even when the caller passes `otpCodeRetriever`.
 
 The PRE stage's diagnostic label (`classifyLoginKind`) still reads `sms-otp`
 for a cold run of such a chain. Nothing branches on that label.
@@ -752,8 +793,9 @@ Where each piece lives, for maintainers:
 | any type a step's `failureMap` names, else its `defaultFailure` | The step's 2xx body reported a non-success [outcome](#step-outcome) code                                                                                                                                                                                                                  |
 | `GENERIC`                                                       | The step's 2xx body held a bank error at a `failIfPresent` pointer (`<step> bank error`) — see [Bank-error guard](#bank-error-guard)                                                                                                                                                      |
 | `GENERIC`                                                       | A body extract failed its rule (`<step> extract <slot> invalid`) — see [Extract rules](#extract-rules)                                                                                                                                                                                    |
-| `INVALID_OTP`                                                   | Wrong code                                                                                                                                                                                                                                                                                |
-| `TWO_FACTOR_RETRIEVER_MISSING`                                  | OTP step reached without callback                                                                                                                                                                                                                                                         |
+| `INVALID_OTP`                                                   | Wrong code, or a code that fails its pre-hook `valuePattern` (`<step> preHook value invalid`) — see [OTP pre-hook guards](#otp-pre-hook-guards)                                                                                                                                           |
+| `TWO_FACTOR_RETRIEVER_MISSING`                                  | OTP step reached without callback (`preHook: creds.<field> is not a function`)                                                                                                                                                                                                            |
+| `GENERIC`                                                       | A pre-hook `requires` ref did not resolve, or the OTP callback threw (`preHook: creds.<field>() threw <ErrorName>`) — see [OTP pre-hook guards](#otp-pre-hook-guards)                                                                                                                     |
 | `INVALID_PHONE_NUMBER`                                          | `phoneNumber` cannot be normalised to the bank's wire format — see [Phone normaliser](#phone-normaliser)                                                                                                                                                                                  |
 | `TIMEOUT`                                                       | A step's HTTP call didn't complete (`<step> TIMEOUT`)                                                                                                                                                                                                                                     |
 | `GENERIC`                                                       | A step's HTTP call failed: `<step> HTTP <status>` for a non-2xx reply, `<step> GENERIC` for a network error — see [Transport errors](#transport-errors)                                                                                                                                   |

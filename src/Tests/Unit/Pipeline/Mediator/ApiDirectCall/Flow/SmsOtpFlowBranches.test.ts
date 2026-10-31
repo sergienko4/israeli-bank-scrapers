@@ -82,8 +82,11 @@ describe('SmsOtpFlow preHook OTP retrieval', () => {
       creds: { otpCodeRetriever: 'not-a-fn' },
       companyId: HINT,
     });
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toContain('is not a function');
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.TwoFactorRetrieverMissing,
+      errorMessage: 'preHook: creds.otpCodeRetriever is not a function',
+    });
     expect(captures).toHaveLength(0);
   });
 
@@ -109,7 +112,7 @@ describe('SmsOtpFlow preHook OTP retrieval', () => {
     expect(captures).toHaveLength(0);
   });
 
-  it('wraps thrown errors from creds retriever with preHook prefix', async (): Promise<void> => {
+  it('names only the error a creds retriever throws', async (): Promise<void> => {
     const captures: IApiPostCapture[] = [];
     const bus = makeStubMediator({ responses: [], captures });
     /**
@@ -126,8 +129,10 @@ describe('SmsOtpFlow preHook OTP retrieval', () => {
       creds: { otpCodeRetriever: throwing },
       companyId: HINT,
     });
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toContain('threw:');
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'preHook: creds.otpCodeRetriever() threw ScraperError',
+    });
   });
 });
 

@@ -102,6 +102,14 @@ interface IStepReduceArgs {
   readonly preHookCache: IPreHookCache;
 }
 
+/** One step's pre-hook with what its guards read — keeps signatures single-line. */
+interface IPreHookGuardArgs {
+  readonly reduce: IStepReduceArgs;
+  readonly scope: ITemplateScope;
+  readonly step: IApiDirectCallConfig['steps'][number];
+  readonly hook: IPreStepHook;
+}
+
 /** Args bundle for makeRunStepArgs — keeps the signature single-line. */
 interface IMakeRunStepArgs {
   readonly args: IStepReduceArgs;
@@ -156,6 +164,7 @@ export type {
   IPreHookAcquireArgs,
   IPreHookCache,
   IPreHookCoerceArgs,
+  IPreHookGuardArgs,
   IReduceStepsArgs,
   IRunSmsOtpArgs,
   ISeedArgs,

@@ -3,6 +3,8 @@
  * entry must be a JSON pointer below the body root. N18 — each `extractRules`
  * key names a body extract of its step; a pattern is anchored and compiles;
  * `maxChars` is an integer from 1 to 65536; `oneOf` and `url` are not empty.
+ * N14 — a `runIf` guard names a slot and texts. N21 — a pre-hook's
+ * `valuePattern` is anchored and compiles.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
@@ -187,6 +189,45 @@ describe('validateApiDirectConfig — runIf', () => {
 
   it('a sound guard passes', () => {
     const step = runIfStep({ carry: 'state', oneOf: ['logonotp'] });
+    const input = runOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+  });
+});
+
+const VALUE_PATTERN_MSG = 'steps.preHook.valuePattern: must be an anchored regex';
+
+/**
+ * A login step whose OTP pre-hook checks the code against a pattern.
+ * @param valuePattern - The pre-hook's `valuePattern`.
+ * @returns Step config.
+ */
+function hookedStep(valuePattern: string): IStepConfig {
+  const preHook = { awaitCredsField: 'otpCodeRetriever', intoCarryField: 'otp', valuePattern };
+  return { name: 'login', urlTag: 'auth.login', body: { shape: {} }, extractsToCarry: {}, preHook };
+}
+
+describe('validateApiDirectConfig — preHook.valuePattern', () => {
+  it.each([
+    ['an unanchored pattern', String.raw`\d{5}`],
+    ['a pattern without its end anchor', String.raw`^\d{5}`],
+    ['a pattern that does not compile', '^(]$'],
+  ])('%s → fails the build', (_label, valuePattern) => {
+    const step = hookedStep(valuePattern);
+    const input = runOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({ success: false, errorMessage: VALUE_PATTERN_MSG });
+  });
+
+  it('checks resume steps too', () => {
+    const step = hookedStep(String.raw`\d{5}`);
+    const input = resumeOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({ success: false, errorMessage: VALUE_PATTERN_MSG });
+  });
+
+  it('an anchored pattern passes', () => {
+    const step = hookedStep(String.raw`^\d{5}$`);
     const input = runOf(step);
     const result = validateApiDirectConfig(input);
     expect(result).toEqual({ success: true, value: true });

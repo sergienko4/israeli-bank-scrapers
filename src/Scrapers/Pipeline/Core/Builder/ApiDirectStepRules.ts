@@ -7,6 +7,8 @@
  * `maxChars` must be an integer from 1 to 65536; `oneOf` and `url` must not
  * be empty, since an empty list would refuse every value. A `runIf` guard
  * (N14) needs a carry slot and a non-empty `oneOf`, else its step never runs.
+ * A pre-hook `valuePattern` (N21) must be anchored and compile, like an
+ * extract `pattern`.
  */
 
 import type {
@@ -99,14 +101,23 @@ function isCompilable(pattern: string): boolean {
 }
 
 /**
+ * Whether a regex source is unanchored or does not compile.
+ * @param pattern - Regex source.
+ * @returns True for a broken pattern.
+ */
+function isBadRegex(pattern: string): boolean {
+  const isAnchored = pattern.startsWith('^') && pattern.endsWith('$');
+  return !isAnchored || !isCompilable(pattern);
+}
+
+/**
  * Whether a rule's pattern is broken.
  * @param rule - Extract rule.
  * @returns True for a pattern that is unanchored or does not compile.
  */
 function isBadPattern(rule: IExtractRule): boolean {
   if (rule.pattern === undefined) return false;
-  const isAnchored = rule.pattern.startsWith('^') && rule.pattern.endsWith('$');
-  return !isAnchored || !isCompilable(rule.pattern);
+  return isBadRegex(rule.pattern);
 }
 
 /**
@@ -151,6 +162,27 @@ function hasEmptyRunIf(input: IApiDirectRuleInput): boolean {
 }
 
 /**
+ * Whether a step's pre-hook value pattern is broken.
+ * @param step - Step config.
+ * @returns True for a `valuePattern` that is unanchored or does not compile.
+ */
+function hasBadValuePattern(step: IStepConfig): boolean {
+  const pattern = step.preHook?.valuePattern;
+  if (pattern === undefined) return false;
+  return isBadRegex(pattern);
+}
+
+/**
+ * Whether any login or resume step has a broken pre-hook value pattern.
+ * @param input - Rule input.
+ * @returns True when a `valuePattern` is broken.
+ */
+function hasBadPreHookPattern(input: IApiDirectRuleInput): boolean {
+  const steps = allSteps(input.call);
+  return steps.some(hasBadValuePattern);
+}
+
+/**
  * A config check that holds when any extract rule breaks `isBad`.
  * @param isBad - The check on one extract rule.
  * @returns The config check.
@@ -184,6 +216,10 @@ const API_DIRECT_STEP_RULES: readonly IApiDirectRule[] = [
   {
     message: 'steps.runIf: carry and oneOf must not be empty',
     isBroken: hasEmptyRunIf,
+  },
+  {
+    message: 'steps.preHook.valuePattern: must be an anchored regex',
+    isBroken: hasBadPreHookPattern,
   },
 ];
 

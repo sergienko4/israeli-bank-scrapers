@@ -8,12 +8,12 @@ import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import type { IRunStepArgs } from './RunStep.js';
 import { runStep } from './RunStep.js';
-import { applyPreHook } from './SmsOtpFlow.prehook.js';
+import { applyGuardedPreHook } from './SmsOtpFlow.prehookGuard.js';
 import { isStepSkipped } from './SmsOtpFlow.runIf.js';
 import type { IMakeRunStepArgs, IReduceStepsArgs, IStepReduceArgs } from './SmsOtpFlow.types.js';
 
 /**
- * Resolve the scope to use for a step — applies preHook when present.
+ * Resolve the scope to use for a step — applies its guarded preHook, if any.
  * @param args - Reduce args.
  * @param scope - Current scope.
  * @param step - Next step config.
@@ -24,9 +24,9 @@ async function resolveStepScope(
   scope: ITemplateScope,
   step: IApiDirectCallConfig['steps'][number],
 ): Promise<Procedure<ITemplateScope>> {
-  if (step.preHook === undefined) return succeed(scope);
   const hook = step.preHook;
-  return applyPreHook({ scope, creds: args.creds, hook, cache: args.preHookCache });
+  if (hook === undefined) return succeed(scope);
+  return applyGuardedPreHook({ reduce: args, scope, step, hook });
 }
 
 /**
