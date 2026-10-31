@@ -366,13 +366,45 @@ order. Each one's slots merge into carry, so a later generator, the step's
 body and later steps can read them. `GENERATOR_RUNS` maps each
 `CarryGeneratorKind` to its runner:
 
-| Kind      | Writes                                                                                                                                                                                                |
-| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rsa-key` | `generateRsaKey` (`IRsaKeyGenerator`): a fresh RSA key of `bits` (2048). Its PKCS#8 PEM goes to `keyInto`, and `spkiSha256Hex` of its public key (64 lowercase hex characters) to `spkiSha256HexInto` |
+| Kind         | Writes                                                                                                                                                                                                |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rsa-key`    | `generateRsaKey` (`IRsaKeyGenerator`): a fresh RSA key of `bits` (2048). Its PKCS#8 PEM goes to `keyInto`, and `spkiSha256Hex` of its public key (64 lowercase hex characters) to `spkiSha256HexInto` |
+| `pkcs10-csr` | `generatePkcs10Csr` (`IPkcs10CsrGenerator`, `Flow/RunStep.generate.csr.ts`): a PKCS#10 request signed with the RSA key `keyRef` names, base64url DER without padding, to `into`                       |
 
 ```ts
 generate: [{ kind: 'rsa-key', bits: 2048, spkiSha256HexInto: 'deviceId' }],
 ```
+
+A `pkcs10-csr` generator can sign with the key an `rsa-key` generator made
+earlier in the same step. Each `subject` entry (`ICsrSubjectEntry`) pairs a
+`CsrSubjectAttr` (`O`, `DC`, `OU` or `CN`) with a value template that
+hydrates like a body value and must be text:
+
+```ts
+generate: [
+  { kind: 'rsa-key', bits: 2048, keyInto: 'certKeyPem' },
+  {
+    kind: 'pkcs10-csr',
+    keyRef: 'carry.certKeyPem',
+    subject: [
+      { attr: 'O', value: { $literal: 'Example Bank' } },
+      { attr: 'CN', value: { $join: { parts: ['creds.num', { literal: '-' }, 'creds.id'] } } },
+    ],
+    into: 'csr',
+  },
+],
+```
+
+`buildCsr` (`Crypto/CsrBuilder.ts`) takes an `ICsrBuildInput`: the key PEM
+and the hydrated subject as `ICsrSubjectValue` entries. It writes a v0
+request: the subject, the key's SPKI and an empty attribute set `[0]`,
+signed SHA1withRSA (`1.2.840.113549.1.1.5`). `csrSubjectDer`
+(`Crypto/CsrSubject.ts`) keeps the RDNs in the given order. DC is an
+IA5String and must be ASCII. O, OU and CN are a PrintableString when the
+text fits that alphabet, else a UTF8String. The DER writers (`DER_TAGS`,
+`DerTag`, `derNode`, `derSequence`) live in `Crypto/DerEncoding.ts`. A key
+that is not text or not an RSA private key, a subject value that is not
+text, or a DC that is not ASCII fails the generator.
 
 A runner returns its slots as `GeneratedCarry`. A generator that fails or
 rejects fails the step `<step> generate <kind> failed` before any request.
@@ -581,6 +613,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | an `extractRules` `oneOf` or `url` list that is empty                                                                                 | `steps.extractRules: oneOf and url must not be empty`                    |
 | a login or resume step whose `runIf` has a blank `carry` or an empty `oneOf`                                                          | `steps.runIf: carry and oneOf must not be empty`                         |
 | a login or resume step with an `rsa-key` generator that names neither `keyInto` nor `spkiSha256HexInto` (`API_DIRECT_GENERATE_RULES`) | `steps.generate: rsa-key needs keyInto or spkiSha256HexInto`             |
+| a login or resume step with a `pkcs10-csr` generator whose `subject` is empty or whose `into` is blank                                | `steps.generate: pkcs10-csr needs a subject and into`                    |
 | a login or resume step whose `preHook.valuePattern` does not start with `^`, end with `$` and compile with the `u` flag               | `steps.preHook.valuePattern: must be an anchored regex`                  |
 | a login or resume step whose `preHook.valuePattern` has a group, an alternation or a variable repeat before its last atom             | `steps.preHook.valuePattern: must be a flat regex`                       |
 | a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |

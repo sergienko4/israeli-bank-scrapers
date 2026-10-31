@@ -10,10 +10,24 @@ import {
 } from '../../../../../Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.js';
 import type {
   ICarryGenerator,
+  ICsrSubjectEntry,
   IStepConfig,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 const TARGET_MSG = 'steps.generate: rsa-key needs keyInto or spkiSha256HexInto';
+const CSR_MSG = 'steps.generate: pkcs10-csr needs a subject and into';
+
+/**
+ * A CSR generator with the given subject and slot.
+ * @param subject - Subject entries.
+ * @param into - Carry slot.
+ * @returns Generator config.
+ */
+function csrOf(subject: readonly ICsrSubjectEntry[], into: string): ICarryGenerator {
+  return { kind: 'pkcs10-csr', keyRef: 'carry.certKeyPem', subject, into };
+}
+
+const CN: ICsrSubjectEntry = { attr: 'CN', value: { $literal: 'device' } };
 
 /**
  * Rule input whose one login step runs the given generator.
@@ -45,9 +59,19 @@ describe('validateApiDirectConfig — carry generators', () => {
   it.each<[string, ICarryGenerator]>([
     ['keyInto', { kind: 'rsa-key', bits: 2048, keyInto: 'certKeyPem' }],
     ['spkiSha256HexInto', { kind: 'rsa-key', bits: 2048, spkiSha256HexInto: 'deviceId' }],
-  ])('an rsa-key generator naming %s passes', (_label, generator) => {
+    ['a subject and into', csrOf([CN], 'csr')],
+  ])('a generator naming %s passes', (_label, generator) => {
     const input = runOf(generator);
     const result = validateApiDirectConfig(input);
     expect(result).toEqual({ success: true, value: true });
+  });
+
+  it.each<[string, ICarryGenerator]>([
+    ['an empty subject', csrOf([], 'csr')],
+    ['a blank into', csrOf([CN], ' ')],
+  ])('a pkcs10-csr generator with %s fails the build', (_label, generator) => {
+    const input = runOf(generator);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({ success: false, errorMessage: CSR_MSG });
   });
 });

@@ -12,17 +12,27 @@ import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { CarryGeneratorKind, ICarryGenerator, IStepConfig } from '../ConfigContracts/index.js';
 import { type GeneratedCarry, generateRsaKey } from '../Crypto/RsaKeyGenerator.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import generatePkcs10Csr from './RunStep.generate.csr.js';
 import { mergeScopeCarry } from './RunStep.prepare.js';
 
-/** Runs one generator against the scope so far. */
-type GeneratorRun = (
-  generator: ICarryGenerator,
-  scope: ITemplateScope,
-) => Promise<Procedure<GeneratedCarry>>;
+/** The generator config of one kind. */
+type GeneratorOf<TKind extends CarryGeneratorKind> = Extract<
+  ICarryGenerator,
+  { readonly kind: TKind }
+>;
 
-/** One runner per generator kind. */
-const GENERATOR_RUNS: Readonly<Record<CarryGeneratorKind, GeneratorRun>> = {
+/** One runner per generator kind, each taking its own config. */
+type GeneratorRuns = {
+  readonly [TKind in CarryGeneratorKind]: (
+    generator: GeneratorOf<TKind>,
+    scope: ITemplateScope,
+  ) => Promise<Procedure<GeneratedCarry>>;
+};
+
+/** One runner per generator kind — a new kind is one row. */
+const GENERATOR_RUNS: GeneratorRuns = {
   'rsa-key': generateRsaKey,
+  'pkcs10-csr': generatePkcs10Csr,
 };
 
 /** The step whose generators run, and the scope so far. */
@@ -42,6 +52,21 @@ function generateFailed(cursor: IGenerateCursor, generator: ICarryGenerator): Pr
 }
 
 /**
+ * Run a generator with the runner of its kind.
+ * @param generator - Generator config.
+ * @param scope - Scope so far.
+ * @returns The runner's slots.
+ */
+function runOfKind<TKind extends CarryGeneratorKind>(
+  generator: GeneratorOf<TKind>,
+  scope: ITemplateScope,
+): Promise<Procedure<GeneratedCarry>> {
+  const kind: TKind = generator.kind;
+  const run = GENERATOR_RUNS[kind];
+  return run(generator, scope);
+}
+
+/**
  * Run one generator and merge its slots; a failure or rejection fails the step.
  * @param cursor - Step and scope so far.
  * @param generator - Generator config.
@@ -51,8 +76,7 @@ async function runGenerator(
   cursor: IGenerateCursor,
   generator: ICarryGenerator,
 ): Promise<Procedure<ITemplateScope>> {
-  const run = GENERATOR_RUNS[generator.kind];
-  const made = await run(generator, cursor.scope).catch((): false => false);
+  const made = await runOfKind(generator, cursor.scope).catch((): false => false);
   if (made === false || !isOk(made)) return generateFailed(cursor, generator);
   const merged = mergeScopeCarry(cursor.scope, made.value);
   return succeed(merged);
