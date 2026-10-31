@@ -4,7 +4,7 @@
 
 import type { resolveWkUrl } from '../../../Registry/WK/UrlsWK.js';
 import type { ICookieJar } from '../../../Strategy/Fetch/CookieJar.js';
-import type { IFetchCallPolicy } from '../../../Types/Domain/FetchPolicy.js';
+import type { IFetchCallPolicy, IResponseHeaderSink } from '../../../Types/Domain/FetchPolicy.js';
 import type { ITokenBus } from '../../../Types/Domain/TokenBus.js';
 import type { IAsymmetricSignerConfig, IStepConfig } from '../ConfigContracts/index.js';
 import type { IGenericKeypair } from '../Crypto/CryptoKeyFactory.js';
@@ -78,6 +78,15 @@ interface IAttachSignerArgs {
   readonly out: MutableHeaderMap;
 }
 
+/**
+ * A step's response-header capture: the sink its call policy names and the
+ * headers that sink filled. The filled map stays off the transport's view.
+ */
+interface IHeaderCapture {
+  readonly sink: IResponseHeaderSink;
+  readonly seen: ReadonlyMap<string, string>;
+}
+
 /** Args bundle passed to the transport — keeps runStep short. */
 interface IFireArgs {
   readonly body: Record<string, unknown>;
@@ -85,6 +94,8 @@ interface IFireArgs {
   readonly extraHeaders: MutableHeaderMap;
   readonly onSetCookie?: OnSetCookie;
   readonly policy?: IFetchCallPolicy;
+  /** Present when the step carries response headers; never sent to the bus. */
+  readonly headerCapture?: IHeaderCapture;
 }
 
 /** Diagnostic context shape — PII-safe metadata for log calls. */
@@ -151,6 +162,7 @@ export type {
   IDispatchBundle,
   IFireArgs,
   IHeaderAssembly,
+  IHeaderCapture,
   IHeadersAndFireArgs,
   IParsedUrlParts,
   IPathAndQuery,

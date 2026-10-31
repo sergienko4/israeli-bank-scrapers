@@ -63,6 +63,14 @@ interface IOptionalExtract {
   readonly fallback?: string;
 }
 
+/** One carry slot read from a response header. */
+interface IHeaderExtract {
+  /** Header name, compared case-insensitively. */
+  readonly header: string;
+  /** Value written when the response lacks the header; without it the step fails. */
+  readonly fallback?: string;
+}
+
 /** Fields every login step has, whatever its HTTP method. */
 interface IStepBase {
   readonly name: StepName;
@@ -98,6 +106,8 @@ interface IStepBase {
   readonly response?: ResponseKind;
   /** Text a `document` answer must contain, else the step fails `document unverified`. */
   readonly documentMarker?: string;
+  /** Carry slots read from the final response's headers, merged beside `extractsToCarry`. */
+  readonly headerExtractsToCarry?: Readonly<Record<string, IHeaderExtract>>;
 }
 
 /** A POST step, the default when `method` is omitted: sends the hydrated body. */
@@ -121,6 +131,7 @@ type StepMethod = NonNullable<IStepConfig['method']>;
 export type {
   FlowKind,
   IGetStep,
+  IHeaderExtract,
   IOptionalExtract,
   IPostStep,
   IStepBase,

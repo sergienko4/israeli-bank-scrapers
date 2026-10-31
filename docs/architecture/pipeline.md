@@ -146,6 +146,12 @@ Once a response answers, the native transport wraps it in an `IAnswer` (response
 
 An api-direct step opts in with `response: 'document'` and an optional `documentMarker`; `callPolicyOf` carries both down as `IFetchCallPolicy.responseKind` / `documentMarker`, next to `redirect`. The step-level sanitiser keeps these refusals' fixed tails (`bind HTTP 207`, `bind HTTP 302 redirect refused`, `bind document unverified`) only when the whole message has a policy refusal's shape, so no response text can pass for one.
 
+### Response-header carry
+
+A step can carry values the bank returns in response headers. `headerExtractsToCarry` maps a carry slot to an `IHeaderExtract`: a `header` name, compared case-insensitively, and an optional `fallback`. [`attachHeaderCapture`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.headerCarry.ts) builds the step's `IHeaderCapture`. Its `IResponseHeaderSink` (the lower-case header `names` and a `take` receiver) rides down as `IFetchCallPolicy.headerSink`, next to `redirect`. The map that sink fills stays on the step's fire args and never reaches the bus.
+
+The native transport hands the final response to [`emitResponseHeaders`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/ResponseHeaderSink.ts), next to the Set-Cookie hook. `emitResponseHeaders` passes the sink only the declared headers the response carried. After the outcome is judged and the required extracts are read, `carryHeaders` fills each slot from its header, else from its `fallback`, else fails the step `Generic` with `"<step> header missing"`. Optional extracts are read after the header slots. The browser, Camoufox and TLS transports ignore the sink, so a declared header slot on them fails closed. Header values are never logged.
+
 ## contextIds — addressing a frame across the PRE→ACTION seal
 
 `buildActionContext` seals the raw `Page` away before `action()` runs, so

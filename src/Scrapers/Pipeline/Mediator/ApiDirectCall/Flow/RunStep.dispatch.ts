@@ -11,10 +11,17 @@ import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { sanitiseStepFailure } from './RunStep.failure.js';
 import { fireStep } from './RunStep.fire.js';
+import { carryHeaders } from './RunStep.headerCarry.js';
 import { extractOptional } from './RunStep.optional.js';
 import { judgeStepOutcome } from './RunStep.outcome.js';
 import { buildDispatchBundle, mergeScopeCarry } from './RunStep.prepare.js';
-import type { IDispatchBundle, IRespDescriptor, IRunStepArgs, JsonValue } from './RunStep.types.js';
+import type {
+  CarryMap,
+  IDispatchBundle,
+  IRespDescriptor,
+  IRunStepArgs,
+  JsonValue,
+} from './RunStep.types.js';
 import { resolvePathAndQuery } from './RunStep.url.js';
 
 const LOG = getDebug(import.meta.url);
@@ -57,21 +64,35 @@ function describeResponse(resp: JsonValue): IRespDescriptor {
 }
 
 /**
+ * Read a step's carry from its answer: the required extracts, then the
+ * response-header slots, then the optional extracts.
+ * @param bundle - Dispatch bundle.
+ * @param resp - Successful response JSON.
+ * @returns Procedure with the step's carry, or the first missing field.
+ */
+function collectCarry(bundle: IDispatchBundle, resp: JsonValue): Procedure<CarryMap> {
+  const step = bundle.fireScope.step;
+  const carryProc = extractFields(resp, step.extractsToCarry);
+  if (!isOk(carryProc)) return carryProc;
+  const headerProc = carryHeaders(bundle);
+  if (!isOk(headerProc)) return headerProc;
+  const optional = extractOptional(resp, step);
+  return succeed({ ...carryProc.value, ...optional, ...headerProc.value });
+}
+
+/**
  * Judge the step's outcome, then fold the response carry into the prepared
- * scope. A refused outcome fails before any extract runs. Optional extracts
- * are read after the required ones.
+ * scope. A refused outcome fails before any extract runs.
  * @param bundle - Dispatch bundle.
  * @param resp - Successful response JSON.
  * @returns Procedure with the merged scope.
  */
 function extractAndMerge(bundle: IDispatchBundle, resp: JsonValue): Procedure<ITemplateScope> {
-  const step = bundle.fireScope.step;
-  const judged = judgeStepOutcome(step, resp);
+  const judged = judgeStepOutcome(bundle.fireScope.step, resp);
   if (!isOk(judged)) return judged;
-  const carryProc = extractFields(resp, step.extractsToCarry);
-  if (!isOk(carryProc)) return carryProc;
-  const optional = extractOptional(resp, step);
-  const merged = mergeScopeCarry(bundle.preparedScope, { ...carryProc.value, ...optional });
+  const carry = collectCarry(bundle, resp);
+  if (!isOk(carry)) return carry;
+  const merged = mergeScopeCarry(bundle.preparedScope, carry.value);
   return succeed(merged);
 }
 

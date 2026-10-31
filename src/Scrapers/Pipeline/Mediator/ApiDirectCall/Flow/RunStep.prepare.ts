@@ -11,6 +11,7 @@ import type { IBodyTemplate } from '../ConfigContracts/index.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import buildOnSetCookie from './RunStep.cookies.js';
+import { attachHeaderCapture } from './RunStep.headerCarry.js';
 import { buildStepHeaders } from './RunStep.headers.js';
 import type {
   CarryMap,
@@ -123,20 +124,30 @@ function callPolicyOf(step: IStepConfig): Pick<IFireArgs, 'policy'> {
 }
 
 /**
- * Build the final IFireArgs bundle including the optional cookie sink and
- * the step's optional call policy.
+ * The fire args a step sends: body, query, headers and its call policy.
  * @param opts - Assemble args bundle.
- * @returns Fire-call args ready for fireStep.
+ * @returns Fire-call args without hooks.
  */
-function assembleFire(opts: IAssembleFireArgs): IFireArgs {
-  const fireBase: IFireArgs = {
+function baseFire(opts: IAssembleFireArgs): IFireArgs {
+  return {
     body: opts.preparedBody.body,
     query: opts.query,
     extraHeaders: opts.headers,
     ...callPolicyOf(opts.args.step),
   };
+}
+
+/**
+ * Build the final IFireArgs bundle: the step's call policy, its optional
+ * response-header capture and its optional cookie sink.
+ * @param opts - Assemble args bundle.
+ * @returns Fire-call args ready for fireStep.
+ */
+function assembleFire(opts: IAssembleFireArgs): IFireArgs {
+  const fireBase = baseFire(opts);
+  const captured = attachHeaderCapture(fireBase, opts.args.step);
   const onSetCookie = buildOnSetCookie(opts.args);
-  return attachSink(fireBase, onSetCookie);
+  return attachSink(captured, onSetCookie);
 }
 
 /**

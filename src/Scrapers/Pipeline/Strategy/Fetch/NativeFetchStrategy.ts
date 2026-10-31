@@ -27,8 +27,9 @@ import type {
 } from './FetchStrategy.js';
 import { overlayHeaders } from './HeaderOverlay.js';
 import { classifyHttpFailure, hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
-import type { IRedirectRun } from './RedirectFollow.js';
+import type { IRedirectRun, IRunEnd } from './RedirectFollow.js';
 import { emitSetCookies, sendUnderPolicy } from './RedirectFollow.js';
+import { emitResponseHeaders } from './ResponseHeaderSink.js';
 import { safeUrlForLog, scrubUrlFromText } from './SafeUrlForLog.js';
 import type { IAnswer } from './StatusPolicy.js';
 import { applyStatusPolicy } from './StatusPolicy.js';
@@ -165,9 +166,22 @@ function resolveFetchUrl(baseUrl: string, url: string): FullyQualifiedUrl {
 }
 
 /**
+ * Hand the final response to the call's hooks: its Set-Cookie lines go to the
+ * cookie hook under the URL that answered, its declared headers to the sink.
+ * @param run - The dispatched run and its hooks.
+ * @param end - The response that ended the run and the URL that answered.
+ * @returns How many headers the call's header sink took.
+ */
+function emitHooks(run: IDispatch, end: IRunEnd): number {
+  emitSetCookies(end.response, end.responseUrl, run.onSetCookie);
+  return emitResponseHeaders(end.response, run.reading.headerSink);
+}
+
+/**
  * Send a run under its redirect policy and route success/non-2xx through the
  * helpers. The final response's Set-Cookie lines are filed under the URL that
- * answered (manual hops file their own on the way). Emits PII-safe DEBUG
+ * answered (manual hops file their own on the way) and its declared headers
+ * reach the call's header sink. Emits PII-safe DEBUG
  * traces at fire and after-status. Per `logging-pii-guidlines.txt`, the URL
  * is stripped of query string (which may carry session ids / tokens) first.
  * @param run - url + init + verb + invoke transport + policies + cookie hooks.
@@ -182,9 +196,9 @@ async function dispatchFetch<T>(run: IDispatch): Promise<Procedure<T>> {
     LOG.debug({ verb: run.verb, url: safeUrl, errorMessage, message: '[fetch] NETWORK FAIL' });
     return sent;
   }
-  const { response, responseUrl } = sent.value;
+  const response = sent.value.response;
   LOG.debug({ verb: run.verb, url: safeUrl, status: response.status, message: '[fetch] STATUS' });
-  emitSetCookies(response, responseUrl, run.onSetCookie);
+  emitHooks(run, sent.value);
   return routeResponse<T>({ response, verb: run.verb, url: run.url, reading: run.reading });
 }
 
@@ -276,14 +290,14 @@ class NativeFetchStrategy implements IFetchStrategy {
 
   /**
    * How a call's answer is read: this transport's status policy plus the
-   * call's response kind (`json` when absent) and document marker.
+   * call's response kind (`json` when absent), document marker and header sink.
    * @param opts - The call's fetch options.
    * @returns The reading routeResponse applies.
    */
   protected readingOf(opts: IFetchOpts): IResponseReading {
     const responseKind = opts.responseKind ?? 'json';
-    const { documentMarker } = opts;
-    return { statusPolicy: this._statusPolicy, responseKind, documentMarker };
+    const { documentMarker, headerSink } = opts;
+    return { statusPolicy: this._statusPolicy, responseKind, documentMarker, headerSink };
   }
 
   /**
