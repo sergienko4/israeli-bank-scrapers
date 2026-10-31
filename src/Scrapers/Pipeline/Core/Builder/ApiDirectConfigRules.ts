@@ -5,8 +5,9 @@
  * `Generic` with `"<field>: <rule>"`. The session-transport rules live in
  * `ApiDirectTransportRules.ts` and run after these; the form-body rules in
  * `ApiDirectFormRules.ts` follow, then the seal rules in
- * `ApiDirectSealRules.ts` and the step-guard rules in `ApiDirectStepRules.ts`;
- * the native-fetch rules in `ApiDirectNativeRules.ts` run last.
+ * `ApiDirectSealRules.ts`, the step-guard rules in `ApiDirectStepRules.ts`
+ * and the carry-generator rules in `ApiDirectGenerateRules.ts`; the
+ * native-fetch rules in `ApiDirectNativeRules.ts` run last.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
@@ -15,6 +16,7 @@ import { MAX_ACCESS_TOKEN_CHARS } from '../../Mediator/ApiDirectCall/PersistentA
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import { API_DIRECT_FORM_RULES } from './ApiDirectFormRules.js';
+import { API_DIRECT_GENERATE_RULES } from './ApiDirectGenerateRules.js';
 import { API_DIRECT_NATIVE_RULES } from './ApiDirectNativeRules.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
 import { API_DIRECT_SEAL_RULES } from './ApiDirectSealRules.js';
@@ -258,6 +260,7 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
   ...API_DIRECT_FORM_RULES,
   ...API_DIRECT_SEAL_RULES,
   ...API_DIRECT_STEP_RULES,
+  ...API_DIRECT_GENERATE_RULES,
   ...API_DIRECT_NATIVE_RULES,
 ];
 

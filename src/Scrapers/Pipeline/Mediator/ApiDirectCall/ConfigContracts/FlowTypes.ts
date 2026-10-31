@@ -22,6 +22,7 @@ import type {
 } from '../../../Types/Domain/FetchPolicy.js';
 import type { IDerivedCarry } from './CarryTypes.js';
 import type { IPreStepHook } from './EnvelopeTypes.js';
+import type { ICarryGenerator } from './GeneratorTypes.js';
 import type { ISealFieldConfig } from './SignerTypes.js';
 import type {
   IBodyTemplate,
@@ -179,6 +180,8 @@ interface IStepBase {
   readonly extractRules?: Readonly<Record<string, IExtractRule>>;
   /** Guard checked before the pre-hook; a miss skips the step (N14). */
   readonly runIf?: IRunIf;
+  /** Carry generators, run in order once `runIf` passes, before hydration (N25). */
+  readonly generate?: readonly ICarryGenerator[];
 }
 
 /** A POST step, the default when `method` is omitted: sends the hydrated body. */

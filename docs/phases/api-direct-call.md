@@ -355,6 +355,29 @@ not text, skips the step: its pre-hook never asks for a code, no request is
 sent, and the scope passes to the next step unchanged. The debug log names the
 skipped step, never the slot's value.
 
+### Carry generators
+
+A step's `generate` list (`ICarryGenerator`, `GeneratorTypes.ts`, N25) makes
+values the bank expects the device to own. The reducer runs
+`generateStepCarry` (in `Flow/RunStep.generate.ts`) once the `runIf` guard
+passes and before the pre-hook and body hydration. A skipped step generates
+nothing, and so does a warm run that starts after it. The generators run in
+order. Each one's slots merge into carry, so a later generator, the step's
+body and later steps can read them. `GENERATOR_RUNS` maps each
+`CarryGeneratorKind` to its runner:
+
+| Kind      | Writes                                                                                                                                                                                                |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rsa-key` | `generateRsaKey` (`IRsaKeyGenerator`): a fresh RSA key of `bits` (2048). Its PKCS#8 PEM goes to `keyInto`, and `spkiSha256Hex` of its public key (64 lowercase hex characters) to `spkiSha256HexInto` |
+
+```ts
+generate: [{ kind: 'rsa-key', bits: 2048, spkiSha256HexInto: 'deviceId' }],
+```
+
+A runner returns its slots as `GeneratedCarry`. A generator that fails or
+rejects fails the step `<step> generate <kind> failed` before any request.
+The message carries no generated material.
+
 ### OTP pre-hook guards
 
 A step's `preHook` (`IPreStepHook`) asks the caller for a code. Three optional
@@ -492,6 +515,8 @@ from what it extracted:
   reaches carry ([Extract rules](#extract-rules)).
 - `runIf` skips the step, pre-hook included, unless a carry slot holds one of
   the listed texts ([Conditional steps](#conditional-steps)).
+- `generate` writes fresh device material, such as an RSA key, into carry
+  before the body is hydrated ([Carry generators](#carry-generators)).
 - `omitBankText: true` on the config keeps reply text out of a missed extract
   and records a length-only hint for `error_code` in login diagnostics
   ([Bank text in failures](#bank-text-in-failures)).
@@ -555,6 +580,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | an `extractRules` `maxChars` that is not an integer from 1 to 65536                                                                   | `steps.extractRules.maxChars: must be an integer from 1 to 65536`        |
 | an `extractRules` `oneOf` or `url` list that is empty                                                                                 | `steps.extractRules: oneOf and url must not be empty`                    |
 | a login or resume step whose `runIf` has a blank `carry` or an empty `oneOf`                                                          | `steps.runIf: carry and oneOf must not be empty`                         |
+| a login or resume step with an `rsa-key` generator that names neither `keyInto` nor `spkiSha256HexInto` (`API_DIRECT_GENERATE_RULES`) | `steps.generate: rsa-key needs keyInto or spkiSha256HexInto`             |
 | a login or resume step whose `preHook.valuePattern` does not start with `^`, end with `$` and compile with the `u` flag               | `steps.preHook.valuePattern: must be an anchored regex`                  |
 | a login or resume step whose `preHook.valuePattern` has a group, an alternation or a variable repeat before its last atom             | `steps.preHook.valuePattern: must be a flat regex`                       |
 | a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |
