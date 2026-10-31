@@ -130,6 +130,8 @@ describe('validateApiDirectConfig — extractRules', () => {
     ['two repeats apart', { state: { pattern: String.raw`^\d+-\d+$` } }, FLAT_MSG],
     ['two bounded ranges', { state: { pattern: '^.{0,64}.{0,64}$' } }, FLAT_MSG],
     ['two optional atoms', { state: { pattern: '^a?a?$' } }, FLAT_MSG],
+    ['a repeat before a long exact count', { state: { pattern: '^.*a{20000}$' } }, FLAT_MSG],
+    ['a repeat before a literal', { state: { pattern: String.raw`^\w+!$` } }, FLAT_MSG],
     ['a zero maxChars', { state: { maxChars: 0 } }, MAX_MSG],
     ['a fractional maxChars', { state: { maxChars: 1.5 } }, MAX_MSG],
     ['a maxChars past 65536', { target: { maxChars: 65537 } }, MAX_MSG],
@@ -169,7 +171,7 @@ describe('validateApiDirectConfig — extractRules', () => {
   it.each([
     ['one bounded range', String.raw`^\d{1,4}$`],
     ['one range of any text', '^.{1,64}$'],
-    ['exact counts around one range', String.raw`^\d{3}-\d{2,4}$`],
+    ['exact counts before a final range', String.raw`^\d{3}-\d{2,4}$`],
     ['exact counts only', String.raw`^\d{3}-\d{4}$`],
     ['an escaped quantifier before a repeat', String.raw`^\++$`],
     ['quantifier characters inside a class', '^[(+*?{}|]+$'],
@@ -248,6 +250,7 @@ describe('validateApiDirectConfig — preHook.valuePattern', () => {
   it.each([
     ['a group', String.raw`^(\d+)+$`],
     ['two repeats', String.raw`^\d+\d+$`],
+    ['a repeat before a literal', String.raw`^\d*x$`],
   ])('%s fails the build', (_label, valuePattern) => {
     const step = hookedStep(valuePattern);
     const input = resumeOf(step);

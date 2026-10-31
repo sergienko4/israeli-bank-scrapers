@@ -9,7 +9,8 @@
  * (N14) needs a carry slot and a non-empty `oneOf`, else its step never runs.
  * A pre-hook `valuePattern` (N21) must be anchored and compile, like an
  * extract `pattern`. Both must be flat (`FlatPattern.ts`): no group, no
- * alternation and at most one variable repeat, so a match takes linear time.
+ * alternation and a variable repeat on the last atom only, so a match takes
+ * linear time.
  */
 
 import type {

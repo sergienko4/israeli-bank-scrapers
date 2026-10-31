@@ -3,10 +3,10 @@
  * use, so testing bank or caller text against it takes linear time. Between
  * `^` and `$` a flat pattern is a run of atoms — a literal, `.`, an escape or
  * a character class — each with an optional quantifier. It has no group and
- * no alternation, and at most one atom repeats a variable amount (`*`, `+`,
- * `?` or a range); every other quantifier is an exact `{n}`. Anchored at both
- * ends, such a pattern has one way to split its input per count of its one
- * variable atom, so a failed match costs input length × pattern length.
+ * no alternation, and only its last atom may repeat a variable amount (`*`,
+ * `+`, `?` or a range); every earlier quantifier is an exact `{n}`. The
+ * earlier atoms then match one way, and each count the last atom backs off
+ * to costs only the `$` check, so a failed match is linear in the input.
  */
 
 /** `^`, then atoms each with an optional quantifier, then `$`. */
@@ -30,25 +30,26 @@ function isVariable(quantifier: string): boolean {
 }
 
 /**
- * How many atoms of a flat pattern repeat a variable amount.
+ * The quantifier of each atom of a flat pattern, in order.
  * @param pattern - A pattern that already reads as flat.
- * @returns The number of variable quantifiers.
+ * @returns One quantifier per atom ('' when it has none).
  */
-function variableRepeats(pattern: string): number {
+function quantifiersOf(pattern: string): readonly string[] {
   const tokens = pattern.matchAll(TOKEN);
-  const quantifiers = Array.from(tokens, (token): string => token[1]);
-  return quantifiers.filter(isVariable).length;
+  return Array.from(tokens, (token): string => token[1]);
 }
 
 /**
  * Whether a regex source is flat: anchored atoms, no group or alternation,
- * and at most one variable repeat.
+ * and a variable repeat on the last atom only.
  * @param pattern - Regex source.
  * @returns True for a flat pattern.
  */
 function isFlatPattern(pattern: string): boolean {
   if (!FLAT.test(pattern)) return false;
-  return variableRepeats(pattern) <= 1;
+  const quantifiers = quantifiersOf(pattern);
+  const leading = quantifiers.slice(0, -1);
+  return !leading.some(isVariable);
 }
 
 export default isFlatPattern;

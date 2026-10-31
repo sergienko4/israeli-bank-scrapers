@@ -518,12 +518,12 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a login or resume step with a `failIfPresent` entry that is not a JSON pointer below the body root                                    | `steps.failIfPresent: each entry must be a JSON pointer`                 |
 | an `extractRules` key that names neither an `extractsToCarry` nor an `optionalExtractsToCarry` slot of its step                       | `steps.extractRules: each key must name a body extract`                  |
 | an `extractRules` `pattern` that does not start with `^`, end with `$` and compile with the `u` flag                                  | `steps.extractRules.pattern: must be an anchored regex`                  |
-| an `extractRules` `pattern` with a group, an alternation or more than one variable repeat                                             | `steps.extractRules.pattern: must be a flat regex`                       |
+| an `extractRules` `pattern` with a group, an alternation or a variable repeat before its last atom                                    | `steps.extractRules.pattern: must be a flat regex`                       |
 | an `extractRules` `maxChars` that is not an integer from 1 to 65536                                                                   | `steps.extractRules.maxChars: must be an integer from 1 to 65536`        |
 | an `extractRules` `oneOf` or `url` list that is empty                                                                                 | `steps.extractRules: oneOf and url must not be empty`                    |
 | a login or resume step whose `runIf` has a blank `carry` or an empty `oneOf`                                                          | `steps.runIf: carry and oneOf must not be empty`                         |
 | a login or resume step whose `preHook.valuePattern` does not start with `^`, end with `$` and compile with the `u` flag               | `steps.preHook.valuePattern: must be an anchored regex`                  |
-| a login or resume step whose `preHook.valuePattern` has a group, an alternation or more than one variable repeat                      | `steps.preHook.valuePattern: must be a flat regex`                       |
+| a login or resume step whose `preHook.valuePattern` has a group, an alternation or a variable repeat before its last atom             | `steps.preHook.valuePattern: must be a flat regex`                       |
 | a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |
 | a login or resume step with `encoding`, without `headless.nativeFetch: true`                                                          | `steps.encoding: not allowed without headless.nativeFetch`               |
 | `headless.cookieDomains`, `redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, on an api-direct or node-tls bank | `headless.<field>: not allowed without headless.nativeFetch` |
@@ -553,11 +553,12 @@ the build accepts only a flat regex, which matches in linear time.
 `isFlatPattern` (`Core/Builder/FlatPattern.ts`) reads the source between `^`
 and `$` as a run of atoms — a literal, `.`, an escape or a character class —
 each with an optional quantifier. A group, a lookaround or an alternation
-fails, and at most one atom may repeat a variable amount (`*`, `+`, `?` or a
-range); every other quantifier must be an exact `{n}`. So `^\d{1,4}$`,
-`^.{1,64}$` and `^\d{3}-\d{4}$` pass, while `(a+)+`, `^a*a*b$` and `^\d+-\d+$`
-fail. With one variable atom and both ends anchored, a failed match tries each
-count of that atom once, costing input length × pattern length.
+fails, and only the last atom may repeat a variable amount (`*`, `+`, `?` or a
+range); every earlier quantifier must be an exact `{n}`. So `^\d{1,4}$`,
+`^.{1,64}$` and `^\d{3}-\d{2,4}$` pass, while `(a+)+`, `^a*a*b$`, `^\w+!$` and
+`^.*a{20000}$` fail. The earlier atoms then match one way, and each count the
+last atom backs off to costs only the `$` check, so a failed match is linear in
+the input.
 
 `warmStart.kind` says what the stored token is. The default, `'carry'`, seeds
 it into the carry slot `carryField`. `'cookie-jar'` is for a cookie-session
