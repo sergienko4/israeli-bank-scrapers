@@ -316,7 +316,7 @@ If a future regression introduces the anti-pattern, the **T7.10 canary** will bl
 **T7.5 follow-up PR scope** (separate from this Phase 7 PR):
 
 - Open `fix/e2e-mocked-fixture-debt` branch
-- Implement repo-local safe fixtures under `src/Tests/E2eMocked/fixtures/discount/` (committed, synthetic HTML); Visa Cal, Isracard, Amex, Max and Mizrahi are browserless and need none
+- Implement repo-local safe fixtures under `src/Tests/E2eMocked/fixtures/discount/` (committed, synthetic HTML); Visa Cal, Isracard, Amex, Max, Mizrahi and Hapoalim are browserless and need none
 - Un-`skip` the 5 files; verify all pass in `test:e2e:mock`
 - Document the fixture authoring pattern for future banks
 

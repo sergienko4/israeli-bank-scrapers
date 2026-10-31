@@ -15,6 +15,7 @@
  */
 
 import type { IApiDirectScrapeShape } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import { HAPOALIM_STATIC_HEADERS } from '../../../Registry/Config/PipelineBankConfigHapoalimConstants.js';
 import {
   accountNumberOf,
   balanceExtract,
@@ -41,12 +42,14 @@ const HAPOALIM_SHAPE: IApiDirectScrapeShape<IHapoalimAcct, HapoalimCursor> = {
     extractAccounts,
     urlTag: customerUrl,
     method: 'GET',
+    extraHeaders: HAPOALIM_STATIC_HEADERS,
   },
   balance: {
     buildVars: noVars,
     extract: balanceExtract,
     urlTag: balanceUrl,
     method: 'GET',
+    extraHeaders: HAPOALIM_STATIC_HEADERS,
   },
   transactions: {
     buildVars: txnsVars,

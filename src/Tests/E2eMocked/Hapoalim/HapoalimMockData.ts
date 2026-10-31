@@ -1,0 +1,143 @@
+/**
+ * Hapoalim synthetic data — credentials, the seal key, cookies, accounts and
+ * movements the mocked bank serves.
+ *
+ * Rule #18: every value here is SYNTHETIC. No real PII.
+ */
+
+import moment from 'moment';
+
+import type { JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonValue.js';
+import { makeSealKey } from '../../Helpers/SealOpener.js';
+
+/** The bank's one origin: login, landing and data. */
+export const HP_ORIGIN = 'https://login.bankhapoalim.co.il';
+
+/** The code the synthetic SMS carries. */
+export const HP_OTP = '24680';
+
+/** The masked phone otp init reports, passed to the retriever as its hint. */
+export const HP_PHONE = 'SYN-***-4321';
+
+/** Synthetic credentials; the password exercises the seal's percent-encoding. */
+export const HAPOALIM_MOCK_CREDS = Object.freeze({
+  userCode: 'syn-hp-user',
+  password: 'syn-Pass!7 é',
+});
+
+/** The synthetic RSA key whose modulus serial-number serves. */
+export const HP_KEY = makeSealKey();
+
+/** The `G3CmE` value the client must set as a cookie and post. */
+export const HP_G3CME = `3ba782e1967c24a2${HP_KEY.modulusHex}3ba782e1`;
+
+/** The organization code init and verify post. */
+export const HP_ORGANIZATION = '106402333';
+
+/** XSRF cookie as set (percent-encoded) and as the header must echo it. */
+export const HP_XSRF_RAW = 'syn%2Bhp%2Fxsrf';
+export const HP_XSRF_DECODED = 'syn+hp/xsrf';
+
+/** The CSRF cookie verify sets, and the decoded `csrffield` otp verify posts. */
+export const HP_CSRF_RAW = 'syn%2Bhp%2Fcsrf';
+export const HP_CSRF_DECODED = 'syn+hp/csrf';
+
+/** Cookie pairs the bank sets, and the one the client sets itself. */
+export const HP_XSRF_COOKIE = `XSRF-TOKEN=${HP_XSRF_RAW}`;
+export const HP_BOOT_COOKIE = 'JSESSIONID=syn-hp-boot';
+export const HP_G3CME_COOKIE = `G3CmE=${HP_G3CME}`;
+export const HP_CSRF_COOKIE = `csrfcookie=${HP_CSRF_RAW}`;
+export const HP_AUTH_COOKIE = 'SMSESSION=syn-hp-auth-7d2e';
+
+/** The landing page id, sent as a number. */
+export const HP_PAGE_ID = 412;
+
+/** The portal page verify points at. */
+export const HP_TARGET = `${HP_ORIGIN}/ng-portals/rb/he`;
+
+/** One synthetic account and what the bank holds for it. */
+export interface ISynAccount {
+  readonly accountNumber: number;
+  readonly closingCode: number;
+  readonly balance: number;
+  readonly amounts: readonly number[];
+}
+
+/** Two open accounts and a closed one, which the scrape must skip. */
+export const HAPOALIM_MOCK_ACCOUNTS: readonly ISynAccount[] = [
+  { accountNumber: 111111, closingCode: 0, balance: 1520.4, amounts: [-51, 129.9] },
+  { accountNumber: 222222, closingCode: 0, balance: -310, amounts: [-20] },
+  { accountNumber: 333333, closingCode: 5, balance: 0, amounts: [] },
+];
+
+/** The open accounts, in order. */
+export const HAPOALIM_OPEN_ACCOUNTS = HAPOALIM_MOCK_ACCOUNTS.filter(acct => acct.closingCode === 0);
+
+/** Bank and branch every synthetic account sits under. */
+const BANK = 12;
+const BRANCH = 600;
+
+/** Where the scrape window starts. */
+export const HAPOALIM_MOCK_START_DATE = moment().subtract(2, 'months').startOf('month').toDate();
+
+/** The day every movement is booked on, as the bank's `YYYYMMDD` number. */
+const MOVEMENT_DAY_TEXT = moment().subtract(2, 'days').format('YYYYMMDD');
+const MOVEMENT_DAY = Number(MOVEMENT_DAY_TEXT);
+
+/**
+ * The account id the bank composes and the scrape sends back.
+ * @param acct - A synthetic account.
+ * @returns `bank-branch-number`.
+ */
+export function compositeOf(acct: ISynAccount): string {
+  return `${String(BANK)}-${String(BRANCH)}-${String(acct.accountNumber)}`;
+}
+
+/**
+ * The accounts list the bank serves.
+ * @returns One raw account per synthetic account, closed ones included.
+ */
+export function accountsBody(): readonly JsonUnknownRecord[] {
+  return HAPOALIM_MOCK_ACCOUNTS.map(acct => ({
+    bankNumber: BANK,
+    branchNumber: BRANCH,
+    accountNumber: acct.accountNumber,
+    accountClosingReasonCode: acct.closingCode,
+  }));
+}
+
+/**
+ * One movement row; the sign rides on the activity type, the amount is bare.
+ * @param amount - Signed synthetic amount.
+ * @param index - Row index.
+ * @returns The raw row.
+ */
+function movementRow(amount: number, index: number): JsonUnknownRecord {
+  const ordinal = String(index + 1);
+  const typeCode = amount < 0 ? 2 : 1;
+  const text = {
+    activityDescription: `SYNTHETIC Movement ${ordinal}`,
+    referenceNumber: 9100 + index,
+  };
+  const dates = { eventDate: MOVEMENT_DAY, valueDate: MOVEMENT_DAY };
+  return { ...dates, ...text, eventAmount: Math.abs(amount), eventActivityTypeCode: typeCode };
+}
+
+/**
+ * An account's movement rows.
+ * @param acct - A synthetic account.
+ * @returns Its raw rows.
+ */
+export function rowsOf(acct: ISynAccount): readonly JsonUnknownRecord[] {
+  return acct.amounts.map(movementRow);
+}
+
+/**
+ * The synthetic account a composite id names.
+ * @param composite - `bank-branch-number` from the request query.
+ * @returns The account, or false for an unknown id.
+ */
+export function accountOf(composite: string): ISynAccount | false {
+  const found = HAPOALIM_MOCK_ACCOUNTS.find(acct => compositeOf(acct) === composite);
+  return found ?? false;
+}

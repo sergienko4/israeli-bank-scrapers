@@ -132,7 +132,7 @@ describe('warnBrowserOnlyOptions — browserless transports', () => {
     expect({ emitted, returned }).toEqual({ emitted: [], returned: [] });
   });
 
-  it.each([CompanyTypes.Pepper, CompanyTypes.PayBox, CompanyTypes.Hapoalim])(
+  it.each([CompanyTypes.Pepper, CompanyTypes.PayBox, CompanyTypes.Beinleumi])(
     'stays silent on %s, whose run uses a browser',
     companyId => {
       const options = makeOptions(companyId, { shouldShowBrowser: true });
@@ -150,6 +150,7 @@ const BROWSERLESS_KINDS: readonly string[] = ['native', 'node-tls'];
  * moves a bank to a browserless transport adds it here.
  */
 const EXPECTED_BROWSERLESS: readonly CompanyTypes[] = [
+  CompanyTypes.Hapoalim,
   CompanyTypes.Amex,
   CompanyTypes.Isracard,
   CompanyTypes.VisaCal,

@@ -29,7 +29,6 @@ import type { Page } from 'playwright-core';
 import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import { buildBeinleumiPipeline } from '../../../../Scrapers/Pipeline/Banks/Beinleumi/BeinleumiPipeline.js';
-import { buildHapoalimPipeline } from '../../../../Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
@@ -76,8 +75,8 @@ interface IOtpFillBankFixture {
 
 /**
  * Live-tested OTP-FILL banks. Beinleumi runs the full mandatory
- * OTP flow (trigger + fill); Hapoalim runs the optional soft-skip
- * variant. OneZero is API-direct (no Pipeline OTP-FILL phase, see
+ * OTP flow (trigger + fill). Hapoalim and OneZero are API-direct (no
+ * Pipeline OTP-FILL phase; their SMS step runs inside
  * `Mediator/ApiDirectCall/`). Massad/OtsarHahayal/Pagi register
  * `withOtpFill()` in their pipelines but are NOT live-tested today,
  * so the factory excludes them — adding them would assert behavior
@@ -89,12 +88,6 @@ const BANK_OTP_FILL_FIXTURES: readonly IOtpFillBankFixture[] = [
     company: CompanyTypes.Beinleumi,
     buildPipeline: buildBeinleumiPipeline,
     otpRequired: true,
-  },
-  {
-    bank: 'hapoalim',
-    company: CompanyTypes.Hapoalim,
-    buildPipeline: buildHapoalimPipeline,
-    otpRequired: false,
   },
 ];
 

@@ -77,6 +77,16 @@ export function parseBody(body: string): JsonUnknownRecord {
   }
 }
 
+/**
+ * Parse a form-encoded request body.
+ * @param body - Raw `application/x-www-form-urlencoded` body.
+ * @returns Each decoded field; a repeated name keeps its last value.
+ */
+export function parseForm(body: string): Readonly<Record<string, string>> {
+  const fields = new URLSearchParams(body);
+  return Object.fromEntries(fields);
+}
+
 /** How a login call misbehaves under each transport fault. */
 export const NETWORK_FAULTS: Readonly<Record<NetworkFault, () => Promise<Response>>> = {
   /**

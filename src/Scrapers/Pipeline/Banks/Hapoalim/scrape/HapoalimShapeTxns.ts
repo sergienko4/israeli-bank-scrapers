@@ -36,14 +36,19 @@ import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type {
   HeaderMap,
   IExtractPageArgs,
-  VarsMap,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import {
+  HAPOALIM_API,
+  HAPOALIM_POST_HEADERS,
+  HAPOALIM_STATIC_HEADERS,
+  HAPOALIM_TXNS_CONTENT_TYPE,
+} from '../../../Registry/Config/PipelineBankConfigHapoalimConstants.js';
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
-import { COOKIE_HEADER_SENTINEL_PREFIX } from '../../../Strategy/Fetch/CookieHeaderSentinel.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { Brand } from '../../../Types/Brand.js';
+import type { ApiPostData } from '../../../Types/Domain/ApiPostData.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
-import { HAPOALIM_API, type IHapoalimAcct } from './HapoalimShapeHelpers.js';
+import type { IHapoalimAcct } from './HapoalimShapeHelpers.js';
 import {
   assessWalkOrder,
   type IWalkOrderResult,
@@ -71,8 +76,6 @@ type TxnPageArgs = IExtractPageArgs<IHapoalimAcct, HapoalimCursor>;
 type TxnRows = readonly HapoalimTxn[];
 /** Fixed anti-replay pageUuid (upstream fetchPoalimXSRFWithinPage). */
 const TXN_PAGE_UUID = '/current-account/transactions';
-/** X-XSRF-TOKEN header value — cookie-echo sentinel resolved at dispatch. */
-const XSRF_HEADER_VALUE = `${COOKIE_HEADER_SENTINEL_PREFIX}XSRF-TOKEN`;
 
 type HapoalimTxn = Record<string, unknown>;
 
@@ -146,14 +149,16 @@ export function txnsUrl(
 }
 
 /**
- * Anti-replay header set — cookie-echo XSRF token, fixed pageUuid, fresh
- * uuid, and the exact content-type Hapoalim requires for the POST.
+ * Anti-replay header set — the shared POST headers (origin, cookie-echo
+ * XSRF token), fixed pageUuid, fresh uuid, and the exact content-type
+ * Hapoalim requires for the POST.
  * @returns Per-call header map.
  */
 export function txnsHeaders(): HeaderMap {
   return {
-    'content-type': 'application/json;charset=UTF-8',
-    'X-XSRF-TOKEN': XSRF_HEADER_VALUE,
+    ...HAPOALIM_STATIC_HEADERS,
+    ...HAPOALIM_POST_HEADERS,
+    'content-type': HAPOALIM_TXNS_CONTENT_TYPE,
     pageUuid: TXN_PAGE_UUID,
     uuid: randomUUID(),
   };
@@ -318,10 +323,10 @@ export function txnsExtractPage(args: TxnPageArgs): IPage<object, HapoalimCursor
 }
 
 /**
- * No-op variables builder — the POST body is an empty container; all
- * params ride the URL query string.
- * @returns Empty variables map.
+ * The POST body is an empty JSON array, as the bank's own client sends it;
+ * all params ride the URL query string.
+ * @returns Empty array body.
  */
-export function txnsVars(): VarsMap {
-  return {};
+export function txnsVars(): ApiPostData {
+  return [];
 }
