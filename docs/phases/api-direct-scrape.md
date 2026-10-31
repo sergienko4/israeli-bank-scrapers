@@ -19,7 +19,7 @@ Shape-driven JSON/GraphQL walk that replaces SCRAPE + BALANCE-RESOLVE for api-di
 
 ## Cross-origin session hand-off (browser banks)
 
-Cookie-only banks authorise every post-auth service from the login session, so the hard-model driver calls the data API the moment login clears; the shape declares no navigation step. Headless banks never load a page at all.
+Cookie-only banks authorise every post-auth service from the login session, so the hard-model driver calls the data API the moment login clears; the shape declares no navigation step. Headless banks never open a browser page; any page a login needs (Mizrahi's login and landing pages) is fetched as a plain HTTP step in API-DIRECT-CALL.
 
 Beinleumi and its FIBI-group siblings (OtsarHahayal, Pagi, Massad — the same Mataf/appsng portal) are different: their data API lives on a different origin than login (`www.fibi.co.il` → `online.fibi.co.il`), so the cross-origin session hand-off is performed earlier, by AUTH-DISCOVERY's per-bank `postLoginNav` config (navigating to `/appsng/Resources/PortalNG/shell/#/accountSummary` on each bank's `online.<host>`). Navigating there before BIND also seeds the capture pool with the token-carrying `appsng/bff-` requests so BIND's auth-header sniff finds them.
 

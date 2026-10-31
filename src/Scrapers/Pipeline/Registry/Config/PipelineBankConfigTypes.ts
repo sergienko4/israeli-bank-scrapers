@@ -261,8 +261,7 @@ export interface IPipelineBankConfig {
    * and passes it to the browser-page mediator's fetch strategy as defaults
    * (per-call and rawAuth headers still win). Set for browser banks
    * whose SPA API rejects a bare cookie/Bearer without the negotiation headers
-   * (the FIBI BFF needs Accept: application/json; the session-cookie
-   * Mizrahi `mto` API needs its `mizrahixsrftoken`).
+   * (the FIBI BFF needs Accept: application/json).
    * Absent/false ⇒ empty bag ⇒ the mediator is byte-identical to no wrap.
    */
   readonly installDiscoveredHeaders?: boolean;
