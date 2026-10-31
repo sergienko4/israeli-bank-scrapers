@@ -204,6 +204,14 @@ The one kind today is `rsa-pkcs1-block-xor`, whose `ISealRsaBlockXorParams` the 
 
 A step fails before any request, naming no value: `<step> seal key invalid` when the modulus slot is missing, is not even-length odd hex of 128 to 2048 digits, or yields a key under 512 bits; `<step> seal source invalid` (`SOURCE_INVALID`) when the credential is missing, empty, longer than 256 characters or holds a lone surrogate; `<step> seal writeTo invalid` when the pointer does not resolve in the body. The build refuses an unknown kind, a seal off a POST record body, a `writeTo` that is not a JSON pointer, and params out of range (`API_DIRECT_SEAL_RULES`).
 
+### Client cookies
+
+A login step can set cookies the bank expects the browser to have written, and read cookies the bank set. On a run with a domain jar (`headless.cookieDomains`), [`bindStepCookies`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.clientCookies.ts) runs first in every step: it binds a jar view to the step URL before the URL, body or headers resolve. A `cookie.<name>` ref reads through that view: [`resolveCookieRef`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/ApiDirectCall/Template/CookieRef.ts) takes the raw value of the cookie that applies to the step URL, as a `CookieLookup` returns it, and URL-decodes it. Scrape steps get no jar view, so a `cookie.<name>` ref there misses.
+
+`setCookies` maps cookie names to refs. Every ref resolves, and must be a string of 1 to 4096 RFC 6265 cookie-octets, before any cookie is written; then each is written host-only with `Path=/` and `Secure`, so it travels on the step's own request and on later requests to that host.
+
+A step fails before any request, naming no value: `ref cookie.<name> miss` when no cookie applies or the run has no domain jar; `ref cookie.<name> bad` when the raw value is over 4096 characters or holds a malformed escape; `<step> setCookies <name> invalid` when a ref does not resolve to cookie-octets; `<step> setCookies needs a cookie session` when the run has no cookie jar. The build refuses `setCookies` without `headless.cookieDomains`, and a cookie name that is not an HTTP token (`API_DIRECT_NATIVE_RULES`).
+
 ## contextIds — addressing a frame across the PRE→ACTION seal
 
 `buildActionContext` seals the raw `Page` away before `action()` runs, so

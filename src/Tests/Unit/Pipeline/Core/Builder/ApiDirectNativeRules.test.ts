@@ -2,7 +2,8 @@
  * N8 — redirect, document, status and header-carry fields act only on the
  * headless native fetch, so a config naming one on any other transport fails
  * the build instead of being ignored. `cookieDomains` needs the session jar,
- * and a carried header name must be a valid HTTP header name.
+ * and a carried header name must be a valid HTTP header name. `setCookies`
+ * writes into the domain jar, so it needs `cookieDomains` and token names.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
@@ -38,6 +39,15 @@ const FORM: IStepConfig = {
   body: { shape: { a: { $literal: 'x' } } },
   extractsToCarry: {},
 };
+
+/**
+ * The call step setting one client cookie under the given name.
+ * @param name - Cookie name.
+ * @returns Step config.
+ */
+function setting(name: string): IStepConfig {
+  return { ...CALL, setCookies: { [name]: 'carry.g3' } };
+}
 
 /**
  * The call step carrying one response header under the given name.
@@ -83,6 +93,10 @@ function resumeOf(step: IStepConfig): IApiDirectRuleInput {
 
 const OFF = 'not allowed without headless.nativeFetch';
 const HEADER_MSG = 'headerExtractsToCarry.header: must be an HTTP header name';
+const NO_DOMAIN_JAR = 'steps.setCookies: not allowed without headless.cookieDomains';
+const COOKIE_NAME_MSG = 'steps.setCookies: each name must be an HTTP token';
+const DOMAIN_JAR: HeadlessBlock = { ...JAR, cookieDomains: ['native.example'] };
+const SETTING_G3 = setting('G3CmE');
 
 /** A config, the headless block beside it, and the text it fails with. */
 interface IBrokenCase {
@@ -149,6 +163,29 @@ const BROKEN: readonly IBrokenCase[] = [
   { label: 'header name, space', input: runOf([carrying('x id')], NATIVE), message: HEADER_MSG },
   { label: 'header name, colon', input: runOf([carrying('x:id')], NATIVE), message: HEADER_MSG },
   { label: 'header name, newline', input: runOf([carrying('x\nid')], NATIVE), message: HEADER_MSG },
+  {
+    label: 'set cookie, no headless',
+    input: runOf([setting('G3CmE')], false),
+    message: NO_DOMAIN_JAR,
+  },
+  { label: 'set cookie, host jar', input: runOf([setting('G3CmE')], JAR), message: NO_DOMAIN_JAR },
+  { label: 'set cookie on resume', input: resumeOf(SETTING_G3), message: NO_DOMAIN_JAR },
+  { label: 'empty cookie name', input: runOf([setting('')], DOMAIN_JAR), message: COOKIE_NAME_MSG },
+  {
+    label: 'cookie name, separator',
+    input: runOf([setting('a;b')], DOMAIN_JAR),
+    message: COOKIE_NAME_MSG,
+  },
+  {
+    label: 'cookie name, equals',
+    input: runOf([setting('a=b')], DOMAIN_JAR),
+    message: COOKIE_NAME_MSG,
+  },
+  {
+    label: 'cookie name, space',
+    input: runOf([setting('a b')], DOMAIN_JAR),
+    message: COOKIE_NAME_MSG,
+  },
 ];
 
 /** A config the rules accept. */
@@ -171,7 +208,7 @@ const SOUND: readonly ISoundCase[] = [
   {
     label: 'every field on native fetch',
     input: runOf(
-      [PAGE, MARKED, REJECTING, FORM, carrying("X-Trace_ID.v2!#$%&'*+^`|~")],
+      [PAGE, MARKED, REJECTING, FORM, carrying("X-Trace_ID.v2!#$%&'*+^`|~"), setting('G3CmE')],
       EVERY_FIELD,
     ),
   },

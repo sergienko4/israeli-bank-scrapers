@@ -109,6 +109,8 @@ this contract; the build-time checks read both.
 | Carry slots built from one step's extracts | `deriveCarry` (`IDerivedCarry`) | FlowTypes | [Carry derivation](../phases/api-direct-call.md#carry-derivation) |
 | Send one step's body as a URL-encoded form | `encoding` (`BodyEncoding`) | FlowTypes | [Form bodies](pipeline.md#form-bodies) |
 | Seal a credential into one step's body | `seal` (`ISealFieldConfig`) | SignerTypes, FlowTypes | [Sealed fields](pipeline.md#sealed-fields) |
+| Set client cookies before one step's request | `setCookies` (record of `RefToken`) | FlowTypes, TemplateTypes | [Client cookies](pipeline.md#client-cookies) |
+| Read a cookie the bank set, URL-decoded | `cookie.<name>` (`RefToken`) | TemplateTypes | [Client cookies](pipeline.md#client-cookies) |
 
 Cross-field rules (for example `authScheme: 'none'` needs
 `headless.sessionCookies`) fail the build; see

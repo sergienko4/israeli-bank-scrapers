@@ -11,10 +11,12 @@ import type {
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IGenericKeypair } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
 import { generateKeypair } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
+import type { CookieLookup } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/CookieRef.js';
 import {
   type ITemplateScope,
   resolveRef,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
+import { none, type Option, some } from '../../../../../../Scrapers/Pipeline/Types/Option.js';
 
 const CONFIG_STUB = {
   flow: 'sms-otp',
@@ -38,6 +40,7 @@ function makeScope(overrides: Partial<ITemplateScope> = {}): ITemplateScope {
     config: overrides.config ?? CONFIG_STUB,
     keypair: overrides.keypair,
     fingerprint: overrides.fingerprint,
+    cookie: overrides.cookie,
   };
 }
 
@@ -240,5 +243,61 @@ describe('RefResolver.resolveRef unknown token', () => {
     const result = resolveRef('completely.unknown' as RefToken, scope);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('unknown ref token');
+  });
+});
+
+/** Raw cookie values the step URL sees, by name. */
+const JAR: Readonly<Record<string, string>> = {
+  csrfcookie: 'a%2Fb%3D%20c',
+  plain: 'plain',
+  edge: 'y'.repeat(4096),
+  broken: '%E0%A4%A',
+  long: 'x'.repeat(4097),
+};
+
+/**
+ * The step's cookie view over JAR.
+ * @param name - Cookie name.
+ * @returns The raw value, or none.
+ */
+function jarLookup(name: string): Option<string> {
+  if (!Object.hasOwn(JAR, name)) return none();
+  return some(JAR[name]);
+}
+
+/**
+ * Resolve one cookie ref through a scope.
+ * @param name - Cookie name.
+ * @param cookie - The scope's cookie view.
+ * @returns The resolver result.
+ */
+function cookieRef(name: string, cookie?: CookieLookup): ReturnType<typeof resolveRef> {
+  const scope = makeScope({ cookie });
+  return resolveRef(`cookie.${name}`, scope);
+}
+
+describe('RefResolver.resolveRef cookie', () => {
+  it.each([
+    ['csrfcookie', 'a/b= c'],
+    ['plain', 'plain'],
+    ['edge', JAR.edge],
+  ])('cookie.%s resolves to the URL-decoded value', (name, expected): void => {
+    const result = cookieRef(name, jarLookup);
+    expect(result).toEqual({ success: true, value: expected });
+  });
+
+  it.each(['broken', 'long'])('cookie.%s fails "bad" without the value', (name): void => {
+    const result = cookieRef(name, jarLookup);
+    expect(result).toMatchObject({ success: false, errorMessage: `ref cookie.${name} bad` });
+  });
+
+  it('fails "miss" for a cookie the step URL does not see', (): void => {
+    const result = cookieRef('absent', jarLookup);
+    expect(result).toMatchObject({ success: false, errorMessage: 'ref cookie.absent miss' });
+  });
+
+  it('fails "miss" when the scope has no cookie view', (): void => {
+    const result = cookieRef('csrfcookie');
+    expect(result).toMatchObject({ success: false, errorMessage: 'ref cookie.csrfcookie miss' });
   });
 });

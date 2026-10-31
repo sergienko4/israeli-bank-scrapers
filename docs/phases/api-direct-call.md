@@ -41,12 +41,13 @@ empty signer slot fails as `injected keypair missing: <slot>`.
 
 Declarative body literal with `$ref` tokens:
 
-| Token                        | Resolves to                    |
-| ---------------------------- | ------------------------------ |
-| `$literal: "v"`              | Literal value `"v"`            |
-| `$ref: creds.<field>`        | The credential at that key     |
-| `$ref: carry.<slot>`         | The flow's per-step carry slot |
-| `$ref: config.<dotted.path>` | The bank's config object       |
+| Token                        | Resolves to                              |
+| ---------------------------- | ---------------------------------------- |
+| `$literal: "v"`              | Literal value `"v"`                      |
+| `$ref: creds.<field>`        | The credential at that key               |
+| `$ref: carry.<slot>`         | The flow's per-step carry slot           |
+| `$ref: config.<dotted.path>` | The bank's config object                 |
+| `$ref: cookie.<name>`        | The cookie for the step URL, URL-decoded |
 
 One hydration engine serves both `API-DIRECT-CALL` and `API-DIRECT-SCRAPE` step bodies — no per-bank imperative body assembly.
 
@@ -342,6 +343,10 @@ from what it extracted:
 - `seal` writes one credential, sealed under the bank's RSA modulus, at a
   body pointer; neither value reaches carry
   ([Sealed fields](../architecture/pipeline.md#sealed-fields)).
+- `setCookies` writes client cookies, host-only with `Path=/` and `Secure`,
+  before the step's request; `$ref: cookie.<name>` reads the cookie that
+  applies to the step URL, URL-decoded
+  ([Client cookies](../architecture/pipeline.md#client-cookies)).
 - `omitBankText: true` on the config keeps reply text out of a missed extract
   and records a length-only hint for `error_code` in login diagnostics
   ([Bank text in failures](#bank-text-in-failures)).
@@ -396,6 +401,8 @@ fails the build with `Generic` and `<field>: <rule>`:
 | `headless.cookieDomains`, `redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, on an api-direct or node-tls bank | `headless.<field>: not allowed without headless.nativeFetch` |
 | `headless.cookieDomains` without `headless.sessionCookies: true`                                                                      | `headless.cookieDomains: not allowed without headless.sessionCookies`    |
 | a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                            | `headerExtractsToCarry.header: must be an HTTP header name`              |
+| a login or resume step with `setCookies`, without `headless.cookieDomains`                                                            | `steps.setCookies: not allowed without headless.cookieDomains`           |
+| a `setCookies` cookie name that is not an HTTP token (RFC 9110)                                                                       | `steps.setCookies: each name must be an HTTP token`                      |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no

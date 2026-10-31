@@ -9,6 +9,7 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import { bindStepCookies } from './RunStep.clientCookies.js';
 import { deriveStepCarry } from './RunStep.derive.js';
 import { sanitiseStepFailure } from './RunStep.failure.js';
 import { fireStep } from './RunStep.fire.js';
@@ -145,17 +146,19 @@ async function fireAndMergeScope(bundle: IDispatchBundle): Promise<Procedure<ITe
 }
 
 /**
- * Run a single IStepConfig end-to-end — body hydration + optional
- * AES body-pointer signing + optional cryptoField encryption +
+ * Run a single IStepConfig end-to-end — client cookies + body hydration +
+ * optional AES body-pointer signing + optional cryptoField encryption +
  * dispatch + response extraction.
  * @param args - Run-step args (step config + bus + scope + companyId).
  * @returns Procedure with the extended scope (carry merged), or fail.
  */
 async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
-  const resolved = resolvePathAndQuery(args);
+  const bound = bindStepCookies(args);
+  if (!isOk(bound)) return bound;
+  const resolved = resolvePathAndQuery(bound.value);
   if (!isOk(resolved)) return resolved;
   const { pathAndQuery, query } = resolved.value;
-  const bundleProc = buildDispatchBundle({ args, pathAndQuery, query });
+  const bundleProc = buildDispatchBundle({ args: bound.value, pathAndQuery, query });
   if (!isOk(bundleProc)) return bundleProc;
   return fireAndMergeScope(bundleProc.value);
 }

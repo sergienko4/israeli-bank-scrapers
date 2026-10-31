@@ -22,7 +22,12 @@ import type {
 import type { IDerivedCarry } from './CarryTypes.js';
 import type { IPreStepHook } from './EnvelopeTypes.js';
 import type { ISealFieldConfig } from './SignerTypes.js';
-import type { IBodyTemplate, IEnvelopeSelectors, JsonValueTemplate } from './TemplateTypes.js';
+import type {
+  IBodyTemplate,
+  IEnvelopeSelectors,
+  JsonValueTemplate,
+  RefToken,
+} from './TemplateTypes.js';
 
 /** Exhaustive flow-kind discriminator (spec.txt §B.3). */
 type FlowKind = 'sms-otp' | 'stored-jwt' | 'bearer-static';
@@ -122,6 +127,8 @@ interface IStepBase {
   readonly deriveCarry?: readonly IDerivedCarry[];
   /** Optional credential seal, written into the body before the request (N10). */
   readonly seal?: ISealFieldConfig;
+  /** Client cookies (name → ref) set in the domain jar before the request (N11). */
+  readonly setCookies?: Readonly<Record<string, RefToken>>;
 }
 
 /** A POST step, the default when `method` is omitted: sends the hydrated body. */
