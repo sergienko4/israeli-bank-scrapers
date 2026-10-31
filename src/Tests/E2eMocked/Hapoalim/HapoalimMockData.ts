@@ -49,6 +49,12 @@ export const HP_G3CME_COOKIE = `G3CmE=${HP_G3CME}`;
 export const HP_CSRF_COOKIE = `csrfcookie=${HP_CSRF_RAW}`;
 export const HP_AUTH_COOKIE = 'SMSESSION=syn-hp-auth-7d2e';
 
+/** The session the bank opens once a stored one has expired. */
+export const HP_FRESH_AUTH_COOKIE = 'SMSESSION=syn-hp-auth-9c41';
+
+/** The cookie the bank sets when it refuses a session. */
+export const HP_REFUSED_COOKIE = 'SYN-REFUSED=syn-hp-refused-5b';
+
 /** The landing page id, sent as a number. */
 export const HP_PAGE_ID = 412;
 

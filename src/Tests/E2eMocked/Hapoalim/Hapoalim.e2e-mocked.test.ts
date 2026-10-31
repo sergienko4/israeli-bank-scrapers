@@ -20,11 +20,11 @@ import {
 } from './HapoalimMockData.js';
 import {
   ACCOUNT_OPEN_TRAIL,
-  ACCOUNT_TRAIL,
   ACCOUNTS_TRAIL,
   LANDING_TRAIL,
-  OTP_TRAIL,
   runHapoalim,
+  SCRAPE_TRAIL,
+  SIGNED_IN_TRAIL,
   VERIFY_TRAIL,
 } from './HapoalimRun.js';
 
@@ -35,11 +35,6 @@ interface IRefusal {
   readonly message: string;
   readonly trail: readonly string[];
 }
-
-const SIGNED_IN_TRAIL = [...VERIFY_TRAIL, ...OTP_TRAIL, ...LANDING_TRAIL];
-
-/** Everything after sign-in: the accounts list, then each open account's reads. */
-const SCRAPE_TRAIL = [...ACCOUNTS_TRAIL, ...HAPOALIM_OPEN_ACCOUNTS.flatMap(() => ACCOUNT_TRAIL)];
 
 /** Answers to the password step that end the run before any SMS is sent. */
 const VERIFY_REFUSALS: readonly IRefusal[] = [

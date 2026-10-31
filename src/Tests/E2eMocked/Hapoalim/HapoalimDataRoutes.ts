@@ -15,13 +15,8 @@ import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { errorReply } from '../Helpers/FetchMockKit.js';
 import { bodiless, hasCookies, json, reply } from '../Helpers/MockReplies.js';
 import type { HapoalimFault, IMockRun, Route } from './HapoalimFaults.js';
-import {
-  accountOf,
-  accountsBody,
-  HP_AUTH_COOKIE,
-  HP_XSRF_DECODED,
-  rowsOf,
-} from './HapoalimMockData.js';
+import { authCookieOf } from './HapoalimFaults.js';
+import { accountOf, accountsBody, HP_XSRF_DECODED, rowsOf } from './HapoalimMockData.js';
 
 const API = '/ServerServices';
 const TXNS_TYPE = 'application/json;charset=UTF-8';
@@ -112,13 +107,13 @@ function routeTxns(call: IRecordedCall, run: IMockRun): Response {
 }
 
 /**
- * Guard a data route behind the session cookie.
+ * Guard a data route behind the run's session cookie.
  * @param route - The data route.
  * @returns The route, answering 401 without the cookie.
  */
 function withSession(route: Route): Route {
   return (call: IRecordedCall, run: IMockRun): Response =>
-    hasCookies(call, [HP_AUTH_COOKIE]) ? route(call, run) : errorReply(401);
+    hasCookies(call, [authCookieOf(run)]) ? route(call, run) : errorReply(401);
 }
 
 /** Data routes keyed `<METHOD> <path>`. */

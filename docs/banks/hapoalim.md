@@ -4,7 +4,7 @@
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CompanyTypes` | `Hapoalim`                                                                                                                                                           |
 | Engine         | **API-direct** (no browser)                                                                                                                                          |
-| Credentials    | `userCode`, `password`, plus an `otpCodeRetriever` callback                                                                                                          |
+| Credentials    | `userCode`, `password`, plus an `otpCodeRetriever` callback; optional `otpLongTermToken` ([warm start](#warm-start))                                                 |
 | OTP            | **Conditional**: an SMS code, only when the bank asks for one                                                                                                        |
 | Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                                |
 | Source         | [`Banks/Hapoalim/HapoalimPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.ts) |
@@ -80,8 +80,24 @@ starts, and browser options passed to `createScraper` are ignored with a
 redirect fails the run (`redirectPolicy: 'reject'`), so a redirected `verify`
 never replays the sealed password.
 
-There is no long-term token yet: every run logs in cold, and
-`persistentOtpToken` stays unset.
+## Warm start
+
+A run that signs in returns its session as `result.persistentOtpToken`: a
+`v1.` token holding the session cookies, bound to the user code. Pass it back
+as `otpLongTermToken` and the next run starts at `landing`
+(`HAPOALIM_RESUME_STEP_INDEX`), with no login call and no SMS. The token is a
+live session: store it as a secret.
+
+The cookies carry no readable expiry, so the bank's answer to `landing` is the
+check (`validation: 'bank-call'`). A refused session falls back to one cold
+login that sends none of the stored cookies and texts one SMS, so `userCode`,
+`password` and the retriever stay required. A token for another user code,
+from another bank, longer than `MAX_ACCESS_TOKEN_CHARS` or of the wrong shape
+is skipped for a cold login; the log names the reason, never the token.
+
+A warm session lost mid-scrape signs in cold once and scrapes again, like any
+API-direct bank. That login is the run's only SMS. A cold run that loses its
+session mid-scrape fails, and the next run logs in again.
 
 ## Known quirks
 

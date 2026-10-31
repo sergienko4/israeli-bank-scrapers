@@ -5,13 +5,14 @@
  */
 
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { MAX_ACCESS_TOKEN_CHARS } from '../../Mediator/ApiDirectCall/PersistentAuthStateRules.js';
 import {
   HAPOALIM_API,
   HAPOALIM_LOGIN_PAGE,
   HAPOALIM_ORIGIN,
   HAPOALIM_STATIC_HEADERS,
 } from './PipelineBankConfigHapoalimConstants.js';
-import { HAPOALIM_STEPS } from './PipelineBankConfigHapoalimSteps.js';
+import { HAPOALIM_RESUME_STEP_INDEX, HAPOALIM_STEPS } from './PipelineBankConfigHapoalimSteps.js';
 import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
 
 /**
@@ -33,6 +34,17 @@ const HAPOALIM_API_DIRECT_CALL: IApiDirectCallConfig = {
   staticHeaders: HAPOALIM_STATIC_HEADERS,
   requiredCreds: { userCode: 'nonEmpty', password: 'nonEmpty' },
   secrets: HAPOALIM_SECRETS,
+  // The stored token is the session jar, bound to the user code. The landing
+  // call checks it; a refused session falls back to one cold login (SMS).
+  warmStart: {
+    kind: 'cookie-jar',
+    credsField: 'otpLongTermToken',
+    fromStepIndex: HAPOALIM_RESUME_STEP_INDEX,
+    validation: 'bank-call',
+    provider: 'hapoalim',
+    accountField: 'userCode',
+    maxTokenChars: MAX_ACCESS_TOKEN_CHARS,
+  },
   steps: HAPOALIM_STEPS,
 };
 

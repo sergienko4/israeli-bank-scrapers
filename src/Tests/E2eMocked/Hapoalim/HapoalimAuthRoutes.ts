@@ -21,7 +21,7 @@ import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { errorReply, parseForm } from '../Helpers/FetchMockKit.js';
 import { bodiless, hasCookies, json, reply } from '../Helpers/MockReplies.js';
 import type { HapoalimFault, IMockRun, Route } from './HapoalimFaults.js';
-import { HP_BANK_NOTICE } from './HapoalimFaults.js';
+import { authCookieOf, HP_BANK_NOTICE } from './HapoalimFaults.js';
 import {
   HAPOALIM_MOCK_CREDS,
   HP_AUTH_COOKIE,
@@ -36,6 +36,7 @@ import {
   HP_OTP,
   HP_PAGE_ID,
   HP_PHONE,
+  HP_REFUSED_COOKIE,
   HP_TARGET,
   HP_XSRF_COOKIE,
   HP_XSRF_DECODED,
@@ -276,7 +277,8 @@ function routeOtpVerify(call: IRecordedCall, run: IMockRun): Response {
   const forced = OTP_VERIFY_REPLY[run.fault];
   if (forced !== undefined) return json(forced);
   if (otp !== HP_OTP) return json({ state: 'LogonOTP' });
-  const setCookies = [scoped(HP_AUTH_COOKIE)];
+  const authCookie = authCookieOf(run);
+  const setCookies = [scoped(authCookie)];
   return json({ state: 'landpage', target: HP_TARGET }, { setCookies });
 }
 
@@ -284,10 +286,11 @@ function routeOtpVerify(call: IRecordedCall, run: IMockRun): Response {
  * landing — the portal init that proves the session.
  * @param call - The recorded request.
  * @param run - The run's fault.
- * @returns The page model, or 401 without the auth cookie.
+ * @returns The page model, or 401 with a refusal cookie without the run's session.
  */
 function routeLanding(call: IRecordedCall, run: IMockRun): Response {
-  if (!hasCookies(call, [HP_AUTH_COOKIE])) return errorReply(401);
+  const refusal = { setCookies: [scoped(HP_REFUSED_COOKIE)] };
+  if (!hasCookies(call, [authCookieOf(run)])) return bodiless(401, refusal);
   if (new URL(call.url).search !== '?action=init') return errorReply(400);
   return json(LANDING_REPLY[run.fault] ?? { pageId: HP_PAGE_ID });
 }

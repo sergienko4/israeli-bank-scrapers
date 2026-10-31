@@ -40,6 +40,12 @@ const OTP_PENDING = { carry: 'state', oneOf: ['logonotp'] } as const;
 /** A portal page the bank points at, checked against the known targets. */
 const TARGET_RULE = { url: HAPOALIM_TARGETS } as const;
 
+/** The `G3CmE` cookie: the bank's wrapper around the RSA modulus. */
+const G3CME_RULE = {
+  into: 'g3cme',
+  parts: ['config.secrets.wrapPrefix', 'carry.modulus', 'config.secrets.wrapSuffix'],
+} as const;
+
 const BOOTSTRAP_STEP: IStepConfig = {
   name: 'bootstrap',
   urlTag: 'auth.bootstrap',
@@ -56,12 +62,7 @@ const ENCRYPTION_KEY_STEP: IStepConfig = {
   method: 'GET',
   extractsToCarry: { modulus: '/encryptionKey' },
   extractRules: { modulus: { type: 'string', pattern: '^[0-9a-fA-F]+$' } },
-  deriveCarry: [
-    {
-      into: 'g3cme',
-      parts: ['config.secrets.wrapPrefix', 'carry.modulus', 'config.secrets.wrapSuffix'],
-    },
-  ],
+  deriveCarry: [G3CME_RULE],
 };
 
 const IDENTIFY_STEP: IStepConfig = {
@@ -169,5 +170,8 @@ const HAPOALIM_STEPS: readonly IStepConfig[] = [
   LANDING_STEP,
 ];
 
+/** Where a warm start resumes: the landing step, whose call checks the stored session. */
+const HAPOALIM_RESUME_STEP_INDEX = HAPOALIM_STEPS.indexOf(LANDING_STEP);
+
 export default HAPOALIM_STEPS;
-export { HAPOALIM_STEPS };
+export { HAPOALIM_RESUME_STEP_INDEX, HAPOALIM_STEPS };

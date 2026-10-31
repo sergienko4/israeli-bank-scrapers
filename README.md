@@ -212,8 +212,9 @@ Max and Mizrahi are API-direct with no OTP and no token: every run logs in with
 the username and password — see the
 [Max](https://sergienko4.github.io/israeli-bank-scrapers/banks/max/) and
 [Mizrahi](https://sergienko4.github.io/israeli-bank-scrapers/banks/mizrahi/) guides.
-Hapoalim is API-direct with an SMS code and no token yet: pass the callback in
-_options_ as above, or in _credentials_ — see the
+Hapoalim is API-direct with an SMS code: pass the callback in _options_ as
+above, or in _credentials_. Its `persistentOtpToken` skips the login and the
+SMS on the next run — see the
 [Hapoalim](https://sergienko4.github.io/israeli-bank-scrapers/banks/hapoalim/) guide.
 
 Pass `phoneNumber` in digits-only international form. Each bank wants a

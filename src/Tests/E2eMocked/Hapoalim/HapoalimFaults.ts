@@ -6,6 +6,7 @@
  */
 
 import type { IRecordedCall, NetworkFault } from '../Helpers/FetchMockKit.js';
+import { HP_AUTH_COOKIE, HP_FRESH_AUTH_COOKIE } from './HapoalimMockData.js';
 
 /** A verify answer other than the default `LogonOTP`. */
 export type VerifyFault =
@@ -32,8 +33,12 @@ export type ChallengeFault =
 /** An otp-verify answer other than the default. */
 export type OtpVerifyFault = 'otpVerifyLocked' | 'otpVerifyReissue' | 'otpVerifyErrors';
 
-/** A landing or data answer other than the default. */
-export type DataFault = 'pageIdBad' | 'landingErrors' | 'txns204' | 'txns207' | 'expire401';
+/**
+ * A landing or data answer other than the default. `sessionExpired`: the bank
+ * opens and accepts only a fresh session, so a stored one is refused.
+ */
+export type DataFault =
+  'pageIdBad' | 'landingErrors' | 'txns204' | 'txns207' | 'expire401' | 'sessionExpired';
 
 /** How the mock misbehaves: a step-0 fault, a wire fault, or a bank answer. */
 export type HapoalimFault =
@@ -57,3 +62,17 @@ export type Route = (call: IRecordedCall, run: IMockRun) => Response;
 
 /** The text a bank error carries; it must never surface. */
 export const HP_BANK_NOTICE = 'SYNTHETIC bank notice 5512';
+
+/** The session each fault opens and accepts; the default is the usual one. */
+const AUTH_COOKIES: Readonly<Partial<Record<HapoalimFault, string>>> = {
+  sessionExpired: HP_FRESH_AUTH_COOKIE,
+};
+
+/**
+ * The session cookie the bank opens and accepts in a run.
+ * @param run - The run's fault.
+ * @returns The `name=value` pair.
+ */
+export function authCookieOf(run: IMockRun): string {
+  return AUTH_COOKIES[run.fault] ?? HP_AUTH_COOKIE;
+}

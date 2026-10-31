@@ -164,8 +164,9 @@ an optional `otpLongTermToken` that skips the password step — see
 and [Amex](banks/amex.md). Max and Mizrahi take only `username` and `password`
 and have no long-term token — see [Max](banks/max.md) and
 [Mizrahi](banks/mizrahi.md). Hapoalim takes `userCode` and `password`, and its
-`otpCodeRetriever` in either the options or the credentials; it has no
-long-term token yet — see [Hapoalim](banks/hapoalim.md).
+`otpCodeRetriever` in either the options or the credentials, and an optional
+`otpLongTermToken` that skips the login and the SMS — see
+[Hapoalim](banks/hapoalim.md#warm-start).
 
 The phone-format rewrite is per-bank and automatic; see
 [API-DIRECT-CALL](phases/api-direct-call.md) for the normaliser contract.

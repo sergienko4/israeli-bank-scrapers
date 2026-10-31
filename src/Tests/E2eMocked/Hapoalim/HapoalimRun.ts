@@ -16,7 +16,12 @@ import { getLaunchCount } from '../../Mocks/CamoufoxJsMock.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import type { HapoalimFault } from './HapoalimFaults.js';
 import { classifyHapoalim, installHapoalimFetchMock } from './HapoalimFetchMock.js';
-import { HAPOALIM_MOCK_CREDS, HAPOALIM_MOCK_START_DATE, HP_OTP } from './HapoalimMockData.js';
+import {
+  HAPOALIM_MOCK_CREDS,
+  HAPOALIM_MOCK_START_DATE,
+  HAPOALIM_OPEN_ACCOUNTS,
+  HP_OTP,
+} from './HapoalimMockData.js';
 
 /** What one run sent, received and asked the caller for. */
 export interface IHapoalimRun {
@@ -70,6 +75,15 @@ export const ACCOUNT_OPEN_TRAIL = [
  * ends.
  */
 export const ACCOUNT_TRAIL = [...ACCOUNT_OPEN_TRAIL, ACCOUNT_OPEN_TRAIL[1]];
+
+/** A cold sign-in through the SMS step, ending at the portal init. */
+export const SIGNED_IN_TRAIL = [...VERIFY_TRAIL, ...OTP_TRAIL, ...LANDING_TRAIL];
+
+/** Everything after sign-in: the accounts list, then each open account's reads. */
+export const SCRAPE_TRAIL = [
+  ...ACCOUNTS_TRAIL,
+  ...HAPOALIM_OPEN_ACCOUNTS.flatMap(() => ACCOUNT_TRAIL),
+];
 
 /**
  * A call as `<METHOD> <path>`; queries are asserted by the wire suite.
