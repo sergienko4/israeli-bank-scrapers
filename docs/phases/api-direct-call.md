@@ -217,6 +217,20 @@ The warning ends with a clause naming what the cold login cost, and
 back to the full SMS login". Any other flow (VisaCal, Isracard) says "fell back
 to the full cold login", so the log never claims an SMS the bank did not send.
 
+### Bank text in failures
+
+When a required extract misses, `extractFields` in
+`Envelope/GenericEnvelopeParser.ts` names the slot and pointer. By default it
+also appends the first non-blank `message`, `explanation` or `error` field of
+the reply, cut to 30 characters by `maskVisibleText`:
+`envelope selector miss: <slot> at <pointer> — bank said: <text>`.
+
+A bank whose replies can quote the customer back sets `omitBankText: true`.
+The miss then reads `envelope selector miss: <slot> at <pointer>` and no reply
+text reaches the failure. `buildReduceArgs` reads the flag once per flow and
+`collectCarry` hands it to `extractFields`; banks that leave it unset keep
+today's message.
+
 ### Step outcome
 
 Some banks refuse a login with HTTP 200 and a status code in the body. A step

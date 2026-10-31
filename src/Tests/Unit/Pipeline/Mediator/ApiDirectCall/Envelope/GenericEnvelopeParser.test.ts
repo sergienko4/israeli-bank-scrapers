@@ -171,3 +171,25 @@ describe('GenericEnvelopeParser.extractFields — error envelopes (T-ENV)', () =
     expect(reason).toBe('envelope selector miss: accessToken2 at /content/access_token');
   });
 });
+
+/**
+ * UT-BT — some banks put the customer's own details in `message`. Those banks
+ * opt out of the `bank said:` suffix; every other bank keeps it.
+ */
+describe('GenericEnvelopeParser.extractFields — bank-text omission (UT-BT)', () => {
+  const miss = 'envelope selector miss: accessToken2 at /content/access_token';
+  const doc = { message: 'pin is not valid' };
+  const selectors = { accessToken2: '/content/access_token' };
+
+  it('UT-BT-01 (FIRING): drops the bank text when the bank opts out', () => {
+    const result = extractFields(doc, selectors, true);
+    const reason = result.success ? '' : result.errorMessage;
+    expect(reason).toBe(miss);
+  });
+
+  it('UT-BT-02: keeps the bank text by default', () => {
+    const result = extractFields(doc, selectors);
+    const reason = result.success ? '' : result.errorMessage;
+    expect(reason).toBe(`${miss} — bank said: pin is not valid`);
+  });
+});

@@ -44,6 +44,8 @@ interface IRunStepArgs {
   readonly companyId: Parameters<typeof resolveWkUrl>[1];
   readonly signingKeypair?: IGenericKeypair;
   readonly cookieJar?: IStepCookieJar;
+  /** True when the bank's own text must never reach a missed extract. */
+  readonly isBankTextOmitted?: boolean;
 }
 
 /** Parsed URL parts used by `buildPathAndQuery`. */

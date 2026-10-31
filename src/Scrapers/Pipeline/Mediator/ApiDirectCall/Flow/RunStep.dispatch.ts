@@ -73,7 +73,8 @@ function describeResponse(resp: JsonValue): IRespDescriptor {
  */
 function collectCarry(bundle: IDispatchBundle, resp: JsonValue): Procedure<CarryMap> {
   const step = bundle.fireScope.step;
-  const carryProc = extractFields(resp, step.extractsToCarry);
+  const isBankTextOmitted = bundle.fireScope.isBankTextOmitted === true;
+  const carryProc = extractFields(resp, step.extractsToCarry, isBankTextOmitted);
   if (!isOk(carryProc)) return carryProc;
   const headerProc = carryHeaders(bundle);
   if (!isOk(headerProc)) return headerProc;

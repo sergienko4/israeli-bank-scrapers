@@ -20,10 +20,16 @@ import { isPlainObject, walkPointer } from './JsonPointer.js';
 /** Plucked record — arbitrary JSON-value shape, indexed by selector name. */
 type ExtractedFields = Record<string, JsonValue>;
 
-/** Pluck-input bundle (avoids a 4-positional signature inflating LoC). */
-interface IAbsorbArgs {
+/** What a miss may read back from the envelope. */
+interface IMissContext {
   /** Response envelope. */
-  doc: JsonValue;
+  readonly doc: JsonValue;
+  /** True when the bank's own text must never reach the failure. */
+  readonly isBankTextOmitted: boolean;
+}
+
+/** Pluck-input bundle (avoids a 4-positional signature inflating LoC). */
+interface IAbsorbArgs extends IMissContext {
   /** Accumulator passed through reduction. */
   acc: Record<string, JsonValue>;
   /** [selectorName, pointer] tuple to resolve. */
@@ -72,6 +78,16 @@ function envelopeError(doc: JsonValue): string | false {
 }
 
 /**
+ * The bank's text a miss may report, unless the bank opted out.
+ * @param ctx - Envelope plus the bank's opt-out.
+ * @returns The reason string, or false when none may be reported.
+ */
+function reportableReason(ctx: IMissContext): string | false {
+  if (ctx.isBankTextOmitted) return false;
+  return envelopeError(ctx.doc);
+}
+
+/**
  * Build the deterministic miss-failure for a selector entry.
  * @param args - {@link IAbsorbArgs} bundle carrying the entry and envelope.
  * @returns ScraperError-shaped failure procedure.
@@ -79,7 +95,7 @@ function envelopeError(doc: JsonValue): string | false {
 function missFailure(args: IAbsorbArgs): Procedure<Record<string, JsonValue>> {
   const [name, pointer] = args.entry;
   const at = `${name} at ${pointer}`;
-  const reason = envelopeError(args.doc);
+  const reason = reportableReason(args);
   if (reason === false) return fail(ScraperErrorTypes.Generic, `envelope selector miss: ${at}`);
   const masked = maskVisibleText(reason);
   return fail(ScraperErrorTypes.Generic, `envelope selector miss: ${at} — bank said: ${masked}`);
@@ -101,33 +117,49 @@ function absorbSelector(args: IAbsorbArgs): Procedure<Record<string, JsonValue>>
 
 /**
  * Reducer — short-circuits the accumulator once a miss is recorded.
- * @param doc - Envelope passed down through the reduction.
+ * @param ctx - Envelope plus the bank's opt-out, passed down the reduction.
  * @param stepOutcome - Current accumulator (success or first miss).
  * @param entry - Next selector pair to absorb.
  * @returns Updated accumulator procedure.
  */
 function reduceStep(
-  doc: JsonValue,
+  ctx: IMissContext,
   stepOutcome: Procedure<Record<string, JsonValue>>,
   entry: readonly [string, string],
 ): Procedure<Record<string, JsonValue>> {
   if (!isOk(stepOutcome)) return stepOutcome;
-  return absorbSelector({ doc, acc: stepOutcome.value, entry });
+  return absorbSelector({ ...ctx, acc: stepOutcome.value, entry });
+}
+
+/**
+ * Reduce the selector map against the envelope, stopping at the first miss.
+ * @param ctx - Envelope plus the bank's opt-out.
+ * @param selectors - Bank's selector map.
+ * @returns Procedure<ExtractedFields> — fail on first missing selector.
+ */
+function reduceAll(ctx: IMissContext, selectors: IEnvelopeSelectors): Procedure<ExtractedFields> {
+  const entries = Object.entries(selectors);
+  const seed: Procedure<Record<string, JsonValue>> = succeed({});
+  return entries.reduce<Procedure<Record<string, JsonValue>>>(
+    (stepOutcome, entry) => reduceStep(ctx, stepOutcome, entry),
+    seed,
+  );
 }
 
 /**
  * Extract every named selector from the envelope.
  * @param doc - Response envelope (parsed JSON).
  * @param selectors - Bank's selector map.
+ * @param isBankTextOmitted - True to keep the bank's own text out of a miss.
  * @returns Procedure<ExtractedFields> — fail on first missing selector.
  */
-function extractFields(doc: JsonValue, selectors: IEnvelopeSelectors): Procedure<ExtractedFields> {
-  const entries = Object.entries(selectors);
-  const seed: Procedure<Record<string, JsonValue>> = succeed({});
-  return entries.reduce<Procedure<Record<string, JsonValue>>>(
-    (stepOutcome, entry) => reduceStep(doc, stepOutcome, entry),
-    seed,
-  );
+function extractFields(
+  doc: JsonValue,
+  selectors: IEnvelopeSelectors,
+  isBankTextOmitted = false,
+): Procedure<ExtractedFields> {
+  const ctx: IMissContext = { doc, isBankTextOmitted };
+  return reduceAll(ctx, selectors);
 }
 
 export type { ExtractedFields };

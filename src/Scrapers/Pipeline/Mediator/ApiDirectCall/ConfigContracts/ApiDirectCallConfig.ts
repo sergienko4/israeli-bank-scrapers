@@ -102,6 +102,11 @@ interface IApiDirectCallConfig {
    * fails the flow by name before any request is sent.
    */
   readonly requiredCreds?: Readonly<Record<string, CredRule>>;
+  /**
+   * Set for banks whose replies can quote the customer back. A missed
+   * extract then names only the slot and pointer, never the bank's text.
+   */
+  readonly omitBankText?: true;
 }
 
 export type { CredRule, IApiDirectCallConfig, IPersistentAuthConfig };
