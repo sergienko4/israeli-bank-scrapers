@@ -9,7 +9,6 @@ import { getDebug } from '../../../Logging/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
-import type { JsonValue } from '../Envelope/JsonPointer.js';
 import { isJwtFresh } from '../Jwt/GenericJwtClaims.js';
 import { MAX_ACCESS_TOKEN_CHARS } from '../PersistentAuthStateRules.js';
 import type { GenericCreds, IMakeWarmArgs, IRunFlowArgs } from './TokenStrategyFromConfig.types.js';
@@ -102,15 +101,14 @@ function pickWarmSeed(config: IApiDirectCallConfig, creds: GenericCreds): string
 }
 
 /**
- * Build the warm-path IRunFlowArgs given a stored seed value.
- * @param args - Config + bus + creds + stored seed + companyId.
+ * Build the warm-path IRunFlowArgs given the restored carry.
+ * @param args - Config + bus + creds + restored carry + companyId.
  * @returns Warm-path run args.
  */
 function makeWarmArgs(args: IMakeWarmArgs): IRunFlowArgs {
   const warm = args.config.warmStart;
   if (warm === undefined) throw new ScraperError(WARM_REQUIRED_MSG);
-  const initialCarry: Record<string, JsonValue> = { [warm.carryField]: args.stored };
-  const { config, bus, creds, companyId } = args;
+  const { config, bus, creds, companyId, initialCarry } = args;
   return { config, bus, creds, companyId, initialCarry, startStepIndex: warm.fromStepIndex };
 }
 

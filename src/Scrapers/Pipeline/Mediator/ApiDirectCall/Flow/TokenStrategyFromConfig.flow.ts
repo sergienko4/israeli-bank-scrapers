@@ -12,11 +12,7 @@ import { formatAuthValue } from './AuthModePolicy.js';
 import { runSmsOtpFlow } from './SmsOtpFlow.js';
 import { admitFlow, isColdStart } from './TokenStrategyFromConfig.budget.js';
 import { primeDurable, refuseDurableRefresh } from './TokenStrategyFromConfig.persistent.js';
-import {
-  isWarmSeedSupplied,
-  makeWarmArgs,
-  pickWarmSeed,
-} from './TokenStrategyFromConfig.shared.js';
+import { isWarmSeedSupplied, makeWarmArgs } from './TokenStrategyFromConfig.shared.js';
 import type {
   IFlowCapture,
   ILongTermTokenSlot,
@@ -25,6 +21,11 @@ import type {
   IRunFlowArgs,
   IWarmSeedVerdict,
 } from './TokenStrategyFromConfig.types.js';
+import {
+  exportWarmToken,
+  prepareColdStart,
+  restoreWarmSeed,
+} from './TokenStrategyFromConfig.warm.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -64,12 +65,14 @@ interface IFinishFlowArgs {
 }
 
 /**
- * Capture + format the SMS-OTP success result.
+ * Capture + format the SMS-OTP success result. The long-term token captured
+ * is the one the warm-start kind publishes.
  * @param input - Run args, slot, and successful flow result.
  * @returns Authorization header value.
  */
 function finishFlow(input: IFinishFlowArgs): string {
-  captureFlowResult(input.slot, input.result);
+  const longTermToken = exportWarmToken(input.args, input.result.longTermToken);
+  captureFlowResult(input.slot, { ...input.result, longTermToken });
   const headerValue = formatAuthValue(input.args.config, input.result.bearer);
   const isCold = isColdStart(input.args);
   if (isCold) input.slot.latestHeaderValue = headerValue;
@@ -140,6 +143,8 @@ async function runFlowAndCapture(
  * <p>Required credentials are checked before the charge (`admitFlow`). A flow
  * that fails them sends nothing, so it spends nothing, and a later retry names
  * the bad field rather than the spent budget.
+ * An admitted cold start then resets what the warm-start kind left behind;
+ * a refused refresh keeps the live session.
  * @param args - Run args.
  * @param slot - Mutable capture slot.
  * @returns Formatted Authorization header value procedure.
@@ -151,6 +156,7 @@ async function runConfiguredFlow(
   const admitted = admitFlow(args, slot);
   if (!isOk(admitted)) return admitted;
   if (!admitted.value) return answerRefusedFlow(args, slot);
+  prepareColdStart(args);
   return runFlowAndCapture(args, slot);
 }
 
@@ -165,7 +171,7 @@ async function runConfiguredFlow(
  * <p>Only the error *tag* is kept. `errorMessage` is not safe to carry into an
  * operator-facing log: banks echo credentials into it, which is what
  * `redactErrorMessage` exists to stop.
- * @param warmSpec - Config, bus, creds, the accepted seed and the company id.
+ * @param warmSpec - Config, bus, creds, the restored carry and the company id.
  * @param slot - Capture slot recording the outcome.
  * @returns Header-value procedure from the warm flow.
  */
@@ -182,12 +188,12 @@ async function runWarmAttempt(
 /**
  * Classify the caller's warm seed for this prime cycle.
  * @param args - Config + creds.
- * @param stored - The seed that passed the local gate, or false.
+ * @param isAccepted - Whether the seed passed the local restoration checks.
  * @returns Whether a seed was supplied and whether it will be sent.
  */
-function warmSeedVerdictOf(args: IPrimeArgs, stored: string | false): IWarmSeedVerdict {
+function warmSeedVerdictOf(args: IPrimeArgs, isAccepted: boolean): IWarmSeedVerdict {
   const isSupplied = isWarmSeedSupplied(args.config, args.creds);
-  return { supplied: isSupplied, accepted: stored !== false };
+  return { supplied: isSupplied, accepted: isAccepted };
 }
 
 /**
@@ -199,11 +205,11 @@ function warmSeedVerdictOf(args: IPrimeArgs, stored: string | false): IWarmSeedV
  * reset has to happen here: otherwise a later, healthy prime would still
  * report a tag belonging to a cycle that has already been superseded.
  * @param args - Config + creds + mutable capture slot.
- * @param stored - The seed that passed the local gate, or false.
+ * @param isAccepted - Whether the seed passed the local restoration checks.
  * @returns true (ack contract).
  */
-function openPrimeCycle(args: IPrimeArgs, stored: string | false): true {
-  const seed = warmSeedVerdictOf(args, stored);
+function openPrimeCycle(args: IPrimeArgs, isAccepted: boolean): true {
+  const seed = warmSeedVerdictOf(args, isAccepted);
   args.slot.usedWarmPath = seed.accepted;
   args.slot.warmSeedRejectedLocally = seed.supplied && !seed.accepted;
   args.slot.warmAttemptFailureType = undefined;
@@ -221,10 +227,10 @@ async function primeInitialImpl(args: IPrimeArgs): Promise<Procedure<string>> {
   if (durable !== undefined) return primeDurable(args, durable);
   const { config, bus, ctx, creds, slot } = args;
   const flowBase = { config, bus, creds, companyId: ctx.companyId };
-  const stored = pickWarmSeed(config, creds);
-  openPrimeCycle(args, stored);
-  if (stored === false) return runConfiguredFlow(flowBase, slot);
-  return runWarmAttempt({ ...flowBase, stored }, slot);
+  const initialCarry = restoreWarmSeed({ config, bus, creds });
+  openPrimeCycle(args, initialCarry !== false);
+  if (initialCarry === false) return runConfiguredFlow(flowBase, slot);
+  return runWarmAttempt({ ...flowBase, initialCarry }, slot);
 }
 
 /**

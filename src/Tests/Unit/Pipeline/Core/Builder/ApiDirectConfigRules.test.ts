@@ -80,6 +80,32 @@ function emptyFlowFrom(fromStepIndex: number): IApiDirectRuleInput {
   return { call: makeCall({ warmStart, steps: [], jwtClaims: CLAIMS }), headless: false };
 }
 
+/** A headless block with a cookie session, as a cookie-jar warm start needs. */
+const JAR_DOMAINS = {
+  sessionCookies: true,
+  nativeFetch: true,
+  cookieDomains: ['bank.example'],
+} as unknown as HeadlessBlock;
+
+/**
+ * A config warm-started from a cookie jar with the given ceiling.
+ * @param maxTokenChars - Token ceiling.
+ * @param headless - Headless block beside the call.
+ * @returns Rule input.
+ */
+function cookieJarWarm(maxTokenChars: number, headless = JAR_DOMAINS): IApiDirectRuleInput {
+  const warmStart = {
+    kind: 'cookie-jar',
+    credsField: 'otpLongTermToken',
+    fromStepIndex: 1,
+    validation: 'bank-call',
+    provider: 'syn-bank',
+    accountField: 'userCode',
+    maxTokenChars,
+  } as const;
+  return { call: makeCall({ warmStart, steps: [STEP, STEP] }), headless };
+}
+
 /**
  * A one-step call config with the given fields on top.
  * @param overrides - Fields to set.
@@ -117,6 +143,8 @@ const CLAIMS_MSG = 'jwtClaims: required when warmStart.validation is jwt';
 const BANK_CALL_MSG = 'warmStart.fromStepIndex: must name a step when validation is bank-call';
 const FIRST_STEP_MSG = 'warmStart.fromStepIndex: must start after the first step';
 const RANGE_MSG = 'warmStart.fromStepIndex: must be a whole number up to the step count';
+const MAX_TOKEN_MSG = 'warmStart.maxTokenChars: must be an integer from 1 to 16384';
+const JAR_WARM_MSG = 'warmStart.kind: cookie-jar not allowed without headless.cookieDomains';
 
 const BROKEN: readonly BrokenCase[] = [
   [
@@ -181,6 +209,11 @@ const BROKEN: readonly BrokenCase[] = [
   ['jwt warm between steps', jwtFrom(1.5), RANGE_MSG],
   ['jwt warm from NaN', jwtFrom(Number.NaN), RANGE_MSG],
   ['jwt warm beyond the step count', jwtFrom(3), RANGE_MSG],
+  ['cookie-jar warm with a zero ceiling', cookieJarWarm(0), MAX_TOKEN_MSG],
+  ['cookie-jar warm over the seed ceiling', cookieJarWarm(16385), MAX_TOKEN_MSG],
+  ['cookie-jar warm with a fractional ceiling', cookieJarWarm(1.5), MAX_TOKEN_MSG],
+  ['cookie-jar warm without a headless block', cookieJarWarm(1, false), JAR_WARM_MSG],
+  ['cookie-jar warm without cookie domains', cookieJarWarm(1, JAR_ON), JAR_WARM_MSG],
   [
     'two broken rules report the first',
     { call: makeCall({ authScheme: 'prefixed', steps: [NO_CODES_STEP] }), headless: false },
@@ -210,6 +243,8 @@ const SOUND: readonly SoundCase[] = [
   ['bank-call warm from the second step, no claims', bankCallFrom(1)],
   ['jwt warm from the second step', jwtFrom(1)],
   ['jwt warm at the step count passes validation', jwtFrom(2)],
+  ['cookie-jar warm at the lowest ceiling', cookieJarWarm(1)],
+  ['cookie-jar warm at the seed ceiling', cookieJarWarm(16384)],
 ];
 
 /**

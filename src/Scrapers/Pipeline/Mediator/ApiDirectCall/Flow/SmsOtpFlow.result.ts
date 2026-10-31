@@ -25,6 +25,7 @@ import type {
   IStepReduceArgs,
   SigningKeypair,
 } from './SmsOtpFlow.types.js';
+import { warmCarryField } from './WarmStartKind.js';
 
 /**
  * Extract the bearer token string from the final scope's carry.
@@ -53,7 +54,9 @@ function extractBearer(scope: ITemplateScope, config: IApiDirectCallConfig): Pro
 }
 
 /**
- * Read the long-term token from the final carry per config.warmStart.
+ * Read the long-term token from the final carry per config.warmStart. A
+ * cookie-jar warm start has no carry slot; its token is the jar, which the
+ * strategy seals after the flow.
  * @param config - API-direct-call config.
  * @param scope - Final scope.
  * @returns Long-term token or ''.
@@ -62,9 +65,9 @@ function extractLongTermTokenFromCarry(
   config: IApiDirectCallConfig,
   scope: ITemplateScope,
 ): string {
-  const warm = config.warmStart;
-  if (warm === undefined) return '';
-  const value = scope.carry[warm.carryField];
+  const carryField = warmCarryField(config);
+  if (carryField.length === 0) return '';
+  const value = scope.carry[carryField];
   if (typeof value !== 'string') return '';
   return value;
 }

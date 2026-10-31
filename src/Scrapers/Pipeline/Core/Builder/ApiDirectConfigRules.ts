@@ -10,6 +10,8 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { cookieJarWarmOf } from '../../Mediator/ApiDirectCall/Flow/WarmStartKind.js';
+import { MAX_ACCESS_TOKEN_CHARS } from '../../Mediator/ApiDirectCall/PersistentAuthStateRules.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import { API_DIRECT_FORM_RULES } from './ApiDirectFormRules.js';
@@ -125,6 +127,29 @@ function isWarmOffStepBoundary(input: IApiDirectRuleInput): boolean {
   return !Number.isInteger(index) || index > input.call.steps.length;
 }
 
+/**
+ * A cookie-jar token must fit a ceiling no wider than the one every stored
+ * warm token already passes.
+ * @param input - Rule input.
+ * @returns True when `maxTokenChars` is not an integer from 1 to 16384.
+ */
+function isJarCeilingOutOfRange(input: IApiDirectRuleInput): boolean {
+  const jar = cookieJarWarmOf(input.call);
+  if (jar === false) return false;
+  const max = jar.maxTokenChars;
+  return !Number.isInteger(max) || max < 1 || max > MAX_ACCESS_TOKEN_CHARS;
+}
+
+/**
+ * A cookie-jar warm start restores into, and exports from, the domain jar.
+ * @param input - Rule input.
+ * @returns True when a cookie-jar warm start has no `headless.cookieDomains`.
+ */
+function isJarWarmWithoutDomains(input: IApiDirectRuleInput): boolean {
+  if (cookieJarWarmOf(input.call) === false) return false;
+  return input.headless === false || input.headless.cookieDomains === undefined;
+}
+
 /** Every rule, checked in order. */
 const API_DIRECT_RULES: readonly IApiDirectRule[] = [
   { message: 'authPrefix: required when authScheme is prefixed', isBroken: isPrefixMissing },
@@ -152,6 +177,14 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
   {
     message: 'warmStart.fromStepIndex: must be a whole number up to the step count',
     isBroken: isWarmOffStepBoundary,
+  },
+  {
+    message: 'warmStart.maxTokenChars: must be an integer from 1 to 16384',
+    isBroken: isJarCeilingOutOfRange,
+  },
+  {
+    message: 'warmStart.kind: cookie-jar not allowed without headless.cookieDomains',
+    isBroken: isJarWarmWithoutDomains,
   },
   ...API_DIRECT_TRANSPORT_RULES,
   ...API_DIRECT_FORM_RULES,

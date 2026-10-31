@@ -22,6 +22,7 @@ import { CompanyTypes } from '../../../../../Definitions.js';
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IConfigTokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
 import { createTokenStrategyFromConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
+import { warmCarryField } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmStartKind.js';
 import type { ITokenContext } from '../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -66,7 +67,8 @@ async function seedWellKnownUrls(): Promise<true> {
 describe('ONEZERO_API_DIRECT_CALL — warm-start contract (issue #576)', () => {
   it('persists the idToken, not the short-lived mid-chain otpToken', async () => {
     const config = await loadCall();
-    expect(config.warmStart?.carryField).toBe('idToken');
+    const carryField = warmCarryField(config);
+    expect(carryField).toBe('idToken');
   });
 
   it('still mints a fresh access token on the warm path', async () => {
@@ -85,7 +87,7 @@ describe('ONEZERO_API_DIRECT_CALL — warm-start contract (issue #576)', () => {
 
   it('persists an artifact produced by the step before the resume point', async () => {
     const config = await loadCall();
-    const carryField = config.warmStart?.carryField ?? '';
+    const carryField = warmCarryField(config);
     const resumeIndex = config.warmStart?.fromStepIndex ?? 0;
     const producer = config.steps[resumeIndex - 1];
     const producedFields = Object.keys(producer.extractsToCarry);

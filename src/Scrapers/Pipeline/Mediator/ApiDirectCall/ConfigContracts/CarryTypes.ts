@@ -13,18 +13,24 @@
 
 import type { RefToken } from './TemplateTypes.js';
 
+/** What every warm-start kind reads: the stored token and where to resume. */
+interface IWarmStartBase {
+  readonly credsField: string;
+  readonly fromStepIndex: number;
+}
+
 /**
- * Warm-start config — when creds[credsField] is populated (and
+ * Carry warm start — when creds[credsField] is populated (and
  * JWT-fresh if jwtClaims configured), SmsOtpFlow pre-seeds
  * scope.carry[carryField] with that creds value and starts iterating
  * steps from fromStepIndex. fromStepIndex === steps.length means
  * zero steps run (Pepper: stored value IS the final token). The build
  * rejects a fractional, NaN or larger index (`ApiDirectConfigRules`).
  */
-interface IWarmStartConfig {
-  readonly credsField: string;
+interface ICarryWarmStart extends IWarmStartBase {
+  /** Omitted on every carry config; the default kind. */
+  readonly kind?: 'carry';
   readonly carryField: string;
-  readonly fromStepIndex: number;
   /**
    * How a stored token is judged before reuse. `'jwt'` (default) reads its
    * expiry locally through `jwtClaims`; `'bank-call'` is for a token with no
@@ -33,6 +39,25 @@ interface IWarmStartConfig {
    */
   readonly validation?: 'jwt' | 'bank-call';
 }
+
+/**
+ * Cookie-jar warm start — for a cookie-session bank, whose stored token is
+ * the session jar itself (`Flow/WarmCookieJar.ts`). The jar is imported, the
+ * flow resumes at `fromStepIndex`, and that first step is the check.
+ */
+interface ICookieJarWarmStart extends IWarmStartBase {
+  readonly kind: 'cookie-jar';
+  readonly validation: 'bank-call';
+  /** Provider tag sealed into the token; a token for another provider is skipped. */
+  readonly provider: string;
+  /** Creds field holding the account the token is bound to. */
+  readonly accountField: string;
+  /** Longest token imported or exported, 1–16384. */
+  readonly maxTokenChars: number;
+}
+
+/** Warm-start config — the stored token's kind decides how it is restored. */
+type IWarmStartConfig = ICarryWarmStart | ICookieJarWarmStart;
 
 /**
  * Random 16-byte hex bootstrap — non-deterministic, fresh per process.
@@ -137,6 +162,7 @@ interface IDerivedCarry {
 }
 
 export type {
+  ICookieJarWarmStart,
   IDerivedCarry,
   IJwtClaimBootstrap,
   IRandomHex16Bootstrap,

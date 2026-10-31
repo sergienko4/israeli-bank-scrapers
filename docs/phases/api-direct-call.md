@@ -494,6 +494,8 @@ fails the build with `Generic` and `<field>: <rule>`:
 | `warmStart` validated as `'bank-call'` with a `fromStepIndex` that names no step                                                      | `warmStart.fromStepIndex: must name a step when validation is bank-call` |
 | `warmStart.fromStepIndex` below 1                                                                                                     | `warmStart.fromStepIndex: must start after the first step`               |
 | `warmStart.fromStepIndex` fractional, `NaN` or above `steps.length`                                                                   | `warmStart.fromStepIndex: must be a whole number up to the step count`   |
+| a `kind: 'cookie-jar'` `warmStart` whose `maxTokenChars` is not an integer from 1 to 16384 | `warmStart.maxTokenChars: must be an integer from 1 to 16384` |
+| a `kind: 'cookie-jar'` `warmStart` without `headless.cookieDomains` | `warmStart.kind: cookie-jar not allowed without headless.cookieDomains` |
 | a `response: 'document'` step with any `extractsToCarry`, `optionalExtractsToCarry` or `outcome`                                      | `steps.response: a document step reads no body extracts or outcome`      |
 | a `documentMarker` on any step whose `response` is not `'document'`                                                                   | `steps.documentMarker: only on a document step`                          |
 | a manual `redirect` on a step whose `method` is not `GET`                                                                             | `steps.redirect: manual only on GET steps`                               |
@@ -535,12 +537,49 @@ is already the final token. A fractional or `NaN` index fails the build,
 because the step walker would read a missing step and throw instead of
 failing the warm attempt into the cold retry. An index above `steps.length`
 fails it too: it would silently run no steps, which only a typo produces.
+
+`warmStart.kind` says what the stored token is. The default, `'carry'`, seeds
+it into the carry slot `carryField`. `'cookie-jar'` is for a cookie-session
+bank with no bearer to replay: the token is the session jar itself
+([Cookie-jar warm start](#cookie-jar-warm-start)).
+
 The warm-start canary (`WarmStartContract`) follows the same policy. It
 requires `jwtClaims` only for `'jwt'` validation, and it requires the warm path
 to end holding a `token` only when the auth scheme sends a header (`none`
 does not).
 Conflicting transport flags in the headless block are a separate check
 (`assertSingleTransport`), run when the headless mediator is wired.
+
+### Cookie-jar warm start
+
+A `kind: 'cookie-jar'` warm start (`ICookieJarWarmStart`) is always validated
+as `'bank-call'`, and adds `provider`, `accountField` and `maxTokenChars`.
+`Flow/WarmStartKind.ts` reads the kind: `cookieJarWarmOf` returns the
+cookie-jar config or `false`, and `warmCarryField` returns the carry slot, or
+`''` when there is none to seed.
+`encodeWarmJar` in `Flow/WarmCookieJar.ts` seals a `StoredJar` as `v1.` plus
+unpadded base64url over the JSON `{p, a, c}`: the provider tag, the first 16
+hex characters of the SHA-256 of the trimmed account (never the account
+itself), and the cookies in creation order. Only the cookie's own fields
+travel. `decodeWarmJar` opens it, refusing with a reason from
+`WARM_JAR_REJECTIONS` and never a value.
+
+`Flow/TokenStrategyFromConfig.warm.ts` runs the kind at three moments:
+
+- **Restore** (`restoreWarmSeed`). The stored token is checked in order —
+  size, prefix, JSON, shape, provider, account — then imported into the run's
+  cookie session, and the flow resumes at `fromStepIndex`. A token failing any
+  check, or a run with no cookie session, is skipped with the warning
+  `warm start skipped: <reason>`, naming the creds field and never the token,
+  and the cold login runs.
+- **Cold start** (`prepareColdStart`). Before a cold flow starts — after the
+  one-SMS budget allows it — the jar is emptied, so neither a refused token
+  nor the cookies its rejected resume set reach the fresh session.
+- **Export** (`exportWarmToken`). A finished flow seals the jar as the next
+  warm token, so `onAuthFlowComplete` and `persistentOtpToken` receive the
+  envelope. A token longer than `maxTokenChars` is not published: the warning
+  `warm start export skipped: over maxTokenChars` names the creds field and
+  the length only.
 
 ### Transport errors
 
