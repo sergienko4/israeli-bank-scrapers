@@ -84,8 +84,9 @@ defaults:
 #                           Isracard) holds by releasing gate-D
 #                           alone — Group A stays unreleased.
 #   e2e-real-group-e      — Stage 4 (parallel, gate-E approval):
-#                           non-OTP browser-form banks
-#                           (Leumi, Yahav, Mizrahi).
+#                           non-OTP banks: browser-form
+#                           (Leumi, Yahav) plus api-direct
+#                           Mizrahi (no browser).
 #   dependency-review     — PR-only, independent.
 #
 # Each gate runs ONCE per PR — no overlap between validate and the
@@ -1982,10 +1983,10 @@ jobs:
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # ──────────────────────────────────────────────────────────────
-  # Group E — non-OTP browser-form banks (Leumi, Yahav, Mizrahi). Split
-  # out of Group B so these approve/run under their OWN gate-E,
-  # independent of the OTP banks. None needs an OTP (no Telegram
-  # secrets). Gate is independent — see the header.
+  # Group E — non-OTP banks: Leumi and Yahav on a browser form,
+  # Mizrahi over the API. Split out of Group B so these approve/run
+  # under their OWN gate-E, independent of the OTP banks. None needs an
+  # OTP (no Telegram secrets). Gate is independent — see the header.
   # ──────────────────────────────────────────────────────────────
   e2e-real-group-e-gate:
     name: E2E Real E — approval gate
@@ -2016,7 +2017,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Gate released
-        run: echo "Group E approved; non-OTP browser-form matrix may proceed."
+        run: echo "Group E approved; non-OTP matrix may proceed."
 
   e2e-real-group-e:
     name: E2E Real E (${{ matrix.bank }})
