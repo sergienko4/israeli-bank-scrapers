@@ -89,6 +89,18 @@ interface IHmacHeaderSignerConfig {
   readonly signatureHeader: string;
 }
 
+/**
+ * Request-body digest header (N30) — sent on REST object POSTs, computed
+ * after any body signer over the exact JSON bytes the transport writes:
+ * `encode(ascii(prefix + hash(bodyBytes)))` under the header `header`.
+ */
+interface IBodyDigestConfig {
+  readonly header: string;
+  readonly prefix: string;
+  readonly hash: 'sha256-hex';
+  readonly encode: 'base64';
+}
+
 /** Bank crypto configuration — discriminated by `algorithm`. */
 type ISignerConfig = IAsymmetricSignerConfig | IAesSignerConfig;
 
@@ -153,6 +165,7 @@ export type {
   CanonicalPart,
   IAesSignerConfig,
   IAsymmetricSignerConfig,
+  IBodyDigestConfig,
   ICanonicalStringConfig,
   ICryptoFieldConfig,
   IHmacHeaderSignerConfig,

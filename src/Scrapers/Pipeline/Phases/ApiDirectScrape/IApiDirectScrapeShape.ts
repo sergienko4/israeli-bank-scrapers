@@ -23,6 +23,7 @@
 
 import type {
   IAesSignerConfig,
+  IBodyDigestConfig,
   JsonValueTemplate,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IDeclaredRowSpec } from '../../Mediator/Scrape/CoverageAudit/DeclaredRows.js';
@@ -435,6 +436,12 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    * signing (Pepper/OneZero pattern).
    */
   readonly signer?: IAesSignerConfig;
+  /**
+   * Optional body digest header on every REST object POST, computed after
+   * `signer` over the exact JSON bytes sent. GET, array POST and GraphQL
+   * steps carry none. Absent ⇒ no digest.
+   */
+  readonly bodyDigest?: IBodyDigestConfig;
   /**
    * Optional crypto secrets exposed to the shape-level signer's
    * `keyRef: 'config.secrets.<name>'` lookup. Banks that body-sign

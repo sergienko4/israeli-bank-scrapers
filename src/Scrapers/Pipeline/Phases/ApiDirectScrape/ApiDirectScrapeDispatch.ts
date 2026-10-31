@@ -10,6 +10,7 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IApiMediator, IApiQueryOpts } from '../../Mediator/Api/ApiMediator.js';
 import type {
   IAesSignerConfig,
+  IBodyDigestConfig,
   JsonValueTemplate,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { JsonValue } from '../../Mediator/ApiDirectCall/Envelope/JsonPointer.js';
@@ -19,6 +20,7 @@ import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk } from '../../Types/Procedure.js';
 import { maybeSignBody, resolveStepBody } from './ApiDirectScrapeBody.js';
+import { withBodyDigest } from './ApiDirectScrapeBodyDigest.js';
 import type { ApiBody, BodyCheck, ScrapeHttpMethod, VarsMap } from './IApiDirectScrapeShape.js';
 
 /** Args bundle for {@link dispatchStep} — keeps params ≤3. */
@@ -38,6 +40,8 @@ export interface IDispatchArgs {
   readonly secrets?: Readonly<Record<string, string>>;
   /** Shape-level response check — see `IApiDirectScrapeShape.checkBody`. */
   readonly checkBody?: BodyCheck;
+  /** Shape-level body digest — see `IApiDirectScrapeShape.bodyDigest`. */
+  readonly bodyDigest?: IBodyDigestConfig;
 }
 
 /** Dispatch args whose vars are an object — what templates and signing need. */
@@ -88,7 +92,8 @@ export function applyBodyCheck(
 /**
  * Dispatch a REST POST scrape step: hydrate the body from the step's
  * `bodyTemplate` (or bare vars), apply the optional shape-level signer,
- * then POST against the resolved URL. Split from {@link dispatchStep}
+ * add the optional body digest header over the final body, then POST
+ * against the resolved URL. Split from {@link dispatchStep}
  * so the router stays a thin 3-way switch.
  * @param args - Dispatch bundle.
  * @param url - Resolved REST URL (router guarantees it is not `false`).
@@ -102,7 +107,8 @@ async function dispatchRestPost(
   if (!isOk(bodyProc)) return bodyProc;
   const signedProc = maybeSignBody(bodyProc.value, args);
   if (!isOk(signedProc)) return signedProc;
-  return args.bus.apiPost<ApiBody>(url, signedProc.value, args.opts);
+  const opts = withBodyDigest(args.opts, signedProc.value, args.bodyDigest);
+  return args.bus.apiPost<ApiBody>(url, signedProc.value, opts);
 }
 
 /**

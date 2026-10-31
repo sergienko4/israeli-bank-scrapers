@@ -14,6 +14,7 @@ import { TEXT_BODY_REFUSED_REASON, type BodyEncoding } from '../../Types/Domain/
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { PostData } from './FetchStrategy.js';
+import { serializeJsonBody } from './JsonBody.js';
 import { encodeLatin1Form } from './Latin1Form.js';
 
 /** Content-type every form body is sent under. */
@@ -35,12 +36,14 @@ interface IWrittenBody {
 type BodyWriter = (data: PostData) => Procedure<IWrittenBody>;
 
 /**
- * Write the body as JSON text.
+ * Write the body as JSON text — the one serializer's text, so a digest or
+ * signature over its bytes covers exactly what is sent.
  * @param data - POST body.
  * @returns JSON text; the transport's content-type stands.
  */
 function writeJson(data: PostData): Procedure<IWrittenBody> {
-  return succeed({ body: JSON.stringify(data) });
+  const serialized = serializeJsonBody(data);
+  return succeed({ body: serialized.text });
 }
 
 /**

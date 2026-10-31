@@ -68,15 +68,16 @@ function toOpts(ctx: IActionContext, extra?: ApiDirectScrapeHeadersLike): IApiQu
 }
 
 /**
- * Pull the shape-level signer, secrets and body check onto a dispatch-args
+ * Pull the shape-level signer, secrets, body check and body digest onto a dispatch-args
  * slice — the fields every step of one shape shares.
  * @param shape - Bank shape literal.
  * @returns Slice with the shape-level fields.
  */
 function pickShapeLevel<TAcct, TCursor>(
   shape: IApiDirectScrapeShape<TAcct, TCursor>,
-): Pick<IDispatchArgs, 'signer' | 'secrets' | 'checkBody'> {
-  return { signer: shape.signer ?? false, secrets: shape.secrets, checkBody: shape.checkBody };
+): Pick<IDispatchArgs, 'signer' | 'secrets' | 'checkBody' | 'bodyDigest'> {
+  const { secrets, checkBody, bodyDigest } = shape;
+  return { signer: shape.signer ?? false, secrets, checkBody, bodyDigest };
 }
 
 /**
