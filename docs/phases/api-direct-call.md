@@ -549,12 +549,14 @@ failing the warm attempt into the cold retry. An index above `steps.length`
 fails it too: it would silently run no steps, which only a typo produces.
 
 A config `pattern` or `valuePattern` is tested against bank and caller text, so
-the build refuses the backtracking shapes `(a+)+` and `(a+){20}`.
+the build refuses the backtracking shapes `(a+)+`, `(a+){20}` and `(a?){40}`.
 `hasNestedQuantifier` (`Core/Builder/NestedQuantifier.ts`) reads escapes and
-classes as one atom and drops an exact `{n}` after an atom, then rejects any
-group whose body already repeats when that group carries a quantifier — `*`,
-`+`, a range or an exact `{n}`. It is a conservative check: overlapping
-alternation such as `(a|a)*` is not detected, so keep patterns flat.
+classes as one atom, strips the `?` of group openers such as `(?:`, and drops
+an exact `{n}` after an atom. It then rejects any group whose body is
+variable-width — it holds `*`, `+`, `?` or a range — when that group loops
+under `*`, `+`, a range or an exact `{n}`. A `?` on a group is no loop, so
+`(-\d+)?` passes. It is a conservative check: overlapping alternation such as
+`(a|a)*` is not detected, so keep patterns flat.
 
 `warmStart.kind` says what the stored token is. The default, `'carry'`, seeds
 it into the carry slot `carryField`. `'cookie-jar'` is for a cookie-session

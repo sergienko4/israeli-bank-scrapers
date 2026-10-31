@@ -131,6 +131,9 @@ describe('validateApiDirectConfig — extractRules', () => {
       NESTED_MSG,
     ],
     ['an exact-count group holding a repeat', { state: { pattern: '^(a+){20}$' } }, NESTED_MSG],
+    ['an exact-count group of an optional atom', { state: { pattern: '^(a?){40}$' } }, NESTED_MSG],
+    ['a repeated group of an optional atom', { state: { pattern: '^(?:a?b)+$' } }, NESTED_MSG],
+    ['a repeated optional group', { state: { pattern: '^(?:(?:ab)?)+$' } }, NESTED_MSG],
     [
       'an exact-count group holding a deeper repeat',
       { state: { pattern: String.raw`^(?:(\d+)-){2}$` } },
@@ -180,6 +183,9 @@ describe('validateApiDirectConfig — extractRules', () => {
     ['a bounded range', String.raw`^\d{1,4}$`],
     ['an exact-count group of fixed width', String.raw`^(?:\d{3}-){2}\d{4}$`],
     ['an exact count after an escaped paren', String.raw`^(?:\){2})+$`],
+    ['an optional group holding a repeat', String.raw`^\d+(?:-\d+)?$`],
+    ['a named group under a repeat', String.raw`^(?<code>\d{5})+$`],
+    ['a lookahead before a range', String.raw`^(?=\d)\d{1,5}$`],
   ])('a pattern with %s passes', (_label, pattern) => {
     const step = ruled({ state: { pattern } });
     const input = runOf(step);
