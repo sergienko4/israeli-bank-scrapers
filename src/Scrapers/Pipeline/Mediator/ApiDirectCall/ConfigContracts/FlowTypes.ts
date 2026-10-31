@@ -16,6 +16,7 @@ import type { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { WKUrlGroup } from '../../../Registry/WK/UrlsWK.js';
 import type {
   BodyEncoding,
+  IUrlRule,
   RedirectPolicy,
   ResponseKind,
 } from '../../../Types/Domain/FetchPolicy.js';
@@ -88,6 +89,28 @@ interface IHeaderExtract {
   readonly fallback?: string;
 }
 
+/** JSON type an extract rule demands of a slot's raw value (N18). */
+type ExtractValueType = 'string' | 'number' | 'object' | 'array';
+
+/**
+ * Checks on one body-extract slot (N18), run on the raw value once the body
+ * is extracted: `type` first, then `transform`, then the text checks.
+ */
+interface IExtractRule {
+  /** JSON type of the raw value. */
+  readonly type?: ExtractValueType;
+  /** Applied before the text checks; the slot keeps the result. */
+  readonly transform?: 'lower';
+  /** Allowed texts, after the transform. */
+  readonly oneOf?: readonly string[];
+  /** Anchored regex source (`^…$`) the whole text must match. */
+  readonly pattern?: string;
+  /** Allow-list a URL text must match, resolved against the step URL. */
+  readonly url?: readonly IUrlRule[];
+  /** Longest text allowed; 8192 when unset. */
+  readonly maxChars?: number;
+}
+
 /** Fields every login step has, whatever its HTTP method. */
 interface IStepBase {
   readonly name: StepName;
@@ -133,6 +156,8 @@ interface IStepBase {
   readonly setCookies?: Readonly<Record<string, RefToken>>;
   /** Body pointers that, present and truthy, fail the step `<step> bank error` (N20). */
   readonly failIfPresent?: readonly string[];
+  /** Rules per body-extract slot, checked once the body is extracted (N18). */
+  readonly extractRules?: Readonly<Record<string, IExtractRule>>;
 }
 
 /** A POST step, the default when `method` is omitted: sends the hydrated body. */
@@ -157,7 +182,9 @@ type IStepConfig = IPostStep | IGetStep;
 type StepMethod = NonNullable<IStepConfig['method']>;
 
 export type {
+  ExtractValueType,
   FlowKind,
+  IExtractRule,
   IGetStep,
   IHeaderExtract,
   IOptionalExtract,

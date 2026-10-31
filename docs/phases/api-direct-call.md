@@ -285,6 +285,36 @@ An outcome failure in a warm resume is a failure like any other, so the
 resolver still falls back to one cold flow. When the cold flow also fails, its
 own failure type is the one reported.
 
+### Extract rules
+
+A value the bank sends back may be echoed into a later request, so a step can
+check its body extracts before they reach carry. `extractRules` maps a slot of
+`extractsToCarry` or `optionalExtractsToCarry` to an `IExtractRule`. Once the
+step's carry is read, `ruleStepCarry` (in `Flow/RunStep.extractRules.ts`)
+resolves the step's URL and `applyExtractRules` checks each ruled slot:
+
+```ts
+optionalExtractsToCarry: { state: { pointer: '/state' } },
+extractRules: {
+  state: { type: 'string', transform: 'lower', oneOf: ['logonotp', 'passwordexpired'] },
+},
+```
+
+- `type` (`'string'`, `'number'`, `'object'` or `'array'`) is checked on the
+  raw value first. A number must be finite; `null` is no type.
+- `transform: 'lower'` lower-cases the text; the slot keeps the result.
+- The text checks run in order on the transformed text: `maxChars` (8192 when
+  unset), `oneOf`, the whole text against `pattern`, and the `url` allow-list.
+  A URL resolves against the step's URL and must then match an `IUrlRule`: an
+  `https` origin, an exact path, no user info and no fragment. The slot keeps
+  the text as sent, not the resolved URL.
+- A string always runs the text checks. A finite number runs them, stringified,
+  only when the rule sets one; any other value under a text check is refused.
+- An optional slot whose pointer is unresolved, `null` or `''` skips its rule.
+
+A refused value fails the step `Generic` with `<step> extract <slot> invalid`,
+before any later step or OTP prompt. The message never names the value.
+
 ### Session-transport fields
 
 Some banks keep the session in cookies shared by sibling hosts, and answer
@@ -367,6 +397,8 @@ from what it extracted:
   before the step's request; `$ref: cookie.<name>` reads the cookie that
   applies to the step URL, URL-decoded
   ([Client cookies](../architecture/pipeline.md#client-cookies)).
+- `extractRules` checks a body extract's type, text, length or URL before it
+  reaches carry ([Extract rules](#extract-rules)).
 - `omitBankText: true` on the config keeps reply text out of a missed extract
   and records a length-only hint for `error_code` in login diagnostics
   ([Bank text in failures](#bank-text-in-failures)).
@@ -387,7 +419,7 @@ rules, `API_DIRECT_TRANSPORT_RULES` in `Core/Builder/ApiDirectTransportRules.ts`
 run after the core rules, then the form-body rules, `API_DIRECT_FORM_RULES` in
 `Core/Builder/ApiDirectFormRules.ts`, then the seal rules,
 `API_DIRECT_SEAL_RULES` in `Core/Builder/ApiDirectSealRules.ts`, then the
-step-guard rules, `API_DIRECT_STEP_RULES` in `Core/Builder/ApiDirectStepRules.ts`. The native-fetch rules, `API_DIRECT_NATIVE_RULES` in
+step rules, `API_DIRECT_STEP_RULES` in `Core/Builder/ApiDirectStepRules.ts`. The native-fetch rules, `API_DIRECT_NATIVE_RULES` in
 `Core/Builder/ApiDirectNativeRules.ts`, run last: the session-transport fields
 act only on the headless native fetch, and any other transport would ignore
 them and run unguarded, so naming one off native fetch fails the build. Its
@@ -418,6 +450,10 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `seal` whose `writeTo` is not a JSON pointer                                                                                        | `steps.seal.writeTo: must be a JSON pointer`                             |
 | a `seal` whose `params` are out of range (exponent, seed, block size or printable text)                                               | `steps.seal.params: out of range`                                        |
 | a login or resume step with a `failIfPresent` entry that is not a JSON pointer below the body root                                    | `steps.failIfPresent: each entry must be a JSON pointer`                 |
+| an `extractRules` key that names neither an `extractsToCarry` nor an `optionalExtractsToCarry` slot of its step                       | `steps.extractRules: each key must name a body extract`                  |
+| an `extractRules` `pattern` that does not start with `^`, end with `$` and compile with the `u` flag                                  | `steps.extractRules.pattern: must be an anchored regex`                  |
+| an `extractRules` `maxChars` that is not an integer from 1 to 65536                                                                   | `steps.extractRules.maxChars: must be an integer from 1 to 65536`        |
+| an `extractRules` `oneOf` or `url` list that is empty                                                                                 | `steps.extractRules: oneOf and url must not be empty`                    |
 | a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |
 | a login or resume step with `encoding`, without `headless.nativeFetch: true`                                                          | `steps.encoding: not allowed without headless.nativeFetch`               |
 | `headless.cookieDomains`, `redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, on an api-direct or node-tls bank | `headless.<field>: not allowed without headless.nativeFetch` |
@@ -696,6 +732,7 @@ Where each piece lives, for maintainers:
 | `INVALID_PASSWORD`                                              | Bank rejected credentials                                                                                                                                                                                                                                                                 |
 | any type a step's `failureMap` names, else its `defaultFailure` | The step's 2xx body reported a non-success [outcome](#step-outcome) code                                                                                                                                                                                                                  |
 | `GENERIC`                                                       | The step's 2xx body held a bank error at a `failIfPresent` pointer (`<step> bank error`) — see [Bank-error guard](#bank-error-guard)                                                                                                                                                      |
+| `GENERIC`                                                       | A body extract failed its rule (`<step> extract <slot> invalid`) — see [Extract rules](#extract-rules)                                                                                                                                                                                    |
 | `INVALID_OTP`                                                   | Wrong code                                                                                                                                                                                                                                                                                |
 | `TWO_FACTOR_RETRIEVER_MISSING`                                  | OTP step reached without callback                                                                                                                                                                                                                                                         |
 | `INVALID_PHONE_NUMBER`                                          | `phoneNumber` cannot be normalised to the bank's wire format — see [Phone normaliser](#phone-normaliser)                                                                                                                                                                                  |

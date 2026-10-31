@@ -11,6 +11,7 @@ import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { bindStepCookies } from './RunStep.clientCookies.js';
 import { deriveStepCarry } from './RunStep.derive.js';
+import { ruleStepCarry } from './RunStep.extractRules.js';
 import { guardBankError } from './RunStep.failIfPresent.js';
 import { sanitiseStepFailure } from './RunStep.failure.js';
 import { fireStep } from './RunStep.fire.js';
@@ -75,7 +76,7 @@ function describeResponse(resp: JsonValue, isBankTextOmitted: boolean): IRespDes
  * @param resp - Successful response JSON.
  * @returns Procedure with the step's carry, or the first missing field.
  */
-function collectCarry(bundle: IDispatchBundle, resp: JsonValue): Procedure<CarryMap> {
+function readCarry(bundle: IDispatchBundle, resp: JsonValue): Procedure<CarryMap> {
   const step = bundle.fireScope.step;
   const isBankTextOmitted = bundle.fireScope.isBankTextOmitted === true;
   const carryProc = extractFields(resp, step.extractsToCarry, isBankTextOmitted);
@@ -84,6 +85,18 @@ function collectCarry(bundle: IDispatchBundle, resp: JsonValue): Procedure<Carry
   if (!isOk(headerProc)) return headerProc;
   const optional = extractOptional(resp, step);
   return succeed({ ...carryProc.value, ...optional, ...headerProc.value });
+}
+
+/**
+ * Read a step's carry from its answer, then check its ruled slots (N18).
+ * @param bundle - Dispatch bundle.
+ * @param resp - Successful response JSON.
+ * @returns Procedure with the step's carry, or the first missing or refused field.
+ */
+function collectCarry(bundle: IDispatchBundle, resp: JsonValue): Procedure<CarryMap> {
+  const carry = readCarry(bundle, resp);
+  if (!isOk(carry)) return carry;
+  return ruleStepCarry(bundle, resp, carry.value);
 }
 
 /**

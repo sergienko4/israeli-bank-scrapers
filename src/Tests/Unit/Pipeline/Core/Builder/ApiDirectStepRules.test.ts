@@ -1,6 +1,8 @@
 /**
- * N20 — each `failIfPresent` entry must be a JSON pointer below the body root,
- * on login and resume steps alike.
+ * Step rules on login and resume steps alike. N20 — each `failIfPresent`
+ * entry must be a JSON pointer below the body root. N18 — each `extractRules`
+ * key names a body extract of its step; a pattern is anchored and compiles;
+ * `maxChars` is an integer from 1 to 65536; `oneOf` and `url` are not empty.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
@@ -83,6 +85,71 @@ describe('validateApiDirectConfig — failIfPresent', () => {
 
   it('JSON pointers pass', () => {
     const step = guarded(['/error', '/Error', '/errors']);
+    const input = runOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+  });
+});
+
+/**
+ * A login step reading `state` (required) and `target` (optional), ruled.
+ * @param rules - The `extractRules` record.
+ * @returns Step config.
+ */
+function ruled(rules: IStepConfig['extractRules']): IStepConfig {
+  return {
+    name: 'bind',
+    urlTag: 'auth.bind',
+    body: { shape: {} },
+    extractsToCarry: { state: '/state' },
+    optionalExtractsToCarry: { target: { pointer: '/target' } },
+    extractRules: rules,
+  };
+}
+
+const KEY_MSG = 'steps.extractRules: each key must name a body extract';
+const PATTERN_MSG = 'steps.extractRules.pattern: must be an anchored regex';
+const MAX_MSG = 'steps.extractRules.maxChars: must be an integer from 1 to 65536';
+const EMPTY_MSG = 'steps.extractRules: oneOf and url must not be empty';
+const PORTAL = [{ origin: 'https://bank.example', paths: ['/portal/home'] }];
+
+describe('validateApiDirectConfig — extractRules', () => {
+  it.each<[string, IStepConfig['extractRules'], string]>([
+    ['a key naming no extract', { other: { type: 'string' } }, KEY_MSG],
+    ['an unanchored pattern', { state: { pattern: String.raw`\d+` } }, PATTERN_MSG],
+    ['a pattern without its end anchor', { state: { pattern: String.raw`^\d+` } }, PATTERN_MSG],
+    ['a pattern that does not compile', { state: { pattern: '^(]$' } }, PATTERN_MSG],
+    ['a zero maxChars', { state: { maxChars: 0 } }, MAX_MSG],
+    ['a fractional maxChars', { state: { maxChars: 1.5 } }, MAX_MSG],
+    ['a maxChars past 65536', { target: { maxChars: 65537 } }, MAX_MSG],
+    ['an empty oneOf', { state: { oneOf: [] } }, EMPTY_MSG],
+    ['an empty url list', { target: { url: [] } }, EMPTY_MSG],
+  ])('%s → fails the build', (_label, rules, message) => {
+    const step = ruled(rules);
+    const input = runOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: message,
+    });
+  });
+
+  it('checks resume steps too', () => {
+    const step = ruled({ other: { type: 'string' } });
+    const input = resumeOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({ success: false, errorMessage: KEY_MSG });
+  });
+
+  it('sound rules on required and optional slots pass', () => {
+    const state = {
+      type: 'string',
+      transform: 'lower',
+      oneOf: ['logonotp'],
+      pattern: '^[a-z]+$',
+    } as const;
+    const step = ruled({ state, target: { url: PORTAL, maxChars: 65536 } });
     const input = runOf(step);
     const result = validateApiDirectConfig(input);
     expect(result).toEqual({ success: true, value: true });
