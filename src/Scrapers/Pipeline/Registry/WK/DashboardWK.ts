@@ -35,7 +35,6 @@ const DASHBOARD_TRANSACTIONS: readonly SelectorCandidate[] = [
   { kind: 'clickableText', value: 'פירוט תנועות' },
   { kind: 'clickableText', value: 'לכל התנועות' },
   { kind: 'clickableText', value: 'תנועות אחרונות' },
-  { kind: 'clickableText', value: 'לעובר ושב' },
   // Yahav current-account nav (SPA route #/main/accounts/current/). Both quote
   // variants: gershayim U+05F4 (the real glyph) + ASCII U+0022 fallback. Placed
   // before the credit-card entries so the account-resolve nudge reaches the
