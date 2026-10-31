@@ -8,8 +8,8 @@
  * be empty, since an empty list would refuse every value. A `runIf` guard
  * (N14) needs a carry slot and a non-empty `oneOf`, else its step never runs.
  * A pre-hook `valuePattern` (N21) must be anchored and compile, like an
- * extract `pattern`. Neither may repeat a group that holds a repeat
- * (`NestedQuantifier.ts`), as that can backtrack for exponential time.
+ * extract `pattern`. Both must be flat (`FlatPattern.ts`): no group, no
+ * alternation and at most one variable repeat, so a match takes linear time.
  */
 
 import type {
@@ -17,7 +17,7 @@ import type {
   IStepConfig,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
-import { hasNestedQuantifier } from './NestedQuantifier.js';
+import { isFlatPattern } from './FlatPattern.js';
 
 /**
  * Whether a guard entry is a pointer below the body root.
@@ -123,13 +123,13 @@ function isBadPattern(rule: IExtractRule): boolean {
 }
 
 /**
- * Whether a rule's pattern repeats a group that holds a repeat.
+ * Whether a rule's pattern is not flat.
  * @param rule - Extract rule.
- * @returns True for a nested quantifier.
+ * @returns True for a pattern that could backtrack.
  */
-function isNestedPattern(rule: IExtractRule): boolean {
+function isUnflatPattern(rule: IExtractRule): boolean {
   if (rule.pattern === undefined) return false;
-  return hasNestedQuantifier(rule.pattern);
+  return !isFlatPattern(rule.pattern);
 }
 
 /**
@@ -195,16 +195,15 @@ function hasBadPreHookPattern(input: IApiDirectRuleInput): boolean {
 }
 
 /**
- * Whether any login or resume step's pre-hook value pattern repeats a group
- * that holds a repeat.
+ * Whether any login or resume step's pre-hook value pattern is not flat.
  * @param input - Rule input.
- * @returns True when a `valuePattern` has a nested quantifier.
+ * @returns True when a `valuePattern` could backtrack.
  */
-function hasNestedPreHookPattern(input: IApiDirectRuleInput): boolean {
+function hasUnflatPreHookPattern(input: IApiDirectRuleInput): boolean {
   const steps = allSteps(input.call);
   return steps.some((step): boolean => {
     const pattern = step.preHook?.valuePattern;
-    return pattern !== undefined && hasNestedQuantifier(pattern);
+    return pattern !== undefined && !isFlatPattern(pattern);
   });
 }
 
@@ -232,8 +231,8 @@ const API_DIRECT_STEP_RULES: readonly IApiDirectRule[] = [
     isBroken: anyExtractRule(isBadPattern),
   },
   {
-    message: 'steps.extractRules.pattern: no nested quantifiers',
-    isBroken: anyExtractRule(isNestedPattern),
+    message: 'steps.extractRules.pattern: must be a flat regex',
+    isBroken: anyExtractRule(isUnflatPattern),
   },
   {
     message: 'steps.extractRules.maxChars: must be an integer from 1 to 65536',
@@ -252,8 +251,8 @@ const API_DIRECT_STEP_RULES: readonly IApiDirectRule[] = [
     isBroken: hasBadPreHookPattern,
   },
   {
-    message: 'steps.preHook.valuePattern: no nested quantifiers',
-    isBroken: hasNestedPreHookPattern,
+    message: 'steps.preHook.valuePattern: must be a flat regex',
+    isBroken: hasUnflatPreHookPattern,
   },
 ];
 

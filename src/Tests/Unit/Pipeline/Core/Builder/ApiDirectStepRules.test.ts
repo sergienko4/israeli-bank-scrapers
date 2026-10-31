@@ -111,7 +111,7 @@ function ruled(rules: IStepConfig['extractRules']): IStepConfig {
 
 const KEY_MSG = 'steps.extractRules: each key must name a body extract';
 const PATTERN_MSG = 'steps.extractRules.pattern: must be an anchored regex';
-const NESTED_MSG = 'steps.extractRules.pattern: no nested quantifiers';
+const FLAT_MSG = 'steps.extractRules.pattern: must be a flat regex';
 const MAX_MSG = 'steps.extractRules.maxChars: must be an integer from 1 to 65536';
 const EMPTY_MSG = 'steps.extractRules: oneOf and url must not be empty';
 const PORTAL = [{ origin: 'https://bank.example', paths: ['/portal/home'] }];
@@ -122,23 +122,14 @@ describe('validateApiDirectConfig — extractRules', () => {
     ['an unanchored pattern', { state: { pattern: String.raw`\d+` } }, PATTERN_MSG],
     ['a pattern without its end anchor', { state: { pattern: String.raw`^\d+` } }, PATTERN_MSG],
     ['a pattern that does not compile', { state: { pattern: '^(]$' } }, PATTERN_MSG],
-    ['a group repeating a repeat', { state: { pattern: String.raw`^(\d+)+$` } }, NESTED_MSG],
-    ['a repeated alternation holding a repeat', { state: { pattern: '^(?:a|b*)*$' } }, NESTED_MSG],
-    ['a repeat two groups deep', { state: { pattern: '^((a+)b)*$' } }, NESTED_MSG],
-    [
-      'a range-repeated group holding a repeat',
-      { state: { pattern: '^([a-z]+){2,}$' } },
-      NESTED_MSG,
-    ],
-    ['an exact-count group holding a repeat', { state: { pattern: '^(a+){20}$' } }, NESTED_MSG],
-    ['an exact-count group of an optional atom', { state: { pattern: '^(a?){40}$' } }, NESTED_MSG],
-    ['a repeated group of an optional atom', { state: { pattern: '^(?:a?b)+$' } }, NESTED_MSG],
-    ['a repeated optional group', { state: { pattern: '^(?:(?:ab)?)+$' } }, NESTED_MSG],
-    [
-      'an exact-count group holding a deeper repeat',
-      { state: { pattern: String.raw`^(?:(\d+)-){2}$` } },
-      NESTED_MSG,
-    ],
+    ['a group', { state: { pattern: String.raw`^(\d+)+$` } }, FLAT_MSG],
+    ['a non-capturing group', { state: { pattern: '^(?:a?){40}$' } }, FLAT_MSG],
+    ['a lookahead', { state: { pattern: String.raw`^(?=\d)\d{5}$` } }, FLAT_MSG],
+    ['an alternation', { state: { pattern: String.raw`^\d{5}|.*$` } }, FLAT_MSG],
+    ['repeats side by side', { state: { pattern: '^a*a*a*a*a*b$' } }, FLAT_MSG],
+    ['two repeats apart', { state: { pattern: String.raw`^\d+-\d+$` } }, FLAT_MSG],
+    ['two bounded ranges', { state: { pattern: '^.{0,64}.{0,64}$' } }, FLAT_MSG],
+    ['two optional atoms', { state: { pattern: '^a?a?$' } }, FLAT_MSG],
     ['a zero maxChars', { state: { maxChars: 0 } }, MAX_MSG],
     ['a fractional maxChars', { state: { maxChars: 1.5 } }, MAX_MSG],
     ['a maxChars past 65536', { target: { maxChars: 65537 } }, MAX_MSG],
@@ -176,16 +167,14 @@ describe('validateApiDirectConfig — extractRules', () => {
   });
 
   it.each([
-    ['an exact count inside a repeated group', '^(?:[A-Za-z0-9+/]{4})*$'],
-    ['an escaped quantifier inside a repeated group', String.raw`^(\+)+$`],
-    ['quantifier characters inside a class', '^[(+*]+$'],
-    ['repeats side by side', String.raw`^(\d+)-(\d+)$`],
-    ['a bounded range', String.raw`^\d{1,4}$`],
-    ['an exact-count group of fixed width', String.raw`^(?:\d{3}-){2}\d{4}$`],
-    ['an exact count after an escaped paren', String.raw`^(?:\){2})+$`],
-    ['an optional group holding a repeat', String.raw`^\d+(?:-\d+)?$`],
-    ['a named group under a repeat', String.raw`^(?<code>\d{5})+$`],
-    ['a lookahead before a range', String.raw`^(?=\d)\d{1,5}$`],
+    ['one bounded range', String.raw`^\d{1,4}$`],
+    ['one range of any text', '^.{1,64}$'],
+    ['exact counts around one range', String.raw`^\d{3}-\d{2,4}$`],
+    ['exact counts only', String.raw`^\d{3}-\d{4}$`],
+    ['an escaped quantifier before a repeat', String.raw`^\++$`],
+    ['quantifier characters inside a class', '^[(+*?{}|]+$'],
+    ['a lazy repeat', String.raw`^\w+?$`],
+    ['an exact lazy count beside a repeat', String.raw`^a{2}?\d*$`],
   ])('a pattern with %s passes', (_label, pattern) => {
     const step = ruled({ state: { pattern } });
     const input = runOf(step);
@@ -232,7 +221,7 @@ describe('validateApiDirectConfig — runIf', () => {
 });
 
 const VALUE_PATTERN_MSG = 'steps.preHook.valuePattern: must be an anchored regex';
-const VALUE_NESTED_MSG = 'steps.preHook.valuePattern: no nested quantifiers';
+const VALUE_FLAT_MSG = 'steps.preHook.valuePattern: must be a flat regex';
 
 /**
  * A login step whose OTP pre-hook checks the code against a pattern.
@@ -256,11 +245,14 @@ describe('validateApiDirectConfig — preHook.valuePattern', () => {
     expect(result).toMatchObject({ success: false, errorMessage: VALUE_PATTERN_MSG });
   });
 
-  it('a group repeating a repeat fails the build', () => {
-    const step = hookedStep(String.raw`^(\d+)+$`);
+  it.each([
+    ['a group', String.raw`^(\d+)+$`],
+    ['two repeats', String.raw`^\d+\d+$`],
+  ])('%s fails the build', (_label, valuePattern) => {
+    const step = hookedStep(valuePattern);
     const input = resumeOf(step);
     const result = validateApiDirectConfig(input);
-    expect(result).toMatchObject({ success: false, errorMessage: VALUE_NESTED_MSG });
+    expect(result).toMatchObject({ success: false, errorMessage: VALUE_FLAT_MSG });
   });
 
   it('checks resume steps too', () => {
