@@ -36,14 +36,15 @@ interface IJarState {
 }
 
 /**
- * Whether a cookie may enter the jar: sendable as `name=value`, and either
- * host-only or scoped to an allow-listed domain.
+ * Whether a cookie may enter the jar: sendable as `name=value`, with an
+ * absolute path, and either host-only or scoped to an allow-listed domain.
  * @param state - Jar state.
  * @param cookie - Candidate cookie.
  * @returns True when the cookie may be stored.
  */
 function isStorable(state: IJarState, cookie: IStoredCookie): boolean {
   if (!isSendableCookie(cookie.name, cookie.value)) return false;
+  if (!cookie.path.startsWith('/')) return false;
   return cookie.hostOnly || state.allow.includes(cookie.domain);
 }
 

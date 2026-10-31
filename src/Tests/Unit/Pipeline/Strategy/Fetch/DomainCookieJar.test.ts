@@ -240,6 +240,18 @@ describe('DomainCookieJar/session operations', () => {
     expect(header).toBe('');
   });
 
+  it.each([
+    { label: 'an empty path', path: '' },
+    { label: 'a relative path', path: 'login' },
+  ])('refuses a cookie with $label', ({ path }) => {
+    const jar = makeJar();
+    jar.set(WWW, { name: 'a', value: '1', path });
+    jar.importAll([...jar.exportAll(), stored({ path })]);
+    const kept = jar.exportAll();
+    const header = jar.header(WWW);
+    expect([kept, header]).toEqual([[], '']);
+  });
+
   it('empties the jar on clear', () => {
     const jar = makeJar();
     jar.add(WWW, ['a=1; Domain=bank.example; Path=/']);

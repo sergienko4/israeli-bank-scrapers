@@ -6,9 +6,10 @@
  * Every hop is a body-less GET through the same transport seam, so each hop
  * keeps the per-request cap. A hop's Set-Cookie lines are filed under the hop
  * URL before the next hop is built. Each hop starts from the previous hop's
- * headers, drops every header the session owns (and, across origins, the
- * credentials headers) and adds the session's headers for the hop URL — a
- * value computed for another URL is never reused. Location
+ * headers and replaces every header the session owns with the session's
+ * headers for the hop URL — a value computed for another URL is never reused.
+ * Once any hop changes origin the credentials headers are dropped for the
+ * rest of the run, whether the caller or the session set them. Location
  * values are never logged and never put in a failure message.
  */
 
@@ -25,6 +26,9 @@ import { safeUrlForLog } from './SafeUrlForLog.js';
 import { matchesAnyUrlRule } from './UrlRule.js';
 
 type SetCookieEmitCount = Brand<number, 'SetCookieEmitCount'>;
+
+/** The headers one hop sends. */
+type HopHeaders = Record<string, string>;
 
 /** One request, its transport seam and the redirect policy it runs under. */
 interface IRedirectRun {
@@ -49,6 +53,8 @@ interface IHop {
   readonly init: RequestInit;
   readonly verb: HttpVerb;
   readonly hopsLeft: number;
+  /** Set once any hop changed origin; credentials are never sent again. */
+  readonly hasCrossedOrigin: boolean;
 }
 
 /** A manual run and the rules its hops must match. */
@@ -151,20 +157,21 @@ const FIXED_SENDERS: Readonly<Record<'follow' | 'reject', Sender>> = {
 };
 
 /**
- * Hop headers: the previous request's, minus every session-owned header and,
- * across origins, minus the credentials headers; plus the session's headers
- * for the hop URL.
+ * Hop headers: the previous request's with every session-owned header
+ * replaced by the session's headers for the hop URL. Once a run has crossed
+ * origins the credentials headers are dropped last, so neither the caller's
+ * nor the session's are sent on this hop or any later one.
  * @param hop - The request that redirected.
- * @param target - The hop target.
  * @param session - The session's headers for the hop URL.
+ * @param hasCrossed - Whether any hop so far changed origin.
  * @returns Header record for the hop.
  */
-function hopHeaders(hop: IHop, target: URL, session: ISessionHeaders): Record<string, string> {
+function hopHeaders(hop: IHop, session: ISessionHeaders, hasCrossed: boolean): HopHeaders {
   const headers = new Headers(hop.init.headers);
-  const isCrossOrigin = new URL(hop.url).origin !== target.origin;
-  const dropped = isCrossOrigin ? [...session.owned, ...CROSS_ORIGIN_DROPPED] : session.owned;
-  for (const name of dropped) headers.delete(name);
+  for (const name of session.owned) headers.delete(name);
   for (const [name, value] of Object.entries(session.values)) headers.set(name, value);
+  const dropped = hasCrossed ? CROSS_ORIGIN_DROPPED : [];
+  for (const name of dropped) headers.delete(name);
   return Object.fromEntries(headers);
 }
 
@@ -194,9 +201,10 @@ function hopTarget(response: Response, hop: IHop, rules: readonly IUrlRule[]): O
 function nextHop(run: IRedirectRun, hop: IHop, target: URL): IHop {
   const url = target.href;
   const session = run.sessionHeadersFor ? run.sessionHeadersFor(url) : NO_SESSION;
-  const headers = hopHeaders(hop, target, session);
+  const hasCrossedOrigin = hop.hasCrossedOrigin || new URL(hop.url).origin !== target.origin;
+  const headers = hopHeaders(hop, session, hasCrossedOrigin);
   const init: RequestInit = { method: 'GET', headers, redirect: 'manual' };
-  return { url, init, verb: 'GET', hopsLeft: hop.hopsLeft - 1 };
+  return { url, init, verb: 'GET', hopsLeft: hop.hopsLeft - 1, hasCrossedOrigin };
 }
 
 /**
@@ -237,7 +245,8 @@ async function continueHop(ctx: IManualRun, hop: IHop, end: IRunEnd): Promise<Pr
  */
 function sendManual(run: IRedirectRun, policy: IManualRedirect): Promise<Procedure<IRunEnd>> {
   const init: RequestInit = { ...run.init, redirect: 'manual' };
-  const first: IHop = { url: run.url, init, verb: run.verb, hopsLeft: policy.maxHops };
+  const hopsLeft = policy.maxHops;
+  const first: IHop = { url: run.url, init, verb: run.verb, hopsLeft, hasCrossedOrigin: false };
   return sendHop({ run, rules: policy.allow }, first);
 }
 

@@ -248,6 +248,28 @@ describe('sendUnderPolicy — manual hops', () => {
     ]);
   });
 
+  it('never restores a session-owned Authorization after an origin change', async () => {
+    const invoke = serve([redirect(302, HOP_1), redirect(302, HOP_2), ok()]);
+    const owned = ['cookie', 'authorization', 'proxy-authorization'];
+    const values = { Authorization: 'syn-session-auth', 'Proxy-Authorization': 'syn-proxy' };
+    /**
+     * The session's credentials headers, the same for every hop URL.
+     * @returns The owned names and their values.
+     */
+    const sessionHeadersFor = (): ISessionHeaders => ({ owned, values });
+    const run = makeRun(invoke, { sessionHeadersFor });
+    await sendUnderPolicy(run);
+    const hops = [sentHeaders(invoke, 1), sentHeaders(invoke, 2)];
+    const credentials = hops.map((hop): (string | null)[] => [
+      hop.get('authorization'),
+      hop.get('proxy-authorization'),
+    ]);
+    expect(credentials).toEqual([
+      [null, null],
+      [null, null],
+    ]);
+  });
+
   it('keeps Authorization on a same-origin hop', async () => {
     const invoke = serve([redirect(302, HOP_2), ok()]);
     const init = { method: 'GET', headers: { Authorization: 'Bearer T' } };
