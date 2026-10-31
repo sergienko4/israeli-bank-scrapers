@@ -3,8 +3,9 @@
  * the API-DIRECT-CALL config contract.
  *
  * Depends on TemplateTypes (`IBodyTemplate`, `IEnvelopeSelectors`,
- * `JsonValueTemplate` referenced by IStepConfig) and EnvelopeTypes
- * (`IPreStepHook` referenced by IStepConfig.preHook). Top-level
+ * `JsonValueTemplate` referenced by IStepConfig), EnvelopeTypes
+ * (`IPreStepHook` referenced by IStepConfig.preHook) and SignerTypes
+ * (`ISealFieldConfig` referenced by IStepConfig.seal). Top-level
  * ApiDirectCallConfig composes the FlowKind discriminator + steps array
  * from here.
  *
@@ -20,6 +21,7 @@ import type {
 } from '../../../Types/Domain/FetchPolicy.js';
 import type { IDerivedCarry } from './CarryTypes.js';
 import type { IPreStepHook } from './EnvelopeTypes.js';
+import type { ISealFieldConfig } from './SignerTypes.js';
 import type { IBodyTemplate, IEnvelopeSelectors, JsonValueTemplate } from './TemplateTypes.js';
 
 /** Exhaustive flow-kind discriminator (spec.txt §B.3). */
@@ -118,6 +120,8 @@ interface IStepBase {
   readonly headerExtractsToCarry?: Readonly<Record<string, IHeaderExtract>>;
   /** Carry slots derived, in order, once this step's extracts are in scope. */
   readonly deriveCarry?: readonly IDerivedCarry[];
+  /** Optional credential seal, written into the body before the request (N10). */
+  readonly seal?: ISealFieldConfig;
 }
 
 /** A POST step, the default when `method` is omitted: sends the hydrated body. */

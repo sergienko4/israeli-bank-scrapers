@@ -339,6 +339,9 @@ from what it extracted:
 - `encoding: 'form'` sends the body as `application/x-www-form-urlencoded`;
   its shape must be a flat record of `$ref` and scalar `$literal` values
   ([Form bodies](../architecture/pipeline.md#form-bodies)).
+- `seal` writes one credential, sealed under the bank's RSA modulus, at a
+  body pointer; neither value reaches carry
+  ([Sealed fields](../architecture/pipeline.md#sealed-fields)).
 - `omitBankText: true` on the config keeps reply text out of a missed extract
   and records a length-only hint for `error_code` in login diagnostics
   ([Bank text in failures](#bank-text-in-failures)).
@@ -357,7 +360,8 @@ is sent. `Core/Builder/ApiDirectRuleInput.ts` holds that input, the rule shape
 lists the login steps and any durable resume steps. The session-transport
 rules, `API_DIRECT_TRANSPORT_RULES` in `Core/Builder/ApiDirectTransportRules.ts`,
 run after the core rules, then the form-body rules, `API_DIRECT_FORM_RULES` in
-`Core/Builder/ApiDirectFormRules.ts`. The native-fetch rules, `API_DIRECT_NATIVE_RULES` in
+`Core/Builder/ApiDirectFormRules.ts`, then the seal rules,
+`API_DIRECT_SEAL_RULES` in `Core/Builder/ApiDirectSealRules.ts`. The native-fetch rules, `API_DIRECT_NATIVE_RULES` in
 `Core/Builder/ApiDirectNativeRules.ts`, run last: the session-transport fields
 act only on the headless native fetch, and any other transport would ignore
 them and run unguarded, so naming one off native fetch fails the build. Its
@@ -383,6 +387,10 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a manual `redirect` whose `maxHops` is not an integer from 1 to 10                                                                    | `redirect.maxHops: must be an integer from 1 to 10`                      |
 | a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`                                                     | `headless.redirectPolicy: must be reject when a step redirects manually` |
 | a form step whose body shape is not a flat record of `$ref` and scalar `$literal` values                                              | `steps.body: a form body must be a flat record`                          |
+| a `seal` whose `kind` is not a `SealKind`                                                                                             | `steps.seal.kind: unknown seal kind`                                     |
+| a `seal` on a step that is not a `POST` with a record body                                                                            | `steps.seal: needs a POST step with a record body`                       |
+| a `seal` whose `writeTo` is not a JSON pointer                                                                                        | `steps.seal.writeTo: must be a JSON pointer`                             |
+| a `seal` whose `params` are out of range (exponent, seed, block size or printable text)                                               | `steps.seal.params: out of range`                                        |
 | a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |
 | a login or resume step with `encoding`, without `headless.nativeFetch: true`                                                          | `steps.encoding: not allowed without headless.nativeFetch`               |
 | `headless.cookieDomains`, `redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, on an api-direct or node-tls bank | `headless.<field>: not allowed without headless.nativeFetch` |

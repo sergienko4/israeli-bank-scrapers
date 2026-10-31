@@ -4,7 +4,8 @@
  * fails before any run starts. The first broken rule fails the build as
  * `Generic` with `"<field>: <rule>"`. The session-transport rules live in
  * `ApiDirectTransportRules.ts` and run after these; the form-body rules in
- * `ApiDirectFormRules.ts` follow; the native-fetch rules in
+ * `ApiDirectFormRules.ts` follow, then the seal rules in
+ * `ApiDirectSealRules.ts`; the native-fetch rules in
  * `ApiDirectNativeRules.ts` run last.
  */
 
@@ -14,6 +15,7 @@ import { fail, succeed } from '../../Types/Procedure.js';
 import { API_DIRECT_FORM_RULES } from './ApiDirectFormRules.js';
 import { API_DIRECT_NATIVE_RULES } from './ApiDirectNativeRules.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
+import { API_DIRECT_SEAL_RULES } from './ApiDirectSealRules.js';
 import { API_DIRECT_TRANSPORT_RULES } from './ApiDirectTransportRules.js';
 
 /**
@@ -152,6 +154,7 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
   },
   ...API_DIRECT_TRANSPORT_RULES,
   ...API_DIRECT_FORM_RULES,
+  ...API_DIRECT_SEAL_RULES,
   ...API_DIRECT_NATIVE_RULES,
 ];
 

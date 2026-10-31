@@ -5,8 +5,9 @@
  * Standalone bucket (no dependencies on other ConfigContracts files):
  * carries the closed set of signer-algorithm tags + per-variant
  * configuration shapes consumed by Crypto/ helpers. Higher-level
- * sub-modules (EnvelopeTypes via ICryptoFieldConfig, ApiDirectCallConfig
- * via ISignerConfig) compose from here.
+ * sub-modules (EnvelopeTypes via ICryptoFieldConfig, FlowTypes via
+ * ISealFieldConfig, ApiDirectCallConfig via ISignerConfig) compose from
+ * here.
  *
  * Rule #11 compliance: zero bank-name strings.
  */
@@ -115,6 +116,38 @@ interface ICryptoFieldConfig {
   readonly scrubFromCarry: string;
 }
 
+/** Seal algorithms a step may name (N10). */
+type SealKind = 'rsa-pkcs1-block-xor';
+
+/** Constants of the `rsa-pkcs1-block-xor` seal, all named by the bank config. */
+interface ISealRsaBlockXorParams {
+  /** RSA public exponent, e.g. 65537. */
+  readonly exponent: number;
+  /** Characters the random seed is drawn from. */
+  readonly seedAlphabet: string;
+  readonly seedLength: number;
+  /** ASCII characters per RSA block. */
+  readonly blockChars: number;
+  /** Text sealed ahead of the seed. */
+  readonly prefix: string;
+  readonly blockSeparator: string;
+  readonly envelopeTerminator: string;
+}
+
+/**
+ * A credential sealed into the outgoing body before the step's request
+ * (N10). The source is read from creds and the hex modulus from carry; the
+ * sealed text is written only at `writeTo`, never into carry.
+ */
+interface ISealFieldConfig {
+  readonly kind: SealKind;
+  readonly sourceRef: `creds.${string}`;
+  readonly modulusRef: `carry.${string}`;
+  /** RFC-6901 pointer into the outbound body (e.g. `/credentials`). */
+  readonly writeTo: string;
+  readonly params: ISealRsaBlockXorParams;
+}
+
 export type {
   AsymmetricSignerAlgorithm,
   CanonicalPart,
@@ -123,7 +156,10 @@ export type {
   ICanonicalStringConfig,
   ICryptoFieldConfig,
   IHmacHeaderSignerConfig,
+  ISealFieldConfig,
+  ISealRsaBlockXorParams,
   ISignerConfig,
+  SealKind,
   SignerAlgorithm,
   SignerEncoding,
 };
