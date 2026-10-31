@@ -71,8 +71,9 @@ defaults:
 #                           Discount plus api-direct VisaCal,
 #                           Isracard and Max (no browser).
 #   e2e-real-group-b      — Stage 2 (parallel, gate-B approval):
-#                           OTP browser-form banks
-#                           (Hapoalim, Beinleumi).
+#                           OTP banks: browser-form
+#                           Beinleumi plus api-direct
+#                           Hapoalim (no browser).
 #   e2e-real-group-c      — Stage 3 (parallel, gate-C approval):
 #                           api-direct banks
 #                           (OneZero, Pepper, PayBox).
@@ -1221,8 +1222,9 @@ jobs:
   #     — Discount (browser-form)
   #     — VisaCal, Isracard, Max (api-direct, no browser)
   #   Group B, gate-B (parallel runners):
-  #     OTP browser-form banks
-  #     — Hapoalim, Beinleumi
+  #     OTP banks
+  #     — Beinleumi (browser-form)
+  #     — Hapoalim (api-direct, no browser)
   #     (TELEGRAM_* secrets exposed for OTP delivery).
   #   Group C, gate-C (parallel runners):
   #     api-direct banks (no browser)
@@ -1647,9 +1649,10 @@ jobs:
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # ──────────────────────────────────────────────────────────────
-  # Group B — OTP browser-form banks (Hapoalim, Beinleumi). Telegram
-  # secrets deliver the SMS OTP dance. (Leumi + Yahav moved to their
-  # own non-OTP Group E below.) Gate is independent — see the header.
+  # Group B — OTP banks: Beinleumi on a browser form, Hapoalim over
+  # the API. Telegram secrets deliver the SMS OTP dance. (Leumi + Yahav
+  # moved to their own non-OTP Group E below.) Gate is independent —
+  # see the header.
   # ──────────────────────────────────────────────────────────────
   e2e-real-group-b-gate:
     name: E2E Real B — approval gate
@@ -1684,7 +1687,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Gate released
-        run: echo "Group B approved; OTP browser-form matrix may proceed."
+        run: echo "Group B approved; OTP matrix may proceed."
 
   e2e-real-group-b:
     name: E2E Real B (${{ matrix.bank }})
