@@ -117,8 +117,8 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
     }
   });
 
-  it('OZ-PCF-03 — Hapoalim (non-headless): apiMediator slot stays none', () => {
-    const descriptor = makeDescriptor(false, CompanyTypes.Hapoalim);
+  it('OZ-PCF-03 — Leumi (non-headless): apiMediator slot stays none', () => {
+    const descriptor = makeDescriptor(false, CompanyTypes.Leumi);
     const ctx = buildInitialContext(
       descriptor,
       {} as unknown as Parameters<typeof buildInitialContext>[1],

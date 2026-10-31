@@ -5,23 +5,11 @@
  */
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
-import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilderFactory.js';
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { HAPOALIM_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigHapoalim.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { HAPOALIM_SHAPE } from './scrape/HapoalimShape.js';
-
-/** Hapoalim login config — credential keys only. WellKnown resolves selectors. */
-const HAPOALIM_LOGIN: ILoginConfig = {
-  loginUrl: '',
-  fields: [
-    { credentialKey: 'userCode', selectors: [] },
-    { credentialKey: 'password', selectors: [] },
-  ],
-  submit: [],
-  possibleResults: { success: [] },
-};
 
 /**
  * Build the Hapoalim pipeline descriptor: no browser; the direct-API login
@@ -38,4 +26,4 @@ function buildHapoalimPipeline(options: ScraperOptions): Procedure<IPipelineDesc
 }
 
 export default buildHapoalimPipeline;
-export { buildHapoalimPipeline, HAPOALIM_LOGIN };
+export { buildHapoalimPipeline };

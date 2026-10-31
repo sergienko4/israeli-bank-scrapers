@@ -29,7 +29,7 @@ The 4370 count is the genuine working size of the test suite, NOT inflated by pe
 - **Infrastructure tests** (`Infrastructure/**`): helper-coverage tests; bank-agnostic OR using shared fixture tables.
 - **CrossValidation/Phases factory tests**: already cross-bank via `it.each(BANK_SCENARIOS)`.
 - **Mediator tests** (`Mediator/**`, 165 files): unit tests for mediator helpers; bank-agnostic.
-- **Bank-named files** (49 total): all are GENUINE per-bank cases — E2eFull/E2eMocked/E2eReal (per-bank by design), non-Pipeline legacy scrapers (Leumi/Mizrahi/Yahav/etc.), bank-specific Pipeline configs (OneZero/Pepper/PayBox), or documented EDGE CASE preserves (HapoalimDashboardEntry, BeinleumiCrossEndpointScan, SelectorFallbackXxx).
+- **Bank-named files** (49 total): all are GENUINE per-bank cases — E2eFull/E2eMocked/E2eReal (per-bank by design), non-Pipeline legacy scrapers (Leumi/Mizrahi/Yahav/etc.), bank-specific Pipeline configs (OneZero/Pepper/PayBox), or documented EDGE CASE preserves (BeinleumiCrossEndpointScan, SelectorFallbackXxx).
 
 The master target was consumed by upstream work; Phase 7 therefore records **verification/no-op decisions** instead of manufacturing churn.
 
@@ -134,7 +134,6 @@ Per the master plan and the user's "preserve real per-bank edge cases" directive
 
 | Bank      | Suite                                                                     | Why it cannot collapse into `it.each(BANKS)`                                                            |
 | --------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Hapoalim  | `src/Tests/Unit/Pipeline/Infrastructure/HapoalimDashboardEntry.test.ts`   | Hapoalim reaches its dashboard through an entry step no other bank performs.                            |
 | Beinleumi | `src/Tests/Unit/Pipeline/Infrastructure/BeinleumiCrossEndpointScan.test.ts` | The Beinleumi group scans across endpoints; peers resolve from a single endpoint.                       |
 | OneZero   | `src/Tests/Unit/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.test.ts`   | OneZero is the only bank requiring an mTLS client certificate.                                           |
 | Discount  | `src/Tests/E2eReal/SelectorFallbackDiscount.e2e-real.test.ts`             | Per-bank selector-fallback suites assert against one bank's live DOM by design.                          |

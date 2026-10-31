@@ -24,10 +24,6 @@ import {
   DISCOUNT_LOGIN,
 } from '../../../../Scrapers/Pipeline/Banks/Discount/DiscountPipeline.js';
 import {
-  buildHapoalimPipeline,
-  HAPOALIM_LOGIN,
-} from '../../../../Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.js';
-import {
   buildMassadPipeline,
   MASSAD_LOGIN,
 } from '../../../../Scrapers/Pipeline/Banks/Massad/MassadPipeline.js';
@@ -74,18 +70,6 @@ const BASE_PHASES = [
   'terminate',
 ] as const;
 
-/** Base + `otp-fill` only (Hapoalim soft-OTP). */
-const OTP_FILL_PHASES = [
-  'init',
-  'home',
-  'login',
-  'otp-fill',
-  'auth-discovery',
-  'bind-api-mediator',
-  'api-direct-scrape',
-  'terminate',
-] as const;
-
 /** Base + `otp-trigger` + `otp-fill` (mandatory OTP banks). */
 const OTP_FULL_PHASES = [
   'init',
@@ -102,7 +86,7 @@ const OTP_FULL_PHASES = [
 /**
  * Bank-fixture table consumed by {@link LoginFactoryTest}'s
  * `describe.each`. Order is by phase-shape group:
- * base (7) → otp-fill (8) → otp-full (9).
+ * base (7) → otp-full (9).
  */
 const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
   {
@@ -122,15 +106,6 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     expectedFieldKeys: ['id', 'password', 'num'],
     expectedPhaseCount: BASE_PHASES.length,
     expectedPhaseNames: BASE_PHASES,
-  },
-  {
-    bank: 'hapoalim',
-    company: CompanyTypes.Hapoalim,
-    loginConfig: HAPOALIM_LOGIN,
-    buildPipeline: buildHapoalimPipeline,
-    expectedFieldKeys: ['userCode', 'password'],
-    expectedPhaseCount: OTP_FILL_PHASES.length,
-    expectedPhaseNames: OTP_FILL_PHASES,
   },
   {
     bank: 'beinleumi',

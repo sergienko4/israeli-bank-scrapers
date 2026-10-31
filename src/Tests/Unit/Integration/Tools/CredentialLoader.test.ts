@@ -104,9 +104,9 @@ describe('CredentialLoader', () => {
   });
 
   describe('knownBanks', () => {
-    it('returns the four onboarded browser banks sorted', () => {
+    it('returns the three onboarded browser banks sorted', () => {
       const banks = knownBanks();
-      const expected = ['beinleumi', 'discount', 'hapoalim', 'leumi'];
+      const expected = ['beinleumi', 'discount', 'leumi'];
       expect(banks).toEqual(expected);
     });
   });
@@ -121,13 +121,13 @@ describe('CredentialLoader', () => {
     });
 
     it('throws when an env var is missing', () => {
-      process.env.HAPOALIM_USER_CODE = 'abc';
+      process.env.BEINLEUMI_USERNAME = 'abc';
       /**
        * Wrapper used by Jest's expect().toThrow() matcher.
        * @returns Never (loadCredentials throws).
        */
-      const attempt = (): unknown => loadCredentials('hapoalim');
-      expect(attempt).toThrow(/HAPOALIM_PASSWORD/u);
+      const attempt = (): unknown => loadCredentials('beinleumi');
+      expect(attempt).toThrow(/BEINLEUMI_PASSWORD/u);
     });
 
     it('throws when an env var is whitespace-only', () => {

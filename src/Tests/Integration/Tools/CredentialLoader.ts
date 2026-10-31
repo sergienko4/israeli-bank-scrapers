@@ -37,7 +37,6 @@ type BankCredentials = Readonly<Record<string, string>>;
  */
 const BANK_ENV_MAP: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>> = {
   discount: { id: 'DISCOUNT_ID', password: 'DISCOUNT_PASSWORD', num: 'DISCOUNT_NUM' },
-  hapoalim: { userCode: 'HAPOALIM_USER_CODE', password: 'HAPOALIM_PASSWORD' },
   beinleumi: { username: 'BEINLEUMI_USERNAME', password: 'BEINLEUMI_PASSWORD' },
   leumi: { username: 'LEUMI_USERNAME', password: 'LEUMI_PASSWORD' },
 };

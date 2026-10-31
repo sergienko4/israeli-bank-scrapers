@@ -46,6 +46,7 @@ const PENDING_REHARVEST_FILE = join(REPO_ROOT, '.github', 'banks-pending-reharve
  */
 const API_DIRECT_BANKS: ReadonlySet<string> = new Set([
   'Amex',
+  'Hapoalim',
   'Isracard',
   'Max',
   'Mizrahi',
