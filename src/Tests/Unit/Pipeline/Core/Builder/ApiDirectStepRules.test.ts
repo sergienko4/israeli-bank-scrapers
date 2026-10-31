@@ -1,7 +1,7 @@
 /**
  * Step rules on login and resume steps alike. N20 — each `failIfPresent`
- * entry must be a JSON pointer below the body root. N18 — each `extractRules`
- * key names a body extract of its step; a pattern is anchored, compiles and
+ * entry must be a JSON pointer below the body root. N18/N27 — each
+ * `extractRules` key names a body or header extract of its step; a pattern is anchored, compiles and
  * repeats no group that holds a repeat; `maxChars` is an integer from 1 to
  * 65536; `oneOf` and `url` are not empty. N14 — a `runIf` guard names a slot
  * and texts. N21 — a pre-hook's `valuePattern` obeys the same pattern rules.
@@ -109,12 +109,18 @@ function ruled(rules: IStepConfig['extractRules']): IStepConfig {
   };
 }
 
-const KEY_MSG = 'steps.extractRules: each key must name a body extract';
+const KEY_MSG = 'steps.extractRules: each key must name a body or header extract';
 const PATTERN_MSG = 'steps.extractRules.pattern: must be an anchored regex';
 const FLAT_MSG = 'steps.extractRules.pattern: must be a flat regex';
 const MAX_MSG = 'steps.extractRules.maxChars: must be an integer from 1 to 65536';
 const EMPTY_MSG = 'steps.extractRules: oneOf and url must not be empty';
 const PORTAL = [{ origin: 'https://bank.example', paths: ['/portal/home'] }];
+const NATIVE = {
+  identityBase: 'https://bank.example',
+  graphql: 'https://bank.example/graphql',
+  paths: {},
+  nativeFetch: true,
+};
 
 describe('validateApiDirectConfig — extractRules', () => {
   it.each<[string, IStepConfig['extractRules'], string]>([
@@ -170,6 +176,20 @@ describe('validateApiDirectConfig — extractRules', () => {
     const step = ruled({ state, target: { url: PORTAL, maxChars: 65536 } });
     const input = runOf(step);
     const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+  });
+
+  it('sound rules on a header slot pass', () => {
+    const status = {
+      oneOf: ['activated'],
+      pemCertificate: { keyRef: 'carry.certKeyPem' },
+    } as const;
+    const step: IStepConfig = {
+      ...ruled({ status }),
+      headerExtractsToCarry: { status: { header: 'device-status' } },
+    };
+    const call = { flow: 'sms-otp', envelope: {}, steps: [step] } as const;
+    const result = validateApiDirectConfig({ call, headless: NATIVE });
     expect(result).toEqual({ success: true, value: true });
   });
 

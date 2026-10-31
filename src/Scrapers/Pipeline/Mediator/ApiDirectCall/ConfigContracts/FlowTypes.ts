@@ -99,8 +99,18 @@ interface IHeaderExtract {
 type ExtractValueType = 'string' | 'number' | 'object' | 'array';
 
 /**
- * Checks on one body-extract slot (N18), run on the raw value once the body
- * is extracted: `type` first, then `transform`, then the text checks.
+ * A certificate rule (N27): the slot text is one PEM certificate that
+ * certifies the private key `keyRef` resolves to, and is valid now.
+ */
+interface IPemCertificateRule {
+  /** Ref to the PEM private key the certificate must certify. */
+  readonly keyRef: RefToken;
+}
+
+/**
+ * Checks on one body- or header-extract slot (N18, N27), run on the raw value
+ * once the step's answer is read: `type` first, then `transform`, then the
+ * text checks.
  */
 interface IExtractRule {
   /** JSON type of the raw value. */
@@ -115,6 +125,8 @@ interface IExtractRule {
   readonly url?: readonly IUrlRule[];
   /** Longest text allowed; 8192 when unset. */
   readonly maxChars?: number;
+  /** The text must be one current PEM certificate of the referenced key (N27). */
+  readonly pemCertificate?: IPemCertificateRule;
 }
 
 /**
@@ -190,7 +202,7 @@ interface IStepBase {
   readonly clientCert?: IStepClientCert;
   /** Body pointers that, present and truthy, fail the step `<step> bank error` (N20). */
   readonly failIfPresent?: readonly string[];
-  /** Rules per body-extract slot, checked once the body is extracted (N18). */
+  /** Rules per body- or header-extract slot, checked once the answer is read (N18, N27). */
   readonly extractRules?: Readonly<Record<string, IExtractRule>>;
   /** Guard checked before the pre-hook; a miss skips the step (N14). */
   readonly runIf?: IRunIf;
@@ -229,6 +241,7 @@ export type {
   IGetStep,
   IHeaderExtract,
   IOptionalExtract,
+  IPemCertificateRule,
   IPostStep,
   IRunIf,
   IStepBase,

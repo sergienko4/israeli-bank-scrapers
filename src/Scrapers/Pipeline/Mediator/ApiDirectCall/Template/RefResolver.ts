@@ -246,6 +246,18 @@ function resolveRef(token: RefToken, scope: ITemplateScope): Procedure<JsonValue
   return handler(token, scope);
 }
 
+/**
+ * The text a ref resolves to, when it resolves to text.
+ * @param token - Ref token.
+ * @param scope - Step scope.
+ * @returns The text, or false when the ref is missing or not a string.
+ */
+function resolveRefText(token: RefToken, scope: ITemplateScope): string | false {
+  const resolved = resolveRef(token, scope);
+  if (!isOk(resolved) || typeof resolved.value !== 'string') return false;
+  return resolved.value;
+}
+
 export type { ICollectionResult, ITemplateScope };
-export { resolveRef };
+export { resolveRef, resolveRefText };
 export default resolveRef;

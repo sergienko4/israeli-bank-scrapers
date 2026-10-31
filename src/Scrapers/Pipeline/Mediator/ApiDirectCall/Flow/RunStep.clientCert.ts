@@ -13,8 +13,8 @@ import type {
 } from '../../../Types/Domain/ClientCertControl.js';
 import type { IProcedureFailure, Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { IStepClientCert, RefToken } from '../ConfigContracts/index.js';
-import { type ITemplateScope, resolveRef } from '../Template/RefResolver.js';
+import type { IStepClientCert } from '../ConfigContracts/index.js';
+import { type ITemplateScope, resolveRefText } from '../Template/RefResolver.js';
 import type { IRunStepArgs, IStepConfig } from './RunStep.types.js';
 
 const UNSUPPORTED = 'client certificate unsupported';
@@ -31,26 +31,14 @@ function refusal(step: IStepConfig, reason: string): IProcedureFailure {
 }
 
 /**
- * Resolve one PEM ref.
- * @param ref - Ref token.
- * @param scope - Step scope.
- * @returns The PEM text, or false when the ref is unresolved or not text.
- */
-function pemOf(ref: RefToken, scope: ITemplateScope): string | false {
-  const resolved = resolveRef(ref, scope);
-  if (!isOk(resolved) || typeof resolved.value !== 'string') return false;
-  return resolved.value;
-}
-
-/**
  * Resolve the step's key and certificate refs.
  * @param refs - The step's certificate refs.
  * @param scope - Step scope.
  * @returns The pair, or false when either ref is unresolved or not text.
  */
 function pairOf(refs: IStepClientCert, scope: ITemplateScope): IClientCertPair | false {
-  const key = pemOf(refs.key, scope);
-  const cert = pemOf(refs.cert, scope);
+  const key = resolveRefText(refs.key, scope);
+  const cert = resolveRefText(refs.cert, scope);
   if (key === false || cert === false) return false;
   return { key, cert };
 }

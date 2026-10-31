@@ -2,10 +2,10 @@
  * Step rules for an api-direct call config, checked after the seal rules, on
  * login and resume steps alike. Each `failIfPresent` entry (N20) must be a
  * JSON pointer below the body root: a bare key would never resolve, and the
- * root would fail every answer. Each `extractRules` key (N18) must name a body
- * extract of its step; a `pattern` must be anchored (`^…$`) and compile;
- * `maxChars` must be an integer from 1 to 65536; `oneOf` and `url` must not
- * be empty, since an empty list would refuse every value. A `runIf` guard
+ * root would fail every answer. Each `extractRules` key (N18, N27) must name a
+ * body or header extract of its step; a `pattern` must be anchored (`^…$`)
+ * and compile; `maxChars` must be an integer from 1 to 65536; `oneOf` and
+ * `url` must not be empty, since an empty list would refuse every value. A `runIf` guard
  * (N14) needs a carry slot and a non-empty `oneOf`, else its step never runs.
  * A pre-hook `valuePattern` (N21) must be anchored and compile, like an
  * extract `pattern`. Both must be flat (`FlatPattern.ts`): no group, no
@@ -67,22 +67,32 @@ function hasBadRule(input: IApiDirectRuleInput, isBad: ExtractRuleCheck): boolea
 }
 
 /**
- * Whether a step has a rule key that names none of its body extracts.
+ * Whether a slot names one of a step's body or header extracts.
+ * @param step - Step config.
+ * @param slot - Rule key.
+ * @returns True for a required, optional or header extract slot.
+ */
+function isExtractSlot(step: IStepConfig, slot: string): boolean {
+  const optional = step.optionalExtractsToCarry ?? {};
+  const headers = step.headerExtractsToCarry ?? {};
+  const slotMaps = [step.extractsToCarry, optional, headers];
+  return slotMaps.some(slotMap => Object.hasOwn(slotMap, slot));
+}
+
+/**
+ * Whether a step has a rule key that names none of its extracts.
  * @param step - Step config.
  * @returns True for a stray key.
  */
 function hasStrayRuleKey(step: IStepConfig): boolean {
-  const optional = step.optionalExtractsToCarry ?? {};
   const slots = Object.keys(step.extractRules ?? {});
-  return !slots.every(
-    slot => Object.hasOwn(step.extractsToCarry, slot) || Object.hasOwn(optional, slot),
-  );
+  return !slots.every(slot => isExtractSlot(step, slot));
 }
 
 /**
  * Whether any login or resume step has a stray rule key.
  * @param input - Rule input.
- * @returns True when an `extractRules` key names no body extract.
+ * @returns True when an `extractRules` key names no body or header extract.
  */
 function hasStrayExtractRule(input: IApiDirectRuleInput): boolean {
   const steps = allSteps(input.call);
@@ -224,7 +234,7 @@ const API_DIRECT_STEP_RULES: readonly IApiDirectRule[] = [
     isBroken: hasBadGuardPointer,
   },
   {
-    message: 'steps.extractRules: each key must name a body extract',
+    message: 'steps.extractRules: each key must name a body or header extract',
     isBroken: hasStrayExtractRule,
   },
   {

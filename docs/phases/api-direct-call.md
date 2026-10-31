@@ -312,10 +312,11 @@ own failure type is the one reported.
 ### Extract rules
 
 A value the bank sends back may be echoed into a later request, so a step can
-check its body extracts before they reach carry. `extractRules` maps a slot of
-`extractsToCarry` or `optionalExtractsToCarry` to an `IExtractRule`. Once the
-step's carry is read, `ruleStepCarry` (in `Flow/RunStep.extractRules.ts`)
-resolves the step's URL and `applyExtractRules` checks each ruled slot:
+check its body and header extracts before they reach carry. `extractRules`
+maps a slot of `extractsToCarry`, `optionalExtractsToCarry` or
+`headerExtractsToCarry` to an `IExtractRule`. Once the step's carry is read,
+`ruleStepCarry` (in `Flow/RunStep.extractRules.ts`) resolves the step's URL
+and `applyExtractRules` checks each ruled slot:
 
 ```ts
 optionalExtractsToCarry: { state: { pointer: '/state' } },
@@ -328,13 +329,29 @@ extractRules: {
   raw value first. A number must be finite; `null` is no type.
 - `transform: 'lower'` lower-cases the text; the slot keeps the result.
 - The text checks run in order on the transformed text: `maxChars` (8192 when
-  unset), `oneOf`, the whole text against `pattern`, and the `url` allow-list.
-  A URL resolves against the step's URL and must then match an `IUrlRule`: an
-  `https` origin, an exact path, no user info and no fragment. The slot keeps
-  the text as sent, not the resolved URL.
+  unset), `oneOf`, the whole text against `pattern`, the `url` allow-list and
+  `pemCertificate`. A URL resolves against the step's URL and must then match
+  an `IUrlRule`: an `https` origin, an exact path, no user info and no
+  fragment. The slot keeps the text as sent, not the resolved URL.
+- `pemCertificate: { keyRef }` (`IPemCertificateRule`, N27) is checked by
+  `isPemCertificate` (in `Flow/RunStep.pemRule.ts`). It demands exactly one
+  PEM block, a `CERTIFICATE` that parses as X.509, certifies the private key
+  `keyRef` resolves to and is valid now (`validFrom ≤ now ≤ validTo`). The key
+  ref resolves to text with `resolveRefText` (in `Template/RefResolver.ts`)
+  against the step's prepared scope, so it reads a key an earlier step or this
+  step's [generators](#carry-generators) put in carry.
 - A string always runs the text checks. A finite number runs them, stringified,
   only when the rule sets one; any other value under a text check is refused.
 - An optional slot whose pointer is unresolved, `null` or `''` skips its rule.
+  A header slot is always ruled: it holds the header, or its `fallback`.
+
+```ts
+headerExtractsToCarry: { deviceStatus: { header: 'device-status' } },
+extractRules: {
+  certPem: { type: 'string', pemCertificate: { keyRef: 'carry.certKeyPem' } },
+  deviceStatus: { oneOf: ['activated'] },
+},
+```
 
 A refused value fails the step `Generic` with `<step> extract <slot> invalid`,
 before any later step or OTP prompt. The message never names the value.
@@ -425,8 +442,8 @@ clientCert: { key: 'carry.certKeyPem', cert: 'carry.certPem' },
 
 `prepareStepSession` (in `Flow/RunStep.session.ts`) runs before the step's
 URL, body or headers resolve: it binds the step's client cookies, then
-`installStepCert` (in `Flow/RunStep.clientCert.ts`) resolves both refs and
-installs the pair through the bus's `clientCert` port. The step's own request
+`installStepCert` (in `Flow/RunStep.clientCert.ts`) resolves both refs to text
+with `resolveRefText` and installs the pair through the bus's `clientCert` port. The step's own request
 already presents the certificate, and so does every later request to the
 bank origin, scrape phase included. The step fails before any request:
 
@@ -436,7 +453,9 @@ bank origin, scrape phase included. The step fails before any request:
   or the port refuses the pair (it does not parse, or the certificate does not
   certify the key). A refused pair keeps the certificate already installed.
 
-Neither message carries key or certificate text.
+Neither message carries key or certificate text. An `extractRules`
+`pemCertificate` rule on the issuing step refuses an unusable certificate
+before it reaches carry ([Extract rules](#extract-rules)).
 
 ### OTP pre-hook guards
 
@@ -573,8 +592,8 @@ from what it extracted:
   ([Client cookies](../architecture/pipeline.md#client-cookies)).
 - `clientCert` installs a device certificate the run obtained, presented to
   the bank origin from that step on ([Device certificate](#device-certificate)).
-- `extractRules` checks a body extract's type, text, length or URL before it
-  reaches carry ([Extract rules](#extract-rules)).
+- `extractRules` checks a body or header extract's type, text, length, URL or
+  certificate before it reaches carry ([Extract rules](#extract-rules)).
 - `runIf` skips the step, pre-hook included, unless a carry slot holds one of
   the listed texts ([Conditional steps](#conditional-steps)).
 - `generate` writes fresh device material, such as an RSA key, into carry
@@ -640,7 +659,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `seal` whose `writeTo` is not a JSON pointer                                                                                        | `steps.seal.writeTo: must be a JSON pointer`                             |
 | a `seal` whose `params` are out of range (exponent, seed, block size or printable text)                                               | `steps.seal.params: out of range`                                        |
 | a login or resume step with a `failIfPresent` entry that is not a JSON pointer below the body root                                    | `steps.failIfPresent: each entry must be a JSON pointer`                 |
-| an `extractRules` key that names neither an `extractsToCarry` nor an `optionalExtractsToCarry` slot of its step                       | `steps.extractRules: each key must name a body extract`                  |
+| an `extractRules` key that names no `extractsToCarry`, `optionalExtractsToCarry` or `headerExtractsToCarry` slot of its step          | `steps.extractRules: each key must name a body or header extract`        |
 | an `extractRules` `pattern` that does not start with `^`, end with `$` and compile with the `u` flag                                  | `steps.extractRules.pattern: must be an anchored regex`                  |
 | an `extractRules` `pattern` with a group, an alternation or a variable repeat before its last atom                                    | `steps.extractRules.pattern: must be a flat regex`                       |
 | an `extractRules` `maxChars` that is not an integer from 1 to 65536                                                                   | `steps.extractRules.maxChars: must be an integer from 1 to 65536`        |
