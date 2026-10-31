@@ -457,6 +457,31 @@ Neither message carries key or certificate text. An `extractRules`
 `pemCertificate` rule on the issuing step refuses an unusable certificate
 before it reaches carry ([Extract rules](#extract-rules)).
 
+### Session carry
+
+Once the login succeeds, the ACTION stage installs the session context the
+scrape phase reads (`getSessionContext`). By default that is the full carry
+snapshot. A flow whose carry holds registration secrets (a device key, an
+issued certificate, client credentials) names what the scrape may see in
+`sessionCarry` (N32):
+
+```ts
+sessionCarry: ['mag'],
+```
+
+`projectSessionCarry` (in `SessionCarryProjection.ts`) is the only path from a
+carry snapshot to `setSessionContext`. It keeps exactly the allowlisted slots
+the carry holds and drops every other slot; without `sessionCarry` it passes
+the full snapshot. Both installs go through it: `setBusAuth` after the first
+prime, and the recovery hook (`makeRecoveryHook`) after every recovery.
+`setSessionContext` replaces the previous context rather than merging into it,
+so a recovery also drops every value the scrape patched in since. The token
+strategy keeps the full carry privately for warm export and recovery.
+
+Each slot must name a body or header extract of some login or resume step
+(a [build-time check](#build-time-config-checks)), so a generated key or a
+seeded credential can never be allowlisted.
+
 ### OTP pre-hook guards
 
 A step's `preHook` (`IPreStepHook`) asks the caller for a code. Three optional
@@ -612,17 +637,20 @@ the pipeline is built (`build()` → `buildDescriptor` → `validateBuilderField
 Its input, `IApiDirectRuleInput`, is the call config plus the bank's `headless`
 block from the registry, so a config that cannot work fails before any request
 is sent. `Core/Builder/ApiDirectRuleInput.ts` holds that input, the rule shape
-`IApiDirectRule` (a message and an `isBroken` check) and `allSteps`, which
-lists the login steps and any durable resume steps. The session-transport
-rules, `API_DIRECT_TRANSPORT_RULES` in `Core/Builder/ApiDirectTransportRules.ts`,
-run after the core rules, then the form-body rules, `API_DIRECT_FORM_RULES` in
+`IApiDirectRule` (a message and an `isBroken` check), `allSteps`, which
+lists the login steps and any durable resume steps, and `isExtractSlot`, which
+says whether a slot names one of a step's body or header extracts. The
+session-transport rules, `API_DIRECT_TRANSPORT_RULES` in
+`Core/Builder/ApiDirectTransportRules.ts`, run after the core rules, then the form-body rules, `API_DIRECT_FORM_RULES` in
 `Core/Builder/ApiDirectFormRules.ts`, then the seal rules,
 `API_DIRECT_SEAL_RULES` in `Core/Builder/ApiDirectSealRules.ts`, then the
 step rules, `API_DIRECT_STEP_RULES` in `Core/Builder/ApiDirectStepRules.ts`,
 then the carry-generator rules, `API_DIRECT_GENERATE_RULES` in
 `Core/Builder/ApiDirectGenerateRules.ts`, then the dynamic client-certificate
 rules, `API_DIRECT_CLIENT_CERT_RULES` in
-`Core/Builder/ApiDirectClientCertRules.ts`. The native-fetch rules, `API_DIRECT_NATIVE_RULES` in
+`Core/Builder/ApiDirectClientCertRules.ts`, then the session rules,
+`API_DIRECT_SESSION_RULES` in `Core/Builder/ApiDirectSessionRules.ts`. The
+native-fetch rules, `API_DIRECT_NATIVE_RULES` in
 `Core/Builder/ApiDirectNativeRules.ts`, run last: the session-transport fields
 act only on the headless native fetch, and any other transport would ignore
 them and run unguarded, so naming one off native fetch fails the build. Its
@@ -672,6 +700,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a login or resume step with `clientCert`, without a `headless.clientCert` block (`API_DIRECT_CLIENT_CERT_RULES`)                      | `steps.clientCert: not allowed without headless.clientCert`              |
 | a `headless.clientCert` whose `origin` is not exactly `https://host[:port]` (no path, user, trailing slash or default port)           | `headless.clientCert.origin: must be an exact https origin`              |
 | `headless.clientCert` together with `headless.requiresClientCert: true`                                                               | `headless.clientCert: not allowed with headless.requiresClientCert`      |
+| a `sessionCarry` slot that names no body or header extract of any login or resume step (`API_DIRECT_SESSION_RULES`)                   | `sessionCarry: each slot must name a step extract`                       |
 | a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |
 | a login or resume step with `encoding`, without `headless.nativeFetch: true`                                                          | `steps.encoding: not allowed without headless.nativeFetch`               |
 | `headless.cookieDomains`, `redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, on an api-direct or node-tls bank | `headless.<field>: not allowed without headless.nativeFetch` |

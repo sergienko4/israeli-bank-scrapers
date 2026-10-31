@@ -6,9 +6,10 @@
  * `ApiDirectTransportRules.ts` and run after these; the form-body rules in
  * `ApiDirectFormRules.ts` follow, then the seal rules in
  * `ApiDirectSealRules.ts`, the step-guard rules in `ApiDirectStepRules.ts`
- * the carry-generator rules in `ApiDirectGenerateRules.ts` and the dynamic
- * client-certificate rules in `ApiDirectClientCertRules.ts`; the native-fetch
- * rules in `ApiDirectNativeRules.ts` run last.
+ * the carry-generator rules in `ApiDirectGenerateRules.ts`, the dynamic
+ * client-certificate rules in `ApiDirectClientCertRules.ts` and the session
+ * rules in `ApiDirectSessionRules.ts`; the native-fetch rules in
+ * `ApiDirectNativeRules.ts` run last.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
@@ -22,6 +23,7 @@ import { API_DIRECT_GENERATE_RULES } from './ApiDirectGenerateRules.js';
 import { API_DIRECT_NATIVE_RULES } from './ApiDirectNativeRules.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
 import { API_DIRECT_SEAL_RULES } from './ApiDirectSealRules.js';
+import { API_DIRECT_SESSION_RULES } from './ApiDirectSessionRules.js';
 import { API_DIRECT_STEP_RULES } from './ApiDirectStepRules.js';
 import { API_DIRECT_TRANSPORT_RULES } from './ApiDirectTransportRules.js';
 
@@ -264,6 +266,7 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
   ...API_DIRECT_STEP_RULES,
   ...API_DIRECT_GENERATE_RULES,
   ...API_DIRECT_CLIENT_CERT_RULES,
+  ...API_DIRECT_SESSION_RULES,
   ...API_DIRECT_NATIVE_RULES,
 ];
 

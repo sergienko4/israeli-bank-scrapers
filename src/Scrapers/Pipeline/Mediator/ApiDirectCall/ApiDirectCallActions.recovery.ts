@@ -4,7 +4,8 @@
  * The Api cluster must not import ApiDirectCall, so the hook is constructed
  * here (in the ACTION phase) and installed onto the mediator via
  * `bus.withRecoveryHook`. On a successful cold recovery the hook re-installs
- * the new carry/session-context snapshot and re-surfaces the new long-term
+ * the new carry snapshot, projected through the flow's `sessionCarry`
+ * allowlist (N32), as the session context, and re-surfaces the new long-term
  * token to `onAuthFlowComplete` — closing the gap where a re-minted token was
  * discarded from the cache, forcing a fresh OTP every run.
  */
@@ -14,6 +15,7 @@ import type { IApiMediator, RecoveredHook } from '../Api/ApiMediator.js';
 import { invokeAuthFlowComplete } from './ApiDirectCallActions.callback.js';
 import { COLD_FALLBACK_DEGRADED, PHASE_LABEL } from './ApiDirectCallActions.shared.js';
 import type { IConfigTokenStrategy } from './Flow/TokenStrategyFromConfig.js';
+import { projectSessionCarry } from './SessionCarryProjection.js';
 
 /** Collaborators captured by {@link makeRecoveryHook}. */
 interface IRecoveryHookArgs {
@@ -22,6 +24,8 @@ interface IRecoveryHookArgs {
   readonly strategy: IConfigTokenStrategy;
   /** The flow's fallback clause, from `coldFallbackDetail`. */
   readonly fallbackDetail: string;
+  /** The flow's `sessionCarry` allowlist; absent installs the full snapshot. */
+  readonly sessionCarry?: readonly string[];
 }
 
 /**
@@ -50,15 +54,16 @@ function warnOnRecoveredWarmSession(args: IRecoveryHookArgs, wasWarm: boolean): 
 
 /**
  * Build the recovery hook that re-installs context + re-caches the new token.
- * @param args - Bus + context + strategy bundle.
+ * @param args - Bus + context + strategy + allowlist bundle.
  * @returns Hook fired by the mediator after a successful cold recovery.
  */
 function makeRecoveryHook(args: IRecoveryHookArgs): RecoveredHook {
-  const { bus, ctx, strategy } = args;
+  const { bus, ctx, strategy, sessionCarry } = args;
   return async (header: string, wasWarm: boolean): Promise<void> => {
     warnOnRecoveredWarmSession(args, wasWarm);
     const snapshot = strategy.getLatestCarrySnapshot();
-    bus.setSessionContext(snapshot);
+    const session = projectSessionCarry(snapshot, sessionCarry);
+    bus.setSessionContext(session);
     await invokeAuthFlowComplete(ctx, strategy, header);
   };
 }

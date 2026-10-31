@@ -77,6 +77,11 @@ interface IApiDirectCallConfig {
   /** Optional warm-start shortcut — see IWarmStartConfig for semantics. */
   readonly warmStart?: IWarmStartConfig;
   /**
+   * Carry slots handed to the scrape as its session context; every other
+   * slot stays private to the login. Absent → the full carry snapshot.
+   */
+  readonly sessionCarry?: readonly string[];
+  /**
    * Static cryptographic literals accessible via `config.secrets.<name>`
    * RefTokens. Public-extractable constants (signing keys lifted from
    * APKs, fixed suffixes) live here; per-user secrets do not.

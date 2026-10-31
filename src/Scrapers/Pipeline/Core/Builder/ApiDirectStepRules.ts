@@ -17,7 +17,12 @@ import type {
   IExtractRule,
   IStepConfig,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
+import {
+  allSteps,
+  type IApiDirectRule,
+  type IApiDirectRuleInput,
+  isExtractSlot,
+} from './ApiDirectRuleInput.js';
 import { isFlatPattern } from './FlatPattern.js';
 
 /**
@@ -64,19 +69,6 @@ function hasBadRule(input: IApiDirectRuleInput, isBad: ExtractRuleCheck): boolea
   const steps = allSteps(input.call);
   const rules = steps.flatMap(step => Object.values(step.extractRules ?? {}));
   return rules.some(isBad);
-}
-
-/**
- * Whether a slot names one of a step's body or header extracts.
- * @param step - Step config.
- * @param slot - Rule key.
- * @returns True for a required, optional or header extract slot.
- */
-function isExtractSlot(step: IStepConfig, slot: string): boolean {
-  const optional = step.optionalExtractsToCarry ?? {};
-  const headers = step.headerExtractsToCarry ?? {};
-  const slotMaps = [step.extractsToCarry, optional, headers];
-  return slotMaps.some(slotMap => Object.hasOwn(slotMap, slot));
 }
 
 /**
