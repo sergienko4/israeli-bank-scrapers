@@ -260,6 +260,76 @@ An outcome failure in a warm resume is a failure like any other, so the
 resolver still falls back to one cold flow. When the cold flow also fails, its
 own failure type is the one reported.
 
+### Session-transport fields
+
+Some banks keep the session in cookies shared by sibling hosts, and answer
+login calls with redirects, HTML pages or response headers instead of JSON
+alone. Their configs use the fields below, all of which need
+`headless.nativeFetch`. The transport side of each field is described in
+[Headless transports](../architecture/pipeline.md#headless-transports), and
+the [build-time config checks](#build-time-config-checks) refuse combinations
+that cannot work.
+
+Bank-wide, on `headless`:
+
+```ts
+headless: {
+  nativeFetch: true,
+  sessionCookies: true,
+  cookieDomains: ['bank.example'], // a Domain cookie reaches every *.bank.example host
+  redirectPolicy: 'reject',        // any 3xx fails unless the step names its own redirect
+  statusPolicy: { 204: 'empty' },  // a 204 answers {} without reading the body
+}
+```
+
+A GET step that reaches a page through one allowed redirect:
+
+```ts
+{
+  name: 'landing',
+  urlTag: 'auth.landing',
+  method: 'GET',
+  redirect: {
+    maxHops: 1,
+    allow: [{ origin: 'https://www.bank.example', paths: ['/home'] }],
+  },
+  response: 'document',       // HTML: read, checked for the marker, discarded
+  documentMarker: 'id="app"', // text the page must contain
+  extractsToCarry: {},        // a document step reads no body extracts
+}
+```
+
+A POST step that echoes a cookie, reads a response header and builds a slot
+from what it extracted:
+
+```ts
+{
+  name: 'logon',
+  urlTag: 'auth.logon',
+  body: { shape: { user: { $ref: 'creds.userCode' } } },
+  headers: { 'X-XSRF-TOKEN': { $literal: '@cookie:XSRF-TOKEN' } },
+  extractsToCarry: { userId: '/body/userId' },
+  headerExtractsToCarry: { xsrf: { header: 'x-xsrf-token' } },
+  deriveCarry: [{ into: 'scrapeKey', parts: ['carry.xsrf', 'carry.userId'], separator: '###' }],
+}
+```
+
+- `@cookie:<name>` as a header value sends that cookie's current value; the
+  header is dropped when the cookie is absent
+  ([Headless transports](../architecture/pipeline.md#headless-transports)).
+- `redirect` overrides `headless.redirectPolicy` for one step
+  ([Redirect policies](../architecture/pipeline.md#redirect-policies)).
+- `response: 'document'` and `documentMarker` read a page instead of JSON;
+  `statusPolicy` decides a 2xx before any body is read
+  ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
+- `headerExtractsToCarry` reads a header of the final response; a missing
+  header without `fallback` fails with `<step> header missing`
+  ([Response-header carry](../architecture/pipeline.md#response-header-carry)).
+- `deriveCarry` runs once the step's extracts are in scope
+  ([Carry derivation](#carry-derivation)).
+- `omitBankText: true` on the config keeps reply text out of a missed extract
+  ([Bank text in failures](#bank-text-in-failures)).
+
 ### Build-time config checks
 
 `validateApiDirectConfig` in `Core/Builder/ApiDirectConfigRules.ts` runs when
