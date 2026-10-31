@@ -14,23 +14,20 @@
  * placed in the factory by design."
  */
 
-import type { Agent } from 'node:https';
-
 import { CamoufoxIdentityFetchStrategy } from '../../Strategy/Fetch/CamoufoxIdentityFetchStrategy.js';
 import { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import { HeadlessNativeFetchStrategy } from '../../Strategy/Fetch/HeadlessNativeFetchStrategy.js';
-import { resolveClientCert } from '../../Strategy/Fetch/Mtls/ClientCertRegistry.js';
+import type { AgentSource } from '../../Strategy/Fetch/Mtls/MtlsAgentSource.js';
 import { MtlsFetchStrategy } from '../../Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
 import { MtlsGraphQLFetchStrategy } from '../../Strategy/Fetch/Mtls/MtlsGraphQLFetchStrategy.js';
-import { buildMtlsAgent } from '../../Strategy/Fetch/Mtls/MtlsTransport.js';
-import type { ICertBundle } from '../../Strategy/Fetch/Mtls/OneZeroClientCert.js';
 import {
   type ISessionTransport,
   withCookieSession,
 } from '../../Strategy/Fetch/SessionCookieFetchStrategy.js';
-import { warnIfTlsProfileUnsupported } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
+import type { IClientCertControl } from '../../Types/Domain/ClientCertControl.js';
 import { createApiMediator } from './ApiMediator.factory.js';
 import type { INodeTlsMediatorArgs } from './ApiMediator.headless.types.js';
+import { buildTransportSource } from './ApiMediator.nodeTransport.js';
 import type {
   IApiMediator,
   IBrowserBackedHeadlessMediatorArgs,
@@ -183,53 +180,49 @@ function createBrowserBackedHeadlessApiMediator(
 }
 
 /**
- * Resolves the client certificate a node:https mediator presents.
- * @param args - Mediator args bundle (bank + client-cert flag).
- * @returns The bank's registered certificate, or false when none is required.
- */
-function resolveTransportCert(args: INodeTlsMediatorArgs): ICertBundle | false {
-  if (args.requiresClientCert !== true) return false;
-  return resolveClientCert(args.bankHint);
-}
-
-/**
- * Builds the agent a mediator's identity and GraphQL transports share, warning
- * once when the runtime cannot emit the configured ClientHello profile.
- * @param args - Mediator args bundle (bank, client-cert flag, TLS profile).
- * @returns HTTPS agent presenting the certificate and profile.
- */
-function buildTransportAgent(args: INodeTlsMediatorArgs): Agent {
-  const clientCert = resolveTransportCert(args);
-  const tlsProfile = args.tlsProfile ?? 'node-default';
-  warnIfTlsProfileUnsupported(tlsProfile, process.versions.openssl);
-  return buildMtlsAgent(clientCert, tlsProfile);
-}
-
-/**
- * Construct the node:https native + GraphQL strategies sharing one agent.
+ * Construct the node:https native + GraphQL strategies sharing one agent source.
  * @param args - Mediator args bundle (identity + graphql URLs + headers).
- * @param agent - HTTPS agent presenting the bank's certificate and profile.
+ * @param source - Picks the HTTPS agent (certificate + profile) per request.
  * @returns Strategy pair whose transports run over node:https.
  */
-function buildMtlsStrategies(args: IHeadlessMediatorArgs, agent: Agent): IHeadlessStrategies {
-  const fetch = Reflect.construct(MtlsFetchStrategy, [args.identityBaseUrl, agent]);
+function buildMtlsStrategies(
+  args: IHeadlessMediatorArgs,
+  source: AgentSource,
+): IHeadlessStrategies {
+  const fetch = Reflect.construct(MtlsFetchStrategy, [args.identityBaseUrl, source]);
   const headers = args.graphqlHeaders ?? {};
-  const gql = Reflect.construct(MtlsGraphQLFetchStrategy, [args.graphqlUrl, agent, headers]);
+  const gql = Reflect.construct(MtlsGraphQLFetchStrategy, [args.graphqlUrl, source, headers]);
   return { fetch, gql };
+}
+
+/**
+ * Expose the dynamic client-certificate port on the mediator when there is one.
+ * @param mediator - Mediator instance to extend.
+ * @param control - The certificate port, or false for a static transport.
+ * @returns The same mediator.
+ */
+function attachClientCert(
+  mediator: IApiMediator,
+  control: IClientCertControl | false,
+): IApiMediator {
+  if (control === false) return mediator;
+  return Object.assign(mediator, { clientCert: control });
 }
 
 /**
  * Build an ApiMediator whose identity + GraphQL transports run over node:https
  * so they can present what globalThis.fetch cannot: a client certificate for
- * a Cloudflare API Shield mTLS gate and/or a registered ClientHello profile
- * for an edge that fingerprints the TLS handshake.
+ * a Cloudflare API Shield mTLS gate, a device certificate the flow installs at
+ * runtime, and/or a registered ClientHello profile for an edge that
+ * fingerprints the TLS handshake.
  * @param args - Bank hint + URLs + transport requirements + optional staticAuth.
  * @returns A fully-wired IApiMediator using the node:https transport.
  */
 function createMtlsHeadlessApiMediator(args: INodeTlsMediatorArgs): IApiMediator {
-  const agent = buildTransportAgent(args);
-  const strategies = buildMtlsStrategies(args, agent);
-  return assembleNodeMediator(args, strategies);
+  const transport = buildTransportSource(args);
+  const strategies = buildMtlsStrategies(args, transport.source);
+  const mediator = assembleNodeMediator(args, strategies);
+  return attachClientCert(mediator, transport.control);
 }
 
 export {

@@ -25,7 +25,10 @@
  * globalThis.fetch override.
  */
 
-import { setMtlsFetchFallback } from '../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
+import {
+  type MtlsFallback,
+  setMtlsFetchFallback,
+} from '../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import { invokeFetch } from '../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js';
 import { makeJwtExpiringIn, makeJwtExpiringInWithClaims } from '../../Helpers/Jwt.js';
 import { setFakePageEvalMode } from '../../Mocks/CamoufoxJsMock.js';
@@ -579,6 +582,14 @@ function makeMockFetch(tally: ICallTally): MockFetch {
 }
 
 /**
+ * Route an mTLS request through the (mocked) global fetch.
+ * @param request - The request the mTLS transport would have sent.
+ * @returns Procedure carrying the mocked Response.
+ */
+const VIA_MOCKED_FETCH: MtlsFallback = request =>
+  invokeFetch(request.url, request.init, request.verb);
+
+/**
  * Install the synthetic fetch override. Dispose restores the original.
  * @returns Handle with dispose + call-count inspector.
  */
@@ -588,7 +599,7 @@ export function installOneZeroFetchMock(): IMockHandle {
   const mockFetch = makeMockFetch(tally);
   (globalThis as unknown as { fetch: typeof mockFetch }).fetch = mockFetch;
   setFakePageEvalMode(true);
-  setMtlsFetchFallback(invokeFetch);
+  setMtlsFetchFallback(VIA_MOCKED_FETCH);
   /**
    * Restore the original fetch implementation and reset the Camoufox mock.
    * @returns True once restoration completes.

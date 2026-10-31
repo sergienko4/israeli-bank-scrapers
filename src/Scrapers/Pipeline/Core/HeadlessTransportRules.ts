@@ -14,13 +14,15 @@ const TRANSPORT_CONFLICT_MSG =
   'Conflicting headless transport: node:https (client cert / TLS profile), native fetch and browser-TLS are mutually exclusive';
 
 /**
- * Report whether the bank needs the node:https transport — a client
- * certificate, a ClientHello profile, or both.
+ * Report whether the bank needs the node:https transport — a registered or a
+ * dynamic client certificate, a ClientHello profile, or a mix.
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns True when identity + GraphQL must run over node:https.
  */
 function usesNodeTls(wiring: IHeadlessWiring): boolean {
-  return wiring.requiresClientCert || wiring.transport.tlsProfile !== undefined;
+  const { tlsProfile, clientCert } = wiring.transport;
+  if (wiring.requiresClientCert) return true;
+  return tlsProfile !== undefined || clientCert !== undefined;
 }
 
 /**

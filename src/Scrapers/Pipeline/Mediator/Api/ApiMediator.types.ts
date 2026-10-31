@@ -43,7 +43,7 @@ type SessionContext = Readonly<Record<string, unknown>>;
 type RecoveredHook = (header: string, wasWarm: boolean) => Promise<void>;
 
 /** Public ApiMediator surface — the only API phases/handlers see. */
-interface IApiMediator extends Pick<ITokenBus, 'cookies'> {
+interface IApiMediator extends Pick<ITokenBus, 'cookies' | 'clientCert'> {
   setBearer: (token: string) => boolean;
   setRawAuth: (headerValue: string) => boolean;
   setSessionContext: (ctx: SessionContext) => boolean;

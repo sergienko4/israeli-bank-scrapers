@@ -23,8 +23,17 @@ import { safeUrlForLog, scrubUrlFromText } from '../SafeUrlForLog.js';
 import { checkServerCertificate } from '../Tls/ServerCertificateFloor.js';
 import { SessionProtocolAgent } from '../Tls/SessionProtocolAgent.js';
 import { getTlsClientProfile, type TlsClientProfileKind } from '../Tls/TlsClientProfiles.js';
+import type { AgentSource, IPresentedCert } from './MtlsAgentSource.js';
 import { collectBody, toResponse } from './MtlsResponse.js';
 import type { ICertBundle } from './OneZeroClientCert.js';
+
+/** One request handed to the mocked transport, with the certificate it would present. */
+interface IMtlsFallbackRequest extends Omit<IMtlsRequest, 'agent'> {
+  readonly presented: IPresentedCert | false;
+}
+
+/** The mocked transport an E2E-mocked suite installs. */
+type MtlsFallback = (request: IMtlsFallbackRequest) => Promise<Procedure<Response>>;
 
 /**
  * Optional transport override used ONLY by the E2E-mocked suites. When set, the
@@ -32,17 +41,19 @@ import type { ICertBundle } from './OneZeroClientCert.js';
  * `globalThis.fetch`) instead of opening a real node:https socket, so the
  * OneZero mocked pipeline runs fully offline. Production leaves this null,
  * keeping the node:https path byte-identical. Mirrors the setFakePageEvalMode
- * test seam already used by the mocked Camoufox layer.
+ * test seam already used by the mocked Camoufox layer. The fallback is told
+ * which certificate the request would present (`false` for none), so a mocked
+ * suite can prove a dynamic client certificate reaches its origin only.
  */
-let mtlsFetchFallback: FetchInvoke | null = null;
+let mtlsFetchFallback: MtlsFallback | null = null;
 
 /**
  * Install (or clear) the E2E-mocked transport fallback. Call with no argument
  * (or undefined) to clear it and restore the node:https path.
- * @param fallback - FetchInvoke to route mTLS requests through; omit to clear.
+ * @param fallback - Transport to route mTLS requests through; omit to clear.
  * @returns True when a fallback is now active, false when cleared.
  */
-function setMtlsFetchFallback(fallback?: FetchInvoke): boolean {
+function setMtlsFetchFallback(fallback?: MtlsFallback): boolean {
   mtlsFetchFallback = fallback ?? null;
   return mtlsFetchFallback !== null;
 }
@@ -230,28 +241,30 @@ async function mtlsInvoke(request: IMtlsRequest): Promise<Procedure<Response>> {
 }
 
 /**
- * Bind an mTLS agent into a FetchInvoke transport for a strategy's `_invoke`
- * seam. Keeps the arrow's typing local (typed const) so no inline arrow leaks
- * into the strategy subclasses.
- * @param agent - The mTLS agent to present on every request.
- * @returns A FetchInvoke that routes each request through the agent.
+ * Bind an agent source into a FetchInvoke transport for a strategy's `_invoke`
+ * seam. The source is asked on every request, so a dynamic client certificate
+ * installed mid-run applies to the next request. Keeps the arrow's typing
+ * local (typed const) so no inline arrow leaks into the strategy subclasses.
+ * @param source - Picks the mTLS agent for each request URL.
+ * @returns A FetchInvoke that routes each request through the picked agent.
  */
-function makeMtlsInvoke(agent: Agent): FetchInvoke {
+function makeMtlsInvoke(source: AgentSource): FetchInvoke {
   /**
-   * Perform one request through the bound mTLS agent.
+   * Perform one request through the agent the source picks.
    * @param url - Fully-qualified target URL.
    * @param init - Native fetch RequestInit (method/headers/body).
    * @param verb - HTTP verb (for error-message prefixing).
    * @returns Procedure carrying the synthesised Response, or a network failure.
    */
   const invoke: FetchInvoke = (url, init, verb) => {
-    if (mtlsFetchFallback) return mtlsFetchFallback(url, init, verb);
+    const { agent, presented } = source(url);
+    if (mtlsFetchFallback) return mtlsFetchFallback({ url, init, verb, presented });
     return mtlsInvoke({ agent, url, init, verb });
   };
   return invoke;
 }
 
-export type { IMtlsRequest };
+export type { IMtlsFallbackRequest, IMtlsRequest, MtlsFallback };
 export type { HttpVerb } from '../NativeFetchStrategy.js';
 export {
   buildMtlsAgent,

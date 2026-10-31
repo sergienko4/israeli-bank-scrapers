@@ -8,6 +8,10 @@
 
 import type { Agent } from 'node:https';
 
+import {
+  type AgentSource,
+  fixedAgentSource,
+} from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.js';
 import { MtlsFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
 import { MtlsGraphQLFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsGraphQLFetchStrategy.js';
 import { isOk } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -35,6 +39,8 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
   let server: IGateServer;
   let certAgent: Agent;
   let noCertAgent: Agent;
+  let certSource: AgentSource;
+  let noCertSource: AgentSource;
 
   beforeAll(async () => {
     server = await startGateServer();
@@ -46,6 +52,8 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
     const bundle = testCertBundle();
     certAgent = buildCertAgent(bundle);
     noCertAgent = buildNoCertAgent();
+    certSource = fixedAgentSource(certAgent, false);
+    noCertSource = fixedAgentSource(noCertAgent, false);
   });
   afterEach(() => {
     certAgent.destroy();
@@ -53,7 +61,7 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
   });
 
   it('POSTs with the client cert and parses the 200 body', async () => {
-    const strategy = new MtlsFetchStrategy(server.baseUrl, certAgent);
+    const strategy = new MtlsFetchStrategy(server.baseUrl, certSource);
     const result = await strategy.fetchPost<IEcho>(
       server.restUrl,
       { a: '1' },
@@ -75,7 +83,7 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
       captured.push([...lines]);
       return lines.length;
     };
-    const strategy = new MtlsFetchStrategy(server.baseUrl, certAgent);
+    const strategy = new MtlsFetchStrategy(server.baseUrl, certSource);
     const result = await strategy.fetchPost(
       server.restUrl,
       { a: '1' },
@@ -88,7 +96,7 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
   });
 
   it('classifies a cert-less 403 into a failure carrying the status', async () => {
-    const strategy = new MtlsFetchStrategy(server.baseUrl, noCertAgent);
+    const strategy = new MtlsFetchStrategy(server.baseUrl, noCertSource);
     const result = await strategy.fetchPost(server.restUrl, { a: '1' }, { extraHeaders: {} });
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
@@ -100,6 +108,8 @@ describe('MtlsGraphQLFetchStrategy — GraphQL over the mTLS gate', () => {
   let server: IGateServer;
   let certAgent: Agent;
   let noCertAgent: Agent;
+  let certSource: AgentSource;
+  let noCertSource: AgentSource;
 
   beforeAll(async () => {
     server = await startGateServer();
@@ -111,6 +121,8 @@ describe('MtlsGraphQLFetchStrategy — GraphQL over the mTLS gate', () => {
     const bundle = testCertBundle();
     certAgent = buildCertAgent(bundle);
     noCertAgent = buildNoCertAgent();
+    certSource = fixedAgentSource(certAgent, false);
+    noCertSource = fixedAgentSource(noCertAgent, false);
   });
   afterEach(() => {
     certAgent.destroy();
@@ -118,7 +130,7 @@ describe('MtlsGraphQLFetchStrategy — GraphQL over the mTLS gate', () => {
   });
 
   it('queries with the client cert and returns the {data} envelope', async () => {
-    const strategy = new MtlsGraphQLFetchStrategy(server.gqlUrl, certAgent);
+    const strategy = new MtlsGraphQLFetchStrategy(server.gqlUrl, certSource);
     const result = await strategy.query<IGqlEnvelope>('{ me }', {});
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
@@ -126,7 +138,7 @@ describe('MtlsGraphQLFetchStrategy — GraphQL over the mTLS gate', () => {
   });
 
   it('merges constructor default headers and still succeeds (200)', async () => {
-    const strategy = new MtlsGraphQLFetchStrategy(server.gqlUrl, certAgent, { 'x-def': '1' });
+    const strategy = new MtlsGraphQLFetchStrategy(server.gqlUrl, certSource, { 'x-def': '1' });
     const result = await strategy.query<IGqlEnvelope>('{ me }', {});
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
@@ -134,7 +146,7 @@ describe('MtlsGraphQLFetchStrategy — GraphQL over the mTLS gate', () => {
   });
 
   it('classifies a cert-less 403 into a failure carrying the status', async () => {
-    const strategy = new MtlsGraphQLFetchStrategy(server.gqlUrl, noCertAgent);
+    const strategy = new MtlsGraphQLFetchStrategy(server.gqlUrl, noCertSource);
     const result = await strategy.query('{ me }', {});
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);

@@ -84,16 +84,16 @@ The two paths converge on `balanceResolution` — that's the single source of tr
 
 An api-direct bank's `headless` config block picks the transport its identity calls run over. [`HeadlessMediatorWiring.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/HeadlessMediatorWiring.ts) decodes the block into an `IHeadlessWiring` (URLs plus the `IWiringFlags` booleans) and applies the rules in [`HeadlessTransportRules.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/HeadlessTransportRules.ts) in order; the first match wins:
 
-| Order | Config                                   | Kind       | Transport                                        | Opens a browser | Factory                                  |
-| ----- | ---------------------------------------- | ---------- | ------------------------------------------------ | --------------- | ---------------------------------------- |
-| 1     | `requiresClientCert` and/or `tlsProfile` | `node-tls` | `node:https` (client cert / ClientHello profile) | No              | `createMtlsHeadlessApiMediator`          |
-| 2     | `nativeFetch: true`                      | `native`   | Node's own `fetch`                               | No              | `createHeadlessApiMediator`              |
-| 3     | anything else                            | `browser`  | Camoufox page (browser TLS)                      | Yes             | `createBrowserBackedHeadlessApiMediator` |
+| Order | Config                                                 | Kind       | Transport                                                       | Opens a browser | Factory                                  |
+| ----- | ------------------------------------------------------ | ---------- | --------------------------------------------------------------- | --------------- | ---------------------------------------- |
+| 1     | `requiresClientCert`, `clientCert` and/or `tlsProfile` | `node-tls` | `node:https` (client cert / dynamic cert / ClientHello profile) | No              | `createMtlsHeadlessApiMediator`          |
+| 2     | `nativeFetch: true`                                    | `native`   | Node's own `fetch`                                              | No              | `createHeadlessApiMediator`              |
+| 3     | anything else                                          | `browser`  | Camoufox page (browser TLS)                                     | Yes             | `createBrowserBackedHeadlessApiMediator` |
 
-A block that declares more than one of `requiresClientCert`/`tlsProfile`,
-`nativeFetch` and `requiresBrowserTls` fails with a `ScraperError` before a
-transport kind is returned or a mediator is built. `assertSingleTransport`
-enforces this; `pickTransportKind` walks the table above.
+A block that declares more than one of `requiresClientCert`/`clientCert`/
+`tlsProfile`, `nativeFetch` and `requiresBrowserTls` fails with a
+`ScraperError` before a transport kind is returned or a mediator is built.
+`assertSingleTransport` enforces this; `pickTransportKind` walks the table above.
 
 `resolveHeadlessTransportKind(companyId)` returns the kind these rules pick without building a mediator. `createScraper` uses it to warn when a bank whose kind opens no browser is given browser options — see [Browser options on browserless banks](../configuration.md#browser-options-on-browserless-banks).
 
@@ -135,6 +135,17 @@ A bank whose login hops across sibling hosts of one registrable domain also sets
 
 `exportAll()` returns detached records, and `importAll(list)` copies accepted
 records, so mutations outside the cookie-session port cannot change the live jar.
+
+### Dynamic client certificate
+
+A bank whose login obtains its device certificate at runtime (the flow builds a CSR and the bank issues the certificate) declares `clientCert: { mode: 'dynamic', origin }` on its headless block: an `IDynamicClientCert` from [`ClientCertControl.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/Domain/ClientCertControl.ts), whose `origin` is the exact https origin the certificate is presented to. The block then runs over `node-tls`, and `createMtlsHeadlessApiMediator` builds the agent source its two transports share with `buildTransportSource` ([`ApiMediator.nodeTransport.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Api/ApiMediator.nodeTransport.ts)):
+
+- `createClientCertHolder(origin, buildAgent)` ([`ClientCertHolder.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/Mtls/ClientCertHolder.ts)) returns an `IClientCertHolder`: the per-request `AgentSource` and the `IClientCertControl` port, which the factory attaches to the mediator as `clientCert` (on the token bus a login flow sees; every other bank has `clientCert === undefined`). Its `AgentBuilder` carries the bank's `tlsProfile` and the server-certificate floor.
+- `install(pair)` takes an `IClientCertPair` (PEM key, PEM certificate). A pair that does not parse, or whose certificate does not certify its key, fails `Generic` with `"client certificate invalid"` and the previous certificate stays. Otherwise the holder builds an agent presenting the pair, swaps it in and destroys the agent it replaced. `clear()` drops the certificate and destroys its agent. The pair lives only in memory for the run and is never logged or written.
+- `makeMtlsInvoke` asks the source on every request and gets an `IAgentChoice` (the agent and the `IPresentedCert` it presents). A request whose `URL.origin` equals the declared origin goes through the installed agent; any other origin, and every request before an install or after a clear, goes through a plain agent that presents no certificate.
+- The `node:https` transport never follows a redirect: a 3xx comes back as an HTTP failure, so the certificate never reaches a redirect target.
+- A bank with a registered certificate (`requiresClientCert`) or none keeps one shared agent behind `fixedAgentSource` ([`MtlsAgentSource.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.ts)); `presentedOf` names the certificate it presents.
+- The E2E-mocked seam `setMtlsFetchFallback` takes an `MtlsFallback`, called with one `IMtlsFallbackRequest` (URL, init, verb and `presented`: the certificate's SHA-256, or `false` for none), so a mocked suite can prove which requests would carry the certificate without a handshake.
 
 ### Redirect policies
 

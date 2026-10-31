@@ -49,6 +49,8 @@ const FETCH_TRANSPORT_FILES: readonly string[] = [
   'src/Scrapers/Pipeline/Strategy/Fetch/HeaderText.ts',
   'src/Scrapers/Pipeline/Strategy/Fetch/Latin1Form.ts',
   'src/Scrapers/Pipeline/Strategy/Fetch/TextResponse.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/Mtls/ClientCertHolder.ts',
 ];
 
 /** New Core files that §19.3b pins past the Core grandfather. */

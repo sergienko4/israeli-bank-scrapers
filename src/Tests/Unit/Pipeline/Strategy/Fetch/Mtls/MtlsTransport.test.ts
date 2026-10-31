@@ -16,6 +16,7 @@ import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
+import { fixedAgentSource } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.js';
 import {
   collectBody,
   MTLS_MAX_RESPONSE_BYTES,
@@ -247,8 +248,9 @@ describe('MtlsTransport.makeMtlsInvoke', () => {
     certAgent.destroy();
   });
 
-  it('binds the agent into a FetchInvoke that reaches the gate (200)', async () => {
-    const invoke = makeMtlsInvoke(certAgent);
+  it('binds the agent source into a FetchInvoke that reaches the gate (200)', async () => {
+    const source = fixedAgentSource(certAgent, false);
+    const invoke = makeMtlsInvoke(source);
     const init: RequestInit = { method: 'POST', headers: {}, body: '{}' };
     const result = await invoke(server.restUrl, init, 'POST');
     const isOkResult = isOk(result);
