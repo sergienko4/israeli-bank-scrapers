@@ -24,6 +24,9 @@ export type AuthPathKey =
   | 'auth.prime'
   | 'auth.resume'
   | 'auth.service'
+  | 'auth.bootstrap'
+  | 'auth.landing'
+  | 'auth.logon'
   | 'data.sync'
   | 'data.getKey'
   | 'data.getUserHistory'
@@ -134,7 +137,9 @@ export interface IHeadlessUrlsConfig {
   /**
    * With `nativeFetch`, the redirect policy every call of the bank (login
    * and scrape) runs under unless its step names its own `redirect`:
-   * `reject` refuses any 3xx; a manual policy follows allow-listed hops.
+   * `reject` refuses any 3xx. A manual policy belongs on a GET step's
+   * `redirect` — an api-direct build refuses it here, and a bank with a
+   * manual step must default to `reject`.
    * Default: undefined (`follow` — fetch follows redirects itself).
    */
   readonly redirectPolicy?: RedirectPolicy;

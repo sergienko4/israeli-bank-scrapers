@@ -252,8 +252,12 @@ own failure type is the one reported.
 the pipeline is built (`build()` → `buildDescriptor` → `validateBuilderFields`).
 Its input, `IApiDirectRuleInput`, is the call config plus the bank's `headless`
 block from the registry, so a config that cannot work fails before any request
-is sent. The first broken rule fails the build with `Generic` and
-`<field>: <rule>`:
+is sent. `Core/Builder/ApiDirectRuleInput.ts` holds that input, the rule shape
+`IApiDirectRule` (a message and an `isBroken` check) and `allSteps`, which
+lists the login steps and any durable resume steps. The session-transport
+rules, `API_DIRECT_TRANSPORT_RULES` in `Core/Builder/ApiDirectTransportRules.ts`,
+run after the core rules. The first broken rule fails the build with `Generic`
+and `<field>: <rule>`:
 
 | Broken when                                                                      | Message                                                                  |
 | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
@@ -265,6 +269,12 @@ is sent. The first broken rule fails the build with `Generic` and
 | `warmStart` validated as `'bank-call'` with a `fromStepIndex` that names no step | `warmStart.fromStepIndex: must name a step when validation is bank-call` |
 | `warmStart.fromStepIndex` below 1                                                | `warmStart.fromStepIndex: must start after the first step`               |
 | `warmStart.fromStepIndex` fractional, `NaN` or above `steps.length`              | `warmStart.fromStepIndex: must be a whole number up to the step count`   |
+| a `response: 'document'` step with any `extractsToCarry` or `optionalExtractsToCarry` | `steps.response: a document step reads no body extracts`                 |
+| a manual `redirect` on a step whose `method` is not `GET`                             | `steps.redirect: manual only on GET steps`                               |
+| a manual `headless.redirectPolicy` (the default every POST shares)                    | `headless.redirectPolicy: manual only on GET steps`                      |
+| a manual `redirect` whose `allow` list is empty                                       | `redirect.allow: must not be empty`                                      |
+| a manual `redirect` whose `maxHops` is not an integer from 1 to 10                    | `redirect.maxHops: must be an integer from 1 to 10`                      |
+| a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`     | `headless.redirectPolicy: must be reject when a step redirects manually` |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
@@ -353,10 +363,10 @@ context. The URL comes from the bank's `headless.paths`, keyed by
 `AuthPathKey`; the registry seeder registers each entry under the same key,
 and the step's `urlTag` selects it.
 
-| Kind       | Values                                                                                                                               |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Step names | `bind`, `login`, `assertPassword`, `assertOtp`, `getIdToken`, `sessionToken`, `prime`, `validate`, `deviceKey`, `register`, `resume` |
-| Auth tags  | `auth.bind`, `auth.login`, `auth.assert`, `auth.logout`, `auth.prime`, `auth.resume`, `auth.service`                                 |
+| Kind       | Values                                                                                                                                                                |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Step names | `bind`, `login`, `assertPassword`, `assertOtp`, `getIdToken`, `sessionToken`, `prime`, `validate`, `deviceKey`, `register`, `resume`, `bootstrap`, `landing`, `logon` |
+| Auth tags  | `auth.bind`, `auth.login`, `auth.assert`, `auth.logout`, `auth.prime`, `auth.resume`, `auth.service`, `auth.bootstrap`, `auth.landing`, `auth.logon`                  |
 
 `identity.*` and `data.*` tags work the same way.
 

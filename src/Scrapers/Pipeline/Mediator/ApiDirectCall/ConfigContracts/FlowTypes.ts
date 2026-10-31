@@ -33,7 +33,10 @@ type StepName =
   | 'validate'
   | 'deviceKey'
   | 'register'
-  | 'resume';
+  | 'resume'
+  | 'bootstrap'
+  | 'landing'
+  | 'logon';
 
 /**
  * How a step's HTTP 2xx body says whether the step worked. The code at

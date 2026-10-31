@@ -2,39 +2,15 @@
  * Cross-field rules for an api-direct call config and its bank's headless
  * block. They run when the pipeline is built, so a config that cannot work
  * fails before any run starts. The first broken rule fails the build as
- * `Generic` with `"<field>: <rule>"`.
+ * `Generic` with `"<field>: <rule>"`. The session-transport rules live in
+ * `ApiDirectTransportRules.ts` and run after these.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import type {
-  IApiDirectCallConfig,
-  IStepConfig,
-} from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import type { IHeadlessUrlsConfig } from '../../Registry/Config/PipelineBankConfigTypes.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
-
-/** What the rules read: the call config and the bank's headless block. */
-interface IApiDirectRuleInput {
-  readonly call: IApiDirectCallConfig;
-  readonly headless: IHeadlessUrlsConfig | false;
-}
-
-/** One rule: the failure text and the check that finds it broken. */
-interface IApiDirectRule {
-  readonly message: string;
-  readonly isBroken: (input: IApiDirectRuleInput) => boolean;
-}
-
-/**
- * Every login step, including durable resume steps.
- * @param call - Call config.
- * @returns All steps the config can run.
- */
-function allSteps(call: IApiDirectCallConfig): readonly IStepConfig[] {
-  const resume = call.persistentAuth?.resumeSteps ?? [];
-  return [...call.steps, ...resume];
-}
+import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
+import { API_DIRECT_TRANSPORT_RULES } from './ApiDirectTransportRules.js';
 
 /**
  * Whether the bank's headless block keeps a session cookie jar.
@@ -170,6 +146,7 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
     message: 'warmStart.fromStepIndex: must be a whole number up to the step count',
     isBroken: isWarmOffStepBoundary,
   },
+  ...API_DIRECT_TRANSPORT_RULES,
 ];
 
 /**
@@ -183,5 +160,6 @@ function validateApiDirectConfig(input: IApiDirectRuleInput): Procedure<true> {
   return fail(ScraperErrorTypes.Generic, broken.message);
 }
 
-export type { IApiDirectRuleInput };
 export { validateApiDirectConfig };
+
+export { type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
