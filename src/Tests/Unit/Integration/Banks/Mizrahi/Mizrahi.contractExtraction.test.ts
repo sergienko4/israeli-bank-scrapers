@@ -1,10 +1,9 @@
 /**
- * Mizrahi — contract extraction binding (Mode A/B value proof).
+ * Mizrahi — contract extraction binding (committed-response value proof).
  *
- * <p>The Mode B simulator drive proves the committed Mizrahi responses answer
- * the production-shaped requests, but it stops at the transport layer, and
- * the shape suite feeds each extractor one response at a time. This suite
- * closes the loop: it serves the SAME committed `SkyBL/logon`,
+ * <p>The shape suite feeds each extractor one response at a time. This suite
+ * closes the loop: it hands the session the committed `SkyBL/logon`
+ * `Accounts[]`, as the login carries them, and serves the committed
  * `SkyBL/changeAccount` and `SkyOSH/get428Index` responses to the REAL
  * generic headless scrape driving `MIZRAHI_SHAPE`, and pins the live API
  * contract (plan spec §5) end to end:
@@ -47,7 +46,6 @@ const START = new Date('2026-10-06T21:00:00.000Z');
 
 /** Committed response served for each contract path. */
 const FIXTURE_OF: ReadonlyMap<string, string> = new Map([
-  ['SkyBL/logon', 'logon'],
   ['SkyBL/changeAccount', 'changeAccount'],
   ['SkyOSH/get428Index', 'transactions'],
 ]);
@@ -104,7 +102,10 @@ function serveFixture(calls: ICall[], url: string, body: unknown): Procedure<unk
  */
 function runContract(): { calls: readonly ICall[]; run: MizrahiScrapeRun } {
   const calls: ICall[] = [];
-  const bus = makeServedBus((url, body): Procedure<unknown> => serveFixture(calls, url, body));
+  const bus = makeServedBus(
+    (url, body): Procedure<unknown> => serveFixture(calls, url, body),
+    LOGON.body.user.Accounts,
+  );
   const run = scrapeOver(bus, { start: START, end: END });
   return { calls, run };
 }
@@ -149,7 +150,6 @@ describe('Mizrahi contract extraction — the real driver on the committed respo
     assertOk(await run);
     const requests = calls.map(requestKeysOf);
     expect(requests).toEqual([
-      { path: 'SkyBL/logon', keys: new Set(['appId', 'appVer', 'lang', 'isPdf']) },
       { path: 'SkyBL/changeAccount', keys: new Set(['selectedAccountIndex']) },
       {
         path: 'SkyOSH/get428Index',

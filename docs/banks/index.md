@@ -10,11 +10,11 @@
 
 - :material-bank: **Banks (browser engine)**
 
-  [Bank Hapoalim](hapoalim.md) · [Bank Leumi](leumi.md) · [Beinleumi](beinleumi.md) · [Discount](discount.md) · [Massad](massad.md) · [Mercantile](mercantile.md) · [Mizrahi Bank](mizrahi.md) · [Otsar Hahayal](otsar-hahayal.md) · [Pagi](pagi.md) · [Bank Yahav](yahav.md)
+  [Bank Hapoalim](hapoalim.md) · [Bank Leumi](leumi.md) · [Beinleumi](beinleumi.md) · [Discount](discount.md) · [Massad](massad.md) · [Mercantile](mercantile.md) · [Otsar Hahayal](otsar-hahayal.md) · [Pagi](pagi.md) · [Bank Yahav](yahav.md)
 
 - :material-api: **API-direct (no browser)**
 
-  [OneZero](onezero.md) · [Pepper](pepper.md) · [PayBox](paybox.md) · [Visa Cal](visacal.md) · [Isracard](isracard.md) · [Amex](amex.md) · [Max](max.md)
+  [OneZero](onezero.md) · [Pepper](pepper.md) · [PayBox](paybox.md) · [Visa Cal](visacal.md) · [Isracard](isracard.md) · [Amex](amex.md) · [Max](max.md) · [Mizrahi Bank](mizrahi.md)
 
 - :material-archive: **Legacy (deprecated)**
 

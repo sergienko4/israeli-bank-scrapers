@@ -48,6 +48,7 @@ const API_DIRECT_BANKS: ReadonlySet<string> = new Set([
   'Amex',
   'Isracard',
   'Max',
+  'Mizrahi',
   'OneZero',
   'PayBox',
   'Pepper',

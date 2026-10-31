@@ -133,14 +133,6 @@ interface ISession {
 type Route = (session: ISession, body: Readonly<Record<string, unknown>>) => unknown;
 
 /**
- * `SkyBL/logon` — the account list.
- * @returns Logon reply.
- */
-function logonReply(): unknown {
-  return { body: { user: { Accounts: ACCOUNTS, CurrentAccountIndex: 0 } } };
-}
-
-/**
  * `SkyBL/changeAccount` — moves the session per its {@link SwitchMode} and
  * names an account; at night the balance is `null`.
  * @param session - Simulated session.
@@ -250,7 +242,6 @@ function pageReply(session: ISession, body: Readonly<Record<string, unknown>>): 
 }
 
 const ROUTES: ReadonlyMap<string, Route> = new Map<string, Route>([
-  ['SkyBL/logon', logonReply],
   ['SkyBL/changeAccount', switchReply],
   ['SkyOSH/get428Index', pageReply],
 ]);
@@ -285,7 +276,7 @@ function runScrape(
   startDate: Date = START,
 ): { session: ISession; run: MizrahiScrapeRun } {
   const session: ISession = { current: 0, mode, isNight, calls: [] };
-  const bus = makeServedBus((url, body): Procedure<unknown> => serve(session, url, body));
+  const bus = makeServedBus((url, body): Procedure<unknown> => serve(session, url, body), ACCOUNTS);
   const run = scrapeOver(bus, { start: startDate, end: END });
   return { session, run };
 }
@@ -350,7 +341,6 @@ describe('Mizrahi multi-account scrape (changeAccount)', () => {
     const switched = session.calls.filter((call): boolean => call.path === 'SkyBL/changeAccount');
     const indexes = switched.map((call): unknown => call.body.selectedAccountIndex);
     expect(paths).toEqual([
-      'SkyBL/logon',
       'SkyBL/changeAccount',
       'SkyOSH/get428Index',
       'SkyBL/changeAccount',
@@ -424,15 +414,7 @@ describe('Mizrahi multi-account scrape (changeAccount)', () => {
     const movements = movementDescriptions();
     expect(filed).toEqual(movements);
     const stages = callStages(session);
-    expect(stages).toEqual([
-      'SkyBL/logon',
-      'switch 0',
-      'walk',
-      'backfill',
-      'switch 1',
-      'walk',
-      'backfill',
-    ]);
+    expect(stages).toEqual(['switch 0', 'walk', 'backfill', 'switch 1', 'walk', 'backfill']);
   });
 
   it('does not count the balance line as a movement the shape left unread', async () => {

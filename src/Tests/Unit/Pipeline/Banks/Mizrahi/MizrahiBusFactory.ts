@@ -29,6 +29,9 @@ import { makeMockContext, makeRecoverySessionStubs } from '../../Infrastructure/
 const FIXTURE_ROOT = resolveFixtureRoot('mizrahi');
 const RESPONSES_DIR = path.join(FIXTURE_ROOT, 'responses');
 
+/** The data token the login composed, as the session context carries it (fake value). */
+export const MZ_UNIT_TOKEN = 'syn-unit-xsrf###3syn-unit-sky';
+
 /** Serves one apiPost dispatch: the dispatched URL and body to a reply. */
 type ServePost = (url: string, body: unknown) => Procedure<unknown>;
 
@@ -53,11 +56,14 @@ export function loadMizrahiResponse(name: string): ApiBody {
 }
 
 /**
- * Mediator whose apiPost the spec serves.
+ * Mediator whose apiPost the spec serves, after a login that carried
+ * `accounts` (the logon `Accounts[]`) and the data token.
  * @param serve - Reply for one dispatch.
+ * @param accounts - The logon `Accounts[]` the login carried.
  * @returns Mock mediator.
  */
-export function makeServedBus(serve: ServePost): IApiMediator {
+export function makeServedBus(serve: ServePost, accounts: readonly object[]): IApiMediator {
+  const session = { accounts, mizrahiXsrf: MZ_UNIT_TOKEN };
   const apiPost = jest.fn(async (url: string, body: unknown): Promise<Procedure<unknown>> => {
     await Promise.resolve();
     return serve(url, body);
@@ -70,7 +76,7 @@ export function makeServedBus(serve: ServePost): IApiMediator {
     setRawAuth: jest.fn(),
     setSessionContext: jest.fn((): boolean => true),
     ...makeRecoverySessionStubs(),
-    getSessionContext: jest.fn((): Readonly<Record<string, unknown>> => ({})),
+    getSessionContext: jest.fn((): Readonly<Record<string, unknown>> => session),
   } as unknown as IApiMediator;
 }
 

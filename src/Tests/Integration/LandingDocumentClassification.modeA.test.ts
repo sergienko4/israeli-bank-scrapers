@@ -93,7 +93,19 @@ const REALM_LEAK_MARKUP = [
 const CLEAN_MARKUP = '<html><body><h1>ok</h1></body></html>';
 
 /**
- * Every bank with captured fixtures, discovered rather than listed.
+ * Whether a bank's fixture directory holds captured pages. A bank scraped
+ * over a direct API may keep only its recorded `responses/` there.
+ * @param bankId - Bank fixture directory name.
+ * @returns True when the directory holds a top-level `.html` capture.
+ */
+function hasCapturedPages(bankId: string): boolean {
+  const bankDir = path.join(BANKS_FIXTURE_ROOT, bankId);
+  const names = readdirSync(bankDir);
+  return names.some((name): boolean => name.endsWith('.html'));
+}
+
+/**
+ * Every bank with captured pages, discovered rather than listed.
  *
  * <p>Read synchronously because `it.each` needs the cases at collection
  * time. Discovery is the point: a hard-coded list silently drops any
@@ -103,18 +115,19 @@ const CLEAN_MARKUP = '<html><body><h1>ok</h1></body></html>';
 const BANK_IDS: readonly string[] = readdirSync(BANKS_FIXTURE_ROOT, { withFileTypes: true })
   .filter((entry): boolean => entry.isDirectory())
   .map((entry): string => entry.name)
+  .filter(hasCapturedPages)
   .sort();
 
 /**
  * Floors proving discovery actually walked the corpus, not an empty dir.
  *
- * The corpus measures 10 banks / 220 files today; banks scraped over a
+ * The corpus measures 9 banks / 183 files today; banks scraped over a
  * direct API carry no page fixtures and leave it. The regression this
  * guards is a top-level-only walk, which yields well under 100 — so the
  * floor sits far above that while leaving room for fixtures to come and go.
  */
-const MIN_BANKS = 10;
-const MIN_FIXTURES = 200;
+const MIN_BANKS = 9;
+const MIN_FIXTURES = 150;
 
 /**
  * Fold one directory entry into the running list of HTML files.

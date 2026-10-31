@@ -1,6 +1,6 @@
 /**
  * Unified API-DIRECT E2E mock — exercises the offline pipeline flow shared
- * by every API-DIRECT bank (Pepper, OneZero, Visa Cal, Isracard, Amex, Max, ...) through one parameterized
+ * by every API-DIRECT bank (Pepper, OneZero, Visa Cal, Isracard, Amex, Max, Mizrahi, ...) through one parameterized
  * spec backed by the per-bank synthetic fetch mocks.
  *
  * Rule #17: mock suite parity stays intact — every bank case in this file
@@ -18,6 +18,12 @@ import {
   MAX_MOCK_CREDS,
   MAX_MOCK_START_DATE,
 } from '../Max/MaxFetchMock.js';
+import { installMizrahiFetchMock } from '../Mizrahi/MizrahiFetchMock.js';
+import {
+  MIZRAHI_MOCK_ACCOUNTS,
+  MIZRAHI_MOCK_CREDS,
+  MIZRAHI_MOCK_START_DATE,
+} from '../Mizrahi/MizrahiMockData.js';
 import type { IMockHandle as IOneZeroMockHandle } from '../OneZero/OneZeroFetchMock.js';
 import {
   installOneZeroFetchMock,
@@ -304,6 +310,28 @@ const MAX_COLD_CASE: IApiDirectFlowCase = {
   expectsWarmStart: false,
 };
 
+const MIZRAHI_COLD_CASE: IApiDirectFlowCase = {
+  displayName: 'Mizrahi (cold)',
+  companyId: CompanyTypes.Mizrahi,
+  /**
+   * Install the synthetic www + mto hosts.
+   * @returns Mock handle.
+   */
+  installFetchMock: (): IKitMockHandle => installMizrahiFetchMock(),
+  mockCreds: { ...MIZRAHI_MOCK_CREDS },
+  startDate: MIZRAHI_MOCK_START_DATE,
+  expectedAccounts: MIZRAHI_MOCK_ACCOUNTS.length,
+  expectedAccountNumber: MIZRAHI_MOCK_ACCOUNTS[0].number,
+  expectedBalance: MIZRAHI_MOCK_ACCOUNTS[0].balance,
+  minTxns: MIZRAHI_MOCK_ACCOUNTS[0].amounts.length,
+  // Per account: the switch, then at least one movements page.
+  minGraphqlCalls: 2 * MIZRAHI_MOCK_ACCOUNTS.length,
+  // Bootstrap and login, three landing hops, then logon. No OTP, no token.
+  minIdentityCalls: 6,
+  maxIdentityCalls: 6,
+  expectsWarmStart: false,
+};
+
 const CASES: readonly IApiDirectFlowCase[] = [
   PEPPER_CASE,
   ONEZERO_CASE,
@@ -315,6 +343,7 @@ const CASES: readonly IApiDirectFlowCase[] = [
   AMEX_COLD_CASE,
   AMEX_WARM_CASE,
   MAX_COLD_CASE,
+  MIZRAHI_COLD_CASE,
 ];
 
 /** Minimal scraper-options shape exercised by this parameterized spec. */

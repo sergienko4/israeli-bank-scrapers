@@ -104,9 +104,9 @@ describe('CredentialLoader', () => {
   });
 
   describe('knownBanks', () => {
-    it('returns the five onboarded browser banks sorted', () => {
+    it('returns the four onboarded browser banks sorted', () => {
       const banks = knownBanks();
-      const expected = ['beinleumi', 'discount', 'hapoalim', 'leumi', 'mizrahi'];
+      const expected = ['beinleumi', 'discount', 'hapoalim', 'leumi'];
       expect(banks).toEqual(expected);
     });
   });

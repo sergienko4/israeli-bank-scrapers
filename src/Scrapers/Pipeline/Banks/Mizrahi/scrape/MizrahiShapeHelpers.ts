@@ -1,31 +1,38 @@
 /**
- * Mizrahi scrape shape — account list helpers.
+ * Mizrahi scrape shape — account list and per-call header helpers.
  *
- * <p>The accounts ride `SkyBL/logon` (`body.user.Accounts[]`), the session
- * handshake the SPA fires right after LoginUser. Its request carries only
- * static app metadata, and re-posting it is idempotent: real login #10 got
- * 200 with the SAME `xsrfToken`, and the discovered-header bag kept working
- * for `get428Index` and `Get428ODS` afterwards.
+ * <p>The accounts ride the login's `SkyBL/logon` reply
+ * (`body.user.Accounts[]`), which the login carries into the session context
+ * as `accounts`, so the customer step makes no call of its own.
  *
  * <p>Every declared account is scraped. `get428Index` serves the session's
  * CURRENT account only, so each account carries its POSITION in
- * `Accounts[]` — the `selectedAccountIndex` the SPA's `SkyBL/changeAccount`
+ * `Accounts[]` — the `selectedAccountIndex` the `SkyBL/changeAccount`
  * switch takes (MizrahiShapeBalance, plan D17).
+ *
+ * <p>Every data call sends the online-banking POST headers and
+ * `mizrahixsrftoken`, the data token the login composed (`mizrahiXsrf`).
+ * Login's static and step headers do not reach the scrape phase, so the
+ * shape rebuilds them from the shared constants.
  */
 
 import ScraperError from '../../../../Base/ScraperError.js';
 import type {
+  HeaderMap,
   IExtractAccountsArgs,
   VarsMap,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
+import {
+  MIZRAHI_MTO,
+  MIZRAHI_MTO_POST_HEADERS,
+  MIZRAHI_STATIC_HEADERS,
+} from '../../../Registry/Config/PipelineBankConfigMizrahiConstants.js';
 import type { Brand } from '../../../Types/Brand.js';
+import { isSome } from '../../../Types/Option.js';
+import type { IActionContext } from '../../../Types/PipelineContext.js';
 
 /** Post-login API origin (every hard-model call targets it). */
-export const MIZRAHI_API = 'https://mto.mizrahi-tefahot.co.il/Online/api';
-
-/** Static logon body the SPA sends (trace-3 and real logins #6–#10). */
-const LOGON_VARS: VarsMap = { appId: 'skyWeb', appVer: '', lang: 'he-il', isPdf: false };
+export const MIZRAHI_API = `${MIZRAHI_MTO}/Online/api`;
 
 /** Raised when a declared account carries no number to scrape it by. */
 const NO_ACCOUNT_NUMBER = 'Mizrahi logon account has no SnifAndNumber400';
@@ -36,11 +43,6 @@ type AccountNumberDisplay = Brand<string, 'MizrahiAccountNumberDisplay'>;
 /** One raw `body.user.Accounts[]` entry (only the field the shape reads). */
 interface IRawAccount {
   readonly SnifAndNumber400?: string;
-}
-
-/** The `SkyBL/logon` response subset the shape reads. */
-interface ILogonResp {
-  readonly body?: { readonly user?: { readonly Accounts?: readonly IRawAccount[] } };
 }
 
 /**
@@ -54,19 +56,35 @@ export interface IMizrahiAcct {
 }
 
 /**
- * Customer-step URL — the logon handshake that lists the accounts.
- * @returns Literal logon URL.
+ * The data token the login composed, or an empty value before login has
+ * stored one.
+ * @param ctx - Action context carrying the API mediator.
+ * @returns The data token, or an empty string.
  */
-export function customerUrl(): WKUrlOrLiteral {
-  return literalUrl(`${MIZRAHI_API}/SkyBL/logon`);
+function dataTokenOf(ctx: IActionContext): string {
+  if (!isSome(ctx.apiMediator)) return '';
+  const session = ctx.apiMediator.value.getSessionContext();
+  const token = session.mizrahiXsrf;
+  return typeof token === 'string' ? token : '';
 }
 
 /**
- * Customer-step vars — the static logon body.
- * @returns Logon body.
+ * Headers for one data call: the static set, the online-banking POST set and
+ * the data token.
+ * @param ctx - Action context.
+ * @returns Header map.
  */
-export function customerVars(): VarsMap {
-  return LOGON_VARS;
+export function mizrahiHeaders(ctx: IActionContext): HeaderMap {
+  const mizrahixsrftoken = dataTokenOf(ctx);
+  return { ...MIZRAHI_STATIC_HEADERS, ...MIZRAHI_MTO_POST_HEADERS, mizrahixsrftoken };
+}
+
+/**
+ * Customer-step vars — none; the customer step makes no call.
+ * @returns Empty variables map.
+ */
+export function noVars(): VarsMap {
+  return {};
 }
 
 /**
@@ -85,13 +103,15 @@ function toAcct(raw: IRawAccount, index: number): IMizrahiAcct {
 }
 
 /**
- * Every account the logon payload declared, with its position.
- * @param args - Extract-args bundle (uses `args.body` only).
+ * Every account the login's logon reply declared, with its position.
+ * @param args - Extract-args bundle (uses `args.sessionContext` only).
  * @returns Account references, in payload order.
  */
 export function extractAccounts(args: IExtractAccountsArgs): readonly IMizrahiAcct[] {
-  const raw = (args.body as ILogonResp).body?.user?.Accounts ?? [];
-  return raw.map((account, index): IMizrahiAcct => toAcct(account, index));
+  const raw = args.sessionContext.accounts;
+  if (!Array.isArray(raw)) return [];
+  const accounts = raw as readonly IRawAccount[];
+  return accounts.map((account, index): IMizrahiAcct => toAcct(account, index));
 }
 
 /**
