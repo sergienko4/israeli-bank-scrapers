@@ -111,6 +111,17 @@ interface IExtractRule {
   readonly maxChars?: number;
 }
 
+/**
+ * A step's guard (N14): the step runs only when the carry slot holds text
+ * equal to one of `oneOf`, compared without case.
+ */
+interface IRunIf {
+  /** Carry slot the guard reads. */
+  readonly carry: string;
+  /** Texts that let the step run. */
+  readonly oneOf: readonly string[];
+}
+
 /** Fields every login step has, whatever its HTTP method. */
 interface IStepBase {
   readonly name: StepName;
@@ -158,6 +169,8 @@ interface IStepBase {
   readonly failIfPresent?: readonly string[];
   /** Rules per body-extract slot, checked once the body is extracted (N18). */
   readonly extractRules?: Readonly<Record<string, IExtractRule>>;
+  /** Guard checked before the pre-hook; a miss skips the step (N14). */
+  readonly runIf?: IRunIf;
 }
 
 /** A POST step, the default when `method` is omitted: sends the hydrated body. */
@@ -189,6 +202,7 @@ export type {
   IHeaderExtract,
   IOptionalExtract,
   IPostStep,
+  IRunIf,
   IStepBase,
   IStepConfig,
   IStepOutcome,

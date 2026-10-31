@@ -94,6 +94,7 @@ this contract; the build-time checks read both.
 | Bank state codes that change case | `outcome.caseInsensitive` | FlowTypes | [Step outcome](../phases/api-direct-call.md#step-outcome) |
 | Bank error field in a 2xx body | `failIfPresent` | FlowTypes | [Bank-error guard](../phases/api-direct-call.md#bank-error-guard) |
 | Checks on a value the bank sends back | `extractRules` (`IExtractRule`, `ExtractValueType`) | FlowTypes | [Extract rules](../phases/api-direct-call.md#extract-rules) |
+| A step that runs only in some bank states | `runIf` (`IRunIf`) | FlowTypes | [Conditional steps](../phases/api-direct-call.md#conditional-steps) |
 | Step identity and URL | `name` (`StepName`), `urlTag` | FlowTypes | [Step names and URL tags](../phases/api-direct-call.md#step-names-and-url-tags) |
 | OTP prompt (absent: password-only) | `preHook` (`IPreStepHook`, `PreHookReuse`) | EnvelopeTypes, FlowTypes | [Password-only chains](../phases/api-direct-call.md#password-only-chains) |
 | Auth header form | `authScheme` (`AuthScheme`), `authPrefix` | EnvelopeTypes, ApiDirectCallConfig | [Auth-mode policy](../phases/api-direct-call.md#auth-mode-policy) |

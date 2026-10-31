@@ -9,6 +9,7 @@ import type { ITemplateScope } from '../Template/RefResolver.js';
 import type { IRunStepArgs } from './RunStep.js';
 import { runStep } from './RunStep.js';
 import { applyPreHook } from './SmsOtpFlow.prehook.js';
+import { isStepSkipped } from './SmsOtpFlow.runIf.js';
 import type { IMakeRunStepArgs, IReduceStepsArgs, IStepReduceArgs } from './SmsOtpFlow.types.js';
 
 /**
@@ -72,6 +73,23 @@ async function runOneStep(
 }
 
 /**
+ * Run a step unless its `runIf` guard skips it; a skipped step and its
+ * pre-hook never run, and the scope passes on unchanged.
+ * @param args - Reduce args.
+ * @param scope - Current scope.
+ * @param step - Next step config.
+ * @returns Updated scope procedure.
+ */
+async function runGuardedStep(
+  args: IStepReduceArgs,
+  scope: ITemplateScope,
+  step: IApiDirectCallConfig['steps'][number],
+): Promise<Procedure<ITemplateScope>> {
+  if (isStepSkipped(step, scope)) return succeed(scope);
+  return runOneStep(args, scope, step);
+}
+
+/**
  * Reduce every step sequentially starting from startIndex.
  * @param args - Reducer args bundle.
  * @param index - Current iteration index (pass startIndex to begin).
@@ -85,7 +103,7 @@ async function reduceStepsAt(
 ): Promise<Procedure<ITemplateScope>> {
   if (!isOk(acc)) return acc;
   if (index >= args.steps.length) return acc;
-  const next = await runOneStep(args.reduceArgs, acc.value, args.steps[index]);
+  const next = await runGuardedStep(args.reduceArgs, acc.value, args.steps[index]);
   return reduceStepsAt(args, index + 1, next);
 }
 

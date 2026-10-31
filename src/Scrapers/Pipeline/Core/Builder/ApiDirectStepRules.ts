@@ -5,7 +5,8 @@
  * root would fail every answer. Each `extractRules` key (N18) must name a body
  * extract of its step; a `pattern` must be anchored (`^…$`) and compile;
  * `maxChars` must be an integer from 1 to 65536; `oneOf` and `url` must not
- * be empty, since an empty list would refuse every value.
+ * be empty, since an empty list would refuse every value. A `runIf` guard
+ * (N14) needs a carry slot and a non-empty `oneOf`, else its step never runs.
  */
 
 import type {
@@ -129,6 +130,27 @@ function hasEmptyList(rule: IExtractRule): boolean {
 }
 
 /**
+ * Whether a step's guard can never let it run.
+ * @param step - Step config.
+ * @returns True for a blank carry slot or an empty `oneOf`.
+ */
+function hasEmptyGuard(step: IStepConfig): boolean {
+  const guard = step.runIf;
+  if (guard === undefined) return false;
+  return guard.carry.trim() === '' || guard.oneOf.length === 0;
+}
+
+/**
+ * Whether any login or resume step has an empty guard.
+ * @param input - Rule input.
+ * @returns True when a `runIf` names no slot or no text.
+ */
+function hasEmptyRunIf(input: IApiDirectRuleInput): boolean {
+  const steps = allSteps(input.call);
+  return steps.some(hasEmptyGuard);
+}
+
+/**
  * A config check that holds when any extract rule breaks `isBad`.
  * @param isBad - The check on one extract rule.
  * @returns The config check.
@@ -158,6 +180,10 @@ const API_DIRECT_STEP_RULES: readonly IApiDirectRule[] = [
   {
     message: 'steps.extractRules: oneOf and url must not be empty',
     isBroken: anyExtractRule(hasEmptyList),
+  },
+  {
+    message: 'steps.runIf: carry and oneOf must not be empty',
+    isBroken: hasEmptyRunIf,
   },
 ];
 

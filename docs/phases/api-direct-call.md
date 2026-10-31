@@ -315,6 +315,22 @@ extractRules: {
 A refused value fails the step `Generic` with `<step> extract <slot> invalid`,
 before any later step or OTP prompt. The message never names the value.
 
+### Conditional steps
+
+Some banks ask for an SMS code only on some logins. A step can carry a
+`runIf` guard (`IRunIf`) naming a carry slot and the texts that let it run:
+
+```ts
+runIf: { carry: 'state', oneOf: ['logonotp'] },
+```
+
+The step reducer calls `isStepSkipped` (in `Flow/SmsOtpFlow.runIf.ts`) before
+the step's pre-hook. The step runs only when the slot holds text equal to one
+of `oneOf`, compared without case. A false guard, or a slot that is missing or
+not text, skips the step: its pre-hook never asks for a code, no request is
+sent, and the scope passes to the next step unchanged. The debug log names the
+skipped step, never the slot's value.
+
 ### Session-transport fields
 
 Some banks keep the session in cookies shared by sibling hosts, and answer
@@ -399,6 +415,8 @@ from what it extracted:
   ([Client cookies](../architecture/pipeline.md#client-cookies)).
 - `extractRules` checks a body extract's type, text, length or URL before it
   reaches carry ([Extract rules](#extract-rules)).
+- `runIf` skips the step, pre-hook included, unless a carry slot holds one of
+  the listed texts ([Conditional steps](#conditional-steps)).
 - `omitBankText: true` on the config keeps reply text out of a missed extract
   and records a length-only hint for `error_code` in login diagnostics
   ([Bank text in failures](#bank-text-in-failures)).
@@ -454,6 +472,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | an `extractRules` `pattern` that does not start with `^`, end with `$` and compile with the `u` flag                                  | `steps.extractRules.pattern: must be an anchored regex`                  |
 | an `extractRules` `maxChars` that is not an integer from 1 to 65536                                                                   | `steps.extractRules.maxChars: must be an integer from 1 to 65536`        |
 | an `extractRules` `oneOf` or `url` list that is empty                                                                                 | `steps.extractRules: oneOf and url must not be empty`                    |
+| a login or resume step whose `runIf` has a blank `carry` or an empty `oneOf`                                                          | `steps.runIf: carry and oneOf must not be empty`                         |
 | a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |
 | a login or resume step with `encoding`, without `headless.nativeFetch: true`                                                          | `steps.encoding: not allowed without headless.nativeFetch`               |
 | `headless.cookieDomains`, `redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, on an api-direct or node-tls bank | `headless.<field>: not allowed without headless.nativeFetch` |

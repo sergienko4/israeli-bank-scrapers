@@ -155,3 +155,40 @@ describe('validateApiDirectConfig — extractRules', () => {
     expect(result).toEqual({ success: true, value: true });
   });
 });
+
+const RUN_IF_MSG = 'steps.runIf: carry and oneOf must not be empty';
+
+/**
+ * A step guarded by `runIf`.
+ * @param runIf - The guard.
+ * @returns Step config.
+ */
+function runIfStep(runIf: IStepConfig['runIf']): IStepConfig {
+  return { name: 'bind', urlTag: 'auth.bind', body: { shape: {} }, extractsToCarry: {}, runIf };
+}
+
+describe('validateApiDirectConfig — runIf', () => {
+  it.each<[string, IStepConfig['runIf']]>([
+    ['a blank carry slot', { carry: ' ', oneOf: ['logonotp'] }],
+    ['an empty oneOf', { carry: 'state', oneOf: [] }],
+  ])('%s → fails the build', (_label, runIf) => {
+    const step = runIfStep(runIf);
+    const input = runOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({ success: false, errorMessage: RUN_IF_MSG });
+  });
+
+  it('checks resume steps too', () => {
+    const step = runIfStep({ carry: 'state', oneOf: [] });
+    const input = resumeOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({ success: false, errorMessage: RUN_IF_MSG });
+  });
+
+  it('a sound guard passes', () => {
+    const step = runIfStep({ carry: 'state', oneOf: ['logonotp'] });
+    const input = runOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+  });
+});
