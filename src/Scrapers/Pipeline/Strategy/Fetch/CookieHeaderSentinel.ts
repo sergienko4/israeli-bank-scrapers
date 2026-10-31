@@ -51,6 +51,21 @@ export function hasCookieSentinel(headers: Readonly<Record<string, string>>): Ha
 }
 
 /**
+ * The headers whose value is a cookie-echo sentinel.
+ * @param headers - Outgoing header map.
+ * @returns The sentinel headers only.
+ */
+export function cookieSentinelHeaders(
+  headers: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const entries = Object.entries(headers);
+  const sentinels = entries.filter(([, value]): boolean =>
+    value.startsWith(COOKIE_HEADER_SENTINEL_PREFIX),
+  );
+  return Object.fromEntries(sentinels);
+}
+
+/**
  * Resolve one header value: pass through non-sentinels unchanged;
  * substitute the named cookie's value; return `false` to drop the header
  * when the cookie is absent.

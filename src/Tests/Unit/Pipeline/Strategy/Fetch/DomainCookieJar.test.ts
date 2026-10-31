@@ -157,6 +157,14 @@ describe('DomainCookieJar/secure and expiry', () => {
     expect([plain, tls]).toEqual(['', 's=1']);
   });
 
+  it('treats Secure with a value or spacing as Secure', () => {
+    const jar = makeJar();
+    jar.add(WWW, ['s=1; Secure=true; Path=/', 't=2;  SECURE = no ; Path=/']);
+    const plain = jar.header('http://www.bank.example/');
+    const tls = jar.header(WWW);
+    expect([plain, tls]).toEqual(['', 's=1; t=2']);
+  });
+
   it('deletes on Max-Age=0 and on a past Expires', () => {
     const jar = makeJar();
     jar.add(WWW, ['a=1; Path=/', 'b=2; Path=/']);
@@ -206,6 +214,30 @@ describe('DomainCookieJar/session operations', () => {
     jar.importAll([stored({ name: 'new' }), stored({ name: 'gone', expiresEpochS: 1 })]);
     const header = jar.header(WWW);
     expect(header).toBe('new=1');
+  });
+
+  it('imports a domain cookie only for an allow-listed domain', () => {
+    const jar = makeJar();
+    const wide = stored({ name: 'wide', domain: 'example', hostOnly: false });
+    const listed = stored({ name: 'listed', domain: 'bank.example', hostOnly: false });
+    const host = stored({ name: 'host', domain: 'other.example' });
+    jar.importAll([wide, listed, host]);
+    const names = jar.exportAll().map((cookie): string => cookie.name);
+    expect(names).toEqual(['listed', 'host']);
+  });
+
+  it.each([
+    { label: 'a line break in the value', cookie: { name: 'a', value: 'x\ny' } },
+    { label: 'a semicolon in the value', cookie: { name: 'a', value: '1; admin=1' } },
+    { label: 'a character past Latin-1', cookie: { name: 'a', value: '\u05e9' } },
+    { label: 'an equals sign in the name', cookie: { name: 'a=b', value: '1' } },
+    { label: 'an empty name', cookie: { name: '', value: '1' } },
+  ])('refuses a cookie with $label', ({ cookie }) => {
+    const jar = makeJar();
+    jar.set(WWW, cookie);
+    jar.importAll([...jar.exportAll(), stored(cookie)]);
+    const header = jar.header(WWW);
+    expect(header).toBe('');
   });
 
   it('empties the jar on clear', () => {

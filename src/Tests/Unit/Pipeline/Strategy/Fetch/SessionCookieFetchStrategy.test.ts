@@ -377,6 +377,24 @@ describe('withCookieSession across manual redirect hops', () => {
     expect(loginCookies).toBe('wwwonly=1; shared=1');
     expect(hopCookies).toBe('shared=1; hop1=1');
   });
+
+  it('UT-RD-13 resolves each sentinel for the hop URL, never carrying a www-only value to mto', async () => {
+    const mock = serveLogin();
+    const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+    const { transport } = SESSION.withCookieSession(inner, DOMAIN_ARGS);
+    await transport.fetchGet(WWW_LOGIN, { extraHeaders: {} });
+    const extraHeaders = { 'X-Www': '@cookie:wwwonly', 'X-Hop': '@cookie:hop1' };
+    await transport.fetchGet(`${WWW_LOGIN}/go`, { extraHeaders, redirect: TO_MTO });
+    const sent = [1, 2].map((call): Headers => new Headers(mock.mock.calls[call][1].headers));
+    const echoed = sent.map((headers): (string | null)[] => [
+      headers.get('x-www'),
+      headers.get('x-hop'),
+    ]);
+    expect(echoed).toEqual([
+      ['1', null],
+      [null, '1'],
+    ]);
+  });
 });
 
 const DROPPED = '(dropped)';
@@ -445,6 +463,15 @@ describe('withCookieSession resolving @cookie: sentinels', () => {
       MTO_ITEMS,
     );
     expect(sent['X-XSRF-TOKEN']).toBe('%E0%A4%A');
+  });
+
+  it.each([
+    { label: 'a line break', raw: 'a%0Ab' },
+    { label: 'a NUL', raw: 'a%00b' },
+    { label: 'a character past Latin-1', raw: '%D7%A9' },
+  ])('UT-SN-05 sends a value that decodes to $label raw', async ({ raw }) => {
+    const sent = await sendSentinel([`XSRF-TOKEN=${raw}; Domain=bank.example; Path=/`], MTO_ITEMS);
+    expect(sent['X-XSRF-TOKEN']).toBe(raw);
   });
 
   it.each([

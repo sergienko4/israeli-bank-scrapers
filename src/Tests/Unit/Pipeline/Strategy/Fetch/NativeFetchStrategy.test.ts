@@ -441,6 +441,35 @@ describe('NativeFetchStrategy — failure messages never echo the query string',
   });
 });
 
+/** Header refusals as undici throws them: the first one quotes the value. */
+const HEADER_REFUSALS = [
+  {
+    label: 'invalid header value',
+    text: 'Headers.append: "SECRET-VAL\nX" is an invalid header value.',
+  },
+  { label: 'ByteString', text: 'Cannot convert argument to a ByteString: SECRET-VAL' },
+] as const;
+
+describe('NativeFetchStrategy — a refused request header is never echoed', () => {
+  let originalFetch: typeof globalThis.fetch;
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it.each(HEADER_REFUSALS)('$label names the refusal only', async ({ text }) => {
+    const refusal = new TypeError(text);
+    const impl = rejectWith(refusal);
+    installFetchMock(impl);
+    const strategy = new NativeFetchStrategy('https://api.example');
+    const result = await strategy.fetchGet('https://api.example/x', { extraHeaders: {} });
+    const message = isOk(result) ? '' : result.errorMessage;
+    expect(message).toBe('GET https://api.example/x network error: invalid request header');
+  });
+});
+
 describe('NativeFetchStrategy — onSetCookie hook + relative URL resolution', () => {
   let originalFetch: typeof globalThis.fetch;
   beforeEach(() => {

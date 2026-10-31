@@ -119,6 +119,24 @@ function routeResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
   return READERS[answer.reading.responseKind]<T>(answer);
 }
 
+/** Reason for a header fetch refused; the refusal's own text may quote the value. */
+const INVALID_HEADER_REASON = 'invalid request header';
+
+/** Node/undici refusal texts naming a header fetch would not send. */
+const HEADER_REFUSAL_PATTERN = /invalid header|ByteString/i;
+
+/**
+ * The reason a network failure reports: a header refusal by name only,
+ * anything else with the URL scrubbed out.
+ * @param rawReason - The thrown error's message.
+ * @param url - Target URL.
+ * @returns The reason to report.
+ */
+function networkReason(rawReason: string, url: string): string {
+  if (HEADER_REFUSAL_PATTERN.test(rawReason)) return INVALID_HEADER_REASON;
+  return scrubUrlFromText(rawReason, url);
+}
+
 /**
  * Wrap a thrown fetch error into a network-error Procedure.
  * @param error - The caught value, from any realm.
@@ -128,7 +146,7 @@ function routeResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
  */
 function toNetworkFailure(error: unknown, verb: HttpVerb, url: string): Procedure<Response> {
   const rawReason = toError(error).message;
-  const reason = scrubUrlFromText(rawReason, url);
+  const reason = networkReason(rawReason, url);
   const safeUrl = safeUrlForLog(url);
   return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} network error: ${reason}`);
 }
@@ -283,8 +301,8 @@ class NativeFetchStrategy implements IFetchStrategy {
     const url = this.resolveUrl(request.url);
     const policy = opts.redirect ?? this._redirectDefault;
     const reading = this.readingOf(opts);
-    const { onSetCookie, cookieHeaderFor } = opts;
-    const hooks = { onSetCookie, cookieHeaderFor };
+    const { onSetCookie, sessionHeadersFor } = opts;
+    const hooks = { onSetCookie, sessionHeadersFor };
     return { ...request, ...hooks, url, invoke: this._invoke, policy, reading };
   }
 

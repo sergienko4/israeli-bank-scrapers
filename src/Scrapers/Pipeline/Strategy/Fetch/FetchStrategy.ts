@@ -4,7 +4,6 @@
  */
 
 import type { IFetchCallPolicy } from '../../Types/Domain/FetchPolicy.js';
-import type { Option } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
 
 /** HTTP method verbs a node transport sends. */
@@ -27,6 +26,17 @@ type FetchInvoke = (url: string, init: RequestInit, verb: HttpVerb) => Promise<P
  */
 type OnSetCookie = (setCookies: readonly string[], responseUrl?: string) => number;
 
+/**
+ * The headers a session sends to one URL. `owned` names (lower-case) every
+ * header the session controls — `cookie` and each `@cookie:` header; a
+ * redirect hop drops them all and sends only `values`, so a header owned by
+ * the session never carries a value computed for another URL.
+ */
+interface ISessionHeaders {
+  readonly owned: readonly string[];
+  readonly values: Readonly<Record<string, string>>;
+}
+
 /** Optional fetch configuration; the call policy overrides the transport's default. */
 interface IFetchOpts extends IFetchCallPolicy {
   /** Additional HTTP headers to include in the request. */
@@ -38,10 +48,10 @@ interface IFetchOpts extends IFetchCallPolicy {
    */
   readonly onSetCookie?: OnSetCookie;
   /**
-   * The Cookie header the session jar sends to a URL. Set by the session
-   * decorator; the transport calls it once per manual redirect hop.
+   * The session's headers for a URL. Set by the session decorator; the
+   * transport calls it once per manual redirect hop.
    */
-  readonly cookieHeaderFor?: (url: string) => Option<string>;
+  readonly sessionHeadersFor?: (url: string) => ISessionHeaders;
 }
 
 /** Default fetch options — no extra headers. */
@@ -59,5 +69,13 @@ interface IFetchStrategy {
   fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>>;
 }
 
-export type { FetchInvoke, HttpVerb, IFetchOpts, IFetchStrategy, OnSetCookie, PostData };
+export type {
+  FetchInvoke,
+  HttpVerb,
+  IFetchOpts,
+  IFetchStrategy,
+  ISessionHeaders,
+  OnSetCookie,
+  PostData,
+};
 export { DEFAULT_FETCH_OPTS };

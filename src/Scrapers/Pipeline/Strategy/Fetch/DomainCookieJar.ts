@@ -5,6 +5,8 @@
  * order); requests get every applicable cookie, longer path first, then
  * creation order. Adds the session operations the cookie-session port needs:
  * read one cookie, set a client cookie, export, import (replaces) and clear.
+ * Every way in keeps out a cookie that cannot travel as `name=value` in a
+ * Cookie header, and an imported domain cookie outside the allow-list.
  * An unparseable URL neither keeps nor sends a cookie. Never logs values.
  */
 
@@ -13,6 +15,7 @@ import type { Option } from '../../Types/Option.js';
 import { none, some } from '../../Types/Option.js';
 import type { ICookieTarget } from './CookieMatch.js';
 import { cookieApplies, isExpired, nowEpochS, SESSION_EXPIRY, targetOf } from './CookieMatch.js';
+import { isSendableCookie } from './HeaderText.js';
 import type { IOriginCookieJar } from './OriginCookieJar.js';
 import { parseSetCookie } from './SetCookieScope.js';
 
@@ -33,12 +36,26 @@ interface IJarState {
 }
 
 /**
- * Store a cookie under its RFC key, or delete the key when it has expired.
+ * Whether a cookie may enter the jar: sendable as `name=value`, and either
+ * host-only or scoped to an allow-listed domain.
+ * @param state - Jar state.
+ * @param cookie - Candidate cookie.
+ * @returns True when the cookie may be stored.
+ */
+function isStorable(state: IJarState, cookie: IStoredCookie): boolean {
+  if (!isSendableCookie(cookie.name, cookie.value)) return false;
+  return cookie.hostOnly || state.allow.includes(cookie.domain);
+}
+
+/**
+ * Store a cookie under its RFC key, or delete the key when it has expired;
+ * a cookie the jar may not hold is ignored.
  * @param state - Jar state.
  * @param cookie - Cookie to store.
  * @returns The store size.
  */
 function upsert(state: IJarState, cookie: IStoredCookie): number {
+  if (!isStorable(state, cookie)) return state.store.size;
   const key = [cookie.name, cookie.domain, cookie.path].join(';');
   const nowS = nowEpochS();
   if (isExpired(cookie, nowS)) state.store.delete(key);

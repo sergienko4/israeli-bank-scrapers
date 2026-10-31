@@ -5,8 +5,10 @@
  * hops whose Location resolves to an allowed URL, at most `maxHops` times.
  * Every hop is a body-less GET through the same transport seam, so each hop
  * keeps the per-request cap. A hop's Set-Cookie lines are filed under the hop
- * URL before the next hop is built, and each hop's Cookie header is computed
- * for the hop URL — the first request's header is never reused. Location
+ * URL before the next hop is built. Each hop starts from the previous hop's
+ * headers, drops every header the session owns (and, across origins, the
+ * credentials headers) and adds the session's headers for the hop URL — a
+ * value computed for another URL is never reused. Location
  * values are never logged and never put in a failure message.
  */
 
@@ -18,7 +20,7 @@ import type { Option } from '../../Types/Option.js';
 import { none, some } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
-import type { FetchInvoke, HttpVerb, OnSetCookie } from './FetchStrategy.js';
+import type { FetchInvoke, HttpVerb, ISessionHeaders, OnSetCookie } from './FetchStrategy.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 import { matchesAnyUrlRule } from './UrlRule.js';
 
@@ -32,7 +34,7 @@ interface IRedirectRun {
   readonly invoke: FetchInvoke;
   readonly policy: RedirectPolicy;
   readonly onSetCookie?: OnSetCookie;
-  readonly cookieHeaderFor?: (url: string) => Option<string>;
+  readonly sessionHeadersFor?: (url: string) => ISessionHeaders;
 }
 
 /** The response that ended a run and the URL its Set-Cookie lines belong to. */
@@ -60,6 +62,12 @@ type Sender = (run: IRedirectRun) => Promise<Procedure<IRunEnd>>;
 
 /** Redirect statuses a manual policy may follow. */
 const FOLLOWED_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
+
+/** Credentials headers a hop to another origin never carries (Fetch spec). */
+const CROSS_ORIGIN_DROPPED = ['authorization', 'proxy-authorization'] as const;
+
+/** Session headers of a run without a session: no Cookie header on any hop. */
+const NO_SESSION: ISessionHeaders = { owned: ['cookie'], values: {} };
 
 /**
  * Whether a status is a redirect.
@@ -143,15 +151,20 @@ const FIXED_SENDERS: Readonly<Record<'follow' | 'reject', Sender>> = {
 };
 
 /**
- * Hop headers: the first request's, minus its Cookie, plus the hop's own.
- * @param init - The first request's init.
- * @param cookie - Cookie header for the hop URL, if any.
+ * Hop headers: the previous request's, minus every session-owned header and,
+ * across origins, minus the credentials headers; plus the session's headers
+ * for the hop URL.
+ * @param hop - The request that redirected.
+ * @param target - The hop target.
+ * @param session - The session's headers for the hop URL.
  * @returns Header record for the hop.
  */
-function hopHeaders(init: RequestInit, cookie: Option<string>): Record<string, string> {
-  const headers = new Headers(init.headers);
-  headers.delete('cookie');
-  if (cookie.has) headers.set('cookie', cookie.value);
+function hopHeaders(hop: IHop, target: URL, session: ISessionHeaders): Record<string, string> {
+  const headers = new Headers(hop.init.headers);
+  const isCrossOrigin = new URL(hop.url).origin !== target.origin;
+  const dropped = isCrossOrigin ? [...session.owned, ...CROSS_ORIGIN_DROPPED] : session.owned;
+  for (const name of dropped) headers.delete(name);
+  for (const [name, value] of Object.entries(session.values)) headers.set(name, value);
   return Object.fromEntries(headers);
 }
 
@@ -180,8 +193,8 @@ function hopTarget(response: Response, hop: IHop, rules: readonly IUrlRule[]): O
  */
 function nextHop(run: IRedirectRun, hop: IHop, target: URL): IHop {
   const url = target.href;
-  const cookie = run.cookieHeaderFor ? run.cookieHeaderFor(url) : none();
-  const headers = hopHeaders(run.init, cookie);
+  const session = run.sessionHeadersFor ? run.sessionHeadersFor(url) : NO_SESSION;
+  const headers = hopHeaders(hop, target, session);
   const init: RequestInit = { method: 'GET', headers, redirect: 'manual' };
   return { url, init, verb: 'GET', hopsLeft: hop.hopsLeft - 1 };
 }

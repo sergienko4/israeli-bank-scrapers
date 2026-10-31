@@ -3284,9 +3284,10 @@ export default tseslint.config(
   // 20-statement per-function cap, and §7 turns the file-size guard off
   // there. The browserless card transport adds four Fetch modules
   // (CookieJar, OriginCookieJar, SessionCookieFetchStrategy,
-  // HeadlessNativeFetchStrategy) and the session transport adds eight
+  // HeadlessNativeFetchStrategy) and the session transport adds nine
   // (CookieMatch, SetCookieScope, DomainCookieJar, UrlRule,
-  // RedirectFollow, StatusPolicy, DocumentResponse, ResponseHeaderSink),
+  // RedirectFollow, StatusPolicy, DocumentResponse, ResponseHeaderSink,
+  // HeaderText),
   // all written fresh to
   // the canonical caps — so, per `eslint-rules-guidlines.md` §1, this
   // block pins exactly those files to the three-rule lock §19.0 sets for
@@ -3294,7 +3295,7 @@ export default tseslint.config(
   // lines per file). Flat
   // config is last-wins and this block sits AFTER §19.1, so the strict
   // caps win for these paths while the rest of Strategy/Fetch keeps its
-  // grandfather. §4 (narrow, never revert): scope is the twelve new files
+  // grandfather. §4 (narrow, never revert): scope is the thirteen new files
   // only. 150 is justified: the largest (HeadlessNativeFetchStrategy)
   // measures well under it (skipBlankLines + skipComments).
   //
@@ -3316,6 +3317,7 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Strategy/Fetch/StatusPolicy.ts',
       'src/Scrapers/Pipeline/Strategy/Fetch/DocumentResponse.ts',
       'src/Scrapers/Pipeline/Strategy/Fetch/ResponseHeaderSink.ts',
+      'src/Scrapers/Pipeline/Strategy/Fetch/HeaderText.ts',
       'src/Scrapers/Pipeline/EslintCanaries/fetch-transport-fn-over-cap.canary.ts',
       'src/Scrapers/Pipeline/EslintCanaries/fetch-transport-file-over-cap.canary.ts',
     ],

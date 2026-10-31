@@ -9,12 +9,11 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import type { ISessionHeaders } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 import type { IRedirectRun } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/RedirectFollow.js';
 import { sendUnderPolicy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/RedirectFollow.js';
 import { safeUrlForLog } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/SafeUrlForLog.js';
 import type { IManualRedirect } from '../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
-import type { Option } from '../../../../../Scrapers/Pipeline/Types/Option.js';
-import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
@@ -187,11 +186,11 @@ describe('sendUnderPolicy — manual hops', () => {
 
   it("replaces the first request's Cookie header with the hop's own", async () => {
     const invoke = serve([redirect(302, HOP_1), redirect(302, HOP_2), ok()]);
-    const cookieHeaderFor = jest.fn((url: string): Option<string> => {
-      if (url === HOP_1) return some('hop=1');
-      return none();
+    const sessionHeadersFor = jest.fn((url: string): ISessionHeaders => {
+      if (url === HOP_1) return { owned: ['cookie'], values: { cookie: 'hop=1' } };
+      return { owned: ['cookie'], values: {} };
     });
-    const run = makeRun(invoke, { cookieHeaderFor });
+    const run = makeRun(invoke, { sessionHeadersFor });
     await sendUnderPolicy(run);
     const firstCookie = sentHeaders(invoke, 1).get('cookie');
     const secondHop = sentHeaders(invoke, 2);
@@ -208,6 +207,54 @@ describe('sendUnderPolicy — manual hops', () => {
     await sendUnderPolicy(run);
     const hopCookie = sentHeaders(invoke, 1).get('cookie');
     expect(hopCookie).toBeNull();
+  });
+
+  it('re-resolves every session-owned header for each hop URL', async () => {
+    const invoke = serve([redirect(302, HOP_1), redirect(302, HOP_2), ok()]);
+    const owned = ['cookie', 'x-xsrf-token'];
+    /**
+     * The session's headers per hop: a token for HOP_1 only.
+     * @param url - Hop URL.
+     * @returns The owned names and the values for the URL.
+     */
+    const sessionHeadersFor = (url: string): ISessionHeaders => {
+      if (url === HOP_1) return { owned, values: { 'x-xsrf-token': 'mto-token' } };
+      return { owned, values: {} };
+    };
+    const headers = { 'X-XSRF-TOKEN': 'www-token', 'x-caller': 'kept' };
+    const run = makeRun(invoke, { sessionHeadersFor, init: { method: 'GET', headers } });
+    await sendUnderPolicy(run);
+    const firstHop = sentHeaders(invoke, 1);
+    const secondHop = sentHeaders(invoke, 2);
+    const tokens = [firstHop.get('x-xsrf-token'), secondHop.get('x-xsrf-token')];
+    const callerHeader = secondHop.get('x-caller');
+    expect(tokens).toEqual(['mto-token', null]);
+    expect(callerHeader).toBe('kept');
+  });
+
+  it('drops Authorization on a cross-origin hop and never restores it', async () => {
+    const invoke = serve([redirect(302, HOP_1), redirect(302, HOP_2), ok()]);
+    const headers = { Authorization: 'Bearer T', 'Proxy-Authorization': 'Basic P' };
+    const run = makeRun(invoke, { init: { method: 'GET', headers } });
+    await sendUnderPolicy(run);
+    const hops = [sentHeaders(invoke, 1), sentHeaders(invoke, 2)];
+    const credentials = hops.map((hop): (string | null)[] => [
+      hop.get('authorization'),
+      hop.get('proxy-authorization'),
+    ]);
+    expect(credentials).toEqual([
+      [null, null],
+      [null, null],
+    ]);
+  });
+
+  it('keeps Authorization on a same-origin hop', async () => {
+    const invoke = serve([redirect(302, HOP_2), ok()]);
+    const init = { method: 'GET', headers: { Authorization: 'Bearer T' } };
+    const run = makeRun(invoke, { url: HOP_1, init });
+    await sendUnderPolicy(run);
+    const hopAuth = sentHeaders(invoke, 1).get('authorization');
+    expect(hopAuth).toBe('Bearer T');
   });
 
   it('files each hop Set-Cookie under the hop URL before the next hop is built', async () => {
@@ -230,11 +277,11 @@ describe('sendUnderPolicy — manual hops', () => {
      * @param url - Hop URL.
      * @returns No header.
      */
-    const cookieHeaderFor = (url: string): Option<string> => {
+    const sessionHeadersFor = (url: string): ISessionHeaders => {
       events.push(`header ${url}`);
-      return none();
+      return { owned: ['cookie'], values: {} };
     };
-    const run = makeRun(invoke, { onSetCookie, cookieHeaderFor });
+    const run = makeRun(invoke, { onSetCookie, sessionHeadersFor });
     await sendUnderPolicy(run);
     const expected = [`set a=1 ${START}`, `header ${HOP_1}`, `set b=2 ${HOP_1}`, `header ${HOP_2}`];
     expect(events).toEqual(expected);

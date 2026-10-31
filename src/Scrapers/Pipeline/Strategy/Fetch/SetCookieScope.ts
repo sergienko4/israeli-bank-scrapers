@@ -70,14 +70,15 @@ function pathOf(line: string, requestPath: string): string {
 }
 
 /**
- * Whether a value-less attribute such as `Secure` is present.
+ * Whether a value-less attribute such as `Secure` is present; an attribute
+ * is named by the text before any `=` (RFC 6265 §5.2), so `Secure=1` counts.
  * @param line - Raw Set-Cookie line.
  * @param flag - Lower-case attribute name.
  * @returns True when present.
  */
 function hasFlag(line: string, flag: string): boolean {
   const attributes = line.split(';').slice(1);
-  const names = attributes.map((part): string => part.trim().toLowerCase());
+  const names = attributes.map((part): string => part.split('=')[0].trim().toLowerCase());
   return names.includes(flag);
 }
 
