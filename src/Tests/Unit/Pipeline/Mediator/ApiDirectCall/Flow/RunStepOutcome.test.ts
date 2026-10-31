@@ -95,6 +95,43 @@ describe('judgeStepOutcome', () => {
   });
 });
 
+/** N13 — bank states matched without case; config lists in mixed case. */
+const CASELESS: IStepOutcome = {
+  codePointer: '/state',
+  successCodes: ['logonotp', 'LandPage'],
+  failureMap: { Locked: ScraperErrorTypes.AccountBlocked },
+  defaultFailure: ScraperErrorTypes.Generic,
+  caseInsensitive: true,
+};
+
+describe('judgeStepOutcome — caseInsensitive', () => {
+  const step: IStepConfig = { ...PLAIN_STEP, outcome: CASELESS };
+
+  it.each<[string, JsonValue, Record<string, unknown>]>([
+    ['a bank state in another case', { state: 'LogonOTP' }, { success: true }],
+    ['a config success code in another case', { state: 'landpage' }, { success: true }],
+    [
+      'a mapped state in another case',
+      { state: 'LOCKED' },
+      {
+        success: false,
+        errorType: ScraperErrorTypes.AccountBlocked,
+        errorMessage: 'login outcome locked',
+      },
+    ],
+    ['an unmapped state', { state: 'Reissue' }, UNMAPPED],
+  ])('judges %s', (_label, resp, shape) => {
+    const judged = judgeStepOutcome(step, resp);
+    expect(judged).toMatchObject(shape);
+  });
+
+  it('keeps matching exact without the flag', () => {
+    const exact: IStepOutcome = { ...CASELESS, caseInsensitive: false };
+    const judged = judgeStepOutcome({ ...PLAIN_STEP, outcome: exact }, { state: 'LogonOTP' });
+    expect(judged).toMatchObject(UNMAPPED);
+  });
+});
+
 describe('SmsOtpFlow with a step outcome', () => {
   it('fails with the mapped type before the extracts run', async () => {
     const bus = makeStubMediator({ responses: [succeed({ status: 7 })], captures: [] });

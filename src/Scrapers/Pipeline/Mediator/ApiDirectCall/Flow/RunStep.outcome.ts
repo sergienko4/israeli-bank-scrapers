@@ -2,7 +2,9 @@
  * Step outcome policy. Some banks answer a refused login with HTTP 200 and a
  * status code in the body. A step that declares `outcome` has that code
  * judged after the 2xx and before its extracts run, so a wrong password fails
- * with its own error type instead of as a missing extract.
+ * with its own error type instead of as a missing extract. A
+ * `caseInsensitive` policy lower-cases the code, the success codes and the
+ * failure-map keys before matching.
  */
 
 import type { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
@@ -55,6 +57,31 @@ function judgeCode(name: string, outcome: IStepOutcome, code: string): Procedure
 }
 
 /**
+ * Lower-case one code.
+ * @param code - Code from the body or the config.
+ * @returns The code in lower case.
+ */
+function lowerCode(code: string): string {
+  return code.toLowerCase();
+}
+
+/**
+ * The policy with its success codes and failure-map keys lower-cased.
+ * @param outcome - A `caseInsensitive` policy.
+ * @returns The lower-cased policy.
+ */
+function caselessOutcome(outcome: IStepOutcome): IStepOutcome {
+  const successCodes = outcome.successCodes.map(lowerCode);
+  const entries = Object.entries(outcome.failureMap);
+  const lowered = entries.map(([code, type]): [string, ScraperErrorTypes] => [
+    lowerCode(code),
+    type,
+  ]);
+  const failureMap = Object.fromEntries(lowered);
+  return { ...outcome, successCodes, failureMap };
+}
+
+/**
  * Judge a step's 2xx body against its outcome policy, if it declares one.
  * @param step - The step that just answered.
  * @param resp - Parsed 2xx response body.
@@ -65,7 +92,10 @@ function judgeStepOutcome(step: IStepConfig, resp: JsonValue): Procedure<true> {
   if (outcome === undefined) return succeed(true);
   const code = readOutcomeCode(resp, outcome.codePointer);
   if (code === false) return fail(outcome.defaultFailure, `${step.name} outcome missing`);
-  return judgeCode(step.name, outcome, code);
+  if (outcome.caseInsensitive !== true) return judgeCode(step.name, outcome, code);
+  const caseless = caselessOutcome(outcome);
+  const lowered = lowerCode(code);
+  return judgeCode(step.name, caseless, lowered);
 }
 
 export default judgeStepOutcome;

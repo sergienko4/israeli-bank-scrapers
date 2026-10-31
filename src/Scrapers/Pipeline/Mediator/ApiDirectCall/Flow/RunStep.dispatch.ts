@@ -11,6 +11,7 @@ import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { bindStepCookies } from './RunStep.clientCookies.js';
 import { deriveStepCarry } from './RunStep.derive.js';
+import { guardBankError } from './RunStep.failIfPresent.js';
 import { sanitiseStepFailure } from './RunStep.failure.js';
 import { fireStep } from './RunStep.fire.js';
 import { carryHeaders } from './RunStep.headerCarry.js';
@@ -86,14 +87,16 @@ function collectCarry(bundle: IDispatchBundle, resp: JsonValue): Procedure<Carry
 }
 
 /**
- * Judge the step's outcome, fold the response carry into the prepared scope,
- * then derive the step's own slots. A refused outcome fails before any
- * extract runs.
+ * Guard against a bank error, judge the step's outcome, fold the response
+ * carry into the prepared scope, then derive the step's own slots. A bank
+ * error fails before the outcome; a refused outcome before any extract.
  * @param bundle - Dispatch bundle.
  * @param resp - Successful response JSON.
  * @returns Procedure with the merged scope.
  */
 function extractAndMerge(bundle: IDispatchBundle, resp: JsonValue): Procedure<ITemplateScope> {
+  const guarded = guardBankError(bundle.fireScope.step, resp);
+  if (!isOk(guarded)) return guarded;
   const judged = judgeStepOutcome(bundle.fireScope.step, resp);
   if (!isOk(judged)) return judged;
   const carry = collectCarry(bundle, resp);

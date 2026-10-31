@@ -64,6 +64,8 @@ interface IStepOutcome {
   readonly failureMap: Readonly<Record<string, ScraperErrorTypes>>;
   /** Failure type for any other code, or when the code is missing. */
   readonly defaultFailure: ScraperErrorTypes;
+  /** Match the code, success codes and failure-map keys lower-cased (N13). */
+  readonly caseInsensitive?: boolean;
 }
 
 /**
@@ -129,6 +131,8 @@ interface IStepBase {
   readonly seal?: ISealFieldConfig;
   /** Client cookies (name → ref) set in the domain jar before the request (N11). */
   readonly setCookies?: Readonly<Record<string, RefToken>>;
+  /** Body pointers that, present and truthy, fail the step `<step> bank error` (N20). */
+  readonly failIfPresent?: readonly string[];
 }
 
 /** A POST step, the default when `method` is omitted: sends the hydrated body. */

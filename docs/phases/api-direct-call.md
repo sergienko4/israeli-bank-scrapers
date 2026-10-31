@@ -261,6 +261,26 @@ other code, and `<step> outcome missing` when there is none. An unmapped code
 is never echoed: it comes from the bank, not the config, and may carry a
 secret. A step without `outcome` behaves as before.
 
+`caseInsensitive: true` lower-cases the code, the `successCodes` and the
+`failureMap` keys before matching, for banks whose state codes change case
+(`LogonOTP` matches `logonotp`). A mapped code is then named in lower case.
+
+### Bank-error guard
+
+Some banks answer a failed step with HTTP 200 and an error field instead of a
+status code. A step that declares `failIfPresent` (a list of body pointers)
+has them checked by `guardBankError` right after the body is parsed, before
+its `outcome` and before its extracts:
+
+```ts
+failIfPresent: ['/error', '/Error', '/errors'],
+```
+
+Any pointer that resolves to a truthy scalar or a non-empty array or record
+fails the step `Generic` with `<step> bank error`, whatever the outcome's
+`defaultFailure` is. Absent, `null`, `false`, `0`, `''`, `[]` and `{}` are not
+errors. The message never echoes the bank's value.
+
 An outcome failure in a warm resume is a failure like any other, so the
 resolver still falls back to one cold flow. When the cold flow also fails, its
 own failure type is the one reported.
@@ -366,7 +386,8 @@ lists the login steps and any durable resume steps. The session-transport
 rules, `API_DIRECT_TRANSPORT_RULES` in `Core/Builder/ApiDirectTransportRules.ts`,
 run after the core rules, then the form-body rules, `API_DIRECT_FORM_RULES` in
 `Core/Builder/ApiDirectFormRules.ts`, then the seal rules,
-`API_DIRECT_SEAL_RULES` in `Core/Builder/ApiDirectSealRules.ts`. The native-fetch rules, `API_DIRECT_NATIVE_RULES` in
+`API_DIRECT_SEAL_RULES` in `Core/Builder/ApiDirectSealRules.ts`, then the
+step-guard rules, `API_DIRECT_STEP_RULES` in `Core/Builder/ApiDirectStepRules.ts`. The native-fetch rules, `API_DIRECT_NATIVE_RULES` in
 `Core/Builder/ApiDirectNativeRules.ts`, run last: the session-transport fields
 act only on the headless native fetch, and any other transport would ignore
 them and run unguarded, so naming one off native fetch fails the build. Its
@@ -396,6 +417,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `seal` on a step that is not a `POST` with a record body                                                                            | `steps.seal: needs a POST step with a record body`                       |
 | a `seal` whose `writeTo` is not a JSON pointer                                                                                        | `steps.seal.writeTo: must be a JSON pointer`                             |
 | a `seal` whose `params` are out of range (exponent, seed, block size or printable text)                                               | `steps.seal.params: out of range`                                        |
+| a login or resume step with a `failIfPresent` entry that is not a JSON pointer below the body root                                    | `steps.failIfPresent: each entry must be a JSON pointer`                 |
 | a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |
 | a login or resume step with `encoding`, without `headless.nativeFetch: true`                                                          | `steps.encoding: not allowed without headless.nativeFetch`               |
 | `headless.cookieDomains`, `redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, on an api-direct or node-tls bank | `headless.<field>: not allowed without headless.nativeFetch` |
@@ -486,7 +508,8 @@ message.
 A step's `name` is a `StepName` and its `urlTag` is a `WKUrlGroup`. Both are
 closed unions, so a misspelt value fails type-check. The flow never branches
 on a name: it labels the step in failure messages (`<step> HTTP <status>`,
-`<step> outcome <code>`, `<step> outcome unmapped`) and in the per-step log
+`<step> outcome <code>`, `<step> outcome unmapped`, `<step> bank error`) and
+in the per-step log
 context. The URL comes from the bank's `headless.paths`, keyed by
 `AuthPathKey`; the registry seeder registers each entry under the same key,
 and the step's `urlTag` selects it.
@@ -672,6 +695,7 @@ Where each piece lives, for maintainers:
 | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `INVALID_PASSWORD`                                              | Bank rejected credentials                                                                                                                                                                                                                                                                 |
 | any type a step's `failureMap` names, else its `defaultFailure` | The step's 2xx body reported a non-success [outcome](#step-outcome) code                                                                                                                                                                                                                  |
+| `GENERIC`                                                       | The step's 2xx body held a bank error at a `failIfPresent` pointer (`<step> bank error`) — see [Bank-error guard](#bank-error-guard)                                                                                                                                                      |
 | `INVALID_OTP`                                                   | Wrong code                                                                                                                                                                                                                                                                                |
 | `TWO_FACTOR_RETRIEVER_MISSING`                                  | OTP step reached without callback                                                                                                                                                                                                                                                         |
 | `INVALID_PHONE_NUMBER`                                          | `phoneNumber` cannot be normalised to the bank's wire format — see [Phone normaliser](#phone-normaliser)                                                                                                                                                                                  |

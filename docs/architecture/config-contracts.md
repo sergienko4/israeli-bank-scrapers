@@ -91,6 +91,8 @@ this contract; the build-time checks read both.
 | Extra request headers per step | `headers` | FlowTypes | [Step headers](../phases/api-direct-call.md#step-headers) |
 | Response fields that may be absent | `optionalExtractsToCarry` (`IOptionalExtract`) | FlowTypes | [Optional extracts](../phases/api-direct-call.md#optional-extracts) |
 | Login refused with HTTP 200 | `outcome` (`IStepOutcome`) | FlowTypes | [Step outcome](../phases/api-direct-call.md#step-outcome) |
+| Bank state codes that change case | `outcome.caseInsensitive` | FlowTypes | [Step outcome](../phases/api-direct-call.md#step-outcome) |
+| Bank error field in a 2xx body | `failIfPresent` | FlowTypes | [Bank-error guard](../phases/api-direct-call.md#bank-error-guard) |
 | Step identity and URL | `name` (`StepName`), `urlTag` | FlowTypes | [Step names and URL tags](../phases/api-direct-call.md#step-names-and-url-tags) |
 | OTP prompt (absent: password-only) | `preHook` (`IPreStepHook`, `PreHookReuse`) | EnvelopeTypes, FlowTypes | [Password-only chains](../phases/api-direct-call.md#password-only-chains) |
 | Auth header form | `authScheme` (`AuthScheme`), `authPrefix` | EnvelopeTypes, ApiDirectCallConfig | [Auth-mode policy](../phases/api-direct-call.md#auth-mode-policy) |
