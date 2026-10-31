@@ -15,7 +15,7 @@ import type {
 } from '../../Types/Domain/FetchPolicy.js';
 import { toError } from '../../Types/ErrorUtils.js';
 import { describeJsonParseFailure } from '../../Types/JsonParseFailure.js';
-import type { Procedure } from '../../Types/Procedure.js';
+import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { readDocument } from './DocumentResponse.js';
 import type {
@@ -34,6 +34,7 @@ import { emitResponseHeaders } from './ResponseHeaderSink.js';
 import { safeUrlForLog, scrubUrlFromText } from './SafeUrlForLog.js';
 import type { IAnswer } from './StatusPolicy.js';
 import { applyStatusPolicy } from './StatusPolicy.js';
+import { readText } from './TextResponse.js';
 
 type FullyQualifiedUrl = Brand<string, 'FullyQualifiedUrl'>;
 
@@ -84,11 +85,23 @@ async function parseJsonResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
   }
 }
 
-/** Reader per response kind; both run after WAF classification and the status policy. */
+/** Reader per response kind; each runs after WAF classification and the status policy. */
 const READERS: Readonly<Record<ResponseKind, Reader>> = {
   json: parseJsonResponse,
   document: readDocument,
+  text: readText,
 };
+
+/**
+ * Fail a POST whose body its writer refused, before any request.
+ * @param url - Resolved request URL.
+ * @param refusal - The writer's fixed refusal.
+ * @returns The refusal, naming the request URL only.
+ */
+function refuseBody<T>(url: string, refusal: IProcedureFailure): Procedure<T> {
+  const safeUrl = safeUrlForLog(url);
+  return fail(refusal.errorType, `POST ${safeUrl} ${refusal.errorMessage}`);
+}
 
 /**
  * Classify a failed or challenged answer into a Procedure failure.
@@ -280,7 +293,8 @@ class NativeFetchStrategy implements IFetchStrategy {
 
   /**
    * POST a body via the configured transport, written under the call's
-   * body encoding (JSON when it names none).
+   * body encoding (JSON when it names none). A body its writer refuses
+   * fails before any request.
    * @param url - Target URL (absolute, or relative to baseUrl).
    * @param data - POST body.
    * @param opts - Fetch options (caller extraHeaders override defaults).
@@ -288,7 +302,8 @@ class NativeFetchStrategy implements IFetchStrategy {
    */
   public async fetchPost<T>(url: string, data: PostData, opts: IFetchOpts): Promise<Procedure<T>> {
     const written = writePostBody(data, opts.bodyEncoding);
-    if (!isOk(written)) return written;
+    const target = this.resolveUrl(url);
+    if (!isOk(written)) return refuseBody<T>(target, written);
     const merged = overlayHeaders(this._verbDefaults.POST, opts.extraHeaders);
     const headers = withBodyContentType(merged, written.value);
     const init: RequestInit = { method: 'POST', headers, body: written.value.body };

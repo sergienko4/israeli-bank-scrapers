@@ -30,11 +30,21 @@ interface IManualRedirect {
  */
 type RedirectPolicy = 'follow' | 'reject' | IManualRedirect;
 
-/** `json` parses the body (the default); `document` reads it as text and discards it. */
-type ResponseKind = 'json' | 'document';
+/**
+ * `json` parses the body (the default); `document` reads it as text and
+ * discards it; `text` hands it over as `{ text }`, up to 65 536 chars.
+ */
+type ResponseKind = 'json' | 'document' | 'text';
 
-/** `json` sends the POST body as JSON (the default); `form` sends a flat record URL-encoded. */
-type BodyEncoding = 'json' | 'form';
+/**
+ * `json` sends the POST body as JSON (the default); `form` sends a flat record
+ * URL-encoded; `form-latin1` does the same over ISO-8859-1; `text` sends the
+ * one string field of a `{ text }` record verbatim, with no content-type.
+ */
+type BodyEncoding = 'json' | 'form' | 'form-latin1' | 'text';
+
+/** Encodings that write a flat record field by field. */
+const FORM_BODY_ENCODINGS: readonly BodyEncoding[] = ['form', 'form-latin1'];
 
 /** `empty` answers `{}` without reading the body; `fail` refuses the call. */
 type StatusAction = 'empty' | 'fail';
@@ -82,6 +92,15 @@ const REDIRECT_REFUSED_REASON = 'redirect refused';
 /** Fixed reason a transport reports for a document missing its marker. */
 const DOCUMENT_UNVERIFIED_REASON = 'document unverified';
 
+/** Fixed reason a transport reports for a `text` answer over its cap. */
+const TEXT_TOO_LONG_REASON = 'text too long';
+
+/** Fixed reason a transport reports for a latin1 form holding a char above U+00FF. */
+const LATIN1_UNENCODABLE_REASON = 'form-latin1 unencodable';
+
+/** Fixed reason a transport reports for a `text` body that is not one string field. */
+const TEXT_BODY_REFUSED_REASON = 'text body not a string';
+
 export type {
   BodyEncoding,
   IFetchCallPolicy,
@@ -94,4 +113,11 @@ export type {
   StatusAction,
   StatusPolicy,
 };
-export { DOCUMENT_UNVERIFIED_REASON, REDIRECT_REFUSED_REASON };
+export {
+  DOCUMENT_UNVERIFIED_REASON,
+  FORM_BODY_ENCODINGS,
+  LATIN1_UNENCODABLE_REASON,
+  REDIRECT_REFUSED_REASON,
+  TEXT_BODY_REFUSED_REASON,
+  TEXT_TOO_LONG_REASON,
+};

@@ -158,7 +158,10 @@ interface IStepBase {
   readonly outcome?: IStepOutcome;
   /** Optional redirect policy for this step; overrides the bank's `redirectPolicy`. */
   readonly redirect?: RedirectPolicy;
-  /** How the step reads its 2xx answer; `json` when absent. A `document` step sees `{}`. */
+  /**
+   * How the step reads its 2xx answer; `json` when absent. A `document` step
+   * sees `{}`; a `text` step sees `{ text }`, so its extracts read `/text`.
+   */
   readonly response?: ResponseKind;
   /** Text a `document` answer must contain, else the step fails `document unverified`. */
   readonly documentMarker?: string;
@@ -182,7 +185,10 @@ interface IStepBase {
 interface IPostStep extends IStepBase {
   readonly method?: 'POST';
   readonly body: IBodyTemplate;
-  /** How the body is written; `json` when absent. A `form` body must be a flat record. */
+  /**
+   * How the body is written; `json` when absent. A `form` or `form-latin1`
+   * body must be a flat record; a `text` body must be exactly `{ text }`.
+   */
   readonly encoding?: BodyEncoding;
 }
 

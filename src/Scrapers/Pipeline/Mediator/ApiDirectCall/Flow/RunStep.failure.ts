@@ -9,7 +9,8 @@
  * below this point and still reads the original message.
  *
  * <p>A policy refusal raised by the transport itself (`HTTP <status>`, a
- * refused redirect, an unverified document) quotes no response text, so the
+ * refused redirect, an unverified document, an over-long text answer, or a
+ * body its writer refused) quotes no response text, so the
  * step keeps that fixed tail; the whole message must have the refusal's
  * shape, so no body text can pass for one.
  *
@@ -22,7 +23,10 @@
 import { isLocalFailureMessage } from '../../../Strategy/Fetch/LocalFailureReasons.js';
 import {
   DOCUMENT_UNVERIFIED_REASON,
+  LATIN1_UNENCODABLE_REASON,
   REDIRECT_REFUSED_REASON,
+  TEXT_BODY_REFUSED_REASON,
+  TEXT_TOO_LONG_REASON,
 } from '../../../Types/Domain/FetchPolicy.js';
 import type { IProcedureFailure } from '../../../Types/Procedure.js';
 import { isWafBlocked } from '../../../Types/Procedure.js';
@@ -31,7 +35,13 @@ import { isWafBlocked } from '../../../Types/Procedure.js';
 const STATUS_MARKER = /\s(\d{3}):\s/;
 
 /** Fixed reasons a transport policy refusal ends with. */
-const REFUSAL_REASONS = `${REDIRECT_REFUSED_REASON}|${DOCUMENT_UNVERIFIED_REASON}`;
+const REFUSAL_REASONS = [
+  REDIRECT_REFUSED_REASON,
+  DOCUMENT_UNVERIFIED_REASON,
+  TEXT_TOO_LONG_REASON,
+  LATIN1_UNENCODABLE_REASON,
+  TEXT_BODY_REFUSED_REASON,
+].join('|');
 
 /** `<VERB> <safeUrl> ` then `HTTP NNN`, a fixed reason, or both — and nothing else. */
 const POLICY_REFUSAL = new RegExp(

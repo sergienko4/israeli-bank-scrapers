@@ -442,6 +442,7 @@ from what it extracted:
 - `redirect` overrides `headless.redirectPolicy` for one step
   ([Redirect policies](../architecture/pipeline.md#redirect-policies)).
 - `response: 'document'` and `documentMarker` read a page instead of JSON;
+  `response: 'text'` reads the answer as `{ text }`, up to 65 536 chars;
   `statusPolicy` decides a 2xx before any body is read
   ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
 - `headerExtractsToCarry` reads a header of the final response; a missing
@@ -449,10 +450,13 @@ from what it extracted:
   ([Response-header carry](../architecture/pipeline.md#response-header-carry)).
 - `deriveCarry` runs once the step's extracts are in scope
   ([Carry derivation](#carry-derivation)).
-- `encoding: 'form'` sends the body as `application/x-www-form-urlencoded`;
-  its shape must be a flat record of `$ref` and scalar `$literal` values
+- `encoding: 'form'` sends the body as `application/x-www-form-urlencoded`,
+  and `encoding: 'form-latin1'` the same over ISO-8859-1; either shape must be
+  a flat record of `$ref` and scalar `$literal` values. `encoding: 'text'`
+  sends the string of a `{ text }` body verbatim, with no content-type
   ([Form bodies](../architecture/pipeline.md#form-bodies)). `isFlatFormBody`
-  guards the hydrated step and the transport against arrays and nested values.
+  guards the hydrated form step and both form writers against arrays and
+  nested values.
 - `seal` writes one credential, sealed under the bank's RSA modulus, at a
   body pointer; neither value reaches carry
   ([Sealed fields](../architecture/pipeline.md#sealed-fields)).
@@ -514,7 +518,8 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a manual `redirect` whose `allow` list is empty                                                                                       | `redirect.allow: must not be empty`                                      |
 | a manual `redirect` whose `maxHops` is not an integer from 1 to 10                                                                    | `redirect.maxHops: must be an integer from 1 to 10`                      |
 | a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`                                                     | `headless.redirectPolicy: must be reject when a step redirects manually` |
-| a form step whose body shape is not a flat record of `$ref` and scalar `$literal` values                                              | `steps.body: a form body must be a flat record`                          |
+| a form step (`form` or `form-latin1`) whose body shape is not a flat record of `$ref` and scalar `$literal` values                    | `steps.body: a form body must be a flat record`                          |
+| a `text` step whose body shape is not exactly `{ text }`                                                                              | `steps.body: a text body must be exactly { text }`                       |
 | a `seal` whose `kind` is not a `SealKind`                                                                                             | `steps.seal.kind: unknown seal kind`                                     |
 | a `seal` on a step that is not a `POST` with a record body                                                                            | `steps.seal: needs a POST step with a record body`                       |
 | a `seal` whose `writeTo` is not a JSON pointer                                                                                        | `steps.seal.writeTo: must be a JSON pointer`                             |
