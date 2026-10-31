@@ -48,7 +48,7 @@ interface ICarryWarmStart extends IWarmStartBase {
 interface ICookieJarWarmStart extends IWarmStartBase {
   readonly kind: 'cookie-jar';
   readonly validation: 'bank-call';
-  /** Provider tag sealed into the token; a token for another provider is skipped. */
+  /** Provider tag encoded into the token; a token for another provider is skipped. */
   readonly provider: string;
   /** Creds field holding the account the token is bound to. */
   readonly accountField: string;

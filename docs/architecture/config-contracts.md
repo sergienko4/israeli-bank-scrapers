@@ -20,7 +20,7 @@ src/Scrapers/Pipeline/Mediator/ApiDirectCall/
 │   ├── SignerTypes.ts        ← root bucket — no intra-cluster deps
 │   ├── CarryTypes.ts         ← deps TemplateTypes
 │   ├── EnvelopeTypes.ts      ← deps TemplateTypes + SignerTypes
-│   ├── FlowTypes.ts          ← deps TemplateTypes + EnvelopeTypes
+│   ├── FlowTypes.ts          ← deps TemplateTypes + SignerTypes + CarryTypes + EnvelopeTypes
 │   └── ApiDirectCallConfig.ts ← composes all five
 ```
 
@@ -40,7 +40,9 @@ flowchart LR
     T --> F
     T --> A
     S --> E
+    S --> F
     S --> A
+    C --> F
     C --> A
     E --> F
     E --> A
@@ -48,8 +50,8 @@ flowchart LR
 ```
 
 `TemplateTypes` and `SignerTypes` are independent roots; every other bucket
-depends on `TemplateTypes`; only `EnvelopeTypes` and `ApiDirectCallConfig`
-depend on `SignerTypes`.
+depends on `TemplateTypes`; `EnvelopeTypes`, `FlowTypes` and
+`ApiDirectCallConfig` depend on `SignerTypes`.
 
 ## What each bucket owns
 
@@ -60,10 +62,10 @@ from (cross-package imports such as `Registry/WK/*` are omitted for brevity).
 | Bucket | Exports | Intra-cluster deps |
 |---|---|---|
 | **TemplateTypes** | `RefToken`, `JsonValueTemplate`, `IBodyTemplate`, `IEnvelopeSelectors` | (none) |
-| **SignerTypes** | `SignerAlgorithm`, `AsymmetricSignerAlgorithm`, `SignerEncoding`, `CanonicalPart`, `ICanonicalStringConfig`, `IAsymmetricSignerConfig`, `IAesSignerConfig`, `IHmacHeaderSignerConfig`, `ISignerConfig`, `ICryptoFieldConfig` | (none) |
-| **CarryTypes** | `IWarmStartConfig`, `ISeedCarrySource`, `IRandomHex16Bootstrap`, `IRandomUuidBootstrap`, `ISha256Prefix16Bootstrap`, `IJwtClaimBootstrap`, `SeedCarryBootstrapKind`, `IDerivedCarry` | TemplateTypes |
+| **SignerTypes** | `SignerAlgorithm`, `AsymmetricSignerAlgorithm`, `SignerEncoding`, `CanonicalPart`, `ICanonicalStringConfig`, `IAsymmetricSignerConfig`, `IAesSignerConfig`, `IHmacHeaderSignerConfig`, `ISignerConfig`, `ICryptoFieldConfig`, `SealKind`, `ISealRsaBlockXorParams`, `ISealFieldConfig` | (none) |
+| **CarryTypes** | `IWarmStartConfig`, `ICookieJarWarmStart`, `ISeedCarrySource`, `IRandomHex16Bootstrap`, `IRandomUuidBootstrap`, `ISha256Prefix16Bootstrap`, `IJwtClaimBootstrap`, `SeedCarryBootstrapKind`, `IDerivedCarry` | TemplateTypes |
 | **EnvelopeTypes** | `IFingerprintConfig`, `AuthScheme`, `IJwtClaimsConfig`, `IProbeConfig`, `IPreStepHook`, `PreHookReuse` | TemplateTypes, SignerTypes |
-| **FlowTypes** | `FlowKind`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract` | TemplateTypes, EnvelopeTypes |
+| **FlowTypes** | `FlowKind`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract`, `IHeaderExtract`, `ExtractValueType`, `IExtractRule`, `IRunIf` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes |
 | **ApiDirectCallConfig** | `IApiDirectCallConfig`, `IPersistentAuthConfig`, `CredRule` | all five above |
 
 Notes:
@@ -73,9 +75,12 @@ Notes:
   `IPreStepHook.cryptoField`.
 - `IPreStepHook` is owned by `EnvelopeTypes`; `FlowTypes.IStepBase.preHook`
   references it.
+- `ISealFieldConfig` is owned by `SignerTypes` and referenced by
+  `FlowTypes.IStepBase.seal`; `IDerivedCarry` is owned by `CarryTypes` and
+  referenced by `FlowTypes.IStepBase.deriveCarry`.
 
 Every file is **≤ 150 effective LoC** (blank and comment lines skipped;
-current max: `FlowTypes.ts` at 59) and is held there by an ESLint guard
+current max: `FlowTypes.ts` at 114) and is held there by an ESLint guard
 (`eslint.config.mjs` §14) plus a canary fixture
 (`EslintCanaries/no-api-direct-call-blob.canary.ts`).
 

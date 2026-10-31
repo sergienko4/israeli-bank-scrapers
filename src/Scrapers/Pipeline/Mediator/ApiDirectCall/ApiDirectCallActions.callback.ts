@@ -5,7 +5,7 @@
  * long-term token and the bearer, so its message may repeat either.
  */
 
-import { toError } from '../../Types/ErrorUtils.js';
+import { errorNameOf } from '../../Types/ErrorUtils.js';
 import { isSome, none, type Option, some } from '../../Types/Option.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import { type IAuthFlowCallback, PHASE_LABEL } from './ApiDirectCallActions.shared.js';
@@ -33,7 +33,7 @@ interface IInvocationBundle {
  * @returns false sentinel for caller propagation.
  */
 function logCallbackThrow(ctx: IPipelineContext, error: unknown): boolean {
-  const errorName = toError(error).name;
+  const errorName = errorNameOf(error);
   ctx.logger.warn({ message: `${PHASE_LABEL} onAuthFlowComplete callback threw ${errorName}` });
   return false;
 }

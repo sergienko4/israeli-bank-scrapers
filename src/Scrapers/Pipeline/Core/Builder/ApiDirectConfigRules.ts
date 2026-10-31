@@ -128,6 +128,51 @@ function isWarmOffStepBoundary(input: IApiDirectRuleInput): boolean {
 }
 
 /**
+ * 'bank-call' trusts its first warm step as the token check, so a `runIf`
+ * guard that skips it would let an unchecked token through.
+ * @param input - Rule input.
+ * @returns True when the 'bank-call' check step has a `runIf` guard.
+ */
+function isBankCallCheckGuarded(input: IApiDirectRuleInput): boolean {
+  const warm = input.call.warmStart;
+  if (warm?.validation !== 'bank-call') return false;
+  const entry = warm.fromStepIndex;
+  return input.call.steps.some(
+    (step, index): boolean => index === entry && step.runIf !== undefined,
+  );
+}
+
+/**
+ * Whether a config text names nothing.
+ * @param text - Config text.
+ * @returns True when empty or only whitespace.
+ */
+function isBlank(text: string): boolean {
+  return text.trim().length === 0;
+}
+
+/**
+ * A cookie-jar token is bound to a provider tag, so the tag must name one.
+ * @param input - Rule input.
+ * @returns True when a cookie-jar warm start has a blank `provider`.
+ */
+function isJarProviderBlank(input: IApiDirectRuleInput): boolean {
+  const jar = cookieJarWarmOf(input.call);
+  return jar !== false && isBlank(jar.provider);
+}
+
+/**
+ * A cookie-jar token is bound to the account in a creds field, so the
+ * field must be named.
+ * @param input - Rule input.
+ * @returns True when a cookie-jar warm start has a blank `accountField`.
+ */
+function isJarAccountFieldBlank(input: IApiDirectRuleInput): boolean {
+  const jar = cookieJarWarmOf(input.call);
+  return jar !== false && isBlank(jar.accountField);
+}
+
+/**
  * A cookie-jar token must fit a ceiling no wider than the one every stored
  * warm token already passes.
  * @param input - Rule input.
@@ -178,6 +223,12 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
     message: 'warmStart.fromStepIndex: must be a whole number up to the step count',
     isBroken: isWarmOffStepBoundary,
   },
+  {
+    message: 'warmStart.fromStepIndex: a bank-call check step must not have runIf',
+    isBroken: isBankCallCheckGuarded,
+  },
+  { message: 'warmStart.provider: must not be blank', isBroken: isJarProviderBlank },
+  { message: 'warmStart.accountField: must not be blank', isBroken: isJarAccountFieldBlank },
   {
     message: 'warmStart.maxTokenChars: must be an integer from 1 to 16384',
     isBroken: isJarCeilingOutOfRange,

@@ -106,5 +106,35 @@ function toError(error: unknown): Error {
   return new Error(safeStringify(error));
 }
 
+/** A name safe to log: a class-like identifier ending in Error or Exception. */
+const LOGGABLE_ERROR_NAME = /^[A-Z][A-Za-z0-9]{0,63}(?:Error|Exception)$/u;
+
+/**
+ * Read a caught value's `name` without letting a getter throw.
+ * @param error - The unknown caught value.
+ * @returns The name, or '' when it is not a readable string.
+ */
+function readErrorName(error: unknown): string {
+  try {
+    const name: unknown = toError(error).name;
+    return typeof name === 'string' ? name : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * The name of a caught value, safe to log. A thrown value sets its own
+ * `name`, so a name that is not a plain class name — one that could carry a
+ * token or a code — is reported as `'Error'`.
+ * @param error - The unknown caught value.
+ * @returns The class name (e.g. `TypeError`), or `'Error'`.
+ */
+function errorNameOf(error: unknown): string {
+  const name = readErrorName(error);
+  if (LOGGABLE_ERROR_NAME.test(name)) return name;
+  return 'Error';
+}
+
 export default toErrorMessage;
-export { toError, toErrorMessage, UNREPRESENTABLE_ERROR };
+export { errorNameOf, toError, toErrorMessage, UNREPRESENTABLE_ERROR };

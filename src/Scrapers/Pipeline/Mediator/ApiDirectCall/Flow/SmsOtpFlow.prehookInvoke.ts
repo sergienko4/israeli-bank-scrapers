@@ -7,7 +7,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { toError } from '../../../Types/ErrorUtils.js';
+import { errorNameOf } from '../../../Types/ErrorUtils.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import type { IPreStepHook } from '../ConfigContracts/EnvelopeTypes.js';
@@ -63,7 +63,7 @@ async function invokePreHookFn(args: IInvokePreHookArgs): Promise<Procedure<stri
     const raw = (await args.fn()) as JsonValue;
     return coercePreHookResult({ raw, hook: args.hook });
   } catch (error) {
-    const errorName = toError(error).name;
+    const errorName = errorNameOf(error);
     return preHookThrowFail(args.hook, errorName, args.invocation);
   }
 }

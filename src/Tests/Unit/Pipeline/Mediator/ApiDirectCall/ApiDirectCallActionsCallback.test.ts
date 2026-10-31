@@ -1,7 +1,8 @@
 /**
  * D12 — an `onAuthFlowComplete` callback that throws is logged by its error
  * name only. The callback was handed the long-term token and the bearer, so
- * its message may repeat either; the scrape still succeeds.
+ * its message — or a name it sets — may repeat either; a name that is not a
+ * plain class name is logged as `Error`. The scrape still succeeds.
  */
 
 import { jest } from '@jest/globals';
@@ -13,13 +14,21 @@ import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 const LONG_TERM_TOKEN = 'syn-ltt-7741';
 const BEARER = 'syn-bearer-1209';
 
+/** An `onAuthFlowComplete` callback. */
+type AuthFlowCallback = () => Promise<void>;
+
 /**
- * A callback that fails, quoting both secrets it was handed.
- * @returns A rejected promise.
+ * A callback that fails with the given error name, quoting both secrets it
+ * was handed in the message.
+ * @param name - Name set on the thrown error.
+ * @returns The callback.
  */
-function throwingCallback(): Promise<void> {
-  const error = new RangeError(`sink refused ${LONG_TERM_TOKEN} ${BEARER}`);
-  return Promise.reject(error);
+function throwingCallback(name: string): AuthFlowCallback {
+  return (): Promise<void> => {
+    const error = new RangeError(`sink refused ${LONG_TERM_TOKEN} ${BEARER}`);
+    error.name = name;
+    return Promise.reject(error);
+  };
 }
 
 /**
@@ -31,27 +40,33 @@ function latestToken(): string {
 }
 
 /**
- * A pipeline context whose options carry the throwing callback.
+ * A pipeline context whose options carry the callback.
+ * @param callback - The `onAuthFlowComplete` callback.
  * @returns Pipeline context.
  */
-function callbackCtx(): IPipelineContext {
+function callbackCtx(callback: AuthFlowCallback): IPipelineContext {
   const base = makeMockContext();
-  const options = { ...base.options, onAuthFlowComplete: throwingCallback };
+  const options = { ...base.options, onAuthFlowComplete: callback };
   return { ...base, options };
 }
 
 describe('invokeAuthFlowComplete — callback throw', () => {
-  it('logs the error name, never the message', async () => {
-    const ctx = callbackCtx();
+  it.each([
+    ['RangeError', 'RangeError'],
+    [BEARER, 'Error'],
+    [`${LONG_TERM_TOKEN}Error`, 'Error'],
+  ])('logs the error name %s as %s, never the message', async (name, logged) => {
+    const callback = throwingCallback(name);
+    const ctx = callbackCtx(callback);
     const warn = jest.spyOn(ctx.logger, 'warn').mockImplementation(() => undefined);
     const strategy = { getLatestLongTermToken: latestToken };
     const isDone = await invokeAuthFlowComplete(ctx, strategy, BEARER);
     expect(isDone).toBe(false);
     expect(warn).toHaveBeenCalledWith({
-      message: 'api-direct-call onAuthFlowComplete callback threw RangeError',
+      message: `api-direct-call onAuthFlowComplete callback threw ${logged}`,
     });
-    const logged = JSON.stringify(warn.mock.calls);
-    expect(logged).not.toContain(LONG_TERM_TOKEN);
-    expect(logged).not.toContain(BEARER);
+    const calls = JSON.stringify(warn.mock.calls);
+    expect(calls).not.toContain(LONG_TERM_TOKEN);
+    expect(calls).not.toContain(BEARER);
   });
 });

@@ -366,7 +366,9 @@ A creds field that is not a function fails `TWO_FACTOR_RETRIEVER_MISSING`
 with `preHook: creds.<field> is not a function`. A callback that throws fails
 `GENERIC` with `preHook: creds.<field>() threw <ErrorName>`; from the second
 call on it adds `on invocation #<n> of this login`. Only the error's
-name is reported: its message can echo a code or a token. A throwing
+name is reported: its message can echo a code or a token. `errorNameOf`
+(`Types/ErrorUtils.ts`) reports a name only when it reads as a class name
+ending in `Error` or `Exception`; any other name is reported as `Error`. A throwing
 `onAuthFlowComplete` callback is logged the same way
 (`api-direct-call onAuthFlowComplete callback threw <ErrorName>`).
 
@@ -494,6 +496,9 @@ fails the build with `Generic` and `<field>: <rule>`:
 | `warmStart` validated as `'bank-call'` with a `fromStepIndex` that names no step                                                      | `warmStart.fromStepIndex: must name a step when validation is bank-call` |
 | `warmStart.fromStepIndex` below 1                                                                                                     | `warmStart.fromStepIndex: must start after the first step`               |
 | `warmStart.fromStepIndex` fractional, `NaN` or above `steps.length`                                                                   | `warmStart.fromStepIndex: must be a whole number up to the step count`   |
+| `warmStart` validated as `'bank-call'` whose `fromStepIndex` step has a `runIf` guard | `warmStart.fromStepIndex: a bank-call check step must not have runIf` |
+| a `kind: 'cookie-jar'` `warmStart` with a blank `provider` | `warmStart.provider: must not be blank` |
+| a `kind: 'cookie-jar'` `warmStart` with a blank `accountField` | `warmStart.accountField: must not be blank` |
 | a `kind: 'cookie-jar'` `warmStart` whose `maxTokenChars` is not an integer from 1 to 16384 | `warmStart.maxTokenChars: must be an integer from 1 to 16384` |
 | a `kind: 'cookie-jar'` `warmStart` without `headless.cookieDomains` | `warmStart.kind: cookie-jar not allowed without headless.cookieDomains` |
 | a `response: 'document'` step with any `extractsToCarry`, `optionalExtractsToCarry` or `outcome`                                      | `steps.response: a document step reads no body extracts or outcome`      |
@@ -511,10 +516,12 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a login or resume step with a `failIfPresent` entry that is not a JSON pointer below the body root                                    | `steps.failIfPresent: each entry must be a JSON pointer`                 |
 | an `extractRules` key that names neither an `extractsToCarry` nor an `optionalExtractsToCarry` slot of its step                       | `steps.extractRules: each key must name a body extract`                  |
 | an `extractRules` `pattern` that does not start with `^`, end with `$` and compile with the `u` flag                                  | `steps.extractRules.pattern: must be an anchored regex`                  |
+| an `extractRules` `pattern` that repeats a group which itself repeats                                                                 | `steps.extractRules.pattern: no nested quantifiers`                      |
 | an `extractRules` `maxChars` that is not an integer from 1 to 65536                                                                   | `steps.extractRules.maxChars: must be an integer from 1 to 65536`        |
 | an `extractRules` `oneOf` or `url` list that is empty                                                                                 | `steps.extractRules: oneOf and url must not be empty`                    |
 | a login or resume step whose `runIf` has a blank `carry` or an empty `oneOf`                                                          | `steps.runIf: carry and oneOf must not be empty`                         |
 | a login or resume step whose `preHook.valuePattern` does not start with `^`, end with `$` and compile with the `u` flag               | `steps.preHook.valuePattern: must be an anchored regex`                  |
+| a login or resume step whose `preHook.valuePattern` repeats a group which itself repeats                                              | `steps.preHook.valuePattern: no nested quantifiers`                      |
 | a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |
 | a login or resume step with `encoding`, without `headless.nativeFetch: true`                                                          | `steps.encoding: not allowed without headless.nativeFetch`               |
 | `headless.cookieDomains`, `redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, on an api-direct or node-tls bank | `headless.<field>: not allowed without headless.nativeFetch` |
@@ -525,8 +532,9 @@ fails the build with `Generic` and `<field>: <rule>`:
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
-readable expiry, so the first warm step sent to the bank is the check, and
-`fromStepIndex` must name a step. A `'bank-call'` seed skips the local JWT
+readable expiry, so the first warm step sent to the bank is the check.
+`fromStepIndex` must name a step with no `runIf`, so the check always runs.
+A `'bank-call'` seed skips the local JWT
 check even when `jwtClaims` is set. In either mode a warm start must skip
 step 0: a resume from the first step replays the whole login, OTP step
 included, and `isColdStart` charges it to the one-SMS budget, leaving nothing
@@ -537,6 +545,13 @@ is already the final token. A fractional or `NaN` index fails the build,
 because the step walker would read a missing step and throw instead of
 failing the warm attempt into the cold retry. An index above `steps.length`
 fails it too: it would silently run no steps, which only a typo produces.
+
+A config `pattern` or `valuePattern` is tested against bank and caller text, so
+the build refuses the backtracking shape `(a+)+`. `hasNestedQuantifier`
+(`Core/Builder/NestedQuantifier.ts`) folds escapes, classes and exact `{n}`
+counts to one atom, then rejects any `*`, `+` or `{m,n}` group whose body
+already repeats. It is a conservative check: overlapping alternation such as
+`(a|a)*` is not detected, so keep patterns flat.
 
 `warmStart.kind` says what the stored token is. The default, `'carry'`, seeds
 it into the carry slot `carryField`. `'cookie-jar'` is for a cookie-session
@@ -557,17 +572,22 @@ as `'bank-call'`, and adds `provider`, `accountField` and `maxTokenChars`.
 `Flow/WarmStartKind.ts` reads the kind: `cookieJarWarmOf` returns the
 cookie-jar config or `false`, and `warmCarryField` returns the carry slot, or
 `''` when there is none to seed.
-`encodeWarmJar` in `Flow/WarmCookieJar.ts` seals a `StoredJar` as `v1.` plus
+`encodeWarmJar` in `Flow/WarmCookieJar.ts` encodes a `StoredJar` as `v1.` plus
 unpadded base64url over the JSON `{p, a, c}`: the provider tag, the first 16
 hex characters of the SHA-256 of the trimmed account (never the account
 itself), and the cookies in creation order. Only the cookie's own fields
 travel. `decodeWarmJar` opens it, refusing with a reason from
-`WARM_JAR_REJECTIONS` and never a value.
+`WARM_JAR_REJECTIONS` and never a value. Both refuse a blank account
+(`unbound`), since it binds nothing; the build already refuses a blank
+`provider` or `accountField`.
+The provider tag and account hash only stop one account's jar from being
+replayed for another. They are not authentication: like every stored warm
+token, the jar is a secret its caller keeps.
 
 `Flow/TokenStrategyFromConfig.warm.ts` runs the kind at three moments:
 
 - **Restore** (`restoreWarmSeed`). The stored token is checked in order —
-  size, prefix, JSON, shape, provider, account — then imported into the run's
+  an account to bind, size, prefix, JSON, shape, provider, account — then imported into the run's
   cookie session, and the flow resumes at `fromStepIndex`. A token failing any
   check, or a run with no cookie session, is skipped with the warning
   `warm start skipped: <reason>`, naming the creds field and never the token,
@@ -575,11 +595,11 @@ travel. `decodeWarmJar` opens it, refusing with a reason from
 - **Cold start** (`prepareColdStart`). Before a cold flow starts — after the
   one-SMS budget allows it — the jar is emptied, so neither a refused token
   nor the cookies its rejected resume set reach the fresh session.
-- **Export** (`exportWarmToken`). A finished flow seals the jar as the next
+- **Export** (`exportWarmToken`). A finished flow encodes the jar as the next
   warm token, so `onAuthFlowComplete` and `persistentOtpToken` receive the
-  envelope. A token longer than `maxTokenChars` is not published: the warning
-  `warm start export skipped: over maxTokenChars` names the creds field and
-  the length only.
+  envelope. A token longer than `maxTokenChars`, or one for a blank account,
+  is not published: the warning `warm start export skipped: <reason>` names
+  the creds field and the reason only (with the length, when too long).
 
 ### Transport errors
 

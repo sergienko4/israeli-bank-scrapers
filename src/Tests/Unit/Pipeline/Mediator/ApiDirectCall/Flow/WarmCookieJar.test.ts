@@ -97,7 +97,21 @@ const COOKIES: readonly IStoredCookie[] = [
   },
 ];
 
-const GOOD = CODEC.encodeWarmJar(IDENTITY, COOKIES);
+/** Who a test jar belongs to. */
+type JarIdentity = Parameters<typeof CODEC.encodeWarmJar>[0];
+
+/**
+ * Encode the test cookies for an identity that has an account.
+ * @param identity - Provider and account.
+ * @returns A `v1.` token.
+ */
+function encodeOk(identity: JarIdentity): string {
+  const token = CODEC.encodeWarmJar(identity, COOKIES);
+  assertOk(token);
+  return token.value;
+}
+
+const GOOD = encodeOk(IDENTITY);
 /** Jar event of the stored jar's import before any request. */
 const IMPORTED = `import${String(COOKIES.length)}@0`;
 /** Jar event of the clear once the warm resume's request has gone out. */
@@ -112,23 +126,23 @@ beforeEach((): void => {
 });
 
 /**
- * Seal raw JSON text the way a `v1.` envelope carries it.
+ * Wrap raw JSON text the way a `v1.` envelope carries it.
  * @param json - Envelope JSON text.
  * @returns A `v1.` token.
  */
-function seal(json: string): string {
+function wrapJson(json: string): string {
   const body = Buffer.from(json, 'utf8').toString('base64url');
   return `v1.${body}`;
 }
 
 /**
- * Seal an envelope object.
+ * Wrap an envelope object.
  * @param envelope - Envelope payload.
  * @returns A `v1.` token.
  */
-function sealObject(envelope: object): string {
+function wrapObject(envelope: object): string {
   const json = JSON.stringify(envelope);
-  return seal(json);
+  return wrapJson(json);
 }
 
 /**
@@ -155,35 +169,35 @@ const COOKIE_WITH_TEXT_FLAG = { ...COOKIES[0], secure: 'yes' };
 const REJECTED: readonly IRejectCase[] = [
   { label: 'a foreign prefix', token: `v2${GOOD.slice(2)}`, maxChars: LIMIT, reason: 'prefix' },
   { label: 'a token over the limit', token: GOOD, maxChars: GOOD.length - 1, reason: 'size' },
-  { label: 'unreadable JSON', token: seal('{'), maxChars: LIMIT, reason: 'json' },
-  { label: 'a JSON array', token: sealObject([]), maxChars: LIMIT, reason: 'schema' },
+  { label: 'unreadable JSON', token: wrapJson('{'), maxChars: LIMIT, reason: 'json' },
+  { label: 'a JSON array', token: wrapObject([]), maxChars: LIMIT, reason: 'schema' },
   {
     label: 'a cookie list that is no array',
-    token: sealObject({ p: PROVIDER, a: 'x', c: {} }),
+    token: wrapObject({ p: PROVIDER, a: 'x', c: {} }),
     maxChars: LIMIT,
     reason: 'schema',
   },
   {
     label: 'a cookie without a value',
-    token: sealObject({ p: PROVIDER, a: 'x', c: [COOKIE_WITHOUT_VALUE] }),
+    token: wrapObject({ p: PROVIDER, a: 'x', c: [COOKIE_WITHOUT_VALUE] }),
     maxChars: LIMIT,
     reason: 'schema',
   },
   {
     label: 'a cookie flag that is text',
-    token: sealObject({ p: PROVIDER, a: 'x', c: [COOKIE_WITH_TEXT_FLAG] }),
+    token: wrapObject({ p: PROVIDER, a: 'x', c: [COOKIE_WITH_TEXT_FLAG] }),
     maxChars: LIMIT,
     reason: 'schema',
   },
   {
     label: 'another provider',
-    token: CODEC.encodeWarmJar({ provider: 'syn-other', account: ACCOUNT }, COOKIES),
+    token: encodeOk({ provider: 'syn-other', account: ACCOUNT }),
     maxChars: LIMIT,
     reason: 'provider',
   },
   {
     label: 'another account',
-    token: CODEC.encodeWarmJar({ provider: PROVIDER, account: 'syn-other' }, COOKIES),
+    token: encodeOk({ provider: PROVIDER, account: 'syn-other' }),
     maxChars: LIMIT,
     reason: 'account',
   },
@@ -220,6 +234,14 @@ describe('cookie-jar warm envelope', () => {
     const reason = CODEC.WARM_JAR_REJECTIONS[row.reason];
     const refused = fail(ScraperErrorTypes.Generic, reason);
     expect(decoded).toEqual(refused);
+  });
+
+  it.each(['', ' \t'])('binds no jar to the blank account %j', (account): void => {
+    const unbound = fail(ScraperErrorTypes.Generic, CODEC.WARM_JAR_REJECTIONS.unbound);
+    const encoded = CODEC.encodeWarmJar({ provider: PROVIDER, account }, COOKIES);
+    const decoded = CODEC.decodeWarmJar(GOOD, { provider: PROVIDER, account, maxChars: LIMIT });
+    expect(encoded).toEqual(unbound);
+    expect(decoded).toEqual(unbound);
   });
 });
 
@@ -378,12 +400,13 @@ function makeRun(args: IJarRunArgs): IJarRun {
 }
 
 /**
- * Creds carrying a stored token for the test account.
+ * Creds carrying a stored token for an account.
  * @param token - Stored warm token ('' for none).
+ * @param userCode - Account the creds name.
  * @returns Credentials.
  */
-function credsWith(token: string): ScraperCredentials {
-  return { otpLongTermToken: token, userCode: ACCOUNT } as unknown as ScraperCredentials;
+function credsWith(token: string, userCode = ACCOUNT): ScraperCredentials {
+  return { otpLongTermToken: token, userCode } as unknown as ScraperCredentials;
 }
 
 /**
@@ -436,6 +459,18 @@ describe('cookie-jar warm start through the strategy', () => {
     expect(logged).toContain(`warm start skipped: ${reason}`);
   });
 
+  it('skips the warm start when the creds name no account', async (): Promise<void> => {
+    const run = makeRun({ responses: [STEP_OK, STEP_OK] });
+    const creds = credsWith(GOOD, ' ');
+    const proc = await run.strategy.primeInitial(run.bus, CTX, creds);
+    assertOk(proc);
+    const reason = CODEC.WARM_JAR_REJECTIONS.unbound;
+    const logged = warnings();
+    expect(run.captures).toHaveLength(COLD_STEPS);
+    expect(run.jar.events).toEqual(['clear@0']);
+    expect(logged).toContain(`warm start skipped: ${reason}`);
+  });
+
   it('clears the jar after a rejected resume, then runs one cold login', async (): Promise<void> => {
     const rejected = fail(ScraperErrorTypes.Generic, 'syn resume HTTP 401');
     const run = makeRun({ responses: [rejected, STEP_OK, STEP_OK] });
@@ -471,6 +506,19 @@ describe('cookie-jar warm start through the strategy', () => {
     const logged = warnings();
     expect(published).toBe('');
     expect(logged).toContain('warm start export skipped');
+    expect(logged).not.toContain(MARKER);
+  });
+
+  it('publishes no token when the creds name no account', async (): Promise<void> => {
+    const run = makeRun({ responses: [STEP_OK, STEP_OK] });
+    const creds = credsWith('', '');
+    const proc = await run.strategy.primeFresh(run.bus, CTX, creds);
+    assertOk(proc);
+    const published = run.strategy.getLatestLongTermToken();
+    const reason = CODEC.WARM_JAR_REJECTIONS.unbound;
+    const logged = warnings();
+    expect(published).toBe('');
+    expect(logged).toContain(`warm start export skipped: ${reason}`);
     expect(logged).not.toContain(MARKER);
   });
 });

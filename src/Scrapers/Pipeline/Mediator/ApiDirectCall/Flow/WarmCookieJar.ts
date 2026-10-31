@@ -9,6 +9,11 @@
  *
  * <p>A token failing any check is refused with a reason from
  * {@link WARM_JAR_REJECTIONS} — never a value, as the jar holds a live session.
+ * A blank account binds nothing, so no jar is encoded or opened for one.
+ *
+ * <p>The provider tag and account hash only stop one account's jar from being
+ * replayed for another. They are not authentication: like every stored warm
+ * token, the jar is a secret its caller keeps.
  */
 
 import { createHash } from 'node:crypto';
@@ -49,6 +54,7 @@ const WARM_JAR_REJECTIONS = {
   provider: 'token belongs to another provider',
   account: 'token belongs to another account',
   session: 'this run has no cookie session',
+  unbound: 'no account to bind the token to',
 } as const;
 
 type WarmJarRejection = keyof typeof WARM_JAR_REJECTIONS;
@@ -183,27 +189,38 @@ function checkEnvelope(value: JsonUnknown, expected: IWarmJarIdentity): Procedur
 }
 
 /**
- * Seal a jar for the given provider and account.
+ * Whether an account is blank, so a jar cannot be bound to it.
+ * @param account - Account from the creds.
+ * @returns True when empty or only whitespace.
+ */
+function isUnbound(account: string): boolean {
+  return account.trim().length === 0;
+}
+
+/**
+ * Encode a jar for the given provider and account.
  * @param identity - Provider tag and account.
  * @param cookies - The jar, in creation order.
- * @returns A `v1.` token.
+ * @returns A `v1.` token, or the `unbound` rejection for a blank account.
  */
-function encodeWarmJar(identity: IWarmJarIdentity, cookies: StoredJar): string {
+function encodeWarmJar(identity: IWarmJarIdentity, cookies: StoredJar): Procedure<string> {
+  if (isUnbound(identity.account)) return reject('unbound');
   const a = accountTag(identity.account);
   const envelope: IJarEnvelope = { p: identity.provider, a, c: cookies.map(projectCookie) };
   const json = JSON.stringify(envelope);
   const body = Buffer.from(json, 'utf8').toString('base64url');
-  return `${TOKEN_PREFIX}${body}`;
+  return succeed(`${TOKEN_PREFIX}${body}`);
 }
 
 /**
- * Open a stored jar, checking in order: size, prefix, JSON, schema, provider,
- * account. Runs no network request.
+ * Open a stored jar, checking in order: an account to bind, size, prefix,
+ * JSON, schema, provider, account. Runs no network request.
  * @param token - Stored token.
  * @param expected - Expected provider, account and size limit.
  * @returns The cookies, or the first failing check's rejection.
  */
 function decodeWarmJar(token: string, expected: IWarmJarExpectation): Procedure<StoredJar> {
+  if (isUnbound(expected.account)) return reject('unbound');
   const text = unwrapBody(token, expected.maxChars);
   if (!isOk(text)) return text;
   const parsed = parseBody(text.value);

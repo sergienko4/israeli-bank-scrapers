@@ -36,8 +36,8 @@ interface IJarRestoreArgs extends IWarmRunArgs {
   readonly stored: string;
 }
 
-/** Message of the warning when a finished jar does not fit the limit. */
-const EXPORT_SKIPPED_MSG = 'warm start export skipped: over maxTokenChars';
+/** Why a finished jar that does not fit the limit is not published. */
+const OVER_LIMIT = 'over maxTokenChars';
 
 /**
  * Skip a stored jar, naming the reason and the creds field — never the token.
@@ -102,18 +102,30 @@ function prepareColdStart(args: IRunFlowArgs): true {
 }
 
 /**
- * Seal a finished run's jar as the next warm token.
+ * Publish no token, naming the reason and the creds field — never the jar.
+ * @param jar - Cookie-jar warm start.
+ * @param reason - Why the export is skipped.
+ * @returns '' — no token.
+ */
+function skipExport(jar: ICookieJarWarmStart, reason: string): '' {
+  LOG.warn({ credsField: jar.credsField }, `warm start export skipped: ${reason}`);
+  return '';
+}
+
+/**
+ * Encode a finished run's jar as the next warm token.
  * @param args - Config, bus and creds.
  * @param jar - Cookie-jar warm start.
- * @returns The token, or '' when there is no jar or it does not fit.
+ * @returns The token, or '' when it has no account or does not fit.
  */
 function exportJar(args: IWarmRunArgs, jar: ICookieJarWarmStart): string {
   const cookies = args.bus.cookies?.exportAll() ?? [];
   const account = readCredsString(args.creds, jar.accountField);
   const token = encodeWarmJar({ provider: jar.provider, account }, cookies);
-  if (token.length <= jar.maxTokenChars) return token;
-  LOG.warn({ credsField: jar.credsField, chars: token.length }, EXPORT_SKIPPED_MSG);
-  return '';
+  if (!isOk(token)) return skipExport(jar, token.errorMessage);
+  if (token.value.length <= jar.maxTokenChars) return token.value;
+  const chars = String(token.value.length);
+  return skipExport(jar, `${OVER_LIMIT} (${chars} chars)`);
 }
 
 /**

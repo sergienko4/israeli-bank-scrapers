@@ -8,7 +8,8 @@
  * be empty, since an empty list would refuse every value. A `runIf` guard
  * (N14) needs a carry slot and a non-empty `oneOf`, else its step never runs.
  * A pre-hook `valuePattern` (N21) must be anchored and compile, like an
- * extract `pattern`.
+ * extract `pattern`. Neither may repeat a group that holds a repeat
+ * (`NestedQuantifier.ts`), as that can backtrack for exponential time.
  */
 
 import type {
@@ -16,6 +17,7 @@ import type {
   IStepConfig,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
+import { hasNestedQuantifier } from './NestedQuantifier.js';
 
 /**
  * Whether a guard entry is a pointer below the body root.
@@ -121,6 +123,16 @@ function isBadPattern(rule: IExtractRule): boolean {
 }
 
 /**
+ * Whether a rule's pattern repeats a group that holds a repeat.
+ * @param rule - Extract rule.
+ * @returns True for a nested quantifier.
+ */
+function isNestedPattern(rule: IExtractRule): boolean {
+  if (rule.pattern === undefined) return false;
+  return hasNestedQuantifier(rule.pattern);
+}
+
+/**
  * Whether a rule's length cap is broken.
  * @param rule - Extract rule.
  * @returns True for a `maxChars` that is not an integer from 1 to 65536.
@@ -183,6 +195,20 @@ function hasBadPreHookPattern(input: IApiDirectRuleInput): boolean {
 }
 
 /**
+ * Whether any login or resume step's pre-hook value pattern repeats a group
+ * that holds a repeat.
+ * @param input - Rule input.
+ * @returns True when a `valuePattern` has a nested quantifier.
+ */
+function hasNestedPreHookPattern(input: IApiDirectRuleInput): boolean {
+  const steps = allSteps(input.call);
+  return steps.some((step): boolean => {
+    const pattern = step.preHook?.valuePattern;
+    return pattern !== undefined && hasNestedQuantifier(pattern);
+  });
+}
+
+/**
  * A config check that holds when any extract rule breaks `isBad`.
  * @param isBad - The check on one extract rule.
  * @returns The config check.
@@ -206,6 +232,10 @@ const API_DIRECT_STEP_RULES: readonly IApiDirectRule[] = [
     isBroken: anyExtractRule(isBadPattern),
   },
   {
+    message: 'steps.extractRules.pattern: no nested quantifiers',
+    isBroken: anyExtractRule(isNestedPattern),
+  },
+  {
     message: 'steps.extractRules.maxChars: must be an integer from 1 to 65536',
     isBroken: anyExtractRule(isBadMaxChars),
   },
@@ -220,6 +250,10 @@ const API_DIRECT_STEP_RULES: readonly IApiDirectRule[] = [
   {
     message: 'steps.preHook.valuePattern: must be an anchored regex',
     isBroken: hasBadPreHookPattern,
+  },
+  {
+    message: 'steps.preHook.valuePattern: no nested quantifiers',
+    isBroken: hasNestedPreHookPattern,
   },
 ];
 

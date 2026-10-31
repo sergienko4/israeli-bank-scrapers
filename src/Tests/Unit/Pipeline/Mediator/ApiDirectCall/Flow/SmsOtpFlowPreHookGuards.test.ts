@@ -233,4 +233,12 @@ describe('SmsOtpFlow — pre-hook guards', () => {
     for (const secret of SECRETS) expect(message).not.toContain(secret);
     expect(run.captures).toHaveLength(1);
   });
+
+  it('reports a retriever throw named by a secret as Error', async () => {
+    const thrown = new TypeError('retriever failed');
+    thrown.name = SECRETS[0];
+    const run = await runGuarded({ hook: HOOK, bind: FULL_BIND, thrown });
+    const message = run.result.success ? '' : run.result.errorMessage;
+    expect(message).toBe('preHook: creds.otpCodeRetriever() threw Error');
+  });
 });

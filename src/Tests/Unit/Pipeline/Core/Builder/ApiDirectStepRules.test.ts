@@ -1,10 +1,10 @@
 /**
  * Step rules on login and resume steps alike. N20 — each `failIfPresent`
  * entry must be a JSON pointer below the body root. N18 — each `extractRules`
- * key names a body extract of its step; a pattern is anchored and compiles;
- * `maxChars` is an integer from 1 to 65536; `oneOf` and `url` are not empty.
- * N14 — a `runIf` guard names a slot and texts. N21 — a pre-hook's
- * `valuePattern` is anchored and compiles.
+ * key names a body extract of its step; a pattern is anchored, compiles and
+ * repeats no group that holds a repeat; `maxChars` is an integer from 1 to
+ * 65536; `oneOf` and `url` are not empty. N14 — a `runIf` guard names a slot
+ * and texts. N21 — a pre-hook's `valuePattern` obeys the same pattern rules.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
@@ -111,6 +111,7 @@ function ruled(rules: IStepConfig['extractRules']): IStepConfig {
 
 const KEY_MSG = 'steps.extractRules: each key must name a body extract';
 const PATTERN_MSG = 'steps.extractRules.pattern: must be an anchored regex';
+const NESTED_MSG = 'steps.extractRules.pattern: no nested quantifiers';
 const MAX_MSG = 'steps.extractRules.maxChars: must be an integer from 1 to 65536';
 const EMPTY_MSG = 'steps.extractRules: oneOf and url must not be empty';
 const PORTAL = [{ origin: 'https://bank.example', paths: ['/portal/home'] }];
@@ -121,6 +122,14 @@ describe('validateApiDirectConfig — extractRules', () => {
     ['an unanchored pattern', { state: { pattern: String.raw`\d+` } }, PATTERN_MSG],
     ['a pattern without its end anchor', { state: { pattern: String.raw`^\d+` } }, PATTERN_MSG],
     ['a pattern that does not compile', { state: { pattern: '^(]$' } }, PATTERN_MSG],
+    ['a group repeating a repeat', { state: { pattern: String.raw`^(\d+)+$` } }, NESTED_MSG],
+    ['a repeated alternation holding a repeat', { state: { pattern: '^(?:a|b*)*$' } }, NESTED_MSG],
+    ['a repeat two groups deep', { state: { pattern: '^((a+)b)*$' } }, NESTED_MSG],
+    [
+      'a range-repeated group holding a repeat',
+      { state: { pattern: '^([a-z]+){2,}$' } },
+      NESTED_MSG,
+    ],
     ['a zero maxChars', { state: { maxChars: 0 } }, MAX_MSG],
     ['a fractional maxChars', { state: { maxChars: 1.5 } }, MAX_MSG],
     ['a maxChars past 65536', { target: { maxChars: 65537 } }, MAX_MSG],
@@ -152,6 +161,19 @@ describe('validateApiDirectConfig — extractRules', () => {
       pattern: '^[a-z]+$',
     } as const;
     const step = ruled({ state, target: { url: PORTAL, maxChars: 65536 } });
+    const input = runOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+  });
+
+  it.each([
+    ['an exact count inside a repeated group', '^(?:[A-Za-z0-9+/]{4})*$'],
+    ['an escaped quantifier inside a repeated group', String.raw`^(\+)+$`],
+    ['quantifier characters inside a class', '^[(+*]+$'],
+    ['repeats side by side', String.raw`^(\d+)-(\d+)$`],
+    ['a bounded range', String.raw`^\d{1,4}$`],
+  ])('a pattern with %s passes', (_label, pattern) => {
+    const step = ruled({ state: { pattern } });
     const input = runOf(step);
     const result = validateApiDirectConfig(input);
     expect(result).toEqual({ success: true, value: true });
@@ -196,6 +218,7 @@ describe('validateApiDirectConfig — runIf', () => {
 });
 
 const VALUE_PATTERN_MSG = 'steps.preHook.valuePattern: must be an anchored regex';
+const VALUE_NESTED_MSG = 'steps.preHook.valuePattern: no nested quantifiers';
 
 /**
  * A login step whose OTP pre-hook checks the code against a pattern.
@@ -217,6 +240,13 @@ describe('validateApiDirectConfig — preHook.valuePattern', () => {
     const input = runOf(step);
     const result = validateApiDirectConfig(input);
     expect(result).toMatchObject({ success: false, errorMessage: VALUE_PATTERN_MSG });
+  });
+
+  it('a group repeating a repeat fails the build', () => {
+    const step = hookedStep(String.raw`^(\d+)+$`);
+    const input = resumeOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({ success: false, errorMessage: VALUE_NESTED_MSG });
   });
 
   it('checks resume steps too', () => {
