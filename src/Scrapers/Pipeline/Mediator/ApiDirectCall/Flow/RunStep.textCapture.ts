@@ -135,4 +135,4 @@ function captureText(step: IStepConfig, resp: JsonValue): Procedure<CarryMap> {
 }
 
 export default captureText;
-export { captureSlotsOf, captureText };
+export { answerText, captureSlotsOf, captureText };

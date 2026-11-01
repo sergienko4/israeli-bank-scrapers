@@ -159,6 +159,28 @@ interface ITextCapture {
 }
 
 /**
+ * A login-form capture (N37) on a `text` step: the page's one `<form>` whose
+ * `id` or `name` is `form` must post to `action`, and its hidden fields go to
+ * carry `into` as one `{ name: value }` record, in page order.
+ */
+interface IFormCapture {
+  /** The form's `id` or `name`, compared exactly. */
+  readonly form: string;
+  /** Carry slot the field record goes to. */
+  readonly into: string;
+  /** Absolute URL the form's action must resolve to, against the step URL. */
+  readonly action: string;
+  /** Field names the form must hold. */
+  readonly required: readonly string[];
+  /** Field names the form must not hold. */
+  readonly forbidden: readonly string[];
+  /** Fewest fields the form may hold. */
+  readonly minFields: number;
+  /** Most fields the form may hold. */
+  readonly maxFields: number;
+}
+
+/**
  * A step's guard (N14): the step runs only when the carry slot holds text
  * equal to one of `oneOf`, compared without case.
  */
@@ -221,6 +243,8 @@ interface IStepBase {
   readonly maxTextChars?: number;
   /** Carry slots captured from a `text` answer by pattern, and guards (N36). */
   readonly textCaptures?: Readonly<Record<string, ITextCapture>>;
+  /** The hidden fields of the page's login form, captured from a `text` answer (N37). */
+  readonly formCapture?: IFormCapture;
   /** Text a `document` answer must contain, else the step fails `document unverified`. */
   readonly documentMarker?: string;
   /** Carry slots read from the final response's headers, merged beside `extractsToCarry`. */
@@ -273,6 +297,7 @@ export type {
   ExtractValueType,
   FlowKind,
   IExtractRule,
+  IFormCapture,
   IGetStep,
   IHeaderExtract,
   IOptionalExtract,

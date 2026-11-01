@@ -393,6 +393,52 @@ textCaptures: {
   answer over it fails `<step> text too long`, never truncated.
 - A failure names the step and the slot only, never the text.
 
+### Login-form capture
+
+Some banks hand out a login form whose hidden fields the logon post must send
+back. On a `response: 'text'` step, `formCapture` (an `IFormCapture`, N37)
+reads one form's hidden fields into a carry slot. `captureForm` (in
+`Flow/RunStep.formCapture.ts`) runs through `answerSlots` after the text
+captures, on the page `answerText` reads off the `{ text }` answer:
+
+```ts
+response: 'text',
+formCapture: {
+  form: 'loginServlet',
+  into: 'loginForm',
+  action: 'https://bank.example/MatafLoginService/MatafLoginServlet',
+  required: ['user', 'passwordEnc', 'bankId'],
+  forbidden: ['password'],
+  minFields: 3,
+  maxFields: 32,
+},
+```
+
+- `scanHtmlTags` (in `Flow/HtmlTags.ts`) reads the page once, left to right,
+  into `IHtmlTag` start and end tags. It skips comments, doctypes and the
+  bodies of `script` and `style`; an unclosed comment, tag or quoted value
+  ends the scan. `attrsOf` (in `Flow/HtmlTags.attrs.ts`) reads a tag's
+  attributes into `HtmlAttrs`: lower-cased names, the last of a repeated name
+  wins, and an attribute with no `=` reads `true` (`HtmlAttrValue`). Values
+  decode `&amp;`, `&lt;`, `&gt;`, `&quot;` and numeric references only; any
+  other named entity stays as written.
+- The page must hold exactly one `<form>` whose `id` or `name` is `form`: none
+  fails `<step> form <form> missing`, more `<step> form <form> ambiguous`.
+- The form's `method` must be `post` in any case, and its `action`, resolved
+  against the step URL, must equal `action`; anything else, a missing method
+  or action included, fails `<step> form action refused`.
+- Its fields are the inputs with a non-empty `name` and no `disabled`, up to
+  its end tag or the next `<form>`. `formFieldsOf` (in
+  `Flow/RunStep.formFields.ts`) fails `<step> form field not hidden` when a
+  field's `type` is not `hidden` (a missing `type` included), and
+  `<step> form fields invalid` for a name off `FORM_FIELD_NAME`
+  (`^[\w-]{1,100}$`), a `value` past 32 768 chars or with no `=`, a field
+  count outside `minFields`..`maxFields`, a repeated name, a missing
+  `required` name or any `forbidden` one. A field with no `value` reads `''`.
+- The `{ name: value }` record, in page order, goes to carry `into`. The slot
+  is not an extract slot, so no extract rule may name it and `sessionCarry`
+  cannot keep it. A failure names the step only, never a field or a value.
+
 ### Conditional steps
 
 Some banks ask for an SMS code only on some logins. A step can carry a
@@ -654,7 +700,8 @@ from what it extracted:
 - `response: 'document'` and `documentMarker` read a page instead of JSON;
   `response: 'text'` reads the answer as `{ text }`, up to `maxTextChars`
   (65 536 by default), and `textCaptures` read slots off it
-  ([Text captures](#text-captures));
+  ([Text captures](#text-captures)); `formCapture` reads a login form's
+  hidden fields off it ([Login-form capture](#login-form-capture));
   `statusPolicy` decides a 2xx before any body is read
   ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
 - `headerExtractsToCarry` reads a header of the final response; a missing
@@ -699,7 +746,8 @@ Its input, `IApiDirectRuleInput`, is the call config plus the bank's `headless`
 block from the registry, so a config that cannot work fails before any request
 is sent. `Core/Builder/ApiDirectRuleInput.ts` holds that input, the rule shape
 `IApiDirectRule` (a message and an `isBroken` check), `allSteps`, which
-lists the login steps and any durable resume steps, and `isExtractSlot`, which
+lists the login steps and any durable resume steps, `anyStep`, which breaks a
+rule when any of those steps fails a check, and `isExtractSlot`, which
 says whether a slot names one of a step's body, header or text-capture slots
 (the last through `captureSlotsOf`, which skips `absent` guards). The
 `API_DIRECT_OUTCOME_RULES` in `Core/Builder/ApiDirectStepRules.ts` reject empty
@@ -711,7 +759,9 @@ session-transport rules, `API_DIRECT_TRANSPORT_RULES` in
 `API_DIRECT_SEAL_RULES` in `Core/Builder/ApiDirectSealRules.ts`, then the
 step rules, `API_DIRECT_STEP_RULES` in `Core/Builder/ApiDirectStepRules.ts`,
 then the text-capture rules, `API_DIRECT_TEXT_RULES` in
-`Core/Builder/ApiDirectTextRules.ts`,
+`Core/Builder/ApiDirectTextRules.ts`, which end with the login-form capture
+rules, `API_DIRECT_FORM_CAPTURE_RULES` in
+`Core/Builder/ApiDirectFormCaptureRules.ts`,
 then the carry-generator rules, `API_DIRECT_GENERATE_RULES` in
 `Core/Builder/ApiDirectGenerateRules.ts`, then the dynamic client-certificate
 rules, `API_DIRECT_CLIENT_CERT_RULES` in
@@ -770,6 +820,11 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `textCaptures` `pattern` that does not compile with the `g` flag                                                                    | `steps.textCaptures.pattern: must compile`                               |
 | a `textCaptures` `pattern` with a group followed by `*`, `+` or `{`                                                                   | `steps.textCaptures.pattern: must not repeat a group`                    |
 | a `textCaptures` `group` that is not an integer from 0 to its pattern's group count                                                   | `steps.textCaptures.group: must name a group of its pattern`             |
+| a login or resume step with `formCapture` whose `response` is not `'text'` (`API_DIRECT_FORM_CAPTURE_RULES`)                          | `steps.formCapture: needs a text response`                               |
+| a `formCapture` with an empty `form` or `into`                                                                                        | `steps.formCapture: form and into must not be empty`                     |
+| a `formCapture` `action` that is not an absolute https URL written as `new URL(action).href`                                          | `steps.formCapture.action: must be an absolute https URL`                |
+| a `formCapture` whose `minFields` or `maxFields` is not an integer, or not `1 <= minFields <= maxFields`                              | `steps.formCapture: needs integers 1 <= minFields <= maxFields`          |
+| a `formCapture` `required` or `forbidden` name off `FORM_FIELD_NAME`, or named in both                                                | `steps.formCapture: field names must be valid and disjoint`              |
 | a login or resume step with an `rsa-key` generator that names neither `keyInto` nor `spkiSha256HexInto` (`API_DIRECT_GENERATE_RULES`)     | `steps.generate: rsa-key needs keyInto or spkiSha256HexInto`                       |
 | a login or resume step with a `pkcs10-csr` generator whose `subject` is empty or whose `into` is blank                                    | `steps.generate: pkcs10-csr needs a subject and into`                              |
 | a login or resume step whose `preHook.valuePattern` does not start with `^`, end with `$` and compile with the `u` flag                   | `steps.preHook.valuePattern: must be an anchored regex`                            |
@@ -786,7 +841,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | `headless.cookieDomains` without `headless.sessionCookies: true`                                                                          | `headless.cookieDomains: not allowed without headless.sessionCookies`              |
 | a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                                | `headerExtractsToCarry.header: must be an HTTP header name`                        |
 | a login or resume step with `setCookies`, without `headless.cookieDomains`                                                                | `steps.setCookies: not allowed without headless.cookieDomains`                     |
-| a `setCookies` cookie name that is not an HTTP token (RFC 9110)                                                                           | `steps.setCookies: each name must be an HTTP token`                                | (feat(api-direct): capture slots from text answers)
+| a `setCookies` cookie name that is not an HTTP token (RFC 9110)                                                                           | `steps.setCookies: each name must be an HTTP token`                                | (feat(api-direct): capture a form's hidden fields)
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no

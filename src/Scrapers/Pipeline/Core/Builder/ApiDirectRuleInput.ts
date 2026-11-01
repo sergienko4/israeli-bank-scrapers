@@ -1,6 +1,6 @@
 /**
  * What the api-direct build-time rules read, the shape of one rule, and the
- * step walk, extract-slot and cookie-domain checks they share. Kept apart so every rule
+ * step walk, any-step, extract-slot and cookie-domain checks they share. Kept apart so every rule
  * module imports it without importing the validator that runs them.
  */
 
@@ -34,6 +34,15 @@ function allSteps(call: IApiDirectCallConfig): readonly IStepConfig[] {
 }
 
 /**
+ * A rule check over every login and resume step.
+ * @param isBad - Step check.
+ * @returns True when any step fails it.
+ */
+function anyStep(isBad: (step: IStepConfig) => boolean): IApiDirectRule['isBroken'] {
+  return (input: IApiDirectRuleInput): boolean => allSteps(input.call).some(isBad);
+}
+
+/**
  * Whether a slot names one of a step's body, header or text-capture slots.
  * @param step - Step config.
  * @param slot - Carry slot.
@@ -58,4 +67,4 @@ function hasCookieDomains(input: IApiDirectRuleInput): boolean {
 }
 
 export type { IApiDirectRule, IApiDirectRuleInput };
-export { allSteps, hasCookieDomains, isExtractSlot };
+export { allSteps, anyStep, hasCookieDomains, isExtractSlot };

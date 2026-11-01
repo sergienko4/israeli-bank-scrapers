@@ -9,7 +9,8 @@
  * these; the form-body rules in `ApiDirectFormRules.ts` follow, then the seal
  * rules in
  * `ApiDirectSealRules.ts`, the step-guard rules in `ApiDirectStepRules.ts`
- * the text-capture rules in `ApiDirectTextRules.ts`,
+ * the text-capture rules in `ApiDirectTextRules.ts` (which end with the
+ * login-form capture rules of `ApiDirectFormCaptureRules.ts`),
  * the carry-generator rules in `ApiDirectGenerateRules.ts`, the dynamic
  * client-certificate rules in `ApiDirectClientCertRules.ts` and the session
  * rules in `ApiDirectSessionRules.ts`; the native-fetch rules in

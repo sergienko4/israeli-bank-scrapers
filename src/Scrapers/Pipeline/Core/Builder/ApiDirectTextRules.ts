@@ -5,14 +5,16 @@
  * 2097152. A capture `pattern` must compile with the `g` flag and must not
  * repeat a group — `(…)` followed by `*`, `+` or `{`, the shape that
  * backtracks without bound; its `group` must be an integer from 0 (the whole
- * match) to the pattern's group count.
+ * match) to the pattern's group count. The login-form capture rules (N37)
+ * of `ApiDirectFormCaptureRules.ts` run last.
  */
 
 import type {
   IStepConfig,
   ITextCapture,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
+import { API_DIRECT_FORM_CAPTURE_RULES } from './ApiDirectFormCaptureRules.js';
+import { anyStep, type IApiDirectRule } from './ApiDirectRuleInput.js';
 
 /** Longest text answer a step may accept, in chars (2 MiB). */
 const MAX_TEXT_CHARS = 2_097_152;
@@ -23,20 +25,8 @@ const LITERAL_PARTS = /\\.|\[(?:\\.|[^\\\]])*\]/gu;
 /** A group closed, then repeated. */
 const REPEATED_GROUP = /\)[*+{]/u;
 
-/** A check on one step. */
-type StepCheck = (step: IStepConfig) => boolean;
-
 /** A check on one capture. */
 type CaptureCheck = (capture: ITextCapture) => boolean;
-
-/**
- * A rule check over every login and resume step.
- * @param isBad - Step check.
- * @returns True when any step fails it.
- */
-function anyStep(isBad: StepCheck): IApiDirectRule['isBroken'] {
-  return (input: IApiDirectRuleInput): boolean => allSteps(input.call).some(isBad);
-}
 
 /**
  * A rule check over every capture of every login and resume step.
@@ -132,7 +122,7 @@ function isBadGroup(capture: ITextCapture): boolean {
   return group > groupCount(capture.pattern);
 }
 
-/** Text rules, checked after the step rules. */
+/** Text rules, checked after the step rules, then the login-form capture rules. */
 const API_DIRECT_TEXT_RULES: readonly IApiDirectRule[] = [
   { message: 'steps.textCaptures: need a text response', isBroken: anyStep(isCaptureOffText) },
   { message: 'steps.maxTextChars: needs a text response', isBroken: anyStep(isCapOffText) },
@@ -149,6 +139,7 @@ const API_DIRECT_TEXT_RULES: readonly IApiDirectRule[] = [
     message: 'steps.textCaptures.group: must name a group of its pattern',
     isBroken: anyCapture(isBadGroup),
   },
+  ...API_DIRECT_FORM_CAPTURE_RULES,
 ];
 
 export default API_DIRECT_TEXT_RULES;
