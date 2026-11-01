@@ -9,30 +9,16 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import type { IApiMediator } from '../../Mediator/Api/ApiMediator.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { dispatchStep } from './ApiDirectScrapeDispatch.js';
 import { buildBootstrapDispatchArgs, type IDriverCtx } from './ApiDirectScrapeDispatchArgs.js';
+import { mergeSessionContext } from './ApiDirectScrapeSessionMerge.js';
 import type {
   ApiBody,
   IApiDirectScrapeBootstrapStep,
   IApiDirectScrapeShape,
-  SessionContextPatch,
 } from './IApiDirectScrapeShape.js';
-
-/**
- * Merge a bootstrap patch into the current session-context and store it.
- * Reads-then-sets so the mediator's replace-semantics setter keeps the
- * post-login identity fields (`uId`, `token`, `deviceId16Hex`) intact.
- * @param bus - Mediator whose session-context is patched.
- * @param patch - Fields to overlay onto the current context.
- * @returns False when the mediator refused to store the merged context.
- */
-function mergeSessionContext(bus: IApiMediator, patch: SessionContextPatch): boolean {
-  const current = bus.getSessionContext();
-  return bus.setSessionContext({ ...current, ...patch });
-}
 
 /**
  * Reported when the mediator refuses the merged session-context. The

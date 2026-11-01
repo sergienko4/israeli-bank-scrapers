@@ -9,6 +9,7 @@ import { emitResponseHeaders } from '../../../../../Scrapers/Pipeline/Strategy/F
 import type { IResponseHeaderSink } from '../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 
 const ANSWER = new Response('{}', {
+  status: 202,
   headers: [
     ['x-session-id', 'syn-session'],
     ['x-trace', 'syn-trace'],
@@ -17,13 +18,13 @@ const ANSWER = new Response('{}', {
 });
 
 describe('emitResponseHeaders', () => {
-  it('UT-HC-04 hands the sink only the declared headers the answer carried', () => {
-    const take = jest.fn((headers: Readonly<Record<string, string>>): number => {
-      return Object.keys(headers).length;
-    });
+  it('UT-HC-04 hands the sink only the declared headers the answer carried, and its status', () => {
+    const take = jest.fn<number, [Readonly<Record<string, string>>, number]>(
+      (headers): number => Object.keys(headers).length,
+    );
     const sink: IResponseHeaderSink = { names: ['x-session-id', 'x-missing'], take };
     const count = emitResponseHeaders(ANSWER, sink);
-    expect(take.mock.calls).toEqual([[{ 'x-session-id': 'syn-session' }]]);
+    expect(take.mock.calls).toEqual([[{ 'x-session-id': 'syn-session' }, 202]]);
     expect(count).toBe(1);
   });
 

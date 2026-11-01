@@ -203,6 +203,22 @@ Some native-app banks (Yahav) want every POST to carry a header that digests its
 
 [`computeBodyDigest`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/BodyDigest.ts) picks the hasher and encoder from two maps keyed by `hash` and `encode`. `dispatchStep` applies it through `withBodyDigest` (`ApiDirectScrapeBodyDigest.ts`) on a REST object POST only, after the shape `signer` has run, so the digest covers the body that is sent. It hashes the bytes of `serializeJsonBody`, the same bytes the JSON writer puts on the wire. GET steps, array POSTs and GraphQL steps send no digest. A shape with no `bodyDigest` leaves the step options untouched.
 
+## Response session
+
+A bank whose session rotates on every answer (Yahav's BaNCS session id, XSRF token and security block) declares `responseSession` (`IResponseSessionSpec`): the response `headers` to read, in any case, and a `patch` built from each answer. `dispatchStep` runs it on every successful answer — bootstrap, customer, balance and transactions — after `checkBody`, and merges the patch into the session-context before the call returns, so the next call reads the rotated values.
+
+[`captureAnswer`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeResponseSession.ts) gives the call's opts an `IFetchCallPolicy.headerSink` for the lower-cased names; a native transport hands that sink each answer's declared headers and HTTP status. The `IAnswerCapture` keeps every answer and the last one counts, so a call retried after a 401 reads its final answer. `readResponseSession` then hands the patch an `IResponseSessionArgs`: the checked `body`, the `headers` by lower-case name, the `status` and the `ctx`.
+
+The call fails, named after it (`queryTag`, or the bootstrap step's `name`), when:
+
+| Cause                                                            | Failure message                          |
+| ---------------------------------------------------------------- | ---------------------------------------- |
+| the patch fails                                                  | `<call> <patch message>`, its error type |
+| the mediator refuses the merged session-context                  | `<call> session patch refused`           |
+| no answer reached the sink (a GraphQL step, a browser transport) | `<call> response unseen`                 |
+
+A failed answer, or a failed body check, never reaches the patch. A shape with no `responseSession` sends its opts untouched. The customer secondary identity GET is not read.
+
 ## withBrowserApiDirect — wiring a browser bank to the hard model
 
 `PipelineBuilder.withBrowserApiDirect(shape)` is the public builder entry point that swaps a browser bank's generic post-auth chain (AUTH-DISCOVERY / ACCOUNT-RESOLVE / DASHBOARD / generic SCRAPE / BALANCE-RESOLVE) for a single `API-DIRECT-SCRAPE` phase driven by the bank's `IApiDirectScrapeShape`, while keeping the browser login phases (INIT / HOME / PRE-LOGIN / LOGIN / OTP-\*) for WAF bypass. The hard-model calls dispatch through the **live login page** (`BrowserFetchStrategy`), so session cookies + the TLS/JA3 fingerprint ride every request for free.
@@ -231,6 +247,7 @@ Beyond the three required steps (`customer` / `balance` / `transactions`), `IApi
 - `bodyTemplate` (per step) — a `JsonValueTemplate` hydrated against the post-login scope and POSTed as the request body (PayBox class-y `auth` envelopes).
 - `signer` + `secrets` (shape root) — an `IAesSignerConfig` body-pointer signer applied to every scrape-step body before POST (PayBox).
   Both live in `ApiDirectScrapeBody.ts`: `resolveStepBody` hydrates the step body (or passes the bare object vars through) and `maybeSignBody` attaches the signature; `dispatchStep` calls them in that order on a REST POST step.
+- `responseSession` (shape root) — an `IResponseSessionSpec` whose patch reads every successful answer's body, declared headers and status, and is merged into the session-context (Yahav). See [Response session](#response-session).
 - `bodyDigest` (shape root) — an `IBodyDigestConfig` that adds a digest header over every REST object POST body (Yahav). See [Body digest](#body-digest).
 - `resultGuard` — a fail-closed POST-stage guard over a PII-free `IApiDirectScrapeGuardSummary` that aborts a degraded run (e.g. zero transactions from a warm session).
 - `checkBody` (shape root, type `BodyCheck`) — a check run on every **successful** scrape response (bootstrap, customer and its secondary identity GET, balance, transactions) before the step reads it. For banks that report a failure inside an HTTP 200 body: a failed check fails the call exactly as a non-2xx would, so balance falls back to `fallbackOnFail` and the phase's recover-once re-login runs, instead of the body yielding no rows silently. `dispatchStep` and the secondary GET share one helper, `applyBodyCheck`; a failed response, or a shape with no check, passes through unchanged (the ring issuers fail a `Header.Status: -2` "session expired" body).
@@ -377,7 +394,9 @@ reads the response body plus the current context and returns a
 context that the phase read-merges onto the live session context,
 preserving `uId` / `token` / `deviceId16Hex` while adding the new
 material. The extract is fail-closed: a missing or malformed exchange
-response aborts the run rather than scraping unsigned.
+response aborts the run rather than scraping unsigned. The read-merge
+is `mergeSessionContext` (`ApiDirectScrapeSessionMerge.ts`), the same
+helper the [response session](#response-session) stores its patch with.
 
 A bank that needs several calls before its reads declares `bootstrap`
 as an ordered list. The steps run one after another: each step's patch
@@ -385,4 +404,6 @@ is merged before the next step dispatches, so a later step's
 `bodyTemplate` can `$ref` an earlier patch (`carry.<field>`). The first
 failed call or extraction stops the list and aborts the run; the later
 steps never dispatch. An empty list is the same as no bootstrap. A
-single step (PayBox) behaves exactly as before.
+single step (PayBox) behaves exactly as before. A step's optional `name`
+(`login`, `portfolio`) is the name its response-session failures carry;
+an unnamed step is `bootstrap`.

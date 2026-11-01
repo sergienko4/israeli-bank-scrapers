@@ -52,12 +52,12 @@ type StatusAction = 'empty' | 'fail';
 /** A bank's 2xx statuses it decides before the body is read. */
 type StatusPolicy = Readonly<Partial<Record<number, StatusAction>>>;
 
-/** The response headers a call reads (N6): their names and their receiver. */
+/** The response headers a call reads (N6, N31): their names and their receiver. */
 interface IResponseHeaderSink {
   /** Lower-case header names; only these reach `take`. */
   readonly names: readonly string[];
-  /** Receives the named headers the final response carried; returns how many. */
-  readonly take: (headers: Readonly<Record<string, string>>) => number;
+  /** Receives the named headers and the HTTP status of each answer; returns how many headers. */
+  readonly take: (headers: Readonly<Record<string, string>>, status: number) => number;
 }
 
 /** Per-call transport policy a step hands to the bus. */

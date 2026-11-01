@@ -21,7 +21,14 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk } from '../../Types/Procedure.js';
 import { maybeSignBody, resolveStepBody } from './ApiDirectScrapeBody.js';
 import { withBodyDigest } from './ApiDirectScrapeBodyDigest.js';
-import type { ApiBody, BodyCheck, ScrapeHttpMethod, VarsMap } from './IApiDirectScrapeShape.js';
+import { captureAnswer, readResponseSession } from './ApiDirectScrapeResponseSession.js';
+import type {
+  ApiBody,
+  BodyCheck,
+  IResponseSessionSpec,
+  ScrapeHttpMethod,
+  VarsMap,
+} from './IApiDirectScrapeShape.js';
 
 /** Args bundle for {@link dispatchStep} — keeps params ≤3. */
 export interface IDispatchArgs {
@@ -42,6 +49,10 @@ export interface IDispatchArgs {
   readonly checkBody?: BodyCheck;
   /** Shape-level body digest — see `IApiDirectScrapeShape.bodyDigest`. */
   readonly bodyDigest?: IBodyDigestConfig;
+  /** Shape-level response session — see `IApiDirectScrapeShape.responseSession`. */
+  readonly responseSession?: IResponseSessionSpec;
+  /** Name the call's response-session failures carry; `queryTag` when absent. */
+  readonly call?: string;
 }
 
 /** Dispatch args whose vars are an object — what templates and signing need. */
@@ -152,12 +163,14 @@ async function routeStep(args: IDispatchArgs): Promise<Procedure<ApiBody>> {
 }
 
 /**
- * Dispatch one scrape step against the mediator, then run the shape's
- * body check on a successful response.
+ * Dispatch one scrape step against the mediator, run the shape's body
+ * check on a successful response, then read its response session.
  * @param args - Dispatch bundle.
  * @returns Procedure with the typed payload.
  */
 export async function dispatchStep(args: IDispatchArgs): Promise<Procedure<ApiBody>> {
-  const response = await routeStep(args);
-  return applyBodyCheck(response, args.checkBody);
+  const capture = captureAnswer(args.opts, args.responseSession);
+  const response = await routeStep({ ...args, opts: capture.opts });
+  const checked = applyBodyCheck(response, args.checkBody);
+  return readResponseSession(checked, capture, args);
 }

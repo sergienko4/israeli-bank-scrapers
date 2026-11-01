@@ -389,12 +389,36 @@ export interface IBootstrapExtractArgs {
  * an ordered list; a later step's body can `$ref` an earlier step's patch.
  */
 export interface IApiDirectScrapeBootstrapStep {
+  /** Name this call's response-session failures carry; `bootstrap` when absent. */
+  readonly name?: string;
   readonly urlTag: WKUrlOrLiteral;
   readonly method?: ScrapeHttpMethod;
   readonly buildVars: (ctx: IActionContext) => VarsMap;
   readonly bodyTemplate?: JsonValueTemplate;
   readonly extraHeaders?: ApiDirectScrapeHeadersLike;
   readonly extractPatch: (args: IBootstrapExtractArgs) => Procedure<SessionContextPatch>;
+}
+
+/** What a response-session patch reads from one successful scrape answer. */
+export interface IResponseSessionArgs {
+  /** The answer's body, after the shape's `checkBody`. */
+  readonly body: ApiBody;
+  /** The declared headers the answer carried, by lower-case name. */
+  readonly headers: Readonly<Record<string, string>>;
+  /** HTTP status of the answer. */
+  readonly status: number;
+  readonly ctx: IActionContext;
+}
+
+/**
+ * Session state a bank rotates on every scrape answer (N31): the response
+ * headers to read and the patch built from each answer.
+ */
+export interface IResponseSessionSpec {
+  /** Response header names the patch reads, in any case. */
+  readonly headers: readonly string[];
+  /** Builds the session-context patch; a failure fails the call. */
+  readonly patch: (args: IResponseSessionArgs) => Procedure<SessionContextPatch>;
 }
 
 /** Shape a bank plugs into createApiDirectScrapePhase. */
@@ -460,6 +484,16 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    * every 2xx body is used as-is.
    */
   readonly checkBody?: BodyCheck;
+  /**
+   * Optional session read from every successful answer `dispatchStep`
+   * returns — bootstrap, customer, balance and transactions — after
+   * `checkBody`. The patch is merged into session-context before the next
+   * call. A failed patch, a refused merge, or an answer whose headers never
+   * reached the call's sink (a GraphQL step, a browser transport) fails the
+   * call. The customer secondary identity GET is not read. Absent ⇒ the
+   * session-context changes only through bootstrap patches.
+   */
+  readonly responseSession?: IResponseSessionSpec;
   readonly customer: IApiDirectScrapeCustomerStep<TAcct>;
   readonly balance: IApiDirectScrapeBalanceStep<TAcct>;
   readonly transactions: IApiDirectScrapeTxnsStep<TAcct, TCursor>;
