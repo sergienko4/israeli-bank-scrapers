@@ -42,10 +42,10 @@ export const WK_LOGIN_FORM = {
     { kind: 'placeholder', value: LABEL_USER_CODE },
   ],
   nationalId: [
-    // Yahav's national-ID input is aria-label-only (empty placeholder): its
-    // label lives in `aria-label="תעודת זהות (9 ספרות)"`. `labelText` /
-    // `ariaLabel` resolve via Playwright `getByLabel`, which substring-matches
-    // the accessible name — so the visible label alone locates it (zero CSS).
+    // Some national-ID inputs are aria-label-only (empty placeholder), e.g.
+    // `aria-label="תעודת זהות (9 ספרות)"`. `labelText` / `ariaLabel` resolve
+    // via Playwright `getByLabel`, which substring-matches the accessible
+    // name — so the visible label alone locates it (zero CSS).
     { kind: 'labelText', value: LABEL_NATIONAL_ID },
     { kind: 'labelText', value: 'מספר זהות' },
     { kind: KIND_ARIA_LABEL, value: LABEL_NATIONAL_ID },
@@ -91,7 +91,6 @@ export const WK_LOGIN_FORM = {
     { kind: 'placeholder', value: LABEL_ACCOUNT_NUMBER },
     { kind: 'placeholder', value: 'מספר לקוח' },
     { kind: 'placeholder', value: LABEL_USER_CODE },
-    { kind: KIND_TEXT_CONTENT, value: LABEL_USER_CODE },
   ],
   /** Structural submit — type="submit" in same DOM scope as password. Tried FIRST. */
   submitStructural: [

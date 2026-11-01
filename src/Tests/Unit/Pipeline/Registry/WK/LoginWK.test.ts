@@ -1,10 +1,10 @@
 /**
  * LoginWK — pin the login-form field matchers against live bank UIs.
- * Regression guard: Yahav's nationalID field (#pinno) carries its label
- * ONLY in `aria-label` ("תעודת זהות (9 ספרות)") with an empty placeholder,
- * so the legacy→pipeline migration that dropped the visible-text matchers
- * silently broke login — nationalID resolved NOT_FOUND, fell back to
- * #username, and collided with num. These cases pin the visible-text
+ * Regression guard: a national-ID input can carry its label ONLY in
+ * `aria-label` ("תעודת זהות (9 ספרות)") with an empty placeholder, and a
+ * migration that once dropped the visible-text matchers silently broke such
+ * a login — nationalID resolved NOT_FOUND, fell back to #username, and
+ * collided with num. These cases pin the visible-text
  * (labelText / ariaLabel) matchers — which resolve via Playwright
  * `getByLabel` (substring accessible-name match) — and assert the slot
  * stays free of structural (name/id) CSS coupling, so neither the drop nor
@@ -44,7 +44,7 @@ describe('WK_LOGIN_FORM.username', () => {
 });
 
 describe('WK_LOGIN_FORM.nationalId — aria-label-only field coverage', () => {
-  it('matches by aria-label "תעודת זהות" (Yahav empty-placeholder field)', () => {
+  it('matches by aria-label "תעודת זהות" (empty-placeholder field)', () => {
     const isMatched = hasNationalId('ariaLabel', 'תעודת זהות');
     expect(isMatched).toBe(true);
   });
