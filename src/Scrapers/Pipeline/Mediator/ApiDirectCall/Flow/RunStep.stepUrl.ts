@@ -1,7 +1,8 @@
 /**
- * Step URL — the URL a step sends to: its WK url, with its raw query (N41)
- * after `?` verbatim. The fire hands the bus a raw-query step's URL as a
- * literal and any other step's WK tag, as before.
+ * Step URL — the URL a step sends to: the absolute URL in its `urlFromCarry`
+ * slot (N40) or else its WK url, with its raw query (N41) after `?` verbatim.
+ * The fire hands the bus such a step's URL as a literal and any other step's
+ * WK tag, as before.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
@@ -58,12 +59,38 @@ function withRawQuery(url: string, raw: string): string {
 }
 
 /**
+ * Read the absolute URL a carry slot holds; a relative text is refused, as
+ * nothing here knows what it was relative to.
+ * @param input - Step, scope and company.
+ * @param slot - The step's `urlFromCarry` slot.
+ * @returns The parsed URL, or `<step> carried url invalid`.
+ */
+function carriedUrl(input: IStepUrlInput, slot: string): Procedure<string> {
+  const text = input.scope.carry[slot];
+  const parsed = typeof text === 'string' ? URL.parse(text) : null;
+  if (parsed !== null) return succeed(parsed.href);
+  return fail(ScraperErrorTypes.Generic, `${input.step.name} carried url invalid`);
+}
+
+/**
+ * The URL a step sends to before any query: what its cookies bind to and its
+ * relative answer URLs resolve against.
+ * @param input - Step, scope and company.
+ * @returns The carried URL, else the WK url, or the failure.
+ */
+function stepBaseUrlOf(input: IStepUrlInput): Procedure<string> {
+  const slot = input.step.urlFromCarry;
+  if (slot !== undefined) return carriedUrl(input, slot);
+  return resolveWkUrl(input.step.urlTag, input.companyId);
+}
+
+/**
  * Resolve the URL a step sends to.
  * @param input - Step, scope and company.
  * @returns The step URL, or the first failure.
  */
 function stepUrlOf(input: IStepUrlInput): Procedure<string> {
-  const url = resolveWkUrl(input.step.urlTag, input.companyId);
+  const url = stepBaseUrlOf(input);
   const raw = input.step.rawQuery;
   if (!isOk(url) || raw === undefined) return url;
   const text = rawQueryOf(input, raw);
@@ -73,12 +100,21 @@ function stepUrlOf(input: IStepUrlInput): Procedure<string> {
 }
 
 /**
+ * Whether a step sends to its WK url as is: no carried URL, no raw query.
+ * @param input - Step, scope and company.
+ * @returns True for a plain step.
+ */
+function isPlainStep(input: IStepUrlInput): boolean {
+  return input.step.urlFromCarry === undefined && input.step.rawQuery === undefined;
+}
+
+/**
  * What the fire hands the bus: a plain step's WK tag, else its URL as a literal.
  * @param input - Step, scope and company.
  * @returns The bus target, or the step URL's failure.
  */
 function sendTargetOf(input: IStepUrlInput): Procedure<WKUrlOrLiteral> {
-  if (input.step.rawQuery === undefined) return succeed(input.step.urlTag);
+  if (isPlainStep(input)) return succeed(input.step.urlTag);
   const url = stepUrlOf(input);
   if (!isOk(url)) return url;
   const literal = literalUrl(url.value);
@@ -86,4 +122,4 @@ function sendTargetOf(input: IStepUrlInput): Procedure<WKUrlOrLiteral> {
 }
 
 export type { IStepUrlInput };
-export { sendTargetOf, stepUrlOf };
+export { sendTargetOf, stepBaseUrlOf, stepUrlOf };

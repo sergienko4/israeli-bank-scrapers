@@ -252,6 +252,7 @@ interface IPostStep extends IStepBase {
   readonly encoding?: BodyEncoding;
   /** Envelope the JSON body and answer travel in (N39); none when absent. */
   readonly codec?: EnvelopeCodec;
+  readonly urlFromCarry?: never;
 }
 
 /** A GET step: it sends no body, so the type rules one out. */
@@ -260,6 +261,11 @@ interface IGetStep extends IStepBase {
   readonly body?: never;
   readonly encoding?: never;
   readonly codec?: never;
+  /**
+   * Carry slot holding the absolute URL the step sends to instead of its WK
+   * url (N40); an earlier step's `extractRules` `url` rule checked it.
+   */
+  readonly urlFromCarry?: string;
 }
 
 /** Per-step config: a POST or a GET step. */

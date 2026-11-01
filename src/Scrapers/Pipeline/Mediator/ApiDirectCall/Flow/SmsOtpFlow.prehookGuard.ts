@@ -13,7 +13,6 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { resolveWkUrl } from '../../../Registry/WK/UrlsWK.js';
 import { createDomainCookieJar } from '../../../Strategy/Fetch/DomainCookieJar.js';
 import type { IClientCookie, ICookieSession } from '../../../Types/Domain/CookieSession.js';
 import { none, type Option } from '../../../Types/Option.js';
@@ -22,6 +21,7 @@ import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import { type ITemplateScope, resolveRef } from '../Template/RefResolver.js';
 import { clientCookieOf } from './RunStep.clientCookies.js';
+import { stepBaseUrlOf } from './RunStep.stepUrl.js';
 import { applyPreHook } from './SmsOtpFlow.prehook.js';
 import type { IPreHookGuardArgs } from './SmsOtpFlow.types.js';
 
@@ -88,12 +88,13 @@ function stepCookieView(args: IPreHookGuardArgs, jar: ICookieSession, url: strin
  * @returns The bound scope, the scope unchanged without a jar, or a failure.
  */
 function stepJarScope(args: IPreHookGuardArgs): Procedure<ITemplateScope> {
-  const jar = args.reduce.bus.cookies;
-  if (jar === undefined) return succeed(args.scope);
-  const url = resolveWkUrl(args.step.urlTag, args.reduce.companyId);
+  const { step, scope, reduce } = args;
+  const jar = reduce.bus.cookies;
+  if (jar === undefined) return succeed(scope);
+  const url = stepBaseUrlOf({ step, scope, companyId: reduce.companyId });
   if (!isOk(url)) return url;
   const cookie = stepCookieView(args, jar, url.value);
-  return succeed({ ...args.scope, cookie });
+  return succeed({ ...scope, cookie });
 }
 
 /**

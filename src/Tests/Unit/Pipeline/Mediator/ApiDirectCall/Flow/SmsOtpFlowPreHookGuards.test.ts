@@ -28,6 +28,7 @@ import { WARM_STEP_TAG } from './WarmStartFixtures.js';
 
 const HINT = CompanyTypes.OneZero;
 const STEP_URL = 'https://bank.example/authenticate/verify';
+const CARRIED_URL = 'https://portal.example/landing?t=syn-ticket';
 const SECRETS = ['syn-otp-48213', 'syn-phone-0501234567', 'syn-cookie-q9z'];
 
 /** A step's pre-hook config. */
@@ -66,6 +67,7 @@ interface IGuardRunArgs {
   readonly otpTimeoutMs?: number;
   readonly jar?: ICookieSession;
   readonly setCookies?: IStepConfig['setCookies'];
+  readonly config?: IApiDirectCallConfig;
 }
 
 /** What one guarded run did. */
@@ -91,6 +93,25 @@ function configWith(hook: Hook, setCookies?: IStepConfig['setCookies']): IApiDir
     setCookies,
   };
   return { flow: 'sms-otp', envelope: {}, steps: [BIND_STEP, otpStep] };
+}
+
+/**
+ * The two-step config whose OTP step is a GET sent to the URL bind carried.
+ * @param hook - The pre-hook.
+ * @returns Config.
+ */
+function carriedConfigWith(hook: Hook): IApiDirectCallConfig {
+  const extractsToCarry = { token: '/token', handoff: '/handoff' };
+  const bindStep: IStepConfig = { ...BIND_STEP, extractsToCarry };
+  const otpStep: IStepConfig = {
+    name: 'login',
+    urlTag: WARM_STEP_TAG,
+    method: 'GET',
+    urlFromCarry: 'handoff',
+    extractsToCarry: { token: '/token' },
+    preHook: hook,
+  };
+  return { flow: 'sms-otp', envelope: {}, steps: [bindStep, otpStep] };
 }
 
 /**
@@ -190,7 +211,7 @@ async function runGuarded(args: IGuardRunArgs): Promise<IGuardRun> {
     if (args.thrown !== undefined) return Promise.reject(args.thrown);
     return Promise.resolve(args.code ?? '12345');
   };
-  const config = configWith(args.hook, args.setCookies);
+  const config = args.config ?? configWith(args.hook, args.setCookies);
   const creds = { otpCodeRetriever, otpTimeoutMs: args.otpTimeoutMs };
   const result = await runSmsOtpFlow({ config, bus, creds, companyId: HINT });
   return { result, captures, hints };
@@ -335,6 +356,16 @@ describe('SmsOtpFlow — pre-hook guards', () => {
     expect(run.captures).toHaveLength(2);
     const cookie = jar.cookieFor(STEP_URL, 'csrfcookie');
     expect(cookie).toEqual({ has: true, value: 'auth' });
+  });
+
+  it('binds the jar view to a carried step URL', async () => {
+    const urls: string[] = [];
+    const jar = fakeJar({ csrfcookie: SECRETS[2] }, urls);
+    const config = carriedConfigWith(COOKIE_HOOK);
+    const bind = { ...FULL_BIND, handoff: CARRIED_URL };
+    const run = await runGuarded({ hook: COOKIE_HOOK, bind, jar, config });
+    expect(run.result).toMatchObject({ success: true });
+    expect(urls[0]).toBe(CARRIED_URL); (feat(api-direct): send a GET step to a carried URL)
   });
 
   it.each<[string, ICookieSession | undefined]>([

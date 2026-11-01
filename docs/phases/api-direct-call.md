@@ -221,8 +221,38 @@ is sent. A part that does not resolve fails the step as it does in a `$join`.
 query, so the canonical `pathAndQuery` carries it too. It reads an
 `IStepUrlInput`: the step, its scope and its company. `sendTargetOf` gives the
 bus that URL as a literal, so the transport sends it unchanged; `ITokenBus`
-takes a `WKUrlOrLiteral`. A step without a raw query still goes to the bus as
-its WK tag.
+takes a `WKUrlOrLiteral`. A step with neither a raw query nor a carried URL
+(below) still goes to the bus as its WK tag.
+
+### Carried step URL
+
+Some banks hand the client the next URL to call, as a redirect target or as a
+field in an answer. A GET step sends there when it names `urlFromCarry` (N40),
+the carry slot holding that URL. Its `urlTag` still names the step but is not
+sent to. A POST cannot name it, since `IPostStep.urlFromCarry` is `never`.
+
+The slot must hold the text of an absolute URL that an earlier step's
+`extractRules` `url` rule checked. A slot that is missing, not text, or not an
+absolute URL fails the step with `<step> carried url invalid` before anything
+is sent. A relative URL is refused, since nothing at that point knows what it
+was relative to.
+
+```ts
+{
+  name: 'landing',
+  urlTag: 'auth.bind',
+  method: 'GET',
+  urlFromCarry: 'handoffUrl',
+  extractsToCarry: {},
+}
+```
+
+`stepBaseUrlOf` (`Flow/RunStep.stepUrl.ts`) gives the carried URL, or else the
+WK url, before any query. The step's jar view and client cookies bind to it,
+and its pre-hook `requires` read cookies through it. Its relative
+`extractRules` URLs and its form action resolve against it. `stepUrlOf` adds
+the raw query on top, so the two combine. `sendTargetOf` hands the bus the
+resulting URL as a literal.
 
 ### Optional extracts
 

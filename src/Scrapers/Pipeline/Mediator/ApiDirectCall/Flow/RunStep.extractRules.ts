@@ -13,7 +13,6 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { resolveWkUrl } from '../../../Registry/WK/UrlsWK.js';
 import { matchesAnyUrlRule } from '../../../Strategy/Fetch/UrlRule.js';
 import type { IProcedureFailure, Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
@@ -21,6 +20,7 @@ import type { ExtractValueType, IExtractRule, IStepConfig } from '../ConfigContr
 import { walkPointer } from '../Envelope/JsonPointer.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { isPemCertificate } from './RunStep.pemRule.js';
+import { stepBaseUrlOf } from './RunStep.stepUrl.js';
 import { captureSlotsOf } from './RunStep.textCapture.js';
 import type { CarryMap, IDispatchBundle, JsonValue } from './RunStep.types.js';
 
@@ -294,7 +294,7 @@ function applyExtractRules(input: IRulePass): Procedure<CarryMap> {
 
 /**
  * Check the ruled slots of a dispatched step; a relative URL resolves against
- * the step's WK URL, which the fire already resolved, and a key ref against
+ * the step's base URL — its carried URL or its WK url — and a key ref against
  * the step's prepared scope, which holds the carry of earlier steps and of
  * this step's generators.
  * @param bundle - Dispatch bundle.
@@ -308,7 +308,7 @@ function ruleStepCarry(
   carry: CarryMap,
 ): Procedure<CarryMap> {
   const { fireScope, preparedScope: scope } = bundle;
-  const urlProc = resolveWkUrl(fireScope.step.urlTag, fireScope.companyId);
+  const urlProc = stepBaseUrlOf(fireScope);
   if (!isOk(urlProc)) return urlProc;
   return applyExtractRules({ step: fireScope.step, resp, carry, stepUrl: urlProc.value, scope });
 }

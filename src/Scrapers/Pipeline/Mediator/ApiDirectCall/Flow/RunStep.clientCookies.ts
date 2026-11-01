@@ -7,13 +7,13 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { resolveWkUrl } from '../../../Registry/WK/UrlsWK.js';
 import type { IClientCookie, ICookieSession } from '../../../Types/Domain/CookieSession.js';
 import type { IProcedureFailure, Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { RefToken } from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import { type ITemplateScope, resolveRef } from '../Template/RefResolver.js';
+import { stepBaseUrlOf } from './RunStep.stepUrl.js';
 import type { IRunStepArgs, IStepConfig } from './RunStep.types.js';
 
 /** RFC 6265 cookie-octets, 1 to 4096 of them. */
@@ -96,7 +96,7 @@ function withoutJar(args: IRunStepArgs): Procedure<IRunStepArgs> {
  * @returns The args with the bound scope, or a failure.
  */
 function withJar(args: IRunStepArgs, jar: ICookieSession): Procedure<IRunStepArgs> {
-  const url = resolveWkUrl(args.step.urlTag, args.companyId);
+  const url = stepBaseUrlOf(args);
   if (!isOk(url)) return url;
   const cookie = jar.cookieFor.bind(null, url.value);
   const scope = { ...args.scope, cookie };

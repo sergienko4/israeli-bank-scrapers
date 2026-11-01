@@ -10,13 +10,13 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { resolveWkUrl } from '../../../Registry/WK/UrlsWK.js';
 import type { IProcedureFailure, Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IFormCapture, IStepConfig } from '../ConfigContracts/index.js';
 import type { HtmlAttrs } from './HtmlTags.attrs.js';
 import { type IHtmlTag, scanHtmlTags } from './HtmlTags.js';
 import { formFieldsOf } from './RunStep.formFields.js';
+import { stepBaseUrlOf } from './RunStep.stepUrl.js';
 import { answerText } from './RunStep.textCapture.js';
 import type { CarryMap, IRunStepArgs, JsonValue } from './RunStep.types.js';
 
@@ -159,7 +159,7 @@ function captureFormOf(target: IFormTarget, html: string): Procedure<CarryMap> {
 function captureForm(args: IRunStepArgs, resp: JsonValue): Procedure<CarryMap> {
   const { step } = args;
   if (step.formCapture === undefined) return succeed({});
-  const stepUrl = resolveWkUrl(step.urlTag, args.companyId);
+  const stepUrl = stepBaseUrlOf(args);
   if (!isOk(stepUrl)) return stepUrl;
   const target: IFormTarget = { step, capture: step.formCapture, stepUrl: stepUrl.value };
   const html = answerText(resp);
