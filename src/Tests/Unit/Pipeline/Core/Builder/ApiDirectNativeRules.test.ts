@@ -1,8 +1,7 @@
 /**
- * N8 — step reading, encoding and header carry require a node-backed
- * transport; bank-wide redirect, status and text defaults require native
- * fetch. `cookieDomains` needs a node-backed session jar. Header and cookie
- * names must be valid HTTP tokens.
+ * N8 — node-backed readers, encoding, header carry and domain cookies;
+ * native-fetch-only redirect, status and failure-text policies. Domain
+ * cookies need a session jar, and header and cookie names must be tokens.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
@@ -28,6 +27,8 @@ const DYNAMIC_JAR: HeadlessBlock = {
   sessionCookies: true,
   cookieDomains: ['native.example'],
 };
+const PROFILE: HeadlessBlock = { ...PLAIN, tlsProfile: 'android-11-okhttp' };
+const REGISTERED: HeadlessBlock = { ...PLAIN, requiresClientCert: true };
 
 const CALL: IStepConfig = {
   name: 'landing',
@@ -105,6 +106,7 @@ function resumeOf(step: IStepConfig): IApiDirectRuleInput {
 }
 
 const OFF = 'not allowed without headless.nativeFetch';
+const NODE_OFF = 'not allowed without nativeFetch or node:https';
 const HEADER_MSG = 'headerExtractsToCarry.header: must be an HTTP header name';
 const NO_DOMAIN_JAR = 'steps.setCookies: not allowed without headless.cookieDomains';
 const COOKIE_NAME_MSG = 'steps.setCookies: each name must be an HTTP token';
@@ -122,9 +124,13 @@ const BROKEN: readonly IBrokenCase[] = [
   {
     label: 'document step, no headless',
     input: runOf([PAGE], false),
-    message: `steps.response: ${OFF}`,
+    message: `steps.response: ${NODE_OFF}`,
   },
-  { label: 'document step, plain', input: runOf([PAGE], PLAIN), message: `steps.response: ${OFF}` },
+  {
+    label: 'document step, plain',
+    input: runOf([PAGE], PLAIN),
+    message: `steps.response: ${NODE_OFF}`,
+  },
   {
     label: 'marker off a document step',
     input: runOf([MARKED_JSON], NATIVE),
@@ -141,20 +147,39 @@ const BROKEN: readonly IBrokenCase[] = [
     message: `steps.redirect: ${OFF}`,
   },
   { label: 'reject resume step', input: resumeOf(REJECTING), message: `steps.redirect: ${OFF}` },
-  { label: 'form step, plain', input: runOf([FORM], PLAIN), message: `steps.encoding: ${OFF}` },
+  {
+    label: 'reject step, client cert',
+    input: runOf([REJECTING], DYNAMIC_TLS),
+    message: `steps.redirect: ${OFF}`,
+  },
+  {
+    label: 'form step, plain',
+    input: runOf([FORM], PLAIN),
+    message: `steps.encoding: ${NODE_OFF}`,
+  },
   {
     label: 'header carry, native off',
     input: runOf([carrying('x-id')], { ...PLAIN, nativeFetch: false }),
-    message: `steps.headerExtractsToCarry: ${OFF}`,
+    message: `steps.headerExtractsToCarry: ${NODE_OFF}`,
+  },
+  {
+    label: 'header carry, registered cert off',
+    input: runOf([carrying('x-id')], { ...PLAIN, requiresClientCert: false }),
+    message: `steps.headerExtractsToCarry: ${NODE_OFF}`,
   },
   {
     label: 'cookie domains, plain jar',
     input: runOf([CALL], { ...PLAIN, sessionCookies: true, cookieDomains: ['native.example'] }),
-    message: `headless.cookieDomains: ${OFF}`,
+    message: `headless.cookieDomains: ${NODE_OFF}`,
   },
   {
     label: 'bank redirect policy, plain',
     input: runOf([CALL], { ...PLAIN, redirectPolicy: 'reject' }),
+    message: `headless.redirectPolicy: ${OFF}`,
+  },
+  {
+    label: 'bank redirect policy, client cert',
+    input: runOf([CALL], { ...DYNAMIC_TLS, redirectPolicy: 'reject' }),
     message: `headless.redirectPolicy: ${OFF}`,
   },
   {
@@ -171,6 +196,11 @@ const BROKEN: readonly IBrokenCase[] = [
     label: 'bank text omission, dynamic mTLS',
     input: runOf([CALL], { ...DYNAMIC_TLS, omitBankText: true }),
     message: `headless.omitBankText: ${OFF}`,
+  },
+  {
+    label: 'bank status policy, TLS profile',
+    input: runOf([CALL], { ...PROFILE, statusPolicy: { 204: 'empty' } }),
+    message: `headless.statusPolicy: ${OFF}`,
   },
   {
     label: 'cookie domains, no jar',
@@ -220,6 +250,21 @@ const EVERY_FIELD: HeadlessBlock = {
   omitBankText: true,
 };
 
+/** The steps whose fields node:https reads and writes as native fetch does. */
+const NODE_STEPS = [PAGE, MARKED, FORM, carrying('x-id'), setting('G3CmE')];
+
+/**
+ * A node:https block keeping a domain jar.
+ * @param transport - The block selecting node:https.
+ * @returns The block with a session jar on the test domain.
+ */
+function withDomainJar(transport: HeadlessBlock): HeadlessBlock {
+  return { ...transport, sessionCookies: true, cookieDomains: ['native.example'] };
+}
+
+const PROFILE_JAR = withDomainJar(PROFILE);
+const REGISTERED_JAR = withDomainJar(REGISTERED);
+
 const SOUND: readonly ISoundCase[] = [
   { label: 'plain step, no headless', input: runOf([CALL], false) },
   { label: 'plain step, native off', input: runOf([CALL], { ...PLAIN, nativeFetch: false }) },
@@ -240,13 +285,12 @@ const SOUND: readonly ISoundCase[] = [
     input: runOf([{ ...CALL, response: 'text' }, PAGE, MARKED], DYNAMIC_TLS),
   },
   {
-    label: 'step redirect on dynamic mTLS',
-    input: runOf([REJECTING], DYNAMIC_TLS),
-  },
-  {
     label: 'header extracts and domain cookies on dynamic mTLS',
     input: runOf([carrying('x-id'), setting('G3CmE')], DYNAMIC_JAR),
   },
+  { label: 'node fields, dynamic client cert', input: runOf(NODE_STEPS, DYNAMIC_JAR) },
+  { label: 'node fields, TLS profile', input: runOf(NODE_STEPS, PROFILE_JAR) },
+  { label: 'node fields, registered cert', input: runOf(NODE_STEPS, REGISTERED_JAR) },
 ];
 
 describe('validateApiDirectConfig — native-fetch fields', () => {

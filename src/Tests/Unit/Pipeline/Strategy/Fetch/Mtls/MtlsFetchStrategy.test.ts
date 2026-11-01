@@ -8,6 +8,7 @@
 
 import type { Agent } from 'node:https';
 
+import type { IFetchOpts } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 import {
   type AgentSource,
   fixedAgentSource,
@@ -101,6 +102,33 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
     if (!isOk(result)) expect(result.errorMessage).toContain('403');
+  });
+
+  it('writes a latin1 form, reads text and hands back headers, as native fetch does', async () => {
+    const taken: Record<string, string>[] = [];
+    const headerSink = {
+      names: ['content-type'],
+      /**
+       * Record the declared headers of the answer.
+       * @param headers - Declared headers the answer carried.
+       * @returns How many there were.
+       */
+      take: (headers: Readonly<Record<string, string>>): number => {
+        taken.push({ ...headers });
+        return Object.keys(headers).length;
+      },
+    };
+    const strategy = new MtlsFetchStrategy(server.baseUrl, certSource);
+    const opts: IFetchOpts = {
+      extraHeaders: {},
+      bodyEncoding: 'form-latin1',
+      responseKind: 'text',
+      headerSink,
+    };
+    const result = await strategy.fetchPost(`${server.baseUrl}/echo`, { a: '\u00e7' }, opts);
+    const echo = { contentLength: '5', transferEncoding: null, bodyHex: '613d254537' };
+    expect(result).toEqual({ success: true, value: { text: JSON.stringify(echo) } });
+    expect(taken).toEqual([{ 'content-type': 'application/json' }]);
   });
 });
 

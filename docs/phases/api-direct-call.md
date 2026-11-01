@@ -556,10 +556,10 @@ class-like, is reported as `Error`. A throwing
 
 Some banks keep the session in cookies shared by sibling hosts, and answer
 login calls with redirects, HTML pages or response headers instead of JSON
-alone. Step-level reading, encoding, headers and domain cookies work on either
-node-backed transport (`nativeFetch` or `node:https`). Bank-wide redirect,
-status and failure-text defaults still require `headless.nativeFetch`. The
-transport side is described in
+alone. Reading, encoding, headers and domain cookies work on either node
+transport (`nativeFetch` or node:https with a certificate or TLS profile).
+Step redirects and bank-wide redirect, status and failure-text defaults need
+`headless.nativeFetch`. The transport side of each field is described in
 [Headless transports](../architecture/pipeline.md#headless-transports), and
 the [build-time config checks](#build-time-config-checks) refuse combinations
 that cannot work.
@@ -679,12 +679,12 @@ then the carry-generator rules, `API_DIRECT_GENERATE_RULES` in
 rules, `API_DIRECT_CLIENT_CERT_RULES` in
 `Core/Builder/ApiDirectClientCertRules.ts`, then the session rules,
 `API_DIRECT_SESSION_RULES` in `Core/Builder/ApiDirectSessionRules.ts`. The
-native-fetch rules, `API_DIRECT_NATIVE_RULES` in
-`Core/Builder/ApiDirectNativeRules.ts`, run last: node-backed step fields and
-domain cookies are rejected on browser transport, while native-only bank
-defaults are rejected on node-tls too. `NODE_STEP_FIELDS` names the shared
-step capabilities; `NATIVE_HEADLESS_FIELDS` names the native-only defaults
-checked by both api-direct and node-tls builders. The first broken rule
+transport rules, `API_DIRECT_NATIVE_RULES` in
+`Core/Builder/ApiDirectNativeRules.ts`, run last: step reading and domain
+cookies are rejected off either node transport; redirects and native-only
+bank defaults are rejected on node:https too. `NATIVE_HEADLESS_FIELDS` names
+the native-only defaults checked by both api-direct and node-tls builders.
+The first broken rule
 fails the build with `Generic` and `<field>: <rule>`:
 
 | Broken when                                                                                                                               | Message                                                                            |
@@ -735,8 +735,9 @@ fails the build with `Generic` and `<field>: <rule>`:
 | `headless.clientCert` together with `headless.requiresClientCert: true`                                                                   | `headless.clientCert: not allowed with headless.requiresClientCert`                |
 | a `sessionCarry` slot that names no body or header extract of any login or resume step (`API_DIRECT_SESSION_RULES`)                       | `sessionCarry: each slot must name a step extract`                                 |
 | `cookieHandoff: 'isolate'` without `headless.cookieDomains`                                                                               | `cookieHandoff: isolate not allowed without headless.cookieDomains`                |
-| a login or resume step with `response`, `documentMarker`, `redirect`, `headerExtractsToCarry` or `encoding` on a browser-backed transport | `steps.<field>: not allowed without headless.nativeFetch`                          |
-| `headless.cookieDomains` on a browser-backed transport                                                                                    | `headless.cookieDomains: not allowed without headless.nativeFetch`                 |
+| a login or resume step with `response`, `documentMarker`, `headerExtractsToCarry` or `encoding` off native fetch and node:https           | `steps.<field>: not allowed without nativeFetch or node:https`                     |
+| a login or resume step with `redirect`, without `headless.nativeFetch: true`                                                              | `steps.redirect: not allowed without headless.nativeFetch`                         |
+| `headless.cookieDomains` off native fetch and node:https                                                                                  | `headless.cookieDomains: not allowed without nativeFetch or node:https`            |
 | `headless.redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, including node-tls banks                | `headless.<field>: not allowed without headless.nativeFetch`                       |
 | `headless.cookieDomains` without `headless.sessionCookies: true`                                                                          | `headless.cookieDomains: not allowed without headless.sessionCookies`              |
 | a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                                | `headerExtractsToCarry.header: must be an HTTP header name`                        |
