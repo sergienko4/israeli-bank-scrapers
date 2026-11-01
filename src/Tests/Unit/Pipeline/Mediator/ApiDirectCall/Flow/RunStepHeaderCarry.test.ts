@@ -19,6 +19,8 @@ import { installJsonAnswer, makeNativeMediator } from '../../../../../Helpers/Na
 
 const HINT = CompanyTypes.OneZero;
 const ORIGIN = 'https://example.test';
+const STALE_URL = `${ORIGIN}/api/bind?try=1`;
+const FRESH_URL = `${ORIGIN}/api/bind?try=2`;
 
 const PLAIN_CONFIG: IApiDirectCallConfig = {
   flow: 'sms-otp',
@@ -86,12 +88,13 @@ describe('N6 response-header carry over the headless native transport', () => {
     expect(result).toMatchObject({ success: false, errorMessage: 'bind header missing' });
   });
 
-  it('UT-HC-04 keeps only the last answer headers, never a superseded one', () => {
+  it('UT-HC-04 keeps only the last answer headers and URL, never a superseded one', () => {
     const fire: IFireArgs = { body: {}, query: {}, extraHeaders: {} };
     const capture = attachHeaderCapture(fire, CARRY_STEP).headerCapture;
-    capture?.sink.take({ 'x-session-id': 'syn-stale' }, 200);
-    capture?.sink.take({}, 200);
+    capture?.sink.take({ 'x-session-id': 'syn-stale' }, 401, STALE_URL);
+    capture?.sink.take({}, 200, FRESH_URL);
     const seen = [...(capture?.seen ?? [])];
     expect(seen).toEqual([]);
+    expect(capture?.urls).toEqual([FRESH_URL]);
   });
 });

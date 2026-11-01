@@ -81,12 +81,14 @@ interface IAttachSignerArgs {
 }
 
 /**
- * A step's response-header capture: the sink its call policy names and the
- * headers that sink filled. The filled map stays off the transport's view.
+ * A step's response capture: the sink its call policy names, the headers
+ * that sink filled and the URL that gave the last answer (N51; at most one).
+ * The filled stores stay off the transport's view.
  */
 interface IHeaderCapture {
   readonly sink: IResponseHeaderSink;
   readonly seen: ReadonlyMap<string, string>;
+  readonly urls: readonly string[];
 }
 
 /** Args bundle passed to the transport — keeps runStep short. */
@@ -96,7 +98,7 @@ interface IFireArgs {
   readonly extraHeaders: MutableHeaderMap;
   readonly onSetCookie?: OnSetCookie;
   readonly policy?: IFetchCallPolicy;
-  /** Present when the step carries response headers; never sent to the bus. */
+  /** Present when the step carries response headers or its final URL; never sent to the bus. */
   readonly headerCapture?: IHeaderCapture;
 }
 

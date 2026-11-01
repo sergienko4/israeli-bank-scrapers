@@ -68,8 +68,11 @@ type StatusPolicy = Readonly<Partial<Record<number, StatusAction>>>;
 interface IResponseHeaderSink {
   /** Lower-case header names; only these reach `take`. */
   readonly names: readonly string[];
-  /** Receives the named headers and the HTTP status of each answer; returns how many headers. */
-  readonly take: (headers: Readonly<Record<string, string>>, status: number) => number;
+  /**
+   * Receives the named headers, the HTTP status and the URL that gave each
+   * answer (N51: after any hops, the last one); returns how many headers.
+   */
+  readonly take: (headers: Readonly<Record<string, string>>, status: number, url: string) => number;
 }
 
 /** Per-call transport policy a step hands to the bus. */

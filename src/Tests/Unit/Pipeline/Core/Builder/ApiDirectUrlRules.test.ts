@@ -1,7 +1,9 @@
 /**
- * N40/N41 build rules — a raw query replaces the query template, never joins
- * it; a carried step URL (a GET's, by type) reads a slot that an earlier step
- * in the same list checked with an `extractRules` `url` rule.
+ * N40/N41/N51 build rules — a raw query replaces the query template, never
+ * joins it; a carried step URL (a GET's, by type) reads a slot that an earlier
+ * step in the same list checked, with an `extractRules` `url` rule or as its
+ * `finalUrlInto` slot. A `finalUrlInto` needs the step's own manual redirect,
+ * whose `allow` rules check the URL, and a slot the step extracts nothing into.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
@@ -18,12 +20,22 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 const HOST = 'https://url.example';
-const NATIVE = { identityBase: HOST, graphql: `${HOST}/graphql`, paths: {}, nativeFetch: true };
+/** A native headless block; a step's manual redirect needs the bank to reject the rest. */
+const NATIVE = {
+  identityBase: HOST,
+  graphql: `${HOST}/graphql`,
+  paths: {},
+  nativeFetch: true,
+  redirectPolicy: 'reject' as const,
+};
 const RAW_MSG = 'steps.rawQuery: not with queryTemplate';
 const RULE_MSG = 'steps.urlFromCarry: slot needs an earlier url rule';
+const MANUAL_MSG = 'steps.finalUrlInto: needs a manual redirect';
+const FRESH_MSG = 'steps.finalUrlInto: must be a fresh slot';
 const RAW_QUERY: IJoinTemplate = { parts: [{ literal: 'code=1' }] };
 const QUERY_TEMPLATE = { lang: { $literal: 'he' } };
 const URL_RULES = { handoffUrl: { url: [{ origin: HOST, paths: ['/landing'] }] } };
+const MANUAL = { maxHops: 3, allow: URL_RULES.handoffUrl.url };
 
 const PERSISTENT_AUTH = {
   provider: 'syn-provider',
@@ -60,6 +72,16 @@ const SELF_RULED_LANDING: IGetStep = {
   ...LANDING,
   extractsToCarry: { handoffUrl: '/next' },
   extractRules: URL_RULES,
+};
+
+/** A GET whose final URL, checked by its manual redirect, is the handoff URL. */
+const FINAL: IGetStep = {
+  name: 'bootstrap',
+  urlTag: 'auth.bind',
+  method: 'GET',
+  extractsToCarry: {},
+  redirect: MANUAL,
+  finalUrlInto: 'handoffUrl',
 };
 
 /** One build: its login steps and, when set, its resume steps. */
@@ -102,6 +124,31 @@ const REFUSALS: readonly IRefusalCase[] = [
     resume: [LANDING],
     expected: RULE_MSG,
   },
+  {
+    label: 'a final URL without a redirect',
+    steps: [{ ...FINAL, redirect: undefined }],
+    expected: MANUAL_MSG,
+  },
+  {
+    label: 'a final URL under a follow redirect',
+    steps: [{ ...FINAL, redirect: 'follow' }],
+    expected: MANUAL_MSG,
+  },
+  {
+    label: 'a blank final URL slot',
+    steps: [{ ...FINAL, finalUrlInto: ' ' }],
+    expected: FRESH_MSG,
+  },
+  {
+    label: 'a final URL slot the step also extracts',
+    steps: [{ ...FINAL, extractsToCarry: { handoffUrl: '/next' } }],
+    expected: FRESH_MSG,
+  },
+  {
+    label: 'a carried URL its own step finalizes',
+    steps: [{ ...LANDING, redirect: MANUAL, finalUrlInto: 'handoffUrl' }],
+    expected: RULE_MSG,
+  },
 ];
 
 const ACCEPTED: readonly IBuildCase[] = [
@@ -109,6 +156,7 @@ const ACCEPTED: readonly IBuildCase[] = [
   { label: 'a raw query alone', steps: [BIND, { ...LANDING, rawQuery: RAW_QUERY }] },
   { label: 'a query template alone', steps: [BIND, { ...LANDING, queryTemplate: QUERY_TEMPLATE }] },
   { label: 'a resume list ruling its own slot', steps: [BIND], resume: [BIND, LANDING] },
+  { label: 'a carried URL an earlier final URL checked', steps: [FINAL, LANDING] },
 ];
 
 describe('validateApiDirectConfig — N40/N41 step URL rules', () => {

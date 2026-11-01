@@ -208,14 +208,15 @@ function resolveFetchUrl(baseUrl: string, url: string): FullyQualifiedUrl {
 
 /**
  * Hand the final response to the call's hooks: its Set-Cookie lines go to the
- * cookie hook under the URL that answered, its declared headers to the sink.
+ * cookie hook under the URL that answered, its declared headers and that URL
+ * to the sink.
  * @param run - The dispatched run and its hooks.
  * @param end - The response that ended the run and the URL that answered.
  * @returns How many headers the call's header sink took.
  */
 function emitHooks(run: IDispatch, end: IRunEnd): number {
   emitSetCookies(end.response, end.responseUrl, run.onSetCookie);
-  return emitResponseHeaders(end.response, run.reading.headerSink);
+  return emitResponseHeaders(end.response, end.responseUrl, run.reading.headerSink);
 }
 
 /**

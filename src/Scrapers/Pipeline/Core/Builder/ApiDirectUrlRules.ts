@@ -1,13 +1,20 @@
 /**
  * Build rules for step URLs. A raw query (N41) replaces the query template
  * rather than joining it. A carried step URL (N40), which only a GET can name
- * (`IPostStep.urlFromCarry` is `never`), reads a slot that an `extractRules`
- * `url` rule of an earlier step in the same list checked: login steps and
- * resume steps each run without the other's carry.
+ * (`IPostStep.urlFromCarry` is `never`), reads a slot that an earlier step in
+ * the same list checked — with an `extractRules` `url` rule, or as its final
+ * URL (N51), which its own redirect rules check: login steps and resume steps
+ * each run without the other's carry. A final-URL slot needs a manual
+ * redirect, whose rules check it, and a slot of its own.
  */
 
 import type { IStepConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { anyStep, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
+import {
+  anyStep,
+  type IApiDirectRule,
+  type IApiDirectRuleInput,
+  isExtractSlot,
+} from './ApiDirectRuleInput.js';
 
 /**
  * Whether a step sets both a raw query and a query template.
@@ -19,12 +26,33 @@ function isRawWithTemplate(step: IStepConfig): boolean {
 }
 
 /**
- * Whether a step checks a slot with an `extractRules` `url` rule.
+ * Whether a step sets a final-URL slot without a manual redirect.
+ * @param step - Step config.
+ * @returns True when the slot has no rules to pass.
+ */
+function isUnguardedFinal(step: IStepConfig): boolean {
+  return step.finalUrlInto !== undefined && typeof step.redirect !== 'object';
+}
+
+/**
+ * Whether a step's final-URL slot is blank or one it also extracts.
+ * @param step - Step config.
+ * @returns True when the slot is not a fresh one.
+ */
+function isStaleFinal(step: IStepConfig): boolean {
+  const slot = step.finalUrlInto;
+  if (slot === undefined) return false;
+  return slot.trim() === '' || isExtractSlot(step, slot);
+}
+
+/**
+ * Whether a step checks a slot: an `extractRules` `url` rule, or its final URL.
  * @param step - Step config.
  * @param slot - Carry slot.
- * @returns True when the slot has a url rule.
+ * @returns True when the slot is a checked URL.
  */
 function hasUrlRule(step: IStepConfig, slot: string): boolean {
+  if (step.finalUrlInto === slot) return true;
   const rules = step.extractRules ?? {};
   return Object.hasOwn(rules, slot) && rules[slot].url !== undefined;
 }
@@ -67,6 +95,8 @@ const API_DIRECT_URL_RULES: readonly IApiDirectRule[] = [
     message: 'steps.urlFromCarry: slot needs an earlier url rule',
     isBroken: hasUnruledCarriedUrl,
   },
+  { message: 'steps.finalUrlInto: needs a manual redirect', isBroken: anyStep(isUnguardedFinal) },
+  { message: 'steps.finalUrlInto: must be a fresh slot', isBroken: anyStep(isStaleFinal) },
 ];
 
 export default API_DIRECT_URL_RULES;

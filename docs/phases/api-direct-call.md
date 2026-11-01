@@ -255,10 +255,11 @@ field in an answer. A GET step sends there when it names `urlFromCarry` (N40),
 the carry slot holding that URL. Its `urlTag` still names the step but is not
 sent to. A POST cannot name it, since `IPostStep.urlFromCarry` is `never`.
 
-The slot must hold the text of an absolute URL that an earlier step's
-`extractRules` `url` rule checked. A slot that no earlier step in the same
-list (login steps, or resume steps) checks with a `url` rule fails the build
-with `steps.urlFromCarry: slot needs an earlier url rule`. At run time, a slot
+The slot must hold the text of an absolute URL that an earlier step checked:
+with an `extractRules` `url` rule, or as its [final URL](#final-url-carry),
+which its own redirect rules check. A slot that no earlier step in the same
+list (login steps, or resume steps) checks either way fails the build with
+`steps.urlFromCarry: slot needs an earlier url rule`. At run time, a slot
 that is missing, not text, or not an absolute URL fails the step with
 `<step> carried url invalid` before anything is sent. A relative URL is
 refused, since nothing at that point knows what it was relative to.
@@ -279,6 +280,43 @@ and its pre-hook `requires` read cookies through it. Its relative
 `extractRules` URLs and its form action resolve against it. `stepUrlOf` adds
 the raw query on top, so the two combine. `sendTargetOf` hands the bus the
 resulting URL as a literal.
+
+### Final URL carry
+
+A bank may hand the client a ticket URL that redirects to the page later calls
+must name, for example as their `Referer`. A GET step with a manual `redirect`
+can carry that page's URL: `finalUrlInto` (N51) names the slot that takes the
+URL that gave the final answer, after the last hop. A POST cannot name it,
+since `IPostStep.finalUrlInto` is `never`.
+
+The native transport hands the step's header sink each answer's URL, and the
+step's capture keeps only the last one, so a call retried after a 401 carries
+its final answer's URL. `carryFinalUrl` (`Flow/RunStep.finalUrl.ts`) then
+checks that URL against the step's own `redirect.allow` rules. Every hop
+already passed them, so in practice only a request URL that answered without
+a hop is refused: the step fails `Generic` with `<step> final url refused`,
+naming no URL. The URL is never logged. A later step reads the slot like any
+carry slot, in a header template or as its `urlFromCarry`.
+
+```ts
+{
+  name: 'landing',
+  urlTag: 'auth.bind',
+  method: 'GET',
+  urlFromCarry: 'handoffUrl',
+  extractsToCarry: {},
+  redirect: {
+    maxHops: 3,
+    allow: [{ origin: 'https://bank.example', paths: ['/portal/landing'] }],
+  },
+  finalUrlInto: 'landingUrl',
+}
+```
+
+The build refuses a `finalUrlInto` on a step without a manual `redirect`, whose
+rules would check it, and one that is blank or names a slot the step also
+extracts. A manual `redirect` itself needs `headless.nativeFetch` and
+`headless.redirectPolicy: 'reject'`.
 
 ### Optional extracts
 
@@ -1011,7 +1049,9 @@ from what it extracted:
   header is dropped when the cookie is absent
   ([Headless transports](../architecture/pipeline.md#headless-transports)).
 - `redirect` overrides `headless.redirectPolicy` for one step
-  ([Redirect policies](../architecture/pipeline.md#redirect-policies)).
+  ([Redirect policies](../architecture/pipeline.md#redirect-policies)); with
+  a manual one, `finalUrlInto` carries the URL that gave the final answer
+  ([Final URL carry](#final-url-carry)).
 - `response: 'document'` and `documentMarker` read a page instead of JSON;
   `response: 'text'` reads the answer as `{ text }`, up to `maxTextChars`
   (65 536 by default), and `textCaptures` read slots off it
@@ -1183,7 +1223,9 @@ fails the build with `Generic` and `<field>: <rule>`:
 | an `exchange` codec whose `keyInto` or `sessionInto` is blank, or both name one slot                                                  | `steps.codec: exchange needs distinct keyInto and sessionInto`           |
 | a `sessionCarry` slot that a codec reads or writes: the `privateRef`, `keyRef` or `sessionRef` slot, `keyInto` or `sessionInto`       | `steps.codec: codec slots must not be sessionCarry slots`                |
 | a login or resume step with both `rawQuery` and `queryTemplate` (`API_DIRECT_URL_RULES`)                                              | `steps.rawQuery: not with queryTemplate`                                 |
-| a `urlFromCarry` slot that no earlier step of the same list (login or resume) checks with an `extractRules` `url` rule                | `steps.urlFromCarry: slot needs an earlier url rule`                     |
+| a `urlFromCarry` slot that no earlier step of the same list (login or resume) checks with a `url` rule or as its `finalUrlInto`       | `steps.urlFromCarry: slot needs an earlier url rule`                     |
+| a `finalUrlInto` on a step whose `redirect` is not manual                                                                             | `steps.finalUrlInto: needs a manual redirect`                            |
+| a `finalUrlInto` slot that is blank, or that the step also extracts                                                                   | `steps.finalUrlInto: must be a fresh slot`                               |
 | an optional `$ref` at a body or query root, inside an array or in a header (`API_DIRECT_OPTIONAL_REF_RULES`)                          | `steps: optional ref only as an object value`                            |
 | a `response: 'document'` step with any `extractsToCarry` or `optionalExtractsToCarry`                                                 | `steps.response: a document step reads no body extracts`                 |
 | a login or resume step whose `classify` has no case, or a case with an empty `when` (`API_DIRECT_CLASSIFY_RULES`)                     | `steps.classify: needs cases, each with a check`                         |
@@ -1634,6 +1676,7 @@ Where each piece lives, for maintainers:
 | `GENERIC`                                                       | The step's answer matched no [classifier](#answer-classifier) case or more than one (`<step> answer unrecognized` or `<step> answer ambiguous`), or a capture was refused (`<step> answer capture <slot> missing` or `invalid`)                                                           |
 | the type a matched case's `fail` names                          | The step's answer matched a [classifier](#answer-classifier) case that fails the step (`<step> answer <case>`)                                                                                                                                                                            |
 | `GENERIC`                                                       | A body extract failed its rule (`<step> extract <slot> invalid`) — see [Extract rules](#extract-rules)                                                                                                                                                                                    |
+| `GENERIC`                                                       | A GET step's final URL failed its own redirect rules (`<step> final url refused`) — see [Final URL carry](#final-url-carry)                                                                                                                                                               |
 | `INVALID_OTP`                                                   | Wrong code, or a code that fails its pre-hook `valuePattern` (`<step> preHook value invalid`) — see [OTP pre-hook guards](#otp-pre-hook-guards)                                                                                                                                           |
 | `TWO_FACTOR_RETRIEVER_MISSING`                                  | OTP step reached without callback (`preHook: creds.<field> is not a function`)                                                                                                                                                                                                            |
 | `GENERIC`                                                       | A pre-hook `requires` ref did not resolve, or the OTP callback threw (`preHook: creds.<field>() threw <ErrorName>`) — see [OTP pre-hook guards](#otp-pre-hook-guards)                                                                                                                     |

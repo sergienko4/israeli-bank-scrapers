@@ -259,6 +259,7 @@ interface IPostStep extends IStepBase {
   /** Envelope the JSON body and answer travel in (N39); none when absent. */
   readonly codec?: EnvelopeCodec;
   readonly urlFromCarry?: never;
+  readonly finalUrlInto?: never;
 }
 
 /** A GET step: it sends no body, so the type rules one out. */
@@ -272,6 +273,11 @@ interface IGetStep extends IStepBase {
    * url (N40); an earlier step's `extractRules` `url` rule checked it.
    */
   readonly urlFromCarry?: string;
+  /**
+   * Carry slot the URL that gave the final answer is written to (N51); it must
+   * pass the step's own manual `redirect.allow` rules.
+   */
+  readonly finalUrlInto?: string;
 }
 
 /** Per-step config: a POST or a GET step. */

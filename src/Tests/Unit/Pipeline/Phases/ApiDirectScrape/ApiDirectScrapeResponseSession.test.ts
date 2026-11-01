@@ -89,7 +89,7 @@ function answerOnWire(plan: IBusPlan): (...args: unknown[]) => Promise<Procedure
     await Promise.resolve();
     const opts = args.at(-1) as IApiQueryOpts | undefined;
     const sink = opts?.policy?.headerSink;
-    for (const wire of plan.wire) emitResponseHeaders(new Response('{}', wire), sink);
+    for (const wire of plan.wire) emitResponseHeaders(new Response('{}', wire), BALANCE_URL, sink);
     return plan.result;
   };
 }

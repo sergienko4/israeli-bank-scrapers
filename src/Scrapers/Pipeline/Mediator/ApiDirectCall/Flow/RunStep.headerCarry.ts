@@ -2,9 +2,10 @@
  * Response-header carry (N6) — a step's `headerExtractsToCarry` names a carry
  * slot per response header. The step hands its call a sink for exactly those
  * headers; after the answer each slot takes its header's value, else its
- * fallback, else the step fails `<step> header missing`. Only the last answer
- * counts: a call retried after a 401 drops the first answer's headers. Values
- * are never logged.
+ * fallback, else the step fails `<step> header missing`. A step that carries
+ * its final URL (N51) gets a sink too, which also keeps the URL that answered.
+ * Only the last answer counts: a call retried after a 401 drops the first
+ * answer's headers and URL. Values are never logged.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
@@ -19,46 +20,76 @@ type HeaderSlot = readonly [string, IHeaderExtract];
 /** A carry slot and the value it takes. */
 type CarriedSlot = readonly [string, string];
 
+/** The writable stores behind a step's capture. */
+interface IAnswerStore {
+  readonly seen: Map<string, string>;
+  readonly urls: string[];
+}
+
 /** The capture of a step that carries no headers. */
 const NO_HEADERS: ReadonlyMap<string, string> = new Map();
 
 /**
- * File the declared headers an answer carried into the step's capture. Each
- * answer replaces the last, so a retried call keeps only its final answer's.
- * @param seen - The step's captured headers, by lower-case name.
+ * File the declared headers an answer carried, and the URL that gave it, into
+ * the step's stores. Each answer replaces the last, so a retried call keeps
+ * only its final answer's.
+ * @param store - The step's stores.
  * @param headers - The declared headers the answer carried.
+ * @param url - The URL that gave the answer.
  * @returns How many headers the step has captured.
  */
-function keepHeaders(seen: Map<string, string>, headers: Readonly<Record<string, string>>): number {
-  seen.clear();
-  for (const [name, value] of Object.entries(headers)) seen.set(name, value);
-  return seen.size;
+function keepAnswer(
+  store: IAnswerStore,
+  headers: Readonly<Record<string, string>>,
+  url: string,
+): number {
+  store.seen.clear();
+  for (const [name, value] of Object.entries(headers)) store.seen.set(name, value);
+  store.urls.splice(0, store.urls.length, url);
+  return store.seen.size;
 }
 
 /**
- * Build a step's header capture: a sink for its declared headers and the map
- * the sink fills.
- * @param extracts - The step's header carry slots.
+ * Build a step's capture: a sink for its declared headers and the stores the
+ * sink fills.
+ * @param step - Step config.
  * @returns The capture whose sink the call names.
  */
-function captureOf(extracts: Readonly<Record<string, IHeaderExtract>>): IHeaderCapture {
-  const slots = Object.values(extracts);
+function captureOf(step: IStepConfig): IHeaderCapture {
+  const slots = Object.values(step.headerExtractsToCarry ?? {});
   const names = slots.map((extract): string => extract.header.toLowerCase());
-  const seen = new Map<string, string>();
-  const take = keepHeaders.bind(null, seen);
-  return { sink: { names, take }, seen };
+  const store: IAnswerStore = { seen: new Map(), urls: [] };
+  /**
+   * The sink's receiver: keeps an answer's headers and URL; the status is not read.
+   * @param headers - The declared headers the answer carried.
+   * @param _status - The answer's HTTP status.
+   * @param url - The URL that gave the answer.
+   * @returns How many headers the step has captured.
+   */
+  const take = (headers: Readonly<Record<string, string>>, _status: number, url: string): number =>
+    keepAnswer(store, headers, url);
+  return { sink: { names, take }, ...store };
 }
 
 /**
- * Give a step's fire args a header capture when the step carries headers.
+ * Whether a step reads its answer's headers or final URL.
+ * @param step - Step config.
+ * @returns True when the step needs a capture.
+ */
+function isCapturing(step: IStepConfig): boolean {
+  return step.headerExtractsToCarry !== undefined || step.finalUrlInto !== undefined;
+}
+
+/**
+ * Give a step's fire args a capture when the step carries headers or its
+ * final URL.
  * @param fire - Fire args without a capture.
  * @param step - Step config.
  * @returns Fire args whose call policy names the capture's sink, else `fire`.
  */
 function attachHeaderCapture(fire: IFireArgs, step: IStepConfig): IFireArgs {
-  const extracts = step.headerExtractsToCarry;
-  if (extracts === undefined) return fire;
-  const headerCapture = captureOf(extracts);
+  if (!isCapturing(step)) return fire;
+  const headerCapture = captureOf(step);
   const policy = { ...fire.policy, headerSink: headerCapture.sink };
   return { ...fire, policy, headerCapture };
 }
