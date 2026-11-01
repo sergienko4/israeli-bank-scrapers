@@ -229,6 +229,7 @@ const STEP_WRITERS = {
   clientCert: none,
   failIfPresent: none,
   bankErrorType: none,
+  httpFailureMap: none,
   extractRules: none,
   runIf: none,
   urlFromCarry: none,

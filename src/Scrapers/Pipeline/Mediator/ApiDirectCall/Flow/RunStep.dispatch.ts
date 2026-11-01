@@ -166,7 +166,7 @@ async function fireAndMergeScope(bundle: IDispatchBundle): Promise<Procedure<ITe
   const respProc = await fireStep(bundle.fireScope, bundle.fireArgs, bundle.target);
   if (!isOk(respProc)) {
     logFireFail(bundle, respProc.errorMessage);
-    return sanitiseStepFailure(bundle.fireScope.step.name, respProc);
+    return sanitiseStepFailure(bundle.fireScope.step, respProc);
   }
   logFireOk(bundle, respProc.value);
   return openAndMerge(bundle, respProc.value);

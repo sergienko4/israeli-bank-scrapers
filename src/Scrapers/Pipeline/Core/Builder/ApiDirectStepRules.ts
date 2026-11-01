@@ -13,13 +13,14 @@
  * A pre-hook `valuePattern` (N21) must be anchored and compile, like an
  * extract `pattern`. Both must be flat (`FlatPattern.ts`): no group, no
  * alternation and a variable repeat on the last atom only, so a match takes
- * linear time.
+ * linear time. The `httpFailureMap` rules follow (`ApiDirectHttpFailureRules.ts`).
  */
 
 import type {
   IExtractRule,
   IStepConfig,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { API_DIRECT_HTTP_FAILURE_RULES } from './ApiDirectHttpFailureRules.js';
 import { API_DIRECT_OPTIONAL_EXTRACT_RULES } from './ApiDirectOptionalExtractRules.js';
 import {
   allSteps,
@@ -68,8 +69,7 @@ const API_DIRECT_OUTCOME_RULES: readonly IApiDirectRule[] = [
  * @returns True for a bad entry.
  */
 function hasBadGuard(step: IStepConfig): boolean {
-  const pointers = step.failIfPresent ?? [];
-  return !pointers.every(isBodyPointer);
+  return !(step.failIfPresent ?? []).every(isBodyPointer);
 }
 
 /**
@@ -283,6 +283,7 @@ const API_DIRECT_STEP_RULES: readonly IApiDirectRule[] = [
     message: 'steps.preHook.valuePattern: must be a flat regex',
     isBroken: hasUnflatPreHookPattern,
   },
+  ...API_DIRECT_HTTP_FAILURE_RULES,
 ];
 
 export default API_DIRECT_STEP_RULES;
