@@ -23,6 +23,7 @@ import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { applyBodyCheck, dispatchStep, omitBankResponseText } from './ApiDirectScrapeDispatch.js';
 import {
   buildCustomerDispatchArgs,
+  buildSecondaryOpts,
   buildTxnsDispatchArgs,
   type IAcctCtx,
   type IDriverCtx,
@@ -49,7 +50,8 @@ async function fetchSecondaryBody<TAcct, TCursor>(
 ): Promise<Procedure<ApiBody>> {
   const tag = resolveSecondaryUrlTag(d);
   if (tag === false) return succeed<ApiBody>(EMPTY_BODY);
-  const response = await d.bus.apiGet<ApiBody>(tag);
+  const opts = buildSecondaryOpts(d);
+  const response = await d.bus.apiGet<ApiBody>(tag, opts);
   const checked = applyBodyCheck(response, d.shape.checkBody);
   return omitBankResponseText(checked, 'customer', d.shape.omitBankText);
 }

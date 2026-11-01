@@ -151,6 +151,17 @@ export function resolveSecondaryUrlTag<TAcct, TCursor>(
 }
 
 /**
+ * Options for the secondary identity GET. It belongs to the customer step,
+ * so it sends the customer step's `extraHeaders`, resolved afresh for this
+ * call.
+ * @param d - Driver context.
+ * @returns Opts value (frozen empty when the customer step declares none).
+ */
+export function buildSecondaryOpts<TAcct, TCursor>(d: IDriverCtx<TAcct, TCursor>): IApiQueryOpts {
+  return toOpts(d.ctx, d.shape.customer.extraHeaders);
+}
+
+/**
  * Build the customer-step dispatch args bundle.
  * @param d - Driver context.
  * @returns Dispatch args ready for {@link dispatchStep}.
