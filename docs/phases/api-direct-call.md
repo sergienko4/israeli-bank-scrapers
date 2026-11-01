@@ -316,9 +316,10 @@ own failure type is the one reported.
 ### Extract rules
 
 A value the bank sends back may be echoed into a later request, so a step can
-check its body and header extracts before they reach carry. `extractRules`
-maps a slot of `extractsToCarry`, `optionalExtractsToCarry` or
-`headerExtractsToCarry` to an `IExtractRule`. Once the step's carry is read,
+check its body, header and text-capture slots before they reach carry.
+`extractRules` maps a slot of `extractsToCarry`, `optionalExtractsToCarry`,
+`headerExtractsToCarry` or `textCaptures` to an `IExtractRule`. Once the
+step's carry is read,
 `ruleStepCarry` (in `Flow/RunStep.extractRules.ts`) resolves the step's URL
 and `applyExtractRules` checks each ruled slot:
 
@@ -335,8 +336,9 @@ extractRules: {
 - The text checks run in order on the transformed text: `maxChars` (8192 when
   unset), `oneOf`, the whole text against `pattern`, the `url` allow-list and
   `pemCertificate`. A URL resolves against the step's URL and must then match
-  an `IUrlRule`: an `https` origin, an exact path, no user info and no
-  fragment. The slot keeps the text as sent, not the resolved URL.
+  an `IUrlRule`: an `https` origin, an exact path (or, with `anyPathExcept`,
+  any path holding none of the denied texts), no user info and no fragment.
+  The slot keeps the text as sent, not the resolved URL.
 - `pemCertificate: { keyRef }` (`IPemCertificateRule`, N27) is checked by
   `isPemCertificate` (in `Flow/RunStep.pemRule.ts`). It demands exactly one
   PEM block, a `CERTIFICATE` that parses as X.509, certifies the private key
@@ -359,6 +361,37 @@ extractRules: {
 
 A refused value fails the step `Generic` with `<step> extract <slot> invalid`,
 before any later step or OTP prompt. The message never names the value.
+
+### Text captures
+
+A bank that answers with a page or a script rather than JSON can still hand a
+value to carry. On a `response: 'text'` step, `textCaptures` maps a carry slot
+to an `ITextCapture` (N36): a regex `pattern`, searched in the whole answer
+with the `g` flag, and the `group` whose text the slot takes (`0` is the whole
+match). `captureText` (in `Flow/RunStep.textCapture.ts`) runs right after the
+header slots, through `answerSlots` (in `Flow/RunStep.answerSlots.ts`):
+
+```ts
+response: 'text',
+maxTextChars: 262_144,
+textCaptures: {
+  ssoCode: { pattern: '^[\\s\\S]*?code=([\\s\\S]+)$', group: 1 },
+  csrf: { pattern: 'csrfToken', group: 0, absent: true },
+},
+```
+
+- The pattern must match exactly once. No match, or a match that leaves the
+  group unset, fails `<step> capture <slot> missing`; a second match fails
+  `<step> capture <slot> ambiguous`. An empty match steps one char on before
+  the second search, so a pattern that can match `''` is still caught twice.
+- `absent: true` makes the capture a guard: any match fails
+  `<step> capture <slot> present`, and the slot never enters carry, so no
+  extract rule may name it.
+- A captured slot then runs its [extract rules](#extract-rules). A slot with no
+  rule of its own still gets the empty rule, so it is capped at 8192 chars.
+- `maxTextChars` moves the step's answer cap off the 65 536-char default; an
+  answer over it fails `<step> text too long`, never truncated.
+- A failure names the step and the slot only, never the text.
 
 ### Conditional steps
 
@@ -619,7 +652,9 @@ from what it extracted:
 - `redirect` overrides `headless.redirectPolicy` for one step
   ([Redirect policies](../architecture/pipeline.md#redirect-policies)).
 - `response: 'document'` and `documentMarker` read a page instead of JSON;
-  `response: 'text'` reads the answer as `{ text }`, up to 65 536 chars;
+  `response: 'text'` reads the answer as `{ text }`, up to `maxTextChars`
+  (65 536 by default), and `textCaptures` read slots off it
+  ([Text captures](#text-captures));
   `statusPolicy` decides a 2xx before any body is read
   ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
 - `headerExtractsToCarry` reads a header of the final response; a missing
@@ -665,7 +700,8 @@ block from the registry, so a config that cannot work fails before any request
 is sent. `Core/Builder/ApiDirectRuleInput.ts` holds that input, the rule shape
 `IApiDirectRule` (a message and an `isBroken` check), `allSteps`, which
 lists the login steps and any durable resume steps, and `isExtractSlot`, which
-says whether a slot names one of a step's body or header extracts. The
+says whether a slot names one of a step's body, header or text-capture slots
+(the last through `captureSlotsOf`, which skips `absent` guards). The
 `API_DIRECT_OUTCOME_RULES` in `Core/Builder/ApiDirectStepRules.ts` reject empty
 success lists and case-insensitive failure-map collisions before warm-start
 checks. The
@@ -674,6 +710,8 @@ session-transport rules, `API_DIRECT_TRANSPORT_RULES` in
 `Core/Builder/ApiDirectFormRules.ts`, then the seal rules,
 `API_DIRECT_SEAL_RULES` in `Core/Builder/ApiDirectSealRules.ts`, then the
 step rules, `API_DIRECT_STEP_RULES` in `Core/Builder/ApiDirectStepRules.ts`,
+then the text-capture rules, `API_DIRECT_TEXT_RULES` in
+`Core/Builder/ApiDirectTextRules.ts`,
 then the carry-generator rules, `API_DIRECT_GENERATE_RULES` in
 `Core/Builder/ApiDirectGenerateRules.ts`, then the dynamic client-certificate
 rules, `API_DIRECT_CLIENT_CERT_RULES` in
@@ -720,12 +758,18 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `seal` whose `writeTo` is not a JSON pointer                                                                                            | `steps.seal.writeTo: must be a JSON pointer`                                       |
 | a `seal` whose `params` are out of range (exponent, seed, block size or printable text)                                                   | `steps.seal.params: out of range`                                                  |
 | a login or resume step with a `failIfPresent` entry that is not a JSON pointer below the body root                                        | `steps.failIfPresent: each entry must be a JSON pointer`                           |
-| an `extractRules` key that names no `extractsToCarry`, `optionalExtractsToCarry` or `headerExtractsToCarry` slot of its step              | `steps.extractRules: each key must name a body or header extract`                  |
+| an `extractRules` key that names no `extractsToCarry`, `optionalExtractsToCarry`, `headerExtractsToCarry` or `textCaptures` slot              | `steps.extractRules: each key must name a body or header extract`                  |
 | an `extractRules` `pattern` that does not start with `^`, end with `$` and compile with the `u` flag                                      | `steps.extractRules.pattern: must be an anchored regex`                            |
 | an `extractRules` `pattern` with a group, an alternation or a variable repeat before its last atom                                        | `steps.extractRules.pattern: must be a flat regex`                                 |
 | an `extractRules` `maxChars` that is not an integer from 1 to 65536                                                                       | `steps.extractRules.maxChars: must be an integer from 1 to 65536`                  |
 | an `extractRules` `oneOf` or `url` list that is empty                                                                                     | `steps.extractRules: oneOf and url must not be empty`                              |
 | a login or resume step whose `runIf` has a blank `carry` or an empty `oneOf`                                                              | `steps.runIf: carry and oneOf must not be empty`                                   |
+| a login or resume step with `textCaptures` whose `response` is not `'text'` (`API_DIRECT_TEXT_RULES`)                                    | `steps.textCaptures: need a text response`                                         |
+| a login or resume step with `maxTextChars` whose `response` is not `'text'`                                                           | `steps.maxTextChars: needs a text response`                              |
+| a `maxTextChars` that is not an integer from 1 to 2097152                                                                             | `steps.maxTextChars: must be an integer from 1 to 2097152`               |
+| a `textCaptures` `pattern` that does not compile with the `g` flag                                                                    | `steps.textCaptures.pattern: must compile`                               |
+| a `textCaptures` `pattern` with a group followed by `*`, `+` or `{`                                                                   | `steps.textCaptures.pattern: must not repeat a group`                    |
+| a `textCaptures` `group` that is not an integer from 0 to its pattern's group count                                                   | `steps.textCaptures.group: must name a group of its pattern`             |
 | a login or resume step with an `rsa-key` generator that names neither `keyInto` nor `spkiSha256HexInto` (`API_DIRECT_GENERATE_RULES`)     | `steps.generate: rsa-key needs keyInto or spkiSha256HexInto`                       |
 | a login or resume step with a `pkcs10-csr` generator whose `subject` is empty or whose `into` is blank                                    | `steps.generate: pkcs10-csr needs a subject and into`                              |
 | a login or resume step whose `preHook.valuePattern` does not start with `^`, end with `$` and compile with the `u` flag                   | `steps.preHook.valuePattern: must be an anchored regex`                            |
@@ -742,7 +786,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | `headless.cookieDomains` without `headless.sessionCookies: true`                                                                          | `headless.cookieDomains: not allowed without headless.sessionCookies`              |
 | a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                                | `headerExtractsToCarry.header: must be an HTTP header name`                        |
 | a login or resume step with `setCookies`, without `headless.cookieDomains`                                                                | `steps.setCookies: not allowed without headless.cookieDomains`                     |
-| a `setCookies` cookie name that is not an HTTP token (RFC 9110)                                                                           | `steps.setCookies: each name must be an HTTP token`                                |
+| a `setCookies` cookie name that is not an HTTP token (RFC 9110)                                                                           | `steps.setCookies: each name must be an HTTP token`                                | (feat(api-direct): capture slots from text answers)
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
@@ -771,6 +815,12 @@ range); every earlier quantifier must be an exact `{n}`. So `^\d{1,4}$`,
 `^.*a{20000}$` fail. The earlier atoms then match one way, and each count the
 last atom backs off to costs only the `$` check, so a failed match is linear in
 the input.
+
+A `textCaptures` pattern cannot be flat, since it takes a group. The build
+still refuses a repeated group — `(…)` followed by `*`, `+` or `{`, the shape
+of `(a+)+` — once escapes and character classes are stripped. That stops the
+worst catastrophic backtracking, not every slow pattern, so capture patterns
+stay reviewed config.
 
 `warmStart.kind` says what the stored token is. The default, `'carry'`, seeds
 it into the carry slot `carryField`. `'cookie-jar'` is for a cookie-session

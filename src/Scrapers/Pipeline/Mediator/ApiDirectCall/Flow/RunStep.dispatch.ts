@@ -9,12 +9,12 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import { answerSlots } from './RunStep.answerSlots.js';
 import { deriveStepCarry } from './RunStep.derive.js';
 import { ruleStepCarry } from './RunStep.extractRules.js';
 import { guardBankError } from './RunStep.failIfPresent.js';
 import { sanitiseStepFailure } from './RunStep.failure.js';
 import { fireStep } from './RunStep.fire.js';
-import { carryHeaders } from './RunStep.headerCarry.js';
 import { extractOptional } from './RunStep.optional.js';
 import { judgeStepOutcome } from './RunStep.outcome.js';
 import { buildDispatchBundle, mergeScopeCarry } from './RunStep.prepare.js';
@@ -71,7 +71,7 @@ function describeResponse(resp: JsonValue, isBankTextOmitted: boolean): IRespDes
 
 /**
  * Read a step's carry from its answer: the required extracts, then the
- * response-header slots, then the optional extracts.
+ * response-header slots and text captures, then the optional extracts.
  * @param bundle - Dispatch bundle.
  * @param resp - Successful response JSON.
  * @returns Procedure with the step's carry, or the first missing field.
@@ -81,10 +81,10 @@ function readCarry(bundle: IDispatchBundle, resp: JsonValue): Procedure<CarryMap
   const isBankTextOmitted = bundle.fireScope.isBankTextOmitted === true;
   const carryProc = extractFields(resp, step.extractsToCarry, isBankTextOmitted);
   if (!isOk(carryProc)) return carryProc;
-  const headerProc = carryHeaders(bundle);
-  if (!isOk(headerProc)) return headerProc;
+  const answerProc = answerSlots(bundle, resp);
+  if (!isOk(answerProc)) return answerProc;
   const optional = extractOptional(resp, step);
-  return succeed({ ...carryProc.value, ...optional, ...headerProc.value });
+  return succeed({ ...carryProc.value, ...optional, ...answerProc.value });
 }
 
 /**

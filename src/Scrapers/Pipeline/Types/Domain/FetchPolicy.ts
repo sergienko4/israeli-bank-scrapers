@@ -43,7 +43,8 @@ type RedirectPolicy = 'follow' | 'reject' | IManualRedirect;
 
 /**
  * `json` parses the body (the default); `document` reads it as text and
- * discards it; `text` hands it over as `{ text }`, up to 65 536 chars.
+ * discards it; `text` hands it over as `{ text }`, up to the call's
+ * `maxTextChars` (65 536 by default).
  */
 type ResponseKind = 'json' | 'document' | 'text';
 
@@ -79,6 +80,8 @@ interface IFetchCallPolicy {
   readonly responseKind?: ResponseKind;
   /** Text a `document` answer must contain, else the call fails. */
   readonly documentMarker?: string;
+  /** Longest `text` answer the call accepts, in chars; 65 536 when absent. */
+  readonly maxTextChars?: number;
   /** Receives the declared headers of the final response; native transports only. */
   readonly headerSink?: IResponseHeaderSink;
   /** How a POST body is written; `json` when absent; native transports only. */
@@ -92,6 +95,7 @@ interface IResponseReading {
   /** Omit the response snippet from generic HTTP failures, not WAF classification. */
   readonly omitBankText?: boolean;
   readonly documentMarker?: string;
+  readonly maxTextChars?: number;
   readonly headerSink?: IResponseHeaderSink;
   /** Internal notification of a policy-approved empty response; returns a recorded-event count. */
   readonly onEmptyResponse?: () => number;

@@ -9,6 +9,7 @@
  * these; the form-body rules in `ApiDirectFormRules.ts` follow, then the seal
  * rules in
  * `ApiDirectSealRules.ts`, the step-guard rules in `ApiDirectStepRules.ts`
+ * the text-capture rules in `ApiDirectTextRules.ts`,
  * the carry-generator rules in `ApiDirectGenerateRules.ts`, the dynamic
  * client-certificate rules in `ApiDirectClientCertRules.ts` and the session
  * rules in `ApiDirectSessionRules.ts`; the native-fetch rules in
@@ -33,6 +34,7 @@ import {
 import { API_DIRECT_SEAL_RULES } from './ApiDirectSealRules.js';
 import { API_DIRECT_SESSION_RULES } from './ApiDirectSessionRules.js';
 import { API_DIRECT_OUTCOME_RULES, API_DIRECT_STEP_RULES } from './ApiDirectStepRules.js';
+import { API_DIRECT_TEXT_RULES } from './ApiDirectTextRules.js';
 import { API_DIRECT_TRANSPORT_RULES } from './ApiDirectTransportRules.js';
 import { API_DIRECT_WARM_BUNDLE_RULES } from './ApiDirectWarmBundleRules.js';
 
@@ -248,6 +250,7 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
   ...API_DIRECT_FORM_RULES,
   ...API_DIRECT_SEAL_RULES,
   ...API_DIRECT_STEP_RULES,
+  ...API_DIRECT_TEXT_RULES,
   ...API_DIRECT_GENERATE_RULES,
   ...API_DIRECT_CLIENT_CERT_RULES,
   ...API_DIRECT_SESSION_RULES,

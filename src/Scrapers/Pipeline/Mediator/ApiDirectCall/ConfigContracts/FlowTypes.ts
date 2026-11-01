@@ -145,6 +145,20 @@ interface IExtractRule {
 }
 
 /**
+ * One text capture (N36) on a `text` step: its pattern must match the answer
+ * exactly once, and the slot takes the text of `group`. An `absent` capture is
+ * a guard instead: its pattern must not match, and it carries nothing.
+ */
+interface ITextCapture {
+  /** Regex source, searched in the whole answer with the `g` flag. */
+  readonly pattern: string;
+  /** Group whose text the slot takes; 0 is the whole match. */
+  readonly group: number;
+  /** Makes the capture a guard: the pattern must not match. */
+  readonly absent?: true;
+}
+
+/**
  * A step's guard (N14): the step runs only when the carry slot holds text
  * equal to one of `oneOf`, compared without case.
  */
@@ -203,6 +217,10 @@ interface IStepBase {
    * sees `{}`; a `text` step sees `{ text }`, so its extracts read `/text`.
    */
   readonly response?: ResponseKind;
+  /** Longest `text` answer the step accepts, in chars; 65 536 when unset (N36). */
+  readonly maxTextChars?: number;
+  /** Carry slots captured from a `text` answer by pattern, and guards (N36). */
+  readonly textCaptures?: Readonly<Record<string, ITextCapture>>;
   /** Text a `document` answer must contain, else the step fails `document unverified`. */
   readonly documentMarker?: string;
   /** Carry slots read from the final response's headers, merged beside `extractsToCarry`. */
@@ -265,6 +283,7 @@ export type {
   IStepClientCert,
   IStepConfig,
   IStepOutcome,
+  ITextCapture,
   StepMethod,
   StepName,
 };

@@ -178,7 +178,7 @@ Once a response answers, the native transport wraps it in an `IAnswer` (response
 
 1. A non-2xx answer, or any answer carrying Cloudflare's challenge header, goes to the WAF classifier first. A block page or challenge on a document step is still a `WafBlocked` failure, never `{}`.
 2. [`applyStatusPolicy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/StatusPolicy.ts) then checks the bank's `headless.statusPolicy` (a `StatusPolicy`, handed to `HeadlessNativeFetchStrategy` as its `statusPolicy` option). Before the body is read, the `StatusAction` `empty` answers `{}` (`emptyAnswer`) and `fail` fails `Generic` with `"<VERB> <url> HTTP <status>"`. A document step skips `empty`, so a 204 reaches the document reader as an empty page.
-3. The reader the call's `responseKind` names reads the body. `json` (the default) parses it as before, so HTML on a json step is still a parse error. `document` ([`readDocument`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/DocumentResponse.ts)) reads it as text, checks it for the call's `documentMarker` when one is set (otherwise it fails `Generic` with `"<VERB> <url> document unverified"`), and answers `{}`. `text` ([`readText`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/TextResponse.ts)) reads it as text and answers `{ text }`, so a step's extracts read it at `/text`; an answer over 65 536 chars fails `Generic` with `"<VERB> <url> text too long"`. The fixed tails `DOCUMENT_UNVERIFIED_REASON`, `TEXT_TOO_LONG_REASON` and `REDIRECT_REFUSED_REASON` live in `FetchPolicy.ts`, shared by the transport and the step sanitiser.
+3. The reader the call's `responseKind` names reads the body. `json` (the default) parses it as before, so HTML on a json step is still a parse error. `document` ([`readDocument`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/DocumentResponse.ts)) reads it as text, checks it for the call's `documentMarker` when one is set (otherwise it fails `Generic` with `"<VERB> <url> document unverified"`), and answers `{}`. `text` ([`readText`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/TextResponse.ts)) reads it as text and answers `{ text }`, so a step's extracts read it at `/text`; an answer over the call's `maxTextChars` (65 536 chars by default) fails `Generic` with `"<VERB> <url> text too long"`. The fixed tails `DOCUMENT_UNVERIFIED_REASON`, `TEXT_TOO_LONG_REASON` and `REDIRECT_REFUSED_REASON` live in `FetchPolicy.ts`, shared by the transport and the step sanitiser.
 
 `isApiSuccess` and `statusActionFor` are shared by response routing and the capped
 headless transport. When the status policy decides from headers, only that
@@ -196,8 +196,9 @@ left to a reader, including document-marker and WAF checks, remain untouched.
 
 An api-direct step opts in with `response: 'document'` and an optional
 `documentMarker` (it names no body extracts — a build-time check), or with
-`response: 'text'`; `callPolicyOf` carries both down as
-`IFetchCallPolicy.responseKind` / `documentMarker`, next to `redirect`.
+`response: 'text'` and an optional `maxTextChars`; `callPolicyOf` carries them
+down as `IFetchCallPolicy.responseKind` / `documentMarker` / `maxTextChars`,
+next to `redirect`.
 The step-level sanitiser keeps these refusals' fixed tails (`bind HTTP 207`,
 `bind HTTP 302 redirect refused`, `bind document unverified`) only when the
 whole message has a policy refusal's shape, so no response text can pass for one.

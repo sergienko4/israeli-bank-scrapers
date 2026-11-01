@@ -116,14 +116,24 @@ function attachSink(fireBase: IFireArgs, maybe: OnSetCookie | false): IFireArgs 
 }
 
 /**
+ * Every call-policy field a step can name, unset ones included.
+ * @param step - Step config.
+ * @returns The redirect policy, response kind, document marker, text cap and
+ *   body encoding, each possibly undefined.
+ */
+function policyFieldsOf(step: IStepConfig): IFetchCallPolicy {
+  const { redirect, documentMarker, maxTextChars } = step;
+  const responseKind = step.response;
+  return { redirect, responseKind, documentMarker, maxTextChars, bodyEncoding: step.encoding };
+}
+
+/**
  * The call policy a step names, when it names one.
  * @param step - Step config.
- * @returns `{ policy }` with only the redirect policy, response kind,
- *   document marker and body encoding the step names, or nothing.
+ * @returns `{ policy }` with only the policy fields the step names, or nothing.
  */
 function callPolicyOf(step: IStepConfig): Pick<IFireArgs, 'policy'> {
-  const { redirect, response: responseKind, documentMarker, encoding: bodyEncoding } = step;
-  const fields = { redirect, responseKind, documentMarker, bodyEncoding };
+  const fields = policyFieldsOf(step);
   const named = Object.entries(fields).filter(([, value]): boolean => value !== undefined);
   if (named.length === 0) return {};
   const policy = Object.fromEntries(named) as IFetchCallPolicy;

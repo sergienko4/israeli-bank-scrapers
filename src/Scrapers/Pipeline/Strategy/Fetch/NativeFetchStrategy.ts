@@ -347,16 +347,17 @@ class NativeFetchStrategy implements IFetchStrategy {
 
   /**
    * How a call's answer is read: this transport's status policy plus the
-   * call's response kind (`json` when absent), document marker and header sink.
+   * call's response kind (`json` when absent), document marker, text cap and
+   * header sink.
    * @param opts - The call's fetch options.
    * @returns The reading routeResponse applies.
    */
   protected readingOf(opts: IFetchOpts): IResponseReading {
     const responseKind = opts.responseKind ?? 'json';
-    const { documentMarker, headerSink, onEmptyResponse } = opts;
-    const hooks = { documentMarker, headerSink, onEmptyResponse };
+    const { documentMarker, maxTextChars, headerSink, onEmptyResponse } = opts;
+    const hooks = { responseKind, documentMarker, maxTextChars, headerSink, onEmptyResponse };
     const privacy = { omitBankText: this._omitBankText };
-    return { statusPolicy: this._statusPolicy, responseKind, ...hooks, ...privacy };
+    return { statusPolicy: this._statusPolicy, ...hooks, ...privacy };
   }
 
   /**

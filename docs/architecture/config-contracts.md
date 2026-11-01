@@ -125,6 +125,7 @@ this contract; the build-time checks read both.
 | Keep bank text out of native HTTP failures, including data calls | `headless.omitBankText` | — | [Headless transports](pipeline.md#headless-transports) |
 | Read one step's answer as a page, not JSON | `response` (`ResponseKind`), `documentMarker` | FlowTypes | [Document responses and status policies](pipeline.md#document-responses-and-status-policies) |
 | Carry values the bank returns in response headers | `headerExtractsToCarry` (`IHeaderExtract`) | FlowTypes | [Response-header carry](pipeline.md#response-header-carry) |
+| Carry values found by pattern in a text answer, and its size cap | `textCaptures` (`ITextCapture`), `maxTextChars` | FlowTypes | [Text captures](../phases/api-direct-call.md#text-captures) |
 | Carry slots built from one step's extracts | `deriveCarry` (`IDerivedCarry`) | FlowTypes | [Carry derivation](../phases/api-direct-call.md#carry-derivation) |
 | Send one step's body as a URL-encoded form (UTF-8 or Latin-1) or as plain text | `encoding` (`BodyEncoding`) | FlowTypes | [Form bodies](pipeline.md#form-bodies) |
 | Seal a credential into one step's body | `seal` (`ISealFieldConfig`) | SignerTypes, FlowTypes | [Sealed fields](pipeline.md#sealed-fields) |

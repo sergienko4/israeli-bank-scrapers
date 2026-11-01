@@ -8,6 +8,7 @@ import type {
   IApiDirectCallConfig,
   IStepConfig,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { captureSlotsOf } from '../../Mediator/ApiDirectCall/Flow/RunStep.textCapture.js';
 import type { IHeadlessUrlsConfig } from '../../Registry/Config/PipelineBankConfigTypes.js';
 
 /** What the rules read: the call config and the bank's headless block. */
@@ -33,16 +34,17 @@ function allSteps(call: IApiDirectCallConfig): readonly IStepConfig[] {
 }
 
 /**
- * Whether a slot names one of a step's body or header extracts.
+ * Whether a slot names one of a step's body, header or text-capture slots.
  * @param step - Step config.
  * @param slot - Carry slot.
- * @returns True for a required, optional or header extract slot.
+ * @returns True for a required, optional, header or text-capture slot.
  */
 function isExtractSlot(step: IStepConfig, slot: string): boolean {
   const optional = step.optionalExtractsToCarry ?? {};
   const headers = step.headerExtractsToCarry ?? {};
   const slotMaps = [step.extractsToCarry, optional, headers];
-  return slotMaps.some(slotMap => Object.hasOwn(slotMap, slot));
+  if (slotMaps.some(slotMap => Object.hasOwn(slotMap, slot))) return true;
+  return captureSlotsOf(step).includes(slot);
 }
 
 /**

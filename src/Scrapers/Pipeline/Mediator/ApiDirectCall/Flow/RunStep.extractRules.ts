@@ -1,14 +1,15 @@
 /**
- * Extract rules (N18, N27). A step's `extractRules` check its body- and
- * header-extract slots on the raw value once the answer is read. `type` is
+ * Extract rules (N18, N27). A step's `extractRules` check its body-, header-
+ * and text-capture slots on the raw value once the answer is read. `type` is
  * checked first. A string — or a finite number, stringified, when the rule
  * sets a text check — is then transformed and checked: `maxChars` (8192 when
  * unset), `oneOf`, the whole text against `pattern`, the `url` allow-list,
  * resolved against the step URL, and `pemCertificate`, whose key ref resolves
- * against the step's scope. The slot keeps the checked text; the rest of the
- * carry passes through. An optional slot whose pointer is unresolved, null or
- * '' skips its rule. A refusal fails the step `<step> extract <slot> invalid`,
- * naming no value.
+ * against the step's scope. A text-capture slot with no rule still gets the
+ * 8192 `maxChars` check (N36). The slot keeps the checked text; the rest of
+ * the carry passes through. An optional slot whose pointer is unresolved,
+ * null or '' skips its rule. A refusal fails the step
+ * `<step> extract <slot> invalid`, naming no value.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
@@ -20,6 +21,7 @@ import type { ExtractValueType, IExtractRule, IStepConfig } from '../ConfigContr
 import { walkPointer } from '../Envelope/JsonPointer.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { isPemCertificate } from './RunStep.pemRule.js';
+import { captureSlotsOf } from './RunStep.textCapture.js';
 import type { CarryMap, IDispatchBundle, JsonValue } from './RunStep.types.js';
 
 const DEFAULT_MAX_CHARS = 8192;
@@ -210,15 +212,16 @@ function checkValue(value: JsonValue, rule: IExtractRule, input: IRulePass): IKe
 }
 
 /**
- * Whether a slot is always in the step's carry: a required body extract or a
- * header extract, which holds the header or its fallback.
+ * Whether a slot is always in the step's carry: a required body extract, a
+ * header extract, which holds the header or its fallback, or a text capture.
  * @param step - Step config.
  * @param slot - Carry slot name.
- * @returns True for a required body slot or a header slot.
+ * @returns True for a required body slot, a header slot or a capture slot.
  */
 function isCarriedSlot(step: IStepConfig, slot: string): boolean {
   const headers = step.headerExtractsToCarry ?? {};
-  return Object.hasOwn(step.extractsToCarry, slot) || Object.hasOwn(headers, slot);
+  if (Object.hasOwn(step.extractsToCarry, slot) || Object.hasOwn(headers, slot)) return true;
+  return captureSlotsOf(step).includes(slot);
 }
 
 /**
@@ -262,12 +265,25 @@ function isRefused(verdict: Procedure<CarryMap>): verdict is IProcedureFailure {
 }
 
 /**
+ * A step's ruled slots: its `extractRules`, then each text-capture slot with
+ * no rule of its own under the empty rule, which caps it at 8192 chars.
+ * @param step - Step config.
+ * @returns Slot and rule pairs, in config order.
+ */
+function ruleEntriesOf(step: IStepConfig): readonly RuleEntry[] {
+  const rules = step.extractRules ?? {};
+  const unruled = captureSlotsOf(step).filter((slot): boolean => !Object.hasOwn(rules, slot));
+  const defaults = unruled.map((slot): RuleEntry => [slot, {}]);
+  return [...Object.entries(rules), ...defaults];
+}
+
+/**
  * Check a step's ruled slots.
  * @param input - The step, its body, its carry, its URL and its scope.
  * @returns The carry with each ruled slot checked, or the first refusal.
  */
 function applyExtractRules(input: IRulePass): Procedure<CarryMap> {
-  const entries: readonly RuleEntry[] = Object.entries(input.step.extractRules ?? {});
+  const entries = ruleEntriesOf(input.step);
   const verdicts = entries.map(entry => checkSlot(input, entry));
   const refused = verdicts.find(isRefused);
   if (refused) return refused;

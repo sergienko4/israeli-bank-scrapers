@@ -3,7 +3,7 @@
  * reads a `text` answer. A latin1 form encodes like Java's URLEncoder over
  * ISO-8859-1 and refuses a char above U+00FF before any request; a `text`
  * body travels verbatim with no content-type; a `text` answer reaches the
- * caller as `{ text }`, up to 65 536 chars.
+ * caller as `{ text }`, up to the call's `maxTextChars` (65 536 by default).
  */
 
 import { once } from 'node:events';
@@ -169,5 +169,18 @@ describe('NativeFetchStrategy — N23 body encodings and text answers', () => {
     const result = await STRATEGY.fetchGet('cert?sid=s', TEXT_ANSWER);
     const message = `GET ${BASE_URL}cert text too long`;
     expect(result).toMatchObject({ success: false, errorMessage: message });
+  });
+
+  it("moves the cap to the call's maxTextChars", async () => {
+    const text = 'a'.repeat(TEXT_CAP + 1);
+    serve(new Response(text, { status: 200 }));
+    const raised = await STRATEGY.fetchGet('cert', { ...TEXT_ANSWER, maxTextChars: TEXT_CAP + 1 });
+    expect(raised).toEqual({ success: true, value: { text } });
+    serve(new Response('abc', { status: 200 }));
+    const lowered = await STRATEGY.fetchGet('cert', { ...TEXT_ANSWER, maxTextChars: 2 });
+    expect(lowered).toMatchObject({
+      success: false,
+      errorMessage: `GET ${BASE_URL}cert text too long`,
+    });
   });
 });
