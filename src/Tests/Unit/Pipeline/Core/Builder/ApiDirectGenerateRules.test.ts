@@ -2,7 +2,7 @@
  * N25 — a step's carry generators are checked when the pipeline is built:
  * an `rsa-key` generator must name at least one target slot. N38 — an
  * `ecdh-key` generator needs two distinct slots, and its private key never
- * reaches `sessionCarry`.
+ * reaches `sessionCarry`. N42 — a `random-hex` seed draws 1 to 64 bytes.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
@@ -32,6 +32,19 @@ function ecdhOf(publicInto: string, privateInto: string): ICarryGenerator {
 }
 
 const ECDH_KEY = ecdhOf('ecdhPublic', 'ecdhPrivate');
+const RANDOM_HEX_MSG = 'seedCarryFromCreds: random-hex needs integer bytes from 1 to 64';
+
+/**
+ * Rule input seeding `flowId` from a `random-hex` bootstrap of some length.
+ * @param bytes - Random bytes the seed draws.
+ * @returns Rule input.
+ */
+function seededOf(bytes: number): IApiDirectRuleInput {
+  const input = runOf(ECDH_KEY);
+  const bootstrap = { kind: 'random-hex', bytes, isUpperCase: true } as const;
+  const seedCarryFromCreds = ['phone', { field: 'flowId', bootstrap }];
+  return { ...input, call: { ...input.call, seedCarryFromCreds } };
+}
 
 /**
  * A CSR generator with the given subject and slot.
@@ -125,6 +138,18 @@ describe('validateApiDirectConfig — carry generators', () => {
 
   it('an ecdh-key public point kept in sessionCarry passes', () => {
     const input = keptOf(ECDH_KEY, ['ecdhPublic']);
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+  });
+
+  it.each([0, 65, 1.5, Number.NaN])('a random-hex seed of %s bytes fails the build', bytes => {
+    const input = seededOf(bytes);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({ success: false, errorMessage: RANDOM_HEX_MSG });
+  });
+
+  it.each([1, 32, 64])('a random-hex seed of %i bytes passes', bytes => {
+    const input = seededOf(bytes);
     const result = validateApiDirectConfig(input);
     expect(result).toEqual({ success: true, value: true });
   });

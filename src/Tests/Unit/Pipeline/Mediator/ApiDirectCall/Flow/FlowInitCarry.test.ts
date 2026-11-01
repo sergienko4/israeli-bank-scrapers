@@ -1,6 +1,7 @@
 /**
  * Unit tests for FlowInitCarry — `seedCarryFromCreds` (string + bootstrap
- * variants) and `derivedCarry` (parts + separator + truncation).
+ * variants, N42 `random-hex` included) and `derivedCarry` (parts + separator
+ * + truncation).
  */
 
 import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
@@ -28,7 +29,42 @@ const UUID_SEED: Partial<IApiDirectCallConfig> = {
   seedCarryFromCreds: [{ field: 'clientInstanceId', bootstrap: { kind: 'random-uuid' } }],
 };
 
+/**
+ * Seed `flowId` from a `random-hex` bootstrap and run flow init once.
+ * @param bytes - Random bytes to draw.
+ * @param isUpperCase - Upper-case hex when true.
+ * @returns The seeded slot, or the failure text.
+ */
+function seedRandomHex(bytes: number, isUpperCase: boolean): unknown {
+  const bootstrap = { kind: 'random-hex', bytes, isUpperCase } as const;
+  const config = makeConfig({ seedCarryFromCreds: [{ field: 'flowId', bootstrap }] });
+  const result = buildInitialCarry(config, {}, {});
+  return result.success ? result.value.flowId : result.errorMessage;
+}
+
 describe('FlowInitCarry.buildInitialCarry', () => {
+  it.each<[number, boolean, RegExp]>([
+    [32, true, /^[\dA-F]{64}$/],
+    [1, false, /^[\da-f]{2}$/],
+    [64, false, /^[\da-f]{128}$/],
+  ])('random-hex of %i bytes (upper %s) seeds its hex', (bytes, isUpperCase, pattern) => {
+    const value = seedRandomHex(bytes, isUpperCase);
+    expect(value).toMatch(pattern);
+  });
+
+  it('draws a fresh random-hex value for each flow init', () => {
+    const first = seedRandomHex(32, true);
+    const second = seedRandomHex(32, true);
+    expect(first).not.toBe(second);
+  });
+
+  it('mirrors a creds value instead of drawing random-hex', () => {
+    const bootstrap = { kind: 'random-hex', bytes: 32, isUpperCase: true } as const;
+    const config = makeConfig({ seedCarryFromCreds: [{ field: 'flowId', bootstrap }] });
+    const result = buildInitialCarry(config, { flowId: 'kept' }, {});
+    expect(result).toEqual({ success: true, value: { flowId: 'kept' } });
+  });
+
   it('mirrors a creds field into carry under the same name', () => {
     const config = makeConfig({ seedCarryFromCreds: ['phoneNumber'] });
     const result = buildInitialCarry(config, { phoneNumber: '972-000000000' }, {});

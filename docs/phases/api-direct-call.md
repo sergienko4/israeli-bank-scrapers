@@ -102,6 +102,7 @@ One hydration engine serves both `API-DIRECT-CALL` and `API-DIRECT-SCRAPE` step 
 - `seedCarryFromCreds` mirrors creds into carry slots at flow init.
 - `sha256-prefix-16` derives a stable identifier from another creds field (PayBox uses this to bind its long-term JWT to a phone-derived `deviceId16Hex` — warm-start-stable without the caller persisting state).
 - `random-uuid` generates one canonical UUID per flow init, so every step that reads the slot sees the same value — for banks that need a stable client-instance identifier across the steps of one login. A non-empty creds value is mirrored instead.
+- `random-hex` (`IRandomHexBootstrap`, N42) draws `bytes` (1 to 64) fresh random bytes per flow init as hex, twice as many characters, upper-case when `isUpperCase` is set — for a flow identifier of a fixed length and case. `evalRandomBootstrap` (in `Flow/FlowInitCarry.random.ts`) serves it and the other `RandomBootstrap` kinds, `random-hex-16` and `random-uuid`, once `isRandomBootstrap` matches; a non-empty creds value is mirrored instead.
 - `derivedCarry` joins parts with separators + truncation for OTP-encryption keys.
 - A step's `deriveCarry` takes the same `IDerivedCarry` entries and runs them once that step's body and header extracts are in scope. `deriveStepCarry` hands them to `applyDerivations`, the evaluator flow-init `derivedCarry` uses, so the parts (`carry.<slot>`, `creds.<field>`, `config.<dotted.path>` such as `config.secrets.<name>`), separator, truncation and failure messages (`derivedCarry: carry.<slot> missing or non-string`) are the same. A part that fails fails the step.
 
@@ -883,6 +884,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                                | `headerExtractsToCarry.header: must be an HTTP header name`                        |
 | a login or resume step with `setCookies`, without `headless.cookieDomains`                                                                | `steps.setCookies: not allowed without headless.cookieDomains`                     |
 | a `setCookies` cookie name that is not an HTTP token (RFC 9110)                                                                           | `steps.setCookies: each name must be an HTTP token`                                |
+| a `seedCarryFromCreds` entry whose `random-hex` bootstrap draws a `bytes` count that is not an integer from 1 to 64                   | `seedCarryFromCreds: random-hex needs integer bytes from 1 to 64`        |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no

@@ -1,14 +1,20 @@
 /**
- * Bootstrap helpers: random-hex-16, random-uuid, sha256-prefix-16, and
- * JWT-claim extraction — each surfacing a string Procedure for the dispatcher.
+ * Bootstrap helpers: sha256-prefix-16 and JWT-claim extraction — each
+ * surfacing a string Procedure for the dispatcher. The random kinds live in
+ * `FlowInitCarry.random.ts`.
  */
 
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { describeJsonParseFailure } from '../../../Types/JsonParseFailure.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
+import {
+  evalRandomBootstrap,
+  isRandomBootstrap,
+  type RandomBootstrap,
+} from './FlowInitCarry.random.js';
 import type {
   Creds,
   IJwtClaimArgs,
@@ -18,49 +24,14 @@ import type {
   SeedCarryBootstrapKind,
 } from './FlowInitCarry.types.js';
 
-/** Random-hex generator size used by the `'random-hex-16'` bootstrap. */
-const RANDOM_HEX_16_BYTES = 16;
-
 /** Hex prefix length produced by the `'sha256-prefix-16'` bootstrap. */
 const SHA256_PREFIX_LENGTH = 16;
 
 /** Index of the JWT payload segment (between header and signature). */
 const JWT_PAYLOAD_SEGMENT_INDEX = 1;
 
-/** Bootstrap kinds whose generator takes no configuration or creds. */
-type ParameterlessBootstrap = Extract<
-  SeedCarryBootstrapKind,
-  { kind: 'random-hex-16' | 'random-uuid' }
->;
-
-/** Bootstrap kinds whose generator reads configuration and creds. */
-type ParameterisedBootstrap = Exclude<SeedCarryBootstrapKind, ParameterlessBootstrap>;
-
-/**
- * Generate a fresh random-hex string of the configured byte length.
- * @returns Procedure with the generated value.
- */
-function bootstrapRandomHex16(): Procedure<string> {
-  const hex = randomBytes(RANDOM_HEX_16_BYTES).toString('hex');
-  return succeed(hex);
-}
-
-/**
- * Generate a fresh canonical UUID v4.
- * @returns Procedure with the generated value.
- */
-function bootstrapRandomUuid(): Procedure<string> {
-  const uuid = randomUUID();
-  return succeed(uuid);
-}
-
-/** Generator per parameterless bootstrap kind — add a row, not a branch. */
-const PARAMETERLESS_BOOTSTRAPS: Readonly<
-  Record<ParameterlessBootstrap['kind'], () => Procedure<string>>
-> = {
-  'random-hex-16': bootstrapRandomHex16,
-  'random-uuid': bootstrapRandomUuid,
-};
+/** Bootstrap kinds whose generator reads creds. */
+type ParameterisedBootstrap = Exclude<SeedCarryBootstrapKind, RandomBootstrap>;
 
 /**
  * Standard failure for missing/empty source on sha256-prefix-16.
@@ -219,22 +190,13 @@ function evalParameterisedBootstrap(
 }
 
 /**
- * Narrow a bootstrap descriptor to the parameterless kinds.
- * @param bootstrap - Discriminated bootstrap descriptor.
- * @returns True when the kind has a parameterless generator.
- */
-function isParameterless(bootstrap: SeedCarryBootstrapKind): bootstrap is ParameterlessBootstrap {
-  return Object.hasOwn(PARAMETERLESS_BOOTSTRAPS, bootstrap.kind);
-}
-
-/**
  * Dispatch a bootstrap kind to its generator.
  * @param bootstrap - Discriminated bootstrap descriptor.
  * @param creds - Caller credentials (consulted by parameterised kinds).
  * @returns Procedure with the bootstrap-produced value.
  */
 function evalBootstrap(bootstrap: SeedCarryBootstrapKind, creds: Creds): Procedure<string> {
-  if (isParameterless(bootstrap)) return PARAMETERLESS_BOOTSTRAPS[bootstrap.kind]();
+  if (isRandomBootstrap(bootstrap)) return evalRandomBootstrap(bootstrap);
   return evalParameterisedBootstrap(bootstrap, creds);
 }
 

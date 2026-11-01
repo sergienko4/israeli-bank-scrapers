@@ -116,6 +116,20 @@ interface IRandomUuidBootstrap {
 }
 
 /**
+ * N42 — random hex of a configured length, fresh per flow init: `bytes`
+ * random bytes become twice as many hex characters, upper-case when
+ * `isUpperCase` is set. Used when a bank expects a flow identifier of a
+ * fixed length and case.
+ */
+interface IRandomHexBootstrap {
+  readonly kind: 'random-hex';
+  /** Random bytes to draw, an integer from 1 to 64. */
+  readonly bytes: number;
+  /** Upper-case hex when true, else lower-case. */
+  readonly isUpperCase: boolean;
+}
+
+/**
  * Deterministic 16-hex bootstrap derived from another creds field via
  * `sha256(creds[from]).slice(0, 16)`. Used when the carry slot must
  * stay stable across warm-start runs (e.g. a device identifier that
@@ -160,7 +174,11 @@ interface IJwtClaimBootstrap {
  * than letting banks pass callbacks.
  */
 type SeedCarryBootstrapKind =
-  IRandomHex16Bootstrap | IRandomUuidBootstrap | ISha256Prefix16Bootstrap | IJwtClaimBootstrap;
+  | IRandomHex16Bootstrap
+  | IRandomHexBootstrap
+  | IRandomUuidBootstrap
+  | ISha256Prefix16Bootstrap
+  | IJwtClaimBootstrap;
 
 /**
  * Seed-carry source spec — names the creds field to mirror into
@@ -199,6 +217,7 @@ export type {
   IDerivedCarry,
   IJwtClaimBootstrap,
   IRandomHex16Bootstrap,
+  IRandomHexBootstrap,
   IRandomUuidBootstrap,
   ISeedCarrySource,
   ISha256Prefix16Bootstrap,

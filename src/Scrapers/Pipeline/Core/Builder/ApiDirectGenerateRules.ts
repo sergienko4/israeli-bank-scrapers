@@ -4,10 +4,14 @@
  * write, or the key it makes is lost; a `pkcs10-csr` generator needs a
  * subject and a slot for the request. An `ecdh-key` generator (N38) needs two
  * distinct slots, and its private scalar never reaches `sessionCarry`: the
- * scrape gets server-issued values only.
+ * scrape gets server-issued values only. A `random-hex` seed (N42) draws an
+ * integer count of bytes from 1 to 64.
  */
 
-import type { ICarryGenerator } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import type {
+  ICarryGenerator,
+  ISeedCarrySource,
+} from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
 
 /** Flags one generator config. */
@@ -105,6 +109,31 @@ function hasSessionPrivateKey(input: IApiDirectRuleInput): boolean {
   return privateSlots.some(slot => kept.includes(slot));
 }
 
+/** Most bytes a `random-hex` seed may draw. */
+const MAX_RANDOM_HEX_BYTES = 64;
+
+/**
+ * Whether a seed entry is a `random-hex` bootstrap of a bad length.
+ * @param entry - One `seedCarryFromCreds` entry.
+ * @returns True unless the byte count is an integer from 1 to 64.
+ */
+function isBadRandomHex(entry: string | ISeedCarrySource): boolean {
+  if (typeof entry === 'string' || entry.bootstrap?.kind !== 'random-hex') return false;
+  const bytes = entry.bootstrap.bytes;
+  const isCount = Number.isInteger(bytes) && bytes >= 1;
+  return !isCount || bytes > MAX_RANDOM_HEX_BYTES;
+}
+
+/**
+ * Whether any seed draws a `random-hex` value of a bad length.
+ * @param input - Rule input.
+ * @returns True for a byte count off 1..64.
+ */
+function hasBadRandomHex(input: IApiDirectRuleInput): boolean {
+  const seeds = input.call.seedCarryFromCreds ?? [];
+  return seeds.some(isBadRandomHex);
+}
+
 /** Carry-generator rules, checked after the step-guard rules. */
 const API_DIRECT_GENERATE_RULES: readonly IApiDirectRule[] = [
   {
@@ -122,6 +151,10 @@ const API_DIRECT_GENERATE_RULES: readonly IApiDirectRule[] = [
   {
     message: 'steps.generate: ecdh-key privateInto must not be a sessionCarry slot',
     isBroken: hasSessionPrivateKey,
+  },
+  {
+    message: 'seedCarryFromCreds: random-hex needs integer bytes from 1 to 64',
+    isBroken: hasBadRandomHex,
   },
 ];
 
