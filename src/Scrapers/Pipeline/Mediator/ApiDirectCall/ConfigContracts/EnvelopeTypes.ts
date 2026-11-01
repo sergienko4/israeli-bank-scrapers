@@ -109,6 +109,14 @@ interface IPreStepHook {
    * fails InvalidOtp before the step's request is sent (N21).
    */
   readonly valuePattern?: string;
+  /**
+   * Optional carry slot holding the exact OTP length the bank stated, an
+   * integer 4..10 (N57). When the slot is set, the value must be exactly that
+   * many ASCII digits, else the step fails InvalidOtp before its request. An
+   * absent slot leaves `valuePattern` alone; any other value fails the step
+   * before the callback is asked.
+   */
+  readonly valueLengthRef?: `carry.${string}`;
 }
 
 export type {

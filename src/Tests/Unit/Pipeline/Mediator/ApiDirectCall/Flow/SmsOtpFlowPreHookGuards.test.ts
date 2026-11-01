@@ -1,9 +1,11 @@
 /**
- * N15/N21/D12 — OTP pre-hook guards. The retriever receives the `hintFrom`
+ * N15/N21/N57/D12 — OTP pre-hook guards. The retriever receives the `hintFrom`
  * carry slot (or `''`). A pre-hook's `requires` refs resolve, against the
  * step's jar view, before the retriever is asked; a miss fails and no code is
- * asked for. The code must match `valuePattern`, else the step fails InvalidOtp
- * before its request. A retriever throw is reported by error name only.
+ * asked for. The code must match `valuePattern` and, when carry states an OTP
+ * length, have exactly that many digits, else the step fails InvalidOtp before
+ * its request; a stated length outside 4..10 fails before any code is asked
+ * for. A retriever throw is reported by error name only.
  */
 
 import { jest } from '@jest/globals';
@@ -227,6 +229,34 @@ async function runGuarded(args: IGuardRunArgs): Promise<IGuardRun> {
  */
 function pendingOtpCode(): Promise<string> {
   return new Promise<string>(() => undefined);
+}
+
+/** An OTP hook whose exact length comes from carry (N57). */
+const LENGTH_HOOK: Hook = {
+  awaitCredsField: 'otpCodeRetriever',
+  intoCarryField: 'otp',
+  valuePattern: '^[0-9]{4,10}$',
+  valueLengthRef: 'carry.otpLength',
+};
+
+/** The bind answer's `otpLength`, or none. */
+type Stated = Readonly<Record<string, JsonValue>>;
+
+/**
+ * Run the flow with an OTP hook whose length the bind answer states.
+ * @param stated - `{ otpLength }` for the bind answer, or `{}` to leave it out.
+ * @param code - The code the retriever delivers.
+ * @returns The guarded run.
+ */
+async function runLength(stated: Stated, code: string): Promise<IGuardRun> {
+  const base = configWith(LENGTH_HOOK);
+  const isStated = Object.hasOwn(stated, 'otpLength');
+  const lengthExtracts = { token: '/token', otpLength: '/otpLength' };
+  const extractsToCarry = isStated ? lengthExtracts : BIND_STEP.extractsToCarry;
+  const bindStep: IStepConfig = { ...BIND_STEP, extractsToCarry };
+  const config: IApiDirectCallConfig = { ...base, steps: [bindStep, base.steps[1]] };
+  const bind = { ...FULL_BIND, ...stated };
+  return runGuarded({ hook: LENGTH_HOOK, bind, code, config });
 }
 
 describe('SmsOtpFlow — pre-hook guards', () => {
@@ -454,6 +484,46 @@ describe('SmsOtpFlow — pre-hook guards', () => {
     const run = await runGuarded({ hook: HOOK, bind: FULL_BIND, thrown });
     const message = run.result.success ? '' : run.result.errorMessage;
     expect(message).toBe('preHook: creds.otpCodeRetriever() threw Error');
+  });
+
+  it.each<[string, Stated, string]>([
+    ['a numeric length', { otpLength: 6 }, '123456'],
+    ['a decimal-text length', { otpLength: '6' }, '123456'],
+    ['an absent length (valuePattern only)', {}, '12345'],
+  ])('accepts a code of the length carry states: %s', async (_label, stated, code) => {
+    const run = await runLength(stated, code);
+    expect(run.result).toMatchObject({ success: true });
+    expect(run.captures).toHaveLength(2);
+  });
+
+  it.each(['12345', '1234567'])(
+    'fails code %s of another length as InvalidOtp before the request',
+    async code => {
+      const run = await runLength({ otpLength: 6 }, code);
+      expect(run.result).toMatchObject({
+        success: false,
+        errorType: ScraperErrorTypes.InvalidOtp,
+        errorMessage: 'login preHook value invalid',
+      });
+      expect(run.captures).toHaveLength(1);
+    },
+  );
+
+  it.each<[string, JsonValue]>([
+    ['below 4', 3],
+    ['above 10', 11],
+    ['not an integer', 6.5],
+    ['not decimal text', 'six'],
+    ['null', null],
+  ])('refuses a length ref %s before asking for a code', async (_label, otpLength) => {
+    const run = await runLength({ otpLength }, '123456');
+    expect(run.result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'login preHook length invalid',
+    });
+    expect(run.hints).toEqual([]);
+    expect(run.captures).toHaveLength(1);
   });
 
   it('rejects a nonpositive OTP budget before asking for a code', async () => {

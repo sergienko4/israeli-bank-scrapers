@@ -1032,7 +1032,7 @@ puts the stash back before it resumes; see [Auth recovery](#auth-recovery).
 
 ### OTP pre-hook guards
 
-A step's `preHook` (`IPreStepHook`) asks the caller for a code. Three optional
+A step's `preHook` (`IPreStepHook`) asks the caller for a code. Four optional
 fields shape that request, and `applyGuardedPreHook` (in
 `Flow/SmsOtpFlow.prehookGuard.ts`) runs them around it. The step reducer hands
 it one `IPreHookGuardArgs` bundle: the reduce args, the scope, the step and
@@ -1045,6 +1045,7 @@ preHook: {
   hintFrom: 'carry.phone',
   requires: ['cookie.csrfcookie', 'carry.flow'],
   valuePattern: '^\\d{5}$',
+  valueLengthRef: 'carry.otpLength',
 },
 ```
 
@@ -1068,6 +1069,13 @@ that cannot be sent. A raw query is resolved later because it may use that code.
   deposited value; a value that does not match, or is not text, fails the
   step `INVALID_OTP` with `<step> preHook value invalid` before its request
   is sent. The message never names the value.
+- `valueLengthRef` names the carry slot where the bank states the code's exact
+  length (N57). `statedLength` reads it after `requires`, before the callback
+  is asked. An integer 4..10, as a number or as decimal text, means the value
+  must be exactly that many ASCII digits, or the step fails `INVALID_OTP` as
+  above, so a malformed code never spends an attempt. When the slot is absent,
+  `valuePattern` alone applies. Any other value fails `GENERIC` with
+  `<step> preHook length invalid`, and no code is asked for.
 
 A creds field that is not a function fails `TWO_FACTOR_RETRIEVER_MISSING`
 with `preHook: creds.<field> is not a function`. A callback that throws fails
@@ -1824,7 +1832,7 @@ Where each piece lives, for maintainers:
 | `GENERIC`                                                       | A body extract failed its rule (`<step> extract <slot> invalid`) — see [Extract rules](#extract-rules)                                                                                                                                                                                    |
 | `GENERIC`                                                       | A GET step's final URL failed its own redirect rules (`<step> final url refused`) — see [Final URL carry](#final-url-carry)                                                                                                                                                               |
 | `GENERIC`                                                       | A text step's handoff script fell outside the grammar, held no browser location or more than one, or its URL failed the step's `url` rules (`<step> handoff script unsupported`, `missing`, `ambiguous` or `refused`) — see [Handoff script capture](#handoff-script-capture)             |
-| `INVALID_OTP`                                                   | Wrong code, or a code that fails its pre-hook `valuePattern` (`<step> preHook value invalid`) — see [OTP pre-hook guards](#otp-pre-hook-guards)                                                                                                                                           |
+| `INVALID_OTP`                                                   | Wrong code, or a code that fails its pre-hook `valuePattern` or stated length (`<step> preHook value invalid`) — see [OTP pre-hook guards](#otp-pre-hook-guards)                                                                                                                          |
 | `TWO_FACTOR_RETRIEVER_MISSING`                                  | OTP step reached without callback (`preHook: creds.<field> is not a function`)                                                                                                                                                                                                            |
 | `GENERIC`                                                       | A pre-hook `requires` ref did not resolve, or the OTP callback threw (`preHook: creds.<field>() threw <ErrorName>`) — see [OTP pre-hook guards](#otp-pre-hook-guards)                                                                                                                     |
 | `INVALID_PHONE_NUMBER`                                          | `phoneNumber` cannot be normalised to the bank's wire format — see [Phone normaliser](#phone-normaliser)                                                                                                                                                                                  |
