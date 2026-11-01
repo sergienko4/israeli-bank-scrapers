@@ -56,8 +56,8 @@ export const NEWBANK_LOGIN: ILoginConfig = {
 ([`Registry/WK/LoginWK.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Registry/WK/LoginWK.ts))
 resolves each field by visible text / `aria-label` / semantic HTML — never a CSS
 selector in the bank config (the ZERO-CSS-selectors rule). If a field is not
-matched (e.g. an `aria-label`-only input with an empty placeholder, like the
-national-ID field on Yahav's website), **add the value to the shared `LoginWK`
+matched (e.g. an `aria-label`-only input with an empty placeholder, as some
+national-ID fields are), **add the value to the shared `LoginWK`
 slot** — do not put a bank-specific selector here.
 
 ### 4. Write the pipeline builder

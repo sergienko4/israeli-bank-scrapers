@@ -9,7 +9,7 @@
  *
  * <p>`waitForSpaReady` budget before DASHBOARD.PRE resolves account /
  * navigation targets and before ACTION fires the click. Dashboard pages
- * are SPA-heavy (Angular shells on Discount / Yahav); the click must
+ * are SPA-heavy (Discount's Angular shell); the click must
  * land after JS hydration so the bank's SPA router responds.
  */
 export const DASHBOARD_PRELUDE_TIMEOUT_MS = 10_000;
@@ -30,7 +30,7 @@ export const DASHBOARD_SETTLE_MS = 5000;
  * pre-cut 30000 ms so slow Azure-CI runners have the same envelope
  * as the host runs. SPA-bound success-probes that race a 8 s
  * window legitimately need this budget when the bank's hydration
- * window is long (Angular shells on Discount / Yahav).
+ * window is long (Discount's Angular shell).
  */
 export const DASHBOARD_SUCCESS_TIMEOUT_MS = 30000;
 
