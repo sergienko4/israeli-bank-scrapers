@@ -9,11 +9,12 @@
  *  - a GET carries no default JSON content-type, because it has no body.
  * A bank may also set the default redirect policy a call runs under when it
  * names none; every manual redirect hop goes through the same capped seam.
+ * Its status policy and media type defaults (N61) are installed the same way.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { NETWORK_FETCH_TIMEOUT_MS } from '../../Mediator/Network/FetchConfig.js';
-import type { IResponseReading } from '../../Types/Domain/FetchPolicy.js';
+import type { IResponseReading, MediaTypePolicy } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts } from './FetchStrategy.js';
@@ -34,6 +35,8 @@ import { statusActionFor } from './StatusPolicy.js';
 interface IHeadlessNativeFetchOptions extends INativeFetchOptions {
   /** Ceiling (ms) for one request, connect through the full body. */
   readonly timeoutMs?: number;
+  /** Media type each response kind must name when a call names none (N61). */
+  readonly mediaTypes?: MediaTypePolicy;
 }
 
 /** Request-local cap and reading policy; concurrent calls never share mutable state. */
@@ -145,12 +148,13 @@ class HeadlessNativeFetchStrategy extends NativeFetchStrategy {
    * @param baseUrl - Base URL for API requests.
    * @param options - Optional `timeoutMs` ceiling (defaults to the shared
    *   {@link NETWORK_FETCH_TIMEOUT_MS}), default `redirectPolicy` and the
-   *   bank's `statusPolicy` and HTTP-failure body omission.
+   *   bank's `statusPolicy`, media-type defaults and HTTP-failure body omission.
    */
   constructor(baseUrl: string, options: IHeadlessNativeFetchOptions = {}) {
     super(baseUrl, options);
     this._timeoutMs = options.timeoutMs ?? NETWORK_FETCH_TIMEOUT_MS;
     this._verbDefaults = HEADLESS_DEFAULT_HEADERS;
+    this._mediaTypes = options.mediaTypes ?? this._mediaTypes;
   }
 
   /**

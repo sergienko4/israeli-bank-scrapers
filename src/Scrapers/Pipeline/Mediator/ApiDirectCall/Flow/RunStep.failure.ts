@@ -24,6 +24,7 @@ import { isLocalFailureMessage } from '../../../Strategy/Fetch/LocalFailureReaso
 import {
   DOCUMENT_UNVERIFIED_REASON,
   LATIN1_UNENCODABLE_REASON,
+  MEDIA_TYPE_REFUSED_REASON,
   REDIRECT_REFUSED_REASON,
   TEXT_BODY_REFUSED_REASON,
   TEXT_TOO_LONG_REASON,
@@ -41,6 +42,7 @@ const REFUSAL_REASONS = [
   TEXT_TOO_LONG_REASON,
   LATIN1_UNENCODABLE_REASON,
   TEXT_BODY_REFUSED_REASON,
+  MEDIA_TYPE_REFUSED_REASON,
 ].join('|');
 
 /** `<VERB> <safeUrl> ` then `HTTP NNN`, a fixed reason, or both — and nothing else. */

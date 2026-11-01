@@ -9,6 +9,7 @@ import { getDebug } from '../../Logging/Debug.js';
 import type { Brand } from '../../Types/Brand.js';
 import type {
   IResponseReading,
+  MediaTypePolicy,
   RedirectPolicy,
   ResponseKind,
   StatusPolicy,
@@ -27,6 +28,7 @@ import type {
 } from './FetchStrategy.js';
 import { overlayHeaders } from './HeaderOverlay.js';
 import { classifyHttpFailure, hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
+import { refuseMediaType } from './MediaTypeCheck.js';
 import { withBodyContentType, writePostBody } from './PostBody.js';
 import type { IRedirectRun, IRunEnd } from './RedirectFollow.js';
 import { emitSetCookies, sendUnderPolicy } from './RedirectFollow.js';
@@ -131,7 +133,7 @@ function isApiSuccess(response: Response): boolean {
 
 /**
  * Route an answer: WAF classification first, then the bank's status policy,
- * then the reader its response kind names.
+ * then the expected media type (N61), then the reader its response kind names.
  * @param answer - The answered call.
  * @returns Procedure with the read body or a classified failure.
  */
@@ -139,6 +141,8 @@ async function routeResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
   if (!isApiSuccess(answer.response)) return classifyStatus<T>(answer);
   const decided = await applyStatusPolicy<T>(answer);
   if (decided.has) return decided.value;
+  const refused = refuseMediaType<T>(answer);
+  if (refused.has) return refused.value;
   return READERS[answer.reading.responseKind]<T>(answer);
 }
 
@@ -281,6 +285,13 @@ class NativeFetchStrategy implements IFetchStrategy {
   protected readonly _omitBankText: boolean;
 
   /**
+   * Media type seam (N61) — the type each response kind's answer must name
+   * when the call names none. The base expects none; transports built for a
+   * bank whose config names defaults replace it in their constructor.
+   */
+  protected _mediaTypes: MediaTypePolicy = {};
+
+  /**
    * Create a NativeFetchStrategy.
    * @param baseUrl - The base URL for API requests.
    * @param options - Bank defaults; absent policies retain ordinary fetch behavior.
@@ -348,15 +359,16 @@ class NativeFetchStrategy implements IFetchStrategy {
 
   /**
    * How a call's answer is read: this transport's status policy plus the
-   * call's response kind (`json` when absent), document marker, text cap and
-   * header sink.
+   * call's response kind (`json` when absent), document marker, text cap,
+   * header sink and media type (else this transport's default for the kind).
    * @param opts - The call's fetch options.
    * @returns The reading routeResponse applies.
    */
   protected readingOf(opts: IFetchOpts): IResponseReading {
     const responseKind = opts.responseKind ?? 'json';
     const { documentMarker, maxTextChars, headerSink, onEmptyResponse } = opts;
-    const hooks = { responseKind, documentMarker, maxTextChars, headerSink, onEmptyResponse };
+    const mediaType = opts.mediaType ?? this._mediaTypes[responseKind];
+    const hooks = { responseKind, documentMarker, maxTextChars, headerSink, onEmptyResponse, mediaType };
     const privacy = { omitBankText: this._omitBankText };
     return { statusPolicy: this._statusPolicy, ...hooks, ...privacy };
   }

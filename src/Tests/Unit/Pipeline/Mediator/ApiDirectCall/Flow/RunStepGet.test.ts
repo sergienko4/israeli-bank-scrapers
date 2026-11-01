@@ -234,6 +234,14 @@ describe('E8 GET login step over the headless native transport', () => {
     expect(result).toMatchObject({ success: false, errorMessage: 'bind document unverified' });
   });
 
+  it("refuses a document of another media type than the step's", async (): Promise<void> => {
+    installPage(PORTAL_HTML);
+    const step: IGetStep = { ...DOCUMENT_STEP, mediaType: 'text/html' };
+    const bus = makeNativeMediator();
+    const result = await runStep({ step, bus, scope: makeScope(), companyId: HINT });
+    expect(result).toMatchObject({ success: false, errorMessage: 'bind unexpected media type' });
+  });
+
   it('leaves redirects to fetch when the step names no policy', async (): Promise<void> => {
     const fake = installFetch();
     const bus = makeNativeMediator();

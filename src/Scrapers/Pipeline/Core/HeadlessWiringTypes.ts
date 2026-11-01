@@ -26,7 +26,7 @@ type HeadlessTransportKind = 'node-tls' | 'native' | 'browser';
 
 /** Optional transport settings a headless config block hands to the factory. */
 type TTransportKey =
-  'tlsProfile' | 'clientCert' | 'cookieDomains' | 'redirectPolicy' | 'statusPolicy';
+  'tlsProfile' | 'clientCert' | 'cookieDomains' | 'redirectPolicy' | 'statusPolicy' | 'mediaTypes';
 
 /** Pair of URLs + flags needed to wire the headless ApiMediator. */
 interface IHeadlessWiring extends IWiringFlags {

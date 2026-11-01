@@ -69,7 +69,8 @@ function toHeadlessWiring(headless: IHeadlessUrlsConfig): IHeadlessWiring {
   const { identityBase, graphql, graphqlHeaders, staticAuth } = headless;
   const { tlsProfile, clientCert, cookieDomains, redirectPolicy, statusPolicy } = headless;
   const urls = { identity: identityBase, graphql, graphqlHeaders, staticAuth };
-  const transport = { tlsProfile, clientCert, cookieDomains, redirectPolicy, statusPolicy };
+  const policies = { redirectPolicy, statusPolicy, mediaTypes: headless.mediaTypes };
+  const transport = { tlsProfile, clientCert, cookieDomains, ...policies };
   return { ...urls, transport, ...flags };
 }
 

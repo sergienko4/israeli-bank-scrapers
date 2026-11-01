@@ -1095,8 +1095,9 @@ Some banks keep the session in cookies shared by sibling hosts, and answer
 login calls with redirects, HTML pages or response headers instead of JSON
 alone. Reading, encoding, headers and domain cookies work on either node
 transport (`nativeFetch` or node:https with a certificate or TLS profile).
-Step redirects and bank-wide redirect, status and failure-text defaults need
-`headless.nativeFetch`. The transport side of each field is described in
+Step redirects and bank-wide redirect, status, failure-text and media-type
+defaults need `headless.nativeFetch`; step media types work on either node
+transport. The transport side of each field is described in
 [Headless transports](../architecture/pipeline.md#headless-transports), and
 the [build-time config checks](#build-time-config-checks) refuse combinations
 that cannot work.
@@ -1110,6 +1111,7 @@ headless: {
   cookieDomains: ['bank.example'], // a Domain cookie reaches every *.bank.example host
   redirectPolicy: 'reject',        // any 3xx fails unless the step names its own redirect
   statusPolicy: { 204: 'empty' },  // a 204 answers {} without reading the body
+  mediaTypes: { json: 'application/json' }, // every json answer must say so (N61)
 }
 ```
 
@@ -1165,6 +1167,12 @@ from what it extracted:
   `locationCapture` the URL its handoff script sends a browser to
   ([Handoff script capture](#handoff-script-capture));
   `statusPolicy` decides a 2xx before any body is read
+  ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
+- `mediaType` (N61) names the one lower-case `type/subtype` the answer's
+  `content-type` must carry, parameters aside, over the bank's
+  `headless.mediaTypes` default for the step's response kind; a missing or
+  different type fails the step `<step> unexpected media type`, after the
+  status policy and before the body is read
   ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
 - `headerExtractsToCarry` reads a header of the final response; a missing
   header without `fallback` fails with `<step> header missing`
@@ -1351,6 +1359,10 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `classify` `into` or capture slot that the same step writes as an extract, final URL, capture or derivation                          | `steps.classify: slots must not be slots the step also writes`           |
 | a `sessionCarry` slot that is the `into` of some `classify`                                                                           | `steps.classify.into: must not be a sessionCarry slot`                   |
 | a `runIf` whose `carry` some `classify` writes, with a `oneOf` text that no case written to that slot is named                        | `steps.runIf: on a classifier slot, oneOf lists only case names`         |
+| a login or resume step with `mediaType`, off native fetch and node:https                                                              | `steps.mediaType: not allowed without nativeFetch or node:https`         |
+| `headless.mediaTypes` without `headless.nativeFetch: true`                                                                            | `headless.mediaTypes: not allowed without headless.nativeFetch`          |
+| a `headless.mediaTypes` key that is not a response kind (`API_DIRECT_MEDIA_RULES`)                                                    | `headless.mediaTypes: keys must be response kinds`                       |
+| a step `mediaType` or `headless.mediaTypes` value that is not one lower-case `type/subtype`, no parameters                            | `mediaType: must be a lower-case type/subtype`                           |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no

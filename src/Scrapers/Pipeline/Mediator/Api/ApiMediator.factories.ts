@@ -73,8 +73,8 @@ function buildGqlStrategy(args: IGraphQLTransportArgs): GraphQLFetchStrategy {
  * @returns Strategy pair.
  */
 function buildHeadlessStrategies(args: IHeadlessMediatorArgs): IHeadlessStrategies {
-  const { redirectPolicy, statusPolicy } = args;
-  const policies = { redirectPolicy, statusPolicy, omitBankText: args.omitBankText };
+  const { redirectPolicy, statusPolicy, mediaTypes, omitBankText } = args;
+  const policies = { redirectPolicy, statusPolicy, mediaTypes, omitBankText };
   const constructArgs: HeadlessConstructorArgs = [args.identityBaseUrl, policies];
   const fetch = Reflect.construct(HeadlessNativeFetchStrategy, constructArgs);
   const gql = buildGqlStrategy(args);

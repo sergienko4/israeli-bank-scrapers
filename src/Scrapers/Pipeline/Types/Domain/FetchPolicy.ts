@@ -64,6 +64,9 @@ type StatusAction = 'empty' | 'fail';
 /** A bank's 2xx statuses it decides before the body is read. */
 type StatusPolicy = Readonly<Partial<Record<number, StatusAction>>>;
 
+/** A bank's expected media type per response kind (N61); lower-case `type/subtype`. */
+type MediaTypePolicy = Readonly<Partial<Record<ResponseKind, string>>>;
+
 /** The response headers a call reads (N6, N31): their names and their receiver. */
 interface IResponseHeaderSink {
   /** Lower-case header names; only these reach `take`. */
@@ -89,6 +92,8 @@ interface IFetchCallPolicy {
   readonly headerSink?: IResponseHeaderSink;
   /** How a POST body is written; `json` when absent; native transports only. */
   readonly bodyEncoding?: BodyEncoding;
+  /** Media type the answer must name (N61); overrides the bank's default. */
+  readonly mediaType?: string;
 }
 
 /** How a transport reads one answered call: the bank's policy plus the call's own. */
@@ -102,6 +107,7 @@ interface IResponseReading {
   readonly headerSink?: IResponseHeaderSink;
   /** Internal notification of a policy-approved empty response; returns a recorded-event count. */
   readonly onEmptyResponse?: () => number;
+  readonly mediaType?: string;
 }
 
 /** Fixed reason a transport reports for a refused redirect. */
@@ -119,6 +125,9 @@ const LATIN1_UNENCODABLE_REASON = 'form-latin1 unencodable';
 /** Fixed reason a transport reports for a `text` body that is not one string field. */
 const TEXT_BODY_REFUSED_REASON = 'text body not a string';
 
+/** Fixed reason a transport reports for an answer of another media type (N61). */
+const MEDIA_TYPE_REFUSED_REASON = 'unexpected media type';
+
 export type {
   BodyEncoding,
   IAnyPathExceptRule,
@@ -128,6 +137,7 @@ export type {
   IResponseHeaderSink,
   IResponseReading,
   IUrlRule,
+  MediaTypePolicy,
   RedirectPolicy,
   ResponseKind,
   StatusAction,
@@ -137,6 +147,7 @@ export {
   DOCUMENT_UNVERIFIED_REASON,
   FORM_BODY_ENCODINGS,
   LATIN1_UNENCODABLE_REASON,
+  MEDIA_TYPE_REFUSED_REASON,
   REDIRECT_REFUSED_REASON,
   TEXT_BODY_REFUSED_REASON,
   TEXT_TOO_LONG_REASON,
