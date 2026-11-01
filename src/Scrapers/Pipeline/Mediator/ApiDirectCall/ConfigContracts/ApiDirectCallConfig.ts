@@ -50,7 +50,7 @@ interface IPersistentAuthConfig {
 }
 
 /** Rule a required credential must meet before the first request. */
-type CredRule = 'nonEmpty' | 'digits' | 'sixDigits';
+type CredRule = 'nonEmpty' | 'digits' | 'sixDigits' | 'latin1';
 
 /** Top-level config literal — placed into PIPELINE_BANK_CONFIG[bank].apiDirectCall. */
 interface IApiDirectCallConfig {

@@ -204,11 +204,15 @@ calls it before `mayStartFlow` charges the cold-flow budget, for
 `runConfiguredFlow` and a durable enrollment alike, and `prepareSmsOtpFlow`
 calls it again for the paths that do not pass the budget:
 
-| Rule        | Accepts                          |
-| ----------- | -------------------------------- |
-| `nonEmpty`  | a string that is not blank       |
-| `digits`    | one or more digits, nothing else |
-| `sixDigits` | exactly six digits               |
+| Rule        | Accepts                                                      |
+| ----------- | ------------------------------------------------------------ |
+| `nonEmpty`  | a string that is not blank                                   |
+| `digits`    | one or more digits, nothing else                             |
+| `sixDigits` | exactly six digits                                           |
+| `latin1`    | a string that is not blank, every char ≤ U+00FF (ISO-8859-1) |
+
+`latin1` lets a bank that sends a credential through a `form-latin1` step
+refuse an unencodable one before its first request, rather than at that step.
 
 A missing or non-string value fails every rule. When any field fails, the flow
 stops with `Generic` and `Missing or malformed credentials: <names>`. The

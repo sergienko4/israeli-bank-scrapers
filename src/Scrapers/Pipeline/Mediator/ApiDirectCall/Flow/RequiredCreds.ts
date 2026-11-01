@@ -16,6 +16,7 @@ type CredEntry = readonly [string, CredRule];
 
 const DIGITS = /^\d+$/;
 const SIX_DIGITS = /^\d{6}$/;
+const BEYOND_LATIN1 = /[\u0100-\uffff]/;
 
 /** Rule → predicate; a non-string value reads as '' and fails every rule. */
 const CRED_RULES: Readonly<Record<CredRule, (value: string) => boolean>> = {
@@ -37,6 +38,13 @@ const CRED_RULES: Readonly<Record<CredRule, (value: string) => boolean>> = {
    * @returns True when six digits.
    */
   sixDigits: (value): boolean => SIX_DIGITS.test(value),
+  /**
+   * Not blank, and every char fits ISO-8859-1 (≤ U+00FF), so a `form-latin1`
+   * step can send it.
+   * @param value - Credential value.
+   * @returns True when non-blank and Latin-1.
+   */
+  latin1: (value): boolean => value.trim().length > 0 && !BEYOND_LATIN1.test(value),
 };
 
 /** Message prefix; the names of the failing fields follow it. */

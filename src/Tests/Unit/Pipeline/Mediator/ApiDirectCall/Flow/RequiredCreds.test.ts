@@ -35,6 +35,12 @@ const RULE_CASES: readonly IRuleCase[] = [
   { rule: 'sixDigits', value: '123456', isAccepted: true },
   { rule: 'sixDigits', value: '12345', isAccepted: false },
   { rule: 'sixDigits', value: '1234567', isAccepted: false },
+  { rule: 'latin1', value: 'syn-p\u00e4ss\u00ff', isAccepted: true },
+  { rule: 'latin1', value: 'syn-pass\u0100', isAccepted: false },
+  { rule: 'latin1', value: 'syn-\u05d0', isAccepted: false },
+  { rule: 'latin1', value: 'syn-\u{1f600}', isAccepted: false },
+  { rule: 'latin1', value: '   ', isAccepted: false },
+  { rule: 'latin1', value: undefined, isAccepted: false },
 ];
 
 /**
