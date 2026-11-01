@@ -70,3 +70,34 @@ describe('matchesAnyUrlRule', () => {
     expect(isAllowed).toBe(false);
   });
 });
+
+describe('matchesAnyUrlRule — anyPathExcept', () => {
+  const denyRule: IUrlRule = { origin: ORIGIN, anyPathExcept: ['logout', 'changepass'] };
+
+  it.each([
+    ['any path with any query', `${ORIGIN}/wps/portal/home?rid=1&x=2`],
+    ['the bare origin', `${ORIGIN}/`],
+  ])('allows %s', (_label, url) => {
+    const isAllowed = allowed(url, [denyRule]);
+    expect(isAllowed).toBe(true);
+  });
+
+  it.each([
+    ['a denied text', `${ORIGIN}/wps/logout`],
+    ['a denied text in another case', `${ORIGIN}/wps/ChangePass.do`],
+    ['a denied text inside a segment', `${ORIGIN}/a/doLOGOUTnow`],
+    ['a foreign origin', 'https://evil.example/wps/portal/home'],
+    ['userinfo', 'https://u:p@mto.bank.example/wps/portal/home'],
+    ['http', 'http://mto.bank.example/wps/portal/home'],
+    ['a fragment', `${ORIGIN}/wps/portal/home#top`],
+  ])('refuses %s', (_label, url) => {
+    const isAllowed = allowed(url, [denyRule]);
+    expect(isAllowed).toBe(false);
+  });
+
+  it('matches a deny text given in upper case', () => {
+    const rule: IUrlRule = { origin: ORIGIN, anyPathExcept: ['RECOVERY'] };
+    const isAllowed = allowed(`${ORIGIN}/auth/recovery`, [rule]);
+    expect(isAllowed).toBe(false);
+  });
+});

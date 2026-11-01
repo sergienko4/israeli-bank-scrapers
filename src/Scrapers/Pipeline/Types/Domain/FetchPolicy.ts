@@ -7,7 +7,7 @@
  */
 
 /** One allowed redirect target: exact https origin, exact path, query rules. */
-interface IUrlRule {
+interface IExactPathRule {
   /** Exact `scheme://host[:port]` in `URL.origin` form; https only. */
   readonly origin: string;
   /** Allowed paths, compared exactly but case-insensitively. */
@@ -17,6 +17,17 @@ interface IUrlRule {
   /** When true no other key and no duplicate key may appear (no `query` ⇒ none). */
   readonly exactQuery?: boolean;
 }
+
+/** Any path and query on one exact https origin, except paths holding a denied text. */
+interface IAnyPathExceptRule {
+  /** Exact `scheme://host[:port]` in `URL.origin` form; https only. */
+  readonly origin: string;
+  /** Texts the lower-cased path must not contain, compared case-insensitively. */
+  readonly anyPathExcept: readonly string[];
+}
+
+/** One allowed URL: an exact path rule or an any-path-except rule. */
+type IUrlRule = IExactPathRule | IAnyPathExceptRule;
 
 /** Follow up to `maxHops` redirects whose target matches one rule (GET steps only). */
 interface IManualRedirect {
@@ -103,6 +114,8 @@ const TEXT_BODY_REFUSED_REASON = 'text body not a string';
 
 export type {
   BodyEncoding,
+  IAnyPathExceptRule,
+  IExactPathRule,
   IFetchCallPolicy,
   IManualRedirect,
   IResponseHeaderSink,
