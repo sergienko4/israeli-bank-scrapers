@@ -1,8 +1,8 @@
 /**
- * N40/N41/N51 build rules — a raw query replaces the query template, never
+ * N40/N41/N51/N54 build rules — a raw query replaces the query template, never
  * joins it; a carried step URL (a GET's, by type) reads a slot that an earlier
- * step in the same list checked, with an `extractRules` `url` rule or as its
- * `finalUrlInto` slot. A `finalUrlInto` needs the step's own manual redirect,
+ * step in the same list checked, with an `extractRules` `url` rule, as its
+ * `finalUrlInto` slot or as its `locationCapture` slot. A `finalUrlInto` needs the step's own manual redirect,
  * whose `allow` rules check the URL, and a slot the step extracts nothing into.
  */
 
@@ -84,6 +84,16 @@ const FINAL: IGetStep = {
   finalUrlInto: 'handoffUrl',
 };
 
+/** A text page whose handoff script, checked by its capture, sets the handoff URL. */
+const HANDOFF: IPostStep = {
+  name: 'login',
+  urlTag: 'auth.bind',
+  body: { shape: {} },
+  response: 'text',
+  extractsToCarry: {},
+  locationCapture: { into: 'handoffUrl', userAgent: 'syn-agent', url: MANUAL.allow },
+};
+
 /** One build: its login steps and, when set, its resume steps. */
 interface IBuildCase {
   readonly label: string;
@@ -145,6 +155,11 @@ const REFUSALS: readonly IRefusalCase[] = [
     expected: FRESH_MSG,
   },
   {
+    label: 'a carried URL its own handoff script sets',
+    steps: [{ ...LANDING, response: 'text', locationCapture: HANDOFF.locationCapture }],
+    expected: RULE_MSG,
+  },
+  {
     label: 'a carried URL its own step finalizes',
     steps: [{ ...LANDING, redirect: MANUAL, finalUrlInto: 'handoffUrl' }],
     expected: RULE_MSG,
@@ -157,6 +172,7 @@ const ACCEPTED: readonly IBuildCase[] = [
   { label: 'a query template alone', steps: [BIND, { ...LANDING, queryTemplate: QUERY_TEMPLATE }] },
   { label: 'a resume list ruling its own slot', steps: [BIND], resume: [BIND, LANDING] },
   { label: 'a carried URL an earlier final URL checked', steps: [FINAL, LANDING] },
+  { label: 'a carried URL an earlier handoff script set', steps: [HANDOFF, LANDING] },
 ];
 
 describe('validateApiDirectConfig — N40/N41 step URL rules', () => {

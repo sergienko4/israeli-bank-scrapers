@@ -6,7 +6,8 @@
  * repeat a group — `(…)` followed by `*`, `+` or `{`, the shape that
  * backtracks without bound; its `group` must be an integer from 0 (the whole
  * match) to the pattern's group count. The login-form capture rules (N37)
- * of `ApiDirectFormCaptureRules.ts` run last.
+ * of `ApiDirectFormCaptureRules.ts`, then the handoff script capture rules
+ * (N54) of `ApiDirectLocationCaptureRules.ts`, run last.
  */
 
 import type {
@@ -14,6 +15,7 @@ import type {
   ITextCapture,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { API_DIRECT_FORM_CAPTURE_RULES } from './ApiDirectFormCaptureRules.js';
+import { API_DIRECT_LOCATION_CAPTURE_RULES } from './ApiDirectLocationCaptureRules.js';
 import { anyStep, type IApiDirectRule } from './ApiDirectRuleInput.js';
 
 /** Longest text answer a step may accept, in chars (2 MiB). */
@@ -140,6 +142,7 @@ const API_DIRECT_TEXT_RULES: readonly IApiDirectRule[] = [
     isBroken: anyCapture(isBadGroup),
   },
   ...API_DIRECT_FORM_CAPTURE_RULES,
+  ...API_DIRECT_LOCATION_CAPTURE_RULES,
 ];
 
 export default API_DIRECT_TEXT_RULES;

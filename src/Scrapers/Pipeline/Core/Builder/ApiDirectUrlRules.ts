@@ -2,9 +2,10 @@
  * Build rules for step URLs. A raw query (N41) replaces the query template
  * rather than joining it. A carried step URL (N40), which only a GET can name
  * (`IPostStep.urlFromCarry` is `never`), reads a slot that an earlier step in
- * the same list checked — with an `extractRules` `url` rule, or as its final
- * URL (N51), which its own redirect rules check: login steps and resume steps
- * each run without the other's carry. A final-URL slot needs a manual
+ * the same list checked — with an `extractRules` `url` rule, as its final
+ * URL (N51), which its own redirect rules check, or as its handoff script's
+ * URL (N54), which its capture's `url` rules check: login steps and resume
+ * steps each run without the other's carry. A final-URL slot needs a manual
  * redirect, whose rules check it, and a slot of its own.
  */
 
@@ -46,13 +47,14 @@ function isStaleFinal(step: IStepConfig): boolean {
 }
 
 /**
- * Whether a step checks a slot: an `extractRules` `url` rule, or its final URL.
+ * Whether a step checks a slot: an `extractRules` `url` rule, its final URL,
+ * or its handoff script's URL.
  * @param step - Step config.
  * @param slot - Carry slot.
  * @returns True when the slot is a checked URL.
  */
 function hasUrlRule(step: IStepConfig, slot: string): boolean {
-  if (step.finalUrlInto === slot) return true;
+  if (step.finalUrlInto === slot || step.locationCapture?.into === slot) return true;
   const rules = step.extractRules ?? {};
   return Object.hasOwn(rules, slot) && rules[slot].url !== undefined;
 }

@@ -256,9 +256,11 @@ the carry slot holding that URL. Its `urlTag` still names the step but is not
 sent to. A POST cannot name it, since `IPostStep.urlFromCarry` is `never`.
 
 The slot must hold the text of an absolute URL that an earlier step checked:
-with an `extractRules` `url` rule, or as its [final URL](#final-url-carry),
-which its own redirect rules check. A slot that no earlier step in the same
-list (login steps, or resume steps) checks either way fails the build with
+with an `extractRules` `url` rule, as its [final URL](#final-url-carry),
+which its own redirect rules check, or as the URL its
+[handoff script](#handoff-script-capture) sets, which its `url` rules check.
+A slot that no earlier step in the same list (login steps, or resume steps)
+checks any of these ways fails the build with
 `steps.urlFromCarry: slot needs an earlier url rule`. At run time, a slot
 that is missing, not text, or not an absolute URL fails the step with
 `<step> carried url invalid` before anything is sent. A relative URL is
@@ -691,6 +693,67 @@ formCapture: {
   is not an extract slot, so no extract rule may name it and `sessionCarry`
   cannot keep it. A failure names the step only, never a field or a value.
 
+### Handoff script capture
+
+Some banks answer a logon with a page whose script sends a browser on, and an
+app elsewhere, by testing the User-Agent. On a `response: 'text'` step,
+`locationCapture` (an `ILocationCapture`, N54) carries the URL that script
+sends a browser to. `captureLocation` (in `Flow/RunStep.locationCapture.ts`)
+runs through `answerSlots` after the text captures and the form capture. The
+script is never run: it is read as tokens, along the path the configured
+`userAgent` selects.
+
+```ts
+response: 'text',
+locationCapture: {
+  into: 'handoffUrl',
+  userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0',
+  url: [{ origin: 'https://bank.example', anyPathExcept: ['logout', 'changepass'] }],
+},
+```
+
+- The page's `<script>` bodies are read left to right, up to the first one
+  that is never closed; a script with only a `src` has no body to read.
+- `tokenizeScript` (in `Flow/RunStep.locationScriptLexer.ts`) reads a body
+  into `IScriptToken`s, each of a `ScriptTokenKind`: names, numbers, quoted
+  strings, templates without `${`, and one-char punctuators (an `end` token
+  stands past the last one); comments and blanks are dropped, and a token
+  after a line break starts a line. Anything else, an unclosed string or
+  comment included, refuses the script. `decodeJsString` decodes a string
+  with no escape but `\/`, `\\`, `\'` and `\"`.
+- `selectedTargets` (in `Flow/RunStep.locationScriptWalk.ts`) walks the
+  tokens through an `IScriptWalk` (cursor helpers `tokenAt`, `isEndAt`,
+  `isPunctAt`, `isNameAt`, `takePunct`, `takeName` and `takeToken` in
+  `Flow/RunStep.locationScriptCursor.ts`). `walkChain` (in
+  `Flow/RunStep.locationScriptStatement.ts`) reads a plain statement: a
+  quoted string assigned to `location`, `window.location`,
+  `document.location` or `top.location`, or to their `.href`, or a call to
+  `console.log`, `sessionStorage.removeItem` or `localStorage.removeItem`,
+  whose arguments are skipped unread. A statement ends at `;`, or before a
+  line break, a `}` or the end of the script.
+- An `if` must test exactly
+  `(navigator.userAgent.indexOf('<marker>') > -1)`; `readMarker` (in
+  `Flow/RunStep.locationScriptCondition.ts`) reads a marker of 1 to 64 chars.
+  The branch is taken when `userAgent` contains the marker, else the `else`
+  branch, when there is one. A branch is a block or one statement; `if`
+  nests at most `MAX_IF_DEPTH` (4) deep. The taken branch is walked, and
+  `skipBranch` and `skipGroup` (in `Flow/RunStep.locationScriptSkip.ts`) step
+  over the other one unread, as balanced brackets.
+- Any other statement on the walked path, an empty statement, a bare block or
+  two statements on one line without `;` fail
+  `<step> handoff script unsupported`. Over all scripts, no assignment fails
+  `<step> handoff missing`, and two or more `<step> handoff ambiguous`.
+- The one URL is resolved against the step URL and must pass the `url` rules
+  (https, no user info, no fragment): else `<step> handoff refused`. Its
+  `href` goes to carry `into`, which a later step can name as its
+  [`urlFromCarry`](#carried-step-url). A failure is `Generic` and names the
+  step only, never the URL.
+
+The build (`API_DIRECT_LOCATION_CAPTURE_RULES`) refuses a `locationCapture`
+on a step whose `response` is not `'text'`, one with an empty `into`,
+`userAgent` or `url`, and an `into` the step also fills: an extract, its
+`finalUrlInto` or its `formCapture` slot.
+
 ### Envelope codec
 
 Some banks wrap every JSON request and answer in an AES-256-CBC envelope. A
@@ -1056,7 +1119,9 @@ from what it extracted:
   `response: 'text'` reads the answer as `{ text }`, up to `maxTextChars`
   (65 536 by default), and `textCaptures` read slots off it
   ([Text captures](#text-captures)); `formCapture` reads a login form's
-  hidden fields off it ([Login-form capture](#login-form-capture));
+  hidden fields off it ([Login-form capture](#login-form-capture)), and
+  `locationCapture` the URL its handoff script sends a browser to
+  ([Handoff script capture](#handoff-script-capture));
   `statusPolicy` decides a 2xx before any body is read
   ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
 - `headerExtractsToCarry` reads a header of the final response; a missing
@@ -1199,6 +1264,9 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `formCapture` `action` that is not an absolute https URL written as `new URL(action).href`                                          | `steps.formCapture.action: must be an absolute https URL`                |
 | a `formCapture` whose `minFields` or `maxFields` is not an integer, or not `1 <= minFields <= maxFields`                              | `steps.formCapture: needs integers 1 <= minFields <= maxFields`          |
 | a `formCapture` `required` or `forbidden` name off `FORM_FIELD_NAME`, or named in both                                                | `steps.formCapture: field names must be valid and disjoint`              |
+| a login or resume step with `locationCapture` whose `response` is not `'text'` (`API_DIRECT_LOCATION_CAPTURE_RULES`)                  | `steps.locationCapture: needs a text response`                           |
+| a `locationCapture` with an empty `into`, `userAgent` or `url`                                                                        | `steps.locationCapture: into, userAgent and url must not be empty`       |
+| a `locationCapture` `into` that the step also extracts, or names as its `finalUrlInto` or `formCapture` slot                          | `steps.locationCapture: must be a fresh slot`                            |
 | a login or resume step with an `rsa-key` generator that names neither `keyInto` nor `spkiSha256HexInto` (`API_DIRECT_GENERATE_RULES`)     | `steps.generate: rsa-key needs keyInto or spkiSha256HexInto`                       |
 | a login or resume step with a `pkcs10-csr` generator whose `subject` is empty or whose `into` is blank                                    | `steps.generate: pkcs10-csr needs a subject and into`                              |
 | a login or resume step with an `ecdh-key` generator whose `publicInto` or `privateInto` is blank, or both name one slot               | `steps.generate: ecdh-key needs distinct publicInto and privateInto`     |
@@ -1223,7 +1291,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | an `exchange` codec whose `keyInto` or `sessionInto` is blank, or both name one slot                                                  | `steps.codec: exchange needs distinct keyInto and sessionInto`           |
 | a `sessionCarry` slot that a codec reads or writes: the `privateRef`, `keyRef` or `sessionRef` slot, `keyInto` or `sessionInto`       | `steps.codec: codec slots must not be sessionCarry slots`                |
 | a login or resume step with both `rawQuery` and `queryTemplate` (`API_DIRECT_URL_RULES`)                                              | `steps.rawQuery: not with queryTemplate`                                 |
-| a `urlFromCarry` slot that no earlier step of the same list (login or resume) checks with a `url` rule or as its `finalUrlInto`       | `steps.urlFromCarry: slot needs an earlier url rule`                     |
+| a `urlFromCarry` slot no earlier step of its list (login or resume) checks: `url` rule, `finalUrlInto`, `locationCapture`             | `steps.urlFromCarry: slot needs an earlier url rule`                     |
 | a `finalUrlInto` on a step whose `redirect` is not manual                                                                             | `steps.finalUrlInto: needs a manual redirect`                            |
 | a `finalUrlInto` slot that is blank, or that the step also extracts                                                                   | `steps.finalUrlInto: must be a fresh slot`                               |
 | an optional `$ref` at a body or query root, inside an array or in a header (`API_DIRECT_OPTIONAL_REF_RULES`)                          | `steps: optional ref only as an object value`                            |
@@ -1677,6 +1745,7 @@ Where each piece lives, for maintainers:
 | the type a matched case's `fail` names                          | The step's answer matched a [classifier](#answer-classifier) case that fails the step (`<step> answer <case>`)                                                                                                                                                                            |
 | `GENERIC`                                                       | A body extract failed its rule (`<step> extract <slot> invalid`) — see [Extract rules](#extract-rules)                                                                                                                                                                                    |
 | `GENERIC`                                                       | A GET step's final URL failed its own redirect rules (`<step> final url refused`) — see [Final URL carry](#final-url-carry)                                                                                                                                                               |
+| `GENERIC`                                                       | A text step's handoff script fell outside the grammar, held no browser location or more than one, or its URL failed the step's `url` rules (`<step> handoff script unsupported`, `missing`, `ambiguous` or `refused`) — see [Handoff script capture](#handoff-script-capture)             |
 | `INVALID_OTP`                                                   | Wrong code, or a code that fails its pre-hook `valuePattern` (`<step> preHook value invalid`) — see [OTP pre-hook guards](#otp-pre-hook-guards)                                                                                                                                           |
 | `TWO_FACTOR_RETRIEVER_MISSING`                                  | OTP step reached without callback (`preHook: creds.<field> is not a function`)                                                                                                                                                                                                            |
 | `GENERIC`                                                       | A pre-hook `requires` ref did not resolve, or the OTP callback threw (`preHook: creds.<field>() threw <ErrorName>`) — see [OTP pre-hook guards](#otp-pre-hook-guards)                                                                                                                     |

@@ -7,7 +7,7 @@
  * (`IPreStepHook` referenced by IStepConfig.preHook), ClassifyTypes
  * (`IAnswerClassifier` referenced by IStepBase.classify), SignerTypes
  * (`ISealFieldConfig` referenced by IStepConfig.seal) and WireTypes
- * (`ITextCapture`, `IFormCapture` referenced by IStepBase, `EnvelopeCodec`
+ * (`ITextCapture`, `IFormCapture`, `ILocationCapture` referenced by IStepBase, `EnvelopeCodec`
  * by IPostStep). Top-level
  * ApiDirectCallConfig composes the FlowKind discriminator + steps array
  * from here.
@@ -35,7 +35,7 @@ import type {
   JsonValueTemplate,
   RefToken,
 } from './TemplateTypes.js';
-import type { EnvelopeCodec, IFormCapture, ITextCapture } from './WireTypes.js';
+import type { EnvelopeCodec, IFormCapture, ILocationCapture, ITextCapture } from './WireTypes.js';
 
 /** Exhaustive flow-kind discriminator (spec.txt §B.3). */
 type FlowKind = 'sms-otp' | 'stored-jwt' | 'bearer-static';
@@ -223,6 +223,8 @@ interface IStepBase {
   readonly textCaptures?: Readonly<Record<string, ITextCapture>>;
   /** The hidden fields of the page's login form, captured from a `text` answer (N37). */
   readonly formCapture?: IFormCapture;
+  /** The URL the page's handoff script assigns, captured from a `text` answer (N54). */
+  readonly locationCapture?: ILocationCapture;
   /** Text a `document` answer must contain, else the step fails `document unverified`. */
   readonly documentMarker?: string;
   /** Carry slots read from the final response's headers, merged beside `extractsToCarry`. */

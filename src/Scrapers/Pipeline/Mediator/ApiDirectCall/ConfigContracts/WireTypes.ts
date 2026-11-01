@@ -1,14 +1,16 @@
 /**
  * WireTypes — the wire-reading concern slice of the API-DIRECT-CALL config
  * contract: what a step captures from a `text` answer (N36 text captures,
- * N37 login-form capture) and how a POST step's body and answer are
- * enveloped (N39 envelope codec).
+ * N37 login-form capture, N54 handoff script capture) and how a POST step's
+ * body and answer are enveloped (N39 envelope codec).
  *
  * A root bucket: no intra-cluster deps. FlowTypes references these from
  * `IStepBase` and `IPostStep`.
  *
  * Rule #11 compliance: zero bank-name strings.
  */
+
+import type { IUrlRule } from '../../../Types/Domain/FetchPolicy.js';
 
 /**
  * One text capture (N36) on a `text` step: its pattern must match the answer
@@ -47,6 +49,20 @@ interface IFormCapture {
 }
 
 /**
+ * The handoff script capture (N54) on a `text` step: the one location
+ * assignment the page's scripts select for `userAgent`, resolved against the
+ * step URL, goes to carry `into` once it passes `url`.
+ */
+interface ILocationCapture {
+  /** Carry slot the selected URL goes to. */
+  readonly into: string;
+  /** The User-Agent the page's `navigator.userAgent` branches test. */
+  readonly userAgent: string;
+  /** Rules the resolved URL must pass. */
+  readonly url: readonly IUrlRule[];
+}
+
+/**
  * The `sealed` mode of the AES-CBC envelope codec (N39): the step's hydrated
  * `{ headers, data }` body goes out sealed under the session key, and its
  * answer must come back sealed for the same session (N52).
@@ -80,4 +96,11 @@ interface IEnvelopeExchange {
 /** How a POST step's request and answer are enveloped (N39). */
 type EnvelopeCodec = IEnvelopeExchange | IEnvelopeSealed;
 
-export type { EnvelopeCodec, IEnvelopeExchange, IEnvelopeSealed, IFormCapture, ITextCapture };
+export type {
+  EnvelopeCodec,
+  IEnvelopeExchange,
+  IEnvelopeSealed,
+  IFormCapture,
+  ILocationCapture,
+  ITextCapture,
+};
