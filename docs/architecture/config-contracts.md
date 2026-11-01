@@ -133,6 +133,7 @@ this contract; the build-time checks read both.
 | Set client cookies before one step's request | `setCookies` (record of `RefToken`) | FlowTypes, TemplateTypes | [Client cookies](pipeline.md#client-cookies) |
 | Read a cookie the bank set, URL-decoded | `cookie.<name>` (`RefToken`) | TemplateTypes | [Client cookies](pipeline.md#client-cookies) |
 | One string built from refs and literals | `$join` (`IJoinTemplate`, `JoinPart`, `JoinEncoding`) | TemplateTypes | [JsonValueTemplate](../phases/api-direct-call.md#jsonvaluetemplate) |
+| A carried form record with fields laid over it | `$merge` (`IMergeTemplate`) | TemplateTypes | [JsonValueTemplate](../phases/api-direct-call.md#jsonvaluetemplate) |
 | A fresh key or certificate request made by one step | `generate` (`ICarryGenerator`) | GeneratorTypes, FlowTypes | [Carry generators](../phases/api-direct-call.md#carry-generators) |
 | A returned certificate checked against its key | `extractRules` `pemCertificate` (`IPemCertificateRule`) | FlowTypes | [Extract rules](../phases/api-direct-call.md#extract-rules) |
 | Present a device certificate the run obtained | `clientCert` (`IStepClientCert`), `headless.clientCert` | FlowTypes | [Device certificate](../phases/api-direct-call.md#device-certificate) |

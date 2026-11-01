@@ -2,9 +2,11 @@
  * Body-shape rules for an api-direct call config (N9, N23). A form body
  * (`form` or `form-latin1`) is written field by field, so its shape must be a
  * flat record whose every value is one `$ref`, one `$join` (N24), or one
- * `$literal` string, finite number or boolean. A `text` body is sent as one string, so its shape
- * must be exactly `{ text }`. A broken shape fails the build; a value that
- * hydrates to the wrong type fails the step at run time.
+ * `$literal` string, finite number or boolean — or one `$merge` (N37) whose
+ * `base` is a `carry.` slot and whose `set` is such a record. A `text` body is
+ * sent as one string, so its shape must be exactly `{ text }`. A broken shape
+ * fails the build; a value that hydrates to the wrong type fails the step at
+ * run time. The `$merge` rules of `ApiDirectMergeRules.ts` run last.
  */
 
 import type {
@@ -13,7 +15,11 @@ import type {
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { FORM_BODY_ENCODINGS } from '../../Types/Domain/FetchPolicy.js';
 import type { JsonUnknownRecord } from '../../Types/JsonValue.js';
+import { API_DIRECT_MERGE_RULES, isMergeRoot } from './ApiDirectMergeRules.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
+
+/** A `$merge` base: a non-blank carry slot. */
+const CARRY_BASE = /^carry\.\S+$/u;
 
 /**
  * Whether a literal can travel as one form field.
@@ -66,14 +72,37 @@ function isFormLeaf(node: unknown): boolean {
 }
 
 /**
- * Whether a body shape is a record of form leaves.
+ * Whether a value is a record of form leaves.
+ * @param shape - Body shape or `$merge` set.
+ * @returns True when the value is a flat form record.
+ */
+function isFlatRecord(shape: unknown): boolean {
+  if (typeof shape !== 'object' || shape === null || Array.isArray(shape)) return false;
+  const values: readonly unknown[] = Object.values(shape);
+  return values.every(isFormLeaf);
+}
+
+/**
+ * Whether a `$merge` payload has a carry base and a flat set.
+ * @param payload - `$merge` payload.
+ * @returns True for `{ base: 'carry.<slot>', set: <flat form record> }`.
+ */
+function isFlatMerge(payload: unknown): boolean {
+  if (typeof payload !== 'object' || payload === null) return false;
+  const { base, set } = payload as JsonUnknownRecord;
+  if (typeof base !== 'string' || !CARRY_BASE.test(base)) return false;
+  return isFlatRecord(set);
+}
+
+/**
+ * Whether a body shape is a record of form leaves, or one sound `$merge`.
  * @param shape - Body shape.
  * @returns True when the shape is a flat form record.
  */
 function isFlatShape(shape: JsonValueTemplate): boolean {
-  if (Array.isArray(shape)) return false;
-  const values: readonly unknown[] = Object.values(shape as JsonUnknownRecord);
-  return values.every(isFormLeaf);
+  if (!isMergeRoot(shape)) return isFlatRecord(shape);
+  const { $merge: payload } = shape as JsonUnknownRecord;
+  return isFlatMerge(payload);
 }
 
 /**
@@ -127,10 +156,11 @@ function hasLooseText(input: IApiDirectRuleInput): boolean {
   return allSteps(input.call).some(isLooseText);
 }
 
-/** Body-shape rules, checked after the session-transport rules. */
+/** Body-shape rules, checked after the session-transport rules, then the `$merge` rules. */
 const API_DIRECT_FORM_RULES: readonly IApiDirectRule[] = [
   { message: 'steps.body: a form body must be a flat record', isBroken: hasNestedForm },
   { message: 'steps.body: a text body must be exactly { text }', isBroken: hasLooseText },
+  ...API_DIRECT_MERGE_RULES,
 ];
 
 export default API_DIRECT_FORM_RULES;

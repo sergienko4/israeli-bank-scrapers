@@ -49,6 +49,7 @@ Declarative body literal with `$ref` tokens:
 | `$ref: config.<dotted.path>` | The bank's config object                 |
 | `$ref: cookie.<name>`        | The cookie for the step URL, URL-decoded |
 | `$join: { parts, … }`        | One string built from refs and literals  |
+| `$merge: { base, set }`      | A carried record with `set` laid over it |
 
 A `$join` node (`IJoinTemplate`, N24) concatenates its `parts` in order. Each
 `JoinPart` is a ref token (`'creds.password'`) or a literal (`{ literal: '-' }`).
@@ -72,6 +73,27 @@ headers: {
 A part that does not resolve fails hydration with the same error as a missing
 `$ref`. A part that resolves to a value that is not a string fails with
 `$join part <token> is not a string`.
+
+A `$merge` node (`IMergeTemplate`, N37) sends back a form the bank handed out
+([Login-form capture](#login-form-capture)). `hydrateMerge` (in
+`Template/MergeTemplate.ts`) resolves `base`, a `carry.<slot>` holding a flat
+record of strings, and lays the hydrated `set` over it: a `set` key replaces
+the base value in place, a new one goes last. A base that does not resolve
+fails like a missing `$ref`; one that is not a flat string record fails
+`$merge base <token> not a flat string record`, naming no value. Only a form
+body's whole shape may be a `$merge`:
+
+```typescript
+encoding: 'form',
+body: {
+  shape: {
+    $merge: {
+      base: 'carry.loginForm',
+      set: { passwordEnc: { $ref: 'carry.token' }, user: { $ref: 'creds.username' } },
+    },
+  },
+},
+```
 
 One hydration engine serves both `API-DIRECT-CALL` and `API-DIRECT-SCRAPE` step bodies — no per-bank imperative body assembly.
 
@@ -435,7 +457,8 @@ formCapture: {
   (`^[\w-]{1,100}$`), a `value` past 32 768 chars or with no `=`, a field
   count outside `minFields`..`maxFields`, a repeated name, a missing
   `required` name or any `forbidden` one. A field with no `value` reads `''`.
-- The `{ name: value }` record, in page order, goes to carry `into`. The slot
+- The `{ name: value }` record, in page order, goes to carry `into`, and a
+  form body sends it back through a [`$merge`](#jsonvaluetemplate). The slot
   is not an extract slot, so no extract rule may name it and `sessionCarry`
   cannot keep it. A failure names the step only, never a field or a value.
 
@@ -711,7 +734,8 @@ from what it extracted:
   ([Carry derivation](#carry-derivation)).
 - `encoding: 'form'` sends the body as `application/x-www-form-urlencoded`,
   and `encoding: 'form-latin1'` the same over ISO-8859-1; either shape must be
-  a flat record of `$ref`, `$join` and scalar `$literal` values. `encoding: 'text'`
+  a flat record of `$ref`, `$join` and scalar `$literal` values, or one
+  `$merge` whose `set` is such a record. `encoding: 'text'`
   sends the string of a `{ text }` body verbatim, with no content-type
   ([Form bodies](../architecture/pipeline.md#form-bodies)). `isFlatFormBody`
   guards the hydrated form step and both form writers against arrays and
@@ -755,7 +779,8 @@ success lists and case-insensitive failure-map collisions before warm-start
 checks. The
 session-transport rules, `API_DIRECT_TRANSPORT_RULES` in
 `Core/Builder/ApiDirectTransportRules.ts`, run after the core rules, then the form-body rules, `API_DIRECT_FORM_RULES` in
-`Core/Builder/ApiDirectFormRules.ts`, then the seal rules,
+`Core/Builder/ApiDirectFormRules.ts`, which end with the `$merge` rules,
+`API_DIRECT_MERGE_RULES` in `Core/Builder/ApiDirectMergeRules.ts`, then the seal rules,
 `API_DIRECT_SEAL_RULES` in `Core/Builder/ApiDirectSealRules.ts`, then the
 step rules, `API_DIRECT_STEP_RULES` in `Core/Builder/ApiDirectStepRules.ts`,
 then the text-capture rules, `API_DIRECT_TEXT_RULES` in
@@ -803,6 +828,8 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`                                                         | `headless.redirectPolicy: must be reject when a step redirects manually`           |
 | a form step (`form` or `form-latin1`) whose body shape is not a flat record of `$ref`, `$join` and scalar `$literal` values               | `steps.body: a form body must be a flat record`                                    |
 | a `text` step whose body shape is not exactly `{ text }`                                                                                  | `steps.body: a text body must be exactly { text }`                                 |
+| a form step whose whole-shape `$merge` (`isMergeRoot`) has a `base` off `carry.<slot>` or a `set` that is not flat                    | `steps.body: a form body must be a flat record`                          |
+| a `$merge` anywhere but a form body's whole shape: a JSON or text body, a field, a header, a query (`API_DIRECT_MERGE_RULES`)         | `steps: $merge belongs only at the root of a form body`                  |
 | a `seal` whose `kind` is not a `SealKind`                                                                                                 | `steps.seal.kind: unknown seal kind`                                               |
 | a `seal` on a step that is not a `POST` with a record body                                                                                | `steps.seal: needs a POST step with a record body`                                 |
 | a `seal` whose `writeTo` is not a JSON pointer                                                                                            | `steps.seal.writeTo: must be a JSON pointer`                                       |
@@ -814,7 +841,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | an `extractRules` `maxChars` that is not an integer from 1 to 65536                                                                       | `steps.extractRules.maxChars: must be an integer from 1 to 65536`                  |
 | an `extractRules` `oneOf` or `url` list that is empty                                                                                     | `steps.extractRules: oneOf and url must not be empty`                              |
 | a login or resume step whose `runIf` has a blank `carry` or an empty `oneOf`                                                              | `steps.runIf: carry and oneOf must not be empty`                                   |
-| a login or resume step with `textCaptures` whose `response` is not `'text'` (`API_DIRECT_TEXT_RULES`)                                    | `steps.textCaptures: need a text response`                                         |
+| a login or resume step with `textCaptures` whose `response` is not `'text'` (`API_DIRECT_TEXT_RULES`)                                    | `steps.textCaptures: need a text response`                                         | (feat(api-direct): merge a carried form into a body)
 | a login or resume step with `maxTextChars` whose `response` is not `'text'`                                                           | `steps.maxTextChars: needs a text response`                              |
 | a `maxTextChars` that is not an integer from 1 to 2097152                                                                             | `steps.maxTextChars: must be an integer from 1 to 2097152`               |
 | a `textCaptures` `pattern` that does not compile with the `g` flag                                                                    | `steps.textCaptures.pattern: must compile`                               |

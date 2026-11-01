@@ -43,11 +43,21 @@ interface IJoinTemplate {
   readonly prefix?: string;
 }
 
+/**
+ * A `$merge` node (N37) — the carried flat string record `base` (a captured
+ * login form) with the hydrated `set` laid over it. Only a form body's whole
+ * shape may be one.
+ */
+interface IMergeTemplate {
+  readonly base: `carry.${string}`;
+  readonly set: Readonly<Record<string, JsonValueTemplate>>;
+}
+
 /** Named selector map — values are RFC-6901 pointers like `/data/challenge`. */
 type IEnvelopeSelectors = Readonly<Record<string, string>>;
 
 /**
- * Recursive body template — JsonValueTemplate with $literal / $ref / $join nodes,
+ * Recursive body template — JsonValueTemplate with $literal / $ref / $join / $merge nodes,
  * heterogeneous arrays, and recursive object maps. The object arm admits
  * `undefined` values because TS-widened heterogeneous unions of the form
  * `{a:X, b?: undefined} | {a?: undefined, b:Y}` (e.g. Pepper headers list)
@@ -59,6 +69,7 @@ type JsonValueTemplate =
   | { readonly $literal: unknown }
   | { readonly $ref: RefToken }
   | { readonly $join: IJoinTemplate }
+  | { readonly $merge: IMergeTemplate }
   | readonly JsonValueTemplate[]
   | { readonly [key: string]: JsonValueTemplate | undefined };
 
@@ -71,6 +82,7 @@ export type {
   IBodyTemplate,
   IEnvelopeSelectors,
   IJoinTemplate,
+  IMergeTemplate,
   JoinEncoding,
   JoinPart,
   JsonValueTemplate,
