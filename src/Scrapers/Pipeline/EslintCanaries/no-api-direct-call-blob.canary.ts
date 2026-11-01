@@ -8,7 +8,7 @@
 // max-lines: 150 (skipBlankLines + skipComments) on
 // Mediator/ApiDirectCall/ConfigContracts sub-modules so future
 // commits cannot quietly re-blob IApiDirectCallConfig.ts (or any
-// of its six concern-slice successors) back toward four-digit
+// of its concern-slice successors) back toward four-digit
 // line counts.
 //
 // CR feedback fix (PR #279, finding F1): replaces 70 chained,
