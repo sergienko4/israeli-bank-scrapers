@@ -9,6 +9,7 @@
  * (Pipeline tests don't statically import from Registry/Config).
  */
 
+import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import {
   type IApiDirectRuleInput,
   validateApiDirectConfig,
@@ -314,6 +315,15 @@ describe('Yahav native login config — answers', () => {
       deviceStatus: { header: 'device-status' },
       mag: { header: 'mag-identifier' },
     });
+  });
+
+  it('reports a register 401 as a wrong password, and types no other step by status', async () => {
+    const { call } = await loadModule();
+    const register = stepNamed(call, 'register');
+    const typed = call.steps.filter(step => step.httpFailureMap !== undefined);
+    const typedNames = typed.map(step => step.name);
+    expect(register.httpFailureMap).toEqual({ '401': ScraperErrorTypes.InvalidPassword });
+    expect(typedNames).toEqual(['register']);
   });
 });
 

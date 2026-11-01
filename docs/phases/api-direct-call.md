@@ -516,6 +516,10 @@ thing names its type per status:
 httpFailureMap: { '401': ScraperErrorTypes.InvalidPassword },
 ```
 
+Yahav's `register` uses this map: wrong credentials draw a bare `401` there,
+and with no reason in the reply every `401` there is reported as
+`INVALID_PASSWORD` ([Yahav login](../banks/yahav.md#login)).
+
 The step still fails with `<step> HTTP <status>`; only the type changes. The
 map reads the status only from the transport's reply prefix
 (`<VERB> <url> <status>: `), so a reply body that quotes another status cannot

@@ -9,6 +9,7 @@
  * Rule #18: all credentials + data are synthetic; no real PII.
  */
 
+import { ScraperErrorTypes } from '../../../Scrapers/Base/ErrorTypes.js';
 import type { BancsCall, YahavFault } from './YahavFaults.js';
 import { YH_INIT_COOKIE, YH_REG_COOKIE } from './YahavMockData.js';
 import type { IYahavRun } from './YahavRun.js';
@@ -82,6 +83,17 @@ describe('Yahav login refusals', () => {
     expect(run.state.violations).toEqual([]);
     expect(run.result.success).toBe(false);
     expect(run.trail).toEqual([...ENROL_TRAIL, 'token']);
+  });
+
+  it('reports a registration refused with 401 as a wrong password', async () => {
+    const run = await runYahav('register401');
+    expect(run.state.violations).toEqual([]);
+    expect(run.trail).toEqual(ENROL_TRAIL);
+    expect(run.result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.InvalidPassword,
+      errorMessage: 'register HTTP 401',
+    });
   });
 });
 
