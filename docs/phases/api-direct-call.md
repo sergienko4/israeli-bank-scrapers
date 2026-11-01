@@ -499,7 +499,8 @@ successful cold or warm login, right after the warm export, so a kept jar is
 published in the next warm token before it is emptied. `isolate` needs a
 domain jar (`headless.cookieDomains`, a
 [build-time check](#build-time-config-checks)). Durable device auth
-(`persistentAuth`) runs its own flows and never hands off.
+(`persistentAuth`) runs its own flows and never hands off. An in-run recovery
+puts the stash back before it resumes; see [Auth recovery](#auth-recovery).
 
 ### OTP pre-hook guards
 
@@ -1081,6 +1082,23 @@ strategy can. It calls the resolver's optional `recover()`, which
 resolver without one runs `refresh()` (`primeFresh`), as before. Both share the
 `isRefreshing` re-entrancy guard in `guardedMintOp`. A 401 or 403 inside one
 call still runs `refresh()` through `retryOn401Op`.
+
+The config strategy's `primeRecover` is `primeRecoverImpl`
+(`Flow/TokenStrategyFromConfig.recover.ts`). It picks its route from
+`RECOVER_ROUTES` by warm kind, so a new kind names its own. A `carry-bundle`
+login resumes: the [cookie hand-off](#cookie-hand-off) stash goes back into an
+emptied jar (a `shared` hand-off stashed nothing and keeps its jar), the
+private carry snapshot seeds the flow, and the flow runs from `fromStepIndex`.
+A resume is not a cold start, so it spends no
+[one-SMS budget](#one-sms-per-run). A failed resume escalates to one cold
+login only when its `coldFallback` gate allows; any other failure is returned.
+Every other kind, and every durable session, runs `primeFresh` as before.
+
+The recovery hook (`makeRecoveryHook`) reads the strategy's optional
+`lastRecoveryResumed()`. A resumed recovery logs one info line:
+`re-granted the session token`. Only a cold one falls to the degraded-session
+warning, which still needs a session that was warm. A strategy without the
+getter keeps that warning rule alone.
 
 ## Persistent (durable) device auth
 

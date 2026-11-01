@@ -13,6 +13,7 @@ import {
   primeFreshImpl,
   primeInitialImpl,
 } from './TokenStrategyFromConfig.flow.js';
+import { primeRecoverImpl } from './TokenStrategyFromConfig.recover.js';
 import { gateFlowKind, STRATEGY_NAME_DEFAULT } from './TokenStrategyFromConfig.shared.js';
 import type {
   IConfigTokenStrategy,
@@ -50,6 +51,20 @@ function makePrimeFresh(
 }
 
 /**
+ * primeRecover factory — the in-run re-grant (N33) over the same slot.
+ * @param config - Bank config.
+ * @param slot - Mutable capture slot.
+ * @returns Strategy primeRecover binding.
+ */
+function makePrimeRecover(
+  config: IApiDirectCallConfig,
+  slot: ILongTermTokenSlot,
+): IConfigTokenStrategy['primeRecover'] {
+  return (bus, ctx, creds): Promise<Procedure<string>> =>
+    primeRecoverImpl({ config, bus, ctx, creds, slot });
+}
+
+/**
  * hasWarmState factory — wraps hasWarmStateImpl with the captured slot.
  * @param slot - Capture slot holding the durable mode and the cycle verdict.
  * @returns Strategy hasWarmState binding.
@@ -69,24 +84,31 @@ function makeMayEscalate(
   return (failure): boolean => mayEscalateWarmFailureImpl(config, failure);
 }
 
+/** The prime-side bindings produced by buildPrimeBindings. */
+type IPrimeBindings = Pick<
+  IStrategyBindings,
+  'primeInitial' | 'primeFresh' | 'primeRecover' | 'hasWarmState'
+>;
+
 /**
- * Build the prime-side bindings (initial + fresh + hasWarmState).
+ * Build the prime-side bindings (initial + fresh + recover + hasWarmState).
  * @param config - Bank config.
  * @param slot - Capture slot.
- * @returns Three-binding object.
+ * @returns Four-binding object.
  */
 function buildPrimeBindings(
   config: IApiDirectCallConfig,
   slot: ILongTermTokenSlot,
-): Pick<IStrategyBindings, 'primeInitial' | 'primeFresh' | 'hasWarmState'> {
+): IPrimeBindings {
   return {
     primeInitial: makePrimeInitial(config, slot),
     primeFresh: makePrimeFresh(config, slot),
+    primeRecover: makePrimeRecover(config, slot),
     hasWarmState: makeHasWarmState(slot),
   };
 }
 
-/** The three slot-derived getter bindings produced by buildGetterBindings. */
+/** The slot-derived getter bindings produced by buildGetterBindings. */
 type IGetterBindings = Pick<
   IStrategyBindings,
   | 'getLatestLongTermToken'
@@ -94,6 +116,7 @@ type IGetterBindings = Pick<
   | 'lastPrimeWasWarm'
   | 'warmSeedRejectedLocally'
   | 'warmAttemptFailureType'
+  | 'lastRecoveryResumed'
 >;
 
 /** The slot readers that expose captured token material. */
@@ -102,7 +125,7 @@ type ITokenGetters = Pick<IGetterBindings, 'getLatestLongTermToken' | 'getLatest
 /** The slot readers that explain which path the last prime actually took. */
 type IWarmGetters = Pick<
   IGetterBindings,
-  'lastPrimeWasWarm' | 'warmSeedRejectedLocally' | 'warmAttemptFailureType'
+  'lastPrimeWasWarm' | 'warmSeedRejectedLocally' | 'warmAttemptFailureType' | 'lastRecoveryResumed'
 >;
 
 /**
@@ -146,13 +169,18 @@ function buildWarmGetters(slot: ILongTermTokenSlot): IWarmGetters {
    * @returns The ScraperErrorTypes tag, or '' when there is none.
    */
   const warmAttemptFailureType = (): string => slot.warmAttemptFailureType ?? '';
-  return { lastPrimeWasWarm, warmSeedRejectedLocally, warmAttemptFailureType };
+  /**
+   * Whether the last in-run mint resumed the session (N33).
+   * @returns True after a resume; false after a cold login or none.
+   */
+  const lastRecoveryResumed = (): boolean => slot.lastMintResumed ?? false;
+  return { lastPrimeWasWarm, warmSeedRejectedLocally, warmAttemptFailureType, lastRecoveryResumed };
 }
 
 /**
  * Build the slot-getter bindings (long-term token + carry snapshot + flags).
  * @param slot - Capture slot.
- * @returns Four-binding object.
+ * @returns Token, warm-path and recovery-outcome bindings.
  */
 function buildGetterBindings(slot: ILongTermTokenSlot): IGetterBindings {
   const tokenGetters = buildTokenGetters(slot);

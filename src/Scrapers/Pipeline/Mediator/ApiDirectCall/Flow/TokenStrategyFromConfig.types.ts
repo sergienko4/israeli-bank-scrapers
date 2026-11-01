@@ -71,6 +71,16 @@ interface IConfigTokenStrategy extends ITokenStrategy<GenericCreds> {
    * (see PiiRedactor/ErrorLog, CodeQL js/clear-text-logging #28).
    */
   warmAttemptFailureType(): string;
+  /**
+   * Re-grants a rejected session in-run (N33): a `carry-bundle` login resumes
+   * from its private carry and cookie stash; every other kind logs in cold.
+   */
+  primeRecover: NonNullable<ITokenStrategy<GenericCreds>['primeRecover']>;
+  /**
+   * Whether the last in-run mint resumed the session rather than logging in
+   * cold (N33). Absent on a strategy that cannot resume.
+   */
+  lastRecoveryResumed?(): boolean;
 }
 
 /** Args for runConfiguredFlow — respects 3-param ceiling. */
@@ -128,6 +138,8 @@ interface ILongTermTokenSlot {
    * finished. Values are secrets; never log them.
    */
   handoffCookies?: readonly IStoredCookie[];
+  /** True when the last in-run mint resumed the session; false after a cold login. */
+  lastMintResumed?: boolean;
   /**
    * Durable mode the strategy was built for; absent means legacy. Held here
    * rather than in creds or carry because it carries the caller's state and

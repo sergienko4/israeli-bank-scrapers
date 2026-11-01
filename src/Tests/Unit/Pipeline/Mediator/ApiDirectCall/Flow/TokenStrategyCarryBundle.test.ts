@@ -8,7 +8,9 @@
  * reason that never echoes a value. A cold start clears the jar and the client
  * cert before step 0, and `coldFallback: 'auth-rejected'` lets only a bank's
  * 401/403 to the warm resume escalate to a cold login. `cookieHandoff:
- * 'isolate'` empties the jar once the bundle is published (N35).
+ * 'isolate'` empties the jar once the bundle is published (N35). An in-run
+ * recovery (N33) resumes from the stash and the private carry at
+ * `fromStepIndex`; only an auth-rejected resume escalates to a cold login.
  */
 
 import { jest } from '@jest/globals';
@@ -454,5 +456,77 @@ describe('carry-bundle cookie hand-off', () => {
     const bancsHeader = domain.jar.header(BANCS_URL);
     expect(left).toEqual(WARM_COOKIES);
     expect(bancsHeader).toContain('SMSESSION=');
+  });
+});
+
+/**
+ * Mint the run's first session, then re-grant it the way a whole-scrape
+ * recovery does (N33), noting the jar events the recovery alone caused.
+ * @param run - Bundle run under test.
+ * @param creds - Creds the run logs in with.
+ * @returns The recovery's procedure and its jar events.
+ */
+async function primeThenRecover(
+  run: IBundleRun,
+  creds: ScraperCredentials,
+): Promise<{ proc: Procedure<string>; events: readonly string[] }> {
+  const first = await run.strategy.primeInitial(run.bus, CTX, creds);
+  assertOk(first);
+  const before = run.jar.events.length;
+  const proc = await run.strategy.primeRecover(run.bus, CTX, creds);
+  const events = run.jar.events.slice(before);
+  return { proc, events };
+}
+
+describe('carry-bundle in-run recovery (N33)', () => {
+  it('resumes from the stash and the private carry at fromStepIndex', async (): Promise<void> => {
+    const responses = [REGISTER_OK, TOKEN_OK, TOKEN_OK];
+    const run = makeRun({ responses, cookieHandoff: 'isolate' });
+    const coldCreds = credsWith('');
+    const { proc, events } = await primeThenRecover(run, coldCreds);
+    assertOk(proc);
+    const resumedCalls = run.captures.slice(COLD_STEPS);
+    const sent = sentClient(resumedCalls);
+    const isResumed = run.strategy.lastRecoveryResumed?.();
+    const imported = `import${String(WARM_COOKIES.length)}@${String(COLD_STEPS)}`;
+    expect(resumedCalls).toHaveLength(WARM_STEPS);
+    expect(sent).toBe(LOGIN_CLIENT);
+    expect(events).toEqual([`clear@${String(COLD_STEPS)}`, imported, 'clear@3']);
+    expect(isResumed).toBe(true);
+  });
+
+  it('shared: resumes on the jar the scrape already holds', async (): Promise<void> => {
+    const run = makeRun({ responses: [REGISTER_OK, TOKEN_OK, TOKEN_OK] });
+    const coldCreds = credsWith('');
+    const { proc, events } = await primeThenRecover(run, coldCreds);
+    assertOk(proc);
+    const resumedCalls = run.captures.slice(COLD_STEPS);
+    const sent = sentClient(resumedCalls);
+    expect(resumedCalls).toHaveLength(WARM_STEPS);
+    expect(sent).toBe(LOGIN_CLIENT);
+    expect(events).toEqual([]);
+  });
+
+  it('auth-rejected: a resume answered 401 runs one cold login', async (): Promise<void> => {
+    const resumeReject = fail(ScraperErrorTypes.Generic, `${WARM_CALL} 401: denied`);
+    const responses = [TOKEN_OK, resumeReject, REGISTER_OK, TOKEN_OK];
+    const opts = { responses, coldFallback: 'auth-rejected', cookieHandoff: 'isolate' } as const;
+    const run = makeRun(opts);
+    const warmCreds = credsWith(STORED);
+    const { proc } = await primeThenRecover(run, warmCreds);
+    assertOk(proc);
+    const isResumed = run.strategy.lastRecoveryResumed?.();
+    expect(run.captures).toHaveLength(WARM_STEPS + WARM_STEPS + COLD_STEPS);
+    expect(isResumed).toBe(false);
+  });
+
+  it('auth-rejected: a resume answered 500 returns it with no cold call', async (): Promise<void> => {
+    const resumeFail = fail(ScraperErrorTypes.Generic, `${WARM_CALL} 500: oops`);
+    const opts = { coldFallback: 'auth-rejected', cookieHandoff: 'isolate' } as const;
+    const run = makeRun({ ...opts, responses: [TOKEN_OK, resumeFail] });
+    const warmCreds = credsWith(STORED);
+    const { proc } = await primeThenRecover(run, warmCreds);
+    expect(proc).toMatchObject({ success: false, errorMessage: 'login HTTP 500' });
+    expect(run.captures).toHaveLength(WARM_STEPS + WARM_STEPS);
   });
 });

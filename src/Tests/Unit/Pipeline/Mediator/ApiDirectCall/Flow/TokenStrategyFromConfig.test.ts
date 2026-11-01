@@ -180,6 +180,29 @@ describe('api-direct-call createTokenStrategyFromConfig primeFresh', () => {
   });
 });
 
+describe('api-direct-call createTokenStrategyFromConfig primeRecover (N33)', () => {
+  const carryWarm = { credsField: 'storedJwt', carryField: 'token', fromStepIndex: 1 } as const;
+
+  it.each<[string, IApiDirectCallConfig['warmStart']]>([
+    ['a carry warm start', carryWarm],
+    ['no warm start', undefined],
+  ])('logs in cold for %s, as primeFresh does', async (_label, warmStart): Promise<void> => {
+    const captures: IApiPostCapture[] = [];
+    const responses = [succeed({ access_token: 'from-recover' })];
+    const bus = makeStubMediator({ responses, captures });
+    const result = createTokenStrategyFromConfig({
+      config: { ...makeSingleStepConfig(), warmStart },
+    });
+    if (!result.success) throw new ScraperError('factory should succeed');
+    const creds: GenericCreds = { storedJwt: makeJwt(3600) };
+    const proc = await result.value.primeRecover(bus, CTX_STUB, creds);
+    const isResumed = result.value.lastRecoveryResumed?.();
+    expect(proc).toMatchObject({ success: true, value: 'from-recover' });
+    expect(captures).toHaveLength(1);
+    expect(isResumed).toBe(false);
+  });
+});
+
 describe('api-direct-call createTokenStrategyFromConfig authScheme bearer', () => {
   it('prefixes returned token with "Bearer "', async (): Promise<void> => {
     const captures: IApiPostCapture[] = [];
