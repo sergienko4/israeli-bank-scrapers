@@ -1,9 +1,10 @@
 /**
  * Yahav native response session (spec §10.2, N31): every BaNCS answer is
  * gated on its envelope and rotates the security token, the CSRF token and
- * the two session ids. A value an answer leaves out keeps the previous one;
- * a value that is not printable text fails the call, and so does an answer
- * after which any of the four is still missing — the login included.
+ * the two session ids. A value an answer leaves out or sends empty keeps the
+ * previous one; a value that is not printable text fails the call, and so
+ * does an answer after which any of the four is still missing — the login
+ * included.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
@@ -52,7 +53,8 @@ function refuse<T>(reason: string): Procedure<T> {
 
 /**
  * Whether BaNCS completed the call: a 200, the envelope, a zero status code
- * and an entity list.
+ * and a payload whose entity list, when sent, is a list — an empty answer
+ * leaves the list out.
  * @param args - The answer.
  * @returns True when accepted.
  */
@@ -60,7 +62,8 @@ function isAccepted(args: IResponseSessionArgs): boolean {
   if (args.status !== 200 || args.body.Ver !== YAHAV_ENVELOPE_VER) return false;
   const code = getIn(args.body, ['Status', 'Code']);
   const entities = getIn(args.body, ['Payload', 'DataEntity']);
-  return OK_CODES.includes(code) && Array.isArray(entities);
+  const isListed = entities === undefined || Array.isArray(entities);
+  return OK_CODES.includes(code) && isRecord(args.body.Payload) && isListed;
 }
 
 /**
@@ -89,7 +92,8 @@ function rotatedCsrf(body: ApiBody, previous: SessionContext): Procedure<unknown
 }
 
 /**
- * One session id: the header's cookie value, else the previous id.
+ * One session id: the header's cookie value, else the previous id. An empty
+ * header is the app's "no update", like an absent one.
  * @param rule - The id's rule.
  * @param headers - Answer headers.
  * @param previous - Session before the answer.
@@ -101,7 +105,7 @@ function rotatedId(
   previous: SessionContext,
 ): Procedure<SessionContextPatch> {
   const raw = headers[rule.header] as string | undefined;
-  if (raw === undefined) return succeed({ [rule.key]: previous[rule.key] });
+  if (raw === undefined || raw === '') return succeed({ [rule.key]: previous[rule.key] });
   if (!PRINTABLE.test(raw)) return refuse('session state invalid');
   const bare = raw.replace(rule.prefix, '');
   return succeed({ [rule.key]: bare.split(';')[0] });

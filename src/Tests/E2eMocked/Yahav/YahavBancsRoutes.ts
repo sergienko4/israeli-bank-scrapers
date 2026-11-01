@@ -1,7 +1,8 @@
 /**
  * Yahav mocked BaNCS routes (spec §10.2 rows 4–7, §10.3): the login opens a
- * session, every answer after it rotates the session id, XSRF, CSRF and
- * security token (the portfolio answer rotates nothing), and every read must
+ * session, the reads after it rotate the session id, XSRF, CSRF and security
+ * token (the customer answer rotates nothing and sends both ids empty, the
+ * portfolio answer rotates nothing and sends no ids), and every read must
  * echo the latest generation over the device certificate, the bearer token,
  * the device handle, a fresh body digest and the BaNCS cookie alone.
  *
@@ -66,6 +67,9 @@ const ACCOUNT_CALLS: Readonly<Record<string, BancsCall>> = {
 const PORTFOLIO_READS: ReadonlySet<BancsCall> = new Set(['accounts', 'balance', 'txns']);
 
 const EMPTY_SECTOKEN = { Ver: 'SecurityToken_1.0.0', isArchetype: false, Token: [] };
+
+/** The ids the bank's customer answer sends: present and empty ("no update"). */
+const NO_UPDATE_IDS = { jesessionid: '', 'xsrf-token': '' };
 
 /** Texts no BaNCS call may carry: credentials, the client secret, any certificate. */
 const SECRETS = [YAHAV_MOCK_CREDS.password, YH_CLIENT_SECRET, YH_USER, 'Basic ', '-----BEGIN'];
@@ -216,8 +220,11 @@ export function windowOf(call: IRecordedCall): IBancsWindow {
   return { from: isoDayOf(from.OrigDt), to: isoDayOf(to.OrigDt) };
 }
 
+/** What an answer without entities carries in their place, as the bank sends it. */
+const NO_ENTITIES = { EntityCounts: [] };
+
 /**
- * An answer body.
+ * An answer body; an empty one leaves the entity list out, as the bank does.
  * @param state - Run state.
  * @param entities - The answer's entities.
  * @param session - Session fields the answer carries.
@@ -229,7 +236,8 @@ function answerOf(
   session: JsonUnknownRecord,
 ): JsonUnknownRecord {
   const code = state.fault === 'statusText0' ? '0' : 0;
-  const payload = { Ver: 'MessagePayload_1.0.0', DataEntity: [...entities] };
+  const listed = entities.length > 0 ? { DataEntity: [...entities] } : NO_ENTITIES;
+  const payload = { Ver: 'MessagePayload_1.0.0', ...listed };
   return { Ver: YAHAV_ENVELOPE_VER, Status: { Code: code }, ...session, Payload: payload };
 }
 
@@ -253,6 +261,22 @@ function rotated(state: IYahavMockState, entities: Entities): Response {
   return json(body, { headers });
 }
 
+/**
+ * An answer that rotates nothing: blank CSRF, empty token, and the given ids.
+ * @param state - Run state; its generation stays.
+ * @param entities - The answer's entities.
+ * @param headers - The session headers it sends, if any.
+ * @returns The answer.
+ */
+function unrotated(
+  state: IYahavMockState,
+  entities: Entities,
+  headers: Readonly<Record<string, string>> = {},
+): Response {
+  const body = answerOf(state, entities, { csrfTkn: '', SecToken: EMPTY_SECTOKEN });
+  return json(body, { headers });
+}
+
 const ANSWERS: Readonly<Record<BancsCall, Route>> = {
   /**
    * Open a session; set the BaNCS cookie.
@@ -270,13 +294,15 @@ const ANSWERS: Readonly<Record<BancsCall, Route>> = {
     return answer;
   },
   /**
-   * The customer, or a refusal under `bankStatus`.
+   * The customer, rotating nothing and sending both ids empty as the bank
+   * does; a refusal under `bankStatus`.
    * @param _call - The request.
    * @param state - Run state.
    * @returns The customer.
    */
   customer: (_call, state) => {
-    if (state.fault !== 'bankStatus') return rotated(state, [{ Ver: 'CustomerUser_1.0.0' }]);
+    const entities = [{ Ver: 'CustomerUser_1.0.0' }];
+    if (state.fault !== 'bankStatus') return unrotated(state, entities, NO_UPDATE_IDS);
     return json({
       Ver: YAHAV_ENVELOPE_VER,
       Status: { Code: 'E1001' },
@@ -291,8 +317,7 @@ const ANSWERS: Readonly<Record<BancsCall, Route>> = {
    */
   portfolio: (_call, state) => {
     const entities = portfolioEntities();
-    const body = answerOf(state, entities, { csrfTkn: '', SecToken: EMPTY_SECTOKEN });
-    return json(body);
+    return unrotated(state, entities);
   },
   /**
    * The default portfolio's accounts.

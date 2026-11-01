@@ -75,6 +75,7 @@ const REFUSED: readonly (readonly [string, IAnswer])[] = [
   ['a non-zero status code', { body: { ...bancsAnswer([]), Status: { Code: 7 } } }],
   ['no status', { body: { ...bancsAnswer([]), Status: undefined } }],
   ['no entity list', { body: { ...bancsAnswer([]), Payload: { DataEntity: {} } } }],
+  ['no payload', { body: { ...bancsAnswer([]), Payload: undefined } }],
 ];
 
 describe('Yahav native session rotation', () => {
@@ -102,6 +103,12 @@ describe('Yahav native session rotation', () => {
     expect(patch).toEqual({ success: true, value: PREVIOUS });
   });
 
+  it('accepts an empty answer that leaves the entity list out', () => {
+    const body = { ...bancsAnswer([]), Payload: { EntityCounts: [] } };
+    const patch = rotate({ body });
+    expect(patch).toEqual({ success: true, value: PREVIOUS });
+  });
+
   it.each(REFUSED)('fails bank status on %s', (_label, answer) => {
     const patch = rotate(answer);
     expect(patch).toMatchObject({ success: false, errorMessage: 'bank status' });
@@ -125,10 +132,14 @@ describe('Yahav native session rotation', () => {
     expect(patch).toMatchObject({ success: false, errorMessage: 'session state invalid' });
   });
 
-  it.each([
-    ['a line break', { 'xsrf-token': 'XSRF-TOKEN=fake\r\nxsrf' }],
-    ['no value', { jesessionid: '' }],
-  ])('fails on a session header carrying %s', (_label, headers) => {
+  it('keeps the previous ids on empty session headers', () => {
+    const headers = { jesessionid: '', 'xsrf-token': '' };
+    const patch = rotate({ body: bancsAnswer([]), headers });
+    expect(patch).toEqual({ success: true, value: PREVIOUS });
+  });
+
+  it('fails on a session header carrying a line break', () => {
+    const headers = { 'xsrf-token': 'XSRF-TOKEN=fake\r\nxsrf' };
     const patch = rotate({ body: bancsAnswer([]), headers });
     expect(patch).toMatchObject({ success: false, errorMessage: 'session state invalid' });
   });

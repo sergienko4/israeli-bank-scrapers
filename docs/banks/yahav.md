@@ -117,9 +117,13 @@ order the app sends it.
 
 **Session.** BaNCS rotates its security token, CSRF token and two session ids
 on every answer. `YAHAV_RESPONSE_SESSION` reads them from each answer into the
-session-context under `YAHAV_SESSION_KEYS`; a value an answer leaves out keeps
-the previous one. A value that is not printable text fails the call, as does an
-answer after which any of the four is still missing — the login included.
+session-context under `YAHAV_SESSION_KEYS`; a value an answer leaves out or
+sends empty keeps the previous one, as the app does (`profile` answers with
+both session headers empty). A value that is not printable text fails the call,
+as does an answer after which any of the four is still missing — the login
+included. An answer is accepted on HTTP 200, the envelope version, a zero
+status code and a payload; an empty answer, such as a month without movements,
+leaves `DataEntity` out and reads as no rows.
 
 **Bootstrap.** `login` opens the BaNCS session, `profile` proves the customer
 (an answer without a `CustomerUser` fails the run), and `portfolio` picks the
