@@ -232,6 +232,8 @@ interface IStepBase {
   readonly documentMarker?: string;
   /** Media type the answer must name (N61), over the bank's per-kind default. */
   readonly mediaType?: string;
+  /** Decode the answer as strict UTF-8 (N63), over the bank's `headless.strictUtf8`. */
+  readonly strictUtf8?: boolean;
   /** Carry slots read from the final response's headers, merged beside `extractsToCarry`. */
   readonly headerExtractsToCarry?: Readonly<Record<string, IHeaderExtract>>;
   /** Carry slots derived, in order, once this step's extracts are in scope. */

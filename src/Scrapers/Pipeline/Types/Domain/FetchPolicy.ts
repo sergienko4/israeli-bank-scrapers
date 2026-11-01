@@ -95,6 +95,8 @@ interface IFetchCallPolicy {
   readonly bodyEncoding?: BodyEncoding;
   /** Media type the answer must name (N61); overrides the bank's default. */
   readonly mediaType?: string;
+  /** Decode the answer as strict UTF-8 (N63); overrides the bank's choice. */
+  readonly strictUtf8?: boolean;
 }
 
 /** How a transport reads one answered call: the bank's policy plus the call's own. */
@@ -109,6 +111,7 @@ interface IResponseReading {
   /** Internal notification of a policy-approved empty response; returns a recorded-event count. */
   readonly onEmptyResponse?: () => number;
   readonly mediaType?: string;
+  readonly strictUtf8?: boolean;
 }
 
 /** Fixed reason a transport reports for a refused redirect. */
@@ -129,6 +132,9 @@ const TEXT_BODY_REFUSED_REASON = 'text body not a string';
 /** Fixed reason a transport reports for an answer of another media type (N61). */
 const MEDIA_TYPE_REFUSED_REASON = 'unexpected media type';
 
+/** Fixed reason a transport reports for a strict answer that is not UTF-8 (N63). */
+const BODY_NOT_UTF8_REASON = 'body not utf-8';
+
 export type {
   BodyEncoding,
   IAnyPathExceptRule,
@@ -145,6 +151,7 @@ export type {
   StatusPolicy,
 };
 export {
+  BODY_NOT_UTF8_REASON,
   DOCUMENT_UNVERIFIED_REASON,
   FORM_BODY_ENCODINGS,
   LATIN1_UNENCODABLE_REASON,

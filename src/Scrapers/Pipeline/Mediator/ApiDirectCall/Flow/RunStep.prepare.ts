@@ -121,12 +121,13 @@ function attachSink(fireBase: IFireArgs, maybe: OnSetCookie | false): IFireArgs 
  * Every call-policy field a step can name, unset ones included.
  * @param step - Step config.
  * @returns The redirect policy, response kind, document marker, text cap,
- *   media type and body encoding, each possibly undefined.
+ *   media type, strict UTF-8 choice and body encoding, each possibly undefined.
  */
 function policyFieldsOf(step: IStepConfig): IFetchCallPolicy {
   const { redirect, documentMarker, maxTextChars, mediaType } = step;
   const fields = { redirect, documentMarker, maxTextChars, mediaType };
-  return { ...fields, responseKind: step.response, bodyEncoding: step.encoding };
+  const kinds = { responseKind: step.response, bodyEncoding: step.encoding };
+  return { ...fields, ...kinds, strictUtf8: step.strictUtf8 };
 }
 
 /**

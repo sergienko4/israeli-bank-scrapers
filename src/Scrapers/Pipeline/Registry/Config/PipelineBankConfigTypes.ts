@@ -181,6 +181,13 @@ export interface IHeadlessUrlsConfig {
    */
   readonly mediaTypes?: MediaTypePolicy;
   /**
+   * Decode every answer as strict UTF-8 (N63): a malformed byte fails the
+   * call `body not utf-8` instead of becoming U+FFFD. A step's own
+   * `strictUtf8: false` lifts it for that call; requires `nativeFetch`.
+   * Undefined → bodies read as `text()` does, unless a step says otherwise.
+   */
+  readonly strictUtf8?: true;
+  /**
    * When set, the Camoufox identity strategy route-intercepts the
    * initial navigation to the identity origin URL and serves a blank
    * HTML stub (`<!doctype html><html><head></head><body></body></html>`).

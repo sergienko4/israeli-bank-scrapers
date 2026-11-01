@@ -35,6 +35,8 @@ interface IHeadlessMediatorArgs {
   readonly omitBankText?: boolean;
   /** Media type each response kind must name when a call names none (N61). */
   readonly mediaTypes?: MediaTypePolicy;
+  /** Decode every answer as strict UTF-8 unless its call says otherwise (N63). */
+  readonly strictUtf8?: boolean;
 }
 
 /** Args bundle for the node:https (client-cert and/or TLS-profile) mediator factory. */

@@ -199,6 +199,12 @@ const FAILURE_CASES: readonly IFailureCase[] = [
     expected: 'bind unexpected media type',
   },
   {
+    label: 'an answer that is not UTF-8',
+    type: ScraperErrorTypes.Generic,
+    message: `GET ${BIND_URL} body not utf-8`,
+    expected: 'bind body not utf-8',
+  },
+  {
     label: 'a body echoing a fixed reason',
     type: ScraperErrorTypes.Generic,
     message: `POST ${BIND_URL} 500: ${ECHO_BODY} HTTP 207 document unverified`,

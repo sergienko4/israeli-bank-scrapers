@@ -18,6 +18,7 @@ import { toError } from '../../Types/ErrorUtils.js';
 import { describeJsonParseFailure } from '../../Types/JsonParseFailure.js';
 import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
+import { readBodyText } from './BodyText.js';
 import { readDocument } from './DocumentResponse.js';
 import type {
   FetchInvoke,
@@ -71,12 +72,12 @@ const JSON_DEFAULT_HEADERS: DefaultHeadersByVerb = {
 };
 
 /**
- * Parse an answer's body as JSON, with a structured failure on malformed input.
+ * Parse an answer's body text as JSON, with a structured failure on malformed input.
  * @param answer - The answered call.
+ * @param rawText - The answer's body text.
  * @returns Procedure carrying the parsed body, or a parse-error failure.
  */
-async function parseJsonResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
-  const rawText = await answer.response.text();
+function parseJsonText<T>(answer: IAnswer, rawText: string): Procedure<T> {
   try {
     const parsed = JSON.parse(rawText) as T;
     return succeed(parsed);
@@ -85,6 +86,17 @@ async function parseJsonResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
     const safeUrl = safeUrlForLog(answer.url);
     return fail(ScraperErrorTypes.Generic, `${answer.verb} ${safeUrl} parse error: ${reason}`);
   }
+}
+
+/**
+ * Read an answer's body (N63: strictly when its reading says so) and parse it as JSON.
+ * @param answer - The answered call.
+ * @returns Procedure carrying the parsed body, or a decoding or parse failure.
+ */
+async function parseJsonResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
+  const rawText = await readBodyText(answer);
+  if (!isOk(rawText)) return rawText;
+  return parseJsonText<T>(answer, rawText.value);
 }
 
 /** Reader per response kind; each runs after WAF classification and the status policy. */
@@ -292,6 +304,13 @@ class NativeFetchStrategy implements IFetchStrategy {
   protected _mediaTypes: MediaTypePolicy = {};
 
   /**
+   * Strict UTF-8 seam (N63) — whether an answer whose call names no choice is
+   * decoded as strict UTF-8. The base reads bodies as `text()` does;
+   * transports built for a strict bank replace it in their constructor.
+   */
+  protected _strictUtf8 = false;
+
+  /**
    * Create a NativeFetchStrategy.
    * @param baseUrl - The base URL for API requests.
    * @param options - Bank defaults; absent policies retain ordinary fetch behavior.
@@ -360,7 +379,8 @@ class NativeFetchStrategy implements IFetchStrategy {
   /**
    * How a call's answer is read: this transport's status policy plus the
    * call's response kind (`json` when absent), document marker, text cap,
-   * header sink and media type (else this transport's default for the kind).
+   * header sink, media type (else this transport's default for the kind) and
+   * strict UTF-8 choice (else this transport's).
    * @param opts - The call's fetch options.
    * @returns The reading routeResponse applies.
    */
@@ -368,7 +388,8 @@ class NativeFetchStrategy implements IFetchStrategy {
     const responseKind = opts.responseKind ?? 'json';
     const { documentMarker, maxTextChars, headerSink, onEmptyResponse } = opts;
     const mediaType = opts.mediaType ?? this._mediaTypes[responseKind];
-    const hooks = { responseKind, documentMarker, maxTextChars, headerSink, onEmptyResponse, mediaType };
+    const strictUtf8 = opts.strictUtf8 ?? this._strictUtf8;
+    const hooks = { responseKind, documentMarker, maxTextChars, headerSink, onEmptyResponse, mediaType, strictUtf8 };
     const privacy = { omitBankText: this._omitBankText };
     return { statusPolicy: this._statusPolicy, ...hooks, ...privacy };
   }

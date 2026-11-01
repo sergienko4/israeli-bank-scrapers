@@ -1,20 +1,28 @@
 /**
  * Transport rules for an api-direct call config (N8). Reading, media type,
- * encoding, header carry and domain cookies work on either node transport;
- * redirect, status, failure-text and bank-wide media-type defaults need
- * native fetch. Other transports would ignore these fields, so the build
- * refuses them. Domain jars need `sessionCookies`; header and cookie names
- * must be HTTP tokens. Media type values must pass N61 rules.
+ * encoding, header carry, step-level strict UTF-8 and domain cookies work
+ * on either node transport; redirect, status, failure-text, bank-wide
+ * media-type and strict UTF-8 defaults need native fetch. Other transports
+ * would ignore these fields, so the build refuses them. Domain jars need
+ * `sessionCookies`; header and cookie names must be HTTP tokens. N61 and
+ * N63 check media-type values and strict UTF-8 overrides.
  */
 
 import type { IHeaderExtract } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IHeadlessUrlsConfig } from '../../Registry/Config/PipelineBankConfigTypes.js';
 import { API_DIRECT_MEDIA_RULES } from './ApiDirectMediaRules.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
+import { API_DIRECT_UTF8_RULES } from './ApiDirectUtf8Rules.js';
 
 /** A step field one transport family acts on. */
 type GatedStepField =
-  'response' | 'documentMarker' | 'mediaType' | 'redirect' | 'headerExtractsToCarry' | 'encoding';
+  | 'response'
+  | 'documentMarker'
+  | 'mediaType'
+  | 'strictUtf8'
+  | 'redirect'
+  | 'headerExtractsToCarry'
+  | 'encoding';
 
 /** Headless defaults not passed to the node:https strategy. */
 const NATIVE_HEADLESS_FIELDS = [
@@ -22,6 +30,7 @@ const NATIVE_HEADLESS_FIELDS = [
   'statusPolicy',
   'omitBankText',
   'mediaTypes',
+  'strictUtf8',
 ] as const;
 
 /** A headless field one transport family acts on. */
@@ -84,6 +93,7 @@ const STEP_FIELD_GATES: readonly (readonly [GatedStepField, IFieldGate])[] = [
   ['response', NODE_GATE],
   ['documentMarker', NODE_GATE],
   ['mediaType', NODE_GATE],
+  ['strictUtf8', NODE_GATE],
   ['redirect', NATIVE_GATE],
   ['headerExtractsToCarry', NODE_GATE],
   ['encoding', NODE_GATE],
@@ -229,6 +239,7 @@ const API_DIRECT_NATIVE_RULES: readonly IApiDirectRule[] = [
   },
   { message: 'steps.setCookies: each name must be an HTTP token', isBroken: hasBadCookieName },
   ...API_DIRECT_MEDIA_RULES,
+  ...API_DIRECT_UTF8_RULES,
 ];
 
 export default API_DIRECT_NATIVE_RULES;

@@ -1,8 +1,9 @@
 /**
  * N8 — node-backed readers, media types, encoding, headers and domain
- * cookies; native-fetch-only redirect, status, failure-text and bank-wide
- * media-type defaults. Domain cookies need a session jar; header and cookie
- * names must be tokens. Media types (N61) are lower-case type/subtype.
+ * cookies and strict UTF-8 steps; native-fetch-only redirect, status,
+ * failure-text and bank-wide media-type and UTF-8 defaults. Domain cookies
+ * need a jar; header and cookie names must be tokens. N61 and N63 validate
+ * media types and strict UTF-8 overrides.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
@@ -42,6 +43,8 @@ const PAGE: IStepConfig = { ...CALL, response: 'document' };
 const MARKED: IStepConfig = { ...CALL, response: 'document', documentMarker: 'welcome' };
 const MARKED_JSON: IStepConfig = { ...CALL, documentMarker: 'welcome' };
 const TYPED: IStepConfig = { ...CALL, mediaType: 'text/html' };
+const STRICT: IStepConfig = { ...CALL, strictUtf8: true };
+const LAX: IStepConfig = { ...CALL, strictUtf8: false };
 const REJECTING: IStepConfig = { ...CALL, redirect: 'reject' };
 const FORM: IStepConfig = {
   name: 'login',
@@ -117,6 +120,7 @@ const DOMAIN_JAR: HeadlessBlock = { ...JAR, cookieDomains: ['native.example'] };
 const SETTING_G3 = setting('G3CmE');
 const MEDIA_MSG = 'mediaType: must be a lower-case type/subtype';
 const MEDIA_KIND_MSG = 'headless.mediaTypes: keys must be response kinds';
+const LAX_MSG = 'steps.strictUtf8: false only overrides headless.strictUtf8';
 
 /**
  * Rule input whose one native step names the given media type.
@@ -246,6 +250,17 @@ const BROKEN: readonly IBrokenCase[] = [
     message: MEDIA_KIND_MSG,
   },
   {
+    label: 'strict UTF-8 step, plain',
+    input: runOf([STRICT], PLAIN),
+    message: `steps.strictUtf8: ${NODE_OFF}`,
+  },
+  {
+    label: 'bank strict UTF-8, TLS profile',
+    input: runOf([CALL], { ...PROFILE, strictUtf8: true }),
+    message: `headless.strictUtf8: ${OFF}`,
+  },
+  { label: 'lax step, bank not strict', input: runOf([LAX], NATIVE), message: LAX_MSG },
+  {
     label: 'cookie domains, no jar',
     input: runOf([CALL], { ...NATIVE, cookieDomains: ['native.example'] }),
     message: 'headless.cookieDomains: not allowed without headless.sessionCookies',
@@ -292,10 +307,11 @@ const EVERY_FIELD: HeadlessBlock = {
   statusPolicy: { 204: 'empty' },
   omitBankText: true,
   mediaTypes: { json: 'application/json', document: 'text/html' },
+  strictUtf8: true,
 };
 
 /** The steps whose fields node:https reads and writes as native fetch does. */
-const NODE_STEPS = [PAGE, MARKED, TYPED, FORM, carrying('x-id'), setting('G3CmE')];
+const NODE_STEPS = [PAGE, MARKED, TYPED, STRICT, FORM, carrying('x-id'), setting('G3CmE')];
 
 /**
  * A node:https block keeping a domain jar.
@@ -319,6 +335,8 @@ const SOUND: readonly ISoundCase[] = [
         PAGE,
         MARKED,
         TYPED,
+        STRICT,
+        LAX,
         REJECTING,
         FORM,
         carrying("X-Trace_ID.v2!#$%&'*+^`|~"),

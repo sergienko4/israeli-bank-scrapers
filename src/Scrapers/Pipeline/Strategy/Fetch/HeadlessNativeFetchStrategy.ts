@@ -9,7 +9,8 @@
  *  - a GET carries no default JSON content-type, because it has no body.
  * A bank may also set the default redirect policy a call runs under when it
  * names none; every manual redirect hop goes through the same capped seam.
- * Its status policy and media type defaults (N61) are installed the same way.
+ * Its status policy, media type defaults (N61) and strict UTF-8 choice (N63)
+ * are installed the same way.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
@@ -37,6 +38,8 @@ interface IHeadlessNativeFetchOptions extends INativeFetchOptions {
   readonly timeoutMs?: number;
   /** Media type each response kind must name when a call names none (N61). */
   readonly mediaTypes?: MediaTypePolicy;
+  /** Decode every answer as strict UTF-8 unless its call says otherwise (N63). */
+  readonly strictUtf8?: boolean;
 }
 
 /** Request-local cap and reading policy; concurrent calls never share mutable state. */
@@ -148,13 +151,15 @@ class HeadlessNativeFetchStrategy extends NativeFetchStrategy {
    * @param baseUrl - Base URL for API requests.
    * @param options - Optional `timeoutMs` ceiling (defaults to the shared
    *   {@link NETWORK_FETCH_TIMEOUT_MS}), default `redirectPolicy` and the
-   *   bank's `statusPolicy`, media-type defaults and HTTP-failure body omission.
+   *   bank's `statusPolicy`, media-type defaults, strict UTF-8 choice and
+   *   HTTP-failure body omission.
    */
   constructor(baseUrl: string, options: IHeadlessNativeFetchOptions = {}) {
     super(baseUrl, options);
     this._timeoutMs = options.timeoutMs ?? NETWORK_FETCH_TIMEOUT_MS;
     this._verbDefaults = HEADLESS_DEFAULT_HEADERS;
     this._mediaTypes = options.mediaTypes ?? this._mediaTypes;
+    this._strictUtf8 = options.strictUtf8 ?? this._strictUtf8;
   }
 
   /**

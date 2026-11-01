@@ -174,12 +174,12 @@ the refusal, cookie updates or the next allowed hop.
 
 ### Document responses and status policies
 
-Once a response answers, the native transport wraps it in an `IAnswer` (response, verb, URL and the `IResponseReading` built from the bank's status policy plus the call's `responseKind`, `documentMarker` and `mediaType`) and routes it in a fixed order, so a bank without a policy reads its answers exactly as before:
+Once a response answers, the native transport wraps it in an `IAnswer` (response, verb, URL and the `IResponseReading` built from the bank's status policy plus the call's `responseKind`, `documentMarker`, `mediaType` and `strictUtf8`) and routes it in a fixed order, so a bank without a policy reads its answers exactly as before:
 
 1. A non-2xx answer, or any answer carrying Cloudflare's challenge header, goes to the WAF classifier first. A block page or challenge on a document step is still a `WafBlocked` failure, never `{}`.
 2. [`applyStatusPolicy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/StatusPolicy.ts) then checks the bank's `headless.statusPolicy` (a `StatusPolicy`, handed to `HeadlessNativeFetchStrategy` as its `statusPolicy` option). Before the body is read, the `StatusAction` `empty` answers `{}` (`emptyAnswer`) and `fail` fails `Generic` with `"<VERB> <url> HTTP <status>"`. A document step skips `empty`, so a 204 reaches the document reader as an empty page.
 3. [`refuseMediaType`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/MediaTypeCheck.ts) (N61) then checks the answer's media type, when the call expects one: the call's own `mediaType`, else the bank's `headless.mediaTypes` default for the call's response kind (a `MediaTypePolicy`, handed to `HeadlessNativeFetchStrategy` as its `mediaTypes` option and kept on the `_mediaTypes` seam). The answer's media type is its `content-type` before any `;`, trimmed and lower-cased, and must equal the expected one exactly; a missing or different type fails `Generic` with `"<VERB> <url> unexpected media type"` (`MEDIA_TYPE_REFUSED_REASON`), naming no header value. A call that expects none is read as before.
-4. The reader the call's `responseKind` names reads the body. `json` (the default) parses it as before, so HTML on a json step is still a parse error. `document` ([`readDocument`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/DocumentResponse.ts)) reads it as text, checks it for the call's `documentMarker` when one is set (otherwise it fails `Generic` with `"<VERB> <url> document unverified"`), and answers `{}`. `text` ([`readText`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/TextResponse.ts)) reads it as text and answers `{ text }`, so a step's extracts read it at `/text`; an answer over the call's `maxTextChars` (65 536 chars by default) fails `Generic` with `"<VERB> <url> text too long"`. The fixed tails `DOCUMENT_UNVERIFIED_REASON`, `TEXT_TOO_LONG_REASON`, `MEDIA_TYPE_REFUSED_REASON` and `REDIRECT_REFUSED_REASON` live in `FetchPolicy.ts`, shared by the transport and the step sanitiser.
+4. The reader the call's `responseKind` names reads the body, each through [`readBodyText`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/BodyText.ts) (N63): when the call's `strictUtf8` — else the bank's `headless.strictUtf8`, handed to `HeadlessNativeFetchStrategy` as its `strictUtf8` option and kept on the `_strictUtf8` seam — is true, it decodes the bytes as UTF-8 with `fatal`, so a malformed byte fails `Generic` with `"<VERB> <url> body not utf-8"` (`BODY_NOT_UTF8_REASON`), naming no body, instead of becoming U+FFFD; otherwise it reads them as `text()` does. Both drop a leading BOM. `json` (the default) parses it as before, so HTML on a json step is still a parse error. `document` ([`readDocument`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/DocumentResponse.ts)) reads it as text, checks it for the call's `documentMarker` when one is set (otherwise it fails `Generic` with `"<VERB> <url> document unverified"`), and answers `{}`. `text` ([`readText`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/TextResponse.ts)) reads it as text and answers `{ text }`, so a step's extracts read it at `/text`; an answer over the call's `maxTextChars` (65 536 chars by default) fails `Generic` with `"<VERB> <url> text too long"`. The fixed tails `DOCUMENT_UNVERIFIED_REASON`, `TEXT_TOO_LONG_REASON`, `MEDIA_TYPE_REFUSED_REASON`, `BODY_NOT_UTF8_REASON` and `REDIRECT_REFUSED_REASON` live in `FetchPolicy.ts`, shared by the transport and the step sanitiser.
 
 `isApiSuccess` and `statusActionFor` are shared by response routing and the capped
 headless transport. When the status policy decides from headers, only that
@@ -199,11 +199,12 @@ An api-direct step opts in with `response: 'document'` and an optional
 `documentMarker` (it names no body extracts — a build-time check), or with
 `response: 'text'` and an optional `maxTextChars`; `callPolicyOf` carries them
 down as `IFetchCallPolicy.responseKind` / `documentMarker` / `maxTextChars`,
-next to `redirect`, with a step's `mediaType` as `IFetchCallPolicy.mediaType`.
+next to `redirect`, with a step's `mediaType` and `strictUtf8` as
+`IFetchCallPolicy.mediaType` / `strictUtf8`.
 The step-level sanitiser keeps these refusals' fixed tails (`bind HTTP 207`,
 `bind HTTP 302 redirect refused`, `bind document unverified`,
-`bind unexpected media type`) only when the whole message has a policy
-refusal's shape, so no response text can pass for one.
+`bind unexpected media type`, `bind body not utf-8`) only when the whole
+message has a policy refusal's shape, so no response text can pass for one.
 
 ### Response-header carry
 
