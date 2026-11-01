@@ -58,7 +58,9 @@ type IEnvelopeSelectors = Readonly<Record<string, string>>;
 
 /**
  * Recursive body template — JsonValueTemplate with $literal / $ref / $join / $merge nodes,
- * heterogeneous arrays, and recursive object maps. The object arm admits
+ * heterogeneous arrays, and recursive object maps. A `$ref` marked `optional`
+ * (N49) leaves its record key out when its carry slot, credential or cookie
+ * is absent. The object arm admits
  * `undefined` values because TS-widened heterogeneous unions of the form
  * `{a:X, b?: undefined} | {a?: undefined, b:Y}` (e.g. Pepper headers list)
  * carry undefined for the alternate arm. At runtime the literal objects
@@ -67,7 +69,7 @@ type IEnvelopeSelectors = Readonly<Record<string, string>>;
  */
 type JsonValueTemplate =
   | { readonly $literal: unknown }
-  | { readonly $ref: RefToken }
+  | { readonly $ref: RefToken; readonly optional?: true }
   | { readonly $join: IJoinTemplate }
   | { readonly $merge: IMergeTemplate }
   | readonly JsonValueTemplate[]

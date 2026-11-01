@@ -48,6 +48,7 @@ Declarative body literal with `$ref` tokens:
 | `$ref: carry.<slot>`         | The flow's per-step carry slot           |
 | `$ref: config.<dotted.path>` | The bank's config object                 |
 | `$ref: cookie.<name>`        | The cookie for the step URL, URL-decoded |
+| `$ref: …, optional: true`    | The same, or no key when absent          |
 | `$join: { parts, … }`        | One string built from refs and literals  |
 | `$merge: { base, set }`      | A carried record with `set` laid over it |
 
@@ -73,6 +74,27 @@ headers: {
 A part that does not resolve fails hydration with the same error as a missing
 `$ref`. A part that resolves to a value that is not a string fails with
 `$join part <token> is not a string`.
+
+An optional ref (N49), such as `{ $ref: 'carry.did', optional: true }`, is for a
+value the bank wants only when the run has one: a device id an earlier run
+stored, say. When its carry slot, credential field or cookie is absent,
+`hydrate` leaves its key out of the record (`isRefAbsent` in
+`Template/RefPresence.ts` tells which sources can be absent); when it is
+present, the ref acts as a plain `$ref`. Any other failure still fails the
+step: an unknown token, a `config.` miss, a cookie value too long or badly
+escaped. It may stand only as
+the value of a key in a JSON body or a `queryTemplate`. At a root, inside an
+array or anywhere in a header the build fails with
+`steps: optional ref only as an object value`, and a form body's flat-record
+rule refuses it too. A `$join` part and a raw query name ref tokens, not
+`$ref` nodes, so neither can hold one:
+
+```typescript
+queryTemplate: {
+  aid: { $literal: 'app-1' },
+  did: { $ref: 'carry.did', optional: true },
+},
+```
 
 A `$merge` node (`IMergeTemplate`, N37) sends back a form the bank handed out
 ([Login-form capture](#login-form-capture)). `hydrateMerge` (in
@@ -957,8 +979,9 @@ rules, `API_DIRECT_FORM_CAPTURE_RULES` in
 then the carry-generator rules, `API_DIRECT_GENERATE_RULES` in
 `Core/Builder/ApiDirectGenerateRules.ts`, which end with the envelope codec
 rules, `API_DIRECT_CODEC_RULES` in `Core/Builder/ApiDirectCodecRules.ts`,
-and the step URL rules, `API_DIRECT_URL_RULES` in
-`Core/Builder/ApiDirectUrlRules.ts`,
+the step URL rules, `API_DIRECT_URL_RULES` in
+`Core/Builder/ApiDirectUrlRules.ts`, and the optional-ref rule,
+`API_DIRECT_OPTIONAL_REF_RULES` in `Core/Builder/ApiDirectOptionalRefRules.ts`,
 then the dynamic client-certificate
 rules, `API_DIRECT_CLIENT_CERT_RULES` in
 `Core/Builder/ApiDirectClientCertRules.ts`, then the session rules,
@@ -1048,6 +1071,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `sessionCarry` slot that a codec reads or writes: the `privateRef`, `keyRef` or `sessionRef` slot, `keyInto` or `sessionInto`       | `steps.codec: codec slots must not be sessionCarry slots`                |
 | a login or resume step with both `rawQuery` and `queryTemplate` (`API_DIRECT_URL_RULES`)                                              | `steps.rawQuery: not with queryTemplate`                                 |
 | a `urlFromCarry` slot that no earlier step of the same list (login or resume) checks with an `extractRules` `url` rule                | `steps.urlFromCarry: slot needs an earlier url rule`                     |
+| an optional `$ref` at a body or query root, inside an array or in a header (`API_DIRECT_OPTIONAL_REF_RULES`)                          | `steps: optional ref only as an object value`                            |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
