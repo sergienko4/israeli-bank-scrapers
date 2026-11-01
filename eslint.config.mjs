@@ -1142,12 +1142,6 @@ export const PIPELINE_SELECTOR_EXEMPTIONS = {
   // banned even here.
   'src/Scrapers/Pipeline/Types/RunLabel.ts': [BANK_CALENDAR_HOST_READ_RULE.selector],
   'src/Scrapers/Pipeline/Types/TraceConfig.ts': [BANK_CALENDAR_HOST_READ_RULE.selector],
-  // Yahav's envelope timestamp is an explicit UTC wire-protocol value, not a
-  // bank-calendar decision. Its fixed `UTCOffsetHour: -3` schema requires
-  // UTC components; host-local components produce provider error 93194.
-  'src/Scrapers/Pipeline/Banks/Yahav/scrape/YahavShapeEnvelope.ts': [
-    BANK_CALENDAR_UTC_READ_RULE.selector,
-  ],
   // BankCalendar is the one sanctioned Moment boundary. It pins every parse
   // explicitly; allowing Moment anywhere else would recreate the shared
   // default-zone leak this provider exists to remove.

@@ -20,6 +20,7 @@ import type {
   IPipelineBankConfig,
 } from './PipelineBankConfigTypes.js';
 import { VISACAL_HEADLESS } from './PipelineBankConfigVisaCalHeadless.js';
+import { YAHAV_HEADLESS } from './PipelineBankConfigYahav.js';
 
 export type {
   AuthPathKey,
@@ -114,8 +115,10 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   ),
   [CompanyTypes.Pagi]: fibiConfig('https://www.pagi.co.il', 'https://online.pagi.co.il'),
   [CompanyTypes.Yahav]: {
-    ...defineBank('https://www.yahav.co.il', ACCOUNT, SESSION_COOKIE),
-    bancsSessionCapture: true,
+    urls: { base: 'https://www.yahav.co.il' },
+    balanceKind: ACCOUNT,
+    authStrategyKind: API_DIRECT,
+    headless: YAHAV_HEADLESS,
   },
   [CompanyTypes.VisaCal]: {
     urls: { base: 'https://www.cal-online.co.il/' },

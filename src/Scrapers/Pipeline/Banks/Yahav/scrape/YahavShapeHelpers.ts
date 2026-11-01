@@ -1,42 +1,88 @@
 /**
- * Yahav (TCS BaNCS Digital) scrape shape — shared primitives.
+ * Yahav native scrape shape — shared primitives (spec §10.2, AD-Y).
  *
- * BaNCS multiplexes accounts, balance and transactions through the SAME
- * `POST https://digital.yahav.co.il/BaNCSDigitalApp/account` endpoint,
- * differentiated only by the request `Payload`. Every request is a large
- * `MessageEnvelope_1.0.0` whose session-specific fields (the auth `SecToken`
- * object and the portfolio `iorId`) are captured at BIND from the login-boot
- * pool; the rest is a fixed template. Grounded in the captured trace
- * (C:\tmp\runs\pipeline\yahav\02-07-2026_17363193).
+ * Every BaNCS call posts to one native origin. The session state the calls
+ * rotate (the security token, the CSRF token and the two session ids) and the
+ * portfolio the bootstrap resolves live in the mediator session-context under
+ * the keys named here, beside the device's `mag-identifier` the login stored.
  */
 
-import type { Brand } from '../../../Types/Brand.js';
+import type { SessionContext } from '../../../Mediator/Api/ApiMediator.js';
+import { resolveApiMediator } from '../../../Mediator/Api/ApiMediatorAccessor.js';
+import { YAHAV_NATIVE_ORIGIN } from '../../../Registry/Config/PipelineBankConfigYahavConstants.js';
+import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
+import type { IActionContext } from '../../../Types/PipelineContext.js';
+import { isOk } from '../../../Types/Procedure.js';
+import type { IYahavNativeRef } from './YahavNativePayloads.js';
 
-/** BaNCS Digital API origin — Yahav's fixed post-login data host. */
-export const YAHAV_API = 'https://digital.yahav.co.il';
+/** Label the shape's mediator lookups carry. */
+const SCRAPE_LABEL = 'YahavScrape';
 
-/** The multiplexed BaNCS data path (accounts + balance + transactions). */
-export const ACCOUNT_PATH = '/BaNCSDigitalApp/account';
+/** Session-context keys the native shape reads and writes. */
+const YAHAV_SESSION_KEYS = Object.freeze({
+  security: 'security',
+  csrf: 'csrf',
+  session: 'session',
+  xsrf: 'xsrf',
+  portfolioId: 'portfolioId',
+  portfolioIorId: 'portfolioIorId',
+  mag: 'mag',
+});
 
-/** Correlation id for the envelope `MsgId` — branded for Rule #15. */
-type MsgId = Brand<string, 'YahavMsgId'>;
-
-/**
- * Yahav account reference resolved from the accounts response — `id` +
- * `iorId`, which ride the transactions request body. The current balance is
- * supplied separately by the dedicated `portfolioBalance` step, so it is not
- * carried on the ref.
- */
-export interface IYahavAcct {
-  readonly id: string;
-  readonly iorId: string;
+/** A current account: its BaNCS ids and, when the bank sends it, its number. */
+interface IYahavAcct extends IYahavNativeRef {
+  readonly number?: string;
 }
 
 /**
- * Fresh envelope message id (a monotonic-enough numeric string).
- * @returns MsgId string.
+ * The mediator session-context, or empty before the mediator exists.
+ * @param ctx - Action context.
+ * @returns Session snapshot.
  */
-export function msgId(): MsgId {
-  const n = Date.now() % 100_000_000;
-  return String(n) as MsgId;
+function yahavSessionOf(ctx: IActionContext): SessionContext {
+  const mediator = resolveApiMediator(ctx, SCRAPE_LABEL);
+  if (!isOk(mediator)) return {};
+  return mediator.value.getSessionContext();
 }
+
+/**
+ * One session value as text, empty when absent or not text.
+ * @param session - Session snapshot.
+ * @param key - Session-context key.
+ * @returns The text value.
+ */
+function sessionText(session: SessionContext, key: string): string {
+  const value = session[key];
+  return typeof value === 'string' ? value : '';
+}
+
+/**
+ * The portfolio the bootstrap resolved.
+ * @param ctx - Action context.
+ * @returns Portfolio reference.
+ */
+function yahavPortfolioOf(ctx: IActionContext): IYahavNativeRef {
+  const session = yahavSessionOf(ctx);
+  const id = sessionText(session, YAHAV_SESSION_KEYS.portfolioId);
+  const iorId = sessionText(session, YAHAV_SESSION_KEYS.portfolioIorId);
+  return { id, iorId };
+}
+
+/**
+ * The absolute URL of a BaNCS path on the native origin.
+ * @param path - BaNCS path.
+ * @returns Literal URL.
+ */
+function yahavCallUrl(path: string): WKUrlOrLiteral {
+  return literalUrl(`${YAHAV_NATIVE_ORIGIN}${path}`);
+}
+
+export type { IYahavAcct };
+export {
+  SCRAPE_LABEL,
+  sessionText,
+  YAHAV_SESSION_KEYS,
+  yahavCallUrl,
+  yahavPortfolioOf,
+  yahavSessionOf,
+};

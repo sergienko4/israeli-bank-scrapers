@@ -246,7 +246,9 @@ A failed answer, or a failed body check, never reaches the patch. A shape with n
 
 ## BaNCS session-capture contract (Yahav)
 
-TCS BaNCS banks (Yahav) POST a large `MessageEnvelope` whose session-specific fields cannot be templated. A bank opts in with `bancsSessionCapture: true` in its `PipelineBankConfig`; at BIND, `primeBancsSession` scans the login-boot network pool and stashes an `IBancsCapture` on the mediator session-context:
+Yahav, the one bank that set this flag, now logs in over the mobile API and reads its BaNCS session from each answer instead ([Response session](#response-session), [Bank Yahav](../banks/yahav.md)); no bank sets it today, and the capture goes with the browser path.
+
+TCS BaNCS banks POST a large `MessageEnvelope` whose session-specific fields cannot be templated. A bank opts in with `bancsSessionCapture: true` in its `PipelineBankConfig`; at BIND, `primeBancsSession` scans the login-boot network pool and stashes an `IBancsCapture` on the mediator session-context:
 
 | Field                                      | Source                                        | Rides                  |
 | ------------------------------------------ | --------------------------------------------- | ---------------------- |
@@ -257,7 +259,7 @@ TCS BaNCS banks (Yahav) POST a large `MessageEnvelope` whose session-specific fi
 Two request-header sniffs run alongside it (both PII-safe — only per-session auth material, never the credential body):
 
 - **CSRF** (`scanCsrf`): value-matches the login response's `csrfTkn` nonce to the opaque request-header name the SPA's Angular interceptor injects, replayed on every `/account` POST (clears BaNCS error 88521).
-- **SPA headers** (`scanSpaHeaders`): the SPA's custom XHR headers (`X-Requested-With` / `Accept`) captured from the pooled accounts request and replayed via the default-header bag (clears BaNCS error 93194 whose subject element is `origin`). The capture is best-effort: when the pooled request carried **no** recorded headers the sniff yields an empty bag, so `bancsHeaders` (`YahavShapeHeaders.ts`) falls back to a **deterministic static Angular-XHR set** (`X-Requested-With: XMLHttpRequest`, `Accept: application/json, text/plain, */*`) — a non-empty capture always wins. Without the fallback the empty-capture case intermittently drew the 93194 (zero accounts → zero transactions).
+- **SPA headers** (`scanSpaHeaders`): the SPA's custom XHR headers (`X-Requested-With` / `Accept`) captured from the pooled accounts request and replayed via the default-header bag (clears BaNCS error 93194 whose subject element is `origin`). The capture is best-effort: when the pooled request carried **no** recorded headers the sniff yields an empty bag.
 
 ## Optional shape hooks
 

@@ -4,7 +4,7 @@
 > the type surface that powers the [API-DIRECT-CALL phase](../phases/api-direct-call.md).
 
 The API-DIRECT-CALL config contract is the typed shape every API-direct bank
-(Pepper, PayBox, OneZero, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim) compiles its `PipelineBankConfig.headless` literal
+(Pepper, PayBox, OneZero, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav) compiles its `PipelineBankConfig.headless` literal
 against. As of **v8.5** that shape lives in **six focused concern-slice files**
 under `src/Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/`, exported
 through a single barrel. The legacy `IApiDirectCallConfig.ts` file was reduced
