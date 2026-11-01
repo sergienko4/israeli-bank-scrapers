@@ -122,7 +122,7 @@ for the rationale.
 
 Some API-direct banks never open a browser: their `headless` block selects
 Node's own `fetch` (`nativeFetch`) or `node:https` (a client certificate or a
-TLS profile) — today, OneZero, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim and Yahav. Nothing on such a run reads a browser option, so
+TLS profile) — today, OneZero, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav and Beinleumi. Nothing on such a run reads a browser option, so
 `createScraper` names every one you pass in a single `ScraperOptionsWarning`:
 
 ```text

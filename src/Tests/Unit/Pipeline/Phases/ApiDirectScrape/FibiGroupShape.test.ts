@@ -5,6 +5,9 @@
  * Every financial call (userData, accountType, balances, transactions
  * list) sends a fresh `X-FIBI-Transaction-Id` and, when the session holds
  * one, the portal-shell `authorization` value verbatim as `Authorization`.
+ * A headless session (one holding that value) also sends what the portal
+ * page sent: the JSON accept, the library's user agent and, from the
+ * landing URL the login kept, its origin and referer.
  * The transactions list returns the whole date range in one answer, so a
  * page of more than 50 rows must come back whole. Values are synthetic.
  */
@@ -55,6 +58,12 @@ const TXN_ID = 'X-FIBI-Transaction-Id';
 const UUID_V4 = /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u;
 /** Synthetic value with inner spaces and dots — must reach the wire unchanged. */
 const AUTH = 'Bearer synthetic.portal-shell token';
+const LANDING = 'https://online.example.test/portal/landing?tab=1';
+/** The family constants, loaded the way the config tests load config modules. */
+const FIBI_CONSTANTS =
+  '../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigFibiFamilyConstants.js';
+/** Header names a headless call sends when it holds no usable landing URL. */
+const NO_PAGE_NAMES = ['Accept', 'Authorization', TXN_ID, 'User-Agent'];
 const ACCT: IFibiAcct = { accountNumber: '555001', branch: '770', accountType: 105 };
 const USER_DATA: ApiBody = { accounts: [{ account: '555001', branch: '770', selected: true }] };
 const ACCOUNT_TYPE: ApiBody = { accountType: [{ accountType: 105 }] };
@@ -96,6 +105,15 @@ function stepHeaders(brand: IBrand, step: StepName, ctx: IActionContext): Header
   return headersOf(spec, ctx);
 }
 
+/**
+ * The user agent the family sends.
+ * @returns `FIBI_UA`.
+ */
+async function libraryAgent(): Promise<string> {
+  const loaded = (await import(FIBI_CONSTANTS)) as Record<string, unknown>;
+  return loaded.FIBI_UA as string;
+}
+
 /** Session contexts that hold no usable authorization value. */
 const NO_AUTH_CASES: readonly (readonly [string, IActionContext])[] = [
   ['no API mediator', { apiMediator: none() } as unknown as IActionContext],
@@ -122,6 +140,40 @@ describe.each(BRANDS)('$name FIBI financial headers', brand => {
 
   it.each(NO_AUTH_CASES)('sends no Authorization with %s', (_label, ctx) => {
     const headers = stepHeaders(brand, 'transactions', ctx);
+    const names = Object.keys(headers);
+    expect(names).toEqual([TXN_ID]);
+  });
+
+  it.each(STEPS)('sends the portal page headers on a headless %s call', async step => {
+    const userAgent = await libraryAgent();
+    const ctx = sessionCtx({ authorization: AUTH, landingUrl: LANDING });
+    const { [TXN_ID]: txnId, ...rest } = stepHeaders(brand, step, ctx);
+    expect(txnId).toMatch(UUID_V4);
+    expect(rest).toEqual({
+      Authorization: AUTH,
+      Accept: 'application/json',
+      'User-Agent': userAgent,
+      Origin: 'https://online.example.test',
+      Referer: LANDING,
+    });
+  });
+
+  it.each([
+    ['no landing URL', {}],
+    ['a landing URL that is not a URL', { landingUrl: 'not a url' }],
+    ['a non-text landing URL', { landingUrl: 7 }],
+  ])('sends no Origin or Referer with %s', (_label, landing) => {
+    const ctx = sessionCtx({ authorization: AUTH, ...landing });
+    const headers = stepHeaders(brand, 'balance', ctx);
+    const names = Object.keys(headers);
+    expect(names).toHaveLength(NO_PAGE_NAMES.length);
+    const hasEveryName = NO_PAGE_NAMES.every((name): boolean => names.includes(name));
+    expect(hasEveryName).toBe(true);
+  });
+
+  it('sends no portal page headers on a browser session, landing URL or not', () => {
+    const ctx = sessionCtx({ landingUrl: LANDING });
+    const headers = stepHeaders(brand, 'customer', ctx);
     const names = Object.keys(headers);
     expect(names).toEqual([TXN_ID]);
   });

@@ -1,7 +1,8 @@
 /**
  * N32 — a flow's `sessionCarry` allowlist is checked when the pipeline is
- * built: every slot must name a body or header extract of some step, so a
- * generated key or a typo never reaches the scrape's session context.
+ * built: every slot must name a body or header extract, or the checked
+ * final URL, of some step, so a generated key or a typo never reaches the
+ * scrape's session context.
  * N35 — `cookieHandoff: 'isolate'` needs a domain jar to empty.
  */
 
@@ -12,6 +13,7 @@ import {
 } from '../../../../../Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.js';
 import type {
   CookieHandoff,
+  IGetStep,
   IStepConfig,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
@@ -44,20 +46,35 @@ const REGISTER: IStepConfig = {
   headerExtractsToCarry: { mag: { header: 'mag-identifier' } },
 };
 
+/** The native block refusing redirects, as a manual redirect needs. */
+const REJECTING: Headless = { ...NATIVE, redirectPolicy: 'reject' };
+
+/** A GET whose final URL, checked by its manual redirect, lands in the carry. */
+const LANDING: IGetStep = {
+  name: 'landing',
+  urlTag: 'auth.landing',
+  method: 'GET',
+  extractsToCarry: {},
+  redirect: { maxHops: 3, allow: [{ origin: 'https://bank.example', paths: ['/landing'] }] },
+  finalUrlInto: 'landingUrl',
+};
+
 /**
- * Validate a one-step flow with the given allowlist.
+ * Validate a two-step flow with the given allowlist.
  * @param sessionCarry - Allowlist under test.
  * @returns Build-rule verdict.
  */
 function validateWith(sessionCarry: readonly string[]): ReturnType<typeof validateApiDirectConfig> {
-  const call = { flow: 'sms-otp', envelope: {}, steps: [REGISTER], sessionCarry } as const;
-  return validateApiDirectConfig({ call, headless: NATIVE });
+  const steps = [REGISTER, LANDING];
+  const call = { flow: 'sms-otp', envelope: {}, steps, sessionCarry } as const;
+  return validateApiDirectConfig({ call, headless: REJECTING });
 }
 
 describe('validateApiDirectConfig — sessionCarry', () => {
   it.each<[string, readonly string[]]>([
     ['a header extract', ['mag']],
     ['a body extract', ['token']],
+    ['a checked final URL', ['landingUrl']],
     ['no slot', []],
   ])('an allowlist naming %s passes', (_label, sessionCarry) => {
     const result = validateWith(sessionCarry);

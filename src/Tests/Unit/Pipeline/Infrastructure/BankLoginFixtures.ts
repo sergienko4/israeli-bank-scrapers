@@ -16,10 +16,6 @@ import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import {
-  BEINLEUMI_LOGIN,
-  buildBeinleumiPipeline,
-} from '../../../../Scrapers/Pipeline/Banks/Beinleumi/BeinleumiPipeline.js';
-import {
   buildDiscountPipeline,
   DISCOUNT_LOGIN,
 } from '../../../../Scrapers/Pipeline/Banks/Discount/DiscountPipeline.js';
@@ -106,15 +102,6 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     expectedFieldKeys: ['id', 'password', 'num'],
     expectedPhaseCount: BASE_PHASES.length,
     expectedPhaseNames: BASE_PHASES,
-  },
-  {
-    bank: 'beinleumi',
-    company: CompanyTypes.Beinleumi,
-    loginConfig: BEINLEUMI_LOGIN,
-    buildPipeline: buildBeinleumiPipeline,
-    expectedFieldKeys: ['username', 'password'],
-    expectedPhaseCount: OTP_FULL_PHASES.length,
-    expectedPhaseNames: OTP_FULL_PHASES,
   },
   {
     bank: 'massad',

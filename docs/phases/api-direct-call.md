@@ -1009,8 +1009,9 @@ prime, and the recovery hook (`makeRecoveryHook`) after every recovery.
 so a recovery also drops every value the scrape patched in since. The token
 strategy keeps the full carry privately for warm export and recovery.
 
-Each slot must name a body or header extract of some login or resume step
-(a [build-time check](#build-time-config-checks)), so a generated key or a
+Each slot must name a body or header extract, or the `finalUrlInto` slot (a
+final URL its manual redirect checked), of some login or resume step (a
+[build-time check](#build-time-config-checks)), so a generated key or a
 seeded credential can never be allowlisted.
 
 ### Cookie hand-off
@@ -1342,7 +1343,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a login or resume step with `clientCert`, without a `headless.clientCert` block (`API_DIRECT_CLIENT_CERT_RULES`)                          | `steps.clientCert: not allowed without headless.clientCert`                        |
 | a `headless.clientCert` whose `origin` is not exactly `https://host[:port]` (no path, user, trailing slash or default port)               | `headless.clientCert.origin: must be an exact https origin`                        |
 | `headless.clientCert` together with `headless.requiresClientCert: true`                                                                   | `headless.clientCert: not allowed with headless.requiresClientCert`                |
-| a `sessionCarry` slot that names no body or header extract of any login or resume step (`API_DIRECT_SESSION_RULES`)                       | `sessionCarry: each slot must name a step extract`                                 |
+| a `sessionCarry` slot no login or resume step extracts or names as `finalUrlInto` (`API_DIRECT_SESSION_RULES`)                              | `sessionCarry: each slot must name a step extract`                                 |
 | `cookieHandoff: 'isolate'` without `headless.cookieDomains`                                                                               | `cookieHandoff: isolate not allowed without headless.cookieDomains`                |
 | a `persistentAuth` block whose `kind` has no supported primer (`API_DIRECT_PERSISTENT_AUTH_RULES`)                                        | `persistentAuth.kind: must be bound-device or device-memory`                       |
 | a login or resume step with `response`, `documentMarker`, `headerExtractsToCarry` or `encoding` off native fetch and node:https           | `steps.<field>: not allowed without nativeFetch or node:https`                     |
