@@ -61,6 +61,14 @@ const CSR_STEP: IStepConfig = {
   ],
 };
 
+/** A step generating an ECDH pair (N38). */
+const ECDH_STEP: IStepConfig = {
+  ...REGISTER,
+  generate: [
+    { kind: 'ecdh-key', curve: 'secp256k1', publicInto: 'ecdhPublic', privateInto: 'ecdhKey' },
+  ],
+};
+
 /** The bundle fields a test may replace. */
 type BundleFields = Partial<
   Pick<ICarryBundleWarmStart, 'provider' | 'accountFields' | 'slots' | 'maxTokenChars' | 'cookies'>
@@ -136,6 +144,10 @@ const SOUND: readonly SoundCase[] = [
   [
     'a pkcs10-csr output slot',
     bundleWarm({ fields: { slots: ['csrPem'] }, steps: [CSR_STEP, LOGON] }),
+  ],
+  [
+    'an ecdh-key public slot',
+    bundleWarm({ fields: { slots: ['ecdhPublic'] }, steps: [ECDH_STEP, LOGON] }),
   ],
   ['no jar and no headless block', bundleWarm({ fields: { cookies: false }, headless: false })],
   ['the lowest ceiling', bundleWarm({ fields: { maxTokenChars: 1 } })],

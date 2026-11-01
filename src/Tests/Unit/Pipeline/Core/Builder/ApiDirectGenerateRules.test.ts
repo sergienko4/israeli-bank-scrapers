@@ -1,6 +1,8 @@
 /**
  * N25 — a step's carry generators are checked when the pipeline is built:
- * an `rsa-key` generator must name at least one target slot.
+ * an `rsa-key` generator must name at least one target slot. N38 — an
+ * `ecdh-key` generator needs two distinct slots, and its private key never
+ * reaches `sessionCarry`.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
@@ -16,6 +18,20 @@ import type {
 
 const TARGET_MSG = 'steps.generate: rsa-key needs keyInto or spkiSha256HexInto';
 const CSR_MSG = 'steps.generate: pkcs10-csr needs a subject and into';
+const ECDH_SLOTS_MSG = 'steps.generate: ecdh-key needs distinct publicInto and privateInto';
+const ECDH_PRIVATE_MSG = 'steps.generate: ecdh-key privateInto must not be a sessionCarry slot';
+
+/**
+ * An ECDH generator writing the given slots.
+ * @param publicInto - Public point slot.
+ * @param privateInto - Private scalar slot.
+ * @returns Generator config.
+ */
+function ecdhOf(publicInto: string, privateInto: string): ICarryGenerator {
+  return { kind: 'ecdh-key', curve: 'secp256k1', publicInto, privateInto };
+}
+
+const ECDH_KEY = ecdhOf('ecdhPublic', 'ecdhPrivate');
 
 /**
  * A CSR generator with the given subject and slot.
@@ -40,9 +56,20 @@ function runOf(generator: ICarryGenerator): IApiDirectRuleInput {
     urlTag: 'auth.bind',
     generate: [generator],
     body: { shape: {} },
-    extractsToCarry: {},
+    extractsToCarry: { ecdhPublic: '/key', session: '/session' },
   };
   return { call: { flow: 'sms-otp', envelope: {}, steps: [step] }, headless: false };
+}
+
+/**
+ * Rule input whose one login step runs the given generator, keeping slots.
+ * @param generator - The step's generator.
+ * @param sessionCarry - The `sessionCarry` allowlist.
+ * @returns Rule input.
+ */
+function keptOf(generator: ICarryGenerator, sessionCarry: readonly string[]): IApiDirectRuleInput {
+  const input = runOf(generator);
+  return { ...input, call: { ...input.call, sessionCarry } };
 }
 
 describe('validateApiDirectConfig — carry generators', () => {
@@ -60,6 +87,7 @@ describe('validateApiDirectConfig — carry generators', () => {
     ['keyInto', { kind: 'rsa-key', bits: 2048, keyInto: 'certKeyPem' }],
     ['spkiSha256HexInto', { kind: 'rsa-key', bits: 2048, spkiSha256HexInto: 'deviceId' }],
     ['a subject and into', csrOf([CN], 'csr')],
+    ['an ecdh-key pair of slots', ECDH_KEY],
   ])('a generator naming %s passes', (_label, generator) => {
     const input = runOf(generator);
     const result = validateApiDirectConfig(input);
@@ -73,5 +101,31 @@ describe('validateApiDirectConfig — carry generators', () => {
     const input = runOf(generator);
     const result = validateApiDirectConfig(input);
     expect(result).toMatchObject({ success: false, errorMessage: CSR_MSG });
+  });
+
+  it.each<[string, ICarryGenerator]>([
+    ['a blank publicInto', ecdhOf(' ', 'ecdhPrivate')],
+    ['a blank privateInto', ecdhOf('ecdhPublic', '')],
+    ['one slot for both', ecdhOf('ecdhKey', 'ecdhKey')],
+  ])('an ecdh-key generator with %s fails the build', (_label, generator) => {
+    const input = runOf(generator);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({ success: false, errorMessage: ECDH_SLOTS_MSG });
+  });
+
+  it.each<[string, ICarryGenerator]>([
+    ['a slot no step extracts', ECDH_KEY],
+    ['a slot a step also extracts', ecdhOf('ecdhPublic', 'session')],
+  ])('an ecdh-key privateInto kept as %s fails the build', (_label, generator) => {
+    const privateInto = generator.kind === 'ecdh-key' ? generator.privateInto : '';
+    const input = keptOf(generator, [privateInto]);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({ success: false, errorMessage: ECDH_PRIVATE_MSG });
+  });
+
+  it('an ecdh-key public point kept in sessionCarry passes', () => {
+    const input = keptOf(ECDH_KEY, ['ecdhPublic']);
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
   });
 });

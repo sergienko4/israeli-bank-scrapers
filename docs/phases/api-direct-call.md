@@ -493,6 +493,7 @@ body and later steps can read them. `GENERATOR_RUNS` maps each
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `rsa-key`    | `generateRsaKey` (`IRsaKeyGenerator`): a fresh RSA key of `bits` (2048). Its PKCS#8 PEM goes to `keyInto`, and `spkiSha256Hex` of its public key (64 lowercase hex characters) to `spkiSha256HexInto` |
 | `pkcs10-csr` | `generatePkcs10Csr` (`IPkcs10CsrGenerator`, `Flow/RunStep.generate.csr.ts`): a PKCS#10 request signed with the RSA key `keyRef` names, base64url DER without padding, to `into`                       |
+| `ecdh-key`   | `generateEcdhKey` (`IEcdhKeyGenerator`, `Crypto/EcdhKeypair.ts`, N38): a fresh key pair on `curve` (`secp256k1`), base64. The uncompressed public point (65 bytes, 0x04 first) goes to `publicInto`   |
 
 ```ts
 generate: [{ kind: 'rsa-key', bits: 2048, spkiSha256HexInto: 'deviceId' }],
@@ -528,6 +529,17 @@ text fits that alphabet, else a UTF8String. The DER writers (`DER_TAGS`,
 `DerTag`, `derNode`, `derSequence`) live in `Crypto/DerEncoding.ts`. A key
 that is not text or not an RSA private key, a subject value that is not
 text, or a DC that is not ASCII fails the generator.
+
+An `ecdh-key` generator also writes its private scalar to `privateInto`:
+`paddedPrivateKey` pads it back to 32 bytes, since `getPrivateKey` drops
+leading zeros. The scalar is for this login's key exchange alone, so it may
+not be a `sessionCarry` slot:
+
+```ts
+generate: [
+  { kind: 'ecdh-key', curve: 'secp256k1', publicInto: 'ecdhPublic', privateInto: 'ecdhPrivate' },
+],
+```
 
 A runner returns its slots as `GeneratedCarry`. A generator that fails or
 rejects fails the step `<step> generate <kind> failed` before any request.
@@ -841,7 +853,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | an `extractRules` `maxChars` that is not an integer from 1 to 65536                                                                       | `steps.extractRules.maxChars: must be an integer from 1 to 65536`                  |
 | an `extractRules` `oneOf` or `url` list that is empty                                                                                     | `steps.extractRules: oneOf and url must not be empty`                              |
 | a login or resume step whose `runIf` has a blank `carry` or an empty `oneOf`                                                              | `steps.runIf: carry and oneOf must not be empty`                                   |
-| a login or resume step with `textCaptures` whose `response` is not `'text'` (`API_DIRECT_TEXT_RULES`)                                    | `steps.textCaptures: need a text response`                                         | (feat(api-direct): merge a carried form into a body)
+| a login or resume step with `textCaptures` whose `response` is not `'text'` (`API_DIRECT_TEXT_RULES`)                                    | `steps.textCaptures: need a text response`                                         |
 | a login or resume step with `maxTextChars` whose `response` is not `'text'`                                                           | `steps.maxTextChars: needs a text response`                              |
 | a `maxTextChars` that is not an integer from 1 to 2097152                                                                             | `steps.maxTextChars: must be an integer from 1 to 2097152`               |
 | a `textCaptures` `pattern` that does not compile with the `g` flag                                                                    | `steps.textCaptures.pattern: must compile`                               |
@@ -854,6 +866,8 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `formCapture` `required` or `forbidden` name off `FORM_FIELD_NAME`, or named in both                                                | `steps.formCapture: field names must be valid and disjoint`              |
 | a login or resume step with an `rsa-key` generator that names neither `keyInto` nor `spkiSha256HexInto` (`API_DIRECT_GENERATE_RULES`)     | `steps.generate: rsa-key needs keyInto or spkiSha256HexInto`                       |
 | a login or resume step with a `pkcs10-csr` generator whose `subject` is empty or whose `into` is blank                                    | `steps.generate: pkcs10-csr needs a subject and into`                              |
+| a login or resume step with an `ecdh-key` generator whose `publicInto` or `privateInto` is blank, or both name one slot               | `steps.generate: ecdh-key needs distinct publicInto and privateInto`     |
+| a `sessionCarry` slot that is the `privateInto` of some `ecdh-key` generator                                                          | `steps.generate: ecdh-key privateInto must not be a sessionCarry slot`   |
 | a login or resume step whose `preHook.valuePattern` does not start with `^`, end with `$` and compile with the `u` flag                   | `steps.preHook.valuePattern: must be an anchored regex`                            |
 | a login or resume step whose `preHook.valuePattern` has a group, an alternation or a variable repeat before its last atom                 | `steps.preHook.valuePattern: must be a flat regex`                                 |
 | a login or resume step with `clientCert`, without a `headless.clientCert` block (`API_DIRECT_CLIENT_CERT_RULES`)                          | `steps.clientCert: not allowed without headless.clientCert`                        |
@@ -868,7 +882,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | `headless.cookieDomains` without `headless.sessionCookies: true`                                                                          | `headless.cookieDomains: not allowed without headless.sessionCookies`              |
 | a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                                | `headerExtractsToCarry.header: must be an HTTP header name`                        |
 | a login or resume step with `setCookies`, without `headless.cookieDomains`                                                                | `steps.setCookies: not allowed without headless.cookieDomains`                     |
-| a `setCookies` cookie name that is not an HTTP token (RFC 9110)                                                                           | `steps.setCookies: each name must be an HTTP token`                                | (feat(api-direct): capture a form's hidden fields)
+| a `setCookies` cookie name that is not an HTTP token (RFC 9110)                                                                           | `steps.setCookies: each name must be an HTTP token`                                |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no

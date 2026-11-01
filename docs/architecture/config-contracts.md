@@ -70,7 +70,7 @@ from (cross-package imports such as `Registry/WK/*` are omitted for brevity).
 | **CarryTypes** | `IWarmStartConfig`, `ICarryWarmStart`, `ICookieJarWarmStart`, `ICarryBundleWarmStart`, `ColdFallback`, `ISeedCarrySource`, `IRandomHex16Bootstrap`, `IRandomUuidBootstrap`, `ISha256Prefix16Bootstrap`, `IJwtClaimBootstrap`, `SeedCarryBootstrapKind`, `IDerivedCarry` | TemplateTypes |
 | **EnvelopeTypes** | `IFingerprintConfig`, `AuthScheme`, `IJwtClaimsConfig`, `IProbeConfig`, `IPreStepHook`, `PreHookReuse` | TemplateTypes, SignerTypes |
 | **FlowTypes** | `FlowKind`, `CookieHandoff`, `AuthRecovery`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract`, `IHeaderExtract`, `ExtractValueType`, `IExtractRule`, `IPemCertificateRule`, `IRunIf`, `IStepClientCert` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, GeneratorTypes |
-| **GeneratorTypes** | `ICarryGenerator`, `CarryGeneratorKind`, `IRsaKeyGenerator`, `IPkcs10CsrGenerator`, `ICsrSubjectEntry`, `CsrSubjectAttr` | TemplateTypes |
+| **GeneratorTypes** | `ICarryGenerator`, `CarryGeneratorKind`, `IRsaKeyGenerator`, `IPkcs10CsrGenerator`, `IEcdhKeyGenerator`, `ICsrSubjectEntry`, `CsrSubjectAttr` | TemplateTypes |
 | **ApiDirectCallConfig** | `IApiDirectCallConfig`, `IPersistentAuthConfig`, `CredRule` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, FlowTypes |
 
 Notes:

@@ -2,7 +2,9 @@
  * Carry-generator rules for an api-direct call config (N25), on login and
  * resume steps alike. An `rsa-key` generator must name at least one slot to
  * write, or the key it makes is lost; a `pkcs10-csr` generator needs a
- * subject and a slot for the request.
+ * subject and a slot for the request. An `ecdh-key` generator (N38) needs two
+ * distinct slots, and its private scalar never reaches `sessionCarry`: the
+ * scrape gets server-issued values only.
  */
 
 import type { ICarryGenerator } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
@@ -29,6 +31,28 @@ function isTargetless(generator: ICarryGenerator): boolean {
 function isCsrIncomplete(generator: ICarryGenerator): boolean {
   if (generator.kind !== 'pkcs10-csr') return false;
   return generator.subject.length === 0 || generator.into.trim() === '';
+}
+
+/**
+ * Whether an `ecdh-key` generator has a blank slot or one slot for both keys.
+ * @param generator - Generator config.
+ * @returns True when the two keys would not land in two slots.
+ */
+function isEcdhSlotless(generator: ICarryGenerator): boolean {
+  if (generator.kind !== 'ecdh-key') return false;
+  const slots = [generator.publicInto, generator.privateInto];
+  const isBlank = slots.some(slot => slot.trim() === '');
+  return isBlank || generator.publicInto === generator.privateInto;
+}
+
+/**
+ * The private-key slot of an `ecdh-key` generator.
+ * @param generator - Generator config.
+ * @returns `[privateInto]` for an ECDH generator, else no slot.
+ */
+function privateSlotsOf(generator: ICarryGenerator): readonly string[] {
+  if (generator.kind !== 'ecdh-key') return [];
+  return [generator.privateInto];
 }
 
 /**
@@ -60,6 +84,27 @@ function hasIncompleteCsr(input: IApiDirectRuleInput): boolean {
   return anyGenerator(input, isCsrIncomplete);
 }
 
+/**
+ * Whether any step runs an `ecdh-key` generator without two distinct slots.
+ * @param input - Rule input.
+ * @returns True for a blank or shared ECDH slot.
+ */
+function hasSlotlessEcdh(input: IApiDirectRuleInput): boolean {
+  return anyGenerator(input, isEcdhSlotless);
+}
+
+/**
+ * Whether `sessionCarry` keeps an ECDH private scalar.
+ * @param input - Rule input.
+ * @returns True when some `privateInto` is a session slot.
+ */
+function hasSessionPrivateKey(input: IApiDirectRuleInput): boolean {
+  const kept = input.call.sessionCarry ?? [];
+  const generators = allSteps(input.call).flatMap(step => step.generate ?? []);
+  const privateSlots = generators.flatMap(privateSlotsOf);
+  return privateSlots.some(slot => kept.includes(slot));
+}
+
 /** Carry-generator rules, checked after the step-guard rules. */
 const API_DIRECT_GENERATE_RULES: readonly IApiDirectRule[] = [
   {
@@ -69,6 +114,14 @@ const API_DIRECT_GENERATE_RULES: readonly IApiDirectRule[] = [
   {
     message: 'steps.generate: pkcs10-csr needs a subject and into',
     isBroken: hasIncompleteCsr,
+  },
+  {
+    message: 'steps.generate: ecdh-key needs distinct publicInto and privateInto',
+    isBroken: hasSlotlessEcdh,
+  },
+  {
+    message: 'steps.generate: ecdh-key privateInto must not be a sessionCarry slot',
+    isBroken: hasSessionPrivateKey,
   },
 ];
 

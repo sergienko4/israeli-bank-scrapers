@@ -39,8 +39,19 @@ interface IPkcs10CsrGenerator {
   readonly into: string;
 }
 
+/** N38 — a fresh ECDH key pair for one run of the step. */
+interface IEcdhKeyGenerator {
+  readonly kind: 'ecdh-key';
+  /** Named curve. */
+  readonly curve: 'secp256k1';
+  /** Carry slot for the base64 uncompressed public point (65 bytes, 0x04 first). */
+  readonly publicInto: string;
+  /** Carry slot for the base64 32-byte private scalar; never a `sessionCarry` slot. */
+  readonly privateInto: string;
+}
+
 /** One step carry generator, dispatched by `kind`. */
-type ICarryGenerator = IRsaKeyGenerator | IPkcs10CsrGenerator;
+type ICarryGenerator = IRsaKeyGenerator | IPkcs10CsrGenerator | IEcdhKeyGenerator;
 
 /** The generator kinds. */
 type CarryGeneratorKind = ICarryGenerator['kind'];
@@ -50,6 +61,7 @@ export type {
   CsrSubjectAttr,
   ICarryGenerator,
   ICsrSubjectEntry,
+  IEcdhKeyGenerator,
   IPkcs10CsrGenerator,
   IRsaKeyGenerator,
 };
