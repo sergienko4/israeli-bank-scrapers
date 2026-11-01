@@ -200,3 +200,36 @@ describe('FlowInitCarry.buildInitialCarry', () => {
       expect(result.errorMessage).toContain('creds.phoneNumber missing or empty');
   });
 });
+
+/**
+ * Derive `uid` from `creds.user`, lower-cased (N60), and run flow init once.
+ * @param user - The typed username.
+ * @param truncateBytes - Optional byte cap.
+ * @returns The derived slot and the creds as left after the run.
+ */
+function deriveLower(user: string, truncateBytes?: number): readonly [unknown, unknown] {
+  const derived = {
+    into: 'uid',
+    parts: ['creds.user'],
+    transform: 'lower',
+    truncateBytes,
+  } as const;
+  const config = makeConfig({ derivedCarry: [derived] });
+  const creds = { user };
+  const result = buildInitialCarry(config, creds, {});
+  return [result.success ? result.value.uid : result.errorMessage, creds.user];
+}
+
+describe('FlowInitCarry — derivedCarry lower transform (N60)', () => {
+  it('lower-cases the joined text, leaving the creds value as typed', () => {
+    const [uid, user] = deriveLower('AbC.Dé9');
+    expect(uid).toBe('abc.dé9');
+    expect(user).toBe('AbC.Dé9');
+  });
+
+  it('lower-cases before truncating, so the byte cap holds when a char grows', () => {
+    // 'İ' (2 bytes) lower-cases to 'i' + U+0307 (3 bytes): 'İA' is 3 bytes, 'i̇a' is 4.
+    const [uid] = deriveLower('\u0130A', 3);
+    expect(uid).toBe('i\u0307');
+  });
+});
