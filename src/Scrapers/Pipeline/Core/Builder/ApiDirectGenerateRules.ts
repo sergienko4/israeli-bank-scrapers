@@ -6,7 +6,8 @@
  * distinct slots, and its private scalar never reaches `sessionCarry`: the
  * scrape gets server-issued values only. A `random-hex` seed (N42) draws an
  * integer count of bytes from 1 to 64. The envelope codec rules (N39) of
- * `ApiDirectCodecRules.ts` run last.
+ * `ApiDirectCodecRules.ts` run next, then the step URL rules (N40/N41) of
+ * `ApiDirectUrlRules.ts`.
  */
 
 import type {
@@ -15,6 +16,7 @@ import type {
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { API_DIRECT_CODEC_RULES } from './ApiDirectCodecRules.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
+import { API_DIRECT_URL_RULES } from './ApiDirectUrlRules.js';
 
 /** Flags one generator config. */
 type GeneratorCheck = (generator: ICarryGenerator) => boolean;
@@ -159,6 +161,7 @@ const API_DIRECT_GENERATE_RULES: readonly IApiDirectRule[] = [
     isBroken: hasBadRandomHex,
   },
   ...API_DIRECT_CODEC_RULES,
+  ...API_DIRECT_URL_RULES,
 ];
 
 export default API_DIRECT_GENERATE_RULES;

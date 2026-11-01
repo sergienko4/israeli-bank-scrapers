@@ -206,6 +206,8 @@ The text must be 1 to 32 768 printable-ASCII characters (`\x21` to `\x7E`)
 with no `#`, `<`, `>`, `"`, `'` or `\`, since a URL would encode or cut those.
 Any other text fails the step with `<step> raw query invalid` before anything
 is sent. A part that does not resolve fails the step as it does in a `$join`.
+A step cannot set both `rawQuery` and `queryTemplate`: the build fails with
+`steps.rawQuery: not with queryTemplate`.
 
 ```ts
 {
@@ -232,10 +234,12 @@ the carry slot holding that URL. Its `urlTag` still names the step but is not
 sent to. A POST cannot name it, since `IPostStep.urlFromCarry` is `never`.
 
 The slot must hold the text of an absolute URL that an earlier step's
-`extractRules` `url` rule checked. A slot that is missing, not text, or not an
-absolute URL fails the step with `<step> carried url invalid` before anything
-is sent. A relative URL is refused, since nothing at that point knows what it
-was relative to.
+`extractRules` `url` rule checked. A slot that no earlier step in the same
+list (login steps, or resume steps) checks with a `url` rule fails the build
+with `steps.urlFromCarry: slot needs an earlier url rule`. At run time, a slot
+that is missing, not text, or not an absolute URL fails the step with
+`<step> carried url invalid` before anything is sent. A relative URL is
+refused, since nothing at that point knows what it was relative to.
 
 ```ts
 {
@@ -953,6 +957,8 @@ rules, `API_DIRECT_FORM_CAPTURE_RULES` in
 then the carry-generator rules, `API_DIRECT_GENERATE_RULES` in
 `Core/Builder/ApiDirectGenerateRules.ts`, which end with the envelope codec
 rules, `API_DIRECT_CODEC_RULES` in `Core/Builder/ApiDirectCodecRules.ts`,
+and the step URL rules, `API_DIRECT_URL_RULES` in
+`Core/Builder/ApiDirectUrlRules.ts`,
 then the dynamic client-certificate
 rules, `API_DIRECT_CLIENT_CERT_RULES` in
 `Core/Builder/ApiDirectClientCertRules.ts`, then the session rules,
@@ -1040,6 +1046,8 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a login or resume step with `codec` whose `encoding` or `response` is not `'json'` (`API_DIRECT_CODEC_RULES`)                         | `steps.codec: needs a json body and a json response`                     |
 | an `exchange` codec whose `keyInto` or `sessionInto` is blank, or both name one slot                                                  | `steps.codec: exchange needs distinct keyInto and sessionInto`           |
 | a `sessionCarry` slot that a codec reads or writes: the `privateRef`, `keyRef` or `sessionRef` slot, `keyInto` or `sessionInto`       | `steps.codec: codec slots must not be sessionCarry slots`                |
+| a login or resume step with both `rawQuery` and `queryTemplate` (`API_DIRECT_URL_RULES`)                                              | `steps.rawQuery: not with queryTemplate`                                 |
+| a `urlFromCarry` slot that no earlier step of the same list (login or resume) checks with an `extractRules` `url` rule                | `steps.urlFromCarry: slot needs an earlier url rule`                     |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
