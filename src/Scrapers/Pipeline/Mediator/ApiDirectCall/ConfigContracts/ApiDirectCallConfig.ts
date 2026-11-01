@@ -29,12 +29,13 @@ import type { ISignerConfig } from './SignerTypes.js';
 import type { IEnvelopeSelectors } from './TemplateTypes.js';
 
 /**
- * Opt-in persistent-auth block — lets a caller hold opaque device-bound
+ * Bound-device persistent auth — lets a caller hold opaque device-bound
  * state so later runs replay a fresh token or renew an expired one
  * through `resumeSteps` without a bind or OTP step. Data only: the
  * mediator owns every executable branch.
  */
-interface IPersistentAuthConfig {
+interface IBoundDeviceAuthConfig {
+  readonly kind: 'bound-device';
   /** Provider tag written into, and required back from, the opaque state. */
   readonly provider: string;
   /** Signed renewal steps against the persisted device, in order. */
@@ -48,6 +49,28 @@ interface IPersistentAuthConfig {
   /** Seconds before token expiry at which a stored token stops being replayed. */
   readonly freshnessMarginSeconds: number;
 }
+
+/**
+ * Device-memory persistent auth — the opaque state holds only the
+ * server-issued device id. A later run seeds it into carry before the
+ * configured login flow, so the bank recognises the device and skips its
+ * OTP step. No token, key or renewal step is stored.
+ */
+interface IDeviceMemoryAuthConfig {
+  readonly kind: 'device-memory';
+  /** Provider tag written into, and required back from, the opaque state. */
+  readonly provider: string;
+  /** Carry slot holding the server-issued device identifier. */
+  readonly deviceIdField: string;
+  /** Creds field binding the state to one account; compared lower-cased. */
+  readonly accountField: string;
+}
+
+/** Opt-in persistent-auth block, one variant per `kind`. */
+type IPersistentAuthConfig = IBoundDeviceAuthConfig | IDeviceMemoryAuthConfig;
+
+/** Every persistent-auth variant tag. */
+type PersistentAuthKind = IPersistentAuthConfig['kind'];
 
 /** Rule a required credential must meet before the first request. */
 type CredRule = 'nonEmpty' | 'digits' | 'sixDigits' | 'latin1';
@@ -121,4 +144,11 @@ interface IApiDirectCallConfig {
   readonly omitBankText?: true;
 }
 
-export type { CredRule, IApiDirectCallConfig, IPersistentAuthConfig };
+export type {
+  CredRule,
+  IApiDirectCallConfig,
+  IBoundDeviceAuthConfig,
+  IDeviceMemoryAuthConfig,
+  IPersistentAuthConfig,
+  PersistentAuthKind,
+};

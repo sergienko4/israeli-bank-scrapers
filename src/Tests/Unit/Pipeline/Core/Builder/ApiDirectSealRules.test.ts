@@ -155,7 +155,7 @@ describe('validateApiDirectConfig — sealed fields', () => {
 
   it('a seal in a durable resume step is checked too', () => {
     const resumeSteps = [postWith(UNKNOWN_KIND)];
-    const persistentAuth = { resumeSteps } as unknown as NonNullable<
+    const persistentAuth = { kind: 'bound-device', resumeSteps } as unknown as NonNullable<
       IApiDirectRuleInput['call']['persistentAuth']
     >;
     const call = { flow: 'sms-otp' as const, envelope: {}, steps: [], persistentAuth };

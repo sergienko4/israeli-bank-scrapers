@@ -13,7 +13,7 @@
 import type {
   IApiDirectCallConfig,
   IBodyTemplate,
-  IPersistentAuthConfig,
+  IBoundDeviceAuthConfig,
   IStepConfig,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
@@ -50,10 +50,10 @@ async function loadPepper(): Promise<IApiDirectCallConfig> {
  * Load Pepper's persistent-auth block, failing the test when it is absent.
  * @returns The declared block.
  */
-async function loadPersistent(): Promise<IPersistentAuthConfig> {
+async function loadPersistent(): Promise<IBoundDeviceAuthConfig> {
   const config = await loadPepper();
   const block = config.persistentAuth;
-  if (block === undefined) throw new TypeError('Pepper declares no persistentAuth block');
+  if (block?.kind !== 'bound-device') throw new TypeError('Pepper declares no bound-device block');
   return block;
 }
 
@@ -73,7 +73,7 @@ function nodeAt(root: unknown, keys: readonly string[]): unknown {
  * @param index - Step index.
  * @returns The resume step.
  */
-function resumeStep(block: IPersistentAuthConfig, index: number): IStepConfig {
+function resumeStep(block: IBoundDeviceAuthConfig, index: number): IStepConfig {
   const step = block.resumeSteps.at(index);
   if (step === undefined) throw new TypeError(`no resume step at ${String(index)}`);
   return step;
@@ -123,6 +123,7 @@ describe('Pepper persistent auth — block', () => {
     const { resumeSteps, ...scalars } = block;
     expect(resumeSteps).toHaveLength(2);
     expect(scalars).toEqual({
+      kind: 'bound-device',
       provider: 'pepper',
       clientInstanceIdField: 'clientInstanceId',
       deviceIdField: 'deviceId',

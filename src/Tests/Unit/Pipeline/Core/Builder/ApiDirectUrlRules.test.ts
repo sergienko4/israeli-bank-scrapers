@@ -38,6 +38,7 @@ const URL_RULES = { handoffUrl: { url: [{ origin: HOST, paths: ['/landing'] }] }
 const MANUAL = { maxHops: 3, allow: URL_RULES.handoffUrl.url };
 
 const PERSISTENT_AUTH = {
+  kind: 'bound-device' as const,
   provider: 'syn-provider',
   clientInstanceIdField: 'clientInstanceId',
   deviceIdField: 'deviceId',

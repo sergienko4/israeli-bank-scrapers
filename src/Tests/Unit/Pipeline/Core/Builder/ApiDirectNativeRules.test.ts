@@ -92,6 +92,7 @@ function runOf(
  */
 function resumeOf(step: IStepConfig): IApiDirectRuleInput {
   const persistentAuth = {
+    kind: 'bound-device' as const,
     provider: 'syn-provider',
     clientInstanceIdField: 'clientInstanceId',
     deviceIdField: 'deviceId',

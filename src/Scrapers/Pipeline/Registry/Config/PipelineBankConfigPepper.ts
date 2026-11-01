@@ -60,6 +60,7 @@ const PEPPER_API_DIRECT_CALL: IApiDirectCallConfig = {
   steps: [BIND_STEP, ASSERT_PWD_STEP, ASSERT_OTP_STEP],
   seedCarryFromCreds: [{ field: 'clientInstanceId', bootstrap: { kind: 'random-uuid' } }],
   persistentAuth: {
+    kind: 'bound-device',
     provider: 'pepper',
     resumeSteps: PEPPER_RESUME_STEPS,
     clientInstanceIdField: 'clientInstanceId',

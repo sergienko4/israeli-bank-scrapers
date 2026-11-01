@@ -23,6 +23,7 @@ const OPTIONAL_DID: JsonValueTemplate = { $ref: 'carry.did', optional: true };
 const PLAIN_DID: JsonValueTemplate = { $ref: 'carry.did' };
 
 const PERSISTENT_AUTH = {
+  kind: 'bound-device' as const,
   provider: 'syn-provider',
   clientInstanceIdField: 'clientInstanceId',
   deviceIdField: 'deviceId',

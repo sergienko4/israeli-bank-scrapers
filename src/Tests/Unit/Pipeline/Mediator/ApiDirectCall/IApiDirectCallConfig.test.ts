@@ -8,7 +8,9 @@
 import type {
   FlowKind,
   IApiDirectCallConfig,
+  IBoundDeviceAuthConfig,
   ICanonicalStringConfig,
+  IDeviceMemoryAuthConfig,
   IPersistentAuthConfig,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { WKQueryOperation } from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
@@ -137,7 +139,8 @@ describe('FlowKind enum', () => {
 const LOGIN_TAG = 'auth.login' as WKUrlGroup;
 
 /** Compile-time pin: a complete persistent-auth block with a login step. */
-const COMPLETE_BLOCK: IPersistentAuthConfig = {
+const COMPLETE_BLOCK: IBoundDeviceAuthConfig = {
+  kind: 'bound-device',
   provider: 'synthetic',
   resumeSteps: [
     {
@@ -169,7 +172,7 @@ const isCallbackFree: [CallableKeys<IPersistentAuthConfig>] extends [never] ? tr
 
 /** Per field: does the contract still accept a block that omits it? */
 type IncompleteBlockVerdicts = {
-  readonly [TKey in keyof IPersistentAuthConfig]: [Omit<IPersistentAuthConfig, TKey>] extends [
+  readonly [TKey in keyof IBoundDeviceAuthConfig]: [Omit<IBoundDeviceAuthConfig, TKey>] extends [
     IPersistentAuthConfig,
   ]
     ? true
@@ -178,6 +181,7 @@ type IncompleteBlockVerdicts = {
 
 /** Compile-time pin: omitting any single field fails type-check. */
 const INCOMPLETE_BLOCK_VERDICTS: IncompleteBlockVerdicts = {
+  kind: false,
   provider: false,
   resumeSteps: false,
   clientInstanceIdField: false,
@@ -185,6 +189,15 @@ const INCOMPLETE_BLOCK_VERDICTS: IncompleteBlockVerdicts = {
   accountField: false,
   freshnessMarginSeconds: false,
 };
+
+/** Compile-time pin: a device-memory block names only its four fields. */
+const MEMORY_BLOCK: IDeviceMemoryAuthConfig = {
+  kind: 'device-memory',
+  provider: 'synthetic-web',
+  deviceIdField: 'did',
+  accountField: 'username',
+};
+const MEMORY_KEYS = ['accountField', 'deviceIdField', 'kind', 'provider'];
 
 /** One `[field, accepted]` row per persistent-auth field. */
 const VERDICT_ROWS = Object.entries(INCOMPLETE_BLOCK_VERDICTS);
@@ -198,7 +211,8 @@ describe('IPersistentAuthConfig contract', () => {
 
   it('accepts a complete data-only block with login then password steps', () => {
     const config: IApiDirectCallConfig = { ...MINIMAL_CONFIG, persistentAuth: COMPLETE_BLOCK };
-    const names = config.persistentAuth?.resumeSteps.map((step): string => step.name);
+    expect(config.persistentAuth).toBe(COMPLETE_BLOCK);
+    const names = COMPLETE_BLOCK.resumeSteps.map((step): string => step.name);
     expect(names).toEqual(['login', 'assertPassword']);
     expect(isCallbackFree).toBe(true);
     const json = JSON.stringify(COMPLETE_BLOCK);
@@ -210,6 +224,13 @@ describe('IPersistentAuthConfig contract', () => {
     const verdictKeys = Object.keys(INCOMPLETE_BLOCK_VERDICTS).sort();
     const blockKeys = Object.keys(COMPLETE_BLOCK).sort();
     expect(verdictKeys).toEqual(blockKeys);
+  });
+
+  it('accepts a device-memory block that holds no token, key or renewal step', () => {
+    const config: IApiDirectCallConfig = { ...MINIMAL_CONFIG, persistentAuth: MEMORY_BLOCK };
+    expect(config.persistentAuth?.kind).toBe('device-memory');
+    const blockKeys = Object.keys(MEMORY_BLOCK).sort();
+    expect(blockKeys).toEqual(MEMORY_KEYS);
   });
 
   it.each(VERDICT_ROWS)('rejects a block without %s at compile time', (field, isAccepted) => {

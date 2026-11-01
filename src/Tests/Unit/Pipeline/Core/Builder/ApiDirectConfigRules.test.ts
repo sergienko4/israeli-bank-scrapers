@@ -155,6 +155,7 @@ function makeCall(overrides: Partial<IApiDirectCallConfig> = {}): IApiDirectCall
  */
 function resumeWith(step: IStepConfig): IApiDirectCallConfig['persistentAuth'] {
   return {
+    kind: 'bound-device' as const,
     provider: 'syn-provider',
     resumeSteps: [step],
     clientInstanceIdField: 'clientInstanceId',

@@ -41,9 +41,18 @@ const LOCAL_PHONE = '0501234567';
 /** Synthetic second account: a state bound to it must never resume here. */
 const FOREIGN_ACCOUNT = '972000000001';
 
+/**
+ * Pepper's durable replay margin from its bound-device block.
+ * @param block - Pepper's persistent-auth block.
+ * @returns The margin in seconds, or NaN (fails loudly) for any other block.
+ */
+function marginOf(block: typeof PEPPER_API_DIRECT_CALL.persistentAuth): number {
+  if (block?.kind !== 'bound-device') return Number.NaN;
+  return block.freshnessMarginSeconds;
+}
+
 /** Pepper's own durable replay margin, read from its config (NaN fails loudly). */
-const PEPPER_MARGIN_SECONDS =
-  PEPPER_API_DIRECT_CALL.persistentAuth?.freshnessMarginSeconds ?? Number.NaN;
+const PEPPER_MARGIN_SECONDS = marginOf(PEPPER_API_DIRECT_CALL.persistentAuth);
 
 /** Observed cache traffic, so tests can prove what was NOT touched. */
 interface ICacheTraffic {

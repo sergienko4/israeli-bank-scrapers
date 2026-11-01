@@ -1304,6 +1304,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | `headless.clientCert` together with `headless.requiresClientCert: true`                                                                   | `headless.clientCert: not allowed with headless.requiresClientCert`                |
 | a `sessionCarry` slot that names no body or header extract of any login or resume step (`API_DIRECT_SESSION_RULES`)                       | `sessionCarry: each slot must name a step extract`                                 |
 | `cookieHandoff: 'isolate'` without `headless.cookieDomains`                                                                               | `cookieHandoff: isolate not allowed without headless.cookieDomains`                |
+| a `persistentAuth` block whose `kind` has no supported primer (`API_DIRECT_PERSISTENT_AUTH_RULES`)                                        | `persistentAuth.kind: must be bound-device or device-memory`                       |
 | a login or resume step with `response`, `documentMarker`, `headerExtractsToCarry` or `encoding` off native fetch and node:https           | `steps.<field>: not allowed without nativeFetch or node:https`                     |
 | a login or resume step with `redirect`, without `headless.nativeFetch: true`                                                              | `steps.redirect: not allowed without headless.nativeFetch`                         |
 | `headless.cookieDomains` off native fetch and node:https                                                                                  | `headless.cookieDomains: not allowed without nativeFetch or node:https`            |
@@ -1705,10 +1706,19 @@ getter keeps that warning rule alone.
 
 ## Persistent (durable) device auth
 
-A bank whose config declares a `persistentAuth` block can keep its bound device
-between runs. Pepper is the only one today; every other bank ignores the two
-options. The caller-facing contract lives in
-[Pepper durable device auth](../banks/pepper.md#durable-device-auth-opt-in).
+A bank whose config declares a `persistentAuth` block can keep its device
+between runs; every other bank ignores the two options. The block
+(`IPersistentAuthConfig`) is a union tagged by `kind` (`PersistentAuthKind`):
+
+- `bound-device` (`IBoundDeviceAuthConfig`) — Pepper. The state holds a bound
+  EC key and the last token; resume replays or renews it. The caller-facing
+  contract lives in
+  [Pepper durable device auth](../banks/pepper.md#durable-device-auth-opt-in).
+- `device-memory` (`IDeviceMemoryAuthConfig`) — the bank remembers a device by
+  the id it issued, so a login that sends that id back skips the OTP step.
+  See [Device memory](#device-memory).
+
+The sections below describe `bound-device` unless they say otherwise.
 
 `.action` resolves one mode — token-only, enrollment or resume — while it
 builds the token strategy, before any auth request. An invalid option
@@ -1740,16 +1750,50 @@ combination fails there, so it never reaches the network.
 A durable run therefore performs at most two auth requests on resume, at most
 one state callback, and no SMS outside enrollment.
 
+### Device memory
+
+A `device-memory` block names three things: the `provider` tag the state is
+bound to, the carry slot holding the server-issued device id
+(`deviceIdField`) and the creds field binding the state to one account
+(`accountField`). The state (`IDeviceMemoryStateV1`) is
+`{version: 1, kind: 'device-memory', provider, account, deviceId}` in the same
+base64url JSON envelope as Pepper's. It holds no token, key or renewal step.
+
+- **Account.** `account` is `creds[accountField]` lower-cased, untrimmed and
+  at most 64 characters; a resume compares it exactly, so a username that
+  differs only in case still resumes.
+- **Device id.** One to 256 characters of letters, digits, `_`, `.`, `:` and
+  `-` (`isDeviceMemoryId`).
+- **Enrollment** runs the bank's configured login with an empty carry. Once it
+  succeeds, the id in `carry[deviceIdField]` is checked and published once
+  through `onPersistentAuthStateUpdate`, before the scrape starts.
+- **Resume** decodes the state and checks provider and account before any
+  request; a mismatch fails by category. It then runs the same login with the
+  stored id seeded into carry, so the bank skips its OTP step. The step's
+  optional extract keeps the seeded id when the reply does not echo it, and a
+  resume publishes nothing.
+- **Device id check.** In both modes, a login that ends without a valid id in
+  carry fails as `persistent auth failed: device-id`.
+- **No fallback.** As with `bound-device`, `primeFresh` fails locally, so a
+  401/403 during the scrape never repeats the login.
+- **Failures** use the same three messages as `bound-device`. The state
+  categories add `kind` and `deviceId`; the login adds `device-id`.
+- **Logging.** One debug line per run carries the mode and whether a state was
+  published — never a value.
+
 Where each piece lives, for maintainers:
 
-| Concern             | Symbols                                                                                                                                                                                                                             |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Caller input        | `IPersistentAuthInput` and `PersistentAuthStateCallback`, read from the options by `readPersistentAuthInput`                                                                                                                        |
-| Mode resolution     | `createContextStrategy` → `resolveContextAuthMode` → `resolvePersistentAuthMode`, producing a `PersistentAuthMode`: legacy, or a `DurableAuthMode` (enroll / resume)                                                                |
-| State codec         | `encodePersistentAuthState` / `decodePersistentAuthState` over `IPersistentAuthStateV1`. Decoding checks the state against an `IPersistentAuthExpectation` and returns an `IRehydratedPersistentAuth` with the EC key ready to sign |
-| Strategy branch     | `primeDurable` (replay, renew or enroll) and `refuseDurableRefresh` (the local `primeFresh` refusal)                                                                                                                                |
-| Secrets in failures | `sanitiseStepFailure` reports a failed step by name and status, never its reply; `scrubPersistedValues` still redacts any stored value a renewal failure quotes; transports strip the query string with `safeUrlForLog`             |
-| Bank data           | Pepper's `PEPPER_RESUME_STEPS`: signed `/auth/login`, then one password assertion                                                                                                                                                   |
+| Concern             | Symbols                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Caller input        | `IPersistentAuthInput` and `PersistentAuthStateCallback`, read from the options by `readPersistentAuthInput`                                                                                                                                                                                                                                                  |
+| Mode resolution     | `createContextStrategy` → `resolveContextAuthMode` → `resolvePersistentAuthMode`, producing a `PersistentAuthMode`: legacy, or a `DurableAuthMode` (enroll / resume)                                                                                                                                                                                          |
+| State codec         | `encodePersistentAuthState` / `decodePersistentAuthState` over `IPersistentAuthStateV1`. Decoding checks the state against an `IPersistentAuthExpectation` and returns an `IRehydratedPersistentAuth` with the EC key ready to sign                                                                                                                           |
+| Device-memory codec | `encodeDeviceMemoryState` / `decodeDeviceMemoryState` over `IDeviceMemoryStateV1`, rules in order: shape, version, kind, provider, account, deviceId                                                                                                                                                                                                          |
+| Shared envelope     | `PersistentAuthEnvelope.ts`: `decodeStateObject`, `encodeStateObject`, `hasExactKeySet`, `invalidState`; the shared rules `isBoundedString`, `isExpectedProvider` and `isSupportedVersion` are each an `IStateRule` check                                                                                                                                     |
+| Strategy branch     | `primeDurable` dispatches on `PersistentAuthKind` through `PERSISTENT_PRIMERS` to `primeBoundDevice` (replay, renew or enroll) or `primeDeviceMemory`; each gets an `IDurablePrimeArgs` with its block narrowed, plus the `RunConfiguredFlow` runner. `refuseDurableRefresh` is the local `primeFresh` refusal; `durableFail` and `invokeOnUpdate` are shared |
+| Build rule          | `API_DIRECT_PERSISTENT_AUTH_RULES` refuses an unknown `kind` (`isPersistentAuthKind`); `resumeStepsOf` gives the other rules a `bound-device` block's `resumeSteps`                                                                                                                                                                                           |
+| Secrets in failures | `sanitiseStepFailure` reports a failed step by name and status, never its reply; `scrubPersistedValues` still redacts any stored value a renewal failure quotes; transports strip the query string with `safeUrlForLog`                                                                                                                                       |
+| Bank data           | Pepper's `PEPPER_RESUME_STEPS`: signed `/auth/login`, then one password assertion                                                                                                                                                                                                                                                                             |
 
 ## Sub-step contract
 

@@ -22,7 +22,10 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { IApiDirectCallConfig } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import type {
+  IApiDirectCallConfig,
+  IBoundDeviceAuthConfig,
+} from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { authPolicyOf } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/AuthModePolicy.js';
 import {
   boundWarmOf,
@@ -229,19 +232,32 @@ function lastOtpPreHookIndex(config: IApiDirectCallConfig): number {
   return Math.max(...otpSteps, -1);
 }
 
+/** A bank label, its config and its bound-device block. */
+type BoundDeviceEntry = readonly [string, IApiDirectCallConfig, IBoundDeviceAuthConfig];
+
 /**
- * Collect every bank whose config declares a durable persistentAuth block.
- * @returns Label/config pairs for persistent-auth banks.
+ * Keep a bank only when its persistent-auth block is bound-device.
+ * @param label - Bank label.
+ * @param config - Bank call config.
+ * @returns The entry, or none.
  */
-async function loadPersistentAuthConfigs(): Promise<
-  readonly (readonly [string, IApiDirectCallConfig])[]
-> {
+function boundDeviceEntryOf(label: string, config: IApiDirectCallConfig): BoundDeviceEntry[] {
+  const block = config.persistentAuth;
+  if (block?.kind !== 'bound-device') return [];
+  return [[label, config, block]];
+}
+
+/**
+ * Collect every bank whose config declares a bound-device persistentAuth block.
+ * @returns Label/config/block entries for bound-device banks.
+ */
+async function loadPersistentAuthConfigs(): Promise<readonly BoundDeviceEntry[]> {
   const pending = CONFIG_PATHS.map(async ([label, path]) => {
     const config = await loadConfig(path);
     return [label, config] as const;
   });
   const loaded = await Promise.all(pending);
-  return loaded.filter(([, config]) => config.persistentAuth !== undefined);
+  return loaded.flatMap(([label, config]) => boundDeviceEntryOf(label, config));
 }
 
 describe('warm-start contract — every opted-in bank', () => {
@@ -392,8 +408,8 @@ describe('persistent-auth contract — every opted-in bank', () => {
 
   it('renews without any pre-hook, so a durable resume can never send a message', async () => {
     const configs = await loadPersistentAuthConfigs();
-    for (const [, config] of configs) {
-      const resumeSteps = config.persistentAuth?.resumeSteps ?? [];
+    for (const [, , block] of configs) {
+      const { resumeSteps } = block;
       const hooked = resumeSteps.filter(step => step.preHook !== undefined);
       expect(resumeSteps.length).toBeGreaterThan(0);
       expect(hooked).toEqual([]);
@@ -402,8 +418,8 @@ describe('persistent-auth contract — every opted-in bank', () => {
 
   it('always ends the renewal holding the warm-start token slot', async () => {
     const configs = await loadPersistentAuthConfigs();
-    for (const [, config] of configs) {
-      const resumeSteps = config.persistentAuth?.resumeSteps ?? [];
+    for (const [, config, block] of configs) {
+      const { resumeSteps } = block;
       const produced = resumeSteps.flatMap(step => Object.keys(step.extractsToCarry));
       const carryField = warmCarryField(config);
       expect(produced).toContain(carryField);
@@ -412,11 +428,11 @@ describe('persistent-auth contract — every opted-in bank', () => {
 
   it('seeds the client instance id at flow init, so enrollment and renewal agree', async () => {
     const configs = await loadPersistentAuthConfigs();
-    for (const [, config] of configs) {
+    for (const [, config, block] of configs) {
       const seeded = (config.seedCarryFromCreds ?? []).map(entry =>
         typeof entry === 'string' ? entry : entry.field,
       );
-      expect(seeded).toContain(config.persistentAuth?.clientInstanceIdField);
+      expect(seeded).toContain(block.clientInstanceIdField);
     }
   });
 });

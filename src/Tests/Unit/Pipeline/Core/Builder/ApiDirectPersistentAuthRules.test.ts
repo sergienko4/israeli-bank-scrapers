@@ -1,0 +1,74 @@
+/**
+ * Build rule for the persistent-auth `kind` tag: an untyped config (a JSON
+ * load or a cast) that names no known kind is refused at build time,
+ * before a primer lookup could miss at scrape time.
+ */
+
+import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import {
+  type IApiDirectRuleInput,
+  validateApiDirectConfig,
+} from '../../../../../Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.js';
+import type {
+  IApiDirectCallConfig,
+  IPersistentAuthConfig,
+} from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+
+const HOST = 'https://ref.example';
+const NATIVE = { identityBase: HOST, graphql: `${HOST}/graphql`, paths: {}, nativeFetch: true };
+
+const BASE_CALL: IApiDirectCallConfig = {
+  flow: 'sms-otp',
+  envelope: {},
+  steps: [{ name: 'login', urlTag: 'auth.login', body: { shape: {} }, extractsToCarry: {} }],
+};
+
+const BOUND_DEVICE: IPersistentAuthConfig = {
+  kind: 'bound-device',
+  provider: 'syn-provider',
+  resumeSteps: [],
+  clientInstanceIdField: 'clientInstanceId',
+  deviceIdField: 'deviceId',
+  accountField: 'account',
+  freshnessMarginSeconds: 60,
+};
+
+const DEVICE_MEMORY: IPersistentAuthConfig = {
+  kind: 'device-memory',
+  provider: 'syn-web',
+  deviceIdField: 'did',
+  accountField: 'username',
+};
+
+/**
+ * Build the rule input for a call with the given persistent-auth block.
+ * @param persistentAuth - Block, or false for none.
+ * @returns Rule input.
+ */
+function inputOf(persistentAuth: IPersistentAuthConfig | false): IApiDirectRuleInput {
+  if (persistentAuth === false) return { call: BASE_CALL, headless: NATIVE };
+  return { call: { ...BASE_CALL, persistentAuth }, headless: NATIVE };
+}
+
+describe('validateApiDirectConfig — persistent-auth kind rule', () => {
+  it.each(['legacy-device', '', 'toString'])('refuses the unknown kind "%s"', kind => {
+    const block = { ...DEVICE_MEMORY, kind } as unknown as IPersistentAuthConfig;
+    const input = inputOf(block);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'persistentAuth.kind: must be bound-device or device-memory',
+    });
+  });
+
+  it.each([
+    ['a bound-device block', BOUND_DEVICE],
+    ['a device-memory block', DEVICE_MEMORY],
+    ['no block', false],
+  ] as const)('builds %s', (_label, block) => {
+    const input = inputOf(block);
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+  });
+});
