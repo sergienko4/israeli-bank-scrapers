@@ -29,6 +29,7 @@ import type { ISealFieldConfig } from './SignerTypes.js';
 import type {
   IBodyTemplate,
   IEnvelopeSelectors,
+  IJoinTemplate,
   JsonValueTemplate,
   RefToken,
 } from './TemplateTypes.js';
@@ -185,6 +186,12 @@ interface IStepBase {
    * outgoing ?k=v pairs. Values may be $ref / $literal / nested.
    */
   readonly queryTemplate?: JsonValueTemplate;
+  /**
+   * Raw query (N41): the joined text goes after the URL's `?` verbatim — 1 to
+   * 32 768 printable-ASCII chars without `#`, `<`, `>`, `"`, `'` or `\`, else
+   * the step fails `raw query invalid`. Not with `queryTemplate`.
+   */
+  readonly rawQuery?: IJoinTemplate;
   /**
    * When true, captures this step's response Set-Cookie lines into
    * the internal cookie jar. Subsequent steps with cookieJar=true

@@ -1,14 +1,15 @@
 /**
  * URL + query-record helpers — hydrating step.queryTemplate,
- * resolving the WK url, and producing the canonical pathAndQuery.
+ * resolving the step URL (its raw query included), and producing the
+ * canonical pathAndQuery.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { resolveWkUrl } from '../../../Registry/WK/UrlsWK.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import { stepUrlOf } from './RunStep.stepUrl.js';
 import type {
   IParsedUrlParts,
   IPathAndQuery,
@@ -113,14 +114,14 @@ function buildPathAndQuery(resolvedUrl: string, extra: QueryRecord): string {
 }
 
 /**
- * Resolve the URL + query string for the step's WK url tag.
+ * Resolve the URL + query string for the step's URL.
  * @param args - Run-step args (step + scope + companyId).
  * @returns Procedure with the path-and-query bundle, or fail.
  */
 function resolvePathAndQuery(args: IRunStepArgs): Procedure<IPathAndQuery> {
   const queryProc = buildQueryRecord(args.step, args.scope);
   if (!isOk(queryProc)) return queryProc;
-  const urlProc = resolveWkUrl(args.step.urlTag, args.companyId);
+  const urlProc = stepUrlOf(args);
   if (!isOk(urlProc)) return urlProc;
   const pathAndQuery = buildPathAndQuery(urlProc.value, queryProc.value);
   return succeed({ pathAndQuery, query: queryProc.value });

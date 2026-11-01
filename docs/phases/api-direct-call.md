@@ -194,6 +194,36 @@ headers: {
 }
 ```
 
+### Raw query
+
+Some banks read a query byte for byte, so a percent-encoded `queryTemplate`
+pair would not match what they expect. Such a step sets `rawQuery` (N41), an
+`IJoinTemplate`: the `parts`, optional `prefix` and optional `encode` of a
+`$join`. The joined text goes after the step URL's `?` as it is. When the URL
+already has a query, the text follows an `&` instead.
+
+The text must be 1 to 32 768 printable-ASCII characters (`\x21` to `\x7E`)
+with no `#`, `<`, `>`, `"`, `'` or `\`, since a URL would encode or cut those.
+Any other text fails the step with `<step> raw query invalid` before anything
+is sent. A part that does not resolve fails the step as it does in a `$join`.
+
+```ts
+{
+  name: 'sessionToken',
+  urlTag: 'auth.bind',
+  method: 'GET',
+  rawQuery: { prefix: 'code=', parts: ['carry.ssoCode'] },
+  extractsToCarry: {},
+}
+```
+
+`stepUrlOf` (`Flow/RunStep.stepUrl.ts`) resolves the step URL with its raw
+query, so the canonical `pathAndQuery` carries it too. It reads an
+`IStepUrlInput`: the step, its scope and its company. `sendTargetOf` gives the
+bus that URL as a literal, so the transport sends it unchanged; `ITokenBus`
+takes a `WKUrlOrLiteral`. A step without a raw query still goes to the bus as
+its WK tag.
+
 ### Optional extracts
 
 `extractsToCarry` fails the step when a field is missing. For fields that only
