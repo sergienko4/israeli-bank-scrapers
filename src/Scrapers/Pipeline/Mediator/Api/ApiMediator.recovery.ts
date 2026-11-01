@@ -12,6 +12,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { recoverSessionOp } from './ApiMediator.retry.js';
 import {
   getSessionWarmOp,
+  getWholeScrapeRecoveryOp,
   setAuthPolicyOp,
   setRecoveryHookOp,
   setSessionWarmOp,
@@ -34,6 +35,15 @@ function bindSetSessionWarm(state: IMediatorState): IRecoveryMethods['setSession
  */
 function bindWasSessionWarm(state: IMediatorState): IRecoveryMethods['wasSessionWarm'] {
   return (): boolean => getSessionWarmOp(state);
+}
+
+/**
+ * Bind the whole-scrape recovery flag getter to the given mediator state.
+ * @param state - Mediator state.
+ * @returns Bound `recoversWholeScrape` callable.
+ */
+function bindRecoversWholeScrape(state: IMediatorState): IRecoveryMethods['recoversWholeScrape'] {
+  return (): boolean => getWholeScrapeRecoveryOp(state);
 }
 
 /**
@@ -72,6 +82,7 @@ function buildRecoveryMethods(state: IMediatorState): IRecoveryMethods {
   return {
     setSessionWarm: bindSetSessionWarm(state),
     wasSessionWarm: bindWasSessionWarm(state),
+    recoversWholeScrape: bindRecoversWholeScrape(state),
     recoverSession: bindRecoverSession(state),
     withRecoveryHook: bindWithRecoveryHook(state),
     setAuthPolicy: bindSetAuthPolicy(state),

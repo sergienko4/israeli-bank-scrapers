@@ -12,6 +12,11 @@ interface IMediatorAuthPolicy {
   readonly installHeader: boolean;
   /** Re-mint the session and retry once when a call is rejected as unauthorised. */
   readonly rearmOnReject: boolean;
+  /**
+   * A rejected session is re-granted once and the whole scrape re-run, rather
+   * than one call retried (absent = false).
+   */
+  readonly wholeScrapeRecovery?: boolean;
 }
 
 export type { IMediatorAuthPolicy };

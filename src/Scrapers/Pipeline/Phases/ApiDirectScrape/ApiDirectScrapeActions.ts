@@ -7,6 +7,7 @@
  * the per-file LOC ceiling. Zero bank-name coupling.
  */
 
+import { isAuthRejectedFailure } from '../../Mediator/Api/ApiMediator.authReject.js';
 import type { IApiMediator } from '../../Mediator/Api/ApiMediator.js';
 import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
 import { makeEvidenceLedger } from '../../Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
@@ -168,23 +169,39 @@ function isScrapeSuspicious(first: Procedure<ApiDirectScrapeResult>): boolean {
 }
 
 /**
- * Gate recovery on BOTH a suspicious outcome AND a warm (cached-token) session.
- * A cold session already ran the full login flow, so recovering would only
- * burn a second OTP; a healthy warm session needs no recovery. An edge (WAF)
- * refusal never recovers: the bank never saw the call, and a cold re-login
- * could send an SMS OTP while the scrape host stays blocked.
+ * Whether the bank rejected the session (401/403) somewhere in the scrape.
+ * @param first - The first scrape procedure.
+ * @returns True for an auth-rejected failure; false for a success.
+ */
+function isSessionRejected(first: Procedure<ApiDirectScrapeResult>): boolean {
+  if (isOk(first)) return false;
+  return isAuthRejectedFailure(first);
+}
+
+/**
+ * Decide whether to recover; the two modes are exclusive. Under whole-scrape
+ * recovery (N33) only a rejected session recovers, warm or cold, at a
+ * bootstrap or a data call: a 5xx, a bank status, an incomplete session or a
+ * degraded success stands. Otherwise recovery needs BOTH a suspicious outcome
+ * AND a warm (cached-token) session: a cold session already ran the full login
+ * flow, so recovering would only burn a second OTP, and a healthy warm session
+ * needs no recovery. An edge (WAF) refusal never recovers: the bank never saw
+ * the call, and a cold re-login could send an SMS OTP while the scrape host
+ * stays blocked.
  * @param first - The first scrape procedure.
  * @param bus - The bound ApiMediator.
  * @returns True when recovery should run.
  */
 function shouldRecoverSession(first: Procedure<ApiDirectScrapeResult>, bus: IApiMediator): boolean {
   if (isWafBlocked(first)) return false;
+  if (bus.recoversWholeScrape()) return isSessionRejected(first);
   return isScrapeSuspicious(first) && bus.wasSessionWarm();
 }
 
 /**
- * Run the scrape; when a warm session yields a suspicious outcome, discard the
- * cached token (full cold re-login via recoverSession) and re-run once. A
+ * Run the scrape; when {@link shouldRecoverSession} says so, recover the
+ * session (a cold re-login, or a re-grant under whole-scrape recovery) and
+ * re-run the whole scrape, bootstrap included, once. A
  * failed recovery returns the first outcome unchanged so a loud failure or a
  * degraded result is never masked — unless the edge refused the recovery, in
  * which case that WAF block is returned, since a degraded first outcome would

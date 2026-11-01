@@ -1057,6 +1057,24 @@ fresh login would only repeat the one the bank just refused. A mediator that
 never receives a policy keeps the default of `rearmOnReject: true`, so banks
 that send a header behave exactly as before.
 
+### Auth recovery
+
+`authRecovery` (type `AuthRecovery`) decides what a rejected session does. It
+is an overlay on the scheme's policy, looked up in the `AUTH_RECOVERIES` map by
+`authPolicyOf`, so a new mode is a new row.
+
+| `authRecovery`          | `rearmOnReject` | `wholeScrapeRecovery` | A 401 or 403 during the scrape                       |
+| ----------------------- | --------------- | --------------------- | ---------------------------------------------------- |
+| `per-request` (default) | the scheme's    | off                   | the call gets a new token and retries once           |
+| `whole-scrape`          | off             | on                    | the call fails, then the scrape recovers and re-runs |
+
+`whole-scrape` is for a bank whose session moves on with each answer. A single
+call retried with a new token would carry a session the bank no longer holds,
+so the whole scrape starts over instead. `setAuthPolicyOp` stores the flag and
+`getWholeScrapeRecoveryOp` reads it back for the mediator's
+`recoversWholeScrape()`. The scrape phase reads it to pick its recovery rule;
+see [Session recovery](api-direct-scrape.md#session-recovery).
+
 ## Persistent (durable) device auth
 
 A bank whose config declares a `persistentAuth` block can keep its bound device

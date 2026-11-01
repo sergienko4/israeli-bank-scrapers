@@ -141,6 +141,27 @@ describe('ApiMediator — warm-flag round-trip', () => {
   });
 });
 
+describe('ApiMediator — whole-scrape recovery flag (N33)', () => {
+  it('is off until a policy asks for it', () => {
+    const mediator = makeMediator();
+    const isWholeScrape = mediator.recoversWholeScrape();
+    expect(isWholeScrape).toBe(false);
+  });
+
+  it('follows the latest policy', () => {
+    const mediator = makeMediator();
+    mediator.setAuthPolicy({
+      installHeader: true,
+      rearmOnReject: false,
+      wholeScrapeRecovery: true,
+    });
+    const isOn = mediator.recoversWholeScrape();
+    mediator.setAuthPolicy({ installHeader: true, rearmOnReject: true });
+    const isOff = mediator.recoversWholeScrape();
+    expect([isOn, isOff]).toEqual([true, false]);
+  });
+});
+
 /**
  * Build a recording recovery hook that captures each header it is fired with.
  * @param sink - Array receiving every header passed to the hook.

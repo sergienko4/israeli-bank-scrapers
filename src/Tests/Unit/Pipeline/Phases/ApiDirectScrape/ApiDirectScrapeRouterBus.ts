@@ -10,6 +10,9 @@
  * spec, which `Object.assign`s its own `recoverSession` / `wasSessionWarm` /
  * `setSessionWarm` over the returned bus, so its overrides still win.
  *
+ * <p>One router serves both transports: a query is keyed by its operation
+ * label, a REST post (a bootstrap step) by its URL tag.
+ *
  * <p>An operation with an exhausted queue deliberately yields a typed failure
  * rather than a silent `undefined`: a spec that issues MORE calls than it
  * queued is asserting something it did not intend, and must fail loudly. Issue
@@ -68,16 +71,7 @@ function unsupported<T>(name: string): Procedure<T> {
 }
 
 /**
- * `apiPost` stand-in: this router serves queued query responses only.
- * @returns A failed procedure naming the operation.
- */
-function unsupportedPost<T>(): Promise<Procedure<T>> {
-  const failure = unsupported<T>('apiPost');
-  return Promise.resolve(failure);
-}
-
-/**
- * `apiGet` stand-in: this router serves queued query responses only.
+ * `apiGet` stand-in: this router serves queued queries and posts only.
  * @returns A failed procedure naming the operation.
  */
 function unsupportedGet<T>(): Promise<Procedure<T>> {
@@ -111,8 +105,9 @@ export function makeRouterBus(router: RouterQueues): IApiMediator {
   // heterogeneous (`Procedure<unknown>`), which no generic signature can
   // express. It hides no missing member.
   const apiQuery = jest.fn(route) as IApiMediator['apiQuery'];
+  const apiPost = jest.fn(route) as IApiMediator['apiPost'];
   const bus: IApiMediator = {
-    apiPost: unsupportedPost,
+    apiPost,
     apiGet: unsupportedGet,
     apiQuery,
     setBearer: jest.fn((): boolean => true),

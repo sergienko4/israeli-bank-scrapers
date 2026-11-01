@@ -109,6 +109,26 @@ session recovery is itself refused, the phase returns that `WAF_BLOCKED`
 rather than the degraded or failed first scrape. Both sites use
 `preferWafBlock` (`src/Scrapers/Pipeline/Types/Procedure.ts`).
 
+## Session recovery
+
+`runScrapeWithRecovery` runs the scrape. When `shouldRecoverSession` says so,
+it calls `recoverSession` and re-runs the whole scrape once, bootstrap
+included. A failed recovery returns the first outcome. An edge refusal never
+recovers (see above). Otherwise the bank's
+[`authRecovery`](api-direct-call.md#auth-recovery) picks one of two rules, and
+they never mix:
+
+| Mode                    | Recovers when                                                                                         | Stands                                                          |
+| ----------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `per-request` (default) | the run failed or came back degraded, and the session was warm                                        | anything from a cold session, which already ran the full login  |
+| `whole-scrape`          | the run failed with a 401 or 403 (`isAuthRejectedFailure`), warm or cold, at a bootstrap or data call | a 5xx, a bank status, an incomplete session, a degraded success |
+
+Under `whole-scrape` the mediator does not retry a rejected call itself
+(`rearmOnReject` is off), so the 401 reaches the phase as is. A balance step
+that declares `fallbackOnFail` would turn that 401 into a degraded success,
+which this mode does not recover. A whole-scrape shape should therefore leave
+`fallbackOnFail` off its balance step.
+
 ## Per-bank shape extractors
 
 Each api-direct bank declares its own `IApiDirectScrapeShape`:

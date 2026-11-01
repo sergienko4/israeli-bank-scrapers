@@ -42,8 +42,19 @@ type SessionContext = Readonly<Record<string, unknown>>;
  */
 type RecoveredHook = (header: string, wasWarm: boolean) => Promise<void>;
 
+/** Session warmth, policy and recovery — built by `buildRecoveryMethods`. */
+interface IRecoveryMethods {
+  setSessionWarm: (value: boolean) => boolean;
+  wasSessionWarm: () => boolean;
+  /** Whether a rejected session re-runs the whole scrape (N33). */
+  recoversWholeScrape: () => boolean;
+  recoverSession: () => Promise<Procedure<string>>;
+  withRecoveryHook?: (hook: RecoveredHook) => boolean;
+  setAuthPolicy: (policy: IMediatorAuthPolicy) => boolean;
+}
+
 /** Public ApiMediator surface — the only API phases/handlers see. */
-interface IApiMediator extends Pick<ITokenBus, 'cookies' | 'clientCert'> {
+interface IApiMediator extends Pick<ITokenBus, 'cookies' | 'clientCert'>, IRecoveryMethods {
   setBearer: (token: string) => boolean;
   setRawAuth: (headerValue: string) => boolean;
   setSessionContext: (ctx: SessionContext) => boolean;
@@ -55,11 +66,6 @@ interface IApiMediator extends Pick<ITokenBus, 'cookies' | 'clientCert'> {
     creds: TCreds,
   ) => WasResolverSet;
   primeSession: () => Promise<Procedure<string>>;
-  setSessionWarm: (value: boolean) => boolean;
-  wasSessionWarm: () => boolean;
-  recoverSession: () => Promise<Procedure<string>>;
-  withRecoveryHook?: (hook: RecoveredHook) => boolean;
-  setAuthPolicy: (policy: IMediatorAuthPolicy) => boolean;
   apiPost: <T>(
     wkUrl: WKUrlOrLiteral,
     body: PostData,
@@ -122,6 +128,8 @@ interface IMediatorState {
   rearmOnReject: boolean;
   /** False when the session is a cookie, so a re-mint yields no header. */
   installHeader: boolean;
+  /** True when a rejected session re-runs the whole scrape. */
+  wholeScrapeRecovery: boolean;
 }
 
 /** Per-call context shared by apiPost/apiGet/apiQuery operations. */
@@ -166,12 +174,6 @@ type IAuthMethods = Pick<
 type IResolverMethods = Pick<
   IApiMediator,
   'withTokenResolver' | 'withTokenStrategy' | 'primeSession'
->;
-
-/** Picked subset of `IApiMediator` produced by `buildRecoveryMethods`. */
-type IRecoveryMethods = Pick<
-  IApiMediator,
-  'setSessionWarm' | 'wasSessionWarm' | 'recoverSession' | 'withRecoveryHook' | 'setAuthPolicy'
 >;
 
 /** Picked subset of `IApiMediator` produced by `buildCallMethods`. */

@@ -41,6 +41,14 @@ type FlowKind = 'sms-otp' | 'stored-jwt' | 'bearer-static';
  */
 type CookieHandoff = 'shared' | 'isolate';
 
+/**
+ * How a scrape recovers once the bank rejects its session. `per-request`
+ * re-mints and retries the one rejected call; `whole-scrape` re-grants the
+ * session once and re-runs the scrape from its bootstrap, for a session that
+ * rotates on every answer.
+ */
+type AuthRecovery = 'per-request' | 'whole-scrape';
+
 /** Step identifiers in the sms-otp flow. */
 type StepName =
   | 'bind'
@@ -242,6 +250,7 @@ type IStepConfig = IPostStep | IGetStep;
 type StepMethod = NonNullable<IStepConfig['method']>;
 
 export type {
+  AuthRecovery,
   CookieHandoff,
   ExtractValueType,
   FlowKind,
