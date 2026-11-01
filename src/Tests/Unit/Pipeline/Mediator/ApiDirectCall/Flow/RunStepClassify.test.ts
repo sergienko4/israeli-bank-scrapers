@@ -173,6 +173,11 @@ describe('classifyAnswer — check kinds', () => {
     ['a number as text', short, { t: 1234 }],
     ['text matching only part of the pattern', letters, { t: 'abc1' }],
     [
+      'text whose pattern escapes the whole-match wrapper',
+      { ...letters, text: { maxChars: 9, pattern: 'a)|(?:b' } },
+      { t: 'ax' },
+    ],
+    [
       'text whose pattern does not compile',
       { ...letters, text: { maxChars: 9, pattern: '(' } },
       {

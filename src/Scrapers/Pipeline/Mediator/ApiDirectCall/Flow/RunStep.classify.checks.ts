@@ -64,14 +64,16 @@ function isSafeText(value: JsonValue, maxChars: number): value is string {
 }
 
 /**
- * Whether a pattern matches the whole text; a broken pattern never does.
+ * Whether a pattern matches the whole text; a broken pattern never does. It
+ * must compile alone first, so `a)|(?:b` cannot escape the wrapper.
  * @param text - Safe text.
  * @param pattern - Regex source.
  * @returns True on a whole match.
  */
 function isWholeMatch(text: string, pattern: string): boolean {
   try {
-    const whole = new RegExp(`^(?:${pattern})$`, 'u');
+    const alone = new RegExp(pattern, 'u');
+    const whole = new RegExp(`^(?:${alone.source})$`, 'u');
     return whole.test(text);
   } catch {
     return false;

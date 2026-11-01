@@ -459,7 +459,8 @@ that describe one branch. When no case matches, the step fails `Generic` with
 `<step> answer ambiguous`. A matched case with `fail` stops the step with that
 type and `<step> answer <case>`; the case name comes from the config, so it is
 safe to show. Any other match writes its name to carry `into`, beside its
-captures. The classifier's slots are merged over the step's extract slots.
+captures. The classifier's slots are merged over the step's extract slots,
+though the build refuses a slot that both write on one step.
 
 A check's `pointer` is an `AnswerPointer`: one JSON pointer, or alternatives of
 which `resolveFirst` (in `Flow/RunStep.classify.checks.ts`) reads the first
@@ -476,9 +477,10 @@ that resolves. `passesCheck` then applies the check's one kind:
 
 Every kind but `absent` fails when no alternative resolves, and a check with
 no kind never passes. `isSafeText` accepts a string of 1..`maxChars` chars
-with no C0 control char and no DEL. A `pattern` is compiled with the `u` flag
-and wrapped in `^(?:…)$`, so it must match the whole text; a pattern that does
-not compile fails its check.
+with no C0 control char and no DEL. A `pattern` is compiled alone with the `u`
+flag, then wrapped in `^(?:…)$`, so it must match the whole text; a pattern
+that does not compile alone, such as `a)|(?:b`, which would escape the wrapper,
+fails its check.
 
 A matched case's `captures` map carry slots to an `IAnswerCapture`.
 `readCaptures` (in `Flow/RunStep.classify.captures.ts`, fed an
@@ -500,6 +502,16 @@ walked; a deeper container prints as `object(n)` or `array(n)`. At most 64
 entries (keys and items) are shown in all, shallower ones first; a cut object
 ends with `'...': '+n'` and a cut array with `'...+n'`. A step without
 `classify` behaves as before.
+
+The build refuses a malformed classifier
+([Build-time config checks](#build-time-config-checks)): every case needs a
+check, every check exactly one kind, and every pointer alternative must be a
+JSON pointer below the body root. A text `pattern` must be anchored, compile
+alone and be flat, as an extract rule's must; every `maxChars` is an integer
+from 1 to 65536; a capture reads one mode, over a whole, ordered integer
+range. A capture never writes `into`, no classifier slot is an extract slot of
+its own step, `into` is never a `sessionCarry` slot, and a `runIf` guard on a
+slot some classifier writes may list only the case names written there.
 
 ### Extract rules
 
@@ -1039,8 +1051,14 @@ is sent. `Core/Builder/ApiDirectRuleInput.ts` holds that input, the rule shape
 lists the login steps and any durable resume steps, `anyStep`, which breaks a
 rule when any of those steps fails a check, and `isExtractSlot`, which
 says whether a slot names one of a step's body, header or text-capture slots
-(the last through `captureSlotsOf`, which skips `absent` guards). The
-`API_DIRECT_OUTCOME_RULES` in `Core/Builder/ApiDirectStepRules.ts` reject empty
+(the last through `captureSlotsOf`, which skips `absent` guards).
+It also holds `isBodyPointer`, which accepts a JSON pointer below the body
+root, `isBadCharCap`, which refuses a `maxChars` that is not an integer from 1
+to 65536, and the answer-classifier walk: `classifiersOf` lists every step's
+`classify`, `anyClassifier` breaks a rule when any of them fails a
+`ClassifierCheck`, and `answerChecksOf` and `answerCapturesOf` list a
+classifier's checks and its `AnswerCaptureEntry` slot and capture pairs.
+The `API_DIRECT_OUTCOME_RULES` in `Core/Builder/ApiDirectStepRules.ts` reject empty
 success lists and case-insensitive failure-map collisions before warm-start
 checks. The
 session-transport rules, `API_DIRECT_TRANSPORT_RULES` in
@@ -1059,6 +1077,9 @@ rules, `API_DIRECT_CODEC_RULES` in `Core/Builder/ApiDirectCodecRules.ts`,
 the step URL rules, `API_DIRECT_URL_RULES` in
 `Core/Builder/ApiDirectUrlRules.ts`, and the optional-ref rule,
 `API_DIRECT_OPTIONAL_REF_RULES` in `Core/Builder/ApiDirectOptionalRefRules.ts`,
+then the answer-classifier rules (N50), `API_DIRECT_CLASSIFY_RULES` in
+`Core/Builder/ApiDirectClassifyRules.ts` and `API_DIRECT_CLASSIFY_SLOT_RULES` in
+`Core/Builder/ApiDirectClassifySlotRules.ts`,
 then the dynamic client-certificate
 rules, `API_DIRECT_CLIENT_CERT_RULES` in
 `Core/Builder/ApiDirectClientCertRules.ts`, then the session rules,
@@ -1149,6 +1170,19 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a login or resume step with both `rawQuery` and `queryTemplate` (`API_DIRECT_URL_RULES`)                                              | `steps.rawQuery: not with queryTemplate`                                 |
 | a `urlFromCarry` slot that no earlier step of the same list (login or resume) checks with an `extractRules` `url` rule                | `steps.urlFromCarry: slot needs an earlier url rule`                     |
 | an optional `$ref` at a body or query root, inside an array or in a header (`API_DIRECT_OPTIONAL_REF_RULES`)                          | `steps: optional ref only as an object value`                            |
+| a `response: 'document'` step with any `extractsToCarry` or `optionalExtractsToCarry`                                                 | `steps.response: a document step reads no body extracts`                 |
+| a login or resume step whose `classify` has no case, or a case with an empty `when` (`API_DIRECT_CLASSIFY_RULES`)                     | `steps.classify: needs cases, each with a check`                         |
+| a `classify` check that names no kind, or several of `absent`, `equals`, `oneOf`, `items`, `keys` and `text`                          | `steps.classify: each check names exactly one kind`                      |
+| a `classify` check or capture pointer with no alternative, or an alternative that is not a JSON pointer below the body root           | `steps.classify: each pointer must be a JSON pointer`                    |
+| a `classify` text `pattern` that does not start with `^`, end with `$` and compile alone with the `u` flag                            | `steps.classify.text.pattern: must be an anchored regex`                 |
+| a `classify` text `pattern` with a group, an alternation or a variable repeat before its last atom                                    | `steps.classify.text.pattern: must be a flat regex`                      |
+| a `classify` text check or capture whose `maxChars` is not an integer from 1 to 65536                                                 | `steps.classify.maxChars: must be an integer from 1 to 65536`            |
+| a `classify` capture with both `onlyKey` and `integer`                                                                                | `steps.classify.captures: onlyKey and integer are exclusive`             |
+| a `classify` capture `integer` range with a fractional bound, or a `min` above its `max`                                              | `steps.classify.captures.integer: must be an integer range`              |
+| a `classify` capture whose slot is the classifier's `into` (`API_DIRECT_CLASSIFY_SLOT_RULES`)                                         | `steps.classify.captures: a slot must not be into`                       |
+| a `classify` `into` or capture slot that is a body, optional, header or text-capture extract slot of the same step                    | `steps.classify: slots must not be extract slots of the step`            |
+| a `sessionCarry` slot that is the `into` of some `classify`                                                                           | `steps.classify.into: must not be a sessionCarry slot`                   |
+| a `runIf` whose `carry` some `classify` writes, with a `oneOf` text that no case written to that slot is named                        | `steps.runIf: on a classifier slot, oneOf lists only case names`         |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
@@ -1176,7 +1210,8 @@ range); every earlier quantifier must be an exact `{n}`. So `^\d{1,4}$`,
 `^.{1,64}$` and `^\d{3}-\d{2,4}$` pass, while `(a+)+`, `^a*a*b$`, `^\w+!$` and
 `^.*a{20000}$` fail. The earlier atoms then match one way, and each count the
 last atom backs off to costs only the `$` check, so a failed match is linear in
-the input.
+the input. `isBadRegex`, beside it, refuses a pattern that does not start with
+`^`, end with `$` and compile alone with the `u` flag.
 
 A `textCaptures` pattern cannot be flat, since it takes a group. The build
 still refuses a repeated group — `(…)` followed by `*`, `+` or `{`, the shape

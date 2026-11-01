@@ -22,9 +22,11 @@ import {
   allSteps,
   type IApiDirectRule,
   type IApiDirectRuleInput,
+  isBadCharCap,
+  isBodyPointer,
   isExtractSlot,
 } from './ApiDirectRuleInput.js';
-import { isFlatPattern } from './FlatPattern.js';
+import { isBadRegex, isFlatPattern } from './FlatPattern.js';
 
 /**
  * An outcome with no success codes would refuse every response.
@@ -58,15 +60,6 @@ const API_DIRECT_OUTCOME_RULES: readonly IApiDirectRule[] = [
 ];
 
 /**
- * Whether a guard entry is a pointer below the body root.
- * @param pointer - One `failIfPresent` entry.
- * @returns True for `/` followed by at least one character.
- */
-function isBodyPointer(pointer: string): boolean {
-  return pointer.startsWith('/') && pointer.length > 1;
-}
-
-/**
  * Whether a step's guard holds an entry that is not a body pointer.
  * @param step - Step config.
  * @returns True for a bad entry.
@@ -85,8 +78,6 @@ function hasBadGuardPointer(input: IApiDirectRuleInput): boolean {
   const steps = allSteps(input.call);
   return steps.some(hasBadGuard);
 }
-
-const MAX_RULE_CHARS = 65536;
 
 /** A check on one extract rule. */
 type ExtractRuleCheck = (rule: IExtractRule) => boolean;
@@ -124,30 +115,6 @@ function hasStrayExtractRule(input: IApiDirectRuleInput): boolean {
 }
 
 /**
- * Whether a regex source compiles with the unicode flag.
- * @param pattern - Regex source.
- * @returns True when it compiles.
- */
-function isCompilable(pattern: string): boolean {
-  try {
-    const compiled = new RegExp(pattern, 'u');
-    return compiled instanceof RegExp;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Whether a regex source is unanchored or does not compile.
- * @param pattern - Regex source.
- * @returns True for a broken pattern.
- */
-function isBadRegex(pattern: string): boolean {
-  const isAnchored = pattern.startsWith('^') && pattern.endsWith('$');
-  return !isAnchored || !isCompilable(pattern);
-}
-
-/**
  * Whether a rule's pattern is broken.
  * @param rule - Extract rule.
  * @returns True for a pattern that is unanchored or does not compile.
@@ -173,9 +140,7 @@ function isUnflatPattern(rule: IExtractRule): boolean {
  * @returns True for a `maxChars` that is not an integer from 1 to 65536.
  */
 function isBadMaxChars(rule: IExtractRule): boolean {
-  const max = rule.maxChars;
-  if (max === undefined) return false;
-  return !Number.isInteger(max) || max < 1 || max > MAX_RULE_CHARS;
+  return rule.maxChars !== undefined && isBadCharCap(rule.maxChars);
 }
 
 /**
