@@ -10,9 +10,9 @@ import { isOk, succeed } from '../../../Types/Procedure.js';
 import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { answerSlots } from './RunStep.answerSlots.js';
+import { openGuardedAnswer } from './RunStep.codec.js';
 import { deriveStepCarry } from './RunStep.derive.js';
 import { ruleStepCarry } from './RunStep.extractRules.js';
-import { guardBankError } from './RunStep.failIfPresent.js';
 import { sanitiseStepFailure } from './RunStep.failure.js';
 import { fireStep } from './RunStep.fire.js';
 import { extractOptional } from './RunStep.optional.js';
@@ -100,22 +100,33 @@ function collectCarry(bundle: IDispatchBundle, resp: JsonValue): Procedure<Carry
 }
 
 /**
- * Guard against a bank error, judge the step's outcome, fold the response
- * carry into the prepared scope, then derive the step's own slots. A bank
- * error fails before the outcome; a refused outcome before any extract.
+ * Judge the step's outcome, fold the response carry into the prepared scope,
+ * then derive the step's own slots. A refused outcome fails before any
+ * extract.
  * @param bundle - Dispatch bundle.
- * @param resp - Successful response JSON.
+ * @param resp - Opened, guarded response JSON.
  * @returns Procedure with the merged scope.
  */
 function extractAndMerge(bundle: IDispatchBundle, resp: JsonValue): Procedure<ITemplateScope> {
-  const guarded = guardBankError(bundle.fireScope.step, resp);
-  if (!isOk(guarded)) return guarded;
   const judged = judgeStepOutcome(bundle.fireScope.step, resp);
   if (!isOk(judged)) return judged;
   const carry = collectCarry(bundle, resp);
   if (!isOk(carry)) return carry;
   const merged = mergeScopeCarry(bundle.preparedScope, carry.value);
   return deriveStepCarry(bundle.fireScope.step, merged);
+}
+
+/**
+ * Open a codec step's answer (N39) and guard it against bank errors (N20),
+ * then judge and extract from it. A bank error fails before the outcome.
+ * @param bundle - Dispatch bundle.
+ * @param resp - Successful response JSON.
+ * @returns Procedure with the merged scope.
+ */
+function openAndMerge(bundle: IDispatchBundle, resp: JsonValue): Procedure<ITemplateScope> {
+  const opened = openGuardedAnswer(bundle, resp);
+  if (!isOk(opened)) return opened;
+  return extractAndMerge(opened.value.bundle, opened.value.answer);
 }
 
 /**
@@ -158,7 +169,7 @@ async function fireAndMergeScope(bundle: IDispatchBundle): Promise<Procedure<ITe
     return sanitiseStepFailure(bundle.fireScope.step.name, respProc);
   }
   logFireOk(bundle, respProc.value);
-  return extractAndMerge(bundle, respProc.value);
+  return openAndMerge(bundle, respProc.value);
 }
 
 /**

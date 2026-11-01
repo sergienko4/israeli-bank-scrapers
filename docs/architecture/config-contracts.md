@@ -74,7 +74,7 @@ from (cross-package imports such as `Registry/WK/*` are omitted for brevity).
 | **EnvelopeTypes** | `IFingerprintConfig`, `AuthScheme`, `IJwtClaimsConfig`, `IProbeConfig`, `IPreStepHook`, `PreHookReuse` | TemplateTypes, SignerTypes |
 | **FlowTypes** | `FlowKind`, `CookieHandoff`, `AuthRecovery`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract`, `IHeaderExtract`, `ExtractValueType`, `IExtractRule`, `IPemCertificateRule`, `IRunIf`, `IStepClientCert` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, GeneratorTypes, WireTypes |
 | **GeneratorTypes** | `ICarryGenerator`, `CarryGeneratorKind`, `IRsaKeyGenerator`, `IPkcs10CsrGenerator`, `IEcdhKeyGenerator`, `ICsrSubjectEntry`, `CsrSubjectAttr` | TemplateTypes |
-| **WireTypes** | `ITextCapture`, `IFormCapture` | (none) |
+| **WireTypes** | `ITextCapture`, `IFormCapture`, `EnvelopeCodec`, `IEnvelopeSealed` | (none) |
 | **ApiDirectCallConfig** | `IApiDirectCallConfig`, `IPersistentAuthConfig`, `CredRule` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, FlowTypes |
 
 Notes:
@@ -89,7 +89,7 @@ Notes:
   referenced by `FlowTypes.IStepBase.deriveCarry`.
 
 Every file is **≤ 150 effective LoC** (blank and comment lines skipped;
-current max: `FlowTypes.ts` at 135) and is held there by an ESLint guard
+current max: `FlowTypes.ts` at 137) and is held there by an ESLint guard
 (`eslint.config.mjs` §14) plus a canary fixture
 (`EslintCanaries/no-api-direct-call-blob.canary.ts`).
 
@@ -131,6 +131,7 @@ this contract; the build-time checks read both.
 | Carry values the bank returns in response headers | `headerExtractsToCarry` (`IHeaderExtract`) | FlowTypes | [Response-header carry](pipeline.md#response-header-carry) |
 | Carry values found by pattern in a text answer, and its size cap | `textCaptures` (`ITextCapture`), `maxTextChars` | WireTypes, FlowTypes | [Text captures](../phases/api-direct-call.md#text-captures) |
 | A login form's hidden fields, read off a text answer into one carry slot | `formCapture` (`IFormCapture`) | WireTypes, FlowTypes | [Login-form capture](../phases/api-direct-call.md#login-form-capture) |
+| Seal one POST step's JSON body and open its answer under a carried AES session | `codec` (`EnvelopeCodec`, `IEnvelopeSealed`) | WireTypes, FlowTypes | [Envelope codec](../phases/api-direct-call.md#envelope-codec) |
 | Carry slots built from one step's extracts | `deriveCarry` (`IDerivedCarry`) | FlowTypes | [Carry derivation](../phases/api-direct-call.md#carry-derivation) |
 | Send one step's body as a URL-encoded form (UTF-8 or Latin-1) or as plain text | `encoding` (`BodyEncoding`) | FlowTypes | [Form bodies](pipeline.md#form-bodies) |
 | Seal a credential into one step's body | `seal` (`ISealFieldConfig`) | SignerTypes, FlowTypes | [Sealed fields](pipeline.md#sealed-fields) |

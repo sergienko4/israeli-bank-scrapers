@@ -6,7 +6,8 @@
  * `JsonValueTemplate` referenced by IStepConfig), EnvelopeTypes
  * (`IPreStepHook` referenced by IStepConfig.preHook), SignerTypes
  * (`ISealFieldConfig` referenced by IStepConfig.seal) and WireTypes
- * (`ITextCapture`, `IFormCapture` referenced by IStepBase). Top-level
+ * (`ITextCapture`, `IFormCapture` referenced by IStepBase, `EnvelopeCodec`
+ * by IPostStep). Top-level
  * ApiDirectCallConfig composes the FlowKind discriminator + steps array
  * from here.
  *
@@ -31,7 +32,7 @@ import type {
   JsonValueTemplate,
   RefToken,
 } from './TemplateTypes.js';
-import type { IFormCapture, ITextCapture } from './WireTypes.js';
+import type { EnvelopeCodec, IFormCapture, ITextCapture } from './WireTypes.js';
 
 /** Exhaustive flow-kind discriminator (spec.txt §B.3). */
 type FlowKind = 'sms-otp' | 'stored-jwt' | 'bearer-static';
@@ -242,6 +243,8 @@ interface IPostStep extends IStepBase {
    * body must be a flat record; a `text` body must be exactly `{ text }`.
    */
   readonly encoding?: BodyEncoding;
+  /** Envelope the JSON body and answer travel in (N39); none when absent. */
+  readonly codec?: EnvelopeCodec;
 }
 
 /** A GET step: it sends no body, so the type rules one out. */
@@ -249,6 +252,7 @@ interface IGetStep extends IStepBase {
   readonly method: 'GET';
   readonly body?: never;
   readonly encoding?: never;
+  readonly codec?: never;
 }
 
 /** Per-step config: a POST or a GET step. */

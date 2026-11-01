@@ -330,7 +330,9 @@ failIfPresent: ['/error', '/Error', '/errors'],
 Any pointer that resolves to a truthy scalar or a non-empty array or record
 fails the step `Generic` with `<step> bank error`, whatever the outcome's
 `defaultFailure` is. Absent, `null`, `false`, `0`, `''`, `[]` and `{}` are not
-errors. The message never echoes the bank's value.
+errors. The message never echoes the bank's value. `bankErrorOf` builds that
+failure, and the [envelope codec](#envelope-codec) reuses it; on a step with a
+codec the pointers read the opened answer.
 
 An outcome failure in a warm resume is a failure like any other, so the
 resolver still falls back to one cold flow. When the cold flow also fails, its
@@ -462,6 +464,55 @@ formCapture: {
   form body sends it back through a [`$merge`](#jsonvaluetemplate). The slot
   is not an extract slot, so no extract rule may name it and `sessionCarry`
   cannot keep it. A failure names the step only, never a field or a value.
+
+### Envelope codec
+
+Some banks wrap every JSON request and answer in an AES-256-CBC envelope. A
+POST step names it with `codec` (an `EnvelopeCodec`, N39). In `sealed` mode
+(`IEnvelopeSealed`) the session key and the crypto session id come from carry:
+
+```ts
+codec: {
+  kind: 'ecdh-aes-cbc',
+  mode: 'sealed',
+  keyRef: 'carry.envelopeKey',
+  sessionRef: 'carry.envelopeSession',
+},
+```
+
+- `keyRef` must name canonical base64 of 32 bytes and `sessionRef` a 1..512
+  character id (`toSession`, in `Crypto/EnvelopeCodec.ts`); anything else
+  fails `<step> envelope key invalid` before the request is sent.
+- `sealGuardedBody` (in `Flow/RunStep.codec.ts`) seals the body last, after
+  its signature and form guard. The hydrated body must be exactly
+  `{ headers, data }`: at most 16 header records and a data record, or the
+  step fails `<step> envelope body invalid`. `sealEnvelope` sends `headers`
+  (one `encryption` record naming the `iv` and the `crypto_session_id`),
+  `enc_headers` and `data`: each header and the data are sealed as UTF-8
+  JSON, PKCS#7 padded, base64, under one fresh 16-byte IV.
+- `openGuardedAnswer` opens the answer before its
+  [bank-error guard](#bank-error-guard), outcome and extracts, which then read
+  `{ headers, data }`: the answer's own headers and the opened data. So
+  `/data/state` reads an opened field and `/headers/?type=session_id/...` an
+  original header.
+- `openEnvelope` (in `Crypto/EnvelopeCodec.open.ts`) opens only an answer
+  sealed for this session. Its `headers` are at most 16 records,
+  `enc_headers` is absent or empty, and exactly one `encryption` header names
+  this session or none. Its IV is canonical base64 of 16 bytes, and its
+  `data` canonical base64 of whole blocks, at most 4 194 304 characters, that
+  decrypts to a strict UTF-8 JSON record. Anything else fails
+  `<step> envelope invalid`.
+- An answer must come back sealed (N52). A plaintext answer with a non-zero
+  numeric `error_code` fails `<step> bank error`; any other plaintext answer
+  fails `<step> envelope invalid`. Opened data with such an `error_code` fails
+  `<step> bank error` too.
+- Only the opened data's top-level keys are logged. A failure names the step
+  only, never a key, an IV or plaintext.
+- `toSession` returns an `IEnvelopeSession` (the key bytes and the id).
+  `Crypto/EnvelopeWire.ts` holds what sealing and opening share: `CIPHER`
+  (`aes-256-cbc`), `IV_BYTES` (16), `canonicalBytes` (base64 that re-encodes
+  to the same text), `isJsonRecord`, `headerList` and `headersOfType`. Tests
+  pass `sealEnvelopeWithIv` a fixed IV to match openssl goldens.
 
 ### Conditional steps
 

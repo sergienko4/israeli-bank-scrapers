@@ -1,10 +1,11 @@
 /**
- * WireTypes — the answer-reading concern slice of the API-DIRECT-CALL config
+ * WireTypes — the wire-reading concern slice of the API-DIRECT-CALL config
  * contract: what a step captures from a `text` answer (N36 text captures,
- * N37 login-form capture).
+ * N37 login-form capture) and how a POST step's body and answer are
+ * enveloped (N39 envelope codec).
  *
  * A root bucket: no intra-cluster deps. FlowTypes references these from
- * `IStepBase`.
+ * `IStepBase` and `IPostStep`.
  *
  * Rule #11 compliance: zero bank-name strings.
  */
@@ -45,4 +46,21 @@ interface IFormCapture {
   readonly maxFields: number;
 }
 
-export type { IFormCapture, ITextCapture };
+/**
+ * The `sealed` mode of the AES-CBC envelope codec (N39): the step's hydrated
+ * `{ headers, data }` body goes out sealed under the session key, and its
+ * answer must come back sealed for the same session (N52).
+ */
+interface IEnvelopeSealed {
+  readonly kind: 'ecdh-aes-cbc';
+  readonly mode: 'sealed';
+  /** Carry ref of the session key: canonical base64 of 32 bytes. */
+  readonly keyRef: `carry.${string}`;
+  /** Carry ref of the crypto session id: 1..512 characters. */
+  readonly sessionRef: `carry.${string}`;
+}
+
+/** How a POST step's request and answer are enveloped (N39). */
+type EnvelopeCodec = IEnvelopeSealed;
+
+export type { EnvelopeCodec, IEnvelopeSealed, IFormCapture, ITextCapture };

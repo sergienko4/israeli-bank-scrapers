@@ -1,7 +1,7 @@
 /**
  * Body preparation + dispatch-bundle assembly — hydration, crypto
  * field, credential seal, AES body-pointer signing, form-body guard,
- * fire-args assembly, log-context.
+ * envelope seal, fire-args assembly, log-context.
  */
 
 import { getDebug } from '../../../Logging/Debug.js';
@@ -11,8 +11,8 @@ import { isOk, succeed } from '../../../Types/Procedure.js';
 import type { IBodyTemplate } from '../ConfigContracts/index.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import { sealGuardedBody } from './RunStep.codec.js';
 import buildOnSetCookie from './RunStep.cookies.js';
-import { guardFormBody } from './RunStep.form.js';
 import { attachHeaderCapture } from './RunStep.headerCarry.js';
 import { buildStepHeaders } from './RunStep.headers.js';
 import { applySeal } from './RunStep.seal.js';
@@ -87,8 +87,8 @@ function attachBodySig(preBody: IPreparedBody, pathAndQuery: string): Procedure<
 /**
  * Resolve the step's body — hydrate template, prime carry, apply
  * cryptoField encryption, seal the credential field, attach the AES
- * body-pointer signature. A GET step sends no body, so only its carry is
- * primed.
+ * body-pointer signature, guard a form body, seal the envelope (N39). A GET
+ * step sends no body, so only its carry is primed.
  * @param args - Run-step args.
  * @param pathAndQuery - Canonical-string path+query.
  * @returns Procedure with the ready-to-send body + the post-prep scope.
@@ -101,7 +101,7 @@ function prepareStepBody(args: IRunStepArgs, pathAndQuery: string): Procedure<IP
   if (!isOk(preProc)) return preProc;
   const signed = attachBodySig(preProc.value, pathAndQuery);
   if (!isOk(signed)) return signed;
-  return guardFormBody(step, signed.value);
+  return sealGuardedBody(step, signed.value);
 }
 
 /**
