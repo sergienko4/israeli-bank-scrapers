@@ -4,7 +4,8 @@
  *   - primeInitial   cheap path (stored JWT / stored OTP)
  *   - primeFresh     full SMS/OTP flow
  *   - hasWarmState   may a failed primeInitial retry via primeFresh?
- * An optional mayEscalateWarmFailure narrows which failures may fall back.
+ * Optional mayEscalateWarmFailure narrows which failures may fall back;
+ * primeRecover re-grants a rejected session for whole-scrape recovery.
  * ApiMediator bridges strategy → ITokenResolver via
  * buildResolverFromStrategy, which owns the retry ladder.
  * This interface declares ZERO bank-specific types — Rule #11
@@ -40,6 +41,11 @@ interface ITokenStrategy<TCreds> {
    * absent, every such failure may.
    */
   mayEscalateWarmFailure?(failure: IProcedureFailure): boolean;
+  /**
+   * Re-grant a session the bank rejected mid-scrape, before the whole scrape
+   * re-runs. Absent, recovery runs primeFresh through `refresh`.
+   */
+  primeRecover?(bus: ITokenBus, ctx: ITokenContext, creds: TCreds): TokenPrimeProcedure;
 }
 
 export type { ITokenStrategy, TokenPrimeProcedure };

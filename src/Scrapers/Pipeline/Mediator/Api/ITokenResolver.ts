@@ -6,6 +6,8 @@
  *
  *   - `resolve()` once when priming a session.
  *   - `refresh()` exactly once on any 401 response to rotate the token.
+ *   - `recover()`, when present, to re-grant a rejected session before a
+ *     whole scrape re-runs; absent, `refresh()` runs instead.
  *
  * The port declares ZERO bank-specific types — Rule #11 (generic
  * architecture). Concrete resolvers live under `Banks/<Bank>/login/`.
@@ -39,6 +41,7 @@ interface ITokenResolver {
   readonly name: string;
   resolve(): Promise<Procedure<string>>;
   refresh(): Promise<Procedure<string>>;
+  recover?(): Promise<Procedure<string>>;
 }
 
 /** Diagnostic message used by NullResolver on both methods. */

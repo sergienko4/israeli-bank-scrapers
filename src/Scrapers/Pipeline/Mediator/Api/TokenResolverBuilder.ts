@@ -13,6 +13,9 @@
  *              failure verbatim.
  *   refresh()  always runs primeFresh (invoked by ApiMediator's
  *              retryOn401 wrapper on any 401 mid-session).
+ *   recover()  runs primeRecover; bound only when the strategy has
+ *              it (ApiMediator's recoverSession falls back to
+ *              refresh otherwise).
  */
 
 import type { ITokenBus } from '../../Types/Domain/TokenBus.js';
@@ -102,6 +105,23 @@ function bindResolverPair<TCreds>(
 }
 
 /**
+ * Bind recover() to the strategy's primeRecover, when it has one.
+ * @param deps - Closure deps bag.
+ * @returns A bound recover, or nothing when the strategy cannot re-grant.
+ */
+function bindRecover<TCreds>(deps: IBuilderDeps<TCreds>): Pick<ITokenResolver, 'recover'> {
+  const { strategy } = deps;
+  if (!strategy.primeRecover) return {};
+  const primeRecover = strategy.primeRecover.bind(strategy);
+  /**
+   * Recover curried over closure deps — runs the strategy's re-grant.
+   * @returns Header-value procedure from primeRecover.
+   */
+  const recover = (): Promise<Procedure<string>> => primeRecover(deps.bus, deps.ctx, deps.creds);
+  return { recover };
+}
+
+/**
  * Wire a token strategy + deps into a bound ITokenResolver.
  * @param args - Strategy + bus + ctx + creds bundle.
  * @returns Bound token resolver.
@@ -113,7 +133,7 @@ function buildResolverFromStrategy<TCreds>(args: IBuildResolverArgs<TCreds>): IT
     ctx: args.ctx,
     creds: args.creds,
   };
-  return { name: args.strategy.name, ...bindResolverPair(deps) };
+  return { name: args.strategy.name, ...bindResolverPair(deps), ...bindRecover(deps) };
 }
 
 export default buildResolverFromStrategy;

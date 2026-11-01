@@ -1075,6 +1075,13 @@ so the whole scrape starts over instead. `setAuthPolicyOp` stores the flag and
 `recoversWholeScrape()`. The scrape phase reads it to pick its recovery rule;
 see [Session recovery](api-direct-scrape.md#session-recovery).
 
+`recoverSession` re-grants the session rather than logging in again when the
+strategy can. It calls the resolver's optional `recover()`, which
+`TokenResolverBuilder` binds to the strategy's optional `primeRecover`. A
+resolver without one runs `refresh()` (`primeFresh`), as before. Both share the
+`isRefreshing` re-entrancy guard in `guardedMintOp`. A 401 or 403 inside one
+call still runs `refresh()` through `retryOn401Op`.
+
 ## Persistent (durable) device auth
 
 A bank whose config declares a `persistentAuth` block can keep its bound device

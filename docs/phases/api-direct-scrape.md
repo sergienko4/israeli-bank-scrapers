@@ -112,11 +112,12 @@ rather than the degraded or failed first scrape. Both sites use
 ## Session recovery
 
 `runScrapeWithRecovery` runs the scrape. When `shouldRecoverSession` says so,
-it calls `recoverSession` and re-runs the whole scrape once, bootstrap
-included. A failed recovery returns the first outcome. An edge refusal never
-recovers (see above). Otherwise the bank's
-[`authRecovery`](api-direct-call.md#auth-recovery) picks one of two rules, and
-they never mix:
+it calls `recoverSession` (a re-grant when the strategy has `primeRecover`,
+else a cold login; see [Auth recovery](api-direct-call.md#auth-recovery)) and
+re-runs the whole scrape once, bootstrap included. A failed recovery returns
+the first outcome. An edge refusal never recovers (see above). Otherwise the
+bank's [`authRecovery`](api-direct-call.md#auth-recovery) picks one of two
+rules, and they never mix:
 
 | Mode                    | Recovers when                                                                                         | Stands                                                          |
 | ----------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
