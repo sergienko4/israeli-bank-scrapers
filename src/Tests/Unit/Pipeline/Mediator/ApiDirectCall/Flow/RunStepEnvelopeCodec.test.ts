@@ -4,7 +4,9 @@
  * answer before any guard, outcome or extract reads it: extracts see the
  * original headers and the opened data. A plaintext answer can only fail — a
  * bank error when it carries a non-zero numeric `error_code`, an invalid
- * envelope otherwise. Failures name the step, never a key, IV or plaintext.
+ * envelope otherwise. A bank error takes the step's `bankErrorType`, an
+ * invalid envelope stays Generic. Failures name the step, never a key, IV or
+ * plaintext.
  */
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
@@ -57,6 +59,12 @@ const SEALED_STEP: IPostStep = {
   extractsToCarry: { state: '/data/state', sid: '/headers/1/session_id' },
 };
 
+/** The sealed step, typing its bank errors as a wrong OTP. */
+const TYPED_STEP: IPostStep = { ...SEALED_STEP, bankErrorType: ScraperErrorTypes.InvalidOtp };
+
+const PLAINTEXT_ANSWER = { headers: [SESSION_HEADER], data: { state: 'pending' } };
+const PLAINTEXT_ERROR = { error_code: 10, error_message: 'syn-text' };
+
 /** The JSON request a sealed step sent. */
 interface ISentEnvelope {
   readonly headers: readonly { readonly type: string; readonly iv: string }[];
@@ -95,13 +103,17 @@ function serve(answer: object): IFetchFake {
 }
 
 /**
- * Fire the sealed step through the real mediator and native transport.
+ * Fire a sealed step through the real mediator and native transport.
  * @param scope - Step scope.
+ * @param step - The sealed step; the untyped one by default.
  * @returns The step result.
  */
-async function fireSealed(scope: ITemplateScope): Promise<Procedure<ITemplateScope>> {
+async function fireSealed(
+  scope: ITemplateScope,
+  step: IPostStep = SEALED_STEP,
+): Promise<Procedure<ITemplateScope>> {
   const bus = makeNativeMediator(HINT, ORIGIN);
-  return runStep({ step: SEALED_STEP, bus, scope, companyId: HINT });
+  return runStep({ step, bus, scope, companyId: HINT });
 }
 
 /**
@@ -151,12 +163,8 @@ describe('N39 sealed step', () => {
   });
 
   it.each([
-    [
-      'a plaintext answer',
-      { headers: [SESSION_HEADER], data: { state: 'pending' } },
-      'envelope invalid',
-    ],
-    ['a plaintext error_code', { error_code: 10, error_message: 'syn-text' }, 'bank error'],
+    ['a plaintext answer', PLAINTEXT_ANSWER, 'envelope invalid'],
+    ['a plaintext error_code', PLAINTEXT_ERROR, 'bank error'],
     ['an opened error_code', sealedAnswer({ error_code: 4001, state: 'pending' }), 'bank error'],
     ['an opened guard pointer', sealedAnswer({ assertion_error_code: 7 }), 'bank error'],
   ])('fails %s, naming the step only', async (_label: string, answer: object, reason: string) => {
@@ -167,6 +175,32 @@ describe('N39 sealed step', () => {
       success: false,
       errorType: ScraperErrorTypes.Generic,
       errorMessage: `login ${reason}`,
+    });
+  });
+
+  it.each([
+    ['a plaintext error_code', PLAINTEXT_ERROR],
+    ['an opened error_code', sealedAnswer({ error_code: 4001, state: 'pending' })],
+    ['an opened guard pointer', sealedAnswer({ assertion_error_code: 7 })],
+  ])("fails %s with the step's bankErrorType", async (_label: string, answer: object) => {
+    serve(answer);
+    const scope = scopeWith();
+    const result = await fireSealed(scope, TYPED_STEP);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.InvalidOtp,
+      errorMessage: 'login bank error',
+    });
+  });
+
+  it('keeps an invalid envelope Generic on a typed step', async () => {
+    serve(PLAINTEXT_ANSWER);
+    const scope = scopeWith();
+    const result = await fireSealed(scope, TYPED_STEP);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'login envelope invalid',
     });
   });
 

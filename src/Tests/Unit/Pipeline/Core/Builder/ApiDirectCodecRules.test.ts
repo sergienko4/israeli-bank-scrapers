@@ -119,6 +119,7 @@ const REFUSALS: readonly IRefusalCase[] = [
 const ACCEPTED: readonly IRunCase[] = [
   { label: 'the bank flow', change: {} },
   { label: 'explicit json', change: { encoding: 'json', response: 'json' } },
+  { label: 'a typed bank error', change: { bankErrorType: ScraperErrorTypes.InvalidPassword } },
 ];
 
 describe('validateApiDirectConfig — N39 envelope codec', () => {

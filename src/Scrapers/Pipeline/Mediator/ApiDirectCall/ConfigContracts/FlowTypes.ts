@@ -237,6 +237,8 @@ interface IStepBase {
   readonly clientCert?: IStepClientCert;
   /** Body pointers that, present and truthy, fail the step `<step> bank error` (N20). */
   readonly failIfPresent?: readonly string[];
+  /** Failure type of `<step> bank error`: a guard hit or a codec `error_code`; default Generic. */
+  readonly bankErrorType?: ScraperErrorTypes;
   /** Rules per body- or header-extract slot, checked once the answer is read (N18, N27). */
   readonly extractRules?: Readonly<Record<string, IExtractRule>>;
   /** Guard checked before the pre-hook; a miss skips the step (N14). */

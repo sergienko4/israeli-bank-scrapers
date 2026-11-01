@@ -2,10 +2,10 @@
  * Step bank-error guard (N20). Some banks answer a failed step with HTTP 200
  * and an error field. A step that declares `failIfPresent` has those body
  * pointers checked right after the body is parsed, before its outcome and its
- * extracts: any present, truthy value fails the step Generic, whatever the
- * outcome's default. Null, false, 0, '' and empty arrays or records are not
- * errors. The failure never echoes the bank's value; the envelope codec (N52)
- * fails a bank `error_code` the same way.
+ * extracts: any present, truthy value fails the step with its `bankErrorType`
+ * (Generic when unset), whatever the outcome's default. Null, false, 0, ''
+ * and empty arrays or records are not errors. The failure never echoes the
+ * bank's value; the envelope codec (N52) fails a bank `error_code` the same way.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
@@ -40,17 +40,18 @@ function isErrorAt(resp: JsonValue, pointer: string): boolean {
 /**
  * The failure a step fails with when its answer reports a bank error.
  * @param step - The step that answered.
- * @returns A Generic `<step> bank error` naming no value.
+ * @returns A `<step> bank error` of the step's `bankErrorType`, naming no value.
  */
 function bankErrorOf(step: IStepConfig): IProcedureFailure {
-  return fail(ScraperErrorTypes.Generic, `${step.name} bank error`);
+  const errorType = step.bankErrorType ?? ScraperErrorTypes.Generic;
+  return fail(errorType, `${step.name} bank error`);
 }
 
 /**
  * Guard a step's 2xx body against bank errors, if it declares a guard.
  * @param step - The step that just answered.
  * @param resp - Parsed 2xx response body.
- * @returns Success, or a Generic `<step> bank error` naming no value.
+ * @returns Success, or a `<step> bank error` naming no value.
  */
 function guardBankError(step: IStepConfig, resp: JsonValue): Procedure<true> {
   const pointers = step.failIfPresent ?? [];

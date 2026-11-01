@@ -414,11 +414,24 @@ failIfPresent: ['/error', '/Error', '/errors'],
 ```
 
 Any pointer that resolves to a truthy scalar or a non-empty array or record
-fails the step `Generic` with `<step> bank error`, whatever the outcome's
+fails the step with `<step> bank error`, whatever the outcome's
 `defaultFailure` is. Absent, `null`, `false`, `0`, `''`, `[]` and `{}` are not
 errors. The message never echoes the bank's value. `bankErrorOf` builds that
 failure, and the [envelope codec](#envelope-codec) reuses it; on a step with a
 codec the pointers read the opened answer.
+
+The failure is `Generic` unless the step sets `bankErrorType`, for a bank whose
+error field on a given step can only mean one thing:
+
+```ts
+failIfPresent: ['/data/assertion_error_code'],
+bankErrorType: ScraperErrorTypes.InvalidPassword,
+```
+
+The type covers every `<step> bank error` of that step, a guard hit or a codec
+`error_code`; the message stays the same. The build refuses a `bankErrorType`
+on a step with no `failIfPresent` entry and no codec, since it would type an
+error the step never raises.
 
 An outcome failure in a warm resume is a failure like any other, so the
 resolver still falls back to one cold flow. When the cold flow also fails, its
@@ -678,9 +691,10 @@ codec: {
   decrypts to a strict UTF-8 JSON record. Anything else fails
   `<step> envelope invalid`.
 - An answer must come back sealed (N52). A plaintext answer with a non-zero
-  numeric `error_code` fails `<step> bank error`; any other plaintext answer
-  fails `<step> envelope invalid`. Opened data with such an `error_code` fails
-  `<step> bank error` too.
+  numeric `error_code` fails `<step> bank error`, typed by the step's
+  [`bankErrorType`](#bank-error-guard); any other plaintext answer fails
+  `<step> envelope invalid` (`Generic`). Opened data with such an `error_code`
+  fails `<step> bank error` too.
 - Only the opened data's top-level keys are logged. A failure names the step
   only, never a key, an IV or plaintext.
 - `toSession` returns an `IEnvelopeSession` (the key bytes and the id).
@@ -1127,6 +1141,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `seal` whose `writeTo` is not a JSON pointer                                                                                            | `steps.seal.writeTo: must be a JSON pointer`                                       |
 | a `seal` whose `params` are out of range (exponent, seed, block size or printable text)                                                   | `steps.seal.params: out of range`                                                  |
 | a login or resume step with a `failIfPresent` entry that is not a JSON pointer below the body root                                        | `steps.failIfPresent: each entry must be a JSON pointer`                           |
+| a login or resume step with a `bankErrorType` but no `failIfPresent` entry and no codec                                               | `steps.bankErrorType: needs failIfPresent or a codec`                    |
 | an `extractRules` key that names no `extractsToCarry`, `optionalExtractsToCarry`, `headerExtractsToCarry` or `textCaptures` slot              | `steps.extractRules: each key must name a body or header extract`                  |
 | an `extractRules` `pattern` that does not start with `^`, end with `$` and compile with the `u` flag                                      | `steps.extractRules.pattern: must be an anchored regex`                            |
 | an `extractRules` `pattern` with a group, an alternation or a variable repeat before its last atom                                        | `steps.extractRules.pattern: must be a flat regex`                                 |
@@ -1615,7 +1630,7 @@ Where each piece lives, for maintainers:
 | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `INVALID_PASSWORD`                                              | Bank rejected credentials                                                                                                                                                                                                                                                                 |
 | any type a step's `failureMap` names, else its `defaultFailure` | The step's 2xx body reported a non-success [outcome](#step-outcome) code                                                                                                                                                                                                                  |
-| `GENERIC`                                                       | The step's 2xx body held a bank error at a `failIfPresent` pointer (`<step> bank error`) — see [Bank-error guard](#bank-error-guard)                                                                                                                                                      |
+| the step's `bankErrorType`, else `GENERIC`                      | The step's 2xx body held a bank error at a `failIfPresent` pointer (`<step> bank error`) — see [Bank-error guard](#bank-error-guard)                                                                                                                                                      |
 | `GENERIC`                                                       | The step's answer matched no [classifier](#answer-classifier) case or more than one (`<step> answer unrecognized` or `<step> answer ambiguous`), or a capture was refused (`<step> answer capture <slot> missing` or `invalid`)                                                           |
 | the type a matched case's `fail` names                          | The step's answer matched a [classifier](#answer-classifier) case that fails the step (`<step> answer <case>`)                                                                                                                                                                            |
 | `GENERIC`                                                       | A body extract failed its rule (`<step> extract <slot> invalid`) — see [Extract rules](#extract-rules)                                                                                                                                                                                    |

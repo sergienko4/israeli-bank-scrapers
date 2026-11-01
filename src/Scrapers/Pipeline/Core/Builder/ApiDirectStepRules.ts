@@ -3,7 +3,9 @@
  * Outcome rules run before warm-start checks; the remaining rules run after
  * seal rules. Each `failIfPresent` entry (N20) must be a
  * JSON pointer below the body root: a bare key would never resolve, and the
- * root would fail every answer. Each `extractRules` key (N18, N27) must name a
+ * root would fail every answer. A `bankErrorType` needs a `failIfPresent`
+ * guard or a codec, else it types an error the step never raises. Each
+ * `extractRules` key (N18, N27) must name a
  * body or header extract of its step; a `pattern` must be anchored (`^…$`)
  * and compile; `maxChars` must be an integer from 1 to 65536; `oneOf` and
  * `url` must not be empty, since an empty list would refuse every value. A `runIf` guard
@@ -77,6 +79,27 @@ function hasBadGuard(step: IStepConfig): boolean {
 function hasBadGuardPointer(input: IApiDirectRuleInput): boolean {
   const steps = allSteps(input.call);
   return steps.some(hasBadGuard);
+}
+
+/**
+ * Whether a step types a bank error it can never raise.
+ * @param step - Step config.
+ * @returns True for a `bankErrorType` with no guard pointer and no codec.
+ */
+function isIdleErrorType(step: IStepConfig): boolean {
+  if (step.bankErrorType === undefined) return false;
+  const pointers = step.failIfPresent ?? [];
+  return pointers.length === 0 && step.codec === undefined;
+}
+
+/**
+ * Whether any login or resume step types a bank error it can never raise.
+ * @param input - Rule input.
+ * @returns True when a `bankErrorType` has nothing to type.
+ */
+function hasIdleErrorType(input: IApiDirectRuleInput): boolean {
+  const steps = allSteps(input.call);
+  return steps.some(isIdleErrorType);
 }
 
 /** A check on one extract rule. */
@@ -221,6 +244,10 @@ const API_DIRECT_STEP_RULES: readonly IApiDirectRule[] = [
   {
     message: 'steps.failIfPresent: each entry must be a JSON pointer',
     isBroken: hasBadGuardPointer,
+  },
+  {
+    message: 'steps.bankErrorType: needs failIfPresent or a codec',
+    isBroken: hasIdleErrorType,
   },
   {
     message: 'steps.extractRules: each key must name a body or header extract',

@@ -1,8 +1,9 @@
 /**
  * N20 — a step's `failIfPresent` pointers are checked right after the body is
- * parsed: a present, truthy value fails the step Generic `<step> bank error`,
- * before its outcome and before its extracts, and the message names no value.
- * Absent, null, false, 0, '' and empty arrays or records are not errors.
+ * parsed: a present, truthy value fails the step `<step> bank error`, typed
+ * by its `bankErrorType` (Generic when unset), before its outcome and before
+ * its extracts, and the message names no value. Absent, null, false, 0, ''
+ * and empty arrays or records are not errors.
  */
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
@@ -34,11 +35,25 @@ const PLAIN: IStepConfig = {
 /** The same step, guarded by the error pointers. */
 const GUARDED: IStepConfig = { ...PLAIN, failIfPresent: ERRORS };
 
+/** The guarded step, typing its bank errors as a wrong password. */
+const TYPED: IStepConfig = { ...GUARDED, bankErrorType: ScraperErrorTypes.InvalidPassword };
+
 /** Expected failure for a bank error. */
 const BANK_ERROR = {
   success: false,
   errorType: ScraperErrorTypes.Generic,
   errorMessage: 'bind bank error',
+};
+
+/** Expected failure for a bank error on the typed step. */
+const TYPED_ERROR = { ...BANK_ERROR, errorType: ScraperErrorTypes.InvalidPassword };
+
+/** An outcome whose default failure is a wrong OTP. */
+const OTP_OUTCOME = {
+  codePointer: '/state',
+  successCodes: ['landpage'],
+  failureMap: {},
+  defaultFailure: ScraperErrorTypes.InvalidOtp,
 };
 
 /**
@@ -89,6 +104,13 @@ describe('guardBankError', () => {
     const guarded = guardBankError(PLAIN, { errors: ['x'] });
     expect(guarded.success).toBe(true);
   });
+
+  it("fails with the step's bankErrorType, naming no value", () => {
+    const guarded = guardBankError(TYPED, { error: SECRET });
+    expect(guarded).toMatchObject(TYPED_ERROR);
+    const text = JSON.stringify(guarded);
+    expect(text).not.toContain(SECRET);
+  });
 });
 
 describe('SmsOtpFlow with failIfPresent', () => {
@@ -98,14 +120,15 @@ describe('SmsOtpFlow with failIfPresent', () => {
   });
 
   it('fails Generic before an outcome whose default is InvalidOtp', async () => {
-    const outcome = {
-      codePointer: '/state',
-      successCodes: ['landpage'],
-      failureMap: {},
-      defaultFailure: ScraperErrorTypes.InvalidOtp,
-    };
-    const result = await runOne({ ...GUARDED, outcome }, { state: 'nope', error: 'x' });
+    const step = { ...GUARDED, outcome: OTP_OUTCOME };
+    const result = await runOne(step, { state: 'nope', error: 'x' });
     expect(result).toMatchObject(BANK_ERROR);
+  });
+
+  it("fails with the bankErrorType, not the outcome's default", async () => {
+    const step = { ...TYPED, outcome: OTP_OUTCOME };
+    const result = await runOne(step, { state: 'nope', error: 'x' });
+    expect(result).toMatchObject(TYPED_ERROR);
   });
 
   it('fails before the extracts run', async () => {
