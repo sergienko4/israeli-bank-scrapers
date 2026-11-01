@@ -891,7 +891,9 @@ then the text-capture rules, `API_DIRECT_TEXT_RULES` in
 rules, `API_DIRECT_FORM_CAPTURE_RULES` in
 `Core/Builder/ApiDirectFormCaptureRules.ts`,
 then the carry-generator rules, `API_DIRECT_GENERATE_RULES` in
-`Core/Builder/ApiDirectGenerateRules.ts`, then the dynamic client-certificate
+`Core/Builder/ApiDirectGenerateRules.ts`, which end with the envelope codec
+rules, `API_DIRECT_CODEC_RULES` in `Core/Builder/ApiDirectCodecRules.ts`,
+then the dynamic client-certificate
 rules, `API_DIRECT_CLIENT_CERT_RULES` in
 `Core/Builder/ApiDirectClientCertRules.ts`, then the session rules,
 `API_DIRECT_SESSION_RULES` in `Core/Builder/ApiDirectSessionRules.ts`. The
@@ -975,6 +977,9 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a login or resume step with `setCookies`, without `headless.cookieDomains`                                                                | `steps.setCookies: not allowed without headless.cookieDomains`                     |
 | a `setCookies` cookie name that is not an HTTP token (RFC 9110)                                                                           | `steps.setCookies: each name must be an HTTP token`                                |
 | a `seedCarryFromCreds` entry whose `random-hex` bootstrap draws a `bytes` count that is not an integer from 1 to 64                   | `seedCarryFromCreds: random-hex needs integer bytes from 1 to 64`        |
+| a login or resume step with `codec` whose `encoding` or `response` is not `'json'` (`API_DIRECT_CODEC_RULES`)                         | `steps.codec: needs a json body and a json response`                     |
+| an `exchange` codec whose `keyInto` or `sessionInto` is blank, or both name one slot                                                  | `steps.codec: exchange needs distinct keyInto and sessionInto`           |
+| a `sessionCarry` slot that a codec reads or writes: the `privateRef`, `keyRef` or `sessionRef` slot, `keyInto` or `sessionInto`       | `steps.codec: codec slots must not be sessionCarry slots`                |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no

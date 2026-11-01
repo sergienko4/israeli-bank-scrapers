@@ -5,13 +5,15 @@
  * subject and a slot for the request. An `ecdh-key` generator (N38) needs two
  * distinct slots, and its private scalar never reaches `sessionCarry`: the
  * scrape gets server-issued values only. A `random-hex` seed (N42) draws an
- * integer count of bytes from 1 to 64.
+ * integer count of bytes from 1 to 64. The envelope codec rules (N39) of
+ * `ApiDirectCodecRules.ts` run last.
  */
 
 import type {
   ICarryGenerator,
   ISeedCarrySource,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { API_DIRECT_CODEC_RULES } from './ApiDirectCodecRules.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
 
 /** Flags one generator config. */
@@ -156,6 +158,7 @@ const API_DIRECT_GENERATE_RULES: readonly IApiDirectRule[] = [
     message: 'seedCarryFromCreds: random-hex needs integer bytes from 1 to 64',
     isBroken: hasBadRandomHex,
   },
+  ...API_DIRECT_CODEC_RULES,
 ];
 
 export default API_DIRECT_GENERATE_RULES;
