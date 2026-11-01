@@ -240,7 +240,7 @@ function optionalCarriedValue(input: IRulePass, slot: string): IKept | false {
 
 /**
  * Check the raw optional value before its fallback, or a retained pre-hook
- * value when the optional pointer is absent.
+ * value when the optional pointer is absent. A kept slot skips its rule.
  * @param input - Rule pass input.
  * @param slot - Carry slot name.
  * @returns The raw or carried value, or false when the optional slot is absent.
@@ -249,6 +249,7 @@ function slotValue(input: IRulePass, slot: string): IKept | false {
   if (isCarriedSlot(input.step, slot)) return { kept: input.carry[slot] };
   const optional = input.step.optionalExtractsToCarry?.[slot];
   if (optional === undefined) return false;
+  if (optional.keepExisting === true && !Object.hasOwn(input.carry, slot)) return false;
   return optionalRawValue(input.resp, optional.pointer) || optionalCarriedValue(input, slot);
 }
 

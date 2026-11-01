@@ -344,10 +344,18 @@ For a ruled optional slot, `optionalRawValue` retains a present, nonblank
 raw value for `extractRules` before using any fallback; an invalid value is
 refused rather than hidden.
 
+`keepExisting: true` keeps a value carry already holds (N56). The slot is
+written only while carry has no non-empty string for it, so a device id an
+earlier run seeded survives a different id in the answer. When the answer
+differs, the debug log notes `{step, slot, kept: true}` and never the values.
+An `extractRules` entry on a kept slot is skipped. Without the flag, a present
+value still overwrites.
+
 ```ts
 optionalExtractsToCarry: {
   bcKey: { pointer: '/bean/bcKey' },
   userName: { pointer: '/bean/userName', fallback: '' },
+  did: { pointer: '/did', keepExisting: true },
 }
 ```
 
@@ -1770,8 +1778,8 @@ base64url JSON envelope as Pepper's. It holds no token, key or renewal step.
 - **Resume** decodes the state and checks provider and account before any
   request; a mismatch fails by category. It then runs the same login with the
   stored id seeded into carry, so the bank skips its OTP step. The step's
-  optional extract keeps the seeded id when the reply does not echo it, and a
-  resume publishes nothing.
+  `keepExisting` optional extract keeps the seeded id even when the reply
+  carries a different one, and a resume publishes nothing.
 - **Device id check.** In both modes, a login that ends without a valid id in
   carry fails as `persistent auth failed: device-id`.
 - **No fallback.** As with `bound-device`, `primeFresh` fails locally, so a

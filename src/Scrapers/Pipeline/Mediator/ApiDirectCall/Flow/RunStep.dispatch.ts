@@ -82,7 +82,7 @@ function readCarry(bundle: IDispatchBundle, resp: JsonValue): Procedure<CarryMap
   if (!isOk(carryProc)) return carryProc;
   const answerProc = answerSlots(bundle, resp);
   if (!isOk(answerProc)) return answerProc;
-  const optional = extractOptional(resp, step);
+  const optional = extractOptional(resp, step, bundle.preparedScope.carry);
   return succeed({ ...carryProc.value, ...optional, ...answerProc.value });
 }
 
