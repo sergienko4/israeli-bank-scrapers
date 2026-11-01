@@ -8,7 +8,7 @@
  * Prefer the narrow per-bucket sub-modules
  * (`./TemplateTypes.js`, `./SignerTypes.js`, `./CarryTypes.js`,
  * `./EnvelopeTypes.js`, `./FlowTypes.js`, `./GeneratorTypes.js`,
- * `./ApiDirectCallConfig.js`) when call-sites only need a slice.
+ * `./WireTypes.js`, `./ApiDirectCallConfig.js`) when call-sites only need a slice.
  */
 
 export * from './ApiDirectCallConfig.js';
@@ -18,3 +18,4 @@ export * from './FlowTypes.js';
 export * from './GeneratorTypes.js';
 export * from './SignerTypes.js';
 export * from './TemplateTypes.js';
+export * from './WireTypes.js';

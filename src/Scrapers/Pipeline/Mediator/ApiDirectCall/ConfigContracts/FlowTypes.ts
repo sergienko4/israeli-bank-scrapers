@@ -4,8 +4,9 @@
  *
  * Depends on TemplateTypes (`IBodyTemplate`, `IEnvelopeSelectors`,
  * `JsonValueTemplate` referenced by IStepConfig), EnvelopeTypes
- * (`IPreStepHook` referenced by IStepConfig.preHook) and SignerTypes
- * (`ISealFieldConfig` referenced by IStepConfig.seal). Top-level
+ * (`IPreStepHook` referenced by IStepConfig.preHook), SignerTypes
+ * (`ISealFieldConfig` referenced by IStepConfig.seal) and WireTypes
+ * (`ITextCapture`, `IFormCapture` referenced by IStepBase). Top-level
  * ApiDirectCallConfig composes the FlowKind discriminator + steps array
  * from here.
  *
@@ -30,6 +31,7 @@ import type {
   JsonValueTemplate,
   RefToken,
 } from './TemplateTypes.js';
+import type { IFormCapture, ITextCapture } from './WireTypes.js';
 
 /** Exhaustive flow-kind discriminator (spec.txt §B.3). */
 type FlowKind = 'sms-otp' | 'stored-jwt' | 'bearer-static';
@@ -142,42 +144,6 @@ interface IExtractRule {
   readonly maxChars?: number;
   /** The text must be one current PEM certificate of the referenced key (N27). */
   readonly pemCertificate?: IPemCertificateRule;
-}
-
-/**
- * One text capture (N36) on a `text` step: its pattern must match the answer
- * exactly once, and the slot takes the text of `group`. An `absent` capture is
- * a guard instead: its pattern must not match, and it carries nothing.
- */
-interface ITextCapture {
-  /** Regex source, searched in the whole answer with the `g` flag. */
-  readonly pattern: string;
-  /** Group whose text the slot takes; 0 is the whole match. */
-  readonly group: number;
-  /** Makes the capture a guard: the pattern must not match. */
-  readonly absent?: true;
-}
-
-/**
- * A login-form capture (N37) on a `text` step: the page's one `<form>` whose
- * `id` or `name` is `form` must post to `action`, and its hidden fields go to
- * carry `into` as one `{ name: value }` record, in page order.
- */
-interface IFormCapture {
-  /** The form's `id` or `name`, compared exactly. */
-  readonly form: string;
-  /** Carry slot the field record goes to. */
-  readonly into: string;
-  /** Absolute URL the form's action must resolve to, against the step URL. */
-  readonly action: string;
-  /** Field names the form must hold. */
-  readonly required: readonly string[];
-  /** Field names the form must not hold. */
-  readonly forbidden: readonly string[];
-  /** Fewest fields the form may hold. */
-  readonly minFields: number;
-  /** Most fields the form may hold. */
-  readonly maxFields: number;
 }
 
 /**
@@ -297,7 +263,6 @@ export type {
   ExtractValueType,
   FlowKind,
   IExtractRule,
-  IFormCapture,
   IGetStep,
   IHeaderExtract,
   IOptionalExtract,
@@ -308,7 +273,6 @@ export type {
   IStepClientCert,
   IStepConfig,
   IStepOutcome,
-  ITextCapture,
   StepMethod,
   StepName,
 };

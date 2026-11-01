@@ -5,8 +5,8 @@
 
 The API-DIRECT-CALL config contract is the typed shape every API-direct bank
 (Pepper, PayBox, OneZero, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav) compiles its `PipelineBankConfig.headless` literal
-against. That shape lives in **seven focused concern-slice files** (six as of
-**v8.5**, before `GeneratorTypes`) under `src/Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/`, exported
+against. That shape lives in **eight focused concern-slice files** (six as of
+**v8.5**, before `GeneratorTypes` and `WireTypes`) under `src/Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/`, exported
 through a single barrel. The legacy `IApiDirectCallConfig.ts` file was reduced
 to a 14-line deprecated re-export shim in v8.5 and **deleted in v8.6**.
 
@@ -18,11 +18,12 @@ src/Scrapers/Pipeline/Mediator/ApiDirectCall/
 │   ├── index.ts              ← barrel re-export (wide-import surface)
 │   ├── TemplateTypes.ts      ← root bucket — no intra-cluster deps
 │   ├── SignerTypes.ts        ← root bucket — no intra-cluster deps
+│   ├── WireTypes.ts          ← root bucket — no intra-cluster deps
 │   ├── CarryTypes.ts         ← deps TemplateTypes
 │   ├── EnvelopeTypes.ts      ← deps TemplateTypes + SignerTypes
 │   ├── GeneratorTypes.ts     ← deps TemplateTypes
-│   ├── FlowTypes.ts          ← deps TemplateTypes + SignerTypes + CarryTypes + EnvelopeTypes + GeneratorTypes
-│   └── ApiDirectCallConfig.ts ← composes all but GeneratorTypes
+│   ├── FlowTypes.ts          ← deps TemplateTypes + SignerTypes + CarryTypes + EnvelopeTypes + GeneratorTypes + WireTypes
+│   └── ApiDirectCallConfig.ts ← composes all but GeneratorTypes and WireTypes
 ```
 
 The dependency graph is **acyclic** (`madge --circular` is part of the lint
@@ -35,6 +36,7 @@ flowchart LR
     C[CarryTypes]
     E[EnvelopeTypes]
     G[GeneratorTypes]
+    W[WireTypes]
     F[FlowTypes]
     A[ApiDirectCallConfig]
     T --> C
@@ -50,11 +52,12 @@ flowchart LR
     E --> F
     E --> A
     G --> F
+    W --> F
     F --> A
 ```
 
-`TemplateTypes` and `SignerTypes` are independent roots; every other bucket
-depends on `TemplateTypes`; `EnvelopeTypes`, `FlowTypes` and
+`TemplateTypes`, `SignerTypes` and `WireTypes` are independent roots; every
+other bucket depends on `TemplateTypes`; `EnvelopeTypes`, `FlowTypes` and
 `ApiDirectCallConfig` depend on `SignerTypes`.
 
 ## What each bucket owns
@@ -69,8 +72,9 @@ from (cross-package imports such as `Registry/WK/*` are omitted for brevity).
 | **SignerTypes** | `SignerAlgorithm`, `AsymmetricSignerAlgorithm`, `SignerEncoding`, `CanonicalPart`, `ICanonicalStringConfig`, `IAsymmetricSignerConfig`, `IAesSignerConfig`, `IHmacHeaderSignerConfig`, `ISignerConfig`, `IBodyDigestConfig`, `ICryptoFieldConfig`, `SealKind`, `ISealRsaBlockXorParams`, `ISealFieldConfig` | (none) |
 | **CarryTypes** | `IWarmStartConfig`, `ICarryWarmStart`, `ICookieJarWarmStart`, `ICarryBundleWarmStart`, `ColdFallback`, `ISeedCarrySource`, `IRandomHex16Bootstrap`, `IRandomHexBootstrap`, `IRandomUuidBootstrap`, `ISha256Prefix16Bootstrap`, `IJwtClaimBootstrap`, `SeedCarryBootstrapKind`, `IDerivedCarry` | TemplateTypes |
 | **EnvelopeTypes** | `IFingerprintConfig`, `AuthScheme`, `IJwtClaimsConfig`, `IProbeConfig`, `IPreStepHook`, `PreHookReuse` | TemplateTypes, SignerTypes |
-| **FlowTypes** | `FlowKind`, `CookieHandoff`, `AuthRecovery`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract`, `IHeaderExtract`, `ExtractValueType`, `IExtractRule`, `IPemCertificateRule`, `IRunIf`, `IStepClientCert` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, GeneratorTypes |
+| **FlowTypes** | `FlowKind`, `CookieHandoff`, `AuthRecovery`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract`, `IHeaderExtract`, `ExtractValueType`, `IExtractRule`, `IPemCertificateRule`, `IRunIf`, `IStepClientCert` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, GeneratorTypes, WireTypes |
 | **GeneratorTypes** | `ICarryGenerator`, `CarryGeneratorKind`, `IRsaKeyGenerator`, `IPkcs10CsrGenerator`, `IEcdhKeyGenerator`, `ICsrSubjectEntry`, `CsrSubjectAttr` | TemplateTypes |
+| **WireTypes** | `ITextCapture`, `IFormCapture` | (none) |
 | **ApiDirectCallConfig** | `IApiDirectCallConfig`, `IPersistentAuthConfig`, `CredRule` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, FlowTypes |
 
 Notes:
@@ -85,7 +89,7 @@ Notes:
   referenced by `FlowTypes.IStepBase.deriveCarry`.
 
 Every file is **≤ 150 effective LoC** (blank and comment lines skipped;
-current max: `FlowTypes.ts` at 131) and is held there by an ESLint guard
+current max: `FlowTypes.ts` at 135) and is held there by an ESLint guard
 (`eslint.config.mjs` §14) plus a canary fixture
 (`EslintCanaries/no-api-direct-call-blob.canary.ts`).
 
@@ -125,8 +129,8 @@ this contract; the build-time checks read both.
 | Keep bank text out of native HTTP failures, including data calls | `headless.omitBankText` | — | [Headless transports](pipeline.md#headless-transports) |
 | Read one step's answer as a page, not JSON | `response` (`ResponseKind`), `documentMarker` | FlowTypes | [Document responses and status policies](pipeline.md#document-responses-and-status-policies) |
 | Carry values the bank returns in response headers | `headerExtractsToCarry` (`IHeaderExtract`) | FlowTypes | [Response-header carry](pipeline.md#response-header-carry) |
-| Carry values found by pattern in a text answer, and its size cap | `textCaptures` (`ITextCapture`), `maxTextChars` | FlowTypes | [Text captures](../phases/api-direct-call.md#text-captures) |
-| A login form's hidden fields, read off a text answer into one carry slot | `formCapture` (`IFormCapture`) | FlowTypes | [Login-form capture](../phases/api-direct-call.md#login-form-capture) |
+| Carry values found by pattern in a text answer, and its size cap | `textCaptures` (`ITextCapture`), `maxTextChars` | WireTypes, FlowTypes | [Text captures](../phases/api-direct-call.md#text-captures) |
+| A login form's hidden fields, read off a text answer into one carry slot | `formCapture` (`IFormCapture`) | WireTypes, FlowTypes | [Login-form capture](../phases/api-direct-call.md#login-form-capture) |
 | Carry slots built from one step's extracts | `deriveCarry` (`IDerivedCarry`) | FlowTypes | [Carry derivation](../phases/api-direct-call.md#carry-derivation) |
 | Send one step's body as a URL-encoded form (UTF-8 or Latin-1) or as plain text | `encoding` (`BodyEncoding`) | FlowTypes | [Form bodies](pipeline.md#form-bodies) |
 | Seal a credential into one step's body | `seal` (`ISealFieldConfig`) | SignerTypes, FlowTypes | [Sealed fields](pipeline.md#sealed-fields) |
