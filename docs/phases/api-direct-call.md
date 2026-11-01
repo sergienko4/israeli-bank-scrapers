@@ -514,6 +514,45 @@ codec: {
   to the same text), `isJsonRecord`, `headerList` and `headersOfType`. Tests
   pass `sealEnvelopeWithIv` a fixed IV to match openssl goldens.
 
+The key-exchange step that opens the session names the `exchange` mode
+(`IEnvelopeExchange`). It reads the client scalar an
+[`ecdh-key` generator](#carry-generators) wrote, and writes the session for
+the `sealed` steps after it:
+
+```ts
+codec: {
+  kind: 'ecdh-aes-cbc',
+  mode: 'exchange',
+  privateRef: 'carry.ecdhPrivate',
+  keyInto: 'envelopeKey',
+  sessionInto: 'envelopeSession',
+},
+```
+
+- `privateRef` must name canonical base64 of a 32-byte secp256k1 scalar in
+  the curve's range (`toExchangeKey`, in `Crypto/EnvelopeCodec.exchange.ts`);
+  anything else fails `<step> envelope key invalid` before the request is
+  sent. The body itself goes out as hydrated, not sealed.
+- `exchangeSession` reads the answer's headers: exactly one `key_exchange`
+  record with `scheme` 2, a `y` that is canonical base64 of a SEC1 point
+  (65 bytes from 0x04, or 33 from 0x02 / 0x03) on the curve, and a
+  `crypto_session_id` that `isSessionId` accepts (1..512 characters). The
+  session key is the SHA-256 of the ECDH shared secret. Anything else fails
+  `<step> envelope invalid`.
+- The answer must open under that session, as in `sealed` mode (N52). Then
+  the key (base64) goes to the `keyInto` slot and the id to `sessionInto`;
+  the step's extracts read the opened answer and run after, so an extract
+  into the same slot wins.
+- `Flow/RunStep.codec.ts` holds one seal and one open per mode in
+  `CODEC_MODES`, so a new mode is one row. `sealSealedBody` and
+  `openSealedAnswer` live in `Flow/RunStep.codec.sealed.ts`;
+  `checkExchangeKey` and `openExchangeAnswer` in
+  `Flow/RunStep.codec.exchange.ts`. Both open through `openForStep` (in
+  `Flow/RunStep.codec.open.ts`), which returns an `IOpenedAnswer` (the
+  answer and its bundle) and fails opened data that `hasBankErrorCode`
+  flags. `stepFail` prefixes a reason with the step name, and `KEY_INVALID`
+  is the shared `envelope key invalid` reason.
+
 ### Conditional steps
 
 Some banks ask for an SMS code only on some logins. A step can carry a

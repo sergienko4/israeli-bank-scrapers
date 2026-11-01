@@ -60,7 +60,24 @@ interface IEnvelopeSealed {
   readonly sessionRef: `carry.${string}`;
 }
 
-/** How a POST step's request and answer are enveloped (N39). */
-type EnvelopeCodec = IEnvelopeSealed;
+/**
+ * The `exchange` mode of the AES-CBC envelope codec (N39): the step's body goes
+ * out as hydrated, and the session comes from the answer's `key_exchange`
+ * header and the carried client scalar; the answer must come back sealed
+ * under it (N52), and the key and id go to carry for the sealed steps.
+ */
+interface IEnvelopeExchange {
+  readonly kind: 'ecdh-aes-cbc';
+  readonly mode: 'exchange';
+  /** Carry ref of the client's secp256k1 private scalar: canonical base64 of 32 bytes. */
+  readonly privateRef: `carry.${string}`;
+  /** Carry slot that receives the session key, base64. */
+  readonly keyInto: string;
+  /** Carry slot that receives the crypto session id. */
+  readonly sessionInto: string;
+}
 
-export type { EnvelopeCodec, IEnvelopeSealed, IFormCapture, ITextCapture };
+/** How a POST step's request and answer are enveloped (N39). */
+type EnvelopeCodec = IEnvelopeExchange | IEnvelopeSealed;
+
+export type { EnvelopeCodec, IEnvelopeExchange, IEnvelopeSealed, IFormCapture, ITextCapture };

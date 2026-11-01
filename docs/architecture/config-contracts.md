@@ -74,7 +74,7 @@ from (cross-package imports such as `Registry/WK/*` are omitted for brevity).
 | **EnvelopeTypes** | `IFingerprintConfig`, `AuthScheme`, `IJwtClaimsConfig`, `IProbeConfig`, `IPreStepHook`, `PreHookReuse` | TemplateTypes, SignerTypes |
 | **FlowTypes** | `FlowKind`, `CookieHandoff`, `AuthRecovery`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract`, `IHeaderExtract`, `ExtractValueType`, `IExtractRule`, `IPemCertificateRule`, `IRunIf`, `IStepClientCert` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, GeneratorTypes, WireTypes |
 | **GeneratorTypes** | `ICarryGenerator`, `CarryGeneratorKind`, `IRsaKeyGenerator`, `IPkcs10CsrGenerator`, `IEcdhKeyGenerator`, `ICsrSubjectEntry`, `CsrSubjectAttr` | TemplateTypes |
-| **WireTypes** | `ITextCapture`, `IFormCapture`, `EnvelopeCodec`, `IEnvelopeSealed` | (none) |
+| **WireTypes** | `ITextCapture`, `IFormCapture`, `EnvelopeCodec`, `IEnvelopeSealed`, `IEnvelopeExchange` | (none) |
 | **ApiDirectCallConfig** | `IApiDirectCallConfig`, `IPersistentAuthConfig`, `CredRule` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, FlowTypes |
 
 Notes:
@@ -131,7 +131,7 @@ this contract; the build-time checks read both.
 | Carry values the bank returns in response headers | `headerExtractsToCarry` (`IHeaderExtract`) | FlowTypes | [Response-header carry](pipeline.md#response-header-carry) |
 | Carry values found by pattern in a text answer, and its size cap | `textCaptures` (`ITextCapture`), `maxTextChars` | WireTypes, FlowTypes | [Text captures](../phases/api-direct-call.md#text-captures) |
 | A login form's hidden fields, read off a text answer into one carry slot | `formCapture` (`IFormCapture`) | WireTypes, FlowTypes | [Login-form capture](../phases/api-direct-call.md#login-form-capture) |
-| Seal one POST step's JSON body and open its answer under a carried AES session | `codec` (`EnvelopeCodec`, `IEnvelopeSealed`) | WireTypes, FlowTypes | [Envelope codec](../phases/api-direct-call.md#envelope-codec) |
+| Seal one POST step's JSON body and open its answer under a carried AES session, or derive that session by an ECDH key exchange | `codec` (`EnvelopeCodec`, `IEnvelopeSealed`, `IEnvelopeExchange`) | WireTypes, FlowTypes | [Envelope codec](../phases/api-direct-call.md#envelope-codec) |
 | Carry slots built from one step's extracts | `deriveCarry` (`IDerivedCarry`) | FlowTypes | [Carry derivation](../phases/api-direct-call.md#carry-derivation) |
 | Send one step's body as a URL-encoded form (UTF-8 or Latin-1) or as plain text | `encoding` (`BodyEncoding`) | FlowTypes | [Form bodies](pipeline.md#form-bodies) |
 | Seal a credential into one step's body | `seal` (`ISealFieldConfig`) | SignerTypes, FlowTypes | [Sealed fields](pipeline.md#sealed-fields) |
