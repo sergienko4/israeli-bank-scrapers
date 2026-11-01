@@ -15,8 +15,8 @@ import { deriveStepCarry } from './RunStep.derive.js';
 import { ruleStepCarry } from './RunStep.extractRules.js';
 import { sanitiseStepFailure } from './RunStep.failure.js';
 import { fireStep } from './RunStep.fire.js';
+import { judgeAnswer } from './RunStep.judge.js';
 import { extractOptional } from './RunStep.optional.js';
-import { judgeStepOutcome } from './RunStep.outcome.js';
 import { buildDispatchBundle, mergeScopeCarry } from './RunStep.prepare.js';
 import { prepareStepSession } from './RunStep.session.js';
 import type {
@@ -100,20 +100,21 @@ function collectCarry(bundle: IDispatchBundle, resp: JsonValue): Procedure<Carry
 }
 
 /**
- * Judge the step's outcome, fold the response carry into the prepared scope,
- * then derive the step's own slots. A refused outcome fails before any
- * extract.
+ * Judge the step's outcome, classify its answer (N50), fold the response carry
+ * into the prepared scope, then derive the step's own slots. A refused outcome
+ * or an unclassified answer fails before any extract.
  * @param bundle - Dispatch bundle.
  * @param resp - Opened, guarded response JSON.
  * @returns Procedure with the merged scope.
  */
 function extractAndMerge(bundle: IDispatchBundle, resp: JsonValue): Procedure<ITemplateScope> {
-  const judged = judgeStepOutcome(bundle.fireScope.step, resp);
-  if (!isOk(judged)) return judged;
+  const step = bundle.fireScope.step;
+  const classified = judgeAnswer(step, resp);
+  if (!isOk(classified)) return classified;
   const carry = collectCarry(bundle, resp);
   if (!isOk(carry)) return carry;
-  const merged = mergeScopeCarry(bundle.preparedScope, carry.value);
-  return deriveStepCarry(bundle.fireScope.step, merged);
+  const merged = mergeScopeCarry(bundle.preparedScope, { ...carry.value, ...classified.value });
+  return deriveStepCarry(step, merged);
 }
 
 /**

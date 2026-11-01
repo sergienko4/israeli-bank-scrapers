@@ -424,6 +424,83 @@ An outcome failure in a warm resume is a failure like any other, so the
 resolver still falls back to one cold flow. When the cold flow also fails, its
 own failure type is the one reported.
 
+### Answer classifier
+
+Some banks answer one step in several shapes, such as a finished login, an
+OTP challenge or a locked account, all with HTTP 200. A step that declares
+`classify` (an `IAnswerClassifier`) names those shapes as cases. The step's
+opened answer is classified after its [bank-error guard](#bank-error-guard)
+and its [outcome](#step-outcome), and before its extracts run. `judgeAnswer`
+(in `Flow/RunStep.judge.ts`) runs `judgeStepOutcome`, then `classifyAnswer`
+(in `Flow/RunStep.classify.ts`):
+
+```ts
+classify: {
+  into: 'loginBranch',
+  cases: [
+    { name: 'done', when: [{ pointer: '/data/state', equals: 'ok' }] },
+    {
+      name: 'otp',
+      when: [{ pointer: '/data/targets', keys: 1 }],
+      captures: {
+        otpTarget: { pointer: '/data/targets', maxChars: 64, onlyKey: true },
+        otpLength: { pointer: ['/data/len', '/data/length'], maxChars: 2, integer: { min: 4, max: 10 } },
+      },
+    },
+    { name: 'locked', when: [{ pointer: '/data/locked', equals: true }], fail: ScraperErrorTypes.AccountBlocked },
+  ],
+},
+```
+
+A case matches when every check in its `when` passes, and exactly one case
+must match. Cases are counted, not names, so a name may repeat across cases
+that describe one branch. When no case matches, the step fails `Generic` with
+`<step> answer unrecognized`; when more than one matches, with
+`<step> answer ambiguous`. A matched case with `fail` stops the step with that
+type and `<step> answer <case>`; the case name comes from the config, so it is
+safe to show. Any other match writes its name to carry `into`, beside its
+captures. The classifier's slots are merged over the step's extract slots.
+
+A check's `pointer` is an `AnswerPointer`: one JSON pointer, or alternatives of
+which `resolveFirst` (in `Flow/RunStep.classify.checks.ts`) reads the first
+that resolves. `passesCheck` then applies the check's one kind:
+
+| Kind           | Passes when the value                                          |
+| -------------- | -------------------------------------------------------------- |
+| `absent: true` | is missing: no alternative resolves (`null` counts as present) |
+| `equals`       | is `===` the string, number, boolean or `null`                 |
+| `oneOf`        | is a string or number `===` one of the list                    |
+| `items`        | is an array of exactly that many items                         |
+| `keys`         | is an object of exactly that many keys                         |
+| `text`         | is safe text (below) that matches the whole `pattern`, if any  |
+
+Every kind but `absent` fails when no alternative resolves, and a check with
+no kind never passes. `isSafeText` accepts a string of 1..`maxChars` chars
+with no C0 control char and no DEL. A `pattern` is compiled with the `u` flag
+and wrapped in `^(?:…)$`, so it must match the whole text; a pattern that does
+not compile fails its check.
+
+A matched case's `captures` map carry slots to an `IAnswerCapture`.
+`readCaptures` (in `Flow/RunStep.classify.captures.ts`, fed an
+`ICaptureInput`) reads each one as text: by default the value must be a
+string; with `onlyKey: true`, an object of exactly one key gives that key;
+with `integer` (an `IAnswerRange`), a JSON integer from `min` to `max` gives
+its decimal text. Every captured text must then pass `isSafeText` with the
+capture's `maxChars`. A capture whose pointer misses fails `Generic` with
+`<step> answer capture <slot> missing`; any other refusal with
+`<step> answer capture <slot> invalid`. No value is ever named.
+
+An unrecognized or ambiguous answer is logged at debug level with the step
+name, the matched case names and the answer's redacted shape, never a value.
+`answerShape` (in `Flow/RunStep.classify.shape.ts`) builds it: a scalar
+becomes its JSON type, an object keeps its keys, and an array keeps its items'
+shapes. A key is printed only when it is an identifier of at most 32 chars
+(`[A-Za-z_]\w{0,31}`), else as `<key:i>`, its position. Six levels are
+walked; a deeper container prints as `object(n)` or `array(n)`. At most 64
+entries (keys and items) are shown in all, shallower ones first; a cut object
+ends with `'...': '+n'` and a cut array with `'...+n'`. A step without
+`classify` behaves as before.
+
 ### Extract rules
 
 A value the bank sends back may be echoed into a later request, so a step can
@@ -1504,6 +1581,8 @@ Where each piece lives, for maintainers:
 | `INVALID_PASSWORD`                                              | Bank rejected credentials                                                                                                                                                                                                                                                                 |
 | any type a step's `failureMap` names, else its `defaultFailure` | The step's 2xx body reported a non-success [outcome](#step-outcome) code                                                                                                                                                                                                                  |
 | `GENERIC`                                                       | The step's 2xx body held a bank error at a `failIfPresent` pointer (`<step> bank error`) — see [Bank-error guard](#bank-error-guard)                                                                                                                                                      |
+| `GENERIC`                                                       | The step's answer matched no [classifier](#answer-classifier) case or more than one (`<step> answer unrecognized` or `<step> answer ambiguous`), or a capture was refused (`<step> answer capture <slot> missing` or `invalid`)                                                           |
+| the type a matched case's `fail` names                          | The step's answer matched a [classifier](#answer-classifier) case that fails the step (`<step> answer <case>`)                                                                                                                                                                            |
 | `GENERIC`                                                       | A body extract failed its rule (`<step> extract <slot> invalid`) — see [Extract rules](#extract-rules)                                                                                                                                                                                    |
 | `INVALID_OTP`                                                   | Wrong code, or a code that fails its pre-hook `valuePattern` (`<step> preHook value invalid`) — see [OTP pre-hook guards](#otp-pre-hook-guards)                                                                                                                                           |
 | `TWO_FACTOR_RETRIEVER_MISSING`                                  | OTP step reached without callback (`preHook: creds.<field> is not a function`)                                                                                                                                                                                                            |

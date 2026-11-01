@@ -5,8 +5,8 @@
 
 The API-DIRECT-CALL config contract is the typed shape every API-direct bank
 (Pepper, PayBox, OneZero, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav) compiles its `PipelineBankConfig.headless` literal
-against. That shape lives in **eight focused concern-slice files** (six as of
-**v8.5**, before `GeneratorTypes` and `WireTypes`) under `src/Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/`, exported
+against. That shape lives in **nine focused concern-slice files** (six as of
+**v8.5**, before `GeneratorTypes`, `WireTypes` and `ClassifyTypes`) under `src/Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/`, exported
 through a single barrel. The legacy `IApiDirectCallConfig.ts` file was reduced
 to a 14-line deprecated re-export shim in v8.5 and **deleted in v8.6**.
 
@@ -19,11 +19,12 @@ src/Scrapers/Pipeline/Mediator/ApiDirectCall/
 │   ├── TemplateTypes.ts      ← root bucket — no intra-cluster deps
 │   ├── SignerTypes.ts        ← root bucket — no intra-cluster deps
 │   ├── WireTypes.ts          ← root bucket — no intra-cluster deps
+│   ├── ClassifyTypes.ts      ← root bucket — no intra-cluster deps
 │   ├── CarryTypes.ts         ← deps TemplateTypes
 │   ├── EnvelopeTypes.ts      ← deps TemplateTypes + SignerTypes
 │   ├── GeneratorTypes.ts     ← deps TemplateTypes
-│   ├── FlowTypes.ts          ← deps TemplateTypes + SignerTypes + CarryTypes + EnvelopeTypes + GeneratorTypes + WireTypes
-│   └── ApiDirectCallConfig.ts ← composes all but GeneratorTypes and WireTypes
+│   ├── FlowTypes.ts          ← deps TemplateTypes + SignerTypes + CarryTypes + EnvelopeTypes + GeneratorTypes + WireTypes + ClassifyTypes
+│   └── ApiDirectCallConfig.ts ← composes all but GeneratorTypes, WireTypes and ClassifyTypes
 ```
 
 The dependency graph is **acyclic** (`madge --circular` is part of the lint
@@ -37,6 +38,7 @@ flowchart LR
     E[EnvelopeTypes]
     G[GeneratorTypes]
     W[WireTypes]
+    K[ClassifyTypes]
     F[FlowTypes]
     A[ApiDirectCallConfig]
     T --> C
@@ -53,10 +55,11 @@ flowchart LR
     E --> A
     G --> F
     W --> F
+    K --> F
     F --> A
 ```
 
-`TemplateTypes`, `SignerTypes` and `WireTypes` are independent roots; every
+`TemplateTypes`, `SignerTypes`, `WireTypes` and `ClassifyTypes` are independent roots; every
 other bucket depends on `TemplateTypes`; `EnvelopeTypes`, `FlowTypes` and
 `ApiDirectCallConfig` depend on `SignerTypes`.
 
@@ -72,9 +75,10 @@ from (cross-package imports such as `Registry/WK/*` are omitted for brevity).
 | **SignerTypes** | `SignerAlgorithm`, `AsymmetricSignerAlgorithm`, `SignerEncoding`, `CanonicalPart`, `ICanonicalStringConfig`, `IAsymmetricSignerConfig`, `IAesSignerConfig`, `IHmacHeaderSignerConfig`, `ISignerConfig`, `IBodyDigestConfig`, `ICryptoFieldConfig`, `SealKind`, `ISealRsaBlockXorParams`, `ISealFieldConfig` | (none) |
 | **CarryTypes** | `IWarmStartConfig`, `ICarryWarmStart`, `ICookieJarWarmStart`, `ICarryBundleWarmStart`, `ColdFallback`, `ISeedCarrySource`, `IRandomHex16Bootstrap`, `IRandomHexBootstrap`, `IRandomUuidBootstrap`, `ISha256Prefix16Bootstrap`, `IJwtClaimBootstrap`, `SeedCarryBootstrapKind`, `IDerivedCarry` | TemplateTypes |
 | **EnvelopeTypes** | `IFingerprintConfig`, `AuthScheme`, `IJwtClaimsConfig`, `IProbeConfig`, `IPreStepHook`, `PreHookReuse` | TemplateTypes, SignerTypes |
-| **FlowTypes** | `FlowKind`, `CookieHandoff`, `AuthRecovery`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract`, `IHeaderExtract`, `ExtractValueType`, `IExtractRule`, `IPemCertificateRule`, `IRunIf`, `IStepClientCert` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, GeneratorTypes, WireTypes |
+| **FlowTypes** | `FlowKind`, `CookieHandoff`, `AuthRecovery`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract`, `IHeaderExtract`, `ExtractValueType`, `IExtractRule`, `IPemCertificateRule`, `IRunIf`, `IStepClientCert` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, GeneratorTypes, WireTypes, ClassifyTypes |
 | **GeneratorTypes** | `ICarryGenerator`, `CarryGeneratorKind`, `IRsaKeyGenerator`, `IPkcs10CsrGenerator`, `IEcdhKeyGenerator`, `ICsrSubjectEntry`, `CsrSubjectAttr` | TemplateTypes |
 | **WireTypes** | `ITextCapture`, `IFormCapture`, `EnvelopeCodec`, `IEnvelopeSealed`, `IEnvelopeExchange` | (none) |
+| **ClassifyTypes** | `AnswerPointer`, `IAnswerText`, `IAnswerCheck`, `IAnswerRange`, `IAnswerCapture`, `IAnswerCase`, `IAnswerClassifier` | (none) |
 | **ApiDirectCallConfig** | `IApiDirectCallConfig`, `IPersistentAuthConfig`, `CredRule` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, FlowTypes |
 
 Notes:
@@ -87,9 +91,12 @@ Notes:
 - `ISealFieldConfig` is owned by `SignerTypes` and referenced by
   `FlowTypes.IStepBase.seal`; `IDerivedCarry` is owned by `CarryTypes` and
   referenced by `FlowTypes.IStepBase.deriveCarry`.
+- `IAnswerClassifier` is owned by `ClassifyTypes` and referenced by
+  `FlowTypes.IStepBase.classify` — see
+  [Answer classifier](../phases/api-direct-call.md#answer-classifier).
 
 Every file is **≤ 150 effective LoC** (blank and comment lines skipped;
-current max: `FlowTypes.ts` at 137) and is held there by an ESLint guard
+current max: `FlowTypes.ts` at 143) and is held there by an ESLint guard
 (`eslint.config.mjs` §14) plus a canary fixture
 (`EslintCanaries/no-api-direct-call-blob.canary.ts`).
 

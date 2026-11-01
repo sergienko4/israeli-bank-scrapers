@@ -4,7 +4,8 @@
  *
  * Depends on TemplateTypes (`IBodyTemplate`, `IEnvelopeSelectors`,
  * `JsonValueTemplate` referenced by IStepConfig), EnvelopeTypes
- * (`IPreStepHook` referenced by IStepConfig.preHook), SignerTypes
+ * (`IPreStepHook` referenced by IStepConfig.preHook), ClassifyTypes
+ * (`IAnswerClassifier` referenced by IStepBase.classify), SignerTypes
  * (`ISealFieldConfig` referenced by IStepConfig.seal) and WireTypes
  * (`ITextCapture`, `IFormCapture` referenced by IStepBase, `EnvelopeCodec`
  * by IPostStep). Top-level
@@ -23,6 +24,7 @@ import type {
   ResponseKind,
 } from '../../../Types/Domain/FetchPolicy.js';
 import type { IDerivedCarry } from './CarryTypes.js';
+import type { IAnswerClassifier } from './ClassifyTypes.js';
 import type { IPreStepHook } from './EnvelopeTypes.js';
 import type { ICarryGenerator } from './GeneratorTypes.js';
 import type { ISealFieldConfig } from './SignerTypes.js';
@@ -206,6 +208,8 @@ interface IStepBase {
   readonly headers?: Readonly<Record<string, JsonValueTemplate>>;
   /** Optional outcome policy, judged after HTTP 2xx and before the extracts. */
   readonly outcome?: IStepOutcome;
+  /** Optional answer classifier, run after `outcome` and before the extracts (N50). */
+  readonly classify?: IAnswerClassifier;
   /** Optional redirect policy for this step; overrides the bank's `redirectPolicy`. */
   readonly redirect?: RedirectPolicy;
   /**
