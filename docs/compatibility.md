@@ -77,6 +77,14 @@ Hapoalim now logs in and scrapes over its website's API with Node's own `fetch` 
 
 **What to do:** Remove browser options from Hapoalim's `createScraper` call and keep passing `otpCodeRetriever`. To skip the login and the SMS, store `result.persistentOtpToken` after every run and pass it as `otpLongTermToken` next time. The token is a live session, so store it as a secret. Keep `userCode`, `password` and the retriever too, because a refused session falls back to a full login with one SMS.
 
+### 9.1.0 - Yahav signs in without a browser
+
+**Impact:** Behavior
+
+Yahav now logs in and scrapes over its mobile app's API through `node:https` and one cookie jar, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `num` (or the legacy `username`), `nationalID` and `password`. They are checked before any request: a blank `num`, a `nationalID` that is not all digits or a `password` outside Latin-1 fails as `GENERIC` with `Missing or malformed credentials`. A cold login enrols the run as a device of the customer, which may sign the customer's phone app out. A run returns `persistentOtpToken`, a `v1.` token holding that device, its private key and the session cookies; passed back as `otpLongTermToken`, it skips the enrolment. No failure message carries the bank's own text.
+
+**What to do:** Remove browser options from Yahav's `createScraper` call. Store `result.persistentOtpToken` after every run and pass it as `otpLongTermToken` next time, so a run enrols a device only when it must. The token holds a private key, so store it as a secret. Keep `num`, `nationalID` and `password` too, because a token the bank rejects with a `401` or `403` falls back to a full login. If the bank keeps refusing the token with a `400`, drop it once so the next run enrols afresh.
+
 ### 9.0.0 - Node 24.11 or later required; Node 22 is no longer supported
 
 **Impact:** Breaking
