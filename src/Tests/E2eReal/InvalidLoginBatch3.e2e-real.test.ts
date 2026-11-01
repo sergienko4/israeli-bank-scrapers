@@ -18,8 +18,6 @@ describe('E2E: Yahav (invalid login)', () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Yahav,
       startDate: defaultStartDate(),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
     });
     const result = await scraper.scrape(INVALID_CREDS_YAHAV);
     assertFailedLogin(result);

@@ -14,7 +14,6 @@
  * <p>Test Case IDs:
  *   - T-DNS-1: every declared host is a bare, well-formed hostname.
  *   - T-DNS-2: `he.isracard.co.il` is never declared — it has no A record.
- *   - T-DNS-3: Yahav declares `login.yahav.co.il`, the iframe origin.
  *   - T-DNS-4: no bank re-declares the host already in its `urls.base`.
  *   - T-DNS-5: every key is a bank the registry actually knows.
  *   - T-DNS-6: every host a bank's headless block calls is declared, unless
@@ -122,11 +121,6 @@ describe('PipelineBankHosts — CI DNS warm-up manifest (T-DNS)', () => {
   it('T-DNS-2: never declares he.isracard.co.il — it has no A record', async () => {
     const hosts = await allDeclaredHosts();
     expect(hosts).not.toContain(NO_SUCH_HOST);
-  });
-
-  it('T-DNS-3: Yahav declares its runtime-only login iframe origin', async () => {
-    const manifest = await loadHosts();
-    expect(manifest[CompanyTypes.Yahav] ?? []).toContain('login.yahav.co.il');
   });
 
   it('T-DNS-4: no bank re-declares the host already carried by its config', async () => {
