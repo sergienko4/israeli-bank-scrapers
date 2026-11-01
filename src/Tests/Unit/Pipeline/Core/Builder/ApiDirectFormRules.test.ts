@@ -1,5 +1,5 @@
 /**
- * N9 — a form step's body (`form` or N23 `form-latin1`) must be a flat
+ * N9 — a form step's body (`form`, N23 `form-latin1` or N62 `form-utf8`) must be a flat
  * record whose every value is one `$ref`, one N24 `$join`, or one `$literal`
  * string, finite number or boolean. Anything nested fails the build; JSON steps keep any
  * shape. An N23 `text` step's body must be exactly `{ text }`.
@@ -19,7 +19,7 @@ const HOST = 'https://form.example';
 const NATIVE = { identityBase: HOST, graphql: `${HOST}/graphql`, paths: {}, nativeFetch: true };
 const FLAT_MSG = 'steps.body: a form body must be a flat record';
 const TEXT_MSG = 'steps.body: a text body must be exactly { text }';
-const FORM_ENCODINGS = ['form', 'form-latin1'] as const;
+const FORM_ENCODINGS = ['form', 'form-latin1', 'form-utf8'] as const;
 
 const FLAT: JsonValueTemplate = {
   user: { $ref: 'creds.userCode' },

@@ -1180,7 +1180,9 @@ from what it extracted:
 - `deriveCarry` runs once the step's extracts are in scope
   ([Carry derivation](#carry-derivation)).
 - `encoding: 'form'` sends the body as `application/x-www-form-urlencoded`,
-  and `encoding: 'form-latin1'` the same over ISO-8859-1; either shape must be
+  `encoding: 'form-utf8'` the same under exactly
+  `application/x-www-form-urlencoded;charset=UTF-8`, and
+  `encoding: 'form-latin1'` the same over ISO-8859-1; each shape must be
   a flat record of `$ref`, `$join` and scalar `$literal` values, or one
   `$merge` whose `set` is such a record. `encoding: 'text'`
   sends the string of a `{ text }` body verbatim, with no content-type
@@ -1287,7 +1289,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a manual `redirect` whose `allow` list is empty                                                                                           | `redirect.allow: must not be empty`                                                |
 | a manual `redirect` whose `maxHops` is not an integer from 1 to 10                                                                        | `redirect.maxHops: must be an integer from 1 to 10`                                |
 | a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`                                                         | `headless.redirectPolicy: must be reject when a step redirects manually`           |
-| a form step (`form` or `form-latin1`) whose body shape is not a flat record of `$ref`, `$join` and scalar `$literal` values               | `steps.body: a form body must be a flat record`                                    |
+| a form step (`form`, `form-utf8` or `form-latin1`) whose body shape is not a flat record of `$ref`, `$join` and scalar `$literal` values    | `steps.body: a form body must be a flat record`                                    |
 | a `text` step whose body shape is not exactly `{ text }`                                                                                  | `steps.body: a text body must be exactly { text }`                                 |
 | a form step whose whole-shape `$merge` (`isMergeRoot`) has a `base` off `carry.<slot>` or a `set` that is not flat                    | `steps.body: a form body must be a flat record`                          |
 | a `$merge` anywhere but a form body's whole shape: a JSON or text body, a field, a header, a query (`API_DIRECT_MERGE_RULES`)         | `steps: $merge belongs only at the root of a form body`                  |

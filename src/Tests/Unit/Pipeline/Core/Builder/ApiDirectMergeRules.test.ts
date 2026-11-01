@@ -1,6 +1,6 @@
 /**
  * N37 — a `$merge` node may only be a form body's whole shape (`form` or
- * `form-latin1`), with a `carry.` base and a flat `set`. A malformed root
+ * `form-latin1` or `form-utf8`), with a `carry.` base and a flat `set`. A malformed root
  * fails as a nested form; a `$merge` anywhere else — a JSON or text body, a
  * form field, a header, a query — fails the build. A `$merge` key inside a
  * `$literal` payload is data, not a node.
@@ -19,7 +19,7 @@ const HOST = 'https://form.example';
 const NATIVE = { identityBase: HOST, graphql: `${HOST}/graphql`, paths: {}, nativeFetch: true };
 const FLAT_MSG = 'steps.body: a form body must be a flat record';
 const STRAY_MSG = 'steps: $merge belongs only at the root of a form body';
-const FORM_ENCODINGS = ['form', 'form-latin1'] as const;
+const FORM_ENCODINGS = ['form', 'form-latin1', 'form-utf8'] as const;
 
 const SET: JsonValueTemplate = {
   passwordEnc: { $ref: 'carry.token' },

@@ -50,13 +50,14 @@ type ResponseKind = 'json' | 'document' | 'text';
 
 /**
  * `json` sends the POST body as JSON (the default); `form` sends a flat record
- * URL-encoded; `form-latin1` does the same over ISO-8859-1; `text` sends the
- * one string field of a `{ text }` record verbatim, with no content-type.
+ * URL-encoded; `form-utf8` does the same under a type naming UTF-8 (N62);
+ * `form-latin1` does the same over ISO-8859-1; `text` sends the one string
+ * field of a `{ text }` record verbatim, with no content-type.
  */
-type BodyEncoding = 'json' | 'form' | 'form-latin1' | 'text';
+type BodyEncoding = 'json' | 'form' | 'form-utf8' | 'form-latin1' | 'text';
 
 /** Encodings that write a flat record field by field. */
-const FORM_BODY_ENCODINGS: readonly BodyEncoding[] = ['form', 'form-latin1'];
+const FORM_BODY_ENCODINGS: readonly BodyEncoding[] = ['form', 'form-utf8', 'form-latin1'];
 
 /** `empty` answers `{}` without reading the body; `fail` refuses the call. */
 type StatusAction = 'empty' | 'fail';
