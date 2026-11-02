@@ -17,8 +17,8 @@
  * `load` event occasionally fires after 10 s because analytics
  * scripts gate it, the non-fatal prelude returns false, then the
  * downstream resolver scans a half-hydrated DOM and reports
- * `GENERIC HOME PRE: no login nav link found`. Banks that settle
- * fast (Discount, Beinleumi, Massad, VisaCal) early-exit on the
+ * `GENERIC HOME PRE: no login nav link found`. Banks that settled
+ * fast then (Discount, Beinleumi, Massad, VisaCal) early-exit on the
  * underlying `Promise.all([load, networkidle])` so the bump is
  * cross-bank safe. {@link HOME_RESOLVER_ENTRY_TIMEOUT_MS} carries
  * the matching probe ceiling. Pinned by HOME-PRELUDE-BUDGET-001.

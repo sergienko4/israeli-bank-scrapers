@@ -1368,7 +1368,7 @@ IHapoalimAcct
 # HAPOALIM_SHAPE. Framework-internal, not user-facing.
 txnsHeaders
 
-# --- P4 Beinleumi (FIBI) hard-model post-auth scrape shape (account browser bank, OTP) ---
+# --- P4 Beinleumi (FIBI) hard-model post-auth scrape shape (account API-direct bank, OTP) ---
 # Reason: BEINLEUMI_API - FIBI online gateway origin const shared by the Beinleumi shape's
 # customer/secondary/balance/transactions urlTag builders. Framework-internal bank contract
 # constant, not part of the @sergienko4/israeli-bank-scrapers public surface (not in src/index.ts).
@@ -1389,7 +1389,7 @@ secondaryUrl
 # Reason: uid - Beinleumi fresh per-request correlation GUID builder for the FIBI `uid` query
 # param; consumed only by the Beinleumi urlTag builders. Framework-internal helper, not user-facing.
 uid
-# --- P4 Massad (FIBI) hard-model post-auth scrape shape (account browser bank, OTP) ---
+# --- P4 Massad (FIBI) hard-model post-auth scrape shape (account API-direct bank, OTP) ---
 # Reason: MASSAD_API - FIBI online gateway origin const shared by the Massad shape's
 # customer/secondary/balance/transactions urlTag builders. Framework-internal bank contract
 # constant, not part of the @sergienko4/israeli-bank-scrapers public surface (not in src/index.ts).
