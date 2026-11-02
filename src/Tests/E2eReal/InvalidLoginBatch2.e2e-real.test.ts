@@ -13,8 +13,6 @@ describe('E2E: Otsar Hahayal (invalid login)', () => {
     const scraper = createScraper({
       companyId: CompanyTypes.OtsarHahayal,
       startDate: defaultStartDate(),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
     });
     const result = await scraper.scrape(INVALID_CREDS_USERNAME_PASSWORD);
     assertFailedLogin(result);

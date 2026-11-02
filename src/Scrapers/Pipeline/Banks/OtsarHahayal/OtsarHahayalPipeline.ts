@@ -7,23 +7,11 @@
  */
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
-import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilderFactory.js';
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { OTSAR_HAHAYAL_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigOtsarHahayal.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { OTSAR_HAHAYAL_SHAPE } from './scrape/OtsarHahayalShape.js';
-
-/** Otsar Hahayal login config — credential keys only. WellKnown resolves selectors. */
-const OTSAR_HAHAYAL_LOGIN: ILoginConfig = {
-  loginUrl: '',
-  fields: [
-    { credentialKey: 'username', selectors: [] },
-    { credentialKey: 'password', selectors: [] },
-  ],
-  submit: [],
-  possibleResults: { success: [] },
-};
 
 /**
  * Build the Otsar Hahayal pipeline descriptor: no browser; the direct-API
@@ -40,4 +28,4 @@ function buildOtsarHahayalPipeline(options: ScraperOptions): Procedure<IPipeline
 }
 
 export default buildOtsarHahayalPipeline;
-export { buildOtsarHahayalPipeline, OTSAR_HAHAYAL_LOGIN };
+export { buildOtsarHahayalPipeline };

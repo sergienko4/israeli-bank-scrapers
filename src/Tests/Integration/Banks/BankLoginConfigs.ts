@@ -14,7 +14,6 @@ import type { ILoginConfig } from '../../../Scrapers/Base/Interfaces/Config/Logi
 import { DISCOUNT_LOGIN } from '../../../Scrapers/Pipeline/Banks/Discount/DiscountPipeline.js';
 import { LEUMI_LOGIN } from '../../../Scrapers/Pipeline/Banks/Leumi/LeumiPipeline.js';
 import { MERCANTILE_LOGIN } from '../../../Scrapers/Pipeline/Banks/Mercantile/MercantilePipeline.js';
-import { OTSAR_HAHAYAL_LOGIN } from '../../../Scrapers/Pipeline/Banks/OtsarHahayal/OtsarHahayalPipeline.js';
 import { PAGI_LOGIN } from '../../../Scrapers/Pipeline/Banks/Pagi/PagiPipeline.js';
 
 /**
@@ -27,7 +26,6 @@ const BANK_LOGIN_CONFIGS: Readonly<Partial<Record<string, ILoginConfig>>> = {
   discount: DISCOUNT_LOGIN,
   leumi: LEUMI_LOGIN,
   mercantile: MERCANTILE_LOGIN,
-  otsarHahayal: OTSAR_HAHAYAL_LOGIN,
   pagi: PAGI_LOGIN,
 };
 
