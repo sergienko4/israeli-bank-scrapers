@@ -67,9 +67,9 @@ defaults:
 #                           caught BEFORE we burn real-bank capacity.
 #   dns-preflight         — Israeli bank DNS resolution sanity.
 #   e2e-real-group-a      — Stage 1 (parallel, gate-A approval):
-#                           non-OTP banks: browser-form
-#                           Discount plus api-direct VisaCal,
-#                           Isracard and Max (no browser).
+#                           non-OTP banks: api-direct
+#                           Discount, VisaCal, Isracard
+#                           and Max (no browser).
 #   e2e-real-group-b      — Stage 2 (parallel, gate-B approval):
 #                           OTP banks: api-direct
 #                           Beinleumi and Hapoalim
@@ -1220,8 +1220,7 @@ jobs:
   #
   #   Group A, gate-A (parallel runners):
   #     non-OTP banks
-  #     — Discount (browser-form)
-  #     — VisaCal, Isracard, Max (api-direct, no browser)
+  #     — Discount, VisaCal, Isracard, Max (api-direct, no browser)
   #   Group B, gate-B (parallel runners):
   #     OTP banks
   #     — Beinleumi, Hapoalim (api-direct, no browser)
@@ -1391,8 +1390,8 @@ jobs:
       (github.event_name == 'workflow_dispatch' ||
       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
-    # Non-OTP banks: Discount on a browser form, VisaCal, Isracard
-    # and Max over the API. Amex is no longer here — it now runs
+    # Non-OTP banks: Discount, VisaCal, Isracard and Max, all over
+    # the API. Amex is no longer here — it now runs
     # in its OWN isolated Group D (`e2e-real-group-d` below) under a
     # separate gate-D approval. Rule #16 (Amex never co-runs with
     # Isracard) is honored by approving gate-D alone for an Amex-only
@@ -1431,9 +1430,6 @@ jobs:
       - name: Force reliable DNS for ${{ matrix.bank }}
         run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
       - uses: $/.github/actions/setup-node-deps
-      - uses: $/.github/actions/install-camoufox
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: E2E real (${{ matrix.bank }})
         env:
