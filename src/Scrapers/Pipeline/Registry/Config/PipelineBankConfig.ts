@@ -7,15 +7,18 @@
 
 import { CompanyTypes } from '../../../../Definitions.js';
 import { AMEX_HEADLESS } from './PipelineBankConfigAmex.js';
-import { BEINLEUMI_HEADLESS } from './PipelineBankConfigBeinleumi.js';
+import { DISCOUNT_HEADLESS } from './PipelineBankConfigDiscount.js';
+import {
+  BEINLEUMI_HEADLESS,
+  MASSAD_HEADLESS,
+  OTSAR_HAHAYAL_HEADLESS,
+  PAGI_HEADLESS,
+} from './PipelineBankConfigFibiBrands.js';
 import { HAPOALIM_HEADLESS } from './PipelineBankConfigHapoalim.js';
 import { ISRACARD_HEADLESS } from './PipelineBankConfigIsracard.js';
-import { MASSAD_HEADLESS } from './PipelineBankConfigMassad.js';
 import { MAX_HEADLESS } from './PipelineBankConfigMax.js';
 import { MIZRAHI_HEADLESS } from './PipelineBankConfigMizrahi.js';
 import { ONEZERO_HEADLESS } from './PipelineBankConfigOneZeroHeadless.js';
-import { OTSAR_HAHAYAL_HEADLESS } from './PipelineBankConfigOtsarHahayal.js';
-import { PAGI_HEADLESS } from './PipelineBankConfigPagi.js';
 import { PEPPER_HEADLESS } from './PipelineBankConfigPepperHeadless.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
 import type {
@@ -94,7 +97,11 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
       tokenPath: ['SessionHeader', 'SessionID'],
     },
   },
-  [CompanyTypes.Discount]: defineBank('https://www.discountbank.co.il', ACCOUNT, SESSION_COOKIE),
+  [CompanyTypes.Discount]: defineApiDirectBank(
+    'https://www.discountbank.co.il',
+    ACCOUNT,
+    DISCOUNT_HEADLESS,
+  ),
   [CompanyTypes.Hapoalim]: defineApiDirectBank(
     'https://www.bankhapoalim.co.il',
     ACCOUNT,

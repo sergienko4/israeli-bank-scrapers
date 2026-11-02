@@ -154,7 +154,7 @@ validated at runtime.
 | Behatsdaa            | Bank        | Browser    | `id`, `password`                |
 | Beinleumi            | Bank        | API-direct | `username`, `password`, OTP\*   |
 | Beyahad Bishvilha    | Bank        | Browser    | `id`, `password`                |
-| Discount Bank        | Bank        | Browser    | `id`, `password`, `num`         |
+| Discount Bank        | Bank        | API-direct | `id`, `password`, `num`         |
 | Massad               | Bank        | API-direct | `username`, `password`, OTP\*   |
 | Mercantile Bank      | Bank        | Browser    | `id`, `password`, `num`         |
 | Mizrahi Bank         | Bank        | API-direct | `username`, `password`          |
