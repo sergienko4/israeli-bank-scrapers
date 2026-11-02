@@ -45,6 +45,10 @@ This repository uploads SARIF from three tools: **CodeQL**, **zizmor**, and
 authority and Scorecard is advisory**. This page explains why, and records the
 four standing findings that should not be "fixed" the obvious way.
 
+Of `package.json`, only the dependency ranges, `overrides`, `engines`,
+`constraints` and the browser-stack scripts bear on this page; its other
+scripts, such as test tooling, do not.
+
 ## Why zizmor decides
 
 |                  | zizmor                                                                       | Scorecard                        |

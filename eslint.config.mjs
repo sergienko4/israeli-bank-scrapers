@@ -539,7 +539,6 @@ const phase9LocalPlugin = {
 // under that subtree.
 const PHASE_9_TEST_FILES = [
   'src/Tests/E2eReal/Helpers.ts',
-  'src/Tests/E2eReal/Tools/CaptureInvalidLogin.ts',
   'src/Tests/Unit/Pipeline/Infrastructure/DashboardPhase.test.ts',
   'src/Tests/Unit/Pipeline/Mediator/AuthDiscovery/AuthDiscoveryFactoryTest.test.ts',
   'src/Tests/Unit/Pipeline/Mediator/BalanceResolve/BalanceResolveCrossBank.test.ts',

@@ -130,16 +130,13 @@ lives on `urls.base` is correctly absent from the manifest.
 Create `src/Tests/E2eMocked/<NewBank>/<NewBank>.e2e-mocked.test.ts`.
 For a browser-driven bank, the test:
 
-1. Replays the browser fixtures from step 2 via `BankFixtureLoader`.
+1. Serves synthetic stand-ins for the endpoints from step 2 through a
+   `<NewBank>FetchMock.ts` that replaces `fetch` (shared plumbing lives in
+   `Helpers/FetchMockKit.ts`).
 2. Constructs the scraper.
 3. Asserts `result.success === true` + expected account count + sample txn.
 
-For browser-driven banks, use
-[`Discount.e2e-mocked.test.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/E2eMocked/Discount/Discount.e2e-mocked.test.ts)
-as the template. For an API-direct bank such as Max, steps 2–4 use JSON
-traces, `IApiDirectCallConfig` and `.withApiDirect(...)` instead of browser
-HTML; use a typed `FetchMockKit` fake as in
-`src/Tests/E2eMocked/Max/Max.e2e-mocked.test.ts`.
+The existing [`Discount.e2e-mocked.test.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/E2eMocked/Discount/Discount.e2e-mocked.test.ts) is the template: its fetch mock enforces what the bank enforces, so a broken request fails offline too.
 
 ### 8. Verify
 
