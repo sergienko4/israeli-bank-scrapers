@@ -24,7 +24,7 @@ Some fields on `ScraperOptions` are honoured only by the
 | `onAuthFlowComplete` | `(info: IAuthFlowInfo) => void` | (none) | Fires once authentication finishes, before scraping |
 | `otpTimeoutMs` | `number` (ms) | bank-specific | How long to wait for `otpCodeRetriever` to resolve |
 | `loginLogLevel` | `'info' \| 'trace'` | `'info'` | Raises log detail for the LOGIN phase only |
-| `persistentAuthState` | `string` | (none) | **Pepper and Beinleumi** — opaque device-auth state previously handed to `onPersistentAuthStateUpdate`. Pepper's holds a bearer token and a device private key, Beinleumi's only the device id: store it as a secret. Requires `onPersistentAuthStateUpdate`. Omit it when nothing is stored — an empty string fails as invalid state — see [Pepper durable device auth](banks/pepper.md#durable-device-auth-opt-in) and [Beinleumi warm start](banks/beinleumi.md#warm-start) |
+| `persistentAuthState` | `string` | (none) | **Pepper and Beinleumi** — opaque device-auth state previously handed to `onPersistentAuthStateUpdate`. Pepper's holds a bearer token and a device private key, Beinleumi's the provider, the lower-cased `username` and the device id: store it as a secret. Requires `onPersistentAuthStateUpdate`. Omit it when nothing is stored — an empty string fails as invalid state — see [Pepper durable device auth](banks/pepper.md#durable-device-auth-opt-in) and [Beinleumi warm start](banks/beinleumi.md#warm-start) |
 | `onPersistentAuthStateUpdate` | `(state: string) => Promise<void>` | (none) | **Pepper and Beinleumi** — opts into durable device auth. Called once after an enrollment or a renewal with the state to store (Beinleumi: once, on enrollment); a rejection fails the run before the new token is used. Other banks ignore it |
 
 `defaultTimeout` is an **option, not an environment variable**. It bounds each
@@ -180,8 +180,9 @@ above, which keeps the bound device and renews an expired token without an
 SMS. The two modes are mutually exclusive — combining them fails the run
 before any request. See
 [Pepper durable device auth](banks/pepper.md#durable-device-auth-opt-in).
-Beinleumi offers the same options as device memory: its state holds only
-the device id, so the bank may still ask for an SMS — see
+Beinleumi offers the same options as device memory: its state names the
+provider, the lower-cased `username` and the device id but carries no token,
+so the bank may still ask for an SMS — see
 [Beinleumi warm start](banks/beinleumi.md#warm-start).
 
 ## Environment variables

@@ -108,7 +108,9 @@ that device as [device memory](../phases/api-direct-call.md#device-memory)
   stored device id is sent on the key exchange, the login and the assertions;
   a different id in an answer does not replace it, and nothing is published.
 
-The state holds the device id alone: no password, token or key.
+The state is base64url JSON naming the provider, the `username` in lower
+case and the device id. It holds no password, token or key, but it is
+encoded, not encrypted, so store it as a secret.
 
 ## Known quirks
 
