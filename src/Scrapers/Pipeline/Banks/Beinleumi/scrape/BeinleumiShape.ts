@@ -1,7 +1,7 @@
 /**
  * Beinleumi (FIBI group) scrape shape — the `IApiDirectScrapeShape` data
  * declaration consumed by the generic buildGenericHeadlessScrape driver via
- * `withBrowserApiDirect`. balanceKind=account.
+ * `withApiDirect`. balanceKind=account.
  *
  * Account identity spans two cookie-authed GETs: `userData` (customer) for the
  * account number + branch, and a session-level `accountType` lookup
@@ -17,10 +17,7 @@
  *
  * Contract grounded in the captured trace
  * (C:\tmp\runs\pipeline\beinleumi\04-07-2026_11221970). Replaces the
- * generic AUTH-DISCOVERY/ACCOUNT-RESOLVE/DASHBOARD chain. AUTH-DISCOVERY now
- * performs the cross-origin appsng nav (config `postLoginNav`) so the
- * cookie-authed fetches run from the rendered app context, not FIBI’s blank
- * `/wps/` portal shell.
+ * generic AUTH-DISCOVERY/ACCOUNT-RESOLVE/DASHBOARD chain.
  */
 
 import { makeFibiGroupShape } from '../../../Phases/ApiDirectScrape/FibiGroup/FibiGroupShape.js';
@@ -28,7 +25,7 @@ import { customerUrl, secondaryUrl } from './BeinleumiShapeAccounts.js';
 import { balanceUrl } from './BeinleumiShapeHelpers.js';
 import { txnsUrl } from './BeinleumiShapeTxns.js';
 
-/** Beinleumi hard-model shape — passed to `.withBrowserApiDirect(...)`. */
+/** Beinleumi hard-model shape — passed to `.withApiDirect(...)`. */
 const BEINLEUMI_SHAPE = makeFibiGroupShape({
   stepName: 'BeinleumiScrape',
   windowNarrowing: 'windowEnd',

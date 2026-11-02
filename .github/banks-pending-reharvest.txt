@@ -18,20 +18,20 @@
 #
 # Format: one bankId per line. Lines starting with `#` are comments.
 #
-# ── Currently pending (3) ──
+# ── Currently pending (2) ──
 #
-# Massad      recipe gap: login form has a tab/accordion-toggle UI
+# Pagi        recipe gap: login form has a tab/accordion-toggle UI
 #             that reveals the password tab only after click. Harvester
 #             needs `click-password-tab` step before capture.
-massad
-#
-# Pagi        recipe gap: same as Massad — click-password-tab step needed.
 pagi
 #
-# OtsarHahayal recipe gap: same as Massad — click-password-tab step needed.
+# OtsarHahayal recipe gap: same as Pagi — click-password-tab step needed.
 otsarHahayal
 #
 # ── Resolved (kept for traceability) ──
+# massad      RESOLVED: Massad logs in over the bank's API with no browser,
+#             so it carries no page fixtures and is exempt as an API-direct
+#             bank in CheckBankIntegrationCoverage.ts.
 # visaCal     RESOLVED in PR #335 C7: harvester gained frame-aware reveal
 #             (clickRevealAnyFrame) + 3-step recipe (01-home + 02-pre-login
 #             + 03-username-tab clicks "כניסה עם שם משתמש" tab); MirrorInterceptor

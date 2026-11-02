@@ -121,12 +121,12 @@ const BANK_IDS: readonly string[] = readdirSync(BANKS_FIXTURE_ROOT, { withFileTy
 /**
  * Floors proving discovery actually walked the corpus, not an empty dir.
  *
- * The corpus measures 6 banks / 122 files today; banks scraped over a
+ * The corpus measures 5 banks / 116 files today; banks scraped over a
  * direct API carry no page fixtures and leave it. The regression this
  * guards is a top-level-only walk, which yields well under 100 — so the
  * floor sits far above that while leaving room for fixtures to come and go.
  */
-const MIN_BANKS = 6;
+const MIN_BANKS = 5;
 const MIN_FIXTURES = 100;
 
 /**

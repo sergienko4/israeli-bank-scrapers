@@ -7,12 +7,11 @@
  * Massad is a First-International (FIBI) group brand. The BFF path shape
  * (userData + bff-balancetransactions) is shared with its siblings through
  * FibiGroup — never imported from another bank — but the host is Massad's
- * own post-login origin (online.bankmassad.co.il, from the fork login
- * navigation and upstream MassadScraper BASE_URL), NOT Beinleumi's
- * online.fibi.co.il. BrowserFetchStrategy dispatches through the live login
- * page, so the BFF must be same-origin or session cookies will not ride.
- * balanceKind=account. Host regrounded from the fork login origin; the
- * shared BFF paths on this host are pending maintainer live-E2E.
+ * own online origin (online.bankmassad.co.il), NOT Beinleumi's
+ * online.fibi.co.il. The api-direct login runs on that same origin, so the
+ * scrape rides its cookie session. balanceKind=account. The shared BFF
+ * paths on this host are covered by mocked tests only; no live Massad run
+ * has been recorded yet.
  */
 
 import {

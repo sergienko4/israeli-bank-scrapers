@@ -7,23 +7,11 @@
  */
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
-import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilderFactory.js';
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { MASSAD_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigMassad.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { MASSAD_SHAPE } from './scrape/MassadShape.js';
-
-/** Massad login config — credential keys only. WellKnown resolves selectors. */
-const MASSAD_LOGIN: ILoginConfig = {
-  loginUrl: '',
-  fields: [
-    { credentialKey: 'username', selectors: [] },
-    { credentialKey: 'password', selectors: [] },
-  ],
-  submit: [],
-  possibleResults: { success: [] },
-};
 
 /**
  * Build the Massad pipeline descriptor: no browser; the direct-API login
@@ -40,4 +28,4 @@ function buildMassadPipeline(options: ScraperOptions): Procedure<IPipelineDescri
 }
 
 export default buildMassadPipeline;
-export { buildMassadPipeline, MASSAD_LOGIN };
+export { buildMassadPipeline };

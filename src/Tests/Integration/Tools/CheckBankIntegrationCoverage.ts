@@ -49,6 +49,7 @@ const API_DIRECT_BANKS: ReadonlySet<string> = new Set([
   'Beinleumi',
   'Hapoalim',
   'Isracard',
+  'Massad',
   'Max',
   'Mizrahi',
   'OneZero',

@@ -6,9 +6,9 @@
  *
  * Beinleumi is the progenitor of the First-International (FIBI) group shape:
  * the Mataf/appsng BFF contract captured here is the one its sibling brands
- * share through the neutral FibiGroup factory. Every post-login call is
- * cookie-authed (session cookies ride the live login page through
- * BrowserFetchStrategy) and every GET carries a fresh random uid.
+ * share through the neutral FibiGroup factory. Every post-login call rides
+ * the api-direct login's cookie session and every GET carries a fresh
+ * random uid.
  * balanceKind=account: balance reads `currentBalance` from
  * `balances/<accountType>`. This is the only FIBI brand proven by a live
  * E2E run; the siblings clone its paths onto their own hosts.
