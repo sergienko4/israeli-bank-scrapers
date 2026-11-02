@@ -549,7 +549,11 @@ that resolves. `passesCheck` then applies the check's one kind:
 | `text`         | is safe text (below) that matches the whole `pattern`, if any  |
 
 Every kind but `absent` fails when no alternative resolves, and a check with
-no kind never passes. `isSafeText` accepts a string of 1..`maxChars` chars
+no kind never passes. `negate: true` (N60) inverts a check's verdict, so
+`{ pointer, equals: 'SUCCESS', negate: true }` passes on any other value,
+`null` or a missing pointer included, and `{ pointer, absent: true, negate:
+true }` passes when the pointer resolves. A negated check with no kind still
+never passes. `isSafeText` accepts a string of 1..`maxChars` chars
 with no C0 control char and no DEL. A `pattern` is compiled alone with the `u`
 flag, then wrapped in `^(?:…)$`, so it must match the whole text; a pattern
 that does not compile alone, such as `a)|(?:b`, which would escape the wrapper,

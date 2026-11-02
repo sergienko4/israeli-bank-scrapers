@@ -194,6 +194,37 @@ describe('classifyAnswer — check kinds', () => {
   });
 });
 
+describe('classifyAnswer — negated checks (N60)', () => {
+  const notDone: IAnswerCheck = { pointer: '/s', equals: 'done', negate: true };
+  const present: IAnswerCheck = { pointer: '/s', absent: true, negate: true };
+  const notText: IAnswerCheck = { pointer: '/s', text: { maxChars: 4 }, negate: true };
+
+  it.each<[string, IAnswerCheck, JsonValue]>([
+    ['negated equals with another string', notDone, { s: 'fail' }],
+    ['negated equals with null', notDone, { s: null }],
+    ['negated equals with an empty string', notDone, { s: '' }],
+    ['negated equals across types', notDone, { s: 7 }],
+    ['negated equals on a missing pointer', notDone, { t: 'done' }],
+    ['negated absent with a null value', present, { s: null }],
+    ['negated text on a number', notText, { s: 1234 }],
+  ])('passes %s', (_label, check, resp) => {
+    const classify = oneCheck(check);
+    const verdict = classifyWith(classify, resp);
+    expect(verdict).toEqual(HIT);
+  });
+
+  it.each<[string, IAnswerCheck, JsonValue]>([
+    ['negated equals with the value', notDone, { s: 'done' }],
+    ['negated absent on a missing pointer', present, { t: 'x' }],
+    ['negated text on safe text', notText, { s: 'ok' }],
+    ['a negated check of no kind', { pointer: '/s', negate: true }, { s: 'x' }],
+  ])('refuses %s', (_label, check, resp) => {
+    const classify = oneCheck(check);
+    const verdict = classifyWith(classify, resp);
+    expect(verdict).toMatchObject(UNRECOGNIZED);
+  });
+});
+
 describe('classifyAnswer — pointer alternatives', () => {
   const either: readonly string[] = ['/a', '/b'];
 
