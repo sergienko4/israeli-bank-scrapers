@@ -33,13 +33,36 @@ export const DISCOUNT_MOCK_CREDS = Object.freeze({
 export const DC_UID = '00001024681357';
 
 /**
- * The MI6 binding a successful login answers with: the bank's md5-hex of
- * the formatted {@link DC_UID}.
+ * The md5-hex of every text the mock hashes, keyed by that text: each `Uid`
+ * the suites log in with — the two ids above under each brand's prefixes —
+ * and the `<Uid>-other` the mismatch fault names. The bank binds a login
+ * with md5; precomputing keeps the mock from running a weak hash itself.
  */
-export const DC_MI6 = '602f8a61de55fdf853db7d0bae7f1ffc';
+const MI6_HEX: Readonly<Record<string, string>> = {
+  '00001024681357': '602f8a61de55fdf853db7d0bae7f1ffc',
+  '00001024681357-other': 'cc3dea0607772ecbe5967c3782c6ffbe',
+  '00009135792468': '01b25b43bf83655cd9db663c1557d710',
+  '00009135792468-other': 'a945afa491131bea1a7e463d6aac6112',
+  '00011024681357': '4b500fdfa5eb30fca748b4bfa978206c',
+  '00011024681357-other': '69681dba5be1692e056c8a5c069727d1',
+  '00019135792468': '27c6ed1deb0a875eff36ae75b19ceae8',
+  '00019135792468-other': '2030fa068ad98211640768f83d88ae26',
+};
 
-/** The MI6 for the mismatch fault: the same hash of {@link DC_UID}-other. */
-export const DC_MI6_MISMATCH = 'cc3dea0607772ecbe5967c3782c6ffbe';
+/**
+ * The md5-hex of a text, as the bank binds a login to its `Uid`.
+ * @param text - The text to hash.
+ * @returns Lower-case hex, or '' when no suite sends that text.
+ */
+export function md5Of(text: string): string {
+  return MI6_HEX[text] ?? '';
+}
+
+/** The MI6 binding a successful login answers with: md5 of {@link DC_UID}. */
+export const DC_MI6 = md5Of(DC_UID);
+
+/** The MI6 for the mismatch fault: md5 of {@link DC_UID}-other. */
+export const DC_MI6_MISMATCH = md5Of(`${DC_UID}-other`);
 
 /** The synthetic RSA key getInfo hands out; the mock opens the seals with it. */
 export const DC_KEY = makePkcs1Key();
@@ -65,16 +88,17 @@ export const DC_TUUID = 'syn-dc-tuuid-7';
 /** The session pair a successful login sets. */
 export const DC_SESSION_COOKIE = 'DcSession=syn-dc-sess-3a';
 
+/** The client cookies every brand's prime step sets besides its `cssName`. */
+export const DC_CLIENT_COOKIES: readonly string[] = ['language=HEBREW', 't=P', 'caller=internet'];
+
 /** The client cookies the prime step sets before its request. */
-export const DC_PRIME_COOKIES: readonly string[] = [
-  'cssName=discount',
-  'language=HEBREW',
-  't=P',
-  'caller=internet',
-];
+export const DC_PRIME_COOKIES: readonly string[] = ['cssName=discount', ...DC_CLIENT_COOKIES];
+
+/** The client cookies the landing step sets besides the MI6 binding. */
+export const DC_LANDING_FLAGS: readonly string[] = ['fte=true', 'newRetail=1'];
 
 /** The client cookies the landing step sets before its request. */
-export const DC_LANDING_COOKIES: readonly string[] = [`mi6=${DC_MI6}`, 'fte=true', 'newRetail=1'];
+export const DC_LANDING_COOKIES: readonly string[] = [`mi6=${DC_MI6}`, ...DC_LANDING_FLAGS];
 
 /** One synthetic account: Titan id, display number, balance, movement amounts. */
 export interface ISynAccount {

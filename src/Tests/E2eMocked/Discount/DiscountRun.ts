@@ -5,7 +5,6 @@
  * Rule #18: all credentials + data are synthetic; no real PII.
  */
 
-import { CompanyTypes } from '../../../Definitions.js';
 import type {
   IScraperScrapingResult,
   ScraperCredentials,
@@ -13,6 +12,8 @@ import type {
 import createScraper from '../../../Scrapers/Registry/Factory.js';
 import { getLaunchCount } from '../../Mocks/CamoufoxJsMock.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
+import type { ITelebankMockBrand } from './DiscountBrands.js';
+import { DISCOUNT_MOCK_BRAND } from './DiscountBrands.js';
 import type { DiscountFault } from './DiscountFaults.js';
 import { classifyDiscount, installDiscountFetchMock } from './DiscountFetchMock.js';
 import {
@@ -94,19 +95,21 @@ function isDataCall(call: IRecordedCall): boolean {
 }
 
 /**
- * Scrape Discount against the synthetic bank.
+ * Scrape a Telebank bank against the synthetic bank.
  * @param fault - Fault the bank answers with.
  * @param creds - Credentials to scrape with.
+ * @param brand - The bank to scrape; Discount by default.
  * @returns The result, the call log and how many browsers were launched.
  */
 export async function runDiscount(
   fault: DiscountFault = 'none',
   creds: ScraperCredentials = { ...DISCOUNT_MOCK_CREDS },
+  brand: ITelebankMockBrand = DISCOUNT_MOCK_BRAND,
 ): Promise<IDiscountRun> {
   const launchesBefore = getLaunchCount();
-  const handle = installDiscountFetchMock(fault);
+  const handle = installDiscountFetchMock(fault, brand);
   try {
-    const options = { companyId: CompanyTypes.Discount, startDate: DISCOUNT_MOCK_START_DATE };
+    const options = { companyId: brand.companyId, startDate: DISCOUNT_MOCK_START_DATE };
     const scraper = createScraper(options);
     const result = await scraper.scrape(creds);
     const launches = getLaunchCount() - launchesBefore;
