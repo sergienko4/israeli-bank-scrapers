@@ -1659,8 +1659,10 @@ gate reads it. `isLocalFailureMessage`
 (`src/Scrapers/Pipeline/Strategy/Fetch/LocalFailureReasons.ts`) matches such a
 reason only at the start of the message, so a reply that quotes one is still
 cut down. The in-request re-mint runs below the step, so it still reads the
-original space-delimited `<status>:` marker. Scrape-phase requests keep the
-transport message.
+original space-delimited `<status>:` marker. A scrape call keeps the
+transport message unless its shape sets `omitBankText`; the scrape phase then
+passes the failure through `sanitiseStepFailure` with only the call's name, so
+it reads `<call> HTTP <status>` and no login `httpFailureMap` applies.
 
 ### Step names and URL tags
 
