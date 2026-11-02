@@ -1178,6 +1178,10 @@ from what it extracted:
 - `@cookie:<name>` as a header value sends that cookie's current value; the
   header is dropped when the cookie is absent
   ([Headless transports](../architecture/pipeline.md#headless-transports)).
+  `@cookie-strict:<name>` must URI-decode to a value a header can carry, or
+  the request fails `"cookie <name> undecodable"` before it is sent. Either
+  form takes a `?<fallback>` (`@cookie:language?HEBREW`, `@cookie:tuuid?`),
+  sent verbatim when the cookie is missing or empty.
 - `redirect` overrides `headless.redirectPolicy` for one step
   ([Redirect policies](../architecture/pipeline.md#redirect-policies)); with
   a manual one, `finalUrlInto` carries the URL that gave the final answer

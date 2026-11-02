@@ -314,6 +314,12 @@ const ACCEPT = { Accept: 'application/json' } as const;
 const XSRF_SENTINEL = `${COOKIE_HEADER_SENTINEL_PREFIX}XSRF-TOKEN`;
 const XSRF_COOKIE = { name: 'XSRF-TOKEN', value: 'tok' } as const;
 
+/** One cookie the page context hands back. */
+interface IJarCookie {
+  readonly name: string;
+  readonly value: string;
+}
+
 /**
  * Build a page whose browser context hands back a stubbed cookie jar.
  * @param cookiesFn - Stub for `context().cookies(url)`.
@@ -336,7 +342,7 @@ function makePageWithJar(cookiesFn: jest.Mock): MockPage {
  * @returns The page, the cookies stub and the GET's success flag.
  */
 async function getWithJar(
-  jar: readonly (typeof XSRF_COOKIE)[],
+  jar: readonly IJarCookie[],
   headers: Record<string, string>,
 ): Promise<{ page: MockPage; cookiesFn: jest.Mock; isOk: boolean }> {
   const cookiesFn = jest.fn().mockResolvedValue(jar);
@@ -371,5 +377,37 @@ describe('BrowserFetchStrategy/fetchGet — @cookie: sentinels', () => {
     const run = await getWithJar([], { 'X-XSRF-TOKEN': XSRF_SENTINEL });
     expect(getFn).toHaveBeenCalledWith(run.page, GET_URL, false);
     expect(FETCH_MOD.fetchGetWithinPageWithHeaders).not.toHaveBeenCalled();
+  });
+});
+
+// ── @cookie-strict: sentinels (strict decode on both verbs) ─
+
+const STRICT_XSRF = { 'X-XSRF-TOKEN': '@cookie-strict:XSRF-TOKEN' } as const;
+const MALFORMED_XSRF = { name: 'XSRF-TOKEN', value: '%E0%A4%A' } as const;
+const UNDECODABLE = { success: false, errorMessage: 'cookie XSRF-TOKEN undecodable' } as const;
+
+describe('BrowserFetchStrategy — @cookie-strict: sentinels', () => {
+  it('sends a strict cookie decoded on GET', async () => {
+    const getHeadersFn = FETCH_MOD.fetchGetWithinPageWithHeaders as jest.Mock;
+    getHeadersFn.mockResolvedValue({ data: 'ok' });
+    const jar = [{ name: 'XSRF-TOKEN', value: 'a%2Bb%3D%3D' }];
+    const run = await getWithJar(jar, STRICT_XSRF);
+    expect(getHeadersFn).toHaveBeenCalledWith(run.page, GET_URL, { 'X-XSRF-TOKEN': 'a+b==' });
+  });
+
+  it('stops a GET on an undecodable cookie before the page fetch', async () => {
+    const run = await getWithJar([MALFORMED_XSRF], STRICT_XSRF);
+    expect(run.isOk).toBe(false);
+    expect(FETCH_MOD.fetchGetWithinPage).not.toHaveBeenCalled();
+    expect(FETCH_MOD.fetchGetWithinPageWithHeaders).not.toHaveBeenCalled();
+  });
+
+  it('stops a POST on an undecodable cookie before the page fetch', async () => {
+    const cookiesFn = jest.fn().mockResolvedValue([MALFORMED_XSRF]);
+    const page = makePageWithJar(cookiesFn);
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(page);
+    const result = await strategy.fetchPost(GET_URL, {}, { extraHeaders: STRICT_XSRF });
+    expect(result).toMatchObject(UNDECODABLE);
+    expect(FETCH_MOD.fetchPostWithinPage).not.toHaveBeenCalled();
   });
 });

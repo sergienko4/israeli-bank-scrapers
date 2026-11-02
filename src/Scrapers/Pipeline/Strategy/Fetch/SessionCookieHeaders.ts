@@ -2,23 +2,23 @@
  * Session cookie headers — the headers a session jar sends to one URL.
  *
  * With a domain jar, a `@cookie:<name>` header value is replaced by that
- * cookie's URI-decoded value for the request URL (a malformed escape, or a
- * decoded value no header can hold, is sent raw); the header is dropped when
- * no such cookie applies. An origin jar leaves header values as they are.
+ * cookie's value for the request URL, decoded by `decodeCookieLenient` (a
+ * malformed escape, or a decoded value no header can hold, is sent raw); a
+ * `@cookie-strict:<name>` value must decode, or the request fails; the
+ * header takes its `?<fallback>`, or is dropped, when no such cookie
+ * applies. An origin jar leaves header values as they are.
  * Every request then carries the origin's cookie header. Each function
  * returns a `Procedure`, so a header that cannot be resolved stops the
  * request, or the redirect hop, before it is sent. Cookie values are never
  * logged.
  */
 
-import type { Option } from '../../Types/Option.js';
-import { isSome, some } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
 import { cookieSentinelHeaders, substituteCookieHeadersBy } from './CookieHeaderSentinel.js';
+import { decodeCookieLenient } from './CookieValueDecode.js';
 import type { IDomainCookieJar } from './DomainCookieJar.js';
 import type { ISessionHeaders } from './FetchStrategy.js';
-import { isHeaderSafe } from './HeaderText.js';
 import type { IOriginCookieJar } from './OriginCookieJar.js';
 
 /** The jar the decorator keeps; only a domain jar reads single cookies. */
@@ -27,40 +27,7 @@ interface ISessionJar extends IOriginCookieJar {
 }
 
 /**
- * URI-decode a cookie value for a header, keeping it raw when an escape is
- * malformed or the decoded text cannot travel in a header.
- * @param raw - Stored cookie value.
- * @returns The decoded value, or the raw value.
- */
-function decodeCookieValue(raw: string): string {
-  try {
-    const decoded = decodeURIComponent(raw);
-    return isHeaderSafe(decoded) ? decoded : raw;
-  } catch {
-    return raw;
-  }
-}
-
-/**
- * The decoded value of one cookie that applies to a URL.
- * @param cookieFor - The domain jar's single-cookie read.
- * @param url - Request URL.
- * @param name - Cookie name.
- * @returns The decoded value, or none when no such cookie applies.
- */
-function decodedCookie(
-  cookieFor: IDomainCookieJar['cookieFor'],
-  url: string,
-  name: string,
-): Option<string> {
-  const raw = cookieFor(url, name);
-  if (!isSome(raw)) return raw;
-  const decoded = decodeCookieValue(raw.value);
-  return some(decoded);
-}
-
-/**
- * Resolve `@cookie:` sentinels in the caller's headers through a domain jar.
+ * Resolve cookie sentinels in the caller's headers through a domain jar.
  * @param jar - Session jar.
  * @param url - Request URL.
  * @param headers - Caller headers.
@@ -74,8 +41,8 @@ function withSentinels(
 ): Procedure<Record<string, string>> {
   const { cookieFor } = jar;
   if (cookieFor === undefined) return succeed(headers);
-  const lookup = decodedCookie.bind(null, cookieFor, url);
-  return substituteCookieHeadersBy(headers, lookup);
+  const lookup = cookieFor.bind(null, url);
+  return substituteCookieHeadersBy(headers, { lookup, loose: decodeCookieLenient });
 }
 
 /**
@@ -108,7 +75,7 @@ function withCookieHeader(
 }
 
 /**
- * The caller's `@cookie:` headers a domain jar resolves; none for an origin
+ * The caller's sentinel headers a domain jar resolves; none for an origin
  * jar, which leaves header values as they are.
  * @param jar - Session jar.
  * @param headers - Caller headers.

@@ -8,7 +8,9 @@
 
 import { jest } from '@jest/globals';
 
+import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IManualRedirect } from '../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
+import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** Single logger instance shared by the modules under test and the assertions. */
 const LOG = {
@@ -357,6 +359,11 @@ describe('withCookieSession', () => {
 });
 
 const MTO_LANDING = 'https://mto.bank.example/Online/Default.aspx';
+const XSRF_UNDECODABLE = {
+  success: false,
+  errorType: ScraperErrorTypes.Generic,
+  errorMessage: 'cookie XSRF-TOKEN undecodable',
+};
 const TO_MTO: IManualRedirect = {
   maxHops: 1,
   allow: [{ origin: 'https://mto.bank.example', paths: ['/Online/Default.aspx'] }],
@@ -374,14 +381,15 @@ describe('withCookieSession across manual redirect hops', () => {
 
   /**
    * Serve a www seed answer, then a www 302 to MTO, then the MTO page.
+   * @param hopCookie - The Set-Cookie line the 302 carries.
    * @returns The jest mock for call-capture assertions.
    */
-  function serveLogin(): MockFetch {
+  function serveLogin(hopCookie = 'hop1=1; Domain=bank.example; Path=/'): MockFetch {
     const seedCookies = ['wwwonly=1; Path=/', 'shared=1; Domain=bank.example; Path=/'];
     const seedHeaders = seedCookies.map((line): [string, string] => ['set-cookie', line]);
     const hopHeaders: [string, string][] = [
       ['location', MTO_LANDING],
-      ['set-cookie', 'hop1=1; Domain=bank.example; Path=/'],
+      ['set-cookie', hopCookie],
     ];
     const queue = [
       new Response('{}', { status: 200, headers: seedHeaders }),
@@ -430,6 +438,17 @@ describe('withCookieSession across manual redirect hops', () => {
       [null, '1'],
     ]);
   });
+
+  it('UT-RD-14 stops before the hop when the redirect sets an undecodable strict cookie', async () => {
+    const mock = serveLogin('XSRF-TOKEN=%E0%A4%A; Domain=bank.example; Path=/');
+    const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+    const { transport } = SESSION.withCookieSession(inner, DOMAIN_ARGS);
+    await transport.fetchGet(WWW_LOGIN, { extraHeaders: {} });
+    const extraHeaders = { 'X-XSRF-TOKEN': '@cookie-strict:XSRF-TOKEN' };
+    const result = await transport.fetchGet(`${WWW_LOGIN}/go`, { extraHeaders, redirect: TO_MTO });
+    expect(result).toMatchObject(XSRF_UNDECODABLE);
+    expect(mock).toHaveBeenCalledTimes(2);
+  });
 });
 
 const DROPPED = '(dropped)';
@@ -437,6 +456,7 @@ const WWW_ONLY = 'XSRF-TOKEN=www; Path=/';
 const DEEP = 'XSRF-TOKEN=deep; Domain=bank.example; Path=/secure';
 const MTO_SECURE = 'https://mto.bank.example/secure/x';
 const XSRF_SENTINEL = { 'X-XSRF-TOKEN': '@cookie:XSRF-TOKEN', accept: 'application/json' };
+const STRICT_XSRF = { 'X-XSRF-TOKEN': '@cookie-strict:XSRF-TOKEN', accept: 'application/json' };
 
 /**
  * Read every header of one fetch call.
@@ -466,6 +486,32 @@ async function sendSentinel(
   await transport.fetchPost(WWW_LOGIN, {}, { extraHeaders: {} });
   await transport.fetchGet(url, { extraHeaders: XSRF_SENTINEL });
   return headersSent(mock, 1);
+}
+
+/** The verb a sentinel request goes out on. */
+type SentVerb = 'GET' | 'POST';
+
+/**
+ * Seed a domain-jar session from one www answer, then send one request to
+ * MTO carrying the given headers.
+ * @param seed - Set-Cookie lines of the www answer.
+ * @param verb - Verb of the request that carries the headers.
+ * @param extraHeaders - Headers of that request.
+ * @returns The request's outcome and the fetch mock.
+ */
+async function sendOn(
+  seed: readonly string[],
+  verb: SentVerb,
+  extraHeaders: Record<string, string>,
+): Promise<{ result: Procedure<unknown>; mock: MockFetch }> {
+  const mock = serveCookies([seed, []]);
+  const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+  const { transport } = SESSION.withCookieSession(inner, DOMAIN_ARGS);
+  await transport.fetchPost(WWW_LOGIN, {}, { extraHeaders: {} });
+  const opts = { extraHeaders };
+  const sent =
+    verb === 'GET' ? transport.fetchGet(MTO_ITEMS, opts) : transport.fetchPost(MTO_ITEMS, {}, opts);
+  return { result: await sent, mock };
 }
 
 describe('withCookieSession resolving @cookie: sentinels', () => {
@@ -517,5 +563,44 @@ describe('withCookieSession resolving @cookie: sentinels', () => {
     const sent = await sendSentinel([line], url);
     const xsrf = Object.hasOwn(sent, 'X-XSRF-TOKEN') ? sent['X-XSRF-TOKEN'] : DROPPED;
     expect(xsrf).toBe(want);
+  });
+});
+
+describe('withCookieSession resolving @cookie-strict: and ?<fallback>', () => {
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('UT-SN-06 sends a strict cookie decoded', async () => {
+    const seed = ['XSRF-TOKEN=a%2Bb%3D%3D; Domain=bank.example; Path=/'];
+    const { mock } = await sendOn(seed, 'GET', STRICT_XSRF);
+    const sent = headersSent(mock, 1);
+    expect(sent['X-XSRF-TOKEN']).toBe('a+b==');
+  });
+
+  it.each([
+    { verb: 'GET', raw: '%E0%A4%A' },
+    { verb: 'POST', raw: 'a%0Ab' },
+  ] as const)(
+    'UT-SN-07 stops a $verb whose strict cookie is $raw before dispatch',
+    async ({ verb, raw }) => {
+      const seed = [`XSRF-TOKEN=${raw}; Domain=bank.example; Path=/`];
+      const { result, mock } = await sendOn(seed, verb, STRICT_XSRF);
+      expect(result).toMatchObject(XSRF_UNDECODABLE);
+      expect(mock).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('UT-SN-08 sends the fallback for a missing or empty cookie', async () => {
+    const seed = ['language=; Domain=bank.example; Path=/'];
+    const headers = { UUID: '@cookie:tuuid?', language: '@cookie:language?HEBREW' };
+    const { mock } = await sendOn(seed, 'GET', headers);
+    const sent = headersSent(mock, 1);
+    expect(sent).toMatchObject({ UUID: '', language: 'HEBREW' });
   });
 });
