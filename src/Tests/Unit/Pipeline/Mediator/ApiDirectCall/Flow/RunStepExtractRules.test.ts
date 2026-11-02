@@ -4,9 +4,10 @@
  * for text), `oneOf`, an anchored `pattern` and `url` rules. A number is
  * stringified only when a text check runs. An optional slot whose pointer is
  * unresolved, `null` or `''` skips its rule. N27 — a header-extract slot is
- * ruled like a body one. The carry comes back with each ruled slot holding
- * its checked value. A failure is `<step> extract <slot> invalid` and names
- * no value.
+ * ruled like a body one. N47 — `equalsRef` demands the checked text equal
+ * the text its ref resolves to. The carry comes back with each ruled slot
+ * holding its checked value. A failure is `<step> extract <slot> invalid`, or
+ * `mismatch` for `equalsRef`, and names no value.
  */
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
@@ -199,6 +200,56 @@ describe('applyExtractRules — required slots', () => {
       scope: RULE_SCOPE,
     });
     expect(ruled).toEqual({ success: true, value: { slot: 'logonotp', other: 'Kept' } });
+  });
+});
+
+const BOUND = 'b1946ac92492d2347c6235b4d2611184';
+const BOUND_SCOPE: ITemplateScope = { ...RULE_SCOPE, carry: { bound: BOUND, code: '42' } };
+const EQUALS_BOUND: IExtractRule = { equalsRef: 'carry.bound' };
+const MISMATCH = { ...INVALID, errorMessage: 'bind extract slot mismatch' };
+
+/**
+ * Apply the rules of a required-slot step under a scope carrying `bound`.
+ * @param rule - Extract rule.
+ * @param value - The extracted value.
+ * @returns The ruled slots, or a failure.
+ */
+function ruleBound(rule: IExtractRule, value: JsonValue): unknown {
+  const step = requiredStep(rule);
+  const carry = { slot: value };
+  return applyExtractRules({ step, resp: carry, carry, stepUrl: STEP_URL, scope: BOUND_SCOPE });
+}
+
+describe('applyExtractRules — equalsRef', () => {
+  const upper = BOUND.toUpperCase();
+  const lowerBound: IExtractRule = { ...EQUALS_BOUND, transform: 'lower' };
+  it.each<IKeepCase>([
+    { label: "the ref's text", rule: EQUALS_BOUND, value: BOUND, kept: BOUND },
+    { label: 'a number, stringified', rule: { equalsRef: 'carry.code' }, value: 42, kept: '42' },
+    { label: 'the text after its transform', rule: lowerBound, value: upper, kept: BOUND },
+  ])('keeps $label', ({ rule, value, kept }) => {
+    const ruled = ruleBound(rule, value);
+    expect(ruled).toEqual({ success: true, value: { slot: kept } });
+  });
+
+  it.each<[string, IExtractRule, JsonValue]>([
+    ['another text', EQUALS_BOUND, SECRET],
+    ['the text in another case', EQUALS_BOUND, upper],
+    ['a ref that does not resolve', { equalsRef: 'carry.missing' }, SECRET],
+  ])('fails %s as a mismatch, naming no value', (_label, rule, value) => {
+    const ruled = ruleBound(rule, value);
+    expect(ruled).toMatchObject(MISMATCH);
+    const text = JSON.stringify(ruled);
+    expect(text).not.toContain(SECRET);
+    expect(text).not.toContain(BOUND);
+  });
+
+  it.each<[string, IExtractRule, JsonValue]>([
+    ['a text past another check', { ...EQUALS_BOUND, maxChars: 4 }, BOUND],
+    ['a record', EQUALS_BOUND, { a: BOUND }],
+  ])('fails %s as invalid', (_label, rule, value) => {
+    const ruled = ruleBound(rule, value);
+    expect(ruled).toMatchObject(INVALID);
   });
 });
 

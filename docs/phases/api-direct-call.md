@@ -623,8 +623,14 @@ extractRules: {
   ref resolves to text with `resolveRefText` (in `Template/RefResolver.ts`)
   against the step's prepared scope, so it reads a key an earlier step or this
   step's [generators](#carry-generators) put in carry.
+- `equalsRef` (N47) is checked last, on the text the other checks kept. The
+  ref resolves to text with `resolveRefText` against the step's prepared scope,
+  and the slot text must equal it exactly (case and all). An unresolved ref is
+  a mismatch.
 - A string always runs the text checks. A finite number runs them, stringified,
   only when the rule sets one; any other value under a text check is refused.
+  The type checks (`isTypeSound`, `isFiniteNumber`) live in
+  `Flow/RunStep.extractTypes.ts`.
 - An optional slot whose pointer is unresolved, `null` or blank skips its
   rule only if neither a fallback nor its step's pre-hook wrote the slot.
   Those values are checked before they are carried. A present nonblank
@@ -639,8 +645,15 @@ extractRules: {
 },
 ```
 
-A refused value fails the step `Generic` with `<step> extract <slot> invalid`,
-before any later step or OTP prompt. The message never names the value.
+```ts
+extractsToCarry: { mi6: { pointer: '/Login/MI6' } },
+extractRules: { mi6: { type: 'string', equalsRef: 'carry.uidMd5' } },
+```
+
+A refused value fails the step `Generic` with `<step> extract <slot> invalid`;
+a text that differs from its `equalsRef` fails it with
+`<step> extract <slot> mismatch`. Both fail before any later step or OTP
+prompt, and neither message names the value.
 
 ### Text captures
 
@@ -1217,8 +1230,9 @@ from what it extracted:
   ([Client cookies](../architecture/pipeline.md#client-cookies)).
 - `clientCert` installs a device certificate the run obtained, presented to
   the bank origin from that step on ([Device certificate](#device-certificate)).
-- `extractRules` checks a body or header extract's type, text, length, URL or
-  certificate before it reaches carry ([Extract rules](#extract-rules)).
+- `extractRules` checks a body or header extract's type, text, length, URL,
+  certificate or equality to a ref before it reaches carry
+  ([Extract rules](#extract-rules)).
 - `runIf` skips the step, pre-hook included, unless a carry slot holds one of
   the listed texts ([Conditional steps](#conditional-steps)).
 - `generate` writes fresh device material, such as an RSA key, into carry
@@ -1876,6 +1890,7 @@ Where each piece lives, for maintainers:
 | `GENERIC`                                                       | The step's answer matched no [classifier](#answer-classifier) case or more than one (`<step> answer unrecognized` or `<step> answer ambiguous`), or a capture was refused (`<step> answer capture <slot> missing` or `invalid`)                                                           |
 | the type a matched case's `fail` names                          | The step's answer matched a [classifier](#answer-classifier) case that fails the step (`<step> answer <case>`)                                                                                                                                                                            |
 | `GENERIC`                                                       | A body extract failed its rule (`<step> extract <slot> invalid`) — see [Extract rules](#extract-rules)                                                                                                                                                                                    |
+| `GENERIC`                                                       | A body extract differed from its `equalsRef` (`<step> extract <slot> mismatch`) — see [Extract rules](#extract-rules)                                                                                                                                                                     |
 | `GENERIC`                                                       | A GET step's final URL failed its own redirect rules (`<step> final url refused`) — see [Final URL carry](#final-url-carry)                                                                                                                                                               |
 | `GENERIC`                                                       | A text step's handoff script fell outside the grammar, held no browser location or more than one, or its URL failed the step's `url` rules (`<step> handoff script unsupported`, `missing`, `ambiguous` or `refused`) — see [Handoff script capture](#handoff-script-capture)             |
 | `INVALID_OTP`                                                   | Wrong code, or a code that fails its pre-hook `valuePattern` or stated length (`<step> preHook value invalid`) — see [OTP pre-hook guards](#otp-pre-hook-guards)                                                                                                                          |
