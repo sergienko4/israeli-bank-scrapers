@@ -27,14 +27,18 @@ const result = await scraper.scrape({
 
 ## Browserless login
 
-`DISCOUNT_API_DIRECT_CALL` (`Registry/Config/PipelineBankConfigDiscount.ts`,
-its `DISCOUNT_LOGIN_STEPS` in `PipelineBankConfigDiscountSteps.ts`) logs in the
-way the bank's web app does, over plain HTTPS on `DISCOUNT_ORIGIN`
+`DISCOUNT_API_DIRECT_CALL` (`Registry/Config/PipelineBankConfigDiscount.ts`)
+is the Telebank family login built for Discount's `ITelebankBrand`: bank
+code `d`, routing cookie `cssName=discount`, login page `/login/` and id
+prefixes `00001` / `0000`. `buildTelebankApiDirectCall`
+(`PipelineBankConfigTelebankFamily.ts`, its steps from `telebankLoginSteps`
+in `PipelineBankConfigTelebankFamilySteps.ts`) logs in the way the bank's
+web app does, over plain HTTPS on `TELEBANK_ORIGIN`
 (`https://start.telebank.co.il`), with no browser.
-`DISCOUNT_HEADLESS` registers its four paths, selects Node's own `fetch` and
-keeps one cookie jar for `telebank.co.il`; any redirect a step does not allow
-fails the run. The registry row is `defineApiDirectBank`, so a run opens no
-browser.
+`DISCOUNT_HEADLESS` (`buildTelebankHeadless`) registers its four paths,
+selects Node's own `fetch` and keeps one cookie jar for `telebank.co.il`;
+any redirect a step does not allow fails the run. The registry row is
+`defineApiDirectBank`, so a run opens no browser.
 
 | Step            | Call                                          | Sends                                                                            | Checks                                                                                                                                      |
 | --------------- | --------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -49,16 +53,16 @@ browser.
 (`derivedCarry: uid unformattable`). `id` must be digits and `password` and
 `num` Latin-1, or the run fails before the first call.
 
-Every call carries `DISCOUNT_STATIC_HEADERS`
-(`Registry/Config/PipelineBankConfigDiscountConstants.ts`): the library's user
-agent `DISCOUNT_UA`, the origin, an empty `BusinessProcessID`, and `Language`, `Site` and
-`UUID` read from the live `language`, `site` and `tuuid` cookies (`HEBREW`,
-`retail` and empty when missing). The decoded `XSRF-TOKEN` cookie rides as
-`X-XSRF-TOKEN`; an undecodable one fails the run before the request.
-`prime` adds `DISCOUNT_LOGIN_HEADERS` (a JSON accept, `DISCOUNT_LOGIN_PAGE` as
-referer and an empty `AccountNumber`), the two POSTs
-`DISCOUNT_LOGIN_POST_HEADERS` (the same with a JSON content type) and `landing`
-`DISCOUNT_DOCUMENT_HEADERS` (an HTML accept and the same referer).
+Every call carries `TELEBANK_STATIC_HEADERS`
+(`Registry/Config/PipelineBankConfigTelebankFamilyConstants.ts`): the
+library's user agent `TELEBANK_UA`, the origin, an empty `BusinessProcessID`,
+and `Language`, `Site` and `UUID` read from the live `language`, `site` and
+`tuuid` cookies (`HEBREW`, `retail` and empty when missing). The decoded
+`XSRF-TOKEN` cookie rides as `X-XSRF-TOKEN`; an undecodable one fails the run
+before the request. `prime` adds `telebankLoginHeaders` (a JSON accept, the
+brand's `telebankLoginPage` as referer and an empty `AccountNumber`), the two
+POSTs `telebankLoginPostHeaders` (the same with a JSON content type) and
+`landing` `telebankDocumentHeaders` (an HTML accept and the same referer).
 
 An `Error`, `error` or `actionRequired` holding a truthy scalar or a
 non-empty array or object in the `getInfo` or `login` answer fails as
@@ -70,7 +74,7 @@ config sets `omitBankText`, so no failure message carries the bank's own text.
 
 After login, `DISCOUNT_SHAPE` (`Banks/Discount/scrape/DiscountShape.ts`)
 declares three GET reads on the Titan gateway, `TITAN_API`
-(`/Titan/gatewayAPI` on `DISCOUNT_ORIGIN`), sent over the login's cookie jar:
+(`/Titan/gatewayAPI` on `TELEBANK_ORIGIN`), sent over the login's cookie jar:
 
 | Read         | Call                                                                  | `accountnumber`  |
 | ------------ | --------------------------------------------------------------------- | ---------------- |
@@ -79,7 +83,7 @@ declares three GET reads on the Titan gateway, `TITAN_API`
 | transactions | GET `lastTransactions/transactions/{AccountID}/Date?…`                | the account's id |
 
 Every read sends `titanHeaders` (`DiscountShapeHelpers.ts`):
-`DISCOUNT_STATIC_HEADERS`, then `DISCOUNT_TITAN_HEADERS` (a JSON accept and
+`TELEBANK_STATIC_HEADERS`, then `TELEBANK_TITAN_HEADERS` (a JSON accept and
 the retail app as referer), then `accountnumber`. The shape's
 `callAccountIdOf` puts the Titan `NewAccountInfo.AccountID` there, not the
 `FormatAccountID` users see, which stays the account number in the result.

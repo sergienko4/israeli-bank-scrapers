@@ -14,16 +14,16 @@ import type {
   VarsMap,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import {
-  DISCOUNT_ORIGIN,
-  DISCOUNT_STATIC_HEADERS,
-  DISCOUNT_TITAN_HEADERS,
-} from '../../../Registry/Config/PipelineBankConfigDiscountConstants.js';
+  TELEBANK_ORIGIN,
+  TELEBANK_STATIC_HEADERS,
+  TELEBANK_TITAN_HEADERS,
+} from '../../../Registry/Config/PipelineBankConfigTelebankFamilyConstants.js';
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 
 /** Titan gateway — Discount's data API, on the login origin. */
-export const TITAN_API = `${DISCOUNT_ORIGIN}/Titan/gatewayAPI`;
+export const TITAN_API = `${TELEBANK_ORIGIN}/Titan/gatewayAPI`;
 
 /** Account display number — branded for Rule #15. */
 type AccountNumberDisplay = Brand<string, 'DiscountAccountNumberDisplay'>;
@@ -109,7 +109,7 @@ export function callAccountIdOf(acct: IDiscountAcct): TitanAccountId {
  */
 export function titanHeaders(_ctx: IActionContext, call: IScrapeCallInfo): HeaderMap {
   const accountnumber = call.accountId ?? '';
-  return { ...DISCOUNT_STATIC_HEADERS, ...DISCOUNT_TITAN_HEADERS, accountnumber };
+  return { ...TELEBANK_STATIC_HEADERS, ...TELEBANK_TITAN_HEADERS, accountnumber };
 }
 
 /**
