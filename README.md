@@ -156,7 +156,7 @@ validated at runtime.
 | Beyahad Bishvilha    | Bank        | Browser    | `id`, `password`                |
 | Discount Bank        | Bank        | API-direct | `id`, `password`, `num`         |
 | Massad               | Bank        | API-direct | `username`, `password`, OTP\*   |
-| Mercantile Bank      | Bank        | Browser    | `id`, `password`, `num`         |
+| Mercantile Bank      | Bank        | API-direct | `id`, `password`, `num`         |
 | Mizrahi Bank         | Bank        | API-direct | `username`, `password`          |
 | One Zero             | Bank        | API-direct | `email`, `password`, OTP        |
 | Pagi                 | Bank        | API-direct | `username`, `password`, OTP\*   |

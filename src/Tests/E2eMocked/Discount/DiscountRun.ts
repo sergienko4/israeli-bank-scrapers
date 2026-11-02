@@ -86,6 +86,18 @@ export function trailOf(call: IRecordedCall): string {
 }
 
 /**
+ * The one call a run made to a step.
+ * @param calls - The run's calls.
+ * @param step - The trail entry.
+ * @returns The call.
+ */
+export function callTo(calls: readonly IRecordedCall[], step: string): IRecordedCall {
+  const found = calls.find(call => trailOf(call) === step);
+  if (found === undefined) throw new TypeError(`no call to ${step}`);
+  return found;
+}
+
+/**
  * Whether a call was a Titan read.
  * @param call - A recorded call.
  * @returns True for the accounts, balance and transactions reads.

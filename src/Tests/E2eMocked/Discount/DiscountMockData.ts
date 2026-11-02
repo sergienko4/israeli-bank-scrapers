@@ -32,6 +32,9 @@ export const DISCOUNT_MOCK_CREDS = Object.freeze({
 /** The `Uid` an 8-digit id formats to: `00001`, then the id padded to 9. */
 export const DC_UID = '00001024681357';
 
+/** A ten-digit id starting with 9, which the bank keeps whole in the `Uid`. */
+export const DC_LONG_ID = '9135792468';
+
 /**
  * The md5-hex of every text the mock hashes, keyed by that text: each `Uid`
  * the suites log in with — the two ids above under each brand's prefixes —

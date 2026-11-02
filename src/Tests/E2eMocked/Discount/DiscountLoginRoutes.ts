@@ -17,6 +17,7 @@ import {
   DC_HANDOFF_PATH,
   DC_KEY,
   DC_LANDING_FLAGS,
+  DC_LONG_ID,
   DC_SESSION_COOKIE,
   DC_TUUID,
   DC_XSRF_DECODED,
@@ -121,17 +122,30 @@ function openedOf(sealed: unknown): string {
   }
 }
 
+/** The ids the synthetic customer may log in with: a short one and a ten-digit 9-id. */
+const KNOWN_IDS: readonly string[] = [DISCOUNT_MOCK_CREDS.id, DC_LONG_ID];
+
+/**
+ * Whether a login's `Uid` is a known id under the run's brand.
+ * @param uid - The `Uid` login sent.
+ * @param run - The run's state.
+ * @returns True when it formats one of the known ids.
+ */
+function isKnownUid(uid: unknown, run: IDiscountMockRun): boolean {
+  return KNOWN_IDS.some(id => uidOf(run.brand, id) === uid);
+}
+
 /**
  * Whether a login body names the synthetic customer.
  * @param call - The recorded request.
  * @param run - The run's state.
- * @returns True when the brand's Uid matches and both seals open to the credentials.
+ * @returns True when the Uid is known and both seals open to the credentials.
  */
 function isKnownCustomer(call: IRecordedCall, run: IDiscountMockRun): boolean {
   const body = parseBody(call.body);
   const isNum = openedOf(body.ThirdIdentifier) === DISCOUNT_MOCK_CREDS.num;
   const isPassword = openedOf(body.Password) === DISCOUNT_MOCK_CREDS.password;
-  return body.Uid === uidOf(run.brand, DISCOUNT_MOCK_CREDS.id) && isNum && isPassword;
+  return isKnownUid(body.Uid, run) && isNum && isPassword;
 }
 
 /**

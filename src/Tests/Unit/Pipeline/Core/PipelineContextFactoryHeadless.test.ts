@@ -28,46 +28,59 @@ function makeDescriptor(isHeadless: boolean, companyId: CompanyTypes): IPipeline
 }
 
 describe('PipelineContextFactory — wireHeadlessMediator', () => {
-  it('HTML bank (isHeadless=false): apiMediator slot stays none', () => {
-    const descriptor = makeDescriptor(false, CompanyTypes.Mercantile);
-    const ctx = buildInitialContext(
-      descriptor,
-      {} as unknown as Parameters<typeof buildInitialContext>[1],
-    );
-    expect(ctx.apiMediator.has).toBe(false);
-  });
+  /**
+   * The apiMediator slot's outcome per branch: an HTML bank with the flag
+   * off, a headless bank whose config carries the block, a bank the config
+   * never registered, a headless bank whose config has no block, and the
+   * non-headless Leumi repeat. Driven from one table per CLAUDE.md's
+   * config-array rule (no duplicated test bodies).
+   */
+  const apiMediatorCases = [
+    {
+      name: 'HTML bank (isHeadless=false): apiMediator slot stays none',
+      isHeadless: false,
+      companyId: CompanyTypes.Leumi,
+      hasMediator: false,
+    },
+    {
+      name: 'Headless bank with headless block in config: apiMediator populated',
+      isHeadless: true,
+      companyId: CompanyTypes.OneZero,
+      hasMediator: true,
+    },
+    {
+      name: 'Headless flag but bank missing from config: apiMediator stays none',
+      isHeadless: true,
+      companyId: UNREGISTERED_BANK,
+      hasMediator: false,
+    },
+    {
+      name: 'Headless flag but bank has no headless block: apiMediator stays none',
+      isHeadless: true,
+      companyId: CompanyTypes.Leumi,
+      hasMediator: false,
+    },
+    {
+      name: 'OZ-PCF-03 — Leumi (non-headless): apiMediator slot stays none',
+      isHeadless: false,
+      companyId: CompanyTypes.Leumi,
+      hasMediator: false,
+    },
+  ] as const;
 
-  it('Headless bank with headless block in config: apiMediator populated', () => {
-    const descriptor = makeDescriptor(true, CompanyTypes.OneZero);
+  it.each(apiMediatorCases)('$name', ({ isHeadless, companyId, hasMediator }) => {
+    const descriptor = makeDescriptor(isHeadless, companyId);
     const ctx = buildInitialContext(
       descriptor,
       {} as unknown as Parameters<typeof buildInitialContext>[1],
     );
-    expect(ctx.apiMediator.has).toBe(true);
-  });
-
-  it('Headless flag but bank missing from config: apiMediator stays none', () => {
-    const descriptor = makeDescriptor(true, UNREGISTERED_BANK);
-    const ctx = buildInitialContext(
-      descriptor,
-      {} as unknown as Parameters<typeof buildInitialContext>[1],
-    );
-    expect(ctx.apiMediator.has).toBe(false);
-  });
-
-  it('Headless flag but bank has no headless block: apiMediator stays none', () => {
-    const descriptor = makeDescriptor(true, CompanyTypes.Mercantile);
-    const ctx = buildInitialContext(
-      descriptor,
-      {} as unknown as Parameters<typeof buildInitialContext>[1],
-    );
-    expect(ctx.apiMediator.has).toBe(false);
+    expect(ctx.apiMediator.has).toBe(hasMediator);
   });
 
   it('buildInitialContext returns a well-formed context (non-headless default)', () => {
-    const descriptor = makeDescriptor(false, CompanyTypes.Mercantile);
+    const descriptor = makeDescriptor(false, CompanyTypes.Leumi);
     const ctx = buildInitialContext(descriptor, { id: 'syn', password: 'syn' });
-    expect(ctx.options.companyId).toBe(CompanyTypes.Mercantile);
+    expect(ctx.options.companyId).toBe(CompanyTypes.Leumi);
     expect(ctx.browser.has).toBe(false);
     expect(ctx.mediator.has).toBe(false);
     expect(ctx.apiMediator.has).toBe(false);
@@ -115,14 +128,5 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
     if (ctx.apiMediator.has) {
       expect(ctx.apiMediator.value.dispose).toBeUndefined();
     }
-  });
-
-  it('OZ-PCF-03 — Leumi (non-headless): apiMediator slot stays none', () => {
-    const descriptor = makeDescriptor(false, CompanyTypes.Leumi);
-    const ctx = buildInitialContext(
-      descriptor,
-      {} as unknown as Parameters<typeof buildInitialContext>[1],
-    );
-    expect(ctx.apiMediator.has).toBe(false);
   });
 });
