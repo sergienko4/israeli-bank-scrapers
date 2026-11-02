@@ -71,9 +71,9 @@ defaults:
 #                           Discount plus api-direct VisaCal,
 #                           Isracard and Max (no browser).
 #   e2e-real-group-b      — Stage 2 (parallel, gate-B approval):
-#                           OTP banks: browser-form
-#                           Beinleumi plus api-direct
-#                           Hapoalim (no browser).
+#                           OTP banks: api-direct
+#                           Beinleumi and Hapoalim
+#                           (no browser).
 #   e2e-real-group-c      — Stage 3 (parallel, gate-C approval):
 #                           api-direct banks
 #                           (OneZero, Pepper, PayBox).
@@ -1223,8 +1223,7 @@ jobs:
   #     — VisaCal, Isracard, Max (api-direct, no browser)
   #   Group B, gate-B (parallel runners):
   #     OTP banks
-  #     — Beinleumi (browser-form)
-  #     — Hapoalim (api-direct, no browser)
+  #     — Beinleumi, Hapoalim (api-direct, no browser)
   #     (TELEGRAM_* secrets exposed for OTP delivery).
   #   Group C, gate-C (parallel runners):
   #     api-direct banks (no browser)
@@ -1445,8 +1444,7 @@ jobs:
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
           # Non-OTP banks only — no OTP / TELEGRAM secrets exposed to
-          # this runner. OTP browser-form banks live in Group B; OTP
-          # api-direct banks in Group C.
+          # this runner. OTP banks live in Groups B and C.
           ISRACARD_ID: ${{ secrets.ISRACARD_ID }}
           ISRACARD_CARD6DIGITS: ${{ secrets.ISRACARD_CARD6DIGITS }}
           ISRACARD_PASSWORD: ${{ secrets.ISRACARD_PASSWORD }}
@@ -1649,8 +1647,8 @@ jobs:
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # ──────────────────────────────────────────────────────────────
-  # Group B — OTP banks: Beinleumi on a browser form, Hapoalim over
-  # the API. Telegram secrets deliver the SMS OTP dance. (Leumi + Yahav
+  # Group B — OTP banks: Beinleumi and Hapoalim, both over the
+  # API. Telegram secrets deliver the SMS OTP dance. (Leumi + Yahav
   # moved to their own non-OTP Group E below.) Gate is independent —
   # see the header.
   # ──────────────────────────────────────────────────────────────
@@ -1733,9 +1731,6 @@ jobs:
       - name: Force reliable DNS for ${{ matrix.bank }}
         run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
       - uses: $/.github/actions/setup-node-deps
-      - uses: $/.github/actions/install-camoufox
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: E2E real (${{ matrix.bank }})
         env:
@@ -1746,7 +1741,7 @@ jobs:
           FORENSIC_TRACE: ${{ vars.FORENSIC_TRACE || 'true' }}
           LOG_LEVEL: ${{ inputs.log_level || 'trace' }}
           RUNS_ROOT: /tmp/runs
-          # OTP browser-form banks. Telegram secrets deliver the SMS
+          # OTP api-direct banks. Telegram secrets deliver the SMS
           # OTP to the Jest poller during the login flow.
           HAPOALIM_USER_CODE: ${{ secrets.HAPOALIM_USER_CODE }}
           HAPOALIM_PASSWORD: ${{ secrets.HAPOALIM_PASSWORD }}

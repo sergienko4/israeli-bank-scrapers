@@ -148,10 +148,10 @@ matrix leg or a PR-triggered workflow has to update it.
   `closed`.
 - **After Validate.** Once `Validate` passes and a reviewer approves a group,
   its E2E-real legs start: 13 across the 5 groups (4, 2, 3, 1 and 3).
-  Group A's VisaCal, Isracard and Max legs, Group B's Hapoalim leg,
-  Group D's Amex leg and Group E's Yahav and Mizrahi legs log in over
-  the bank's API and open no browser; Group D installs no Camoufox,
-  Group A still installs it for Discount, Group B for Beinleumi and
+  Group A's VisaCal, Isracard and Max legs, Group B's Hapoalim and
+  Beinleumi legs, Group D's Amex leg and Group E's Yahav and Mizrahi
+  legs log in over the bank's API and open no browser; Groups B and D
+  install no Camoufox, Group A still installs it for Discount and
   Group E for Leumi. A
   group holds its approval gate's runner or its legs', never both. Only
   `SonarCloud Scan` and CodeQL may still be running beside them, plus
