@@ -65,7 +65,6 @@ const CASES: readonly IHomeSignalCase[] = [
   { bankId: 'discount', hasLoginForm: false },
   { bankId: 'leumi', hasLoginForm: true },
   { bankId: 'mercantile', hasLoginForm: false },
-  { bankId: 'pagi', hasLoginForm: false },
 ];
 
 /**

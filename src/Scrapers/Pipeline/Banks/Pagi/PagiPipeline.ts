@@ -7,23 +7,11 @@
  */
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
-import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilderFactory.js';
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { PAGI_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigPagi.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { PAGI_SHAPE } from './scrape/PagiShape.js';
-
-/** Pagi login config — credential keys only. WellKnown resolves selectors. */
-const PAGI_LOGIN: ILoginConfig = {
-  loginUrl: '',
-  fields: [
-    { credentialKey: 'username', selectors: [] },
-    { credentialKey: 'password', selectors: [] },
-  ],
-  submit: [],
-  possibleResults: { success: [] },
-};
 
 /**
  * Build the Pagi pipeline descriptor: no browser; the direct-API login runs
@@ -40,4 +28,4 @@ function buildPagiPipeline(options: ScraperOptions): Procedure<IPipelineDescript
 }
 
 export default buildPagiPipeline;
-export { buildPagiPipeline, PAGI_LOGIN };
+export { buildPagiPipeline };

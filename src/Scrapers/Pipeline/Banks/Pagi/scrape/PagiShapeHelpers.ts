@@ -4,17 +4,13 @@
  * URL. The origin-independent primitives (paths, account shape, balance
  * extractor, no-op vars) come from the neutral FibiGroup factory.
  *
- * Pagi is a First-International (FIBI) group brand. The Mataf/appsng BFF
- * contract (userData + bff-balancetransactions) is shared with its siblings
- * through the neutral FibiGroup factory — never imported from another bank —
- * and only the API host differs. The host follows the proven FIBI
- * `online.<login-domain>` transform: login www.pagi.co.il -> API
- * online.pagi.co.il (DNS-confirmed on the shared FIBI subnet; same
- * registrable domain, so the session cookies set at login ride to the API
- * host — the mechanism proven live for Beinleumi www.fibi.co.il ->
- * online.fibi.co.il). An earlier clone wrongly used a bankpoalim.co.il host
- * — Pagi is FIBI-group, not Hapoalim. balanceKind=account. Host DNS +
- * pattern-grounded; a full live-E2E on real credentials is still pending.
+ * Pagi is a First-International (FIBI) group brand. The BFF path shape
+ * (userData + bff-balancetransactions) is shared with its siblings through
+ * FibiGroup — never imported from another bank — but the host is Pagi's own
+ * online origin (online.pagi.co.il), NOT Beinleumi's online.fibi.co.il. The
+ * api-direct login runs on that same origin, so the scrape rides its cookie
+ * session. balanceKind=account. The shared BFF paths on this host are
+ * covered by mocked tests only; no live Pagi run has been recorded yet.
  */
 
 import {
