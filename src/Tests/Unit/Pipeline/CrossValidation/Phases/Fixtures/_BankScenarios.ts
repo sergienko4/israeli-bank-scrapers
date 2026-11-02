@@ -9,6 +9,10 @@
  * rule (H-D5). Cookie counts + frame counts are the captured-shape
  * observations for each bank's last-good run; OTP-usage matches
  * the captured-run evidence under `C:/tmp/runs/pipeline/<bank>/`.
+ *
+ * <p>Rows are frozen browser captures, not each bank's current login:
+ * Hapoalim and Beinleumi now log in over the API, yet their captures
+ * still drive the shared phase code the browser banks run.
  */
 
 import type { PhaseHBank } from './_makePhaseFixture.js';

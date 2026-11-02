@@ -77,14 +77,11 @@ DESCRIBE_IF('E2E: Beinleumi (real credentials, API-direct)', () => {
       password: beinleumiPass,
     });
     // The gateway challenges only devices it does not trust, so a valid
-    // login either completes or stops at the missing retriever. Generic
-    // covers a runner IP the portal does not answer.
+    // login either completes or stops at the missing retriever. Any other
+    // outcome, an unanswered portal included, fails: CI runs only the
+    // happy path, so this check runs where the portal answers.
     const outcome = result.success ? 'logged-in' : result.errorType;
-    const accepted = [
-      'logged-in',
-      ScraperErrorTypes.TwoFactorRetrieverMissing,
-      ScraperErrorTypes.Generic,
-    ];
+    const accepted = ['logged-in', ScraperErrorTypes.TwoFactorRetrieverMissing];
     expect(accepted).toContain(outcome);
   });
 });
