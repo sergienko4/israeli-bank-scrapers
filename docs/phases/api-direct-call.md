@@ -1413,7 +1413,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `sessionCarry` slot that is the `privateInto` of some `ecdh-key` generator                                                          | `steps.generate: ecdh-key privateInto must not be a sessionCarry slot`   |
 | a login or resume step whose `preHook.valuePattern` does not start with `^`, end with `$` and compile with the `u` flag                   | `steps.preHook.valuePattern: must be an anchored regex`                            |
 | a login or resume step whose `preHook.valuePattern` has a group, an alternation or a variable repeat before its last atom                 | `steps.preHook.valuePattern: must be a flat regex`                                 |
-| a login or resume step whose `httpFailureMap` is empty                                                                                | `steps.httpFailureMap: must not be empty`                                          |
+| a login or resume step whose `httpFailureMap` is empty (`API_DIRECT_HTTP_FAILURE_RULES`)                                              | `steps.httpFailureMap: must not be empty`                                          |
 | an `httpFailureMap` key that is not a `4xx` status, or a value outside the [login failure types](#http-failure-map)                   | `steps.httpFailureMap: must map 4xx statuses to login failure types`               |
 | a login or resume step with `clientCert`, without a `headless.clientCert` block (`API_DIRECT_CLIENT_CERT_RULES`)                          | `steps.clientCert: not allowed without headless.clientCert`                        |
 | a `headless.clientCert` whose `origin` is not exactly `https://host[:port]` (no path, user, trailing slash or default port)               | `headless.clientCert.origin: must be an exact https origin`                        |
@@ -1456,7 +1456,6 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `classify` `into` or capture slot that the same step writes as an extract, final URL, capture or derivation                          | `steps.classify: slots must not be slots the step also writes`           |
 | a `sessionCarry` slot that is the `into` of some `classify`                                                                           | `steps.classify.into: must not be a sessionCarry slot`                   |
 | a `runIf` whose `carry` some `classify` writes, with a `oneOf` text that no case written to that slot is named                        | `steps.runIf: on a classifier slot, oneOf lists only case names`         |
-
 | a login or resume step with `mediaType`, off native fetch and node:https                                                              | `steps.mediaType: not allowed without nativeFetch or node:https`         |
 | a login or resume step with `strictUtf8`, off native fetch and node:https                                                             | `steps.strictUtf8: not allowed without nativeFetch or node:https`        |
 | `headless.mediaTypes` without `headless.nativeFetch: true`                                                                            | `headless.mediaTypes: not allowed without headless.nativeFetch`          |
