@@ -12,7 +12,10 @@
  * the shape's own code, not by the values flowing through it.
  */
 
-import type { WindowNarrowing } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import type {
+  IScrapeCallInfo,
+  WindowNarrowing,
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Brand } from '../../../../../Scrapers/Pipeline/Types/Brand.js';
 import type { Option } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
@@ -134,6 +137,9 @@ function anyProxy(name: string): unknown {
 
 /** Stand-in account shared by every case. */
 export const STUB_ACCOUNT = anyProxy('acct');
+
+/** Call info a transactions read hands its header builder. */
+const STUB_CALL: IScrapeCallInfo = Object.freeze({ accountId: 'acct' });
 
 /**
  * Build an action context carrying a chosen window upper bound.
@@ -257,7 +263,9 @@ function resolveUrl(urlTag: unknown, ctx: IActionContext, cursor: number | false
  *
  * The builder form receives `windowEnd`, so a bank can fold the upper bound
  * into a header without touching its URL or variables. Rendering headers
- * keeps that third route inside the contract instead of outside it.
+ * keeps that third route inside the contract instead of outside it. Like
+ * the driver, it also hands the builder the call's account, which a
+ * transactions read always names.
  * @param extraHeaders - Declared map, builder, or nothing at all.
  * @param ctx - Context carrying the window upper bound.
  * @returns Resolved headers, or a marker when the step declares none.
@@ -265,8 +273,8 @@ function resolveUrl(urlTag: unknown, ctx: IActionContext, cursor: number | false
 function resolveHeaders(extraHeaders: unknown, ctx: IActionContext): unknown {
   if (extraHeaders === undefined) return '[no-headers]';
   if (typeof extraHeaders !== 'function') return extraHeaders;
-  const build = extraHeaders as (headerCtx: IActionContext) => unknown;
-  return build(ctx);
+  const build = extraHeaders as (headerCtx: IActionContext, call: IScrapeCallInfo) => unknown;
+  return build(ctx, STUB_CALL);
 }
 
 /** Stand-in for a value that changes between two identical renders. */
