@@ -125,6 +125,15 @@
       "after": null
     },
     {
+      "version": "9.1.0",
+      "impact": "behavior",
+      "title": "Discount signs in without a browser",
+      "detail": "Discount now logs in and scrapes over its web API on `start.telebank.co.il`, with Node's own `fetch` and one cookie jar, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `id`, `password` and `num`. A blank one, an `id` that is not all digits, or a `password` or `num` outside Latin-1 fails as `GENERIC` with `Missing or malformed credentials` before any request; an `id` of more than nine digits also fails as `GENERIC` before any request, unless it is ten digits starting with `9`. A login answer whose status is anything other than success fails as `INVALID_PASSWORD`. An answer that asks for a further action, a redirect the login does not expect, or any other refusal fails as `GENERIC`. No failure message carries the bank's own text.",
+      "action": "Remove browser options from Discount's `createScraper` call; its credentials stay the same.",
+      "before": null,
+      "after": null
+    },
+    {
       "version": "9.0.0",
       "impact": "breaking",
       "title": "Node 24.11 or later required; Node 22 is no longer supported",
