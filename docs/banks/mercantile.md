@@ -62,7 +62,8 @@ answer checks; see the Discount
 
 - Mocked tests cover the Mercantile login with its own brand values; no live
   Mercantile run has been recorded yet.
-- The `?bank=m` query on the login page and referer is the observed entry to
-  Mercantile's login; if the bank answers it with another page, the run fails
-  as `GENERIC` rather than logging in elsewhere.
+- The `?bank=m` query on the login page and referer is the configured entry to
+  Mercantile's login, checked only against the mocked bank so far; if the bank
+  answers it with another page, the run fails as `GENERIC` rather than logging
+  in elsewhere.
 - Balance is per bank account (`balanceKind: 'account'`).
