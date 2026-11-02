@@ -55,10 +55,20 @@ export const OTSAR_HAHAYAL_MOCK_BRAND: IFibiMockBrand = {
   provider: 'otsar-hahayal-web',
 };
 
+export const PAGI_MOCK_BRAND: IFibiMockBrand = {
+  companyId: CompanyTypes.Pagi,
+  origin: 'https://online.pagi.co.il',
+  portalId: 'PAGIPORTAL',
+  aid: 'rest_app_052',
+  bankNum: '052',
+  provider: 'pagi-web',
+};
+
 /** The group banks that run Beinleumi's login on their own brand. */
 export const SIBLING_MOCK_BRANDS: readonly IFibiMockBrand[] = [
   MASSAD_MOCK_BRAND,
   OTSAR_HAHAYAL_MOCK_BRAND,
+  PAGI_MOCK_BRAND,
 ];
 
 /** Every brand covered by the shared behavior and privacy matrices. */

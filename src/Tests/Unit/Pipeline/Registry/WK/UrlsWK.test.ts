@@ -140,7 +140,7 @@ describe('UrlsWK/pepperAuthUrls', () => {
     expect(result).toEqual({ success: true, value: url });
   });
 
-  it('shares auth.login between exactly Pepper, VisaCal, Max, Mizrahi, Beinleumi, Massad and OtsarHahayal', async () => {
+  it('shares auth.login between exactly Pepper, VisaCal, Max, Mizrahi, Beinleumi, Massad, OtsarHahayal and Pagi', async () => {
     await seedFromBankConfig();
     const owners = WK_URLS.get('auth.login');
     const ownerHints = new Set(owners?.keys());
@@ -152,6 +152,7 @@ describe('UrlsWK/pepperAuthUrls', () => {
       CompanyTypes.Beinleumi,
       CompanyTypes.Massad,
       CompanyTypes.OtsarHahayal,
+      CompanyTypes.Pagi,
     ]);
     expect(ownerHints).toEqual(expected);
   });

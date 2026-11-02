@@ -87,6 +87,19 @@ const SIBLINGS: readonly IGroupBank[] = [
       provider: 'otsar-hahayal-web',
     },
   },
+  {
+    companyId: CompanyTypes.Pagi,
+    site: 'https://www.pagi.co.il',
+    module: 'PipelineBankConfigPagi.js',
+    headlessExport: 'PAGI_HEADLESS',
+    brand: {
+      host: 'online.pagi.co.il',
+      portalId: 'PAGIPORTAL',
+      aid: 'rest_app_052',
+      bankNum: '"052"',
+      provider: 'pagi-web',
+    },
+  },
 ];
 
 /** The brand fields in swap order: the app id before the bank number it ends with. */

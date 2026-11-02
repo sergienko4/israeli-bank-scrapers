@@ -161,6 +161,7 @@ const EXPECTED_BROWSERLESS: readonly CompanyTypes[] = [
   CompanyTypes.Massad,
   CompanyTypes.Yahav,
   CompanyTypes.OneZero,
+  CompanyTypes.Pagi,
 ];
 
 const REGISTERED = Object.values(CompanyTypes).filter(

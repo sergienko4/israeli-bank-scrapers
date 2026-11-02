@@ -10,11 +10,11 @@
 
 - :material-bank: **Banks (browser engine)**
 
-  [Bank Leumi](leumi.md) · [Discount](discount.md) · [Mercantile](mercantile.md) · [Pagi](pagi.md)
+  [Bank Leumi](leumi.md) · [Discount](discount.md) · [Mercantile](mercantile.md)
 
 - :material-api: **API-direct (no browser)**
 
-  [OneZero](onezero.md) · [Pepper](pepper.md) · [PayBox](paybox.md) · [Visa Cal](visacal.md) · [Isracard](isracard.md) · [Amex](amex.md) · [Max](max.md) · [Mizrahi Bank](mizrahi.md) · [Bank Hapoalim](hapoalim.md) · [Bank Yahav](yahav.md) · [Beinleumi](beinleumi.md) · [Massad](massad.md) · [Otsar Hahayal](otsar-hahayal.md)
+  [OneZero](onezero.md) · [Pepper](pepper.md) · [PayBox](paybox.md) · [Visa Cal](visacal.md) · [Isracard](isracard.md) · [Amex](amex.md) · [Max](max.md) · [Mizrahi Bank](mizrahi.md) · [Bank Hapoalim](hapoalim.md) · [Bank Yahav](yahav.md) · [Beinleumi](beinleumi.md) · [Massad](massad.md) · [Otsar Hahayal](otsar-hahayal.md) · [Pagi](pagi.md)
 
 - :material-archive: **Legacy (deprecated)**
 
@@ -38,7 +38,7 @@
 | Mizrahi Bank    | `Mizrahi`      | `username`, `password`          | —              |
 | One Zero        | `OneZero`      | `email`, `password`             | required (API) |
 | Otsar Hahayal   | `OtsarHahayal` | `username`, `password`          | conditional    |
-| Pagi            | `Pagi`         | `username`, `password`          | required       |
+| Pagi            | `Pagi`         | `username`, `password`          | conditional    |
 | PayBox          | `PayBox`       | `phoneNumber`                   | required (API) |
 | Pepper          | `Pepper`       | `phoneNumber`, `password`       | required (API) |
 | Visa Cal        | `VisaCal`      | `username`, `password`          | —              |

@@ -159,7 +159,7 @@ validated at runtime.
 | Mercantile Bank      | Bank        | Browser    | `id`, `password`, `num`         |
 | Mizrahi Bank         | Bank        | API-direct | `username`, `password`          |
 | One Zero             | Bank        | API-direct | `email`, `password`, OTP        |
-| Pagi                 | Bank        | Browser    | `username`, `password`, OTP     |
+| Pagi                 | Bank        | API-direct | `username`, `password`, OTP\*   |
 | Pepper (by Leumi)    | Bank        | API-direct | `phoneNumber`, `password`, OTP  |
 | Amex                 | Credit card | API-direct | `id`, `card6Digits`, `password` |
 | Isracard             | Credit card | API-direct | `id`, `card6Digits`, `password` |
@@ -167,8 +167,8 @@ validated at runtime.
 | Visa Cal             | Credit card | API-direct | `username`, `password`          |
 | PayBox (by Discount) | Wallet      | API-direct | `phoneNumber`, OTP              |
 
-\* Hapoalim, Beinleumi, Massad and Otsar Hahayal ask for an SMS code only when the bank
-requests one.
+\* Hapoalim, Beinleumi, Massad, Otsar Hahayal and Pagi ask for an SMS code only when the
+bank requests one.
 
 Per-bank notes live in the
 [bank documentation](https://sergienko4.github.io/israeli-bank-scrapers/banks/).

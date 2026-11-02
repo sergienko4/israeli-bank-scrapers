@@ -5,7 +5,7 @@ Ask the bank to dispatch the SMS/email OTP code. Runs only when the bank's `Logi
 | | |
 |---|---|
 | **Always-on?** | No — opt-in via `ifOtpFillAndTrigger` predicate |
-| **Banks that use it** | Pagi (Beinleumi group; Beinleumi, Massad and Otsar Hahayal log in over the API) |
+| **Banks that use it** | None today — dormant; Pagi, its last user, logs in over its API like the rest of the Beinleumi group |
 | **Owner slot** | `otpTrigger: Option<IOtpTrigger>` |
 | **Source** | [`OtpTriggerPhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/OtpTrigger/OtpTriggerPhase.ts) + [`OtpTriggerPhaseActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/OtpTrigger/OtpTriggerPhaseActions.ts) |
 
