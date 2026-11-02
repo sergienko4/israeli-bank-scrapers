@@ -6,7 +6,6 @@ import { INVALID_CREDS_DISCOUNT } from '../TestConstants.js';
 import {
   assertFailedLogin,
   assertSuccessfulScrape,
-  BROWSER_ARGS,
   defaultStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
@@ -21,7 +20,7 @@ const hasCredentials = !!(
 );
 const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
 
-DESCRIBE_IF('E2E: Discount Bank (real credentials)', () => {
+DESCRIBE_IF('E2E: Discount Bank (real credentials, API-direct)', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
@@ -30,8 +29,6 @@ DESCRIBE_IF('E2E: Discount Bank (real credentials)', () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Discount,
       startDate: defaultStartDate(),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
     });
     const result = await scraper.scrape({
       id: process.env.DISCOUNT_ID ?? '',
@@ -47,8 +44,6 @@ DESCRIBE_IF('E2E: Discount Bank (real credentials)', () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Discount,
       startDate: defaultStartDate(),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
     });
     const result = await scraper.scrape(INVALID_CREDS_DISCOUNT);
     assertFailedLogin(result);

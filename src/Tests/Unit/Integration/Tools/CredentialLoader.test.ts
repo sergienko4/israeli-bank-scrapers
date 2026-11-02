@@ -87,20 +87,19 @@ describe('CredentialLoader', () => {
   });
 
   describe('knownBanks', () => {
-    it('returns the two onboarded browser banks sorted', () => {
+    it('returns the onboarded browser bank', () => {
       const banks = knownBanks();
-      const expected = ['discount', 'leumi'];
+      const expected = ['leumi'];
       expect(banks).toEqual(expected);
     });
   });
 
   describe('loadCredentials', () => {
-    it('loads discount credentials from process.env', () => {
-      process.env.DISCOUNT_ID = '305000001';
-      process.env.DISCOUNT_PASSWORD = 's3cret';
-      process.env.DISCOUNT_NUM = 'AB1234';
-      const creds = loadCredentials('discount');
-      expect(creds).toEqual({ id: '305000001', password: 's3cret', num: 'AB1234' });
+    it('loads leumi credentials from process.env', () => {
+      process.env.LEUMI_USERNAME = 'alice';
+      process.env.LEUMI_PASSWORD = 's3cret';
+      const creds = loadCredentials('leumi');
+      expect(creds).toEqual({ username: 'alice', password: 's3cret' });
     });
 
     it('throws when an env var is missing', () => {
@@ -154,10 +153,9 @@ describe('CredentialLoader', () => {
     });
 
     it('returns false when value is whitespace-only', () => {
-      process.env.DISCOUNT_ID = '';
-      process.env.DISCOUNT_PASSWORD = 'pw';
-      process.env.DISCOUNT_NUM = 'AB1234';
-      const hasAll = hasCredentials('discount');
+      process.env.LEUMI_USERNAME = '';
+      process.env.LEUMI_PASSWORD = 'pw';
+      const hasAll = hasCredentials('leumi');
       expect(hasAll).toBe(false);
     });
   });

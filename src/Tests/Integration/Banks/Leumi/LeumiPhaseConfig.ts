@@ -1,8 +1,8 @@
 /**
  * Leumi bank — per-phase structural-invariant configuration.
  *
- * <p>Mirrors {@link ../Discount/DiscountPhaseConfig.ts} and the other
- * pipeline banks. Markers are GENERIC bank-identity substrings (no PII) that
+ * <p>The last per-bank phase config: the banks it once mirrored now log
+ * in over their APIs. Markers are GENERIC bank-identity substrings (no PII) that
  * survive both the real operator harvest AND a re-harvest. The Mode A
  * static drive proves every committed Leumi fixture matches the marker
  * contract the production scraper's recipe + post-login waitFor relies

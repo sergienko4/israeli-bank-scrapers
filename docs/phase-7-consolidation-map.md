@@ -136,7 +136,6 @@ Per the master plan and the user's "preserve real per-bank edge cases" directive
 | --------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | Beinleumi | `src/Tests/Unit/Pipeline/Infrastructure/BeinleumiCrossEndpointScan.test.ts` | The Beinleumi group scans across endpoints; peers resolve from a single endpoint.                       |
 | OneZero   | `src/Tests/Unit/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.test.ts`   | OneZero is the only bank requiring an mTLS client certificate.                                           |
-| Discount  | `src/Tests/E2eReal/SelectorFallbackDiscount.e2e-real.test.ts`             | Per-bank selector-fallback suites assert against one bank's live DOM by design.                          |
 
 These stay verbatim; only the **truly-duplicated** per-bank tests collapse.
 
@@ -290,7 +289,7 @@ If a future regression introduces the anti-pattern, the **T7.10 canary** will bl
 | File                                             | Skip reason                                                         | Required fix                          |
 | ------------------------------------------------ | ------------------------------------------------------------------- | ------------------------------------- |
 | `E2eMocked/Ring/Ring.e2e-mocked.test.ts`         | Resolved: Isracard and Amex are browserless; `RingFetchMock.ts` serves both | none                          |
-| `E2eMocked/Discount/Discount.e2e-mocked.test.ts` | `fixtures.json` URL globs do NOT match Discount's real URL topology | author `fixtures.json` + capture HTML |
+| `E2eMocked/Discount/Discount.e2e-mocked.test.ts` | Resolved: Discount is browserless; `DiscountFetchMock.ts` serves it | none                                  |
 | `E2eMocked/Max/Max.e2e-mocked.test.ts`           | Resolved: Max is browserless; `MaxFetchMock.ts` serves it           | none                                  |
 | `E2eMocked/VisaCal/VisaCal.e2e-mocked.test.ts`   | Resolved: VisaCal is browserless; `VisaCalFetchMock.ts` serves it   | none                                  |
 
@@ -307,7 +306,7 @@ If a future regression introduces the anti-pattern, the **T7.10 canary** will bl
 
 **T7.5 DEFERRED to follow-up PR** because:
 
-1. `C:/tmp/bank-html/{discount,max,visacal}/` (the fixture root) is MISSING on current dev machine. The capture script (`npm run capture:invalid-login -- <bank>`) requires real bank credentials + IL-residential network — environment I do not control.
+1. `C:/tmp/bank-html/{discount,max,visacal}/` (the fixture root) is MISSING on current dev machine. The capture script (`npm run capture:invalid-login -- <bank>`, since retired) required real bank credentials + IL-residential network — environment I do not control.
 2. Manually inferring route tables from production scraper code (without real captures) would produce tests that pass locally but are not reviewable — violates "tests we can rely on".
 3. Authoring repo-local safe fixtures (synthetic HTML responding with bank-recognizable error markup) is feasible (~4-8h per bank) but is fixture engineering, NOT structural refactor.
 4. Per rubber-duck recommendation: "Split T7.5 out of Phase 7 structural work and track it as fixture debt."
@@ -315,7 +314,7 @@ If a future regression introduces the anti-pattern, the **T7.10 canary** will bl
 **T7.5 follow-up PR scope** (separate from this Phase 7 PR):
 
 - Open `fix/e2e-mocked-fixture-debt` branch
-- Implement repo-local safe fixtures under `src/Tests/E2eMocked/fixtures/discount/` (committed, synthetic HTML); Visa Cal, Isracard, Amex, Max, Mizrahi and Hapoalim are browserless and need none
+- None left to author: Discount, Visa Cal, Isracard, Amex, Max, Mizrahi and Hapoalim are browserless and served by fetch mocks
 - Un-`skip` the 5 files; verify all pass in `test:e2e:mock`
 - Document the fixture authoring pattern for future banks
 

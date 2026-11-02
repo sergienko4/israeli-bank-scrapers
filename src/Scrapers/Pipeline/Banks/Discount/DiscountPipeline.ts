@@ -7,27 +7,11 @@
  */
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
-import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilderFactory.js';
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { DISCOUNT_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigDiscount.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { DISCOUNT_SHAPE } from './scrape/DiscountShape.js';
-
-/**
- * Discount browser login fields — credential keys only. No longer wired; kept
- * for the browser integration fixtures until they are removed.
- */
-const DISCOUNT_LOGIN: ILoginConfig = {
-  loginUrl: 'https://www.discountbank.co.il',
-  fields: [
-    { credentialKey: 'id', selectors: [] },
-    { credentialKey: 'password', selectors: [] },
-    { credentialKey: 'num', selectors: [] },
-  ],
-  submit: [],
-  possibleResults: { success: [] },
-};
 
 /**
  * Build the Discount pipeline descriptor: no browser; the direct-API login
@@ -44,4 +28,4 @@ function buildDiscountPipeline(options: ScraperOptions): Procedure<IPipelineDesc
 }
 
 export default buildDiscountPipeline;
-export { buildDiscountPipeline, DISCOUNT_LOGIN };
+export { buildDiscountPipeline };

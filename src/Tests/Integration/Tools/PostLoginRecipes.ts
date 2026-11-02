@@ -31,34 +31,6 @@ import type { IExtendedRecipe } from './RecipeStepTypes.js';
 /** Generic dashboard wait — captures hydrated DOM regardless of bank UX. */
 const DASHBOARD_NETWORKIDLE_TIMEOUT_MS = 30000;
 
-/** Discount: legacy banking app, no OTP, has account-resolve picker. */
-const DISCOUNT_POST_LOGIN = {
-  bankId: 'discount',
-  steps: [
-    { kind: 'login', stepName: '04-login-action' },
-    {
-      kind: 'waitFor',
-      stepName: '07-auth-discovery',
-      urlIncludes: 'MY_ACCOUNT_HOMEPAGE',
-      timeoutMs: DASHBOARD_NETWORKIDLE_TIMEOUT_MS,
-    },
-    { kind: 'snapshot', stepName: '08-account-resolve', waitForLifecycle: 'networkidle' },
-    { kind: 'snapshot', stepName: '09-dashboard', waitForLifecycle: 'networkidle' },
-    {
-      kind: 'recordResponse',
-      stepName: '10-scrape-transactions',
-      urlPattern: '/lastTransactions',
-      captureAs: 'lastTransactions',
-    },
-    {
-      kind: 'recordResponse',
-      stepName: '11-balance',
-      urlPattern: '/currentAccount',
-      captureAs: 'currentAccount',
-    },
-  ],
-} as const satisfies IExtendedRecipe;
-
 /** Leumi: no OTP; SPA shell at eBanking/SO/SPA.aspx. The DASHBOARD tail is
  *  a two-step menu nav — עובר ושב (current account) then תנועות בחשבון
  *  (account movements) — which fires the UC_SO_27 GetBusinessAccountTrx
@@ -96,7 +68,6 @@ const LEUMI_POST_LOGIN = {
  * constants above already carry `as const satisfies IExtendedRecipe`.
  */
 const POST_LOGIN_RECIPES: Readonly<Partial<Record<string, IExtendedRecipe>>> = {
-  discount: DISCOUNT_POST_LOGIN,
   leumi: LEUMI_POST_LOGIN,
 };
 
@@ -164,12 +135,6 @@ interface IBankRecipe {
  * are referenced by name, not dynamically indexed.
  */
 const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
-  discount: {
-    steps: [
-      { stepName: '01-home', url: 'https://www.discountbank.co.il' },
-      { stepName: '02-pre-login', url: 'https://start.telebank.co.il/login/#/LOGIN_PAGE' },
-    ],
-  },
   mercantile: {
     steps: [
       { stepName: '01-home', url: 'https://www.mercantile.co.il' },

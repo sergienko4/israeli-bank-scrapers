@@ -44,8 +44,6 @@ describe('E2E: Discount (invalid login)', () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Discount,
       startDate: defaultStartDate(),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
     });
     const result = await scraper.scrape(INVALID_CREDS_DISCOUNT);
     assertFailedLogin(result);
