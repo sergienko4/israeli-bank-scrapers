@@ -40,8 +40,8 @@ import type { IProcedureFailure } from '../../../Types/Procedure.js';
 import { isWafBlocked } from '../../../Types/Procedure.js';
 import type { IStepConfig } from '../ConfigContracts/index.js';
 
-/** The step fields a failure is rebuilt from. */
-type FailedStep = Pick<IStepConfig, 'name' | 'httpFailureMap'>;
+/** What a failure is rebuilt from: a login step, or a scrape call by its name. */
+type FailedStep = Pick<IStepConfig, 'httpFailureMap'> & { readonly name: string };
 
 /**
  * The transport's reply prefix `<VERB> <safeUrl> NNN: ` (`HttpFailureClassifier`),

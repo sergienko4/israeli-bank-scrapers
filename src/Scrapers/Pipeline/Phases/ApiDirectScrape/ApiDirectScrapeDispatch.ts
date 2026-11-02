@@ -116,7 +116,7 @@ export function omitBankResponseText<T>(
   omitBankText?: boolean,
 ): Procedure<T> {
   if (isOk(response) || omitBankText !== true) return response;
-  return sanitiseStepFailure(name, response);
+  return sanitiseStepFailure({ name }, response);
 }
 
 /**
