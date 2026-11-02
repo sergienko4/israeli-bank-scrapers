@@ -29,12 +29,9 @@ function cookieValueOf(pair: string): string {
 
 const CREDS = DATA.DISCOUNT_MOCK_CREDS;
 
-/** Every synthetic secret the bank or the caller hands the scraper. */
-const SECRETS: readonly string[] = [
-  CREDS.id,
+/** Every synthetic secret the bank hands the scraper. */
+const BANK_SECRETS: readonly string[] = [
   DATA.DC_UID,
-  CREDS.password,
-  CREDS.num,
   DATA.DC_XSRF_RAW,
   DATA.DC_XSRF_DECODED,
   DATA.DC_XSRF_ROTATED_RAW,
@@ -45,6 +42,17 @@ const SECRETS: readonly string[] = [
   FAULTS.DC_BANK_NOTICE,
 ];
 
+/**
+ * Every secret one run must keep out of its logs: its own credentials, then
+ * the bank's.
+ * @param creds - The credentials the run logs in with.
+ * @returns The secrets.
+ */
+function secretsOf(creds: Readonly<Record<string, string>>): readonly string[] {
+  const own = Object.values(creds);
+  return [...own, ...BANK_SECRETS];
+}
+
 /** Runs whose every log line is checked: a full run, then each kind of refusal. */
 const RUNS = [
   ['a full run', 'none', CREDS],
@@ -53,6 +61,7 @@ const RUNS = [
   ['a login bound to another id', 'mi6Mismatch', CREDS],
   ['a malformed redirect token', 'malformedHopXsrf', CREDS],
   ['a Titan error', 'titanError', CREDS],
+  ['a Titan HTTP failure', 'titan500', CREDS],
 ] as const;
 
 describe('Discount browserless logs', () => {
@@ -63,7 +72,8 @@ describe('Discount browserless logs', () => {
   it.each(RUNS)('logs no secret on %s', async (_name, fault, creds) => {
     await RUN.runDiscount(fault, { ...creds });
     const emitted = LOG_LINES.join('');
-    const leaked = SECRETS.filter(secret => emitted.includes(secret));
+    const secrets = secretsOf(creds);
+    const leaked = secrets.filter(secret => emitted.includes(secret));
     expect(LOG_LINES.length).toBeGreaterThan(0);
     expect(leaked).toEqual([]);
   });
