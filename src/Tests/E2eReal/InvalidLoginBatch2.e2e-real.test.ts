@@ -2,7 +2,7 @@ import { jest } from '@jest/globals';
 
 import { CompanyTypes, createScraper } from '../../index.js';
 import { INVALID_CREDS_DISCOUNT, INVALID_CREDS_USERNAME_PASSWORD } from '../TestConstants.js';
-import { assertFailedLogin, BROWSER_ARGS, defaultStartDate, SCRAPE_TIMEOUT } from './Helpers.js';
+import { assertFailedLogin, defaultStartDate, SCRAPE_TIMEOUT } from './Helpers.js';
 
 beforeAll(() => {
   jest.setTimeout(SCRAPE_TIMEOUT);
@@ -35,8 +35,6 @@ describe('E2E: Mercantile (invalid login)', () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Mercantile,
       startDate: defaultStartDate(),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
     });
     const result = await scraper.scrape(INVALID_CREDS_DISCOUNT);
     assertFailedLogin(result);

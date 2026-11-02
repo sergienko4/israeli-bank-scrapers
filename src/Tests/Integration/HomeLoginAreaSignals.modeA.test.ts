@@ -61,10 +61,7 @@ interface IHomeSignalCase {
  * Whether each bank's captured `01-home` snapshot already exposes a login form.
  * `false` means HOME has no DOM fallback and must genuinely navigate.
  */
-const CASES: readonly IHomeSignalCase[] = [
-  { bankId: 'leumi', hasLoginForm: true },
-  { bankId: 'mercantile', hasLoginForm: false },
-];
+const CASES: readonly IHomeSignalCase[] = [{ bankId: 'leumi', hasLoginForm: true }];
 
 /**
  * Load a captured step into a fresh fixture page.
