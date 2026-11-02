@@ -12,7 +12,7 @@
 
 import { jest } from '@jest/globals';
 
-import { capturingDebugModule, LOG_LINES } from './BeinleumiLogCapture.js';
+import { capturingDebugModule, LOG_LINES } from '../Helpers/LogCapture.js';
 
 jest.unstable_mockModule('../../../Scrapers/Pipeline/Logging/Debug.js', capturingDebugModule);
 

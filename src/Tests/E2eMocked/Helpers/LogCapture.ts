@@ -1,8 +1,8 @@
 /**
- * Beinleumi log capture — the Debug module a log suite mocks in: every
- * pipeline logger becomes one real pino logger at `trace`, with the
- * production redaction config, whose serialized lines land in
- * {@link LOG_LINES}. A suite registers it before importing any pipeline module:
+ * Log capture — the Debug module a log suite mocks in: every pipeline logger
+ * becomes one real pino logger at `trace`, with the production redaction
+ * config, whose serialized lines land in {@link LOG_LINES}. A suite registers
+ * it before importing any pipeline module:
  * `jest.unstable_mockModule('<path>/Logging/Debug.js', capturingDebugModule)`.
  *
  * Rule #18: every value here is SYNTHETIC. No real PII.
