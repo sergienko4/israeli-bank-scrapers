@@ -112,7 +112,7 @@ The state holds the device id alone: no password, token or key.
 
 ## Known quirks
 
-- Beinleumi is the parent of the Beinleumi group: same login flow used by Massad, Otsar Hahayal, Pagi.
+- Beinleumi is the parent of the Beinleumi group. Massad, Otsar Hahayal and Pagi share its data API but still log in through the browser OTP-TRIGGER + OTP-FILL flow.
 - Balance endpoint shape: `(withdrawable + current)` per account — see [`beinleumi/balance-resolve/last-good.json`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/CrossValidation/Phases/Fixtures/beinleumi/balance-resolve/last-good.json) for the captured response shape.
 
 ## Hard-model post-auth

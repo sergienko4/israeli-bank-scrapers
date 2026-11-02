@@ -254,11 +254,11 @@ export type ScraperOptions = ScraperBrowserOptions & {
    * Opaque, versioned device-auth state previously emitted by
    * onPersistentAuthStateUpdate. Banks without durable device auth ignore it.
    *
-   * <p>The value is encoded, not encrypted: it carries a bearer token and a
-   * device private key, so callers must store it as a secret. Requires
-   * onPersistentAuthStateUpdate and must not be combined with
-   * creds.otpLongTermToken. Omit it when nothing is stored: an empty string
-   * is rejected as invalid state.
+   * <p>The value is encoded, not encrypted: depending on the bank it may carry
+   * a bearer token and a device private key, so callers must store it as a
+   * secret. Requires onPersistentAuthStateUpdate and must not be combined
+   * with creds.otpLongTermToken. Omit it when nothing is stored: an empty
+   * string is rejected as invalid state.
    */
   persistentAuthState?: string;
 

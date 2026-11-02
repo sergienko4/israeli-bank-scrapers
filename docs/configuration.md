@@ -20,12 +20,12 @@ Some fields on `ScraperOptions` are honoured only by the
 | `shouldShowBrowser` | `boolean` | `false` | Show the Camoufox window while scraping |
 | `preparePage` | `(page: Page) => Promise<void>` | (none) | Hook run against the page before the pipeline starts |
 | `prepareBrowser` | `(browser: Browser) => Promise<void>` | (none) | Hook run against the browser after launch |
-| `otpCodeRetriever` | `(phoneHint: string) => Promise<string>` | (none) | **Browser banks and Hapoalim** — invoked when OTP is required; `phoneHint` is the masked number the bank says it texted |
+| `otpCodeRetriever` | `(phoneHint: string) => Promise<string>` | (none) | **Browser banks, Hapoalim and Beinleumi** — invoked when OTP is required; `phoneHint` is the masked number the bank says it texted (empty for Beinleumi) |
 | `onAuthFlowComplete` | `(info: IAuthFlowInfo) => void` | (none) | Fires once authentication finishes, before scraping |
 | `otpTimeoutMs` | `number` (ms) | bank-specific | How long to wait for `otpCodeRetriever` to resolve |
 | `loginLogLevel` | `'info' \| 'trace'` | `'info'` | Raises log detail for the LOGIN phase only |
-| `persistentAuthState` | `string` | (none) | **Pepper only** — opaque device-auth state previously handed to `onPersistentAuthStateUpdate`. Holds a bearer token and a device private key: store it as a secret. Requires `onPersistentAuthStateUpdate`. Omit it when nothing is stored — an empty string fails as invalid state — see [Pepper durable device auth](banks/pepper.md#durable-device-auth-opt-in) |
-| `onPersistentAuthStateUpdate` | `(state: string) => Promise<void>` | (none) | **Pepper only** — opts into durable device auth. Called once after an enrollment or a renewal with the state to store; a rejection fails the run before the new token is used. Other banks ignore it |
+| `persistentAuthState` | `string` | (none) | **Pepper and Beinleumi** — opaque device-auth state previously handed to `onPersistentAuthStateUpdate`. Pepper's holds a bearer token and a device private key, Beinleumi's only the device id: store it as a secret. Requires `onPersistentAuthStateUpdate`. Omit it when nothing is stored — an empty string fails as invalid state — see [Pepper durable device auth](banks/pepper.md#durable-device-auth-opt-in) and [Beinleumi warm start](banks/beinleumi.md#warm-start) |
+| `onPersistentAuthStateUpdate` | `(state: string) => Promise<void>` | (none) | **Pepper and Beinleumi** — opts into durable device auth. Called once after an enrollment or a renewal with the state to store (Beinleumi: once, on enrollment); a rejection fails the run before the new token is used. Other banks ignore it |
 
 `defaultTimeout` is an **option, not an environment variable**. It bounds each
 phase's navigation independently rather than the run as a whole, so a slow
@@ -180,6 +180,9 @@ above, which keeps the bound device and renews an expired token without an
 SMS. The two modes are mutually exclusive — combining them fails the run
 before any request. See
 [Pepper durable device auth](banks/pepper.md#durable-device-auth-opt-in).
+Beinleumi offers the same options as device memory: its state holds only
+the device id, so the bank may still ask for an SMS — see
+[Beinleumi warm start](banks/beinleumi.md#warm-start).
 
 ## Environment variables
 
