@@ -128,8 +128,8 @@ interface ICryptoFieldConfig {
   readonly scrubFromCarry: string;
 }
 
-/** Seal algorithms a step may name (N10). */
-type SealKind = 'rsa-pkcs1-block-xor';
+/** Seal algorithms a step may name (N10, N44). */
+type SealKind = 'rsa-pkcs1-block-xor' | 'rsa-pkcs1-v15';
 
 /** Constants of the `rsa-pkcs1-block-xor` seal, all named by the bank config. */
 interface ISealRsaBlockXorParams {
@@ -151,14 +151,36 @@ interface ISealRsaBlockXorParams {
  * (N10). The source is read from creds and the hex modulus from carry; the
  * sealed text is written only at `writeTo`, never into carry.
  */
-interface ISealFieldConfig {
-  readonly kind: SealKind;
+interface ISealRsaBlockXorConfig {
+  readonly kind: 'rsa-pkcs1-block-xor';
   readonly sourceRef: `creds.${string}`;
   readonly modulusRef: `carry.${string}`;
   /** RFC-6901 pointer into the outbound body (e.g. `/credentials`). */
   readonly writeTo: string;
   readonly params: ISealRsaBlockXorParams;
 }
+
+/** One credential a multi-field seal writes into the body. */
+interface ISealedFieldTarget {
+  readonly sourceRef: `creds.${string}`;
+  /** RFC-6901 pointer into the outbound body (e.g. `/Password`). */
+  readonly writeTo: string;
+}
+
+/**
+ * Credentials each sealed alone under one RSA public key with PKCS#1 v1.5
+ * padding (N44). The key text in carry is a PEM public key or base64 SPKI
+ * DER; each source is encoded as latin1 and its base64 ciphertext is written
+ * only at its `writeTo`, never into carry.
+ */
+interface ISealRsaPkcs1Config {
+  readonly kind: 'rsa-pkcs1-v15';
+  readonly keyRef: `carry.${string}`;
+  readonly fields: readonly ISealedFieldTarget[];
+}
+
+/** A step's seal: one config per seal kind. */
+type ISealFieldConfig = ISealRsaBlockXorConfig | ISealRsaPkcs1Config;
 
 export type {
   AsymmetricSignerAlgorithm,
@@ -169,8 +191,11 @@ export type {
   ICanonicalStringConfig,
   ICryptoFieldConfig,
   IHmacHeaderSignerConfig,
+  ISealedFieldTarget,
   ISealFieldConfig,
+  ISealRsaBlockXorConfig,
   ISealRsaBlockXorParams,
+  ISealRsaPkcs1Config,
   ISignerConfig,
   SealKind,
   SignerAlgorithm,

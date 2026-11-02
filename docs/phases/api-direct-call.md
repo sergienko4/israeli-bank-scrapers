@@ -1204,8 +1204,9 @@ from what it extracted:
   ([Form bodies](../architecture/pipeline.md#form-bodies)). `isFlatFormBody`
   guards the hydrated form step and both form writers against arrays and
   nested values.
-- `seal` writes one credential, sealed under the bank's RSA modulus, at a
-  body pointer; neither value reaches carry
+- `seal` writes credentials, sealed under the bank's RSA key, at body
+  pointers: one under a hex modulus (`rsa-pkcs1-block-xor`), or each alone
+  under a PEM or DER key (`rsa-pkcs1-v15`); no value reaches carry
   ([Sealed fields](../architecture/pipeline.md#sealed-fields)).
 - `setCookies` writes client cookies, host-only with `Path=/` and `Secure`,
   before the step's request; `$ref: cookie.<name>` reads the cookie that
@@ -1308,11 +1309,12 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `text` step whose body shape is not exactly `{ text }`                                                                                  | `steps.body: a text body must be exactly { text }`                                 |
 | a form step whose whole-shape `$merge` (`isMergeRoot`) has a `base` off `carry.<slot>` or a `set` that is not flat                    | `steps.body: a form body must be a flat record`                          |
 | a `$merge` anywhere but a form body's whole shape: a JSON or text body, a field, a header, a query (`API_DIRECT_MERGE_RULES`)         | `steps: $merge belongs only at the root of a form body`                  |
-| a `seal` whose `kind` is not a `SealKind`                                                                                                 | `steps.seal.kind: unknown seal kind`                                               |
-| a `seal` on a step that is not a `POST` with a record body                                                                                | `steps.seal: needs a POST step with a record body`                                 |
-| a `seal` whose `writeTo` is not a JSON pointer                                                                                            | `steps.seal.writeTo: must be a JSON pointer`                                       |
-| a `seal` whose `params` are out of range (exponent, seed, block size or printable text)                                                   | `steps.seal.params: out of range`                                                  |
-| a login or resume step with a `failIfPresent` entry that is not a JSON pointer below the body root                                        | `steps.failIfPresent: each entry must be a JSON pointer`                           |
+| a `seal` whose `kind` is not a `SealKind`                                                                                             | `steps.seal.kind: unknown seal kind`                                     |
+| a `seal` on a step that is not a `POST` with a record body                                                                            | `steps.seal: needs a POST step with a record body`                       |
+| a `seal` with a `writeTo` that is not a JSON pointer                                                                                  | `steps.seal.writeTo: must be a JSON pointer`                             |
+| a `seal` with no field, or two fields at one `writeTo`                                                                                | `steps.seal.fields: needs at least one field, each with its own writeTo` |
+| a block-xor `seal` whose `params` are out of range (exponent, seed, block size or printable text)                                     | `steps.seal.params: out of range`                                        |
+| a login or resume step with a `failIfPresent` entry that is not a JSON pointer below the body root                                    | `steps.failIfPresent: each entry must be a JSON pointer`                 |
 | a login or resume step with a `bankErrorType` but no `failIfPresent` entry and no codec                                               | `steps.bankErrorType: needs failIfPresent or a codec`                    |
 | an `extractRules` key that names no `extractsToCarry`, `optionalExtractsToCarry`, `headerExtractsToCarry` or `textCaptures` slot              | `steps.extractRules: each key must name a body or header extract`                  |
 | an `extractRules` `pattern` that does not start with `^`, end with `$` and compile with the `u` flag                                      | `steps.extractRules.pattern: must be an anchored regex`                            |

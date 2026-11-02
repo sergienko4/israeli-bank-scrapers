@@ -1,6 +1,7 @@
 /**
- * N10 — a step's seal must name a known kind, sit on a POST step whose body
- * is a record, write at a JSON pointer, and carry constants the seal can use.
+ * N10 / N44 — a step's seal must name a known kind, sit on a POST step whose
+ * body is a record, write at JSON pointers, and carry constants the seal can
+ * use; a multi-field seal needs at least one field and distinct targets.
  * Each broken seal fails the build with its own message.
  */
 
@@ -13,7 +14,9 @@ import type {
   IGetStep,
   IPostStep,
   ISealFieldConfig,
+  ISealRsaBlockXorConfig,
   ISealRsaBlockXorParams,
+  ISealRsaPkcs1Config,
   IStepConfig,
   SealKind,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
@@ -23,8 +26,9 @@ const KIND_MSG = 'steps.seal.kind: unknown seal kind';
 const HOST_MSG = 'steps.seal: needs a POST step with a record body';
 const POINTER_MSG = 'steps.seal.writeTo: must be a JSON pointer';
 const PARAMS_MSG = 'steps.seal.params: out of range';
+const FIELDS_MSG = 'steps.seal.fields: needs at least one field, each with its own writeTo';
 
-const SEAL: ISealFieldConfig = {
+const SEAL: ISealRsaBlockXorConfig = {
   kind: 'rsa-pkcs1-block-xor',
   sourceRef: 'creds.password',
   modulusRef: 'carry.modulus',
@@ -87,7 +91,25 @@ const JOIN_BODY_STEP: IPostStep = {
   ...postWith(SEAL),
   body: { shape: { $join: { parts: ['carry.body'] } } },
 };
-const UNKNOWN_KIND = { ...SEAL, kind: 'rsa-oaep' as unknown as SealKind };
+const UNKNOWN_KIND = { ...SEAL, kind: 'rsa-oaep' as unknown as SealKind } as ISealFieldConfig;
+
+const PKCS1_SEAL: ISealRsaPkcs1Config = {
+  kind: 'rsa-pkcs1-v15',
+  keyRef: 'carry.rsaKey',
+  fields: [
+    { sourceRef: 'creds.num', writeTo: '/ThirdIdentifier' },
+    { sourceRef: 'creds.password', writeTo: '/Password' },
+  ],
+};
+
+/**
+ * The PKCS#1 seal with the given fields.
+ * @param fields - Sealed fields.
+ * @returns Seal config.
+ */
+function pkcs1With(fields: ISealRsaPkcs1Config['fields']): ISealRsaPkcs1Config {
+  return { ...PKCS1_SEAL, fields };
+}
 
 const BAD_PARAMS: readonly (readonly [
   string,
@@ -161,5 +183,43 @@ describe('validateApiDirectConfig — sealed fields', () => {
     const call = { flow: 'sms-otp' as const, envelope: {}, steps: [], persistentAuth };
     const result = validateApiDirectConfig({ call, headless: false });
     expect(result).toMatchObject({ success: false, errorMessage: KIND_MSG });
+  });
+});
+
+describe('validateApiDirectConfig — fields sealed with RSA PKCS#1 v1.5 (N44)', () => {
+  it('a sound multi-field seal passes', () => {
+    const step = postWith(PKCS1_SEAL);
+    const result = validate(step);
+    expect(result).toEqual({ success: true, value: true });
+  });
+
+  it('a seal on a GET step fails the build', () => {
+    const step: IGetStep = { ...GET_STEP, seal: PKCS1_SEAL };
+    const result = validate(step);
+    expect(result).toMatchObject({ success: false, errorMessage: HOST_MSG });
+  });
+
+  it.each([['Password'], ['/'], ['']])('a field writeTo %j fails the build', writeTo => {
+    const fields = [PKCS1_SEAL.fields[0], { sourceRef: 'creds.password' as const, writeTo }];
+    const seal = pkcs1With(fields);
+    const step = postWith(seal);
+    const result = validate(step);
+    expect(result).toMatchObject({ success: false, errorMessage: POINTER_MSG });
+  });
+
+  it.each([
+    ['no fields', []],
+    [
+      'two fields at one writeTo',
+      [
+        { sourceRef: 'creds.num' as const, writeTo: '/Password' },
+        { sourceRef: 'creds.password' as const, writeTo: '/Password' },
+      ],
+    ],
+  ])('%s fails the build', (_label, fields) => {
+    const seal = pkcs1With(fields);
+    const step = postWith(seal);
+    const result = validate(step);
+    expect(result).toMatchObject({ success: false, errorMessage: FIELDS_MSG });
   });
 });

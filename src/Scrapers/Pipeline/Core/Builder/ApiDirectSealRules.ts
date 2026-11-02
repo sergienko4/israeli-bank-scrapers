@@ -1,15 +1,18 @@
 /**
- * Seal rules for an api-direct call config (N10). A sealed field must name a
- * known kind, sit on a POST step whose body shape is a record, be written at
- * a JSON pointer below the root, and carry constants the seal can use: an odd
- * public exponent of at least 3, a 1–64 character seed drawn from a
- * printable-ASCII alphabet, 1–53 characters per RSA block (the PKCS#1 v1.5
- * room of the smallest accepted 512-bit key) and printable-ASCII framing.
+ * Seal rules for an api-direct call config (N10, N44). A seal must name a
+ * known kind, sit on a POST step whose body shape is a record, and write at
+ * one or more distinct JSON pointers below the root. A block-xor seal must
+ * carry constants it can use: an odd public exponent of at least 3, a 1–64
+ * character seed drawn from a printable-ASCII alphabet, 1–53 characters per
+ * RSA block (the PKCS#1 v1.5 room of the smallest accepted 512-bit key) and
+ * printable-ASCII framing.
  */
 
 import type {
   ISealFieldConfig,
+  ISealRsaBlockXorConfig,
   ISealRsaBlockXorParams,
+  ISealRsaPkcs1Config,
   IStepConfig,
   JsonValueTemplate,
   SealKind,
@@ -20,7 +23,10 @@ import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDi
 type SealCheck = (seal: ISealFieldConfig, step: IStepConfig) => boolean;
 
 /** Every seal kind; the record type keeps it in step with `SealKind`. */
-const KNOWN_SEAL_KINDS: Readonly<Record<SealKind, true>> = { 'rsa-pkcs1-block-xor': true };
+const KNOWN_SEAL_KINDS: Readonly<Record<SealKind, true>> = {
+  'rsa-pkcs1-block-xor': true,
+  'rsa-pkcs1-v15': true,
+};
 
 const PRINTABLE_ASCII = /^[\u0020-\u007E]*$/;
 const MAX_SEED_CHARS = 64;
@@ -80,13 +86,81 @@ function isHostless(_seal: ISealFieldConfig, step: IStepConfig): boolean {
   return !isRecordShape(step.body.shape);
 }
 
+/** Reads one fact of a seal; each kind has its own reader. */
+type SealReader<TKind extends SealKind, TFact> = (
+  seal: Extract<ISealFieldConfig, { readonly kind: TKind }>,
+) => TFact;
+
+/** One reader per seal kind. */
+type KindReaders<TFact> = { readonly [TKind in SealKind]: SealReader<TKind, TFact> };
+
 /**
- * Whether `writeTo` is not a pointer below the body root.
+ * The pointer of a block-xor seal.
+ * @param seal - Seal config.
+ * @returns Its single `writeTo`.
+ */
+function blockXorTargets(seal: ISealRsaBlockXorConfig): readonly string[] {
+  return [seal.writeTo];
+}
+
+/**
+ * The pointers of a multi-field seal.
+ * @param seal - Seal config.
+ * @returns Each field's `writeTo`.
+ */
+function pkcs1Targets(seal: ISealRsaPkcs1Config): readonly string[] {
+  return seal.fields.map((field): string => field.writeTo);
+}
+
+/** The body pointers each kind writes. */
+const WRITE_TARGETS: KindReaders<readonly string[]> = {
+  'rsa-pkcs1-block-xor': blockXorTargets,
+  'rsa-pkcs1-v15': pkcs1Targets,
+};
+
+/**
+ * Read a fact of a known-kind seal.
+ * @param readers - One reader per kind.
+ * @param seal - Seal config.
+ * @param unknown - The fact of an unknown kind.
+ * @returns The fact.
+ */
+function readSeal<TFact>(
+  readers: KindReaders<TFact>,
+  seal: ISealFieldConfig,
+  unknown: TFact,
+): TFact {
+  if (isUnknownKind(seal)) return unknown;
+  const reader = readers[seal.kind] as (seal: ISealFieldConfig) => TFact;
+  return reader(seal);
+}
+
+/**
+ * Whether a pointer is not below the body root.
+ * @param pointer - Candidate `writeTo`.
+ * @returns True for a bad pointer.
+ */
+function isBadTarget(pointer: string): boolean {
+  return !pointer.startsWith('/') || pointer.length < 2;
+}
+
+/**
+ * Whether any `writeTo` is not a pointer below the body root.
  * @param seal - Seal config.
  * @returns True for a bad pointer.
  */
 function isBadPointer(seal: ISealFieldConfig): boolean {
-  return !seal.writeTo.startsWith('/') || seal.writeTo.length < 2;
+  return readSeal(WRITE_TARGETS, seal, []).some(isBadTarget);
+}
+
+/**
+ * Whether the seal writes nothing, or two values at one pointer.
+ * @param seal - Seal config.
+ * @returns True for no targets or a repeated one.
+ */
+function hasBadFields(seal: ISealFieldConfig): boolean {
+  const targets = readSeal(WRITE_TARGETS, seal, ['/']);
+  return targets.length === 0 || new Set(targets).size !== targets.length;
 }
 
 /**
@@ -111,16 +185,39 @@ function isFramingSound(params: ISealRsaBlockXorParams): boolean {
 }
 
 /**
- * Whether any seal constant is out of range.
+ * Whether any block-xor constant is out of range.
  * @param seal - Seal config.
  * @returns True when the seal cannot run with its constants.
  */
-function hasBadParams(seal: ISealFieldConfig): boolean {
+function hasBadBlockXorParams(seal: ISealRsaBlockXorConfig): boolean {
   const { params } = seal;
   const exponent = params.exponent;
   const isExponentSound = Number.isSafeInteger(exponent) && exponent >= 3 && exponent % 2 === 1;
   if (!isExponentSound || !isSeedSound(params)) return true;
   return !isIntIn(params.blockChars, 1, MAX_BLOCK_CHARS) || !isFramingSound(params);
+}
+
+/**
+ * A kind without constants.
+ * @returns False: nothing can be out of range.
+ */
+function hasNoParams(): boolean {
+  return false;
+}
+
+/** The constant check of each kind. */
+const PARAM_CHECKS: KindReaders<boolean> = {
+  'rsa-pkcs1-block-xor': hasBadBlockXorParams,
+  'rsa-pkcs1-v15': hasNoParams,
+};
+
+/**
+ * Whether any seal constant is out of range.
+ * @param seal - Seal config.
+ * @returns True when the seal cannot run with its constants.
+ */
+function hasBadParams(seal: ISealFieldConfig): boolean {
+  return readSeal(PARAM_CHECKS, seal, false);
 }
 
 /**
@@ -157,6 +254,7 @@ const API_DIRECT_SEAL_RULES: readonly IApiDirectRule[] = [
   sealRule('steps.seal.kind: unknown seal kind', isUnknownKind),
   sealRule('steps.seal: needs a POST step with a record body', isHostless),
   sealRule('steps.seal.writeTo: must be a JSON pointer', isBadPointer),
+  sealRule('steps.seal.fields: needs at least one field, each with its own writeTo', hasBadFields),
   sealRule('steps.seal.params: out of range', hasBadParams),
 ];
 
