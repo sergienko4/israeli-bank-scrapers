@@ -8,4 +8,3 @@
 
 export declare const SONAR_PARITY_IGNORE_PREFIXES: readonly string[];
 export declare const SONAR_PARITY_IGNORE_GLOBS: readonly string[];
-export declare const SKIP_ALLOWLIST_FILES: readonly string[];
