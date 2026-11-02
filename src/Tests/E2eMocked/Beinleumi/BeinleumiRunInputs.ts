@@ -8,8 +8,9 @@
 
 import type { ScraperOptions } from '../../../Scrapers/Base/Interface.js';
 import { encodeDeviceMemoryState } from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/DeviceMemoryStateCodec.js';
+import type { IFibiMockBrand } from './BeinleumiBrands.js';
+import { BEINLEUMI_MOCK_BRAND } from './BeinleumiBrands.js';
 import { BN_UID } from './BeinleumiMockData.js';
-import { BN_PROVIDER } from './BeinleumiWireSpec.js';
 
 /** The SMS retriever, or nothing when the run supplies none. */
 export type RetrieverSlot = Pick<ScraperOptions, 'otpCodeRetriever'>;
@@ -23,8 +24,27 @@ export type PersistSlot = Pick<
 /** How the run stores device state: records each one, notes then rejects it, or no callback. */
 export type StorageCallback = 'record' | 'reject' | false;
 
+/** Whom a device state is bound to: the bank's provider and the account. */
+export interface IStateOwner {
+  readonly provider: string;
+  readonly account: string;
+}
+
+/**
+ * The owner a group bank's device state is bound to.
+ * @param brand - The bank (default: Beinleumi).
+ * @param account - The account (default: the user).
+ * @returns The owner.
+ */
+export function ownerOf(
+  brand: IFibiMockBrand = BEINLEUMI_MOCK_BRAND,
+  account: string = BN_UID,
+): IStateOwner {
+  return { provider: brand.provider, account };
+}
+
 /** The owner a Beinleumi device state is bound to. */
-export const BN_OWNER = { provider: BN_PROVIDER, account: BN_UID } as const;
+export const BN_OWNER = ownerOf();
 
 /**
  * Answer the run's code, noting the hint the prompt names.
@@ -85,13 +105,12 @@ export function callbackOf(kind: StorageCallback, published: string[]): PersistS
 }
 
 /**
- * A device state, stored for an account.
+ * A device state, stored for an owner.
  * @param deviceId - The device id it names.
- * @param account - The account it is bound to.
+ * @param owner - The bank and account it is bound to.
  * @returns The opaque state.
  */
-export function storedState(deviceId: string, account: string = BN_UID): string {
-  const owner = { ...BN_OWNER, account };
+export function storedState(deviceId: string, owner: IStateOwner = BN_OWNER): string {
   const state = { version: 1, kind: 'device-memory', ...owner, deviceId } as const;
   const encoded = encodeDeviceMemoryState(state, owner);
   if (!encoded.success) throw new TypeError('synthetic device state must encode');

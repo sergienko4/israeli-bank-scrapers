@@ -19,13 +19,17 @@ import { capturingDebugModule, LOG_LINES } from './BeinleumiLogCapture.js';
 
 jest.unstable_mockModule('../../../Scrapers/Pipeline/Logging/Debug.js', capturingDebugModule);
 
+const BRANDS = await import('./BeinleumiBrands.js');
 const DATA = await import('./BeinleumiMockData.js');
 const FETCH_MOCK = await import('./BeinleumiFetchMock.js');
 const ORACLE = await import('./BeinleumiLogOracle.js');
 const RUN = await import('./BeinleumiRun.js');
 
 /** What every BFF read must carry from the login: the authorization and the landing page. */
-const CARRY = { authorization: DATA.BN_AUTHORIZATION, referer: DATA.BN_LANDING_URL };
+const CARRY = {
+  authorization: DATA.BN_AUTHORIZATION,
+  referer: BRANDS.landingUrlOf(BRANDS.BEINLEUMI_MOCK_BRAND),
+};
 
 /** The BFF reads one account's scrape makes. */
 const SCRAPE_READS = RUN.SCRAPE_TRAIL.length;

@@ -9,6 +9,8 @@
 import { isDeepStrictEqual } from 'node:util';
 
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
+import type { IFibiMockBrand } from './BeinleumiBrands.js';
+import { BEINLEUMI_MOCK_BRAND } from './BeinleumiBrands.js';
 
 /** An assertPassword answer that offers the SMS code, or a shape it cannot take. */
 export type OtpFault =
@@ -26,6 +28,8 @@ export type BeinleumiFault = 'none' | OtpFault | LoginFault | PortalFault;
 /** What one run's bank remembers between calls. */
 export interface IBeinleumiMockState {
   readonly fault: BeinleumiFault;
+  /** The bank the mock plays. */
+  readonly brand: IFibiMockBrand;
   /** Every wire check a call failed, as `<METHOD> <path>: <check>`. */
   readonly violations: string[];
   /** Calls answered so far, by route name. */
@@ -49,11 +53,16 @@ export type Route = (call: IRecordedCall, state: IBeinleumiMockState) => Respons
  * A fresh run state.
  * @param fault - How the run misbehaves.
  * @param did - The device id the client already holds ('' on a cold run).
+ * @param brand - The bank the mock plays (default: Beinleumi).
  * @returns State with no calls answered.
  */
-export function freshState(fault: BeinleumiFault, did = ''): IBeinleumiMockState {
+export function freshState(
+  fault: BeinleumiFault,
+  did = '',
+  brand: IFibiMockBrand = BEINLEUMI_MOCK_BRAND,
+): IBeinleumiMockState {
   const log = { violations: [], hits: {}, trail: [] };
-  return { fault, ...log, did, sid: '', flowId: '', key: Buffer.alloc(0) };
+  return { fault, brand, ...log, did, sid: '', flowId: '', key: Buffer.alloc(0) };
 }
 
 /**
