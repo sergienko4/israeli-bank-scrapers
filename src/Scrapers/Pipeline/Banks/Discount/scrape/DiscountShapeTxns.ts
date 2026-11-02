@@ -64,7 +64,9 @@ export function txnsUrl(acct: IDiscountAcct, _cursor: false, ctx: IActionContext
 
 /**
  * Extract the single transactions page — raw OperationEntry rows, no
- * next cursor (the date-range endpoint returns the whole window).
+ * next cursor: the date-range endpoint is read as one page. Whether it caps
+ * a long window is unproven; the window-coverage audit names that doubt
+ * when the rows do not reach back to the start date.
  * @param args - Bundle carrying the unwrapped response body.
  * @returns Page rows + terminal cursor.
  */
