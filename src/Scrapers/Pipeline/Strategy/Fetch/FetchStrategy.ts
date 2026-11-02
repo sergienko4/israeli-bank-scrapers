@@ -59,10 +59,11 @@ interface IFetchOpts extends IFetchCallPolicy, Pick<IResponseReading, 'onEmptyRe
    */
   readonly onSetCookie?: OnSetCookie;
   /**
-   * The session's headers for a URL. Set by the session decorator; the
-   * transport calls it once per manual redirect hop.
+   * The session's headers for a URL, or the failure that stops the hop
+   * before it is sent. Set by the session decorator; the transport calls it
+   * once per manual redirect hop.
    */
-  readonly sessionHeadersFor?: (url: string) => ISessionHeaders;
+  readonly sessionHeadersFor?: (url: string) => Procedure<ISessionHeaders>;
 }
 
 /** Default fetch options — no extra headers. */

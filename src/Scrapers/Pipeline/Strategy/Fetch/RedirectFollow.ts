@@ -46,7 +46,7 @@ interface IRedirectRun extends IFetchInvokePolicy {
   readonly invoke: FetchInvoke;
   readonly policy: RedirectPolicy;
   readonly onSetCookie?: OnSetCookie;
-  readonly sessionHeadersFor?: (url: string) => ISessionHeaders;
+  readonly sessionHeadersFor?: (url: string) => Procedure<ISessionHeaders>;
 }
 
 /** The response that ended a run and the URL its Set-Cookie lines belong to. */
@@ -200,20 +200,33 @@ function hopTarget(response: Response, hop: IHop, ctx: IManualRun): Option<URL> 
 }
 
 /**
+ * The session's headers for a hop URL.
+ * @param run - The run.
+ * @param url - Hop URL.
+ * @returns The session's headers, none for a run without a session, or the
+ *   failure that stops the hop.
+ */
+function sessionFor(run: IRedirectRun, url: string): Procedure<ISessionHeaders> {
+  if (!run.sessionHeadersFor) return succeed(NO_SESSION);
+  return run.sessionHeadersFor(url);
+}
+
+/**
  * Build the body-less GET for an allowed target.
  * @param run - The run.
  * @param hop - The request that redirected.
  * @param target - Allowed target.
- * @returns The next hop.
+ * @returns The next hop, or the failure of the session's headers for it.
  */
-function nextHop(run: IRedirectRun, hop: IHop, target: URL): IHop {
+function nextHop(run: IRedirectRun, hop: IHop, target: URL): Procedure<IHop> {
   const url = target.href;
-  const session = run.sessionHeadersFor ? run.sessionHeadersFor(url) : NO_SESSION;
+  const session = sessionFor(run, url);
+  if (!isOk(session)) return session;
   const hasCrossedOrigin = hop.hasCrossedOrigin || new URL(hop.url).origin !== target.origin;
   const dropped = droppedOnHop(hop.verb, hasCrossedOrigin);
-  const headers = hopHeaders(hop, session, dropped);
+  const headers = hopHeaders(hop, session.value, dropped);
   const init: RequestInit = { method: 'GET', headers, redirect: 'manual' };
-  return { url, init, verb: 'GET', hopsLeft: hop.hopsLeft - 1, hasCrossedOrigin };
+  return succeed({ url, init, verb: 'GET', hopsLeft: hop.hopsLeft - 1, hasCrossedOrigin });
 }
 
 /**
@@ -233,11 +246,13 @@ async function sendHop(ctx: IManualRun, hop: IHop): Promise<Procedure<IRunEnd>> 
 }
 
 /**
- * File a redirect's cookies, then send the next hop or refuse the run.
+ * File a redirect's cookies, then send the next hop or refuse the run. A
+ * failure of the hop's session headers stops the run before the hop is sent,
+ * after the redirect's own cookies are filed.
  * @param ctx - The run and its rules.
  * @param hop - The request that redirected.
  * @param end - The redirect and the URL it answered.
- * @returns The final response, a refusal, or the transport failure.
+ * @returns The final response, a refusal, or the transport or header failure.
  */
 async function continueHop(ctx: IManualRun, hop: IHop, end: IRunEnd): Promise<Procedure<IRunEnd>> {
   emitSetCookies(end.response, end.responseUrl, ctx.run.onSetCookie);
@@ -245,7 +260,8 @@ async function continueHop(ctx: IManualRun, hop: IHop, end: IRunEnd): Promise<Pr
   const target = hopTarget(end.response, hop, ctx);
   if (!target.has) return refused(ctx.run);
   const next = nextHop(ctx.run, hop, target.value);
-  return sendHop(ctx, next);
+  if (!isOk(next)) return next;
+  return sendHop(ctx, next.value);
 }
 
 /**

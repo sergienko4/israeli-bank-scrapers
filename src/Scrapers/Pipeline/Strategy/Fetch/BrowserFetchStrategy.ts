@@ -22,7 +22,7 @@ import { TimeoutError } from '../../Mediator/Timing/TimingActions.js';
 import type { Brand } from '../../Types/Brand.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, failWithDetails, succeed } from '../../Types/Procedure.js';
+import { fail, failWithDetails, isOk, succeed } from '../../Types/Procedure.js';
 import { hasCookieSentinel, substituteCookieHeaders } from './CookieHeaderSentinel.js';
 import type { IFetchOpts, IFetchStrategy } from './FetchStrategy.js';
 
@@ -143,8 +143,9 @@ class BrowserFetchStrategy implements IFetchStrategy {
     opts: IFetchOpts,
   ): Promise<Procedure<T>> {
     const ctx = resolveContext(this._page, url);
-    const extraHeaders = await this.resolveHeaders(url, opts.extraHeaders);
-    return fetchPostWithinPage<T>(ctx, url, { data, extraHeaders })
+    const headers = await this.resolveHeaders(url, opts.extraHeaders);
+    if (!isOk(headers)) return headers;
+    return fetchPostWithinPage<T>(ctx, url, { data, extraHeaders: headers.value })
       .then((result): Procedure<T> => resultToProcedure(result, url))
       .catch(catchError);
   }
@@ -157,8 +158,9 @@ class BrowserFetchStrategy implements IFetchStrategy {
    */
   public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
     const ctx = resolveContext(this._page, url);
-    const extraHeaders = await this.resolveHeaders(url, opts.extraHeaders);
-    return getWithinPage<T>(ctx, url, extraHeaders)
+    const headers = await this.resolveHeaders(url, opts.extraHeaders);
+    if (!isOk(headers)) return headers;
+    return getWithinPage<T>(ctx, url, headers.value)
       .then((result): Procedure<T> => resultToProcedure(result, url))
       .catch(catchError);
   }
@@ -170,14 +172,15 @@ class BrowserFetchStrategy implements IFetchStrategy {
    * overhead.
    * @param url - Request URL the cookies are scoped to.
    * @param headers - Outgoing header map (possibly with sentinels).
-   * @returns Header map with sentinels resolved.
+   * @returns Header map with sentinels resolved, or the failure that stops
+   *   the request before the page fetch.
    */
   private async resolveHeaders(
     url: string,
     headers: Record<string, string>,
-  ): Promise<Record<string, string>> {
+  ): Promise<Procedure<Record<string, string>>> {
     const isPresent: boolean = hasCookieSentinel(headers);
-    if (!isPresent) return headers;
+    if (!isPresent) return succeed(headers);
     const jar = await this._page.context().cookies(url);
     return substituteCookieHeaders(headers, jar);
   }

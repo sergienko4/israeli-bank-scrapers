@@ -29,6 +29,7 @@ const HOP_2 = 'https://mto.bank.example/Online/Default.aspx?language=he-IL';
 const SECRET = 'L0CATION-SECRET';
 const SAFE_START = safeUrlForLog(START);
 const REFUSED = `GET ${SAFE_START} redirect refused`;
+const UNDECODABLE = 'cookie XSRF-TOKEN undecodable';
 
 const MANUAL: IManualRedirect = {
   maxHops: 2,
@@ -229,9 +230,9 @@ describe('sendUnderPolicy — manual hops', () => {
 
   it("replaces the first request's Cookie header with the hop's own", async () => {
     const invoke = serve([redirect(302, HOP_1), redirect(302, HOP_2), ok()]);
-    const sessionHeadersFor = jest.fn((url: string): ISessionHeaders => {
-      if (url === HOP_1) return { owned: ['cookie'], values: { cookie: 'hop=1' } };
-      return { owned: ['cookie'], values: {} };
+    const sessionHeadersFor = jest.fn((url: string): Procedure<ISessionHeaders> => {
+      if (url === HOP_1) return succeed({ owned: ['cookie'], values: { cookie: 'hop=1' } });
+      return succeed({ owned: ['cookie'], values: {} });
     });
     const run = makeRun(invoke, { sessionHeadersFor });
     await sendUnderPolicy(run);
@@ -260,9 +261,9 @@ describe('sendUnderPolicy — manual hops', () => {
      * @param url - Hop URL.
      * @returns The owned names and the values for the URL.
      */
-    const sessionHeadersFor = (url: string): ISessionHeaders => {
-      if (url === HOP_1) return { owned, values: { 'x-xsrf-token': 'mto-token' } };
-      return { owned, values: {} };
+    const sessionHeadersFor = (url: string): Procedure<ISessionHeaders> => {
+      if (url === HOP_1) return succeed({ owned, values: { 'x-xsrf-token': 'mto-token' } });
+      return succeed({ owned, values: {} });
     };
     const headers = { 'X-XSRF-TOKEN': 'www-token', 'x-caller': 'kept' };
     const run = makeRun(invoke, { sessionHeadersFor, init: { method: 'GET', headers } });
@@ -299,7 +300,7 @@ describe('sendUnderPolicy — manual hops', () => {
      * The session's credentials headers, the same for every hop URL.
      * @returns The owned names and their values.
      */
-    const sessionHeadersFor = (): ISessionHeaders => ({ owned, values });
+    const sessionHeadersFor = (): Procedure<ISessionHeaders> => succeed({ owned, values });
     const run = makeRun(invoke, { sessionHeadersFor });
     await sendUnderPolicy(run);
     const hops = [sentHeaders(invoke, 1), sentHeaders(invoke, 2)];
@@ -342,14 +343,36 @@ describe('sendUnderPolicy — manual hops', () => {
      * @param url - Hop URL.
      * @returns No header.
      */
-    const sessionHeadersFor = (url: string): ISessionHeaders => {
+    const sessionHeadersFor = (url: string): Procedure<ISessionHeaders> => {
       events.push(`header ${url}`);
-      return { owned: ['cookie'], values: {} };
+      return succeed({ owned: ['cookie'], values: {} });
     };
     const run = makeRun(invoke, { onSetCookie, sessionHeadersFor });
     await sendUnderPolicy(run);
     const expected = [`set a=1 ${START}`, `header ${HOP_1}`, `set b=2 ${HOP_1}`, `header ${HOP_2}`];
     expect(events).toEqual(expected);
+  });
+
+  it("stops before a hop whose session headers fail, the hop's cookies filed", async () => {
+    const filed: string[] = [];
+    const invoke = serve([redirect(302, HOP_1, ['a=1']), ok()]);
+    /**
+     * Record the filed Set-Cookie lines.
+     * @param lines - Set-Cookie lines.
+     * @returns Line count.
+     */
+    const onSetCookie = (lines: readonly string[]): number => filed.push(...lines);
+    /**
+     * A session whose header resolution fails for every URL.
+     * @returns The failure.
+     */
+    const sessionHeadersFor = (): Procedure<ISessionHeaders> =>
+      fail(ScraperErrorTypes.Generic, UNDECODABLE);
+    const run = makeRun(invoke, { onSetCookie, sessionHeadersFor });
+    const result = await sendUnderPolicy(run);
+    expect(result).toMatchObject({ success: false, errorMessage: UNDECODABLE });
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(filed).toEqual(['a=1']);
   });
 
   it('refuses the hop past maxHops', async () => {

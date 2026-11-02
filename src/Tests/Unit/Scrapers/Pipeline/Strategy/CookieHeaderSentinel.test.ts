@@ -9,6 +9,7 @@ import {
   hasCookieSentinel,
   substituteCookieHeaders,
 } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/CookieHeaderSentinel.js';
+import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 const JAR = [
   { name: 'XSRF-TOKEN', value: 'tok-123' },
@@ -38,13 +39,15 @@ describe('CookieHeaderSentinel/substituteCookieHeaders', () => {
   it('substitutes the named cookie value into the header', () => {
     const headers = { 'X-XSRF-TOKEN': `${COOKIE_HEADER_SENTINEL_PREFIX}XSRF-TOKEN` };
     const resolved = substituteCookieHeaders(headers, JAR);
-    expect(resolved).toEqual({ 'X-XSRF-TOKEN': 'tok-123' });
+    const expected = succeed({ 'X-XSRF-TOKEN': 'tok-123' });
+    expect(resolved).toEqual(expected);
   });
 
   it('passes non-sentinel headers through unchanged', () => {
     const headers = { 'content-type': 'application/json;charset=UTF-8', uuid: 'abc' };
     const resolved = substituteCookieHeaders(headers, JAR);
-    expect(resolved).toEqual(headers);
+    const expected = succeed(headers);
+    expect(resolved).toEqual(expected);
   });
 
   it('drops a header whose named cookie is absent from the jar', () => {
@@ -53,9 +56,8 @@ describe('CookieHeaderSentinel/substituteCookieHeaders', () => {
       'X-XSRF-TOKEN': `${COOKIE_HEADER_SENTINEL_PREFIX}MISSING`,
     };
     const resolved = substituteCookieHeaders(headers, JAR);
-    expect(resolved).toEqual({
-      'content-type': 'application/json;charset=UTF-8',
-    });
+    const expected = succeed({ 'content-type': 'application/json;charset=UTF-8' });
+    expect(resolved).toEqual(expected);
   });
 
   it('resolves a mix of sentinel and literal headers', () => {
@@ -65,10 +67,8 @@ describe('CookieHeaderSentinel/substituteCookieHeaders', () => {
       uuid: 'fixed-uuid',
     };
     const resolved = substituteCookieHeaders(headers, JAR);
-    expect(resolved).toEqual({
-      'content-type': 'application/json;charset=UTF-8',
-      'X-XSRF-TOKEN': 'tok-123',
-      uuid: 'fixed-uuid',
-    });
+    const sent = { 'content-type': 'application/json;charset=UTF-8', 'X-XSRF-TOKEN': 'tok-123' };
+    const expected = succeed({ ...sent, uuid: 'fixed-uuid' });
+    expect(resolved).toEqual(expected);
   });
 });

@@ -18,6 +18,8 @@
 import type { Brand } from '../../Types/Brand.js';
 import type { Option } from '../../Types/Option.js';
 import { isSome, none, some } from '../../Types/Option.js';
+import type { Procedure } from '../../Types/Procedure.js';
+import { succeed } from '../../Types/Procedure.js';
 
 /** Header-value prefix marking a cookie-echo sentinel. */
 export const COOKIE_HEADER_SENTINEL_PREFIX = '@cookie:';
@@ -85,18 +87,20 @@ function resolveHeaderValue(value: string, lookup: CookieLookup): string | false
  * through a cookie lookup; headers whose cookie is absent are dropped.
  * @param headers - Outgoing header map (may contain sentinels).
  * @param lookup - Reads one cookie by name.
- * @returns New header map with sentinels resolved.
+ * @returns New header map with sentinels resolved, or the failure that stops
+ *   the request before dispatch.
  */
 export function substituteCookieHeadersBy(
   headers: Readonly<Record<string, string>>,
   lookup: CookieLookup,
-): Record<string, string> {
+): Procedure<Record<string, string>> {
   const pairs = Object.keys(headers).map((key): readonly [string, string | false] => [
     key,
     resolveHeaderValue(headers[key], lookup),
   ]);
   const kept = pairs.filter((p): p is readonly [string, string] => p[1] !== false);
-  return Object.fromEntries(kept);
+  const resolved: Record<string, string> = Object.fromEntries(kept);
+  return succeed(resolved);
 }
 
 /**
@@ -116,12 +120,13 @@ function findInJar(jar: CookieJar, name: string): Option<string> {
  * against the jar; headers whose cookie is absent are dropped.
  * @param headers - Outgoing header map (may contain sentinels).
  * @param jar - Live cookie jar.
- * @returns New header map with sentinels resolved.
+ * @returns New header map with sentinels resolved, or the failure that stops
+ *   the request before dispatch.
  */
 export function substituteCookieHeaders(
   headers: Readonly<Record<string, string>>,
   jar: CookieJar,
-): Record<string, string> {
+): Procedure<Record<string, string>> {
   const lookup = findInJar.bind(null, jar);
   return substituteCookieHeadersBy(headers, lookup);
 }
