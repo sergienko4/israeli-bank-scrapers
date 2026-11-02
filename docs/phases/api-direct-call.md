@@ -1168,7 +1168,9 @@ from what it extracted:
 - `redirect` overrides `headless.redirectPolicy` for one step
   ([Redirect policies](../architecture/pipeline.md#redirect-policies)); with
   a manual one, `finalUrlInto` carries the URL that gave the final answer
-  ([Final URL carry](#final-url-carry)).
+  ([Final URL carry](#final-url-carry)). A POST step names a manual one only
+  with `postAsGet: true`: a 302/303 answer is followed as a body-less GET
+  without the body headers, and a 301/307/308 is refused (N46).
 - `response: 'document'` and `documentMarker` read a page instead of JSON;
   `response: 'text'` reads the answer as `{ text }`, up to `maxTextChars`
   (65 536 by default), and `textCaptures` read slots off it
@@ -1301,7 +1303,8 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `kind: 'carry-bundle'` `warmStart` with `cookies: true`, without `headless.cookieDomains`                                               | `warmStart.cookies: not allowed without headless.cookieDomains`                    |
 | a `response: 'document'` step with any `extractsToCarry`, `optionalExtractsToCarry`, `outcome` or nonempty `failIfPresent`                | `steps.response: a document step reads no body extracts, outcome or failIfPresent` |
 | a `documentMarker` on any step whose `response` is not `'document'`                                                                       | `steps.documentMarker: only on a document step`                                    |
-| a manual `redirect` on a step whose `method` is not `GET`                                                                                 | `steps.redirect: manual only on GET steps`                                         |
+| a manual `redirect` on a POST step without `postAsGet: true`                                                                          | `steps.redirect: manual on a POST step needs postAsGet`                  |
+| a manual `redirect` with `postAsGet` on a GET step                                                                                    | `steps.redirect: postAsGet only on POST steps`                           |
 | a manual `headless.redirectPolicy` (the default every POST shares)                                                                        | `headless.redirectPolicy: manual only on GET steps`                                |
 | a manual `redirect` whose `allow` list is empty                                                                                           | `redirect.allow: must not be empty`                                                |
 | a manual `redirect` whose `maxHops` is not an integer from 1 to 10                                                                        | `redirect.maxHops: must be an integer from 1 to 10`                                |

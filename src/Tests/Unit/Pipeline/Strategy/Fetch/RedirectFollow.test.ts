@@ -1,8 +1,9 @@
 /**
  * Unit tests for Strategy/Fetch/RedirectFollow — one request under a redirect
  * policy. `follow` leaves fetch alone; `reject` refuses any 3xx; a manual
- * policy follows allowed GET hops, files each hop's Set-Cookie under the hop
- * URL before building the next hop, and recomputes the Cookie header per hop.
+ * policy follows allowed hops as GETs (a POST only 302/303 under postAsGet),
+ * files each hop's Set-Cookie under the hop URL before building the next hop,
+ * and recomputes the Cookie header per hop.
  * The transport seam is a fake that serves canned Responses.
  */
 
@@ -194,15 +195,18 @@ describe('sendUnderPolicy — manual hops', () => {
     expect(responseUrl).toBe(HOP_2);
   });
 
-  it('sends every hop as a body-less manual GET', async () => {
+  it("keeps a GET request's content-type on its hops", async () => {
     const invoke = serve([redirect(307, HOP_1), ok()]);
-    const run = makeRun(invoke, { verb: 'POST', init: { method: 'POST', body: 'x' } });
+    const init = { method: 'GET', headers: { 'Content-Type': 'text/plain' } };
+    const run = makeRun(invoke, { init });
     await sendUnderPolicy(run);
     const [, hopInit, { verb: hopVerb }] = invoke.mock.calls[1];
     expect(hopVerb).toBe('GET');
     expect(hopInit).toMatchObject({ method: 'GET', redirect: 'manual' });
     expect(hopInit.body).toBeUndefined();
     expect(invoke.mock.calls[0][1].redirect).toBe('manual');
+    const hopType = sentHeaders(invoke, 1).get('content-type');
+    expect(hopType).toBe('text/plain');
   });
 
   it('carries the expected media type through every redirect hop', async () => {
@@ -393,5 +397,63 @@ describe('sendUnderPolicy — manual hops', () => {
     const result = await sendUnderPolicy(run);
     const responseUrl = isOk(result) ? result.value.responseUrl : 'failed';
     expect(responseUrl).toBe(START);
+  });
+});
+
+const POST_AS_GET: IManualRedirect = { ...MANUAL, postAsGet: true };
+const POST_REFUSED = `POST ${SAFE_START} redirect refused`;
+
+/**
+ * A JSON POST run under the given manual policy.
+ * @param invoke - Fake transport seam.
+ * @param policy - Manual policy.
+ * @returns The run.
+ */
+function postRun(invoke: Invoke, policy: IManualRedirect): IRedirectRun {
+  const headers = { 'Content-Type': 'application/json', 'x-caller': 'kept' };
+  const init = { method: 'POST', headers, body: '{"a":1}' };
+  return makeRun(invoke, { verb: 'POST', init, policy });
+}
+
+describe('sendUnderPolicy — manual POST', () => {
+  it.each([302, 303])('follows a %i as a body-less GET without content-type', async status => {
+    const invoke = serve([redirect(status, HOP_1), ok()]);
+    const run = postRun(invoke, POST_AS_GET);
+    const result = await sendUnderPolicy(run);
+    const isSent = isOk(result);
+    const [[, firstInit], [hopUrl, hopInit, hopVerb]] = invoke.mock.calls;
+    const hop = sentHeaders(invoke, 1);
+    const hopFields = [hopUrl, hopVerb, hop.get('content-type'), hop.get('x-caller')];
+    expect(isSent).toBe(true);
+    expect(firstInit).toMatchObject({ method: 'POST', body: '{"a":1}', redirect: 'manual' });
+    expect(hopFields).toEqual([HOP_1, 'GET', null, 'kept']);
+    expect(hopInit).toMatchObject({ method: 'GET', redirect: 'manual' });
+    expect(hopInit.body).toBeUndefined();
+  });
+
+  it.each([301, 307, 308])('refuses a %i', async status => {
+    const invoke = serve([redirect(status, HOP_1)]);
+    const run = postRun(invoke, POST_AS_GET);
+    const result = await sendUnderPolicy(run);
+    const text = failureText(result);
+    expect(text).toBe(POST_REFUSED);
+    expect(invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a 302 when the policy does not name postAsGet', async () => {
+    const invoke = serve([redirect(302, HOP_1)]);
+    const run = postRun(invoke, MANUAL);
+    const result = await sendUnderPolicy(run);
+    const text = failureText(result);
+    expect(text).toBe(POST_REFUSED);
+    expect(invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('follows the GET statuses once a hop is a GET', async () => {
+    const invoke = serve([redirect(303, HOP_1), redirect(307, HOP_2), ok()]);
+    const run = postRun(invoke, POST_AS_GET);
+    const result = await sendUnderPolicy(run);
+    const responseUrl = isOk(result) ? result.value.responseUrl : 'failed';
+    expect(responseUrl).toBe(HOP_2);
   });
 });

@@ -149,6 +149,7 @@ const DOC_OUTCOME: IStepConfig = {
 const DOC_BANK_ERROR: IStepConfig = { ...BOOTSTRAP, failIfPresent: ['/errors'] };
 const MARKED_JSON: IStepConfig = { ...LOGON, documentMarker: 'welcome' };
 const POST_MANUAL: IStepConfig = { ...LOGON, redirect: MANUAL };
+const POST_AS_GET: IStepConfig = { ...LOGON, redirect: { ...MANUAL, postAsGet: true } };
 
 /** A config, the headless block beside it, and the text it fails with. */
 interface IBrokenCase {
@@ -159,7 +160,8 @@ interface IBrokenCase {
 
 const DOC_MSG = 'steps.response: a document step reads no body extracts, outcome or failIfPresent';
 const MARKER_MSG = 'steps.documentMarker: only on a document step';
-const GET_MSG = 'steps.redirect: manual only on GET steps';
+const POST_MSG = 'steps.redirect: manual on a POST step needs postAsGet';
+const AS_GET_MSG = 'steps.redirect: postAsGet only on POST steps';
 const BANK_MANUAL_MSG = 'headless.redirectPolicy: manual only on GET steps';
 const ALLOW_MSG = 'redirect.allow: must not be empty';
 const HOPS_MSG = 'redirect.maxHops: must be an integer from 1 to 10';
@@ -183,8 +185,9 @@ const BROKEN: readonly IBrokenCase[] = [
   },
   { label: 'marker off a document step', input: runOf([MARKED_JSON], REJECT), message: MARKER_MSG },
   { label: 'marker off a resume step', input: resumeOf(MARKED_JSON), message: MARKER_MSG },
-  { label: 'manual POST step', input: runOf([POST_MANUAL], REJECT), message: GET_MSG },
-  { label: 'manual POST resume step', input: resumeOf(POST_MANUAL), message: GET_MSG },
+  { label: 'manual POST step', input: runOf([POST_MANUAL], REJECT), message: POST_MSG },
+  { label: 'manual POST resume step', input: resumeOf(POST_MANUAL), message: POST_MSG },
+  { label: 'postAsGet GET step', input: landingRun({ postAsGet: true }), message: AS_GET_MSG },
   {
     label: 'manual bank default',
     input: runOf([LOGON], BANK_MANUAL),
@@ -230,6 +233,7 @@ const SOUND: readonly ISoundCase[] = [
   { label: 'one hop', input: landingRun({ maxHops: 1 }) },
   { label: 'ten hops', input: landingRun({ maxHops: 10 }) },
   { label: 'fixed policies, follow default', input: runOf([LOGON], FOLLOW) },
+  { label: 'postAsGet POST step', input: runOf([POST_AS_GET], REJECT) },
 ];
 
 describe('validateApiDirectConfig — session transport', () => {
