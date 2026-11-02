@@ -251,6 +251,17 @@ describe('NativeFetchStrategy.fetchGet — success path', () => {
     const sent = new Headers(headers).get('content-type');
     expect(sent).toBe('text/plain');
   });
+
+  it('sends a header whose value is empty', async () => {
+    const impl = respondWith(200, '{}');
+    const fetchMock = installFetchMock(impl);
+    const strategy = new NativeFetchStrategy('https://api.example');
+    const extraHeaders = { AccountNumber: '', BusinessProcessID: '' };
+    await strategy.fetchGet('https://api.example/list', { extraHeaders });
+    const capturedCall = firstCall(fetchMock);
+    const headers = capturedCall.init.headers as Record<string, string>;
+    expect(headers).toMatchObject(extraHeaders);
+  });
 });
 
 describe('NativeFetchStrategy — failure paths', () => {

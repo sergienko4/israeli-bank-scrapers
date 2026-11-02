@@ -89,7 +89,7 @@ function sessionCtx(session: SessionContext): IActionContext {
  * @returns Headers for one call.
  */
 function headersOf(spec: ApiDirectScrapeHeadersLike, ctx: IActionContext): HeaderMap {
-  if (typeof spec === 'function') return spec(ctx);
+  if (typeof spec === 'function') return spec(ctx, {});
   return spec;
 }
 
