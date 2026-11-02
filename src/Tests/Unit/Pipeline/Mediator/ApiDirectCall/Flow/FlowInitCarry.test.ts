@@ -1,10 +1,13 @@
 /**
  * Unit tests for FlowInitCarry — `seedCarryFromCreds` (string + bootstrap
  * variants, N42 `random-hex` included) and `derivedCarry` (parts + separator
- * + truncation).
+ * + truncation, the N45 `format` and `md5-hex` ops).
  */
 
-import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import type {
+  DerivedOp,
+  IApiDirectCallConfig,
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { buildInitialCarry } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/FlowInitCarry.js';
 
 /**
@@ -231,5 +234,81 @@ describe('FlowInitCarry — derivedCarry lower transform (N60)', () => {
     // 'İ' (2 bytes) lower-cases to 'i' + U+0307 (3 bytes): 'İA' is 3 bytes, 'i̇a' is 4.
     const [uid] = deriveLower('\u0130A', 3);
     expect(uid).toBe('i\u0307');
+  });
+});
+
+/** The two id rules of the N45 `format` op, first match wins. */
+const ID_FORMAT: DerivedOp = {
+  kind: 'format',
+  rules: [
+    { pattern: String.raw`^\d{1,9}$`, prefix: '00001', padStart: 9 },
+    { pattern: String.raw`^9\d{9}$`, prefix: '0000' },
+  ],
+};
+
+/**
+ * Derive `uid` from `creds.num` through an op, then `uidMd5` from it, and
+ * run flow init once.
+ * @param num - The typed number.
+ * @param op - The op that shapes `uid`.
+ * @returns Both slots, or the failure text.
+ */
+function deriveOp(num: string, op: DerivedOp): unknown {
+  const config = makeConfig({
+    derivedCarry: [
+      { into: 'uid', parts: ['creds.num'], op },
+      { into: 'uidMd5', parts: ['carry.uid'], op: { kind: 'md5-hex' } },
+    ],
+  });
+  const result = buildInitialCarry(config, { num }, {});
+  return result.success ? [result.value.uid, result.value.uidMd5] : result.errorMessage;
+}
+
+describe('FlowInitCarry — derivedCarry ops (N45)', () => {
+  it.each<[string, string]>([
+    ['12345', '00001000012345'],
+    ['9', '00001000000009'],
+    ['987654321', '00001987654321'],
+    ['9123456789', '00009123456789'],
+  ])('format shapes %s by the first matching rule', (num, uid) => {
+    const [formatted] = deriveOp(num, ID_FORMAT) as readonly string[];
+    expect(formatted).toBe(uid);
+  });
+
+  it('md5-hex digests the formatted slot as lower-case hex', () => {
+    const [, uidMd5] = deriveOp('12345', ID_FORMAT) as readonly string[];
+    expect(uidMd5).toBe('857bd120487a9d42df57c302799bf203');
+  });
+
+  it.each<[string, string]>([
+    ['abc', 'letters'],
+    ['1234567890', 'ten digits not led by 9'],
+    ['', 'an empty value'],
+  ])('format fails on %j (%s), naming the slot only', num => {
+    const failure = deriveOp(num, ID_FORMAT);
+    expect(failure).toBe('derivedCarry: uid unformattable');
+  });
+
+  it('anchors a pattern that the config left open', () => {
+    const open: DerivedOp = { kind: 'format', rules: [{ pattern: String.raw`\d{3}`, prefix: '' }] };
+    const failure = deriveOp('12345', open);
+    expect(failure).toBe('derivedCarry: uid unformattable');
+  });
+
+  it('runs the op last, over the lower-cased text', () => {
+    const op = { kind: 'md5-hex' } as const;
+    const config = makeConfig({
+      derivedCarry: [{ into: 'digest', parts: ['creds.user'], transform: 'lower', op }],
+    });
+    const result = buildInitialCarry(config, { user: 'ABC' }, {});
+    expect(result).toMatchObject({ value: { digest: '900150983cd24fb0d6963f7d28e17f72' } });
+  });
+
+  it('digests UTF-8 bytes', () => {
+    const config = makeConfig({
+      derivedCarry: [{ into: 'digest', parts: ['creds.user'], op: { kind: 'md5-hex' } }],
+    });
+    const result = buildInitialCarry(config, { user: 'é' }, {});
+    expect(result).toMatchObject({ value: { digest: '66ddcd97cfdeabb2f6fb8a999b4bc76f' } });
   });
 });

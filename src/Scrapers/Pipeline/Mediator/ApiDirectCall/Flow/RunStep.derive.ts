@@ -2,27 +2,41 @@
  * Step-level derived carry (N7) — once a step's extracts are merged into
  * scope, its `deriveCarry` entries run, in order, through the flow-init
  * evaluator (`applyDerivations`) over that scope. There is no second
- * evaluator: parts, separators, truncation and failure messages are the
- * flow-init ones.
+ * evaluator: parts, separators, truncation and part failures are the
+ * flow-init ones; an N45 op failure names the step (`<step> derive <slot>
+ * unformattable`).
  */
 
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import type { IStepConfig } from '../ConfigContracts/index.js';
-import { applyDerivations } from './FlowInitCarry.derived.js';
+import { applyDerivations, type IApplyDerivedCarryArgs } from './FlowInitCarry.derived.js';
 import type { ITemplateScope } from './RunStep.types.js';
+
+/**
+ * The evaluator args for a step: a copy of its carry, and the step as the
+ * owner an op failure names.
+ * @param step - Step config.
+ * @param scope - Scope already holding the step's extracts.
+ * @returns Evaluator args.
+ */
+function stepDeriveArgs(step: IStepConfig, scope: ITemplateScope): IApplyDerivedCarryArgs {
+  const carry = { ...scope.carry };
+  const owner = `${step.name} derive`;
+  return { config: scope.config, creds: scope.creds, carry, owner };
+}
 
 /**
  * Derive a step's carry slots over its merged scope.
  * @param step - Step config.
  * @param scope - Scope already holding the step's extracts.
- * @returns Procedure with the scope plus the derived slots, or the failed part.
+ * @returns Procedure with the scope plus the derived slots, or the failure.
  */
 function deriveStepCarry(step: IStepConfig, scope: ITemplateScope): Procedure<ITemplateScope> {
   const entries = step.deriveCarry ?? [];
   if (entries.length === 0) return succeed(scope);
-  const carry = { ...scope.carry };
-  const derived = applyDerivations(entries, { config: scope.config, creds: scope.creds, carry });
+  const args = stepDeriveArgs(step, scope);
+  const derived = applyDerivations(entries, args);
   if (!isOk(derived)) return derived;
   return succeed({ ...scope, carry: derived.value });
 }

@@ -1,13 +1,15 @@
 /**
  * derivedCarry evaluation: per-part collection, join, the N60 lower-case
- * transform, UTF-8 truncate,
+ * transform, UTF-8 truncate, the N45 op last,
  * the `applyDerivations` reducer and the flow-init `applyDerivedCarry`.
- * Steps reuse `applyDerivations` for their own `deriveCarry` (N7).
+ * Steps reuse `applyDerivations` for their own `deriveCarry` (N7), naming
+ * themselves as the `owner` an op failure names.
  */
 
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig, IDerivedCarry, RefToken } from '../ConfigContracts/index.js';
+import { applyDerivedOp } from './FlowInitCarry.ops.js';
 import { resolveDerivedPart } from './FlowInitCarry.parts.js';
 import type {
   CarryMut,
@@ -17,6 +19,9 @@ import type {
   IReduceDerivationCtx,
   IReduceDerivedPartCtx,
 } from './FlowInitCarry.types.js';
+
+/** What an op failure names when no step owns the derivation. */
+const FLOW_INIT_OWNER = 'derivedCarry:';
 
 /**
  * Resolve one derived-part RefToken against the partial scope.
@@ -77,19 +82,29 @@ function joinAndTruncate(parts: readonly string[], derived: IDerivedCarry): stri
 }
 
 /**
- * Evaluate a single derivedCarry spec end-to-end.
+ * Resolve every part of a derivedCarry spec, in order.
  * @param args - Derived-carry evaluation bundle.
- * @returns Procedure with the assembled string.
+ * @returns Procedure with the parts, or the first part that failed.
  */
-function evalDerivedCarry(args: IEvalDerivedArgs): Procedure<string> {
+function collectParts(args: IEvalDerivedArgs): Procedure<readonly string[]> {
   const seed: Procedure<readonly string[]> = succeed([]);
-  const collected = args.derived.parts.reduce<Procedure<readonly string[]>>(
+  return args.derived.parts.reduce<Procedure<readonly string[]>>(
     (acc, part) => reduceDerivedPart(acc, { part, evalCtx: args }),
     seed,
   );
+}
+
+/**
+ * Evaluate a single derivedCarry spec end-to-end.
+ * @param args - Derived-carry evaluation bundle.
+ * @returns Procedure with the assembled string, or the part or op failure.
+ */
+function evalDerivedCarry(args: IEvalDerivedArgs): Procedure<string> {
+  const collected = collectParts(args);
   if (!isOk(collected)) return collected;
-  const value = joinAndTruncate(collected.value, args.derived);
-  return succeed(value);
+  const text = joinAndTruncate(collected.value, args.derived);
+  const subject = `${args.owner} ${args.derived.into}`;
+  return applyDerivedOp({ text, subject, op: args.derived.op });
 }
 
 /**
@@ -131,15 +146,21 @@ function buildDerivationCtx(
   shared: IDerivationSharedCtx,
 ): IReduceDerivationCtx {
   const { creds, config, carry } = shared;
-  const evalCtx: IEvalDerivedArgs = { derived, creds, config, carry };
+  const owner = shared.owner ?? FLOW_INIT_OWNER;
+  const evalCtx: IEvalDerivedArgs = { derived, creds, config, carry, owner };
   return { derived, evalCtx };
 }
 
-/** Args bundle for `applyDerivedCarry` — keeps the signature single-line. */
+/**
+ * Args bundle for `applyDerivedCarry` — keeps the signature single-line.
+ * `owner` prefixes an op failure: a step passes `<step> derive`; flow
+ * init leaves it unset (`derivedCarry:`).
+ */
 interface IApplyDerivedCarryArgs {
   readonly config: IApiDirectCallConfig;
   readonly creds: Creds;
   readonly carry: CarryMut;
+  readonly owner?: string;
 }
 
 /**
