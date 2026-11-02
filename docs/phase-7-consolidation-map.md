@@ -1,6 +1,6 @@
 # Phase 7 — Cross-Bank Test Diamond Consolidation Map
 
-> **Status:** T7.0-T7.2 + T7.4 + T7.10 **SHIPPED on this branch**; T7.3 DROPPED; T7.5 DEFERRED to follow-up `fix/e2e-mocked-fixture-debt` PR; T7.6..T7.9 **VERIFIED NO-OP** (snapshot drift). Phase 7a complete and ready to open PR; no Phase 7b PR is needed.
+> **Status:** T7.0-T7.2 + T7.4 + T7.10 **SHIPPED on this branch**; T7.3 DROPPED; T7.5 **RESOLVED** by the browserless rewrites (no follow-up PR needed); T7.6..T7.9 **VERIFIED NO-OP** (snapshot drift). Phase 7a complete and ready to open PR; no Phase 7b PR is needed.
 > **Authority:** Master pipeline-decoupling plan (`C:\tmp\plans\israeli-bank-scrapers-fork\pipeline-decoupling-master-2026-05-28\`).
 > **Branch:** `refactor/phase-7-foundation-integration-phases` (Phase 7a — first of two).
 > **Companion canon:** `phase-7/spec.txt §1d`, `phase-7/status.txt` D8 (split-lock entry).
@@ -54,7 +54,7 @@ The CodeRabbit 150-file PR cap is canonical (`pr-guidlines.md §12`); a 185-file
 | T7.2              | MOD `src/Tests/Integration/**` reshape to `it.each(BANKS)`                                                                                                                               | 0 (NO-OP) | **7a**                            |
 | ~~T7.3~~          | ~~MOD `src/Tests/E2eMocked/**` consolidation (5→2 files)~~ — **DROPPED**                                                                                                                 | —         | —                                 |
 | T7.4              | MOD `src/Tests/Phases/**` reshape — **VERIFIED NO-OP** (already cross-bank via `it.each(BANK_SCENARIOS)` / `ALL_BANK_CASES`; see snapshot-drift reconciliation §1)                       | 0         | **7a**                            |
-| ~~T7.5~~          | ~~FIX `describe.skip` in 5 `src/Tests/E2eMocked/**` files~~ — **DEFERRED** to follow-up `fix/e2e-mocked-fixture-debt` PR (blocked on fixture-recording work that needs real bank access) | 0         | —                                 |
+| ~~T7.5~~          | ~~FIX `describe.skip` in 5 `src/Tests/E2eMocked/**` files~~ — **RESOLVED**: every suite is browserless, runs against a fetch mock and is no longer skipped | 0         | —                                 |
 | (infra)           | NEW infra extras (`src/Tests/Helpers/`, fixtures, ESLint canary) — partially shipped via T7.1 + T7.10                                                                                    | 2         | **7a**                            |
 | T7.10 **SHIPPED** | NEW canary `test-per-bank-duplication.canary.ts` + entry in `RESTRICTED_SYNTAX_RULES` (`eslint.config.mjs`)                                                                              | 2         | **7a**                            |
 | **7a sub-total**  |                                                                                                                                                                                          | **6**     | **<150 ✅**                       |
@@ -74,9 +74,9 @@ Reference total of `*.test.ts` under `src/Tests/`: **474**. Both PRs land well u
 - T7.0 split-lock + consolidation map (this doc).
 - T7.1 builds the canonical `BANKS` const. **SHIPPED** as `bed4e26d`.
 - T7.2 verified NO-OP — Integration cluster already cross-bank. **SHIPPED** as docs in `c02f8adb`.
-- T7.3 **DROPPED**: the 5 `src/Tests/E2eMocked/**` per-bank files are all `describe.skip`'d (PR-206-FOLLOWUP) with non-trivial root causes. Consolidating skipped tests adds no value — they would be `describe.skip`'d in the new file too. Replaced by T7.5 (DEFERRED, below).
+- T7.3 **DROPPED**: the 5 `src/Tests/E2eMocked/**` per-bank files are all `describe.skip`'d (PR-206-FOLLOWUP) with non-trivial root causes. Consolidating skipped tests adds no value — they would be `describe.skip`'d in the new file too. Replaced by T7.5 (RESOLVED, below).
 - T7.4 verified NO-OP — Phases cluster already cross-bank via `it.each(BANK_SCENARIOS)` / `ALL_BANK_CASES`. **SHIPPED** as docs in `ab8eee06`.
-- T7.5 **DEFERRED** to follow-up PR `fix/e2e-mocked-fixture-debt`. The skipped tests need fixture-recording work (the scrapers use `loginUrl: ''` and discover entry URLs via WellKnown selector probes at runtime; the mock test setup needs to know those URLs to intercept correctly, which requires recording real-bank network traffic with valid credentials). Honours user directive "no skip we want to have working tests" — the fix lands in a dedicated PR where the fixture-recording effort can be scoped and validated against real bank topologies. Out of scope for the Phase 7 STRUCTURAL refactor.
+- T7.5 **RESOLVED** without the follow-up PR. It was first deferred to `fix/e2e-mocked-fixture-debt` because the skipped tests needed fixture-recording work (the scrapers use `loginUrl: ''` and discover entry URLs via WellKnown selector probes at runtime; the mock test setup needs to know those URLs to intercept correctly, which requires recording real-bank network traffic with valid credentials). Honours user directive "no skip we want to have working tests" — the fix was to land in a dedicated PR where the fixture-recording effort could be scoped and validated against real bank topologies. Out of scope for the Phase 7 STRUCTURAL refactor. The browserless rewrites removed that need: each suite now runs against a fetch mock built from synthetic data, and none is skipped.
 - T7.10 **SHIPPED** as `0be3a012`: the cross-bank diamond canary + ESLint rule. Future regressions are now build-time errors.
 
 7b **does not exist** — all of T7.6..T7.9 are verified NO-OP per the snapshot-drift reconciliation. Recording them as VERIFIED-NO-OP in this doc is sufficient; manufacturing a 7b PR with zero code changes would add CI churn without value.
@@ -87,7 +87,7 @@ The boundary is along **work-actually-required-after-OBSERVE**, not the original
 
 1. **7a opens first** as `refactor/phase-7-foundation-integration-phases` → CI green → CR approved → merge.
 2. **7b is NOT opened** — all of T7.6..T7.9 are VERIFIED NO-OP. The consolidation-map docs commit at HEAD records the reasoning so the next session does not re-investigate.
-3. **T7.5 follow-up** opens later as `fix/e2e-mocked-fixture-debt` (separate concern: fixture-recording, not structural refactor) once real-bank-credentialled fixtures are available. Out of scope for Phase 7.
+3. **T7.5** needed no follow-up PR: the browserless rewrites un-skipped every suite it covered (see T7.5 below).
 
 ---
 
@@ -206,7 +206,7 @@ Per `pr-guidlines.md §11` and the new T1-INVERSE husky hook (PR #301, landed `a
 | T7.2 **SHIPPED-NOOP** (`c02f8adb`)       | 7a     | 0 (docs)    | MOD `src/Tests/Integration/**` — verified already canonical, no diff needed                                                                      |
 | ~~T7.3~~ **DROPPED**                     | —      | —           | ~~MOD `src/Tests/E2eMocked/**`~~ — 5 originals are all `describe.skip` (PR-206-FOLLOWUP); replaced by **T7.5**                                   |
 | T7.4 (NEXT)                              | 7a     | ~29         | MOD `src/Tests/Unit/Pipeline/Phases/**` + Infrastructure helper-coverage tests → `it.each(BANKS)`                                                |
-| T7.5 **(NEW)**                           | 7a     | 5           | FIX 5 `describe.skip` E2eMocked files — repair/author route fixtures so tests actually run + pass                                                |
+| T7.5 **RESOLVED**                        | —      | —           | FIX 5 `describe.skip` E2eMocked files — done by the browserless rewrites; every suite runs against a fetch mock                                  |
 | T7.10 **SHIPPED** (this commit)          | 7a     | 2           | NEW canary `src/Scrapers/Pipeline/EslintCanaries/test-per-bank-duplication.canary.ts` + entry in `RESTRICTED_SYNTAX_RULES` (`eslint.config.mjs`) |
 | (infra)                                  | 7a     | ~30         | NEW `src/Tests/Helpers/`, fixtures, ESLint canary supporting code                                                                                |
 | **7a TOTAL**                             |        | **~72..77** | **<150 ✅**                                                                                                                                      |
@@ -282,7 +282,7 @@ The structural duplication class T7.4 was scoped to address has already been con
 
 If a future regression introduces the anti-pattern, the **T7.10 canary** will block it at lint-time.
 
-### T7.5 — SCOPED + DEFERRED — FIX 5 PR-206-FOLLOWUP bank fixture skips
+### T7.5 — RESOLVED — FIX 5 PR-206-FOLLOWUP bank fixture skips
 
 **Precise scope** (NOT "all describe.skip"):
 
@@ -293,30 +293,25 @@ If a future regression introduces the anti-pattern, the **T7.10 canary** will bl
 | `E2eMocked/Max/Max.e2e-mocked.test.ts`           | Resolved: Max is browserless; `MaxFetchMock.ts` serves it           | none                                  |
 | `E2eMocked/VisaCal/VisaCal.e2e-mocked.test.ts`   | Resolved: VisaCal is browserless; `VisaCalFetchMock.ts` serves it   | none                                  |
 
-**OUT OF SCOPE for T7.5** (other `describe.skip` exists but is NOT this PR's responsibility):
+**OUT OF SCOPE for T7.5** (the other skips at the time; none is left in `src/Tests/E2eMocked/`):
 
 - `ErrorScenarios.e2e-mocked.test.ts` — deleted with the Amex browser path it drove
 - `ExternalBrowser.e2e-mocked.test.ts` — same
-- `OtpDetection.e2e-mocked.test.ts` — same
-- `SelectorFallbackAdvanced.e2e-mocked.test.ts` — 3 `describe.skip` blocks
-- `SelectorFallbackBasic.e2e-mocked.test.ts` — 3 `describe.skip` blocks
-- `SelectorFallbackElements.e2e-mocked.test.ts` — 3 `describe.skip` blocks
+- `OtpDetection.e2e-mocked.test.ts` — un-skipped by #304; runs
+- `SelectorFallbackAdvanced.e2e-mocked.test.ts` — had 3 `describe.skip` blocks; un-skipped by #304
+- `SelectorFallbackBasic.e2e-mocked.test.ts` — same
+- `SelectorFallbackElements.e2e-mocked.test.ts` — same
 - All `DESCRIBE_IF = hasCredentials ? describe : describe.skip` conditional-skip patterns (these are CORRECT — only skip when env credentials missing)
 - All `it.skip` blocks
 
-**T7.5 DEFERRED to follow-up PR** because:
+**Why T7.5 was first deferred** (kept for history):
 
 1. `C:/tmp/bank-html/{discount,max,visacal}/` (the fixture root) is MISSING on current dev machine. The capture script (`npm run capture:invalid-login -- <bank>`, since retired) required real bank credentials + IL-residential network — environment I do not control.
 2. Manually inferring route tables from production scraper code (without real captures) would produce tests that pass locally but are not reviewable — violates "tests we can rely on".
 3. Authoring repo-local safe fixtures (synthetic HTML responding with bank-recognizable error markup) is feasible (~4-8h per bank) but is fixture engineering, NOT structural refactor.
 4. Per rubber-duck recommendation: "Split T7.5 out of Phase 7 structural work and track it as fixture debt."
 
-**T7.5 follow-up PR scope** (separate from this Phase 7 PR):
-
-- Open `fix/e2e-mocked-fixture-debt` branch
-- None left to author: Discount, Visa Cal, Isracard, Amex, Max, Mizrahi and Hapoalim are browserless and served by fetch mocks
-- Un-`skip` the 5 files; verify all pass in `test:e2e:mock`
-- Document the fixture authoring pattern for future banks
+**How T7.5 closed:** no follow-up PR was opened. Each bank in the table became browserless, so its suite runs against a fetch mock built from synthetic data, not recorded bank traffic, and none is skipped. `grep -rn 'describe.skip\|it.skip' src/Tests/E2eMocked` returns nothing. The fetch-mock pattern for a new bank is documented in [testing](contributing/testing.md).
 
 ---
 
