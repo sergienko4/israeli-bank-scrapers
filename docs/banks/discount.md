@@ -73,8 +73,12 @@ config sets `omitBankText`, so no failure message carries the bank's own text.
 ## Hard-model post-auth
 
 After login, `DISCOUNT_SHAPE` (`Banks/Discount/scrape/DiscountShape.ts`)
-declares three GET reads on the Titan gateway, `TITAN_API`
-(`/Titan/gatewayAPI` on `TELEBANK_ORIGIN`), sent over the login's cookie jar:
+binds the shared Telebank group shape: `makeTelebankGroupShape`
+(`Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShape.ts`) takes an
+`ITelebankGroupShapeArgs` with the bank's own step name and window stance
+(`lowerBoundOnly`). The shape declares three GET reads on the Titan gateway,
+`TITAN_API` (`/Titan/gatewayAPI` on `TELEBANK_ORIGIN`), sent over the login's
+cookie jar:
 
 | Read         | Call                                                                  | `accountnumber`  |
 | ------------ | --------------------------------------------------------------------- | ---------------- |
@@ -82,13 +86,13 @@ declares three GET reads on the Titan gateway, `TITAN_API`
 | balance      | GET `accountDetails/infoAndBalance/{AccountID}`                       | the account's id |
 | transactions | GET `lastTransactions/transactions/{AccountID}/Date?…`                | the account's id |
 
-Every read sends `titanHeaders` (`DiscountShapeHelpers.ts`):
+Every read sends `titanHeaders` (`TelebankGroupShapeHelpers.ts`):
 `TELEBANK_STATIC_HEADERS`, then `TELEBANK_TITAN_HEADERS` (a JSON accept and
 the retail app as referer), then `accountnumber`. The shape's
 `callAccountIdOf` puts the Titan `NewAccountInfo.AccountID` there, not the
 `FormatAccountID` users see, which stays the account number in the result.
 
-Every answer passes `checkTitanBody` (`DiscountShapeCheck.ts`) before it is
+Every answer passes `checkTitanBody` (`TelebankGroupShapeCheck.ts`) before it is
 read. Each refusal fails as `GENERIC` and never quotes the bank:
 
 | Answer                                                                           | Refusal                         |

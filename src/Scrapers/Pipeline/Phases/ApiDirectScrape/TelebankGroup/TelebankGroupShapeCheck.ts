@@ -1,5 +1,5 @@
 /**
- * Discount scrape shape — the check every Titan answer passes before the
+ * Telebank group scrape shape — the check every Titan answer passes before the
  * shape reads it (spec §11.2). An answer must be an object with no
  * `actionRequired`, `Error` or `error` set to anything but null. An
  * accounts answer must list 1 to 8 accounts whose ids are unique and safe
@@ -15,9 +15,9 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { ApiBody } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
+import type { ApiBody } from '../IApiDirectScrapeShape.js';
 
 /** Most accounts one run reads — the bank's per-login call budget. */
 const MAX_ACCOUNTS = 8;

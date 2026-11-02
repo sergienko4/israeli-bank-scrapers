@@ -9,28 +9,28 @@
  */
 
 import { DISCOUNT_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Discount/scrape/DiscountShape.js';
-import { checkTitanBody } from '../../../../../Scrapers/Pipeline/Banks/Discount/scrape/DiscountShapeCheck.js';
+import type {
+  ApiBody,
+  IExtractAccountsArgs,
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import { checkTitanBody } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShapeCheck.js';
 import {
   accountNumberOf,
   balanceExtract,
   balanceUrl,
   customerUrl,
   extractAccounts,
-  type IDiscountAcct,
+  type ITelebankAcct,
   titanHeaders,
-} from '../../../../../Scrapers/Pipeline/Banks/Discount/scrape/DiscountShapeHelpers.js';
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShapeHelpers.js';
 import {
   txnsExtractPage,
   txnsUrl,
-} from '../../../../../Scrapers/Pipeline/Banks/Discount/scrape/DiscountShapeTxns.js';
-import type {
-  ApiBody,
-  IExtractAccountsArgs,
-} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShapeTxns.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { AMBIENT_ZONE_CASES, underZone } from '../../../../Helpers/AmbientZone.js';
 
-const ACCT: IDiscountAcct = { accountId: 'ACCT-1', displayNumber: '12-345-6' };
+const ACCT: ITelebankAcct = { accountId: 'ACCT-1', displayNumber: '12-345-6' };
 
 /**
  * Wrap a raw response body in the extractAccounts args bundle.

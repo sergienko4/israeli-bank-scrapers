@@ -1244,10 +1244,10 @@ buildTxnsDispatchArgs
 resolveSecondaryUrlTag
 
 # --- P2 Discount hard-model post-auth scrape shape (API-direct bank) ---
-# Reason: IDiscountAcct â€” Discount scrape-shape account ref (accountId path id +
-# displayNumber); consumed only by DISCOUNT_SHAPE + its helpers. Pipeline-internal,
-# not part of the @sergienko4/israeli-bank-scrapers public surface (not in src/index.ts).
-IDiscountAcct
+# Reason: ITelebankAcct - Telebank group scrape-shape account ref (accountId path id +
+# displayNumber); consumed only by the TelebankGroup shape factory + its helpers.
+# Pipeline-internal, not part of the public surface (not in src/index.ts).
+ITelebankAcct
 # Reason: TITAN_API â€” Titan gateway origin const shared by the Discount shape's
 # customer/balance/txns urlTag builders. Framework-internal bank contract constant.
 TITAN_API
