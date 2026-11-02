@@ -101,6 +101,13 @@ const REFUSALS: readonly IRefusal[] = [
     message: 'titan answer error',
     trail: [...LOGIN_TRAIL, ...HANDOFF_TRAIL, ...ACCOUNTS_TRAIL],
   },
+  {
+    name: 'a Titan HTTP failure',
+    fault: 'titan500',
+    errorType: GENERIC,
+    message: 'customer HTTP 500',
+    trail: [...LOGIN_TRAIL, ...HANDOFF_TRAIL, ...ACCOUNTS_TRAIL],
+  },
 ];
 
 /** Credentials refused before any request, and the failure each surfaces. */

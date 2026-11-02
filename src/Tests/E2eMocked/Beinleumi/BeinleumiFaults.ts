@@ -23,7 +23,10 @@ export type LoginFault = 'locked' | 'expired' | 'plaintextAssert';
 export type PortalFault =
   'noPasswordEnc' | 'ambiguousHandoff' | 'postMessageHandoff' | 'crossOriginHandoff' | 'sso204';
 
-export type BeinleumiFault = 'none' | OtpFault | LoginFault | PortalFault;
+/** A BFF read the bank fails with its own text. */
+export type DataFault = 'accountType500';
+
+export type BeinleumiFault = 'none' | OtpFault | LoginFault | PortalFault | DataFault;
 
 /** What one run's bank remembers between calls. */
 export interface IBeinleumiMockState {

@@ -23,7 +23,8 @@ export type DiscountFault =
   | 'login307'
   | 'loginQuery'
   | 'mi6Mismatch'
-  | 'titanError';
+  | 'titanError'
+  | 'titan500';
 
 /** What one run remembers between calls. */
 export interface IDiscountMockRun {

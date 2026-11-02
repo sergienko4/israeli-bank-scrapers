@@ -139,7 +139,8 @@ interface IApiDirectCallConfig {
   readonly requiredCreds?: Readonly<Record<string, CredRule>>;
   /**
    * Set for banks whose replies can quote the customer back. A missed
-   * extract then names only the slot and pointer, never the bank's text.
+   * extract then names only the slot and pointer, and a failed scrape call
+   * only the call and its HTTP status — never the bank's text.
    */
   readonly omitBankText?: true;
 }

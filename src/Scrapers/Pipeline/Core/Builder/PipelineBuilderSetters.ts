@@ -121,6 +121,22 @@ function setApiDirectScrape(state: IBuilderState, shape: AnyApiDirectScrapeShape
 }
 
 /**
+ * Carry the login config's `omitBankText` onto the scrape shape, so a bank
+ * that keeps its own text out of login failures keeps it out of scrape
+ * failures too.
+ * @param shape - Bank IApiDirectScrapeShape literal.
+ * @param config - The same bank's IApiDirectCallConfig literal.
+ * @returns The shape, flagged when the login config sets `omitBankText`.
+ */
+function bindBankTextRule(
+  shape: AnyApiDirectScrapeShape,
+  config: IApiDirectCallConfig,
+): AnyApiDirectScrapeShape {
+  if (config.omitBankText !== true) return shape;
+  return { ...shape, omitBankText: true };
+}
+
+/**
  * Set the HARD-MODEL post-auth path on a BROWSER bank. Keeps the
  * browser login phases (WAF bypass) but flags the bank so assembly
  * swaps the generic AUTH-DISCOVERY / ACCOUNT-RESOLVE / DASHBOARD /
@@ -148,6 +164,7 @@ function snapshotFields(state: IBuilderState): IBuilderFields {
 
 export type { AnyApiDirectScrapeShape, IBuilderState };
 export {
+  bindBankTextRule,
   createEmptyState,
   setApiDirectConfig,
   setApiDirectScrape,

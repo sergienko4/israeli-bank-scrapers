@@ -506,6 +506,13 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    */
   readonly checkBody?: BodyCheck;
   /**
+   * Set for banks whose replies can quote the customer back: a failed
+   * scrape call then names only the call and its HTTP status, never the
+   * response text. `withApiDirect` copies it from the login config's
+   * `omitBankText`, so a bank declares it once.
+   */
+  readonly omitBankText?: true;
+  /**
    * Optional session read from every successful answer `dispatchStep`
    * returns — bootstrap, customer, balance and transactions — after
    * `checkBody`. The patch is merged into session-context before the next

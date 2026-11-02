@@ -41,6 +41,7 @@ const NO_ACCOUNT: ISynAccount = { id: '', display: '', balance: 0, amounts: [] }
  */
 function routeAccounts(_call: IRecordedCall, run: IDiscountMockRun): Response {
   if (run.fault === 'titanError') return json({ Error: { MsgText: DC_BANK_NOTICE } });
+  if (run.fault === 'titan500') return new Response(DC_BANK_NOTICE, { status: 500 });
   return json({ UserAccountsData: { UserAccounts: userAccounts() } });
 }
 

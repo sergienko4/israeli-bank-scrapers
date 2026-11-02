@@ -10,6 +10,7 @@ import type { LoginFn } from './PipelineAssembly.js';
 import type { ScrapeFn } from './PipelineBuilderHelpers.js';
 import { buildDescriptor } from './PipelineBuilderHelpers.js';
 import {
+  bindBankTextRule,
   createEmptyState,
   type IBuilderState,
   setApiDirectConfig,
@@ -73,6 +74,7 @@ class PipelineBuilder {
    * Generic in `<TAcct, TCursor>` so bank-specific shape literals
    * (e.g. `IApiDirectScrapeShape<IPepperAcct, number>`) flow
    * through without contravariance errors at the builder boundary.
+   * The login config's `omitBankText` is carried onto the shape.
    *
    * @param config - Bank IApiDirectCallConfig literal (login path).
    * @param shape - Bank IApiDirectScrapeShape literal (scrape path).
@@ -83,8 +85,9 @@ class PipelineBuilder {
     shape: IApiDirectScrapeShape<TAcct, TCursor>,
   ): this {
     setApiDirectConfig(this._s, config);
-    const scrapeShape = config.omitBankText ? { ...shape, omitBankText: true } : shape;
-    setApiDirectScrape(this._s, scrapeShape as unknown as IApiDirectScrapeShape<unknown, unknown>);
+    const scrape = shape as unknown as IApiDirectScrapeShape<unknown, unknown>;
+    const bound = bindBankTextRule(scrape, config);
+    setApiDirectScrape(this._s, bound);
     return this;
   }
 
