@@ -17,7 +17,7 @@
  *   <li>`11-balance-resolve` — final balance read.</li>
  * </ul>
  *
- * <p>SPA banks (e.g. Beinleumi) use `snapshot` with
+ * <p>SPA banks (e.g. Leumi) use `snapshot` with
  * `waitForLifecycle: 'networkidle'` so the hydrated post-JS DOM is
  * captured — no JS bundle commit required.
  *
@@ -55,29 +55,6 @@ const DISCOUNT_POST_LOGIN = {
       stepName: '11-balance',
       urlPattern: '/currentAccount',
       captureAs: 'currentAccount',
-    },
-  ],
-} as const satisfies IExtendedRecipe;
-
-/** Beinleumi: OTP bank + Angular SPA shell. */
-const BEINLEUMI_POST_LOGIN = {
-  bankId: 'beinleumi',
-  steps: [
-    { kind: 'login', stepName: '04-login-action' },
-    { kind: 'snapshot', stepName: '05-otp-trigger', waitForLifecycle: 'networkidle' },
-    { kind: 'snapshot', stepName: '06-otp-fill', waitForLifecycle: 'networkidle' },
-    {
-      kind: 'waitFor',
-      stepName: '07-auth-discovery',
-      textVisible: 'תנועות בחשבון',
-      timeoutMs: DASHBOARD_NETWORKIDLE_TIMEOUT_MS,
-    },
-    { kind: 'snapshot', stepName: '09-dashboard', waitForLifecycle: 'networkidle' },
-    {
-      kind: 'recordResponse',
-      stepName: '10-scrape-transactions',
-      urlPattern: '/AccountTransactions',
-      captureAs: 'AccountTransactions',
     },
   ],
 } as const satisfies IExtendedRecipe;
@@ -120,7 +97,6 @@ const LEUMI_POST_LOGIN = {
  */
 const POST_LOGIN_RECIPES: Readonly<Partial<Record<string, IExtendedRecipe>>> = {
   discount: DISCOUNT_POST_LOGIN,
-  beinleumi: BEINLEUMI_POST_LOGIN,
   leumi: LEUMI_POST_LOGIN,
 };
 
@@ -216,13 +192,6 @@ const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
     steps: [
       { stepName: '01-home', url: 'https://www.bankotsar.co.il' },
       { stepName: '02-pre-login', url: 'https://online.bankotsar.co.il' },
-    ],
-  },
-  beinleumi: {
-    steps: [
-      { stepName: '01-home', url: 'https://www.fibi.co.il' },
-      { stepName: '02-modal-opened', revealText: 'כניסה לחשבון' },
-      { stepName: '03-after-prelogin', revealText: 'כניסה עם סיסמה' },
     ],
   },
   leumi: {

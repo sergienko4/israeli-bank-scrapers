@@ -2,14 +2,11 @@
  * Unit tests for CredentialLoader — per-bank env-var loader for the harvester.
  */
 
-import { isSome } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import {
   BANK_ENV_MAP,
   hasCredentials,
   knownBanks,
   loadCredentials,
-  loadOtpFromEnv,
-  OTP_ENV_MAP,
 } from '../../../Integration/Tools/CredentialLoader.js';
 
 /** Snapshot of every harvester-relevant env-var captured before a test mutates them. */
@@ -33,30 +30,16 @@ function addTemplateKeys(
 }
 
 /**
- * Add all OTP env-var names to the accumulator set.
- *
- * @param all - Accumulator set to mutate.
- * @param names - Pre-filtered (non-undefined) OTP env-var names.
- * @returns The same set after additions.
- */
-function addOtpKeys(all: Set<string>, names: readonly string[]): Set<string> {
-  for (const name of names) all.add(name);
-  return all;
-}
-
-/**
  * Collect every env-var name referenced by the harvester maps.
  *
- * @returns Set of all credential + OTP env-var names.
+ * @returns Set of all credential env-var names.
  */
 function collectAllEnvKeys(): Set<string> {
   const all = new Set<string>();
   const definedTemplates = Object.values(BANK_ENV_MAP).filter(
     (t): t is Readonly<Record<string, string>> => t !== undefined,
   );
-  const definedOtpNames = Object.values(OTP_ENV_MAP).filter((n): n is string => n !== undefined);
   addTemplateKeys(all, definedTemplates);
-  addOtpKeys(all, definedOtpNames);
   return all;
 }
 
@@ -104,9 +87,9 @@ describe('CredentialLoader', () => {
   });
 
   describe('knownBanks', () => {
-    it('returns the three onboarded browser banks sorted', () => {
+    it('returns the two onboarded browser banks sorted', () => {
       const banks = knownBanks();
-      const expected = ['beinleumi', 'discount', 'leumi'];
+      const expected = ['discount', 'leumi'];
       expect(banks).toEqual(expected);
     });
   });
@@ -121,13 +104,13 @@ describe('CredentialLoader', () => {
     });
 
     it('throws when an env var is missing', () => {
-      process.env.BEINLEUMI_USERNAME = 'abc';
+      process.env.LEUMI_USERNAME = 'abc';
       /**
        * Wrapper used by Jest's expect().toThrow() matcher.
        * @returns Never (loadCredentials throws).
        */
-      const attempt = (): unknown => loadCredentials('beinleumi');
-      expect(attempt).toThrow(/BEINLEUMI_PASSWORD/u);
+      const attempt = (): unknown => loadCredentials('leumi');
+      expect(attempt).toThrow(/LEUMI_PASSWORD/u);
     });
 
     it('throws when an env var is whitespace-only', () => {
@@ -176,28 +159,6 @@ describe('CredentialLoader', () => {
       process.env.DISCOUNT_NUM = 'AB1234';
       const hasAll = hasCredentials('discount');
       expect(hasAll).toBe(false);
-    });
-  });
-
-  describe('loadOtpFromEnv', () => {
-    it('returns Some(value) when BEINLEUMI_OTP is set', () => {
-      process.env.BEINLEUMI_OTP = '123456';
-      const optResult = loadOtpFromEnv('beinleumi');
-      const isPresent = isSome(optResult);
-      expect(isPresent).toBe(true);
-      if (isPresent) expect(optResult.value).toBe('123456');
-    });
-
-    it('returns None when BEINLEUMI_OTP is unset', () => {
-      const optResult = loadOtpFromEnv('beinleumi');
-      const isPresent = isSome(optResult);
-      expect(isPresent).toBe(false);
-    });
-
-    it('returns None for non-OTP banks', () => {
-      const optResult = loadOtpFromEnv('leumi');
-      const isPresent = isSome(optResult);
-      expect(isPresent).toBe(false);
     });
   });
 });

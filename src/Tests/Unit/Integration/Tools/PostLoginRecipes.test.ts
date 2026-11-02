@@ -29,7 +29,7 @@ function requireRecipe(bankId: string): IExtendedRecipe {
 describe('PostLoginRecipes', () => {
   it('knownPostLoginBanks lists every onboarded pipeline bank', () => {
     const banks = knownPostLoginBanks();
-    const expected = ['beinleumi', 'discount', 'leumi'];
+    const expected = ['discount', 'leumi'];
     expect(banks).toEqual(expected);
   });
 
@@ -56,8 +56,8 @@ describe('PostLoginRecipes', () => {
     });
   });
 
-  it('SPA banks (beinleumi) use snapshot with networkidle for hydrated DOM', () => {
-    const spaBankIds: readonly string[] = ['beinleumi'];
+  it('SPA banks (leumi) use snapshot with networkidle for hydrated DOM', () => {
+    const spaBankIds: readonly string[] = ['leumi'];
     spaBankIds.forEach(bankId => {
       const recipe = requireRecipe(bankId);
       const hasNetworkidleSnapshot = recipe.steps.some(
