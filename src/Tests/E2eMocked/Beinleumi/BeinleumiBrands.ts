@@ -46,8 +46,20 @@ export const MASSAD_MOCK_BRAND: IFibiMockBrand = {
   provider: 'massad-web',
 };
 
+export const OTSAR_HAHAYAL_MOCK_BRAND: IFibiMockBrand = {
+  companyId: CompanyTypes.OtsarHahayal,
+  origin: 'https://online.bankotsar.co.il',
+  portalId: 'OTSARPRTAL',
+  aid: 'rest_app_014',
+  bankNum: '014',
+  provider: 'otsar-hahayal-web',
+};
+
 /** The group banks that run Beinleumi's login on their own brand. */
-export const SIBLING_MOCK_BRANDS: readonly IFibiMockBrand[] = [MASSAD_MOCK_BRAND];
+export const SIBLING_MOCK_BRANDS: readonly IFibiMockBrand[] = [
+  MASSAD_MOCK_BRAND,
+  OTSAR_HAHAYAL_MOCK_BRAND,
+];
 
 /** Every brand covered by the shared behavior and privacy matrices. */
 export const FIBI_MOCK_BRANDS: readonly IFibiMockBrand[] = [
