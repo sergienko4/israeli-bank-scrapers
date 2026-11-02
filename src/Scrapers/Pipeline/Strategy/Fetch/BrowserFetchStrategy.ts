@@ -100,6 +100,24 @@ function resolveContext(page: Page, targetUrl: string): Page | Frame {
   return page;
 }
 
+/**
+ * GET inside the page — the plain GET when no header is left to send, so a
+ * GET whose sentinels all dropped matches one that had no headers.
+ * @param ctx - Page or frame the request runs in.
+ * @param url - Target URL.
+ * @param headers - Outgoing headers, sentinels already resolved.
+ * @returns The page fetch's parsed result.
+ */
+function getWithinPage<T>(
+  ctx: Page | Frame,
+  url: string,
+  headers: Record<string, string>,
+): Promise<NullableFetchResult<T>> {
+  const hasHeaders = Object.keys(headers).length > 0;
+  if (!hasHeaders) return fetchGetWithinPage<T>(ctx, url, false);
+  return fetchGetWithinPageWithHeaders<T>(ctx, url, headers);
+}
+
 /** Browser fetch — delegates to fetchPostWithinPage/fetchGetWithinPage. */
 class BrowserFetchStrategy implements IFetchStrategy {
   private readonly _page: Page;
@@ -132,20 +150,15 @@ class BrowserFetchStrategy implements IFetchStrategy {
   }
 
   /**
-   * GET via browser page session.
+   * GET via browser page session; `@cookie:` sentinels resolve as on a POST.
    * @param url - Target URL.
    * @param opts - Optional fetch config (extraHeaders).
    * @returns Procedure with parsed response or failure.
    */
   public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
-    const hasHeaders = Object.keys(opts.extraHeaders).length > 0;
     const ctx = resolveContext(this._page, url);
-    if (!hasHeaders) {
-      return fetchGetWithinPage<T>(ctx, url, false)
-        .then((result): Procedure<T> => resultToProcedure(result, url))
-        .catch(catchError);
-    }
-    return fetchGetWithinPageWithHeaders<T>(ctx, url, opts.extraHeaders)
+    const extraHeaders = await this.resolveHeaders(url, opts.extraHeaders);
+    return getWithinPage<T>(ctx, url, extraHeaders)
       .then((result): Procedure<T> => resultToProcedure(result, url))
       .catch(catchError);
   }
