@@ -10,11 +10,11 @@
 
 - :material-bank: **Banks (browser engine)**
 
-  [Bank Leumi](leumi.md) · [Discount](discount.md) · [Massad](massad.md) · [Mercantile](mercantile.md) · [Otsar Hahayal](otsar-hahayal.md) · [Pagi](pagi.md)
+  [Bank Leumi](leumi.md) · [Discount](discount.md) · [Mercantile](mercantile.md) · [Otsar Hahayal](otsar-hahayal.md) · [Pagi](pagi.md)
 
 - :material-api: **API-direct (no browser)**
 
-  [OneZero](onezero.md) · [Pepper](pepper.md) · [PayBox](paybox.md) · [Visa Cal](visacal.md) · [Isracard](isracard.md) · [Amex](amex.md) · [Max](max.md) · [Mizrahi Bank](mizrahi.md) · [Bank Hapoalim](hapoalim.md) · [Bank Yahav](yahav.md) · [Beinleumi](beinleumi.md)
+  [OneZero](onezero.md) · [Pepper](pepper.md) · [PayBox](paybox.md) · [Visa Cal](visacal.md) · [Isracard](isracard.md) · [Amex](amex.md) · [Max](max.md) · [Mizrahi Bank](mizrahi.md) · [Bank Hapoalim](hapoalim.md) · [Bank Yahav](yahav.md) · [Beinleumi](beinleumi.md) · [Massad](massad.md)
 
 - :material-archive: **Legacy (deprecated)**
 
@@ -32,7 +32,7 @@
 | Beinleumi       | `Beinleumi`    | `username`, `password`          | conditional    |
 | Discount Bank   | `Discount`     | `id`, `password`, `num`         | —              |
 | Isracard        | `Isracard`     | `id`, `card6Digits`, `password` | —              |
-| Massad          | `Massad`       | `username`, `password`          | required       |
+| Massad          | `Massad`       | `username`, `password`          | conditional    |
 | Max             | `Max`          | `username`, `password`          | —              |
 | Mercantile Bank | `Mercantile`   | `id`, `password`, `num`         | —              |
 | Mizrahi Bank    | `Mizrahi`      | `username`, `password`          | —              |

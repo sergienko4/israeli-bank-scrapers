@@ -22,6 +22,7 @@ import { installBeinleumiFetchMock } from './BeinleumiFetchMock.js';
 import { BEINLEUMI_MOCK_CREDS, BEINLEUMI_MOCK_START_DATE, BN_OTP } from './BeinleumiMockData.js';
 import type { PersistSlot, RetrieverSlot, StorageCallback } from './BeinleumiRunInputs.js';
 import { callbackOf, ownerOf, retrieverOf, storedState } from './BeinleumiRunInputs.js';
+import { WIRE_PATHS } from './BeinleumiWireSpec.js';
 
 /** What one run sent, received, asked the caller for and published. */
 export interface IBeinleumiRun {
@@ -54,6 +55,8 @@ export interface IRunSetup {
   readonly callback?: StorageCallback;
   /** The group bank the run scrapes (default: Beinleumi). */
   readonly brand?: IFibiMockBrand;
+  /** The bank the stored state names (default: the run's bank). */
+  readonly stateBrand?: IFibiMockBrand;
 }
 
 /** The opening: the login page, the envelope, the login, the password. */
@@ -75,6 +78,24 @@ export const SCRAPE_TRAIL = ['userData', 'accountType', 'balance', 'list', 'list
 /** A run the bank asks no code of, end to end. */
 export const COLD_TRAIL = [...OPENING_TRAIL, ...PORTAL_TRAIL, ...SCRAPE_TRAIL];
 
+/** Every Transmit path: the key exchange, the login and the assertions. */
+const TRANSMIT_PATHS: readonly string[] = [
+  WIRE_PATHS.keyExchange,
+  WIRE_PATHS.login,
+  WIRE_PATHS.assert,
+];
+
+/**
+ * The device id each Transmit call named, in order.
+ * @param run - The run.
+ * @returns One `did` per Transmit call ('' when it named none).
+ */
+export function didsOf(run: IBeinleumiRun): readonly string[] {
+  const urls = run.calls.map(call => new URL(call.url));
+  const transmit = urls.filter(url => TRANSMIT_PATHS.includes(url.pathname));
+  return transmit.map(url => url.searchParams.get('did') ?? '');
+}
+
 /**
  * The persistence a run supplies: the stored state, and the callback.
  * @param setup - The run setup.
@@ -85,7 +106,7 @@ function persistenceOf(setup: IRunSetup, published: string[]): PersistSlot {
   const callback = callbackOf(setup.callback ?? false, published);
   const did = setup.storedDid ?? '';
   if (did === '') return callback;
-  const owner = ownerOf(setup.brand, setup.stateAccount);
+  const owner = ownerOf(setup.stateBrand ?? setup.brand, setup.stateAccount);
   const persistentAuthState = storedState(did, owner);
   return { ...callback, persistentAuthState };
 }

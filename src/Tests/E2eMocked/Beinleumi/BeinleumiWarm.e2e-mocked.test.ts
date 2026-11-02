@@ -12,31 +12,11 @@
 import { ScraperErrorTypes } from '../../../Scrapers/Base/ErrorTypes.js';
 import { decodeDeviceMemoryState } from '../../../Scrapers/Pipeline/Mediator/ApiDirectCall/DeviceMemoryStateCodec.js';
 import { BN_DID, BN_STORED_DID } from './BeinleumiMockData.js';
-import type { IBeinleumiRun } from './BeinleumiRun.js';
-import { COLD_TRAIL, runBeinleumi } from './BeinleumiRun.js';
+import { COLD_TRAIL, didsOf, runBeinleumi } from './BeinleumiRun.js';
 import { BN_OWNER } from './BeinleumiRunInputs.js';
-import { WIRE_PATHS } from './BeinleumiWireSpec.js';
-
-/** Every Transmit path: the key exchange, the login and the assertions. */
-const TRANSMIT_PATHS: readonly string[] = [
-  WIRE_PATHS.keyExchange,
-  WIRE_PATHS.login,
-  WIRE_PATHS.assert,
-];
 
 /** A resume: the stored device id, and a callback that records. */
 const RESUME = { storedDid: BN_STORED_DID, callback: 'record' } as const;
-
-/**
- * The device id each Transmit call named, in order.
- * @param run - The run.
- * @returns One `did` per Transmit call ('' when it named none).
- */
-function didsOf(run: IBeinleumiRun): readonly string[] {
-  const urls = run.calls.map(call => new URL(call.url));
-  const transmit = urls.filter(url => TRANSMIT_PATHS.includes(url.pathname));
-  return transmit.map(url => url.searchParams.get('did') ?? '');
-}
 
 describe('Beinleumi browserless device memory', () => {
   it('enrolls: publishes the device id the bank issued, once', async () => {

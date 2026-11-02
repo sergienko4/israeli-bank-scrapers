@@ -37,6 +37,18 @@ export const BEINLEUMI_MOCK_BRAND: IFibiMockBrand = {
   provider: 'beinleumi-web',
 };
 
+export const MASSAD_MOCK_BRAND: IFibiMockBrand = {
+  companyId: CompanyTypes.Massad,
+  origin: 'https://online.bankmassad.co.il',
+  portalId: 'MASADPRTAL',
+  aid: 'rest_app_046',
+  bankNum: '046',
+  provider: 'massad-web',
+};
+
+/** The group banks that run Beinleumi's login on their own brand. */
+export const SIBLING_MOCK_BRANDS: readonly IFibiMockBrand[] = [MASSAD_MOCK_BRAND];
+
 /**
  * The login page's query: the brand's private-customer portal, in Hebrew.
  * @param brand - The bank.
