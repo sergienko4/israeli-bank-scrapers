@@ -70,7 +70,7 @@ const LEAK_SCRIPT = join('setup-test-runner', 'export-env.sh');
 const JOB_KEY = 'integration';
 
 /** The matrix values; shards 1..N together cover every integration file. */
-const SHARDS = [1, 2, 3] as const;
+const SHARDS = [1, 2] as const;
 
 /** The shard argument both modes must pass, so each job runs one slice of each. */
 const SHARD_ARG = `--shard=\${{ matrix.shard }}/${String(SHARDS.length)}`;
@@ -584,9 +584,9 @@ const FILTER = { [FILTER_ENV]: 'amex' } as const;
 const MUTANTS: readonly IMutant[] = [
   {
     rule: 'ISG-1',
-    name: 'matrix shrunk to two shards',
+    name: 'matrix shrunk by one shard',
     target: 'strategy',
-    patch: { matrix: { shard: [1, 2] } },
+    patch: { matrix: { shard: SHARDS.slice(0, -1) } },
   },
   {
     rule: 'ISG-1',
