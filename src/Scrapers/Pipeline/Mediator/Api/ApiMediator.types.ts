@@ -71,6 +71,12 @@ interface IApiMediator {
     opts?: IApiQueryOpts,
   ) => Promise<Procedure<T>>;
   readonly dispose?: () => Promise<void>;
+  /**
+   * The transport runs inside a browser engine, so phase transitions keep
+   * the browser page-settle windows. Absent for native and node:https
+   * transports, whatever cleanup hooks they carry.
+   */
+  readonly drivesBrowser?: true;
 }
 
 /** Bundle of collaborators captured by the closure. */

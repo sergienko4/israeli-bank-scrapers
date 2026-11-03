@@ -19,6 +19,7 @@ import type { Page } from 'playwright-core';
 import type { CompanyTypes } from '../../../../Definitions.js';
 import { createBrowserFetchStrategy } from '../../Strategy/Fetch/BrowserFetchStrategy.js';
 import { withDefaultHeaders } from '../../Strategy/Fetch/DefaultHeadersFetchStrategy.js';
+import type { IFetchStrategy } from '../../Strategy/Fetch/FetchStrategy.js';
 import { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import { createApiMediator } from './ApiMediator.factory.js';
 import type { IApiMediator } from './ApiMediator.types.js';
@@ -30,6 +31,17 @@ import type { IApiMediator } from './ApiMediator.types.js';
  */
 function pageOrigin(page: Page): string {
   return new URL(page.url()).origin;
+}
+
+/**
+ * The page-bound fetch transport, carrying the discovered SPA header bag.
+ * @param page - Live post-login Playwright page.
+ * @param defaultHeaders - Discovered default-header bag (empty ⇒ no wrap).
+ * @returns Browser-session fetch strategy.
+ */
+function pageFetchOf(page: Page, defaultHeaders: Readonly<Record<string, string>>): IFetchStrategy {
+  const base = createBrowserFetchStrategy(page);
+  return withDefaultHeaders(base, defaultHeaders);
 }
 
 /**
@@ -49,10 +61,10 @@ function createBrowserPageApiMediator(
   page: Page,
   defaultHeaders: Readonly<Record<string, string>> = {},
 ): IApiMediator {
-  const base = createBrowserFetchStrategy(page);
-  const fetch = withDefaultHeaders(base, defaultHeaders);
+  const fetch = pageFetchOf(page, defaultHeaders);
   const gql: GraphQLFetchStrategy = Reflect.construct(GraphQLFetchStrategy, [pageOrigin(page)]);
-  return createApiMediator(bankHint, fetch, gql);
+  const mediator = createApiMediator(bankHint, fetch, gql);
+  return Object.assign(mediator, { drivesBrowser: true as const });
 }
 
 export default createBrowserPageApiMediator;

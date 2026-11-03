@@ -146,7 +146,7 @@ function createBrowserBackedHeadlessApiMediator(
   const mediator = createApiMediator(args.bankHint, fetch, gql);
   applyStaticAuth(mediator, args);
   const dispose = makeCamoufoxDispose(fetch);
-  return Object.assign(mediator, { dispose });
+  return Object.assign(mediator, { dispose, drivesBrowser: true as const });
 }
 
 /**

@@ -1,5 +1,14 @@
+import type { Page } from 'playwright-core';
+
+import { CompanyTypes } from '../../../../Definitions.js';
 import resolvePhaseSettlePolicy from '../../../../Scrapers/Pipeline/Core/Executor/PipelinePhaseSettlePolicy.js';
+import {
+  createBrowserBackedHeadlessApiMediator,
+  createHeadlessApiMediator,
+  createMtlsHeadlessApiMediator,
+} from '../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.factories.js';
 import type { IApiMediator } from '../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.types.js';
+import { createBrowserPageApiMediator } from '../../../../Scrapers/Pipeline/Mediator/Api/BrowserPageApiMediator.factory.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IBrowserState,
@@ -8,57 +17,96 @@ import type {
 
 type SettleContext = Pick<IPipelineContext, 'apiMediator' | 'browser'>;
 
-const BORROWED_API = {} as unknown as IApiMediator;
 const BROWSER_STATE = {} as unknown as IBrowserState;
+const URLS = {
+  bankHint: CompanyTypes.OneZero,
+  identityBaseUrl: 'https://id.example/v1/',
+  graphqlUrl: 'https://gql.example/graphql',
+};
 
 /**
- * Guard against accidental disposal in a pure policy test.
- * @returns A rejected promise if invoked.
+ * Stand-in cleanup hook; the policy must decide without running it.
+ * @returns A settled promise.
  */
-function unreachableDispose(): Promise<never> {
-  const error = new Error('Settle policy must not dispose resources');
-  return Promise.reject(error);
+function idleCleanup(): Promise<void> {
+  return Promise.resolve();
 }
 
-const OWNED_API = { dispose: unreachableDispose } as unknown as IApiMediator;
+const NATIVE_API = createHeadlessApiMediator(URLS);
+const NODE_TLS_API = createMtlsHeadlessApiMediator(URLS);
+const CAMOUFOX_API = createBrowserBackedHeadlessApiMediator({
+  ...URLS,
+  identityOriginUrl: 'https://id.example',
+});
+/**
+ * Stand-in for a live post-login page's address.
+ * @returns The page URL.
+ */
+function bankPageUrl(): string {
+  return 'https://bank.example/home';
+}
+
+const BANK_PAGE = { url: bankPageUrl } as unknown as Page;
+const PAGE_BOUND_API = createBrowserPageApiMediator(CompanyTypes.OneZero, BANK_PAGE);
+const NATIVE_WITH_CLEANUP: IApiMediator = {
+  ...createHeadlessApiMediator(URLS),
+  dispose: idleCleanup,
+};
 
 const CASES = [
-  {
-    label: 'browser pipeline before launch',
-    apiMediator: none(),
-    browser: none(),
-    expected: true,
-  },
+  { label: 'browser pipeline before launch', apiMediator: none(), browser: none(), wait: true },
   {
     label: 'browser pipeline after launch',
     apiMediator: none(),
     browser: some(BROWSER_STATE),
-    expected: true,
+    wait: true,
   },
   {
-    label: 'browser-backed headless mediator',
-    apiMediator: some(OWNED_API),
+    label: 'Camoufox headless mediator',
+    apiMediator: some(CAMOUFOX_API),
     browser: none(),
-    expected: true,
+    wait: true,
   },
   {
     label: 'native headless mediator',
-    apiMediator: some(BORROWED_API),
+    apiMediator: some(NATIVE_API),
     browser: none(),
-    expected: false,
+    wait: false,
+  },
+  {
+    label: 'node-TLS headless mediator',
+    apiMediator: some(NODE_TLS_API),
+    browser: none(),
+    wait: false,
+  },
+  {
+    label: 'native mediator that owns a cleanup hook',
+    apiMediator: some(NATIVE_WITH_CLEANUP),
+    browser: none(),
+    wait: false,
+  },
+  {
+    label: 'page-bound mediator without a browser slot',
+    apiMediator: some(PAGE_BOUND_API),
+    browser: none(),
+    wait: true,
   },
   {
     label: 'browser API-direct mediator',
-    apiMediator: some(BORROWED_API),
+    apiMediator: some(NATIVE_API),
     browser: some(BROWSER_STATE),
-    expected: true,
+    wait: true,
   },
 ] as const;
 
 describe('PipelinePhaseSettlePolicy', () => {
-  it.each(CASES)('T-SETTLE-1: $label', ({ apiMediator, browser, expected }) => {
+  afterAll(async (): Promise<void> => {
+    await CAMOUFOX_API.dispose?.();
+  });
+
+  it.each(CASES)('T-SETTLE-1: $label', ({ apiMediator, browser, wait }) => {
     const ctx: SettleContext = { apiMediator, browser };
     const policy = resolvePhaseSettlePolicy(ctx);
-    expect(policy.wait).toBe(expected);
+    expect(policy.wait).toBe(wait);
   });
 });

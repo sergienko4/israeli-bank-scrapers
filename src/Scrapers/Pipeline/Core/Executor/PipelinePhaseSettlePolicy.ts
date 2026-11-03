@@ -16,5 +16,5 @@ const SKIP: IPhaseSettlePolicy = { wait: false };
  */
 export default function resolvePhaseSettlePolicy(ctx: SettleContext): IPhaseSettlePolicy {
   if (ctx.browser.has || !ctx.apiMediator.has) return WAIT;
-  return ctx.apiMediator.value.dispose === undefined ? SKIP : WAIT;
+  return ctx.apiMediator.value.drivesBrowser === true ? WAIT : SKIP;
 }
