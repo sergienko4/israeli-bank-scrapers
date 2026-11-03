@@ -10,7 +10,13 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
 import { buildHmacHeaders } from './ApiMediator.hmacHeaders.js';
 import { retryOn401Op } from './ApiMediator.retry.js';
-import { fireGet, firePost, fireQuery, NO_EXTRA_HEADERS } from './ApiMediator.transport.js';
+import {
+  fireGet,
+  firePost,
+  fireQuery,
+  NO_EXTRA_HEADERS,
+  overlayHeaders,
+} from './ApiMediator.transport.js';
 import type {
   IApiCallContext,
   IApiPostOpArgs,
@@ -41,6 +47,7 @@ type FirePostExtras = Pick<IFirePostArgs, 'extraHeaders' | 'query' | 'onSetCooki
 
 /**
  * Merge the per-request HMAC signature headers into the POST extras.
+ * The HMAC headers win a name clash in any letter case.
  * @param args - apiPost op args (carries session context + body).
  * @param url - Resolved POST URL.
  * @param extras - Base optional-extras subset.
@@ -53,7 +60,7 @@ function withHmacExtras(args: IApiPostOpArgs, url: string, extras: FirePostExtra
     url,
     body: args.body,
   });
-  return { ...extras, extraHeaders: { ...extras.extraHeaders, ...hmac } };
+  return { ...extras, extraHeaders: overlayHeaders(extras.extraHeaders, hmac) };
 }
 
 /**
@@ -116,8 +123,8 @@ type FireGetExtras = Pick<IFireGetArgs, 'extraHeaders' | 'query' | 'onSetCookie'
 
 /**
  * Build the per-attempt GET extras. Caller headers sit under the fresh
- * HMAC headers (HMAC wins a name clash, as on POST); query and the
- * Set-Cookie hook pass through. No opts ⇒ HMAC headers only, as before.
+ * HMAC headers (HMAC wins a name clash in any letter case, as on POST);
+ * query and the Set-Cookie hook pass through. No opts ⇒ HMAC headers only.
  * @param ctx - Per-call context.
  * @param url - Resolved GET URL (pre-query, as signed on POST).
  * @param opts - Optional per-call options.
@@ -130,8 +137,8 @@ function buildFireGetExtras(
 ): FireGetExtras {
   const hmac = buildGetHmacHeaders(ctx, url);
   const callerHeaders = opts?.extraHeaders ?? NO_EXTRA_HEADERS;
-  const query = opts?.query ?? NO_EXTRA_HEADERS;
-  return { extraHeaders: { ...callerHeaders, ...hmac }, query, onSetCookie: opts?.onSetCookie };
+  const extraHeaders = overlayHeaders(callerHeaders, hmac);
+  return { extraHeaders, query: opts?.query ?? NO_EXTRA_HEADERS, onSetCookie: opts?.onSetCookie };
 }
 
 /**

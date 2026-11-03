@@ -66,6 +66,35 @@ function mergeHeaders(rawAuth: string, extra: Record<string, string>): Record<st
   return { ...extra, ...buildHeaders(rawAuth) };
 }
 
+/** A header map keyed by header name. */
+type HeaderMap = Record<string, string>;
+
+/**
+ * Whether a header name is in a set of lower-case names, in any letter case.
+ * @param names - Lower-case header names.
+ * @param name - Header name to look up.
+ * @returns True when the name is in the set.
+ */
+function hasName(names: ReadonlySet<string>, name: string): boolean {
+  const lower = name.toLowerCase();
+  return names.has(lower);
+}
+
+/**
+ * Lay `top` over `base`: a `top` header replaces a `base` header of the
+ * same name in any letter case, so fetch never sends both values.
+ * @param base - Lower-priority headers.
+ * @param top - Headers that win a name clash.
+ * @returns The merged header map.
+ */
+function overlayHeaders(base: HeaderMap, top: HeaderMap): HeaderMap {
+  const topKeys = Object.keys(top);
+  const topNames = new Set(topKeys.map((name): string => name.toLowerCase()));
+  const kept = Object.entries(base).filter(([name]): boolean => !hasName(topNames, name));
+  const baseKept = Object.fromEntries(kept);
+  return { ...baseKept, ...top };
+}
+
 /**
  * Convert an arbitrary body to the transport's PostData shape.
  * @param body - Caller-supplied body.
@@ -228,4 +257,13 @@ async function fireQuery<T>(args: IFireQueryArgs): Promise<Procedure<T>> {
   return unwrapGraphql<T>(envelopeProc.value, operation);
 }
 
-export { appendQuery, buildHeaders, fireGet, firePost, fireQuery, mergeHeaders, NO_EXTRA_HEADERS };
+export {
+  appendQuery,
+  buildHeaders,
+  fireGet,
+  firePost,
+  fireQuery,
+  mergeHeaders,
+  NO_EXTRA_HEADERS,
+  overlayHeaders,
+};
