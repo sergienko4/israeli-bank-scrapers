@@ -82,6 +82,16 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: node scripts/check-breaking-note.mjs
 
+      # Plan files stay local, so an item number, decision ID, task number
+      # or section mark cited from one points at nothing a reader can open.
+      # Unconditional, including bot PRs, for the same reason as the gate
+      # above: docs-only and workflow-only changes are the likeliest
+      # carriers, and the pre-commit hook skips most gates for them.
+      - name: Added lines cite no local planning IDs
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: npm run lint:plan-refs
+
       # Agent-facing docs cite repo-root-relative paths. CLAUDE.md is loaded
       # by every agent session, and all seven of its "Key Files" entries went
       # stale unnoticed when src/ was restructured - an agent that trusts a

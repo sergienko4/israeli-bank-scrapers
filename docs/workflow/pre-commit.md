@@ -1,6 +1,6 @@
 # Pre-commit hook
 
-Driven by [husky](https://typicode.github.io/husky/). Runs 19 quality gates in parallel before any commit lands locally. Three further gates (the test suites) are currently commented out — see [Currently disabled](#currently-disabled).
+Driven by [husky](https://typicode.github.io/husky/). Runs up to 23 quality gates in parallel before any commit lands locally. Three further gates (the test suites) are currently commented out — see [Currently disabled](#currently-disabled).
 
 | Source | [`.husky/pre-commit`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/.husky/pre-commit) |
 |---|---|
@@ -9,9 +9,11 @@ Driven by [husky](https://typicode.github.io/husky/). Runs 19 quality gates in p
 
 Runs first and auto-fixes whitespace / quote style / trailing commas. If anything changes, the gate cache key is recomputed *after* this step so cosmetic fixes don't invalidate the cache.
 
-## Phase 2 — 19 gates in parallel
+## Phase 2 — 23 gates in parallel
 
-The hook spawns each gate as a background process and `wait`s for them all. Cache key per gate is `git write-tree` (the SHA of the staged tree); when the same SHA passes a gate, the next commit on the same content set skips it.
+The hook spawns each gate as a background process and `wait`s for them all. Cache key per gate is `git write-tree` (the SHA of the staged tree); when the same SHA passes a gate, the next commit on the same content set skips it. `plan-refs` is the exception: it reads the staged additions, which depend on `HEAD` as well, so it always runs.
+
+A commit that stages no source file — only docs, workflows, `.json`/`.yml` config or dotfiles — skips this phase. It still runs `plan-refs`, plus `jest-scopes` when `package.json` is staged.
 
 | # | Gate | Hook label | What it runs |
 |---|---|---|---|
@@ -26,14 +28,18 @@ The hook spawns each gate as a background process and `wait`s for them all. Cach
 | 9 | Dead code | `dead-code` | `lint:dead-code` |
 | 10 | Import cycles | `cycles` | `lint:cycles` |
 | 11 | Guideline coverage | `guideline-coverage` | `lint:guideline-coverage` (asserts `eslint.config.mjs` enforces CLEAN_CODE.md caps for every Pipeline cluster) |
-| 12 | Test duplication | `test-duplication` | `lint:test-duplication` |
-| 13 | Bank coverage | `bank-coverage` | `lint:bank-coverage` |
-| 14 | Fixture PII | `fixtures-pii` | `lint:fixtures-pii` |
-| 15 | Staged PII | `pii-staged` | `lint:pii-staged` |
-| 16 | Node support | `node-support` | `lint:node-support` |
-| 17 | Docs strict | `docs-strict` | `lint:docs-strict` (only fires when `docs/**`, root `*.md`, or `mkdocs.yml` is staged; runs `mkdocs build --strict` — soft-skips when Python/mkdocs not on PATH locally, CI is the hard gate) |
-| 18 | Docs coverage | `docs-coverage` | `.github/scripts/ci/docs-coverage.sh` (fires when any `src/Scrapers/Pipeline/**/*.ts` is staged; diffs new public exports against the merge-base with `origin/main`/`main`, as CI does, and fails if a new symbol is undocumented + un-allowlisted — soft-skips when base ref unresolvable locally, CI is the hard gate). See [Docs coverage gate](docs-coverage.md) for which export forms count. |
-| 19 | Docs staleness | `docs-staleness` | `.github/scripts/ci/docs-staleness.sh` (same merge-base as docs coverage, so commits on `main` after the branch forked never count as staged changes) |
+| 12 | Syntax guardrails | `syntax-guardrails` | `lint:syntax-guardrails` (asserts every armed `no-restricted-syntax` selector reaches each production Pipeline file) |
+| 13 | Test duplication | `test-duplication` | `lint:test-duplication` |
+| 14 | Bank coverage | `bank-coverage` | `lint:bank-coverage` |
+| 15 | Fixture PII | `fixtures-pii` | `lint:fixtures-pii` |
+| 16 | Staged PII | `pii-staged` | `lint:pii-staged` |
+| 17 | Plan refs | `plan-refs` | `lint:plan-refs` (fails when a staged added line cites an ID from a local, uncommitted plan: an item number, decision ID, task number or section mark; skips fixtures, captured pages, lockfiles and the changelog) |
+| 18 | Node support | `node-support` | `lint:node-support` |
+| 19 | CodeRabbit filters | `coderabbit-filters` | `lint:coderabbit-filters` (CodeRabbit path filters may skip only generated output) |
+| 20 | Jest scopes | `jest-scopes` | `lint:jest-scopes` (no test script silently widens its own scope) |
+| 21 | Docs strict | `docs-strict` | `lint:docs-strict` (only fires when `docs/**`, root `*.md`, or `mkdocs.yml` is staged; runs `mkdocs build --strict` — soft-skips when Python/mkdocs not on PATH locally, CI is the hard gate) |
+| 22 | Docs coverage | `docs-coverage` | `.github/scripts/ci/docs-coverage.sh` (fires when any `src/Scrapers/Pipeline/**/*.ts` is staged; diffs new public exports against the merge-base with `origin/main`/`main`, as CI does, and fails if a new symbol is undocumented + un-allowlisted — soft-skips when base ref unresolvable locally, CI is the hard gate). See [Docs coverage gate](docs-coverage.md) for which export forms count. |
+| 23 | Docs staleness | `docs-staleness` | `.github/scripts/ci/docs-staleness.sh` (same merge-base as docs coverage, so commits on `main` after the branch forked never count as staged changes) |
 
 ### Currently disabled
 
@@ -77,6 +83,7 @@ The summary at the end names every failing gate. Detail logs are written to `.pr
 | `architecture` + `canaries` + `lint:phases:strict` + `dead-code` + `cycles` | Architectural invariants — fails when a PR reaches across a layer boundary, breaks a canary fixture, leaves a dead export, or adds an import cycle |
 | `guideline-coverage` | Process invariant — fails when `eslint.config.mjs` drifts from CLEAN_CODE.md canonical caps |
 | `fixtures-pii` + `pii-staged` | Privacy — `fixtures-pii` fails on personal data in captured fixtures; `pii-staged` fails when a staged file re-adds a scrubbed value (see [Privacy gates](#privacy-gates)) |
+| `plan-refs` | Reader-facing text — fails when an added line cites an ID from a plan that is never committed, so no reader can look it up. CI runs the same check over the whole PR |
 | `test-duplication` + `bank-coverage` + `node-support` | Suite health — duplicate test bodies, uncovered banks, unsupported Node syntax |
 | `docs-strict` + `docs-staleness` | Docs build correctness and freshness |
 | `docs-coverage` | Docs/code consistency — fails when a new `src/Scrapers/Pipeline/` export ships without a `docs/` mention or allowlist entry |

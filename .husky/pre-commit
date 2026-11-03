@@ -24,6 +24,14 @@ if [ -z "$CODE_FILES" ]; then
         fi
         echo "  ✅ jest-scopes passed" | tee -a "$LOG_FILE"
     fi
+    # Docs, workflows and config are where a planning ID is likeliest to
+    # slip in, and every one of them arrives in this branch. The scan reads
+    # only the staged additions, so it costs well under a second.
+    if ! env BASE_SHA= npm run lint:plan-refs >>"$LOG_FILE" 2>&1; then
+        echo "❌ plan-refs FAILED — an added line cites a local planning ID; see $LOG_FILE" | tee -a "$LOG_FILE"
+        exit 1
+    fi
+    echo "  ✅ plan-refs passed" | tee -a "$LOG_FILE"
     echo "⏭️  No source code changes — skipping quality gates" | tee -a "$LOG_FILE"
     exit 0
 fi
@@ -236,6 +244,12 @@ bg_gate "test-duplication"  "yes" npm run lint:test-duplication
 bg_gate "bank-coverage"     "yes" npm run lint:bank-coverage
 bg_gate "fixtures-pii"      "yes" npm run lint:fixtures-pii
 bg_gate "pii-staged"        "yes" npm run lint:pii-staged
+# Plan files stay local, so an item number, decision ID, task number or
+# section mark cited from one explains nothing to a reader of the repo.
+# Not cached: the staged additions depend on HEAD as well as on the staged
+# tree. BASE_SHA is cleared so a value left exported in the shell cannot
+# turn this staged scan into a branch-wide one.
+bg_gate "plan-refs"         "no"  env BASE_SHA= npm run lint:plan-refs
 # Cheap, dependency-free consistency check: .nvmrc, engines.node, the CI
 # matrix and the README table must all name the same Node range. Runs
 # unconditionally because a README-only commit is the likeliest way to
