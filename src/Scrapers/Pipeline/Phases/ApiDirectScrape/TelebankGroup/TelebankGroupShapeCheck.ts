@@ -1,11 +1,11 @@
 /**
  * Telebank group scrape shape — the check every Titan answer passes before the
- * shape reads it (spec §11.2). An answer must be an object with no
+ * shape reads it. An answer must be an object with no
  * `actionRequired`, `Error` or `error` set to anything but null. An
  * accounts answer must list 1 to 8 accounts whose ids are unique and safe
  * to put in a URL path; a transactions answer must carry its entries as a
  * list of records. A balance answer has no rule of its own: its reader
- * already falls back to 0 (DN3).
+ * already falls back to 0.
  *
  * <p>The driver hands the check no step, so the rules key on the container
  * an answer carries. An answer that carries neither container passes: an

@@ -3,7 +3,7 @@
  * Resolves each step's urlTag (literal or producer) and assembles the
  * IDispatchArgs bundle (verb, vars, body, headers, signing) consumed by
  * dispatchStep. Balance and transactions header producers learn the
- * account the call is for (N53, see ApiDirectScrapeHeaders.ts). Split
+ * account the call is for (see ApiDirectScrapeHeaders.ts). Split
  * out of ApiDirectScrapeSteps.ts to keep both files within the per-file
  * LOC ceiling. Zero bank-name coupling.
  */

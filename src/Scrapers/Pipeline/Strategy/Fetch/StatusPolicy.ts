@@ -1,5 +1,5 @@
 /**
- * Status policy (N4) — a bank names the 2xx statuses it decides itself.
+ * Status policy — a bank names the 2xx statuses it decides itself.
  * Checked after WAF classification and before the body is read: `empty`
  * answers `{}`, `fail` refuses with the log-safe URL and the status. A
  * document step skips `empty`, because its reader judges a 204 as an empty

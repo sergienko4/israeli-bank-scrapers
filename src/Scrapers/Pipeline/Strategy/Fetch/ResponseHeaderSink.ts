@@ -1,5 +1,5 @@
 /**
- * Response-header sink (N6, N31, N51) — hands a call's sink the headers it
+ * Response-header sink — hands a call's sink the headers it
  * declared, read from the final response, and no others, with the
  * response's HTTP status and the URL that gave it. A declared header the
  * response lacks is left out; the caller decides what a missing one means.

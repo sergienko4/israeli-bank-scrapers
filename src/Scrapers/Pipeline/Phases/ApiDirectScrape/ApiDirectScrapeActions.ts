@@ -180,7 +180,7 @@ function isSessionRejected(first: Procedure<ApiDirectScrapeResult>): boolean {
 
 /**
  * Decide whether to recover; the two modes are exclusive. Under whole-scrape
- * recovery (N33) only a rejected session recovers, warm or cold, at a
+ * recovery only a rejected session recovers, warm or cold, at a
  * bootstrap or a data call: a 5xx, a bank status, an incomplete session or a
  * degraded success stands. Otherwise recovery needs BOTH a suspicious outcome
  * AND a warm (cached-token) session: a cold session already ran the full login

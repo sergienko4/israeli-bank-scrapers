@@ -100,7 +100,7 @@ export function callAccountIdOf(acct: ITelebankAcct): TitanAccountId {
 }
 
 /**
- * Headers every Titan call sends (spec §11.2): the routing headers, the
+ * Headers every Titan call sends: the routing headers, the
  * retail-app accept and referer, and the call's account id — empty on the
  * accounts read, which belongs to no account.
  * @param _ctx - Action context (unused).

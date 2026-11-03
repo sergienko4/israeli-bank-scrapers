@@ -29,7 +29,7 @@ function parseJsonText<T>(answer: IAnswer, rawText: string): Procedure<T> {
 }
 
 /**
- * Read an answer's body (N63: strictly when its reading says so) and parse it as JSON.
+ * Read an answer's body (strictly when its reading says so) and parse it as JSON.
  * @param answer - The answered call.
  * @returns Procedure carrying the parsed body, or a decoding or parse failure.
  */

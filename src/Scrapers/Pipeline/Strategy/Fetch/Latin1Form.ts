@@ -1,5 +1,5 @@
 /**
- * ISO-8859-1 form encoding (N23) — Java's `URLEncoder.encode(s, "ISO-8859-1")`
+ * ISO-8859-1 form encoding — Java's `URLEncoder.encode(s, "ISO-8859-1")`
  * byte for byte: `A-Z a-z 0-9 . - * _` stay, a space becomes `+`, every other
  * char becomes `%XX` of its latin1 byte (uppercase hex). A char above U+00FF
  * has no latin1 byte, so the whole form is refused before any request.

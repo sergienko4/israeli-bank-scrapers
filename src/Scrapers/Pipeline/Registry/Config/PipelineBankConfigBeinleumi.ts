@@ -1,5 +1,5 @@
 /**
- * Beinleumi api-direct login (spec §11.2): the FIBI-family flow on the
+ * Beinleumi api-direct login: the FIBI-family flow on the
  * bank's own online origin, its device remembered per user. Pure data
  * (Rule #11).
  */

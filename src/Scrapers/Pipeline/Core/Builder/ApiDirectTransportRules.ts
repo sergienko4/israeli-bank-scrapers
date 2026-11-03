@@ -1,8 +1,8 @@
 /**
- * Session-transport rules for an api-direct call config (N8). A `document`
+ * Session-transport rules for an api-direct call config. A `document`
  * step answers `{}`, so it reads no body extracts, outcome or bank-error guard.
  * Its marker belongs only on that step. A manual redirect follows its hops
- * as GETs, so a POST step names it only with `postAsGet` (N46) and a GET step
+ * as GETs, so a POST step names it only with `postAsGet` and a GET step
  * never with it. It is never the bank default, which every POST
  * shares; it allows at least one URL rule and 1–10 hops, and needs the bank
  * default `reject` so no other call follows a redirect unseen.

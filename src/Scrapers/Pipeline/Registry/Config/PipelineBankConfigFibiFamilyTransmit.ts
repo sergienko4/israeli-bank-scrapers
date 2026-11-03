@@ -1,5 +1,5 @@
 /**
- * FIBI-family Transmit steps (spec §11.2 rows 2–4b): the key exchange, the
+ * FIBI-family Transmit steps: the key exchange, the
  * sealed login and the password and SMS-code assertions. Each names the
  * brand's app and, once the bank named them, its device and session; each
  * checks the device and session ids the bank names before they are kept.

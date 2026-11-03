@@ -1,10 +1,10 @@
 /**
- * Build rules for step URLs. A raw query (N41) replaces the query template
- * rather than joining it. A carried step URL (N40), which only a GET can name
+ * Build rules for step URLs. A raw query replaces the query template
+ * rather than joining it. A carried step URL, which only a GET can name
  * (`IPostStep.urlFromCarry` is `never`), reads a slot whose earlier writers in
  * the same list checked — with an `extractRules` `url` rule, as its final
- * URL (N51), which its own redirect rules check, or as its handoff script's
- * URL (N54), which its capture's `url` rules check: login steps and resume
+ * URL, which its own redirect rules check, or as its handoff script's
+ * URL, which its capture's `url` rules check: login steps and resume
  * steps each run without the other's carry. A final-URL slot needs a manual
  * redirect, whose rules check it, and a slot of its own.
  */

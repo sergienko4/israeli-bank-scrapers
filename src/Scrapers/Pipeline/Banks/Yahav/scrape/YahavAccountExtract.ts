@@ -1,5 +1,5 @@
 /**
- * Yahav native account reads (spec §10.2, AD-Y9): the answer's entities, the
+ * Yahav native account reads: the answer's entities, the
  * BaNCS reference check, the current ILS accounts the accounts read lists,
  * and the match the balance and transaction reads rely on. The match is by
  * account id, and the account numbers must agree when both sides carry one
@@ -147,7 +147,7 @@ function countYahavAccounts(args: IExtractAccountsArgs): number {
 }
 
 /**
- * Whether an `AccountId` names the account (AD-Y9).
+ * Whether an `AccountId` names the account.
  * @param identifier - The entity's `AccountId`.
  * @param acct - The account.
  * @returns True on the same id, unless both sides carry different numbers.

@@ -1,5 +1,5 @@
 /**
- * Yahav native response session (spec §10.2, N31): every BaNCS answer is
+ * Yahav native response session: every BaNCS answer is
  * gated on its envelope and rotates the security token, the CSRF token and
  * the two session ids. A value an answer leaves out or sends empty keeps the
  * previous one; a value that is not printable text fails the call, and so

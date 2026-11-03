@@ -1,5 +1,5 @@
 /**
- * Answer-classifier shape rules for an api-direct call config (N50), on login
+ * Answer-classifier shape rules for an api-direct call config, on login
  * and resume steps alike, checked after the optional-ref rule. A classifier
  * needs cases, each with a check; a check names exactly one kind beside its
  * pointer, and every check or capture pointer is a JSON pointer, as each of

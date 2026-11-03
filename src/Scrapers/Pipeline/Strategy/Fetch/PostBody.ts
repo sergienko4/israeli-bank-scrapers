@@ -1,8 +1,8 @@
 /**
- * POST body writers for the native transports (N9, N23). `json` writes the
+ * POST body writers for the native transports. `json` writes the
  * body as JSON text under the transport's default content-type; `form` writes
  * a flat record as `application/x-www-form-urlencoded` in key order;
- * `form-utf8` does the same under `;charset=UTF-8` (N62, no space);
+ * `form-utf8` does the same under `;charset=UTF-8` (no space);
  * `form-latin1` does the same over ISO-8859-1; `text` sends the one string
  * field of a `{ text }` record verbatim. Every non-JSON writer replaces any
  * content-type the caller named — `text` by sending none — so a body never
@@ -21,7 +21,7 @@ import { encodeLatin1Form } from './Latin1Form.js';
 /** Content-type every form body is sent under. */
 const FORM_CONTENT_TYPE = 'application/x-www-form-urlencoded';
 
-/** Content-type every UTF-8 form body is sent under, byte for byte (N62). */
+/** Content-type every UTF-8 form body is sent under, byte for byte. */
 const UTF8_FORM_CONTENT_TYPE = `${FORM_CONTENT_TYPE};charset=UTF-8`;
 
 /** Content-type every latin1 form body is sent under. */

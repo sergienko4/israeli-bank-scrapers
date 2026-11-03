@@ -1,5 +1,5 @@
 /**
- * Login-form capture rules for an api-direct call config (N37). A step naming
+ * Login-form capture rules for an api-direct call config. A step naming
  * `formCapture` must read `response: 'text'`. The capture's `form` and `into`
  * must not be empty; its `action` must be an absolute https URL written as the
  * URL API writes it, since the form's action must equal it exactly; its field

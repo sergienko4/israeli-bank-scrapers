@@ -1,5 +1,5 @@
 /**
- * Header resolution for the ApiDirectScrape phase driver (N53).
+ * Header resolution for the ApiDirectScrape phase driver.
  * Turns a step's `extraHeaders` — a static map or a producer — into the
  * call's IApiQueryOpts, handing a producer the call's IScrapeCallInfo.
  * The info is read lazily, so a static map never touches the account.

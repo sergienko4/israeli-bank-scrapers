@@ -1,5 +1,5 @@
 /**
- * The dynamic client-certificate port (N26). A bank whose flow obtains its
+ * The dynamic client-certificate port. A bank whose flow obtains its
  * device certificate at runtime — issued by the bank from a CSR the flow
  * built — declares `clientCert: { mode: 'dynamic', origin }` on its headless
  * transport; the node:https mediator then exposes this port, and a flow step

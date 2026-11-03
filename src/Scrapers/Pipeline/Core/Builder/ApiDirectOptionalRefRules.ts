@@ -1,5 +1,5 @@
 /**
- * Optional-ref rule for an api-direct call config (N49). An optional `$ref`
+ * Optional-ref rule for an api-direct call config. An optional `$ref`
  * leaves its key out when its source is absent, so it may stand only as the
  * value of a key in a step's body or query template. One at a body or query
  * root, inside an array, or anywhere in a header fails the build. A

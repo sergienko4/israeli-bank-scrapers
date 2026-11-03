@@ -1,8 +1,8 @@
 /**
- * Yahav native scrape shape — the transactions read (spec §10.2). Walks the
+ * Yahav native scrape shape — the transactions read. Walks the
  * month plan one chunk per request, posting the CURRENT_ACCOUNT inquiry for
  * the account and window to the multiplexed account route. A page keeps only
- * the transaction rows that name the account (AD-Y9); a row naming another
+ * the transaction rows that name the account; a row naming another
  * account is left unread, which the coverage audit reports as a shortfall.
  * Kept rows are signed and flattened to `bancs*` scalars for the mapper.
  */

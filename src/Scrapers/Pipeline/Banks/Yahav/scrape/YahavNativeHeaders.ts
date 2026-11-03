@@ -1,5 +1,5 @@
 /**
- * Yahav native BaNCS request headers (spec §10.2): the fixed set, the call's
+ * Yahav native BaNCS request headers: the fixed set, the call's
  * path, the session ids (empty on the login) and the device's
  * `mag-identifier`. The bearer token, the cookie jar and the `BD_IDENT_KEY`
  * digest are added by the transport and the shape's body digest.

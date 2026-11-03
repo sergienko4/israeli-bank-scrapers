@@ -1,5 +1,5 @@
 /**
- * Answer-classifier slot rules for an api-direct call config (N50), checked
+ * Answer-classifier slot rules for an api-direct call config, checked
  * after the classifier shape rules. A capture never writes the case slot, and
  * neither the case slot nor a capture slot is a slot the same step also writes:
  * an extract, the final URL, a form capture, a handoff capture or a

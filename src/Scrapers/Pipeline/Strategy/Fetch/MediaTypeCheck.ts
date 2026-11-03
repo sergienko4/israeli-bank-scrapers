@@ -1,5 +1,5 @@
 /**
- * N61 — the media type check a native transport runs on a 2xx answer, after
+ * The media type check a native transport runs on a 2xx answer, after
  * WAF classification and the status policy, before the reader. The capped
  * transport shares its header-only mismatch predicate. The answer's media
  * type is its content-type before any `;`, trimmed and lower-cased; it must

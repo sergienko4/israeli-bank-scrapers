@@ -1,5 +1,5 @@
 /**
- * Carry-bundle warm-start rules for an api-direct call config (N28). The
+ * Carry-bundle warm-start rules for an api-direct call config. The
  * bundle binds to at least one named creds field, keeps at least one slot,
  * and every kept slot must be one a login step fills — a body or header
  * extract, or a carry-generator output — or the export could never succeed.

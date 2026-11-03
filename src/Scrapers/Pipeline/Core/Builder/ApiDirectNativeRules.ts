@@ -1,11 +1,11 @@
 /**
- * Transport rules for an api-direct call config (N8). Reading, media type,
+ * Transport rules for an api-direct call config. Reading, media type,
  * encoding, header carry, step-level strict UTF-8 and domain cookies work
  * on either node transport; redirect, status, failure-text, bank-wide
  * media-type and strict UTF-8 defaults need native fetch. Other transports
  * would ignore these fields, so the build refuses them. Domain jars need
- * `sessionCookies`; header and cookie names must be HTTP tokens. N61 and
- * N63 check media-type values and strict UTF-8 overrides.
+ * `sessionCookies`; header and cookie names must be HTTP tokens. The
+ * media-type value and strict UTF-8 override rules close the list.
  */
 
 import type { IHeaderExtract } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';

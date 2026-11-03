@@ -1,5 +1,5 @@
 /**
- * Derivation op rules (N45) over flow-init `derivedCarry` and every login
+ * Derivation op rules over flow-init `derivedCarry` and every login
  * and resume step's `deriveCarry`. An op kind is `format` or `md5-hex`. A
  * `format` op names at least one rule; each rule pattern compiles alone
  * with the `u` flag and uses the linear-time FlatPattern grammar (explicit

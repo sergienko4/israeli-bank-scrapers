@@ -99,7 +99,7 @@ function isBadCharCap(maxChars: number): boolean {
 }
 
 /**
- * Every answer classifier (N50) of the login and resume steps.
+ * Every answer classifier of the login and resume steps.
  * @param call - Call config.
  * @returns The classifiers, in step order.
  */

@@ -138,7 +138,7 @@ function isApiSuccess(response: Response): boolean {
 
 /**
  * Route an answer: WAF classification first, then the bank's status policy,
- * then the expected media type (N61), then the reader its response kind names.
+ * then the expected media type, then the reader its response kind names.
  * @param answer - The answered call.
  * @returns Procedure with the read body or a classified failure.
  */
@@ -293,14 +293,14 @@ class NativeFetchStrategy implements IFetchStrategy {
   protected readonly _omitBankText: boolean;
 
   /**
-   * Media type seam (N61) — the type each response kind's answer must name
+   * Media type seam — the type each response kind's answer must name
    * when the call names none. The base expects none; transports built for a
    * bank whose config names defaults replace it in their constructor.
    */
   protected _mediaTypes: MediaTypePolicy = {};
 
   /**
-   * Strict UTF-8 seam (N63) — whether an answer whose call names no choice is
+   * Strict UTF-8 seam — whether an answer whose call names no choice is
    * decoded as strict UTF-8. The base reads bodies as `text()` does;
    * transports built for a strict bank replace it in their constructor.
    */

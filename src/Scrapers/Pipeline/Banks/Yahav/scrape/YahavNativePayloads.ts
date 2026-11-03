@@ -1,6 +1,6 @@
 /**
- * Yahav native BaNCS inquiry payloads — the customer and portfolio reads
- * (spec §10.2). A payload asks for data by sending an archetype of the entity
+ * Yahav native BaNCS inquiry payloads — the customer and portfolio reads.
+ * A payload asks for data by sending an archetype of the entity
  * it wants back; key order is part of the digested bytes.
  */
 

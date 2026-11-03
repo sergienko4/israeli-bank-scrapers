@@ -8,8 +8,7 @@
  * <p>Calls: the login's `SkyBL/logon` reply already lists every account, so
  * the customer step makes no call; per account,
  * `SkyBL/changeAccount` switches the session to it and returns its balance,
- * then `SkyOSH/get428Index` returns the window's movements, 50 rows a page
- * (plan D17).
+ * then `SkyOSH/get428Index` returns the window's movements, 50 rows a page.
  * Helpers split across MizrahiShapeHelpers (accounts), MizrahiShapeBalance
  * (switch + balance) and MizrahiShapeTxns (transactions).
  */

@@ -1,5 +1,5 @@
 /**
- * Yahav native BaNCS envelope — the fixed blocks (spec §10.2). Key order is
+ * Yahav native BaNCS envelope — the fixed blocks. Key order is
  * part of the contract: the `BD_IDENT_KEY` digest covers the exact bytes, so
  * every block is declared in the order the app sends it.
  */

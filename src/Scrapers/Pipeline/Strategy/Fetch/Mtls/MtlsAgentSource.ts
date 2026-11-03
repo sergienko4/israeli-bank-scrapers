@@ -1,5 +1,5 @@
 /**
- * Agent sources (N26) — how an mTLS transport picks the HTTPS agent for each
+ * Agent sources — how an mTLS transport picks the HTTPS agent for each
  * request. A static transport shares one agent for every URL; a dynamic
  * client certificate swaps agents at runtime and scopes them to one origin,
  * so the transport asks its source on every request. Each choice also names

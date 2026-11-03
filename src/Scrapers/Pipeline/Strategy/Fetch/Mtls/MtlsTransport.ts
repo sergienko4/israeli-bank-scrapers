@@ -8,7 +8,7 @@
  * profile (see TlsClientProfiles) for edges that fingerprint the handshake,
  * which globalThis.fetch cannot shape either. This is the ONLY module that
  * sends requests over node:https in the Pipeline by design. String and byte
- * bodies are sent once under `Content-Length` — never chunked (N34).
+ * bodies are sent once under `Content-Length` — never chunked.
  */
 
 import type { ClientRequest, IncomingMessage } from 'node:http';

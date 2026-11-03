@@ -1,5 +1,5 @@
 /**
- * FIBI-family portal steps (spec §11.2 rows 1 and 5–8): the entry page that
+ * FIBI-family portal steps: the entry page that
  * states the bank number and client address and carries the login form; the
  * form post that hands off to the portal; the landing; the SSO code; and the
  * authorization header the code buys. Pure data (Rule #11).

@@ -50,7 +50,7 @@ export type ScrapeHttpMethod = 'GET' | 'POST';
 
 /**
  * What the driver tells a header producer about the call it is building
- * headers for (N53). On balance and transactions calls `accountId` is the
+ * headers for. On balance and transactions calls `accountId` is the
  * shape's `callAccountIdOf(acct)`, or `accountNumberOf(acct)` when the shape
  * declares none; it is absent on bootstrap, customer and the customer's
  * secondary identity GET, which belong to no account.
@@ -424,7 +424,7 @@ export interface IResponseSessionArgs {
 }
 
 /**
- * Session state a bank rotates on every scrape answer (N31): the response
+ * Session state a bank rotates on every scrape answer: the response
  * headers to read and the patch built from each answer.
  */
 export interface IResponseSessionSpec {

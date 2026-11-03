@@ -1,5 +1,5 @@
 /**
- * Envelope codec rules for an api-direct call config (N39). A step naming
+ * Envelope codec rules for an api-direct call config. A step naming
  * `codec` must send a `json` body and read a `json` answer, since the codec
  * seals and opens JSON. An `exchange` codec writes the session key and id to
  * two distinct, non-blank slots. No codec slot — the client scalar, the

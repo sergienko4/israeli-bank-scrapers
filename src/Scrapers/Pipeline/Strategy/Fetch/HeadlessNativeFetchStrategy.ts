@@ -9,7 +9,7 @@
  *  - a GET carries no default JSON content-type, because it has no body.
  * A bank may also set the default redirect policy a call runs under when it
  * names none; every manual redirect hop goes through the same capped seam.
- * Its status policy, media type defaults (N61) and strict UTF-8 choice (N63)
+ * Its status policy, media type defaults and strict UTF-8 choice
  * are installed the same way.
  */
 

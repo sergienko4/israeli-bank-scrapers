@@ -1,5 +1,5 @@
 /**
- * The dynamic client-certificate holder (N26). A flow obtains its device
+ * The dynamic client-certificate holder. A flow obtains its device
  * certificate at runtime and installs it here; the holder validates the pair,
  * builds an agent presenting it and destroys the agent it replaces. Its agent
  * source is asked on every request: the declared origin gets the installed

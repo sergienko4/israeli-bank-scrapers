@@ -1,6 +1,6 @@
 /**
  * Mizrahi scrape shape — transactions helpers. `SkyOSH/get428Index` in its
- * "between dates" (בין תאריכים) mode (plan D13): the same endpoint and body
+ * "between dates" (בין תאריכים) mode: the same endpoint and body
  * every period option of the SPA sends, with the window in
  * `inFromDate`/`inToDate` as `DD/MM/YYYY` bank-calendar days.
  *
@@ -31,7 +31,7 @@
  * overlap drop (MizrahiShapeRowPosition).
  *
  * <p>The call serves the session's current account, which the balance step
- * switched to (MizrahiShapeBalance, plan D17). The driver runs that switch,
+ * switched to (MizrahiShapeBalance). The driver runs that switch,
  * then this account's first walk and every backfill round, before the next
  * account's switch. `fields.AccountNumber` names the account only when the
  * range reaches today; a backfill round ending earlier, a later page and a

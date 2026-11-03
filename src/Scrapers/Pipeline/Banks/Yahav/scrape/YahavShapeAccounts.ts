@@ -1,5 +1,5 @@
 /**
- * Yahav native scrape shape — the accounts and balance reads (spec §10.2).
+ * Yahav native scrape shape — the accounts and balance reads.
  * Both post to the multiplexed BaNCS account route with the session state.
  * The accounts read lists the portfolio's current ILS accounts; the balance
  * read answers the matched account's CURRENT figure. A missing or

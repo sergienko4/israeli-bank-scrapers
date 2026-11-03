@@ -1,8 +1,8 @@
 /**
- * Body-shape rules for an api-direct call config (N9, N23). A form body
+ * Body-shape rules for an api-direct call config. A form body
  * (`form` or `form-latin1`) is written field by field, so its shape must be a
- * flat record whose every value is one `$ref`, one `$join` (N24), or one
- * `$literal` string, finite number or boolean — or one `$merge` (N37) whose
+ * flat record whose every value is one `$ref`, one `$join`, or one
+ * `$literal` string, finite number or boolean — or one `$merge` whose
  * `base` is a `carry.` slot and whose `set` is such a record. A `text` body is
  * sent as one string, so its shape must be exactly `{ text }`. A broken shape
  * fails the build; a value that hydrates to the wrong type fails the step at

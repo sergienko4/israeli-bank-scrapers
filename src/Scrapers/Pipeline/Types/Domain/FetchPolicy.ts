@@ -1,7 +1,7 @@
 /**
- * Fetch policy — how one call treats a redirect (N2), how it reads its answer
- * (N3), which 2xx statuses the bank decides itself (N4), which response
- * headers the caller reads (N6) and how it writes a POST body (N9). A pure DTO leaf
+ * Fetch policy — how one call treats a redirect, how it reads its answer,
+ * which 2xx statuses the bank decides itself, which response
+ * headers the caller reads and how it writes a POST body. A pure DTO leaf
  * at layer 5 so bank config (Registry), step config (Mediator), the per-call
  * bus options and the transports (Strategy) share one contract.
  */
@@ -31,7 +31,7 @@ type IUrlRule = IExactPathRule | IAnyPathExceptRule;
 
 /**
  * Follow up to `maxHops` redirects whose target matches one rule. Every hop
- * is a body-less GET, so a POST step names `postAsGet` (N46).
+ * is a body-less GET, so a POST step names `postAsGet`.
  */
 interface IManualRedirect {
   readonly maxHops: number;
@@ -55,7 +55,7 @@ type ResponseKind = 'json' | 'document' | 'text';
 
 /**
  * `json` sends the POST body as JSON (the default); `form` sends a flat record
- * URL-encoded; `form-utf8` does the same under a type naming UTF-8 (N62);
+ * URL-encoded; `form-utf8` does the same under a type naming UTF-8;
  * `form-latin1` does the same over ISO-8859-1; `text` sends the one string
  * field of a `{ text }` record verbatim, with no content-type.
  */
@@ -70,16 +70,16 @@ type StatusAction = 'empty' | 'fail';
 /** A bank's 2xx statuses it decides before the body is read. */
 type StatusPolicy = Readonly<Partial<Record<number, StatusAction>>>;
 
-/** A bank's expected media type per response kind (N61); lower-case `type/subtype`. */
+/** A bank's expected media type per response kind; lower-case `type/subtype`. */
 type MediaTypePolicy = Readonly<Partial<Record<ResponseKind, string>>>;
 
-/** The response headers a call reads (N6, N31): their names and their receiver. */
+/** The response headers a call reads: their names and their receiver. */
 interface IResponseHeaderSink {
   /** Lower-case header names; only these reach `take`. */
   readonly names: readonly string[];
   /**
    * Receives the named headers, the HTTP status and the URL that gave each
-   * answer (N51: after any hops, the last one); returns how many headers.
+   * answer (after any hops, the last one); returns how many headers.
    */
   readonly take: (headers: Readonly<Record<string, string>>, status: number, url: string) => number;
 }
@@ -98,9 +98,9 @@ interface IFetchCallPolicy {
   readonly headerSink?: IResponseHeaderSink;
   /** How a POST body is written; `json` when absent; native transports only. */
   readonly bodyEncoding?: BodyEncoding;
-  /** Media type the answer must name (N61); overrides the bank's default. */
+  /** Media type the answer must name; overrides the bank's default. */
   readonly mediaType?: string;
-  /** Decode the answer as strict UTF-8 (N63); overrides the bank's choice. */
+  /** Decode the answer as strict UTF-8; overrides the bank's choice. */
   readonly strictUtf8?: boolean;
 }
 
@@ -140,10 +140,10 @@ const LATIN1_UNENCODABLE_REASON = 'form-latin1 unencodable';
 /** Fixed reason a transport reports for a `text` body that is not one string field. */
 const TEXT_BODY_REFUSED_REASON = 'text body not a string';
 
-/** Fixed reason a transport reports for an answer of another media type (N61). */
+/** Fixed reason a transport reports for an answer of another media type. */
 const MEDIA_TYPE_REFUSED_REASON = 'unexpected media type';
 
-/** Fixed reason a transport reports for a strict answer that is not UTF-8 (N63). */
+/** Fixed reason a transport reports for a strict answer that is not UTF-8. */
 const BODY_NOT_UTF8_REASON = 'body not utf-8';
 
 export type {

@@ -1,5 +1,5 @@
 /**
- * Seal rules for an api-direct call config (N10, N44). A seal must name a
+ * Seal rules for an api-direct call config. A seal must name a
  * known kind, sit on a POST step whose body shape is a record, and write at
  * one or more non-overlapping JSON pointers below the root. A block-xor seal must
  * carry constants it can use: an odd public exponent of at least 3, a 1–64
