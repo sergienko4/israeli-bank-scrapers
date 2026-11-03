@@ -214,6 +214,22 @@ describe('Visa Cal browserless login', () => {
     expect(isTokenSent).toBe(false);
   });
 
+  it('malformed token preserves an InvalidPassword cold failure', async () => {
+    const creds = { ...VISACAL_MOCK_CREDS, password: 'synthetic-wrong-pass' };
+    const run = await runCal({ ...creds, otpLongTermToken: MALFORMED_TOKEN });
+    expect(run.result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
+    expect(run.result.errorMessage).toBe('login outcome 4');
+    expect(run.steps).toEqual(['regularLogin']);
+  });
+
+  it('malformed token preserves a cold transport failure', async () => {
+    const creds = { ...VISACAL_MOCK_CREDS, otpLongTermToken: MALFORMED_TOKEN };
+    const run = await runCal(creds, 'http500');
+    expect(run.result.errorType).toBe(ScraperErrorTypes.Generic);
+    expect(run.result.errorMessage).toBe('login HTTP 500');
+    expect(run.steps).toEqual(['regularLogin']);
+  });
+
   it.each(STEP_ZERO_FAULTS)(
     'fails a step-0 %s after one call, with no retry and no response text',
     async (fault, errorType, message) => {

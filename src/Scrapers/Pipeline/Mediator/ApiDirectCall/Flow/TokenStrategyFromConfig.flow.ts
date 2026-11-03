@@ -226,8 +226,8 @@ async function primeFreshImpl(args: IPrimeArgs): Promise<Procedure<string>> {
 }
 
 /**
- * hasWarmState — non-empty creds[warmStart.credsField]. Always false in
- * durable mode, so a failed durable prime never falls back to a cold flow.
+ * hasWarmState — true only when the failed initial prime actually used the
+ * stored seed. Locally rejected seeds already ran cold and must not escalate.
  * @param config - Config literal.
  * @param creds - Caller credentials.
  * @param slot - Capture slot holding the durable mode, if any.
@@ -240,7 +240,8 @@ function hasWarmStateImpl(
 ): boolean {
   if (slot.persistentAuth !== undefined) return false;
   if (config.warmStart === undefined) return false;
-  return readCredsString(creds, config.warmStart.credsField).length > 0;
+  const stored = readCredsString(creds, config.warmStart.credsField);
+  return stored.length > 0 && slot.usedWarmPath === true;
 }
 
 export {
