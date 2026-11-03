@@ -4,6 +4,7 @@ import * as dotenv from 'dotenv';
 import { CompanyTypes, createScraper } from '../../index.js';
 import type { IScraperScrapingResult, ScraperCredentials } from '../../Scrapers/Base/Interface.js';
 import { INVALID_CREDS_USERNAME_PASSWORD } from '../TestConstants.js';
+import { type IFetchPathWitness, installFetchPathWitness } from './FetchPathWitness.js';
 import {
   assertFailedLogin,
   assertSuccessfulScrape,
@@ -25,6 +26,8 @@ const hasCredentials = !!(process.env.VISACAL_USERNAME && process.env.VISACAL_PA
  * pins which login steps ran; this suite proves the real bank accepts both.
  */
 const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
+const BIO_LOGIN_PATH = '/Authentication/api/login/bioLogin';
+const REGULAR_LOGIN_PATH = '/Authentication/api/login/regularLogin';
 
 /** Visa Cal's password credentials. */
 interface ICalPasswordCreds {
@@ -64,20 +67,56 @@ function assertTokenReturned(result: IScraperScrapingResult): string {
   return token;
 }
 
+/** Cold-to-warm result plus the warm request paths. */
+interface ICalColdWarmRun {
+  readonly warm: IScraperScrapingResult;
+  readonly coldToken: string;
+  readonly warmToken: string;
+  readonly warmPaths: readonly string[];
+}
+
+/**
+ * Runs a cold scrape followed by its token-authenticated warm scrape.
+ * @param witness - Path-only request witness.
+ * @returns Both tokens, the warm result and warm-only request paths.
+ */
+async function scrapeColdThenWarm(witness: IFetchPathWitness): Promise<ICalColdWarmRun> {
+  const creds = coldCreds();
+  const coldToken = assertTokenReturned(await scrapeCal(creds));
+  const checkpoint = witness.checkpoint();
+  const warmCreds = { ...creds, otpLongTermToken: coldToken };
+  const warm = await scrapeCal(warmCreds);
+  const warmToken = assertTokenReturned(warm);
+  const warmPaths = witness.pathsSince(checkpoint);
+  return { warm, coldToken, warmToken, warmPaths };
+}
+
+/**
+ * Verifies that a warm scrape used only the bank's hash-login path.
+ * @param run - Cold-to-warm result.
+ * @returns True when all warm-login assertions pass.
+ */
+function assertWarmRun(run: ICalColdWarmRun): boolean {
+  expect(run.warmToken).not.toBe(run.coldToken);
+  expect(run.warmPaths).toContain(BIO_LOGIN_PATH);
+  expect(run.warmPaths).not.toContain(REGULAR_LOGIN_PATH);
+  return true;
+}
+
 DESCRIBE_IF('E2E: VisaCal (real credentials, API-direct)', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
 
-  it('scrapes transactions successfully (cold, then warm with the returned token)', async () => {
-    const creds = coldCreds();
-    const cold = await scrapeCal(creds);
-    const coldToken = assertTokenReturned(cold);
-    const warmCreds = { ...creds, otpLongTermToken: coldToken };
-    const warm = await scrapeCal(warmCreds);
-    const warmToken = assertTokenReturned(warm);
-    expect(warmToken).not.toBe(coldToken);
-    logScrapedTransactions(warm);
+  it('E2E-CAL-WARM-1: warms without a password fallback', async () => {
+    const witness = installFetchPathWitness();
+    try {
+      const run = await scrapeColdThenWarm(witness);
+      assertWarmRun(run);
+      logScrapedTransactions(run.warm);
+    } finally {
+      witness.dispose();
+    }
   });
 
   it('fails with invalid credentials', async () => {
