@@ -313,3 +313,46 @@ describe('SmsOtpFlow fingerprint failure propagation', () => {
     if (!result.success) expect(result.errorMessage).toBe('getIdToken GENERIC');
   });
 });
+
+describe('SmsOtpFlow password-only chain', () => {
+  /**
+   * Build a one-step config that posts the password and declares no preHook.
+   * @returns IApiDirectCallConfig literal.
+   */
+  function makePasswordOnlyConfig(): IApiDirectCallConfig {
+    return {
+      flow: 'sms-otp',
+      envelope: {},
+      steps: [
+        {
+          name: 'login',
+          urlTag: BRANCH_TAG,
+          body: { shape: { password: { $ref: 'creds.password' } } },
+          extractsToCarry: { token: '/token' },
+        },
+      ],
+    };
+  }
+
+  it('never calls a creds callback when no step declares a preHook', async () => {
+    const calls: string[] = [];
+    const captures: IApiPostCapture[] = [];
+    /**
+     * Retriever that records each call; a password-only chain must not reach it.
+     * @returns OTP code string.
+     */
+    const retriever = async (): Promise<string> => {
+      await Promise.resolve();
+      calls.push('called');
+      return '123456';
+    };
+    const bus = makeStubMediator({ responses: [succeed({ token: 'pw-tok' })], captures });
+    const creds = { password: 'pw', otpCodeRetriever: retriever };
+    const config = makePasswordOnlyConfig();
+    const result = await runSmsOtpFlow({ config, bus, creds, companyId: HINT });
+    expect(result).toMatchObject({ success: true, value: { bearer: 'pw-tok' } });
+    expect(calls).toHaveLength(0);
+    expect(captures).toHaveLength(1);
+    expect(captures[0].body).toEqual({ password: 'pw' });
+  });
+});

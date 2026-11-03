@@ -24,6 +24,7 @@
 
 import type { CompanyTypes } from '../../../Definitions.js';
 import type { ScraperOptions } from '../../Base/Interface.js';
+import { findSuppliedOptions, warnIgnoredOptions } from './SuppliedOptions.js';
 
 /**
  * Options declared in the public `ScraperOptions` type that the Pipeline does
@@ -57,31 +58,8 @@ export const LEGACY_ONLY_OPTIONS = [
 /** One of the option names the Pipeline cannot honour. */
 export type LegacyOnlyOption = (typeof LEGACY_ONLY_OPTIONS)[number];
 
-/** Node warning name, so callers can filter on `process.on('warning')`. */
-const WARNING_NAME = 'ScraperOptionsWarning';
-
 /** Documentation the warning points at for the full legacy-option table. */
 const DOCS_URL = 'https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/';
-
-/**
- * Report whether the caller supplied a value for one legacy-only option.
- *
- * <p>Presence is judged on the value, not the key: spreading a partially
- * populated config object yields explicit `undefined` entries that the caller
- * never meant to set, and warning about those would be noise. `false` and `0`
- * count as supplied — a deliberate opt-out is still an expectation the
- * Pipeline silently fails to meet.
- * @param options - Caller-supplied scraper options.
- * @param key - Option name to probe.
- * @returns True when the option holds a defined value.
- */
-function isSupplied(options: ScraperOptions, key: LegacyOnlyOption): boolean {
-  // ScraperOptions is a union of browser-options arms, and `skipCloseBrowser`
-  // lives on only one of them, so TypeScript rejects a direct index and a
-  // single-step cast. Widening through `unknown` is the narrowest way to probe
-  // a key that is legal on the public type but absent from some arm.
-  return (options as unknown as Record<string, unknown>)[key] !== undefined;
-}
 
 /**
  * Collect the legacy-only options a caller supplied.
@@ -89,7 +67,7 @@ function isSupplied(options: ScraperOptions, key: LegacyOnlyOption): boolean {
  * @returns Supplied legacy-only option names, in manifest order.
  */
 export function findLegacyOnlyOptions(options: ScraperOptions): LegacyOnlyOption[] {
-  return LEGACY_ONLY_OPTIONS.filter(key => isSupplied(options, key));
+  return findSuppliedOptions(options, LEGACY_ONLY_OPTIONS);
 }
 
 /**
@@ -118,9 +96,5 @@ function buildMessage(companyId: CompanyTypes, ignored: readonly LegacyOnlyOptio
  */
 export function warnLegacyOnlyOptions(options: ScraperOptions): LegacyOnlyOption[] {
   const ignored = findLegacyOnlyOptions(options);
-  if (ignored.length > 0) {
-    const message = buildMessage(options.companyId, ignored);
-    process.emitWarning(message, WARNING_NAME);
-  }
-  return ignored;
+  return warnIgnoredOptions(ignored, (names): string => buildMessage(options.companyId, names));
 }

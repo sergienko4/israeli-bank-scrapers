@@ -247,6 +247,7 @@ is sent. The first broken rule fails the build with `Generic` and
 | `warmStart` validated as `'jwt'` (the default) with no `jwtClaims`               | `jwtClaims: required when warmStart.validation is jwt`                   |
 | `warmStart` validated as `'bank-call'` with a `fromStepIndex` that names no step | `warmStart.fromStepIndex: must name a step when validation is bank-call` |
 | `warmStart.fromStepIndex` below 1                                                | `warmStart.fromStepIndex: must start after the first step`               |
+| `warmStart.fromStepIndex` fractional, `NaN` or above `steps.length`              | `warmStart.fromStepIndex: must be a whole number up to the step count`   |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
@@ -257,6 +258,15 @@ step 0: a resume from the first step replays the whole login, OTP step
 included, and `isColdStart` charges it to the one-SMS budget, leaving nothing
 for the cold retry if the bank rejects the seed. A config with no steps is
 no exception: `isColdStart` charges index 0 whether or not a step runs.
+`fromStepIndex` equal to `steps.length` runs no steps, because the stored value
+is already the final token. A fractional or `NaN` index fails the build,
+because the step walker would read a missing step and throw instead of
+failing the warm attempt into the cold retry. An index above `steps.length`
+fails it too: it would silently run no steps, which only a typo produces.
+The warm-start canary (`WarmStartContract`) follows the same policy. It
+requires `jwtClaims` only for `'jwt'` validation, and it requires the warm path
+to end holding a `token` only when the auth scheme sends a header (`none`
+does not).
 Conflicting transport flags in the headless block are a separate check
 (`assertSingleTransport`), run when the headless mediator is wired.
 
@@ -315,6 +325,36 @@ reason only at the start of the message, so a reply that quotes one is still
 cut down. The in-request re-mint runs below the step, so it still reads the
 original ` <status>: ` marker. Scrape-phase requests keep the transport
 message.
+
+### Step names and URL tags
+
+A step's `name` is a `StepName` and its `urlTag` is a `WKUrlGroup`. Both are
+closed unions, so a misspelt value fails type-check. The flow never branches
+on a name: it labels the step in failure messages (`<step> HTTP <status>`,
+`<step> outcome <code>`, `<step> outcome unmapped`) and in the per-step log
+context. The URL comes from the bank's `headless.paths`, keyed by
+`AuthPathKey`; the registry seeder registers each entry under the same key,
+and the step's `urlTag` selects it.
+
+| Kind       | Values                                                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Step names | `bind`, `login`, `assertPassword`, `assertOtp`, `getIdToken`, `sessionToken`, `prime`, `validate`, `deviceKey`, `register`, `resume` |
+| Auth tags  | `auth.bind`, `auth.login`, `auth.assert`, `auth.logout`, `auth.prime`, `auth.resume`, `auth.service`                                 |
+
+`identity.*` and `data.*` tags work the same way.
+
+### Password-only chains
+
+A bank that logs in with credentials alone still declares `flow: 'sms-otp'`,
+the only flow kind `gateFlowKind` accepts. The flow asks for a code only
+through a step's `preHook`. For a step with no `preHook`, `resolveStepScope`
+(`Flow/SmsOtpFlow.reduce.ts`) leaves the scope unchanged and the step still
+sends its request; otherwise `applyPreHook` first calls the creds function
+named by `awaitCredsField`. A chain with no `preHook` on any step therefore
+never prompts, even when the caller passes `otpCodeRetriever`.
+
+The PRE stage's diagnostic label (`classifyLoginKind`) still reads `sms-otp`
+for a cold run of such a chain. Nothing branches on that label.
 
 ## One SMS per run
 

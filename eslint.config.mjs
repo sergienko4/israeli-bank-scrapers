@@ -3430,6 +3430,8 @@ export default tseslint.config(
   {
     files: [
       'src/Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.ts',
+      'src/Scrapers/Pipeline/Core/BrowserOnlyOptions.ts',
+      'src/Scrapers/Pipeline/Core/SuppliedOptions.ts',
       'src/Scrapers/Pipeline/EslintCanaries/core-new-file-fn-over-cap.canary.ts',
     ],
     rules: {

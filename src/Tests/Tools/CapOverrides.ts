@@ -40,17 +40,26 @@ const FETCH_TRANSPORT_FILES: readonly string[] = [
   'src/Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.ts',
 ];
 
+/** New Core files that §19.3b pins past the Core grandfather. */
+const NEW_CORE_FILES: readonly string[] = [
+  'src/Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.ts',
+  'src/Scrapers/Pipeline/Core/BrowserOnlyOptions.ts',
+  'src/Scrapers/Pipeline/Core/SuppliedOptions.ts',
+];
+
 /**
- * Pin every new Strategy/Fetch transport file to one canonical cap.
+ * Pin every listed new file to one canonical cap.
+ * @param files - Repo-relative paths one scoped block pins.
  * @param cap - The canonical cap those files must resolve to.
+ * @param reason - The block that pins them.
  * @returns One filename-scoped override per file.
  */
-function pinFetchTransportFiles(cap: number): readonly ICapOverride[] {
-  return FETCH_TRANSPORT_FILES.map((prefix): ICapOverride => ({
-    prefix,
-    cap,
-    reason: NEW_FETCH_FILE_PIN,
-  }));
+function pinNewFiles(
+  files: readonly string[],
+  cap: number,
+  reason: string,
+): readonly ICapOverride[] {
+  return files.map((prefix): ICapOverride => ({ prefix, cap, reason }));
 }
 
 /** File-size expectations that deviate from the canonical `max-lines: 150`. */
@@ -109,7 +118,7 @@ const MAX_LINES_OVERRIDES: readonly ICapOverride[] = [
     cap: 150,
     reason: DRAINED_FILE_PIN,
   },
-  ...pinFetchTransportFiles(150),
+  ...pinNewFiles(FETCH_TRANSPORT_FILES, 150, NEW_FETCH_FILE_PIN),
   {
     prefix: 'src/Scrapers/Pipeline/Phases/Base/BasePhase.ts',
     cap: 'off',
@@ -190,12 +199,8 @@ const MAX_LINES_PER_FUNCTION_OVERRIDES: readonly ICapOverride[] = [
     cap: 10,
     reason: DRAINED_FN_PIN,
   },
-  ...pinFetchTransportFiles(10),
-  {
-    prefix: 'src/Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.ts',
-    cap: 10,
-    reason: NEW_CORE_FILE_PIN,
-  },
+  ...pinNewFiles(FETCH_TRANSPORT_FILES, 10, NEW_FETCH_FILE_PIN),
+  ...pinNewFiles(NEW_CORE_FILES, 10, NEW_CORE_FILE_PIN),
 ];
 
 /**

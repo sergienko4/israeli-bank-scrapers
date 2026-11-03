@@ -36,7 +36,9 @@ LOGIN does not consume the budget that SCRAPE will need.
 `ScraperOptions` is one flat type shared by the Pipeline and the
 [Legacy (deprecated)](architecture/legacy.md) scrapers, so the compiler accepts
 every field for every bank. **Sixteen fields do nothing on a Pipeline bank**, in
-three groups. Only the first group warns.
+three groups. The first group always warns; the browser options also warn on a
+bank that never opens a browser — see
+[Browser options on browserless banks](#browser-options-on-browserless-banks).
 
 Passing one of the eight legacy-only options for a Pipeline bank emits a Node
 process warning at `createScraper` time:
@@ -50,9 +52,11 @@ that path is closed to new work. Remove them, or see
 https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/
 ```
 
-One warning is emitted per `createScraper` call, listing every offending option
-together. Silence it by removing the options. To make it impossible to ignore in
-CI, listen for the named warning and escalate:
+One warning is emitted per group of offending options per `createScraper` call.
+Legacy-only options and browser-only options are separate groups, so passing
+both kinds emits two warnings. Each warning lists every offending option in its
+group. Silence them by removing the options. To make the warnings impossible to
+ignore in CI, listen for their shared name and escalate:
 
 ```typescript
 process.on('warning', w => {
@@ -113,6 +117,31 @@ None of these are covered by the warning above — supplying one is a deliberate
 act rather than a leftover flag; see
 [issue #540](https://github.com/sergienko4/israeli-bank-scrapers/issues/540)
 for the rationale.
+
+### Browser options on browserless banks
+
+Some API-direct banks never open a browser: their `headless` block selects
+Node's own `fetch` (`nativeFetch`) or `node:https` (a client certificate or a
+TLS profile) — today, OneZero. Nothing on such a run reads a browser option, so
+`createScraper` names every one you pass in a single `ScraperOptionsWarning`:
+
+```text
+(node:12345) ScraperOptionsWarning: "oneZero" calls its bank API directly and never
+opens a browser, so these browser options have no effect: shouldShowBrowser. They are
+ignored here. Remove them, or see
+https://sergienko4.github.io/israeli-bank-scrapers/configuration/#browser-options-on-browserless-banks
+```
+
+The options checked are `args`, `browser`, `browserContext`, `defaultTimeout`,
+`executablePath`, `prepareBrowser`, `preparePage`, `shouldShowBrowser`,
+`timeout` and `viewportSize`; `skipCloseBrowser` already warns as a legacy-only
+option. Only names are printed, never values. Banks whose identity calls run
+through a Camoufox page (Pepper, PayBox) and browser banks do not warn.
+
+The list lives in `src/Scrapers/Pipeline/Core/BrowserOnlyOptions.ts`. The
+transport comes from `resolveHeadlessTransportKind`, which applies the same
+rules the runtime uses to wire the bank — see
+[Headless transports](architecture/pipeline.md#headless-transports).
 
 ## Per-bank credentials — `scraper.scrape({ ... })`
 

@@ -72,6 +72,12 @@ A bank migration that implements one of these options must delete its entry from
 `LEGACY_ONLY_OPTIONS` in the same change, or the Pipeline will keep warning that
 a now-working option is ignored.
 
+This guard and the [browser-options guard](../configuration.md#browser-options-on-browserless-banks)
+share `src/Scrapers/Pipeline/Core/SuppliedOptions.ts`: `findSuppliedOptions`
+treats any defined value, `false` and `0` included, as supplied, and
+`warnIgnoredOptions` emits one `ScraperOptionsWarning` per call, so both guards
+judge presence and warn the same way.
+
 `browserContext` is also honoured only by the legacy path
 (`BaseScraperWithBrowser.ts`), but it sits outside this manifest: it is a
 required member of an options-union arm rather than a stray flag, so supplying
