@@ -3,11 +3,12 @@
  * of a fetch strategy. Every response's Set-Cookie lines feed the jar of the
  * origin that answered: the response's final URL when fetch followed a
  * redirect, else the request URL. Every request sends its origin's jar as one
- * `cookie` header (an empty jar adds nothing), so a cookie never reaches
- * another host. Fetch follows redirects itself, so a redirect hop's own
- * Set-Cookie lines never reach the jar. Built only for node transports whose
- * headless block sets `sessionCookies`; the browser transport keeps the page's
- * own jar. Cookie values are never logged.
+ * `cookie` header, replacing a caller cookie header in any letter case (an
+ * empty jar adds nothing), so a cookie never reaches another host. Fetch
+ * follows redirects itself, so a redirect hop's own Set-Cookie lines never
+ * reach the jar. Built only for node transports whose headless block sets
+ * `sessionCookies`; the browser transport keeps the page's own jar. Cookie
+ * values are never logged.
  */
 
 import type { Procedure } from '../../Types/Procedure.js';
@@ -21,7 +22,19 @@ interface ISessionCookieArgs {
 }
 
 /**
- * Add the origin's cookie header to the caller's headers.
+ * Drop the caller's cookie header in any letter case: the jar owns it, and
+ * fetch would otherwise send both values.
+ * @param headers - Caller headers.
+ * @returns The caller's headers without a cookie header.
+ */
+function withoutCookie(headers: Record<string, string>): Record<string, string> {
+  const kept = Object.entries(headers).filter(([name]): boolean => name.toLowerCase() !== 'cookie');
+  return Object.fromEntries(kept);
+}
+
+/**
+ * Add the origin's cookie header to the caller's headers, replacing the
+ * caller's own cookie header.
  * @param jar - Session jar.
  * @param url - Request URL.
  * @param headers - Caller headers.
@@ -34,7 +47,7 @@ function withCookieHeader(
 ): Record<string, string> {
   const cookie = jar.header(url);
   if (cookie === '') return headers;
-  return { ...headers, cookie };
+  return { ...withoutCookie(headers), cookie };
 }
 
 /**

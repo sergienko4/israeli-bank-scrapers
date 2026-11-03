@@ -141,6 +141,22 @@ describe('SessionCookieFetchStrategy', () => {
     expect(init.headers).not.toHaveProperty('cookie');
   });
 
+  it.each(['Cookie', 'COOKIE', 'cookie'])(
+    'replaces a caller %s header with the jar',
+    async name => {
+      const mock = serveCookies([[`sid=${SECRET}`]]);
+      const transport = makeTransport();
+      await transport.fetchPost(LOGIN_URL, {}, { extraHeaders: {} });
+      const extraHeaders = { [name]: 'sid=stale', 'x-site-id': 'abc' };
+      await transport.fetchGet(ITEMS_URL, { extraHeaders });
+      const wire = new Headers(mock.mock.calls[1][1].headers);
+      const cookie = wire.get('cookie');
+      const siteId = wire.get('x-site-id');
+      expect(cookie).toBe(`sid=${SECRET}`);
+      expect(siteId).toBe('abc');
+    },
+  );
+
   it("still runs the caller's own Set-Cookie hook", async () => {
     serveCookies([['sid=abc']]);
     const callerHook = jest.fn((lines: readonly string[]): number => lines.length);
