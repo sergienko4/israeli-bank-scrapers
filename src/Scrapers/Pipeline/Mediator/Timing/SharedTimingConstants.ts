@@ -27,12 +27,12 @@ export const HUMAN_DELAY_MIN_MS = 300;
 export const HUMAN_DELAY_MAX_MS = 1200;
 
 /**
- * Phase settle — fixed delay applied TWICE per phase:
+ * Browser phase settle — fixed delay applied TWICE per phase:
  * once before phase.PRE work begins, once after phase.FINAL completes.
- * So each phase's wall-clock is bookended by a wait window in which
- * the bank's SPA can finish settling and the page's anti-bot JS can
- * observe a "human-paused-on-the-page" interval before our next
- * interaction.
+ * Browser-capable phases are bookended by a wait window in which the
+ * bank's SPA can finish settling and the page's anti-bot JS can observe
+ * a "human-paused-on-the-page" interval before our next interaction.
+ * Native and node-TLS transports skip this browser-only delay.
  *
  * <p>Was previously a single "between phases" settle (PR #233 fix
  * for Hapoalim "no login nav link found"). Split into PRE + FINAL on
@@ -44,11 +44,10 @@ export const HUMAN_DELAY_MAX_MS = 1200;
  *
  * <p>Applied at the SINGLE central chokepoint in
  * {@link "../../Core/Executor/PipelineReducer.js"} `reducePhases`
- * — no per-phase configuration, no per-bank override. PRE settle
- * fires on every phase (incl. terminal). FINAL settle is skipped for
- * the terminal phase so pipeline completion is not delayed. Failure
- * paths skip the FINAL settle so sanitization-pulse retries are not
- * penalized.
+ * — no per-phase configuration, no per-bank override. Browser PRE settle
+ * fires on every phase (incl. terminal). FINAL settle is skipped for the
+ * terminal phase so pipeline completion is not delayed. Failure paths
+ * skip the FINAL settle so sanitization-pulse retries are not penalized.
  */
 export const PHASE_SETTLE_MS = 4000;
 

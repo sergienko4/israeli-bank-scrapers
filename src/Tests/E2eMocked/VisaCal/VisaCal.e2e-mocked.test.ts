@@ -40,9 +40,11 @@ interface ICalRun {
   /** Every call that did not go to the login gateway. */
   readonly data: readonly IRecordedCall[];
   readonly launches: number;
+  readonly durationMs: number;
 }
 
 const LOGIN_PREFIX = `${CAL_API}/Authentication/api/login/`;
+const WARM_BUDGET_MS = 12_000;
 
 /**
  * Whether a call went to the login gateway.
@@ -102,10 +104,12 @@ async function scrapeCal(
 ): Promise<ICalRun> {
   const launchesBefore = getLaunchCount();
   const options = { companyId: CompanyTypes.VisaCal, startDate: VISACAL_MOCK_START_DATE };
+  const startedAt = performance.now();
   const result = await createScraper(options).scrape(creds);
+  const durationMs = performance.now() - startedAt;
   const calls = handle.calls().slice(offset);
   const launches = getLaunchCount() - launchesBefore;
-  return { result, calls, ...splitCalls(calls), launches };
+  return { result, calls, ...splitCalls(calls), launches, durationMs };
 }
 
 /**
@@ -173,6 +177,7 @@ describe('Visa Cal browserless login', () => {
     const run = await runCal(creds);
     expect(run.result.success).toBe(true);
     expect(run.launches).toBe(0);
+    expect(run.durationMs).toBeLessThan(WARM_BUDGET_MS);
     expect(run.steps).toEqual(['bioLogin']);
     const isHashSent = isSent(run.calls, SYN_STORED_HASH);
     const isPasswordSent = isSent(run.calls, VISACAL_MOCK_CREDS.password);
