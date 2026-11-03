@@ -1,5 +1,5 @@
 /**
- * E14 at the builder — `build()` reads the bank's headless block from the
+ * At the builder — `build()` reads the bank's headless block from the
  * registry and refuses an api-direct call config that cannot work with it.
  *
  * The bank-config resolver is mocked so one bank keeps a session cookie jar
@@ -153,7 +153,7 @@ function buildPlain(opts: ScraperOptions): Procedure<IPipelineDescriptor> {
   return withScrape.build();
 }
 
-describe('PipelineBuilder — api-direct config rules (E14)', () => {
+describe('PipelineBuilder — api-direct config rules', () => {
   it('builds authScheme none for a bank whose headless block keeps a jar', () => {
     const opts = makeMockOptions({ companyId: JAR_BANK });
     const result = buildWith(opts, NONE_CALL);

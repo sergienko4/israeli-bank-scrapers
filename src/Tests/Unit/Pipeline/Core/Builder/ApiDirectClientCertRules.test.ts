@@ -1,5 +1,5 @@
 /**
- * N26 — a dynamic client certificate is checked when the pipeline is built: a
+ * A dynamic client certificate is checked when the pipeline is built: a
  * step `clientCert` needs the headless dynamic block, whose `origin` must be
  * an exact https origin, and the block excludes a registered certificate.
  */

@@ -1,6 +1,6 @@
 /**
- * Yahav native scrape shape (spec §10.2, AD-Y): the BaNCS login, profile and
- * portfolio bootstrap; the current-account list; the AD-Y9 account match the
+ * Yahav native scrape shape: the BaNCS login, profile and
+ * portfolio bootstrap; the current-account list; the account match the
  * balance and transaction reads rely on; the month-chunked transaction walk;
  * and the shape wiring. Every id is fabricated, so the suite carries no PII.
  */

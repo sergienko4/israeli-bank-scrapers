@@ -1,5 +1,5 @@
 /**
- * N50 — the redacted answer shape logged when an answer is unrecognized or
+ * The redacted answer shape logged when an answer is unrecognized or
  * ambiguous. Values become their JSON type, keys become anonymous positions,
  * at most 6 levels are walked, and at most 64 entries are shown in all.
  */

@@ -1,5 +1,5 @@
 /**
- * N28 — `isAuthRejectedFailure` (UT-AR): a failure reads as the bank refusing
+ * `isAuthRejectedFailure` (UT-AR): a failure reads as the bank refusing
  * the credentials or session in either marker form it can carry — the
  * transport's ` 401: ` and the ` HTTP 401` a login step is sanitised to — and
  * never when the edge blocked the call or the status only starts with 401.

@@ -1,5 +1,5 @@
 /**
- * N49 — an optional ref on the wire. A query-template or body key whose
+ * An optional ref on the wire. A query-template or body key whose
  * optional carry slot is absent is left out of what the step sends; once the
  * slot is carried, the key goes as a plain ref would send it. The cases drive
  * the real mediator over the headless native transport.
@@ -78,7 +78,7 @@ async function runOver(
   return fake;
 }
 
-describe('N49 optional ref on the wire', () => {
+describe('optional ref on the wire', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

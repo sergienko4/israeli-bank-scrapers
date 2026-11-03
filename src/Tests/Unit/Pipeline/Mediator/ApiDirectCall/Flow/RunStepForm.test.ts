@@ -1,5 +1,5 @@
 /**
- * N9 — a POST step naming `encoding: 'form'` sends its hydrated flat record
+ * A POST step naming `encoding: 'form'` sends its hydrated flat record
  * form-encoded through the real mediator and headless native transport; a
  * value that hydrates to anything but a string, finite number or boolean
  * fails the step before any request.
@@ -66,7 +66,7 @@ function serveEmpty(): IFetchFake {
   return fake;
 }
 
-describe('N9 form-encoded login steps', () => {
+describe('form-encoded login steps', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

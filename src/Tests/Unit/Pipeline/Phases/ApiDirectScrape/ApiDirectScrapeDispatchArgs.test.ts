@@ -4,7 +4,7 @@
  * customer secondary-identity producer (declared only by a couple of
  * banks) and the balance-step producer form. Minimal driver contexts are
  * cast in because these resolvers read only the shape's urlTag slots.
- * Also pins the per-account header call info (N53).
+ * Also pins the per-account header call info.
  */
 
 import { jest } from '@jest/globals';
@@ -149,7 +149,7 @@ function recordingHeaders(seen: ISeenCall[]): ApiDirectScrapeHeadersLike {
 }
 
 /**
- * Producer in the pre-N53 one-argument form (Pepper / Max style).
+ * Producer in the one-argument form (Pepper / Max style).
  * @param ctx - Action context.
  * @returns Header naming whether it saw the fixture context.
  */
@@ -224,7 +224,7 @@ const ACCOUNTLESS: readonly { title: string; optsOf: OptsOf }[] = [
   { title: 'bootstrap', optsOf: bootstrapOpts },
 ];
 
-describe('ApiDirectScrapeDispatchArgs — per-account headers (N53)', () => {
+describe('ApiDirectScrapeDispatchArgs — per-account headers', () => {
   it.each(PER_ACCOUNT)('$title producer receives the account id', ({ optsOf }) => {
     const seen: ISeenCall[] = [];
     const producer = recordingHeaders(seen);

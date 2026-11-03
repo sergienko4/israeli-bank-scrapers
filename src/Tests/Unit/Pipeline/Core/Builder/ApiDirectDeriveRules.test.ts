@@ -1,5 +1,5 @@
 /**
- * N45 — a derivation `op` is `format` or `md5-hex`. A `format` op names at
+ * A derivation `op` is `format` or `md5-hex`. A `format` op names at
  * least one rule; each pattern compiles with the `u` flag and uses the flat
  * grammar; `padStart` is an integer from 0 to 64. The rules cover flow-init
  * `derivedCarry` and every step's `deriveCarry`.
@@ -97,7 +97,7 @@ const VALID: readonly [string, DerivedOp][] = [
   ['a repeated escaped paren', formatWith({ pattern: String.raw`^\)+$` })],
 ];
 
-describe('validateApiDirectConfig — N45 derivation ops', () => {
+describe('validateApiDirectConfig — derivation ops', () => {
   it.each(BROKEN)('%s at flow init fails the build', (_label, op, errorMessage) => {
     const input = initRun(op);
     const result = validateApiDirectConfig(input);

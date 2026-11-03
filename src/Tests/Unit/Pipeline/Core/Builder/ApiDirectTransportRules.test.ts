@@ -1,5 +1,5 @@
 /**
- * N8 — the session-transport fields of an api-direct call config are
+ * The session-transport fields of an api-direct call config are
  * checked against its bank's headless block when the pipeline is built.
  *
  * A document step reads no body extracts, outcome or bank-error guard, and carries a marker

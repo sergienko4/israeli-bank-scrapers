@@ -1,5 +1,5 @@
 /**
- * Yahav mocked BaNCS entities (spec §10.2 rows 4–7): the portfolios the
+ * Yahav mocked BaNCS entities: the portfolios the
  * customer holds, the accounts in the default one, their balances and their
  * movements. Each answer also carries entities the scrape must pass over — a
  * second portfolio, a foreign-currency account, the other accounts' balances

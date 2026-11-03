@@ -1,5 +1,5 @@
 /**
- * Loopback HTTPS server for the dynamic client-certificate suites (N26). It
+ * Loopback HTTPS server for the dynamic client-certificate suites. It
  * asks every client for a certificate (`requestCert`) but admits a certless
  * handshake, so each answer can report what the client actually presented:
  * `/peer` answers `{ sha256 }` (the SHA-256 hex of the presented DER, `''`

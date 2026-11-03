@@ -1,5 +1,5 @@
 /**
- * N32 — the ACTION stage installs only the flow's `sessionCarry` slots as
+ * The ACTION stage installs only the flow's `sessionCarry` slots as
  * the scrape's session context: after the initial prime, and again when the
  * recovery hook fires, replacing every value the scrape patched in between.
  * Without an allowlist the full carry snapshot is installed.
@@ -164,7 +164,7 @@ function ctxFor(bus: IApiMediator): IPipelineContext {
   return makeMockContext({ companyId: HINT, apiMediator });
 }
 
-describe('ApiDirectCallActions ACTION stage — session carry (N32)', () => {
+describe('ApiDirectCallActions ACTION stage — session carry', () => {
   it('installs exactly the allowlisted slots after the initial prime', async () => {
     const rec = makeSessionRecorder();
     const ctx = ctxFor(rec.bus);

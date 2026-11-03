@@ -1,5 +1,5 @@
 /**
- * N38 — the `ecdh-key` carry generator makes a fresh secp256k1 key pair: the
+ * The `ecdh-key` carry generator makes a fresh secp256k1 key pair: the
  * uncompressed public point (65 bytes, 0x04 first) as base64 into
  * `publicInto`, the 32-byte private scalar as base64 into `privateInto`.
  */
@@ -52,7 +52,7 @@ function publicOf(privateKey: Buffer): Buffer {
   return ecdh.getPublicKey();
 }
 
-describe('generateEcdhKey (N38)', () => {
+describe('generateEcdhKey', () => {
   it('writes exactly the two named slots', async () => {
     const made = await generateEcdhKey(ECDH_KEY);
     if (!made.success) throw new TypeError(made.errorMessage);
@@ -89,7 +89,7 @@ describe('generateEcdhKey (N38)', () => {
   });
 });
 
-describe('paddedPrivateKey (N38)', () => {
+describe('paddedPrivateKey', () => {
   it('pads a scalar with a leading zero byte back to 32 bytes', () => {
     const tail = '11'.repeat(31);
     const scalar = Buffer.from(`00${tail}`, 'hex');

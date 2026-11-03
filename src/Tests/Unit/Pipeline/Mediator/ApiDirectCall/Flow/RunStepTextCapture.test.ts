@@ -1,5 +1,5 @@
 /**
- * N36 — a `text` step's captures run on its real `{ text }` answer through the
+ * A `text` step's captures run on its real `{ text }` answer through the
  * headless native transport. Each pattern must match exactly once and its slot
  * takes the group's text; an `absent` guard must not match and carries nothing.
  * A captured slot passes its extract rules, `maxChars` 8192 when it has none.
@@ -76,7 +76,7 @@ async function runOn(step: IGetStep, body: string): Promise<Procedure<ITemplateS
   return runStep({ step, bus, scope, companyId: HINT });
 }
 
-describe('N36 text captures on a text step', () => {
+describe('text captures on a text step', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

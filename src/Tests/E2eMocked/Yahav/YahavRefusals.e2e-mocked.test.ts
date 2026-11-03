@@ -2,7 +2,7 @@
  * Yahav refusals and recovery — mocked E2E. The login refuses a device
  * registration or a grant off spec before anything later runs; the scrape
  * refuses a BaNCS answer whose status is not 0 or that opens no session. A
- * 401 at any BaNCS call (N33) buys one re-grant over the stored device — no
+ * 401 at any BaNCS call buys one re-grant over the stored device — no
  * new registration, the gateway cookies on the token call, none on the new
  * BaNCS login — and one re-scrape from the login.
  *
@@ -128,7 +128,7 @@ describe('Yahav BaNCS refusals', () => {
   });
 });
 
-describe('Yahav whole-scrape recovery (N33)', () => {
+describe('Yahav whole-scrape recovery', () => {
   let token = '';
 
   beforeAll(async (): Promise<void> => {

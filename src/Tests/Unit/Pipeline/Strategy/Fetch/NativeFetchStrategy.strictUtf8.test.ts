@@ -1,5 +1,5 @@
 /**
- * N63 — the native transport can decode an answer's bytes as strict UTF-8:
+ * The native transport can decode an answer's bytes as strict UTF-8:
  * the call's own `strictUtf8`, else the bank's. A malformed byte refuses the
  * call, naming no body, instead of becoming U+FFFD; the json, document and
  * text readers all decode this way. A leading BOM is dropped as `text()`
@@ -51,7 +51,7 @@ function getPortal(
   return strategy.fetchGet<unknown>('portal?sid=secret', opts);
 }
 
-describe('NativeFetchStrategy — strict UTF-8 answers (N63)', () => {
+describe('NativeFetchStrategy — strict UTF-8 answers', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

@@ -1,5 +1,5 @@
 /**
- * A synthetic ECDH peer for the N39 key exchange: fixed secp256k1 scalars for
+ * A synthetic ECDH peer for the key exchange: fixed secp256k1 scalars for
  * the client and the bank, the key the bank derives on its own side, and
  * answers sealed under that key. Tests prove the codec against this peer, not
  * against the codec's own derivation.

@@ -1,5 +1,5 @@
 /**
- * N41 — a step's raw query. The joined text goes after the step URL's `?`
+ * A step's raw query. The joined text goes after the step URL's `?`
  * verbatim, never re-encoded; a text outside printable ASCII, holding a
  * banned character, empty or over 32 768 chars fails before anything is sent.
  * The cases drive the real mediator over the headless native transport and
@@ -160,7 +160,7 @@ function verifiesUrl(call: IFetchCall, keypair: IGenericKeypair, pathAndQuery: s
   return verify('sha256', bytes, publicKey, signature);
 }
 
-describe('N41 raw query', () => {
+describe('raw query', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

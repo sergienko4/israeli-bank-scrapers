@@ -463,11 +463,11 @@ describe('gate-OFF — zero new listeners (byte-identical production guarantee)'
 });
 
 // ---------------------------------------------------------------------------
-// D1 helpers — frame-inventory Page fakes
+// Frame-inventory helpers — Page fakes
 // ---------------------------------------------------------------------------
 
 /**
- * Build a minimal frame stub with a url() accessor for D1 tests.
+ * Build a minimal frame stub with a url() accessor for frame-inventory tests.
  * @param frameUrl - Frame URL string.
  * @returns Frame stub with url accessor.
  */
@@ -481,7 +481,7 @@ function makeFrame(frameUrl: string): { url(): string } {
 }
 
 /**
- * Build a Page fake with url() and a populated frames() list for D1 tests.
+ * Build a Page fake with url() and a populated frames() list for frame-inventory tests.
  * @param mainUrl - Main frame URL.
  * @param frameUrls - Additional frame URLs to include.
  * @returns Page stub with url and frames accessors.
@@ -501,10 +501,10 @@ function makePageWithFrames(mainUrl: string, frameUrls: readonly string[]): Page
 }
 
 // ---------------------------------------------------------------------------
-// D1 — frame inventory + main URL on postMessage failure
+// Frames — frame inventory + main URL on postMessage failure
 // ---------------------------------------------------------------------------
 
-describe('buildConsoleHandler D1 — login.frames snapshot on postMessage error', () => {
+describe('buildConsoleHandler — login.frames snapshot on postMessage error', () => {
   /** Realistic cross-origin postMessage error text from Amex CI. */
   const pmText =
     "Failed to execute 'postMessage' on 'Window': The target origin " +
@@ -583,10 +583,10 @@ describe('buildConsoleHandler D1 — login.frames snapshot on postMessage error'
 });
 
 // ---------------------------------------------------------------------------
-// D2 — scrub 300-char cap: both postMessage origins survive
+// Origins — scrub 300-char cap: both postMessage origins survive
 // ---------------------------------------------------------------------------
 
-describe('buildConsoleHandler D2 — scrub 300-char cap preserves both origins', () => {
+describe('buildConsoleHandler — scrub 300-char cap preserves both origins', () => {
   /** First origin that appears early in the postMessage error text. */
   const originA = 'https://web.americanexpress.co.il';
   /** Second origin that appears past the old 120-char cap. */
@@ -627,7 +627,7 @@ describe('buildConsoleHandler D2 — scrub 300-char cap preserves both origins',
     expect(rec.textScrubbed).toContain('#');
   });
 
-  it('RED proof — old 120-char cap omitted the second origin (D2)', () => {
+  it('RED proof — old 120-char cap omitted the second origin', () => {
     // Proves the cap widening was necessary: at 120 chars, originB is absent.
     const at120 = longPmText.slice(0, 120);
     expect(at120).toContain(originA);

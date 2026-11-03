@@ -1,5 +1,5 @@
 /**
- * Yahav mocked login routes (spec §10.2 rows 1–3): initialize issues the app
+ * Yahav mocked login routes: initialize issues the app
  * client, register verifies the device's certification request and issues a
  * certificate over its key, and the token call grants a bearer token only to
  * a request presenting a certificate this bank issued.

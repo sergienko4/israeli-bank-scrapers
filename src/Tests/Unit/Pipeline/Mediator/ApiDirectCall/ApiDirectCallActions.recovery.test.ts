@@ -6,7 +6,7 @@
  * context onto the bus and (b) re-surfaces the NEW long-term token to
  * `onAuthFlowComplete` so the working re-minted token is re-cached to disk
  * instead of being discarded (which would force a fresh OTP every run).
- * It also tells the truth about the recovery (N33): a resumed session is
+ * It also tells the truth about the recovery: a resumed session is
  * noted once, and only a warm session that went cold is called degraded.
  */
 
@@ -194,7 +194,7 @@ function coldRecovery(): boolean {
 const DEGRADED = 'warm session was rejected mid-run';
 const REGRANTED = 're-granted the session token';
 
-describe('makeRecoveryHook — warning truth (N33)', () => {
+describe('makeRecoveryHook — warning truth', () => {
   it('notes a resumed recovery once and does not call it degraded', async () => {
     const logs = await logsOf({ wasWarm: true, lastRecoveryResumed: resumedRecovery });
     expect(logs.info).toHaveLength(1);

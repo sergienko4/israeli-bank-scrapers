@@ -1,5 +1,5 @@
 /**
- * Device-memory persistent auth (N48): enrollment runs the configured login
+ * Device-memory persistent auth: enrollment runs the configured login
  * flow and publishes the server-issued device id once; a resume seeds the
  * stored id into carry before the same flow and publishes nothing. A state
  * bound to another provider or account fails before any request.

@@ -1,5 +1,5 @@
 /**
- * N50 — the answer classifier. A step's `classify` names the shapes its opened
+ * The answer classifier. A step's `classify` names the shapes its opened
  * answer may take: exactly one case must match, its name goes to carry `into`
  * beside its captures, and a matched `fail` case stops the step. When no case
  * or more than one matches, the debug log gets the answer's redacted shape,
@@ -194,7 +194,7 @@ describe('classifyAnswer — check kinds', () => {
   });
 });
 
-describe('classifyAnswer — negated checks (N60)', () => {
+describe('classifyAnswer — negated checks', () => {
   const notDone: IAnswerCheck = { pointer: '/s', equals: 'done', negate: true };
   const present: IAnswerCheck = { pointer: '/s', absent: true, negate: true };
   const notText: IAnswerCheck = { pointer: '/s', text: { maxChars: 4 }, negate: true };

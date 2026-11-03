@@ -1,7 +1,7 @@
 /**
- * N23 — the native transport writes `form-latin1` and `text` POST bodies and
+ * The native transport writes `form-latin1` and `text` POST bodies and
  * reads a `text` answer. A latin1 form encodes like Java's URLEncoder over
- * ISO-8859-1 and refuses a char above U+00FF before any request; an N62
+ * ISO-8859-1 and refuses a char above U+00FF before any request; a
  * `form-utf8` form encodes as UTF-8 pairs under the exact type
  * `application/x-www-form-urlencoded;charset=UTF-8`; a `text`
  * body travels verbatim with no content-type; a `text` answer reaches the
@@ -56,7 +56,7 @@ function sentHeaders(fake: IFetchFake): Record<string, string> {
   return fake.calls[0].init.headers as Record<string, string>;
 }
 
-describe('NativeFetchStrategy — N23 body encodings and text answers', () => {
+describe('NativeFetchStrategy — body encodings and text answers', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

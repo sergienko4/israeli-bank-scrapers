@@ -1,5 +1,5 @@
 /**
- * N54 — the handoff script grammar. The lexer drops comments, reads quoted
+ * The handoff script grammar. The lexer drops comments, reads quoted
  * strings and refuses a template holding `${`; the walker follows only the
  * branch the configured User-Agent selects and accepts there just the seven
  * location assignments, three ignored calls and the `navigator.userAgent`
@@ -176,7 +176,7 @@ const REFUSED: readonly IScriptCase[] = [
   },
 ];
 
-describe('handoff script grammar (N54)', () => {
+describe('handoff script grammar', () => {
   it.each(TARGETS)('selects an assignment to %s', target => {
     const result = targetsOf(`${target} = '/home';`, WEB_AGENT);
     expect(result).toEqual(['/home']);

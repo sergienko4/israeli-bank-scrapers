@@ -1,5 +1,5 @@
 /**
- * Beinleumi log oracle (AD-N12) — every value a run must never write to a log
+ * Beinleumi log oracle — every value a run must never write to a log
  * line or a failure message: the credentials and every code a caller hands
  * in, the user and account names, each login id, token, cookie and bank text
  * the synthetic bank hands out, the envelope the run opened, and every opaque

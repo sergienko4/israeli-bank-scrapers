@@ -6,7 +6,7 @@
  * `Accounts[]`, as the login carries them, and serves the committed
  * `SkyBL/changeAccount` and `SkyOSH/get428Index` responses to the REAL
  * generic headless scrape driving `MIZRAHI_SHAPE`, and pins the live API
- * contract (plan spec §5) end to end:
+ * contract end to end:
  *
  * <ul>
  *   <li><b>Requests</b> — each endpoint is dispatched with exactly the keys
@@ -17,7 +17,7 @@
  *   declares; the balance line and the section label stay out, and the
  *   window audits covered.</li>
  *   <li><b>Cross-check</b> — the dashboard's `OSH/Get428ODS` balance agrees
- *   with the switched account's `YitraAdkanit` (plan D17).</li>
+ *   with the switched account's `YitraAdkanit`.</li>
  * </ul>
  *
  * <p>The responses are PII-redacted captures of the live test account: one

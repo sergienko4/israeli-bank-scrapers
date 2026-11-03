@@ -1,6 +1,6 @@
 /**
  * Mizrahi multi-account contract — the real scrape driver against a
- * simulated two-account session (plan D17).
+ * simulated two-account session.
  *
  * <p>`get428Index` serves only the session's CURRENT account, and the shape
  * switches it with `SkyBL/changeAccount` in the balance step. These tests pin

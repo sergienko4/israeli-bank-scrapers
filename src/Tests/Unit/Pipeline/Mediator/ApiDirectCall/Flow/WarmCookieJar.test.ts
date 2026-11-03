@@ -1,5 +1,5 @@
 /**
- * N16 — cookie-jar warm start (UT-WJ).
+ * Cookie-jar warm start (UT-WJ).
  *
  * A cookie-session bank has no bearer to replay, so its warm token is the
  * session jar itself: a `v1.` envelope bound to the provider and to a hash of

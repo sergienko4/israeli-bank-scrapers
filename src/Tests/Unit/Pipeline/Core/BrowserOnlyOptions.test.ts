@@ -142,7 +142,7 @@ describe('warnBrowserOnlyOptions — browserless transports', () => {
   );
 });
 
-/** Transports that run no browser — the test's own statement of E16. */
+/** Transports that run no browser, listed here independently of production. */
 const BROWSERLESS_KINDS: readonly string[] = ['native', 'node-tls'];
 
 /**

@@ -1,5 +1,5 @@
 /**
- * N54 — `locationCapture` needs a `text` response; its `into`, `userAgent`
+ * `locationCapture` needs a `text` response; its `into`, `userAgent`
  * and `url` are not empty; its slot is fresh: no other slot the step writes.
  */
 
@@ -85,7 +85,7 @@ const REFUSALS: readonly IRefusalCase[] = [
   },
 ];
 
-describe('validateApiDirectConfig — N54 handoff script capture', () => {
+describe('validateApiDirectConfig — handoff script capture', () => {
   it.each(REFUSALS)('refuses $label', ({ expected, step, capture }) => {
     const input = runOf({ step, capture });
     const result = validateApiDirectConfig(input);

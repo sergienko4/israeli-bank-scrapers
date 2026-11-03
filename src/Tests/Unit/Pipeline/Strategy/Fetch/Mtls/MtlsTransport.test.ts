@@ -4,7 +4,7 @@
  * mutual-TLS gate (no client cert => 403, client cert => 200). Covers agent
  * construction, the cert=>200 / no-cert=>403 split, cookie passthrough, header
  * normalisation branches, socket-failure handling, the makeMtlsInvoke seam, and
- * N34 framing: a string body travels as UTF-8 bytes under Content-Length (never
+ * Framing: a string body travels as UTF-8 bytes under Content-Length (never
  * chunked) and an answer over MTLS_MAX_RESPONSE_BYTES fails `response too large`.
  */
 
@@ -312,7 +312,7 @@ describe('MtlsTransport.mtlsInvoke — timeout + premature close', () => {
 /** A body with Hebrew, a euro sign and an astral emoji: 2-, 3- and 4-byte UTF-8. */
 const NON_ASCII_BODY = '{"name":"שלום","sum":"€5","mood":"\u{1F600}"}';
 
-describe('MtlsTransport.mtlsInvoke — N34 framing and response cap', () => {
+describe('MtlsTransport.mtlsInvoke — framing and response cap', () => {
   let server: IGateServer;
   let certAgent: Agent;
 

@@ -1,6 +1,6 @@
 /**
- * UT-ST — the native transport reads a document step's answer (N3) and
- * applies the bank's status policy (N4) after WAF classification and before
+ * UT-ST — the native transport reads a document step's answer and
+ * applies the bank's status policy after WAF classification and before
  * parsing. A transport built without a policy reads JSON exactly as before.
  */
 

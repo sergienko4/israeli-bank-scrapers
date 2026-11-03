@@ -1,5 +1,5 @@
 /**
- * N51 — a GET step with a manual redirect may name a `finalUrlInto` slot:
+ * A GET step with a manual redirect may name a `finalUrlInto` slot:
  * after its last hop, the URL that gave the final answer is carried there,
  * once it passes the step's own `redirect.allow` rules; otherwise the step
  * fails `<step> final url refused`, naming no URL. A later step reads the slot
@@ -144,7 +144,7 @@ function headerSent(fake: IFetchFake, index: number, name: string): string {
   return headers.get(name) ?? '';
 }
 
-describe('N51 final response URLs', () => {
+describe('final response URLs', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

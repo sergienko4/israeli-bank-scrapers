@@ -1,5 +1,5 @@
 /**
- * N37 — a `$merge` node hydrates to the carried flat string record `base`
+ * A `$merge` node hydrates to the carried flat string record `base`
  * with the hydrated `set` laid over it: a `set` key replaces the base value in
  * place, a new one goes last. A base that is not a flat string record fails
  * naming the token only, and carry is never changed.
@@ -46,7 +46,7 @@ function scopeWith(carry: ITemplateScope['carry']): ITemplateScope {
   return { carry, creds: { username: 'u1' }, config: {} as IApiDirectCallConfig };
 }
 
-describe('GenericBodyTemplate.hydrate — $merge (N37)', () => {
+describe('GenericBodyTemplate.hydrate — $merge', () => {
   it('lays set over base: a replaced key keeps its place, a new key goes last', () => {
     const scope = scopeWith({ loginForm: LOGIN_FORM, token: 'T' });
     const result = hydrate(MERGE, scope);

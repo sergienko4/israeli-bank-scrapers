@@ -1,5 +1,5 @@
 /**
- * N20 — a step's `failIfPresent` pointers are checked right after the body is
+ * A step's `failIfPresent` pointers are checked right after the body is
  * parsed: a present, truthy value fails the step `<step> bank error`, typed
  * by its `bankErrorType` (Generic when unset), before its outcome and before
  * its extracts, and the message names no value. Absent, null, false, 0, ''

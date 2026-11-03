@@ -1,5 +1,5 @@
 /**
- * D12 — an `onAuthFlowComplete` callback that throws is logged by its error
+ * An `onAuthFlowComplete` callback that throws is logged by its error
  * name only. The callback was handed the long-term token and the bearer, so
  * its message — or a name it sets — may repeat either; a name that is not a
  * plain class name is logged as `Error`. The scrape still succeeds.

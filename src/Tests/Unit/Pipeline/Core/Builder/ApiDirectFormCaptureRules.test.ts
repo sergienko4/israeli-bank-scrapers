@@ -1,5 +1,5 @@
 /**
- * N37 — `formCapture` needs a `text` response; its `form` and `into` are not
+ * `formCapture` needs a `text` response; its `form` and `into` are not
  * empty; its `action` is an absolute https URL written as the URL API writes
  * it; its field counts are integers with 1 <= minFields <= maxFields; its
  * required and forbidden names are valid field names and share none.
@@ -79,7 +79,7 @@ const REFUSALS: readonly IRefusalCase[] = [
   { label: 'a name both ways', change: { forbidden: ['user'] }, expected: NAMES_MSG },
 ];
 
-describe('validateApiDirectConfig — N37 login-form capture', () => {
+describe('validateApiDirectConfig — login-form capture', () => {
   it('refuses a capture on a json step', () => {
     const input = runOf({}, 'json');
     const result = validateApiDirectConfig(input);

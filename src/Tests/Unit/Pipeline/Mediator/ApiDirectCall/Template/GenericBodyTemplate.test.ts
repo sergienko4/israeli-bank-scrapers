@@ -269,7 +269,7 @@ describe('GenericBodyTemplate.hydrate — failures', () => {
   });
 });
 
-/** An optional carry ref (N49): its key goes only when the slot is carried. */
+/** An optional carry ref: its key goes only when the slot is carried. */
 const OPTIONAL_DID: JsonValueTemplate = { $ref: 'carry.did', optional: true };
 
 /** A record whose `did` entry is optional. */
@@ -298,7 +298,7 @@ const STILL_FAILING: readonly (readonly [string, JsonValueTemplate])[] = [
   ['the root', OPTIONAL_DID],
 ];
 
-describe('GenericBodyTemplate.hydrate — optional $ref (N49)', () => {
+describe('GenericBodyTemplate.hydrate — optional $ref', () => {
   it('leaves the key out when its carry slot is absent', (): void => {
     const scope = makeScope();
     const result = hydrate(WITH_OPTIONAL_DID, scope);

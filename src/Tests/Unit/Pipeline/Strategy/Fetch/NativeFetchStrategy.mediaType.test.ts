@@ -1,5 +1,5 @@
 /**
- * N61 — the native transport checks an answer's media type: the call's own
+ * The native transport checks an answer's media type: the call's own
  * `mediaType`, else the bank's default for the call's response kind. The
  * check runs after WAF classification and the status policy, before the
  * reader, and names no header value.
@@ -58,7 +58,7 @@ function getPortal(
   return strategy.fetchGet<unknown>('portal?sid=secret', opts);
 }
 
-describe('NativeFetchStrategy — answer media type (N61)', () => {
+describe('NativeFetchStrategy — answer media type', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

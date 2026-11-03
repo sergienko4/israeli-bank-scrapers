@@ -1,5 +1,5 @@
 /**
- * Beinleumi mocked assert route (spec §11.2 rows 4–4b): one Transmit path
+ * Beinleumi mocked assert route: one Transmit path
  * answers the password, the SMS trigger and the code, told apart by the
  * method and assertion the sealed data names. Each must name the session the
  * login issued, the challenge, and the assertion the offer named.

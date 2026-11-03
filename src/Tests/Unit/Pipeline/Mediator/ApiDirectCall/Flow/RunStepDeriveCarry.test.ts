@@ -1,8 +1,8 @@
 /**
- * N7 — a step may derive carry slots after its extracts. `deriveCarry` runs
+ * A step may derive carry slots after its extracts. `deriveCarry` runs
  * the flow-init derivation evaluator over the step's merged scope: body and
  * header extracts of this step, earlier carry, creds and `config.secrets`.
- * An N45 op shapes the text last; a failed `format` names the step.
+ * An op shapes the text last; a failed `format` names the step.
  */
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
@@ -67,7 +67,7 @@ function runDerive(deriveCarry: IGetStep['deriveCarry']): ReturnType<typeof runS
   return runStep({ step, bus, scope: makeScope(), companyId: HINT });
 }
 
-describe('N7 step-level derived carry', () => {
+describe('step-level derived carry', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {
@@ -105,14 +105,14 @@ describe('N7 step-level derived carry', () => {
     expect(result).toMatchObject({ success: false, errorMessage });
   });
 
-  it('UT-DV-04 digests a body extract with the md5-hex op (N45)', async () => {
+  it('UT-DV-04 digests a body extract with the md5-hex op', async () => {
     const op = { kind: 'md5-hex' } as const;
     const result = await runDerive([{ into: 'digest', parts: ['carry.xsrfToken'], op }]);
     const digest = '40cff534dd1826c2274da23e9dc3d8d8';
     expect(result).toMatchObject({ success: true, value: { carry: { digest } } });
   });
 
-  it('UT-DV-05 fails the step naming the slot when no format rule matches (N45)', async () => {
+  it('UT-DV-05 fails the step naming the slot when no format rule matches', async () => {
     const rules = [{ pattern: String.raw`\d+`, prefix: '0' }];
     const op = { kind: 'format', rules } as const;
     const result = await runDerive([{ into: 'uid', parts: ['carry.modulus'], op }]);

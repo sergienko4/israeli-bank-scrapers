@@ -1,5 +1,5 @@
 /**
- * N39 — a codec step sends a JSON body and reads a JSON answer; an `exchange`
+ * A codec step sends a JSON body and reads a JSON answer; an `exchange`
  * codec writes its key and session id to two distinct, non-blank slots; no
  * codec slot (client scalar, session key or session id) is a `sessionCarry`
  * slot.
@@ -122,7 +122,7 @@ const ACCEPTED: readonly IRunCase[] = [
   { label: 'a typed bank error', change: { bankErrorType: ScraperErrorTypes.InvalidPassword } },
 ];
 
-describe('validateApiDirectConfig — N39 envelope codec', () => {
+describe('validateApiDirectConfig — envelope codec', () => {
   it.each(REFUSALS)('refuses $label', run => {
     const input = runOf(run);
     const result = validateApiDirectConfig(input);

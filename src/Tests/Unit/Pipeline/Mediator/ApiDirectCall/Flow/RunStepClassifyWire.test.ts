@@ -1,5 +1,5 @@
 /**
- * N50 — the answer classifier on the wire. A step's classifier runs on its
+ * The answer classifier on the wire. A step's classifier runs on its
  * opened answer after `failIfPresent` and `outcome` and before its extracts;
  * the matched case's name and captures land in carry beside the extracts. The
  * cases drive the real mediator over the headless native transport.
@@ -86,7 +86,7 @@ async function runAgainst(answer: JsonValue): Promise<Procedure<ITemplateScope>>
   return runStep({ step: STEP, bus, scope, companyId: HINT });
 }
 
-describe('N50 answer classifier on the wire', () => {
+describe('answer classifier on the wire', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

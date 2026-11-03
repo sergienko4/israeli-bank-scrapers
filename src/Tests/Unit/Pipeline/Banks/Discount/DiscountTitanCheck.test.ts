@@ -1,6 +1,6 @@
 /**
  * Discount Titan reads — the answer check every Titan call runs and the
- * headers every Titan call sends (spec §11.2, DN13). Bodies are synthetic
+ * headers every Titan call sends. Bodies are synthetic
  * structural fakes — zero PII.
  */
 
@@ -153,7 +153,7 @@ describe('checkTitanBody', () => {
   });
 });
 
-/** The routing headers every Titan call sends (spec §11.2). */
+/** The routing headers every Titan call sends. */
 const TITAN_ROUTING = {
   'user-agent': 'BankApiInteroperabilityResearch/1.0',
   origin: 'https://start.telebank.co.il',

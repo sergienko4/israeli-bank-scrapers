@@ -1,6 +1,6 @@
 /**
- * Yahav native BaNCS requests — byte parity with the frozen-clock goldens
- * (spec §10.2, T10.15). For the golden `now`, route, session state and refs,
+ * Yahav native BaNCS requests — byte parity with the frozen-clock goldens.
+ * For the golden `now`, route, session state and refs,
  * every body string built here must equal the golden body, and the headers
  * the builder owns must equal the golden header map.
  *

@@ -1,5 +1,5 @@
 /**
- * N39 exchange mode — the bank's `key_exchange` header and the carried client
+ * Exchange mode — the bank's `key_exchange` header and the carried client
  * scalar make the session: the key is SHA-256 of the ECDH secret, the id the
  * header's `crypto_session_id`. Tests check it against an independent peer.
  * Any malformed header, point or scalar is refused, naming no value.

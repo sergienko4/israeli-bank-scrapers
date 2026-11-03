@@ -1,5 +1,5 @@
 /**
- * Yahav mocked BaNCS routes (spec §10.2 rows 4–7, §10.3): the login opens a
+ * Yahav mocked BaNCS routes: the login opens a
  * session, the reads after it rotate the session id, XSRF, CSRF and security
  * token (the customer answer rotates nothing and sends both ids empty, the
  * portfolio answer rotates nothing and sends no ids), and every read must

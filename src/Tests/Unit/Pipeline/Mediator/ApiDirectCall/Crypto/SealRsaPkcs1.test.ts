@@ -1,5 +1,5 @@
 /**
- * N44 — the `rsa-pkcs1-v15` seal: each source encoded as latin1 and RSA
+ * The `rsa-pkcs1-v15` seal: each source encoded as latin1 and RSA
  * PKCS#1 v1.5 encrypted alone under a public key that arrives as PEM or as
  * base64 SPKI DER, sent as standard base64. Failures name no value.
  */
@@ -55,7 +55,7 @@ function wrapped(derBase64: string): string {
   return ` ${lines.join('\r\n ')}\n`;
 }
 
-describe('N44 sealRsaPkcs1', () => {
+describe('sealRsaPkcs1', () => {
   it('seals under a PEM key as standard base64 that opens to the latin1 source', () => {
     const sealed = sealedText(KEY.pem, SOURCE);
     const cipher = Buffer.from(sealed, 'base64');

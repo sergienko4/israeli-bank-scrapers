@@ -1,5 +1,5 @@
 /**
- * Beinleumi mocked Transmit routes (spec §11.2 rows 2–6): the key exchange
+ * Beinleumi mocked Transmit routes: the key exchange
  * opens the envelope, the login offers the password, and one assert path
  * answers the password, the SMS trigger and the code — told apart by the
  * sealed data each names. Every call must name the app, and the device and

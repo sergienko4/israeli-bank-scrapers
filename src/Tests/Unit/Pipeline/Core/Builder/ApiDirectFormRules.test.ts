@@ -1,8 +1,8 @@
 /**
- * N9 — a form step's body (`form`, N23 `form-latin1` or N62 `form-utf8`) must be a flat
- * record whose every value is one `$ref`, one N24 `$join`, or one `$literal`
+ * A form step's body (`form`, `form-latin1` or `form-utf8`) must be a flat
+ * record whose every value is one `$ref`, one `$join`, or one `$literal`
  * string, finite number or boolean. Anything nested fails the build; JSON steps keep any
- * shape. An N23 `text` step's body must be exactly `{ text }`.
+ * shape. A `text` step's body must be exactly `{ text }`.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';

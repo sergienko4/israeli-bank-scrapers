@@ -1,5 +1,5 @@
 /**
- * N36 — `textCaptures` and `maxTextChars` need a `text` response;
+ * `textCaptures` and `maxTextChars` need a `text` response;
  * `maxTextChars` is an integer from 1 to 2097152; a capture pattern compiles
  * with the `g` flag and repeats no group; its `group` names a group of the
  * pattern, 0 being the whole match. A capture slot may carry extract rules;
@@ -60,7 +60,7 @@ function capturing(capture: ITextCapture): IGetStep {
   return textStep({ textCaptures: { slot: capture } });
 }
 
-describe('validateApiDirectConfig — N36 text captures', () => {
+describe('validateApiDirectConfig — text captures', () => {
   it.each<[string, IGetStep, string]>([
     [
       'captures on a json step',

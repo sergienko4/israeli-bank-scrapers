@@ -1,5 +1,5 @@
 /**
- * N10 / N44 — a step's seal must name a known kind, sit on a POST step whose
+ * A step's seal must name a known kind, sit on a POST step whose
  * body is a record, write at JSON pointers, and carry constants the seal can
  * use; a multi-field seal needs at least one field and non-overlapping targets.
  * Each broken seal fails the build with its own message.
@@ -203,7 +203,7 @@ describe('validateApiDirectConfig — sealed fields', () => {
   });
 });
 
-describe('validateApiDirectConfig — fields sealed with RSA PKCS#1 v1.5 (N44)', () => {
+describe('validateApiDirectConfig — fields sealed with RSA PKCS#1 v1.5', () => {
   it('a sound multi-field seal passes', () => {
     const step = postWith(PKCS1_SEAL);
     const result = validate(step);

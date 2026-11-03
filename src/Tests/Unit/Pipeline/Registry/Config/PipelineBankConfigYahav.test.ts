@@ -1,5 +1,5 @@
 /**
- * Yahav native login config (spec §10.2 rows 1–3). The build-time validator
+ * Yahav native login config. The build-time validator
  * accepts it with its headless block; each login step hydrates to the request
  * the protocol trace pinned (body, key order, headers and the generated key
  * material); each step's rules refuse what the trace never showed; and a warm

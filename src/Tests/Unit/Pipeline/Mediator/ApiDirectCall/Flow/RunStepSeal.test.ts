@@ -1,5 +1,5 @@
 /**
- * N10 / N44 — a step naming `seal` seals credentials into its body before
+ * A step naming `seal` seals credentials into its body before
  * the request: each source comes from creds, the key from carry, and neither
  * the plaintext nor the sealed value enters carry. A block-xor seal writes
  * one field; an `rsa-pkcs1-v15` seal writes one field per source.
@@ -158,7 +158,7 @@ function jsonSeal(shape: IBodyTemplate['shape'], writeTo: string): IPostStep {
   };
 }
 
-describe('N10 sealed login fields', () => {
+describe('sealed login fields', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {
@@ -393,7 +393,7 @@ function openedAliasFields(fake: IFetchFake): readonly string[] {
   return [num, password];
 }
 
-describe('N44 fields sealed with RSA PKCS#1 v1.5', () => {
+describe('fields sealed with RSA PKCS#1 v1.5', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

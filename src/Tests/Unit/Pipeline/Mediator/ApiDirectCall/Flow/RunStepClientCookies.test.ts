@@ -1,5 +1,5 @@
 /**
- * N11/N12 — a step's `setCookies` writes client cookies into the run's domain
+ * A step's `setCookies` writes client cookies into the run's domain
  * jar before its request, so they travel on that request and the next; a
  * `cookie.<name>` ref reads a jar cookie, URL-decoded, for the step URL.
  */
@@ -114,7 +114,7 @@ async function initThen(bus: ITokenBus, next: IPostStep): ReturnType<typeof runS
   return runStep({ step: next, bus, scope: first.value, companyId: HINT });
 }
 
-describe('N11 client cookies', () => {
+describe('client cookies', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {
@@ -157,7 +157,7 @@ describe('N11 client cookies', () => {
   });
 });
 
-describe('N12 cookie refs', () => {
+describe('cookie refs', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

@@ -1,5 +1,5 @@
 /**
- * N26 — agent sources. A fixed source answers every URL with the one agent a
+ * Agent sources. A fixed source answers every URL with the one agent a
  * static transport shares; `presentedOf` names the certificate that agent
  * presents (the SHA-256 of its DER) so the mocked-transport seam can observe
  * it, and answers false for no certificate or one that does not parse.

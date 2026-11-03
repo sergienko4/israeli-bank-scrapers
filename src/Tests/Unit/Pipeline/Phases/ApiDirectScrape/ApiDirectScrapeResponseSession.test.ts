@@ -1,5 +1,5 @@
 /**
- * Unit coverage for the scrape response session (N31): a shape's
+ * Unit coverage for the scrape response session: a shape's
  * `responseSession` patch reads each successful scrape answer — the checked
  * body, its declared headers (lower-case) and its HTTP status — and the patch
  * is merged into the session-context before the call returns. A failed patch,

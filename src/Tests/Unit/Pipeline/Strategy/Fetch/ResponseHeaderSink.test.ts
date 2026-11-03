@@ -1,7 +1,7 @@
 /**
  * Unit tests for Strategy/Fetch/ResponseHeaderSink — a call's header sink
- * receives only the response headers it declared (N6), the status and the
- * URL that gave the answer (N51).
+ * receives only the response headers it declared, the status and the
+ * URL that gave the answer.
  */
 
 import { jest } from '@jest/globals';

@@ -1,5 +1,5 @@
 /**
- * N39 / N52 exchange mode — the key-exchange step sends its hydrated body as
+ * Exchange mode — the key-exchange step sends its hydrated body as
  * it is, derives the session from the bank's `key_exchange` header and the
  * carried client scalar, opens the answer under it, and carries the key and
  * the session id for the sealed steps after it. A bad scalar fails before the
@@ -122,7 +122,7 @@ function answerWithField(field: string, value: JsonValue): JsonUnknownRecord {
   return { ...answer, [field]: value };
 }
 
-describe('N39 key-exchange step', () => {
+describe('key-exchange step', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

@@ -1,5 +1,5 @@
 /**
- * Beinleumi api-direct login config — how each answer is read (spec §11.2).
+ * Beinleumi api-direct login config — how each answer is read.
  * The login answer must offer exactly the password method, the password
  * answer either completes with a token or offers one SMS OTP target, and the
  * OTP calls must keep the code's stated length; anything else fails closed.

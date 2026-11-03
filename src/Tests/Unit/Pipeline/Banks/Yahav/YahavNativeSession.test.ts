@@ -1,5 +1,5 @@
 /**
- * Yahav native BaNCS session rotation (spec §10.2, N31): the envelope gate,
+ * Yahav native BaNCS session rotation: the envelope gate,
  * the four rotated values, what an answer that leaves one out keeps, and the
  * completeness check every answer — the login included — must pass.
  */
