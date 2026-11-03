@@ -336,6 +336,7 @@ describe('SmsOtpFlow password-only chain', () => {
 
   it('never calls a creds callback when no step declares a preHook', async () => {
     const calls: string[] = [];
+    const captures: IApiPostCapture[] = [];
     /**
      * Retriever that records each call; a password-only chain must not reach it.
      * @returns OTP code string.
@@ -345,11 +346,13 @@ describe('SmsOtpFlow password-only chain', () => {
       calls.push('called');
       return '123456';
     };
-    const bus = makeStubMediator({ responses: [succeed({ token: 'pw-tok' })], captures: [] });
+    const bus = makeStubMediator({ responses: [succeed({ token: 'pw-tok' })], captures });
     const creds = { password: 'pw', otpCodeRetriever: retriever };
     const config = makePasswordOnlyConfig();
     const result = await runSmsOtpFlow({ config, bus, creds, companyId: HINT });
     expect(result).toMatchObject({ success: true, value: { bearer: 'pw-tok' } });
     expect(calls).toHaveLength(0);
+    expect(captures).toHaveLength(1);
+    expect(captures[0].body).toEqual({ password: 'pw' });
   });
 });

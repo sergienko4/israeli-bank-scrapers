@@ -92,7 +92,7 @@ this contract; the build-time checks read both.
 | Response fields that may be absent | `optionalExtractsToCarry` (`IOptionalExtract`) | FlowTypes | [Optional extracts](../phases/api-direct-call.md#optional-extracts) |
 | Login refused with HTTP 200 | `outcome` (`IStepOutcome`) | FlowTypes | [Step outcome](../phases/api-direct-call.md#step-outcome) |
 | Step identity and URL | `name` (`StepName`), `urlTag` | FlowTypes | [Step names and URL tags](../phases/api-direct-call.md#step-names-and-url-tags) |
-| OTP prompt (absent: password-only) | `preHook` (`IPreStepHook`, `PreHookReuse`) | EnvelopeTypes | [Password-only chains](../phases/api-direct-call.md#password-only-chains) |
+| OTP prompt (absent: password-only) | `preHook` (`IPreStepHook`, `PreHookReuse`) | EnvelopeTypes, FlowTypes | [Password-only chains](../phases/api-direct-call.md#password-only-chains) |
 | Auth header form | `authScheme` (`AuthScheme`), `authPrefix` | EnvelopeTypes, ApiDirectCallConfig | [Auth-mode policy](../phases/api-direct-call.md#auth-mode-policy) |
 | Credential shapes checked up front | `requiredCreds` (`CredRule`) | ApiDirectCallConfig | [Required credentials](../phases/api-direct-call.md#required-credentials) |
 | How a stored token is judged | `warmStart.validation` | CarryTypes | [Build-time config checks](../phases/api-direct-call.md#build-time-config-checks) |

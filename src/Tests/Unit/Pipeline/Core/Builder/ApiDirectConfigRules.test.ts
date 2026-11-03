@@ -209,7 +209,7 @@ const SOUND: readonly SoundCase[] = [
   ],
   ['bank-call warm from the second step, no claims', bankCallFrom(1)],
   ['jwt warm from the second step', jwtFrom(1)],
-  ['jwt warm at the step count runs no steps', jwtFrom(2)],
+  ['jwt warm at the step count passes validation', jwtFrom(2)],
 ];
 
 /**
