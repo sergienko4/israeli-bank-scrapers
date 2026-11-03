@@ -1,6 +1,6 @@
 /**
- * Step envelope codec (N39, N52) — seal a POST step's prepared body after its
- * form guard, and open its answer before its bank-error guard (N20), outcome
+ * Step envelope codec — seal a POST step's prepared body after its
+ * form guard, and open its answer before its bank-error guard, outcome
  * or extracts read it: they then see `{ headers, data }`, the original headers
  * and the opened data. `CODEC_MODES` holds one seal and one open per codec
  * mode. A codec step's answer must come back sealed: a plaintext answer with
@@ -94,7 +94,7 @@ function openStepAnswer(bundle: IDispatchBundle, resp: JsonValue): Procedure<IOp
 }
 
 /**
- * Open a codec step's answer, then guard it against bank errors (N20): the
+ * Open a codec step's answer, then guard it against bank errors: the
  * guard pointers read the opened view.
  * @param bundle - Dispatch bundle.
  * @param resp - Parsed answer.

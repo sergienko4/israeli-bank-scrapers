@@ -1,5 +1,5 @@
 /**
- * Sealed codec mode (N39): the step's `{ headers, data }` body goes out sealed
+ * Sealed codec mode: the step's `{ headers, data }` body goes out sealed
  * under the session key and id carried by earlier steps, and its answer opens
  * under the same session. A missing or malformed key or id fails before the
  * request is sent.

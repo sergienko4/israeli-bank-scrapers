@@ -1,5 +1,5 @@
 /**
- * Text captures (N36). A `text` step's `textCaptures` search its answer: each
+ * Text captures. A `text` step's `textCaptures` search its answer: each
  * pattern, compiled with the `g` flag, must match exactly once, and its slot
  * takes the named group's text — no match (or an unmatched group) fails
  * `<step> capture <slot> missing`, a second match `<step> capture <slot>

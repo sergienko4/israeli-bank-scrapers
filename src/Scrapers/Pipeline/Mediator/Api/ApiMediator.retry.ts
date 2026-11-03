@@ -42,7 +42,7 @@ function refreshMint(resolver: ITokenResolver): MintProcedure {
 
 /**
  * Re-mint through `recover()` when the resolver can re-grant a rejected
- * session (N33); otherwise through `refresh()`.
+ * session; otherwise through `refresh()`.
  * @param resolver - The registered resolver.
  * @returns Recover or refresh procedure.
  */
@@ -241,7 +241,7 @@ async function mintWithoutStaleAuth(state: IMediatorState): MintProcedure {
  * Discard the current (degraded) session and re-mint via a full cold flow.
  *
  * Reuses the proven recovery primitives: {@link guardedMintOp} runs the
- * resolver's `recover()` when it can re-grant the session (N33), else its cold
+ * resolver's `recover()` when it can re-grant the session, else its cold
  * `refresh()`, and {@link applyRefreshedAuth} installs the new Authorization
  * header on success. The session is flipped cold
  * (`sessionWarm=false`) on BOTH success and failure (recover-once). On success

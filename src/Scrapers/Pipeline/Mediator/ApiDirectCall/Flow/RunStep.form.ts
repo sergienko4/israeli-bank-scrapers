@@ -1,5 +1,5 @@
 /**
- * Form-body guard (N9) — a form step's hydrated body (`form` or N23
+ * Form-body guard — a form step's hydrated body (`form` or
  * `form-latin1`) must be a flat record of strings, finite numbers and
  * booleans. Anything else fails the step before its request, and the failure
  * names no value.

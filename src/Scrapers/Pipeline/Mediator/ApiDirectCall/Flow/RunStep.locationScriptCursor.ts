@@ -1,5 +1,5 @@
 /**
- * Handoff script cursor (N54) — the walk over a script's tokens that the
+ * Handoff script cursor — the walk over a script's tokens that the
  * handoff walker and the branch skipper share: where it stands, the
  * User-Agent the branches test and the location targets found so far.
  */

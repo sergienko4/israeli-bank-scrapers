@@ -1,8 +1,8 @@
 /**
- * Exchange codec mode (N39): the key-exchange step's body goes out as
+ * Exchange codec mode: the key-exchange step's body goes out as
  * hydrated, once its carried client scalar is sound. Its answer's
  * `key_exchange` header and that scalar make the crypto session; the answer
- * must open under it (N52), and the session key (base64) and id then go to
+ * must open under it, and the session key (base64) and id then go to
  * the `keyInto` and `sessionInto` carry slots for the sealed steps after it.
  */
 

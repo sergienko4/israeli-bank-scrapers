@@ -72,7 +72,7 @@ async function isAnyLoadingVisible(frame: Page | Frame): Promise<Procedure<boole
  * Emit the structured `pipeline.wait.loading.retry` debug event. Stays
  * inside the CLAUDE.md 10-LoC hard cap so the orchestrator
  * {@link logLoadingAndDelay} can remain a thin two-call composition
- * (CR #339 cycle 6 N3 follow-up — was 11 LoC inline).
+ * (CR #339 follow-up — was 11 LoC inline).
  * @param attempt - Current attempt number (for logging).
  * @returns `true` once the structured event is enqueued (no-void contract).
  */

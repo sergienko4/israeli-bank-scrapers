@@ -1,5 +1,5 @@
 /**
- * Attributes of one HTML start tag (N37): names lower-cased, the last of
+ * Attributes of one HTML start tag: names lower-cased, the last of
  * duplicates kept, values in double, single or no quotes, and `true` for an
  * attribute written without a value. A value decodes `&amp; &lt; &gt; &quot;`
  * and the decimal and hex character references; an invalid code point reads

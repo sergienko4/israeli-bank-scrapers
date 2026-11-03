@@ -1,5 +1,5 @@
 /**
- * Handoff script statements (N54) — the plain statements a selected path may
+ * Handoff script statements — the plain statements a selected path may
  * hold: an assignment of one quoted URL to one of seven location targets, or
  * a call to one of three ignored functions whose arguments are skipped as a
  * balanced group, never read. A statement ends at `;`, at a line break, at

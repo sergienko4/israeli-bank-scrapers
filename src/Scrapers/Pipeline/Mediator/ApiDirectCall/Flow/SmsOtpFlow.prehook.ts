@@ -7,7 +7,7 @@
  * <p>Acquisition lives in `SmsOtpFlow.prehookCache.ts`; invocation and
  * coercion live in `SmsOtpFlow.prehookInvoke.ts`. This module only wires
  * resolution → acquisition → carry deposit. The callback receives the hook's
- * `hintFrom` carry text as its one argument (N15).
+ * `hintFrom` carry text as its one argument.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';

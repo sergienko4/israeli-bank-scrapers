@@ -1,5 +1,5 @@
 /**
- * Step carry generators (N25). Once a step's `runIf` guard passes and before
+ * Step carry generators. Once a step's `runIf` guard passes and before
  * its pre-hook and body hydration, each generator runs in order and its slots
  * merge into carry, so a later generator, the body and later steps can read
  * them. A generator that fails fails the step `<step> generate <kind> failed`

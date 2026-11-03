@@ -1,11 +1,11 @@
 /**
- * Answer-classifier checks (N50). A check reads the first of its pointer's
+ * Answer-classifier checks. A check reads the first of its pointer's
  * alternatives that resolves: `absent` passes only when none does, and every
  * other kind fails on a missing pointer. `equals` and `oneOf` compare with
  * `===`; `items` and `keys` count an array's items and an object's keys; text
  * is 1..`maxChars` chars with no C0 control char or DEL, and its `pattern`
  * must match it whole. A pattern that does not compile fails its check.
- * `negate` (N60) inverts a check's verdict, missing pointer included; a check
+ * `negate` inverts a check's verdict, missing pointer included; a check
  * with no kind fails either way.
  *
  * Zero bank knowledge. Rule #11 compliant.

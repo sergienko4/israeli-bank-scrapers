@@ -2,7 +2,7 @@
  * Optional extracts — carry slots a response may omit. A slot is written only
  * when its pointer resolves to a string that is not blank, so a blank or
  * whitespace-only field never overwrites an earlier value. A `keepExisting`
- * slot is written only while carry holds no non-empty string for it (N56);
+ * slot is written only while carry holds no non-empty string for it;
  * a different answer is logged by step and slot, never by value.
  */
 

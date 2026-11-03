@@ -1,5 +1,5 @@
 /**
- * Pre-hook guards (N21) that bracket a step's credential acquisition.
+ * Pre-hook guards that bracket a step's credential acquisition.
  *
  * <p>Before: the step URL must resolve and each `requires` ref must resolve.
  * Refs resolve against the step's jar view, bound to the step URL as `runStep`
@@ -7,7 +7,7 @@
  * A miss reports the resolver's own failure (`ref <token> miss` / `bad`) and
  * the callback is never asked, so no code is spent on a login that cannot finish.
  *
- * <p>Length (N57): a `valueLengthRef` slot the bank set must hold an integer
+ * <p>Length: a `valueLengthRef` slot the bank set must hold an integer
  * 4..10, else the step fails before the callback is asked; an absent slot
  * leaves `valuePattern` alone.
  *
@@ -161,7 +161,7 @@ function lengthOf(raw: JsonValue): StatedLength {
 }
 
 /**
- * Read the OTP length the hook's `valueLengthRef` slot states (N57).
+ * Read the OTP length the hook's `valueLengthRef` slot states.
  * @param args - Guard bundle.
  * @returns The length, false when the hook or carry states none, or a failure.
  */

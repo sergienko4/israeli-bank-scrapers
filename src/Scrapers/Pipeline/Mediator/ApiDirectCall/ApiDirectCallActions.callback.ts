@@ -1,7 +1,7 @@
 /**
  * Auth-flow completion callback dispatcher for the ApiDirectCall ACTION stage.
  * Catches user-callback throws so scrape success isn't invalidated by them,
- * and logs them by error name only (D12): the callback was handed the
+ * and logs them by error name only: the callback was handed the
  * long-term token and the bearer, so its message may repeat either.
  */
 

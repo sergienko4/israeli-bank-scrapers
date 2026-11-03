@@ -1,8 +1,8 @@
 /**
  * WireTypes — the wire-reading concern slice of the API-DIRECT-CALL config
- * contract: what a step captures from a `text` answer (N36 text captures,
- * N37 login-form capture, N54 handoff script capture) and how a POST step's
- * body and answer are enveloped (N39 envelope codec).
+ * contract: what a step captures from a `text` answer (text captures,
+ * Login-form capture, handoff script capture) and how a POST step's
+ * body and answer are enveloped (envelope codec).
  *
  * A root bucket: no intra-cluster deps. FlowTypes references these from
  * `IStepBase` and `IPostStep`.
@@ -13,7 +13,7 @@
 import type { IUrlRule } from '../../../Types/Domain/FetchPolicy.js';
 
 /**
- * One text capture (N36) on a `text` step: its pattern must match the answer
+ * One text capture on a `text` step: its pattern must match the answer
  * exactly once, and the slot takes the text of `group`. An `absent` capture is
  * a guard instead: its pattern must not match, and it carries nothing.
  */
@@ -27,7 +27,7 @@ interface ITextCapture {
 }
 
 /**
- * A login-form capture (N37) on a `text` step: the page's one `<form>` whose
+ * A login-form capture on a `text` step: the page's one `<form>` whose
  * `id` or `name` is `form` must post to `action`, and its hidden fields go to
  * carry `into` as one `{ name: value }` record, in page order.
  */
@@ -49,7 +49,7 @@ interface IFormCapture {
 }
 
 /**
- * The handoff script capture (N54) on a `text` step: the one location
+ * The handoff script capture on a `text` step: the one location
  * assignment the page's scripts select for `userAgent`, resolved against the
  * step URL, goes to carry `into` once it passes `url`.
  */
@@ -63,9 +63,9 @@ interface ILocationCapture {
 }
 
 /**
- * The `sealed` mode of the AES-CBC envelope codec (N39): the step's hydrated
+ * The `sealed` mode of the AES-CBC envelope codec: the step's hydrated
  * `{ headers, data }` body goes out sealed under the session key, and its
- * answer must come back sealed for the same session (N52).
+ * answer must come back sealed for the same session.
  */
 interface IEnvelopeSealed {
   readonly kind: 'ecdh-aes-cbc';
@@ -77,10 +77,10 @@ interface IEnvelopeSealed {
 }
 
 /**
- * The `exchange` mode of the AES-CBC envelope codec (N39): the step's body goes
+ * The `exchange` mode of the AES-CBC envelope codec: the step's body goes
  * out as hydrated, and the session comes from the answer's `key_exchange`
  * header and the carried client scalar; the answer must come back sealed
- * under it (N52), and the key and id go to carry for the sealed steps.
+ * under it, and the key and id go to carry for the sealed steps.
  */
 interface IEnvelopeExchange {
   readonly kind: 'ecdh-aes-cbc';
@@ -93,7 +93,7 @@ interface IEnvelopeExchange {
   readonly sessionInto: string;
 }
 
-/** How a POST step's request and answer are enveloped (N39). */
+/** How a POST step's request and answer are enveloped. */
 type EnvelopeCodec = IEnvelopeExchange | IEnvelopeSealed;
 
 export type {

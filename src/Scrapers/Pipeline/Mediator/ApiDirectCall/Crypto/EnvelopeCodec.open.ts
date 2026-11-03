@@ -1,6 +1,6 @@
 /**
- * EnvelopeCodec.open — open an AES-256-CBC envelope answer (N39). Only one
- * well-formed answer sealed for our session opens (N52): its `headers` are at
+ * EnvelopeCodec.open — open an AES-256-CBC envelope answer. Only one
+ * well-formed answer sealed for our session opens: its `headers` are at
  * most 16 records, `enc_headers` is absent or empty, exactly one `encryption`
  * header names our session or none, and its data decrypts to a strict UTF-8
  * JSON record. A plaintext answer never opens. Failures name no key, IV or
@@ -156,7 +156,7 @@ function openRecord(session: IEnvelopeSession, answer: IJsonObject): IJsonObject
 }
 
 /**
- * Open an answer sealed for our session (N52: never a plaintext one).
+ * Open an answer sealed for our session (never a plaintext one).
  * @param session - Crypto session.
  * @param answer - Parsed answer.
  * @returns `{ headers, data }` with the original headers and the opened data,

@@ -1,5 +1,5 @@
 /**
- * Step seal (N10, N44) — seal credentials into the prepared body at the
+ * Step seal — seal credentials into the prepared body at the
  * pointers the step's seal plans, before the body signature and the request.
  * Sources are read from creds and the key from carry; sealed text is written
  * only into the body, never into carry. Failures name the step, never a value.

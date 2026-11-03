@@ -5,10 +5,10 @@
  * here (in the ACTION phase) and installed onto the mediator via
  * `bus.withRecoveryHook`. On a successful recovery the hook re-installs
  * the new carry snapshot, projected through the flow's `sessionCarry`
- * allowlist (N32), as the session context, and re-surfaces the new long-term
+ * allowlist, as the session context, and re-surfaces the new long-term
  * token to `onAuthFlowComplete` — closing the gap where a re-minted token was
  * discarded from the cache, forcing a fresh OTP every run. A recovery that
- * resumed the session (N33) is noted once instead of being called degraded.
+ * resumed the session is noted once instead of being called degraded.
  */
 
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
@@ -57,7 +57,7 @@ function warnOnRecoveredWarmSession(args: IRecoveryHookArgs, wasWarm: boolean): 
 const REGRANTED_NOTE = 're-granted the session token';
 
 /**
- * Tell the truth about the recovery (N33): a resumed session is noted once;
+ * Tell the truth about the recovery: a resumed session is noted once;
  * only a cold one falls to the degraded-session rule. A strategy without
  * `lastRecoveryResumed` keeps that rule alone.
  * @param args - Bus + context + strategy bundle.

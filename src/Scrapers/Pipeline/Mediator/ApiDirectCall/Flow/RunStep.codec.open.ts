@@ -1,5 +1,5 @@
 /**
- * Step envelope opening (N39, N52), shared by the codec modes: open a step's
+ * Step envelope opening, shared by the codec modes: open a step's
  * answer under a crypto session into its `{ headers, data }` view, and fail
  * opened data that carries a bank error code. Failures name the step, never a
  * key, IV or plaintext; only the opened data's key count is logged.

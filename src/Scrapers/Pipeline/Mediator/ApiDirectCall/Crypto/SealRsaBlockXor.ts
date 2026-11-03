@@ -1,5 +1,5 @@
 /**
- * SealRsaBlockXor — the `rsa-pkcs1-block-xor` credential seal (N10). A fresh
+ * SealRsaBlockXor — the `rsa-pkcs1-block-xor` credential seal. A fresh
  * seed, behind a fixed prefix, is RSA-PKCS#1 v1.5 encrypted in short ASCII
  * blocks under the bank's public modulus: hex ciphertexts joined by a
  * separator, then a terminator. The seed-XORed source follows as the tail

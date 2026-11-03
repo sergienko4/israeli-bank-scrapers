@@ -1,5 +1,5 @@
 /**
- * GeneratorTypes — step carry generators (N25). A generator runs once its
+ * GeneratorTypes — step carry generators. A generator runs once its
  * step's `runIf` guard passes and before the step's body is hydrated, and
  * writes what it makes into carry slots for the body and later steps.
  *
@@ -39,7 +39,7 @@ interface IPkcs10CsrGenerator {
   readonly into: string;
 }
 
-/** N38 — a fresh ECDH key pair for one run of the step. */
+/** A fresh ECDH key pair for one run of the step. */
 interface IEcdhKeyGenerator {
   readonly kind: 'ecdh-key';
   /** Named curve. */

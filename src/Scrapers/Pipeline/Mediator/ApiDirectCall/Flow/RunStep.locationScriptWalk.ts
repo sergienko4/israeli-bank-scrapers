@@ -1,5 +1,5 @@
 /**
- * Handoff script walker (N54) — follows the path the configured User-Agent
+ * Handoff script walker — follows the path the configured User-Agent
  * selects through a script's statements: plain statements (assignments and
  * ignored calls), and `if` on the User-Agent test, nested at most four deep,
  * whose taken branch, a block or one statement, is walked and whose other

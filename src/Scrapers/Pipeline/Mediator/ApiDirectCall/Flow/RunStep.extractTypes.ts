@@ -1,5 +1,5 @@
 /**
- * Extract-rule JSON types (N18). A rule's `type` is checked on the raw value
+ * Extract-rule JSON types. A rule's `type` is checked on the raw value
  * before any transform or text check: a string, a finite number, a record
  * (a non-null, non-array object) or a list. `null` is no type.
  */

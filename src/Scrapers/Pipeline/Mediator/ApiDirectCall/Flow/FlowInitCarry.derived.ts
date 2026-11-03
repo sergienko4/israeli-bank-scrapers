@@ -1,8 +1,8 @@
 /**
- * derivedCarry evaluation: per-part collection, join, the N60 lower-case
- * transform, UTF-8 truncate, the N45 op last,
+ * derivedCarry evaluation: per-part collection, join, the lower-case
+ * transform, UTF-8 truncate, the op last,
  * the `applyDerivations` reducer and the flow-init `applyDerivedCarry`.
- * Steps reuse `applyDerivations` for their own `deriveCarry` (N7), naming
+ * Steps reuse `applyDerivations` for their own `deriveCarry`, naming
  * themselves as the `owner` an op failure names.
  */
 

@@ -1,5 +1,5 @@
 /**
- * SealKinds — the planner each `SealKind` names (N10, N44). A planner reads
+ * SealKinds — the planner each `SealKind` names. A planner reads
  * its refs through the step's resolver and returns the body writes it seals;
  * a new kind is one entry here and one in the build-time kind rule, and the
  * step wiring reads only `planSeal`.

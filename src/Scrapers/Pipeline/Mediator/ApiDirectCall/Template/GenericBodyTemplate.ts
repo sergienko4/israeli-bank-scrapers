@@ -4,7 +4,7 @@
  * shapes:
  *   { $literal: JsonValue }      — pass value through
  *   { $ref: RefToken }           — resolve via RefResolver; one marked
- *                                  `optional` (N49) leaves its record key
+ *                                  `optional` leaves its record key
  *                                  out when its source is absent
  *   { $join: IJoinTemplate }     — one joined string via JoinTemplate
  *   { $merge: IMergeTemplate }   — carried record + set via MergeTemplate
@@ -80,7 +80,7 @@ function hydrateRef(node: JsonValueTemplate, scope: ITemplateScope): Procedure<J
   return resolveRef(asRef.$ref, scope);
 }
 
-/** A `$ref` node, optional (N49) or not. */
+/** A `$ref` node, optional or not. */
 type RefNode = Extract<JsonValueTemplate, { readonly $ref: RefToken }>;
 
 /**

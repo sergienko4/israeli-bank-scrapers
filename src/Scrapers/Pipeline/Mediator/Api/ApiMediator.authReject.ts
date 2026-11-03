@@ -10,7 +10,7 @@
  * the two drift apart silently, which is exactly the class of bug the harness
  * exists to catch.
  *
- * <p>{@link isAuthRejectedFailure} (N28) asks the wider question a warm-start
+ * <p>{@link isAuthRejectedFailure} asks the wider question a warm-start
  * gate needs: a login step's failure is sanitised to `<step> HTTP 401`, which
  * the transport marker above never matches.
  */

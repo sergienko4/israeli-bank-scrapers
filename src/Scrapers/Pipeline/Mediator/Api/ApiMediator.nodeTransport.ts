@@ -1,6 +1,6 @@
 /**
  * The agent source a node:https mediator's identity and GraphQL transports
- * share (N26). A bank declaring a dynamic client certificate gets an
+ * share. A bank declaring a dynamic client certificate gets an
  * origin-scoped holder whose port the flow installs the certificate through;
  * any other node:https bank gets one agent presenting its registered
  * certificate (or none). Every agent carries the bank's ClientHello profile.

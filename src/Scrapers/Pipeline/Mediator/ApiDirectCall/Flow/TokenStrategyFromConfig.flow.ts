@@ -247,7 +247,7 @@ async function primeInitialImpl(args: IPrimeArgs): Promise<Procedure<string>> {
 /**
  * primeFresh — always runs the cold flow, except in durable mode, which
  * refuses locally so a rejected session never re-mints mid-run. Either way
- * the mint did not resume the session (N33).
+ * the mint did not resume the session.
  * @param args - Config + bus + ctx + creds + capture slot.
  * @returns Header-value procedure.
  */

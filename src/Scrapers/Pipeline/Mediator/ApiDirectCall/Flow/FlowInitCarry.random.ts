@@ -1,5 +1,5 @@
 /**
- * Random bootstraps: `random-hex-16`, `random-hex` (N42) and `random-uuid`.
+ * Random bootstraps: `random-hex-16`, `random-hex` and `random-uuid`.
  * Each draws a fresh value per flow init and reads no creds.
  */
 

@@ -1,5 +1,5 @@
 /**
- * EnvelopeCodec — the AES-256-CBC envelope session and seal (N39). Seal writes
+ * EnvelopeCodec — the AES-256-CBC envelope session and seal. Seal writes
  * a `{ headers, data }` body as one `encryption` header, the headers each
  * sealed, and the sealed data; every part shares one fresh IV, the vendor's
  * format (TLS gives transport integrity). `EnvelopeCodec.open.ts` opens the

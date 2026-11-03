@@ -1,5 +1,5 @@
 /**
- * HTML tag scanner (N37) — reads a page's start and end tags in one pass, the
+ * HTML tag scanner — reads a page's start and end tags in one pass, the
  * way the proven login-form parser does: tag names lower-cased, attributes as
  * `attrsOf` reads them. Comments, declarations and the text of `script` and
  * `style` hold no tags, and a `<` that opens no markup is text. An unclosed

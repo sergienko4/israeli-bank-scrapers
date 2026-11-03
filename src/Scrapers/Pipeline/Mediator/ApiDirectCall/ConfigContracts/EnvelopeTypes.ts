@@ -94,11 +94,11 @@ interface IPreStepHook {
   /**
    * Optional carry slot whose text is passed to the callback as its hint
    * (e.g. the masked phone the code went to); `''` when unset, absent or
-   * not text (N15). Never logged.
+   * not text. Never logged.
    */
   readonly hintFrom?: `carry.${string}`;
   /**
-   * Optional refs that must resolve before the callback is asked (N21).
+   * Optional refs that must resolve before the callback is asked.
    * Cookie refs see existing jar values and the step's own pending setCookies.
    * Pending cookies are not committed before validation; misses retain the
    * resolver's own failure message.
@@ -106,12 +106,12 @@ interface IPreStepHook {
   readonly requires?: readonly RefToken[];
   /**
    * Optional anchored regex the callback's value must match; a mismatch
-   * fails InvalidOtp before the step's request is sent (N21).
+   * fails InvalidOtp before the step's request is sent.
    */
   readonly valuePattern?: string;
   /**
    * Optional carry slot holding the exact OTP length the bank stated, an
-   * integer 4..10 (N57). When the slot is set, the value must be exactly that
+   * integer 4..10. When the slot is set, the value must be exactly that
    * many ASCII digits, else the step fails InvalidOtp before its request. An
    * absent slot leaves `valuePattern` alone; any other value fails the step
    * before the callback is asked.

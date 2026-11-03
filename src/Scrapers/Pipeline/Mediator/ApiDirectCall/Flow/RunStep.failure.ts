@@ -1,5 +1,5 @@
 /**
- * Login-step failure sanitiser (E15).
+ * Login-step failure sanitiser.
  *
  * <p>The transport quotes up to 120 characters of the response body in a
  * Generic failure, and a bank may echo request secrets (credentials, OTP,

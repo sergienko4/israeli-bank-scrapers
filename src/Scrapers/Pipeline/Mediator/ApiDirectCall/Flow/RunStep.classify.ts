@@ -1,5 +1,5 @@
 /**
- * Answer classifier (N50). A step's `classify` runs on its opened answer after
+ * Answer classifier. A step's `classify` runs on its opened answer after
  * `failIfPresent` and `outcome` and before its extracts. Exactly one case must
  * match — case names may repeat, cases are counted — so none fails
  * `<step> answer unrecognized` and more than one `<step> answer ambiguous`,

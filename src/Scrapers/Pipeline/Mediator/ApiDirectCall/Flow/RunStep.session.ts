@@ -1,6 +1,6 @@
 /**
  * A step's session, prepared before its URL, body or headers resolve: its
- * client cookies (N11), then its device certificate (N26).
+ * client cookies, then its device certificate.
  */
 
 import type { Procedure } from '../../../Types/Procedure.js';

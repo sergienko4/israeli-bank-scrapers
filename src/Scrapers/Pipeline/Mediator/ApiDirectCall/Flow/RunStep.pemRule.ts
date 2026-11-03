@@ -1,5 +1,5 @@
 /**
- * The `pemCertificate` extract rule (N27). The slot text must hold exactly one
+ * The `pemCertificate` extract rule. The slot text must hold exactly one
  * PEM block, a CERTIFICATE that parses as X.509, certifies the private key the
  * rule's `keyRef` resolves to in the step's scope, and is valid now. The check
  * answers yes or no only; it never echoes the PEM text.

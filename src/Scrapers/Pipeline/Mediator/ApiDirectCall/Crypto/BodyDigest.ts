@@ -1,5 +1,5 @@
 /**
- * Request-body digest header value (N30):
+ * Request-body digest header value:
  * `encode(ascii(prefix + hash(bodyBytes)))`. The hash and the encoding are
  * picked from maps keyed by the config, so a new kind is a new entry.
  */

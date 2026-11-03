@@ -1,6 +1,6 @@
 /**
- * EnvelopeCodec.exchange — the scheme-2 key exchange of the AES-CBC envelope
- * (N39). The bank's one `key_exchange` header names its secp256k1 point `y`
+ * EnvelopeCodec.exchange — the scheme-2 key exchange of the AES-CBC envelope.
+ * The bank's one `key_exchange` header names its secp256k1 point `y`
  * and the crypto session id; the session key is SHA-256 of the ECDH secret of
  * that point and the carried client scalar. Failures name no key or point.
  *

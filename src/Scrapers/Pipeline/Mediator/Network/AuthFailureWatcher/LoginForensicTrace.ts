@@ -9,8 +9,8 @@
  * Answers the two Amex CI fork diagnostics:
  *   Fork A — Angular submit throws before XHR: login.console / login.pageerror
  *   Fork B — XHR egresses on detached target: login.target.new
- *   D1 — Frame inventory + main URL on cross-origin postMessage failure
- *   D2 — Un-truncated postMessage origins (cap widened 120 → 300)
+ *   Frames  — Frame inventory + main URL on cross-origin postMessage failure
+ *   Origins — Un-truncated postMessage origins (cap widened 120 → 300)
  */
 
 import type { ConsoleMessage, Page } from 'playwright-core';
@@ -156,11 +156,11 @@ function buildHandlerCallback(ctx: IHandlerEmitCtx): ConsoleHandler {
 /**
  * Build a console-message listener that emits gated forensic trace.
  * Only 'error' and 'warning' types are emitted; log/info/debug are silenced.
- * D1: On the FIRST cross-origin postMessage error, emits one login.frames
+ * Frames: on the FIRST cross-origin postMessage error, emits one login.frames
  *   snapshot with the frame-host inventory and the main-frame host+path.
- * D2: scrub cap widened to 300 so BOTH postMessage origin strings survive.
+ * Origins: scrub cap widened to 300 so BOTH postMessage origin strings survive.
  * @param logger - Pipeline logger.
- * @param page - Playwright page (used for frame inventory in D1).
+ * @param page - Playwright page (used for the frame inventory).
  * @returns Playwright ConsoleMessage listener.
  */
 export function buildConsoleHandler(logger: ScraperLogger, page: Page): ConsoleHandler {

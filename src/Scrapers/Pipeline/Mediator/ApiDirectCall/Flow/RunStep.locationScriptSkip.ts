@@ -1,5 +1,5 @@
 /**
- * Handoff branch skipper (N54) — steps over the branch the configured
+ * Handoff branch skipper — steps over the branch the configured
  * User-Agent does not select without reading it: a block as one balanced
  * `( [ {` group, a nested `if` with its own `else` (so a dangling `else`
  * binds to the inner `if`, as in JS), any other statement up to its `;`, its

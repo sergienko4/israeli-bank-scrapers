@@ -1,6 +1,6 @@
 /**
- * EnvelopeWire — the cipher and the shape checks shared by the envelope codec
- * (N39): a JSON record guard, canonical base64 under a size cap, and an envelope's
+ * EnvelopeWire — the cipher and the shape checks shared by the envelope codec:
+ * a JSON record guard, canonical base64 under a size cap, and an envelope's
  * header list. Each check answers `false` rather than naming what it saw.
  *
  * Zero bank knowledge. Rule #11 compliant.

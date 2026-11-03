@@ -51,7 +51,7 @@ function makePrimeFresh(
 }
 
 /**
- * primeRecover factory — the in-run re-grant (N33) over the same slot.
+ * primeRecover factory — the in-run re-grant over the same slot.
  * @param config - Bank config.
  * @param slot - Mutable capture slot.
  * @returns Strategy primeRecover binding.
@@ -167,7 +167,7 @@ function buildWarmGetters(slot: ILongTermTokenSlot): IWarmGetters {
    */
   const warmAttemptFailureType = (): string => slot.warmAttemptFailureType ?? '';
   /**
-   * Whether the last in-run mint resumed the session (N33).
+   * Whether the last in-run mint resumed the session.
    * @returns True after a resume; false after a cold login or none.
    */
   const lastRecoveryResumed = (): boolean => slot.lastMintResumed ?? false;

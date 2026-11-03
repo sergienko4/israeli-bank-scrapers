@@ -1,6 +1,6 @@
 /**
  * ExtractRuleTypes — the extract-rule concern slice of the API-DIRECT-CALL
- * config contract (N18, N27, N47): the checks a step runs on one body-,
+ * config contract: the checks a step runs on one body-,
  * header- or text-capture slot once its answer is read.
  *
  * Depends on TemplateTypes (`RefToken` referenced by IPemCertificateRule.keyRef
@@ -13,11 +13,11 @@
 import type { IUrlRule } from '../../../Types/Domain/FetchPolicy.js';
 import type { RefToken } from './TemplateTypes.js';
 
-/** JSON type an extract rule demands of a slot's raw value (N18). */
+/** JSON type an extract rule demands of a slot's raw value. */
 type ExtractValueType = 'string' | 'number' | 'object' | 'array';
 
 /**
- * A certificate rule (N27): the slot text is one PEM certificate that
+ * A certificate rule: the slot text is one PEM certificate that
  * certifies the private key `keyRef` resolves to, and is valid now.
  */
 interface IPemCertificateRule {
@@ -26,7 +26,7 @@ interface IPemCertificateRule {
 }
 
 /**
- * Checks on one body- or header-extract slot (N18, N27, N47), run on the raw
+ * Checks on one body- or header-extract slot, run on the raw
  * value once the step's answer is read: `type` first, then `transform`, then
  * the text checks, then `equalsRef`.
  */
@@ -43,9 +43,9 @@ interface IExtractRule {
   readonly url?: readonly IUrlRule[];
   /** Longest text allowed; 8192 when unset. */
   readonly maxChars?: number;
-  /** The text must be one current PEM certificate of the referenced key (N27). */
+  /** The text must be one current PEM certificate of the referenced key. */
   readonly pemCertificate?: IPemCertificateRule;
-  /** The checked text must equal the text this ref resolves to (N47). */
+  /** The checked text must equal the text this ref resolves to. */
   readonly equalsRef?: RefToken;
 }
 

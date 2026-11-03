@@ -89,7 +89,7 @@ interface IAttachSignerArgs {
 
 /**
  * A step's response capture: the sink its call policy names, the headers
- * that sink filled and the URL that gave the last answer (N51; at most one).
+ * that sink filled and the URL that gave the last answer (at most one).
  * The filled stores stay off the transport's view.
  */
 interface IHeaderCapture {

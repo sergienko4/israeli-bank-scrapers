@@ -1,9 +1,9 @@
 /**
- * N33 — the config strategy's in-run re-grant (`primeRecover`).
+ * The config strategy's in-run re-grant (`primeRecover`).
  *
  * A whole-scrape recovery asks for a new session after the bank rejected the
  * current one. A `carry-bundle` login resumes it the way a warm start does,
- * but from memory: the login cookies an `isolate` hand-off stashed (N35) go
+ * but from memory: the login cookies an `isolate` hand-off stashed go
  * back into the jar, the private carry seeds the flow, and the flow runs from
  * `fromStepIndex` — no registration, no cold-login budget. Only a resume the
  * `coldFallback` gate lets through escalates to one cold login. Every other
@@ -90,7 +90,7 @@ function warmKindOf(config: IApiDirectCallConfig): WarmKind {
 }
 
 /**
- * Re-grant a rejected session in-run (N33). A durable session never resumes
+ * Re-grant a rejected session in-run. A durable session never resumes
  * here — `primeFresh` refuses it, as before.
  * @param args - Prime args.
  * @returns The new header value, or the failure.

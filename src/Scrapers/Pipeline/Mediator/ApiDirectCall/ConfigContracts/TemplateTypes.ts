@@ -12,7 +12,7 @@
 
 /**
  * RefToken — interpolation tokens in IBodyTemplate. `cookie.<name>` reads a
- * jar cookie, URL-decoded, for the step URL (N12).
+ * jar cookie, URL-decoded, for the step URL.
  */
 type RefToken =
   | 'fingerprint'
@@ -26,14 +26,14 @@ type RefToken =
   | `config.${string}`
   | `cookie.${string}`;
 
-/** One `$join` part (N24) — a ref token, or literal text between refs. */
+/** One `$join` part — a ref token, or literal text between refs. */
 type JoinPart = RefToken | { readonly literal: string };
 
 /** How a `$join` encodes its concatenated text — base64 over UTF-8. */
 type JoinEncoding = 'base64';
 
 /**
- * A `$join` node (N24) — hydrates to `prefix` + the parts concatenated,
+ * A `$join` node — hydrates to `prefix` + the parts concatenated,
  * base64 over UTF-8 when `encode` is set. Computed per hydration, never
  * stored in carry.
  */
@@ -44,7 +44,7 @@ interface IJoinTemplate {
 }
 
 /**
- * A `$merge` node (N37) — the carried flat string record `base` (a captured
+ * A `$merge` node — the carried flat string record `base` (a captured
  * login form) with the hydrated `set` laid over it. Only a form body's whole
  * shape may be one.
  */
@@ -59,7 +59,7 @@ type IEnvelopeSelectors = Readonly<Record<string, string>>;
 /**
  * Recursive body template — JsonValueTemplate with $literal / $ref / $join / $merge nodes,
  * heterogeneous arrays, and recursive object maps. A `$ref` marked `optional`
- * (N49) leaves its record key out when its carry slot, credential or cookie
+ * leaves its record key out when its carry slot, credential or cookie
  * is absent. The object arm admits
  * `undefined` values because TS-widened heterogeneous unions of the form
  * `{a:X, b?: undefined} | {a?: undefined, b:Y}` (e.g. Pepper headers list)

@@ -1,5 +1,5 @@
 /**
- * CookieRef — resolves a `cookie.<name>` ref (N12) through the step's jar
+ * CookieRef — resolves a `cookie.<name>` ref through the step's jar
  * view: the raw value of the cookie that applies to the step URL, then
  * URL-decoded. A missing cookie fails `miss`; a raw value over 4096 chars or
  * a malformed escape fails `bad`. Neither failure names the value.

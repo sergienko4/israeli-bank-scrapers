@@ -1,5 +1,5 @@
 /**
- * Cookie-jar warm start for TokenStrategyFromConfig (N22): the stored token
+ * Cookie-jar warm start for TokenStrategyFromConfig: the stored token
  * is the session jar (`WarmCookieJar.ts`), imported before the resumed flow
  * and exported from the jar a finished login ends with.
  */
