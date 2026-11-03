@@ -118,6 +118,15 @@ const LOGIN_ONLY = ['auth.login'];
 const LOGIN_AND_ASSERT = ['auth.login', 'auth.assert'];
 const PASSWORD_MISS = `${SELECTOR_MISS}pwdAssertionId at /data/control_flow/0/methods/?type=password/assertion_id`;
 
+/**
+ * A Generic transport failure worded as the native transport words a non-2xx.
+ * @param status - HTTP status the bank answered.
+ * @returns Scripted transport failure.
+ */
+function httpFailure(status: number): Procedure<unknown> {
+  return transportFailure(`POST https://sa.pepper.co.il/x ${String(status)}: denied`);
+}
+
 const RENEWAL_FAILURES: readonly RenewalFailure[] = [
   [
     'a policy without a password method',
@@ -131,13 +140,13 @@ const RENEWAL_FAILURES: readonly RenewalFailure[] = [
     LOGIN_ONLY,
     `${SELECTOR_MISS}challenge at /data/challenge`,
   ],
-  ['a transport failure on login', [transportFailure('network down')], LOGIN_ONLY, 'network down'],
-  ['a 401 on login', [transportFailure('HTTP 401')], LOGIN_ONLY, 'HTTP 401'],
+  ['a transport failure on login', [transportFailure('network down')], LOGIN_ONLY, 'login GENERIC'],
+  ['a 401 on login', [httpFailure(401)], LOGIN_ONLY, 'login HTTP 401'],
   [
     'a 403 on the password assertion',
-    [loginResponse(), transportFailure('HTTP 403')],
+    [loginResponse(), httpFailure(403)],
     LOGIN_AND_ASSERT,
-    'HTTP 403',
+    'assertPassword HTTP 403',
   ],
   [
     'a malformed replacement token',
@@ -220,6 +229,23 @@ describe('durable enrollment failures', () => {
     await strategy.primeInitial(bus, PEPPER_CTX, creds);
     const second = await strategy.primeInitial(bus, PEPPER_CTX, creds);
     expect(second).toMatchObject({ errorMessage: 'persistent auth failed: enrollment-budget' });
+    expect(captures).toHaveLength(3);
+  });
+
+  it('keeps the enrollment budget when a credential is bad', async () => {
+    const captures: IApiPostCapture[] = [];
+    const recorder = makeRecorder();
+    const mode = caseMode({ responses: [] }, recorder.onUpdate);
+    const required: IApiDirectCallConfig = { ...config, requiredCreds: { password: 'nonEmpty' } };
+    const strategy = makeDurableStrategy(required, mode);
+    const responses = enrollResponses(FRESH_JWT);
+    const bus = makeStubMediator({ responses, captures });
+    const sound = pepperCreds(async (): Promise<string> => Promise.resolve('123456'));
+    const bad = { ...sound, password: '' };
+    const first = await strategy.primeInitial(bus, PEPPER_CTX, bad);
+    expect(first).toMatchObject({ errorMessage: 'Missing or malformed credentials: password' });
+    const second = await strategy.primeInitial(bus, PEPPER_CTX, sound);
+    expect(second.success).toBe(true);
     expect(captures).toHaveLength(3);
   });
 });

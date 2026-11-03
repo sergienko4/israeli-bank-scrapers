@@ -14,6 +14,7 @@ import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js
 import type {
   IAesSignerConfig,
   IApiDirectCallConfig,
+  IPostStep,
   IStepConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import {
@@ -40,7 +41,7 @@ const PLAIN_CONFIG: IApiDirectCallConfig = {
  * @param overrides - Partial step overrides.
  * @returns Step config.
  */
-function makeCryptoStep(overrides: Partial<IStepConfig> = {}): IStepConfig {
+function makeCryptoStep(overrides: Partial<IPostStep> = {}): IStepConfig {
   return {
     name: 'assertPassword',
     urlTag: 'auth.bind',

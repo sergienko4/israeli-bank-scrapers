@@ -20,10 +20,11 @@ export type { IWafErrorDetails } from './Interfaces/WafErrorDetails.js';
 // This union type exists because the scraper 'factory' returns a generic interface.
 // Refactor when the factory returns concrete scraper types instead.
 /**
- * Payload passed to ScraperOptions.onAuthFlowComplete. Both values
- * are nonempty strings when the callback fires; longTermToken is the
- * reusable seed (persist + feed back as creds.otpLongTermToken next
- * run) and bearer is the session token installed on the mediator.
+ * Payload passed to ScraperOptions.onAuthFlowComplete. longTermToken
+ * is a nonempty string when the callback fires: the reusable seed
+ * (persist + feed back as creds.otpLongTermToken next run). bearer is
+ * the session token installed on the mediator; it is '' for a bank
+ * whose session is a cookie (auth scheme 'none').
  */
 export interface IAuthFlowInfo {
   readonly longTermToken: string;

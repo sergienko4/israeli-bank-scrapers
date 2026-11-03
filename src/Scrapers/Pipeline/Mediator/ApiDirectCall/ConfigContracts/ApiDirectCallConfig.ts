@@ -49,6 +49,9 @@ interface IPersistentAuthConfig {
   readonly freshnessMarginSeconds: number;
 }
 
+/** Rule a required credential must meet before the first request. */
+type CredRule = 'nonEmpty' | 'digits' | 'sixDigits';
+
 /** Top-level config literal — placed into PIPELINE_BANK_CONFIG[bank].apiDirectCall. */
 interface IApiDirectCallConfig {
   readonly flow: FlowKind;
@@ -69,6 +72,8 @@ interface IApiDirectCallConfig {
   readonly staticHeaders?: Readonly<Record<string, string>>;
   /** How to format the final Authorization header value (default 'raw'). */
   readonly authScheme?: AuthScheme;
+  /** Scheme word sent before the token when `authScheme` is 'prefixed'. */
+  readonly authPrefix?: string;
   /** Optional warm-start shortcut — see IWarmStartConfig for semantics. */
   readonly warmStart?: IWarmStartConfig;
   /**
@@ -92,6 +97,11 @@ interface IApiDirectCallConfig {
   readonly derivedCarry?: readonly IDerivedCarry[];
   /** Optional durable device-state support — see IPersistentAuthConfig. */
   readonly persistentAuth?: IPersistentAuthConfig;
+  /**
+   * Credentials checked before the first step. A missing or malformed field
+   * fails the flow by name before any request is sent.
+   */
+  readonly requiredCreds?: Readonly<Record<string, CredRule>>;
 }
 
-export type { IApiDirectCallConfig, IPersistentAuthConfig };
+export type { CredRule, IApiDirectCallConfig, IPersistentAuthConfig };

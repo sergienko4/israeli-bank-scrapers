@@ -69,6 +69,14 @@ async function recoverSessionNoop(): Promise<Procedure<string>> {
 }
 
 /**
+ * Inert `setAuthPolicy` stub — accepts the policy, records nothing.
+ * @returns true
+ */
+function acceptAuthPolicy(): boolean {
+  return true;
+}
+
+/**
  * Build no-op warm-session self-heal stubs to spread into a mock mediator.
  *
  * Fast-path default: `wasSessionWarm` returns false, so the shared
@@ -76,13 +84,14 @@ async function recoverSessionNoop(): Promise<Procedure<string>> {
  * template-mock scrape stays byte-identical to its pre-self-heal behaviour.
  * `recoverSession`'s value is never consumed on that path.
  *
- * @returns The three {@link IRecoveryMethods} stubs for a mock mediator.
+ * @returns The four {@link IRecoveryMethods} stubs for a mock mediator.
  */
 function makeRecoverySessionStubs(): IRecoveryMethods {
   return {
     setSessionWarm: echoSessionWarm,
     wasSessionWarm: notSessionWarm,
     recoverSession: recoverSessionNoop,
+    setAuthPolicy: acceptAuthPolicy,
   };
 }
 
@@ -266,7 +275,7 @@ const MOCK_SCRAPE = (ctx: IActionContext): Promise<Procedure<IPipelineContext>> 
 const MOCK_OTP_CONFIG: OtpConfig = { kind: 'api' };
 
 /** Minimal IApiDirectCallConfig for builder tests. */
-const MOCK_API_DIRECT = {} as unknown as IApiDirectCallConfig;
+const MOCK_API_DIRECT = { steps: [] } as unknown as IApiDirectCallConfig;
 
 /** Minimal IApiDirectScrapeShape for builder tests (paired with MOCK_API_DIRECT). */
 const MOCK_API_DIRECT_SHAPE = {} as unknown as IApiDirectScrapeShape<unknown, unknown>;

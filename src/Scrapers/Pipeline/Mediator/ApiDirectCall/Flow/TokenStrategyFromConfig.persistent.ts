@@ -23,10 +23,10 @@ import {
   type IPersistentAuthStateV1,
   type IRehydratedPersistentAuth,
 } from '../PersistentAuthStateCodec.js';
+import { formatAuthValue } from './AuthModePolicy.js';
 import { type IFlowResult, type IRunSmsOtpArgs, runSmsOtpFlow } from './SmsOtpFlow.js';
-import { mayStartFlow } from './TokenStrategyFromConfig.budget.js';
+import { admitFlow } from './TokenStrategyFromConfig.budget.js';
 import { scrubPersistedValues } from './TokenStrategyFromConfig.scrub.js';
-import { formatAuthValue } from './TokenStrategyFromConfig.shared.js';
 import type { DurableAuthMode, IPrimeArgs, IRunFlowArgs } from './TokenStrategyFromConfig.types.js';
 
 const LOG = getDebug(import.meta.url);
@@ -174,14 +174,15 @@ function enrolledState(run: IDurableRun, flow: IFlowResult): Procedure<IPersiste
 
 /**
  * Enroll: run the existing SMS flow once, then publish the device state.
+ * Credentials are checked before the budget is charged (`admitFlow`).
  * @param run - Durable run in enroll mode.
  * @returns Formatted Authorization header value.
  */
 async function enrollDurable(run: IDurableRun): Promise<Procedure<string>> {
   const flowArgs = baseFlowArgs(run.prime);
-  const canStart = mayStartFlow(flowArgs, run.prime.slot);
-  if (!canStart) return durableFail('enrollment-budget');
-  const flow = await runSmsOtpFlow(flowArgs);
+  const admitted = admitFlow(flowArgs, run.prime.slot);
+  if (!isOk(admitted)) return admitted;
+  const flow = admitted.value ? await runSmsOtpFlow(flowArgs) : durableFail('enrollment-budget');
   if (!isOk(flow)) return flow;
   const state = enrolledState(run, flow.value);
   if (!isOk(state)) return state;

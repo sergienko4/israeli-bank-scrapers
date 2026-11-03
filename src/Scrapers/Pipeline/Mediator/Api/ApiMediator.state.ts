@@ -3,6 +3,7 @@
  * registration, and session priming.
  */
 
+import type { IMediatorAuthPolicy } from '../../Types/Domain/MediatorAuthPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type {
   IMediatorState,
@@ -15,6 +16,9 @@ import type { ITokenResolver } from './ITokenResolver.js';
 import { NULL_RESOLVER } from './ITokenResolver.js';
 import { buildResolverFromStrategy } from './TokenResolverBuilder.js';
 
+/** A fresh mediator assumes a header session until the bank's policy lands. */
+const HEADER_SESSION_POLICY: IMediatorAuthPolicy = { installHeader: true, rearmOnReject: true };
+
 /**
  * Construct the initial frozen-snapshot state for a fresh mediator.
  * @returns Initial state record.
@@ -26,6 +30,7 @@ function makeInitialMediatorState(): IMediatorState {
     sessionContext: Object.freeze({}),
     sessionWarm: false,
     isRefreshing: false,
+    ...HEADER_SESSION_POLICY,
   };
 }
 
@@ -69,6 +74,18 @@ function getSessionContextOp(state: IMediatorState): SessionContext {
 function setSessionWarmOp(state: IMediatorState, value: boolean): boolean {
   state.sessionWarm = value;
   return value;
+}
+
+/**
+ * Apply the bank's auth-mode policy to the mediator.
+ * @param state - Mediator state.
+ * @param policy - The mediator's slice of the policy.
+ * @returns True once applied.
+ */
+function setAuthPolicyOp(state: IMediatorState, policy: IMediatorAuthPolicy): boolean {
+  state.rearmOnReject = policy.rearmOnReject;
+  state.installHeader = policy.installHeader;
+  return true;
 }
 
 /**
@@ -137,6 +154,7 @@ export {
   getSessionWarmOp,
   makeInitialMediatorState,
   primeSessionOp,
+  setAuthPolicyOp,
   setBearerOp,
   setRawAuthOp,
   setRecoveryHookOp,

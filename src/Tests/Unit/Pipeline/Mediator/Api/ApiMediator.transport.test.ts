@@ -1,14 +1,15 @@
 /**
  * Edge coverage for ApiMediator.transport helpers that the mediator
  * integration tests do not naturally reach: query-string appending onto a
- * URL that already carries a `?`, and the GraphQL transport-failure
- * short-circuit in fireQuery.
+ * URL that already carries a `?`, the GraphQL transport-failure
+ * short-circuit in fireQuery, and the stored Authorization merge.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import {
   appendQuery,
   fireQuery,
+  mergeHeaders,
 } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.transport.js';
 import type { IFireQueryArgs } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.types.js';
 import { fail, isOk, type Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -59,5 +60,17 @@ describe('ApiMediator.transport.fireQuery (edge)', () => {
     const result = await fireQuery(args);
     const didSucceed = isOk(result);
     expect(didSucceed).toBe(false);
+  });
+});
+
+describe('ApiMediator.transport.mergeHeaders', () => {
+  it('lets the stored token replace a caller Authorization in any case', () => {
+    const merged = mergeHeaders('syn-stored', { Authorization: 'syn-caller', 'X-Trace': 't' });
+    expect(merged).toEqual({ 'X-Trace': 't', authorization: 'syn-stored' });
+  });
+
+  it('keeps the caller Authorization when no token is stored', () => {
+    const merged = mergeHeaders('', { Authorization: 'syn-caller' });
+    expect(merged).toEqual({ Authorization: 'syn-caller' });
   });
 });

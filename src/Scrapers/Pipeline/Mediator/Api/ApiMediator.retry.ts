@@ -70,13 +70,17 @@ async function guardedRefreshOp(state: IMediatorState): Promise<Procedure<string
 }
 
 /**
- * Apply a refreshed Authorization header when present and non-empty.
+ * Apply a refreshed Authorization header when present and non-empty. A cookie
+ * session (`installHeader` off) re-mints with no header, so a successful
+ * refresh is ready on its own: the new session lives in the cookie jar and in
+ * the context the recovery hook re-installs.
  * @param state - Mediator state.
  * @param refreshed - Refresh procedure result.
- * @returns True iff the new header was installed and a retry should proceed.
+ * @returns True iff the session is re-armed and a retry should proceed.
  */
 function applyRefreshedAuth(state: IMediatorState, refreshed: Procedure<string>): boolean {
   if (!isOk(refreshed)) return false;
+  if (!state.installHeader) return true;
   if (refreshed.value.length === 0) return false;
   setRawAuthOp(state, refreshed.value);
   return true;
@@ -156,12 +160,15 @@ async function rearmAfterAuthRejection(state: IMediatorState): Promise<IRearmOut
  * A failed refresh answers with the original rejection, except when the edge
  * refused the refresh itself: that WAF block is returned instead, so the
  * caller's WAF guards see it rather than an ordinary auth failure.
+ * A bank whose policy turns `rearmOnReject` off (a cookie session) gets the
+ * rejection back at once: no refresh, no second login, no retry.
  * @param args - Bundled mediator-state + fire-callable.
  * @returns Procedure from the first or second attempt, or the refresh's block.
  */
 async function retryOn401Op<T>(args: IRetryOn401Args<T>): Promise<Procedure<T>> {
   const first = await args.fire();
   if (!isUnauthorizedFailure(first)) return first;
+  if (!args.state.rearmOnReject) return first;
   const rearm = await rearmAfterAuthRejection(args.state);
   if (rearm.isRearmed) return args.fire();
   return preferWafBlock(rearm.refreshed, first);

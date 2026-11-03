@@ -184,6 +184,18 @@ describe('NativeFetchStrategy.fetchPost — success path', () => {
     const headers = capturedCall.init.headers as Record<string, string>;
     expect(headers['content-type']).toBe('text/plain');
   });
+
+  it('lets a mixed-case caller Content-Type replace the default', async () => {
+    const impl = respondWith(200, '{"ok":true}');
+    const fetchMock = installFetchMock(impl);
+    const strategy = new NativeFetchStrategy('https://api.example');
+    const extraHeaders = { 'Content-Type': 'application/json; charset=UTF-8' };
+    await strategy.fetchPost('https://api.example/x', { key: 'v' }, { extraHeaders });
+    const capturedCall = firstCall(fetchMock);
+    const headers = capturedCall.init.headers as Record<string, string>;
+    const sent = new Headers(headers).get('content-type');
+    expect(sent).toBe('application/json; charset=UTF-8');
+  });
 });
 
 describe('NativeFetchStrategy.fetchGet — success path', () => {
@@ -213,6 +225,18 @@ describe('NativeFetchStrategy.fetchGet — success path', () => {
     const headers = capturedCall.init.headers as Record<string, string>;
     expect(headers['X-Trace']).toBe('g1');
     expect(headers['content-type']).toBe('application/json');
+  });
+
+  it('lets a mixed-case caller Content-Type replace the default on GET', async () => {
+    const impl = respondWith(200, '{"ok":true}');
+    const fetchMock = installFetchMock(impl);
+    const strategy = new NativeFetchStrategy('https://api.example');
+    const extraHeaders = { 'Content-Type': 'text/plain' };
+    await strategy.fetchGet('https://api.example/x', { extraHeaders });
+    const capturedCall = firstCall(fetchMock);
+    const headers = capturedCall.init.headers as Record<string, string>;
+    const sent = new Headers(headers).get('content-type');
+    expect(sent).toBe('text/plain');
   });
 });
 

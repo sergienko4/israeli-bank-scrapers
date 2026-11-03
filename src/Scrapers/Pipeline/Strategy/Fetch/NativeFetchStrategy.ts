@@ -12,6 +12,7 @@ import { describeJsonParseFailure } from '../../Types/JsonParseFailure.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
+import { overlayHeaders } from './HeaderOverlay.js';
 import { classifyHttpFailure, hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
 import { safeUrlForLog, scrubUrlFromText } from './SafeUrlForLog.js';
 
@@ -40,20 +41,6 @@ const JSON_DEFAULT_HEADERS: DefaultHeadersByVerb = {
   GET: { 'content-type': 'application/json' },
   POST: { 'content-type': 'application/json' },
 };
-
-/**
- * Merge a verb's default headers with caller-supplied headers.
- * Caller wins on collision (e.g., text/plain overrides application/json).
- * @param defaults - The verb's default headers.
- * @param extraHeaders - Caller-supplied headers (may override defaults).
- * @returns Merged headers record ready for fetch.
- */
-function mergeHeaders(
-  defaults: Readonly<Record<string, string>>,
-  extraHeaders: Record<string, string>,
-): Record<string, string> {
-  return { ...defaults, ...extraHeaders };
-}
 
 /**
  * Parse a Response body as JSON, with a structured failure on malformed input.
@@ -253,7 +240,7 @@ class NativeFetchStrategy implements IFetchStrategy {
    */
   public async fetchPost<T>(url: string, data: PostData, opts: IFetchOpts): Promise<Procedure<T>> {
     const fullUrl = this.resolveUrl(url);
-    const headers = mergeHeaders(this._verbDefaults.POST, opts.extraHeaders);
+    const headers = overlayHeaders(this._verbDefaults.POST, opts.extraHeaders);
     const body = JSON.stringify(data);
     const init: RequestInit = { method: 'POST', headers, body };
     const invoke = this._invoke;
@@ -274,7 +261,7 @@ class NativeFetchStrategy implements IFetchStrategy {
    */
   public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
     const fullUrl = this.resolveUrl(url);
-    const headers = mergeHeaders(this._verbDefaults.GET, opts.extraHeaders);
+    const headers = overlayHeaders(this._verbDefaults.GET, opts.extraHeaders);
     const init: RequestInit = { method: 'GET', headers };
     const invoke = this._invoke;
     return dispatchFetch<T>({

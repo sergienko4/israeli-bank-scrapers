@@ -7,9 +7,15 @@
  * `assembleMediator` folds onto the shell.
  */
 
+import type { IMediatorAuthPolicy } from '../../Types/Domain/MediatorAuthPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { recoverSessionOp } from './ApiMediator.retry.js';
-import { getSessionWarmOp, setRecoveryHookOp, setSessionWarmOp } from './ApiMediator.state.js';
+import {
+  getSessionWarmOp,
+  setAuthPolicyOp,
+  setRecoveryHookOp,
+  setSessionWarmOp,
+} from './ApiMediator.state.js';
 import type { IMediatorState, IRecoveryMethods, RecoveredHook } from './ApiMediator.types.js';
 
 /**
@@ -49,6 +55,15 @@ function bindWithRecoveryHook(state: IMediatorState): IRecoveryMethods['withReco
 }
 
 /**
+ * Bind the auth-mode policy setter to the given mediator state.
+ * @param state - Mediator state.
+ * @returns Bound `setAuthPolicy` callable.
+ */
+function bindSetAuthPolicy(state: IMediatorState): IRecoveryMethods['setAuthPolicy'] {
+  return (policy: IMediatorAuthPolicy): boolean => setAuthPolicyOp(state, policy);
+}
+
+/**
  * Build the warm-session self-heal method bundle.
  * @param state - Mediator state.
  * @returns Recovery methods.
@@ -59,6 +74,7 @@ function buildRecoveryMethods(state: IMediatorState): IRecoveryMethods {
     wasSessionWarm: bindWasSessionWarm(state),
     recoverSession: bindRecoverSession(state),
     withRecoveryHook: bindWithRecoveryHook(state),
+    setAuthPolicy: bindSetAuthPolicy(state),
   };
 }
 

@@ -72,7 +72,7 @@ SETTLED_MARKER="SETTLED"
 TRANSPORT_FAILURE="unable to determine transport target"
 
 # The one outcome a hermetic run may reach. Both strings are this repo's own
-# (`CamoufoxIdentityFetchStrategy.ts`, `CamoufoxLauncher.ts`) and are pinned by
+# (`LocalFailureReasons.ts`, `CamoufoxLauncher.ts`) and are pinned by
 # unit tests, so they cannot drift underneath the gate the way a third-party
 # error message could.
 #

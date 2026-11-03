@@ -12,6 +12,7 @@
 
 import type {
   IApiDirectCallConfig,
+  IBodyTemplate,
   IPersistentAuthConfig,
   IStepConfig,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
@@ -78,6 +79,16 @@ function resumeStep(block: IPersistentAuthConfig, index: number): IStepConfig {
   return step;
 }
 
+/**
+ * A step's POST body, failing the test for a GET step (Pepper sends none).
+ * @param step - Step config.
+ * @returns The body template.
+ */
+function postBody(step: IStepConfig): IBodyTemplate {
+  if (step.method === 'GET') throw new TypeError(`${step.name} is a GET step`);
+  return step.body;
+}
+
 describe('Pepper persistent auth — enrollment', () => {
   it('keeps the legacy bind → password → OTP ordering', async () => {
     const config = await loadPepper();
@@ -87,7 +98,7 @@ describe('Pepper persistent auth — enrollment', () => {
 
   it('binds with the flow-stable client instance id as CellPhoneID', async () => {
     const config = await loadPepper();
-    const params = nodeAt(config.steps[0].body.shape, ['data', 'params']);
+    const params = nodeAt(postBody(config.steps[0]).shape, ['data', 'params']);
     expect(params).toHaveProperty('CellPhoneID', CLIENT_INSTANCE_REF);
     expect(params).toHaveProperty('transactionId', { $ref: 'uuid' });
   });
@@ -149,7 +160,8 @@ describe('Pepper persistent auth — resume steps', () => {
 
   it('logs in with the same client instance id enrollment bound', async () => {
     const block = await loadPersistent();
-    const shape = resumeStep(block, 0).body.shape;
+    const loginStep = resumeStep(block, 0);
+    const shape = postBody(loginStep).shape;
     const params = nodeAt(shape, ['data', 'params']);
     const policy = nodeAt(shape, ['data', 'policy_request_id']);
     expect(params).toHaveProperty('CellPhoneID', CLIENT_INSTANCE_REF);
@@ -163,7 +175,8 @@ describe('Pepper persistent auth — resume steps', () => {
 
   it('asserts the password under the server-selected action', async () => {
     const block = await loadPersistent();
-    const data = nodeAt(resumeStep(block, 1).body.shape, ['data']);
+    const assertStep = resumeStep(block, 1);
+    const data = nodeAt(postBody(assertStep).shape, ['data']);
     const keys = Object.keys(data as object);
     expect(keys).toEqual(ASSERT_DATA_KEYS);
     expect(data).toHaveProperty('action', { $ref: 'carry.pwdAction' });

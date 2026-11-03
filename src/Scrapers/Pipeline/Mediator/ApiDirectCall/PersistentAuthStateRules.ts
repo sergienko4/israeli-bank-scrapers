@@ -169,4 +169,4 @@ const STATE_RULES: readonly IStateRule[] = [
 ];
 
 export type { IPersistentAuthExpectation, IPersistentAuthStateV1 };
-export { STATE_KEYS, STATE_RULES };
+export { MAX_ACCESS_TOKEN_CHARS, STATE_KEYS, STATE_RULES };

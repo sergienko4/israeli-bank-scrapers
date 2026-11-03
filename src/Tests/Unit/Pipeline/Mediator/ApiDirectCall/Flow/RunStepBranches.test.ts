@@ -280,9 +280,9 @@ describe('api-direct-call RunStep buildPathAndQuery branches', () => {
 });
 
 describe('api-direct-call RunStep apiPost failure propagation', () => {
-  it('propagates an upstream transport failure verbatim', async (): Promise<void> => {
+  it('reports an upstream HTTP failure by step name and status', async (): Promise<void> => {
     const captures: IApiPostCapture[] = [];
-    const responses = [fail(ScraperErrorTypes.Generic, 'net boom')];
+    const responses = [fail(ScraperErrorTypes.Generic, 'POST https://example.test/x 502: boom')];
     const bus = makeStubMediator({ responses, captures });
     const step: IStepConfig = {
       name: 'bind',
@@ -292,7 +292,7 @@ describe('api-direct-call RunStep apiPost failure propagation', () => {
     };
     const result = await runStep({ step, bus, scope: makeScope(), companyId: HINT });
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toBe('net boom');
+    if (!result.success) expect(result.errorMessage).toBe('bind HTTP 502');
   });
 });
 

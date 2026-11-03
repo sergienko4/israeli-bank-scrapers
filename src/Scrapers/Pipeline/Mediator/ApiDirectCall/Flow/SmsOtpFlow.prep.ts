@@ -16,6 +16,7 @@ import type { ICollectionResult } from '../Fingerprint/GenericFingerprintBuilder
 import { buildCollectionResult } from '../Fingerprint/GenericFingerprintBuilder.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { buildInitialCarry } from './FlowInitCarry.js';
+import { checkRequiredCreds } from './RequiredCreds.js';
 import type {
   ICoreSmsOtpInputs,
   IKeypairBundle,
@@ -202,11 +203,14 @@ function prepCoreInputs(args: IRunSmsOtpArgs): Procedure<ICoreSmsOtpInputs> {
 }
 
 /**
- * Prepare keypairs, fingerprint, and initial carry for the flow.
+ * Check the required credentials, then prepare keypairs, fingerprint, and
+ * initial carry for the flow. Nothing is sent before this returns.
  * @param args - Flow run args.
  * @returns Prepared bundle procedure.
  */
 function prepareSmsOtpFlow(args: IRunSmsOtpArgs): Procedure<ISmsOtpPrep> {
+  const credsProc = checkRequiredCreds(args.config, args.creds);
+  if (!isOk(credsProc)) return credsProc;
   const coreProc = prepCoreInputs(args);
   if (!isOk(coreProc)) return coreProc;
   const carryProc = buildSmsOtpCarry(args);

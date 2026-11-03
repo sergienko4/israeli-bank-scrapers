@@ -91,6 +91,175 @@ unusable value went to the bank as-is and came back as an opaque auth failure
 that named nothing. See
 [#552](https://github.com/sergienko4/israeli-bank-scrapers/issues/552).
 
+### GET steps
+
+A step is a POST unless it says otherwise. `IStepConfig` is the union
+`IPostStep | IGetStep`, both built on the shared `IStepBase` fields, and
+`StepMethod` names the two verbs. An `IPostStep` (no `method`, or
+`method: 'POST'`) carries a `body`. An `IGetStep` sets `method: 'GET'` and
+cannot carry one: a GET with a `body` fails type-check, so there is no runtime
+check. Step literals written before GET existed name no `method`, so they stay
+POSTs and type-check unchanged.
+
+```ts
+{
+  name: 'bind',
+  urlTag: 'auth.bind',
+  method: 'GET',
+  queryTemplate: { lang: { $literal: 'he' } },
+  cookieJar: true,
+  extractsToCarry: { token: '/access_token' },
+}
+```
+
+A GET skips body hydration, the `cryptoField` hook and the AES body
+signature. It keeps the query template, the headers, the cookie jar and the
+extracts. `fireStep`
+(`src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.fire.ts`) picks
+the bus call by method, so a GET goes through `apiGet` with the query, headers
+and Set-Cookie sink that a POST hands to `apiPost`. A config-level signature
+header, when one is set, signs the empty body `{}`. On the headless native
+transport a GET goes out with no body and no `content-type` header, while a
+POST still sends `application/json`.
+
+### Step headers
+
+A step can add its own headers with `headers`, a map of header name to
+`JsonValueTemplate`. They are hydrated against the step's scope on every call,
+so `{ $ref: 'carry.<slot>' }` reads the value an earlier step extracted and
+`{ $ref: 'uuid' }` is fresh each time. A string value is sent as it is; any
+other value is sent as its JSON text (`7` → `"7"`, `true` → `"true"`). A step
+header replaces a `staticHeaders` entry of the same name, compared
+case-insensitively. The cookie jar's `Cookie` and the signer's `headerName` are
+set after it and, in the same case-insensitive way, replace any static or step
+header of that name, so only one value is sent. A stored login token's
+`authorization` replaces a static or step `Authorization` the same way. The
+transport's own `content-type: application/json` default gives way to a static
+or step `Content-Type` in any letter case. A reference that does not
+resolve fails the step before anything is sent.
+
+```ts
+headers: {
+  'X-Request-Id': { $ref: 'uuid' },
+  'X-Session-Key': { $ref: 'carry.sessionKey' },
+}
+```
+
+### Optional extracts
+
+`extractsToCarry` fails the step when a field is missing. For fields that only
+some responses carry, use `optionalExtractsToCarry`, a map of carry slot to
+`IOptionalExtract` (`pointer`, optional `fallback`). It is read after the
+required extracts and is applied by `extractOptional` in
+`Flow/RunStep.optional.ts`:
+
+- When the pointer resolves to a string that is not blank, that string is
+  written as it is.
+- Otherwise, when `fallback` is set, the fallback is written.
+- Otherwise the slot keeps the value an earlier step stored.
+
+An empty or whitespace-only string, a number, `null` or an object all count
+as missing, so a blank field never overwrites a live value.
+
+```ts
+optionalExtractsToCarry: {
+  bcKey: { pointer: '/bean/bcKey' },
+  userName: { pointer: '/bean/userName', fallback: '' },
+}
+```
+
+### Required credentials
+
+`requiredCreds` maps a creds field to a `CredRule`. `checkRequiredCreds` in
+`Flow/RequiredCreds.ts` runs before keys are generated or any request is sent.
+`admitFlow`
+(`src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.budget.ts`)
+calls it before `mayStartFlow` charges the cold-flow budget, for
+`runConfiguredFlow` and a durable enrollment alike, and `prepareSmsOtpFlow`
+calls it again for the paths that do not pass the budget:
+
+| Rule        | Accepts                          |
+| ----------- | -------------------------------- |
+| `nonEmpty`  | a string that is not blank       |
+| `digits`    | one or more digits, nothing else |
+| `sixDigits` | exactly six digits               |
+
+A missing or non-string value fails every rule. When any field fails, the flow
+stops with `Generic` and `Missing or malformed credentials: <names>`. The
+message lists field names only, never values. A flow stopped here sends
+nothing and so spends nothing: the cold retry after a dropped warm token
+names the bad field again rather than the spent budget.
+
+```ts
+requiredCreds: { id: 'digits', password: 'nonEmpty', card6Digits: 'sixDigits' }
+```
+
+The stored warm token is checked too, before the warm path replays it. It must
+be printable ASCII (so no CR/LF or other control characters) and no longer
+than `MAX_ACCESS_TOKEN_CHARS` (16 KiB, the cap the durable state already uses
+for access tokens). A token that fails is dropped with a warning that names
+the creds field, not the value, and the cold login runs instead.
+
+### Step outcome
+
+Some banks refuse a login with HTTP 200 and a status code in the body. A step
+that declares `outcome` (an `IStepOutcome`) has that code judged by
+`judgeStepOutcome` after the 2xx and before its extracts run:
+
+```ts
+outcome: {
+  codePointer: '/status',          // RFC-6901 pointer to the code
+  successCodes: ['0'],
+  failureMap: { '7': ScraperErrorTypes.InvalidPassword },
+  defaultFailure: ScraperErrorTypes.Generic,
+}
+```
+
+The code is compared as text, so a numeric `0` matches `'0'`. A code in
+`successCodes` lets the step continue. Any other code fails the step with its
+`failureMap` type, or `defaultFailure` when it is unmapped. Only the map's own
+keys count, so a code such as `toString` is unmapped. A missing, empty or
+non-scalar code also fails with `defaultFailure`. The message is
+`<step> outcome <code>` for a mapped code, `<step> outcome unmapped` for any
+other code, and `<step> outcome missing` when there is none. An unmapped code
+is never echoed: it comes from the bank, not the config, and may carry a
+secret. A step without `outcome` behaves as before.
+
+An outcome failure in a warm resume is a failure like any other, so the
+resolver still falls back to one cold flow. When the cold flow also fails, its
+own failure type is the one reported.
+
+### Build-time config checks
+
+`validateApiDirectConfig` in `Core/Builder/ApiDirectConfigRules.ts` runs when
+the pipeline is built (`build()` → `buildDescriptor` → `validateBuilderFields`).
+Its input, `IApiDirectRuleInput`, is the call config plus the bank's `headless`
+block from the registry, so a config that cannot work fails before any request
+is sent. The first broken rule fails the build with `Generic` and
+`<field>: <rule>`:
+
+| Broken when                                                                      | Message                                                                  |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `authScheme: 'prefixed'` with a missing or blank `authPrefix`                    | `authPrefix: required when authScheme is prefixed`                       |
+| `authScheme: 'none'` without `headless.sessionCookies: true`                     | `headless.sessionCookies: required when authScheme is none`              |
+| `headless.sessionCookies` and any login or resume step with `cookieJar`          | `steps.cookieJar: not allowed with headless.sessionCookies`              |
+| any login or resume step whose `outcome.successCodes` is empty                   | `outcome.successCodes: must not be empty`                                |
+| `warmStart` validated as `'jwt'` (the default) with no `jwtClaims`               | `jwtClaims: required when warmStart.validation is jwt`                   |
+| `warmStart` validated as `'bank-call'` with a `fromStepIndex` that names no step | `warmStart.fromStepIndex: must name a step when validation is bank-call` |
+| `warmStart.fromStepIndex` below 1                                                | `warmStart.fromStepIndex: must start after the first step`               |
+
+`warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
+reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
+readable expiry, so the first warm step sent to the bank is the check, and
+`fromStepIndex` must name a step. A `'bank-call'` seed skips the local JWT
+check even when `jwtClaims` is set. In either mode a warm start must skip
+step 0: a resume from the first step replays the whole login, OTP step
+included, and `isColdStart` charges it to the one-SMS budget, leaving nothing
+for the cold retry if the bank rejects the seed. A config with no steps is
+no exception: `isColdStart` charges index 0 whether or not a step runs.
+Conflicting transport flags in the headless block are a separate check
+(`assertSingleTransport`), run when the headless mediator is wired.
+
 ### Transport errors
 
 Every transport — native fetch, Camoufox page fetch and mTLS — names a URL in
@@ -130,6 +299,22 @@ with that `WAF_BLOCKED` instead of the original `401`/`403`, and when it
 refuses the scrape phase's session recovery, the phase answers with it
 instead of its first outcome. Both go through `preferWafBlock` in the same
 file.
+
+A login step does not pass that message on, because a bank can echo the
+password, the OTP or a device id back in its reply. `sanitiseStepFailure`
+(`src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.failure.ts`)
+reports a failed step as `<step> HTTP <status>` when the bank answered, or as
+`<step> <errorType>` (for example `bind TIMEOUT`) when no reply arrived. It
+keeps `errorType` and `errorDetails`, and leaves a `WAF_BLOCKED` failure as it
+is, since that message carries a fixed reason instead of the page. A failure
+raised before any request is sent, such as `CAMOUFOX_LAUNCH_FAILED` when the
+browser will not start, passes unchanged too: it holds no bank reply, and the
+consumer-install gate reads it. `isLocalFailureMessage`
+(`src/Scrapers/Pipeline/Strategy/Fetch/LocalFailureReasons.ts`) matches such a
+reason only at the start of the message, so a reply that quotes one is still
+cut down. The in-request re-mint runs below the step, so it still reads the
+original ` <status>: ` marker. Scrape-phase requests keep the transport
+message.
 
 ## One SMS per run
 
@@ -192,6 +377,43 @@ each silent re-mint invalidated the token the run was trying to keep.
 
 If a run legitimately needs a second login, start a second scrape.
 
+## Auth-mode policy
+
+`authScheme` decides two things: how a login token becomes the
+`Authorization` header, and whether a rejected request may log in again.
+`formatAuthValue` renders the header value and `authPolicyOf` looks up the
+policy. Both read one table keyed by scheme in `AuthModePolicy.ts`, so a new
+scheme is a new row, not a new branch.
+
+| `authScheme` | Header value | `installHeader` | `rearmOnReject` |
+|---|---|---|---|
+| `raw` (default) | the token | yes | yes |
+| `bearer` | `Bearer` + space + the token | yes | yes |
+| `prefixed` | `authPrefix` + the token | yes | yes |
+| `none` | no header | no | no |
+
+`prefixed` is for a bank whose header starts with its own scheme word. That
+word goes in `authPrefix`, trailing space included. `none` is for a bank whose
+session is a cookie. It needs `sessionCookies: true` (see
+[Headless transports](../architecture/pipeline.md#headless-transports)). Its
+login may end without a `carry.token`, and the flow then reports an empty
+bearer.
+
+`IAuthModePolicy` carries both flags. The mediator needs only
+`rearmOnReject`, so it receives the narrower `IMediatorAuthPolicy` through the
+`setAuthPolicy` port, which `setAuthPolicyOp` stores in mediator state. Every
+mediator must implement the port, so a missing wire fails to compile instead
+of silently dropping the policy. The ACTION calls `applyAuthPolicy` before the first login, so a
+rejection during the login steps obeys the policy too. `primeAndCheck` then
+primes the session. It rejects an empty header only when `installHeader` is
+set.
+
+With `rearmOnReject` off, `retryOn401Op` returns the bank's first 401/403 as
+is and does not log in again. A cookie session has no header to swap, so a
+fresh login would only repeat the one the bank just refused. A mediator that
+never receives a policy keeps the default of `rearmOnReject: true`, so banks
+that send a header behave exactly as before.
+
 ## Persistent (durable) device auth
 
 A bank whose config declares a `persistentAuth` block can keep its bound device
@@ -205,7 +427,8 @@ combination fails there, so it never reaches the network.
 
 - **Enrollment** is the bank's normal cold flow, so it draws on the
   [one-SMS budget](#one-sms-per-run) like any cold login. A spent budget fails
-  as `enrollment-budget` instead of sending.
+  as `enrollment-budget` instead of sending. A malformed credential fails by
+  name first and leaves the budget unspent.
 - **Resume** decodes and validates the state locally. A token fresh for more
   than `freshnessMarginSeconds` (300 s for Pepper) is replayed with zero auth
   requests. Otherwise the bank's `resumeSteps` run on the persisted device:
@@ -220,8 +443,10 @@ combination fails there, so it never reaches the network.
   `onPersistentAuthStateUpdate` resolves.
 - **No stored value in errors.** Transports drop the query string (see
   [Transport errors](#transport-errors)), so the persisted device id never
-  reaches an error or a log line. A renewal failure is passed through with any
-  stored value it quotes replaced by `[REDACTED]`.
+  reaches an error or a log line. A renewal failure reaches the caller as its
+  step name and status, never the reply (see
+  [Transport errors](#transport-errors)); any stored value a message still
+  quotes is replaced by `[REDACTED]` as a second guard.
 
 A durable run therefore performs at most two auth requests on resume, at most
 one state callback, and no SMS outside enrollment.
@@ -234,7 +459,7 @@ Where each piece lives, for maintainers:
 | Mode resolution | `createContextStrategy` → `resolveContextAuthMode` → `resolvePersistentAuthMode`, producing a `PersistentAuthMode`: legacy, or a `DurableAuthMode` (enroll / resume) |
 | State codec | `encodePersistentAuthState` / `decodePersistentAuthState` over `IPersistentAuthStateV1`. Decoding checks the state against an `IPersistentAuthExpectation` and returns an `IRehydratedPersistentAuth` with the EC key ready to sign |
 | Strategy branch | `primeDurable` (replay, renew or enroll) and `refuseDurableRefresh` (the local `primeFresh` refusal) |
-| Secrets in failures | `scrubPersistedValues` redacts stored values a renewal failure quotes; transports already strip the query string with `safeUrlForLog` |
+| Secrets in failures | `sanitiseStepFailure` reports a failed step by name and status, never its reply; `scrubPersistedValues` still redacts any stored value a renewal failure quotes; transports strip the query string with `safeUrlForLog` |
 | Bank data | Pepper's `PEPPER_RESUME_STEPS`: signed `/auth/login`, then one password assertion |
 
 ## Sub-step contract
@@ -242,7 +467,7 @@ Where each piece lives, for maintainers:
 | Hook | What it does |
 |---|---|
 | `.pre` | Resolve `apiDirectCallConfig` from the bank's `PipelineDescriptor`; seed carry. |
-| `.action` | Run the declarative step list: each step has a body template + optional crypto hook + optional signer. The mediator hydrates, signs, sends, parses response, updates carry. OTP step calls `credentials.otpCodeRetriever` mid-flow. |
+| `.action` | Run the declarative step list: each POST step has a body template + optional crypto hook + optional signer; a [GET step](#get-steps) has no body. The mediator hydrates, signs, sends, parses response, updates carry. OTP step calls `credentials.otpCodeRetriever` mid-flow. |
 | `.post` | Validate the final carry has the required slots (auth token, user id). |
 | `.final` | Publish the final carry via `setSessionContext`; build `IApiFetchContext`; commit `api` + `login` slots. |
 
@@ -251,9 +476,11 @@ Where each piece lives, for maintainers:
 | `errorType` | Cause |
 |---|---|
 | `INVALID_PASSWORD` | Bank rejected credentials |
+| any type a step's `failureMap` names, else its `defaultFailure` | The step's 2xx body reported a non-success [outcome](#step-outcome) code |
 | `INVALID_OTP` | Wrong code |
 | `TWO_FACTOR_RETRIEVER_MISSING` | OTP step reached without callback |
 | `INVALID_PHONE_NUMBER` | `phoneNumber` cannot be normalised to the bank's wire format — see [Phone normaliser](#phone-normaliser) |
-| `TIMEOUT` | A step's HTTP call didn't complete |
+| `TIMEOUT` | A step's HTTP call didn't complete (`<step> TIMEOUT`) |
+| `GENERIC` | A step's HTTP call failed: `<step> HTTP <status>` for a non-2xx reply, `<step> GENERIC` for a network error — see [Transport errors](#transport-errors) |
 | `GENERIC` | Signer key missing, response shape drift, a `cryptoField` failure, or a second cold login refused by the [one-SMS budget](#one-sms-per-run) |
 | `GENERIC` | `persistent auth options invalid: <category>`, `persistent auth state invalid: <category>` or `persistent auth failed: <category>` — a [durable device auth](#persistent-durable-device-auth) failure; the categories are listed in [Pepper](../banks/pepper.md#failures-never-fall-back) |

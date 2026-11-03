@@ -52,6 +52,9 @@ const MSG_401_SECOND = 'POST https://bank.example.com/customer 401: still denied
  */
 const MSG_403_FIRST = 'POST https://bank.example.com/customer 403: <!DOCTYPE HTML PUBLIC';
 
+/** A cookie session's expiry: HTTP 403 with an empty body. */
+const MSG_403_EMPTY = 'POST https://bank.example.com/customer 403: ';
+
 /** Non-auth status that must never spend an OTP on a cold re-mint. */
 const MSG_404 = 'POST https://bank.example.com/customer 404: no such route';
 
@@ -350,6 +353,45 @@ describe('ApiMediator.retryOn401 — 403 auth rejection (Pepper edge)', () => {
     const result = await mediator.apiPost(TEST_URL_TAG, {});
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('no such route');
+  });
+});
+
+/**
+ * Token strategy whose every refresh is logged and succeeds.
+ * @param calls - Mutable log; one entry per refresh.
+ * @returns Counting strategy.
+ */
+function loggingRefreshStrategy(calls: string[]): ITokenStrategy<ITestCreds> {
+  /**
+   * Log the refresh and mint a fresh header.
+   * @returns Success with FRESH_HEADER.
+   */
+  async function primeFresh(): Promise<Procedure<string>> {
+    await Promise.resolve();
+    calls.push('fresh');
+    return succeed(FRESH_HEADER);
+  }
+  const base = scriptedStrategy([]);
+  return { ...base, primeFresh };
+}
+
+describe('ApiMediator.retryOn401 — auth-mode policy', () => {
+  it.each<[boolean, number, Record<string, unknown>]>([
+    [false, 0, { success: false, errorType: ScraperErrorTypes.Generic }],
+    [true, 1, { success: true }],
+  ])('rearmOnReject=%s refreshes %s time(s) on a 403', async (rearmOnReject, refreshes, shape) => {
+    const calls: string[] = [];
+    const initial403 = fail(ScraperErrorTypes.Generic, MSG_403_EMPTY);
+    const fetchStrat = scriptedFetchStrategy([initial403, succeed({ ok: 'retried' })]);
+    const graphql = stubGraphqlStrategy();
+    const mediator = createApiMediator(CompanyTypes.OneZero, fetchStrat, graphql);
+    const strategy = loggingRefreshStrategy(calls);
+    const ctx = makeStubCtx();
+    mediator.withTokenStrategy(strategy, ctx, { marker: 'x' });
+    mediator.setAuthPolicy({ installHeader: true, rearmOnReject });
+    const result = await mediator.apiPost(TEST_URL_TAG, {});
+    expect(calls).toHaveLength(refreshes);
+    expect(result).toMatchObject(shape);
   });
 });
 

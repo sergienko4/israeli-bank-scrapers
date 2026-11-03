@@ -18,8 +18,10 @@ import {
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { WKUrlGroup } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import type { IMediatorAuthPolicy } from '../../../../../Scrapers/Pipeline/Types/Domain/MediatorAuthPolicy.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import { type IApiPostCapture, makeStubMediator } from './Flow/StubMediator.js';
@@ -190,12 +192,13 @@ describe('ApiDirectCallActions.runApiDirectCallAction callback invocation', () =
 describe('ApiDirectCallActions.runApiDirectCallPost probe', () => {
   it('propagates the probe-url Procedure failure verbatim', async (): Promise<void> => {
     const captures: IApiPostCapture[] = [];
-    const bus = makeStubMediator({ responses: [], captures });
+    const responses = [fail(ScraperErrorTypes.Generic, 'probe refused')];
+    const bus = makeStubMediator({ responses, captures });
     const ctx = makeActionsCtx({ bus });
     const cfg: IApiDirectCallConfig = { ...makeBaseConfig(), probe: { urlTag: PROBE_TAG } };
     const result = await runApiDirectCallPost(cfg, ctx);
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toBe('unused');
+    if (!result.success) expect(result.errorMessage).toBe('probe refused');
   });
 
   it('propagates the probe-query Procedure failure verbatim', async (): Promise<void> => {
@@ -244,6 +247,34 @@ describe('ApiDirectCallActions primeSession outcomes', () => {
     const result = await runApiDirectCallAction(config, ctx);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('empty header');
+  });
+
+  it("accepts an empty header under 'none' and applies the policy before priming", async () => {
+    const calls: string[] = [];
+    const stub = makeStubMediator({ responses: [], captures: [], primeBearer: '' });
+    /**
+     * Record the policy hand-off.
+     * @param policy - The mediator's slice of the auth-mode policy.
+     * @returns True.
+     */
+    function setAuthPolicy(policy: IMediatorAuthPolicy): boolean {
+      calls.push(`policy rearm=${String(policy.rearmOnReject)}`);
+      return true;
+    }
+    /**
+     * Record the prime, then delegate to the stub.
+     * @returns The stub's prime result.
+     */
+    async function primeSession(): Promise<Procedure<string>> {
+      calls.push('prime');
+      return stub.primeSession();
+    }
+    const bus: IApiMediator = { ...stub, setAuthPolicy, primeSession };
+    const ctx = makeActionsCtx({ bus });
+    const config: IApiDirectCallConfig = { ...makeBaseConfig(), authScheme: 'none' };
+    const result = await runApiDirectCallAction(config, ctx);
+    expect(result.success).toBe(true);
+    expect(calls).toEqual(['policy rearm=false', 'prime']);
   });
 
   it('propagates prime-session failure verbatim', async (): Promise<void> => {

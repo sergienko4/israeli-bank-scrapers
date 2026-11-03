@@ -27,7 +27,9 @@ import { describeJsonParseFailure } from '../../Types/JsonParseFailure.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
+import { overlayHeaders } from './HeaderOverlay.js';
 import { classifyHttpFailure, hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
+import { CAMOUFOX_LAUNCH_FAILED } from './LocalFailureReasons.js';
 import { digestResponse, type IResponseDigest } from './ResponseDigest.js';
 import { safeUrlForLog, scrubUrlFromText } from './SafeUrlForLog.js';
 
@@ -66,12 +68,12 @@ interface IDispatchArgs {
 
 /**
  * Merges the default JSON content-type with caller-supplied headers.
- * Caller wins on collision.
+ * Caller wins on collision, in any letter case.
  * @param extraHeaders - Caller-supplied headers.
  * @returns Merged headers record.
  */
 function mergeHeaders(extraHeaders: Record<string, string>): Record<string, string> {
-  return { 'content-type': 'application/json', ...extraHeaders };
+  return overlayHeaders({ 'content-type': 'application/json' }, extraHeaders);
 }
 
 /**
@@ -411,7 +413,7 @@ class CamoufoxIdentityFetchStrategy implements IFetchStrategy {
         errorMessage: reason,
         message: '[camoufox-identity] launch FAIL',
       });
-      return fail(ScraperErrorTypes.Generic, `camoufox launch failed: ${reason}`);
+      return fail(ScraperErrorTypes.Generic, `${CAMOUFOX_LAUNCH_FAILED}: ${reason}`);
     }
     this._browser = browser;
     const durationMs = (Date.now() - t0) as LaunchDurationMs;

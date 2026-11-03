@@ -34,8 +34,12 @@ interface IJwtClaimsConfig {
   readonly skewSeconds: number;
 }
 
-/** Authorization scheme — "raw" for verbatim JWT, "bearer" for "Bearer <jwt>". */
-type AuthScheme = 'raw' | 'bearer';
+/**
+ * Authorization scheme: "raw" sends the JWT verbatim, "bearer" prefixes the
+ * standard bearer word, "prefixed" prefixes `authPrefix`, and "none" sends no
+ * header because the session is a cookie (needs `headless.sessionCookies`).
+ */
+type AuthScheme = 'raw' | 'bearer' | 'prefixed' | 'none';
 
 /**
  * Post-auth probe configuration — strict XOR: EXACTLY ONE of

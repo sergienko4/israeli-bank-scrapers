@@ -533,6 +533,14 @@ describe('CamoufoxIdentityFetchStrategy/fetch deadline', () => {
     expect(NETWORK_FETCH_PAGE_TIMEOUT_MS).toBeGreaterThan(NETWORK_FETCH_TIMEOUT_MS);
   });
 
+  it('OZ-CIT-20 — a mixed-case caller Content-Type replaces the JSON default', async () => {
+    STATE.envelope = ENV_OK;
+    const extraHeaders = { 'Content-Type': 'text/plain' };
+    await new STRATEGY(ORIGIN, false).fetchPost(URL_OK, {}, { extraHeaders });
+    const sent = STATE.evaluateArgs[0] as { headers: Record<string, string> };
+    expect(sent.headers).toEqual({ 'Content-Type': 'text/plain' });
+  });
+
   describe('when the page never answers', () => {
     beforeEach(() => {
       jest.useFakeTimers();

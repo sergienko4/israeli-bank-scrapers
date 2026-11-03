@@ -16,6 +16,10 @@
  * <p>A warm resume starts past the SMS step and must stay free, or the first
  * legitimate warm→cold escalation would be refused before the bank was ever
  * asked.
+ *
+ * <p>A missing or malformed required credential is caught before the charge:
+ * nothing is sent, so nothing is spent, and every retry names the bad field
+ * instead of the spent budget.
  */
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
@@ -269,5 +273,46 @@ describe('cold-flow budget — the consumed-code replay is unreachable', (): voi
     await harness.strategy.primeFresh(refusals[1], CTX, probe.creds);
     await harness.strategy.primeFresh(refusals[2], CTX, probe.creds);
     expect(probe.calls.n).toBe(1);
+  });
+});
+
+/** A stored seed the JWT gate drops, so every prime takes the cold path. */
+const STALE_SEED = { otpLongTermToken: makeJwt(-3600) } as unknown as ScraperCredentials;
+const MISSING_USER_CODE = 'Missing or malformed credentials: userCode';
+
+/**
+ * Build a harness whose config requires `userCode`.
+ * @returns Strategy plus an empty capture log.
+ */
+function makeCredsHarness(): IHarness {
+  const config: IApiDirectCallConfig = {
+    ...warmTwoStepConfig(),
+    requiredCreds: { userCode: 'nonEmpty' },
+  };
+  const proc = createTokenStrategyFromConfig({ config });
+  if (!isOk(proc)) throw new ScraperError(proc.errorMessage);
+  return { strategy: proc.value, captures: [] };
+}
+
+describe('cold-flow budget — a bad credential never spends it', (): void => {
+  it('names the field, not the budget, on the cold retry', async (): Promise<void> => {
+    const harness = makeCredsHarness();
+    const initialBus = makeBus(harness);
+    await harness.strategy.primeInitial(initialBus, CTX, STALE_SEED);
+    const retryBus = makeBus(harness);
+    const retry = await harness.strategy.primeFresh(retryBus, CTX, STALE_SEED);
+    expect(retry).toMatchObject({ success: false, errorMessage: MISSING_USER_CODE });
+    expect(harness.captures).toEqual([]);
+  });
+
+  it('keeps the budget for a cold flow with the field set', async (): Promise<void> => {
+    const harness = makeCredsHarness();
+    const initialBus = makeBus(harness);
+    await harness.strategy.primeInitial(initialBus, CTX, STALE_SEED);
+    const sound = { userCode: 'syn-user' } as unknown as ScraperCredentials;
+    const coldBus = makeBus(harness);
+    const cold = await harness.strategy.primeFresh(coldBus, CTX, sound);
+    expect(cold.success).toBe(true);
+    expect(harness.captures).toHaveLength(COLD_STEPS);
   });
 });

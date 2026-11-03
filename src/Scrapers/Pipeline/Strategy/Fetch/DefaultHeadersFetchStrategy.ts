@@ -11,25 +11,28 @@
  *
  * Precedence: per-call `extraHeaders` (and the mediator's rawAuth
  * Authorization, already merged into `opts` upstream) always win over the
- * defaults. An empty bag is a transparent pass-through — {@link
+ * defaults, compared by name in any letter case. An empty bag is a transparent pass-through — {@link
  * withDefaultHeaders} returns the inner strategy unchanged — so wrapping a
  * bank that doesn't opt in is byte-identical to not wrapping (OCP).
  */
 
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
+import { overlayHeaders } from './HeaderOverlay.js';
 
 /** Immutable default-header bag installed under every call. */
 type DefaultHeaders = Readonly<Record<string, string>>;
 
 /**
- * Merge the default bag UNDER a call's per-call headers.
+ * Merge the default bag UNDER a call's per-call headers; a per-call header
+ * replaces a default of the same name in any letter case.
  * @param defaults - Default headers (the floor).
  * @param opts - Per-call fetch options.
  * @returns Opts whose extraHeaders layer per-call over defaults.
  */
 function mergeUnder(defaults: DefaultHeaders, opts: IFetchOpts): IFetchOpts {
-  return { ...opts, extraHeaders: { ...defaults, ...opts.extraHeaders } };
+  const extraHeaders = overlayHeaders(defaults, opts.extraHeaders);
+  return { ...opts, extraHeaders };
 }
 
 /** IFetchStrategy decorator injecting a fixed default-header bag. */

@@ -122,7 +122,7 @@ describe('api-direct-call SmsOtpFlow step failure short-circuits', () => {
       companyId: HINT,
     });
     expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toBe('bind boom');
+    if (!result.success) expect(result.errorMessage).toBe('bind GENERIC');
     expect(captures).toHaveLength(1);
   });
 });
