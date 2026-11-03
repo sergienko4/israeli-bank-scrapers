@@ -19,7 +19,19 @@ import type {
 const NO_EXTRA_HEADERS: Record<string, string> = Object.freeze({});
 
 /**
+ * Split a URL at its fragment, so query params can go before the `#`.
+ * @param url - Resolved URL.
+ * @returns The URL before the `#`, and the `#…` fragment (empty when none).
+ */
+function splitFragment(url: string): readonly [string, string] {
+  const hashAt = url.indexOf('#');
+  if (hashAt < 0) return [url, ''];
+  return [url.slice(0, hashAt), url.slice(hashAt)];
+}
+
+/**
  * Append query parameters to a URL preserving any existing querystring.
+ * The params go before any fragment, since a fragment is never sent.
  * @param url - Resolved URL.
  * @param query - Additional key→value pairs to append.
  * @returns URL with merged querystring.
@@ -29,8 +41,9 @@ function appendQuery(url: string, query: Record<string, string>): string {
   if (keys.length === 0) return url;
   const parts = keys.map((k): string => `${encodeURIComponent(k)}=${encodeURIComponent(query[k])}`);
   const joined = parts.join('&');
-  if (url.includes('?')) return `${url}&${joined}`;
-  return `${url}?${joined}`;
+  const [base, fragment] = splitFragment(url);
+  if (base.includes('?')) return `${base}&${joined}${fragment}`;
+  return `${base}?${joined}${fragment}`;
 }
 
 /**

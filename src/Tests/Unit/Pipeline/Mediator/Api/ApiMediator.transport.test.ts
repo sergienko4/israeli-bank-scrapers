@@ -42,6 +42,15 @@ describe('ApiMediator.transport.appendQuery (edge)', () => {
     const unchanged = appendQuery('https://x.test/p', {});
     expect(unchanged).toBe('https://x.test/p');
   });
+
+  it.each([
+    ['https://x.test/p#s', 'https://x.test/p?b=2#s'],
+    ['https://x.test/p?a=1#s', 'https://x.test/p?a=1&b=2#s'],
+    ['https://x.test/p#s?x=1', 'https://x.test/p?b=2#s?x=1'],
+  ])('puts the params before the fragment of %s', (url, expected) => {
+    const joined = appendQuery(url, { b: '2' });
+    expect(joined).toBe(expected);
+  });
 });
 
 describe('ApiMediator.transport.fireQuery (edge)', () => {
