@@ -30,6 +30,7 @@ const CONFIG_PATHS: readonly (readonly [string, string])[] = [
   ['OneZero', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigOneZero.js'],
   ['Pepper', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigPepper.js'],
   ['PayBox', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigPayBox.js'],
+  ['VisaCal', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigVisaCal.js'],
 ];
 
 /** Directory holding every bank call-config literal. */
@@ -46,6 +47,7 @@ const EXPECTED_WARM_START_FILES: readonly string[] = [
   'PipelineBankConfigOneZero.ts',
   'PipelineBankConfigPayBox.ts',
   'PipelineBankConfigPepper.ts',
+  'PipelineBankConfigVisaCal.ts',
 ];
 
 /**
@@ -210,13 +212,13 @@ describe('warm-start contract — every opted-in bank', () => {
   it('loads every bank this suite enumerates', async () => {
     const configs = await loadWarmStartConfigs();
     const labels = configs.map(([label]) => label);
-    expect(labels).toEqual(['OneZero', 'Pepper', 'PayBox']);
+    expect(labels).toEqual(['OneZero', 'Pepper', 'PayBox', 'VisaCal']);
   });
 
   it('holds every invariant below to the cookie-session fixture too', async () => {
     const configs = await loadWarmPopulation();
     const labels = configs.map(([label]) => label);
-    expect(labels).toEqual(['OneZero', 'Pepper', 'PayBox', 'cookie-session fixture']);
+    expect(labels).toEqual(['OneZero', 'Pepper', 'PayBox', 'VisaCal', 'cookie-session fixture']);
   });
 
   it('declares a jwtClaims freshness gate when the token is validated as a jwt', async () => {
@@ -277,7 +279,8 @@ describe('warm-start contract — policy exemptions', () => {
     const configs = await loadWarmStartConfigs();
     const exempt = configs.filter(([, config]) => !isJwtValidated(config));
     const exemptLabels = exempt.map(([label]) => label);
-    expect(exemptLabels).toEqual([]);
+    // VisaCal stores an opaque login hash, not a JWT; its resume call is the check.
+    expect(exemptLabels).toEqual(['VisaCal']);
   });
 
   it('lists the warm-start banks whose session rides on cookies, not a header', async () => {

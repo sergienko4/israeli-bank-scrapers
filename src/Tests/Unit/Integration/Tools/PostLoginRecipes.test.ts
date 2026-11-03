@@ -38,7 +38,6 @@ describe('PostLoginRecipes', () => {
       'leumi',
       'max',
       'mizrahi',
-      'visaCal',
     ];
     expect(banks).toEqual(expected);
   });
@@ -76,8 +75,8 @@ describe('PostLoginRecipes', () => {
     expect(sortedPatterns).toContain('/movements/preview');
   });
 
-  it('SPA banks (beinleumi, visaCal) use snapshot with networkidle for hydrated DOM', () => {
-    const spaBankIds: readonly string[] = ['beinleumi', 'visaCal'];
+  it('SPA banks (beinleumi) use snapshot with networkidle for hydrated DOM', () => {
+    const spaBankIds: readonly string[] = ['beinleumi'];
     spaBankIds.forEach(bankId => {
       const recipe = requireRecipe(bankId);
       const hasNetworkidleSnapshot = recipe.steps.some(

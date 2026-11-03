@@ -41,10 +41,12 @@ export type PhoneNumberFormatTag =
 /**
  * Balance semantics for a bank — an explicit, REQUIRED per-bank declaration.
  * `'account'` banks expose a real account balance (deposit/checking banks)
- * and trigger a live BALANCE-RESOLVE; `'card-cycle'` banks expose only
- * per-cycle credit-card billing aggregates (VisaCal, Max, Amex, Isracard) and
- * have no account balance to resolve (deterministic no-op). Never inferred
- * from absence — an unstated kind is a config error, not a dormant no-op.
+ * and trigger a live BALANCE-RESOLVE; `'card-cycle'` banks expose no account
+ * balance, only billing-cycle figures — a per-card debit (VisaCal, Max) or a
+ * household aggregate (Amex, Isracard) — which their scrape shape's balance
+ * step owns, so BALANCE-RESOLVE is a deterministic no-op for them. Never
+ * inferred from absence — an unstated kind is a config error, not a dormant
+ * no-op.
  */
 export type BalanceKind = 'account' | 'card-cycle';
 
@@ -239,8 +241,8 @@ export interface IPipelineBankConfig {
    * and passes it to the browser-page mediator's fetch strategy as defaults
    * (per-call and rawAuth headers still win). Set for browser banks
    * whose SPA API rejects a bare cookie/Bearer without the negotiation headers
-   * (VisaCal needs X-Site-Id; the FIBI BFF needs Accept: application/json;
-   * the session-cookie Mizrahi `mto` API needs its `mizrahixsrftoken`).
+   * (the FIBI BFF needs Accept: application/json; the session-cookie
+   * Mizrahi `mto` API needs its `mizrahixsrftoken`).
    * Absent/false ⇒ empty bag ⇒ the mediator is byte-identical to no wrap.
    */
   readonly installDiscoveredHeaders?: boolean;
@@ -252,7 +254,7 @@ export interface IPipelineBankConfig {
    * origins — VisaCal touches a marketing site, an SSO origin and the SPA —
    * that can donate a header minted for a DIFFERENT service, and the gateway
    * rejects the call with an opaque 5xx that reads like an expired session.
-   * Declaring the data-API substring (e.g. `'api.cal-online.co.il'`) makes a
+   * Declaring the data-API substring (e.g. `'api-cc.cal-online.co.il'`) makes a
    * wrong-family donor impossible: only requests the SPA sent to the very API
    * we are about to call may donate. Their `Origin` / `Referer` are then
    * correct by construction too.

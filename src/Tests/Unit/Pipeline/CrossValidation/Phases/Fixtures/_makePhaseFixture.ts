@@ -37,7 +37,6 @@ export const PHASE_H_BANKS = [
   'amex',
   'isracard',
   'max',
-  'visacal',
 ] as const;
 
 /** Bank name supported by {@link loadPhaseFixture}. */

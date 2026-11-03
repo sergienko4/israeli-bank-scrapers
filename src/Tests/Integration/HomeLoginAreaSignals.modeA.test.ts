@@ -9,8 +9,9 @@
  *
  * <p>HARNESS LIMIT — {@link loadStep} replays through `setContent`, which
  * rebuilds the MAIN FRAME only. Cross-origin children become empty shells, so
- * this spec deliberately does NOT assert frame counts: VisaCal shows 12 frames
- * with a visible login form live, but empty shells and no form in replay. The
+ * this spec deliberately does NOT assert frame counts: a bank whose login form
+ * lives in a cross-origin frame shows it live, but empty shells and no form in
+ * replay. The
  * form gate is meaningful for main-frame banks; the frame dimension is not
  * measurable here and is asserted at the unit layer instead.
  *
@@ -75,7 +76,6 @@ const CASES: readonly IHomeSignalCase[] = [
   { bankId: 'mizrahi', hasLoginForm: true },
   { bankId: 'otsarHahayal', hasLoginForm: false },
   { bankId: 'pagi', hasLoginForm: false },
-  { bankId: 'visaCal', hasLoginForm: false },
   { bankId: 'yahav', hasLoginForm: false },
 ];
 

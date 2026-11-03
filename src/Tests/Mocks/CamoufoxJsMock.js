@@ -11,6 +11,17 @@ import path from 'path';
 import { firefox } from 'playwright-core';
 
 let FAKE_PAGE_EVAL_MODE = false;
+let LAUNCH_COUNT = 0;
+
+/**
+ * How many browser launches were requested since this module loaded. A
+ * browserless bank's mocked run reads it before and after to prove the
+ * run never asked for a browser.
+ * @returns {number} Launch requests so far.
+ */
+export function getLaunchCount() {
+  return LAUNCH_COUNT;
+}
 
 /**
  * Toggle fake-page-eval mode. Default off so existing E2eMocked tests
@@ -61,6 +72,7 @@ function findCamoufoxBinary() {
 }
 
 export async function Camoufox(opts = {}) {
+  LAUNCH_COUNT += 1;
   if (FAKE_PAGE_EVAL_MODE) return buildFakeBrowser();
   const executablePath = findCamoufoxBinary();
   if (!executablePath) {
@@ -72,4 +84,4 @@ export async function Camoufox(opts = {}) {
   });
 }
 
-export default { Camoufox, setFakePageEvalMode };
+export default { Camoufox, getLaunchCount, setFakePageEvalMode };

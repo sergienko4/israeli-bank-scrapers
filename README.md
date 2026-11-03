@@ -163,7 +163,7 @@ validated at runtime.
 | Amex                 | Credit card | Browser    | `id`, `card6Digits`, `password` |
 | Isracard             | Credit card | Browser    | `id`, `card6Digits`, `password` |
 | Max                  | Credit card | Browser    | `username`, `password`          |
-| Visa Cal             | Credit card | Browser    | `username`, `password`          |
+| Visa Cal             | Credit card | API-direct | `username`, `password`          |
 | PayBox (by Discount) | Wallet      | API-direct | `phoneNumber`, OTP              |
 
 \* Hapoalim prompts for OTP only on unrecognised devices.
@@ -188,8 +188,8 @@ createScraper({
 });
 ```
 
-**API-direct banks** (OneZero, Pepper, PayBox) — pass it in _credentials_, and
-keep the returned token to skip SMS next time:
+**API-direct banks with OTP** (OneZero, Pepper, PayBox) — pass it in
+_credentials_, and keep the returned token to skip SMS next time:
 
 ```typescript
 const result = await scraper.scrape({
@@ -201,6 +201,10 @@ const result = await scraper.scrape({
 
 result.persistentOtpToken; // pass back as `otpLongTermToken` on the next run
 ```
+
+Visa Cal is API-direct too but sends no OTP: its `persistentOtpToken` skips the
+password step on the next run — see the
+[Visa Cal guide](https://sergienko4.github.io/israeli-bank-scrapers/banks/visacal/).
 
 Pass `phoneNumber` in digits-only international form. Each bank wants a
 different wire format (`+972…`, `972…`, `972-…`) and the mediator rewrites it
@@ -376,7 +380,7 @@ backwards compatibility. Full remedies, including WAF-specific ones, are in
 
 ```mermaid
 flowchart LR
-    subgraph BB["Pipeline browser banks (14)"]
+    subgraph BB["Pipeline browser banks (13)"]
       direction LR
       INIT --> HOME --> PRELOGIN["PRE-LOGIN (opt-in)"]
       PRELOGIN --> LOGIN
@@ -387,7 +391,7 @@ flowchart LR
       SCRAPE --> TERM["TERMINATE"]
     end
 
-    subgraph API["API-direct banks (3) — OneZero · Pepper · PayBox"]
+    subgraph API["API-direct banks (4) — OneZero · Pepper · PayBox · Visa Cal"]
       direction LR
       CALL["API-DIRECT-CALL<br/>(login + OTP via JSON API)"] --> SCR["API-DIRECT-SCRAPE"]
     end

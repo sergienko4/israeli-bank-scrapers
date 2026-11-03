@@ -72,6 +72,20 @@ function isJwtGateOpen(config: IApiDirectCallConfig, stored: string): boolean {
 }
 
 /**
+ * Whether the caller supplied a stored seed at all, before any local check.
+ * A wrong-type value counts as supplied, so its refusal still earns the
+ * cold-fallback warning.
+ * @param config - API-direct-call config.
+ * @param creds - Caller credentials.
+ * @returns True when warm start is configured and the seed field holds a value.
+ */
+function isWarmSeedSupplied(config: IApiDirectCallConfig, creds: GenericCreds): boolean {
+  if (config.warmStart === undefined) return false;
+  const value = creds[config.warmStart.credsField];
+  return value !== undefined && value !== null && value !== '';
+}
+
+/**
  * Decide whether to take the warm-start path.
  * @param config - API-direct-call config.
  * @param creds - Caller credentials.
@@ -110,4 +124,11 @@ function gateFlowKind(config: IApiDirectCallConfig): Procedure<true> {
   return fail(ScraperErrorTypes.Generic, `unsupported flow-kind: ${config.flow}`);
 }
 
-export { gateFlowKind, makeWarmArgs, pickWarmSeed, readCredsString, STRATEGY_NAME_DEFAULT };
+export {
+  gateFlowKind,
+  isWarmSeedSupplied,
+  makeWarmArgs,
+  pickWarmSeed,
+  readCredsString,
+  STRATEGY_NAME_DEFAULT,
+};

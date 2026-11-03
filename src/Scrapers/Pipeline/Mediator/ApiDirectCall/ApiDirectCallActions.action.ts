@@ -131,6 +131,18 @@ function pickFallbackCause(strategy: IBootedAction['strategy']): string {
 }
 
 /**
+ * Whether the stored seed degraded this prime: refused by the local gate, or
+ * sent and failed. Retry eligibility (`hasWarmState`) cannot answer this — a
+ * locally refused seed is ineligible for a retry yet still forced a cold login.
+ * @param strategy - The strategy that primed the session.
+ * @returns True when a supplied seed did not carry the session.
+ */
+function didStoredSeedDegrade(strategy: IBootedAction['strategy']): boolean {
+  if (strategy.warmSeedRejectedLocally()) return true;
+  return strategy.warmAttemptFailureType().length > 0;
+}
+
+/**
  * Warn when a stored long-term token was supplied but the cold SMS chain ran
  * anyway.
  *
@@ -144,7 +156,7 @@ function pickFallbackCause(strategy: IBootedAction['strategy']): string {
  */
 function warnOnSilentColdFallback(booted: IBootedAction, isWarm: boolean): boolean {
   if (isWarm) return false;
-  if (!booted.strategy.hasWarmState(booted.creds)) return false;
+  if (!didStoredSeedDegrade(booted.strategy)) return false;
   const cause = pickFallbackCause(booted.strategy);
   const detail = `${cause}; ${COLD_FALLBACK_DETAIL}`;
   booted.ctx.logger.warn({ message: `${PHASE_LABEL} ${detail}` });

@@ -1,5 +1,5 @@
 /**
- * VisaCal hard-model scrape shape — unit coverage for the card, balance,
+ * VisaCal hard-model scrape shape — unit coverage for the card
  * and per-card/per-month transactions extractors + the CAL POST bodies,
  * URLs, and month-offset cursor.
  *
@@ -27,9 +27,10 @@ import {
 } from '../../../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeTxns.js';
 import type { ApiRecord } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/AutoMapperFacade/AutoMapperTypes.js';
 import { autoMapTransaction } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
-import type {
-  ApiBody,
-  IExtractAccountsArgs,
+import {
+  type ApiBody,
+  BALANCE_UNKNOWN,
+  type IExtractAccountsArgs,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { ITransaction } from '../../../../../Transactions.js';
@@ -96,27 +97,22 @@ describe('VisaCalShape helpers', () => {
     expect(number).toBe('1234');
   });
 
-  it('balance extract is a deterministic 0 — bigNumbers is keyed by bank account, not card', () => {
-    const balance = VISACAL_SHAPE.balance.extract({}, CARD);
-    expect(balance).toBe(0);
-  });
-
   it('customerVars opens the account/init envelope with an empty tokenGuid', () => {
     const vars = customerVars();
     expect(vars).toEqual({ tokenGuid: '' });
   });
 
-  it('customerUrl is the static CAL account/init endpoint', () => {
+  it('T-CAL-HOST-1: customerUrl uses the CI-accepted mobile gateway', () => {
     const url = customerUrl();
-    expect(url).toBe('https://api.cal-online.co.il/Authentication/api/account/init');
+    expect(url).toBe('https://api-cc.cal-online.co.il/Authentication/api/account/init');
   });
 });
 
 describe('VisaCalShape transactions', () => {
-  it('txnsUrl targets the static getCardTransactionsDetails endpoint', () => {
+  it('T-CAL-HOST-2: txnsUrl uses the CI-accepted mobile gateway', () => {
     const url = txnsUrl();
     expect(url).toBe(
-      'https://api.cal-online.co.il/Transactions/api/transactionsDetails/getCardTransactionsDetails',
+      'https://api-cc.cal-online.co.il/Transactions/api/transactionsDetails/getCardTransactionsDetails',
     );
   });
 
@@ -221,13 +217,25 @@ describe('VisaCalShape transactions', () => {
 });
 
 describe('VISACAL_SHAPE wiring', () => {
-  it('declares POST for the customer + transactions CAL calls', () => {
+  it('declares POST for the customer, balance + transactions CAL calls', () => {
     expect(VISACAL_SHAPE.customer.method).toBe('POST');
+    expect(VISACAL_SHAPE.balance.method).toBe('POST');
     expect(VISACAL_SHAPE.transactions.method).toBe('POST');
   });
 
-  it('skips the balance fetch (card-cycle)', () => {
-    expect(VISACAL_SHAPE.balance.skipFetch).toBe(true);
+  it.each([
+    ['customer', VISACAL_SHAPE.customer.extraHeaders],
+    ['balance', VISACAL_SHAPE.balance.extraHeaders],
+    ['transactions', VISACAL_SHAPE.transactions.extraHeaders],
+  ])('sends the CAL web site id on the %s call', (_step, headers) => {
+    const ctx = ctxWith(NOW);
+    const resolved = typeof headers === 'function' ? headers(ctx) : headers;
+    expect(resolved?.['x-site-id']).toBe('09031987-273E-2311-906C-8AF85B17C8D9');
+  });
+
+  it('fetches the balance and keeps the scrape when that call fails', () => {
+    expect(VISACAL_SHAPE.balance.skipFetch).toBeUndefined();
+    expect(VISACAL_SHAPE.balance.fallbackOnFail).toBe(BALANCE_UNKNOWN);
   });
 
   it('carries the VisaCalScrape step name', () => {

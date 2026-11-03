@@ -1,6 +1,6 @@
 /**
  * Unified API-DIRECT E2E mock — exercises the offline pipeline flow shared
- * by every API-DIRECT bank (Pepper, OneZero, ...) through one parameterized
+ * by every API-DIRECT bank (Pepper, OneZero, Visa Cal, ...) through one parameterized
  * spec backed by the per-bank synthetic fetch mocks.
  *
  * Rule #17: mock suite parity stays intact — every bank case in this file
@@ -19,6 +19,16 @@ import {
 } from '../OneZero/OneZeroFetchMock.js';
 import type { IMockHandle as IPepperMockHandle } from '../Pepper/PepperFetchMock.js';
 import { installPepperFetchMock, PEPPER_MOCK_CREDS } from '../Pepper/PepperFetchMock.js';
+import type { IMockHandle as IVisaCalMockHandle } from '../VisaCal/VisaCalFetchMock.js';
+import {
+  installVisaCalFetchMock,
+  rotatedHash,
+  SYN_LOGIN_HASH,
+  SYN_STORED_HASH,
+  VISACAL_MOCK_CARDS,
+  VISACAL_MOCK_CREDS,
+  VISACAL_MOCK_START_DATE,
+} from '../VisaCal/VisaCalFetchMock.js';
 
 /**
  * Fixed window opening before the Pepper fixture's synthetic rows
@@ -38,8 +48,8 @@ const ONEZERO_START_DATE = new Date('2026-01-01');
 /** Synthetic OTP code returned by the Pepper fake retriever. */
 const PEPPER_FAKE_OTP = 'fixt-otp-pep-7c1a';
 
-/** Shared mock-handle shape — both per-bank mocks expose this contract. */
-type MockHandle = IPepperMockHandle | IOneZeroMockHandle;
+/** Shared mock-handle shape — every per-bank mock exposes this contract. */
+type MockHandle = IPepperMockHandle | IOneZeroMockHandle | IVisaCalMockHandle;
 
 /** Minimal account shape consumed by the parameterized assertions. */
 interface IAccountSlice {
@@ -171,7 +181,44 @@ const ONEZERO_COLD_CASE: IApiDirectFlowCase = {
   expectedOtpPrompts: 1,
 };
 
-const CASES: readonly IApiDirectFlowCase[] = [PEPPER_CASE, ONEZERO_CASE, ONEZERO_COLD_CASE];
+const VISACAL_COLD_CASE: IApiDirectFlowCase = {
+  displayName: 'Visa Cal (cold)',
+  companyId: CompanyTypes.VisaCal,
+  installFetchMock: installVisaCalFetchMock,
+  mockCreds: { ...VISACAL_MOCK_CREDS },
+  startDate: VISACAL_MOCK_START_DATE,
+  expectedAccounts: VISACAL_MOCK_CARDS.length,
+  expectedAccountNumber: VISACAL_MOCK_CARDS[0].last4Digits,
+  expectedBalance: VISACAL_MOCK_CARDS[0].nextTotalDebit,
+  minTxns: 2,
+  // account/init, then a frames call and at least one month per card.
+  minGraphqlCalls: 1 + 2 * VISACAL_MOCK_CARDS.length,
+  // regularLogin, then bioLogin. No OTP step exists.
+  minIdentityCalls: 2,
+  maxIdentityCalls: 2,
+  expectsWarmStart: false,
+  // bioLogin rotates the hash regularLogin issued; the caller stores that one.
+  expectedPersistentToken: rotatedHash(SYN_LOGIN_HASH),
+};
+
+const VISACAL_WARM_CASE: IApiDirectFlowCase = {
+  ...VISACAL_COLD_CASE,
+  displayName: 'Visa Cal (warm)',
+  mockCreds: { ...VISACAL_MOCK_CREDS, otpLongTermToken: SYN_STORED_HASH },
+  // bioLogin alone: the stored hash replaces the password step.
+  minIdentityCalls: 1,
+  maxIdentityCalls: 1,
+  expectsWarmStart: true,
+  expectedPersistentToken: rotatedHash(SYN_STORED_HASH),
+};
+
+const CASES: readonly IApiDirectFlowCase[] = [
+  PEPPER_CASE,
+  ONEZERO_CASE,
+  ONEZERO_COLD_CASE,
+  VISACAL_COLD_CASE,
+  VISACAL_WARM_CASE,
+];
 
 /** Minimal scraper-options shape exercised by this parameterized spec. */
 interface IApiDirectScraperOptions {

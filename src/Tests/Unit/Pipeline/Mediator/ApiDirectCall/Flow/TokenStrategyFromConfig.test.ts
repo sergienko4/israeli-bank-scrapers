@@ -195,29 +195,6 @@ describe('api-direct-call createTokenStrategyFromConfig authScheme bearer', () =
   });
 });
 
-describe('api-direct-call createTokenStrategyFromConfig hasWarmState', () => {
-  it('returns true only when warmStart configured + credsField populated', (): void => {
-    const withWarm: IApiDirectCallConfig = {
-      ...makeSingleStepConfig(),
-      warmStart: { credsField: 'storedJwt', carryField: 'token', fromStepIndex: 1 },
-    };
-    const r1 = createTokenStrategyFromConfig({ config: withWarm });
-    expect(r1.success).toBe(true);
-    if (!r1.success) throw new ScraperError('factory should succeed');
-    const isFilled = r1.value.hasWarmState({ storedJwt: 'anything' });
-    expect(isFilled).toBe(true);
-    const hasEmptyCreds = r1.value.hasWarmState({});
-    expect(hasEmptyCreds).toBe(false);
-    const hasEmptyString = r1.value.hasWarmState({ storedJwt: '' });
-    expect(hasEmptyString).toBe(false);
-    const r2 = createTokenStrategyFromConfig({ config: makeSingleStepConfig() });
-    expect(r2.success).toBe(true);
-    if (!r2.success) throw new ScraperError('factory should succeed');
-    const hasNoWarm = r2.value.hasWarmState({ storedJwt: 'x' });
-    expect(hasNoWarm).toBe(false);
-  });
-});
-
 describe('api-direct-call createTokenStrategyFromConfig unsupported flow', () => {
   it('returns fail for non-"sms-otp" flow kinds', (): void => {
     const cfg: IApiDirectCallConfig = { ...makeSingleStepConfig(), flow: 'stored-jwt' };
@@ -248,7 +225,19 @@ describe('api-direct-call createTokenStrategyFromConfig lastPrimeWasWarm', () =>
     const seed = makeJwt(3600);
     await result.value.primeInitial(bus, CTX_STUB, { storedJwt: seed });
     const wasWarm = result.value.lastPrimeWasWarm();
-    expect(wasWarm).toBe(true);
+    const hasWarmState = result.value.hasWarmState({ storedJwt: seed });
+    expect({ wasWarm, hasWarmState }).toEqual({ wasWarm: true, hasWarmState: true });
+  });
+
+  it('keeps retry eligibility tied to the prime cycle, not later creds', async (): Promise<void> => {
+    const bus = makeStubMediator({ responses: [], captures: [] });
+    const result = makeWarmStrategy();
+    if (!result.success) throw new ScraperError('factory should succeed');
+    const creds: Record<string, string> = { storedJwt: makeJwt(3600) };
+    await result.value.primeInitial(bus, CTX_STUB, creds);
+    delete creds.storedJwt;
+    const hasWarmState = result.value.hasWarmState(creds);
+    expect(hasWarmState).toBe(true);
   });
 
   it('reports false when a stale seed falls through to the cold flow', async (): Promise<void> => {
@@ -259,7 +248,8 @@ describe('api-direct-call createTokenStrategyFromConfig lastPrimeWasWarm', () =>
     const seed = makeJwt(-10);
     await result.value.primeInitial(bus, CTX_STUB, { storedJwt: seed });
     const wasWarm = result.value.lastPrimeWasWarm();
-    expect(wasWarm).toBe(false);
+    const hasWarmState = result.value.hasWarmState({ storedJwt: seed });
+    expect({ wasWarm, hasWarmState }).toEqual({ wasWarm: false, hasWarmState: false });
   });
 
   it('reports false for a no-warmStart cold prime', async (): Promise<void> => {
@@ -270,7 +260,8 @@ describe('api-direct-call createTokenStrategyFromConfig lastPrimeWasWarm', () =>
     if (!result.success) throw new ScraperError('factory should succeed');
     await result.value.primeInitial(bus, CTX_STUB, { storedJwt: 'anything' });
     const wasWarm = result.value.lastPrimeWasWarm();
-    expect(wasWarm).toBe(false);
+    const hasWarmState = result.value.hasWarmState({ storedJwt: 'anything' });
+    expect({ wasWarm, hasWarmState }).toEqual({ wasWarm: false, hasWarmState: false });
   });
 
   it('reports false after primeFresh even when a fresh seed exists', async (): Promise<void> => {

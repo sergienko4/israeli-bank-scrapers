@@ -21,8 +21,8 @@
  * method" the `it.each` callback orchestrates via helpers + the
  * shared {@link unwrapOrThrow} from `_deepPhaseHelpers.ts`.
  *
- * <p>Scope: 4 OTP-using banks (hapoalim, beinleumi, max,
- * visacal). Discount/Amex/Isracard use password-only login.
+ * <p>Scope: 3 OTP-using banks (hapoalim, beinleumi, max).
+ * Discount/Amex/Isracard use password-only login.
  */
 
 import {

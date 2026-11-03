@@ -149,7 +149,7 @@ const BROWSERLESS_KINDS: readonly string[] = ['native', 'node-tls'];
  * Pinned list of registry banks that run without a browser. A bank PR that
  * moves a bank to a browserless transport adds it here.
  */
-const EXPECTED_BROWSERLESS: readonly CompanyTypes[] = [CompanyTypes.OneZero];
+const EXPECTED_BROWSERLESS: readonly CompanyTypes[] = [CompanyTypes.VisaCal, CompanyTypes.OneZero];
 
 const REGISTERED = Object.values(CompanyTypes).filter(
   (companyId): boolean => PIPELINE_REGISTRY[companyId] !== undefined,

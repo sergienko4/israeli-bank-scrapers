@@ -113,8 +113,9 @@ defaults:
 #                           caught BEFORE we burn real-bank capacity.
 #   dns-preflight         — Israeli bank DNS resolution sanity.
 #   e2e-real-group-a      — Stage 1 (parallel, gate-A approval):
-#                           non-OTP browser-form banks
-#                           (Isracard, VisaCal, Discount, Max).
+#                           non-OTP banks: browser-form
+#                           (Isracard, Discount, Max) plus
+#                           api-direct VisaCal (no browser).
 #   e2e-real-group-b      — Stage 2 (parallel, gate-B approval):
 #                           OTP browser-form banks
 #                           (Hapoalim, Beinleumi).
@@ -1260,8 +1261,9 @@ jobs:
   # does not require any other group to have run or finished.
   #
   #   Group A, gate-A (parallel runners):
-  #     non-OTP browser-form banks
-  #     — Isracard, VisaCal, Discount, Max
+  #     non-OTP banks
+  #     — Isracard, Discount, Max (browser-form)
+  #     — VisaCal (api-direct, no browser)
   #   Group B, gate-B (parallel runners):
   #     OTP browser-form banks
   #     — Hapoalim, Beinleumi
@@ -1504,6 +1506,8 @@ jobs:
         # a live scrape still works; running the invalid-creds block here
         # would spend a second live login per bank to assert a rejection the
         # happy path already implies — testNamePattern skips it.
+        # A happy path renamed off the filter would skip every test and
+        # still exit 0; pinned by E2eRealNameFilterGate.test.ts [E2E-NAME-3].
         run: |
           node --experimental-vm-modules node_modules/jest/bin/jest.js \
             --ci \

@@ -104,7 +104,7 @@ describe('CredentialLoader', () => {
   });
 
   describe('knownBanks', () => {
-    it('returns the nine onboarded pipeline banks sorted', () => {
+    it('returns the eight onboarded browser banks sorted', () => {
       const banks = knownBanks();
       const expected = [
         'amex',
@@ -115,7 +115,6 @@ describe('CredentialLoader', () => {
         'leumi',
         'max',
         'mizrahi',
-        'visaCal',
       ];
       expect(banks).toEqual(expected);
     });
@@ -163,15 +162,15 @@ describe('CredentialLoader', () => {
 
   describe('hasCredentials', () => {
     it('returns true when every required env var is present', () => {
-      process.env.VISACAL_USERNAME = 'alice';
-      process.env.VISACAL_PASSWORD = 'pw';
-      const hasAll = hasCredentials('visaCal');
+      process.env.MAX_USERNAME = 'alice';
+      process.env.MAX_PASSWORD = 'pw';
+      const hasAll = hasCredentials('max');
       expect(hasAll).toBe(true);
     });
 
     it('returns false when any env var is missing', () => {
-      process.env.VISACAL_USERNAME = 'alice';
-      const hasAll = hasCredentials('visaCal');
+      process.env.MAX_USERNAME = 'alice';
+      const hasAll = hasCredentials('max');
       expect(hasAll).toBe(false);
     });
 

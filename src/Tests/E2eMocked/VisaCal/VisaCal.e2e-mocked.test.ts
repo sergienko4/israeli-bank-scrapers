@@ -1,77 +1,256 @@
 /**
- * VisaCal offline invalid-creds mock — captured Cal-Online HTML served
- * via Playwright page.route() to verify the Angular form-state probe
- * (ng-invalid / ng-touched classes) yields success:false WITHOUT any
- * real network. Fixtures live under C:\tmp\bank-html\visacal\
- * (gitignored); the route manifest is fixtures.json alongside them.
+ * Visa Cal browserless login — mocked-gateway E2E for what the shared
+ * API-DIRECT flow spec cannot see: the request headers, the browser never
+ * launching, the password staying off the warm path, and every way step 0
+ * can fail. The happy cold and warm runs live in ApiDirectFlow.
  *
- * Rule #17: ZERO NETWORK — OfflineRouteInterceptor records any
- * unmatched outbound request; the test reports escapes after scrape.
+ * Rule #18: all credentials + data are synthetic; no real PII.
  */
-
-import { jest } from '@jest/globals';
-import type { Browser, BrowserContext } from 'playwright-core';
 
 import { CompanyTypes } from '../../../Definitions.js';
-import { createScraper } from '../../../index.js';
-import ScraperError from '../../../Scrapers/Base/ScraperError.js';
-import { launchCamoufox } from '../../../Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js';
-import { INVALID_CREDS_USERNAME_PASSWORD } from '../../TestConstants.js';
-import { createBankFixtures, type IBankFixtures } from '../Helpers/BankFixtureLoader.js';
-import { installOfflineInterceptor } from '../Helpers/OfflineRouteInterceptor.js';
+import { ScraperErrorTypes } from '../../../Scrapers/Base/ErrorTypes.js';
+import type {
+  IScraperScrapingResult,
+  ScraperCredentials,
+} from '../../../Scrapers/Base/Interface.js';
+import {
+  CAL_API,
+  CAL_WEB_SITE_ID,
+} from '../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeHelpers.js';
+import createScraper from '../../../Scrapers/Registry/Factory.js';
+import { getLaunchCount } from '../../Mocks/CamoufoxJsMock.js';
+import type { IMockHandle, IRecordedCall, LoginFault } from './VisaCalFetchMock.js';
+import {
+  installVisaCalFetchMock,
+  rotatedHash,
+  SYN_LOGIN_HASH,
+  SYN_STORED_HASH,
+  VISACAL_DATA_AUTH,
+  VISACAL_MOCK_CARDS,
+  VISACAL_MOCK_CREDS,
+  VISACAL_MOCK_START_DATE,
+} from './VisaCalFetchMock.js';
 
-const FIXTURE_ROOT = 'C:/tmp/bank-html/visacal';
-const TEST_TIMEOUT_MS = 90_000;
+/** What one mocked run produced. */
+interface ICalRun {
+  readonly result: IScraperScrapingResult;
+  readonly calls: readonly IRecordedCall[];
+  /** Last path segment of each login-gateway call, in order. */
+  readonly steps: readonly string[];
+  /** Every call that did not go to the login gateway. */
+  readonly data: readonly IRecordedCall[];
+  readonly launches: number;
+  readonly durationMs: number;
+}
 
-/** Credentials deliberately invalid — bytes never travel (zero network). */
-const INVALID_CREDS = INVALID_CREDS_USERNAME_PASSWORD;
+const LOGIN_PREFIX = `${CAL_API}/Authentication/api/login/`;
+const WARM_BUDGET_MS = 12_000;
 
-/*
- * SKIPPED — pre-existing failure tracked for PR-206-FOLLOWUP.
- * Same root cause as Discount: fixtures.json scaffold URL globs don't
- * match VisaCal's real topology (cal-online SPA + connect.cal-online.co.il
- * auth API). Re-enable after manual fixture-route authoring for VisaCal.
+/**
+ * Whether a call went to the login gateway.
+ * @param call - A recorded call.
+ * @returns True for a login endpoint.
  */
-describe.skip('offline VisaCal invalid-creds', () => {
-  jest.setTimeout(TEST_TIMEOUT_MS);
+function isLoginCall(call: IRecordedCall): boolean {
+  return call.url.startsWith(LOGIN_PREFIX);
+}
 
-  let browser: Browser | undefined;
-  let context: BrowserContext | undefined;
-  let fixtures: IBankFixtures | undefined;
+/**
+ * The login step a call named.
+ * @param call - A login-gateway call.
+ * @returns The last path segment of its URL.
+ */
+function stepOf(call: IRecordedCall): string {
+  return call.url.split('/').pop() ?? '';
+}
 
-  beforeAll(async () => {
-    fixtures = await createBankFixtures({
-      bankKey: 'visacal',
-      fixtureRoot: FIXTURE_ROOT,
-    }).catch((): undefined => undefined);
+/**
+ * Split a call log into its login steps and data calls.
+ * @param calls - The run's call log.
+ * @returns The login step names and the data calls.
+ */
+function splitCalls(calls: readonly IRecordedCall[]): Pick<ICalRun, 'steps' | 'data'> {
+  const logins = calls.filter(isLoginCall);
+  const data = calls.filter(call => !isLoginCall(call));
+  return { steps: logins.map(stepOf), data };
+}
+
+/**
+ * Scrape Visa Cal against the synthetic gateways.
+ * @param creds - Credentials to scrape with.
+ * @param fault - Fault the password login answers with.
+ * @returns The result, the call log and how many browsers were launched.
+ */
+async function runCal(creds: ScraperCredentials, fault: LoginFault = 'none'): Promise<ICalRun> {
+  const handle = installVisaCalFetchMock(fault);
+  try {
+    return await scrapeCal(handle, creds);
+  } finally {
+    handle.dispose();
+  }
+}
+
+/**
+ * Scrape once through an installed CAL mock.
+ * @param handle - Installed mock whose new calls belong to this run.
+ * @param creds - Credentials to scrape with.
+ * @param offset - Existing calls to exclude.
+ * @returns The result, new call log and browser-launch count.
+ */
+async function scrapeCal(
+  handle: IMockHandle,
+  creds: ScraperCredentials,
+  offset = 0,
+): Promise<ICalRun> {
+  const launchesBefore = getLaunchCount();
+  const options = { companyId: CompanyTypes.VisaCal, startDate: VISACAL_MOCK_START_DATE };
+  const startedAt = performance.now();
+  const result = await createScraper(options).scrape(creds);
+  const durationMs = performance.now() - startedAt;
+  const calls = handle.calls().slice(offset);
+  const launches = getLaunchCount() - launchesBefore;
+  return { result, calls, ...splitCalls(calls), launches, durationMs };
+}
+
+/**
+ * Feed a cold run's returned hash into the next run of the same mock session.
+ * @returns Cold and warm runs.
+ */
+async function runColdThenWarm(): Promise<readonly [ICalRun, ICalRun]> {
+  const handle = installVisaCalFetchMock();
+  try {
+    const cold = await scrapeCal(handle, { ...VISACAL_MOCK_CREDS });
+    const creds = { ...VISACAL_MOCK_CREDS, otpLongTermToken: cold.result.persistentOtpToken };
+    const warm = await scrapeCal(handle, creds, cold.calls.length);
+    return [cold, warm];
+  } finally {
+    handle.dispose();
+  }
+}
+
+/**
+ * Whether any request body carries a value.
+ * @param calls - The run's call log.
+ * @param value - Value to look for.
+ * @returns True when some body contains it.
+ */
+function isSent(calls: readonly IRecordedCall[], value: string): boolean {
+  return calls.some(call => call.body.includes(value));
+}
+
+/** What the caller stores after a cold run: bioLogin's rotation of the login hash. */
+const COLD_RUN_HASH = rotatedHash(SYN_LOGIN_HASH);
+
+/** A stored token with a line break — refused before it reaches the wire. */
+const MALFORMED_TOKEN = 'syn-malformed\r\ntoken';
+
+/** Step-0 faults and the failure each must surface, with no response text. */
+const STEP_ZERO_FAULTS: readonly (readonly [LoginFault, ScraperErrorTypes, string])[] = [
+  ['http500', ScraperErrorTypes.Generic, 'login HTTP 500'],
+  ['reject', ScraperErrorTypes.Generic, 'login GENERIC'],
+  ['nonJson', ScraperErrorTypes.Generic, 'login GENERIC'],
+  ['timeout', ScraperErrorTypes.Timeout, 'login TIMEOUT'],
+];
+
+describe('Visa Cal browserless login', () => {
+  it('signs in cold, sends the CAL headers on every data call and launches no browser', async () => {
+    const run = await runCal({ ...VISACAL_MOCK_CREDS });
+    expect(run.result.success).toBe(true);
+    expect(run.launches).toBe(0);
+    expect(run.steps).toEqual(['regularLogin', 'bioLogin']);
+    expect(run.data.length).toBeGreaterThan(0);
+    const sent = run.data.map(call => [
+      call.method,
+      call.headers.get('authorization'),
+      call.headers.get('x-site-id'),
+    ]);
+    const required = run.data.map(() => ['POST', VISACAL_DATA_AUTH, CAL_WEB_SITE_ID]);
+    expect(sent).toEqual(required);
+    const accounts = run.result.accounts ?? [];
+    const balances = accounts.map(account => [account.accountNumber, account.balance]);
+    const expected = VISACAL_MOCK_CARDS.map(card => [card.last4Digits, card.nextTotalDebit]);
+    expect(balances).toEqual(expected);
   });
 
-  afterEach(async () => {
-    if (context !== undefined) await context.close().catch((): undefined => undefined);
-    if (browser !== undefined) await browser.close().catch((): undefined => undefined);
-    context = undefined;
-    browser = undefined;
+  it('resumes from the stored hash without sending the password or launching a browser', async () => {
+    const creds = { ...VISACAL_MOCK_CREDS, otpLongTermToken: SYN_STORED_HASH };
+    const run = await runCal(creds);
+    expect(run.result.success).toBe(true);
+    expect(run.launches).toBe(0);
+    expect(run.durationMs).toBeLessThan(WARM_BUDGET_MS);
+    expect(run.steps).toEqual(['bioLogin']);
+    const isHashSent = isSent(run.calls, SYN_STORED_HASH);
+    const isPasswordSent = isSent(run.calls, VISACAL_MOCK_CREDS.password);
+    expect(isHashSent).toBe(true);
+    expect(isPasswordSent).toBe(false);
   });
 
-  it('scraper returns success:false when served the captured error HTML', async () => {
-    if (fixtures === undefined) {
-      throw new ScraperError(
-        `fixtures.json missing — run "npm run capture:invalid-login -- visacal" or an E2E with DUMP_FIXTURES_DIR set to populate ${FIXTURE_ROOT}.`,
-      );
-    }
-    browser = await launchCamoufox(true);
-    context = await browser.newContext({ viewport: null });
-    const page = await context.newPage();
-    const interceptor = await installOfflineInterceptor({ page, fixtures });
-    const scraper = createScraper({
-      companyId: CompanyTypes.VisaCal,
-      startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-      browserContext: context,
-      skipCloseBrowser: true,
-    });
-    const result = await scraper.scrape(INVALID_CREDS);
-    expect(result.success).toBe(false);
-    expect(interceptor.escapes).toHaveLength(0);
-    await interceptor.dispose();
+  it("uses a cold run's rotated hash on the next warm run", async () => {
+    const [cold, warm] = await runColdThenWarm();
+    expect(cold.result.persistentOtpToken).toBe(COLD_RUN_HASH);
+    expect(warm.result.success).toBe(true);
+    expect(warm.steps).toEqual(['bioLogin']);
+    const isPasswordSent = isSent(warm.calls, VISACAL_MOCK_CREDS.password);
+    expect(isPasswordSent).toBe(false);
+  });
+
+  it('falls back to exactly one password login when the stored hash is stale', async () => {
+    const creds = { ...VISACAL_MOCK_CREDS, otpLongTermToken: 'syn-cal-stale-hash' };
+    const run = await runCal(creds);
+    expect(run.result.success).toBe(true);
+    expect(run.steps).toEqual(['bioLogin', 'regularLogin', 'bioLogin']);
+    expect(run.result.persistentOtpToken).toBe(COLD_RUN_HASH);
+  });
+
+  it('fails a refused password as InvalidPassword before any data call', async () => {
+    const run = await runCal({ ...VISACAL_MOCK_CREDS, password: 'synthetic-wrong-pass' });
+    expect(run.result.success).toBe(false);
+    expect(run.result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
+    expect(run.result.errorMessage).toBe('login outcome 4');
+    expect(run.steps).toEqual(['regularLogin']);
+    expect(run.data).toHaveLength(0);
+  });
+
+  it('never sends a malformed stored token and logs in cold instead', async () => {
+    const run = await runCal({ ...VISACAL_MOCK_CREDS, otpLongTermToken: MALFORMED_TOKEN });
+    expect(run.result.success).toBe(true);
+    expect(run.steps).toEqual(['regularLogin', 'bioLogin']);
+    const isTokenSent = isSent(run.calls, 'syn-malformed');
+    expect(isTokenSent).toBe(false);
+  });
+
+  it('malformed token preserves an InvalidPassword cold failure', async () => {
+    const creds = { ...VISACAL_MOCK_CREDS, password: 'synthetic-wrong-pass' };
+    const run = await runCal({ ...creds, otpLongTermToken: MALFORMED_TOKEN });
+    expect(run.result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
+    expect(run.result.errorMessage).toBe('login outcome 4');
+    expect(run.steps).toEqual(['regularLogin']);
+  });
+
+  it('malformed token preserves a cold transport failure', async () => {
+    const creds = { ...VISACAL_MOCK_CREDS, otpLongTermToken: MALFORMED_TOKEN };
+    const run = await runCal(creds, 'http500');
+    expect(run.result.errorType).toBe(ScraperErrorTypes.Generic);
+    expect(run.result.errorMessage).toBe('login HTTP 500');
+    expect(run.steps).toEqual(['regularLogin']);
+  });
+
+  it.each(STEP_ZERO_FAULTS)(
+    'fails a step-0 %s after one call, with no retry and no response text',
+    async (fault, errorType, message) => {
+      const run = await runCal({ ...VISACAL_MOCK_CREDS }, fault);
+      expect(run.result.success).toBe(false);
+      expect(run.result.errorType).toBe(errorType);
+      expect(run.result.errorMessage).toBe(message);
+      expect(run.calls).toHaveLength(1);
+    },
+  );
+
+  it('rejects an empty password before sending any request', async () => {
+    const run = await runCal({ ...VISACAL_MOCK_CREDS, password: '' });
+    expect(run.result.success).toBe(false);
+    expect(run.result.errorType).toBe(ScraperErrorTypes.Generic);
+    expect(run.result.errorMessage).toBe('Missing or malformed credentials: password');
+    expect(run.calls).toHaveLength(0);
   });
 });

@@ -15,6 +15,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { buildPhaseIndex, traceResult, traceStart } from '../PipelineTraceService.js';
 import type { IContextTracker } from './PipelineMiddleware.js';
+import resolvePhaseSettlePolicy from './PipelinePhaseSettlePolicy.js';
 import { type IPhaseStep, sanitizationPulse } from './PipelineSanitizationPulse.js';
 
 /**
@@ -75,13 +76,14 @@ function buildStep(tracker: IContextTracker, index: number): IPhaseStep {
 }
 
 /**
- * Phase settle — give the bank's SPA a fixed window to settle
+ * Browser phase settle — give the bank's SPA a fixed window to settle
  * (analytics, deferred hydration, cross-origin pixels) and to give
  * the page's anti-bot JS time to observe a "human-paused-on-page"
- * interval before our next interaction. Fired TWICE per phase: once
- * before phase.PRE work begins (`when='pre'`), once after phase.FINAL
- * completes (`when='final'`). FINAL settle is skipped for the
- * terminal phase so pipeline completion is not delayed.
+ * interval before our next interaction. Native and node-TLS transports
+ * skip this browser-only wait. Browser-capable pipelines fire it TWICE
+ * per phase: once before phase.PRE work begins (`when='pre'`), once
+ * after phase.FINAL completes (`when='final'`). FINAL settle is skipped
+ * for the terminal phase so pipeline completion is not delayed.
  *
  * <p>The timer is ref'd. An unref'd timer tells Node it may exit without
  * waiting, which is a contradiction for a wait the pipeline then awaits:
@@ -98,6 +100,7 @@ async function phaseSettle(
   step: IPhaseStep,
   when: 'pre' | 'final',
 ): Promise<true> {
+  if (!resolvePhaseSettlePolicy(ctx).wait) return true;
   ctx.logger.debug({
     phase: step.name,
     event: 'phase-settle',

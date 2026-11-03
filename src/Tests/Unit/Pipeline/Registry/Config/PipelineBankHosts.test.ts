@@ -17,6 +17,10 @@
  *   - T-DNS-3: Yahav declares `login.yahav.co.il`, the iframe origin.
  *   - T-DNS-4: no bank re-declares the host already in its `urls.base`.
  *   - T-DNS-5: every key is a bank the registry actually knows.
+ *   - T-DNS-6: every host a bank's headless block calls is declared, unless
+ *     it is the bank's own `urls.base` host.
+ *   - T-DNS-7: GraphQL-only hosts remain covered by the completeness guard.
+ *   - T-DNS-8: VisaCal declares only its active mobile gateway.
  *
  * Import paths are inline string literals so TypeScript resolves the
  * module types, and the imports are dynamic to dodge the
@@ -36,6 +40,15 @@ const BARE_HOSTNAME = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]
  * gated LoginDnsProbe diagnostic, where a failed lookup is the point.
  */
 const NO_SUCH_HOST = 'he.isracard.co.il';
+
+/** Hosts reachable only through each bank's `headless.graphql` field. */
+const GRAPHQL_ONLY_HOSTS = [
+  [CompanyTypes.OneZero, 'mobile.tfd-bank.com'],
+  [CompanyTypes.Pepper, 'fe-sec.pepper.co.il'],
+] as const;
+
+/** VisaCal's only live API gateway. */
+const VISACAL_MOBILE_HOST = 'api-cc.cal-online.co.il';
 
 /** Mirrors `BankExtraDnsHosts`, which cannot be imported statically here. */
 type ExtraHostsByBank = Readonly<Partial<Record<CompanyTypes, readonly string[]>>>;
@@ -70,6 +83,33 @@ async function loadBaseUrls(): Promise<Map<string, string>> {
 async function allDeclaredHosts(): Promise<string[]> {
   const manifest = await loadHosts();
   return Object.values(manifest).flatMap(hosts => hosts);
+}
+
+/**
+ * Hosts one bank's headless block calls that the warm-up would leave cold:
+ * neither the bank's `urls.base` host nor declared in the manifest.
+ *
+ * @param companyId - Registry key.
+ * @param manifest - The declared extra hosts.
+ * @returns `bank:host` labels for every cold host; empty when none.
+ */
+async function coldHeadlessHosts(
+  companyId: CompanyTypes,
+  manifest: ExtraHostsByBank,
+): Promise<string[]> {
+  const { resolvePipelineBankConfig } =
+    await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
+  const config = resolvePipelineBankConfig(companyId);
+  if (config === false || !config.headless) return [];
+  const urls = [
+    config.headless.identityBase,
+    config.headless.graphql,
+    ...Object.values(config.headless.paths),
+  ];
+  const hosts = new Set(urls.map(url => new URL(url).hostname));
+  const warmed = [new URL(config.urls.base).hostname, ...(manifest[companyId] ?? [])];
+  const cold = [...hosts].filter(host => !warmed.includes(host));
+  return cold.map(host => `${companyId}:${host}`);
 }
 
 describe('PipelineBankHosts — CI DNS warm-up manifest (T-DNS)', () => {
@@ -108,5 +148,29 @@ describe('PipelineBankHosts — CI DNS warm-up manifest (T-DNS)', () => {
     const baseUrlByBank = await loadBaseUrls();
     const unknown = Object.keys(manifest).filter(companyId => !baseUrlByBank.has(companyId));
     expect(unknown).toEqual([]);
+  });
+
+  it("T-DNS-6: declares every host a bank's headless block calls", async () => {
+    const manifest = await loadHosts();
+    const pending = Object.values(CompanyTypes).map(id => coldHeadlessHosts(id, manifest));
+    const perBank = await Promise.all(pending);
+    const cold = perBank.flat();
+    expect(cold).toEqual([]);
+  });
+
+  it.each(GRAPHQL_ONLY_HOSTS)(
+    'T-DNS-7: detects %s when its GraphQL-only host is removed',
+    async (companyId, host) => {
+      const manifest = await loadHosts();
+      const remaining = (manifest[companyId] ?? []).filter(entry => entry !== host);
+      const missing = { ...manifest, [companyId]: remaining };
+      const cold = await coldHeadlessHosts(companyId, missing);
+      expect(cold).toContain(`${companyId}:${host}`);
+    },
+  );
+
+  it('T-DNS-8: VisaCal warms only its active mobile gateway', async () => {
+    const manifest = await loadHosts();
+    expect(manifest[CompanyTypes.VisaCal]).toEqual([VISACAL_MOBILE_HOST]);
   });
 });

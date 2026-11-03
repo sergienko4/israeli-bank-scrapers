@@ -101,15 +101,4 @@ export const BANK_SCENARIOS: readonly IBankScenario[] = [
     usesOtp: true,
     cookieCount: 3,
   },
-  {
-    bank: 'visacal',
-    homepageUrl: 'https://www.cal-online.example/',
-    postNavUrl: 'https://login.cal-online.example/Login',
-    loginUrl: 'https://login.cal-online.example/Login',
-    dashboardUrl: 'https://login.cal-online.example/MainPage',
-    accountsUrl: 'https://login.cal-online.example/api/accounts',
-    frameCount: 0,
-    usesOtp: true,
-    cookieCount: 3,
-  },
 ];

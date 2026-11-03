@@ -1,6 +1,6 @@
 /**
  * BIND-API-MEDIATOR auth-prime — install the discovered Authorization for
- * `authStrategyKind === 'token'` browser banks (VisaCal + the FIBI family).
+ * `authStrategyKind === 'token'` browser banks (the FIBI family).
  * Session-cookie banks ride first-party cookies on BrowserFetchStrategy and
  * need no prime.
  *
@@ -12,11 +12,10 @@
  * parseable storage shape) declare `authHeaderUrlMatch`; that family-scoped
  * sniff runs FIRST so a wrong-family token is never picked. The network-trace
  * gate opens at login entry, so
- * the SPA's own login response (which mints the token — e.g. Cal's connect-login
- * `{"token":...}`) is already in the pool, and Tier 2 `discoverFromResponses`
- * reads it. The resolved value already carries its scheme (`CALAuthScheme <jwt>`
- * / `Bearer <jwt>`), so it installs verbatim via `setRawAuth` (never `setBearer`,
- * which would prepend a second scheme). Zero bank coupling.
+ * the SPA's own login response (which mints the token) is already in the
+ * pool, and Tier 2 `discoverFromResponses` reads it. The resolved value
+ * already carries its scheme, so it installs verbatim via `setRawAuth` (never
+ * `setBearer`, which would prepend a second scheme). Zero bank coupling.
  */
 
 import type { Page } from 'playwright-core';

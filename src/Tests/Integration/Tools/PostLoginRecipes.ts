@@ -17,7 +17,7 @@
  *   <li>`11-balance-resolve` — final balance read.</li>
  * </ul>
  *
- * <p>SPA banks (Beinleumi, VisaCal) use `snapshot` with
+ * <p>SPA banks (e.g. Beinleumi) use `snapshot` with
  * `waitForLifecycle: 'networkidle'` so the hydrated post-JS DOM is
  * captured — no JS bundle commit required.
  *
@@ -152,28 +152,6 @@ const MAX_POST_LOGIN = {
       stepName: '10-scrape-transactions',
       urlPattern: '/transactions-search',
       captureAs: 'transactions-search',
-      methods: ['POST'],
-    },
-  ],
-} as const satisfies IExtendedRecipe;
-
-/** VisaCal: pure SPA — hydrated DOM snapshot is the deliverable. */
-const VISACAL_POST_LOGIN = {
-  bankId: 'visaCal',
-  steps: [
-    { kind: 'login', stepName: '04-login-action' },
-    {
-      kind: 'waitFor',
-      stepName: '07-auth-discovery',
-      urlIncludes: 'cal4u',
-      timeoutMs: DASHBOARD_NETWORKIDLE_TIMEOUT_MS,
-    },
-    { kind: 'snapshot', stepName: '09-dashboard', waitForLifecycle: 'networkidle' },
-    {
-      kind: 'recordResponse',
-      stepName: '10-scrape-transactions',
-      urlPattern: '/CalCardsTransactions',
-      captureAs: 'CalCardsTransactions',
       methods: ['POST'],
     },
   ],
@@ -338,7 +316,6 @@ const POST_LOGIN_RECIPES: Readonly<Partial<Record<string, IExtendedRecipe>>> = {
   amex: AMEX_POST_LOGIN,
   discount: DISCOUNT_POST_LOGIN,
   max: MAX_POST_LOGIN,
-  visaCal: VISACAL_POST_LOGIN,
   hapoalim: HAPOALIM_POST_LOGIN,
   beinleumi: BEINLEUMI_POST_LOGIN,
   leumi: LEUMI_POST_LOGIN,
@@ -374,7 +351,7 @@ interface IRecipeStep {
   readonly revealText?: string;
   /**
    * Wait for a credential `<input type="password">` to render before
-   * snapshotting. SPA banks (e.g. VisaCal Angular shell) may snapshot
+   * snapshotting. SPA banks (e.g. an Angular shell) may snapshot
    * before bootstrap completes — flipping this true makes the
    * harvester block until the credential form is in the DOM.
    *
@@ -487,17 +464,6 @@ const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
     steps: [
       { stepName: '01-home', url: 'https://www.mizrahi-tefahot.co.il' },
       { stepName: '02-login-modal', revealText: 'כניסה לחשבון', waitForCredentialInput: true },
-    ],
-  },
-  visaCal: {
-    steps: [
-      { stepName: '01-home', url: 'https://www.cal-online.co.il' },
-      { stepName: '02-pre-login', revealText: 'כניסה לחשבון' },
-      {
-        stepName: '03-username-tab',
-        revealText: 'כניסה עם שם משתמש',
-        waitForCredentialInput: true,
-      },
     ],
   },
 };

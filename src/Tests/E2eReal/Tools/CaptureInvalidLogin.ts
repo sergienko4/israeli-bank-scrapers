@@ -8,7 +8,7 @@
  *
  * Usage:
  *   npm run capture:invalid-login -- discount
- *   npm run capture:invalid-login -- visacal --headless
+ *   npm run capture:invalid-login -- hapoalim --headless
  *   npm run capture:invalid-login -- max --timeout=300000
  *
  * Output (all under C:\tmp\bank-html\<bankKey>\):
@@ -37,7 +37,7 @@ import { PIPELINE_BANK_CONFIG } from '../../../Scrapers/Pipeline/Registry/Config
 const LOG = getDebug(import.meta.url);
 
 /** Supported bank keys — mirrors IBankFixtures.bankKey in the mock loader. */
-type BankKey = 'discount' | 'visacal' | 'max' | 'hapoalim' | 'beinleumi' | 'isracard' | 'amex';
+type BankKey = 'discount' | 'max' | 'hapoalim' | 'beinleumi' | 'isracard' | 'amex';
 
 /** Minimal invalid-creds payload for each bank — shape used by the real scraper. */
 interface IBankCaptureConfig {
@@ -64,7 +64,6 @@ const CAPTURES: Readonly<Record<BankKey, IBankCaptureConfig>> = {
     postSubmitWaitMs: 8000,
     directLoginUrl: 'https://start.telebank.co.il/login/#/LOGIN_PAGE',
   },
-  visacal: { bankKey: 'visacal', companyId: CompanyTypes.VisaCal, postSubmitWaitMs: 12000 },
   max: { bankKey: 'max', companyId: CompanyTypes.Max, postSubmitWaitMs: 10000 },
   hapoalim: { bankKey: 'hapoalim', companyId: CompanyTypes.Hapoalim, postSubmitWaitMs: 10000 },
   beinleumi: { bankKey: 'beinleumi', companyId: CompanyTypes.Beinleumi, postSubmitWaitMs: 8000 },

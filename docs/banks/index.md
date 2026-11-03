@@ -14,11 +14,11 @@
 
 - :material-credit-card: **Credit cards (browser engine)**
 
-  [Amex](amex.md) · [Isracard](isracard.md) · [Max](max.md) · [Visa Cal](visacal.md)
+  [Amex](amex.md) · [Isracard](isracard.md) · [Max](max.md)
 
 - :material-api: **API-direct (no browser)**
 
-  [OneZero](onezero.md) · [Pepper](pepper.md) · [PayBox](paybox.md)
+  [OneZero](onezero.md) · [Pepper](pepper.md) · [PayBox](paybox.md) · [Visa Cal](visacal.md)
 
 - :material-archive: **Legacy (deprecated)**
 

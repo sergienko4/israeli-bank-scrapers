@@ -6,5 +6,11 @@
  */
 declare function setFakePageEvalMode(enabled: boolean): boolean;
 
-export { setFakePageEvalMode };
+/**
+ * How many browser launches were requested since the mock loaded.
+ * @returns Launch requests so far.
+ */
+declare function getLaunchCount(): number;
+
+export { getLaunchCount, setFakePageEvalMode };
 export default setFakePageEvalMode;

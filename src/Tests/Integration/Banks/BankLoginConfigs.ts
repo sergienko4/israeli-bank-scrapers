@@ -23,7 +23,6 @@ import { MERCANTILE_LOGIN } from '../../../Scrapers/Pipeline/Banks/Mercantile/Me
 import { MIZRAHI_LOGIN } from '../../../Scrapers/Pipeline/Banks/Mizrahi/MizrahiPipeline.js';
 import { OTSAR_HAHAYAL_LOGIN } from '../../../Scrapers/Pipeline/Banks/OtsarHahayal/OtsarHahayalPipeline.js';
 import { PAGI_LOGIN } from '../../../Scrapers/Pipeline/Banks/Pagi/PagiPipeline.js';
-import { VISACAL_LOGIN } from '../../../Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.js';
 import { YAHAV_LOGIN } from '../../../Scrapers/Pipeline/Banks/Yahav/YahavPipeline.js';
 
 /**
@@ -45,7 +44,6 @@ const BANK_LOGIN_CONFIGS: Readonly<Partial<Record<string, ILoginConfig>>> = {
   mizrahi: MIZRAHI_LOGIN,
   otsarHahayal: OTSAR_HAHAYAL_LOGIN,
   pagi: PAGI_LOGIN,
-  visaCal: VISACAL_LOGIN,
   yahav: YAHAV_LOGIN,
 };
 

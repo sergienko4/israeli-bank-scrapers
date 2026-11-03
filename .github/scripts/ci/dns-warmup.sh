@@ -102,7 +102,7 @@ echo ""
 # ── Extract bank hostnames from PipelineBankConfig.ts ───────────
 # Hosts are matched generically as any quoted 'https?://…' inside a
 # bank's entry, rather than by enumerating the factory names that
-# build it (defineBank / fibiConfig / calConfig / object literal).
+# build it (defineBank / fibiConfig / object literal).
 # That keeps the zero-CI-edits contract: a new bank, or a new config
 # factory, is picked up with no change here. It also captures the
 # secondary origins a factory already carries — fibiConfig's

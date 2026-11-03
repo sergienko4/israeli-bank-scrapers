@@ -55,6 +55,6 @@ export const BANK_EXTRA_DNS_HOSTS: BankExtraDnsHosts = {
   [CompanyTypes.Pagi]: ['online.pagi.co.il'],
   [CompanyTypes.PayBox]: ['apipin.payboxapp.com'],
   [CompanyTypes.Pepper]: ['fe-sec.pepper.co.il', 'sa.pepper.co.il'],
-  [CompanyTypes.VisaCal]: ['digital-web.cal-online.co.il', 'api.cal-online.co.il'],
+  [CompanyTypes.VisaCal]: ['api-cc.cal-online.co.il'],
   [CompanyTypes.Yahav]: ['digital.yahav.co.il', 'login.yahav.co.il'],
 };
