@@ -3,9 +3,9 @@
  *
  * Attribution is by card id only: a frame naming another card never lends
  * its figure. A confirmed reply with no frame for the card reports 0, the
- * true "nothing pending" answer; an unconfirmed reply, or a frame whose
- * figure is not a finite number, is absent — no figure, never a 0. Bodies
- * are synthetic, with no PII.
+ * true "nothing pending" answer. A matching frame whose figure is not a
+ * finite number also reports 0; unconfirmed or structurally malformed
+ * replies are absent. Bodies are synthetic, with no PII.
  */
 
 import {
@@ -60,6 +60,9 @@ describe('VisaCal frames balance (UT-CAL-01)', () => {
     ['no frame names the card', framesBody([{ cardUniqueId: 'CARD-9', nextTotalDebit: 50 }])],
     ['the frame list is empty', framesBody([])],
     ['no issuer group is present', { statusCode: 1, result: {} }],
+    ['the figure is a string', framesBody([{ cardUniqueId: 'CARD-1', nextTotalDebit: '412' }])],
+    ['the figure is not finite', framesBody([{ cardUniqueId: 'CARD-1', nextTotalDebit: NaN }])],
+    ['the figure is missing', framesBody([{ cardUniqueId: 'CARD-1' }])],
   ])('reports a present 0 when %s', (_case, body) => {
     const isAbsent = balanceIsAbsent(body, CARD);
     const balance = nextTotalDebitOf(body, CARD);
@@ -80,9 +83,6 @@ describe('VisaCal frames balance (UT-CAL-01)', () => {
       'a frame entry is null',
       { statusCode: 1, result: { calIssuedCards: { accountLevelFrames: [null] } } },
     ],
-    ['the figure is a string', framesBody([{ cardUniqueId: 'CARD-1', nextTotalDebit: '412' }])],
-    ['the figure is not finite', framesBody([{ cardUniqueId: 'CARD-1', nextTotalDebit: NaN }])],
-    ['the figure is missing', framesBody([{ cardUniqueId: 'CARD-1' }])],
   ])('declares the balance absent when %s', (_case, body) => {
     const isAbsent = balanceIsAbsent(body, CARD);
     expect(isAbsent).toBe(true);

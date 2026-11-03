@@ -10,10 +10,9 @@
  *
  * A reply CAL confirmed (`statusCode` 1 with a `result`) that names no frame
  * for the card has nothing pending, so the card reports 0. A reply CAL did
- * not confirm, whose frame structure is malformed, or whose figure is not a
- * finite number carries no figure at all: {@link balanceIsAbsent} says so,
- * and the driver publishes no balance and marks the scrape degraded rather
- * than invent a 0.
+ * not confirm, or whose frame structure is malformed, carries no figure at
+ * all. A confirmed matching frame with a non-numeric figure follows CAL's
+ * no-data contract and reports 0.
  */
 
 import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
@@ -126,16 +125,13 @@ function isConfirmed(resp: unknown): boolean {
  * the driver before {@link nextTotalDebitOf}.
  * @param body - Frames response.
  * @param card - The account being assembled.
- * @returns True when CAL did not confirm the reply, its frame structure is
- *   malformed, or the card's frame carries no finite `nextTotalDebit`.
+ * @returns True when CAL did not confirm the reply or its frame structure is
+ *   malformed.
  */
 export function balanceIsAbsent(body: ApiBody, card: IVisaCalCard): IsBalanceAbsent {
   const resp: unknown = body;
   if (!isConfirmed(resp)) return true as IsBalanceAbsent;
-  const own = ownFramesOf(resp, card);
-  if (own === false) return true as IsBalanceAbsent;
-  const isMalformed = own.some((frame): boolean => !isFigure(frame.nextTotalDebit));
-  return isMalformed as IsBalanceAbsent;
+  return (ownFramesOf(resp, card) === false) as IsBalanceAbsent;
 }
 
 /**

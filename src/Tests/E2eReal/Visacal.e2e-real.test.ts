@@ -56,12 +56,27 @@ function coldCreds(): ICalPasswordCreds {
 }
 
 /**
+ * Verifies that every VisaCal account publishes a finite balance.
+ * @param result - Successful scrape result.
+ * @returns True when all balances are numeric.
+ */
+function assertNumericBalances(result: IScraperScrapingResult): true {
+  const accounts = result.accounts ?? [];
+  const isEveryBalanceFinite = accounts.every((account): boolean =>
+    Number.isFinite(account.balance),
+  );
+  expect(isEveryBalanceFinite).toBe(true);
+  return true;
+}
+
+/**
  * Assert a run succeeded and handed back a long-term token.
  * @param result - Scrape result.
  * @returns The returned token.
  */
 function assertTokenReturned(result: IScraperScrapingResult): string {
   assertSuccessfulScrape(result);
+  assertNumericBalances(result);
   const token = result.persistentOtpToken ?? '';
   expect(token.length).toBeGreaterThan(0);
   return token;
