@@ -49,16 +49,12 @@ function makePrimeFresh(
 }
 
 /**
- * hasWarmState factory — wraps hasWarmStateImpl with captured config + slot.
- * @param config - Bank config.
- * @param slot - Capture slot holding the durable mode, if any.
+ * hasWarmState factory — wraps hasWarmStateImpl with the captured slot.
+ * @param slot - Capture slot holding the durable mode and the cycle verdict.
  * @returns Strategy hasWarmState binding.
  */
-function makeHasWarmState(
-  config: IApiDirectCallConfig,
-  slot: ILongTermTokenSlot,
-): IConfigTokenStrategy['hasWarmState'] {
-  return (creds): boolean => hasWarmStateImpl(config, creds, slot);
+function makeHasWarmState(slot: ILongTermTokenSlot): IConfigTokenStrategy['hasWarmState'] {
+  return (): boolean => hasWarmStateImpl(slot);
 }
 
 /**
@@ -74,7 +70,7 @@ function buildPrimeBindings(
   return {
     primeInitial: makePrimeInitial(config, slot),
     primeFresh: makePrimeFresh(config, slot),
-    hasWarmState: makeHasWarmState(config, slot),
+    hasWarmState: makeHasWarmState(slot),
   };
 }
 

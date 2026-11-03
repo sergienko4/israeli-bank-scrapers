@@ -111,3 +111,21 @@ describe('warmAttemptFailureType lifecycle', (): void => {
     expect(tag).toBe('');
   });
 });
+
+describe('warmSeedRejectedLocally', (): void => {
+  it('reports no local rejection when the caller supplied no seed', async (): Promise<void> => {
+    const strategy = buildStrategy();
+    const creds = {} as unknown as ScraperCredentials;
+    await primeOnce({ strategy, creds }, WARM_OK);
+    const wasRejected = strategy.warmSeedRejectedLocally();
+    expect(wasRejected).toBe(false);
+  });
+
+  it('reports a local rejection when the seed is not a string', async (): Promise<void> => {
+    const strategy = buildStrategy();
+    const creds = { otpLongTermToken: 12345 } as unknown as ScraperCredentials;
+    await primeOnce({ strategy, creds }, WARM_OK);
+    const wasRejected = strategy.warmSeedRejectedLocally();
+    expect(wasRejected).toBe(true);
+  });
+});

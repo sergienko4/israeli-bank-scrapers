@@ -8,19 +8,22 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { getDebug } from '../../../Logging/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import { formatAuthValue } from './AuthModePolicy.js';
 import { runSmsOtpFlow } from './SmsOtpFlow.js';
 import { admitFlow, isColdStart } from './TokenStrategyFromConfig.budget.js';
 import { primeDurable, refuseDurableRefresh } from './TokenStrategyFromConfig.persistent.js';
-import { makeWarmArgs, pickWarmSeed, readCredsString } from './TokenStrategyFromConfig.shared.js';
+import {
+  isWarmSeedSupplied,
+  makeWarmArgs,
+  pickWarmSeed,
+} from './TokenStrategyFromConfig.shared.js';
 import type {
-  GenericCreds,
   IFlowCapture,
   ILongTermTokenSlot,
   IMakeWarmArgs,
   IPrimeArgs,
   IRunFlowArgs,
+  IWarmSeedVerdict,
 } from './TokenStrategyFromConfig.types.js';
 
 const LOG = getDebug(import.meta.url);
@@ -177,6 +180,17 @@ async function runWarmAttempt(
 }
 
 /**
+ * Classify the caller's warm seed for this prime cycle.
+ * @param args - Config + creds.
+ * @param stored - The seed that passed the local gate, or false.
+ * @returns Whether a seed was supplied and whether it will be sent.
+ */
+function warmSeedVerdictOf(args: IPrimeArgs, stored: string | false): IWarmSeedVerdict {
+  const isSupplied = isWarmSeedSupplied(args.config, args.creds);
+  return { supplied: isSupplied, accepted: stored !== false };
+}
+
+/**
  * Reset every per-prime verdict on the slot before a new attempt runs.
  *
  * <p>The failure tag deliberately survives `primeFresh`, because the cold
@@ -184,14 +198,15 @@ async function runWarmAttempt(
  * is exactly when the fallback warning reads it. That longevity is why the
  * reset has to happen here: otherwise a later, healthy prime would still
  * report a tag belonging to a cycle that has already been superseded.
- * @param slot - Mutable capture slot.
- * @param hasSeed - Whether a seed survived the local freshness gate.
+ * @param args - Config + creds + mutable capture slot.
+ * @param stored - The seed that passed the local gate, or false.
  * @returns true (ack contract).
  */
-function openPrimeCycle(slot: ILongTermTokenSlot, hasSeed: boolean): true {
-  slot.usedWarmPath = hasSeed;
-  slot.warmSeedRejectedLocally = !hasSeed;
-  slot.warmAttemptFailureType = undefined;
+function openPrimeCycle(args: IPrimeArgs, stored: string | false): true {
+  const seed = warmSeedVerdictOf(args, stored);
+  args.slot.usedWarmPath = seed.accepted;
+  args.slot.warmSeedRejectedLocally = seed.supplied && !seed.accepted;
+  args.slot.warmAttemptFailureType = undefined;
   return true;
 }
 
@@ -207,7 +222,7 @@ async function primeInitialImpl(args: IPrimeArgs): Promise<Procedure<string>> {
   const { config, bus, ctx, creds, slot } = args;
   const flowBase = { config, bus, creds, companyId: ctx.companyId };
   const stored = pickWarmSeed(config, creds);
-  openPrimeCycle(slot, stored !== false);
+  openPrimeCycle(args, stored);
   if (stored === false) return runConfiguredFlow(flowBase, slot);
   return runWarmAttempt({ ...flowBase, stored }, slot);
 }
@@ -226,22 +241,17 @@ async function primeFreshImpl(args: IPrimeArgs): Promise<Procedure<string>> {
 }
 
 /**
- * hasWarmState — true only when the failed initial prime actually used the
- * stored seed. Locally rejected seeds already ran cold and must not escalate.
- * @param config - Config literal.
- * @param creds - Caller credentials.
- * @param slot - Capture slot holding the durable mode, if any.
+ * hasWarmState — retry eligibility: true only when the failed initial prime
+ * took the warm path with an accepted seed. A locally rejected seed already
+ * ran cold, so a second cold flow would only mask the first failure. The fallback warning
+ * reads `warmSeedRejectedLocally` / `warmAttemptFailureType` instead. The
+ * verdict comes from the recorded prime cycle, never from re-read creds.
+ * @param slot - Capture slot holding the durable mode and the cycle verdict.
  * @returns Warm-state flag.
  */
-function hasWarmStateImpl(
-  config: IApiDirectCallConfig,
-  creds: GenericCreds,
-  slot: ILongTermTokenSlot,
-): boolean {
+function hasWarmStateImpl(slot: ILongTermTokenSlot): boolean {
   if (slot.persistentAuth !== undefined) return false;
-  if (config.warmStart === undefined) return false;
-  const stored = readCredsString(creds, config.warmStart.credsField);
-  return stored.length > 0 && slot.usedWarmPath === true;
+  return slot.usedWarmPath === true;
 }
 
 export {

@@ -229,6 +229,17 @@ describe('api-direct-call createTokenStrategyFromConfig lastPrimeWasWarm', () =>
     expect({ wasWarm, hasWarmState }).toEqual({ wasWarm: true, hasWarmState: true });
   });
 
+  it('keeps retry eligibility tied to the prime cycle, not later creds', async (): Promise<void> => {
+    const bus = makeStubMediator({ responses: [], captures: [] });
+    const result = makeWarmStrategy();
+    if (!result.success) throw new ScraperError('factory should succeed');
+    const creds: Record<string, string> = { storedJwt: makeJwt(3600) };
+    await result.value.primeInitial(bus, CTX_STUB, creds);
+    delete creds.storedJwt;
+    const hasWarmState = result.value.hasWarmState(creds);
+    expect(hasWarmState).toBe(true);
+  });
+
   it('reports false when a stale seed falls through to the cold flow', async (): Promise<void> => {
     const coldTok = succeed({ access_token: 't' });
     const bus = makeStubMediator({ responses: [coldTok], captures: [] });

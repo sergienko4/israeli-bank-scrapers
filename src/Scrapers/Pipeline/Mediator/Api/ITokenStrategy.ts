@@ -3,7 +3,7 @@
  * lifecycle. Banks expose THREE primitives:
  *   - primeInitial   cheap path (stored JWT / stored OTP)
  *   - primeFresh     full SMS/OTP flow
- *   - hasWarmState   did caller supply a stored token?
+ *   - hasWarmState   may a failed primeInitial retry via primeFresh?
  * ApiMediator bridges strategy → ITokenResolver via
  * buildResolverFromStrategy, which owns the retry ladder.
  * This interface declares ZERO bank-specific types — Rule #11

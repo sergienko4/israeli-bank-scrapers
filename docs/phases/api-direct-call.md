@@ -200,6 +200,16 @@ than `MAX_ACCESS_TOKEN_CHARS` (16 KiB, the cap the durable state already uses
 for access tokens). A token that fails is dropped with a warning that names
 the creds field, not the value, and the cold login runs instead.
 
+Each prime records an `IWarmSeedVerdict`: whether the caller supplied a seed
+(`isWarmSeedSupplied`, true for any value except an absent or empty one, so a
+wrong-type value still earns the cold-fallback warning below) and whether it
+passed the local checks.
+Only an accepted seed lets a failed prime retry once cold (`hasWarmState`). A
+refused seed has already run cold, and a second cold flow would only hide the
+first failure. The cold-fallback warning reads the verdict rather than
+`hasWarmState`: it fires when a supplied seed was refused locally, or was sent
+and failed, and the login then finished cold.
+
 ### Step outcome
 
 Some banks refuse a login with HTTP 200 and a status code in the body. A step

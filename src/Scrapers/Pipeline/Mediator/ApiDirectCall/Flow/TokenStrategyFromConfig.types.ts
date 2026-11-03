@@ -89,9 +89,9 @@ interface ILongTermTokenSlot {
   /** True when the last prime reused a cached warm seed; false on cold flow. */
   usedWarmPath?: boolean;
   /**
-   * True when `pickWarmSeed` refused the stored seed locally, so it was never
-   * sent. Only `primeInitial` writes it — a later cold retry must not erase
-   * the reason the warm path was skipped.
+   * True when a supplied seed was refused by `pickWarmSeed`, so it was never
+   * sent; false when none was supplied. Only `primeInitial` writes it — a
+   * later cold retry must not erase the reason the warm path was skipped.
    */
   warmSeedRejectedLocally?: boolean;
   /** ScraperErrorTypes tag from the warm attempt, when one was made and failed. */
@@ -154,6 +154,14 @@ interface IPrimeArgs {
   readonly slot: ILongTermTokenSlot;
 }
 
+/** What the local gate concluded about the caller's stored seed. */
+interface IWarmSeedVerdict {
+  /** The caller put a value in the seed field (any type but empty). */
+  readonly supplied: boolean;
+  /** The seed passed the local shape and freshness checks and will be sent. */
+  readonly accepted: boolean;
+}
+
 /** Args for createTokenStrategyFromConfig. */
 interface ICreateTokenStrategyArgs {
   readonly config: IApiDirectCallConfig;
@@ -175,5 +183,6 @@ export type {
   IPrimeArgs,
   IRunFlowArgs,
   IStrategyBindings,
+  IWarmSeedVerdict,
   PersistentAuthMode,
 };
