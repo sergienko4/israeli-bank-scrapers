@@ -339,6 +339,15 @@ describe('Yahav native login config — credentials and warm start', () => {
     });
   });
 
+  it('refuses a num the token form cannot encode, before the register call', async () => {
+    const { call } = await loadModule();
+    const hebrew = checkRequiredCreds(call, { ...CREDS, num: 'syn-\u05d0' });
+    expect(hebrew).toMatchObject({
+      success: false,
+      errorMessage: 'Missing or malformed credentials: num',
+    });
+  });
+
   it('resumes a warm start at the token call, past both cold-only calls', async () => {
     const { call } = await loadModule();
     const index = call.warmStart?.fromStepIndex ?? -1;
