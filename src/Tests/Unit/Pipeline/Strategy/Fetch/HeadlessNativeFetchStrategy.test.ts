@@ -135,8 +135,8 @@ describe('HeadlessNativeFetchStrategy', () => {
     });
   });
 
-  it('maps a TimeoutError DOMException rejection to a Timeout failure', async () => {
-    const timeout = new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+  it.each(['TimeoutError', 'AbortError'])('maps a rejected %s to a Timeout', async name => {
+    const timeout = new DOMException('The operation was aborted', name);
     installFetchMock(() => Promise.reject(timeout));
     const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
     expect(result).toMatchObject({

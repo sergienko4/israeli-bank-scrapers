@@ -24,7 +24,7 @@ interface IHeadlessNativeFetchOptions {
 }
 
 /** Error names a fetch rejects with once its abort signal fires. */
-const ABORT_ERROR_NAMES: readonly unknown[] = ['TimeoutError', 'AbortError'];
+const ABORT_ERROR_NAMES: ReadonlySet<unknown> = new Set(['TimeoutError', 'AbortError']);
 
 /** Default headers per verb: JSON content-type on POST only. */
 const HEADLESS_DEFAULT_HEADERS: DefaultHeadersByVerb = {
@@ -41,7 +41,7 @@ const HEADLESS_DEFAULT_HEADERS: DefaultHeadersByVerb = {
 function isAbortRejection(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
   const name: unknown = Reflect.get(error, 'name');
-  return ABORT_ERROR_NAMES.includes(name);
+  return ABORT_ERROR_NAMES.has(name);
 }
 
 /**
