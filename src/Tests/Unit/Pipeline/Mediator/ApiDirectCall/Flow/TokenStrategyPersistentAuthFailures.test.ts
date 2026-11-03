@@ -231,6 +231,23 @@ describe('durable enrollment failures', () => {
     expect(second).toMatchObject({ errorMessage: 'persistent auth failed: enrollment-budget' });
     expect(captures).toHaveLength(3);
   });
+
+  it('keeps the enrollment budget when a credential is bad', async () => {
+    const captures: IApiPostCapture[] = [];
+    const recorder = makeRecorder();
+    const mode = caseMode({ responses: [] }, recorder.onUpdate);
+    const required: IApiDirectCallConfig = { ...config, requiredCreds: { password: 'nonEmpty' } };
+    const strategy = makeDurableStrategy(required, mode);
+    const responses = enrollResponses(FRESH_JWT);
+    const bus = makeStubMediator({ responses, captures });
+    const sound = pepperCreds(async (): Promise<string> => Promise.resolve('123456'));
+    const bad = { ...sound, password: '' };
+    const first = await strategy.primeInitial(bus, PEPPER_CTX, bad);
+    expect(first).toMatchObject({ errorMessage: 'Missing or malformed credentials: password' });
+    const second = await strategy.primeInitial(bus, PEPPER_CTX, sound);
+    expect(second.success).toBe(true);
+    expect(captures).toHaveLength(3);
+  });
 });
 
 describe('durable strategies never take the warm or in-run path', () => {

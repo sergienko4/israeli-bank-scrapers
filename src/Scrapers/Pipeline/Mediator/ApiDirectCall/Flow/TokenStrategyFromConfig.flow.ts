@@ -11,7 +11,7 @@ import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import { formatAuthValue } from './AuthModePolicy.js';
 import { runSmsOtpFlow } from './SmsOtpFlow.js';
-import { isColdStart, mayStartFlow } from './TokenStrategyFromConfig.budget.js';
+import { admitFlow, isColdStart } from './TokenStrategyFromConfig.budget.js';
 import { primeDurable, refuseDurableRefresh } from './TokenStrategyFromConfig.persistent.js';
 import { makeWarmArgs, pickWarmSeed, readCredsString } from './TokenStrategyFromConfig.shared.js';
 import type {
@@ -133,6 +133,10 @@ async function runFlowAndCapture(
  * does. Refusing here, at the only place every flow passes through, covers the
  * cold prime, the warm→cold fallback, every 401-driven refresh and explicit
  * session recovery in one gate.
+ *
+ * <p>Required credentials are checked before the charge (`admitFlow`). A flow
+ * that fails them sends nothing, so it spends nothing, and a later retry names
+ * the bad field rather than the spent budget.
  * @param args - Run args.
  * @param slot - Mutable capture slot.
  * @returns Formatted Authorization header value procedure.
@@ -141,8 +145,9 @@ async function runConfiguredFlow(
   args: IRunFlowArgs,
   slot: ILongTermTokenSlot,
 ): Promise<Procedure<string>> {
-  const canStart = mayStartFlow(args, slot);
-  if (!canStart) return answerRefusedFlow(args, slot);
+  const admitted = admitFlow(args, slot);
+  if (!isOk(admitted)) return admitted;
+  if (!admitted.value) return answerRefusedFlow(args, slot);
   return runFlowAndCapture(args, slot);
 }
 

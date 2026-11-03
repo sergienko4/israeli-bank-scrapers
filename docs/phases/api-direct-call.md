@@ -167,8 +167,12 @@ optionalExtractsToCarry: {
 ### Required credentials
 
 `requiredCreds` maps a creds field to a `CredRule`. `checkRequiredCreds` in
-`Flow/RequiredCreds.ts` runs first in `prepareSmsOtpFlow`, before keys are
-generated or any request is sent:
+`Flow/RequiredCreds.ts` runs before keys are generated or any request is sent.
+`admitFlow`
+(`src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.budget.ts`)
+calls it before `mayStartFlow` charges the cold-flow budget, for
+`runConfiguredFlow` and a durable enrollment alike, and `prepareSmsOtpFlow`
+calls it again for the paths that do not pass the budget:
 
 | Rule        | Accepts                          |
 | ----------- | -------------------------------- |
@@ -178,7 +182,9 @@ generated or any request is sent:
 
 A missing or non-string value fails every rule. When any field fails, the flow
 stops with `Generic` and `Missing or malformed credentials: <names>`. The
-message lists field names only, never values.
+message lists field names only, never values. A flow stopped here sends
+nothing and so spends nothing: the cold retry after a dropped warm token
+names the bad field again rather than the spent budget.
 
 ```ts
 requiredCreds: { id: 'digits', password: 'nonEmpty', card6Digits: 'sixDigits' }
@@ -405,7 +411,8 @@ combination fails there, so it never reaches the network.
 
 - **Enrollment** is the bank's normal cold flow, so it draws on the
   [one-SMS budget](#one-sms-per-run) like any cold login. A spent budget fails
-  as `enrollment-budget` instead of sending.
+  as `enrollment-budget` instead of sending. A malformed credential fails by
+  name first and leaves the budget unspent.
 - **Resume** decodes and validates the state locally. A token fresh for more
   than `freshnessMarginSeconds` (300 s for Pepper) is replayed with zero auth
   requests. Otherwise the bank's `resumeSteps` run on the persisted device:

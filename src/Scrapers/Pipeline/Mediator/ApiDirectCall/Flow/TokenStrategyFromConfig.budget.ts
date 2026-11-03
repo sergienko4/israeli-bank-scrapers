@@ -27,6 +27,9 @@
  * "one SMS ever".
  */
 
+import type { Procedure } from '../../../Types/Procedure.js';
+import { isOk, succeed } from '../../../Types/Procedure.js';
+import { checkRequiredCreds } from './RequiredCreds.js';
 import type { ILongTermTokenSlot, IRunFlowArgs } from './TokenStrategyFromConfig.types.js';
 
 /**
@@ -75,4 +78,19 @@ function mayStartFlow(args: IRunFlowArgs, slot: ILongTermTokenSlot): boolean {
   return true;
 }
 
-export { COLD_FLOW_BUDGET, isColdStart, mayStartFlow };
+/**
+ * Admit a login flow: check its credentials, then draw on the budget. A bad
+ * credential fails by name here and never spends the run's one SMS, so a cold
+ * retry names the field again instead of reporting a spent budget.
+ * @param args - Run args for the flow about to start.
+ * @param slot - Run-scoped capture slot carrying the counter.
+ * @returns The credentials failure, or whether the budget lets the flow run.
+ */
+function admitFlow(args: IRunFlowArgs, slot: ILongTermTokenSlot): Procedure<boolean> {
+  const credsProc = checkRequiredCreds(args.config, args.creds);
+  if (!isOk(credsProc)) return credsProc;
+  const canStart = mayStartFlow(args, slot);
+  return succeed(canStart);
+}
+
+export { admitFlow, COLD_FLOW_BUDGET, isColdStart };
