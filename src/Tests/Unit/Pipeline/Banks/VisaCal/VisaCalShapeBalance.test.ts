@@ -71,6 +71,14 @@ describe('VisaCal frames balance (UT-CAL-01)', () => {
     ['the status is missing', { result: { calIssuedCards: { accountLevelFrames: [] } } }],
     ['the result is null', { statusCode: 1, result: null }],
     ['the result is missing', { statusCode: 1 }],
+    [
+      'the frame container is not an array',
+      { statusCode: 1, result: { calIssuedCards: { accountLevelFrames: {} } } },
+    ],
+    [
+      'a frame entry is null',
+      { statusCode: 1, result: { calIssuedCards: { accountLevelFrames: [null] } } },
+    ],
     ['the figure is a string', framesBody([{ cardUniqueId: 'CARD-1', nextTotalDebit: '412' }])],
     ['the figure is not finite', framesBody([{ cardUniqueId: 'CARD-1', nextTotalDebit: NaN }])],
     ['the figure is missing', framesBody([{ cardUniqueId: 'CARD-1' }])],

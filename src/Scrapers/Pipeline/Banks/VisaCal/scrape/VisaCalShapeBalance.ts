@@ -10,9 +10,10 @@
  *
  * A reply CAL confirmed (`statusCode` 1 with a `result`) that names no frame
  * for the card has nothing pending, so the card reports 0. A reply CAL did
- * not confirm, or a frame whose figure is not a finite number, carries no
- * figure at all: {@link balanceIsAbsent} says so, and the driver publishes
- * no balance and marks the scrape degraded rather than invent a 0.
+ * not confirm, whose frame structure is malformed, or whose figure is not a
+ * finite number carries no figure at all: {@link balanceIsAbsent} says so,
+ * and the driver publishes no balance and marks the scrape degraded rather
+ * than invent a 0.
  */
 
 import type { ApiBody, VarsMap } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
@@ -45,6 +46,40 @@ interface IFramesResp {
   } | null;
 }
 
+type FrameList = readonly IRawFrame[] | false;
+
+/**
+ * Whether a value is a non-array object.
+ * @param value - Candidate response value.
+ * @returns True for a record.
+ */
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Whether a frame is safe to inspect.
+ * @param value - Candidate frame.
+ * @returns True for a frame with a string card id.
+ */
+function isFrame(value: unknown): value is IRawFrame {
+  return isRecord(value) && typeof value.cardUniqueId === 'string';
+}
+
+/**
+ * Read one issuer's frame list.
+ * @param group - Candidate issuer group.
+ * @returns Its frames, an empty list when absent, or false when malformed.
+ */
+function framesOf(group: unknown): FrameList {
+  if (group === undefined || group === null) return [];
+  if (!isRecord(group)) return false;
+  const frames = group.accountLevelFrames;
+  if (frames === undefined) return [];
+  if (!Array.isArray(frames) || !frames.every(isFrame)) return false;
+  return frames;
+}
+
 /**
  * Frames POST body — one card per request.
  * @param card - The card whose frame is asked for.
@@ -66,11 +101,13 @@ export function balanceUrl(): WKUrlOrLiteral {
  * The frames that name this card, from both issuer groups.
  * @param resp - Frames response.
  * @param card - The account being assembled.
- * @returns The card's own frames — usually one, empty when none names it.
+ * @returns The card's own frames, or false when either frame list is malformed.
  */
-function ownFramesOf(resp: IFramesResp, card: IVisaCalCard): readonly IRawFrame[] {
-  const cal = resp.result?.calIssuedCards?.accountLevelFrames ?? [];
-  const bank = resp.result?.bankIssuedCards?.accountLevelFrames ?? [];
+function ownFramesOf(resp: IFramesResp, card: IVisaCalCard): FrameList {
+  if (!isRecord(resp.result)) return false;
+  const cal = framesOf(resp.result.calIssuedCards);
+  const bank = framesOf(resp.result.bankIssuedCards);
+  if (cal === false || bank === false) return false;
   const frames = [...cal, ...bank];
   return frames.filter((frame): boolean => frame.cardUniqueId === card.cardUniqueId);
 }
@@ -91,7 +128,7 @@ function isFigure(value: unknown): value is number {
  */
 function isConfirmed(resp: IFramesResp): boolean {
   if (resp.statusCode !== CAL_OK) return false;
-  return typeof resp.result === 'object' && resp.result !== null;
+  return isRecord(resp.result);
 }
 
 /**
@@ -99,13 +136,14 @@ function isConfirmed(resp: IFramesResp): boolean {
  * the driver before {@link nextTotalDebitOf}.
  * @param body - Frames response.
  * @param card - The account being assembled.
- * @returns True when CAL did not confirm the reply, or the card's frame
- *   carries no finite `nextTotalDebit`.
+ * @returns True when CAL did not confirm the reply, its frame structure is
+ *   malformed, or the card's frame carries no finite `nextTotalDebit`.
  */
 export function balanceIsAbsent(body: ApiBody, card: IVisaCalCard): IsBalanceAbsent {
   const resp = body as unknown as IFramesResp;
   if (!isConfirmed(resp)) return true as IsBalanceAbsent;
   const own = ownFramesOf(resp, card);
+  if (own === false) return true as IsBalanceAbsent;
   const isMalformed = own.some((frame): boolean => !isFigure(frame.nextTotalDebit));
   return isMalformed as IsBalanceAbsent;
 }
@@ -119,6 +157,7 @@ export function balanceIsAbsent(body: ApiBody, card: IVisaCalCard): IsBalanceAbs
 export function nextTotalDebitOf(body: ApiBody, card: IVisaCalCard): VisaCalNextDebit {
   const resp = body as unknown as IFramesResp;
   const own = ownFramesOf(resp, card);
+  if (own === false) return NO_NEXT_DEBIT;
   const figure = own.map((frame): unknown => frame.nextTotalDebit).find(isFigure);
   return (figure ?? NO_NEXT_DEBIT) as VisaCalNextDebit;
 }
