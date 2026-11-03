@@ -2,7 +2,7 @@
  * E10 — optional extracts.
  *
  * A slot the response may omit is written when its pointer resolves to a
- * non-empty string, falls back when a fallback is set, and otherwise keeps
+ * string that is not blank, falls back when a fallback is set, and otherwise keeps
  * the value an earlier step stored.
  */
 
@@ -59,6 +59,16 @@ const CASES: readonly IOptionalCase[] = [
     label: 'treats a blank or non-string field as absent',
     bean: { returnCode: '1', bcKey: '', userName: 7 },
     expected: { code: '1', bcKey: 'syn-bc-1', userName: '' },
+  },
+  {
+    label: 'treats a whitespace-only field as absent',
+    bean: { returnCode: '1', bcKey: '   ', userName: '\t' },
+    expected: { code: '1', bcKey: 'syn-bc-1', userName: '' },
+  },
+  {
+    label: 'writes a padded value as it is',
+    bean: { returnCode: '1', bcKey: ' syn-bc-3 ' },
+    expected: { code: '1', bcKey: ' syn-bc-3 ', userName: '' },
   },
 ];
 

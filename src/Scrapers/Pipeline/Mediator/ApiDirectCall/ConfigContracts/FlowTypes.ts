@@ -52,13 +52,13 @@ interface IStepOutcome {
 
 /**
  * A carry slot read only when the response has it. A pointer that resolves
- * to a non-empty string writes that string; otherwise `fallback` is written
- * when set, and the slot keeps its earlier value when not.
+ * to a string that is not blank writes that string; otherwise `fallback` is
+ * written when set, and the slot keeps its earlier value when not.
  */
 interface IOptionalExtract {
   /** RFC-6901 pointer into the response body. */
   readonly pointer: string;
-  /** Value written when the response lacks the field. */
+  /** Value written when the field is missing, blank or not a string. */
   readonly fallback?: string;
 }
 

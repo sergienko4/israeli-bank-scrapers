@@ -1,7 +1,7 @@
 /**
  * Optional extracts — carry slots a response may omit. A slot is written only
- * when its pointer resolves to a non-empty string, so a blank field never
- * overwrites a value an earlier step stored.
+ * when its pointer resolves to a string that is not blank, so a blank or
+ * whitespace-only field never overwrites a value an earlier step stored.
  */
 
 import { isOk } from '../../../Types/Procedure.js';
@@ -13,16 +13,16 @@ import type { CarryMap, JsonValue } from './RunStep.types.js';
 type OptionalEntry = readonly [string, IOptionalExtract];
 
 /**
- * Read a non-empty string at a pointer.
+ * Read a string that is not blank at a pointer, as it is.
  * @param resp - Response JSON.
  * @param pointer - RFC-6901 pointer.
- * @returns The string, or false when absent, empty or not a string.
+ * @returns The string, or false when absent, blank or not a string.
  */
 function presentText(resp: JsonValue, pointer: string): string | false {
   const walked = walkPointer(resp, pointer);
   if (!isOk(walked)) return false;
   const value = walked.value;
-  if (typeof value !== 'string' || value.length === 0) return false;
+  if (typeof value !== 'string' || value.trim().length === 0) return false;
   return value;
 }
 
