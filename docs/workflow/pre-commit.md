@@ -32,8 +32,8 @@ The hook spawns each gate as a background process and `wait`s for them all. Cach
 | 15 | Staged PII | `pii-staged` | `lint:pii-staged` |
 | 16 | Node support | `node-support` | `lint:node-support` |
 | 17 | Docs strict | `docs-strict` | `lint:docs-strict` (only fires when `docs/**`, root `*.md`, or `mkdocs.yml` is staged; runs `mkdocs build --strict` — soft-skips when Python/mkdocs not on PATH locally, CI is the hard gate) |
-| 18 | Docs coverage | `docs-coverage` | `.github/scripts/ci/docs-coverage.sh` (fires when any `src/Scrapers/Pipeline/**/*.ts` is staged; diffs new public exports against `origin/main`/`main` and fails if a new symbol is undocumented + un-allowlisted — soft-skips when base ref unresolvable locally, CI is the hard gate). See [Docs coverage gate](docs-coverage.md) for which export forms count. |
-| 19 | Docs staleness | `docs-staleness` | `.github/scripts/ci/docs-staleness.sh` |
+| 18 | Docs coverage | `docs-coverage` | `.github/scripts/ci/docs-coverage.sh` (fires when any `src/Scrapers/Pipeline/**/*.ts` is staged; diffs new public exports against the merge-base with `origin/main`/`main`, as CI does, and fails if a new symbol is undocumented + un-allowlisted — soft-skips when base ref unresolvable locally, CI is the hard gate). See [Docs coverage gate](docs-coverage.md) for which export forms count. |
+| 19 | Docs staleness | `docs-staleness` | `.github/scripts/ci/docs-staleness.sh` (same merge-base as docs coverage, so commits on `main` after the branch forked never count as staged changes) |
 
 ### Currently disabled
 

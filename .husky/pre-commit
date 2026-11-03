@@ -282,13 +282,20 @@ fi
 # script diffs STAGED content (`git diff --cached`) against BASE_SHA
 # instead of `BASE_SHA..HEAD` — HEAD is still the parent commit at
 # pre-commit time, so the old range was always empty (silent skip).
-# Soft-skips when the base ref (origin/main → main) can't be resolved
-# locally — CI always re-runs it under the `Validate` job either way.
-DOCS_BASE_SHA=""
+# BASE_SHA is the merge-base with the base ref, as in CI, not its tip:
+# a tip that moved after the branch forked (say a dependabot lockfile
+# bump) would otherwise count as part of this commit. Soft-skips when
+# the base ref (origin/main → main) can't be resolved locally — CI
+# always re-runs it under the `Validate` job either way.
+DOCS_BASE_REF=""
 if git rev-parse --verify -q origin/main >/dev/null 2>&1; then
-    DOCS_BASE_SHA=$(git rev-parse origin/main)
+    DOCS_BASE_REF=origin/main
 elif git rev-parse --verify -q main >/dev/null 2>&1; then
-    DOCS_BASE_SHA=$(git rev-parse main)
+    DOCS_BASE_REF=main
+fi
+DOCS_BASE_SHA=""
+if [ -n "$DOCS_BASE_REF" ]; then
+    DOCS_BASE_SHA=$(git merge-base "$DOCS_BASE_REF" HEAD 2>/dev/null || git rev-parse "$DOCS_BASE_REF")
 fi
 DOCS_COV_FILES=$(echo "$STAGED_FILES" | grep -E '^src/Scrapers/Pipeline/.*\.ts$' || true)
 if [ -n "$DOCS_COV_FILES" ]; then
