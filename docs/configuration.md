@@ -52,9 +52,11 @@ that path is closed to new work. Remove them, or see
 https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/
 ```
 
-One warning is emitted per `createScraper` call, listing every offending option
-together. Silence it by removing the options. To make it impossible to ignore in
-CI, listen for the named warning and escalate:
+One warning is emitted per group of offending options per `createScraper` call.
+Legacy-only options and browser-only options are separate groups, so passing
+both kinds emits two warnings. Each warning lists every offending option in its
+group. Silence them by removing the options. To make the warnings impossible to
+ignore in CI, listen for their shared name and escalate:
 
 ```typescript
 process.on('warning', w => {

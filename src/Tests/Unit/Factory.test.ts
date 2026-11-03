@@ -84,4 +84,18 @@ describe('createScraper — browser options on a browserless bank', () => {
     const emitted = warningsFromCreate({ companyId: CompanyTypes.OneZero, startDate: new Date() });
     expect(emitted).toEqual([]);
   });
+
+  it('emits one warning for each ignored option group', () => {
+    const base: ScraperOptions = {
+      companyId: CompanyTypes.OneZero,
+      startDate: new Date(),
+      shouldShowBrowser: true,
+    };
+    const options = withLegacyOnlyOptions(base, { skipCloseBrowser: true });
+    const emitted = warningsFromCreate(options);
+    const text = emitted.join('\n');
+    expect(emitted).toHaveLength(2);
+    expect(text).toContain('skipCloseBrowser');
+    expect(text).toContain('shouldShowBrowser');
+  });
 });
