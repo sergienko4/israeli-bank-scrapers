@@ -108,7 +108,7 @@ DESCRIBE_IF('E2E: VisaCal (real credentials, API-direct)', () => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
 
-  it('E2E-CAL-WARM-1: warms without a password fallback', async () => {
+  it('E2E-CAL-WARM-1: scrapes transactions successfully without warm fallback', async () => {
     const witness = installFetchPathWitness();
     try {
       const run = await scrapeColdThenWarm(witness);
