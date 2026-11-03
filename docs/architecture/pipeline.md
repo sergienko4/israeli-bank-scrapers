@@ -90,7 +90,9 @@ An api-direct bank's `headless` config block picks the transport its identity ca
 | 2     | `nativeFetch: true`                      | `native`   | Node's own `fetch`                               | No              | `createHeadlessApiMediator`              |
 | 3     | anything else                            | `browser`  | Camoufox page (browser TLS)                      | Yes             | `createBrowserBackedHeadlessApiMediator` |
 
-A block that declares more than one of `requiresClientCert`/`tlsProfile`, `nativeFetch` and `requiresBrowserTls` fails fast with a `ScraperError` when the context is built.
+A block that declares more than one of `requiresClientCert`/`tlsProfile`,
+`nativeFetch` and `requiresBrowserTls` fails with a `ScraperError` before a
+transport kind is returned or a mediator is built.
 
 `resolveHeadlessTransportKind(companyId)` returns the kind these rules pick without building a mediator. `createScraper` uses it to warn when a bank whose kind opens no browser is given browser options — see [Browser options on browserless banks](../configuration.md#browser-options-on-browserless-banks).
 

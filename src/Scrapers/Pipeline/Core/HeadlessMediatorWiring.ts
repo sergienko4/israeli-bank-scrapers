@@ -248,12 +248,14 @@ function pickTransportKind(wiring: IHeadlessWiring): HeadlessTransportKind {
  * browser?" gets the answer the runtime acts on.
  * @param companyId - Target bank company type.
  * @returns The transport kind, or false when the bank has no headless block.
+ * @throws ScraperError when the headless block declares conflicting transports.
  */
 function resolveHeadlessTransportKind(
   companyId: IPipelineContext['companyId'],
 ): HeadlessTransportKind | false {
   const wiring = resolveHeadlessWiring(companyId);
   if (wiring === false) return false;
+  assertSingleTransport(companyId, wiring);
   return pickTransportKind(wiring);
 }
 

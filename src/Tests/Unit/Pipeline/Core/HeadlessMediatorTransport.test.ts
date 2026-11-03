@@ -55,13 +55,32 @@ jest.unstable_mockModule('../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator
 
 const WIRING = await import('../../../../Scrapers/Pipeline/Core/HeadlessMediatorWiring.js');
 
+/** Flag sets that declare more than one identity transport. */
+const CONFLICTING_FLAGS: readonly (readonly [string, ITransportFlags])[] = [
+  ['a TLS profile and browser TLS', { tlsProfile: ANDROID_PROFILE, requiresBrowserTls: true }],
+  ['a client certificate and browser TLS', { requiresClientCert: true, requiresBrowserTls: true }],
+  ['native fetch and browser TLS', { nativeFetch: true, requiresBrowserTls: true }],
+  ['native fetch and a client certificate', { nativeFetch: true, requiresClientCert: true }],
+  ['native fetch and a TLS profile', { nativeFetch: true, tlsProfile: ANDROID_PROFILE }],
+];
+
+/**
+ * Register a headless block declaring the given flags for every bank.
+ * @param flags - Transport flags of the bank's headless block.
+ * @returns True once the config mock is set.
+ */
+function mockHeadless(flags: ITransportFlags): boolean {
+  RESOLVE_CONFIG.mockReturnValue({ headless: { ...BASE_HEADLESS, ...flags } });
+  return true;
+}
+
 /**
  * Resolve the headless mediator for a bank declaring the given flags.
  * @param flags - Transport flags of the bank's headless block.
  * @returns True once the resolver has run.
  */
 function resolveWith(flags: ITransportFlags): boolean {
-  RESOLVE_CONFIG.mockReturnValue({ headless: { ...BASE_HEADLESS, ...flags } });
+  mockHeadless(flags);
   const options = { companyId: CompanyTypes.OneZero } as unknown as ScraperOptions;
   const descriptor: IPipelineDescriptor = {
     options,
@@ -144,16 +163,7 @@ describe('HeadlessMediatorWiring — transport selection', () => {
     expect(args).toMatchObject({ sessionCookies: false });
   });
 
-  it.each<[string, ITransportFlags]>([
-    ['a TLS profile and browser TLS', { tlsProfile: ANDROID_PROFILE, requiresBrowserTls: true }],
-    [
-      'a client certificate and browser TLS',
-      { requiresClientCert: true, requiresBrowserTls: true },
-    ],
-    ['native fetch and browser TLS', { nativeFetch: true, requiresBrowserTls: true }],
-    ['native fetch and a client certificate', { nativeFetch: true, requiresClientCert: true }],
-    ['native fetch and a TLS profile', { nativeFetch: true, tlsProfile: ANDROID_PROFILE }],
-  ])('fails fast when %s are combined', (_label, flags) => {
+  it.each(CONFLICTING_FLAGS)('fails fast when %s are combined', (_label, flags) => {
     /**
      * Resolve the mediator for the conflicting config.
      * @returns Never; the resolver throws.
@@ -190,6 +200,16 @@ describe('resolveHeadlessTransportKind — agrees with the wired factory', () =>
     const transport = chosenTransport();
     const kind = WIRING.resolveHeadlessTransportKind(CompanyTypes.OneZero);
     expect(kind).toBe(KIND_OF_FACTORY[transport]);
+  });
+
+  it.each(CONFLICTING_FLAGS)('rejects %s before returning a kind', (_label, flags) => {
+    mockHeadless(flags);
+    /**
+     * Resolve the kind for the conflicting config.
+     * @returns Never; the resolver throws.
+     */
+    const resolveKind = (): unknown => WIRING.resolveHeadlessTransportKind(CompanyTypes.OneZero);
+    expect(resolveKind).toThrow(/mutually exclusive \(oneZero\)/);
   });
 
   it.each<[string, unknown]>([
