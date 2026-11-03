@@ -16,7 +16,7 @@ import type {
 import { CAL_WEB_SITE_ID } from '../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeHelpers.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
 import { getLaunchCount } from '../../Mocks/CamoufoxJsMock.js';
-import type { IRecordedCall, LoginFault } from './VisaCalFetchMock.js';
+import type { IMockHandle, IRecordedCall, LoginFault } from './VisaCalFetchMock.js';
 import {
   installVisaCalFetchMock,
   rotatedHash,
@@ -77,15 +77,45 @@ function splitCalls(calls: readonly IRecordedCall[]): Pick<ICalRun, 'steps' | 'd
  * @returns The result, the call log and how many browsers were launched.
  */
 async function runCal(creds: ScraperCredentials, fault: LoginFault = 'none'): Promise<ICalRun> {
-  const launchesBefore = getLaunchCount();
   const handle = installVisaCalFetchMock(fault);
   try {
-    const options = { companyId: CompanyTypes.VisaCal, startDate: VISACAL_MOCK_START_DATE };
-    const scraper = createScraper(options);
-    const result = await scraper.scrape(creds);
-    const launches = getLaunchCount() - launchesBefore;
-    const calls = handle.calls();
-    return { result, calls, ...splitCalls(calls), launches };
+    return await scrapeCal(handle, creds);
+  } finally {
+    handle.dispose();
+  }
+}
+
+/**
+ * Scrape once through an installed CAL mock.
+ * @param handle - Installed mock whose new calls belong to this run.
+ * @param creds - Credentials to scrape with.
+ * @param offset - Existing calls to exclude.
+ * @returns The result, new call log and browser-launch count.
+ */
+async function scrapeCal(
+  handle: IMockHandle,
+  creds: ScraperCredentials,
+  offset = 0,
+): Promise<ICalRun> {
+  const launchesBefore = getLaunchCount();
+  const options = { companyId: CompanyTypes.VisaCal, startDate: VISACAL_MOCK_START_DATE };
+  const result = await createScraper(options).scrape(creds);
+  const calls = handle.calls().slice(offset);
+  const launches = getLaunchCount() - launchesBefore;
+  return { result, calls, ...splitCalls(calls), launches };
+}
+
+/**
+ * Feed a cold run's returned hash into the next run of the same mock session.
+ * @returns Cold and warm runs.
+ */
+async function runColdThenWarm(): Promise<readonly [ICalRun, ICalRun]> {
+  const handle = installVisaCalFetchMock();
+  try {
+    const cold = await scrapeCal(handle, { ...VISACAL_MOCK_CREDS });
+    const creds = { ...VISACAL_MOCK_CREDS, otpLongTermToken: cold.result.persistentOtpToken };
+    const warm = await scrapeCal(handle, creds, cold.calls.length);
+    return [cold, warm];
   } finally {
     handle.dispose();
   }
@@ -144,6 +174,15 @@ describe('Visa Cal browserless login', () => {
     const isHashSent = isSent(run.calls, SYN_STORED_HASH);
     const isPasswordSent = isSent(run.calls, VISACAL_MOCK_CREDS.password);
     expect(isHashSent).toBe(true);
+    expect(isPasswordSent).toBe(false);
+  });
+
+  it("uses a cold run's rotated hash on the next warm run", async () => {
+    const [cold, warm] = await runColdThenWarm();
+    expect(cold.result.persistentOtpToken).toBe(COLD_RUN_HASH);
+    expect(warm.result.success).toBe(true);
+    expect(warm.steps).toEqual(['bioLogin']);
+    const isPasswordSent = isSent(warm.calls, VISACAL_MOCK_CREDS.password);
     expect(isPasswordSent).toBe(false);
   });
 

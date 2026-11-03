@@ -66,8 +66,8 @@ const SYN_BIO_TOKEN = 'syn-cal-bio-token-4a7f';
 /** Authorization value every data call must carry. */
 export const VISACAL_DATA_AUTH = `CALAuthScheme ${SYN_BIO_TOKEN}`;
 
-/** Hashes bioLogin accepts — anything else is stale. */
-const ISSUED_HASHES: ReadonlySet<string> = new Set([SYN_STORED_HASH, SYN_LOGIN_HASH]);
+/** Hashes each mock installation starts by accepting. */
+const SEED_HASHES = [SYN_STORED_HASH, SYN_LOGIN_HASH] as const;
 
 /**
  * The hash bioLogin hands back for a presented hash.
@@ -201,12 +201,14 @@ function routeRegularLogin(body: JsonUnknownRecord): Response {
 /**
  * bioLogin — trades an issued hash for a fresh token and a rotated hash.
  * @param body - Parsed request body.
+ * @param issuedHashes - Hashes issued in this mock session.
  * @returns The login answer; statusCode 2 for a stale hash.
  */
-function routeBioLogin(body: JsonUnknownRecord): Response {
+function routeBioLogin(body: JsonUnknownRecord, issuedHashes: Set<string>): Response {
   const hash = typeof body.hash === 'string' ? body.hash : '';
-  if (!ISSUED_HASHES.has(hash)) return loginRefused(2);
+  if (!issuedHashes.has(hash)) return loginRefused(2);
   const nextHash = rotatedHash(hash);
+  issuedHashes.add(nextHash);
   return loginOk(SYN_BIO_TOKEN, nextHash);
 }
 
@@ -350,6 +352,7 @@ const DATA_HOST = 'https://api.cal-online.co.il/';
 /** Mutable state one installed mock keeps. */
 interface IMockState {
   readonly fault: LoginFault;
+  readonly issuedHashes: Set<string>;
   readonly log: IRecordedCall[];
   identity: number;
   graphql: number;
@@ -358,11 +361,12 @@ interface IMockState {
 /**
  * Route a login-gateway call.
  * @param call - The recorded request.
+ * @param state - Installed mock state.
  * @returns The login answer; 404 for an unknown path.
  */
-function routeLogin(call: IRecordedCall): Response {
+function routeLogin(call: IRecordedCall, state: IMockState): Response {
   const body = parseBody(call.body);
-  if (call.url.endsWith('/login/bioLogin')) return routeBioLogin(body);
+  if (call.url.endsWith('/login/bioLogin')) return routeBioLogin(body, state.issuedHashes);
   if (call.url.endsWith('/login/regularLogin')) return routeRegularLogin(body);
   return errorReply(404);
 }
@@ -370,13 +374,13 @@ function routeLogin(call: IRecordedCall): Response {
 /**
  * Answer a login-gateway call, injecting the fault into regularLogin.
  * @param call - The recorded request.
- * @param fault - Fault regularLogin answers with.
+ * @param state - Installed mock state.
  * @returns The login answer; rejects for a network-level fault.
  */
-function answerLogin(call: IRecordedCall, fault: LoginFault): Promise<Response> {
+function answerLogin(call: IRecordedCall, state: IMockState): Promise<Response> {
   const isPasswordLogin = call.url.endsWith('/login/regularLogin');
-  if (isPasswordLogin && fault !== 'none') return LOGIN_FAULTS[fault]();
-  const reply = routeLogin(call);
+  if (isPasswordLogin && state.fault !== 'none') return LOGIN_FAULTS[state.fault]();
+  const reply = routeLogin(call, state);
   return Promise.resolve(reply);
 }
 
@@ -401,7 +405,7 @@ function answerData(call: IRecordedCall, state: IMockState): Response {
 function dispatch(call: IRecordedCall, state: IMockState): Promise<Response> {
   if (call.url.startsWith(LOGIN_HOST)) {
     state.identity += 1;
-    return answerLogin(call, state.fault);
+    return answerLogin(call, state);
   }
   const reply = answerData(call, state);
   return Promise.resolve(reply);
@@ -455,7 +459,8 @@ function makeMockFetch(state: IMockState): typeof fetch {
  */
 export function installVisaCalFetchMock(fault: LoginFault = 'none'): IMockHandle {
   const previousFetch = globalThis.fetch;
-  const state: IMockState = { fault, log: [], identity: 0, graphql: 0 };
+  const issuedHashes = new Set<string>(SEED_HASHES);
+  const state: IMockState = { fault, issuedHashes, log: [], identity: 0, graphql: 0 };
   globalThis.fetch = makeMockFetch(state);
   return {
     /**
