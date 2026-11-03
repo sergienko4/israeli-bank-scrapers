@@ -1,6 +1,6 @@
 /**
  * VisaCal scrape shape — card list extractor + the customer POST body/URL
- * for the CAL web gateway. Balance helpers live in VisaCalShapeBalance.ts,
+ * for the CAL mobile gateway. Balance helpers live in VisaCalShapeBalance.ts,
  * transactions helpers in VisaCalShapeTxns.ts. auth=token (the login flow
  * installs the `CALAuthScheme` Authorization, so nothing auth-related is
  * declared here).
@@ -18,8 +18,8 @@ import type {
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 
-/** CAL API gateway origin — VisaCal's fixed API-contract host. */
-export const CAL_API = 'https://api.cal-online.co.il';
+/** CAL mobile gateway; the web origin rejects GitHub-hosted runners. */
+export const CAL_API = 'https://api-cc.cal-online.co.il';
 
 /** Site identifier CAL's own web app sends to the API gateway. */
 export const CAL_WEB_SITE_ID = '09031987-273E-2311-906C-8AF85B17C8D9';

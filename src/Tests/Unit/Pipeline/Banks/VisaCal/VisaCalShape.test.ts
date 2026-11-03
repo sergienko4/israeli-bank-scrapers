@@ -102,17 +102,17 @@ describe('VisaCalShape helpers', () => {
     expect(vars).toEqual({ tokenGuid: '' });
   });
 
-  it('customerUrl is the static CAL account/init endpoint', () => {
+  it('T-CAL-HOST-1: customerUrl uses the CI-accepted mobile gateway', () => {
     const url = customerUrl();
-    expect(url).toBe('https://api.cal-online.co.il/Authentication/api/account/init');
+    expect(url).toBe('https://api-cc.cal-online.co.il/Authentication/api/account/init');
   });
 });
 
 describe('VisaCalShape transactions', () => {
-  it('txnsUrl targets the static getCardTransactionsDetails endpoint', () => {
+  it('T-CAL-HOST-2: txnsUrl uses the CI-accepted mobile gateway', () => {
     const url = txnsUrl();
     expect(url).toBe(
-      'https://api.cal-online.co.il/Transactions/api/transactionsDetails/getCardTransactionsDetails',
+      'https://api-cc.cal-online.co.il/Transactions/api/transactionsDetails/getCardTransactionsDetails',
     );
   });
 

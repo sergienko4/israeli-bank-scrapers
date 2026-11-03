@@ -79,7 +79,7 @@ export function balanceVars(card: IVisaCalCard): VarsMap {
 }
 
 /**
- * Balance URL — the static frames endpoint on the web gateway.
+ * Balance URL — the static frames endpoint on the mobile gateway.
  * @returns Literal CAL frames URL.
  */
 export function balanceUrl(): WKUrlOrLiteral {

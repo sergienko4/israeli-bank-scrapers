@@ -1,5 +1,5 @@
 /**
- * Visa Cal synthetic fetch mock — stands in for CAL's two API gateways so the
+ * Visa Cal synthetic fetch mock — stands in for CAL's API gateway so the
  * browserless login and scrape run with no network.
  *
  * Rule #18: every value here is SYNTHETIC. No real PII.
@@ -7,7 +7,7 @@
  * Login gateway (`api-cc` host), counted as `identity`:
  *   POST .../login/regularLogin  {username, password, uuid, newPassword}
  *   POST .../login/bioLogin      {hash}
- * Data gateway (`api` host), counted as `graphql` (the shared handle contract):
+ * Data calls (same `api-cc` host), counted as `graphql` (the shared handle contract):
  *   POST .../account/init                  → two cards
  *   POST .../getCardTransactionsDetails    → rows for the card's debit month
  *   POST .../GetTotalFrameStatus           → the card's next debit
@@ -20,7 +20,10 @@
 
 import moment from 'moment';
 
-import { CAL_WEB_SITE_ID } from '../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeHelpers.js';
+import {
+  CAL_API,
+  CAL_WEB_SITE_ID,
+} from '../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeHelpers.js';
 import type { JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonValue.js';
 
 /** Tally values returned alongside dispose for wiring assertions. */
@@ -346,8 +349,8 @@ function routeData(call: IRecordedCall): Response {
   return route[1](body);
 }
 
-const LOGIN_HOST = 'https://api-cc.cal-online.co.il/';
-const DATA_HOST = 'https://api.cal-online.co.il/';
+const CAL_HOST = `${CAL_API}/`;
+const LOGIN_PATH = 'Authentication/api/login/';
 
 /** Mutable state one installed mock keeps. */
 interface IMockState {
@@ -385,13 +388,13 @@ function answerLogin(call: IRecordedCall, state: IMockState): Promise<Response> 
 }
 
 /**
- * Tally and route a call to any host other than the login gateway.
+ * Tally and route a data call on CAL's gateway.
  * @param call - The recorded request.
  * @param state - Mock state, tallied in place.
  * @returns The data gateway's answer; 404 for any other host.
  */
 function answerData(call: IRecordedCall, state: IMockState): Response {
-  if (!call.url.startsWith(DATA_HOST)) return errorReply(404);
+  if (!call.url.startsWith(CAL_HOST)) return errorReply(404);
   state.graphql += 1;
   return routeData(call);
 }
@@ -403,7 +406,7 @@ function answerData(call: IRecordedCall, state: IMockState): Response {
  * @returns The gateway's answer; 404 for any other host.
  */
 function dispatch(call: IRecordedCall, state: IMockState): Promise<Response> {
-  if (call.url.startsWith(LOGIN_HOST)) {
+  if (call.url.startsWith(`${CAL_HOST}${LOGIN_PATH}`)) {
     state.identity += 1;
     return answerLogin(call, state);
   }

@@ -34,9 +34,9 @@ describe('VisaCal frames balance (UT-CAL-01)', () => {
     expect(vars).toEqual({ cardsForFrameData: [{ cardUniqueId: 'CARD-1' }] });
   });
 
-  it('posts to the frames endpoint on the web gateway', () => {
+  it('T-CAL-HOST-3: posts frames to the CI-accepted mobile gateway', () => {
     const url = balanceUrl();
-    expect(url).toBe('https://api.cal-online.co.il/Frames/api/Frames/GetTotalFrameStatus');
+    expect(url).toBe('https://api-cc.cal-online.co.il/Frames/api/Frames/GetTotalFrameStatus');
   });
 
   it("reads the card's own next debit, never another card's", () => {

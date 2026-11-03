@@ -1,8 +1,8 @@
 /**
  * VisaCal headless registry block — isolated so the central registry stays
- * under its file cap. Login runs on CAL's mobile gateway; the scrape Shape
- * reaches the web gateway through literal URLs, so only the two login paths
- * are seeded here. Every path is a full URL, registered verbatim.
+ * under its file cap. Login and data calls share CAL's mobile gateway; the
+ * scrape Shape owns literal data URLs, so only the two login paths are seeded
+ * here. Every path is a full URL, registered verbatim.
  */
 
 import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
@@ -19,7 +19,7 @@ const VISACAL_HEADLESS: IHeadlessUrlsConfig = {
     'auth.login': `${CAL_LOGIN_BASE}Authentication/api/login/regularLogin`,
     'auth.resume': `${CAL_LOGIN_BASE}Authentication/api/login/bioLogin`,
   },
-  // Both CAL gateways answer a plain Node client: no challenge page, no TLS pinning.
+  // CAL's mobile gateway answers a plain Node client: no challenge page or TLS pinning.
   nativeFetch: true,
 };
 

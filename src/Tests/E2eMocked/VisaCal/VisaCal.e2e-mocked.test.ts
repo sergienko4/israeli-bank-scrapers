@@ -13,7 +13,10 @@ import type {
   IScraperScrapingResult,
   ScraperCredentials,
 } from '../../../Scrapers/Base/Interface.js';
-import { CAL_WEB_SITE_ID } from '../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeHelpers.js';
+import {
+  CAL_API,
+  CAL_WEB_SITE_ID,
+} from '../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeHelpers.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
 import { getLaunchCount } from '../../Mocks/CamoufoxJsMock.js';
 import type { IMockHandle, IRecordedCall, LoginFault } from './VisaCalFetchMock.js';
@@ -39,15 +42,15 @@ interface ICalRun {
   readonly launches: number;
 }
 
-const LOGIN_HOST = 'https://api-cc.cal-online.co.il/';
+const LOGIN_PREFIX = `${CAL_API}/Authentication/api/login/`;
 
 /**
  * Whether a call went to the login gateway.
  * @param call - A recorded call.
- * @returns True for the login host.
+ * @returns True for a login endpoint.
  */
 function isLoginCall(call: IRecordedCall): boolean {
-  return call.url.startsWith(LOGIN_HOST);
+  return call.url.startsWith(LOGIN_PREFIX);
 }
 
 /**
