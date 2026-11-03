@@ -147,7 +147,7 @@ const RESTRICTED_SYNTAX_RULES = [
     message: '🚫 GENERIC DESCRIPTION: Use the Feature Name in the describe block.',
   },
   {
-    // Phase 7 — T7.10: per-bank `describe('<Phase>.<bank>')` duplication anti-pattern.
+    // Phase 7: per-bank `describe('<Phase>.<bank>')` duplication anti-pattern.
     // Matches a literal of shape `<Word>.<bank>` where <bank> is one of the 19
     // CompanyTypes enum values (exact casing — most are lowercase but `visaCal`,
     // `oneZero`, `otsarHahayal`, `payBox`, `beyahadBishvilha` are camelCase per
@@ -3279,8 +3279,8 @@ export default tseslint.config(
   // HeadlessNativeFetchStrategy) and the session transport adds nine
   // (CookieMatch, SetCookieScope, DomainCookieJar, UrlRule,
   // RedirectFollow, StatusPolicy, DocumentResponse, ResponseHeaderSink,
-  // HeaderText) and the N23 body/answer encodings add two (Latin1Form,
-  // TextResponse), and the N26 dynamic client certificate adds two
+  // HeaderText) and the body/answer encodings add two (Latin1Form,
+  // TextResponse), and the dynamic client certificate adds two
   // (Mtls/MtlsAgentSource, Mtls/ClientCertHolder),
   // all written fresh to
   // the canonical caps — so, per `eslint-rules-guidlines.md` §1, this

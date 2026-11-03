@@ -187,7 +187,7 @@ bg_gate "eslint:pipeline" "yes" npx eslint src/Scrapers/Pipeline --max-warnings=
 bg_gate "biome"        "yes" npx biome lint src --max-diagnostics=50
 bg_gate "audit"        "yes" npm audit --audit-level=high --omit=dev
 
-# Phase H deep-factory strict-lint — D1 in the rule-roadmap. Locks
+# Phase H deep-factory strict-lint. Locks
 # the eslint.config.mjs §8a quality bundle (max-lines-per-function: 10,
 # max-statements: 10, sonarjs/no-identical-functions,
 # sonarjs/no-duplicate-string, double-cast ban) so PR #232 cannot
