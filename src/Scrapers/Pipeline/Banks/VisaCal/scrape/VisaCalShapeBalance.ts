@@ -35,17 +35,6 @@ interface IRawFrame {
   readonly cardUniqueId?: string;
   readonly nextTotalDebit?: unknown;
 }
-interface IIssuerGroup {
-  readonly accountLevelFrames?: readonly IRawFrame[];
-}
-interface IFramesResp {
-  readonly statusCode?: number;
-  readonly result?: {
-    readonly calIssuedCards?: IIssuerGroup | null;
-    readonly bankIssuedCards?: IIssuerGroup | null;
-  } | null;
-}
-
 type FrameList = readonly IRawFrame[] | false;
 
 /**
@@ -103,8 +92,8 @@ export function balanceUrl(): WKUrlOrLiteral {
  * @param card - The account being assembled.
  * @returns The card's own frames, or false when either frame list is malformed.
  */
-function ownFramesOf(resp: IFramesResp, card: IVisaCalCard): FrameList {
-  if (!isRecord(resp.result)) return false;
+function ownFramesOf(resp: unknown, card: IVisaCalCard): FrameList {
+  if (!isRecord(resp) || !isRecord(resp.result)) return false;
   const cal = framesOf(resp.result.calIssuedCards);
   const bank = framesOf(resp.result.bankIssuedCards);
   if (cal === false || bank === false) return false;
@@ -126,7 +115,8 @@ function isFigure(value: unknown): value is number {
  * @param resp - Frames response.
  * @returns True when the reply is confirmed.
  */
-function isConfirmed(resp: IFramesResp): boolean {
+function isConfirmed(resp: unknown): boolean {
+  if (!isRecord(resp)) return false;
   if (resp.statusCode !== CAL_OK) return false;
   return isRecord(resp.result);
 }
@@ -140,7 +130,7 @@ function isConfirmed(resp: IFramesResp): boolean {
  *   malformed, or the card's frame carries no finite `nextTotalDebit`.
  */
 export function balanceIsAbsent(body: ApiBody, card: IVisaCalCard): IsBalanceAbsent {
-  const resp = body as unknown as IFramesResp;
+  const resp: unknown = body;
   if (!isConfirmed(resp)) return true as IsBalanceAbsent;
   const own = ownFramesOf(resp, card);
   if (own === false) return true as IsBalanceAbsent;
@@ -155,8 +145,7 @@ export function balanceIsAbsent(body: ApiBody, card: IVisaCalCard): IsBalanceAbs
  * @returns The card's `nextTotalDebit`, or 0.
  */
 export function nextTotalDebitOf(body: ApiBody, card: IVisaCalCard): VisaCalNextDebit {
-  const resp = body as unknown as IFramesResp;
-  const own = ownFramesOf(resp, card);
+  const own = ownFramesOf(body, card);
   if (own === false) return NO_NEXT_DEBIT;
   const figure = own.map((frame): unknown => frame.nextTotalDebit).find(isFigure);
   return (figure ?? NO_NEXT_DEBIT) as VisaCalNextDebit;

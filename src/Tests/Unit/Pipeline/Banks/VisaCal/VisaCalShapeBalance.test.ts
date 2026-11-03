@@ -67,6 +67,7 @@ describe('VisaCal frames balance (UT-CAL-01)', () => {
   });
 
   it.each([
+    ['the body is null', null as unknown as ApiBody],
     ['the status is not OK', { statusCode: 96, result: {} }],
     ['the status is missing', { result: { calIssuedCards: { accountLevelFrames: [] } } }],
     ['the result is null', { statusCode: 1, result: null }],
