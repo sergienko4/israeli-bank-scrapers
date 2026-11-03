@@ -19,6 +19,8 @@
  *   - T-DNS-5: every key is a bank the registry actually knows.
  *   - T-DNS-6: every host a bank's headless block calls is declared, unless
  *     it is the bank's own `urls.base` host.
+ *   - T-DNS-7: GraphQL-only hosts remain covered by the completeness guard.
+ *   - T-DNS-8: VisaCal declares only its active mobile gateway.
  *
  * Import paths are inline string literals so TypeScript resolves the
  * module types, and the imports are dynamic to dodge the
@@ -44,6 +46,9 @@ const GRAPHQL_ONLY_HOSTS = [
   [CompanyTypes.OneZero, 'mobile.tfd-bank.com'],
   [CompanyTypes.Pepper, 'fe-sec.pepper.co.il'],
 ] as const;
+
+/** VisaCal's only live API gateway. */
+const VISACAL_MOBILE_HOST = 'api-cc.cal-online.co.il';
 
 /** Mirrors `BankExtraDnsHosts`, which cannot be imported statically here. */
 type ExtraHostsByBank = Readonly<Partial<Record<CompanyTypes, readonly string[]>>>;
@@ -163,4 +168,9 @@ describe('PipelineBankHosts — CI DNS warm-up manifest (T-DNS)', () => {
       expect(cold).toContain(`${companyId}:${host}`);
     },
   );
+
+  it('T-DNS-8: VisaCal warms only its active mobile gateway', async () => {
+    const manifest = await loadHosts();
+    expect(manifest[CompanyTypes.VisaCal]).toEqual([VISACAL_MOBILE_HOST]);
+  });
 });

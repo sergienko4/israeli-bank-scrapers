@@ -25,7 +25,7 @@ When a login request fails for OneZero, PayBox or Pepper, `errorMessage` is now 
 
 **Impact:** Behavior
 
-A bank that never opens a browser — OneZero today — ignores browser options. It used to ignore them silently. `createScraper` now emits one `ScraperOptionsWarning` that names every browser option passed for such a bank: `args`, `browser`, `browserContext`, `defaultTimeout`, `executablePath`, `prepareBrowser`, `preparePage`, `shouldShowBrowser`, `timeout` or `viewportSize`. Only option names are printed, never values. The scrape itself is unchanged.
+A bank that never opens a browser — OneZero and Visa Cal today — ignores browser options. It used to ignore them silently. `createScraper` now emits one `ScraperOptionsWarning` that names every browser option passed for such a bank: `args`, `browser`, `browserContext`, `defaultTimeout`, `executablePath`, `prepareBrowser`, `preparePage`, `shouldShowBrowser`, `timeout` or `viewportSize`. Only option names are printed, never values. The scrape itself is unchanged.
 
 **What to do:** Remove the named options from that bank's `createScraper` call to silence the warning. See [Browser options on browserless banks](configuration.md#browser-options-on-browserless-banks).
 

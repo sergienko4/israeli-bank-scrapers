@@ -252,7 +252,7 @@ export interface IPipelineBankConfig {
    * origins — VisaCal touches a marketing site, an SSO origin and the SPA —
    * that can donate a header minted for a DIFFERENT service, and the gateway
    * rejects the call with an opaque 5xx that reads like an expired session.
-   * Declaring the data-API substring (e.g. `'api.cal-online.co.il'`) makes a
+   * Declaring the data-API substring (e.g. `'api-cc.cal-online.co.il'`) makes a
    * wrong-family donor impossible: only requests the SPA sent to the very API
    * we are about to call may donate. Their `Origin` / `Referer` are then
    * correct by construction too.

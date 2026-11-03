@@ -53,7 +53,7 @@ new `persistentOtpToken` after every run.
 
 ## Scrape
 
-After login every data call goes to the web gateway `api.cal-online.co.il`
+After login every data call goes to the mobile gateway `api-cc.cal-online.co.il`
 with the session token as `Authorization: CALAuthScheme <token>` and CAL's web
 site id (`CAL_WEB_SITE_ID`) as `x-site-id`. The `VISACAL_SHAPE`
 `IApiDirectScrapeShape` (`Banks/VisaCal/scrape/VisaCalShape.ts`) declares the
@@ -66,8 +66,9 @@ calls:
 - **Balance** — `GetTotalFrameStatus`, one request per card. `nextTotalDebitOf`
   (`Banks/VisaCal/scrape/VisaCalShapeBalance.ts`) returns that card's
   `nextTotalDebit` as a `VisaCalNextDebit`; a confirmed reply with no frame
-  for the card reports `0`. When CAL does not confirm the reply, or the
-  card's figure is not a number, `balanceIsAbsent` publishes no balance and
-  marks the scrape degraded. A failed frames call also publishes no balance
-  for the card (`BALANCE_UNKNOWN`) and keeps its transactions. See
+  for the card, or no finite figure in its matching frames, reports `0`.
+  When CAL does not confirm the reply or its frame structure is malformed,
+  `balanceIsAbsent` publishes no balance and marks the scrape degraded. A
+  failed frames call also publishes no balance for the card
+  (`BALANCE_UNKNOWN`) and keeps its transactions. See
   [Balance resolution](../architecture/balance-resolve.md).
