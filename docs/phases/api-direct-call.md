@@ -130,8 +130,10 @@ so `{ $ref: 'carry.<slot>' }` reads the value an earlier step extracted and
 `{ $ref: 'uuid' }` is fresh each time. A string value is sent as it is; any
 other value is sent as its JSON text (`7` → `"7"`, `true` → `"true"`). A step
 header replaces a `staticHeaders` entry of the same name, compared
-case-insensitively. The cookie jar and the signature header are added after
-it. A reference that does not resolve fails the step before anything is sent.
+case-insensitively. The cookie jar's `Cookie` and the signer's `headerName` are
+set after it and, in the same case-insensitive way, replace any static or step
+header of that name, so only one value is sent. A reference that does not
+resolve fails the step before anything is sent.
 
 ```ts
 headers: {

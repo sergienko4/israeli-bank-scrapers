@@ -3,19 +3,27 @@
  *
  * A step's `headers` are hydrated against the step scope on every call, sent
  * as text, and replace a static header of the same name whatever its case.
+ * The cookie jar and the signer set their headers last and replace a step or
+ * static header of the same name whatever its case, so only one value is sent.
  */
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
+import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
 import type {
   IApiDirectCallConfig,
   IStepConfig,
   JsonValueTemplate,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { runStep } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.js';
+import type { IGenericKeypair } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
+import { generateKeypair } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
+import type { IRunStepArgs } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.js';
+import {
+  createSimpleCookieJar,
+  runStep,
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
-import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { type IApiPostCapture, makeStubMediator } from './StubMediator.js';
 
@@ -29,6 +37,37 @@ const CONFIG: IApiDirectCallConfig = {
   probe: { queryTag: 'customer' },
   staticHeaders: { 'X-Site': 'static', 'X-Keep': 'kept' },
 };
+
+const SIGNATURE_SHAPE = /^data:.+;key-id:[a-f0-9]+;scheme:4$/;
+
+const SIGNED_CONFIG: IApiDirectCallConfig = {
+  ...CONFIG,
+  signer: {
+    algorithm: 'ECDSA-P256',
+    encoding: 'DER',
+    headerName: 'X-Sig',
+    schemeTag: 4,
+    canonical: {
+      parts: ['bodyJson'],
+      separator: '%%',
+      escapeFrom: '%%',
+      escapeTo: String.raw`\%`,
+      sortQueryParams: false,
+      clientVersion: '1.2.3',
+    },
+  },
+};
+
+/** The config a call runs under and the jar or signing key it carries. */
+interface IRunSetup {
+  readonly config: IApiDirectCallConfig;
+  readonly extras: Pick<IRunStepArgs, 'cookieJar' | 'signingKeypair'>;
+}
+
+const PLAIN: IRunSetup = { config: CONFIG, extras: {} };
+
+/** What one step run resolves to. */
+type RunResult = ReturnType<typeof runStep>;
 
 beforeAll((): void => {
   registerWkUrl('auth.bind', HINT, 'https://example.test/api/bind');
@@ -46,26 +85,49 @@ function stepWith(headers: Readonly<Record<string, JsonValueTemplate>>): IStepCo
 /**
  * Run a step once on a stub bus that answers OK.
  * @param step - Step config.
- * @param captures - Capture slot for the POST.
+ * @param sink - Capture slot for the POST.
+ * @param setup - Config, jar and signing key for the call.
  * @returns The step result.
  */
-function runOnce(step: IStepConfig, captures: IApiPostCapture[]): Promise<Procedure<unknown>> {
+function runOnce(step: IStepConfig, sink: IApiPostCapture[], setup = PLAIN): RunResult {
   const responses = [succeed({})];
-  const bus = makeStubMediator({ responses, captures });
+  const bus = makeStubMediator({ responses, captures: sink });
   const carry = { bcKey: 'syn-bc-1' };
-  const scope: ITemplateScope = { carry, creds: {}, config: CONFIG, keypair: undefined };
-  return runStep({ step, bus, scope, companyId: HINT });
+  const scope: ITemplateScope = { carry, creds: {}, config: setup.config, keypair: undefined };
+  return runStep({ step, bus, scope, companyId: HINT, ...setup.extras });
 }
 
 /**
  * Run a step once and return the headers it sent.
  * @param step - Step config.
+ * @param setup - Config, jar and signing key for the call.
  * @returns The sent header map ({} when none was sent).
  */
-async function sentHeaders(step: IStepConfig): Promise<Record<string, string>> {
+async function sentHeaders(step: IStepConfig, setup = PLAIN): Promise<Record<string, string>> {
   const captures: IApiPostCapture[] = [];
-  await runOnce(step, captures);
+  await runOnce(step, captures, setup);
   return captures[0].extraHeaders ?? {};
+}
+
+/**
+ * The names in a header map that equal `name` ignoring case.
+ * @param headers - Sent header map.
+ * @param name - Header name to look for.
+ * @returns Every matching name, as sent.
+ */
+function namesLike(headers: Record<string, string>, name: string): string[] {
+  const lower = name.toLowerCase();
+  return Object.keys(headers).filter((key): boolean => key.toLowerCase() === lower);
+}
+
+/**
+ * A fresh ECDSA key for the signer cases.
+ * @returns Signing keypair.
+ */
+function makeKeypair(): IGenericKeypair {
+  const proc = generateKeypair('ECDSA-P256');
+  if (!proc.success) throw new ScraperError('keypair generation failed');
+  return proc.value;
 }
 
 describe('E3 step header templates', () => {
@@ -106,5 +168,26 @@ describe('E3 step header templates', () => {
       errorType: ScraperErrorTypes.Generic,
       errorMessage: 'ref carry.absent missing from scope.carry',
     });
+  });
+});
+
+describe('E3 managed headers win over step headers', () => {
+  it('sends the jar cookie alone over a step cookie of any case', async (): Promise<void> => {
+    const cookieJar = createSimpleCookieJar();
+    cookieJar.add(['sid=syn-jar']);
+    const step = { ...stepWith({ cookie: { $literal: 'sid=syn-stale' } }), cookieJar: true };
+    const headers = await sentHeaders(step, { config: CONFIG, extras: { cookieJar } });
+    const cookieNames = namesLike(headers, 'Cookie');
+    expect(cookieNames).toEqual(['Cookie']);
+    expect(headers.Cookie).toBe('sid=syn-jar');
+  });
+
+  it('sends the signature alone over a step header of any case', async (): Promise<void> => {
+    const signingKeypair = makeKeypair();
+    const step = stepWith({ 'x-sig': { $literal: 'syn-stale' } });
+    const headers = await sentHeaders(step, { config: SIGNED_CONFIG, extras: { signingKeypair } });
+    const signatureNames = namesLike(headers, 'X-Sig');
+    expect(signatureNames).toEqual(['X-Sig']);
+    expect(headers['X-Sig']).toMatch(SIGNATURE_SHAPE);
   });
 });

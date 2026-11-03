@@ -1,8 +1,10 @@
 /**
  * Outbound header assembly — static + step headers + optional cookies +
- * signer. Tight branching: one validation gate in `attachSignerHeader`, the
- * non-AES signer narrowed and threaded explicitly into the canonical
- * builder so no defensive re-checks duplicate branches downstream.
+ * signer. The jar cookie and the signature are set last and replace a static
+ * or step header of the same name whatever its case. Tight branching: one
+ * validation gate in `attachSignerHeader`, the non-AES signer narrowed and
+ * threaded explicitly into the canonical builder so no defensive re-checks
+ * duplicate branches downstream.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
@@ -48,18 +50,31 @@ function computeSignerHeader(args: IComputeSignerArgs): Procedure<string> {
 }
 
 /**
- * Append the Cookie header to `out` when the jar has any entries.
- * @param out - Mutable outbound header map.
+ * Drop every header whose name matches `name` ignoring case.
+ * @param headers - Header map.
+ * @param name - Header name to drop.
+ * @returns A copy without that name.
+ */
+function withoutHeader(headers: HeaderMap, name: string): MutableHeaderMap {
+  const lower = name.toLowerCase();
+  const kept = Object.entries(headers).filter(([key]): boolean => key.toLowerCase() !== lower);
+  return Object.fromEntries(kept);
+}
+
+/**
+ * Set the jar's Cookie header over any same-name header, whatever its case,
+ * when the jar has any entries.
+ * @param out - Outbound header map.
  * @param args - Run-step args.
- * @returns Header map (returned for fluent chaining).
+ * @returns Header map carrying the jar cookie.
  */
 function applyCookieHeader(out: MutableHeaderMap, args: IRunStepArgs): MutableHeaderMap {
   if (!args.step.cookieJar) return out;
   if (args.cookieJar === undefined) return out;
   const h = args.cookieJar.header();
   if (h.length === 0) return out;
-  out.Cookie = h;
-  return out;
+  const kept = withoutHeader(out, 'Cookie');
+  return { ...kept, Cookie: h };
 }
 
 /** Bundle for `attachWithKeypair` — keeps the signature single-line. */
@@ -70,7 +85,8 @@ interface IAttachWithKeypairArgs {
 }
 
 /**
- * Run computeSignerHeader and attach the result under signer.headerName.
+ * Run computeSignerHeader and set the result under signer.headerName, over
+ * any same-name header whatever its case.
  * @param opts - Validated-signer attach bundle.
  * @returns Procedure with the merged header map.
  */
@@ -80,8 +96,8 @@ function attachWithKeypair(opts: IAttachWithKeypairArgs): Procedure<HeaderMap> {
   const input: ISignerInput = { pathAndQuery, bodyJson, keypair };
   const sigProc = computeSignerHeader({ signer, input });
   if (!isOk(sigProc)) return sigProc;
-  args.out[signer.headerName] = sigProc.value;
-  return succeed(args.out);
+  const kept = withoutHeader(args.out, signer.headerName);
+  return succeed({ ...kept, [signer.headerName]: sigProc.value });
 }
 
 /**
@@ -115,18 +131,6 @@ type HeaderEntry = readonly [string, JsonValueTemplate];
 function headerText(value: JsonValue): string {
   if (typeof value === 'string') return value;
   return JSON.stringify(value);
-}
-
-/**
- * Drop every header whose name matches `name` ignoring case.
- * @param headers - Header map.
- * @param name - Header name to drop.
- * @returns A copy without that name.
- */
-function withoutHeader(headers: HeaderMap, name: string): MutableHeaderMap {
-  const lower = name.toLowerCase();
-  const kept = Object.entries(headers).filter(([key]): boolean => key.toLowerCase() !== lower);
-  return Object.fromEntries(kept);
 }
 
 /**
