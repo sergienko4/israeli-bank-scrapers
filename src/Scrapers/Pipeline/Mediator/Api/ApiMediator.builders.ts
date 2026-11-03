@@ -156,7 +156,8 @@ function bindApiPost(ctx: IApiCallContext): ICallMethods['apiPost'] {
  * @returns Bound `apiGet` callable.
  */
 function bindApiGet(ctx: IApiCallContext): ICallMethods['apiGet'] {
-  return async <T>(wkUrl: WKUrlOrLiteral): Promise<Procedure<T>> => apiGetOp<T>(ctx, wkUrl);
+  return async <T>(wkUrl: WKUrlOrLiteral, opts?: IApiQueryOpts): Promise<Procedure<T>> =>
+    apiGetOp<T>(ctx, wkUrl, opts);
 }
 
 /**

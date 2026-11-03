@@ -19,7 +19,19 @@ import type {
 const NO_EXTRA_HEADERS: Record<string, string> = Object.freeze({});
 
 /**
+ * Split a URL at its fragment, so query params can go before the `#`.
+ * @param url - Resolved URL.
+ * @returns The URL before the `#`, and the `#…` fragment (empty when none).
+ */
+function splitFragment(url: string): readonly [string, string] {
+  const hashAt = url.indexOf('#');
+  if (hashAt < 0) return [url, ''];
+  return [url.slice(0, hashAt), url.slice(hashAt)];
+}
+
+/**
  * Append query parameters to a URL preserving any existing querystring.
+ * The params go before any fragment, since a fragment is never sent.
  * @param url - Resolved URL.
  * @param query - Additional key→value pairs to append.
  * @returns URL with merged querystring.
@@ -29,8 +41,9 @@ function appendQuery(url: string, query: Record<string, string>): string {
   if (keys.length === 0) return url;
   const parts = keys.map((k): string => `${encodeURIComponent(k)}=${encodeURIComponent(query[k])}`);
   const joined = parts.join('&');
-  if (url.includes('?')) return `${url}&${joined}`;
-  return `${url}?${joined}`;
+  const [base, fragment] = splitFragment(url);
+  if (base.includes('?')) return `${base}&${joined}${fragment}`;
+  return `${base}?${joined}${fragment}`;
 }
 
 /**
@@ -51,6 +64,35 @@ function buildHeaders(rawAuth: string): Record<string, string> {
  */
 function mergeHeaders(rawAuth: string, extra: Record<string, string>): Record<string, string> {
   return { ...extra, ...buildHeaders(rawAuth) };
+}
+
+/** A header map keyed by header name. */
+type HeaderMap = Record<string, string>;
+
+/**
+ * Whether a header name is in a set of lower-case names, in any letter case.
+ * @param names - Lower-case header names.
+ * @param name - Header name to look up.
+ * @returns True when the name is in the set.
+ */
+function hasName(names: ReadonlySet<string>, name: string): boolean {
+  const lower = name.toLowerCase();
+  return names.has(lower);
+}
+
+/**
+ * Lay `top` over `base`: a `top` header replaces a `base` header of the
+ * same name in any letter case, so fetch never sends both values.
+ * @param base - Lower-priority headers.
+ * @param top - Headers that win a name clash.
+ * @returns The merged header map.
+ */
+function overlayHeaders(base: HeaderMap, top: HeaderMap): HeaderMap {
+  const topKeys = Object.keys(top);
+  const topNames = new Set(topKeys.map((name): string => name.toLowerCase()));
+  const kept = Object.entries(base).filter(([name]): boolean => !hasName(topNames, name));
+  const baseKept = Object.fromEntries(kept);
+  return { ...baseKept, ...top };
 }
 
 /**
@@ -186,7 +228,9 @@ async function firePost<T>(args: IFirePostArgs): Promise<Procedure<T>> {
  */
 async function fireGet<T>(args: IFireGetArgs): Promise<Procedure<T>> {
   const extraHeaders = mergeHeaders(args.rawAuth, args.extraHeaders);
-  return args.deps.fetchStrategy.fetchGet<T>(args.url, { extraHeaders });
+  const finalUrl = appendQuery(args.url, args.query);
+  const fetchOpts = { extraHeaders, onSetCookie: args.onSetCookie };
+  return args.deps.fetchStrategy.fetchGet<T>(finalUrl, fetchOpts);
 }
 
 /**
@@ -213,4 +257,13 @@ async function fireQuery<T>(args: IFireQueryArgs): Promise<Procedure<T>> {
   return unwrapGraphql<T>(envelopeProc.value, operation);
 }
 
-export { appendQuery, buildHeaders, fireGet, firePost, fireQuery, mergeHeaders, NO_EXTRA_HEADERS };
+export {
+  appendQuery,
+  buildHeaders,
+  fireGet,
+  firePost,
+  fireQuery,
+  mergeHeaders,
+  NO_EXTRA_HEADERS,
+  overlayHeaders,
+};

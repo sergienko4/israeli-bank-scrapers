@@ -7,10 +7,12 @@ import type { Procedure } from '../../Types/Procedure.js';
 
 /**
  * Callback receiving the raw Set-Cookie header lines from a response.
- * Returns a count of entries the consumer chose to keep (or 0 when
- * the caller did not ingest anything). Non-void per Rule #15.
+ * `responseUrl` is the URL of the response that carried them — after any
+ * redirect fetch followed — when the transport knows it; empty or absent
+ * means the request URL. Returns a count of entries the consumer chose to
+ * keep (or 0 when the caller did not ingest anything). Non-void per Rule #15.
  */
-type OnSetCookie = (setCookies: readonly string[]) => number;
+type OnSetCookie = (setCookies: readonly string[], responseUrl?: string) => number;
 
 /** Optional fetch configuration. */
 interface IFetchOpts {

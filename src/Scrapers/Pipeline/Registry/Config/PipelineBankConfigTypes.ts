@@ -20,6 +20,9 @@ export type AuthPathKey =
   | 'auth.login'
   | 'auth.assert'
   | 'auth.logout'
+  | 'auth.prime'
+  | 'auth.resume'
+  | 'auth.service'
   | 'data.sync'
   | 'data.getKey'
   | 'data.getUserHistory'
@@ -101,6 +104,22 @@ export interface IHeadlessUrlsConfig {
    * undefined (Node's stock handshake).
    */
   readonly tlsProfile?: TlsClientProfileKind;
+  /**
+   * When true, identity calls run over Node's built-in `fetch` with no
+   * browser and no custom TLS handshake — for banks whose edge admits a
+   * plain Node client. Mutually exclusive with `requiresBrowserTls`,
+   * `requiresClientCert` and `tlsProfile`. Default: undefined (the bank
+   * keeps the browser-backed identity transport).
+   */
+  readonly nativeFetch?: boolean;
+  /**
+   * When true, the node identity transport keeps one cookie jar for the
+   * run: every response's Set-Cookie feeds it and every POST and GET sends
+   * it as one `cookie` header. For banks whose session is a cookie rather
+   * than an auth header. The browser transport ignores it (the page has its
+   * own jar). Default: undefined (no jar; headers unchanged).
+   */
+  readonly sessionCookies?: boolean;
   /**
    * When set, the Camoufox identity strategy route-intercepts the
    * initial navigation to the identity origin URL and serves a blank

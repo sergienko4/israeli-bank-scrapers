@@ -10,6 +10,10 @@ import { fileURLToPath } from 'node:url';
 
 import { CompanyTypes } from '../../../../../Definitions.js';
 import {
+  HMAC_KEY_SLOT,
+  HMAC_SIGNER_SLOT,
+} from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.hmacHeaders.js';
+import {
   createApiMediator,
   createBrowserBackedHeadlessApiMediator,
   createHeadlessApiMediator,
@@ -161,6 +165,14 @@ function buildMediator(recorder: IRecorder): IApiMediator {
   return createApiMediator(HINT, fetchStrategy, graphqlStrategy);
 }
 
+/**
+ * Set-Cookie hook stub that keeps nothing.
+ * @returns Zero kept cookies.
+ */
+function keepNoCookies(): number {
+  return 0;
+}
+
 beforeEach(() => {
   resetRegistries();
 });
@@ -229,6 +241,80 @@ describe('ApiMediator/apiGet', () => {
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
     expect(recorder.getCalls.length).toBe(0);
+  });
+
+  it('threads opts query, extra headers and the Set-Cookie hook to fetchGet', async () => {
+    registerWkUrl('graphql', HINT, 'https://gql.example/query');
+    const recorder = makeRecorder();
+    const mediator = buildMediator(recorder);
+    mediator.setRawAuth('Bearer t');
+    const onSetCookie = keepNoCookies;
+    const opts = { query: { from: '2026-01' }, extraHeaders: { cid: 'c-1' }, onSetCookie };
+    await mediator.apiGet('graphql', opts);
+    const [call] = recorder.getCalls;
+    expect(call.url).toBe('https://gql.example/query?from=2026-01');
+    expect(call.opts.extraHeaders).toEqual({ cid: 'c-1', authorization: 'Bearer t' });
+    expect(call.opts.onSetCookie).toBe(onSetCookie);
+  });
+
+  it('sends only the stored auth header when called without opts', async () => {
+    registerWkUrl('graphql', HINT, 'https://gql.example/query');
+    const recorder = makeRecorder();
+    const mediator = buildMediator(recorder);
+    mediator.setRawAuth('Bearer t');
+    await mediator.apiGet('graphql');
+    const [call] = recorder.getCalls;
+    expect(call.url).toBe('https://gql.example/query');
+    expect(call.opts.extraHeaders).toEqual({ authorization: 'Bearer t' });
+    expect(call.opts.onSetCookie).toBeUndefined();
+  });
+});
+
+/** Session that makes the mediator sign every call (fabricated key, not a secret). */
+const SIGNED_SESSION = {
+  [HMAC_KEY_SLOT]: '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff',
+  [HMAC_SIGNER_SLOT]: {
+    algorithm: 'HMAC-SHA256',
+    timestampHeader: 'X-Timestamp',
+    nonceHeader: 'X-Nonce',
+    signatureHeader: 'X-Signature',
+  },
+};
+
+/** Caller headers whose signature name differs from the signer's only in case. */
+const CLASHING_HEADERS = { 'x-signature': 'stale', cid: 'c-1' };
+
+/**
+ * Build a signing mediator wired to a recorder, with one URL registered.
+ * @param recorder - Capture object.
+ * @returns The signing mediator.
+ */
+function buildSigningMediator(recorder: IRecorder): IApiMediator {
+  registerWkUrl('graphql', HINT, 'https://gql.example/query');
+  const mediator = buildMediator(recorder);
+  mediator.setSessionContext(SIGNED_SESSION);
+  return mediator;
+}
+
+describe('ApiMediator — HMAC headers win a caller header in any letter case', () => {
+  it('replaces a caller x-signature on GET', async () => {
+    const recorder = makeRecorder();
+    const mediator = buildSigningMediator(recorder);
+    await mediator.apiGet('graphql', { extraHeaders: CLASHING_HEADERS });
+    const headers = recorder.getCalls[0].opts.extraHeaders;
+    expect(headers).not.toHaveProperty('x-signature');
+    expect(headers).toHaveProperty('cid', 'c-1');
+    expect(headers['X-Signature']).not.toBe('stale');
+  });
+
+  it('replaces a caller x-signature on POST', async () => {
+    const recorder = makeRecorder();
+    const mediator = buildSigningMediator(recorder);
+    await mediator.apiPost('graphql', { a: 1 }, { extraHeaders: CLASHING_HEADERS });
+    const headers = recorder.postCalls[0].opts.extraHeaders;
+    expect(headers).not.toHaveProperty('x-signature');
+    expect(headers).toHaveProperty('cid', 'c-1');
+    expect(headers['X-Signature']).not.toBe('stale');
   });
 });
 

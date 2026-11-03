@@ -3278,6 +3278,45 @@ export default tseslint.config(
     },
   },
 
+  // 19.1d FETCH TRANSPORT LOCK — new Strategy/Fetch files at the canonical caps.
+  //
+  // §19.1 (above) grandfathers ALL of `Strategy/**` to a loose 40-line /
+  // 20-statement per-function cap, and §7 turns the file-size guard off
+  // there. The browserless card transport adds four Fetch modules
+  // (CookieJar, OriginCookieJar, SessionCookieFetchStrategy,
+  // HeadlessNativeFetchStrategy) written fresh to the canonical caps —
+  // so, per `eslint-rules-guidlines.md` §1, this block pins exactly those
+  // files to the three-rule lock §19.0 sets for new first-party code
+  // (10 lines / 10 statements per function, 150 lines per file). Flat
+  // config is last-wins and this block sits AFTER §19.1, so the strict
+  // caps win for these paths while the rest of Strategy/Fetch keeps its
+  // grandfather. §4 (narrow, never revert): scope is the four new files
+  // only. 150 is justified: the largest (HeadlessNativeFetchStrategy)
+  // measures well under it (skipBlankLines + skipComments).
+  //
+  // Canaries: `fetch-transport-fn-over-cap.canary.ts` over-sizes one
+  // function and `fetch-transport-file-over-cap.canary.ts` over-sizes a
+  // file, so verify.sh confirms both `max-lines-per-function` and
+  // `max-lines` fire.
+  {
+    files: [
+      'src/Scrapers/Pipeline/Strategy/Fetch/CookieJar.ts',
+      'src/Scrapers/Pipeline/Strategy/Fetch/OriginCookieJar.ts',
+      'src/Scrapers/Pipeline/Strategy/Fetch/SessionCookieFetchStrategy.ts',
+      'src/Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/fetch-transport-fn-over-cap.canary.ts',
+      'src/Scrapers/Pipeline/EslintCanaries/fetch-transport-file-over-cap.canary.ts',
+    ],
+    rules: {
+      'max-lines-per-function': [
+        'error',
+        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
+      ],
+      'max-statements': ['error', 10],
+      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
+    },
+  },
+
   // 19.2 GRANDFATHER — Pipeline/Types (6 files, 24+4).
   //   EXCLUDES `Pipeline/Types/PiiRedactor/**` — that cluster is
   //   locked at canonical 10/10 by §13 and the guideline-coverage

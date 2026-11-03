@@ -32,14 +32,26 @@ type HttpVerb = 'GET' | 'POST';
  */
 type FetchInvoke = (url: string, init: RequestInit, verb: HttpVerb) => Promise<Procedure<Response>>;
 
+/** Default request headers per verb, merged under the caller's headers. */
+type DefaultHeadersByVerb = Readonly<Record<HttpVerb, Readonly<Record<string, string>>>>;
+
+/** JSON content-type on every verb — the base strategy's defaults. */
+const JSON_DEFAULT_HEADERS: DefaultHeadersByVerb = {
+  GET: { 'content-type': 'application/json' },
+  POST: { 'content-type': 'application/json' },
+};
+
 /**
- * Merge the default JSON content-type with caller-supplied headers.
+ * Merge a verb's default headers with caller-supplied headers.
  * Caller wins on collision (e.g., text/plain overrides application/json).
+ * @param defaults - The verb's default headers.
  * @param extraHeaders - Caller-supplied headers (may override defaults).
  * @returns Merged headers record ready for fetch.
  */
-function mergeHeaders(extraHeaders: Record<string, string>): Record<string, string> {
-  const defaults: Record<string, string> = { 'content-type': 'application/json' };
+function mergeHeaders(
+  defaults: Readonly<Record<string, string>>,
+  extraHeaders: Record<string, string>,
+): Record<string, string> {
   return { ...defaults, ...extraHeaders };
 }
 
@@ -108,7 +120,8 @@ function routeResponse<T>(response: Response, verb: HttpVerb, url: string): Prom
 }
 
 /**
- * Invoke onSetCookie hook when present, passing raw Set-Cookie lines.
+ * Invoke onSetCookie hook when present, passing raw Set-Cookie lines and the
+ * response's own URL, which is the final one when fetch followed a redirect.
  * Uses Headers.getSetCookie() (Node 18+) to preserve multi-value arrays.
  * @param response - Raw fetch Response.
  * @param hook - Optional caller-supplied callback.
@@ -118,7 +131,7 @@ function emitSetCookies(response: Response, hook?: IFetchOpts['onSetCookie']): S
   if (!hook) return 0 as SetCookieEmitCount;
   const list = response.headers.getSetCookie();
   if (list.length === 0) return 0 as SetCookieEmitCount;
-  hook(list);
+  hook(list, response.url);
   return list.length as SetCookieEmitCount;
 }
 
@@ -154,6 +167,18 @@ async function invokeFetch(
   } catch (error) {
     return toNetworkFailure(error, verb, url);
   }
+}
+
+/**
+ * Resolve a request URL the way every node transport does: an absolute
+ * http(s) URL passes through, anything else is appended to the base URL.
+ * @param baseUrl - The transport's base URL.
+ * @param url - Caller-supplied URL (absolute or relative).
+ * @returns The fully-qualified URL suitable for globalThis.fetch.
+ */
+function resolveFetchUrl(baseUrl: string, url: string): FullyQualifiedUrl {
+  if (url.startsWith('http://') || url.startsWith('https://')) return url as FullyQualifiedUrl;
+  return `${baseUrl}${url}` as FullyQualifiedUrl;
 }
 
 /** Args bundle for dispatchFetch — keeps params under the 3-ceiling. */
@@ -205,6 +230,13 @@ class NativeFetchStrategy implements IFetchStrategy {
   protected _invoke: FetchInvoke = invokeFetch;
 
   /**
+   * Default-headers seam — the headers each verb sends under the caller's.
+   * Subclasses replace it in their constructor; the base sends JSON
+   * content-type on every verb.
+   */
+  protected _verbDefaults: DefaultHeadersByVerb = JSON_DEFAULT_HEADERS;
+
+  /**
    * Create a NativeFetchStrategy.
    * @param baseUrl - The base URL for API requests.
    */
@@ -221,7 +253,7 @@ class NativeFetchStrategy implements IFetchStrategy {
    */
   public async fetchPost<T>(url: string, data: PostData, opts: IFetchOpts): Promise<Procedure<T>> {
     const fullUrl = this.resolveUrl(url);
-    const headers = mergeHeaders(opts.extraHeaders);
+    const headers = mergeHeaders(this._verbDefaults.POST, opts.extraHeaders);
     const body = JSON.stringify(data);
     const init: RequestInit = { method: 'POST', headers, body };
     const invoke = this._invoke;
@@ -242,7 +274,7 @@ class NativeFetchStrategy implements IFetchStrategy {
    */
   public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
     const fullUrl = this.resolveUrl(url);
-    const headers = mergeHeaders(opts.extraHeaders);
+    const headers = mergeHeaders(this._verbDefaults.GET, opts.extraHeaders);
     const init: RequestInit = { method: 'GET', headers };
     const invoke = this._invoke;
     return dispatchFetch<T>({
@@ -260,11 +292,10 @@ class NativeFetchStrategy implements IFetchStrategy {
    * @returns The fully-qualified URL suitable for globalThis.fetch.
    */
   protected resolveUrl(url: string): FullyQualifiedUrl {
-    if (url.startsWith('http://') || url.startsWith('https://')) return url as FullyQualifiedUrl;
-    return `${this._baseUrl}${url}` as FullyQualifiedUrl;
+    return resolveFetchUrl(this._baseUrl, url);
   }
 }
 
 export default NativeFetchStrategy;
-export { invokeFetch, NativeFetchStrategy };
-export type { FetchInvoke, HttpVerb };
+export { invokeFetch, NativeFetchStrategy, resolveFetchUrl, toNetworkFailure };
+export type { DefaultHeadersByVerb, FetchInvoke, FullyQualifiedUrl, HttpVerb };

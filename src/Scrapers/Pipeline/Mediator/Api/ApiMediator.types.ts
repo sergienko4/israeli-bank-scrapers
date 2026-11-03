@@ -62,7 +62,7 @@ interface IApiMediator {
     body: Record<string, unknown>,
     opts?: IApiQueryOpts,
   ) => Promise<Procedure<T>>;
-  apiGet: <T>(wkUrl: WKUrlOrLiteral) => Promise<Procedure<T>>;
+  apiGet: <T>(wkUrl: WKUrlOrLiteral, opts?: IApiQueryOpts) => Promise<Procedure<T>>;
   apiQuery: <T>(
     wkQuery: WKQueryOperation,
     variables: Record<string, unknown>,
@@ -89,13 +89,8 @@ interface IFirePostArgs {
   readonly onSetCookie?: (setCookies: readonly string[]) => number;
 }
 
-/** Args for fireGet — bundled so extraHeaders (HMAC) fit the 3-param ceiling. */
-interface IFireGetArgs {
-  readonly deps: IApiMediatorDeps;
-  readonly url: string;
-  readonly rawAuth: string;
-  readonly extraHeaders: Record<string, string>;
-}
+/** Args for fireGet — the firePost bundle minus the body (GET sends none). */
+type IFireGetArgs = Omit<IFirePostArgs, 'body'>;
 
 /** Args for fireQuery — bundled to satisfy the 3-parameter ceiling. */
 interface IFireQueryArgs {

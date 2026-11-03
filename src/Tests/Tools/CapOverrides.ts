@@ -29,6 +29,28 @@ const DRAINED_FILE_PIN = 'Drained file pinned back to the canonical file cap.';
 const DRAINED_FN_PIN = 'Drained file pinned back to the canonical function cap.';
 const DRAINED_TREE_FILE_PIN = 'Drained sub-tree pinned back to the canonical file cap.';
 const DRAINED_TREE_FN_PIN = 'Drained sub-tree pinned back to the canonical function cap.';
+const NEW_FETCH_FILE_PIN = 'New Strategy/Fetch file pinned to the canonical cap (§19.1d).';
+
+/** New Strategy/Fetch transport files that §19.1d pins past the Strategy grandfather. */
+const FETCH_TRANSPORT_FILES: readonly string[] = [
+  'src/Scrapers/Pipeline/Strategy/Fetch/CookieJar.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/OriginCookieJar.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/SessionCookieFetchStrategy.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.ts',
+];
+
+/**
+ * Pin every new Strategy/Fetch transport file to one canonical cap.
+ * @param cap - The canonical cap those files must resolve to.
+ * @returns One filename-scoped override per file.
+ */
+function pinFetchTransportFiles(cap: number): readonly ICapOverride[] {
+  return FETCH_TRANSPORT_FILES.map((prefix): ICapOverride => ({
+    prefix,
+    cap,
+    reason: NEW_FETCH_FILE_PIN,
+  }));
+}
 
 /** File-size expectations that deviate from the canonical `max-lines: 150`. */
 const MAX_LINES_OVERRIDES: readonly ICapOverride[] = [
@@ -86,6 +108,7 @@ const MAX_LINES_OVERRIDES: readonly ICapOverride[] = [
     cap: 150,
     reason: DRAINED_FILE_PIN,
   },
+  ...pinFetchTransportFiles(150),
   {
     prefix: 'src/Scrapers/Pipeline/Phases/Base/BasePhase.ts',
     cap: 'off',
@@ -166,6 +189,7 @@ const MAX_LINES_PER_FUNCTION_OVERRIDES: readonly ICapOverride[] = [
     cap: 10,
     reason: DRAINED_FN_PIN,
   },
+  ...pinFetchTransportFiles(10),
 ];
 
 /**

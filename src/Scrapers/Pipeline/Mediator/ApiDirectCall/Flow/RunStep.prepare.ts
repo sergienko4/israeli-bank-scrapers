@@ -8,7 +8,7 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
-import { buildOnSetCookie } from './RunStep.cookies.js';
+import buildOnSetCookie from './RunStep.cookies.js';
 import { buildStepHeaders } from './RunStep.headers.js';
 import type {
   CarryMap,

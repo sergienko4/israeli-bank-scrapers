@@ -52,10 +52,15 @@ auth envelope; `extractHmacKeyPatch()` derives the AES key from the
 caller's phone (formatted `international-dash`) plus the static
 key-exchange salt, decrypts the exchange ciphertext into the raw HMAC
 key, and returns a session-context patch carrying the key and its
-signer. The mediator then signs every subsequent data request. The
-derivation is fail-closed: a wrong seed/salt or an unexpected exchange
-envelope aborts the run rather than scraping unsigned, and the HMAC key
-is never logged.
+signer. The mediator then signs every subsequent data request, on GET
+and POST alike. `overlayHeaders()` in
+`src/Scrapers/Pipeline/Mediator/Api/ApiMediator.transport.ts` lays the
+signed headers over the caller's: a caller header whose name matches
+one of them in any letter case (`x-signature`) is dropped, so a stale
+value is never sent beside the signed one. The derivation is
+fail-closed: a wrong seed/salt or an unexpected exchange envelope
+aborts the run rather than scraping unsigned, and the HMAC key is
+never logged.
 
 The crypto primitives are generic and bank-agnostic (no bank-name
 strings): `HmacKeyExchange` (derive + decrypt) and `HmacRequestSigner`

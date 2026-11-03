@@ -41,7 +41,8 @@ export type HeaderMap = Record<string, string>;
  * (preserves every existing body-dispatch bank: PayBox/OneZero/Pepper).
  * GET banks — whose accounts / balance / transactions ride path + query
  * params (Discount, Max, VisaCal) — declare `method: 'GET'`; the driver
- * then calls `apiGet` with the resolved URL and sends no request body.
+ * then calls `apiGet` with the resolved URL and the step's opts, and sends
+ * no request body.
  */
 export type ScrapeHttpMethod = 'GET' | 'POST';
 
