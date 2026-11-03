@@ -132,7 +132,9 @@ other value is sent as its JSON text (`7` → `"7"`, `true` → `"true"`). A ste
 header replaces a `staticHeaders` entry of the same name, compared
 case-insensitively. The cookie jar's `Cookie` and the signer's `headerName` are
 set after it and, in the same case-insensitive way, replace any static or step
-header of that name, so only one value is sent. A reference that does not
+header of that name, so only one value is sent. The transport's own
+`content-type: application/json` default gives way the same way: a static or
+step `Content-Type` in any letter case replaces it. A reference that does not
 resolve fails the step before anything is sent.
 
 ```ts

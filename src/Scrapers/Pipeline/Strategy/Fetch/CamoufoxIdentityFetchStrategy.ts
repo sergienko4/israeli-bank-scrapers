@@ -27,6 +27,7 @@ import { describeJsonParseFailure } from '../../Types/JsonParseFailure.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
+import { overlayHeaders } from './HeaderOverlay.js';
 import { classifyHttpFailure, hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
 import { CAMOUFOX_LAUNCH_FAILED } from './LocalFailureReasons.js';
 import { digestResponse, type IResponseDigest } from './ResponseDigest.js';
@@ -67,12 +68,12 @@ interface IDispatchArgs {
 
 /**
  * Merges the default JSON content-type with caller-supplied headers.
- * Caller wins on collision.
+ * Caller wins on collision, in any letter case.
  * @param extraHeaders - Caller-supplied headers.
  * @returns Merged headers record.
  */
 function mergeHeaders(extraHeaders: Record<string, string>): Record<string, string> {
-  return { 'content-type': 'application/json', ...extraHeaders };
+  return overlayHeaders({ 'content-type': 'application/json' }, extraHeaders);
 }
 
 /**

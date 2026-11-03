@@ -6,17 +6,12 @@
 import { resolveWkQuery } from '../../Registry/WK/QueriesWK.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import { resolveWkUrl } from '../../Registry/WK/UrlsWK.js';
+import { overlayHeaders } from '../../Strategy/Fetch/HeaderOverlay.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk } from '../../Types/Procedure.js';
 import { buildHmacHeaders } from './ApiMediator.hmacHeaders.js';
 import { retryOn401Op } from './ApiMediator.retry.js';
-import {
-  fireGet,
-  firePost,
-  fireQuery,
-  NO_EXTRA_HEADERS,
-  overlayHeaders,
-} from './ApiMediator.transport.js';
+import { fireGet, firePost, fireQuery, NO_EXTRA_HEADERS } from './ApiMediator.transport.js';
 import type {
   IApiCallContext,
   IApiPostOpArgs,

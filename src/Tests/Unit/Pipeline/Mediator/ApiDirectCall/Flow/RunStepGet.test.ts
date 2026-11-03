@@ -182,4 +182,15 @@ describe('E8 GET login step over the headless native transport', () => {
     expect(contentType).toBe('application/json');
     expect(result).toMatchObject({ success: true, value: { carry: { token: 'syn-token' } } });
   });
+
+  it('sends one content-type when a step sets Content-Type', async (): Promise<void> => {
+    const fake = installFetch();
+    const bus = makeNativeMediator();
+    const headers = { 'Content-Type': { $literal: 'application/json; charset=UTF-8' } };
+    const step: IPostStep = { ...POST_STEP, headers };
+    await runStep({ step, bus, scope: makeScope(), companyId: HINT });
+    const call = onlyCall(fake);
+    const contentType = sentHeaders(call).get('content-type');
+    expect(contentType).toBe('application/json; charset=UTF-8');
+  });
 });

@@ -93,6 +93,18 @@ describe('withDefaultHeaders', () => {
     });
   });
 
+  it('lets a mixed-case per-call header replace a default of that name', async () => {
+    const cap = freshCapture();
+    const inner = makeSpyStrategy(cap);
+    const defaults = { 'content-type': 'application/json', Accept: 'application/json' };
+    const wrapped = withDefaultHeaders(inner, defaults);
+    await wrapped.fetchPost('u', {}, { extraHeaders: { 'Content-Type': 'text/plain' } });
+    expect(cap.postOpts.extraHeaders).toEqual({
+      Accept: 'application/json',
+      'Content-Type': 'text/plain',
+    });
+  });
+
   it('injects defaults into a GET that carried no extra headers', async () => {
     const cap = freshCapture();
     const inner = makeSpyStrategy(cap);
