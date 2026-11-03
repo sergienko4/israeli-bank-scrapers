@@ -141,6 +141,14 @@ describe('SessionCookieFetchStrategy', () => {
     expect(init.headers).not.toHaveProperty('cookie');
   });
 
+  it('keeps a caller cookie header while the jar is empty', async () => {
+    const mock = serveCookies([]);
+    const transport = makeTransport();
+    await transport.fetchGet(ITEMS_URL, { extraHeaders: { Cookie: 'sid=caller' } });
+    const [, init] = mock.mock.calls[0];
+    expect(init.headers).toMatchObject({ Cookie: 'sid=caller' });
+  });
+
   it.each(['Cookie', 'COOKIE', 'cookie'])(
     'replaces a caller %s header with the jar',
     async name => {
