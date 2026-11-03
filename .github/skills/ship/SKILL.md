@@ -18,7 +18,7 @@ shortcuts.
    `release-please-config.json`);
    subject ≤ ~50 chars, body wrapped ≤72, and the trailer
    `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`.
-   All 21 husky pre-commit gates must pass — **never `--no-verify`**, never
+   All 23 husky pre-commit gates must pass — **never `--no-verify`**, never
    weaken a gate to get green.
 3. **PR body** → write `.git/PR_BODY.md` with `## Why`, `## What`, and the
    `## Guideline compliance` table; validate with

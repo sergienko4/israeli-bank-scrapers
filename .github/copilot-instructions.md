@@ -31,7 +31,7 @@ invokable command in `.claude/commands/<phase>.md`.
 | VERIFY | `test` | Tests are proof | `npm test`, `npm run lint:cycles`, `validate` |
 | REVIEW | `review` | Improve code health | `npm run lint`, `improve`, rubber-duck, CodeRabbit |
 | SIMPLIFY | `code-simplify` | Clarity over cleverness | `code-simplification-guidlines.md`, `improve` |
-| SHIP | `ship` | Faster is safer | 21 husky gates, `lint:pr-body`, `gh pr create`, release-please |
+| SHIP | `ship` | Faster is safer | 23 husky gates, `lint:pr-body`, `gh pr create`, release-please |
 
 ## Boundaries
 
