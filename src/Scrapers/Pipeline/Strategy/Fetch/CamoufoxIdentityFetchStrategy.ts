@@ -28,6 +28,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts, IFetchStrategy, PostData } from './FetchStrategy.js';
 import { classifyHttpFailure, hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
+import { CAMOUFOX_LAUNCH_FAILED } from './LocalFailureReasons.js';
 import { digestResponse, type IResponseDigest } from './ResponseDigest.js';
 import { safeUrlForLog, scrubUrlFromText } from './SafeUrlForLog.js';
 
@@ -411,7 +412,7 @@ class CamoufoxIdentityFetchStrategy implements IFetchStrategy {
         errorMessage: reason,
         message: '[camoufox-identity] launch FAIL',
       });
-      return fail(ScraperErrorTypes.Generic, `camoufox launch failed: ${reason}`);
+      return fail(ScraperErrorTypes.Generic, `${CAMOUFOX_LAUNCH_FAILED}: ${reason}`);
     }
     this._browser = browser;
     const durationMs = (Date.now() - t0) as LaunchDurationMs;

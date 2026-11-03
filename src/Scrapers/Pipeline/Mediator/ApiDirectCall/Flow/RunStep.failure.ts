@@ -9,9 +9,12 @@
  * below this point and still reads the original message.
  *
  * <p>A WAF block passes through unchanged: the transport already swapped the
- * edge page for a fixed reason, and that reason is a documented contract.
+ * edge page for a fixed reason, and that reason is a documented contract. So
+ * does a failure raised before any request left the process (a Camoufox
+ * launch failure): it holds no reply, and the consumer-install gate reads it.
  */
 
+import { isLocalFailureMessage } from '../../../Strategy/Fetch/LocalFailureReasons.js';
 import type { IProcedureFailure } from '../../../Types/Procedure.js';
 import { isWafBlocked } from '../../../Types/Procedure.js';
 
@@ -39,13 +42,23 @@ function describeFailure(failure: IProcedureFailure): string {
 }
 
 /**
+ * Whether a failure carries a fixed reason, not text the bank sent.
+ * @param failure - Failure returned by the transport.
+ * @returns True for a WAF block or a failure raised before any request.
+ */
+function isFixedReason(failure: IProcedureFailure): boolean {
+  if (isWafBlocked(failure)) return true;
+  return isLocalFailureMessage(failure.errorMessage);
+}
+
+/**
  * Rebuild a failed step's message from its name and status only.
  * @param stepName - Name of the failed step.
  * @param failure - Failure returned by the transport.
- * @returns The same failure, type kept, with a safe message; a WAF block as is.
+ * @returns The same failure, type kept, with a safe message; a fixed reason as is.
  */
 function sanitiseStepFailure(stepName: string, failure: IProcedureFailure): IProcedureFailure {
-  if (isWafBlocked(failure)) return failure;
+  if (isFixedReason(failure)) return failure;
   const detail = describeFailure(failure);
   return { ...failure, errorMessage: `${stepName} ${detail}` };
 }

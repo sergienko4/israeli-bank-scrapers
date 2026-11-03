@@ -27,6 +27,7 @@ import type {
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import type { GraphQLFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
+import { CAMOUFOX_LAUNCH_FAILED } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/LocalFailureReasons.js';
 import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import type { IPipelineContext } from '../../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -137,6 +138,12 @@ const FAILURE_CASES: readonly IFailureCase[] = [
     message: `POST ${BIND_URL} network error: timeout`,
     expected: 'bind TIMEOUT',
   },
+  {
+    label: 'a reply quoting a local reason',
+    type: ScraperErrorTypes.Generic,
+    message: `POST ${BIND_URL} network error: ${CAMOUFOX_LAUNCH_FAILED}`,
+    expected: 'bind GENERIC',
+  },
 ];
 
 beforeAll((): void => {
@@ -238,6 +245,13 @@ describe('E15 RunStep failure message', () => {
     const bus = STUB.makeStubMediator({ responses: [refused], captures: [] });
     const result = await runBind(bus);
     expect(result).toEqual(refused);
+  });
+
+  it('passes a failure raised before any request through as is', async (): Promise<void> => {
+    const launch = fail(ScraperErrorTypes.Generic, `${CAMOUFOX_LAUNCH_FAILED}: no binary`);
+    const bus = STUB.makeStubMediator({ responses: [launch], captures: [] });
+    const result = await runBind(bus);
+    expect(result).toEqual(launch);
   });
 });
 
