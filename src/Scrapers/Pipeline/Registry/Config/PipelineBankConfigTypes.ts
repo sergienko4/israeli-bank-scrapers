@@ -41,10 +41,12 @@ export type PhoneNumberFormatTag =
 /**
  * Balance semantics for a bank — an explicit, REQUIRED per-bank declaration.
  * `'account'` banks expose a real account balance (deposit/checking banks)
- * and trigger a live BALANCE-RESOLVE; `'card-cycle'` banks expose only
- * per-cycle credit-card billing aggregates (VisaCal, Max, Amex, Isracard) and
- * have no account balance to resolve (deterministic no-op). Never inferred
- * from absence — an unstated kind is a config error, not a dormant no-op.
+ * and trigger a live BALANCE-RESOLVE; `'card-cycle'` banks expose no account
+ * balance, only billing-cycle figures — a per-card debit (VisaCal, Max) or a
+ * household aggregate (Amex, Isracard) — which their scrape shape's balance
+ * step owns, so BALANCE-RESOLVE is a deterministic no-op for them. Never
+ * inferred from absence — an unstated kind is a config error, not a dormant
+ * no-op.
  */
 export type BalanceKind = 'account' | 'card-cycle';
 

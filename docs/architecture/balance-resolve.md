@@ -49,18 +49,22 @@ Visa Cal's figure needs a call of its own. `GetTotalFrameStatus` answers one
 card per request with that card's `nextTotalDebit`, the total of its charges
 on the next debit date. The frame is matched by `cardUniqueId` only, across
 both the CAL-issued and bank-issued groups, and never summed across cards. A
-reply CAL confirmed (`statusCode` 1 with a `result`) that has no frame for
-the card reports `0`, since nothing is pending. A reply CAL did not confirm,
-or a frame whose figure is not a finite number, is declared absent by
-`balanceIsAbsent`: the card publishes no balance and the scrape is marked
-degraded. A failed frames call is masked to `BALANCE_UNKNOWN` the same way,
-so the card keeps its transactions rather than reporting a `0` the bank
-never sent.
+reply CAL confirmed (`statusCode` 1 with a `result`) reports `0` when it has
+no frame for the card, or when the card's frames carry no finite
+`nextTotalDebit` (missing, a string, `NaN`, infinite): that is CAL's no-data
+contract, not a missing balance. Only a reply CAL did not confirm, or one
+whose frame structure is malformed (a card group that is present but not an
+object, where `null` counts as omitted; a frame list that is not an array; or
+a frame without a string `cardUniqueId`),
+is declared absent by `balanceIsAbsent`: the card publishes no balance and the
+scrape is marked degraded. A failed frames call is masked to `BALANCE_UNKNOWN`
+the same way, so the card keeps its transactions rather than reporting a `0`
+the bank never sent.
 
 | Symbol | Role |
 |---|---|
-| [`nextTotalDebitOf`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeBalance.ts) | Returns one card's next ILS debit from the frames response, or `0` when a confirmed reply has no frame for the card |
-| `balanceIsAbsent` | Declares the figure missing when CAL did not confirm the reply or the card's frame has no finite `nextTotalDebit`; consulted before `nextTotalDebitOf` |
+| [`nextTotalDebitOf`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeBalance.ts) | Returns one card's next ILS debit from the frames response, or `0` when a confirmed reply has no frame for the card or no finite figure in its frames |
+| `balanceIsAbsent` | Declares the figure missing only when CAL did not confirm the reply or its frame structure is malformed; an unusable figure in a well-formed frame is `0`, not absence. Consulted before `nextTotalDebitOf` |
 | `VisaCalNextDebit` | Nominal brand for that debit (Rule&nbsp;#15) |
 | `balanceVars` / `balanceUrl` | The frames request body (one `cardUniqueId`) and its literal URL |
 

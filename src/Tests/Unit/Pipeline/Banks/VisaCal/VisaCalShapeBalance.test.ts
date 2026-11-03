@@ -60,6 +60,7 @@ describe('VisaCal frames balance (UT-CAL-01)', () => {
     ['no frame names the card', framesBody([{ cardUniqueId: 'CARD-9', nextTotalDebit: 50 }])],
     ['the frame list is empty', framesBody([])],
     ['no issuer group is present', { statusCode: 1, result: {} }],
+    ['an issuer group is null', { statusCode: 1, result: { bankIssuedCards: null } }],
     ['the figure is a string', framesBody([{ cardUniqueId: 'CARD-1', nextTotalDebit: '412' }])],
     ['the figure is not finite', framesBody([{ cardUniqueId: 'CARD-1', nextTotalDebit: NaN }])],
     ['the figure is missing', framesBody([{ cardUniqueId: 'CARD-1' }])],

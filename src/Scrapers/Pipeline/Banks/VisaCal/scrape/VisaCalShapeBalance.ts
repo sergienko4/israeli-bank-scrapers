@@ -135,7 +135,8 @@ export function balanceIsAbsent(body: ApiBody, card: IVisaCalCard): IsBalanceAbs
 }
 
 /**
- * The card's next ILS debit, or 0 when no frame names the card.
+ * The card's next ILS debit, or 0 when no frame names the card or none of
+ * its frames carries a finite figure.
  * @param body - Frames response.
  * @param card - The account being assembled.
  * @returns The card's `nextTotalDebit`, or 0.

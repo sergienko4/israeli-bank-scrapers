@@ -205,12 +205,13 @@ export interface IApiDirectScrapeBalanceStep<TAcct> {
   /**
    * Skip the balance-step network call entirely.
    *
-   * Two kinds of shape use it. Most `card-cycle` issuers (VisaCal, Amex,
-   * Isracard) publish no figure attributable to a single card, so they
-   * declare `extract: () => 0` for a deterministic zero. Max instead
-   * carries its per-card cycle debit on the account itself, so it skips
-   * the fetch because the value is already in hand — not because none
-   * exists. Mirrors {@link IApiDirectScrapeCustomerStep.skipFetch}.
+   * Two kinds of shape use it. The household-aggregate `card-cycle`
+   * issuers (Amex, Isracard) publish no figure attributable to a single
+   * card, so they declare `extract: () => 0` for a deterministic zero. Max
+   * instead carries its per-card cycle debit on the account itself, so it
+   * skips the fetch because the value is already in hand — not because none
+   * exists. VisaCal fetches its per-card next debit and does not skip.
+   * Mirrors {@link IApiDirectScrapeCustomerStep.skipFetch}.
    */
   readonly skipFetch?: boolean;
 }
