@@ -112,6 +112,21 @@ function isBankCallWarmWithoutStep(input: IApiDirectRuleInput): boolean {
   return !isStep;
 }
 
+/**
+ * A warm start from step 0 replays the whole login, OTP step included, and is
+ * charged to the run's one-SMS budget as a cold flow — so a rejected seed
+ * leaves no budget for the cold retry. A warm start must skip the first step.
+ * `isColdStart` charges index 0 even when there are no steps, so that case is
+ * no exception.
+ * @param input - Rule input.
+ * @returns True when the warm start begins at or before step 0.
+ */
+function isWarmFromFirstStep(input: IApiDirectRuleInput): boolean {
+  const warm = input.call.warmStart;
+  if (warm === undefined) return false;
+  return warm.fromStepIndex < 1;
+}
+
 /** Every rule, checked in order. */
 const API_DIRECT_RULES: readonly IApiDirectRule[] = [
   { message: 'authPrefix: required when authScheme is prefixed', isBroken: isPrefixMissing },
@@ -131,6 +146,10 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
   {
     message: 'warmStart.fromStepIndex: must name a step when validation is bank-call',
     isBroken: isBankCallWarmWithoutStep,
+  },
+  {
+    message: 'warmStart.fromStepIndex: must start after the first step',
+    isBroken: isWarmFromFirstStep,
   },
 ];
 

@@ -50,13 +50,24 @@ const WARM = { credsField: 'otpLongTermToken', carryField: 'token', fromStepInde
 const CLAIMS = { freshnessField: 'exp', skewSeconds: 30 } as const;
 
 /**
- * A config warm-started by a bank call from the given step index.
+ * A two-step config warm-started by a bank call from the given step index.
  * @param fromStepIndex - First warm step.
  * @returns Rule input with no headless block.
  */
 function bankCallFrom(fromStepIndex: number): IApiDirectRuleInput {
   const warmStart = { ...WARM, fromStepIndex, validation: 'bank-call' } as const;
-  return { call: makeCall({ warmStart }), headless: false };
+  return { call: makeCall({ warmStart, steps: [STEP, STEP] }), headless: false };
+}
+
+/**
+ * A config with no steps, warm-started under JWT claims from the given index.
+ * Index 0 still starts there, so the budget charges it as a cold flow.
+ * @param fromStepIndex - Warm start index.
+ * @returns Rule input with no headless block.
+ */
+function emptyFlowFrom(fromStepIndex: number): IApiDirectRuleInput {
+  const warmStart = { ...WARM, fromStepIndex };
+  return { call: makeCall({ warmStart, steps: [], jwtClaims: CLAIMS }), headless: false };
 }
 
 /**
@@ -94,6 +105,7 @@ const JAR_MSG = 'steps.cookieJar: not allowed with headless.sessionCookies';
 const CODES_MSG = 'outcome.successCodes: must not be empty';
 const CLAIMS_MSG = 'jwtClaims: required when warmStart.validation is jwt';
 const BANK_CALL_MSG = 'warmStart.fromStepIndex: must name a step when validation is bank-call';
+const FIRST_STEP_MSG = 'warmStart.fromStepIndex: must start after the first step';
 
 const BROKEN: readonly BrokenCase[] = [
   [
@@ -142,9 +154,19 @@ const BROKEN: readonly BrokenCase[] = [
     { call: makeCall({ warmStart: { ...WARM, validation: 'jwt' } }), headless: false },
     CLAIMS_MSG,
   ],
-  ['bank-call warm past the last step', bankCallFrom(1), BANK_CALL_MSG],
+  ['bank-call warm past the last step', bankCallFrom(2), BANK_CALL_MSG],
   ['bank-call warm before the first step', bankCallFrom(-1), BANK_CALL_MSG],
   ['bank-call warm between steps', bankCallFrom(0.5), BANK_CALL_MSG],
+  ['bank-call warm from the first step', bankCallFrom(0), FIRST_STEP_MSG],
+  [
+    'jwt warm from the first step',
+    {
+      call: makeCall({ warmStart: { ...WARM, fromStepIndex: 0 }, jwtClaims: CLAIMS }),
+      headless: false,
+    },
+    FIRST_STEP_MSG,
+  ],
+  ['jwt warm at 0 over an empty flow', emptyFlowFrom(0), FIRST_STEP_MSG],
   [
     'two broken rules report the first',
     { call: makeCall({ authScheme: 'prefixed', steps: [NO_CODES_STEP] }), headless: false },
@@ -171,7 +193,7 @@ const SOUND: readonly SoundCase[] = [
     'jwt warm past the last step, with claims',
     { call: makeCall({ warmStart: WARM, jwtClaims: CLAIMS }), headless: false },
   ],
-  ['bank-call warm from the first step, no claims', bankCallFrom(0)],
+  ['bank-call warm from the second step, no claims', bankCallFrom(1)],
 ];
 
 /**

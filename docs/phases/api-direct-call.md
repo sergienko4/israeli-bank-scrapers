@@ -242,12 +242,17 @@ is sent. The first broken rule fails the build with `Generic` and
 | any login or resume step whose `outcome.successCodes` is empty                   | `outcome.successCodes: must not be empty`                                |
 | `warmStart` validated as `'jwt'` (the default) with no `jwtClaims`               | `jwtClaims: required when warmStart.validation is jwt`                   |
 | `warmStart` validated as `'bank-call'` with a `fromStepIndex` that names no step | `warmStart.fromStepIndex: must name a step when validation is bank-call` |
+| `warmStart.fromStepIndex` below 1                                                | `warmStart.fromStepIndex: must start after the first step`               |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
 readable expiry, so the first warm step sent to the bank is the check, and
 `fromStepIndex` must name a step. A `'bank-call'` seed skips the local JWT
-check even when `jwtClaims` is set.
+check even when `jwtClaims` is set. In either mode a warm start must skip
+step 0: a resume from the first step replays the whole login, OTP step
+included, and `isColdStart` charges it to the one-SMS budget, leaving nothing
+for the cold retry if the bank rejects the seed. A config with no steps is
+no exception: `isColdStart` charges index 0 whether or not a step runs.
 Conflicting transport flags in the headless block are a separate check
 (`assertSingleTransport`), run when the headless mediator is wired.
 
