@@ -4,6 +4,9 @@
  * A seed with a control character, a non-ASCII character or more than
  * `MAX_ACCESS_TOKEN_CHARS` characters is dropped with a warning that names the
  * field but never the value, so the cold login runs instead.
+ *
+ * A 'bank-call' warm start lets the bank judge the token, so the local JWT
+ * freshness check never drops its seed, even when `jwtClaims` is configured.
  */
 
 import { jest } from '@jest/globals';
@@ -39,12 +42,21 @@ const RULES =
 
 type CallConfig = Parameters<typeof SHARED.pickWarmSeed>[0];
 
-const CONFIG: CallConfig = {
-  flow: 'sms-otp',
-  steps: [],
-  envelope: {},
-  warmStart: { credsField: 'otpLongTermToken', carryField: 'token', fromStepIndex: 1 },
-};
+const WARM = { credsField: 'otpLongTermToken', carryField: 'token', fromStepIndex: 1 };
+
+const CONFIG: CallConfig = { flow: 'sms-otp', steps: [], envelope: {}, warmStart: WARM };
+
+const CLAIMS = { freshnessField: 'exp', skewSeconds: 60 } as const;
+const OPAQUE_SEED = 'syn-udid:syn-key';
+
+/**
+ * The shape-test config with `jwtClaims` and the given warm validation.
+ * @param validation - How the warm seed is judged.
+ * @returns Config literal.
+ */
+function claimsConfig(validation: 'jwt' | 'bank-call'): CallConfig {
+  return { ...CONFIG, jwtClaims: CLAIMS, warmStart: { ...WARM, validation } };
+}
 
 /** Every seed carries this marker, so a leaked value is easy to spot. */
 const MARKER = 'syn-';
@@ -85,5 +97,19 @@ describe('E13 warm token shape', () => {
     const picked = SHARED.pickWarmSeed(CONFIG, {});
     expect(picked).toBe(false);
     expect(LOG.warn).not.toHaveBeenCalled();
+  });
+});
+
+describe('warm seed under jwtClaims', () => {
+  it('replays an opaque seed when the bank validates it', (): void => {
+    const config = claimsConfig('bank-call');
+    const picked = SHARED.pickWarmSeed(config, { otpLongTermToken: OPAQUE_SEED });
+    expect(picked).toBe(OPAQUE_SEED);
+  });
+
+  it('drops an opaque seed when it is validated as a JWT', (): void => {
+    const config = claimsConfig('jwt');
+    const picked = SHARED.pickWarmSeed(config, { otpLongTermToken: OPAQUE_SEED });
+    expect(picked).toBe(false);
   });
 });

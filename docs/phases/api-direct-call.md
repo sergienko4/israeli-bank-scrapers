@@ -246,7 +246,8 @@ is sent. The first broken rule fails the build with `Generic` and
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
 readable expiry, so the first warm step sent to the bank is the check, and
-`fromStepIndex` must name a step.
+`fromStepIndex` must name a step. A `'bank-call'` seed skips the local JWT
+check even when `jwtClaims` is set.
 Conflicting transport flags in the headless block are a separate check
 (`assertSingleTransport`), run when the headless mediator is wired.
 

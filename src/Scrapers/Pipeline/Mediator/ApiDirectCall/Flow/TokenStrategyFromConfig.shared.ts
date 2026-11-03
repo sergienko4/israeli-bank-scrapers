@@ -59,11 +59,14 @@ function dropMalformedSeed(credsField: string): false {
 
 /**
  * Whether the seed passes the config's local JWT freshness check, if any.
+ * A 'bank-call' warm start leaves the judgement to the bank, so it skips the
+ * local check even when `jwtClaims` is set.
  * @param config - API-direct-call config.
  * @param stored - Stored seed.
  * @returns True when there is no JWT check or the token is fresh.
  */
 function isJwtGateOpen(config: IApiDirectCallConfig, stored: string): boolean {
+  if (config.warmStart?.validation === 'bank-call') return true;
   if (config.jwtClaims === undefined) return true;
   return isJwtFresh(stored, config.jwtClaims);
 }
