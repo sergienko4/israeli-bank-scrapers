@@ -347,10 +347,11 @@ and the step's `urlTag` selects it.
 
 A bank that logs in with credentials alone still declares `flow: 'sms-otp'`,
 the only flow kind `gateFlowKind` accepts. The flow asks for a code only
-through a step's `preHook`: `resolveStepScope` (`Flow/SmsOtpFlow.reduce.ts`)
-skips a step with no `preHook`, and otherwise `applyPreHook` calls the creds
-function named by `awaitCredsField`. A chain with no `preHook` on any step
-therefore never prompts, even when the caller passes `otpCodeRetriever`.
+through a step's `preHook`. For a step with no `preHook`, `resolveStepScope`
+(`Flow/SmsOtpFlow.reduce.ts`) leaves the scope unchanged and the step still
+sends its request; otherwise `applyPreHook` first calls the creds function
+named by `awaitCredsField`. A chain with no `preHook` on any step therefore
+never prompts, even when the caller passes `otpCodeRetriever`.
 
 The PRE stage's diagnostic label (`classifyLoginKind`) still reads `sms-otp`
 for a cold run of such a chain. Nothing branches on that label.
