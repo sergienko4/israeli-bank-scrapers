@@ -39,6 +39,12 @@ const BARE_HOSTNAME = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]
  */
 const NO_SUCH_HOST = 'he.isracard.co.il';
 
+/** Hosts reachable only through each bank's `headless.graphql` field. */
+const GRAPHQL_ONLY_HOSTS = [
+  [CompanyTypes.OneZero, 'mobile.tfd-bank.com'],
+  [CompanyTypes.Pepper, 'fe-sec.pepper.co.il'],
+] as const;
+
 /** Mirrors `BankExtraDnsHosts`, which cannot be imported statically here. */
 type ExtraHostsByBank = Readonly<Partial<Record<CompanyTypes, readonly string[]>>>;
 
@@ -90,7 +96,11 @@ async function coldHeadlessHosts(
     await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
   const config = resolvePipelineBankConfig(companyId);
   if (config === false || !config.headless) return [];
-  const urls = [config.headless.identityBase, ...Object.values(config.headless.paths)];
+  const urls = [
+    config.headless.identityBase,
+    config.headless.graphql,
+    ...Object.values(config.headless.paths),
+  ];
   const hosts = new Set(urls.map(url => new URL(url).hostname));
   const warmed = [new URL(config.urls.base).hostname, ...(manifest[companyId] ?? [])];
   const cold = [...hosts].filter(host => !warmed.includes(host));
@@ -142,4 +152,15 @@ describe('PipelineBankHosts — CI DNS warm-up manifest (T-DNS)', () => {
     const cold = perBank.flat();
     expect(cold).toEqual([]);
   });
+
+  it.each(GRAPHQL_ONLY_HOSTS)(
+    'T-DNS-7: detects %s when its GraphQL-only host is removed',
+    async (companyId, host) => {
+      const manifest = await loadHosts();
+      const remaining = (manifest[companyId] ?? []).filter(entry => entry !== host);
+      const missing = { ...manifest, [companyId]: remaining };
+      const cold = await coldHeadlessHosts(companyId, missing);
+      expect(cold).toContain(`${companyId}:${host}`);
+    },
+  );
 });
