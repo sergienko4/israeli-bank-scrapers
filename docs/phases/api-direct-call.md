@@ -247,6 +247,7 @@ is sent. The first broken rule fails the build with `Generic` and
 | `warmStart` validated as `'jwt'` (the default) with no `jwtClaims`               | `jwtClaims: required when warmStart.validation is jwt`                   |
 | `warmStart` validated as `'bank-call'` with a `fromStepIndex` that names no step | `warmStart.fromStepIndex: must name a step when validation is bank-call` |
 | `warmStart.fromStepIndex` below 1                                                | `warmStart.fromStepIndex: must start after the first step`               |
+| `warmStart.fromStepIndex` fractional, `NaN` or above `steps.length`              | `warmStart.fromStepIndex: must be a whole number up to the step count`   |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
@@ -257,6 +258,11 @@ step 0: a resume from the first step replays the whole login, OTP step
 included, and `isColdStart` charges it to the one-SMS budget, leaving nothing
 for the cold retry if the bank rejects the seed. A config with no steps is
 no exception: `isColdStart` charges index 0 whether or not a step runs.
+`fromStepIndex` equal to `steps.length` runs no steps, because the stored value
+is already the final token. A fractional or `NaN` index fails the build,
+because the step walker would read a missing step and throw instead of
+failing the warm attempt into the cold retry. An index above `steps.length`
+fails it too: it would silently run no steps, which only a typo produces.
 The warm-start canary (`WarmStartContract`) follows the same policy. It
 requires `jwtClaims` only for `'jwt'` validation, and it requires the warm path
 to end holding a `token` only when the auth scheme sends a header (`none`

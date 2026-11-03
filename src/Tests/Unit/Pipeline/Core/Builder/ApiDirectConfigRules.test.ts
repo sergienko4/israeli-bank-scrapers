@@ -60,6 +60,16 @@ function bankCallFrom(fromStepIndex: number): IApiDirectRuleInput {
 }
 
 /**
+ * A two-step config warm-started under JWT claims from the given step index.
+ * @param fromStepIndex - First warm step.
+ * @returns Rule input with no headless block.
+ */
+function jwtFrom(fromStepIndex: number): IApiDirectRuleInput {
+  const warmStart = { ...WARM, fromStepIndex };
+  return { call: makeCall({ warmStart, steps: [STEP, STEP], jwtClaims: CLAIMS }), headless: false };
+}
+
+/**
  * A config with no steps, warm-started under JWT claims from the given index.
  * Index 0 still starts there, so the budget charges it as a cold flow.
  * @param fromStepIndex - Warm start index.
@@ -106,6 +116,7 @@ const CODES_MSG = 'outcome.successCodes: must not be empty';
 const CLAIMS_MSG = 'jwtClaims: required when warmStart.validation is jwt';
 const BANK_CALL_MSG = 'warmStart.fromStepIndex: must name a step when validation is bank-call';
 const FIRST_STEP_MSG = 'warmStart.fromStepIndex: must start after the first step';
+const RANGE_MSG = 'warmStart.fromStepIndex: must be a whole number up to the step count';
 
 const BROKEN: readonly BrokenCase[] = [
   [
@@ -167,6 +178,9 @@ const BROKEN: readonly BrokenCase[] = [
     FIRST_STEP_MSG,
   ],
   ['jwt warm at 0 over an empty flow', emptyFlowFrom(0), FIRST_STEP_MSG],
+  ['jwt warm between steps', jwtFrom(1.5), RANGE_MSG],
+  ['jwt warm from NaN', jwtFrom(Number.NaN), RANGE_MSG],
+  ['jwt warm beyond the step count', jwtFrom(3), RANGE_MSG],
   [
     'two broken rules report the first',
     { call: makeCall({ authScheme: 'prefixed', steps: [NO_CODES_STEP] }), headless: false },
@@ -194,6 +208,8 @@ const SOUND: readonly SoundCase[] = [
     { call: makeCall({ warmStart: WARM, jwtClaims: CLAIMS }), headless: false },
   ],
   ['bank-call warm from the second step, no claims', bankCallFrom(1)],
+  ['jwt warm from the second step', jwtFrom(1)],
+  ['jwt warm at the step count runs no steps', jwtFrom(2)],
 ];
 
 /**

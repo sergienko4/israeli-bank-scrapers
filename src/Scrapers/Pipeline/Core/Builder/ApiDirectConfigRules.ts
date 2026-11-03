@@ -127,6 +127,21 @@ function isWarmFromFirstStep(input: IApiDirectRuleInput): boolean {
   return warm.fromStepIndex < 1;
 }
 
+/**
+ * A warm start resumes on a step boundary: a whole index no greater than the
+ * step count, where the count itself runs no steps. A fractional or NaN index
+ * has the walker read a step that is not there and throw, skipping the cold
+ * fallback; a larger one would silently run nothing, so it is a typo too.
+ * @param input - Rule input.
+ * @returns True when the warm start index is fractional, NaN or past the end.
+ */
+function isWarmOffStepBoundary(input: IApiDirectRuleInput): boolean {
+  const warm = input.call.warmStart;
+  if (warm === undefined) return false;
+  const index = warm.fromStepIndex;
+  return !Number.isInteger(index) || index > input.call.steps.length;
+}
+
 /** Every rule, checked in order. */
 const API_DIRECT_RULES: readonly IApiDirectRule[] = [
   { message: 'authPrefix: required when authScheme is prefixed', isBroken: isPrefixMissing },
@@ -150,6 +165,10 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
   {
     message: 'warmStart.fromStepIndex: must start after the first step',
     isBroken: isWarmFromFirstStep,
+  },
+  {
+    message: 'warmStart.fromStepIndex: must be a whole number up to the step count',
+    isBroken: isWarmOffStepBoundary,
   },
 ];
 

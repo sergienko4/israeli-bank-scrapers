@@ -18,7 +18,8 @@ import type { RefToken } from './TemplateTypes.js';
  * JWT-fresh if jwtClaims configured), SmsOtpFlow pre-seeds
  * scope.carry[carryField] with that creds value and starts iterating
  * steps from fromStepIndex. fromStepIndex === steps.length means
- * zero steps run (Pepper: stored value IS the final token).
+ * zero steps run (Pepper: stored value IS the final token). The build
+ * rejects a fractional, NaN or larger index (`ApiDirectConfigRules`).
  */
 interface IWarmStartConfig {
   readonly credsField: string;
