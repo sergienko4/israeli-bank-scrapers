@@ -97,6 +97,11 @@ const COOKIES: readonly IStoredCookie[] = [
   },
 ];
 
+const GROWN_COOKIES = COOKIES.map((cookie): IStoredCookie => ({
+  ...cookie,
+  value: `${cookie.value}-refreshed`,
+}));
+
 /** Who a test jar belongs to. */
 type JarIdentity = Parameters<typeof CODEC.encodeWarmJar>[0];
 
@@ -507,6 +512,52 @@ describe('cookie-jar warm start through the strategy', () => {
     expect(published).toBe('');
     expect(logged).toContain('warm start export skipped');
     expect(logged).not.toContain(MARKER);
+  });
+
+  it.each([
+    { label: 'oversized', exported: GROWN_COOKIES, account: ACCOUNT },
+    { label: 'unbound', exported: COOKIES, account: '' },
+  ])('clears the previous token after an $label export', async ({ exported, account }) => {
+    const run = makeRun({
+      responses: [STEP_OK, STEP_OK, STEP_OK],
+      maxTokenChars: GOOD.length,
+    });
+    const exportAll = jest
+      .fn((): readonly IStoredCookie[] => exported)
+      .mockReturnValueOnce(COOKIES);
+    const bus = { ...run.bus, cookies: { ...run.jar.session, exportAll } };
+    const initialCreds = credsWith(GOOD);
+    const initial = await run.strategy.primeInitial(bus, CTX, initialCreds);
+    assertOk(initial);
+    const previous = run.strategy.getLatestLongTermToken();
+    expect(previous).toBe(GOOD);
+    const freshCreds = credsWith('', account);
+    const refreshed = await run.strategy.primeFresh(bus, CTX, freshCreds);
+    assertOk(refreshed);
+    const published = run.strategy.getLatestLongTermToken();
+    const logged = warnings();
+    expect(published).toBe('');
+    expect(logged).toContain('warm start export skipped');
+    expect(logged).not.toContain(MARKER);
+  });
+
+  it('keeps a carry-kind token when the fresh flow does not replace it', async () => {
+    const config = warmTwoStepConfig();
+    const warmStart = {
+      credsField: 'otpLongTermToken',
+      carryField: 'refreshToken',
+      fromStepIndex: 1,
+    };
+    const strategy = makeStrategy({ ...config, warmStart });
+    const bus = makeStubMediator({ responses: [STEP_OK, STEP_OK, STEP_OK], captures: [] });
+    const seed = makeJwt(36000);
+    const creds = credsWith(seed);
+    const initial = await strategy.primeInitial(bus, CTX, creds);
+    assertOk(initial);
+    const refreshed = await strategy.primeFresh(bus, CTX, creds);
+    assertOk(refreshed);
+    const published = strategy.getLatestLongTermToken();
+    expect(published).toBe(seed);
   });
 
   it('publishes no token when the creds name no account', async (): Promise<void> => {

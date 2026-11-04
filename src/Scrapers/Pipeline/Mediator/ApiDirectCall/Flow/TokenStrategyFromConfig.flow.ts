@@ -26,6 +26,7 @@ import {
   prepareColdStart,
   restoreWarmSeed,
 } from './TokenStrategyFromConfig.warm.js';
+import { cookieJarWarmOf } from './WarmStartKind.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -49,10 +50,11 @@ function toFlowArgs(args: IRunFlowArgs): Parameters<typeof runSmsOtpFlow>[0] {
  * Capture the flow's long-term token + carry snapshot into the slot.
  * @param slot - Capture slot.
  * @param result - Captured flow outputs (longTermToken + carrySnapshot).
+ * @param isJar - Whether even an empty jar export replaces the previous token.
  * @returns true for chaining.
  */
-function captureFlowResult(slot: ILongTermTokenSlot, result: IFlowCapture): true {
-  if (result.longTermToken.length > 0) slot.latest = result.longTermToken;
+function captureFlowResult(slot: ILongTermTokenSlot, result: IFlowCapture, isJar: boolean): true {
+  if (result.longTermToken.length > 0 || isJar) slot.latest = result.longTermToken;
   slot.latestCarrySnapshot = result.carrySnapshot;
   return true;
 }
@@ -72,7 +74,8 @@ interface IFinishFlowArgs {
  */
 function finishFlow(input: IFinishFlowArgs): string {
   const longTermToken = exportWarmToken(input.args, input.result.longTermToken);
-  captureFlowResult(input.slot, { ...input.result, longTermToken });
+  const isJar = cookieJarWarmOf(input.args.config) !== false;
+  captureFlowResult(input.slot, { ...input.result, longTermToken }, isJar);
   const headerValue = formatAuthValue(input.args.config, input.result.bearer);
   const isCold = isColdStart(input.args);
   if (isCold) input.slot.latestHeaderValue = headerValue;
