@@ -190,6 +190,10 @@ describe('DomainCookieJar/replacement', () => {
 });
 
 describe('DomainCookieJar/secure and expiry', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('never sends a Secure cookie over http', () => {
     const jar = makeJar();
     jar.add(WWW, ['s=1; Secure; Path=/']);
@@ -212,6 +216,17 @@ describe('DomainCookieJar/secure and expiry', () => {
     jar.add(WWW, ['sid=new; Path=/']);
     const header = jar.header(WWW);
     expect(header).toBe('sid=new');
+  });
+
+  it('lets an http response replace an expired Secure cookie', () => {
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    const jar = makeJar();
+    jar.add(WWW, ['sid=secure; Secure; Max-Age=1; Path=/']);
+    clock.mockReturnValue(1_002_000);
+    const expired = jar.header(WWW);
+    jar.add('http://www.bank.example/login', ['sid=plain; Path=/']);
+    const header = jar.header(WWW);
+    expect([expired, header]).toEqual(['', 'sid=plain']);
   });
 
   it('lets an http response replace a stored non-Secure cookie', () => {

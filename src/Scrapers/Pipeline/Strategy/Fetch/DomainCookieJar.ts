@@ -89,9 +89,9 @@ function upsert(state: IJarState, cookie: IStoredCookie): number {
 }
 
 /**
- * Store a parsed cookie unless a non-HTTPS answer would replace a stored
+ * Store a parsed cookie unless a non-HTTPS answer would replace a live stored
  * Secure cookie of the same key, which would let a downgraded cookie travel
- * over TLS later.
+ * over TLS later. An expired record no longer protects the key.
  * @param state - Jar state.
  * @param isSecure - Whether the answering URL used HTTPS.
  * @param cookie - Parsed cookie.
@@ -100,8 +100,9 @@ function upsert(state: IJarState, cookie: IStoredCookie): number {
 function upsertFromLine(state: IJarState, isSecure: boolean, cookie: IStoredCookie): number {
   const key = keyOf(cookie);
   const stored = state.store.get(key);
-  const isShadowingSecure = stored?.secure === true;
-  if (!isSecure && isShadowingSecure) return state.store.size;
+  const nowS = nowEpochS();
+  const isLiveSecure = stored !== undefined && stored.secure && !isExpired(stored, nowS);
+  if (!isSecure && isLiveSecure) return state.store.size;
   return upsert(state, cookie);
 }
 
