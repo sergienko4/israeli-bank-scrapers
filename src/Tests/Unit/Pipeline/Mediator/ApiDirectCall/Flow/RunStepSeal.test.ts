@@ -7,7 +7,9 @@
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import type {
   IApiDirectCallConfig,
+  IBodyTemplate,
   IPostStep,
+  ISealFieldConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { runStep } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
@@ -28,6 +30,14 @@ const PLAIN_CONFIG: IApiDirectCallConfig = {
   probe: { queryTag: 'customer' },
 };
 
+const SEAL_CONFIG: ISealFieldConfig = {
+  kind: 'rsa-pkcs1-block-xor',
+  sourceRef: 'creds.password',
+  modulusRef: 'carry.modulus',
+  writeTo: '/credentials',
+  params: SEAL_PARAMS,
+};
+
 const SEAL_STEP: IPostStep = {
   name: 'login',
   urlTag: 'auth.login',
@@ -39,13 +49,7 @@ const SEAL_STEP: IPostStep = {
       authType: { $literal: 'VERSAFE' },
     },
   },
-  seal: {
-    kind: 'rsa-pkcs1-block-xor',
-    sourceRef: 'creds.password',
-    modulusRef: 'carry.modulus',
-    writeTo: '/credentials',
-    params: SEAL_PARAMS,
-  },
+  seal: SEAL_CONFIG,
   extractsToCarry: { state: '/state' },
 };
 
@@ -84,6 +88,18 @@ function sentForm(fake: IFetchFake): URLSearchParams {
 }
 
 /**
+ * The JSON body sent by the first request.
+ * @param fake - The fetch fake.
+ * @returns Parsed request body.
+ */
+function sentJson(fake: IFetchFake): unknown {
+  const body = fake.calls[0].init.body;
+  if (typeof body !== 'string') throw new TypeError('Expected a JSON request body');
+  const parsed: unknown = JSON.parse(body);
+  return parsed;
+}
+
+/**
  * Fire the seal step through the real mediator and native transport.
  * @param modulus - Value of `carry.modulus`.
  * @returns The step result.
@@ -92,6 +108,21 @@ async function fireSeal(modulus: string): ReturnType<typeof runStep> {
   const bus = makeNativeMediator(HINT, ORIGIN);
   const scope = scopeWith(modulus);
   return runStep({ step: SEAL_STEP, bus, scope, companyId: HINT });
+}
+
+/**
+ * A JSON seal step targeting a nested field.
+ * @param shape - Body template.
+ * @param writeTo - Destination pointer.
+ * @returns Step config.
+ */
+function jsonSeal(shape: IBodyTemplate['shape'], writeTo: string): IPostStep {
+  return {
+    ...SEAL_STEP,
+    encoding: 'json',
+    body: { shape },
+    seal: { ...SEAL_CONFIG, writeTo },
+  };
 }
 
 describe('N10 sealed login fields', () => {
@@ -124,6 +155,41 @@ describe('N10 sealed login fields', () => {
     const carried = JSON.stringify(result.value.carry);
     expect(carried).not.toContain(PASSWORD);
     expect(carried).not.toContain(sealed);
+  });
+
+  it.each(['carry reference', 'literal'] as const)(
+    'leaves nested %s data unchanged while sealing the request',
+    async source => {
+      const auth = { credentials: '', other: 'keep' };
+      const original = scopeWith(KEY.modulusHex);
+      const scope = { ...original, carry: { ...original.carry, auth } };
+      const node = source === 'literal' ? { $literal: auth } : { $ref: 'carry.auth' as const };
+      const step = jsonSeal({ auth: node }, '/auth/credentials');
+      const fake = serveState();
+      const bus = makeNativeMediator(HINT, ORIGIN);
+      const result = await runStep({ step, bus, scope, companyId: HINT });
+      expect(result.success).toBe(true);
+      expect(auth).toEqual({ credentials: '', other: 'keep' });
+      const sent = sentJson(fake);
+      const credentials: unknown = expect.stringMatching(/\S/u);
+      expect(sent).toEqual({ auth: { credentials, other: 'keep' } });
+    },
+  );
+
+  it('seals an existing array entry without dropping its siblings or mutating the literal', async () => {
+    const items = [{ credentials: '', other: 'keep' }, { other: 'untouched' }];
+    const step = jsonSeal({ items: { $literal: items } }, '/items/0/credentials');
+    const fake = serveState();
+    const bus = makeNativeMediator(HINT, ORIGIN);
+    const scope = scopeWith(KEY.modulusHex);
+    const result = await runStep({ step, bus, scope, companyId: HINT });
+    expect(result.success).toBe(true);
+    expect(items[0].credentials).toBe('');
+    const sent = sentJson(fake);
+    const credentials: unknown = expect.stringMatching(/\S/u);
+    expect(sent).toEqual({
+      items: [{ credentials, other: 'keep' }, { other: 'untouched' }],
+    });
   });
 
   it('fails "<step> seal key invalid" before any request for a bad modulus', async () => {

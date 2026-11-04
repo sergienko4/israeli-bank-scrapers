@@ -52,7 +52,8 @@ function applySeal(step: IStepConfig, prepared: IPreparedBody): Procedure<IPrepa
   if (seal === undefined) return succeed(prepared);
   const sealed = sealedValue(seal, prepared.scope);
   if (!isOk(sealed)) return fail(ScraperErrorTypes.Generic, `${step.name} ${sealed.errorMessage}`);
-  const written = writeAtPointer(prepared.body, seal.writeTo, sealed.value);
+  const body = structuredClone(prepared.body);
+  const written = writeAtPointer(body, seal.writeTo, sealed.value);
   if (!isOk(written)) return fail(ScraperErrorTypes.Generic, `${step.name} seal writeTo invalid`);
   return succeed({ body: written.value, scope: prepared.scope });
 }

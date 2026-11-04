@@ -99,6 +99,13 @@ describe('writeAtPointer — pointer validation', () => {
       expect(auth.signature).toBe('new-sig');
     }
   });
+
+  it.each(['01', '1', 'length'])('rejects array index %s without changing the payload', index => {
+    const doc = { items: [{ credentials: '', other: 'keep' }] };
+    const result = writeAtPointer(doc, `/items/${index}/credentials`, 'sealed-value');
+    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Generic });
+    expect(doc).toEqual({ items: [{ credentials: '', other: 'keep' }] });
+  });
 });
 
 describe('applyCryptoField — strict validation branches', () => {
