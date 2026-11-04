@@ -204,6 +204,14 @@ describe('Hapoalim browserless login', () => {
     expect(run.result.errorMessage).toContain('HTTP 207');
   });
 
+  it('omits bank response text from a failed transaction call', async () => {
+    const run = await runHapoalim('txns500');
+    expect(run.result.success).toBe(false);
+    expect(run.result.errorType).toBe(ScraperErrorTypes.Generic);
+    expect(run.result.errorMessage).toContain(' 500:');
+    expect(run.result.errorMessage).not.toContain(HP_BANK_NOTICE);
+  });
+
   it('fails a lost session mid-scrape without signing in again', async () => {
     const run = await runHapoalim('expire401');
     expect(run.result.success).toBe(false);

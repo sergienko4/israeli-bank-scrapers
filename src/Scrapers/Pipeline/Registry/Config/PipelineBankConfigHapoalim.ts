@@ -66,6 +66,7 @@ const HAPOALIM_HEADLESS: IHeadlessUrlsConfig = {
   cookieDomains: ['bankhapoalim.co.il'],
   redirectPolicy: 'reject',
   statusPolicy: { 204: 'empty', 203: 'fail', 206: 'fail', 207: 'fail' },
+  omitBankText: HAPOALIM_API_DIRECT_CALL.omitBankText,
 };
 
 export default HAPOALIM_API_DIRECT_CALL;

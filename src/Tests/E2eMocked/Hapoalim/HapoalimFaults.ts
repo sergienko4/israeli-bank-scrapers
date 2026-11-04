@@ -38,7 +38,13 @@ export type OtpVerifyFault = 'otpVerifyLocked' | 'otpVerifyReissue' | 'otpVerify
  * opens and accepts only a fresh session, so a stored one is refused.
  */
 export type DataFault =
-  'pageIdBad' | 'landingErrors' | 'txns204' | 'txns207' | 'expire401' | 'sessionExpired';
+  | 'pageIdBad'
+  | 'landingErrors'
+  | 'txns204'
+  | 'txns207'
+  | 'txns500'
+  | 'expire401'
+  | 'sessionExpired';
 
 /** How the mock misbehaves: a step-0 fault, a wire fault, or a bank answer. */
 export type HapoalimFault =

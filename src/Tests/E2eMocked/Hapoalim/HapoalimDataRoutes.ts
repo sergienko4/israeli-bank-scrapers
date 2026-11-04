@@ -15,7 +15,7 @@ import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { errorReply } from '../Helpers/FetchMockKit.js';
 import { bodiless, hasCookies, json, reply } from '../Helpers/MockReplies.js';
 import type { HapoalimFault, IMockRun, Route } from './HapoalimFaults.js';
-import { authCookieOf } from './HapoalimFaults.js';
+import { authCookieOf, HP_BANK_NOTICE } from './HapoalimFaults.js';
 import { accountOf, accountsBody, HP_XSRF_DECODED, rowsOf } from './HapoalimMockData.js';
 
 const API = '/ServerServices';
@@ -35,6 +35,7 @@ type FaultReply = readonly [number, string];
 const TXNS_FAULT_REPLY: Readonly<Partial<Record<HapoalimFault, FaultReply>>> = {
   txns204: [204, ''],
   txns207: [207, '{"transactions":[]}'],
+  txns500: [500, HP_BANK_NOTICE],
   expire401: [401, ''],
 };
 
