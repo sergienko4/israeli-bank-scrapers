@@ -28,7 +28,8 @@ const CALL: IStepConfig = {
 };
 
 const PAGE: IStepConfig = { ...CALL, response: 'document' };
-const MARKED: IStepConfig = { ...CALL, documentMarker: 'welcome' };
+const MARKED: IStepConfig = { ...CALL, response: 'document', documentMarker: 'welcome' };
+const MARKED_JSON: IStepConfig = { ...CALL, documentMarker: 'welcome' };
 const REJECTING: IStepConfig = { ...CALL, redirect: 'reject' };
 
 /**
@@ -91,9 +92,14 @@ const BROKEN: readonly IBrokenCase[] = [
   },
   { label: 'document step, plain', input: runOf([PAGE], PLAIN), message: `steps.response: ${OFF}` },
   {
-    label: 'marker, plain',
-    input: runOf([MARKED], PLAIN),
-    message: `steps.documentMarker: ${OFF}`,
+    label: 'marker off a document step',
+    input: runOf([MARKED_JSON], NATIVE),
+    message: 'steps.documentMarker: only on a document step',
+  },
+  {
+    label: 'marker off a document resume step',
+    input: resumeOf(MARKED_JSON),
+    message: 'steps.documentMarker: only on a document step',
   },
   {
     label: 'reject step, plain',

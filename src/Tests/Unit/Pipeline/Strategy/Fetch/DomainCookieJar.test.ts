@@ -198,6 +198,30 @@ describe('DomainCookieJar/secure and expiry', () => {
     expect([plain, tls]).toEqual(['', 's=1']);
   });
 
+  it('refuses an http response that would replace a stored Secure cookie', () => {
+    const jar = makeJar();
+    jar.add(WWW, ['sid=secure; Secure; Path=/']);
+    jar.add('http://www.bank.example/login', ['sid=plain; Path=/']);
+    const header = jar.header(WWW);
+    expect(header).toBe('sid=secure');
+  });
+
+  it('lets an https response replace a stored Secure cookie', () => {
+    const jar = makeJar();
+    jar.add(WWW, ['sid=old; Secure; Path=/']);
+    jar.add(WWW, ['sid=new; Path=/']);
+    const header = jar.header(WWW);
+    expect(header).toBe('sid=new');
+  });
+
+  it('lets an http response replace a stored non-Secure cookie', () => {
+    const jar = makeJar();
+    jar.add(WWW, ['sid=old; Path=/']);
+    jar.add('http://www.bank.example/login', ['sid=new; Path=/']);
+    const header = jar.header(WWW);
+    expect(header).toBe('sid=new');
+  });
+
   it('treats Secure with a value or spacing as Secure', () => {
     const jar = makeJar();
     jar.add(WWW, ['s=1; Secure=true; Path=/', 't=2;  SECURE = no ; Path=/']);

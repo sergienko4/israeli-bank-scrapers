@@ -2,9 +2,10 @@
  * N8 — the session-transport fields of an api-direct call config are
  * checked against its bank's headless block when the pipeline is built.
  *
- * A document step reads no body extracts; a manual redirect runs only on a
- * GET step, allows at least one URL rule and 1–10 hops, and needs the bank
- * default `reject`. Each broken config fails with its exact
+ * A document step reads no body extracts or outcome, and carries a marker
+ * only when it is a document step; a manual redirect runs only on a GET step,
+ * allows at least one URL rule and 1–10 hops, and needs the bank default
+ * `reject`. Each broken config fails with its exact
  * `"<field>: <rule>"` text; the bootstrap / landing / logon steps a
  * session bank runs pass.
  */
@@ -135,6 +136,16 @@ const DOC_OPTIONAL: IStepConfig = {
   ...BOOTSTRAP,
   optionalExtractsToCarry: { token: { pointer: '/token' } },
 };
+const DOC_OUTCOME: IStepConfig = {
+  ...BOOTSTRAP,
+  outcome: {
+    codePointer: '/code',
+    successCodes: ['0'],
+    failureMap: {},
+    defaultFailure: ScraperErrorTypes.Generic,
+  },
+};
+const MARKED_JSON: IStepConfig = { ...LOGON, documentMarker: 'welcome' };
 const POST_MANUAL: IStepConfig = { ...LOGON, redirect: MANUAL };
 
 /** A config, the headless block beside it, and the text it fails with. */
@@ -144,7 +155,8 @@ interface IBrokenCase {
   readonly message: string;
 }
 
-const DOC_MSG = 'steps.response: a document step reads no body extracts';
+const DOC_MSG = 'steps.response: a document step reads no body extracts or outcome';
+const MARKER_MSG = 'steps.documentMarker: only on a document step';
 const GET_MSG = 'steps.redirect: manual only on GET steps';
 const BANK_MANUAL_MSG = 'headless.redirectPolicy: manual only on GET steps';
 const ALLOW_MSG = 'redirect.allow: must not be empty';
@@ -154,7 +166,11 @@ const DEFAULT_MSG = 'headless.redirectPolicy: must be reject when a step redirec
 const BROKEN: readonly IBrokenCase[] = [
   { label: 'document step with extracts', input: runOf([DOC_EXTRACTS], REJECT), message: DOC_MSG },
   { label: 'document step, optional', input: runOf([DOC_OPTIONAL], REJECT), message: DOC_MSG },
+  { label: 'document step with outcome', input: runOf([DOC_OUTCOME], REJECT), message: DOC_MSG },
   { label: 'document resume step', input: resumeOf(DOC_EXTRACTS), message: DOC_MSG },
+  { label: 'document resume step with outcome', input: resumeOf(DOC_OUTCOME), message: DOC_MSG },
+  { label: 'marker off a document step', input: runOf([MARKED_JSON], REJECT), message: MARKER_MSG },
+  { label: 'marker off a resume step', input: resumeOf(MARKED_JSON), message: MARKER_MSG },
   { label: 'manual POST step', input: runOf([POST_MANUAL], REJECT), message: GET_MSG },
   { label: 'manual POST resume step', input: resumeOf(POST_MANUAL), message: GET_MSG },
   {

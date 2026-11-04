@@ -1,10 +1,10 @@
 /**
  * Session-transport rules for an api-direct call config (N8). A `document`
- * step answers `{}`, so it reads no body extracts. A manual redirect follows
- * its hops as GETs, so it runs only on a GET step — never as the bank
- * default, which every POST shares — allows at least one URL rule and
- * 1–10 hops, and needs the bank default `reject` so no other call follows a
- * redirect unseen.
+ * step answers `{}`, so it reads no body extracts or outcome, and its marker
+ * belongs only on that step. A manual redirect follows its hops as GETs, so it
+ * runs only on a GET step — never as the bank default, which every POST
+ * shares — allows at least one URL rule and 1–10 hops, and needs the bank
+ * default `reject` so no other call follows a redirect unseen.
  */
 
 import type { IStepConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
@@ -46,13 +46,36 @@ function readsBodyExtracts(step: IStepConfig): boolean {
 }
 
 /**
- * A document step sees `{}`, so a body extract could never be found.
+ * Whether a step reads its answer body at all: through a body extract or an
+ * outcome code.
+ * @param step - Login step.
+ * @returns True when it names a body extract or an outcome.
+ */
+function readsBody(step: IStepConfig): boolean {
+  return readsBodyExtracts(step) || step.outcome !== undefined;
+}
+
+/**
+ * A document step sees `{}`, so a body extract or outcome could never resolve.
  * @param input - Rule input.
- * @returns True when a document step names a body extract.
+ * @returns True when a document step names a body extract or an outcome.
  */
 function isDocumentReadingBody(input: IApiDirectRuleInput): boolean {
   const steps = allSteps(input.call);
-  return steps.some((step): boolean => step.response === 'document' && readsBodyExtracts(step));
+  return steps.some((step): boolean => step.response === 'document' && readsBody(step));
+}
+
+/**
+ * A document marker is checked only on a document step; any other step reads
+ * its 2xx answer as JSON and ignores the marker.
+ * @param input - Rule input.
+ * @returns True when a step names a marker without `response: 'document'`.
+ */
+function isMarkerOffDocument(input: IApiDirectRuleInput): boolean {
+  const steps = allSteps(input.call);
+  return steps.some(
+    (step): boolean => step.documentMarker !== undefined && step.response !== 'document',
+  );
 }
 
 /**
@@ -119,9 +142,10 @@ function isManualWithoutRejectDefault(input: IApiDirectRuleInput): boolean {
 /** Session-transport rules, checked in order after the core rules. */
 const API_DIRECT_TRANSPORT_RULES: readonly IApiDirectRule[] = [
   {
-    message: 'steps.response: a document step reads no body extracts',
+    message: 'steps.response: a document step reads no body extracts or outcome',
     isBroken: isDocumentReadingBody,
   },
+  { message: 'steps.documentMarker: only on a document step', isBroken: isMarkerOffDocument },
   { message: 'steps.redirect: manual only on GET steps', isBroken: isManualOffGet },
   { message: 'headless.redirectPolicy: manual only on GET steps', isBroken: isBankDefaultManual },
   { message: 'redirect.allow: must not be empty', isBroken: hasEmptyAllow },

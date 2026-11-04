@@ -23,16 +23,27 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { makeMockOptions, MOCK_API_DIRECT_SHAPE } from '../../Infrastructure/MockFactories.js';
+import {
+  makeMockOptions,
+  MOCK_API_DIRECT_SHAPE,
+  MOCK_LOGIN_CONFIG,
+} from '../../Infrastructure/MockFactories.js';
 
 const JAR_BANK = 'jarBank' as unknown as CompanyTypes;
+const TLS_BANK = 'tlsBank' as unknown as CompanyTypes;
+const TLS_CLEAN_BANK = 'tlsCleanBank' as unknown as CompanyTypes;
 
 /**
- * Mocked resolver: only the jar bank has a config.
+ * Mocked resolver: only the jar bank has a config; the TLS banks need
+ * node:https.
  * @param companyId - Bank named in the options.
- * @returns A config whose headless block keeps a cookie jar, or false.
+ * @returns A config whose headless block names the transport, or false.
  */
 function resolveMocked(companyId: CompanyTypes): object | false {
+  if (companyId === TLS_BANK) {
+    return { headless: { requiresClientCert: true, redirectPolicy: 'reject' } };
+  }
+  if (companyId === TLS_CLEAN_BANK) return { headless: { requiresClientCert: true } };
   if (companyId !== JAR_BANK) return false;
   return { headless: { sessionCookies: true } };
 }
@@ -98,6 +109,20 @@ function buildWith(
   return withScrape.build();
 }
 
+/**
+ * Build a headless declarative-login pipeline, so no api-direct config exists.
+ * @param opts - Scraper options naming the bank.
+ * @returns Build result.
+ */
+function buildPlain(opts: ScraperOptions): Procedure<IPipelineDescriptor> {
+  const builder = BUILDER_FACTORY.createPipelineBuilder();
+  const seeded = builder.withOptions(opts);
+  const headless = seeded.withHeadlessMediator();
+  const withLogin = headless.withDeclarativeLogin(MOCK_LOGIN_CONFIG);
+  const withScrape = withLogin.withScraper(stubScrape);
+  return withScrape.build();
+}
+
 describe('PipelineBuilder — api-direct config rules (E14)', () => {
   it('builds authScheme none for a bank whose headless block keeps a jar', () => {
     const opts = makeMockOptions({ companyId: JAR_BANK });
@@ -127,6 +152,24 @@ describe('PipelineBuilder — api-direct config rules (E14)', () => {
   it('builds a step jar for a bank with no headless block', () => {
     const opts = makeMockOptions();
     const result = buildWith(opts, JAR_STEP_CALL);
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('PipelineBuilder — node-tls headless rules', () => {
+  it('refuses a native-only redirect policy without an api-direct config', () => {
+    const opts = makeMockOptions({ companyId: TLS_BANK });
+    const result = buildPlain(opts);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'headless.redirectPolicy: not allowed without headless.nativeFetch',
+    });
+  });
+
+  it('builds a node-tls block that names no native-only field', () => {
+    const opts = makeMockOptions({ companyId: TLS_CLEAN_BANK });
+    const result = buildPlain(opts);
     expect(result.success).toBe(true);
   });
 });

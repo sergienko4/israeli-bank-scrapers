@@ -300,7 +300,7 @@ A GET step that reaches a page through one allowed redirect:
   },
   response: 'document',       // HTML: read, checked for the marker, discarded
   documentMarker: 'id="app"', // text the page must contain
-  extractsToCarry: {},        // a document step reads no body extracts
+  extractsToCarry: {},        // a document step reads no body extracts or outcome
 }
 ```
 
@@ -348,27 +348,30 @@ rules, `API_DIRECT_TRANSPORT_RULES` in `Core/Builder/ApiDirectTransportRules.ts`
 run after the core rules. The native-fetch rules, `API_DIRECT_NATIVE_RULES` in
 `Core/Builder/ApiDirectNativeRules.ts`, run last: the session-transport fields
 act only on the headless native fetch, and any other transport would ignore
-them and run unguarded, so naming one off native fetch fails the build. The
-first broken rule fails the build with `Generic` and `<field>: <rule>`:
+them and run unguarded, so naming one off native fetch fails the build. Its
+`NATIVE_STEP_FIELDS` and `NATIVE_HEADLESS_FIELDS` lists are the single source
+of those field names, shared with the node-tls check. The first broken rule
+fails the build with `Generic` and `<field>: <rule>`:
 
-| Broken when                                                                      | Message                                                                  |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `authScheme: 'prefixed'` with a missing or blank `authPrefix`                    | `authPrefix: required when authScheme is prefixed`                       |
-| `authScheme: 'none'` without `headless.sessionCookies: true`                     | `headless.sessionCookies: required when authScheme is none`              |
-| `headless.sessionCookies` and any login or resume step with `cookieJar`          | `steps.cookieJar: not allowed with headless.sessionCookies`              |
-| any login or resume step whose `outcome.successCodes` is empty                   | `outcome.successCodes: must not be empty`                                |
-| `warmStart` validated as `'jwt'` (the default) with no `jwtClaims`               | `jwtClaims: required when warmStart.validation is jwt`                   |
-| `warmStart` validated as `'bank-call'` with a `fromStepIndex` that names no step | `warmStart.fromStepIndex: must name a step when validation is bank-call` |
-| `warmStart.fromStepIndex` below 1                                                | `warmStart.fromStepIndex: must start after the first step`               |
-| `warmStart.fromStepIndex` fractional, `NaN` or above `steps.length`              | `warmStart.fromStepIndex: must be a whole number up to the step count`   |
-| a `response: 'document'` step with any `extractsToCarry` or `optionalExtractsToCarry` | `steps.response: a document step reads no body extracts`                 |
-| a manual `redirect` on a step whose `method` is not `GET`                             | `steps.redirect: manual only on GET steps`                               |
-| a manual `headless.redirectPolicy` (the default every POST shares)                    | `headless.redirectPolicy: manual only on GET steps`                      |
-| a manual `redirect` whose `allow` list is empty                                       | `redirect.allow: must not be empty`                                      |
-| a manual `redirect` whose `maxHops` is not an integer from 1 to 10                    | `redirect.maxHops: must be an integer from 1 to 10`                      |
-| a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`     | `headless.redirectPolicy: must be reject when a step redirects manually` |
+| Broken when                                                                                                                           | Message                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `authScheme: 'prefixed'` with a missing or blank `authPrefix`                                                                         | `authPrefix: required when authScheme is prefixed`                       |
+| `authScheme: 'none'` without `headless.sessionCookies: true`                                                                          | `headless.sessionCookies: required when authScheme is none`              |
+| `headless.sessionCookies` and any login or resume step with `cookieJar`                                                               | `steps.cookieJar: not allowed with headless.sessionCookies`              |
+| any login or resume step whose `outcome.successCodes` is empty                                                                        | `outcome.successCodes: must not be empty`                                |
+| `warmStart` validated as `'jwt'` (the default) with no `jwtClaims`                                                                    | `jwtClaims: required when warmStart.validation is jwt`                   |
+| `warmStart` validated as `'bank-call'` with a `fromStepIndex` that names no step                                                      | `warmStart.fromStepIndex: must name a step when validation is bank-call` |
+| `warmStart.fromStepIndex` below 1                                                                                                     | `warmStart.fromStepIndex: must start after the first step`               |
+| `warmStart.fromStepIndex` fractional, `NaN` or above `steps.length`                                                                   | `warmStart.fromStepIndex: must be a whole number up to the step count`   |
+| a `response: 'document'` step with any `extractsToCarry`, `optionalExtractsToCarry` or `outcome`                                      | `steps.response: a document step reads no body extracts or outcome`      |
+| a `documentMarker` on any step whose `response` is not `'document'`                                                                   | `steps.documentMarker: only on a document step`                          |
+| a manual `redirect` on a step whose `method` is not `GET`                                                                             | `steps.redirect: manual only on GET steps`                               |
+| a manual `headless.redirectPolicy` (the default every POST shares)                                                                    | `headless.redirectPolicy: manual only on GET steps`                      |
+| a manual `redirect` whose `allow` list is empty                                                                                       | `redirect.allow: must not be empty`                                      |
+| a manual `redirect` whose `maxHops` is not an integer from 1 to 10                                                                    | `redirect.maxHops: must be an integer from 1 to 10`                      |
+| a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`                                                     | `headless.redirectPolicy: must be reject when a step redirects manually` |
 | a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |
-| `headless.cookieDomains`, `redirectPolicy` or `statusPolicy` without `headless.nativeFetch: true`                                     | `headless.<field>: not allowed without headless.nativeFetch`             |
+| `headless.cookieDomains`, `redirectPolicy` or `statusPolicy` without `headless.nativeFetch: true`, on an api-direct or node-tls bank  | `headless.<field>: not allowed without headless.nativeFetch`             |
 | `headless.cookieDomains` without `headless.sessionCookies: true`                                                                      | `headless.cookieDomains: not allowed without headless.sessionCookies`    |
 | a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                            | `headerExtractsToCarry.header: must be an HTTP header name`              |
 

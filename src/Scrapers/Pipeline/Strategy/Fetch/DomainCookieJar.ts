@@ -63,6 +63,15 @@ function evictExpiredKey(state: IJarState, key: string, nowS: number): boolean {
 }
 
 /**
+ * The RFC 6265 identity of a cookie: its name, domain and path.
+ * @param cookie - Stored cookie.
+ * @returns The store key.
+ */
+function keyOf(cookie: IStoredCookie): string {
+  return [cookie.name, cookie.domain, cookie.path].join(';');
+}
+
+/**
  * Store a cookie under its RFC key, or delete the key when it has expired;
  * a cookie the jar may not hold is ignored.
  * @param state - Jar state.
@@ -71,12 +80,29 @@ function evictExpiredKey(state: IJarState, key: string, nowS: number): boolean {
  */
 function upsert(state: IJarState, cookie: IStoredCookie): number {
   if (!isStorable(state, cookie)) return state.store.size;
-  const key = [cookie.name, cookie.domain, cookie.path].join(';');
+  const key = keyOf(cookie);
   const nowS = nowEpochS();
   evictExpiredKey(state, key, nowS);
   if (isExpired(cookie, nowS)) state.store.delete(key);
   if (!isExpired(cookie, nowS)) state.store.set(key, { ...cookie });
   return state.store.size;
+}
+
+/**
+ * Store a parsed cookie unless a non-HTTPS answer would replace a stored
+ * Secure cookie of the same key, which would let a downgraded cookie travel
+ * over TLS later.
+ * @param state - Jar state.
+ * @param isSecure - Whether the answering URL used HTTPS.
+ * @param cookie - Parsed cookie.
+ * @returns The store size.
+ */
+function upsertFromLine(state: IJarState, isSecure: boolean, cookie: IStoredCookie): number {
+  const key = keyOf(cookie);
+  const stored = state.store.get(key);
+  const isShadowingSecure = stored?.secure === true;
+  if (!isSecure && isShadowingSecure) return state.store.size;
+  return upsert(state, cookie);
 }
 
 /**
@@ -92,7 +118,7 @@ function addLines(state: IJarState, url: string, lines: readonly string[]): numb
   const context = { target, allow: state.allow, nowS: nowEpochS() };
   const parsed = lines.map((line): IStoredCookie | false => parseSetCookie(line, context));
   const cookies = parsed.filter((cookie): cookie is IStoredCookie => cookie !== false);
-  for (const cookie of cookies) upsert(state, cookie);
+  for (const cookie of cookies) upsertFromLine(state, target.isSecure, cookie);
   return state.store.size;
 }
 

@@ -31,6 +31,9 @@ const ANSWER_BODY = { xsrfToken: 'syn-xsrf', modulus: 'syn-mod' };
 
 const ANSWER_HEADERS: readonly HeaderPair[] = [['serid', 'syn-serid']];
 
+/** The slots the base step extracts before deriving a new one. */
+const PRESERVED = { xsrfToken: 'syn-xsrf', modulus: 'syn-mod', serid: 'syn-serid' } as const;
+
 const BASE_STEP: IGetStep = {
   name: 'bind',
   urlTag: 'auth.bind',
@@ -74,7 +77,10 @@ describe('N7 step-level derived carry', () => {
     const parts: readonly RefToken[] = ['carry.xsrfToken', 'carry.serid'];
     const result = await runDerive([{ into: 'composite', parts, separator: '###3' }]);
     const composite = 'syn-xsrf###3syn-serid';
-    expect(result).toMatchObject({ success: true, value: { carry: { composite } } });
+    expect(result).toMatchObject({
+      success: true,
+      value: { carry: { composite, ...PRESERVED } },
+    });
   });
 
   it('UT-DV-02 wraps an extract in config.secrets parts with no separator', async () => {
@@ -85,7 +91,10 @@ describe('N7 step-level derived carry', () => {
     ];
     const result = await runDerive([{ into: 'wrapped', parts }]);
     const wrapped = 'syn-pre-syn-mod-syn-post';
-    expect(result).toMatchObject({ success: true, value: { carry: { wrapped } } });
+    expect(result).toMatchObject({
+      success: true,
+      value: { carry: { wrapped, ...PRESERVED } },
+    });
   });
 
   it('UT-DV-03 fails the step with the evaluator message when a part is missing', async () => {
