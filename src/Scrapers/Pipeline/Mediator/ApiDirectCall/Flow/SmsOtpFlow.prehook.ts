@@ -13,6 +13,8 @@
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
+import { DEFAULT_OTP_TIMEOUT_MS } from '../../Timing/OtpTimingConfig.js';
+import { RACE_TIMED_OUT, raceTimeout } from '../../Timing/TimingActions.js';
 import type { IPreStepHook } from '../ConfigContracts/EnvelopeTypes.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { acquirePreHookValue } from './SmsOtpFlow.prehookCache.js';
@@ -22,6 +24,7 @@ import type { IApplyPreHookArgs } from './SmsOtpFlow.types.js';
 type PreHookRetriever = (hint: string) => Promise<unknown>;
 
 const CARRY_PREFIX = 'carry.';
+const OTP_TIMEOUT_MESSAGE = 'OTP timeout — code not received';
 
 /**
  * Build the standard preHook missing-function failure procedure.
@@ -87,6 +90,34 @@ function hintedRetriever(args: IApplyPreHookArgs): Procedure<() => Promise<unkno
 }
 
 /**
+ * Resolves a positive, finite OTP wait budget.
+ * @param creds - Credentials and scraper options for this flow.
+ * @returns The configured deadline or the standard OTP deadline.
+ */
+function otpBudget(creds: Readonly<Record<string, unknown>>): Procedure<number> {
+  const ms = creds.otpTimeoutMs;
+  if (ms === undefined) return succeed(DEFAULT_OTP_TIMEOUT_MS);
+  if (typeof ms === 'number' && Number.isFinite(ms) && ms > 0) return succeed(ms);
+  return fail(ScraperErrorTypes.Generic, 'preHook: otpTimeoutMs invalid');
+}
+
+/**
+ * Bounds callback acquisition even when the caller's retriever never settles.
+ * @param args - Scope, credentials, hook and flow-scoped cache.
+ * @returns The acquired value or a timeout failure.
+ */
+async function acquireWithinBudget(args: IApplyPreHookArgs): Promise<Procedure<string>> {
+  const fnProc = hintedRetriever(args);
+  if (!isOk(fnProc)) return fnProc;
+  const budget = otpBudget(args.creds);
+  if (!isOk(budget)) return budget;
+  const acquired = acquirePreHookValue({ cache: args.cache, hook: args.hook, fn: fnProc.value });
+  const result = await raceTimeout(budget.value, acquired);
+  if (result === RACE_TIMED_OUT) return fail(ScraperErrorTypes.Timeout, OTP_TIMEOUT_MESSAGE);
+  return result;
+}
+
+/**
  * Acquire the hook's credential and deposit the string result into
  * `carry[intoCarryField]`. Non-string returns fail.
  *
@@ -97,10 +128,7 @@ function hintedRetriever(args: IApplyPreHookArgs): Procedure<() => Promise<unkno
  * @returns Updated scope or fail.
  */
 async function applyPreHook(args: IApplyPreHookArgs): Promise<Procedure<ITemplateScope>> {
-  const fnProc = hintedRetriever(args);
-  if (!isOk(fnProc)) return fnProc;
-  const acquireArgs = { cache: args.cache, hook: args.hook, fn: fnProc.value };
-  const valueProc = await acquirePreHookValue(acquireArgs);
+  const valueProc = await acquireWithinBudget(args);
   if (!isOk(valueProc)) return valueProc;
   const nextCarry = { ...args.scope.carry, [args.hook.intoCarryField]: valueProc.value };
   return succeed({ ...args.scope, carry: nextCarry });

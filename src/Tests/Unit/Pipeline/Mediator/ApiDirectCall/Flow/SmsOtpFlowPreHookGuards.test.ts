@@ -16,6 +16,7 @@ import type {
   IStepConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { runSmsOtpFlow } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/SmsOtpFlow.js';
+import { DEFAULT_OTP_TIMEOUT_MS } from '../../../../../../Scrapers/Pipeline/Mediator/Timing/OtpTimingConfig.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { ICookieSession } from '../../../../../../Scrapers/Pipeline/Types/Domain/CookieSession.js';
 import type { JsonValue } from '../../../../../../Scrapers/Pipeline/Types/JsonValue.js';
@@ -61,6 +62,8 @@ interface IGuardRunArgs {
   readonly bind: JsonValue;
   readonly code?: string;
   readonly thrown?: Error;
+  readonly retriever?: (hint: string) => Promise<string>;
+  readonly otpTimeoutMs?: number;
   readonly jar?: ICookieSession;
   readonly setCookies?: IStepConfig['setCookies'];
 }
@@ -183,13 +186,22 @@ async function runGuarded(args: IGuardRunArgs): Promise<IGuardRun> {
    */
   const otpCodeRetriever = (hint: string): Promise<string> => {
     hints.push(hint);
+    if (args.retriever !== undefined) return args.retriever(hint);
     if (args.thrown !== undefined) return Promise.reject(args.thrown);
     return Promise.resolve(args.code ?? '12345');
   };
   const config = configWith(args.hook, args.setCookies);
-  const creds = { otpCodeRetriever };
+  const creds = { otpCodeRetriever, otpTimeoutMs: args.otpTimeoutMs };
   const result = await runSmsOtpFlow({ config, bus, creds, companyId: HINT });
   return { result, captures, hints };
+}
+
+/**
+ * Simulates an OTP source that never delivers a code.
+ * @returns A pending retriever promise.
+ */
+function pendingOtpCode(): Promise<string> {
+  return new Promise<string>(() => undefined);
 }
 
 describe('SmsOtpFlow — pre-hook guards', () => {
@@ -366,5 +378,40 @@ describe('SmsOtpFlow — pre-hook guards', () => {
     const run = await runGuarded({ hook: HOOK, bind: FULL_BIND, thrown });
     const message = run.result.success ? '' : run.result.errorMessage;
     expect(message).toBe('preHook: creds.otpCodeRetriever() threw Error');
+  });
+
+  it('rejects a nonpositive OTP budget before asking for a code', async () => {
+    const run = await runGuarded({ hook: HOOK, bind: FULL_BIND, otpTimeoutMs: 0 });
+    expect(run.result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'preHook: otpTimeoutMs invalid',
+    });
+    expect(run.hints).toEqual([]);
+    expect(run.captures).toHaveLength(1);
+  });
+
+  it.each<[string, number | undefined, number]>([
+    ['configured', 10, 10],
+    ['default', undefined, DEFAULT_OTP_TIMEOUT_MS],
+  ])('times out a pending retriever with the %s OTP budget', async (_label, otpTimeoutMs, ms) => {
+    jest.useFakeTimers();
+    try {
+      const request = runGuarded({
+        hook: HOOK,
+        bind: FULL_BIND,
+        otpTimeoutMs,
+        retriever: pendingOtpCode,
+      });
+      await jest.advanceTimersByTimeAsync(ms);
+      const run = await Promise.race([request, Promise.resolve('still waiting')]);
+      expect(run).toMatchObject({
+        result: { success: false, errorType: ScraperErrorTypes.Timeout },
+        captures: [expect.anything()],
+        hints: ['050***1234'],
+      });
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });
