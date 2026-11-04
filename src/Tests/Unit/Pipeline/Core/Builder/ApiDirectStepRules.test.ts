@@ -130,6 +130,11 @@ describe('validateApiDirectConfig — extractRules', () => {
     ['two repeats apart', { state: { pattern: String.raw`^\d+-\d+$` } }, FLAT_MSG],
     ['two bounded ranges', { state: { pattern: '^.{0,64}.{0,64}$' } }, FLAT_MSG],
     ['two optional atoms', { state: { pattern: '^a?a?$' } }, FLAT_MSG],
+    [
+      'optional Unicode code-point escapes',
+      { state: { pattern: String.raw`^\u{61}?\u{61}?a$` } },
+      FLAT_MSG,
+    ],
     ['a repeat before a long exact count', { state: { pattern: '^.*a{20000}$' } }, FLAT_MSG],
     ['a repeat before a literal', { state: { pattern: String.raw`^\w+!$` } }, FLAT_MSG],
     ['a zero maxChars', { state: { maxChars: 0 } }, MAX_MSG],
@@ -177,6 +182,9 @@ describe('validateApiDirectConfig — extractRules', () => {
     ['quantifier characters inside a class', '^[(+*?{}|]+$'],
     ['a lazy repeat', String.raw`^\w+?$`],
     ['an exact lazy count beside a repeat', String.raw`^a{2}?\d*$`],
+    ['a final optional Unicode escape', String.raw`^\u{61}?$`],
+    ['fixed escapes before a final repeat', String.raw`^\x61{2}\u0062+$`],
+    ['an escaped bracket in a class', String.raw`^[\]]+$`],
   ])('a pattern with %s passes', (_label, pattern) => {
     const step = ruled({ state: { pattern } });
     const input = runOf(step);
@@ -251,6 +259,7 @@ describe('validateApiDirectConfig — preHook.valuePattern', () => {
     ['a group', String.raw`^(\d+)+$`],
     ['two repeats', String.raw`^\d+\d+$`],
     ['a repeat before a literal', String.raw`^\d*x$`],
+    ['an optional Unicode escape before a literal', String.raw`^\u{61}?b$`],
   ])('%s fails the build', (_label, valuePattern) => {
     const step = hookedStep(valuePattern);
     const input = resumeOf(step);
