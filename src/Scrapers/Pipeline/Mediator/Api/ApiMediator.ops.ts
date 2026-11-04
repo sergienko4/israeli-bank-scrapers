@@ -189,12 +189,11 @@ async function apiGetOp<T>(
  */
 function buildFireQueryArgs(args: IApiQueryOpArgs, queryString: string): IFireQueryArgs {
   const { ctx, variables, opts } = args;
+  const base = { deps: ctx.deps, queryString, variables, rawAuth: ctx.state.rawAuth };
   return {
-    deps: ctx.deps,
-    queryString,
-    variables,
-    rawAuth: ctx.state.rawAuth,
+    ...base,
     extraHeaders: opts?.extraHeaders ?? NO_EXTRA_HEADERS,
+    policy: opts?.policy,
   };
 }
 

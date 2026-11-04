@@ -101,7 +101,7 @@ interface IFirePostArgs extends Pick<IApiQueryOpts, 'onSetCookie' | 'policy'> {
 type IFireGetArgs = Omit<IFirePostArgs, 'body'>;
 
 /** Args for fireQuery — bundled to satisfy the 3-parameter ceiling. */
-interface IFireQueryArgs {
+interface IFireQueryArgs extends Pick<IApiQueryOpts, 'policy'> {
   readonly deps: IApiMediatorDeps;
   readonly queryString: string;
   readonly variables: Record<string, unknown>;

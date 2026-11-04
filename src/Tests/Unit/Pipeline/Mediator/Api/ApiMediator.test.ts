@@ -32,6 +32,9 @@ import type {
   PostData,
 } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 import { GraphQLFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
+import type { INativeFetchOptions } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js';
+import type { IApiQueryOpts } from '../../../../../Scrapers/Pipeline/Types/Domain/ApiQueryOpts.js';
+import type { IResponseHeaderSink } from '../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
@@ -556,10 +559,23 @@ const POLICY_CALLS = [
     /**
      * Exercise the identity transport through the mediator.
      * @param mediator - Mediator configured with bank policies.
+     * @param opts - Per-call policy and hooks.
      * @returns The REST outcome.
      */
-    call: (mediator: IApiMediator): Promise<Procedure<unknown>> =>
-      mediator.apiGet('identity.deviceToken'),
+    call: (mediator: IApiMediator, opts?: IApiQueryOpts): Promise<Procedure<unknown>> =>
+      mediator.apiGet('identity.deviceToken', opts),
+  },
+  {
+    label: 'REST POST',
+    prefix: 'POST https://id.example/devices/token',
+    /**
+     * Exercise a POST through the same mediator.
+     * @param mediator - Mediator configured with bank policies.
+     * @param opts - Per-call policy and hooks.
+     * @returns The REST outcome.
+     */
+    call: (mediator: IApiMediator, opts?: IApiQueryOpts): Promise<Procedure<unknown>> =>
+      mediator.apiPost('identity.deviceToken', {}, opts),
   },
   {
     label: 'GraphQL',
@@ -567,12 +583,27 @@ const POLICY_CALLS = [
     /**
      * Exercise the independent GraphQL transport through the same mediator.
      * @param mediator - Mediator configured with bank policies.
+     * @param opts - Per-call policy and hooks.
      * @returns The GraphQL outcome.
      */
-    call: (mediator: IApiMediator): Promise<Procedure<unknown>> =>
-      mediator.apiQuery('customer', {}),
+    call: (mediator: IApiMediator, opts?: IApiQueryOpts): Promise<Procedure<unknown>> =>
+      mediator.apiQuery('customer', {}, opts),
   },
 ];
+
+/**
+ * Builds real transports with synthetic endpoints and optional bank policies.
+ * @param options - Bank-wide transport defaults.
+ * @returns The mediator under test.
+ */
+function buildPolicyMediator(options: INativeFetchOptions = {}): IApiMediator {
+  return createHeadlessApiMediator({
+    bankHint: HINT,
+    identityBaseUrl: 'https://id.example/v1/',
+    graphqlUrl: 'https://gql.example/graphql',
+    ...options,
+  });
+}
 
 describe('ApiMediator — redirect policy', () => {
   const originalFetch = globalThis.fetch;
@@ -601,6 +632,46 @@ describe('ApiMediator — redirect policy', () => {
     const call = recorder.getCalls[0];
     expect(call.opts.redirect).toBe('follow');
   });
+
+  it.each(POLICY_CALLS)('honors a $label per-call redirect refusal', async ({ call, prefix }) => {
+    const response = new Response(null, { status: 302, headers: { location: '/elsewhere' } });
+    const fetch = jest.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+    const mediator = buildPolicyMediator();
+    const result = await call(mediator, { policy: { redirect: 'reject' } });
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: `${prefix} HTTP 302 redirect refused`,
+    });
+    expect(fetch.mock.calls[0]?.[1]?.redirect).toBe('manual');
+  });
+
+  it.each(POLICY_CALLS)(
+    'lets a $label call override the bank redirect default',
+    async ({ call }) => {
+      const response = new Response('{"data":{}}', { status: 200 });
+      const fetch = jest.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+      const mediator = buildPolicyMediator({ redirectPolicy: 'reject' });
+      const result = await call(mediator, { policy: { redirect: 'follow' } });
+      expect(result.success).toBe(true);
+      expect(fetch.mock.calls[0]?.[1]).not.toHaveProperty('redirect');
+    },
+  );
+
+  it.each(POLICY_CALLS)(
+    'delivers only declared headers to the $label call sink',
+    async ({ call }) => {
+      const headers = { 'X-Trace': 'synthetic-trace', 'X-Undeclared': 'not-requested' };
+      const response = new Response('{"data":{}}', { headers });
+      jest.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+      const take = jest.fn<number, Parameters<IResponseHeaderSink['take']>>().mockReturnValue(1);
+      const headerSink = { names: ['x-trace'], take };
+      const mediator = buildPolicyMediator();
+      const result = await call(mediator, { policy: { headerSink } });
+      expect(result.success).toBe(true);
+      expect(take).toHaveBeenCalledTimes(1);
+      expect(take).toHaveBeenCalledWith({ 'x-trace': 'synthetic-trace' });
+    },
+  );
 
   it.each(POLICY_CALLS)('runs $label under the bank redirect default', async ({ call, prefix }) => {
     const redirect = new Response(null, { status: 302, headers: { location: '/elsewhere' } });

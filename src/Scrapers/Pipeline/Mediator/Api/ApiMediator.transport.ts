@@ -236,7 +236,7 @@ async function sendQuery<T>(
   onEmptyResponse: () => number,
 ): Promise<Procedure<IGraphQLEnvelope<T>>> {
   const extraHeaders = mergeHeaders(args.rawAuth, args.extraHeaders);
-  const opts = { extraHeaders, onEmptyResponse };
+  const opts = { ...args.policy, extraHeaders, onEmptyResponse };
   const { queryString, variables } = args;
   return args.deps.graphqlStrategy.query<IGraphQLEnvelope<T>>(queryString, variables, opts);
 }
