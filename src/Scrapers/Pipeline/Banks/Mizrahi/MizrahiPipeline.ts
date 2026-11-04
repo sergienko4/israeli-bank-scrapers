@@ -1,40 +1,28 @@
 /**
- * Mizrahi pipeline — browser login (username + password, no OTP) + the
- * hard-model API-direct scrape. INIT/HOME/LOGIN stay generic: HOME reveals
- * the login modal and LOGIN fills the same-origin login iframe. After
- * login, `.withBrowserApiDirect(MIZRAHI_SHAPE)` replaces the generic
- * discovery chain with Mizrahi's exact `mto` API calls.
+ * Mizrahi pipeline — API-native descriptor: the config-driven API-DIRECT-CALL
+ * phase logs in with the username and password over Mizrahi's web API and
+ * hands the session to the online-banking host, then the shape-driven
+ * API-DIRECT-SCRAPE phase switches to each account and reads its balance and
+ * transactions. No browser is launched.
  */
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
-import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilderFactory.js';
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
+import { MIZRAHI_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigMizrahi.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { MIZRAHI_SHAPE } from './scrape/MizrahiShape.js';
-
-/** Mizrahi login config — credential keys only. WellKnown resolves selectors. */
-export const MIZRAHI_LOGIN: ILoginConfig = {
-  loginUrl: '',
-  fields: [
-    { credentialKey: 'username', selectors: [] },
-    { credentialKey: 'password', selectors: [] },
-  ],
-  submit: [],
-  possibleResults: { success: [] },
-};
 
 /**
  * Build the Mizrahi pipeline descriptor.
  * @param options - Scraper options from the user.
- * @returns Pipeline descriptor (browser + declarative login + hard model, no OTP).
+ * @returns Pipeline descriptor (Headless Strategy + config-driven API-DIRECT-CALL).
  */
 function buildMizrahiPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withBrowser()
-    .withDeclarativeLogin(MIZRAHI_LOGIN)
-    .withBrowserApiDirect(MIZRAHI_SHAPE)
+    .withHeadlessMediator()
+    .withApiDirect(MIZRAHI_API_DIRECT_CALL, MIZRAHI_SHAPE)
     .build();
 }
 

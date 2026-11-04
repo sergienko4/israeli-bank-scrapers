@@ -57,6 +57,7 @@ type DefaultHeadersByVerb = Readonly<Record<HttpVerb, Readonly<Record<string, st
 interface INativeFetchOptions {
   readonly redirectPolicy?: RedirectPolicy;
   readonly statusPolicy?: StatusPolicy;
+  readonly omitBankText?: boolean;
 }
 
 /** JSON content-type on every verb — the base strategy's defaults. */
@@ -91,13 +92,15 @@ const READERS: Readonly<Record<ResponseKind, Reader>> = {
 /**
  * Classify a failed or challenged answer into a Procedure failure.
  * @param answer - The answered call: non-2xx, or a 2xx challenge.
- * @returns WafBlocked for a Cloudflare edge refusal, else Generic with a snippet.
+ * @returns WafBlocked for an edge refusal, else Generic honoring body omission.
  */
 async function classifyStatus<T>(answer: IAnswer): Promise<Procedure<T>> {
   const { response, verb, url } = answer;
   const body = await response.text();
   const headers = Object.fromEntries(response.headers);
-  return classifyHttpFailure<T>({ verb, url, status: response.status, body, headers });
+  const privacy = { omitBankText: answer.reading.omitBankText };
+  const failure = { verb, url, status: response.status, body, headers, ...privacy };
+  return classifyHttpFailure<T>(failure);
 }
 
 /**
@@ -259,6 +262,9 @@ class NativeFetchStrategy implements IFetchStrategy {
    */
   protected _statusPolicy: StatusPolicy = {};
 
+  /** Drop response snippets from HTTP failures without changing WAF classification. */
+  protected readonly _omitBankText: boolean;
+
   /**
    * Create a NativeFetchStrategy.
    * @param baseUrl - The base URL for API requests.
@@ -268,6 +274,7 @@ class NativeFetchStrategy implements IFetchStrategy {
     this._baseUrl = baseUrl;
     this._redirectDefault = options.redirectPolicy ?? this._redirectDefault;
     this._statusPolicy = options.statusPolicy ?? this._statusPolicy;
+    this._omitBankText = options.omitBankText === true;
   }
 
   /**
@@ -325,7 +332,8 @@ class NativeFetchStrategy implements IFetchStrategy {
     const responseKind = opts.responseKind ?? 'json';
     const { documentMarker, headerSink, onEmptyResponse } = opts;
     const hooks = { documentMarker, headerSink, onEmptyResponse };
-    return { statusPolicy: this._statusPolicy, responseKind, ...hooks };
+    const privacy = { omitBankText: this._omitBankText };
+    return { statusPolicy: this._statusPolicy, responseKind, ...hooks, ...privacy };
   }
 
   /**

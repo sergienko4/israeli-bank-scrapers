@@ -1495,7 +1495,7 @@ STATE_RULES
 # cap. Registry-internal data; Pepper's endpoints and WAF handling are
 # documented in docs/banks/pepper.md. Not user-facing.
 PEPPER_HEADLESS
-# --- Mizrahi hard-model post-auth scrape shape (account browser bank) ---
+# --- Mizrahi hard-model post-auth scrape shape (account, browserless) ---
 # Reason: IMizrahiAcct - Mizrahi scrape-shape account ref (Accounts[] position +
 # SnifAndNumber400); consumed only by MIZRAHI_SHAPE + its helpers. Pipeline-internal, not in src/index.ts.
 IMizrahiAcct

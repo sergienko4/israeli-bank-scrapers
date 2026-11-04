@@ -4,7 +4,7 @@
 > the type surface that powers the [API-DIRECT-CALL phase](../phases/api-direct-call.md).
 
 The API-DIRECT-CALL config contract is the typed shape every API-direct bank
-(Pepper, PayBox, OneZero, VisaCal, Isracard, Amex, Max) compiles its `PipelineBankConfig.headless` literal
+(Pepper, PayBox, OneZero, VisaCal, Isracard, Amex, Max, Mizrahi) compiles its `PipelineBankConfig.headless` literal
 against. As of **v8.5** that shape lives in **six focused concern-slice files**
 under `src/Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/`, exported
 through a single barrel. The legacy `IApiDirectCallConfig.ts` file was reduced
@@ -95,7 +95,7 @@ this contract; the build-time checks read both.
 | OTP prompt (absent: password-only) | `preHook` (`IPreStepHook`, `PreHookReuse`) | EnvelopeTypes, FlowTypes | [Password-only chains](../phases/api-direct-call.md#password-only-chains) |
 | Auth header form | `authScheme` (`AuthScheme`), `authPrefix` | EnvelopeTypes, ApiDirectCallConfig | [Auth-mode policy](../phases/api-direct-call.md#auth-mode-policy) |
 | Credential shapes checked up front | `requiredCreds` (`CredRule`) | ApiDirectCallConfig | [Required credentials](../phases/api-direct-call.md#required-credentials) |
-| Keep the bank's reply text out of a missed extract | `omitBankText` | ApiDirectCallConfig | [Bank text in failures](../phases/api-direct-call.md#bank-text-in-failures) |
+| Keep bank reply text out of missed extracts and login diagnostics | `omitBankText` | ApiDirectCallConfig | [Bank text in failures](../phases/api-direct-call.md#bank-text-in-failures) |
 | How a stored token is judged | `warmStart.validation` | CarryTypes | [Build-time config checks](../phases/api-direct-call.md#build-time-config-checks) |
 | Session held in cookies | `headless.sessionCookies` | — | [Headless transports](pipeline.md#headless-transports) |
 | Cookies shared across sibling hosts | `headless.cookieDomains` | — | [Headless transports](pipeline.md#headless-transports) |
@@ -103,6 +103,7 @@ this contract; the build-time checks read both.
 | Bank-wide redirect handling | `headless.redirectPolicy` (`RedirectPolicy`) | — | [Redirect policies](pipeline.md#redirect-policies) |
 | Redirect handling of one step | `redirect` (`RedirectPolicy`) | FlowTypes | [Redirect policies](pipeline.md#redirect-policies) |
 | Bank-wide 2xx statuses decided before the body is read | `headless.statusPolicy` (`StatusPolicy`) | — | [Document responses and status policies](pipeline.md#document-responses-and-status-policies) |
+| Keep bank text out of native HTTP failures, including data calls | `headless.omitBankText` | — | [Headless transports](pipeline.md#headless-transports) |
 | Read one step's answer as a page, not JSON | `response` (`ResponseKind`), `documentMarker` | FlowTypes | [Document responses and status policies](pipeline.md#document-responses-and-status-policies) |
 | Carry values the bank returns in response headers | `headerExtractsToCarry` (`IHeaderExtract`) | FlowTypes | [Response-header carry](pipeline.md#response-header-carry) |
 | Carry slots built from one step's extracts | `deriveCarry` (`IDerivedCarry`) | FlowTypes | [Carry derivation](../phases/api-direct-call.md#carry-derivation) |

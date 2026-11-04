@@ -137,9 +137,10 @@ describe('classifyHttpFailure', () => {
     expect(result).toMatchObject({ success: false, errorType: row.expectedType });
   });
 
-  it('reports a Cloudflare block with a fixed reason, never the page body', () => {
+  it.each([undefined, true])('reports a safe Cloudflare block, omitBankText=%s', omitBankText => {
     const body = CLOUDFLARE_BLOCK_PAGE;
-    const failure = { verb: 'POST', url: TARGET_URL, status: 403, body, headers: NO_HEADERS };
+    const headers = NO_HEADERS;
+    const failure = { verb: 'POST', url: TARGET_URL, status: 403, body, headers, omitBankText };
     const result = classifyHttpFailure(failure);
     const expectedMessage = `POST ${TARGET_URL} 403: ${CLOUDFLARE_BLOCK_REASON}`;
     expect(result).toMatchObject({ success: false, errorMessage: expectedMessage });
@@ -150,16 +151,19 @@ describe('classifyHttpFailure', () => {
     expect(isStillAuthShaped).toBe(true);
   });
 
-  it('reports a Cloudflare challenge with a fixed reason, never the page body', () => {
-    const body = CLOUDFLARE_CHALLENGE_PAGE;
-    const headers = CLOUDFLARE_CHALLENGE_HEADERS;
-    const failure = { verb: 'POST', url: TARGET_URL, status: 403, body, headers };
-    const result = classifyHttpFailure(failure);
-    const expectedMessage = `POST ${TARGET_URL} 403: ${CLOUDFLARE_CHALLENGE_REASON}`;
-    expect(result).toMatchObject({ success: false, errorMessage: expectedMessage });
-    const serialized = JSON.stringify(result);
-    expect(serialized).not.toContain(BLOCK_PAGE_RAY_ID);
-  });
+  it.each([undefined, true])(
+    'reports a safe Cloudflare challenge, omitBankText=%s',
+    omitBankText => {
+      const body = CLOUDFLARE_CHALLENGE_PAGE;
+      const headers = CLOUDFLARE_CHALLENGE_HEADERS;
+      const failure = { verb: 'POST', url: TARGET_URL, status: 403, body, headers, omitBankText };
+      const result = classifyHttpFailure(failure);
+      const expectedMessage = `POST ${TARGET_URL} 403: ${CLOUDFLARE_CHALLENGE_REASON}`;
+      expect(result).toMatchObject({ success: false, errorMessage: expectedMessage });
+      const serialized = JSON.stringify(result);
+      expect(serialized).not.toContain(BLOCK_PAGE_RAY_ID);
+    },
+  );
 
   it('keeps the status-plus-snippet message for every other failure', () => {
     const body = CLOUDFRONT_BLOCK_PAGE;
@@ -168,5 +172,17 @@ describe('classifyHttpFailure', () => {
     const snippet = CLOUDFRONT_BLOCK_PAGE.slice(0, 120);
     const expectedMessage = `GET ${TARGET_URL} 403: ${snippet}`;
     expect(result).toMatchObject({ success: false, errorMessage: expectedMessage });
+  });
+
+  it.each([401, 500])('omits bank response text from an opted-in HTTP %s failure', status => {
+    const body = CLOUDFRONT_BLOCK_PAGE;
+    const headers = NO_HEADERS;
+    const failure = { verb: 'POST', url: TARGET_URL, status, body, headers, omitBankText: true };
+    const result = classifyHttpFailure(failure);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: `POST ${TARGET_URL} ${String(status)}: response body omitted`,
+    });
   });
 });

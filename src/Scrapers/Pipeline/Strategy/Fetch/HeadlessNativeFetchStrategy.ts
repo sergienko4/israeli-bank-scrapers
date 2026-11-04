@@ -145,7 +145,7 @@ class HeadlessNativeFetchStrategy extends NativeFetchStrategy {
    * @param baseUrl - Base URL for API requests.
    * @param options - Optional `timeoutMs` ceiling (defaults to the shared
    *   {@link NETWORK_FETCH_TIMEOUT_MS}), default `redirectPolicy` and the
-   *   bank's `statusPolicy`.
+   *   bank's `statusPolicy` and HTTP-failure body omission.
    */
   constructor(baseUrl: string, options: IHeadlessNativeFetchOptions = {}) {
     super(baseUrl, options);

@@ -1,6 +1,6 @@
 /**
  * Native-fetch rules for an api-direct call config (N8). Redirect, document,
- * status and header-carry fields act only on the headless native fetch; any
+ * status, failure-text and header-carry fields act only on native fetch; any
  * other transport would ignore them and run unguarded, so naming one off
  * native fetch fails the build. `cookieDomains` widens the session jar, so it
  * needs `sessionCookies`. A carried header name must be an HTTP token.
@@ -18,7 +18,12 @@ const NATIVE_STEP_FIELDS = [
 ] as const;
 
 /** Headless fields only the headless native fetch acts on. */
-const NATIVE_HEADLESS_FIELDS = ['cookieDomains', 'redirectPolicy', 'statusPolicy'] as const;
+const NATIVE_HEADLESS_FIELDS = [
+  'cookieDomains',
+  'redirectPolicy',
+  'statusPolicy',
+  'omitBankText',
+] as const;
 
 /** A step field only the native fetch acts on. */
 type NativeStepField = (typeof NATIVE_STEP_FIELDS)[number];

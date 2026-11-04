@@ -9,6 +9,7 @@ import { CompanyTypes } from '../../../../Definitions.js';
 import { AMEX_HEADLESS } from './PipelineBankConfigAmex.js';
 import { ISRACARD_HEADLESS } from './PipelineBankConfigIsracard.js';
 import { MAX_HEADLESS } from './PipelineBankConfigMax.js';
+import { MIZRAHI_HEADLESS } from './PipelineBankConfigMizrahi.js';
 import { ONEZERO_HEADLESS } from './PipelineBankConfigOneZeroHeadless.js';
 import { PEPPER_HEADLESS } from './PipelineBankConfigPepperHeadless.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
@@ -130,11 +131,10 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   },
   [CompanyTypes.Mercantile]: defineBank('https://www.mercantile.co.il', ACCOUNT, SESSION_COOKIE),
   [CompanyTypes.Mizrahi]: {
-    ...defineBank('https://www.mizrahi-tefahot.co.il', ACCOUNT, SESSION_COOKIE),
-    // Every `mto` call needs the SPA's `mizrahixsrftoken` header; the bag
-    // replays it from the landing page's own get428Index request.
-    installDiscoveredHeaders: true,
-    discoveredHeadersUrlMatch: 'mto.mizrahi-tefahot.co.il',
+    urls: { base: 'https://www.mizrahi-tefahot.co.il' },
+    balanceKind: ACCOUNT,
+    authStrategyKind: API_DIRECT,
+    headless: MIZRAHI_HEADLESS,
   },
   [CompanyTypes.Isracard]: {
     urls: { base: 'https://www.isracard.co.il' },

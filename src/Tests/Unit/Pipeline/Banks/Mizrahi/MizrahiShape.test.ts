@@ -9,6 +9,7 @@
 
 import { jest } from '@jest/globals';
 
+import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import { MIZRAHI_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Mizrahi/scrape/MizrahiShape.js';
 import {
@@ -19,10 +20,10 @@ import {
 } from '../../../../../Scrapers/Pipeline/Banks/Mizrahi/scrape/MizrahiShapeBalance.js';
 import {
   accountNumberOf,
-  customerUrl,
-  customerVars,
   extractAccounts,
   type IMizrahiAcct,
+  mizrahiHeaders,
+  noVars,
 } from '../../../../../Scrapers/Pipeline/Banks/Mizrahi/scrape/MizrahiShapeHelpers.js';
 import {
   type IMizrahiCursor,
@@ -38,11 +39,12 @@ import type {
   IExtractAccountsArgs,
   IExtractPageArgs,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
+import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { fail } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { type ITransaction, TransactionStatuses } from '../../../../../Transactions.js';
 import { AMBIENT_ZONE_CASES, underZone } from '../../../../Helpers/AmbientZone.js';
-import { loadMizrahiResponse } from './MizrahiBusFactory.js';
+import { loadMizrahiResponse, makeServedBus, MZ_UNIT_TOKEN } from './MizrahiBusFactory.js';
 
 const API = 'https://mto.mizrahi-tefahot.co.il/Online/api';
 
@@ -63,21 +65,13 @@ interface IFixtureRow {
 type PageArgs = IExtractPageArgs<IMizrahiAcct, IMizrahiCursor>;
 
 /**
- * Bundle a raw body into the extract-accounts args.
- * @param body - Raw logon response body.
+ * Extract-accounts args after a login that carried `accounts` (the customer
+ * step makes no call, so the body is always empty).
+ * @param accounts - The carried logon `Accounts[]` (fake values), or any malformed value.
  * @returns Extract-accounts args bundle.
  */
-function accountsArgs(body: ApiBody): IExtractAccountsArgs {
-  return { body, sessionContext: {} };
-}
-
-/**
- * Wrap synthetic accounts in the logon envelope.
- * @param accounts - Raw `Accounts[]` entries (fake values).
- * @returns Raw logon response body.
- */
-function logonBody(accounts: readonly object[]): ApiBody {
-  return { body: { user: { Accounts: accounts } } };
+function accountsArgs(accounts: unknown): IExtractAccountsArgs {
+  return { body: {}, sessionContext: { accounts } };
 }
 
 /**
@@ -187,9 +181,10 @@ function ctxWith(startDate: Date, windowEnd: Date): IActionContext {
 }
 
 const LOGON = loadMizrahiResponse('logon');
-const LOGON_ARGS = accountsArgs(LOGON);
-const RAW_ACCT = (LOGON as { body: { user: { Accounts: readonly IFixtureAccount[] } } }).body.user
-  .Accounts[0];
+const LOGON_ACCOUNTS = (LOGON as { body: { user: { Accounts: readonly IFixtureAccount[] } } }).body
+  .user.Accounts;
+const LOGON_ARGS = accountsArgs(LOGON_ACCOUNTS);
+const [RAW_ACCT] = LOGON_ACCOUNTS;
 const NOW = new Date('2026-03-15T10:00:00.000Z');
 const ACCT: IMizrahiAcct = { index: 1, accountNumber: '99-888777' };
 const FIXTURE_ACCT: IMizrahiAcct = { index: 0, accountNumber: RAW_ACCT.SnifAndNumber400 };
@@ -227,14 +222,16 @@ function bankDayValue(wire: unknown): number {
 }
 
 describe('MizrahiShape accounts', () => {
-  it('extractAccounts maps the fixture account at its position', () => {
+  it('extractAccounts maps the carried fixture account at its position', () => {
     const accounts = extractAccounts(LOGON_ARGS);
     expect(accounts).toEqual([FIXTURE_ACCT]);
   });
 
   it('keeps every declared account with its Accounts[] position', () => {
-    const body = logonBody([{ SnifAndNumber400: '111-111111' }, { SnifAndNumber400: '222-222' }]);
-    const args = accountsArgs(body);
+    const args = accountsArgs([
+      { SnifAndNumber400: '111-111111' },
+      { SnifAndNumber400: '222-222' },
+    ]);
     const accounts = extractAccounts(args);
     expect(accounts).toEqual([
       { index: 0, accountNumber: '111-111111' },
@@ -243,14 +240,13 @@ describe('MizrahiShape accounts', () => {
   });
 
   it('throws when a declared account has no number', () => {
-    const body = logonBody([{ SnifAndNumber400: '111-111111' }, { Name: 'fake' }]);
-    const args = accountsArgs(body);
+    const args = accountsArgs([{ SnifAndNumber400: '111-111111' }, { Name: 'fake' }]);
     const extract = accountsLater(args);
     expect(extract).toThrow(ScraperError);
   });
 
-  it('tolerates an empty body', () => {
-    const args = accountsArgs({});
+  it('reads no accounts when the login carried none', () => {
+    const args = accountsArgs(undefined);
     const accounts = extractAccounts(args);
     expect(accounts).toEqual([]);
   });
@@ -525,7 +521,7 @@ const MALFORMED_BODIES: readonly (readonly [string, unknown])[] = [
 
 describe('MizrahiShape malformed responses (TC-N2)', () => {
   it.each(MALFORMED_BODIES)('reads %s as no accounts', (_label, raw) => {
-    const args = accountsArgs(raw as ApiBody);
+    const args = accountsArgs(raw);
     const accounts = extractAccounts(args);
     expect(accounts).toEqual([]);
   });
@@ -582,13 +578,18 @@ describe('MizrahiShape transaction mapping', () => {
 });
 
 describe('MizrahiShape wiring', () => {
-  it('posts the static logon body to SkyBL/logon', () => {
-    const url = customerUrl();
-    const vars = customerVars();
-    expect(url).toBe(`${API}/SkyBL/logon`);
-    expect(vars).toEqual({ appId: 'skyWeb', appVer: '', lang: 'he-il', isPdf: false });
-    expect(MIZRAHI_SHAPE.customer.method).toBe('POST');
+  it('reads the accounts the login carried, with no call of its own', () => {
+    const vars = noVars();
+    expect(vars).toEqual({});
+    expect(MIZRAHI_SHAPE.customer.skipFetch).toBe(true);
+    expect(MIZRAHI_SHAPE.customer.urlTag).toBeUndefined();
     expect(MIZRAHI_SHAPE.customer.countDiscovered).toBeUndefined();
+  });
+
+  it('sends the online-banking POST headers and the data token on every data call', () => {
+    expect(MIZRAHI_SHAPE.balance.extraHeaders).toBe(mizrahiHeaders);
+    expect(MIZRAHI_SHAPE.transactions.extraHeaders).toBe(mizrahiHeaders);
+    expect(MIZRAHI_SHAPE.customer.extraHeaders).toBeUndefined();
   });
 
   it('switches accounts through SkyBL/changeAccount, failing hard on error', () => {
@@ -607,5 +608,39 @@ describe('MizrahiShape wiring', () => {
     expect(MIZRAHI_SHAPE.transactions.urlTag).toBe(`${API}/SkyOSH/get428Index`);
     expect(MIZRAHI_SHAPE.transactions.method).toBe('POST');
     expect(MIZRAHI_SHAPE.transactions.windowNarrowing).toBe('windowEnd');
+  });
+});
+
+/** The header map every data call sends, the data token aside. */
+const DATA_HEADERS = {
+  accept: 'application/json',
+  'user-agent': 'israeli-bank-scrapers',
+  origin: 'https://mto.mizrahi-tefahot.co.il',
+  referer: 'https://mto.mizrahi-tefahot.co.il/Online/Default.aspx?language=he-IL',
+  'content-type': 'application/json',
+};
+
+/**
+ * Action context with or without the login's mediator.
+ * @param isLoggedIn - Whether a login stored its session.
+ * @returns Partial action context cast.
+ */
+function headersCtx(isLoggedIn: boolean): IActionContext {
+  const bus = makeServedBus(() => fail(ScraperErrorTypes.Generic, 'unused'), []);
+  const apiMediator = isLoggedIn ? some(bus) : none();
+  return { apiMediator } as unknown as IActionContext;
+}
+
+describe('MizrahiShape data-call headers', () => {
+  it('sends the composed data token beside the online-banking POST set', () => {
+    const ctx = headersCtx(true);
+    const headers = mizrahiHeaders(ctx);
+    expect(headers).toEqual({ ...DATA_HEADERS, mizrahixsrftoken: MZ_UNIT_TOKEN });
+  });
+
+  it('sends an empty token before a login stored one', () => {
+    const ctx = headersCtx(false);
+    const headers = mizrahiHeaders(ctx);
+    expect(headers).toEqual({ ...DATA_HEADERS, mizrahixsrftoken: '' });
   });
 });

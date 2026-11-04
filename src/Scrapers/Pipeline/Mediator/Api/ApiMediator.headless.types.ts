@@ -26,6 +26,8 @@ interface IHeadlessMediatorArgs {
   readonly redirectPolicy?: RedirectPolicy;
   /** 2xx statuses the bank decides itself; none when absent. */
   readonly statusPolicy?: StatusPolicy;
+  /** Omit bank response text from native HTTP failures when enabled. */
+  readonly omitBankText?: boolean;
 }
 
 /** Args bundle for the node:https (client-cert and/or TLS-profile) mediator factory. */
@@ -56,7 +58,7 @@ interface IBrowserBackedHeadlessMediatorArgs {
 /** Minimal shape needed to construct the shared GraphQL transport. */
 interface IGraphQLTransportArgs extends Pick<
   IHeadlessMediatorArgs,
-  'redirectPolicy' | 'statusPolicy'
+  'redirectPolicy' | 'statusPolicy' | 'omitBankText'
 > {
   readonly graphqlUrl: string;
   readonly graphqlHeaders?: Readonly<Record<string, string>>;

@@ -61,6 +61,14 @@ Max now logs in and scrapes over its website's API with Node's own `fetch`, keep
 
 **What to do:** Remove browser options from Max's `createScraper` call. Nothing else changes.
 
+### 9.1.0 - Mizrahi signs in without a browser
+
+**Impact:** Behavior
+
+Mizrahi now logs in and scrapes over its website's JSON API with Node's own `fetch` and one cookie jar, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`. There is no long-term token: every run logs in with the password, and `persistentOtpToken` stays unset. A wrong password fails as `INVALID_PASSWORD` with the message `login outcome 2`. Login failures and HTTP failures from data calls omit the bank's response text.
+
+**What to do:** Remove browser options from Mizrahi's `createScraper` call. Nothing else changes.
+
 ### 9.0.0 - Node 24.11 or later required; Node 22 is no longer supported
 
 **Impact:** Breaking

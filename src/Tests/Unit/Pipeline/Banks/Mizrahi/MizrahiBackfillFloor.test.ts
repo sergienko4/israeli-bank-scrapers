@@ -97,7 +97,6 @@ function pageReply(session: ISession, body: Readonly<Record<string, unknown>>): 
 }
 
 const ROUTES: ReadonlyMap<string, Route> = new Map<string, Route>([
-  ['SkyBL/logon', (): Procedure<unknown> => succeed({ body: { user: { Accounts: [ACCOUNT] } } })],
   ['SkyBL/changeAccount', (): Procedure<unknown> => succeed({ body: ACCOUNT })],
   ['SkyOSH/get428Index', pageReply],
 ]);
@@ -123,7 +122,10 @@ function serve(session: ISession, url: string, body: unknown): Procedure<unknown
  */
 function runScrape(): { session: ISession; run: MizrahiScrapeRun } {
   const session: ISession = { ranges: [] };
-  const bus = makeServedBus((url, body): Procedure<unknown> => serve(session, url, body));
+  const bus = makeServedBus(
+    (url, body): Procedure<unknown> => serve(session, url, body),
+    [ACCOUNT],
+  );
   const run = scrapeOver(bus, { start: START, end: NOW });
   return { session, run };
 }

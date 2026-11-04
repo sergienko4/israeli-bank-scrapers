@@ -22,7 +22,7 @@ import type { Option } from '../Types/Option.js';
 import { none, some } from '../Types/Option.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 
-/** Identity-transport flags decoded from the optional headless config block. */
+/** Transport flags decoded from the optional headless config block. */
 interface IWiringFlags {
   readonly requiresBrowserTls: boolean;
   /** When true, present the bank's registered client certificate over node:https. */
@@ -33,6 +33,8 @@ interface IWiringFlags {
   readonly nativeFetch: boolean;
   /** When true, a node transport keeps one run-scoped cookie jar. */
   readonly sessionCookies: boolean;
+  /** When true, native HTTP failures omit the bank's response text. */
+  readonly isBankTextOmitted: boolean;
 }
 
 /** Identity transport a headless bank runs over. */
@@ -69,7 +71,10 @@ type TGraphqlArgs = Pick<TMediatorArgs, 'graphqlUrl' | 'graphqlHeaders' | 'stati
 
 /** Transport-requirement slice of the mediator args, optional settings included. */
 type TTransportArgs = IHeadlessWiring['transport'] &
-  Pick<TMediatorArgs, 'bypassOriginChallenge' | 'requiresClientCert' | 'sessionCookies'>;
+  Pick<
+    TMediatorArgs,
+    'bypassOriginChallenge' | 'requiresClientCert' | 'sessionCookies' | 'omitBankText'
+  >;
 
 /**
  * Decode the optional transport flags into explicit booleans.
@@ -83,6 +88,7 @@ function toWiringFlags(headless: IHeadlessUrlsConfig): IWiringFlags {
     bypassOriginChallenge: headless.bypassOriginChallenge === true,
     nativeFetch: headless.nativeFetch === true,
     sessionCookies: headless.sessionCookies === true,
+    isBankTextOmitted: headless.omitBankText === true,
   };
 }
 
@@ -138,7 +144,7 @@ function toGraphqlArgs(wiring: IHeadlessWiring): TGraphqlArgs {
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns Origin-challenge bypass, client-cert and cookie jar flags, plus
  *   the TLS profile, the domain-jar allow-list and the redirect and
- *   status policies.
+ *   status policies and HTTP-failure body omission.
  */
 function toTransportArgs(wiring: IHeadlessWiring): TTransportArgs {
   return {
@@ -146,6 +152,7 @@ function toTransportArgs(wiring: IHeadlessWiring): TTransportArgs {
     bypassOriginChallenge: wiring.bypassOriginChallenge,
     requiresClientCert: wiring.requiresClientCert,
     sessionCookies: wiring.sessionCookies,
+    omitBankText: wiring.isBankTextOmitted,
   };
 }
 

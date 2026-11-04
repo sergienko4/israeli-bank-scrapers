@@ -1,12 +1,12 @@
 /**
  * Mizrahi scrape shape — the `IApiDirectScrapeShape` data declaration
  * consumed by the generic buildGenericHeadlessScrape driver via
- * `withBrowserApiDirect`. Auth = session cookie + the `mizrahixsrftoken`
- * header, which BIND-API-MEDIATOR replays on every call through the
- * discovered-header bag (config `installDiscoveredHeaders`, plan D14) —
- * so the shape declares no headers of its own.
+ * `withApiDirect`. Auth = the session cookies the API-DIRECT-CALL login set,
+ * kept by the node transport, + the `mizrahixsrftoken` header every data
+ * call sends ({@link mizrahiHeaders}).
  *
- * <p>Calls: `SkyBL/logon` lists every account (customer); per account,
+ * <p>Calls: the login's `SkyBL/logon` reply already lists every account, so
+ * the customer step makes no call; per account,
  * `SkyBL/changeAccount` switches the session to it and returns its balance,
  * then `SkyOSH/get428Index` returns the window's movements, 50 rows a page
  * (plan D17).
@@ -18,10 +18,10 @@ import type { IApiDirectScrapeShape } from '../../../Phases/ApiDirectScrape/IApi
 import { balanceExtract, balanceIsAbsent, balanceUrl, balanceVars } from './MizrahiShapeBalance.js';
 import {
   accountNumberOf,
-  customerUrl,
-  customerVars,
   extractAccounts,
   type IMizrahiAcct,
+  mizrahiHeaders,
+  noVars,
 } from './MizrahiShapeHelpers.js';
 import {
   type IMizrahiCursor,
@@ -31,15 +31,14 @@ import {
   txnsVars,
 } from './MizrahiShapeTxns.js';
 
-/** Mizrahi hard-model shape — passed to `.withBrowserApiDirect(...)`. */
+/** Mizrahi hard-model shape — passed to `.withApiDirect(...)`. */
 const MIZRAHI_SHAPE: IApiDirectScrapeShape<IMizrahiAcct, IMizrahiCursor> = {
   stepName: 'MizrahiScrape',
   accountNumberOf,
   customer: {
-    buildVars: customerVars,
+    buildVars: noVars,
     extractAccounts,
-    urlTag: customerUrl(),
-    method: 'POST',
+    skipFetch: true,
   },
   balance: {
     buildVars: balanceVars,
@@ -47,6 +46,7 @@ const MIZRAHI_SHAPE: IApiDirectScrapeShape<IMizrahiAcct, IMizrahiCursor> = {
     isAbsent: balanceIsAbsent,
     urlTag: balanceUrl(),
     method: 'POST',
+    extraHeaders: mizrahiHeaders,
   },
   transactions: {
     buildVars: txnsVars,
@@ -55,6 +55,7 @@ const MIZRAHI_SHAPE: IApiDirectScrapeShape<IMizrahiAcct, IMizrahiCursor> = {
     auditIsTxnRow: IS_MIZRAHI_TXN_ROW,
     urlTag: txnsUrl(),
     method: 'POST',
+    extraHeaders: mizrahiHeaders,
   },
 };
 
