@@ -38,11 +38,9 @@ interface ISessionHeaders {
 }
 
 /** Optional fetch configuration; the call policy overrides the transport's default. */
-interface IFetchOpts extends IFetchCallPolicy {
+interface IFetchOpts extends IFetchCallPolicy, Pick<IResponseReading, 'onEmptyResponse'> {
   /** Additional HTTP headers to include in the request. */
   readonly extraHeaders: Record<string, string>;
-  /** Internal status outcome, distinct from an ordinary parsed empty object. */
-  readonly onEmptyResponse?: IResponseReading['onEmptyResponse'];
   /**
    * Optional hook — invoked once per response with the array of raw
    * Set-Cookie header lines. Absent when the caller doesn't care
