@@ -5,9 +5,8 @@
 import type { CompanyTypes } from '../../../../Definitions.js';
 import type { WKQueryOperation } from '../../Registry/WK/QueriesWK.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
-import type { IFetchStrategy } from '../../Strategy/Fetch/FetchStrategy.js';
+import type { IFetchStrategy, PostData } from '../../Strategy/Fetch/FetchStrategy.js';
 import type { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
-import type { ApiPostData } from '../../Types/Domain/ApiPostData.js';
 import type { IApiQueryOpts } from '../../Types/Domain/ApiQueryOpts.js';
 import type { IMediatorAuthPolicy } from '../../Types/Domain/MediatorAuthPolicy.js';
 import type { ITokenBus } from '../../Types/Domain/TokenBus.js';
@@ -63,7 +62,7 @@ interface IApiMediator extends Pick<ITokenBus, 'cookies'> {
   setAuthPolicy: (policy: IMediatorAuthPolicy) => boolean;
   apiPost: <T>(
     wkUrl: WKUrlOrLiteral,
-    body: ApiPostData,
+    body: PostData,
     opts?: IApiQueryOpts,
   ) => Promise<Procedure<T>>;
   apiGet: <T>(wkUrl: WKUrlOrLiteral, opts?: IApiQueryOpts) => Promise<Procedure<T>>;
@@ -92,7 +91,7 @@ interface IApiMediatorDeps {
 interface IFirePostArgs extends Pick<IApiQueryOpts, 'onSetCookie' | 'policy'> {
   readonly deps: IApiMediatorDeps;
   readonly url: string;
-  readonly body: ApiPostData;
+  readonly body: PostData;
   readonly rawAuth: string;
   readonly extraHeaders: Record<string, string>;
   readonly query: Record<string, string>;
@@ -145,7 +144,7 @@ interface IWithTokenStrategyOpArgs<TCreds> {
 interface IApiPostOpArgs {
   readonly ctx: IApiCallContext;
   readonly wkUrl: WKUrlOrLiteral;
-  readonly body: ApiPostData;
+  readonly body: PostData;
   readonly opts?: IApiQueryOpts;
 }
 
