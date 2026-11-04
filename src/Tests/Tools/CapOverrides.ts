@@ -38,11 +38,23 @@ const FETCH_TRANSPORT_FILES: readonly string[] = [
   'src/Scrapers/Pipeline/Strategy/Fetch/OriginCookieJar.ts',
   'src/Scrapers/Pipeline/Strategy/Fetch/SessionCookieFetchStrategy.ts',
   'src/Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/CookieMatch.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/SetCookieScope.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/DomainCookieJar.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/UrlRule.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/RedirectFollow.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/StatusPolicy.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/DocumentResponse.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/ResponseHeaderSink.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/HeaderText.ts',
 ];
 
 /** New Core files that §19.3b pins past the Core grandfather. */
 const NEW_CORE_FILES: readonly string[] = [
   'src/Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.ts',
+  'src/Scrapers/Pipeline/Core/Builder/ApiDirectNativeRules.ts',
+  'src/Scrapers/Pipeline/Core/Builder/ApiDirectRuleInput.ts',
+  'src/Scrapers/Pipeline/Core/Builder/ApiDirectTransportRules.ts',
   'src/Scrapers/Pipeline/Core/BrowserOnlyOptions.ts',
   'src/Scrapers/Pipeline/Core/SuppliedOptions.ts',
 ];

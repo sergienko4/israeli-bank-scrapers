@@ -8,6 +8,7 @@ import { dirname, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { CompanyTypes } from '../../../../../Definitions.js';
+import type { IApiDirectRuleInput } from '../../../../../Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.js';
 import {
   isLiteralUrl,
   literalUrl,
@@ -204,6 +205,56 @@ function thisDir(): string {
   const thisFile = fileURLToPath(import.meta.url);
   return dirname(thisFile);
 }
+
+/** A bank's headless block as the seeder reads it. */
+type HeadlessBlock = Exclude<IApiDirectRuleInput['headless'], false>;
+
+const SESSION_ORIGIN = 'https://session.example';
+const BOOTSTRAP_URL = `${SESSION_ORIGIN}/bootstrap`;
+const LANDING_URL = `${SESSION_ORIGIN}/landing`;
+const LOGON_URL = `${SESSION_ORIGIN}/logon`;
+
+/** Every session-transport auth path a headless block can name. */
+const SESSION_PATHS: HeadlessBlock['paths'] = {
+  'auth.bootstrap': BOOTSTRAP_URL,
+  'auth.landing': LANDING_URL,
+  'auth.logon': LOGON_URL,
+};
+
+/** The WK tag each session path seeds. */
+const SESSION_TAGS = [
+  { $label: 'auth.bootstrap', url: BOOTSTRAP_URL },
+  { $label: 'auth.landing', url: LANDING_URL },
+  { $label: 'auth.logon', url: LOGON_URL },
+] as const;
+
+/**
+ * Seed one synthetic api-direct bank whose headless block names every
+ * session-transport path. Dynamic import dodges the DI rule.
+ * @returns Resolves once the registry is seeded.
+ */
+async function seedSessionBank(): Promise<void> {
+  const seeder =
+    await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigSeeder.js');
+  const graphql = `${SESSION_ORIGIN}/graphql`;
+  const headless: HeadlessBlock = { identityBase: SESSION_ORIGIN, graphql, paths: SESSION_PATHS };
+  const urls = { base: SESSION_ORIGIN };
+  const config = {
+    urls,
+    balanceKind: 'account',
+    authStrategyKind: 'api-direct',
+    headless,
+  } as const;
+  seeder.seedWkFromPipelineConfig({ [HINT]: config });
+}
+
+describe('UrlsWK/sessionAuthTags', () => {
+  it.each(SESSION_TAGS)('seeds $label from a headless block', async ({ $label, url }) => {
+    await seedSessionBank();
+    const result = resolveWkUrl($label, HINT);
+    expect(result).toEqual({ success: true, value: url });
+  });
+});
 
 describe('UrlsWK/sourceContract', () => {
   it('source file contains no bank-name string literals', () => {

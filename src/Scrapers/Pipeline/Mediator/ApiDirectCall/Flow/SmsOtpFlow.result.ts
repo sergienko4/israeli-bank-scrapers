@@ -103,6 +103,14 @@ function selectSigningKeypair(
 }
 
 /**
+ * The per-flow state every step shares and no earlier flow may leak into.
+ * @returns A fresh cookie jar and pre-hook cache.
+ */
+function freshFlowState(): Pick<IStepReduceArgs, 'cookieJar' | 'preHookCache'> {
+  return { cookieJar: createSimpleCookieJar(), preHookCache: createPreHookCache() };
+}
+
+/**
  * Build the IStepReduceArgs payload from flow args + prep.
  * @param args - Flow run args.
  * @param prep - Prepared inputs.
@@ -110,12 +118,12 @@ function selectSigningKeypair(
  */
 function buildReduceArgs(args: IRunSmsOtpArgs, prep: ISmsOtpPrep): IStepReduceArgs {
   return {
+    ...freshFlowState(),
     bus: args.bus,
     companyId: args.companyId,
     keypair: selectSigningKeypair(args.config, prep.keypairs),
     creds: args.creds,
-    cookieJar: createSimpleCookieJar(),
-    preHookCache: createPreHookCache(),
+    isBankTextOmitted: args.config.omitBankText === true,
   };
 }
 

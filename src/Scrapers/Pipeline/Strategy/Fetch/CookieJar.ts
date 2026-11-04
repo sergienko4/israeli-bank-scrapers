@@ -23,20 +23,21 @@ interface IParsedCookie {
 const MAX_AGE_RE = /^-?\d+$/;
 
 /**
- * Read one attribute's value from a Set-Cookie line; the name match is
- * case-insensitive and the last occurrence wins.
+ * Read one attribute's value from a Set-Cookie line; names and values are
+ * trimmed, names are case-insensitive, and the last occurrence wins.
  * @param line - Raw Set-Cookie line.
  * @param name - Lower-case attribute name.
  * @returns The trimmed value, or false when the attribute is absent.
  */
 function readAttribute(line: string, name: string): string | false {
-  const prefix = `${name}=`;
   const attributes = line.split(';').slice(1);
-  const trimmed = attributes.map((part): string => part.trim());
-  const hits = trimmed.filter((part): boolean => part.toLowerCase().startsWith(prefix));
+  const hits = attributes.filter((part): boolean => {
+    const equals = part.indexOf('=');
+    return equals >= 0 && part.slice(0, equals).trim().toLowerCase() === name;
+  });
   const hit = hits.at(-1);
   if (hit === undefined) return false;
-  return hit.slice(prefix.length).trim();
+  return hit.slice(hit.indexOf('=') + 1).trim();
 }
 
 /**
@@ -135,4 +136,4 @@ function createSimpleCookieJar(): ICookieJar {
 }
 
 export type { ICookieJar };
-export { createSimpleCookieJar };
+export { createSimpleCookieJar, MAX_AGE_RE, parseCookieLine, readAttribute };

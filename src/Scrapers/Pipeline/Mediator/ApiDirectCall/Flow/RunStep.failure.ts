@@ -8,6 +8,11 @@
  * arrived — so no response text leaves the login flow. The retry layer sits
  * below this point and still reads the original message.
  *
+ * <p>A policy refusal raised by the transport itself (`HTTP <status>`, a
+ * refused redirect, an unverified document) quotes no response text, so the
+ * step keeps that fixed tail; the whole message must have the refusal's
+ * shape, so no body text can pass for one.
+ *
  * <p>A WAF block passes through unchanged: the transport already swapped the
  * edge page for a fixed reason, and that reason is a documented contract. So
  * does a failure raised before any request left the process (a Camoufox
@@ -15,11 +20,23 @@
  */
 
 import { isLocalFailureMessage } from '../../../Strategy/Fetch/LocalFailureReasons.js';
+import {
+  DOCUMENT_UNVERIFIED_REASON,
+  REDIRECT_REFUSED_REASON,
+} from '../../../Types/Domain/FetchPolicy.js';
 import type { IProcedureFailure } from '../../../Types/Procedure.js';
 import { isWafBlocked } from '../../../Types/Procedure.js';
 
 /** The transport's `<sp>NNN:<sp>` status marker (precedent: `ApiMediator.authReject`). */
 const STATUS_MARKER = /\s(\d{3}):\s/;
+
+/** Fixed reasons a transport policy refusal ends with. */
+const REFUSAL_REASONS = `${REDIRECT_REFUSED_REASON}|${DOCUMENT_UNVERIFIED_REASON}`;
+
+/** `<VERB> <safeUrl> ` then `HTTP NNN`, a fixed reason, or both — and nothing else. */
+const POLICY_REFUSAL = new RegExp(
+  String.raw`^\S+ \S+ (HTTP \d{3}(?: (?:${REFUSAL_REASONS}))?|${REFUSAL_REASONS})$`,
+);
 
 /**
  * Read the HTTP status the transport embedded in a failure message.
@@ -31,13 +48,25 @@ function readStatus(message: string): string {
 }
 
 /**
+ * Read the fixed tail of a transport policy refusal.
+ * @param message - Original failure message.
+ * @returns The tail (`HTTP 207`, `document unverified`, …), or ''.
+ */
+function readRefusal(message: string): string {
+  return POLICY_REFUSAL.exec(message)?.[1] ?? '';
+}
+
+/**
  * Describe a failure without quoting any of its text.
  * @param failure - Failure returned by the transport.
- * @returns `HTTP <status>` when a status is known, the error type otherwise.
+ * @returns `HTTP <status>` when a status is known, a policy refusal's fixed
+ *   tail, else the error type.
  */
 function describeFailure(failure: IProcedureFailure): string {
   const status = readStatus(failure.errorMessage);
   if (status.length > 0) return `HTTP ${status}`;
+  const refusal = readRefusal(failure.errorMessage);
+  if (refusal.length > 0) return refusal;
   return failure.errorType;
 }
 

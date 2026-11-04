@@ -5,6 +5,7 @@
  */
 
 import type { TlsClientProfileKind } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
+import type { RedirectPolicy, StatusPolicy } from '../../Types/Domain/FetchPolicy.js';
 
 /** Generic auth-path keys — per-bank subsets plug into `paths` below. */
 export type AuthPathKey =
@@ -23,6 +24,9 @@ export type AuthPathKey =
   | 'auth.prime'
   | 'auth.resume'
   | 'auth.service'
+  | 'auth.bootstrap'
+  | 'auth.landing'
+  | 'auth.logon'
   | 'data.sync'
   | 'data.getKey'
   | 'data.getUserHistory'
@@ -122,6 +126,30 @@ export interface IHeadlessUrlsConfig {
    * own jar). Default: undefined (no jar; headers unchanged).
    */
   readonly sessionCookies?: boolean;
+  /**
+   * With `sessionCookies`, switches the jar to the RFC 6265 domain jar: a
+   * cookie whose `Domain` is one of these registrable domains (and matches
+   * the answering host) is shared with every host under it; any other
+   * `Domain` stays host-only or is dropped. Exposes the run's cookie session
+   * to login steps. Default: undefined (the origin-scoped jar).
+   */
+  readonly cookieDomains?: readonly string[];
+  /**
+   * With `nativeFetch`, the redirect policy every call of the bank (login
+   * and scrape) runs under unless its step names its own `redirect`:
+   * `reject` refuses any 3xx. A manual policy belongs on a GET step's
+   * `redirect` — an api-direct build refuses it here, and a bank with a
+   * manual step must default to `reject`.
+   * Default: undefined (`follow` — fetch follows redirects itself).
+   */
+  readonly redirectPolicy?: RedirectPolicy;
+  /**
+   * With `nativeFetch`, the 2xx statuses every call of the bank (login and
+   * scrape) decides before its body is read: `empty` answers `{}` (not on a
+   * `response: 'document'` step), `fail` refuses the call. Default:
+   * undefined (no status decided; every 2xx is read).
+   */
+  readonly statusPolicy?: StatusPolicy;
   /**
    * When set, the Camoufox identity strategy route-intercepts the
    * initial navigation to the identity origin URL and serves a blank

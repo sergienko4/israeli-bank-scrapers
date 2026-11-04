@@ -4,12 +4,14 @@
  */
 
 import { getDebug } from '../../../Logging/Debug.js';
+import type { IFetchCallPolicy } from '../../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import type { IBodyTemplate } from '../ConfigContracts/index.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import buildOnSetCookie from './RunStep.cookies.js';
+import { attachHeaderCapture } from './RunStep.headerCarry.js';
 import { buildStepHeaders } from './RunStep.headers.js';
 import type {
   CarryMap,
@@ -107,18 +109,45 @@ function attachSink(fireBase: IFireArgs, maybe: OnSetCookie | false): IFireArgs 
 }
 
 /**
- * Build the final IFireArgs bundle including the optional cookie sink.
+ * The call policy a step names, when it names one.
+ * @param step - Step config.
+ * @returns `{ policy }` with only the redirect policy, response kind and
+ *   document marker the step names, or nothing.
+ */
+function callPolicyOf(step: IStepConfig): Pick<IFireArgs, 'policy'> {
+  const { redirect, response: responseKind, documentMarker } = step;
+  const fields = { redirect, responseKind, documentMarker };
+  const named = Object.entries(fields).filter(([, value]): boolean => value !== undefined);
+  if (named.length === 0) return {};
+  const policy = Object.fromEntries(named) as IFetchCallPolicy;
+  return { policy };
+}
+
+/**
+ * The fire args a step sends: body, query, headers and its call policy.
+ * @param opts - Assemble args bundle.
+ * @returns Fire-call args without hooks.
+ */
+function baseFire(opts: IAssembleFireArgs): IFireArgs {
+  return {
+    body: opts.preparedBody.body,
+    query: opts.query,
+    extraHeaders: opts.headers,
+    ...callPolicyOf(opts.args.step),
+  };
+}
+
+/**
+ * Build the final IFireArgs bundle: the step's call policy, its optional
+ * response-header capture and its optional cookie sink.
  * @param opts - Assemble args bundle.
  * @returns Fire-call args ready for fireStep.
  */
 function assembleFire(opts: IAssembleFireArgs): IFireArgs {
-  const fireBase: IFireArgs = {
-    body: opts.preparedBody.body,
-    query: opts.query,
-    extraHeaders: opts.headers,
-  };
+  const fireBase = baseFire(opts);
+  const captured = attachHeaderCapture(fireBase, opts.args.step);
   const onSetCookie = buildOnSetCookie(opts.args);
-  return attachSink(fireBase, onSetCookie);
+  return attachSink(captured, onSetCookie);
 }
 
 /**

@@ -6,6 +6,7 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import type { IRunStepArgs } from './RunStep.js';
 import { runStep } from './RunStep.js';
 import { applyPreHook } from './SmsOtpFlow.prehook.js';
 import type { IMakeRunStepArgs, IReduceStepsArgs, IStepReduceArgs } from './SmsOtpFlow.types.js';
@@ -28,19 +29,28 @@ async function resolveStepScope(
 }
 
 /**
+ * The flow-wide fields every step's runStep payload repeats.
+ * @param args - Reduce args.
+ * @returns Bus, bank, signing key, cookie jar and bank-text opt-out.
+ */
+function stepSession(args: IStepReduceArgs): Omit<IRunStepArgs, 'step' | 'scope'> {
+  return {
+    bus: args.bus,
+    companyId: args.companyId,
+    signingKeypair: args.keypair,
+    cookieJar: args.cookieJar,
+    isBankTextOmitted: args.isBankTextOmitted,
+  };
+}
+
+/**
  * Build the runStep payload for the current iteration.
  * @param bundle - Step + reduce-args + scope bundle.
  * @returns runStep input bundle.
  */
-function makeRunStepArgs(bundle: IMakeRunStepArgs): Parameters<typeof runStep>[0] {
-  return {
-    step: bundle.step,
-    bus: bundle.args.bus,
-    scope: bundle.scope,
-    companyId: bundle.args.companyId,
-    signingKeypair: bundle.args.keypair,
-    cookieJar: bundle.args.cookieJar,
-  };
+function makeRunStepArgs(bundle: IMakeRunStepArgs): IRunStepArgs {
+  const session = stepSession(bundle.args);
+  return { ...session, step: bundle.step, scope: bundle.scope };
 }
 
 /**

@@ -17,6 +17,7 @@ import type {
 import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { IFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 import type { GraphQLFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
+import { HeadlessNativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -65,6 +66,20 @@ const MSG_404 = 'POST https://bank.example.com/customer 404: no such route';
  */
 function makeStubCtx(): IPipelineContext {
   return {} as unknown as IPipelineContext;
+}
+
+/**
+ * Record each header bag the transport hands the sink.
+ * @param reads - Output list, oldest first.
+ * @param headers - Headers the final response carried.
+ * @returns How many headers were read.
+ */
+function recordingTake(
+  reads: Record<string, string>[],
+  headers: Readonly<Record<string, string>>,
+): number {
+  reads.push(headers);
+  return Object.keys(headers).length;
 }
 
 /**
@@ -322,6 +337,40 @@ describe('ApiMediator.retryOn401 — strategy registered via withTokenStrategy',
     const result = await mediator.apiPost(TEST_URL_TAG, {});
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('not authorised');
+  });
+});
+
+describe('ApiMediator.retryOn401 — response-header carry', () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('carries the retried 200 answer header, never the 401 one', async () => {
+    const answers = [
+      new Response('not authorised', { status: 401, headers: { 'x-session-id': 'stale' } }),
+      Response.json({ ok: true }, { headers: { 'x-session-id': 'fresh' } }),
+    ];
+    /**
+     * Answer the next request with the next scripted response.
+     * @returns The next response.
+     */
+    function answer(): Promise<Response> {
+      return Promise.resolve(answers.shift() ?? new Response(null));
+    }
+    globalThis.fetch = answer;
+    const transport = new HeadlessNativeFetchStrategy('https://bank.example.com');
+    const graphql = stubGraphqlStrategy();
+    const mediator = createApiMediator(CompanyTypes.OneZero, transport, graphql);
+    const strategy = scriptedStrategy([succeed(FRESH_HEADER)]);
+    const ctx = makeStubCtx();
+    mediator.withTokenStrategy(strategy, ctx, { marker: 'x' });
+    const reads: Record<string, string>[] = [];
+    const headerSink = { names: ['x-session-id'], take: recordingTake.bind(null, reads) };
+    const result = await mediator.apiPost(TEST_URL_TAG, {}, { policy: { headerSink } });
+    expect(result.success).toBe(true);
+    expect(reads).toEqual([{ 'x-session-id': 'stale' }, { 'x-session-id': 'fresh' }]);
   });
 });
 

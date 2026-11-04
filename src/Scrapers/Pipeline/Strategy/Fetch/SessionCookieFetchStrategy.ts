@@ -4,21 +4,107 @@
  * origin that answered: the response's final URL when fetch followed a
  * redirect, else the request URL. Every request sends its origin's jar as one
  * `cookie` header, replacing a caller cookie header in any letter case (an
- * empty jar adds nothing), so a cookie never reaches another host. Fetch
- * follows redirects itself, so a redirect hop's own Set-Cookie lines never
- * reach the jar. Built only for node transports whose headless block sets
- * `sessionCookies`; the browser transport keeps the page's own jar. Cookie
- * values are never logged.
+ * empty jar adds nothing), so a cookie never reaches another host.
+ * Under the default `follow` policy fetch follows redirects
+ * itself, so a hop's own Set-Cookie lines never reach the jar; under a manual
+ * redirect policy the transport files each hop's lines under the hop URL and
+ * asks the decorator (`sessionHeadersFor`) for each hop's Cookie header and
+ * `@cookie:` headers, recomputed for the hop URL. Built only for node
+ * transports whose headless block sets `sessionCookies`; the browser transport
+ * keeps the page's own jar. A bank that also sets `cookieDomains` gets the RFC 6265 domain jar
+ * instead, and `withCookieSession` hands its port (`ICookieSession`) to the
+ * mediator so login steps can read, set, export, import and clear cookies.
+ * With a domain jar, a `@cookie:<name>` header value is replaced by that
+ * cookie's URI-decoded value for the request URL (a malformed escape, or a
+ * decoded value no header can hold, is sent raw); the header is dropped when
+ * no such cookie applies. An origin jar
+ * leaves header values as they are. Cookie values are never logged.
  */
 
+import type { ICookieSession } from '../../Types/Domain/CookieSession.js';
+import type { Option } from '../../Types/Option.js';
+import { isSome, none, some } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import type { IFetchOpts, IFetchStrategy, OnSetCookie, PostData } from './FetchStrategy.js';
+import { cookieSentinelHeaders, substituteCookieHeadersBy } from './CookieHeaderSentinel.js';
+import { createDomainCookieJar, type IDomainCookieJar } from './DomainCookieJar.js';
+import type {
+  IFetchOpts,
+  IFetchStrategy,
+  ISessionHeaders,
+  OnSetCookie,
+  PostData,
+} from './FetchStrategy.js';
+import { isHeaderSafe } from './HeaderText.js';
 import { createOriginCookieJar, type IOriginCookieJar } from './OriginCookieJar.js';
 
-/** Mediator-args slice: the opt-in flag and the base URL relative paths join. */
+/** Mediator-args slice: the opt-in flags and the base URL relative paths join. */
 interface ISessionCookieArgs {
   readonly sessionCookies?: boolean;
+  readonly cookieDomains?: readonly string[];
   readonly identityBaseUrl: string;
+}
+
+/** A decorated transport and, for a domain jar, its cookie session. */
+interface ISessionTransport {
+  readonly transport: IFetchStrategy;
+  readonly cookies?: ICookieSession;
+}
+
+/** The jar the decorator keeps; only a domain jar reads single cookies. */
+interface ISessionJar extends IOriginCookieJar {
+  readonly cookieFor?: IDomainCookieJar['cookieFor'];
+}
+
+/**
+ * URI-decode a cookie value for a header, keeping it raw when an escape is
+ * malformed or the decoded text cannot travel in a header.
+ * @param raw - Stored cookie value.
+ * @returns The decoded value, or the raw value.
+ */
+function decodeCookieValue(raw: string): string {
+  try {
+    const decoded = decodeURIComponent(raw);
+    return isHeaderSafe(decoded) ? decoded : raw;
+  } catch {
+    return raw;
+  }
+}
+
+/**
+ * The decoded value of one cookie that applies to a URL.
+ * @param cookieFor - The domain jar's single-cookie read.
+ * @param url - Request URL.
+ * @param name - Cookie name.
+ * @returns The decoded value, or none when no such cookie applies.
+ */
+function decodedCookie(
+  cookieFor: IDomainCookieJar['cookieFor'],
+  url: string,
+  name: string,
+): Option<string> {
+  const raw = cookieFor(url, name);
+  if (!isSome(raw)) return raw;
+  const decoded = decodeCookieValue(raw.value);
+  return some(decoded);
+}
+
+/**
+ * Resolve `@cookie:` sentinels in the caller's headers through a domain jar.
+ * @param jar - Session jar.
+ * @param url - Request URL.
+ * @param headers - Caller headers.
+ * @returns Headers with sentinels resolved, or the caller's map for an
+ *   origin jar.
+ */
+function withSentinels(
+  jar: ISessionJar,
+  url: string,
+  headers: Record<string, string>,
+): Record<string, string> {
+  const { cookieFor } = jar;
+  if (cookieFor === undefined) return headers;
+  const lookup = decodedCookie.bind(null, cookieFor, url);
+  return substituteCookieHeadersBy(headers, lookup);
 }
 
 /**
@@ -80,32 +166,83 @@ function chainCookieSink(jar: IOriginCookieJar, url: string, hook?: OnSetCookie)
 }
 
 /**
+ * The Cookie header a jar sends to a URL.
+ * @param jar - Session jar.
+ * @param url - Request URL.
+ * @returns The header, or none when no cookie applies.
+ */
+function headerOption(jar: IOriginCookieJar, url: string): Option<string> {
+  const header = jar.header(url);
+  if (header === '') return none();
+  return some(header);
+}
+
+/**
+ * The caller's `@cookie:` headers a domain jar resolves; none for an origin
+ * jar, which leaves header values as they are.
+ * @param jar - Session jar.
+ * @param headers - Caller headers.
+ * @returns The sentinel headers.
+ */
+function sentinelHeaders(
+  jar: ISessionJar,
+  headers: Record<string, string>,
+): Record<string, string> {
+  if (jar.cookieFor === undefined) return {};
+  return cookieSentinelHeaders(headers);
+}
+
+/**
+ * The session's headers for one URL: the Cookie header and every sentinel
+ * header, each computed for that URL.
+ * @param jar - Session jar.
+ * @param sentinels - The caller's sentinel headers.
+ * @param url - Request URL.
+ * @returns The owned header names and their values for the URL.
+ */
+function sessionHeaders(
+  jar: ISessionJar,
+  sentinels: Record<string, string>,
+  url: string,
+): ISessionHeaders {
+  const resolved = withSentinels(jar, url, sentinels);
+  const values = withCookieHeader(jar, url, resolved);
+  const names = Object.keys(sentinels).map((name): string => name.toLowerCase());
+  return { owned: ['cookie', ...names], values };
+}
+
+/**
  * Fold the jar into one request's fetch options.
  * @param jar - Session jar.
  * @param url - Request URL.
  * @param opts - Caller fetch options.
- * @returns The caller's options plus the cookie header and the jar sink.
+ * @returns The caller's options with sentinels resolved, plus the cookie
+ *   header, the jar sink and the per-hop session headers.
  */
-function withJar(jar: IOriginCookieJar, url: string, opts: IFetchOpts): IFetchOpts {
-  const extraHeaders = withCookieHeader(jar, url, opts.extraHeaders);
+function withJar(jar: ISessionJar, url: string, opts: IFetchOpts): IFetchOpts {
+  const headers = withSentinels(jar, url, opts.extraHeaders);
+  const extraHeaders = withCookieHeader(jar, url, headers);
   const onSetCookie = chainCookieSink(jar, url, opts.onSetCookie);
-  return { ...opts, extraHeaders, onSetCookie };
+  const sentinels = sentinelHeaders(jar, opts.extraHeaders);
+  const sessionHeadersFor = sessionHeaders.bind(null, jar, sentinels);
+  return { ...opts, extraHeaders, onSetCookie, sessionHeadersFor };
 }
 
 /** Fetch strategy decorator carrying one session cookie jar across calls. */
 class SessionCookieFetchStrategy implements IFetchStrategy {
   private readonly _inner: IFetchStrategy;
 
-  private readonly _jar: IOriginCookieJar;
+  private readonly _jar: ISessionJar;
 
   /**
    * Wrap a transport.
    * @param inner - The transport that sends the requests.
    * @param baseUrl - The transport's base URL, which relative URLs join.
+   * @param jar - The jar to keep; default a fresh origin-scoped jar.
    */
-  constructor(inner: IFetchStrategy, baseUrl: string) {
+  constructor(inner: IFetchStrategy, baseUrl: string, jar?: ISessionJar) {
     this._inner = inner;
-    this._jar = createOriginCookieJar(baseUrl);
+    this._jar = jar ?? createOriginCookieJar(baseUrl);
   }
 
   /**
@@ -144,5 +281,35 @@ function withSessionCookies(transport: IFetchStrategy, args: ISessionCookieArgs)
   return Reflect.construct(SessionCookieFetchStrategy, [transport, args.identityBaseUrl]);
 }
 
+/**
+ * The cookie-session port onto a domain jar.
+ * @param jar - Domain jar the transport keeps.
+ * @returns The port.
+ */
+function toCookieSession(jar: IDomainCookieJar): ICookieSession {
+  const { cookieFor, set, exportAll, importAll, clear } = jar;
+  const headerFor = headerOption.bind(null, jar);
+  return { cookieFor, headerFor, set, exportAll, importAll, clear };
+}
+
+/**
+ * Wrap a transport in its session jar and expose the domain jar's session.
+ * @param transport - The headless identity transport.
+ * @param args - Mediator args: `sessionCookies`, `cookieDomains`, base URL.
+ * @returns The transport (decorated when the flag is on) and, only with
+ *   `cookieDomains`, the cookie session sharing its jar.
+ */
+function withCookieSession(transport: IFetchStrategy, args: ISessionCookieArgs): ISessionTransport {
+  const domains = args.cookieDomains;
+  if (args.sessionCookies !== true || domains === undefined) {
+    return { transport: withSessionCookies(transport, args) };
+  }
+  const jar = createDomainCookieJar(args.identityBaseUrl, domains);
+  const ctorArgs = [transport, args.identityBaseUrl, jar] as const;
+  const decorated = Reflect.construct(SessionCookieFetchStrategy, ctorArgs);
+  return { transport: decorated, cookies: toCookieSession(jar) };
+}
+
 export default SessionCookieFetchStrategy;
-export { SessionCookieFetchStrategy, withSessionCookies };
+export type { ISessionTransport };
+export { SessionCookieFetchStrategy, withCookieSession, withSessionCookies };

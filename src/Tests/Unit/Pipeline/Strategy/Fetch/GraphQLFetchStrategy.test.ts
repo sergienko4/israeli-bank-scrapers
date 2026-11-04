@@ -192,6 +192,21 @@ describe('GraphQLFetchStrategy.query — transport behaviour', () => {
     expect(headers['x-floor']).toBe('default');
   });
 
+  it.each([
+    [200, 'empty', true],
+    [207, 'fail', false],
+  ] as const)('cancels the unread GraphQL body for HTTP %i %s', async (status, action, success) => {
+    const cancel = jest.fn<Promise<void>, []>().mockResolvedValue(undefined);
+    const body = new ReadableStream<Uint8Array>({ cancel });
+    const response = new Response(body, { status });
+    installFetchMock((): Promise<Response> => Promise.resolve(response));
+    const options = { statusPolicy: { [status]: action } };
+    const strategy = new GraphQLFetchStrategy('https://gql.example/graphql', {}, options);
+    const result = await strategy.query('{ x }', {});
+    expect(result.success).toBe(success);
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
   it('propagates transport failure (fetch throws) as fail — not silently swallowed', async () => {
     const impl = rejectWith(new Error('socket hang up'));
     installFetchMock(impl);

@@ -16,6 +16,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import type { DefaultHeaders } from './DefaultHeadersFetchStrategy.js';
 import { mergeUnder } from './DefaultHeadersFetchStrategy.js';
 import type { IFetchOpts, PostData } from './FetchStrategy.js';
+import type { INativeFetchOptions } from './NativeFetchStrategy.js';
 import { NativeFetchStrategy } from './NativeFetchStrategy.js';
 
 /** Default opts used when the caller passes no extraHeaders. */
@@ -29,9 +30,14 @@ class GraphQLFetchStrategy extends NativeFetchStrategy {
    * Bind the strategy to a GraphQL endpoint and an optional header floor.
    * @param baseUrl - GraphQL endpoint every operation is POSTed to.
    * @param defaultHeaders - Headers merged under each call's extraHeaders.
+   * @param options - Bank-wide redirect and status defaults.
    */
-  constructor(baseUrl: string, defaultHeaders: DefaultHeaders = {}) {
-    super(baseUrl);
+  constructor(
+    baseUrl: string,
+    defaultHeaders: DefaultHeaders = {},
+    options: INativeFetchOptions = {},
+  ) {
+    super(baseUrl, options);
     this._defaultHeaders = defaultHeaders;
   }
 

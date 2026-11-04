@@ -22,23 +22,22 @@ import type {
   IFireQueryArgs,
 } from './ApiMediator.types.js';
 
+/** Optional-extras subset merged into firePost args. */
+type FirePostExtras = Pick<IFirePostArgs, 'extraHeaders' | 'query' | 'onSetCookie' | 'policy'>;
+
 /**
  * Build the optional extras subset of firePost args.
  * @param args - apiPost op args.
  * @returns Optional extras subset.
  */
-function buildFirePostExtras(
-  args: IApiPostOpArgs,
-): Pick<IFirePostArgs, 'extraHeaders' | 'query' | 'onSetCookie'> {
+function buildFirePostExtras(args: IApiPostOpArgs): FirePostExtras {
   return {
     extraHeaders: args.opts?.extraHeaders ?? NO_EXTRA_HEADERS,
     query: args.opts?.query ?? NO_EXTRA_HEADERS,
     onSetCookie: args.opts?.onSetCookie,
+    policy: args.opts?.policy,
   };
 }
-
-/** Optional-extras subset merged into firePost args. */
-type FirePostExtras = Pick<IFirePostArgs, 'extraHeaders' | 'query' | 'onSetCookie'>;
 
 /**
  * Merge the per-request HMAC signature headers into the POST extras.
@@ -104,22 +103,30 @@ async function apiPostOp<T>(args: IApiPostOpArgs): Promise<Procedure<T>> {
 }
 
 /**
- * Build the empty-body HMAC headers for a GET attempt.
+ * Overlay fresh empty-body HMAC headers on the caller's GET headers.
  * @param ctx - Per-call context.
  * @param url - Resolved GET URL.
- * @returns HMAC header map (empty when no key is set).
+ * @param opts - Optional caller headers.
+ * @returns Headers with HMAC owning any name collision, regardless of casing.
  */
-function buildGetHmacHeaders(ctx: IApiCallContext, url: string): Record<string, string> {
-  return buildHmacHeaders({ session: ctx.state.sessionContext, method: 'GET', url });
+function buildGetHeaders(
+  ctx: IApiCallContext,
+  url: string,
+  opts?: IApiQueryOpts,
+): Record<string, string> {
+  const hmac = buildHmacHeaders({ session: ctx.state.sessionContext, method: 'GET', url });
+  const callerHeaders = opts?.extraHeaders ?? NO_EXTRA_HEADERS;
+  return overlayHeaders(callerHeaders, hmac);
 }
 
 /** Optional-extras subset merged into fireGet args. */
-type FireGetExtras = Pick<IFireGetArgs, 'extraHeaders' | 'query' | 'onSetCookie'>;
+type FireGetExtras = Pick<IFireGetArgs, 'extraHeaders' | 'query' | 'onSetCookie' | 'policy'>;
 
 /**
  * Build the per-attempt GET extras. Caller headers sit under the fresh
  * HMAC headers (HMAC wins a name clash in any letter case, as on POST);
- * query and the Set-Cookie hook pass through. No opts ⇒ HMAC headers only.
+ * query, the Set-Cookie hook and the call policy pass through.
+ * No opts ⇒ HMAC headers only.
  * @param ctx - Per-call context.
  * @param url - Resolved GET URL (pre-query, as signed on POST).
  * @param opts - Optional per-call options.
@@ -130,10 +137,9 @@ function buildFireGetExtras(
   url: string,
   opts?: IApiQueryOpts,
 ): FireGetExtras {
-  const hmac = buildGetHmacHeaders(ctx, url);
-  const callerHeaders = opts?.extraHeaders ?? NO_EXTRA_HEADERS;
-  const extraHeaders = overlayHeaders(callerHeaders, hmac);
-  return { extraHeaders, query: opts?.query ?? NO_EXTRA_HEADERS, onSetCookie: opts?.onSetCookie };
+  const extraHeaders = buildGetHeaders(ctx, url, opts);
+  const query = opts?.query ?? NO_EXTRA_HEADERS;
+  return { extraHeaders, query, onSetCookie: opts?.onSetCookie, policy: opts?.policy };
 }
 
 /**
@@ -183,12 +189,11 @@ async function apiGetOp<T>(
  */
 function buildFireQueryArgs(args: IApiQueryOpArgs, queryString: string): IFireQueryArgs {
   const { ctx, variables, opts } = args;
+  const base = { deps: ctx.deps, queryString, variables, rawAuth: ctx.state.rawAuth };
   return {
-    deps: ctx.deps,
-    queryString,
-    variables,
-    rawAuth: ctx.state.rawAuth,
+    ...base,
     extraHeaders: opts?.extraHeaders ?? NO_EXTRA_HEADERS,
+    policy: opts?.policy,
   };
 }
 

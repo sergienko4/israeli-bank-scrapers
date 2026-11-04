@@ -13,6 +13,8 @@
 
 import type { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { WKUrlGroup } from '../../../Registry/WK/UrlsWK.js';
+import type { RedirectPolicy, ResponseKind } from '../../../Types/Domain/FetchPolicy.js';
+import type { IDerivedCarry } from './CarryTypes.js';
 import type { IPreStepHook } from './EnvelopeTypes.js';
 import type { IBodyTemplate, IEnvelopeSelectors, JsonValueTemplate } from './TemplateTypes.js';
 
@@ -31,7 +33,10 @@ type StepName =
   | 'validate'
   | 'deviceKey'
   | 'register'
-  | 'resume';
+  | 'resume'
+  | 'bootstrap'
+  | 'landing'
+  | 'logon';
 
 /**
  * How a step's HTTP 2xx body says whether the step worked. The code at
@@ -59,6 +64,14 @@ interface IOptionalExtract {
   /** RFC-6901 pointer into the response body. */
   readonly pointer: string;
   /** Value written when the field is missing, blank or not a string. */
+  readonly fallback?: string;
+}
+
+/** One carry slot read from a response header. */
+interface IHeaderExtract {
+  /** Header name, compared case-insensitively. */
+  readonly header: string;
+  /** Value written when the response lacks the header; without it the step fails. */
   readonly fallback?: string;
 }
 
@@ -91,6 +104,16 @@ interface IStepBase {
   readonly headers?: Readonly<Record<string, JsonValueTemplate>>;
   /** Optional outcome policy, judged after HTTP 2xx and before the extracts. */
   readonly outcome?: IStepOutcome;
+  /** Optional redirect policy for this step; overrides the bank's `redirectPolicy`. */
+  readonly redirect?: RedirectPolicy;
+  /** How the step reads its 2xx answer; `json` when absent. A `document` step sees `{}`. */
+  readonly response?: ResponseKind;
+  /** Text a `document` answer must contain, else the step fails `document unverified`. */
+  readonly documentMarker?: string;
+  /** Carry slots read from the final response's headers, merged beside `extractsToCarry`. */
+  readonly headerExtractsToCarry?: Readonly<Record<string, IHeaderExtract>>;
+  /** Carry slots derived, in order, once this step's extracts are in scope. */
+  readonly deriveCarry?: readonly IDerivedCarry[];
 }
 
 /** A POST step, the default when `method` is omitted: sends the hydrated body. */
@@ -114,6 +137,7 @@ type StepMethod = NonNullable<IStepConfig['method']>;
 export type {
   FlowKind,
   IGetStep,
+  IHeaderExtract,
   IOptionalExtract,
   IPostStep,
   IStepBase,

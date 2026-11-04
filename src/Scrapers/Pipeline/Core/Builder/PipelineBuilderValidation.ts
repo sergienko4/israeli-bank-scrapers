@@ -15,6 +15,7 @@ import type { IActionContext, IPipelineContext } from '../../Types/PipelineConte
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import { validateApiDirectConfig } from './ApiDirectConfigRules.js';
+import { NATIVE_HEADLESS_FIELDS } from './ApiDirectNativeRules.js';
 import type { IBuilderState, LoginFn } from './PipelineAssembly.js';
 
 /** Per-check error flag — branded so Rule #15 accepts the inline predicate. */
@@ -69,19 +70,47 @@ function headlessOf(options: ScraperOptions): IHeadlessUrlsConfig | false {
 }
 
 /**
+ * Whether the bank's headless block selects the node:https transport. Its
+ * mTLS strategies ignore the native-only redirect and status policies, so the
+ * builder refuses them here even when the bank has no api-direct config.
+ * @param headless - The bank's headless block.
+ * @returns True when the block needs a client certificate or TLS profile.
+ */
+function isNodeTls(headless: IHeadlessUrlsConfig | false): headless is IHeadlessUrlsConfig {
+  if (headless === false) return false;
+  return headless.requiresClientCert === true || headless.tlsProfile !== undefined;
+}
+
+/**
+ * Refuse a native-only headless field on a node:https block, where no
+ * transport would apply it.
+ * @param headless - The bank's headless block.
+ * @returns Success, or a Generic failure naming the ignored field.
+ */
+function checkNodeTlsFields(headless: IHeadlessUrlsConfig | false): Procedure<true> {
+  if (!isNodeTls(headless)) return succeed(true);
+  const field = NATIVE_HEADLESS_FIELDS.find((name): boolean => headless[name] !== undefined);
+  if (field === undefined) return succeed(true);
+  const message = `headless.${field}: not allowed without headless.nativeFetch`;
+  return fail(ScraperErrorTypes.Generic, message);
+}
+
+/**
  * Check an api-direct call config against its bank's headless block.
  * @param fields - Raw builder fields.
- * @param options - Scraper options naming the bank.
+ * @param headless - The bank's headless block.
  * @returns Success, or the first broken config rule.
  */
-function checkApiDirectFields(fields: IBuilderFields, options: ScraperOptions): Procedure<true> {
+function checkApiDirectFields(
+  fields: IBuilderFields,
+  headless: IHeadlessUrlsConfig | false,
+): Procedure<true> {
   if (fields.apiDirectConfig === false) return succeed(true);
-  const headless = headlessOf(options);
   return validateApiDirectConfig({ call: fields.apiDirectConfig, headless });
 }
 
 /**
- * Validate the required fields, then the api-direct config rules.
+ * Validate the required fields, then the headless and api-direct config rules.
  * @param fields - Raw builder fields.
  * @param options - Scraper options naming the bank.
  * @returns Success or the first failure.
@@ -89,7 +118,10 @@ function checkApiDirectFields(fields: IBuilderFields, options: ScraperOptions): 
 function validateBuilderFields(fields: IBuilderFields, options: ScraperOptions): Procedure<true> {
   const required = assertRequiredFields(fields);
   if (!required.success) return required;
-  return checkApiDirectFields(fields, options);
+  const headless = headlessOf(options);
+  const nodeTls = checkNodeTlsFields(headless);
+  if (!nodeTls.success) return nodeTls;
+  return checkApiDirectFields(fields, headless);
 }
 
 /**

@@ -9,6 +9,7 @@ import type { IFetchStrategy } from '../../Strategy/Fetch/FetchStrategy.js';
 import type { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { IApiQueryOpts } from '../../Types/Domain/ApiQueryOpts.js';
 import type { IMediatorAuthPolicy } from '../../Types/Domain/MediatorAuthPolicy.js';
+import type { ITokenBus } from '../../Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { ITokenResolver } from './ITokenResolver.js';
@@ -42,7 +43,7 @@ type SessionContext = Readonly<Record<string, unknown>>;
 type RecoveredHook = (header: string, wasWarm: boolean) => Promise<void>;
 
 /** Public ApiMediator surface — the only API phases/handlers see. */
-interface IApiMediator {
+interface IApiMediator extends Pick<ITokenBus, 'cookies'> {
   setBearer: (token: string) => boolean;
   setRawAuth: (headerValue: string) => boolean;
   setSessionContext: (ctx: SessionContext) => boolean;
@@ -87,21 +88,20 @@ interface IApiMediatorDeps {
 }
 
 /** Args for firePost — bundled to satisfy the 3-parameter ceiling. */
-interface IFirePostArgs {
+interface IFirePostArgs extends Pick<IApiQueryOpts, 'onSetCookie' | 'policy'> {
   readonly deps: IApiMediatorDeps;
   readonly url: string;
   readonly body: Record<string, unknown>;
   readonly rawAuth: string;
   readonly extraHeaders: Record<string, string>;
   readonly query: Record<string, string>;
-  readonly onSetCookie?: (setCookies: readonly string[]) => number;
 }
 
 /** Args for fireGet — the firePost bundle minus the body (GET sends none). */
 type IFireGetArgs = Omit<IFirePostArgs, 'body'>;
 
 /** Args for fireQuery — bundled to satisfy the 3-parameter ceiling. */
-interface IFireQueryArgs {
+interface IFireQueryArgs extends Pick<IApiQueryOpts, 'policy'> {
   readonly deps: IApiMediatorDeps;
   readonly queryString: string;
   readonly variables: Record<string, unknown>;

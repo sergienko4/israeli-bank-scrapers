@@ -8,6 +8,7 @@
  * PipelineContextFactory to keep that file under the strict 150-LoC cap.
  */
 
+import type { CompanyTypes } from '../../../Definitions.js';
 import ScraperError from '../../Base/ScraperError.js';
 import {
   createBrowserBackedHeadlessApiMediator,
@@ -17,10 +18,8 @@ import {
 } from '../Mediator/Api/ApiMediator.js';
 import { resolvePipelineBankConfig } from '../Registry/Config/PipelineBankConfig.js';
 import type { IHeadlessUrlsConfig } from '../Registry/Config/PipelineBankConfigTypes.js';
-import type { TlsClientProfileKind } from '../Strategy/Fetch/Tls/TlsClientProfiles.js';
 import type { Option } from '../Types/Option.js';
 import { none, some } from '../Types/Option.js';
-import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 
 /** Identity-transport flags decoded from the optional headless config block. */
@@ -39,14 +38,23 @@ interface IWiringFlags {
 /** Identity transport a headless bank runs over. */
 type HeadlessTransportKind = 'node-tls' | 'native' | 'browser';
 
+/** Optional transport settings a headless config block hands to the factory. */
+type TTransportKey = 'tlsProfile' | 'cookieDomains' | 'redirectPolicy' | 'statusPolicy';
+
 /** Pair of URLs + flags needed to wire the headless ApiMediator. */
 interface IHeadlessWiring extends IWiringFlags {
+  /**
+   * Optional transport settings, handed to the factory untouched: the
+   * node:https ClientHello profile (absent keeps Node's default), the
+   * domain-jar allow-list (absent keeps the origin jar), the native
+   * transport's default redirect policy (absent keeps `follow`) and its
+   * status policy (absent decides no status).
+   */
+  readonly transport: Pick<IHeadlessUrlsConfig, TTransportKey>;
   readonly identity: string;
   readonly graphql: string;
   readonly graphqlHeaders?: Readonly<Record<string, string>>;
   readonly staticAuth?: string;
-  /** ClientHello profile for the node:https transport; absent keeps Node's default. */
-  readonly tlsProfile?: TlsClientProfileKind;
 }
 
 /** Arg bundle accepted by every headless mediator factory (superset of each). */
@@ -59,11 +67,9 @@ type TIdentityArgs = Pick<TMediatorArgs, 'bankHint' | 'identityBaseUrl' | 'ident
 /** GraphQL slice of the mediator args. */
 type TGraphqlArgs = Pick<TMediatorArgs, 'graphqlUrl' | 'graphqlHeaders' | 'staticAuth'>;
 
-/** Transport-requirement slice of the mediator args. */
-type TTransportArgs = Pick<
-  TMediatorArgs,
-  'bypassOriginChallenge' | 'requiresClientCert' | 'tlsProfile' | 'sessionCookies'
->;
+/** Transport-requirement slice of the mediator args, optional settings included. */
+type TTransportArgs = IHeadlessWiring['transport'] &
+  Pick<TMediatorArgs, 'bypassOriginChallenge' | 'requiresClientCert' | 'sessionCookies'>;
 
 /**
  * Decode the optional transport flags into explicit booleans.
@@ -87,8 +93,11 @@ function toWiringFlags(headless: IHeadlessUrlsConfig): IWiringFlags {
  */
 function toHeadlessWiring(headless: IHeadlessUrlsConfig): IHeadlessWiring {
   const flags = toWiringFlags(headless);
-  const { identityBase, graphql, graphqlHeaders, staticAuth, tlsProfile } = headless;
-  return { identity: identityBase, graphql, graphqlHeaders, staticAuth, tlsProfile, ...flags };
+  const { identityBase, graphql, graphqlHeaders, staticAuth } = headless;
+  const { tlsProfile, cookieDomains, redirectPolicy, statusPolicy } = headless;
+  const urls = { identity: identityBase, graphql, graphqlHeaders, staticAuth };
+  const transport = { tlsProfile, cookieDomains, redirectPolicy, statusPolicy };
+  return { ...urls, transport, ...flags };
 }
 
 /**
@@ -97,7 +106,7 @@ function toHeadlessWiring(headless: IHeadlessUrlsConfig): IHeadlessWiring {
  * @param companyId - Target bank company type.
  * @returns Resolved wiring, or false when the lookup fails.
  */
-function resolveHeadlessWiring(companyId: IPipelineContext['companyId']): IHeadlessWiring | false {
+function resolveHeadlessWiring(companyId: CompanyTypes): IHeadlessWiring | false {
   const config = resolvePipelineBankConfig(companyId);
   if (config === false || !config.headless) return false;
   return toHeadlessWiring(config.headless);
@@ -109,10 +118,7 @@ function resolveHeadlessWiring(companyId: IPipelineContext['companyId']): IHeadl
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns bankHint plus the identity base + origin URLs.
  */
-function toIdentityArgs(
-  companyId: IPipelineContext['companyId'],
-  wiring: IHeadlessWiring,
-): TIdentityArgs {
+function toIdentityArgs(companyId: CompanyTypes, wiring: IHeadlessWiring): TIdentityArgs {
   const { origin } = new URL(wiring.identity);
   return { bankHint: companyId, identityBaseUrl: wiring.identity, identityOriginUrl: origin };
 }
@@ -130,13 +136,15 @@ function toGraphqlArgs(wiring: IHeadlessWiring): TGraphqlArgs {
 /**
  * Build the transport-requirement slice of the mediator args.
  * @param wiring - Resolved wiring entry (URLs + flags).
- * @returns Origin-challenge bypass, client-cert flag, TLS profile and cookie jar flag.
+ * @returns Origin-challenge bypass, client-cert and cookie jar flags, plus
+ *   the TLS profile, the domain-jar allow-list and the redirect and
+ *   status policies.
  */
 function toTransportArgs(wiring: IHeadlessWiring): TTransportArgs {
   return {
+    ...wiring.transport,
     bypassOriginChallenge: wiring.bypassOriginChallenge,
     requiresClientCert: wiring.requiresClientCert,
-    tlsProfile: wiring.tlsProfile,
     sessionCookies: wiring.sessionCookies,
   };
 }
@@ -148,7 +156,7 @@ function toTransportArgs(wiring: IHeadlessWiring): TTransportArgs {
  * @returns Args bundle accepted by every headless mediator factory.
  */
 function buildMediatorArgsForWiring(
-  companyId: IPipelineContext['companyId'],
+  companyId: CompanyTypes,
   wiring: IHeadlessWiring,
 ): TMediatorArgs {
   const identityArgs = toIdentityArgs(companyId, wiring);
@@ -168,7 +176,7 @@ const TRANSPORT_CONFLICT_MSG =
  * @returns True when identity + GraphQL must run over node:https.
  */
 function usesNodeTls(wiring: IHeadlessWiring): boolean {
-  return wiring.requiresClientCert || wiring.tlsProfile !== undefined;
+  return wiring.requiresClientCert || wiring.transport.tlsProfile !== undefined;
 }
 
 /**
@@ -222,10 +230,7 @@ const MEDIATOR_FACTORIES: Readonly<
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns True when the transport selection is unambiguous.
  */
-function assertSingleTransport(
-  companyId: IPipelineContext['companyId'],
-  wiring: IHeadlessWiring,
-): boolean {
+function assertSingleTransport(companyId: CompanyTypes, wiring: IHeadlessWiring): boolean {
   const declared = TRANSPORT_DECLARATIONS.filter((isDeclared): boolean => isDeclared(wiring));
   if (declared.length > 1) throw new ScraperError(`${TRANSPORT_CONFLICT_MSG} (${companyId})`);
   return true;
@@ -250,9 +255,7 @@ function pickTransportKind(wiring: IHeadlessWiring): HeadlessTransportKind {
  * @returns The transport kind, or false when the bank has no headless block.
  * @throws ScraperError when the headless block declares conflicting transports.
  */
-function resolveHeadlessTransportKind(
-  companyId: IPipelineContext['companyId'],
-): HeadlessTransportKind | false {
+function resolveHeadlessTransportKind(companyId: CompanyTypes): HeadlessTransportKind | false {
   const wiring = resolveHeadlessWiring(companyId);
   if (wiring === false) return false;
   assertSingleTransport(companyId, wiring);
@@ -265,10 +268,7 @@ function resolveHeadlessTransportKind(
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns A fully-wired IApiMediator for the bank's transport requirements.
  */
-function selectHeadlessMediator(
-  companyId: IPipelineContext['companyId'],
-  wiring: IHeadlessWiring,
-): IApiMediator {
+function selectHeadlessMediator(companyId: CompanyTypes, wiring: IHeadlessWiring): IApiMediator {
   assertSingleTransport(companyId, wiring);
   const args = buildMediatorArgsForWiring(companyId, wiring);
   const kind = pickTransportKind(wiring);

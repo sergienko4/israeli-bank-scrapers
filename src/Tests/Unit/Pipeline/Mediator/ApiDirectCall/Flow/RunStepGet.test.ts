@@ -49,6 +49,17 @@ const GET_STEP: IGetStep = {
   extractsToCarry: { token: '/access_token' },
 };
 
+const PORTAL_HTML = '<!doctype html><html><body><main id="portal-ready"></main></body></html>';
+
+const DOCUMENT_STEP: IGetStep = {
+  name: 'bind',
+  urlTag: 'auth.bind',
+  method: 'GET',
+  response: 'document',
+  documentMarker: 'portal-ready',
+  extractsToCarry: {},
+};
+
 const POST_STEP: IPostStep = {
   name: 'login',
   urlTag: 'auth.login',
@@ -90,6 +101,30 @@ function installFetch(): IFetchFake {
     const headers = new Headers([['set-cookie', SESSION_COOKIE]]);
     return Response.json({ access_token: 'syn-token' }, { headers });
   });
+  globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
+  return fake;
+}
+
+/**
+ * Point globalThis.fetch at a fake that answers every request with a 302.
+ * @returns The fake, for request assertions.
+ */
+function installRedirect(): IFetchFake {
+  const fake = fakeFetch((): Response => {
+    const headers = new Headers([['location', `${ORIGIN}/elsewhere`]]);
+    return new Response(null, { status: 302, headers });
+  });
+  globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
+  return fake;
+}
+
+/**
+ * Point globalThis.fetch at a fake that serves one HTML page.
+ * @param html - Page body.
+ * @returns The fake, for request assertions.
+ */
+function installPage(html: string): IFetchFake {
+  const fake = fakeFetch((): Response => new Response(html, { status: 200 }));
   globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
   return fake;
 }
@@ -170,6 +205,41 @@ describe('E8 GET login step over the headless native transport', () => {
     expect(hasContentType).toBe(false);
     expect(jarHeader).toBe('sid=syn-sid');
     expect(result).toMatchObject({ success: true, value: { carry: { token: 'syn-token' } } });
+  });
+
+  it("refuses a redirect under the step's own policy", async (): Promise<void> => {
+    const fake = installRedirect();
+    const step: IGetStep = { ...GET_STEP, redirect: 'reject' };
+    const bus = makeNativeMediator();
+    const result = await runStep({ step, bus, scope: makeScope(), companyId: HINT });
+    const call = onlyCall(fake);
+    expect(call.init).toMatchObject({ redirect: 'manual' });
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'bind HTTP 302 redirect refused',
+    });
+  });
+
+  it('reads a document step without parsing it', async (): Promise<void> => {
+    installPage(PORTAL_HTML);
+    const bus = makeNativeMediator();
+    const result = await runStep({ step: DOCUMENT_STEP, bus, scope: makeScope(), companyId: HINT });
+    expect(result).toMatchObject({ success: true, value: { carry: {} } });
+  });
+
+  it('refuses a document step whose marker is missing', async (): Promise<void> => {
+    installPage('<html><body>maintenance</body></html>');
+    const bus = makeNativeMediator();
+    const result = await runStep({ step: DOCUMENT_STEP, bus, scope: makeScope(), companyId: HINT });
+    expect(result).toMatchObject({ success: false, errorMessage: 'bind document unverified' });
+  });
+
+  it('leaves redirects to fetch when the step names no policy', async (): Promise<void> => {
+    const fake = installFetch();
+    const bus = makeNativeMediator();
+    await runStep({ step: POST_STEP, bus, scope: makeScope(), companyId: HINT });
+    const call = onlyCall(fake);
+    expect(call.init).not.toHaveProperty('redirect');
   });
 
   it('still sends a POST step as JSON', async (): Promise<void> => {

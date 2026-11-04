@@ -356,3 +356,34 @@ describe('SmsOtpFlow password-only chain', () => {
     expect(captures[0].body).toEqual({ password: 'pw' });
   });
 });
+
+describe('SmsOtpFlow bank-text omission', () => {
+  /**
+   * Build a one-step config whose bank opts out of echoing its own text.
+   * @returns IApiDirectCallConfig literal.
+   */
+  function makeQuietConfig(): IApiDirectCallConfig {
+    return {
+      flow: 'sms-otp',
+      envelope: {},
+      omitBankText: true,
+      steps: [
+        {
+          name: 'logon',
+          urlTag: BRANCH_TAG,
+          body: { shape: {} },
+          extractsToCarry: { token: '/token' },
+        },
+      ],
+    };
+  }
+
+  it('reports a missed extract without the bank text', async () => {
+    const answer = succeed({ message: 'customer details here' });
+    const bus = makeStubMediator({ responses: [answer], captures: [] });
+    const config = makeQuietConfig();
+    const result = await runSmsOtpFlow({ config, bus, creds: {}, companyId: HINT });
+    const reason = result.success ? '' : result.errorMessage;
+    expect(reason).toBe('envelope selector miss: token at /token');
+  });
+});

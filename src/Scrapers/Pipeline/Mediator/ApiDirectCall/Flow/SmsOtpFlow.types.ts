@@ -96,6 +96,8 @@ interface IStepReduceArgs {
   readonly keypair: SigningKeypair;
   readonly creds: Readonly<Record<string, unknown>>;
   readonly cookieJar: IStepCookieJar;
+  /** True when the bank's own text must never reach a step failure. */
+  readonly isBankTextOmitted: boolean;
   /** Created once per flow, discarded with it. See SmsOtpFlow.prehookCache. */
   readonly preHookCache: IPreHookCache;
 }

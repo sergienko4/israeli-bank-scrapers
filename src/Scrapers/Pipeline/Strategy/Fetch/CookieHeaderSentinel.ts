@@ -11,9 +11,13 @@
  *
  * A header naming an absent cookie is dropped — upstream parity: the
  * `X-XSRF-TOKEN` header is omitted when the `XSRF-TOKEN` cookie is missing.
+ * The node session transport resolves the same sentinel through a lookup
+ * onto its own jar (`substituteCookieHeadersBy`).
  */
 
 import type { Brand } from '../../Types/Brand.js';
+import type { Option } from '../../Types/Option.js';
+import { isSome, none, some } from '../../Types/Option.js';
 
 /** Header-value prefix marking a cookie-echo sentinel. */
 export const COOKIE_HEADER_SENTINEL_PREFIX = '@cookie:';
@@ -26,6 +30,9 @@ export interface INamedCookie {
 
 /** Live cookie jar (subset of Playwright `BrowserContext.cookies()`). */
 export type CookieJar = readonly INamedCookie[];
+
+/** Reads one cookie's value by name, or none when the cookie is absent. */
+export type CookieLookup = (name: string) => Option<string>;
 
 /** Predicate result: whether a header map carries a cookie-echo sentinel. */
 export type HasCookieSentinel = Brand<boolean, 'HasCookieSentinel'>;
@@ -44,18 +51,64 @@ export function hasCookieSentinel(headers: Readonly<Record<string, string>>): Ha
 }
 
 /**
+ * The headers whose value is a cookie-echo sentinel.
+ * @param headers - Outgoing header map.
+ * @returns The sentinel headers only.
+ */
+export function cookieSentinelHeaders(
+  headers: Readonly<Record<string, string>>,
+): Record<string, string> {
+  const entries = Object.entries(headers);
+  const sentinels = entries.filter(([, value]): boolean =>
+    value.startsWith(COOKIE_HEADER_SENTINEL_PREFIX),
+  );
+  return Object.fromEntries(sentinels);
+}
+
+/**
  * Resolve one header value: pass through non-sentinels unchanged;
  * substitute the named cookie's value; return `false` to drop the header
  * when the cookie is absent.
  * @param value - Raw header value (possibly a sentinel).
- * @param jar - Live cookie jar.
+ * @param lookup - Reads one cookie by name.
  * @returns Resolved value, or `false` to signal "drop this header".
  */
-function resolveHeaderValue(value: string, jar: CookieJar): string | false {
+function resolveHeaderValue(value: string, lookup: CookieLookup): string | false {
   if (!value.startsWith(COOKIE_HEADER_SENTINEL_PREFIX)) return value;
   const name = value.slice(COOKIE_HEADER_SENTINEL_PREFIX.length);
+  const hit = lookup(name);
+  return isSome(hit) ? hit.value : false;
+}
+
+/**
+ * Rebuild a header map with every `@cookie:<name>` sentinel resolved
+ * through a cookie lookup; headers whose cookie is absent are dropped.
+ * @param headers - Outgoing header map (may contain sentinels).
+ * @param lookup - Reads one cookie by name.
+ * @returns New header map with sentinels resolved.
+ */
+export function substituteCookieHeadersBy(
+  headers: Readonly<Record<string, string>>,
+  lookup: CookieLookup,
+): Record<string, string> {
+  const pairs = Object.keys(headers).map((key): readonly [string, string | false] => [
+    key,
+    resolveHeaderValue(headers[key], lookup),
+  ]);
+  const kept = pairs.filter((p): p is readonly [string, string] => p[1] !== false);
+  return Object.fromEntries(kept);
+}
+
+/**
+ * The first cookie of a live jar with this name.
+ * @param jar - Live cookie jar.
+ * @param name - Cookie name.
+ * @returns Its value, or none when the jar has no such cookie.
+ */
+function findInJar(jar: CookieJar, name: string): Option<string> {
   const hit = jar.find((c): boolean => c.name === name);
-  return hit ? hit.value : false;
+  if (hit === undefined) return none();
+  return some(hit.value);
 }
 
 /**
@@ -69,10 +122,6 @@ export function substituteCookieHeaders(
   headers: Readonly<Record<string, string>>,
   jar: CookieJar,
 ): Record<string, string> {
-  const pairs = Object.keys(headers).map((key): readonly [string, string | false] => [
-    key,
-    resolveHeaderValue(headers[key], jar),
-  ]);
-  const kept = pairs.filter((p): p is readonly [string, string] => p[1] !== false);
-  return Object.fromEntries(kept);
+  const lookup = findInJar.bind(null, jar);
+  return substituteCookieHeadersBy(headers, lookup);
 }

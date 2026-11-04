@@ -15,6 +15,10 @@ import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { TlsClientProfileKind } from '../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/TlsClientProfiles.js';
+import type {
+  RedirectPolicy,
+  StatusPolicy,
+} from '../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 
 /** Transport flags a headless config block may declare. */
 interface ITransportFlags {
@@ -23,6 +27,9 @@ interface ITransportFlags {
   readonly tlsProfile?: TlsClientProfileKind;
   readonly nativeFetch?: boolean;
   readonly sessionCookies?: boolean;
+  readonly cookieDomains?: readonly string[];
+  readonly redirectPolicy?: RedirectPolicy;
+  readonly statusPolicy?: StatusPolicy;
 }
 
 /** URLs every case shares; only the transport flags vary. */
@@ -155,6 +162,24 @@ describe('HeadlessMediatorWiring — transport selection', () => {
     resolveWith(flags);
     const [args] = factory.mock.calls[0] as unknown[];
     expect(args).toMatchObject({ sessionCookies: true });
+  });
+
+  it('hands the cookie domains to the factory', () => {
+    resolveWith({ nativeFetch: true, sessionCookies: true, cookieDomains: ['bank.example'] });
+    const [args] = CREATE_NATIVE.mock.calls[0] as unknown[];
+    expect(args).toMatchObject({ cookieDomains: ['bank.example'] });
+  });
+
+  it('hands the redirect policy to the native factory', () => {
+    resolveWith({ nativeFetch: true, redirectPolicy: 'reject' });
+    const [args] = CREATE_NATIVE.mock.calls[0] as unknown[];
+    expect(args).toMatchObject({ redirectPolicy: 'reject' });
+  });
+
+  it('hands the status policy to the native factory', () => {
+    resolveWith({ nativeFetch: true, statusPolicy: { 204: 'empty' } });
+    const [args] = CREATE_NATIVE.mock.calls[0] as unknown[];
+    expect(args).toMatchObject({ statusPolicy: { 204: 'empty' } });
   });
 
   it('defaults the cookie jar flag to false', () => {
