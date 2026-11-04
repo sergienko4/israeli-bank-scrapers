@@ -25,7 +25,6 @@ import {
   installAuthToken,
 } from './BindApiMediatorAuth.js';
 import { type IBancsCapture, primeBancsSession } from './BindApiMediatorBancs.js';
-import { primeClientVersion } from './BindApiMediatorClientVersion.js';
 import { primeSessionToken } from './BindApiMediatorSessionToken.js';
 
 /**
@@ -113,7 +112,6 @@ async function bindBrowserPageMediator(
   const pageProc = resolveLoginPage(ctx);
   if (!isOk(pageProc)) return pageProc;
   const mediator = await bindMediatorWithAuth(ctx, pageProc.value);
-  await primeClientVersion(ctx.config, pageProc.value, mediator);
   primeSessionTokenFromPool(ctx, mediator);
   primeBancsFromPool(ctx, mediator);
   return succeed({ ...ctx, apiMediator: some(mediator) });

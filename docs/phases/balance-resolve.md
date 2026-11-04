@@ -33,7 +33,7 @@ This closes the v4 "universal-empty = scrape miss" gate that previously ate legi
 
 ## How api-direct banks emit the same slot
 
-For OneZero, Pepper, PayBox, VisaCal, Isracard, Amex, this phase is **not in the chain**. Instead, [`ApiDirectScrapePhase.final`](api-direct-scrape.md#final-emit-balanceresolution-from-scrapeaccounts) reads `scrape.value.accounts[i].balance` (populated by the per-bank shape extractor during `.action`) and emits the same `Map<accountNumber, number>` into `ctx.balanceResolution`.
+For OneZero, Pepper, PayBox, VisaCal, Isracard, Amex and Max, this phase is **not in the chain**. Instead, [`ApiDirectScrapePhase.final`](api-direct-scrape.md#final-emit-balanceresolution-from-scrapeaccounts) reads `scrape.value.accounts[i].balance` (populated by the per-bank shape extractor during `.action`) and emits the same `Map<accountNumber, number>` into `ctx.balanceResolution`.
 
 `PipelineResult` reads `balanceResolution` regardless of which path produced it — one source of truth.
 

@@ -21,7 +21,7 @@
  * method" the `it.each` callback orchestrates via helpers + the
  * shared {@link unwrapOrThrow} from `_deepPhaseHelpers.ts`.
  *
- * <p>Scope: 3 OTP-using banks (hapoalim, beinleumi, max).
+ * <p>Scope: 2 OTP-using banks (hapoalim, beinleumi).
  * Discount uses password-only login.
  */
 

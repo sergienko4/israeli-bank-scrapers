@@ -128,13 +128,19 @@ lives on `urls.base` is correctly absent from the manifest.
 
 ### 7. Add the mocked-E2E test
 
-Create `src/Tests/E2eMocked/<NewBank>/<NewBank>.e2e-mocked.test.ts` that:
+Create `src/Tests/E2eMocked/<NewBank>/<NewBank>.e2e-mocked.test.ts`.
+For a browser-driven bank, the test:
 
-1. Loads the fixtures from step 2 via `BankFixtureLoader`.
+1. Replays the browser fixtures from step 2 via `BankFixtureLoader`.
 2. Constructs the scraper.
 3. Asserts `result.success === true` + expected account count + sample txn.
 
-The existing [`Discount.e2e-mocked.test.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/E2eMocked/Discount/Discount.e2e-mocked.test.ts) is the template.
+For browser-driven banks, use
+[`Discount.e2e-mocked.test.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/E2eMocked/Discount/Discount.e2e-mocked.test.ts)
+as the template. For an API-direct bank such as Max, steps 2–4 use JSON
+traces, `IApiDirectCallConfig` and `.withApiDirect(...)` instead of browser
+HTML; use a typed `FetchMockKit` fake as in
+`src/Tests/E2eMocked/Max/Max.e2e-mocked.test.ts`.
 
 ### 8. Verify
 
@@ -147,7 +153,9 @@ npm test -- --testPathPatterns=E2eReal/NewBank.e2e-real   # requires .env creden
 
 ### 9. Open the PR
 
-Conventional Commit subject: `feat(banks): add NewBank pipeline scraper`. The pre-commit hook runs everything; CI re-runs it. Squash-merge once green.
+Conventional Commit subject: `feat(banks): add NewBank pipeline scraper`.
+The pre-commit hook runs the local quality gates; CI runs the full test
+suites. Squash-merge once green.
 
 ## Adding OTP support
 
@@ -167,4 +175,10 @@ See [Phases → OTP-TRIGGER](../phases/otp-trigger.md) / [OTP-FILL](../phases/ot
 
 ## Adding an api-direct bank
 
-For banks with a JSON API (no browser), use `.withApiDirectCall(...)` + `.withApiDirectScrape(...)` instead of `.withBrowser()`. See [Phases → API-DIRECT-CALL](../phases/api-direct-call.md) for the primitives (signer config, JsonValueTemplate, carry derivation, phone normaliser).
+For banks with a JSON API, use
+`.withHeadlessMediator().withApiDirect(config, shape)` instead of the
+browser-login builder steps. Select the registry's headless transport
+explicitly; Max sets `nativeFetch: true` to avoid launching a browser.
+See [Phases → API-DIRECT-CALL](../phases/api-direct-call.md) for the
+primitives (signer config, JsonValueTemplate, carry derivation, phone
+normaliser).

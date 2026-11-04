@@ -8,8 +8,7 @@
  *
  * filterData carries the Max "show all cards" object
  * ({userIndex:-1,cardIndex:-1,monthView:true,date:"YYYY-M-01",…}),
- * URL-encoded; the version param rides via withVersion. Split from
- * MaxShapeHelpers.ts for the 150-LOC cap.
+ * URL-encoded. Split from MaxShapeHelpers.ts for the 150-LOC cap.
  */
 
 import type moment from 'moment';
@@ -25,7 +24,7 @@ import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js'
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import { filterMaxRows } from './MaxShapeExtract.js';
-import { clientVersionOf, type IMaxCard, MAX_API, withVersion } from './MaxShapeHelpers.js';
+import { type IMaxCard, MAX_API } from './MaxShapeHelpers.js';
 
 /**
  * getTransactionsAndGraphs "show all cards" filterData template — the exact
@@ -61,7 +60,7 @@ function filterDataParam(m: moment.Moment): string {
 /**
  * Assemble the getTransactionsAndGraphs base URL (all cards) for a month.
  * @param filter - URL-encoded filterData value.
- * @returns Base URL with filterData + firstCallCardIndex (no version).
+ * @returns URL with filterData + firstCallCardIndex.
  */
 function txnsBase(filter: string): string {
   const path = `${MAX_API}/transactionDetails/getTransactionsAndGraphs`;
@@ -70,11 +69,11 @@ function txnsBase(filter: string): string {
 
 /**
  * Transactions URL — getTransactionsAndGraphs for one month, all cards
- * (firstCallCardIndex=-1), version-tagged. `acct` is unused here (the monthly
- * call is card-agnostic); per-card filtering happens in extractPage.
+ * (firstCallCardIndex=-1). `acct` is unused here (the monthly call is
+ * card-agnostic); per-card filtering happens in extractPage.
  * @param _acct - Max card (unused — the monthly call returns all cards).
  * @param cursor - Cursor (false on first call).
- * @param ctx - Action context (carries startDate + client version).
+ * @param ctx - Action context (carries startDate).
  * @returns Literal Max transactions URL.
  */
 export function txnsUrl(
@@ -85,9 +84,7 @@ export function txnsUrl(
   const offset = offsetOf(cursor);
   const month = monthAt(ctx, offset);
   const filter = filterDataParam(month);
-  const base = txnsBase(filter);
-  const version = clientVersionOf(ctx);
-  const url = withVersion(base, version);
+  const url = txnsBase(filter);
   return literalUrl(url);
 }
 

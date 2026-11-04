@@ -9,10 +9,9 @@
  *
  * That co-location is what makes the figure usable: it sits on the same object
  * as the identifier defining the account, so it attributes to exactly one
- * account. The other card issuers publish only a household total on a
- * different dimension (a billing month, or a bank account with no card
- * mapping), which is why they keep the 0 sentinel — see the balance notes in
- * their shapes.
+ * account, and Max needs no balance call of its own. The other card issuers
+ * fetch each card's next debit in a separate request — see the balance notes
+ * in their shapes.
  */
 
 import { ILS_CURRENCY_CODE } from '../../../Registry/WK/BalanceResolveWK.js';

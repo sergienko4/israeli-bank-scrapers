@@ -16,7 +16,6 @@ import { DISCOUNT_LOGIN } from '../../../Scrapers/Pipeline/Banks/Discount/Discou
 import { HAPOALIM_LOGIN } from '../../../Scrapers/Pipeline/Banks/Hapoalim/HapoalimPipeline.js';
 import { LEUMI_LOGIN } from '../../../Scrapers/Pipeline/Banks/Leumi/LeumiPipeline.js';
 import { MASSAD_LOGIN } from '../../../Scrapers/Pipeline/Banks/Massad/MassadPipeline.js';
-import { MAX_LOGIN } from '../../../Scrapers/Pipeline/Banks/Max/MaxPipeline.js';
 import { MERCANTILE_LOGIN } from '../../../Scrapers/Pipeline/Banks/Mercantile/MercantilePipeline.js';
 import { MIZRAHI_LOGIN } from '../../../Scrapers/Pipeline/Banks/Mizrahi/MizrahiPipeline.js';
 import { OTSAR_HAHAYAL_LOGIN } from '../../../Scrapers/Pipeline/Banks/OtsarHahayal/OtsarHahayalPipeline.js';
@@ -35,7 +34,6 @@ const BANK_LOGIN_CONFIGS: Readonly<Partial<Record<string, ILoginConfig>>> = {
   hapoalim: HAPOALIM_LOGIN,
   leumi: LEUMI_LOGIN,
   massad: MASSAD_LOGIN,
-  max: MAX_LOGIN,
   mercantile: MERCANTILE_LOGIN,
   mizrahi: MIZRAHI_LOGIN,
   otsarHahayal: OTSAR_HAHAYAL_LOGIN,

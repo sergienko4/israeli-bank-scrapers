@@ -1,6 +1,6 @@
 /**
  * Unified API-DIRECT E2E mock — exercises the offline pipeline flow shared
- * by every API-DIRECT bank (Pepper, OneZero, Visa Cal, Isracard, Amex, ...) through one parameterized
+ * by every API-DIRECT bank (Pepper, OneZero, Visa Cal, Isracard, Amex, Max, ...) through one parameterized
  * spec backed by the per-bank synthetic fetch mocks.
  *
  * Rule #17: mock suite parity stays intact — every bank case in this file
@@ -12,6 +12,12 @@ import { CompanyTypes } from '../../../Definitions.js';
 import type { ScraperCredentials } from '../../../Scrapers/Base/Interface.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
 import type { IMockHandle as IKitMockHandle } from '../Helpers/FetchMockKit.js';
+import {
+  installMaxFetchMock,
+  MAX_MOCK_CARDS,
+  MAX_MOCK_CREDS,
+  MAX_MOCK_START_DATE,
+} from '../Max/MaxFetchMock.js';
 import type { IMockHandle as IOneZeroMockHandle } from '../OneZero/OneZeroFetchMock.js';
 import {
   installOneZeroFetchMock,
@@ -276,6 +282,28 @@ const AMEX_WARM_CASE: IApiDirectFlowCase = {
   installFetchMock: AMEX_COLD_CASE.installFetchMock,
 };
 
+const MAX_COLD_CASE: IApiDirectFlowCase = {
+  displayName: 'Max (cold)',
+  companyId: CompanyTypes.Max,
+  /**
+   * Install the synthetic max.co.il.
+   * @returns Mock handle.
+   */
+  installFetchMock: (): IKitMockHandle => installMaxFetchMock(),
+  mockCreds: { ...MAX_MOCK_CREDS },
+  startDate: MAX_MOCK_START_DATE,
+  expectedAccounts: MAX_MOCK_CARDS.length,
+  expectedAccountNumber: MAX_MOCK_CARDS[0].last4,
+  expectedBalance: MAX_MOCK_CARDS[0].cycleDebit,
+  minTxns: 2,
+  // The card list, then at least one month per card.
+  minGraphqlCalls: 1 + MAX_MOCK_CARDS.length,
+  // Client context, then login. No OTP step and no stored token exist.
+  minIdentityCalls: 2,
+  maxIdentityCalls: 2,
+  expectsWarmStart: false,
+};
+
 const CASES: readonly IApiDirectFlowCase[] = [
   PEPPER_CASE,
   ONEZERO_CASE,
@@ -286,6 +314,7 @@ const CASES: readonly IApiDirectFlowCase[] = [
   ISRACARD_WARM_CASE,
   AMEX_COLD_CASE,
   AMEX_WARM_CASE,
+  MAX_COLD_CASE,
 ];
 
 /** Minimal scraper-options shape exercised by this parameterized spec. */

@@ -17,7 +17,7 @@
 import type { IBankFixtureExpectations } from './FixtureExpectations.js';
 
 /**
- * Beinleumi Phase-11 step inventory — distinct from MAX / Hapoalim:
+ * Beinleumi Phase-11 step inventory — distinct from Hapoalim:
  * <ul>
  *   <li>`02-modal-opened` + `03-after-prelogin` are Beinleumi-distinct
  *       (real-captured Angular-iframe lobby, NOT an SMS / password
@@ -27,11 +27,10 @@ import type { IBankFixtureExpectations } from './FixtureExpectations.js';
  *       OTP-gated per `BeinleumiPipeline.ts`
  *       (`.withOtpTrigger().withOtpFill()`); Hapoalim's Mode B
  *       COLLAPSES OTP into a single LOGIN→AUTH_DISCOVERY transition;
- *       MAX / Discount are password-only
- *       (no OTP leg at all).</li>
+ *       Discount is password-only (no OTP leg at all).</li>
  *   <li>`10-scrape-transactions` is named after Beinleumi's
  *       `bff-balancetransactions/api/v1/transactions/list` BFF
- *       endpoint, NOT MAX's `getTransactionsAndGraphs`.</li>
+ *       endpoint.</li>
  * </ul>
  * Beinleumi now uses the captured iframe content (`03-after-prelogin/
  * frame-2.html`, 51KB, with full `<input type="password">` + form
@@ -123,23 +122,6 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     loginStep: '02-pre-login',
     requiresHydration: false,
     steps: [{ stepName: '01-home' }, { stepName: '02-pre-login' }],
-  },
-  {
-    bankId: 'max',
-    originUrl: 'https://www.max.co.il',
-    loginStep: '04-reveal-password',
-    requiresHydration: false,
-    steps: [
-      { stepName: '01-home' },
-      { stepName: '02-after-entry' },
-      { stepName: '03-after-private' },
-      { stepName: '04-reveal-password' },
-      { stepName: '07-auth-discovery' },
-      { stepName: '08-account-resolve' },
-      { stepName: '09-dashboard' },
-      { stepName: '10-scrape-transactions' },
-      { stepName: '11-balance' },
-    ],
   },
   {
     bankId: 'mercantile',

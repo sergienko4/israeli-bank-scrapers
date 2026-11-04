@@ -1,42 +1,42 @@
 /**
- * Max scrape shape — card-list extractor + the getHomePageData customer GET
- * URL, plus the shared client-version reader both steps use to append Max's
- * SPA build-version `?v=` param (discovered at BIND-API-MEDIATOR).
+ * Max scrape shape — card-list extractor, the getHomePageData customer GET
+ * URL, and the per-call headers both data steps send.
  * balanceKind=card-cycle: the per-card ILS cycle debit rides the same
  * getHomePageData card object, so `balance.skipFetch` stays on and the shape
- * reads the figure off the account (see MaxShapeBalance.ts);
- * auth=session-cookie (the WAF-bypassing browser login's first-party cookies
- * ride BrowserFetchStrategy). Transactions helpers live in MaxShapeTxns.ts;
- * row filtering in MaxShapeExtract.ts.
+ * reads the figure off the account (see MaxShapeBalance.ts). The session is
+ * the cookie the API-DIRECT-CALL login set, kept by the node transport.
+ * Transactions helpers live in MaxShapeTxns.ts; row filtering in
+ * MaxShapeExtract.ts.
  *
  * Grounded in the Max trace: customer =
- * GET /api/registered/getHomePageData?disableDefaultSpinnerBehavior=true&v=…
+ * GET /api/registered/getHomePageData?disableDefaultSpinnerBehavior=true
  * → Result.UserCards.Cards[] → per-card {last4} (Last4Digits, which matches a
  * txn row's shortCardNumber). Raw rows normalise downstream via the Data
  * Mapper — never in the shape.
  */
 
+import { randomUUID } from 'node:crypto';
+
 import type {
+  HeaderMap,
   IExtractAccountsArgs,
   VarsMap,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import {
+  MAX_ORIGIN,
+  MAX_STATIC_HEADERS,
+} from '../../../Registry/Config/PipelineBankConfigMaxConstants.js';
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { Brand } from '../../../Types/Brand.js';
 import { isSome } from '../../../Types/Option.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
 import { ilsCycleDebit, type IMaxRawCycle } from './MaxShapeBalance.js';
 
-/** Max registered API origin — the post-login SPA host. */
-export const MAX_API = 'https://www.max.co.il/api/registered';
+/** Max registered data API — on the same origin as login. */
+export const MAX_API = `${MAX_ORIGIN}/api/registered`;
 
 /** Card display number (last-4) — branded for Rule #15. */
 type CardNumberDisplay = Brand<string, 'MaxCardNumberDisplay'>;
-
-/** Discovered SPA build version — branded for Rule #15. */
-type ClientVersion = Brand<string, 'MaxClientVersion'>;
-
-/** URL carrying the optional `&v=` build param — branded for Rule #15. */
-type VersionedUrl = Brand<string, 'MaxVersionedUrl'>;
 
 /** Max card reference — `last4` matches a txn row's `shortCardNumber`. */
 export interface IMaxCard {
@@ -59,27 +59,29 @@ interface ICustomerResp {
 }
 
 /**
- * Read the SPA build-version stashed on the mediator session-context at
- * BIND-API-MEDIATOR; '' when the mediator slot or version is absent.
- * @param ctx - Action context.
- * @returns Client version string, or '' when unavailable.
+ * The run's session id, or an empty value before login has stored one.
+ * It is the flow id the mediator minted for the login, read from the
+ * carry's post-login snapshot (the session context).
+ * @param ctx - Action context carrying the API mediator.
+ * @returns The session id, or an empty string.
  */
-export function clientVersionOf(ctx: IActionContext): ClientVersion {
-  if (!isSome(ctx.apiMediator)) return '' as ClientVersion;
+function sidOf(ctx: IActionContext): string {
+  if (!isSome(ctx.apiMediator)) return '';
   const session = ctx.apiMediator.value.getSessionContext();
-  const version = session.clientVersion;
-  return (typeof version === 'string' ? version : '') as ClientVersion;
+  const sid = session.flowId;
+  return typeof sid === 'string' ? sid : '';
 }
 
 /**
- * Append Max's `&v=<version>` build param to a URL that already carries a
- * query string; pass the URL through unchanged when no version is known.
- * @param url - URL carrying an existing `?…` query.
- * @param version - Discovered client version (or '').
- * @returns URL with the version param when present.
+ * Headers for one data call: the static set the login steps send, the run's
+ * session id and a fresh correlation id. Login's static and step headers do
+ * not reach the scrape phase, so the shape rebuilds them.
+ * @param ctx - Action context.
+ * @returns Header map.
  */
-export function withVersion(url: string, version: string): VersionedUrl {
-  return (version ? `${url}&v=${version}` : url) as VersionedUrl;
+export function maxHeaders(ctx: IActionContext): HeaderMap {
+  const sid = sidOf(ctx);
+  return { ...MAX_STATIC_HEADERS, sid, cid: randomUUID() };
 }
 
 /**
@@ -92,15 +94,11 @@ export function noVars(): VarsMap {
 }
 
 /**
- * Customer URL — getHomePageData (the card list), version-tagged.
- * @param ctx - Action context (carries the discovered client version).
+ * Customer URL — getHomePageData (the card list).
  * @returns Literal Max getHomePageData URL.
  */
-export function customerUrl(ctx: IActionContext): WKUrlOrLiteral {
-  const base = `${MAX_API}/getHomePageData?disableDefaultSpinnerBehavior=true`;
-  const version = clientVersionOf(ctx);
-  const url = withVersion(base, version);
-  return literalUrl(url);
+export function customerUrl(): WKUrlOrLiteral {
+  return literalUrl(`${MAX_API}/getHomePageData?disableDefaultSpinnerBehavior=true`);
 }
 
 /**

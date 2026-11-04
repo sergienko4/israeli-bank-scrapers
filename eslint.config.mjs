@@ -3534,7 +3534,7 @@ export default tseslint.config(
     },
   },
 
-  // 19.7 PHASE 7.5 SKIP ALLOW-LIST — 7 e2e-mocked tests with
+  // 19.7 PHASE 7.5 SKIP ALLOW-LIST — e2e-mocked tests with
   // unconditional `describe.skip(...)` awaiting fixture capture
   // (tasks/phase-7-5-T8-T12). Each entry MUST be removed from this
   // list when its test is unskipped (the rule then fires if any
@@ -3685,8 +3685,7 @@ export default tseslint.config(
   //     assuming this glob makes a layer Playwright-free.
   //
   //     SCOPE — the five layers that are business logic: Phases, Core, Banks,
-  //     Registry, Logging. One production file is trapped and grandfathered in
-  //     §21a, so this is NOT a ratchet over wholly clean ground.
+  //     Registry, Logging. No production file in them is grandfathered.
   //
   //     EXCLUDED, and why each is a judgement call rather than a settled fact:
   //       • Mediator — is the browser boundary by definition (P7). Settled.
@@ -3719,37 +3718,6 @@ export default tseslint.config(
     ],
     rules: {
       'no-restricted-syntax': ['error', ...PIPELINE_SYNTAX_RULES, RULE10_NO_RAW_PAGE_RULE],
-    },
-  },
-
-  // 21a. RULE #10 GRANDFATHER — BindApiMediatorClientVersion.ts.
-  //     The one production file the §21 ratchet trapped. `discoverClientVersion`
-  //     takes a raw `Page` and calls `page.evaluate(...)` to read the SPA build
-  //     version out of the resource-timing buffer. It is a genuine P7 breach:
-  //     browser access belongs to the Mediator.
-  //
-  //     NOT fixed here on purpose. `IApiMediator` exposes no evaluate-style
-  //     capability, so closing it means adding one to the Mediator surface and
-  //     reshaping the 7 assertions in
-  //     src/Tests/Unit/Pipeline/Phases/BindApiMediator/BindApiMediatorClientVersion.test.ts.
-  //     eslint-rules-guidlines.md §5 requires a guardrail commit to touch only
-  //     the config + canaries and stay separable from the refactor that drains
-  //     it. TARGET: move the scan behind a Mediator method, then DELETE this
-  //     block — it must never be widened (§4: narrow scope, never raise a cap).
-  //
-  //     Grandfathered by re-declaring the array WITHOUT RULE10_NO_RAW_PAGE_RULE
-  //     rather than switching the rule `off`, so the §14 screenshot guard and
-  //     the shared restricted-syntax set stay enforced on this file.
-  //     `eslint-disable` is banned outright (§3 + §15).
-  //
-  //     ACCEPTED RISK: this exempts the FILE, not the one known call. A second
-  //     `page.*` call added here would not be caught. A per-occurrence cap
-  //     needs the type-aware custom rule noted on RULE10_NO_RAW_PAGE_RULE;
-  //     until then the mitigation is to drain this block, not to widen it.
-  {
-    files: ['src/Scrapers/Pipeline/Phases/BindApiMediator/BindApiMediatorClientVersion.ts'],
-    rules: {
-      'no-restricted-syntax': ['error', ...PIPELINE_SYNTAX_RULES],
     },
   },
 

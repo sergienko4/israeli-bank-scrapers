@@ -28,7 +28,6 @@ const REPO_ROOT = path.resolve(__dirname, '../../../..');
 const NEEDLE = 'Rule #10';
 
 const MEDIATOR = 'src/Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.ts';
-const GRANDFATHER = 'src/Scrapers/Pipeline/Phases/BindApiMediator/BindApiMediatorClientVersion.ts';
 
 /**
  * Every sub-scope §21 arms Rule #10 on.
@@ -46,18 +45,17 @@ const ARMED_ROOTS = [
 ];
 
 /**
- * First `.ts` file under a directory, depth-first, excluding one path.
+ * First `.ts` file under a directory, depth-first.
  * @param dir - Absolute directory to search.
- * @param skip - Absolute path to exclude (the grandfathered file).
  * @returns Absolute path of a usable file, or null.
  */
-const firstFile = (dir, skip) => {
+const firstFile = dir => {
   for (const entry of readdirSync(dir).sort()) {
     const full = path.join(dir, entry);
     if (statSync(full).isDirectory()) {
-      const found = firstFile(full, skip);
+      const found = firstFile(full);
       if (found) return found;
-    } else if (full.endsWith('.ts') && !full.endsWith('.test.ts') && full !== skip) return full;
+    } else if (full.endsWith('.ts') && !full.endsWith('.test.ts')) return full;
   }
   return null;
 };
@@ -117,7 +115,7 @@ const expect = (ok, label, out) => {
  * @returns Repo-relative file path, or null when the root holds no candidate.
  */
 const probeFor = root => {
-  const found = firstFile(path.join(REPO_ROOT, root), path.join(REPO_ROOT, GRANDFATHER));
+  const found = firstFile(path.join(REPO_ROOT, root));
   return found ? path.relative(REPO_ROOT, found).split(path.sep).join('/') : null;
 };
 
@@ -139,18 +137,14 @@ const main = async () => {
     );
   }
   expect(await isExemptOn(eslint, MEDIATOR), `Rule #10 leaked onto ${MEDIATOR}`, out);
-  expect(await isExemptOn(eslint, GRANDFATHER), `§21a grandfather lost on ${GRANDFATHER}`, out);
 
   if (out.length > 0) {
     console.error(`\n❌ RULE #10 BOUNDARY FAILURE:\n   - ${out.join('\n   - ')}`);
     console.error('\n   Rule #10 must be armed as an ERROR on every Pipeline business-logic');
-    console.error('   root, and absent from the Mediator (which owns the browser handle)');
-    console.error('   and from the §21a grandfather.');
+    console.error('   root, and absent from the Mediator (which owns the browser handle).');
     process.exit(1);
   }
-  console.log(
-    `✅ Rule #10 boundary holds (armed on ${probes.length} roots, exempt on Mediator + §21a)`,
-  );
+  console.log(`✅ Rule #10 boundary holds (armed on ${probes.length} roots, exempt on Mediator)`);
 };
 
 main();

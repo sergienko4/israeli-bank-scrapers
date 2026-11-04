@@ -33,4 +33,4 @@ Some bank homepages are React/Next.js SPAs that render a top-level error boundar
 
 ## Banks that DON'T need HOME
 
-API-direct banks (OneZero, Pepper, PayBox, VisaCal, Isracard, Amex) skip this — they don't have a landing page. They start at [API-DIRECT-CALL](api-direct-call.md).
+API-direct banks (OneZero, Pepper, PayBox, VisaCal, Isracard, Amex, Max) skip this — they don't have a landing page. They start at [API-DIRECT-CALL](api-direct-call.md).

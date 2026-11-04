@@ -35,7 +35,6 @@ const SCENARIOS: readonly ITerminateScenarioRow[] = [
   { bank: 'hapoalim', scenarioId: 'last-good' },
   { bank: 'beinleumi', scenarioId: 'last-good' },
   { bank: 'discount', scenarioId: 'last-good' },
-  { bank: 'max', scenarioId: 'last-good' },
 ];
 
 /**

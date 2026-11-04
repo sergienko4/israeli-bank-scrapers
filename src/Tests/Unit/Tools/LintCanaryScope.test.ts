@@ -39,7 +39,7 @@ const PARITY_COVERED_PATHS = [
   'src/Scrapers/Base/BaseScraperWithBrowser.ts',
 ];
 
-/** The seven suites block 19.7 exempts from `sonarjs/no-skipped-tests`. */
+/** The suites block 19.7 exempts from `sonarjs/no-skipped-tests`. */
 const SKIP_ALLOWLISTED_PATHS = SKIP_ALLOWLIST_FILES;
 
 /**
@@ -96,7 +96,7 @@ describe('SonarJS-mirror canary scope', () => {
     // Regression: `path.sep` alone is POSIX-blind, so this passed on Windows
     // and failed on Linux CI until normalisation stopped depending on host.
     it('treats a Windows-separator allowlisted suite the same on any host', () => {
-      const win = 'src\\Tests\\E2eMocked\\Max\\Max.e2e-mocked.test.ts';
+      const win = 'src\\Tests\\E2eMocked\\Discount\\Discount.e2e-mocked.test.ts';
       const rules = canaryRules(win, SKIP_SOURCE);
       expect(rules).not.toContain('S1607-Canary');
     });
@@ -104,7 +104,7 @@ describe('SonarJS-mirror canary scope', () => {
     // A file entry is an exact match, never a prefix — otherwise a longer
     // sibling name would inherit an exemption it was never granted.
     it('does not let a file entry exempt a longer sibling name', () => {
-      const sibling = 'src/Tests/E2eMocked/Max/Max.e2e-mocked.test.ts.bak';
+      const sibling = 'src/Tests/E2eMocked/Discount/Discount.e2e-mocked.test.ts.bak';
       const rules = canaryRules(sibling, SKIP_SOURCE);
       expect(rules).toContain('S1607-Canary');
     });

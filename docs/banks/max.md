@@ -3,26 +3,68 @@
 | | |
 |---|---|
 | `CompanyTypes` | `Max` |
-| Engine | Browser (Pipeline) |
+| Engine | **API-direct** (no browser) |
 | Credentials | `username`, `password` |
 | OTP | — |
-| Phase chain | INIT → HOME → **PRE-LOGIN** → LOGIN → BIND-API-MEDIATOR → API-DIRECT-SCRAPE → TERMINATE |
+| Phase chain | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md) |
 | Source | [`Banks/Max/MaxPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Max/MaxPipeline.ts) |
 
-## Known quirks
+## Quick example
 
-- All Max selectors were migrated from CSS/IDs to **visible Hebrew text** in v8.2.0.
-- Max is the last card brand on the browser engine; its two-screen **PRE-LOGIN** reveals the password field.
-- Balance is card-cycle (`balanceKind: CARD_CYCLE`) — derived from the billing cycle by the hard-model path, not a separate per-account balance call.
+```typescript
+import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
 
-## Hard-model post-auth
+const scraper = createScraper({
+  companyId: CompanyTypes.Max,
+  startDate: new Date('2024-01-01'),
+});
 
-After login, Max uses the hard-model post-auth path
-(`withBrowserApiDirect`): the exact API calls are issued directly through the
-live login page instead of the generic AUTH-DISCOVERY / ACCOUNT-RESOLVE /
-DASHBOARD / SCRAPE / BALANCE-RESOLVE chain. The bank's `IApiDirectScrapeShape`
-(card-list and transactions helpers under `Banks/Max/scrape/`: `extractCards`,
-`customerUrl`, `txnsUrl` / `txnsExtractPage`) declares each endpoint; balance is
-card-cycle, so there is no separate balance call. See
-[api-direct-scrape](../phases/api-direct-scrape.md) for the phase contract.
+const result = await scraper.scrape({ username: 'myuser', password: 'mypassword' });
+```
 
+## Login
+
+Max logs in over its web app's own JSON API on `MAX_ORIGIN`
+(`https://www.max.co.il`) and sends no SMS. `MAX_API_DIRECT_CALL`
+(`Registry/Config/PipelineBankConfigMax.ts`) declares two steps:
+
+| Step | Endpoint | Sends | Returns |
+|---|---|---|---|
+| `prime` | `GET api/registered/clientcontext` | — | the bank's pre-login cookies |
+| `login` | `POST api/login/login` | `username`, `password`, `id: null` | the session cookie |
+
+The session is a cookie, not an auth header. `MAX_HEADLESS` registers both
+paths, selects Node's own `fetch` (`nativeFetch`) and keeps the run's cookies
+(`sessionCookies`), so no browser starts. Browser options passed to
+`createScraper` are ignored with a
+[warning](../configuration.md#browser-options-on-browserless-banks).
+
+Every call, login and data alike, carries `MAX_STATIC_HEADERS`, the run's
+session id (`sid`, the flow id the mediator mints once per run; credentials
+cannot set it) and a fresh correlation id (`cid`). The
+login step reads the result from `Result.LoginStatus`: `0` is success, `4`
+fails the run as `INVALID_PASSWORD`, `1` as `CHANGE_PASSWORD`, and any other
+value as `GENERIC`. The `id` field always goes as `null`; the bank asks for a
+national ID only after repeated failed logins, and that reply is typed by its
+`LoginStatus` like any other.
+
+There is no long-term token: every run logs in cold, and `persistentOtpToken`
+stays unset.
+
+## Scrape
+
+The `MAX_SHAPE` `IApiDirectScrapeShape` (`Banks/Max/scrape/MaxShape.ts`)
+sends `maxHeaders` (the static headers plus `sid` and a fresh `cid`) on every
+call:
+
+- **Cards** — `customerUrl` reads `getHomePageData`; `extractCards` turns each
+  entry of `Result.UserCards.Cards` into one account.
+- **Transactions** — `getTransactionsAndGraphs`, one all-cards request per
+  account per billing month (`txnsUrl` / `txnsExtractPage`). Each account keeps
+  only its own card's rows from that reply.
+- **Balance** — card-cycle: `ilsCycleDebit` reads the card's ILS
+  `CycleSummary` entry already on the card, so there is no balance call. See
+  [Balance resolution](../architecture/balance-resolve.md).
+
+A data call without a live session cookie gets an empty `403`; the run fails
+as `GENERIC` and does not log in again.

@@ -1,13 +1,13 @@
 /**
  * Max scrape shape — the `IApiDirectScrapeShape` data declaration consumed by
- * the generic buildGenericHeadlessScrape driver via `withBrowserApiDirect`.
+ * the generic buildGenericHeadlessScrape driver via `withApiDirect`.
  * balanceKind=card-cycle: Max publishes an outstanding ILS cycle debit per
  * card on the very `getHomePageData` object the customer step already read,
  * so `balance.skipFetch` stays on and `extract` reads the account rather than
- * a response. auth=session-cookie (the browser login's first-party cookies
- * ride BrowserFetchStrategy — no token prime). Customer + transactions are
- * GET against the Max registered API (params ride the URL, including the SPA
- * `?v=` build version discovered at BIND-API-MEDIATOR). Helpers split across
+ * a response. The session is the cookie the API-DIRECT-CALL login set, kept
+ * by the node transport; every call also sends the run's session id and a
+ * fresh correlation id. Customer + transactions are GET against the Max
+ * registered API (params ride the URL). Helpers split across
  * MaxShapeHelpers.ts, MaxShapeBalance.ts, MaxShapeTxns.ts and
  * MaxShapeExtract.ts to hold the file-size cap.
  */
@@ -23,6 +23,7 @@ import {
   customerUrl,
   extractCards,
   type IMaxCard,
+  maxHeaders,
   noVars,
 } from './MaxShapeHelpers.js';
 import { txnsExtractPage, txnsUrl } from './MaxShapeTxns.js';
@@ -40,7 +41,7 @@ function cardCycleBalance(_body: ApiBody, card: IMaxCard): number {
   return card.cycleDebit;
 }
 
-/** Max hard-model shape — passed to `.withBrowserApiDirect(...)`. */
+/** Max hard-model shape — passed to `.withApiDirect(...)`. */
 const MAX_SHAPE: IApiDirectScrapeShape<IMaxCard, number> = {
   stepName: 'MaxScrape',
   accountNumberOf,
@@ -51,6 +52,7 @@ const MAX_SHAPE: IApiDirectScrapeShape<IMaxCard, number> = {
     extractAccounts: extractCards,
     urlTag: customerUrl,
     method: 'GET',
+    extraHeaders: maxHeaders,
   },
   balance: {
     buildVars: noVars,
@@ -65,6 +67,7 @@ const MAX_SHAPE: IApiDirectScrapeShape<IMaxCard, number> = {
     windowNarrowing: 'periodEnumeration',
     urlTag: txnsUrl,
     method: 'GET',
+    extraHeaders: maxHeaders,
   },
 };
 

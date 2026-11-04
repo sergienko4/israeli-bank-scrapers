@@ -292,7 +292,7 @@ If a future regression introduces the anti-pattern, the **T7.10 canary** will bl
 | ------------------------------------------------ | ------------------------------------------------------------------- | ------------------------------------- |
 | `E2eMocked/Ring/Ring.e2e-mocked.test.ts`         | Resolved: Isracard and Amex are browserless; `RingFetchMock.ts` serves both | none                          |
 | `E2eMocked/Discount/Discount.e2e-mocked.test.ts` | `fixtures.json` URL globs do NOT match Discount's real URL topology | author `fixtures.json` + capture HTML |
-| `E2eMocked/Max/Max.e2e-mocked.test.ts`           | Same fixture-scaffold root cause                                    | author `fixtures.json` + capture HTML |
+| `E2eMocked/Max/Max.e2e-mocked.test.ts`           | Resolved: Max is browserless; `MaxFetchMock.ts` serves it           | none                                  |
 | `E2eMocked/VisaCal/VisaCal.e2e-mocked.test.ts`   | Resolved: VisaCal is browserless; `VisaCalFetchMock.ts` serves it   | none                                  |
 
 **OUT OF SCOPE for T7.5** (other `describe.skip` exists but is NOT this PR's responsibility):
@@ -316,7 +316,7 @@ If a future regression introduces the anti-pattern, the **T7.10 canary** will bl
 **T7.5 follow-up PR scope** (separate from this Phase 7 PR):
 
 - Open `fix/e2e-mocked-fixture-debt` branch
-- Implement repo-local safe fixtures under `src/Tests/E2eMocked/fixtures/{discount,max}/` (committed, synthetic HTML); Visa Cal, Isracard and Amex are browserless and need none
+- Implement repo-local safe fixtures under `src/Tests/E2eMocked/fixtures/discount/` (committed, synthetic HTML); Visa Cal, Isracard, Amex and Max are browserless and need none
 - Un-`skip` the 5 files; verify all pass in `test:e2e:mock`
 - Document the fixture authoring pattern for future banks
 

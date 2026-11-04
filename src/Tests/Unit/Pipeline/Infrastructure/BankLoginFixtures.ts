@@ -32,10 +32,6 @@ import {
   MASSAD_LOGIN,
 } from '../../../../Scrapers/Pipeline/Banks/Massad/MassadPipeline.js';
 import {
-  buildMaxPipeline,
-  MAX_LOGIN,
-} from '../../../../Scrapers/Pipeline/Banks/Max/MaxPipeline.js';
-import {
   buildMercantilePipeline,
   MERCANTILE_LOGIN,
 } from '../../../../Scrapers/Pipeline/Banks/Mercantile/MercantilePipeline.js';
@@ -78,18 +74,6 @@ const BASE_PHASES = [
   'terminate',
 ] as const;
 
-/** Base + `pre-login` (Max). */
-const PRE_LOGIN_PHASES = [
-  'init',
-  'home',
-  'pre-login',
-  'login',
-  'auth-discovery',
-  'bind-api-mediator',
-  'api-direct-scrape',
-  'terminate',
-] as const;
-
 /** Base + `otp-fill` only (Hapoalim soft-OTP). */
 const OTP_FILL_PHASES = [
   'init',
@@ -118,7 +102,7 @@ const OTP_FULL_PHASES = [
 /**
  * Bank-fixture table consumed by {@link LoginFactoryTest}'s
  * `describe.each`. Order is by phase-shape group:
- * base (7) → pre-login (8) → otp-fill (8) → otp-full (9).
+ * base (7) → otp-fill (8) → otp-full (9).
  */
 const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
   {
@@ -138,15 +122,6 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     expectedFieldKeys: ['id', 'password', 'num'],
     expectedPhaseCount: BASE_PHASES.length,
     expectedPhaseNames: BASE_PHASES,
-  },
-  {
-    bank: 'max',
-    company: CompanyTypes.Max,
-    loginConfig: MAX_LOGIN,
-    buildPipeline: buildMaxPipeline,
-    expectedFieldKeys: ['username', 'password'],
-    expectedPhaseCount: PRE_LOGIN_PHASES.length,
-    expectedPhaseNames: PRE_LOGIN_PHASES,
   },
   {
     bank: 'hapoalim',

@@ -5,13 +5,13 @@ Cross-bank integration coverage that fills the gap between unit tests
 
 ## What this layer guarantees
 
-For every bank wired into the new **Pipeline** architecture
-(`src/Scrapers/Pipeline/Banks/`), there is a committed static-HTML
-fixture **plus** an integration test that drives the **real**
-production `LoginFieldDiscovery` + `CreateElementMediator` chain
-against that fixture.
+For every browser-driven bank wired into the **Pipeline** architecture
+(`src/Scrapers/Pipeline/Banks/`), a committed static-HTML fixture and
+integration test drive the production `LoginFieldDiscovery` +
+`CreateElementMediator` chain. API-direct banks such as Max have no login
+DOM; their FetchMock-backed mocked E2E suites cover the API instead.
 
-If a future PR adds a pipeline bank without integration coverage, the
+If a future PR adds a browser-driven bank without integration coverage, the
 `bank-coverage` gate (husky pre-commit **and** CI Validate job) fails
 the commit / PR with a clear remediation message.
 
@@ -50,12 +50,11 @@ src/Tests/Integration/
 | **A — static HTML**   | `fixtures/banks/<id>/<step>/main.html` loaded into a real Playwright page     | Fast, deterministic. Guards #307-class regressions inside the resolver chain.                   |
 | **B — mirror origin** | Local route handler that **replays** the captured HTML at the bank's real URL | Exercises the production `page.goto(originUrl)` navigation chain without hitting the live bank. |
 
-Both modes are wired into the gate and run sequentially after every
-other test phase, immediately before the real-bank e2e happy path.
-Onboarding a new pipeline bank requires fixtures + drive coverage in
-**both** modes (the gate rejects half-coverage).
+These modes apply to browser-driven banks only. CI runs their integration
+tests; `lint:bank-coverage` checks fixture registration. API-direct banks
+use mocked fetch suites instead.
 
-## How to add a new pipeline bank
+## How to add a browser-driven pipeline bank
 
 1. Implement `Pipeline/Banks/<Name>/<Name>Pipeline.ts` and **export**
    `<NAME>_LOGIN: ILoginConfig`.
@@ -150,9 +149,11 @@ directory under `src/Scrapers/Pipeline/Banks/` and verifies:
   `bankId`.
 - `fixtures/banks/<bankId>/` exists.
 
-Legacy non-pipeline banks (Behatsdaa, BeyahadBishvilha) and
-API-direct providers (OneZero, Pepper, PayBox) are explicitly
-allow-listed and exempted from the gate.
+Legacy non-pipeline banks (Behatsdaa, BeyahadBishvilha) and API-direct
+providers (including Max) are exempted from the browser fixture gate.
+`API_DIRECT_BANKS` in
+`src/Tests/Integration/Tools/CheckBankIntegrationCoverage.ts` is the
+canonical API-direct allow-list.
 
 Wiring:
 
