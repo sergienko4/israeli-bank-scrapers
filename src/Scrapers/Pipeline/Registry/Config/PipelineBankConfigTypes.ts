@@ -43,8 +43,8 @@ export type PhoneNumberFormatTag =
  * `'account'` banks expose a real account balance (deposit/checking banks)
  * and trigger a live BALANCE-RESOLVE; `'card-cycle'` banks expose no account
  * balance, only billing-cycle figures — a per-card debit (VisaCal, Max,
- * Isracard) or a household aggregate (Amex) — which their scrape shape's balance
- * step owns, so BALANCE-RESOLVE is a deterministic no-op for them. Never
+ * Isracard, Amex) — which their scrape shape's balance step owns, so
+ * BALANCE-RESOLVE is a deterministic no-op for them. Never
  * inferred from absence — an unstated kind is a config error, not a dormant
  * no-op.
  */
@@ -181,9 +181,9 @@ export interface IPipelineBankConfig {
    * login.authconfirm.pool diagnostic is emitted; it NEVER gates login
    * completion. Absent ⇒ the wait uses the default short budget.
    *
-   * Set for AngularJS-SPA banks (Amex, Isracard) where the SSO redirect
-   * fires the accounts call inside the login boundary, so the histogram
-   * captures whether that hit landed. Authentication itself is proven later
+   * Built for AngularJS-SPA logins where the SSO redirect fires the accounts
+   * call inside the login boundary, so the histogram captures whether that
+   * hit landed. No bank opts in today. Authentication itself is proven later
    * at AUTH-DISCOVERY, keeping LOGIN and AUTH cleanly separated.
    */
   readonly loginAuthConfirmMs?: number;
@@ -198,8 +198,8 @@ export interface IPipelineBankConfig {
    * filled login form is still on screen fails LOGIN.final non-retryably with
    * LOGIN_NOT_COMPLETED. A non-opted bank always succeeds (the single-shot
    * poll settles on the first capture), so the verdict is unchanged for it.
-   * Set for slow-AngularJS banks whose login form lingers while the SSO
-   * redirect settles.
+   * Built for slow-AngularJS logins whose form lingers while the SSO
+   * redirect settles. No bank opts in today.
    */
   readonly loginCompletionPoll?: {
     readonly intervalMs: number;

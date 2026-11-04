@@ -16,10 +16,6 @@ import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import {
-  AMEX_LOGIN,
-  buildAmexPipeline,
-} from '../../../../Scrapers/Pipeline/Banks/Amex/AmexPipeline.js';
-import {
   BEINLEUMI_LOGIN,
   buildBeinleumiPipeline,
 } from '../../../../Scrapers/Pipeline/Banks/Beinleumi/BeinleumiPipeline.js';
@@ -82,7 +78,7 @@ const BASE_PHASES = [
   'terminate',
 ] as const;
 
-/** Base + `pre-login` (Amex / Max). */
+/** Base + `pre-login` (Max). */
 const PRE_LOGIN_PHASES = [
   'init',
   'home',
@@ -142,15 +138,6 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     expectedFieldKeys: ['id', 'password', 'num'],
     expectedPhaseCount: BASE_PHASES.length,
     expectedPhaseNames: BASE_PHASES,
-  },
-  {
-    bank: 'amex',
-    company: CompanyTypes.Amex,
-    loginConfig: AMEX_LOGIN,
-    buildPipeline: buildAmexPipeline,
-    expectedFieldKeys: ['id', 'password', 'card6Digits'],
-    expectedPhaseCount: PRE_LOGIN_PHASES.length,
-    expectedPhaseNames: PRE_LOGIN_PHASES,
   },
   {
     bank: 'max',

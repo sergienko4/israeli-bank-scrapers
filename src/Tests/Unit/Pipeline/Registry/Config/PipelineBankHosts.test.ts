@@ -36,8 +36,7 @@ const BARE_HOSTNAME = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]
 
 /**
  * Host proven to have no A record. Declaring it would make the
- * fail-loud warm loop reject every run. It survives only inside the
- * gated LoginDnsProbe diagnostic, where a failed lookup is the point.
+ * fail-loud warm loop reject every run.
  */
 const NO_SUCH_HOST = 'he.isracard.co.il';
 

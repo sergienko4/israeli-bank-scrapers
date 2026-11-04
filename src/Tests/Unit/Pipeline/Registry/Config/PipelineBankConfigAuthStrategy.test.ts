@@ -4,13 +4,14 @@
  * <p>Test Case IDs:
  *   - T-REG-1 (FIRING): every entry's `authStrategyKind` is one of the 3 union members.
  *     RED while the field is absent (pre-C1); GREEN after C1 adds it to every bank.
- *   - T-REG-2: family counts are exactly 4 token / 8 session-cookie / 5 api-direct.
- *   - T-REG-3: the api-direct banks are exactly OneZero, PayBox, Pepper, VisaCal, Isracard.
+ *   - T-REG-2: family counts are exactly 4 token / 7 session-cookie / 6 api-direct.
+ *   - T-REG-3: the api-direct banks are exactly OneZero, PayBox, Pepper, VisaCal, Isracard, Amex.
  *   - T-REG-4: each specific bank maps to the spec-S2 value (table-driven).
+ *   - T-REG-6: an api-direct bank carries no browser-login budget — it has no
+ *     login form to wait on, so such a budget would be dead config.
  *
  * Uses dynamic import to dodge the no-restricted-imports DI rule that bans static
- * imports of Registry/Config/** in Pipeline tests (same precedent as
- * PipelineBankConfigAuthConfirm.test.ts).
+ * imports of Registry/Config/** in Pipeline tests.
  */
 
 import { CompanyTypes } from '../../../../../Definitions.js';
@@ -29,7 +30,7 @@ const EXPECTED_KIND_PER_BANK: readonly [CompanyTypes, AuthKind][] = [
   [CompanyTypes.OtsarHahayal, 'token'],
   [CompanyTypes.Pagi, 'token'],
   [CompanyTypes.VisaCal, 'api-direct'],
-  [CompanyTypes.Amex, 'session-cookie'],
+  [CompanyTypes.Amex, 'api-direct'],
   [CompanyTypes.Max, 'session-cookie'],
   [CompanyTypes.Mercantile, 'session-cookie'],
   [CompanyTypes.Mizrahi, 'session-cookie'],
@@ -46,6 +47,7 @@ const API_DIRECT_SET = new Set<CompanyTypes>([
   CompanyTypes.Pepper,
   CompanyTypes.VisaCal,
   CompanyTypes.Isracard,
+  CompanyTypes.Amex,
 ]);
 
 /** FIBI appsng SPA shell route AUTH-DISCOVERY navigates to post-login. */
@@ -73,7 +75,7 @@ describe('PipelineBankConfig — authStrategyKind completeness (T-REG)', () => {
     }
   });
 
-  it('T-REG-2: family counts are 4 token / 8 session-cookie / 5 api-direct', async () => {
+  it('T-REG-2: family counts are 4 token / 7 session-cookie / 6 api-direct', async () => {
     const { PIPELINE_BANK_CONFIG: bankConfigMap } =
       await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
     const entries = Object.values(bankConfigMap);
@@ -83,10 +85,10 @@ describe('PipelineBankConfig — authStrategyKind completeness (T-REG)', () => {
       if (config.authStrategyKind === 'session-cookie') counts.sessionCookie++;
       if (config.authStrategyKind === 'api-direct') counts.apiDirect++;
     }
-    expect(counts).toEqual({ token: 4, sessionCookie: 8, apiDirect: 5 });
+    expect(counts).toEqual({ token: 4, sessionCookie: 7, apiDirect: 6 });
   });
 
-  it('T-REG-3: api-direct banks are exactly OneZero, PayBox, Pepper, VisaCal and Isracard', async () => {
+  it('T-REG-3: api-direct banks are exactly OneZero, PayBox, Pepper, VisaCal, Isracard and Amex', async () => {
     const { PIPELINE_BANK_CONFIG: bankConfigMap } =
       await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
     const allBankEntries = Object.entries(bankConfigMap);
@@ -95,7 +97,7 @@ describe('PipelineBankConfig — authStrategyKind completeness (T-REG)', () => {
     );
     const actualApiDirect = apiDirectEntries.map(([id]) => id);
     const actualSet = new Set(actualApiDirect);
-    expect(actualSet.size).toBe(5);
+    expect(actualSet.size).toBe(6);
     for (const bank of API_DIRECT_SET) {
       const hasBank = actualSet.has(bank);
       expect(hasBank).toBe(true);
@@ -112,6 +114,18 @@ describe('PipelineBankConfig — authStrategyKind completeness (T-REG)', () => {
       if (config !== false) {
         expect(config.authStrategyKind).toBe(expectedKind);
       }
+    },
+  );
+
+  it.each([...API_DIRECT_SET])(
+    'T-REG-6: %s, an api-direct bank, carries no browser-login budget',
+    async companyId => {
+      const { resolvePipelineBankConfig } =
+        await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
+      const config = resolvePipelineBankConfig(companyId);
+      expect(config).toMatchObject({ authStrategyKind: 'api-direct' });
+      expect(config).not.toHaveProperty('loginAuthConfirmMs');
+      expect(config).not.toHaveProperty('loginCompletionPoll');
     },
   );
 });

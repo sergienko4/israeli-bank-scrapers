@@ -1,12 +1,13 @@
 /**
  * Ring scrape shape — cards, the GatewayV2 transactions wrapper, the
  * per-call headers, the session-expiry body check and the factory wiring.
- * Built from synthetic ring constants; the Isracard instance is checked
- * once at the end. Bodies are synthetic — zero PII.
+ * Built from synthetic ring constants; each issuer instance (Isracard,
+ * Amex) is checked once at the end. Bodies are synthetic — zero PII.
  */
 
 import { jest } from '@jest/globals';
 
+import { AMEX_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Amex/scrape/AmexShape.js';
 import { ISRACARD_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Isracard/scrape/IsracardShape.js';
 import {
   type ApiBody,
@@ -330,8 +331,15 @@ describe('ring shape wiring', () => {
     expect(windowEndShape.transactions.windowNarrowing).toBe('windowEnd');
   });
 
-  it('binds the Isracard instance to its ring host and step name', () => {
-    expect(ISRACARD_SHAPE.stepName).toBe('IsracardScrape');
-    expect(ISRACARD_SHAPE.transactions.urlTag).toBe('https://ring.isracard.co.il/GatewayV2');
-  });
+  it.each([
+    { instance: ISRACARD_SHAPE, step: 'IsracardScrape', origin: 'https://ring.isracard.co.il' },
+    { instance: AMEX_SHAPE, step: 'AmexScrape', origin: 'https://ring.americanexpress.co.il' },
+  ])(
+    'binds $step to its ring host, with the session-expiry check',
+    ({ instance, step, origin }) => {
+      expect(instance.stepName).toBe(step);
+      expect(instance.checkBody).toBe(checkRingBody);
+      expect(instance.transactions.urlTag).toBe(`${origin}/GatewayV2`);
+    },
+  );
 });

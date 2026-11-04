@@ -57,6 +57,14 @@ export const ISRACARD_RING_TARGET: IRingTarget = {
   companyCode: '11',
 };
 
+/** Amex's ring. */
+export const AMEX_RING_TARGET: IRingTarget = {
+  base: 'https://ring.americanexpress.co.il',
+  applicationId: 'ma',
+  isrdomain: 'amex',
+  companyCode: '77',
+};
+
 /**
  * A fault the ring answers with instead of its normal reply: a transport
  * fault on step 0, a password the ring wants changed (validate code '4' or
@@ -275,14 +283,24 @@ function beanReply(bean: string, fields: JsonUnknownRecord, cookie = ''): Respon
 }
 
 /**
- * ValidateIdDataNoReg — checks id + card6 and opens a session.
+ * Whether a validate body names the synthetic card at this issuer.
+ * @param req - The request.
+ * @returns True for the synthetic card suffix under the target's company code.
+ */
+function isIssuerCard(req: IRingRequest): boolean {
+  const isCard = req.body.cardSuffix === RING_MOCK_CREDS.card6Digits;
+  return isCard && req.body.companyCode === req.state.target.companyCode;
+}
+
+/**
+ * ValidateIdDataNoReg — checks id + card6 at this issuer and opens a session.
  * @param req - The request.
  * @returns returnCode '1' with bcKey + userName; '2' for an unknown customer.
  */
 function routeValidate(req: IRingRequest): Response {
   const bean = 'ValidateIdDataNoRegBean';
-  const isCard = req.body.cardSuffix === RING_MOCK_CREDS.card6Digits;
-  if (!isCustomer(req.body, 'id') || !isCard) return beanReply(bean, { returnCode: '2' });
+  const isKnown = isCustomer(req.body, 'id') && isIssuerCard(req);
+  if (!isKnown) return beanReply(bean, { returnCode: '2' });
   if (req.state.fault === 'changePassword') return beanReply(bean, { returnCode: '4' });
   const { session, cookie } = openSession(req.state);
   const fields = { returnCode: '1', bcKey: session.bcKey, userName: SYN_USER_NAME };

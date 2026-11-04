@@ -122,7 +122,7 @@ for the rationale.
 
 Some API-direct banks never open a browser: their `headless` block selects
 Node's own `fetch` (`nativeFetch`) or `node:https` (a client certificate or a
-TLS profile) — today, OneZero, VisaCal and Isracard. Nothing on such a run reads a browser option, so
+TLS profile) — today, OneZero, VisaCal, Isracard and Amex. Nothing on such a run reads a browser option, so
 `createScraper` names every one you pass in a single `ScraperOptionsWarning`:
 
 ```text
@@ -159,8 +159,9 @@ API-direct banks (OneZero, Pepper, PayBox) additionally accept:
 
 VisaCal is API-direct but has no OTP: it takes `username` and `password`, and
 an optional `otpLongTermToken` that skips the password step — see
-[Visa Cal](banks/visacal.md#warm-start). Isracard works the same way with `id`,
-`card6Digits` and `password` — see [Isracard](banks/isracard.md#warm-start).
+[Visa Cal](banks/visacal.md#warm-start). Isracard and Amex work the same way with
+`id`, `card6Digits` and `password` — see [Isracard](banks/isracard.md#warm-start)
+and [Amex](banks/amex.md).
 
 The phone-format rewrite is per-bank and automatic; see
 [API-DIRECT-CALL](phases/api-direct-call.md) for the normaliser contract.

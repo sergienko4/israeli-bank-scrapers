@@ -7,7 +7,7 @@
  * code. The WK `currency` alias list is first-match-wins, so its order
  * alone decides what `ITransaction.originalCurrency` reports. This test
  * drives each bank's fixture through the production ApiDirect route
- * (`merge<Bank>Rows` → `autoMapTransaction`) and asserts ISO codes.
+ * (`mergeRingRows` → `autoMapTransaction`) and asserts ISO codes.
  *
  * <p>The defect escaped because the Phase G dedup fixtures are ILS-only
  * and no test asserted the mapped currency, so a numeric `"0"` passed
@@ -30,7 +30,6 @@
 
 import { jest } from '@jest/globals';
 
-import { mergeAmexRows } from '../../../../Scrapers/Pipeline/Banks/Amex/scrape/AmexShapeExtract.js';
 import { autoMapTransaction } from '../../../../Scrapers/Pipeline/Mediator/Scrape/ScrapeAutoMapper.js';
 import { findCurrencyHit } from '../../../../Scrapers/Pipeline/Mediator/Scrape/TxnMapper/TxnCurrency.js';
 import { mergeRingRows } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShapeExtract.js';
@@ -50,7 +49,7 @@ type MergeRows = (body: object) => readonly object[];
 
 /** Production row flattener per DigitalV3 bank — one entry per bank. */
 const MERGE_ROWS: Readonly<Record<CurrencyBank, MergeRows>> = {
-  amex: mergeAmexRows,
+  amex: mergeRingRows,
   isracard: mergeRingRows,
 };
 

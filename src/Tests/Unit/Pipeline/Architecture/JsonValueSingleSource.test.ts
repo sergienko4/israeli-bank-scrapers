@@ -638,7 +638,7 @@ function openRecordAliasCount(files: readonly string[]): number {
 /**
  * Today's population of duplicate open-record aliases, counted by AST.
  *
- * <p>A ratchet on a *related* debt population: 24 spelled
+ * <p>A ratchet on a *related* debt population: 23 spelled
  * `Record<string, unknown>` and 7 spelled `Readonly<Record<string,
  * unknown>>`. Most are boundaries laundering `unknown` through a
  * JSON-shaped name, but this is repo-wide and sweeps in test and logging
@@ -648,10 +648,10 @@ function openRecordAliasCount(files: readonly string[]): number {
  * "Known gap" (`docs/architecture/json-algebra.md`) reproduces.
  *
  * <p>The assertion is exact equality, not a ceiling. A ceiling lets the
- * count fall to 30 and then drift back to 31 unnoticed; exact equality makes
+ * count fall to 29 and then drift back to 30 unnoticed; exact equality makes
  * paying the debt down edit this number in the same commit.
  */
-const OPEN_RECORD_ALIASES = 31;
+const OPEN_RECORD_ALIASES = 30;
 
 /** The canonical module, spelled as the three exemption files spell it. */
 const CANONICAL_POSIX = 'src/Scrapers/Pipeline/Types/JsonValue.ts';

@@ -104,20 +104,20 @@ describe('CredentialLoader', () => {
   });
 
   describe('knownBanks', () => {
-    it('returns the seven onboarded browser banks sorted', () => {
+    it('returns the six onboarded browser banks sorted', () => {
       const banks = knownBanks();
-      const expected = ['amex', 'beinleumi', 'discount', 'hapoalim', 'leumi', 'max', 'mizrahi'];
+      const expected = ['beinleumi', 'discount', 'hapoalim', 'leumi', 'max', 'mizrahi'];
       expect(banks).toEqual(expected);
     });
   });
 
   describe('loadCredentials', () => {
-    it('loads amex credentials from process.env', () => {
-      process.env.AMEX_ID = '305000001';
-      process.env.AMEX_CARD6DIGITS = '123456';
-      process.env.AMEX_PASSWORD = 's3cret';
-      const creds = loadCredentials('amex');
-      expect(creds).toEqual({ id: '305000001', card6Digits: '123456', password: 's3cret' });
+    it('loads discount credentials from process.env', () => {
+      process.env.DISCOUNT_ID = '305000001';
+      process.env.DISCOUNT_PASSWORD = 's3cret';
+      process.env.DISCOUNT_NUM = 'AB1234';
+      const creds = loadCredentials('discount');
+      expect(creds).toEqual({ id: '305000001', password: 's3cret', num: 'AB1234' });
     });
 
     it('throws when an env var is missing', () => {
@@ -171,10 +171,10 @@ describe('CredentialLoader', () => {
     });
 
     it('returns false when value is whitespace-only', () => {
-      process.env.AMEX_ID = '';
-      process.env.AMEX_CARD6DIGITS = '123456';
-      process.env.AMEX_PASSWORD = 'pw';
-      const hasAll = hasCredentials('amex');
+      process.env.DISCOUNT_ID = '';
+      process.env.DISCOUNT_PASSWORD = 'pw';
+      process.env.DISCOUNT_NUM = 'AB1234';
+      const hasAll = hasCredentials('discount');
       expect(hasAll).toBe(false);
     });
   });
@@ -195,7 +195,7 @@ describe('CredentialLoader', () => {
     });
 
     it('returns None for non-OTP banks', () => {
-      const optResult = loadOtpFromEnv('amex');
+      const optResult = loadOtpFromEnv('max');
       const isPresent = isSome(optResult);
       expect(isPresent).toBe(false);
     });

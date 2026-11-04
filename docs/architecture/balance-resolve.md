@@ -9,19 +9,14 @@
 With `BALANCE-RESOLVE` retired for pipeline banks, each shape's `balance` step
 owns the figure. For a card issuer the pipeline's account unit is the **card**,
 so a balance is only publishable when the provider attributes it to a card.
-The four issuers split two ways:
+All four issuers do:
 
 | Bank | Provider figure | Attributable to a card? | `balance.extract` |
 |---|---|---|---|
 | **Max** | `getHomePageData` → `Result.UserCards.Cards[].CycleSummary[]`, sitting on the same object as `Last4Digits` | ✅ yes | real per-card debit |
 | **Visa Cal** | `GetTotalFrameStatus`, one request per card → `result.calIssuedCards.accountLevelFrames[]`; the frame whose `cardUniqueId` is the card's own carries `nextTotalDebit` | ✅ yes | real per-card next debit |
 | **Isracard** | GatewayV2 `GetTransactionsList`, one request per card for its next debit month → `data.israelAbroadVouchers.vouchers.totalForStatement.totalIlsBillingDate` | ✅ yes | real per-card next debit |
-| Amex | `GetBillingsForMonthsOverview` → `data[]` is one row per **billing month**; the request submits every card at once and the response has no card dimension | ❌ household aggregate | `0` |
-
-The `0` on Amex, the one aggregate issuer, is a **deliberate sentinel, not a
-stub**. Its only figure covers the whole household, so publishing it per card would
-repeat one total across every card and multiply the user's apparent debt by
-their card count. An honest `0` is preferable to fabricated attribution.
+| **Amex** | The same Ring-family GatewayV2 `GetTransactionsList` as Isracard, on Amex's ring host | ✅ yes | real per-card next debit |
 
 Max's figure rides the card object itself. Reading
 it costs **no extra request** — the customer step already fetches
@@ -114,7 +109,7 @@ sequenceDiagram
     RP->>RA: balanceFetchPlan (one entry per BA + __BULK__ for bulk)
     RA->>API: Promise.all per plan entry
     API-->>RA: per-BA response (or fail → quarantine)
-    RA->>RA: per-card extract (Visa Cal nested cards, Amex cardChargeNext)
+    RA->>RA: per-card extract (nested card records)
     RA->>RPO: balanceExtracted (Map<cardDisplayId, number | 'MISS'>)
     RPO->>RPO: partition resolved vs missed
     alt every card missed (universal miss)
@@ -144,7 +139,7 @@ Source: [`BalanceFetchPlanner.ts`](https://github.com/sergienko4/israeli-bank-sc
 - **Quarantine pattern**: per-fetch failures emit `balance-resolve.fetch.failure` (warn) and produce `'MISS'` for the affected bank account. Other accounts continue.
 - Per-card extraction handles three shapes:
     - Single-account banks (Hapoalim, Discount, Beinleumi) — straight body extraction.
-    - Per-card-record banks (Visa Cal — `result.bigNumbers[].cards[]`, Amex/Isracard — `data.cardsList[].cardChargeNext.billingSumSekel`) — find the card by `cardUniqueId` or one of the display-id fields (`last4Digits`, `cardSuffix`, `cardLast4`, `shortCardNumber`, `card4Number`), then run the bulk extractor on its sub-record.
+    - Per-card-record bodies (`result.bigNumbers[].cards[]`, `data.cardsList[].cardChargeNext.billingSumSekel` — the former Visa Cal and Amex/Isracard web shapes; all three are now `card-cycle` and skip this phase) — find the card by `cardUniqueId` or one of the display-id fields (`last4Digits`, `cardSuffix`, `cardLast4`, `shortCardNumber`, `card4Number`), then run the bulk extractor on its sub-record.
     - Bulk endpoints — `responses.get('__BULK__')` services every card via the same body.
 
 Source: [`BalanceResolveActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts) (`executeBalanceResolveAction`).

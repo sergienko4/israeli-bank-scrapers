@@ -154,6 +154,10 @@ supersedes it:
 6. Add a `compatibility.json` entry and run `npm run compat:build`.
 7. Run the packed-consumer smoke below.
 8. Push. Full CI must pass, and a maintainer runs the E2E-real smoke.
+   If one bank's E2E-real job is WAF-blocked on the new pair, set
+   `CAMOUFOX_OS` (`windows`, `macos` or `linux`) on that job alone to
+   bisect the OS fingerprint. `launchCamoufox` falls back to the Windows
+   default when it is unset or unrecognised, and no CI job sets it.
 
 ### Moving the pins
 

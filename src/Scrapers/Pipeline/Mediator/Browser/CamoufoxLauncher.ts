@@ -121,8 +121,8 @@ function resolveKnobs(): Pick<CamoufoxLaunchOptions, 'humanize' | 'disable_coop'
 /**
  * Resolve the Camoufox OS fingerprint from {@link CAMOUFOX_OS_ENV},
  * defaulting to {@link DEFAULT_CAMOUFOX_OS} (Windows — the all-banks-green
- * baseline). A CI bisect sets `CAMOUFOX_OS=linux` on the Amex E2E-real job
- * ALONE to test whether a host-matching Linux fingerprint clears the
+ * baseline). A CI bisect can set `CAMOUFOX_OS=linux` on a single E2E-real
+ * job to test whether a host-matching Linux fingerprint clears a
  * datacenter-IP WAF, leaving every other bank on the proven Windows
  * fingerprint. An unset or unrecognised value falls back to Windows.
  *

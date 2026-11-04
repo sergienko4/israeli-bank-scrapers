@@ -35,13 +35,14 @@ export type BankExtraDnsHosts = Readonly<Partial<Record<CompanyTypes, readonly s
  * Auth/API origins each bank's flow depends on, keyed by company.
  *
  * Every entry is referenced by that bank's pipeline module (see the
- * `*ShapeHelpers` / `*Static` constants) except Yahav's
+ * `*ShapeHelpers` / `*Static` constants) or, for the headless Ring
+ * banks (Isracard, Amex), by its registry config, except Yahav's
  * `login.yahav.co.il`, which is runtime-discovered and declared here
  * for that reason. Banks whose entire flow lives on `urls.base`
  * (Max) are intentionally absent.
  */
 export const BANK_EXTRA_DNS_HOSTS: BankExtraDnsHosts = {
-  [CompanyTypes.Amex]: ['web.americanexpress.co.il'],
+  [CompanyTypes.Amex]: ['ring.americanexpress.co.il'],
   [CompanyTypes.Beinleumi]: ['online.fibi.co.il'],
   [CompanyTypes.Discount]: ['start.telebank.co.il'],
   [CompanyTypes.Hapoalim]: ['login.bankhapoalim.co.il'],

@@ -36,7 +36,6 @@ type BankCredentials = Readonly<Record<string, string>>;
  * enforced by the `Readonly<>` annotation.
  */
 const BANK_ENV_MAP: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>> = {
-  amex: { id: 'AMEX_ID', card6Digits: 'AMEX_CARD6DIGITS', password: 'AMEX_PASSWORD' },
   max: { username: 'MAX_USERNAME', password: 'MAX_PASSWORD' },
   discount: { id: 'DISCOUNT_ID', password: 'DISCOUNT_PASSWORD', num: 'DISCOUNT_NUM' },
   hapoalim: { userCode: 'HAPOALIM_USER_CODE', password: 'HAPOALIM_PASSWORD' },

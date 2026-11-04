@@ -1,43 +1,28 @@
 /**
- * Amex pipeline — browser login (WAF bypass) + the Amex DigitalV3 hard
- * model for the post-auth data path. `withBrowserApiDirect` swaps the
- * generic AUTH-DISCOVERY/ACCOUNT-RESOLVE/DASHBOARD/SCRAPE/BALANCE-RESOLVE
- * chain for the single API-DIRECT-SCRAPE phase driving AMEX_SHAPE.
+ * Amex pipeline — API-native descriptor: the config-driven
+ * API-DIRECT-CALL phase logs in over the ring app API (ID, card suffix and
+ * password on a cold run; a stored device key resumes the session on a warm
+ * run), then the shape-driven API-DIRECT-SCRAPE phase reads cards, the next
+ * debit and transactions. No browser is launched.
  */
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
-import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilderFactory.js';
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
+import { AMEX_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigAmex.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { AMEX_SHAPE } from './scrape/AmexShape.js';
 
-/** Amex login config — credential keys only. WellKnown resolves selectors. */
-export const AMEX_LOGIN: ILoginConfig = {
-  loginUrl: '',
-  fields: [
-    { credentialKey: 'id', selectors: [] },
-    { credentialKey: 'password', selectors: [] },
-    { credentialKey: 'card6Digits', selectors: [] },
-  ],
-  submit: [],
-  possibleResults: { success: [] },
-};
-
 /**
  * Build the Amex pipeline descriptor.
- * Post-auth data path uses the Amex hard model (api-direct scrape)
- * instead of the generic AUTH-DISCOVERY/ACCOUNT-RESOLVE/DASHBOARD chain.
  * @param options - Scraper options from the user.
- * @returns Pipeline descriptor.
+ * @returns Pipeline descriptor (Headless Strategy + config-driven API-DIRECT-CALL).
  */
 function buildAmexPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withBrowser()
-    .withDeclarativeLogin(AMEX_LOGIN)
-    .withPreLogin()
-    .withBrowserApiDirect(AMEX_SHAPE)
+    .withHeadlessMediator()
+    .withApiDirect(AMEX_API_DIRECT_CALL, AMEX_SHAPE)
     .build();
 }
 

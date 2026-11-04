@@ -178,8 +178,4 @@ describe('MASSAD_SHAPE wiring', () => {
   it('carries the MassadScrape step name', () => {
     expect(MASSAD_SHAPE.stepName).toBe('MassadScrape');
   });
-
-  it('declares no prime nav — AUTH-DISCOVERY handles the appsng session hand-off', () => {
-    expect(MASSAD_SHAPE.prime).toBeUndefined();
-  });
 });

@@ -157,15 +157,21 @@ describe('UrlsWK/pepperAuthUrls', () => {
   });
 });
 
-/** Isracard's one login endpoint on its ring host; each step names its service in the query. */
-const ISRACARD_RING_SERVICE = 'https://ring.isracard.co.il/service';
+/** Each ring issuer's one login endpoint; each step names its service in the query. */
+const RING_SERVICES = [
+  { bank: CompanyTypes.Isracard, url: 'https://ring.isracard.co.il/service' },
+  { bank: CompanyTypes.Amex, url: 'https://ring.americanexpress.co.il/service' },
+] as const;
 
 describe('UrlsWK/ringAuthUrls', () => {
-  it('resolves Isracard auth.service to its exact ring URL', async () => {
-    await seedFromBankConfig();
-    const result = resolveWkUrl('auth.service', CompanyTypes.Isracard);
-    expect(result).toEqual({ success: true, value: ISRACARD_RING_SERVICE });
-  });
+  it.each(RING_SERVICES)(
+    'resolves $bank auth.service to its exact ring URL',
+    async ({ bank, url }) => {
+      await seedFromBankConfig();
+      const result = resolveWkUrl('auth.service', bank);
+      expect(result).toEqual({ success: true, value: url });
+    },
+  );
 });
 
 describe('UrlsWK/calAuthUrls', () => {
