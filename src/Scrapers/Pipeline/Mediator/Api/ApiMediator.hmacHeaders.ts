@@ -9,7 +9,9 @@
  * Absent key or directive → no headers (the getKey bootstrap exemption).
  */
 
+import { writePostBody } from '../../Strategy/Fetch/PostBody.js';
 import type { ApiPostData } from '../../Types/Domain/ApiPostData.js';
+import type { BodyEncoding } from '../../Types/Domain/FetchPolicy.js';
 import { isOk } from '../../Types/Procedure.js';
 import type { IHmacHeaderSignerConfig } from '../ApiDirectCall/ConfigContracts/SignerTypes.js';
 import type {
@@ -34,6 +36,7 @@ interface IHmacHeadersArgs {
   readonly method: string;
   readonly url: string;
   readonly body?: ApiPostData;
+  readonly bodyEncoding?: BodyEncoding;
 }
 
 /**
@@ -77,15 +80,16 @@ function isHmacSigner(value: unknown): value is IHmacHeaderSignerConfig {
 }
 
 /**
- * Serialize the outbound body to the exact bytes the fetch strategy
- * sends (`JSON.stringify`), or an empty buffer for bodyless GETs.
+ * Serialize the outbound body with the transport's body writer, or use an
+ * empty buffer for bodyless GETs.
  * @param body - Final outbound body (undefined for GET).
+ * @param encoding - Selected body encoding; JSON when absent.
  * @returns UTF-8 body bytes.
  */
-function toBodyBytes(body?: ApiPostData): Buffer {
+function toBodyBytes(body?: ApiPostData, encoding?: BodyEncoding): Buffer {
   if (body === undefined) return Buffer.alloc(0);
-  const json = JSON.stringify(body);
-  return Buffer.from(json, 'utf8');
+  const written = writePostBody(body, encoding);
+  return Buffer.from(written.body, 'utf8');
 }
 
 /** Bundled signing inputs resolved from the session context. */
@@ -121,7 +125,7 @@ function toHeaderMap(
 function buildSignArgs(resolved: IResolvedSigning): ISignRequestArgs {
   const url = new URL(resolved.args.url);
   const nowMs = Date.now();
-  const bodyBytes = toBodyBytes(resolved.args.body);
+  const bodyBytes = toBodyBytes(resolved.args.body, resolved.args.bodyEncoding);
   const hmacKey = Buffer.from(resolved.keyHex, 'hex');
   const timestamp = String(nowMs);
   const nonce = mintNonce();
