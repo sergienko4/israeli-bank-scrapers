@@ -136,7 +136,7 @@ const OTP_VERIFY_STEP: IStepConfig = {
     intoCarryField: 'otp',
     hintFrom: 'carry.phone',
     requires: ['cookie.csrfcookie', 'carry.flow'],
-    valuePattern: '^\\d{5}$',
+    valuePattern: String.raw`^\d{5}$`,
   },
   extractsToCarry: {},
   optionalExtractsToCarry: { target: { pointer: '/target' } },
@@ -156,7 +156,7 @@ const LANDING_STEP: IStepConfig = {
   method: 'GET',
   failIfPresent: HAPOALIM_ERRORS,
   extractsToCarry: { pageId: '/pageId' },
-  extractRules: { pageId: { pattern: '^\\d{1,4}$' } },
+  extractRules: { pageId: { pattern: String.raw`^\d{1,4}$` } },
 };
 
 /** The login steps in order; the landing step is the warm-start resume point. */
