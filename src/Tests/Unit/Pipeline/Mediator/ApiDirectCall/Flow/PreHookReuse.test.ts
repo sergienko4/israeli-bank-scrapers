@@ -175,15 +175,16 @@ describe('applyPreHook — failure handling (T-PREHOOK-REUSE-7/8)', () => {
     expect([isOk(first), isOk(second)]).toEqual([false, true]);
   });
 
-  it('T-PREHOOK-REUSE-8: a first-invocation throw keeps the legacy message', async () => {
+  it('T-PREHOOK-REUSE-8: a first-invocation throw names only the error', async () => {
     const probe = makeFailingRetriever(1);
     const cache = createPreHookCache();
     const hook = otpHook();
     const result = await applyPreHook({ scope: emptyScope(), creds: probe.creds, hook, cache });
     const message = isOk(result) ? '' : result.errorMessage;
-    // Single-hook flows (OneZero, Pepper) only ever reach invocation #1, so
-    // their failure text must stay byte-identical to the long-standing one.
-    expect(message).toBe('preHook: creds.otpCodeRetriever() threw: transport down');
+    // D12: a caller's error text may hold the code or phone, so the failure
+    // names the error and never repeats its message; invocation #1 adds no
+    // ordinal.
+    expect(message).toBe('preHook: creds.otpCodeRetriever() threw Error');
   });
 
   it('T-PREHOOK-REUSE-9: a failure evicts, and the retry names the ordinal', async () => {

@@ -55,7 +55,7 @@ interface IConfigTokenStrategy extends ITokenStrategy<GenericCreds> {
   /** Whether the most recent prime reused a cached warm seed (vs cold flow). */
   lastPrimeWasWarm(): boolean;
   /**
-   * Whether the stored seed was refused by the local freshness gate, before
+   * Whether the stored seed was refused by local validation, before
    * any request went out. Distinguishes "we never asked the bank" from "the
    * bank said no", which read identically from the warm flag alone.
    */
@@ -89,7 +89,7 @@ interface ILongTermTokenSlot {
   /** True when the last prime reused a cached warm seed; false on cold flow. */
   usedWarmPath?: boolean;
   /**
-   * True when a supplied seed was refused by `pickWarmSeed`, so it was never
+   * True when a supplied seed was refused by `restoreWarmSeed`, so it was never
    * sent; false when none was supplied. Only `primeInitial` writes it — a
    * later cold retry must not erase the reason the warm path was skipped.
    */
@@ -141,7 +141,8 @@ interface IMakeWarmArgs {
   readonly config: IApiDirectCallConfig;
   readonly bus: ITokenBus;
   readonly creds: GenericCreds;
-  readonly stored: string;
+  /** The carry the warm-start kind restored from the stored token. */
+  readonly initialCarry: Readonly<Record<string, JsonValue>>;
   readonly companyId: ITokenContext['companyId'];
 }
 
@@ -158,7 +159,7 @@ interface IPrimeArgs {
 interface IWarmSeedVerdict {
   /** The caller put a value in the seed field (any type but empty). */
   readonly supplied: boolean;
-  /** The seed passed the local shape and freshness checks and will be sent. */
+  /** The seed passed the local restoration checks and will be used. */
   readonly accepted: boolean;
 }
 

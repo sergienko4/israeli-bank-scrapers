@@ -6,7 +6,8 @@
  *
  * <p>Acquisition lives in `SmsOtpFlow.prehookCache.ts`; invocation and
  * coercion live in `SmsOtpFlow.prehookInvoke.ts`. This module only wires
- * resolution → acquisition → carry deposit.
+ * resolution → acquisition → carry deposit. The callback receives the hook's
+ * `hintFrom` carry text as its one argument (N15).
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
@@ -16,6 +17,11 @@ import type { IPreStepHook } from '../ConfigContracts/EnvelopeTypes.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { acquirePreHookValue } from './SmsOtpFlow.prehookCache.js';
 import type { IApplyPreHookArgs } from './SmsOtpFlow.types.js';
+
+/** A creds callback awaited by a pre-hook; takes the hint. */
+type PreHookRetriever = (hint: string) => Promise<unknown>;
+
+const CARRY_PREFIX = 'carry.';
 
 /**
  * Build the standard preHook missing-function failure procedure.
@@ -32,7 +38,7 @@ function preHookMissingFnFail(hook: IPreStepHook): Procedure<ITemplateScope> {
  * @param hook - Pre-step hook config.
  * @returns Procedure failure typed for the resolver caller.
  */
-function missingFnFail(hook: IPreStepHook): Procedure<() => Promise<unknown>> {
+function missingFnFail(hook: IPreStepHook): Procedure<PreHookRetriever> {
   const msg = `preHook: creds.${hook.awaitCredsField} is not a function`;
   return fail(ScraperErrorTypes.TwoFactorRetrieverMissing, msg);
 }
@@ -47,10 +53,37 @@ function missingFnFail(hook: IPreStepHook): Procedure<() => Promise<unknown>> {
 function resolvePreHookFn(
   creds: Readonly<Record<string, unknown>>,
   hook: IPreStepHook,
-): Procedure<() => Promise<unknown>> {
+): Procedure<PreHookRetriever> {
   const fn = creds[hook.awaitCredsField];
   if (typeof fn !== 'function') return missingFnFail(hook);
-  return succeed(fn as () => Promise<unknown>);
+  return succeed(fn as PreHookRetriever);
+}
+
+/**
+ * The hint the callback receives: the `hintFrom` carry slot's text, or `''`
+ * when the hook names none or the slot is absent or not text.
+ * @param hook - Pre-step hook config.
+ * @param scope - Current scope.
+ * @returns The hint.
+ */
+function preHookHint(hook: IPreStepHook, scope: ITemplateScope): string {
+  if (hook.hintFrom === undefined) return '';
+  const slot = hook.hintFrom.slice(CARRY_PREFIX.length);
+  const hint = scope.carry[slot];
+  return typeof hint === 'string' ? hint : '';
+}
+
+/**
+ * Resolve the hook's callback and bind its hint.
+ * @param args - Scope + creds + hook + flow-cache bundle.
+ * @returns Procedure with the argument-free callback.
+ */
+function hintedRetriever(args: IApplyPreHookArgs): Procedure<() => Promise<unknown>> {
+  const fnProc = resolvePreHookFn(args.creds, args.hook);
+  if (!isOk(fnProc)) return fnProc;
+  const hint = preHookHint(args.hook, args.scope);
+  const fn = fnProc.value.bind(undefined, hint);
+  return succeed(fn);
 }
 
 /**
@@ -64,7 +97,7 @@ function resolvePreHookFn(
  * @returns Updated scope or fail.
  */
 async function applyPreHook(args: IApplyPreHookArgs): Promise<Procedure<ITemplateScope>> {
-  const fnProc = resolvePreHookFn(args.creds, args.hook);
+  const fnProc = hintedRetriever(args);
   if (!isOk(fnProc)) return fnProc;
   const acquireArgs = { cache: args.cache, hook: args.hook, fn: fnProc.value };
   const valueProc = await acquirePreHookValue(acquireArgs);

@@ -17,6 +17,7 @@ import {
 import type { IPipelineDescriptor } from '../../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type {
   IApiDirectCallConfig,
+  ICookieJarWarmStart,
   IStepConfig,
   IStepOutcome,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
@@ -46,17 +47,30 @@ const OUTCOME: IStepOutcome = {
 };
 
 const NO_CODES_STEP: IStepConfig = { ...STEP, outcome: { ...OUTCOME, successCodes: [] } };
+const COLLIDING_OUTCOME: IStepOutcome = {
+  ...OUTCOME,
+  caseInsensitive: true,
+  failureMap: {
+    Locked: ScraperErrorTypes.AccountBlocked,
+    locked: ScraperErrorTypes.InvalidPassword,
+  },
+};
+const COLLIDING_STEP: IStepConfig = { ...STEP, outcome: COLLIDING_OUTCOME };
 const WARM = { credsField: 'otpLongTermToken', carryField: 'token', fromStepIndex: 1 };
 const CLAIMS = { freshnessField: 'exp', skewSeconds: 30 } as const;
 
+/** A step that runs only when the carry says so. */
+const GUARDED_STEP: IStepConfig = { ...STEP, runIf: { carry: 'route', oneOf: ['otp'] } };
+
 /**
- * A two-step config warm-started by a bank call from the given step index.
+ * A bank-call warm config, defaulting to two steps.
  * @param fromStepIndex - First warm step.
+ * @param steps - The config's steps.
  * @returns Rule input with no headless block.
  */
-function bankCallFrom(fromStepIndex: number): IApiDirectRuleInput {
+function bankCallFrom(fromStepIndex: number, steps = [STEP, STEP]): IApiDirectRuleInput {
   const warmStart = { ...WARM, fromStepIndex, validation: 'bank-call' } as const;
-  return { call: makeCall({ warmStart, steps: [STEP, STEP] }), headless: false };
+  return { call: makeCall({ warmStart, steps }), headless: false };
 }
 
 /**
@@ -78,6 +92,50 @@ function jwtFrom(fromStepIndex: number): IApiDirectRuleInput {
 function emptyFlowFrom(fromStepIndex: number): IApiDirectRuleInput {
   const warmStart = { ...WARM, fromStepIndex };
   return { call: makeCall({ warmStart, steps: [], jwtClaims: CLAIMS }), headless: false };
+}
+
+/** A headless block with a cookie session, as a cookie-jar warm start needs. */
+const JAR_DOMAINS = {
+  sessionCookies: true,
+  nativeFetch: true,
+  cookieDomains: ['bank.example'],
+} as unknown as HeadlessBlock;
+
+/** The cookie-jar binding fields a test may blank. */
+type JarBinding = Partial<Pick<ICookieJarWarmStart, 'provider' | 'accountField'>>;
+
+/**
+ * A config warm-started from a cookie jar with the given ceiling.
+ * @param maxTokenChars - Token ceiling.
+ * @param headless - Headless block beside the call.
+ * @param binding - Binding fields to set on top.
+ * @returns Rule input.
+ */
+function cookieJarWarm(
+  maxTokenChars: number,
+  headless = JAR_DOMAINS,
+  binding: JarBinding = {},
+): IApiDirectRuleInput {
+  const warmStart = {
+    kind: 'cookie-jar',
+    credsField: 'otpLongTermToken',
+    fromStepIndex: 1,
+    validation: 'bank-call',
+    provider: 'syn-bank',
+    accountField: 'userCode',
+    maxTokenChars,
+    ...binding,
+  } as const;
+  return { call: makeCall({ warmStart, steps: [STEP, STEP] }), headless };
+}
+
+/**
+ * A cookie-jar config with some binding fields replaced.
+ * @param binding - Binding fields to set.
+ * @returns Rule input otherwise sound.
+ */
+function jarBinding(binding: JarBinding): IApiDirectRuleInput {
+  return cookieJarWarm(1, JAR_DOMAINS, binding);
 }
 
 /**
@@ -113,10 +171,16 @@ const PREFIX_MSG = 'authPrefix: required when authScheme is prefixed';
 const NONE_MSG = 'headless.sessionCookies: required when authScheme is none';
 const JAR_MSG = 'steps.cookieJar: not allowed with headless.sessionCookies';
 const CODES_MSG = 'outcome.successCodes: must not be empty';
+const COLLISION_MSG = 'outcome.failureMap: duplicate keys ignoring case';
 const CLAIMS_MSG = 'jwtClaims: required when warmStart.validation is jwt';
 const BANK_CALL_MSG = 'warmStart.fromStepIndex: must name a step when validation is bank-call';
 const FIRST_STEP_MSG = 'warmStart.fromStepIndex: must start after the first step';
 const RANGE_MSG = 'warmStart.fromStepIndex: must be a whole number up to the step count';
+const MAX_TOKEN_MSG = 'warmStart.maxTokenChars: must be an integer from 1 to 16384';
+const JAR_WARM_MSG = 'warmStart.kind: cookie-jar not allowed without headless.cookieDomains';
+const GUARDED_ENTRY_MSG = 'warmStart.fromStepIndex: a bank-call check step must not have runIf';
+const PROVIDER_MSG = 'warmStart.provider: must not be blank';
+const ACCOUNT_FIELD_MSG = 'warmStart.accountField: must not be blank';
 
 const BROKEN: readonly BrokenCase[] = [
   [
@@ -156,6 +220,16 @@ const BROKEN: readonly BrokenCase[] = [
     CODES_MSG,
   ],
   [
+    'case-insensitive failure keys collide on a login step',
+    { call: makeCall({ steps: [COLLIDING_STEP] }), headless: false },
+    COLLISION_MSG,
+  ],
+  [
+    'case-insensitive failure keys collide on a resume step',
+    { call: makeCall({ persistentAuth: resumeWith(COLLIDING_STEP) }), headless: false },
+    COLLISION_MSG,
+  ],
+  [
     'default jwt warm, no claims',
     { call: makeCall({ warmStart: WARM }), headless: false },
     CLAIMS_MSG,
@@ -181,6 +255,24 @@ const BROKEN: readonly BrokenCase[] = [
   ['jwt warm between steps', jwtFrom(1.5), RANGE_MSG],
   ['jwt warm from NaN', jwtFrom(Number.NaN), RANGE_MSG],
   ['jwt warm beyond the step count', jwtFrom(3), RANGE_MSG],
+  ['cookie-jar warm with a zero ceiling', cookieJarWarm(0), MAX_TOKEN_MSG],
+  ['cookie-jar warm over the seed ceiling', cookieJarWarm(16385), MAX_TOKEN_MSG],
+  ['cookie-jar warm with a fractional ceiling', cookieJarWarm(1.5), MAX_TOKEN_MSG],
+  ['cookie-jar warm without a headless block', cookieJarWarm(1, false), JAR_WARM_MSG],
+  ['cookie-jar warm without cookie domains', cookieJarWarm(1, JAR_ON), JAR_WARM_MSG],
+  ['bank-call warm from a guarded first step', bankCallFrom(0, [GUARDED_STEP]), FIRST_STEP_MSG],
+  [
+    'bank-call warm from a guarded later step',
+    bankCallFrom(1, [STEP, GUARDED_STEP]),
+    GUARDED_ENTRY_MSG,
+  ],
+  ['cookie-jar warm with a blank provider', jarBinding({ provider: ' ' }), PROVIDER_MSG],
+  ['cookie-jar warm with an empty provider', jarBinding({ provider: '' }), PROVIDER_MSG],
+  [
+    'cookie-jar warm with a blank account field',
+    jarBinding({ accountField: '' }),
+    ACCOUNT_FIELD_MSG,
+  ],
   [
     'two broken rules report the first',
     { call: makeCall({ authScheme: 'prefixed', steps: [NO_CODES_STEP] }), headless: false },
@@ -204,12 +296,31 @@ const SOUND: readonly SoundCase[] = [
     { call: makeCall({ steps: [{ ...STEP, outcome: OUTCOME }] }), headless: false },
   ],
   [
+    'case-sensitive failure keys retain distinct mappings',
+    {
+      call: makeCall({
+        steps: [{ ...COLLIDING_STEP, outcome: { ...COLLIDING_OUTCOME, caseInsensitive: false } }],
+      }),
+      headless: false,
+    },
+  ],
+  [
     'jwt warm past the last step, with claims',
     { call: makeCall({ warmStart: WARM, jwtClaims: CLAIMS }), headless: false },
   ],
   ['bank-call warm from the second step, no claims', bankCallFrom(1)],
   ['jwt warm from the second step', jwtFrom(1)],
   ['jwt warm at the step count passes validation', jwtFrom(2)],
+  ['cookie-jar warm at the lowest ceiling', cookieJarWarm(1)],
+  ['cookie-jar warm at the seed ceiling', cookieJarWarm(16384)],
+  ['bank-call warm past a guarded step', bankCallFrom(1, [GUARDED_STEP, STEP])],
+  [
+    'jwt warm from a guarded step',
+    {
+      call: makeCall({ warmStart: WARM, jwtClaims: CLAIMS, steps: [STEP, GUARDED_STEP] }),
+      headless: false,
+    },
+  ],
 ];
 
 /**

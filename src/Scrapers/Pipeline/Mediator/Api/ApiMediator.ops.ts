@@ -53,6 +53,7 @@ function withHmacExtras(args: IApiPostOpArgs, url: string, extras: FirePostExtra
     method: 'POST',
     url,
     body: args.body,
+    bodyEncoding: extras.policy?.bodyEncoding,
   });
   return { ...extras, extraHeaders: overlayHeaders(extras.extraHeaders, hmac) };
 }

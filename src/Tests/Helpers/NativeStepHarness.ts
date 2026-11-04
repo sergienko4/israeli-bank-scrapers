@@ -5,10 +5,12 @@
  */
 
 import type { CompanyTypes } from '../../Definitions.js';
-import { createApiMediator } from '../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import {
+  createApiMediator,
+  type IApiMediator,
+} from '../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { GraphQLFetchStrategy } from '../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
 import { HeadlessNativeFetchStrategy } from '../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
-import type { ITokenBus } from '../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import { fakeFetch } from './FakeFetch.js';
 
 /** One response header: its name and value. */
@@ -34,9 +36,9 @@ export function installJsonAnswer(body: object, headers: readonly HeaderPair[]):
  * Real mediator over the real headless native transport.
  * @param hint - The bank the mediator serves.
  * @param origin - The transport's base URL.
- * @returns The token bus a step fires through.
+ * @returns The mediator a step fires through.
  */
-export function makeNativeMediator(hint: CompanyTypes, origin: string): ITokenBus {
+export function makeNativeMediator(hint: CompanyTypes, origin: string): IApiMediator {
   const graphql = {} as unknown as GraphQLFetchStrategy;
   const transport = new HeadlessNativeFetchStrategy(origin);
   return createApiMediator(hint, transport, graphql);

@@ -41,12 +41,13 @@ empty signer slot fails as `injected keypair missing: <slot>`.
 
 Declarative body literal with `$ref` tokens:
 
-| Token                        | Resolves to                    |
-| ---------------------------- | ------------------------------ |
-| `$literal: "v"`              | Literal value `"v"`            |
-| `$ref: creds.<field>`        | The credential at that key     |
-| `$ref: carry.<slot>`         | The flow's per-step carry slot |
-| `$ref: config.<dotted.path>` | The bank's config object       |
+| Token                        | Resolves to                              |
+| ---------------------------- | ---------------------------------------- |
+| `$literal: "v"`              | Literal value `"v"`                      |
+| `$ref: creds.<field>`        | The credential at that key               |
+| `$ref: carry.<slot>`         | The flow's per-step carry slot           |
+| `$ref: config.<dotted.path>` | The bank's config object                 |
+| `$ref: cookie.<name>`        | The cookie for the step URL, URL-decoded |
 
 One hydration engine serves both `API-DIRECT-CALL` and `API-DIRECT-SCRAPE` step bodies — no per-bank imperative body assembly.
 
@@ -260,9 +261,121 @@ other code, and `<step> outcome missing` when there is none. An unmapped code
 is never echoed: it comes from the bank, not the config, and may carry a
 secret. A step without `outcome` behaves as before.
 
+`caseInsensitive: true` lower-cases the code, the `successCodes` and the
+`failureMap` keys before matching, for banks whose state codes change case
+(`LogonOTP` matches `logonotp`). A mapped code is then named in lower case.
+
+### Bank-error guard
+
+Some banks answer a failed step with HTTP 200 and an error field instead of a
+status code. A step that declares `failIfPresent` (a list of body pointers)
+has them checked by `guardBankError` right after the body is parsed, before
+its `outcome` and before its extracts:
+
+```ts
+failIfPresent: ['/error', '/Error', '/errors'],
+```
+
+Any pointer that resolves to a truthy scalar or a non-empty array or record
+fails the step `Generic` with `<step> bank error`, whatever the outcome's
+`defaultFailure` is. Absent, `null`, `false`, `0`, `''`, `[]` and `{}` are not
+errors. The message never echoes the bank's value.
+
 An outcome failure in a warm resume is a failure like any other, so the
 resolver still falls back to one cold flow. When the cold flow also fails, its
 own failure type is the one reported.
+
+### Extract rules
+
+A value the bank sends back may be echoed into a later request, so a step can
+check its body extracts before they reach carry. `extractRules` maps a slot of
+`extractsToCarry` or `optionalExtractsToCarry` to an `IExtractRule`. Once the
+step's carry is read, `ruleStepCarry` (in `Flow/RunStep.extractRules.ts`)
+resolves the step's URL and `applyExtractRules` checks each ruled slot:
+
+```ts
+optionalExtractsToCarry: { state: { pointer: '/state' } },
+extractRules: {
+  state: { type: 'string', transform: 'lower', oneOf: ['logonotp', 'passwordexpired'] },
+},
+```
+
+- `type` (`'string'`, `'number'`, `'object'` or `'array'`) is checked on the
+  raw value first. A number must be finite; `null` is no type.
+- `transform: 'lower'` lower-cases the text; the slot keeps the result.
+- The text checks run in order on the transformed text: `maxChars` (8192 when
+  unset), `oneOf`, the whole text against `pattern`, and the `url` allow-list.
+  A URL resolves against the step's URL and must then match an `IUrlRule`: an
+  `https` origin, an exact path, no user info and no fragment. The slot keeps
+  the text as sent, not the resolved URL.
+- A string always runs the text checks. A finite number runs them, stringified,
+  only when the rule sets one; any other value under a text check is refused.
+- An optional slot whose pointer is unresolved, `null` or `''` skips its rule.
+
+A refused value fails the step `Generic` with `<step> extract <slot> invalid`,
+before any later step or OTP prompt. The message never names the value.
+
+### Conditional steps
+
+Some banks ask for an SMS code only on some logins. A step can carry a
+`runIf` guard (`IRunIf`) naming a carry slot and the texts that let it run:
+
+```ts
+runIf: { carry: 'state', oneOf: ['logonotp'] },
+```
+
+The step reducer calls `isStepSkipped` (in `Flow/SmsOtpFlow.runIf.ts`) before
+the step's pre-hook. The step runs only when the slot holds text equal to one
+of `oneOf`, compared without case. A false guard, or a slot that is missing or
+not text, skips the step: its pre-hook never asks for a code, no request is
+sent, and the scope passes to the next step unchanged. The debug log names the
+skipped step, never the slot's value.
+
+### OTP pre-hook guards
+
+A step's `preHook` (`IPreStepHook`) asks the caller for a code. Three optional
+fields shape that request, and `applyGuardedPreHook` (in
+`Flow/SmsOtpFlow.prehookGuard.ts`) runs them around it. The step reducer hands
+it one `IPreHookGuardArgs` bundle: the reduce args, the scope, the step and
+its hook.
+
+```ts
+preHook: {
+  awaitCredsField: 'otpCodeRetriever',
+  intoCarryField: 'otp',
+  hintFrom: 'carry.phone',
+  requires: ['cookie.csrfcookie', 'carry.flow'],
+  valuePattern: '^\\d{5}$',
+},
+```
+
+- `hintFrom` names a carry slot. Its text is passed to the callback as the
+  hint, such as the masked phone the bank sent the code to. A slot that is
+  missing or not text passes `''`. The hint is never logged.
+- `requires` lists refs that must resolve before the callback is asked.
+  `checkPreHookRequires` resolves them against the step's own cookie view,
+  bound to the step URL as `runStep` binds it. `clientCookieOf` previews the
+  step's `setCookies` without committing them before validation, using the
+  jar's domain/path precedence and retaining malformed cookie-source failures.
+  The first miss fails with the resolver's message
+  (`ref carry.<x> missing from scope.carry`, `ref cookie.<x> miss`), so no code
+  is spent on a login that cannot finish.
+- `valuePattern` is an anchored regex. `checkPreHookValue` tests the
+  deposited value; a value that does not match, or is not text, fails the
+  step `INVALID_OTP` with `<step> preHook value invalid` before its request
+  is sent. The message never names the value.
+
+A creds field that is not a function fails `TWO_FACTOR_RETRIEVER_MISSING`
+with `preHook: creds.<field> is not a function`. A callback that throws fails
+`GENERIC` with `preHook: creds.<field>() threw <ErrorName>`; from the second
+call on it adds `on invocation #<n> of this login`. Only the error's
+name is reported: its message can echo a code or a token. `errorNameOf`
+(`Types/ErrorUtils.ts`) reports a name only when it is a platform error class
+(`TypeError`, `AbortError`, `TimeoutError` and the like) or one of this
+library's own (`ScraperError`, `WafBlockError`); any other name, however
+class-like, is reported as `Error`. A throwing
+`onAuthFlowComplete` callback is logged the same way
+(`api-direct-call onAuthFlowComplete callback threw <ErrorName>`).
 
 ### Session-transport fields
 
@@ -304,7 +417,7 @@ A GET step that reaches a page through one allowed redirect:
   },
   response: 'document',       // HTML: read, checked for the marker, discarded
   documentMarker: 'id="app"', // text the page must contain
-  extractsToCarry: {},        // a document step reads no body extracts or outcome
+  extractsToCarry: {},        // no body extracts, outcome or bank-error guard
 }
 ```
 
@@ -336,6 +449,21 @@ from what it extracted:
   ([Response-header carry](../architecture/pipeline.md#response-header-carry)).
 - `deriveCarry` runs once the step's extracts are in scope
   ([Carry derivation](#carry-derivation)).
+- `encoding: 'form'` sends the body as `application/x-www-form-urlencoded`;
+  its shape must be a flat record of `$ref` and scalar `$literal` values
+  ([Form bodies](../architecture/pipeline.md#form-bodies)). `isFlatFormBody`
+  guards the hydrated step and the transport against arrays and nested values.
+- `seal` writes one credential, sealed under the bank's RSA modulus, at a
+  body pointer; neither value reaches carry
+  ([Sealed fields](../architecture/pipeline.md#sealed-fields)).
+- `setCookies` writes client cookies, host-only with `Path=/` and `Secure`,
+  before the step's request; `$ref: cookie.<name>` reads the cookie that
+  applies to the step URL, URL-decoded
+  ([Client cookies](../architecture/pipeline.md#client-cookies)).
+- `extractRules` checks a body extract's type, text, length or URL before it
+  reaches carry ([Extract rules](#extract-rules)).
+- `runIf` skips the step, pre-hook included, unless a carry slot holds one of
+  the listed texts ([Conditional steps](#conditional-steps)).
 - `omitBankText: true` on the config keeps reply text out of a missed extract
   and records a length-only hint for `error_code` in login diagnostics
   ([Bank text in failures](#bank-text-in-failures)).
@@ -353,7 +481,10 @@ is sent. `Core/Builder/ApiDirectRuleInput.ts` holds that input, the rule shape
 `IApiDirectRule` (a message and an `isBroken` check) and `allSteps`, which
 lists the login steps and any durable resume steps. The session-transport
 rules, `API_DIRECT_TRANSPORT_RULES` in `Core/Builder/ApiDirectTransportRules.ts`,
-run after the core rules. The native-fetch rules, `API_DIRECT_NATIVE_RULES` in
+run after the core rules, then the form-body rules, `API_DIRECT_FORM_RULES` in
+`Core/Builder/ApiDirectFormRules.ts`, then the seal rules,
+`API_DIRECT_SEAL_RULES` in `Core/Builder/ApiDirectSealRules.ts`, then the
+step rules, `API_DIRECT_STEP_RULES` in `Core/Builder/ApiDirectStepRules.ts`. The native-fetch rules, `API_DIRECT_NATIVE_RULES` in
 `Core/Builder/ApiDirectNativeRules.ts`, run last: the session-transport fields
 act only on the headless native fetch, and any other transport would ignore
 them and run unguarded, so naming one off native fetch fails the build. Its
@@ -371,22 +502,45 @@ fails the build with `Generic` and `<field>: <rule>`:
 | `warmStart` validated as `'bank-call'` with a `fromStepIndex` that names no step                                                      | `warmStart.fromStepIndex: must name a step when validation is bank-call` |
 | `warmStart.fromStepIndex` below 1                                                                                                     | `warmStart.fromStepIndex: must start after the first step`               |
 | `warmStart.fromStepIndex` fractional, `NaN` or above `steps.length`                                                                   | `warmStart.fromStepIndex: must be a whole number up to the step count`   |
-| a `response: 'document'` step with any `extractsToCarry`, `optionalExtractsToCarry` or `outcome`                                      | `steps.response: a document step reads no body extracts or outcome`      |
+| `warmStart` validated as `'bank-call'` whose `fromStepIndex` step has a `runIf` guard | `warmStart.fromStepIndex: a bank-call check step must not have runIf` |
+| a `kind: 'cookie-jar'` `warmStart` with a blank `provider` | `warmStart.provider: must not be blank` |
+| a `kind: 'cookie-jar'` `warmStart` with a blank `accountField` | `warmStart.accountField: must not be blank` |
+| a `kind: 'cookie-jar'` `warmStart` whose `maxTokenChars` is not an integer from 1 to 16384 | `warmStart.maxTokenChars: must be an integer from 1 to 16384` |
+| a `kind: 'cookie-jar'` `warmStart` without `headless.cookieDomains` | `warmStart.kind: cookie-jar not allowed without headless.cookieDomains` |
+| a `response: 'document'` step with any `extractsToCarry`, `optionalExtractsToCarry`, `outcome` or nonempty `failIfPresent` | `steps.response: a document step reads no body extracts, outcome or failIfPresent` |
 | a `documentMarker` on any step whose `response` is not `'document'`                                                                   | `steps.documentMarker: only on a document step`                          |
 | a manual `redirect` on a step whose `method` is not `GET`                                                                             | `steps.redirect: manual only on GET steps`                               |
 | a manual `headless.redirectPolicy` (the default every POST shares)                                                                    | `headless.redirectPolicy: manual only on GET steps`                      |
 | a manual `redirect` whose `allow` list is empty                                                                                       | `redirect.allow: must not be empty`                                      |
 | a manual `redirect` whose `maxHops` is not an integer from 1 to 10                                                                    | `redirect.maxHops: must be an integer from 1 to 10`                      |
 | a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`                                                     | `headless.redirectPolicy: must be reject when a step redirects manually` |
+| a form step whose body shape is not a flat record of `$ref` and scalar `$literal` values                                              | `steps.body: a form body must be a flat record`                          |
+| a `seal` whose `kind` is not a `SealKind`                                                                                             | `steps.seal.kind: unknown seal kind`                                     |
+| a `seal` on a step that is not a `POST` with a record body                                                                            | `steps.seal: needs a POST step with a record body`                       |
+| a `seal` whose `writeTo` is not a JSON pointer                                                                                        | `steps.seal.writeTo: must be a JSON pointer`                             |
+| a `seal` whose `params` are out of range (exponent, seed, block size or printable text)                                               | `steps.seal.params: out of range`                                        |
+| a login or resume step with a `failIfPresent` entry that is not a JSON pointer below the body root                                    | `steps.failIfPresent: each entry must be a JSON pointer`                 |
+| an `extractRules` key that names neither an `extractsToCarry` nor an `optionalExtractsToCarry` slot of its step                       | `steps.extractRules: each key must name a body extract`                  |
+| an `extractRules` `pattern` that does not start with `^`, end with `$` and compile with the `u` flag                                  | `steps.extractRules.pattern: must be an anchored regex`                  |
+| an `extractRules` `pattern` with a group, an alternation or a variable repeat before its last atom                                    | `steps.extractRules.pattern: must be a flat regex`                       |
+| an `extractRules` `maxChars` that is not an integer from 1 to 65536                                                                   | `steps.extractRules.maxChars: must be an integer from 1 to 65536`        |
+| an `extractRules` `oneOf` or `url` list that is empty                                                                                 | `steps.extractRules: oneOf and url must not be empty`                    |
+| a login or resume step whose `runIf` has a blank `carry` or an empty `oneOf`                                                          | `steps.runIf: carry and oneOf must not be empty`                         |
+| a login or resume step whose `preHook.valuePattern` does not start with `^`, end with `$` and compile with the `u` flag               | `steps.preHook.valuePattern: must be an anchored regex`                  |
+| a login or resume step whose `preHook.valuePattern` has a group, an alternation or a variable repeat before its last atom             | `steps.preHook.valuePattern: must be a flat regex`                       |
 | a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |
+| a login or resume step with `encoding`, without `headless.nativeFetch: true`                                                          | `steps.encoding: not allowed without headless.nativeFetch`               |
 | `headless.cookieDomains`, `redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, on an api-direct or node-tls bank | `headless.<field>: not allowed without headless.nativeFetch` |
 | `headless.cookieDomains` without `headless.sessionCookies: true`                                                                      | `headless.cookieDomains: not allowed without headless.sessionCookies`    |
 | a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                            | `headerExtractsToCarry.header: must be an HTTP header name`              |
+| a login or resume step with `setCookies`, without `headless.cookieDomains`                                                            | `steps.setCookies: not allowed without headless.cookieDomains`           |
+| a `setCookies` cookie name that is not an HTTP token (RFC 9110)                                                                       | `steps.setCookies: each name must be an HTTP token`                      |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
-readable expiry, so the first warm step sent to the bank is the check, and
-`fromStepIndex` must name a step. A `'bank-call'` seed skips the local JWT
+readable expiry, so the first warm step sent to the bank is the check.
+`fromStepIndex` must name a step with no `runIf`, so the check always runs.
+A `'bank-call'` seed skips the local JWT
 check even when `jwtClaims` is set. In either mode a warm start must skip
 step 0: a resume from the first step replays the whole login, OTP step
 included, and `isColdStart` charges it to the one-SMS budget, leaving nothing
@@ -397,12 +551,66 @@ is already the final token. A fractional or `NaN` index fails the build,
 because the step walker would read a missing step and throw instead of
 failing the warm attempt into the cold retry. An index above `steps.length`
 fails it too: it would silently run no steps, which only a typo produces.
+
+A config `pattern` or `valuePattern` is tested against bank and caller text, so
+the build accepts only a flat regex, which matches in linear time.
+`isFlatPattern` (`Core/Builder/FlatPattern.ts`) reads the source between `^`
+and `$` as a run of atoms — a literal, `.`, an escape or a character class —
+each with an optional quantifier. A group, a lookaround or an alternation
+fails, and only the last atom may repeat a variable amount (`*`, `+`, `?` or a
+range); every earlier quantifier must be an exact `{n}`. So `^\d{1,4}$`,
+`^.{1,64}$` and `^\d{3}-\d{2,4}$` pass, while `(a+)+`, `^a*a*b$`, `^\w+!$` and
+`^.*a{20000}$` fail. The earlier atoms then match one way, and each count the
+last atom backs off to costs only the `$` check, so a failed match is linear in
+the input.
+
+`warmStart.kind` says what the stored token is. The default, `'carry'`, seeds
+it into the carry slot `carryField`. `'cookie-jar'` is for a cookie-session
+bank with no bearer to replay: the token is the session jar itself
+([Cookie-jar warm start](#cookie-jar-warm-start)).
+
 The warm-start canary (`WarmStartContract`) follows the same policy. It
 requires `jwtClaims` only for `'jwt'` validation, and it requires the warm path
 to end holding a `token` only when the auth scheme sends a header (`none`
 does not).
 Conflicting transport flags in the headless block are a separate check
 (`assertSingleTransport`), run when the headless mediator is wired.
+
+### Cookie-jar warm start
+
+A `kind: 'cookie-jar'` warm start (`ICookieJarWarmStart`) is always validated
+as `'bank-call'`, and adds `provider`, `accountField` and `maxTokenChars`.
+`Flow/WarmStartKind.ts` reads the kind: `cookieJarWarmOf` returns the
+cookie-jar config or `false`, and `warmCarryField` returns the carry slot, or
+`''` when there is none to seed.
+`encodeWarmJar` in `Flow/WarmCookieJar.ts` encodes a `StoredJar` as `v1.` plus
+unpadded base64url over the JSON `{p, a, c}`: the provider tag, the first 16
+hex characters of the SHA-256 of the trimmed account (never the account
+itself), and the cookies in creation order. Only the cookie's own fields
+travel. `decodeWarmJar` opens it, refusing with a reason from
+`WARM_JAR_REJECTIONS` and never a value. Both refuse a blank account
+(`unbound`), since it binds nothing; the build already refuses a blank
+`provider` or `accountField`.
+The provider tag and account hash only stop one account's jar from being
+replayed for another. They are not authentication: like every stored warm
+token, the jar is a secret its caller keeps.
+
+`Flow/TokenStrategyFromConfig.warm.ts` runs the kind at three moments:
+
+- **Restore** (`restoreWarmSeed`). The stored token is checked in order —
+  an account to bind, size, prefix, JSON, shape, provider, account — then imported into the run's
+  cookie session, and the flow resumes at `fromStepIndex`. A token failing any
+  check, or a run with no cookie session, is skipped with the warning
+  `warm start skipped: <reason>`, naming the creds field and never the token,
+  and the cold login runs.
+- **Cold start** (`prepareColdStart`). Before a cold flow starts — after the
+  one-SMS budget allows it — the jar is emptied, so neither a refused token
+  nor the cookies its rejected resume set reach the fresh session.
+- **Export** (`exportWarmToken`). A finished flow encodes the jar as the next
+  warm token, so `onAuthFlowComplete` and `persistentOtpToken` receive the
+  envelope. A token longer than `maxTokenChars`, or one for a blank account,
+  is not published: the warning `warm start export skipped: <reason>` names
+  the creds field and the reason only (with the length, when too long).
 
 ### Transport errors
 
@@ -465,15 +673,16 @@ message.
 A step's `name` is a `StepName` and its `urlTag` is a `WKUrlGroup`. Both are
 closed unions, so a misspelt value fails type-check. The flow never branches
 on a name: it labels the step in failure messages (`<step> HTTP <status>`,
-`<step> outcome <code>`, `<step> outcome unmapped`) and in the per-step log
+`<step> outcome <code>`, `<step> outcome unmapped`, `<step> bank error`) and
+in the per-step log
 context. The URL comes from the bank's `headless.paths`, keyed by
 `AuthPathKey`; the registry seeder registers each entry under the same key,
 and the step's `urlTag` selects it.
 
-| Kind       | Values                                                                                                                                                                |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Step names | `bind`, `login`, `assertPassword`, `assertOtp`, `getIdToken`, `sessionToken`, `prime`, `validate`, `deviceKey`, `register`, `resume`, `bootstrap`, `landing`, `logon` |
-| Auth tags  | `auth.bind`, `auth.login`, `auth.assert`, `auth.logout`, `auth.prime`, `auth.resume`, `auth.service`, `auth.bootstrap`, `auth.landing`, `auth.logon`                  |
+| Kind       | Values                                                                                                                                                                                                                                       |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Step names | `bind`, `login`, `assertPassword`, `assertOtp`, `getIdToken`, `sessionToken`, `prime`, `validate`, `deviceKey`, `register`, `resume`, `bootstrap`, `landing`, `logon`, `encryptionKey`, `identify`, `verify`, `otpInit`, `otpVerify`         |
+| Auth tags  | `auth.bind`, `auth.login`, `auth.assert`, `auth.logout`, `auth.prime`, `auth.resume`, `auth.service`, `auth.bootstrap`, `auth.landing`, `auth.logon`, `auth.encryptionKey`, `auth.identify`, `auth.verify`, `auth.otpInit`, `auth.otpVerify` |
 
 `identity.*` and `data.*` tags work the same way.
 
@@ -483,9 +692,10 @@ A bank that logs in with credentials alone still declares `flow: 'sms-otp'`,
 the only flow kind `gateFlowKind` accepts. The flow asks for a code only
 through a step's `preHook`. For a step with no `preHook`, `resolveStepScope`
 (`Flow/SmsOtpFlow.reduce.ts`) leaves the scope unchanged and the step still
-sends its request; otherwise `applyPreHook` first calls the creds function
-named by `awaitCredsField`. A chain with no `preHook` on any step therefore
-never prompts, even when the caller passes `otpCodeRetriever`.
+sends its request; otherwise `applyGuardedPreHook` runs its
+[guards](#otp-pre-hook-guards) around `applyPreHook`, which calls the creds
+function named by `awaitCredsField`. A chain with no `preHook` on any step
+therefore never prompts, even when the caller passes `otpCodeRetriever`.
 
 The PRE stage's diagnostic label (`classifyLoginKind`) still reads `sms-otp`
 for a cold run of such a chain. Nothing branches on that label.
@@ -651,8 +861,11 @@ Where each piece lives, for maintainers:
 | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `INVALID_PASSWORD`                                              | Bank rejected credentials                                                                                                                                                                                                                                                                 |
 | any type a step's `failureMap` names, else its `defaultFailure` | The step's 2xx body reported a non-success [outcome](#step-outcome) code                                                                                                                                                                                                                  |
-| `INVALID_OTP`                                                   | Wrong code                                                                                                                                                                                                                                                                                |
-| `TWO_FACTOR_RETRIEVER_MISSING`                                  | OTP step reached without callback                                                                                                                                                                                                                                                         |
+| `GENERIC`                                                       | The step's 2xx body held a bank error at a `failIfPresent` pointer (`<step> bank error`) — see [Bank-error guard](#bank-error-guard)                                                                                                                                                      |
+| `GENERIC`                                                       | A body extract failed its rule (`<step> extract <slot> invalid`) — see [Extract rules](#extract-rules)                                                                                                                                                                                    |
+| `INVALID_OTP`                                                   | Wrong code, or a code that fails its pre-hook `valuePattern` (`<step> preHook value invalid`) — see [OTP pre-hook guards](#otp-pre-hook-guards)                                                                                                                                           |
+| `TWO_FACTOR_RETRIEVER_MISSING`                                  | OTP step reached without callback (`preHook: creds.<field> is not a function`)                                                                                                                                                                                                            |
+| `GENERIC`                                                       | A pre-hook `requires` ref did not resolve, or the OTP callback threw (`preHook: creds.<field>() threw <ErrorName>`) — see [OTP pre-hook guards](#otp-pre-hook-guards)                                                                                                                     |
 | `INVALID_PHONE_NUMBER`                                          | `phoneNumber` cannot be normalised to the bank's wire format — see [Phone normaliser](#phone-normaliser)                                                                                                                                                                                  |
 | `TIMEOUT`                                                       | A step's HTTP call didn't complete (`<step> TIMEOUT`)                                                                                                                                                                                                                                     |
 | `GENERIC`                                                       | A step's HTTP call failed: `<step> HTTP <status>` for a non-2xx reply, `<step> GENERIC` for a network error — see [Transport errors](#transport-errors)                                                                                                                                   |

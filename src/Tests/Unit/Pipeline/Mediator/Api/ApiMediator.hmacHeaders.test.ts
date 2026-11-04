@@ -8,6 +8,7 @@
  * happy-path header assembly, without embedding any real user secret.
  */
 
+import { CompanyTypes } from '../../../../../Definitions.js';
 import {
   buildHmacHeaders,
   HMAC_KEY_SLOT,
@@ -15,6 +16,10 @@ import {
   NO_HMAC_HEADERS,
 } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.hmacHeaders.js';
 import type { SessionContext } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.types.js';
+import { signRequest } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/HmacRequestSigner.js';
+import { literalUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import { fakeFetch } from '../../../../Helpers/FakeFetch.js';
+import { makeNativeMediator } from '../../../../Helpers/NativeStepHarness.js';
 
 /** Synthetic 32-byte HMAC key as lowercase hex (fabricated — not a secret). */
 const VALID_KEY_HEX = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
@@ -28,7 +33,7 @@ const SIGNER = {
 } as const;
 
 /** Parseable request URL used across the signing cases. */
-const REQUEST_URL = 'https://x.test/api/2.0/getUserHistory';
+const REQUEST_URL = literalUrl('https://x.test/api/2.0/getUserHistory');
 
 /** UUID v4 shape the minted nonce must satisfy. */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
@@ -44,6 +49,10 @@ const SIGNED_HEADER_KEYS = ['X-Nonce', 'X-Signature', 'X-Timestamp'];
 
 /** Header-name fields a complete HMAC directive must carry. */
 const REQUIRED_HEADER_FIELDS = ['timestampHeader', 'nonceHeader', 'signatureHeader'] as const;
+
+const POST_BODY = { a: '1', note: 'x + \u00e9', count: 3, ready: true };
+const JSON_BODY = JSON.stringify(POST_BODY);
+const ARRAY_BODY = [{ accountId: 'syn-account-1', amount: 12.5 }] as const;
 
 /**
  * Build a signer directive with one header-name field removed.
@@ -149,5 +158,74 @@ describe('ApiMediator.hmacHeaders.buildHmacHeaders — signed headers', () => {
     keys.sort();
     expect(keys).toEqual(SIGNED_HEADER_KEYS);
     expect(result['X-Signature'].length).toBeGreaterThan(0);
+  });
+});
+
+describe('ApiMediator HMAC signature over native wire bytes', () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach((): void => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it.each([
+    {
+      label: 'default JSON',
+      requestBody: POST_BODY,
+      bodyEncoding: undefined,
+      expectedBody: JSON_BODY,
+    },
+    {
+      label: 'form',
+      requestBody: POST_BODY,
+      bodyEncoding: 'form' as const,
+      expectedBody: 'a=1&note=x+%2B+%C3%A9&count=3&ready=true',
+    },
+    {
+      label: 'JSON array',
+      requestBody: ARRAY_BODY,
+      bodyEncoding: undefined,
+      expectedBody: '[{"accountId":"syn-account-1","amount":12.5}]',
+    },
+  ])('signs the transmitted $label body', async ({ requestBody, bodyEncoding, expectedBody }) => {
+    const fake = fakeFetch((): Response => Response.json({ accepted: true }));
+    globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
+    const mediator = makeNativeMediator(CompanyTypes.OneZero, 'https://x.test');
+    mediator.setSessionContext(SIGNED_SESSION);
+    const result = await mediator.apiPost(REQUEST_URL, requestBody, { policy: { bodyEncoding } });
+    expect(result.success).toBe(true);
+    const { body, headers } = fake.calls[0].init;
+    expect(body).toBe(expectedBody);
+    if (typeof body !== 'string') throw new TypeError('Expected a string request body');
+    const sentHeaders = new Headers(headers);
+    const bodyBytes = Buffer.from(body, 'utf8');
+    const hmacKey = Buffer.from(VALID_KEY_HEX, 'hex');
+    const timestamp = sentHeaders.get('X-Timestamp') ?? '';
+    const nonce = sentHeaders.get('X-Nonce') ?? '';
+    const expected = signRequest({
+      method: 'POST',
+      path: '/api/2.0/getUserHistory',
+      bodyBytes,
+      hmacKey,
+      timestamp,
+      nonce,
+    });
+    if (!expected.success) throw new TypeError(expected.errorMessage);
+    const sentSignature = sentHeaders.get('X-Signature');
+    expect(sentSignature).toBe(expected.value.signature);
+  });
+
+  it('refuses a signed non-flat form without sending it', async () => {
+    const fake = fakeFetch((): Response => Response.json({ accepted: true }));
+    globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
+    const mediator = makeNativeMediator(CompanyTypes.OneZero, 'https://x.test');
+    mediator.setSessionContext(SIGNED_SESSION);
+    const result = await mediator.apiPost(
+      REQUEST_URL,
+      { auth: { session: 'syn-session' } },
+      { policy: { bodyEncoding: 'form' } },
+    );
+    expect(result).toMatchObject({ success: false, errorMessage: 'form body not flat' });
+    expect(fake.calls).toHaveLength(0);
   });
 });

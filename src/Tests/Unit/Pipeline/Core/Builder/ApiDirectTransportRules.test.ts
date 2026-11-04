@@ -2,7 +2,7 @@
  * N8 — the session-transport fields of an api-direct call config are
  * checked against its bank's headless block when the pipeline is built.
  *
- * A document step reads no body extracts or outcome, and carries a marker
+ * A document step reads no body extracts, outcome or bank-error guard, and carries a marker
  * only when it is a document step; a manual redirect runs only on a GET step,
  * allows at least one URL rule and 1–10 hops, and needs the bank default
  * `reject`. Each broken config fails with its exact
@@ -145,6 +145,7 @@ const DOC_OUTCOME: IStepConfig = {
     defaultFailure: ScraperErrorTypes.Generic,
   },
 };
+const DOC_BANK_ERROR: IStepConfig = { ...BOOTSTRAP, failIfPresent: ['/errors'] };
 const MARKED_JSON: IStepConfig = { ...LOGON, documentMarker: 'welcome' };
 const POST_MANUAL: IStepConfig = { ...LOGON, redirect: MANUAL };
 
@@ -155,7 +156,7 @@ interface IBrokenCase {
   readonly message: string;
 }
 
-const DOC_MSG = 'steps.response: a document step reads no body extracts or outcome';
+const DOC_MSG = 'steps.response: a document step reads no body extracts, outcome or failIfPresent';
 const MARKER_MSG = 'steps.documentMarker: only on a document step';
 const GET_MSG = 'steps.redirect: manual only on GET steps';
 const BANK_MANUAL_MSG = 'headless.redirectPolicy: manual only on GET steps';
@@ -167,8 +168,18 @@ const BROKEN: readonly IBrokenCase[] = [
   { label: 'document step with extracts', input: runOf([DOC_EXTRACTS], REJECT), message: DOC_MSG },
   { label: 'document step, optional', input: runOf([DOC_OPTIONAL], REJECT), message: DOC_MSG },
   { label: 'document step with outcome', input: runOf([DOC_OUTCOME], REJECT), message: DOC_MSG },
+  {
+    label: 'document step with bank-error guard',
+    input: runOf([DOC_BANK_ERROR], REJECT),
+    message: DOC_MSG,
+  },
   { label: 'document resume step', input: resumeOf(DOC_EXTRACTS), message: DOC_MSG },
   { label: 'document resume step with outcome', input: resumeOf(DOC_OUTCOME), message: DOC_MSG },
+  {
+    label: 'document resume with bank-error guard',
+    input: resumeOf(DOC_BANK_ERROR),
+    message: DOC_MSG,
+  },
   { label: 'marker off a document step', input: runOf([MARKED_JSON], REJECT), message: MARKER_MSG },
   { label: 'marker off a resume step', input: resumeOf(MARKED_JSON), message: MARKER_MSG },
   { label: 'manual POST step', input: runOf([POST_MANUAL], REJECT), message: GET_MSG },
@@ -207,6 +218,14 @@ interface ISoundCase {
 
 const SOUND: readonly ISoundCase[] = [
   { label: 'bootstrap, landing, logon', input: runOf([BOOTSTRAP, LANDING, LOGON], REJECT) },
+  {
+    label: 'document step with an empty bank-error guard',
+    input: runOf([{ ...BOOTSTRAP, failIfPresent: [] }], REJECT),
+  },
+  {
+    label: 'JSON step with a bank-error guard',
+    input: runOf([{ ...LOGON, failIfPresent: ['/errors'] }], REJECT),
+  },
   { label: 'one hop', input: landingRun({ maxHops: 1 }) },
   { label: 'ten hops', input: landingRun({ maxHops: 10 }) },
   { label: 'fixed policies, follow default', input: runOf([LOGON], FOLLOW) },

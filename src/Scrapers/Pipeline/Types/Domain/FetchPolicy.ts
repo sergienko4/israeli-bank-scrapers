@@ -1,7 +1,7 @@
 /**
  * Fetch policy — how one call treats a redirect (N2), how it reads its answer
- * (N3), which 2xx statuses the bank decides itself (N4) and which response
- * headers the caller reads (N6). A pure DTO leaf
+ * (N3), which 2xx statuses the bank decides itself (N4), which response
+ * headers the caller reads (N6) and how it writes a POST body (N9). A pure DTO leaf
  * at layer 5 so bank config (Registry), step config (Mediator), the per-call
  * bus options and the transports (Strategy) share one contract.
  */
@@ -33,6 +33,9 @@ type RedirectPolicy = 'follow' | 'reject' | IManualRedirect;
 /** `json` parses the body (the default); `document` reads it as text and discards it. */
 type ResponseKind = 'json' | 'document';
 
+/** `json` sends the POST body as JSON (the default); `form` sends a flat record URL-encoded. */
+type BodyEncoding = 'json' | 'form';
+
 /** `empty` answers `{}` without reading the body; `fail` refuses the call. */
 type StatusAction = 'empty' | 'fail';
 
@@ -57,6 +60,8 @@ interface IFetchCallPolicy {
   readonly documentMarker?: string;
   /** Receives the declared headers of the final response; native transports only. */
   readonly headerSink?: IResponseHeaderSink;
+  /** How a POST body is written; `json` when absent; native transports only. */
+  readonly bodyEncoding?: BodyEncoding;
 }
 
 /** How a transport reads one answered call: the bank's policy plus the call's own. */
@@ -78,6 +83,7 @@ const REDIRECT_REFUSED_REASON = 'redirect refused';
 const DOCUMENT_UNVERIFIED_REASON = 'document unverified';
 
 export type {
+  BodyEncoding,
   IFetchCallPolicy,
   IManualRedirect,
   IResponseHeaderSink,

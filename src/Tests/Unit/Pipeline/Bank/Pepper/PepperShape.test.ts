@@ -7,6 +7,7 @@ import { PEPPER_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scra
 import { isLastPage } from '../../../../../Scrapers/Pipeline/Banks/Pepper/scrape/PepperShapeTxns.js';
 import { BALANCE_UNKNOWN } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import { assertPostObject } from '../../../../Helpers/AssertPostData.js';
 import { makeMockContext, makeMockOptions } from '../../Infrastructure/MockFactories.js';
 
 describe('PEPPER_SHAPE customer extractor', () => {
@@ -156,6 +157,7 @@ describe('PEPPER_SHAPE accessors', () => {
     const opts = makeMockOptions({ startDate: new Date('2026-01-01') });
     const ctx = makeMockContext({ options: opts }) as unknown as IActionContext;
     const vars = PEPPER_SHAPE.transactions.buildVars({ accountId: 'a' }, false, ctx);
+    assertPostObject(vars);
     expect(vars.accountId).toBe('a');
     expect(vars.pageNumber).toBe(1);
     expect(vars.pageCount).toBe(100);

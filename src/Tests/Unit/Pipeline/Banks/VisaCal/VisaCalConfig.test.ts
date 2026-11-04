@@ -18,6 +18,7 @@ import {
   validateApiDirectConfig,
 } from '../../../../../Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.js';
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { warmCarryField } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmStartKind.js';
 
 const CONFIG_DIR = '../../../../../Scrapers/Pipeline/Registry/Config/';
 
@@ -69,9 +70,10 @@ describe('VisaCal API-direct call config', () => {
     const call = await loadCall();
     const warm = call.warmStart;
     const entry = call.steps[warm?.fromStepIndex ?? -1];
+    const carryField = warmCarryField(call);
     expect(warm?.validation).toBe('bank-call');
-    expect(entry.body?.shape).toEqual({ hash: { $ref: `carry.${warm?.carryField ?? ''}` } });
-    expect(entry.extractsToCarry[warm?.carryField ?? '']).toBe('/result/hash');
+    expect(entry.body?.shape).toEqual({ hash: { $ref: `carry.${carryField}` } });
+    expect(entry.extractsToCarry[carryField]).toBe('/result/hash');
   });
 
   it('maps the wrong-credentials code to InvalidPassword on both steps', async () => {

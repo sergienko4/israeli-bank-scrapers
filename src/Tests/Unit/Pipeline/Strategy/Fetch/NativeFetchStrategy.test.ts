@@ -196,6 +196,19 @@ describe('NativeFetchStrategy.fetchPost — success path', () => {
     const sent = new Headers(headers).get('content-type');
     expect(sent).toBe('application/json; charset=UTF-8');
   });
+
+  it('sends array POST data as its JSON text, byte for byte (N19)', async () => {
+    const impl = respondWith(200, '{"ok":true}');
+    const fetchMock = installFetchMock(impl);
+    const strategy = new NativeFetchStrategy('https://api.example');
+    const opts = { extraHeaders: {} };
+    const empty = await strategy.fetchPost('https://api.example/x', [], opts);
+    const rows = await strategy.fetchPost('https://api.example/x', [{ a: 1 }, 'b'], opts);
+    const isEveryOk = [empty, rows].every(isOk);
+    expect(isEveryOk).toBe(true);
+    const bodies = fetchMock.mock.calls.map((call): unknown => call[1].body);
+    expect(bodies).toEqual(['[]', '[{"a":1},"b"]']);
+  });
 });
 
 describe('NativeFetchStrategy.fetchGet — success path', () => {

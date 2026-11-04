@@ -15,7 +15,7 @@
 import type { WKQueryOperation } from '../../../Registry/WK/QueriesWK.js';
 import type { WKUrlGroup } from '../../../Registry/WK/UrlsWK.js';
 import type { ICryptoFieldConfig } from './SignerTypes.js';
-import type { JsonValueTemplate } from './TemplateTypes.js';
+import type { JsonValueTemplate, RefToken } from './TemplateTypes.js';
 
 /**
  * Fingerprint shape consumed by GenericFingerprintBuilder. The shape
@@ -91,6 +91,24 @@ interface IPreStepHook {
    * field, so a one-time secret is never requested twice.
    */
   readonly reuse?: PreHookReuse;
+  /**
+   * Optional carry slot whose text is passed to the callback as its hint
+   * (e.g. the masked phone the code went to); `''` when unset, absent or
+   * not text (N15). Never logged.
+   */
+  readonly hintFrom?: `carry.${string}`;
+  /**
+   * Optional refs that must resolve before the callback is asked (N21).
+   * Cookie refs see existing jar values and the step's own pending setCookies.
+   * Pending cookies are not committed before validation; misses retain the
+   * resolver's own failure message.
+   */
+  readonly requires?: readonly RefToken[];
+  /**
+   * Optional anchored regex the callback's value must match; a mismatch
+   * fails InvalidOtp before the step's request is sent (N21).
+   */
+  readonly valuePattern?: string;
 }
 
 export type {

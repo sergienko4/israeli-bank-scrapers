@@ -218,12 +218,22 @@ const SESSION_ORIGIN = 'https://session.example';
 const BOOTSTRAP_URL = `${SESSION_ORIGIN}/bootstrap`;
 const LANDING_URL = `${SESSION_ORIGIN}/landing`;
 const LOGON_URL = `${SESSION_ORIGIN}/logon`;
+const ENCRYPTION_KEY_URL = `${SESSION_ORIGIN}/encryption-key`;
+const IDENTIFY_URL = `${SESSION_ORIGIN}/identify`;
+const VERIFY_URL = `${SESSION_ORIGIN}/verify`;
+const OTP_INIT_URL = `${SESSION_ORIGIN}/otp-init`;
+const OTP_VERIFY_URL = `${SESSION_ORIGIN}/otp-verify`;
 
 /** Every session-transport auth path a headless block can name. */
 const SESSION_PATHS: HeadlessBlock['paths'] = {
   'auth.bootstrap': BOOTSTRAP_URL,
   'auth.landing': LANDING_URL,
   'auth.logon': LOGON_URL,
+  'auth.encryptionKey': ENCRYPTION_KEY_URL,
+  'auth.identify': IDENTIFY_URL,
+  'auth.verify': VERIFY_URL,
+  'auth.otpInit': OTP_INIT_URL,
+  'auth.otpVerify': OTP_VERIFY_URL,
 };
 
 /** The WK tag each session path seeds. */
@@ -231,6 +241,11 @@ const SESSION_TAGS = [
   { $label: 'auth.bootstrap', url: BOOTSTRAP_URL },
   { $label: 'auth.landing', url: LANDING_URL },
   { $label: 'auth.logon', url: LOGON_URL },
+  { $label: 'auth.encryptionKey', url: ENCRYPTION_KEY_URL },
+  { $label: 'auth.identify', url: IDENTIFY_URL },
+  { $label: 'auth.verify', url: VERIFY_URL },
+  { $label: 'auth.otpInit', url: OTP_INIT_URL },
+  { $label: 'auth.otpVerify', url: OTP_VERIFY_URL },
 ] as const;
 
 /**

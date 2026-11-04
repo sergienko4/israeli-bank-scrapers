@@ -17,6 +17,7 @@ import type {
   WKUrlOrLiteral,
 } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import type { ApiPostData } from '../../../../../../Scrapers/Pipeline/Types/Domain/ApiPostData.js';
 import type { IPipelineContext } from '../../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -70,7 +71,7 @@ function makeBus(args: IStubArgs): IApiMediator {
    */
   const apiPost = async <T>(
     url: WKUrlOrLiteral,
-    body: Record<string, unknown>,
+    body: ApiPostData,
     opts?: IApiQueryOpts,
   ): Promise<Procedure<T>> => {
     await Promise.resolve();

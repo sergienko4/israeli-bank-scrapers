@@ -106,5 +106,51 @@ function toError(error: unknown): Error {
   return new Error(safeStringify(error));
 }
 
+/**
+ * Names safe to log: the platform's error classes and this library's own,
+ * whose names are fixed. Any name a caller sets, however class-like, can
+ * spell a code or a token, so it is not here.
+ */
+const LOGGABLE_ERROR_NAMES: ReadonlySet<string> = new Set([
+  'AbortError',
+  'AggregateError',
+  'EvalError',
+  'RangeError',
+  'ReferenceError',
+  'ScraperError',
+  'SyntaxError',
+  'TimeoutError',
+  'TypeError',
+  'URIError',
+  'WafBlockError',
+]);
+
+/**
+ * Read a caught value's `name` without letting a getter throw.
+ * @param error - The unknown caught value.
+ * @returns The name, or '' when it is not a readable string.
+ */
+function readErrorName(error: unknown): string {
+  try {
+    const name: unknown = toError(error).name;
+    return typeof name === 'string' ? name : '';
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * The name of a caught value, safe to log. A thrown value sets its own
+ * `name`, so only a platform or library error class (e.g. `TypeError`,
+ * `ScraperError`) is reported by name; any other name is reported as `'Error'`.
+ * @param error - The unknown caught value.
+ * @returns A platform or library error class name, or `'Error'`.
+ */
+function errorNameOf(error: unknown): string {
+  const name = readErrorName(error);
+  if (LOGGABLE_ERROR_NAMES.has(name)) return name;
+  return 'Error';
+}
+
 export default toErrorMessage;
-export { toError, toErrorMessage, UNREPRESENTABLE_ERROR };
+export { errorNameOf, toError, toErrorMessage, UNREPRESENTABLE_ERROR };

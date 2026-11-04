@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 
 import type { IApiDirectCallConfig } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { authPolicyOf } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/AuthModePolicy.js';
+import { warmCarryField } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmStartKind.js';
 
 /** Bank label paired with the module path of its call-config literal. */
 const CONFIG_PATHS: readonly (readonly [string, string])[] = [
@@ -273,14 +274,15 @@ describe('warm-start contract — every opted-in bank', () => {
     for (const [, config] of headerSent) {
       const resumed = config.steps.slice(config.warmStart?.fromStepIndex ?? 0);
       const produced = resumed.flatMap(step => Object.keys(step.extractsToCarry));
-      expect([...produced, config.warmStart?.carryField]).toContain('token');
+      const carryField = warmCarryField(config);
+      expect([...produced, carryField]).toContain('token');
     }
   });
 
   it('persists a token that some login step actually produces', async () => {
     const configs = await loadWarmPopulation();
     for (const [, config] of configs) {
-      const carryField = config.warmStart?.carryField ?? '';
+      const carryField = warmCarryField(config);
       const produced = config.steps.flatMap(step => Object.keys(step.extractsToCarry));
       expect(produced).toContain(carryField);
     }
@@ -338,7 +340,8 @@ describe('persistent-auth contract — every opted-in bank', () => {
     for (const [, config] of configs) {
       const resumeSteps = config.persistentAuth?.resumeSteps ?? [];
       const produced = resumeSteps.flatMap(step => Object.keys(step.extractsToCarry));
-      expect(produced).toContain(config.warmStart?.carryField);
+      const carryField = warmCarryField(config);
+      expect(produced).toContain(carryField);
     }
   });
 

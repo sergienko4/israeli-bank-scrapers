@@ -241,3 +241,64 @@ describe('ApiDirectScrapeDispatch.dispatchStep — shape body check', () => {
     expect(checkBody).not.toHaveBeenCalled();
   });
 });
+
+/** One way a scrape step cannot take array vars, and how it says so. */
+interface IArrayVarsRefusal {
+  readonly name: string;
+  readonly overrides: Partial<IDispatchArgs>;
+  readonly message: string;
+}
+
+const ARRAY_VARS_REFUSALS: readonly IArrayVarsRefusal[] = [
+  {
+    name: 'a GraphQL step',
+    overrides: { urlTag: false },
+    message: 'scrape vars must be an object for GraphQL',
+  },
+  {
+    name: 'a signed step',
+    overrides: { signer: SCRAPE_SIGNER },
+    message: 'scrape body signing needs an object',
+  },
+  {
+    name: 'a body-template step',
+    overrides: { bodyTemplate: { page: { $literal: 1 } } },
+    message: 'scrape bodyTemplate needs object vars',
+  },
+];
+
+describe('ApiDirectScrapeDispatch.dispatchStep — array POST data (N19)', () => {
+  it('POSTs array vars unchanged on a plain REST step', async () => {
+    const okOutcome = succeed({});
+    const okResp = Promise.resolve(okOutcome);
+    const apiPost = jest.fn((): Promise<Procedure<unknown>> => okResp);
+    const baseBus = makeOneShotBus(okOutcome);
+    const bus = { ...baseBus, apiPost } as unknown as IApiMediator;
+    const vars = [
+      { accountId: 'syn-account-1', amount: 12.5 },
+      { accountId: 'syn-account-2', amount: 7 },
+    ];
+    const args = makeDispatchArgs({ bus, vars });
+    const result = await dispatchStep(args);
+    expect(result.success).toBe(true);
+    const [, dispatchedBody] = apiPost.mock.calls[0] as unknown as [unknown, unknown];
+    expect(dispatchedBody).toEqual(vars);
+  });
+
+  it.each(ARRAY_VARS_REFUSALS)('refuses array vars on $name', async refusal => {
+    const apiPost = jest.fn();
+    const apiQuery = jest.fn();
+    const okOutcome = succeed({});
+    const baseBus = makeOneShotBus(okOutcome);
+    const bus = { ...baseBus, apiPost, apiQuery } as unknown as IApiMediator;
+    const args = makeDispatchArgs({ bus, vars: [{ a: 1 }], ...refusal.overrides });
+    const result = await dispatchStep(args);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: refusal.message,
+    });
+    expect(apiPost).not.toHaveBeenCalled();
+    expect(apiQuery).not.toHaveBeenCalled();
+  });
+});

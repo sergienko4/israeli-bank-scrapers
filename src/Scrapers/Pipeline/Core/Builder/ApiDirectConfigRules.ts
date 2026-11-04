@@ -3,15 +3,22 @@
  * block. They run when the pipeline is built, so a config that cannot work
  * fails before any run starts. The first broken rule fails the build as
  * `Generic` with `"<field>: <rule>"`. The session-transport rules live in
- * `ApiDirectTransportRules.ts` and run after these; the native-fetch rules in
- * `ApiDirectNativeRules.ts` run last.
+ * `ApiDirectTransportRules.ts` and run after these; the form-body rules in
+ * `ApiDirectFormRules.ts` follow, then the seal rules in
+ * `ApiDirectSealRules.ts` and the step-guard rules in `ApiDirectStepRules.ts`;
+ * the native-fetch rules in `ApiDirectNativeRules.ts` run last.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import { cookieJarWarmOf } from '../../Mediator/ApiDirectCall/Flow/WarmStartKind.js';
+import { MAX_ACCESS_TOKEN_CHARS } from '../../Mediator/ApiDirectCall/PersistentAuthStateRules.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
+import { API_DIRECT_FORM_RULES } from './ApiDirectFormRules.js';
 import { API_DIRECT_NATIVE_RULES } from './ApiDirectNativeRules.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
+import { API_DIRECT_SEAL_RULES } from './ApiDirectSealRules.js';
+import { API_DIRECT_STEP_RULES } from './ApiDirectStepRules.js';
 import { API_DIRECT_TRANSPORT_RULES } from './ApiDirectTransportRules.js';
 
 /**
@@ -62,6 +69,19 @@ function isJarDoubled(input: IApiDirectRuleInput): boolean {
 function hasEmptySuccessCodes(input: IApiDirectRuleInput): boolean {
   const steps = allSteps(input.call);
   return steps.some((step): boolean => step.outcome?.successCodes.length === 0);
+}
+
+/**
+ * Refuse failure-map keys that collapse to the same code at runtime.
+ * @param input - Rule input.
+ * @returns True when a case-insensitive outcome has colliding keys.
+ */
+function hasCaselessFailureMapCollision(input: IApiDirectRuleInput): boolean {
+  return allSteps(input.call).some((step): boolean => {
+    if (step.outcome?.caseInsensitive !== true) return false;
+    const keys = Object.keys(step.outcome.failureMap).map((key): string => key.toLowerCase());
+    return new Set(keys).size !== keys.length;
+  });
 }
 
 /**
@@ -120,6 +140,74 @@ function isWarmOffStepBoundary(input: IApiDirectRuleInput): boolean {
   return !Number.isInteger(index) || index > input.call.steps.length;
 }
 
+/**
+ * 'bank-call' trusts its first warm step as the token check, so a `runIf`
+ * guard that skips it would let an unchecked token through.
+ * @param input - Rule input.
+ * @returns True when the 'bank-call' check step has a `runIf` guard.
+ */
+function isBankCallCheckGuarded(input: IApiDirectRuleInput): boolean {
+  const warm = input.call.warmStart;
+  if (warm?.validation !== 'bank-call') return false;
+  const entry = warm.fromStepIndex;
+  return input.call.steps.some(
+    (step, index): boolean => index === entry && step.runIf !== undefined,
+  );
+}
+
+/**
+ * Whether a config text names nothing.
+ * @param text - Config text.
+ * @returns True when empty or only whitespace.
+ */
+function isBlank(text: string): boolean {
+  return text.trim().length === 0;
+}
+
+/**
+ * A cookie-jar token is bound to a provider tag, so the tag must name one.
+ * @param input - Rule input.
+ * @returns True when a cookie-jar warm start has a blank `provider`.
+ */
+function isJarProviderBlank(input: IApiDirectRuleInput): boolean {
+  const jar = cookieJarWarmOf(input.call);
+  return jar !== false && isBlank(jar.provider);
+}
+
+/**
+ * A cookie-jar token is bound to the account in a creds field, so the
+ * field must be named.
+ * @param input - Rule input.
+ * @returns True when a cookie-jar warm start has a blank `accountField`.
+ */
+function isJarAccountFieldBlank(input: IApiDirectRuleInput): boolean {
+  const jar = cookieJarWarmOf(input.call);
+  return jar !== false && isBlank(jar.accountField);
+}
+
+/**
+ * A cookie-jar token must fit a ceiling no wider than the one every stored
+ * warm token already passes.
+ * @param input - Rule input.
+ * @returns True when `maxTokenChars` is not an integer from 1 to 16384.
+ */
+function isJarCeilingOutOfRange(input: IApiDirectRuleInput): boolean {
+  const jar = cookieJarWarmOf(input.call);
+  if (jar === false) return false;
+  const max = jar.maxTokenChars;
+  return !Number.isInteger(max) || max < 1 || max > MAX_ACCESS_TOKEN_CHARS;
+}
+
+/**
+ * A cookie-jar warm start restores into, and exports from, the domain jar.
+ * @param input - Rule input.
+ * @returns True when a cookie-jar warm start has no `headless.cookieDomains`.
+ */
+function isJarWarmWithoutDomains(input: IApiDirectRuleInput): boolean {
+  if (cookieJarWarmOf(input.call) === false) return false;
+  return input.headless === false || input.headless.cookieDomains === undefined;
+}
+
 /** Every rule, checked in order. */
 const API_DIRECT_RULES: readonly IApiDirectRule[] = [
   { message: 'authPrefix: required when authScheme is prefixed', isBroken: isPrefixMissing },
@@ -132,6 +220,10 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
     isBroken: isJarDoubled,
   },
   { message: 'outcome.successCodes: must not be empty', isBroken: hasEmptySuccessCodes },
+  {
+    message: 'outcome.failureMap: duplicate keys ignoring case',
+    isBroken: hasCaselessFailureMapCollision,
+  },
   {
     message: 'jwtClaims: required when warmStart.validation is jwt',
     isBroken: isJwtWarmWithoutClaims,
@@ -148,7 +240,24 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
     message: 'warmStart.fromStepIndex: must be a whole number up to the step count',
     isBroken: isWarmOffStepBoundary,
   },
+  {
+    message: 'warmStart.fromStepIndex: a bank-call check step must not have runIf',
+    isBroken: isBankCallCheckGuarded,
+  },
+  { message: 'warmStart.provider: must not be blank', isBroken: isJarProviderBlank },
+  { message: 'warmStart.accountField: must not be blank', isBroken: isJarAccountFieldBlank },
+  {
+    message: 'warmStart.maxTokenChars: must be an integer from 1 to 16384',
+    isBroken: isJarCeilingOutOfRange,
+  },
+  {
+    message: 'warmStart.kind: cookie-jar not allowed without headless.cookieDomains',
+    isBroken: isJarWarmWithoutDomains,
+  },
   ...API_DIRECT_TRANSPORT_RULES,
+  ...API_DIRECT_FORM_RULES,
+  ...API_DIRECT_SEAL_RULES,
+  ...API_DIRECT_STEP_RULES,
   ...API_DIRECT_NATIVE_RULES,
 ];
 

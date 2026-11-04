@@ -85,7 +85,8 @@ function buildEncryptInputs(args: IEncryptAndWriteArgs, keyIv: IResolvedKeyAndIv
  * @returns Procedure with updated body + scope.
  */
 function writeAndScrub(args: IEncryptAndWriteArgs, signed: string): Procedure<ICryptoFieldResult> {
-  const writeProc = writeAtPointer(args.body, args.cryptoField.writeTo, signed);
+  const body = structuredClone(args.body);
+  const writeProc = writeAtPointer(body, args.cryptoField.writeTo, signed);
   if (!isOk(writeProc)) return writeProc;
   const nextScope = scrubFromCarry(args.scope, args.cryptoField.scrubFromCarry);
   return succeed({ body: writeProc.value, scope: nextScope });

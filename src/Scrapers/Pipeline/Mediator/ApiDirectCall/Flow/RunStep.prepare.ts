@@ -1,6 +1,7 @@
 /**
  * Body preparation + dispatch-bundle assembly — hydration, crypto
- * field, AES body-pointer signing, fire-args assembly, log-context.
+ * field, credential seal, AES body-pointer signing, form-body guard,
+ * fire-args assembly, log-context.
  */
 
 import { getDebug } from '../../../Logging/Debug.js';
@@ -11,8 +12,10 @@ import type { IBodyTemplate } from '../ConfigContracts/index.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import buildOnSetCookie from './RunStep.cookies.js';
+import { guardFormBody } from './RunStep.form.js';
 import { attachHeaderCapture } from './RunStep.headerCarry.js';
 import { buildStepHeaders } from './RunStep.headers.js';
+import { applySeal } from './RunStep.seal.js';
 import type {
   CarryMap,
   IAssembleFireArgs,
@@ -52,7 +55,8 @@ interface IHydrateAndCryptoArgs {
 }
 
 /**
- * Hydrate the body template and apply cryptoField when configured.
+ * Hydrate the body template, then apply cryptoField and the credential
+ * seal when configured.
  * @param input - Hydrate-and-crypto args bundle.
  * @returns Procedure with the pre-signature prepared body.
  */
@@ -64,7 +68,7 @@ function hydrateAndCrypto(input: IHydrateAndCryptoArgs): Procedure<IPreparedBody
   const cryptoArgs = { step: args.step, scope: primedScope, body: hydratedBody };
   const afterCrypto = applyCryptoField(cryptoArgs);
   if (!isOk(afterCrypto)) return afterCrypto;
-  return succeed({ body: afterCrypto.value.body, scope: afterCrypto.value.scope });
+  return applySeal(args.step, afterCrypto.value);
 }
 
 /**
@@ -82,8 +86,9 @@ function attachBodySig(preBody: IPreparedBody, pathAndQuery: string): Procedure<
 
 /**
  * Resolve the step's body — hydrate template, prime carry, apply
- * cryptoField encryption, attach the AES body-pointer signature. A GET step
- * sends no body, so only its carry is primed.
+ * cryptoField encryption, seal the credential field, attach the AES
+ * body-pointer signature. A GET step sends no body, so only its carry is
+ * primed.
  * @param args - Run-step args.
  * @param pathAndQuery - Canonical-string path+query.
  * @returns Procedure with the ready-to-send body + the post-prep scope.
@@ -94,7 +99,9 @@ function prepareStepBody(args: IRunStepArgs, pathAndQuery: string): Procedure<IP
   if (step.method === 'GET') return succeed({ body: {}, scope: primedScope });
   const preProc = hydrateAndCrypto({ args, primedScope, template: step.body });
   if (!isOk(preProc)) return preProc;
-  return attachBodySig(preProc.value, pathAndQuery);
+  const signed = attachBodySig(preProc.value, pathAndQuery);
+  if (!isOk(signed)) return signed;
+  return guardFormBody(step, signed.value);
 }
 
 /**
@@ -111,12 +118,12 @@ function attachSink(fireBase: IFireArgs, maybe: OnSetCookie | false): IFireArgs 
 /**
  * The call policy a step names, when it names one.
  * @param step - Step config.
- * @returns `{ policy }` with only the redirect policy, response kind and
- *   document marker the step names, or nothing.
+ * @returns `{ policy }` with only the redirect policy, response kind,
+ *   document marker and body encoding the step names, or nothing.
  */
 function callPolicyOf(step: IStepConfig): Pick<IFireArgs, 'policy'> {
-  const { redirect, response: responseKind, documentMarker } = step;
-  const fields = { redirect, responseKind, documentMarker };
+  const { redirect, response: responseKind, documentMarker, encoding: bodyEncoding } = step;
+  const fields = { redirect, responseKind, documentMarker, bodyEncoding };
   const named = Object.entries(fields).filter(([, value]): boolean => value !== undefined);
   if (named.length === 0) return {};
   const policy = Object.fromEntries(named) as IFetchCallPolicy;

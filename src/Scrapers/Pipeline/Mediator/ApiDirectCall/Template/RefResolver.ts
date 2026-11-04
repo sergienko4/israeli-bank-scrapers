@@ -1,7 +1,8 @@
 /**
  * RefResolver — resolves a single RefToken against an ITemplateScope.
- * Handles the 6 token families: fingerprint, uuid, keypair.<role>.<field>,
- * carry.<name>, creds.<field>, config.<path>.
+ * Handles the token families: fingerprint, uuid, now, nowMs,
+ * keypair.<role>.<field>, carry.<name>, creds.<field>, config.<path> and
+ * cookie.<name>.
  *
  * Zero bank knowledge. Rule #11 compliant.
  */
@@ -15,6 +16,7 @@ import type { IApiDirectCallConfig, RefToken } from '../ConfigContracts/index.js
 import type { IGenericKeypair } from '../Crypto/CryptoKeyFactory.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import { walkPointer } from '../Envelope/JsonPointer.js';
+import { type CookieLookup, resolveCookieRef } from './CookieRef.js';
 
 /** Hydrated fingerprint payload — an opaque JsonValue. Defined here (where
  *  ITemplateScope lives) so the fingerprint builder depends on this leaf,
@@ -31,6 +33,8 @@ interface ITemplateScope {
     readonly rsa?: IGenericKeypair;
   };
   readonly fingerprint?: ICollectionResult;
+  /** The step's jar view, bound to its URL; absent without a domain jar. */
+  readonly cookie?: CookieLookup;
 }
 
 /** Handler for one RefToken category — returns the resolved value. */
@@ -185,12 +189,24 @@ function handleConfig(token: RefToken, scope: ITemplateScope): Procedure<JsonVal
   return succeed(walked.value);
 }
 
-/** Dispatch table — prefix-match to one of the 6 handler families. */
+/**
+ * Handle cookie.<name> tokens — read through the step's jar view.
+ * @param token - Full ref token.
+ * @param scope - Template scope.
+ * @returns Procedure with the URL-decoded cookie value.
+ */
+function handleCookie(token: RefToken, scope: ITemplateScope): Procedure<JsonValue> {
+  const name = token.slice('cookie.'.length);
+  return resolveCookieRef(name, scope.cookie);
+}
+
+/** Dispatch table — prefix-match to one of the handler families. */
 const PREFIX_HANDLERS: readonly { readonly prefix: string; readonly handle: RefHandler }[] = [
   { prefix: 'keypair.', handle: handleKeypair },
   { prefix: 'carry.', handle: handleCarry },
   { prefix: 'creds.', handle: handleCreds },
   { prefix: 'config.', handle: handleConfig },
+  { prefix: 'cookie.', handle: handleCookie },
 ];
 
 /**

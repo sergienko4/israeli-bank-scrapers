@@ -10,7 +10,10 @@
  * Rule #11 compliance: zero bank-name strings.
  */
 
-/** RefToken — interpolation tokens in IBodyTemplate. */
+/**
+ * RefToken — interpolation tokens in IBodyTemplate. `cookie.<name>` reads a
+ * jar cookie, URL-decoded, for the step URL (N12).
+ */
 type RefToken =
   | 'fingerprint'
   | 'uuid'
@@ -20,7 +23,8 @@ type RefToken =
   | 'keypair.rsa.publicKeyBase64'
   | `carry.${string}`
   | `creds.${string}`
-  | `config.${string}`;
+  | `config.${string}`
+  | `cookie.${string}`;
 
 /** Named selector map — values are RFC-6901 pointers like `/data/challenge`. */
 type IEnvelopeSelectors = Readonly<Record<string, string>>;

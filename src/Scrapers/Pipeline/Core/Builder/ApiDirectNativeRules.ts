@@ -1,9 +1,11 @@
 /**
  * Native-fetch rules for an api-direct call config (N8). Redirect, document,
- * status, failure-text and header-carry fields act only on native fetch; any
- * other transport would ignore them and run unguarded, so naming one off
- * native fetch fails the build. `cookieDomains` widens the session jar, so it
- * needs `sessionCookies`. A carried header name must be an HTTP token.
+ * status, failure-text, header-carry and body-encoding fields act only on
+ * native fetch; any other transport would ignore them and run unguarded, so
+ * naming one off native fetch fails the build. `cookieDomains` widens the
+ * session jar, so it needs `sessionCookies`. A carried header name must be an
+ * HTTP token. `setCookies` writes into the domain jar, so it needs
+ * `cookieDomains`, and each cookie name must be an HTTP token.
  */
 
 import type { IHeaderExtract } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
@@ -15,6 +17,7 @@ const NATIVE_STEP_FIELDS = [
   'documentMarker',
   'redirect',
   'headerExtractsToCarry',
+  'encoding',
 ] as const;
 
 /** Headless fields only the headless native fetch acts on. */
@@ -123,6 +126,28 @@ function hasBadHeaderName(input: IApiDirectRuleInput): boolean {
   return !extracts.every(isHeaderName);
 }
 
+/**
+ * Whether a step sets client cookies on a run without a domain jar.
+ * @param input - Rule input.
+ * @returns True when `setCookies` has no `cookieDomains` to write into.
+ */
+function isSetCookieWithoutDomainJar(input: IApiDirectRuleInput): boolean {
+  const isDomainJar = input.headless !== false && input.headless.cookieDomains !== undefined;
+  if (isDomainJar) return false;
+  return allSteps(input.call).some((step): boolean => step.setCookies !== undefined);
+}
+
+/**
+ * Whether a step sets a cookie whose name is not an HTTP token.
+ * @param input - Rule input.
+ * @returns True when a `setCookies` name is not a token.
+ */
+function hasBadCookieName(input: IApiDirectRuleInput): boolean {
+  const steps = allSteps(input.call);
+  const names = steps.flatMap((step): string[] => Object.keys(step.setCookies ?? {}));
+  return !names.every((name): boolean => HEADER_NAME.test(name));
+}
+
 const STEP_FIELD_RULES = NATIVE_STEP_FIELDS.map((field): IApiDirectRule => stepFieldRule(field));
 const HEADLESS_FIELD_RULES = NATIVE_HEADLESS_FIELDS.map((field): IApiDirectRule =>
   headlessFieldRule(field),
@@ -140,6 +165,11 @@ const API_DIRECT_NATIVE_RULES: readonly IApiDirectRule[] = [
     message: 'headerExtractsToCarry.header: must be an HTTP header name',
     isBroken: hasBadHeaderName,
   },
+  {
+    message: 'steps.setCookies: not allowed without headless.cookieDomains',
+    isBroken: isSetCookieWithoutDomainJar,
+  },
+  { message: 'steps.setCookies: each name must be an HTTP token', isBroken: hasBadCookieName },
 ];
 
 export default API_DIRECT_NATIVE_RULES;

@@ -38,6 +38,7 @@ import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/U
 import type { IPipelineContext } from '../../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { assertPostObject } from '../../../../../Helpers/AssertPostData.js';
 import type { IApiPostCapture } from './StubMediator.js';
 
 /** Module shape of the Pepper call-config literal. */
@@ -283,6 +284,7 @@ function pepperCreds(otpCodeRetriever: () => Promise<string>): GenericCreds {
  * @returns The `body.data` object.
  */
 function bodyData(capture: IApiPostCapture): Readonly<Record<string, unknown>> {
+  assertPostObject(capture.body);
   return capture.body.data as Readonly<Record<string, unknown>>;
 }
 

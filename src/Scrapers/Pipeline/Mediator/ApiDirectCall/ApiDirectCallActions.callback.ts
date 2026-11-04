@@ -1,9 +1,11 @@
 /**
  * Auth-flow completion callback dispatcher for the ApiDirectCall ACTION stage.
- * Catches user-callback throws so scrape success isn't invalidated by them.
+ * Catches user-callback throws so scrape success isn't invalidated by them,
+ * and logs them by error name only (D12): the callback was handed the
+ * long-term token and the bearer, so its message may repeat either.
  */
 
-import { toErrorMessage } from '../../Types/ErrorUtils.js';
+import { errorNameOf } from '../../Types/ErrorUtils.js';
 import { isSome, none, type Option, some } from '../../Types/Option.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import { type IAuthFlowCallback, PHASE_LABEL } from './ApiDirectCallActions.shared.js';
@@ -15,6 +17,9 @@ interface IAuthFlowPayload {
   readonly bearer: string;
 }
 
+/** The one strategy capability the callback needs. */
+type LongTermTokenSource = Pick<IConfigTokenStrategy, 'getLatestLongTermToken'>;
+
 /** Bundle resolved before {@link runAuthFlowCallback} fires. */
 interface IInvocationBundle {
   readonly callback: IAuthFlowCallback;
@@ -22,14 +27,14 @@ interface IInvocationBundle {
 }
 
 /**
- * Log a callback throw without raising it.
+ * Log a callback throw by its error name, without raising it.
  * @param ctx - Pipeline context (for logger).
  * @param error - Thrown error.
  * @returns false sentinel for caller propagation.
  */
 function logCallbackThrow(ctx: IPipelineContext, error: unknown): boolean {
-  const message = toErrorMessage(error as Error);
-  ctx.logger.warn({ message: `${PHASE_LABEL} onAuthFlowComplete callback threw: ${message}` });
+  const errorName = errorNameOf(error);
+  ctx.logger.warn({ message: `${PHASE_LABEL} onAuthFlowComplete callback threw ${errorName}` });
   return false;
 }
 
@@ -67,7 +72,7 @@ function pickAuthCallback(ctx: IPipelineContext): Option<IAuthFlowCallback> {
 /** Args for {@link pickInvocationBundle}. */
 interface IInvocationLookupArgs {
   readonly ctx: IPipelineContext;
-  readonly strategy: IConfigTokenStrategy;
+  readonly strategy: LongTermTokenSource;
   readonly bearer: string;
 }
 
@@ -88,13 +93,13 @@ function pickInvocationBundle(args: IInvocationLookupArgs): Option<IInvocationBu
 /**
  * Invoke ctx.options.onAuthFlowComplete when a long-term token exists.
  * @param ctx - Pipeline context.
- * @param strategy - Config-driven token strategy.
+ * @param strategy - Source of the captured long-term token.
  * @param bearer - Authorization header value installed on the bus.
  * @returns true when the callback ran successfully.
  */
 async function invokeAuthFlowComplete(
   ctx: IPipelineContext,
-  strategy: IConfigTokenStrategy,
+  strategy: LongTermTokenSource,
   bearer: string,
 ): Promise<boolean> {
   const bundleOpt = pickInvocationBundle({ ctx, strategy, bearer });
