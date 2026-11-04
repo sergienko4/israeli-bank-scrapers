@@ -100,9 +100,12 @@ rejected by the bank mid-run — revoked server-side, or expired against a claim
 the scraper does not read. Recovery spends an SMS to repair that and warns too,
 so the degradation is never silent.
 
-Both warnings end with the same clause (`COLD_FALLBACK_DETAIL`, "fell back to
-the full SMS login"), so a single grep finds every run that paid for an SMS it
-was meant to avoid. They name different causes, because the two events are not
+Both warnings end with the same clause (`COLD_FALLBACK_DETAIL.otp`, "fell back
+to the full SMS login"), so a single grep finds every run that paid for an SMS it
+was meant to avoid. OneZero gets the SMS wording because its login step waits
+on `otpCodeRetriever`; `coldFallbackDetail` picks the clause from that, and a
+flow that never asks for a code says "fell back to the full cold login" instead.
+They name different causes, because the two events are not
 the same. `COLD_FALLBACK_STALE` means the stored copy failed the local
 freshness check and was never sent — the fault is on this side, and there is no
 bank-side request to go looking for. `COLD_FALLBACK_WARM_FAILED` means the

@@ -210,6 +210,12 @@ first failure. The cold-fallback warning reads the verdict rather than
 `hasWarmState`: it fires when a supplied seed was refused locally, or was sent
 and failed, and the login then finished cold.
 
+The warning ends with a clause naming what the cold login cost, and
+`coldFallbackDetail` derives it from the config. A flow with a step whose
+`preHook` awaits `otpCodeRetriever` waits for a one-time code, so it says "fell
+back to the full SMS login". Any other flow (VisaCal, Isracard) says "fell back
+to the full cold login", so the log never claims an SMS the bank did not send.
+
 ### Step outcome
 
 Some banks refuse a login with HTTP 200 and a status code in the body. A step
