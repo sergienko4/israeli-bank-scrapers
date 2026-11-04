@@ -2,15 +2,10 @@ import { jest } from '@jest/globals';
 import * as dotenv from 'dotenv';
 
 import { CompanyTypes, createScraper } from '../../index.js';
+import { ScraperErrorTypes } from '../../Scrapers/Base/ErrorTypes.js';
 import type { IScraperScrapingResult, ScraperCredentials } from '../../Scrapers/Base/Interface.js';
 import { INVALID_CREDS_USERNAME_PASSWORD } from '../TestConstants.js';
-import {
-  assertFailedLogin,
-  assertSuccessfulScrape,
-  defaultStartDate,
-  logScrapedTransactions,
-  SCRAPE_TIMEOUT,
-} from './Helpers.js';
+import { assertSuccessfulScrape, defaultStartDate, SCRAPE_TIMEOUT } from './Helpers.js';
 
 dotenv.config();
 
@@ -44,11 +39,21 @@ DESCRIBE_IF('E2E: Max (real credentials, API-direct)', () => {
     const password = process.env.MAX_PASSWORD ?? '';
     const result = await scrapeMax({ username, password });
     assertSuccessfulScrape(result);
-    logScrapedTransactions(result);
+    const accounts = result.accounts ?? [];
+    const hasNumericBalances = accounts.every((account): boolean =>
+      Number.isFinite(account.balance),
+    );
+    expect(hasNumericBalances).toBe(true);
+    expect(result.persistentOtpToken).toBeUndefined();
+    const txnCount = accounts.reduce((count, account): number => count + account.txns.length, 0);
+    console.log('Max scrape summary', { accounts: accounts.length, transactions: txnCount });
   });
 
-  it('fails with invalid credentials', async () => {
+  it('rejects synthetic invalid credentials with HTTP 400', async () => {
     const result = await scrapeMax(INVALID_CREDS_USERNAME_PASSWORD);
-    assertFailedLogin(result);
+    expect(result.success).toBe(false);
+    expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+    const isHttp400 = result.errorMessage?.startsWith('login HTTP 400') ?? false;
+    expect(isHttp400).toBe(true);
   });
 });

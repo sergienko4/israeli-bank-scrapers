@@ -13,8 +13,9 @@
  *                                         filtered per card by the shape
  *
  * The mock enforces what max.co.il enforces, so a broken request fails here
- * too: login needs the pre-login cookie and answers 500 unless `id` is null;
- * data calls need the auth cookie and answer an empty 403 without it.
+ * too: prime requires GET, login requires POST and the pre-login cookie, and
+ * login answers 500 unless `id` is null; data calls need the auth cookie and
+ * answer an empty 403 without it.
  */
 
 import moment from 'moment';
@@ -36,7 +37,8 @@ import {
 } from '../Helpers/FetchMockKit.js';
 
 /** How the mock misbehaves: a step-0 fault, a login refusal or a lost session. */
-export type MaxFault = 'none' | NetworkFault | 'changePassword' | 'unknownStatus' | 'expireSession';
+export type MaxFault =
+  'none' | NetworkFault | 'changePassword' | 'unknownStatus' | 'expireSession' | 'loginHtml';
 
 /** Synthetic credentials for mock-mode runs — safe for public fixtures. */
 export const MAX_MOCK_CREDS = Object.freeze({
@@ -123,6 +125,17 @@ function loginStatusOf(body: JsonUnknownRecord, fault: MaxFault): number {
 }
 
 /**
+ * Return the synthetic bot page Max could serve during login.
+ * @returns A 200 response with an HTML media type.
+ */
+function htmlLoginReply(): Response {
+  return new Response('<html>synthetic Max challenge</html>', {
+    status: 200,
+    headers: { 'content-type': 'text/html' },
+  });
+}
+
+/**
  * login — needs the pre-login cookie and a null `id`.
  * @param call - The recorded request.
  * @param fault - Fault the mock answers with.
@@ -132,6 +145,7 @@ function routeLogin(call: IRecordedCall, fault: MaxFault): Response {
   if (!hasCookie(call, PRE_COOKIE)) return new Response('', { status: 403 });
   const body = parseBody(call.body);
   if (body.id !== null) return errorReply(500);
+  if (fault === 'loginHtml') return htmlLoginReply();
   const status = loginStatusOf(body, fault);
   const setCookie = status === 0 ? setCookieOf(MAX_AUTH_COOKIE) : '';
   return jsonReply({ Result: { LoginStatus: status } }, setCookie);
@@ -246,12 +260,27 @@ export function classifyMax(call: IRecordedCall): CallKind {
 }
 
 /**
+ * Whether an auth request uses a method the Max web API rejects.
+ * @param call - The recorded request.
+ * @returns True for a wrong method on either auth endpoint.
+ */
+function isWrongAuthMethod(call: IRecordedCall): boolean {
+  const isWrongPrime = call.url === PRIME_URL && call.method !== 'GET';
+  const isWrongLogin = call.url === LOGIN_URL && call.method !== 'POST';
+  return isWrongPrime || isWrongLogin;
+}
+
+/**
  * Route one request.
  * @param call - The recorded request.
  * @param fault - Fault the mock answers with.
- * @returns The site's answer; 404 for any other host.
+ * @returns The site's answer, or 405 for an unsupported auth method.
  */
 function answerMax(call: IRecordedCall, fault: MaxFault): Promise<Response> {
+  if (isWrongAuthMethod(call)) {
+    const reply = errorReply(405);
+    return Promise.resolve(reply);
+  }
   if (call.url === PRIME_URL) return answerPrime(fault);
   const isLogin = call.url === LOGIN_URL;
   const reply = isLogin ? routeLogin(call, fault) : routeData(call, fault === 'expireSession');

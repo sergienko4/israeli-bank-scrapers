@@ -7,12 +7,15 @@
  * Rule #18: all credentials + data are synthetic; no real PII.
  */
 
+import { ok } from 'node:assert/strict';
+
 import { CompanyTypes } from '../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../Scrapers/Base/ErrorTypes.js';
 import type {
   IScraperScrapingResult,
   ScraperCredentials,
 } from '../../../Scrapers/Base/Interface.js';
+import { MAX_HEADLESS } from '../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigMax.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
 import { getLaunchCount } from '../../Mocks/CamoufoxJsMock.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
@@ -48,6 +51,17 @@ const CALLER_SID = '00000000-0000-4000-8000-000000000000';
 
 /** Headers Max's web app adds to every API call, even while they are empty. */
 const APP_HEADERS = ['urf', 'cav'];
+
+/**
+ * Resolve a configured Max login endpoint for a mock request.
+ * @param tag - Login route to exercise.
+ * @returns The URL configured for that route.
+ */
+function maxAuthUrl(tag: 'auth.prime' | 'auth.login'): string {
+  const url = MAX_HEADLESS.paths[tag];
+  ok(url, `Missing Max auth URL: ${tag}`);
+  return url;
+}
 
 /**
  * Whether a call was a login call.
@@ -162,6 +176,39 @@ const STEP_ZERO_FAULTS: readonly (readonly [MaxFault, ScraperErrorTypes, string]
 ];
 
 describe('Max browserless login', () => {
+  it('refuses POST when priming the session', async () => {
+    const handle = installMaxFetchMock();
+    try {
+      const primeUrl = maxAuthUrl('auth.prime');
+      const response = await fetch(primeUrl, { method: 'POST' });
+      expect(response.status).toBe(405);
+      const hasSetCookie = response.headers.has('set-cookie');
+      expect(hasSetCookie).toBe(false);
+    } finally {
+      handle.dispose();
+    }
+  });
+
+  it('refuses GET login with the priming cookie', async () => {
+    const handle = installMaxFetchMock();
+    try {
+      const primeUrl = maxAuthUrl('auth.prime');
+      const prime = await fetch(primeUrl);
+      const cookie = prime.headers.get('set-cookie')?.split(';')[0];
+      ok(cookie, 'Max mock did not provide a priming cookie');
+      const loginUrl = maxAuthUrl('auth.login');
+      const response = await fetch(loginUrl, {
+        method: 'GET',
+        headers: { cookie },
+      });
+      expect(response.status).toBe(405);
+      const hasSetCookie = response.headers.has('set-cookie');
+      expect(hasSetCookie).toBe(false);
+    } finally {
+      handle.dispose();
+    }
+  });
+
   it('signs in cold, rides the session cookie on every data call and launches no browser', async () => {
     const run = await runMax({ ...MAX_MOCK_CREDS });
     expect(run.result.success).toBe(true);
@@ -219,6 +266,17 @@ describe('Max browserless login', () => {
     expect(run.result.errorType).toBe(refusal.errorType);
     expect(run.result.errorMessage).toBe(refusal.message);
     expect(run.steps).toEqual(COLD_STEPS);
+    expect(run.data).toHaveLength(0);
+  });
+
+  it('fails a login bot page without echoing its HTML or retrying', async () => {
+    const run = await runMax({ ...MAX_MOCK_CREDS }, 'loginHtml');
+    expect(run.result.success).toBe(false);
+    expect(run.result.errorType).toBe(ScraperErrorTypes.Generic);
+    expect(run.result.errorMessage).toBe('login GENERIC');
+    expect(run.result.errorMessage).not.toContain('synthetic Max challenge');
+    expect(run.steps).toEqual(COLD_STEPS);
+    expect(run.calls).toHaveLength(2);
     expect(run.data).toHaveLength(0);
   });
 
