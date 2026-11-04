@@ -1,7 +1,7 @@
 /**
  * Session-transport rules for an api-direct call config (N8). A `document`
- * step answers `{}`, so it reads no body extracts or outcome, and its marker
- * belongs only on that step. A manual redirect follows its hops as GETs, so it
+ * step answers `{}`, so it reads no body extracts, outcome or bank-error guard.
+ * Its marker belongs only on that step. A manual redirect follows its hops as GETs, so it
  * runs only on a GET step — never as the bank default, which every POST
  * shares — allows at least one URL rule and 1–10 hops, and needs the bank
  * default `reject` so no other call follows a redirect unseen.
@@ -47,18 +47,19 @@ function readsBodyExtracts(step: IStepConfig): boolean {
 
 /**
  * Whether a step reads its answer body at all: through a body extract or an
- * outcome code.
+ * outcome code or bank-error guard.
  * @param step - Login step.
- * @returns True when it names a body extract or an outcome.
+ * @returns True when it names a body extract, outcome or nonempty bank-error guard.
  */
 function readsBody(step: IStepConfig): boolean {
-  return readsBodyExtracts(step) || step.outcome !== undefined;
+  const hasBankErrorGuard = (step.failIfPresent?.length ?? 0) > 0;
+  return readsBodyExtracts(step) || step.outcome !== undefined || hasBankErrorGuard;
 }
 
 /**
- * A document step sees `{}`, so a body extract or outcome could never resolve.
+ * A document step sees `{}`, so body reads and bank-error guards cannot work.
  * @param input - Rule input.
- * @returns True when a document step names a body extract or an outcome.
+ * @returns True when a document step names a body-dependent operation.
  */
 function isDocumentReadingBody(input: IApiDirectRuleInput): boolean {
   const steps = allSteps(input.call);
@@ -142,7 +143,7 @@ function isManualWithoutRejectDefault(input: IApiDirectRuleInput): boolean {
 /** Session-transport rules, checked in order after the core rules. */
 const API_DIRECT_TRANSPORT_RULES: readonly IApiDirectRule[] = [
   {
-    message: 'steps.response: a document step reads no body extracts or outcome',
+    message: 'steps.response: a document step reads no body extracts, outcome or failIfPresent',
     isBroken: isDocumentReadingBody,
   },
   { message: 'steps.documentMarker: only on a document step', isBroken: isMarkerOffDocument },

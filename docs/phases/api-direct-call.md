@@ -414,7 +414,7 @@ A GET step that reaches a page through one allowed redirect:
   },
   response: 'document',       // HTML: read, checked for the marker, discarded
   documentMarker: 'id="app"', // text the page must contain
-  extractsToCarry: {},        // a document step reads no body extracts or outcome
+  extractsToCarry: {},        // no body extracts, outcome or bank-error guard
 }
 ```
 
@@ -503,7 +503,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `kind: 'cookie-jar'` `warmStart` with a blank `accountField` | `warmStart.accountField: must not be blank` |
 | a `kind: 'cookie-jar'` `warmStart` whose `maxTokenChars` is not an integer from 1 to 16384 | `warmStart.maxTokenChars: must be an integer from 1 to 16384` |
 | a `kind: 'cookie-jar'` `warmStart` without `headless.cookieDomains` | `warmStart.kind: cookie-jar not allowed without headless.cookieDomains` |
-| a `response: 'document'` step with any `extractsToCarry`, `optionalExtractsToCarry` or `outcome`                                      | `steps.response: a document step reads no body extracts or outcome`      |
+| a `response: 'document'` step with any `extractsToCarry`, `optionalExtractsToCarry`, `outcome` or nonempty `failIfPresent` | `steps.response: a document step reads no body extracts, outcome or failIfPresent` |
 | a `documentMarker` on any step whose `response` is not `'document'`                                                                   | `steps.documentMarker: only on a document step`                          |
 | a manual `redirect` on a step whose `method` is not `GET`                                                                             | `steps.redirect: manual only on GET steps`                               |
 | a manual `headless.redirectPolicy` (the default every POST shares)                                                                    | `headless.redirectPolicy: manual only on GET steps`                      |
