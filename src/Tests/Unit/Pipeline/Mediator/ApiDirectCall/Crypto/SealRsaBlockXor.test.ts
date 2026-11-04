@@ -67,6 +67,14 @@ describe('N10 sealRsaBlockXor', () => {
     expect(opened.source).toBe(GOLDEN_SOURCE);
   });
 
+  it('keeps UTF-16 unit masking for a surrogate pair', () => {
+    const source = '\uD83D\uDE00';
+    const sealed = sealedText(source);
+    const opened = openSeal(sealed, KEY);
+    expect(opened.tail).toBe('%F0%AF%89%A2');
+    expect(opened.source).toBe(source);
+  });
+
   it('seals the prefix and seed in RSA blocks of seven ASCII characters', () => {
     const sealed = sealedText('syn-pass');
     const opened = openSeal(sealed, KEY);

@@ -15,12 +15,23 @@ const BARE_RESERVED = /[!'()*~]/g;
 const SOURCE_INVALID = 'seal source invalid';
 
 /**
+ * Read one UTF-16 unit without combining a surrogate pair.
+ * @param text - Text containing the unit.
+ * @param index - Non-negative, zero-based unit index.
+ * @returns The unit's code, or NaN outside the string.
+ */
+function codeUnitAt(text: string, index: number): number {
+  const point = text.at(index)?.codePointAt(0);
+  return Number(point);
+}
+
+/**
  * Escape one bare reserved character as `%` + lower-case hex.
  * @param char - One of `!'()*~`.
  * @returns Its percent escape.
  */
 function escapeReserved(char: string): string {
-  const code = char.charCodeAt(0);
+  const code = codeUnitAt(char, 0);
   return `%${code.toString(16)}`;
 }
 
@@ -33,9 +44,9 @@ function escapeReserved(char: string): string {
 function xorWithSeed(source: string, seed: string): string {
   const codes = Array.from(
     { length: source.length },
-    (_, index): number => source.charCodeAt(index) ^ seed.charCodeAt(index % seed.length),
+    (_, index): number => codeUnitAt(source, index) ^ codeUnitAt(seed, index % seed.length),
   );
-  return String.fromCharCode(...codes);
+  return String.fromCodePoint(...codes);
 }
 
 /**
