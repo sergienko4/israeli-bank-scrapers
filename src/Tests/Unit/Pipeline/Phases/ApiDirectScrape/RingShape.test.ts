@@ -273,6 +273,17 @@ describe('ring reply envelope check', () => {
       errorMessage: 'ring call refused',
     });
   });
+
+  // The fetch strategy parses any JSON, so a 200 can carry a non-object.
+  it.each([[null], [[]], ['ok'], [7]])('fails the non-object reply %p as refused', raw => {
+    const body = raw as unknown as ApiBody;
+    const result = checkRingBody(body);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: 'GENERIC',
+      errorMessage: 'ring call refused',
+    });
+  });
 });
 
 describe('ring shape wiring', () => {

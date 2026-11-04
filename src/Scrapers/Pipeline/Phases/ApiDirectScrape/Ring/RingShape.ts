@@ -63,15 +63,23 @@ interface IRingEnvelope {
 }
 
 /**
+ * Whether a parsed reply is an object that can carry the ring envelope.
+ * @param body - Parsed JSON; the fetch strategy accepts any JSON value.
+ * @returns True for a non-null object.
+ */
+function isEnvelope(body: unknown): body is IRingEnvelope {
+  return typeof body === 'object' && body !== null;
+}
+
+/**
  * Read the bank's verdict from a ring reply's envelope.
- * @param body - Successful response body.
+ * @param body - Successful response body; the fetch strategy accepts any JSON value.
  * @returns `ok` only for a reply the bank confirmed.
  */
-function verdictOf(body: ApiBody): RingVerdict {
-  const envelope = body as IRingEnvelope;
-  const header = envelope.Header;
-  if (header === undefined || header === null)
-    return envelope.isSuccess === true ? 'ok' : 'refused';
+function verdictOf(body: unknown): RingVerdict {
+  if (!isEnvelope(body)) return 'refused';
+  const header = body.Header;
+  if (header === undefined || header === null) return body.isSuccess === true ? 'ok' : 'refused';
   const status = String(header.Status);
   return Object.hasOwn(SERVICE_STATUS, status) ? SERVICE_STATUS[status] : 'refused';
 }
