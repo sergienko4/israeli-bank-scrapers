@@ -8,6 +8,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { jest } from '@jest/globals';
+
 import { CompanyTypes } from '../../../../../Definitions.js';
 import {
   HMAC_KEY_SLOT,
@@ -547,13 +549,40 @@ describe('ApiMediator/createBrowserBackedHeadlessApiMediator', () => {
   });
 });
 
+const POLICY_CALLS = [
+  {
+    label: 'REST',
+    prefix: 'GET https://id.example/devices/token',
+    /**
+     * Exercise the identity transport through the mediator.
+     * @param mediator - Mediator configured with bank policies.
+     * @returns The REST outcome.
+     */
+    call: (mediator: IApiMediator): Promise<Procedure<unknown>> =>
+      mediator.apiGet('identity.deviceToken'),
+  },
+  {
+    label: 'GraphQL',
+    prefix: 'POST https://gql.example/graphql',
+    /**
+     * Exercise the independent GraphQL transport through the same mediator.
+     * @param mediator - Mediator configured with bank policies.
+     * @returns The GraphQL outcome.
+     */
+    call: (mediator: IApiMediator): Promise<Procedure<unknown>> =>
+      mediator.apiQuery('customer', {}),
+  },
+];
+
 describe('ApiMediator — redirect policy', () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
     registerWkUrl('identity.deviceToken', HINT, 'https://id.example/devices/token');
+    registerWkQuery('customer', HINT, 'query Customer { me { id } }');
   });
   afterEach(() => {
+    jest.restoreAllMocks();
     globalThis.fetch = originalFetch;
   });
 
@@ -573,7 +602,7 @@ describe('ApiMediator — redirect policy', () => {
     expect(call.opts.redirect).toBe('follow');
   });
 
-  it('runs a native mediator under the bank redirect default', async () => {
+  it.each(POLICY_CALLS)('runs $label under the bank redirect default', async ({ call, prefix }) => {
     const redirect = new Response(null, { status: 302, headers: { location: '/elsewhere' } });
     /**
      * Answer every request with the 302.
@@ -589,12 +618,12 @@ describe('ApiMediator — redirect policy', () => {
       graphqlUrl: 'https://gql.example/graphql',
       redirectPolicy: 'reject',
     });
-    const result = await mediator.apiGet('identity.deviceToken');
+    const result = await call(mediator);
     const message = !isOk(result) && result.errorMessage;
-    expect(message).toBe('GET https://id.example/devices/token HTTP 302 redirect refused');
+    expect(message).toBe(`${prefix} HTTP 302 redirect refused`);
   });
 
-  it('runs a native mediator under the bank status policy', async () => {
+  it.each(POLICY_CALLS)('runs $label under the bank status policy', async ({ call, prefix }) => {
     const partial = new Response('{}', { status: 207 });
     /**
      * Answer every request with the 207.
@@ -610,8 +639,49 @@ describe('ApiMediator — redirect policy', () => {
       graphqlUrl: 'https://gql.example/graphql',
       statusPolicy: { 207: 'fail' },
     });
-    const result = await mediator.apiGet('identity.deviceToken');
+    const result = await call(mediator);
     const message = !isOk(result) && result.errorMessage;
-    expect(message).toBe('GET https://id.example/devices/token HTTP 207');
+    expect(message).toBe(`${prefix} HTTP 207`);
+  });
+
+  it.each(POLICY_CALLS)(
+    'keeps a policy-approved empty $label response successful',
+    async ({ call }) => {
+      const response = new Response(null, { status: 204 });
+      jest.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+      const mediator = createHeadlessApiMediator({
+        bankHint: HINT,
+        identityBaseUrl: 'https://id.example/v1/',
+        graphqlUrl: 'https://gql.example/graphql',
+        statusPolicy: { 204: 'empty' },
+      });
+      const result = await call(mediator);
+      expect(result).toEqual({ success: true, value: {} });
+    },
+  );
+
+  it('does not reuse a concurrent query empty verdict for a malformed envelope', async () => {
+    const empty = new Response(null, { status: 204 });
+    const malformed = new Response('{}', { status: 200 });
+    jest
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValue(new Error('unexpected fetch'))
+      .mockResolvedValueOnce(empty)
+      .mockResolvedValueOnce(malformed);
+    const mediator = createHeadlessApiMediator({
+      bankHint: HINT,
+      identityBaseUrl: 'https://id.example/v1/',
+      graphqlUrl: 'https://gql.example/graphql',
+      statusPolicy: { 204: 'empty' },
+    });
+    const [approved, rejected] = await Promise.all([
+      mediator.apiQuery('customer', {}),
+      mediator.apiQuery('customer', {}),
+    ]);
+    expect(approved).toEqual({ success: true, value: {} });
+    expect(rejected).toMatchObject({
+      success: false,
+      errorMessage: 'graphql response [Customer] missing data',
+    });
   });
 });

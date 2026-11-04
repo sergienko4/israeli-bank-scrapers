@@ -35,6 +35,16 @@ function emptyAnswer<T>(): Procedure<T> {
 }
 
 /**
+ * Mark a policy-approved empty outcome without changing the Procedure payload.
+ * @param answer - Answer whose body the bank's status policy discards.
+ * @returns Success carrying `{}`, distinguishable from a parsed empty envelope by its hook.
+ */
+function emptyStatusAnswer<T>(answer: IAnswer): Procedure<T> {
+  answer.reading.onEmptyResponse?.();
+  return emptyAnswer<T>();
+}
+
+/**
  * Refuse a status the bank marks `fail`, naming the request URL only.
  * @param answer - The answered call.
  * @returns Generic failure with the log-safe URL and the status.
@@ -47,7 +57,7 @@ function refuseStatus<T>(answer: IAnswer): Procedure<T> {
 
 /** Outcome per status action. */
 const DECISIONS: Readonly<Record<StatusAction, Decide>> = {
-  empty: emptyAnswer,
+  empty: emptyStatusAnswer,
   fail: refuseStatus,
 };
 
@@ -56,7 +66,7 @@ const DECISIONS: Readonly<Record<StatusAction, Decide>> = {
  * @param answer - The answered call.
  * @returns The action; none when unnamed, or `empty` on a document step.
  */
-function actionFor(answer: IAnswer): Option<StatusAction> {
+function statusActionFor(answer: Pick<IAnswer, 'response' | 'reading'>): Option<StatusAction> {
   const action = answer.reading.statusPolicy[answer.response.status];
   if (!action) return none();
   const isDocument = answer.reading.responseKind === 'document';
@@ -70,11 +80,11 @@ function actionFor(answer: IAnswer): Option<StatusAction> {
  * @returns The decided outcome, or none to let the reader judge the body.
  */
 function applyStatusPolicy<T>(answer: IAnswer): Option<Procedure<T>> {
-  const action = actionFor(answer);
+  const action = statusActionFor(answer);
   if (!action.has) return none();
   const decided = DECISIONS[action.value]<T>(answer);
   return some(decided);
 }
 
 export type { IAnswer };
-export { applyStatusPolicy, emptyAnswer };
+export { applyStatusPolicy, emptyAnswer, statusActionFor };

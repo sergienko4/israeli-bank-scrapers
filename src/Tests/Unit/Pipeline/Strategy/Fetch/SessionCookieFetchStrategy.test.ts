@@ -51,6 +51,7 @@ const SECRET = 'S3SSION-VALUE-9f2';
 interface IServed {
   readonly lines: readonly string[];
   readonly url?: string;
+  readonly status?: number;
 }
 
 /**
@@ -64,7 +65,7 @@ function serveResponses(served: readonly IServed[]): MockFetch {
   const mock = jest.fn<Promise<Response>, [string, RequestInit]>(() => {
     const next = queue.shift() ?? { lines: [] };
     const headers = next.lines.map((line): [string, string] => ['set-cookie', line]);
-    const response = new Response('{"ok":true}', { status: 200, headers });
+    const response = new Response('{"ok":true}', { status: next.status ?? 200, headers });
     if (next.url !== undefined) Object.defineProperty(response, 'url', { value: next.url });
     return Promise.resolve(response);
   });
@@ -296,6 +297,40 @@ describe('withCookieSession', () => {
     const sent = cookieSent(mock, 1);
     expect([sent, header]).toEqual(['sid=s1', { has: true, value: 'sid=s1' }]);
   });
+
+  it.each([
+    { label: 'a refused redirect', status: 302, url: WWW_LOGIN, success: false },
+    {
+      label: 'a refused redirect without a response URL',
+      status: 302,
+      url: undefined,
+      success: false,
+    },
+    { label: 'an accepted response', status: 200, url: WWW_LOGIN, success: true },
+  ] as const)(
+    'expires cookies and emits the hook once for $label',
+    async ({ status, url, success }) => {
+      const expired = 'sid=; Max-Age=0; Path=/';
+      const mock = serveResponses([
+        { lines: ['sid=active; Path=/'] },
+        { lines: [expired], status, url },
+      ]);
+      const callerHook = jest.fn((lines: readonly string[]): number => lines.length);
+      const { transport } = makeSession();
+      await transport.fetchGet(WWW_LOGIN, { extraHeaders: {} });
+      const result = await transport.fetchGet(WWW_LOGIN, {
+        extraHeaders: {},
+        redirect: 'reject',
+        onSetCookie: callerHook,
+      });
+      await transport.fetchGet(WWW_LOGIN, { extraHeaders: {} });
+      const cookie = cookieSent(mock, 2);
+      expect(result.success).toBe(success);
+      expect(cookie).toBe('');
+      expect(callerHook).toHaveBeenCalledTimes(1);
+      expect(callerHook).toHaveBeenCalledWith([expired], WWW_LOGIN);
+    },
+  );
 
   it('UT-CS-04 replaces the whole jar on import', async () => {
     const mock = serveCookies([['old=1; Path=/'], []]);

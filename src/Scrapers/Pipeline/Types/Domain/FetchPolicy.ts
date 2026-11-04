@@ -65,6 +65,8 @@ interface IResponseReading {
   readonly responseKind: ResponseKind;
   readonly documentMarker?: string;
   readonly headerSink?: IResponseHeaderSink;
+  /** Internal notification of a policy-approved empty response; returns a recorded-event count. */
+  readonly onEmptyResponse?: () => number;
 }
 
 /** Fixed reason a transport reports for a refused redirect. */

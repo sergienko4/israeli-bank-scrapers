@@ -54,7 +54,10 @@ interface IBrowserBackedHeadlessMediatorArgs {
 }
 
 /** Minimal shape needed to construct the shared GraphQL transport. */
-interface IGraphQLTransportArgs {
+interface IGraphQLTransportArgs extends Pick<
+  IHeadlessMediatorArgs,
+  'redirectPolicy' | 'statusPolicy'
+> {
   readonly graphqlUrl: string;
   readonly graphqlHeaders?: Readonly<Record<string, string>>;
 }

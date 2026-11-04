@@ -63,7 +63,8 @@ function applyStaticAuth(
  */
 function buildGqlStrategy(args: IGraphQLTransportArgs): GraphQLFetchStrategy {
   const headers = args.graphqlHeaders ?? {};
-  return Reflect.construct(GraphQLFetchStrategy, [args.graphqlUrl, headers]);
+  const policies = { redirectPolicy: args.redirectPolicy, statusPolicy: args.statusPolicy };
+  return Reflect.construct(GraphQLFetchStrategy, [args.graphqlUrl, headers, policies]);
 }
 
 /**

@@ -115,13 +115,16 @@ function emitSetCookies(
 }
 
 /**
- * Refuse a manual run without naming the refused target.
+ * Refuse a redirect without naming the refused target.
  * @param run - The run.
+ * @param status - Fixed-policy refusal status; manual refusals omit it.
  * @returns Generic failure naming only the request URL.
  */
-function refused(run: IRedirectRun): Procedure<IRunEnd> {
+function refused(run: IRedirectRun, status?: number): Procedure<IRunEnd> {
   const safeUrl = safeUrlForLog(run.url);
-  return fail(ScraperErrorTypes.Generic, `${run.verb} ${safeUrl} ${REDIRECT_REFUSED_REASON}`);
+  const statusText = status === undefined ? '' : `HTTP ${String(status)} `;
+  const message = `${run.verb} ${safeUrl} ${statusText}${REDIRECT_REFUSED_REASON}`;
+  return fail(ScraperErrorTypes.Generic, message);
 }
 
 /**
@@ -145,9 +148,9 @@ async function sendReject(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
   if (!isOk(sent)) return sent;
   const { status, url } = sent.value;
   if (!isRedirectStatus(status)) return succeed({ response: sent.value, responseUrl: url });
-  const safeUrl = safeUrlForLog(run.url);
-  const message = `${run.verb} ${safeUrl} HTTP ${String(status)} ${REDIRECT_REFUSED_REASON}`;
-  return fail(ScraperErrorTypes.Generic, message);
+  const responseUrl = answeredUrl(sent.value, run.url);
+  emitSetCookies(sent.value, responseUrl, run.onSetCookie);
+  return refused(run, status);
 }
 
 /** Sender per fixed policy. */

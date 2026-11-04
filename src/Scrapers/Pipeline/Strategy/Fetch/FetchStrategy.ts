@@ -3,7 +3,7 @@
  * Returns Procedure<T> (never null/undefined).
  */
 
-import type { IFetchCallPolicy } from '../../Types/Domain/FetchPolicy.js';
+import type { IFetchCallPolicy, IResponseReading } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 
 /** HTTP method verbs a node transport sends. */
@@ -41,6 +41,8 @@ interface ISessionHeaders {
 interface IFetchOpts extends IFetchCallPolicy {
   /** Additional HTTP headers to include in the request. */
   readonly extraHeaders: Record<string, string>;
+  /** Internal status outcome, distinct from an ordinary parsed empty object. */
+  readonly onEmptyResponse?: IResponseReading['onEmptyResponse'];
   /**
    * Optional hook — invoked once per response with the array of raw
    * Set-Cookie header lines. Absent when the caller doesn't care

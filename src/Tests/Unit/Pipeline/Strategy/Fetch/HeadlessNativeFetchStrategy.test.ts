@@ -10,7 +10,10 @@ import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import { HeadlessNativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
-import type { IManualRedirect } from '../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
+import type {
+  IManualRedirect,
+  StatusAction,
+} from '../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 type MockFetchImpl = (url: string, init: RequestInit) => Promise<Response>;
@@ -20,6 +23,14 @@ const BASE_URL = 'https://api.bank.example/v1/';
 const ITEMS_URL = `${BASE_URL}items?sid=secret`;
 const TIMEOUT_MESSAGE = 'GET https://api.bank.example/v1/items network error: timeout';
 const LOWERED_CAP_MS = 25;
+const STATUS_RESULTS = {
+  empty: { success: true, value: {} },
+  fail: {
+    success: false,
+    errorType: ScraperErrorTypes.Generic,
+    errorMessage: 'GET https://api.bank.example/v1/items HTTP 200',
+  },
+};
 
 /**
  * Install a replacement for globalThis.fetch that delegates to impl.
@@ -93,6 +104,25 @@ function hangOnBody(_url: string, init: RequestInit): Promise<Response> {
 }
 
 /**
+ * Answer with headers but an already-failed body stream.
+ * @returns A response whose body cannot be consumed.
+ */
+function brokenBody(): Promise<Response> {
+  const body = new ReadableStream<Uint8Array>({
+    /**
+     * Fail the stream before a reader can consume it.
+     * @param controller - Stream controller.
+     * @returns True once the failure is installed.
+     */
+    start(controller): boolean {
+      controller.error(new Error('ECONNRESET'));
+      return true;
+    },
+  });
+  return Promise.resolve(new Response(body, { status: 200 }));
+}
+
+/**
  * Mock fetch serving a JSON body.
  * @returns A 200 JSON Response.
  */
@@ -145,6 +175,22 @@ describe('HeadlessNativeFetchStrategy', () => {
       errorType: ScraperErrorTypes.Timeout,
       errorMessage: TIMEOUT_MESSAGE,
     });
+  });
+
+  it.each<[StatusAction, string, MockFetchImpl]>([
+    ['empty', 'stalled', hangOnBody],
+    ['empty', 'broken', brokenBody],
+    ['fail', 'stalled', hangOnBody],
+    ['fail', 'broken', brokenBody],
+  ])('decides %s without consuming a %s body', async (action, _label, impl) => {
+    const guarded = new HeadlessNativeFetchStrategy(BASE_URL, {
+      timeoutMs: LOWERED_CAP_MS,
+      statusPolicy: { 200: action },
+    });
+    const mock = installFetchMock(impl);
+    const result = await guarded.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    expect(result).toMatchObject(STATUS_RESULTS[action]);
+    expect(signalOf(mock.mock.calls[0][1]).aborted).toBe(true);
   });
 
   it('keeps the inherited network-error message for other rejections', async () => {

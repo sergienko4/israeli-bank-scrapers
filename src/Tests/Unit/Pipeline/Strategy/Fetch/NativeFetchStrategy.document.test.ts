@@ -27,6 +27,9 @@ const GOVERNED = new HeadlessNativeFetchStrategy(BASE_URL, {
   statusPolicy: { 204: 'empty', 207: 'fail' },
 });
 const PLAIN = new HeadlessNativeFetchStrategy(BASE_URL);
+const EMPTY_200 = new HeadlessNativeFetchStrategy(BASE_URL, {
+  statusPolicy: { 200: 'empty' },
+});
 
 /**
  * Answer every request with one response.
@@ -73,10 +76,13 @@ describe('NativeFetchStrategy — document responses and status policy', () => {
     expect(result).toEqual({ success: true, value: {} });
   });
 
-  it('refuses a document missing its marker', async () => {
+  it.each([
+    ['without a status policy', PLAIN],
+    ['with an empty status policy', EMPTY_200],
+  ] as const)('refuses a document missing its marker %s', async (_label, strategy) => {
     const response = new Response('<html><body>maintenance</body></html>', { status: 200 });
     serve(response);
-    const result = await getPortal(PLAIN, MARKED);
+    const result = await getPortal(strategy, MARKED);
     const expected = { errorType: ScraperErrorTypes.Generic };
     expect(result).toMatchObject({ success: false, ...expected });
     expect(result).toMatchObject({ errorMessage: `GET ${SAFE_URL} document unverified` });
@@ -96,6 +102,17 @@ describe('NativeFetchStrategy — document responses and status policy', () => {
     });
     serve(response);
     const result = await getPortal(PLAIN, DOCUMENT);
+    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.WafBlocked });
+  });
+
+  it('classifies a challenge before the bank empty policy', async () => {
+    serve(
+      new Response(CLOUDFLARE_CHALLENGE_PAGE, {
+        status: 200,
+        headers: CLOUDFLARE_CHALLENGE_HEADERS,
+      }),
+    );
+    const result = await getPortal(EMPTY_200, JSON_STEP);
     expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.WafBlocked });
   });
 

@@ -5,6 +5,8 @@
  * same-key replacement, and export/import/clear. Pure — no transport.
  */
 
+import { jest } from '@jest/globals';
+
 import { createDomainCookieJar } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/DomainCookieJar.js';
 import type { IStoredCookie } from '../../../../../Scrapers/Pipeline/Types/Domain/CookieSession.js';
 
@@ -46,6 +48,17 @@ describe('DomainCookieJar/domain scope', () => {
     jar.add(WWW, ['XSRF=t1; Domain=.bank.example; Path=/']);
     const header = jar.header(MTO);
     expect(header).toBe('XSRF=t1');
+  });
+
+  it.each([
+    ['Domain = .bank.example', 'XSRF=t1'],
+    ['Domain=evil.example; DOMAIN = .bank.example ', 'XSRF=t1'],
+    ['Domain=bank.example; Domain = evil.example', ''],
+  ])('honors the last spaced domain attribute: %s', (attributes, expected) => {
+    const jar = makeJar();
+    jar.add(WWW, [`XSRF=t1; ${attributes}; Path=/`]);
+    const header = jar.header(MTO);
+    expect(header).toBe(expected);
   });
 
   it('never sends it to a foreign host or a host that only ends with the domain', () => {
@@ -120,6 +133,14 @@ describe('DomainCookieJar/path scope', () => {
     expect([exact, child, evil]).toEqual(['t=1', 't=1', '']);
   });
 
+  it('keeps the complete last spaced Path value', () => {
+    const jar = makeJar();
+    jar.add(WWW, ['t=1; Path=/; Path = /Online/key=value ']);
+    const inside = jar.header('https://www.bank.example/Online/key=value/next');
+    const outside = jar.header('https://www.bank.example/Online/key/next');
+    expect([inside, outside]).toEqual(['t=1', '']);
+  });
+
   it('keeps same-name cookies of different paths, longer path first', () => {
     const jar = makeJar();
     jar.add(WWW, ['t=root; Path=/', 't=deep; Path=/Online']);
@@ -129,6 +150,10 @@ describe('DomainCookieJar/path scope', () => {
 });
 
 describe('DomainCookieJar/replacement', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('replaces a host-only cookie with a Domain cookie of the same key', () => {
     const jar = makeJar();
     jar.add(APEX, ['t=host; Path=/']);
@@ -145,6 +170,22 @@ describe('DomainCookieJar/replacement', () => {
     const exported = jar.exportAll();
     const sub = jar.header(WWW);
     expect([exported.length, sub]).toEqual([1, '']);
+  });
+
+  it.each([
+    { label: 'expired', maxAge: 1, header: 'sid=domain; sid=new', value: 'domain' },
+    { label: 'live', maxAge: 60, header: 'sid=new; sid=domain', value: 'new' },
+  ])('orders a replacement of the $label cookie by creation time', ({ maxAge, header, value }) => {
+    const clock = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    const jar = makeJar();
+    jar.add(WWW, [`sid=old; Max-Age=${String(maxAge)}; Path=/`]);
+    jar.add(WWW, ['sid=domain; Domain=bank.example; Path=/']);
+    clock.mockReturnValue(1_002_000);
+    jar.add(WWW, ['sid=new; Path=/']);
+    const sent = jar.header(WWW);
+    const token = jar.cookieFor(WWW, 'sid');
+    expect(sent).toBe(header);
+    expect(token).toEqual({ has: true, value });
   });
 });
 
@@ -172,6 +213,17 @@ describe('DomainCookieJar/secure and expiry', () => {
     const header = jar.header(WWW);
     expect(header).toBe('');
   });
+
+  it.each(['Max-Age = 0', 'Max-Age=600; MAX-AGE = 0', 'Expires = Thu, 01 Jan 1970 00:00:00 GMT'])(
+    'deletes with a spaced expiry attribute: %s',
+    attributes => {
+      const jar = makeJar();
+      jar.add(WWW, ['sid=active; Path=/']);
+      jar.add(WWW, [`sid=expired; ${attributes}; Path=/`]);
+      const header = jar.header(WWW);
+      expect(header).toBe('');
+    },
+  );
 
   it('lets Max-Age win over a past Expires', () => {
     const jar = makeJar();
@@ -206,6 +258,28 @@ describe('DomainCookieJar/session operations', () => {
     target.importAll(cookies);
     const copy = target.exportAll();
     expect(copy).toEqual(cookies);
+  });
+
+  it('owns imported cookie records instead of retaining caller objects', () => {
+    const input = { ...stored({ name: 'sid' }) };
+    const jar = makeJar();
+    jar.importAll([input]);
+    input.value = 'changed; extra=1';
+    input.secure = false;
+    const plain = jar.header('http://www.bank.example/');
+    const tls = jar.header(WWW);
+    expect([plain, tls]).toEqual(['', 'sid=1']);
+  });
+
+  it('exports a detached snapshot without exposing stored cookie records', () => {
+    const jar = makeJar();
+    jar.set(WWW, { name: 'sid', value: '1' });
+    const [exported] = jar.exportAll();
+    Reflect.set(exported, 'value', 'changed; extra=1');
+    Reflect.set(exported, 'secure', false);
+    const plain = jar.header('http://www.bank.example/');
+    const tls = jar.header(WWW);
+    expect([plain, tls]).toEqual(['', 'sid=1']);
   });
 
   it('replaces the whole jar on import and skips expired cookies', () => {

@@ -1,9 +1,10 @@
 /**
  * Domain cookie jar — the RFC 6265 subset jar a bank opts into with
  * `cookieDomains`. One store per run keyed by name + domain + path (§5.3:
- * a new cookie replaces the stored one with that key, keeping its creation
- * order); requests get every applicable cookie, longer path first, then
- * creation order. Adds the session operations the cookie-session port needs:
+ * a new cookie replaces a live stored cookie with that key, preserving its
+ * creation order; an expired key starts a new lifetime). Requests get every
+ * applicable cookie, longer path first, then creation order.
+ * Adds the session operations the cookie-session port needs:
  * read one cookie, set a client cookie, export, import (replaces) and clear.
  * Every way in keeps out a cookie that cannot travel as `name=value` in a
  * Cookie header, and an imported domain cookie outside the allow-list.
@@ -49,6 +50,19 @@ function isStorable(state: IJarState, cookie: IStoredCookie): boolean {
 }
 
 /**
+ * Remove an expired key so a replacement receives a new creation position.
+ * @param state - Jar state.
+ * @param key - Cookie name, domain and path key.
+ * @param nowS - Current epoch seconds.
+ * @returns True when an expired record was removed.
+ */
+function evictExpiredKey(state: IJarState, key: string, nowS: number): boolean {
+  const previous = state.store.get(key);
+  if (previous === undefined || !isExpired(previous, nowS)) return false;
+  return state.store.delete(key);
+}
+
+/**
  * Store a cookie under its RFC key, or delete the key when it has expired;
  * a cookie the jar may not hold is ignored.
  * @param state - Jar state.
@@ -59,8 +73,9 @@ function upsert(state: IJarState, cookie: IStoredCookie): number {
   if (!isStorable(state, cookie)) return state.store.size;
   const key = [cookie.name, cookie.domain, cookie.path].join(';');
   const nowS = nowEpochS();
+  evictExpiredKey(state, key, nowS);
   if (isExpired(cookie, nowS)) state.store.delete(key);
-  if (!isExpired(cookie, nowS)) state.store.set(key, cookie);
+  if (!isExpired(cookie, nowS)) state.store.set(key, { ...cookie });
   return state.store.size;
 }
 
@@ -160,7 +175,7 @@ function setClient(state: IJarState, url: string, cookie: IClientCookie): number
 }
 
 /**
- * Replace the jar with imported cookies (expired ones are skipped).
+ * Replace the jar with owned copies of imported cookies (expired ones are skipped).
  * @param state - Jar state.
  * @param cookies - Cookies to import, in creation order.
  * @returns The store size.
@@ -172,14 +187,15 @@ function importAll(state: IJarState, cookies: readonly IStoredCookie[]): number 
 }
 
 /**
- * Unexpired cookies in creation order.
+ * Detached snapshot of unexpired cookies in creation order.
  * @param state - Jar state.
  * @returns The exported cookies.
  */
 function exportAll(state: IJarState): readonly IStoredCookie[] {
   const nowS = nowEpochS();
   const stored = [...state.store.values()];
-  return stored.filter((cookie): boolean => !isExpired(cookie, nowS));
+  const live = stored.filter((cookie): boolean => !isExpired(cookie, nowS));
+  return live.map((cookie): IStoredCookie => ({ ...cookie }));
 }
 
 /**

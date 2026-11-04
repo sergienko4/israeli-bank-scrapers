@@ -53,6 +53,12 @@ const LOG = getDebug(import.meta.url);
 /** Default request headers per verb, merged under the caller's headers. */
 type DefaultHeadersByVerb = Readonly<Record<HttpVerb, Readonly<Record<string, string>>>>;
 
+/** Bank-wide policies shared by native REST and GraphQL transports. */
+interface INativeFetchOptions {
+  readonly redirectPolicy?: RedirectPolicy;
+  readonly statusPolicy?: StatusPolicy;
+}
+
 /** JSON content-type on every verb — the base strategy's defaults. */
 const JSON_DEFAULT_HEADERS: DefaultHeadersByVerb = {
   GET: { 'content-type': 'application/json' },
@@ -256,9 +262,12 @@ class NativeFetchStrategy implements IFetchStrategy {
   /**
    * Create a NativeFetchStrategy.
    * @param baseUrl - The base URL for API requests.
+   * @param options - Bank defaults; absent policies retain ordinary fetch behavior.
    */
-  constructor(baseUrl: string) {
+  constructor(baseUrl: string, options: INativeFetchOptions = {}) {
     this._baseUrl = baseUrl;
+    this._redirectDefault = options.redirectPolicy ?? this._redirectDefault;
+    this._statusPolicy = options.statusPolicy ?? this._statusPolicy;
   }
 
   /**
@@ -314,8 +323,9 @@ class NativeFetchStrategy implements IFetchStrategy {
    */
   protected readingOf(opts: IFetchOpts): IResponseReading {
     const responseKind = opts.responseKind ?? 'json';
-    const { documentMarker, headerSink } = opts;
-    return { statusPolicy: this._statusPolicy, responseKind, documentMarker, headerSink };
+    const { documentMarker, headerSink, onEmptyResponse } = opts;
+    const hooks = { documentMarker, headerSink, onEmptyResponse };
+    return { statusPolicy: this._statusPolicy, responseKind, ...hooks };
   }
 
   /**
@@ -329,6 +339,6 @@ class NativeFetchStrategy implements IFetchStrategy {
 }
 
 export default NativeFetchStrategy;
-export { invokeFetch, NativeFetchStrategy, resolveFetchUrl, toNetworkFailure };
-export type { DefaultHeadersByVerb, FullyQualifiedUrl };
+export { invokeFetch, isApiSuccess, NativeFetchStrategy, resolveFetchUrl, toNetworkFailure };
+export type { DefaultHeadersByVerb, FullyQualifiedUrl, IDispatch, INativeFetchOptions, TRequest };
 export type { FetchInvoke, HttpVerb } from './FetchStrategy.js';

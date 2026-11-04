@@ -8,6 +8,7 @@
  * PipelineContextFactory to keep that file under the strict 150-LoC cap.
  */
 
+import type { CompanyTypes } from '../../../Definitions.js';
 import ScraperError from '../../Base/ScraperError.js';
 import {
   createBrowserBackedHeadlessApiMediator,
@@ -19,7 +20,6 @@ import { resolvePipelineBankConfig } from '../Registry/Config/PipelineBankConfig
 import type { IHeadlessUrlsConfig } from '../Registry/Config/PipelineBankConfigTypes.js';
 import type { Option } from '../Types/Option.js';
 import { none, some } from '../Types/Option.js';
-import type { IPipelineContext } from '../Types/PipelineContext.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 
 /** Identity-transport flags decoded from the optional headless config block. */
@@ -106,7 +106,7 @@ function toHeadlessWiring(headless: IHeadlessUrlsConfig): IHeadlessWiring {
  * @param companyId - Target bank company type.
  * @returns Resolved wiring, or false when the lookup fails.
  */
-function resolveHeadlessWiring(companyId: IPipelineContext['companyId']): IHeadlessWiring | false {
+function resolveHeadlessWiring(companyId: CompanyTypes): IHeadlessWiring | false {
   const config = resolvePipelineBankConfig(companyId);
   if (config === false || !config.headless) return false;
   return toHeadlessWiring(config.headless);
@@ -118,10 +118,7 @@ function resolveHeadlessWiring(companyId: IPipelineContext['companyId']): IHeadl
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns bankHint plus the identity base + origin URLs.
  */
-function toIdentityArgs(
-  companyId: IPipelineContext['companyId'],
-  wiring: IHeadlessWiring,
-): TIdentityArgs {
+function toIdentityArgs(companyId: CompanyTypes, wiring: IHeadlessWiring): TIdentityArgs {
   const { origin } = new URL(wiring.identity);
   return { bankHint: companyId, identityBaseUrl: wiring.identity, identityOriginUrl: origin };
 }
@@ -159,7 +156,7 @@ function toTransportArgs(wiring: IHeadlessWiring): TTransportArgs {
  * @returns Args bundle accepted by every headless mediator factory.
  */
 function buildMediatorArgsForWiring(
-  companyId: IPipelineContext['companyId'],
+  companyId: CompanyTypes,
   wiring: IHeadlessWiring,
 ): TMediatorArgs {
   const identityArgs = toIdentityArgs(companyId, wiring);
@@ -233,10 +230,7 @@ const MEDIATOR_FACTORIES: Readonly<
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns True when the transport selection is unambiguous.
  */
-function assertSingleTransport(
-  companyId: IPipelineContext['companyId'],
-  wiring: IHeadlessWiring,
-): boolean {
+function assertSingleTransport(companyId: CompanyTypes, wiring: IHeadlessWiring): boolean {
   const declared = TRANSPORT_DECLARATIONS.filter((isDeclared): boolean => isDeclared(wiring));
   if (declared.length > 1) throw new ScraperError(`${TRANSPORT_CONFLICT_MSG} (${companyId})`);
   return true;
@@ -261,9 +255,7 @@ function pickTransportKind(wiring: IHeadlessWiring): HeadlessTransportKind {
  * @returns The transport kind, or false when the bank has no headless block.
  * @throws ScraperError when the headless block declares conflicting transports.
  */
-function resolveHeadlessTransportKind(
-  companyId: IPipelineContext['companyId'],
-): HeadlessTransportKind | false {
+function resolveHeadlessTransportKind(companyId: CompanyTypes): HeadlessTransportKind | false {
   const wiring = resolveHeadlessWiring(companyId);
   if (wiring === false) return false;
   assertSingleTransport(companyId, wiring);
@@ -276,10 +268,7 @@ function resolveHeadlessTransportKind(
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns A fully-wired IApiMediator for the bank's transport requirements.
  */
-function selectHeadlessMediator(
-  companyId: IPipelineContext['companyId'],
-  wiring: IHeadlessWiring,
-): IApiMediator {
+function selectHeadlessMediator(companyId: CompanyTypes, wiring: IHeadlessWiring): IApiMediator {
   assertSingleTransport(companyId, wiring);
   const args = buildMediatorArgsForWiring(companyId, wiring);
   const kind = pickTransportKind(wiring);

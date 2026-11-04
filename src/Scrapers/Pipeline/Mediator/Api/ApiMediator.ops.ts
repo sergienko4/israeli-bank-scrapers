@@ -103,13 +103,20 @@ async function apiPostOp<T>(args: IApiPostOpArgs): Promise<Procedure<T>> {
 }
 
 /**
- * Build the empty-body HMAC headers for a GET attempt.
+ * Overlay fresh empty-body HMAC headers on the caller's GET headers.
  * @param ctx - Per-call context.
  * @param url - Resolved GET URL.
- * @returns HMAC header map (empty when no key is set).
+ * @param opts - Optional caller headers.
+ * @returns Headers with HMAC owning any name collision, regardless of casing.
  */
-function buildGetHmacHeaders(ctx: IApiCallContext, url: string): Record<string, string> {
-  return buildHmacHeaders({ session: ctx.state.sessionContext, method: 'GET', url });
+function buildGetHeaders(
+  ctx: IApiCallContext,
+  url: string,
+  opts?: IApiQueryOpts,
+): Record<string, string> {
+  const hmac = buildHmacHeaders({ session: ctx.state.sessionContext, method: 'GET', url });
+  const callerHeaders = opts?.extraHeaders ?? NO_EXTRA_HEADERS;
+  return overlayHeaders(callerHeaders, hmac);
 }
 
 /** Optional-extras subset merged into fireGet args. */
@@ -130,9 +137,7 @@ function buildFireGetExtras(
   url: string,
   opts?: IApiQueryOpts,
 ): FireGetExtras {
-  const hmac = buildGetHmacHeaders(ctx, url);
-  const callerHeaders = opts?.extraHeaders ?? NO_EXTRA_HEADERS;
-  const extraHeaders = overlayHeaders(callerHeaders, hmac);
+  const extraHeaders = buildGetHeaders(ctx, url, opts);
   const query = opts?.query ?? NO_EXTRA_HEADERS;
   return { extraHeaders, query, onSetCookie: opts?.onSetCookie, policy: opts?.policy };
 }
