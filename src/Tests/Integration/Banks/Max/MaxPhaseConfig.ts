@@ -2,8 +2,7 @@
  * MAX bank — per-phase structural-invariant configuration.
  *
  * <p>Mirrors {@link ../Discount/DiscountPhaseConfig.ts},
- * {@link ../Hapoalim/HapoalimPhaseConfig.ts},
- * {@link ../Isracard/IsracardPhaseConfig.ts}, and
+ * {@link ../Hapoalim/HapoalimPhaseConfig.ts}, and
  * {@link ../Amex/AmexPhaseConfig.ts}. Markers are GENERIC
  * bank-identity substrings (no PII) that survive both real operator
  * harvests AND the synthetic stubs shipped here. The Mode A static

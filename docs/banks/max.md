@@ -12,7 +12,7 @@
 ## Known quirks
 
 - All Max selectors were migrated from CSS/IDs to **visible Hebrew text** in v8.2.0.
-- Max shares its two-screen **PRE-LOGIN** with the other browser card brands — Isracard and Amex.
+- Max shares its two-screen **PRE-LOGIN** with Amex, the other browser card brand.
 - Balance is card-cycle (`balanceKind: CARD_CYCLE`) — derived from the billing cycle by the hard-model path, not a separate per-account balance call.
 
 ## Hard-model post-auth

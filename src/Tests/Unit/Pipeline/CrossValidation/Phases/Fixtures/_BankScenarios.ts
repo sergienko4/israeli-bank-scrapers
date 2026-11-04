@@ -80,17 +80,6 @@ export const BANK_SCENARIOS: readonly IBankScenario[] = [
     cookieCount: 0,
   },
   {
-    bank: 'isracard',
-    homepageUrl: 'https://www.isracard.example/',
-    postNavUrl: 'https://digital.isracard.example/personalarea/login',
-    loginUrl: 'https://digital.isracard.example/personalarea/login',
-    dashboardUrl: 'https://digital.isracard.example/personalarea',
-    accountsUrl: 'https://digital.isracard.example/api/accounts',
-    frameCount: 0,
-    usesOtp: false,
-    cookieCount: 0,
-  },
-  {
     bank: 'max',
     homepageUrl: 'https://www.max.example/',
     postNavUrl: 'https://www.max.example/login-page',

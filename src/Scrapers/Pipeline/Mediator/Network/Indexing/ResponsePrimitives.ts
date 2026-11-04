@@ -36,8 +36,8 @@ const HTML_CONTENT_TYPE = 'text/html';
  * Resource types whose body is an API payload rather than a rendered
  * page document. Playwright reports `xhr` / `fetch` for programmatic
  * traffic and `document` for navigations, so this is the discriminator
- * that keeps the Leumi / Isracard JSON-over-HTML captures (see
- * `LeumiShape.ts` and `IsracardShape.ts`) while excluding SPA pages.
+ * that keeps the Leumi JSON-over-HTML captures (see `LeumiShape.ts`)
+ * while excluding SPA pages.
  */
 const API_RESOURCE_TYPES = ['xhr', 'fetch'] as const;
 

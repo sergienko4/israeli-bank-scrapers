@@ -1,6 +1,6 @@
 # API-DIRECT-CALL
 
-Login + OTP via JSON API. Replaces INIT → HOME → PRE-LOGIN → LOGIN → OTP-TRIGGER → OTP-FILL for api-direct banks (OneZero, Pepper, PayBox, VisaCal) — six browser phases collapse into one headless phase with a declarative step list.
+Login + OTP via JSON API. Replaces INIT → HOME → PRE-LOGIN → LOGIN → OTP-TRIGGER → OTP-FILL for api-direct banks (OneZero, Pepper, PayBox, VisaCal, Isracard) — six browser phases collapse into one headless phase with a declarative step list.
 
 | | |
 |---|---|
@@ -209,6 +209,12 @@ refused seed has already run cold, and a second cold flow would only hide the
 first failure. The cold-fallback warning reads the verdict rather than
 `hasWarmState`: it fires when a supplied seed was refused locally, or was sent
 and failed, and the login then finished cold.
+
+The warning ends with a clause naming what the cold login cost, and
+`coldFallbackDetail` derives it from the config. A flow with a step whose
+`preHook` awaits `otpCodeRetriever` waits for a one-time code, so it says "fell
+back to the full SMS login". Any other flow (VisaCal, Isracard) says "fell back
+to the full cold login", so the log never claims an SMS the bank did not send.
 
 ### Step outcome
 

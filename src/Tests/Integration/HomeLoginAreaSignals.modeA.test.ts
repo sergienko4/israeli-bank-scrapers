@@ -66,7 +66,6 @@ const CASES: readonly IHomeSignalCase[] = [
   { bankId: 'beinleumi', hasLoginForm: false },
   { bankId: 'discount', hasLoginForm: false },
   { bankId: 'hapoalim', hasLoginForm: false },
-  { bankId: 'isracard', hasLoginForm: false },
   { bankId: 'leumi', hasLoginForm: true },
   { bankId: 'massad', hasLoginForm: false },
   { bankId: 'max', hasLoginForm: false },

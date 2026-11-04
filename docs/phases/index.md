@@ -10,7 +10,7 @@ Every phase implements [`BasePhase`](https://github.com/sergienko4/israeli-bank-
 |---|---|---|---|
 | 1 | [INIT](init.md) | ✅ | Launch Camoufox, build context, navigate to bank URL |
 | 2 | [HOME](home.md) | ✅ | Landing-page discovery, signal login readiness |
-| 3 | [PRE-LOGIN](pre-login.md) | ⚙️ | "Show login" toggle (Amex, Isracard, Max) |
+| 3 | [PRE-LOGIN](pre-login.md) | ⚙️ | "Show login" toggle (Amex, Max) |
 | 4 | [LOGIN](login.md) | ✅ | 7-strategy `SelectorResolver` + declarative `LoginConfig` |
 | 5 | [OTP-TRIGGER](otp-trigger.md) | ⚙️ | Ask bank to dispatch SMS |
 | 6 | [OTP-FILL](otp-fill.md) | ⚙️ | Fill the code from `otpCodeRetriever` |

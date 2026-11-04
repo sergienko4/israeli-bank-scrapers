@@ -57,6 +57,9 @@ export type VarsMap = Record<string, unknown>;
 /** Generic API response body — shape's extractor narrows as needed. */
 export type ApiBody = Record<string, unknown>;
 
+/** A shape-level check on a successful response body — see `checkBody`. */
+export type BodyCheck = (body: ApiBody) => Procedure<ApiBody>;
+
 /**
  * REST URL tag — when set, the driver dispatches via `bus.apiPost`
  * instead of the GraphQL default. The producer variants take the
@@ -205,13 +208,12 @@ export interface IApiDirectScrapeBalanceStep<TAcct> {
   /**
    * Skip the balance-step network call entirely.
    *
-   * Two kinds of shape use it. The household-aggregate `card-cycle`
-   * issuers (Amex, Isracard) publish no figure attributable to a single
-   * card, so they declare `extract: () => 0` for a deterministic zero. Max
-   * instead carries its per-card cycle debit on the account itself, so it
-   * skips the fetch because the value is already in hand — not because none
-   * exists. VisaCal fetches its per-card next debit and does not skip.
-   * Mirrors {@link IApiDirectScrapeCustomerStep.skipFetch}.
+   * Two kinds of shape use it. Amex publishes no figure attributable to a
+   * single card, so it declares `extract: () => 0` for a deterministic
+   * zero. Max instead carries its per-card cycle debit on the account
+   * itself, so it skips the fetch because the value is already in hand —
+   * not because none exists. VisaCal and Isracard fetch each card's next
+   * debit and do not skip. Mirrors {@link IApiDirectScrapeCustomerStep.skipFetch}.
    */
   readonly skipFetch?: boolean;
 }
@@ -456,6 +458,16 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    * scope-config that backs `$ref` resolution.
    */
   readonly secrets?: Readonly<Record<string, string>>;
+  /**
+   * Optional check run on every successful scrape response — bootstrap,
+   * customer (and its secondary identity GET), balance and transactions —
+   * before the step reads it. For banks that report a failure inside an
+   * HTTP 200 body (an expired session, say): returning a failure makes the
+   * call fail as a non-2xx would, so balance falls back and the phase's
+   * recovery runs, instead of the body yielding nothing silently. Absent ⇒
+   * every 2xx body is used as-is.
+   */
+  readonly checkBody?: BodyCheck;
   readonly customer: IApiDirectScrapeCustomerStep<TAcct>;
   readonly balance: IApiDirectScrapeBalanceStep<TAcct>;
   readonly transactions: IApiDirectScrapeTxnsStep<TAcct, TCursor>;

@@ -30,14 +30,7 @@ const FIXTURE_FILE_PATH = fileURLToPath(import.meta.url);
 const FIXTURES_DIR = dirname(FIXTURE_FILE_PATH);
 
 /** Banks covered by Phase H factories. */
-export const PHASE_H_BANKS = [
-  'hapoalim',
-  'beinleumi',
-  'discount',
-  'amex',
-  'isracard',
-  'max',
-] as const;
+export const PHASE_H_BANKS = ['hapoalim', 'beinleumi', 'discount', 'amex', 'max'] as const;
 
 /** Bank name supported by {@link loadPhaseFixture}. */
 export type PhaseHBank = (typeof PHASE_H_BANKS)[number];

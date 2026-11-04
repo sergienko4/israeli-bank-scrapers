@@ -18,9 +18,9 @@ import { mergeOptionsIntoCreds } from './ApiDirectCallActions.pre.js';
 import { applyAuthPolicy, primeAndCheck } from './ApiDirectCallActions.prime.js';
 import { makeRecoveryHook } from './ApiDirectCallActions.recovery.js';
 import {
-  COLD_FALLBACK_DETAIL,
   COLD_FALLBACK_STALE,
   COLD_FALLBACK_WARM_FAILED,
+  coldFallbackDetail,
   PHASE_LABEL,
 } from './ApiDirectCallActions.shared.js';
 import { createContextStrategy } from './ApiDirectCallActions.strategy.js';
@@ -28,12 +28,13 @@ import type { IApiDirectCallConfig } from './ConfigContracts/index.js';
 import type { IAuthModePolicy } from './Flow/AuthModePolicy.js';
 import type { GenericCreds, IConfigTokenStrategy } from './Flow/TokenStrategyFromConfig.js';
 
-/** Booted ACTION bundle — bus + strategy + ctx + creds. */
+/** Booted ACTION bundle — bus + strategy + ctx + creds + the flow's fallback clause. */
 interface IBootedAction {
   readonly bus: IApiMediator;
   readonly strategy: IConfigTokenStrategy;
   readonly ctx: IPipelineContext;
   readonly creds: GenericCreds;
+  readonly fallbackDetail: string;
 }
 
 /** Pair of (bus, strategy) — the two procedures we resolve before booting. */
@@ -72,7 +73,8 @@ function bootFromNormalised(
   const proc = resolveBusStrategy(config, ctx);
   if (!isOk(proc)) return proc;
   const creds = mergeOptionsIntoCreds(ctx);
-  return succeed({ ...proc.value, ctx, creds });
+  const fallbackDetail = coldFallbackDetail(config);
+  return succeed({ ...proc.value, ctx, creds, fallbackDetail });
 }
 
 /**
@@ -143,7 +145,7 @@ function didStoredSeedDegrade(strategy: IBootedAction['strategy']): boolean {
 }
 
 /**
- * Warn when a stored long-term token was supplied but the cold SMS chain ran
+ * Warn when a stored long-term token was supplied but the cold login ran
  * anyway.
  *
  * The warm path fails open by design: `TokenResolverBuilder` retries cold so a
@@ -158,7 +160,7 @@ function warnOnSilentColdFallback(booted: IBootedAction, isWarm: boolean): boole
   if (isWarm) return false;
   if (!didStoredSeedDegrade(booted.strategy)) return false;
   const cause = pickFallbackCause(booted.strategy);
-  const detail = `${cause}; ${COLD_FALLBACK_DETAIL}`;
+  const detail = `${cause}; ${booted.fallbackDetail}`;
   booted.ctx.logger.warn({ message: `${PHASE_LABEL} ${detail}` });
   return true;
 }
@@ -185,9 +187,9 @@ function recordWarmState(booted: IBootedAction): boolean {
  * @returns True once the strategy + hook are registered.
  */
 function registerStrategy(booted: IBootedAction): boolean {
-  const { bus, strategy, ctx, creds } = booted;
+  const { bus, strategy, ctx, creds, fallbackDetail } = booted;
   bus.withTokenStrategy(strategy, ctx, creds);
-  const hook = makeRecoveryHook({ bus, ctx, strategy });
+  const hook = makeRecoveryHook({ bus, ctx, strategy, fallbackDetail });
   return bus.withRecoveryHook?.(hook) ?? false;
 }
 

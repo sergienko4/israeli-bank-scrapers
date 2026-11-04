@@ -3,7 +3,6 @@
  *
  * <p>Mirrors {@link ../Discount/DiscountPhaseConfig.ts},
  * {@link ../Hapoalim/HapoalimPhaseConfig.ts},
- * {@link ../Isracard/IsracardPhaseConfig.ts},
  * {@link ../Amex/AmexPhaseConfig.ts}, and
  * {@link ../Max/MaxPhaseConfig.ts}. Markers are GENERIC bank-identity
  * substrings (no PII) that survive both real operator harvests AND

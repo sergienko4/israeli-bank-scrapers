@@ -114,8 +114,8 @@ defaults:
 #   dns-preflight         — Israeli bank DNS resolution sanity.
 #   e2e-real-group-a      — Stage 1 (parallel, gate-A approval):
 #                           non-OTP banks: browser-form
-#                           (Isracard, Discount, Max) plus
-#                           api-direct VisaCal (no browser).
+#                           (Discount, Max) plus api-direct
+#                           VisaCal and Isracard (no browser).
 #   e2e-real-group-b      — Stage 2 (parallel, gate-B approval):
 #                           OTP browser-form banks
 #                           (Hapoalim, Beinleumi).
@@ -1262,8 +1262,8 @@ jobs:
   #
   #   Group A, gate-A (parallel runners):
   #     non-OTP banks
-  #     — Isracard, Discount, Max (browser-form)
-  #     — VisaCal (api-direct, no browser)
+  #     — Discount, Max (browser-form)
+  #     — VisaCal, Isracard (api-direct, no browser)
   #   Group B, gate-B (parallel runners):
   #     OTP browser-form banks
   #     — Hapoalim, Beinleumi

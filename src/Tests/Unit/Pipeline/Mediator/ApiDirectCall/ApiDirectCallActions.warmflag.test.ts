@@ -24,6 +24,7 @@ import type {
 import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
 import { buildResolverFromStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.js';
 import { runApiDirectCallAction } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.action.js';
+import { coldFallbackDetail } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.shared.js';
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { ITokenContext } from '../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
@@ -229,7 +230,10 @@ async function runWithLogRecorder(
   return { logs, result, readLogs: recorder.read };
 }
 
-/** The clause both fallback paths share — "this run paid for an SMS". */
+/** The clause both fallback paths share for a cold login that asks for no code. */
+const FALLBACK_CLAUSE = 'fell back to the full cold login';
+
+/** The clause for a cold login that asks for a code — "this run paid for an SMS". */
 const SMS_FALLBACK_CLAUSE = 'fell back to the full SMS login';
 
 /**
@@ -267,7 +271,7 @@ function durableTokenOf(result: Procedure<IPipelineContext>): string {
  * @returns Number of occurrences.
  */
 function countWarnings(logs: string): number {
-  return logs.split(SMS_FALLBACK_CLAUSE).length - 1;
+  return logs.split(FALLBACK_CLAUSE).length - 1;
 }
 
 /**
@@ -318,10 +322,10 @@ describe('ApiDirectCall ACTION keeps the durable token current after cold recove
     const rec = makeWarmRecordingBus([recovered]);
     const freshJwt = makeJwt(3600);
     const run = await runWithLogRecorder(rec, freshJwt);
-    expect(run.logs).not.toContain(SMS_FALLBACK_CLAUSE);
+    expect(run.logs).not.toContain(FALLBACK_CLAUSE);
     await recoverColdly(rec);
     const after = run.readLogs();
-    expect(after).toContain(SMS_FALLBACK_CLAUSE);
+    expect(after).toContain(FALLBACK_CLAUSE);
     expect(after).toContain(DEGRADED_CAUSE);
   });
 
@@ -376,13 +380,21 @@ describe('ApiDirectCall ACTION records the warm flag from the actual prime path'
     expect(rec.captures).toHaveLength(0);
   });
 
-  it('warns when a stored token was supplied but the cold SMS flow ran', async () => {
+  it('warns when a stored token was supplied but the cold flow ran', async () => {
     const coldTok = succeed({ access_token: 'cold-tok' });
     const rec = makeWarmRecordingBus([coldTok]);
     const staleJwt = makeJwt(-10);
     const { logs, result } = await runWithLogRecorder(rec, staleJwt);
     expect(result.success).toBe(true);
-    expect(logs).toContain(SMS_FALLBACK_CLAUSE);
+    expect(logs).toContain(FALLBACK_CLAUSE);
+  });
+
+  it('claims no SMS when the cold login asks for no code', async () => {
+    const coldTok = succeed({ access_token: 'cold-tok' });
+    const rec = makeWarmRecordingBus([coldTok]);
+    const staleJwt = makeJwt(-10);
+    const { logs } = await runWithLogRecorder(rec, staleJwt);
+    expect(logs).not.toContain('SMS');
   });
 
   /**
@@ -469,7 +481,7 @@ describe('ApiDirectCall ACTION records the warm flag from the actual prime path'
     const rec = makeWarmRecordingBus([coldTok]);
     const { logs, result } = await runWithLogRecorder(rec);
     expect(result.success).toBe(true);
-    expect(logs).not.toContain(SMS_FALLBACK_CLAUSE);
+    expect(logs).not.toContain(FALLBACK_CLAUSE);
   });
 
   it('stays quiet when the warm path actually succeeded', async () => {
@@ -477,7 +489,7 @@ describe('ApiDirectCall ACTION records the warm flag from the actual prime path'
     const freshJwt = makeJwt(3600);
     const { logs, result } = await runWithLogRecorder(rec, freshJwt);
     expect(result.success).toBe(true);
-    expect(logs).not.toContain(SMS_FALLBACK_CLAUSE);
+    expect(logs).not.toContain(FALLBACK_CLAUSE);
   });
 
   it('records warm=false when no cached token is present (cold flow)', async () => {
@@ -490,5 +502,25 @@ describe('ApiDirectCall ACTION records the warm flag from the actual prime path'
     expect(result.success).toBe(true);
     expect(wasWarm).toBe(false);
     expect(rec.captures).toHaveLength(1);
+  });
+});
+
+describe('coldFallbackDetail names what the cold login costs', () => {
+  it('claims no SMS for a step that waits on something other than a code', () => {
+    const base = warmConfig();
+    const preHook = { awaitCredsField: 'pinRetriever', intoCarryField: 'pin' };
+    const pinStep = { ...base.steps[0], preHook };
+    const pinConfig = { ...base, steps: [pinStep] };
+    const detail = coldFallbackDetail(pinConfig);
+    expect(detail).toBe(FALLBACK_CLAUSE);
+  });
+
+  it('keeps the SMS clause for a flow whose step asks for a code', () => {
+    const base = warmConfig();
+    const preHook = { awaitCredsField: 'otpCodeRetriever', intoCarryField: 'otpCode' };
+    const otpStep = { ...base.steps[0], preHook };
+    const otpConfig = { ...base, steps: [otpStep] };
+    const detail = coldFallbackDetail(otpConfig);
+    expect(detail).toBe(SMS_FALLBACK_CLAUSE);
   });
 });

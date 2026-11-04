@@ -1,43 +1,28 @@
 /**
- * Isracard pipeline — browser login (WAF bypass) + the Isracard DigitalV3
- * hard model for the post-auth data path. `withBrowserApiDirect` swaps the
- * generic AUTH-DISCOVERY/ACCOUNT-RESOLVE/DASHBOARD/SCRAPE/BALANCE-RESOLVE
- * chain for the single API-DIRECT-SCRAPE phase driving ISRACARD_SHAPE.
+ * Isracard pipeline — API-native descriptor: the config-driven
+ * API-DIRECT-CALL phase logs in over the ring app API (ID, card suffix and
+ * password on a cold run; a stored device key resumes the session on a warm
+ * run), then the shape-driven API-DIRECT-SCRAPE phase reads cards, the next
+ * debit and transactions. No browser is launched.
  */
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
-import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilderFactory.js';
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
+import { ISRACARD_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigIsracard.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { ISRACARD_SHAPE } from './scrape/IsracardShape.js';
 
-/** Isracard login config — credential keys only. WellKnown resolves selectors. */
-export const ISRACARD_LOGIN: ILoginConfig = {
-  loginUrl: '',
-  fields: [
-    { credentialKey: 'id', selectors: [] },
-    { credentialKey: 'password', selectors: [] },
-    { credentialKey: 'card6Digits', selectors: [] },
-  ],
-  submit: [],
-  possibleResults: { success: [] },
-};
-
 /**
  * Build the Isracard pipeline descriptor.
- * Post-auth data path uses the Isracard hard model (api-direct scrape)
- * instead of the generic AUTH-DISCOVERY/ACCOUNT-RESOLVE/DASHBOARD chain.
  * @param options - Scraper options from the user.
- * @returns Pipeline descriptor.
+ * @returns Pipeline descriptor (Headless Strategy + config-driven API-DIRECT-CALL).
  */
 function buildIsracardPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withBrowser()
-    .withDeclarativeLogin(ISRACARD_LOGIN)
-    .withPreLogin()
-    .withBrowserApiDirect(ISRACARD_SHAPE)
+    .withHeadlessMediator()
+    .withApiDirect(ISRACARD_API_DIRECT_CALL, ISRACARD_SHAPE)
     .build();
 }
 

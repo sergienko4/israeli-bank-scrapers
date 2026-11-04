@@ -7,6 +7,7 @@
 
 import { CompanyTypes } from '../../../../Definitions.js';
 import { ANGULAR_LOGIN_POLL } from '../../Mediator/Timing/LoginTimingConfig.js';
+import { ISRACARD_HEADLESS } from './PipelineBankConfigIsracard.js';
 import { ONEZERO_HEADLESS } from './PipelineBankConfigOneZeroHeadless.js';
 import { PEPPER_HEADLESS } from './PipelineBankConfigPepperHeadless.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
@@ -38,14 +39,14 @@ const SESSION_COOKIE = 'session-cookie';
 /** API-native banks -- headless identity strategy, no browser AUTH-DISCOVERY. */
 const API_DIRECT = 'api-direct';
 
-/** Slow-AngularJS auth-confirm budget (Isracard, Amex). */
+/** Slow-AngularJS auth-confirm budget (Amex). */
 const LOGIN_AUTH_CONFIRM_ANGULAR_MS = 45_000;
 
 /**
  * Build a plain bank config — base URL + balance/auth kinds, no
  * headless/OTP/poll blocks. Keeps the registry DRY: adding a simple
  * deposit or card bank is a single line; banks needing extra wiring
- * (Amex/Isracard poll, API-direct headless) stay object-literal.
+ * (Amex poll, API-direct headless) stay object-literal.
  * @param base - Official website URL (HOME phase navigates here).
  * @param balanceKind - Balance semantics (account vs card-cycle).
  * @param authStrategyKind - Auth-completion family.
@@ -139,8 +140,8 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
   [CompanyTypes.Isracard]: {
     urls: { base: 'https://www.isracard.co.il' },
     balanceKind: CARD_CYCLE,
-    loginAuthConfirmMs: LOGIN_AUTH_CONFIRM_ANGULAR_MS,
-    authStrategyKind: SESSION_COOKIE,
+    authStrategyKind: API_DIRECT,
+    headless: ISRACARD_HEADLESS,
   },
   [CompanyTypes.OneZero]: {
     urls: { base: 'https://www.onezerobank.com' },

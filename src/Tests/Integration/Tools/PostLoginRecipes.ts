@@ -31,54 +31,7 @@ import type { IExtendedRecipe } from './RecipeStepTypes.js';
 /** Generic dashboard wait — captures hydrated DOM regardless of bank UX. */
 const DASHBOARD_NETWORKIDLE_TIMEOUT_MS = 30000;
 
-/** Isracard SPA hydration: dashboard SPA can take 60-120s to expose the
- *  Hebrew transactions link after login, especially under slow CI. The
- *  generic 30s timeout is too tight; widen specifically for isracard. */
-const ISRACARD_DASHBOARD_TIMEOUT_MS = 120000;
-
-/** Isracard: card-only flow. PRE-LOGIN already captured by legacy recipe.
- *  Post-login uses {@link IWaitForStep.textVisible} (transactions link
- *  sentinel — Hebrew 'עסקאות וחיובים' / English 'Transactions and charges')
- *  instead of {@link IWaitForStep.urlIncludes} — isracard is a same-URL SPA
- *  per `AuthDiscoveryInterstitial.ts` comments; the URL does not change
- *  after authentication, so `waitForURL` strategies time out forever. */
-const ISRACARD_POST_LOGIN = {
-  bankId: 'isracard',
-  steps: [
-    { kind: 'login', stepName: '04-login-action' },
-    {
-      kind: 'waitFor',
-      stepName: '07-auth-discovery',
-      textVisible: 'עסקאות וחיובים',
-      timeoutMs: ISRACARD_DASHBOARD_TIMEOUT_MS,
-    },
-    { kind: 'snapshot', stepName: '08-account-resolve', waitForLifecycle: 'networkidle' },
-    { kind: 'snapshot', stepName: '09-dashboard', waitForLifecycle: 'networkidle' },
-    {
-      kind: 'recordResponse',
-      stepName: '10-scrape-current-billing',
-      urlPattern: '/CurrentBillingDate',
-      captureAs: 'CurrentBillingDate',
-      methods: ['POST'],
-    },
-    {
-      kind: 'recordResponse',
-      stepName: '10-scrape-transactions',
-      urlPattern: '/Transactions',
-      captureAs: 'Transactions',
-      methods: ['POST'],
-    },
-    {
-      kind: 'recordResponse',
-      stepName: '11-balance',
-      urlPattern: '/UserAccountsData',
-      captureAs: 'UserAccountsData',
-      methods: ['POST'],
-    },
-  ],
-} as const satisfies IExtendedRecipe;
-
-/** Amex: same pipeline as Isracard but distinct URLs. */
+/** Amex: card-only flow, password login. */
 const AMEX_POST_LOGIN = {
   bankId: 'amex',
   steps: [
@@ -312,7 +265,6 @@ const MIZRAHI_POST_LOGIN = {
  * constants above already carry `as const satisfies IExtendedRecipe`.
  */
 const POST_LOGIN_RECIPES: Readonly<Partial<Record<string, IExtendedRecipe>>> = {
-  isracard: ISRACARD_POST_LOGIN,
   amex: AMEX_POST_LOGIN,
   discount: DISCOUNT_POST_LOGIN,
   max: MAX_POST_LOGIN,
@@ -386,13 +338,6 @@ interface IBankRecipe {
  * are referenced by name, not dynamically indexed.
  */
 const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
-  isracard: {
-    steps: [
-      { stepName: '01-home', url: 'https://www.isracard.co.il' },
-      { stepName: '02-pre-login', url: 'https://digital.isracard.co.il/personalarea/Login/' },
-      { stepName: '03-after-flip', revealText: 'או כניסה עם סיסמה קבועה' },
-    ],
-  },
   amex: {
     steps: [
       { stepName: '02-pre-login', url: 'https://digital.americanexpress.co.il' },

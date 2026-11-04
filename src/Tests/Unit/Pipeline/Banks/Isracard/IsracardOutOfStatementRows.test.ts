@@ -2,7 +2,7 @@
  * Isracard — charges posting outside the current statement cycle are rows,
  * not summary.
  *
- * `mergeIsracardRows` read two containers and dropped a third:
+ * `mergeRingRows` read two containers and dropped a third:
  * `israelAbroadVouchers.outOfStatementChargeDateVouchers[]
  *  .immediateVouchersCurrencyDate[]`. Recurring international online merchants
  * post there almost exclusively, so the omission removed real spend from every
@@ -12,7 +12,7 @@
  * invented.
  */
 
-import mergeIsracardRows from '../../../../../Scrapers/Pipeline/Banks/Isracard/scrape/IsracardShapeExtract.js';
+import mergeRingRows from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/Ring/RingShapeExtract.js';
 
 /**
  * One transaction row, in the shape all three containers share.
@@ -61,7 +61,7 @@ function response(args: IResponseRows): object {
 describe('Isracard/outOfStatementChargeDateVouchers', () => {
   it('returns rows that post outside the statement cycle', () => {
     const body = response({ outOfStatement: [[txn(1, 'STREAMING CO'), txn(2, 'CLOUD CO')]] });
-    const rows = mergeIsracardRows(body);
+    const rows = mergeRingRows(body);
     expect(rows).toHaveLength(2);
   });
 
@@ -71,7 +71,7 @@ describe('Isracard/outOfStatementChargeDateVouchers', () => {
       settled: [txn(20, 'SHOP')],
       outOfStatement: [[txn(30, 'STREAMING CO')]],
     });
-    const rows = mergeIsracardRows(body) as readonly Record<string, unknown>[];
+    const rows = mergeRingRows(body) as readonly Record<string, unknown>[];
     const seqs = rows
       .map((r): unknown => r.seqVoucherNumber)
       .sort((a, b): number => Number(a) - Number(b));
@@ -80,13 +80,13 @@ describe('Isracard/outOfStatementChargeDateVouchers', () => {
 
   it('flattens several per-currency-date groups', () => {
     const body = response({ outOfStatement: [[txn(1, 'A')], [txn(2, 'B'), txn(3, 'C')]] });
-    const rows = mergeIsracardRows(body);
+    const rows = mergeRingRows(body);
     expect(rows).toHaveLength(3);
   });
 
   it('does not invent rows when the container is absent', () => {
     const body = response({ settled: [txn(20, 'SHOP')] });
-    const rows = mergeIsracardRows(body);
+    const rows = mergeRingRows(body);
     expect(rows).toHaveLength(1);
   });
 
@@ -100,12 +100,12 @@ describe('Isracard/outOfStatementChargeDateVouchers', () => {
         },
       },
     };
-    const rows = mergeIsracardRows(body);
+    const rows = mergeRingRows(body);
     expect(rows).toHaveLength(0);
   });
 
   it('keeps returning nothing for an empty response', () => {
-    const rows = mergeIsracardRows({ data: null });
+    const rows = mergeRingRows({ data: null });
     expect(rows).toHaveLength(0);
   });
 });

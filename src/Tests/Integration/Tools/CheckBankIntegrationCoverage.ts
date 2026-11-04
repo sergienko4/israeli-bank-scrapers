@@ -44,7 +44,13 @@ const PENDING_REHARVEST_FILE = join(REPO_ROOT, '.github', 'banks-pending-reharve
  * Pipeline directories that wrap API-only providers — no DOM and
  * therefore no Mode-A integration fixture is possible.
  */
-const API_DIRECT_BANKS: ReadonlySet<string> = new Set(['OneZero', 'PayBox', 'Pepper', 'VisaCal']);
+const API_DIRECT_BANKS: ReadonlySet<string> = new Set([
+  'Isracard',
+  'OneZero',
+  'PayBox',
+  'Pepper',
+  'VisaCal',
+]);
 
 /**
  * Canonical PascalCase folder → bankId override map.

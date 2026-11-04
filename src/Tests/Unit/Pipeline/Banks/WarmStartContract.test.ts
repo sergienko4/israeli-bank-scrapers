@@ -31,6 +31,7 @@ const CONFIG_PATHS: readonly (readonly [string, string])[] = [
   ['Pepper', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigPepper.js'],
   ['PayBox', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigPayBox.js'],
   ['VisaCal', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigVisaCal.js'],
+  ['Isracard', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigIsracard.js'],
 ];
 
 /** Directory holding every bank call-config literal. */
@@ -41,12 +42,14 @@ const CONFIG_DIR = fileURLToPath(
 /**
  * Config files this suite knows about. Derived drift against the directory is
  * a failure: a warm-start bank that never reaches {@link CONFIG_PATHS} would
- * otherwise be invisible to every invariant below.
+ * otherwise be invisible to every invariant below. The ring issuers share one
+ * factory file, so `PipelineBankConfigRing.ts` stands for each of them.
  */
 const EXPECTED_WARM_START_FILES: readonly string[] = [
   'PipelineBankConfigOneZero.ts',
   'PipelineBankConfigPayBox.ts',
   'PipelineBankConfigPepper.ts',
+  'PipelineBankConfigRing.ts',
   'PipelineBankConfigVisaCal.ts',
 ];
 
@@ -212,13 +215,21 @@ describe('warm-start contract — every opted-in bank', () => {
   it('loads every bank this suite enumerates', async () => {
     const configs = await loadWarmStartConfigs();
     const labels = configs.map(([label]) => label);
-    expect(labels).toEqual(['OneZero', 'Pepper', 'PayBox', 'VisaCal']);
+    expect(labels).toEqual(['OneZero', 'Pepper', 'PayBox', 'VisaCal', 'Isracard']);
   });
 
   it('holds every invariant below to the cookie-session fixture too', async () => {
     const configs = await loadWarmPopulation();
     const labels = configs.map(([label]) => label);
-    expect(labels).toEqual(['OneZero', 'Pepper', 'PayBox', 'VisaCal', 'cookie-session fixture']);
+    const expected = [
+      'OneZero',
+      'Pepper',
+      'PayBox',
+      'VisaCal',
+      'Isracard',
+      'cookie-session fixture',
+    ];
+    expect(labels).toEqual(expected);
   });
 
   it('declares a jwtClaims freshness gate when the token is validated as a jwt', async () => {
@@ -279,15 +290,16 @@ describe('warm-start contract — policy exemptions', () => {
     const configs = await loadWarmStartConfigs();
     const exempt = configs.filter(([, config]) => !isJwtValidated(config));
     const exemptLabels = exempt.map(([label]) => label);
-    // VisaCal stores an opaque login hash, not a JWT; its resume call is the check.
-    expect(exemptLabels).toEqual(['VisaCal']);
+    // VisaCal stores an opaque login hash and Isracard a device key, not a
+    // JWT; for both, the resume call is the check.
+    expect(exemptLabels).toEqual(['VisaCal', 'Isracard']);
   });
 
   it('lists the warm-start banks whose session rides on cookies, not a header', async () => {
     const configs = await loadWarmStartConfigs();
     const exempt = configs.filter(([, config]) => !isHeaderSent(config));
     const exemptLabels = exempt.map(([label]) => label);
-    expect(exemptLabels).toEqual([]);
+    expect(exemptLabels).toEqual(['Isracard']);
   });
 
   it('the fixture is exempt from both policy-dependent invariants', () => {

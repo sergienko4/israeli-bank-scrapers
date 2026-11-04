@@ -102,7 +102,7 @@ describe('makeRecoveryHook — re-install context + re-cache token (F3)', () => 
     const bus = busStub(snapshots);
     const ctx = ctxStub(payloads);
     const strategy = strategyStub();
-    const hook = makeRecoveryHook({ bus, ctx, strategy });
+    const hook = makeRecoveryHook({ bus, ctx, strategy, fallbackDetail: 'fell back' });
     const wasWarm = false;
     await hook(RECOVERED_HEADER, wasWarm);
     expect(snapshots).toEqual([NEW_CARRY]);

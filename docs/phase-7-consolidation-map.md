@@ -291,7 +291,7 @@ If a future regression introduces the anti-pattern, the **T7.10 canary** will bl
 | File                                             | Skip reason                                                         | Required fix                          |
 | ------------------------------------------------ | ------------------------------------------------------------------- | ------------------------------------- |
 | `E2eMocked/Amex.e2e-mocked.test.ts`              | `amexRoutes()` shared route table needs reauthoring                 | reauthor `Helpers/AmexRoutes.ts`      |
-| `E2eMocked/Isracard.e2e-mocked.test.ts`          | Same root cause family as Amex                                      | same route table fix                  |
+| `E2eMocked/Isracard/Isracard.e2e-mocked.test.ts` | Resolved: Isracard is browserless; `RingFetchMock.ts` serves it     | none                                  |
 | `E2eMocked/Discount/Discount.e2e-mocked.test.ts` | `fixtures.json` URL globs do NOT match Discount's real URL topology | author `fixtures.json` + capture HTML |
 | `E2eMocked/Max/Max.e2e-mocked.test.ts`           | Same fixture-scaffold root cause                                    | author `fixtures.json` + capture HTML |
 | `E2eMocked/VisaCal/VisaCal.e2e-mocked.test.ts`   | Resolved: VisaCal is browserless; `VisaCalFetchMock.ts` serves it   | none                                  |

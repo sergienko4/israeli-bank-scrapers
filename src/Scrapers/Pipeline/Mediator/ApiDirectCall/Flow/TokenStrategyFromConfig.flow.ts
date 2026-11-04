@@ -84,7 +84,7 @@ function finishFlow(input: IFinishFlowArgs): string {
  * a policy refusal without matching on a substring.
  */
 const BUDGET_SPENT_MESSAGE =
-  'this scrape has already spent its one cold SMS login; the session cannot ' +
+  'this scrape has already spent its one cold login; the session cannot ' +
   'be re-minted in-run — start a new scrape';
 
 /**
@@ -106,7 +106,7 @@ const BUDGET_SPENT_MESSAGE =
 function answerRefusedFlow(args: IRunFlowArgs, slot: ILongTermTokenSlot): Procedure<string> {
   const minted = slot.latestHeaderValue ?? '';
   const meta = { companyId: args.companyId, hasMintedSession: minted.length > 0 };
-  LOG.warn(meta, 'Cold-login budget spent — refusing a second SMS login this run');
+  LOG.warn(meta, 'Cold-login budget spent — refusing a second cold login this run');
   if (minted.length > 0) return succeed(minted);
   return fail(ScraperErrorTypes.Generic, BUDGET_SPENT_MESSAGE);
 }
