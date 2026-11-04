@@ -59,9 +59,9 @@ call:
 
 - **Cards** — `customerUrl` reads `getHomePageData`; `extractCards` turns each
   entry of `Result.UserCards.Cards` into one account.
-- **Transactions** — `getTransactionsAndGraphs`, one request per billing
-  month (`txnsUrl` / `txnsExtractPage`). The reply merges every card, and each
-  account keeps its own card's rows.
+- **Transactions** — `getTransactionsAndGraphs`, one all-cards request per
+  account per billing month (`txnsUrl` / `txnsExtractPage`). Each account keeps
+  only its own card's rows from that reply.
 - **Balance** — card-cycle: `ilsCycleDebit` reads the card's ILS
   `CycleSummary` entry already on the card, so there is no balance call. See
   [Balance resolution](../architecture/balance-resolve.md).
