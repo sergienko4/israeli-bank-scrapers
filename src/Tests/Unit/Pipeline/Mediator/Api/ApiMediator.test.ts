@@ -715,6 +715,15 @@ describe('ApiMediator — redirect policy', () => {
     expect(message).toBe(`${prefix} HTTP 207`);
   });
 
+  it.each(POLICY_CALLS)('omits bank text from $label failures', async ({ call, prefix }) => {
+    const response = new Response('SYNTHETIC private bank reply', { status: 500 });
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+    const mediator = buildPolicyMediator({ omitBankText: true });
+    const result = await call(mediator);
+    const errorMessage = `${prefix} 500: response body omitted`;
+    expect(result).toMatchObject({ success: false, errorMessage });
+  });
+
   it.each(POLICY_CALLS)(
     'keeps a policy-approved empty $label response successful',
     async ({ call }) => {

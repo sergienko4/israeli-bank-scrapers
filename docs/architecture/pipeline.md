@@ -111,11 +111,17 @@ The native transport is [`HeadlessNativeFetchStrategy`](https://github.com/sergi
 - A GET sends no default `content-type`; a POST still sends `application/json`. The per-verb defaults are the strategy's `DefaultHeadersByVerb` seam; the base strategy sends JSON on both verbs. A caller `Content-Type` in any letter case replaces the default, as it does on the Camoufox transport, since `fetch` would otherwise join both values into one.
 
 `INativeFetchOptions` gives native REST and GraphQL strategies the same bank-wide
-redirect/status defaults. `TRequest` and `IDispatch` are internal extension
+redirect/status defaults and HTTP-failure body omission. `TRequest` and `IDispatch` are internal extension
 contracts: a request becomes a dispatch with its own response-reading policy,
 so concurrent headless calls do not overwrite each other's policy.
 REST and GraphQL calls both honor `IApiQueryOpts.policy`: per-call redirect
 settings override the bank default, and header sinks receive only declared headers.
+
+With `headless.omitBankText: true`, native HTTP failures keep their verb, safe URL
+and status, but replace the response snippet with `response body omitted`.
+`classifyHttpFailure` still examines the body for WAF classification first;
+fixed WAF reasons and error types are unchanged. Without this opt-in, generic
+failures retain their existing snippets.
 
 A bank whose session is a cookie, not an auth header, sets `sessionCookies: true`. Both node factories then pass their transport through `withCookieSession`; without `cookieDomains` it calls `withSessionCookies`, which wraps it in [`SessionCookieFetchStrategy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/SessionCookieFetchStrategy.ts): one run-scoped `IOriginCookieJar` (built by `createOriginCookieJar`) that keeps one `ICookieJar` (built by `createSimpleCookieJar`) per origin. Every response's `Set-Cookie` feeds the jar of the origin that answered — the response's final URL when `fetch` followed a redirect, else the request URL — and every POST and GET sends only its own origin's cookies as one `cookie` header, replacing a caller cookie header in any letter case, since `fetch` would otherwise send both values. Under the default `follow` redirect policy `fetch` follows redirects itself, so a redirect hop's own `Set-Cookie` lines never reach the jar; a `manual` policy files them (see [Redirect policies](#redirect-policies)). The origin comes from the `FullyQualifiedUrl` the transport itself resolves (`resolveFetchUrl`: relative paths join the base URL), so a cookie never goes back to a different host, scheme or port, a `Domain` attribute never widens it, and a URL that cannot be parsed neither sends nor keeps a cookie. A later cookie of the same name replaces the earlier one; `Max-Age=0` (or less), or an `Expires` already past, deletes it (`Max-Age` wins when both are set); an empty jar adds no header; a caller's own `onSetCookie` hook still runs; cookie values are never logged. Without the flag the transport is returned unchanged. The browser transport ignores the flag, because the Camoufox page keeps its own jar.
 

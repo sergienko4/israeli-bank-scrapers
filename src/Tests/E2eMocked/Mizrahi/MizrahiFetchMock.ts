@@ -67,9 +67,10 @@ export type MizrahiFault =
   | 'noSkyserid'
   | 'logonNoXsrf'
   | 'txns204'
+  | 'changeAccount500'
   | 'expire401';
 
-/** The text a logon without `xsrfToken` carries; it must never surface. */
+/** Bank text in failed logon and data replies; it must never surface. */
 export const MZ_BANK_NOTICE = 'SYNTHETIC bank notice 7731';
 
 /** Where a 307 on LoginUser would replay the credentials. */
@@ -291,7 +292,8 @@ function routeLanding(call: IRecordedCall, run: IMockRun): Response {
 function routeLogon(call: IRecordedCall, run: IMockRun): Response {
   if (!hasCookies(call, [MZ_AUTH_COOKIE, ...MZ_HOP_COOKIES])) return errorReply(401);
   const user = { Accounts: logonAccounts() };
-  if (run.fault === 'logonNoXsrf') return json({ message: MZ_BANK_NOTICE, body: { user } });
+  const missingXsrf = { message: MZ_BANK_NOTICE, error_code: MZ_BANK_NOTICE, body: { user } };
+  if (run.fault === 'logonNoXsrf') return json(missingXsrf);
   const headers = run.fault === 'noSkyserid' ? {} : SKYSERID_HEADER;
   return json({ body: { xsrfToken: MZ_LOGON_XSRF, user } }, { headers });
 }
@@ -315,6 +317,7 @@ function isDataAuthorised(call: IRecordedCall, run: IMockRun): boolean {
  * @returns The account's number and balance; 400 for an unknown index.
  */
 function routeChangeAccount(call: IRecordedCall, run: IMockRun): Response {
+  if (run.fault === 'changeAccount500') return reply(500, MZ_BANK_NOTICE);
   const index = parseBody(call.body).selectedAccountIndex;
   const account = typeof index === 'number' ? MIZRAHI_MOCK_ACCOUNTS.at(index) : undefined;
   if (typeof index !== 'number' || account === undefined) return errorReply(400);
@@ -330,7 +333,7 @@ function routeChangeAccount(call: IRecordedCall, run: IMockRun): Response {
  */
 function routeTxns(_call: IRecordedCall, run: IMockRun): Response {
   if (run.fault === 'txns204') return bodiless(204);
-  if (run.fault === 'expire401') return errorReply(401);
+  if (run.fault === 'expire401') return reply(401, MZ_BANK_NOTICE);
   const [account] = MIZRAHI_MOCK_ACCOUNTS.slice(run.selected[0]);
   const table = { rows: rowsOf(account), isHasMoreRows: false, actionGUID: 'syn-mz-guid' };
   return json({ body: { fields: { AccountNumber: account.number }, table } });

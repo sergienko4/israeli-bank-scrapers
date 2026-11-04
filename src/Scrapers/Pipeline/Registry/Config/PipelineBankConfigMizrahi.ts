@@ -154,6 +154,7 @@ const MIZRAHI_HEADLESS: IHeadlessUrlsConfig = {
   cookieDomains: ['mizrahi-tefahot.co.il'],
   redirectPolicy: 'reject',
   statusPolicy: { 204: 'empty' },
+  omitBankText: MIZRAHI_API_DIRECT_CALL.omitBankText,
 };
 
 export default MIZRAHI_API_DIRECT_CALL;

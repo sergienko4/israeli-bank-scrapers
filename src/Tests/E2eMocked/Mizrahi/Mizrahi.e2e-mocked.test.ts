@@ -143,6 +143,19 @@ describe('Mizrahi browserless login', () => {
     expect(run.trail).toEqual([...LOGIN_TRAIL, ...HANDOFF_TRAIL, ...ACCOUNT_OPEN_TRAIL]);
   });
 
+  it.each([
+    ['changeAccount500', 500, 'changeAccount'],
+    ['expire401', 401, 'get428Index'],
+  ] as const)('omits bank text from a %s data failure', async (fault, status, endpoint) => {
+    const run = await runMizrahi(fault);
+    expect(run.result.success).toBe(false);
+    expect(run.result.errorType).toBe(ScraperErrorTypes.Generic);
+    expect(run.data.at(-1)?.url).toContain(endpoint);
+    const statusText = String(status);
+    expect(run.result.errorMessage).toContain(statusText);
+    expect(run.result.errorMessage).not.toContain(MZ_BANK_NOTICE);
+  });
+
   it.each(STEP_ZERO_FAULTS)(
     'fails a step-0 %s after one call, with no retry and no response text',
     async (fault, errorType, message) => {

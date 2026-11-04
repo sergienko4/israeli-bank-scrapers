@@ -151,6 +151,12 @@ export interface IHeadlessUrlsConfig {
    */
   readonly statusPolicy?: StatusPolicy;
   /**
+   * With `nativeFetch`, omit bank response text from HTTP failures, including
+   * data calls. WAF classification still reads the body first. Default:
+   * undefined (generic failures keep their response snippet).
+   */
+  readonly omitBankText?: boolean;
+  /**
    * When set, the Camoufox identity strategy route-intercepts the
    * initial navigation to the identity origin URL and serves a blank
    * HTML stub (`<!doctype html><html><head></head><body></body></html>`).

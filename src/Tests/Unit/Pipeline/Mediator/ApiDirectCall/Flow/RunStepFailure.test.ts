@@ -289,6 +289,27 @@ describe('E15 RunStep failure message', () => {
     const result = await runBind(bus);
     expect(result).toEqual(launch);
   });
+
+  it.each([
+    [undefined, true],
+    [false, true],
+    [true, false],
+  ] as const)(
+    'honors omitBankText=%s in response diagnostics',
+    async (isBankTextOmitted, shouldQuoteCode): Promise<void> => {
+      LOG_LINES.length = 0;
+      const responses = [succeed({ error_code: ECHOED_SECRETS[0] })];
+      const bus = STUB.makeStubMediator({ responses, captures: [] });
+      const scope = makeScope();
+      const args = { step: BIND_STEP, bus, scope, companyId: HINT, isBankTextOmitted };
+      const result = await RUN_STEP.runStep(args);
+      const emitted = LOG_LINES.join('\n');
+      const isCodeVisible = emitted.includes(ECHOED_SECRETS[0]);
+      expect(result.success).toBe(false);
+      expect(emitted).toContain('fireStep OK');
+      expect(isCodeVisible).toBe(shouldQuoteCode);
+    },
+  );
 });
 
 describe('E15 SEC-02 through the native transport and the mediator', () => {

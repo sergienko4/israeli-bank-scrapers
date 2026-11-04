@@ -44,7 +44,7 @@ interface IRunStepArgs {
   readonly companyId: Parameters<typeof resolveWkUrl>[1];
   readonly signingKeypair?: IGenericKeypair;
   readonly cookieJar?: IStepCookieJar;
-  /** True when the bank's own text must never reach a missed extract. */
+  /** True when bank-supplied values must be omitted from failures and logs. */
   readonly isBankTextOmitted?: boolean;
 }
 
@@ -108,7 +108,7 @@ interface IStepLogContext {
   readonly extractKeys: readonly string[];
 }
 
-/** Diagnostic response-shape descriptor — top-level keys + JSON length + envelope error code. */
+/** Response-shape descriptor — keys, JSON length and the policy-filtered envelope error code. */
 interface IRespDescriptor {
   readonly respKeys: readonly string[];
   readonly respLength: number;

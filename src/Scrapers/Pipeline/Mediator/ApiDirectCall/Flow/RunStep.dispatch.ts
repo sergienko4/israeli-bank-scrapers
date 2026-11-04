@@ -52,15 +52,17 @@ function readEnvelopeErrorCode(resp: JsonValue): string {
 }
 
 /**
- * Build the safe response-shape diagnostic.
+ * Describe the response shape under the bank-text omission policy.
  * @param resp - Response JSON value.
- * @returns Top-level keys + length + error_code value.
+ * @param isBankTextOmitted - Whether response values need length-only hints.
+ * @returns Top-level keys, length and a policy-safe error-code hint.
  */
-function describeResponse(resp: JsonValue): IRespDescriptor {
+function describeResponse(resp: JsonValue, isBankTextOmitted: boolean): IRespDescriptor {
+  const errorCode = readEnvelopeErrorCode(resp);
   return {
     respKeys: topLevelKeys(resp),
     respLength: JSON.stringify(resp).length,
-    errorCode: readEnvelopeErrorCode(resp),
+    errorCode: isBankTextOmitted ? redactErrorMessage(errorCode) : errorCode,
   };
 }
 
@@ -113,13 +115,15 @@ function logFireFail(bundle: IDispatchBundle, errorMessage: string): true {
 }
 
 /**
- * Log a successful fire-step outcome (PII-safe).
+ * Log a successful fire-step outcome under its bank-text omission policy.
  * @param bundle - Dispatch bundle.
  * @param resp - Successful response JSON.
  * @returns Sentinel true.
  */
 function logFireOk(bundle: IDispatchBundle, resp: JsonValue): true {
-  const okCtx = { ...bundle.baseCtx, ...describeResponse(resp) };
+  const isBankTextOmitted = bundle.fireScope.isBankTextOmitted === true;
+  const descriptor = describeResponse(resp, isBankTextOmitted);
+  const okCtx = { ...bundle.baseCtx, ...descriptor };
   LOG.debug({ ...okCtx, message: '[runStep] fireStep OK' });
   return true;
 }

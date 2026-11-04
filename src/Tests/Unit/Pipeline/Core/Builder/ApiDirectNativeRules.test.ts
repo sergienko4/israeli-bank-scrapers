@@ -128,6 +128,11 @@ const BROKEN: readonly IBrokenCase[] = [
     message: `headless.statusPolicy: ${OFF}`,
   },
   {
+    label: 'bank text omission, plain',
+    input: runOf([CALL], { ...PLAIN, omitBankText: true }),
+    message: `headless.omitBankText: ${OFF}`,
+  },
+  {
     label: 'cookie domains, no jar',
     input: runOf([CALL], { ...NATIVE, cookieDomains: ['native.example'] }),
     message: 'headless.cookieDomains: not allowed without headless.sessionCookies',
@@ -149,6 +154,7 @@ const EVERY_FIELD: HeadlessBlock = {
   cookieDomains: ['native.example'],
   redirectPolicy: 'reject',
   statusPolicy: { 204: 'empty' },
+  omitBankText: true,
 };
 
 const SOUND: readonly ISoundCase[] = [

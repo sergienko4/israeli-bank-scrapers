@@ -8,7 +8,8 @@
  * {@link ScraperErrorTypes.WafBlocked}: `ApiMediator.retry.ts` treats that as
  * terminal, so a refusal never buys a token re-mint or a second OTP. The edge
  * page is never quoted — its footer carries the client IP and a Ray ID. Every
- * other failure keeps the Generic `<VERB> <url> <status>: <snippet>` shape;
+ * other failure keeps the Generic `<VERB> <url> <status>: <snippet>` shape,
+ * unless the bank's omission policy replaces the snippet with a fixed reason;
  * Pepper's CloudFront 403 must stay Generic because that edge uses it to
  * reject a stale bearer.
  */
@@ -20,6 +21,9 @@ import { safeUrlForLog } from './SafeUrlForLog.js';
 
 /** Maximum length of a response-body snippet embedded in an error message. */
 const ERROR_BODY_SNIPPET_LEN = 120;
+
+/** Fixed reason for banks that prohibit response text in failures. */
+const OMITTED_BODY_REASON = 'response body omitted';
 
 /** Status codes the edge answers a refusal with (4xx); 5xx pages are origin faults. */
 const EDGE_REFUSAL_STATUS = { min: 400, max: 499 } as const;
@@ -48,6 +52,7 @@ interface IHttpFailure {
   readonly url: string;
   readonly status: number;
   readonly body: string;
+  readonly omitBankText?: boolean;
   /** Response headers keyed by lower-case name. */
   readonly headers: Readonly<Record<string, string>>;
 }
@@ -114,14 +119,16 @@ const EDGE_REFUSAL_RULES: readonly IEdgeRefusalRule[] = [
  * Classify a failed or challenged response into a failure Procedure.
  * @param failure - Verb, URL, status, body and headers of the response.
  * @returns WafBlocked with a fixed reason for an edge refusal, otherwise
- *   Generic with a body snippet. Both keep the status prefix.
+ *   Generic with a body snippet unless omitted by policy. Both keep the status prefix.
  */
 function classifyHttpFailure<T>(failure: IHttpFailure): Procedure<T> {
   const safeUrl = safeUrlForLog(failure.url);
   const prefix = `${failure.verb} ${safeUrl} ${String(failure.status)}: `;
   const refusal = EDGE_REFUSAL_RULES.find((rule): boolean => rule.matches(failure));
   if (refusal) return fail(ScraperErrorTypes.WafBlocked, prefix + refusal.reason);
-  const snippet = failure.body.slice(0, ERROR_BODY_SNIPPET_LEN);
+  const snippet = failure.omitBankText
+    ? OMITTED_BODY_REASON
+    : failure.body.slice(0, ERROR_BODY_SNIPPET_LEN);
   return fail(ScraperErrorTypes.Generic, prefix + snippet);
 }
 

@@ -74,6 +74,7 @@ function cookieValueOf(pair: string): string {
 
 /** Every synthetic secret the bank or the caller hands the scraper. */
 const SECRETS: readonly string[] = [
+  MIZRAHI_MOCK_CREDS.username,
   MIZRAHI_MOCK_CREDS.password,
   MZ_XSRF_RAW,
   MZ_XSRF_DECODED,
@@ -89,7 +90,7 @@ describe('Mizrahi browserless logs', () => {
     LOG_LINES.length = 0;
   });
 
-  it.each(['none', 'expire401', 'logonNoXsrf'] as const)(
+  it.each(['none', 'expire401', 'changeAccount500', 'logonNoXsrf'] as const)(
     'logs no secret on a %s run',
     async fault => {
       await MIZRAHI_RUN.runMizrahi(fault);

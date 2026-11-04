@@ -63,6 +63,8 @@ interface IFetchCallPolicy {
 interface IResponseReading {
   readonly statusPolicy: StatusPolicy;
   readonly responseKind: ResponseKind;
+  /** Omit the response snippet from generic HTTP failures, not WAF classification. */
+  readonly omitBankText?: boolean;
   readonly documentMarker?: string;
   readonly headerSink?: IResponseHeaderSink;
   /** Internal notification of a policy-approved empty response; returns a recorded-event count. */

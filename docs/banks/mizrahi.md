@@ -59,8 +59,12 @@ for `logon` and every data call.
 `LoginUser` reports its result in `ReturnCode`: `1` is success, `2` fails the
 run as `INVALID_PASSWORD`, `4` as `CHANGE_PASSWORD`, `5` as `ACCOUNT_BLOCKED`,
 and any other value as `GENERIC` (`login outcome unmapped`). The config sets
-`omitBankText`, so no failure message carries the bank's own text: a `logon`
-reply without `xsrfToken` fails as `GENERIC` naming the missing field only.
+`omitBankText`, so a `logon` reply without `xsrfToken` fails as `GENERIC`
+naming the missing field only. `MIZRAHI_HEADLESS` carries the same omission
+policy into the native transport: HTTP failures from `changeAccount` and
+`get428Index` keep their status but never quote bank response text. WAF
+classification and its fixed reasons are preserved. Login diagnostics record
+the bank's `error_code` as a length-only hint, never its raw value.
 
 There is no long-term token: every run logs in cold, and `persistentOtpToken`
 stays unset.

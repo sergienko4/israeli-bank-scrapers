@@ -231,6 +231,10 @@ text reaches the failure. `buildReduceArgs` reads the flag once per flow and
 `collectCarry` hands it to `extractFields`; banks that leave it unset keep
 today's message.
 
+The same flag keeps a response's `error_code` out of login diagnostics:
+the logger records a length-only hint instead of the bank-supplied value.
+Banks that leave the flag unset or false retain their existing diagnostics.
+
 ### Step outcome
 
 Some banks refuse a login with HTTP 200 and a status code in the body. A step
@@ -333,7 +337,11 @@ from what it extracted:
 - `deriveCarry` runs once the step's extracts are in scope
   ([Carry derivation](#carry-derivation)).
 - `omitBankText: true` on the config keeps reply text out of a missed extract
+  and records a length-only hint for `error_code` in login diagnostics
   ([Bank text in failures](#bank-text-in-failures)).
+- `headless.omitBankText: true` also omits bank text from native HTTP failures,
+  including post-login data calls. WAF classification still runs first
+  ([Headless transports](../architecture/pipeline.md#headless-transports)).
 
 ### Build-time config checks
 
@@ -371,7 +379,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a manual `redirect` whose `maxHops` is not an integer from 1 to 10                                                                    | `redirect.maxHops: must be an integer from 1 to 10`                      |
 | a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`                                                     | `headless.redirectPolicy: must be reject when a step redirects manually` |
 | a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |
-| `headless.cookieDomains`, `redirectPolicy` or `statusPolicy` without `headless.nativeFetch: true`, on an api-direct or node-tls bank  | `headless.<field>: not allowed without headless.nativeFetch`             |
+| `headless.cookieDomains`, `redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, on an api-direct or node-tls bank | `headless.<field>: not allowed without headless.nativeFetch` |
 | `headless.cookieDomains` without `headless.sessionCookies: true`                                                                      | `headless.cookieDomains: not allowed without headless.sessionCookies`    |
 | a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                            | `headerExtractsToCarry.header: must be an HTTP header name`              |
 

@@ -24,7 +24,6 @@ import { MtlsFetchStrategy } from '../../Strategy/Fetch/Mtls/MtlsFetchStrategy.j
 import { MtlsGraphQLFetchStrategy } from '../../Strategy/Fetch/Mtls/MtlsGraphQLFetchStrategy.js';
 import { buildMtlsAgent } from '../../Strategy/Fetch/Mtls/MtlsTransport.js';
 import type { ICertBundle } from '../../Strategy/Fetch/Mtls/OneZeroClientCert.js';
-import type { NativeFetchStrategy } from '../../Strategy/Fetch/NativeFetchStrategy.js';
 import {
   type ISessionTransport,
   withCookieSession,
@@ -40,6 +39,9 @@ import type {
   IHeadlessMediatorArgs,
   IHeadlessStrategies,
 } from './ApiMediator.types.js';
+
+/** Preserve the constructor tuple so Reflect selects its typed overload. */
+type HeadlessConstructorArgs = ConstructorParameters<typeof HeadlessNativeFetchStrategy>;
 
 /**
  * Install the static Authorization header when configured.
@@ -63,7 +65,8 @@ function applyStaticAuth(
  */
 function buildGqlStrategy(args: IGraphQLTransportArgs): GraphQLFetchStrategy {
   const headers = args.graphqlHeaders ?? {};
-  const policies = { redirectPolicy: args.redirectPolicy, statusPolicy: args.statusPolicy };
+  const { redirectPolicy, statusPolicy } = args;
+  const policies = { redirectPolicy, statusPolicy, omitBankText: args.omitBankText };
   return Reflect.construct(GraphQLFetchStrategy, [args.graphqlUrl, headers, policies]);
 }
 
@@ -73,10 +76,10 @@ function buildGqlStrategy(args: IGraphQLTransportArgs): GraphQLFetchStrategy {
  * @returns Strategy pair.
  */
 function buildHeadlessStrategies(args: IHeadlessMediatorArgs): IHeadlessStrategies {
-  const fetch: NativeFetchStrategy = Reflect.construct(HeadlessNativeFetchStrategy, [
-    args.identityBaseUrl,
-    { redirectPolicy: args.redirectPolicy, statusPolicy: args.statusPolicy },
-  ]);
+  const { redirectPolicy, statusPolicy } = args;
+  const policies = { redirectPolicy, statusPolicy, omitBankText: args.omitBankText };
+  const constructArgs: HeadlessConstructorArgs = [args.identityBaseUrl, policies];
+  const fetch = Reflect.construct(HeadlessNativeFetchStrategy, constructArgs);
   const gql = buildGqlStrategy(args);
   return { fetch, gql };
 }
