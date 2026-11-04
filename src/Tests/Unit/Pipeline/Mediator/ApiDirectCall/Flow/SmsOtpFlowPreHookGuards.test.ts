@@ -6,8 +6,11 @@
  * before its request. A retriever throw is reported by error name only.
  */
 
+import { jest } from '@jest/globals';
+
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
+import { createHeadlessApiMediator } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type {
   IApiDirectCallConfig,
   IStepConfig,
@@ -59,6 +62,7 @@ interface IGuardRunArgs {
   readonly code?: string;
   readonly thrown?: Error;
   readonly jar?: ICookieSession;
+  readonly setCookies?: IStepConfig['setCookies'];
 }
 
 /** What one guarded run did. */
@@ -71,15 +75,17 @@ interface IGuardRun {
 /**
  * The two-step config whose OTP step carries the given pre-hook.
  * @param hook - The pre-hook.
+ * @param setCookies - Client cookies the OTP step will send, if any.
  * @returns Config.
  */
-function configWith(hook: Hook): IApiDirectCallConfig {
+function configWith(hook: Hook, setCookies?: IStepConfig['setCookies']): IApiDirectCallConfig {
   const otpStep: IStepConfig = {
     name: 'login',
     urlTag: WARM_STEP_TAG,
     body: { shape: { otp: { $ref: 'carry.otp' } } },
     extractsToCarry: { token: '/token' },
     preHook: hook,
+    setCookies,
   };
   return { flow: 'sms-otp', envelope: {}, steps: [BIND_STEP, otpStep] };
 }
@@ -131,6 +137,35 @@ function fakeJar(cookies: Readonly<Record<string, string>>, urls: string[]): ICo
 }
 
 /**
+ * A real domain jar seeded with a malformed cookie at the given path.
+ * @param path - Cookie path, which determines request precedence.
+ * @returns The run's cookie-session port.
+ */
+function realJarWithRawCookie(path: string): ICookieSession {
+  const bus = createHeadlessApiMediator({
+    bankHint: HINT,
+    identityBaseUrl: 'https://bank.example/',
+    graphqlUrl: 'https://bank.example/graphql',
+    sessionCookies: true,
+    cookieDomains: ['bank.example'],
+  });
+  const jar = bus.cookies;
+  if (jar === undefined) throw new TypeError('domain jar fixture unavailable');
+  jar.importAll([
+    {
+      name: 'csrfcookie',
+      value: 'syn-%ZZ',
+      domain: 'bank.example',
+      path,
+      hostOnly: true,
+      secure: true,
+      expiresEpochS: 0,
+    },
+  ]);
+  return jar;
+}
+
+/**
  * Run the two-step flow with a retriever that records its hint.
  * @param args - Hook, bind answer, code or throw, optional jar.
  * @returns The flow result, the requests sent and the hints received.
@@ -151,7 +186,7 @@ async function runGuarded(args: IGuardRunArgs): Promise<IGuardRun> {
     if (args.thrown !== undefined) return Promise.reject(args.thrown);
     return Promise.resolve(args.code ?? '12345');
   };
-  const config = configWith(args.hook);
+  const config = configWith(args.hook, args.setCookies);
   const creds = { otpCodeRetriever };
   const result = await runSmsOtpFlow({ config, bus, creds, companyId: HINT });
   return { result, captures, hints };
@@ -197,6 +232,97 @@ describe('SmsOtpFlow — pre-hook guards', () => {
     expect(run.result).toMatchObject({ success: true });
     expect(run.hints).toHaveLength(1);
     expect(urls[0]).toBe(STEP_URL);
+  });
+
+  it('resolves a required cookie the same step will set before requesting an OTP', async () => {
+    const jar = fakeJar({}, []);
+    const run = await runGuarded({
+      hook: COOKIE_HOOK,
+      bind: FULL_BIND,
+      jar,
+      setCookies: { csrfcookie: 'carry.flow' },
+    });
+    expect(run.result).toMatchObject({ success: true });
+    expect(run.hints).toHaveLength(1);
+    expect(run.captures).toHaveLength(2);
+  });
+
+  it('does not set a same-step cookie before all required refs validate', async () => {
+    const set = jest.fn<ReturnType<ICookieSession['set']>, Parameters<ICookieSession['set']>>(
+      () => 0,
+    );
+    const jar = { ...fakeJar({}, []), set };
+    const hook = { ...COOKIE_HOOK, requires: ['cookie.csrfcookie', 'carry.absent'] as const };
+    const run = await runGuarded({
+      hook,
+      bind: FULL_BIND,
+      jar,
+      setCookies: { csrfcookie: 'carry.flow' },
+    });
+    expect(run.result).toMatchObject({
+      success: false,
+      errorMessage: 'ref carry.absent missing from scope.carry',
+    });
+    expect(run.hints).toEqual([]);
+    expect(set).not.toHaveBeenCalled();
+  });
+
+  it('keeps the cookie resolver miss when a same-step cookie cannot resolve', async () => {
+    const run = await runGuarded({
+      hook: COOKIE_HOOK,
+      bind: FULL_BIND,
+      jar: fakeJar({}, []),
+      setCookies: { csrfcookie: 'carry.missing' },
+    });
+    expect(run.result).toMatchObject({
+      success: false,
+      errorMessage: 'ref cookie.csrfcookie miss',
+    });
+    expect(run.hints).toEqual([]);
+  });
+
+  it('rejects a deeper invalid cookie before an OTP despite a pending root cookie', async () => {
+    const jar = realJarWithRawCookie('/authenticate');
+    const run = await runGuarded({
+      hook: COOKIE_HOOK,
+      bind: FULL_BIND,
+      jar,
+      setCookies: { csrfcookie: 'carry.flow' },
+    });
+    expect(run.result).toMatchObject({ success: false, errorMessage: 'ref cookie.csrfcookie bad' });
+    expect(run.hints).toEqual([]);
+    expect(run.captures).toHaveLength(1);
+    const stored = jar.exportAll();
+    expect(stored).toHaveLength(1);
+  });
+
+  it('preserves a malformed cookie source failure instead of reporting a miss', async () => {
+    const jar = realJarWithRawCookie('/');
+    const run = await runGuarded({
+      hook: COOKIE_HOOK,
+      bind: FULL_BIND,
+      jar,
+      setCookies: { csrfcookie: 'cookie.csrfcookie' },
+    });
+    expect(run.result).toMatchObject({ success: false, errorMessage: 'ref cookie.csrfcookie bad' });
+    expect(run.hints).toEqual([]);
+    const stored = jar.exportAll();
+    expect(stored).toHaveLength(1);
+  });
+
+  it('accepts a pending root cookie that replaces the stored root cookie', async () => {
+    const jar = realJarWithRawCookie('/');
+    const run = await runGuarded({
+      hook: COOKIE_HOOK,
+      bind: FULL_BIND,
+      jar,
+      setCookies: { csrfcookie: 'carry.flow' },
+    });
+    expect(run.result).toMatchObject({ success: true });
+    expect(run.hints).toHaveLength(1);
+    expect(run.captures).toHaveLength(2);
+    const cookie = jar.cookieFor(STEP_URL, 'csrfcookie');
+    expect(cookie).toEqual({ has: true, value: 'auth' });
   });
 
   it.each<[string, ICookieSession | undefined]>([

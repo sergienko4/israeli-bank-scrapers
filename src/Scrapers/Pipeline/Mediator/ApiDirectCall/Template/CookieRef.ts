@@ -8,12 +8,12 @@
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Option } from '../../../Types/Option.js';
 import { none } from '../../../Types/Option.js';
-import type { Procedure } from '../../../Types/Procedure.js';
+import type { IProcedureFailure, Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 
-/** The step's jar view: a cookie's raw value for the step URL. */
-type CookieLookup = (name: string) => Option<string>;
+/** The step's jar view: a raw value, absence, or an earlier resolution failure. */
+type CookieLookup = (name: string) => Option<string> | IProcedureFailure;
 
 const MAX_RAW_CHARS = 4096;
 
@@ -47,6 +47,7 @@ function decodeOrFalse(raw: string): string | false {
  */
 function resolveCookieRef(name: string, lookup: CookieLookup = noCookies): Procedure<JsonValue> {
   const found = lookup(name);
+  if ('success' in found) return found;
   if (!found.has) return fail(ScraperErrorTypes.Generic, `ref cookie.${name} miss`);
   const decoded = decodeOrFalse(found.value);
   if (decoded === false) return fail(ScraperErrorTypes.Generic, `ref cookie.${name} bad`);

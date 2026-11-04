@@ -118,4 +118,4 @@ function bindStepCookies(args: IRunStepArgs): Procedure<IRunStepArgs> {
 }
 
 export default bindStepCookies;
-export { bindStepCookies };
+export { bindStepCookies, clientCookieOf };

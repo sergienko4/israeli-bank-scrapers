@@ -98,9 +98,10 @@ interface IPreStepHook {
    */
   readonly hintFrom?: `carry.${string}`;
   /**
-   * Optional refs that must resolve, against the step's jar view, before
-   * the callback is asked; a miss fails the step with the resolver's own
-   * message and no code is asked for (N21).
+   * Optional refs that must resolve before the callback is asked (N21).
+   * Cookie refs see existing jar values and the step's own pending setCookies.
+   * Pending cookies are not committed before validation; misses retain the
+   * resolver's own failure message.
    */
   readonly requires?: readonly RefToken[];
   /**

@@ -288,9 +288,10 @@ class NativeFetchStrategy implements IFetchStrategy {
    */
   public async fetchPost<T>(url: string, data: PostData, opts: IFetchOpts): Promise<Procedure<T>> {
     const written = writePostBody(data, opts.bodyEncoding);
+    if (!isOk(written)) return written;
     const merged = overlayHeaders(this._verbDefaults.POST, opts.extraHeaders);
-    const headers = withBodyContentType(merged, written);
-    const init: RequestInit = { method: 'POST', headers, body: written.body };
+    const headers = withBodyContentType(merged, written.value);
+    const init: RequestInit = { method: 'POST', headers, body: written.value.body };
     const run = this.toRun({ url, init, verb: 'POST' }, opts);
     return dispatchFetch<T>(run);
   }

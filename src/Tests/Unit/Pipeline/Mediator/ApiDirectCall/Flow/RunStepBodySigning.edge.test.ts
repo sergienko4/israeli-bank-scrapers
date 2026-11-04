@@ -106,9 +106,44 @@ describe('writeAtPointer — pointer validation', () => {
     expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Generic });
     expect(doc).toEqual({ items: [{ credentials: '', other: 'keep' }] });
   });
+
+  it('rejects a final __proto__ segment without changing the container prototype', () => {
+    const doc = { auth: { existing: 'keep' } };
+    const result = writeAtPointer(doc, '/auth/__proto__', { unwanted: true });
+    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Generic });
+    const prototype: unknown = Object.getPrototypeOf(doc.auth);
+    expect(prototype).toBe(Object.prototype);
+  });
+
+  it('rejects an intermediate __proto__ segment before writing its child', () => {
+    const ownProto = Object.fromEntries([['__proto__', { existing: 'keep' }]]);
+    const doc = { auth: ownProto };
+    const result = writeAtPointer(doc, '/auth/__proto__/unwanted', 'value');
+    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Generic });
+    expect(ownProto.__proto__).toEqual({ existing: 'keep' });
+  });
 });
 
 describe('applyCryptoField — strict validation branches', () => {
+  it('encrypts an array field without changing the source body', () => {
+    const hook = makeCryptoStep().preHook;
+    if (hook?.cryptoField === undefined) throw new TypeError('Missing cryptoField fixture');
+    const step = makeCryptoStep({
+      preHook: { ...hook, cryptoField: { ...hook.cryptoField, writeTo: '/auth/0/pinCipher' } },
+    });
+    const scope = makeScope({ pin: 'syn-pin-48213', pinIvHex: VALID_IV_HEX });
+    const body = { auth: [{ pinCipher: '', other: 'keep' }] };
+    const result = applyCryptoField({ step, scope, body });
+    expect(result.success).toBe(true);
+    expect(body.auth).toEqual([{ pinCipher: '', other: 'keep' }]);
+    if (result.success) {
+      const auth = result.value.body.auth as { pinCipher: string; other: string }[];
+      expect(auth).toHaveLength(1);
+      expect(auth[0].pinCipher).toMatch(/\S/u);
+      expect(auth[0].other).toBe('keep');
+    }
+  });
+
   it('fails when the intoCarryField slot is absent from scope.carry', () => {
     const result = applyCryptoField({
       step: makeCryptoStep(),
@@ -258,6 +293,22 @@ function makeAesScope(overrides: IAesScopeOverrides): ITemplateScope {
 }
 
 describe('attachBodySignature — AES signer error branches', () => {
+  it('signs an array field without changing the source body', () => {
+    const base = makeAesScope({ carry: { signIvHex: VALID_IV_HEX } });
+    const signer = { ...AES_SIGNER, bodySignatureField: '/auth/0/signature' };
+    const scope = { ...base, config: { ...base.config, signer } };
+    const body = { auth: [{ signature: '', other: 'keep' }] };
+    const result = attachBodySignature({ scope, body, pathAndQuery: '/auth' });
+    expect(result.success).toBe(true);
+    expect(body.auth).toEqual([{ signature: '', other: 'keep' }]);
+    if (result.success) {
+      const auth = result.value.auth as { signature: string; other: string }[];
+      expect(auth).toHaveLength(1);
+      expect(auth[0].signature).toMatch(/\S/u);
+      expect(auth[0].other).toBe('keep');
+    }
+  });
+
   it('fails when the signer keyRef cannot be resolved in scope.config', () => {
     const scope = makeAesScope({ secrets: {}, carry: { signIvHex: VALID_IV_HEX } });
     const result = attachBodySignature({ scope, body: { a: 1 }, pathAndQuery: '/p' });

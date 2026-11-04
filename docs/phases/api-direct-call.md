@@ -354,9 +354,12 @@ preHook: {
   missing or not text passes `''`. The hint is never logged.
 - `requires` lists refs that must resolve before the callback is asked.
   `checkPreHookRequires` resolves them against the step's own cookie view,
-  bound to the step URL as `runStep` binds it. The first miss fails the step
-  with the resolver's message (`ref carry.<x> missing from scope.carry`,
-  `ref cookie.<x> miss`), so no code is spent on a login that cannot finish.
+  bound to the step URL as `runStep` binds it. `clientCookieOf` previews the
+  step's `setCookies` without committing them before validation, using the
+  jar's domain/path precedence and retaining malformed cookie-source failures.
+  The first miss fails with the resolver's message
+  (`ref carry.<x> missing from scope.carry`, `ref cookie.<x> miss`), so no code
+  is spent on a login that cannot finish.
 - `valuePattern` is an anchored regex. `checkPreHookValue` tests the
   deposited value; a value that does not match, or is not text, fails the
   step `INVALID_OTP` with `<step> preHook value invalid` before its request
@@ -448,7 +451,8 @@ from what it extracted:
   ([Carry derivation](#carry-derivation)).
 - `encoding: 'form'` sends the body as `application/x-www-form-urlencoded`;
   its shape must be a flat record of `$ref` and scalar `$literal` values
-  ([Form bodies](../architecture/pipeline.md#form-bodies)).
+  ([Form bodies](../architecture/pipeline.md#form-bodies)). `isFlatFormBody`
+  guards the hydrated step and the transport against arrays and nested values.
 - `seal` writes one credential, sealed under the bank's RSA modulus, at a
   body pointer; neither value reaches carry
   ([Sealed fields](../architecture/pipeline.md#sealed-fields)).

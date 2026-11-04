@@ -10,9 +10,12 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { ISealFieldConfig, RefToken } from '../ConfigContracts/index.js';
 import { SEALERS } from '../Crypto/SealKinds.js';
+import { type JsonValue, walkPointer } from '../Envelope/JsonPointer.js';
 import { type ITemplateScope, resolveRef } from '../Template/RefResolver.js';
 import type { IPreparedBody, IStepConfig } from './RunStep.types.js';
 import { writeAtPointer } from './RunStepBodySigning.pointer.js';
+
+type SealBody = IPreparedBody['body'];
 
 /**
  * The text a ref resolves to, when it resolves to text.
@@ -42,6 +45,21 @@ function sealedValue(seal: ISealFieldConfig, scope: ITemplateScope): Procedure<s
 }
 
 /**
+ * Write a seal only into an existing field of the prepared body.
+ * @param body - Cloned body.
+ * @param pointer - Seal destination.
+ * @param value - Sealed value.
+ * @returns Updated body or invalid-destination failure.
+ */
+function writeExistingSeal(body: SealBody, pointer: string, value: string): Procedure<SealBody> {
+  const resolved = walkPointer(body as JsonValue, pointer);
+  const invalid = fail(ScraperErrorTypes.Generic, 'seal writeTo invalid');
+  if (!isOk(resolved)) return invalid;
+  const written = writeAtPointer(body, pointer, value);
+  return isOk(written) ? written : invalid;
+}
+
+/**
  * Write the step's sealed field into the prepared body, when it names one.
  * @param step - Step config.
  * @param prepared - Hydrated body and scope.
@@ -53,7 +71,7 @@ function applySeal(step: IStepConfig, prepared: IPreparedBody): Procedure<IPrepa
   const sealed = sealedValue(seal, prepared.scope);
   if (!isOk(sealed)) return fail(ScraperErrorTypes.Generic, `${step.name} ${sealed.errorMessage}`);
   const body = structuredClone(prepared.body);
-  const written = writeAtPointer(body, seal.writeTo, sealed.value);
+  const written = writeExistingSeal(body, seal.writeTo, sealed.value);
   if (!isOk(written)) return fail(ScraperErrorTypes.Generic, `${step.name} seal writeTo invalid`);
   return succeed({ body: written.value, scope: prepared.scope });
 }

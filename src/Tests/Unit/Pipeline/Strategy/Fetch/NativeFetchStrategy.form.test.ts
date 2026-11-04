@@ -61,4 +61,17 @@ describe('NativeFetchStrategy — form bodies', () => {
     expect(fake.calls[0].init.body).toBe('{"a":"1"}');
     expect(sentHeaders(fake)['content-type']).toBe('application/json');
   });
+
+  it.each([
+    ['a top-level array', [{ id: 'syn-account-1' }]],
+    ['a nested record', { auth: { session: 'syn-session' } }],
+    ['an array value', { accounts: ['syn-account-1'] }],
+    ['a null value', { auth: null }],
+    ['a non-finite number', { limit: Number.POSITIVE_INFINITY }],
+  ])('rejects %s before sending a form', async (_label, data) => {
+    const fake = serveEmpty();
+    const result = await STRATEGY.fetchPost('login', data, FORM);
+    expect(result).toMatchObject({ success: false, errorMessage: 'form body not flat' });
+    expect(fake.calls).toHaveLength(0);
+  });
 });

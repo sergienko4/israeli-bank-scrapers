@@ -47,6 +47,15 @@ const OUTCOME: IStepOutcome = {
 };
 
 const NO_CODES_STEP: IStepConfig = { ...STEP, outcome: { ...OUTCOME, successCodes: [] } };
+const COLLIDING_OUTCOME: IStepOutcome = {
+  ...OUTCOME,
+  caseInsensitive: true,
+  failureMap: {
+    Locked: ScraperErrorTypes.AccountBlocked,
+    locked: ScraperErrorTypes.InvalidPassword,
+  },
+};
+const COLLIDING_STEP: IStepConfig = { ...STEP, outcome: COLLIDING_OUTCOME };
 const WARM = { credsField: 'otpLongTermToken', carryField: 'token', fromStepIndex: 1 };
 const CLAIMS = { freshnessField: 'exp', skewSeconds: 30 } as const;
 
@@ -162,6 +171,7 @@ const PREFIX_MSG = 'authPrefix: required when authScheme is prefixed';
 const NONE_MSG = 'headless.sessionCookies: required when authScheme is none';
 const JAR_MSG = 'steps.cookieJar: not allowed with headless.sessionCookies';
 const CODES_MSG = 'outcome.successCodes: must not be empty';
+const COLLISION_MSG = 'outcome.failureMap: duplicate keys ignoring case';
 const CLAIMS_MSG = 'jwtClaims: required when warmStart.validation is jwt';
 const BANK_CALL_MSG = 'warmStart.fromStepIndex: must name a step when validation is bank-call';
 const FIRST_STEP_MSG = 'warmStart.fromStepIndex: must start after the first step';
@@ -208,6 +218,16 @@ const BROKEN: readonly BrokenCase[] = [
     'empty success codes on a resume step',
     { call: makeCall({ persistentAuth: resumeWith(NO_CODES_STEP) }), headless: false },
     CODES_MSG,
+  ],
+  [
+    'case-insensitive failure keys collide on a login step',
+    { call: makeCall({ steps: [COLLIDING_STEP] }), headless: false },
+    COLLISION_MSG,
+  ],
+  [
+    'case-insensitive failure keys collide on a resume step',
+    { call: makeCall({ persistentAuth: resumeWith(COLLIDING_STEP) }), headless: false },
+    COLLISION_MSG,
   ],
   [
     'default jwt warm, no claims',
@@ -274,6 +294,15 @@ const SOUND: readonly SoundCase[] = [
   [
     'outcome with success codes',
     { call: makeCall({ steps: [{ ...STEP, outcome: OUTCOME }] }), headless: false },
+  ],
+  [
+    'case-sensitive failure keys retain distinct mappings',
+    {
+      call: makeCall({
+        steps: [{ ...COLLIDING_STEP, outcome: { ...COLLIDING_OUTCOME, caseInsensitive: false } }],
+      }),
+      headless: false,
+    },
   ],
   [
     'jwt warm past the last step, with claims',

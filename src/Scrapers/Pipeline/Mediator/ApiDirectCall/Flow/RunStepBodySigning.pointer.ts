@@ -11,6 +11,7 @@ import type { DocObj, DocValue } from './RunStepBodySigning.types.js';
 type DocContainer = DocObj | unknown[];
 
 const INVALID_INDEX = 'writeAtPointer: invalid array index';
+const INVALID_SEGMENT = 'writeAtPointer: invalid pointer segment';
 
 /**
  * Whether a JSON value can contain another pointer segment.
@@ -70,6 +71,17 @@ interface IDescendArgs {
 }
 
 /**
+ * Write to a validated terminal pointer segment.
+ * @param args - Descent bundle.
+ * @param key - Validated segment.
+ * @returns Procedure with the root document.
+ */
+function writeFinalSegment(args: IDescendArgs, key: string): Procedure<DocObj> {
+  Object.assign(args.cursor, { [key]: args.value });
+  return succeed(args.root);
+}
+
+/**
  * Descend through pointer segments, creating intermediate objects, and
  * write `value` at the final segment.
  * @param args - Descent bundle.
@@ -77,11 +89,9 @@ interface IDescendArgs {
  */
 function descendAndWrite(args: IDescendArgs): Procedure<DocObj> {
   const [head, ...tail] = args.parts;
+  if (head === '__proto__') return fail(ScraperErrorTypes.Generic, INVALID_SEGMENT);
   if (!isWritableSlot(args.cursor, head)) return fail(ScraperErrorTypes.Generic, INVALID_INDEX);
-  if (tail.length === 0) {
-    Object.assign(args.cursor, { [head]: args.value });
-    return succeed(args.root);
-  }
+  if (tail.length === 0) return writeFinalSegment(args, head);
   const next = pickOrCreateChild(args.cursor, head);
   return descendAndWrite({ cursor: next, parts: tail, value: args.value, root: args.root });
 }

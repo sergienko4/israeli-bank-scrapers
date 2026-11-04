@@ -25,6 +25,7 @@ import { none, type Option } from '../../../../../../Scrapers/Pipeline/Types/Opt
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertOk } from '../../../../../Helpers/AssertProcedure.js';
+import { fakeFetch } from '../../../../../Helpers/FakeFetch.js';
 import { type IApiPostCapture, makeStubMediator } from './StubMediator.js';
 import { makeJwt, WARM_STEP_TAG, warmTwoStepConfig } from './WarmStartFixtures.js';
 
@@ -58,6 +59,7 @@ const STRATEGY =
   await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js');
 const RESOLVER =
   await import('../../../../../../Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.js');
+const MEDIATOR = await import('../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js');
 const URLS = await import('../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js');
 
 type RejectionKey = keyof typeof CODEC.WARM_JAR_REJECTIONS;
@@ -434,6 +436,37 @@ describe('cookie-jar warm start through the strategy', () => {
     expect(run.jar.events).toEqual([IMPORTED]);
     expect(wasWarm).toBe(true);
     expect(published).toBe(GOOD);
+  });
+
+  it('sends an imported cookie on the resumed request through the native transport', async () => {
+    const cookie = { ...COOKIES[0], domain: 'example.test' };
+    const stored = CODEC.encodeWarmJar(IDENTITY, [cookie]);
+    assertOk(stored);
+    const fake = fakeFetch((): Response => Response.json({ access_token: makeJwt(36000) }));
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
+    try {
+      const bus = MEDIATOR.createHeadlessApiMediator({
+        bankHint: CompanyTypes.OneZero,
+        identityBaseUrl: 'https://example.test',
+        graphqlUrl: 'https://example.test/graphql',
+        sessionCookies: true,
+        cookieDomains: ['example.test'],
+      });
+      const config = jarConfig();
+      const strategy = makeStrategy(config);
+      const creds = credsWith(stored.value);
+      const result = await strategy.primeInitial(bus, CTX, creds);
+      assertOk(result);
+      const wasWarm = strategy.lastPrimeWasWarm();
+      expect(wasWarm).toBe(true);
+      expect(fake.calls).toHaveLength(WARM_STEPS);
+      const headers = new Headers(fake.calls[0].init.headers);
+      const sentCookie = headers.get('cookie');
+      expect(sentCookie).toBe(`SMSESSION=${cookie.value}`);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it.each(['prefix', 'account'] as const)(

@@ -5,7 +5,10 @@
  * content-type the caller named, so a form body never travels as JSON.
  */
 
+import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { BodyEncoding } from '../../Types/Domain/FetchPolicy.js';
+import type { Procedure } from '../../Types/Procedure.js';
+import { fail, succeed } from '../../Types/Procedure.js';
 import type { PostData } from './FetchStrategy.js';
 
 /** Content-type every form body is sent under. */
@@ -18,15 +21,35 @@ interface IWrittenBody {
 }
 
 /** Writes one POST body. */
-type BodyWriter = (data: PostData) => IWrittenBody;
+type BodyWriter = (data: PostData) => Procedure<IWrittenBody>;
 
 /**
  * Write the body as JSON text.
  * @param data - POST body.
  * @returns JSON text; the transport's content-type stands.
  */
-function writeJson(data: PostData): IWrittenBody {
-  return { body: JSON.stringify(data) };
+function writeJson(data: PostData): Procedure<IWrittenBody> {
+  return succeed({ body: JSON.stringify(data) });
+}
+
+/**
+ * Whether a value can travel as one form field.
+ * @param value - Candidate field value.
+ * @returns True for a string, finite number or boolean.
+ */
+function isFormScalar(value: unknown): boolean {
+  if (typeof value === 'string' || typeof value === 'boolean') return true;
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+/**
+ * Whether a body is a record of form scalars, not an array or nested value.
+ * @param data - Candidate body.
+ * @returns True when every own value can be encoded as one form field.
+ */
+function isFlatFormBody(data: unknown): boolean {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) return false;
+  return Object.values(data).every(isFormScalar);
 }
 
 /**
@@ -44,13 +67,14 @@ function formText(value: unknown): string {
  * @param data - Flat POST record.
  * @returns Form text and the form content-type.
  */
-function writeForm(data: PostData): IWrittenBody {
+function writeForm(data: PostData): Procedure<IWrittenBody> {
+  if (!isFlatFormBody(data)) return fail(ScraperErrorTypes.Generic, 'form body not flat');
   const pairs = Object.entries(data).map(([key, value]): [string, string] => [
     key,
     formText(value),
   ]);
   const body = new URLSearchParams(pairs).toString();
-  return { body, contentType: FORM_CONTENT_TYPE };
+  return succeed({ body, contentType: FORM_CONTENT_TYPE });
 }
 
 /** Writer per body encoding. */
@@ -65,7 +89,7 @@ const BODY_WRITERS: Readonly<Record<BodyEncoding, BodyWriter>> = {
  * @param encoding - Body encoding; `json` when absent.
  * @returns Written body.
  */
-function writePostBody(data: PostData, encoding: BodyEncoding = 'json'): IWrittenBody {
+function writePostBody(data: PostData, encoding: BodyEncoding = 'json'): Procedure<IWrittenBody> {
   return BODY_WRITERS[encoding](data);
 }
 
@@ -86,4 +110,4 @@ function withBodyContentType(
   return { ...Object.fromEntries(kept), 'content-type': written.contentType };
 }
 
-export { withBodyContentType, writePostBody };
+export { isFlatFormBody, withBodyContentType, writePostBody };

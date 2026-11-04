@@ -192,6 +192,15 @@ describe('N10 sealed login fields', () => {
     });
   });
 
+  it('refuses a seal destination missing from the hydrated body before sending', async () => {
+    const step = jsonSeal({ auth: { $literal: { other: 'keep' } } }, '/auth/credentials');
+    const fake = serveState();
+    const bus = makeNativeMediator(HINT, ORIGIN);
+    const result = await runStep({ step, bus, scope: scopeWith(KEY.modulusHex), companyId: HINT });
+    expect(result).toMatchObject({ success: false, errorMessage: 'login seal writeTo invalid' });
+    expect(fake.calls).toHaveLength(0);
+  });
+
   it('fails "<step> seal key invalid" before any request for a bad modulus', async () => {
     const fake = serveState();
     const result = await fireSeal('abc');

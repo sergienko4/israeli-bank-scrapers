@@ -12,7 +12,8 @@
 import { writePostBody } from '../../Strategy/Fetch/PostBody.js';
 import type { ApiPostData } from '../../Types/Domain/ApiPostData.js';
 import type { BodyEncoding } from '../../Types/Domain/FetchPolicy.js';
-import { isOk } from '../../Types/Procedure.js';
+import type { Procedure } from '../../Types/Procedure.js';
+import { isOk, succeed } from '../../Types/Procedure.js';
 import type { IHmacHeaderSignerConfig } from '../ApiDirectCall/ConfigContracts/SignerTypes.js';
 import type {
   ISignedRequest,
@@ -84,12 +85,17 @@ function isHmacSigner(value: unknown): value is IHmacHeaderSignerConfig {
  * empty buffer for bodyless GETs.
  * @param body - Final outbound body (undefined for GET).
  * @param encoding - Selected body encoding; JSON when absent.
- * @returns UTF-8 body bytes.
+ * @returns UTF-8 body bytes, or failure for a body the transport cannot write.
  */
-function toBodyBytes(body?: ApiPostData, encoding?: BodyEncoding): Buffer {
-  if (body === undefined) return Buffer.alloc(0);
+function toBodyBytes(body?: ApiPostData, encoding?: BodyEncoding): Procedure<Buffer> {
+  if (body === undefined) {
+    const empty = Buffer.alloc(0);
+    return succeed(empty);
+  }
   const written = writePostBody(body, encoding);
-  return Buffer.from(written.body, 'utf8');
+  if (!isOk(written)) return written;
+  const bytes = Buffer.from(written.value.body, 'utf8');
+  return succeed(bytes);
 }
 
 /** Bundled signing inputs resolved from the session context. */
@@ -120,16 +126,17 @@ function toHeaderMap(
  * Build the per-request signing inputs from a resolved (key + args)
  * bundle, minting a fresh timestamp + nonce for this attempt.
  * @param resolved - Key, directive, and request args.
- * @returns Inputs for {@link signRequest}.
+ * @returns Inputs for {@link signRequest}, or an invalid-body failure.
  */
-function buildSignArgs(resolved: IResolvedSigning): ISignRequestArgs {
-  const url = new URL(resolved.args.url);
-  const nowMs = Date.now();
+function buildSignArgs(resolved: IResolvedSigning): Procedure<ISignRequestArgs> {
   const bodyBytes = toBodyBytes(resolved.args.body, resolved.args.bodyEncoding);
+  if (!isOk(bodyBytes)) return bodyBytes;
+  const url = new URL(resolved.args.url);
   const hmacKey = Buffer.from(resolved.keyHex, 'hex');
-  const timestamp = String(nowMs);
+  const timestamp = Date.now().toString();
   const nonce = mintNonce();
-  return { method: resolved.args.method, path: url.pathname, bodyBytes, hmacKey, timestamp, nonce };
+  const request = { method: resolved.args.method, path: url.pathname, bodyBytes: bodyBytes.value };
+  return succeed({ ...request, hmacKey, timestamp, nonce });
 }
 
 /**
@@ -139,7 +146,8 @@ function buildSignArgs(resolved: IResolvedSigning): ISignRequestArgs {
  */
 function signResolved(resolved: IResolvedSigning): Record<string, string> {
   const signArgs = buildSignArgs(resolved);
-  const signed = signRequest(signArgs);
+  if (!isOk(signArgs)) return NO_HMAC_HEADERS;
+  const signed = signRequest(signArgs.value);
   if (!isOk(signed)) return NO_HMAC_HEADERS;
   return toHeaderMap(resolved.signer, signed.value);
 }

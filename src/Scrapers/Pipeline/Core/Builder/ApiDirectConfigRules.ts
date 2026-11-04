@@ -72,6 +72,19 @@ function hasEmptySuccessCodes(input: IApiDirectRuleInput): boolean {
 }
 
 /**
+ * Refuse failure-map keys that collapse to the same code at runtime.
+ * @param input - Rule input.
+ * @returns True when a case-insensitive outcome has colliding keys.
+ */
+function hasCaselessFailureMapCollision(input: IApiDirectRuleInput): boolean {
+  return allSteps(input.call).some((step): boolean => {
+    if (step.outcome?.caseInsensitive !== true) return false;
+    const keys = Object.keys(step.outcome.failureMap).map((key): string => key.toLowerCase());
+    return new Set(keys).size !== keys.length;
+  });
+}
+
+/**
  * The 'jwt' warm check needs claims to judge freshness locally.
  * @param input - Rule input.
  * @returns True when 'jwt' validation has no `jwtClaims`.
@@ -207,6 +220,10 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
     isBroken: isJarDoubled,
   },
   { message: 'outcome.successCodes: must not be empty', isBroken: hasEmptySuccessCodes },
+  {
+    message: 'outcome.failureMap: duplicate keys ignoring case',
+    isBroken: hasCaselessFailureMapCollision,
+  },
   {
     message: 'jwtClaims: required when warmStart.validation is jwt',
     isBroken: isJwtWarmWithoutClaims,

@@ -274,11 +274,15 @@ describe('ApiDirectScrapeDispatch.dispatchStep — array POST data (N19)', () =>
     const apiPost = jest.fn((): Promise<Procedure<unknown>> => okResp);
     const baseBus = makeOneShotBus(okOutcome);
     const bus = { ...baseBus, apiPost } as unknown as IApiMediator;
-    const args = makeDispatchArgs({ bus, vars: [] });
+    const vars = [
+      { accountId: 'syn-account-1', amount: 12.5 },
+      { accountId: 'syn-account-2', amount: 7 },
+    ];
+    const args = makeDispatchArgs({ bus, vars });
     const result = await dispatchStep(args);
     expect(result.success).toBe(true);
     const [, dispatchedBody] = apiPost.mock.calls[0] as unknown as [unknown, unknown];
-    expect(dispatchedBody).toEqual([]);
+    expect(dispatchedBody).toEqual(vars);
   });
 
   it.each(ARRAY_VARS_REFUSALS)('refuses array vars on $name', async refusal => {

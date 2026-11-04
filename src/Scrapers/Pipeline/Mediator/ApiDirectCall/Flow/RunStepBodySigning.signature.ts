@@ -104,7 +104,8 @@ function signAndWrite(args: ISignAndWriteArgs): Procedure<DocObj> {
   if (!isOk(inputsProc)) return inputsProc;
   const signed = performAesSign({ inputs: inputsProc.value, signer: args.signer });
   if (!isOk(signed)) return signed;
-  return writeAtPointer(args.body, args.signer.bodySignatureField, signed.value);
+  const body = structuredClone(args.body);
+  return writeAtPointer(body, args.signer.bodySignatureField, signed.value);
 }
 
 /**

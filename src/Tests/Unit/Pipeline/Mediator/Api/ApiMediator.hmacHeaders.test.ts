@@ -52,6 +52,7 @@ const REQUIRED_HEADER_FIELDS = ['timestampHeader', 'nonceHeader', 'signatureHead
 
 const POST_BODY = { a: '1', note: 'x + \u00e9', count: 3, ready: true };
 const JSON_BODY = JSON.stringify(POST_BODY);
+const ARRAY_BODY = [{ accountId: 'syn-account-1', amount: 12.5 }] as const;
 
 /**
  * Build a signer directive with one header-name field removed.
@@ -168,18 +169,30 @@ describe('ApiMediator HMAC signature over native wire bytes', () => {
   });
 
   it.each([
-    { label: 'default JSON', bodyEncoding: undefined, expectedBody: JSON_BODY },
+    {
+      label: 'default JSON',
+      requestBody: POST_BODY,
+      bodyEncoding: undefined,
+      expectedBody: JSON_BODY,
+    },
     {
       label: 'form',
+      requestBody: POST_BODY,
       bodyEncoding: 'form' as const,
       expectedBody: 'a=1&note=x+%2B+%C3%A9&count=3&ready=true',
     },
-  ])('signs the transmitted $label body', async ({ bodyEncoding, expectedBody }) => {
+    {
+      label: 'JSON array',
+      requestBody: ARRAY_BODY,
+      bodyEncoding: undefined,
+      expectedBody: '[{"accountId":"syn-account-1","amount":12.5}]',
+    },
+  ])('signs the transmitted $label body', async ({ requestBody, bodyEncoding, expectedBody }) => {
     const fake = fakeFetch((): Response => Response.json({ accepted: true }));
     globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
     const mediator = makeNativeMediator(CompanyTypes.OneZero, 'https://x.test');
     mediator.setSessionContext(SIGNED_SESSION);
-    const result = await mediator.apiPost(REQUEST_URL, POST_BODY, { policy: { bodyEncoding } });
+    const result = await mediator.apiPost(REQUEST_URL, requestBody, { policy: { bodyEncoding } });
     expect(result.success).toBe(true);
     const { body, headers } = fake.calls[0].init;
     expect(body).toBe(expectedBody);
@@ -200,5 +213,19 @@ describe('ApiMediator HMAC signature over native wire bytes', () => {
     if (!expected.success) throw new TypeError(expected.errorMessage);
     const sentSignature = sentHeaders.get('X-Signature');
     expect(sentSignature).toBe(expected.value.signature);
+  });
+
+  it('refuses a signed non-flat form without sending it', async () => {
+    const fake = fakeFetch((): Response => Response.json({ accepted: true }));
+    globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
+    const mediator = makeNativeMediator(CompanyTypes.OneZero, 'https://x.test');
+    mediator.setSessionContext(SIGNED_SESSION);
+    const result = await mediator.apiPost(
+      REQUEST_URL,
+      { auth: { session: 'syn-session' } },
+      { policy: { bodyEncoding: 'form' } },
+    );
+    expect(result).toMatchObject({ success: false, errorMessage: 'form body not flat' });
+    expect(fake.calls).toHaveLength(0);
   });
 });
