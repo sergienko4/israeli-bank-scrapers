@@ -489,11 +489,12 @@ that blind spot by observing the request lifecycle directly, so a failing CI
 run can be classified as _interceptor-abort_ vs _WAF-drop_ vs _slow_ **from
 logs alone** — no rerun required.
 
-The motivating asymmetry: Amex's fixed-password login embeds a Cloudflare JSD
+The motivating asymmetry: Amex's former browser login embedded a Cloudflare JSD
 (`/cdn-cgi/challenge-platform/`) sub-request that the otherwise-identical
-Isracard login does not. When the JSD handshake or the credentials POST fails
+Isracard login did not. When the JSD handshake or the credentials POST failed
 silently, the response-keyed watcher saw nothing; the egress trace now records
-it.
+it. Both banks now log in over the API with no page, so the trace covers only
+banks that still log in in a browser.
 
 ### Auth-request events
 

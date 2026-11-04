@@ -43,8 +43,8 @@ export type PhoneNumberFormatTag =
  * `'account'` banks expose a real account balance (deposit/checking banks)
  * and trigger a live BALANCE-RESOLVE; `'card-cycle'` banks expose no account
  * balance, only billing-cycle figures — a per-card debit (VisaCal, Max,
- * Isracard) or a household aggregate (Amex) — which their scrape shape's balance
- * step owns, so BALANCE-RESOLVE is a deterministic no-op for them. Never
+ * Isracard, Amex) — which their scrape shape's balance step owns, so
+ * BALANCE-RESOLVE is a deterministic no-op for them. Never
  * inferred from absence — an unstated kind is a config error, not a dormant
  * no-op.
  */

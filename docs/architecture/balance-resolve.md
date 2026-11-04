@@ -109,7 +109,7 @@ sequenceDiagram
     RP->>RA: balanceFetchPlan (one entry per BA + __BULK__ for bulk)
     RA->>API: Promise.all per plan entry
     API-->>RA: per-BA response (or fail → quarantine)
-    RA->>RA: per-card extract (Visa Cal nested cards, Amex cardChargeNext)
+    RA->>RA: per-card extract (nested card records)
     RA->>RPO: balanceExtracted (Map<cardDisplayId, number | 'MISS'>)
     RPO->>RPO: partition resolved vs missed
     alt every card missed (universal miss)
@@ -139,7 +139,7 @@ Source: [`BalanceFetchPlanner.ts`](https://github.com/sergienko4/israeli-bank-sc
 - **Quarantine pattern**: per-fetch failures emit `balance-resolve.fetch.failure` (warn) and produce `'MISS'` for the affected bank account. Other accounts continue.
 - Per-card extraction handles three shapes:
     - Single-account banks (Hapoalim, Discount, Beinleumi) — straight body extraction.
-    - Per-card-record banks (Visa Cal — `result.bigNumbers[].cards[]`, Amex/Isracard — `data.cardsList[].cardChargeNext.billingSumSekel`) — find the card by `cardUniqueId` or one of the display-id fields (`last4Digits`, `cardSuffix`, `cardLast4`, `shortCardNumber`, `card4Number`), then run the bulk extractor on its sub-record.
+    - Per-card-record bodies (`result.bigNumbers[].cards[]`, `data.cardsList[].cardChargeNext.billingSumSekel` — the former Visa Cal and Amex/Isracard web shapes; all three are now `card-cycle` and skip this phase) — find the card by `cardUniqueId` or one of the display-id fields (`last4Digits`, `cardSuffix`, `cardLast4`, `shortCardNumber`, `card4Number`), then run the bulk extractor on its sub-record.
     - Bulk endpoints — `responses.get('__BULK__')` services every card via the same body.
 
 Source: [`BalanceResolveActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts) (`executeBalanceResolveAction`).

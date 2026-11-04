@@ -14,6 +14,9 @@
 ```typescript
 import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
 
+// The key kept from the previous run — undefined on the first run.
+let storedKey: string | undefined;
+
 const scraper = createScraper({
   companyId: CompanyTypes.Amex,
   startDate: new Date('2024-01-01'),
