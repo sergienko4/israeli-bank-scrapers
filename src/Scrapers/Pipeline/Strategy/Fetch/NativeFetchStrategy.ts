@@ -118,10 +118,10 @@ function isApiSuccess(response: Response): boolean {
  * @param answer - The answered call.
  * @returns Procedure with the read body or a classified failure.
  */
-function routeResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
+async function routeResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
   if (!isApiSuccess(answer.response)) return classifyStatus<T>(answer);
-  const decided = applyStatusPolicy<T>(answer);
-  if (decided.has) return Promise.resolve(decided.value);
+  const decided = await applyStatusPolicy<T>(answer);
+  if (decided.has) return decided.value;
   return READERS[answer.reading.responseKind]<T>(answer);
 }
 

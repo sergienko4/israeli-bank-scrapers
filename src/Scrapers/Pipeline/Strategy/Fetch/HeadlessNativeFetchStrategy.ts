@@ -26,6 +26,7 @@ import type {
   TRequest,
 } from './NativeFetchStrategy.js';
 import { isApiSuccess, NativeFetchStrategy, toNetworkFailure } from './NativeFetchStrategy.js';
+import { isRedirectStatus } from './RedirectFollow.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 import { statusActionFor } from './StatusPolicy.js';
 
@@ -80,10 +81,12 @@ function toCappedFailure(error: unknown, verb: HttpVerb, url: string): Procedure
 /**
  * Whether the WAF classifier or response reader still needs the body.
  * @param response - Received headers and status.
- * @param reading - This call's response kind and bank status policy.
- * @returns False only for a non-challenged 2xx decided from its status.
+ * @param request - This call's wire redirect mode and response-reading policy.
+ * @returns False for policy-owned redirects or a header-decided 2xx.
  */
-function needsBody(response: Response, reading: IResponseReading): boolean {
+function needsBody(response: Response, request: ICappedRequest): boolean {
+  const { init, reading } = request;
+  if (init.redirect === 'manual' && isRedirectStatus(response.status)) return false;
   if (!isApiSuccess(response)) return true;
   return !statusActionFor({ response, reading }).has;
 }
@@ -111,7 +114,7 @@ async function fetchWithinCap(request: ICappedRequest): Promise<Response> {
   const controller = new AbortController();
   const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(request.timeoutMs)]);
   const response = await globalThis.fetch(request.url, { ...request.init, signal });
-  if (!needsBody(response, request.reading)) return stopAfterHeaders(response, controller);
+  if (!needsBody(response, request)) return stopAfterHeaders(response, controller);
   await response.clone().arrayBuffer();
   return response;
 }

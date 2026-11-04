@@ -156,6 +156,31 @@ describe('sendUnderPolicy — reject', () => {
 });
 
 describe('sendUnderPolicy — manual hops', () => {
+  it.each([
+    { label: 'reject', policy: 'reject', location: HOP_1, success: false },
+    {
+      label: 'manual refused',
+      policy: MANUAL,
+      location: 'https://unlisted.example/',
+      success: false,
+    },
+    { label: 'manual allowed', policy: MANUAL, location: HOP_1, success: true },
+  ] as const)(
+    'cancels a discarded redirect body for $label',
+    async ({ policy, location, success }) => {
+      const cancel = jest.fn<Promise<void>, []>().mockResolvedValue(undefined);
+      const body = new ReadableStream<Uint8Array>({ cancel });
+      const response = new Response(body, { status: 302, headers: { location } });
+      const final = ok();
+      const invoke = serve([response, final]);
+      const run = makeRun(invoke, { policy });
+      const result = await sendUnderPolicy(run);
+      expect(cancel).toHaveBeenCalledTimes(1);
+      expect(final.bodyUsed).toBe(false);
+      expect(result.success).toBe(success);
+    },
+  );
+
   it('follows two allowed hops and reports the last hop URL', async () => {
     const invoke = serve([redirect(302, HOP_1), redirect(302, HOP_2), ok()]);
     const run = makeRun(invoke);

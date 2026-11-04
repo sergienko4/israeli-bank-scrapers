@@ -79,27 +79,46 @@ function hangOnHeaders(_url: string, init: RequestInit): Promise<Response> {
 }
 
 /**
+ * Builds an unread body that remains open until its request is aborted.
+ * @param init - The RequestInit carrying the abort signal.
+ * @param options - Response status and headers.
+ * @param pull - Optional recorder of attempted body reads.
+ * @returns The response whose stream errors on abort.
+ */
+function hangingResponse(
+  init: RequestInit,
+  options: ResponseInit,
+  pull?: UnderlyingSource<Uint8Array>['pull'],
+): Response {
+  const signal = signalOf(init);
+  const body = new ReadableStream<Uint8Array>(
+    {
+      /**
+       * Error the stream when the request's signal aborts.
+       * @param controller - Stream controller.
+       * @returns True once the abort listener is attached.
+       */
+      start(controller): boolean {
+        signal.addEventListener('abort', () => {
+          controller.error(signal.reason);
+        });
+        return true;
+      },
+      pull,
+    },
+    { highWaterMark: 0 },
+  );
+  return new Response(body, options);
+}
+
+/**
  * Mock fetch whose headers arrive but whose body never finishes.
  * @param _url - Ignored.
  * @param init - The RequestInit carrying the abort signal.
  * @returns A 200 Response whose body stream errors on abort.
  */
 function hangOnBody(_url: string, init: RequestInit): Promise<Response> {
-  const signal = signalOf(init);
-  const body = new ReadableStream<Uint8Array>({
-    /**
-     * Error the stream when the request's signal aborts.
-     * @param controller - Stream controller.
-     * @returns True once the abort listener is attached.
-     */
-    start(controller): boolean {
-      signal.addEventListener('abort', () => {
-        controller.error(signal.reason);
-      });
-      return true;
-    },
-  });
-  const response = new Response(body, { status: 200 });
+  const response = hangingResponse(init, { status: 200 });
   return Promise.resolve(response);
 }
 
@@ -251,6 +270,42 @@ describe('HeadlessNativeFetchStrategy — redirect policy', () => {
   });
   afterEach(() => {
     globalThis.fetch = originalFetch;
+  });
+
+  it.each([
+    {
+      label: 'reject',
+      policy: 'reject',
+      expected: { success: false, errorMessage: `GET ${START_URL} HTTP 302 redirect refused` },
+      calls: 1,
+      events: [START_URL, 'cookies'],
+    },
+    {
+      label: 'manual',
+      policy: ONE_HOP,
+      expected: { success: true, value: { ok: true } },
+      calls: 2,
+      events: [START_URL, 'cookies', HOP_URL],
+    },
+  ] as const)('handles a stalled $label redirect without reading its body', async testCase => {
+    const pull = jest.fn<Promise<void>, []>().mockResolvedValue(undefined);
+    const events: string[] = [];
+    const mock = installFetchMock((url, init): Promise<Response> => {
+      events.push(url);
+      if (url === HOP_URL) return serveJson();
+      const headers = { location: HOP_URL, 'set-cookie': 'sid=synthetic; Path=/' };
+      const response = hangingResponse(init, { status: 302, headers }, pull);
+      return Promise.resolve(response);
+    });
+    const guarded = new HeadlessNativeFetchStrategy(BASE_URL, { timeoutMs: LOWERED_CAP_MS });
+    const onSetCookie = jest.fn((): number => events.push('cookies'));
+    const opts = { extraHeaders: {}, redirect: testCase.policy, onSetCookie };
+    const result = await guarded.fetchGet('start', opts);
+    expect(result).toMatchObject(testCase.expected);
+    expect(pull).not.toHaveBeenCalled();
+    expect(signalOf(mock.mock.calls[0][1]).aborted).toBe(true);
+    expect(mock).toHaveBeenCalledTimes(testCase.calls);
+    expect(events).toEqual(testCase.events);
   });
 
   it('refuses a redirect under the bank default', async () => {

@@ -114,6 +114,8 @@ The native transport is [`HeadlessNativeFetchStrategy`](https://github.com/sergi
 redirect/status defaults. `TRequest` and `IDispatch` are internal extension
 contracts: a request becomes a dispatch with its own response-reading policy,
 so concurrent headless calls do not overwrite each other's policy.
+REST and GraphQL calls both honor `IApiQueryOpts.policy`: per-call redirect
+settings override the bank default, and header sinks receive only declared headers.
 
 A bank whose session is a cookie, not an auth header, sets `sessionCookies: true`. Both node factories then pass their transport through `withCookieSession`; without `cookieDomains` it calls `withSessionCookies`, which wraps it in [`SessionCookieFetchStrategy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/SessionCookieFetchStrategy.ts): one run-scoped `IOriginCookieJar` (built by `createOriginCookieJar`) that keeps one `ICookieJar` (built by `createSimpleCookieJar`) per origin. Every response's `Set-Cookie` feeds the jar of the origin that answered — the response's final URL when `fetch` followed a redirect, else the request URL — and every POST and GET sends only its own origin's cookies as one `cookie` header, replacing a caller cookie header in any letter case, since `fetch` would otherwise send both values. Under the default `follow` redirect policy `fetch` follows redirects itself, so a redirect hop's own `Set-Cookie` lines never reach the jar; a `manual` policy files them (see [Redirect policies](#redirect-policies)). The origin comes from the `FullyQualifiedUrl` the transport itself resolves (`resolveFetchUrl`: relative paths join the base URL), so a cookie never goes back to a different host, scheme or port, a `Domain` attribute never widens it, and a URL that cannot be parsed neither sends nor keeps a cookie. A later cookie of the same name replaces the earlier one; `Max-Age=0` (or less), or an `Expires` already past, deletes it (`Max-Age` wins when both are set); an empty jar adds no header; a caller's own `onSetCookie` hook still runs; cookie values are never logged. Without the flag the transport is returned unchanged. The browser transport ignores the flag, because the Camoufox page keeps its own jar.
 
@@ -139,6 +141,10 @@ The native transport sends every request under a `RedirectPolicy` ([`FetchPolicy
 
 `reject` still applies the refused response's `Set-Cookie` updates and calls
 the caller's cookie hook once, under the answering URL, without following the redirect.
+`isRedirectStatus` supplies the shared 3xx boundary for redirect handling
+and the capped transport. Under `reject` or `manual`, the cap releases those
+bodies at headers instead of buffering them, so a stalled body cannot delay
+the refusal, cookie updates or the next allowed hop.
 
 [`sendUnderPolicy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/RedirectFollow.ts) runs one `IRedirectRun` (URL, init, verb, the transport's `FetchInvoke` sender and its `HttpVerb`, the `onSetCookie` hook and an optional `sessionHeadersFor`) and returns an `IRunEnd`: the final response and the URL its cookies belong to. Under `manual`:
 
@@ -162,6 +168,13 @@ request's body is cancelled; undecided, challenged and document-empty responses
 still need a body read under the cap. A per-query empty-status notification
 preserves an approved GraphQL empty result without accepting a parsed `{}` as a
 valid GraphQL envelope or sharing the verdict with another query.
+
+[`cancelResponseBody`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/ResponseBody.ts)
+releases bodies discarded by status decisions or redirect handling, including
+uncapped GraphQL responses. Cancellation failures retain the policy verdict
+and emit a warning containing only the verb, log-safe URL and a fixed message;
+neither response content nor cancellation error text is logged. Responses
+left to a reader, including document-marker and WAF checks, remain untouched.
 
 An api-direct step opts in with `response: 'document'` and an optional `documentMarker` (it names no body extracts — a build-time check); `callPolicyOf` carries both down as `IFetchCallPolicy.responseKind` / `documentMarker`, next to `redirect`. The step-level sanitiser keeps these refusals' fixed tails (`bind HTTP 207`, `bind HTTP 302 redirect refused`, `bind document unverified`) only when the whole message has a policy refusal's shape, so no response text can pass for one.
 

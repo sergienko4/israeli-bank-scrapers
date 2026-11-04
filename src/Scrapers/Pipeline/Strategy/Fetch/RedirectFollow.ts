@@ -22,6 +22,7 @@ import { none, some } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { FetchInvoke, HttpVerb, ISessionHeaders, OnSetCookie } from './FetchStrategy.js';
+import { cancelResponseBody } from './ResponseBody.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 import { matchesAnyUrlRule } from './UrlRule.js';
 
@@ -150,6 +151,7 @@ async function sendReject(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
   if (!isRedirectStatus(status)) return succeed({ response: sent.value, responseUrl: url });
   const responseUrl = answeredUrl(sent.value, run.url);
   emitSetCookies(sent.value, responseUrl, run.onSetCookie);
+  await cancelResponseBody(sent.value, run);
   return refused(run, status);
 }
 
@@ -234,6 +236,7 @@ async function sendHop(ctx: IManualRun, hop: IHop): Promise<Procedure<IRunEnd>> 
  */
 async function continueHop(ctx: IManualRun, hop: IHop, end: IRunEnd): Promise<Procedure<IRunEnd>> {
   emitSetCookies(end.response, end.responseUrl, ctx.run.onSetCookie);
+  await cancelResponseBody(end.response, hop);
   const target = hopTarget(end.response, hop, ctx.rules);
   if (!target.has) return refused(ctx.run);
   const next = nextHop(ctx.run, hop, target.value);
@@ -266,4 +269,4 @@ function sendUnderPolicy(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
 
 export default sendUnderPolicy;
 export type { IRedirectRun, IRunEnd };
-export { emitSetCookies, sendUnderPolicy };
+export { emitSetCookies, isRedirectStatus, sendUnderPolicy };

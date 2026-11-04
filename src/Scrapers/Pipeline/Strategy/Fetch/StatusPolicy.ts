@@ -13,6 +13,7 @@ import { none, some } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { HttpVerb } from './FetchStrategy.js';
+import { cancelResponseBody } from './ResponseBody.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 
 /** One answered call, with how its transport reads it. */
@@ -75,13 +76,14 @@ function statusActionFor(answer: Pick<IAnswer, 'response' | 'reading'>): Option<
 }
 
 /**
- * Decide an answer under its bank's status policy.
+ * Decide an answer under its bank's status policy and release its unused body.
  * @param answer - A 2xx answer that passed WAF classification.
  * @returns The decided outcome, or none to let the reader judge the body.
  */
-function applyStatusPolicy<T>(answer: IAnswer): Option<Procedure<T>> {
+async function applyStatusPolicy<T>(answer: IAnswer): Promise<Option<Procedure<T>>> {
   const action = statusActionFor(answer);
   if (!action.has) return none();
+  await cancelResponseBody(answer.response, answer);
   const decided = DECISIONS[action.value]<T>(answer);
   return some(decided);
 }
