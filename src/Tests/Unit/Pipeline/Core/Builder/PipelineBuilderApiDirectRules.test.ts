@@ -32,6 +32,9 @@ import {
 const JAR_BANK = 'jarBank' as unknown as CompanyTypes;
 const TLS_BANK = 'tlsBank' as unknown as CompanyTypes;
 const TLS_CLEAN_BANK = 'tlsCleanBank' as unknown as CompanyTypes;
+const DYNAMIC_TLS_BANK = 'dynamicTlsBank' as unknown as CompanyTypes;
+const DYNAMIC_TLS_REDIRECT_BANK = 'dynamicTlsRedirectBank' as unknown as CompanyTypes;
+const DYNAMIC_CERT = { mode: 'dynamic', origin: 'https://native.example' } as const;
 
 /**
  * Mocked resolver: only the jar bank has a config; the TLS banks need
@@ -43,7 +46,27 @@ function resolveMocked(companyId: CompanyTypes): object | false {
   if (companyId === TLS_BANK) {
     return { headless: { requiresClientCert: true, redirectPolicy: 'reject' } };
   }
-  if (companyId === TLS_CLEAN_BANK) return { headless: { requiresClientCert: true } };
+  if (companyId === TLS_CLEAN_BANK) {
+    return {
+      headless: {
+        requiresClientCert: true,
+        sessionCookies: true,
+        cookieDomains: ['native.example'],
+      },
+    };
+  }
+  if (companyId === DYNAMIC_TLS_REDIRECT_BANK) {
+    return { headless: { clientCert: DYNAMIC_CERT, redirectPolicy: 'reject' } };
+  }
+  if (companyId === DYNAMIC_TLS_BANK) {
+    return {
+      headless: {
+        clientCert: DYNAMIC_CERT,
+        sessionCookies: true,
+        cookieDomains: ['native.example'],
+      },
+    };
+  }
   if (companyId !== JAR_BANK) return false;
   return { headless: { sessionCookies: true } };
 }
@@ -78,6 +101,13 @@ const JAR_STEP_CALL: IApiDirectCallConfig = {
   flow: 'sms-otp',
   envelope: {},
   steps: [{ ...STEP, cookieJar: true }],
+};
+const DYNAMIC_CALL: IApiDirectCallConfig = {
+  ...NONE_CALL,
+  steps: [
+    { ...STEP, encoding: 'text', body: { shape: { text: { $literal: 'payload' } } } },
+    { ...STEP, name: 'resume', headerExtractsToCarry: { session: { header: 'x-session' } } },
+  ],
 };
 
 /**
@@ -167,9 +197,24 @@ describe('PipelineBuilder — node-tls headless rules', () => {
     });
   });
 
-  it('builds a node-tls block that names no native-only field', () => {
+  it('builds a registered mTLS block with a domain cookie jar', () => {
     const opts = makeMockOptions({ companyId: TLS_CLEAN_BANK });
     const result = buildPlain(opts);
     expect(result.success).toBe(true);
+  });
+
+  it('builds a dynamic mTLS flow with text bodies, header slots and domain cookies', () => {
+    const opts = makeMockOptions({ companyId: DYNAMIC_TLS_BANK });
+    const result = buildWith(opts, DYNAMIC_CALL);
+    expect(result.success).toBe(true);
+  });
+
+  it('refuses a dynamic mTLS redirect default without an api-direct config', () => {
+    const opts = makeMockOptions({ companyId: DYNAMIC_TLS_REDIRECT_BANK });
+    const result = buildPlain(opts);
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'headless.redirectPolicy: not allowed without headless.nativeFetch',
+    });
   });
 });

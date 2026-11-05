@@ -196,8 +196,8 @@ export type {
   IPrimeArgs,
   IRunFlowArgs,
   IStrategyBindings,
-  IWarmSeedVerdict,
   IWarmRunArgs,
+  IWarmSeedVerdict,
   PersistentAuthMode,
   WarmCarry,
 };

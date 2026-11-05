@@ -14,6 +14,9 @@ const MTLS_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 /** Fixed reason a response past the cap fails with. */
 const RESPONSE_TOO_LARGE_REASON = 'response too large';
 
+/** HTTP statuses whose Web Response must have a null body. */
+const NO_BODY_STATUSES: ReadonlySet<number> = new Set([204, 205, 304]);
+
 /** Settles a body collection with a failure. */
 type BodyReject = (reason: Error) => unknown;
 
@@ -115,7 +118,8 @@ function buildResponseHeaders(message: IncomingMessage): Headers {
 function toResponse(message: IncomingMessage, body: string): Response {
   const status = message.statusCode ?? 0;
   const headers = buildResponseHeaders(message);
-  return new Response(body, { status, headers });
+  const responseBody = NO_BODY_STATUSES.has(status) ? null : body;
+  return new Response(responseBody, { status, headers });
 }
 
 export { collectBody, MTLS_MAX_RESPONSE_BYTES, RESPONSE_TOO_LARGE_REASON, toResponse };

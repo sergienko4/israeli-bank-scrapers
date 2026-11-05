@@ -187,6 +187,20 @@ describe('HeadlessMediatorWiring — transport selection', () => {
     expect(args).toMatchObject({ cookieDomains: ['bank.example'] });
   });
 
+  it('hands dynamic-certificate domain cookies to the node:https factory', () => {
+    resolveWith({
+      clientCert: DYNAMIC_CERT,
+      sessionCookies: true,
+      cookieDomains: ['bank.example'],
+    });
+    const [args] = CREATE_NODE_TLS.mock.calls[0] as unknown[];
+    expect(args).toMatchObject({
+      clientCert: DYNAMIC_CERT,
+      sessionCookies: true,
+      cookieDomains: ['bank.example'],
+    });
+  });
+
   it('hands the redirect policy to the native factory', () => {
     resolveWith({ nativeFetch: true, redirectPolicy: 'reject' });
     const [args] = CREATE_NATIVE.mock.calls[0] as unknown[];

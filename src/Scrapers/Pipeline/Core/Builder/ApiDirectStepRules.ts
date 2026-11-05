@@ -1,6 +1,7 @@
 /**
- * Step rules for an api-direct call config, checked after the seal rules, on
- * login and resume steps alike. Each `failIfPresent` entry (N20) must be a
+ * Step rules for an api-direct call config, on login and resume steps alike.
+ * Outcome rules run before warm-start checks; the remaining rules run after
+ * seal rules. Each `failIfPresent` entry (N20) must be a
  * JSON pointer below the body root: a bare key would never resolve, and the
  * root would fail every answer. Each `extractRules` key (N18, N27) must name a
  * body or header extract of its step; a `pattern` must be anchored (`^…$`)
@@ -24,6 +25,37 @@ import {
   isExtractSlot,
 } from './ApiDirectRuleInput.js';
 import { isFlatPattern } from './FlatPattern.js';
+
+/**
+ * An outcome with no success codes would refuse every response.
+ * @param input - Rule input.
+ * @returns True when any step's outcome lists no success codes.
+ */
+function hasEmptySuccessCodes(input: IApiDirectRuleInput): boolean {
+  return allSteps(input.call).some((step): boolean => step.outcome?.successCodes.length === 0);
+}
+
+/**
+ * Refuse failure-map keys that collapse to the same code at runtime.
+ * @param input - Rule input.
+ * @returns True when a case-insensitive outcome has colliding keys.
+ */
+function hasCaselessFailureMapCollision(input: IApiDirectRuleInput): boolean {
+  return allSteps(input.call).some((step): boolean => {
+    if (step.outcome?.caseInsensitive !== true) return false;
+    const keys = Object.keys(step.outcome.failureMap).map((key): string => key.toLowerCase());
+    return new Set(keys).size !== keys.length;
+  });
+}
+
+/** Outcome rules checked before warm-start checks. */
+const API_DIRECT_OUTCOME_RULES: readonly IApiDirectRule[] = [
+  { message: 'outcome.successCodes: must not be empty', isBroken: hasEmptySuccessCodes },
+  {
+    message: 'outcome.failureMap: duplicate keys ignoring case',
+    isBroken: hasCaselessFailureMapCollision,
+  },
+];
 
 /**
  * Whether a guard entry is a pointer below the body root.
@@ -260,4 +292,4 @@ const API_DIRECT_STEP_RULES: readonly IApiDirectRule[] = [
 ];
 
 export default API_DIRECT_STEP_RULES;
-export { API_DIRECT_STEP_RULES };
+export { API_DIRECT_OUTCOME_RULES, API_DIRECT_STEP_RULES };

@@ -7,8 +7,8 @@
  * unchanged. The same Agent can also present a registered TLS ClientHello
  * profile (see TlsClientProfiles) for edges that fingerprint the handshake,
  * which globalThis.fetch cannot shape either. This is the ONLY module that
- * sends requests over node:https in the Pipeline by design. A string body is
- * sent once as UTF-8 bytes under `Content-Length` — never chunked (N34).
+ * sends requests over node:https in the Pipeline by design. String and byte
+ * bodies are sent once under `Content-Length` — never chunked (N34).
  */
 
 import type { ClientRequest, IncomingMessage } from 'node:http';
@@ -140,14 +140,14 @@ function headersToRecord(headers?: HeadersInit): Record<string, string> {
 const FRAMING_HEADERS: ReadonlySet<string> = new Set(['content-length', 'transfer-encoding']);
 
 /**
- * The request body as the UTF-8 bytes it travels as (string bodies only — the
- * Pipeline always writes its body to a string before dispatch).
+ * The request body's bytes (strings as UTF-8; byte arrays unchanged).
  * @param init - Native fetch RequestInit.
- * @returns The body bytes, or false when there is no string body.
+ * @returns The body bytes, or false when there is no supported body.
  */
 function bodyBytes(init: RequestInit): Buffer | false {
-  if (typeof init.body !== 'string') return false;
-  return Buffer.from(init.body, 'utf8');
+  if (typeof init.body === 'string') return Buffer.from(init.body, 'utf8');
+  if (init.body instanceof Uint8Array) return Buffer.from(init.body);
+  return false;
 }
 
 /**

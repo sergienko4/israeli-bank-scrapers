@@ -349,6 +349,21 @@ describe('MtlsTransport.mtlsInvoke — N34 framing and response cap', () => {
     expect(echo).toEqual({ contentLength, transferEncoding: null, bodyHex });
   });
 
+  it('sends a byte body under Content-Length without dropping its contents', async () => {
+    const text = 'MIIC_x-y€';
+    const bytes = new TextEncoder().encode(text);
+    const init: RequestInit = { method: 'POST', headers: {}, body: bytes };
+    const url = `${server.baseUrl}echo`;
+    const result = await mtlsInvoke({ agent: certAgent, url, init, verb: 'POST' });
+    if (!isOk(result)) throw new ScraperError(result.errorMessage);
+    const echo = (await result.value.json()) as IBodyEcho;
+    expect(echo).toEqual({
+      contentLength: String(bytes.byteLength),
+      transferEncoding: null,
+      bodyHex: Buffer.from(bytes).toString('hex'),
+    });
+  });
+
   it('frames the body by its byte length, whatever length the caller named', async () => {
     const echo = await postEcho({ 'Content-Length': '1', 'Transfer-Encoding': 'chunked' });
     const byteLength = Buffer.byteLength(NON_ASCII_BODY, 'utf8');
@@ -433,6 +448,18 @@ describe('MtlsTransport.collectBody — stream failure branches', () => {
 });
 
 describe('MtlsTransport.toResponse — defensive header branches', () => {
+  it.each([204, 205, 304])('preserves no-body status %s and its headers', async status => {
+    const headers = { 'x-session': 'rotated', 'set-cookie': ['sid=rotated'] };
+    const message = { statusCode: status, headers } as unknown as IncomingMessage;
+    const response = toResponse(message, '');
+    expect(response.status).toBe(status);
+    expect(await response.text()).toBe('');
+    const session = response.headers.get('x-session');
+    const cookies = response.headers.getSetCookie();
+    expect(session).toBe('rotated');
+    expect(cookies).toEqual(['sid=rotated']);
+  });
+
   it('joins array headers and coalesces missing header values', () => {
     const fakeHeaders = {
       'x-multi': ['a', 'b'],

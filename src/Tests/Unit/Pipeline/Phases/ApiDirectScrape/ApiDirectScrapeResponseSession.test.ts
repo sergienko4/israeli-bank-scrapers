@@ -14,6 +14,7 @@ import type {
   IApiMediator,
   IApiQueryOpts,
 } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import type { SessionContext } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.types.js';
 import runBootstrap from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeBootstrap.js';
 import {
   dispatchStep,
@@ -34,9 +35,6 @@ import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/Pipe
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
-
-/** Session-context as the mediator stores it. */
-type SessionContext = Readonly<Record<string, unknown>>;
 
 /** One answer on the wire: its HTTP status and headers. */
 interface IWireAnswer {

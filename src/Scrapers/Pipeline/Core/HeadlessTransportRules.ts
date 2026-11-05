@@ -67,10 +67,7 @@ const TRANSPORT_DECLARATIONS = [usesNodeTls, usesNativeFetch, usesBrowserTls] as
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns True when the transport selection is unambiguous.
  */
-function assertSingleTransport(
-  companyId: CompanyTypes,
-  wiring: IHeadlessWiring,
-): boolean {
+function assertSingleTransport(companyId: CompanyTypes, wiring: IHeadlessWiring): boolean {
   const declared = TRANSPORT_DECLARATIONS.filter((isDeclared): boolean => isDeclared(wiring));
   if (declared.length > 1) throw new ScraperError(`${TRANSPORT_CONFLICT_MSG} (${companyId})`);
   return true;

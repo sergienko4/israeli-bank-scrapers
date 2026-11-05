@@ -126,7 +126,8 @@ describe('N23 latin1 forms, text bodies and text answers on login steps', () => 
       scope: scopeWith('MIIC_x-y'),
       companyId: HINT,
     });
-    expect(fake.calls[0].init.body).toBe('MIIC_x-y');
+    const bytes = new TextEncoder().encode('MIIC_x-y');
+    expect(fake.calls[0].init.body).toEqual(bytes);
     const headers = fake.calls[0].init.headers as Record<string, string>;
     expect(headers['content-type']).toBeUndefined();
     const carry = { pem: '-----BEGIN CERTIFICATE-----' };

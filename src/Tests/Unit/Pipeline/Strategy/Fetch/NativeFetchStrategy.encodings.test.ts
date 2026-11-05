@@ -6,7 +6,11 @@
  * caller as `{ text }`, up to 65 536 chars.
  */
 
+import { once } from 'node:events';
+import { createServer } from 'node:http';
+
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import type { IFetchOpts } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 import { HeadlessNativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import { fakeFetch, type IFetchFake } from '../../../../Helpers/FakeFetch.js';
@@ -89,9 +93,48 @@ describe('NativeFetchStrategy — N23 body encodings and text answers', () => {
     const extraHeaders = { 'Content-Type': 'application/json', accept: '*/*' };
     const text = 'MIIC_x-y€';
     await STRATEGY.fetchPost('register', { text }, { ...TEXT_BODY, extraHeaders });
-    expect(fake.calls[0].init.body).toBe(text);
+    const bytes = new TextEncoder().encode(text);
+    expect(fake.calls[0].init.body).toEqual(bytes);
     const headers = sentHeaders(fake);
     expect(headers).toEqual({ accept: '*/*' });
+  });
+
+  it('sends text bytes without a Content-Type on the native wire', async () => {
+    const received: { body: string; contentType?: string }[] = [];
+    const server = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on('data', (chunk: Buffer) => chunks.push(chunk));
+      request.on('end', () => {
+        received.push({
+          body: Buffer.concat(chunks).toString('utf8'),
+          contentType: request.headers['content-type'],
+        });
+        response.setHeader('content-type', 'application/json');
+        response.end('{}');
+      });
+    });
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    try {
+      const address = server.address();
+      if (address === null || typeof address === 'string') {
+        throw new ScraperError('test server not bound');
+      }
+      const baseUrl = `http://127.0.0.1:${String(address.port)}/`;
+      const strategy = new HeadlessNativeFetchStrategy(baseUrl);
+      const text = 'MIIC_x-y€';
+      const options = { ...TEXT_BODY, extraHeaders: { 'Content-Type': 'application/json' } };
+      const result = await strategy.fetchPost('register', { text }, options);
+      expect(result).toEqual({ success: true, value: {} });
+      expect(received).toEqual([{ body: text, contentType: undefined }]);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close(error => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
+    }
   });
 
   it.each([

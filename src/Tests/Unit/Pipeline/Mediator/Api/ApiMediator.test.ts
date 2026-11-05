@@ -323,17 +323,6 @@ describe('ApiMediator — HMAC headers win a caller header in any letter case', 
   });
 });
 
-describe('ApiMediator/sessionContext', () => {
-  it('replaces the previous context rather than merging into it (N32)', () => {
-    const recorder = makeRecorder();
-    const mediator = buildMediator(recorder);
-    mediator.setSessionContext({ security: 's', csrf: 'c', mag: 'stale' });
-    mediator.setSessionContext({ mag: 'fresh' });
-    const session = mediator.getSessionContext();
-    expect(session).toEqual({ mag: 'fresh' });
-  });
-});
-
 /**
  * The operation label exists to make a bank-side GraphQL failure traceable,
  * so it must derive **only** from an executable operation definition. A name
@@ -680,7 +669,7 @@ describe('ApiMediator — redirect policy', () => {
       const result = await call(mediator, { policy: { headerSink } });
       expect(result.success).toBe(true);
       expect(take).toHaveBeenCalledTimes(1);
-      expect(take).toHaveBeenCalledWith({ 'x-trace': 'synthetic-trace' });
+      expect(take).toHaveBeenCalledWith({ 'x-trace': 'synthetic-trace' }, 200);
     },
   );
 

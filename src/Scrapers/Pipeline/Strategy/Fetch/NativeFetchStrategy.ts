@@ -306,7 +306,11 @@ class NativeFetchStrategy implements IFetchStrategy {
     if (!isOk(written)) return refuseBody<T>(target, written);
     const merged = overlayHeaders(this._verbDefaults.POST, opts.extraHeaders);
     const headers = withBodyContentType(merged, written.value);
-    const init: RequestInit = { method: 'POST', headers, body: written.value.body };
+    const body =
+      written.value.contentType === false
+        ? new TextEncoder().encode(written.value.body)
+        : written.value.body;
+    const init: RequestInit = { method: 'POST', headers, body };
     const run = this.toRun({ url, init, verb: 'POST' }, opts);
     return dispatchFetch<T>(run);
   }

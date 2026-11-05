@@ -10,7 +10,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { TEXT_BODY_REFUSED_REASON, type BodyEncoding } from '../../Types/Domain/FetchPolicy.js';
+import { type BodyEncoding, TEXT_BODY_REFUSED_REASON } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import type { PostData } from './FetchStrategy.js';

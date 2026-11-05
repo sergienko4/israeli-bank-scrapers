@@ -2,8 +2,9 @@
  * Cross-field rules for an api-direct call config and its bank's headless
  * block. They run when the pipeline is built, so a config that cannot work
  * fails before any run starts. The first broken rule fails the build as
- * `Generic` with `"<field>: <rule>"`. The carry-bundle warm-start rules in
- * `ApiDirectWarmBundleRules.ts` run right after the cookie-jar ones. The
+ * `Generic` with `"<field>: <rule>"`. Outcome rules in
+ * `ApiDirectStepRules.ts` run before warm-start checks. The carry-bundle
+ * rules in `ApiDirectWarmBundleRules.ts` run after the cookie-jar ones. The
  * session-transport rules live in `ApiDirectTransportRules.ts` and run after
  * these; the form-body rules in `ApiDirectFormRules.ts` follow, then the seal
  * rules in
@@ -31,7 +32,7 @@ import {
 } from './ApiDirectRuleInput.js';
 import { API_DIRECT_SEAL_RULES } from './ApiDirectSealRules.js';
 import { API_DIRECT_SESSION_RULES } from './ApiDirectSessionRules.js';
-import { API_DIRECT_STEP_RULES } from './ApiDirectStepRules.js';
+import { API_DIRECT_OUTCOME_RULES, API_DIRECT_STEP_RULES } from './ApiDirectStepRules.js';
 import { API_DIRECT_TRANSPORT_RULES } from './ApiDirectTransportRules.js';
 import { API_DIRECT_WARM_BUNDLE_RULES } from './ApiDirectWarmBundleRules.js';
 
@@ -73,29 +74,6 @@ function isJarDoubled(input: IApiDirectRuleInput): boolean {
   if (!hasSessionCookies(input)) return false;
   const steps = allSteps(input.call);
   return steps.some((step): boolean => step.cookieJar === true);
-}
-
-/**
- * An outcome with no success codes would refuse every response.
- * @param input - Rule input.
- * @returns True when any step's outcome lists no success codes.
- */
-function hasEmptySuccessCodes(input: IApiDirectRuleInput): boolean {
-  const steps = allSteps(input.call);
-  return steps.some((step): boolean => step.outcome?.successCodes.length === 0);
-}
-
-/**
- * Refuse failure-map keys that collapse to the same code at runtime.
- * @param input - Rule input.
- * @returns True when a case-insensitive outcome has colliding keys.
- */
-function hasCaselessFailureMapCollision(input: IApiDirectRuleInput): boolean {
-  return allSteps(input.call).some((step): boolean => {
-    if (step.outcome?.caseInsensitive !== true) return false;
-    const keys = Object.keys(step.outcome.failureMap).map((key): string => key.toLowerCase());
-    return new Set(keys).size !== keys.length;
-  });
 }
 
 /**
@@ -234,11 +212,7 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
     message: 'steps.cookieJar: not allowed with headless.sessionCookies',
     isBroken: isJarDoubled,
   },
-  { message: 'outcome.successCodes: must not be empty', isBroken: hasEmptySuccessCodes },
-  {
-    message: 'outcome.failureMap: duplicate keys ignoring case',
-    isBroken: hasCaselessFailureMapCollision,
-  },
+  ...API_DIRECT_OUTCOME_RULES,
   {
     message: 'jwtClaims: required when warmStart.validation is jwt',
     isBroken: isJwtWarmWithoutClaims,

@@ -51,11 +51,15 @@ function toFlowArgs(args: IRunFlowArgs): Parameters<typeof runSmsOtpFlow>[0] {
  * Capture the flow's long-term token + carry snapshot into the slot.
  * @param slot - Capture slot.
  * @param result - Captured flow outputs (longTermToken + carrySnapshot).
- * @param replaceEmpty - Whether an empty bound-token export clears the previous token.
+ * @param shouldReplaceEmpty - Whether an empty bound-token export clears the previous token.
  * @returns true for chaining.
  */
-function captureFlowResult(slot: ILongTermTokenSlot, result: IFlowCapture, replaceEmpty: boolean): true {
-  if (result.longTermToken.length > 0 || replaceEmpty) slot.latest = result.longTermToken;
+function captureFlowResult(
+  slot: ILongTermTokenSlot,
+  result: IFlowCapture,
+  shouldReplaceEmpty: boolean,
+): true {
+  if (result.longTermToken.length > 0 || shouldReplaceEmpty) slot.latest = result.longTermToken;
   slot.latestCarrySnapshot = result.carrySnapshot;
   return true;
 }
@@ -77,8 +81,8 @@ interface IFinishFlowArgs {
 function finishFlow(input: IFinishFlowArgs): string {
   const longTermToken = exportWarmToken(input.args, input.result);
   handOffCookies(input.args, input.slot);
-  const replaceEmpty = boundWarmOf(input.args.config) !== false;
-  captureFlowResult(input.slot, { ...input.result, longTermToken }, replaceEmpty);
+  const shouldReplaceEmpty = boundWarmOf(input.args.config) !== false;
+  captureFlowResult(input.slot, { ...input.result, longTermToken }, shouldReplaceEmpty);
   const headerValue = formatAuthValue(input.args.config, input.result.bearer);
   const isCold = isColdStart(input.args);
   if (isCold) input.slot.latestHeaderValue = headerValue;
