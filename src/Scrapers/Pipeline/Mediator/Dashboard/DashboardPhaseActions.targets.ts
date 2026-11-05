@@ -16,7 +16,6 @@ import type { IElementMediator, IRaceResult } from '../Elements/ElementMediator.
 import { DASHBOARD_TRIGGER_PROBE_TIMEOUT_MS } from '../Timing/DashboardTimingConfig.js';
 import { NO_HREF, resolveHrefFromRaw } from './DashboardDiscovery.js';
 import { extractHrefLayer3, extractTransactionHrefPrecise } from './DashboardHrefExtraction.js';
-import { tryDashboardSequentialNav } from './DashboardPhaseActions.sequential.js';
 import type { IDashboardTargets } from './DashboardPhaseActions.targets.types.js';
 
 /** Cap on locator.all() expansion — protects against pathological matches. */
@@ -261,25 +260,7 @@ async function resolveBruteTargetsOrDefault(
 }
 
 /**
- * Resolves non-sequential dashboard targets in safe fallback order.
- *
- * @param mediator - Element mediator (full context, read-only probing).
- * @param page - Browser page for contextId computation.
- * @returns Resolved targets for ACTION to click.
- */
-async function resolveNonSequentialTargets(
-  mediator: IElementMediator,
-  page: Page,
-): Promise<IDashboardTargets> {
-  const hrefTarget = await resolveHrefTarget(mediator);
-  if (hrefTarget) return buildHrefOnlyTargets(hrefTarget);
-  const clickOrMenuTargets = await resolveClickOrMenu(mediator, page);
-  if (hasClickOrMenuTarget(clickOrMenuTargets)) return clickOrMenuTargets;
-  return resolveBruteTargetsOrDefault(mediator, clickOrMenuTargets);
-}
-
-/**
- * Resolve dashboard targets — SEQUENTIAL → precise href → click/menu → brute href.
+ * Resolve dashboard targets — precise href → click/menu → brute href.
  * @param mediator - Element mediator (full context, read-only probing).
  * @param page - Browser page for contextId computation.
  * @returns Resolved targets for ACTION to click.
@@ -288,9 +269,11 @@ async function resolveDashboardTargets(
   mediator: IElementMediator,
   page: Page,
 ): Promise<IDashboardTargets> {
-  const sequentialTargets = await tryDashboardSequentialNav(page);
-  if (sequentialTargets) return sequentialTargets;
-  return resolveNonSequentialTargets(mediator, page);
+  const hrefTarget = await resolveHrefTarget(mediator);
+  if (hrefTarget) return buildHrefOnlyTargets(hrefTarget);
+  const clickOrMenuTargets = await resolveClickOrMenu(mediator, page);
+  if (hasClickOrMenuTarget(clickOrMenuTargets)) return clickOrMenuTargets;
+  return resolveBruteTargetsOrDefault(mediator, clickOrMenuTargets);
 }
 
 export default resolveDashboardTargets;

@@ -77,26 +77,24 @@ owns that boundary:
 | `bankDatePartsOfLabel`    | Strictly validates a complete bank date label before exposing its numeric components                       |
 | `bankInstantOfLabel`      | Opens a generated timestamp-shaped label onto the instant its wall time names in the bank calendar         |
 | `bankMonthOfLabel`        | Strictly validates an ISO-shaped bank label and reads the month it names without treating it as an instant |
-| `bankMonthOfSlashedLabel` | Strictly validates provider billing labels in `MM/YYYY` form                                               |
 | `bankMonthOfInstant`      | Projects a real `Date` or ISO instant into the bank's month                                                |
 | `shiftBankMonth`          | Moves a named month without host-local `Date` arithmetic                                                   |
 | `shiftBankInstant`        | Moves a resolved instant by bank-calendar months while preserving its bank-calendar wall time              |
 | `bankMonthBounds`         | Builds the first and last instants of a named month in `Asia/Jerusalem`                                    |
 
-`MatrixLoopStrategy` now consumes this object from cycle selection through
+`MatrixLoopStrategy` now consumes this object from month selection through
 request construction. The request body and URL bounds therefore describe the
 same month on every host.
 
 Monthly plans also share one provider-work budget:
 
-| Export                   | What it is for                                                      |
-| ------------------------ | ------------------------------------------------------------------- |
-| `MAX_MONTH_REQUESTS`     | Maximum complete month plan accepted before any requests are issued |
-| `boundedMonthCount`      | Counts an inclusive generated range, rejecting oversized spans      |
-| `fitsMonthRequestBudget` | Validates an already prepared provider cycle catalog                |
+| Export               | What it is for                                                      |
+| -------------------- | ------------------------------------------------------------------- |
+| `MAX_MONTH_REQUESTS` | Maximum complete month plan accepted before any requests are issued |
+| `boundedMonthCount`  | Counts an inclusive generated range, rejecting oversized spans      |
 
-Oversized generated ranges fail before allocation; oversized provider catalogs
-fail before network work. Generated-plan consumers treat rejection as a typed
+Oversized generated ranges fail before allocation, so before any network work.
+Generated-plan consumers treat rejection as a typed
 failure rather than an empty month list, so an invalid or oversized request
 cannot become a successful empty account. None is silently truncated.
 

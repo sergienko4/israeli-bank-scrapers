@@ -31,7 +31,6 @@ const BANK_MONTH_LABEL_PATTERNS = [
   /^(\d{4})-(\d{2})-(\d{2})T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{3})?Z?$/,
 ] as const;
 const BANK_TIMESTAMP_LABEL_FORMAT = 'YYYY-MM-DD[T]HH:mm:ss.SSS[Z]';
-const SLASHED_BANK_MONTH_LABEL = /^(\d{2})\/(\d{4})$/;
 const DAYS_BY_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 const MIN_MONTH = 1;
 const MAX_MONTH = 12;
@@ -146,17 +145,6 @@ function bankDatePartsOfInstant(value: string | Date): IBankDateParts | false {
 }
 
 /**
- * Read a provider `MM/YYYY` billing label.
- * @param value - Provider billing label.
- * @returns Validated bank month, or false.
- */
-function bankMonthOfSlashedLabel(value: string): IBankMonth | false {
-  const match = SLASHED_BANK_MONTH_LABEL.exec(value);
-  if (match === null) return false;
-  return monthOfCaptures(match[2], match[1]);
-}
-
-/**
  * Project an instant into the bank's month.
  * @param value - Resolved instant.
  * @returns Bank month, or false for an invalid instant.
@@ -238,7 +226,6 @@ export {
   bankMonthBounds,
   bankMonthOfInstant,
   bankMonthOfLabel,
-  bankMonthOfSlashedLabel,
   shiftBankInstant,
   shiftBankMonth,
 };

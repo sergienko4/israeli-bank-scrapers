@@ -2,9 +2,9 @@
  * Shared {@link IDashboardTargets} type used by DASHBOARD PRE → ACTION.
  *
  * <p>Co-located with the {@link "./DashboardPhaseActions.targets.js"}
- * resolver: kept in a separate types file so the SEQUENTIAL probe
- * helpers can consume the type without pulling in the resolver
- * (which would create an import cycle).
+ * resolver: kept in a separate types file so the PRE logging and
+ * winner-label helpers can consume the type without pulling in the
+ * resolver.
  */
 
 import type { IResolvedTarget } from '../../Types/PipelineContext.js';
@@ -26,6 +26,7 @@ export interface IDashboardTargets {
    *  ≥1 when clickTarget set; 0 otherwise. ACTION iterates `.nth(0..count-1)`
    *  of fallbackSelector when identity click failed. */
   readonly clickCandidateCount: number;
-  /** Pre-resolved menu toggle target for SEQUENTIAL nav. */
+  /** Menu-expand fallback toggle, set only when no href or click target
+   *  resolved; ACTION clicks it before the target branch. */
   readonly menuTarget: IResolvedTarget | false;
 }

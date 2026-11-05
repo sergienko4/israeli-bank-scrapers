@@ -21,21 +21,13 @@ const LABEL_CURRENT_ACCOUNT = 'חשבון עו״ש' as const;
 const LABEL_CURRENT_ACCOUNT_ASCII = 'חשבון עו"ש' as const;
 
 /** Transactions/charges navigation candidates, priority-ordered: bank-account
- *  intent → card transactions → medium → generic. The exact-text
- *  "פירוט החיובים והעסקאות" (with definite articles) sits at the top to
- *  disambiguate Max's two near-identical dropdown items — "פירוט החיובים
- *  והעסקאות" (My Info → Charge details and transactions, the correct one) vs
- *  "פירוט חיובים ועסקאות" (My Card → wrong twin matched by the existing
- *  substring further down). Verified offline against captured dashboard HTML
- *  for all 7 banks: only Max has this element; no overlap. */
+ *  intent → card transactions → medium → generic. */
 const DASHBOARD_TRANSACTIONS: readonly SelectorCandidate[] = [
-  { kind: 'exactText', value: 'פירוט החיובים והעסקאות' },
   { kind: 'clickableText', value: 'תנועות בחשבון' },
   { kind: 'clickableText', value: 'תנועות עו"ש' },
   { kind: 'clickableText', value: 'פירוט תנועות' },
   { kind: 'clickableText', value: 'לכל התנועות' },
   { kind: 'clickableText', value: 'תנועות אחרונות' },
-  { kind: 'clickableText', value: 'לעובר ושב' },
   // Yahav current-account nav (SPA route #/main/accounts/current/). Both quote
   // variants: gershayim U+05F4 (the real glyph) + ASCII U+0022 fallback. Placed
   // before the credit-card entries so the account-resolve nudge reaches the

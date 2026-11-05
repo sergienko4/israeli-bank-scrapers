@@ -40,8 +40,6 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     // --- semantic HTML ---
     { kind: 'name', value: 'userCode' },
     { kind: 'name', value: 'username' },
-    // --- CSS fallback ---
-    { kind: 'css', value: '#userCode' }, // Hapoalim
     // --- walk-up DOM (absolute last resort) ---
     { kind: 'textContent', value: 'קוד משתמש' },
     { kind: 'textContent', value: 'שם משתמש' },

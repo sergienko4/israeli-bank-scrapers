@@ -76,7 +76,7 @@ class DashboardPhase extends BasePhase {
   /**
    * DASHBOARD requires SPA-ready before scanning navigation targets (PRE)
    * and before clicking (ACTION). Bank dashboards are SPA-heavy
-   * (Backbase modules on Amex / Isracard); the click must land after JS
+   * (Angular shells on Discount / Yahav); the click must land after JS
    * hydration so the SPA router responds.
    *
    * @param stage - The stage about to execute.

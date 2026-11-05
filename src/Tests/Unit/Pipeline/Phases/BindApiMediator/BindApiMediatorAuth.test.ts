@@ -328,4 +328,19 @@ describe('BIND-API-MEDIATOR discovered-header bag — installDiscoveredHeaders g
     const bag = buildDiscoveredHeaderBag(config, NO_POOL, false);
     expect(bag).toEqual({});
   });
+
+  it('BIND-BAG-4 adopts the first captured donor header for an opted-in bank', () => {
+    const pool = [
+      makeHeaderEndpoint('https://online.bank.example/appsng/bff-a', {
+        'x-site-id': 'first-donor',
+      }),
+      makeHeaderEndpoint('https://online.bank.example/appsng/bff-b', {
+        'x-site-id': 'later-donor',
+      }),
+    ];
+    const config = makeHeaderConfig(true);
+    const bag = buildDiscoveredHeaderBag(config, pool, false);
+    const donorValues = Object.values(bag).filter(value => value.endsWith('-donor'));
+    expect(donorValues).toEqual(['first-donor']);
+  });
 });

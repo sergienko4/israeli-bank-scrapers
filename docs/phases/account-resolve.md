@@ -1,6 +1,6 @@
 # ACCOUNT-RESOLVE
 
-Discover the list of accounts/cards the user has access to and the billing-cycle catalog for credit cards. Produces the `ids[]` + `records[]` that SCRAPE iterates and BALANCE-RESOLVE consumes.
+Discover the list of accounts/cards the user has access to. Produces the `ids[]` + `records[]` that SCRAPE iterates and BALANCE-RESOLVE consumes.
 
 | | |
 |---|---|
@@ -14,8 +14,8 @@ Discover the list of accounts/cards the user has access to and the billing-cycle
 |---|---|
 | `.pre` | Wait for an id-bearing pre-nav capture; if the passive pool stays sparse, nudge the SPA to the cards/transactions view and wait again. |
 | `.action` | Issue the discovery call; parse the response via `findFieldValue` against the bank's WK field aliases (e.g. `cardUniqueId`, `accountId`, `bankAccountUniqueId`). |
-| `.post` | Validate `ids.length > 0`; build the billing-cycle catalog for card banks. |
-| `.final` | Commit `accountDiscovery: { ids, records, containers, endpointCaptureIndex, billingCycleCatalog? }`. |
+| `.post` | Validate `ids.length > 0` and that every id-bearing container resolved. |
+| `.final` | Commit `accountDiscovery: { ids, records, containers, endpointCaptureIndex }`. |
 
 ## IAccountDiscovery shape
 
@@ -25,7 +25,6 @@ interface IAccountDiscovery {
   readonly records: readonly Record<string, unknown>[];          // raw record per id (same order)
   readonly containers: Record<string, unknown>;                  // outer containers for nested shapes
   readonly endpointCaptureIndex: number;                         // which pool entry the discovery came from
-  readonly billingCycleCatalog?: IBillingCycleCatalog;           // card banks only
 }
 ```
 

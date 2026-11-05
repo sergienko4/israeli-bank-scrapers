@@ -20,7 +20,6 @@ type ResolveClassification =
     }
   | {
       readonly kind: 'commit';
-      readonly pool: readonly IDiscoveredEndpoint[];
       readonly result: ReturnType<typeof discoverAccountsInPool>;
     };
 
@@ -40,7 +39,7 @@ function buildFailIncompleteClassification(
 
 /**
  * Classify the `discoverAccountsInPool` outcome into a tagged union.
- * @param pool - Pre-nav capture pool (drives catalog detection).
+ * @param pool - Pre-nav capture pool (sizes the expected container).
  * @param result - Resolution outcome from `discoverAccountsInPool`.
  * @returns Discriminated classification used by the dispatcher.
  */
@@ -51,7 +50,7 @@ function classifyAccountResolveResult(
   if (result.ids.length === 0) return { kind: 'failEmpty', poolSize: pool.length };
   const expected = poolMaxContainer(pool);
   if (result.ids.length < expected) return buildFailIncompleteClassification(result, expected);
-  return { kind: 'commit', pool, result };
+  return { kind: 'commit', result };
 }
 
 /**

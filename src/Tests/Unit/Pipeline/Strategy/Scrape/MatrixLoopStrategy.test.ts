@@ -6,10 +6,6 @@ import type {
   IDiscoveredEndpoint,
   INetworkDiscovery,
 } from '../../../../../Scrapers/Pipeline/Mediator/Network/NetworkDiscovery.js';
-import {
-  fitsMonthRequestBudget,
-  MAX_MONTH_REQUESTS,
-} from '../../../../../Scrapers/Pipeline/Mediator/Scrape/MonthRangeBudget.js';
 import { tryMatrixLoop } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/MatrixLoopStrategy.js';
 import {
   EMPTY_TXN_ENDPOINT,
@@ -17,7 +13,6 @@ import {
 } from '../../../../../Scrapers/Pipeline/Strategy/Scrape/ScrapeTypes.js';
 import type {
   IApiFetchContext,
-  IBillingCycleCatalog,
   ITxnEndpoint,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 
@@ -134,7 +129,7 @@ describe('tryMatrixLoop', () => {
  * landed in `fc.api.fetchPost`.
  *
  * <p>Returns a deterministic Procedure-failure for every call (a
- * 0-txn outcome at the catalog driver — what matters for these tests
+ * 0-txn outcome per month — what matters for these tests
  * is the CALL COUNT, not the payload).
  */
 /** Records one recorded fetchPost invocation. */
@@ -149,9 +144,8 @@ interface ICountingApi {
 }
 
 /**
- * Empty-endpoint network stub used by the catalog-driven tests —
- * matrix loop never consults `getAllEndpoints` on the catalog path,
- * but the field is required by the interface.
+ * Empty-endpoint network stub — the matrix loop never consults
+ * `getAllEndpoints`, but the field is required by the interface.
  *
  * @returns Empty endpoint list.
  */
@@ -160,7 +154,7 @@ function emptyEndpointList(): readonly IDiscoveredEndpoint[] {
 }
 
 /**
- * Stub balance-url builder — returns false so the catalog tests
+ * Stub balance-url builder — returns false so the month-plan tests
  * exercise the no-balance branch in {@link buildAccountResult}.
  *
  * @returns False (no balance URL discovered).
@@ -170,7 +164,7 @@ function noBalanceUrl(): false {
 }
 
 /**
- * Build an inert {@link INetworkDiscovery} stub. Catalog-driven
+ * Build an inert {@link INetworkDiscovery} stub. Month-plan
  * iteration doesn't touch the network discovery surface; this stub
  * exists only to satisfy the interface.
  *
@@ -192,8 +186,8 @@ interface IStubFailure {
 }
 
 /**
- * Single instance of the canonical stub failure — the catalog
- * iteration tests don't inspect the payload; they only count calls.
+ * Single instance of the canonical stub failure — the month-plan
+ * tests don't inspect the payload; they only count calls.
  */
 const STUB_FAILURE: IStubFailure = {
   success: false,
@@ -221,30 +215,12 @@ function makeFetchPostRecorder(
 
 /**
  * Build the inert `fetchGet` stub — required by `IApiFetchContext`
- * but never invoked by the catalog-driven matrix loop.
+ * but never invoked by the matrix loop.
  *
  * @returns Failure procedure.
  */
 function fetchGetStub(): Promise<IStubFailure> {
   return Promise.resolve(STUB_FAILURE);
-}
-
-/**
- * Extract the calendar year encoded in an accepted cycle date.
- * Supports both shapes the parser handles — Backbase `MM/YYYY` and
- * ISO `YYYY-MM-DD`. Returns `NaN` on miss; the bounds test only
- * consults this value when `isAccepted` is true so the miss path
- * is unreached during normal runs.
- *
- * @param billingDate - Cycle date string.
- * @returns Parsed year on success; `NaN` otherwise.
- */
-function extractAcceptedYear(billingDate: string): number {
-  const backbase = /^\d{2}\/(\d{4})$/.exec(billingDate);
-  if (backbase !== null) return Number(backbase[1]);
-  const iso = /^(\d{4})-\d{2}/.exec(billingDate);
-  if (iso !== null) return Number(iso[1]);
-  return Number.NaN;
 }
 
 /**
@@ -263,47 +239,6 @@ function makeCountingApi(): ICountingApi {
     pendingUrl: false as const,
   } as unknown as IApiFetchContext;
   return { api, calls };
-}
-
-/**
- * Build distinct valid monthly catalog entries.
- * @param count - Number of cycles to generate.
- * @returns Chronological cycle catalog.
- */
-function catalogWithCount(count: number): IBillingCycleCatalog {
-  const cycles = Array.from({ length: count }, (_, index) => {
-    const month = String((index % 12) + 1).padStart(2, '0');
-    const year = String(2000 + Math.floor(index / 12));
-    return { billingDate: `${month}/${year}`, isOpen: false };
-  });
-  return { cycles };
-}
-
-/**
- * Run an oversized catalog, which must stop before rate-limit timers.
- * @param count - Number of valid catalog entries.
- * @returns Recorded requests and the Matrix result.
- */
-async function runCatalogCount(count: number): Promise<{
-  readonly calls: readonly IRecordedCall[];
-  readonly result: Awaited<ReturnType<typeof tryMatrixLoop>>;
-}> {
-  const { api, calls } = makeCountingApi();
-  const templatePostData = JSON.stringify({ month: 1, year: 2026, accountId: 'a' });
-  const txnEndpoint = stubTxn({
-    url: 'https://bank.example/api/txn',
-    method: 'POST',
-    templatePostData,
-  });
-  const fc = {
-    api,
-    network: makeInertNetwork(),
-    startDate: '20000101',
-    txnEndpoint,
-    billingCycleCatalog: catalogWithCount(count),
-  };
-  const result = await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
-  return { calls, result };
 }
 
 /** Date returned when production tries to re-parse a named month as an instant. */
@@ -338,23 +273,8 @@ async function withTamperedStringDate<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
-describe('tryMatrixLoop — catalog-driven iteration', () => {
-  it('[MATRIX-CATALOG-BUDGET-300] accepts a catalog at the request ceiling', () => {
-    const plan = catalogWithCount(MAX_MONTH_REQUESTS).cycles;
-    const hasBudget = fitsMonthRequestBudget(plan);
-    expect(hasBudget).toBe(true);
-  });
-
-  it('[MATRIX-CATALOG-BUDGET-301] rejects a catalog above the request ceiling', async () => {
-    const { calls, result } = await runCatalogCount(MAX_MONTH_REQUESTS + 1);
-    expect(calls).toHaveLength(0);
-    expect(result).toMatchObject({
-      success: false,
-      errorMessage: 'MatrixLoop: invalid or oversized month plan (limit 300)',
-    });
-  });
-
-  it('[MATRIX-CATALOG-INVALID-START] rejects before fetching catalog cycles', async () => {
+describe('tryMatrixLoop — month-chunk plan', () => {
+  it('[MATRIX-INVALID-START] rejects before fetching any month', async () => {
     const { api, calls } = makeCountingApi();
     const txnEndpoint = stubTxn({
       url: 'https://bank.example/api/txn',
@@ -366,7 +286,6 @@ describe('tryMatrixLoop — catalog-driven iteration', () => {
       network: makeInertNetwork(),
       startDate: 'Invalid date',
       txnEndpoint,
-      billingCycleCatalog: catalogWithCount(1),
     };
     const result = await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
     expect(calls).toHaveLength(0);
@@ -389,32 +308,7 @@ describe('tryMatrixLoop — catalog-driven iteration', () => {
     });
   });
 
-  it('[MATRIX-CATALOG-USES] WithCatalog_IteratesCatalogCycles_NotMonthChunks', async () => {
-    const catalog: IBillingCycleCatalog = {
-      cycles: [
-        { billingDate: '06/2026', isOpen: true },
-        { billingDate: '05/2026', isOpen: false },
-      ],
-    };
-    const { api, calls } = makeCountingApi();
-    const ep = stubTxn({
-      url: 'https://bank.example/api/txn',
-      method: 'POST',
-      templatePostData: JSON.stringify({ month: 1, year: 2026, accountId: 'a' }),
-    });
-    const network = makeInertNetwork();
-    const fc: IAccountFetchCtx = {
-      api,
-      network,
-      startDate: '20251101',
-      txnEndpoint: ep,
-      billingCycleCatalog: catalog,
-    };
-    await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
-    expect(calls.length).toBe(catalog.cycles.length);
-  });
-
-  it('[MATRIX-CATALOG-FALLBACK] NoCatalog_UsesGenerateMonthChunks', async () => {
+  it('[MATRIX-GENERATED] uses generated month chunks', async () => {
     const { api, calls } = makeCountingApi();
     const ep = stubTxn({
       url: 'https://bank.example/api/txn',
@@ -429,16 +323,12 @@ describe('tryMatrixLoop — catalog-driven iteration', () => {
       txnEndpoint: ep,
     };
     await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
-    // Default month-chunk plan from 2026-01-01 to now ≥ 1 chunk per
-    // month — we don't pin the exact count (date-relative), just
-    // that the fallback fired and produced at least one chunk.
+    // Month-chunk plan from 2026-01-01 to now — one chunk per month.
+    // The count is date-relative, so only pin that chunks were fetched.
     expect(calls.length).toBeGreaterThan(0);
   });
 
-  it('asks for the month the catalog names without parsing it as an instant', async () => {
-    const catalog: IBillingCycleCatalog = {
-      cycles: [{ billingDate: '03/2026', isOpen: true }],
-    };
+  it('asks for the generated month without parsing it as an instant', async () => {
     const { api, calls } = makeCountingApi();
     const ep = stubTxn({
       url: 'https://bank.example/api/txn',
@@ -448,9 +338,8 @@ describe('tryMatrixLoop — catalog-driven iteration', () => {
     const fc: IAccountFetchCtx = {
       api,
       network: makeInertNetwork(),
-      startDate: '20260101',
+      startDate: '20260301',
       txnEndpoint: ep,
-      billingCycleCatalog: catalog,
     };
     /**
      * Execute Matrix under the Date sentinel.
@@ -463,110 +352,13 @@ describe('tryMatrixLoop — catalog-driven iteration', () => {
     expect(calls[0].body.month).toBe('3');
     expect(calls[0].body.year).toBe('2026');
   });
-
-  /** One row in the cycle-month bounds truth table. */
-  interface IBackbaseBoundsCase {
-    readonly billingDate: string;
-    readonly isAccepted: boolean;
-  }
-
-  const backbaseBoundsCases: readonly IBackbaseBoundsCase[] = [
-    { billingDate: '00/2026', isAccepted: false },
-    { billingDate: '13/2026', isAccepted: false },
-    { billingDate: '01/2026', isAccepted: true },
-    { billingDate: '12/2026', isAccepted: true },
-    // ISO-shape misses — neither may create an unrelated request.
-    { billingDate: 'not-a-date', isAccepted: false },
-    { billingDate: '2026-13-01', isAccepted: false },
-    // ISO-shape happy path — explicitly fetched year matches the
-    // parsed year (timezone-safe regardless of runner locale).
-    { billingDate: '2026-07-15', isAccepted: true },
-  ];
-
-  describe('with malformed-label rejection', () => {
-    it.each(backbaseBoundsCases)(
-      '[MATRIX-CATALOG-BOUNDS] BackbaseBillingDate_$billingDate_acceptanceMatchesRange',
-      async testCase => {
-        const catalog: IBillingCycleCatalog = {
-          cycles: [{ billingDate: testCase.billingDate, isOpen: true }],
-        };
-        const { api, calls } = makeCountingApi();
-        const ep = stubTxn({
-          url: 'https://bank.example/api/txn',
-          method: 'POST',
-          templatePostData: JSON.stringify({ month: 1, year: 2026, accountId: 'a' }),
-        });
-        const fc: IAccountFetchCtx = {
-          api,
-          network: makeInertNetwork(),
-          startDate: '20251101',
-          txnEndpoint: ep,
-          billingCycleCatalog: catalog,
-        };
-        await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
-        const expectedCalls = testCase.isAccepted ? 1 : 0;
-        expect(calls).toHaveLength(expectedCalls);
-        if (testCase.isAccepted) {
-          const [recorded] = calls;
-          const fetchedYear = Number(recorded.body.year);
-          const acceptedYear = extractAcceptedYear(testCase.billingDate);
-          expect(fetchedYear).toBe(acceptedYear);
-        }
-      },
-    );
-  });
-
-  it('[MATRIX-CATALOG-INTEGRITY-302] rejects a mixed catalog before fetching', async () => {
-    const catalog: IBillingCycleCatalog = {
-      cycles: [
-        { billingDate: '06/2026', isOpen: true },
-        { billingDate: 'not-a-date', isOpen: false },
-      ],
-    };
-    const { api, calls } = makeCountingApi();
-    const txnEndpoint = stubTxn({
-      url: 'https://bank.example/api/txn',
-      method: 'POST',
-      templatePostData: JSON.stringify({ month: 1, year: 2026, accountId: 'a' }),
-    });
-    const fc: IAccountFetchCtx = {
-      api,
-      network: makeInertNetwork(),
-      startDate: '20251101',
-      txnEndpoint,
-      billingCycleCatalog: catalog,
-    };
-    const result = await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
-    expect(calls).toHaveLength(0);
-    expect(result).toMatchObject({ success: false });
-  });
-
-  it('[MATRIX-CATALOG-EMPTY] EmptyCatalog_FallsBackToMonthChunks', async () => {
-    const { api, calls } = makeCountingApi();
-    const ep = stubTxn({
-      url: 'https://bank.example/api/txn',
-      method: 'POST',
-      templatePostData: JSON.stringify({ month: 1, year: 2026, accountId: 'a' }),
-    });
-    const network = makeInertNetwork();
-    const fc: IAccountFetchCtx = {
-      api,
-      network,
-      startDate: '20260101',
-      txnEndpoint: ep,
-      billingCycleCatalog: { cycles: [] },
-    };
-    await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
-    // Empty catalog → fall back to month chunks → at least 1 call.
-    expect(calls.length).toBeGreaterThan(0);
-  });
 });
 
 /**
  * Phase F — verifies `tryMatrixLoop` invokes `deduplicateTxns` on the
- * concatenated chunk results so cross-cycle echoes never reach
+ * concatenated chunk results so cross-month echoes never reach
  * `buildAccountResult`. The bug fixed: Isracard / Amex returned the
- * same pending-approval row in every cycle's response, and matrix-loop
+ * same pending-approval row in every month's response, and matrix-loop
  * concatenated them all into the final account result (8 echoes for
  * card 5290).
  *
@@ -628,16 +420,9 @@ describe('tryMatrixLoop — Phase F dedup adoption', () => {
     return { api, calls };
   }
 
-  it('[MATRIX-DEDUP-001] CrossCycleEchoes_ShouldCollapseToOne', async () => {
-    // 3 cycles → 3 fetchPost calls → 3 identical echo txns concatenated.
+  it('[MATRIX-DEDUP-001] CrossMonthEchoes_ShouldCollapseToOne', async () => {
+    // Every generated month → one fetchPost → identical echo txns concatenated.
     // After dedup (Phase F): result has 1 unique txn.
-    const catalog: IBillingCycleCatalog = {
-      cycles: [
-        { billingDate: '03/2026', isOpen: false },
-        { billingDate: '04/2026', isOpen: false },
-        { billingDate: '05/2026', isOpen: true },
-      ],
-    };
     const { api, calls } = makeSuccessCountingApi();
     const ep = stubTxn({
       url: 'https://bank.example/api/txn',
@@ -649,7 +434,6 @@ describe('tryMatrixLoop — Phase F dedup adoption', () => {
       network: makeInertNetwork(),
       startDate: '20260101',
       txnEndpoint: ep,
-      billingCycleCatalog: catalog,
     };
 
     const result = await tryMatrixLoop({ fc, accountId: 'a', displayId: '1' });
@@ -659,8 +443,8 @@ describe('tryMatrixLoop — Phase F dedup adoption', () => {
       // Bug fix: 3 echoes collapse to 1 (by identifier or attribute hash).
       expect(result.value.txns.length).toBe(1);
     }
-    // Sanity: the strategy still made the 3 expected fetches before
-    // dedup ran on the concatenated output.
-    expect(calls.length).toBe(3);
+    // Sanity: the strategy fetched several months before dedup ran on
+    // the concatenated output.
+    expect(calls.length).toBeGreaterThan(1);
   });
 });

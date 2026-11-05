@@ -1,7 +1,6 @@
 /**
  * Matrix Loop Strategy — additive monthly endpoint iteration.
  * Activates ONLY when NetworkDiscovery finds a monthly-pattern endpoint.
- * Does NOT modify the legacy billing fallback used by Discount/VisaCal.
  *
  * SOLID (OCP): extends scrape capabilities without modifying existing code.
  *
@@ -17,15 +16,8 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { getDebug } from '../../Logging/Debug.js';
 import { parseFreshResponse } from '../../Mediator/Dashboard/TxnParser.js';
 import type { IBankMonth } from '../../Mediator/Scrape/BankMonth.js';
-import {
-  bankMonthBounds,
-  bankMonthOfLabel,
-  bankMonthOfSlashedLabel,
-} from '../../Mediator/Scrape/BankMonth.js';
-import {
-  fitsMonthRequestBudget,
-  MAX_MONTH_REQUESTS,
-} from '../../Mediator/Scrape/MonthRangeBudget.js';
+import { bankMonthBounds, bankMonthOfLabel } from '../../Mediator/Scrape/BankMonth.js';
+import { MAX_MONTH_REQUESTS } from '../../Mediator/Scrape/MonthRangeBudget.js';
 import {
   buildMonthBody,
   generateMonthChunks,
@@ -33,7 +25,6 @@ import {
 } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
 import { applyDateRangeAndAppend } from '../../Mediator/Scrape/UrlDateRange.js';
 import { maskVisibleText } from '../../Types/LogEvent.js';
-import type { IBillingCycle } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk } from '../../Types/Procedure.js';
 import buildAccountResult from './ScrapeData/ScrapeDataAssembly.js';
@@ -193,44 +184,18 @@ function readableStartDate(fc: IAccountFetchCtx): Date | false {
 }
 
 /**
- * Build the bounded fallback plan when the bank supplied no cycle catalog.
- * @param fc - Per-account fetch context.
- * @param startDate - Validated requested start.
- * @returns Generated bank months, or false for an unsafe request.
- */
-function generatedChunkPlan(fc: IAccountFetchCtx, startDate: Date): readonly IBankMonth[] | false {
-  const chunks = generateMonthChunks(startDate, new Date(), fc.futureMonths);
-  return chunks === false ? false : chunks.flatMap(chunkToMonth);
-}
-
-/**
- * Resolve the per-card month-iteration plan from the most
- * authoritative source available — the bank-reported cycle catalog
- * when present, the blind month-chunk fallback otherwise.
- *
- * <p>Catalog-driven iteration covers the OPEN cycle the blind
- * month-chunk plan can miss (the bank's billing date may fall in a
- * future month outside the `futureMonths` window). Non-cycling
- * banks (Hapoalim / Beinleumi / Discount / OneZero / Pepper) carry
- * no catalog — fallback path keeps current behaviour.
+ * Resolve the per-card month-iteration plan: one generated month chunk
+ * per bank month from the requested start through `futureMonths`.
  *
  * @param fc - Per-account fetch context plumbed by SCRAPE.PRE.
- * @returns Ordered month chunks for {@link collectChunkTxns}.
+ * @returns Ordered month chunks for {@link collectChunkTxns}, or false
+ *   for an unreadable start or an oversized request.
  */
 function resolveChunkPlan(fc: IAccountFetchCtx): readonly IBankMonth[] | false {
   const startDate = readableStartDate(fc);
   if (startDate === false) return false;
-  const catalog = fc.billingCycleCatalog;
-  const hasCatalog = catalog !== undefined && catalog.cycles.length > 0;
-  if (!hasCatalog) return generatedChunkPlan(fc, startDate);
-  const cycleCount = catalog.cycles.length;
-  LOG.debug({
-    message: `MatrixLoop: catalog-driven — cycles=${String(cycleCount)}`,
-  });
-  const chunks = catalog.cycles.flatMap(cycleToMonth);
-  if (chunks.length === cycleCount && fitsMonthRequestBudget(chunks)) return chunks;
-  LOG.warn({ message: 'MatrixLoop: rejected invalid or oversized cycle catalog' });
-  return false;
+  const chunks = generateMonthChunks(startDate, new Date(), fc.futureMonths);
+  return chunks === false ? false : chunks.flatMap(chunkToMonth);
 }
 
 /**
@@ -243,34 +208,6 @@ function chunkToMonth(chunk: IMonthChunkName): readonly IBankMonth[] {
   if (named !== false) return [named];
   LOG.warn({ message: 'MatrixLoop: skipped invalid generated month label' });
   return [];
-}
-
-/**
- * Project one canonical billing cycle onto its named bank month.
- * Invalid provider labels are rejected rather than redirected to another month.
- *
- * @param cycle - One canonical cycle from the catalog.
- * @returns One validated month, or empty for an invalid provider label.
- */
-function cycleToMonth(cycle: IBillingCycle): readonly IBankMonth[] {
-  const parsed = parseCycleMonth(cycle.billingDate);
-  if (parsed !== false) return [parsed];
-  LOG.warn({ message: 'MatrixLoop: skipped invalid billing-cycle label' });
-  return [];
-}
-
-/**
- * Parse every known billing-date shape into a bank month.
- *
- * @param raw - Raw billing-date string.
- * @returns Named month, or false for an invalid provider label.
- */
-function parseCycleMonth(raw: string): IBankMonth | false {
-  const fromBackbase = bankMonthOfSlashedLabel(raw);
-  if (fromBackbase !== false) return fromBackbase;
-  const fromIso = bankMonthOfLabel(raw);
-  if (fromIso !== false) return fromIso;
-  return false;
 }
 
 /**

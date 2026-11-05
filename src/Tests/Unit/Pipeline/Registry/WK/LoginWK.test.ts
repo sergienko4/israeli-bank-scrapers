@@ -34,12 +34,7 @@ function hasNationalId(kind: string, value: string): boolean {
   );
 }
 
-describe('WK_LOGIN_FORM.username — Mizrahi label-only username', () => {
-  it('ends with labelText "משתמש" so every more specific label wins first', () => {
-    const last = WK_LOGIN_FORM.username.at(-1);
-    expect(last).toEqual({ kind: 'labelText', value: 'משתמש' });
-  });
-
+describe('WK_LOGIN_FORM.username', () => {
   it('uses only visible-text matchers — no name/id CSS coupling', () => {
     const structural = WK_LOGIN_FORM.username.filter((entry: IFormEntry): boolean =>
       STRUCTURAL_KINDS.includes(entry.kind),

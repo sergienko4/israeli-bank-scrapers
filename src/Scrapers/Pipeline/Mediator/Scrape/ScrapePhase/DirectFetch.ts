@@ -21,7 +21,6 @@ import { bankMomentOfInstant } from '../BankCalendar.js';
 import { LOG } from './Diag.js';
 import type { readDashboardTxnHarvest, readPreDiscoveredTxn } from './PreDiscovery.js';
 import {
-  readBillingCycleCatalog,
   readDateWindowParams,
   readDedupKeyFields,
   readPreDiscoveredAccounts,
@@ -33,7 +32,7 @@ type IProc = Procedure<IPipelineContext>;
 type IRefFields = Pick<IAccountFetchCtx, 'api' | 'network' | 'txnEndpoint' | 'dashboardTxnHarvest'>;
 type IDerivedFields = Pick<
   IAccountFetchCtx,
-  'startDate' | 'futureMonths' | 'billingCycleCatalog' | 'dedupKeyFields' | 'dateWindowParams'
+  'startDate' | 'futureMonths' | 'dedupKeyFields' | 'dateWindowParams'
 >;
 
 const NO_ACCT_ID_MSG = 'scrape: no usable account identifier in ctx.accountDiscovery';
@@ -88,7 +87,7 @@ function buildRefFields(args: IFetchCtxArgs): IRefFields {
 }
 
 /**
- * Compute the five derived fields of the fetch context.
+ * Compute the four derived fields of the fetch context.
  *
  * @param args - Bundled ready handle + reads.
  * @returns Derived fields slice.
@@ -97,7 +96,6 @@ function buildDerivedFields(args: IFetchCtxArgs): IDerivedFields {
   return {
     startDate: bankMomentOfInstant(args.ready.input.options.startDate).format('YYYYMMDD'),
     futureMonths: getFutureMonths(args.ready.input.options),
-    billingCycleCatalog: readBillingCycleCatalog(args.ready.input),
     dedupKeyFields: readDedupKeyFields(args.reads.harvest, FALLBACK_DEDUP_KEY_FIELDS),
     dateWindowParams: readDateWindowParams(args.reads.harvest),
   };

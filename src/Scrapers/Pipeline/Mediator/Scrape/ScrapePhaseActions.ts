@@ -20,7 +20,6 @@ export {
   executeMatrixLoop,
   executeStampAccounts,
   executeValidateResults,
-  readBillingCycleCatalog,
   readDashboardTxnHarvest,
   readDateWindowParams,
   readDedupKeyFields,
