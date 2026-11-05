@@ -20,6 +20,7 @@ import type {
   IExtractRule,
   IStepConfig,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { API_DIRECT_OPTIONAL_EXTRACT_RULES } from './ApiDirectOptionalExtractRules.js';
 import {
   allSteps,
   type IApiDirectRule,
@@ -253,6 +254,7 @@ const API_DIRECT_STEP_RULES: readonly IApiDirectRule[] = [
     message: 'steps.extractRules: each key must name a body or header extract',
     isBroken: hasStrayExtractRule,
   },
+  ...API_DIRECT_OPTIONAL_EXTRACT_RULES,
   {
     message: 'steps.extractRules.pattern: must be an anchored regex',
     isBroken: anyExtractRule(isBadPattern),

@@ -62,6 +62,18 @@ describe('validateApiDirectConfig — persistent-auth kind rule', () => {
     });
   });
 
+  describe.each([BOUND_DEVICE, DEVICE_MEMORY])('persistent-auth $kind deviceIdField', block => {
+    it.each(['', ' \t\n '])('refuses a blank deviceIdField "%s" at build time', deviceIdField => {
+      const input = inputOf({ ...block, deviceIdField });
+      const result = validateApiDirectConfig(input);
+      expect(result).toMatchObject({
+        success: false,
+        errorType: ScraperErrorTypes.Generic,
+        errorMessage: 'persistentAuth.deviceIdField: must not be blank',
+      });
+    });
+  });
+
   it.each([
     ['a bound-device block', BOUND_DEVICE],
     ['a device-memory block', DEVICE_MEMORY],

@@ -76,6 +76,20 @@ describe('NativeFetchStrategy — strict UTF-8 answers (N63)', () => {
     expect(result).toEqual({ success: true, value: { name: 'שלום' } });
   });
 
+  it('reads a valid UTF-8 document carrying its marker', async () => {
+    serve('<main>portal-ready \u05e9\u05dc\u05d5\u05dd</main>');
+    const opts = { ...DOCUMENT, documentMarker: 'portal-ready' };
+    const result = await getPortal(STRICT_BANK, opts);
+    expect(result).toEqual({ success: true, value: {} });
+  });
+
+  it('reads valid Unicode text under strict UTF-8', async () => {
+    const text = '\u05e9\u05dc\u05d5\u05dd \u20ac \u{1F600}';
+    serve(text);
+    const result = await getPortal(STRICT_BANK, TEXT);
+    expect(result).toEqual({ success: true, value: { text } });
+  });
+
   it('reads a malformed byte as U+FFFD on a transport naming nothing', async () => {
     serve(BAD_JSON);
     const result = await getPortal(PLAIN, JSON_CALL);

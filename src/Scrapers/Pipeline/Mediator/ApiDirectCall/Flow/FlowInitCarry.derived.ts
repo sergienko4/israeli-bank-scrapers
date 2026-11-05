@@ -54,7 +54,9 @@ function reduceDerivedPart(
 function truncateUtf8(value: string, maxBytes: number): string {
   const encoded = Buffer.from(value, 'utf8');
   if (encoded.length <= maxBytes) return value;
-  const slice = encoded.subarray(0, maxBytes);
+  let end = Math.floor(maxBytes);
+  while ((encoded[end] & 0xc0) === 0x80) end -= 1;
+  const slice = encoded.subarray(0, end);
   const decoder = new TextDecoder('utf-8', { fatal: false });
   return decoder.decode(slice);
 }

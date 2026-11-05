@@ -186,6 +186,16 @@ async function invokeFetch(
 }
 
 /**
+ * Adapt the native fetch caller to the transport policy seam.
+ * @param url - Target URL.
+ * @param init - Native fetch request.
+ * @param policy - Request metadata; media checks stay in the shared router.
+ * @returns The raw response or the native network failure.
+ */
+const INVOKE_NATIVE_FETCH: FetchInvoke = (url, init, policy): Promise<Procedure<Response>> =>
+  invokeFetch(url, init, policy.verb);
+
+/**
  * Resolve a request URL the way every node transport does: an absolute
  * http(s) URL passes through, anything else is appended to the base URL.
  * @param baseUrl - The transport's base URL.
@@ -245,7 +255,7 @@ class NativeFetchStrategy implements IFetchStrategy {
    * transport. All downstream response parsing, cookie emission, and logging
    * stay in the shared dispatchFetch pipeline regardless of transport.
    */
-  protected _invoke: FetchInvoke = invokeFetch;
+  protected _invoke: FetchInvoke = INVOKE_NATIVE_FETCH;
 
   /**
    * Default-headers seam — the headers each verb sends under the caller's.
@@ -350,7 +360,8 @@ class NativeFetchStrategy implements IFetchStrategy {
     const reading = this.readingOf(opts);
     const { onSetCookie, sessionHeadersFor } = opts;
     const hooks = { onSetCookie, sessionHeadersFor };
-    return { ...request, ...hooks, url, invoke: this._invoke, policy, reading };
+    const invocation = { invoke: this._invoke, mediaType: reading.mediaType };
+    return { ...request, ...hooks, ...invocation, url, policy, reading };
   }
 
   /**

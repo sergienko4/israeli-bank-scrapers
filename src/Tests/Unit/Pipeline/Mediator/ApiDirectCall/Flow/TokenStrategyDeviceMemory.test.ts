@@ -15,8 +15,9 @@ import {
   encodeDeviceMemoryState,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/DeviceMemoryStateCodec.js';
 import type { PersistentAuthMode } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
+import { none } from '../../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { failWithDetails, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
   type IStateRecorder,
   makeDurableStrategy,
@@ -181,6 +182,32 @@ describe('device-memory resume', () => {
       expect(failure).not.toContain(account);
     },
   );
+
+  it('omits bank-controlled WAF details while retaining the refusal type', async () => {
+    const stored = storedState(STORED_DID);
+    const recorder = makeRecorder();
+    const mode = modeOf({ response: {}, stored }, recorder);
+    const strategy = makeDurableStrategy(CONFIG, mode);
+    const errorType = ScraperErrorTypes.WafBlocked;
+    const failure = failWithDetails(errorType, `bank rejected ${STORED_DID}`, {
+      provider: 'cloudflare',
+      httpStatus: 403,
+      pageTitle: STORED_DID,
+      pageUrl: `https://bank.example/login?did=${STORED_DID}`,
+      responseSnippet: CREDS.username,
+      suggestions: [STORED_DID],
+    });
+    const bus = makeStubMediator({ responses: [failure], captures: [] });
+    const result = await strategy.primeInitial(bus, PEPPER_CTX, CREDS);
+    const errorDetails = none();
+    expect(result).toEqual({
+      success: false,
+      errorType,
+      errorMessage: 'persistent auth failed: flow',
+      errorDetails,
+    });
+    expect(recorder.invocations).toHaveLength(0);
+  });
 
   it('resumes when the username differs only in case', async () => {
     const stored = storedState(STORED_DID);

@@ -246,17 +246,22 @@ type Stated = Readonly<Record<string, JsonValue>>;
  * Run the flow with an OTP hook whose length the bind answer states.
  * @param stated - `{ otpLength }` for the bind answer, or `{}` to leave it out.
  * @param code - The code the retriever delivers.
+ * @param hook - Length-aware hook, optionally without a pattern.
  * @returns The guarded run.
  */
-async function runLength(stated: Stated, code: string): Promise<IGuardRun> {
-  const base = configWith(LENGTH_HOOK);
+async function runLength(
+  stated: Stated,
+  code: string,
+  hook: Hook = LENGTH_HOOK,
+): Promise<IGuardRun> {
+  const base = configWith(hook);
   const isStated = Object.hasOwn(stated, 'otpLength');
   const lengthExtracts = { token: '/token', otpLength: '/otpLength' };
   const extractsToCarry = isStated ? lengthExtracts : BIND_STEP.extractsToCarry;
   const bindStep: IStepConfig = { ...BIND_STEP, extractsToCarry };
   const config: IApiDirectCallConfig = { ...base, steps: [bindStep, base.steps[1]] };
   const bind = { ...FULL_BIND, ...stated };
-  return runGuarded({ hook: LENGTH_HOOK, bind, code, config });
+  return runGuarded({ hook, bind, code, config });
 }
 
 describe('SmsOtpFlow — pre-hook guards', () => {
@@ -508,6 +513,18 @@ describe('SmsOtpFlow — pre-hook guards', () => {
       expect(run.captures).toHaveLength(1);
     },
   );
+
+  it('rejects same-length nondigits without a valuePattern', async () => {
+    const hook: Hook = { ...NO_HINT_HOOK, valueLengthRef: 'carry.otpLength' };
+    const run = await runLength({ otpLength: 6 }, '12ab56', hook);
+    expect(run.result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.InvalidOtp,
+      errorMessage: 'login preHook value invalid',
+    });
+    expect(run.hints).toHaveLength(1);
+    expect(run.captures).toHaveLength(1);
+  });
 
   it.each<[string, JsonValue]>([
     ['below 4', 3],

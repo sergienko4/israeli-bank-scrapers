@@ -1,7 +1,7 @@
 /**
  * Persistent-auth rules for an api-direct call config (N48). A
- * `persistentAuth` block must name a kind the mediator has a primer for;
- * an unknown kind is refused here rather than at the first durable run.
+ * `persistentAuth` block must name a kind the mediator has a primer for
+ * and a nonblank device-id carry field, before any durable run.
  */
 
 import { isPersistentAuthKind } from '../../Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.durable.js';
@@ -18,10 +18,24 @@ function isUnknownKind(input: IApiDirectRuleInput): boolean {
   return !isPersistentAuthKind(block.kind);
 }
 
+/**
+ * Whether the device-id carry field names no slot.
+ * @param input - Rule input.
+ * @returns True for a persistent-auth block with a blank deviceIdField.
+ */
+function isDeviceIdFieldBlank(input: IApiDirectRuleInput): boolean {
+  const block = input.call.persistentAuth;
+  return block?.deviceIdField.trim() === '';
+}
+
 const API_DIRECT_PERSISTENT_AUTH_RULES: readonly IApiDirectRule[] = [
   {
     message: 'persistentAuth.kind: must be bound-device or device-memory',
     isBroken: isUnknownKind,
+  },
+  {
+    message: 'persistentAuth.deviceIdField: must not be blank',
+    isBroken: isDeviceIdFieldBlank,
   },
 ];
 

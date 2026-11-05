@@ -33,17 +33,31 @@ function decodeStrict(answer: IAnswer, bytes: ArrayBuffer): Procedure<string> {
 }
 
 /**
- * Read an answer's body as text, strictly when its reading says so.
+ * Decode an answer's body as text, strictly when its reading says so.
  * @param answer - A 2xx answer past the status and media type checks.
- * @returns The body text, or the strict-decoding refusal.
+ * @returns The body text, or the strict-decoding refusal; body reads may reject.
  */
-async function readBodyText(answer: IAnswer): Promise<Procedure<string>> {
+async function readResponseBody(answer: IAnswer): Promise<Procedure<string>> {
   if (answer.reading.strictUtf8 !== true) {
     const text = await answer.response.text();
     return succeed(text);
   }
   const bytes = await answer.response.arrayBuffer();
   return decodeStrict(answer, bytes);
+}
+
+/**
+ * Read an answer without exposing rejected body-read details.
+ * @param answer - A 2xx answer past the status and media type checks.
+ * @returns The body text, or a safe read or strict-decoding failure.
+ */
+async function readBodyText(answer: IAnswer): Promise<Procedure<string>> {
+  try {
+    return await readResponseBody(answer);
+  } catch {
+    const safeUrl = safeUrlForLog(answer.url);
+    return fail(ScraperErrorTypes.Generic, `${answer.verb} ${safeUrl} body read failed`);
+  }
 }
 
 export default readBodyText;

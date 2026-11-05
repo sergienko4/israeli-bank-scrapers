@@ -10,13 +10,23 @@ import type { Procedure } from '../../Types/Procedure.js';
 /** HTTP method verbs a node transport sends. */
 type HttpVerb = 'GET' | 'POST';
 
+/** Request metadata available before a transport starts collecting the body. */
+interface IFetchInvokePolicy {
+  readonly verb: HttpVerb;
+  readonly mediaType?: string;
+}
+
 /**
  * Transport seam — performs the raw request and yields a Procedure<Response>.
  * The native strategy binds it to globalThis.fetch; capped and mTLS
  * subclasses replace it while reusing all downstream response parsing,
  * cookie emission, redirect policy and logging.
  */
-type FetchInvoke = (url: string, init: RequestInit, verb: HttpVerb) => Promise<Procedure<Response>>;
+type FetchInvoke = (
+  url: string,
+  init: RequestInit,
+  policy: IFetchInvokePolicy,
+) => Promise<Procedure<Response>>;
 
 /**
  * Callback receiving the raw Set-Cookie header lines from a response.
@@ -73,6 +83,7 @@ interface IFetchStrategy {
 export type {
   FetchInvoke,
   HttpVerb,
+  IFetchInvokePolicy,
   IFetchOpts,
   IFetchStrategy,
   ISessionHeaders,

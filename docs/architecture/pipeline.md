@@ -183,6 +183,14 @@ Once a response answers, the native transport wraps it in an `IAnswer` (response
 
 For JSON answers, `parseJsonResponse` reads with the call's UTF-8 policy before
 parsing, so malformed bytes fail as a decoding error instead of a JSON error.
+Rejected body reads fail `Generic` with `"<VERB> <url> body read failed"`,
+without exposing rejection details.
+
+The `FetchInvoke` seam carries an `IFetchInvokePolicy` with the verb and
+expected media type through each redirect hop. The node:https transport
+checks API-success headers before collecting the body: a mismatch closes
+the stream and returns its headers to the shared router, preserving cookies,
+WAF classification and status-policy precedence without waiting for a body.
 The native REST and GraphQL transports share the bank's media-type and strict
 UTF-8 defaults; a call's own policy still wins. The node:https transport
 retains raw response bytes through `collectBody` and `toResponse`; otherwise

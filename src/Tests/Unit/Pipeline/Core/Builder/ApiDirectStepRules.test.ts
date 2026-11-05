@@ -245,6 +245,42 @@ describe('validateApiDirectConfig — extractRules', () => {
 
 const RUN_IF_MSG = 'steps.runIf: carry and oneOf must not be empty';
 
+describe('validateApiDirectConfig — keepExisting extract ownership', () => {
+  const errorMessage =
+    'steps.optionalExtractsToCarry: keepExisting must not overlap extractsToCarry';
+
+  it.each([
+    ['login', runOf],
+    ['resume', resumeOf],
+  ] as const)('refuses a kept required slot in a %s step', (_label, inputOf) => {
+    const optionalExtractsToCarry = { state: { pointer: '/state', keepExisting: true } } as const;
+    const step: IStepConfig = { ...ruled({}), optionalExtractsToCarry };
+    const input = inputOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage,
+    });
+  });
+
+  it('allows overlapping extracts without keepExisting', () => {
+    const optionalExtractsToCarry = { state: { pointer: '/state' } };
+    const step: IStepConfig = { ...ruled({}), optionalExtractsToCarry };
+    const input = runOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+  });
+
+  it('allows keepExisting on a distinct optional slot', () => {
+    const optionalExtractsToCarry = { target: { pointer: '/target', keepExisting: true } } as const;
+    const step: IStepConfig = { ...ruled({}), optionalExtractsToCarry };
+    const input = runOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+  });
+});
+
 /**
  * A step guarded by `runIf`.
  * @param runIf - The guard.

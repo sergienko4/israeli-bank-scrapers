@@ -254,7 +254,7 @@ describe('MtlsTransport.makeMtlsInvoke', () => {
     const source = fixedAgentSource(certAgent, false);
     const invoke = makeMtlsInvoke(source);
     const init: RequestInit = { method: 'POST', headers: {}, body: '{}' };
-    const result = await invoke(server.restUrl, init, 'POST');
+    const result = await invoke(server.restUrl, init, { verb: 'POST' });
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     if (isOk(result)) expect(result.value.status).toBe(200);

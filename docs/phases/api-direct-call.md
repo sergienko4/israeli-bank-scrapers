@@ -349,7 +349,8 @@ written only while carry has no non-empty string for it, so a device id an
 earlier run seeded survives a different id in the answer. When the answer
 differs, the debug log notes `{step, slot, kept: true}` and never the values.
 An `extractRules` entry on a kept slot is skipped. Without the flag, a present
-value still overwrites.
+value still overwrites. `API_DIRECT_OPTIONAL_EXTRACT_RULES` rejects a kept slot
+also declared in the same step's `extractsToCarry`, before any request.
 
 ```ts
 optionalExtractsToCarry: {
@@ -1182,7 +1183,7 @@ from what it extracted:
 - `strictUtf8` (N63) decodes the answer's bytes as strict UTF-8, over the
   bank's `headless.strictUtf8`; a malformed byte fails the step
   `<step> body not utf-8` instead of becoming U+FFFD. `strictUtf8: false`
-  lifts the bank's `true` for a step whose body is never read, and fails the
+  lifts the bank's `true` for that step's body reading, and fails the
   build on a bank that is not strict
   ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
 - `headerExtractsToCarry` reads a header of the final response; a missing
@@ -1822,9 +1823,9 @@ base64url JSON envelope as Pepper's. It holds no token, key or renewal step.
   401/403 during the scrape never repeats the login.
 - **Failures.** Invalid state, callback and missing device id use the durable
   categories. A failed login returns `persistent auth failed: flow` with its
-  original error type and WAF details but no response text: a bank can echo
-  even a truncated prefix of the stored id or account, which replacing whole
-  values would miss.
+  original error type but no bank-controlled response text or error details:
+  a bank can echo even a truncated prefix of the stored id or account, which
+  replacing whole values would miss.
 - **Logging.** One debug line per run carries the mode and whether a state was
   published — never a value.
 

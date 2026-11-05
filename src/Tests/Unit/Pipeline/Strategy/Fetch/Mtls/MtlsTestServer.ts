@@ -17,6 +17,7 @@ import type { TLSSocket } from 'node:tls';
 
 import { MTLS_MAX_RESPONSE_BYTES } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsResponse.js';
 import type { ICertBundle } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.js';
+import { CLOUDFLARE_CHALLENGE_HEADERS } from '../../../../../Helpers/EdgeBlockPages.js';
 import { MTLS_TEST_CERT_B64, MTLS_TEST_KEY_B64 } from './MtlsTestCertData.js';
 
 /** A running gate server plus the URLs + teardown callers need. */
@@ -105,6 +106,28 @@ function sendHang(): boolean {
 }
 
 /**
+ * Send unexpected media headers without ever producing a body.
+ * @param res - The response to leave open after its headers.
+ * @returns True once the headers are flushed.
+ */
+function sendWrongMediaHeaders(res: ServerResponse): boolean {
+  res.writeHead(200, { 'content-type': 'text/html', 'set-cookie': [...GATE_COOKIES] });
+  res.flushHeaders();
+  return true;
+}
+
+/**
+ * Send a 200 challenge that must be classified before its wrong media type.
+ * @param res - The response to write.
+ * @returns True once the challenge is sent.
+ */
+function sendChallenge(res: ServerResponse): boolean {
+  res.writeHead(200, { 'content-type': 'text/html', ...CLOUDFLARE_CHALLENGE_HEADERS });
+  res.end('syn edge challenge');
+  return true;
+}
+
+/**
  * Write response headers + a partial body, then destroy the socket so the
  * client observes a premature close (truncated body) mid-stream.
  * @param res - The response to write then abort.
@@ -169,6 +192,25 @@ function sendSized(res: ServerResponse, size: number): boolean {
   return true;
 }
 
+/** A synthetic response route receives the incoming request and outgoing response. */
+type GateHandler = (req: IncomingMessage, res: ServerResponse) => boolean;
+
+/**
+ * Route handlers retain the fixture's first-matching-path precedence.
+ * @param _req - Unused request for response-only handlers.
+ * @param res - The response the selected handler writes.
+ * @returns True once the synthetic response is handled.
+ */
+const GATE_ROUTES: readonly (readonly [string, GateHandler])[] = [
+  ['wrong-media-headers', (_req, res): boolean => sendWrongMediaHeaders(res)],
+  ['challenge', (_req, res): boolean => sendChallenge(res)],
+  ['hang', sendHang],
+  ['premature', (_req, res): boolean => sendPremature(res)],
+  ['echo', sendEcho],
+  ['at-cap', (_req, res): boolean => sendSized(res, MTLS_MAX_RESPONSE_BYTES)],
+  ['over-cap', (_req, res): boolean => sendSized(res, MTLS_MAX_RESPONSE_BYTES + MIB)],
+];
+
 /**
  * Route one request through the simulated mTLS gate.
  * @param req - The incoming request.
@@ -179,12 +221,9 @@ function handleGate(req: IncomingMessage, res: ServerResponse): boolean {
   const isAuthed = hasClientCert(req);
   if (!isAuthed) return sendBlocked(res);
   const url = req.url ?? '/';
-  if (url.includes('hang')) return sendHang();
-  if (url.includes('premature')) return sendPremature(res);
-  if (url.includes('echo')) return sendEcho(req, res);
-  if (url.includes('at-cap')) return sendSized(res, MTLS_MAX_RESPONSE_BYTES);
-  if (url.includes('over-cap')) return sendSized(res, MTLS_MAX_RESPONSE_BYTES + MIB);
-  return sendOk(req, res);
+  const route = GATE_ROUTES.find(([path]): boolean => url.includes(path));
+  if (route === undefined) return sendOk(req, res);
+  return route[1](req, res);
 }
 
 /**

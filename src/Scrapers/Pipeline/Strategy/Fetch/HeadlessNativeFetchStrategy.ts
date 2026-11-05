@@ -130,12 +130,12 @@ async function fetchWithinCap(request: ICappedRequest): Promise<Response> {
  * @returns A transport yielding the Response, or a network/timeout failure.
  */
 function makeInvokeCapped(timeoutMs: number, reading: IResponseReading): FetchInvoke {
-  return async (url, init, verb): Promise<Procedure<Response>> => {
+  return async (url, init, policy): Promise<Procedure<Response>> => {
     try {
       const response = await fetchWithinCap({ url, init, timeoutMs, reading });
       return succeed(response);
     } catch (error) {
-      return toCappedFailure(error, verb, url);
+      return toCappedFailure(error, policy.verb, url);
     }
   };
 }
