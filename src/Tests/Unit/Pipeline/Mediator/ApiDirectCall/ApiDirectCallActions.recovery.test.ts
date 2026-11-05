@@ -170,7 +170,7 @@ async function logsOf(recovery: IRecoveryCase): Promise<ILogSink> {
   const ctx = ctxStub([], logs);
   const bus = busStub([]);
   const strategy = strategyStub(recovery.lastRecoveryResumed);
-  const hook = makeRecoveryHook({ bus, ctx, strategy });
+  const hook = makeRecoveryHook({ bus, ctx, strategy, fallbackDetail: 'fell back' });
   await hook(RECOVERED_HEADER, recovery.wasWarm);
   return logs;
 }

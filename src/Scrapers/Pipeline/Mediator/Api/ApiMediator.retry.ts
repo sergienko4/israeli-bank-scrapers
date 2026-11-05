@@ -227,6 +227,17 @@ function discardOnFailedRecovery(
 }
 
 /**
+ * Clear the rejected header only after the re-entrancy guard is available.
+ * @param state - Mediator state.
+ * @returns Newly minted auth, or a busy failure.
+ */
+async function mintWithoutStaleAuth(state: IMediatorState): MintProcedure {
+  if (state.isRefreshing) return refreshBusyFailure();
+  setRawAuthOp(state, '');
+  return guardedMintOp(state, recoverMint);
+}
+
+/**
  * Discard the current (degraded) session and re-mint via a full cold flow.
  *
  * Reuses the proven recovery primitives: {@link guardedMintOp} runs the
@@ -243,7 +254,7 @@ function discardOnFailedRecovery(
  */
 async function recoverSessionOp(state: IMediatorState): Promise<Procedure<string>> {
   const wasWarm = getSessionWarmOp(state);
-  const refreshed = await guardedMintOp(state, recoverMint);
+  const refreshed = await mintWithoutStaleAuth(state);
   const isReady = applyRefreshedAuth(state, refreshed);
   setSessionWarmOp(state, false);
   if (!isReady) return discardOnFailedRecovery(state, refreshed);

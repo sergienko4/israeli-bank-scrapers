@@ -84,9 +84,10 @@ const STEP_FIELD_GATES: readonly (readonly [GatedStepField, IFieldGate])[] = [
 /** Headless fields and the transports that act on them, in check order. */
 const HEADLESS_FIELD_GATES: readonly (readonly [GatedHeadlessField, IFieldGate])[] = [
   ['cookieDomains', NODE_GATE],
-  ...NATIVE_HEADLESS_FIELDS.map(
-    (field): readonly [GatedHeadlessField, IFieldGate] => [field, NATIVE_GATE],
-  ),
+  ...NATIVE_HEADLESS_FIELDS.map((field): readonly [GatedHeadlessField, IFieldGate] => [
+    field,
+    NATIVE_GATE,
+  ]),
 ];
 
 /**
@@ -198,8 +199,8 @@ function hasBadCookieName(input: IApiDirectRuleInput): boolean {
 }
 
 const STEP_FIELD_RULES = STEP_FIELD_GATES.map((entry): IApiDirectRule => stepFieldRule(entry));
-const HEADLESS_FIELD_RULES = HEADLESS_FIELD_GATES.map(
-  (entry): IApiDirectRule => headlessFieldRule(entry),
+const HEADLESS_FIELD_RULES = HEADLESS_FIELD_GATES.map((entry): IApiDirectRule =>
+  headlessFieldRule(entry),
 );
 
 /** Transport rules, checked in order after the session-transport rules. */

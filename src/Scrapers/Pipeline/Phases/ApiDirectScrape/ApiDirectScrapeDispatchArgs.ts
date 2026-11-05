@@ -70,7 +70,7 @@ function toOpts(ctx: IActionContext, extra?: ApiDirectScrapeHeadersLike): IApiQu
 /** The dispatch-args fields every step of one shape shares. */
 type ShapeLevelArgs = Pick<
   IDispatchArgs,
-  'signer' | 'secrets' | 'checkBody' | 'bodyDigest' | 'responseSession'
+  'signer' | 'secrets' | 'checkBody' | 'bodyDigest' | 'responseSession' | 'omitBankText'
 >;
 
 /**
@@ -83,7 +83,14 @@ function pickShapeLevel<TAcct, TCursor>(
   shape: IApiDirectScrapeShape<TAcct, TCursor>,
 ): ShapeLevelArgs {
   const { secrets, checkBody, bodyDigest, responseSession } = shape;
-  return { signer: shape.signer ?? false, secrets, checkBody, bodyDigest, responseSession };
+  return {
+    signer: shape.signer ?? false,
+    secrets,
+    checkBody,
+    bodyDigest,
+    responseSession,
+    omitBankText: shape.omitBankText,
+  };
 }
 
 /** Name a bootstrap call carries when its step declares none. */

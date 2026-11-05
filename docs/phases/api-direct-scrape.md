@@ -109,6 +109,16 @@ session recovery is itself refused, the phase returns that `WAF_BLOCKED`
 rather than the degraded or failed first scrape. Both sites use
 `preferWafBlock` (`src/Scrapers/Pipeline/Types/Procedure.ts`).
 
+## Bank response text in failures
+
+Banks whose replies may echo customer data opt in with `omitBankText: true`
+on their API-direct configuration. The scrape shape carries that policy to
+`omitBankResponseText`, which replaces failed customer (including secondary
+identity), balance, and transaction call messages with the call name and
+HTTP status, or error type when no status is available. The failure type
+remains available for recovery; successful calls and banks without the
+opt-in are unchanged.
+
 ## Session recovery
 
 `runScrapeWithRecovery` runs the scrape. When `shouldRecoverSession` says so,

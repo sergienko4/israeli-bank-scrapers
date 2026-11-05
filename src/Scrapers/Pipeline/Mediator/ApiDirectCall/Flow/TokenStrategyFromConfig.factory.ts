@@ -84,7 +84,7 @@ function makeMayEscalate(
   return (failure): boolean => mayEscalateWarmFailureImpl(config, failure);
 }
 
-/** The prime-side bindings produced by buildPrimeBindings. */
+/** The prime-side bindings produced by primeBindings. */
 type IPrimeBindings = Pick<
   IStrategyBindings,
   'primeInitial' | 'primeFresh' | 'primeRecover' | 'hasWarmState'
@@ -96,10 +96,7 @@ type IPrimeBindings = Pick<
  * @param slot - Capture slot.
  * @returns Four-binding object.
  */
-function buildPrimeBindings(
-  config: IApiDirectCallConfig,
-  slot: ILongTermTokenSlot,
-): IPrimeBindings {
+function primeBindings(config: IApiDirectCallConfig, slot: ILongTermTokenSlot): IPrimeBindings {
   return {
     primeInitial: makePrimeInitial(config, slot),
     primeFresh: makePrimeFresh(config, slot),
@@ -198,10 +195,10 @@ function buildStrategyBindings(
   config: IApiDirectCallConfig,
   slot: ILongTermTokenSlot,
 ): IStrategyBindings {
-  const primeBindings = buildPrimeBindings(config, slot);
+  const primes = primeBindings(config, slot);
   const getterBindings = buildGetterBindings(slot);
   const mayEscalateWarmFailure = makeMayEscalate(config);
-  return { ...primeBindings, ...getterBindings, mayEscalateWarmFailure };
+  return { ...primes, ...getterBindings, mayEscalateWarmFailure };
 }
 
 /**

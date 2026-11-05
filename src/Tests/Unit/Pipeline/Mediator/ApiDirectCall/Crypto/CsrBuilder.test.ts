@@ -16,7 +16,7 @@ import {
   csrSubjectDer,
   type ICsrSubjectValue,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CsrSubject.js';
-import { childrenOf, csrPartsOf, type ITlv } from '../../../../../Helpers/TestCsr.js';
+import { childrenOf, csrPartsOf, type ITlv, openTestCsr } from '../../../../../Helpers/TestCsr.js';
 
 /** Subject goldens: O, DC, OU, CN DER from the reference CSR builder. */
 const SUBJECT_GOLDENS = {
@@ -132,6 +132,16 @@ describe('buildCsr (N25b)', () => {
     const signed = signature.body.subarray(1);
     const isValid = verify('RSA-SHA1', info.whole, publicKey, signed);
     expect(isValid).toBe(true);
+  });
+
+  it('rejects a CSR whose declared length exceeds its bytes', () => {
+    const csr = asciiCsr();
+    const der = Buffer.from(csr, 'base64url');
+    const length = der.readUInt8(2);
+    der.writeUInt8(length + 1, 2);
+    const malformedCsr = der.toString('base64url');
+    const parsedCsr = openTestCsr(malformedCsr);
+    expect(parsedCsr).toBe(false);
   });
 
   it('refuses text that is not a private key', () => {

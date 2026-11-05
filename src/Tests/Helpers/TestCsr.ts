@@ -30,10 +30,17 @@ const CSR_SIGNATURE = 'RSA-SHA1';
  * @returns Tag, whole node and body.
  */
 function readTlv(der: Buffer, offset: number): ITlv {
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset + 2 > der.length) {
+    throw new RangeError('invalid DER length');
+  }
   const first = der[offset + 1];
   const lengthBytes = first < 0x80 ? 0 : first - 0x80;
+  if (first === 0x80 || lengthBytes > 6 || offset + 2 + lengthBytes > der.length) {
+    throw new RangeError('invalid DER length');
+  }
   const length = lengthBytes === 0 ? first : der.readUIntBE(offset + 2, lengthBytes);
   const start = offset + 2 + lengthBytes;
+  if (length > der.length - start) throw new RangeError('invalid DER length');
   const whole = der.subarray(offset, start + length);
   const body = der.subarray(start, start + length);
   return { tag: der[offset], whole, body };

@@ -138,6 +138,18 @@ function toUrlString(input: FetchInput): string {
 }
 
 /**
+ * Read the request body as the mock bank receives it.
+ * @param body - Fetch body, possibly the UTF-8 bytes of a text POST.
+ * @returns Wire text, or empty for a bodyless request.
+ */
+function bodyText(body: RequestInit['body']): string {
+  if (body === undefined || body === null) return '';
+  if (typeof body === 'string') return body;
+  if (body instanceof Uint8Array) return new TextDecoder('utf-8', { fatal: true }).decode(body);
+  throw new TypeError('unsupported mocked request body');
+}
+
+/**
  * Capture a request as the server sees it.
  * @param input - First argument passed to fetch().
  * @param init - Fetch init.
@@ -147,7 +159,7 @@ function recordCall(input: FetchInput, init?: RequestInit): IRecordedCall {
   const url = toUrlString(input);
   const method = init?.method ?? 'GET';
   const headers = new Headers(init?.headers);
-  const body = typeof init?.body === 'string' ? init.body : '';
+  const body = bodyText(init?.body);
   return { url, method, headers, body };
 }
 

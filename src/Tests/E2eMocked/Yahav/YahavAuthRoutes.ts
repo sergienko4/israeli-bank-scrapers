@@ -267,9 +267,11 @@ function tokenChecks(call: IRecordedCall, state: IYahavMockState): Record<string
  * @returns The grant; the run's fault on the first call; 400 when off spec.
  */
 function routeToken(call: IRecordedCall, state: IYahavMockState): RouteReply {
-  const isFirst = hit(state, 'token') === 1;
+  const count = hit(state, 'token');
+  const isFirst = count === 1;
   const checks = tokenChecks(call, state);
   if (!checkWire(state, call, checks)) return errorReply(400);
+  if (state.fault === 'recoveryToken401' && count === 2) return errorReply(401);
   const status = isFirst ? TOKEN_STATUS[state.fault] : undefined;
   if (status !== undefined) return errorReply(status);
   if (isFirst && state.fault === 'tokenTimeout') return NETWORK_FAULTS.timeout();

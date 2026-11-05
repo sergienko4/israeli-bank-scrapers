@@ -22,10 +22,10 @@ export type RegisterFault = 'deviceStatus' | 'badPem' | 'twoPems' | 'noMag' | 'l
 export type GrantFault = 'nonBearer' | 'noExpiry';
 
 /** A BaNCS answer the scrape must refuse, or accept. */
-export type BancsFault = 'bankStatus' | 'statusText0' | 'noLoginCsrf';
+export type BancsFault = 'bankStatus' | 'statusText0' | 'noLoginCsrf' | 'customer500';
 
 /** A BaNCS call that answers 401 the first time (or every time) it is hit. */
-export type RejectFault = `reject:${BancsCall}` | 'rejectAlways';
+export type RejectFault = `reject:${BancsCall}` | 'rejectAlways' | 'recoveryToken401';
 
 export type YahavFault =
   'none' | TokenFault | RegisterFault | GrantFault | BancsFault | RejectFault;

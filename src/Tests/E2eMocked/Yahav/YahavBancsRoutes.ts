@@ -361,6 +361,7 @@ const ANSWERS: Readonly<Record<BancsCall, Route>> = {
  */
 function isRejected(state: IYahavMockState, kind: BancsCall, count: number): boolean {
   if (state.fault === 'rejectAlways') return kind === 'login';
+  if (state.fault === 'recoveryToken401') return kind === 'login' && count === 1;
   return state.fault === `reject:${kind}` && count === 1;
 }
 
@@ -374,6 +375,7 @@ function routeBancs(call: IRecordedCall, state: IYahavMockState): RouteReply {
   const kind = bancsCallOf(call);
   if (kind === false) return errorReply(404);
   const count = hit(state, kind);
+  if (state.fault === 'customer500' && kind === 'customer') return errorReply(500);
   if (isRejected(state, kind, count)) return errorReply(401);
   const checks = bancsChecks(call, kind, state);
   if (!checkWire(state, call, checks)) return errorReply(400);

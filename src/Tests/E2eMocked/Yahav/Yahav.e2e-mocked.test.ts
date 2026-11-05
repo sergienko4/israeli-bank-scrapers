@@ -8,6 +8,8 @@
  * Rule #18: all credentials + data are synthetic; no real PII.
  */
 
+import { openTestCsr } from '../../Helpers/TestCsr.js';
+import type { IBancsWindow } from './YahavBancsData.js';
 import {
   daysAgo,
   YAHAV_MOCK_CREDS,
@@ -46,6 +48,15 @@ function dayAfter(iso: string): string {
   return new Date(next).toISOString().slice(0, 10);
 }
 
+/**
+ * Whether successive windows leave no calendar-day gap.
+ * @param windows - Consecutive date windows.
+ * @returns True when every window starts the day after the previous one.
+ */
+function areContiguous(windows: readonly IBancsWindow[]): boolean {
+  return windows.slice(1).every((window, at) => dayAfter(windows[at].to) === window.from);
+}
+
 describe('Yahav native login and scrape (cold)', () => {
   let run: IYahavRun;
 
@@ -60,6 +71,15 @@ describe('Yahav native login and scrape (cold)', () => {
     expect(run.result.success).toBe(true);
     expect(trail).toEqual(COLD_TRAIL);
     expect(run.launches).toBe(0);
+  });
+
+  it('sends a verifiable certification request to register the device', () => {
+    const request = run.calls[1]?.body ?? '';
+    const isBase64Url = /^[\w-]+$/.test(request);
+    const parsedCsr = openTestCsr(request);
+    expect(request.length).toBeGreaterThan(500);
+    expect(isBase64Url).toBe(true);
+    expect(parsedCsr).not.toBe(false);
   });
 
   it('reads each shekel account by its bank id, with its current balance', () => {
@@ -88,21 +108,24 @@ describe('Yahav native login and scrape (cold)', () => {
     const windows = txnWindows(run);
     const perAccount = windows.length / YH_ACCOUNTS.length;
     const own = windows.slice(0, perAccount);
-    const tiles = own.slice(0, -1);
-    const isContiguous = tiles
-      .slice(1)
-      .every((window, at) => dayAfter(tiles[at].to) === window.from);
+    const firstRepeat = own.findIndex((window, at) => at > 0 && window.from === own[0].from);
+    const tiles = own.slice(0, firstRepeat);
+    const backfill = own.slice(firstRepeat);
     const days = scrapeDays();
     const oldestDaysAgo = Math.max(...YH_TXN_DAYS);
     const oldestDate = daysAgo(oldestDaysAgo);
-    const backfill = { from: tiles[0].from, to: dayOf(oldestDate) };
+    const backfillEnd = dayOf(oldestDate);
     const otherAccount = windows.slice(perAccount);
-    const lastWindow = own.at(-1);
+    const isTileWalkContiguous = areContiguous(tiles);
+    const isBackfillContiguous = areContiguous(backfill);
+    expect(firstRepeat).toBeGreaterThan(0);
     expect(otherAccount).toEqual(own);
-    expect(isContiguous).toBe(true);
+    expect(isTileWalkContiguous).toBe(true);
+    expect(isBackfillContiguous).toBe(true);
     expect(tiles[0].from <= days.first).toBe(true);
     expect(String(tiles.at(-1)?.to) >= days.last).toBe(true);
-    expect(lastWindow).toEqual(backfill);
+    expect(backfill[0].from).toBe(tiles[0].from);
+    expect(backfill.at(-1)?.to).toBe(backfillEnd);
   });
 
   it('presents no certificate before register and the issued one after', () => {

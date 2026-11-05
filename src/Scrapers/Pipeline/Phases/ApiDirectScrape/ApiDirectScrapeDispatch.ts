@@ -14,6 +14,7 @@ import type {
   JsonValueTemplate,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { JsonValue } from '../../Mediator/ApiDirectCall/Envelope/JsonPointer.js';
+import { sanitiseStepFailure } from '../../Mediator/ApiDirectCall/Flow/RunStep.failure.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { ApiPostData } from '../../Types/Domain/ApiPostData.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
@@ -49,6 +50,8 @@ export interface IDispatchArgs {
   readonly checkBody?: BodyCheck;
   /** Shape-level body digest — see `IApiDirectScrapeShape.bodyDigest`. */
   readonly bodyDigest?: IBodyDigestConfig;
+  /** Omit bank response text from failed calls when the bank opts in. */
+  readonly omitBankText?: boolean;
   /** Shape-level response session — see `IApiDirectScrapeShape.responseSession`. */
   readonly responseSession?: IResponseSessionSpec;
   /** Name the call's response-session failures carry; `queryTag` when absent. */
@@ -98,6 +101,22 @@ export function applyBodyCheck(
 ): Procedure<ApiBody> {
   if (!isOk(response) || checkBody === undefined) return response;
   return checkBody(response.value);
+}
+
+/**
+ * Rebuild an opted-in scrape failure without its bank-supplied response text.
+ * @param response - Scrape call result.
+ * @param name - Name of the failed call.
+ * @param omitBankText - Whether the bank opted out of response text.
+ * @returns A sanitized failure or the unchanged result.
+ */
+export function omitBankResponseText<T>(
+  response: Procedure<T>,
+  name: string,
+  omitBankText?: boolean,
+): Procedure<T> {
+  if (isOk(response) || omitBankText !== true) return response;
+  return sanitiseStepFailure(name, response);
 }
 
 /**
@@ -172,5 +191,6 @@ export async function dispatchStep(args: IDispatchArgs): Promise<Procedure<ApiBo
   const capture = captureAnswer(args.opts, args.responseSession);
   const response = await routeStep({ ...args, opts: capture.opts });
   const checked = applyBodyCheck(response, args.checkBody);
-  return readResponseSession(checked, capture, args);
+  const settled = readResponseSession(checked, capture, args);
+  return omitBankResponseText(settled, args.call ?? args.queryTag, args.omitBankText);
 }

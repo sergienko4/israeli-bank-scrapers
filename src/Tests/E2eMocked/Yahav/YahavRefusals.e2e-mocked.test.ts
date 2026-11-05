@@ -86,6 +86,13 @@ describe('Yahav login refusals', () => {
 });
 
 describe('Yahav BaNCS refusals', () => {
+  it('does not expose bank response text from a failed data call', async () => {
+    const run = await runYahav('customer500');
+    expect(run.state.violations).toEqual([]);
+    expect(run.result.success).toBe(false);
+    expect(run.result.errorMessage).toBe('profile HTTP 500');
+  });
+
   it('refuses an answer whose status is not 0', async () => {
     const run = await runYahav('bankStatus');
     expect(run.state.violations).toEqual([]);
@@ -138,5 +145,14 @@ describe('Yahav whole-scrape recovery (N33)', () => {
     expect(run.state.violations).toEqual([]);
     expect(run.result.success).toBe(false);
     expect(run.trail).toEqual(['token', 'login', 'token', 'login']);
+  });
+
+  it('drops the rejected bearer before re-grant refusal falls back to enrollment', async () => {
+    const run = await runWarm(token, 'recoveryToken401');
+    const trail = foldedTrail(run);
+    expect(run.calls[2]?.headers.get('authorization')).toBeNull();
+    expect(run.state.violations).toEqual([]);
+    expect(run.result.success).toBe(true);
+    expect(trail).toEqual(['token', 'login', 'token', ...COLD_TRAIL]);
   });
 });

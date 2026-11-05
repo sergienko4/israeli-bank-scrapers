@@ -106,14 +106,16 @@ function rejectBody(): ReturnType<typeof fail> {
  * Build a driver whose secondary identity GET returns the expired body and
  * whose shape check rejects it.
  * @param extractAccounts - The shape extractor, which must not run.
+ * @param omitBankText - Whether to omit failure text from the bank.
  * @returns Driver context.
  */
 function driverWithRejectedSecondary(
   extractAccounts: () => readonly string[],
+  omitBankText = false,
 ): IDriverCtx<string, number> {
   const customer = { skipFetch: true, secondaryUrlTag: 'data.customerSecondary', extractAccounts };
   const bus = { getSessionContext: emptySessionContext, apiGet: expiredReply };
-  return { shape: { customer, checkBody: rejectBody }, bus } as unknown as IDriverCtx<
+  return { shape: { customer, checkBody: rejectBody, omitBankText }, bus } as unknown as IDriverCtx<
     string,
     number
   >;
@@ -127,5 +129,11 @@ describe('fetchAccounts secondary identity body check', () => {
     const message = isOk(result) ? '' : result.errorMessage;
     expect(message).toBe('expired');
     expect(extractAccounts).not.toHaveBeenCalled();
+  });
+
+  it('omits a secondary identity refusal when the bank opts in', async () => {
+    const driver = driverWithRejectedSecondary(() => ['acct-1'], true);
+    const result = await fetchAccounts(driver);
+    expect(result).toMatchObject({ success: false, errorMessage: 'customer GENERIC' });
   });
 });

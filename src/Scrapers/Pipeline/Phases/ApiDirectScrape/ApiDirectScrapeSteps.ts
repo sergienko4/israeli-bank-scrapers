@@ -20,7 +20,7 @@ import type { Brand } from '../../Types/Brand.js';
 import { toError } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
-import { applyBodyCheck, dispatchStep } from './ApiDirectScrapeDispatch.js';
+import { applyBodyCheck, dispatchStep, omitBankResponseText } from './ApiDirectScrapeDispatch.js';
 import {
   buildCustomerDispatchArgs,
   buildTxnsDispatchArgs,
@@ -50,7 +50,8 @@ async function fetchSecondaryBody<TAcct, TCursor>(
   const tag = resolveSecondaryUrlTag(d);
   if (tag === false) return succeed<ApiBody>(EMPTY_BODY);
   const response = await d.bus.apiGet<ApiBody>(tag);
-  return applyBodyCheck(response, d.shape.checkBody);
+  const checked = applyBodyCheck(response, d.shape.checkBody);
+  return omitBankResponseText(checked, 'customer', d.shape.omitBankText);
 }
 
 /**
