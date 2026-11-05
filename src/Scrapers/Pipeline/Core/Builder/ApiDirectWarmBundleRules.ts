@@ -9,8 +9,12 @@
  */
 
 import type {
+  CarryGeneratorKind,
   ICarryBundleWarmStart,
   ICarryGenerator,
+  IEcdhKeyGenerator,
+  IPkcs10CsrGenerator,
+  IRsaKeyGenerator,
   IStepConfig,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { carryBundleWarmOf } from '../../Mediator/ApiDirectCall/Flow/WarmStartKind.js';
@@ -54,14 +58,65 @@ function isSlotless(bundle: ICarryBundleWarmStart): boolean {
   return bundle.slots.length === 0;
 }
 
+/** A generator's output slots, an unset optional one as `undefined`. */
+type OutputSlots = readonly (string | undefined)[];
+
+/** The generator config of one kind. */
+type GeneratorOf<TKind extends CarryGeneratorKind> = Extract<
+  ICarryGenerator,
+  { readonly kind: TKind }
+>;
+
+/**
+ * The slots an `rsa-key` generator may write.
+ * @param generator - Generator config.
+ * @returns The key and SPKI-hash slots.
+ */
+function rsaKeySlots(generator: IRsaKeyGenerator): OutputSlots {
+  return [generator.keyInto, generator.spkiSha256HexInto];
+}
+
+/**
+ * The slot a `pkcs10-csr` generator writes.
+ * @param generator - Generator config.
+ * @returns The request slot.
+ */
+function csrSlots(generator: IPkcs10CsrGenerator): OutputSlots {
+  return [generator.into];
+}
+
+/**
+ * The slots an `ecdh-key` generator writes.
+ * @param generator - Generator config.
+ * @returns The public and private slots.
+ */
+function ecdhKeySlots(generator: IEcdhKeyGenerator): OutputSlots {
+  return [generator.publicInto, generator.privateInto];
+}
+
+/** Output slots per generator kind — a new kind is one row. */
+const GENERATED_SLOTS: {
+  readonly [TKind in CarryGeneratorKind]: (generator: GeneratorOf<TKind>) => OutputSlots;
+} = { 'rsa-key': rsaKeySlots, 'pkcs10-csr': csrSlots, 'ecdh-key': ecdhKeySlots };
+
+/**
+ * The output slots of a generator, by its kind.
+ * @param generator - Generator config.
+ * @returns Its output slots, unset ones included.
+ */
+function slotsOfKind<TKind extends CarryGeneratorKind>(generator: GeneratorOf<TKind>): OutputSlots {
+  const kind: TKind = generator.kind;
+  const slotsOf = GENERATED_SLOTS[kind];
+  return slotsOf(generator);
+}
+
 /**
  * The slots a carry generator writes.
  * @param generator - Generator config.
  * @returns Its output slots; an unset rsa-key output is left out.
  */
 function generatedSlots(generator: ICarryGenerator): readonly string[] {
-  if (generator.kind === 'pkcs10-csr') return [generator.into];
-  const outputs = [generator.keyInto, generator.spkiSha256HexInto];
+  const outputs = slotsOfKind(generator);
   return outputs.filter((slot): slot is string => slot !== undefined);
 }
 

@@ -3,6 +3,7 @@
  */
 
 import type { resolveWkUrl } from '../../../Registry/WK/UrlsWK.js';
+import type { IUrlRule } from '../../../Types/Domain/FetchPolicy.js';
 import type { ITokenBus } from '../../../Types/Domain/TokenBus.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig, IPreStepHook } from '../ConfigContracts/index.js';
@@ -92,6 +93,7 @@ interface IApplyPreHookArgs {
 /** Args-reducer bundle — passed through every step. */
 interface IStepReduceArgs {
   readonly bus: ITokenBus;
+  readonly carriedUrlRules?: readonly IUrlRule[];
   readonly companyId: Parameters<typeof resolveWkUrl>[1];
   readonly keypair: SigningKeypair;
   readonly creds: Readonly<Record<string, unknown>>;

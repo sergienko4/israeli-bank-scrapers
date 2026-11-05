@@ -662,14 +662,15 @@ describe('ApiMediator — redirect policy', () => {
     async ({ call }) => {
       const headers = { 'X-Trace': 'synthetic-trace', 'X-Undeclared': 'not-requested' };
       const response = new Response('{"data":{}}', { headers });
-      jest.spyOn(globalThis, 'fetch').mockResolvedValue(response);
+      const fetch = jest.spyOn(globalThis, 'fetch').mockResolvedValue(response);
       const take = jest.fn<number, Parameters<IResponseHeaderSink['take']>>().mockReturnValue(1);
       const headerSink = { names: ['x-trace'], take };
       const mediator = buildPolicyMediator();
       const result = await call(mediator, { policy: { headerSink } });
       expect(result.success).toBe(true);
       expect(take).toHaveBeenCalledTimes(1);
-      expect(take).toHaveBeenCalledWith({ 'x-trace': 'synthetic-trace' }, 200);
+      const responseUrl = fetch.mock.calls[0]?.[0];
+      expect(take).toHaveBeenCalledWith({ 'x-trace': 'synthetic-trace' }, 200, responseUrl);
     },
   );
 

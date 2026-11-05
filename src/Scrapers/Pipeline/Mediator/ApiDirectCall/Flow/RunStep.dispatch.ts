@@ -9,14 +9,14 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import { answerSlots } from './RunStep.answerSlots.js';
+import { openGuardedAnswer } from './RunStep.codec.js';
 import { deriveStepCarry } from './RunStep.derive.js';
 import { ruleStepCarry } from './RunStep.extractRules.js';
-import { guardBankError } from './RunStep.failIfPresent.js';
 import { sanitiseStepFailure } from './RunStep.failure.js';
 import { fireStep } from './RunStep.fire.js';
-import { carryHeaders } from './RunStep.headerCarry.js';
+import { judgeAnswer } from './RunStep.judge.js';
 import { extractOptional } from './RunStep.optional.js';
-import { judgeStepOutcome } from './RunStep.outcome.js';
 import { buildDispatchBundle, mergeScopeCarry } from './RunStep.prepare.js';
 import { prepareStepSession } from './RunStep.session.js';
 import type {
@@ -31,14 +31,13 @@ import { resolvePathAndQuery } from './RunStep.url.js';
 const LOG = getDebug(import.meta.url);
 
 /**
- * Read top-level keys from a JsonValue, returning [] for non-objects.
+ * Count top-level keys without exposing bank-controlled field names.
  * @param value - Any JSON value.
- * @returns Top-level keys (empty for non-objects).
+ * @returns Top-level key count (zero for non-objects).
  */
-function topLevelKeys(value: JsonValue): readonly string[] {
-  if (typeof value !== 'object' || value === null) return [];
-  if (Array.isArray(value)) return [];
-  return Object.keys(value);
+function responseKeyCount(value: JsonValue): number {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return 0;
+  return Object.keys(value).length;
 }
 
 /**
@@ -58,12 +57,12 @@ function readEnvelopeErrorCode(resp: JsonValue): string {
  * Describe the response shape under the bank-text omission policy.
  * @param resp - Response JSON value.
  * @param isBankTextOmitted - Whether response values need length-only hints.
- * @returns Top-level keys, length and a policy-safe error-code hint.
+ * @returns Key count, length and a policy-safe error-code hint.
  */
 function describeResponse(resp: JsonValue, isBankTextOmitted: boolean): IRespDescriptor {
   const errorCode = readEnvelopeErrorCode(resp);
   return {
-    respKeys: topLevelKeys(resp),
+    respKeyCount: responseKeyCount(resp),
     respLength: JSON.stringify(resp).length,
     errorCode: isBankTextOmitted ? redactErrorMessage(errorCode) : errorCode,
   };
@@ -71,7 +70,7 @@ function describeResponse(resp: JsonValue, isBankTextOmitted: boolean): IRespDes
 
 /**
  * Read a step's carry from its answer: the required extracts, then the
- * response-header slots, then the optional extracts.
+ * response-header slots and text captures, then the optional extracts.
  * @param bundle - Dispatch bundle.
  * @param resp - Successful response JSON.
  * @returns Procedure with the step's carry, or the first missing field.
@@ -81,10 +80,10 @@ function readCarry(bundle: IDispatchBundle, resp: JsonValue): Procedure<CarryMap
   const isBankTextOmitted = bundle.fireScope.isBankTextOmitted === true;
   const carryProc = extractFields(resp, step.extractsToCarry, isBankTextOmitted);
   if (!isOk(carryProc)) return carryProc;
-  const headerProc = carryHeaders(bundle);
-  if (!isOk(headerProc)) return headerProc;
+  const answerProc = answerSlots(bundle, resp);
+  if (!isOk(answerProc)) return answerProc;
   const optional = extractOptional(resp, step);
-  return succeed({ ...carryProc.value, ...optional, ...headerProc.value });
+  return succeed({ ...carryProc.value, ...optional, ...answerProc.value });
 }
 
 /**
@@ -100,22 +99,34 @@ function collectCarry(bundle: IDispatchBundle, resp: JsonValue): Procedure<Carry
 }
 
 /**
- * Guard against a bank error, judge the step's outcome, fold the response
- * carry into the prepared scope, then derive the step's own slots. A bank
- * error fails before the outcome; a refused outcome before any extract.
+ * Judge the step's outcome, classify its answer (N50), fold the response carry
+ * into the prepared scope, then derive the step's own slots. A refused outcome
+ * or an unclassified answer fails before any extract.
+ * @param bundle - Dispatch bundle.
+ * @param resp - Opened, guarded response JSON.
+ * @returns Procedure with the merged scope.
+ */
+function extractAndMerge(bundle: IDispatchBundle, resp: JsonValue): Procedure<ITemplateScope> {
+  const step = bundle.fireScope.step;
+  const classified = judgeAnswer(step, resp);
+  if (!isOk(classified)) return classified;
+  const carry = collectCarry(bundle, resp);
+  if (!isOk(carry)) return carry;
+  const merged = mergeScopeCarry(bundle.preparedScope, { ...carry.value, ...classified.value });
+  return deriveStepCarry(step, merged);
+}
+
+/**
+ * Open a codec step's answer (N39) and guard it against bank errors (N20),
+ * then judge and extract from it. A bank error fails before the outcome.
  * @param bundle - Dispatch bundle.
  * @param resp - Successful response JSON.
  * @returns Procedure with the merged scope.
  */
-function extractAndMerge(bundle: IDispatchBundle, resp: JsonValue): Procedure<ITemplateScope> {
-  const guarded = guardBankError(bundle.fireScope.step, resp);
-  if (!isOk(guarded)) return guarded;
-  const judged = judgeStepOutcome(bundle.fireScope.step, resp);
-  if (!isOk(judged)) return judged;
-  const carry = collectCarry(bundle, resp);
-  if (!isOk(carry)) return carry;
-  const merged = mergeScopeCarry(bundle.preparedScope, carry.value);
-  return deriveStepCarry(bundle.fireScope.step, merged);
+function openAndMerge(bundle: IDispatchBundle, resp: JsonValue): Procedure<ITemplateScope> {
+  const opened = openGuardedAnswer(bundle, resp);
+  if (!isOk(opened)) return opened;
+  return extractAndMerge(opened.value.bundle, opened.value.answer);
 }
 
 /**
@@ -152,13 +163,13 @@ function logFireOk(bundle: IDispatchBundle, resp: JsonValue): true {
  * @returns Procedure with the merged scope, or fail.
  */
 async function fireAndMergeScope(bundle: IDispatchBundle): Promise<Procedure<ITemplateScope>> {
-  const respProc = await fireStep(bundle.fireScope, bundle.fireArgs);
+  const respProc = await fireStep(bundle.fireScope, bundle.fireArgs, bundle.target);
   if (!isOk(respProc)) {
     logFireFail(bundle, respProc.errorMessage);
     return sanitiseStepFailure(bundle.fireScope.step.name, respProc);
   }
   logFireOk(bundle, respProc.value);
-  return extractAndMerge(bundle, respProc.value);
+  return openAndMerge(bundle, respProc.value);
 }
 
 /**
@@ -173,8 +184,8 @@ async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
   if (!isOk(bound)) return bound;
   const resolved = resolvePathAndQuery(bound.value);
   if (!isOk(resolved)) return resolved;
-  const { pathAndQuery, query } = resolved.value;
-  const bundleProc = buildDispatchBundle({ args: bound.value, pathAndQuery, query });
+  const { pathAndQuery, query, target } = resolved.value;
+  const bundleProc = buildDispatchBundle({ args: bound.value, pathAndQuery, query, target });
   if (!isOk(bundleProc)) return bundleProc;
   return fireAndMergeScope(bundleProc.value);
 }

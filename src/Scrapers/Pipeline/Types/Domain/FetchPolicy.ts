@@ -7,7 +7,7 @@
  */
 
 /** One allowed redirect target: exact https origin, exact path, query rules. */
-interface IUrlRule {
+interface IExactPathRule {
   /** Exact `scheme://host[:port]` in `URL.origin` form; https only. */
   readonly origin: string;
   /** Allowed paths, compared exactly but case-insensitively. */
@@ -17,6 +17,17 @@ interface IUrlRule {
   /** When true no other key and no duplicate key may appear (no `query` ⇒ none). */
   readonly exactQuery?: boolean;
 }
+
+/** Any path and query on one exact https origin, except paths holding a denied text. */
+interface IAnyPathExceptRule {
+  /** Exact `scheme://host[:port]` in `URL.origin` form; https only. */
+  readonly origin: string;
+  /** Texts the lower-cased path must not contain, compared case-insensitively. */
+  readonly anyPathExcept: readonly string[];
+}
+
+/** One allowed URL: an exact path rule or an any-path-except rule. */
+type IUrlRule = IExactPathRule | IAnyPathExceptRule;
 
 /** Follow up to `maxHops` redirects whose target matches one rule (GET steps only). */
 interface IManualRedirect {
@@ -32,7 +43,8 @@ type RedirectPolicy = 'follow' | 'reject' | IManualRedirect;
 
 /**
  * `json` parses the body (the default); `document` reads it as text and
- * discards it; `text` hands it over as `{ text }`, up to 65 536 chars.
+ * discards it; `text` hands it over as `{ text }`, up to the call's
+ * `maxTextChars` (65 536 by default).
  */
 type ResponseKind = 'json' | 'document' | 'text';
 
@@ -56,8 +68,11 @@ type StatusPolicy = Readonly<Partial<Record<number, StatusAction>>>;
 interface IResponseHeaderSink {
   /** Lower-case header names; only these reach `take`. */
   readonly names: readonly string[];
-  /** Receives the named headers and the HTTP status of each answer; returns how many headers. */
-  readonly take: (headers: Readonly<Record<string, string>>, status: number) => number;
+  /**
+   * Receives the named headers, the HTTP status and the URL that gave each
+   * answer (N51: after any hops, the last one); returns how many headers.
+   */
+  readonly take: (headers: Readonly<Record<string, string>>, status: number, url: string) => number;
 }
 
 /** Per-call transport policy a step hands to the bus. */
@@ -68,6 +83,8 @@ interface IFetchCallPolicy {
   readonly responseKind?: ResponseKind;
   /** Text a `document` answer must contain, else the call fails. */
   readonly documentMarker?: string;
+  /** Longest `text` answer the call accepts, in chars; 65 536 when absent. */
+  readonly maxTextChars?: number;
   /** Receives the declared headers of the final response; native transports only. */
   readonly headerSink?: IResponseHeaderSink;
   /** How a POST body is written; `json` when absent; native transports only. */
@@ -81,6 +98,7 @@ interface IResponseReading {
   /** Omit the response snippet from generic HTTP failures, not WAF classification. */
   readonly omitBankText?: boolean;
   readonly documentMarker?: string;
+  readonly maxTextChars?: number;
   readonly headerSink?: IResponseHeaderSink;
   /** Internal notification of a policy-approved empty response; returns a recorded-event count. */
   readonly onEmptyResponse?: () => number;
@@ -103,6 +121,8 @@ const TEXT_BODY_REFUSED_REASON = 'text body not a string';
 
 export type {
   BodyEncoding,
+  IAnyPathExceptRule,
+  IExactPathRule,
   IFetchCallPolicy,
   IManualRedirect,
   IResponseHeaderSink,

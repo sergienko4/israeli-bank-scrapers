@@ -8,14 +8,21 @@
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
-import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import type {
+  IApiDirectCallConfig,
+  IGetStep,
+  IPostStep,
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IGenericKeypair } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
 import { generateKeypair } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
 import { runSmsOtpFlow } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/SmsOtpFlow.js';
 import type { WKUrlGroup } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
-import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import {
+  literalUrl,
+  registerWkUrl,
+} from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { type IApiPostCapture, makeStubMediator } from './StubMediator.js';
+import { type IApiGetCapture, type IApiPostCapture, makeStubMediator } from './StubMediator.js';
 
 const BIND_TAG: WKUrlGroup = 'auth.bind';
 const ASSERT_TAG: WKUrlGroup = 'auth.assert';
@@ -82,6 +89,109 @@ function makeConfig(): IApiDirectCallConfig {
     ],
   };
 }
+
+const APPROVED_LANDING = 'https://example.test/portal/landing?t=syn-ticket';
+
+const CARRIED_BIND: IPostStep = {
+  name: 'bind',
+  urlTag: BIND_TAG,
+  body: { shape: {} },
+  extractsToCarry: { handoffUrl: '/handoffUrl' },
+  extractRules: {
+    handoffUrl: { url: [{ origin: 'https://example.test', paths: ['/portal/landing'] }] },
+  },
+};
+
+const CARRIED_GET: IGetStep = {
+  name: 'landing',
+  urlTag: ASSERT_TAG,
+  method: 'GET',
+  urlFromCarry: 'handoffUrl',
+  extractsToCarry: { token: '/token' },
+};
+
+const CARRIED_CONFIG: IApiDirectCallConfig = {
+  flow: 'sms-otp',
+  envelope: {},
+  probe: { queryTag: 'customer' },
+  steps: [CARRIED_BIND, CARRIED_GET],
+};
+
+describe('api-direct-call SmsOtpFlow carried URLs', () => {
+  it('sends an approved URL from a ruled producer', async (): Promise<void> => {
+    const captures: IApiPostCapture[] = [];
+    const getCaptures: IApiGetCapture[] = [];
+    const responses = [succeed({ handoffUrl: APPROVED_LANDING }), succeed({ token: 'syn-token' })];
+    const bus = makeStubMediator({ responses, captures, getCaptures });
+    const result = await runSmsOtpFlow({ config: CARRIED_CONFIG, bus, creds: {}, companyId: HINT });
+    expect(result).toMatchObject({ success: true, value: { bearer: 'syn-token' } });
+    const target = literalUrl(APPROVED_LANDING);
+    expect(getCaptures[0].url).toEqual(target);
+  });
+
+  it('refuses a pre-hook overwrite of the ruled URL before dispatch', async (): Promise<void> => {
+    const captures: IApiPostCapture[] = [];
+    const getCaptures: IApiGetCapture[] = [];
+    const responses = [succeed({ handoffUrl: APPROVED_LANDING }), succeed({ token: 'syn-token' })];
+    const bus = makeStubMediator({ responses, captures, getCaptures });
+    const preHook = { awaitCredsField: 'nextUrl', intoCarryField: 'handoffUrl' };
+    const config: IApiDirectCallConfig = {
+      ...CARRIED_CONFIG,
+      steps: [CARRIED_BIND, { ...CARRIED_GET, preHook }],
+    };
+    /**
+     * Supply an unapproved target after the producer's rule passed.
+     * @returns A URL the carried GET must refuse.
+     */
+    const nextUrl = (): Promise<string> => Promise.resolve('https://outside.test/collect');
+    const creds = { nextUrl };
+    const result = await runSmsOtpFlow({ config, bus, creds, companyId: HINT });
+    expect(result).toMatchObject({ success: false, errorMessage: 'landing carried url invalid' });
+    expect(getCaptures).toHaveLength(0);
+  });
+
+  it('refuses a retained pre-hook URL using only a skipped producer rule', async (): Promise<void> => {
+    const captures: IApiPostCapture[] = [];
+    const getCaptures: IApiGetCapture[] = [];
+    const responses = [succeed({ token: 'syn-token' }), succeed({ token: 'syn-token' })];
+    const bus = makeStubMediator({ responses, captures, getCaptures });
+    const bind: IPostStep = {
+      ...CARRIED_BIND,
+      extractsToCarry: { token: '/token' },
+      optionalExtractsToCarry: { handoffUrl: { pointer: '/handoffUrl' } },
+      extractRules: {
+        handoffUrl: { url: [{ origin: 'https://example.test', paths: ['/start'] }] },
+      },
+      preHook: { awaitCredsField: 'nextUrl', intoCarryField: 'handoffUrl' },
+    };
+    const skipped: IPostStep = {
+      ...CARRIED_BIND,
+      name: 'login',
+      runIf: { carry: 'guard', oneOf: ['active'] },
+    };
+    const config: IApiDirectCallConfig = {
+      ...CARRIED_CONFIG,
+      steps: [bind, skipped, CARRIED_GET],
+    };
+    /**
+     * Supply a URL allowed only by the step that is skipped.
+     * @returns The pre-hook's URL.
+     */
+    const nextUrl = (): Promise<string> => Promise.resolve(APPROVED_LANDING);
+    const result = await runSmsOtpFlow({
+      config,
+      bus,
+      creds: { nextUrl },
+      companyId: HINT,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'bind extract handoffUrl invalid',
+    });
+    expect(captures).toHaveLength(1);
+    expect(getCaptures).toHaveLength(0);
+  });
+});
 
 describe('api-direct-call SmsOtpFlow happy 2-step path', () => {
   it('threads carry through steps and returns the final carry.token', async (): Promise<void> => {

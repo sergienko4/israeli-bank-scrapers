@@ -1,10 +1,16 @@
 /**
- * URL rules — the exact allow-list a redirect target must match (N2). A
- * target passes only over https, with no userinfo and no fragment, when its
- * origin, its path (case-insensitively) and its query match one rule.
+ * URL rules — the allow-list a redirect or carried target must match (N2,
+ * N40). A target passes only over https, with no userinfo and no fragment,
+ * when its origin matches one rule and either its path (case-insensitively)
+ * and query match that rule's exact paths, or its lower-cased decoded path
+ * holds none of that rule's denied texts. A malformed escape is refused.
  */
 
-import type { IUrlRule } from '../../Types/Domain/FetchPolicy.js';
+import type {
+  IAnyPathExceptRule,
+  IExactPathRule,
+  IUrlRule,
+} from '../../Types/Domain/FetchPolicy.js';
 
 /** Query keys and the one value each must carry. */
 type RequiredQuery = Readonly<Record<string, string>>;
@@ -27,7 +33,7 @@ function isCleanHttps(target: URL): boolean {
  * @param rule - Rule to match.
  * @returns True when the path is allowed.
  */
-function isPathAllowed(target: URL, rule: IUrlRule): boolean {
+function isPathAllowed(target: URL, rule: IExactPathRule): boolean {
   const path = target.pathname.toLowerCase();
   return rule.paths.some((allowed): boolean => allowed.toLowerCase() === path);
 }
@@ -61,7 +67,7 @@ function hasOnlyRequiredKeys(params: URLSearchParams, required: RequiredQuery): 
  * @param rule - Rule to match.
  * @returns True when the query is allowed.
  */
-function isQueryAllowed(target: URL, rule: IUrlRule): boolean {
+function isQueryAllowed(target: URL, rule: IExactPathRule): boolean {
   const required = rule.query ?? {};
   const params = target.searchParams;
   const entries = Object.entries(required);
@@ -70,13 +76,42 @@ function isQueryAllowed(target: URL, rule: IUrlRule): boolean {
 }
 
 /**
- * Whether the target matches one rule's origin, path and query.
+ * The target path as the server will read it, lower-cased.
+ * @param target - Candidate URL.
+ * @returns The decoded path, or false when an escape is malformed.
+ */
+function decodedPathOf(target: URL): string | false {
+  try {
+    return decodeURIComponent(target.pathname).toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether the target path holds none of the rule's denied texts, ignoring
+ * case. A path is decoded first, so `%6C` cannot hide an `l`; a path with a
+ * malformed escape is refused rather than read as text.
+ * @param target - Candidate URL.
+ * @param rule - Rule to match.
+ * @returns True when no denied text appears in the path.
+ */
+function isPathNotDenied(target: URL, rule: IAnyPathExceptRule): boolean {
+  const path = decodedPathOf(target);
+  if (path === false) return false;
+  const deniedTexts = rule.anyPathExcept.map((denied): string => denied.toLowerCase());
+  return !deniedTexts.some((denied): boolean => path.includes(denied));
+}
+
+/**
+ * Whether the target matches one rule's origin and its path (and query) terms.
  * @param target - Candidate URL (already https, no userinfo, no fragment).
  * @param rule - Rule to match.
  * @returns True on a match.
  */
 function matchesUrlRule(target: URL, rule: IUrlRule): boolean {
   if (target.origin !== rule.origin) return false;
+  if ('anyPathExcept' in rule) return isPathNotDenied(target, rule);
   return isPathAllowed(target, rule) && isQueryAllowed(target, rule);
 }
 

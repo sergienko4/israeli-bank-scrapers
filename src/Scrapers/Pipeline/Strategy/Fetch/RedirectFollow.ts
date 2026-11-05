@@ -136,7 +136,7 @@ function refused(run: IRedirectRun, status?: number): Procedure<IRunEnd> {
 async function sendFollow(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
   const sent = await run.invoke(run.url, run.init, run.verb);
   if (!isOk(sent)) return sent;
-  return succeed({ response: sent.value, responseUrl: sent.value.url });
+  return succeed({ response: sent.value, responseUrl: answeredUrl(sent.value, run.url) });
 }
 
 /**
@@ -147,9 +147,9 @@ async function sendFollow(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
 async function sendReject(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
   const sent = await run.invoke(run.url, { ...run.init, redirect: 'manual' }, run.verb);
   if (!isOk(sent)) return sent;
-  const { status, url } = sent.value;
-  if (!isRedirectStatus(status)) return succeed({ response: sent.value, responseUrl: url });
+  const { status } = sent.value;
   const responseUrl = answeredUrl(sent.value, run.url);
+  if (!isRedirectStatus(status)) return succeed({ response: sent.value, responseUrl });
   emitSetCookies(sent.value, responseUrl, run.onSetCookie);
   await cancelResponseBody(sent.value, run);
   return refused(run, status);

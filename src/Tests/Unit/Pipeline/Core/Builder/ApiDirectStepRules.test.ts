@@ -1,6 +1,7 @@
 /**
  * Step rules on login and resume steps alike. N20 — each `failIfPresent`
- * entry must be a JSON pointer below the body root. N18/N27 — each
+ * entry must be a JSON pointer below the body root, and a `bankErrorType`
+ * needs a `failIfPresent` guard or a codec to type. N18/N27 — each
  * `extractRules` key names a body or header extract of its step; a pattern is anchored, compiles and
  * repeats no group that holds a repeat; `maxChars` is an integer from 1 to
  * 65536; `oneOf` and `url` are not empty. N14 — a `runIf` guard names a slot
@@ -87,6 +88,34 @@ describe('validateApiDirectConfig — failIfPresent', () => {
 
   it('JSON pointers pass', () => {
     const step = guarded(['/error', '/Error', '/errors']);
+    const input = runOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+  });
+});
+
+describe('validateApiDirectConfig — bankErrorType', () => {
+  const typeMsg = 'steps.bankErrorType: needs failIfPresent or a codec';
+  const typeOf = { bankErrorType: ScraperErrorTypes.InvalidPassword };
+
+  it.each([
+    ['no guard', guarded([])],
+    ['an unset guard', { ...guarded(['/error']), failIfPresent: undefined }],
+  ])('a typed step with %s and no codec → fails the build', (_label, step) => {
+    const input = runOf({ ...step, ...typeOf });
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({ success: false, errorMessage: typeMsg });
+  });
+
+  it('checks resume steps too', () => {
+    const step = { ...guarded([]), ...typeOf };
+    const input = resumeOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({ success: false, errorMessage: typeMsg });
+  });
+
+  it('a typed, guarded step passes', () => {
+    const step = { ...guarded(['/error']), ...typeOf };
     const input = runOf(step);
     const result = validateApiDirectConfig(input);
     expect(result).toEqual({ success: true, value: true });

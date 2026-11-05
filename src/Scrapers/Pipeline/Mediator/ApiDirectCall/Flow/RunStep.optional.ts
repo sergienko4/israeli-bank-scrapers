@@ -12,6 +12,24 @@ import type { CarryMap, JsonValue } from './RunStep.types.js';
 /** One optional slot: its carry name and how to read it. */
 type OptionalEntry = readonly [string, IOptionalExtract];
 
+/** Boxed raw value; false is a valid response value. */
+interface IOptionalRaw {
+  readonly kept: JsonValue;
+}
+
+/**
+ * Read a present, nonblank optional field before a fallback can hide it.
+ * @param resp - Response JSON.
+ * @param pointer - RFC-6901 pointer.
+ * @returns The raw value, or false when absent, null or blank.
+ */
+function optionalRawValue(resp: JsonValue, pointer: string): IOptionalRaw | false {
+  const walked = walkPointer(resp, pointer);
+  if (!isOk(walked) || walked.value === null) return false;
+  if (typeof walked.value === 'string' && walked.value.trim() === '') return false;
+  return { kept: walked.value };
+}
+
 /**
  * Read a string that is not blank at a pointer, as it is.
  * @param resp - Response JSON.
@@ -19,11 +37,8 @@ type OptionalEntry = readonly [string, IOptionalExtract];
  * @returns The string, or false when absent, blank or not a string.
  */
 function presentText(resp: JsonValue, pointer: string): string | false {
-  const walked = walkPointer(resp, pointer);
-  if (!isOk(walked)) return false;
-  const value = walked.value;
-  if (typeof value !== 'string' || value.trim().length === 0) return false;
-  return value;
+  const raw = optionalRawValue(resp, pointer);
+  return raw !== false && typeof raw.kept === 'string' ? raw.kept : false;
 }
 
 /**
@@ -54,4 +69,4 @@ function extractOptional(resp: JsonValue, step: IStepConfig): CarryMap {
 }
 
 export default extractOptional;
-export { extractOptional };
+export { extractOptional, optionalRawValue };

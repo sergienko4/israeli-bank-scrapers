@@ -4,9 +4,10 @@
  * the PKCS#8 PEM to `keyInto` and the lowercase hex SHA-256 of the SPKI DER
  * to `spkiSha256HexInto`. A skipped step generates nothing; a generator that
  * fails fails the step `<step> generate <kind> failed` before any request.
+ * N38 — an `ecdh-key` generator writes a secp256k1 pair the same way.
  */
 
-import { createPrivateKey, createPublicKey } from 'node:crypto';
+import { createECDH, createPrivateKey, createPublicKey } from 'node:crypto';
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
@@ -45,6 +46,14 @@ const RSA_KEY: ICarryGenerator = {
   bits: 2048,
   keyInto: 'certKeyPem',
   spkiSha256HexInto: 'deviceId',
+};
+
+/** N38 — the public point goes to the slot the register body sends. */
+const ECDH_KEY: ICarryGenerator = {
+  kind: 'ecdh-key',
+  curve: 'secp256k1',
+  publicInto: 'deviceId',
+  privateInto: 'ecdhPrivate',
 };
 
 /** The bind step: reads the bank's `state`. */
@@ -119,6 +128,28 @@ describe('SmsOtpFlow — rsa-key generator (N25a)', () => {
     expect(carry.deviceId).toBe(expected);
     expect(expected).toMatch(/^[\da-f]{64}$/);
     expect(run.captures[1].body).toEqual({ deviceId: expected });
+  });
+
+  it('writes an ecdh-key pair and sends the public point, never the private', async () => {
+    const run = await runWith('register', ECDH_KEY);
+    if (!run.result.success) throw new TypeError(run.result.errorMessage);
+    const carry = run.result.value.carrySnapshot;
+    const ecdh = createECDH('secp256k1');
+    const scalar = Buffer.from(carry.ecdhPrivate as string, 'base64');
+    ecdh.setPrivateKey(scalar);
+    const expected = ecdh.getPublicKey('base64');
+    expect(run.captures[1].body).toEqual({ deviceId: expected });
+  });
+
+  it('fails the step before a request when ECDH creation throws', async () => {
+    const broken = { ...ECDH_KEY, curve: 'unsupported' } as unknown as ICarryGenerator;
+    const run = await runWith('register', broken);
+    expect(run.result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'register generate ecdh-key failed',
+    });
+    expect(run.captures).toHaveLength(1);
   });
 
   it('generates nothing for a step its runIf guard skips', async () => {

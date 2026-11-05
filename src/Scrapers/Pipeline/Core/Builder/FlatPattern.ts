@@ -7,6 +7,8 @@
  * `+`, `?` or a range); every earlier quantifier is an exact `{n}`. The
  * earlier atoms then match one way, and each count the last atom backs off
  * to costs only the `$` check, so a failed match is linear in the input.
+ * `isBadRegex` refuses a pattern that is unanchored or does not compile on its
+ * own with the `u` flag.
  */
 
 /** A whole escape; Unicode braces belong to the atom, not its quantifier. */
@@ -81,5 +83,29 @@ function isFlatPattern(pattern: string): boolean {
   return index === end;
 }
 
+/**
+ * Whether a regex source compiles with the unicode flag.
+ * @param pattern - Regex source.
+ * @returns True when it compiles.
+ */
+function isCompilable(pattern: string): boolean {
+  try {
+    const compiled = new RegExp(pattern, 'u');
+    return compiled instanceof RegExp;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether a regex source is unanchored or does not compile.
+ * @param pattern - Regex source.
+ * @returns True for a broken pattern.
+ */
+function isBadRegex(pattern: string): boolean {
+  const isAnchored = pattern.startsWith('^') && pattern.endsWith('$');
+  return !isAnchored || !isCompilable(pattern);
+}
+
 export default isFlatPattern;
-export { isFlatPattern };
+export { isBadRegex, isFlatPattern };

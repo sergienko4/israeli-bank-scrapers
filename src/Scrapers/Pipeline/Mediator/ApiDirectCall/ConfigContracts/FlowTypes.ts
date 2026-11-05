@@ -4,8 +4,11 @@
  *
  * Depends on TemplateTypes (`IBodyTemplate`, `IEnvelopeSelectors`,
  * `JsonValueTemplate` referenced by IStepConfig), EnvelopeTypes
- * (`IPreStepHook` referenced by IStepConfig.preHook) and SignerTypes
- * (`ISealFieldConfig` referenced by IStepConfig.seal). Top-level
+ * (`IPreStepHook` referenced by IStepConfig.preHook), ClassifyTypes
+ * (`IAnswerClassifier` referenced by IStepBase.classify), SignerTypes
+ * (`ISealFieldConfig` referenced by IStepConfig.seal) and WireTypes
+ * (`ITextCapture`, `IFormCapture`, `ILocationCapture` referenced by IStepBase, `EnvelopeCodec`
+ * by IPostStep). Top-level
  * ApiDirectCallConfig composes the FlowKind discriminator + steps array
  * from here.
  *
@@ -21,15 +24,18 @@ import type {
   ResponseKind,
 } from '../../../Types/Domain/FetchPolicy.js';
 import type { IDerivedCarry } from './CarryTypes.js';
+import type { IAnswerClassifier } from './ClassifyTypes.js';
 import type { IPreStepHook } from './EnvelopeTypes.js';
 import type { ICarryGenerator } from './GeneratorTypes.js';
 import type { ISealFieldConfig } from './SignerTypes.js';
 import type {
   IBodyTemplate,
   IEnvelopeSelectors,
+  IJoinTemplate,
   JsonValueTemplate,
   RefToken,
 } from './TemplateTypes.js';
+import type { EnvelopeCodec, IFormCapture, ILocationCapture, ITextCapture } from './WireTypes.js';
 
 /** Exhaustive flow-kind discriminator (spec.txt §B.3). */
 type FlowKind = 'sms-otp' | 'stored-jwt' | 'bearer-static';
@@ -183,6 +189,12 @@ interface IStepBase {
    */
   readonly queryTemplate?: JsonValueTemplate;
   /**
+   * Raw query (N41): the joined text goes after the URL's `?` verbatim — 1 to
+   * 32 768 printable-ASCII chars without `#`, `<`, `>`, `"`, `'` or `\`, else
+   * the step fails `raw query invalid`. Not with `queryTemplate`.
+   */
+  readonly rawQuery?: IJoinTemplate;
+  /**
    * When true, captures this step's response Set-Cookie lines into
    * the internal cookie jar. Subsequent steps with cookieJar=true
    * include those cookies on the outbound Cookie header.
@@ -196,6 +208,8 @@ interface IStepBase {
   readonly headers?: Readonly<Record<string, JsonValueTemplate>>;
   /** Optional outcome policy, judged after HTTP 2xx and before the extracts. */
   readonly outcome?: IStepOutcome;
+  /** Optional answer classifier, run after `outcome` and before the extracts (N50). */
+  readonly classify?: IAnswerClassifier;
   /** Optional redirect policy for this step; overrides the bank's `redirectPolicy`. */
   readonly redirect?: RedirectPolicy;
   /**
@@ -203,6 +217,14 @@ interface IStepBase {
    * sees `{}`; a `text` step sees `{ text }`, so its extracts read `/text`.
    */
   readonly response?: ResponseKind;
+  /** Longest `text` answer the step accepts, in chars; 65 536 when unset (N36). */
+  readonly maxTextChars?: number;
+  /** Carry slots captured from a `text` answer by pattern, and guards (N36). */
+  readonly textCaptures?: Readonly<Record<string, ITextCapture>>;
+  /** The hidden fields of the page's login form, captured from a `text` answer (N37). */
+  readonly formCapture?: IFormCapture;
+  /** The URL the page's handoff script assigns, captured from a `text` answer (N54). */
+  readonly locationCapture?: ILocationCapture;
   /** Text a `document` answer must contain, else the step fails `document unverified`. */
   readonly documentMarker?: string;
   /** Carry slots read from the final response's headers, merged beside `extractsToCarry`. */
@@ -217,6 +239,8 @@ interface IStepBase {
   readonly clientCert?: IStepClientCert;
   /** Body pointers that, present and truthy, fail the step `<step> bank error` (N20). */
   readonly failIfPresent?: readonly string[];
+  /** Failure type of `<step> bank error`: a guard hit or a codec `error_code`; default Generic. */
+  readonly bankErrorType?: ScraperErrorTypes;
   /** Rules per body- or header-extract slot, checked once the answer is read (N18, N27). */
   readonly extractRules?: Readonly<Record<string, IExtractRule>>;
   /** Guard checked before the pre-hook; a miss skips the step (N14). */
@@ -234,6 +258,10 @@ interface IPostStep extends IStepBase {
    * body must be a flat record; a `text` body must be exactly `{ text }`.
    */
   readonly encoding?: BodyEncoding;
+  /** Envelope the JSON body and answer travel in (N39); none when absent. */
+  readonly codec?: EnvelopeCodec;
+  readonly urlFromCarry?: never;
+  readonly finalUrlInto?: never;
 }
 
 /** A GET step: it sends no body, so the type rules one out. */
@@ -241,6 +269,17 @@ interface IGetStep extends IStepBase {
   readonly method: 'GET';
   readonly body?: never;
   readonly encoding?: never;
+  readonly codec?: never;
+  /**
+   * Carry slot holding the absolute URL the step sends to instead of its WK
+   * url (N40); an earlier step's `extractRules` `url` rule checked it.
+   */
+  readonly urlFromCarry?: string;
+  /**
+   * Carry slot the URL that gave the final answer is written to (N51); it must
+   * pass the step's own manual `redirect.allow` rules.
+   */
+  readonly finalUrlInto?: string;
 }
 
 /** Per-step config: a POST or a GET step. */

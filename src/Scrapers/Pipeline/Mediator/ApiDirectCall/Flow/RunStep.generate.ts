@@ -10,6 +10,7 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { CarryGeneratorKind, ICarryGenerator, IStepConfig } from '../ConfigContracts/index.js';
+import { generateEcdhKey } from '../Crypto/EcdhKeypair.js';
 import { type GeneratedCarry, generateRsaKey } from '../Crypto/RsaKeyGenerator.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import generatePkcs10Csr from './RunStep.generate.csr.js';
@@ -33,6 +34,7 @@ type GeneratorRuns = {
 const GENERATOR_RUNS: GeneratorRuns = {
   'rsa-key': generateRsaKey,
   'pkcs10-csr': generatePkcs10Csr,
+  'ecdh-key': generateEcdhKey,
 };
 
 /** The step whose generators run, and the scope so far. */
@@ -67,7 +69,8 @@ function runOfKind<TKind extends CarryGeneratorKind>(
 }
 
 /**
- * Run one generator and merge its slots; a failure or rejection fails the step.
+ * Run one generator and merge its slots; any failure fails the step.
+ * Starting the runner inside a promise also catches synchronous crypto throws.
  * @param cursor - Step and scope so far.
  * @param generator - Generator config.
  * @returns Procedure with the scope plus the generated slots.
@@ -76,7 +79,8 @@ async function runGenerator(
   cursor: IGenerateCursor,
   generator: ICarryGenerator,
 ): Promise<Procedure<ITemplateScope>> {
-  const made = await runOfKind(generator, cursor.scope).catch((): false => false);
+  const pending = Promise.resolve().then(() => runOfKind(generator, cursor.scope));
+  const made = await pending.catch((): false => false);
   if (made === false || !isOk(made)) return generateFailed(cursor, generator);
   const merged = mergeScopeCarry(cursor.scope, made.value);
   return succeed(merged);

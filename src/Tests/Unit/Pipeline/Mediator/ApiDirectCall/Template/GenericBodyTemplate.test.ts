@@ -12,6 +12,7 @@ import type {
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { hydrate } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
+import { none, type Option } from '../../../../../../Scrapers/Pipeline/Types/Option.js';
 
 /** Reusable synthetic config referenced by config.* tokens. */
 const STUB_CONFIG = {
@@ -265,5 +266,60 @@ describe('GenericBodyTemplate.hydrate — failures', () => {
     const result = hydrate(tmpl, scope);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('carry.absent');
+  });
+});
+
+/** An optional carry ref (N49): its key goes only when the slot is carried. */
+const OPTIONAL_DID: JsonValueTemplate = { $ref: 'carry.did', optional: true };
+
+/** A record whose `did` entry is optional. */
+const WITH_OPTIONAL_DID: JsonValueTemplate = { user: { $literal: 'syn-user' }, did: OPTIONAL_DID };
+
+/**
+ * A jar view that finds no cookie.
+ * @returns None.
+ */
+function noCookie(): Option<string> {
+  return none();
+}
+
+/** Optional refs whose absent source leaves the key out. */
+const ABSENT_SOURCES: readonly (readonly [string, RefToken, ITemplateScope])[] = [
+  ['credential', 'creds.otpToken', makeScope()],
+  ['cookie without a jar', 'cookie.sid', makeScope()],
+  ['cookie the jar lacks', 'cookie.sid', { ...makeScope(), cookie: noCookie }],
+];
+
+/** Optional refs that still fail the hydration. */
+const STILL_FAILING: readonly (readonly [string, JsonValueTemplate])[] = [
+  ['an unknown token', { a: { $ref: 'nope.x' as RefToken, optional: true } }],
+  ['a config miss', { a: { $ref: 'config.nope', optional: true } }],
+  ['an array item', { a: [OPTIONAL_DID] }],
+  ['the root', OPTIONAL_DID],
+];
+
+describe('GenericBodyTemplate.hydrate — optional $ref (N49)', () => {
+  it('leaves the key out when its carry slot is absent', (): void => {
+    const scope = makeScope();
+    const result = hydrate(WITH_OPTIONAL_DID, scope);
+    expect(result).toEqual({ success: true, value: { user: 'syn-user' } });
+  });
+
+  it('sends the key when its carry slot is present', (): void => {
+    const scope = makeScope({ carry: { did: 'syn-did' } });
+    const result = hydrate(WITH_OPTIONAL_DID, scope);
+    expect(result).toEqual({ success: true, value: { user: 'syn-user', did: 'syn-did' } });
+  });
+
+  it.each(ABSENT_SOURCES)('leaves the key out when its %s is absent', (_label, token, scope) => {
+    const tmpl: JsonValueTemplate = { a: { $ref: token, optional: true } };
+    const result = hydrate(tmpl, scope);
+    expect(result).toEqual({ success: true, value: {} });
+  });
+
+  it.each(STILL_FAILING)('still fails on %s', (_label, tmpl) => {
+    const scope = makeScope();
+    const result = hydrate(tmpl, scope);
+    expect(result.success).toBe(false);
   });
 });

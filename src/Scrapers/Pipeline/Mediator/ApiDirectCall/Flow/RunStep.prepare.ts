@@ -1,18 +1,20 @@
 /**
  * Body preparation + dispatch-bundle assembly — hydration, crypto
  * field, credential seal, AES body-pointer signing, form-body guard,
- * fire-args assembly, log-context.
+ * envelope seal, fire-args assembly, log-context.
  */
 
 import { getDebug } from '../../../Logging/Debug.js';
+import type { WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IFetchCallPolicy } from '../../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import type { IBodyTemplate } from '../ConfigContracts/index.js';
+import { isJsonRecord } from '../Crypto/EnvelopeWire.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import { sealGuardedBody } from './RunStep.codec.js';
 import buildOnSetCookie from './RunStep.cookies.js';
-import { guardFormBody } from './RunStep.form.js';
 import { attachHeaderCapture } from './RunStep.headerCarry.js';
 import { buildStepHeaders } from './RunStep.headers.js';
 import { applySeal } from './RunStep.seal.js';
@@ -87,8 +89,8 @@ function attachBodySig(preBody: IPreparedBody, pathAndQuery: string): Procedure<
 /**
  * Resolve the step's body — hydrate template, prime carry, apply
  * cryptoField encryption, seal the credential field, attach the AES
- * body-pointer signature. A GET step sends no body, so only its carry is
- * primed.
+ * body-pointer signature, guard a form body, seal the envelope (N39). A GET
+ * step sends no body, so only its carry is primed.
  * @param args - Run-step args.
  * @param pathAndQuery - Canonical-string path+query.
  * @returns Procedure with the ready-to-send body + the post-prep scope.
@@ -101,7 +103,7 @@ function prepareStepBody(args: IRunStepArgs, pathAndQuery: string): Procedure<IP
   if (!isOk(preProc)) return preProc;
   const signed = attachBodySig(preProc.value, pathAndQuery);
   if (!isOk(signed)) return signed;
-  return guardFormBody(step, signed.value);
+  return sealGuardedBody(step, signed.value);
 }
 
 /**
@@ -116,14 +118,24 @@ function attachSink(fireBase: IFireArgs, maybe: OnSetCookie | false): IFireArgs 
 }
 
 /**
+ * Every call-policy field a step can name, unset ones included.
+ * @param step - Step config.
+ * @returns The redirect policy, response kind, document marker, text cap and
+ *   body encoding, each possibly undefined.
+ */
+function policyFieldsOf(step: IStepConfig): IFetchCallPolicy {
+  const { redirect, documentMarker, maxTextChars } = step;
+  const responseKind = step.response;
+  return { redirect, responseKind, documentMarker, maxTextChars, bodyEncoding: step.encoding };
+}
+
+/**
  * The call policy a step names, when it names one.
  * @param step - Step config.
- * @returns `{ policy }` with only the redirect policy, response kind,
- *   document marker and body encoding the step names, or nothing.
+ * @returns `{ policy }` with only the policy fields the step names, or nothing.
  */
 function callPolicyOf(step: IStepConfig): Pick<IFireArgs, 'policy'> {
-  const { redirect, response: responseKind, documentMarker, encoding: bodyEncoding } = step;
-  const fields = { redirect, responseKind, documentMarker, bodyEncoding };
+  const fields = policyFieldsOf(step);
   const named = Object.entries(fields).filter(([, value]): boolean => value !== undefined);
   if (named.length === 0) return {};
   const policy = Object.fromEntries(named) as IFetchCallPolicy;
@@ -158,27 +170,17 @@ function assembleFire(opts: IAssembleFireArgs): IFireArgs {
 }
 
 /**
- * Read top-level keys from a JsonValue, returning [] for non-objects.
- * @param value - Any JSON value.
- * @returns Top-level keys (empty for non-objects).
- */
-function topLevelKeys(value: JsonValue): readonly string[] {
-  if (typeof value !== 'object' || value === null) return [];
-  if (Array.isArray(value)) return [];
-  return Object.keys(value);
-}
-
-/**
- * Build the safe diagnostic context for per-step traces. PII-safe.
+ * Build the diagnostic context without logging captured form-field names.
  * @param step - Step config.
- * @param bodyValue - Hydrated body (only top-level keys are read).
+ * @param bodyValue - Hydrated body (only the top-level key count is read).
  * @returns Structured context fields ready to splat into log calls.
  */
 function buildStepContext(step: IStepConfig, bodyValue: JsonValue): IStepLogContext {
+  const bodyKeyCount = isJsonRecord(bodyValue) ? Object.keys(bodyValue).length : 0;
   return {
     stepName: step.name,
     urlTag: step.urlTag,
-    bodyKeys: topLevelKeys(bodyValue),
+    bodyKeyCount,
     extractKeys: Object.keys(step.extractsToCarry),
   };
 }
@@ -190,12 +192,8 @@ function buildStepContext(step: IStepConfig, bodyValue: JsonValue): IStepLogCont
  * @returns Fire-call payload.
  */
 function makeFireArgs(opts: IPostPrepArgs, headers: MutableHeaderMap): IFireArgs {
-  return assembleFire({
-    args: opts.args,
-    preparedBody: opts.preparedBody,
-    query: opts.query,
-    headers,
-  });
+  const { args, preparedBody, query } = opts;
+  return assembleFire({ args, preparedBody, query, headers });
 }
 
 /**
@@ -210,7 +208,8 @@ function headersAndFire(args: IHeadersAndFireArgs): Procedure<IDispatchBundle> {
   const headersProc = buildStepHeaders(fireScope, headerInput);
   if (!isOk(headersProc)) return headersProc;
   const fireArgs = makeFireArgs(opts, headersProc.value);
-  return succeed({ fireArgs, fireScope, baseCtx, preparedScope: opts.preparedBody.scope });
+  const { target, preparedBody } = opts;
+  return succeed({ fireArgs, fireScope, baseCtx, preparedScope: preparedBody.scope, target });
 }
 
 /**
@@ -230,6 +229,7 @@ interface IBuildDispatchArgs {
   readonly args: IRunStepArgs;
   readonly pathAndQuery: string;
   readonly query: QueryRecord;
+  readonly target: WKUrlOrLiteral;
 }
 
 /**
@@ -238,11 +238,12 @@ interface IBuildDispatchArgs {
  * @returns Procedure with the dispatch bundle, or fail.
  */
 function buildDispatchBundle(input: IBuildDispatchArgs): Procedure<IDispatchBundle> {
-  const { args, pathAndQuery, query } = input;
+  const { args, pathAndQuery, query, target } = input;
   const prepProc = prepareStepBody(args, pathAndQuery);
   if (!isOk(prepProc)) return prepProc;
   const queryMut = { ...query };
-  const opts: IPostPrepArgs = { args, preparedBody: prepProc.value, pathAndQuery, query: queryMut };
+  const preparedBody = prepProc.value;
+  const opts: IPostPrepArgs = { args, preparedBody, pathAndQuery, query: queryMut, target };
   return finalizeDispatch(opts);
 }
 

@@ -28,6 +28,7 @@ import { WARM_STEP_TAG } from './WarmStartFixtures.js';
 
 const HINT = CompanyTypes.OneZero;
 const STEP_URL = 'https://bank.example/authenticate/verify';
+const CARRIED_URL = 'https://portal.example/landing?t=syn-ticket';
 const SECRETS = ['syn-otp-48213', 'syn-phone-0501234567', 'syn-cookie-q9z'];
 
 /** A step's pre-hook config. */
@@ -66,6 +67,7 @@ interface IGuardRunArgs {
   readonly otpTimeoutMs?: number;
   readonly jar?: ICookieSession;
   readonly setCookies?: IStepConfig['setCookies'];
+  readonly config?: IApiDirectCallConfig;
 }
 
 /** What one guarded run did. */
@@ -91,6 +93,29 @@ function configWith(hook: Hook, setCookies?: IStepConfig['setCookies']): IApiDir
     setCookies,
   };
   return { flow: 'sms-otp', envelope: {}, steps: [BIND_STEP, otpStep] };
+}
+
+/**
+ * The two-step config whose OTP step is a GET sent to the URL bind carried.
+ * @param hook - The pre-hook.
+ * @returns Config.
+ */
+function carriedConfigWith(hook: Hook): IApiDirectCallConfig {
+  const extractsToCarry = { token: '/token', handoff: '/handoff' };
+  const bindStep: IStepConfig = {
+    ...BIND_STEP,
+    extractsToCarry,
+    extractRules: { handoff: { url: [{ origin: 'https://portal.example', paths: ['/landing'] }] } },
+  };
+  const otpStep: IStepConfig = {
+    name: 'login',
+    urlTag: WARM_STEP_TAG,
+    method: 'GET',
+    urlFromCarry: 'handoff',
+    extractsToCarry: { token: '/token' },
+    preHook: hook,
+  };
+  return { flow: 'sms-otp', envelope: {}, steps: [bindStep, otpStep] };
 }
 
 /**
@@ -190,7 +215,7 @@ async function runGuarded(args: IGuardRunArgs): Promise<IGuardRun> {
     if (args.thrown !== undefined) return Promise.reject(args.thrown);
     return Promise.resolve(args.code ?? '12345');
   };
-  const config = configWith(args.hook, args.setCookies);
+  const config = args.config ?? configWith(args.hook, args.setCookies);
   const creds = { otpCodeRetriever, otpTimeoutMs: args.otpTimeoutMs };
   const result = await runSmsOtpFlow({ config, bus, creds, companyId: HINT });
   return { result, captures, hints };
@@ -337,6 +362,36 @@ describe('SmsOtpFlow — pre-hook guards', () => {
     expect(cookie).toEqual({ has: true, value: 'auth' });
   });
 
+  it('binds the jar view to a carried step URL', async () => {
+    const urls: string[] = [];
+    const jar = fakeJar({ csrfcookie: SECRETS[2] }, urls);
+    const config = carriedConfigWith(COOKIE_HOOK);
+    const bind = { ...FULL_BIND, handoff: CARRIED_URL };
+    const run = await runGuarded({ hook: COOKIE_HOOK, bind, jar, config });
+    expect(run.result).toMatchObject({ success: true });
+    expect(urls[0]).toBe(CARRIED_URL);
+  });
+
+  it.each<[string, boolean, boolean]>([
+    ['no jar, no required refs', false, false],
+    ['no jar, required ref', false, true],
+    ['jar, no required refs', true, false],
+    ['jar, required ref', true, true],
+  ])('refuses a relative carried URL before OTP with %s', async (_label, hasJar, hasRequires) => {
+    const hook: Hook = { ...NO_HINT_HOOK, requires: hasRequires ? ['carry.flow'] : [] };
+    const jar = hasJar ? fakeJar({}, []) : undefined;
+    const config = carriedConfigWith(hook);
+    const bind = { ...FULL_BIND, handoff: '//portal.example/landing' };
+    const run = await runGuarded({ hook, bind, jar, config });
+    expect(run.result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'login carried url invalid',
+    });
+    expect(run.hints).toEqual([]);
+    expect(run.captures).toHaveLength(1);
+  });
+
   it.each<[string, ICookieSession | undefined]>([
     ['the jar lacks the cookie', fakeJar({}, [])],
     ['the run has no jar', undefined],
@@ -362,6 +417,27 @@ describe('SmsOtpFlow — pre-hook guards', () => {
       expect(run.captures).toHaveLength(1);
     },
   );
+
+  it.each<[string, JsonValue]>([
+    ['false', false],
+    ['zero', 0],
+    ['an object', { unexpected: 'state' }],
+  ])('refuses an optional fallback over %s before asking for OTP', async (_label, flow) => {
+    const config = configWith(HOOK);
+    const bindStep: IStepConfig = {
+      ...BIND_STEP,
+      optionalExtractsToCarry: { flow: { pointer: '/flow', fallback: 'logonotp' } },
+      extractRules: { flow: { type: 'string', oneOf: ['logonotp'] } },
+    };
+    const run = await runGuarded({
+      hook: HOOK,
+      bind: { token: 'bind-token', flow },
+      config: { ...config, steps: [bindStep, config.steps[1]] },
+    });
+    expect(run.result).toMatchObject({ success: false, errorMessage: 'bind extract flow invalid' });
+    expect(run.hints).toEqual([]);
+    expect(run.captures).toHaveLength(1);
+  });
 
   it('reports a retriever throw by its error name only', async () => {
     const thrown = new TypeError(`retriever failed: ${SECRETS.join(' ')}`);

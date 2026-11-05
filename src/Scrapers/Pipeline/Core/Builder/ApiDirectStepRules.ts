@@ -3,7 +3,9 @@
  * Outcome rules run before warm-start checks; the remaining rules run after
  * seal rules. Each `failIfPresent` entry (N20) must be a
  * JSON pointer below the body root: a bare key would never resolve, and the
- * root would fail every answer. Each `extractRules` key (N18, N27) must name a
+ * root would fail every answer. A `bankErrorType` needs a `failIfPresent`
+ * guard or a codec, else it types an error the step never raises. Each
+ * `extractRules` key (N18, N27) must name a
  * body or header extract of its step; a `pattern` must be anchored (`^…$`)
  * and compile; `maxChars` must be an integer from 1 to 65536; `oneOf` and
  * `url` must not be empty, since an empty list would refuse every value. A `runIf` guard
@@ -22,9 +24,11 @@ import {
   allSteps,
   type IApiDirectRule,
   type IApiDirectRuleInput,
+  isBadCharCap,
+  isBodyPointer,
   isExtractSlot,
 } from './ApiDirectRuleInput.js';
-import { isFlatPattern } from './FlatPattern.js';
+import { isBadRegex, isFlatPattern } from './FlatPattern.js';
 
 /**
  * An outcome with no success codes would refuse every response.
@@ -58,15 +62,6 @@ const API_DIRECT_OUTCOME_RULES: readonly IApiDirectRule[] = [
 ];
 
 /**
- * Whether a guard entry is a pointer below the body root.
- * @param pointer - One `failIfPresent` entry.
- * @returns True for `/` followed by at least one character.
- */
-function isBodyPointer(pointer: string): boolean {
-  return pointer.startsWith('/') && pointer.length > 1;
-}
-
-/**
  * Whether a step's guard holds an entry that is not a body pointer.
  * @param step - Step config.
  * @returns True for a bad entry.
@@ -86,7 +81,26 @@ function hasBadGuardPointer(input: IApiDirectRuleInput): boolean {
   return steps.some(hasBadGuard);
 }
 
-const MAX_RULE_CHARS = 65536;
+/**
+ * Whether a step types a bank error it can never raise.
+ * @param step - Step config.
+ * @returns True for a `bankErrorType` with no guard pointer and no codec.
+ */
+function isIdleErrorType(step: IStepConfig): boolean {
+  if (step.bankErrorType === undefined) return false;
+  const pointers = step.failIfPresent ?? [];
+  return pointers.length === 0 && step.codec === undefined;
+}
+
+/**
+ * Whether any login or resume step types a bank error it can never raise.
+ * @param input - Rule input.
+ * @returns True when a `bankErrorType` has nothing to type.
+ */
+function hasIdleErrorType(input: IApiDirectRuleInput): boolean {
+  const steps = allSteps(input.call);
+  return steps.some(isIdleErrorType);
+}
 
 /** A check on one extract rule. */
 type ExtractRuleCheck = (rule: IExtractRule) => boolean;
@@ -124,30 +138,6 @@ function hasStrayExtractRule(input: IApiDirectRuleInput): boolean {
 }
 
 /**
- * Whether a regex source compiles with the unicode flag.
- * @param pattern - Regex source.
- * @returns True when it compiles.
- */
-function isCompilable(pattern: string): boolean {
-  try {
-    const compiled = new RegExp(pattern, 'u');
-    return compiled instanceof RegExp;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Whether a regex source is unanchored or does not compile.
- * @param pattern - Regex source.
- * @returns True for a broken pattern.
- */
-function isBadRegex(pattern: string): boolean {
-  const isAnchored = pattern.startsWith('^') && pattern.endsWith('$');
-  return !isAnchored || !isCompilable(pattern);
-}
-
-/**
  * Whether a rule's pattern is broken.
  * @param rule - Extract rule.
  * @returns True for a pattern that is unanchored or does not compile.
@@ -173,9 +163,7 @@ function isUnflatPattern(rule: IExtractRule): boolean {
  * @returns True for a `maxChars` that is not an integer from 1 to 65536.
  */
 function isBadMaxChars(rule: IExtractRule): boolean {
-  const max = rule.maxChars;
-  if (max === undefined) return false;
-  return !Number.isInteger(max) || max < 1 || max > MAX_RULE_CHARS;
+  return rule.maxChars !== undefined && isBadCharCap(rule.maxChars);
 }
 
 /**
@@ -256,6 +244,10 @@ const API_DIRECT_STEP_RULES: readonly IApiDirectRule[] = [
   {
     message: 'steps.failIfPresent: each entry must be a JSON pointer',
     isBroken: hasBadGuardPointer,
+  },
+  {
+    message: 'steps.bankErrorType: needs failIfPresent or a codec',
+    isBroken: hasIdleErrorType,
   },
   {
     message: 'steps.extractRules: each key must name a body or header extract',

@@ -208,14 +208,15 @@ function resolveFetchUrl(baseUrl: string, url: string): FullyQualifiedUrl {
 
 /**
  * Hand the final response to the call's hooks: its Set-Cookie lines go to the
- * cookie hook under the URL that answered, its declared headers to the sink.
+ * cookie hook under the URL that answered, its declared headers and that URL
+ * to the sink.
  * @param run - The dispatched run and its hooks.
  * @param end - The response that ended the run and the URL that answered.
  * @returns How many headers the call's header sink took.
  */
 function emitHooks(run: IDispatch, end: IRunEnd): number {
   emitSetCookies(end.response, end.responseUrl, run.onSetCookie);
-  return emitResponseHeaders(end.response, run.reading.headerSink);
+  return emitResponseHeaders(end.response, end.responseUrl, run.reading.headerSink);
 }
 
 /**
@@ -347,16 +348,17 @@ class NativeFetchStrategy implements IFetchStrategy {
 
   /**
    * How a call's answer is read: this transport's status policy plus the
-   * call's response kind (`json` when absent), document marker and header sink.
+   * call's response kind (`json` when absent), document marker, text cap and
+   * header sink.
    * @param opts - The call's fetch options.
    * @returns The reading routeResponse applies.
    */
   protected readingOf(opts: IFetchOpts): IResponseReading {
     const responseKind = opts.responseKind ?? 'json';
-    const { documentMarker, headerSink, onEmptyResponse } = opts;
-    const hooks = { documentMarker, headerSink, onEmptyResponse };
+    const { documentMarker, maxTextChars, headerSink, onEmptyResponse } = opts;
+    const hooks = { responseKind, documentMarker, maxTextChars, headerSink, onEmptyResponse };
     const privacy = { omitBankText: this._omitBankText };
-    return { statusPolicy: this._statusPolicy, responseKind, ...hooks, ...privacy };
+    return { statusPolicy: this._statusPolicy, ...hooks, ...privacy };
   }
 
   /**

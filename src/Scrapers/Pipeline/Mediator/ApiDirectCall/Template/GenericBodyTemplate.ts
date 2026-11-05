@@ -1,10 +1,13 @@
 /**
  * GenericBodyTemplate — recursive descent that hydrates a
- * JsonValueTemplate against an ITemplateScope. Handles five node
+ * JsonValueTemplate against an ITemplateScope. Handles six node
  * shapes:
  *   { $literal: JsonValue }      — pass value through
- *   { $ref: RefToken }           — resolve via RefResolver
+ *   { $ref: RefToken }           — resolve via RefResolver; one marked
+ *                                  `optional` (N49) leaves its record key
+ *                                  out when its source is absent
  *   { $join: IJoinTemplate }     — one joined string via JoinTemplate
+ *   { $merge: IMergeTemplate }   — carried record + set via MergeTemplate
  *   array / plain record         — recurse each element / entry
  *
  * Zero bank knowledge. Rule #11 compliant.
@@ -16,11 +19,13 @@ import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { JsonValueTemplate, RefToken } from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import { hydrateJoin } from './JoinTemplate.js';
+import { hydrateMerge } from './MergeTemplate.js';
+import { isRefAbsent } from './RefPresence.js';
 import type { ITemplateScope } from './RefResolver.js';
 import { resolveRef } from './RefResolver.js';
 
-/** Discriminator for template nodes — one of the five shapes above. */
-type TemplateShape = 'literal' | 'ref' | 'join' | 'array' | 'record';
+/** Discriminator for template nodes — one of the six shapes above. */
+type TemplateShape = 'literal' | 'ref' | 'join' | 'merge' | 'array' | 'record';
 
 /** Acceptable literal-value shapes carried by `$literal` nodes. */
 type LiteralValue = JsonValue | object;
@@ -39,7 +44,7 @@ function coerceJson(value: LiteralValue): Procedure<JsonValue> {
 }
 
 /**
- * Classify a template node — $literal / $ref / $join / array / record.
+ * Classify a template node — $literal / $ref / $join / $merge / array / record.
  * @param node - Template node to inspect.
  * @returns Discriminator.
  */
@@ -50,6 +55,7 @@ function classify(node: JsonValueTemplate): TemplateShape {
   if (Object.hasOwn(asRec, '$literal')) return 'literal';
   if (Object.hasOwn(asRec, '$ref')) return 'ref';
   if (Object.hasOwn(asRec, '$join')) return 'join';
+  if (Object.hasOwn(asRec, '$merge')) return 'merge';
   return 'record';
 }
 
@@ -74,6 +80,21 @@ function hydrateRef(node: JsonValueTemplate, scope: ITemplateScope): Procedure<J
   return resolveRef(asRef.$ref, scope);
 }
 
+/** A `$ref` node, optional (N49) or not. */
+type RefNode = Extract<JsonValueTemplate, { readonly $ref: RefToken }>;
+
+/**
+ * Whether a record entry is an optional ref whose source is absent.
+ * @param child - Entry template.
+ * @param scope - Template scope.
+ * @returns True when the entry's key is left out.
+ */
+function isDroppedEntry(child: JsonValueTemplate, scope: ITemplateScope): boolean {
+  if (classify(child) !== 'ref') return false;
+  const ref = child as RefNode;
+  return ref.optional === true && isRefAbsent(ref.$ref, scope);
+}
+
 /** Bundle for absorbEntry — avoids inflating signature LoC. */
 interface IAbsorbEntryArgs {
   /** Template scope. */
@@ -85,13 +106,15 @@ interface IAbsorbEntryArgs {
 }
 
 /**
- * Absorb one record-entry hydration into the accumulator.
+ * Absorb one record-entry hydration into the accumulator; an optional ref
+ * whose source is absent leaves the accumulator as it is.
  * @param args - {@link IAbsorbEntryArgs} bundle.
  * @returns Updated accumulator.
  */
 function absorbEntry(args: IAbsorbEntryArgs): Procedure<Record<string, JsonValue>> {
   if (!isOk(args.acc)) return args.acc;
   const [key, child] = args.entry;
+  if (isDroppedEntry(child, args.scope)) return args.acc;
   const hydrated = hydrate(child, args.scope);
   if (!isOk(hydrated)) return hydrated;
   return succeed({ ...args.acc.value, [key]: hydrated.value });
@@ -159,11 +182,21 @@ type ShapeHydrator = (node: JsonValueTemplate, scope: ITemplateScope) => Procedu
  */
 const DISPATCH_LITERAL: ShapeHydrator = node => hydrateLiteral(node);
 
+/**
+ * Merge-shape dispatch — hands MergeTemplate the record hydrator for `set`.
+ * @param node - Template node.
+ * @param scope - Template scope.
+ * @returns Procedure.
+ */
+const DISPATCH_MERGE: ShapeHydrator = (node, scope) =>
+  hydrateMerge({ node, scope, hydrateSet: hydrateRecord });
+
 /** Hydrator registry — one entry per TemplateShape. */
 const SHAPE_HYDRATORS: Readonly<Record<TemplateShape, ShapeHydrator>> = {
   literal: DISPATCH_LITERAL,
   ref: hydrateRef,
   join: hydrateJoin,
+  merge: DISPATCH_MERGE,
   array: hydrateArray,
   record: hydrateRecord,
 };

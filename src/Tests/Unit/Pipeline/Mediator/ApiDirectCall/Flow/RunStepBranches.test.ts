@@ -16,7 +16,10 @@ import {
   runStep,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
-import type { WKUrlGroup } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import type {
+  WKUrlGroup,
+  WKUrlOrLiteral,
+} from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { ApiPostData } from '../../../../../../Scrapers/Pipeline/Types/Domain/ApiPostData.js';
 import { fail, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -256,7 +259,7 @@ describe('api-direct-call RunStep buildPathAndQuery branches', () => {
        * @returns Synthetic success Procedure.
        */
       apiPost: async <T>(
-        _url: WKUrlGroup,
+        _url: WKUrlOrLiteral,
         _body: ApiPostData,
         opts?: { readonly query?: Record<string, string> },
       ): Promise<ReturnType<typeof succeed<T>>> => {
