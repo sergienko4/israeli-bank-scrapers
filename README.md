@@ -150,7 +150,7 @@ validated at runtime.
 | Bank Hapoalim        | Bank        | API-direct | `userCode`, `password`, OTP\*   |
 | Bank Leumi           | Bank        | Browser    | `username`, `password`          |
 | Bank Otsar Hahayal   | Bank        | Browser    | `username`, `password`, OTP     |
-| Bank Yahav           | Bank        | Browser    | `num`, `nationalID`, `password` |
+| Bank Yahav           | Bank        | API-direct | `num`, `nationalID`, `password` |
 | Behatsdaa            | Bank        | Browser    | `id`, `password`                |
 | Beinleumi            | Bank        | Browser    | `username`, `password`, OTP     |
 | Beyahad Bishvilha    | Bank        | Browser    | `id`, `password`                |
@@ -216,6 +216,9 @@ Hapoalim is API-direct with an SMS code: pass the callback in _options_ as
 above, or in _credentials_. Its `persistentOtpToken` skips the login and the
 SMS on the next run — see the
 [Hapoalim](https://sergienko4.github.io/israeli-bank-scrapers/banks/hapoalim/) guide.
+Yahav is API-direct with no OTP: it logs in the way the bank's mobile app does,
+and its `persistentOtpToken` skips the device enrolment on the next run — see
+the [Yahav](https://sergienko4.github.io/israeli-bank-scrapers/banks/yahav/) guide.
 
 Pass `phoneNumber` in digits-only international form. Each bank wants a
 different wire format (`+972…`, `972…`, `972-…`) and the mediator rewrites it
@@ -391,7 +394,7 @@ backwards compatibility. Full remedies, including WAF-specific ones, are in
 
 ```mermaid
 flowchart LR
-    subgraph BB["Pipeline browser banks (8)"]
+    subgraph BB["Pipeline browser banks (7)"]
       direction LR
       INIT --> HOME --> PRELOGIN["PRE-LOGIN (opt-in)"]
       PRELOGIN --> LOGIN
@@ -402,7 +405,7 @@ flowchart LR
       SCRAPE --> TERM["TERMINATE"]
     end
 
-    subgraph API["API-direct banks (9) — OneZero · Pepper · PayBox · Visa Cal · Isracard · Amex · Max · Mizrahi · Hapoalim"]
+    subgraph API["API-direct banks (10) — OneZero · Pepper · PayBox · Visa Cal · Isracard · Amex · Max · Mizrahi · Hapoalim · Yahav"]
       direction LR
       CALL["API-DIRECT-CALL<br/>(login + OTP via JSON API)"] --> SCR["API-DIRECT-SCRAPE"]
     end

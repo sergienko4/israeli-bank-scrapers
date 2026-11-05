@@ -14,12 +14,6 @@ const KIND_REGEX = 'regex' as const;
  *  TRANSACTIONS, and SUCCESS lists as a dashboard signal. */
 const LABEL_TXN_AND_CHARGES = 'עסקאות וחיובים' as const;
 
-/** Yahav current-account ("checking") nav label. Both quote glyphs — real
- *  gershayim U+05F4 + ASCII U+0022 fallback. Shared by TRANSACTIONS (nudge
- *  target), MENU_EXPAND (collapsed-menu trigger), and REVEAL (shell anchor). */
-const LABEL_CURRENT_ACCOUNT = 'חשבון עו״ש' as const;
-const LABEL_CURRENT_ACCOUNT_ASCII = 'חשבון עו"ש' as const;
-
 /** Transactions/charges navigation candidates, priority-ordered: bank-account
  *  intent → card transactions → medium → generic. */
 const DASHBOARD_TRANSACTIONS: readonly SelectorCandidate[] = [
@@ -28,12 +22,6 @@ const DASHBOARD_TRANSACTIONS: readonly SelectorCandidate[] = [
   { kind: 'clickableText', value: 'פירוט תנועות' },
   { kind: 'clickableText', value: 'לכל התנועות' },
   { kind: 'clickableText', value: 'תנועות אחרונות' },
-  // Yahav current-account nav (SPA route #/main/accounts/current/). Both quote
-  // variants: gershayim U+05F4 (the real glyph) + ASCII U+0022 fallback. Placed
-  // before the credit-card entries so the account-resolve nudge reaches the
-  // current DDA (id-bearing /account response), not the credit-cards view.
-  { kind: 'clickableText', value: LABEL_CURRENT_ACCOUNT },
-  { kind: 'clickableText', value: LABEL_CURRENT_ACCOUNT_ASCII },
   { kind: KIND_ARIA_LABEL, value: 'עסקאות בכרטיס לפי מועד חיוב' },
   { kind: KIND_TEXT_CONTENT, value: 'עסקאות בכרטיס לפי מועד חיוב' },
   { kind: 'clickableText', value: 'פירוט חיובים' },
@@ -74,14 +62,6 @@ export const WK_DASHBOARD = {
   ],
   REVEAL: [
     { kind: KIND_REGEX, value: String.raw`כניסתך האחרונה.*\d{1,2}[./\-]\d{1,2}[./\-]\d{2,4}` },
-    // Yahav BaNCS static-shell dashboard-ready anchors. The "כניסתך האחרונה"
-    // last-login widget above is data-gated (Angular ng-if on customer.activity)
-    // and renders late/unreliably, so it cannot be the sole reveal. These render
-    // with the SPA shell on #/main/home: the header portfolio label + the
-    // current-account nav (both quote variants).
-    { kind: KIND_TEXT_CONTENT, value: 'החשבונות שלי' },
-    { kind: KIND_TEXT_CONTENT, value: LABEL_CURRENT_ACCOUNT },
-    { kind: KIND_TEXT_CONTENT, value: LABEL_CURRENT_ACCOUNT_ASCII },
     { kind: KIND_TEXT_CONTENT, value: LABEL_TXN_AND_CHARGES },
     { kind: KIND_TEXT_CONTENT, value: 'כל הפעולות' },
     { kind: KIND_TEXT_CONTENT, value: 'חיובים ועסקאות' },
@@ -99,8 +79,7 @@ export const WK_DASHBOARD = {
     { kind: KIND_TEXT_CONTENT, value: 'פעולות' },
     { kind: KIND_TEXT_CONTENT, value: 'עובר ושב' },
     { kind: KIND_TEXT_CONTENT, value: 'עו"ש' },
-    { kind: KIND_TEXT_CONTENT, value: LABEL_CURRENT_ACCOUNT },
-    { kind: KIND_TEXT_CONTENT, value: LABEL_CURRENT_ACCOUNT_ASCII },
+    { kind: KIND_TEXT_CONTENT, value: 'חשבון עו"ש' },
     { kind: KIND_TEXT_CONTENT, value: 'פעולות נוספות' },
     { kind: KIND_TEXT_CONTENT, value: 'תפריט' },
     { kind: KIND_TEXT_CONTENT, value: 'שירות אונליין' },

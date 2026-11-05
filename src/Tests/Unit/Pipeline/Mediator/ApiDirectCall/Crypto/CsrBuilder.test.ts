@@ -16,6 +16,7 @@ import {
   csrSubjectDer,
   type ICsrSubjectValue,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CsrSubject.js';
+import { childrenOf, csrPartsOf, type ITlv, openTestCsr } from '../../../../../Helpers/TestCsr.js';
 
 /** Subject goldens: O, DC, OU, CN DER from the reference CSR builder. */
 const SUBJECT_GOLDENS = {
@@ -48,52 +49,15 @@ function subjectOf(organization: string, dc: string): readonly ICsrSubjectValue[
 
 const ASCII_SUBJECT = subjectOf('Bank Yahav', 'IsraeliBankScrapers');
 
-/** One DER node read back from a request. */
-interface ITlv {
-  readonly tag: number;
-  readonly whole: Buffer;
-  readonly body: Buffer;
-}
-
-/**
- * Read the DER node at `offset` (test-side reader, definite lengths only).
- * @param der - DER bytes.
- * @param offset - Node start.
- * @returns Tag, whole node and body.
- */
-function readTlv(der: Buffer, offset: number): ITlv {
-  const first = der[offset + 1];
-  const lengthBytes = first < 0x80 ? 0 : first - 0x80;
-  const length = lengthBytes === 0 ? first : der.readUIntBE(offset + 2, lengthBytes);
-  const start = offset + 2 + lengthBytes;
-  const whole = der.subarray(offset, start + length);
-  const body = der.subarray(start, start + length);
-  return { tag: der[offset], whole, body };
-}
-
-/**
- * The child nodes of a constructed node's body.
- * @param body - Constructed node body.
- * @param offset - Next child.
- * @returns Children in order.
- */
-function childrenOf(body: Buffer, offset = 0): readonly ITlv[] {
-  if (offset >= body.length) return [];
-  const head = readTlv(body, offset);
-  const rest = childrenOf(body, offset + head.whole.length);
-  return [head, ...rest];
-}
-
 /**
  * Split a base64url CSR into its three top-level parts.
  * @param csr - base64url DER.
  * @returns Request info, algorithm and signature bit string.
  */
 function partsOf(csr: string): readonly ITlv[] {
-  const der = Buffer.from(csr, 'base64url');
-  const outer = readTlv(der, 0);
-  expect(outer.whole).toHaveLength(der.length);
-  return childrenOf(outer.body);
+  const parts = csrPartsOf(csr);
+  expect(parts).toHaveLength(3);
+  return parts;
 }
 
 describe('csrSubjectDer (N25b)', () => {
@@ -168,6 +132,16 @@ describe('buildCsr (N25b)', () => {
     const signed = signature.body.subarray(1);
     const isValid = verify('RSA-SHA1', info.whole, publicKey, signed);
     expect(isValid).toBe(true);
+  });
+
+  it('rejects a CSR whose declared length exceeds its bytes', () => {
+    const csr = asciiCsr();
+    const der = Buffer.from(csr, 'base64url');
+    const length = der.readUInt8(2);
+    der.writeUInt8(length + 1, 2);
+    const malformedCsr = der.toString('base64url');
+    const parsedCsr = openTestCsr(malformedCsr);
+    expect(parsedCsr).toBe(false);
   });
 
   it('refuses text that is not a private key', () => {

@@ -22,7 +22,7 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     { kind: 'name', value: 'username' },
     { kind: 'name', value: 'userCode' },
     // --- CSS fallback ---
-    { kind: 'css', value: '#username' }, // Beinleumi group, Yahav
+    { kind: 'css', value: '#username' }, // Beinleumi group
     { kind: 'css', value: '#user-name' }, // Max
     { kind: 'css', value: '[formcontrolname="userName"]' }, // VisaCal
     // --- walk-up DOM (absolute last resort) ---
@@ -57,7 +57,7 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     { kind: 'name', value: 'password' },
     // --- CSS fallback ---
     { kind: 'css', value: 'input[type="password"]' },
-    { kind: 'css', value: '#password' }, // Hapoalim, Max, Beinleumi, Yahav
+    { kind: 'css', value: '#password' }, // Hapoalim, Max, Beinleumi
     { kind: 'css', value: '#loginPassword' }, // Behatsdaa, BeyahadBishvilha
     { kind: 'css', value: '#tzPassword' }, // Discount
     { kind: 'css', value: '[formcontrolname="password"]' }, // VisaCal
@@ -92,8 +92,6 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     // --- semantic HTML ---
     { kind: 'name', value: 'nationalID' },
     { kind: 'name', value: 'id' },
-    // --- CSS fallback ---
-    { kind: 'css', value: '#pinno' }, // Yahav
     // --- walk-up DOM (absolute last resort) ---
     { kind: 'textContent', value: 'תעודת זהות' },
     { kind: 'textContent', value: 'מספר זהות' },
@@ -111,9 +109,7 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     // --- visible text ---
     { kind: 'labelText', value: 'קוד מזהה' },
     { kind: 'labelText', value: 'מספר חשבון' },
-    { kind: 'labelText', value: 'קוד משתמש' }, // Yahav (reused)
     { kind: 'placeholder', value: 'מספר חשבון' },
-    { kind: 'placeholder', value: 'קוד משתמש' }, // Yahav (reused)
     { kind: 'ariaLabel', value: 'מספר חשבון' },
     // --- semantic HTML ---
     { kind: 'name', value: 'num' },
@@ -122,7 +118,6 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     // --- walk-up DOM (absolute last resort) ---
     { kind: 'textContent', value: 'קוד מזהה' },
     { kind: 'textContent', value: 'מספר חשבון' },
-    { kind: 'textContent', value: 'קוד משתמש' }, // Yahav (reused)
   ],
   otpCode: [
     // --- visible text ---

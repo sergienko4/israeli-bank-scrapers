@@ -16,8 +16,15 @@ import type { ITokenResolver } from './ITokenResolver.js';
 import { NULL_RESOLVER } from './ITokenResolver.js';
 import { buildResolverFromStrategy } from './TokenResolverBuilder.js';
 
-/** A fresh mediator assumes a header session until the bank's policy lands. */
-const HEADER_SESSION_POLICY: IMediatorAuthPolicy = { installHeader: true, rearmOnReject: true };
+/**
+ * A fresh mediator assumes a header session recovered per request until the
+ * bank's policy lands.
+ */
+const HEADER_SESSION_POLICY: Required<IMediatorAuthPolicy> = {
+  installHeader: true,
+  rearmOnReject: true,
+  wholeScrapeRecovery: false,
+};
 
 /**
  * Construct the initial frozen-snapshot state for a fresh mediator.
@@ -85,7 +92,17 @@ function setSessionWarmOp(state: IMediatorState, value: boolean): boolean {
 function setAuthPolicyOp(state: IMediatorState, policy: IMediatorAuthPolicy): boolean {
   state.rearmOnReject = policy.rearmOnReject;
   state.installHeader = policy.installHeader;
+  state.wholeScrapeRecovery = policy.wholeScrapeRecovery ?? false;
   return true;
+}
+
+/**
+ * Return whether a rejected session re-runs the whole scrape.
+ * @param state - Mediator state.
+ * @returns True when the active policy asks for whole-scrape recovery.
+ */
+function getWholeScrapeRecoveryOp(state: IMediatorState): boolean {
+  return state.wholeScrapeRecovery;
 }
 
 /**
@@ -152,6 +169,7 @@ async function primeSessionOp(state: IMediatorState): Promise<Procedure<string>>
 export {
   getSessionContextOp,
   getSessionWarmOp,
+  getWholeScrapeRecoveryOp,
   makeInitialMediatorState,
   primeSessionOp,
   setAuthPolicyOp,

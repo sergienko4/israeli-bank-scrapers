@@ -60,6 +60,14 @@ function notSessionWarm(): boolean {
 }
 
 /**
+ * Per-request recovery stub — the default, so the warm-session rule decides.
+ * @returns false
+ */
+function notWholeScrape(): boolean {
+  return false;
+}
+
+/**
  * Inert `recoverSession` stub — never consumed while `wasSessionWarm` is false.
  * @returns A resolved empty success {@link Procedure}.
  */
@@ -84,12 +92,13 @@ function acceptAuthPolicy(): boolean {
  * template-mock scrape stays byte-identical to its pre-self-heal behaviour.
  * `recoverSession`'s value is never consumed on that path.
  *
- * @returns The four {@link IRecoveryMethods} stubs for a mock mediator.
+ * @returns The {@link IRecoveryMethods} stubs for a mock mediator.
  */
 function makeRecoverySessionStubs(): IRecoveryMethods {
   return {
     setSessionWarm: echoSessionWarm,
     wasSessionWarm: notSessionWarm,
+    recoversWholeScrape: notWholeScrape,
     recoverSession: recoverSessionNoop,
     setAuthPolicy: acceptAuthPolicy,
   };

@@ -9,6 +9,7 @@ import { fail, isOk, isWafBlocked, preferWafBlock } from '../../Types/Procedure.
 import { isAuthRejectionMessage } from './ApiMediator.authReject.js';
 import { getSessionWarmOp, setRawAuthOp, setSessionWarmOp } from './ApiMediator.state.js';
 import type { IMediatorState } from './ApiMediator.types.js';
+import type { ITokenResolver } from './ITokenResolver.js';
 
 /**
  * Bundled args for `retryOn401Op` (keeps the signature single-line).
@@ -24,14 +25,41 @@ interface IRearmOutcome {
   readonly refreshed: Procedure<string>;
 }
 
+/** A re-minted Authorization header value, or why there is none. */
+type MintProcedure = Promise<Procedure<string>>;
+
+/** Which resolver call a re-mint makes. */
+type ResolverMint = (resolver: ITokenResolver) => MintProcedure;
+
 /**
- * Invoke the resolver's `refresh()` with an exception safety net.
- * @param state - Mediator state.
- * @returns Refresh procedure (or a Generic failure when the resolver threw).
+ * Re-mint through `refresh()` — a fresh login.
+ * @param resolver - The registered resolver.
+ * @returns Refresh procedure.
  */
-async function safeRefreshOp(state: IMediatorState): Promise<Procedure<string>> {
+function refreshMint(resolver: ITokenResolver): MintProcedure {
+  return resolver.refresh();
+}
+
+/**
+ * Re-mint through `recover()` when the resolver can re-grant a rejected
+ * session (N33); otherwise through `refresh()`.
+ * @param resolver - The registered resolver.
+ * @returns Recover or refresh procedure.
+ */
+function recoverMint(resolver: ITokenResolver): MintProcedure {
+  if (resolver.recover) return resolver.recover();
+  return resolver.refresh();
+}
+
+/**
+ * Invoke a resolver re-mint with an exception safety net.
+ * @param state - Mediator state.
+ * @param mint - Which resolver call to make.
+ * @returns Its procedure (or a Generic failure when the resolver threw).
+ */
+async function safeMintOp(state: IMediatorState, mint: ResolverMint): MintProcedure {
   try {
-    return await state.resolver.refresh();
+    return await mint(state.resolver);
   } catch (error) {
     const message = toErrorMessage(error as Error);
     return fail(ScraperErrorTypes.Generic, `token resolver threw: ${message}`);
@@ -47,8 +75,8 @@ function refreshBusyFailure(): Procedure<string> {
 }
 
 /**
- * Run a refresh under a re-entrancy guard so a re-mint can never trigger a
- * nested re-mint.
+ * Run a re-mint under a re-entrancy guard so it can never trigger a nested
+ * re-mint.
  *
  * A cold `refresh()` replays the bank's login flow, whose first step calls back
  * into `apiPost` on the SAME mediator. If that replay also fails with an auth
@@ -57,16 +85,26 @@ function refreshBusyFailure(): Procedure<string> {
  * in flight the flag short-circuits any nested attempt with a plain failure, so
  * the caller fails loud instead of recursing.
  * @param state - Mediator state.
- * @returns Refresh procedure, or a Generic failure when one is already running.
+ * @param mint - Which resolver call to make.
+ * @returns Its procedure, or a Generic failure when one is already running.
  */
-async function guardedRefreshOp(state: IMediatorState): Promise<Procedure<string>> {
+async function guardedMintOp(state: IMediatorState, mint: ResolverMint): MintProcedure {
   if (state.isRefreshing) return refreshBusyFailure();
   state.isRefreshing = true;
   try {
-    return await safeRefreshOp(state);
+    return await safeMintOp(state, mint);
   } finally {
     state.isRefreshing = false;
   }
+}
+
+/**
+ * Run a guarded `refresh()` — the mid-request 401 path.
+ * @param state - Mediator state.
+ * @returns Refresh procedure, or a Generic failure when one is already running.
+ */
+async function guardedRefreshOp(state: IMediatorState): Promise<Procedure<string>> {
+  return guardedMintOp(state, refreshMint);
 }
 
 /**
@@ -189,11 +227,23 @@ function discardOnFailedRecovery(
 }
 
 /**
+ * Clear the rejected header only after the re-entrancy guard is available.
+ * @param state - Mediator state.
+ * @returns Newly minted auth, or a busy failure.
+ */
+async function mintWithoutStaleAuth(state: IMediatorState): MintProcedure {
+  if (state.isRefreshing) return refreshBusyFailure();
+  setRawAuthOp(state, '');
+  return guardedMintOp(state, recoverMint);
+}
+
+/**
  * Discard the current (degraded) session and re-mint via a full cold flow.
  *
- * Reuses the proven recovery primitives: {@link safeRefreshOp} runs the
- * resolver's cold `refresh()` and {@link applyRefreshedAuth} installs the new
- * Authorization header on success. The session is flipped cold
+ * Reuses the proven recovery primitives: {@link guardedMintOp} runs the
+ * resolver's `recover()` when it can re-grant the session (N33), else its cold
+ * `refresh()`, and {@link applyRefreshedAuth} installs the new Authorization
+ * header on success. The session is flipped cold
  * (`sessionWarm=false`) on BOTH success and failure (recover-once). On success
  * the re-cache hook re-installs session context + re-surfaces the new token; on
  * failure the stale bearer is cleared and the failure propagates so the caller
@@ -204,7 +254,7 @@ function discardOnFailedRecovery(
  */
 async function recoverSessionOp(state: IMediatorState): Promise<Procedure<string>> {
   const wasWarm = getSessionWarmOp(state);
-  const refreshed = await guardedRefreshOp(state);
+  const refreshed = await mintWithoutStaleAuth(state);
   const isReady = applyRefreshedAuth(state, refreshed);
   setSessionWarmOp(state, false);
   if (!isReady) return discardOnFailedRecovery(state, refreshed);
@@ -212,5 +262,5 @@ async function recoverSessionOp(state: IMediatorState): Promise<Procedure<string
   return refreshed;
 }
 
-export { recoverSessionOp, retryOn401Op, safeRefreshOp };
+export { recoverSessionOp, retryOn401Op };
 export type { IRetryOn401Args };

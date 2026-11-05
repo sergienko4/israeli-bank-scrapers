@@ -819,11 +819,10 @@ contains() {
 }
 
 YAHAV_HOSTS="$(warm_set Yahav)"
-# Regression guard for the CI outage: Yahav's login iframe origin is set
-# at runtime by the marketing page, so it appears in no source file and
-# cannot be auto-extracted. It has to come from the manifest.
-assert_eq "Yahav warms its runtime-only login iframe origin" "yes" \
-  "$(contains login.yahav.co.il "$YAHAV_HOSTS")"
+# Yahav runs headless on its native gateway. That origin lives in the Yahav
+# constants, not in the registry block, so it must come from the manifest.
+assert_eq "Yahav warms its native gateway host" "yes" \
+  "$(contains mobile.yahav.co.il "$YAHAV_HOSTS")"
 
 VISACAL_HOSTS="$(warm_set VisaCal)"
 assert_eq "VisaCal warms its own apex" "yes" \
@@ -862,7 +861,7 @@ assert_eq "an auth origin outside .co.il/.com is still warmed" "yes" \
 rm -rf "$DNS_TMP"
 
 # An unreadable manifest must abort, not read as "this bank has no
-# extras" — that would quietly restore the original Yahav outage.
+# extras" — that would quietly leave every auth origin cold again.
 assert_eq "an unreadable registry file fails loud" "1" \
   "$( (require_readable "$REPO_ROOT/no-such-registry-file.ts") >/dev/null 2>&1; echo $? )"
 

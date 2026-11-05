@@ -31,10 +31,9 @@ The rule targets calendar decisions, not absolute instants. Comparing
 `toUTCString()` remain valid because they do not ask the host which calendar
 day the instant names.
 
-Permanent exceptions are limited to the provider itself, operator-facing run
-and trace labels that intentionally use the machine clock, and Yahav's
-explicit UTC wire envelope. Exact-message canaries keep every calendar
-selector active.
+Permanent exceptions are limited to the provider itself and operator-facing
+run and trace labels that intentionally use the machine clock. Exact-message
+canaries keep every calendar selector active.
 
 ### No CSS selectors in interaction code
 

@@ -1,107 +1,148 @@
 /**
- * API-direct transport rules (N8). Bank-wide redirect, status and
- * failure-text defaults need native fetch. Step reading, header carry,
- * encoding and domain cookies also work over node:https, whose strategy
- * shares the native readers and session jar. Domain jars need
+ * Transport rules for an api-direct call config (N8). Reading, encoding,
+ * header carry and domain cookies work on either node transport; redirect,
+ * status and failure-text policies need native fetch. Other transports
+ * would ignore these fields, so the build refuses them. Domain jars need
  * `sessionCookies`; header and cookie names must be HTTP tokens.
  */
 
 import type { IHeaderExtract } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import type { IHeadlessUrlsConfig } from '../../Registry/Config/PipelineBankConfigTypes.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
 
-/** Step fields supported by node-backed identity transports. */
-const NODE_STEP_FIELDS = [
-  'response',
-  'documentMarker',
-  'redirect',
-  'headerExtractsToCarry',
-  'encoding',
-] as const;
+/** A step field one transport family acts on. */
+type GatedStepField =
+  'response' | 'documentMarker' | 'redirect' | 'headerExtractsToCarry' | 'encoding';
 
 /** Headless defaults not passed to the node:https strategy. */
 const NATIVE_HEADLESS_FIELDS = ['redirectPolicy', 'statusPolicy', 'omitBankText'] as const;
 
-/** A step field supported by node-backed identity transports. */
-type NodeStepField = (typeof NODE_STEP_FIELDS)[number];
+/** A headless field one transport family acts on. */
+type GatedHeadlessField = 'cookieDomains' | (typeof NATIVE_HEADLESS_FIELDS)[number];
 
-/** A headless field only the native fetch acts on. */
-type NativeHeadlessField = (typeof NATIVE_HEADLESS_FIELDS)[number];
+/** The transports that act on a field, and the rule text off them. */
+interface IFieldGate {
+  /** Whether the bank's calls run on a transport that ignores the field. */
+  readonly isOff: (input: IApiDirectRuleInput) => boolean;
+  readonly offText: string;
+}
 
-/** The rule text of a native-only field off native fetch. */
-const OFF_NATIVE = 'not allowed without headless.nativeFetch';
+/** Headless keys that put the bank's calls on node:https (as the transport pick reads them). */
+const NODE_TLS_KEYS = ['clientCert', 'tlsProfile', 'requiresClientCert'] as const;
 
 /** An HTTP header name: one RFC 9110 token. */
 const HEADER_NAME = /^[\w!#$%&'*+.^`|~-]+$/;
 
 /**
- * Whether the bank's calls run outside both node-backed identity transports.
+ * Whether the bank's calls run anywhere but the headless native fetch.
  * @param input - Rule input.
- * @returns True when neither native fetch nor node:https is selected.
+ * @returns True when native fetch is not selected.
  */
-function isNodeTransportOff(input: IApiDirectRuleInput): boolean {
-  const headless = input.headless;
-  if (headless === false) return true;
-  const hasNodeTls =
-    headless.requiresClientCert === true ||
-    headless.tlsProfile !== undefined ||
-    headless.clientCert !== undefined;
-  return headless.nativeFetch !== true && !hasNodeTls;
+function isNativeOff(input: IApiDirectRuleInput): boolean {
+  return input.headless === false || input.headless.nativeFetch !== true;
 }
 
 /**
- * Whether a step names a node-backed field on browser transport.
- * @param field - Node-backed step field.
- * @param input - Rule input.
- * @returns True when any login or resume step sets the field without a node transport.
+ * Whether a headless block selects node:https.
+ * @param headless - The bank's headless block.
+ * @returns True when a client certificate or a TLS profile is set.
  */
-function hasStepFieldOffNodeTransport(field: NodeStepField, input: IApiDirectRuleInput): boolean {
-  if (!isNodeTransportOff(input)) return false;
+function isNodeTls(headless: IHeadlessUrlsConfig): boolean {
+  const values = NODE_TLS_KEYS.map((key): unknown => headless[key]);
+  return values.some((value): boolean => value !== undefined && value !== false);
+}
+
+/**
+ * Whether the bank's calls run on neither node transport.
+ * @param input - Rule input.
+ * @returns True when they run without native fetch or node:https.
+ */
+function isNodeOff(input: IApiDirectRuleInput): boolean {
+  if (input.headless === false) return true;
+  return input.headless.nativeFetch !== true && !isNodeTls(input.headless);
+}
+
+const NATIVE_GATE: IFieldGate = {
+  isOff: isNativeOff,
+  offText: 'not allowed without headless.nativeFetch',
+};
+
+const NODE_GATE: IFieldGate = {
+  isOff: isNodeOff,
+  offText: 'not allowed without nativeFetch or node:https',
+};
+
+/** Step fields and the transports that act on them, in check order. */
+const STEP_FIELD_GATES: readonly (readonly [GatedStepField, IFieldGate])[] = [
+  ['response', NODE_GATE],
+  ['documentMarker', NODE_GATE],
+  ['redirect', NATIVE_GATE],
+  ['headerExtractsToCarry', NODE_GATE],
+  ['encoding', NODE_GATE],
+];
+
+/** Headless fields and the transports that act on them, in check order. */
+const HEADLESS_FIELD_GATES: readonly (readonly [GatedHeadlessField, IFieldGate])[] = [
+  ['cookieDomains', NODE_GATE],
+  ...NATIVE_HEADLESS_FIELDS.map((field): readonly [GatedHeadlessField, IFieldGate] => [
+    field,
+    NATIVE_GATE,
+  ]),
+];
+
+/**
+ * Whether a step names a field its transport ignores.
+ * @param field - Gated step field.
+ * @param gate - The transports that act on it.
+ * @param input - Rule input.
+ * @returns True when any login or resume step sets the field off its transports.
+ */
+function hasStepFieldOff(
+  field: GatedStepField,
+  gate: IFieldGate,
+  input: IApiDirectRuleInput,
+): boolean {
+  if (!gate.isOff(input)) return false;
   const steps = allSteps(input.call);
   return steps.some((step): boolean => step[field] !== undefined);
 }
 
 /**
- * Domain jars require a node-backed identity transport.
+ * Whether the headless block names a field its transport ignores.
+ * @param field - Gated headless field.
+ * @param gate - The transports that act on it.
  * @param input - Rule input.
- * @returns True when a browser-backed bank declares domain cookies.
+ * @returns True when the headless block sets the field off its transports.
  */
-function hasDomainJarOffNodeTransport(input: IApiDirectRuleInput): boolean {
-  if (input.headless === false) return false;
-  return input.headless.cookieDomains !== undefined && isNodeTransportOff(input);
-}
-
-/**
- * Whether the headless block names a native-only field while native fetch is off.
- * @param field - Native-only headless field.
- * @param input - Rule input.
- * @returns True when the headless block sets the field without `nativeFetch`.
- */
-function hasHeadlessFieldOffNative(
-  field: NativeHeadlessField,
+function hasHeadlessFieldOff(
+  field: GatedHeadlessField,
+  gate: IFieldGate,
   input: IApiDirectRuleInput,
 ): boolean {
-  if (input.headless === false || input.headless.nativeFetch === true) return false;
+  if (input.headless === false || !gate.isOff(input)) return false;
   return input.headless[field] !== undefined;
 }
 
 /**
- * The rule refusing a node-backed step field on browser transport.
- * @param field - Node-backed step field.
+ * The rule refusing a step field off the transports that act on it.
+ * @param entry - The field and its gate.
  * @returns The rule.
  */
-function stepFieldRule(field: NodeStepField): IApiDirectRule {
-  const isBroken = hasStepFieldOffNodeTransport.bind(null, field);
-  return { message: `steps.${field}: ${OFF_NATIVE}`, isBroken };
+function stepFieldRule(entry: readonly [GatedStepField, IFieldGate]): IApiDirectRule {
+  const [field, gate] = entry;
+  const isBroken = hasStepFieldOff.bind(null, field, gate);
+  return { message: `steps.${field}: ${gate.offText}`, isBroken };
 }
 
 /**
- * The rule refusing a native-only headless field off native fetch.
- * @param field - Native-only headless field.
+ * The rule refusing a headless field off the transports that act on it.
+ * @param entry - The field and its gate.
  * @returns The rule.
  */
-function headlessFieldRule(field: NativeHeadlessField): IApiDirectRule {
-  const isBroken = hasHeadlessFieldOffNative.bind(null, field);
-  return { message: `headless.${field}: ${OFF_NATIVE}`, isBroken };
+function headlessFieldRule(entry: readonly [GatedHeadlessField, IFieldGate]): IApiDirectRule {
+  const [field, gate] = entry;
+  const isBroken = hasHeadlessFieldOff.bind(null, field, gate);
+  return { message: `headless.${field}: ${gate.offText}`, isBroken };
 }
 
 /**
@@ -157,18 +198,14 @@ function hasBadCookieName(input: IApiDirectRuleInput): boolean {
   return !names.every((name): boolean => HEADER_NAME.test(name));
 }
 
-const STEP_FIELD_RULES = NODE_STEP_FIELDS.map((field): IApiDirectRule => stepFieldRule(field));
-const HEADLESS_FIELD_RULES = NATIVE_HEADLESS_FIELDS.map((field): IApiDirectRule =>
-  headlessFieldRule(field),
+const STEP_FIELD_RULES = STEP_FIELD_GATES.map((entry): IApiDirectRule => stepFieldRule(entry));
+const HEADLESS_FIELD_RULES = HEADLESS_FIELD_GATES.map((entry): IApiDirectRule =>
+  headlessFieldRule(entry),
 );
 
-/** Native-fetch rules, checked in order after the session-transport rules. */
+/** Transport rules, checked in order after the session-transport rules. */
 const API_DIRECT_NATIVE_RULES: readonly IApiDirectRule[] = [
   ...STEP_FIELD_RULES,
-  {
-    message: `headless.cookieDomains: ${OFF_NATIVE}`,
-    isBroken: hasDomainJarOffNodeTransport,
-  },
   ...HEADLESS_FIELD_RULES,
   {
     message: 'headless.cookieDomains: not allowed without headless.sessionCookies',

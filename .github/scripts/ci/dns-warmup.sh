@@ -16,11 +16,10 @@
 #                             left these cold, and a cold lookup inside
 #                             Camoufox surfaces as NS_ERROR_UNKNOWN_HOST
 #                             — a blank login form that looks like a
-#                             scraper bug. Yahav's iframe origin
-#                             (login.yahav.co.il) is declared there
-#                             because it exists only as a runtime
-#                             iframe `src` and is greppable from no
-#                             source file.
+#                             scraper bug. Headless banks list their
+#                             API origins there too, because those
+#                             live in bank constants rather than in
+#                             the registry block.
 #
 # Usage:
 #   bash .github/scripts/ci/dns-warmup.sh            # warm ALL banks (preflight)
@@ -115,9 +114,9 @@ fi
 # Both registry files are read with grep/awk before `npm install`, so an
 # unreadable one cannot surface as an import error the way it would in
 # TypeScript — it just yields nothing. For the manifest that is worse
-# than useless: it is the only source for origins no extractor can find
-# (Yahav's login iframe), so an empty read would silently shrink the
-# warm-up set back to the bug this script exists to prevent.
+# than useless: it is the only source for origins the base-URL extractor
+# cannot find (headless API hosts), so an empty read would silently shrink
+# the warm-up set back to the bug this script exists to prevent.
 require_readable() {
   [ -r "$1" ] || { echo "❌ Registry file not readable: $1"; exit 1; }
 }

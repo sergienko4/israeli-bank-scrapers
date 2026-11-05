@@ -109,6 +109,37 @@ session recovery is itself refused, the phase returns that `WAF_BLOCKED`
 rather than the degraded or failed first scrape. Both sites use
 `preferWafBlock` (`src/Scrapers/Pipeline/Types/Procedure.ts`).
 
+## Bank response text in failures
+
+Banks whose replies may echo customer data opt in with `omitBankText: true`
+on their API-direct configuration. The scrape shape carries that policy to
+`omitBankResponseText`, which replaces failed customer (including secondary
+identity), balance, and transaction call messages with the call name and
+HTTP status, or error type when no status is available. The failure type
+remains available for recovery; successful calls and banks without the
+opt-in are unchanged.
+
+## Session recovery
+
+`runScrapeWithRecovery` runs the scrape. When `shouldRecoverSession` says so,
+it calls `recoverSession` (a re-grant when the strategy has `primeRecover`,
+else a cold login; see [Auth recovery](api-direct-call.md#auth-recovery)) and
+re-runs the whole scrape once, bootstrap included. A failed recovery returns
+the first outcome. An edge refusal never recovers (see above). Otherwise the
+bank's [`authRecovery`](api-direct-call.md#auth-recovery) picks one of two
+rules, and they never mix:
+
+| Mode                    | Recovers when                                                                                         | Stands                                                          |
+| ----------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `per-request` (default) | the run failed or came back degraded, and the session was warm                                        | anything from a cold session, which already ran the full login  |
+| `whole-scrape`          | the run failed with a 401 or 403 (`isAuthRejectedFailure`), warm or cold, at a bootstrap or data call | a 5xx, a bank status, an incomplete session, a degraded success |
+
+Under `whole-scrape` the mediator does not retry a rejected call itself
+(`rearmOnReject` is off), so the 401 reaches the phase as is. A balance step
+that declares `fallbackOnFail` would turn that 401 into a degraded success,
+which this mode does not recover. A whole-scrape shape should therefore leave
+`fallbackOnFail` off its balance step.
+
 ## Per-bank shape extractors
 
 Each api-direct bank declares its own `IApiDirectScrapeShape`:
@@ -222,21 +253,6 @@ A failed answer, or a failed body check, never reaches the patch. A shape with n
 ## withBrowserApiDirect — wiring a browser bank to the hard model
 
 `PipelineBuilder.withBrowserApiDirect(shape)` is the public builder entry point that swaps a browser bank's generic post-auth chain (AUTH-DISCOVERY / ACCOUNT-RESOLVE / DASHBOARD / generic SCRAPE / BALANCE-RESOLVE) for a single `API-DIRECT-SCRAPE` phase driven by the bank's `IApiDirectScrapeShape`, while keeping the browser login phases (INIT / HOME / PRE-LOGIN / LOGIN / OTP-\*) for WAF bypass. The hard-model calls dispatch through the **live login page** (`BrowserFetchStrategy`), so session cookies + the TLS/JA3 fingerprint ride every request for free.
-
-## BaNCS session-capture contract (Yahav)
-
-TCS BaNCS banks (Yahav) POST a large `MessageEnvelope` whose session-specific fields cannot be templated. A bank opts in with `bancsSessionCapture: true` in its `PipelineBankConfig`; at BIND, `primeBancsSession` scans the login-boot network pool and stashes an `IBancsCapture` on the mediator session-context:
-
-| Field                                      | Source                                        | Rides                  |
-| ------------------------------------------ | --------------------------------------------- | ---------------------- |
-| `bancsSecToken`                            | pooled `/account` POST `SecToken` block       | envelope `SecToken`    |
-| `bancsPortfolioIorId` / `bancsPortfolioId` | pooled `Prtflio.Id`                           | every Payload          |
-| `bancsAppVer`                              | pooled `AppVer` (per-deployment build string) | envelope version nodes |
-
-Two request-header sniffs run alongside it (both PII-safe — only per-session auth material, never the credential body):
-
-- **CSRF** (`scanCsrf`): value-matches the login response's `csrfTkn` nonce to the opaque request-header name the SPA's Angular interceptor injects, replayed on every `/account` POST (clears BaNCS error 88521).
-- **SPA headers** (`scanSpaHeaders`): the SPA's custom XHR headers (`X-Requested-With` / `Accept`) captured from the pooled accounts request and replayed via the default-header bag (clears BaNCS error 93194 whose subject element is `origin`). The capture is best-effort: when the pooled request carried **no** recorded headers the sniff yields an empty bag, so `bancsHeaders` (`YahavShapeHeaders.ts`) falls back to a **deterministic static Angular-XHR set** (`X-Requested-With: XMLHttpRequest`, `Accept: application/json, text/plain, */*`) — a non-empty capture always wins. Without the fallback the empty-capture case intermittently drew the 93194 (zero accounts → zero transactions).
 
 ## Optional shape hooks
 

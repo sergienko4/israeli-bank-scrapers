@@ -122,7 +122,7 @@ for the rationale.
 
 Some API-direct banks never open a browser: their `headless` block selects
 Node's own `fetch` (`nativeFetch`) or `node:https` (a client certificate or a
-TLS profile) — today, OneZero, VisaCal, Isracard, Amex, Max, Mizrahi and Hapoalim. Nothing on such a run reads a browser option, so
+TLS profile) — today, OneZero, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim and Yahav. Nothing on such a run reads a browser option, so
 `createScraper` names every one you pass in a single `ScraperOptionsWarning`:
 
 ```text
@@ -166,7 +166,9 @@ and have no long-term token — see [Max](banks/max.md) and
 [Mizrahi](banks/mizrahi.md). Hapoalim takes `userCode` and `password`, and its
 `otpCodeRetriever` in either the options or the credentials, and an optional
 `otpLongTermToken` that skips the login and the SMS — see
-[Hapoalim](banks/hapoalim.md#warm-start).
+[Hapoalim](banks/hapoalim.md#warm-start). Yahav takes `num`, `nationalID` and
+`password`, and an optional `otpLongTermToken` that skips the device enrolment —
+see [Yahav](banks/yahav.md#warm-start).
 
 The phone-format rewrite is per-bank and automatic; see
 [API-DIRECT-CALL](phases/api-direct-call.md) for the normaliser contract.

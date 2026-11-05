@@ -24,7 +24,7 @@ import type {
   IJwtClaimsConfig,
   IProbeConfig,
 } from './EnvelopeTypes.js';
-import type { CookieHandoff, FlowKind, IStepConfig } from './FlowTypes.js';
+import type { AuthRecovery, CookieHandoff, FlowKind, IStepConfig } from './FlowTypes.js';
 import type { ISignerConfig } from './SignerTypes.js';
 import type { IEnvelopeSelectors } from './TemplateTypes.js';
 
@@ -50,7 +50,7 @@ interface IPersistentAuthConfig {
 }
 
 /** Rule a required credential must meet before the first request. */
-type CredRule = 'nonEmpty' | 'digits' | 'sixDigits';
+type CredRule = 'nonEmpty' | 'digits' | 'sixDigits' | 'latin1';
 
 /** Top-level config literal — placed into PIPELINE_BANK_CONFIG[bank].apiDirectCall. */
 interface IApiDirectCallConfig {
@@ -86,6 +86,8 @@ interface IApiDirectCallConfig {
    * `isolate` needs `headless.cookieDomains`.
    */
   readonly cookieHandoff?: CookieHandoff;
+  /** How the scrape recovers from a rejected session (default `per-request`). */
+  readonly authRecovery?: AuthRecovery;
   /**
    * Static cryptographic literals accessible via `config.secrets.<name>`
    * RefTokens. Public-extractable constants (signing keys lifted from

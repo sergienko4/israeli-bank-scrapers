@@ -3,11 +3,12 @@
  *
  * The Api cluster must not import ApiDirectCall, so the hook is constructed
  * here (in the ACTION phase) and installed onto the mediator via
- * `bus.withRecoveryHook`. On a successful cold recovery the hook re-installs
+ * `bus.withRecoveryHook`. On a successful recovery the hook re-installs
  * the new carry snapshot, projected through the flow's `sessionCarry`
  * allowlist (N32), as the session context, and re-surfaces the new long-term
  * token to `onAuthFlowComplete` — closing the gap where a re-minted token was
- * discarded from the cache, forcing a fresh OTP every run.
+ * discarded from the cache, forcing a fresh OTP every run. A recovery that
+ * resumed the session (N33) is noted once instead of being called degraded.
  */
 
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
@@ -52,15 +53,33 @@ function warnOnRecoveredWarmSession(args: IRecoveryHookArgs, wasWarm: boolean): 
   return true;
 }
 
+/** Info line for a recovery that resumed the session rather than logging in. */
+const REGRANTED_NOTE = 're-granted the session token';
+
+/**
+ * Tell the truth about the recovery (N33): a resumed session is noted once;
+ * only a cold one falls to the degraded-session rule. A strategy without
+ * `lastRecoveryResumed` keeps that rule alone.
+ * @param args - Bus + context + strategy bundle.
+ * @param wasWarm - Session warmth before recovery flipped it cold.
+ * @returns True when the degraded warning was emitted.
+ */
+function reportRecovery(args: IRecoveryHookArgs, wasWarm: boolean): boolean {
+  const isResumed = args.strategy.lastRecoveryResumed?.() ?? false;
+  if (!isResumed) return warnOnRecoveredWarmSession(args, wasWarm);
+  args.ctx.logger.info({ message: `${PHASE_LABEL} ${REGRANTED_NOTE}` });
+  return false;
+}
+
 /**
  * Build the recovery hook that re-installs context + re-caches the new token.
  * @param args - Bus + context + strategy + allowlist bundle.
- * @returns Hook fired by the mediator after a successful cold recovery.
+ * @returns Hook fired by the mediator after a successful recovery.
  */
 function makeRecoveryHook(args: IRecoveryHookArgs): RecoveredHook {
   const { bus, ctx, strategy, sessionCarry } = args;
   return async (header: string, wasWarm: boolean): Promise<void> => {
-    warnOnRecoveredWarmSession(args, wasWarm);
+    reportRecovery(args, wasWarm);
     const snapshot = strategy.getLatestCarrySnapshot();
     const session = projectSessionCarry(snapshot, sessionCarry);
     bus.setSessionContext(session);

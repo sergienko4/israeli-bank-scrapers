@@ -1,0 +1,101 @@
+{
+  "fixedMs": 1751365800123,
+  "tz": "Asia/Jerusalem",
+  "packets": {
+    "bootstrap": {
+      "path": "/BaNCSDigitalApp/login",
+      "headers": {
+        "Content-Type": "application/json; charset=UTF-8",
+        "Accept": "application/json",
+        "User-Agent": "BankApiInteroperabilityResearch/1.0",
+        "request_path": "/BaNCSDigitalApp/login",
+        "JESESSIONID": "",
+        "X-XSRF-TOKEN": "",
+        "Authorization": "Bearer AT-fixture",
+        "mag-identifier": "mag-fixture",
+        "BD_IDENT_KEY": "QmFOQ1NEaWdpdGFsQXBwcy5BbmRyb2lkXzEuMC4wLkJZLjEuMC4yMTJ+R0RNXzEuMC44MX5NZXNzYWdlRW52ZWxvcGVfMS4wLjB+YmQ4YmU4NjYwMzIwOWUzMGJkNTUwMzcxMWE5OTBhN2Y1NTI4ZGU1NWUzYzI2ODhkOWYwNTFhYjRhYmQxZjUxNw=="
+      },
+      "body": "{\"Ver\":\"MessageEnvelope_1.0.0\",\"Resource\":\"https://mobile.yahav.co.il/BaNCSDigitalApp/login\",\"AppVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"EnvVer\":\"MessageEnvelope_1.0.0\",\"APIVer\":\"GDM_1.0.81\",\"SessionId\":\"sessionId\",\"FiId\":{\"Ver\":\"Identifier_1.0.0\"},\"Device\":{\"Ver\":\"Device_1.0.0\",\"DeviceId\":{\"Ver\":\"DeviceIdentifier_1.0.0\"},\"Type\":{\"CDE\":\"HOMECOMPUTER\",\"DISP\":\"Home Computer\"},\"OperatingSystem\":{\"Ver\":\"OperatingSystem_1.0.0\",\"Name\":\"Win32\"}},\"Locale\":{\"CDE\":\"IW_IL\",\"DISP\":\"Hebrew Israel\"},\"ProxyApp\":{\"Ver\":\"ProxyApp_1.0.0\",\"UserAgent\":\"BankApiInteroperabilityResearch/1.0\"},\"ClientApp\":{\"Ver\":\"Application_1.0.0\",\"Nam\":\"Retail Internet Banking\",\"ApVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"ComptLst\":{\"Ver\":\"ApplicationComponentList_1.0.0\",\"AppCompLst\":[{\"Ver\":\"ApplicationComponent_1.0.0\",\"Nam\":\"Retail Internet Banking\",\"AppCompVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"Typ\":{\"CDE\":\"WEBPACKAGE\",\"DISP\":\"WEBPACKAGE\"}}]},\"Typ\":{\"CDE\":\"WEBAPP\",\"DISP\":\"WebApp\"},\"CdngLng\":\"Hybrid\",\"TrgtOS\":{\"CDE\":\"WINDOWS\",\"DISP\":\"WINDOWS\"}},\"UIID\":{\"Ver\":\"UIIDomain_1.0.0\"},\"DgtlTxnId\":{\"Ver\":\"Identifier_1.0.0\"},\"MsgId\":\"1751365800123\",\"TimeStamp\":{\"Ver\":\"Timestamp_1.0.0\",\"Dttime\":{\"Ver\":\"DateTime_1.0.0\",\"Timezone\":{\"Ver\":\"TimeZone_1.0.0\",\"UTCOffsetHour\":-3,\"UTCOffsetMinute\":0,\"Abbr\":\"UTC\"},\"Day\":1,\"Month\":7,\"Year\":2025,\"Hour\":10,\"Minute\":30,\"Second\":0,\"Fraction\":123}},\"SecToken\":{\"Ver\":\"SecurityToken_1.0.0\",\"isArchetype\":false,\"Token\":[]},\"Payload\":{\"Ver\":\"MessagePayload_1.0.0\",\"DataEntity\":[{\"Ver\":\"LoginUserCredentials_1.0.0\",\"PrimaryVerData\":{\"Ver\":\"SMSessionVerificationData_1.0.0\",\"isArchetype\":true,\"SMSession\":{\"Ver\":\"Secret_1.0.0\",\"isArchetype\":true}},\"VerId\":{\"Ver\":\"StringVerificationIdentifier_1.0.0\",\"NAME\":\".\",\"UserId\":{\"Ver\":\"UserIdentifier_1.0.0\",\"isArchetype\":false,\"ObjId\":\"RetailUser\",\"UserStatus\":{\"CDE\":\"ACTIVE\",\"DISP\":\"ACTIVE\"}}},\"CredScope\":{\"CDE\":\"LOGIN\",\"DISP\":\"LOGIN\"},\"DomainAddr\":[{\"Ver\":\"DomainAddress_1.0.0\",\"isArchetype\":false,\"PlatformId\":\"Retail\",\"AppId\":\"Bancs\"}]}],\"Operation\":\"VLD\",\"Category\":[\"min\"]}}"
+    },
+    "profile": {
+      "path": "/BaNCSDigitalApp/customer",
+      "headers": {
+        "Content-Type": "application/json; charset=UTF-8",
+        "Accept": "application/json",
+        "User-Agent": "BankApiInteroperabilityResearch/1.0",
+        "Authorization": "Bearer AT-fixture",
+        "mag-identifier": "mag-fixture",
+        "JESESSIONID": "sess-fixture",
+        "X-XSRF-TOKEN": "xsrf-fixture",
+        "request_path": "/BaNCSDigitalApp/customer",
+        "BD_IDENT_KEY": "QmFOQ1NEaWdpdGFsQXBwcy5BbmRyb2lkXzEuMC4wLkJZLjEuMC4yMTJ+R0RNXzEuMC44MX5NZXNzYWdlRW52ZWxvcGVfMS4wLjB+YWM1ZjMxMzhhMWIxM2JiODI4MDI5MzZjYzJiMjkwOWZjMmU2ZGQ0M2MwNTZkYWY2NThjYjU4ODdmNmM1MmY0MA==",
+        "Cookie": "BIGipServer=pool-fixture"
+      },
+      "body": "{\"Ver\":\"MessageEnvelope_1.0.0\",\"Resource\":\"https://mobile.yahav.co.il/BaNCSDigitalApp/customer\",\"AppVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"EnvVer\":\"MessageEnvelope_1.0.0\",\"APIVer\":\"GDM_1.0.81\",\"SessionId\":\"sessionId\",\"FiId\":{\"Ver\":\"Identifier_1.0.0\"},\"Device\":{\"Ver\":\"Device_1.0.0\",\"DeviceId\":{\"Ver\":\"DeviceIdentifier_1.0.0\"},\"Type\":{\"CDE\":\"HOMECOMPUTER\",\"DISP\":\"Home Computer\"},\"OperatingSystem\":{\"Ver\":\"OperatingSystem_1.0.0\",\"Name\":\"Win32\"}},\"Locale\":{\"CDE\":\"IW_IL\",\"DISP\":\"Hebrew Israel\"},\"ProxyApp\":{\"Ver\":\"ProxyApp_1.0.0\",\"UserAgent\":\"BankApiInteroperabilityResearch/1.0\"},\"ClientApp\":{\"Ver\":\"Application_1.0.0\",\"Nam\":\"Retail Internet Banking\",\"ApVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"ComptLst\":{\"Ver\":\"ApplicationComponentList_1.0.0\",\"AppCompLst\":[{\"Ver\":\"ApplicationComponent_1.0.0\",\"Nam\":\"Retail Internet Banking\",\"AppCompVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"Typ\":{\"CDE\":\"WEBPACKAGE\",\"DISP\":\"WEBPACKAGE\"}}]},\"Typ\":{\"CDE\":\"WEBAPP\",\"DISP\":\"WebApp\"},\"CdngLng\":\"Hybrid\",\"TrgtOS\":{\"CDE\":\"WINDOWS\",\"DISP\":\"WINDOWS\"}},\"UIID\":{\"Ver\":\"UIIDomain_1.0.0\"},\"DgtlTxnId\":{\"Ver\":\"Identifier_1.0.0\"},\"MsgId\":\"1751365800123\",\"TimeStamp\":{\"Ver\":\"Timestamp_1.0.0\",\"Dttime\":{\"Ver\":\"DateTime_1.0.0\",\"Timezone\":{\"Ver\":\"TimeZone_1.0.0\",\"UTCOffsetHour\":-3,\"UTCOffsetMinute\":0,\"Abbr\":\"UTC\"},\"Day\":1,\"Month\":7,\"Year\":2025,\"Hour\":10,\"Minute\":30,\"Second\":0,\"Fraction\":123}},\"SecToken\":{\"Ver\":\"SecurityToken_1.0.0\",\"isArchetype\":false,\"Token\":[{\"Ver\":\"Token_1.0.0\",\"Val\":\"sec-fixture\"}]},\"csrfTkn\":\"csrf-fixture\",\"Payload\":{\"Ver\":\"MessagePayload_1.0.0\",\"Operation\":\"INQ\",\"DataEntity\":[{\"Ver\":\"CustomerUser_1.0.0\",\"isArchetype\":true,\"CustHostMap\":{\"1\":{\"Ver\":\"PersonCustomer_1.0.0\",\"isArchetype\":true}},\"UserId\":{\"Ver\":\"Identifier_1.0.0\",\"isArchetype\":true},\"VerifictnId\":{\"Ver\":\"StringVerificationIdentifier_1.0.0\",\"isArchetype\":true}}],\"Category\":[\"min\"]}}"
+    },
+    "portfolios": {
+      "path": "/BaNCSDigitalApp/portfolio",
+      "headers": {
+        "Content-Type": "application/json; charset=UTF-8",
+        "Accept": "application/json",
+        "User-Agent": "BankApiInteroperabilityResearch/1.0",
+        "Authorization": "Bearer AT-fixture",
+        "mag-identifier": "mag-fixture",
+        "JESESSIONID": "sess-fixture",
+        "X-XSRF-TOKEN": "xsrf-fixture",
+        "request_path": "/BaNCSDigitalApp/portfolio",
+        "BD_IDENT_KEY": "QmFOQ1NEaWdpdGFsQXBwcy5BbmRyb2lkXzEuMC4wLkJZLjEuMC4yMTJ+R0RNXzEuMC44MX5NZXNzYWdlRW52ZWxvcGVfMS4wLjB+YjhmNjY0YjI4ZGI1MWFiMTEyNzJjMTQ2Y2ZlNjk2NzE1N2Y5ZDgzNzViYzA4ZTZkMGNjZjAwMDEwMzI5MTYzNA==",
+        "Cookie": "BIGipServer=pool-fixture"
+      },
+      "body": "{\"Ver\":\"MessageEnvelope_1.0.0\",\"Resource\":\"https://mobile.yahav.co.il/BaNCSDigitalApp/portfolio\",\"AppVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"EnvVer\":\"MessageEnvelope_1.0.0\",\"APIVer\":\"GDM_1.0.81\",\"SessionId\":\"sessionId\",\"FiId\":{\"Ver\":\"Identifier_1.0.0\"},\"Device\":{\"Ver\":\"Device_1.0.0\",\"DeviceId\":{\"Ver\":\"DeviceIdentifier_1.0.0\"},\"Type\":{\"CDE\":\"HOMECOMPUTER\",\"DISP\":\"Home Computer\"},\"OperatingSystem\":{\"Ver\":\"OperatingSystem_1.0.0\",\"Name\":\"Win32\"}},\"Locale\":{\"CDE\":\"IW_IL\",\"DISP\":\"Hebrew Israel\"},\"ProxyApp\":{\"Ver\":\"ProxyApp_1.0.0\",\"UserAgent\":\"BankApiInteroperabilityResearch/1.0\"},\"ClientApp\":{\"Ver\":\"Application_1.0.0\",\"Nam\":\"Retail Internet Banking\",\"ApVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"ComptLst\":{\"Ver\":\"ApplicationComponentList_1.0.0\",\"AppCompLst\":[{\"Ver\":\"ApplicationComponent_1.0.0\",\"Nam\":\"Retail Internet Banking\",\"AppCompVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"Typ\":{\"CDE\":\"WEBPACKAGE\",\"DISP\":\"WEBPACKAGE\"}}]},\"Typ\":{\"CDE\":\"WEBAPP\",\"DISP\":\"WebApp\"},\"CdngLng\":\"Hybrid\",\"TrgtOS\":{\"CDE\":\"WINDOWS\",\"DISP\":\"WINDOWS\"}},\"UIID\":{\"Ver\":\"UIIDomain_1.0.0\"},\"DgtlTxnId\":{\"Ver\":\"Identifier_1.0.0\"},\"MsgId\":\"1751365800123\",\"TimeStamp\":{\"Ver\":\"Timestamp_1.0.0\",\"Dttime\":{\"Ver\":\"DateTime_1.0.0\",\"Timezone\":{\"Ver\":\"TimeZone_1.0.0\",\"UTCOffsetHour\":-3,\"UTCOffsetMinute\":0,\"Abbr\":\"UTC\"},\"Day\":1,\"Month\":7,\"Year\":2025,\"Hour\":10,\"Minute\":30,\"Second\":0,\"Fraction\":123}},\"SecToken\":{\"Ver\":\"SecurityToken_1.0.0\",\"isArchetype\":false,\"Token\":[{\"Ver\":\"Token_1.0.0\",\"Val\":\"sec-fixture\"}]},\"csrfTkn\":\"csrf-fixture\",\"Payload\":{\"Ver\":\"MessagePayload_1.0.0\",\"Operation\":\"INQ\",\"DataEntity\":[{\"Ver\":\"CustomerPortfolioRelationship_1.0.0.BY.1.0\",\"isArchetype\":true,\"Prtflio\":{\"Ver\":\"Portfolio_1.0.0\",\"isArchetype\":true,\"Id\":{\"Ver\":\"PortfolioIdentifier_1.0.0\",\"isArchetype\":true}}}],\"Category\":[\"min\"]}}"
+    },
+    "accounts": {
+      "path": "/BaNCSDigitalApp/account",
+      "headers": {
+        "Content-Type": "application/json; charset=UTF-8",
+        "Accept": "application/json",
+        "User-Agent": "BankApiInteroperabilityResearch/1.0",
+        "Authorization": "Bearer AT-fixture",
+        "mag-identifier": "mag-fixture",
+        "JESESSIONID": "sess-fixture",
+        "X-XSRF-TOKEN": "xsrf-fixture",
+        "request_path": "/BaNCSDigitalApp/account",
+        "BD_IDENT_KEY": "QmFOQ1NEaWdpdGFsQXBwcy5BbmRyb2lkXzEuMC4wLkJZLjEuMC4yMTJ+R0RNXzEuMC44MX5NZXNzYWdlRW52ZWxvcGVfMS4wLjB+MzkzNzFiNTEzMWIyMWRlYTk0ZWNhMzI0NDMyZGY2ZjQ3MDk2MTZiYmEwNTU4ODdlZWI3NTg5Y2RkMmFkYjUyMw==",
+        "Cookie": "BIGipServer=pool-fixture"
+      },
+      "body": "{\"Ver\":\"MessageEnvelope_1.0.0\",\"Resource\":\"https://mobile.yahav.co.il/BaNCSDigitalApp/account\",\"AppVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"EnvVer\":\"MessageEnvelope_1.0.0\",\"APIVer\":\"GDM_1.0.81\",\"SessionId\":\"sessionId\",\"FiId\":{\"Ver\":\"Identifier_1.0.0\"},\"Device\":{\"Ver\":\"Device_1.0.0\",\"DeviceId\":{\"Ver\":\"DeviceIdentifier_1.0.0\"},\"Type\":{\"CDE\":\"HOMECOMPUTER\",\"DISP\":\"Home Computer\"},\"OperatingSystem\":{\"Ver\":\"OperatingSystem_1.0.0\",\"Name\":\"Win32\"}},\"Locale\":{\"CDE\":\"IW_IL\",\"DISP\":\"Hebrew Israel\"},\"ProxyApp\":{\"Ver\":\"ProxyApp_1.0.0\",\"UserAgent\":\"BankApiInteroperabilityResearch/1.0\"},\"ClientApp\":{\"Ver\":\"Application_1.0.0\",\"Nam\":\"Retail Internet Banking\",\"ApVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"ComptLst\":{\"Ver\":\"ApplicationComponentList_1.0.0\",\"AppCompLst\":[{\"Ver\":\"ApplicationComponent_1.0.0\",\"Nam\":\"Retail Internet Banking\",\"AppCompVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"Typ\":{\"CDE\":\"WEBPACKAGE\",\"DISP\":\"WEBPACKAGE\"}}]},\"Typ\":{\"CDE\":\"WEBAPP\",\"DISP\":\"WebApp\"},\"CdngLng\":\"Hybrid\",\"TrgtOS\":{\"CDE\":\"WINDOWS\",\"DISP\":\"WINDOWS\"}},\"UIID\":{\"Ver\":\"UIIDomain_1.0.0\"},\"DgtlTxnId\":{\"Ver\":\"Identifier_1.0.0\"},\"MsgId\":\"1751365800123\",\"TimeStamp\":{\"Ver\":\"Timestamp_1.0.0\",\"Dttime\":{\"Ver\":\"DateTime_1.0.0\",\"Timezone\":{\"Ver\":\"TimeZone_1.0.0\",\"UTCOffsetHour\":-3,\"UTCOffsetMinute\":0,\"Abbr\":\"UTC\"},\"Day\":1,\"Month\":7,\"Year\":2025,\"Hour\":10,\"Minute\":30,\"Second\":0,\"Fraction\":123}},\"SecToken\":{\"Ver\":\"SecurityToken_1.0.0\",\"isArchetype\":false,\"Token\":[{\"Ver\":\"Token_1.0.0\",\"Val\":\"sec-fixture\"}]},\"csrfTkn\":\"csrf-fixture\",\"Payload\":{\"Ver\":\"MessagePayload_1.0.0\",\"Operation\":\"INQ\",\"DataEntity\":[{\"Ver\":\"PortfolioAccountRelationship_1.0.0\",\"isArchetype\":true,\"Id\":{\"Ver\":\"Identifier_1.0.0\",\"isArchetype\":true},\"Prtflio\":{\"Ver\":\"Portfolio_1.0.0\",\"isArchetype\":true,\"Id\":{\"Ver\":\"PortfolioIdentifier_1.0.0\",\"PortFoId\":{\"INTERNALIDENTIFIER\":\"\"},\"iorId\":\"IOR-PF-1\",\"Id\":\"PF-1\"}}}],\"RefDataList\":[{\"Ver\":\"ReferenceData_1.0.0\",\"Id\":\"IOR-PF-1\",\"Type\":{\"CDE\":\"PORTFOLIOIDENTIFIERIORID\",\"DISP\":\"PortfolioIdentifierIORID\"}}],\"Filters\":[{\"Ver\":\"ANDFilter_1.0.0\",\"Filters\":[{\"Ver\":\"AccountListFilter_1.0.0\",\"Type\":{\"CDE\":\"DDA\"},\"Operator\":\"EQUAL\"},{\"Ver\":\"AccountListFilter_1.0.0\",\"Operator\":\"EQUAL\",\"Currency\":{\"Ver\":\"Currency_1.0.0\",\"isArchetype\":true,\"Code\":{\"CDE\":\"ILS\"}}}]}]}}"
+    },
+    "balance": {
+      "path": "/BaNCSDigitalApp/account",
+      "headers": {
+        "Content-Type": "application/json; charset=UTF-8",
+        "Accept": "application/json",
+        "User-Agent": "BankApiInteroperabilityResearch/1.0",
+        "Authorization": "Bearer AT-fixture",
+        "mag-identifier": "mag-fixture",
+        "JESESSIONID": "sess-fixture",
+        "X-XSRF-TOKEN": "xsrf-fixture",
+        "request_path": "/BaNCSDigitalApp/account",
+        "BD_IDENT_KEY": "QmFOQ1NEaWdpdGFsQXBwcy5BbmRyb2lkXzEuMC4wLkJZLjEuMC4yMTJ+R0RNXzEuMC44MX5NZXNzYWdlRW52ZWxvcGVfMS4wLjB+ZGUxMGJhZTY2NmQ4Nzk2ODQwMTgwYjZmOTkyZGVjNzFmZDVlNWM5MDYyNGZiYWY1N2IwYjAxOWZlM2Y3MDk3ZQ==",
+        "Cookie": "BIGipServer=pool-fixture"
+      },
+      "body": "{\"Ver\":\"MessageEnvelope_1.0.0\",\"Resource\":\"https://mobile.yahav.co.il/BaNCSDigitalApp/account\",\"AppVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"EnvVer\":\"MessageEnvelope_1.0.0\",\"APIVer\":\"GDM_1.0.81\",\"SessionId\":\"sessionId\",\"FiId\":{\"Ver\":\"Identifier_1.0.0\"},\"Device\":{\"Ver\":\"Device_1.0.0\",\"DeviceId\":{\"Ver\":\"DeviceIdentifier_1.0.0\"},\"Type\":{\"CDE\":\"HOMECOMPUTER\",\"DISP\":\"Home Computer\"},\"OperatingSystem\":{\"Ver\":\"OperatingSystem_1.0.0\",\"Name\":\"Win32\"}},\"Locale\":{\"CDE\":\"IW_IL\",\"DISP\":\"Hebrew Israel\"},\"ProxyApp\":{\"Ver\":\"ProxyApp_1.0.0\",\"UserAgent\":\"BankApiInteroperabilityResearch/1.0\"},\"ClientApp\":{\"Ver\":\"Application_1.0.0\",\"Nam\":\"Retail Internet Banking\",\"ApVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"ComptLst\":{\"Ver\":\"ApplicationComponentList_1.0.0\",\"AppCompLst\":[{\"Ver\":\"ApplicationComponent_1.0.0\",\"Nam\":\"Retail Internet Banking\",\"AppCompVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"Typ\":{\"CDE\":\"WEBPACKAGE\",\"DISP\":\"WEBPACKAGE\"}}]},\"Typ\":{\"CDE\":\"WEBAPP\",\"DISP\":\"WebApp\"},\"CdngLng\":\"Hybrid\",\"TrgtOS\":{\"CDE\":\"WINDOWS\",\"DISP\":\"WINDOWS\"}},\"UIID\":{\"Ver\":\"UIIDomain_1.0.0\"},\"DgtlTxnId\":{\"Ver\":\"Identifier_1.0.0\"},\"MsgId\":\"1751365800123\",\"TimeStamp\":{\"Ver\":\"Timestamp_1.0.0\",\"Dttime\":{\"Ver\":\"DateTime_1.0.0\",\"Timezone\":{\"Ver\":\"TimeZone_1.0.0\",\"UTCOffsetHour\":-3,\"UTCOffsetMinute\":0,\"Abbr\":\"UTC\"},\"Day\":1,\"Month\":7,\"Year\":2025,\"Hour\":10,\"Minute\":30,\"Second\":0,\"Fraction\":123}},\"SecToken\":{\"Ver\":\"SecurityToken_1.0.0\",\"isArchetype\":false,\"Token\":[{\"Ver\":\"Token_1.0.0\",\"Val\":\"sec-fixture\"}]},\"csrfTkn\":\"csrf-fixture\",\"Payload\":{\"Ver\":\"MessagePayload_1.0.0\",\"Operation\":\"INQ\",\"DataEntity\":[{\"Ver\":\"DemandDepositAccount_1.0.0\",\"Type\":{\"CDE\":\"DDA\"},\"Currency\":{\"Ver\":\"Currency_1.0.0\",\"isArchetype\":true,\"Code\":{\"CDE\":\"ILS\"}},\"Use\":{\"CDE\":\"BUSINESS\"},\"OpenDt\":{\"Ver\":\"Date_1.0.0\",\"isArchetype\":true},\"BalanceList\":[{\"Ver\":\"AccountBalance_1.0.0\",\"isArchetype\":true,\"CurrAmt\":{\"Ver\":\"CurrencyAmount_1.0.0\",\"isArchetype\":true,\"Amt\":{\"Ver\":\"Amount_1.0.0\",\"isArchetype\":true}}}],\"AccountId\":{\"Ver\":\"AccountIdentifier_1.0.0\",\"AcctIds\":{\"BANKACCOUNTID\":\"\"},\"Id\":{\"Ver\":\"Identifier_1.0.0\",\"Id\":\"AC-1\"},\"iorId\":\"IOR-AC-1\"}}],\"RefDataList\":[{\"Ver\":\"ReferenceData_1.0.0\",\"Id\":\"IOR-PF-1\",\"Type\":{\"CDE\":\"PORTFOLIOIDENTIFIERIORID\",\"DISP\":\"PortfolioIdentifierIORID\"}}]}}"
+    },
+    "transactions": {
+      "path": "/BaNCSDigitalApp/account",
+      "headers": {
+        "Content-Type": "application/json; charset=UTF-8",
+        "Accept": "application/json",
+        "User-Agent": "BankApiInteroperabilityResearch/1.0",
+        "Authorization": "Bearer AT-fixture",
+        "mag-identifier": "mag-fixture",
+        "JESESSIONID": "sess-fixture",
+        "X-XSRF-TOKEN": "xsrf-fixture",
+        "request_path": "/BaNCSDigitalApp/account",
+        "BD_IDENT_KEY": "QmFOQ1NEaWdpdGFsQXBwcy5BbmRyb2lkXzEuMC4wLkJZLjEuMC4yMTJ+R0RNXzEuMC44MX5NZXNzYWdlRW52ZWxvcGVfMS4wLjB+NzM2MTRjM2FkYzU4NzJlZDcxZWY4ZWFhMmQ0NWVkYzAzMjgzNDIyZGU3N2ZhMzBmYjYwZjY5OGNiM2VkYmNhMg==",
+        "Cookie": "BIGipServer=pool-fixture"
+      },
+      "body": "{\"Ver\":\"MessageEnvelope_1.0.0\",\"Resource\":\"https://mobile.yahav.co.il/BaNCSDigitalApp/account\",\"AppVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"EnvVer\":\"MessageEnvelope_1.0.0\",\"APIVer\":\"GDM_1.0.81\",\"SessionId\":\"sessionId\",\"FiId\":{\"Ver\":\"Identifier_1.0.0\"},\"Device\":{\"Ver\":\"Device_1.0.0\",\"DeviceId\":{\"Ver\":\"DeviceIdentifier_1.0.0\"},\"Type\":{\"CDE\":\"HOMECOMPUTER\",\"DISP\":\"Home Computer\"},\"OperatingSystem\":{\"Ver\":\"OperatingSystem_1.0.0\",\"Name\":\"Win32\"}},\"Locale\":{\"CDE\":\"IW_IL\",\"DISP\":\"Hebrew Israel\"},\"ProxyApp\":{\"Ver\":\"ProxyApp_1.0.0\",\"UserAgent\":\"BankApiInteroperabilityResearch/1.0\"},\"ClientApp\":{\"Ver\":\"Application_1.0.0\",\"Nam\":\"Retail Internet Banking\",\"ApVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"ComptLst\":{\"Ver\":\"ApplicationComponentList_1.0.0\",\"AppCompLst\":[{\"Ver\":\"ApplicationComponent_1.0.0\",\"Nam\":\"Retail Internet Banking\",\"AppCompVer\":\"BaNCSDigitalApps.Android_1.0.0.BY.1.0.212\",\"Typ\":{\"CDE\":\"WEBPACKAGE\",\"DISP\":\"WEBPACKAGE\"}}]},\"Typ\":{\"CDE\":\"WEBAPP\",\"DISP\":\"WebApp\"},\"CdngLng\":\"Hybrid\",\"TrgtOS\":{\"CDE\":\"WINDOWS\",\"DISP\":\"WINDOWS\"}},\"UIID\":{\"Ver\":\"UIIDomain_1.0.0\"},\"DgtlTxnId\":{\"Ver\":\"Identifier_1.0.0\"},\"MsgId\":\"1751365800123\",\"TimeStamp\":{\"Ver\":\"Timestamp_1.0.0\",\"Dttime\":{\"Ver\":\"DateTime_1.0.0\",\"Timezone\":{\"Ver\":\"TimeZone_1.0.0\",\"UTCOffsetHour\":-3,\"UTCOffsetMinute\":0,\"Abbr\":\"UTC\"},\"Day\":1,\"Month\":7,\"Year\":2025,\"Hour\":10,\"Minute\":30,\"Second\":0,\"Fraction\":123}},\"SecToken\":{\"Ver\":\"SecurityToken_1.0.0\",\"isArchetype\":false,\"Token\":[{\"Ver\":\"Token_1.0.0\",\"Val\":\"sec-fixture\"}]},\"csrfTkn\":\"csrf-fixture\",\"Payload\":{\"Ver\":\"MessagePayload_1.0.0\",\"Operation\":\"INQ\",\"DataEntity\":[{\"Ver\":\"Transaction_1.0.0\",\"AccountId\":{\"Ver\":\"AccountIdentifier_1.0.0\",\"AcctIds\":{\"BANKACCOUNTID\":\"\"},\"Id\":{\"Ver\":\"Identifier_1.0.0\",\"Id\":\"AC-1\"},\"iorId\":\"IOR-AC-1\"}}],\"Category\":[\"CURRENT_ACCOUNT\"],\"RefDataList\":[{\"Ver\":\"ReferenceData_1.0.0\",\"Id\":\"IOR-PF-1\",\"Type\":{\"CDE\":\"PORTFOLIOIDENTIFIERIORID\",\"DISP\":\"PortfolioIdentifierIORID\"}}],\"Filters\":[{\"Ver\":\"ANDFilter_1.0.0\",\"Filters\":[{\"Ver\":\"TransactionListFilter_1.0.0\",\"OrigDt\":{\"Ver\":\"Date_1.0.0\",\"Year\":2026,\"Month\":6,\"Day\":1},\"Operator\":\"GREATERTHANOREQUAL\"},{\"Ver\":\"TransactionListFilter_1.0.0\",\"OrigDt\":{\"Ver\":\"Date_1.0.0\",\"Year\":2026,\"Month\":6,\"Day\":30},\"Operator\":\"LESSTHANOREQUAL\"}]}]}}"
+    }
+  }
+}

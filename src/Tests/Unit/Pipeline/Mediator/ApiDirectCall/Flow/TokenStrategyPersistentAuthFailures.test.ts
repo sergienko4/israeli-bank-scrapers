@@ -275,12 +275,19 @@ describe('durable strategies never take the warm or in-run path', () => {
     expect(hasWarmState).toBe(false);
   });
 
-  it.each(durableKinds)('%s refuses primeFresh with zero requests or callbacks', async kind => {
+  const refusedMints = [
+    ['enroll', 'primeFresh'],
+    ['enroll', 'primeRecover'],
+    ['resume', 'primeFresh'],
+    ['resume', 'primeRecover'],
+  ] as const;
+
+  it.each(refusedMints)('%s refuses %s with zero requests or callbacks', async (kind, mint) => {
     const captures: IApiPostCapture[] = [];
     const bus = makeStubMediator({ responses: [], captures });
     const recorder = makeRecorder();
     const strategy = strategyFor(kind, recorder);
-    const result = await strategy.primeFresh(bus, PEPPER_CTX, {});
+    const result = await strategy[mint](bus, PEPPER_CTX, {});
     expect(result).toMatchObject({ success: false, errorMessage: REFRESH_REFUSED });
     expect(captures).toHaveLength(0);
     expect(recorder.invocations).toHaveLength(0);

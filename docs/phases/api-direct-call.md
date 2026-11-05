@@ -1,6 +1,6 @@
 # API-DIRECT-CALL
 
-Login + OTP via JSON API. Replaces INIT → HOME → PRE-LOGIN → LOGIN → OTP-TRIGGER → OTP-FILL for api-direct banks (OneZero, Pepper, PayBox, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim) — six browser phases collapse into one headless phase with a declarative step list.
+Login + OTP via JSON API. Replaces INIT → HOME → PRE-LOGIN → LOGIN → OTP-TRIGGER → OTP-FILL for api-direct banks (OneZero, Pepper, PayBox, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav) — six browser phases collapse into one headless phase with a declarative step list.
 
 |                 |                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -204,11 +204,15 @@ calls it before `mayStartFlow` charges the cold-flow budget, for
 `runConfiguredFlow` and a durable enrollment alike, and `prepareSmsOtpFlow`
 calls it again for the paths that do not pass the budget:
 
-| Rule        | Accepts                          |
-| ----------- | -------------------------------- |
-| `nonEmpty`  | a string that is not blank       |
-| `digits`    | one or more digits, nothing else |
-| `sixDigits` | exactly six digits               |
+| Rule        | Accepts                                                      |
+| ----------- | ------------------------------------------------------------ |
+| `nonEmpty`  | a string that is not blank                                   |
+| `digits`    | one or more digits, nothing else                             |
+| `sixDigits` | exactly six digits                                           |
+| `latin1`    | a string that is not blank, every char ≤ U+00FF (ISO-8859-1) |
+
+`latin1` lets a bank that sends a credential through a `form-latin1` step
+refuse an unencodable one before its first request, rather than at that step.
 
 A missing or non-string value fails every rule. When any field fails, the flow
 stops with `Generic` and `Missing or malformed credentials: <names>`. The
@@ -499,7 +503,8 @@ successful cold or warm login, right after the warm export, so a kept jar is
 published in the next warm token before it is emptied. `isolate` needs a
 domain jar (`headless.cookieDomains`, a
 [build-time check](#build-time-config-checks)). Durable device auth
-(`persistentAuth`) runs its own flows and never hands off.
+(`persistentAuth`) runs its own flows and never hands off. An in-run recovery
+puts the stash back before it resumes; see [Auth recovery](#auth-recovery).
 
 ### OTP pre-hook guards
 
@@ -551,10 +556,10 @@ class-like, is reported as `Error`. A throwing
 
 Some banks keep the session in cookies shared by sibling hosts, and answer
 login calls with redirects, HTML pages or response headers instead of JSON
-alone. Step-level reading, encoding, headers and domain cookies work on either
-node-backed transport (`nativeFetch` or `node:https`). Bank-wide redirect,
-status and failure-text defaults still require `headless.nativeFetch`. The
-transport side is described in
+alone. Reading, encoding, headers and domain cookies work on either node
+transport (`nativeFetch` or node:https with a certificate or TLS profile).
+Step redirects and bank-wide redirect, status and failure-text defaults need
+`headless.nativeFetch`. The transport side of each field is described in
 [Headless transports](../architecture/pipeline.md#headless-transports), and
 the [build-time config checks](#build-time-config-checks) refuse combinations
 that cannot work.
@@ -674,12 +679,12 @@ then the carry-generator rules, `API_DIRECT_GENERATE_RULES` in
 rules, `API_DIRECT_CLIENT_CERT_RULES` in
 `Core/Builder/ApiDirectClientCertRules.ts`, then the session rules,
 `API_DIRECT_SESSION_RULES` in `Core/Builder/ApiDirectSessionRules.ts`. The
-native-fetch rules, `API_DIRECT_NATIVE_RULES` in
-`Core/Builder/ApiDirectNativeRules.ts`, run last: node-backed step fields and
-domain cookies are rejected on browser transport, while native-only bank
-defaults are rejected on node-tls too. `NODE_STEP_FIELDS` names the shared
-step capabilities; `NATIVE_HEADLESS_FIELDS` names the native-only defaults
-checked by both api-direct and node-tls builders. The first broken rule
+transport rules, `API_DIRECT_NATIVE_RULES` in
+`Core/Builder/ApiDirectNativeRules.ts`, run last: step reading and domain
+cookies are rejected off either node transport; redirects and native-only
+bank defaults are rejected on node:https too. `NATIVE_HEADLESS_FIELDS` names
+the native-only defaults checked by both api-direct and node-tls builders.
+The first broken rule
 fails the build with `Generic` and `<field>: <rule>`:
 
 | Broken when                                                                                                                               | Message                                                                            |
@@ -730,8 +735,9 @@ fails the build with `Generic` and `<field>: <rule>`:
 | `headless.clientCert` together with `headless.requiresClientCert: true`                                                                   | `headless.clientCert: not allowed with headless.requiresClientCert`                |
 | a `sessionCarry` slot that names no body or header extract of any login or resume step (`API_DIRECT_SESSION_RULES`)                       | `sessionCarry: each slot must name a step extract`                                 |
 | `cookieHandoff: 'isolate'` without `headless.cookieDomains`                                                                               | `cookieHandoff: isolate not allowed without headless.cookieDomains`                |
-| a login or resume step with `response`, `documentMarker`, `redirect`, `headerExtractsToCarry` or `encoding` on a browser-backed transport | `steps.<field>: not allowed without headless.nativeFetch`                          |
-| `headless.cookieDomains` on a browser-backed transport                                                                                    | `headless.cookieDomains: not allowed without headless.nativeFetch`                 |
+| a login or resume step with `response`, `documentMarker`, `headerExtractsToCarry` or `encoding` off native fetch and node:https           | `steps.<field>: not allowed without nativeFetch or node:https`                     |
+| a login or resume step with `redirect`, without `headless.nativeFetch: true`                                                              | `steps.redirect: not allowed without headless.nativeFetch`                         |
+| `headless.cookieDomains` off native fetch and node:https                                                                                  | `headless.cookieDomains: not allowed without nativeFetch or node:https`            |
 | `headless.redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, including node-tls banks                | `headless.<field>: not allowed without headless.nativeFetch`                       |
 | `headless.cookieDomains` without `headless.sessionCookies: true`                                                                          | `headless.cookieDomains: not allowed without headless.sessionCookies`              |
 | a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                                | `headerExtractsToCarry.header: must be an HTTP header name`                        |
@@ -1056,6 +1062,48 @@ is and does not log in again. A cookie session has no header to swap, so a
 fresh login would only repeat the one the bank just refused. A mediator that
 never receives a policy keeps the default of `rearmOnReject: true`, so banks
 that send a header behave exactly as before.
+
+### Auth recovery
+
+`authRecovery` (type `AuthRecovery`) decides what a rejected session does. It
+is an overlay on the scheme's policy, looked up in the `AUTH_RECOVERIES` map by
+`authPolicyOf`, so a new mode is a new row.
+
+| `authRecovery`          | `rearmOnReject` | `wholeScrapeRecovery` | A 401 or 403 during the scrape                       |
+| ----------------------- | --------------- | --------------------- | ---------------------------------------------------- |
+| `per-request` (default) | the scheme's    | off                   | the call gets a new token and retries once           |
+| `whole-scrape`          | off             | on                    | the call fails, then the scrape recovers and re-runs |
+
+`whole-scrape` is for a bank whose session moves on with each answer. A single
+call retried with a new token would carry a session the bank no longer holds,
+so the whole scrape starts over instead. `setAuthPolicyOp` stores the flag and
+`getWholeScrapeRecoveryOp` reads it back for the mediator's
+`recoversWholeScrape()`. The scrape phase reads it to pick its recovery rule;
+see [Session recovery](api-direct-scrape.md#session-recovery).
+
+`recoverSession` re-grants the session rather than logging in again when the
+strategy can. It calls the resolver's optional `recover()`, which
+`TokenResolverBuilder` binds to the strategy's optional `primeRecover`. A
+resolver without one runs `refresh()` (`primeFresh`), as before. Both share the
+`isRefreshing` re-entrancy guard in `guardedMintOp`. A 401 or 403 inside one
+call still runs `refresh()` through `retryOn401Op`.
+
+The config strategy's `primeRecover` is `primeRecoverImpl`
+(`Flow/TokenStrategyFromConfig.recover.ts`). It picks its route from
+`RECOVER_ROUTES` by warm kind, so a new kind names its own. A `carry-bundle`
+login resumes: the [cookie hand-off](#cookie-hand-off) stash goes back into an
+emptied jar (a `shared` hand-off stashed nothing and keeps its jar), the
+private carry snapshot seeds the flow, and the flow runs from `fromStepIndex`.
+A resume is not a cold start, so it spends no
+[one-SMS budget](#one-sms-per-run). A failed resume escalates to one cold
+login only when its `coldFallback` gate allows; any other failure is returned.
+Every other kind, and every durable session, runs `primeFresh` as before.
+
+The recovery hook (`makeRecoveryHook`) reads the strategy's optional
+`lastRecoveryResumed()`. A resumed recovery logs one info line:
+`re-granted the session token`. Only a cold one falls to the degraded-session
+warning, which still needs a session that was warm. A strategy without the
+getter keeps that warning rule alone.
 
 ## Persistent (durable) device auth
 

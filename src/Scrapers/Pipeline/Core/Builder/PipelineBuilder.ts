@@ -83,7 +83,8 @@ class PipelineBuilder {
     shape: IApiDirectScrapeShape<TAcct, TCursor>,
   ): this {
     setApiDirectConfig(this._s, config);
-    setApiDirectScrape(this._s, shape as unknown as IApiDirectScrapeShape<unknown, unknown>);
+    const scrapeShape = config.omitBankText ? { ...shape, omitBankText: true } : shape;
+    setApiDirectScrape(this._s, scrapeShape as unknown as IApiDirectScrapeShape<unknown, unknown>);
     return this;
   }
 

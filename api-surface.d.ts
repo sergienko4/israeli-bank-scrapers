@@ -516,10 +516,12 @@ type ScraperCredentials = {
     username: string;
     nationalID: string;
     password: string;
+    otpLongTermToken?: string;
 } | {
     num: string;
     nationalID: string;
     password: string;
+    otpLongTermToken?: string;
 } | ({
     email: string;
     password: string;

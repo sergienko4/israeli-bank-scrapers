@@ -1,8 +1,10 @@
 /**
- * Test X.509 builder — issues a self-signed RSA certificate (X.509 v1,
+ * Test X.509 builder — issues an RSA certificate (X.509 v1,
  * sha256WithRSAEncryption) over a fresh or given key with a chosen validity
  * window, so client-certificate suites present real certificates without any
- * committed key material. Test-only: production never issues certificates.
+ * committed key material. Self-signed by default; a mocked bank can instead
+ * certify a request's public key under its own issuing key.
+ * Test-only: production never issues certificates.
  */
 
 import { createHash, createPublicKey, generateKeyPairSync, sign } from 'node:crypto';
@@ -41,6 +43,8 @@ interface ITestCertOptions {
   readonly notAfter?: string;
   /** PKCS#8 PEM to certify; a fresh RSA-2048 key when absent. */
   readonly keyPem?: string;
+  /** Public key PEM to certify instead; `keyPem` then signs as the issuer. */
+  readonly subjectKeyPem?: string;
 }
 
 /** An issued test certificate, its key and the SHA-256 of its DER. */
@@ -87,7 +91,7 @@ function freshKeyPem(): string {
 /**
  * The to-be-signed part of a self-signed certificate.
  * @param options - Issue options.
- * @param keyPem - The certified key.
+ * @param keyPem - The certified key, unless the options name a subject key.
  * @returns The DER TBSCertificate.
  */
 function tbsOf(options: ITestCertOptions, keyPem: string): Buffer {
@@ -95,7 +99,8 @@ function tbsOf(options: ITestCertOptions, keyPem: string): Buffer {
   const notBefore = utcTime(options.notBefore ?? DEFAULT_NOT_BEFORE);
   const notAfter = utcTime(options.notAfter ?? DEFAULT_NOT_AFTER);
   const validity = derSequence([notBefore, notAfter]);
-  const spki = createPublicKey(keyPem).export({ type: 'spki', format: 'der' });
+  const subjectKey = createPublicKey(options.subjectKeyPem ?? keyPem);
+  const spki = subjectKey.export({ type: 'spki', format: 'der' });
   return derSequence([SERIAL_ONE, SHA256_WITH_RSA, name, validity, name, spki]);
 }
 
@@ -110,8 +115,8 @@ function toPem(der: Buffer): string {
 }
 
 /**
- * Issue a self-signed test certificate.
- * @param options - Common name, validity window and optional key.
+ * Issue a test certificate, self-signed unless the options name a subject key.
+ * @param options - Common name, validity window, optional key and subject key.
  * @returns The key, the certificate and the SHA-256 hex of its DER.
  */
 function issueTestCert(options: ITestCertOptions = {}): ITestCert {

@@ -25,6 +25,8 @@ import { fileURLToPath } from 'node:url';
 import type { IApiDirectCallConfig } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { authPolicyOf } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/AuthModePolicy.js';
 import {
+  boundWarmOf,
+  carryBundleWarmOf,
   cookieJarWarmOf,
   warmCarryField,
 } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmStartKind.js';
@@ -38,6 +40,7 @@ const CONFIG_PATHS: readonly (readonly [string, string])[] = [
   ['Isracard', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigIsracard.js'],
   ['Amex', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigAmex.js'],
   ['Hapoalim', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigHapoalim.js'],
+  ['Yahav', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigYahav.js'],
 ];
 
 /** Directory holding every bank call-config literal. */
@@ -58,6 +61,7 @@ const EXPECTED_WARM_START_FILES: readonly string[] = [
   'PipelineBankConfigPepper.ts',
   'PipelineBankConfigRing.ts',
   'PipelineBankConfigVisaCal.ts',
+  'PipelineBankConfigYahav.ts',
 ];
 
 /**
@@ -149,6 +153,24 @@ function isJarToken(config: IApiDirectCallConfig): boolean {
   return cookieJarWarmOf(config) !== false;
 }
 
+/**
+ * Whether the stored token is a bundle of carry slots.
+ * @param config - Bank call-config literal.
+ * @returns True for a `kind: 'carry-bundle'` warm start.
+ */
+function isBundleToken(config: IApiDirectCallConfig): boolean {
+  return carryBundleWarmOf(config) !== false;
+}
+
+/**
+ * Whether the stored token is one carry slot, unbound to an account.
+ * @param config - Bank call-config literal.
+ * @returns True when the warm start is neither a jar nor a bundle.
+ */
+function isCarryToken(config: IApiDirectCallConfig): boolean {
+  return boundWarmOf(config) === false;
+}
+
 /** Module shape shared by every call-config literal — default export. */
 interface IConfigModule {
   readonly default: IApiDirectCallConfig;
@@ -231,7 +253,16 @@ describe('warm-start contract — every opted-in bank', () => {
   it('loads every bank this suite enumerates', async () => {
     const configs = await loadWarmStartConfigs();
     const labels = configs.map(([label]) => label);
-    const expected = ['OneZero', 'Pepper', 'PayBox', 'VisaCal', 'Isracard', 'Amex', 'Hapoalim'];
+    const expected = [
+      'OneZero',
+      'Pepper',
+      'PayBox',
+      'VisaCal',
+      'Isracard',
+      'Amex',
+      'Hapoalim',
+      'Yahav',
+    ];
     expect(labels).toEqual(expected);
   });
 
@@ -246,6 +277,7 @@ describe('warm-start contract — every opted-in bank', () => {
       'Isracard',
       'Amex',
       'Hapoalim',
+      'Yahav',
       'cookie-session fixture',
     ];
     expect(labels).toEqual(expected);
@@ -297,7 +329,7 @@ describe('warm-start contract — every opted-in bank', () => {
 
   it('persists a carry token that some login step actually produces', async () => {
     const configs = await loadWarmPopulation();
-    const carrySeeded = configs.filter(([, config]) => !isJarToken(config));
+    const carrySeeded = configs.filter(([, config]) => isCarryToken(config));
     for (const [, config] of carrySeeded) {
       const carryField = warmCarryField(config);
       const produced = config.steps.flatMap(step => Object.keys(step.extractsToCarry));
@@ -311,9 +343,9 @@ describe('warm-start contract — policy exemptions', () => {
     const configs = await loadWarmStartConfigs();
     const exempt = configs.filter(([, config]) => !isJwtValidated(config));
     const exemptLabels = exempt.map(([label]) => label);
-    // VisaCal stores an opaque login hash and the ring issuers a device key,
-    // not a JWT; for each, the resume call is the check.
-    expect(exemptLabels).toEqual(['VisaCal', 'Isracard', 'Amex', 'Hapoalim']);
+    // VisaCal stores an opaque login hash, the ring issuers a device key and
+    // Yahav a device bundle, not a JWT; for each, the resume call is the check.
+    expect(exemptLabels).toEqual(['VisaCal', 'Isracard', 'Amex', 'Hapoalim', 'Yahav']);
   });
 
   it('lists the warm-start banks whose session rides on cookies, not a header', async () => {
@@ -329,6 +361,14 @@ describe('warm-start contract — policy exemptions', () => {
     const jarLabels = jarBanks.map(([label]) => label);
     // Hapoalim stores its cookie session; the landing call is the check.
     expect(jarLabels).toEqual(['Hapoalim']);
+  });
+
+  it('lists the warm-start banks whose token is a bundle of carry slots', async () => {
+    const configs = await loadWarmStartConfigs();
+    const bundleBanks = configs.filter(([, config]) => isBundleToken(config));
+    const bundleLabels = bundleBanks.map(([label]) => label);
+    // Yahav stores its device certificate and client; the token call checks it.
+    expect(bundleLabels).toEqual(['Yahav']);
   });
 
   it('the fixture is exempt from both policy-dependent invariants', () => {

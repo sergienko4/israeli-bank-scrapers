@@ -34,13 +34,13 @@ Five test suites, picked by **what you're testing**.
 
 - Uses pre-recorded fixtures (HAR-like JSON) under `src/Tests/E2eMocked/<Bank>/fixtures/`.
 - Drives the **real pipeline** against the fixtures — no live network, no browser.
-- API-direct banks (Pepper, OneZero, Visa Cal, Isracard, Amex, Max, Mizrahi, Hapoalim) use synthetic gateways instead: a
+- API-direct banks (Pepper, OneZero, Visa Cal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav) use synthetic gateways instead: a
   `<Bank>FetchMock.ts` stands in for `fetch`, and `ApiDirect/ApiDirectFlow.e2e-mocked.test.ts`
   runs each bank's login and scrape. One `Ring/RingFetchMock.ts` serves every issuer on the
   ring mobile gateway; `Helpers/FetchMockKit.ts` holds the plumbing the newer mocks share. The
-  Visa Cal, Ring (Isracard, Amex), Max, Mizrahi and Hapoalim suites also prove a run never launches a
+  Visa Cal, Ring (Isracard, Amex), Max, Mizrahi, Hapoalim and Yahav suites also prove a run never launches a
   browser.
-- Currently: 22 suites (213 tests) pass; 1 suite (1 test) is marked `describe.skip`.
+- Currently: 25 suites (248 tests) pass; 1 suite (1 test) is marked `describe.skip`.
 
 ### Bank factory tests (`test:e2e-factory-tests`)
 

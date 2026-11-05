@@ -12,6 +12,8 @@ import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api
 import type { ITokenResolver } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenResolver.js';
 import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
 import { buildResolverFromStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.js';
+import type { ITokenBus } from '../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
+import type { ITokenContext } from '../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type {
   IProcedureFailure,
@@ -315,5 +317,38 @@ describe('buildResolverFromStrategy — identity', () => {
     const out2 = await r2.resolve();
     expect(out1.success && out1.value).toBe('header-A');
     expect(out2.success && out2.value).toBe('header-B');
+  });
+});
+
+/** What the builder hands a strategy's re-grant. */
+type RegrantArgs = [ITokenBus, ITokenContext, ITestCreds];
+
+describe('buildResolverFromStrategy — recover() path (N33)', () => {
+  it('binds recover to primeRecover over the same deps', async () => {
+    const regranted = succeed(INITIAL_HEADER);
+    const primeRecover = jest.fn<Promise<Procedure<string>>, RegrantArgs>(() =>
+      Promise.resolve(regranted),
+    );
+    const freshFail = fail(ScraperErrorTypes.Generic, 'cold login must not run');
+    const scripted = makeScriptedStrategy(freshFail, freshFail, true);
+    const strategy = { ...scripted.strategy, primeRecover };
+    const bus = makeStubMediator();
+    const ctx = makeStubCtx();
+    const creds: ITestCreds = { storedToken: 'abc' };
+    const resolver = buildResolverFromStrategy({ strategy, bus, ctx, creds });
+    const result = await resolver.recover?.();
+    expect(result).toBe(regranted);
+    expect(primeRecover).toHaveBeenCalledWith(bus, ctx, creds);
+    expect(scripted.counts.primeFresh).toBe(0);
+  });
+
+  it('leaves recover unset when the strategy cannot re-grant', () => {
+    const okFresh = succeed(FRESH_HEADER);
+    const { strategy } = makeScriptedStrategy(okFresh, okFresh, true);
+    const bus = makeStubMediator();
+    const ctx = makeStubCtx();
+    const creds: ITestCreds = { storedToken: 'abc' };
+    const resolver = buildResolverFromStrategy({ strategy, bus, ctx, creds });
+    expect(resolver.recover).toBeUndefined();
   });
 });

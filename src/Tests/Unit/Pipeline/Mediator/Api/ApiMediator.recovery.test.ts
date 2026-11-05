@@ -11,6 +11,7 @@
 
 import { CompanyTypes } from '../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import type { RecoveredHook } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import { createApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
@@ -138,6 +139,27 @@ describe('ApiMediator — warm-flag round-trip', () => {
     mediator.setSessionWarm(false);
     const wasWarmAfterFalse = mediator.wasSessionWarm();
     expect(wasWarmAfterFalse).toBe(false);
+  });
+});
+
+describe('ApiMediator — whole-scrape recovery flag (N33)', () => {
+  it('is off until a policy asks for it', () => {
+    const mediator = makeMediator();
+    const isWholeScrape = mediator.recoversWholeScrape();
+    expect(isWholeScrape).toBe(false);
+  });
+
+  it('follows the latest policy', () => {
+    const mediator = makeMediator();
+    mediator.setAuthPolicy({
+      installHeader: true,
+      rearmOnReject: false,
+      wholeScrapeRecovery: true,
+    });
+    const isOn = mediator.recoversWholeScrape();
+    mediator.setAuthPolicy({ installHeader: true, rearmOnReject: true });
+    const isOff = mediator.recoversWholeScrape();
+    expect([isOn, isOff]).toEqual([true, false]);
   });
 });
 
@@ -428,5 +450,78 @@ describe('ApiMediator.apiGet — a mid-run 401 re-caches the re-minted token', (
     const second = await mediator.apiGet<string>(CLEAN_URL);
     expect(second.success).toBe(true);
     expect(capture.headers).toEqual([FRESH_HEADER]);
+  });
+});
+
+/** Header a strategy's re-grant answers with — distinct from a cold login. */
+const REGRANT_HEADER = 'regranted-session';
+
+/**
+ * Give a strategy a re-grant that answers with the given procedure.
+ * @param strategy - Strategy to extend.
+ * @param regrant - What `primeRecover` resolves with.
+ * @returns The strategy plus a scripted `primeRecover`.
+ */
+function withRegrant(
+  strategy: ITokenStrategy<ITestCreds>,
+  regrant: Procedure<string>,
+): ITokenStrategy<ITestCreds> {
+  /**
+   * Scripted re-grant.
+   * @returns The scripted procedure.
+   */
+  async function primeRecover(): Promise<Procedure<string>> {
+    await Promise.resolve();
+    return regrant;
+  }
+  return { ...strategy, primeRecover };
+}
+
+/**
+ * Re-grant that throws — a strategy breaking the never-throw contract.
+ * @returns Never resolves; always rejects.
+ */
+async function throwingRegrant(): Promise<Procedure<string>> {
+  await Promise.resolve();
+  throw new ScraperError('re-grant exploded');
+}
+
+describe('ApiMediator — recover route (N33)', () => {
+  it('re-grants the session through the strategy when it can', async () => {
+    const coldFail = fail(ScraperErrorTypes.Generic, 'cold login must not run');
+    const base = strategyWithFresh(coldFail);
+    const regranted = succeed(REGRANT_HEADER);
+    const strategy = withRegrant(base, regranted);
+    const mediator = makeMediator(strategy);
+    const capture = newCapture();
+    const hook = capturingHook(capture);
+    mediator.withRecoveryHook?.(hook);
+    const result = await mediator.recoverSession();
+    expect(result).toEqual(regranted);
+    expect(capture.headers).toEqual([REGRANT_HEADER]);
+  });
+
+  it('keeps a mid-request 401 on the cold refresh', async () => {
+    const okFresh = succeed(FRESH_HEADER);
+    const base = strategyWithFresh(okFresh);
+    const regranted = succeed(REGRANT_HEADER);
+    const strategy = withRegrant(base, regranted);
+    const fetchStub = fetchStrategyRejectingFirstGet();
+    const mediator = makeMediatorOver(strategy, fetchStub);
+    const capture = newCapture();
+    const hook = capturingHook(capture);
+    mediator.withRecoveryHook?.(hook);
+    await mediator.apiGet<string>(ACCOUNTS_URL);
+    expect(capture.headers).toEqual([FRESH_HEADER]);
+  });
+
+  it('fails Generic when the re-grant throws', async () => {
+    const okFresh = succeed(FRESH_HEADER);
+    const base = strategyWithFresh(okFresh);
+    const strategy = { ...base, primeRecover: throwingRegrant };
+    const mediator = makeMediator(strategy);
+    const result = await mediator.recoverSession();
+    const failure = fail(ScraperErrorTypes.Generic, 'token resolver threw: re-grant exploded');
+    expect(result).toEqual(failure);
   });
 });

@@ -208,7 +208,7 @@ describe('Hapoalim browserless login', () => {
     const run = await runHapoalim('txns500');
     expect(run.result.success).toBe(false);
     expect(run.result.errorType).toBe(ScraperErrorTypes.Generic);
-    expect(run.result.errorMessage).toContain(' 500:');
+    expect(run.result.errorMessage).toBe('transactions HTTP 500');
     expect(run.result.errorMessage).not.toContain(HP_BANK_NOTICE);
   });
 

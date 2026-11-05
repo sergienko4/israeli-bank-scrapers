@@ -13,8 +13,8 @@ import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type {
   IApiMediator,
   IApiQueryOpts,
+  SessionContext,
 } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import type { SessionContext } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.types.js';
 import runBootstrap from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeBootstrap.js';
 import {
   dispatchStep,
