@@ -30,7 +30,7 @@ class GraphQLFetchStrategy extends NativeFetchStrategy {
    * Bind the strategy to a GraphQL endpoint and an optional header floor.
    * @param baseUrl - GraphQL endpoint every operation is POSTed to.
    * @param defaultHeaders - Headers merged under each call's extraHeaders.
-   * @param options - Bank-wide redirect and status defaults.
+   * @param options - Bank-wide redirect, status, media type and decoding defaults.
    */
   constructor(
     baseUrl: string,

@@ -181,12 +181,21 @@ Once a response answers, the native transport wraps it in an `IAnswer` (response
 3. [`refuseMediaType`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/MediaTypeCheck.ts) (N61) then checks the answer's media type, when the call expects one: the call's own `mediaType`, else the bank's `headless.mediaTypes` default for the call's response kind (a `MediaTypePolicy`, handed to `HeadlessNativeFetchStrategy` as its `mediaTypes` option and kept on the `_mediaTypes` seam). The answer's media type is its `content-type` before any `;`, trimmed and lower-cased, and must equal the expected one exactly; a missing or different type fails `Generic` with `"<VERB> <url> unexpected media type"` (`MEDIA_TYPE_REFUSED_REASON`), naming no header value. A call that expects none is read as before.
 4. The reader the call's `responseKind` names reads the body, each through [`readBodyText`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/BodyText.ts) (N63): when the call's `strictUtf8` — else the bank's `headless.strictUtf8`, handed to `HeadlessNativeFetchStrategy` as its `strictUtf8` option and kept on the `_strictUtf8` seam — is true, it decodes the bytes as UTF-8 with `fatal`, so a malformed byte fails `Generic` with `"<VERB> <url> body not utf-8"` (`BODY_NOT_UTF8_REASON`), naming no body, instead of becoming U+FFFD; otherwise it reads them as `text()` does. Both drop a leading BOM. `json` (the default) parses it as before, so HTML on a json step is still a parse error. `document` ([`readDocument`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/DocumentResponse.ts)) reads it as text, checks it for the call's `documentMarker` when one is set (otherwise it fails `Generic` with `"<VERB> <url> document unverified"`), and answers `{}`. `text` ([`readText`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/TextResponse.ts)) reads it as text and answers `{ text }`, so a step's extracts read it at `/text`; an answer over the call's `maxTextChars` (65 536 chars by default) fails `Generic` with `"<VERB> <url> text too long"`. The fixed tails `DOCUMENT_UNVERIFIED_REASON`, `TEXT_TOO_LONG_REASON`, `MEDIA_TYPE_REFUSED_REASON`, `BODY_NOT_UTF8_REASON` and `REDIRECT_REFUSED_REASON` live in `FetchPolicy.ts`, shared by the transport and the step sanitiser.
 
-`isApiSuccess` and `statusActionFor` are shared by response routing and the capped
-headless transport. When the status policy decides from headers, only that
-request's body is cancelled; undecided, challenged and document-empty responses
-still need a body read under the cap. A per-query empty-status notification
-preserves an approved GraphQL empty result without accepting a parsed `{}` as a
-valid GraphQL envelope or sharing the verdict with another query.
+For JSON answers, `parseJsonResponse` reads with the call's UTF-8 policy before
+parsing, so malformed bytes fail as a decoding error instead of a JSON error.
+The native REST and GraphQL transports share the bank's media-type and strict
+UTF-8 defaults; a call's own policy still wins. The node:https transport
+retains raw response bytes through `collectBody` and `toResponse`; otherwise
+an earlier lossy decode would hide malformed bytes from the later strict
+reader.
+
+`isApiSuccess`, `statusActionFor` and `isMediaTypeMismatch` are shared by response
+routing and the capped headless transport. When the status or media-type policy
+decides from headers, only that request's body is cancelled; undecided,
+challenged and document-empty responses still need a body read under the cap.
+A per-query empty-status notification preserves an approved GraphQL empty
+result without accepting a parsed `{}` as a valid GraphQL envelope or sharing
+the verdict with another query.
 
 [`cancelResponseBody`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/ResponseBody.ts)
 releases bodies discarded by status decisions or redirect handling, including

@@ -765,25 +765,4 @@ describe('ApiMediator — redirect policy', () => {
       errorMessage: 'graphql response [Customer] missing data',
     });
   });
-
-  it('runs a native mediator under the bank media types', async () => {
-    const plain = new Response('{}', { status: 200 });
-    /**
-     * Answer every request with a text/plain JSON body.
-     * @returns The plain-text response.
-     */
-    function answerPlain(): Promise<Response> {
-      return Promise.resolve(plain);
-    }
-    globalThis.fetch = answerPlain;
-    const mediator = createHeadlessApiMediator({
-      bankHint: HINT,
-      identityBaseUrl: 'https://id.example/v1/',
-      graphqlUrl: 'https://gql.example/graphql',
-      mediaTypes: { json: 'application/json' },
-    });
-    const result = await mediator.apiGet('identity.deviceToken');
-    const message = !isOk(result) && result.errorMessage;
-    expect(message).toBe('GET https://id.example/devices/token unexpected media type');
-  });
 });

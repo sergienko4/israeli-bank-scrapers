@@ -5,6 +5,7 @@
  * bound to another provider or account fails before any request.
  */
 
+import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import type {
   IApiDirectCallConfig,
   IDeviceMemoryAuthConfig,
@@ -160,6 +161,26 @@ describe('device-memory resume', () => {
     expect(run.captures[0].body).toEqual({ user: CREDS.username, did: STORED_DID });
     expect(run.recorder.invocations).toHaveLength(0);
   });
+
+  it.each([
+    ['whole', STORED_DID, CREDS.username],
+    ['truncated', STORED_DID.slice(0, 7), CREDS.username.slice(0, 3)],
+  ])(
+    'does not expose a %s stored id or account echoed by a failed answer',
+    async (_label, id, account) => {
+      const stored = storedState(STORED_DID);
+      const message = `${id} rejected ${account}`;
+      const run = await runPrime({ response: { message }, stored });
+      expect(run.result).toMatchObject({
+        success: false,
+        errorType: ScraperErrorTypes.Generic,
+        errorMessage: 'persistent auth failed: flow',
+      });
+      const failure = run.result.success ? '' : run.result.errorMessage;
+      expect(failure).not.toContain(id);
+      expect(failure).not.toContain(account);
+    },
+  );
 
   it('resumes when the username differs only in case', async () => {
     const stored = storedState(STORED_DID);

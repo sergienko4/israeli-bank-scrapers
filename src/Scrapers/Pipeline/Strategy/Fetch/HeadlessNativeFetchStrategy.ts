@@ -15,10 +15,11 @@
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { NETWORK_FETCH_TIMEOUT_MS } from '../../Mediator/Network/FetchConfig.js';
-import type { IResponseReading, MediaTypePolicy } from '../../Types/Domain/FetchPolicy.js';
+import type { IResponseReading } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts } from './FetchStrategy.js';
+import { isMediaTypeMismatch } from './MediaTypeCheck.js';
 import type {
   DefaultHeadersByVerb,
   FetchInvoke,
@@ -36,10 +37,6 @@ import { statusActionFor } from './StatusPolicy.js';
 interface IHeadlessNativeFetchOptions extends INativeFetchOptions {
   /** Ceiling (ms) for one request, connect through the full body. */
   readonly timeoutMs?: number;
-  /** Media type each response kind must name when a call names none (N61). */
-  readonly mediaTypes?: MediaTypePolicy;
-  /** Decode every answer as strict UTF-8 unless its call says otherwise (N63). */
-  readonly strictUtf8?: boolean;
 }
 
 /** Request-local cap and reading policy; concurrent calls never share mutable state. */
@@ -88,13 +85,14 @@ function toCappedFailure(error: unknown, verb: HttpVerb, url: string): Procedure
  * Whether the WAF classifier or response reader still needs the body.
  * @param response - Received headers and status.
  * @param request - This call's wire redirect mode and response-reading policy.
- * @returns False for policy-owned redirects or a header-decided 2xx.
+ * @returns False for redirects, status decisions or media-type refusals from headers.
  */
 function needsBody(response: Response, request: ICappedRequest): boolean {
   const { init, reading } = request;
   if (init.redirect === 'manual' && isRedirectStatus(response.status)) return false;
   if (!isApiSuccess(response)) return true;
-  return !statusActionFor({ response, reading }).has;
+  if (statusActionFor({ response, reading }).has) return false;
+  return !isMediaTypeMismatch(response, reading.mediaType);
 }
 
 /**
@@ -158,8 +156,6 @@ class HeadlessNativeFetchStrategy extends NativeFetchStrategy {
     super(baseUrl, options);
     this._timeoutMs = options.timeoutMs ?? NETWORK_FETCH_TIMEOUT_MS;
     this._verbDefaults = HEADLESS_DEFAULT_HEADERS;
-    this._mediaTypes = options.mediaTypes ?? this._mediaTypes;
-    this._strictUtf8 = options.strictUtf8 ?? this._strictUtf8;
   }
 
   /**

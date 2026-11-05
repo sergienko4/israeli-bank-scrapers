@@ -262,7 +262,7 @@ A failed answer, or a failed body check, never reaches the patch. A shape with n
 
 Beyond the three required steps (`customer` / `balance` / `transactions`), `IApiDirectScrapeShape` exposes optional hooks a bank declares only when needed:
 
-- `customer.secondaryUrlTag` — a second identity GET fired after the primary customer fetch; its parsed response reaches `extractAccounts` as `secondaryBody` (FIBI account-type lookup). As part of the customer step, it receives the customer step's `extraHeaders`, resolved afresh for its own call.
+- `customer.secondaryUrlTag` — a second identity GET fired after the primary customer fetch; its parsed response reaches `extractAccounts` as `secondaryBody` (FIBI account-type lookup). `buildSecondaryOpts` resolves the customer step's `extraHeaders` afresh for this call, so time-varying auth headers are not reused from the primary request.
 - `customer.skipFetch` / `balance.skipFetch` — skip the network call entirely; the extractor still runs but with `body: {}` (PayBox `uId`-derived accounts; Max's per-card cycle debit already on the account; Amex/Isracard's deterministic zero balance).
 - `bodyTemplate` (per step) — a `JsonValueTemplate` hydrated against the post-login scope and POSTed as the request body (PayBox class-y `auth` envelopes).
 - `signer` + `secrets` (shape root) — an `IAesSignerConfig` body-pointer signer applied to every scrape-step body before POST (PayBox).

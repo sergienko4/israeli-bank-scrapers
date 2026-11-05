@@ -1,8 +1,9 @@
 /**
  * N61 — the media type check a native transport runs on a 2xx answer, after
- * WAF classification and the status policy, before the reader. The answer's
- * media type is its content-type before any `;`, trimmed and lower-cased; it
- * must equal the call's expected type exactly. The refusal names the verb and
+ * WAF classification and the status policy, before the reader. The capped
+ * transport shares its header-only mismatch predicate. The answer's media
+ * type is its content-type before any `;`, trimmed and lower-cased; it must
+ * equal the call's expected type exactly. The refusal names the verb and
  * the safe URL only — never the header value.
  */
 
@@ -27,15 +28,23 @@ function mediaTypeOf(response: Response): string {
 }
 
 /**
+ * Whether the answer can be refused from its headers without reading the body.
+ * @param response - The answered response.
+ * @param expected - Media type the call expects, when one is named.
+ * @returns True when the media types differ or the answer names none.
+ */
+function isMediaTypeMismatch(response: Response, expected?: string): boolean {
+  if (expected === undefined) return false;
+  return mediaTypeOf(response) !== expected;
+}
+
+/**
  * Refuse an answer whose media type is not the one the call expects.
  * @param answer - The answered call.
  * @returns The refusal, or none when the call expects no type or it matches.
  */
 function refuseMediaType<T>(answer: IAnswer): Option<Procedure<T>> {
-  const expected = answer.reading.mediaType;
-  if (expected === undefined) return none();
-  const actual = mediaTypeOf(answer.response);
-  if (actual === expected) return none();
+  if (!isMediaTypeMismatch(answer.response, answer.reading.mediaType)) return none();
   const safeUrl = safeUrlForLog(answer.url);
   const message = `${answer.verb} ${safeUrl} ${MEDIA_TYPE_REFUSED_REASON}`;
   const refused = fail(ScraperErrorTypes.Generic, message);
@@ -43,4 +52,4 @@ function refuseMediaType<T>(answer: IAnswer): Option<Procedure<T>> {
 }
 
 export default refuseMediaType;
-export { refuseMediaType };
+export { isMediaTypeMismatch, refuseMediaType };

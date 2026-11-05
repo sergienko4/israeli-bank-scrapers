@@ -19,6 +19,7 @@ import {
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import type { IPersistentAuthExpectation } from '../PersistentAuthStateRules.js';
 import { durableFail, invokeOnUpdate } from './TokenStrategyFromConfig.persistent.js';
+import { omitFlowFailureText } from './TokenStrategyFromConfig.scrub.js';
 import type { IDurablePrimeArgs, IRunFlowArgs } from './TokenStrategyFromConfig.types.js';
 
 const LOG = getDebug(import.meta.url);
@@ -137,7 +138,7 @@ async function primeDeviceMemory(run: DeviceMemoryRun): Promise<Procedure<string
   if (!isOk(seed)) return seed;
   const flowArgs = flowArgsOf(run, seed.value);
   const headerValue = await run.runFlow(flowArgs, run.prime.slot);
-  if (!isOk(headerValue)) return headerValue;
+  if (!isOk(headerValue)) return omitFlowFailureText(headerValue);
   const settled = await settleDeviceMemory(run);
   return isOk(settled) ? headerValue : settled;
 }

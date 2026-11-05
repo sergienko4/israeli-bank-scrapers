@@ -39,5 +39,15 @@ function scrubPersistedValues(
   return { ...failure, errorMessage };
 }
 
+/**
+ * Omit a failed device-memory flow's text: the bank may echo only a truncated
+ * prefix of a stored id or account, which replacing whole values cannot scrub.
+ * @param failure - Flow failure, whose type and details remain unchanged.
+ * @returns A category-only failure without bank-controlled response text.
+ */
+function omitFlowFailureText(failure: IProcedureFailure): IProcedureFailure {
+  return { ...failure, errorMessage: 'persistent auth failed: flow' };
+}
+
 export default scrubPersistedValues;
-export { scrubPersistedValues };
+export { omitFlowFailureText, scrubPersistedValues };

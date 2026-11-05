@@ -1117,6 +1117,9 @@ headless: {
 }
 ```
 
+For a native-fetch headless bank, the media-type and strict UTF-8 defaults also
+apply to GraphQL answers; a call's own policy still overrides either one.
+
 `cookieDomains` needs `sessionCookies`. List only the bank's own registrable
 domains, never a public suffix such as `co.il`: the jar trusts the list as
 reviewed config and keeps no public-suffix list
@@ -1817,8 +1820,11 @@ base64url JSON envelope as Pepper's. It holds no token, key or renewal step.
   carry fails as `persistent auth failed: device-id`.
 - **No fallback.** As with `bound-device`, `primeFresh` fails locally, so a
   401/403 during the scrape never repeats the login.
-- **Failures** use the same three messages as `bound-device`. The state
-  categories add `kind` and `deviceId`; the login adds `device-id`.
+- **Failures.** Invalid state, callback and missing device id use the durable
+  categories. A failed login returns `persistent auth failed: flow` with its
+  original error type and WAF details but no response text: a bank can echo
+  even a truncated prefix of the stored id or account, which replacing whole
+  values would miss.
 - **Logging.** One debug line per run carries the mode and whether a state was
   published — never a value.
 
@@ -1833,7 +1839,7 @@ Where each piece lives, for maintainers:
 | Shared envelope     | `PersistentAuthEnvelope.ts`: `decodeStateObject`, `encodeStateObject`, `hasExactKeySet`, `invalidState`; the shared rules `isBoundedString`, `isExpectedProvider` and `isSupportedVersion` are each an `IStateRule` check                                                                                                                                     |
 | Strategy branch     | `primeDurable` dispatches on `PersistentAuthKind` through `PERSISTENT_PRIMERS` to `primeBoundDevice` (replay, renew or enroll) or `primeDeviceMemory`; each gets an `IDurablePrimeArgs` with its block narrowed, plus the `RunConfiguredFlow` runner. `refuseDurableRefresh` is the local `primeFresh` refusal; `durableFail` and `invokeOnUpdate` are shared |
 | Build rule          | `API_DIRECT_PERSISTENT_AUTH_RULES` refuses an unknown `kind` (`isPersistentAuthKind`); `resumeStepsOf` gives the other rules a `bound-device` block's `resumeSteps`                                                                                                                                                                                           |
-| Secrets in failures | `sanitiseStepFailure` reports a failed step by name and status, never its reply; `scrubPersistedValues` still redacts any stored value a renewal failure quotes; transports strip the query string with `safeUrlForLog`                                                                                                                                       |
+| Secrets in failures | `sanitiseStepFailure` reports a failed step by name and status, never its reply; `scrubPersistedValues` redacts stored values in bound-device renewal failures; `omitFlowFailureText` removes all bank text on device-memory flow failures; transports strip the query string with `safeUrlForLog`                                                          |
 | Bank data           | Pepper's `PEPPER_RESUME_STEPS`: signed `/auth/login`, then one password assertion                                                                                                                                                                                                                                                                             |
 
 ## Sub-step contract

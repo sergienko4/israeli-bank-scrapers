@@ -15,10 +15,8 @@ import type {
   StatusPolicy,
 } from '../../Types/Domain/FetchPolicy.js';
 import { toError } from '../../Types/ErrorUtils.js';
-import { describeJsonParseFailure } from '../../Types/JsonParseFailure.js';
 import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
-import { readBodyText } from './BodyText.js';
 import { readDocument } from './DocumentResponse.js';
 import type {
   FetchInvoke,
@@ -29,6 +27,7 @@ import type {
 } from './FetchStrategy.js';
 import { overlayHeaders } from './HeaderOverlay.js';
 import { classifyHttpFailure, hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
+import { parseJsonResponse } from './JsonResponse.js';
 import { refuseMediaType } from './MediaTypeCheck.js';
 import { withBodyContentType, writePostBody } from './PostBody.js';
 import type { IRedirectRun, IRunEnd } from './RedirectFollow.js';
@@ -63,6 +62,10 @@ interface INativeFetchOptions {
   readonly redirectPolicy?: RedirectPolicy;
   readonly statusPolicy?: StatusPolicy;
   readonly omitBankText?: boolean;
+  /** Media type each response kind must name when a call names none. */
+  readonly mediaTypes?: MediaTypePolicy;
+  /** Decode every answer as strict UTF-8 unless its call says otherwise. */
+  readonly strictUtf8?: boolean;
 }
 
 /** JSON content-type on every verb — the base strategy's defaults. */
@@ -70,34 +73,6 @@ const JSON_DEFAULT_HEADERS: DefaultHeadersByVerb = {
   GET: { 'content-type': 'application/json' },
   POST: { 'content-type': 'application/json' },
 };
-
-/**
- * Parse an answer's body text as JSON, with a structured failure on malformed input.
- * @param answer - The answered call.
- * @param rawText - The answer's body text.
- * @returns Procedure carrying the parsed body, or a parse-error failure.
- */
-function parseJsonText<T>(answer: IAnswer, rawText: string): Procedure<T> {
-  try {
-    const parsed = JSON.parse(rawText) as T;
-    return succeed(parsed);
-  } catch (error) {
-    const reason = describeJsonParseFailure(error);
-    const safeUrl = safeUrlForLog(answer.url);
-    return fail(ScraperErrorTypes.Generic, `${answer.verb} ${safeUrl} parse error: ${reason}`);
-  }
-}
-
-/**
- * Read an answer's body (N63: strictly when its reading says so) and parse it as JSON.
- * @param answer - The answered call.
- * @returns Procedure carrying the parsed body, or a decoding or parse failure.
- */
-async function parseJsonResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
-  const rawText = await readBodyText(answer);
-  if (!isOk(rawText)) return rawText;
-  return parseJsonText<T>(answer, rawText.value);
-}
 
 /** Reader per response kind; each runs after WAF classification and the status policy. */
 const READERS: Readonly<Record<ResponseKind, Reader>> = {
@@ -320,6 +295,8 @@ class NativeFetchStrategy implements IFetchStrategy {
     this._redirectDefault = options.redirectPolicy ?? this._redirectDefault;
     this._statusPolicy = options.statusPolicy ?? this._statusPolicy;
     this._omitBankText = options.omitBankText === true;
+    this._mediaTypes = options.mediaTypes ?? this._mediaTypes;
+    this._strictUtf8 = options.strictUtf8 ?? this._strictUtf8;
   }
 
   /**
@@ -387,11 +364,11 @@ class NativeFetchStrategy implements IFetchStrategy {
   protected readingOf(opts: IFetchOpts): IResponseReading {
     const responseKind = opts.responseKind ?? 'json';
     const { documentMarker, maxTextChars, headerSink, onEmptyResponse } = opts;
-    const mediaType = opts.mediaType ?? this._mediaTypes[responseKind];
-    const strictUtf8 = opts.strictUtf8 ?? this._strictUtf8;
-    const hooks = { responseKind, documentMarker, maxTextChars, headerSink, onEmptyResponse, mediaType, strictUtf8 };
+    const media = { mediaType: opts.mediaType ?? this._mediaTypes[responseKind] };
+    const decoding = { strictUtf8: opts.strictUtf8 ?? this._strictUtf8 };
+    const hooks = { responseKind, documentMarker, maxTextChars, headerSink, onEmptyResponse };
     const privacy = { omitBankText: this._omitBankText };
-    return { statusPolicy: this._statusPolicy, ...hooks, ...privacy };
+    return { statusPolicy: this._statusPolicy, ...hooks, ...media, ...decoding, ...privacy };
   }
 
   /**

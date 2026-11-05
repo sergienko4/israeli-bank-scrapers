@@ -113,6 +113,38 @@ describe('E10 optional extracts', () => {
     },
   );
 
+  it.each([
+    ['no earlier value', {}],
+    ['an empty earlier value', { bcKey: '' }],
+  ])('rejects a numeric keep-existing slot with %s', async (_label, carry) => {
+    const responses = [succeed({ bean: { returnCode: '1', bcKey: 42 } })];
+    const bus = makeStubMediator({ responses, captures: [] });
+    const scope: ITemplateScope = { carry, creds: {}, config: CONFIG, keypair: undefined };
+    const step: IStepConfig = { ...KEEP_STEP, extractRules: { bcKey: { type: 'string' } } };
+    const result = await runStep({ step, bus, scope, companyId: HINT });
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'validate extract bcKey invalid',
+    });
+  });
+
+  it('ignores a numeric answer when a keep-existing slot already holds text', async () => {
+    const responses = [succeed({ bean: { returnCode: '1', bcKey: 42 } })];
+    const bus = makeStubMediator({ responses, captures: [] });
+    const scope: ITemplateScope = {
+      carry: { bcKey: 'syn-bc-1' },
+      creds: {},
+      config: CONFIG,
+      keypair: undefined,
+    };
+    const step: IStepConfig = { ...KEEP_STEP, extractRules: { bcKey: { type: 'string' } } };
+    const result = await runStep({ step, bus, scope, companyId: HINT });
+    expect(result).toMatchObject({
+      success: true,
+      value: { carry: { bcKey: 'syn-bc-1' } },
+    });
+  });
+
   it('still fails when a required extract is missing', async (): Promise<void> => {
     const captures: IApiPostCapture[] = [];
     const responses = [succeed({ bean: { bcKey: 'syn-bc-2' } })];

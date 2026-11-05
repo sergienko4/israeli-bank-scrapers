@@ -5,6 +5,7 @@
 
 import { CompanyTypes } from '../../../../../Definitions.js';
 import { createHeadlessApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import { registerWkQuery } from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
 import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
@@ -25,6 +26,7 @@ describe('ApiMediator — strict UTF-8 bank (N63)', () => {
 
   beforeEach((): void => {
     registerWkUrl('identity.deviceToken', HINT, 'https://id.example/devices/token');
+    registerWkQuery('customer', HINT, 'query Customer { me { id } }');
   });
   afterEach((): void => {
     globalThis.fetch = originalFetch;
@@ -41,5 +43,18 @@ describe('ApiMediator — strict UTF-8 bank (N63)', () => {
     const result = await mediator.apiGet('identity.deviceToken');
     const message = !isOk(result) && result.errorMessage;
     expect(message).toBe('GET https://id.example/devices/token body not utf-8');
+  });
+
+  it('applies the same bank strict UTF-8 decoding to GraphQL answers', async () => {
+    globalThis.fetch = answerLatin1;
+    const mediator = createHeadlessApiMediator({
+      bankHint: HINT,
+      identityBaseUrl: 'https://id.example/v1/',
+      graphqlUrl: 'https://gql.example/graphql',
+      strictUtf8: true,
+    });
+    const result = await mediator.apiQuery('customer', {});
+    const message = !isOk(result) && result.errorMessage;
+    expect(message).toBe('POST https://gql.example/graphql body not utf-8');
   });
 });
