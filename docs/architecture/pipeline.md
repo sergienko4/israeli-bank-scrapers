@@ -82,23 +82,24 @@ The two paths converge on `balanceResolution` — that's the single source of tr
 
 ## Headless transports
 
-An api-direct bank's `headless` config block picks the transport its identity calls run over. [`HeadlessMediatorWiring.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/HeadlessMediatorWiring.ts) applies the rules in order; the first match wins:
+An api-direct bank's `headless` config block picks the transport its identity calls run over. [`HeadlessMediatorWiring.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/HeadlessMediatorWiring.ts) decodes the block into an `IHeadlessWiring` (URLs plus the `IWiringFlags` booleans) and applies the rules in [`HeadlessTransportRules.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/HeadlessTransportRules.ts) in order; the first match wins:
 
-| Order | Config                                   | Kind       | Transport                                        | Opens a browser | Factory                                  |
-| ----- | ---------------------------------------- | ---------- | ------------------------------------------------ | --------------- | ---------------------------------------- |
-| 1     | `requiresClientCert` and/or `tlsProfile` | `node-tls` | `node:https` (client cert / ClientHello profile) | No              | `createMtlsHeadlessApiMediator`          |
-| 2     | `nativeFetch: true`                      | `native`   | Node's own `fetch`                               | No              | `createHeadlessApiMediator`              |
-| 3     | anything else                            | `browser`  | Camoufox page (browser TLS)                      | Yes             | `createBrowserBackedHeadlessApiMediator` |
+| Order | Config                                                 | Kind       | Transport                                                       | Opens a browser | Factory                                  |
+| ----- | ------------------------------------------------------ | ---------- | --------------------------------------------------------------- | --------------- | ---------------------------------------- |
+| 1     | `requiresClientCert`, `clientCert` and/or `tlsProfile` | `node-tls` | `node:https` (client cert / dynamic cert / ClientHello profile) | No              | `createMtlsHeadlessApiMediator`          |
+| 2     | `nativeFetch: true`                                    | `native`   | Node's own `fetch`                                              | No              | `createHeadlessApiMediator`              |
+| 3     | anything else                                          | `browser`  | Camoufox page (browser TLS)                                     | Yes             | `createBrowserBackedHeadlessApiMediator` |
 
-A block that declares more than one of `requiresClientCert`/`tlsProfile`,
-`nativeFetch` and `requiresBrowserTls` fails with a `ScraperError` before a
-transport kind is returned or a mediator is built.
+A block that declares more than one of `requiresClientCert`/`clientCert`/
+`tlsProfile`, `nativeFetch` and `requiresBrowserTls` fails with a
+`ScraperError` before a transport kind is returned or a mediator is built.
+`assertSingleTransport` enforces this; `pickTransportKind` walks the table above.
 
 `resolveHeadlessTransportKind(companyId)` returns the kind these rules pick without building a mediator. `createScraper` uses it to warn when a bank whose kind opens no browser is given browser options — see [Browser options on browserless banks](../configuration.md#browser-options-on-browserless-banks).
 
 | Symbol                         | Module                      | Role                                                                        |
 | ------------------------------ | --------------------------- | --------------------------------------------------------------------------- |
-| `HeadlessTransportKind`        | `HeadlessMediatorWiring.ts` | The `Kind` column above — the rule a headless block matches                 |
+| `HeadlessTransportKind`        | `HeadlessWiringTypes.ts`    | The `Kind` column above — the rule a headless block matches                 |
 | `resolveHeadlessTransportKind` | `HeadlessMediatorWiring.ts` | The kind for a bank, or `false` when it has no `headless` block             |
 | `BROWSER_ONLY_OPTIONS`         | `BrowserOnlyOptions.ts`     | The browser option names, alphabetical, each pinned to its reader           |
 | `BrowserOnlyOption`            | `BrowserOnlyOptions.ts`     | Union of those names                                                        |
@@ -135,9 +136,20 @@ A bank whose login hops across sibling hosts of one registrable domain also sets
 `exportAll()` returns detached records, and `importAll(list)` copies accepted
 records, so mutations outside the cookie-session port cannot change the live jar.
 
+### Dynamic client certificate
+
+A bank whose login obtains its device certificate at runtime (the flow builds a CSR and the bank issues the certificate) declares `clientCert: { mode: 'dynamic', origin }` on its headless block: an `IDynamicClientCert` from [`ClientCertControl.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/Domain/ClientCertControl.ts), whose `origin` is the exact https origin the certificate is presented to. The block then runs over `node-tls`, and `createMtlsHeadlessApiMediator` builds the agent source its two transports share with `buildTransportSource` ([`ApiMediator.nodeTransport.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Api/ApiMediator.nodeTransport.ts)):
+
+- `createClientCertHolder(origin, buildAgent)` ([`ClientCertHolder.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/Mtls/ClientCertHolder.ts)) returns an `IClientCertHolder`: the per-request `AgentSource` and the `IClientCertControl` port, which the factory attaches to the mediator as `clientCert` (on the token bus a login flow sees; every other bank has `clientCert === undefined`). A login step installs through it with its own `clientCert` field ([Device certificate](../phases/api-direct-call.md#device-certificate)). Its `AgentBuilder` carries the bank's `tlsProfile` and the server-certificate floor.
+- `install(pair)` takes an `IClientCertPair` (PEM key, PEM certificate). A pair that does not parse, or whose certificate does not certify its key, fails `Generic` with `"client certificate invalid"` and the previous certificate stays. Otherwise the holder builds an agent presenting the pair, swaps it in and destroys the agent it replaced. `clear()` drops the certificate and destroys its agent. The pair lives only in memory for the run and is never logged or written.
+- `makeMtlsInvoke` asks the source on every request and gets an `IAgentChoice` (the agent and the `IPresentedCert` it presents). A request whose `URL.origin` equals the declared origin goes through the installed agent; any other origin, and every request before an install or after a clear, goes through a plain agent that presents no certificate.
+- The `node:https` transport does not follow redirects automatically: a 3xx under its default `follow` is an HTTP failure. A step may explicitly `reject` redirects; manual redirects require a native-fetch-only bank default, so node-tls cannot enable them. The dynamic certificate is presented only to its declared origin.
+- A bank with a registered certificate (`requiresClientCert`) or none keeps one shared agent behind `fixedAgentSource` ([`MtlsAgentSource.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.ts)); `presentedOf` names the certificate it presents.
+- The E2E-mocked seam `setMtlsFetchFallback` takes an `MtlsFallback`, called with one `IMtlsFallbackRequest` (URL, init, verb and `presented`: the certificate's SHA-256, or `false` for none), so a mocked suite can prove which requests would carry the certificate without a handshake.
+
 ### Redirect policies
 
-The native transport sends every request under a `RedirectPolicy` ([`FetchPolicy.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/Domain/FetchPolicy.ts)). The bank-wide default is `headless.redirectPolicy` (absent: `follow`), which the factory hands to `HeadlessNativeFetchStrategy` as its `redirectPolicy` option; one api-direct step overrides it with its own `redirect` field, carried down as an `IFetchCallPolicy` (`IApiQueryOpts.policy`, which `IFetchOpts` extends). The browser and `node:https` transports ignore it.
+The native transport sends every request under a `RedirectPolicy` ([`FetchPolicy.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/Domain/FetchPolicy.ts)). The bank-wide default is `headless.redirectPolicy` (absent: `follow`), which the factory hands to `HeadlessNativeFetchStrategy` as its `redirectPolicy` option; one api-direct step overrides it with its own `redirect` field, carried down as an `IFetchCallPolicy` (`IApiQueryOpts.policy`, which `IFetchOpts` extends). The browser ignores it; node:https honors a step's `reject` but not the bank-wide default.
 
 | Policy                                 | Sends                | On a 3xx                                                                                     |
 | -------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------- |
@@ -166,7 +178,7 @@ Once a response answers, the native transport wraps it in an `IAnswer` (response
 
 1. A non-2xx answer, or any answer carrying Cloudflare's challenge header, goes to the WAF classifier first. A block page or challenge on a document step is still a `WafBlocked` failure, never `{}`.
 2. [`applyStatusPolicy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/StatusPolicy.ts) then checks the bank's `headless.statusPolicy` (a `StatusPolicy`, handed to `HeadlessNativeFetchStrategy` as its `statusPolicy` option). Before the body is read, the `StatusAction` `empty` answers `{}` (`emptyAnswer`) and `fail` fails `Generic` with `"<VERB> <url> HTTP <status>"`. A document step skips `empty`, so a 204 reaches the document reader as an empty page.
-3. The reader the call's `responseKind` names reads the body. `json` (the default) parses it as before, so HTML on a json step is still a parse error. `document` ([`readDocument`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/DocumentResponse.ts)) reads it as text, checks it for the call's `documentMarker` when one is set (otherwise it fails `Generic` with `"<VERB> <url> document unverified"`), and answers `{}`. The fixed tails `DOCUMENT_UNVERIFIED_REASON` and `REDIRECT_REFUSED_REASON` live in `FetchPolicy.ts`, shared by the transport and the step sanitiser.
+3. The reader the call's `responseKind` names reads the body. `json` (the default) parses it as before, so HTML on a json step is still a parse error. `document` ([`readDocument`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/DocumentResponse.ts)) reads it as text, checks it for the call's `documentMarker` when one is set (otherwise it fails `Generic` with `"<VERB> <url> document unverified"`), and answers `{}`. `text` ([`readText`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/TextResponse.ts)) reads it as text and answers `{ text }`, so a step's extracts read it at `/text`; an answer over 65 536 chars fails `Generic` with `"<VERB> <url> text too long"`. The fixed tails `DOCUMENT_UNVERIFIED_REASON`, `TEXT_TOO_LONG_REASON` and `REDIRECT_REFUSED_REASON` live in `FetchPolicy.ts`, shared by the transport and the step sanitiser.
 
 `isApiSuccess` and `statusActionFor` are shared by response routing and the capped
 headless transport. When the status policy decides from headers, only that
@@ -182,19 +194,27 @@ and emit a warning containing only the verb, log-safe URL and a fixed message;
 neither response content nor cancellation error text is logged. Responses
 left to a reader, including document-marker and WAF checks, remain untouched.
 
-An api-direct step opts in with `response: 'document'` and an optional `documentMarker` (it names no body extracts — a build-time check); `callPolicyOf` carries both down as `IFetchCallPolicy.responseKind` / `documentMarker`, next to `redirect`. The step-level sanitiser keeps these refusals' fixed tails (`bind HTTP 207`, `bind HTTP 302 redirect refused`, `bind document unverified`) only when the whole message has a policy refusal's shape, so no response text can pass for one.
+An api-direct step opts in with `response: 'document'` and an optional
+`documentMarker` (it names no body extracts — a build-time check), or with
+`response: 'text'`; `callPolicyOf` carries both down as
+`IFetchCallPolicy.responseKind` / `documentMarker`, next to `redirect`.
+The step-level sanitiser keeps these refusals' fixed tails (`bind HTTP 207`,
+`bind HTTP 302 redirect refused`, `bind document unverified`) only when the
+whole message has a policy refusal's shape, so no response text can pass for one.
 
 ### Response-header carry
 
-A step can carry values the bank returns in response headers. `headerExtractsToCarry` maps a carry slot to an `IHeaderExtract`: a `header` name, compared case-insensitively, and an optional `fallback`. [`attachHeaderCapture`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.headerCarry.ts) builds the step's `IHeaderCapture`. Its `IResponseHeaderSink` (the lower-case header `names` and a `take` receiver) rides down as `IFetchCallPolicy.headerSink`, next to `redirect`. The map that sink fills stays on the step's fire args and never reaches the bus.
+A step can carry values the bank returns in response headers. `headerExtractsToCarry` maps a carry slot to an `IHeaderExtract`: a `header` name, compared case-insensitively, and an optional `fallback`. [`attachHeaderCapture`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.headerCarry.ts) builds the step's `IHeaderCapture`. Its `IResponseHeaderSink` (the lower-case header `names` and a `take` receiver, handed each answer's declared headers and HTTP status) rides down as `IFetchCallPolicy.headerSink`, next to `redirect`. The map that sink fills stays on the step's fire args and never reaches the bus.
 
 The native transport hands the final response to [`emitResponseHeaders`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/ResponseHeaderSink.ts), next to the Set-Cookie hook. `emitResponseHeaders` passes the sink only the declared headers the response carried. Each `take` replaces what the sink held, so when a call is retried after a 401 only the last answer's headers count. After the outcome is judged and the required extracts are read, `carryHeaders` fills each slot from its header, else from its `fallback`, else fails the step `Generic` with `"<step> header missing"`. Optional extracts are read after the header slots. The browser, Camoufox and TLS transports ignore the sink, so a declared header slot on them fails closed. Header values are never logged.
 
 ### Form bodies
 
-A POST step sends JSON unless it names `encoding: 'form'` (a `BodyEncoding`). `callPolicyOf` carries the encoding down as `IFetchCallPolicy.bodyEncoding`, next to `redirect` and `responseKind`. [`writePostBody`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/PostBody.ts) then writes the body: `json` as JSON text, `form` as `application/x-www-form-urlencoded` pairs in config order. `withBodyContentType` puts the form content-type in place of any content-type the bank's headers name, so a form body never travels labelled as JSON. A call that names no encoding is sent byte for byte as before.
+A POST step sends JSON unless it names another `BodyEncoding`: `form`, `form-latin1` or `text`. `callPolicyOf` carries the encoding down as `IFetchCallPolicy.bodyEncoding`, next to `redirect` and `responseKind`. [`writePostBody`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/PostBody.ts) then writes the body: `json` as JSON text, `form` as `application/x-www-form-urlencoded` pairs in config order. `form-latin1` writes the same pairs through [`encodeLatin1Form`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/Latin1Form.ts), which encodes like Java's `URLEncoder` over ISO-8859-1 (`A-Z a-z 0-9 . - * _` kept, a space as `+`, every other char as its `%XX` latin1 byte) and sends them under `application/x-www-form-urlencoded; charset=ISO-8859-1`. `text` sends the one string field of a `{ text }` body verbatim. `withBodyContentType` puts the body's content-type in place of any content-type the bank's headers name — or, for `text`, removes it — so a body never travels labelled as something it is not. A call that names no encoding is sent byte for byte as before.
 
-A form body must be a flat record. The build refuses a nested form shape (`API_DIRECT_FORM_RULES`), and at run time [`guardFormBody`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.form.ts) fails the step with `<step> form body not flat` before any request when a `$ref` hydrates to an array, an object, `null` or a non-finite number. The failure names no value. Only the native transports write form bodies, so `encoding` off native fetch fails the build.
+A writer refuses a body it cannot write, before any request, failing `Generic` with `"POST <url> <reason>"`: `form-latin1 unencodable` (`LATIN1_UNENCODABLE_REASON`) when a name or value holds a char above U+00FF, and `text body not a string` (`TEXT_BODY_REFUSED_REASON`) when a `text` body is not exactly one string field named `text`. The step sanitiser keeps both tails, so the step fails `<step> form-latin1 unencodable` or `<step> text body not a string`, naming no value.
+
+A form body (either form encoding, the `FORM_BODY_ENCODINGS`) must be a flat record, and a `text` body must be shaped exactly `{ text }`. The build refuses a nested form shape or a loose text shape (`API_DIRECT_FORM_RULES`), and at run time [`guardFormBody`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.form.ts) fails the step with `<step> form body not flat` before any request when a `$ref` hydrates to an array, an object, `null` or a non-finite number. The failure names no value. Only the native transports write form bodies, so `encoding` off native fetch fails the build.
 
 ### Sealed fields
 

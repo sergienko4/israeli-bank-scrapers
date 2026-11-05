@@ -1,13 +1,14 @@
 /**
- * Extract rules (N18). A step's `extractRules` check its body-extract slots on
- * the raw value once the body is extracted. `type` is checked first. A string
- * — or a finite number, stringified, when the rule sets a text check — is then
- * transformed and checked: `maxChars` (8192 when unset), `oneOf`, the whole
- * text against `pattern`, and the `url` allow-list, resolved against the step
- * URL. The slot keeps the checked text; the rest of the carry passes
- * through. An optional slot whose pointer is unresolved, null or '' skips its
- * rule. A refusal fails the step `<step> extract <slot> invalid`, naming no
- * value.
+ * Extract rules (N18, N27). A step's `extractRules` check its body- and
+ * header-extract slots on the raw value once the answer is read. `type` is
+ * checked first. A string — or a finite number, stringified, when the rule
+ * sets a text check — is then transformed and checked: `maxChars` (8192 when
+ * unset), `oneOf`, the whole text against `pattern`, the `url` allow-list,
+ * resolved against the step URL, and `pemCertificate`, whose key ref resolves
+ * against the step's scope. The slot keeps the checked text; the rest of the
+ * carry passes through. An optional slot whose pointer is unresolved, null or
+ * '' skips its rule. A refusal fails the step `<step> extract <slot> invalid`,
+ * naming no value.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
@@ -17,16 +18,19 @@ import type { IProcedureFailure, Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { ExtractValueType, IExtractRule, IStepConfig } from '../ConfigContracts/index.js';
 import { walkPointer } from '../Envelope/JsonPointer.js';
+import type { ITemplateScope } from '../Template/RefResolver.js';
+import { isPemCertificate } from './RunStep.pemRule.js';
 import type { CarryMap, IDispatchBundle, JsonValue } from './RunStep.types.js';
 
 const DEFAULT_MAX_CHARS = 8192;
 
-/** One step's rule pass: the step, its body, its carry and its URL. */
-interface IExtractRulesInput {
+/** One step's rule pass: the step, its body, its carry, its URL and its scope. */
+interface IRulePass {
   readonly step: IStepConfig;
   readonly resp: JsonValue;
   readonly carry: CarryMap;
   readonly stepUrl: string;
+  readonly scope: ITemplateScope;
 }
 
 /** One ruled slot: its carry name and its rule. */
@@ -41,7 +45,7 @@ interface IKept {
 type TypeCheck = (value: JsonValue) => boolean;
 
 /** One text check over the transformed text. */
-type TextCheck = (text: string, rule: IExtractRule, stepUrl: string) => boolean;
+type TextCheck = (text: string, rule: IExtractRule, input: IRulePass) => boolean;
 
 /**
  * Whether a value is a string.
@@ -136,16 +140,22 @@ function parsedUrl(text: string, stepUrl: string): URL | false {
  * Whether the text is a URL on the rule's allow-list.
  * @param text - Transformed text.
  * @param rule - Extract rule.
- * @param stepUrl - The step URL a relative text resolves against.
+ * @param input - Rule pass input; a relative text resolves against its step URL.
  * @returns True when `url` is unset or a rule matches.
  */
-function isAllowedUrl(text: string, rule: IExtractRule, stepUrl: string): boolean {
+function isAllowedUrl(text: string, rule: IExtractRule, input: IRulePass): boolean {
   if (rule.url === undefined) return true;
-  const target = parsedUrl(text, stepUrl);
+  const target = parsedUrl(text, input.stepUrl);
   return target !== false && matchesAnyUrlRule(target, rule.url);
 }
 
-const TEXT_CHECKS: readonly TextCheck[] = [isWithinMax, isOneOf, isPatternMatch, isAllowedUrl];
+const TEXT_CHECKS: readonly TextCheck[] = [
+  isWithinMax,
+  isOneOf,
+  isPatternMatch,
+  isAllowedUrl,
+  isPemCertificate,
+];
 
 /**
  * Whether the rule sets a text check.
@@ -153,7 +163,8 @@ const TEXT_CHECKS: readonly TextCheck[] = [isWithinMax, isOneOf, isPatternMatch,
  * @returns True when a transform or any text check is set.
  */
 function hasTextCheck(rule: IExtractRule): boolean {
-  const checks = [rule.transform, rule.oneOf, rule.pattern, rule.url, rule.maxChars];
+  const { transform, oneOf, pattern, url, maxChars, pemCertificate } = rule;
+  const checks = [transform, oneOf, pattern, url, maxChars, pemCertificate];
   return checks.some(check => check !== undefined);
 }
 
@@ -173,12 +184,12 @@ function isTypeSound(value: JsonValue, rule: IExtractRule): boolean {
  * Transform a text and run the text checks on it.
  * @param text - The string, or the number stringified.
  * @param rule - Extract rule.
- * @param stepUrl - The step URL.
+ * @param input - Rule pass input.
  * @returns The transformed text, or false when a check refuses it.
  */
-function checkText(text: string, rule: IExtractRule, stepUrl: string): IKept | false {
+function checkText(text: string, rule: IExtractRule, input: IRulePass): IKept | false {
   const shaped = rule.transform === 'lower' ? text.toLowerCase() : text;
-  const isSound = TEXT_CHECKS.every(check => check(shaped, rule, stepUrl));
+  const isSound = TEXT_CHECKS.every(check => check(shaped, rule, input));
   return isSound && { kept: shaped };
 }
 
@@ -186,27 +197,39 @@ function checkText(text: string, rule: IExtractRule, stepUrl: string): IKept | f
  * Check one raw value against its rule.
  * @param value - Raw value.
  * @param rule - Extract rule.
- * @param stepUrl - The step URL.
+ * @param input - Rule pass input.
  * @returns The value the slot keeps, or false when refused.
  */
-function checkValue(value: JsonValue, rule: IExtractRule, stepUrl: string): IKept | false {
+function checkValue(value: JsonValue, rule: IExtractRule, input: IRulePass): IKept | false {
   if (!isTypeSound(value, rule)) return false;
-  if (typeof value === 'string') return checkText(value, rule, stepUrl);
+  if (typeof value === 'string') return checkText(value, rule, input);
   if (!hasTextCheck(rule)) return { kept: value };
   if (!isFiniteNumber(value)) return false;
   const text = String(value);
-  return checkText(text, rule, stepUrl);
+  return checkText(text, rule, input);
 }
 
 /**
- * Read a ruled slot: a required slot from the carry, an optional one at its
- * pointer.
+ * Whether a slot is always in the step's carry: a required body extract or a
+ * header extract, which holds the header or its fallback.
+ * @param step - Step config.
+ * @param slot - Carry slot name.
+ * @returns True for a required body slot or a header slot.
+ */
+function isCarriedSlot(step: IStepConfig, slot: string): boolean {
+  const headers = step.headerExtractsToCarry ?? {};
+  return Object.hasOwn(step.extractsToCarry, slot) || Object.hasOwn(headers, slot);
+}
+
+/**
+ * Read a ruled slot: a required or header slot from the carry, an optional
+ * one at its pointer.
  * @param input - Rule pass input.
  * @param slot - Carry slot name.
  * @returns The raw value, or false when an optional slot is absent, null or ''.
  */
-function slotValue(input: IExtractRulesInput, slot: string): IKept | false {
-  if (Object.hasOwn(input.step.extractsToCarry, slot)) return { kept: input.carry[slot] };
+function slotValue(input: IRulePass, slot: string): IKept | false {
+  if (isCarriedSlot(input.step, slot)) return { kept: input.carry[slot] };
   const optional = input.step.optionalExtractsToCarry?.[slot];
   if (optional === undefined) return false;
   const walked = walkPointer(input.resp, optional.pointer);
@@ -220,11 +243,11 @@ function slotValue(input: IExtractRulesInput, slot: string): IKept | false {
  * @param entry - The slot and its rule.
  * @returns The slot's checked value, {} when skipped, or the refusal.
  */
-function checkSlot(input: IExtractRulesInput, entry: RuleEntry): Procedure<CarryMap> {
+function checkSlot(input: IRulePass, entry: RuleEntry): Procedure<CarryMap> {
   const [slot, rule] = entry;
   const read = slotValue(input, slot);
   if (read === false) return succeed({});
-  const checked = checkValue(read.kept, rule, input.stepUrl);
+  const checked = checkValue(read.kept, rule, input);
   if (checked !== false) return succeed({ [slot]: checked.kept });
   return fail(ScraperErrorTypes.Generic, `${input.step.name} extract ${slot} invalid`);
 }
@@ -240,10 +263,10 @@ function isRefused(verdict: Procedure<CarryMap>): verdict is IProcedureFailure {
 
 /**
  * Check a step's ruled slots.
- * @param input - The step, its body, its carry and its URL.
+ * @param input - The step, its body, its carry, its URL and its scope.
  * @returns The carry with each ruled slot checked, or the first refusal.
  */
-function applyExtractRules(input: IExtractRulesInput): Procedure<CarryMap> {
+function applyExtractRules(input: IRulePass): Procedure<CarryMap> {
   const entries: readonly RuleEntry[] = Object.entries(input.step.extractRules ?? {});
   const verdicts = entries.map(entry => checkSlot(input, entry));
   const refused = verdicts.find(isRefused);
@@ -255,7 +278,9 @@ function applyExtractRules(input: IExtractRulesInput): Procedure<CarryMap> {
 
 /**
  * Check the ruled slots of a dispatched step; a relative URL resolves against
- * the step's WK URL, which the fire already resolved.
+ * the step's WK URL, which the fire already resolved, and a key ref against
+ * the step's prepared scope, which holds the carry of earlier steps and of
+ * this step's generators.
  * @param bundle - Dispatch bundle.
  * @param resp - Successful response JSON.
  * @param carry - The step's carry, read from the answer.
@@ -266,10 +291,10 @@ function ruleStepCarry(
   resp: JsonValue,
   carry: CarryMap,
 ): Procedure<CarryMap> {
-  const { step, companyId } = bundle.fireScope;
-  const urlProc = resolveWkUrl(step.urlTag, companyId);
+  const { fireScope, preparedScope: scope } = bundle;
+  const urlProc = resolveWkUrl(fireScope.step.urlTag, fireScope.companyId);
   if (!isOk(urlProc)) return urlProc;
-  return applyExtractRules({ step, resp, carry, stepUrl: urlProc.value });
+  return applyExtractRules({ step: fireScope.step, resp, carry, stepUrl: urlProc.value, scope });
 }
 
 export { applyExtractRules, ruleStepCarry };

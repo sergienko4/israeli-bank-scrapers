@@ -6,6 +6,7 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import { generateStepCarry } from './RunStep.generate.js';
 import type { IRunStepArgs } from './RunStep.js';
 import { runStep } from './RunStep.js';
 import { applyGuardedPreHook } from './SmsOtpFlow.prehookGuard.js';
@@ -27,6 +28,23 @@ async function resolveStepScope(
   const hook = step.preHook;
   if (hook === undefined) return succeed(scope);
   return applyGuardedPreHook({ reduce: args, scope, step, hook });
+}
+
+/**
+ * Run the step's carry generators (N25), then its guarded preHook.
+ * @param args - Reduce args.
+ * @param scope - Current scope.
+ * @param step - Next step config.
+ * @returns Updated scope procedure.
+ */
+async function prepareStepScope(
+  args: IStepReduceArgs,
+  scope: ITemplateScope,
+  step: IApiDirectCallConfig['steps'][number],
+): Promise<Procedure<ITemplateScope>> {
+  const generated = await generateStepCarry(step, scope);
+  if (!isOk(generated)) return generated;
+  return resolveStepScope(args, generated.value, step);
 }
 
 /**
@@ -55,7 +73,7 @@ function makeRunStepArgs(bundle: IMakeRunStepArgs): IRunStepArgs {
 }
 
 /**
- * Run preHook (if any) then runStep.
+ * Run the step's generators and preHook (if any), then runStep.
  * @param args - Reduce args.
  * @param scope - Current scope.
  * @param step - Next step config.
@@ -66,7 +84,7 @@ async function runOneStep(
   scope: ITemplateScope,
   step: IApiDirectCallConfig['steps'][number],
 ): Promise<Procedure<ITemplateScope>> {
-  const hooked = await resolveStepScope(args, scope, step);
+  const hooked = await prepareStepScope(args, scope, step);
   if (!isOk(hooked)) return hooked;
   const stepArgs = makeRunStepArgs({ args, step, scope: hooked.value });
   return runStep(stepArgs);

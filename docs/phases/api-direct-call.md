@@ -48,6 +48,30 @@ Declarative body literal with `$ref` tokens:
 | `$ref: carry.<slot>`         | The flow's per-step carry slot           |
 | `$ref: config.<dotted.path>` | The bank's config object                 |
 | `$ref: cookie.<name>`        | The cookie for the step URL, URL-decoded |
+| `$join: { parts, … }`        | One string built from refs and literals  |
+
+A `$join` node (`IJoinTemplate`, N24) concatenates its `parts` in order. Each
+`JoinPart` is a ref token (`'creds.password'`) or a literal (`{ literal: '-' }`).
+`encode: 'base64'` (`JoinEncoding`) encodes the joined text as base64 over its
+UTF-8 bytes, and `prefix` goes in front of the result. `hydrateJoin` computes
+the value at hydration time, so a Basic `authorization` header or a composed
+username never touches carry:
+
+```typescript
+headers: {
+  authorization: {
+    $join: {
+      parts: ['creds.username', { literal: ':' }, 'creds.password'],
+      encode: 'base64',
+      prefix: 'Basic ',
+    },
+  },
+},
+```
+
+A part that does not resolve fails hydration with the same error as a missing
+`$ref`. A part that resolves to a value that is not a string fails with
+`$join part <token> is not a string`.
 
 One hydration engine serves both `API-DIRECT-CALL` and `API-DIRECT-SCRAPE` step bodies — no per-bank imperative body assembly.
 
@@ -288,10 +312,11 @@ own failure type is the one reported.
 ### Extract rules
 
 A value the bank sends back may be echoed into a later request, so a step can
-check its body extracts before they reach carry. `extractRules` maps a slot of
-`extractsToCarry` or `optionalExtractsToCarry` to an `IExtractRule`. Once the
-step's carry is read, `ruleStepCarry` (in `Flow/RunStep.extractRules.ts`)
-resolves the step's URL and `applyExtractRules` checks each ruled slot:
+check its body and header extracts before they reach carry. `extractRules`
+maps a slot of `extractsToCarry`, `optionalExtractsToCarry` or
+`headerExtractsToCarry` to an `IExtractRule`. Once the step's carry is read,
+`ruleStepCarry` (in `Flow/RunStep.extractRules.ts`) resolves the step's URL
+and `applyExtractRules` checks each ruled slot:
 
 ```ts
 optionalExtractsToCarry: { state: { pointer: '/state' } },
@@ -304,13 +329,29 @@ extractRules: {
   raw value first. A number must be finite; `null` is no type.
 - `transform: 'lower'` lower-cases the text; the slot keeps the result.
 - The text checks run in order on the transformed text: `maxChars` (8192 when
-  unset), `oneOf`, the whole text against `pattern`, and the `url` allow-list.
-  A URL resolves against the step's URL and must then match an `IUrlRule`: an
-  `https` origin, an exact path, no user info and no fragment. The slot keeps
-  the text as sent, not the resolved URL.
+  unset), `oneOf`, the whole text against `pattern`, the `url` allow-list and
+  `pemCertificate`. A URL resolves against the step's URL and must then match
+  an `IUrlRule`: an `https` origin, an exact path, no user info and no
+  fragment. The slot keeps the text as sent, not the resolved URL.
+- `pemCertificate: { keyRef }` (`IPemCertificateRule`, N27) is checked by
+  `isPemCertificate` (in `Flow/RunStep.pemRule.ts`). It demands exactly one
+  PEM block, a `CERTIFICATE` that parses as X.509, certifies the private key
+  `keyRef` resolves to and is valid now (`validFrom ≤ now ≤ validTo`). The key
+  ref resolves to text with `resolveRefText` (in `Template/RefResolver.ts`)
+  against the step's prepared scope, so it reads a key an earlier step or this
+  step's [generators](#carry-generators) put in carry.
 - A string always runs the text checks. A finite number runs them, stringified,
   only when the rule sets one; any other value under a text check is refused.
 - An optional slot whose pointer is unresolved, `null` or `''` skips its rule.
+  A header slot is always ruled: it holds the header, or its `fallback`.
+
+```ts
+headerExtractsToCarry: { deviceStatus: { header: 'device-status' } },
+extractRules: {
+  certPem: { type: 'string', pemCertificate: { keyRef: 'carry.certKeyPem' } },
+  deviceStatus: { oneOf: ['activated'] },
+},
+```
 
 A refused value fails the step `Generic` with `<step> extract <slot> invalid`,
 before any later step or OTP prompt. The message never names the value.
@@ -330,6 +371,135 @@ of `oneOf`, compared without case. A false guard, or a slot that is missing or
 not text, skips the step: its pre-hook never asks for a code, no request is
 sent, and the scope passes to the next step unchanged. The debug log names the
 skipped step, never the slot's value.
+
+### Carry generators
+
+A step's `generate` list (`ICarryGenerator`, `GeneratorTypes.ts`, N25) makes
+values the bank expects the device to own. The reducer runs
+`generateStepCarry` (in `Flow/RunStep.generate.ts`) once the `runIf` guard
+passes and before the pre-hook and body hydration. A skipped step generates
+nothing, and so does a warm run that starts after it. The generators run in
+order. Each one's slots merge into carry, so a later generator, the step's
+body and later steps can read them. `GENERATOR_RUNS` maps each
+`CarryGeneratorKind` to its runner:
+
+| Kind         | Writes                                                                                                                                                                                                |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rsa-key`    | `generateRsaKey` (`IRsaKeyGenerator`): a fresh RSA key of `bits` (2048). Its PKCS#8 PEM goes to `keyInto`, and `spkiSha256Hex` of its public key (64 lowercase hex characters) to `spkiSha256HexInto` |
+| `pkcs10-csr` | `generatePkcs10Csr` (`IPkcs10CsrGenerator`, `Flow/RunStep.generate.csr.ts`): a PKCS#10 request signed with the RSA key `keyRef` names, base64url DER without padding, to `into`                       |
+
+```ts
+generate: [{ kind: 'rsa-key', bits: 2048, spkiSha256HexInto: 'deviceId' }],
+```
+
+A `pkcs10-csr` generator can sign with the key an `rsa-key` generator made
+earlier in the same step. Each `subject` entry (`ICsrSubjectEntry`) pairs a
+`CsrSubjectAttr` (`O`, `DC`, `OU` or `CN`) with a value template that
+hydrates like a body value and must be text:
+
+```ts
+generate: [
+  { kind: 'rsa-key', bits: 2048, keyInto: 'certKeyPem' },
+  {
+    kind: 'pkcs10-csr',
+    keyRef: 'carry.certKeyPem',
+    subject: [
+      { attr: 'O', value: { $literal: 'Example Bank' } },
+      { attr: 'CN', value: { $join: { parts: ['creds.num', { literal: '-' }, 'creds.id'] } } },
+    ],
+    into: 'csr',
+  },
+],
+```
+
+`buildCsr` (`Crypto/CsrBuilder.ts`) takes an `ICsrBuildInput`: the key PEM
+and the hydrated subject as `ICsrSubjectValue` entries. It writes a v0
+request: the subject, the key's SPKI and an empty attribute set `[0]`,
+signed SHA1withRSA (`1.2.840.113549.1.1.5`). `csrSubjectDer`
+(`Crypto/CsrSubject.ts`) keeps the RDNs in the given order. DC is an
+IA5String and must be ASCII. O, OU and CN are a PrintableString when the
+text fits that alphabet, else a UTF8String. The DER writers (`DER_TAGS`,
+`DerTag`, `derNode`, `derSequence`) live in `Crypto/DerEncoding.ts`. A key
+that is not text or not an RSA private key, a subject value that is not
+text, or a DC that is not ASCII fails the generator.
+
+A runner returns its slots as `GeneratedCarry`. A generator that fails or
+rejects fails the step `<step> generate <kind> failed` before any request.
+The message carries no generated material.
+
+### Device certificate
+
+A bank whose login obtains its device certificate at runtime declares a
+dynamic `clientCert` on its headless block
+([Dynamic client certificate](../architecture/pipeline.md#dynamic-client-certificate)).
+The step that has the key and the issued certificate in scope names them in
+its `clientCert` (`IStepClientCert`, N26): refs to the PEM private key and the
+PEM certificate.
+
+```ts
+clientCert: { key: 'carry.certKeyPem', cert: 'carry.certPem' },
+```
+
+`prepareStepSession` (in `Flow/RunStep.session.ts`) runs before the step's
+URL, body or headers resolve: it binds the step's client cookies, then
+`installStepCert` (in `Flow/RunStep.clientCert.ts`) resolves both refs to text
+with `resolveRefText` and installs the pair through the bus's `clientCert` port. The step's own request
+already presents the certificate, and so does every later request to the
+bank origin, scrape phase included. The step fails before any request:
+
+- `<step> client certificate unsupported` when the bus has no certificate
+  port (the bank declares no dynamic `clientCert`);
+- `<step> client certificate invalid` when a ref is unresolved or not text,
+  or the port refuses the pair (it does not parse, or the certificate does not
+  certify the key). A refused pair keeps the certificate already installed.
+
+Neither message carries key or certificate text. An `extractRules`
+`pemCertificate` rule on the issuing step refuses an unusable certificate
+before it reaches carry ([Extract rules](#extract-rules)).
+
+### Session carry
+
+Once the login succeeds, the ACTION stage installs the session context the
+scrape phase reads (`getSessionContext`). By default that is the full carry
+snapshot. A flow whose carry holds registration secrets (a device key, an
+issued certificate, client credentials) names what the scrape may see in
+`sessionCarry` (N32):
+
+```ts
+sessionCarry: ['mag'],
+```
+
+`projectSessionCarry` (in `SessionCarryProjection.ts`) is the only path from a
+carry snapshot to `setSessionContext`. It keeps exactly the allowlisted slots
+the carry holds and drops every other slot; without `sessionCarry` it passes
+the full snapshot. Both installs go through it: `setBusAuth` after the first
+prime, and the recovery hook (`makeRecoveryHook`) after every recovery.
+`setSessionContext` replaces the previous context rather than merging into it,
+so a recovery also drops every value the scrape patched in since. The token
+strategy keeps the full carry privately for warm export and recovery.
+
+Each slot must name a body or header extract of some login or resume step
+(a [build-time check](#build-time-config-checks)), so a generated key or a
+seeded credential can never be allowlisted.
+
+### Cookie hand-off
+
+A login on one gateway can leave cookies the scrape must not send: a `Path=/`
+cookie scoped to the bank's registrable domain matches every later read on a
+sibling host. `cookieHandoff` (a `CookieHandoff`, N35) decides what a finished
+login leaves in the session jar:
+
+- `shared` (the default) leaves the jar as the login left it.
+- `isolate` moves the jar's cookies to the run's private stash
+  (`ILongTermTokenSlot.handoffCookies`) and empties the jar, so the scrape
+  starts from an empty jar and sends only cookies its own calls set.
+
+`handOffCookies` (`Flow/CookieHandoff.ts`) runs in `finishFlow` after every
+successful cold or warm login, right after the warm export, so a kept jar is
+published in the next warm token before it is emptied. `isolate` needs a
+domain jar (`headless.cookieDomains`, a
+[build-time check](#build-time-config-checks)). Durable device auth
+(`persistentAuth`) runs its own flows and never hands off.
 
 ### OTP pre-hook guards
 
@@ -381,8 +551,10 @@ class-like, is reported as `Error`. A throwing
 
 Some banks keep the session in cookies shared by sibling hosts, and answer
 login calls with redirects, HTML pages or response headers instead of JSON
-alone. Their configs use the fields below, all of which need
-`headless.nativeFetch`. The transport side of each field is described in
+alone. Step-level reading, encoding, headers and domain cookies work on either
+node-backed transport (`nativeFetch` or `node:https`). Bank-wide redirect,
+status and failure-text defaults still require `headless.nativeFetch`. The
+transport side is described in
 [Headless transports](../architecture/pipeline.md#headless-transports), and
 the [build-time config checks](#build-time-config-checks) refuse combinations
 that cannot work.
@@ -442,6 +614,7 @@ from what it extracted:
 - `redirect` overrides `headless.redirectPolicy` for one step
   ([Redirect policies](../architecture/pipeline.md#redirect-policies)).
 - `response: 'document'` and `documentMarker` read a page instead of JSON;
+  `response: 'text'` reads the answer as `{ text }`, up to 65 536 chars;
   `statusPolicy` decides a 2xx before any body is read
   ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
 - `headerExtractsToCarry` reads a header of the final response; a missing
@@ -449,10 +622,13 @@ from what it extracted:
   ([Response-header carry](../architecture/pipeline.md#response-header-carry)).
 - `deriveCarry` runs once the step's extracts are in scope
   ([Carry derivation](#carry-derivation)).
-- `encoding: 'form'` sends the body as `application/x-www-form-urlencoded`;
-  its shape must be a flat record of `$ref` and scalar `$literal` values
+- `encoding: 'form'` sends the body as `application/x-www-form-urlencoded`,
+  and `encoding: 'form-latin1'` the same over ISO-8859-1; either shape must be
+  a flat record of `$ref`, `$join` and scalar `$literal` values. `encoding: 'text'`
+  sends the string of a `{ text }` body verbatim, with no content-type
   ([Form bodies](../architecture/pipeline.md#form-bodies)). `isFlatFormBody`
-  guards the hydrated step and the transport against arrays and nested values.
+  guards the hydrated form step and both form writers against arrays and
+  nested values.
 - `seal` writes one credential, sealed under the bank's RSA modulus, at a
   body pointer; neither value reaches carry
   ([Sealed fields](../architecture/pipeline.md#sealed-fields)).
@@ -460,10 +636,14 @@ from what it extracted:
   before the step's request; `$ref: cookie.<name>` reads the cookie that
   applies to the step URL, URL-decoded
   ([Client cookies](../architecture/pipeline.md#client-cookies)).
-- `extractRules` checks a body extract's type, text, length or URL before it
-  reaches carry ([Extract rules](#extract-rules)).
+- `clientCert` installs a device certificate the run obtained, presented to
+  the bank origin from that step on ([Device certificate](#device-certificate)).
+- `extractRules` checks a body or header extract's type, text, length, URL or
+  certificate before it reaches carry ([Extract rules](#extract-rules)).
 - `runIf` skips the step, pre-hook included, unless a carry slot holds one of
   the listed texts ([Conditional steps](#conditional-steps)).
+- `generate` writes fresh device material, such as an RSA key, into carry
+  before the body is hydrated ([Carry generators](#carry-generators)).
 - `omitBankText: true` on the config keeps reply text out of a missed extract
   and records a length-only hint for `error_code` in login diagnostics
   ([Bank text in failures](#bank-text-in-failures)).
@@ -478,63 +658,85 @@ the pipeline is built (`build()` → `buildDescriptor` → `validateBuilderField
 Its input, `IApiDirectRuleInput`, is the call config plus the bank's `headless`
 block from the registry, so a config that cannot work fails before any request
 is sent. `Core/Builder/ApiDirectRuleInput.ts` holds that input, the rule shape
-`IApiDirectRule` (a message and an `isBroken` check) and `allSteps`, which
-lists the login steps and any durable resume steps. The session-transport
-rules, `API_DIRECT_TRANSPORT_RULES` in `Core/Builder/ApiDirectTransportRules.ts`,
-run after the core rules, then the form-body rules, `API_DIRECT_FORM_RULES` in
+`IApiDirectRule` (a message and an `isBroken` check), `allSteps`, which
+lists the login steps and any durable resume steps, and `isExtractSlot`, which
+says whether a slot names one of a step's body or header extracts. The
+`API_DIRECT_OUTCOME_RULES` in `Core/Builder/ApiDirectStepRules.ts` reject empty
+success lists and case-insensitive failure-map collisions before warm-start
+checks. The
+session-transport rules, `API_DIRECT_TRANSPORT_RULES` in
+`Core/Builder/ApiDirectTransportRules.ts`, run after the core rules, then the form-body rules, `API_DIRECT_FORM_RULES` in
 `Core/Builder/ApiDirectFormRules.ts`, then the seal rules,
 `API_DIRECT_SEAL_RULES` in `Core/Builder/ApiDirectSealRules.ts`, then the
-step rules, `API_DIRECT_STEP_RULES` in `Core/Builder/ApiDirectStepRules.ts`. The native-fetch rules, `API_DIRECT_NATIVE_RULES` in
-`Core/Builder/ApiDirectNativeRules.ts`, run last: the session-transport fields
-act only on the headless native fetch, and any other transport would ignore
-them and run unguarded, so naming one off native fetch fails the build. Its
-`NATIVE_STEP_FIELDS` and `NATIVE_HEADLESS_FIELDS` lists are the single source
-of those field names, shared with the node-tls check. The first broken rule
+step rules, `API_DIRECT_STEP_RULES` in `Core/Builder/ApiDirectStepRules.ts`,
+then the carry-generator rules, `API_DIRECT_GENERATE_RULES` in
+`Core/Builder/ApiDirectGenerateRules.ts`, then the dynamic client-certificate
+rules, `API_DIRECT_CLIENT_CERT_RULES` in
+`Core/Builder/ApiDirectClientCertRules.ts`, then the session rules,
+`API_DIRECT_SESSION_RULES` in `Core/Builder/ApiDirectSessionRules.ts`. The
+native-fetch rules, `API_DIRECT_NATIVE_RULES` in
+`Core/Builder/ApiDirectNativeRules.ts`, run last: node-backed step fields and
+domain cookies are rejected on browser transport, while native-only bank
+defaults are rejected on node-tls too. `NODE_STEP_FIELDS` names the shared
+step capabilities; `NATIVE_HEADLESS_FIELDS` names the native-only defaults
+checked by both api-direct and node-tls builders. The first broken rule
 fails the build with `Generic` and `<field>: <rule>`:
 
-| Broken when                                                                                                                           | Message                                                                  |
-| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `authScheme: 'prefixed'` with a missing or blank `authPrefix`                                                                         | `authPrefix: required when authScheme is prefixed`                       |
-| `authScheme: 'none'` without `headless.sessionCookies: true`                                                                          | `headless.sessionCookies: required when authScheme is none`              |
-| `headless.sessionCookies` and any login or resume step with `cookieJar`                                                               | `steps.cookieJar: not allowed with headless.sessionCookies`              |
-| any login or resume step whose `outcome.successCodes` is empty                                                                        | `outcome.successCodes: must not be empty`                                |
-| `warmStart` validated as `'jwt'` (the default) with no `jwtClaims`                                                                    | `jwtClaims: required when warmStart.validation is jwt`                   |
-| `warmStart` validated as `'bank-call'` with a `fromStepIndex` that names no step                                                      | `warmStart.fromStepIndex: must name a step when validation is bank-call` |
-| `warmStart.fromStepIndex` below 1                                                                                                     | `warmStart.fromStepIndex: must start after the first step`               |
-| `warmStart.fromStepIndex` fractional, `NaN` or above `steps.length`                                                                   | `warmStart.fromStepIndex: must be a whole number up to the step count`   |
-| `warmStart` validated as `'bank-call'` whose `fromStepIndex` step has a `runIf` guard | `warmStart.fromStepIndex: a bank-call check step must not have runIf` |
-| a `kind: 'cookie-jar'` `warmStart` with a blank `provider` | `warmStart.provider: must not be blank` |
-| a `kind: 'cookie-jar'` `warmStart` with a blank `accountField` | `warmStart.accountField: must not be blank` |
-| a `kind: 'cookie-jar'` `warmStart` whose `maxTokenChars` is not an integer from 1 to 16384 | `warmStart.maxTokenChars: must be an integer from 1 to 16384` |
-| a `kind: 'cookie-jar'` `warmStart` without `headless.cookieDomains` | `warmStart.kind: cookie-jar not allowed without headless.cookieDomains` |
-| a `response: 'document'` step with any `extractsToCarry`, `optionalExtractsToCarry`, `outcome` or nonempty `failIfPresent` | `steps.response: a document step reads no body extracts, outcome or failIfPresent` |
-| a `documentMarker` on any step whose `response` is not `'document'`                                                                   | `steps.documentMarker: only on a document step`                          |
-| a manual `redirect` on a step whose `method` is not `GET`                                                                             | `steps.redirect: manual only on GET steps`                               |
-| a manual `headless.redirectPolicy` (the default every POST shares)                                                                    | `headless.redirectPolicy: manual only on GET steps`                      |
-| a manual `redirect` whose `allow` list is empty                                                                                       | `redirect.allow: must not be empty`                                      |
-| a manual `redirect` whose `maxHops` is not an integer from 1 to 10                                                                    | `redirect.maxHops: must be an integer from 1 to 10`                      |
-| a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`                                                     | `headless.redirectPolicy: must be reject when a step redirects manually` |
-| a form step whose body shape is not a flat record of `$ref` and scalar `$literal` values                                              | `steps.body: a form body must be a flat record`                          |
-| a `seal` whose `kind` is not a `SealKind`                                                                                             | `steps.seal.kind: unknown seal kind`                                     |
-| a `seal` on a step that is not a `POST` with a record body                                                                            | `steps.seal: needs a POST step with a record body`                       |
-| a `seal` whose `writeTo` is not a JSON pointer                                                                                        | `steps.seal.writeTo: must be a JSON pointer`                             |
-| a `seal` whose `params` are out of range (exponent, seed, block size or printable text)                                               | `steps.seal.params: out of range`                                        |
-| a login or resume step with a `failIfPresent` entry that is not a JSON pointer below the body root                                    | `steps.failIfPresent: each entry must be a JSON pointer`                 |
-| an `extractRules` key that names neither an `extractsToCarry` nor an `optionalExtractsToCarry` slot of its step                       | `steps.extractRules: each key must name a body extract`                  |
-| an `extractRules` `pattern` that does not start with `^`, end with `$` and compile with the `u` flag                                  | `steps.extractRules.pattern: must be an anchored regex`                  |
-| an `extractRules` `pattern` with a group, an alternation or a variable repeat before its last atom                                    | `steps.extractRules.pattern: must be a flat regex`                       |
-| an `extractRules` `maxChars` that is not an integer from 1 to 65536                                                                   | `steps.extractRules.maxChars: must be an integer from 1 to 65536`        |
-| an `extractRules` `oneOf` or `url` list that is empty                                                                                 | `steps.extractRules: oneOf and url must not be empty`                    |
-| a login or resume step whose `runIf` has a blank `carry` or an empty `oneOf`                                                          | `steps.runIf: carry and oneOf must not be empty`                         |
-| a login or resume step whose `preHook.valuePattern` does not start with `^`, end with `$` and compile with the `u` flag               | `steps.preHook.valuePattern: must be an anchored regex`                  |
-| a login or resume step whose `preHook.valuePattern` has a group, an alternation or a variable repeat before its last atom             | `steps.preHook.valuePattern: must be a flat regex`                       |
-| a login or resume step with `response`, `documentMarker`, `redirect` or `headerExtractsToCarry`, without `headless.nativeFetch: true` | `steps.<field>: not allowed without headless.nativeFetch`                |
-| a login or resume step with `encoding`, without `headless.nativeFetch: true`                                                          | `steps.encoding: not allowed without headless.nativeFetch`               |
-| `headless.cookieDomains`, `redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, on an api-direct or node-tls bank | `headless.<field>: not allowed without headless.nativeFetch` |
-| `headless.cookieDomains` without `headless.sessionCookies: true`                                                                      | `headless.cookieDomains: not allowed without headless.sessionCookies`    |
-| a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                            | `headerExtractsToCarry.header: must be an HTTP header name`              |
-| a login or resume step with `setCookies`, without `headless.cookieDomains`                                                            | `steps.setCookies: not allowed without headless.cookieDomains`           |
-| a `setCookies` cookie name that is not an HTTP token (RFC 9110)                                                                       | `steps.setCookies: each name must be an HTTP token`                      |
+| Broken when                                                                                                                               | Message                                                                            |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `authScheme: 'prefixed'` with a missing or blank `authPrefix`                                                                             | `authPrefix: required when authScheme is prefixed`                                 |
+| `authScheme: 'none'` without `headless.sessionCookies: true`                                                                              | `headless.sessionCookies: required when authScheme is none`                        |
+| `headless.sessionCookies` and any login or resume step with `cookieJar`                                                                   | `steps.cookieJar: not allowed with headless.sessionCookies`                        |
+| any login or resume step whose `outcome.successCodes` is empty                                                                            | `outcome.successCodes: must not be empty`                                          |
+| `warmStart` validated as `'jwt'` (the default) with no `jwtClaims`                                                                        | `jwtClaims: required when warmStart.validation is jwt`                             |
+| `warmStart` validated as `'bank-call'` with a `fromStepIndex` that names no step                                                          | `warmStart.fromStepIndex: must name a step when validation is bank-call`           |
+| `warmStart.fromStepIndex` below 1                                                                                                         | `warmStart.fromStepIndex: must start after the first step`                         |
+| `warmStart.fromStepIndex` fractional, `NaN` or above `steps.length`                                                                       | `warmStart.fromStepIndex: must be a whole number up to the step count`             |
+| `warmStart` validated as `'bank-call'` whose `fromStepIndex` step has a `runIf` guard                                                     | `warmStart.fromStepIndex: a bank-call check step must not have runIf`              |
+| a `kind: 'cookie-jar'` or `'carry-bundle'` `warmStart` with a blank `provider`                                                            | `warmStart.provider: must not be blank`                                            |
+| a `kind: 'cookie-jar'` `warmStart` with a blank `accountField`                                                                            | `warmStart.accountField: must not be blank`                                        |
+| a `kind: 'cookie-jar'` or `'carry-bundle'` `warmStart` whose `maxTokenChars` is not an integer from 1 to 16384                            | `warmStart.maxTokenChars: must be an integer from 1 to 16384`                      |
+| a `kind: 'cookie-jar'` `warmStart` without `headless.cookieDomains`                                                                       | `warmStart.kind: cookie-jar not allowed without headless.cookieDomains`            |
+| a `kind: 'carry-bundle'` `warmStart` with no `accountFields`, or a blank one (`API_DIRECT_WARM_BUNDLE_RULES`)                             | `warmStart.accountFields: must name a creds field, none blank`                     |
+| a `kind: 'carry-bundle'` `warmStart` with an empty `slots`                                                                                | `warmStart.slots: must not be empty`                                               |
+| a `kind: 'carry-bundle'` `warmStart` keeping a slot no login step extracts or generates                                                   | `warmStart.slots: each slot must be filled by a login step`                        |
+| a `kind: 'carry-bundle'` `warmStart` with `cookies: true`, without `headless.cookieDomains`                                               | `warmStart.cookies: not allowed without headless.cookieDomains`                    |
+| a `response: 'document'` step with any `extractsToCarry`, `optionalExtractsToCarry`, `outcome` or nonempty `failIfPresent`                | `steps.response: a document step reads no body extracts, outcome or failIfPresent` |
+| a `documentMarker` on any step whose `response` is not `'document'`                                                                       | `steps.documentMarker: only on a document step`                                    |
+| a manual `redirect` on a step whose `method` is not `GET`                                                                                 | `steps.redirect: manual only on GET steps`                                         |
+| a manual `headless.redirectPolicy` (the default every POST shares)                                                                        | `headless.redirectPolicy: manual only on GET steps`                                |
+| a manual `redirect` whose `allow` list is empty                                                                                           | `redirect.allow: must not be empty`                                                |
+| a manual `redirect` whose `maxHops` is not an integer from 1 to 10                                                                        | `redirect.maxHops: must be an integer from 1 to 10`                                |
+| a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`                                                         | `headless.redirectPolicy: must be reject when a step redirects manually`           |
+| a form step (`form` or `form-latin1`) whose body shape is not a flat record of `$ref`, `$join` and scalar `$literal` values               | `steps.body: a form body must be a flat record`                                    |
+| a `text` step whose body shape is not exactly `{ text }`                                                                                  | `steps.body: a text body must be exactly { text }`                                 |
+| a `seal` whose `kind` is not a `SealKind`                                                                                                 | `steps.seal.kind: unknown seal kind`                                               |
+| a `seal` on a step that is not a `POST` with a record body                                                                                | `steps.seal: needs a POST step with a record body`                                 |
+| a `seal` whose `writeTo` is not a JSON pointer                                                                                            | `steps.seal.writeTo: must be a JSON pointer`                                       |
+| a `seal` whose `params` are out of range (exponent, seed, block size or printable text)                                                   | `steps.seal.params: out of range`                                                  |
+| a login or resume step with a `failIfPresent` entry that is not a JSON pointer below the body root                                        | `steps.failIfPresent: each entry must be a JSON pointer`                           |
+| an `extractRules` key that names no `extractsToCarry`, `optionalExtractsToCarry` or `headerExtractsToCarry` slot of its step              | `steps.extractRules: each key must name a body or header extract`                  |
+| an `extractRules` `pattern` that does not start with `^`, end with `$` and compile with the `u` flag                                      | `steps.extractRules.pattern: must be an anchored regex`                            |
+| an `extractRules` `pattern` with a group, an alternation or a variable repeat before its last atom                                        | `steps.extractRules.pattern: must be a flat regex`                                 |
+| an `extractRules` `maxChars` that is not an integer from 1 to 65536                                                                       | `steps.extractRules.maxChars: must be an integer from 1 to 65536`                  |
+| an `extractRules` `oneOf` or `url` list that is empty                                                                                     | `steps.extractRules: oneOf and url must not be empty`                              |
+| a login or resume step whose `runIf` has a blank `carry` or an empty `oneOf`                                                              | `steps.runIf: carry and oneOf must not be empty`                                   |
+| a login or resume step with an `rsa-key` generator that names neither `keyInto` nor `spkiSha256HexInto` (`API_DIRECT_GENERATE_RULES`)     | `steps.generate: rsa-key needs keyInto or spkiSha256HexInto`                       |
+| a login or resume step with a `pkcs10-csr` generator whose `subject` is empty or whose `into` is blank                                    | `steps.generate: pkcs10-csr needs a subject and into`                              |
+| a login or resume step whose `preHook.valuePattern` does not start with `^`, end with `$` and compile with the `u` flag                   | `steps.preHook.valuePattern: must be an anchored regex`                            |
+| a login or resume step whose `preHook.valuePattern` has a group, an alternation or a variable repeat before its last atom                 | `steps.preHook.valuePattern: must be a flat regex`                                 |
+| a login or resume step with `clientCert`, without a `headless.clientCert` block (`API_DIRECT_CLIENT_CERT_RULES`)                          | `steps.clientCert: not allowed without headless.clientCert`                        |
+| a `headless.clientCert` whose `origin` is not exactly `https://host[:port]` (no path, user, trailing slash or default port)               | `headless.clientCert.origin: must be an exact https origin`                        |
+| `headless.clientCert` together with `headless.requiresClientCert: true`                                                                   | `headless.clientCert: not allowed with headless.requiresClientCert`                |
+| a `sessionCarry` slot that names no body or header extract of any login or resume step (`API_DIRECT_SESSION_RULES`)                       | `sessionCarry: each slot must name a step extract`                                 |
+| `cookieHandoff: 'isolate'` without `headless.cookieDomains`                                                                               | `cookieHandoff: isolate not allowed without headless.cookieDomains`                |
+| a login or resume step with `response`, `documentMarker`, `redirect`, `headerExtractsToCarry` or `encoding` on a browser-backed transport | `steps.<field>: not allowed without headless.nativeFetch`                          |
+| `headless.cookieDomains` on a browser-backed transport                                                                                    | `headless.cookieDomains: not allowed without headless.nativeFetch`                 |
+| `headless.redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, including node-tls banks                | `headless.<field>: not allowed without headless.nativeFetch`                       |
+| `headless.cookieDomains` without `headless.sessionCookies: true`                                                                          | `headless.cookieDomains: not allowed without headless.sessionCookies`              |
+| a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                                | `headerExtractsToCarry.header: must be an HTTP header name`                        |
+| a login or resume step with `setCookies`, without `headless.cookieDomains`                                                                | `steps.setCookies: not allowed without headless.cookieDomains`                     |
+| a `setCookies` cookie name that is not an HTTP token (RFC 9110)                                                                           | `steps.setCookies: each name must be an HTTP token`                                |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
@@ -567,8 +769,9 @@ the input.
 `warmStart.kind` says what the stored token is. The default, `'carry'`, seeds
 it into the carry slot `carryField`. `'cookie-jar'` is for a cookie-session
 bank with no bearer to replay: the token is the session jar itself
-([Cookie-jar warm start](#cookie-jar-warm-start)).
-
+([Cookie-jar warm start](#cookie-jar-warm-start)). `'carry-bundle'` is for a
+bank whose warm login needs several slots a cold login filled, and optionally
+the jar ([Carry-bundle warm start](#carry-bundle-warm-start)).
 The warm-start canary (`WarmStartContract`) follows the same policy. It
 requires `jwtClaims` only for `'jwt'` validation, and it requires the warm path
 to end holding a `token` only when the auth scheme sends a header (`none`
@@ -596,7 +799,9 @@ The provider tag and account hash only stop one account's jar from being
 replayed for another. They are not authentication: like every stored warm
 token, the jar is a secret its caller keeps.
 
-`Flow/TokenStrategyFromConfig.warm.ts` runs the kind at three moments:
+`Flow/TokenStrategyFromConfig.warm.ts` runs the kind at three moments, through
+the kind's restore, `resetCold` and publish ops (`TokenStrategyFromConfig.jar.ts`
+for this kind):
 
 - **Restore** (`restoreWarmSeed`). The stored token is checked in order —
   an account to bind, size, prefix, JSON, shape, provider, account — then imported into the run's
@@ -612,6 +817,59 @@ token, the jar is a secret its caller keeps.
   envelope. A token longer than `maxTokenChars`, or one for a blank account,
   is not published: the warning `warm start export skipped: <reason>` names
   the creds field and the reason only (with the length, when too long).
+
+### Carry-bundle warm start
+
+A `kind: 'carry-bundle'` warm start (`ICarryBundleWarmStart`) is always
+validated as `'bank-call'`. It keeps the listed carry `slots` a cold login
+filled — a body extract or a generator output of a login step — and, with
+`cookies: true`, the session jar too. It adds `provider`, `accountFields` (the
+creds fields the token is bound to, in order), `slots`, `maxTokenChars`,
+`cookies` and `coldFallback`. `carryBundleWarmOf` (`Flow/WarmStartKind.ts`) returns the config or
+`false`.
+`encodeWarmBundle` in `Flow/WarmCarryBundle.ts` encodes `v1.` plus unpadded
+base64url over the JSON `{p, a, s, c?}`: the provider tag, the first 16 hex
+characters of the SHA-256 of the JSON array of trimmed account values (never
+the values), the kept slots, and — only when the config keeps the jar — the
+cookies. `decodeWarmBundle` checks in order — an account to bind, size,
+prefix, canonical base64url, JSON, shape, provider, account, slots (exactly
+the config's, each non-empty text), then the jar (present exactly when the
+config keeps it, each cookie well-typed) — and refuses with a reason from
+`WARM_BUNDLE_REJECTIONS`, never a value. Every account value must be
+non-blank (`unbound`). `decodeWarmBundle` returns an `IWarmBundle`: the `BundleCarry` slots and the jar, or `false` when the config keeps none. The parts both codecs share live in `Flow/WarmTokenParts.ts`: `WARM_TOKEN_PREFIX`, `identityTag` (the 16-hex SHA-256 tag), `wrapJsonText` and `parseJsonBody` for the body, `isRecordValue`, `isListValue`, `isStoredCookie` and `projectCookie` for the shape and cookies, and `textAt` for a slot's text. The cookie-jar hash is unchanged, so stored jar tokens still open.
+
+Each kind's ops take an `IWarmRunArgs` (config, bus and creds) and restore a `WarmCarry` starting carry: `restoreJar` and `exportJar` (`TokenStrategyFromConfig.jar.ts`), and `restoreBundle` and `exportBundle` (`TokenStrategyFromConfig.bundle.ts`). Both skip a token through `skipWarmRestore` and publish through `publishWithin`, which applies `maxTokenChars`. The build rules read either bound kind through `boundWarmOf`, which returns a `BoundWarmStart` (a cookie-jar or carry-bundle config) or `false`, and check cookie domains through `hasCookieDomains` (`Core/Builder/ApiDirectRuleInput.ts`).
+
+The bundle's ops:
+
+- **Restore.** A token that opens has its jar imported into the run's cookie
+  session, when it keeps one, and its slots become the starting carry; the
+  flow resumes at `fromStepIndex`. A refused token, or a jar for a run with no
+  cookie session, is skipped with the warning `warm start skipped: <reason>`,
+  and the cold login runs.
+- **Cold start.** Before a cold flow's step 0 — after the one-SMS budget
+  allows it — the jar is emptied and the client cert an earlier login
+  installed is dropped through the bus's `clientCert` port, so a rejected
+  resume leaves nothing behind. The restored slots need no reset: only a warm
+  resume is handed them. The carry kind's `resetCold` resets nothing.
+- **Cold fallback** (`coldFallback`, a `ColdFallback`). When the warm resume
+  fails, `TokenResolverBuilder` asks the strategy's optional
+  `mayEscalateWarmFailure` whether to run the cold login — after its own
+  checks, so an edge block or missing warm state never asks.
+  `mayEscalateWarmFailureImpl` (`TokenStrategyFromConfig.fallback.ts`)
+  answers from the config: `'any'` lets every failure escalate, as every
+  other kind does; `'auth-rejected'` lets only a 401/403 the bank answered,
+  so a timeout, a 5xx or a 400 returns the warm failure and never starts a
+  registration. `isAuthRejectedFailure` (`Api/ApiMediator.authReject.ts`)
+  reads both the transport's `401:` marker and the `HTTP 401` a login step is
+  sanitised to, and never an edge block; `isAuthRejectionMessage` is
+  unchanged. A token refused locally never asks: it runs cold at once.
+- **Export.** A finished flow reads each kept slot from its carry, and the jar
+  when kept, and encodes them as the next warm token. A slot left unfilled, an
+  unbound account or a token longer than `maxTokenChars` publishes nothing:
+  the warning `warm start export skipped: <reason>` names the creds field and
+  the reason only. The export reads the full carry; the `sessionCarry`
+  allowlist applies afterwards, to what the scrape is handed.
 
 ### Transport errors
 
@@ -666,7 +924,7 @@ consumer-install gate reads it. `isLocalFailureMessage`
 (`src/Scrapers/Pipeline/Strategy/Fetch/LocalFailureReasons.ts`) matches such a
 reason only at the start of the message, so a reply that quotes one is still
 cut down. The in-request re-mint runs below the step, so it still reads the
-original ` <status>: ` marker. Scrape-phase requests keep the transport
+original space-delimited `<status>:` marker. Scrape-phase requests keep the transport
 message.
 
 ### Step names and URL tags

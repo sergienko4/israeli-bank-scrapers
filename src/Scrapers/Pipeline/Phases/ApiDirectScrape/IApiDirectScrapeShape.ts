@@ -23,6 +23,7 @@
 
 import type {
   IAesSignerConfig,
+  IBodyDigestConfig,
   JsonValueTemplate,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IDeclaredRowSpec } from '../../Mediator/Scrape/CoverageAudit/DeclaredRows.js';
@@ -382,17 +383,42 @@ export interface IBootstrapExtractArgs {
  * is merged into the mediator session-context so later steps — and the
  * transport-level request signer — can read the deposited values.
  *
- * <p>PayBox uses this to fetch + decrypt its per-session HMAC signing key
- * (`getKey`) before the authenticated reads that now require signed
- * request headers. Absent ⇒ no bootstrap (every other bank).
+ * <p>PayBox uses one step to fetch + decrypt its per-session HMAC signing
+ * key (`getKey`) before the authenticated reads that now require signed
+ * request headers. A bank that needs several calls first declares them as
+ * an ordered list; a later step's body can `$ref` an earlier step's patch.
  */
 export interface IApiDirectScrapeBootstrapStep {
+  /** Name this call's response-session failures carry; `bootstrap` when absent. */
+  readonly name?: string;
   readonly urlTag: WKUrlOrLiteral;
   readonly method?: ScrapeHttpMethod;
   readonly buildVars: (ctx: IActionContext) => VarsMap;
   readonly bodyTemplate?: JsonValueTemplate;
   readonly extraHeaders?: ApiDirectScrapeHeadersLike;
   readonly extractPatch: (args: IBootstrapExtractArgs) => Procedure<SessionContextPatch>;
+}
+
+/** What a response-session patch reads from one successful scrape answer. */
+export interface IResponseSessionArgs {
+  /** The answer's body, after the shape's `checkBody`. */
+  readonly body: ApiBody;
+  /** The declared headers the answer carried, by lower-case name. */
+  readonly headers: Readonly<Record<string, string>>;
+  /** HTTP status of the answer. */
+  readonly status: number;
+  readonly ctx: IActionContext;
+}
+
+/**
+ * Session state a bank rotates on every scrape answer (N31): the response
+ * headers to read and the patch built from each answer.
+ */
+export interface IResponseSessionSpec {
+  /** Response header names the patch reads, in any case. */
+  readonly headers: readonly string[];
+  /** Builds the session-context patch; a failure fails the call. */
+  readonly patch: (args: IResponseSessionArgs) => Procedure<SessionContextPatch>;
 }
 
 /** Shape a bank plugs into createApiDirectScrapePhase. */
@@ -419,12 +445,13 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    */
   readonly isCardIssuer?: boolean;
   /**
-   * Optional pre-scrape bootstrap step — see
+   * Optional pre-scrape bootstrap — one step or an ordered list of
    * {@link IApiDirectScrapeBootstrapStep}. Runs once before the customer
-   * step; its patch is merged into session-context.
-   * Absent ⇒ no bootstrap (every bank except PayBox getKey).
+   * step; each patch is merged into session-context before the next step
+   * dispatches, and the first failure aborts the scrape.
+   * Absent ⇒ no bootstrap.
    */
-  readonly bootstrap?: IApiDirectScrapeBootstrapStep;
+  readonly bootstrap?: IApiDirectScrapeBootstrapStep | readonly IApiDirectScrapeBootstrapStep[];
   /**
    * Optional class-y body-pointer signer applied to every scrape-step
    * body before POST. Same `IAesSignerConfig` type used by the login
@@ -433,6 +460,12 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    * signing (Pepper/OneZero pattern).
    */
   readonly signer?: IAesSignerConfig;
+  /**
+   * Optional body digest header on every REST object POST, computed after
+   * `signer` over the exact JSON bytes sent. GET, array POST and GraphQL
+   * steps carry none. Absent ⇒ no digest.
+   */
+  readonly bodyDigest?: IBodyDigestConfig;
   /**
    * Optional crypto secrets exposed to the shape-level signer's
    * `keyRef: 'config.secrets.<name>'` lookup. Banks that body-sign
@@ -451,6 +484,16 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    * every 2xx body is used as-is.
    */
   readonly checkBody?: BodyCheck;
+  /**
+   * Optional session read from every successful answer `dispatchStep`
+   * returns — bootstrap, customer, balance and transactions — after
+   * `checkBody`. The patch is merged into session-context before the next
+   * call. A failed patch, a refused merge, or an answer whose headers never
+   * reached the call's sink (a GraphQL step, a browser transport) fails the
+   * call. The customer secondary identity GET is not read. Absent ⇒ the
+   * session-context changes only through bootstrap patches.
+   */
+  readonly responseSession?: IResponseSessionSpec;
   readonly customer: IApiDirectScrapeCustomerStep<TAcct>;
   readonly balance: IApiDirectScrapeBalanceStep<TAcct>;
   readonly transactions: IApiDirectScrapeTxnsStep<TAcct, TCursor>;

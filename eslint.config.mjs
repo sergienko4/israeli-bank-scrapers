@@ -3287,7 +3287,9 @@ export default tseslint.config(
   // HeadlessNativeFetchStrategy) and the session transport adds nine
   // (CookieMatch, SetCookieScope, DomainCookieJar, UrlRule,
   // RedirectFollow, StatusPolicy, DocumentResponse, ResponseHeaderSink,
-  // HeaderText),
+  // HeaderText) and the N23 body/answer encodings add two (Latin1Form,
+  // TextResponse), and the N26 dynamic client certificate adds two
+  // (Mtls/MtlsAgentSource, Mtls/ClientCertHolder),
   // all written fresh to
   // the canonical caps — so, per `eslint-rules-guidlines.md` §1, this
   // block pins exactly those files to the three-rule lock §19.0 sets for
@@ -3295,7 +3297,7 @@ export default tseslint.config(
   // lines per file). Flat
   // config is last-wins and this block sits AFTER §19.1, so the strict
   // caps win for these paths while the rest of Strategy/Fetch keeps its
-  // grandfather. §4 (narrow, never revert): scope is the thirteen new files
+  // grandfather. §4 (narrow, never revert): scope is the seventeen new files
   // only. 150 is justified: the largest (HeadlessNativeFetchStrategy)
   // measures well under it (skipBlankLines + skipComments).
   //
@@ -3318,6 +3320,10 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Strategy/Fetch/DocumentResponse.ts',
       'src/Scrapers/Pipeline/Strategy/Fetch/ResponseHeaderSink.ts',
       'src/Scrapers/Pipeline/Strategy/Fetch/HeaderText.ts',
+      'src/Scrapers/Pipeline/Strategy/Fetch/Latin1Form.ts',
+      'src/Scrapers/Pipeline/Strategy/Fetch/TextResponse.ts',
+      'src/Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.ts',
+      'src/Scrapers/Pipeline/Strategy/Fetch/Mtls/ClientCertHolder.ts',
       'src/Scrapers/Pipeline/EslintCanaries/fetch-transport-fn-over-cap.canary.ts',
       'src/Scrapers/Pipeline/EslintCanaries/fetch-transport-file-over-cap.canary.ts',
     ],
@@ -3443,6 +3449,7 @@ export default tseslint.config(
   // so `npm run lint:canaries` confirms `max-lines-per-function` fires.
   {
     files: [
+      'src/Scrapers/Pipeline/Core/Builder/ApiDirectClientCertRules.ts',
       'src/Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.ts',
       'src/Scrapers/Pipeline/Core/Builder/ApiDirectNativeRules.ts',
       'src/Scrapers/Pipeline/Core/Builder/ApiDirectRuleInput.ts',

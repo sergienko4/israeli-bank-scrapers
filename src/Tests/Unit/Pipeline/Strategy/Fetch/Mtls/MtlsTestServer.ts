@@ -15,6 +15,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Agent, createServer, type Server } from 'node:https';
 import type { TLSSocket } from 'node:tls';
 
+import { MTLS_MAX_RESPONSE_BYTES } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsResponse.js';
 import type { ICertBundle } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.js';
 import { MTLS_TEST_CERT_B64, MTLS_TEST_KEY_B64 } from './MtlsTestCertData.js';
 
@@ -25,6 +26,9 @@ interface IGateServer {
   readonly gqlUrl: string;
   readonly close: () => Promise<void>;
 }
+
+/** One mebibyte, the margin the over-cap route answers past the cap. */
+const MIB = 1024 * 1024;
 
 /** Set-Cookie lines the gate emits on a 200 so passthrough can be asserted. */
 const GATE_COOKIES: readonly string[] = ['MTLS_SESSION=1; Path=/; HttpOnly', 'MTLS_CSRF=2; Path=/'];
@@ -113,6 +117,58 @@ function sendPremature(res: ServerResponse): boolean {
   return true;
 }
 
+/** How the gate framed and received one request body. */
+interface IBodyEcho {
+  readonly contentLength: string | null;
+  readonly transferEncoding: string | null;
+  readonly bodyHex: string;
+}
+
+/**
+ * Describe how a request body arrived.
+ * @param req - The incoming request.
+ * @param body - Every byte of its body.
+ * @returns Its framing headers and the body as hex.
+ */
+function describeBody(req: IncomingMessage, body: Buffer): IBodyEcho {
+  const contentLength = req.headers['content-length'] ?? null;
+  const transferEncoding = req.headers['transfer-encoding'] ?? null;
+  return { contentLength, transferEncoding, bodyHex: body.toString('hex') };
+}
+
+/**
+ * Answer with how the request body was framed and received.
+ * @param req - The incoming request.
+ * @param res - The response to write once the body has arrived.
+ * @returns True once the body reader is attached.
+ */
+function sendEcho(req: IncomingMessage, res: ServerResponse): boolean {
+  const chunks: Buffer[] = [];
+  req.on('data', (chunk: Buffer) => chunks.push(chunk));
+  req.on('end', () => {
+    const body = Buffer.concat(chunks);
+    const described = describeBody(req, body);
+    const echo = JSON.stringify(described);
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(echo);
+  });
+  return true;
+}
+
+/**
+ * Answer with a body of exactly `size` bytes.
+ * @param res - The response to write.
+ * @param size - Body size in bytes.
+ * @returns True once the response is written.
+ */
+function sendSized(res: ServerResponse, size: number): boolean {
+  res.on('error', () => res.destroy());
+  res.writeHead(200, { 'content-type': 'text/plain' });
+  const body = Buffer.alloc(size, 'a');
+  res.end(body);
+  return true;
+}
+
 /**
  * Route one request through the simulated mTLS gate.
  * @param req - The incoming request.
@@ -125,6 +181,9 @@ function handleGate(req: IncomingMessage, res: ServerResponse): boolean {
   const url = req.url ?? '/';
   if (url.includes('hang')) return sendHang();
   if (url.includes('premature')) return sendPremature(res);
+  if (url.includes('echo')) return sendEcho(req, res);
+  if (url.includes('at-cap')) return sendSized(res, MTLS_MAX_RESPONSE_BYTES);
+  if (url.includes('over-cap')) return sendSized(res, MTLS_MAX_RESPONSE_BYTES + MIB);
   return sendOk(req, res);
 }
 
@@ -223,7 +282,7 @@ function buildNoCertAgent(): Agent {
   return new Agent({ ca: [cert], rejectUnauthorized: true, keepAlive: false });
 }
 
-export type { IGateServer };
+export type { IBodyEcho, IGateServer };
 export {
   boundPort,
   buildCertAgent,

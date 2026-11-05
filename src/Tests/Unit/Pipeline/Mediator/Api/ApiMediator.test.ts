@@ -669,7 +669,7 @@ describe('ApiMediator — redirect policy', () => {
       const result = await call(mediator, { policy: { headerSink } });
       expect(result.success).toBe(true);
       expect(take).toHaveBeenCalledTimes(1);
-      expect(take).toHaveBeenCalledWith({ 'x-trace': 'synthetic-trace' });
+      expect(take).toHaveBeenCalledWith({ 'x-trace': 'synthetic-trace' }, 200);
     },
   );
 

@@ -71,14 +71,16 @@ function headlessOf(options: ScraperOptions): IHeadlessUrlsConfig | false {
 
 /**
  * Whether the bank's headless block selects the node:https transport. Its
- * mTLS strategies ignore the native-only redirect and status policies, so the
- * builder refuses them here even when the bank has no api-direct config.
+ * mTLS strategies share the native readers and session jar, but ignore the
+ * bank-wide redirect, status and failure-text defaults. Refuse those defaults
+ * here even when the bank has no api-direct config.
  * @param headless - The bank's headless block.
  * @returns True when the block needs a client certificate or TLS profile.
  */
 function isNodeTls(headless: IHeadlessUrlsConfig | false): headless is IHeadlessUrlsConfig {
   if (headless === false) return false;
-  return headless.requiresClientCert === true || headless.tlsProfile !== undefined;
+  const hasStaticTls = headless.requiresClientCert === true || headless.tlsProfile !== undefined;
+  return hasStaticTls || headless.clientCert !== undefined;
 }
 
 /**

@@ -1,8 +1,8 @@
 /**
  * Unit tests for the transport rule in Core/HeadlessMediatorWiring.
  *
- * A headless bank that declares a client certificate or a TLS ClientHello
- * profile runs over node:https; a bank that opts into `nativeFetch` runs over
+ * A headless bank that declares a client certificate (static or dynamic) or a
+ * TLS ClientHello profile runs over node:https; a bank that opts into `nativeFetch` runs over
  * Node's own fetch; any other headless bank runs over browser TLS; a bank that
  * declares more than one transport fails fast. The bank registry and every
  * mediator factory are replaced, so each case states only its transport flags
@@ -15,6 +15,7 @@ import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { TlsClientProfileKind } from '../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/TlsClientProfiles.js';
+import type { IDynamicClientCert } from '../../../../Scrapers/Pipeline/Types/Domain/ClientCertControl.js';
 import type {
   RedirectPolicy,
   StatusPolicy,
@@ -24,6 +25,7 @@ import type {
 interface ITransportFlags {
   readonly requiresBrowserTls?: boolean;
   readonly requiresClientCert?: boolean;
+  readonly clientCert?: IDynamicClientCert;
   readonly tlsProfile?: TlsClientProfileKind;
   readonly nativeFetch?: boolean;
   readonly sessionCookies?: boolean;
@@ -41,6 +43,12 @@ const BASE_HEADLESS = {
 
 /** Android profile the cases declare. */
 const ANDROID_PROFILE: TlsClientProfileKind = 'android-11-okhttp';
+
+/** A certificate the flow installs at runtime for the identity origin. */
+const DYNAMIC_CERT: IDynamicClientCert = {
+  mode: 'dynamic',
+  origin: 'https://identity.bank.example',
+};
 
 const RESOLVE_CONFIG = jest.fn<unknown, [CompanyTypes]>();
 const CREATE_NODE_TLS = jest.fn((): object => ({}));
@@ -69,6 +77,8 @@ const CONFLICTING_FLAGS: readonly (readonly [string, ITransportFlags])[] = [
   ['native fetch and browser TLS', { nativeFetch: true, requiresBrowserTls: true }],
   ['native fetch and a client certificate', { nativeFetch: true, requiresClientCert: true }],
   ['native fetch and a TLS profile', { nativeFetch: true, tlsProfile: ANDROID_PROFILE }],
+  ['native fetch and a dynamic certificate', { nativeFetch: true, clientCert: DYNAMIC_CERT }],
+  ['browser TLS and a dynamic certificate', { requiresBrowserTls: true, clientCert: DYNAMIC_CERT }],
 ];
 
 /**
@@ -123,6 +133,7 @@ describe('HeadlessMediatorWiring — transport selection', () => {
   it.each<[string, ITransportFlags, string]>([
     ['a TLS profile alone', { tlsProfile: ANDROID_PROFILE }, 'node-tls'],
     ['a client certificate alone', { requiresClientCert: true }, 'node-tls'],
+    ['a dynamic client certificate', { clientCert: DYNAMIC_CERT }, 'node-tls'],
     [
       'a certificate and a profile',
       { requiresClientCert: true, tlsProfile: ANDROID_PROFILE },
@@ -149,6 +160,12 @@ describe('HeadlessMediatorWiring — transport selection', () => {
     expect(args).toMatchObject({ tlsProfile: ANDROID_PROFILE, requiresClientCert: false });
   });
 
+  it('hands the dynamic client certificate to the node:https factory', () => {
+    resolveWith({ clientCert: DYNAMIC_CERT });
+    const [args] = CREATE_NODE_TLS.mock.calls[0] as unknown[];
+    expect(args).toMatchObject({ clientCert: DYNAMIC_CERT, requiresClientCert: false });
+  });
+
   it('hands the identity base URL to the native factory', () => {
     resolveWith({ nativeFetch: true });
     const [args] = CREATE_NATIVE.mock.calls[0] as unknown[];
@@ -168,6 +185,20 @@ describe('HeadlessMediatorWiring — transport selection', () => {
     resolveWith({ nativeFetch: true, sessionCookies: true, cookieDomains: ['bank.example'] });
     const [args] = CREATE_NATIVE.mock.calls[0] as unknown[];
     expect(args).toMatchObject({ cookieDomains: ['bank.example'] });
+  });
+
+  it('hands dynamic-certificate domain cookies to the node:https factory', () => {
+    resolveWith({
+      clientCert: DYNAMIC_CERT,
+      sessionCookies: true,
+      cookieDomains: ['bank.example'],
+    });
+    const [args] = CREATE_NODE_TLS.mock.calls[0] as unknown[];
+    expect(args).toMatchObject({
+      clientCert: DYNAMIC_CERT,
+      sessionCookies: true,
+      cookieDomains: ['bank.example'],
+    });
   });
 
   it('hands the redirect policy to the native factory', () => {
@@ -217,6 +248,7 @@ describe('resolveHeadlessTransportKind — agrees with the wired factory', () =>
   it.each<[string, ITransportFlags]>([
     ['a TLS profile', { tlsProfile: ANDROID_PROFILE }],
     ['a client certificate', { requiresClientCert: true }],
+    ['a dynamic client certificate', { clientCert: DYNAMIC_CERT }],
     ['native fetch', { nativeFetch: true }],
     ['browser TLS', { requiresBrowserTls: true }],
     ['no transport flag', {}],

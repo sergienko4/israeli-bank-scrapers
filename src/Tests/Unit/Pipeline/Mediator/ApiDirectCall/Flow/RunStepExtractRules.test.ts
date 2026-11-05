@@ -3,9 +3,10 @@
  * extracted: `type` first, then `transform`, then `maxChars` (8192 when unset
  * for text), `oneOf`, an anchored `pattern` and `url` rules. A number is
  * stringified only when a text check runs. An optional slot whose pointer is
- * unresolved, `null` or `''` skips its rule. The carry comes back with each
- * ruled slot holding its checked value. A failure is
- * `<step> extract <slot> invalid` and names no value.
+ * unresolved, `null` or `''` skips its rule. N27 — a header-extract slot is
+ * ruled like a body one. The carry comes back with each ruled slot holding
+ * its checked value. A failure is `<step> extract <slot> invalid` and names
+ * no value.
  */
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
@@ -17,6 +18,7 @@ import type {
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { applyExtractRules } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.extractRules.js';
 import { runSmsOtpFlow } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/SmsOtpFlow.js';
+import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { JsonValue } from '../../../../../../Scrapers/Pipeline/Types/JsonValue.js';
 import { succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -28,6 +30,11 @@ const STEP_URL = 'https://bank.example/authenticate/verify';
 const SECRET = 'tok_9f8e7d6c5b4a';
 const PORTAL = [{ origin: 'https://bank.example', paths: ['/portal/home'] }];
 const LOWER_STATE: IExtractRule = { type: 'string', transform: 'lower', oneOf: ['logonotp'] };
+const RULE_SCOPE: ITemplateScope = {
+  carry: {},
+  creds: {},
+  config: { flow: 'sms-otp', envelope: {}, steps: [] },
+};
 
 /**
  * A step reading `slot` as a required extract, ruled by `rule`.
@@ -61,6 +68,22 @@ function optionalStep(rule: IExtractRule): IStepConfig {
 }
 
 /**
+ * A step reading `slot` from the `device-status` header, ruled by `rule`.
+ * @param rule - Extract rule.
+ * @returns Step config.
+ */
+function headerStep(rule: IExtractRule): IStepConfig {
+  return {
+    name: 'bind',
+    urlTag: WARM_STEP_TAG,
+    body: { shape: {} },
+    extractsToCarry: {},
+    headerExtractsToCarry: { slot: { header: 'device-status' } },
+    extractRules: { slot: rule },
+  };
+}
+
+/**
  * Apply the rules of a required-slot step to one extracted value.
  * @param rule - Extract rule.
  * @param value - The extracted value.
@@ -69,7 +92,13 @@ function optionalStep(rule: IExtractRule): IStepConfig {
 function ruleRequired(rule: IExtractRule, value: JsonValue): unknown {
   const step = requiredStep(rule);
   const resp = { slot: value };
-  return applyExtractRules({ step, resp, carry: { slot: value }, stepUrl: STEP_URL });
+  return applyExtractRules({
+    step,
+    resp,
+    carry: { slot: value },
+    stepUrl: STEP_URL,
+    scope: RULE_SCOPE,
+  });
 }
 
 /** One value a rule keeps, and the value the slot then holds. */
@@ -149,14 +178,26 @@ describe('applyExtractRules — required slots', () => {
       extractsToCarry: { slot: '/slot' },
     };
     const carry = { slot: 7, other: 'x' };
-    const ruled = applyExtractRules({ step: plain, resp: {}, carry, stepUrl: STEP_URL });
+    const ruled = applyExtractRules({
+      step: plain,
+      resp: {},
+      carry,
+      stepUrl: STEP_URL,
+      scope: RULE_SCOPE,
+    });
     expect(ruled).toEqual({ success: true, value: carry });
   });
 
   it('keeps the unruled slots beside a ruled one', () => {
     const step = requiredStep(LOWER_STATE);
     const carry = { slot: 'LogonOTP', other: 'Kept' };
-    const ruled = applyExtractRules({ step, resp: {}, carry, stepUrl: STEP_URL });
+    const ruled = applyExtractRules({
+      step,
+      resp: {},
+      carry,
+      stepUrl: STEP_URL,
+      scope: RULE_SCOPE,
+    });
     expect(ruled).toEqual({ success: true, value: { slot: 'logonotp', other: 'Kept' } });
   });
 });
@@ -168,7 +209,13 @@ describe('applyExtractRules — optional slots', () => {
     ['an empty field', { slot: '' }],
   ])('skips the rule for %s', (_label, resp) => {
     const step = optionalStep(LOWER_STATE);
-    const ruled = applyExtractRules({ step, resp, carry: {}, stepUrl: STEP_URL });
+    const ruled = applyExtractRules({
+      step,
+      resp,
+      carry: {},
+      stepUrl: STEP_URL,
+      scope: RULE_SCOPE,
+    });
     expect(ruled).toEqual({ success: true, value: {} });
   });
 
@@ -178,15 +225,59 @@ describe('applyExtractRules — optional slots', () => {
     ['false', { slot: false }],
   ])('fails a present %s under a string rule', (_label, resp) => {
     const step = optionalStep(LOWER_STATE);
-    const ruled = applyExtractRules({ step, resp, carry: {}, stepUrl: STEP_URL });
+    const ruled = applyExtractRules({
+      step,
+      resp,
+      carry: {},
+      stepUrl: STEP_URL,
+      scope: RULE_SCOPE,
+    });
     expect(ruled).toMatchObject(INVALID);
   });
 
   it('writes the transformed value of a present slot', () => {
     const step = optionalStep(LOWER_STATE);
     const resp = { slot: 'LOGONOTP' };
-    const ruled = applyExtractRules({ step, resp, carry: {}, stepUrl: STEP_URL });
+    const ruled = applyExtractRules({
+      step,
+      resp,
+      carry: {},
+      stepUrl: STEP_URL,
+      scope: RULE_SCOPE,
+    });
     expect(ruled).toEqual({ success: true, value: { slot: 'logonotp' } });
+  });
+});
+
+describe('applyExtractRules — header slots', () => {
+  const activated: IExtractRule = { oneOf: ['activated'] };
+
+  it('fails a header slot outside oneOf, naming no value', () => {
+    const step = headerStep(activated);
+    const carry = { slot: SECRET };
+    const ruled = applyExtractRules({
+      step,
+      resp: {},
+      carry,
+      stepUrl: STEP_URL,
+      scope: RULE_SCOPE,
+    });
+    expect(ruled).toMatchObject(INVALID);
+    const text = JSON.stringify(ruled);
+    expect(text).not.toContain(SECRET);
+  });
+
+  it('keeps the transformed value of a header slot its rule allows', () => {
+    const step = headerStep({ transform: 'lower', oneOf: ['activated'] });
+    const carry = { slot: 'Activated' };
+    const ruled = applyExtractRules({
+      step,
+      resp: {},
+      carry,
+      stepUrl: STEP_URL,
+      scope: RULE_SCOPE,
+    });
+    expect(ruled).toEqual({ success: true, value: { slot: 'activated' } });
   });
 });
 

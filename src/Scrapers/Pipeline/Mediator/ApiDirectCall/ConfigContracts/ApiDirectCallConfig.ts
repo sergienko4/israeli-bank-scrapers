@@ -24,7 +24,7 @@ import type {
   IJwtClaimsConfig,
   IProbeConfig,
 } from './EnvelopeTypes.js';
-import type { FlowKind, IStepConfig } from './FlowTypes.js';
+import type { CookieHandoff, FlowKind, IStepConfig } from './FlowTypes.js';
 import type { ISignerConfig } from './SignerTypes.js';
 import type { IEnvelopeSelectors } from './TemplateTypes.js';
 
@@ -76,6 +76,16 @@ interface IApiDirectCallConfig {
   readonly authPrefix?: string;
   /** Optional warm-start shortcut — see IWarmStartConfig for semantics. */
   readonly warmStart?: IWarmStartConfig;
+  /**
+   * Carry slots handed to the scrape as its session context; every other
+   * slot stays private to the login. Absent → the full carry snapshot.
+   */
+  readonly sessionCarry?: readonly string[];
+  /**
+   * What happens to the login's cookies when it finishes (default `shared`).
+   * `isolate` needs `headless.cookieDomains`.
+   */
+  readonly cookieHandoff?: CookieHandoff;
   /**
    * Static cryptographic literals accessible via `config.secrets.<name>`
    * RefTokens. Public-extractable constants (signing keys lifted from

@@ -81,8 +81,8 @@ function isHmacSigner(value: unknown): value is IHmacHeaderSignerConfig {
 }
 
 /**
- * Serialize the outbound body with the transport's body writer, or use an
- * empty buffer for bodyless GETs.
+ * Serialize the outbound body with the transport's writer (which uses the
+ * shared JSON serializer for JSON), or use an empty buffer for bodyless GETs.
  * @param body - Final outbound body (undefined for GET).
  * @param encoding - Selected body encoding; JSON when absent.
  * @returns UTF-8 body bytes, or failure for a body the transport cannot write.

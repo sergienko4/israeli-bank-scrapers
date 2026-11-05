@@ -67,21 +67,32 @@ function toOpts(ctx: IActionContext, extra?: ApiDirectScrapeHeadersLike): IApiQu
   return { extraHeaders: headers };
 }
 
+/** The dispatch-args fields every step of one shape shares. */
+type ShapeLevelArgs = Pick<
+  IDispatchArgs,
+  'signer' | 'secrets' | 'checkBody' | 'bodyDigest' | 'responseSession'
+>;
+
 /**
- * Pull the shape-level signer, secrets and body check onto a dispatch-args
- * slice — the fields every step of one shape shares.
+ * Pull the shape-level signer, secrets, body check, body digest and
+ * response session onto a dispatch-args slice.
  * @param shape - Bank shape literal.
  * @returns Slice with the shape-level fields.
  */
 function pickShapeLevel<TAcct, TCursor>(
   shape: IApiDirectScrapeShape<TAcct, TCursor>,
-): Pick<IDispatchArgs, 'signer' | 'secrets' | 'checkBody'> {
-  return { signer: shape.signer ?? false, secrets: shape.secrets, checkBody: shape.checkBody };
+): ShapeLevelArgs {
+  const { secrets, checkBody, bodyDigest, responseSession } = shape;
+  return { signer: shape.signer ?? false, secrets, checkBody, bodyDigest, responseSession };
 }
+
+/** Name a bootstrap call carries when its step declares none. */
+const BOOTSTRAP_CALL = 'bootstrap';
 
 /**
  * Build the bootstrap-step dispatch args bundle. Mirrors the customer
- * step but sources its fields from the shape-level `bootstrap` literal.
+ * step but sources its fields from the shape-level `bootstrap` literal,
+ * and names the call after the step (`bootstrap` when unnamed).
  * Signed through the same shape-level signer + secrets, so the bootstrap
  * body (PayBox getKey `auth` envelope) gets its `/auth/signature`.
  * @param d - Driver context.
@@ -97,7 +108,8 @@ export function buildBootstrapDispatchArgs<TAcct, TCursor>(
   const method = step.method ?? 'POST';
   const bodyTemplate = step.bodyTemplate ?? false;
   const opts = toOpts(d.ctx, step.extraHeaders);
-  return { ...head, method, vars, bodyTemplate, ...pickShapeLevel(d.shape), opts };
+  const call = step.name ?? BOOTSTRAP_CALL;
+  return { ...head, call, method, vars, bodyTemplate, ...pickShapeLevel(d.shape), opts };
 }
 
 /**

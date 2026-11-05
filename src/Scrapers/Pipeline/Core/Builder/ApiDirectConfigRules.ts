@@ -2,24 +2,39 @@
  * Cross-field rules for an api-direct call config and its bank's headless
  * block. They run when the pipeline is built, so a config that cannot work
  * fails before any run starts. The first broken rule fails the build as
- * `Generic` with `"<field>: <rule>"`. The session-transport rules live in
- * `ApiDirectTransportRules.ts` and run after these; the form-body rules in
- * `ApiDirectFormRules.ts` follow, then the seal rules in
- * `ApiDirectSealRules.ts` and the step-guard rules in `ApiDirectStepRules.ts`;
- * the native-fetch rules in `ApiDirectNativeRules.ts` run last.
+ * `Generic` with `"<field>: <rule>"`. Outcome rules in
+ * `ApiDirectStepRules.ts` run before warm-start checks. The carry-bundle
+ * rules in `ApiDirectWarmBundleRules.ts` run after the cookie-jar ones. The
+ * session-transport rules live in `ApiDirectTransportRules.ts` and run after
+ * these; the form-body rules in `ApiDirectFormRules.ts` follow, then the seal
+ * rules in
+ * `ApiDirectSealRules.ts`, the step-guard rules in `ApiDirectStepRules.ts`
+ * the carry-generator rules in `ApiDirectGenerateRules.ts`, the dynamic
+ * client-certificate rules in `ApiDirectClientCertRules.ts` and the session
+ * rules in `ApiDirectSessionRules.ts`; the native-fetch rules in
+ * `ApiDirectNativeRules.ts` run last.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { cookieJarWarmOf } from '../../Mediator/ApiDirectCall/Flow/WarmStartKind.js';
+import { boundWarmOf, cookieJarWarmOf } from '../../Mediator/ApiDirectCall/Flow/WarmStartKind.js';
 import { MAX_ACCESS_TOKEN_CHARS } from '../../Mediator/ApiDirectCall/PersistentAuthStateRules.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
+import { API_DIRECT_CLIENT_CERT_RULES } from './ApiDirectClientCertRules.js';
 import { API_DIRECT_FORM_RULES } from './ApiDirectFormRules.js';
+import { API_DIRECT_GENERATE_RULES } from './ApiDirectGenerateRules.js';
 import { API_DIRECT_NATIVE_RULES } from './ApiDirectNativeRules.js';
-import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
+import {
+  allSteps,
+  hasCookieDomains,
+  type IApiDirectRule,
+  type IApiDirectRuleInput,
+} from './ApiDirectRuleInput.js';
 import { API_DIRECT_SEAL_RULES } from './ApiDirectSealRules.js';
-import { API_DIRECT_STEP_RULES } from './ApiDirectStepRules.js';
+import { API_DIRECT_SESSION_RULES } from './ApiDirectSessionRules.js';
+import { API_DIRECT_OUTCOME_RULES, API_DIRECT_STEP_RULES } from './ApiDirectStepRules.js';
 import { API_DIRECT_TRANSPORT_RULES } from './ApiDirectTransportRules.js';
+import { API_DIRECT_WARM_BUNDLE_RULES } from './ApiDirectWarmBundleRules.js';
 
 /**
  * Whether the bank's headless block keeps a session cookie jar.
@@ -59,29 +74,6 @@ function isJarDoubled(input: IApiDirectRuleInput): boolean {
   if (!hasSessionCookies(input)) return false;
   const steps = allSteps(input.call);
   return steps.some((step): boolean => step.cookieJar === true);
-}
-
-/**
- * An outcome with no success codes would refuse every response.
- * @param input - Rule input.
- * @returns True when any step's outcome lists no success codes.
- */
-function hasEmptySuccessCodes(input: IApiDirectRuleInput): boolean {
-  const steps = allSteps(input.call);
-  return steps.some((step): boolean => step.outcome?.successCodes.length === 0);
-}
-
-/**
- * Refuse failure-map keys that collapse to the same code at runtime.
- * @param input - Rule input.
- * @returns True when a case-insensitive outcome has colliding keys.
- */
-function hasCaselessFailureMapCollision(input: IApiDirectRuleInput): boolean {
-  return allSteps(input.call).some((step): boolean => {
-    if (step.outcome?.caseInsensitive !== true) return false;
-    const keys = Object.keys(step.outcome.failureMap).map((key): string => key.toLowerCase());
-    return new Set(keys).size !== keys.length;
-  });
 }
 
 /**
@@ -165,13 +157,14 @@ function isBlank(text: string): boolean {
 }
 
 /**
- * A cookie-jar token is bound to a provider tag, so the tag must name one.
+ * A cookie-jar or carry-bundle token is bound to a provider tag, so the tag
+ * must name one.
  * @param input - Rule input.
- * @returns True when a cookie-jar warm start has a blank `provider`.
+ * @returns True when a bound warm start has a blank `provider`.
  */
-function isJarProviderBlank(input: IApiDirectRuleInput): boolean {
-  const jar = cookieJarWarmOf(input.call);
-  return jar !== false && isBlank(jar.provider);
+function isBoundProviderBlank(input: IApiDirectRuleInput): boolean {
+  const bound = boundWarmOf(input.call);
+  return bound !== false && isBlank(bound.provider);
 }
 
 /**
@@ -186,15 +179,15 @@ function isJarAccountFieldBlank(input: IApiDirectRuleInput): boolean {
 }
 
 /**
- * A cookie-jar token must fit a ceiling no wider than the one every stored
- * warm token already passes.
+ * A cookie-jar or carry-bundle token must fit a ceiling no wider than the one
+ * every stored warm token already passes.
  * @param input - Rule input.
  * @returns True when `maxTokenChars` is not an integer from 1 to 16384.
  */
-function isJarCeilingOutOfRange(input: IApiDirectRuleInput): boolean {
-  const jar = cookieJarWarmOf(input.call);
-  if (jar === false) return false;
-  const max = jar.maxTokenChars;
+function isBoundCeilingOutOfRange(input: IApiDirectRuleInput): boolean {
+  const bound = boundWarmOf(input.call);
+  if (bound === false) return false;
+  const max = bound.maxTokenChars;
   return !Number.isInteger(max) || max < 1 || max > MAX_ACCESS_TOKEN_CHARS;
 }
 
@@ -205,7 +198,7 @@ function isJarCeilingOutOfRange(input: IApiDirectRuleInput): boolean {
  */
 function isJarWarmWithoutDomains(input: IApiDirectRuleInput): boolean {
   if (cookieJarWarmOf(input.call) === false) return false;
-  return input.headless === false || input.headless.cookieDomains === undefined;
+  return !hasCookieDomains(input);
 }
 
 /** Every rule, checked in order. */
@@ -219,11 +212,7 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
     message: 'steps.cookieJar: not allowed with headless.sessionCookies',
     isBroken: isJarDoubled,
   },
-  { message: 'outcome.successCodes: must not be empty', isBroken: hasEmptySuccessCodes },
-  {
-    message: 'outcome.failureMap: duplicate keys ignoring case',
-    isBroken: hasCaselessFailureMapCollision,
-  },
+  ...API_DIRECT_OUTCOME_RULES,
   {
     message: 'jwtClaims: required when warmStart.validation is jwt',
     isBroken: isJwtWarmWithoutClaims,
@@ -244,20 +233,24 @@ const API_DIRECT_RULES: readonly IApiDirectRule[] = [
     message: 'warmStart.fromStepIndex: a bank-call check step must not have runIf',
     isBroken: isBankCallCheckGuarded,
   },
-  { message: 'warmStart.provider: must not be blank', isBroken: isJarProviderBlank },
+  { message: 'warmStart.provider: must not be blank', isBroken: isBoundProviderBlank },
   { message: 'warmStart.accountField: must not be blank', isBroken: isJarAccountFieldBlank },
   {
     message: 'warmStart.maxTokenChars: must be an integer from 1 to 16384',
-    isBroken: isJarCeilingOutOfRange,
+    isBroken: isBoundCeilingOutOfRange,
   },
   {
     message: 'warmStart.kind: cookie-jar not allowed without headless.cookieDomains',
     isBroken: isJarWarmWithoutDomains,
   },
+  ...API_DIRECT_WARM_BUNDLE_RULES,
   ...API_DIRECT_TRANSPORT_RULES,
   ...API_DIRECT_FORM_RULES,
   ...API_DIRECT_SEAL_RULES,
   ...API_DIRECT_STEP_RULES,
+  ...API_DIRECT_GENERATE_RULES,
+  ...API_DIRECT_CLIENT_CERT_RULES,
+  ...API_DIRECT_SESSION_RULES,
   ...API_DIRECT_NATIVE_RULES,
 ];
 

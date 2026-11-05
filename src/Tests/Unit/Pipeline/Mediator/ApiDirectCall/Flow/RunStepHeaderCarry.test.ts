@@ -89,8 +89,8 @@ describe('N6 response-header carry over the headless native transport', () => {
   it('UT-HC-04 keeps only the last answer headers, never a superseded one', () => {
     const fire: IFireArgs = { body: {}, query: {}, extraHeaders: {} };
     const capture = attachHeaderCapture(fire, CARRY_STEP).headerCapture;
-    capture?.sink.take({ 'x-session-id': 'syn-stale' });
-    capture?.sink.take({});
+    capture?.sink.take({ 'x-session-id': 'syn-stale' }, 200);
+    capture?.sink.take({}, 200);
     const seen = [...(capture?.seen ?? [])];
     expect(seen).toEqual([]);
   });

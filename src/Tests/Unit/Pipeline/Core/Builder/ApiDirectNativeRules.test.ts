@@ -1,9 +1,8 @@
 /**
- * N8 — redirect, document, status and header-carry fields act only on the
- * headless native fetch, so a config naming one on any other transport fails
- * the build instead of being ignored. `cookieDomains` needs the session jar,
- * and a carried header name must be a valid HTTP header name. `setCookies`
- * writes into the domain jar, so it needs `cookieDomains` and token names.
+ * N8 — step reading, encoding and header carry require a node-backed
+ * transport; bank-wide redirect, status and text defaults require native
+ * fetch. `cookieDomains` needs a node-backed session jar. Header and cookie
+ * names must be valid HTTP tokens.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
@@ -20,6 +19,15 @@ const HOST = 'https://native.example';
 const PLAIN: HeadlessBlock = { identityBase: HOST, graphql: `${HOST}/graphql`, paths: {} };
 const NATIVE: HeadlessBlock = { ...PLAIN, nativeFetch: true };
 const JAR: HeadlessBlock = { ...NATIVE, sessionCookies: true };
+const DYNAMIC_TLS: HeadlessBlock = {
+  ...PLAIN,
+  clientCert: { mode: 'dynamic', origin: HOST },
+};
+const DYNAMIC_JAR: HeadlessBlock = {
+  ...DYNAMIC_TLS,
+  sessionCookies: true,
+  cookieDomains: ['native.example'],
+};
 
 const CALL: IStepConfig = {
   name: 'landing',
@@ -38,6 +46,11 @@ const FORM: IStepConfig = {
   encoding: 'form',
   body: { shape: { a: { $literal: 'x' } } },
   extractsToCarry: {},
+};
+const TEXT: IStepConfig = {
+  ...FORM,
+  encoding: 'text',
+  body: { shape: { text: { $literal: 'payload' } } },
 };
 
 /**
@@ -155,6 +168,11 @@ const BROKEN: readonly IBrokenCase[] = [
     message: `headless.omitBankText: ${OFF}`,
   },
   {
+    label: 'bank text omission, dynamic mTLS',
+    input: runOf([CALL], { ...DYNAMIC_TLS, omitBankText: true }),
+    message: `headless.omitBankText: ${OFF}`,
+  },
+  {
     label: 'cookie domains, no jar',
     input: runOf([CALL], { ...NATIVE, cookieDomains: ['native.example'] }),
     message: 'headless.cookieDomains: not allowed without headless.sessionCookies',
@@ -211,6 +229,23 @@ const SOUND: readonly ISoundCase[] = [
       [PAGE, MARKED, REJECTING, FORM, carrying("X-Trace_ID.v2!#$%&'*+^`|~"), setting('G3CmE')],
       EVERY_FIELD,
     ),
+  },
+  { label: 'text POST on dynamic mTLS', input: runOf([TEXT], DYNAMIC_TLS) },
+  {
+    label: 'Latin-1 form on dynamic mTLS',
+    input: runOf([{ ...FORM, encoding: 'form-latin1' }], DYNAMIC_TLS),
+  },
+  {
+    label: 'text and document responses on dynamic mTLS',
+    input: runOf([{ ...CALL, response: 'text' }, PAGE, MARKED], DYNAMIC_TLS),
+  },
+  {
+    label: 'step redirect on dynamic mTLS',
+    input: runOf([REJECTING], DYNAMIC_TLS),
+  },
+  {
+    label: 'header extracts and domain cookies on dynamic mTLS',
+    input: runOf([carrying('x-id'), setting('G3CmE')], DYNAMIC_JAR),
   },
 ];
 

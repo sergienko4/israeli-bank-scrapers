@@ -16,13 +16,21 @@
  * token, the jar is a secret its caller keeps.
  */
 
-import { createHash } from 'node:crypto';
-
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { IStoredCookie } from '../../../Types/Domain/CookieSession.js';
-import type { JsonUnknown, JsonUnknownList, JsonUnknownRecord } from '../../../Types/JsonValue.js';
+import type { JsonUnknown } from '../../../Types/JsonValue.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
+import {
+  identityTag,
+  isListValue,
+  isRecordValue,
+  isStoredCookie,
+  parseJsonBody,
+  projectCookie,
+  WARM_TOKEN_PREFIX,
+  wrapJsonText,
+} from './WarmTokenParts.js';
 
 /** Who a jar belongs to. */
 interface IWarmJarIdentity {
@@ -59,22 +67,6 @@ const WARM_JAR_REJECTIONS = {
 
 type WarmJarRejection = keyof typeof WARM_JAR_REJECTIONS;
 
-const TOKEN_PREFIX = 'v1.';
-const ACCOUNT_TAG_CHARS = 16;
-
-/** The JS type of every cookie field; also the field whitelist. */
-const COOKIE_FIELD_TYPES: Readonly<Record<keyof IStoredCookie, 'string' | 'boolean' | 'number'>> = {
-  name: 'string',
-  value: 'string',
-  domain: 'string',
-  path: 'string',
-  hostOnly: 'boolean',
-  secure: 'boolean',
-  expiresEpochS: 'number',
-};
-
-const COOKIE_FIELDS = Object.keys(COOKIE_FIELD_TYPES) as readonly (keyof IStoredCookie)[];
-
 /**
  * Refuse a stored jar with a reason only.
  * @param reason - Rejection key.
@@ -91,47 +83,7 @@ function reject(reason: WarmJarRejection): Procedure<never> {
  */
 function accountTag(account: string): string {
   const normalized = account.trim();
-  const digest = createHash('sha256').update(normalized, 'utf8').digest('hex');
-  return digest.slice(0, ACCOUNT_TAG_CHARS);
-}
-
-/**
- * Keep only the whitelisted cookie fields, in a fixed order.
- * @param cookie - Cookie as stored or decoded.
- * @returns The cookie's own fields.
- */
-function projectCookie(cookie: IStoredCookie): IStoredCookie {
-  const { name, value, domain, path, expiresEpochS } = cookie;
-  const flags = { hostOnly: cookie.hostOnly, secure: cookie.secure };
-  return { name, value, domain, path, ...flags, expiresEpochS };
-}
-
-/**
- * Whether a parsed value is a plain object.
- * @param value - Parsed value.
- * @returns True for a non-null, non-array object.
- */
-function isRecordValue(value: JsonUnknown): value is JsonUnknownRecord {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/**
- * Whether a parsed value is a list.
- * @param value - Parsed value.
- * @returns True for an array.
- */
-function isListValue(value: JsonUnknown): value is JsonUnknownList {
-  return Array.isArray(value);
-}
-
-/**
- * Whether a parsed value carries every cookie field with its type.
- * @param value - Parsed list element.
- * @returns True for a well-typed cookie.
- */
-function isStoredCookie(value: JsonUnknown): value is IStoredCookie {
-  if (!isRecordValue(value)) return false;
-  return COOKIE_FIELDS.every((field): boolean => typeof value[field] === COOKIE_FIELD_TYPES[field]);
+  return identityTag(normalized);
 }
 
 /**
@@ -154,24 +106,10 @@ function isJarEnvelope(value: JsonUnknown): value is IJarEnvelope {
  */
 function unwrapBody(token: string, maxChars: number): Procedure<string> {
   if (token.length > maxChars) return reject('size');
-  if (!token.startsWith(TOKEN_PREFIX)) return reject('prefix');
-  const body = token.slice(TOKEN_PREFIX.length);
+  if (!token.startsWith(WARM_TOKEN_PREFIX)) return reject('prefix');
+  const body = token.slice(WARM_TOKEN_PREFIX.length);
   const text = Buffer.from(body, 'base64url').toString('utf8');
   return succeed(text);
-}
-
-/**
- * Parse the body text without throwing.
- * @param text - Body JSON text.
- * @returns Parsed value, or the `json` rejection.
- */
-function parseBody(text: string): Procedure<JsonUnknown> {
-  try {
-    const parsed = JSON.parse(text) as JsonUnknown;
-    return succeed(parsed);
-  } catch {
-    return reject('json');
-  }
 }
 
 /**
@@ -208,8 +146,8 @@ function encodeWarmJar(identity: IWarmJarIdentity, cookies: StoredJar): Procedur
   const a = accountTag(identity.account);
   const envelope: IJarEnvelope = { p: identity.provider, a, c: cookies.map(projectCookie) };
   const json = JSON.stringify(envelope);
-  const body = Buffer.from(json, 'utf8').toString('base64url');
-  return succeed(`${TOKEN_PREFIX}${body}`);
+  const token = wrapJsonText(json);
+  return succeed(token);
 }
 
 /**
@@ -223,7 +161,8 @@ function decodeWarmJar(token: string, expected: IWarmJarExpectation): Procedure<
   if (isUnbound(expected.account)) return reject('unbound');
   const text = unwrapBody(token, expected.maxChars);
   if (!isOk(text)) return text;
-  const parsed = parseBody(text.value);
+  const failure = reject('json');
+  const parsed = parseJsonBody(text.value, failure);
   if (!isOk(parsed)) return parsed;
   return checkEnvelope(parsed.value, expected);
 }

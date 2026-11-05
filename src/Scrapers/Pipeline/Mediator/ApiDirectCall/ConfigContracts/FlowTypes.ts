@@ -22,6 +22,7 @@ import type {
 } from '../../../Types/Domain/FetchPolicy.js';
 import type { IDerivedCarry } from './CarryTypes.js';
 import type { IPreStepHook } from './EnvelopeTypes.js';
+import type { ICarryGenerator } from './GeneratorTypes.js';
 import type { ISealFieldConfig } from './SignerTypes.js';
 import type {
   IBodyTemplate,
@@ -32,6 +33,13 @@ import type {
 
 /** Exhaustive flow-kind discriminator (spec.txt §B.3). */
 type FlowKind = 'sms-otp' | 'stored-jwt' | 'bearer-static';
+
+/**
+ * Where a finished login leaves its cookies. `shared` keeps them in the
+ * session jar for the scrape; `isolate` moves them to the run's private
+ * stash, so the scrape starts from an empty jar.
+ */
+type CookieHandoff = 'shared' | 'isolate';
 
 /** Step identifiers in the sms-otp flow. */
 type StepName =
@@ -98,8 +106,18 @@ interface IHeaderExtract {
 type ExtractValueType = 'string' | 'number' | 'object' | 'array';
 
 /**
- * Checks on one body-extract slot (N18), run on the raw value once the body
- * is extracted: `type` first, then `transform`, then the text checks.
+ * A certificate rule (N27): the slot text is one PEM certificate that
+ * certifies the private key `keyRef` resolves to, and is valid now.
+ */
+interface IPemCertificateRule {
+  /** Ref to the PEM private key the certificate must certify. */
+  readonly keyRef: RefToken;
+}
+
+/**
+ * Checks on one body- or header-extract slot (N18, N27), run on the raw value
+ * once the step's answer is read: `type` first, then `transform`, then the
+ * text checks.
  */
 interface IExtractRule {
   /** JSON type of the raw value. */
@@ -114,6 +132,8 @@ interface IExtractRule {
   readonly url?: readonly IUrlRule[];
   /** Longest text allowed; 8192 when unset. */
   readonly maxChars?: number;
+  /** The text must be one current PEM certificate of the referenced key (N27). */
+  readonly pemCertificate?: IPemCertificateRule;
 }
 
 /**
@@ -125,6 +145,18 @@ interface IRunIf {
   readonly carry: string;
   /** Texts that let the step run. */
   readonly oneOf: readonly string[];
+}
+
+/**
+ * A step's device certificate (N26): refs to the PEM private key and the PEM
+ * certificate, installed through the bus's certificate port before the step's
+ * request and presented to the bank origin from then on.
+ */
+interface IStepClientCert {
+  /** Ref to the PEM private key. */
+  readonly key: RefToken;
+  /** Ref to the PEM certificate that certifies the key. */
+  readonly cert: RefToken;
 }
 
 /** Fields every login step has, whatever its HTTP method. */
@@ -158,7 +190,10 @@ interface IStepBase {
   readonly outcome?: IStepOutcome;
   /** Optional redirect policy for this step; overrides the bank's `redirectPolicy`. */
   readonly redirect?: RedirectPolicy;
-  /** How the step reads its 2xx answer; `json` when absent. A `document` step sees `{}`. */
+  /**
+   * How the step reads its 2xx answer; `json` when absent. A `document` step
+   * sees `{}`; a `text` step sees `{ text }`, so its extracts read `/text`.
+   */
   readonly response?: ResponseKind;
   /** Text a `document` answer must contain, else the step fails `document unverified`. */
   readonly documentMarker?: string;
@@ -170,19 +205,26 @@ interface IStepBase {
   readonly seal?: ISealFieldConfig;
   /** Client cookies (name → ref) set in the domain jar before the request (N11). */
   readonly setCookies?: Readonly<Record<string, RefToken>>;
+  /** Device certificate installed before the request; needs headless `clientCert` (N26). */
+  readonly clientCert?: IStepClientCert;
   /** Body pointers that, present and truthy, fail the step `<step> bank error` (N20). */
   readonly failIfPresent?: readonly string[];
-  /** Rules per body-extract slot, checked once the body is extracted (N18). */
+  /** Rules per body- or header-extract slot, checked once the answer is read (N18, N27). */
   readonly extractRules?: Readonly<Record<string, IExtractRule>>;
   /** Guard checked before the pre-hook; a miss skips the step (N14). */
   readonly runIf?: IRunIf;
+  /** Carry generators, run in order once `runIf` passes, before hydration (N25). */
+  readonly generate?: readonly ICarryGenerator[];
 }
 
 /** A POST step, the default when `method` is omitted: sends the hydrated body. */
 interface IPostStep extends IStepBase {
   readonly method?: 'POST';
   readonly body: IBodyTemplate;
-  /** How the body is written; `json` when absent. A `form` body must be a flat record. */
+  /**
+   * How the body is written; `json` when absent. A `form` or `form-latin1`
+   * body must be a flat record; a `text` body must be exactly `{ text }`.
+   */
   readonly encoding?: BodyEncoding;
 }
 
@@ -200,15 +242,18 @@ type IStepConfig = IPostStep | IGetStep;
 type StepMethod = NonNullable<IStepConfig['method']>;
 
 export type {
+  CookieHandoff,
   ExtractValueType,
   FlowKind,
   IExtractRule,
   IGetStep,
   IHeaderExtract,
   IOptionalExtract,
+  IPemCertificateRule,
   IPostStep,
   IRunIf,
   IStepBase,
+  IStepClientCert,
   IStepConfig,
   IStepOutcome,
   StepMethod,

@@ -71,7 +71,8 @@ describe('NativeFetchStrategy — form bodies', () => {
   ])('rejects %s before sending a form', async (_label, data) => {
     const fake = serveEmpty();
     const result = await STRATEGY.fetchPost('login', data, FORM);
-    expect(result).toMatchObject({ success: false, errorMessage: 'form body not flat' });
+    const errorMessage = `POST ${BASE_URL}login form body not flat`;
+    expect(result).toMatchObject({ success: false, errorMessage });
     expect(fake.calls).toHaveLength(0);
   });
 });

@@ -9,7 +9,6 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
-import { bindStepCookies } from './RunStep.clientCookies.js';
 import { deriveStepCarry } from './RunStep.derive.js';
 import { ruleStepCarry } from './RunStep.extractRules.js';
 import { guardBankError } from './RunStep.failIfPresent.js';
@@ -19,6 +18,7 @@ import { carryHeaders } from './RunStep.headerCarry.js';
 import { extractOptional } from './RunStep.optional.js';
 import { judgeStepOutcome } from './RunStep.outcome.js';
 import { buildDispatchBundle, mergeScopeCarry } from './RunStep.prepare.js';
+import { prepareStepSession } from './RunStep.session.js';
 import type {
   CarryMap,
   IDispatchBundle,
@@ -162,14 +162,14 @@ async function fireAndMergeScope(bundle: IDispatchBundle): Promise<Procedure<ITe
 }
 
 /**
- * Run a single IStepConfig end-to-end — client cookies + body hydration +
- * optional AES body-pointer signing + optional cryptoField encryption +
- * dispatch + response extraction.
+ * Run a single IStepConfig end-to-end — client cookies + device
+ * certificate + body hydration + optional AES body-pointer signing +
+ * optional cryptoField encryption + dispatch + response extraction.
  * @param args - Run-step args (step config + bus + scope + companyId).
  * @returns Procedure with the extended scope (carry merged), or fail.
  */
 async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
-  const bound = bindStepCookies(args);
+  const bound = prepareStepSession(args);
   if (!isOk(bound)) return bound;
   const resolved = resolvePathAndQuery(bound.value);
   if (!isOk(resolved)) return resolved;

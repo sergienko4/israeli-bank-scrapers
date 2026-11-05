@@ -8,26 +8,14 @@
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { ISealFieldConfig, RefToken } from '../ConfigContracts/index.js';
+import type { ISealFieldConfig } from '../ConfigContracts/index.js';
 import { SEALERS } from '../Crypto/SealKinds.js';
 import { type JsonValue, walkPointer } from '../Envelope/JsonPointer.js';
-import { type ITemplateScope, resolveRef } from '../Template/RefResolver.js';
+import { type ITemplateScope, resolveRefText } from '../Template/RefResolver.js';
 import type { IPreparedBody, IStepConfig } from './RunStep.types.js';
 import { writeAtPointer } from './RunStepBodySigning.pointer.js';
 
 type SealBody = IPreparedBody['body'];
-
-/**
- * The text a ref resolves to, when it resolves to text.
- * @param token - Ref token.
- * @param scope - Step scope.
- * @returns The text, or false when the ref is missing or not a string.
- */
-function refText(token: RefToken, scope: ITemplateScope): string | false {
-  const resolved = resolveRef(token, scope);
-  if (!isOk(resolved) || typeof resolved.value !== 'string') return false;
-  return resolved.value;
-}
 
 /**
  * Seal the configured source under the configured modulus.
@@ -36,9 +24,9 @@ function refText(token: RefToken, scope: ITemplateScope): string | false {
  * @returns The sealed value, or a failure that names no value.
  */
 function sealedValue(seal: ISealFieldConfig, scope: ITemplateScope): Procedure<string> {
-  const modulusHex = refText(seal.modulusRef, scope);
+  const modulusHex = resolveRefText(seal.modulusRef, scope);
   if (modulusHex === false) return fail(ScraperErrorTypes.Generic, 'seal key invalid');
-  const source = refText(seal.sourceRef, scope);
+  const source = resolveRefText(seal.sourceRef, scope);
   if (source === false) return fail(ScraperErrorTypes.Generic, 'seal source invalid');
   const sealer = SEALERS[seal.kind];
   return sealer({ source, modulusHex, params: seal.params });

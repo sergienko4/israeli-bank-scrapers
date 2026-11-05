@@ -3,7 +3,14 @@
  * the {@link IApiDirectCallConfig.warmStart} union themselves.
  */
 
-import type { IApiDirectCallConfig, ICookieJarWarmStart } from '../ConfigContracts/index.js';
+import type {
+  IApiDirectCallConfig,
+  ICarryBundleWarmStart,
+  ICookieJarWarmStart,
+} from '../ConfigContracts/index.js';
+
+/** A warm start whose token is bound to a provider and account (N22, N28). */
+type BoundWarmStart = ICookieJarWarmStart | ICarryBundleWarmStart;
 
 /**
  * The carry slot a carry warm start seeds and publishes.
@@ -12,7 +19,7 @@ import type { IApiDirectCallConfig, ICookieJarWarmStart } from '../ConfigContrac
  */
 function warmCarryField(config: IApiDirectCallConfig): string {
   const warm = config.warmStart;
-  if (warm === undefined || warm.kind === 'cookie-jar') return '';
+  if (warm === undefined || !('carryField' in warm)) return '';
   return warm.carryField;
 }
 
@@ -27,4 +34,27 @@ function cookieJarWarmOf(config: IApiDirectCallConfig): ICookieJarWarmStart | fa
   return warm;
 }
 
-export { cookieJarWarmOf, warmCarryField };
+/**
+ * The carry-bundle warm start, when the config declares one.
+ * @param config - API-direct-call config.
+ * @returns The carry-bundle warm start, or false.
+ */
+function carryBundleWarmOf(config: IApiDirectCallConfig): ICarryBundleWarmStart | false {
+  const warm = config.warmStart;
+  if (warm?.kind !== 'carry-bundle') return false;
+  return warm;
+}
+
+/**
+ * The warm start whose token is bound to a provider and account.
+ * @param config - API-direct-call config.
+ * @returns The cookie-jar or carry-bundle warm start, or false.
+ */
+function boundWarmOf(config: IApiDirectCallConfig): BoundWarmStart | false {
+  const jar = cookieJarWarmOf(config);
+  if (jar !== false) return jar;
+  return carryBundleWarmOf(config);
+}
+
+export type { BoundWarmStart };
+export { boundWarmOf, carryBundleWarmOf, cookieJarWarmOf, warmCarryField };

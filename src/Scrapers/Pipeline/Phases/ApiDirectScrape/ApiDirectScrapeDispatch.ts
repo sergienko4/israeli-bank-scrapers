@@ -6,78 +6,29 @@
  * Zero bank knowledge.
  */
 
-import { randomBytes } from 'node:crypto';
-
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { IApiMediator, IApiQueryOpts } from '../../Mediator/Api/ApiMediator.js';
 import type {
   IAesSignerConfig,
-  IApiDirectCallConfig,
+  IBodyDigestConfig,
   JsonValueTemplate,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { JsonValue } from '../../Mediator/ApiDirectCall/Envelope/JsonPointer.js';
-import { attachBodySignature } from '../../Mediator/ApiDirectCall/Flow/RunStepBodySigning.js';
-import { hydrate } from '../../Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
-import type { ITemplateScope } from '../../Mediator/ApiDirectCall/Template/RefResolver.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { ApiPostData } from '../../Types/Domain/ApiPostData.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../Types/Procedure.js';
-import type { ApiBody, BodyCheck, ScrapeHttpMethod, VarsMap } from './IApiDirectScrapeShape.js';
-
-/** Synthetic IApiDirectCallConfig sentinel used by scrape-phase scope. */
-const SCRAPE_CONFIG_SENTINEL: IApiDirectCallConfig = Object.freeze({
-  flow: 'sms-otp',
-  steps: [],
-  envelope: {},
-});
-
-/** Args bundle for {@link buildScrapeScope} — keeps params ≤3. */
-export interface IBuildScrapeScopeArgs {
-  readonly bus: IApiMediator;
-  readonly ctx: IActionContext;
-  readonly vars: VarsMap;
-  /**
-   * Optional shape-level secrets — merged into the synthetic scope
-   * config so `config.secrets.<name>` $ref lookups resolve during
-   * body-pointer signing.
-   */
-  readonly secrets?: Readonly<Record<string, string>>;
-}
-
-/**
- * Build the scope's synthetic IApiDirectCallConfig — adds the
- * shape-level secrets when present. Empty `secrets` object means the
- * shape did not declare any (callers pass `args.secrets`, which is
- * already typed as `Readonly<Record<string, string>>` to avoid a
- * nullable return shape).
- * @param secrets - Secrets map (empty object when shape declares none).
- * @returns Frozen synthetic config.
- */
-function buildScopeConfig(secrets: Readonly<Record<string, string>>): IApiDirectCallConfig {
-  if (Object.keys(secrets).length === 0) return SCRAPE_CONFIG_SENTINEL;
-  return Object.freeze({ ...SCRAPE_CONFIG_SENTINEL, secrets });
-}
-
-/** Empty secrets sentinel used when the shape declares none. */
-const EMPTY_SECRETS: Readonly<Record<string, string>> = Object.freeze({});
-
-/**
- * Build the post-login scope the scrape-phase dispatcher passes into
- * the template hydrator + body signer.
- * @param args - Scope-build bundle (bus + ctx + vars + optional secrets).
- * @returns Template scope.
- */
-export function buildScrapeScope(args: IBuildScrapeScopeArgs): ITemplateScope {
-  const session = args.bus.getSessionContext() as Record<string, JsonValue>;
-  const varsJson = args.vars as Record<string, JsonValue>;
-  return {
-    carry: { ...session, ...varsJson },
-    creds: args.ctx.credentials,
-    config: buildScopeConfig(args.secrets ?? EMPTY_SECRETS),
-  };
-}
+import { fail, isOk } from '../../Types/Procedure.js';
+import { maybeSignBody, resolveStepBody } from './ApiDirectScrapeBody.js';
+import { withBodyDigest } from './ApiDirectScrapeBodyDigest.js';
+import { captureAnswer, readResponseSession } from './ApiDirectScrapeResponseSession.js';
+import type {
+  ApiBody,
+  BodyCheck,
+  IResponseSessionSpec,
+  ScrapeHttpMethod,
+  VarsMap,
+} from './IApiDirectScrapeShape.js';
 
 /** Args bundle for {@link dispatchStep} — keeps params ≤3. */
 export interface IDispatchArgs {
@@ -96,6 +47,12 @@ export interface IDispatchArgs {
   readonly secrets?: Readonly<Record<string, string>>;
   /** Shape-level response check — see `IApiDirectScrapeShape.checkBody`. */
   readonly checkBody?: BodyCheck;
+  /** Shape-level body digest — see `IApiDirectScrapeShape.bodyDigest`. */
+  readonly bodyDigest?: IBodyDigestConfig;
+  /** Shape-level response session — see `IApiDirectScrapeShape.responseSession`. */
+  readonly responseSession?: IResponseSessionSpec;
+  /** Name the call's response-session failures carry; `queryTag` when absent. */
+  readonly call?: string;
 }
 
 /** Dispatch args whose vars are an object — what templates and signing need. */
@@ -144,77 +101,10 @@ export function applyBodyCheck(
 }
 
 /**
- * Validate that a hydrated body is a plain object (not array/null).
- * @param value - Hydrated JsonValue.
- * @returns Procedure narrowed to the object shape.
- */
-function asPlainObject(value: JsonValue): Procedure<Record<string, unknown>> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    return fail(ScraperErrorTypes.Generic, 'scrape bodyTemplate did not hydrate to an object');
-  }
-  return succeed(value as Record<string, unknown>);
-}
-
-/**
- * Hydrate the step body from `bodyTemplate` when present, else fall
- * back to the bare `vars` payload.
- * @param args - Dispatch bundle.
- * @returns Procedure with the body.
- */
-function resolveStepBody(args: IObjectDispatchArgs): Procedure<Record<string, unknown>> {
-  if (args.bodyTemplate === false) return succeed(args.vars);
-  const scope = buildScrapeScope(args);
-  const hydrated = hydrate(args.bodyTemplate, scope);
-  if (!isOk(hydrated)) return hydrated;
-  return asPlainObject(hydrated.value);
-}
-
-/**
- * Fresh 16-byte IV expressed as 32-char lowercase hex.
- * @returns Lowercase hex string of length 32.
- */
-function freshIvHex(): string {
-  const bytes = randomBytes(16);
-  return bytes.toString('hex');
-}
-
-/**
- * Build the primed scope used by the scrape-phase body signer.
- * @param signer - Shape-level AES signer config.
- * @param args - Dispatch args (bus + ctx + vars).
- * @returns Primed template scope.
- */
-function buildPrimedScrapeScope(
-  signer: IAesSignerConfig,
-  args: IObjectDispatchArgs,
-): ITemplateScope {
-  const scope = buildScrapeScope(args);
-  const ivHex = freshIvHex();
-  const nowMs = Date.now();
-  const tsMs = String(nowMs);
-  const carry = { ...scope.carry, tsMs, [signer.ivCarrySlot]: ivHex };
-  return { ...scope, carry };
-}
-
-/**
- * Apply the shape-level body signer when configured.
- * @param body - Hydrated body before POST.
- * @param args - Dispatch bundle.
- * @returns Procedure with the (signed) body.
- */
-function maybeSignBody(
-  body: Record<string, unknown>,
-  args: IObjectDispatchArgs,
-): Procedure<Record<string, unknown>> {
-  if (args.signer === false) return succeed(body);
-  const primedScope = buildPrimedScrapeScope(args.signer, args);
-  return attachBodySignature({ scope: primedScope, body, pathAndQuery: '' });
-}
-
-/**
  * Dispatch a REST POST scrape step: hydrate the body from the step's
  * `bodyTemplate` (or bare vars), apply the optional shape-level signer,
- * then POST against the resolved URL. Split from {@link dispatchStep}
+ * add the optional body digest header over the final body, then POST
+ * against the resolved URL. Split from {@link dispatchStep}
  * so the router stays a thin 3-way switch.
  * @param args - Dispatch bundle.
  * @param url - Resolved REST URL (router guarantees it is not `false`).
@@ -228,7 +118,8 @@ async function dispatchRestPost(
   if (!isOk(bodyProc)) return bodyProc;
   const signedProc = maybeSignBody(bodyProc.value, args);
   if (!isOk(signedProc)) return signedProc;
-  return args.bus.apiPost<ApiBody>(url, signedProc.value, args.opts);
+  const opts = withBodyDigest(args.opts, signedProc.value, args.bodyDigest);
+  return args.bus.apiPost<ApiBody>(url, signedProc.value, opts);
 }
 
 /**
@@ -272,12 +163,14 @@ async function routeStep(args: IDispatchArgs): Promise<Procedure<ApiBody>> {
 }
 
 /**
- * Dispatch one scrape step against the mediator, then run the shape's
- * body check on a successful response.
+ * Dispatch one scrape step against the mediator, run the shape's body
+ * check on a successful response, then read its response session.
  * @param args - Dispatch bundle.
  * @returns Procedure with the typed payload.
  */
 export async function dispatchStep(args: IDispatchArgs): Promise<Procedure<ApiBody>> {
-  const response = await routeStep(args);
-  return applyBodyCheck(response, args.checkBody);
+  const capture = captureAnswer(args.opts, args.responseSession);
+  const response = await routeStep({ ...args, opts: capture.opts });
+  const checked = applyBodyCheck(response, args.checkBody);
+  return readResponseSession(checked, capture, args);
 }

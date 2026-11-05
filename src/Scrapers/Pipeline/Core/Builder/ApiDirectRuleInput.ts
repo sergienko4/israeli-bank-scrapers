@@ -1,7 +1,7 @@
 /**
  * What the api-direct build-time rules read, the shape of one rule, and the
- * step walk they share. Kept apart so every rule module imports it without
- * importing the validator that runs them.
+ * step walk, extract-slot and cookie-domain checks they share. Kept apart so every rule
+ * module imports it without importing the validator that runs them.
  */
 
 import type {
@@ -32,5 +32,28 @@ function allSteps(call: IApiDirectCallConfig): readonly IStepConfig[] {
   return [...call.steps, ...resume];
 }
 
+/**
+ * Whether a slot names one of a step's body or header extracts.
+ * @param step - Step config.
+ * @param slot - Carry slot.
+ * @returns True for a required, optional or header extract slot.
+ */
+function isExtractSlot(step: IStepConfig, slot: string): boolean {
+  const optional = step.optionalExtractsToCarry ?? {};
+  const headers = step.headerExtractsToCarry ?? {};
+  const slotMaps = [step.extractsToCarry, optional, headers];
+  return slotMaps.some(slotMap => Object.hasOwn(slotMap, slot));
+}
+
+/**
+ * Whether the bank's session jar is scoped to cookie domains, as a warm start
+ * that restores or exports the jar needs.
+ * @param input - Rule input.
+ * @returns True when `headless.cookieDomains` is set.
+ */
+function hasCookieDomains(input: IApiDirectRuleInput): boolean {
+  return input.headless !== false && input.headless.cookieDomains !== undefined;
+}
+
 export type { IApiDirectRule, IApiDirectRuleInput };
-export { allSteps };
+export { allSteps, hasCookieDomains, isExtractSlot };

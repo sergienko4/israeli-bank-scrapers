@@ -168,6 +168,16 @@ describe('ApiMediator HMAC signature over native wire bytes', () => {
     globalThis.fetch = originalFetch;
   });
 
+  describe('ApiMediator/sessionContext', () => {
+    it('replaces the previous context rather than merging into it (N32)', () => {
+      const mediator = makeNativeMediator(CompanyTypes.OneZero, 'https://x.test');
+      mediator.setSessionContext({ security: 's', csrf: 'c', mag: 'stale' });
+      mediator.setSessionContext({ mag: 'fresh' });
+      const session = mediator.getSessionContext();
+      expect(session).toEqual({ mag: 'fresh' });
+    });
+  });
+
   it.each([
     {
       label: 'default JSON',
@@ -225,7 +235,8 @@ describe('ApiMediator HMAC signature over native wire bytes', () => {
       { auth: { session: 'syn-session' } },
       { policy: { bodyEncoding: 'form' } },
     );
-    expect(result).toMatchObject({ success: false, errorMessage: 'form body not flat' });
+    const errorMessage = `POST ${REQUEST_URL} form body not flat`;
+    expect(result).toMatchObject({ success: false, errorMessage });
     expect(fake.calls).toHaveLength(0);
   });
 });

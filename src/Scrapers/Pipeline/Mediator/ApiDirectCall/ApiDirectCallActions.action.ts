@@ -27,14 +27,16 @@ import { createContextStrategy } from './ApiDirectCallActions.strategy.js';
 import type { IApiDirectCallConfig } from './ConfigContracts/index.js';
 import type { IAuthModePolicy } from './Flow/AuthModePolicy.js';
 import type { GenericCreds, IConfigTokenStrategy } from './Flow/TokenStrategyFromConfig.js';
+import { projectSessionCarry } from './SessionCarryProjection.js';
 
-/** Booted ACTION bundle — bus + strategy + ctx + creds + the flow's fallback clause. */
+/** Booted ACTION bundle — bus, strategy, context, creds, fallback and allowlist. */
 interface IBootedAction {
   readonly bus: IApiMediator;
   readonly strategy: IConfigTokenStrategy;
   readonly ctx: IPipelineContext;
   readonly creds: GenericCreds;
   readonly fallbackDetail: string;
+  readonly sessionCarry?: readonly string[];
 }
 
 /** Pair of (bus, strategy) — the two procedures we resolve before booting. */
@@ -74,7 +76,7 @@ function bootFromNormalised(
   if (!isOk(proc)) return proc;
   const creds = mergeOptionsIntoCreds(ctx);
   const fallbackDetail = coldFallbackDetail(config);
-  return succeed({ ...proc.value, ctx, creds, fallbackDetail });
+  return succeed({ ...proc.value, ctx, creds, fallbackDetail, sessionCarry: config.sessionCarry });
 }
 
 /**
@@ -97,16 +99,17 @@ function bootApiAction(
 }
 
 /**
- * Install raw auth + session-context on the bus.
- * @param bus - ApiMediator.
- * @param strategy - Token strategy (for carry snapshot).
+ * Install raw auth + the projected session context on the bus.
+ * @param booted - Booted ACTION bundle (bus, carry source, allowlist).
  * @param header - Authorization header value to install.
  * @returns true for chaining.
  */
-function setBusAuth(bus: IApiMediator, strategy: IConfigTokenStrategy, header: string): true {
+function setBusAuth(booted: IBootedAction, header: string): true {
+  const { bus, strategy, sessionCarry } = booted;
   bus.setRawAuth(header);
   const snapshot = strategy.getLatestCarrySnapshot();
-  bus.setSessionContext(snapshot);
+  const session = projectSessionCarry(snapshot, sessionCarry);
+  bus.setSessionContext(session);
   return true;
 }
 
@@ -187,9 +190,9 @@ function recordWarmState(booted: IBootedAction): boolean {
  * @returns True once the strategy + hook are registered.
  */
 function registerStrategy(booted: IBootedAction): boolean {
-  const { bus, strategy, ctx, creds, fallbackDetail } = booted;
+  const { bus, strategy, ctx, creds, fallbackDetail, sessionCarry } = booted;
   bus.withTokenStrategy(strategy, ctx, creds);
-  const hook = makeRecoveryHook({ bus, ctx, strategy, fallbackDetail });
+  const hook = makeRecoveryHook({ bus, ctx, strategy, fallbackDetail, sessionCarry });
   return bus.withRecoveryHook?.(hook) ?? false;
 }
 
@@ -252,9 +255,9 @@ async function completePrimedAuth(
   booted: IBootedAction,
   header: string,
 ): Promise<IPipelineContext> {
-  const { bus, strategy, ctx } = booted;
+  const { strategy, ctx } = booted;
   recordWarmState(booted);
-  setBusAuth(bus, strategy, header);
+  setBusAuth(booted, header);
   await invokeAuthFlowComplete(ctx, strategy, header);
   return withDurableAuth(ctx, strategy);
 }

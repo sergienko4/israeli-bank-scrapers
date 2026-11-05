@@ -1,5 +1,6 @@
 /**
- * Targeted coverage for ApiDirectScrapeDispatch helpers that the
+ * Targeted coverage for ApiDirectScrapeDispatch (and the
+ * ApiDirectScrapeBody helpers it delegates to) that the
  * full-phase integration test cannot naturally reach. The scrape-phase
  * dispatcher's signer pipeline (`maybeSignBody` → `buildPrimedScrapeScope`
  * → `freshIvHex`) runs against the frozen `SCRAPE_CONFIG_SENTINEL`,
@@ -16,17 +17,27 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import type { IAesSignerConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import type {
+  IApiMediator,
+  IApiQueryOpts,
+} from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import type {
+  IAesSignerConfig,
+  IBodyDigestConfig,
+} from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { computeBodyDigest } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/BodyDigest.js';
 import {
   dispatchStep,
   type IDispatchArgs,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeDispatch.js';
 import { literalUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import { writePostBody } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/PostBody.js';
+import type { ApiPostData } from '../../../../../Scrapers/Pipeline/Types/Domain/ApiPostData.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { assertOk } from '../../../../Helpers/AssertProcedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 
 /** AES signer literal — keyRef points at the (empty) sentinel secrets. */
@@ -300,5 +311,92 @@ describe('ApiDirectScrapeDispatch.dispatchStep — array POST data (N19)', () =>
     });
     expect(apiPost).not.toHaveBeenCalled();
     expect(apiQuery).not.toHaveBeenCalled();
+  });
+});
+
+const BODY_DIGEST: IBodyDigestConfig = {
+  header: 'X-Body-Digest',
+  prefix: 'App~1~',
+  hash: 'sha256-hex',
+  encode: 'base64',
+};
+
+/**
+ * A bus-call recorder answering every call with the given response.
+ * @param resp - Response every call resolves with.
+ * @returns Recording mock.
+ */
+function makeRecorder(resp: Promise<Procedure<unknown>>): BusRecorderFn {
+  return jest.fn<Promise<Procedure<unknown>>, unknown[]>((): Promise<Procedure<unknown>> => resp);
+}
+
+/** Recording mock for one bus call. */
+type BusRecorderFn = jest.Mock<Promise<Procedure<unknown>>, unknown[]>;
+
+/** The three bus calls a scrape step can make, each answering `{}`. */
+interface ICapturingBus {
+  readonly bus: IApiMediator;
+  readonly apiPost: BusRecorderFn;
+  readonly apiGet: BusRecorderFn;
+  readonly apiQuery: BusRecorderFn;
+}
+
+/**
+ * Build a bus whose POST, GET and GraphQL calls all answer `{}` and record
+ * their arguments.
+ * @returns The bus and its three recorders.
+ */
+function makeCapturingBus(): ICapturingBus {
+  const okOutcome = succeed({});
+  const okResp = Promise.resolve(okOutcome);
+  const apiPost = makeRecorder(okResp);
+  const apiGet = makeRecorder(okResp);
+  const apiQuery = makeRecorder(okResp);
+  const baseBus = makeOneShotBus(okOutcome);
+  const bus = { ...baseBus, apiPost, apiGet, apiQuery } as unknown as IApiMediator;
+  return { bus, apiPost, apiGet, apiQuery };
+}
+
+/** A step kind the digest skips, and where its opts reach the bus. */
+interface IUndigestedStep {
+  readonly name: string;
+  readonly overrides: Partial<IDispatchArgs>;
+  readonly call: 'apiPost' | 'apiGet' | 'apiQuery';
+  readonly optsAt: number;
+}
+
+const UNDIGESTED_STEPS: readonly IUndigestedStep[] = [
+  { name: 'a GET step', overrides: { method: 'GET' }, call: 'apiGet', optsAt: 1 },
+  { name: 'an array POST step', overrides: { vars: [] }, call: 'apiPost', optsAt: 2 },
+  { name: 'a GraphQL step', overrides: { urlTag: false }, call: 'apiQuery', optsAt: 2 },
+];
+
+describe('ApiDirectScrapeDispatch.dispatchStep — body digest (N30)', () => {
+  it('hashes exactly the bytes the JSON writer sends', async () => {
+    const capture = makeCapturingBus();
+    const vars = { a: 'ש', n: 1 };
+    const args = makeDispatchArgs({ bus: capture.bus, vars, bodyDigest: BODY_DIGEST });
+    const result = await dispatchStep(args);
+    expect(result.success).toBe(true);
+    const [, sentBody, sentOpts] = capture.apiPost.mock.calls[0] as [
+      unknown,
+      ApiPostData,
+      IApiQueryOpts,
+    ];
+    const written = writePostBody(sentBody);
+    assertOk(written);
+    const writtenBytes = Buffer.from(written.value.body, 'utf8');
+    const expected = computeBodyDigest(writtenBytes, BODY_DIGEST);
+    expect(sentOpts.extraHeaders).toEqual({ 'X-Body-Digest': expected });
+  });
+
+  it.each(UNDIGESTED_STEPS)('leaves the opts of $name untouched', async step => {
+    const capture = makeCapturingBus();
+    const opts = { extraHeaders: { cid: 'c-1' } };
+    const overrides = { bus: capture.bus, opts, bodyDigest: BODY_DIGEST, ...step.overrides };
+    const args = makeDispatchArgs(overrides);
+    await dispatchStep(args);
+    const sentOpts = capture[step.call].mock.calls[0][step.optsAt];
+    expect(sentOpts).toBe(opts);
   });
 });

@@ -1,7 +1,8 @@
 /**
- * N9 — a form step's body must be a flat record whose every value is one
- * `$ref`, or one `$literal` string, finite number or boolean. Anything nested
- * fails the build; JSON steps keep any shape.
+ * N9 — a form step's body (`form` or N23 `form-latin1`) must be a flat
+ * record whose every value is one `$ref`, one N24 `$join`, or one `$literal`
+ * string, finite number or boolean. Anything nested fails the build; JSON steps keep any
+ * shape. An N23 `text` step's body must be exactly `{ text }`.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
@@ -17,12 +18,15 @@ import type {
 const HOST = 'https://form.example';
 const NATIVE = { identityBase: HOST, graphql: `${HOST}/graphql`, paths: {}, nativeFetch: true };
 const FLAT_MSG = 'steps.body: a form body must be a flat record';
+const TEXT_MSG = 'steps.body: a text body must be exactly { text }';
+const FORM_ENCODINGS = ['form', 'form-latin1'] as const;
 
 const FLAT: JsonValueTemplate = {
   user: { $ref: 'creds.userCode' },
   mfp: { $literal: '' },
   n: { $literal: 2 },
   ok: { $literal: true },
+  username: { $join: { parts: ['creds.num', { literal: '-' }, 'creds.nationalID'] } },
 };
 
 /**
@@ -52,13 +56,26 @@ const BROKEN: readonly (readonly [string, JsonValueTemplate])[] = [
   ['literal null', { a: { $literal: null } }],
   ['literal NaN', { a: { $literal: Number.NaN } }],
   ['ref plus literal', { a: { $ref: 'carry.x', $literal: 'y' } }],
+  ['join without parts', { a: { $join: {} } as unknown as JsonValueTemplate }],
+  ['join plus ref', { a: { $join: { parts: [] }, $ref: 'carry.x' } as JsonValueTemplate }],
   ['array root', [{ $literal: 'x' }]],
   ['ref root', { $ref: 'carry.form' }],
 ];
 
+const BROKEN_PER_ENCODING = FORM_ENCODINGS.flatMap(encoding =>
+  BROKEN.map(([label, shape]) => [encoding, label, shape] as const),
+);
+
+const BROKEN_TEXT: readonly (readonly [string, JsonValueTemplate])[] = [
+  ['an extra field', { text: { $ref: 'carry.csr' }, more: { $literal: 'x' } }],
+  ['no text field', { body: { $ref: 'carry.csr' } }],
+  ['a ref root', { $ref: 'carry.csr' }],
+  ['an array root', [{ $literal: 'x' }]],
+];
+
 describe('validateApiDirectConfig — form bodies', () => {
-  it.each(BROKEN)('%s → fails the build', (_label, shape) => {
-    const step = stepWith(shape);
+  it.each(BROKEN_PER_ENCODING)('%s %s → fails the build', (encoding, _label, shape) => {
+    const step = stepWith(shape, encoding);
     const input = runOf(step);
     const result = validateApiDirectConfig(input);
     expect(result).toMatchObject({
@@ -68,8 +85,23 @@ describe('validateApiDirectConfig — form bodies', () => {
     });
   });
 
-  it('a flat form record passes', () => {
-    const step = stepWith(FLAT);
+  it.each(FORM_ENCODINGS)('a flat %s record passes', encoding => {
+    const step = stepWith(FLAT, encoding);
+    const input = runOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+  });
+
+  it.each(BROKEN_TEXT)('a text body with %s fails the build', (_label, shape) => {
+    const step = stepWith(shape, 'text');
+    const input = runOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({ success: false, errorMessage: TEXT_MSG });
+  });
+
+  it('a text body of exactly { text } passes', () => {
+    const shape: JsonValueTemplate = { text: { $join: { parts: ['carry.csr'] } } };
+    const step = stepWith(shape, 'text');
     const input = runOf(step);
     const result = validateApiDirectConfig(input);
     expect(result).toEqual({ success: true, value: true });

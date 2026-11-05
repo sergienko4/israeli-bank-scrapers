@@ -62,10 +62,10 @@ from (cross-package imports such as `Registry/WK/*` are omitted for brevity).
 | Bucket | Exports | Intra-cluster deps |
 |---|---|---|
 | **TemplateTypes** | `RefToken`, `JsonValueTemplate`, `IBodyTemplate`, `IEnvelopeSelectors` | (none) |
-| **SignerTypes** | `SignerAlgorithm`, `AsymmetricSignerAlgorithm`, `SignerEncoding`, `CanonicalPart`, `ICanonicalStringConfig`, `IAsymmetricSignerConfig`, `IAesSignerConfig`, `IHmacHeaderSignerConfig`, `ISignerConfig`, `ICryptoFieldConfig`, `SealKind`, `ISealRsaBlockXorParams`, `ISealFieldConfig` | (none) |
-| **CarryTypes** | `IWarmStartConfig`, `ICookieJarWarmStart`, `ISeedCarrySource`, `IRandomHex16Bootstrap`, `IRandomUuidBootstrap`, `ISha256Prefix16Bootstrap`, `IJwtClaimBootstrap`, `SeedCarryBootstrapKind`, `IDerivedCarry` | TemplateTypes |
+| **SignerTypes** | `SignerAlgorithm`, `AsymmetricSignerAlgorithm`, `SignerEncoding`, `CanonicalPart`, `ICanonicalStringConfig`, `IAsymmetricSignerConfig`, `IAesSignerConfig`, `IHmacHeaderSignerConfig`, `ISignerConfig`, `IBodyDigestConfig`, `ICryptoFieldConfig`, `SealKind`, `ISealRsaBlockXorParams`, `ISealFieldConfig` | (none) |
+| **CarryTypes** | `IWarmStartConfig`, `ICarryWarmStart`, `ICookieJarWarmStart`, `ICarryBundleWarmStart`, `ColdFallback`, `ISeedCarrySource`, `IRandomHex16Bootstrap`, `IRandomUuidBootstrap`, `ISha256Prefix16Bootstrap`, `IJwtClaimBootstrap`, `SeedCarryBootstrapKind`, `IDerivedCarry` | TemplateTypes |
 | **EnvelopeTypes** | `IFingerprintConfig`, `AuthScheme`, `IJwtClaimsConfig`, `IProbeConfig`, `IPreStepHook`, `PreHookReuse` | TemplateTypes, SignerTypes |
-| **FlowTypes** | `FlowKind`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract`, `IHeaderExtract`, `ExtractValueType`, `IExtractRule`, `IRunIf` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes |
+| **FlowTypes** | `FlowKind`, `CookieHandoff`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract`, `IHeaderExtract`, `ExtractValueType`, `IExtractRule`, `IRunIf` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes |
 | **ApiDirectCallConfig** | `IApiDirectCallConfig`, `IPersistentAuthConfig`, `CredRule` | all five above |
 
 Notes:
@@ -106,7 +106,10 @@ this contract; the build-time checks read both.
 | Auth header form | `authScheme` (`AuthScheme`), `authPrefix` | EnvelopeTypes, ApiDirectCallConfig | [Auth-mode policy](../phases/api-direct-call.md#auth-mode-policy) |
 | Credential shapes checked up front | `requiredCreds` (`CredRule`) | ApiDirectCallConfig | [Required credentials](../phases/api-direct-call.md#required-credentials) |
 | Keep bank reply text out of missed extracts and login diagnostics | `omitBankText` | ApiDirectCallConfig | [Bank text in failures](../phases/api-direct-call.md#bank-text-in-failures) |
+| Carry slots the scrape may see | `sessionCarry` | ApiDirectCallConfig | [Session carry](../phases/api-direct-call.md#session-carry) |
+| Where a finished login leaves its cookies | `cookieHandoff` (`CookieHandoff`) | FlowTypes | [Cookie hand-off](../phases/api-direct-call.md#cookie-hand-off) |
 | How a stored token is judged | `warmStart.validation` | CarryTypes | [Build-time config checks](../phases/api-direct-call.md#build-time-config-checks) |
+| Which failed warm resumes fall back to a cold login | `warmStart.coldFallback` (`ColdFallback`) | CarryTypes | [Carry-bundle warm start](../phases/api-direct-call.md#carry-bundle-warm-start) |
 | Session held in cookies | `headless.sessionCookies` | — | [Headless transports](pipeline.md#headless-transports) |
 | Cookies shared across sibling hosts | `headless.cookieDomains` | — | [Headless transports](pipeline.md#headless-transports) |
 | Node's own `fetch`, no browser | `headless.nativeFetch` | — | [Headless transports](pipeline.md#headless-transports) |

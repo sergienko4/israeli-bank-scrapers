@@ -5,6 +5,7 @@
  */
 
 import type { TlsClientProfileKind } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
+import type { IDynamicClientCert } from '../../Types/Domain/ClientCertControl.js';
 import type { RedirectPolicy, StatusPolicy } from '../../Types/Domain/FetchPolicy.js';
 
 /** Generic auth-path keys — per-bank subsets plug into `paths` below. */
@@ -107,6 +108,14 @@ export interface IHeadlessUrlsConfig {
    * (e.g. OneZero's `*.tfd-bank.com`).
    */
   readonly requiresClientCert?: boolean;
+  /**
+   * A device certificate the login flow obtains at runtime and installs
+   * through the mediator's `clientCert` port (a step's `clientCert` field).
+   * It is presented to `origin` only — an exact https origin — and never
+   * written anywhere. Selects the node:https transport. Mutually exclusive
+   * with `requiresBrowserTls` and `nativeFetch`. Default: undefined.
+   */
+  readonly clientCert?: IDynamicClientCert;
   /**
    * ClientHello profile that identity + graphql calls present over
    * `node:https`, for edges that admit only the bank app's TLS fingerprint.

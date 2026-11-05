@@ -7,7 +7,8 @@
  * unchanged. The same Agent can also present a registered TLS ClientHello
  * profile (see TlsClientProfiles) for edges that fingerprint the handshake,
  * which globalThis.fetch cannot shape either. This is the ONLY module that
- * sends requests over node:https in the Pipeline by design.
+ * sends requests over node:https in the Pipeline by design. String and byte
+ * bodies are sent once under `Content-Length` — never chunked (N34).
  */
 
 import type { ClientRequest, IncomingMessage } from 'node:http';
@@ -22,7 +23,17 @@ import { safeUrlForLog, scrubUrlFromText } from '../SafeUrlForLog.js';
 import { checkServerCertificate } from '../Tls/ServerCertificateFloor.js';
 import { SessionProtocolAgent } from '../Tls/SessionProtocolAgent.js';
 import { getTlsClientProfile, type TlsClientProfileKind } from '../Tls/TlsClientProfiles.js';
+import type { AgentSource, IPresentedCert } from './MtlsAgentSource.js';
+import { collectBody, toResponse } from './MtlsResponse.js';
 import type { ICertBundle } from './OneZeroClientCert.js';
+
+/** One request handed to the mocked transport, with the certificate it would present. */
+interface IMtlsFallbackRequest extends Omit<IMtlsRequest, 'agent'> {
+  readonly presented: IPresentedCert | false;
+}
+
+/** The mocked transport an E2E-mocked suite installs. */
+type MtlsFallback = (request: IMtlsFallbackRequest) => Promise<Procedure<Response>>;
 
 /**
  * Optional transport override used ONLY by the E2E-mocked suites. When set, the
@@ -30,17 +41,19 @@ import type { ICertBundle } from './OneZeroClientCert.js';
  * `globalThis.fetch`) instead of opening a real node:https socket, so the
  * OneZero mocked pipeline runs fully offline. Production leaves this null,
  * keeping the node:https path byte-identical. Mirrors the setFakePageEvalMode
- * test seam already used by the mocked Camoufox layer.
+ * test seam already used by the mocked Camoufox layer. The fallback is told
+ * which certificate the request would present (`false` for none), so a mocked
+ * suite can prove a dynamic client certificate reaches its origin only.
  */
-let mtlsFetchFallback: FetchInvoke | null = null;
+let mtlsFetchFallback: MtlsFallback | null = null;
 
 /**
  * Install (or clear) the E2E-mocked transport fallback. Call with no argument
  * (or undefined) to clear it and restore the node:https path.
- * @param fallback - FetchInvoke to route mTLS requests through; omit to clear.
+ * @param fallback - Transport to route mTLS requests through; omit to clear.
  * @returns True when a fallback is now active, false when cleared.
  */
-function setMtlsFetchFallback(fallback?: FetchInvoke): boolean {
+function setMtlsFetchFallback(fallback?: MtlsFallback): boolean {
   mtlsFetchFallback = fallback ?? null;
   return mtlsFetchFallback !== null;
 }
@@ -123,29 +136,61 @@ function headersToRecord(headers?: HeadersInit): Record<string, string> {
   return { ...headers };
 }
 
+/** Headers that frame a body; the transport sets them from the bytes it sends. */
+const FRAMING_HEADERS: ReadonlySet<string> = new Set(['content-length', 'transfer-encoding']);
+
 /**
- * Assemble node:https RequestOptions from the agent, init and verb.
- * @param agent - The mTLS agent.
- * @param init - Native fetch RequestInit (method/headers/body).
- * @param verb - HTTP verb.
- * @returns RequestOptions ready for https.request.
+ * The request body's bytes (strings as UTF-8; byte arrays unchanged).
+ * @param init - Native fetch RequestInit.
+ * @returns The body bytes, or false when there is no supported body.
  */
-function buildOptions(agent: Agent, init: RequestInit, verb: HttpVerb): RequestOptions {
-  const headers = headersToRecord(init.headers);
-  return { agent, method: verb, headers, signal: AbortSignal.timeout(requestTimeoutMs) };
+function bodyBytes(init: RequestInit): Buffer | false {
+  if (typeof init.body === 'string') return Buffer.from(init.body, 'utf8');
+  if (init.body instanceof Uint8Array) return Buffer.from(init.body);
+  return false;
 }
 
 /**
- * Write the request body when present (string bodies only — the Pipeline
- * always serialises JSON to a string before dispatch).
- * @param req - The active ClientRequest.
+ * Request headers, with a body framed by its byte length in place of any
+ * framing the caller named.
  * @param init - Native fetch RequestInit.
- * @returns True when a body was written, false otherwise.
+ * @param bytes - The body bytes, or false for no body.
+ * @returns Plain header record for node:https.
  */
-function writeBody(req: ClientRequest, init: RequestInit): boolean {
-  const body = init.body;
-  if (typeof body !== 'string') return false;
-  req.write(body);
+function framedHeaders(init: RequestInit, bytes: Buffer | false): Record<string, string> {
+  const headers = headersToRecord(init.headers);
+  if (bytes === false) return headers;
+  const kept = Object.entries(headers).filter(([name]): boolean => {
+    const lowered = name.toLowerCase();
+    return !FRAMING_HEADERS.has(lowered);
+  });
+  return { ...Object.fromEntries(kept), 'content-length': String(bytes.byteLength) };
+}
+
+/**
+ * Assemble node:https RequestOptions for one request.
+ * @param request - The fully-specified mTLS request.
+ * @param bytes - The body bytes, or false for no body.
+ * @returns RequestOptions ready for https.request.
+ */
+function buildOptions(request: IMtlsRequest, bytes: Buffer | false): RequestOptions {
+  const headers = framedHeaders(request.init, bytes);
+  const signal = AbortSignal.timeout(requestTimeoutMs);
+  return { agent: request.agent, method: request.verb, headers, signal };
+}
+
+/**
+ * End the request, sending the body bytes in one piece when there are any.
+ * @param req - The active ClientRequest.
+ * @param bytes - The body bytes, or false for no body.
+ * @returns True when a body was sent, false otherwise.
+ */
+function endRequest(req: ClientRequest, bytes: Buffer | false): boolean {
+  if (bytes === false) {
+    req.end();
+    return false;
+  }
+  req.end(bytes);
   return true;
 }
 
@@ -155,96 +200,13 @@ function writeBody(req: ClientRequest, init: RequestInit): boolean {
  * @returns Promise resolving with node's IncomingMessage (rejects on socket error).
  */
 function sendRequest(request: IMtlsRequest): Promise<IncomingMessage> {
-  const options = buildOptions(request.agent, request.init, request.verb);
+  const bytes = bodyBytes(request.init);
+  const options = buildOptions(request, bytes);
   return new Promise((resolve, reject) => {
     const req = httpsRequest(request.url, options, resolve);
     req.on('error', reject);
-    writeBody(req, request.init);
-    req.end();
+    endRequest(req, bytes);
   });
-}
-
-/**
- * Buffer the full response body as a UTF-8 string. Rejects on a stream error or
- * a premature close (socket dropped mid-body) so a truncated Cloudflare response
- * surfaces as a network failure instead of a silently-empty body.
- * @param message - The response IncomingMessage.
- * @returns Promise resolving with the decoded body, or rejecting on stream error.
- */
-function collectBody(message: IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    message.on('data', (chunk: Buffer) => {
-      chunks.push(chunk);
-    });
-    message.on('end', () => {
-      const buffer = Buffer.concat(chunks);
-      const body = buffer.toString('utf8');
-      resolve(body);
-    });
-    message.on('error', reject);
-    message.on('close', () => {
-      if (!message.readableEnded) reject(new Error('mtls response closed before end'));
-    });
-  });
-}
-
-/**
- * Flatten a node header value (string or string[]) to a single header string.
- * @param value - Raw node header value.
- * @returns Comma-joined string for array values, otherwise the value itself.
- */
-function toHeaderValue(value: string | string[]): string {
-  if (Array.isArray(value)) return value.join(', ');
-  return value;
-}
-
-/**
- * Build the non-cookie header pairs from a node IncomingMessage.
- * Set-Cookie is excluded here and re-applied by appendSetCookies so that
- * Response.getSetCookie() works downstream.
- * @param message - The response IncomingMessage.
- * @returns Array of [name, value] header pairs (no set-cookie).
- */
-function plainHeaderPairs(message: IncomingMessage): [string, string][] {
-  const entries = Object.entries(message.headers);
-  const nonCookie = entries.filter(entry => entry[0] !== 'set-cookie');
-  return nonCookie.map((entry): [string, string] => [entry[0], toHeaderValue(entry[1] ?? '')]);
-}
-
-/**
- * Append each raw Set-Cookie line so Response.getSetCookie() returns them all.
- * @param headers - The Headers under construction.
- * @param cookies - Raw Set-Cookie lines from node.
- * @returns The same Headers instance, with cookies appended.
- */
-function appendSetCookies(headers: Headers, cookies: string[]): Headers {
-  for (const cookie of cookies) headers.append('set-cookie', cookie);
-  return headers;
-}
-
-/**
- * Compose a Web Headers instance from a node IncomingMessage.
- * @param message - The response IncomingMessage.
- * @returns A Web Headers instance mirroring the node response headers.
- */
-function buildResponseHeaders(message: IncomingMessage): Headers {
-  const pairs = plainHeaderPairs(message);
-  const headers = new Headers(pairs);
-  const cookies = message.headers['set-cookie'] ?? [];
-  return appendSetCookies(headers, cookies);
-}
-
-/**
- * Synthesise a Web Response from a node IncomingMessage + buffered body.
- * @param message - The response IncomingMessage (status + headers).
- * @param body - The decoded response body.
- * @returns A Web Response equivalent to what globalThis.fetch would yield.
- */
-function toResponse(message: IncomingMessage, body: string): Response {
-  const status = message.statusCode ?? 0;
-  const headers = buildResponseHeaders(message);
-  return new Response(body, { status, headers });
 }
 
 /**
@@ -279,36 +241,36 @@ async function mtlsInvoke(request: IMtlsRequest): Promise<Procedure<Response>> {
 }
 
 /**
- * Bind an mTLS agent into a FetchInvoke transport for a strategy's `_invoke`
- * seam. Keeps the arrow's typing local (typed const) so no inline arrow leaks
- * into the strategy subclasses.
- * @param agent - The mTLS agent to present on every request.
- * @returns A FetchInvoke that routes each request through the agent.
+ * Bind an agent source into a FetchInvoke transport for a strategy's `_invoke`
+ * seam. The source is asked on every request, so a dynamic client certificate
+ * installed mid-run applies to the next request. Keeps the arrow's typing
+ * local (typed const) so no inline arrow leaks into the strategy subclasses.
+ * @param source - Picks the mTLS agent for each request URL.
+ * @returns A FetchInvoke that routes each request through the picked agent.
  */
-function makeMtlsInvoke(agent: Agent): FetchInvoke {
+function makeMtlsInvoke(source: AgentSource): FetchInvoke {
   /**
-   * Perform one request through the bound mTLS agent.
+   * Perform one request through the agent the source picks.
    * @param url - Fully-qualified target URL.
    * @param init - Native fetch RequestInit (method/headers/body).
    * @param verb - HTTP verb (for error-message prefixing).
    * @returns Procedure carrying the synthesised Response, or a network failure.
    */
   const invoke: FetchInvoke = (url, init, verb) => {
-    if (mtlsFetchFallback) return mtlsFetchFallback(url, init, verb);
+    const { agent, presented } = source(url);
+    if (mtlsFetchFallback) return mtlsFetchFallback({ url, init, verb, presented });
     return mtlsInvoke({ agent, url, init, verb });
   };
   return invoke;
 }
 
-export type { IMtlsRequest };
+export type { IMtlsFallbackRequest, IMtlsRequest, MtlsFallback };
 export type { HttpVerb } from '../NativeFetchStrategy.js';
 export {
   buildMtlsAgent,
-  collectBody,
   makeMtlsInvoke,
   MTLS_REQUEST_TIMEOUT_MS,
   mtlsInvoke,
   setMtlsFetchFallback,
   setMtlsRequestTimeoutMs,
-  toResponse,
 };

@@ -1,5 +1,5 @@
 /**
- * Strategy factory: assembles the 5 bindings exposed by IConfigTokenStrategy
+ * Strategy factory: assembles the bindings exposed by IConfigTokenStrategy
  * and wires them into createTokenStrategyFromConfig.
  */
 
@@ -7,6 +7,7 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
+import { mayEscalateWarmFailureImpl } from './TokenStrategyFromConfig.fallback.js';
 import {
   hasWarmStateImpl,
   primeFreshImpl,
@@ -55,6 +56,17 @@ function makePrimeFresh(
  */
 function makeHasWarmState(slot: ILongTermTokenSlot): IConfigTokenStrategy['hasWarmState'] {
   return (): boolean => hasWarmStateImpl(slot);
+}
+
+/**
+ * mayEscalateWarmFailure factory — the config's `coldFallback` decides.
+ * @param config - Bank config.
+ * @returns Strategy mayEscalateWarmFailure binding.
+ */
+function makeMayEscalate(
+  config: IApiDirectCallConfig,
+): NonNullable<IConfigTokenStrategy['mayEscalateWarmFailure']> {
+  return (failure): boolean => mayEscalateWarmFailureImpl(config, failure);
 }
 
 /**
@@ -149,7 +161,7 @@ function buildGetterBindings(slot: ILongTermTokenSlot): IGetterBindings {
 }
 
 /**
- * Build the 5 bindings exposed by IConfigTokenStrategy.
+ * Build the bindings exposed by IConfigTokenStrategy.
  * @param config - Bank config.
  * @param slot - Mutable capture slot.
  * @returns Strategy bindings (no name field).
@@ -158,7 +170,10 @@ function buildStrategyBindings(
   config: IApiDirectCallConfig,
   slot: ILongTermTokenSlot,
 ): IStrategyBindings {
-  return { ...buildPrimeBindings(config, slot), ...buildGetterBindings(slot) };
+  const primeBindings = buildPrimeBindings(config, slot);
+  const getterBindings = buildGetterBindings(slot);
+  const mayEscalateWarmFailure = makeMayEscalate(config);
+  return { ...primeBindings, ...getterBindings, mayEscalateWarmFailure };
 }
 
 /**

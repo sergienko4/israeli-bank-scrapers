@@ -47,10 +47,15 @@ const FETCH_TRANSPORT_FILES: readonly string[] = [
   'src/Scrapers/Pipeline/Strategy/Fetch/DocumentResponse.ts',
   'src/Scrapers/Pipeline/Strategy/Fetch/ResponseHeaderSink.ts',
   'src/Scrapers/Pipeline/Strategy/Fetch/HeaderText.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/Latin1Form.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/TextResponse.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/Mtls/ClientCertHolder.ts',
 ];
 
 /** New Core files that §19.3b pins past the Core grandfather. */
 const NEW_CORE_FILES: readonly string[] = [
+  'src/Scrapers/Pipeline/Core/Builder/ApiDirectClientCertRules.ts',
   'src/Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.ts',
   'src/Scrapers/Pipeline/Core/Builder/ApiDirectNativeRules.ts',
   'src/Scrapers/Pipeline/Core/Builder/ApiDirectRuleInput.ts',

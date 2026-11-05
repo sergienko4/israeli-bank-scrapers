@@ -3,26 +3,35 @@
  * transport. Runs against a local HTTPS server that simulates the Cloudflare
  * mutual-TLS gate (no client cert => 403, client cert => 200). Covers agent
  * construction, the cert=>200 / no-cert=>403 split, cookie passthrough, header
- * normalisation branches, socket-failure handling, and the makeMtlsInvoke seam.
+ * normalisation branches, socket-failure handling, the makeMtlsInvoke seam, and
+ * N34 framing: a string body travels as UTF-8 bytes under Content-Length (never
+ * chunked) and an answer over MTLS_MAX_RESPONSE_BYTES fails `response too large`.
  */
 
 import { EventEmitter } from 'node:events';
 import type { IncomingMessage } from 'node:http';
 import { Agent } from 'node:https';
 
+import { jest } from '@jest/globals';
+
+import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
+import { fixedAgentSource } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.js';
+import {
+  collectBody,
+  MTLS_MAX_RESPONSE_BYTES,
+  toResponse,
+} from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsResponse.js';
 import {
   buildMtlsAgent,
-  collectBody,
   makeMtlsInvoke,
   MTLS_REQUEST_TIMEOUT_MS,
   mtlsInvoke,
   setMtlsRequestTimeoutMs,
-  toResponse,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import { checkServerCertificate } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/ServerCertificateFloor.js';
 import { isOk } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import type { IGateServer } from './MtlsTestServer.js';
+import type { IBodyEcho, IGateServer } from './MtlsTestServer.js';
 import {
   buildCertAgent,
   buildNoCertAgent,
@@ -239,8 +248,9 @@ describe('MtlsTransport.makeMtlsInvoke', () => {
     certAgent.destroy();
   });
 
-  it('binds the agent into a FetchInvoke that reaches the gate (200)', async () => {
-    const invoke = makeMtlsInvoke(certAgent);
+  it('binds the agent source into a FetchInvoke that reaches the gate (200)', async () => {
+    const source = fixedAgentSource(certAgent, false);
+    const invoke = makeMtlsInvoke(source);
     const init: RequestInit = { method: 'POST', headers: {}, body: '{}' };
     const result = await invoke(server.restUrl, init, 'POST');
     const isOkResult = isOk(result);
@@ -297,6 +307,90 @@ describe('MtlsTransport.mtlsInvoke — timeout + premature close', () => {
   });
 });
 
+/** A body with Hebrew, a euro sign and an astral emoji: 2-, 3- and 4-byte UTF-8. */
+const NON_ASCII_BODY = '{"name":"שלום","sum":"€5","mood":"\u{1F600}"}';
+
+describe('MtlsTransport.mtlsInvoke — N34 framing and response cap', () => {
+  let server: IGateServer;
+  let certAgent: Agent;
+
+  beforeAll(async () => {
+    server = await startGateServer();
+  });
+  afterAll(async () => {
+    await server.close();
+  });
+  beforeEach(() => {
+    const bundle = testCertBundle();
+    certAgent = buildCertAgent(bundle);
+  });
+  afterEach(() => {
+    certAgent.destroy();
+  });
+
+  /**
+   * POST a body to the echo route and read how it arrived.
+   * @param headers - Request headers.
+   * @returns The gate's echo of the body's framing and bytes.
+   */
+  async function postEcho(headers: Record<string, string>): Promise<IBodyEcho> {
+    const init: RequestInit = { method: 'POST', headers, body: NON_ASCII_BODY };
+    const url = `${server.baseUrl}echo`;
+    const result = await mtlsInvoke({ agent: certAgent, url, init, verb: 'POST' });
+    if (!isOk(result)) throw new ScraperError(result.errorMessage);
+    return (await result.value.json()) as IBodyEcho;
+  }
+
+  it('sends a non-ASCII body byte-equal under Content-Length, never chunked', async () => {
+    const echo = await postEcho({ 'content-type': 'application/json' });
+    const bytes = Buffer.from(NON_ASCII_BODY, 'utf8');
+    const contentLength = String(bytes.byteLength);
+    const bodyHex = bytes.toString('hex');
+    expect(echo).toEqual({ contentLength, transferEncoding: null, bodyHex });
+  });
+
+  it('sends a byte body under Content-Length without dropping its contents', async () => {
+    const text = 'MIIC_x-y€';
+    const bytes = new TextEncoder().encode(text);
+    const init: RequestInit = { method: 'POST', headers: {}, body: bytes };
+    const url = `${server.baseUrl}echo`;
+    const result = await mtlsInvoke({ agent: certAgent, url, init, verb: 'POST' });
+    if (!isOk(result)) throw new ScraperError(result.errorMessage);
+    const echo = (await result.value.json()) as IBodyEcho;
+    expect(echo).toEqual({
+      contentLength: String(bytes.byteLength),
+      transferEncoding: null,
+      bodyHex: Buffer.from(bytes).toString('hex'),
+    });
+  });
+
+  it('frames the body by its byte length, whatever length the caller named', async () => {
+    const echo = await postEcho({ 'Content-Length': '1', 'Transfer-Encoding': 'chunked' });
+    const byteLength = Buffer.byteLength(NON_ASCII_BODY, 'utf8');
+    const contentLength = String(byteLength);
+    expect(echo.contentLength).toBe(contentLength);
+    expect(echo.transferEncoding).toBeNull();
+  });
+
+  it('accepts an answer of exactly MTLS_MAX_RESPONSE_BYTES', async () => {
+    const init: RequestInit = { method: 'GET', headers: {} };
+    const url = `${server.baseUrl}at-cap`;
+    const result = await mtlsInvoke({ agent: certAgent, url, init, verb: 'GET' });
+    if (!isOk(result)) throw new ScraperError(result.errorMessage);
+    const text = await result.value.text();
+    expect(text).toHaveLength(MTLS_MAX_RESPONSE_BYTES);
+  });
+
+  it('fails an answer over MTLS_MAX_RESPONSE_BYTES with response too large', async () => {
+    const init: RequestInit = { method: 'GET', headers: {} };
+    const url = `${server.baseUrl}over-cap`;
+    const result = await mtlsInvoke({ agent: certAgent, url, init, verb: 'GET' });
+    const message = `GET ${url} mtls error: response too large`;
+    const errorType = ScraperErrorTypes.Generic;
+    expect(result).toMatchObject({ success: false, errorType, errorMessage: message });
+  });
+});
+
 /**
  * Build a minimal IncomingMessage stand-in (EventEmitter + readableEnded).
  * @returns An EventEmitter typed as IncomingMessage with readableEnded=false.
@@ -324,6 +418,22 @@ describe('MtlsTransport.collectBody — stream failure branches', () => {
     await expect(promise).rejects.toThrow('closed before end');
   });
 
+  it('rejects past the cap and destroys the stream, buffering no more', async () => {
+    const message = fakeMessage();
+    const destroy = jest.fn();
+    Object.assign(message, { destroy });
+    const promise = collectBody(message);
+    const atCap = Buffer.alloc(MTLS_MAX_RESPONSE_BYTES);
+    message.emit('data', atCap);
+    expect(destroy).not.toHaveBeenCalled();
+    const oneMore = Buffer.alloc(1);
+    message.emit('data', oneMore);
+    message.readableEnded = true;
+    message.emit('end');
+    await expect(promise).rejects.toThrow('response too large');
+    expect(destroy).toHaveBeenCalledTimes(1);
+  });
+
   it('resolves on end and ignores the trailing close event', async () => {
     const message = fakeMessage();
     const promise = collectBody(message);
@@ -338,6 +448,18 @@ describe('MtlsTransport.collectBody — stream failure branches', () => {
 });
 
 describe('MtlsTransport.toResponse — defensive header branches', () => {
+  it.each([204, 205, 304])('preserves no-body status %s and its headers', async status => {
+    const headers = { 'x-session': 'rotated', 'set-cookie': ['sid=rotated'] };
+    const message = { statusCode: status, headers } as unknown as IncomingMessage;
+    const response = toResponse(message, '');
+    expect(response.status).toBe(status);
+    expect(await response.text()).toBe('');
+    const session = response.headers.get('x-session');
+    const cookies = response.headers.getSetCookie();
+    expect(session).toBe('rotated');
+    expect(cookies).toEqual(['sid=rotated']);
+  });
+
   it('joins array headers and coalesces missing header values', () => {
     const fakeHeaders = {
       'x-multi': ['a', 'b'],

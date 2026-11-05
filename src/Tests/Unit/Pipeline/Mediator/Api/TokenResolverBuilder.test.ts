@@ -9,10 +9,14 @@ import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import type { ITokenResolver } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenResolver.js';
 import type { ITokenStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/ITokenStrategy.js';
 import { buildResolverFromStrategy } from '../../../../../Scrapers/Pipeline/Mediator/Api/TokenResolverBuilder.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
-import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import type {
+  IProcedureFailure,
+  Procedure,
+} from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** Test-only creds shape — opaque to the builder. */
@@ -184,6 +188,62 @@ describe('buildResolverFromStrategy — resolve() ladder', () => {
     const result = await resolver.resolve();
     expect(result).toBe(edgeBlock);
     expect(counts.primeFresh).toBe(0);
+  });
+});
+
+/** A warm-failure gate that records what it was asked. */
+type WarmFailureGate = jest.Mock<boolean, [IProcedureFailure]>;
+
+/**
+ * Wire a scripted strategy that also answers `mayEscalateWarmFailure`.
+ * @param initialResult - Procedure returned by primeInitial.
+ * @param warmFlag - Static hasWarmState return.
+ * @param isAllowed - What the gate answers.
+ * @returns The resolver, the gate and the call counters.
+ */
+function makeGatedRun(
+  initialResult: Procedure<string>,
+  warmFlag: boolean,
+  isAllowed: boolean,
+): { resolver: ITokenResolver; gate: WarmFailureGate; counts: ICallCounts } {
+  const freshOk = succeed(FRESH_HEADER);
+  const scripted = makeScriptedStrategy(initialResult, freshOk, warmFlag);
+  const gate: WarmFailureGate = jest.fn<boolean, [IProcedureFailure]>((): boolean => isAllowed);
+  const strategy = { ...scripted.strategy, mayEscalateWarmFailure: gate };
+  const bus = makeStubMediator();
+  const ctx = makeStubCtx();
+  const creds: ITestCreds = { storedToken: 'stale' };
+  const resolver = buildResolverFromStrategy({ strategy, bus, ctx, creds });
+  return { resolver, gate, counts: scripted.counts };
+}
+
+describe('buildResolverFromStrategy — mayEscalateWarmFailure gate', () => {
+  it('returns the warm failure verbatim when the strategy refuses it', async () => {
+    const initialFail = fail(ScraperErrorTypes.Generic, 'token HTTP 500');
+    const run = makeGatedRun(initialFail, true, false);
+    const result = await run.resolver.resolve();
+    expect(result).toBe(initialFail);
+    expect(run.gate).toHaveBeenCalledWith(initialFail);
+    expect(run.counts.primeFresh).toBe(0);
+  });
+
+  it('escalates once when the strategy allows the warm failure', async () => {
+    const initialFail = fail(ScraperErrorTypes.Generic, 'token HTTP 401');
+    const run = makeGatedRun(initialFail, true, true);
+    const result = await run.resolver.resolve();
+    expect(result.success).toBe(true);
+    expect(run.counts.primeFresh).toBe(1);
+  });
+
+  it.each<[string, Procedure<string>, boolean]>([
+    ['an edge block', fail(ScraperErrorTypes.WafBlocked, 'edge block'), true],
+    ['a cold start', fail(ScraperErrorTypes.Generic, 'token HTTP 401'), false],
+  ])('never asks the gate about %s', async (_label, initialFail, warmFlag) => {
+    const run = makeGatedRun(initialFail, warmFlag, true);
+    const result = await run.resolver.resolve();
+    expect(result).toBe(initialFail);
+    expect(run.gate).not.toHaveBeenCalled();
+    expect(run.counts.primeFresh).toBe(0);
   });
 });
 

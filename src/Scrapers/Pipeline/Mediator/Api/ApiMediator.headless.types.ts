@@ -9,6 +9,7 @@ import type { CamoufoxIdentityFetchStrategy } from '../../Strategy/Fetch/Camoufo
 import type { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { NativeFetchStrategy } from '../../Strategy/Fetch/NativeFetchStrategy.js';
 import type { TlsClientProfileKind } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
+import type { IDynamicClientCert } from '../../Types/Domain/ClientCertControl.js';
 import type { RedirectPolicy, StatusPolicy } from '../../Types/Domain/FetchPolicy.js';
 
 /** Args bundle for the headless-mediator factory. */
@@ -34,6 +35,8 @@ interface IHeadlessMediatorArgs {
 interface INodeTlsMediatorArgs extends IHeadlessMediatorArgs {
   /** Present the bank's registered client certificate on every handshake. */
   readonly requiresClientCert?: boolean;
+  /** A device certificate the flow installs at runtime, presented to one origin. */
+  readonly clientCert?: IDynamicClientCert;
   /** ClientHello profile both transports present; absent keeps Node's default. */
   readonly tlsProfile?: TlsClientProfileKind;
 }
