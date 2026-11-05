@@ -21,14 +21,44 @@ import { anyStep, type IApiDirectRule } from './ApiDirectRuleInput.js';
 /** Longest text answer a step may accept, in chars (2 MiB). */
 const MAX_TEXT_CHARS = 2_097_152;
 
-/** Escapes and character classes, which may hold a literal `)`. */
-const LITERAL_PARTS = /\\.|\[(?:\\.|[^\\\]])*\]/gu;
-
 /** A group closed, then repeated. */
 const REPEATED_GROUP = /\)[*+{]/u;
 
+/** Scanner state for escapes and character classes in a regex source. */
+interface IPatternScan {
+  escaped: boolean;
+  inClass: boolean;
+  readonly structure: string[];
+}
+
 /** A check on one capture. */
 type CaptureCheck = (capture: ITextCapture) => boolean;
+
+/**
+ * Keep only regex structure outside escapes and character classes.
+ * @param scan - Scanner state for one pattern.
+ * @param char - Current regex-source character.
+ * @returns The updated scanner state.
+ */
+function scanPatternChar(scan: IPatternScan, char: string): IPatternScan {
+  if (scan.escaped) scan.escaped = false;
+  else if (char === '\\') scan.escaped = true;
+  else if (char === '[' && !scan.inClass) scan.inClass = true;
+  else if (char === ']' && scan.inClass) scan.inClass = false;
+  else if (!scan.inClass) scan.structure.push(char);
+  return scan;
+}
+
+/**
+ * Strip literal parts before detecting repeated regex groups.
+ * @param pattern - Compiling regex source.
+ * @returns Only punctuation outside escapes and character classes.
+ */
+function patternStructure(pattern: string): string {
+  let scan: IPatternScan = { escaped: false, inClass: false, structure: [] };
+  for (const char of pattern) scan = scanPatternChar(scan, char);
+  return scan.structure.join('');
+}
 
 /**
  * A rule check over every capture of every login and resume step.
@@ -96,7 +126,7 @@ function isUncompilable(capture: ITextCapture): boolean {
  * @returns True when a group is followed by `*`, `+` or `{`.
  */
 function repeatsGroup(capture: ITextCapture): boolean {
-  const structure = capture.pattern.replaceAll(LITERAL_PARTS, '');
+  const structure = patternStructure(capture.pattern);
   return REPEATED_GROUP.test(structure);
 }
 

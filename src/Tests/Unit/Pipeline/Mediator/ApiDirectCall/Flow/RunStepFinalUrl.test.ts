@@ -17,14 +17,17 @@ import type { JsonValue } from '../../../../../../Scrapers/Pipeline/Mediator/Api
 import { runStep } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import { succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fakeFetch, type IFetchFake } from '../../../../../Helpers/FakeFetch.js';
 import { makeNativeMediator } from '../../../../../Helpers/NativeStepHarness.js';
+import { makeStubMediator } from './StubMediator.js';
 
 const HINT = CompanyTypes.OneZero;
 const WK_ORIGIN = 'https://example.test';
 const BANK = 'https://bank.test';
 const START = `${BANK}/portal/start?t=syn-ticket`;
 const LANDING = `${BANK}/portal/landing`;
+const CAPTURE_START = `${BANK}/auth/start`;
 const CARRIED_RULES = [{ origin: BANK, paths: ['/portal/start', '/portal/landing'] }] as const;
 
 const CONFIG: IApiDirectCallConfig = {
@@ -60,8 +63,27 @@ const MENU_STEP: IGetStep = {
   extractsToCarry: {},
 };
 
+const CAPTURE_STEP: IGetStep = {
+  name: 'landing',
+  urlTag: 'auth.bootstrap',
+  method: 'GET',
+  response: 'text',
+  extractsToCarry: {},
+  redirect: { maxHops: 1, allow: [{ origin: BANK, paths: ['/portal/landing'] }] },
+};
+
+const LOCATION_STEP: IGetStep = {
+  ...CAPTURE_STEP,
+  locationCapture: {
+    into: 'nextUrl',
+    userAgent: 'Mozilla/5.0',
+    url: [{ origin: BANK, paths: ['/portal/next'] }],
+  },
+};
+
 beforeAll((): void => {
   registerWkUrl('auth.bind', HINT, `${WK_ORIGIN}/api/bind`);
+  registerWkUrl('auth.bootstrap', HINT, CAPTURE_START);
 });
 
 /**
@@ -75,6 +97,21 @@ function serve(hasHop: boolean): IFetchFake {
     if (hasHop && url === START)
       return new Response(null, { status: 302, headers: { location: '/portal/landing' } });
     return Response.json({});
+  });
+  globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
+  return fake;
+}
+
+/**
+ * Answer a redirect with text from another directory on the same origin.
+ * @param html - Landing page text.
+ * @returns The fake, for request assertions.
+ */
+function serveLanding(html: string): IFetchFake {
+  const fake = fakeFetch((url: string): Response => {
+    if (url === CAPTURE_START)
+      return new Response(null, { status: 302, headers: { location: LANDING } });
+    return new Response(html, { status: 200 });
   });
   globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
   return fake;
@@ -107,7 +144,7 @@ function headerSent(fake: IFetchFake, index: number, name: string): string {
   return headers.get(name) ?? '';
 }
 
-describe('N51 finalUrlInto', () => {
+describe('N51 final response URLs', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {
@@ -150,5 +187,46 @@ describe('N51 finalUrlInto', () => {
     expect(menu.success).toBe(true);
     const referer = headerSent(fake, 2, 'referer');
     expect(referer).toBe(LANDING);
+  });
+
+  it('resolves a relative form action against the answered URL without finalUrlInto', async () => {
+    const html =
+      '<form name="login" method="post" action="submit"><input type="hidden" name="ticket" value="syn-value"></form>';
+    const fake = serveLanding(html);
+    const formCapture = {
+      form: 'login',
+      into: 'loginForm',
+      action: `${BANK}/portal/submit`,
+      required: ['ticket'],
+      forbidden: [],
+      minFields: 1,
+      maxFields: 1,
+    };
+    const result = await runOver({ ...CAPTURE_STEP, formCapture }, {});
+    const requested = fake.calls.map(call => call.url);
+    expect(requested).toEqual([CAPTURE_START, LANDING]);
+    expect(result.success && result.value.carry.loginForm).toEqual({ ticket: 'syn-value' });
+  });
+
+  it('resolves a relative handoff against the answered URL without finalUrlInto', async () => {
+    const html = "<script>window.location.href = 'next';</script>";
+    const fake = serveLanding(html);
+    const result = await runOver(LOCATION_STEP, {});
+    const requested = fake.calls.map(call => call.url);
+    expect(requested).toEqual([CAPTURE_START, LANDING]);
+    expect(result.success && result.value.carry.nextUrl).toBe(`${BANK}/portal/next`);
+  });
+
+  it('refuses relative captures when the transport omits the answering URL', async () => {
+    const html = "<script>window.location.href = 'next';</script>";
+    const answered = succeed({ text: html });
+    const bus = makeStubMediator({ responses: [answered], captures: [] });
+    const scope: ITemplateScope = { carry: {}, creds: {}, config: CONFIG, keypair: undefined };
+    const result = await runStep({ step: LOCATION_STEP, bus, scope, companyId: HINT });
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'landing answer url missing',
+    });
   });
 });

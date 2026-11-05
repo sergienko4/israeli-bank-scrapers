@@ -344,12 +344,29 @@ describe('classifyAnswer — redacted diagnostics', () => {
     const classify = oneCheck(PENDING);
     classifyWith(classify, resp);
     expect(LOG.debug).toHaveBeenCalledTimes(1);
-    const data = { list: [{ id: 'string' }], otp: 'number', ok: 'boolean' };
+    const data = {
+      '<key:0>': [{ '<key:0>': 'string' }],
+      '<key:1>': 'number',
+      '<key:2>': 'boolean',
+    };
     const logged: unknown = LOG.debug.mock.calls[0][0];
-    expect(logged).toMatchObject({ stepName: 'login', shape: { state: 'string', data } });
+    expect(logged).toMatchObject({
+      stepName: 'login',
+      shape: { '<key:0>': 'string', '<key:1>': data },
+    });
     const text = JSON.stringify(LOG.debug.mock.calls);
     const leaked = secrets.filter((secret): boolean => text.includes(secret));
     expect(leaked).toEqual([]);
+  });
+
+  it('never logs bank-supplied object keys even when they look like identifiers', () => {
+    const bankKey = 'synCustomerNameQ7x';
+    const answer = { [bankKey]: { [bankKey]: 'syn-content' } };
+    const classifier = oneCheck(PENDING);
+    classifyWith(classifier, answer);
+    expect(LOG.debug).toHaveBeenCalledTimes(1);
+    const logged = JSON.stringify(LOG.debug.mock.calls);
+    expect(logged).not.toContain(bankKey);
   });
 
   it('logs the matched case names of an ambiguous answer', () => {

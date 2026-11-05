@@ -10,6 +10,7 @@ import type { IFetchCallPolicy } from '../../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import type { IBodyTemplate } from '../ConfigContracts/index.js';
+import { isJsonRecord } from '../Crypto/EnvelopeWire.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { sealGuardedBody } from './RunStep.codec.js';
@@ -169,27 +170,17 @@ function assembleFire(opts: IAssembleFireArgs): IFireArgs {
 }
 
 /**
- * Read top-level keys from a JsonValue, returning [] for non-objects.
- * @param value - Any JSON value.
- * @returns Top-level keys (empty for non-objects).
- */
-function topLevelKeys(value: JsonValue): readonly string[] {
-  if (typeof value !== 'object' || value === null) return [];
-  if (Array.isArray(value)) return [];
-  return Object.keys(value);
-}
-
-/**
- * Build the safe diagnostic context for per-step traces. PII-safe.
+ * Build the diagnostic context without logging captured form-field names.
  * @param step - Step config.
- * @param bodyValue - Hydrated body (only top-level keys are read).
+ * @param bodyValue - Hydrated body (only the top-level key count is read).
  * @returns Structured context fields ready to splat into log calls.
  */
 function buildStepContext(step: IStepConfig, bodyValue: JsonValue): IStepLogContext {
+  const bodyKeyCount = isJsonRecord(bodyValue) ? Object.keys(bodyValue).length : 0;
   return {
     stepName: step.name,
     urlTag: step.urlTag,
-    bodyKeys: topLevelKeys(bodyValue),
+    bodyKeyCount,
     extractKeys: Object.keys(step.extractsToCarry),
   };
 }

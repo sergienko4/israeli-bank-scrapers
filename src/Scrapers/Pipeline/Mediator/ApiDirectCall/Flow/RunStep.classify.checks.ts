@@ -46,8 +46,8 @@ function resolveFirst(resp: JsonValue, pointer: AnswerPointer): Procedure<JsonVa
  * @returns True for a control char.
  */
 function isControlUnit(unit: string): boolean {
-  const code = unit.charCodeAt(0);
-  return code <= LAST_C0 || code === DEL;
+  const code = unit.codePointAt(0);
+  return code !== undefined && (code <= LAST_C0 || code === DEL);
 }
 
 /**

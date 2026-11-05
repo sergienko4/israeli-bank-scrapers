@@ -2,7 +2,7 @@
  * Step envelope opening (N39, N52), shared by the codec modes: open a step's
  * answer under a crypto session into its `{ headers, data }` view, and fail
  * opened data that carries a bank error code. Failures name the step, never a
- * key, IV or plaintext; only the opened data's top-level keys are logged.
+ * key, IV or plaintext; only the opened data's key count is logged.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
@@ -49,14 +49,14 @@ function hasBankErrorCode(value: JsonValue): boolean {
 }
 
 /**
- * Log the opened data's top-level keys (never its values).
+ * Log the opened data's key count, never bank-controlled field names.
  * @param bundle - Dispatch bundle.
  * @param data - Opened data.
  * @returns Sentinel true.
  */
 function logOpened(bundle: IDispatchBundle, data: JsonValue): true {
-  const dataKeys = isJsonRecord(data) ? Object.keys(data) : [];
-  LOG.debug({ ...bundle.baseCtx, dataKeys, message: '[runStep] envelope opened' });
+  const dataKeyCount = isJsonRecord(data) ? Object.keys(data).length : 0;
+  LOG.debug({ ...bundle.baseCtx, dataKeyCount, message: '[runStep] envelope opened' });
   return true;
 }
 

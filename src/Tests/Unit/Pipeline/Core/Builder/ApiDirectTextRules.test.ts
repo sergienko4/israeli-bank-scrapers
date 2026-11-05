@@ -84,6 +84,11 @@ describe('validateApiDirectConfig — N36 text captures', () => {
     ['a repeated group', capturing({ pattern: '(a+)+b', group: 1 }), REPEAT_MSG],
     ['a repeated non-capturing group', capturing({ pattern: '(?:a|aa)*b', group: 0 }), REPEAT_MSG],
     ['a group with a counted repeat', capturing({ pattern: '(a*){40}', group: 1 }), REPEAT_MSG],
+    [
+      'a repeated group after a class with an escaped bracket',
+      capturing({ pattern: String.raw`[)\]]+(a+)+b`, group: 1 }),
+      REPEAT_MSG,
+    ],
     ['a group past the count', capturing({ pattern: 'code=(\\w+)', group: 2 }), GROUP_MSG],
     ['a negative group', capturing({ pattern: 'code', group: -1 }), GROUP_MSG],
     ['a fractional group', capturing({ pattern: 'code=(\\w+)', group: 0.5 }), GROUP_MSG],
@@ -106,6 +111,14 @@ describe('validateApiDirectConfig — N36 text captures', () => {
     ],
     ['an escaped paren that repeats', capturing({ pattern: String.raw`\)+x`, group: 0 })],
     ['a paren in a class that repeats', capturing({ pattern: '[)]+x', group: 0 })],
+    [
+      'a paren before an escaped class bracket',
+      capturing({ pattern: String.raw`[)\]]+x`, group: 0 }),
+    ],
+    [
+      'a long class containing escaped closing brackets',
+      capturing({ pattern: `[${String.raw`\]`.repeat(2048)}]`, group: 0 }),
+    ],
     ['an optional group', capturing({ pattern: '(a)?b', group: 1 })],
     [
       'an absent guard',

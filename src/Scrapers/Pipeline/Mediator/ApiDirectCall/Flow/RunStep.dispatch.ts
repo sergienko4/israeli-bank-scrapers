@@ -31,14 +31,13 @@ import { resolvePathAndQuery } from './RunStep.url.js';
 const LOG = getDebug(import.meta.url);
 
 /**
- * Read top-level keys from a JsonValue, returning [] for non-objects.
+ * Count top-level keys without exposing bank-controlled field names.
  * @param value - Any JSON value.
- * @returns Top-level keys (empty for non-objects).
+ * @returns Top-level key count (zero for non-objects).
  */
-function topLevelKeys(value: JsonValue): readonly string[] {
-  if (typeof value !== 'object' || value === null) return [];
-  if (Array.isArray(value)) return [];
-  return Object.keys(value);
+function responseKeyCount(value: JsonValue): number {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return 0;
+  return Object.keys(value).length;
 }
 
 /**
@@ -58,12 +57,12 @@ function readEnvelopeErrorCode(resp: JsonValue): string {
  * Describe the response shape under the bank-text omission policy.
  * @param resp - Response JSON value.
  * @param isBankTextOmitted - Whether response values need length-only hints.
- * @returns Top-level keys, length and a policy-safe error-code hint.
+ * @returns Key count, length and a policy-safe error-code hint.
  */
 function describeResponse(resp: JsonValue, isBankTextOmitted: boolean): IRespDescriptor {
   const errorCode = readEnvelopeErrorCode(resp);
   return {
-    respKeys: topLevelKeys(resp),
+    respKeyCount: responseKeyCount(resp),
     respLength: JSON.stringify(resp).length,
     errorCode: isBankTextOmitted ? redactErrorMessage(errorCode) : errorCode,
   };

@@ -36,6 +36,11 @@ import {
   failWithDetails,
   succeed,
 } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import {
+  ENVELOPE_KEY_TEXT,
+  ENVELOPE_SESSION_ID,
+  sealedAnswer,
+} from '../../../../../Helpers/EnvelopeOracle.js';
 import { fakeFetch, type IFetchFake } from '../../../../../Helpers/FakeFetch.js';
 
 /** Every serialized log line any pipeline module emitted. */
@@ -88,6 +93,7 @@ const ECHO_BODY = JSON.stringify({
   otp: ECHOED_SECRETS[1],
   deviceId: ECHOED_SECRETS[2],
 });
+const BANK_KEY = 'synCustomerNameQ7x';
 
 const PLAIN_CONFIG: IApiDirectCallConfig = {
   flow: 'sms-otp',
@@ -101,6 +107,24 @@ const BIND_STEP: IStepConfig = {
   urlTag: 'auth.bind',
   body: { shape: {} },
   extractsToCarry: { token: '/access_token' },
+};
+
+const SEALED_BIND_STEP: IStepConfig = {
+  ...BIND_STEP,
+  body: { shape: { headers: [], data: {} } },
+  codec: {
+    kind: 'ecdh-aes-cbc',
+    mode: 'sealed',
+    keyRef: 'carry.envelopeKey',
+    sessionRef: 'carry.envelopeSession',
+  },
+  extractsToCarry: {},
+};
+
+const FORM_BIND_STEP: IStepConfig = {
+  ...BIND_STEP,
+  encoding: 'form',
+  body: { shape: { $merge: { base: 'carry.loginForm', set: {} } } },
 };
 
 const WAF_DETAILS: IWafErrorDetails = {
@@ -310,6 +334,56 @@ describe('E15 RunStep failure message', () => {
       expect(isCodeVisible).toBe(shouldQuoteCode);
     },
   );
+
+  it.each([false, true])(
+    'omits bank-supplied response keys when omitBankText=%s',
+    async omitted => {
+      LOG_LINES.length = 0;
+      const response = { access_token: 'syn-token', [BANK_KEY]: 'syn-content' };
+      const answered = succeed(response);
+      const bus = STUB.makeStubMediator({ responses: [answered], captures: [] });
+      const args = {
+        step: BIND_STEP,
+        bus,
+        scope: makeScope(),
+        companyId: HINT,
+        isBankTextOmitted: omitted,
+      };
+      const result = await RUN_STEP.runStep(args);
+      expect(result.success).toBe(true);
+      const emitted = LOG_LINES.join('\n');
+      expect(emitted).not.toContain(BANK_KEY);
+      expect(emitted).toContain('"respKeyCount":2');
+    },
+  );
+
+  it('omits decrypted data keys from successful envelope diagnostics', async () => {
+    LOG_LINES.length = 0;
+    const sealed = sealedAnswer({ [BANK_KEY]: 'syn-content' });
+    const answered = succeed(sealed);
+    const bus = STUB.makeStubMediator({ responses: [answered], captures: [] });
+    const scope = {
+      ...makeScope(),
+      carry: { envelopeKey: ENVELOPE_KEY_TEXT, envelopeSession: ENVELOPE_SESSION_ID },
+    };
+    const result = await RUN_STEP.runStep({ step: SEALED_BIND_STEP, bus, scope, companyId: HINT });
+    expect(result.success).toBe(true);
+    const emitted = LOG_LINES.join('\n');
+    expect(emitted).not.toContain(BANK_KEY);
+    expect(emitted).toContain('"dataKeyCount":1');
+  });
+
+  it('omits captured form-field names from request diagnostics', async () => {
+    LOG_LINES.length = 0;
+    const answered = succeed({ access_token: 'syn-token' });
+    const bus = STUB.makeStubMediator({ responses: [answered], captures: [] });
+    const scope = { ...makeScope(), carry: { loginForm: { [BANK_KEY]: 'syn-content' } } };
+    const result = await RUN_STEP.runStep({ step: FORM_BIND_STEP, bus, scope, companyId: HINT });
+    expect(result.success).toBe(true);
+    const emitted = LOG_LINES.join('\n');
+    expect(emitted).not.toContain(BANK_KEY);
+    expect(emitted).toContain('"bodyKeyCount":1');
+  });
 });
 
 describe('E15 SEC-02 through the native transport and the mediator', () => {

@@ -12,8 +12,8 @@ type HtmlAttrValue = string | true;
 /** A tag's attributes by lower-cased name. */
 type HtmlAttrs = ReadonlyMap<string, HtmlAttrValue>;
 
-/** One attribute: its name, then a double-quoted, single-quoted or bare value. */
-const ATTR = /([^\s/>="']+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/gu;
+/** A quoted or bare assignment immediately after an attribute name. */
+const ATTR_VALUE = /\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/uy;
 
 /** One of the four named entities, or a decimal or hex character reference. */
 const ENTITY = /&(?:amp|lt|gt|quot|#\d{1,8}|#[xX][\dA-Fa-f]{1,8});/gu;
@@ -73,16 +73,30 @@ function decodeEntity(entity: string): string {
 }
 
 /**
- * Read one attribute.
- * @param found - The attribute's match.
- * @returns Its lower-cased name and its decoded value, or `true` for none.
+ * Decode a matched assignment.
+ * @param found - Assignment immediately after the attribute name.
+ * @returns Its decoded value.
  */
-function attrOf(found: RegExpMatchArray): readonly [string, HtmlAttrValue] {
-  const name = found[1].toLowerCase();
-  const raw = found.at(2) ?? found.at(3) ?? found.at(4);
-  if (raw === undefined) return [name, true];
-  const value = raw.replaceAll(ENTITY, decodeEntity);
-  return [name, value];
+function decodeAttrValue(found: RegExpExecArray): string {
+  const raw = found.at(1) ?? found.at(2) ?? found.at(3);
+  if (raw === undefined) throw new TypeError('attribute assignment missing value');
+  return raw.replaceAll(ENTITY, decodeEntity);
+}
+
+/**
+ * Read one name and the assignment immediately after it, if any.
+ * @param text - Tag text.
+ * @param found - Attribute name match.
+ * @returns Its name, value and the next unread position.
+ */
+function readAttr(text: string, found: RegExpExecArray): readonly [string, HtmlAttrValue, number] {
+  const after = found.index + found[0].length;
+  ATTR_VALUE.lastIndex = after;
+  const matched = ATTR_VALUE.exec(text);
+  const name = found[0].toLowerCase();
+  const value = matched === null ? true : decodeAttrValue(matched);
+  const end = matched === null ? after : ATTR_VALUE.lastIndex;
+  return [name, value, end];
 }
 
 /**
@@ -91,9 +105,14 @@ function attrOf(found: RegExpMatchArray): readonly [string, HtmlAttrValue] {
  * @returns Its attributes; the last of duplicates wins.
  */
 function attrsOf(text: string): HtmlAttrs {
-  const found = text.matchAll(ATTR);
-  const attrs = Array.from(found, attrOf);
-  return new Map(attrs);
+  const attrs = new Map<string, HtmlAttrValue>();
+  const names = /[^\s/>="']+/gu;
+  for (let found = names.exec(text); found !== null; found = names.exec(text)) {
+    const [name, value, end] = readAttr(text, found);
+    attrs.set(name, value);
+    names.lastIndex = end;
+  }
+  return attrs;
 }
 
 export type { HtmlAttrs, HtmlAttrValue };

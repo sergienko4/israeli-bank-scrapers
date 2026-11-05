@@ -554,13 +554,13 @@ capture's `maxChars`. A capture whose pointer misses fails `Generic` with
 `<step> answer capture <slot> invalid`. No value is ever named.
 
 An unrecognized or ambiguous answer is logged at debug level with the step
-name, the matched case names and the answer's redacted shape, never a value.
-`answerShape` (in `Flow/RunStep.classify.shape.ts`) builds it: a scalar
-becomes its JSON type, an object keeps its keys, and an array keeps its items'
-shapes. A key is printed only when it is an identifier of at most 32 chars
-(`[A-Za-z_]\w{0,31}`), else as `<key:i>`, its position. Six levels are
-walked; a deeper container prints as `object(n)` or `array(n)`. At most 64
-entries (keys and items) are shown in all, shallower ones first; a cut object
+name, the matched case names and the answer's redacted shape, never a value
+or a bank-supplied key name. `answerShape` (in
+`Flow/RunStep.classify.shape.ts`) builds it: a scalar becomes its JSON type,
+an object's keys become anonymous `<key:i>` positions, and an array keeps its
+items' shapes. Six levels are walked; a deeper container prints as
+`object(n)` or `array(n)`. At most 64 entries (keys and items) are shown in
+all, shallower ones first; a cut object
 ends with `'...': '+n'` and a cut array with `'...+n'`. A step without
 `classify` behaves as before.
 
@@ -691,8 +691,9 @@ formCapture: {
 - The page must hold exactly one `<form>` whose `id` or `name` is `form`: none
   fails `<step> form <form> missing`, more `<step> form <form> ambiguous`.
 - The form's `method` must be `post` in any case, and its `action`, resolved
-  against the step URL, must equal `action`; anything else, a missing method
-  or action included, fails `<step> form action refused`.
+  against the final answering URL after any redirects, must equal `action`;
+  anything else, including a missing method or action, fails
+  `<step> form action refused`.
 - Its fields are the inputs with a non-empty `name` and no `disabled`, up to
   its end tag or the next `<form>`. `formFieldsOf` (in
   `Flow/RunStep.formFields.ts`) fails `<step> form field not hidden` when a
@@ -756,11 +757,15 @@ locationCapture: {
   two statements on one line without `;` fail
   `<step> handoff script unsupported`. Over all scripts, no assignment fails
   `<step> handoff missing`, and two or more `<step> handoff ambiguous`.
-- The one URL is resolved against the step URL and must pass the `url` rules
-  (https, no user info, no fragment): else `<step> handoff refused`. Its
-  `href` goes to carry `into`, which a later step can name as its
+- The one URL is resolved against the final answering URL and must pass the
+  `url` rules (https, no user info, no fragment): else `<step> handoff
+  refused`. Its `href` goes to carry `into`, which a later step can name as its
   [`urlFromCarry`](#carried-step-url). A failure is `Generic` and names the
   step only, never the URL.
+
+Both captures require the answering URL; if the transport cannot provide it,
+the step fails `<step> answer url missing` without exposing a URL. A later
+retry or redirect always replaces the prior answer's URL.
 
 The build (`API_DIRECT_LOCATION_CAPTURE_RULES`) refuses a `locationCapture`
 on a step whose `response` is not `'text'`, one with an empty `into`,
@@ -809,8 +814,9 @@ codec: {
   [`bankErrorType`](#bank-error-guard); any other plaintext answer fails
   `<step> envelope invalid` (`Generic`). Opened data with such an `error_code`
   fails `<step> bank error` too.
-- Only the opened data's top-level keys are logged. A failure names the step
-  only, never a key, an IV or plaintext.
+- Only the opened data's key count is logged. Login request and response
+  diagnostics likewise use key counts, never bank-controlled field names.
+  A failure names the step only, never a key, an IV or plaintext.
 - `toSession` returns an `IEnvelopeSession` (the key bytes and the id).
   `Crypto/EnvelopeWire.ts` holds what sealing and opening share: `CIPHER`
   (`aes-256-cbc`), `IV_BYTES` (16), `canonicalBytes` (base64 that re-encodes

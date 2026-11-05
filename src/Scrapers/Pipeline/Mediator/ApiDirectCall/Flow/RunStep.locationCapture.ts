@@ -4,18 +4,18 @@
  * the path `userAgent` selects. A script outside the grammar fails `<step>
  * handoff script unsupported`; no assignment over all scripts `<step> handoff
  * missing`, two or more `<step> handoff ambiguous`. The one URL is resolved
- * against the step URL and must pass `url`, else `<step> handoff refused`; it
- * goes to carry `into`. No failure names the URL, and it is never logged.
+ * against the URL that answered and must pass `url`, else `<step> handoff
+ * refused`; it goes to carry `into`. No failure names the URL, and it is
+ * never logged.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { matchesAnyUrlRule } from '../../../Strategy/Fetch/UrlRule.js';
 import type { IProcedureFailure, Procedure } from '../../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../../Types/Procedure.js';
+import { fail, succeed } from '../../../Types/Procedure.js';
 import type { ILocationCapture, IStepConfig } from '../ConfigContracts/index.js';
 import { tokenizeScript } from './RunStep.locationScriptLexer.js';
 import { selectedTargets } from './RunStep.locationScriptWalk.js';
-import { stepBaseUrlOf } from './RunStep.stepUrl.js';
 import { answerText } from './RunStep.textCapture.js';
 import type { CarryMap, IRunStepArgs, JsonValue } from './RunStep.types.js';
 
@@ -135,14 +135,13 @@ function captureFrom(pick: IHandoffPick, html: string): Procedure<CarryMap> {
  * Capture a step's handoff URL from its `{ text }` answer.
  * @param args - The step and its company.
  * @param resp - The step's answer.
+ * @param url - Validated URL that answered the step.
  * @returns The `into` slot, {} without a capture, or the refusal.
  */
-function captureLocation(args: IRunStepArgs, resp: JsonValue): Procedure<CarryMap> {
+function captureLocation(args: IRunStepArgs, resp: JsonValue, url: string): Procedure<CarryMap> {
   const { step } = args;
   if (step.locationCapture === undefined) return succeed({});
-  const stepUrl = stepBaseUrlOf(args);
-  if (!isOk(stepUrl)) return stepUrl;
-  const pick: IHandoffPick = { step, capture: step.locationCapture, stepUrl: stepUrl.value };
+  const pick: IHandoffPick = { step, capture: step.locationCapture, stepUrl: url };
   const html = answerText(resp);
   return captureFrom(pick, html);
 }

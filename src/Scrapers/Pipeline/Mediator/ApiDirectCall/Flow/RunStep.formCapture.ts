@@ -2,9 +2,9 @@
  * Login-form capture (N37). A `text` step's `formCapture` finds the page's one
  * `<form>` whose `id` or `name` is `form`: none fails `<step> form <form>
  * missing`, two `<step> form <form> ambiguous`. The form must post — `method`
- * `post` in any case — to `action`, its own action resolved against the step
- * URL; else `<step> form action refused`. Its inputs run to its end tag or
- * the next form, and `formFieldsOf` checks them (`<step> form field not
+ * `post` in any case — to `action`, its own action resolved against the URL
+ * that answered; else `<step> form action refused`. Its inputs run to its end
+ * tag or the next form, and `formFieldsOf` checks them (`<step> form field not
  * hidden`, `<step> form fields invalid`). The `{ name: value }` record goes to
  * carry `into`. No failure names a field or a value.
  */
@@ -16,7 +16,6 @@ import type { IFormCapture, IStepConfig } from '../ConfigContracts/index.js';
 import type { HtmlAttrs } from './HtmlTags.attrs.js';
 import { type IHtmlTag, scanHtmlTags } from './HtmlTags.js';
 import { formFieldsOf } from './RunStep.formFields.js';
-import { stepBaseUrlOf } from './RunStep.stepUrl.js';
 import { answerText } from './RunStep.textCapture.js';
 import type { CarryMap, IRunStepArgs, JsonValue } from './RunStep.types.js';
 
@@ -154,14 +153,13 @@ function captureFormOf(target: IFormTarget, html: string): Procedure<CarryMap> {
  * Capture a step's login form from its `{ text }` answer.
  * @param args - The step and its company.
  * @param resp - The step's answer.
+ * @param answerUrl - Validated URL that answered the step.
  * @returns The `into` slot, {} without a capture, or the refusal.
  */
-function captureForm(args: IRunStepArgs, resp: JsonValue): Procedure<CarryMap> {
+function captureForm(args: IRunStepArgs, resp: JsonValue, answerUrl: string): Procedure<CarryMap> {
   const { step } = args;
   if (step.formCapture === undefined) return succeed({});
-  const stepUrl = stepBaseUrlOf(args);
-  if (!isOk(stepUrl)) return stepUrl;
-  const target: IFormTarget = { step, capture: step.formCapture, stepUrl: stepUrl.value };
+  const target: IFormTarget = { step, capture: step.formCapture, stepUrl: answerUrl };
   const html = answerText(resp);
   return captureFormOf(target, html);
 }

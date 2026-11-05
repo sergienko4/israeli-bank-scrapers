@@ -1,8 +1,8 @@
 /**
  * Redacted answer shape (N50), logged when an answer is unrecognized or
  * ambiguous; no value is ever printed. A scalar becomes its JSON type, an
- * object keeps its keys and an array its items. A key is printed only when it
- * is a plain identifier of at most 32 chars, else as `<key:i>`, its position.
+ * object keeps its key positions (never bank-supplied names) and an array its
+ * items. Each key is printed as `<key:i>`, its position.
  * Six levels are walked; a deeper container becomes `object(n)` or
  * `array(n)`. At most 64 entries (keys and items) are shown in all, the
  * shallower first; a cut object ends with `'...': '+n'`, a cut array with
@@ -20,9 +20,6 @@ const MAX_DEPTH = 6;
 
 /** Entries shown in all. */
 const MAX_ENTRIES = 64;
-
-/** A key printed as is. */
-const SAFE_KEY = /^[A-Za-z_]\w{0,31}$/u;
 
 /** Marks a cut container. */
 const CUT = '...';
@@ -63,13 +60,12 @@ function deeper(walk: IShapeWalk): IShapeWalk {
 }
 
 /**
- * A key as printed.
- * @param key - Answer key.
+ * A bank-controlled key's position without its name.
  * @param index - Its position.
- * @returns The key, or `<key:i>`.
+ * @returns The anonymous `<key:i>` marker.
  */
-function printedKey(key: string, index: number): string {
-  return SAFE_KEY.test(key) ? key : `<key:${String(index)}>`;
+function printedKey(index: number): string {
+  return `<key:${String(index)}>`;
 }
 
 /**
@@ -110,7 +106,7 @@ function entryOf(
 ): (key: string, index: number) => ShapeEntry {
   return (key, index): ShapeEntry => {
     const shape = shapeOf(object[key], child);
-    return [printedKey(key, index), shape];
+    return [printedKey(index), shape];
   };
 }
 
@@ -126,7 +122,7 @@ function shapeKeys(object: IJsonObject, walk: IShapeWalk): JsonValue {
   const kept = takeEntries(keys.length, walk.budget);
   const child = deeper(walk);
   const toEntry = entryOf(object, child);
-  const shown = keys.slice(0, kept).map(toEntry);
+  const shown = keys.slice(0, kept).map((key, index): ShapeEntry => toEntry(key, index));
   const cut = cutEntries(keys.length, kept);
   return Object.fromEntries([...shown, ...cut]);
 }

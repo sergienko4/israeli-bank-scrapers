@@ -105,7 +105,7 @@ interface IFireArgs {
   readonly extraHeaders: MutableHeaderMap;
   readonly onSetCookie?: OnSetCookie;
   readonly policy?: IFetchCallPolicy;
-  /** Present when the step carries response headers or its final URL; never sent to the bus. */
+  /** Present when the step needs response headers or its answering URL; never sent to the bus. */
   readonly headerCapture?: IHeaderCapture;
 }
 
@@ -113,13 +113,13 @@ interface IFireArgs {
 interface IStepLogContext {
   readonly stepName: string;
   readonly urlTag: string;
-  readonly bodyKeys: readonly string[];
+  readonly bodyKeyCount: number;
   readonly extractKeys: readonly string[];
 }
 
-/** Response-shape descriptor — keys, JSON length and the policy-filtered envelope error code. */
+/** Response-shape descriptor — key count, JSON length and the policy-filtered error code. */
 interface IRespDescriptor {
-  readonly respKeys: readonly string[];
+  readonly respKeyCount: number;
   readonly respLength: number;
   readonly errorCode: string;
 }

@@ -83,6 +83,11 @@ const CASES: readonly IScanCase[] = [
     ],
   },
   {
+    label: 'attribute-like text inside a quoted value',
+    html: '<form note="name=spoof disabled" name=login>',
+    expected: [['start', 'form', { note: 'name=spoof disabled', name: 'login' }]],
+  },
+  {
     label: 'spaces around = and a self-closing slash',
     html: '<input name = "a" value =b />',
     expected: [['start', 'input', { name: 'a', value: 'b' }]],

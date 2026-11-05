@@ -3,7 +3,8 @@
  * slot per response header. The step hands its call a sink for exactly those
  * headers; after the answer each slot takes its header's value, else its
  * fallback, else the step fails `<step> header missing`. A step that carries
- * its final URL (N51) gets a sink too, which also keeps the URL that answered.
+ * its final URL or resolves relative page captures gets a sink too, which
+ * keeps the URL that answered.
  * Only the last answer counts: a call retried after a 401 drops the first
  * answer's headers and URL. Values are never logged.
  */
@@ -72,17 +73,22 @@ function captureOf(step: IStepConfig): IHeaderCapture {
 }
 
 /**
- * Whether a step reads its answer's headers or final URL.
+ * Whether a step needs its answer's headers or answering URL.
  * @param step - Step config.
  * @returns True when the step needs a capture.
  */
 function isCapturing(step: IStepConfig): boolean {
-  return step.headerExtractsToCarry !== undefined || step.finalUrlInto !== undefined;
+  return (
+    step.headerExtractsToCarry !== undefined ||
+    step.finalUrlInto !== undefined ||
+    step.formCapture !== undefined ||
+    step.locationCapture !== undefined
+  );
 }
 
 /**
- * Give a step's fire args a capture when the step carries headers or its
- * final URL.
+ * Give a step's fire args a capture when it reads headers, its final URL or
+ * relative URLs from its answer.
  * @param fire - Fire args without a capture.
  * @param step - Step config.
  * @returns Fire args whose call policy names the capture's sink, else `fire`.
