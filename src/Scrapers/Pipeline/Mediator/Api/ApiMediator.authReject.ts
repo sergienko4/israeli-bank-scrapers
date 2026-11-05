@@ -30,12 +30,11 @@ import { isWafBlocked } from '../../Types/Procedure.js';
 const AUTH_REJECT_REGEX = /\s(?:401|403):\s/;
 
 /**
- * Matches the transport marker above, or the `<sp>HTTP 401` / `<sp>HTTP 403`
- * that ends a sanitised login step (`RunStep.failure.ts`) or a status-policy
- * refusal (`StatusPolicy.ts`). That form must end the message, so a status
- * that only starts with 401 (`HTTP 4010`) is not one.
+ * Matches the `<sp>HTTP 401` / `<sp>HTTP 403` that ends a sanitised login
+ * step (`RunStep.failure.ts`) or a status-policy refusal (`StatusPolicy.ts`).
+ * This form must end the message, so `HTTP 4010` is not a rejection.
  */
-const AUTH_REJECTED_REGEX = /\s(?:401|403):\s|\sHTTP (?:401|403)$/;
+const AUTH_REJECTED_SUFFIX_REGEX = /\sHTTP (?:401|403)$/;
 
 /**
  * Whether an error message carries the bank's auth-rejection marker.
@@ -55,7 +54,10 @@ function isAuthRejectionMessage(message: string): boolean {
  */
 function isAuthRejectedFailure(failure: IProcedureFailure): boolean {
   if (isWafBlocked(failure)) return false;
-  return AUTH_REJECTED_REGEX.test(failure.errorMessage);
+  return (
+    AUTH_REJECT_REGEX.test(failure.errorMessage) ||
+    AUTH_REJECTED_SUFFIX_REGEX.test(failure.errorMessage)
+  );
 }
 
 export default isAuthRejectionMessage;

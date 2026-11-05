@@ -20,6 +20,17 @@ const UNRESERVED = /^[\w.*-]$/;
 type FormPair = readonly [string, string];
 
 /**
+ * Get the code point of a nonempty character.
+ * @param char - Character from Array.from.
+ * @returns Unicode code point.
+ */
+function firstCodePoint(char: string): number {
+  const point = char.codePointAt(0);
+  if (point === undefined) throw new TypeError('Expected nonempty form character');
+  return point;
+}
+
+/**
  * Encode one latin1 char.
  * @param char - A single char at or below U+00FF.
  * @returns The char, `+`, or `%XX`.
@@ -27,7 +38,7 @@ type FormPair = readonly [string, string];
 function encodeChar(char: string): string {
   if (char === ' ') return '+';
   if (UNRESERVED.test(char)) return char;
-  const hex = char.charCodeAt(0).toString(16).toUpperCase();
+  const hex = firstCodePoint(char).toString(16).toUpperCase();
   return `%${hex.padStart(2, '0')}`;
 }
 
@@ -37,7 +48,7 @@ function encodeChar(char: string): string {
  * @returns True when no char is above U+00FF.
  */
 function isLatin1(text: string): boolean {
-  return Array.from(text).every((char): boolean => char.charCodeAt(0) <= LATIN1_MAX);
+  return Array.from(text).every((char): boolean => firstCodePoint(char) <= LATIN1_MAX);
 }
 
 /**
