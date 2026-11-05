@@ -15,7 +15,10 @@ import BEINLEUMI_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Beinleumi/sc
 import MASSAD_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Massad/scrape/MassadShape.js';
 import OTSAR_HAHAYAL_SHAPE from '../../../../../Scrapers/Pipeline/Banks/OtsarHahayal/scrape/OtsarHahayalShape.js';
 import PAGI_SHAPE from '../../../../../Scrapers/Pipeline/Banks/Pagi/scrape/PagiShape.js';
-import type { IApiQueryOpts } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import type {
+  IApiQueryOpts,
+  SessionContext,
+} from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { IDriverCtx } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeDispatchArgs.js';
 import { fetchAccounts } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeSteps.js';
 import type { IFibiAcct } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.js';
@@ -32,7 +35,6 @@ import { isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.
 
 type FibiShape = typeof BEINLEUMI_SHAPE;
 type StepName = 'customer' | 'balance' | 'transactions';
-type Session = Record<string, unknown>;
 type IdentityAnswer = Promise<Procedure<ApiBody>>;
 type IdentityGetArgs = [url: string, opts: IApiQueryOpts];
 
@@ -62,12 +64,12 @@ const ACCOUNT_TYPE: ApiBody = { accountType: [{ accountType: 105 }] };
  * @param session - Post-login session context.
  * @returns Action context.
  */
-function sessionCtx(session: Session): IActionContext {
+function sessionCtx(session: SessionContext): IActionContext {
   /**
    * Session context stand-in.
    * @returns The given session.
    */
-  const getSessionContext = (): Session => session;
+  const getSessionContext = (): SessionContext => session;
   return { apiMediator: some({ getSessionContext }) } as unknown as IActionContext;
 }
 
@@ -139,9 +141,9 @@ describe.each(BRANDS)('$name FIBI financial headers', brand => {
  * @param session - Session context the bus holds.
  * @returns Bus stand-in with a spy-able apiGet.
  */
-function identityBus(session: Session): {
+function identityBus(session: SessionContext): {
   apiGet: jest.Mock<IdentityAnswer, IdentityGetArgs>;
-  getSessionContext: () => Session;
+  getSessionContext: () => SessionContext;
 } {
   const apiGet = jest.fn<IdentityAnswer, IdentityGetArgs>((url: string): IdentityAnswer => {
     const body = url.includes('/accountType') ? ACCOUNT_TYPE : USER_DATA;
@@ -152,7 +154,7 @@ function identityBus(session: Session): {
    * Session context stand-in.
    * @returns The given session.
    */
-  const getSessionContext = (): Session => session;
+  const getSessionContext = (): SessionContext => session;
   return { apiGet, getSessionContext };
 }
 

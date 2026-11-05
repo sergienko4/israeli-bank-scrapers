@@ -128,7 +128,7 @@ async function routeResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
   if (!isApiSuccess(answer.response)) return classifyStatus<T>(answer);
   const decided = await applyStatusPolicy<T>(answer);
   if (decided.has) return decided.value;
-  const refused = refuseMediaType<T>(answer);
+  const refused = await refuseMediaType<T>(answer);
   if (refused.has) return refused.value;
   return READERS[answer.reading.responseKind]<T>(answer);
 }

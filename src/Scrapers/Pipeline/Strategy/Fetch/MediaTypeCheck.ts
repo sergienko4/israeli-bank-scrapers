@@ -13,6 +13,7 @@ import type { Option } from '../../Types/Option.js';
 import { none, some } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail } from '../../Types/Procedure.js';
+import { cancelResponseBody } from './ResponseBody.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 import type { IAnswer } from './StatusPolicy.js';
 
@@ -40,11 +41,13 @@ function isMediaTypeMismatch(response: Response, expected?: string): boolean {
 
 /**
  * Refuse an answer whose media type is not the one the call expects.
+ * Cancel its unread body without replacing the refusal if cleanup fails.
  * @param answer - The answered call.
  * @returns The refusal, or none when the call expects no type or it matches.
  */
-function refuseMediaType<T>(answer: IAnswer): Option<Procedure<T>> {
+async function refuseMediaType<T>(answer: IAnswer): Promise<Option<Procedure<T>>> {
   if (!isMediaTypeMismatch(answer.response, answer.reading.mediaType)) return none();
+  await cancelResponseBody(answer.response, answer);
   const safeUrl = safeUrlForLog(answer.url);
   const message = `${answer.verb} ${safeUrl} ${MEDIA_TYPE_REFUSED_REASON}`;
   const refused = fail(ScraperErrorTypes.Generic, message);
