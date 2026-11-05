@@ -5,7 +5,7 @@
  * pointer, and every check or capture pointer is a JSON pointer, as each of
  * its alternatives is. A text pattern is anchored, compiles alone and is flat,
  * as an extract rule's is. Every `maxChars` is an integer from 1 to 65536, a
- * capture reads one mode, and an integer range is whole and in order. The slot
+ * capture reads one mode, and an integer range is safe and in order. The slot
  * rules of `ApiDirectClassifySlotRules.ts` run next.
  */
 
@@ -105,13 +105,13 @@ function capsOf(classifier: IAnswerClassifier): readonly number[] {
 }
 
 /**
- * Whether an integer range is fractional or upside down.
+ * Whether an integer range is unsafe, fractional or upside down.
  * @param range - Inclusive range.
  * @returns True for a bad range.
  */
 function isBadRange(range: IAnswerRange): boolean {
-  const isWhole = Number.isInteger(range.min) && Number.isInteger(range.max);
-  return !isWhole || range.min > range.max;
+  const isSafe = Number.isSafeInteger(range.min) && Number.isSafeInteger(range.max);
+  return !isSafe || range.min > range.max;
 }
 
 /**

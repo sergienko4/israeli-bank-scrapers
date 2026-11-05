@@ -173,7 +173,7 @@ describe('SessionCookieFetchStrategy', () => {
     const callerHook = jest.fn((lines: readonly string[]): number => lines.length);
     const transport = makeTransport();
     await transport.fetchGet(ITEMS_URL, { extraHeaders: {}, onSetCookie: callerHook });
-    expect(callerHook).toHaveBeenCalledWith(['sid=abc'], '');
+    expect(callerHook).toHaveBeenCalledWith(['sid=abc'], ITEMS_URL);
   });
 
   it('files a redirected response under the origin that answered', async () => {

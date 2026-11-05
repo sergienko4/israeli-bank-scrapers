@@ -294,6 +294,11 @@ describe('classifyAnswer — captures', () => {
     ['the only key', onlyKey, { value: { 'tgt-1': { kind: 'sms' } }, slot: 'tgt-1' }],
     ['an integer in range', integer, { value: 6, slot: '6' }],
     ['an integer at the top of the range', integer, { value: 10, slot: '10' }],
+    [
+      'the largest safe integer',
+      { ...integer, maxChars: 16, integer: { min: 0, max: Number.MAX_SAFE_INTEGER } },
+      { value: Number.MAX_SAFE_INTEGER, slot: String(Number.MAX_SAFE_INTEGER) },
+    ],
   ])('writes %s', (_label, capture, { value, slot }) => {
     const verdict = captureWith(capture, value);
     expect(verdict).toEqual({ success: true, value: { branch: 'otp', slot } });
@@ -313,6 +318,11 @@ describe('classifyAnswer — captures', () => {
     ['a fraction', integer, 6.5],
     ['an integer as a string', integer, '6'],
     ['an integer longer than maxChars', { ...integer, maxChars: 1 }, 10],
+    [
+      'an unsafe integer',
+      { ...integer, maxChars: 20, integer: { min: 0, max: Number.MAX_SAFE_INTEGER + 1 } },
+      Number.MAX_SAFE_INTEGER + 1,
+    ],
   ])('refuses %s', (_label, capture, value) => {
     const verdict = captureWith(capture, value);
     const refused = captureRefused('invalid');

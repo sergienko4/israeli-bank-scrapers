@@ -230,6 +230,28 @@ const SHAPE_REFUSALS: readonly IRefusal[] = [
     steps: [captureStep({ pointer: '/v', maxChars: 4, integer: { min: 0.5, max: 4 } })],
     message: RANGE,
   },
+  {
+    label: 'an unsafe integer lower bound',
+    steps: [
+      captureStep({
+        pointer: '/v',
+        maxChars: 20,
+        integer: { min: Number.MIN_SAFE_INTEGER - 1, max: 4 },
+      }),
+    ],
+    message: RANGE,
+  },
+  {
+    label: 'an unsafe integer upper bound',
+    steps: [
+      captureStep({
+        pointer: '/v',
+        maxChars: 20,
+        integer: { min: 0, max: Number.MAX_SAFE_INTEGER + 1 },
+      }),
+    ],
+    message: RANGE,
+  },
 ];
 
 const SLOT_REFUSALS: readonly IRefusal[] = [

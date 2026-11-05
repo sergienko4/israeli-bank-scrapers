@@ -547,8 +547,10 @@ A matched case's `captures` map carry slots to an `IAnswerCapture`.
 `readCaptures` (in `Flow/RunStep.classify.captures.ts`, fed an
 `ICaptureInput`) reads each one as text: by default the value must be a
 string; with `onlyKey: true`, an object of exactly one key gives that key;
-with `integer` (an `IAnswerRange`), a JSON integer from `min` to `max` gives
-its decimal text. Every captured text must then pass `isSafeText` with the
+with `integer` (an `IAnswerRange`), a safe JSON integer from `min` to `max`
+gives its decimal text. Unsafe numbers cannot preserve an identifier's
+precision; larger identifiers must arrive as strings and use the default
+text capture. Every captured text must then pass `isSafeText` with the
 capture's `maxChars`. A capture whose pointer misses fails `Generic` with
 `<step> answer capture <slot> missing`; any other refusal with
 `<step> answer capture <slot> invalid`. No value is ever named.

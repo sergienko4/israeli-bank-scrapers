@@ -37,7 +37,7 @@ interface IAnswerCheck {
   readonly text?: IAnswerText;
 }
 
-/** An inclusive integer range. */
+/** An inclusive range of safe integers. */
 interface IAnswerRange {
   readonly min: number;
   readonly max: number;
@@ -46,7 +46,7 @@ interface IAnswerRange {
 /**
  * One carry slot a matched case writes. By default the value must be text of
  * 1..`maxChars` chars with no control char; `onlyKey` reads the one key of an
- * object instead, and `integer` a JSON integer in range, as decimal text.
+ * object instead, and `integer` a safe JSON integer in range, as decimal text.
  */
 interface IAnswerCapture {
   readonly pointer: AnswerPointer;

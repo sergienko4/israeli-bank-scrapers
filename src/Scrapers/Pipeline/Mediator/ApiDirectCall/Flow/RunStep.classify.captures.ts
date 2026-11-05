@@ -1,7 +1,7 @@
 /**
  * Answer-classifier captures (N50). A matched case writes each capture's slot:
  * by default text of 1..`maxChars` chars with no control char; with `onlyKey`
- * the one key of an object; with `integer` a JSON integer in range, as
+ * the one key of an object; with `integer` a safe JSON integer in range, as
  * decimal text, under the same text rule. A capture whose pointer misses fails
  * `<step> answer capture <slot> missing`, any other refusal `… invalid`; no
  * value is named.
@@ -38,13 +38,13 @@ function onlyKeyOf(value: JsonValue): string | false {
 }
 
 /**
- * A JSON integer in range, as decimal text.
+ * A safe JSON integer in range, as decimal text.
  * @param value - Resolved value.
  * @param range - Inclusive range.
  * @returns The text, or false for any other value.
  */
 function integerOf(value: JsonValue, range: IAnswerRange): string | false {
-  if (typeof value !== 'number' || !Number.isInteger(value)) return false;
+  if (typeof value !== 'number' || !Number.isSafeInteger(value)) return false;
   if (value < range.min || value > range.max) return false;
   return String(value);
 }
