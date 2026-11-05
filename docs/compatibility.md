@@ -69,6 +69,14 @@ Mizrahi now logs in and scrapes over its website's JSON API with Node's own `fet
 
 **What to do:** Remove browser options from Mizrahi's `createScraper` call. Nothing else changes.
 
+### 9.1.0 - Hapoalim signs in without a browser
+
+**Impact:** Behavior
+
+Hapoalim now logs in and scrapes over its website's API with Node's own `fetch` and one cookie jar, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `userCode` and `password`. The SMS step runs only when the bank asks for it: `otpCodeRetriever`, from the credentials or the options, receives the masked phone number, and if the bank asks while no retriever was passed the run fails as `TWO_FACTOR_RETRIEVER_MISSING`. A run now also returns `persistentOtpToken`, a `v1.` token holding the session cookies; passed back as `otpLongTermToken`, it skips the login and the SMS. A locked or disabled account fails as `ACCOUNT_BLOCKED`, a password the bank wants replaced as `CHANGE_PASSWORD`, any other state the password check returns as `GENERIC` with the message `verify outcome unmapped`, and a reply that carries a bank error as `GENERIC` with `verify bank error`. A wrong password may therefore fail as `GENERIC` rather than `INVALID_PASSWORD`. No failure message carries the bank's own text.
+
+**What to do:** Remove browser options from Hapoalim's `createScraper` call and keep passing `otpCodeRetriever`. To skip the login and the SMS, store `result.persistentOtpToken` after every run and pass it as `otpLongTermToken` next time. The token is a live session, so store it as a secret. Keep `userCode`, `password` and the retriever too, because a refused session falls back to a full login with one SMS.
+
 ### 9.0.0 - Node 24.11 or later required; Node 22 is no longer supported
 
 **Impact:** Breaking

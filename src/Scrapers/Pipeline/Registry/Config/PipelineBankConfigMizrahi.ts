@@ -28,8 +28,8 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type {
   IApiDirectCallConfig,
   IStepConfig,
-  JsonValueTemplate,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { literalHeaders } from './PipelineBankConfigLiteralHeaders.js';
 import {
   MIZRAHI_DOCUMENT_HEADERS,
   MIZRAHI_LANDING_URL,
@@ -40,19 +40,6 @@ import {
   MIZRAHI_WEB_POST_HEADERS,
 } from './PipelineBankConfigMizrahiConstants.js';
 import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
-
-/** Step headers, templated. */
-type StepHeaders = Readonly<Record<string, JsonValueTemplate>>;
-
-/**
- * Template every value of a fixed header map as a literal.
- * @param headers - Fixed header map.
- * @returns The same headers as step templates.
- */
-function literalHeaders(headers: Readonly<Record<string, string>>): StepHeaders {
-  const entries = Object.entries(headers).map(([name, value]) => [name, { $literal: value }]);
-  return Object.fromEntries(entries) as StepHeaders;
-}
 
 /** The only page the landing hops may reach. */
 const LANDING_PATHS = ['/Online/Default.aspx'];

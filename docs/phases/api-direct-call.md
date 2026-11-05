@@ -1,6 +1,6 @@
 # API-DIRECT-CALL
 
-Login + OTP via JSON API. Replaces INIT → HOME → PRE-LOGIN → LOGIN → OTP-TRIGGER → OTP-FILL for api-direct banks (OneZero, Pepper, PayBox, VisaCal, Isracard, Amex, Max, Mizrahi) — six browser phases collapse into one headless phase with a declarative step list.
+Login + OTP via JSON API. Replaces INIT → HOME → PRE-LOGIN → LOGIN → OTP-TRIGGER → OTP-FILL for api-direct banks (OneZero, Pepper, PayBox, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim) — six browser phases collapse into one headless phase with a declarative step list.
 
 |                 |                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -572,7 +572,8 @@ bank with no bearer to replay: the token is the session jar itself
 The warm-start canary (`WarmStartContract`) follows the same policy. It
 requires `jwtClaims` only for `'jwt'` validation, and it requires the warm path
 to end holding a `token` only when the auth scheme sends a header (`none`
-does not).
+does not). It requires a login step to produce the stored token only when the
+token is a carry slot; a cookie-jar token is the session jar itself.
 Conflicting transport flags in the headless block are a separate check
 (`assertSingleTransport`), run when the headless mediator is wired.
 

@@ -9,8 +9,8 @@
 
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { parseBody } from '../Helpers/FetchMockKit.js';
+import { cookiesOf } from '../Helpers/MockReplies.js';
 import type { MizrahiFault } from './MizrahiFetchMock.js';
-import { cookiesOf } from './MizrahiFetchMock.js';
 import {
   MIZRAHI_MOCK_CREDS,
   MZ_DATA_TOKEN,

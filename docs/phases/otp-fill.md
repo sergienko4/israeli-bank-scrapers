@@ -5,7 +5,7 @@ Invoke the user-provided `otpCodeRetriever` callback, fill the returned code int
 | | |
 |---|---|
 | **Always-on?** | No — opt-in via `ifOtpFill` predicate |
-| **Banks that use it** | All [OTP-TRIGGER](otp-trigger.md) banks + Hapoalim (conditional) |
+| **Banks that use it** | All [OTP-TRIGGER](otp-trigger.md) banks |
 | **Owner slot** | `otpFill: Option<IOtpFill>` |
 | **Source** | [`OtpFillPhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/OtpFill/OtpFillPhase.ts) + [`OtpFillPhaseActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/OtpFill/OtpFillPhaseActions.ts) |
 
@@ -13,7 +13,7 @@ Invoke the user-provided `otpCodeRetriever` callback, fill the returned code int
 
 | Hook | What it does |
 |---|---|
-| `.pre` | Detect the OTP entry field on the current page. If absent (Hapoalim remembered-device case), skip the rest of the phase. |
+| `.pre` | Detect the OTP entry field on the current page. If absent and the bank marks OTP optional, skip the rest of the phase. |
 | `.action` | Call `options.otpCodeRetriever(phoneHint)`; fill the returned code; submit. |
 | `.post` | Detect `INVALID_OTP` markers; consult `possibleResults`. |
 | `.final` | Commit `otpFill` with success flag. |

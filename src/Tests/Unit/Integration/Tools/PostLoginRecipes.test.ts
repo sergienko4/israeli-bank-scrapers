@@ -29,7 +29,7 @@ function requireRecipe(bankId: string): IExtendedRecipe {
 describe('PostLoginRecipes', () => {
   it('knownPostLoginBanks lists every onboarded pipeline bank', () => {
     const banks = knownPostLoginBanks();
-    const expected = ['beinleumi', 'discount', 'hapoalim', 'leumi'];
+    const expected = ['beinleumi', 'discount', 'leumi'];
     expect(banks).toEqual(expected);
   });
 
@@ -54,16 +54,6 @@ describe('PostLoginRecipes', () => {
         expect(first.kind).toBe('login');
       }
     });
-  });
-
-  it('Hapoalim recipe captures the cycle-billing endpoint (locks in PR-B2 bug fixture)', () => {
-    const recipe = requireRecipe('hapoalim');
-    const patterns = recipe.steps.flatMap(step =>
-      step.kind === 'recordResponse' ? [step.urlPattern] : [],
-    );
-    const sortedPatterns = [...patterns].sort();
-    expect(sortedPatterns).toContain('/cycle-billing');
-    expect(sortedPatterns).toContain('/movements/preview');
   });
 
   it('SPA banks (beinleumi) use snapshot with networkidle for hydrated DOM', () => {

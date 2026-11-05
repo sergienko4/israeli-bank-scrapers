@@ -17,7 +17,7 @@
 import type { IBankFixtureExpectations } from './FixtureExpectations.js';
 
 /**
- * Beinleumi Phase-11 step inventory — distinct from Hapoalim:
+ * Beinleumi Phase-11 step inventory:
  * <ul>
  *   <li>`02-modal-opened` + `03-after-prelogin` are Beinleumi-distinct
  *       (real-captured Angular-iframe lobby, NOT an SMS / password
@@ -25,9 +25,8 @@ import type { IBankFixtureExpectations } from './FixtureExpectations.js';
  *   <li>`05-otp-trigger` + `06-otp-fill` are the FIRST occurrence of
  *       explicit OTP phases in the Phase-11 series — Beinleumi is
  *       OTP-gated per `BeinleumiPipeline.ts`
- *       (`.withOtpTrigger().withOtpFill()`); Hapoalim's Mode B
- *       COLLAPSES OTP into a single LOGIN→AUTH_DISCOVERY transition;
- *       Discount is password-only (no OTP leg at all).</li>
+ *       (`.withOtpTrigger().withOtpFill()`); Discount is
+ *       password-only (no OTP leg at all).</li>
  *   <li>`10-scrape-transactions` is named after Beinleumi's
  *       `bff-balancetransactions/api/v1/transactions/list` BFF
  *       endpoint.</li>
@@ -89,20 +88,6 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     // operate on.
     requiresHydration: false,
     steps: BEINLEUMI_PHASE_11_STEPS,
-  },
-  {
-    bankId: 'hapoalim',
-    originUrl: 'https://login.bankhapoalim.co.il',
-    loginStep: '02-pre-login',
-    requiresHydration: false,
-    steps: [
-      { stepName: '01-home' },
-      { stepName: '02-pre-login' },
-      { stepName: '04-login-action' },
-      { stepName: '07-auth-discovery' },
-      { stepName: '08-account-resolve' },
-      { stepName: '09-dashboard' },
-    ],
   },
   {
     bankId: 'discount',

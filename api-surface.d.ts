@@ -481,6 +481,11 @@ type ScraperCredentials = {
     userCode: string;
     password: string;
 } | {
+    userCode: string;
+    password: string;
+    otpCodeRetriever?: (phoneHint: string) => Promise<string>;
+    otpLongTermToken?: string;
+} | {
     username: string;
     password: string;
 } | {

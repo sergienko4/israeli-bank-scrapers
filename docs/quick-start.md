@@ -55,6 +55,8 @@ import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
 const scraper = createScraper({
   companyId: CompanyTypes.Hapoalim,
   startDate: new Date('2024-01-01'),
+  // Hapoalim texts a code when it asks for one.
+  otpCodeRetriever: async phoneHint => await askForSmsCode(phoneHint),
 });
 
 const result = await scraper.scrape({
@@ -97,6 +99,6 @@ The `balance` field is populated by [BALANCE-RESOLVE.final](phases/balance-resol
 ## What next?
 
 - Bank not Hapoalim? — pick yours in [Banks](banks/index.md); each page lists credentials + OTP behavior + known quirks.
-- Need OTP? — see [Phase → OTP-TRIGGER](phases/otp-trigger.md) and [OTP-FILL](phases/otp-fill.md).
+- Need OTP? — see [Phase → OTP-TRIGGER](phases/otp-trigger.md) and [OTP-FILL](phases/otp-fill.md) for browser banks, [API-DIRECT-CALL](phases/api-direct-call.md) for API-direct ones.
 - WAF block? — [Error Types → WAF Troubleshooting](https://github.com/sergienko4/israeli-bank-scrapers#error-types) in the README.
 - Parallel scraping? — [README → Advanced Usage](https://github.com/sergienko4/israeli-bank-scrapers#advanced-usage).

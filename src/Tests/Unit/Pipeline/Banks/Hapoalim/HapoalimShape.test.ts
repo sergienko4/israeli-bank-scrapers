@@ -146,12 +146,18 @@ describe('HapoalimShape transactions', () => {
     expect(url).toMatch(/retrievalEndDate=\d{8}/);
   });
 
-  it('txnsHeaders declares the anti-replay set (cookie-echo XSRF + pageUuid)', () => {
-    const headers = txnsHeaders();
-    expect(headers['content-type']).toBe('application/json;charset=UTF-8');
-    expect(headers['X-XSRF-TOKEN']).toBe('@cookie:XSRF-TOKEN');
-    expect(headers.pageUuid).toBe('/current-account/transactions');
-    expect(headers.uuid).toMatch(/[0-9a-f-]{36}/);
+  it('txnsHeaders sends the shared POST set plus the anti-replay fields', () => {
+    const { uuid, ...fixed } = txnsHeaders();
+    expect(fixed).toEqual({
+      accept: 'application/json',
+      'user-agent': 'israeli-bank-scrapers',
+      referer: 'https://login.bankhapoalim.co.il/ng-portals/auth/he/',
+      origin: 'https://login.bankhapoalim.co.il',
+      'x-xsrf-token': '@cookie:XSRF-TOKEN',
+      'content-type': 'application/json;charset=UTF-8',
+      pageUuid: '/current-account/transactions',
+    });
+    expect(uuid).toMatch(/^[0-9a-f-]{36}$/);
   });
 
   it('txnsExtractPage returns raw transactions rows and a terminal cursor', () => {

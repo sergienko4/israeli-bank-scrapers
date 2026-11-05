@@ -24,7 +24,10 @@ import { fileURLToPath } from 'node:url';
 
 import type { IApiDirectCallConfig } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { authPolicyOf } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/AuthModePolicy.js';
-import { warmCarryField } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmStartKind.js';
+import {
+  cookieJarWarmOf,
+  warmCarryField,
+} from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmStartKind.js';
 
 /** Bank label paired with the module path of its call-config literal. */
 const CONFIG_PATHS: readonly (readonly [string, string])[] = [
@@ -34,6 +37,7 @@ const CONFIG_PATHS: readonly (readonly [string, string])[] = [
   ['VisaCal', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigVisaCal.js'],
   ['Isracard', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigIsracard.js'],
   ['Amex', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigAmex.js'],
+  ['Hapoalim', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigHapoalim.js'],
 ];
 
 /** Directory holding every bank call-config literal. */
@@ -48,6 +52,7 @@ const CONFIG_DIR = fileURLToPath(
  * factory file, so `PipelineBankConfigRing.ts` stands for each of them.
  */
 const EXPECTED_WARM_START_FILES: readonly string[] = [
+  'PipelineBankConfigHapoalim.ts',
   'PipelineBankConfigOneZero.ts',
   'PipelineBankConfigPayBox.ts',
   'PipelineBankConfigPepper.ts',
@@ -135,6 +140,15 @@ function isHeaderSent(config: IApiDirectCallConfig): boolean {
   return authPolicyOf(config).installHeader;
 }
 
+/**
+ * Whether the stored token is the session jar rather than a carry slot.
+ * @param config - Bank call-config literal.
+ * @returns True for a `kind: 'cookie-jar'` warm start.
+ */
+function isJarToken(config: IApiDirectCallConfig): boolean {
+  return cookieJarWarmOf(config) !== false;
+}
+
 /** Module shape shared by every call-config literal — default export. */
 interface IConfigModule {
   readonly default: IApiDirectCallConfig;
@@ -217,7 +231,8 @@ describe('warm-start contract — every opted-in bank', () => {
   it('loads every bank this suite enumerates', async () => {
     const configs = await loadWarmStartConfigs();
     const labels = configs.map(([label]) => label);
-    expect(labels).toEqual(['OneZero', 'Pepper', 'PayBox', 'VisaCal', 'Isracard', 'Amex']);
+    const expected = ['OneZero', 'Pepper', 'PayBox', 'VisaCal', 'Isracard', 'Amex', 'Hapoalim'];
+    expect(labels).toEqual(expected);
   });
 
   it('holds every invariant below to the cookie-session fixture too', async () => {
@@ -230,6 +245,7 @@ describe('warm-start contract — every opted-in bank', () => {
       'VisaCal',
       'Isracard',
       'Amex',
+      'Hapoalim',
       'cookie-session fixture',
     ];
     expect(labels).toEqual(expected);
@@ -279,9 +295,10 @@ describe('warm-start contract — every opted-in bank', () => {
     }
   });
 
-  it('persists a token that some login step actually produces', async () => {
+  it('persists a carry token that some login step actually produces', async () => {
     const configs = await loadWarmPopulation();
-    for (const [, config] of configs) {
+    const carrySeeded = configs.filter(([, config]) => !isJarToken(config));
+    for (const [, config] of carrySeeded) {
       const carryField = warmCarryField(config);
       const produced = config.steps.flatMap(step => Object.keys(step.extractsToCarry));
       expect(produced).toContain(carryField);
@@ -296,14 +313,22 @@ describe('warm-start contract — policy exemptions', () => {
     const exemptLabels = exempt.map(([label]) => label);
     // VisaCal stores an opaque login hash and the ring issuers a device key,
     // not a JWT; for each, the resume call is the check.
-    expect(exemptLabels).toEqual(['VisaCal', 'Isracard', 'Amex']);
+    expect(exemptLabels).toEqual(['VisaCal', 'Isracard', 'Amex', 'Hapoalim']);
   });
 
   it('lists the warm-start banks whose session rides on cookies, not a header', async () => {
     const configs = await loadWarmStartConfigs();
     const exempt = configs.filter(([, config]) => !isHeaderSent(config));
     const exemptLabels = exempt.map(([label]) => label);
-    expect(exemptLabels).toEqual(['Isracard', 'Amex']);
+    expect(exemptLabels).toEqual(['Isracard', 'Amex', 'Hapoalim']);
+  });
+
+  it('lists the warm-start banks whose token is the session jar, not a carry slot', async () => {
+    const configs = await loadWarmStartConfigs();
+    const jarBanks = configs.filter(([, config]) => isJarToken(config));
+    const jarLabels = jarBanks.map(([label]) => label);
+    // Hapoalim stores its cookie session; the landing call is the check.
+    expect(jarLabels).toEqual(['Hapoalim']);
   });
 
   it('the fixture is exempt from both policy-dependent invariants', () => {

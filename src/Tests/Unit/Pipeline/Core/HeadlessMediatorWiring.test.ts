@@ -32,7 +32,7 @@ describe('resolveHeadlessApiMediator — none() cases', () => {
   });
 
   it('returns none() when a headless bank has no headless config block', () => {
-    const descriptor = makeDescriptor(CompanyTypes.Hapoalim, true);
+    const descriptor = makeDescriptor(CompanyTypes.Leumi, true);
     const option = resolveHeadlessApiMediator(descriptor);
     const isPresent = isSome(option);
     expect(isPresent).toBe(false);

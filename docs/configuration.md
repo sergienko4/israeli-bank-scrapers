@@ -20,7 +20,7 @@ Some fields on `ScraperOptions` are honoured only by the
 | `shouldShowBrowser` | `boolean` | `false` | Show the Camoufox window while scraping |
 | `preparePage` | `(page: Page) => Promise<void>` | (none) | Hook run against the page before the pipeline starts |
 | `prepareBrowser` | `(browser: Browser) => Promise<void>` | (none) | Hook run against the browser after launch |
-| `otpCodeRetriever` | `(phoneHint: string) => Promise<string>` | (none) | **Browser banks** — invoked when OTP is required; `phoneHint` is the masked number the bank says it texted |
+| `otpCodeRetriever` | `(phoneHint: string) => Promise<string>` | (none) | **Browser banks and Hapoalim** — invoked when OTP is required; `phoneHint` is the masked number the bank says it texted |
 | `onAuthFlowComplete` | `(info: IAuthFlowInfo) => void` | (none) | Fires once authentication finishes, before scraping |
 | `otpTimeoutMs` | `number` (ms) | bank-specific | How long to wait for `otpCodeRetriever` to resolve |
 | `loginLogLevel` | `'info' \| 'trace'` | `'info'` | Raises log detail for the LOGIN phase only |
@@ -122,7 +122,7 @@ for the rationale.
 
 Some API-direct banks never open a browser: their `headless` block selects
 Node's own `fetch` (`nativeFetch`) or `node:https` (a client certificate or a
-TLS profile) — today, OneZero, VisaCal, Isracard, Amex, Max and Mizrahi. Nothing on such a run reads a browser option, so
+TLS profile) — today, OneZero, VisaCal, Isracard, Amex, Max, Mizrahi and Hapoalim. Nothing on such a run reads a browser option, so
 `createScraper` names every one you pass in a single `ScraperOptionsWarning`:
 
 ```text
@@ -163,7 +163,10 @@ an optional `otpLongTermToken` that skips the password step — see
 `id`, `card6Digits` and `password` — see [Isracard](banks/isracard.md#warm-start)
 and [Amex](banks/amex.md). Max and Mizrahi take only `username` and `password`
 and have no long-term token — see [Max](banks/max.md) and
-[Mizrahi](banks/mizrahi.md).
+[Mizrahi](banks/mizrahi.md). Hapoalim takes `userCode` and `password`, and its
+`otpCodeRetriever` in either the options or the credentials, and an optional
+`otpLongTermToken` that skips the login and the SMS — see
+[Hapoalim](banks/hapoalim.md#warm-start).
 
 The phone-format rewrite is per-bank and automatic; see
 [API-DIRECT-CALL](phases/api-direct-call.md) for the normaliser contract.

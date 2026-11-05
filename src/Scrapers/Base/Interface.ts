@@ -51,6 +51,12 @@ export interface IAuthFlowInfo {
 
 export type ScraperCredentials =
   | { userCode: string; password: string }
+  | {
+      userCode: string;
+      password: string;
+      otpCodeRetriever?: (phoneHint: string) => Promise<string>;
+      otpLongTermToken?: string;
+    } // Hapoalim: the SMS code when the bank asks; a stored session skips the login steps
   | { username: string; password: string }
   | { username: string; password: string; otpLongTermToken?: string } // VisaCal: a stored login hash skips the password step
   | { username: string; password: string; id: string } // Max: second-login flow with ID (ת.ז.)

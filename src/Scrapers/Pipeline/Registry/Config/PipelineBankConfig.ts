@@ -7,6 +7,7 @@
 
 import { CompanyTypes } from '../../../../Definitions.js';
 import { AMEX_HEADLESS } from './PipelineBankConfigAmex.js';
+import { HAPOALIM_HEADLESS } from './PipelineBankConfigHapoalim.js';
 import { ISRACARD_HEADLESS } from './PipelineBankConfigIsracard.js';
 import { MAX_HEADLESS } from './PipelineBankConfigMax.js';
 import { MIZRAHI_HEADLESS } from './PipelineBankConfigMizrahi.js';
@@ -97,7 +98,12 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     },
   },
   [CompanyTypes.Discount]: defineBank('https://www.discountbank.co.il', ACCOUNT, SESSION_COOKIE),
-  [CompanyTypes.Hapoalim]: defineBank('https://www.bankhapoalim.co.il', ACCOUNT, SESSION_COOKIE),
+  [CompanyTypes.Hapoalim]: {
+    urls: { base: 'https://www.bankhapoalim.co.il' },
+    balanceKind: ACCOUNT,
+    authStrategyKind: API_DIRECT,
+    headless: HAPOALIM_HEADLESS,
+  },
   [CompanyTypes.Massad]: fibiConfig(
     'https://www.bankmassad.co.il',
     'https://online.bankmassad.co.il',

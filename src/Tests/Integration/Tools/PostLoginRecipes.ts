@@ -59,59 +59,6 @@ const DISCOUNT_POST_LOGIN = {
   ],
 } as const satisfies IExtendedRecipe;
 
-/**
- * Hapoalim post-login recipe with DUAL scrape capture.
- *
- * <p>Captures BOTH endpoints intentionally so PR-B2 has a baseline:
- * <ul>
- *   <li><code>/movements/preview</code> — the buggy endpoint the
- *       current pipeline calls; returns only the preview rows, NOT
- *       the full cycle bill (#hapoalim-preview-bug).</li>
- *   <li><code>/cycle-billing</code> — the correct endpoint the user
- *       expects the pipeline to call. This is what PR-B2's fix will
- *       switch to (rooted in
- *       <code>UrlDateRange.ts</code> /
- *       <code>MatrixLoopStrategy.ts</code> /
- *       <code>AccountScrapeStrategy.ts</code>).</li>
- * </ul>
- *
- * <p>Mode B mirror tests in PR-A2.3 will lock the bug as RED until
- * PR-B2 lands the fix, then flip GREEN automatically. Do NOT remove
- * either capture without first auditing PR-B2's mirror assertions.
- */
-const HAPOALIM_POST_LOGIN = {
-  bankId: 'hapoalim',
-  steps: [
-    { kind: 'login', stepName: '04-login-action' },
-    {
-      kind: 'waitFor',
-      stepName: '07-auth-discovery',
-      urlIncludes: '/rb/he/homepage',
-      timeoutMs: DASHBOARD_NETWORKIDLE_TIMEOUT_MS,
-    },
-    { kind: 'snapshot', stepName: '08-account-resolve', waitForLifecycle: 'networkidle' },
-    { kind: 'snapshot', stepName: '09-dashboard', waitForLifecycle: 'networkidle' },
-    {
-      kind: 'recordResponse',
-      stepName: '10-scrape-preview',
-      urlPattern: '/movements/preview',
-      captureAs: 'movements-preview',
-    },
-    {
-      kind: 'recordResponse',
-      stepName: '10-scrape-cycle-billing',
-      urlPattern: '/cycle-billing',
-      captureAs: 'cycle-billing',
-    },
-    {
-      kind: 'recordResponse',
-      stepName: '11-balance',
-      urlPattern: '/balance',
-      captureAs: 'balance',
-    },
-  ],
-} as const satisfies IExtendedRecipe;
-
 /** Beinleumi: OTP bank + Angular SPA shell. */
 const BEINLEUMI_POST_LOGIN = {
   bankId: 'beinleumi',
@@ -173,7 +120,6 @@ const LEUMI_POST_LOGIN = {
  */
 const POST_LOGIN_RECIPES: Readonly<Partial<Record<string, IExtendedRecipe>>> = {
   discount: DISCOUNT_POST_LOGIN,
-  hapoalim: HAPOALIM_POST_LOGIN,
   beinleumi: BEINLEUMI_POST_LOGIN,
   leumi: LEUMI_POST_LOGIN,
 };
@@ -242,12 +188,6 @@ interface IBankRecipe {
  * are referenced by name, not dynamically indexed.
  */
 const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
-  hapoalim: {
-    steps: [
-      { stepName: '01-home', url: 'https://www.bankhapoalim.co.il' },
-      { stepName: '02-pre-login', url: 'https://login.bankhapoalim.co.il' },
-    ],
-  },
   discount: {
     steps: [
       { stepName: '01-home', url: 'https://www.discountbank.co.il' },

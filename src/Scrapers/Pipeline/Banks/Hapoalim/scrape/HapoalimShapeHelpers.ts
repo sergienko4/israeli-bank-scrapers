@@ -2,8 +2,8 @@
  * Hapoalim scrape shape — account list + balance extractors + REST
  * urlTag builders for the ServerServices gateway. Transactions helpers
  * live in HapoalimShapeTxns.ts. Accounts + balance are cookie-authed GET
- * (session cookies ride BrowserFetchStrategy through the live login
- * page); transactions is an anti-replay POST (see HapoalimShapeTxns.ts).
+ * on the headless session the direct-API login opened; transactions is an
+ * anti-replay POST (see HapoalimShapeTxns.ts).
  *
  * Contract grounded in the captured trace
  * (C:\tmp\runs\pipeline\hapoalim\04-07-2026_03183039) and the upstream
@@ -18,11 +18,9 @@ import type {
   IExtractAccountsArgs,
   VarsMap,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import { HAPOALIM_API } from '../../../Registry/Config/PipelineBankConfigHapoalimConstants.js';
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { Brand } from '../../../Types/Brand.js';
-
-/** ServerServices gateway origin — Hapoalim's fixed post-login API host. */
-export const HAPOALIM_API = 'https://login.bankhapoalim.co.il/ServerServices';
 
 /** Composite account number — branded for Rule #15. */
 type AccountNumberDisplay = Brand<string, 'HapoalimAccountNumberDisplay'>;

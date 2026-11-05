@@ -16,6 +16,7 @@ import { CompanyTypes, createScraper } from '@sergienko4/israeli-bank-scrapers';
 const scraper = createScraper({
   companyId: CompanyTypes.Hapoalim,
   startDate: new Date('2024-01-01'),
+  otpCodeRetriever: async phoneHint => await getCodeFromUser(phoneHint),
 });
 
 const result = await scraper.scrape({ userCode: '1234567', password: 'secret' });
@@ -146,7 +147,7 @@ validated at runtime.
 
 | Institution          | Type        | Engine     | Credentials                     |
 | -------------------- | ----------- | ---------- | ------------------------------- |
-| Bank Hapoalim        | Bank        | Browser    | `userCode`, `password`, OTP\*   |
+| Bank Hapoalim        | Bank        | API-direct | `userCode`, `password`, OTP\*   |
 | Bank Leumi           | Bank        | Browser    | `username`, `password`          |
 | Bank Otsar Hahayal   | Bank        | Browser    | `username`, `password`, OTP     |
 | Bank Yahav           | Bank        | Browser    | `num`, `nationalID`, `password` |
@@ -166,7 +167,7 @@ validated at runtime.
 | Visa Cal             | Credit card | API-direct | `username`, `password`          |
 | PayBox (by Discount) | Wallet      | API-direct | `phoneNumber`, OTP              |
 
-\* Hapoalim prompts for OTP only on unrecognised devices.
+\* Hapoalim asks for an SMS code only when the bank requests one.
 
 Per-bank notes live in the
 [bank documentation](https://sergienko4.github.io/israeli-bank-scrapers/banks/).
@@ -211,6 +212,10 @@ Max and Mizrahi are API-direct with no OTP and no token: every run logs in with
 the username and password — see the
 [Max](https://sergienko4.github.io/israeli-bank-scrapers/banks/max/) and
 [Mizrahi](https://sergienko4.github.io/israeli-bank-scrapers/banks/mizrahi/) guides.
+Hapoalim is API-direct with an SMS code: pass the callback in _options_ as
+above, or in _credentials_. Its `persistentOtpToken` skips the login and the
+SMS on the next run — see the
+[Hapoalim](https://sergienko4.github.io/israeli-bank-scrapers/banks/hapoalim/) guide.
 
 Pass `phoneNumber` in digits-only international form. Each bank wants a
 different wire format (`+972…`, `972…`, `972-…`) and the mediator rewrites it
@@ -386,7 +391,7 @@ backwards compatibility. Full remedies, including WAF-specific ones, are in
 
 ```mermaid
 flowchart LR
-    subgraph BB["Pipeline browser banks (9)"]
+    subgraph BB["Pipeline browser banks (8)"]
       direction LR
       INIT --> HOME --> PRELOGIN["PRE-LOGIN (opt-in)"]
       PRELOGIN --> LOGIN
@@ -397,7 +402,7 @@ flowchart LR
       SCRAPE --> TERM["TERMINATE"]
     end
 
-    subgraph API["API-direct banks (8) — OneZero · Pepper · PayBox · Visa Cal · Isracard · Amex · Max · Mizrahi"]
+    subgraph API["API-direct banks (9) — OneZero · Pepper · PayBox · Visa Cal · Isracard · Amex · Max · Mizrahi · Hapoalim"]
       direction LR
       CALL["API-DIRECT-CALL<br/>(login + OTP via JSON API)"] --> SCR["API-DIRECT-SCRAPE"]
     end

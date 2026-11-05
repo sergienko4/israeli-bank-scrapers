@@ -64,7 +64,6 @@ interface IHomeSignalCase {
 const CASES: readonly IHomeSignalCase[] = [
   { bankId: 'beinleumi', hasLoginForm: false },
   { bankId: 'discount', hasLoginForm: false },
-  { bankId: 'hapoalim', hasLoginForm: false },
   { bankId: 'leumi', hasLoginForm: true },
   { bankId: 'massad', hasLoginForm: false },
   { bankId: 'mercantile', hasLoginForm: false },
