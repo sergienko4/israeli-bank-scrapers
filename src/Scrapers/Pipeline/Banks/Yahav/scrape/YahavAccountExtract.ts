@@ -43,7 +43,8 @@ function yahavEntities(body: ApiBody): readonly ApiRecord[] {
  * @returns True above the control range.
  */
 function isPrintable(char: string): boolean {
-  return char.charCodeAt(0) >= FIRST_PRINTABLE;
+  const code = char.codePointAt(0);
+  return code !== undefined && code >= FIRST_PRINTABLE;
 }
 
 /**

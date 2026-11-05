@@ -21,7 +21,7 @@ import { fail, isOk, type Procedure, succeed } from '../../../Types/Procedure.js
 import { sessionText, YAHAV_SESSION_KEYS as KEYS, yahavSessionOf } from './YahavShapeHelpers.js';
 
 /** The status codes BaNCS reports a completed call with. */
-const OK_CODES: readonly unknown[] = [0, '0'];
+const OK_CODES: ReadonlySet<unknown> = new Set([0, '0']);
 
 /** Printable ASCII, bounded — what a token or session id may carry. */
 const PRINTABLE = /^[\x20-\x7E]{1,32768}$/;
@@ -63,7 +63,7 @@ function isAccepted(args: IResponseSessionArgs): boolean {
   const code = getIn(args.body, ['Status', 'Code']);
   const entities = getIn(args.body, ['Payload', 'DataEntity']);
   const isListed = entities === undefined || Array.isArray(entities);
-  return OK_CODES.includes(code) && isRecord(args.body.Payload) && isListed;
+  return OK_CODES.has(code) && isRecord(args.body.Payload) && isListed;
 }
 
 /**
@@ -138,7 +138,7 @@ function rotatedIds(
 ): Procedure<SessionContextPatch> {
   const ids = HEADER_RULES.map(rule => rotatedId(rule, args.headers, previous));
   const none: Procedure<SessionContextPatch> = succeed({});
-  return ids.reduce(foldId, none);
+  return ids.reduce((current, id) => foldId(current, id), none);
 }
 
 /**

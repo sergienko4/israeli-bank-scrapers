@@ -30,7 +30,7 @@ const CERT_KEY_REF = 'carry.certKeyPem';
 const COLON = { literal: ':' } as const;
 
 /** One printable-ASCII text, as the app's credential checks demand. */
-const PRINTABLE = '^[\\x20-\\x7e]+$';
+const PRINTABLE = String.raw`^[\x20-\x7e]+$`;
 
 /**
  * Base64 text: its alphabet and padding only. A config pattern must be flat,
@@ -136,7 +136,7 @@ const LOGON_STEP: IStepConfig = {
   extractRules: {
     token: { type: 'string', pattern: PRINTABLE, maxChars: 32768 },
     tokenType: { type: 'string', transform: 'lower', oneOf: ['bearer'] },
-    expiresIn: { type: 'number', pattern: '^[1-9]\\d{0,14}$' },
+    expiresIn: { type: 'number', pattern: String.raw`^[1-9]\d{0,14}$` },
   },
 };
 
