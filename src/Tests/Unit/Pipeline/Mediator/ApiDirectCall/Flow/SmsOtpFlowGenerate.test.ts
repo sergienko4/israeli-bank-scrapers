@@ -141,6 +141,17 @@ describe('SmsOtpFlow — rsa-key generator (N25a)', () => {
     expect(run.captures[1].body).toEqual({ deviceId: expected });
   });
 
+  it('fails the step before a request when ECDH creation throws', async () => {
+    const broken = { ...ECDH_KEY, curve: 'unsupported' } as unknown as ICarryGenerator;
+    const run = await runWith('register', broken);
+    expect(run.result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'register generate ecdh-key failed',
+    });
+    expect(run.captures).toHaveLength(1);
+  });
+
   it('generates nothing for a step its runIf guard skips', async () => {
     const run = await runWith('landpage');
     if (!run.result.success) throw new TypeError(run.result.errorMessage);

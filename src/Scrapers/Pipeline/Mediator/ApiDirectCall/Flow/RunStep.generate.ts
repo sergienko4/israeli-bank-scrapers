@@ -69,7 +69,8 @@ function runOfKind<TKind extends CarryGeneratorKind>(
 }
 
 /**
- * Run one generator and merge its slots; a failure or rejection fails the step.
+ * Run one generator and merge its slots; any failure fails the step.
+ * Starting the runner inside a promise also catches synchronous crypto throws.
  * @param cursor - Step and scope so far.
  * @param generator - Generator config.
  * @returns Procedure with the scope plus the generated slots.
@@ -78,7 +79,8 @@ async function runGenerator(
   cursor: IGenerateCursor,
   generator: ICarryGenerator,
 ): Promise<Procedure<ITemplateScope>> {
-  const made = await runOfKind(generator, cursor.scope).catch((): false => false);
+  const pending = Promise.resolve().then(() => runOfKind(generator, cursor.scope));
+  const made = await pending.catch((): false => false);
   if (made === false || !isOk(made)) return generateFailed(cursor, generator);
   const merged = mergeScopeCarry(cursor.scope, made.value);
   return succeed(merged);
