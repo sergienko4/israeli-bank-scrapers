@@ -6,6 +6,7 @@
  */
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
+import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import { createApiMediator } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type {
   IApiDirectCallConfig,
@@ -15,9 +16,12 @@ import type {
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { JsonValue } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/JsonPointer.js';
 import { runStep } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.js';
+import { hydrate } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
+import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { GraphQLFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
 import { HeadlessNativeFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
+import { fail } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fakeFetch, type IFetchFake } from '../../../../../Helpers/FakeFetch.js';
 
 const HINT = CompanyTypes.OneZero;
@@ -79,6 +83,19 @@ describe('N49 optional ref on the wire', () => {
 
   afterEach((): void => {
     globalThis.fetch = originalFetch;
+  });
+
+  it('propagates a failing optional cookie lookup instead of omitting it', (): void => {
+    /**
+     * Simulate a cookie source failure, not an absent cookie.
+     * @returns The failure the optional ref must preserve.
+     */
+    const cookie = (): ReturnType<typeof fail> =>
+      fail(ScraperErrorTypes.Generic, 'ref cookie.csrfcookie bad');
+    const scope: ITemplateScope = { carry: {}, creds: {}, config: PLAIN_CONFIG, cookie };
+    const template: JsonValueTemplate = { csrf: { $ref: 'cookie.csrfcookie', optional: true } };
+    const result = hydrate(template, scope);
+    expect(result).toMatchObject({ success: false, errorMessage: 'ref cookie.csrfcookie bad' });
   });
 
   it.each([

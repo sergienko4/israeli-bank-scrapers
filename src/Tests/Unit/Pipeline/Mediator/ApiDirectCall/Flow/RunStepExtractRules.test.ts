@@ -17,6 +17,7 @@ import type {
   IStepConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { applyExtractRules } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.extractRules.js';
+import { extractOptional } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.optional.js';
 import { runSmsOtpFlow } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/SmsOtpFlow.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
@@ -91,10 +92,9 @@ function headerStep(rule: IExtractRule): IStepConfig {
  */
 function ruleRequired(rule: IExtractRule, value: JsonValue): unknown {
   const step = requiredStep(rule);
-  const resp = { slot: value };
   return applyExtractRules({
     step,
-    resp,
+    resp: { slot: value },
     carry: { slot: value },
     stepUrl: STEP_URL,
     scope: RULE_SCOPE,
@@ -209,10 +209,11 @@ describe('applyExtractRules — optional slots', () => {
     ['an empty field', { slot: '' }],
   ])('skips the rule for %s', (_label, resp) => {
     const step = optionalStep(LOWER_STATE);
+    const carry = extractOptional(resp, step);
     const ruled = applyExtractRules({
       step,
       resp,
-      carry: {},
+      carry,
       stepUrl: STEP_URL,
       scope: RULE_SCOPE,
     });
@@ -220,15 +221,15 @@ describe('applyExtractRules — optional slots', () => {
   });
 
   it.each<[string, JsonValue]>([
-    ['a record', { slot: { state: 'logonotp' } }],
-    ['a number', { slot: 0 }],
-    ['false', { slot: false }],
-  ])('fails a present %s under a string rule', (_label, resp) => {
+    ['a record', { state: 'logonotp' }],
+    ['a number', 0],
+    ['false', false],
+  ])('fails a present %s under a string rule', (_label, value) => {
     const step = optionalStep(LOWER_STATE);
     const ruled = applyExtractRules({
       step,
-      resp,
-      carry: {},
+      resp: { slot: value },
+      carry: { slot: value },
       stepUrl: STEP_URL,
       scope: RULE_SCOPE,
     });
@@ -238,10 +239,11 @@ describe('applyExtractRules — optional slots', () => {
   it('writes the transformed value of a present slot', () => {
     const step = optionalStep(LOWER_STATE);
     const resp = { slot: 'LOGONOTP' };
+    const carry = extractOptional(resp, step);
     const ruled = applyExtractRules({
       step,
       resp,
-      carry: {},
+      carry,
       stepUrl: STEP_URL,
       scope: RULE_SCOPE,
     });

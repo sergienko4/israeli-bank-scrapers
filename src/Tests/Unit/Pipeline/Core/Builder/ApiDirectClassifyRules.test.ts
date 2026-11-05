@@ -2,8 +2,8 @@
  * N50 build rules — an answer classifier must be well formed: cases each with
  * a check, one kind per check, JSON pointers, anchored flat patterns, length
  * caps, one capture mode and an integer range. Its slots must not be its own
- * capture, its step's extract slots or a `sessionCarry` slot, and a `runIf`
- * guard on its slot may list only its case names.
+ * capture, another slot its step writes or a `sessionCarry` slot, and a
+ * `runIf` guard on its slot may list only its case names.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
@@ -17,12 +17,19 @@ import type {
   IAnswerCheck,
   IAnswerClassifier,
   IApiDirectCallConfig,
+  IGetStep,
   IPostStep,
   IStepConfig,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 const HOST = 'https://ref.example';
-const NATIVE = { identityBase: HOST, graphql: `${HOST}/graphql`, paths: {}, nativeFetch: true };
+const NATIVE = {
+  identityBase: HOST,
+  graphql: `${HOST}/graphql`,
+  paths: {},
+  nativeFetch: true,
+  redirectPolicy: 'reject' as const,
+};
 
 const NEEDS_CASES = 'steps.classify: needs cases, each with a check';
 const ONE_KIND = 'steps.classify: each check names exactly one kind';
@@ -33,7 +40,7 @@ const CAP = 'steps.classify.maxChars: must be an integer from 1 to 65536';
 const ONE_MODE = 'steps.classify.captures: onlyKey and integer are exclusive';
 const RANGE = 'steps.classify.captures.integer: must be an integer range';
 const INTO_CAPTURE = 'steps.classify.captures: a slot must not be into';
-const EXTRACT = 'steps.classify: slots must not be extract slots of the step';
+const EXTRACT = 'steps.classify: slots must not be slots the step also writes';
 const SESSION = 'steps.classify.into: must not be a sessionCarry slot';
 const GUARD = 'steps.runIf: on a classifier slot, oneOf lists only case names';
 
@@ -247,8 +254,67 @@ const SLOT_REFUSALS: readonly IRefusal[] = [
     message: EXTRACT,
   },
   {
+    label: 'the case slot as a derived slot',
+    steps: [{ ...LOGIN, deriveCarry: [{ into: 'branch', parts: ['creds.nextBranch'] }] }],
+    message: EXTRACT,
+  },
+  {
+    label: 'a capture slot as a derived slot',
+    steps: [{ ...LOGIN, deriveCarry: [{ into: 'otpId', parts: ['creds.otpId'] }] }],
+    message: EXTRACT,
+  },
+  {
     label: 'the case slot as a text capture',
     steps: [{ ...LOGIN, response: 'text', textCaptures: { branch: TEXT_CAPTURE } }],
+    message: EXTRACT,
+  },
+  {
+    label: 'the case slot as a final URL',
+    steps: [
+      {
+        name: 'bootstrap',
+        urlTag: 'auth.bind',
+        method: 'GET',
+        extractsToCarry: {},
+        finalUrlInto: 'branch',
+        redirect: { maxHops: 2, allow: [{ origin: HOST, paths: ['/landing'] }] },
+        classify: CLASSIFIER,
+      } satisfies IGetStep,
+    ],
+    message: EXTRACT,
+  },
+  {
+    label: 'a capture slot as a form capture',
+    steps: [
+      {
+        ...LOGIN,
+        response: 'text',
+        formCapture: {
+          form: 'loginForm',
+          into: 'otpId',
+          action: `${HOST}/login`,
+          required: ['user'],
+          forbidden: [],
+          minFields: 1,
+          maxFields: 3,
+        },
+      },
+    ],
+    message: EXTRACT,
+  },
+  {
+    label: 'the case slot as a handoff capture',
+    steps: [
+      {
+        ...LOGIN,
+        response: 'text',
+        locationCapture: {
+          into: 'branch',
+          userAgent: 'synthetic-user-agent',
+          url: [{ origin: HOST, anyPathExcept: ['logout'] }],
+        },
+      },
+    ],
     message: EXTRACT,
   },
   {
@@ -266,6 +332,10 @@ const SLOT_REFUSALS: readonly IRefusal[] = [
 
 const ACCEPTED: readonly IBuildCase[] = [
   { label: 'a classifier and its guard', steps: [LOGIN, guardedOn('branch', ['otp'])] },
+  {
+    label: 'a classifier deriving a different slot',
+    steps: [{ ...LOGIN, deriveCarry: [{ into: 'nextBranch', parts: ['carry.branch'] }] }],
+  },
   {
     label: 'repeated case names',
     steps: [

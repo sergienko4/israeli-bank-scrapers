@@ -3,10 +3,13 @@
  * verbatim, never re-encoded; a text outside printable ASCII, holding a
  * banned character, empty or over 32 768 chars fails before anything is sent.
  * The cases drive the real mediator over the headless native transport and
- * read the URL that reached `fetch`.
+ * read the URL and signature that reached `fetch`.
  */
 
+import { verify } from 'node:crypto';
+
 import { CompanyTypes } from '../../../../../../Definitions.js';
+import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
 import { createApiMediator } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type {
   IApiDirectCallConfig,
@@ -14,13 +17,15 @@ import type {
   IJoinTemplate,
   IPostStep,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import type { IGenericKeypair } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
+import { generateKeypair } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Crypto/CryptoKeyFactory.js';
 import { runStep } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { GraphQLFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
 import { HeadlessNativeFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
-import { fakeFetch, type IFetchFake } from '../../../../../Helpers/FakeFetch.js';
+import { fakeFetch, type IFetchCall, type IFetchFake } from '../../../../../Helpers/FakeFetch.js';
 
 const HINT = CompanyTypes.OneZero;
 const ORIGIN = 'https://example.test';
@@ -36,7 +41,26 @@ const PLAIN_CONFIG: IApiDirectCallConfig = {
   probe: { queryTag: 'customer' },
 };
 
+const SIGNED_CONFIG: IApiDirectCallConfig = {
+  ...PLAIN_CONFIG,
+  signer: {
+    algorithm: 'ECDSA-P256',
+    encoding: 'DER',
+    headerName: 'X-Sig',
+    schemeTag: 4,
+    canonical: {
+      parts: ['pathAndQuery'],
+      separator: '%%',
+      escapeFrom: '%%',
+      escapeTo: String.raw`\%`,
+      sortQueryParams: false,
+      clientVersion: '1.2.3',
+    },
+  },
+};
+
 const CODE_QUERY: IJoinTemplate = { prefix: 'code=', parts: ['carry.ssoCode'] };
+const UUID_QUERY: IJoinTemplate = { parts: ['uuid'] };
 
 const GET_STEP: IGetStep = {
   name: 'sessionToken',
@@ -57,6 +81,11 @@ const POST_STEP: IPostStep = {
 const QUERIED_STEP: IGetStep = { ...GET_STEP, urlTag: 'auth.verify' };
 
 const BARE_STEP: IGetStep = { ...GET_STEP, rawQuery: { parts: ['carry.ssoCode'] } };
+
+const UUID_STEPS = [
+  ['GET', { ...GET_STEP, rawQuery: UUID_QUERY } satisfies IGetStep],
+  ['POST', { ...POST_STEP, rawQuery: UUID_QUERY } satisfies IPostStep],
+] as const;
 
 beforeAll((): void => {
   registerWkUrl('auth.bind', HINT, `${ORIGIN}/api/bind`);
@@ -113,11 +142,55 @@ interface IRunOutcome {
   readonly result: Awaited<ReturnType<typeof runStep>>;
 }
 
+/**
+ * Verify a dispatched signature against the URL actually received by fetch.
+ * @param call - Captured request.
+ * @param keypair - Public key of the signer.
+ * @param pathAndQuery - Candidate canonical bytes.
+ * @returns True only when the header signs those bytes with that key.
+ */
+function verifiesUrl(call: IFetchCall, keypair: IGenericKeypair, pathAndQuery: string): boolean {
+  const header = new Headers(call.init.headers).get('X-Sig') ?? '';
+  const parts = /^data:([^;]+);key-id:([a-f0-9]+);scheme:4$/u.exec(header);
+  if (parts === null) return false;
+  if (parts[2] !== keypair.keyIdHex) return false;
+  const publicKey = { key: keypair.publicKeyDer, format: 'der', type: 'spki' } as const;
+  const signature = Buffer.from(parts[1], 'base64');
+  const bytes = Buffer.from(pathAndQuery);
+  return verify('sha256', bytes, publicKey, signature);
+}
+
 describe('N41 raw query', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {
     globalThis.fetch = originalFetch;
+  });
+
+  it.each(UUID_STEPS)('signs the %s request with the UUID sent to fetch', async (_label, step) => {
+    const keypair = generateKeypair('ECDSA-P256');
+    if (!keypair.success) throw new ScraperError('P-256 keypair generation should succeed');
+    const fake = installFetch();
+    const bus = makeNativeMediator();
+    const scope = { ...scopeWith('x'), config: SIGNED_CONFIG };
+    const result = await runStep({
+      step,
+      bus,
+      scope,
+      companyId: HINT,
+      signingKeypair: keypair.value,
+    });
+    expect(result).toMatchObject({ success: true });
+    expect(fake.calls).toHaveLength(1);
+    const call = fake.calls[0];
+    const url = new URL(call.url);
+    const uuid = url.search.slice(1);
+    const signedPath = `${url.pathname}${url.search}`;
+    const isSigned = verifiesUrl(call, keypair.value, signedPath);
+    const isChangedUrlSigned = verifiesUrl(call, keypair.value, `${url.pathname}?changed`);
+    expect(uuid).toMatch(/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u);
+    expect(isSigned).toBe(true);
+    expect(isChangedUrlSigned).toBe(false);
   });
 
   it('appends the joined text after ? verbatim', async (): Promise<void> => {

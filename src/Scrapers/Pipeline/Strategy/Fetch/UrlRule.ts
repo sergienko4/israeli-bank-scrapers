@@ -2,8 +2,8 @@
  * URL rules — the allow-list a redirect or carried target must match (N2,
  * N40). A target passes only over https, with no userinfo and no fragment,
  * when its origin matches one rule and either its path (case-insensitively)
- * and query match that rule's exact paths, or its lower-cased path holds none
- * of that rule's denied texts.
+ * and query match that rule's exact paths, or its lower-cased decoded path
+ * holds none of that rule's denied texts. A malformed escape is refused.
  */
 
 import type {
@@ -76,13 +76,29 @@ function isQueryAllowed(target: URL, rule: IExactPathRule): boolean {
 }
 
 /**
- * Whether the target path holds none of the rule's denied texts, ignoring case.
+ * The target path as the server will read it, lower-cased.
+ * @param target - Candidate URL.
+ * @returns The decoded path, or false when an escape is malformed.
+ */
+function decodedPathOf(target: URL): string | false {
+  try {
+    return decodeURIComponent(target.pathname).toLowerCase();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether the target path holds none of the rule's denied texts, ignoring
+ * case. A path is decoded first, so `%6C` cannot hide an `l`; a path with a
+ * malformed escape is refused rather than read as text.
  * @param target - Candidate URL.
  * @param rule - Rule to match.
  * @returns True when no denied text appears in the path.
  */
 function isPathNotDenied(target: URL, rule: IAnyPathExceptRule): boolean {
-  const path = target.pathname.toLowerCase();
+  const path = decodedPathOf(target);
+  if (path === false) return false;
   const deniedTexts = rule.anyPathExcept.map((denied): string => denied.toLowerCase());
   return !deniedTexts.some((denied): boolean => path.includes(denied));
 }

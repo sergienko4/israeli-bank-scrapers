@@ -6,6 +6,7 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import { carriedUrlRulesOf } from './RunStep.carriedUrlRules.js';
 import { generateStepCarry } from './RunStep.generate.js';
 import type { IRunStepArgs } from './RunStep.js';
 import { runStep } from './RunStep.js';
@@ -55,6 +56,7 @@ async function prepareStepScope(
 function stepSession(args: IStepReduceArgs): Omit<IRunStepArgs, 'step' | 'scope'> {
   return {
     bus: args.bus,
+    carriedUrlRules: args.carriedUrlRules,
     companyId: args.companyId,
     signingKeypair: args.keypair,
     cookieJar: args.cookieJar,
@@ -108,6 +110,23 @@ async function runGuardedStep(
 }
 
 /**
+ * Run the step at an index with only its preceding URL producers' rules.
+ * @param args - Reducer args bundle.
+ * @param index - Index of the next step.
+ * @param scope - Carried scope before the step.
+ * @returns The step's new scope or failure.
+ */
+async function runAtIndex(
+  args: IReduceStepsArgs,
+  index: number,
+  scope: ITemplateScope,
+): Promise<Procedure<ITemplateScope>> {
+  const carriedUrlRules = carriedUrlRulesOf(args.steps, index);
+  const nextArgs = { ...args.reduceArgs, carriedUrlRules };
+  return runGuardedStep(nextArgs, scope, args.steps[index]);
+}
+
+/**
  * Reduce every step sequentially starting from startIndex.
  * @param args - Reducer args bundle.
  * @param index - Current iteration index (pass startIndex to begin).
@@ -121,7 +140,7 @@ async function reduceStepsAt(
 ): Promise<Procedure<ITemplateScope>> {
   if (!isOk(acc)) return acc;
   if (index >= args.steps.length) return acc;
-  const next = await runGuardedStep(args.reduceArgs, acc.value, args.steps[index]);
+  const next = await runAtIndex(args, index, acc.value);
   return reduceStepsAt(args, index + 1, next);
 }
 

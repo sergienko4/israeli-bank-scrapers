@@ -242,11 +242,12 @@ A step cannot set both `rawQuery` and `queryTemplate`: the build fails with
 ```
 
 `stepUrlOf` (`Flow/RunStep.stepUrl.ts`) resolves the step URL with its raw
-query, so the canonical `pathAndQuery` carries it too. It reads an
-`IStepUrlInput`: the step, its scope and its company. `sendTargetOf` gives the
-bus that URL as a literal, so the transport sends it unchanged; `ITokenBus`
-takes a `WKUrlOrLiteral`. A step with neither a raw query nor a carried URL
-(below) still goes to the bus as its WK tag.
+query once, so the canonical `pathAndQuery` and the bus target use the same
+generated values. It reads an `IStepUrlInput`: the step, its scope and its
+company. `sendTargetOf` gives the bus that resolved URL as a literal, so the
+transport sends it unchanged; `ITokenBus` takes a `WKUrlOrLiteral`. A step
+with neither a raw query nor a carried URL (below) still goes to the bus as
+its WK tag.
 
 ### Carried step URL
 
@@ -255,16 +256,20 @@ field in an answer. A GET step sends there when it names `urlFromCarry` (N40),
 the carry slot holding that URL. Its `urlTag` still names the step but is not
 sent to. A POST cannot name it, since `IPostStep.urlFromCarry` is `never`.
 
-The slot must hold the text of an absolute URL that an earlier step checked:
-with an `extractRules` `url` rule, as its [final URL](#final-url-carry),
-which its own redirect rules check, or as the URL its
-[handoff script](#handoff-script-capture) sets, which its `url` rules check.
-A slot that no earlier step in the same list (login steps, or resume steps)
-checks any of these ways fails the build with
-`steps.urlFromCarry: slot needs an earlier url rule`. At run time, a slot
-that is missing, not text, or not an absolute URL fails the step with
-`<step> carried url invalid` before anything is sent. A relative URL is
-refused, since nothing at that point knows what it was relative to.
+The slot must hold an absolute URL. Every earlier step that may write it in
+the same list (login or resume) must check it with an `extractRules` `url`
+rule, as its [final URL](#final-url-carry) under its manual redirect rules,
+or as the URL its [handoff script](#handoff-script-capture) sets under its
+capture rules. This includes optional fallbacks and conditional writers;
+an unchecked overwrite or a pre-hook writing the consumer's URL fails the
+build with `steps.urlFromCarry: slot needs an earlier url rule`. An absent
+optional extract after a pre-hook write still checks that write against its
+own rule. At run time, the actual carried URL must also match an earlier
+producer's rules. A missing, non-text, relative or unapproved URL fails with
+`<step> carried url invalid` before the GET is sent.
+`allowedRulesOf` reads each writer's extract, final-URL and handoff rules;
+`carriedUrlRulesOf` gathers preceding writers' rules for the consumer's
+pre-hook and dispatch checks.
 
 ```ts
 {
@@ -333,8 +338,11 @@ required extracts and is applied by `extractOptional` in
 - Otherwise, when `fallback` is set, the fallback is written.
 - Otherwise the slot keeps the value an earlier step stored.
 
-An empty or whitespace-only string, a number, `null` or an object all count
-as missing, so a blank field never overwrites a live value.
+For carry writing, an empty or whitespace-only string, a number, `null` or
+an object count as missing, so a blank field never overwrites a live value.
+For a ruled optional slot, `optionalRawValue` retains a present, nonblank
+raw value for `extractRules` before using any fallback; an invalid value is
+refused rather than hidden.
 
 ```ts
 optionalExtractsToCarry: {
@@ -562,9 +570,10 @@ check, every check exactly one kind, and every pointer alternative must be a
 JSON pointer below the body root. A text `pattern` must be anchored, compile
 alone and be flat, as an extract rule's must; every `maxChars` is an integer
 from 1 to 65536; a capture reads one mode, over a whole, ordered integer
-range. A capture never writes `into`, no classifier slot is an extract slot of
-its own step, `into` is never a `sessionCarry` slot, and a `runIf` guard on a
-slot some classifier writes may list only the case names written there.
+range. A capture never writes `into`, no classifier slot is also written by the
+same step's extracts, final URL, form or handoff capture, or derivation;
+`into` is never a `sessionCarry` slot, and a `runIf` guard on a slot some
+classifier writes may list only the case names written there.
 
 ### Extract rules
 
@@ -590,7 +599,8 @@ extractRules: {
   unset), `oneOf`, the whole text against `pattern`, the `url` allow-list and
   `pemCertificate`. A URL resolves against the step's URL and must then match
   an `IUrlRule`: an `https` origin, an exact path (or, with `anyPathExcept`,
-  any path holding none of the denied texts), no user info and no fragment.
+  any decoded path holding none of the denied texts), no user info and no
+  fragment. Malformed path escapes are refused.
   The slot keeps the text as sent, not the resolved URL.
 - `pemCertificate: { keyRef }` (`IPemCertificateRule`, N27) is checked by
   `isPemCertificate` (in `Flow/RunStep.pemRule.ts`). It demands exactly one
@@ -601,7 +611,10 @@ extractRules: {
   step's [generators](#carry-generators) put in carry.
 - A string always runs the text checks. A finite number runs them, stringified,
   only when the rule sets one; any other value under a text check is refused.
-- An optional slot whose pointer is unresolved, `null` or `''` skips its rule.
+- An optional slot whose pointer is unresolved, `null` or blank skips its
+  rule only if neither a fallback nor its step's pre-hook wrote the slot.
+  Those values are checked before they are carried. A present nonblank
+  non-text value is checked raw, even if a fallback is configured.
   A header slot is always ruled: it holds the header, or its `fallback`.
 
 ```ts
@@ -1019,6 +1032,11 @@ preHook: {
 },
 ```
 
+Before asking for a code, the pre-hook checks the step's base URL, including
+an absolute carried URL under its producer's rule. This also happens without
+`requires` or a cookie jar; an invalid URL cannot spend a code on a request
+that cannot be sent. A raw query is resolved later because it may use that code.
+
 - `hintFrom` names a carry slot. Its text is passed to the callback as the
   hint, such as the masked phone the bank sent the code to. A slot that is
   missing or not text passes `''`. The hint is never logged.
@@ -1291,7 +1309,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | an `exchange` codec whose `keyInto` or `sessionInto` is blank, or both name one slot                                                  | `steps.codec: exchange needs distinct keyInto and sessionInto`           |
 | a `sessionCarry` slot that a codec reads or writes: the `privateRef`, `keyRef` or `sessionRef` slot, `keyInto` or `sessionInto`       | `steps.codec: codec slots must not be sessionCarry slots`                |
 | a login or resume step with both `rawQuery` and `queryTemplate` (`API_DIRECT_URL_RULES`)                                              | `steps.rawQuery: not with queryTemplate`                                 |
-| a `urlFromCarry` slot no earlier step of its list (login or resume) checks: `url` rule, `finalUrlInto`, `locationCapture`             | `steps.urlFromCarry: slot needs an earlier url rule`                     |
+| a `urlFromCarry` slot with any unchecked earlier writer, or a pre-hook overwrite in its consumer step                               | `steps.urlFromCarry: slot needs an earlier url rule`                     |
 | a `finalUrlInto` on a step whose `redirect` is not manual                                                                             | `steps.finalUrlInto: needs a manual redirect`                            |
 | a `finalUrlInto` slot that is blank, or that the step also extracts                                                                   | `steps.finalUrlInto: must be a fresh slot`                               |
 | an optional `$ref` at a body or query root, inside an array or in a header (`API_DIRECT_OPTIONAL_REF_RULES`)                          | `steps: optional ref only as an object value`                            |
@@ -1305,7 +1323,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `classify` capture with both `onlyKey` and `integer`                                                                                | `steps.classify.captures: onlyKey and integer are exclusive`             |
 | a `classify` capture `integer` range with a fractional bound, or a `min` above its `max`                                              | `steps.classify.captures.integer: must be an integer range`              |
 | a `classify` capture whose slot is the classifier's `into` (`API_DIRECT_CLASSIFY_SLOT_RULES`)                                         | `steps.classify.captures: a slot must not be into`                       |
-| a `classify` `into` or capture slot that is a body, optional, header or text-capture extract slot of the same step                    | `steps.classify: slots must not be extract slots of the step`            |
+| a `classify` `into` or capture slot that the same step writes as an extract, final URL, capture or derivation                          | `steps.classify: slots must not be slots the step also writes`           |
 | a `sessionCarry` slot that is the `into` of some `classify`                                                                           | `steps.classify.into: must not be a sessionCarry slot`                   |
 | a `runIf` whose `carry` some `classify` writes, with a `oneOf` text that no case written to that slot is named                        | `steps.runIf: on a classifier slot, oneOf lists only case names`         |
 

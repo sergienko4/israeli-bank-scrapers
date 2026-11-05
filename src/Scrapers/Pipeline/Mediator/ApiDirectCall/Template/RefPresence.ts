@@ -41,7 +41,8 @@ function isCredAbsent(name: string, scope: ITemplateScope): boolean {
  */
 function isCookieAbsent(name: string, scope: ITemplateScope): boolean {
   if (scope.cookie === undefined) return true;
-  return !scope.cookie(name).has;
+  const found = scope.cookie(name);
+  return 'has' in found && !found.has;
 }
 
 /** Ref families whose source can lack a value. */

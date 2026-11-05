@@ -102,7 +102,11 @@ function configWith(hook: Hook, setCookies?: IStepConfig['setCookies']): IApiDir
  */
 function carriedConfigWith(hook: Hook): IApiDirectCallConfig {
   const extractsToCarry = { token: '/token', handoff: '/handoff' };
-  const bindStep: IStepConfig = { ...BIND_STEP, extractsToCarry };
+  const bindStep: IStepConfig = {
+    ...BIND_STEP,
+    extractsToCarry,
+    extractRules: { handoff: { url: [{ origin: 'https://portal.example', paths: ['/landing'] }] } },
+  };
   const otpStep: IStepConfig = {
     name: 'login',
     urlTag: WARM_STEP_TAG,
@@ -365,7 +369,27 @@ describe('SmsOtpFlow — pre-hook guards', () => {
     const bind = { ...FULL_BIND, handoff: CARRIED_URL };
     const run = await runGuarded({ hook: COOKIE_HOOK, bind, jar, config });
     expect(run.result).toMatchObject({ success: true });
-    expect(urls[0]).toBe(CARRIED_URL); (feat(api-direct): send a GET step to a carried URL)
+    expect(urls[0]).toBe(CARRIED_URL);
+  });
+
+  it.each<[string, boolean, boolean]>([
+    ['no jar, no required refs', false, false],
+    ['no jar, required ref', false, true],
+    ['jar, no required refs', true, false],
+    ['jar, required ref', true, true],
+  ])('refuses a relative carried URL before OTP with %s', async (_label, hasJar, hasRequires) => {
+    const hook: Hook = { ...NO_HINT_HOOK, requires: hasRequires ? ['carry.flow'] : [] };
+    const jar = hasJar ? fakeJar({}, []) : undefined;
+    const config = carriedConfigWith(hook);
+    const bind = { ...FULL_BIND, handoff: '//portal.example/landing' };
+    const run = await runGuarded({ hook, bind, jar, config });
+    expect(run.result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'login carried url invalid',
+    });
+    expect(run.hints).toEqual([]);
+    expect(run.captures).toHaveLength(1);
   });
 
   it.each<[string, ICookieSession | undefined]>([
@@ -393,6 +417,27 @@ describe('SmsOtpFlow — pre-hook guards', () => {
       expect(run.captures).toHaveLength(1);
     },
   );
+
+  it.each<[string, JsonValue]>([
+    ['false', false],
+    ['zero', 0],
+    ['an object', { unexpected: 'state' }],
+  ])('refuses an optional fallback over %s before asking for OTP', async (_label, flow) => {
+    const config = configWith(HOOK);
+    const bindStep: IStepConfig = {
+      ...BIND_STEP,
+      optionalExtractsToCarry: { flow: { pointer: '/flow', fallback: 'logonotp' } },
+      extractRules: { flow: { type: 'string', oneOf: ['logonotp'] } },
+    };
+    const run = await runGuarded({
+      hook: HOOK,
+      bind: { token: 'bind-token', flow },
+      config: { ...config, steps: [bindStep, config.steps[1]] },
+    });
+    expect(run.result).toMatchObject({ success: false, errorMessage: 'bind extract flow invalid' });
+    expect(run.hints).toEqual([]);
+    expect(run.captures).toHaveLength(1);
+  });
 
   it('reports a retriever throw by its error name only', async () => {
     const thrown = new TypeError(`retriever failed: ${SECRETS.join(' ')}`);

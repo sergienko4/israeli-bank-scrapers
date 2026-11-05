@@ -7,8 +7,9 @@
  * resolved against the step URL, and `pemCertificate`, whose key ref resolves
  * against the step's scope. A text-capture slot with no rule still gets the
  * 8192 `maxChars` check (N36). The slot keeps the checked text; the rest of
- * the carry passes through. An optional slot whose pointer is unresolved,
- * null or '' skips its rule. A refusal fails the step
+ * the carry passes through. An absent optional slot skips its rule only when
+ * it has no fallback or pre-hook write; present malformed values are checked
+ * even when a fallback is set. A refusal fails the step
  * `<step> extract <slot> invalid`, naming no value.
  */
 
@@ -17,8 +18,8 @@ import { matchesAnyUrlRule } from '../../../Strategy/Fetch/UrlRule.js';
 import type { IProcedureFailure, Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { ExtractValueType, IExtractRule, IStepConfig } from '../ConfigContracts/index.js';
-import { walkPointer } from '../Envelope/JsonPointer.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
+import { optionalRawValue } from './RunStep.optional.js';
 import { isPemCertificate } from './RunStep.pemRule.js';
 import { stepBaseUrlOf } from './RunStep.stepUrl.js';
 import { captureSlotsOf } from './RunStep.textCapture.js';
@@ -225,19 +226,30 @@ function isCarriedSlot(step: IStepConfig, slot: string): boolean {
 }
 
 /**
- * Read a ruled slot: a required or header slot from the carry, an optional
- * one at its pointer.
+ * Read the fallback or the value written by this step's pre-hook.
+ * @param input - Rule pass input.
+ * @param slot - Optional carry slot.
+ * @returns The retained value, or false when this step wrote nothing.
+ */
+function optionalCarriedValue(input: IRulePass, slot: string): IKept | false {
+  if (Object.hasOwn(input.carry, slot)) return { kept: input.carry[slot] };
+  if (input.step.preHook?.intoCarryField !== slot) return false;
+  const carry = input.scope.carry;
+  return Object.hasOwn(carry, slot) ? { kept: carry[slot] } : false;
+}
+
+/**
+ * Check the raw optional value before its fallback, or a retained pre-hook
+ * value when the optional pointer is absent.
  * @param input - Rule pass input.
  * @param slot - Carry slot name.
- * @returns The raw value, or false when an optional slot is absent, null or ''.
+ * @returns The raw or carried value, or false when the optional slot is absent.
  */
 function slotValue(input: IRulePass, slot: string): IKept | false {
   if (isCarriedSlot(input.step, slot)) return { kept: input.carry[slot] };
   const optional = input.step.optionalExtractsToCarry?.[slot];
   if (optional === undefined) return false;
-  const walked = walkPointer(input.resp, optional.pointer);
-  if (!isOk(walked) || walked.value === null || walked.value === '') return false;
-  return { kept: walked.value };
+  return optionalRawValue(input.resp, optional.pointer) || optionalCarriedValue(input, slot);
 }
 
 /**
@@ -273,13 +285,12 @@ function isRefused(verdict: Procedure<CarryMap>): verdict is IProcedureFailure {
 function ruleEntriesOf(step: IStepConfig): readonly RuleEntry[] {
   const rules = step.extractRules ?? {};
   const unruled = captureSlotsOf(step).filter((slot): boolean => !Object.hasOwn(rules, slot));
-  const defaults = unruled.map((slot): RuleEntry => [slot, {}]);
-  return [...Object.entries(rules), ...defaults];
+  return [...Object.entries(rules), ...unruled.map((slot): RuleEntry => [slot, {}])];
 }
 
 /**
  * Check a step's ruled slots.
- * @param input - The step, its body, its carry, its URL and its scope.
+ * @param input - The step, its response, its carry, its URL and its scope.
  * @returns The carry with each ruled slot checked, or the first refusal.
  */
 function applyExtractRules(input: IRulePass): Procedure<CarryMap> {

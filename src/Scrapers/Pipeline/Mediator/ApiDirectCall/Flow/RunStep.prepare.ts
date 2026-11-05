@@ -5,6 +5,7 @@
  */
 
 import { getDebug } from '../../../Logging/Debug.js';
+import type { WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IFetchCallPolicy } from '../../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
@@ -200,12 +201,8 @@ function buildStepContext(step: IStepConfig, bodyValue: JsonValue): IStepLogCont
  * @returns Fire-call payload.
  */
 function makeFireArgs(opts: IPostPrepArgs, headers: MutableHeaderMap): IFireArgs {
-  return assembleFire({
-    args: opts.args,
-    preparedBody: opts.preparedBody,
-    query: opts.query,
-    headers,
-  });
+  const { args, preparedBody, query } = opts;
+  return assembleFire({ args, preparedBody, query, headers });
 }
 
 /**
@@ -220,7 +217,8 @@ function headersAndFire(args: IHeadersAndFireArgs): Procedure<IDispatchBundle> {
   const headersProc = buildStepHeaders(fireScope, headerInput);
   if (!isOk(headersProc)) return headersProc;
   const fireArgs = makeFireArgs(opts, headersProc.value);
-  return succeed({ fireArgs, fireScope, baseCtx, preparedScope: opts.preparedBody.scope });
+  const { target, preparedBody } = opts;
+  return succeed({ fireArgs, fireScope, baseCtx, preparedScope: preparedBody.scope, target });
 }
 
 /**
@@ -240,6 +238,7 @@ interface IBuildDispatchArgs {
   readonly args: IRunStepArgs;
   readonly pathAndQuery: string;
   readonly query: QueryRecord;
+  readonly target: WKUrlOrLiteral;
 }
 
 /**
@@ -248,11 +247,12 @@ interface IBuildDispatchArgs {
  * @returns Procedure with the dispatch bundle, or fail.
  */
 function buildDispatchBundle(input: IBuildDispatchArgs): Procedure<IDispatchBundle> {
-  const { args, pathAndQuery, query } = input;
+  const { args, pathAndQuery, query, target } = input;
   const prepProc = prepareStepBody(args, pathAndQuery);
   if (!isOk(prepProc)) return prepProc;
   const queryMut = { ...query };
-  const opts: IPostPrepArgs = { args, preparedBody: prepProc.value, pathAndQuery, query: queryMut };
+  const preparedBody = prepProc.value;
+  const opts: IPostPrepArgs = { args, preparedBody, pathAndQuery, query: queryMut, target };
   return finalizeDispatch(opts);
 }
 

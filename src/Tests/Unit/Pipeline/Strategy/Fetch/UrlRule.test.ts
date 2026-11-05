@@ -77,6 +77,7 @@ describe('matchesAnyUrlRule — anyPathExcept', () => {
   it.each([
     ['any path with any query', `${ORIGIN}/wps/portal/home?rid=1&x=2`],
     ['the bare origin', `${ORIGIN}/`],
+    ['a safely encoded path', `${ORIGIN}/wps/%70ortal/home`],
   ])('allows %s', (_label, url) => {
     const isAllowed = allowed(url, [denyRule]);
     expect(isAllowed).toBe(true);
@@ -86,6 +87,10 @@ describe('matchesAnyUrlRule — anyPathExcept', () => {
     ['a denied text', `${ORIGIN}/wps/logout`],
     ['a denied text in another case', `${ORIGIN}/wps/ChangePass.do`],
     ['a denied text inside a segment', `${ORIGIN}/a/doLOGOUTnow`],
+    ['an encoded denied text', `${ORIGIN}/wps/lo%67out`],
+    ['an encoded slash before denied text', `${ORIGIN}/wps%2FChangePass.do`],
+    ['a malformed percent escape', `${ORIGIN}/wps/%ZZ`],
+    ['a malformed UTF-8 escape', `${ORIGIN}/wps/%E0%A4%A`],
     ['a foreign origin', 'https://evil.example/wps/portal/home'],
     ['userinfo', 'https://u:p@mto.bank.example/wps/portal/home'],
     ['http', 'http://mto.bank.example/wps/portal/home'],

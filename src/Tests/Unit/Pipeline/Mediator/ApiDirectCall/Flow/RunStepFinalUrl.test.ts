@@ -25,6 +25,7 @@ const WK_ORIGIN = 'https://example.test';
 const BANK = 'https://bank.test';
 const START = `${BANK}/portal/start?t=syn-ticket`;
 const LANDING = `${BANK}/portal/landing`;
+const CARRIED_RULES = [{ origin: BANK, paths: ['/portal/start', '/portal/landing'] }] as const;
 
 const CONFIG: IApiDirectCallConfig = {
   flow: 'sms-otp',
@@ -40,7 +41,7 @@ const HANDOFF_STEP: IGetStep = {
   method: 'GET',
   urlFromCarry: 'handoffUrl',
   extractsToCarry: {},
-  redirect: { maxHops: 3, allow: [{ origin: BANK, paths: ['/portal/start', '/portal/landing'] }] },
+  redirect: { maxHops: 3, allow: CARRIED_RULES },
   finalUrlInto: 'landingUrl',
 };
 
@@ -91,7 +92,7 @@ async function runOver(
 ): ReturnType<typeof runStep> {
   const bus = makeNativeMediator(HINT, WK_ORIGIN);
   const scope: ITemplateScope = { carry, creds: {}, config: CONFIG, keypair: undefined };
-  return runStep({ step, bus, scope, companyId: HINT });
+  return runStep({ step, bus, scope, companyId: HINT, carriedUrlRules: CARRIED_RULES });
 }
 
 /**

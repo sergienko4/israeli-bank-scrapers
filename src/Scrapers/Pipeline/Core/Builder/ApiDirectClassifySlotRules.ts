@@ -1,10 +1,11 @@
 /**
  * Answer-classifier slot rules for an api-direct call config (N50), checked
  * after the classifier shape rules. A capture never writes the case slot, and
- * neither the case slot nor a capture slot is an extract slot of the same
- * step, so one answer never writes a slot twice. The case slot is never kept
- * for the scrape by `sessionCarry`. A `runIf` guard on a slot some classifier
- * writes may list only the case names written to that slot.
+ * neither the case slot nor a capture slot is a slot the same step also writes:
+ * an extract, the final URL, a form capture, a handoff capture or a
+ * derivation. The case slot is never kept for the scrape by `sessionCarry`.
+ * A `runIf` guard on a slot some classifier writes may list only the case
+ * names written to that slot.
  */
 
 import type {
@@ -42,14 +43,27 @@ function capturesIntoCase(classifier: IAnswerClassifier): boolean {
 }
 
 /**
- * Whether a classified slot is also an extract slot of its step.
+ * Every slot besides an extract that the step itself writes.
+ * @param step - The step that declares the classifier.
+ * @returns The final-URL, form-capture, handoff-capture and derived slots.
+ */
+function stepWriteSlotsOf(step: IStepConfig): readonly string[] {
+  const derived = step.deriveCarry?.map((entry): string => entry.into) ?? [];
+  const slots = [step.finalUrlInto, step.formCapture?.into, step.locationCapture?.into, ...derived];
+  return slots.filter((slot): slot is string => slot !== undefined);
+}
+
+/**
+ * Whether a classified slot is also a slot the step writes: an extract slot,
+ * its final URL, its form/handoff capture or a derivation.
  * @param classifier - Answer classifier.
  * @param step - The step that declares it.
  * @returns True for a clash.
  */
-function hasExtractClash(classifier: IAnswerClassifier, step: IStepConfig): boolean {
+function hasStepSlotClash(classifier: IAnswerClassifier, step: IStepConfig): boolean {
+  const written = stepWriteSlotsOf(step);
   const slots = slotsOf(classifier);
-  return slots.some((slot): boolean => isExtractSlot(step, slot));
+  return slots.some((slot): boolean => isExtractSlot(step, slot) || written.includes(slot));
 }
 
 /**
@@ -105,8 +119,8 @@ const API_DIRECT_CLASSIFY_SLOT_RULES: readonly IApiDirectRule[] = [
     isBroken: anyClassifier(capturesIntoCase),
   },
   {
-    message: 'steps.classify: slots must not be extract slots of the step',
-    isBroken: anyClassifier(hasExtractClash),
+    message: 'steps.classify: slots must not be slots the step also writes',
+    isBroken: anyClassifier(hasStepSlotClash),
   },
   { message: 'steps.classify.into: must not be a sessionCarry slot', isBroken: keepsCaseSlot },
   {

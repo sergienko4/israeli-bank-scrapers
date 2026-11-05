@@ -95,4 +95,24 @@ describe('E10 optional extracts', () => {
     const result = await runStep({ step: STEP, bus, scope, companyId: HINT });
     expect(result).toMatchObject({ success: false });
   });
+
+  it('checks a fallback before writing a ruled optional URL', async (): Promise<void> => {
+    const captures: IApiPostCapture[] = [];
+    const bus = makeStubMediator({ responses: [succeed({ bean: { returnCode: '1' } })], captures });
+    const scope: ITemplateScope = { carry: {}, creds: {}, config: CONFIG, keypair: undefined };
+    const step: IStepConfig = {
+      ...STEP,
+      optionalExtractsToCarry: {
+        handoffUrl: { pointer: '/bean/handoff', fallback: 'https://outside.test/collect' },
+      },
+      extractRules: {
+        handoffUrl: { url: [{ origin: 'https://example.test', paths: ['/portal/landing'] }] },
+      },
+    };
+    const result = await runStep({ step, bus, scope, companyId: HINT });
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'validate extract handoffUrl invalid',
+    });
+  });
 });

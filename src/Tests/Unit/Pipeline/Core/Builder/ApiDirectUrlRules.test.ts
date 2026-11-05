@@ -128,6 +128,38 @@ const REFUSALS: readonly IRefusalCase[] = [
   { label: 'a url rule on another slot', steps: [OTHER_RULED_BIND, LANDING], expected: RULE_MSG },
   { label: 'the url rule after the step', steps: [LANDING, BIND], expected: RULE_MSG },
   { label: 'the step ruling its own slot', steps: [SELF_RULED_LANDING], expected: RULE_MSG },
+  { label: 'a later unchecked extract', steps: [BIND, PLAIN_BIND, LANDING], expected: RULE_MSG },
+  {
+    label: 'a conditional rule that may leave an earlier unchecked extract',
+    steps: [PLAIN_BIND, { ...BIND, runIf: { carry: 'guard', oneOf: ['yes'] } }, LANDING],
+    expected: RULE_MSG,
+  },
+  {
+    label: 'a derived carry value replacing the ruled extract',
+    steps: [{ ...BIND, deriveCarry: [{ into: 'handoffUrl', parts: ['creds.nextUrl'] }] }, LANDING],
+    expected: RULE_MSG,
+  },
+  {
+    label: 'a later derived carry value replacing the ruled URL',
+    steps: [
+      BIND,
+      {
+        ...PLAIN_BIND,
+        extractsToCarry: {},
+        deriveCarry: [{ into: 'handoffUrl', parts: ['creds.nextUrl'] }],
+      },
+      LANDING,
+    ],
+    expected: RULE_MSG,
+  },
+  {
+    label: 'a pre-hook replacing the ruled URL before dispatch',
+    steps: [
+      BIND,
+      { ...LANDING, preHook: { awaitCredsField: 'nextUrl', intoCarryField: 'handoffUrl' } },
+    ],
+    expected: RULE_MSG,
+  },
   {
     label: 'a resume step ruled only by a login step',
     steps: [BIND, LANDING],
@@ -173,6 +205,7 @@ const ACCEPTED: readonly IBuildCase[] = [
   { label: 'a resume list ruling its own slot', steps: [BIND], resume: [BIND, LANDING] },
   { label: 'a carried URL an earlier final URL checked', steps: [FINAL, LANDING] },
   { label: 'a carried URL an earlier handoff script set', steps: [HANDOFF, LANDING] },
+  { label: 'two checked writers', steps: [BIND, { ...BIND, name: 'login' }, LANDING] },
 ];
 
 describe('validateApiDirectConfig — N40/N41 step URL rules', () => {

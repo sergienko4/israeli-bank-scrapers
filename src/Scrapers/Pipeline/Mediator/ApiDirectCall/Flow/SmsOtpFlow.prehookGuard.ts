@@ -1,11 +1,11 @@
 /**
  * Pre-hook guards (N21) that bracket a step's credential acquisition.
  *
- * <p>Before: each `requires` ref must resolve. Refs resolve against the
- * step's jar view, bound to the step URL as `runStep` binds it, so a
- * `cookie.<name>` ref reads what the step's request would send. A miss reports
- * the resolver's own failure (`ref <token> miss` / `bad`) and the callback is
- * never asked, so no code is spent on a login that cannot finish.
+ * <p>Before: the step URL must resolve and each `requires` ref must resolve.
+ * Refs resolve against the step's jar view, bound to the step URL as `runStep`
+ * binds it, so a `cookie.<name>` ref reads what the step's request would send.
+ * A miss reports the resolver's own failure (`ref <token> miss` / `bad`) and
+ * the callback is never asked, so no code is spent on a login that cannot finish.
  *
  * <p>After: the deposited value must match the hook's anchored
  * `valuePattern`, else the step fails InvalidOtp before its request. Neither
@@ -83,18 +83,28 @@ function stepCookieView(args: IPreHookGuardArgs, jar: ICookieSession, url: strin
 }
 
 /**
- * The scope with the step's jar view bound to its URL, when the run has a jar.
+ * Resolve the guarded step's URL under its carried URL rules.
+ * @param args - Guard bundle.
+ * @returns The URL, or a refusal before the pre-hook requests a secret.
+ */
+function guardedStepUrl(args: IPreHookGuardArgs): Procedure<string> {
+  const { step, scope, reduce } = args;
+  const { companyId, carriedUrlRules } = reduce;
+  return stepBaseUrlOf({ step, scope, companyId, carriedUrlRules });
+}
+
+/**
+ * Validate the step URL and bind the jar view when the run has a jar.
  * @param args - Guard bundle.
  * @returns The bound scope, the scope unchanged without a jar, or a failure.
  */
 function stepJarScope(args: IPreHookGuardArgs): Procedure<ITemplateScope> {
-  const { step, scope, reduce } = args;
-  const jar = reduce.bus.cookies;
-  if (jar === undefined) return succeed(scope);
-  const url = stepBaseUrlOf({ step, scope, companyId: reduce.companyId });
+  const url = guardedStepUrl(args);
   if (!isOk(url)) return url;
+  const jar = args.reduce.bus.cookies;
+  if (jar === undefined) return succeed(args.scope);
   const cookie = stepCookieView(args, jar, url.value);
-  return succeed({ ...scope, cookie });
+  return succeed({ ...args.scope, cookie });
 }
 
 /**
@@ -107,15 +117,15 @@ function isMiss(proc: Procedure<JsonValue>): proc is IProcedureFailure {
 }
 
 /**
- * Resolve the pre-hook's `requires` refs; the first miss fails the step.
+ * Validate the URL and the pre-hook's `requires` refs before acquiring a code.
  * @param args - Guard bundle.
  * @returns The scope unchanged, or the resolver's failure.
  */
 function checkPreHookRequires(args: IPreHookGuardArgs): Procedure<ITemplateScope> {
-  const tokens = args.hook.requires ?? [];
-  if (tokens.length === 0) return succeed(args.scope);
   const bound = stepJarScope(args);
   if (!isOk(bound)) return bound;
+  const tokens = args.hook.requires ?? [];
+  if (tokens.length === 0) return succeed(args.scope);
   const resolved = tokens.map((token): Procedure<JsonValue> => resolveRef(token, bound.value));
   const miss = resolved.find(isMiss);
   return miss ?? succeed(args.scope);

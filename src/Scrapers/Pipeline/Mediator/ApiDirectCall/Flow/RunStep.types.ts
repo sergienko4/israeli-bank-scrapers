@@ -2,9 +2,13 @@
  * Shared types + private aliases used across the RunStep cluster.
  */
 
-import type { resolveWkUrl } from '../../../Registry/WK/UrlsWK.js';
+import type { resolveWkUrl, WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { ICookieJar } from '../../../Strategy/Fetch/CookieJar.js';
-import type { IFetchCallPolicy, IResponseHeaderSink } from '../../../Types/Domain/FetchPolicy.js';
+import type {
+  IFetchCallPolicy,
+  IResponseHeaderSink,
+  IUrlRule,
+} from '../../../Types/Domain/FetchPolicy.js';
 import type { ITokenBus } from '../../../Types/Domain/TokenBus.js';
 import type { IAsymmetricSignerConfig, IStepConfig } from '../ConfigContracts/index.js';
 import type { IGenericKeypair } from '../Crypto/CryptoKeyFactory.js';
@@ -44,6 +48,8 @@ interface IRunStepArgs {
   readonly companyId: Parameters<typeof resolveWkUrl>[1];
   readonly signingKeypair?: IGenericKeypair;
   readonly cookieJar?: IStepCookieJar;
+  /** Rules declared by preceding URL producers in this flow's step list. */
+  readonly carriedUrlRules?: readonly IUrlRule[];
   /** True when bank-supplied values must be omitted from failures and logs. */
   readonly isBankTextOmitted?: boolean;
 }
@@ -54,10 +60,11 @@ interface IParsedUrlParts {
   readonly search: string;
 }
 
-/** Pair of resolved path-and-query and the raw query record. */
+/** Pair of resolved path-and-query, the raw query record and the bus target. */
 interface IPathAndQuery {
   readonly pathAndQuery: string;
   readonly query: Record<string, string>;
+  readonly target: WKUrlOrLiteral;
 }
 
 /** Inputs needed to assemble the signer header value. */
@@ -129,6 +136,7 @@ interface IDispatchBundle {
   readonly fireScope: IRunStepArgs;
   readonly baseCtx: IStepLogContext;
   readonly preparedScope: ITemplateScope;
+  readonly target: WKUrlOrLiteral;
 }
 
 /** Args bundle for `assembleFire` — keeps params ≤3. */
@@ -145,6 +153,7 @@ interface IPostPrepArgs {
   readonly preparedBody: IPreparedBody;
   readonly pathAndQuery: string;
   readonly query: Record<string, string>;
+  readonly target: WKUrlOrLiteral;
 }
 
 /** Args bundle for `headersAndFire` — keeps the signature single-line. */

@@ -7,6 +7,7 @@
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { literalUrl, resolveWkUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
+import { matchesAnyUrlRule } from '../../../Strategy/Fetch/UrlRule.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IJoinTemplate } from '../ConfigContracts/index.js';
@@ -14,7 +15,7 @@ import { hydrateJoin } from '../Template/JoinTemplate.js';
 import type { IRunStepArgs, JsonValue } from './RunStep.types.js';
 
 /** What resolves a step's URL: the step, its scope and its company. */
-type IStepUrlInput = Pick<IRunStepArgs, 'step' | 'scope' | 'companyId'>;
+type IStepUrlInput = Pick<IRunStepArgs, 'step' | 'scope' | 'companyId' | 'carriedUrlRules'>;
 
 /** One to 32 768 printable-ASCII chars (N41). */
 const RAW_QUERY_TEXT = /^[\x21-\x7E]{1,32768}$/;
@@ -59,8 +60,8 @@ function withRawQuery(url: string, raw: string): string {
 }
 
 /**
- * Read the absolute URL a carry slot holds; a relative text is refused, as
- * nothing here knows what it was relative to.
+ * Read an allowed absolute URL from carry; a relative or unapproved target
+ * fails before it can reach the bus, even after an unchecked overwrite.
  * @param input - Step, scope and company.
  * @param slot - The step's `urlFromCarry` slot.
  * @returns The parsed URL, or `<step> carried url invalid`.
@@ -68,7 +69,8 @@ function withRawQuery(url: string, raw: string): string {
 function carriedUrl(input: IStepUrlInput, slot: string): Procedure<string> {
   const text = input.scope.carry[slot];
   const parsed = typeof text === 'string' ? URL.parse(text) : null;
-  if (parsed !== null) return succeed(parsed.href);
+  if (parsed !== null && matchesAnyUrlRule(parsed, input.carriedUrlRules ?? []))
+    return succeed(parsed.href);
   return fail(ScraperErrorTypes.Generic, `${input.step.name} carried url invalid`);
 }
 
@@ -109,16 +111,15 @@ function isPlainStep(input: IStepUrlInput): boolean {
 }
 
 /**
- * What the fire hands the bus: a plain step's WK tag, else its URL as a literal.
+ * What the fire hands the bus: a plain step's WK tag, else its resolved URL as
+ * a literal. The URL is resolved once, by the caller, so the raw query it
+ * signs is the one it sends.
  * @param input - Step, scope and company.
- * @returns The bus target, or the step URL's failure.
+ * @param url - The step URL already resolved.
+ * @returns The bus target.
  */
-function sendTargetOf(input: IStepUrlInput): Procedure<WKUrlOrLiteral> {
-  if (isPlainStep(input)) return succeed(input.step.urlTag);
-  const url = stepUrlOf(input);
-  if (!isOk(url)) return url;
-  const literal = literalUrl(url.value);
-  return succeed(literal);
+function sendTargetOf(input: IStepUrlInput, url: string): WKUrlOrLiteral {
+  return isPlainStep(input) ? input.step.urlTag : literalUrl(url);
 }
 
 export type { IStepUrlInput };

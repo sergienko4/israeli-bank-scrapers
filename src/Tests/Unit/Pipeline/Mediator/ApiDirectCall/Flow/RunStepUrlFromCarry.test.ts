@@ -27,6 +27,7 @@ const WK_ORIGIN = 'https://example.test';
 const BANK = 'https://bank.test';
 const SERVLET = `${BANK}/MatafLoginService/MatafLoginServlet`;
 const HANDOFF = `${SERVLET}?t=syn-ticket`;
+const CARRIED_RULES = [{ origin: BANK, anyPathExcept: ['logout', 'changepass'] }] as const;
 const CARRIED_INVALID = 'landing carried url invalid';
 const LOGIN_PAGE =
   '<form name="loginServlet" method="post" action="MatafLoginServlet">' +
@@ -131,7 +132,7 @@ async function runOver(
 ): ReturnType<typeof runStep> {
   const bus = makeNativeMediator(HINT, WK_ORIGIN);
   const scope = scopeWith(carry);
-  return runStep({ step, bus, scope, companyId: HINT });
+  return runStep({ step, bus, scope, companyId: HINT, carriedUrlRules: CARRIED_RULES });
 }
 
 /**
@@ -183,7 +184,13 @@ describe('N40 urlFromCarry', () => {
     const fake = install(tokenAnswer);
     const bus = jarBus();
     const scope = scopeWith({ handoffUrl: HANDOFF, g3: 'syn-g3' });
-    const result = await runStep({ step: COOKIE_STEP, bus, scope, companyId: HINT });
+    const result = await runStep({
+      step: COOKIE_STEP,
+      bus,
+      scope,
+      companyId: HINT,
+      carriedUrlRules: CARRIED_RULES,
+    });
     const sent = cookieSent(fake);
     expect(result).toMatchObject({ success: true });
     expect(fake.calls[0].url).toBe(HANDOFF);
@@ -198,6 +205,16 @@ describe('N40 urlFromCarry', () => {
   ])('fails before sending when %s', async (_label, carry): Promise<void> => {
     const fake = install(tokenAnswer);
     const result = await runOver(LANDING_STEP, carry);
+    expect(fake.calls).toHaveLength(0);
+    expect(result).toMatchObject({ success: false, errorMessage: CARRIED_INVALID });
+  });
+
+  it.each([
+    ['another origin', 'https://outside.test/collect'],
+    ['an encoded denied path', `${BANK}/wps/lo%67out`],
+  ])('refuses %s before sending', async (_label, handoffUrl): Promise<void> => {
+    const fake = install(tokenAnswer);
+    const result = await runOver(LANDING_STEP, { handoffUrl });
     expect(fake.calls).toHaveLength(0);
     expect(result).toMatchObject({ success: false, errorMessage: CARRIED_INVALID });
   });

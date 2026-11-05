@@ -164,7 +164,7 @@ function logFireOk(bundle: IDispatchBundle, resp: JsonValue): true {
  * @returns Procedure with the merged scope, or fail.
  */
 async function fireAndMergeScope(bundle: IDispatchBundle): Promise<Procedure<ITemplateScope>> {
-  const respProc = await fireStep(bundle.fireScope, bundle.fireArgs);
+  const respProc = await fireStep(bundle.fireScope, bundle.fireArgs, bundle.target);
   if (!isOk(respProc)) {
     logFireFail(bundle, respProc.errorMessage);
     return sanitiseStepFailure(bundle.fireScope.step.name, respProc);
@@ -185,8 +185,8 @@ async function runStep(args: IRunStepArgs): Promise<Procedure<ITemplateScope>> {
   if (!isOk(bound)) return bound;
   const resolved = resolvePathAndQuery(bound.value);
   if (!isOk(resolved)) return resolved;
-  const { pathAndQuery, query } = resolved.value;
-  const bundleProc = buildDispatchBundle({ args: bound.value, pathAndQuery, query });
+  const { pathAndQuery, query, target } = resolved.value;
+  const bundleProc = buildDispatchBundle({ args: bound.value, pathAndQuery, query, target });
   if (!isOk(bundleProc)) return bundleProc;
   return fireAndMergeScope(bundleProc.value);
 }

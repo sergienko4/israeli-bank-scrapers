@@ -7,9 +7,7 @@
 
 import type { WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IApiQueryOpts } from '../../../Types/Domain/ApiQueryOpts.js';
-import { isOk } from '../../../Types/Procedure.js';
 import type { StepMethod } from '../ConfigContracts/index.js';
-import { sendTargetOf } from './RunStep.stepUrl.js';
 import type { IFireArgs, IRunStepArgs, JsonValue, Procedure } from './RunStep.types.js';
 
 /** Sends one prepared step to its bus target and returns its parsed response. */
@@ -68,13 +66,16 @@ const FIRE_BY_METHOD: Readonly<Record<StepMethod, FireStep>> = { POST: firePost,
  * Send a prepared step with its method's bus call; no method means POST.
  * @param args - Run-step args.
  * @param fire - Fire-call bundle.
+ * @param target - Bus target resolved with the signed path and query.
  * @returns Procedure with the parsed response JSON.
  */
-async function fireStep(args: IRunStepArgs, fire: IFireArgs): Promise<Procedure<JsonValue>> {
-  const target = sendTargetOf(args);
-  if (!isOk(target)) return target;
+async function fireStep(
+  args: IRunStepArgs,
+  fire: IFireArgs,
+  target: WKUrlOrLiteral,
+): Promise<Procedure<JsonValue>> {
   const method = args.step.method ?? 'POST';
-  return FIRE_BY_METHOD[method](args, fire, target.value);
+  return FIRE_BY_METHOD[method](args, fire, target);
 }
 
 export default fireStep;

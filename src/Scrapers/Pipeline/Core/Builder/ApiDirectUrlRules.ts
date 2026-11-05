@@ -1,7 +1,7 @@
 /**
  * Build rules for step URLs. A raw query (N41) replaces the query template
  * rather than joining it. A carried step URL (N40), which only a GET can name
- * (`IPostStep.urlFromCarry` is `never`), reads a slot that an earlier step in
+ * (`IPostStep.urlFromCarry` is `never`), reads a slot whose earlier writers in
  * the same list checked — with an `extractRules` `url` rule, as its final
  * URL (N51), which its own redirect rules check, or as its handoff script's
  * URL (N54), which its capture's `url` rules check: login steps and resume
@@ -10,7 +10,9 @@
  */
 
 import type { IStepConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { allowedRulesOf } from '../../Mediator/ApiDirectCall/Flow/RunStep.carriedUrlRules.js';
 import {
+  answerCapturesOf,
   anyStep,
   type IApiDirectRule,
   type IApiDirectRuleInput,
@@ -47,6 +49,35 @@ function isStaleFinal(step: IStepConfig): boolean {
 }
 
 /**
+ * The direct carry targets a step can name, including its pre-hook.
+ * @param step - Step config.
+ * @returns Direct slots, excluding unset targets.
+ */
+function directSlotsOf(step: IStepConfig): readonly string[] {
+  return [
+    step.finalUrlInto,
+    step.formCapture?.into,
+    step.locationCapture?.into,
+    step.classify?.into,
+    step.preHook?.intoCarryField,
+  ].filter((slot): slot is string => slot !== undefined);
+}
+
+/**
+ * Whether a step may write a carry slot, including derived carry and pre-hooks.
+ * @param step - Step config.
+ * @param slot - Carry slot.
+ * @returns True when the step may set the slot.
+ */
+function writesSlot(step: IStepConfig, slot: string): boolean {
+  if (directSlotsOf(step).includes(slot)) return true;
+  const derived = step.deriveCarry ?? [];
+  if (derived.some((entry): boolean => entry.into === slot)) return true;
+  const captures = step.classify === undefined ? [] : answerCapturesOf(step.classify);
+  return captures.some(([written]): boolean => written === slot) || isExtractSlot(step, slot);
+}
+
+/**
  * Whether a step checks a slot: an `extractRules` `url` rule, its final URL,
  * or its handoff script's URL.
  * @param step - Step config.
@@ -54,13 +85,14 @@ function isStaleFinal(step: IStepConfig): boolean {
  * @returns True when the slot is a checked URL.
  */
 function hasUrlRule(step: IStepConfig, slot: string): boolean {
-  if (step.finalUrlInto === slot || step.locationCapture?.into === slot) return true;
-  const rules = step.extractRules ?? {};
-  return Object.hasOwn(rules, slot) && rules[slot].url !== undefined;
+  if (step.deriveCarry?.some((derived): boolean => derived.into === slot)) return false;
+  return allowedRulesOf(step, slot).length > 0;
 }
 
 /**
- * Whether the step at `index` carries a URL no earlier step checked.
+ * Whether the step at `index` may carry an unchecked URL. Optional and
+ * guarded steps can leave an earlier value in place, so every possible writer
+ * must check its value; a pre-hook on the consumer runs before its URL resolves.
  * @param steps - One step list.
  * @param index - The step's index.
  * @returns True for an unchecked carried URL.
@@ -68,8 +100,9 @@ function hasUrlRule(step: IStepConfig, slot: string): boolean {
 function isUnruledAt(steps: readonly IStepConfig[], index: number): boolean {
   const slot = steps[index].urlFromCarry;
   if (slot === undefined) return false;
-  const earlier = steps.slice(0, index);
-  return !earlier.some(step => hasUrlRule(step, slot));
+  if (steps[index].preHook?.intoCarryField === slot) return true;
+  const writers = steps.slice(0, index).filter((step): boolean => writesSlot(step, slot));
+  return writers.length === 0 || writers.some((step): boolean => !hasUrlRule(step, slot));
 }
 
 /**
