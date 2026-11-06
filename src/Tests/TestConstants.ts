@@ -31,9 +31,14 @@ export const INVALID_CREDS_USERNAME_PASSWORD = {
   password: 'fixt-i-5e6f7a8b',
 } as const;
 
-/** Invalid placeholder for Discount-style banks (id + password + num). */
+/**
+ * Invalid placeholder for Discount-style banks (id + password + num). The
+ * api-direct login checks the id shape (digits) before any request, so the
+ * id is digits to reach the bank; its check digit is wrong, so it can never
+ * name a real person.
+ */
 export const INVALID_CREDS_DISCOUNT = {
-  id: 'fixt-i-9c8d7e6f',
+  id: '000000019',
   password: 'fixt-i-3b2a1f0e',
   num: 'fixt-i-7d6c5b4a',
 } as const;
