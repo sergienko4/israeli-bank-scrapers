@@ -280,6 +280,18 @@ describe('FlowInitCarry — derivedCarry ops (N45)', () => {
     expect(uidMd5).toBe('857bd120487a9d42df57c302799bf203');
   });
 
+  it('uses the first format rule when more than one matches the input', () => {
+    const overlapping: DerivedOp = {
+      kind: 'format',
+      rules: [
+        { pattern: String.raw`^\d+$`, prefix: 'first' },
+        { pattern: String.raw`^\d+$`, prefix: 'second' },
+      ],
+    };
+    const [formatted] = deriveOp('123', overlapping) as readonly string[];
+    expect(formatted).toBe('first123');
+  });
+
   it.each<[string, string]>([
     ['abc', 'letters'],
     ['1234567890', 'ten digits not led by 9'],
@@ -301,6 +313,16 @@ describe('FlowInitCarry — derivedCarry ops (N45)', () => {
       derivedCarry: [{ into: 'digest', parts: ['creds.user'], transform: 'lower', op }],
     });
     const result = buildInitialCarry(config, { user: 'ABC' }, {});
+    expect(result).toMatchObject({ value: { digest: '900150983cd24fb0d6963f7d28e17f72' } });
+  });
+
+  it('truncates before the op digests the text', () => {
+    const config = makeConfig({
+      derivedCarry: [
+        { into: 'digest', parts: ['creds.user'], truncateBytes: 3, op: { kind: 'md5-hex' } },
+      ],
+    });
+    const result = buildInitialCarry(config, { user: 'abcdef' }, {});
     expect(result).toMatchObject({ value: { digest: '900150983cd24fb0d6963f7d28e17f72' } });
   });
 

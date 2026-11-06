@@ -253,10 +253,13 @@ describe('ApiDirectScrapeDispatchArgs — per-account headers (N53)', () => {
     const seen: ISeenCall[] = [];
     const producer = recordingHeaders(seen);
     const fx = headerFixture(producer, seen);
-    const opts = optsOf(fx.acct);
+    const callAccountIdOf = jest.fn<string, [unknown]>();
+    const shape = { ...fx.acct.shape, callAccountIdOf };
+    const opts = optsOf({ ...fx.acct, shape });
     expect(seen).toHaveLength(1);
     expect(seen[0].call).toStrictEqual({});
     expect(opts.extraHeaders).toStrictEqual({ AccountNumber: '' });
+    expect(callAccountIdOf).not.toHaveBeenCalled();
     expect(fx.accountNumberOf).not.toHaveBeenCalled();
   });
 

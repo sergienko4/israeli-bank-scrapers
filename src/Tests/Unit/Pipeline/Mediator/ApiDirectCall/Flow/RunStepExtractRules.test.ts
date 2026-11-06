@@ -204,7 +204,10 @@ describe('applyExtractRules — required slots', () => {
 });
 
 const BOUND = 'b1946ac92492d2347c6235b4d2611184';
-const BOUND_SCOPE: ITemplateScope = { ...RULE_SCOPE, carry: { bound: BOUND, code: '42' } };
+const BOUND_SCOPE: ITemplateScope = {
+  ...RULE_SCOPE,
+  carry: { bound: BOUND, code: '42', numericCode: 42 },
+};
 const EQUALS_BOUND: IExtractRule = { equalsRef: 'carry.bound' };
 const MISMATCH = { ...INVALID, errorMessage: 'bind extract slot mismatch' };
 
@@ -236,6 +239,7 @@ describe('applyExtractRules — equalsRef', () => {
     ['another text', EQUALS_BOUND, SECRET],
     ['the text in another case', EQUALS_BOUND, upper],
     ['a ref that does not resolve', { equalsRef: 'carry.missing' }, SECRET],
+    ['a numeric ref against matching text', { equalsRef: 'carry.numericCode' }, '42'],
   ])('fails %s as a mismatch, naming no value', (_label, rule, value) => {
     const ruled = ruleBound(rule, value);
     expect(ruled).toMatchObject(MISMATCH);
@@ -247,6 +251,11 @@ describe('applyExtractRules — equalsRef', () => {
   it.each<[string, IExtractRule, JsonValue]>([
     ['a text past another check', { ...EQUALS_BOUND, maxChars: 4 }, BOUND],
     ['a record', EQUALS_BOUND, { a: BOUND }],
+    [
+      'a value of another type that also differs from its ref',
+      { ...EQUALS_BOUND, type: 'number' },
+      BOUND,
+    ],
   ])('fails %s as invalid', (_label, rule, value) => {
     const ruled = ruleBound(rule, value);
     expect(ruled).toMatchObject(INVALID);
