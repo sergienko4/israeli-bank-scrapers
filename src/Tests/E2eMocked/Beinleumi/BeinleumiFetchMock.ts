@@ -52,7 +52,7 @@ function unrouted(call: IRecordedCall, state: IBeinleumiMockState): Response {
  * @param call - The request.
  * @returns The call kind.
  */
-function classifyOn(origin: string, call: IRecordedCall): CallKind {
+export function classifyOn(origin: string, call: IRecordedCall): CallKind {
   const key = keyOf(origin, call);
   if (key === '') return 'other';
   return key in LOGIN_ROUTES ? 'identity' : 'graphql';

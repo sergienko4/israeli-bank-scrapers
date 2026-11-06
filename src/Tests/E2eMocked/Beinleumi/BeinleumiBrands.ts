@@ -49,6 +49,12 @@ export const MASSAD_MOCK_BRAND: IFibiMockBrand = {
 /** The group banks that run Beinleumi's login on their own brand. */
 export const SIBLING_MOCK_BRANDS: readonly IFibiMockBrand[] = [MASSAD_MOCK_BRAND];
 
+/** Every brand covered by the shared behavior and privacy matrices. */
+export const FIBI_MOCK_BRANDS: readonly IFibiMockBrand[] = [
+  BEINLEUMI_MOCK_BRAND,
+  ...SIBLING_MOCK_BRANDS,
+];
+
 /**
  * The login page's query: the brand's private-customer portal, in Hebrew.
  * @param brand - The bank.
