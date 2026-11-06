@@ -1,5 +1,5 @@
 /**
- * Strict UTF-8 rule for an api-direct call config (N63). A step's
+ * Strict UTF-8 rule for an api-direct call config. A step's
  * `strictUtf8: false` exists only to lift the bank's `headless.strictUtf8`
  * for one call; on a bank that is not strict it overrides nothing, so it
  * fails the build instead of reading as a switch that does something.

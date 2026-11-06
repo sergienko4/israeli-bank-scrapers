@@ -1,12 +1,12 @@
 /**
  * Session rules for an api-direct call config, checked after the
- * client-certificate rules. Every `sessionCarry` slot (N32) must name a body
+ * client-certificate rules. Every `sessionCarry` slot must name a body
  * or header extract, or the final URL its manual redirect checked, of some
  * login or resume step: the scrape's session context holds server-issued
  * values only, so a generated key, a seeded
  * credential or a typo fails the build instead of reaching the scrape. An
- * `isolate` cookie hand-off (N35) needs a domain jar to empty. A
- * persistent-auth block must name a known `kind` (N48).
+ * `isolate` cookie hand-off needs a domain jar to empty. A
+ * persistent-auth block must name a known `kind`.
  */
 
 import type { IStepConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';

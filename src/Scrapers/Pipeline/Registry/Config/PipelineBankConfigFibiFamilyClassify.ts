@@ -1,5 +1,5 @@
 /**
- * FIBI-family answer classifiers (N50), read the way the Transmit web SDK
+ * FIBI-family answer classifiers, read the way the Transmit web SDK
  * reads its control flow: the login answer must offer exactly the password
  * method; the password answer either completes with a token or offers one
  * SMS target, its code numeric and 4..10 digits or of no stated format; the

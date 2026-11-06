@@ -1,5 +1,5 @@
 /**
- * Yahav native scrape shape — shared primitives (spec §10.2, AD-Y).
+ * Yahav native scrape shape — shared primitives.
  *
  * Every BaNCS call posts to one native origin. The session state the calls
  * rotate (the security token, the CSRF token and the two session ids) and the

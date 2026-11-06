@@ -1,5 +1,5 @@
 /**
- * FIBI-family Transmit request data (spec §11.2 rows 2–4b): the envelope
+ * FIBI-family Transmit request data: the envelope
  * headers and the key-exchange, login, password, SMS-code trigger and
  * SMS-code bodies, the same for every brand. Pure data (Rule #11).
  */

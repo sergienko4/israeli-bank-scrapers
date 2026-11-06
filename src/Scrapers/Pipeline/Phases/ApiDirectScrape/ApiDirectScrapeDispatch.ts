@@ -39,7 +39,7 @@ export interface IDispatchArgs {
   readonly urlTag: WKUrlOrLiteral | false;
   /** REST verb for the urlTag branch — GET sends no body, POST hydrates one. */
   readonly method: ScrapeHttpMethod;
-  /** Step vars; an array is sent only by a plain REST POST step (N19). */
+  /** Step vars; an array is sent only by a plain REST POST step. */
   readonly vars: ApiPostData;
   readonly bodyTemplate: JsonValueTemplate | false;
   readonly signer: IAesSignerConfig | false;

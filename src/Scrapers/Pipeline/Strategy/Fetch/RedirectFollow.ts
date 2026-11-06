@@ -1,9 +1,9 @@
 /**
- * Redirect follow — sends one request under its redirect policy (N2).
+ * Redirect follow — sends one request under its redirect policy.
  * `follow` hands the request to fetch untouched; `reject` asks fetch not to
  * follow and refuses any 3xx; a manual policy follows only the hops its
- * status rules allow (see RedirectHopRules: a POST only under `postAsGet`,
- * N46) whose Location resolves to an allowed URL, at most `maxHops` times.
+ * status rules allow (see RedirectHopRules: a POST only under `postAsGet`)
+ * whose Location resolves to an allowed URL, at most `maxHops` times.
  * Every hop is a body-less GET through the same transport seam, so each hop
  * keeps the per-request cap. A hop's Set-Cookie lines are filed under the hop
  * URL before the next hop is built. Each hop starts from the previous hop's

@@ -1,6 +1,6 @@
 /**
- * Redirect hop rules — what a manual hop may follow and what it never sends
- * (N2, N46), as the Fetch standard has them. An answer to a GET is followed on
+ * Redirect hop rules — what a manual hop may follow and what it never sends,
+ * as the Fetch standard has them. An answer to a GET is followed on
  * 301/302/303/307/308. An answer to a POST is followed only under `postAsGet`
  * and only on 302/303, the statuses that turn a POST into a GET; its GET hop
  * drops the request-body headers. Once a run has crossed origins every hop

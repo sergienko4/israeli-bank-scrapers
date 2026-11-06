@@ -2,7 +2,7 @@
  * Session-context merge for the ApiDirectScrape phase: overlays a patch on
  * the mediator's current session-context, so the fields a patch does not
  * name — the post-login identity (`uId`, `token`, `deviceId16Hex`) —
- * survive. Shared by the bootstrap patches and the response session (N31).
+ * survive. Shared by the bootstrap patches and the response session.
  */
 
 import type { IApiMediator } from '../../Mediator/Api/ApiMediator.js';

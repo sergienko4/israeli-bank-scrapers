@@ -1,5 +1,5 @@
 /**
- * Scrape response session (N31): a shape's `responseSession` reads each
+ * Scrape response session: a shape's `responseSession` reads each
  * successful answer `dispatchStep` returns — the checked body, the declared
  * response headers (lower-case) and the HTTP status — and its patch is
  * merged into session-context before the call returns. The call's header

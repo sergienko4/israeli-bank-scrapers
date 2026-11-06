@@ -1,5 +1,5 @@
 /**
- * Body text (N63) — every native reader takes an answer's body through here.
+ * Body text — every native reader takes an answer's body through here.
  * A call whose reading is `strictUtf8` decodes the bytes as UTF-8 with
  * `fatal`, so a malformed byte refuses the call instead of becoming U+FFFD;
  * any other call reads the body as `Response.text()` does. Both drop a

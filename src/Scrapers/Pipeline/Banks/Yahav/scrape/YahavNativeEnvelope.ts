@@ -1,5 +1,5 @@
 /**
- * Yahav native BaNCS envelope builder (spec §10.2). Wraps a payload in the
+ * Yahav native BaNCS envelope builder. Wraps a payload in the
  * envelope the app sends: the fixed blocks in their wire order, a `MsgId` and
  * `TimeStamp` from one instant, and the security token. A login sends an empty
  * token and no `csrfTkn`; a read replays the session's last token in place and

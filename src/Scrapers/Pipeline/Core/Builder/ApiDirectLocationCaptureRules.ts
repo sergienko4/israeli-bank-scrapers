@@ -1,5 +1,5 @@
 /**
- * Handoff script capture rules for an api-direct call config (N54). A step
+ * Handoff script capture rules for an api-direct call config. A step
  * naming `locationCapture` must read `response: 'text'`. The capture's `into`
  * must not be blank, its `userAgent` not empty, and its `url` must hold at
  * least one rule. Its slot must be fresh: no slot the step also extracts,

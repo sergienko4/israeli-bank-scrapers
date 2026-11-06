@@ -1,5 +1,5 @@
 /**
- * Scrape-phase body digest (N30): adds the shape's digest header to a REST
+ * Scrape-phase body digest: adds the shape's digest header to a REST
  * object POST's opts, computed over the bytes of the one JSON serializer the
  * transport's `json` writer sends. GET, array POST and GraphQL steps never
  * reach here, so they carry no digest.

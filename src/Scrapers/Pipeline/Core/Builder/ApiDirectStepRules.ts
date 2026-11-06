@@ -1,16 +1,16 @@
 /**
  * Step rules for an api-direct call config, on login and resume steps alike.
  * Outcome rules run before warm-start checks; the remaining rules run after
- * seal rules. Each `failIfPresent` entry (N20) must be a
+ * seal rules. Each `failIfPresent` entry must be a
  * JSON pointer below the body root: a bare key would never resolve, and the
  * root would fail every answer. A `bankErrorType` needs a `failIfPresent`
  * guard or a codec, else it types an error the step never raises. Each
- * `extractRules` key (N18, N27) must name a
+ * `extractRules` key must name a
  * body or header extract of its step; a `pattern` must be anchored (`^…$`)
  * and compile; `maxChars` must be an integer from 1 to 65536; `oneOf` and
  * `url` must not be empty, since an empty list would refuse every value. A `runIf` guard
- * (N14) needs a carry slot and a non-empty `oneOf`, else its step never runs.
- * A pre-hook `valuePattern` (N21) must be anchored and compile, like an
+ * needs a carry slot and a non-empty `oneOf`, else its step never runs.
+ * A pre-hook `valuePattern` must be anchored and compile, like an
  * extract `pattern`. Both must be flat (`FlatPattern.ts`): no group, no
  * alternation and a variable repeat on the last atom only, so a match takes
  * linear time. The `httpFailureMap` rules follow (`ApiDirectHttpFailureRules.ts`).

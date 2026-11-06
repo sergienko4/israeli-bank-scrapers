@@ -1,5 +1,5 @@
 /**
- * `$merge` rules for an api-direct call config (N37). A `$merge` node may only
+ * `$merge` rules for an api-direct call config. A `$merge` node may only
  * be a form body's whole shape — `form` or `form-latin1` — where the form-body
  * rules check its `carry.` base and flat `set`. One anywhere else — a JSON or
  * text body, a form field or the `set` itself, a header or a query — fails the

@@ -1,10 +1,10 @@
 /**
- * Text responses (N23) — a `text` call reads its 2xx answer as a string and
+ * Text responses — a `text` call reads its 2xx answer as a string and
  * hands it over as `{ text }`, so the step's extracts read it at `/text`. An
  * answer over the call's `maxTextChars` (65 536 chars by default) is refused,
  * never truncated. WAF classification and the status policy have already run,
  * so an edge page never reaches this reader. The body is read through
- * `readBodyText` (N63).
+ * `readBodyText`.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';

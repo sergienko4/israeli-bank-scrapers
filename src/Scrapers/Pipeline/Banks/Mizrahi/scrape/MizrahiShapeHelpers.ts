@@ -8,7 +8,7 @@
  * <p>Every declared account is scraped. `get428Index` serves the session's
  * CURRENT account only, so each account carries its POSITION in
  * `Accounts[]` — the `selectedAccountIndex` the `SkyBL/changeAccount`
- * switch takes (MizrahiShapeBalance, plan D17).
+ * switch takes (MizrahiShapeBalance).
  *
  * <p>Every data call sends the online-banking POST headers and
  * `mizrahixsrftoken`, the data token the login composed (`mizrahiXsrf`).

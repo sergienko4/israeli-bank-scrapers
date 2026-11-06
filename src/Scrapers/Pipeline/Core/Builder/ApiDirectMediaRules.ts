@@ -1,5 +1,5 @@
 /**
- * Media type rules for an api-direct call config (N61). A step's `mediaType`
+ * Media type rules for an api-direct call config. A step's `mediaType`
  * and each of the bank's `headless.mediaTypes` defaults is one lower-case
  * `type/subtype` with no parameter — the form the transport compares the
  * answer's content-type against — and the defaults are keyed by response kind.

@@ -1,8 +1,8 @@
 /**
- * Yahav native-app constants (AD-Y8): the one place the protocol's origin,
+ * Yahav native-app constants: the one place the protocol's origin,
  * versions, paths, header set and credential constants live, so a bank-side
  * bump touches only this file. Values are pinned from the app build the
- * protocol was traced from (spec §10.2).
+ * protocol was traced from.
  */
 
 import type { IBodyDigestConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
@@ -61,7 +61,7 @@ const YAHAV_NATIVE_HEADERS: Readonly<Record<string, string>> = Object.freeze({
 
 /**
  * The `BD_IDENT_KEY` header: base64 of
- * `AppVer~APIVer~EnvVer~sha256hex(body)` over the exact bytes sent (N30).
+ * `AppVer~APIVer~EnvVer~sha256hex(body)` over the exact bytes sent.
  */
 const YAHAV_BODY_DIGEST: IBodyDigestConfig = {
   header: 'BD_IDENT_KEY',

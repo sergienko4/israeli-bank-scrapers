@@ -1,5 +1,5 @@
 /**
- * FIBI-family api-direct login (spec §11.2): one builder per concern, fed a
+ * FIBI-family api-direct login: one builder per concern, fed a
  * brand record, so each family bank's config is its brand alone. The flow
  * reads the entry page, opens a Transmit session, asserts the password (and
  * the SMS code when the bank asks for one), posts the login form, follows the

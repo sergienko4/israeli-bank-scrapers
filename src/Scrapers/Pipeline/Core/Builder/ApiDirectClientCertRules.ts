@@ -1,5 +1,5 @@
 /**
- * Dynamic client-certificate rules for an api-direct call config (N26). A
+ * Dynamic client-certificate rules for an api-direct call config. A
  * step `clientCert` installs through the port the headless `clientCert` block
  * creates, so it needs that block; the block's `origin` is compared exactly
  * with each request's URL origin, so it must be an exact https origin; and a

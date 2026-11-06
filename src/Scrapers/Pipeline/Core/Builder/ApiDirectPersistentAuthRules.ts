@@ -1,5 +1,5 @@
 /**
- * Persistent-auth rules for an api-direct call config (N48). A
+ * Persistent-auth rules for an api-direct call config. A
  * `persistentAuth` block must name a kind the mediator has a primer for
  * and a nonblank device-id carry field, before any durable run.
  */

@@ -1,13 +1,13 @@
 /**
- * Text rules for an api-direct call config (N36). `textCaptures` and
+ * Text rules for an api-direct call config. `textCaptures` and
  * `maxTextChars` act on a `text` answer only, so a step naming either must
  * read `response: 'text'`. `maxTextChars` must be an integer from 1 to
  * 2097152. A capture `pattern` must compile with the `g` flag and must not
  * repeat a group — `(…)` followed by `*`, `+` or `{`, the shape that
  * backtracks without bound; its `group` must be an integer from 0 (the whole
- * match) to the pattern's group count. The login-form capture rules (N37)
+ * match) to the pattern's group count. The login-form capture rules
  * of `ApiDirectFormCaptureRules.ts`, then the handoff script capture rules
- * (N54) of `ApiDirectLocationCaptureRules.ts`, run last.
+ * of `ApiDirectLocationCaptureRules.ts`, run last.
  */
 
 import type {

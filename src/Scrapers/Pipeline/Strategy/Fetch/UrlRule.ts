@@ -1,6 +1,6 @@
 /**
- * URL rules — the allow-list a redirect or carried target must match (N2,
- * N40). A target passes only over https, with no userinfo and no fragment,
+ * URL rules — the allow-list a redirect or carried target must match.
+ * A target passes only over https, with no userinfo and no fragment,
  * when its origin matches one rule and either its path (case-insensitively)
  * and query match that rule's exact paths, or its lower-cased decoded path
  * holds none of that rule's denied texts. A malformed escape is refused.

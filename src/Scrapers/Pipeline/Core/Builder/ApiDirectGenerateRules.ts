@@ -1,15 +1,15 @@
 /**
- * Carry-generator rules for an api-direct call config (N25), on login and
+ * Carry-generator rules for an api-direct call config, on login and
  * resume steps alike. An `rsa-key` generator must name at least one slot to
  * write, or the key it makes is lost; a `pkcs10-csr` generator needs a
- * subject and a slot for the request. An `ecdh-key` generator (N38) needs two
+ * subject and a slot for the request. An `ecdh-key` generator needs two
  * distinct slots, and its private scalar never reaches `sessionCarry`: the
- * scrape gets server-issued values only. A `random-hex` seed (N42) draws an
- * integer count of bytes from 1 to 64. The derivation op rules (N45) of
- * `ApiDirectDeriveRules.ts` run next, then the envelope codec rules (N39)
- * of `ApiDirectCodecRules.ts`, the step URL rules (N40/N41) of
- * `ApiDirectUrlRules.ts`, the optional-ref rule (N49) of
- * `ApiDirectOptionalRefRules.ts`, and the answer-classifier rules (N50) of
+ * scrape gets server-issued values only. A `random-hex` seed draws an
+ * integer count of bytes from 1 to 64. The derivation op rules of
+ * `ApiDirectDeriveRules.ts` run next, then the envelope codec rules
+ * of `ApiDirectCodecRules.ts`, the step URL rules of
+ * `ApiDirectUrlRules.ts`, the optional-ref rule of
+ * `ApiDirectOptionalRefRules.ts`, and the answer-classifier rules of
  * `ApiDirectClassifyRules.ts` and `ApiDirectClassifySlotRules.ts`.
  */
 

@@ -1,5 +1,5 @@
 /**
- * Yahav native bootstrap (spec §10.2, AD-Y): the BaNCS login, then the
+ * Yahav native bootstrap: the BaNCS login, then the
  * profile read that proves the customer, then the portfolio read whose
  * default portfolio — else the first — every account read names. The
  * response session rotates the session state on each answer; these patches

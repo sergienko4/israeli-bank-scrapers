@@ -1,5 +1,5 @@
 /**
- * Yahav native BaNCS inquiry payloads — the per-account reads (spec §10.2):
+ * Yahav native BaNCS inquiry payloads — the per-account reads:
  * the current-account balance and the transactions in a date window. Each
  * names the account by id and IOR id and its portfolio by IOR id.
  */

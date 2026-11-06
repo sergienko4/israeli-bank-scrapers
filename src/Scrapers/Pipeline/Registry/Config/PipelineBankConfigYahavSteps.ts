@@ -1,8 +1,8 @@
 /**
- * Yahav native login steps (spec §10.2 rows 1–3). A cold start initializes
+ * Yahav native login steps. A cold start initializes
  * the app client and registers this device's certificate; every run then
  * takes a bearer token over that certificate, which is where a warm start
- * resumes. Secrets reach a request only through `$join` at hydration (AD-Y7).
+ * resumes. Secrets reach a request only through `$join` at hydration.
  * Register carries the password; wrong credentials draw a bare 401 there. The
  * reply names no reason, so every register 401 is reported as a wrong password.
  */

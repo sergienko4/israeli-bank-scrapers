@@ -1,8 +1,8 @@
 /**
- * Document responses (N3) — a `document` step reads its 2xx answer as text,
+ * Document responses — a `document` step reads its 2xx answer as text,
  * checks it for the step's marker when one is set, and discards it: the step
  * sees `{}`. WAF classification has already run, so an edge page never
- * reaches this reader. The body is read through `readBodyText` (N63).
+ * reaches this reader. The body is read through `readBodyText`.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';

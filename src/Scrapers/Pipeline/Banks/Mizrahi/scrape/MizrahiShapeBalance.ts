@@ -6,7 +6,7 @@
  * `Accounts[]`, and the session's later `get428Index` calls serve that
  * account (real login #12). Its reply carries the account's
  * `SnifAndNumber400` and its current balance `YitraAdkanit`, so one call both
- * switches and prices the account (plan D17). The driver runs the balance
+ * switches and prices the account. The driver runs the balance
  * step before the transactions step of the same account, so every
  * `get428Index` runs on the account just switched to.
  *
@@ -19,7 +19,7 @@
  * scrape rather than read movements of the wrong account. Outside banking
  * hours the bank sends `YitraAdkanit: null`, which is reported absent; the
  * night reply was never observed, so if it omits the account a night scrape
- * fails loudly (the night window serves no rows anyway, plan R15).
+ * fails loudly (the night window serves no rows anyway).
  */
 
 import ScraperError from '../../../../Base/ScraperError.js';

@@ -1,5 +1,5 @@
 /**
- * The one JSON body serializer (N30). Every place that needs a POST body's
+ * The one JSON body serializer. Every place that needs a POST body's
  * JSON — the `json` body writer, a body digest, an HMAC header signer —
  * takes it from here, so the bytes a header covers are the bytes sent.
  */

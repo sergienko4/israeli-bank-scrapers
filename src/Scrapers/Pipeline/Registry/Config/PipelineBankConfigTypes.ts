@@ -176,12 +176,12 @@ export interface IHeadlessUrlsConfig {
   readonly omitBankText?: boolean;
   /**
    * Media type each response kind's answer must name when its call names
-   * none (N61), e.g. `{ json: 'application/json' }`; requires `nativeFetch`.
+   * none, e.g. `{ json: 'application/json' }`; requires `nativeFetch`.
    * Undefined → no default; only a call's own `mediaType` is checked.
    */
   readonly mediaTypes?: MediaTypePolicy;
   /**
-   * Decode every answer as strict UTF-8 (N63): a malformed byte fails the
+   * Decode every answer as strict UTF-8: a malformed byte fails the
    * call `body not utf-8` instead of becoming U+FFFD. A step's own
    * `strictUtf8: false` lifts it for that call; requires `nativeFetch`.
    * Undefined → bodies read as `text()` does, unless a step says otherwise.

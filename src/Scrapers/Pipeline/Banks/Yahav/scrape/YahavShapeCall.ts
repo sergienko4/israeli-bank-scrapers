@@ -1,6 +1,6 @@
 /**
  * Yahav native call builders: the read body and the headers each BaNCS call
- * sends, built from the session state the earlier answers rotated (N31).
+ * sends, built from the session state the earlier answers rotated.
  * The login sends empty session ids; every read sends the current ones.
  */
 

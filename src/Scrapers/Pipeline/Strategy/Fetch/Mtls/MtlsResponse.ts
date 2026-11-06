@@ -2,7 +2,7 @@
  * Response side of the node:https transport: buffers an IncomingMessage body
  * and synthesises the Web Response the shared dispatchFetch pipeline parses.
  * Split from MtlsTransport so the request side stays under the file cap. The
- * buffer is capped (N34): a body past MTLS_MAX_RESPONSE_BYTES destroys the
+ * buffer is capped: a body past MTLS_MAX_RESPONSE_BYTES destroys the
  * stream and fails `response too large`.
  */
 
