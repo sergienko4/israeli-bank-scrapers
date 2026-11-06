@@ -33,16 +33,20 @@ const WORD = String.raw`\p{L}\p{M}\p{N}_`;
  * path, an escape or a `${...}` interpolation.
  */
 const NOT_AFTER = String.raw`(?<![-${WORD}$#%./=&+])(?<!\$\{)`;
-/** Characters that, right after one, make it part of a word or an assignment target. */
-const NOT_BEFORE = String.raw`(?![-${WORD}+])(?!\s*=(?![=>]))`;
+/** Characters that, right after one, make it part of a word, a path or an assignment target. */
+const NOT_BEFORE = String.raw`(?![-${WORD}+/])(?!\s*=(?![=>]))`;
 /** The item number itself: one to three digits behind its family letter. */
 const ITEM = String.raw`(?:DN|N|E|D)\d{1,3}`;
 /**
- * A whole `'...'` or `"..."` string holding only the token is a value, such
- * as an error code, unless it opens a call's arguments or a line, where test
- * titles go.
+ * Where a test title starts: a line, or the first argument of `describe`,
+ * `it` or `test` (with any chain such as `.each(...)`).
  */
-const WHOLE_STRING = String.raw`(?:(?<!['"])${ITEM}|(?<=(?:\(|^)\s*['"])${ITEM}|${ITEM}(?!['"]))`;
+const TITLE_OPEN = String.raw`(?:^|\b(?:describe|it|test)(?:\.\w+)*(?:\([^)]*\))?\()\s*['"]`;
+/**
+ * A whole `'...'` or `"..."` string holding only the token is a value, such
+ * as an error code, unless it sits where a test title goes.
+ */
+const WHOLE_STRING = String.raw`(?:(?<!['"])${ITEM}|(?<=${TITLE_OPEN})${ITEM}|${ITEM}(?!['"]))`;
 
 /** The planning-ID families, one rule each. */
 export const PLAN_REF_RULES = [
@@ -123,7 +127,7 @@ function unescapeChar(_match, octal, char) {
 function pathOf(line) {
   const raw = line.slice(4).replace(/\t$/, '');
   const unquoted = /^"(.*)"$/.exec(raw)?.[1].replace(/\\(?:([0-7]{3})|(.))/g, unescapeChar) ?? raw;
-  return unquoted.replace(/^b\//, '');
+  return unquoted.replace(/^[a-z]\//, '');
 }
 
 /**
@@ -175,7 +179,16 @@ export function findPlanRefs(diff) {
  */
 function readDiff() {
   const range = process.env.BASE_SHA ? [`${process.env.BASE_SHA}...HEAD`] : ['--cached'];
-  const flags = ['--unified=0', '--no-color', '--no-ext-diff', '--find-renames'];
+  // Fixed prefixes: `diff.mnemonicPrefix` would otherwise write `+++ i/...`
+  // and `pathOf` would not see the repo-relative path.
+  const flags = [
+    '--unified=0',
+    '--no-color',
+    '--no-ext-diff',
+    '--find-renames',
+    '--src-prefix=a/',
+    '--dst-prefix=b/',
+  ];
   const args = ['-c', 'core.quotePath=false', 'diff', ...flags, ...range];
   return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
 }

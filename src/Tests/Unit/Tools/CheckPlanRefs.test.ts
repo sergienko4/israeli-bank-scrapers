@@ -52,6 +52,7 @@ const PLAN_IDS: [string, string][] = [
   [sample('if (D', '12 === x)'), 'plan item number'],
   [sample("it('N", "33', run)"), 'plan item number'],
   [sample('describe("D', '12", run)'), 'plan item number'],
+  [sample("it.each(CASES)('N", "33: keeps the order', run)"), 'plan item number'],
   [sample('see {N', '33}'), 'plan item number'],
   [sample('D', '3 => use the form'), 'plan item number'],
   [sample('D', '3=>x'), 'plan item number'],
@@ -93,6 +94,10 @@ const LOOKALIKES = [
   'at ${D0}/channel',
   "{ error_code: 'E42' }",
   '{ code: "E123" }',
+  sample("const encoded = 'D", "12/abc=';"),
+  sample("const e = new Error('E", "42');"),
+  sample("const s = JSON.stringify('E", "42');"),
+  sample("expect(code).toBe('E", "123');"),
   'D1234',
   'D1_x',
   'שדהN2',
@@ -193,6 +198,22 @@ describe('check-plan-refs diff reading', () => {
     const diff = [...header, '@@ -0,0 +1 @@', `+${planLine}`].join('\n');
     const found = GATE.findPlanRefs(diff);
     expect(found).toEqual([{ file: 'a\u0001b.ts', line: 1, rule: 'plan item number' }]);
+  });
+
+  // Regression: `diff.mnemonicPrefix` writes `+++ i/…`, so a one-letter
+  // prefix must be stripped like git's usual `b/`.
+  it('strips a one-letter diff prefix from the header path', () => {
+    const header = ['diff --git i/src/a.ts w/src/a.ts', '+++ i/src/a.ts'];
+    const diff = [...header, '@@ -0,0 +1 @@', `+${planLine}`].join('\n');
+    const found = GATE.findPlanRefs(diff);
+    expect(found).toEqual([{ file: 'src/a.ts', line: 1, rule: 'plan item number' }]);
+  });
+
+  it('skips a generated file under a one-letter diff prefix', () => {
+    const header = ['diff --git i/CHANGELOG.md w/CHANGELOG.md', '+++ i/CHANGELOG.md'];
+    const diff = [...header, '@@ -0,0 +1 @@', `+${planLine}`].join('\n');
+    const found = GATE.findPlanRefs(diff);
+    expect(found).toEqual([]);
   });
 
   // Regression: an added line that opens with `++` reaches the diff as

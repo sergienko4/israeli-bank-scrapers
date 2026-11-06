@@ -604,8 +604,11 @@ skipped, so a dependency-only pull request outside the browser stack still
 runs it. Inside `package-factory`, the factory E2E step keeps its own `deps` term
 (PackageFactoryJob PFJ-4). Conditions
 are compared after unwrapping `${{ }}` and every layer of outer parentheses.
-In `pr-body-check.yml`, a newer push or body edit of the same pull request
-cancels the run it supersedes, so the check reports the latest body
+In `pr-body-check.yml`, the job also runs `npm run lint:plan-refs` after
+`check-breaking-note.mjs`, so an added line that cites a local planning ID
+fails the same job — see the [CI gate matrix](ci.md#gate-matrix). A newer push
+or body edit of the same pull request cancels the run it supersedes, so the
+check reports the latest body
 (WorkflowConcurrencyGate pins the key). Each gate is found by its step id
 (`section-check`, `stage-body`). It must require `is-bot-pr.cjs` once, at the
 top level, and return on `isBotPr(pr)` before it fails the check or stages
