@@ -71,7 +71,7 @@ const DONE: IAnswerCase = {
   when: [
     { pointer: STATE, equals: 'completed' },
     { pointer: '/data/assertions_complete', equals: true },
-    { pointer: '/data/token', text: { maxChars: 32768, pattern: '^[^\\x00-\\x20]+$' } },
+    { pointer: '/data/token', text: { maxChars: 32768, pattern: String.raw`^[^\x00-\x20]+$` } },
   ],
 };
 

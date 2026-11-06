@@ -48,8 +48,8 @@ const DID: IOptionalExtract = { pointer: '/headers/?type=device_id/device_id', k
 const SID_POINTER = '/headers/?type=session_id/session_id';
 const SESSION_EXTRACTS = { did: DID, sid: { pointer: SID_POINTER } };
 const SESSION_RULES: Readonly<Record<string, IExtractRule>> = {
-  did: { pattern: '^[\\w.:-]+$', maxChars: 256 },
-  sid: { pattern: '^[\\x21-\\x7e]+$', maxChars: 2048 },
+  did: { pattern: String.raw`^[\w.:-]+$`, maxChars: 256 },
+  sid: { pattern: String.raw`^[\x21-\x7e]+$`, maxChars: 2048 },
 };
 
 const SEALED = {

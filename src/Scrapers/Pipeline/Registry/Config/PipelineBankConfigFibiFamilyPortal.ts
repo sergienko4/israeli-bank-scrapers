@@ -88,10 +88,10 @@ const BOOTSTRAP: IPostStep = {
   body: { shape: { TPPName: { $literal: 'shell' } } },
   response: 'text',
   maxTextChars: FIBI_SSO_MAX_CHARS,
-  textCaptures: { ssoCode: { pattern: '^[\\s\\S]*?code=([\\s\\S]+)$', group: 1 } },
+  textCaptures: { ssoCode: { pattern: String.raw`^[\s\S]*?code=([\s\S]+)$`, group: 1 } },
   extractRules: {
     ssoCode: {
-      pattern: '^[\\x21\\x24-\\x26\\x28-\\x3b\\x3d\\x3f-\\x5b\\x5d-\\x7e]+$',
+      pattern: String.raw`^[\x21\x24-\x26\x28-\x3b\x3d\x3f-\x5b\x5d-\x7e]+$`,
       maxChars: SSO_MAX_CHARS,
     },
   },
@@ -107,7 +107,7 @@ const SESSION_TOKEN: IGetStep = {
   headerExtractsToCarry: { authorization: { header: 'authorization' } },
   extractRules: {
     authorization: {
-      pattern: '^[^\\x00-\\x20\\x7f][^\\x00-\\x1f\\x7f]*$',
+      pattern: String.raw`^[^\x00-\x20\x7f][^\x00-\x1f\x7f]*$`,
       maxChars: SSO_MAX_CHARS,
     },
   },
