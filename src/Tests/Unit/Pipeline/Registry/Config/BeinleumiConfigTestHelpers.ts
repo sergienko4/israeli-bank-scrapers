@@ -132,9 +132,10 @@ function hydratedHeaders(step: IStepConfig, call: IApiDirectCallConfig): Record<
   return Object.fromEntries(hydrated) as Record<string, JsonValue>;
 }
 
-/** The slots a step read, and the answer its optional slots come from. */
+/** A step's extracted slots, prior carry and optional response body. */
 interface IAnswerRead {
   readonly carry: CarrySlots;
+  readonly priorCarry?: CarrySlots;
   readonly resp?: JsonValue;
 }
 
@@ -142,12 +143,12 @@ interface IAnswerRead {
  * Whether a step's rules accept the slots it read.
  * @param step - Login step.
  * @param call - Login config.
- * @param read - The slots as read, and the answer (empty by default).
+ * @param read - Extracted slots, prior carry and the answer (empty by default).
  * @returns True when every rule passes.
  */
 function isAccepted(step: IStepConfig, call: IApiDirectCallConfig, read: IAnswerRead): boolean {
-  const { carry, resp = {} } = read;
-  const scope = { carry, creds: CREDS, config: call };
+  const { carry, priorCarry = {}, resp = {} } = read;
+  const scope = { carry: priorCarry, creds: CREDS, config: call };
   const input = { step, resp, carry, stepUrl: ENTRY, scope };
   return applyExtractRules(input).success;
 }

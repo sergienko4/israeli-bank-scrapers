@@ -375,7 +375,8 @@ describe('Beinleumi api-direct login config — slot rules', () => {
 
   it('leaves a device it kept unchecked', async () => {
     const resp = headed('device_id', 'syn did');
-    const isPassed = await acceptedBy('login', { carry: { sid: CARRY.sid }, resp });
+    const read = { carry: { sid: CARRY.sid }, priorCarry: { did: CARRY.did }, resp };
+    const isPassed = await acceptedBy('login', read);
     expect(isPassed).toBe(true);
   });
 });
