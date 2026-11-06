@@ -433,10 +433,19 @@ const POST_REFUSED = `POST ${SAFE_START} redirect refused`;
  * @returns The run.
  */
 function postRun(invoke: Invoke, policy: IManualRedirect): IRedirectRun {
-  const headers = { 'Content-Type': 'application/json', 'x-caller': 'kept' };
+  const headers = {
+    'Content-Type': 'application/json',
+    'Content-Encoding': 'gzip',
+    'Content-Language': 'he-IL',
+    'Content-Location': '/start',
+    'x-caller': 'kept',
+  };
   const init = { method: 'POST', headers, body: '{"a":1}' };
   return makeRun(invoke, { verb: 'POST', init, policy });
 }
+
+/** Content-describing headers a POST-originated GET must never carry after a hop. */
+const BODY_HEADERS = ['content-type', 'content-encoding', 'content-language', 'content-location'];
 
 describe('sendUnderPolicy — manual POST', () => {
   it.each([302, 303])('follows a %i as a body-less GET without content-type', async status => {
@@ -446,10 +455,18 @@ describe('sendUnderPolicy — manual POST', () => {
     const isSent = isOk(result);
     const [[, firstInit], [hopUrl, hopInit, { verb: hopVerb }]] = invoke.mock.calls;
     const hop = sentHeaders(invoke, 1);
-    const hopFields = [hopUrl, hopVerb, hop.get('content-type'), hop.get('x-caller')];
+    const bodyFields = BODY_HEADERS.map(name => hop.get(name));
     expect(isSent).toBe(true);
     expect(firstInit).toMatchObject({ method: 'POST', body: '{"a":1}', redirect: 'manual' });
-    expect(hopFields).toEqual([HOP_1, 'GET', null, 'kept']);
+    expect([hopUrl, hopVerb, ...bodyFields, hop.get('x-caller')]).toEqual([
+      HOP_1,
+      'GET',
+      null,
+      null,
+      null,
+      null,
+      'kept',
+    ]);
     expect(hopInit).toMatchObject({ method: 'GET', redirect: 'manual' });
     expect(hopInit.body).toBeUndefined();
   });
@@ -472,11 +489,14 @@ describe('sendUnderPolicy — manual POST', () => {
     expect(invoke).toHaveBeenCalledTimes(1);
   });
 
-  it('follows the GET statuses once a hop is a GET', async () => {
+  it('follows the GET statuses once a hop is a GET, still dropping body headers', async () => {
     const invoke = serve([redirect(303, HOP_1), redirect(307, HOP_2), ok()]);
     const run = postRun(invoke, POST_AS_GET);
     const result = await sendUnderPolicy(run);
     const responseUrl = isOk(result) ? result.value.responseUrl : 'failed';
+    const later = sentHeaders(invoke, 2);
+    const laterBodyFields = BODY_HEADERS.map(name => later.get(name));
     expect(responseUrl).toBe(HOP_2);
+    expect(laterBodyFields).toEqual([null, null, null, null]);
   });
 });

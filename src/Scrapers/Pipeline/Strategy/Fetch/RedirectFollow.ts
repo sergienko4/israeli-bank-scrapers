@@ -202,7 +202,7 @@ function nextHop(run: IRedirectRun, hop: IHop, target: URL): Procedure<IHop> {
   const session = sessionFor(run, url);
   if (!isOk(session)) return session;
   const hasCrossedOrigin = hop.hasCrossedOrigin || new URL(hop.url).origin !== target.origin;
-  const dropped = droppedOnHop(hop.verb, hasCrossedOrigin);
+  const dropped = droppedOnHop(run.verb === 'POST', hasCrossedOrigin);
   const headers = hopHeaders(hop.init.headers, session.value, dropped);
   const init: RequestInit = { method: 'GET', headers, redirect: 'manual' };
   return succeed({ url, init, verb: 'GET', hopsLeft: hop.hopsLeft - 1, hasCrossedOrigin });

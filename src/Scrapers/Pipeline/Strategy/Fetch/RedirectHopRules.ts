@@ -51,13 +51,14 @@ function followedAfter(verb: HttpVerb, postStatuses: ReadonlySet<number>): Reado
 
 /**
  * The headers a hop drops after the session's are added.
- * @param verb - Verb of the request that redirected.
+ * @param wasPost - Whether the run that redirects began as a POST.
  * @param hasCrossed - Whether any hop so far changed origin.
- * @returns Lower-case names: the credentials once crossed, the body headers after a POST.
+ * @returns Lower-case names: the credentials once crossed, the body headers
+ *   on every hop of a POST-originated run.
  */
-function droppedOnHop(verb: HttpVerb, hasCrossed: boolean): readonly string[] {
+function droppedOnHop(wasPost: boolean, hasCrossed: boolean): readonly string[] {
   const credentials = hasCrossed ? CROSS_ORIGIN_DROPPED : [];
-  const body = verb === 'GET' ? [] : BODY_HEADERS;
+  const body = wasPost ? BODY_HEADERS : [];
   return [...credentials, ...body];
 }
 
