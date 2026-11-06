@@ -19,13 +19,15 @@ function isUnknownKind(input: IApiDirectRuleInput): boolean {
 }
 
 /**
- * Whether the device-id carry field names no slot.
+ * Whether the device-id carry field is missing, non-string or blank.
  * @param input - Rule input.
- * @returns True for a persistent-auth block with a blank deviceIdField.
+ * @returns True for a persistent-auth block without a valid deviceIdField.
  */
-function isDeviceIdFieldBlank(input: IApiDirectRuleInput): boolean {
+function isDeviceIdFieldInvalid(input: IApiDirectRuleInput): boolean {
   const block = input.call.persistentAuth;
-  return block?.deviceIdField.trim() === '';
+  if (block === undefined) return false;
+  const { deviceIdField } = block;
+  return typeof deviceIdField !== 'string' || deviceIdField.trim() === '';
 }
 
 const API_DIRECT_PERSISTENT_AUTH_RULES: readonly IApiDirectRule[] = [
@@ -35,7 +37,7 @@ const API_DIRECT_PERSISTENT_AUTH_RULES: readonly IApiDirectRule[] = [
   },
   {
     message: 'persistentAuth.deviceIdField: must not be blank',
-    isBroken: isDeviceIdFieldBlank,
+    isBroken: isDeviceIdFieldInvalid,
   },
 ];
 

@@ -350,7 +350,9 @@ earlier run seeded survives a different id in the answer. When the answer
 differs, the debug log notes `{step, slot, kept: true}` and never the values.
 An `extractRules` entry on a kept slot is skipped. Without the flag, a present
 value still overwrites. `API_DIRECT_OPTIONAL_EXTRACT_RULES` rejects a kept slot
-also declared in the same step's `extractsToCarry`, before any request.
+also written by the same step's required extracts, response headers, writable
+text/form/handoff captures or final URL, before any request. An `absent` text
+guard writes nothing and may share the slot.
 
 ```ts
 optionalExtractsToCarry: {

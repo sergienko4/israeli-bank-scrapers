@@ -72,6 +72,33 @@ describe('validateApiDirectConfig — persistent-auth kind rule', () => {
         errorMessage: 'persistentAuth.deviceIdField: must not be blank',
       });
     });
+
+    it('refuses a missing deviceIdField without throwing', () => {
+      const malformed = { ...block };
+      Reflect.deleteProperty(malformed, 'deviceIdField');
+      const input = inputOf(malformed);
+      const result = validateApiDirectConfig(input);
+      expect(result).toMatchObject({
+        success: false,
+        errorType: ScraperErrorTypes.Generic,
+        errorMessage: 'persistentAuth.deviceIdField: must not be blank',
+      });
+    });
+
+    it.each([undefined, null, 42, {}])(
+      'refuses a non-string deviceIdField %p without throwing',
+      deviceIdField => {
+        const malformed = { ...block };
+        Reflect.set(malformed, 'deviceIdField', deviceIdField);
+        const input = inputOf(malformed);
+        const result = validateApiDirectConfig(input);
+        expect(result).toMatchObject({
+          success: false,
+          errorType: ScraperErrorTypes.Generic,
+          errorMessage: 'persistentAuth.deviceIdField: must not be blank',
+        });
+      },
+    );
   });
 
   it.each([
