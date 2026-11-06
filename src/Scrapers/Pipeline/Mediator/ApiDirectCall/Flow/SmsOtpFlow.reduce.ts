@@ -32,7 +32,7 @@ async function resolveStepScope(
 }
 
 /**
- * Run the step's carry generators (N25), then its guarded preHook.
+ * Run the step's carry generators, then its guarded preHook.
  * @param args - Reduce args.
  * @param scope - Current scope.
  * @param step - Next step config.

@@ -1,5 +1,5 @@
 /**
- * Handoff script capture (N54). A `text` step's `locationCapture` reads every
+ * Handoff script capture. A `text` step's `locationCapture` reads every
  * `<script>` body on its answer (a `src` script's is empty) and walks it on
  * the path `userAgent` selects. A script outside the grammar fails `<step>
  * handoff script unsupported`; no assignment over all scripts `<step> handoff

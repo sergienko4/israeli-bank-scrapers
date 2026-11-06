@@ -1,5 +1,5 @@
 /**
- * Cookie hand-off at login completion (N35). The login's cookies are scoped
+ * Cookie hand-off at login completion. The login's cookies are scoped
  * to the gateway that issued them, but a `Path=/` gateway cookie also matches
  * every later read on a sibling host. `shared` leaves them in the session jar
  * for the scrape; `isolate` moves them to the run's private stash, so the

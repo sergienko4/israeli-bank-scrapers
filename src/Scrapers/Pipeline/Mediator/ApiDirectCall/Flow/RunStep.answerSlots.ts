@@ -1,8 +1,8 @@
 /**
  * Answer slots — the carry slots a step reads off its answer itself rather
- * than off its JSON body: the response-header slots (N6), the final URL
- * (N51), the text captures (N36), the login-form capture (N37), then the
- * handoff script capture (N54).
+ * than off its JSON body: the response-header slots, the final URL,
+ * the text captures, the login-form capture, then the
+ * handoff script capture.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';

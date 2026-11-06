@@ -1,9 +1,9 @@
 /**
- * Step-level derived carry (N7) — once a step's extracts are merged into
+ * Step-level derived carry — once a step's extracts are merged into
  * scope, its `deriveCarry` entries run, in order, through the flow-init
  * evaluator (`applyDerivations`) over that scope. There is no second
  * evaluator: parts, separators, truncation and part failures are the
- * flow-init ones; an N45 op failure names the step (`<step> derive <slot>
+ * flow-init ones; an op failure names the step (`<step> derive <slot>
  * unformattable`).
  */
 

@@ -1,5 +1,5 @@
 /**
- * Carry-bundle warm start for TokenStrategyFromConfig (N28): the stored token
+ * Carry-bundle warm start for TokenStrategyFromConfig: the stored token
  * (`WarmCarryBundle.ts`) restores the jar first, then seeds the kept carry
  * slots; a finished login publishes those slots, and the jar it ends with
  * when the config keeps one. A slot the login did not fill skips the export,

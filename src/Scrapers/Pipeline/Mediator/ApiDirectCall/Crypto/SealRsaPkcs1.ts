@@ -1,5 +1,5 @@
 /**
- * SealRsaPkcs1 — the `rsa-pkcs1-v15` credential seal (N44). The bank's RSA
+ * SealRsaPkcs1 — the `rsa-pkcs1-v15` credential seal. The bank's RSA
  * public key arrives as PEM or as base64 SPKI DER (whitespace ignored); each
  * source is encoded as latin1, encrypted alone under PKCS#1 v1.5 padding and
  * sent as standard base64. A fresh random padding makes every seal differ.

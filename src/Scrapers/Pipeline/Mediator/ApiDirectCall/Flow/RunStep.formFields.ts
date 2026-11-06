@@ -1,5 +1,5 @@
 /**
- * Login-form fields (N37). A field is an input with a non-empty `name` and no
+ * Login-form fields. A field is an input with a non-empty `name` and no
  * `disabled`. Every field must be hidden — `type` `hidden` in any case; no
  * `type` reads as `text`. Each field's name must match `FORM_FIELD_NAME` and
  * its value, `''` when absent, must be text of at most 32768 chars. The set

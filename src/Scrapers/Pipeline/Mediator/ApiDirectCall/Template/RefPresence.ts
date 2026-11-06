@@ -1,5 +1,5 @@
 /**
- * RefPresence — whether an optional ref (N49) has a value to send. Only a
+ * RefPresence — whether an optional ref has a value to send. Only a
  * source that varies per run can lack one: a carry slot, a credential field
  * or the step's cookie. Every other ref counts as present, so its resolve
  * failure (an unknown token, a `config.` miss, a bad cookie) still fails.

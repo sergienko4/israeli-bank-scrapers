@@ -77,13 +77,13 @@ interface IConfigTokenStrategy extends ITokenStrategy<GenericCreds> {
    */
   warmAttemptFailureType(): string;
   /**
-   * Re-grants a rejected session in-run (N33): a `carry-bundle` login resumes
+   * Re-grants a rejected session in-run: a `carry-bundle` login resumes
    * from its private carry and cookie stash; every other kind logs in cold.
    */
   primeRecover: NonNullable<ITokenStrategy<GenericCreds>['primeRecover']>;
   /**
    * Whether the last in-run mint resumed the session rather than logging in
-   * cold (N33). Absent on a strategy that cannot resume.
+   * cold. Absent on a strategy that cannot resume.
    */
   lastRecoveryResumed?(): boolean;
 }

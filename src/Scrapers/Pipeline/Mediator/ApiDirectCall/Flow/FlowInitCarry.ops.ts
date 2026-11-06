@@ -1,5 +1,5 @@
 /**
- * N45 derivation ops: the last shaping of a derived text. `format` takes
+ * Derivation ops: the last shaping of a derived text. `format` takes
  * the first rule whose pattern, anchored at both ends, matches the whole
  * text, and returns the rule's prefix plus the text left-padded with `'0'`
  * to `padStart` chars; no match fails `<subject> unformattable`, naming the

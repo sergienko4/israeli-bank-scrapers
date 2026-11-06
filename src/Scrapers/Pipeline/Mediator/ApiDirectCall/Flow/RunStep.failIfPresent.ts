@@ -1,11 +1,11 @@
 /**
- * Step bank-error guard (N20). Some banks answer a failed step with HTTP 200
+ * Step bank-error guard. Some banks answer a failed step with HTTP 200
  * and an error field. A step that declares `failIfPresent` has those body
  * pointers checked right after the body is parsed, before its outcome and its
  * extracts: any present, truthy value fails the step with its `bankErrorType`
  * (Generic when unset), whatever the outcome's default. Null, false, 0, ''
  * and empty arrays or records are not errors. The failure never echoes the
- * bank's value; the envelope codec (N52) fails a bank `error_code` the same way.
+ * bank's value; the envelope codec fails a bank `error_code` the same way.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';

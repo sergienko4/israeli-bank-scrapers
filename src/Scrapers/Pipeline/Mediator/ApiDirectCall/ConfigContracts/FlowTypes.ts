@@ -95,7 +95,7 @@ interface IStepOutcome {
   readonly failureMap: Readonly<Record<string, ScraperErrorTypes>>;
   /** Failure type for any other code, or when the code is missing. */
   readonly defaultFailure: ScraperErrorTypes;
-  /** Match the code, success codes and failure-map keys lower-cased (N13). */
+  /** Match the code, success codes and failure-map keys lower-cased. */
   readonly caseInsensitive?: boolean;
 }
 
@@ -103,14 +103,14 @@ interface IStepOutcome {
  * A carry slot read only when the response has it. A pointer that resolves
  * to a non-blank string writes it; otherwise `fallback` is written when set,
  * and the slot keeps its earlier value when not. A `keepExisting` slot is
- * written only while carry holds no non-empty string for it (N56).
+ * written only while carry holds no non-empty string for it.
  */
 interface IOptionalExtract {
   /** RFC-6901 pointer into the response body. */
   readonly pointer: string;
   /** Value written when the field is missing, blank or not a string. */
   readonly fallback?: string;
-  /** Keep a non-empty value carry already holds, even against a different answer (N56). */
+  /** Keep a non-empty value carry already holds, even against a different answer. */
   readonly keepExisting?: true;
 }
 
@@ -123,7 +123,7 @@ interface IHeaderExtract {
 }
 
 /**
- * A step's guard (N14): the step runs only when the carry slot holds text
+ * A step's guard: the step runs only when the carry slot holds text
  * equal to one of `oneOf`, compared without case.
  */
 interface IRunIf {
@@ -134,7 +134,7 @@ interface IRunIf {
 }
 
 /**
- * A step's device certificate (N26): refs to the PEM private key and the PEM
+ * A step's device certificate: refs to the PEM private key and the PEM
  * certificate, installed through the bus's certificate port before the step's
  * request and presented to the bank origin from then on.
  */
@@ -161,7 +161,7 @@ interface IStepBase extends IStepFailureTyping {
    */
   readonly queryTemplate?: JsonValueTemplate;
   /**
-   * Raw query (N41): the joined text goes after the URL's `?` verbatim — 1 to
+   * Raw query: the joined text goes after the URL's `?` verbatim — 1 to
    * 32 768 printable-ASCII chars without `#`, `<`, `>`, `"`, `'` or `\`, else
    * the step fails `raw query invalid`. Not with `queryTemplate`.
    */
@@ -180,7 +180,7 @@ interface IStepBase extends IStepFailureTyping {
   readonly headers?: Readonly<Record<string, JsonValueTemplate>>;
   /** Optional outcome policy, judged after HTTP 2xx and before the extracts. */
   readonly outcome?: IStepOutcome;
-  /** Optional answer classifier, run after `outcome` and before the extracts (N50). */
+  /** Optional answer classifier, run after `outcome` and before the extracts. */
   readonly classify?: IAnswerClassifier;
   /** Optional redirect policy for this step; overrides the bank's `redirectPolicy`. */
   readonly redirect?: RedirectPolicy;
@@ -189,35 +189,35 @@ interface IStepBase extends IStepFailureTyping {
    * sees `{}`; a `text` step sees `{ text }`, so its extracts read `/text`.
    */
   readonly response?: ResponseKind;
-  /** Longest `text` answer the step accepts, in chars; 65 536 when unset (N36). */
+  /** Longest `text` answer the step accepts, in chars; 65 536 when unset. */
   readonly maxTextChars?: number;
-  /** Carry slots captured from a `text` answer by pattern, and guards (N36). */
+  /** Carry slots captured from a `text` answer by pattern, and guards. */
   readonly textCaptures?: Readonly<Record<string, ITextCapture>>;
-  /** The hidden fields of the page's login form, captured from a `text` answer (N37). */
+  /** The hidden fields of the page's login form, captured from a `text` answer. */
   readonly formCapture?: IFormCapture;
-  /** The URL the page's handoff script assigns, captured from a `text` answer (N54). */
+  /** The URL the page's handoff script assigns, captured from a `text` answer. */
   readonly locationCapture?: ILocationCapture;
   /** Text a `document` answer must contain, else the step fails `document unverified`. */
   readonly documentMarker?: string;
-  /** Media type the answer must name (N61), over the bank's per-kind default. */
+  /** Media type the answer must name, over the bank's per-kind default. */
   readonly mediaType?: string;
-  /** Decode the answer as strict UTF-8 (N63), over the bank's `headless.strictUtf8`. */
+  /** Decode the answer as strict UTF-8, over the bank's `headless.strictUtf8`. */
   readonly strictUtf8?: boolean;
   /** Carry slots read from the final response's headers, merged beside `extractsToCarry`. */
   readonly headerExtractsToCarry?: Readonly<Record<string, IHeaderExtract>>;
   /** Carry slots derived, in order, once this step's extracts are in scope. */
   readonly deriveCarry?: readonly IDerivedCarry[];
-  /** Optional credential seal, written into the body before the request (N10). */
+  /** Optional credential seal, written into the body before the request. */
   readonly seal?: ISealFieldConfig;
-  /** Client cookies (name → ref) set in the domain jar before the request (N11). */
+  /** Client cookies (name → ref) set in the domain jar before the request. */
   readonly setCookies?: Readonly<Record<string, RefToken>>;
-  /** Device certificate installed before the request; needs headless `clientCert` (N26). */
+  /** Device certificate installed before the request; needs headless `clientCert`. */
   readonly clientCert?: IStepClientCert;
-  /** Rules per body- or header-extract slot, checked once the answer is read (N18, N27). */
+  /** Rules per body- or header-extract slot, checked once the answer is read. */
   readonly extractRules?: Readonly<Record<string, IExtractRule>>;
-  /** Guard checked before the pre-hook; a miss skips the step (N14). */
+  /** Guard checked before the pre-hook; a miss skips the step. */
   readonly runIf?: IRunIf;
-  /** Carry generators, run in order once `runIf` passes, before hydration (N25). */
+  /** Carry generators, run in order once `runIf` passes, before hydration. */
   readonly generate?: readonly ICarryGenerator[];
 }
 
@@ -230,7 +230,7 @@ interface IPostStep extends IStepBase {
    * body must be a flat record; a `text` body must be exactly `{ text }`.
    */
   readonly encoding?: BodyEncoding;
-  /** Envelope the JSON body and answer travel in (N39); none when absent. */
+  /** Envelope the JSON body and answer travel in; none when absent. */
   readonly codec?: EnvelopeCodec;
   readonly urlFromCarry?: never;
   readonly finalUrlInto?: never;
@@ -244,11 +244,11 @@ interface IGetStep extends IStepBase {
   readonly codec?: never;
   /**
    * Carry slot holding the absolute URL the step sends to instead of its WK
-   * url (N40); an earlier step's `extractRules` `url` rule checked it.
+   * url; an earlier step's `extractRules` `url` rule checked it.
    */
   readonly urlFromCarry?: string;
   /**
-   * Carry slot the URL that gave the final answer is written to (N51); it must
+   * Carry slot the URL that gave the final answer is written to; it must
    * pass the step's own manual `redirect.allow` rules.
    */
   readonly finalUrlInto?: string;

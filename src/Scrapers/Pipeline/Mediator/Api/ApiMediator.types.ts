@@ -46,7 +46,7 @@ type RecoveredHook = (header: string, wasWarm: boolean) => Promise<void>;
 interface IRecoveryMethods {
   setSessionWarm: (value: boolean) => boolean;
   wasSessionWarm: () => boolean;
-  /** Whether a rejected session re-runs the whole scrape (N33). */
+  /** Whether a rejected session re-runs the whole scrape. */
   recoversWholeScrape: () => boolean;
   recoverSession: () => Promise<Procedure<string>>;
   withRecoveryHook?: (hook: RecoveredHook) => boolean;

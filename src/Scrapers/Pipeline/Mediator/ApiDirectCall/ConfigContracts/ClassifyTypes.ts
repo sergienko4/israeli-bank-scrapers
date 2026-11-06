@@ -1,6 +1,6 @@
 /**
  * ClassifyTypes — the answer-classifier concern slice of the API-DIRECT-CALL
- * config contract (N50). A step's `classify` names the shapes its opened
+ * config contract. A step's `classify` names the shapes its opened
  * answer may take; exactly one case must match, and its name goes to carry.
  *
  * A root bucket: no intra-cluster deps. FlowTypes references
@@ -35,7 +35,7 @@ interface IAnswerCheck {
   /** An object of exactly this many keys. */
   readonly keys?: number;
   readonly text?: IAnswerText;
-  /** Inverts the verdict of the check's kind (N60). */
+  /** Inverts the verdict of the check's kind. */
   readonly negate?: true;
 }
 
@@ -68,7 +68,7 @@ interface IAnswerCase {
   readonly captures?: Readonly<Record<string, IAnswerCapture>>;
 }
 
-/** A step's answer classifier (N50): exactly one case must match. */
+/** A step's answer classifier: exactly one case must match. */
 interface IAnswerClassifier {
   /** Carry slot the matched case's name goes to. */
   readonly into: string;

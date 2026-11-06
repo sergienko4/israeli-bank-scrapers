@@ -1,5 +1,5 @@
 /**
- * Answer-classifier captures (N50). A matched case writes each capture's slot:
+ * Answer-classifier captures. A matched case writes each capture's slot:
  * by default text of 1..`maxChars` chars with no control char; with `onlyKey`
  * the one key of an object; with `integer` a safe JSON integer in range, as
  * decimal text, under the same text rule. A capture whose pointer misses fails

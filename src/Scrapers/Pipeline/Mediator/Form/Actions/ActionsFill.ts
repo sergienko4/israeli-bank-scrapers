@@ -194,7 +194,7 @@ function doFormRequestSubmit(el: Element): boolean {
 
 /**
  * Invoke form.requestSubmit() on the discovered form anchor.
- * D3 diagnostic: test AngularJS native submit vs Enter+click.
+ * Submit-mode diagnostic: test AngularJS native submit vs Enter+click.
  * Returns false without throwing when ctx is false or formAnchor is empty.
  * @internal — exported for unit-test access only.
  * @param ctx - Page or Frame, or false when no frame context is available.
@@ -213,7 +213,7 @@ export async function tryFormRequestSubmit(ctx: FormCtx, formAnchor: string): Pr
 }
 
 /**
- * Submit using ONLY form.requestSubmit() (D3 'form' mode).
+ * Submit using ONLY form.requestSubmit() (the 'form' submit mode).
  * Skips Enter + click entirely; the click signal mirrors the real submit
  * outcome so gateNoSubmitSignal fails when no requestSubmit actually fired.
  * @param ctx - Page or Frame context for the form.

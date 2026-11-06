@@ -1,5 +1,5 @@
 /**
- * EcdhKeypair — the `ecdh-key` carry generator (N38). It makes a fresh ECDH
+ * EcdhKeypair — the `ecdh-key` carry generator. It makes a fresh ECDH
  * key pair on the config's curve and returns two slots: the uncompressed
  * public point (65 bytes, 0x04 first) as base64 under `publicInto`, and the
  * private scalar, padded to 32 bytes, as base64 under `privateInto`.

@@ -1,5 +1,5 @@
 /**
- * MergeTemplate — hydrates a `$merge` node (N37): the carried flat string
+ * MergeTemplate — hydrates a `$merge` node: the carried flat string
  * record `base` with the hydrated `set` laid over it. A `set` key replaces the
  * base value in place and a new one goes last, as `URLSearchParams.set` does
  * on a form with unique names. A base that is not a flat record of strings

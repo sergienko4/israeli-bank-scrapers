@@ -1,7 +1,8 @@
 /**
- * Gated A/B lever for login submit strategy (D3 diagnostic).
+ * Gated A/B lever for login submit strategy (a CI diagnostic).
  *
- * Default behaviour is 'enter-click' — byte-identical to pre-D3.
+ * Default behaviour is 'enter-click' — byte-identical to the behaviour
+ * before this lever existed.
  * Set PIPELINE_LOGIN_SUBMIT_MODE=form or =all in CI to test the
  * AngularJS form.requestSubmit() path without altering the default.
  *

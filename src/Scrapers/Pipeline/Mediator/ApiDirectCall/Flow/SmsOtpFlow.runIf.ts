@@ -1,5 +1,5 @@
 /**
- * Conditional steps (N14). A step whose `runIf` guard names a carry slot runs
+ * Conditional steps. A step whose `runIf` guard names a carry slot runs
  * only when that slot holds text equal to one of `oneOf`, compared without
  * case. The reducer checks the guard before the pre-hook, so a skipped step
  * neither asks for a code nor sends a request. A slot that is missing or not

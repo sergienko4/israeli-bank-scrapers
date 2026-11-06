@@ -116,7 +116,7 @@ interface IRandomUuidBootstrap {
 }
 
 /**
- * N42 — random hex of a configured length, fresh per flow init: `bytes`
+ * Random hex of a configured length, fresh per flow init: `bytes`
  * random bytes become twice as many hex characters, upper-case when
  * `isUpperCase` is set. Used when a bank expects a flow identifier of a
  * fixed length and case.
@@ -197,8 +197,8 @@ interface ISeedCarrySource {
  *
  * Resolves each part against the partial scope (creds + secrets +
  * carry seeded so far), coerces to UTF-8 string, joins with optional
- * separator, lower-cases the text when `transform` is `'lower'` (N60),
- * truncates to `truncateBytes`, applies the optional `op` (N45) last,
+ * separator, lower-cases the text when `transform` is `'lower'`,
+ * truncates to `truncateBytes`, applies the optional `op` last,
  * deposits as a string into
  * `carry[into]`. Banks declare derivations like an OTP-encryption key
  * (`deviceId + '|' + pinSuffix`, truncated to 32 bytes) without any
@@ -214,7 +214,7 @@ interface IDerivedCarry {
 }
 
 /**
- * One `format` rule (N45): when the whole text matches `pattern`, the
+ * One `format` rule: when the whole text matches `pattern`, the
  * value is `prefix` plus the text left-padded with `'0'` to `padStart`
  * chars.
  */
@@ -224,18 +224,18 @@ interface IFormatRule {
   readonly padStart?: number;
 }
 
-/** N45 `format`: the first rule whose anchored pattern matches shapes the text. */
+/** `format`: the first rule whose anchored pattern matches shapes the text. */
 interface IFormatOp {
   readonly kind: 'format';
   readonly rules: readonly IFormatRule[];
 }
 
-/** N45 `md5-hex`: the MD5 digest of the UTF-8 text, as lower-case hex. */
+/** `md5-hex`: the MD5 digest of the UTF-8 text, as lower-case hex. */
 interface IMd5HexOp {
   readonly kind: 'md5-hex';
 }
 
-/** The last shaping a derivation applies to its text (N45). */
+/** The last shaping a derivation applies to its text. */
 type DerivedOp = IFormatOp | IMd5HexOp;
 
 export type {

@@ -1,5 +1,5 @@
 /**
- * Handoff script lexer (N54) — splits a page script into the tokens the
+ * Handoff script lexer — splits a page script into the tokens the
  * handoff walker reads: names, numbers, quoted strings, template literals and
  * one-char punctuators. Whitespace and `//` and block comments are dropped; a
  * line break among them marks the next token as starting a line, which ends

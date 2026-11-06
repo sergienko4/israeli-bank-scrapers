@@ -1,5 +1,5 @@
 /**
- * Login-form capture (N37). A `text` step's `formCapture` finds the page's one
+ * Login-form capture. A `text` step's `formCapture` finds the page's one
  * `<form>` whose `id` or `name` is `form`: none fails `<step> form <form>
  * missing`, two `<step> form <form> ambiguous`. The form must post — `method`
  * `post` in any case — to `action`, its own action resolved against the URL

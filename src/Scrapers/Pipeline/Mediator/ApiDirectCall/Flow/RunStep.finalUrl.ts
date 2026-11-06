@@ -1,5 +1,5 @@
 /**
- * Final-URL carry (N51) — a GET step with a manual redirect may name a
+ * Final-URL carry — a GET step with a manual redirect may name a
  * `finalUrlInto` slot. After its last hop the URL that gave the final answer,
  * kept by the step's capture, is carried there once it passes the step's own
  * `redirect.allow` rules; otherwise the step fails `<step> final url refused`.

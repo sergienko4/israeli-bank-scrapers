@@ -1,5 +1,5 @@
 /**
- * SealTail — the XOR tail of the `rsa-pkcs1-block-xor` seal (N10). Each
+ * SealTail — the XOR tail of the `rsa-pkcs1-block-xor` seal. Each
  * UTF-16 unit of the source is XORed with the seed (cycled), percent-encoded
  * with `encodeURIComponent`, and `!'()*~` are escaped as `%` + lower-case hex.
  */

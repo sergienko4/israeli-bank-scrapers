@@ -1,5 +1,5 @@
 /**
- * Response-header carry (N6) — a step's `headerExtractsToCarry` names a carry
+ * Response-header carry — a step's `headerExtractsToCarry` names a carry
  * slot per response header. The step hands its call a sink for exactly those
  * headers; after the answer each slot takes its header's value, else its
  * fallback, else the step fails `<step> header missing`. A step that carries

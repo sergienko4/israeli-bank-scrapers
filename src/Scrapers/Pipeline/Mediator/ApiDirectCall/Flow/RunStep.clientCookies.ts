@@ -1,5 +1,5 @@
 /**
- * Client cookies of one step (N11/N12). Over the run's domain jar the step
+ * Client cookies of one step. Over the run's domain jar the step
  * gets a jar view bound to its URL — what `cookie.<name>` refs read — and its
  * `setCookies` are resolved, checked and written host-only with `Path=/;
  * Secure` before its request, so they travel on it and on later requests.

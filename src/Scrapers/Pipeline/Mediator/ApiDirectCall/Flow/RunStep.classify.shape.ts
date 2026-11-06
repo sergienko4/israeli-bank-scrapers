@@ -1,5 +1,5 @@
 /**
- * Redacted answer shape (N50), logged when an answer is unrecognized or
+ * Redacted answer shape, logged when an answer is unrecognized or
  * ambiguous; no value is ever printed. A scalar becomes its JSON type, an
  * object keeps its key positions (never bank-supplied names) and an array its
  * items. Each key is printed as `<key:i>`, its position.

@@ -1,5 +1,5 @@
 /**
- * Carry → session projection (N32) — the only path from a login's carry
+ * Carry → session projection — the only path from a login's carry
  * snapshot to the scrape's session context. The ACTION stage applies it
  * after the first prime and the recovery hook after every recovery, so the
  * scrape never sees a slot outside the flow's `sessionCarry` allowlist.

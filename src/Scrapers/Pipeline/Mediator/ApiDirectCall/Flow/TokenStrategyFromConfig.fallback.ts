@@ -1,5 +1,5 @@
 /**
- * Warm-failure escalation for TokenStrategyFromConfig (N28). When a warm
+ * Warm-failure escalation for TokenStrategyFromConfig. When a warm
  * resume fails, `TokenResolverBuilder` asks the strategy whether to fall back
  * to a cold login. A carry-bundle warm start answers from its `coldFallback`;
  * every other kind answers yes, as before. A token refused locally never gets

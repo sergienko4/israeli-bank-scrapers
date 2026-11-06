@@ -1,6 +1,6 @@
 /**
  * Judge a step's opened answer before its extracts: its `outcome` code first,
- * then its answer classifier (N50). Either refusal stops the step.
+ * then its answer classifier. Either refusal stops the step.
  *
  * Zero bank knowledge. Rule #11 compliant.
  */

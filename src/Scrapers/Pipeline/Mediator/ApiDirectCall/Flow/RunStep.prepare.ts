@@ -89,7 +89,7 @@ function attachBodySig(preBody: IPreparedBody, pathAndQuery: string): Procedure<
 /**
  * Resolve the step's body — hydrate template, prime carry, apply
  * cryptoField encryption, seal the credential field, attach the AES
- * body-pointer signature, guard a form body, seal the envelope (N39). A GET
+ * body-pointer signature, guard a form body, seal the envelope. A GET
  * step sends no body, so only its carry is primed.
  * @param args - Run-step args.
  * @param pathAndQuery - Canonical-string path+query.

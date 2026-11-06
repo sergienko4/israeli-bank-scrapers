@@ -33,9 +33,9 @@ interface IHeadlessMediatorArgs {
   readonly statusPolicy?: StatusPolicy;
   /** Omit bank response text from native HTTP failures when enabled. */
   readonly omitBankText?: boolean;
-  /** Media type each response kind must name when a call names none (N61). */
+  /** Media type each response kind must name when a call names none. */
   readonly mediaTypes?: MediaTypePolicy;
-  /** Decode every answer as strict UTF-8 unless its call says otherwise (N63). */
+  /** Decode every answer as strict UTF-8 unless its call says otherwise. */
   readonly strictUtf8?: boolean;
 }
 

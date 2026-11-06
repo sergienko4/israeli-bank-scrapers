@@ -90,7 +90,7 @@ interface IHmacHeaderSignerConfig {
 }
 
 /**
- * Request-body digest header (N30) — sent on REST object POSTs, computed
+ * Request-body digest header — sent on REST object POSTs, computed
  * after any body signer over the exact JSON bytes the transport writes:
  * `encode(ascii(prefix + hash(bodyBytes)))` under the header `header`.
  */
@@ -128,7 +128,7 @@ interface ICryptoFieldConfig {
   readonly scrubFromCarry: string;
 }
 
-/** Seal algorithms a step may name (N10, N44). */
+/** Seal algorithms a step may name. */
 type SealKind = 'rsa-pkcs1-block-xor' | 'rsa-pkcs1-v15';
 
 /** Constants of the `rsa-pkcs1-block-xor` seal, all named by the bank config. */
@@ -147,8 +147,8 @@ interface ISealRsaBlockXorParams {
 }
 
 /**
- * A credential sealed into the outgoing body before the step's request
- * (N10). The source is read from creds and the hex modulus from carry; the
+ * A credential sealed into the outgoing body before the step's request.
+ * The source is read from creds and the hex modulus from carry; the
  * sealed text is written only at `writeTo`, never into carry.
  */
 interface ISealRsaBlockXorConfig {
@@ -169,7 +169,7 @@ interface ISealedFieldTarget {
 
 /**
  * Credentials each sealed alone under one RSA public key with PKCS#1 v1.5
- * padding (N44). The key text in carry is a PEM public key or base64 SPKI
+ * padding. The key text in carry is a PEM public key or base64 SPKI
  * DER; each source is encoded as latin1 and its base64 ciphertext is written
  * only at its `writeTo`, never into carry.
  */

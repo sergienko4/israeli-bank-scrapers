@@ -30,7 +30,7 @@ function coercePreHookResult(args: IPreHookCoerceArgs): Procedure<string> {
 /**
  * Build the standard preHook-throw failure procedure.
  *
- * <p>Names the error, never its message (D12): a caller's error text may
+ * <p>Names the error, never its message: a caller's error text may
  * repeat the code, the phone or a token it was handed.
  *
  * <p>Adds the invocation ordinal only from the second invocation onward. A

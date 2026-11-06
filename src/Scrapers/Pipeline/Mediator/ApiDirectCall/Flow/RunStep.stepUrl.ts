@@ -1,6 +1,6 @@
 /**
  * Step URL — the URL a step sends to: the absolute URL in its `urlFromCarry`
- * slot (N40) or else its WK url, with its raw query (N41) after `?` verbatim.
+ * slot or else its WK url, with its raw query after `?` verbatim.
  * The fire hands the bus such a step's URL as a literal and any other step's
  * WK tag, as before.
  */
@@ -17,10 +17,10 @@ import type { IRunStepArgs, JsonValue } from './RunStep.types.js';
 /** What resolves a step's URL: the step, its scope and its company. */
 type IStepUrlInput = Pick<IRunStepArgs, 'step' | 'scope' | 'companyId' | 'carriedUrlRules'>;
 
-/** One to 32 768 printable-ASCII chars (N41). */
+/** One to 32 768 printable-ASCII chars. */
 const RAW_QUERY_TEXT = /^[\x21-\x7E]{1,32768}$/;
 
-/** Signs a raw query must not hold (N41). */
+/** Signs a raw query must not hold. */
 const RAW_QUERY_BANNED = /[#<>"'\\]/;
 
 /**

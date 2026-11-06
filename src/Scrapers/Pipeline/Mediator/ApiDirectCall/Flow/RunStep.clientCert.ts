@@ -1,5 +1,5 @@
 /**
- * The device certificate of one step (N26). A step naming `clientCert`
+ * The device certificate of one step. A step naming `clientCert`
  * resolves its key and certificate refs and installs the pair through the
  * bus's certificate port before its request, so that request and every later
  * one to the bank origin present it. A refused pair keeps the certificate

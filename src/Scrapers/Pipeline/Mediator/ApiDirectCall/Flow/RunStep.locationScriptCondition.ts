@@ -1,5 +1,5 @@
 /**
- * Handoff script condition (N54) — the one `if` test a handoff script may
+ * Handoff script condition — the one `if` test a handoff script may
  * use: `(navigator.userAgent.indexOf('<marker>') > -1)`, token for token,
  * with a quoted marker of 1 to 64 chars. Its branch is taken when the
  * configured User-Agent holds the marker.

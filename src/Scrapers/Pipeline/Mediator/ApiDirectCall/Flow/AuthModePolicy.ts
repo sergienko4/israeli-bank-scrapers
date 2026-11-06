@@ -1,10 +1,10 @@
 /**
- * Auth-mode policy (AD9). One map keyed by `AuthScheme` decides how a login's
+ * Auth-mode policy. One map keyed by `AuthScheme` decides how a login's
  * token becomes the Authorization header and how the mediator treats a later
  * auth rejection. `'none'` serves a bank whose session is a cookie: the flow
  * needs no `carry.token`, no Authorization header is sent, the callback bearer
  * is `''`, and a rejection fails at once instead of re-running the login.
- * The flow's `authRecovery` then reshapes the scheme's policy (N33).
+ * The flow's `authRecovery` then reshapes the scheme's policy.
  */
 
 import type { IMediatorAuthPolicy } from '../../../Types/Domain/MediatorAuthPolicy.js';

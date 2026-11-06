@@ -87,7 +87,7 @@ function readCarry(bundle: IDispatchBundle, resp: JsonValue): Procedure<CarryMap
 }
 
 /**
- * Read a step's carry from its answer, then check its ruled slots (N18).
+ * Read a step's carry from its answer, then check its ruled slots.
  * @param bundle - Dispatch bundle.
  * @param resp - Successful response JSON.
  * @returns Procedure with the step's carry, or the first missing or refused field.
@@ -99,7 +99,7 @@ function collectCarry(bundle: IDispatchBundle, resp: JsonValue): Procedure<Carry
 }
 
 /**
- * Judge the step's outcome, classify its answer (N50), fold the response carry
+ * Judge the step's outcome, classify its answer, fold the response carry
  * into the prepared scope, then derive the step's own slots. A refused outcome
  * or an unclassified answer fails before any extract.
  * @param bundle - Dispatch bundle.
@@ -117,7 +117,7 @@ function extractAndMerge(bundle: IDispatchBundle, resp: JsonValue): Procedure<IT
 }
 
 /**
- * Open a codec step's answer (N39) and guard it against bank errors (N20),
+ * Open a codec step's answer and guard it against bank errors,
  * then judge and extract from it. A bank error fails before the outcome.
  * @param bundle - Dispatch bundle.
  * @param resp - Successful response JSON.

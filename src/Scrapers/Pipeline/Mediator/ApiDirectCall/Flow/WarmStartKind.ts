@@ -9,7 +9,7 @@ import type {
   ICookieJarWarmStart,
 } from '../ConfigContracts/index.js';
 
-/** A warm start whose token is bound to a provider and account (N22, N28). */
+/** A warm start whose token is bound to a provider and account. */
 type BoundWarmStart = ICookieJarWarmStart | ICarryBundleWarmStart;
 
 /**

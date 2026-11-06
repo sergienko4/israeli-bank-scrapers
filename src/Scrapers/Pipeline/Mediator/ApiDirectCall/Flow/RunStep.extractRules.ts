@@ -1,12 +1,12 @@
 /**
- * Extract rules (N18, N27, N47). A step's `extractRules` check its body-,
+ * Extract rules. A step's `extractRules` check its body-,
  * header- and text-capture slots on the raw value once the answer is read.
  * `type` is checked first (RunStep.extractTypes). A string — or a finite number, stringified, when the rule
  * sets a text check — is then transformed and checked: `maxChars` (8192 when
  * unset), `oneOf`, the whole text against `pattern`, the `url` allow-list,
  * resolved against the step URL, and `pemCertificate`, whose key ref resolves
  * against the step's scope. A text-capture slot with no rule still gets the
- * 8192 `maxChars` check (N36). The slot keeps the checked text; the rest of
+ * 8192 `maxChars` check. The slot keeps the checked text; the rest of
  * the carry passes through. An absent optional slot skips its rule only when
  * it has no fallback or pre-hook write; present malformed values are checked
  * even when a fallback is set. A refusal fails the step

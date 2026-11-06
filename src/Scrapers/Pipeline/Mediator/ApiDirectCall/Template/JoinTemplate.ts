@@ -1,5 +1,5 @@
 /**
- * JoinTemplate — hydrates a `$join` node (N24) to one string: the parts
+ * JoinTemplate — hydrates a `$join` node to one string: the parts
  * concatenated (refs resolved, literals kept), base64 over the UTF-8 bytes
  * when `encode` is `base64`, behind `prefix`. A part that is unresolved or
  * not a string fails hydration like a missing `$ref`. The value lives only
