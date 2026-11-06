@@ -48,13 +48,6 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     requiresHydration: false,
     steps: [{ stepName: '01-home' }, { stepName: '02-pre-login' }],
   },
-  {
-    bankId: 'pagi',
-    originUrl: 'https://online.pagi.co.il',
-    loginStep: '02-pre-login',
-    requiresHydration: true,
-    steps: [{ stepName: '01-home' }, { stepName: '02-pre-login' }],
-  },
 ];
 
 export default BANK_FIXTURE_EXPECTATIONS;

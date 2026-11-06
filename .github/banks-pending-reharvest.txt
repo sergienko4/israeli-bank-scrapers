@@ -18,14 +18,12 @@
 #
 # Format: one bankId per line. Lines starting with `#` are comments.
 #
-# ── Currently pending (1) ──
-#
-# Pagi        recipe gap: login form has a tab/accordion-toggle UI
-#             that reveals the password tab only after click. Harvester
-#             needs `click-password-tab` step before capture.
-pagi
+# ── Currently pending (0) ──
 #
 # ── Resolved (kept for traceability) ──
+# pagi        RESOLVED: Pagi logs in over the bank's API with no browser,
+#             so it carries no page fixtures and is exempt as an API-direct
+#             bank in CheckBankIntegrationCoverage.ts.
 # otsarHahayal RESOLVED: Otsar Hahayal logs in over the bank's API with no
 #             browser, so it carries no page fixtures and is exempt as an
 #             API-direct bank in CheckBankIntegrationCoverage.ts.

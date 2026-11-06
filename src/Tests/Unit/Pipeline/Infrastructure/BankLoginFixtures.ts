@@ -23,10 +23,6 @@ import {
   buildMercantilePipeline,
   MERCANTILE_LOGIN,
 } from '../../../../Scrapers/Pipeline/Banks/Mercantile/MercantilePipeline.js';
-import {
-  buildPagiPipeline,
-  PAGI_LOGIN,
-} from '../../../../Scrapers/Pipeline/Banks/Pagi/PagiPipeline.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 
@@ -58,23 +54,10 @@ const BASE_PHASES = [
   'terminate',
 ] as const;
 
-/** Base + `otp-trigger` + `otp-fill` (mandatory OTP banks). */
-const OTP_FULL_PHASES = [
-  'init',
-  'home',
-  'login',
-  'otp-trigger',
-  'otp-fill',
-  'auth-discovery',
-  'bind-api-mediator',
-  'api-direct-scrape',
-  'terminate',
-] as const;
-
 /**
  * Bank-fixture table consumed by {@link LoginFactoryTest}'s
- * `describe.each`. Order is by phase-shape group:
- * base (7) → otp-full (9).
+ * `describe.each`. Every remaining browser bank runs the base
+ * phases (7) with no OTP step.
  */
 const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
   {
@@ -94,15 +77,6 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     expectedFieldKeys: ['id', 'password', 'num'],
     expectedPhaseCount: BASE_PHASES.length,
     expectedPhaseNames: BASE_PHASES,
-  },
-  {
-    bank: 'pagi',
-    company: CompanyTypes.Pagi,
-    loginConfig: PAGI_LOGIN,
-    buildPipeline: buildPagiPipeline,
-    expectedFieldKeys: ['username', 'password'],
-    expectedPhaseCount: OTP_FULL_PHASES.length,
-    expectedPhaseNames: OTP_FULL_PHASES,
   },
 ];
 

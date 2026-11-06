@@ -5,7 +5,7 @@ Invoke the user-provided `otpCodeRetriever` callback, fill the returned code int
 | | |
 |---|---|
 | **Always-on?** | No — opt-in via `ifOtpFill` predicate |
-| **Banks that use it** | All [OTP-TRIGGER](otp-trigger.md) banks |
+| **Banks that use it** | None today — dormant, like [OTP-TRIGGER](otp-trigger.md) |
 | **Owner slot** | `otpFill: Option<IOtpFill>` |
 | **Source** | [`OtpFillPhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/OtpFill/OtpFillPhase.ts) + [`OtpFillPhaseActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/OtpFill/OtpFillPhaseActions.ts) |
 

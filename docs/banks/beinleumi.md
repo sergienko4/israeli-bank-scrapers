@@ -114,7 +114,7 @@ encoded, not encrypted, so store it as a secret.
 
 ## Known quirks
 
-- Beinleumi is the parent of the Beinleumi group. [Massad](massad.md) and [Otsar Hahayal](otsar-hahayal.md) log in the same way with their own brands; Pagi shares its data API but still logs in through the browser OTP-TRIGGER + OTP-FILL flow.
+- Beinleumi is the parent of the Beinleumi group. [Massad](massad.md), [Otsar Hahayal](otsar-hahayal.md) and [Pagi](pagi.md) log in the same way with their own brands.
 - Balance endpoint shape: `(withdrawable + current)` per account — see [`beinleumi/balance-resolve/last-good.json`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/CrossValidation/Phases/Fixtures/beinleumi/balance-resolve/last-good.json) for the captured response shape.
 
 ## Hard-model post-auth

@@ -93,7 +93,7 @@ function transactionsOf(args: IFibiGroupShapeArgs): FibiShape['transactions'] {
 /**
  * Assemble one FIBI brand's hard-model scrape shape.
  * @param args - Brand binding: URL providers, step name, backfill stance.
- * @returns Shape passed to `.withBrowserApiDirect(...)`.
+ * @returns Shape passed to `.withApiDirect(...)`.
  */
 export function makeFibiGroupShape(args: IFibiGroupShapeArgs): FibiShape {
   return {

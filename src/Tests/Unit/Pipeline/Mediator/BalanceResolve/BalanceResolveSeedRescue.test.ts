@@ -1,8 +1,8 @@
 /**
  * BALANCE-RESOLVE — captured-seed rescue regression lock (FIBI/Beinleumi).
  *
- * <p>Reproduces the real FIBI/Beinleumi (Pagi) balance
- * miss OFFLINE. Those banks fold the account balance into the dashboard
+ * <p>Reproduces the real FIBI/Beinleumi balance miss OFFLINE. Those banks
+ * fold the account balance into the dashboard
  * `accountSummary` response, which is captured into the CUMULATIVE network
  * pool (the mediator is created once at INIT, so the pool spans every phase)
  * BEFORE BALANCE-RESOLVE — but the SCRAPE.post snapshot carried on the scrape

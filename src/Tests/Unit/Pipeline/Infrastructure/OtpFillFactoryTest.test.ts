@@ -1,15 +1,12 @@
 /**
- * M3.T5 — cross-bank factory test for the OTP-FILL phase.
+ * M3.T5 — factory test for the OTP-FILL phase.
  *
- * <p>One logic path, parametrized over every browser-flow bank
- * that enables OTP-FILL (mandatory or optional). Mirrors the
- * {@link AuthDiscoveryFactoryTest} + {@link LoginFactoryTest}
- * shape: a `BANK_OTP_FILL_FIXTURES` table drives `describe.each`
- * for the bank-shape contracts (pipeline phase sequence with the
- * OTP-FILL phase wired in), and a separate set of bank-agnostic
- * blocks exercises the OTP-FILL handlers (`executeFillPre`,
- * `executeFillAction`, `executeFillPost`, `executeFillFinal`)
- * using a generic mock context.
+ * <p>Bank-agnostic blocks exercise the OTP-FILL handlers
+ * (`executeFillPre`, `executeFillAction`, `executeFillPost`,
+ * `executeFillFinal`) using a generic mock context. No registered bank
+ * wires OTP-FILL any more: every bank that asks for an SMS code runs
+ * that step inside `Mediator/ApiDirectCall/`. Where the phase sits in a
+ * pipeline is covered by `PipelineBuilder.phases.test.ts`.
  *
  * <p>Coverage absorbed from (deleted by this PR):
  * `Tests/Unit/Pipeline/Infrastructure/OtpFillPhaseActions.test.ts`,
@@ -18,18 +15,13 @@
  * Coverage threshold (97/95/97/98) is preserved — every cross-bank
  * scenario folded into one of the blocks below.
  *
- * <p>FAKE-but-real-bank-shape data: each fixture row reuses the
- * production `build*Pipeline` builder and asserts the OTP-FILL
- * phase is present in its expected position. URLs use `.example`
- * reserved TLDs; OTP code samples are obviously fake.
+ * <p>FAKE data: URLs use `.example` reserved TLDs; OTP code samples
+ * are obviously fake.
  */
 
 import type { Page } from 'playwright-core';
 
-import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
-import { buildPagiPipeline } from '../../../../Scrapers/Pipeline/Banks/Pagi/PagiPipeline.js';
-import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import {
@@ -49,7 +41,6 @@ import type {
   IPipelineContext,
   IResolvedTarget,
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
-import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { isOk } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import {
   makeContextWithBrowser,
@@ -62,76 +53,6 @@ import {
   makeScreenshotPage,
   toActionCtx,
 } from './TestHelpers.js';
-
-// ─── Bank fixture table (every OTP-FILL-enabled browser bank) ────
-
-/** Per-bank fixture for the OTP-FILL `describe.each` block. */
-interface IOtpFillBankFixture {
-  readonly bank: string;
-  readonly company: CompanyTypes;
-  readonly buildPipeline: (opts: ScraperOptions) => Procedure<IPipelineDescriptor>;
-  readonly otpRequired: boolean;
-}
-
-/**
- * OTP-FILL banks. Pagi runs the FIBI portal's full mandatory OTP flow
- * (trigger + fill) — the flow Beinleumi ran live before its login moved
- * to api-direct. Beinleumi, Massad, Otsar Hahayal, Hapoalim and OneZero
- * are API-direct (no Pipeline OTP-FILL phase; their SMS step runs inside
- * `Mediator/ApiDirectCall/`).
- */
-const BANK_OTP_FILL_FIXTURES: readonly IOtpFillBankFixture[] = [
-  {
-    bank: 'pagi',
-    company: CompanyTypes.Pagi,
-    buildPipeline: buildPagiPipeline,
-    otpRequired: true,
-  },
-];
-
-/**
- * Build a {@link ScraperOptions} stub for the bank's pipeline
- * builder.
- *
- * @param company - Bank under test.
- * @returns Mock options bound to the company.
- */
-function makeOpts(company: string): ScraperOptions {
-  return { companyId: company } as unknown as ScraperOptions;
-}
-
-// ─── Cross-bank OTP-FILL pipeline-shape contract ─────────────────
-
-describe.each(BANK_OTP_FILL_FIXTURES)(
-  '$bank — OTP-FILL phase wiring (otpRequired=$otpRequired)',
-  fixture => {
-    it("includes the 'otp-fill' phase in the built pipeline", () => {
-      const opts = makeOpts(fixture.company);
-      const result = fixture.buildPipeline(opts);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const names = result.value.phases.map((p): string => p.name);
-        expect(names).toContain('otp-fill');
-      }
-    });
-
-    it("places 'otp-fill' immediately after 'login' (or after 'otp-trigger' when present)", () => {
-      const opts = makeOpts(fixture.company);
-      const result = fixture.buildPipeline(opts);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const names = result.value.phases.map((p): string => p.name);
-        const otpFillIdx = names.indexOf('otp-fill');
-        const triggerIdx = names.indexOf('otp-trigger');
-        const loginIdx = names.indexOf('login');
-        const expectedPredecessor = triggerIdx >= 0 ? 'otp-trigger' : 'login';
-        const expectedPredecessorIdx = triggerIdx >= 0 ? triggerIdx : loginIdx;
-        expect(otpFillIdx).toBe(expectedPredecessorIdx + 1);
-        expect(names[otpFillIdx - 1]).toBe(expectedPredecessor);
-      }
-    });
-  },
-);
 
 // ─── Bank-agnostic OTP-FILL action handlers ──────────────────────
 

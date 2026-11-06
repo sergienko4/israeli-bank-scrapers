@@ -1,7 +1,7 @@
 /**
  * Pagi (FIBI group) scrape shape — the `IApiDirectScrapeShape` data
  * declaration consumed by the generic buildGenericHeadlessScrape driver via
- * `withBrowserApiDirect`. balanceKind=account.
+ * `withApiDirect`. balanceKind=account.
  *
  * Account identity spans two cookie-authed GETs: `userData` (customer) for the
  * account number + branch, and a session-level `accountType` lookup
@@ -26,7 +26,7 @@ import { customerUrl, secondaryUrl } from './PagiShapeAccounts.js';
 import { balanceUrl } from './PagiShapeHelpers.js';
 import { txnsUrl } from './PagiShapeTxns.js';
 
-/** Pagi hard-model shape — passed to `.withBrowserApiDirect(...)`. */
+/** Pagi hard-model shape — passed to `.withApiDirect(...)`. */
 const PAGI_SHAPE = makeFibiGroupShape({
   stepName: 'PagiScrape',
   windowNarrowing: 'windowEnd',

@@ -15,6 +15,7 @@ import { MAX_HEADLESS } from './PipelineBankConfigMax.js';
 import { MIZRAHI_HEADLESS } from './PipelineBankConfigMizrahi.js';
 import { ONEZERO_HEADLESS } from './PipelineBankConfigOneZeroHeadless.js';
 import { OTSAR_HAHAYAL_HEADLESS } from './PipelineBankConfigOtsarHahayal.js';
+import { PAGI_HEADLESS } from './PipelineBankConfigPagi.js';
 import { PEPPER_HEADLESS } from './PipelineBankConfigPepperHeadless.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
 import type {
@@ -37,9 +38,6 @@ const CARD_CYCLE = 'card-cycle';
 
 /** Deposit/checking banks expose a real account balance resolved live. */
 const ACCOUNT = 'account';
-
-/** Banks whose completed login yields a discovered Bearer/JWT token. */
-const TOKEN = 'token';
 
 /** Banks whose completed login is carried by first-party session cookies. */
 const SESSION_COOKIE = 'session-cookie';
@@ -81,32 +79,6 @@ function defineApiDirectBank(
   return { urls: { base }, balanceKind, authStrategyKind: API_DIRECT, headless };
 }
 
-/** FIBI appsng SPA shell route — AUTH-DISCOVERY navigates here post-login. */
-const FIBI_APPSNG_SHELL = '/appsng/Resources/PortalNG/shell/#/accountSummary';
-
-/**
- * FIBI-family config — deposit account reached via a discovered Bearer/JWT plus
- * the discovered-header bag (the shared appsng BFF rejects a bare cookie without
- * `Accept: application/json`). The BFF Bearer is injected by the SPA's own HTTP
- * interceptor (not in any login body nor a parseable storage shape), so it is
- * sniffed from the SPA's own `appsng/bff-` requests in the capture pool.
- * Pagi is the last browser bank of the family.
- * @param base - Official website URL for the HOME phase.
- * @param onlineHost - Data-API origin (`online.<host>`) AUTH-DISCOVERY
- *   navigates to post-login to mint the appsng session.
- * @returns Registry config for one FIBI-family bank.
- */
-function fibiConfig(base: string, onlineHost: string): IPipelineBankConfig {
-  return {
-    urls: { base },
-    balanceKind: ACCOUNT,
-    authStrategyKind: TOKEN,
-    installDiscoveredHeaders: true,
-    authHeaderUrlMatch: 'appsng/bff-',
-    postLoginNav: { url: `${onlineHost}${FIBI_APPSNG_SHELL}` },
-  };
-}
-
 /** Pipeline bank registry — migrated banks only. */
 const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> = {
   [CompanyTypes.Beinleumi]: defineApiDirectBank(
@@ -138,7 +110,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     ACCOUNT,
     OTSAR_HAHAYAL_HEADLESS,
   ),
-  [CompanyTypes.Pagi]: fibiConfig('https://www.pagi.co.il', 'https://online.pagi.co.il'),
+  [CompanyTypes.Pagi]: defineApiDirectBank('https://www.pagi.co.il', ACCOUNT, PAGI_HEADLESS),
   [CompanyTypes.Yahav]: defineApiDirectBank('https://www.yahav.co.il', ACCOUNT, YAHAV_HEADLESS),
   [CompanyTypes.VisaCal]: defineApiDirectBank(
     'https://www.cal-online.co.il/',
