@@ -6,6 +6,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import type { JsonUnknown, JsonUnknownRecord } from '../../../Types/JsonValue.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import { planSeal } from '../Crypto/SealKinds.js';
@@ -14,9 +15,12 @@ import { type JsonValue, walkPointer } from '../Envelope/JsonPointer.js';
 import { type ITemplateScope, resolveRefText } from '../Template/RefResolver.js';
 import type { IPreparedBody, IStepConfig } from './RunStep.types.js';
 import { writeAtPointer } from './RunStepBodySigning.pointer.js';
+import { isRecordValue } from './WarmTokenParts.js';
 
 /** The prepared body as the pointer writer takes it. */
 type Body = IPreparedBody['body'];
+
+const INVALID_SEAL_TARGET = 'seal writeTo invalid';
 
 /**
  * Write one sealed value into the body so far.
@@ -38,7 +42,7 @@ function writeSealed(body: Procedure<Body>, write: ISealedWrite): Procedure<Body
  */
 function writeExistingSeal(body: Body, pointer: string, value: string): Procedure<Body> {
   const resolved = walkPointer(body as JsonValue, pointer);
-  const invalid = fail(ScraperErrorTypes.Generic, 'seal writeTo invalid');
+  const invalid = fail(ScraperErrorTypes.Generic, INVALID_SEAL_TARGET);
   if (!isOk(resolved)) return invalid;
   const written = writeAtPointer(body, pointer, value);
   return isOk(written) ? written : invalid;
@@ -54,6 +58,85 @@ function sealRefReader(scope: ITemplateScope): SealRefText {
 }
 
 /**
+ * Whether an object is a JSON record rather than a structured-clone leaf.
+ * @param value - Object being cloned.
+ * @returns True for ordinary or null-prototype records.
+ */
+function isPlainSealRecord(value: object): value is JsonUnknownRecord {
+  const prototype: unknown = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+/**
+ * Clone array entries independently.
+ * @param values - Array being cloned.
+ * @param ancestors - Containers on the current recursion path.
+ * @returns Detached array.
+ */
+function cloneSealList(values: readonly JsonUnknown[], ancestors: WeakSet<object>): JsonUnknown[] {
+  return values.map((value): JsonUnknown => cloneSealValue(value, ancestors));
+}
+
+/**
+ * Clone a JSON container without memoizing sibling references.
+ * @param value - Container being cloned.
+ * @param ancestors - Containers on the current recursion path.
+ * @returns Detached container or structured-clone leaf.
+ */
+function cloneSealContainer(value: object, ancestors: WeakSet<object>): JsonUnknown {
+  if (Array.isArray(value)) return cloneSealList(value, ancestors);
+  if (!isPlainSealRecord(value)) return structuredClone(value);
+  const entries = Object.entries(value);
+  const copied = entries.map(([key, child]): [string, JsonUnknown] => {
+    const clone = cloneSealValue(child, ancestors);
+    return [key, clone];
+  });
+  return Object.fromEntries(copied);
+}
+
+/**
+ * Clone each occurrence of a value, rejecting cycles before any writes.
+ * @param value - Value being cloned.
+ * @param ancestors - Containers on the current recursion path.
+ * @returns Independent clone.
+ */
+function cloneSealValue(value: JsonUnknown, ancestors: WeakSet<object>): JsonUnknown {
+  if (value === null || typeof value !== 'object') return structuredClone(value);
+  if (ancestors.has(value)) throw new TypeError(INVALID_SEAL_TARGET);
+  ancestors.add(value);
+  const clone = cloneSealContainer(value, ancestors);
+  ancestors.delete(value);
+  return clone;
+}
+
+/**
+ * Clone a prepared body as independent JSON branches without leaking errors.
+ * @param body - Hydrated request body.
+ * @returns Detached body or a structured clone failure.
+ */
+function cloneSealBody(body: Body): Procedure<Body> {
+  const invalid = fail(ScraperErrorTypes.Generic, INVALID_SEAL_TARGET);
+  try {
+    const ancestors = new WeakSet();
+    const clone = cloneSealValue(body, ancestors);
+    return isRecordValue(clone) ? succeed(clone) : invalid;
+  } catch {
+    return invalid;
+  }
+}
+
+/**
+ * Apply planned writes to a clone of the hydrated body.
+ * @param body - Hydrated request body.
+ * @param writes - Sealed values and their destinations.
+ * @returns Updated clone or invalid-destination failure.
+ */
+function applySealPlan(body: Body, writes: readonly ISealedWrite[]): Procedure<Body> {
+  const unsealed = cloneSealBody(body);
+  return writes.reduce(writeSealed, unsealed);
+}
+
+/**
  * Write the step's sealed fields into the prepared body, when it names a seal.
  * @param step - Step config.
  * @param prepared - Hydrated body and scope.
@@ -64,9 +147,8 @@ function applySeal(step: IStepConfig, prepared: IPreparedBody): Procedure<IPrepa
   const refText = sealRefReader(prepared.scope);
   const plan = planSeal(step.seal, refText);
   if (!isOk(plan)) return fail(ScraperErrorTypes.Generic, `${step.name} ${plan.errorMessage}`);
-  const unsealed: Procedure<Body> = succeed(structuredClone(prepared.body));
-  const written = plan.value.reduce(writeSealed, unsealed);
-  if (!isOk(written)) return fail(ScraperErrorTypes.Generic, `${step.name} seal writeTo invalid`);
+  const written = applySealPlan(prepared.body, plan.value);
+  if (!isOk(written)) return fail(ScraperErrorTypes.Generic, `${step.name} ${INVALID_SEAL_TARGET}`);
   return succeed({ body: written.value, scope: prepared.scope });
 }
 

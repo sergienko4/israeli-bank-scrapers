@@ -173,7 +173,7 @@ class BrowserFetchStrategy implements IFetchStrategy {
    * @param url - Request URL the cookies are scoped to.
    * @param headers - Outgoing header map (possibly with sentinels).
    * @returns Header map with sentinels resolved, or the failure that stops
-   *   the request before the page fetch.
+   *   the request before the page fetch, including a rejected cookie read.
    */
   private async resolveHeaders(
     url: string,
@@ -181,8 +181,10 @@ class BrowserFetchStrategy implements IFetchStrategy {
   ): Promise<Procedure<Record<string, string>>> {
     const isPresent: boolean = hasCookieSentinel(headers);
     if (!isPresent) return succeed(headers);
-    const jar = await this._page.context().cookies(url);
-    return substituteCookieHeaders(headers, jar);
+    const jarRead = this._page.context().cookies(url);
+    const jar = await jarRead.then(succeed, catchError);
+    if (!isOk(jar)) return jar;
+    return substituteCookieHeaders(headers, jar.value);
   }
 }
 

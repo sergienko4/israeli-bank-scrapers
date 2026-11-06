@@ -121,23 +121,13 @@ function isUncompilable(capture: ITextCapture): boolean {
 }
 
 /**
- * Whether a regex source repeats a group, escapes and classes aside. The
- * derivation op rules (N45) apply it to format patterns too.
- * @param pattern - Regex source.
- * @returns True when a group is followed by `*`, `+` or `{`.
- */
-function patternRepeatsGroup(pattern: string): boolean {
-  const structure = patternStructure(pattern);
-  return REPEATED_GROUP.test(structure);
-}
-
-/**
  * Whether a capture pattern repeats a group.
  * @param capture - Text capture.
  * @returns True when a group is followed by `*`, `+` or `{`.
  */
 function repeatsGroup(capture: ITextCapture): boolean {
-  return patternRepeatsGroup(capture.pattern);
+  const structure = patternStructure(capture.pattern);
+  return REPEATED_GROUP.test(structure);
 }
 
 /**
@@ -186,4 +176,4 @@ const API_DIRECT_TEXT_RULES: readonly IApiDirectRule[] = [
 ];
 
 export default API_DIRECT_TEXT_RULES;
-export { API_DIRECT_TEXT_RULES, patternRepeatsGroup };
+export { API_DIRECT_TEXT_RULES };

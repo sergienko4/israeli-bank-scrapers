@@ -444,7 +444,7 @@ describe('sendUnderPolicy — manual POST', () => {
     const run = postRun(invoke, POST_AS_GET);
     const result = await sendUnderPolicy(run);
     const isSent = isOk(result);
-    const [[, firstInit], [hopUrl, hopInit, hopVerb]] = invoke.mock.calls;
+    const [[, firstInit], [hopUrl, hopInit, { verb: hopVerb }]] = invoke.mock.calls;
     const hop = sentHeaders(invoke, 1);
     const hopFields = [hopUrl, hopVerb, hop.get('content-type'), hop.get('x-caller')];
     expect(isSent).toBe(true);

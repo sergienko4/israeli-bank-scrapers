@@ -1,7 +1,7 @@
 /**
  * N45 — a derivation `op` is `format` or `md5-hex`. A `format` op names at
- * least one rule; each pattern compiles with the `u` flag and repeats no
- * group; `padStart` is an integer from 0 to 64. The rules cover flow-init
+ * least one rule; each pattern compiles with the `u` flag and uses the flat
+ * grammar; `padStart` is an integer from 0 to 64. The rules cover flow-init
  * `derivedCarry` and every step's `deriveCarry`.
  */
 
@@ -21,7 +21,7 @@ const NATIVE = { identityBase: HOST, graphql: `${HOST}/graphql`, paths: {}, nati
 const KIND_MSG = 'derive.op.kind: must be format or md5-hex';
 const RULES_MSG = 'derive.op.rules: needs at least one rule';
 const COMPILE_MSG = 'derive.op.rules.pattern: must compile';
-const REPEAT_MSG = 'derive.op.rules.pattern: must not repeat a group';
+const FLAT_MSG = 'derive.op.rules.pattern: must be a flat regex';
 const PAD_MSG = 'derive.op.rules.padStart: must be an integer from 0 to 64';
 const ID_RULE: IFormatRule = { pattern: String.raw`^\d{1,9}$`, prefix: '00001', padStart: 9 };
 
@@ -76,7 +76,9 @@ const BROKEN: readonly [string, DerivedOp, string][] = [
   ['a format op with no rule', { kind: 'format', rules: [] }, RULES_MSG],
   ['a pattern that does not compile', formatWith({ pattern: '^(\\d$' }), COMPILE_MSG],
   ['a pattern only the u flag refuses', formatWith({ pattern: String.raw`^\-$` }), COMPILE_MSG],
-  ['a pattern repeating a group', formatWith({ pattern: String.raw`^(\d+)+$` }), REPEAT_MSG],
+  ['a pattern repeating a group', formatWith({ pattern: String.raw`^(\d+)+$` }), FLAT_MSG],
+  ['adjacent star repeats', formatWith({ pattern: '^a*a*b$' }), FLAT_MSG],
+  ['adjacent plus repeats', formatWith({ pattern: '^a+a+$' }), FLAT_MSG],
   ['a negative padStart', formatWith({ padStart: -1 }), PAD_MSG],
   ['a fractional padStart', formatWith({ padStart: 1.5 }), PAD_MSG],
   ['a padStart over 64', formatWith({ padStart: 65 }), PAD_MSG],
@@ -85,6 +87,10 @@ const BROKEN: readonly [string, DerivedOp, string][] = [
 const VALID: readonly [string, DerivedOp][] = [
   ['md5-hex', { kind: 'md5-hex' }],
   ['the id rule', formatWith({})],
+  ['an unanchored pattern', formatWith({ pattern: String.raw`\d{1,9}` })],
+  ['a start-only anchor', formatWith({ pattern: String.raw`^\d{1,9}` })],
+  ['an end-only anchor', formatWith({ pattern: String.raw`\d{1,9}$` })],
+  ['a literal trailing dollar', formatWith({ pattern: String.raw`price\$` })],
   ['a rule with no padStart', formatWith({ padStart: undefined })],
   ['padStart 0', formatWith({ padStart: 0 })],
   ['padStart 64', formatWith({ padStart: 64 })],

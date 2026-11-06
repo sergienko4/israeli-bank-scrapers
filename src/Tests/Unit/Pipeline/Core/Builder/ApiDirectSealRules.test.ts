@@ -1,7 +1,7 @@
 /**
  * N10 / N44 — a step's seal must name a known kind, sit on a POST step whose
  * body is a record, write at JSON pointers, and carry constants the seal can
- * use; a multi-field seal needs at least one field and distinct targets.
+ * use; a multi-field seal needs at least one field and non-overlapping targets.
  * Each broken seal fails the build with its own message.
  */
 
@@ -26,7 +26,7 @@ const KIND_MSG = 'steps.seal.kind: unknown seal kind';
 const HOST_MSG = 'steps.seal: needs a POST step with a record body';
 const POINTER_MSG = 'steps.seal.writeTo: must be a JSON pointer';
 const PARAMS_MSG = 'steps.seal.params: out of range';
-const FIELDS_MSG = 'steps.seal.fields: needs at least one field, each with its own writeTo';
+const FIELDS_MSG = 'steps.seal.fields: needs at least one field with non-overlapping writeTo paths';
 
 const SEAL: ISealRsaBlockXorConfig = {
   kind: 'rsa-pkcs1-block-xor',
@@ -109,6 +109,20 @@ const PKCS1_SEAL: ISealRsaPkcs1Config = {
  */
 function pkcs1With(fields: ISealRsaPkcs1Config['fields']): ISealRsaPkcs1Config {
   return { ...PKCS1_SEAL, fields };
+}
+
+/**
+ * A multi-field seal writing to two chosen paths.
+ * @param first - First target.
+ * @param second - Second target.
+ * @returns Seal config.
+ */
+function pkcs1At(first: string, second: string): ISealRsaPkcs1Config {
+  const fields = [
+    { ...PKCS1_SEAL.fields[0], writeTo: first },
+    { ...PKCS1_SEAL.fields[1], writeTo: second },
+  ];
+  return pkcs1With(fields);
 }
 
 const BAD_PARAMS: readonly (readonly [
@@ -221,5 +235,26 @@ describe('validateApiDirectConfig — fields sealed with RSA PKCS#1 v1.5 (N44)',
     const step = postWith(seal);
     const result = validate(step);
     expect(result).toMatchObject({ success: false, errorMessage: FIELDS_MSG });
+  });
+
+  it.each([
+    ['/Credentials', '/Credentials/Password'],
+    ['/Credentials/Password', '/Credentials'],
+    ['/Credentials~2', '/Credentials~02/Password'],
+  ])('refuses overlapping seal targets %s and %s', (first, second) => {
+    const seal = pkcs1At(first, second);
+    const step = postWith(seal);
+    const result = validate(step);
+    expect(result).toMatchObject({ success: false, errorMessage: FIELDS_MSG });
+  });
+
+  it.each([
+    ['/Credentials', '/Credentials2/Password'],
+    ['/Credentials', '/Credentials~1Password'],
+  ])('accepts distinct seal targets %s and %s', (first, second) => {
+    const seal = pkcs1At(first, second);
+    const step = postWith(seal);
+    const result = validate(step);
+    expect(result).toEqual({ success: true, value: true });
   });
 });

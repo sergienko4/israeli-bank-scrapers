@@ -1,7 +1,7 @@
 /**
  * Seal rules for an api-direct call config (N10, N44). A seal must name a
  * known kind, sit on a POST step whose body shape is a record, and write at
- * one or more distinct JSON pointers below the root. A block-xor seal must
+ * one or more non-overlapping JSON pointers below the root. A block-xor seal must
  * carry constants it can use: an odd public exponent of at least 3, a 1–64
  * character seed drawn from a printable-ASCII alphabet, 1–53 characters per
  * RSA block (the PKCS#1 v1.5 room of the smallest accepted 512-bit key) and
@@ -17,10 +17,14 @@ import type {
   JsonValueTemplate,
   SealKind,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { decodePointerSegments } from '../../Mediator/ApiDirectCall/Flow/RunStepBodySigning.pointer.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
 
 /** One check of a step's seal. */
 type SealCheck = (seal: ISealFieldConfig, step: IStepConfig) => boolean;
+
+/** A decoded body-write path. */
+type WriteTarget = readonly string[];
 
 /** Every seal kind; the record type keeps it in step with `SealKind`. */
 const KNOWN_SEAL_KINDS: Readonly<Record<SealKind, true>> = {
@@ -154,13 +158,42 @@ function isBadPointer(seal: ISealFieldConfig): boolean {
 }
 
 /**
- * Whether the seal writes nothing, or two values at one pointer.
+ * Whether one decoded path is a segment-wise prefix of another.
+ * @param prefix - Candidate ancestor path.
+ * @param target - Candidate descendant path.
+ * @returns True for an equal path or an ancestor.
+ */
+function isTargetPrefix(prefix: WriteTarget, target: WriteTarget): boolean {
+  return prefix.every((part, index): boolean => part === target[index]);
+}
+
+/**
+ * Whether a target overlaps an earlier target in either direction.
+ * @param target - Current decoded path.
+ * @param index - Current target index.
+ * @param targets - All decoded paths.
+ * @returns True for equal or ancestor/descendant targets.
+ */
+function overlapsEarlier(
+  target: WriteTarget,
+  index: number,
+  targets: readonly WriteTarget[],
+): boolean {
+  const previous = targets.slice(0, index);
+  return previous.some(
+    (other): boolean => isTargetPrefix(target, other) || isTargetPrefix(other, target),
+  );
+}
+
+/**
+ * Whether the seal writes nothing, or its target paths overlap.
  * @param seal - Seal config.
- * @returns True for no targets or a repeated one.
+ * @returns True for no targets or overlapping paths.
  */
 function hasBadFields(seal: ISealFieldConfig): boolean {
   const targets = readSeal(WRITE_TARGETS, seal, ['/']);
-  return targets.length === 0 || new Set(targets).size !== targets.length;
+  const paths = targets.map(decodePointerSegments);
+  return paths.length === 0 || paths.some(overlapsEarlier);
 }
 
 /**
@@ -254,7 +287,10 @@ const API_DIRECT_SEAL_RULES: readonly IApiDirectRule[] = [
   sealRule('steps.seal.kind: unknown seal kind', isUnknownKind),
   sealRule('steps.seal: needs a POST step with a record body', isHostless),
   sealRule('steps.seal.writeTo: must be a JSON pointer', isBadPointer),
-  sealRule('steps.seal.fields: needs at least one field, each with its own writeTo', hasBadFields),
+  sealRule(
+    'steps.seal.fields: needs at least one field with non-overlapping writeTo paths',
+    hasBadFields,
+  ),
   sealRule('steps.seal.params: out of range', hasBadParams),
 ];
 

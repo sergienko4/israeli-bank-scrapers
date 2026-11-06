@@ -29,15 +29,12 @@ import type {
   ISessionHeaders,
   OnSetCookie,
 } from './FetchStrategy.js';
+import { droppedOnHop, followedAfter, hopHeaders, postStatusesOf } from './RedirectHopRules.js';
 import { cancelResponseBody } from './ResponseBody.js';
-import { droppedOnHop, followedAfter, postStatusesOf } from './RedirectHopRules.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 import { matchesAnyUrlRule } from './UrlRule.js';
 
 type SetCookieEmitCount = Brand<number, 'SetCookieEmitCount'>;
-
-/** The headers one hop sends. */
-type HopHeaders = Record<string, string>;
 
 /** One request, its transport seam and the redirect policy it runs under. */
 interface IRedirectRun extends IFetchInvokePolicy {
@@ -165,24 +162,6 @@ const FIXED_SENDERS: Readonly<Record<'follow' | 'reject', Sender>> = {
 };
 
 /**
- * Hop headers: the previous request's with every session-owned header
- * replaced by the session's headers for the hop URL. The dropped names go
- * last, so once a run has crossed origins neither the caller's nor the
- * session's credentials are sent on this hop or any later one.
- * @param hop - The request that redirected.
- * @param session - The session's headers for the hop URL.
- * @param dropped - Lower-case names the hop never carries.
- * @returns Header record for the hop.
- */
-function hopHeaders(hop: IHop, session: ISessionHeaders, dropped: readonly string[]): HopHeaders {
-  const headers = new Headers(hop.init.headers);
-  for (const name of session.owned) headers.delete(name);
-  for (const [name, value] of Object.entries(session.values)) headers.set(name, value);
-  for (const name of dropped) headers.delete(name);
-  return Object.fromEntries(headers);
-}
-
-/**
  * The allowed target a redirect points at.
  * @param response - The redirect response.
  * @param hop - The request that drew it.
@@ -224,7 +203,7 @@ function nextHop(run: IRedirectRun, hop: IHop, target: URL): Procedure<IHop> {
   if (!isOk(session)) return session;
   const hasCrossedOrigin = hop.hasCrossedOrigin || new URL(hop.url).origin !== target.origin;
   const dropped = droppedOnHop(hop.verb, hasCrossedOrigin);
-  const headers = hopHeaders(hop, session.value, dropped);
+  const headers = hopHeaders(hop.init.headers, session.value, dropped);
   const init: RequestInit = { method: 'GET', headers, redirect: 'manual' };
   return succeed({ url, init, verb: 'GET', hopsLeft: hop.hopsLeft - 1, hasCrossedOrigin });
 }

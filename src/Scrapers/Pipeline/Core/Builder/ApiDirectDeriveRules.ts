@@ -2,14 +2,15 @@
  * Derivation op rules (N45) over flow-init `derivedCarry` and every login
  * and resume step's `deriveCarry`. An op kind is `format` or `md5-hex`. A
  * `format` op names at least one rule; each rule pattern compiles alone
- * with the `u` flag (the evaluator anchors it the same way) and repeats no
- * group; `padStart`, when set, is an integer from 0 to 64.
+ * with the `u` flag and uses the linear-time FlatPattern grammar (explicit
+ * anchors are optional because the evaluator adds them); `padStart`, when
+ * set, is an integer from 0 to 64.
  */
 
 import type { DerivedOp, IFormatRule } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { anchoredPattern } from '../../Mediator/ApiDirectCall/Flow/FlowInitCarry.ops.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
-import { patternRepeatsGroup } from './ApiDirectTextRules.js';
+import { isFlatPattern } from './FlatPattern.js';
 
 /** Widest `padStart` a format rule may ask for. */
 const MAX_PAD_START = 64;
@@ -75,12 +76,14 @@ function isUncompilable(rule: IFormatRule): boolean {
 }
 
 /**
- * Whether a format rule's pattern repeats a group.
+ * Whether a format pattern falls outside the linear-time grammar.
  * @param rule - Format rule.
- * @returns True when a group is followed by `*`, `+` or `{`.
+ * @returns True when no whole-pattern anchoring is flat.
  */
-function repeatsGroup(rule: IFormatRule): boolean {
-  return patternRepeatsGroup(rule.pattern);
+function isNonFlat(rule: IFormatRule): boolean {
+  const { pattern } = rule;
+  const anchored = [pattern, `^${pattern}`, `${pattern}$`, `^${pattern}$`];
+  return !anchored.some(isFlatPattern);
 }
 
 /**
@@ -100,8 +103,8 @@ const API_DIRECT_DERIVE_RULES: readonly IApiDirectRule[] = [
   { message: 'derive.op.rules: needs at least one rule', isBroken: anyOp(hasNoRule) },
   { message: 'derive.op.rules.pattern: must compile', isBroken: anyFormatRule(isUncompilable) },
   {
-    message: 'derive.op.rules.pattern: must not repeat a group',
-    isBroken: anyFormatRule(repeatsGroup),
+    message: 'derive.op.rules.pattern: must be a flat regex',
+    isBroken: anyFormatRule(isNonFlat),
   },
   {
     message: 'derive.op.rules.padStart: must be an integer from 0 to 64',

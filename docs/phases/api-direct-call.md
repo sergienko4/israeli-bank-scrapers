@@ -128,6 +128,9 @@ One hydration engine serves both `API-DIRECT-CALL` and `API-DIRECT-SCRAPE` step 
 - `derivedCarry` joins parts with separators + truncation for OTP-encryption keys. `transform: 'lower'` (N60) lower-cases the joined text before the byte cap, so a slot can carry a lower-cased copy of a credential (the FIBI Transmit `uid`) while the credential itself stays as typed.
 - A step's `deriveCarry` takes the same `IDerivedCarry` entries and runs them once that step's body and header extracts are in scope. `deriveStepCarry` hands them to `applyDerivations`, the evaluator flow-init `derivedCarry` uses, so the parts (`carry.<slot>`, `creds.<field>`, `config.<dotted.path>` such as `config.secrets.<name>`), separator, truncation and failure messages (`derivedCarry: carry.<slot> missing or non-string`) are the same. A part that fails fails the step.
 - `op` (`DerivedOp`, N45) shapes the finished text last, after the join, `transform` and the byte cap: `applyDerivedOp` (in `Flow/FlowInitCarry.ops.ts`) takes an `IOpInput`: the text, the subject a failure names and the op. A `format` op (`IFormatOp`) takes the first `IFormatRule` whose `pattern` matches the whole text, anchored at both ends with the `u` flag by `anchoredPattern`, and writes the rule's `prefix` plus the text left-padded with `0` to `padStart` chars, so a 1-to-9-digit id can become `00001` and nine digits. No match fails `Generic`, naming the slot and never the text: `derivedCarry: <slot> unformattable` at flow init, `<step> derive <slot> unformattable` in a step, before that flow's next request. An `md5-hex` op (`IMd5HexOp`) writes the MD5 digest of the UTF-8 text as lower-case hex, for a bank that checks one; nothing relies on it for secrecy.
+  Format patterns use the linear-time `FlatPattern` grammar: no groups or
+  alternation, and a variable repeat only on the last atom. Explicit anchors
+  are optional because the evaluator adds them.
 
 ### CryptoField pre-hook
 
@@ -650,7 +653,7 @@ extractRules: {
 ```
 
 ```ts
-extractsToCarry: { mi6: { pointer: '/Login/MI6' } },
+extractsToCarry: { mi6: '/Login/MI6' },
 extractRules: { mi6: { type: 'string', equalsRef: 'carry.uidMd5' } },
 ```
 
@@ -1232,6 +1235,11 @@ from what it extracted:
   pointers: one under a hex modulus (`rsa-pkcs1-block-xor`), or each alone
   under a PEM or DER key (`rsa-pkcs1-v15`); no value reaches carry
   ([Sealed fields](../architecture/pipeline.md#sealed-fields)).
+  The builder compares `writeTo` paths after `decodePointerSegments` applies
+  the writer's JSON-pointer decoding, rejecting duplicate and
+  ancestor/descendant targets before the request.
+  Sealing clones JSON branches independently, so repeated references or
+  shared literals cannot make one field overwrite another field's seal.
 - `setCookies` writes client cookies, host-only with `Path=/` and `Secure`,
   before the step's request; `$ref: cookie.<name>` reads the cookie that
   applies to the step URL, URL-decoded
@@ -1338,7 +1346,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `seal` whose `kind` is not a `SealKind`                                                                                             | `steps.seal.kind: unknown seal kind`                                     |
 | a `seal` on a step that is not a `POST` with a record body                                                                            | `steps.seal: needs a POST step with a record body`                       |
 | a `seal` with a `writeTo` that is not a JSON pointer                                                                                  | `steps.seal.writeTo: must be a JSON pointer`                             |
-| a `seal` with no field, or two fields at one `writeTo`                                                                                | `steps.seal.fields: needs at least one field, each with its own writeTo` |
+| a `seal` with no fields or overlapping `writeTo` paths                                                                                | `steps.seal.fields: needs at least one field with non-overlapping writeTo paths` |
 | a block-xor `seal` whose `params` are out of range (exponent, seed, block size or printable text)                                     | `steps.seal.params: out of range`                                        |
 | a login or resume step with a `failIfPresent` entry that is not a JSON pointer below the body root                                    | `steps.failIfPresent: each entry must be a JSON pointer`                 |
 | a login or resume step with a `bankErrorType` but no `failIfPresent` entry and no codec                                               | `steps.bankErrorType: needs failIfPresent or a codec`                    |
@@ -1386,7 +1394,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `derivedCarry` or `deriveCarry` `op` whose `kind` is not `format` or `md5-hex` (`API_DIRECT_DERIVE_RULES`)                          | `derive.op.kind: must be format or md5-hex`                              |
 | a `format` op with no rule                                                                                                            | `derive.op.rules: needs at least one rule`                               |
 | a `format` rule `pattern` that does not compile with the `u` flag                                                                     | `derive.op.rules.pattern: must compile`                                  |
-| a `format` rule `pattern` with a group followed by `*`, `+` or `{` (`patternRepeatsGroup`)                                            | `derive.op.rules.pattern: must not repeat a group`                       |
+| a `format` rule `pattern` outside the linear-time `FlatPattern` grammar                                                              | `derive.op.rules.pattern: must be a flat regex`                          |
 | a `format` rule `padStart` that is not an integer from 0 to 64                                                                        | `derive.op.rules.padStart: must be an integer from 0 to 64`              |
 | a login or resume step with `codec` whose `encoding` or `response` is not `'json'` (`API_DIRECT_CODEC_RULES`)                         | `steps.codec: needs a json body and a json response`                     |
 | an `exchange` codec whose `keyInto` or `sessionInto` is blank, or both name one slot                                                  | `steps.codec: exchange needs distinct keyInto and sessionInto`           |

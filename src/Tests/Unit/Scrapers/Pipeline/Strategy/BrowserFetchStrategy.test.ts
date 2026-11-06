@@ -5,6 +5,8 @@
 
 import { jest } from '@jest/globals';
 
+import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+
 jest.unstable_mockModule(
   '../../../../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js',
   () => ({
@@ -409,5 +411,36 @@ describe('BrowserFetchStrategy — @cookie-strict: sentinels', () => {
     const result = await strategy.fetchPost(GET_URL, {}, { extraHeaders: STRICT_XSRF });
     expect(result).toMatchObject(UNDECODABLE);
     expect(FETCH_MOD.fetchPostWithinPage).not.toHaveBeenCalled();
+  });
+});
+
+const CLOSED = 'Target page, context or browser has been closed';
+const CLOSED_FAILURE = {
+  success: false,
+  errorType: ERROR_TYPES.Generic,
+  errorMessage: CLOSED,
+} as const;
+
+/**
+ * Run a sentinel-bearing request whose cookie lookup rejects.
+ * @param verb - Request method.
+ * @returns The request's structured result.
+ */
+async function runWithBrokenJar(verb: 'GET' | 'POST'): Promise<Procedure<unknown>> {
+  const cookiesFn = jest.fn<Promise<IJarCookie[]>, []>().mockRejectedValue(new Error(CLOSED));
+  const page = makePageWithJar(cookiesFn);
+  const strategy = new STRATEGY_MOD.BrowserFetchStrategy(page);
+  const opts = { extraHeaders: STRICT_XSRF };
+  if (verb === 'GET') return strategy.fetchGet(GET_URL, opts);
+  return strategy.fetchPost(GET_URL, {}, opts);
+}
+
+describe('BrowserFetchStrategy — cookie lookup failure', () => {
+  it.each(['GET', 'POST'] as const)('fails a %s before the page fetch', async verb => {
+    const result = await runWithBrokenJar(verb);
+    expect(result).toMatchObject(CLOSED_FAILURE);
+    expect(FETCH_MOD.fetchPostWithinPage).not.toHaveBeenCalled();
+    expect(FETCH_MOD.fetchGetWithinPage).not.toHaveBeenCalled();
+    expect(FETCH_MOD.fetchGetWithinPageWithHeaders).not.toHaveBeenCalled();
   });
 });

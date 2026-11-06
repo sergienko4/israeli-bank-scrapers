@@ -10,7 +10,8 @@ import type {
   IApiDirectCallConfig,
   IBodyTemplate,
   IPostStep,
-  ISealFieldConfig,
+  ISealRsaBlockXorConfig,
+  ISealRsaPkcs1Config,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { runStep } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
@@ -39,7 +40,7 @@ const PLAIN_CONFIG: IApiDirectCallConfig = {
   probe: { queryTag: 'customer' },
 };
 
-const SEAL_CONFIG: ISealFieldConfig = {
+const SEAL_CONFIG: ISealRsaBlockXorConfig = {
   kind: 'rsa-pkcs1-block-xor',
   sourceRef: 'creds.password',
   modulusRef: 'carry.modulus',
@@ -62,6 +63,15 @@ const SEAL_STEP: IPostStep = {
   extractsToCarry: { state: '/state' },
 };
 
+const PKCS1_SEAL: ISealRsaPkcs1Config = {
+  kind: 'rsa-pkcs1-v15',
+  keyRef: 'carry.rsaKey',
+  fields: [
+    { sourceRef: 'creds.num', writeTo: '/ThirdIdentifier' },
+    { sourceRef: 'creds.password', writeTo: '/Password' },
+  ],
+};
+
 const PKCS1_STEP: IPostStep = {
   name: 'logon',
   urlTag: 'auth.login',
@@ -72,14 +82,7 @@ const PKCS1_STEP: IPostStep = {
       Password: { $literal: '' },
     },
   },
-  seal: {
-    kind: 'rsa-pkcs1-v15',
-    keyRef: 'carry.rsaKey',
-    fields: [
-      { sourceRef: 'creds.num', writeTo: '/ThirdIdentifier' },
-      { sourceRef: 'creds.password', writeTo: '/Password' },
-    ],
-  },
+  seal: PKCS1_SEAL,
   extractsToCarry: { state: '/state' },
 };
 
@@ -253,15 +256,17 @@ describe('N10 sealed login fields', () => {
  * Fire the PKCS#1 seal step with the given carry and creds.
  * @param carry - Step carry.
  * @param creds - Synthetic credentials.
+ * @param step - Step config, defaulting to the plain PKCS#1 fixture.
  * @returns The step result.
  */
 async function firePkcs1(
-  carry: Record<string, string>,
+  carry: ITemplateScope['carry'],
   creds: Record<string, string>,
+  step: IPostStep = PKCS1_STEP,
 ): ReturnType<typeof runStep> {
   const bus = makeNativeMediator(HINT, ORIGIN);
   const scope = { carry, creds, config: PLAIN_CONFIG, keypair: undefined };
-  return runStep({ step: PKCS1_STEP, bus, scope, companyId: HINT });
+  return runStep({ step, bus, scope, companyId: HINT });
 }
 
 /**
@@ -269,9 +274,8 @@ async function firePkcs1(
  * @param fake - The fetch fake.
  * @returns Its body fields.
  */
-function sentJson(fake: IFetchFake): Record<string, string> {
-  const body = fake.calls[0].init.body as string;
-  return JSON.parse(body) as Record<string, string>;
+function sentPkcs1Fields(fake: IFetchFake): Record<string, string> {
+  return sentJson(fake) as Record<string, string>;
 }
 
 const PKCS1_CREDS = { num: NUM, password: PASSWORD };
@@ -285,6 +289,86 @@ interface IPkcs1Failure {
   readonly message: string;
 }
 
+/** A supported body shape that shares its credential placeholders. */
+interface IAliasedBody {
+  readonly label: string;
+  readonly makeShape: (shared: Record<string, string>) => IBodyTemplate['shape'];
+}
+
+/** Both write orders for one aliased body shape. */
+interface IAliasedSealCase extends IAliasedBody {
+  readonly isReversed: boolean;
+}
+
+const ALIASED_BODIES: readonly IAliasedBody[] = [
+  {
+    label: 'repeated refs',
+    /**
+     * Reference the same carried object from both branches.
+     * @returns Aliased reference template.
+     */
+    makeShape: (): IBodyTemplate['shape'] => ({
+      a: { $ref: 'carry.shared' },
+      b: { $ref: 'carry.shared' },
+    }),
+  },
+  {
+    label: 'shared literals',
+    /**
+     * Place one literal object in both branches.
+     * @param shared - Credential placeholder.
+     * @returns Aliased literal template.
+     */
+    makeShape: (shared): IBodyTemplate['shape'] => ({
+      a: { $literal: shared },
+      b: { $literal: shared },
+    }),
+  },
+  {
+    label: 'a nested literal',
+    /**
+     * Keep nested aliases inside one literal node.
+     * @param shared - Credential placeholder.
+     * @returns Nested aliased literal template.
+     */
+    makeShape: (shared): IBodyTemplate['shape'] => ({ $literal: { a: shared, b: shared } }),
+  },
+];
+
+const ALIAS_CASES = ALIASED_BODIES.flatMap((body): readonly IAliasedSealCase[] => [
+  { ...body, isReversed: false },
+  { ...body, isReversed: true },
+]);
+
+/**
+ * Seal two sources into separate paths of an aliased body.
+ * @param shape - Aliased body template.
+ * @param isReversed - Whether to reverse the planned writes.
+ * @returns Step config.
+ */
+function aliasedStep(shape: IBodyTemplate['shape'], isReversed: boolean): IPostStep {
+  const [num, password] = PKCS1_SEAL.fields;
+  const fields = [
+    { ...num, writeTo: '/a/value' },
+    { ...password, writeTo: '/b/value' },
+  ];
+  const ordered = isReversed ? fields.reverse() : fields;
+  const seal = { ...PKCS1_SEAL, fields: ordered };
+  return { ...PKCS1_STEP, body: { shape }, seal };
+}
+
+/**
+ * Open both nested credential fields from the actual outbound body.
+ * @param fake - Fetch fake.
+ * @returns Original source text for each destination.
+ */
+function openedAliasFields(fake: IFetchFake): readonly string[] {
+  const sent = sentJson(fake) as Record<string, Record<string, string>>;
+  const num = openPkcs1(PKCS1_KEY.privateKey, sent.a.value);
+  const password = openPkcs1(PKCS1_KEY.privateKey, sent.b.value);
+  return [num, password];
+}
+
 describe('N44 fields sealed with RSA PKCS#1 v1.5', () => {
   const originalFetch = globalThis.fetch;
 
@@ -296,7 +380,7 @@ describe('N44 fields sealed with RSA PKCS#1 v1.5', () => {
     const fake = serveState();
     const result = await firePkcs1({ rsaKey: PKCS1_KEY.pem }, PKCS1_CREDS);
     expect(result.success).toBe(true);
-    const sent = sentJson(fake);
+    const sent = sentPkcs1Fields(fake);
     const names = Object.keys(sent);
     const openedNum = openPkcs1(PKCS1_KEY.privateKey, sent.ThirdIdentifier);
     const openedPassword = openPkcs1(PKCS1_KEY.privateKey, sent.Password);
@@ -310,12 +394,27 @@ describe('N44 fields sealed with RSA PKCS#1 v1.5', () => {
     const fake = serveState();
     const result = await firePkcs1({ rsaKey: PKCS1_KEY.derBase64 }, PKCS1_CREDS);
     if (!result.success) throw new TypeError(result.errorMessage);
-    const sent = sentJson(fake);
+    const sent = sentPkcs1Fields(fake);
     const carried = JSON.stringify(result.value.carry);
     const secrets = [NUM, PASSWORD, sent.ThirdIdentifier, sent.Password];
     const leaked = secrets.filter((secret): boolean => carried.includes(secret));
     expect(leaked).toEqual([]);
   });
+
+  it.each(ALIAS_CASES)(
+    'keeps $label independent when reversed=$isReversed',
+    async ({ makeShape, isReversed }) => {
+      const shared = { value: '' };
+      const shape = makeShape(shared);
+      const step = aliasedStep(shape, isReversed);
+      const fake = serveState();
+      const result = await firePkcs1({ rsaKey: PKCS1_KEY.pem, shared }, PKCS1_CREDS, step);
+      if (!result.success) throw new TypeError(result.errorMessage);
+      const opened = openedAliasFields(fake);
+      expect(opened).toEqual([NUM, PASSWORD]);
+      expect(shared).toEqual({ value: '' });
+    },
+  );
 
   it.each<IPkcs1Failure>([
     { label: 'the key slot is missing', carry: {}, creds: PKCS1_CREDS, message: KEY_MSG },

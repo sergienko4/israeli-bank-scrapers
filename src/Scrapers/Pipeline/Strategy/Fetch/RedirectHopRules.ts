@@ -8,7 +8,7 @@
  */
 
 import type { IManualRedirect } from '../../Types/Domain/FetchPolicy.js';
-import type { HttpVerb } from './FetchStrategy.js';
+import type { HttpVerb, ISessionHeaders } from './FetchStrategy.js';
 
 /** Redirect statuses a manual policy may follow on an answer to a GET. */
 const FOLLOWED_STATUSES: ReadonlySet<number> = new Set([301, 302, 303, 307, 308]);
@@ -61,5 +61,38 @@ function droppedOnHop(verb: HttpVerb, hasCrossed: boolean): readonly string[] {
   return [...credentials, ...body];
 }
 
+/**
+ * Clone the previous headers and replace the session-owned values.
+ * @param previous - Headers of the request that redirected.
+ * @param session - Session ownership and values for its URL.
+ * @returns Fresh headers with the hop's session values.
+ */
+function replaceSessionHeaders(
+  previous: RequestInit['headers'],
+  session: ISessionHeaders,
+): Headers {
+  const headers = new Headers(previous);
+  for (const name of session.owned) headers.delete(name);
+  for (const [name, value] of Object.entries(session.values)) headers.set(name, value);
+  return headers;
+}
+
+/**
+ * Rebuild a hop's headers, dropping forbidden names after session replacement.
+ * @param previous - Headers of the request that redirected.
+ * @param session - The session's headers for the hop URL.
+ * @param dropped - Lower-case names the hop never carries.
+ * @returns Header record for the hop.
+ */
+function hopHeaders(
+  previous: RequestInit['headers'],
+  session: ISessionHeaders,
+  dropped: readonly string[],
+): Record<string, string> {
+  const headers = replaceSessionHeaders(previous, session);
+  for (const name of dropped) headers.delete(name);
+  return Object.fromEntries(headers);
+}
+
 export default followedAfter;
-export { droppedOnHop, followedAfter, postStatusesOf };
+export { droppedOnHop, followedAfter, hopHeaders, postStatusesOf };
