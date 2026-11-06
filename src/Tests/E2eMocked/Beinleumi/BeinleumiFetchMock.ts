@@ -1,6 +1,6 @@
 /**
- * Beinleumi mocked bank — routes every call to the synthetic online origin:
- * the portal pages, the Transmit login, the SSO calls and the BFF reads. A
+ * Beinleumi mocked bank — routes every call to the online origin of the
+ * group bank it plays: the portal pages, the Transmit login, the SSO calls and the BFF reads. A
  * call the bank has no route for is noted on the trail and answered 404.
  *
  * Rule #18: every value here is SYNTHETIC. No real PII.
@@ -8,11 +8,11 @@
 
 import type { CallKind, IMockHandle, IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { errorReply, installFetchMock } from '../Helpers/FetchMockKit.js';
+import { BEINLEUMI_MOCK_BRAND } from './BeinleumiBrands.js';
 import DATA_ROUTES from './BeinleumiDataRoutes.js';
 import type { IBeinleumiMockState, Route } from './BeinleumiFaults.js';
 import { PORTAL_ROUTES } from './BeinleumiPortalRoutes.js';
 import TRANSMIT_ROUTES from './BeinleumiTransmitRoutes.js';
-import { BN_ORIGIN } from './BeinleumiWireSpec.js';
 
 const LOGIN_ROUTES: Readonly<Record<string, Route>> = { ...PORTAL_ROUTES, ...TRANSMIT_ROUTES };
 
@@ -25,12 +25,13 @@ export interface IBeinleumiMockHandle extends IMockHandle {
 
 /**
  * A call's route key: its method and path on the bank's origin.
+ * @param origin - The bank's origin.
  * @param call - The request.
  * @returns `<METHOD> <path>`, or '' off the origin.
  */
-function keyOf(call: IRecordedCall): string {
-  const { origin, pathname } = new URL(call.url);
-  return origin === BN_ORIGIN ? `${call.method} ${pathname}` : '';
+function keyOf(origin: string, call: IRecordedCall): string {
+  const url = new URL(call.url);
+  return url.origin === origin ? `${call.method} ${url.pathname}` : '';
 }
 
 /**
@@ -46,14 +47,24 @@ function unrouted(call: IRecordedCall, state: IBeinleumiMockState): Response {
 }
 
 /**
- * Classify a call: login calls are identity, BFF reads are data.
+ * Classify a call to a bank's origin: login calls are identity, BFF reads are data.
+ * @param origin - The bank's origin.
+ * @param call - The request.
+ * @returns The call kind.
+ */
+export function classifyOn(origin: string, call: IRecordedCall): CallKind {
+  const key = keyOf(origin, call);
+  if (key === '') return 'other';
+  return key in LOGIN_ROUTES ? 'identity' : 'graphql';
+}
+
+/**
+ * Classify a call to Beinleumi.
  * @param call - The request.
  * @returns The call kind.
  */
 export function classifyBeinleumi(call: IRecordedCall): CallKind {
-  const key = keyOf(call);
-  if (key === '') return 'other';
-  return key in LOGIN_ROUTES ? 'identity' : 'graphql';
+  return classifyOn(BEINLEUMI_MOCK_BRAND.origin, call);
 }
 
 /**
@@ -63,7 +74,7 @@ export function classifyBeinleumi(call: IRecordedCall): CallKind {
  * @returns The answer.
  */
 function answerBeinleumi(state: IBeinleumiMockState, call: IRecordedCall): Promise<Response> {
-  const key = keyOf(call);
+  const key = keyOf(state.brand.origin, call);
   const route = ROUTES[key] ?? unrouted;
   const response = route(call, state);
   return Promise.resolve(response);
@@ -76,6 +87,7 @@ function answerBeinleumi(state: IBeinleumiMockState, call: IRecordedCall): Promi
  */
 export function installBeinleumiFetchMock(state: IBeinleumiMockState): IBeinleumiMockHandle {
   const answer = answerBeinleumi.bind(null, state);
-  const handle = installFetchMock({ classify: classifyBeinleumi, answer });
+  const classify = classifyOn.bind(null, state.brand.origin);
+  const handle = installFetchMock({ classify, answer });
   return { ...handle, state };
 }

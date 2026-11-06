@@ -20,10 +20,6 @@ import {
   DISCOUNT_LOGIN,
 } from '../../../../Scrapers/Pipeline/Banks/Discount/DiscountPipeline.js';
 import {
-  buildMassadPipeline,
-  MASSAD_LOGIN,
-} from '../../../../Scrapers/Pipeline/Banks/Massad/MassadPipeline.js';
-import {
   buildMercantilePipeline,
   MERCANTILE_LOGIN,
 } from '../../../../Scrapers/Pipeline/Banks/Mercantile/MercantilePipeline.js';
@@ -102,15 +98,6 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     expectedFieldKeys: ['id', 'password', 'num'],
     expectedPhaseCount: BASE_PHASES.length,
     expectedPhaseNames: BASE_PHASES,
-  },
-  {
-    bank: 'massad',
-    company: CompanyTypes.Massad,
-    loginConfig: MASSAD_LOGIN,
-    buildPipeline: buildMassadPipeline,
-    expectedFieldKeys: ['username', 'password'],
-    expectedPhaseCount: OTP_FULL_PHASES.length,
-    expectedPhaseNames: OTP_FULL_PHASES,
   },
   {
     bank: 'otsarHahayal',

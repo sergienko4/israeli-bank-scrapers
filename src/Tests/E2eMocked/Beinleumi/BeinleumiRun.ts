@@ -6,7 +6,6 @@
  * Rule #18: every value here is SYNTHETIC. No real PII.
  */
 
-import { CompanyTypes } from '../../../Definitions.js';
 import type {
   IScraperScrapingResult,
   ScraperCredentials,
@@ -15,12 +14,15 @@ import type {
 import createScraper from '../../../Scrapers/Registry/Factory.js';
 import { getLaunchCount } from '../../Mocks/CamoufoxJsMock.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
+import type { IFibiMockBrand } from './BeinleumiBrands.js';
+import { BEINLEUMI_MOCK_BRAND } from './BeinleumiBrands.js';
 import type { BeinleumiFault, IBeinleumiMockState } from './BeinleumiFaults.js';
 import { freshState } from './BeinleumiFaults.js';
 import { installBeinleumiFetchMock } from './BeinleumiFetchMock.js';
 import { BEINLEUMI_MOCK_CREDS, BEINLEUMI_MOCK_START_DATE, BN_OTP } from './BeinleumiMockData.js';
 import type { PersistSlot, RetrieverSlot, StorageCallback } from './BeinleumiRunInputs.js';
-import { callbackOf, retrieverOf, storedState } from './BeinleumiRunInputs.js';
+import { callbackOf, ownerOf, retrieverOf, storedState } from './BeinleumiRunInputs.js';
+import { WIRE_PATHS } from './BeinleumiWireSpec.js';
 
 /** What one run sent, received, asked the caller for and published. */
 export interface IBeinleumiRun {
@@ -51,6 +53,10 @@ export interface IRunSetup {
   /** The account the stored state names (default: the user). */
   readonly stateAccount?: string;
   readonly callback?: StorageCallback;
+  /** The group bank the run scrapes (default: Beinleumi). */
+  readonly brand?: IFibiMockBrand;
+  /** The bank the stored state names (default: the run's bank). */
+  readonly stateBrand?: IFibiMockBrand;
 }
 
 /** The opening: the login page, the envelope, the login, the password. */
@@ -72,6 +78,24 @@ export const SCRAPE_TRAIL = ['userData', 'accountType', 'balance', 'list', 'list
 /** A run the bank asks no code of, end to end. */
 export const COLD_TRAIL = [...OPENING_TRAIL, ...PORTAL_TRAIL, ...SCRAPE_TRAIL];
 
+/** Every Transmit path: the key exchange, the login and the assertions. */
+const TRANSMIT_PATHS: readonly string[] = [
+  WIRE_PATHS.keyExchange,
+  WIRE_PATHS.login,
+  WIRE_PATHS.assert,
+];
+
+/**
+ * The device id each Transmit call named, in order.
+ * @param run - The run.
+ * @returns One `did` per Transmit call ('' when it named none).
+ */
+export function didsOf(run: IBeinleumiRun): readonly string[] {
+  const urls = run.calls.map(call => new URL(call.url));
+  const transmit = urls.filter(url => TRANSMIT_PATHS.includes(url.pathname));
+  return transmit.map(url => url.searchParams.get('did') ?? '');
+}
+
 /**
  * The persistence a run supplies: the stored state, and the callback.
  * @param setup - The run setup.
@@ -82,7 +106,8 @@ function persistenceOf(setup: IRunSetup, published: string[]): PersistSlot {
   const callback = callbackOf(setup.callback ?? false, published);
   const did = setup.storedDid ?? '';
   if (did === '') return callback;
-  const persistentAuthState = storedState(did, setup.stateAccount);
+  const owner = ownerOf(setup.stateBrand ?? setup.brand, setup.stateAccount);
+  const persistentAuthState = storedState(did, owner);
   return { ...callback, persistentAuthState };
 }
 
@@ -99,7 +124,7 @@ function inputsOf(
   persistence: PersistSlot,
 ): { creds: ScraperCredentials; options: ScraperOptions } {
   const options = {
-    companyId: CompanyTypes.Beinleumi,
+    companyId: (setup.brand ?? BEINLEUMI_MOCK_BRAND).companyId,
     startDate: BEINLEUMI_MOCK_START_DATE,
     ...persistence,
   };
@@ -126,7 +151,7 @@ export async function runBeinleumi(
   const persistence = persistenceOf(setup, published);
   const { creds, options } = inputsOf(setup, retriever, persistence);
   const stored = persistence.persistentAuthState ?? '';
-  const state = freshState(fault, setup.storedDid ?? '');
+  const state = freshState(fault, setup.storedDid ?? '', setup.brand);
   const handle = installBeinleumiFetchMock(state);
   try {
     const result = await createScraper(options).scrape(creds);

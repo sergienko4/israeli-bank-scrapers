@@ -6,12 +6,20 @@
  * Rule #18: every value here is SYNTHETIC. No real PII.
  */
 
+import type { IFibiMockBrand } from './BeinleumiBrands.js';
+import { entryQueryOf } from './BeinleumiBrands.js';
 import type { BeinleumiFault } from './BeinleumiFaults.js';
 import { BN_CLIENT_IP, BN_HANDOFF_PATH, BN_HANDOFF_RID } from './BeinleumiMockData.js';
-import { BN_BANK_NUM, ENTRY_QUERY, WIRE_PATHS } from './BeinleumiWireSpec.js';
+import { WIRE_PATHS } from './BeinleumiWireSpec.js';
 
-/** The hidden fields the login form carries, before the client fills them. */
-export const FORM_FIELDS = { user: '', passwordEnc: '', ...ENTRY_QUERY } as const;
+/**
+ * The hidden fields the login form carries, before the client fills them.
+ * @param brand - The bank.
+ * @returns The fields.
+ */
+export function formFieldsOf(brand: IFibiMockBrand): Readonly<Record<string, string>> {
+  return { user: '', passwordEnc: '', ...entryQueryOf(brand) };
+}
 
 /** Where the login form posts: the servlet, relative to the page. */
 const ACTION = WIRE_PATHS.servlet;
@@ -62,14 +70,16 @@ function hiddenInput(entry: readonly [string, string]): string {
 /**
  * The login page.
  * @param fault - How the run misbehaves; `noPasswordEnc` drops that field.
+ * @param brand - The bank whose page it is.
  * @returns The HTML page.
  */
-export function loginPage(fault: BeinleumiFault): string {
-  const entries = Object.entries(FORM_FIELDS);
+export function loginPage(fault: BeinleumiFault, brand: IFibiMockBrand): string {
+  const fields = formFieldsOf(brand);
+  const entries = Object.entries(fields);
   const kept = entries.filter(([name]) => fault !== 'noPasswordEnc' || name !== 'passwordEnc');
   const inputs = kept.map(hiddenInput).join('');
   const form = `<form id="loginServlet" name="loginServlet" method="post" action="${ACTION}">`;
-  const script = `<script>var bankNum = "${BN_BANK_NUM}";\nvar client_ip = '${BN_CLIENT_IP}';</script>`;
+  const script = `<script>var bankNum = "${brand.bankNum}";\nvar client_ip = '${BN_CLIENT_IP}';</script>`;
   return page(`${script}${DECOY_FORM}${form}${inputs}</form>`);
 }
 

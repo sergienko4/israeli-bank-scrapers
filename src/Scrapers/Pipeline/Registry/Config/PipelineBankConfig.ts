@@ -10,6 +10,7 @@ import { AMEX_HEADLESS } from './PipelineBankConfigAmex.js';
 import { BEINLEUMI_HEADLESS } from './PipelineBankConfigBeinleumi.js';
 import { HAPOALIM_HEADLESS } from './PipelineBankConfigHapoalim.js';
 import { ISRACARD_HEADLESS } from './PipelineBankConfigIsracard.js';
+import { MASSAD_HEADLESS } from './PipelineBankConfigMassad.js';
 import { MAX_HEADLESS } from './PipelineBankConfigMax.js';
 import { MIZRAHI_HEADLESS } from './PipelineBankConfigMizrahi.js';
 import { ONEZERO_HEADLESS } from './PipelineBankConfigOneZeroHeadless.js';
@@ -88,7 +89,7 @@ const FIBI_APPSNG_SHELL = '/appsng/Resources/PortalNG/shell/#/accountSummary';
  * `Accept: application/json`). The BFF Bearer is injected by the SPA's own HTTP
  * interceptor (not in any login body nor a parseable storage shape), so it is
  * sniffed from the SPA's own `appsng/bff-` requests in the capture pool.
- * Massad, OtsarHahayal and Pagi differ only by HOME URL.
+ * OtsarHahayal and Pagi differ only by HOME URL.
  * @param base - Official website URL for the HOME phase.
  * @param onlineHost - Data-API origin (`online.<host>`) AUTH-DISCOVERY
  *   navigates to post-login to mint the appsng session.
@@ -126,9 +127,10 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     ACCOUNT,
     HAPOALIM_HEADLESS,
   ),
-  [CompanyTypes.Massad]: fibiConfig(
+  [CompanyTypes.Massad]: defineApiDirectBank(
     'https://www.bankmassad.co.il',
-    'https://online.bankmassad.co.il',
+    ACCOUNT,
+    MASSAD_HEADLESS,
   ),
   [CompanyTypes.OtsarHahayal]: fibiConfig(
     'https://www.bankotsar.co.il',

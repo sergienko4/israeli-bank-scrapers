@@ -1,7 +1,7 @@
 /**
  * Massad (FIBI group) scrape shape — the `IApiDirectScrapeShape` data
  * declaration consumed by the generic buildGenericHeadlessScrape driver via
- * `withBrowserApiDirect`. balanceKind=account.
+ * `withApiDirect`. balanceKind=account.
  *
  * Account identity spans two cookie-authed GETs: `userData` (customer) for
  * the account number + branch, and a session-level `accountType` lookup
@@ -24,7 +24,7 @@ import { customerUrl, secondaryUrl } from './MassadShapeAccounts.js';
 import { balanceUrl } from './MassadShapeHelpers.js';
 import { txnsUrl } from './MassadShapeTxns.js';
 
-/** Massad hard-model shape — passed to `.withBrowserApiDirect(...)`. */
+/** Massad hard-model shape — passed to `.withApiDirect(...)`. */
 const MASSAD_SHAPE = makeFibiGroupShape({
   stepName: 'MassadScrape',
   windowNarrowing: 'windowEnd',

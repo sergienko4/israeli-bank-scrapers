@@ -14,6 +14,7 @@ import type { JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonVal
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { errorReply, parseBody } from '../Helpers/FetchMockKit.js';
 import assertRoute from './BeinleumiAssertRoute.js';
+import type { IFibiMockBrand } from './BeinleumiBrands.js';
 import type { IBeinleumiMockState, Route } from './BeinleumiFaults.js';
 import { checkWire, hit } from './BeinleumiFaults.js';
 import { BN_CLIENT_IP, BN_CRYPTO_SESSION, BN_DID, BN_SID } from './BeinleumiMockData.js';
@@ -27,18 +28,13 @@ import {
   SERVER_TIME,
   transmitChecks,
 } from './BeinleumiTransmitWire.js';
-import { BN_BANK_NUM, BN_ORIGIN, WIRE_PATHS } from './BeinleumiWireSpec.js';
+import { WIRE_PATHS } from './BeinleumiWireSpec.js';
 
 /** A flow id: 32 random bytes, upper-case hex. */
 const FLOW_ID = /^[\dA-F]{64}$/;
 
 /** The uncompressed secp256k1 point the client names. */
 const POINT_BYTES = 65;
-
-const LOGIN_PARAMS = { bankId: BN_BANK_NUM, client_ip: BN_CLIENT_IP };
-
-/** The app the fingerprint names: the portal's host. */
-const APP_HOST = new URL(BN_ORIGIN).host;
 
 /** A clear header the key exchange names: the flow, or the client's point. */
 interface IExchangeHeader {
@@ -110,16 +106,19 @@ function keyExchange(call: IRecordedCall, state: IBeinleumiMockState): Response 
 }
 
 /**
- * Whether the login names the bank, the client address and the fingerprint.
+ * Whether the login names the bank, the client address and the fingerprint,
+ * whose app is the portal's host.
  * @param data - The opened data.
+ * @param brand - The bank.
  * @returns True when it does.
  */
-function isLoginData(data: JsonUnknownRecord): boolean {
+function isLoginData(data: JsonUnknownRecord, brand: IFibiMockBrand): boolean {
   const collected = data.collection_result as IFingerprint;
   const metadata = collected.metadata ?? {};
-  const isApp = metadata.physical_app_id === APP_HOST;
+  const isApp = metadata.physical_app_id === new URL(brand.origin).host;
   const isFingerprint = isApp && typeof metadata.timestamp === 'number';
-  const isParams = isDeepStrictEqual(data.params, LOGIN_PARAMS);
+  const params = { bankId: brand.bankNum, client_ip: BN_CLIENT_IP };
+  const isParams = isDeepStrictEqual(data.params, params);
   return data.policy_request_id === 'Login' && isParams && isFingerprint;
 }
 
@@ -133,7 +132,7 @@ function login(call: IRecordedCall, state: IBeinleumiMockState): Response {
   const opened = openedOf(state, call);
   if (opened === false) return refused(state, call, 'login');
   hit(state, 'login');
-  const isData = isLoginData(opened.data);
+  const isData = isLoginData(opened.data, state.brand);
   const checks = { ...transmitChecks(state, call, false), ...sealedChecks(state, opened) };
   if (!checkWire(state, call, { ...checks, 'login data': isData })) return errorReply(400);
   state.sid = BN_SID;

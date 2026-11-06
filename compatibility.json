@@ -98,6 +98,15 @@
       "after": null
     },
     {
+      "version": "9.1.0",
+      "impact": "behavior",
+      "title": "Massad signs in without a browser",
+      "detail": "Massad now logs in and scrapes over its web login API on `online.bankmassad.co.il` the way Beinleumi does, with Node's own `fetch` and one cookie jar, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`; a blank one fails as `GENERIC` with `Missing or malformed credentials` before any request. The SMS step runs only when the bank asks for it: `otpCodeRetriever`, from the credentials or the options, is called with an empty hint, and if the bank asks while no retriever was passed the run fails as `TWO_FACTOR_RETRIEVER_MISSING`. A code of the wrong length fails before it is sent. A password the bank refuses fails as `INVALID_PASSWORD` and a refused code as `INVALID_OTP`. Device memory is opt-in, as for Beinleumi, under its own provider: a state stored for another bank of the group fails as `GENERIC` before any request. No failure message carries the bank's own text.",
+      "action": "Remove browser options from Massad's `createScraper` call and keep passing `otpCodeRetriever`, because the bank decides when it asks for a code. To let the bank remember the device, pass `onPersistentAuthStateUpdate`, store the state it receives and pass it back as `persistentAuthState` on later runs.",
+      "before": null,
+      "after": null
+    },
+    {
       "version": "9.0.0",
       "impact": "breaking",
       "title": "Node 24.11 or later required; Node 22 is no longer supported",

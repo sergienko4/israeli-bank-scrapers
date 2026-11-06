@@ -14,6 +14,7 @@ import type { JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonVal
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { errorReply, parseBody } from '../Helpers/FetchMockKit.js';
 import { json } from '../Helpers/MockReplies.js';
+import { landingUrlOf } from './BeinleumiBrands.js';
 import type { IBeinleumiMockState, Route } from './BeinleumiFaults.js';
 import { checkWire, headerChecks, hit } from './BeinleumiFaults.js';
 import {
@@ -22,20 +23,17 @@ import {
   BN_ACCOUNT_TYPE,
   BN_AUTHORIZATION,
   BN_BALANCE,
-  BN_LANDING_URL,
   BN_OTHER_ACCOUNT,
   BN_TXNS,
 } from './BeinleumiMockData.js';
 import { UUID } from './BeinleumiPortalRoutes.js';
-import { BN_ORIGIN, WIRE_PATHS, WIRE_UA } from './BeinleumiWireSpec.js';
+import { WIRE_PATHS, WIRE_UA } from './BeinleumiWireSpec.js';
 
-/** The headers every BFF call carries: what the logged-in shell sends. */
+/** The headers every BFF call carries, besides where it is sent from. */
 const DATA_HEADERS = {
   authorization: BN_AUTHORIZATION,
   accept: 'application/json',
   'user-agent': WIRE_UA,
-  origin: BN_ORIGIN,
-  referer: BN_LANDING_URL,
 };
 
 const DAY = 'YYYY-MM-DD';
@@ -60,13 +58,17 @@ interface IListBody {
 }
 
 /**
- * The checks every BFF call must pass.
+ * The checks every BFF call must pass: the logged-in shell's headers, sent
+ * from the landing page, and a fresh transaction id.
+ * @param state - Run state.
  * @param call - The call checked.
- * @returns Its headers and a fresh transaction id.
+ * @returns The checks.
  */
-function dataChecks(call: IRecordedCall): Record<string, boolean> {
+function dataChecks(state: IBeinleumiMockState, call: IRecordedCall): Record<string, boolean> {
+  const sender = { origin: state.brand.origin, referer: landingUrlOf(state.brand) };
+  const headers = headerChecks(call, { ...DATA_HEADERS, ...sender });
   const txnId = call.headers.get('x-fibi-transaction-id') ?? '';
-  return { ...headerChecks(call, DATA_HEADERS), 'transaction id': UUID.test(txnId) };
+  return { ...headers, 'transaction id': UUID.test(txnId) };
 }
 
 /**
@@ -80,7 +82,7 @@ function read(name: string, record: JsonUnknownRecord): Route {
     hit(state, name);
     const { searchParams } = new URL(call.url);
     const isUid = [...searchParams.keys()].length === 1 && UUID.test(searchParams.get('uid') ?? '');
-    if (!checkWire(state, call, { ...dataChecks(call), uid: isUid })) return errorReply(400);
+    if (!checkWire(state, call, { ...dataChecks(state, call), uid: isUid })) return errorReply(400);
     return json(record);
   };
 }
@@ -111,7 +113,7 @@ function list(call: IRecordedCall, state: IBeinleumiMockState): Response {
   const isRequest = isDeepStrictEqual(body, {
     initialRequest: { ...LIST_REQUEST, endDate: endDay },
   });
-  if (!checkWire(state, call, { ...dataChecks(call), end: isEnd, request: isRequest })) {
+  if (!checkWire(state, call, { ...dataChecks(state, call), end: isEnd, request: isRequest })) {
     return errorReply(400);
   }
   return json({ transactions: rowsUpTo(endDay) });

@@ -11,31 +11,23 @@ import { isDeepStrictEqual } from 'node:util';
 
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { errorReply, parseBody } from '../Helpers/FetchMockKit.js';
+import { entryUrlOf } from './BeinleumiBrands.js';
 import type { IBeinleumiMockState } from './BeinleumiFaults.js';
 import { checkWire, headerChecks, hit, isQueryExactly } from './BeinleumiFaults.js';
 import { BN_CRYPTO_SESSION, BN_DID, BN_UID } from './BeinleumiMockData.js';
 import type { IOpenedRequest } from './BeinleumiPeer.js';
 import { openRequest } from './BeinleumiPeer.js';
-import {
-  BN_AID,
-  BN_ENTRY_URL,
-  BN_ORIGIN,
-  TS_AUTHORIZATION,
-  TS_CLIENT_VERSION,
-  WIRE_UA,
-} from './BeinleumiWireSpec.js';
+import { TS_AUTHORIZATION, TS_CLIENT_VERSION, WIRE_UA } from './BeinleumiWireSpec.js';
 
 const JSON_TYPE = 'application/json';
 
-/** The headers the Transmit SDK sends on every call. */
+/** The headers the Transmit SDK sends on every call, besides where it is sent from. */
 const TRANSMIT_HEADERS = {
   'content-type': JSON_TYPE,
   accept: JSON_TYPE,
   'x-ts-client-version': TS_CLIENT_VERSION,
   authorization: TS_AUTHORIZATION,
   'user-agent': WIRE_UA,
-  origin: BN_ORIGIN,
-  referer: BN_ENTRY_URL,
 };
 
 /** A header the bank sends that the client must look past. */
@@ -56,8 +48,10 @@ export function transmitChecks(
 ): Record<string, boolean> {
   const did: Record<string, string> = state.did === '' ? {} : { did: state.did };
   const sid: Record<string, string> = isAssertion ? { sid: state.sid } : {};
-  const isQuery = isQueryExactly(call, { aid: BN_AID, ...did, ...sid });
-  return { ...headerChecks(call, TRANSMIT_HEADERS), query: isQuery };
+  const isQuery = isQueryExactly(call, { aid: state.brand.aid, ...did, ...sid });
+  const sender = { origin: state.brand.origin, referer: entryUrlOf(state.brand) };
+  const headers = headerChecks(call, { ...TRANSMIT_HEADERS, ...sender });
+  return { ...headers, query: isQuery };
 }
 
 /**

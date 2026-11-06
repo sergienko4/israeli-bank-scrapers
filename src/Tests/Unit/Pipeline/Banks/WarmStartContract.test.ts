@@ -48,6 +48,7 @@ const CONFIG_PATHS: readonly (readonly [string, string])[] = [
   ['Hapoalim', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigHapoalim.js'],
   ['Yahav', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigYahav.js'],
   ['Beinleumi', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigBeinleumi.js'],
+  ['Massad', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigMassad.js'],
 ];
 
 /** Directory holding every bank call-config literal. */
@@ -490,7 +491,7 @@ describe('device-memory contract — every opted-in bank', () => {
   it('opts in only the banks this suite expects', async () => {
     const configs = await loadDeviceMemoryConfigs();
     const labels = configs.map(([label]) => label);
-    expect(labels).toEqual(['Beinleumi']);
+    expect(labels).toEqual(['Beinleumi', 'Massad']);
   });
 
   it('declares no warm start: the remembered device is the only stored state', async () => {

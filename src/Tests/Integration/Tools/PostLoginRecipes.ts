@@ -176,12 +176,6 @@ const BANK_RECIPES: Readonly<Partial<Record<string, IRecipeBody>>> = {
       { stepName: '02-pre-login', url: 'https://start.telebank.co.il/login/#/LOGIN_PAGE' },
     ],
   },
-  massad: {
-    steps: [
-      { stepName: '01-home', url: 'https://www.bankmassad.co.il' },
-      { stepName: '02-pre-login', url: 'https://online.bankmassad.co.il' },
-    ],
-  },
   pagi: {
     steps: [
       { stepName: '01-home', url: 'https://www.pagi.co.il' },

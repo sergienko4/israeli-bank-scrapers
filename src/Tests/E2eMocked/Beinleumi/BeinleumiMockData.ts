@@ -9,7 +9,6 @@
 import moment from 'moment';
 
 import type { JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonValue.js';
-import { BN_ORIGIN } from './BeinleumiWireSpec.js';
 
 export const BEINLEUMI_MOCK_CREDS = { username: 'SynUser042', password: 'syn-Pass-31' } as const;
 
@@ -52,7 +51,6 @@ export const BN_TOKEN = 'syn-transmit-token-0031';
 export const BN_HANDOFF_PATH = '/wps/portal/FibiMenu/home';
 export const BN_HANDOFF_RID = 'syn-rid-01';
 export const BN_LANDING_PATH = '/wps/myportal/FibiMenu/Online/syn-landing';
-export const BN_LANDING_URL = `${BN_ORIGIN}${BN_LANDING_PATH}`;
 
 /** The portal session cookie the redirect to the landing sets; the SSO calls must echo it. */
 export const BN_LANDING_COOKIE = 'LtpaToken2=SYN-ltpa-0031';
