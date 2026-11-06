@@ -13,6 +13,7 @@
 import type { IApiDirectCallConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { checkRequiredCreds } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RequiredCreds.js';
 import {
+  INVALID_CREDS_DISCOUNT,
   INVALID_CREDS_HAPOALIM,
   INVALID_CREDS_ISRACARD_AMEX,
   INVALID_CREDS_USERNAME_PASSWORD,
@@ -32,8 +33,10 @@ const ROWS: readonly IPlaceholderRow[] = [
   { bank: 'Isracard', creds: INVALID_CREDS_ISRACARD_AMEX },
   { bank: 'Yahav', creds: INVALID_CREDS_YAHAV },
   { bank: 'Beinleumi', creds: INVALID_CREDS_USERNAME_PASSWORD },
+  { bank: 'Discount', creds: INVALID_CREDS_DISCOUNT },
   { bank: 'Hapoalim', creds: INVALID_CREDS_HAPOALIM },
   { bank: 'Max', creds: INVALID_CREDS_USERNAME_PASSWORD },
+  { bank: 'Mercantile', creds: INVALID_CREDS_DISCOUNT },
   { bank: 'Mizrahi', creds: INVALID_CREDS_USERNAME_PASSWORD },
   { bank: 'VisaCal', creds: INVALID_CREDS_USERNAME_PASSWORD },
 ];
@@ -71,6 +74,7 @@ function hasValidCheckDigit(id: string): boolean {
 }
 
 const SENT_IDS = [
+  { field: 'Discount/Mercantile id', sentId: INVALID_CREDS_DISCOUNT.id },
   { field: 'Isracard/Amex id', sentId: INVALID_CREDS_ISRACARD_AMEX.id },
   { field: 'Yahav nationalID', sentId: INVALID_CREDS_YAHAV.nationalID },
 ];

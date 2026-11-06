@@ -16,9 +16,9 @@ import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import {
-  buildMercantilePipeline,
-  MERCANTILE_LOGIN,
-} from '../../../../Scrapers/Pipeline/Banks/Mercantile/MercantilePipeline.js';
+  buildLeumiPipeline,
+  LEUMI_LOGIN,
+} from '../../../../Scrapers/Pipeline/Banks/Leumi/LeumiPipeline.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 
@@ -57,11 +57,11 @@ const BASE_PHASES = [
  */
 const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
   {
-    bank: 'mercantile',
-    company: CompanyTypes.Mercantile,
-    loginConfig: MERCANTILE_LOGIN,
-    buildPipeline: buildMercantilePipeline,
-    expectedFieldKeys: ['id', 'password', 'num'],
+    bank: 'leumi',
+    company: CompanyTypes.Leumi,
+    loginConfig: LEUMI_LOGIN,
+    buildPipeline: buildLeumiPipeline,
+    expectedFieldKeys: ['username', 'password'],
     expectedPhaseCount: BASE_PHASES.length,
     expectedPhaseNames: BASE_PHASES,
   },

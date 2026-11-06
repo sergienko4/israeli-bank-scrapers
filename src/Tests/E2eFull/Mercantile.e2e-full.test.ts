@@ -4,7 +4,6 @@ import * as dotenv from 'dotenv';
 import { CompanyTypes, createScraper } from '../../index.js';
 import {
   assertSuccessfulScrape,
-  BROWSER_ARGS,
   lastMonthStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
@@ -19,7 +18,7 @@ const hasCredentials = !!(
 );
 const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
 
-DESCRIBE_IF('E2E: Mercantile (real credentials)', () => {
+DESCRIBE_IF('E2E: Mercantile (real credentials, API-direct)', () => {
   beforeAll(() => {
     jest.setTimeout(SCRAPE_TIMEOUT);
   });
@@ -30,8 +29,6 @@ DESCRIBE_IF('E2E: Mercantile (real credentials)', () => {
       const scraper = createScraper({
         companyId: CompanyTypes.Mercantile,
         startDate: lastMonthStartDate(),
-        shouldShowBrowser: false,
-        args: BROWSER_ARGS,
       });
       const result = await scraper.scrape({
         id: process.env.MERCANTILE_ID ?? '',

@@ -1,43 +1,43 @@
 /**
- * Discount scrape shape — account list + balance extractors, REST urlTag
+ * Telebank group scrape shape — account list + balance extractors, REST urlTag
  * builders and the per-call headers for the Titan gateway. Transactions
- * helpers live in DiscountShapeTxns.ts. All three calls are cookie-authed
+ * helpers live in TelebankGroupShapeTxns.ts. All three calls are cookie-authed
  * GET: the node transport sends the login's cookie jar, and
  * {@link titanHeaders} echoes the routing cookies as headers.
  */
 
+import {
+  TELEBANK_ORIGIN,
+  TELEBANK_STATIC_HEADERS,
+  TELEBANK_TITAN_HEADERS,
+} from '../../../Registry/Config/PipelineBankConfigTelebankFamilyConstants.js';
+import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
+import type { Brand } from '../../../Types/Brand.js';
+import type { IActionContext } from '../../../Types/PipelineContext.js';
 import type {
   ApiBody,
   HeaderMap,
   IExtractAccountsArgs,
   IScrapeCallInfo,
   VarsMap,
-} from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
-import {
-  DISCOUNT_ORIGIN,
-  DISCOUNT_STATIC_HEADERS,
-  DISCOUNT_TITAN_HEADERS,
-} from '../../../Registry/Config/PipelineBankConfigDiscountConstants.js';
-import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
-import type { Brand } from '../../../Types/Brand.js';
-import type { IActionContext } from '../../../Types/PipelineContext.js';
+} from '../IApiDirectScrapeShape.js';
 
-/** Titan gateway — Discount's data API, on the login origin. */
-export const TITAN_API = `${DISCOUNT_ORIGIN}/Titan/gatewayAPI`;
+/** Titan gateway — the Telebank family's data API, on the login origin. */
+export const TITAN_API = `${TELEBANK_ORIGIN}/Titan/gatewayAPI`;
 
 /** Account display number — branded for Rule #15. */
-type AccountNumberDisplay = Brand<string, 'DiscountAccountNumberDisplay'>;
+type AccountNumberDisplay = Brand<string, 'TelebankAccountNumberDisplay'>;
 /** Titan account path id — branded for Rule #15. */
-type TitanAccountId = Brand<string, 'DiscountTitanAccountId'>;
+type TitanAccountId = Brand<string, 'TelebankTitanAccountId'>;
 /** Current account balance — branded for Rule #15. */
-type AccountBalance = Brand<number, 'DiscountAccountBalance'>;
+type AccountBalance = Brand<number, 'TelebankAccountBalance'>;
 
 /**
- * Discount account reference. `accountId` (NewAccountInfo.AccountID) is
+ * Telebank account reference. `accountId` (NewAccountInfo.AccountID) is
  * the Titan API path id used in balance + transactions URLs;
  * `displayNumber` (FormatAccountID) is the user-facing account number.
  */
-export interface IDiscountAcct {
+export interface ITelebankAcct {
   readonly accountId: string;
   readonly displayNumber: string;
 }
@@ -64,7 +64,7 @@ interface IBalanceResp {
  * @param a - Raw user-account entry.
  * @returns Account reference (path id + display number).
  */
-function toAcct(a: IUserAccount): IDiscountAcct {
+function toAcct(a: IUserAccount): ITelebankAcct {
   const accountId = a.NewAccountInfo?.AccountID ?? '';
   return { accountId, displayNumber: a.FormatAccountID ?? accountId };
 }
@@ -74,7 +74,7 @@ function toAcct(a: IUserAccount): IDiscountAcct {
  * @param args - Extract-args bundle (reads args.body only).
  * @returns Account list (empty when the container is absent).
  */
-export function extractAccounts(args: IExtractAccountsArgs): readonly IDiscountAcct[] {
+export function extractAccounts(args: IExtractAccountsArgs): readonly ITelebankAcct[] {
   const resp = args.body as unknown as ICustomerResp;
   const rows = resp.UserAccountsData?.UserAccounts ?? [];
   return rows.map(toAcct).filter((acct): boolean => acct.accountId.length > 0);
@@ -82,20 +82,20 @@ export function extractAccounts(args: IExtractAccountsArgs): readonly IDiscountA
 
 /**
  * User-facing account number (FormatAccountID).
- * @param acct - Discount account.
+ * @param acct - Telebank account.
  * @returns Display number.
  */
-export function accountNumberOf(acct: IDiscountAcct): AccountNumberDisplay {
+export function accountNumberOf(acct: ITelebankAcct): AccountNumberDisplay {
   return acct.displayNumber as AccountNumberDisplay;
 }
 
 /**
  * The id the Titan API names an account by — the `accountnumber` header of
  * its balance and transactions reads.
- * @param acct - Discount account.
+ * @param acct - Telebank account.
  * @returns Titan path id.
  */
-export function callAccountIdOf(acct: IDiscountAcct): TitanAccountId {
+export function callAccountIdOf(acct: ITelebankAcct): TitanAccountId {
   return acct.accountId as TitanAccountId;
 }
 
@@ -109,7 +109,7 @@ export function callAccountIdOf(acct: IDiscountAcct): TitanAccountId {
  */
 export function titanHeaders(_ctx: IActionContext, call: IScrapeCallInfo): HeaderMap {
   const accountnumber = call.accountId ?? '';
-  return { ...DISCOUNT_STATIC_HEADERS, ...DISCOUNT_TITAN_HEADERS, accountnumber };
+  return { ...TELEBANK_STATIC_HEADERS, ...TELEBANK_TITAN_HEADERS, accountnumber };
 }
 
 /**
@@ -132,10 +132,10 @@ export function customerUrl(): WKUrlOrLiteral {
 
 /**
  * Balance URL — accountDetails/infoAndBalance/{accountId}.
- * @param acct - Discount account.
+ * @param acct - Telebank account.
  * @returns Literal Titan balance URL for the account.
  */
-export function balanceUrl(acct: IDiscountAcct): WKUrlOrLiteral {
+export function balanceUrl(acct: ITelebankAcct): WKUrlOrLiteral {
   return literalUrl(`${TITAN_API}/accountDetails/infoAndBalance/${acct.accountId}`);
 }
 

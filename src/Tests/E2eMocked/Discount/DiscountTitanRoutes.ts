@@ -10,11 +10,10 @@ import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { errorReply } from '../Helpers/FetchMockKit.js';
 import { json } from '../Helpers/MockReplies.js';
 import type { IDiscountMockRun, Route } from './DiscountFaults.js';
-import { DC_BANK_NOTICE, guarded } from './DiscountFaults.js';
+import { DC_BANK_NOTICE, mi6Guarded } from './DiscountFaults.js';
 import type { ISynAccount } from './DiscountMockData.js';
 import {
   DC_FROM_DATE,
-  DC_MI6,
   DC_SESSION_COOKIE,
   DISCOUNT_MOCK_ACCOUNTS,
   rowsOf,
@@ -91,15 +90,15 @@ function txnsOf(account: ISynAccount, call: IRecordedCall): Response {
   return json({ CurrentAccountLastTransactions: { OperationEntry: rowsOf(account) } });
 }
 
-/** What every Titan read needs. */
-const TITAN_COOKIES: readonly string[] = [DC_SESSION_COOKIE, `mi6=${DC_MI6}`];
+/** What every Titan read needs besides the MI6 binding. */
+const TITAN_COOKIES: readonly string[] = [DC_SESSION_COOKIE];
 
 const BALANCE_ROUTE = accountRoute(BALANCE_PATH, balanceOf);
 const TXNS_ROUTE = accountRoute(TXNS_PATH, txnsOf);
 
 /** Titan routes keyed by `GET <path prefix>`. */
 export const DATA_ROUTES: Readonly<Partial<Record<string, Route>>> = {
-  [`GET ${TITAN_PATH}userAccountsData`]: guarded(TITAN_COOKIES, routeAccounts),
-  [`GET ${BALANCE_PATH}`]: guarded(TITAN_COOKIES, BALANCE_ROUTE),
-  [`GET ${TXNS_PATH}`]: guarded(TITAN_COOKIES, TXNS_ROUTE),
+  [`GET ${TITAN_PATH}userAccountsData`]: mi6Guarded(TITAN_COOKIES, routeAccounts),
+  [`GET ${BALANCE_PATH}`]: mi6Guarded(TITAN_COOKIES, BALANCE_ROUTE),
+  [`GET ${TXNS_PATH}`]: mi6Guarded(TITAN_COOKIES, TXNS_ROUTE),
 };

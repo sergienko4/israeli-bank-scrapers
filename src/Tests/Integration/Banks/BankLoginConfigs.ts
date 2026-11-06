@@ -12,7 +12,6 @@
 
 import type { ILoginConfig } from '../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import { LEUMI_LOGIN } from '../../../Scrapers/Pipeline/Banks/Leumi/LeumiPipeline.js';
-import { MERCANTILE_LOGIN } from '../../../Scrapers/Pipeline/Banks/Mercantile/MercantilePipeline.js';
 
 /**
  * Map of bankId → exported LoginConfig — used by both Mode A and
@@ -22,7 +21,6 @@ import { MERCANTILE_LOGIN } from '../../../Scrapers/Pipeline/Banks/Mercantile/Me
  */
 const BANK_LOGIN_CONFIGS: Readonly<Partial<Record<string, ILoginConfig>>> = {
   leumi: LEUMI_LOGIN,
-  mercantile: MERCANTILE_LOGIN,
 };
 
 export default BANK_LOGIN_CONFIGS;

@@ -37,6 +37,7 @@ import {
 import {
   ACCOUNTS_TRAIL,
   accountTrailOf,
+  callTo,
   LOGIN_TRAIL,
   runDiscount,
   SUCCESS_HOP,
@@ -149,18 +150,6 @@ function headersBesidesCookie(call: IRecordedCall): HeaderMap {
  */
 function sortedPairs(pairs: readonly string[]): readonly string[] {
   return [...pairs].sort();
-}
-
-/**
- * The one call a run made to a step.
- * @param calls - The run's calls.
- * @param step - The trail entry.
- * @returns The call.
- */
-function callTo(calls: readonly IRecordedCall[], step: string): IRecordedCall {
-  const found = calls.find(call => trailOf(call) === step);
-  if (found === undefined) throw new TypeError(`no call to ${step}`);
-  return found;
 }
 
 /**

@@ -4,9 +4,9 @@
  * structural fakes — zero PII.
  */
 
-import { checkTitanBody } from '../../../../../Scrapers/Pipeline/Banks/Discount/scrape/DiscountShapeCheck.js';
-import { titanHeaders } from '../../../../../Scrapers/Pipeline/Banks/Discount/scrape/DiscountShapeHelpers.js';
 import type { ApiBody } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import { checkTitanBody } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShapeCheck.js';
+import { titanHeaders } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/TelebankGroup/TelebankGroupShapeHelpers.js';
 import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 
 /** One Titan answer the check must refuse, and the message it gives. */

@@ -4,9 +4,10 @@
  * <p>Test Case IDs:
  *   - T-REG-1 (FIRING): every entry's `authStrategyKind` is one of the 3 union members.
  *     RED while the field is absent (pre-C1); GREEN after C1 adds it to every bank.
- *   - T-REG-2: family counts are exactly 0 token / 2 session-cookie / 15 api-direct.
+ *   - T-REG-2: family counts are exactly 0 token / 1 session-cookie / 16 api-direct.
  *   - T-REG-3: the api-direct banks are exactly OneZero, PayBox, Pepper, VisaCal, Isracard,
- *     Amex, Max, Mizrahi, Hapoalim, Yahav, Beinleumi, Massad, OtsarHahayal, Pagi, Discount.
+ *     Amex, Max, Mizrahi, Hapoalim, Yahav, Beinleumi, Massad, OtsarHahayal, Pagi, Discount,
+ *     Mercantile.
  *   - T-REG-4: each specific bank maps to the spec-S2 value (table-driven).
  *   - T-REG-6: an api-direct bank carries no browser-login budget — it has no
  *     login form to wait on, so such a budget would be dead config.
@@ -33,7 +34,7 @@ const EXPECTED_KIND_PER_BANK: readonly [CompanyTypes, AuthKind][] = [
   [CompanyTypes.VisaCal, 'api-direct'],
   [CompanyTypes.Amex, 'api-direct'],
   [CompanyTypes.Max, 'api-direct'],
-  [CompanyTypes.Mercantile, 'session-cookie'],
+  [CompanyTypes.Mercantile, 'api-direct'],
   [CompanyTypes.Mizrahi, 'api-direct'],
   [CompanyTypes.Yahav, 'api-direct'],
   [CompanyTypes.Isracard, 'api-direct'],
@@ -58,6 +59,7 @@ const API_DIRECT_SET = new Set<CompanyTypes>([
   CompanyTypes.OtsarHahayal,
   CompanyTypes.Pagi,
   CompanyTypes.Discount,
+  CompanyTypes.Mercantile,
 ]);
 
 describe('PipelineBankConfig — authStrategyKind completeness (T-REG)', () => {
@@ -74,7 +76,7 @@ describe('PipelineBankConfig — authStrategyKind completeness (T-REG)', () => {
     }
   });
 
-  it('T-REG-2: family counts are 0 token / 2 session-cookie / 15 api-direct', async () => {
+  it('T-REG-2: family counts are 0 token / 1 session-cookie / 16 api-direct', async () => {
     const { PIPELINE_BANK_CONFIG: bankConfigMap } =
       await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
     const entries = Object.values(bankConfigMap);
@@ -84,10 +86,10 @@ describe('PipelineBankConfig — authStrategyKind completeness (T-REG)', () => {
       if (config.authStrategyKind === 'session-cookie') counts.sessionCookie++;
       if (config.authStrategyKind === 'api-direct') counts.apiDirect++;
     }
-    expect(counts).toEqual({ token: 0, sessionCookie: 2, apiDirect: 15 });
+    expect(counts).toEqual({ token: 0, sessionCookie: 1, apiDirect: 16 });
   });
 
-  it('T-REG-3: api-direct banks are exactly OneZero, PayBox, Pepper, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav, Beinleumi, Massad, OtsarHahayal, Pagi and Discount', async () => {
+  it('T-REG-3: api-direct banks are exactly OneZero, PayBox, Pepper, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav, Beinleumi, Massad, OtsarHahayal, Pagi, Discount and Mercantile', async () => {
     const { PIPELINE_BANK_CONFIG: bankConfigMap } =
       await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
     const allBankEntries = Object.entries(bankConfigMap);
@@ -96,7 +98,7 @@ describe('PipelineBankConfig — authStrategyKind completeness (T-REG)', () => {
     );
     const actualApiDirect = apiDirectEntries.map(([id]) => id);
     const actualSet = new Set(actualApiDirect);
-    expect(actualSet.size).toBe(15);
+    expect(actualSet.size).toBe(16);
     for (const bank of API_DIRECT_SET) {
       const hasBank = actualSet.has(bank);
       expect(hasBank).toBe(true);

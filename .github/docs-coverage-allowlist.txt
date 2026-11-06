@@ -1244,10 +1244,10 @@ buildTxnsDispatchArgs
 resolveSecondaryUrlTag
 
 # --- P2 Discount hard-model post-auth scrape shape (API-direct bank) ---
-# Reason: IDiscountAcct â€” Discount scrape-shape account ref (accountId path id +
-# displayNumber); consumed only by DISCOUNT_SHAPE + its helpers. Pipeline-internal,
-# not part of the @sergienko4/israeli-bank-scrapers public surface (not in src/index.ts).
-IDiscountAcct
+# Reason: ITelebankAcct - Telebank group scrape-shape account ref (accountId path id +
+# displayNumber); consumed only by the TelebankGroup shape factory + its helpers.
+# Pipeline-internal, not part of the public surface (not in src/index.ts).
+ITelebankAcct
 # Reason: TITAN_API â€” Titan gateway origin const shared by the Discount shape's
 # customer/balance/txns urlTag builders. Framework-internal bank contract constant.
 TITAN_API
@@ -1327,12 +1327,6 @@ UC_SO_27_MODULE
 # Reason: ucSo27Vars - Leumi shared UC_SO_27 vars builder (balance empty-range + txns
 # dated OpersB). Per-bank shape closure consumed only by LEUMI_SHAPE. Not user-facing.
 ucSo27Vars
-# --- P4 Mercantile hard-model post-auth scrape shape (browser-bank migration) ---
-# Reason: IMercantileAcct - Mercantile scrape-shape account ref (accountId path id +
-# displayNumber); consumed only by MERCANTILE_SHAPE + its helpers. Shares Discount's
-# Titan contract; pipeline-internal, not part of the @sergienko4/israeli-bank-scrapers
-# public surface (not in src/index.ts).
-IMercantileAcct
 # --- Framework: anti-replay cookie-echo header sentinel (BrowserFetchStrategy) ---
 # Reason: INamedCookie - minimal {name,value} cookie record read by the @cookie:<name>
 # header resolver; structural subset of Playwright's Cookie. Framework-internal, not

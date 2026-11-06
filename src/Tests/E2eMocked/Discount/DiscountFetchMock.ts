@@ -5,7 +5,7 @@
  * Rule #18: every value here is SYNTHETIC. No real PII.
  *
  * Login, counted as `identity`:
- *   GET  /login/                                → the login page; XSRF-TOKEN + tuuid
+ *   GET  /login/<brand query>                   → the login page; XSRF-TOKEN + tuuid
  *   POST /Lobby/gatewayAPI/verification/getInfo → the RSA key; rotates XSRF-TOKEN
  *   POST /Lobby/gatewayAPI/login                → 302 to loginSuccessResponse + the session
  *   GET  /Lobby/gatewayAPI/loginSuccessResponse → `Login.Status` + `Login.MI6`
@@ -16,7 +16,8 @@
  *   GET  /Titan/gatewayAPI/lastTransactions/transactions/{id}/Date → one account's rows
  *
  * The mock enforces what the bank enforces, so a broken request fails here
- * too: the login page needs the four client cookies; every later call needs
+ * too: the login page needs the brand's query and its four client cookies,
+ * getInfo and login name the brand's bank code; every later call needs
  * the latest XSRF-TOKEN, decoded; login needs both seals to open; everything
  * after login needs the session; the landing and Titan need the MI6 cookie;
  * an account read needs `AccountNumber` to name the account in its path.
@@ -24,6 +25,8 @@
 
 import type { CallKind, IMockHandle, IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { errorReply, installFetchMock } from '../Helpers/FetchMockKit.js';
+import type { ITelebankMockBrand } from './DiscountBrands.js';
+import { DISCOUNT_MOCK_BRAND } from './DiscountBrands.js';
 import type { DiscountFault, IDiscountMockRun, Route } from './DiscountFaults.js';
 import { LOGIN_ROUTES } from './DiscountLoginRoutes.js';
 import { DC_ORIGIN } from './DiscountMockData.js';
@@ -77,12 +80,16 @@ function answerDiscount(run: IDiscountMockRun, call: IRecordedCall): Promise<Res
 }
 
 /**
- * Install the synthetic Discount over globalThis.fetch.
+ * Install the synthetic Telebank bank over globalThis.fetch.
  * @param fault - Fault the mock answers with; `'none'` behaves normally.
+ * @param brand - The bank the mock plays; Discount by default.
  * @returns Handle with dispose, call counts and the call log.
  */
-export function installDiscountFetchMock(fault: DiscountFault = 'none'): IMockHandle {
-  const run: IDiscountMockRun = { fault, xsrf: '', isLoginOk: false };
+export function installDiscountFetchMock(
+  fault: DiscountFault = 'none',
+  brand: ITelebankMockBrand = DISCOUNT_MOCK_BRAND,
+): IMockHandle {
+  const run: IDiscountMockRun = { fault, brand, xsrf: '', uid: '', isLoginOk: false };
   const answer = answerDiscount.bind(null, run);
   return installFetchMock({ classify: classifyDiscount, answer });
 }

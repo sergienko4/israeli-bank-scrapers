@@ -17,6 +17,7 @@ import {
 import { HAPOALIM_HEADLESS } from './PipelineBankConfigHapoalim.js';
 import { ISRACARD_HEADLESS } from './PipelineBankConfigIsracard.js';
 import { MAX_HEADLESS } from './PipelineBankConfigMax.js';
+import { MERCANTILE_HEADLESS } from './PipelineBankConfigMercantile.js';
 import { MIZRAHI_HEADLESS } from './PipelineBankConfigMizrahi.js';
 import { ONEZERO_HEADLESS } from './PipelineBankConfigOneZeroHeadless.js';
 import { PEPPER_HEADLESS } from './PipelineBankConfigPepperHeadless.js';
@@ -130,7 +131,11 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     AMEX_HEADLESS,
   ),
   [CompanyTypes.Max]: defineApiDirectBank('https://www.max.co.il', CARD_CYCLE, MAX_HEADLESS),
-  [CompanyTypes.Mercantile]: defineBank('https://www.mercantile.co.il', ACCOUNT, SESSION_COOKIE),
+  [CompanyTypes.Mercantile]: defineApiDirectBank(
+    'https://www.mercantile.co.il',
+    ACCOUNT,
+    MERCANTILE_HEADLESS,
+  ),
   [CompanyTypes.Mizrahi]: defineApiDirectBank(
     'https://www.mizrahi-tefahot.co.il',
     ACCOUNT,
