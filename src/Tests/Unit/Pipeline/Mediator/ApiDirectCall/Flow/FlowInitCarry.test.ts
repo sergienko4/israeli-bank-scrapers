@@ -1,7 +1,7 @@
 /**
  * Unit tests for FlowInitCarry — `seedCarryFromCreds` (string + bootstrap
- * variants, N42 `random-hex` included) and `derivedCarry` (parts + separator
- * + truncation, the N45 `format` and `md5-hex` ops).
+ * variants, `random-hex` included) and `derivedCarry` (parts + separator
+ * + truncation, the `format` and `md5-hex` ops).
  */
 
 import type {
@@ -205,7 +205,7 @@ describe('FlowInitCarry.buildInitialCarry', () => {
 });
 
 /**
- * Derive `uid` from `creds.user`, lower-cased (N60), and run flow init once.
+ * Derive `uid` from `creds.user`, lower-cased, and run flow init once.
  * @param user - The typed username.
  * @param truncateBytes - Optional byte cap.
  * @returns The derived slot and the creds as left after the run.
@@ -223,7 +223,7 @@ function deriveLower(user: string, truncateBytes?: number): readonly [unknown, u
   return [result.success ? result.value.uid : result.errorMessage, creds.user];
 }
 
-describe('FlowInitCarry — derivedCarry lower transform (N60)', () => {
+describe('FlowInitCarry — derivedCarry lower transform', () => {
   it('lower-cases the joined text, leaving the creds value as typed', () => {
     const [uid, user] = deriveLower('AbC.Dé9');
     expect(uid).toBe('abc.dé9');
@@ -237,7 +237,7 @@ describe('FlowInitCarry — derivedCarry lower transform (N60)', () => {
   });
 });
 
-/** The two id rules of the N45 `format` op, first match wins. */
+/** The two id rules of the `format` op, first match wins. */
 const ID_FORMAT: DerivedOp = {
   kind: 'format',
   rules: [
@@ -264,7 +264,7 @@ function deriveOp(num: string, op: DerivedOp): unknown {
   return result.success ? [result.value.uid, result.value.uidMd5] : result.errorMessage;
 }
 
-describe('FlowInitCarry — derivedCarry ops (N45)', () => {
+describe('FlowInitCarry — derivedCarry ops', () => {
   it.each<[string, string]>([
     ['12345', '00001000012345'],
     ['9', '00001000000009'],

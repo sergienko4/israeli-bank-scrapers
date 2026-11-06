@@ -1,5 +1,5 @@
 /**
- * E13 — a warm token must look like a token before it is replayed.
+ * A warm token must look like a token before it is replayed.
  *
  * A seed with a control character, a non-ASCII character or more than
  * `MAX_ACCESS_TOKEN_CHARS` characters is dropped with a warning that names the
@@ -82,7 +82,7 @@ beforeEach((): void => {
   LOG.warn.mockClear();
 });
 
-describe('E13 warm token shape', () => {
+describe('warm token shape', () => {
   it.each(CASES)('$label → kept=$isKept', (row): void => {
     const picked = SHARED.pickWarmSeed(CONFIG, { otpLongTermToken: row.seed });
     const expected = row.isKept && row.seed;

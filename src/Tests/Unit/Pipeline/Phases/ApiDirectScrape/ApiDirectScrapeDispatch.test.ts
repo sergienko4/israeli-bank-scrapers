@@ -303,7 +303,7 @@ const ARRAY_VARS_REFUSALS: readonly IArrayVarsRefusal[] = [
   },
 ];
 
-describe('ApiDirectScrapeDispatch.dispatchStep — array POST data (N19)', () => {
+describe('ApiDirectScrapeDispatch.dispatchStep — array POST data', () => {
   it('POSTs array vars unchanged on a plain REST step', async () => {
     const okOutcome = succeed({});
     const okResp = Promise.resolve(okOutcome);
@@ -396,7 +396,7 @@ const UNDIGESTED_STEPS: readonly IUndigestedStep[] = [
   { name: 'a GraphQL step', overrides: { urlTag: false }, call: 'apiQuery', optsAt: 2 },
 ];
 
-describe('ApiDirectScrapeDispatch.dispatchStep — body digest (N30)', () => {
+describe('ApiDirectScrapeDispatch.dispatchStep — body digest', () => {
   it('hashes exactly the bytes the JSON writer sends', async () => {
     const capture = makeCapturingBus();
     const vars = { a: 'ש', n: 1 };

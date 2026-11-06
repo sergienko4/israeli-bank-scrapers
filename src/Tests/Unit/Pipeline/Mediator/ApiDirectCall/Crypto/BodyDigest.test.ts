@@ -1,5 +1,5 @@
 /**
- * Golden coverage for the request-body digest header (N30). The expected
+ * Golden coverage for the request-body digest header. The expected
  * values were recorded from the bank's reference client for the same body
  * text, so a change to the hash, the prefix join or the encoding fails here.
  */

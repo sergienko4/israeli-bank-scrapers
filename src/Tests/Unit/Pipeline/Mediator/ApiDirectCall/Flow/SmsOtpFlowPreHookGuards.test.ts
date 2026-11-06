@@ -1,5 +1,5 @@
 /**
- * N15/N21/N57/D12 — OTP pre-hook guards. The retriever receives the `hintFrom`
+ * OTP pre-hook guards. The retriever receives the `hintFrom`
  * carry slot (or `''`). A pre-hook's `requires` refs resolve, against the
  * step's jar view, before the retriever is asked; a miss fails and no code is
  * asked for. The code must match `valuePattern` and, when carry states an OTP
@@ -231,7 +231,7 @@ function pendingOtpCode(): Promise<string> {
   return new Promise<string>(() => undefined);
 }
 
-/** An OTP hook whose exact length comes from carry (N57). */
+/** An OTP hook whose exact length comes from carry. */
 const LENGTH_HOOK: Hook = {
   awaitCredsField: 'otpCodeRetriever',
   intoCarryField: 'otp',

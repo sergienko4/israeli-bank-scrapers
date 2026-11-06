@@ -1,5 +1,5 @@
 /**
- * N50 build rules — an answer classifier must be well formed: cases each with
+ * Build rules — an answer classifier must be well formed: cases each with
  * a check, one kind per check, JSON pointers, anchored flat patterns, length
  * caps, one capture mode and an integer range. Its slots must not be its own
  * capture, another slot its step writes or a `sessionCarry` slot, and a
@@ -402,7 +402,7 @@ const ACCEPTED: readonly IBuildCase[] = [
   { label: 'a step with no classifier', steps: [guardedOn('branch', ['otp'])] },
 ];
 
-describe('validateApiDirectConfig — N50 classifier rules', () => {
+describe('validateApiDirectConfig — classifier rules', () => {
   it.each([...SHAPE_REFUSALS, ...SLOT_REFUSALS])('refuses $label', refusal => {
     const input = inputOf(refusal);
     const result = validateApiDirectConfig(input);

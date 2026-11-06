@@ -180,7 +180,7 @@ describe('api-direct-call createTokenStrategyFromConfig primeFresh', () => {
   });
 });
 
-describe('api-direct-call createTokenStrategyFromConfig primeRecover (N33)', () => {
+describe('api-direct-call createTokenStrategyFromConfig primeRecover', () => {
   const carryWarm = { credsField: 'storedJwt', carryField: 'token', fromStepIndex: 1 } as const;
 
   it.each<[string, IApiDirectCallConfig['warmStart']]>([

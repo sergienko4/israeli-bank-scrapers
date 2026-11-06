@@ -1,5 +1,5 @@
 /**
- * N24 — a `$join` node hydrates to one string: its parts (refs resolved,
+ * A `$join` node hydrates to one string: its parts (refs resolved,
  * literals kept) concatenated, base64 over the UTF-8 bytes when `encode` is
  * `base64`, behind `prefix`. A part that is unresolved or not a string fails
  * hydration like a missing `$ref`; the value never reaches carry.
@@ -38,7 +38,7 @@ const AUTHORIZATION: JsonValueTemplate = {
   },
 };
 
-describe('GenericBodyTemplate.hydrate — $join (N24)', () => {
+describe('GenericBodyTemplate.hydrate — $join', () => {
   it('concatenates refs and literals in order', () => {
     const scope = scopeWith();
     const result = hydrate(USERNAME, scope);

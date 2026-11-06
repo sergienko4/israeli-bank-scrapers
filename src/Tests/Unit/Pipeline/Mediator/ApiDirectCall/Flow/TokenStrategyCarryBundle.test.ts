@@ -1,5 +1,5 @@
 /**
- * N28 — carry-bundle warm start through the config strategy (UT-WBS).
+ * Carry-bundle warm start through the config strategy (UT-WBS).
  *
  * A stored bundle restores in order — the jar is imported, the carry slots
  * seed the flow, and the flow resumes at `fromStepIndex` — and a finished
@@ -8,8 +8,8 @@
  * reason that never echoes a value. A cold start clears the jar and the client
  * cert before step 0, and `coldFallback: 'auth-rejected'` lets only a bank's
  * 401/403 to the warm resume escalate to a cold login. `cookieHandoff:
- * 'isolate'` empties the jar once the bundle is published (N35). An in-run
- * recovery (N33) resumes from the stash and the private carry at
+ * 'isolate'` empties the jar once the bundle is published. An in-run
+ * recovery resumes from the stash and the private carry at
  * `fromStepIndex`; only an auth-rejected resume escalates to a cold login.
  */
 
@@ -461,7 +461,7 @@ describe('carry-bundle cookie hand-off', () => {
 
 /**
  * Mint the run's first session, then re-grant it the way a whole-scrape
- * recovery does (N33), noting the jar events the recovery alone caused.
+ * recovery does, noting the jar events the recovery alone caused.
  * @param run - Bundle run under test.
  * @param creds - Creds the run logs in with.
  * @returns The recovery's procedure and its jar events.
@@ -478,7 +478,7 @@ async function primeThenRecover(
   return { proc, events };
 }
 
-describe('carry-bundle in-run recovery (N33)', () => {
+describe('carry-bundle in-run recovery', () => {
   it('resumes from the stash and the private carry at fromStepIndex', async (): Promise<void> => {
     const responses = [REGISTER_OK, TOKEN_OK, TOKEN_OK];
     const run = makeRun({ responses, cookieHandoff: 'isolate' });

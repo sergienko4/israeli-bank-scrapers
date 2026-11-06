@@ -3,7 +3,7 @@
  * login page, opens a Transmit envelope, asserts the password, posts the
  * login form back with the Transmit token, follows the portal hand-off and
  * trades the SSO code for the authorization the BFF reads carry. Every call
- * is checked against spec §11.2 by the synthetic bank.
+ * is checked against the recorded contract by the synthetic bank.
  *
  * Rule #18: all credentials + data are synthetic; no real PII.
  */

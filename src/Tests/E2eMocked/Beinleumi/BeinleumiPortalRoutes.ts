@@ -1,5 +1,5 @@
 /**
- * Beinleumi mocked portal routes (spec §11.2 rows 1 and 5–8): the login page,
+ * Beinleumi mocked portal routes: the login page,
  * the form post whose page hands off to the portal, the hand-off and its one
  * redirect, the SSO code, and the authorization header the code buys. The
  * portal keeps its session in cookies, so each later call must echo them.

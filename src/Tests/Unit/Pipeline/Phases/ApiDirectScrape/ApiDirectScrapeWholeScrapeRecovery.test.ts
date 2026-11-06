@@ -1,5 +1,5 @@
 /**
- * N33 — whole-scrape auth recovery. A bank whose session rotates on every
+ * Whole-scrape auth recovery. A bank whose session rotates on every
  * answer cannot retry one rejected call: the retry would carry a session the
  * bank has already moved past. With `recoversWholeScrape()` on, the scrape
  * recovers only when the bank rejected the session (401/403, warm or cold),

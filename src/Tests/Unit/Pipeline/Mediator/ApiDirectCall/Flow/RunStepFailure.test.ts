@@ -1,5 +1,5 @@
 /**
- * A failed login step never quotes the response body (E15 / SEC-02).
+ * A failed login step never quotes the response body.
  *
  * The table drives the sanitiser through runStep on a stub mediator. The
  * end-to-end cases send a body echoing synthetic secrets through the real
@@ -305,7 +305,7 @@ function makeRealMediator(refreshed: Procedure<string>): RealMediator {
   return mediator;
 }
 
-describe('E15 RunStep failure message', () => {
+describe('login-step failure message', () => {
   it.each(FAILURE_CASES)('reports $label by step and status only', async (row): Promise<void> => {
     const responses = [fail(row.type, row.message)];
     const bus = STUB.makeStubMediator({ responses, captures: [] });
@@ -404,7 +404,7 @@ describe('E15 RunStep failure message', () => {
   });
 });
 
-describe('E15 SEC-02 through the native transport and the mediator', () => {
+describe('login-step failure message through the native transport and the mediator', () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach((): void => {

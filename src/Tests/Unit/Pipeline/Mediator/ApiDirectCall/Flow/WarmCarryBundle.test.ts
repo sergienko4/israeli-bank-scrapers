@@ -1,5 +1,5 @@
 /**
- * N28 — carry-bundle warm token codec (UT-WB).
+ * Carry-bundle warm token codec (UT-WB).
  *
  * The token bundles the carry slots a warm resume needs, and optionally the
  * session jar, in a `v1.` envelope bound to the provider and to a hash of the

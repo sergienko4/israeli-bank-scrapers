@@ -197,7 +197,7 @@ describe('NativeFetchStrategy.fetchPost — success path', () => {
     expect(sent).toBe('application/json; charset=UTF-8');
   });
 
-  it('sends array POST data as its JSON text, byte for byte (N19)', async () => {
+  it('sends array POST data as its JSON text, byte for byte', async () => {
     const impl = respondWith(200, '{"ok":true}');
     const fetchMock = installFetchMock(impl);
     const strategy = new NativeFetchStrategy('https://api.example');

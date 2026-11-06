@@ -1,5 +1,5 @@
 /**
- * N28 — a carry-bundle warm start is checked when the pipeline is built.
+ * A carry-bundle warm start is checked when the pipeline is built.
  *
  * The bundle binds to at least one creds field, keeps at least one slot a
  * login step fills (an extract or a generator output), and keeps the jar only
@@ -61,7 +61,7 @@ const CSR_STEP: IStepConfig = {
   ],
 };
 
-/** A step generating an ECDH pair (N38). */
+/** A step generating an ECDH pair. */
 const ECDH_STEP: IStepConfig = {
   ...REGISTER,
   generate: [

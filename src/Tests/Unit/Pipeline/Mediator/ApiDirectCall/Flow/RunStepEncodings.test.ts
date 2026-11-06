@@ -1,6 +1,6 @@
 /**
- * N23 — login steps naming `encoding: 'form-latin1'` or `encoding: 'text'`,
- * and `response: 'text'`, and N62 `encoding: 'form-utf8'`, run through the real mediator and headless native
+ * Login steps naming `encoding: 'form-latin1'` or `encoding: 'text'`,
+ * and `response: 'text'`, and `encoding: 'form-utf8'`, run through the real mediator and headless native
  * transport. Every refusal fails the step by name with a fixed reason and
  * names no value.
  */
@@ -71,7 +71,7 @@ function serveText(body: string): IFetchFake {
   return fake;
 }
 
-describe('N23 latin1 forms, text bodies and text answers on login steps', () => {
+describe('latin1 forms, text bodies and text answers on login steps', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

@@ -1,5 +1,5 @@
 /**
- * E10 — optional extracts.
+ * Optional extracts.
  *
  * A slot the response may omit is written when its pointer resolves to a
  * string that is not blank, falls back when a fallback is set, and otherwise keeps
@@ -72,7 +72,7 @@ const CASES: readonly IOptionalCase[] = [
   },
 ];
 
-/** A step whose `bcKey` slot keeps the value carry already holds (N56). */
+/** A step whose `bcKey` slot keeps the value carry already holds. */
 const KEEP_STEP: IStepConfig = {
   ...STEP,
   optionalExtractsToCarry: { bcKey: { pointer: '/bean/bcKey', keepExisting: true } },
@@ -90,7 +90,7 @@ beforeAll((): void => {
   registerWkUrl('auth.bind', HINT, 'https://example.test/api/validate');
 });
 
-describe('E10 optional extracts', () => {
+describe('optional extracts', () => {
   it.each(CASES)('$label', async (row): Promise<void> => {
     const captures: IApiPostCapture[] = [];
     const responses = [succeed({ bean: row.bean })];
@@ -101,17 +101,14 @@ describe('E10 optional extracts', () => {
     expect(result).toMatchObject({ success: true, value: { carry: row.expected } });
   });
 
-  it.each(KEEP_STEPS)(
-    'keeps a held keep-existing slot $label (N56)',
-    async (row): Promise<void> => {
-      const responses = [succeed({ bean: { returnCode: '1', bcKey: 'syn-bc-2' } })];
-      const bus = makeStubMediator({ responses, captures: [] });
-      const carry = { bcKey: 'syn-bc-1' };
-      const scope: ITemplateScope = { carry, creds: {}, config: CONFIG, keypair: undefined };
-      const result = await runStep({ step: row.step, bus, scope, companyId: HINT });
-      expect(result).toMatchObject({ success: true, value: { carry: { bcKey: 'syn-bc-1' } } });
-    },
-  );
+  it.each(KEEP_STEPS)('keeps a held keep-existing slot $label', async (row): Promise<void> => {
+    const responses = [succeed({ bean: { returnCode: '1', bcKey: 'syn-bc-2' } })];
+    const bus = makeStubMediator({ responses, captures: [] });
+    const carry = { bcKey: 'syn-bc-1' };
+    const scope: ITemplateScope = { carry, creds: {}, config: CONFIG, keypair: undefined };
+    const result = await runStep({ step: row.step, bus, scope, companyId: HINT });
+    expect(result).toMatchObject({ success: true, value: { carry: { bcKey: 'syn-bc-1' } } });
+  });
 
   it.each([
     ['no earlier value', {}],

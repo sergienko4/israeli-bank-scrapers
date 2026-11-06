@@ -1,8 +1,8 @@
 /**
- * N25 — a step's carry generators are checked when the pipeline is built:
- * an `rsa-key` generator must name at least one target slot. N38 — an
+ * A step's carry generators are checked when the pipeline is built:
+ * an `rsa-key` generator must name at least one target slot. An
  * `ecdh-key` generator needs two distinct slots, and its private key never
- * reaches `sessionCarry`. N42 — a `random-hex` seed draws 1 to 64 bytes.
+ * reaches `sessionCarry`. A `random-hex` seed draws 1 to 64 bytes.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';

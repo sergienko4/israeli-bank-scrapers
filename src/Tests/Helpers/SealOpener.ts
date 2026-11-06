@@ -1,6 +1,6 @@
 /**
- * Test-side opener for the `rsa-pkcs1-block-xor` (N10) and `rsa-pkcs1-v15`
- * (N44) seals. Node refuses PKCS#1 v1.5 private decryption, so each RSA
+ * Test-side opener for the `rsa-pkcs1-block-xor` and `rsa-pkcs1-v15`
+ * seals. Node refuses PKCS#1 v1.5 private decryption, so each RSA
  * block is decrypted raw and its type-2 padding stripped by hand; a
  * block-xor tail is then un-XORed with the seed. Mocked bank servers and
  * unit tests share it to read what a step sealed.

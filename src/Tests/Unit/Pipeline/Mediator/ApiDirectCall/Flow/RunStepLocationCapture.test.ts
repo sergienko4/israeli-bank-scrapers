@@ -1,5 +1,5 @@
 /**
- * N54 — a `text` step's `locationCapture` reads every script on its answer,
+ * A `text` step's `locationCapture` reads every script on its answer,
  * takes the one location assignment the configured User-Agent selects,
  * resolves it against the step URL and carries it to `into` once it passes
  * `url`. None fails `<step> handoff missing`, two `<step> handoff ambiguous`,
@@ -188,7 +188,7 @@ const PAGES: readonly IPageCase[] = [
   { label: 'an unparsable URL', html: handoffPage('https://[/x'), expected: REFUSED },
 ];
 
-describe('N54 handoff script capture on a text step', () => {
+describe('handoff script capture on a text step', () => {
   it.each(PAGES)('reads $label', async ({ html, expected }) => {
     const result = await runOn(html);
     const outcome = outcomeOf(result);

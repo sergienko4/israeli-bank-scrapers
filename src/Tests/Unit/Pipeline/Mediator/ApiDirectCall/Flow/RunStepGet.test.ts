@@ -1,5 +1,5 @@
 /**
- * E8 — a login step may be a GET with no body.
+ * A login step may be a GET with no body.
  *
  * The stub cases prove the method map picks `apiGet` and hands it the query
  * and the Set-Cookie sink. The end-to-end cases drive the real mediator over
@@ -70,7 +70,7 @@ const POST_STEP: IPostStep = {
 /** A GET step that also carries a body — the step union must reject it. */
 type GetWithBody = Omit<IGetStep, 'body'> & { readonly body: IBodyTemplate };
 
-/** A step literal written before E8: a body and no `method`. */
+/** A step literal written before GET steps existed: a body and no `method`. */
 type PostWithoutMethod = Omit<IPostStep, 'method'>;
 
 /** Compile-time pin: no step type admits a GET with a body. */
@@ -158,7 +158,7 @@ function sentHeaders(call: IFetchCall): Headers {
   return new Headers(call.init.headers);
 }
 
-describe('E8 GET login step on a stub bus', () => {
+describe('GET login step on a stub bus', () => {
   it('sends a GET step through apiGet with its query and cookie sink', async (): Promise<void> => {
     const captures: IApiPostCapture[] = [];
     const getCaptures: IApiGetCapture[] = [];
@@ -183,7 +183,7 @@ describe('E8 GET login step on a stub bus', () => {
   });
 });
 
-describe('E8 GET login step over the headless native transport', () => {
+describe('GET login step over the headless native transport', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

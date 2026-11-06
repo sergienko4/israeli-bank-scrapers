@@ -323,7 +323,7 @@ describe('buildResolverFromStrategy — identity', () => {
 /** What the builder hands a strategy's re-grant. */
 type RegrantArgs = [ITokenBus, ITokenContext, ITestCreds];
 
-describe('buildResolverFromStrategy — recover() path (N33)', () => {
+describe('buildResolverFromStrategy — recover() path', () => {
   it('binds recover to primeRecover over the same deps', async () => {
     const regranted = succeed(INITIAL_HEADER);
     const primeRecover = jest.fn<Promise<Procedure<string>>, RegrantArgs>(() =>

@@ -1,5 +1,5 @@
 /**
- * E3 — per-step header templates.
+ * Per-step header templates.
  *
  * A step's `headers` are hydrated against the step scope on every call, sent
  * as text, and replace a static header of the same name whatever its case.
@@ -130,7 +130,7 @@ function makeKeypair(): IGenericKeypair {
   return proc.value;
 }
 
-describe('E3 step header templates', () => {
+describe('step header templates', () => {
   it('resolves a carry ref for the call', async (): Promise<void> => {
     const step = stepWith({ 'X-Bc-Key': { $ref: 'carry.bcKey' } });
     const headers = await sentHeaders(step);
@@ -171,7 +171,7 @@ describe('E3 step header templates', () => {
   });
 });
 
-describe('E3 managed headers win over step headers', () => {
+describe('managed headers win over step headers', () => {
   it('sends the jar cookie alone over a step cookie of any case', async (): Promise<void> => {
     const cookieJar = createSimpleCookieJar();
     cookieJar.add(['sid=syn-jar']);

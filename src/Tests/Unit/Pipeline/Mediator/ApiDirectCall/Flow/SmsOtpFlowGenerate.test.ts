@@ -1,10 +1,10 @@
 /**
- * N25a — a step's `rsa-key` generator makes a fresh 2048-bit RSA key once
+ * A step's `rsa-key` generator makes a fresh 2048-bit RSA key once
  * the step's `runIf` guard passes and before its body is hydrated. It writes
  * the PKCS#8 PEM to `keyInto` and the lowercase hex SHA-256 of the SPKI DER
  * to `spkiSha256HexInto`. A skipped step generates nothing; a generator that
  * fails fails the step `<step> generate <kind> failed` before any request.
- * N38 — an `ecdh-key` generator writes a secp256k1 pair the same way.
+ * An `ecdh-key` generator writes a secp256k1 pair the same way.
  */
 
 import { createECDH, createPrivateKey, createPublicKey } from 'node:crypto';
@@ -48,7 +48,7 @@ const RSA_KEY: ICarryGenerator = {
   spkiSha256HexInto: 'deviceId',
 };
 
-/** N38 — the public point goes to the slot the register body sends. */
+/** The public point goes to the slot the register body sends. */
 const ECDH_KEY: ICarryGenerator = {
   kind: 'ecdh-key',
   curve: 'secp256k1',
@@ -104,7 +104,7 @@ async function runWith(state: string, generator: ICarryGenerator = RSA_KEY): Pro
   return { result, captures };
 }
 
-describe('SmsOtpFlow — rsa-key generator (N25a)', () => {
+describe('SmsOtpFlow — rsa-key generator', () => {
   beforeAll((): void => {
     registerWkUrl(WARM_STEP_TAG, HINT, STEP_URL);
   });

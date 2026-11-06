@@ -1,5 +1,5 @@
 /**
- * N63 — the headless mediator factory hands the bank's `strictUtf8` to its
+ * The headless mediator factory hands the bank's `strictUtf8` to its
  * native transport, so every call on that bank decodes its answer strictly.
  */
 
@@ -21,7 +21,7 @@ function answerLatin1(): Promise<Response> {
   return Promise.resolve(response);
 }
 
-describe('ApiMediator — strict UTF-8 bank (N63)', () => {
+describe('ApiMediator — strict UTF-8 bank', () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach((): void => {

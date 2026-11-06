@@ -1,5 +1,5 @@
 /**
- * N40 — a GET step sent to a carried URL. `urlFromCarry` names the carry
+ * A GET step sent to a carried URL. `urlFromCarry` names the carry
  * slot holding an absolute URL an earlier step checked; the step sends there
  * instead of its WK url, and everything that reads the step URL reads the
  * carried one: a raw query, the extract URL rules, the form action and the
@@ -145,7 +145,7 @@ function cookieSent(fake: IFetchFake): string {
   return headers.cookie ?? '';
 }
 
-describe('N40 urlFromCarry', () => {
+describe('urlFromCarry', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

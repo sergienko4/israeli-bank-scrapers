@@ -1,5 +1,5 @@
 /**
- * N35 — cookie hand-off at login completion. `isolate` moves the login's
+ * Cookie hand-off at login completion. `isolate` moves the login's
  * cookies out of the session jar into the run's private stash, so no scrape
  * read is sent a gateway cookie; `shared`, the default, leaves the jar as the
  * login left it.

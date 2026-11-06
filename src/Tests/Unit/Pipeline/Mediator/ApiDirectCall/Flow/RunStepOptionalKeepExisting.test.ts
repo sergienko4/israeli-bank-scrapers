@@ -1,5 +1,5 @@
 /**
- * N56 — keep-existing optional extracts. A `keepExisting` slot is written only
+ * Keep-existing optional extracts. A `keepExisting` slot is written only
  * while carry holds no non-empty string for it; a different answer value is
  * noted on the debug log by step and slot, never by value. Without the flag a
  * present value still overwrites.
@@ -99,7 +99,7 @@ beforeEach((): void => {
   LOG.debug.mockClear();
 });
 
-describe('N56 keep-existing optional extracts', () => {
+describe('keep-existing optional extracts', () => {
   it.each(CASES)('$label', (row): void => {
     const addition = OPTIONAL.extractOptional(row.resp, STEP, row.prior);
     expect(addition).toEqual(row.expected);

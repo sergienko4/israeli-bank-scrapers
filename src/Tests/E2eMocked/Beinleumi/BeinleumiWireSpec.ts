@@ -1,5 +1,5 @@
 /**
- * Beinleumi wire spec — what the approved FIBI protocol (spec §11.2) pins on
+ * Beinleumi wire spec — what the approved FIBI protocol pins on
  * the wire for every Beinleumi group bank: the path of every call and the
  * header values the client must send. Each value is a literal copied from the
  * approved protocol, never imported from the bank config, so a regression in

@@ -142,7 +142,7 @@ describe('ApiMediator — warm-flag round-trip', () => {
   });
 });
 
-describe('ApiMediator — whole-scrape recovery flag (N33)', () => {
+describe('ApiMediator — whole-scrape recovery flag', () => {
   it('is off until a policy asks for it', () => {
     const mediator = makeMediator();
     const isWholeScrape = mediator.recoversWholeScrape();
@@ -486,7 +486,7 @@ async function throwingRegrant(): Promise<Procedure<string>> {
   throw new ScraperError('re-grant exploded');
 }
 
-describe('ApiMediator — recover route (N33)', () => {
+describe('ApiMediator — recover route', () => {
   it('re-grants the session through the strategy when it can', async () => {
     const coldFail = fail(ScraperErrorTypes.Generic, 'cold login must not run');
     const base = strategyWithFresh(coldFail);

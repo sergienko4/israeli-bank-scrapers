@@ -1,11 +1,11 @@
 /**
- * Step rules on login and resume steps alike. N20 — each `failIfPresent`
- * entry must be a JSON pointer below the body root, and a `bankErrorType`
- * needs a `failIfPresent` guard or a codec to type. N18/N27 — each
- * `extractRules` key names a body or header extract of its step; a pattern is anchored, compiles and
+ * Step rules on login and resume steps alike. Each `failIfPresent` entry
+ * must be a JSON pointer below the body root, and a `bankErrorType` needs a
+ * `failIfPresent` guard or a codec to type. Each `extractRules` key names a
+ * body or header extract of its step; a pattern is anchored, compiles and
  * repeats no group that holds a repeat; `maxChars` is an integer from 1 to
- * 65536; `oneOf` and `url` are not empty. N14 — a `runIf` guard names a slot
- * and texts. N21 — a pre-hook's `valuePattern` obeys the same pattern rules.
+ * 65536; `oneOf` and `url` are not empty. A `runIf` guard names a slot and
+ * texts. A pre-hook's `valuePattern` obeys the same pattern rules.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';

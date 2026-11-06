@@ -1,5 +1,5 @@
 /**
- * N37 — a `text` step's `formCapture` reads its login form off the real
+ * A `text` step's `formCapture` reads its login form off the real
  * answer through the headless native transport: exactly one form named by
  * `id` or `name`, posting to the configured action, whose named, enabled
  * inputs are all hidden. The field record goes to carry `into` in page order.
@@ -231,7 +231,7 @@ const REFUSALS: readonly IRefusalCase[] = [
   },
 ];
 
-describe('N37 login-form capture on a text step', () => {
+describe('login-form capture on a text step', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

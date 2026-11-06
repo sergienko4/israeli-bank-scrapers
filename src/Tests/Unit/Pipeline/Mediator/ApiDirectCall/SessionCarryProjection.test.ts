@@ -1,5 +1,5 @@
 /**
- * N32 — the carry snapshot a login hands to the scrape is projected through
+ * The carry snapshot a login hands to the scrape is projected through
  * the flow's `sessionCarry` allowlist; without one the full snapshot passes.
  */
 

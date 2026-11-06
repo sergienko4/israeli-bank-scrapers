@@ -181,7 +181,7 @@ describe('applyPreHook — failure handling (T-PREHOOK-REUSE-7/8)', () => {
     const hook = otpHook();
     const result = await applyPreHook({ scope: emptyScope(), creds: probe.creds, hook, cache });
     const message = isOk(result) ? '' : result.errorMessage;
-    // D12: a caller's error text may hold the code or phone, so the failure
+    // A caller's error text may hold the code or phone, so the failure
     // names the error and never repeats its message; invocation #1 adds no
     // ordinal.
     expect(message).toBe('preHook: creds.otpCodeRetriever() threw Error');

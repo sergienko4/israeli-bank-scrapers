@@ -1,5 +1,5 @@
 /**
- * M3.T5 — factory test for the OTP-FILL phase.
+ * Factory test for the OTP-FILL phase.
  *
  * <p>Bank-agnostic blocks exercise the OTP-FILL handlers
  * (`executeFillPre`, `executeFillAction`, `executeFillPost`,

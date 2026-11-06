@@ -1,5 +1,5 @@
 /**
- * N39 / N52 — a step with a `sealed` envelope codec sends its hydrated
+ * A step with a `sealed` envelope codec sends its hydrated
  * `{ headers, data }` body sealed under the carried session key, and opens its
  * answer before any guard, outcome or extract reads it: extracts see the
  * original headers and the opened data. A plaintext answer can only fail — a
@@ -126,7 +126,7 @@ function sentEnvelope(fake: IFetchFake): ISentEnvelope {
   return JSON.parse(body) as ISentEnvelope;
 }
 
-describe('N39 sealed step', () => {
+describe('sealed step', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

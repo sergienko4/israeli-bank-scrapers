@@ -1,7 +1,7 @@
 /**
  * Unit tests for Flow/AuthModePolicy — the Authorization value each auth
  * scheme renders from a login token, and the policy each scheme hands the
- * mediator under the flow's `authRecovery` (N33).
+ * mediator under the flow's `authRecovery`.
  */
 
 import type { IApiDirectCallConfig } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';

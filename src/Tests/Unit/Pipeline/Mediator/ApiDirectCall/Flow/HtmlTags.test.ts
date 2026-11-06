@@ -1,5 +1,5 @@
 /**
- * N37 — the HTML tag scanner reads start and end tags the way the proven
+ * The HTML tag scanner reads start and end tags the way the proven
  * parser does: tag and attribute names lower-cased, the last of duplicate
  * attributes kept, values in double, single or no quotes with the five named
  * and the numeric entities decoded. Comments, declarations and the text of

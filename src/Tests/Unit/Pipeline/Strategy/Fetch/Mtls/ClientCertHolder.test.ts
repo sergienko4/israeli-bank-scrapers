@@ -1,5 +1,5 @@
 /**
- * N26 — the origin-scoped dynamic client certificate. A holder is looked up on
+ * The origin-scoped dynamic client certificate. A holder is looked up on
  * every request: the bank origin gets the installed certificate, any other
  * origin (or no certificate) gets a plain agent that presents none. Runs over
  * real loopback TLS: each server reports the SHA-256 of the certificate it was

@@ -1,5 +1,5 @@
 /**
- * UT-ST — a bank's status policy decides a 2xx before the body is read (N4):
+ * UT-ST — a bank's status policy decides a 2xx before the body is read:
  * `empty` answers `{}`, `fail` refuses with the log-safe URL and the status,
  * and a document step reads its own 204 instead of taking `empty`.
  */

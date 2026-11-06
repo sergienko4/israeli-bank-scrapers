@@ -1,5 +1,5 @@
 /**
- * N14 — conditional steps. A step whose `runIf` guard names a carry slot runs
+ * Conditional steps. A step whose `runIf` guard names a carry slot runs
  * only when that slot holds text matching one of `oneOf`, compared without
  * case. A false guard, or a slot that is missing or not text, skips the step
  * and its pre-hook: no request is sent and no OTP is asked for.

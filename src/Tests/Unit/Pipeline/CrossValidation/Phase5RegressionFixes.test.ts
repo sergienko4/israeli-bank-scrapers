@@ -18,7 +18,7 @@
  *       discoverer only inspects `responseBody`, so it returns no
  *       account. C-POST: a parallel case for POST captures whose
  *       request `postData` carries the identifier.
- *   D1 — STRICT post-nav-only txn discovery: when post-nav has no
+ *   D — STRICT post-nav-only txn discovery: when post-nav has no
  *       WK-txn match, `discoverTransactionsEndpoint` MUST return
  *       false (no fallback). Confirms the strict gate stays.
  */
@@ -218,7 +218,7 @@ describe('Pattern 1 — sanity (wait/discover migrated to ACCOUNT-RESOLVE)', () 
   });
 });
 
-describe('Defect D1 — Phase 7e: shape-aware full-pool picker (no bucket constraint)', () => {
+describe('Defect D — Phase 7e: shape-aware full-pool picker (no bucket constraint)', () => {
   it('discoverTransactionsEndpoint picks shape-passing capture regardless of pre-/post-nav bucket', () => {
     // Phase 7e: VisaCal-class banks fire the txn URL at login-FINAL,
     // before any dashboard click. The picker walks the full captured

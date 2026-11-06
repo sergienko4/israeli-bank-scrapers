@@ -1,5 +1,5 @@
 /**
- * Independent AES-256-CBC oracle for the envelope codec (N39) tests: a fixed
+ * Independent AES-256-CBC oracle for the envelope codec tests: a fixed
  * synthetic key and IV, the ciphertexts openssl gave for them, and raw
  * encrypt/decrypt calls that bypass the codec under test.
  */

@@ -1,5 +1,5 @@
 /**
- * M2.T10 — deep-coverage half of the LOGIN cross-bank factory.
+ * Deep-coverage half of the LOGIN cross-bank factory.
  *
  * <p>This file is the second half of the LOGIN factory split for
  * `max-lines` compliance — the first half (`LoginFactoryTest.test.ts`)

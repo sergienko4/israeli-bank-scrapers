@@ -1,5 +1,5 @@
 /**
- * N40/N41/N51/N54 build rules — a raw query replaces the query template, never
+ * Build rules — a raw query replaces the query template, never
  * joins it; a carried step URL (a GET's, by type) reads a slot that an earlier
  * step in the same list checked, with an `extractRules` `url` rule, as its
  * `finalUrlInto` slot or as its `locationCapture` slot. A `finalUrlInto` needs the step's own manual redirect,
@@ -209,7 +209,7 @@ const ACCEPTED: readonly IBuildCase[] = [
   { label: 'two checked writers', steps: [BIND, { ...BIND, name: 'login' }, LANDING] },
 ];
 
-describe('validateApiDirectConfig — N40/N41 step URL rules', () => {
+describe('validateApiDirectConfig — step URL rules', () => {
   it.each(REFUSALS)('refuses $label', build => {
     const input = inputOf(build);
     const result = validateApiDirectConfig(input);

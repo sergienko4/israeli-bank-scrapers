@@ -1,9 +1,9 @@
 /**
- * N8 — node-backed readers, media types, encoding, headers and domain
+ * Node-backed readers, media types, encoding, headers and domain
  * cookies and strict UTF-8 steps; native-fetch-only redirect, status,
  * failure-text and bank-wide media-type and UTF-8 defaults. Domain cookies
- * need a jar; header and cookie names must be tokens. N61 and N63 validate
- * media types and strict UTF-8 overrides.
+ * need a jar; header and cookie names must be tokens. The media-type and
+ * strict UTF-8 override rules validate those values.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';

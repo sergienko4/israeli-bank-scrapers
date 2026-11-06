@@ -1,5 +1,5 @@
 /**
- * Unit tests for D3 diagnostics:
+ * Unit tests for the submit-mode diagnostics:
  *   SubmitModeGate — PIPELINE_LOGIN_SUBMIT_MODE gate
  *   ActionsTypes  — logSubmitResult event field
  *   ActionsFill   — tryFormRequestSubmit wiring
@@ -184,7 +184,7 @@ describe('SubmitModeGate — readSubmitMode()', () => {
 
 // ─── Tests: ActionsTypes ──────────────────────────────────────────────────────
 
-describe("ActionsTypes — logSubmitResult emits event:'login.submit' (D3)", () => {
+describe("ActionsTypes — logSubmitResult emits event:'login.submit'", () => {
   it("adds event:'login.submit' to the debug record", () => {
     const { logger, logs } = makeSubmitLogger();
     logSubmitResult(logger, STUB_SOURCE, 'click');
@@ -195,7 +195,7 @@ describe("ActionsTypes — logSubmitResult emits event:'login.submit' (D3)", () 
 
 // ─── Tests: ActionsFill — tryFormRequestSubmit ────────────────────────────────
 
-describe('ActionsFill — tryFormRequestSubmit (D3 form.requestSubmit wiring)', () => {
+describe('ActionsFill — tryFormRequestSubmit (form.requestSubmit wiring)', () => {
   it('returns false when ctx is false — default enter-click is byte-identical', async () => {
     const didSubmit = await tryFormRequestSubmit(false, 'form#loginForm');
     expect(didSubmit).toBe(false);

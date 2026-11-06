@@ -1,5 +1,5 @@
 /**
- * N6 — a step may carry response headers. `headerExtractsToCarry` names a
+ * A step may carry response headers. `headerExtractsToCarry` names a
  * carry slot per header; the real mediator over the headless native transport
  * answers from a fake fetch, and the step's carry is read back.
  */
@@ -56,7 +56,7 @@ function makeScope(): ITemplateScope {
   return { carry: {}, creds: {}, config: PLAIN_CONFIG, keypair: undefined };
 }
 
-describe('N6 response-header carry over the headless native transport', () => {
+describe('response-header carry over the headless native transport', () => {
   const originalFetch = globalThis.fetch;
 
   afterEach((): void => {

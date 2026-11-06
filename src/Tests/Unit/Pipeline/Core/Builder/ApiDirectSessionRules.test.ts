@@ -1,9 +1,9 @@
 /**
- * N32 — a flow's `sessionCarry` allowlist is checked when the pipeline is
+ * A flow's `sessionCarry` allowlist is checked when the pipeline is
  * built: every slot must name a body or header extract, or the checked
  * final URL, of some step, so a generated key or a typo never reaches the
  * scrape's session context.
- * N35 — `cookieHandoff: 'isolate'` needs a domain jar to empty.
+ * `cookieHandoff: 'isolate'` needs a domain jar to empty.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';

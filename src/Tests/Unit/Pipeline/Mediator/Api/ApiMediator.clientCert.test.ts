@@ -1,5 +1,5 @@
 /**
- * N26 — the node:https mediator factory exposes the dynamic client-certificate
+ * The node:https mediator factory exposes the dynamic client-certificate
  * port only when the bank declares one. The installed certificate is
  * presented to the declared origin and nowhere else; the mocked-transport seam
  * records what each request would present, so no network is touched.

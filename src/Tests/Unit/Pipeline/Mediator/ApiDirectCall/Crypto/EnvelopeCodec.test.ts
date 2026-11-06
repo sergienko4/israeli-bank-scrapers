@@ -1,5 +1,5 @@
 /**
- * N39 / N52 — the AES-256-CBC envelope codec. Sealing a `{ headers, data }`
+ * The AES-256-CBC envelope codec. Sealing a `{ headers, data }`
  * body encrypts each header and the data under one shared IV, matching openssl
  * byte for byte. Opening accepts only one well-formed answer sealed for our
  * session; a plaintext answer is never opened. Failures name no key, IV or
@@ -88,7 +88,7 @@ describe('toSession', () => {
   });
 });
 
-describe('sealEnvelopeWithIv (N39 sealed)', () => {
+describe('sealEnvelopeWithIv (sealed)', () => {
   it('matches the openssl goldens, one IV for every part', () => {
     const session = syntheticSession();
     const body = { headers: [FLOW_HEADER], data: GREETING };
@@ -159,7 +159,7 @@ describe('sealEnvelope', () => {
   });
 });
 
-describe('openEnvelope (N39 open, N52)', () => {
+describe('openEnvelope (open)', () => {
   it('opens the data and keeps the original headers', () => {
     const session = syntheticSession();
     const sessionHeader = { type: 'session_id', session_id: 'syn-sid' };

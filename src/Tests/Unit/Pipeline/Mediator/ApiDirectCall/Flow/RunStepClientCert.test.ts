@@ -1,5 +1,5 @@
 /**
- * N26 — a step naming `clientCert` resolves its key and certificate refs and
+ * A step naming `clientCert` resolves its key and certificate refs and
  * installs the pair through the bus's certificate port before its request,
  * so that request and every later one to the bank origin present it. A bus
  * without the port, a non-string ref or a pair that does not match fails the
@@ -83,7 +83,7 @@ function runRegister(bus: ITokenBus, scope: ITemplateScope): ReturnType<typeof r
   return runStep({ step: REGISTER_STEP, bus, scope, companyId: HINT });
 }
 
-describe('N26 step client certificate', () => {
+describe('step client certificate', () => {
   afterEach((): void => {
     setMtlsFetchFallback();
   });

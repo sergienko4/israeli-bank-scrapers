@@ -1,5 +1,5 @@
 /**
- * N37 — a `$merge` node may only be a form body's whole shape (`form` or
+ * A `$merge` node may only be a form body's whole shape (`form` or
  * `form-latin1` or `form-utf8`), with a `carry.` base and a flat `set`. A malformed root
  * fails as a nested form; a `$merge` anywhere else — a JSON or text body, a
  * form field, a header, a query — fails the build. A `$merge` key inside a
@@ -86,7 +86,7 @@ const STRAY: readonly (readonly [string, IPostStep])[] = [
   ['a query', { ...stepWith(FLAT), queryTemplate: { form: MERGE } }],
 ];
 
-describe('validateApiDirectConfig — $merge bodies (N37)', () => {
+describe('validateApiDirectConfig — $merge bodies', () => {
   it.each(FORM_ENCODINGS)('a %s body that is one $merge passes', encoding => {
     const step = stepWith(MERGE, encoding);
     const result = verdictOf(step);

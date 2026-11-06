@@ -1,5 +1,5 @@
 /**
- * N49 build rule — an optional ref drops its key when its source has no
+ * Build rule — an optional ref drops its key when its source has no
  * value, so it may stand only as the value of a body or query-template key.
  * One at a root, inside an array or in a header fails the build.
  */
@@ -96,7 +96,7 @@ const ACCEPTED: readonly IBuildCase[] = [
   { label: 'an optional ref as $literal data', steps: [postWith({ $literal: OPTIONAL_DID })] },
 ];
 
-describe('validateApiDirectConfig — N49 optional ref rule', () => {
+describe('validateApiDirectConfig — optional ref rule', () => {
   it.each(REFUSALS)('refuses $label', build => {
     const input = inputOf(build);
     const result = validateApiDirectConfig(input);

@@ -3,7 +3,8 @@
  * client, registers the device with a certification request the bank checks,
  * takes a bearer token over the issued certificate, opens a BaNCS session and
  * reads every shekel current account, each read echoing the latest rotated
- * session. Every call is checked against spec §10.2 by the synthetic bank.
+ * session. Every call is checked against the recorded contract by the
+ * synthetic bank.
  *
  * Rule #18: all credentials + data are synthetic; no real PII.
  */

@@ -13,7 +13,7 @@
  * covers it in every flow test without per-test edits.
  *
  * This file is intentionally SLIM — the broader per-bank context factory and
- * per-flow runners land in T7.4 alongside the phase reshape work, when their
+ * per-flow runners land alongside the phase reshape work, when their
  * exact contracts can be designed against the specific phases they exercise.
  */
 

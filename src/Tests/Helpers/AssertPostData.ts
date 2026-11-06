@@ -1,5 +1,5 @@
 /**
- * Test-only narrowing for POST data (N19). A shape's `buildVars` and a
+ * Test-only narrowing for POST data. A shape's `buildVars` and a
  * captured request body are ApiPostData — an object or a top-level array —
  * so a test that reads named fields first proves the data is an object.
  */

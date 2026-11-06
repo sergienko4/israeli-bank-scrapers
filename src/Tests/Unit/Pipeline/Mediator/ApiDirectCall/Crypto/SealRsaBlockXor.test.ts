@@ -1,5 +1,5 @@
 /**
- * N10 — the `rsa-pkcs1-block-xor` seal: a random seed RSA-PKCS#1 v1.5
+ * The `rsa-pkcs1-block-xor` seal: a random seed RSA-PKCS#1 v1.5
  * sealed in short ASCII blocks under the bank's modulus, the source XORed
  * with that seed and percent-encoded, both sent as padded base64url.
  */
@@ -59,7 +59,7 @@ const GOLDEN_SOURCE = fromCodes([
 ]);
 const GOLDEN_TAIL = '%21%27%28%29%2a%7e%20%C3%A9aZ%D7%90-.';
 
-describe('N10 sealRsaBlockXor', () => {
+describe('sealRsaBlockXor', () => {
   it('writes the tail of the live-verified client for a fixed seed', () => {
     const sealed = sealedText(GOLDEN_SOURCE);
     const opened = openSeal(sealed, KEY);

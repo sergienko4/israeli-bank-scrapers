@@ -1,5 +1,5 @@
 /**
- * Discount api-direct login config (spec §11.2 rows 1–4). The build-time
+ * Discount api-direct login config. The build-time
  * validator accepts it with its headless block; each step hydrates to the
  * request the protocol trace pinned — the login page with the routing
  * cookies, the RSA key, the sealed login with its one redirect hop, and the

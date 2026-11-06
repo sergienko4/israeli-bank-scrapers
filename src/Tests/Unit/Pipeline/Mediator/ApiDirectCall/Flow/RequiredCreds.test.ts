@@ -1,5 +1,5 @@
 /**
- * E13 — required credentials are checked before the first step.
+ * Required credentials are checked before the first step.
  *
  * A missing or malformed field fails the flow by name, with no request sent
  * and no value in the message; sound credentials let the first step fire.
@@ -86,7 +86,7 @@ beforeAll((): void => {
   registerWkUrl('auth.bind', HINT, 'https://example.test/api/bind');
 });
 
-describe('E13 required credentials', () => {
+describe('required credentials', () => {
   it.each(RULE_CASES)('$rule on $value → accepted=$isAccepted', async (row): Promise<void> => {
     const config = makeConfig({ field: row.rule });
     const { result, captures } = await runOnce(config, { field: row.value });

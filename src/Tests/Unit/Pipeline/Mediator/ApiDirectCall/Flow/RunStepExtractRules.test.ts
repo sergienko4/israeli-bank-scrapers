@@ -1,10 +1,10 @@
 /**
- * N18 — per-slot extract rules, run on the raw value once the step's body is
+ * Per-slot extract rules, run on the raw value once the step's body is
  * extracted: `type` first, then `transform`, then `maxChars` (8192 when unset
  * for text), `oneOf`, an anchored `pattern` and `url` rules. A number is
  * stringified only when a text check runs. An optional slot whose pointer is
- * unresolved, `null` or `''` skips its rule. N27 — a header-extract slot is
- * ruled like a body one. N47 — `equalsRef` demands the checked text equal
+ * unresolved, `null` or `''` skips its rule. A header-extract slot is
+ * ruled like a body one. `equalsRef` demands the checked text equal
  * the text its ref resolves to. The carry comes back with each ruled slot
  * holding its checked value. A failure is `<step> extract <slot> invalid`, or
  * `mismatch` for `equalsRef`, and names no value.

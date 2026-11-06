@@ -1,5 +1,5 @@
 /**
- * M2.T10 — cross-bank factory test for the LOGIN phase.
+ * Cross-bank factory test for the LOGIN phase.
  *
  * <p>One logic path, parametrized over every browser-flow bank that
  * runs the LOGIN phase. Mirrors the {@link AuthDiscoveryFactoryTest}

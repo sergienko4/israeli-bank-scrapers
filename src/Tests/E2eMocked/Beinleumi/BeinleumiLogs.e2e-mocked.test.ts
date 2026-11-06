@@ -1,5 +1,5 @@
 /**
- * FIBI-group browserless logs, caller outcomes (AD-N12) — no password, code,
+ * FIBI-group browserless logs, caller outcomes  — no password, code,
  * user or account name, Transmit token, authorization, envelope key, device or
  * session id, SSO code, cookie, bank text or opaque device state reaches a log
  * line or a failure message, across the wrong-credential, SMS-outcome and
@@ -61,7 +61,7 @@ function sentTextOf(call: IRecordedCall): string {
 }
 
 describe.each(BRANDS.FIBI_MOCK_BRANDS)(
-  '$companyId browserless logs on caller outcomes (AD-N12)',
+  '$companyId browserless logs on caller outcomes',
   (brand): void => {
     const carry = {
       authorization: DATA.BN_AUTHORIZATION,

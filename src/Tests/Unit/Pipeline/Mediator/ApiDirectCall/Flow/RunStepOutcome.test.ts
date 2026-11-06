@@ -95,7 +95,7 @@ describe('judgeStepOutcome', () => {
   });
 });
 
-/** N13 — bank states matched without case; config lists in mixed case. */
+/** Bank states matched without case; config lists in mixed case. */
 const CASELESS: IStepOutcome = {
   codePointer: '/state',
   successCodes: ['logonotp', 'LandPage'],

@@ -1,5 +1,5 @@
 /**
- * E14 — an api-direct call config is checked against its bank's headless
+ * An api-direct call config is checked against its bank's headless
  * block when the pipeline is built.
  *
  * Each rule has broken configs that fail with its exact `"<field>: <rule>"`
@@ -356,7 +356,7 @@ describe('validateApiDirectConfig', () => {
   });
 });
 
-describe('production pipelines under E14', () => {
+describe('production pipelines under the api-direct config rules', () => {
   it('registry is not empty', () => {
     expect(REGISTERED.length).toBeGreaterThan(0);
   });

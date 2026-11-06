@@ -1,7 +1,8 @@
 /**
  * Beinleumi mocked bank — how a run misbehaves, the state one run keeps, and
  * the wire check every route reports through. A route that finds its request
- * off spec §11.2 records why and answers 400, so a green run proves every call.
+ * off the recorded contract records why and answers 400, so a green run
+ * proves every call.
  *
  * Rule #18: every value here is SYNTHETIC. No real PII.
  */
