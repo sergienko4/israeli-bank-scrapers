@@ -29,7 +29,7 @@ async function readText<T>(answer: IAnswer): Promise<Procedure<T>> {
   const text = read.value;
   const cap = answer.reading.maxTextChars ?? TEXT_ANSWER_CAP;
   if (text.length <= cap) return succeed({ text } as T);
-  const safeUrl = safeUrlForLog(answer.url);
+  const safeUrl = safeUrlForLog(answer.url, answer.reading.redactUrlValues);
   return fail(ScraperErrorTypes.Generic, `${answer.verb} ${safeUrl} ${TEXT_TOO_LONG_REASON}`);
 }
 

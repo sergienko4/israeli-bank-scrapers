@@ -14,6 +14,8 @@ type HttpVerb = 'GET' | 'POST';
 interface IFetchInvokePolicy {
   readonly verb: HttpVerb;
   readonly mediaType?: string;
+  /** Account ids the caller explicitly identified; the URL logger masks them. */
+  readonly redactUrlValues?: readonly string[];
 }
 
 /**
@@ -49,7 +51,8 @@ interface ISessionHeaders {
 }
 
 /** Optional fetch configuration; the call policy overrides the transport's default. */
-interface IFetchOpts extends IFetchCallPolicy, Pick<IResponseReading, 'onEmptyResponse'> {
+interface IFetchOpts
+  extends IFetchCallPolicy, Pick<IResponseReading, 'onEmptyResponse' | 'redactUrlValues'> {
   /** Additional HTTP headers to include in the request. */
   readonly extraHeaders: Record<string, string>;
   /**

@@ -198,7 +198,8 @@ function unwrapGraphql<T>(envelope: IGraphQLEnvelope<T>, operation: string): Pro
 async function firePost<T>(args: IFirePostArgs): Promise<Procedure<T>> {
   const headers = mergeHeaders(args.rawAuth, args.extraHeaders);
   const finalUrl = appendQuery(args.url, args.query);
-  const fetchOpts = { ...args.policy, extraHeaders: headers, onSetCookie: args.onSetCookie };
+  const { policy, onSetCookie, redactUrlValues } = args;
+  const fetchOpts = { ...policy, extraHeaders: headers, onSetCookie, redactUrlValues };
   return args.deps.fetchStrategy.fetchPost<T>(finalUrl, args.body, fetchOpts);
 }
 
@@ -210,7 +211,8 @@ async function firePost<T>(args: IFirePostArgs): Promise<Procedure<T>> {
 async function fireGet<T>(args: IFireGetArgs): Promise<Procedure<T>> {
   const extraHeaders = mergeHeaders(args.rawAuth, args.extraHeaders);
   const finalUrl = appendQuery(args.url, args.query);
-  const fetchOpts = { ...args.policy, extraHeaders, onSetCookie: args.onSetCookie };
+  const { policy, onSetCookie, redactUrlValues } = args;
+  const fetchOpts = { ...policy, extraHeaders, onSetCookie, redactUrlValues };
   return args.deps.fetchStrategy.fetchGet<T>(finalUrl, fetchOpts);
 }
 

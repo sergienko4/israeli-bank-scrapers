@@ -53,6 +53,8 @@ interface IHttpFailure {
   readonly status: number;
   readonly body: string;
   readonly omitBankText?: boolean;
+  /** Explicit account ids the URL logger must mask. */
+  readonly redactUrlValues?: readonly string[];
   /** Response headers keyed by lower-case name. */
   readonly headers: Readonly<Record<string, string>>;
 }
@@ -122,7 +124,7 @@ const EDGE_REFUSAL_RULES: readonly IEdgeRefusalRule[] = [
  *   Generic with a body snippet unless omitted by policy. Both keep the status prefix.
  */
 function classifyHttpFailure<T>(failure: IHttpFailure): Procedure<T> {
-  const safeUrl = safeUrlForLog(failure.url);
+  const safeUrl = safeUrlForLog(failure.url, failure.redactUrlValues);
   const prefix = `${failure.verb} ${safeUrl} ${String(failure.status)}: `;
   const refusal = EDGE_REFUSAL_RULES.find((rule): boolean => rule.matches(failure));
   if (refusal) return fail(ScraperErrorTypes.WafBlocked, prefix + refusal.reason);

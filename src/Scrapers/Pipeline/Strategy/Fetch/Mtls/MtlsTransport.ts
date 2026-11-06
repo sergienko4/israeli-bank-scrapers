@@ -218,8 +218,8 @@ function sendRequest(request: IMtlsRequest): Promise<IncomingMessage> {
  */
 function toMtlsFailure(error: unknown, request: IMtlsRequest): Procedure<Response> {
   const rawReason = toError(error).message;
-  const reason = scrubUrlFromText(rawReason, request.url);
-  const safeUrl = safeUrlForLog(request.url);
+  const reason = scrubUrlFromText(rawReason, request.url, request.redactUrlValues);
+  const safeUrl = safeUrlForLog(request.url, request.redactUrlValues);
   return fail(ScraperErrorTypes.Generic, `${request.verb} ${safeUrl} mtls error: ${reason}`);
 }
 
@@ -274,10 +274,12 @@ function makeMtlsInvoke(source: AgentSource): FetchInvoke {
    * @returns Procedure carrying the synthesised Response, or a network failure.
    */
   const invoke: FetchInvoke = (url, init, policy) => {
-    const { verb, mediaType } = policy;
+    const { verb, mediaType, redactUrlValues } = policy;
     const { agent, presented } = source(url);
-    if (mtlsFetchFallback) return mtlsFetchFallback({ url, init, verb, mediaType, presented });
-    return mtlsInvoke({ agent, url, init, verb, mediaType });
+    if (mtlsFetchFallback) {
+      return mtlsFetchFallback({ url, init, verb, mediaType, redactUrlValues, presented });
+    }
+    return mtlsInvoke({ agent, url, init, verb, mediaType, redactUrlValues });
   };
   return invoke;
 }

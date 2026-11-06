@@ -67,7 +67,7 @@ function viaMockedFetch(state: IYahavMockState): MtlsFallback {
   return request => {
     state.presented = request.presented;
     state.presentedLog.push(request.presented);
-    return invokeFetch(request.url, request.init, request.verb);
+    return invokeFetch({ url: request.url, init: request.init, verb: request.verb });
   };
 }
 

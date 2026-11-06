@@ -25,7 +25,7 @@ async function readDocument<T>(answer: IAnswer): Promise<Procedure<T>> {
   if (!isOk(page)) return page;
   const marker = answer.reading.documentMarker ?? '';
   if (page.value.includes(marker)) return emptyAnswer<T>();
-  const safeUrl = safeUrlForLog(answer.url);
+  const safeUrl = safeUrlForLog(answer.url, answer.reading.redactUrlValues);
   return fail(ScraperErrorTypes.Generic, `${answer.verb} ${safeUrl} ${DOCUMENT_UNVERIFIED_REASON}`);
 }
 

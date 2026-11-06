@@ -42,11 +42,49 @@ describe('safeUrlForLog', () => {
   });
 });
 
+describe('safeUrlForLog — explicit account ids', () => {
+  /** A valid Titan id with no four-digit run — the path heuristic cannot see it. */
+  const opalId = 'ACCT_1-a';
+
+  /** The balance read carrying {@link opalId} in its final segment. */
+  const opalBalance = `https://start.telebank.co.il/Titan/gatewayAPI/accountDetails/infoAndBalance/${opalId}`;
+
+  it('masks an explicit id that carries no four-digit run', () => {
+    const out = safeUrlForLog(opalBalance, [opalId]);
+    expect(out).not.toContain(opalId);
+    expect(out).toBe(
+      'https://start.telebank.co.il/Titan/gatewayAPI/accountDetails/infoAndBalance/[REDACTED]',
+    );
+  });
+
+  it('masks a long explicit id that carries no digits', () => {
+    const id = 'a'.repeat(64);
+    const url = `https://start.telebank.co.il/Titan/gatewayAPI/accountDetails/infoAndBalance/${id}`;
+    const out = safeUrlForLog(url, [id]);
+    expect(out).not.toContain(id);
+    expect(out).toContain('***aaaa');
+  });
+
+  it('still masks a digit-carrying id when passed explicitly', () => {
+    const out = safeUrlForLog(TITAN_BALANCE, ['SYN-DC-0001']);
+    expect(out).not.toContain('SYN-DC-0001');
+    expect(out).toContain('***0001');
+  });
+});
+
 describe('scrubUrlFromText', () => {
   it('replaces a quoted query string with nothing', () => {
     const text = `engine error at ${WITH_QUERY} (refused)`;
     const out = scrubUrlFromText(text, WITH_QUERY);
     expect(out).not.toContain('L0CATION-SECRET');
     expect(out).toContain('https://www.bank.example/start');
+  });
+
+  it('masks an explicit account id quoted inside free text', () => {
+    const id = 'ACCT_1-a';
+    const url = `https://start.telebank.co.il/Titan/gatewayAPI/accountDetails/infoAndBalance/${id}`;
+    const out = scrubUrlFromText(`request failed: ${url}`, url, [id]);
+    expect(out).not.toContain(id);
+    expect(out).toContain('infoAndBalance/[REDACTED]');
   });
 });

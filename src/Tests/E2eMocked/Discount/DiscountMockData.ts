@@ -87,7 +87,9 @@ export interface ISynAccount {
 /** Two accounts, so the per-account `AccountNumber` header is observable. */
 export const DISCOUNT_MOCK_ACCOUNTS: readonly ISynAccount[] = [
   { id: 'SYN-DC-0001', display: '0-000-111111', balance: 1520.4, amounts: [-51, 129.9] },
-  { id: 'SYN-DC-0002', display: '0-000-222222', balance: -310, amounts: [-20] },
+  // A valid Titan id with no digit run: the path heuristic cannot see it, so
+  // the run must mask it from the explicit id the account-scoped call carries.
+  { id: 'ACCT_1-a', display: '0-000-222222', balance: -310, amounts: [-20] },
 ];
 
 /** Noon UTC two months back: the same calendar day in Israel all year. */

@@ -48,7 +48,7 @@ function isMediaTypeMismatch(response: Response, expected?: string): boolean {
 async function refuseMediaType<T>(answer: IAnswer): Promise<Option<Procedure<T>>> {
   if (!isMediaTypeMismatch(answer.response, answer.reading.mediaType)) return none();
   await cancelResponseBody(answer.response, answer);
-  const safeUrl = safeUrlForLog(answer.url);
+  const safeUrl = safeUrlForLog(answer.url, answer.reading.redactUrlValues);
   const message = `${answer.verb} ${safeUrl} ${MEDIA_TYPE_REFUSED_REASON}`;
   const refused = fail(ScraperErrorTypes.Generic, message);
   return some(refused);

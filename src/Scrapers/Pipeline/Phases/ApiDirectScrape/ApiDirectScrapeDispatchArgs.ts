@@ -52,17 +52,39 @@ function accountCall<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): IScrapeCallIn
 }
 
 /**
+ * Attach the account ids a call's logged URLs must mask. The list is
+ * resolved on demand, when a transport logs a URL, so building the opts
+ * (a static header map included) never reads the account.
+ * @param opts - The call's header opts.
+ * @param valuesOf - Supplies the ids to mask, read only by the transport.
+ * @returns Opts whose `redactUrlValues` is resolved lazily.
+ */
+function withLazyRedaction(opts: IApiQueryOpts, valuesOf: () => readonly string[]): IApiQueryOpts {
+  return Object.defineProperty({ ...opts }, 'redactUrlValues', {
+    configurable: true,
+    enumerable: true,
+    get: valuesOf,
+  });
+}
+
+/**
  * Build the opts of a balance or transactions call, whose header
- * producer learns the account it is for.
+ * producer learns the account it is for. The account ids the transport
+ * masks in logged URLs are resolved lazily too, so building the opts never
+ * reads the account.
  * @param a - Per-account context.
  * @param extra - The step's static map, function, or absent.
- * @returns Opts value.
+ * @returns Opts value carrying a lazily-resolved redaction list.
  */
 function accountOpts<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
   extra?: ApiDirectScrapeHeadersLike,
 ): IApiQueryOpts {
-  return headerOpts(a.ctx, (): IScrapeCallInfo => accountCall(a), extra);
+  const opts = headerOpts(a.ctx, (): IScrapeCallInfo => accountCall(a), extra);
+  return withLazyRedaction(opts, (): readonly string[] => {
+    const { accountId } = accountCall(a);
+    return accountId === undefined ? [] : [accountId];
+  });
 }
 
 /** The dispatch-args fields every step of one shape shares. */

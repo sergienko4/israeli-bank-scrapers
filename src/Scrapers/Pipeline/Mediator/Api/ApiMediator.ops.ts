@@ -23,7 +23,10 @@ import type {
 } from './ApiMediator.types.js';
 
 /** Optional-extras subset merged into firePost args. */
-type FirePostExtras = Pick<IFirePostArgs, 'extraHeaders' | 'query' | 'onSetCookie' | 'policy'>;
+type FirePostExtras = Pick<
+  IFirePostArgs,
+  'extraHeaders' | 'query' | 'onSetCookie' | 'policy' | 'redactUrlValues'
+>;
 
 /**
  * Build the optional extras subset of firePost args.
@@ -36,6 +39,7 @@ function buildFirePostExtras(args: IApiPostOpArgs): FirePostExtras {
     query: args.opts?.query ?? NO_EXTRA_HEADERS,
     onSetCookie: args.opts?.onSetCookie,
     policy: args.opts?.policy,
+    redactUrlValues: args.opts?.redactUrlValues,
   };
 }
 
@@ -121,7 +125,10 @@ function buildGetHeaders(
 }
 
 /** Optional-extras subset merged into fireGet args. */
-type FireGetExtras = Pick<IFireGetArgs, 'extraHeaders' | 'query' | 'onSetCookie' | 'policy'>;
+type FireGetExtras = Pick<
+  IFireGetArgs,
+  'extraHeaders' | 'query' | 'onSetCookie' | 'policy' | 'redactUrlValues'
+>;
 
 /**
  * Build the per-attempt GET extras. Caller headers sit under the fresh
@@ -140,7 +147,8 @@ function buildFireGetExtras(
 ): FireGetExtras {
   const extraHeaders = buildGetHeaders(ctx, url, opts);
   const query = opts?.query ?? NO_EXTRA_HEADERS;
-  return { extraHeaders, query, onSetCookie: opts?.onSetCookie, policy: opts?.policy };
+  const { redactUrlValues, onSetCookie, policy } = { ...opts };
+  return { extraHeaders, query, onSetCookie, policy, redactUrlValues };
 }
 
 /**

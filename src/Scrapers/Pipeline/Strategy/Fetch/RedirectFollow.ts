@@ -122,7 +122,7 @@ function emitSetCookies(
  * @returns Generic failure naming only the request URL.
  */
 function refused(run: IRedirectRun, status?: number): Procedure<IRunEnd> {
-  const safeUrl = safeUrlForLog(run.url);
+  const safeUrl = safeUrlForLog(run.url, run.redactUrlValues);
   const statusText = status === undefined ? '' : `HTTP ${String(status)} `;
   const message = `${run.verb} ${safeUrl} ${statusText}${REDIRECT_REFUSED_REASON}`;
   return fail(ScraperErrorTypes.Generic, message);
@@ -215,7 +215,8 @@ function nextHop(run: IRedirectRun, hop: IHop, target: URL): Procedure<IHop> {
  * @returns The final response, a refusal, or the transport failure.
  */
 async function sendHop(ctx: IManualRun, hop: IHop): Promise<Procedure<IRunEnd>> {
-  const policy: IFetchInvokePolicy = { verb: hop.verb, mediaType: ctx.run.mediaType };
+  const redaction = { redactUrlValues: ctx.run.redactUrlValues };
+  const policy: IFetchInvokePolicy = { verb: hop.verb, mediaType: ctx.run.mediaType, ...redaction };
   const sent = await ctx.run.invoke(hop.url, hop.init, policy);
   if (!isOk(sent)) return sent;
   const response = sent.value;
@@ -235,7 +236,8 @@ async function sendHop(ctx: IManualRun, hop: IHop): Promise<Procedure<IRunEnd>> 
  */
 async function continueHop(ctx: IManualRun, hop: IHop, end: IRunEnd): Promise<Procedure<IRunEnd>> {
   emitSetCookies(end.response, end.responseUrl, ctx.run.onSetCookie);
-  await cancelResponseBody(end.response, hop);
+  const hopContext = { verb: hop.verb, url: hop.url, redactUrlValues: ctx.run.redactUrlValues };
+  await cancelResponseBody(end.response, hopContext);
   const target = hopTarget(end.response, hop, ctx);
   if (!target.has) return refused(ctx.run);
   const next = nextHop(ctx.run, hop, target.value);

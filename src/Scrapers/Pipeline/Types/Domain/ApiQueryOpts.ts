@@ -17,6 +17,12 @@ interface IApiQueryOpts {
   readonly query?: Record<string, string>;
   readonly onSetCookie?: (setCookies: readonly string[]) => number;
   readonly policy?: IFetchCallPolicy;
+  /**
+   * Account ids this call explicitly identified. The transport masks each
+   * one literally in every logged URL, so an id whose shape carries no digit
+   * run never reaches a log line.
+   */
+  readonly redactUrlValues?: readonly string[];
 }
 
 export type { IApiQueryOpts };

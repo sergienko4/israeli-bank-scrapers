@@ -43,6 +43,18 @@ type FullyQualifiedUrl = Brand<string, 'FullyQualifiedUrl'>;
 /** The request half of a run — what a verb method builds before policy. */
 type TRequest = Pick<IRedirectRun, 'url' | 'init' | 'verb'>;
 
+/** The parts of a native request a failure message needs. */
+interface INativeFailure {
+  readonly url: string;
+  readonly verb: HttpVerb;
+  readonly redactUrlValues?: readonly string[];
+}
+
+/** One native request and the account ids its failure text must mask. */
+interface INativeRequest extends INativeFailure {
+  readonly init: RequestInit;
+}
+
 /** A run plus how its answer is read. */
 interface IDispatch extends IRedirectRun {
   readonly reading: IResponseReading;
@@ -85,10 +97,15 @@ const READERS: Readonly<Record<ResponseKind, Reader>> = {
  * Fail a POST whose body its writer refused, before any request.
  * @param url - Resolved request URL.
  * @param refusal - The writer's fixed refusal.
+ * @param redactUrlValues - Explicit account ids to mask in the message.
  * @returns The refusal, naming the request URL only.
  */
-function refuseBody<T>(url: string, refusal: IProcedureFailure): Procedure<T> {
-  const safeUrl = safeUrlForLog(url);
+function refuseBody<T>(
+  url: string,
+  refusal: IProcedureFailure,
+  redactUrlValues?: readonly string[],
+): Procedure<T> {
+  const safeUrl = safeUrlForLog(url, redactUrlValues);
   return fail(refusal.errorType, `POST ${safeUrl} ${refusal.errorMessage}`);
 }
 
@@ -102,7 +119,8 @@ async function classifyStatus<T>(answer: IAnswer): Promise<Procedure<T>> {
   const body = await response.text();
   const headers = Object.fromEntries(response.headers);
   const privacy = { omitBankText: answer.reading.omitBankText };
-  const failure = { verb, url, status: response.status, body, headers, ...privacy };
+  const redaction = { redactUrlValues: answer.reading.redactUrlValues };
+  const failure = { verb, url, status: response.status, body, headers, ...privacy, ...redaction };
   return classifyHttpFailure<T>(failure);
 }
 
@@ -143,45 +161,38 @@ const HEADER_REFUSAL_PATTERN = /invalid header|ByteString/i;
  * The reason a network failure reports: a header refusal by name only,
  * anything else with the URL scrubbed out.
  * @param rawReason - The thrown error's message.
- * @param url - Target URL.
+ * @param request - The native request whose URL and ids are masked.
  * @returns The reason to report.
  */
-function networkReason(rawReason: string, url: string): string {
+function networkReason(rawReason: string, request: INativeFailure): string {
   if (HEADER_REFUSAL_PATTERN.test(rawReason)) return INVALID_HEADER_REASON;
-  return scrubUrlFromText(rawReason, url);
+  return scrubUrlFromText(rawReason, request.url, request.redactUrlValues);
 }
 
 /**
  * Wrap a thrown fetch error into a network-error Procedure.
  * @param error - The caught value, from any realm.
- * @param verb - HTTP verb (for error-message prefixing).
- * @param url - Target URL (for error-message prefixing).
+ * @param request - The native request that failed.
  * @returns Procedure failure annotated with the underlying reason.
  */
-function toNetworkFailure(error: unknown, verb: HttpVerb, url: string): Procedure<Response> {
+function toNetworkFailure(error: unknown, request: INativeFailure): Procedure<Response> {
   const rawReason = toError(error).message;
-  const reason = networkReason(rawReason, url);
-  const safeUrl = safeUrlForLog(url);
-  return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} network error: ${reason}`);
+  const reason = networkReason(rawReason, request);
+  const safeUrl = safeUrlForLog(request.url, request.redactUrlValues);
+  return fail(ScraperErrorTypes.Generic, `${request.verb} ${safeUrl} network error: ${reason}`);
 }
 
 /**
  * Run globalThis.fetch and surface the Response or a network-error Procedure.
- * @param url - Target URL.
- * @param init - Native fetch RequestInit (method/headers/body).
- * @param verb - HTTP verb (for error-message prefixing).
+ * @param request - URL, init, verb and explicit account ids to mask.
  * @returns Procedure carrying the raw Response, or a network-error failure.
  */
-async function invokeFetch(
-  url: string,
-  init: RequestInit,
-  verb: HttpVerb,
-): Promise<Procedure<Response>> {
+async function invokeFetch(request: INativeRequest): Promise<Procedure<Response>> {
   try {
-    const response = await globalThis.fetch(url, init);
+    const response = await globalThis.fetch(request.url, request.init);
     return succeed(response);
   } catch (error) {
-    return toNetworkFailure(error, verb, url);
+    return toNetworkFailure(error, request);
   }
 }
 
@@ -193,7 +204,7 @@ async function invokeFetch(
  * @returns The raw response or the native network failure.
  */
 const INVOKE_NATIVE_FETCH: FetchInvoke = (url, init, policy): Promise<Procedure<Response>> =>
-  invokeFetch(url, init, policy.verb);
+  invokeFetch({ url, init, verb: policy.verb, redactUrlValues: policy.redactUrlValues });
 
 /**
  * Resolve a request URL the way every node transport does: an absolute
@@ -231,7 +242,7 @@ function emitHooks(run: IDispatch, end: IRunEnd): number {
  * @returns Procedure with parsed body or structured failure.
  */
 async function dispatchFetch<T>(run: IDispatch): Promise<Procedure<T>> {
-  const safeUrl = safeUrlForLog(run.url);
+  const safeUrl = safeUrlForLog(run.url, run.redactUrlValues);
   LOG.debug({ verb: run.verb, url: safeUrl, message: '[fetch] FIRE' });
   const sent = await sendUnderPolicy(run);
   if (!isOk(sent)) {
@@ -321,7 +332,7 @@ class NativeFetchStrategy implements IFetchStrategy {
   public async fetchPost<T>(url: string, data: PostData, opts: IFetchOpts): Promise<Procedure<T>> {
     const written = writePostBody(data, opts.bodyEncoding);
     const target = this.resolveUrl(url);
-    if (!isOk(written)) return refuseBody<T>(target, written);
+    if (!isOk(written)) return refuseBody<T>(target, written, opts.redactUrlValues);
     const merged = overlayHeaders(this._verbDefaults.POST, opts.extraHeaders);
     const headers = withBodyContentType(merged, written.value);
     const body =
@@ -360,7 +371,8 @@ class NativeFetchStrategy implements IFetchStrategy {
     const reading = this.readingOf(opts);
     const { onSetCookie, sessionHeadersFor } = opts;
     const hooks = { onSetCookie, sessionHeadersFor };
-    const invocation = { invoke: this._invoke, mediaType: reading.mediaType };
+    const redaction = { redactUrlValues: opts.redactUrlValues };
+    const invocation = { invoke: this._invoke, mediaType: reading.mediaType, ...redaction };
     return { ...request, ...hooks, ...invocation, url, policy, reading };
   }
 
@@ -378,8 +390,10 @@ class NativeFetchStrategy implements IFetchStrategy {
     const media = { mediaType: opts.mediaType ?? this._mediaTypes[responseKind] };
     const decoding = { strictUtf8: opts.strictUtf8 ?? this._strictUtf8 };
     const hooks = { responseKind, documentMarker, maxTextChars, headerSink, onEmptyResponse };
+    const redaction = { redactUrlValues: opts.redactUrlValues };
     const privacy = { omitBankText: this._omitBankText };
-    return { statusPolicy: this._statusPolicy, ...hooks, ...media, ...decoding, ...privacy };
+    const policy = { statusPolicy: this._statusPolicy };
+    return { ...policy, ...hooks, ...media, ...decoding, ...privacy, ...redaction };
   }
 
   /**
@@ -394,5 +408,6 @@ class NativeFetchStrategy implements IFetchStrategy {
 
 export default NativeFetchStrategy;
 export { invokeFetch, isApiSuccess, NativeFetchStrategy, resolveFetchUrl, toNetworkFailure };
-export type { DefaultHeadersByVerb, FullyQualifiedUrl, IDispatch, INativeFetchOptions, TRequest };
+export type { DefaultHeadersByVerb, FullyQualifiedUrl, IDispatch };
+export type { INativeFetchOptions, TRequest };
 export type { FetchInvoke, HttpVerb } from './FetchStrategy.js';
