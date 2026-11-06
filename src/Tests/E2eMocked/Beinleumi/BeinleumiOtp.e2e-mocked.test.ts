@@ -1,5 +1,5 @@
 /**
- * Beinleumi browserless SMS step — mocked E2E. When the password answer
+ * FIBI group browserless SMS step — mocked E2E. When the password answer
  * offers an SMS code the run asks the caller for it: a `generate` offer is
  * triggered first (and the trigger's answer names the code's real length), a
  * `validate` offer is asserted straight away. A fresh session id the bank
@@ -10,6 +10,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../Scrapers/Base/ErrorTypes.js';
+import { FIBI_MOCK_BRANDS } from './BeinleumiBrands.js';
 import type { OtpFault } from './BeinleumiFaults.js';
 import { BN_FRESH_SID, BN_OFFERED_OTP_LENGTH, BN_OTP, BN_SID } from './BeinleumiMockData.js';
 import type { IBeinleumiRun } from './BeinleumiRun.js';
@@ -33,6 +34,8 @@ const TRIGGERED_TRAIL = [...OPENING_TRAIL, 'otpInit'];
 
 /** A code of the length the offer named, not the one the trigger answered. */
 const OFFERED_LENGTH_CODE = BN_OTP.slice(0, BN_OFFERED_OTP_LENGTH);
+
+const NON_DIGIT_CODE = `a${BN_OTP.slice(1)}`;
 
 /**
  * The session id each assertion named, in order.
@@ -58,14 +61,14 @@ function expectSignedIn(run: IBeinleumiRun, trail: readonly string[]): boolean {
   return true;
 }
 
-describe('Beinleumi browserless SMS step', () => {
+describe.each(FIBI_MOCK_BRANDS)('$companyId browserless SMS step', (brand): void => {
   it.each([
     { fault: 'otpGenerate', trail: GENERATE_TRAIL },
     { fault: 'otpValidate', trail: VALIDATE_TRAIL },
   ] as const)(
     'signs in through the $fault offer, asking the caller once',
     async ({ fault, trail }) => {
-      const run = await runBeinleumi(fault);
+      const run = await runBeinleumi(fault, { brand });
       expectSignedIn(run, trail);
       expect(run.hints).toEqual(['']);
       expect(run.launches).toBe(0);
@@ -73,26 +76,26 @@ describe('Beinleumi browserless SMS step', () => {
   );
 
   it('takes the code length from the trigger answer over the offer', async () => {
-    const run = await runBeinleumi('otpGenerate', { otp: OFFERED_LENGTH_CODE });
+    const run = await runBeinleumi('otpGenerate', { brand, otp: OFFERED_LENGTH_CODE });
     expect(run.result.errorType).toBe(ScraperErrorTypes.InvalidOtp);
     expect(run.trail).toEqual(TRIGGERED_TRAIL);
   });
 
   it('names the session id the bank refreshed mid-flow on every later assertion', async () => {
-    const run = await runBeinleumi('otpSidRefresh');
+    const run = await runBeinleumi('otpSidRefresh', { brand });
     expectSignedIn(run, GENERATE_TRAIL);
     const sids = sidsOf(run);
     expect(sids).toEqual([BN_SID, BN_FRESH_SID, BN_FRESH_SID]);
   });
 
   it('asks a retriever handed only in the options', async () => {
-    const run = await runBeinleumi('otpGenerate', { retrieverIn: 'options' });
+    const run = await runBeinleumi('otpGenerate', { brand, retrieverIn: 'options' });
     expectSignedIn(run, GENERATE_TRAIL);
     expect(run.hints).toEqual(['']);
   });
 
   it('fails a wrong code as an invalid code, posting no login form', async () => {
-    const run = await runBeinleumi('otpGenerate', { otp: '13572468' });
+    const run = await runBeinleumi('otpGenerate', { brand, otp: '13572468' });
     expect(run.state.violations).toEqual([]);
     expect(run.result).toMatchObject({ success: false, errorType: ScraperErrorTypes.InvalidOtp });
     expect(run.result.errorMessage).toContain('assertOtp bank error');
@@ -100,12 +103,14 @@ describe('Beinleumi browserless SMS step', () => {
   });
 
   it.each([
-    { fault: 'otpGenerate', trail: TRIGGERED_TRAIL },
-    { fault: 'otpValidate', trail: OPENING_TRAIL },
+    { fault: 'otpGenerate', trail: TRIGGERED_TRAIL, label: 'wrong-length', otp: '1357' },
+    { fault: 'otpValidate', trail: OPENING_TRAIL, label: 'wrong-length', otp: '1357' },
+    { fault: 'otpGenerate', trail: TRIGGERED_TRAIL, label: 'non-digit', otp: NON_DIGIT_CODE },
+    { fault: 'otpValidate', trail: OPENING_TRAIL, label: 'non-digit', otp: NON_DIGIT_CODE },
   ] as const)(
-    'never sends a code of the wrong length on the $fault offer',
-    async ({ fault, trail }) => {
-      const run = await runBeinleumi(fault, { otp: '1357' });
+    'never sends an invalid $label code on the $fault offer',
+    async ({ fault, trail, otp }) => {
+      const run = await runBeinleumi(fault, { brand, otp });
       expect(run.state.violations).toEqual([]);
       expect(run.result.errorType).toBe(ScraperErrorTypes.InvalidOtp);
       expect(run.result.errorMessage).toContain('assertOtp preHook value invalid');
@@ -114,7 +119,7 @@ describe('Beinleumi browserless SMS step', () => {
   );
 
   it('fails without a retriever when the bank asks for a code', async () => {
-    const run = await runBeinleumi('otpGenerate', { otp: false });
+    const run = await runBeinleumi('otpGenerate', { brand, otp: false });
     expect(run.state.violations).toEqual([]);
     expect(run.result.errorType).toBe(ScraperErrorTypes.TwoFactorRetrieverMissing);
     expect(run.trail).toEqual(TRIGGERED_TRAIL);
@@ -123,7 +128,7 @@ describe('Beinleumi browserless SMS step', () => {
   it.each(['otpVoiceOnly', 'otpAlphaFormat'] satisfies readonly OtpFault[])(
     'refuses the %s offer before any SMS is sent',
     async fault => {
-      const run = await runBeinleumi(fault);
+      const run = await runBeinleumi(fault, { brand });
       expect(run.state.violations).toEqual([]);
       expect(run.result.errorType).toBe(ScraperErrorTypes.Generic);
       expect(run.result.errorMessage).toContain('assertPassword answer unrecognized');

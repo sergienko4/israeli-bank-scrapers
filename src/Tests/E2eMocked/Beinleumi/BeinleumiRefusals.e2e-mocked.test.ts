@@ -1,5 +1,5 @@
 /**
- * Beinleumi browserless refusals — mocked E2E. Each login, envelope, page,
+ * FIBI group browserless refusals — mocked E2E. Each login, envelope, page,
  * hand-off or SSO answer off spec §11.3 fails the run with the error type
  * the spec maps it to, before any later call; no failure carries the bank's
  * own text.
@@ -8,6 +8,7 @@
  */
 
 import { ScraperErrorTypes } from '../../../Scrapers/Base/ErrorTypes.js';
+import { FIBI_MOCK_BRANDS } from './BeinleumiBrands.js';
 import type { BeinleumiFault } from './BeinleumiFaults.js';
 import { BN_BANK_NOTICE } from './BeinleumiMockData.js';
 import type { IRunSetup } from './BeinleumiRun.js';
@@ -108,9 +109,9 @@ const REFUSALS: readonly IRefusal[] = [
   },
 ];
 
-describe('Beinleumi browserless refusals', () => {
+describe.each(FIBI_MOCK_BRANDS)('$companyId browserless refusals', (brand): void => {
   it.each(REFUSALS)('refuses $label', async refusal => {
-    const run = await runBeinleumi(refusal.fault, refusal.setup);
+    const run = await runBeinleumi(refusal.fault, { ...refusal.setup, brand });
     expect(run.state.violations).toEqual([]);
     expect(run.result).toMatchObject({ success: false, errorType: refusal.errorType });
     expect(run.result.errorMessage).toContain(refusal.message);
@@ -119,7 +120,7 @@ describe('Beinleumi browserless refusals', () => {
   });
 
   it('never repeats the bank own text on a wrong password', async () => {
-    const run = await runBeinleumi('none', WRONG_PASSWORD);
+    const run = await runBeinleumi('none', { ...WRONG_PASSWORD, brand });
     expect(run.result.errorType).toBe(ScraperErrorTypes.InvalidPassword);
     expect(run.result.errorMessage).not.toContain(BN_BANK_NOTICE);
   });
