@@ -5,8 +5,6 @@
  * Rule #18: every value here is SYNTHETIC. No real PII.
  */
 
-import { createHash } from 'node:crypto';
-
 import moment from 'moment';
 
 import type { JsonUnknownRecord } from '../../../Scrapers/Pipeline/Types/JsonValue.js';
@@ -35,16 +33,13 @@ export const DISCOUNT_MOCK_CREDS = Object.freeze({
 export const DC_UID = '00001024681357';
 
 /**
- * The md5-hex of a text, as the bank binds a login to its `Uid`.
- * @param text - The text to hash.
- * @returns Lower-case hex.
+ * The MI6 binding a successful login answers with: the bank's md5-hex of
+ * the formatted {@link DC_UID}.
  */
-export function md5Of(text: string): string {
-  return createHash('md5').update(text).digest('hex');
-}
+export const DC_MI6 = '602f8a61de55fdf853db7d0bae7f1ffc';
 
-/** The MI6 binding a successful login answers with. */
-export const DC_MI6 = md5Of(DC_UID);
+/** The MI6 for the mismatch fault: the same hash of {@link DC_UID}-other. */
+export const DC_MI6_MISMATCH = 'cc3dea0607772ecbe5967c3782c6ffbe';
 
 /** The synthetic RSA key getInfo hands out; the mock opens the seals with it. */
 export const DC_KEY = makePkcs1Key();

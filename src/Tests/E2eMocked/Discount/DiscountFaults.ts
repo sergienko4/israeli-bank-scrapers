@@ -31,8 +31,6 @@ export interface IDiscountMockRun {
   readonly fault: DiscountFault;
   /** The decoded XSRF-TOKEN the next call must send ('' before the login page). */
   xsrf: string;
-  /** The `Uid` login named ('' before login). */
-  uid: string;
   /** Whether login's seals opened to the synthetic credentials. */
   isLoginOk: boolean;
 }

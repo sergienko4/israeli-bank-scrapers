@@ -82,7 +82,7 @@ function answerDiscount(run: IDiscountMockRun, call: IRecordedCall): Promise<Res
  * @returns Handle with dispose, call counts and the call log.
  */
 export function installDiscountFetchMock(fault: DiscountFault = 'none'): IMockHandle {
-  const run: IDiscountMockRun = { fault, xsrf: '', uid: '', isLoginOk: false };
+  const run: IDiscountMockRun = { fault, xsrf: '', isLoginOk: false };
   const answer = answerDiscount.bind(null, run);
   return installFetchMock({ classify: classifyDiscount, answer });
 }

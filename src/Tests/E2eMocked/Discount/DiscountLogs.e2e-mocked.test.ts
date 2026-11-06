@@ -39,18 +39,26 @@ const BANK_SECRETS: readonly string[] = [
   DATA.DC_TUUID,
   cookieValueOf(DATA.DC_SESSION_COOKIE),
   DATA.DC_MI6,
+  DATA.DC_MI6_MISMATCH,
   FAULTS.DC_BANK_NOTICE,
 ];
 
 /**
+ * The Titan account ids the per-account read URLs embed in their path — each
+ * must reach a log only as {@link import('./DiscountMockData.js').DISCOUNT_MOCK_ACCOUNTS}
+ * redacted, never as itself.
+ */
+const ACCOUNT_IDS: readonly string[] = DATA.DISCOUNT_MOCK_ACCOUNTS.map(account => account.id);
+
+/**
  * Every secret one run must keep out of its logs: its own credentials, then
- * the bank's.
+ * the bank's, then the account ids the read URLs carry.
  * @param creds - The credentials the run logs in with.
  * @returns The secrets.
  */
 function secretsOf(creds: Readonly<Record<string, string>>): readonly string[] {
   const own = Object.values(creds);
-  return [...own, ...BANK_SECRETS];
+  return [...own, ...BANK_SECRETS, ...ACCOUNT_IDS];
 }
 
 /** Runs whose every log line is checked: a full run, then each kind of refusal. */

@@ -16,6 +16,8 @@ import {
   DC_HANDOFF_PATH,
   DC_KEY,
   DC_LANDING_COOKIES,
+  DC_MI6,
+  DC_MI6_MISMATCH,
   DC_PRIME_COOKIES,
   DC_SESSION_COOKIE,
   DC_TUUID,
@@ -26,7 +28,6 @@ import {
   DC_XSRF_ROTATED,
   DC_XSRF_ROTATED_RAW,
   DISCOUNT_MOCK_CREDS,
-  md5Of,
 } from './DiscountMockData.js';
 
 /** The getInfo body, byte for byte. */
@@ -150,8 +151,6 @@ function loginCookies(run: IDiscountMockRun): readonly string[] {
  * @returns A 302 to the hop (the session on success), or the fault's reply.
  */
 function routeLogin(call: IRecordedCall, run: IDiscountMockRun): Response {
-  const uid = parseBody(call.body).Uid;
-  run.uid = typeof uid === 'string' ? uid : '';
   run.isLoginOk = isKnownCustomer(call);
   const faultReply = LOGIN_FAULT_REPLY[run.fault];
   if (faultReply !== undefined) return faultReply();
@@ -168,8 +167,8 @@ function routeLogin(call: IRecordedCall, run: IDiscountMockRun): Response {
 function routeHandoff(call: IRecordedCall, run: IDiscountMockRun): Response {
   if (!run.isLoginOk) return json({ Login: { Status: DC_REFUSED_STATUS } });
   if (!hasCookies(call, [DC_SESSION_COOKIE])) return errorReply(401);
-  const bound = run.fault === 'mi6Mismatch' ? `${run.uid}-other` : run.uid;
-  return json({ Login: { Status: 'SUCCESS', MI6: md5Of(bound) } });
+  const mi6 = run.fault === 'mi6Mismatch' ? DC_MI6_MISMATCH : DC_MI6;
+  return json({ Login: { Status: 'SUCCESS', MI6: mi6 } });
 }
 
 /**

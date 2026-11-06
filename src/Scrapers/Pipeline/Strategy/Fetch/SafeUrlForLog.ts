@@ -1,12 +1,16 @@
 /**
  * The one URL sanitizer every fetch transport uses for log lines and error
  * messages. Query strings carry session ids, tokens, device ids and PII, so
- * only the origin and path ever leave a transport — including when an engine
- * exception quotes the request URL inside its own message.
+ * the query is dropped outright; account-bearing path segments (e.g. a bank
+ * that names an account in the path, like Discount's Titan reads) are masked
+ * to a last-4 hint by {@link redactUrlFull}. What leaves a transport is thus
+ * origin plus a route path with any account id redacted — including when an
+ * engine exception quotes the request URL inside its own message.
  */
 
 import type { SafeUrlForLog } from '../../Types/Brand.js';
 import { mintSafeUrlForLog } from '../../Types/Brand.js';
+import { redactUrlFull } from '../../Types/PiiRedactor.js';
 
 /** Stand-in for a URL that cannot be parsed, so nothing raw is echoed. */
 const UNPARSEABLE_URL = '<unparseable>';
@@ -18,14 +22,17 @@ interface IUrlForm {
 }
 
 /**
- * Strip query string, fragment and credentials from a URL.
+ * Strip query string, fragment and credentials from a URL and mask any
+ * account-bearing path segment.
  * @param url - Full URL to sanitize.
- * @returns Origin + path only as a branded SafeUrlForLog.
+ * @returns Origin + path with account ids masked, as a branded SafeUrlForLog.
  */
 function safeUrlForLog(url: string): SafeUrlForLog {
   try {
     const parsed = new URL(url);
-    return mintSafeUrlForLog(`${parsed.origin}${parsed.pathname}`);
+    const originPath = `${parsed.origin}${parsed.pathname}`;
+    const masked = redactUrlFull(originPath);
+    return mintSafeUrlForLog(masked);
   } catch {
     return mintSafeUrlForLog(UNPARSEABLE_URL);
   }
