@@ -505,6 +505,37 @@ An outcome failure in a warm resume is a failure like any other, so the
 resolver still falls back to one cold flow. When the cold flow also fails, its
 own failure type is the one reported.
 
+### HTTP failure map
+
+Some banks refuse a step's input with a `4xx` status instead of a 2xx body.
+A failed reply is `GENERIC` by default (see
+[Transport errors](#transport-errors)). A step whose `4xx` can only mean one
+thing names its type per status:
+
+```ts
+httpFailureMap: { '401': ScraperErrorTypes.InvalidPassword },
+```
+
+Yahav's `register` uses this map: wrong credentials draw a bare `401` there,
+and with no reason in the reply every `401` there is reported as
+`INVALID_PASSWORD` ([Yahav login](../banks/yahav.md#login)).
+
+The step still fails with `<step> HTTP <status>`; only the type changes. The
+map reads the status only from the transport's reply prefix
+(`<VERB> <url> <status>: `), so a reply body that quotes another status cannot
+pick a type. A request that got no reply (even one whose reason quotes a
+status), a transport policy refusal and a `WAF_BLOCKED` failure keep their own
+type.
+The in-request `401`/`403` re-mint and the warm-to-cold fallback read the
+message, not the type, so a mapped status still triggers both.
+
+The build refuses an empty map, a key that is not a `4xx` status, and a value
+other than `INVALID_PASSWORD`, `CHANGE_PASSWORD`, `ACCOUNT_BLOCKED` or
+`INVALID_OTP`: `GENERIC` is already the default, and a timeout, network or
+edge type would describe the reply as something it is not. The map, with
+`failIfPresent` and `bankErrorType`, lives in the contract's `FailureTypes`
+slice.
+
 ### Answer classifier
 
 Some banks answer one step in several shapes, such as a finished login, an
@@ -1382,6 +1413,8 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `sessionCarry` slot that is the `privateInto` of some `ecdh-key` generator                                                          | `steps.generate: ecdh-key privateInto must not be a sessionCarry slot`   |
 | a login or resume step whose `preHook.valuePattern` does not start with `^`, end with `$` and compile with the `u` flag                   | `steps.preHook.valuePattern: must be an anchored regex`                            |
 | a login or resume step whose `preHook.valuePattern` has a group, an alternation or a variable repeat before its last atom                 | `steps.preHook.valuePattern: must be a flat regex`                                 |
+| a login or resume step whose `httpFailureMap` is empty (`API_DIRECT_HTTP_FAILURE_RULES`)                                              | `steps.httpFailureMap: must not be empty`                                          |
+| an `httpFailureMap` key that is not a `4xx` status, or a value outside the [login failure types](#http-failure-map)                   | `steps.httpFailureMap: must map 4xx statuses to login failure types`               |
 | a login or resume step with `clientCert`, without a `headless.clientCert` block (`API_DIRECT_CLIENT_CERT_RULES`)                          | `steps.clientCert: not allowed without headless.clientCert`                        |
 | a `headless.clientCert` whose `origin` is not exactly `https://host[:port]` (no path, user, trailing slash or default port)               | `headless.clientCert.origin: must be an exact https origin`                        |
 | `headless.clientCert` together with `headless.requiresClientCert: true`                                                                   | `headless.clientCert: not allowed with headless.requiresClientCert`                |
@@ -1616,16 +1649,20 @@ password, the OTP or a device id back in its reply. `sanitiseStepFailure`
 (`src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.failure.ts`)
 reports a failed step as `<step> HTTP <status>` when the bank answered, or as
 `<step> <errorType>` (for example `bind TIMEOUT`) when no reply arrived. It
-keeps `errorType` and `errorDetails`, and leaves a `WAF_BLOCKED` failure as it
-is, since that message carries a fixed reason instead of the page. A failure
-raised before any request is sent, such as `CAMOUFOX_LAUNCH_FAILED` when the
-browser will not start, passes unchanged too: it holds no bank reply, and the
-consumer-install gate reads it. `isLocalFailureMessage`
+keeps `errorType` and `errorDetails`, except that a step's
+[`httpFailureMap`](#http-failure-map) may name the type for the reply's
+status, and leaves a `WAF_BLOCKED` failure as it is, since that message
+carries a fixed reason instead of the page. A failure raised before any
+request is sent, such as `CAMOUFOX_LAUNCH_FAILED` when the browser will not
+start, passes unchanged too: it holds no bank reply, and the consumer-install
+gate reads it. `isLocalFailureMessage`
 (`src/Scrapers/Pipeline/Strategy/Fetch/LocalFailureReasons.ts`) matches such a
 reason only at the start of the message, so a reply that quotes one is still
 cut down. The in-request re-mint runs below the step, so it still reads the
-original space-delimited `<status>:` marker. Scrape-phase requests keep the transport
-message.
+original space-delimited `<status>:` marker. A scrape call keeps the
+transport message unless its shape sets `omitBankText`; the scrape phase then
+passes the failure through `sanitiseStepFailure` with only the call's name, so
+it reads `<call> HTTP <status>` and no login `httpFailureMap` applies.
 
 ### Step names and URL tags
 
@@ -1921,5 +1958,6 @@ Where each piece lives, for maintainers:
 | `INVALID_PHONE_NUMBER`                                          | `phoneNumber` cannot be normalised to the bank's wire format — see [Phone normaliser](#phone-normaliser)                                                                                                                                                                                  |
 | `TIMEOUT`                                                       | A step's HTTP call didn't complete (`<step> TIMEOUT`)                                                                                                                                                                                                                                     |
 | `GENERIC`                                                       | A step's HTTP call failed: `<step> HTTP <status>` for a non-2xx reply, `<step> GENERIC` for a network error — see [Transport errors](#transport-errors)                                                                                                                                   |
+| the type the step's `httpFailureMap` names for the status       | A step's call got a `4xx` reply whose status the step maps (`<step> HTTP <status>`) — see [HTTP failure map](#http-failure-map)                                                                                                                                                           |
 | `GENERIC`                                                       | Signer key missing, response shape drift, a `cryptoField` failure, or a second cold login refused by the [one-SMS budget](#one-sms-per-run)                                                                                                                                               |
 | `GENERIC`                                                       | `persistent auth options invalid: <category>`, `persistent auth state invalid: <category>` or `persistent auth failed: <category>` — a [durable device auth](#persistent-durable-device-auth) failure; the categories are listed in [Pepper](../banks/pepper.md#failures-never-fall-back) |

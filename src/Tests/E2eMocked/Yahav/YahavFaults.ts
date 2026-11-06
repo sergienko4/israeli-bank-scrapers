@@ -16,7 +16,8 @@ export type BancsCall = 'login' | 'customer' | 'portfolio' | 'accounts' | 'balan
 export type TokenFault = 'token401' | 'token403' | 'token400' | 'token500' | 'tokenTimeout';
 
 /** A registration answer the login must refuse. */
-export type RegisterFault = 'deviceStatus' | 'badPem' | 'twoPems' | 'noMag' | 'longMag';
+export type RegisterFault =
+  'deviceStatus' | 'badPem' | 'twoPems' | 'noMag' | 'longMag' | 'register401';
 
 /** A token answer the login must refuse. */
 export type GrantFault = 'nonBearer' | 'noExpiry';

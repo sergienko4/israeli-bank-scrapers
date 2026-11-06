@@ -77,6 +77,9 @@ const TOKEN_STATUS: Readonly<Partial<Record<YahavFault, number>>> = {
   token500: 500,
 };
 
+/** The status register refuses with: 401 is how the bank answers wrong credentials. */
+const REGISTER_STATUS: Readonly<Partial<Record<YahavFault, number>>> = { register401: 401 };
+
 const GRANT = { access_token: YH_ACCESS_TOKEN, token_type: 'Bearer', expires_in: 600 };
 
 const GRANT_FAULTS: Readonly<Partial<Record<YahavFault, typeof GRANT>>> = {
@@ -222,12 +225,15 @@ function issueFor(body: string): string {
  * Answer register: verify the request, issue the device certificate.
  * @param call - The request.
  * @param state - Run state.
- * @returns The certificate with the device headers, or 400 when off spec.
+ * @returns The certificate with the device headers, the run's refusal
+ *   status, or 400 when off spec.
  */
 function routeRegister(call: IRecordedCall, state: IYahavMockState): Response {
   hit(state, 'register');
   const checks = registerChecks(call, state);
   if (!checkWire(state, call, checks)) return errorReply(400);
+  const status = REGISTER_STATUS[state.fault];
+  if (status !== undefined) return errorReply(status);
   const pem = issueFor(call.body);
   const body = PEM_FAULTS[state.fault]?.(pem) ?? pem;
   const device = DEVICE_HEADER_FAULTS[state.fault] ?? DEVICE_HEADERS;

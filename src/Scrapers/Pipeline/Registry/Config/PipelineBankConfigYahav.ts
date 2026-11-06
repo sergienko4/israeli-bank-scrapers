@@ -16,7 +16,7 @@ const YAHAV_API_DIRECT_CALL: IApiDirectCallConfig = {
   envelope: {},
   authScheme: 'bearer',
   omitBankText: true,
-  requiredCreds: { num: 'nonEmpty', nationalID: 'digits', password: 'latin1' },
+  requiredCreds: { num: 'latin1', nationalID: 'digits', password: 'latin1' },
   sessionCarry: ['mag'],
   cookieHandoff: 'isolate',
   authRecovery: 'whole-scrape',

@@ -216,6 +216,12 @@ const FAILURE_CASES: readonly IFailureCase[] = [
     message: `POST ${BIND_URL} network error: proxy said redirect refused`,
     expected: 'bind GENERIC',
   },
+  {
+    label: 'a network failure quoting a status',
+    type: ScraperErrorTypes.Generic,
+    message: `POST ${BIND_URL} network error: proxy reported 401: denied`,
+    expected: 'bind GENERIC',
+  },
 ];
 
 beforeAll((): void => {

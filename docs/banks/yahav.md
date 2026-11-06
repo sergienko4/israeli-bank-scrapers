@@ -57,8 +57,14 @@ origin alone (`clientCert: { mode: 'dynamic' }`) over `node:https`. No browser
 starts, and browser options passed to `createScraper` are ignored with a
 [warning](../configuration.md#browser-options-on-browserless-banks). The
 config sets `omitBankText`, so no failure message carries the bank's own text.
-The credentials are checked before any call: `num` must be non-empty,
-`nationalID` digits, and `password` Latin-1.
+The credentials are checked before any call: `num` and `password` must be
+Latin-1, since the token form sends both, and `nationalID` digits.
+
+`register` carries the password, and wrong credentials draw a bare `401`
+there. The reply names no reason, so the step's
+[`httpFailureMap`](../phases/api-direct-call.md#http-failure-map) reports
+every `401` at `register` as `INVALID_PASSWORD`, still with the message
+`register HTTP 401`; any other refusal at `register` stays `GENERIC`.
 
 ## Warm start
 

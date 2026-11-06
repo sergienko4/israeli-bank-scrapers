@@ -44,17 +44,26 @@ export const INVALID_CREDS_HAPOALIM = {
   password: 'fixt-i-6c7d8e9f',
 } as const;
 
-/** Invalid placeholder for Isracard / Amex (id + card6Digits + password). */
+/**
+ * Invalid placeholder for Isracard / Amex (id + card6Digits + password). The
+ * api-direct login checks the shape (digits, six digits) before any request,
+ * so the values are digits to reach the bank; the id's check digit is wrong,
+ * so it can never name a real person.
+ */
 export const INVALID_CREDS_ISRACARD_AMEX = {
-  id: 'fixt-i-4f5e6d7c',
-  card6Digits: 'fixt-i-8b9a0f1e',
+  id: '012345678',
+  card6Digits: '123456',
   password: 'fixt-i-c0d1e2f3',
 } as const;
 
-/** Invalid placeholder for Yahav (username + nationalID + password). */
+/**
+ * Invalid placeholder for Yahav (num + nationalID + password), shaped to pass
+ * the api-direct check so the run reaches the bank; the national id's check
+ * digit is wrong, so it can never name a real person.
+ */
 export const INVALID_CREDS_YAHAV = {
-  username: 'fixt-i-yh-7a8b',
-  nationalID: 'fixt-i-yh-1c2d',
+  num: 'fixt-i-yh-7a8b',
+  nationalID: '087654321',
   password: 'fixt-i-yh-9e0f',
 } as const;
 

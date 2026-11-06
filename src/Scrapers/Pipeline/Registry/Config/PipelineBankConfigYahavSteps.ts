@@ -3,8 +3,11 @@
  * the app client and registers this device's certificate; every run then
  * takes a bearer token over that certificate, which is where a warm start
  * resumes. Secrets reach a request only through `$join` at hydration (AD-Y7).
+ * Register carries the password; wrong credentials draw a bare 401 there. The
+ * reply names no reason, so every register 401 is reported as a wrong password.
  */
 
+import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type {
   IJoinTemplate,
   IStepConfig,
@@ -114,6 +117,7 @@ const REGISTER_STEP: IStepConfig = {
     deviceStatus: { oneOf: ['activated'] },
     mag: { pattern: BASE64, maxChars: 4096 },
   },
+  httpFailureMap: { '401': ScraperErrorTypes.InvalidPassword },
 };
 
 const LOGON_STEP: IStepConfig = {

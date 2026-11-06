@@ -5,8 +5,8 @@
 
 The API-DIRECT-CALL config contract is the typed shape every API-direct bank
 (Pepper, PayBox, OneZero, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav) compiles its `PipelineBankConfig.headless` literal
-against. That shape lives in **nine focused concern-slice files** (six as of
-**v8.5**, before `GeneratorTypes`, `WireTypes` and `ClassifyTypes`) under `src/Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/`, exported
+against. That shape lives in **eleven focused concern-slice files** (six as of
+**v8.5**, before `GeneratorTypes`, `WireTypes`, `ClassifyTypes`, `ExtractRuleTypes` and `FailureTypes`) under `src/Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/`, exported
 through a single barrel. The legacy `IApiDirectCallConfig.ts` file was reduced
 to a 14-line deprecated re-export shim in v8.5 and **deleted in v8.6**.
 
@@ -20,12 +20,13 @@ src/Scrapers/Pipeline/Mediator/ApiDirectCall/
 │   ├── SignerTypes.ts        ← root bucket — no intra-cluster deps
 │   ├── WireTypes.ts          ← root bucket — no intra-cluster deps
 │   ├── ClassifyTypes.ts      ← root bucket — no intra-cluster deps
+│   ├── FailureTypes.ts       ← root bucket — no intra-cluster deps
 │   ├── CarryTypes.ts         ← deps TemplateTypes
 │   ├── EnvelopeTypes.ts      ← deps TemplateTypes + SignerTypes
 │   ├── GeneratorTypes.ts     ← deps TemplateTypes
 │   ├── ExtractRuleTypes.ts   ← deps TemplateTypes
-│   ├── FlowTypes.ts          ← deps TemplateTypes + SignerTypes + CarryTypes + EnvelopeTypes + GeneratorTypes + ExtractRuleTypes + WireTypes + ClassifyTypes
-│   └── ApiDirectCallConfig.ts ← composes all but GeneratorTypes, WireTypes and ClassifyTypes
+│   ├── FlowTypes.ts          ← deps TemplateTypes + SignerTypes + CarryTypes + EnvelopeTypes + GeneratorTypes + ExtractRuleTypes + WireTypes + ClassifyTypes + FailureTypes
+│   └── ApiDirectCallConfig.ts ← composes all but GeneratorTypes, WireTypes, ClassifyTypes, ExtractRuleTypes and FailureTypes
 ```
 
 The dependency graph is **acyclic** (`madge --circular` is part of the lint
@@ -41,6 +42,7 @@ flowchart LR
     W[WireTypes]
     K[ClassifyTypes]
     X[ExtractRuleTypes]
+    Y[FailureTypes]
     F[FlowTypes]
     A[ApiDirectCallConfig]
     T --> C
@@ -60,11 +62,12 @@ flowchart LR
     X --> F
     W --> F
     K --> F
+    Y --> F
     F --> A
 ```
 
-`TemplateTypes`, `SignerTypes`, `WireTypes` and `ClassifyTypes` are independent roots; every
-other bucket depends on `TemplateTypes`; `EnvelopeTypes`, `FlowTypes` and
+`TemplateTypes`, `SignerTypes`, `WireTypes`, `ClassifyTypes` and `FailureTypes` are independent
+roots; every other bucket depends on `TemplateTypes`; `EnvelopeTypes`, `FlowTypes` and
 `ApiDirectCallConfig` depend on `SignerTypes`.
 
 ## What each bucket owns
@@ -80,10 +83,11 @@ from (cross-package imports such as `Registry/WK/*` are omitted for brevity).
 | **CarryTypes** | `IWarmStartConfig`, `ICarryWarmStart`, `ICookieJarWarmStart`, `ICarryBundleWarmStart`, `ColdFallback`, `ISeedCarrySource`, `IRandomHex16Bootstrap`, `IRandomHexBootstrap`, `IRandomUuidBootstrap`, `ISha256Prefix16Bootstrap`, `IJwtClaimBootstrap`, `SeedCarryBootstrapKind`, `IDerivedCarry` | TemplateTypes |
 | **EnvelopeTypes** | `IFingerprintConfig`, `AuthScheme`, `IJwtClaimsConfig`, `IProbeConfig`, `IPreStepHook`, `PreHookReuse` | TemplateTypes, SignerTypes |
 | **ExtractRuleTypes** | `ExtractValueType`, `IExtractRule`, `IPemCertificateRule` | TemplateTypes |
-| **FlowTypes** | `FlowKind`, `CookieHandoff`, `AuthRecovery`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract`, `IHeaderExtract`, `IRunIf`, `IStepClientCert` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, GeneratorTypes, ExtractRuleTypes, WireTypes, ClassifyTypes |
+| **FlowTypes** | `FlowKind`, `CookieHandoff`, `AuthRecovery`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract`, `IHeaderExtract`, `IRunIf`, `IStepClientCert` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, GeneratorTypes, ExtractRuleTypes, WireTypes, ClassifyTypes, FailureTypes |
 | **GeneratorTypes** | `ICarryGenerator`, `CarryGeneratorKind`, `IRsaKeyGenerator`, `IPkcs10CsrGenerator`, `IEcdhKeyGenerator`, `ICsrSubjectEntry`, `CsrSubjectAttr` | TemplateTypes |
 | **WireTypes** | `ITextCapture`, `IFormCapture`, `EnvelopeCodec`, `IEnvelopeSealed`, `IEnvelopeExchange` | (none) |
 | **ClassifyTypes** | `AnswerPointer`, `IAnswerText`, `IAnswerCheck`, `IAnswerRange`, `IAnswerCapture`, `IAnswerCase`, `IAnswerClassifier` | (none) |
+| **FailureTypes** | `IStepFailureTyping` | (none) |
 | **ApiDirectCallConfig** | `IApiDirectCallConfig`, `IPersistentAuthConfig`, `CredRule` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, FlowTypes |
 
 Notes:
@@ -99,9 +103,11 @@ Notes:
 - `IAnswerClassifier` is owned by `ClassifyTypes` and referenced by
   `FlowTypes.IStepBase.classify` — see
   [Answer classifier](../phases/api-direct-call.md#answer-classifier).
+- `IStepFailureTyping` (`failIfPresent`, `bankErrorType`, `httpFailureMap`) is
+  owned by `FailureTypes`; `FlowTypes.IStepBase` extends it.
 
 Every file is **≤ 150 effective LoC** (blank and comment lines skipped;
-current max: `FlowTypes.ts` at 134) and is held there by an ESLint guard
+current max: `FlowTypes.ts` at 133) and is held there by an ESLint guard
 (`eslint.config.mjs` §14) plus a canary fixture
 (`EslintCanaries/no-api-direct-call-blob.canary.ts`).
 
@@ -118,7 +124,8 @@ this contract; the build-time checks read both.
 | Response fields that may be absent | `optionalExtractsToCarry` (`IOptionalExtract`) | FlowTypes | [Optional extracts](../phases/api-direct-call.md#optional-extracts) |
 | Login refused with HTTP 200 | `outcome` (`IStepOutcome`) | FlowTypes | [Step outcome](../phases/api-direct-call.md#step-outcome) |
 | Bank state codes that change case | `outcome.caseInsensitive` | FlowTypes | [Step outcome](../phases/api-direct-call.md#step-outcome) |
-| Bank error field in a 2xx body | `failIfPresent` | FlowTypes | [Bank-error guard](../phases/api-direct-call.md#bank-error-guard) |
+| Bank error field in a 2xx body, and its type | `failIfPresent`, `bankErrorType` | FailureTypes | [Bank-error guard](../phases/api-direct-call.md#bank-error-guard) |
+| Type of a `4xx` reply, per status | `httpFailureMap` | FailureTypes | [HTTP failure map](../phases/api-direct-call.md#http-failure-map) |
 | Checks on a value the bank sends back | `extractRules` (`IExtractRule`, `ExtractValueType`) | ExtractRuleTypes, FlowTypes | [Extract rules](../phases/api-direct-call.md#extract-rules) |
 | A step that runs only in some bank states | `runIf` (`IRunIf`) | FlowTypes | [Conditional steps](../phases/api-direct-call.md#conditional-steps) |
 | Step identity and URL | `name` (`StepName`), `urlTag` | FlowTypes | [Step names and URL tags](../phases/api-direct-call.md#step-names-and-url-tags) |

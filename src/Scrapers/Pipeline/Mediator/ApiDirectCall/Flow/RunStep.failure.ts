@@ -14,12 +14,18 @@
  * step keeps that fixed tail; the whole message must have the refusal's
  * shape, so no body text can pass for one.
  *
+ * <p>A step's `httpFailureMap` types a reply by its status, for a bank whose
+ * 4xx on that step can only mean one thing; the message stays the same. Only
+ * the transport's `<VERB> <url> <status>: ` reply prefix counts, so a request
+ * that got no reply and a policy refusal keep their type.
+ *
  * <p>A WAF block passes through unchanged: the transport already swapped the
  * edge page for a fixed reason, and that reason is a documented contract. So
  * does a failure raised before any request left the process (a Camoufox
  * launch failure): it holds no reply, and the consumer-install gate reads it.
  */
 
+import type { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { isLocalFailureMessage } from '../../../Strategy/Fetch/LocalFailureReasons.js';
 import {
   BODY_NOT_UTF8_REASON,
@@ -32,9 +38,16 @@ import {
 } from '../../../Types/Domain/FetchPolicy.js';
 import type { IProcedureFailure } from '../../../Types/Procedure.js';
 import { isWafBlocked } from '../../../Types/Procedure.js';
+import type { IStepConfig } from '../ConfigContracts/index.js';
 
-/** The transport's `<sp>NNN:<sp>` status marker (precedent: `ApiMediator.authReject`). */
-const STATUS_MARKER = /\s(\d{3}):\s/;
+/** What a failure is rebuilt from: a login step, or a scrape call by its name. */
+type FailedStep = Pick<IStepConfig, 'httpFailureMap'> & { readonly name: string };
+
+/**
+ * The transport's reply prefix `<VERB> <safeUrl> NNN: ` (`HttpFailureClassifier`),
+ * anchored so a no-reply reason quoting a status cannot pass for one.
+ */
+const STATUS_MARKER = /^\S+ \S+ (\d{3}):\s/;
 
 /** Fixed reasons a transport policy refusal ends with. */
 const REFUSAL_REASONS = [
@@ -95,15 +108,29 @@ function isFixedReason(failure: IProcedureFailure): boolean {
 }
 
 /**
- * Rebuild a failed step's message from its name and status only.
- * @param stepName - Name of the failed step.
+ * The failure type the step names for the reply's status.
+ * @param step - The failed step.
  * @param failure - Failure returned by the transport.
- * @returns The same failure, type kept, with a safe message; a fixed reason as is.
+ * @returns The mapped type, else the transport's.
  */
-function sanitiseStepFailure(stepName: string, failure: IProcedureFailure): IProcedureFailure {
+function typeByStatus(step: FailedStep, failure: IProcedureFailure): ScraperErrorTypes {
+  const status = readStatus(failure.errorMessage);
+  const mapped = step.httpFailureMap?.[status];
+  return mapped ?? failure.errorType;
+}
+
+/**
+ * Rebuild a failed step's message from its name and status only.
+ * @param step - The failed step.
+ * @param failure - Failure returned by the transport.
+ * @returns The same failure, typed by the step's status map, with a safe
+ *   message; a fixed reason as is.
+ */
+function sanitiseStepFailure(step: FailedStep, failure: IProcedureFailure): IProcedureFailure {
   if (isFixedReason(failure)) return failure;
   const detail = describeFailure(failure);
-  return { ...failure, errorMessage: `${stepName} ${detail}` };
+  const errorType = typeByStatus(step, failure);
+  return { ...failure, errorType, errorMessage: `${step.name} ${detail}` };
 }
 
 export default sanitiseStepFailure;

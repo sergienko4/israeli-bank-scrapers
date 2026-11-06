@@ -6,7 +6,8 @@
  * `JsonValueTemplate` referenced by IStepConfig), EnvelopeTypes
  * (`IPreStepHook` referenced by IStepConfig.preHook), ExtractRuleTypes
  * (`IExtractRule` referenced by IStepBase.extractRules), ClassifyTypes
- * (`IAnswerClassifier` referenced by IStepBase.classify), SignerTypes
+ * (`IAnswerClassifier` referenced by IStepBase.classify), FailureTypes
+ * (`IStepFailureTyping`, which IStepBase extends), SignerTypes
  * (`ISealFieldConfig` referenced by IStepConfig.seal) and WireTypes
  * (`ITextCapture`, `IFormCapture`, `ILocationCapture` referenced by IStepBase, `EnvelopeCodec`
  * by IPostStep). Top-level
@@ -27,6 +28,7 @@ import type { IDerivedCarry } from './CarryTypes.js';
 import type { IAnswerClassifier } from './ClassifyTypes.js';
 import type { IPreStepHook } from './EnvelopeTypes.js';
 import type { IExtractRule } from './ExtractRuleTypes.js';
+import type { IStepFailureTyping } from './FailureTypes.js';
 import type { ICarryGenerator } from './GeneratorTypes.js';
 import type { ISealFieldConfig } from './SignerTypes.js';
 import type {
@@ -144,7 +146,7 @@ interface IStepClientCert {
 }
 
 /** Fields every login step has, whatever its HTTP method. */
-interface IStepBase {
+interface IStepBase extends IStepFailureTyping {
   readonly name: StepName;
   readonly urlTag: WKUrlGroup;
   readonly extractsToCarry: IEnvelopeSelectors;
@@ -211,10 +213,6 @@ interface IStepBase {
   readonly setCookies?: Readonly<Record<string, RefToken>>;
   /** Device certificate installed before the request; needs headless `clientCert` (N26). */
   readonly clientCert?: IStepClientCert;
-  /** Body pointers that, present and truthy, fail the step `<step> bank error` (N20). */
-  readonly failIfPresent?: readonly string[];
-  /** Failure type of `<step> bank error`: a guard hit or a codec `error_code`; default Generic. */
-  readonly bankErrorType?: ScraperErrorTypes;
   /** Rules per body- or header-extract slot, checked once the answer is read (N18, N27). */
   readonly extractRules?: Readonly<Record<string, IExtractRule>>;
   /** Guard checked before the pre-hook; a miss skips the step (N14). */
