@@ -1,6 +1,6 @@
 /**
  * Pagi pipeline — Beinleumi group, same FIBI portal. Browserless
- * FIBI-family login (Transmit password, SMS code only for an unknown device,
+ * FIBI-family login (Transmit password, SMS code only when requested by the bank,
  * portal hand-off, SSO authorization) + hard-model scrape: userData +
  * accountType identity GETs, balances GET, transactions list POST.
  * balanceKind=account.

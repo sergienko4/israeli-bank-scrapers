@@ -20,7 +20,7 @@ Some fields on `ScraperOptions` are honoured only by the
 | `shouldShowBrowser` | `boolean` | `false` | Show the Camoufox window while scraping |
 | `preparePage` | `(page: Page) => Promise<void>` | (none) | Hook run against the page before the pipeline starts |
 | `prepareBrowser` | `(browser: Browser) => Promise<void>` | (none) | Hook run against the browser after launch |
-| `otpCodeRetriever` | `(phoneHint: string) => Promise<string>` | (none) | **Hapoalim, Beinleumi, Massad, Otsar Hahayal and Pagi** — invoked when OTP is required; `phoneHint` is the masked number the bank says it texted (empty for Beinleumi, Massad, Otsar Hahayal and Pagi) |
+| `otpCodeRetriever` | `(phoneHint: string) => Promise<string>` | (none) | Invoked when the bank requires an OTP. API-direct flows also accept it in credentials; `phoneHint` is bank-specific and may be empty |
 | `onAuthFlowComplete` | `(info: IAuthFlowInfo) => void` | (none) | Fires once authentication finishes, before scraping |
 | `otpTimeoutMs` | `number` (ms) | bank-specific | How long to wait for `otpCodeRetriever` to resolve |
 | `loginLogLevel` | `'info' \| 'trace'` | `'info'` | Raises log detail for the LOGIN phase only |
