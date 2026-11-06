@@ -127,6 +127,10 @@ One hydration engine serves both `API-DIRECT-CALL` and `API-DIRECT-SCRAPE` step 
 - `random-hex` (`IRandomHexBootstrap`, N42) draws `bytes` (1 to 64) fresh random bytes per flow init as hex, twice as many characters, upper-case when `isUpperCase` is set — for a flow identifier of a fixed length and case. `evalRandomBootstrap` (in `Flow/FlowInitCarry.random.ts`) serves it and the other `RandomBootstrap` kinds, `random-hex-16` and `random-uuid`, once `isRandomBootstrap` matches; a non-empty creds value is mirrored instead.
 - `derivedCarry` joins parts with separators + truncation for OTP-encryption keys. `transform: 'lower'` (N60) lower-cases the joined text before the byte cap, so a slot can carry a lower-cased copy of a credential (the FIBI Transmit `uid`) while the credential itself stays as typed.
 - A step's `deriveCarry` takes the same `IDerivedCarry` entries and runs them once that step's body and header extracts are in scope. `deriveStepCarry` hands them to `applyDerivations`, the evaluator flow-init `derivedCarry` uses, so the parts (`carry.<slot>`, `creds.<field>`, `config.<dotted.path>` such as `config.secrets.<name>`), separator, truncation and failure messages (`derivedCarry: carry.<slot> missing or non-string`) are the same. A part that fails fails the step.
+- `op` (`DerivedOp`, N45) shapes the finished text last, after the join, `transform` and the byte cap: `applyDerivedOp` (in `Flow/FlowInitCarry.ops.ts`) takes an `IOpInput`: the text, the subject a failure names and the op. A `format` op (`IFormatOp`) takes the first `IFormatRule` whose `pattern` matches the whole text, anchored at both ends with the `u` flag by `anchoredPattern`, and writes the rule's `prefix` plus the text left-padded with `0` to `padStart` chars, so a 1-to-9-digit id can become `00001` and nine digits. No match fails `Generic`, naming the slot and never the text: `derivedCarry: <slot> unformattable` at flow init, `<step> derive <slot> unformattable` in a step, before that flow's next request. An `md5-hex` op (`IMd5HexOp`) writes the MD5 digest of the UTF-8 text as lower-case hex, for a bank that checks one; nothing relies on it for secrecy.
+  Format patterns use the linear-time `FlatPattern` grammar: no groups or
+  alternation, and a variable repeat only on the last atom. Explicit anchors
+  are optional because the evaluator adds them.
 
 ### CryptoField pre-hook
 
@@ -548,7 +552,11 @@ that resolves. `passesCheck` then applies the check's one kind:
 | `text`         | is safe text (below) that matches the whole `pattern`, if any  |
 
 Every kind but `absent` fails when no alternative resolves, and a check with
-no kind never passes. `isSafeText` accepts a string of 1..`maxChars` chars
+no kind never passes. `negate: true` (N60) inverts a check's verdict, so
+`{ pointer, equals: 'SUCCESS', negate: true }` passes on any other value,
+`null` or a missing pointer included, and `{ pointer, absent: true, negate:
+true }` passes when the pointer resolves. A negated check with no kind still
+never passes. `isSafeText` accepts a string of 1..`maxChars` chars
 with no C0 control char and no DEL. A `pattern` is compiled alone with the `u`
 flag, then wrapped in `^(?:…)$`, so it must match the whole text; a pattern
 that does not compile alone, such as `a)|(?:b`, which would escape the wrapper,
@@ -622,8 +630,14 @@ extractRules: {
   ref resolves to text with `resolveRefText` (in `Template/RefResolver.ts`)
   against the step's prepared scope, so it reads a key an earlier step or this
   step's [generators](#carry-generators) put in carry.
+- `equalsRef` (N47) is checked last, on the text the other checks kept. The
+  ref resolves to text with `resolveRefText` against the step's prepared scope,
+  and the slot text must equal it exactly (case and all). An unresolved ref is
+  a mismatch.
 - A string always runs the text checks. A finite number runs them, stringified,
   only when the rule sets one; any other value under a text check is refused.
+  The type checks (`isTypeSound`, `isFiniteNumber`) live in
+  `Flow/RunStep.extractTypes.ts`.
 - An optional slot whose pointer is unresolved, `null` or blank skips its
   rule only if neither a fallback nor its step's pre-hook wrote the slot.
   Those values are checked before they are carried. A present nonblank
@@ -638,8 +652,15 @@ extractRules: {
 },
 ```
 
-A refused value fails the step `Generic` with `<step> extract <slot> invalid`,
-before any later step or OTP prompt. The message never names the value.
+```ts
+extractsToCarry: { mi6: '/Login/MI6' },
+extractRules: { mi6: { type: 'string', equalsRef: 'carry.uidMd5' } },
+```
+
+A refused value fails the step `Generic` with `<step> extract <slot> invalid`;
+a text that differs from its `equalsRef` fails it with
+`<step> extract <slot> mismatch`. Both fail before any later step or OTP
+prompt, and neither message names the value.
 
 ### Text captures
 
@@ -1164,10 +1185,16 @@ from what it extracted:
 - `@cookie:<name>` as a header value sends that cookie's current value; the
   header is dropped when the cookie is absent
   ([Headless transports](../architecture/pipeline.md#headless-transports)).
+  `@cookie-strict:<name>` must URI-decode to a value a header can carry, or
+  the request fails `"cookie <name> undecodable"` before it is sent. Either
+  form takes a `?<fallback>` (`@cookie:language?HEBREW`, `@cookie:tuuid?`),
+  sent verbatim when the cookie is missing or empty.
 - `redirect` overrides `headless.redirectPolicy` for one step
   ([Redirect policies](../architecture/pipeline.md#redirect-policies)); with
   a manual one, `finalUrlInto` carries the URL that gave the final answer
-  ([Final URL carry](#final-url-carry)).
+  ([Final URL carry](#final-url-carry)). A POST step names a manual one only
+  with `postAsGet: true`: a 302/303 answer is followed as a body-less GET
+  without the body headers, and a 301/307/308 is refused (N46).
 - `response: 'document'` and `documentMarker` read a page instead of JSON;
   `response: 'text'` reads the answer as `{ text }`, up to `maxTextChars`
   (65 536 by default), and `textCaptures` read slots off it
@@ -1204,17 +1231,24 @@ from what it extracted:
   ([Form bodies](../architecture/pipeline.md#form-bodies)). `isFlatFormBody`
   guards the hydrated form step and both form writers against arrays and
   nested values.
-- `seal` writes one credential, sealed under the bank's RSA modulus, at a
-  body pointer; neither value reaches carry
+- `seal` writes credentials, sealed under the bank's RSA key, at body
+  pointers: one under a hex modulus (`rsa-pkcs1-block-xor`), or each alone
+  under a PEM or DER key (`rsa-pkcs1-v15`); no value reaches carry
   ([Sealed fields](../architecture/pipeline.md#sealed-fields)).
+  The builder compares `writeTo` paths after `decodePointerSegments` applies
+  the writer's JSON-pointer decoding, rejecting duplicate and
+  ancestor/descendant targets before the request.
+  Sealing clones JSON branches independently, so repeated references or
+  shared literals cannot make one field overwrite another field's seal.
 - `setCookies` writes client cookies, host-only with `Path=/` and `Secure`,
   before the step's request; `$ref: cookie.<name>` reads the cookie that
   applies to the step URL, URL-decoded
   ([Client cookies](../architecture/pipeline.md#client-cookies)).
 - `clientCert` installs a device certificate the run obtained, presented to
   the bank origin from that step on ([Device certificate](#device-certificate)).
-- `extractRules` checks a body or header extract's type, text, length, URL or
-  certificate before it reaches carry ([Extract rules](#extract-rules)).
+- `extractRules` checks a body or header extract's type, text, length, URL,
+  certificate or equality to a ref before it reaches carry
+  ([Extract rules](#extract-rules)).
 - `runIf` skips the step, pre-hook included, unless a carry slot holds one of
   the listed texts ([Conditional steps](#conditional-steps)).
 - `generate` writes fresh device material, such as an RSA key, into carry
@@ -1299,7 +1333,8 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `kind: 'carry-bundle'` `warmStart` with `cookies: true`, without `headless.cookieDomains`                                               | `warmStart.cookies: not allowed without headless.cookieDomains`                    |
 | a `response: 'document'` step with any `extractsToCarry`, `optionalExtractsToCarry`, `outcome` or nonempty `failIfPresent`                | `steps.response: a document step reads no body extracts, outcome or failIfPresent` |
 | a `documentMarker` on any step whose `response` is not `'document'`                                                                       | `steps.documentMarker: only on a document step`                                    |
-| a manual `redirect` on a step whose `method` is not `GET`                                                                                 | `steps.redirect: manual only on GET steps`                                         |
+| a manual `redirect` on a POST step without `postAsGet: true`                                                                          | `steps.redirect: manual on a POST step needs postAsGet`                  |
+| a manual `redirect` with `postAsGet` on a GET step                                                                                    | `steps.redirect: postAsGet only on POST steps`                           |
 | a manual `headless.redirectPolicy` (the default every POST shares)                                                                        | `headless.redirectPolicy: manual only on GET steps`                                |
 | a manual `redirect` whose `allow` list is empty                                                                                           | `redirect.allow: must not be empty`                                                |
 | a manual `redirect` whose `maxHops` is not an integer from 1 to 10                                                                        | `redirect.maxHops: must be an integer from 1 to 10`                                |
@@ -1308,11 +1343,12 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `text` step whose body shape is not exactly `{ text }`                                                                                  | `steps.body: a text body must be exactly { text }`                                 |
 | a form step whose whole-shape `$merge` (`isMergeRoot`) has a `base` off `carry.<slot>` or a `set` that is not flat                    | `steps.body: a form body must be a flat record`                          |
 | a `$merge` anywhere but a form body's whole shape: a JSON or text body, a field, a header, a query (`API_DIRECT_MERGE_RULES`)         | `steps: $merge belongs only at the root of a form body`                  |
-| a `seal` whose `kind` is not a `SealKind`                                                                                                 | `steps.seal.kind: unknown seal kind`                                               |
-| a `seal` on a step that is not a `POST` with a record body                                                                                | `steps.seal: needs a POST step with a record body`                                 |
-| a `seal` whose `writeTo` is not a JSON pointer                                                                                            | `steps.seal.writeTo: must be a JSON pointer`                                       |
-| a `seal` whose `params` are out of range (exponent, seed, block size or printable text)                                                   | `steps.seal.params: out of range`                                                  |
-| a login or resume step with a `failIfPresent` entry that is not a JSON pointer below the body root                                        | `steps.failIfPresent: each entry must be a JSON pointer`                           |
+| a `seal` whose `kind` is not a `SealKind`                                                                                             | `steps.seal.kind: unknown seal kind`                                     |
+| a `seal` on a step that is not a `POST` with a record body                                                                            | `steps.seal: needs a POST step with a record body`                       |
+| a `seal` with a `writeTo` that is not a JSON pointer                                                                                  | `steps.seal.writeTo: must be a JSON pointer`                             |
+| a `seal` with no fields or overlapping `writeTo` paths                                                                                | `steps.seal.fields: needs at least one field with non-overlapping writeTo paths` |
+| a block-xor `seal` whose `params` are out of range (exponent, seed, block size or printable text)                                     | `steps.seal.params: out of range`                                        |
+| a login or resume step with a `failIfPresent` entry that is not a JSON pointer below the body root                                    | `steps.failIfPresent: each entry must be a JSON pointer`                 |
 | a login or resume step with a `bankErrorType` but no `failIfPresent` entry and no codec                                               | `steps.bankErrorType: needs failIfPresent or a codec`                    |
 | an `extractRules` key that names no `extractsToCarry`, `optionalExtractsToCarry`, `headerExtractsToCarry` or `textCaptures` slot              | `steps.extractRules: each key must name a body or header extract`                  |
 | an `extractRules` `pattern` that does not start with `^`, end with `$` and compile with the `u` flag                                      | `steps.extractRules.pattern: must be an anchored regex`                            |
@@ -1355,6 +1391,11 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a login or resume step with `setCookies`, without `headless.cookieDomains`                                                                | `steps.setCookies: not allowed without headless.cookieDomains`                     |
 | a `setCookies` cookie name that is not an HTTP token (RFC 9110)                                                                           | `steps.setCookies: each name must be an HTTP token`                                |
 | a `seedCarryFromCreds` entry whose `random-hex` bootstrap draws a `bytes` count that is not an integer from 1 to 64                   | `seedCarryFromCreds: random-hex needs integer bytes from 1 to 64`        |
+| a `derivedCarry` or `deriveCarry` `op` whose `kind` is not `format` or `md5-hex` (`API_DIRECT_DERIVE_RULES`)                          | `derive.op.kind: must be format or md5-hex`                              |
+| a `format` op with no rule                                                                                                            | `derive.op.rules: needs at least one rule`                               |
+| a `format` rule `pattern` that does not compile with the `u` flag                                                                     | `derive.op.rules.pattern: must compile`                                  |
+| a `format` rule `pattern` outside the linear-time `FlatPattern` grammar                                                              | `derive.op.rules.pattern: must be a flat regex`                          |
+| a `format` rule `padStart` that is not an integer from 0 to 64                                                                        | `derive.op.rules.padStart: must be an integer from 0 to 64`              |
 | a login or resume step with `codec` whose `encoding` or `response` is not `'json'` (`API_DIRECT_CODEC_RULES`)                         | `steps.codec: needs a json body and a json response`                     |
 | an `exchange` codec whose `keyInto` or `sessionInto` is blank, or both name one slot                                                  | `steps.codec: exchange needs distinct keyInto and sessionInto`           |
 | a `sessionCarry` slot that a codec reads or writes: the `privateRef`, `keyRef` or `sessionRef` slot, `keyInto` or `sessionInto`       | `steps.codec: codec slots must not be sessionCarry slots`                |
@@ -1865,6 +1906,7 @@ Where each piece lives, for maintainers:
 | `GENERIC`                                                       | The step's answer matched no [classifier](#answer-classifier) case or more than one (`<step> answer unrecognized` or `<step> answer ambiguous`), or a capture was refused (`<step> answer capture <slot> missing` or `invalid`)                                                           |
 | the type a matched case's `fail` names                          | The step's answer matched a [classifier](#answer-classifier) case that fails the step (`<step> answer <case>`)                                                                                                                                                                            |
 | `GENERIC`                                                       | A body extract failed its rule (`<step> extract <slot> invalid`) — see [Extract rules](#extract-rules)                                                                                                                                                                                    |
+| `GENERIC`                                                       | A body extract differed from its `equalsRef` (`<step> extract <slot> mismatch`) — see [Extract rules](#extract-rules)                                                                                                                                                                     |
 | `GENERIC`                                                       | A GET step's final URL failed its own redirect rules (`<step> final url refused`) — see [Final URL carry](#final-url-carry)                                                                                                                                                               |
 | `GENERIC`                                                       | A text step's handoff script fell outside the grammar, held no browser location or more than one, or its URL failed the step's `url` rules (`<step> handoff script unsupported`, `missing`, `ambiguous` or `refused`) — see [Handoff script capture](#handoff-script-capture)             |
 | `INVALID_OTP`                                                   | Wrong code, or a code that fails its pre-hook `valuePattern` or stated length (`<step> preHook value invalid`) — see [OTP pre-hook guards](#otp-pre-hook-guards)                                                                                                                          |

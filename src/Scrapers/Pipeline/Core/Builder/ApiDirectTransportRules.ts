@@ -1,9 +1,10 @@
 /**
  * Session-transport rules for an api-direct call config (N8). A `document`
  * step answers `{}`, so it reads no body extracts, outcome or bank-error guard.
- * Its marker belongs only on that step. A manual redirect follows its hops as GETs, so it
- * runs only on a GET step — never as the bank default, which every POST
- * shares — allows at least one URL rule and 1–10 hops, and needs the bank
+ * Its marker belongs only on that step. A manual redirect follows its hops
+ * as GETs, so a POST step names it only with `postAsGet` (N46) and a GET step
+ * never with it. It is never the bank default, which every POST
+ * shares; it allows at least one URL rule and 1–10 hops, and needs the bank
  * default `reject` so no other call follows a redirect unseen.
  */
 
@@ -80,13 +81,38 @@ function isMarkerOffDocument(input: IApiDirectRuleInput): boolean {
 }
 
 /**
- * A manual hop is sent as a GET, so a POST step would lose its body.
+ * The manual redirect policies of the config's steps of one method.
  * @param input - Rule input.
- * @returns True when a non-GET step redirects manually.
+ * @param method - Step method.
+ * @returns Manual policies of those steps, in step order.
  */
-function isManualOffGet(input: IApiDirectRuleInput): boolean {
+function manualPoliciesOn(
+  input: IApiDirectRuleInput,
+  method: 'GET' | 'POST',
+): readonly IManualRedirect[] {
   const steps = allSteps(input.call);
-  return steps.some((step): boolean => step.method !== 'GET' && manualOf(step).length > 0);
+  const ofMethod = steps.filter((step): boolean => (step.method ?? 'POST') === method);
+  return ofMethod.flatMap(manualOf);
+}
+
+/**
+ * A manual hop is sent as a GET, so a POST step must say it drops its body.
+ * @param input - Rule input.
+ * @returns True when a POST step redirects manually without `postAsGet`.
+ */
+function isManualPostWithoutAsGet(input: IApiDirectRuleInput): boolean {
+  const policies = manualPoliciesOn(input, 'POST');
+  return policies.some((policy): boolean => policy.postAsGet !== true);
+}
+
+/**
+ * `postAsGet` turns a POST into a GET, so a GET step has no use for it.
+ * @param input - Rule input.
+ * @returns True when a GET step names `postAsGet`.
+ */
+function isAsGetOnGet(input: IApiDirectRuleInput): boolean {
+  const policies = manualPoliciesOn(input, 'GET');
+  return policies.some((policy): boolean => policy.postAsGet === true);
 }
 
 /**
@@ -147,7 +173,11 @@ const API_DIRECT_TRANSPORT_RULES: readonly IApiDirectRule[] = [
     isBroken: isDocumentReadingBody,
   },
   { message: 'steps.documentMarker: only on a document step', isBroken: isMarkerOffDocument },
-  { message: 'steps.redirect: manual only on GET steps', isBroken: isManualOffGet },
+  {
+    message: 'steps.redirect: manual on a POST step needs postAsGet',
+    isBroken: isManualPostWithoutAsGet,
+  },
+  { message: 'steps.redirect: postAsGet only on POST steps', isBroken: isAsGetOnGet },
   { message: 'headless.redirectPolicy: manual only on GET steps', isBroken: isBankDefaultManual },
   { message: 'redirect.allow: must not be empty', isBroken: hasEmptyAllow },
   {

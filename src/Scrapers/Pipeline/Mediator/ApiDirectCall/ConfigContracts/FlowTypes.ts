@@ -4,7 +4,8 @@
  *
  * Depends on TemplateTypes (`IBodyTemplate`, `IEnvelopeSelectors`,
  * `JsonValueTemplate` referenced by IStepConfig), EnvelopeTypes
- * (`IPreStepHook` referenced by IStepConfig.preHook), ClassifyTypes
+ * (`IPreStepHook` referenced by IStepConfig.preHook), ExtractRuleTypes
+ * (`IExtractRule` referenced by IStepBase.extractRules), ClassifyTypes
  * (`IAnswerClassifier` referenced by IStepBase.classify), SignerTypes
  * (`ISealFieldConfig` referenced by IStepConfig.seal) and WireTypes
  * (`ITextCapture`, `IFormCapture`, `ILocationCapture` referenced by IStepBase, `EnvelopeCodec`
@@ -19,13 +20,13 @@ import type { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { WKUrlGroup } from '../../../Registry/WK/UrlsWK.js';
 import type {
   BodyEncoding,
-  IUrlRule,
   RedirectPolicy,
   ResponseKind,
 } from '../../../Types/Domain/FetchPolicy.js';
 import type { IDerivedCarry } from './CarryTypes.js';
 import type { IAnswerClassifier } from './ClassifyTypes.js';
 import type { IPreStepHook } from './EnvelopeTypes.js';
+import type { IExtractRule } from './ExtractRuleTypes.js';
 import type { ICarryGenerator } from './GeneratorTypes.js';
 import type { ISealFieldConfig } from './SignerTypes.js';
 import type {
@@ -117,40 +118,6 @@ interface IHeaderExtract {
   readonly header: string;
   /** Value written when the response lacks the header; without it the step fails. */
   readonly fallback?: string;
-}
-
-/** JSON type an extract rule demands of a slot's raw value (N18). */
-type ExtractValueType = 'string' | 'number' | 'object' | 'array';
-
-/**
- * A certificate rule (N27): the slot text is one PEM certificate that
- * certifies the private key `keyRef` resolves to, and is valid now.
- */
-interface IPemCertificateRule {
-  /** Ref to the PEM private key the certificate must certify. */
-  readonly keyRef: RefToken;
-}
-
-/**
- * Checks on one body- or header-extract slot (N18, N27), run on the raw value
- * once the step's answer is read: `type` first, then `transform`, then the
- * text checks.
- */
-interface IExtractRule {
-  /** JSON type of the raw value. */
-  readonly type?: ExtractValueType;
-  /** Applied before the text checks; the slot keeps the result. */
-  readonly transform?: 'lower';
-  /** Allowed texts, after the transform. */
-  readonly oneOf?: readonly string[];
-  /** Anchored regex source (`^…$`) the whole text must match. */
-  readonly pattern?: string;
-  /** Allow-list a URL text must match, resolved against the step URL. */
-  readonly url?: readonly IUrlRule[];
-  /** Longest text allowed; 8192 when unset. */
-  readonly maxChars?: number;
-  /** The text must be one current PEM certificate of the referenced key (N27). */
-  readonly pemCertificate?: IPemCertificateRule;
 }
 
 /**
@@ -298,13 +265,10 @@ type StepMethod = NonNullable<IStepConfig['method']>;
 export type {
   AuthRecovery,
   CookieHandoff,
-  ExtractValueType,
   FlowKind,
-  IExtractRule,
   IGetStep,
   IHeaderExtract,
   IOptionalExtract,
-  IPemCertificateRule,
   IPostStep,
   IRunIf,
   IStepBase,

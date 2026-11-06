@@ -23,7 +23,8 @@ src/Scrapers/Pipeline/Mediator/ApiDirectCall/
 │   ├── CarryTypes.ts         ← deps TemplateTypes
 │   ├── EnvelopeTypes.ts      ← deps TemplateTypes + SignerTypes
 │   ├── GeneratorTypes.ts     ← deps TemplateTypes
-│   ├── FlowTypes.ts          ← deps TemplateTypes + SignerTypes + CarryTypes + EnvelopeTypes + GeneratorTypes + WireTypes + ClassifyTypes
+│   ├── ExtractRuleTypes.ts   ← deps TemplateTypes
+│   ├── FlowTypes.ts          ← deps TemplateTypes + SignerTypes + CarryTypes + EnvelopeTypes + GeneratorTypes + ExtractRuleTypes + WireTypes + ClassifyTypes
 │   └── ApiDirectCallConfig.ts ← composes all but GeneratorTypes, WireTypes and ClassifyTypes
 ```
 
@@ -39,6 +40,7 @@ flowchart LR
     G[GeneratorTypes]
     W[WireTypes]
     K[ClassifyTypes]
+    X[ExtractRuleTypes]
     F[FlowTypes]
     A[ApiDirectCallConfig]
     T --> C
@@ -53,7 +55,9 @@ flowchart LR
     C --> A
     E --> F
     E --> A
+    T --> X
     G --> F
+    X --> F
     W --> F
     K --> F
     F --> A
@@ -75,7 +79,8 @@ from (cross-package imports such as `Registry/WK/*` are omitted for brevity).
 | **SignerTypes** | `SignerAlgorithm`, `AsymmetricSignerAlgorithm`, `SignerEncoding`, `CanonicalPart`, `ICanonicalStringConfig`, `IAsymmetricSignerConfig`, `IAesSignerConfig`, `IHmacHeaderSignerConfig`, `ISignerConfig`, `IBodyDigestConfig`, `ICryptoFieldConfig`, `SealKind`, `ISealRsaBlockXorParams`, `ISealFieldConfig` | (none) |
 | **CarryTypes** | `IWarmStartConfig`, `ICarryWarmStart`, `ICookieJarWarmStart`, `ICarryBundleWarmStart`, `ColdFallback`, `ISeedCarrySource`, `IRandomHex16Bootstrap`, `IRandomHexBootstrap`, `IRandomUuidBootstrap`, `ISha256Prefix16Bootstrap`, `IJwtClaimBootstrap`, `SeedCarryBootstrapKind`, `IDerivedCarry` | TemplateTypes |
 | **EnvelopeTypes** | `IFingerprintConfig`, `AuthScheme`, `IJwtClaimsConfig`, `IProbeConfig`, `IPreStepHook`, `PreHookReuse` | TemplateTypes, SignerTypes |
-| **FlowTypes** | `FlowKind`, `CookieHandoff`, `AuthRecovery`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract`, `IHeaderExtract`, `ExtractValueType`, `IExtractRule`, `IPemCertificateRule`, `IRunIf`, `IStepClientCert` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, GeneratorTypes, WireTypes, ClassifyTypes |
+| **ExtractRuleTypes** | `ExtractValueType`, `IExtractRule`, `IPemCertificateRule` | TemplateTypes |
+| **FlowTypes** | `FlowKind`, `CookieHandoff`, `AuthRecovery`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract`, `IHeaderExtract`, `IRunIf`, `IStepClientCert` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, GeneratorTypes, ExtractRuleTypes, WireTypes, ClassifyTypes |
 | **GeneratorTypes** | `ICarryGenerator`, `CarryGeneratorKind`, `IRsaKeyGenerator`, `IPkcs10CsrGenerator`, `IEcdhKeyGenerator`, `ICsrSubjectEntry`, `CsrSubjectAttr` | TemplateTypes |
 | **WireTypes** | `ITextCapture`, `IFormCapture`, `EnvelopeCodec`, `IEnvelopeSealed`, `IEnvelopeExchange` | (none) |
 | **ClassifyTypes** | `AnswerPointer`, `IAnswerText`, `IAnswerCheck`, `IAnswerRange`, `IAnswerCapture`, `IAnswerCase`, `IAnswerClassifier` | (none) |
@@ -96,7 +101,7 @@ Notes:
   [Answer classifier](../phases/api-direct-call.md#answer-classifier).
 
 Every file is **≤ 150 effective LoC** (blank and comment lines skipped;
-current max: `FlowTypes.ts` at 143) and is held there by an ESLint guard
+current max: `FlowTypes.ts` at 134) and is held there by an ESLint guard
 (`eslint.config.mjs` §14) plus a canary fixture
 (`EslintCanaries/no-api-direct-call-blob.canary.ts`).
 
@@ -114,7 +119,7 @@ this contract; the build-time checks read both.
 | Login refused with HTTP 200 | `outcome` (`IStepOutcome`) | FlowTypes | [Step outcome](../phases/api-direct-call.md#step-outcome) |
 | Bank state codes that change case | `outcome.caseInsensitive` | FlowTypes | [Step outcome](../phases/api-direct-call.md#step-outcome) |
 | Bank error field in a 2xx body | `failIfPresent` | FlowTypes | [Bank-error guard](../phases/api-direct-call.md#bank-error-guard) |
-| Checks on a value the bank sends back | `extractRules` (`IExtractRule`, `ExtractValueType`) | FlowTypes | [Extract rules](../phases/api-direct-call.md#extract-rules) |
+| Checks on a value the bank sends back | `extractRules` (`IExtractRule`, `ExtractValueType`) | ExtractRuleTypes, FlowTypes | [Extract rules](../phases/api-direct-call.md#extract-rules) |
 | A step that runs only in some bank states | `runIf` (`IRunIf`) | FlowTypes | [Conditional steps](../phases/api-direct-call.md#conditional-steps) |
 | Step identity and URL | `name` (`StepName`), `urlTag` | FlowTypes | [Step names and URL tags](../phases/api-direct-call.md#step-names-and-url-tags) |
 | OTP prompt (absent: password-only) | `preHook` (`IPreStepHook`, `PreHookReuse`) | EnvelopeTypes, FlowTypes | [Password-only chains](../phases/api-direct-call.md#password-only-chains) |
@@ -147,7 +152,8 @@ this contract; the build-time checks read both.
 | One string built from refs and literals | `$join` (`IJoinTemplate`, `JoinPart`, `JoinEncoding`) | TemplateTypes | [JsonValueTemplate](../phases/api-direct-call.md#jsonvaluetemplate) |
 | A carried form record with fields laid over it | `$merge` (`IMergeTemplate`) | TemplateTypes | [JsonValueTemplate](../phases/api-direct-call.md#jsonvaluetemplate) |
 | A fresh key or certificate request made by one step | `generate` (`ICarryGenerator`) | GeneratorTypes, FlowTypes | [Carry generators](../phases/api-direct-call.md#carry-generators) |
-| A returned certificate checked against its key | `extractRules` `pemCertificate` (`IPemCertificateRule`) | FlowTypes | [Extract rules](../phases/api-direct-call.md#extract-rules) |
+| A returned certificate checked against its key | `extractRules` `pemCertificate` (`IPemCertificateRule`) | ExtractRuleTypes | [Extract rules](../phases/api-direct-call.md#extract-rules) |
+| A returned value that must equal one the run already holds | `extractRules` `equalsRef` (`RefToken`) | ExtractRuleTypes | [Extract rules](../phases/api-direct-call.md#extract-rules) |
 | Present a device certificate the run obtained | `clientCert` (`IStepClientCert`), `headless.clientCert` | FlowTypes | [Device certificate](../phases/api-direct-call.md#device-certificate) |
 
 Cross-field rules (for example `authScheme: 'none'` needs

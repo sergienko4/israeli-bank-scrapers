@@ -113,4 +113,4 @@ function writeAtPointer(doc: DocObj, pointer: string, value: DocValue): Procedur
 
 export default writeAtPointer;
 
-export { writeAtPointer };
+export { decodePointerSegments, writeAtPointer };

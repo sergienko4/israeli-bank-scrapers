@@ -66,7 +66,7 @@ function ctxWithSession(startDate: Date, sid: string): IActionContext {
 function headersFor(ctx: IActionContext): Readonly<Record<string, string>> {
   const headers = MAX_SHAPE.customer.extraHeaders;
   if (typeof headers !== 'function') throw new TypeError('Max headers must be per-call');
-  return headers(ctx);
+  return headers(ctx, {});
 }
 
 /**

@@ -5,6 +5,8 @@
  * `===`; `items` and `keys` count an array's items and an object's keys; text
  * is 1..`maxChars` chars with no C0 control char or DEL, and its `pattern`
  * must match it whole. A pattern that does not compile fails its check.
+ * `negate` (N60) inverts a check's verdict, missing pointer included; a check
+ * with no kind fails either way.
  *
  * Zero bank knowledge. Rule #11 compliant.
  */
@@ -155,17 +157,40 @@ const VALUE_CHECKS: Readonly<Record<ValueKind, ValueCheck>> = {
 const VALUE_KINDS = Object.keys(VALUE_CHECKS) as readonly ValueKind[];
 
 /**
- * Whether the answer passes one check; a check with no kind never passes.
+ * Whether a check names any kind.
+ * @param check - The check.
+ * @returns True when it holds `absent` or a value kind.
+ */
+function hasKind(check: IAnswerCheck): boolean {
+  if (check.absent === true) return true;
+  return VALUE_KINDS.some((kind): boolean => check[kind] !== undefined);
+}
+
+/**
+ * Whether the answer holds what a check of some kind names, before `negate`.
+ * @param resp - Opened answer.
+ * @param check - A check of some kind.
+ * @returns True when the check's kinds hold.
+ */
+function holdsCheck(resp: JsonValue, check: IAnswerCheck): boolean {
+  const found = resolveFirst(resp, check.pointer);
+  if (check.absent === true) return !isOk(found);
+  if (!isOk(found)) return false;
+  const kinds = VALUE_KINDS.filter((kind): boolean => check[kind] !== undefined);
+  return kinds.every((kind): boolean => VALUE_CHECKS[kind](found.value, check));
+}
+
+/**
+ * Whether the answer passes one check; `negate` inverts the verdict, and a
+ * check with no kind never passes, negated or not.
  * @param resp - Opened answer.
  * @param check - The check.
  * @returns True when the check passes.
  */
 function passesCheck(resp: JsonValue, check: IAnswerCheck): boolean {
-  const found = resolveFirst(resp, check.pointer);
-  if (check.absent === true) return !isOk(found);
-  if (!isOk(found)) return false;
-  const kinds = VALUE_KINDS.filter((kind): boolean => check[kind] !== undefined);
-  return kinds.length > 0 && kinds.every((kind): boolean => VALUE_CHECKS[kind](found.value, check));
+  if (!hasKind(check)) return false;
+  const isHeld = holdsCheck(resp, check);
+  return isHeld !== (check.negate === true);
 }
 
 export { isSafeText, passesCheck, resolveFirst };

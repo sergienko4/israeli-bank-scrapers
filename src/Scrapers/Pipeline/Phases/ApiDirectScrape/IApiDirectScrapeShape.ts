@@ -49,11 +49,24 @@ export type HeaderMap = Record<string, string>;
 export type ScrapeHttpMethod = 'GET' | 'POST';
 
 /**
+ * What the driver tells a header producer about the call it is building
+ * headers for (N53). On balance and transactions calls `accountId` is the
+ * shape's `callAccountIdOf(acct)`, or `accountNumberOf(acct)` when the shape
+ * declares none; it is absent on bootstrap, customer and the customer's
+ * secondary identity GET, which belong to no account.
+ */
+export interface IScrapeCallInfo {
+  readonly accountId?: string;
+}
+
+/**
  * extraHeaders may be a static map (OneZero) or a function producing
  * a map on every call (Pepper — per-request UUIDs). The driver calls
- * the function at call time, never caches its result.
+ * the function at call time, never caches its result, and hands it the
+ * call's {@link IScrapeCallInfo}; a one-argument function ignores it.
  */
-export type ApiDirectScrapeHeadersLike = HeaderMap | ((ctx: IActionContext) => HeaderMap);
+export type ApiDirectScrapeHeadersLike =
+  HeaderMap | ((ctx: IActionContext, call: IScrapeCallInfo) => HeaderMap);
 /**
  * Opaque variables object — GraphQL variables, a template scope, or a REST
  * body. A REST POST step may instead return a top-level array
@@ -425,6 +438,12 @@ export interface IResponseSessionSpec {
 export interface IApiDirectScrapeShape<TAcct, TCursor> {
   readonly stepName: string;
   readonly accountNumberOf: (acct: TAcct) => string;
+  /**
+   * The account id header producers receive in {@link IScrapeCallInfo}
+   * when the API names an account differently from the user-facing
+   * `accountNumberOf` (Discount's `AccountNumber` is the Titan path id).
+   */
+  readonly callAccountIdOf?: (acct: TAcct) => string;
   /**
    * True for a credit-card issuer, false or absent for a bank account.
    *

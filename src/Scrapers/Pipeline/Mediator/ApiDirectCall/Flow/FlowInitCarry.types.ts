@@ -43,6 +43,7 @@ interface IEvalDerivedArgs {
   readonly creds: Creds;
   readonly config: IApiDirectCallConfig;
   readonly carry: Readonly<CarryMut>;
+  readonly owner: string;
 }
 
 /** Walk context for `stepJsonPath`. */
@@ -68,6 +69,7 @@ interface IDerivationSharedCtx {
   readonly creds: Creds;
   readonly config: IApiDirectCallConfig;
   readonly carry: CarryMut;
+  readonly owner?: string;
 }
 
 /** Args bundle for `walkConfigPath` — keeps the helper short. */

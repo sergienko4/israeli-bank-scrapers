@@ -35,6 +35,8 @@ interface IAnswerCheck {
   /** An object of exactly this many keys. */
   readonly keys?: number;
   readonly text?: IAnswerText;
+  /** Inverts the verdict of the check's kind (N60). */
+  readonly negate?: true;
 }
 
 /** An inclusive range of safe integers. */

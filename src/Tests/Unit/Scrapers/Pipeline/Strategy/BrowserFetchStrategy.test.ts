@@ -5,6 +5,8 @@
 
 import { jest } from '@jest/globals';
 
+import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+
 jest.unstable_mockModule(
   '../../../../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js',
   () => ({
@@ -27,6 +29,8 @@ const { TimeoutError: TIMEOUT_ERROR } =
 const { ScraperErrorTypes: ERROR_TYPES } =
   await import('../../../../../Scrapers/Base/ErrorTypes.js');
 const { WafBlockError: WAF_BLOCK_ERROR } = await import('../../../../../Scrapers/Base/Errors.js');
+const { COOKIE_HEADER_SENTINEL_PREFIX } =
+  await import('../../../../../Scrapers/Pipeline/Strategy/Fetch/CookieHeaderSentinel.js');
 
 const OPTS_NO_HEADERS = DEFAULT_FETCH_OPTS;
 const OPTS_WITH_HEADERS = { extraHeaders: { Authorization: 'Bearer tok' } };
@@ -34,6 +38,7 @@ const OPTS_WITH_HEADERS = { extraHeaders: { Authorization: 'Bearer tok' } };
 beforeEach(() => {
   (FETCH_MOD.fetchPostWithinPage as jest.Mock).mockReset();
   (FETCH_MOD.fetchGetWithinPage as jest.Mock).mockReset();
+  (FETCH_MOD.fetchGetWithinPageWithHeaders as jest.Mock).mockReset();
 });
 
 // ── fetchPost ─────────────────────────────────────────────
@@ -301,5 +306,141 @@ describe('BrowserFetchStrategy/resolveContext via fetchPost', () => {
     const result = await strategy.fetchPost('https://api.test/post', {}, OPTS_NO_HEADERS);
     expect(result.success).toBe(true);
     expect(postFn).toHaveBeenCalled();
+  });
+});
+
+// ── fetchGet @cookie: sentinels (resolved like fetchPost) ─
+
+const GET_URL = 'https://api.test/get';
+const ACCEPT = { Accept: 'application/json' } as const;
+const XSRF_SENTINEL = `${COOKIE_HEADER_SENTINEL_PREFIX}XSRF-TOKEN`;
+const XSRF_COOKIE = { name: 'XSRF-TOKEN', value: 'tok' } as const;
+
+/** One cookie the page context hands back. */
+interface IJarCookie {
+  readonly name: string;
+  readonly value: string;
+}
+
+/**
+ * Build a page whose browser context hands back a stubbed cookie jar.
+ * @param cookiesFn - Stub for `context().cookies(url)`.
+ * @returns Mock page on GET_URL's origin bound to that context.
+ */
+function makePageWithJar(cookiesFn: jest.Mock): MockPage {
+  const base = MAKE_MOCK_FULL_PAGE(GET_URL);
+  /**
+   * Browser-context stub exposing only `cookies()`.
+   * @returns Context holding the cookies stub.
+   */
+  const contextFn = (): { cookies: jest.Mock } => ({ cookies: cookiesFn });
+  return { ...base, context: contextFn } as unknown as MockPage;
+}
+
+/**
+ * Run one browser GET whose headers carry the XSRF sentinel.
+ * @param jar - Cookies the page context hands back.
+ * @param headers - Outgoing header map, sentinels unresolved.
+ * @returns The page, the cookies stub and the GET's success flag.
+ */
+async function getWithJar(
+  jar: readonly IJarCookie[],
+  headers: Record<string, string>,
+): Promise<{ page: MockPage; cookiesFn: jest.Mock; isOk: boolean }> {
+  const cookiesFn = jest.fn().mockResolvedValue(jar);
+  const page = makePageWithJar(cookiesFn);
+  const strategy = new STRATEGY_MOD.BrowserFetchStrategy(page);
+  const result = await strategy.fetchGet(GET_URL, { extraHeaders: headers });
+  return { page, cookiesFn, isOk: result.success };
+}
+
+describe('BrowserFetchStrategy/fetchGet — @cookie: sentinels', () => {
+  it.each([
+    ['sends the named cookie value', [XSRF_COOKIE], { ...ACCEPT, 'X-XSRF-TOKEN': 'tok' }],
+    ['drops the header when the cookie is absent', [], ACCEPT],
+  ] as const)('%s', async (_title, jar, sent) => {
+    const getHeadersFn = FETCH_MOD.fetchGetWithinPageWithHeaders as jest.Mock;
+    getHeadersFn.mockResolvedValue({ data: 'ok' });
+    const headers = { ...ACCEPT, 'X-XSRF-TOKEN': XSRF_SENTINEL };
+    const run = await getWithJar(jar, headers);
+    expect(run.isOk).toBe(true);
+    expect(getHeadersFn).toHaveBeenCalledWith(run.page, GET_URL, sent);
+  });
+
+  it('reads only the request URL cookies', async () => {
+    (FETCH_MOD.fetchGetWithinPageWithHeaders as jest.Mock).mockResolvedValue({ data: 'ok' });
+    const run = await getWithJar([XSRF_COOKIE], { 'X-XSRF-TOKEN': XSRF_SENTINEL });
+    expect(run.cookiesFn).toHaveBeenCalledWith(GET_URL);
+  });
+
+  it('takes the plain GET when every header drops', async () => {
+    const getFn = FETCH_MOD.fetchGetWithinPage as jest.Mock;
+    getFn.mockResolvedValue({ data: 'ok' });
+    const run = await getWithJar([], { 'X-XSRF-TOKEN': XSRF_SENTINEL });
+    expect(getFn).toHaveBeenCalledWith(run.page, GET_URL, false);
+    expect(FETCH_MOD.fetchGetWithinPageWithHeaders).not.toHaveBeenCalled();
+  });
+});
+
+// ── @cookie-strict: sentinels (strict decode on both verbs) ─
+
+const STRICT_XSRF = { 'X-XSRF-TOKEN': '@cookie-strict:XSRF-TOKEN' } as const;
+const MALFORMED_XSRF = { name: 'XSRF-TOKEN', value: '%E0%A4%A' } as const;
+const UNDECODABLE = { success: false, errorMessage: 'cookie XSRF-TOKEN undecodable' } as const;
+
+describe('BrowserFetchStrategy — @cookie-strict: sentinels', () => {
+  it('sends a strict cookie decoded on GET', async () => {
+    const getHeadersFn = FETCH_MOD.fetchGetWithinPageWithHeaders as jest.Mock;
+    getHeadersFn.mockResolvedValue({ data: 'ok' });
+    const jar = [{ name: 'XSRF-TOKEN', value: 'a%2Bb%3D%3D' }];
+    const run = await getWithJar(jar, STRICT_XSRF);
+    expect(getHeadersFn).toHaveBeenCalledWith(run.page, GET_URL, { 'X-XSRF-TOKEN': 'a+b==' });
+  });
+
+  it('stops a GET on an undecodable cookie before the page fetch', async () => {
+    const run = await getWithJar([MALFORMED_XSRF], STRICT_XSRF);
+    expect(run.isOk).toBe(false);
+    expect(FETCH_MOD.fetchGetWithinPage).not.toHaveBeenCalled();
+    expect(FETCH_MOD.fetchGetWithinPageWithHeaders).not.toHaveBeenCalled();
+  });
+
+  it('stops a POST on an undecodable cookie before the page fetch', async () => {
+    const cookiesFn = jest.fn().mockResolvedValue([MALFORMED_XSRF]);
+    const page = makePageWithJar(cookiesFn);
+    const strategy = new STRATEGY_MOD.BrowserFetchStrategy(page);
+    const result = await strategy.fetchPost(GET_URL, {}, { extraHeaders: STRICT_XSRF });
+    expect(result).toMatchObject(UNDECODABLE);
+    expect(FETCH_MOD.fetchPostWithinPage).not.toHaveBeenCalled();
+  });
+});
+
+const CLOSED = 'Target page, context or browser has been closed';
+const CLOSED_FAILURE = {
+  success: false,
+  errorType: ERROR_TYPES.Generic,
+  errorMessage: CLOSED,
+} as const;
+
+/**
+ * Run a sentinel-bearing request whose cookie lookup rejects.
+ * @param verb - Request method.
+ * @returns The request's structured result.
+ */
+async function runWithBrokenJar(verb: 'GET' | 'POST'): Promise<Procedure<unknown>> {
+  const cookiesFn = jest.fn<Promise<IJarCookie[]>, []>().mockRejectedValue(new Error(CLOSED));
+  const page = makePageWithJar(cookiesFn);
+  const strategy = new STRATEGY_MOD.BrowserFetchStrategy(page);
+  const opts = { extraHeaders: STRICT_XSRF };
+  if (verb === 'GET') return strategy.fetchGet(GET_URL, opts);
+  return strategy.fetchPost(GET_URL, {}, opts);
+}
+
+describe('BrowserFetchStrategy — cookie lookup failure', () => {
+  it.each(['GET', 'POST'] as const)('fails a %s before the page fetch', async verb => {
+    const result = await runWithBrokenJar(verb);
+    expect(result).toMatchObject(CLOSED_FAILURE);
+    expect(FETCH_MOD.fetchPostWithinPage).not.toHaveBeenCalled();
+    expect(FETCH_MOD.fetchGetWithinPage).not.toHaveBeenCalled();
+    expect(FETCH_MOD.fetchGetWithinPageWithHeaders).not.toHaveBeenCalled();
   });
 });

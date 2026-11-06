@@ -161,6 +161,11 @@ const SHAPE_REFUSALS: readonly IRefusal[] = [
   },
   { label: 'a check of no kind', steps: [checkStep({ pointer: '/s' })], message: ONE_KIND },
   {
+    label: 'a negated check of no kind',
+    steps: [checkStep({ pointer: '/s', negate: true })],
+    message: ONE_KIND,
+  },
+  {
     label: 'a check of two kinds',
     steps: [checkStep({ pointer: '/s', equals: 'a', oneOf: ['a'] })],
     message: ONE_KIND,

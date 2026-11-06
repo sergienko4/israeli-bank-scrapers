@@ -83,7 +83,7 @@ function stepNamed(name: string): IApiDirectScrapeBootstrapStep {
  * @returns Header map.
  */
 function headersOf(headers: ApiDirectScrapeHeadersLike = {}, ctx = CTX): object {
-  if (typeof headers === 'function') return headers(ctx);
+  if (typeof headers === 'function') return headers(ctx, {});
   return headers;
 }
 

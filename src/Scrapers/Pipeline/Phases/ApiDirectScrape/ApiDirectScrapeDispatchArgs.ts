@@ -2,8 +2,10 @@
  * Dispatch-args construction for the ApiDirectScrape phase driver.
  * Resolves each step's urlTag (literal or producer) and assembles the
  * IDispatchArgs bundle (verb, vars, body, headers, signing) consumed by
- * dispatchStep. Split out of ApiDirectScrapeSteps.ts to keep both files
- * within the per-file LOC ceiling. Zero bank-name coupling.
+ * dispatchStep. Balance and transactions header producers learn the
+ * account the call is for (N53, see ApiDirectScrapeHeaders.ts). Split
+ * out of ApiDirectScrapeSteps.ts to keep both files within the per-file
+ * LOC ceiling. Zero bank-name coupling.
  */
 
 import type { IApiMediator, IApiQueryOpts } from '../../Mediator/Api/ApiMediator.js';
@@ -11,15 +13,13 @@ import type { IEvidenceLedger } from '../../Mediator/Scrape/CoverageAudit/Eviden
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { IDispatchArgs } from './ApiDirectScrapeDispatch.js';
+import { accountlessOpts, headerOpts } from './ApiDirectScrapeHeaders.js';
 import type {
   ApiDirectScrapeHeadersLike,
-  HeaderMap,
   IApiDirectScrapeBootstrapStep,
   IApiDirectScrapeShape,
+  IScrapeCallInfo,
 } from './IApiDirectScrapeShape.js';
-
-const FROZEN_EMPTY_HEADERS: HeaderMap = Object.freeze({});
-const FROZEN_EMPTY_OPTS: IApiQueryOpts = Object.freeze({ extraHeaders: FROZEN_EMPTY_HEADERS });
 
 /** Driver context — shape + bus + action context. */
 export interface IDriverCtx<TAcct, TCursor> {
@@ -42,29 +42,27 @@ export interface IAcctCtx<TAcct, TCursor> extends IDriverCtx<TAcct, TCursor> {
 }
 
 /**
- * Resolve a ApiDirectScrapeHeadersLike to a concrete HeaderMap.
- * @param ctx - Action context passed into dynamic producers.
- * @param extra - Static map, function, or absent.
- * @returns Concrete header map (frozen empty when absent).
+ * Call info naming the account a balance or transactions call is for.
+ * @param a - Per-account context.
+ * @returns Call info carrying the shape's call id, else its account number.
  */
-function resolveHeaders(ctx: IActionContext, extra?: ApiDirectScrapeHeadersLike): HeaderMap {
-  if (!extra) return FROZEN_EMPTY_HEADERS;
-  if (typeof extra === 'function') return extra(ctx);
-  return extra;
+function accountCall<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): IScrapeCallInfo {
+  const idOf = a.shape.callAccountIdOf ?? a.shape.accountNumberOf;
+  return { accountId: idOf(a.acct) };
 }
 
 /**
- * Build IApiQueryOpts from optional extraHeaders. Returns the frozen
- * empty sentinel when no headers are supplied so consumers can pin
- * `===` checks against it.
- * @param ctx - Action context for dynamic producers.
- * @param extra - Static map, function, or absent.
+ * Build the opts of a balance or transactions call, whose header
+ * producer learns the account it is for.
+ * @param a - Per-account context.
+ * @param extra - The step's static map, function, or absent.
  * @returns Opts value.
  */
-function toOpts(ctx: IActionContext, extra?: ApiDirectScrapeHeadersLike): IApiQueryOpts {
-  const headers = resolveHeaders(ctx, extra);
-  if (Object.keys(headers).length === 0) return FROZEN_EMPTY_OPTS;
-  return { extraHeaders: headers };
+function accountOpts<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  extra?: ApiDirectScrapeHeadersLike,
+): IApiQueryOpts {
+  return headerOpts(a.ctx, (): IScrapeCallInfo => accountCall(a), extra);
 }
 
 /** The dispatch-args fields every step of one shape shares. */
@@ -114,7 +112,7 @@ export function buildBootstrapDispatchArgs<TAcct, TCursor>(
   const vars = step.buildVars(d.ctx);
   const method = step.method ?? 'POST';
   const bodyTemplate = step.bodyTemplate ?? false;
-  const opts = toOpts(d.ctx, step.extraHeaders);
+  const opts = accountlessOpts(d.ctx, step.extraHeaders);
   const call = step.name ?? BOOTSTRAP_CALL;
   return { ...head, call, method, vars, bodyTemplate, ...pickShapeLevel(d.shape), opts };
 }
@@ -158,7 +156,7 @@ export function resolveSecondaryUrlTag<TAcct, TCursor>(
  * @returns Opts value (frozen empty when the customer step declares none).
  */
 export function buildSecondaryOpts<TAcct, TCursor>(d: IDriverCtx<TAcct, TCursor>): IApiQueryOpts {
-  return toOpts(d.ctx, d.shape.customer.extraHeaders);
+  return accountlessOpts(d.ctx, d.shape.customer.extraHeaders);
 }
 
 /**
@@ -178,7 +176,7 @@ export function buildCustomerDispatchArgs<TAcct, TCursor>(
     vars: d.shape.customer.buildVars(d.ctx),
     bodyTemplate: d.shape.customer.bodyTemplate ?? false,
     ...pickShapeLevel(d.shape),
-    opts: toOpts(d.ctx, d.shape.customer.extraHeaders),
+    opts: accountlessOpts(d.ctx, d.shape.customer.extraHeaders),
   };
 }
 
@@ -211,7 +209,7 @@ export function buildBalanceDispatchArgs<TAcct, TCursor>(
     vars: a.shape.balance.buildVars(a.acct, a.ctx),
     bodyTemplate: a.shape.balance.bodyTemplate ?? false,
     ...pickShapeLevel(a.shape),
-    opts: toOpts(a.ctx, a.shape.balance.extraHeaders),
+    opts: accountOpts(a, a.shape.balance.extraHeaders),
   };
 }
 
@@ -247,6 +245,6 @@ export function buildTxnsDispatchArgs<TAcct, TCursor>(
   const urlTag = resolveTxnsUrlTag(a, cursor);
   const bodyTemplate = t.bodyTemplate ?? false;
   const method = t.method ?? 'POST';
-  const opts = toOpts(a.ctx, t.extraHeaders);
+  const opts = accountOpts(a, t.extraHeaders);
   return { ...head, urlTag, method, bodyTemplate, ...pickShapeLevel(a.shape), opts };
 }

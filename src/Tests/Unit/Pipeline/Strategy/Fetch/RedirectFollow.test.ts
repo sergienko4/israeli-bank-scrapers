@@ -1,8 +1,9 @@
 /**
  * Unit tests for Strategy/Fetch/RedirectFollow — one request under a redirect
  * policy. `follow` leaves fetch alone; `reject` refuses any 3xx; a manual
- * policy follows allowed GET hops, files each hop's Set-Cookie under the hop
- * URL before building the next hop, and recomputes the Cookie header per hop.
+ * policy follows allowed hops as GETs (a POST only 302/303 under postAsGet),
+ * files each hop's Set-Cookie under the hop URL before building the next hop,
+ * and recomputes the Cookie header per hop.
  * The transport seam is a fake that serves canned Responses.
  */
 
@@ -28,6 +29,7 @@ const HOP_2 = 'https://mto.bank.example/Online/Default.aspx?language=he-IL';
 const SECRET = 'L0CATION-SECRET';
 const SAFE_START = safeUrlForLog(START);
 const REFUSED = `GET ${SAFE_START} redirect refused`;
+const UNDECODABLE = 'cookie XSRF-TOKEN undecodable';
 
 const MANUAL: IManualRedirect = {
   maxHops: 2,
@@ -194,15 +196,18 @@ describe('sendUnderPolicy — manual hops', () => {
     expect(responseUrl).toBe(HOP_2);
   });
 
-  it('sends every hop as a body-less manual GET', async () => {
+  it("keeps a GET request's content-type on its hops", async () => {
     const invoke = serve([redirect(307, HOP_1), ok()]);
-    const run = makeRun(invoke, { verb: 'POST', init: { method: 'POST', body: 'x' } });
+    const init = { method: 'GET', headers: { 'Content-Type': 'text/plain' } };
+    const run = makeRun(invoke, { init });
     await sendUnderPolicy(run);
     const [, hopInit, { verb: hopVerb }] = invoke.mock.calls[1];
     expect(hopVerb).toBe('GET');
     expect(hopInit).toMatchObject({ method: 'GET', redirect: 'manual' });
     expect(hopInit.body).toBeUndefined();
     expect(invoke.mock.calls[0][1].redirect).toBe('manual');
+    const hopType = sentHeaders(invoke, 1).get('content-type');
+    expect(hopType).toBe('text/plain');
   });
 
   it('carries the expected media type through every redirect hop', async () => {
@@ -225,9 +230,9 @@ describe('sendUnderPolicy — manual hops', () => {
 
   it("replaces the first request's Cookie header with the hop's own", async () => {
     const invoke = serve([redirect(302, HOP_1), redirect(302, HOP_2), ok()]);
-    const sessionHeadersFor = jest.fn((url: string): ISessionHeaders => {
-      if (url === HOP_1) return { owned: ['cookie'], values: { cookie: 'hop=1' } };
-      return { owned: ['cookie'], values: {} };
+    const sessionHeadersFor = jest.fn((url: string): Procedure<ISessionHeaders> => {
+      if (url === HOP_1) return succeed({ owned: ['cookie'], values: { cookie: 'hop=1' } });
+      return succeed({ owned: ['cookie'], values: {} });
     });
     const run = makeRun(invoke, { sessionHeadersFor });
     await sendUnderPolicy(run);
@@ -256,9 +261,9 @@ describe('sendUnderPolicy — manual hops', () => {
      * @param url - Hop URL.
      * @returns The owned names and the values for the URL.
      */
-    const sessionHeadersFor = (url: string): ISessionHeaders => {
-      if (url === HOP_1) return { owned, values: { 'x-xsrf-token': 'mto-token' } };
-      return { owned, values: {} };
+    const sessionHeadersFor = (url: string): Procedure<ISessionHeaders> => {
+      if (url === HOP_1) return succeed({ owned, values: { 'x-xsrf-token': 'mto-token' } });
+      return succeed({ owned, values: {} });
     };
     const headers = { 'X-XSRF-TOKEN': 'www-token', 'x-caller': 'kept' };
     const run = makeRun(invoke, { sessionHeadersFor, init: { method: 'GET', headers } });
@@ -295,7 +300,7 @@ describe('sendUnderPolicy — manual hops', () => {
      * The session's credentials headers, the same for every hop URL.
      * @returns The owned names and their values.
      */
-    const sessionHeadersFor = (): ISessionHeaders => ({ owned, values });
+    const sessionHeadersFor = (): Procedure<ISessionHeaders> => succeed({ owned, values });
     const run = makeRun(invoke, { sessionHeadersFor });
     await sendUnderPolicy(run);
     const hops = [sentHeaders(invoke, 1), sentHeaders(invoke, 2)];
@@ -338,14 +343,36 @@ describe('sendUnderPolicy — manual hops', () => {
      * @param url - Hop URL.
      * @returns No header.
      */
-    const sessionHeadersFor = (url: string): ISessionHeaders => {
+    const sessionHeadersFor = (url: string): Procedure<ISessionHeaders> => {
       events.push(`header ${url}`);
-      return { owned: ['cookie'], values: {} };
+      return succeed({ owned: ['cookie'], values: {} });
     };
     const run = makeRun(invoke, { onSetCookie, sessionHeadersFor });
     await sendUnderPolicy(run);
     const expected = [`set a=1 ${START}`, `header ${HOP_1}`, `set b=2 ${HOP_1}`, `header ${HOP_2}`];
     expect(events).toEqual(expected);
+  });
+
+  it("stops before a hop whose session headers fail, the hop's cookies filed", async () => {
+    const filed: string[] = [];
+    const invoke = serve([redirect(302, HOP_1, ['a=1']), ok()]);
+    /**
+     * Record the filed Set-Cookie lines.
+     * @param lines - Set-Cookie lines.
+     * @returns Line count.
+     */
+    const onSetCookie = (lines: readonly string[]): number => filed.push(...lines);
+    /**
+     * A session whose header resolution fails for every URL.
+     * @returns The failure.
+     */
+    const sessionHeadersFor = (): Procedure<ISessionHeaders> =>
+      fail(ScraperErrorTypes.Generic, UNDECODABLE);
+    const run = makeRun(invoke, { onSetCookie, sessionHeadersFor });
+    const result = await sendUnderPolicy(run);
+    expect(result).toMatchObject({ success: false, errorMessage: UNDECODABLE });
+    expect(invoke).toHaveBeenCalledTimes(1);
+    expect(filed).toEqual(['a=1']);
   });
 
   it('refuses the hop past maxHops', async () => {
@@ -393,5 +420,83 @@ describe('sendUnderPolicy — manual hops', () => {
     const result = await sendUnderPolicy(run);
     const responseUrl = isOk(result) ? result.value.responseUrl : 'failed';
     expect(responseUrl).toBe(START);
+  });
+});
+
+const POST_AS_GET: IManualRedirect = { ...MANUAL, postAsGet: true };
+const POST_REFUSED = `POST ${SAFE_START} redirect refused`;
+
+/**
+ * A JSON POST run under the given manual policy.
+ * @param invoke - Fake transport seam.
+ * @param policy - Manual policy.
+ * @returns The run.
+ */
+function postRun(invoke: Invoke, policy: IManualRedirect): IRedirectRun {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Content-Encoding': 'gzip',
+    'Content-Language': 'he-IL',
+    'Content-Location': '/start',
+    'x-caller': 'kept',
+  };
+  const init = { method: 'POST', headers, body: '{"a":1}' };
+  return makeRun(invoke, { verb: 'POST', init, policy });
+}
+
+/** Content-describing headers a POST-originated GET must never carry after a hop. */
+const BODY_HEADERS = ['content-type', 'content-encoding', 'content-language', 'content-location'];
+
+describe('sendUnderPolicy — manual POST', () => {
+  it.each([302, 303])('follows a %i as a body-less GET without content-type', async status => {
+    const invoke = serve([redirect(status, HOP_1), ok()]);
+    const run = postRun(invoke, POST_AS_GET);
+    const result = await sendUnderPolicy(run);
+    const isSent = isOk(result);
+    const [[, firstInit], [hopUrl, hopInit, { verb: hopVerb }]] = invoke.mock.calls;
+    const hop = sentHeaders(invoke, 1);
+    const bodyFields = BODY_HEADERS.map(name => hop.get(name));
+    expect(isSent).toBe(true);
+    expect(firstInit).toMatchObject({ method: 'POST', body: '{"a":1}', redirect: 'manual' });
+    expect([hopUrl, hopVerb, ...bodyFields, hop.get('x-caller')]).toEqual([
+      HOP_1,
+      'GET',
+      null,
+      null,
+      null,
+      null,
+      'kept',
+    ]);
+    expect(hopInit).toMatchObject({ method: 'GET', redirect: 'manual' });
+    expect(hopInit.body).toBeUndefined();
+  });
+
+  it.each([301, 307, 308])('refuses a %i', async status => {
+    const invoke = serve([redirect(status, HOP_1)]);
+    const run = postRun(invoke, POST_AS_GET);
+    const result = await sendUnderPolicy(run);
+    const text = failureText(result);
+    expect(text).toBe(POST_REFUSED);
+    expect(invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a 302 when the policy does not name postAsGet', async () => {
+    const invoke = serve([redirect(302, HOP_1)]);
+    const run = postRun(invoke, MANUAL);
+    const result = await sendUnderPolicy(run);
+    const text = failureText(result);
+    expect(text).toBe(POST_REFUSED);
+    expect(invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it('follows the GET statuses once a hop is a GET, still dropping body headers', async () => {
+    const invoke = serve([redirect(303, HOP_1), redirect(307, HOP_2), ok()]);
+    const run = postRun(invoke, POST_AS_GET);
+    const result = await sendUnderPolicy(run);
+    const responseUrl = isOk(result) ? result.value.responseUrl : 'failed';
+    const later = sentHeaders(invoke, 2);
+    const laterBodyFields = BODY_HEADERS.map(name => later.get(name));
+    expect(responseUrl).toBe(HOP_2);
+    expect(laterBodyFields).toEqual([null, null, null, null]);
   });
 });

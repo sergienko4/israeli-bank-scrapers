@@ -1,7 +1,7 @@
 /**
- * Extract rules (N18, N27). A step's `extractRules` check its body-, header-
- * and text-capture slots on the raw value once the answer is read. `type` is
- * checked first. A string — or a finite number, stringified, when the rule
+ * Extract rules (N18, N27, N47). A step's `extractRules` check its body-,
+ * header- and text-capture slots on the raw value once the answer is read.
+ * `type` is checked first (RunStep.extractTypes). A string — or a finite number, stringified, when the rule
  * sets a text check — is then transformed and checked: `maxChars` (8192 when
  * unset), `oneOf`, the whole text against `pattern`, the `url` allow-list,
  * resolved against the step URL, and `pemCertificate`, whose key ref resolves
@@ -10,15 +10,18 @@
  * the carry passes through. An absent optional slot skips its rule only when
  * it has no fallback or pre-hook write; present malformed values are checked
  * even when a fallback is set. A refusal fails the step
- * `<step> extract <slot> invalid`, naming no value.
+ * `<step> extract <slot> invalid`, naming no value. Last, `equalsRef` demands
+ * the checked text equal the text its ref resolves to in the step's scope; a
+ * different text or an unresolved ref fails `<step> extract <slot> mismatch`.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { matchesAnyUrlRule } from '../../../Strategy/Fetch/UrlRule.js';
 import type { IProcedureFailure, Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { ExtractValueType, IExtractRule, IStepConfig } from '../ConfigContracts/index.js';
-import type { ITemplateScope } from '../Template/RefResolver.js';
+import type { IExtractRule, IStepConfig } from '../ConfigContracts/index.js';
+import { type ITemplateScope, resolveRefText } from '../Template/RefResolver.js';
+import { isFiniteNumber, isTypeSound } from './RunStep.extractTypes.js';
 import { optionalRawValue } from './RunStep.optional.js';
 import { isPemCertificate } from './RunStep.pemRule.js';
 import { stepBaseUrlOf } from './RunStep.stepUrl.js';
@@ -44,54 +47,11 @@ interface IKept {
   readonly kept: JsonValue;
 }
 
-/** Whether a raw value has a demanded JSON type. */
-type TypeCheck = (value: JsonValue) => boolean;
+/** Why a slot was refused: a failed check, or text unequal to its ref. */
+type RefusalReason = 'invalid' | 'mismatch';
 
 /** One text check over the transformed text. */
 type TextCheck = (text: string, rule: IExtractRule, input: IRulePass) => boolean;
-
-/**
- * Whether a value is a string.
- * @param value - Raw value.
- * @returns True for a string.
- */
-function isText(value: JsonValue): boolean {
-  return typeof value === 'string';
-}
-
-/**
- * Whether a value is a finite number.
- * @param value - Raw value.
- * @returns True for a finite number.
- */
-function isFiniteNumber(value: JsonValue): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
-
-/**
- * Whether a value is a record.
- * @param value - Raw value.
- * @returns True for a non-null, non-array object.
- */
-function isRecord(value: JsonValue): boolean {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/**
- * Whether a value is a list.
- * @param value - Raw value.
- * @returns True for an array.
- */
-function isList(value: JsonValue): boolean {
-  return Array.isArray(value);
-}
-
-const TYPE_CHECKS: Readonly<Record<ExtractValueType, TypeCheck>> = {
-  string: isText,
-  number: isFiniteNumber,
-  object: isRecord,
-  array: isList,
-};
 
 /**
  * Whether the text fits the rule's length cap.
@@ -166,21 +126,9 @@ const TEXT_CHECKS: readonly TextCheck[] = [
  * @returns True when a transform or any text check is set.
  */
 function hasTextCheck(rule: IExtractRule): boolean {
-  const { transform, oneOf, pattern, url, maxChars, pemCertificate } = rule;
-  const checks = [transform, oneOf, pattern, url, maxChars, pemCertificate];
+  const { transform, oneOf, pattern, url, maxChars, pemCertificate, equalsRef } = rule;
+  const checks = [transform, oneOf, pattern, url, maxChars, pemCertificate, equalsRef];
   return checks.some(check => check !== undefined);
-}
-
-/**
- * Whether a raw value has the rule's JSON type.
- * @param value - Raw value.
- * @param rule - Extract rule.
- * @returns True when `type` is unset or matches.
- */
-function isTypeSound(value: JsonValue, rule: IExtractRule): boolean {
-  if (rule.type === undefined) return true;
-  const isType = TYPE_CHECKS[rule.type];
-  return isType(value);
 }
 
 /**
@@ -254,6 +202,30 @@ function slotValue(input: IRulePass, slot: string): IKept | false {
 }
 
 /**
+ * Whether the checked value equals the text the rule's ref resolves to.
+ * @param kept - The checked value; text whenever `equalsRef` is set.
+ * @param rule - Extract rule.
+ * @param input - Rule pass input; the ref resolves against its scope.
+ * @returns True when `equalsRef` is unset or resolves to exactly that text.
+ */
+function isRefEqual(kept: JsonValue, rule: IExtractRule, input: IRulePass): boolean {
+  if (rule.equalsRef === undefined) return true;
+  const expected = resolveRefText(rule.equalsRef, input.scope);
+  return expected !== false && kept === expected;
+}
+
+/**
+ * Refuse a slot, naming no value.
+ * @param input - Rule pass input.
+ * @param slot - Carry slot name.
+ * @param reason - Why the slot was refused.
+ * @returns Generic failure `<step> extract <slot> <reason>`.
+ */
+function refuseSlot(input: IRulePass, slot: string, reason: RefusalReason): Procedure<CarryMap> {
+  return fail(ScraperErrorTypes.Generic, `${input.step.name} extract ${slot} ${reason}`);
+}
+
+/**
  * Check one ruled slot.
  * @param input - Rule pass input.
  * @param entry - The slot and its rule.
@@ -264,8 +236,9 @@ function checkSlot(input: IRulePass, entry: RuleEntry): Procedure<CarryMap> {
   const read = slotValue(input, slot);
   if (read === false) return succeed({});
   const checked = checkValue(read.kept, rule, input);
-  if (checked !== false) return succeed({ [slot]: checked.kept });
-  return fail(ScraperErrorTypes.Generic, `${input.step.name} extract ${slot} invalid`);
+  if (checked === false) return refuseSlot(input, slot, 'invalid');
+  if (!isRefEqual(checked.kept, rule, input)) return refuseSlot(input, slot, 'mismatch');
+  return succeed({ [slot]: checked.kept });
 }
 
 /**

@@ -22,7 +22,7 @@ import { TimeoutError } from '../../Mediator/Timing/TimingActions.js';
 import type { Brand } from '../../Types/Brand.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, failWithDetails, succeed } from '../../Types/Procedure.js';
+import { fail, failWithDetails, isOk, succeed } from '../../Types/Procedure.js';
 import { hasCookieSentinel, substituteCookieHeaders } from './CookieHeaderSentinel.js';
 import type { IFetchOpts, IFetchStrategy } from './FetchStrategy.js';
 
@@ -100,6 +100,24 @@ function resolveContext(page: Page, targetUrl: string): Page | Frame {
   return page;
 }
 
+/**
+ * GET inside the page — the plain GET when no header is left to send, so a
+ * GET whose sentinels all dropped matches one that had no headers.
+ * @param ctx - Page or frame the request runs in.
+ * @param url - Target URL.
+ * @param headers - Outgoing headers, sentinels already resolved.
+ * @returns The page fetch's parsed result.
+ */
+function getWithinPage<T>(
+  ctx: Page | Frame,
+  url: string,
+  headers: Record<string, string>,
+): Promise<NullableFetchResult<T>> {
+  const hasHeaders = Object.keys(headers).length > 0;
+  if (!hasHeaders) return fetchGetWithinPage<T>(ctx, url, false);
+  return fetchGetWithinPageWithHeaders<T>(ctx, url, headers);
+}
+
 /** Browser fetch — delegates to fetchPostWithinPage/fetchGetWithinPage. */
 class BrowserFetchStrategy implements IFetchStrategy {
   private readonly _page: Page;
@@ -125,27 +143,24 @@ class BrowserFetchStrategy implements IFetchStrategy {
     opts: IFetchOpts,
   ): Promise<Procedure<T>> {
     const ctx = resolveContext(this._page, url);
-    const extraHeaders = await this.resolveHeaders(url, opts.extraHeaders);
-    return fetchPostWithinPage<T>(ctx, url, { data, extraHeaders })
+    const headers = await this.resolveHeaders(url, opts.extraHeaders);
+    if (!isOk(headers)) return headers;
+    return fetchPostWithinPage<T>(ctx, url, { data, extraHeaders: headers.value })
       .then((result): Procedure<T> => resultToProcedure(result, url))
       .catch(catchError);
   }
 
   /**
-   * GET via browser page session.
+   * GET via browser page session; `@cookie:` sentinels resolve as on a POST.
    * @param url - Target URL.
    * @param opts - Optional fetch config (extraHeaders).
    * @returns Procedure with parsed response or failure.
    */
   public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
-    const hasHeaders = Object.keys(opts.extraHeaders).length > 0;
     const ctx = resolveContext(this._page, url);
-    if (!hasHeaders) {
-      return fetchGetWithinPage<T>(ctx, url, false)
-        .then((result): Procedure<T> => resultToProcedure(result, url))
-        .catch(catchError);
-    }
-    return fetchGetWithinPageWithHeaders<T>(ctx, url, opts.extraHeaders)
+    const headers = await this.resolveHeaders(url, opts.extraHeaders);
+    if (!isOk(headers)) return headers;
+    return getWithinPage<T>(ctx, url, headers.value)
       .then((result): Procedure<T> => resultToProcedure(result, url))
       .catch(catchError);
   }
@@ -157,16 +172,19 @@ class BrowserFetchStrategy implements IFetchStrategy {
    * overhead.
    * @param url - Request URL the cookies are scoped to.
    * @param headers - Outgoing header map (possibly with sentinels).
-   * @returns Header map with sentinels resolved.
+   * @returns Header map with sentinels resolved, or the failure that stops
+   *   the request before the page fetch, including a rejected cookie read.
    */
   private async resolveHeaders(
     url: string,
     headers: Record<string, string>,
-  ): Promise<Record<string, string>> {
+  ): Promise<Procedure<Record<string, string>>> {
     const isPresent: boolean = hasCookieSentinel(headers);
-    if (!isPresent) return headers;
-    const jar = await this._page.context().cookies(url);
-    return substituteCookieHeaders(headers, jar);
+    if (!isPresent) return succeed(headers);
+    const jarRead = this._page.context().cookies(url);
+    const jar = await jarRead.then(succeed, catchError);
+    if (!isOk(jar)) return jar;
+    return substituteCookieHeaders(headers, jar.value);
   }
 }
 

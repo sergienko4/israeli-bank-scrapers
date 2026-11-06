@@ -229,7 +229,7 @@ describe('VISACAL_SHAPE wiring', () => {
     ['transactions', VISACAL_SHAPE.transactions.extraHeaders],
   ])('sends the CAL web site id on the %s call', (_step, headers) => {
     const ctx = ctxWith(NOW);
-    const resolved = typeof headers === 'function' ? headers(ctx) : headers;
+    const resolved = typeof headers === 'function' ? headers(ctx, {}) : headers;
     expect(resolved?.['x-site-id']).toBe('09031987-273E-2311-906C-8AF85B17C8D9');
   });
 

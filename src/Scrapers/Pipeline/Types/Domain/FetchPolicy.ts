@@ -29,10 +29,15 @@ interface IAnyPathExceptRule {
 /** One allowed URL: an exact path rule or an any-path-except rule. */
 type IUrlRule = IExactPathRule | IAnyPathExceptRule;
 
-/** Follow up to `maxHops` redirects whose target matches one rule (GET steps only). */
+/**
+ * Follow up to `maxHops` redirects whose target matches one rule. Every hop
+ * is a body-less GET, so a POST step names `postAsGet` (N46).
+ */
 interface IManualRedirect {
   readonly maxHops: number;
   readonly allow: readonly IUrlRule[];
+  /** POST steps only: follow a 302/303 answer to the POST as a GET. */
+  readonly postAsGet?: true;
 }
 
 /**

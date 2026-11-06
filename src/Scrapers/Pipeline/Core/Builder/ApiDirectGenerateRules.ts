@@ -5,8 +5,9 @@
  * subject and a slot for the request. An `ecdh-key` generator (N38) needs two
  * distinct slots, and its private scalar never reaches `sessionCarry`: the
  * scrape gets server-issued values only. A `random-hex` seed (N42) draws an
- * integer count of bytes from 1 to 64. The envelope codec rules (N39) of
- * `ApiDirectCodecRules.ts` run next, then the step URL rules (N40/N41) of
+ * integer count of bytes from 1 to 64. The derivation op rules (N45) of
+ * `ApiDirectDeriveRules.ts` run next, then the envelope codec rules (N39)
+ * of `ApiDirectCodecRules.ts`, the step URL rules (N40/N41) of
  * `ApiDirectUrlRules.ts`, the optional-ref rule (N49) of
  * `ApiDirectOptionalRefRules.ts`, and the answer-classifier rules (N50) of
  * `ApiDirectClassifyRules.ts` and `ApiDirectClassifySlotRules.ts`.
@@ -19,6 +20,7 @@ import type {
 import { API_DIRECT_CLASSIFY_RULES } from './ApiDirectClassifyRules.js';
 import { API_DIRECT_CLASSIFY_SLOT_RULES } from './ApiDirectClassifySlotRules.js';
 import { API_DIRECT_CODEC_RULES } from './ApiDirectCodecRules.js';
+import { API_DIRECT_DERIVE_RULES } from './ApiDirectDeriveRules.js';
 import { API_DIRECT_OPTIONAL_REF_RULES } from './ApiDirectOptionalRefRules.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
 import { API_DIRECT_URL_RULES } from './ApiDirectUrlRules.js';
@@ -165,6 +167,7 @@ const API_DIRECT_GENERATE_RULES: readonly IApiDirectRule[] = [
     message: 'seedCarryFromCreds: random-hex needs integer bytes from 1 to 64',
     isBroken: hasBadRandomHex,
   },
+  ...API_DIRECT_DERIVE_RULES,
   ...API_DIRECT_CODEC_RULES,
   ...API_DIRECT_URL_RULES,
   ...API_DIRECT_OPTIONAL_REF_RULES,
