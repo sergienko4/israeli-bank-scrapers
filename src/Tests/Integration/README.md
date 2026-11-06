@@ -133,12 +133,6 @@ To capture the full per-phase fixture set for one bank **(PR-A2.2)**:
 4. Commit the resulting `fixtures/banks/<bankId>/` tree. The new
    `*.response.json` files are committed alongside the HTML snapshots.
 
-### Beinleumi OTP (PR-A2.2)
-
-OTP banks require interactive operator presence. Set `BEINLEUMI_OTP`
-in `process.env` immediately after the SMS arrives — the harvester's
-`loadOtpFromEnv` helper picks it up and feeds it into the OTP step.
-
 ## The gate (pre-commit + CI)
 
 `Tools/CheckBankIntegrationCoverage.ts` walks every pipeline-bank

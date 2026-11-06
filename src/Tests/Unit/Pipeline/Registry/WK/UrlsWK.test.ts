@@ -140,7 +140,7 @@ describe('UrlsWK/pepperAuthUrls', () => {
     expect(result).toEqual({ success: true, value: url });
   });
 
-  it('shares auth.login between exactly Pepper, VisaCal, Max and Mizrahi', async () => {
+  it('shares auth.login between exactly Pepper, VisaCal, Max, Mizrahi and Beinleumi', async () => {
     await seedFromBankConfig();
     const owners = WK_URLS.get('auth.login');
     const ownerHints = new Set(owners?.keys());
@@ -149,6 +149,7 @@ describe('UrlsWK/pepperAuthUrls', () => {
       CompanyTypes.VisaCal,
       CompanyTypes.Max,
       CompanyTypes.Mizrahi,
+      CompanyTypes.Beinleumi,
     ]);
     expect(ownerHints).toEqual(expected);
   });

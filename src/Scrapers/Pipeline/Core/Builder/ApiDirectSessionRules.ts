@@ -1,13 +1,15 @@
 /**
  * Session rules for an api-direct call config, checked after the
  * client-certificate rules. Every `sessionCarry` slot (N32) must name a body
- * or header extract of some login or resume step: the scrape's session
- * context holds server-issued values only, so a generated key, a seeded
+ * or header extract, or the final URL its manual redirect checked, of some
+ * login or resume step: the scrape's session context holds server-issued
+ * values only, so a generated key, a seeded
  * credential or a typo fails the build instead of reaching the scrape. An
  * `isolate` cookie hand-off (N35) needs a domain jar to empty. A
  * persistent-auth block must name a known `kind` (N48).
  */
 
+import type { IStepConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { API_DIRECT_PERSISTENT_AUTH_RULES } from './ApiDirectPersistentAuthRules.js';
 import {
   allSteps,
@@ -18,14 +20,24 @@ import {
 } from './ApiDirectRuleInput.js';
 
 /**
+ * Whether a step extracts the slot, or lands its checked final URL there.
+ * @param step - Step config.
+ * @param slot - Allowlisted carry slot.
+ * @returns True when the step writes a server-issued value to the slot.
+ */
+function isServerSlot(step: IStepConfig, slot: string): boolean {
+  return step.finalUrlInto === slot || isExtractSlot(step, slot);
+}
+
+/**
  * Whether some login or resume step extracts the slot.
  * @param input - Rule input.
  * @param slot - Allowlisted carry slot.
- * @returns True when a body or header extract names it.
+ * @returns True when a body or header extract, or a final URL, names it.
  */
 function isStepExtract(input: IApiDirectRuleInput, slot: string): boolean {
   const steps = allSteps(input.call);
-  return steps.some(step => isExtractSlot(step, slot));
+  return steps.some(step => isServerSlot(step, slot));
 }
 
 /**

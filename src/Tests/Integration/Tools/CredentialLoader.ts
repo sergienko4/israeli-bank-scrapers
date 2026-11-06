@@ -20,7 +20,6 @@
  */
 
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
-import { none, type Option, some } from '../../../Scrapers/Pipeline/Types/Option.js';
 
 /** Generic credential record — string-keyed, string-valued. */
 type BankCredentials = Readonly<Record<string, string>>;
@@ -37,13 +36,7 @@ type BankCredentials = Readonly<Record<string, string>>;
  */
 const BANK_ENV_MAP: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>> = {
   discount: { id: 'DISCOUNT_ID', password: 'DISCOUNT_PASSWORD', num: 'DISCOUNT_NUM' },
-  beinleumi: { username: 'BEINLEUMI_USERNAME', password: 'BEINLEUMI_PASSWORD' },
   leumi: { username: 'LEUMI_USERNAME', password: 'LEUMI_PASSWORD' },
-};
-
-/** Optional env-var holding a pre-loaded OTP value per OTP bank. */
-const OTP_ENV_MAP: Readonly<Partial<Record<string, string>>> = {
-  beinleumi: 'BEINLEUMI_OTP',
 };
 
 /**
@@ -110,20 +103,6 @@ function loadCredentials(bankId: string): BankCredentials {
 }
 
 /**
- * Look up the optional OTP for an OTP bank. Returns `none()` when the
- * env-var is absent (caller decides whether to prompt operator).
- * @param bankId - Canonical bankId.
- * @returns Some(otpDigits) when present and non-empty, otherwise none.
- */
-function loadOtpFromEnv(bankId: string): Option<string> {
-  const envVarName = OTP_ENV_MAP[bankId];
-  if (envVarName === undefined) return none();
-  const raw = process.env[envVarName];
-  if (raw === undefined || raw.trim() === '') return none();
-  return some(raw);
-}
-
-/**
  * Test if a bank has full credentials available in `process.env`.
  * Non-throwing — returns false on first missing key so the caller
  * can skip a bank cleanly when unattended harvesting is preferred.
@@ -148,4 +127,4 @@ function isEnvVarPresent(envVar: string): boolean {
 }
 
 export type { BankCredentials };
-export { BANK_ENV_MAP, hasCredentials, knownBanks, loadCredentials, loadOtpFromEnv, OTP_ENV_MAP };
+export { BANK_ENV_MAP, hasCredentials, knownBanks, loadCredentials };

@@ -16,46 +16,6 @@
 
 import type { IBankFixtureExpectations } from './FixtureExpectations.js';
 
-/**
- * Beinleumi Phase-11 step inventory:
- * <ul>
- *   <li>`02-modal-opened` + `03-after-prelogin` are Beinleumi-distinct
- *       (real-captured Angular-iframe lobby, NOT an SMS / password
- *       flip).</li>
- *   <li>`05-otp-trigger` + `06-otp-fill` are the FIRST occurrence of
- *       explicit OTP phases in the Phase-11 series — Beinleumi is
- *       OTP-gated per `BeinleumiPipeline.ts`
- *       (`.withOtpTrigger().withOtpFill()`); Discount is
- *       password-only (no OTP leg at all).</li>
- *   <li>`10-scrape-transactions` is named after Beinleumi's
- *       `bff-balancetransactions/api/v1/transactions/list` BFF
- *       endpoint.</li>
- * </ul>
- * Beinleumi now uses the captured iframe content (`03-after-prelogin/
- * frame-2.html`, 51KB, with full `<input type="password">` + form
- * structure) served as the main document for cross-bank Mode B
- * discovery — so `requiresHydration: false` is correct. Mode A marker
- * checks + Mode B SIMULATOR state-machine still operate against the
- * same `BEINLEUMI_PHASE_11_STEPS` chain.
- */
-const BEINLEUMI_PHASE_11_STEPS = [
-  { stepName: '01-home' },
-  { stepName: '02-modal-opened', revealText: 'כניסה עם סיסמה' },
-  {
-    stepName: '03-after-prelogin',
-    requiredInputIds: [],
-    requiredFormIds: [],
-  },
-  { stepName: '04-login-action' },
-  { stepName: '05-otp-trigger' },
-  { stepName: '06-otp-fill' },
-  { stepName: '07-auth-discovery' },
-  { stepName: '08-account-resolve' },
-  { stepName: '09-dashboard' },
-  { stepName: '10-scrape-transactions' },
-  { stepName: '11-balance' },
-] as const;
-
 const LEUMI_PHASE_11_STEPS = [
   { stepName: '01-home' },
   { stepName: '04-login-action' },
@@ -73,21 +33,6 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     loginStep: '04-login-action',
     requiresHydration: false,
     steps: LEUMI_PHASE_11_STEPS,
-  },
-  {
-    bankId: 'beinleumi',
-    originUrl: 'https://www.fibi.co.il',
-    loginStep: '03-after-prelogin/frame-2',
-    // Beinleumi renders the credential form inside an Angular-driven
-    // iframe (name="loginFrame"). The harvester captures the iframe
-    // content as 03-after-prelogin/frame-2.html (51KB with full
-    // <input type="password"> + form structure). Point loginStep at
-    // the nested iframe HTML — MirrorInterceptor + FixturePage both
-    // resolve `${stepName}.html` so the iframe content is served as
-    // the main document at fibi.co.il for cross-bank discovery to
-    // operate on.
-    requiresHydration: false,
-    steps: BEINLEUMI_PHASE_11_STEPS,
   },
   {
     bankId: 'discount',

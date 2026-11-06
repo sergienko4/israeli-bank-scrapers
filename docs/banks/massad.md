@@ -11,6 +11,6 @@
 
 ## Known quirks
 
-- Part of the Beinleumi group — same OTP-TRIGGER + OTP-FILL flow as [Beinleumi](beinleumi.md).
+- Part of the Beinleumi group — logs in through the browser OTP-TRIGGER + OTP-FILL flow; [Beinleumi](beinleumi.md) itself now logs in over the API.
 - Post-auth uses the **hard-model** path (`withBrowserApiDirect`): after login the FIBI Mataf/appsng API is called directly (AUTH-DISCOVERY's `postLoginNav` navigates to the appsng SPA shell, replacing the generic DASHBOARD navigation). See [api-direct-scrape](../phases/api-direct-scrape.md).
 - Balance plan is single bank-account (`balanceKind: 'account'`).

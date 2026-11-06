@@ -7,6 +7,7 @@
 
 import { CompanyTypes } from '../../../../Definitions.js';
 import { AMEX_HEADLESS } from './PipelineBankConfigAmex.js';
+import { BEINLEUMI_HEADLESS } from './PipelineBankConfigBeinleumi.js';
 import { HAPOALIM_HEADLESS } from './PipelineBankConfigHapoalim.js';
 import { ISRACARD_HEADLESS } from './PipelineBankConfigIsracard.js';
 import { MAX_HEADLESS } from './PipelineBankConfigMax.js';
@@ -17,6 +18,7 @@ import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
 import type {
   AuthStrategyKind,
   BalanceKind,
+  IHeadlessUrlsConfig,
   IPipelineBankConfig,
 } from './PipelineBankConfigTypes.js';
 import { VISACAL_HEADLESS } from './PipelineBankConfigVisaCalHeadless.js';
@@ -61,6 +63,22 @@ function defineBank(
   return { urls: { base }, balanceKind, authStrategyKind };
 }
 
+/**
+ * Build an API-native bank config: its login runs over the headless block's
+ * transport, no browser AUTH-DISCOVERY.
+ * @param base - Official website URL.
+ * @param balanceKind - Balance semantics (account vs card-cycle).
+ * @param headless - The bank's headless URL and transport block.
+ * @returns A pipeline bank config.
+ */
+function defineApiDirectBank(
+  base: string,
+  balanceKind: BalanceKind,
+  headless: IHeadlessUrlsConfig,
+): IPipelineBankConfig {
+  return { urls: { base }, balanceKind, authStrategyKind: API_DIRECT, headless };
+}
+
 /** FIBI appsng SPA shell route — AUTH-DISCOVERY navigates here post-login. */
 const FIBI_APPSNG_SHELL = '/appsng/Resources/PortalNG/shell/#/accountSummary';
 
@@ -70,7 +88,7 @@ const FIBI_APPSNG_SHELL = '/appsng/Resources/PortalNG/shell/#/accountSummary';
  * `Accept: application/json`). The BFF Bearer is injected by the SPA's own HTTP
  * interceptor (not in any login body nor a parseable storage shape), so it is
  * sniffed from the SPA's own `appsng/bff-` requests in the capture pool.
- * Beinleumi, Massad, OtsarHahayal and Pagi differ only by HOME URL.
+ * Massad, OtsarHahayal and Pagi differ only by HOME URL.
  * @param base - Official website URL for the HOME phase.
  * @param onlineHost - Data-API origin (`online.<host>`) AUTH-DISCOVERY
  *   navigates to post-login to mint the appsng session.
@@ -89,7 +107,11 @@ function fibiConfig(base: string, onlineHost: string): IPipelineBankConfig {
 
 /** Pipeline bank registry — migrated banks only. */
 const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> = {
-  [CompanyTypes.Beinleumi]: fibiConfig('https://www.fibi.co.il', 'https://online.fibi.co.il'),
+  [CompanyTypes.Beinleumi]: defineApiDirectBank(
+    'https://www.fibi.co.il',
+    ACCOUNT,
+    BEINLEUMI_HEADLESS,
+  ),
   [CompanyTypes.Leumi]: {
     ...defineBank('https://www.leumi.co.il', ACCOUNT, SESSION_COOKIE),
     sessionTokenCapture: {
@@ -99,12 +121,11 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     },
   },
   [CompanyTypes.Discount]: defineBank('https://www.discountbank.co.il', ACCOUNT, SESSION_COOKIE),
-  [CompanyTypes.Hapoalim]: {
-    urls: { base: 'https://www.bankhapoalim.co.il' },
-    balanceKind: ACCOUNT,
-    authStrategyKind: API_DIRECT,
-    headless: HAPOALIM_HEADLESS,
-  },
+  [CompanyTypes.Hapoalim]: defineApiDirectBank(
+    'https://www.bankhapoalim.co.il',
+    ACCOUNT,
+    HAPOALIM_HEADLESS,
+  ),
   [CompanyTypes.Massad]: fibiConfig(
     'https://www.bankmassad.co.il',
     'https://online.bankmassad.co.il',
@@ -114,49 +135,34 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     'https://online.bankotsar.co.il',
   ),
   [CompanyTypes.Pagi]: fibiConfig('https://www.pagi.co.il', 'https://online.pagi.co.il'),
-  [CompanyTypes.Yahav]: {
-    urls: { base: 'https://www.yahav.co.il' },
-    balanceKind: ACCOUNT,
-    authStrategyKind: API_DIRECT,
-    headless: YAHAV_HEADLESS,
-  },
-  [CompanyTypes.VisaCal]: {
-    urls: { base: 'https://www.cal-online.co.il/' },
-    balanceKind: CARD_CYCLE,
-    authStrategyKind: API_DIRECT,
-    headless: VISACAL_HEADLESS,
-  },
-  [CompanyTypes.Amex]: {
-    urls: { base: 'https://www.americanexpress.co.il' },
-    balanceKind: CARD_CYCLE,
-    authStrategyKind: API_DIRECT,
-    headless: AMEX_HEADLESS,
-  },
-  [CompanyTypes.Max]: {
-    urls: { base: 'https://www.max.co.il' },
-    balanceKind: CARD_CYCLE,
-    authStrategyKind: API_DIRECT,
-    headless: MAX_HEADLESS,
-  },
+  [CompanyTypes.Yahav]: defineApiDirectBank('https://www.yahav.co.il', ACCOUNT, YAHAV_HEADLESS),
+  [CompanyTypes.VisaCal]: defineApiDirectBank(
+    'https://www.cal-online.co.il/',
+    CARD_CYCLE,
+    VISACAL_HEADLESS,
+  ),
+  [CompanyTypes.Amex]: defineApiDirectBank(
+    'https://www.americanexpress.co.il',
+    CARD_CYCLE,
+    AMEX_HEADLESS,
+  ),
+  [CompanyTypes.Max]: defineApiDirectBank('https://www.max.co.il', CARD_CYCLE, MAX_HEADLESS),
   [CompanyTypes.Mercantile]: defineBank('https://www.mercantile.co.il', ACCOUNT, SESSION_COOKIE),
-  [CompanyTypes.Mizrahi]: {
-    urls: { base: 'https://www.mizrahi-tefahot.co.il' },
-    balanceKind: ACCOUNT,
-    authStrategyKind: API_DIRECT,
-    headless: MIZRAHI_HEADLESS,
-  },
-  [CompanyTypes.Isracard]: {
-    urls: { base: 'https://www.isracard.co.il' },
-    balanceKind: CARD_CYCLE,
-    authStrategyKind: API_DIRECT,
-    headless: ISRACARD_HEADLESS,
-  },
-  [CompanyTypes.OneZero]: {
-    urls: { base: 'https://www.onezerobank.com' },
-    balanceKind: ACCOUNT,
-    authStrategyKind: API_DIRECT,
-    headless: ONEZERO_HEADLESS,
-  },
+  [CompanyTypes.Mizrahi]: defineApiDirectBank(
+    'https://www.mizrahi-tefahot.co.il',
+    ACCOUNT,
+    MIZRAHI_HEADLESS,
+  ),
+  [CompanyTypes.Isracard]: defineApiDirectBank(
+    'https://www.isracard.co.il',
+    CARD_CYCLE,
+    ISRACARD_HEADLESS,
+  ),
+  [CompanyTypes.OneZero]: defineApiDirectBank(
+    'https://www.onezerobank.com',
+    ACCOUNT,
+    ONEZERO_HEADLESS,
+  ),
   [CompanyTypes.PayBox]: {
     urls: { base: 'https://www.payboxapp.com/' },
     balanceKind: ACCOUNT,
@@ -188,12 +194,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
       bypassOriginChallenge: true,
     },
   },
-  [CompanyTypes.Pepper]: {
-    urls: { base: 'https://www.pepper.co.il' },
-    balanceKind: ACCOUNT,
-    authStrategyKind: API_DIRECT,
-    headless: PEPPER_HEADLESS,
-  },
+  [CompanyTypes.Pepper]: defineApiDirectBank('https://www.pepper.co.il', ACCOUNT, PEPPER_HEADLESS),
 };
 
 /**

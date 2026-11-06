@@ -25,6 +25,8 @@ import { fileURLToPath } from 'node:url';
 import type {
   IApiDirectCallConfig,
   IBoundDeviceAuthConfig,
+  IDeviceMemoryAuthConfig,
+  IStepConfig,
 } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { authPolicyOf } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/AuthModePolicy.js';
 import {
@@ -33,6 +35,7 @@ import {
   cookieJarWarmOf,
   warmCarryField,
 } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/WarmStartKind.js';
+import { writesOf } from './CarrySlotWriters.js';
 
 /** Bank label paired with the module path of its call-config literal. */
 const CONFIG_PATHS: readonly (readonly [string, string])[] = [
@@ -44,6 +47,7 @@ const CONFIG_PATHS: readonly (readonly [string, string])[] = [
   ['Amex', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigAmex.js'],
   ['Hapoalim', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigHapoalim.js'],
   ['Yahav', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigYahav.js'],
+  ['Beinleumi', '../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigBeinleumi.js'],
 ];
 
 /** Directory holding every bank call-config literal. */
@@ -433,6 +437,93 @@ describe('persistent-auth contract — every opted-in bank', () => {
         typeof entry === 'string' ? entry : entry.field,
       );
       expect(seeded).toContain(block.clientInstanceIdField);
+    }
+  });
+});
+
+/** A bank label, its config and its device-memory block. */
+type DeviceMemoryEntry = readonly [string, IApiDirectCallConfig, IDeviceMemoryAuthConfig];
+
+/**
+ * Keep a bank only when its persistent-auth block is device-memory.
+ * @param label - Bank label.
+ * @param config - Bank call config.
+ * @returns The entry, or none.
+ */
+function deviceMemoryEntryOf(label: string, config: IApiDirectCallConfig): DeviceMemoryEntry[] {
+  const block = config.persistentAuth;
+  if (block?.kind !== 'device-memory') return [];
+  return [[label, config, block]];
+}
+
+/**
+ * Collect every bank whose config declares a device-memory persistentAuth block.
+ * @returns Label/config/block entries for device-memory banks.
+ */
+async function loadDeviceMemoryConfigs(): Promise<readonly DeviceMemoryEntry[]> {
+  const pending = CONFIG_PATHS.map(async ([label, path]) => {
+    const config = await loadConfig(path);
+    return [label, config] as const;
+  });
+  const loaded = await Promise.all(pending);
+  return loaded.flatMap(([label, config]) => deviceMemoryEntryOf(label, config));
+}
+
+/**
+ * Whether an OTP step is skipped when the bank already knows the device: it
+ * runs only on named cases of an earlier step's classifier, and that
+ * classifier has a case it does not name that ends the login cleanly.
+ * @param config - Bank call config.
+ * @param step - A step that asks for a code.
+ * @returns True when a remembered device can pass without a code.
+ */
+function isSkippableOtp(config: IApiDirectCallConfig, step: IStepConfig): boolean {
+  const runIf = step.runIf;
+  if (runIf === undefined) return false;
+  const classifiers = config.steps.flatMap(candidate => candidate.classify ?? []);
+  const source = classifiers.find(classifier => classifier.into === runIf.carry);
+  const unlisted = (source?.cases ?? []).filter(answer => !runIf.oneOf.includes(answer.name));
+  return unlisted.some(answer => answer.fail === undefined);
+}
+
+describe('device-memory contract — every opted-in bank', () => {
+  it('opts in only the banks this suite expects', async () => {
+    const configs = await loadDeviceMemoryConfigs();
+    const labels = configs.map(([label]) => label);
+    expect(labels).toEqual(['Beinleumi']);
+  });
+
+  it('declares no warm start: the remembered device is the only stored state', async () => {
+    const configs = await loadDeviceMemoryConfigs();
+    const warm = configs.filter(([, config]) => config.warmStart !== undefined);
+    expect(warm).toEqual([]);
+  });
+
+  it('writes the device id only from answers that keep a remembered one', async () => {
+    const configs = await loadDeviceMemoryConfigs();
+    for (const [, config, block] of configs) {
+      const writes = writesOf(config, block.deviceIdField);
+      const overwriting = writes.filter(write => !write.isKeepExisting);
+      expect(writes.length).toBeGreaterThan(0);
+      expect(overwriting).toEqual([]);
+    }
+  });
+
+  it('binds the device to a required credential', async () => {
+    const configs = await loadDeviceMemoryConfigs();
+    for (const [, config, block] of configs) {
+      const required = Object.keys(config.requiredCreds ?? {});
+      expect(required).toContain(block.accountField);
+    }
+  });
+
+  it('asks for a code only when the bank does not know the device', async () => {
+    const configs = await loadDeviceMemoryConfigs();
+    for (const [, config] of configs) {
+      const hooked = config.steps.filter(step => step.preHook !== undefined);
+      const unskippable = hooked.filter(step => !isSkippableOtp(config, step));
+      expect(hooked.length).toBeGreaterThan(0);
+      expect(unskippable).toEqual([]);
     }
   });
 });

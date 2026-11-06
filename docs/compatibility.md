@@ -85,6 +85,14 @@ Yahav now logs in and scrapes over its mobile app's API through `node:https` and
 
 **What to do:** Remove browser options from Yahav's `createScraper` call. Store `result.persistentOtpToken` after every run and pass it as `otpLongTermToken` next time, so a run enrols a device only when it must. The token holds a private key, so store it as a secret. Keep `num`, `nationalID` and `password` too, because a token the bank rejects with a `401` or `403` falls back to a full login. If the bank keeps refusing the token with a `400`, drop it once so the next run enrols afresh.
 
+### 9.1.0 - Beinleumi signs in without a browser
+
+**Impact:** Behavior
+
+Beinleumi now logs in and scrapes over its web login API on `online.fibi.co.il` with Node's own `fetch` and one cookie jar, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `username` and `password`; a blank one fails as `GENERIC` with `Missing or malformed credentials` before any request. The SMS step runs only when the bank asks for it: `otpCodeRetriever`, from the credentials or the options, is called with an empty hint, and if the bank asks while no retriever was passed the run fails as `TWO_FACTOR_RETRIEVER_MISSING`. A code of the wrong length fails before it is sent. A password the bank refuses fails as `INVALID_PASSWORD` and a refused code as `INVALID_OTP`. Device memory is opt-in: with `onPersistentAuthStateUpdate`, a run that starts with no stored state hands the callback a state naming the provider, the lower-cased `username` and the device id the bank issued, with no password or token; passed back as `persistentAuthState`, that id is sent on later logins and the bank may skip the SMS. No failure message carries the bank's own text.
+
+**What to do:** Remove browser options from Beinleumi's `createScraper` call and keep passing `otpCodeRetriever`, because the bank decides when it asks for a code. To let the bank remember the device, pass `onPersistentAuthStateUpdate`, store the state it receives and pass it back as `persistentAuthState` on later runs.
+
 ### 9.0.0 - Node 24.11 or later required; Node 22 is no longer supported
 
 **Impact:** Breaking
