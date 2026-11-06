@@ -149,7 +149,7 @@ validated at runtime.
 | -------------------- | ----------- | ---------- | ------------------------------- |
 | Bank Hapoalim        | Bank        | API-direct | `userCode`, `password`, OTP\*   |
 | Bank Leumi           | Bank        | Browser    | `username`, `password`          |
-| Bank Otsar Hahayal   | Bank        | Browser    | `username`, `password`, OTP     |
+| Bank Otsar Hahayal   | Bank        | API-direct | `username`, `password`, OTP\*   |
 | Bank Yahav           | Bank        | API-direct | `num`, `nationalID`, `password` |
 | Behatsdaa            | Bank        | Browser    | `id`, `password`                |
 | Beinleumi            | Bank        | API-direct | `username`, `password`, OTP\*   |
@@ -167,7 +167,8 @@ validated at runtime.
 | Visa Cal             | Credit card | API-direct | `username`, `password`          |
 | PayBox (by Discount) | Wallet      | API-direct | `phoneNumber`, OTP              |
 
-\* Hapoalim, Beinleumi and Massad ask for an SMS code only when the bank requests one.
+\* Hapoalim, Beinleumi, Massad and Otsar Hahayal ask for an SMS code only when the bank
+requests one.
 
 Per-bank notes live in the
 [bank documentation](https://sergienko4.github.io/israeli-bank-scrapers/banks/).

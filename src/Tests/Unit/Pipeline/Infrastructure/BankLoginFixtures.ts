@@ -24,10 +24,6 @@ import {
   MERCANTILE_LOGIN,
 } from '../../../../Scrapers/Pipeline/Banks/Mercantile/MercantilePipeline.js';
 import {
-  buildOtsarHahayalPipeline,
-  OTSAR_HAHAYAL_LOGIN,
-} from '../../../../Scrapers/Pipeline/Banks/OtsarHahayal/OtsarHahayalPipeline.js';
-import {
   buildPagiPipeline,
   PAGI_LOGIN,
 } from '../../../../Scrapers/Pipeline/Banks/Pagi/PagiPipeline.js';
@@ -98,15 +94,6 @@ const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
     expectedFieldKeys: ['id', 'password', 'num'],
     expectedPhaseCount: BASE_PHASES.length,
     expectedPhaseNames: BASE_PHASES,
-  },
-  {
-    bank: 'otsarHahayal',
-    company: CompanyTypes.OtsarHahayal,
-    loginConfig: OTSAR_HAHAYAL_LOGIN,
-    buildPipeline: buildOtsarHahayalPipeline,
-    expectedFieldKeys: ['username', 'password'],
-    expectedPhaseCount: OTP_FULL_PHASES.length,
-    expectedPhaseNames: OTP_FULL_PHASES,
   },
   {
     bank: 'pagi',

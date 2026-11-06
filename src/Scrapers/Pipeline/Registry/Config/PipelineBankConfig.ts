@@ -14,6 +14,7 @@ import { MASSAD_HEADLESS } from './PipelineBankConfigMassad.js';
 import { MAX_HEADLESS } from './PipelineBankConfigMax.js';
 import { MIZRAHI_HEADLESS } from './PipelineBankConfigMizrahi.js';
 import { ONEZERO_HEADLESS } from './PipelineBankConfigOneZeroHeadless.js';
+import { OTSAR_HAHAYAL_HEADLESS } from './PipelineBankConfigOtsarHahayal.js';
 import { PEPPER_HEADLESS } from './PipelineBankConfigPepperHeadless.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
 import type {
@@ -89,7 +90,7 @@ const FIBI_APPSNG_SHELL = '/appsng/Resources/PortalNG/shell/#/accountSummary';
  * `Accept: application/json`). The BFF Bearer is injected by the SPA's own HTTP
  * interceptor (not in any login body nor a parseable storage shape), so it is
  * sniffed from the SPA's own `appsng/bff-` requests in the capture pool.
- * OtsarHahayal and Pagi differ only by HOME URL.
+ * Pagi is the last browser bank of the family.
  * @param base - Official website URL for the HOME phase.
  * @param onlineHost - Data-API origin (`online.<host>`) AUTH-DISCOVERY
  *   navigates to post-login to mint the appsng session.
@@ -132,9 +133,10 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     ACCOUNT,
     MASSAD_HEADLESS,
   ),
-  [CompanyTypes.OtsarHahayal]: fibiConfig(
+  [CompanyTypes.OtsarHahayal]: defineApiDirectBank(
     'https://www.bankotsar.co.il',
-    'https://online.bankotsar.co.il',
+    ACCOUNT,
+    OTSAR_HAHAYAL_HEADLESS,
   ),
   [CompanyTypes.Pagi]: fibiConfig('https://www.pagi.co.il', 'https://online.pagi.co.il'),
   [CompanyTypes.Yahav]: defineApiDirectBank('https://www.yahav.co.il', ACCOUNT, YAHAV_HEADLESS),

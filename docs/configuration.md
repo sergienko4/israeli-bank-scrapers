@@ -20,12 +20,12 @@ Some fields on `ScraperOptions` are honoured only by the
 | `shouldShowBrowser` | `boolean` | `false` | Show the Camoufox window while scraping |
 | `preparePage` | `(page: Page) => Promise<void>` | (none) | Hook run against the page before the pipeline starts |
 | `prepareBrowser` | `(browser: Browser) => Promise<void>` | (none) | Hook run against the browser after launch |
-| `otpCodeRetriever` | `(phoneHint: string) => Promise<string>` | (none) | **Browser banks, Hapoalim, Beinleumi and Massad** — invoked when OTP is required; `phoneHint` is the masked number the bank says it texted (empty for Beinleumi and Massad) |
+| `otpCodeRetriever` | `(phoneHint: string) => Promise<string>` | (none) | **Browser banks, Hapoalim, Beinleumi, Massad and Otsar Hahayal** — invoked when OTP is required; `phoneHint` is the masked number the bank says it texted (empty for Beinleumi, Massad and Otsar Hahayal) |
 | `onAuthFlowComplete` | `(info: IAuthFlowInfo) => void` | (none) | Fires once authentication finishes, before scraping |
 | `otpTimeoutMs` | `number` (ms) | bank-specific | How long to wait for `otpCodeRetriever` to resolve |
 | `loginLogLevel` | `'info' \| 'trace'` | `'info'` | Raises log detail for the LOGIN phase only |
-| `persistentAuthState` | `string` | (none) | **Pepper, Beinleumi and Massad** — opaque device-auth state previously handed to `onPersistentAuthStateUpdate`. Pepper's holds a bearer token and a device private key, Beinleumi's and Massad's the provider, the lower-cased `username` and the device id: store it as a secret. Requires `onPersistentAuthStateUpdate`. Omit it when nothing is stored — an empty string fails as invalid state — see [Pepper durable device auth](banks/pepper.md#durable-device-auth-opt-in), [Beinleumi warm start](banks/beinleumi.md#warm-start) and [Massad warm start](banks/massad.md#warm-start) |
-| `onPersistentAuthStateUpdate` | `(state: string) => Promise<void>` | (none) | **Pepper, Beinleumi and Massad** — opts into durable device auth. Called once after an enrollment or a renewal with the state to store (Beinleumi and Massad: once, on enrollment); a rejection fails the run before the new token is used. Other banks ignore it |
+| `persistentAuthState` | `string` | (none) | **Pepper, Beinleumi, Massad and Otsar Hahayal** — opaque device-auth state previously handed to `onPersistentAuthStateUpdate`. Pepper's holds a bearer token and a device private key, Beinleumi's, Massad's and Otsar Hahayal's the provider, the lower-cased `username` and the device id: store it as a secret. Requires `onPersistentAuthStateUpdate`. Omit it when nothing is stored — an empty string fails as invalid state — see [Pepper durable device auth](banks/pepper.md#durable-device-auth-opt-in), [Beinleumi warm start](banks/beinleumi.md#warm-start), [Massad warm start](banks/massad.md#warm-start) and [Otsar Hahayal warm start](banks/otsar-hahayal.md#warm-start) |
+| `onPersistentAuthStateUpdate` | `(state: string) => Promise<void>` | (none) | **Pepper, Beinleumi, Massad and Otsar Hahayal** — opts into durable device auth. Called once after an enrollment or a renewal with the state to store (Beinleumi, Massad and Otsar Hahayal: once, on enrollment); a rejection fails the run before the new token is used. Other banks ignore it |
 
 `defaultTimeout` is an **option, not an environment variable**. It bounds each
 phase's navigation independently rather than the run as a whole, so a slow
@@ -122,7 +122,7 @@ for the rationale.
 
 Some API-direct banks never open a browser: their `headless` block selects
 Node's own `fetch` (`nativeFetch`) or `node:https` (a client certificate or a
-TLS profile) — today, OneZero, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav, Beinleumi and Massad. Nothing on such a run reads a browser option, so
+TLS profile) — today, OneZero, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav, Beinleumi, Massad and Otsar Hahayal. Nothing on such a run reads a browser option, so
 `createScraper` names every one you pass in a single `ScraperOptionsWarning`:
 
 ```text
@@ -180,11 +180,12 @@ above, which keeps the bound device and renews an expired token without an
 SMS. The two modes are mutually exclusive — combining them fails the run
 before any request. See
 [Pepper durable device auth](banks/pepper.md#durable-device-auth-opt-in).
-Beinleumi and Massad offer the same options as device memory: their state
-names the provider, the lower-cased `username` and the device id but carries
-no token, so the bank may still ask for an SMS — see
-[Beinleumi warm start](banks/beinleumi.md#warm-start) and
-[Massad warm start](banks/massad.md#warm-start).
+Beinleumi, Massad and Otsar Hahayal offer the same options as device memory:
+their state names the provider, the lower-cased `username` and the device id
+but carries no token, so the bank may still ask for an SMS — see
+[Beinleumi warm start](banks/beinleumi.md#warm-start),
+[Massad warm start](banks/massad.md#warm-start) and
+[Otsar Hahayal warm start](banks/otsar-hahayal.md#warm-start).
 
 ## Environment variables
 

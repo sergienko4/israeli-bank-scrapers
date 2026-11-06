@@ -1399,7 +1399,7 @@ MASSAD_API
 # @sergienko4/israeli-bank-scrapers public surface.
 IMassadAcct
 
-# --- P4 Otsar Hahayal (FIBI) hard-model post-auth scrape shape (account browser bank, OTP) ---
+# --- P4 Otsar Hahayal (FIBI) hard-model post-auth scrape shape (account API-direct bank, OTP) ---
 # Reason: OTSAR_HAHAYAL_API - FIBI online gateway origin const shared by the Otsar Hahayal shape's
 # customer/secondary/balance/transactions urlTag builders. Framework-internal bank contract
 # constant, not part of the @sergienko4/israeli-bank-scrapers public surface (not in src/index.ts).

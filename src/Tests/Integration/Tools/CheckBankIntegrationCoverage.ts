@@ -53,6 +53,7 @@ const API_DIRECT_BANKS: ReadonlySet<string> = new Set([
   'Max',
   'Mizrahi',
   'OneZero',
+  'OtsarHahayal',
   'PayBox',
   'Pepper',
   'VisaCal',

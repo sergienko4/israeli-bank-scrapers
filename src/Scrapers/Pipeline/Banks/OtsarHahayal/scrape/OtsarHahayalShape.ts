@@ -1,7 +1,7 @@
 /**
  * Otsar Hahayal (FIBI group) scrape shape — the `IApiDirectScrapeShape` data
  * declaration consumed by the generic buildGenericHeadlessScrape driver via
- * `withBrowserApiDirect`. balanceKind=account.
+ * `withApiDirect`. balanceKind=account.
  *
  * Account identity spans two cookie-authed GETs: `userData` (customer) for the
  * account number + branch, and a session-level `accountType` lookup
@@ -26,7 +26,7 @@ import { customerUrl, secondaryUrl } from './OtsarHahayalShapeAccounts.js';
 import { balanceUrl } from './OtsarHahayalShapeHelpers.js';
 import { txnsUrl } from './OtsarHahayalShapeTxns.js';
 
-/** Otsar Hahayal hard-model shape — passed to `.withBrowserApiDirect(...)`. */
+/** Otsar Hahayal hard-model shape — passed to `.withApiDirect(...)`. */
 const OTSAR_HAHAYAL_SHAPE = makeFibiGroupShape({
   stepName: 'OtsarHahayalScrape',
   windowNarrowing: 'windowEnd',

@@ -74,6 +74,19 @@ const SIBLINGS: readonly IGroupBank[] = [
       provider: 'massad-web',
     },
   },
+  {
+    companyId: CompanyTypes.OtsarHahayal,
+    site: 'https://www.bankotsar.co.il',
+    module: 'PipelineBankConfigOtsarHahayal.js',
+    headlessExport: 'OTSAR_HAHAYAL_HEADLESS',
+    brand: {
+      host: 'online.bankotsar.co.il',
+      portalId: 'OTSARPRTAL',
+      aid: 'rest_app_014',
+      bankNum: '"014"',
+      provider: 'otsar-hahayal-web',
+    },
+  },
 ];
 
 /** The brand fields in swap order: the app id before the bank number it ends with. */

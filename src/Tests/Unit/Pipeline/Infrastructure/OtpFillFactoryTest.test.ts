@@ -28,7 +28,7 @@ import type { Page } from 'playwright-core';
 
 import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
-import { buildOtsarHahayalPipeline } from '../../../../Scrapers/Pipeline/Banks/OtsarHahayal/OtsarHahayalPipeline.js';
+import { buildPagiPipeline } from '../../../../Scrapers/Pipeline/Banks/Pagi/PagiPipeline.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { IElementMediator } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import { NOT_FOUND_RESULT } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
@@ -74,18 +74,17 @@ interface IOtpFillBankFixture {
 }
 
 /**
- * OTP-FILL banks. Otsar Hahayal runs the FIBI portal's full mandatory OTP
- * flow (trigger + fill) — the flow Beinleumi ran live before its login
- * moved to api-direct. Beinleumi, Massad, Hapoalim and OneZero are
- * API-direct (no
- * Pipeline OTP-FILL phase; their SMS step runs inside
+ * OTP-FILL banks. Pagi runs the FIBI portal's full mandatory OTP flow
+ * (trigger + fill) — the flow Beinleumi ran live before its login moved
+ * to api-direct. Beinleumi, Massad, Otsar Hahayal, Hapoalim and OneZero
+ * are API-direct (no Pipeline OTP-FILL phase; their SMS step runs inside
  * `Mediator/ApiDirectCall/`).
  */
 const BANK_OTP_FILL_FIXTURES: readonly IOtpFillBankFixture[] = [
   {
-    bank: 'otsarHahayal',
-    company: CompanyTypes.OtsarHahayal,
-    buildPipeline: buildOtsarHahayalPipeline,
+    bank: 'pagi',
+    company: CompanyTypes.Pagi,
+    buildPipeline: buildPagiPipeline,
     otpRequired: true,
   },
 ];

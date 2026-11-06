@@ -240,8 +240,8 @@ async function awaitPagePrelude(input: IPreludeContext, spec: IPreludeSpec): Pro
 /**
  * Frame-targeted readiness prelude — sibling of {@link awaitPagePrelude}
  * for stages that need to wait on a specific iframe rather than the
- * top-level page. LOGIN.PRE on hapoalim-group banks (Hapoalim /
- * OtsarHahayal / Pagi) is the primary caller — the login form lives
+ * top-level page. LOGIN.PRE on hapoalim-group banks (Hapoalim / Pagi)
+ * is the primary caller — the login form lives
  * inside an iframe whose JS bundle hydrates asynchronously after the
  * parent page fires `domcontentloaded`. Without this gate, the
  * resolver scans the iframe before its handlers bind and reports

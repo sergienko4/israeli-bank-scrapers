@@ -4,16 +4,14 @@
  * URL. The origin-independent primitives (paths, account shape, balance
  * extractor, no-op vars) come from the neutral FibiGroup factory.
  *
- * Otsar Hahayal is a First-International (FIBI) group brand. The Mataf/appsng
- * BFF contract (userData + bff-balancetransactions) is shared with its
- * siblings through the neutral FibiGroup factory — never imported from
- * another bank — and only the API host differs. The host follows the proven
- * FIBI `online.<login-domain>` transform: login www.bankotsar.co.il -> API
- * online.bankotsar.co.il (DNS-confirmed on the shared FIBI subnet; same
- * registrable domain, so the session cookies set at login ride to the API
- * host — the mechanism proven live for Beinleumi www.fibi.co.il ->
- * online.fibi.co.il). balanceKind=account. Host DNS + pattern-grounded; a
- * full live-E2E on real credentials is still pending.
+ * Otsar Hahayal is a First-International (FIBI) group brand. The BFF path
+ * shape (userData + bff-balancetransactions) is shared with its siblings
+ * through FibiGroup — never imported from another bank — but the host is
+ * Otsar Hahayal's own online origin (online.bankotsar.co.il), NOT
+ * Beinleumi's online.fibi.co.il. The api-direct login runs on that same
+ * origin, so the scrape rides its cookie session. balanceKind=account. The
+ * shared BFF paths on this host are covered by mocked tests only; no live
+ * Otsar Hahayal run has been recorded yet.
  */
 
 import {

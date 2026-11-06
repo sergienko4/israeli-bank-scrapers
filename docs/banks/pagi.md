@@ -11,7 +11,7 @@
 
 ## Known quirks
 
-- Part of the Beinleumi group — logs in through the browser OTP-TRIGGER + OTP-FILL flow; [Beinleumi](beinleumi.md) and [Massad](massad.md) now log in over the API.
+- Part of the Beinleumi group — logs in through the browser OTP-TRIGGER + OTP-FILL flow; [Beinleumi](beinleumi.md), [Massad](massad.md) and [Otsar Hahayal](otsar-hahayal.md) now log in over the API.
 - Balance is single-bank-account (`balanceKind: ACCOUNT`), resolved by the hard-model balance step.
 
 ## Hard-model post-auth

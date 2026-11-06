@@ -55,13 +55,6 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     requiresHydration: true,
     steps: [{ stepName: '01-home' }, { stepName: '02-pre-login' }],
   },
-  {
-    bankId: 'otsarHahayal',
-    originUrl: 'https://online.bankotsar.co.il',
-    loginStep: '02-pre-login',
-    requiresHydration: true,
-    steps: [{ stepName: '01-home' }, { stepName: '02-pre-login' }],
-  },
 ];
 
 export default BANK_FIXTURE_EXPECTATIONS;
