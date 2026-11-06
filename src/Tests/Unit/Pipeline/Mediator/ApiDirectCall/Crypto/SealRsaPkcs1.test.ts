@@ -4,7 +4,7 @@
  * base64 SPKI DER, sent as standard base64. Failures name no value.
  */
 
-import { generateKeyPairSync } from 'node:crypto';
+import { createPublicKey, generateKeyPairSync } from 'node:crypto';
 
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import {
@@ -14,6 +14,7 @@ import {
 import { makePkcs1Key, openPkcs1 } from '../../../../../Helpers/SealOpener.js';
 
 const KEY = makePkcs1Key();
+const PKCS1_PEM = createPublicKey(KEY.privateKey).export({ type: 'pkcs1', format: 'pem' });
 const SOURCE = 'syn-Pass!7 é';
 const STANDARD_BASE64 = /^[\d+/a-z]+={0,2}$/i;
 const EC_PAIR = generateKeyPairSync('ec', { namedCurve: 'P-256' });
@@ -61,6 +62,12 @@ describe('N44 sealRsaPkcs1', () => {
     const opened = openPkcs1(KEY.privateKey, sealed);
     expect(sealed).toMatch(STANDARD_BASE64);
     expect(cipher).toHaveLength(128);
+    expect(opened).toBe(SOURCE);
+  });
+
+  it('seals under a PKCS#1 RSA PUBLIC KEY PEM', () => {
+    const sealed = sealedText(PKCS1_PEM, SOURCE);
+    const opened = openPkcs1(KEY.privateKey, sealed);
     expect(opened).toBe(SOURCE);
   });
 

@@ -300,6 +300,21 @@ interface IAliasedSealCase extends IAliasedBody {
   readonly isReversed: boolean;
 }
 
+/** A custom-prototype record whose two fields share one placeholder object. */
+class SharedLiteral {
+  public readonly a: Record<string, string>;
+  public readonly b: Record<string, string>;
+
+  /**
+   * Alias both fields to one placeholder.
+   * @param value - Shared placeholder object.
+   */
+  constructor(value: Record<string, string>) {
+    this.a = value;
+    this.b = value;
+  }
+}
+
 const ALIASED_BODIES: readonly IAliasedBody[] = [
   {
     label: 'repeated refs',
@@ -332,6 +347,15 @@ const ALIASED_BODIES: readonly IAliasedBody[] = [
      * @returns Nested aliased literal template.
      */
     makeShape: (shared): IBodyTemplate['shape'] => ({ $literal: { a: shared, b: shared } }),
+  },
+  {
+    label: 'a custom-prototype literal',
+    /**
+     * Keep aliases through a prototype the structured clone discards.
+     * @param shared - Credential placeholder.
+     * @returns Custom-prototype literal template.
+     */
+    makeShape: (shared): IBodyTemplate['shape'] => ({ $literal: new SharedLiteral(shared) }),
   },
 ];
 
@@ -435,6 +459,12 @@ describe('N44 fields sealed with RSA PKCS#1 v1.5', () => {
       carry: { rsaKey: PKCS1_KEY.pem },
       creds: { num: NUM, password: 'syn-סיסמה' },
       message: 'logon seal unencodable',
+    },
+    {
+      label: 'an empty first source precedes an unencodable later source',
+      carry: { rsaKey: PKCS1_KEY.pem },
+      creds: { num: '', password: 'syn-סיסמה' },
+      message: 'logon seal source invalid',
     },
   ])('fails before any request when $label', async ({ carry, creds, message }) => {
     const fake = serveState();

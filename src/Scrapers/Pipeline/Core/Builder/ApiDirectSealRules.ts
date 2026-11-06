@@ -139,13 +139,16 @@ function readSeal<TFact>(
   return reader(seal);
 }
 
+/** A tilde that is not the start of an RFC-6901 `~0` or `~1` escape. */
+const BAD_TILDE_ESCAPE = /~(?:[^01]|$)/u;
+
 /**
- * Whether a pointer is not below the body root.
+ * Whether a pointer is not below the body root or carries an invalid escape.
  * @param pointer - Candidate `writeTo`.
  * @returns True for a bad pointer.
  */
 function isBadTarget(pointer: string): boolean {
-  return !pointer.startsWith('/') || pointer.length < 2;
+  return !pointer.startsWith('/') || pointer.length < 2 || BAD_TILDE_ESCAPE.test(pointer);
 }
 
 /**
@@ -193,7 +196,7 @@ function overlapsEarlier(
 function hasBadFields(seal: ISealFieldConfig): boolean {
   const targets = readSeal(WRITE_TARGETS, seal, ['/']);
   const paths = targets.map(decodePointerSegments);
-  return paths.length === 0 || paths.some(overlapsEarlier);
+  return paths.length === 0 || paths.some((path, index, all) => overlapsEarlier(path, index, all));
 }
 
 /**

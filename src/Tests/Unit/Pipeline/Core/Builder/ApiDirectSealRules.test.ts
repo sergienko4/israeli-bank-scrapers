@@ -164,11 +164,14 @@ describe('validateApiDirectConfig — sealed fields', () => {
     expect(result).toMatchObject({ success: false, errorMessage: HOST_MSG });
   });
 
-  it.each([['credentials'], ['/'], ['']])('writeTo %j fails the build', writeTo => {
-    const step = postWith({ ...SEAL, writeTo });
-    const result = validate(step);
-    expect(result).toMatchObject({ success: false, errorMessage: POINTER_MSG });
-  });
+  it.each([['credentials'], ['/'], [''], ['/Credentials~2'], ['/Credentials~']])(
+    'writeTo %j fails the build',
+    writeTo => {
+      const step = postWith({ ...SEAL, writeTo });
+      const result = validate(step);
+      expect(result).toMatchObject({ success: false, errorMessage: POINTER_MSG });
+    },
+  );
 
   it.each(BAD_PARAMS)('%s fails the build', (_label, patch) => {
     const seal = sealWithParams(patch);
@@ -213,13 +216,16 @@ describe('validateApiDirectConfig — fields sealed with RSA PKCS#1 v1.5 (N44)',
     expect(result).toMatchObject({ success: false, errorMessage: HOST_MSG });
   });
 
-  it.each([['Password'], ['/'], ['']])('a field writeTo %j fails the build', writeTo => {
-    const fields = [PKCS1_SEAL.fields[0], { sourceRef: 'creds.password' as const, writeTo }];
-    const seal = pkcs1With(fields);
-    const step = postWith(seal);
-    const result = validate(step);
-    expect(result).toMatchObject({ success: false, errorMessage: POINTER_MSG });
-  });
+  it.each([['Password'], ['/'], [''], ['/Password~2'], ['/Password~']])(
+    'a field writeTo %j fails the build',
+    writeTo => {
+      const fields = [PKCS1_SEAL.fields[0], { sourceRef: 'creds.password' as const, writeTo }];
+      const seal = pkcs1With(fields);
+      const step = postWith(seal);
+      const result = validate(step);
+      expect(result).toMatchObject({ success: false, errorMessage: POINTER_MSG });
+    },
+  );
 
   it.each([
     ['no fields', []],
@@ -240,7 +246,7 @@ describe('validateApiDirectConfig — fields sealed with RSA PKCS#1 v1.5 (N44)',
   it.each([
     ['/Credentials', '/Credentials/Password'],
     ['/Credentials/Password', '/Credentials'],
-    ['/Credentials~2', '/Credentials~02/Password'],
+    ['/Credentials~02', '/Credentials~02/Password'],
   ])('refuses overlapping seal targets %s and %s', (first, second) => {
     const seal = pkcs1At(first, second);
     const step = postWith(seal);

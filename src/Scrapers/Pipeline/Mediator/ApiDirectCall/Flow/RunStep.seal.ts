@@ -59,12 +59,16 @@ function sealRefReader(scope: ITemplateScope): SealRefText {
 
 /**
  * Whether an object is a JSON record rather than a structured-clone leaf.
+ * A record's prototype is null or a root prototype, which also recognizes a
+ * structured clone made in another realm.
  * @param value - Object being cloned.
  * @returns True for ordinary or null-prototype records.
  */
 function isPlainSealRecord(value: object): value is JsonUnknownRecord {
   const prototype: unknown = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
+  if (prototype === null) return true;
+  if (typeof prototype !== 'object') return false;
+  return Object.getPrototypeOf(prototype) === null;
 }
 
 /**
@@ -78,6 +82,47 @@ function cloneSealList(values: readonly JsonUnknown[], ancestors: WeakSet<object
 }
 
 /**
+ * Clone the entries of a plain JSON record, each occurrence detached.
+ * @param value - Plain record being cloned.
+ * @param ancestors - Containers on the current recursion path.
+ * @returns Detached record.
+ */
+function cloneSealRecord(value: JsonUnknownRecord, ancestors: WeakSet<object>): JsonUnknown {
+  const copied = Object.entries(value).map(([key, child]): [string, JsonUnknown] => {
+    const clone = cloneSealValue(child, ancestors);
+    return [key, clone];
+  });
+  return Object.fromEntries(copied);
+}
+
+/**
+ * Detach one structured-clone container, recursing only into JSON containers.
+ * @param value - Container from a structured clone.
+ * @param ancestors - Containers on the current recursion path.
+ * @returns Detached container or preserved leaf.
+ */
+function detachClone(value: object, ancestors: WeakSet<object>): JsonUnknown {
+  if (Array.isArray(value)) return cloneSealList(value, ancestors);
+  if (isPlainSealRecord(value)) return cloneSealRecord(value, ancestors);
+  return value;
+}
+
+/**
+ * Detach the plain containers a structured clone exposes, so shared sibling
+ * references become independent occurrences; keep built-in leaves as they are.
+ * @param value - Structured clone of a non-plain object or array.
+ * @param ancestors - Containers on the current recursion path.
+ * @returns Detached clone or preserved leaf.
+ */
+function cloneDetached(value: object, ancestors: WeakSet<object>): JsonUnknown {
+  if (ancestors.has(value)) throw new TypeError(INVALID_SEAL_TARGET);
+  ancestors.add(value);
+  const clone = detachClone(value, ancestors);
+  ancestors.delete(value);
+  return clone;
+}
+
+/**
  * Clone a JSON container without memoizing sibling references.
  * @param value - Container being cloned.
  * @param ancestors - Containers on the current recursion path.
@@ -85,13 +130,9 @@ function cloneSealList(values: readonly JsonUnknown[], ancestors: WeakSet<object
  */
 function cloneSealContainer(value: object, ancestors: WeakSet<object>): JsonUnknown {
   if (Array.isArray(value)) return cloneSealList(value, ancestors);
-  if (!isPlainSealRecord(value)) return structuredClone(value);
-  const entries = Object.entries(value);
-  const copied = entries.map(([key, child]): [string, JsonUnknown] => {
-    const clone = cloneSealValue(child, ancestors);
-    return [key, clone];
-  });
-  return Object.fromEntries(copied);
+  if (isPlainSealRecord(value)) return cloneSealRecord(value, ancestors);
+  const cloned = structuredClone(value);
+  return cloneDetached(cloned, ancestors);
 }
 
 /**
@@ -133,7 +174,11 @@ function cloneSealBody(body: Body): Procedure<Body> {
  */
 function applySealPlan(body: Body, writes: readonly ISealedWrite[]): Procedure<Body> {
   const unsealed = cloneSealBody(body);
-  return writes.reduce(writeSealed, unsealed);
+  return writes.reduce(
+    (bodySoFar: Procedure<Body>, sealed: ISealedWrite): Procedure<Body> =>
+      writeSealed(bodySoFar, sealed),
+    unsealed,
+  );
 }
 
 /**

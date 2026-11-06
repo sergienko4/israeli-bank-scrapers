@@ -18,6 +18,7 @@ import type { ISealedWrite, SealPlan, SealRef, SealRefText } from './SealPlan.js
 import { SOURCE_INVALID } from './SealTail.js';
 
 const PEM_PUBLIC_KEY = '-----BEGIN PUBLIC KEY-----';
+const PEM_RSA_PUBLIC_KEY = '-----BEGIN RSA PUBLIC KEY-----';
 const MAX_KEY_CHARS = 16_384;
 const KEY_INVALID = 'seal key invalid';
 const UNENCODABLE = 'seal unencodable';
@@ -28,7 +29,8 @@ const UNENCODABLE = 'seal unencodable';
  * @returns The key, or false when the text holds none.
  */
 function parsedKey(keyText: string): KeyObject | false {
-  if (keyText.includes(PEM_PUBLIC_KEY)) return createPublicKey(keyText);
+  const isPem = keyText.includes(PEM_PUBLIC_KEY) || keyText.includes(PEM_RSA_PUBLIC_KEY);
+  if (isPem) return createPublicKey(keyText);
   const compact = keyText.replaceAll(/\s/gu, '');
   const der = Buffer.from(compact, 'base64');
   if (der.length === 0 || der.toString('base64') !== compact) return false;
