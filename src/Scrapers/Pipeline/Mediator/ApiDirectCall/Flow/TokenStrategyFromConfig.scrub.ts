@@ -9,6 +9,7 @@
  * query string; this scrub covers whatever else the failure text quotes.
  */
 
+import { none } from '../../../Types/Option.js';
 import { REDACTED_HINT } from '../../../Types/PiiRedactor.js';
 import type { IProcedureFailure } from '../../../Types/Procedure.js';
 import type { IPersistentAuthStateV1 } from '../PersistentAuthStateCodec.js';
@@ -39,5 +40,15 @@ function scrubPersistedValues(
   return { ...failure, errorMessage };
 }
 
+/**
+ * Omit a failed device-memory flow's text: the bank may echo only a truncated
+ * prefix of a stored id or account, which replacing whole values cannot scrub.
+ * @param failure - Flow failure, whose type remains unchanged.
+ * @returns A category-only failure without bank-controlled text or details.
+ */
+function omitFlowFailureText(failure: IProcedureFailure): IProcedureFailure {
+  return { ...failure, errorMessage: 'persistent auth failed: flow', errorDetails: none() };
+}
+
 export default scrubPersistedValues;
-export { scrubPersistedValues };
+export { omitFlowFailureText, scrubPersistedValues };

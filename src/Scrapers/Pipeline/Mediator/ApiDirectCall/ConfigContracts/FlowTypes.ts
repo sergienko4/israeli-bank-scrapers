@@ -98,14 +98,17 @@ interface IStepOutcome {
 
 /**
  * A carry slot read only when the response has it. A pointer that resolves
- * to a string that is not blank writes that string; otherwise `fallback` is
- * written when set, and the slot keeps its earlier value when not.
+ * to a non-blank string writes it; otherwise `fallback` is written when set,
+ * and the slot keeps its earlier value when not. A `keepExisting` slot is
+ * written only while carry holds no non-empty string for it (N56).
  */
 interface IOptionalExtract {
   /** RFC-6901 pointer into the response body. */
   readonly pointer: string;
   /** Value written when the field is missing, blank or not a string. */
   readonly fallback?: string;
+  /** Keep a non-empty value carry already holds, even against a different answer (N56). */
+  readonly keepExisting?: true;
 }
 
 /** One carry slot read from a response header. */
@@ -227,6 +230,10 @@ interface IStepBase {
   readonly locationCapture?: ILocationCapture;
   /** Text a `document` answer must contain, else the step fails `document unverified`. */
   readonly documentMarker?: string;
+  /** Media type the answer must name (N61), over the bank's per-kind default. */
+  readonly mediaType?: string;
+  /** Decode the answer as strict UTF-8 (N63), over the bank's `headless.strictUtf8`. */
+  readonly strictUtf8?: boolean;
   /** Carry slots read from the final response's headers, merged beside `extractsToCarry`. */
   readonly headerExtractsToCarry?: Readonly<Record<string, IHeaderExtract>>;
   /** Carry slots derived, in order, once this step's extracts are in scope. */

@@ -7,6 +7,7 @@
 
 import type { JsonUnknownRecord } from '../../Types/JsonValue.js';
 import { decodeNumericClaim } from './Jwt/GenericJwtClaims.js';
+import { hasExactKeySet } from './PersistentAuthEnvelope.js';
 
 /** Decoded v1 payload — the only shape the codec accepts or emits. */
 interface IPersistentAuthStateV1 {
@@ -69,9 +70,7 @@ function isBoundedString(value: unknown, maxChars: number): value is string {
  * @returns True when the key set matches.
  */
 function hasExactKeys(raw: JsonUnknownRecord): boolean {
-  const keys = Object.keys(raw);
-  if (keys.length !== STATE_KEYS.length) return false;
-  return STATE_KEYS.every((key): boolean => Object.hasOwn(raw, key));
+  return hasExactKeySet(raw, STATE_KEYS);
 }
 
 /**
@@ -168,5 +167,12 @@ const STATE_RULES: readonly IStateRule[] = [
   { category: 'ecPrivateKey', isValid: isBoundedKeyText },
 ];
 
-export type { IPersistentAuthExpectation, IPersistentAuthStateV1 };
-export { MAX_ACCESS_TOKEN_CHARS, STATE_KEYS, STATE_RULES };
+export type { IPersistentAuthExpectation, IPersistentAuthStateV1, IStateRule };
+export {
+  isBoundedString,
+  isExpectedProvider,
+  isSupportedVersion,
+  MAX_ACCESS_TOKEN_CHARS,
+  STATE_KEYS,
+  STATE_RULES,
+};

@@ -209,7 +209,7 @@ describe('applyExtractRules — optional slots', () => {
     ['an empty field', { slot: '' }],
   ])('skips the rule for %s', (_label, resp) => {
     const step = optionalStep(LOWER_STATE);
-    const carry = extractOptional(resp, step);
+    const carry = extractOptional(resp, step, RULE_SCOPE.carry);
     const ruled = applyExtractRules({
       step,
       resp,
@@ -239,7 +239,7 @@ describe('applyExtractRules — optional slots', () => {
   it('writes the transformed value of a present slot', () => {
     const step = optionalStep(LOWER_STATE);
     const resp = { slot: 'LOGONOTP' };
-    const carry = extractOptional(resp, step);
+    const carry = extractOptional(resp, step, RULE_SCOPE.carry);
     const ruled = applyExtractRules({
       step,
       resp,

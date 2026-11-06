@@ -10,7 +10,11 @@ import type { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStra
 import type { NativeFetchStrategy } from '../../Strategy/Fetch/NativeFetchStrategy.js';
 import type { TlsClientProfileKind } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
 import type { IDynamicClientCert } from '../../Types/Domain/ClientCertControl.js';
-import type { RedirectPolicy, StatusPolicy } from '../../Types/Domain/FetchPolicy.js';
+import type {
+  MediaTypePolicy,
+  RedirectPolicy,
+  StatusPolicy,
+} from '../../Types/Domain/FetchPolicy.js';
 
 /** Args bundle for the headless-mediator factory. */
 interface IHeadlessMediatorArgs {
@@ -29,6 +33,10 @@ interface IHeadlessMediatorArgs {
   readonly statusPolicy?: StatusPolicy;
   /** Omit bank response text from native HTTP failures when enabled. */
   readonly omitBankText?: boolean;
+  /** Media type each response kind must name when a call names none (N61). */
+  readonly mediaTypes?: MediaTypePolicy;
+  /** Decode every answer as strict UTF-8 unless its call says otherwise (N63). */
+  readonly strictUtf8?: boolean;
 }
 
 /** Args bundle for the node:https (client-cert and/or TLS-profile) mediator factory. */
@@ -61,7 +69,7 @@ interface IBrowserBackedHeadlessMediatorArgs {
 /** Minimal shape needed to construct the shared GraphQL transport. */
 interface IGraphQLTransportArgs extends Pick<
   IHeadlessMediatorArgs,
-  'redirectPolicy' | 'statusPolicy' | 'omitBankText'
+  'redirectPolicy' | 'statusPolicy' | 'omitBankText' | 'mediaTypes' | 'strictUtf8'
 > {
   readonly graphqlUrl: string;
   readonly graphqlHeaders?: Readonly<Record<string, string>>;

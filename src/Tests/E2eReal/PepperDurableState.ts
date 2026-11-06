@@ -82,11 +82,11 @@ function forceExpiry(encoded: string, phoneNumber: string): string {
  */
 function pepperFreshness(extraSeconds: number): IJwtClaimsConfig {
   const freshnessField = PEPPER_API_DIRECT_CALL.jwtClaims?.freshnessField;
-  const margin = PEPPER_API_DIRECT_CALL.persistentAuth?.freshnessMarginSeconds;
-  if (freshnessField === undefined || margin === undefined) {
+  const block = PEPPER_API_DIRECT_CALL.persistentAuth;
+  if (freshnessField === undefined || block?.kind !== 'bound-device') {
     throw new ScraperError('Pepper durable freshness config missing');
   }
-  return { freshnessField, skewSeconds: margin + extraSeconds };
+  return { freshnessField, skewSeconds: block.freshnessMarginSeconds + extraSeconds };
 }
 
 /**

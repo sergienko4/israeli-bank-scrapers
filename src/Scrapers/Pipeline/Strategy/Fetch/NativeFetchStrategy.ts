@@ -9,12 +9,12 @@ import { getDebug } from '../../Logging/Debug.js';
 import type { Brand } from '../../Types/Brand.js';
 import type {
   IResponseReading,
+  MediaTypePolicy,
   RedirectPolicy,
   ResponseKind,
   StatusPolicy,
 } from '../../Types/Domain/FetchPolicy.js';
 import { toError } from '../../Types/ErrorUtils.js';
-import { describeJsonParseFailure } from '../../Types/JsonParseFailure.js';
 import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { readDocument } from './DocumentResponse.js';
@@ -27,6 +27,8 @@ import type {
 } from './FetchStrategy.js';
 import { overlayHeaders } from './HeaderOverlay.js';
 import { classifyHttpFailure, hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
+import { parseJsonResponse } from './JsonResponse.js';
+import { refuseMediaType } from './MediaTypeCheck.js';
 import { withBodyContentType, writePostBody } from './PostBody.js';
 import type { IRedirectRun, IRunEnd } from './RedirectFollow.js';
 import { emitSetCookies, sendUnderPolicy } from './RedirectFollow.js';
@@ -60,6 +62,10 @@ interface INativeFetchOptions {
   readonly redirectPolicy?: RedirectPolicy;
   readonly statusPolicy?: StatusPolicy;
   readonly omitBankText?: boolean;
+  /** Media type each response kind must name when a call names none. */
+  readonly mediaTypes?: MediaTypePolicy;
+  /** Decode every answer as strict UTF-8 unless its call says otherwise. */
+  readonly strictUtf8?: boolean;
 }
 
 /** JSON content-type on every verb — the base strategy's defaults. */
@@ -67,23 +73,6 @@ const JSON_DEFAULT_HEADERS: DefaultHeadersByVerb = {
   GET: { 'content-type': 'application/json' },
   POST: { 'content-type': 'application/json' },
 };
-
-/**
- * Parse an answer's body as JSON, with a structured failure on malformed input.
- * @param answer - The answered call.
- * @returns Procedure carrying the parsed body, or a parse-error failure.
- */
-async function parseJsonResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
-  const rawText = await answer.response.text();
-  try {
-    const parsed = JSON.parse(rawText) as T;
-    return succeed(parsed);
-  } catch (error) {
-    const reason = describeJsonParseFailure(error);
-    const safeUrl = safeUrlForLog(answer.url);
-    return fail(ScraperErrorTypes.Generic, `${answer.verb} ${safeUrl} parse error: ${reason}`);
-  }
-}
 
 /** Reader per response kind; each runs after WAF classification and the status policy. */
 const READERS: Readonly<Record<ResponseKind, Reader>> = {
@@ -131,7 +120,7 @@ function isApiSuccess(response: Response): boolean {
 
 /**
  * Route an answer: WAF classification first, then the bank's status policy,
- * then the reader its response kind names.
+ * then the expected media type (N61), then the reader its response kind names.
  * @param answer - The answered call.
  * @returns Procedure with the read body or a classified failure.
  */
@@ -139,6 +128,8 @@ async function routeResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
   if (!isApiSuccess(answer.response)) return classifyStatus<T>(answer);
   const decided = await applyStatusPolicy<T>(answer);
   if (decided.has) return decided.value;
+  const refused = await refuseMediaType<T>(answer);
+  if (refused.has) return refused.value;
   return READERS[answer.reading.responseKind]<T>(answer);
 }
 
@@ -193,6 +184,16 @@ async function invokeFetch(
     return toNetworkFailure(error, verb, url);
   }
 }
+
+/**
+ * Adapt the native fetch caller to the transport policy seam.
+ * @param url - Target URL.
+ * @param init - Native fetch request.
+ * @param policy - Request metadata; media checks stay in the shared router.
+ * @returns The raw response or the native network failure.
+ */
+const INVOKE_NATIVE_FETCH: FetchInvoke = (url, init, policy): Promise<Procedure<Response>> =>
+  invokeFetch(url, init, policy.verb);
 
 /**
  * Resolve a request URL the way every node transport does: an absolute
@@ -254,7 +255,7 @@ class NativeFetchStrategy implements IFetchStrategy {
    * transport. All downstream response parsing, cookie emission, and logging
    * stay in the shared dispatchFetch pipeline regardless of transport.
    */
-  protected _invoke: FetchInvoke = invokeFetch;
+  protected _invoke: FetchInvoke = INVOKE_NATIVE_FETCH;
 
   /**
    * Default-headers seam — the headers each verb sends under the caller's.
@@ -281,6 +282,20 @@ class NativeFetchStrategy implements IFetchStrategy {
   protected readonly _omitBankText: boolean;
 
   /**
+   * Media type seam (N61) — the type each response kind's answer must name
+   * when the call names none. The base expects none; transports built for a
+   * bank whose config names defaults replace it in their constructor.
+   */
+  protected _mediaTypes: MediaTypePolicy = {};
+
+  /**
+   * Strict UTF-8 seam (N63) — whether an answer whose call names no choice is
+   * decoded as strict UTF-8. The base reads bodies as `text()` does;
+   * transports built for a strict bank replace it in their constructor.
+   */
+  protected _strictUtf8 = false;
+
+  /**
    * Create a NativeFetchStrategy.
    * @param baseUrl - The base URL for API requests.
    * @param options - Bank defaults; absent policies retain ordinary fetch behavior.
@@ -290,6 +305,8 @@ class NativeFetchStrategy implements IFetchStrategy {
     this._redirectDefault = options.redirectPolicy ?? this._redirectDefault;
     this._statusPolicy = options.statusPolicy ?? this._statusPolicy;
     this._omitBankText = options.omitBankText === true;
+    this._mediaTypes = options.mediaTypes ?? this._mediaTypes;
+    this._strictUtf8 = options.strictUtf8 ?? this._strictUtf8;
   }
 
   /**
@@ -343,22 +360,26 @@ class NativeFetchStrategy implements IFetchStrategy {
     const reading = this.readingOf(opts);
     const { onSetCookie, sessionHeadersFor } = opts;
     const hooks = { onSetCookie, sessionHeadersFor };
-    return { ...request, ...hooks, url, invoke: this._invoke, policy, reading };
+    const invocation = { invoke: this._invoke, mediaType: reading.mediaType };
+    return { ...request, ...hooks, ...invocation, url, policy, reading };
   }
 
   /**
    * How a call's answer is read: this transport's status policy plus the
-   * call's response kind (`json` when absent), document marker, text cap and
-   * header sink.
+   * call's response kind (`json` when absent), document marker, text cap,
+   * header sink, media type (else this transport's default for the kind) and
+   * strict UTF-8 choice (else this transport's).
    * @param opts - The call's fetch options.
    * @returns The reading routeResponse applies.
    */
   protected readingOf(opts: IFetchOpts): IResponseReading {
     const responseKind = opts.responseKind ?? 'json';
     const { documentMarker, maxTextChars, headerSink, onEmptyResponse } = opts;
+    const media = { mediaType: opts.mediaType ?? this._mediaTypes[responseKind] };
+    const decoding = { strictUtf8: opts.strictUtf8 ?? this._strictUtf8 };
     const hooks = { responseKind, documentMarker, maxTextChars, headerSink, onEmptyResponse };
     const privacy = { omitBankText: this._omitBankText };
-    return { statusPolicy: this._statusPolicy, ...hooks, ...privacy };
+    return { statusPolicy: this._statusPolicy, ...hooks, ...media, ...decoding, ...privacy };
   }
 
   /**

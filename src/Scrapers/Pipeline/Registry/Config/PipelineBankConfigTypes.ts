@@ -6,7 +6,11 @@
 
 import type { TlsClientProfileKind } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
 import type { IDynamicClientCert } from '../../Types/Domain/ClientCertControl.js';
-import type { RedirectPolicy, StatusPolicy } from '../../Types/Domain/FetchPolicy.js';
+import type {
+  MediaTypePolicy,
+  RedirectPolicy,
+  StatusPolicy,
+} from '../../Types/Domain/FetchPolicy.js';
 
 /** Generic auth-path keys — per-bank subsets plug into `paths` below. */
 export type AuthPathKey =
@@ -170,6 +174,19 @@ export interface IHeadlessUrlsConfig {
    * undefined (generic failures keep their response snippet).
    */
   readonly omitBankText?: boolean;
+  /**
+   * Media type each response kind's answer must name when its call names
+   * none (N61), e.g. `{ json: 'application/json' }`; requires `nativeFetch`.
+   * Undefined → no default; only a call's own `mediaType` is checked.
+   */
+  readonly mediaTypes?: MediaTypePolicy;
+  /**
+   * Decode every answer as strict UTF-8 (N63): a malformed byte fails the
+   * call `body not utf-8` instead of becoming U+FFFD. A step's own
+   * `strictUtf8: false` lifts it for that call; requires `nativeFetch`.
+   * Undefined → bodies read as `text()` does, unless a step says otherwise.
+   */
+  readonly strictUtf8?: true;
   /**
    * When set, the Camoufox identity strategy route-intercepts the
    * initial navigation to the identity origin URL and serves a blank

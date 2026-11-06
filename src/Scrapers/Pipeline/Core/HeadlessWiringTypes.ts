@@ -26,7 +26,13 @@ type HeadlessTransportKind = 'node-tls' | 'native' | 'browser';
 
 /** Optional transport settings a headless config block hands to the factory. */
 type TTransportKey =
-  'tlsProfile' | 'clientCert' | 'cookieDomains' | 'redirectPolicy' | 'statusPolicy';
+  | 'tlsProfile'
+  | 'clientCert'
+  | 'cookieDomains'
+  | 'redirectPolicy'
+  | 'statusPolicy'
+  | 'mediaTypes'
+  | 'strictUtf8';
 
 /** Pair of URLs + flags needed to wire the headless ApiMediator. */
 interface IHeadlessWiring extends IWiringFlags {
@@ -34,8 +40,9 @@ interface IHeadlessWiring extends IWiringFlags {
    * Optional transport settings, handed to the factory untouched: the
    * node:https ClientHello profile (absent keeps Node's default), the
    * domain-jar allow-list (absent keeps the origin jar), the native
-   * transport's default redirect policy (absent keeps `follow`) and its
-   * status policy (absent decides no status).
+   * transport's default redirect policy (absent keeps `follow`), its
+   * status policy (absent decides no status), its media type defaults and
+   * its strict UTF-8 choice (absent reads bodies as `text()` does).
    */
   readonly transport: Pick<IHeadlessUrlsConfig, TTransportKey>;
   readonly identity: string;

@@ -4,9 +4,11 @@
  * or header extract of some login or resume step: the scrape's session
  * context holds server-issued values only, so a generated key, a seeded
  * credential or a typo fails the build instead of reaching the scrape. An
- * `isolate` cookie hand-off (N35) needs a domain jar to empty.
+ * `isolate` cookie hand-off (N35) needs a domain jar to empty. A
+ * persistent-auth block must name a known `kind` (N48).
  */
 
+import { API_DIRECT_PERSISTENT_AUTH_RULES } from './ApiDirectPersistentAuthRules.js';
 import {
   allSteps,
   hasCookieDomains,
@@ -52,6 +54,7 @@ const API_DIRECT_SESSION_RULES: readonly IApiDirectRule[] = [
     message: 'cookieHandoff: isolate not allowed without headless.cookieDomains',
     isBroken: isIsolateWithoutJar,
   },
+  ...API_DIRECT_PERSISTENT_AUTH_RULES,
 ];
 
 export default API_DIRECT_SESSION_RULES;

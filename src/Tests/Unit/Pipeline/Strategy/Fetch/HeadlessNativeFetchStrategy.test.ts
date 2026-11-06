@@ -22,6 +22,7 @@ type MockFetch = jest.Mock<Promise<Response>, [string, RequestInit]>;
 const BASE_URL = 'https://api.bank.example/v1/';
 const ITEMS_URL = `${BASE_URL}items?sid=secret`;
 const TIMEOUT_MESSAGE = 'GET https://api.bank.example/v1/items network error: timeout';
+const MEDIA_REFUSAL = 'GET https://api.bank.example/v1/items unexpected media type';
 const LOWERED_CAP_MS = 25;
 const STATUS_RESULTS = {
   empty: { success: true, value: {} },
@@ -209,6 +210,39 @@ describe('HeadlessNativeFetchStrategy', () => {
     const mock = installFetchMock(impl);
     const result = await guarded.fetchGet(ITEMS_URL, { extraHeaders: {} });
     expect(result).toMatchObject(STATUS_RESULTS[action]);
+    expect(signalOf(mock.mock.calls[0][1]).aborted).toBe(true);
+  });
+
+  it('refuses a bank media-type mismatch without waiting for a stalled body', async () => {
+    const guarded = new HeadlessNativeFetchStrategy(BASE_URL, {
+      timeoutMs: LOWERED_CAP_MS,
+      mediaTypes: { json: 'application/json' },
+    });
+    const pull = jest.fn<Promise<void>, []>().mockResolvedValue(undefined);
+    const mock = installFetchMock((_url, init): Promise<Response> => {
+      const response = hangingResponse(init, { status: 200 }, pull);
+      return Promise.resolve(response);
+    });
+    const result = await guarded.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: MEDIA_REFUSAL,
+    });
+    expect(pull).not.toHaveBeenCalled();
+    expect(signalOf(mock.mock.calls[0][1]).aborted).toBe(true);
+  });
+
+  it('refuses a per-call media-type mismatch before reading a broken body', async () => {
+    const guarded = new HeadlessNativeFetchStrategy(BASE_URL, { timeoutMs: LOWERED_CAP_MS });
+    const mock = installFetchMock(brokenBody);
+    const opts = { extraHeaders: {}, mediaType: 'application/json' };
+    const result = await guarded.fetchGet(ITEMS_URL, opts);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: MEDIA_REFUSAL,
+    });
     expect(signalOf(mock.mock.calls[0][1]).aborted).toBe(true);
   });
 

@@ -32,6 +32,7 @@ const SOURCE_FILE_PATH = path.join(
   THIS_DIR,
   '../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.ts',
 );
+const WRONG_MEDIA_REFUSAL = 'POST https://gql.example/graphql unexpected media type';
 
 /**
  * Install a replacement for globalThis.fetch that delegates to impl.
@@ -204,6 +205,21 @@ describe('GraphQLFetchStrategy.query — transport behaviour', () => {
     const strategy = new GraphQLFetchStrategy('https://gql.example/graphql', {}, options);
     const result = await strategy.query('{ x }', {});
     expect(result.success).toBe(success);
+    expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['succeeds', (): Promise<void> => Promise.resolve()],
+    ['rejects', (): Promise<void> => Promise.reject(new Error('syn-private'))],
+  ] as const)('cancels a wrong-media GraphQL body when cleanup %s', async (_label, cleanup) => {
+    const cancel = jest.fn<Promise<void>, []>(cleanup);
+    const body = new ReadableStream<Uint8Array>({ cancel });
+    const response = new Response(body, { headers: { 'content-type': 'text/html' } });
+    installFetchMock((): Promise<Response> => Promise.resolve(response));
+    const options = { mediaTypes: { json: 'application/json' } };
+    const strategy = new GraphQLFetchStrategy('https://gql.example/graphql', {}, options);
+    const result = await strategy.query('{ x }', {});
+    expect(result).toMatchObject({ success: false, errorMessage: WRONG_MEDIA_REFUSAL });
     expect(cancel).toHaveBeenCalledTimes(1);
   });
 

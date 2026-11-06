@@ -34,14 +34,14 @@ function refuseOversize(message: IncomingMessage, reject: BodyReject): boolean {
 }
 
 /**
- * Buffer the full response body as a UTF-8 string. Rejects on a stream error or
+ * Buffer the full response body without decoding it. Rejects on a stream error or
  * a premature close (socket dropped mid-body) so a truncated Cloudflare response
  * surfaces as a network failure instead of a silently-empty body, and rejects
  * `response too large` once the body passes MTLS_MAX_RESPONSE_BYTES.
  * @param message - The response IncomingMessage.
- * @returns Promise resolving with the decoded body, or rejecting on stream error.
+ * @returns Raw body bytes, or a stream failure.
  */
-function collectBody(message: IncomingMessage): Promise<string> {
+function collectBody(message: IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
@@ -53,8 +53,7 @@ function collectBody(message: IncomingMessage): Promise<string> {
     });
     message.on('end', () => {
       const buffer = Buffer.concat(chunks);
-      const body = buffer.toString('utf8');
-      resolve(body);
+      resolve(buffer);
     });
     message.on('error', reject);
     message.on('close', () => {
@@ -112,13 +111,13 @@ function buildResponseHeaders(message: IncomingMessage): Headers {
 /**
  * Synthesise a Web Response from a node IncomingMessage + buffered body.
  * @param message - The response IncomingMessage (status + headers).
- * @param body - The decoded response body.
+ * @param body - The response body bytes, still undecoded.
  * @returns A Web Response equivalent to what globalThis.fetch would yield.
  */
-function toResponse(message: IncomingMessage, body: string): Response {
+function toResponse(message: IncomingMessage, body: Buffer): Response {
   const status = message.statusCode ?? 0;
   const headers = buildResponseHeaders(message);
-  const responseBody = NO_BODY_STATUSES.has(status) ? null : body;
+  const responseBody = NO_BODY_STATUSES.has(status) ? null : new Uint8Array(body);
   return new Response(responseBody, { status, headers });
 }
 

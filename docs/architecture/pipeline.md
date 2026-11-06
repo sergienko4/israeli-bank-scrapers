@@ -174,18 +174,36 @@ the refusal, cookie updates or the next allowed hop.
 
 ### Document responses and status policies
 
-Once a response answers, the native transport wraps it in an `IAnswer` (response, verb, URL and the `IResponseReading` built from the bank's status policy plus the call's `responseKind` and `documentMarker`) and routes it in a fixed order, so a bank without a policy reads its answers exactly as before:
+Once a response answers, the native transport wraps it in an `IAnswer` (response, verb, URL and the `IResponseReading` built from the bank's status policy plus the call's `responseKind`, `documentMarker`, `mediaType` and `strictUtf8`) and routes it in a fixed order, so a bank without a policy reads its answers exactly as before:
 
 1. A non-2xx answer, or any answer carrying Cloudflare's challenge header, goes to the WAF classifier first. A block page or challenge on a document step is still a `WafBlocked` failure, never `{}`.
 2. [`applyStatusPolicy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/StatusPolicy.ts) then checks the bank's `headless.statusPolicy` (a `StatusPolicy`, handed to `HeadlessNativeFetchStrategy` as its `statusPolicy` option). Before the body is read, the `StatusAction` `empty` answers `{}` (`emptyAnswer`) and `fail` fails `Generic` with `"<VERB> <url> HTTP <status>"`. A document step skips `empty`, so a 204 reaches the document reader as an empty page.
-3. The reader the call's `responseKind` names reads the body. `json` (the default) parses it as before, so HTML on a json step is still a parse error. `document` ([`readDocument`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/DocumentResponse.ts)) reads it as text, checks it for the call's `documentMarker` when one is set (otherwise it fails `Generic` with `"<VERB> <url> document unverified"`), and answers `{}`. `text` ([`readText`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/TextResponse.ts)) reads it as text and answers `{ text }`, so a step's extracts read it at `/text`; an answer over the call's `maxTextChars` (65 536 chars by default) fails `Generic` with `"<VERB> <url> text too long"`. The fixed tails `DOCUMENT_UNVERIFIED_REASON`, `TEXT_TOO_LONG_REASON` and `REDIRECT_REFUSED_REASON` live in `FetchPolicy.ts`, shared by the transport and the step sanitiser.
+3. [`refuseMediaType`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/MediaTypeCheck.ts) (N61) then checks the answer's media type, when the call expects one: the call's own `mediaType`, else the bank's `headless.mediaTypes` default for the call's response kind (a `MediaTypePolicy`, handed to `HeadlessNativeFetchStrategy` as its `mediaTypes` option and kept on the `_mediaTypes` seam). The answer's media type is its `content-type` before any `;`, trimmed and lower-cased, and must equal the expected one exactly; a missing or different type fails `Generic` with `"<VERB> <url> unexpected media type"` (`MEDIA_TYPE_REFUSED_REASON`), naming no header value. A call that expects none is read as before.
+4. The reader the call's `responseKind` names reads the body, each through [`readBodyText`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/BodyText.ts) (N63): when the call's `strictUtf8` — else the bank's `headless.strictUtf8`, handed to `HeadlessNativeFetchStrategy` as its `strictUtf8` option and kept on the `_strictUtf8` seam — is true, it decodes the bytes as UTF-8 with `fatal`, so a malformed byte fails `Generic` with `"<VERB> <url> body not utf-8"` (`BODY_NOT_UTF8_REASON`), naming no body, instead of becoming U+FFFD; otherwise it reads them as `text()` does. Both drop a leading BOM. `json` (the default) parses it as before, so HTML on a json step is still a parse error. `document` ([`readDocument`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/DocumentResponse.ts)) reads it as text, checks it for the call's `documentMarker` when one is set (otherwise it fails `Generic` with `"<VERB> <url> document unverified"`), and answers `{}`. `text` ([`readText`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/TextResponse.ts)) reads it as text and answers `{ text }`, so a step's extracts read it at `/text`; an answer over the call's `maxTextChars` (65 536 chars by default) fails `Generic` with `"<VERB> <url> text too long"`. The fixed tails `DOCUMENT_UNVERIFIED_REASON`, `TEXT_TOO_LONG_REASON`, `MEDIA_TYPE_REFUSED_REASON`, `BODY_NOT_UTF8_REASON` and `REDIRECT_REFUSED_REASON` live in `FetchPolicy.ts`, shared by the transport and the step sanitiser.
 
-`isApiSuccess` and `statusActionFor` are shared by response routing and the capped
-headless transport. When the status policy decides from headers, only that
-request's body is cancelled; undecided, challenged and document-empty responses
-still need a body read under the cap. A per-query empty-status notification
-preserves an approved GraphQL empty result without accepting a parsed `{}` as a
-valid GraphQL envelope or sharing the verdict with another query.
+For JSON answers, `parseJsonResponse` reads with the call's UTF-8 policy before
+parsing, so malformed bytes fail as a decoding error instead of a JSON error.
+Rejected body reads fail `Generic` with `"<VERB> <url> body read failed"`,
+without exposing rejection details.
+
+The `FetchInvoke` seam carries an `IFetchInvokePolicy` with the verb and
+expected media type through each redirect hop. The node:https transport
+checks API-success headers before collecting the body: a mismatch closes
+the stream and returns its headers to the shared router, preserving cookies,
+WAF classification and status-policy precedence without waiting for a body.
+The native REST and GraphQL transports share the bank's media-type and strict
+UTF-8 defaults; a call's own policy still wins. The node:https transport
+retains raw response bytes through `collectBody` and `toResponse`; otherwise
+an earlier lossy decode would hide malformed bytes from the later strict
+reader.
+
+`isApiSuccess`, `statusActionFor` and `isMediaTypeMismatch` are shared by response
+routing and the capped headless transport. When the status or media-type policy
+decides from headers, only that request's body is cancelled; undecided,
+challenged and document-empty responses still need a body read under the cap.
+A per-query empty-status notification preserves an approved GraphQL empty
+result without accepting a parsed `{}` as a valid GraphQL envelope or sharing
+the verdict with another query.
 
 [`cancelResponseBody`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/ResponseBody.ts)
 releases bodies discarded by status decisions or redirect handling, including
@@ -198,10 +216,12 @@ An api-direct step opts in with `response: 'document'` and an optional
 `documentMarker` (it names no body extracts — a build-time check), or with
 `response: 'text'` and an optional `maxTextChars`; `callPolicyOf` carries them
 down as `IFetchCallPolicy.responseKind` / `documentMarker` / `maxTextChars`,
-next to `redirect`.
+next to `redirect`, with a step's `mediaType` and `strictUtf8` as
+`IFetchCallPolicy.mediaType` / `strictUtf8`.
 The step-level sanitiser keeps these refusals' fixed tails (`bind HTTP 207`,
-`bind HTTP 302 redirect refused`, `bind document unverified`) only when the
-whole message has a policy refusal's shape, so no response text can pass for one.
+`bind HTTP 302 redirect refused`, `bind document unverified`,
+`bind unexpected media type`, `bind body not utf-8`) only when the whole
+message has a policy refusal's shape, so no response text can pass for one.
 
 ### Response-header carry
 
@@ -211,7 +231,7 @@ The native transport hands the final response to [`emitResponseHeaders`](https:/
 
 ### Form bodies
 
-A POST step sends JSON unless it names another `BodyEncoding`: `form`, `form-latin1` or `text`. `callPolicyOf` carries the encoding down as `IFetchCallPolicy.bodyEncoding`, next to `redirect` and `responseKind`. [`writePostBody`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/PostBody.ts) then writes the body: `json` as JSON text, `form` as `application/x-www-form-urlencoded` pairs in config order. `form-latin1` writes the same pairs through [`encodeLatin1Form`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/Latin1Form.ts), which encodes like Java's `URLEncoder` over ISO-8859-1 (`A-Z a-z 0-9 . - * _` kept, a space as `+`, every other char as its `%XX` latin1 byte) and sends them under `application/x-www-form-urlencoded; charset=ISO-8859-1`. `text` sends the one string field of a `{ text }` body verbatim. `withBodyContentType` puts the body's content-type in place of any content-type the bank's headers name — or, for `text`, removes it — so a body never travels labelled as something it is not. A call that names no encoding is sent byte for byte as before.
+A POST step sends JSON unless it names another `BodyEncoding`: `form`, `form-utf8`, `form-latin1` or `text`. `callPolicyOf` carries the encoding down as `IFetchCallPolicy.bodyEncoding`, next to `redirect` and `responseKind`. [`writePostBody`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/PostBody.ts) then writes the body: `json` as JSON text, `form` as `application/x-www-form-urlencoded` pairs in config order. `form-utf8` writes the same UTF-8 pairs under exactly `application/x-www-form-urlencoded;charset=UTF-8` — no space, as a bank's own client labels them. `form-latin1` writes the same pairs through [`encodeLatin1Form`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/Latin1Form.ts), which encodes like Java's `URLEncoder` over ISO-8859-1 (`A-Z a-z 0-9 . - * _` kept, a space as `+`, every other char as its `%XX` latin1 byte) and sends them under `application/x-www-form-urlencoded; charset=ISO-8859-1`. `text` sends the one string field of a `{ text }` body verbatim. `withBodyContentType` puts the body's content-type in place of any content-type the bank's headers name — or, for `text`, removes it — so a body never travels labelled as something it is not. A call that names no encoding is sent byte for byte as before.
 
 A writer refuses a body it cannot write, before any request, failing `Generic` with `"POST <url> <reason>"`: `form-latin1 unencodable` (`LATIN1_UNENCODABLE_REASON`) when a name or value holds a char above U+00FF, and `text body not a string` (`TEXT_BODY_REFUSED_REASON`) when a `text` body is not exactly one string field named `text`. The step sanitiser keeps both tails, so the step fails `<step> form-latin1 unencodable` or `<step> text body not a string`, naming no value.
 

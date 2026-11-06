@@ -197,7 +197,8 @@ interface ISeedCarrySource {
  *
  * Resolves each part against the partial scope (creds + secrets +
  * carry seeded so far), coerces to UTF-8 string, joins with optional
- * separator, truncates to `truncateBytes`, deposits as a string into
+ * separator, lower-cases the text when `transform` is `'lower'` (N60),
+ * truncates to `truncateBytes`, deposits as a string into
  * `carry[into]`. Banks declare derivations like an OTP-encryption key
  * (`deviceId + '|' + pinSuffix`, truncated to 32 bytes) without any
  * bank-specific code in the mediator.
@@ -206,6 +207,7 @@ interface IDerivedCarry {
   readonly into: string;
   readonly parts: readonly RefToken[];
   readonly separator?: string;
+  readonly transform?: 'lower';
   readonly truncateBytes?: number;
 }
 

@@ -21,7 +21,13 @@ import type { Option } from '../../Types/Option.js';
 import { none, some } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
-import type { FetchInvoke, HttpVerb, ISessionHeaders, OnSetCookie } from './FetchStrategy.js';
+import type {
+  FetchInvoke,
+  HttpVerb,
+  IFetchInvokePolicy,
+  ISessionHeaders,
+  OnSetCookie,
+} from './FetchStrategy.js';
 import { cancelResponseBody } from './ResponseBody.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 import { matchesAnyUrlRule } from './UrlRule.js';
@@ -32,10 +38,9 @@ type SetCookieEmitCount = Brand<number, 'SetCookieEmitCount'>;
 type HopHeaders = Record<string, string>;
 
 /** One request, its transport seam and the redirect policy it runs under. */
-interface IRedirectRun {
+interface IRedirectRun extends IFetchInvokePolicy {
   readonly url: string;
   readonly init: RequestInit;
-  readonly verb: HttpVerb;
   readonly invoke: FetchInvoke;
   readonly policy: RedirectPolicy;
   readonly onSetCookie?: OnSetCookie;
@@ -134,7 +139,7 @@ function refused(run: IRedirectRun, status?: number): Procedure<IRunEnd> {
  * @returns The response, or the transport failure.
  */
 async function sendFollow(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
-  const sent = await run.invoke(run.url, run.init, run.verb);
+  const sent = await run.invoke(run.url, run.init, run);
   if (!isOk(sent)) return sent;
   return succeed({ response: sent.value, responseUrl: answeredUrl(sent.value, run.url) });
 }
@@ -145,7 +150,7 @@ async function sendFollow(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
  * @returns The response, a refusal, or the transport failure.
  */
 async function sendReject(run: IRedirectRun): Promise<Procedure<IRunEnd>> {
-  const sent = await run.invoke(run.url, { ...run.init, redirect: 'manual' }, run.verb);
+  const sent = await run.invoke(run.url, { ...run.init, redirect: 'manual' }, run);
   if (!isOk(sent)) return sent;
   const { status } = sent.value;
   const responseUrl = answeredUrl(sent.value, run.url);
@@ -219,7 +224,8 @@ function nextHop(run: IRedirectRun, hop: IHop, target: URL): IHop {
  * @returns The final response, a refusal, or the transport failure.
  */
 async function sendHop(ctx: IManualRun, hop: IHop): Promise<Procedure<IRunEnd>> {
-  const sent = await ctx.run.invoke(hop.url, hop.init, hop.verb);
+  const policy: IFetchInvokePolicy = { verb: hop.verb, mediaType: ctx.run.mediaType };
+  const sent = await ctx.run.invoke(hop.url, hop.init, policy);
   if (!isOk(sent)) return sent;
   const response = sent.value;
   const responseUrl = answeredUrl(response, hop.url);

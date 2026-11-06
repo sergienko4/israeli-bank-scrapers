@@ -48,6 +48,7 @@ function runOf(step: IStepConfig): IApiDirectRuleInput {
  */
 function resumeOf(step: IStepConfig): IApiDirectRuleInput {
   const persistentAuth = {
+    kind: 'bound-device' as const,
     provider: 'syn-provider',
     clientInstanceIdField: 'clientInstanceId',
     deviceIdField: 'deviceId',
@@ -243,6 +244,112 @@ describe('validateApiDirectConfig — extractRules', () => {
 });
 
 const RUN_IF_MSG = 'steps.runIf: carry and oneOf must not be empty';
+
+describe('validateApiDirectConfig — keepExisting extract ownership', () => {
+  const errorMessage =
+    'steps.optionalExtractsToCarry: keepExisting must not overlap other answer slots';
+  const keptStep: IStepConfig = {
+    ...ruled({}),
+    optionalExtractsToCarry: { target: { pointer: '/target', keepExisting: true } },
+  };
+  const sources: readonly (readonly [string, IStepConfig])[] = [
+    [
+      'a response header',
+      { ...keptStep, headerExtractsToCarry: { target: { header: 'x-device-id' } } },
+    ],
+    [
+      'a text capture',
+      {
+        ...keptStep,
+        response: 'text',
+        textCaptures: { target: { pattern: '^token=(.+)$', group: 1 } },
+      },
+    ],
+    [
+      'a form capture',
+      {
+        ...keptStep,
+        response: 'text',
+        formCapture: {
+          form: 'login',
+          into: 'target',
+          action: 'https://bank.example/login',
+          required: ['csrf'],
+          forbidden: [],
+          minFields: 1,
+          maxFields: 4,
+        },
+      },
+    ],
+  ];
+
+  it.each([
+    ['login', runOf],
+    ['resume', resumeOf],
+  ] as const)('refuses a kept required slot in a %s step', (_label, inputOf) => {
+    const optionalExtractsToCarry = { state: { pointer: '/state', keepExisting: true } } as const;
+    const step: IStepConfig = { ...ruled({}), optionalExtractsToCarry };
+    const input = inputOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage,
+    });
+  });
+
+  describe.each([
+    ['login', runOf],
+    ['resume', resumeOf],
+  ] as const)('%s answer-slot sources', (_label, inputOf) => {
+    it.each(sources)('refuses a kept slot also written by %s', (_source, step) => {
+      const input = { ...inputOf(step), headless: NATIVE };
+      const result = validateApiDirectConfig(input);
+      expect(result).toMatchObject({
+        success: false,
+        errorType: ScraperErrorTypes.Generic,
+        errorMessage,
+      });
+    });
+
+    it.each(sources)('allows a distinct kept slot beside %s', (_source, step) => {
+      const distinct: IStepConfig = {
+        ...step,
+        optionalExtractsToCarry: { held: { pointer: '/held', keepExisting: true } },
+      };
+      const input = { ...inputOf(distinct), headless: NATIVE };
+      const result = validateApiDirectConfig(input);
+      expect(result).toEqual({ success: true, value: true });
+    });
+  });
+
+  it('allows a non-writing absent text guard on a kept slot', () => {
+    const step: IStepConfig = {
+      ...keptStep,
+      response: 'text',
+      textCaptures: { target: { pattern: '^error$', group: 0, absent: true } },
+    };
+    const input = { ...runOf(step), headless: NATIVE };
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+  });
+
+  it('allows overlapping extracts without keepExisting', () => {
+    const optionalExtractsToCarry = { state: { pointer: '/state' } };
+    const step: IStepConfig = { ...ruled({}), optionalExtractsToCarry };
+    const input = runOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+  });
+
+  it('allows keepExisting on a distinct optional slot', () => {
+    const optionalExtractsToCarry = { target: { pointer: '/target', keepExisting: true } } as const;
+    const step: IStepConfig = { ...ruled({}), optionalExtractsToCarry };
+    const input = runOf(step);
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+  });
+});
 
 /**
  * A step guarded by `runIf`.

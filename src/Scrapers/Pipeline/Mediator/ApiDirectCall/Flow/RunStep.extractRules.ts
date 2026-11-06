@@ -234,13 +234,12 @@ function isCarriedSlot(step: IStepConfig, slot: string): boolean {
 function optionalCarriedValue(input: IRulePass, slot: string): IKept | false {
   if (Object.hasOwn(input.carry, slot)) return { kept: input.carry[slot] };
   if (input.step.preHook?.intoCarryField !== slot) return false;
-  const carry = input.scope.carry;
-  return Object.hasOwn(carry, slot) ? { kept: carry[slot] } : false;
+  return Object.hasOwn(input.scope.carry, slot) ? { kept: input.scope.carry[slot] } : false;
 }
 
 /**
  * Check the raw optional value before its fallback, or a retained pre-hook
- * value when the optional pointer is absent.
+ * value when the optional pointer is absent. A kept slot skips its rule.
  * @param input - Rule pass input.
  * @param slot - Carry slot name.
  * @returns The raw or carried value, or false when the optional slot is absent.
@@ -249,6 +248,8 @@ function slotValue(input: IRulePass, slot: string): IKept | false {
   if (isCarriedSlot(input.step, slot)) return { kept: input.carry[slot] };
   const optional = input.step.optionalExtractsToCarry?.[slot];
   if (optional === undefined) return false;
+  const held = input.scope.carry[slot];
+  if (optional.keepExisting === true && typeof held === 'string' && held.length > 0) return false;
   return optionalRawValue(input.resp, optional.pointer) || optionalCarriedValue(input, slot);
 }
 

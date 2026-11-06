@@ -50,19 +50,23 @@ type ResponseKind = 'json' | 'document' | 'text';
 
 /**
  * `json` sends the POST body as JSON (the default); `form` sends a flat record
- * URL-encoded; `form-latin1` does the same over ISO-8859-1; `text` sends the
- * one string field of a `{ text }` record verbatim, with no content-type.
+ * URL-encoded; `form-utf8` does the same under a type naming UTF-8 (N62);
+ * `form-latin1` does the same over ISO-8859-1; `text` sends the one string
+ * field of a `{ text }` record verbatim, with no content-type.
  */
-type BodyEncoding = 'json' | 'form' | 'form-latin1' | 'text';
+type BodyEncoding = 'json' | 'form' | 'form-utf8' | 'form-latin1' | 'text';
 
 /** Encodings that write a flat record field by field. */
-const FORM_BODY_ENCODINGS: readonly BodyEncoding[] = ['form', 'form-latin1'];
+const FORM_BODY_ENCODINGS: readonly BodyEncoding[] = ['form', 'form-utf8', 'form-latin1'];
 
 /** `empty` answers `{}` without reading the body; `fail` refuses the call. */
 type StatusAction = 'empty' | 'fail';
 
 /** A bank's 2xx statuses it decides before the body is read. */
 type StatusPolicy = Readonly<Partial<Record<number, StatusAction>>>;
+
+/** A bank's expected media type per response kind (N61); lower-case `type/subtype`. */
+type MediaTypePolicy = Readonly<Partial<Record<ResponseKind, string>>>;
 
 /** The response headers a call reads (N6, N31): their names and their receiver. */
 interface IResponseHeaderSink {
@@ -89,6 +93,10 @@ interface IFetchCallPolicy {
   readonly headerSink?: IResponseHeaderSink;
   /** How a POST body is written; `json` when absent; native transports only. */
   readonly bodyEncoding?: BodyEncoding;
+  /** Media type the answer must name (N61); overrides the bank's default. */
+  readonly mediaType?: string;
+  /** Decode the answer as strict UTF-8 (N63); overrides the bank's choice. */
+  readonly strictUtf8?: boolean;
 }
 
 /** How a transport reads one answered call: the bank's policy plus the call's own. */
@@ -102,6 +110,8 @@ interface IResponseReading {
   readonly headerSink?: IResponseHeaderSink;
   /** Internal notification of a policy-approved empty response; returns a recorded-event count. */
   readonly onEmptyResponse?: () => number;
+  readonly mediaType?: string;
+  readonly strictUtf8?: boolean;
 }
 
 /** Fixed reason a transport reports for a refused redirect. */
@@ -119,6 +129,12 @@ const LATIN1_UNENCODABLE_REASON = 'form-latin1 unencodable';
 /** Fixed reason a transport reports for a `text` body that is not one string field. */
 const TEXT_BODY_REFUSED_REASON = 'text body not a string';
 
+/** Fixed reason a transport reports for an answer of another media type (N61). */
+const MEDIA_TYPE_REFUSED_REASON = 'unexpected media type';
+
+/** Fixed reason a transport reports for a strict answer that is not UTF-8 (N63). */
+const BODY_NOT_UTF8_REASON = 'body not utf-8';
+
 export type {
   BodyEncoding,
   IAnyPathExceptRule,
@@ -128,15 +144,18 @@ export type {
   IResponseHeaderSink,
   IResponseReading,
   IUrlRule,
+  MediaTypePolicy,
   RedirectPolicy,
   ResponseKind,
   StatusAction,
   StatusPolicy,
 };
 export {
+  BODY_NOT_UTF8_REASON,
   DOCUMENT_UNVERIFIED_REASON,
   FORM_BODY_ENCODINGS,
   LATIN1_UNENCODABLE_REASON,
+  MEDIA_TYPE_REFUSED_REASON,
   REDIRECT_REFUSED_REASON,
   TEXT_BODY_REFUSED_REASON,
   TEXT_TOO_LONG_REASON,

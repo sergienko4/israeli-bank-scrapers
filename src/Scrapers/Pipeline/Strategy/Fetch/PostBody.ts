@@ -2,6 +2,7 @@
  * POST body writers for the native transports (N9, N23). `json` writes the
  * body as JSON text under the transport's default content-type; `form` writes
  * a flat record as `application/x-www-form-urlencoded` in key order;
+ * `form-utf8` does the same under `;charset=UTF-8` (N62, no space);
  * `form-latin1` does the same over ISO-8859-1; `text` sends the one string
  * field of a `{ text }` record verbatim. Every non-JSON writer replaces any
  * content-type the caller named — `text` by sending none — so a body never
@@ -19,6 +20,9 @@ import { encodeLatin1Form } from './Latin1Form.js';
 
 /** Content-type every form body is sent under. */
 const FORM_CONTENT_TYPE = 'application/x-www-form-urlencoded';
+
+/** Content-type every UTF-8 form body is sent under, byte for byte (N62). */
+const UTF8_FORM_CONTENT_TYPE = `${FORM_CONTENT_TYPE};charset=UTF-8`;
 
 /** Content-type every latin1 form body is sent under. */
 const LATIN1_CONTENT_TYPE = `${FORM_CONTENT_TYPE}; charset=ISO-8859-1`;
@@ -86,14 +90,16 @@ function formPairs(data: PostData): [string, string][] {
 }
 
 /**
- * Write a flat record URL-encoded, in key order.
- * @param data - Flat POST record.
- * @returns Form text and the form content-type.
+ * A writer that URL-encodes a flat record as UTF-8, in key order.
+ * @param contentType - Content-type the form is sent under.
+ * @returns The form writer.
  */
-function writeForm(data: PostData): Procedure<IWrittenBody> {
-  if (!isFlatFormBody(data)) return fail(ScraperErrorTypes.Generic, 'form body not flat');
-  const body = new URLSearchParams(formPairs(data)).toString();
-  return succeed({ body, contentType: FORM_CONTENT_TYPE });
+function formWriter(contentType: string): BodyWriter {
+  return (data: PostData): Procedure<IWrittenBody> => {
+    if (!isFlatFormBody(data)) return fail(ScraperErrorTypes.Generic, 'form body not flat');
+    const body = new URLSearchParams(formPairs(data)).toString();
+    return succeed({ body, contentType });
+  };
 }
 
 /**
@@ -133,7 +139,8 @@ function writeText(data: PostData): Procedure<IWrittenBody> {
 /** Writer per body encoding. */
 const BODY_WRITERS: Readonly<Record<BodyEncoding, BodyWriter>> = {
   json: writeJson,
-  form: writeForm,
+  form: formWriter(FORM_CONTENT_TYPE),
+  'form-utf8': formWriter(UTF8_FORM_CONTENT_TYPE),
   'form-latin1': writeLatin1Form,
   text: writeText,
 };

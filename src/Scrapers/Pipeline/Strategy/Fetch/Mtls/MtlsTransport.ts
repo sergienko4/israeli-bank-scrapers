@@ -18,7 +18,9 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { toError } from '../../../Types/ErrorUtils.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
-import type { FetchInvoke, HttpVerb } from '../NativeFetchStrategy.js';
+import type { FetchInvoke, IFetchInvokePolicy } from '../FetchStrategy.js';
+import { isMediaTypeMismatch } from '../MediaTypeCheck.js';
+import { isApiSuccess } from '../NativeFetchStrategy.js';
 import { safeUrlForLog, scrubUrlFromText } from '../SafeUrlForLog.js';
 import { checkServerCertificate } from '../Tls/ServerCertificateFloor.js';
 import { SessionProtocolAgent } from '../Tls/SessionProtocolAgent.js';
@@ -59,11 +61,10 @@ function setMtlsFetchFallback(fallback?: MtlsFallback): boolean {
 }
 
 /** Fully-specified mTLS request bundle — keeps params under the 3-ceiling. */
-interface IMtlsRequest {
+interface IMtlsRequest extends IFetchInvokePolicy {
   readonly agent: Agent;
   readonly url: string;
   readonly init: RequestInit;
-  readonly verb: HttpVerb;
 }
 
 /**
@@ -223,6 +224,23 @@ function toMtlsFailure(error: unknown, request: IMtlsRequest): Procedure<Respons
 }
 
 /**
+ * Stop at mismatched API headers; the shared router retains status/WAF precedence.
+ * @param message - The received status, headers and unread body.
+ * @param mediaType - Expected media type, when one is named.
+ * @returns Header-only mismatch response, otherwise the buffered response.
+ */
+async function readMtlsResponse(message: IncomingMessage, mediaType?: string): Promise<Response> {
+  const empty = Buffer.alloc(0);
+  const response = toResponse(message, empty);
+  if (isApiSuccess(response) && isMediaTypeMismatch(response, mediaType)) {
+    message.destroy();
+    return response;
+  }
+  const body = await collectBody(message);
+  return toResponse(message, body);
+}
+
+/**
  * Perform an mTLS request and surface a Procedure<Response>.
  * Mirrors invokeFetch's contract so it slots into dispatchFetch as the
  * transport seam; all response parsing and cookie handling stay shared.
@@ -232,8 +250,7 @@ function toMtlsFailure(error: unknown, request: IMtlsRequest): Procedure<Respons
 async function mtlsInvoke(request: IMtlsRequest): Promise<Procedure<Response>> {
   try {
     const message = await sendRequest(request);
-    const body = await collectBody(message);
-    const response = toResponse(message, body);
+    const response = await readMtlsResponse(message, request.mediaType);
     return succeed(response);
   } catch (error) {
     return toMtlsFailure(error, request);
@@ -253,13 +270,14 @@ function makeMtlsInvoke(source: AgentSource): FetchInvoke {
    * Perform one request through the agent the source picks.
    * @param url - Fully-qualified target URL.
    * @param init - Native fetch RequestInit (method/headers/body).
-   * @param verb - HTTP verb (for error-message prefixing).
+   * @param policy - HTTP verb and expected response media type.
    * @returns Procedure carrying the synthesised Response, or a network failure.
    */
-  const invoke: FetchInvoke = (url, init, verb) => {
+  const invoke: FetchInvoke = (url, init, policy) => {
+    const { verb, mediaType } = policy;
     const { agent, presented } = source(url);
-    if (mtlsFetchFallback) return mtlsFetchFallback({ url, init, verb, presented });
-    return mtlsInvoke({ agent, url, init, verb });
+    if (mtlsFetchFallback) return mtlsFetchFallback({ url, init, verb, mediaType, presented });
+    return mtlsInvoke({ agent, url, init, verb, mediaType });
   };
   return invoke;
 }

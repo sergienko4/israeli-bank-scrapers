@@ -9,7 +9,10 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import type { ISessionHeaders } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
+import type {
+  FetchInvoke,
+  ISessionHeaders,
+} from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 import type { IRedirectRun } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/RedirectFollow.js';
 import { sendUnderPolicy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/RedirectFollow.js';
 import { safeUrlForLog } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/SafeUrlForLog.js';
@@ -17,7 +20,7 @@ import type { IManualRedirect } from '../../../../../Scrapers/Pipeline/Types/Dom
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
-type Invoke = jest.Mock<Promise<Procedure<Response>>, [string, RequestInit, 'GET' | 'POST']>;
+type Invoke = jest.Mock<ReturnType<FetchInvoke>, Parameters<FetchInvoke>>;
 
 const START = 'https://www.bank.example/start?sid=1';
 const HOP_1 = 'https://mto.bank.example/Online/Default.aspx';
@@ -68,7 +71,7 @@ function ok(): Response {
  */
 function serve(served: readonly (Response | Procedure<Response>)[]): Invoke {
   const queue = [...served];
-  return jest.fn<Promise<Procedure<Response>>, [string, RequestInit, 'GET' | 'POST']>(() => {
+  return jest.fn<ReturnType<FetchInvoke>, Parameters<FetchInvoke>>(() => {
     const next = queue.shift() ?? ok();
     const result = next instanceof Response ? succeed(next) : next;
     return Promise.resolve(result);
@@ -195,11 +198,22 @@ describe('sendUnderPolicy — manual hops', () => {
     const invoke = serve([redirect(307, HOP_1), ok()]);
     const run = makeRun(invoke, { verb: 'POST', init: { method: 'POST', body: 'x' } });
     await sendUnderPolicy(run);
-    const [, hopInit, hopVerb] = invoke.mock.calls[1];
+    const [, hopInit, { verb: hopVerb }] = invoke.mock.calls[1];
     expect(hopVerb).toBe('GET');
     expect(hopInit).toMatchObject({ method: 'GET', redirect: 'manual' });
     expect(hopInit.body).toBeUndefined();
     expect(invoke.mock.calls[0][1].redirect).toBe('manual');
+  });
+
+  it('carries the expected media type through every redirect hop', async () => {
+    const invoke = serve([redirect(302, HOP_1), ok()]);
+    const run = makeRun(invoke, { mediaType: 'text/html' });
+    await sendUnderPolicy(run);
+    const policies = invoke.mock.calls.map(([, , policy]): Parameters<FetchInvoke>[2] => policy);
+    expect(policies).toEqual([
+      { verb: 'GET', mediaType: 'text/html' },
+      { verb: 'GET', mediaType: 'text/html' },
+    ]);
   });
 
   it('resolves a relative Location against the hop URL', async () => {

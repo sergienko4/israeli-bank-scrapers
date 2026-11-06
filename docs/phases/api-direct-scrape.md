@@ -160,6 +160,10 @@ Declaring that contract once per brand means a wire change has to land four time
 
 `makeFibiGroupShape` takes an `IFibiGroupShapeArgs` and returns the assembled `IApiDirectScrapeShape`. The factory owns everything origin-independent: the request envelope, the two-GET identity merge over `IFibiAcct`, and the response extractors. The brand supplies its step name, its four origin-bound URL producers, and its own `windowNarrowing` stance. The URL producers are built from an `IFibiGroupConfig` — one per brand (`MASSAD_CONFIG`, `PAGI_CONFIG`, `OTSAR_HAHAYAL_CONFIG`, `BEINLEUMI_CONFIG`) — which carries nothing but the post-login origin.
 
+Every FIBI financial call — `userData`, `accountType`, `balances/{type}` and the transactions list — carries the factory's `fibiCallHeaders`: a fresh `X-FIBI-Transaction-Id` per call (the driver resolves function-form headers at call time, so two calls never share one) and, once a headless login has kept the portal-shell `authorization` answer through `sessionCarry`, that value verbatim as `Authorization`. A session without the slot (the browser path, whose bus already sends the sniffed header) gets the transaction id only. The headless bank config therefore uses `authScheme: 'none'`: the bus must not send its own authorization next to the shape's.
+
+The transactions envelope asks for the date range with `order: 0`. `order: 1` is a different query — the last 50 rows — which drops older rows from a busy window.
+
 Two constraints shape that split, and both are load-bearing:
 
 - **The factory lives under `Phases/`, not `Banks/`.** Two gates enumerate directories under `Banks/` and treat each one as a bank (`CheckBankIntegrationCoverage`, `WindowDeclaredCanary`); a shared folder there would be mistaken for a fifth brand. `Phases/` also inherits the same ESLint size caps, so the move costs no guardrail strength.
@@ -258,7 +262,7 @@ A failed answer, or a failed body check, never reaches the patch. A shape with n
 
 Beyond the three required steps (`customer` / `balance` / `transactions`), `IApiDirectScrapeShape` exposes optional hooks a bank declares only when needed:
 
-- `customer.secondaryUrlTag` — a second identity GET fired after the primary customer fetch; its parsed response reaches `extractAccounts` as `secondaryBody` (FIBI account-type lookup).
+- `customer.secondaryUrlTag` — a second identity GET fired after the primary customer fetch; its parsed response reaches `extractAccounts` as `secondaryBody` (FIBI account-type lookup). `buildSecondaryOpts` resolves the customer step's `extraHeaders` afresh for this call, so time-varying auth headers are not reused from the primary request.
 - `customer.skipFetch` / `balance.skipFetch` — skip the network call entirely; the extractor still runs but with `body: {}` (PayBox `uId`-derived accounts; Max's per-card cycle debit already on the account; Amex/Isracard's deterministic zero balance).
 - `bodyTemplate` (per step) — a `JsonValueTemplate` hydrated against the post-login scope and POSTed as the request body (PayBox class-y `auth` envelopes).
 - `signer` + `secrets` (shape root) — an `IAesSignerConfig` body-pointer signer applied to every scrape-step body before POST (PayBox).

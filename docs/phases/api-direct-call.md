@@ -125,7 +125,7 @@ One hydration engine serves both `API-DIRECT-CALL` and `API-DIRECT-SCRAPE` step 
 - `sha256-prefix-16` derives a stable identifier from another creds field (PayBox uses this to bind its long-term JWT to a phone-derived `deviceId16Hex` — warm-start-stable without the caller persisting state).
 - `random-uuid` generates one canonical UUID per flow init, so every step that reads the slot sees the same value — for banks that need a stable client-instance identifier across the steps of one login. A non-empty creds value is mirrored instead.
 - `random-hex` (`IRandomHexBootstrap`, N42) draws `bytes` (1 to 64) fresh random bytes per flow init as hex, twice as many characters, upper-case when `isUpperCase` is set — for a flow identifier of a fixed length and case. `evalRandomBootstrap` (in `Flow/FlowInitCarry.random.ts`) serves it and the other `RandomBootstrap` kinds, `random-hex-16` and `random-uuid`, once `isRandomBootstrap` matches; a non-empty creds value is mirrored instead.
-- `derivedCarry` joins parts with separators + truncation for OTP-encryption keys.
+- `derivedCarry` joins parts with separators + truncation for OTP-encryption keys. `transform: 'lower'` (N60) lower-cases the joined text before the byte cap, so a slot can carry a lower-cased copy of a credential (the FIBI Transmit `uid`) while the credential itself stays as typed.
 - A step's `deriveCarry` takes the same `IDerivedCarry` entries and runs them once that step's body and header extracts are in scope. `deriveStepCarry` hands them to `applyDerivations`, the evaluator flow-init `derivedCarry` uses, so the parts (`carry.<slot>`, `creds.<field>`, `config.<dotted.path>` such as `config.secrets.<name>`), separator, truncation and failure messages (`derivedCarry: carry.<slot> missing or non-string`) are the same. A part that fails fails the step.
 
 ### CryptoField pre-hook
@@ -344,10 +344,21 @@ For a ruled optional slot, `optionalRawValue` retains a present, nonblank
 raw value for `extractRules` before using any fallback; an invalid value is
 refused rather than hidden.
 
+`keepExisting: true` keeps a value carry already holds (N56). The slot is
+written only while carry has no non-empty string for it, so a device id an
+earlier run seeded survives a different id in the answer. When the answer
+differs, the debug log notes `{step, slot, kept: true}` and never the values.
+An `extractRules` entry on a kept slot is skipped. Without the flag, a present
+value still overwrites. `API_DIRECT_OPTIONAL_EXTRACT_RULES` rejects a kept slot
+also written by the same step's required extracts, response headers, writable
+text/form/handoff captures or final URL, before any request. An `absent` text
+guard writes nothing and may share the slot.
+
 ```ts
 optionalExtractsToCarry: {
   bcKey: { pointer: '/bean/bcKey' },
   userName: { pointer: '/bean/userName', fallback: '' },
+  did: { pointer: '/did', keepExisting: true },
 }
 ```
 
@@ -1024,7 +1035,7 @@ puts the stash back before it resumes; see [Auth recovery](#auth-recovery).
 
 ### OTP pre-hook guards
 
-A step's `preHook` (`IPreStepHook`) asks the caller for a code. Three optional
+A step's `preHook` (`IPreStepHook`) asks the caller for a code. Four optional
 fields shape that request, and `applyGuardedPreHook` (in
 `Flow/SmsOtpFlow.prehookGuard.ts`) runs them around it. The step reducer hands
 it one `IPreHookGuardArgs` bundle: the reduce args, the scope, the step and
@@ -1037,6 +1048,7 @@ preHook: {
   hintFrom: 'carry.phone',
   requires: ['cookie.csrfcookie', 'carry.flow'],
   valuePattern: '^\\d{5}$',
+  valueLengthRef: 'carry.otpLength',
 },
 ```
 
@@ -1060,6 +1072,13 @@ that cannot be sent. A raw query is resolved later because it may use that code.
   deposited value; a value that does not match, or is not text, fails the
   step `INVALID_OTP` with `<step> preHook value invalid` before its request
   is sent. The message never names the value.
+- `valueLengthRef` names the carry slot where the bank states the code's exact
+  length (N57). `statedLength` reads it after `requires`, before the callback
+  is asked. An integer 4..10, as a number or as decimal text, means the value
+  must be exactly that many ASCII digits, or the step fails `INVALID_OTP` as
+  above, so a malformed code never spends an attempt. When the slot is absent,
+  `valuePattern` alone applies. Any other value fails `GENERIC` with
+  `<step> preHook length invalid`, and no code is asked for.
 
 A creds field that is not a function fails `TWO_FACTOR_RETRIEVER_MISSING`
 with `preHook: creds.<field> is not a function`. A callback that throws fails
@@ -1079,8 +1098,10 @@ Some banks keep the session in cookies shared by sibling hosts, and answer
 login calls with redirects, HTML pages or response headers instead of JSON
 alone. Reading, encoding, headers and domain cookies work on either node
 transport (`nativeFetch` or node:https with a certificate or TLS profile).
-Step redirects and bank-wide redirect, status and failure-text defaults need
-`headless.nativeFetch`. The transport side of each field is described in
+Step redirects and bank-wide redirect, status, failure-text and media-type
+and strict UTF-8 defaults need `headless.nativeFetch`; step media types and
+strict UTF-8 work on either node transport. The transport side of each field
+is described in
 [Headless transports](../architecture/pipeline.md#headless-transports), and
 the [build-time config checks](#build-time-config-checks) refuse combinations
 that cannot work.
@@ -1094,8 +1115,13 @@ headless: {
   cookieDomains: ['bank.example'], // a Domain cookie reaches every *.bank.example host
   redirectPolicy: 'reject',        // any 3xx fails unless the step names its own redirect
   statusPolicy: { 204: 'empty' },  // a 204 answers {} without reading the body
+  mediaTypes: { json: 'application/json' }, // every json answer must say so (N61)
+  strictUtf8: true,                // a malformed UTF-8 byte fails the call (N63)
 }
 ```
+
+For a native-fetch headless bank, the media-type and strict UTF-8 defaults also
+apply to GraphQL answers; a call's own policy still overrides either one.
 
 `cookieDomains` needs `sessionCookies`. List only the bank's own registrable
 domains, never a public suffix such as `co.il`: the jar trusts the list as
@@ -1150,13 +1176,27 @@ from what it extracted:
   ([Handoff script capture](#handoff-script-capture));
   `statusPolicy` decides a 2xx before any body is read
   ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
+- `mediaType` (N61) names the one lower-case `type/subtype` the answer's
+  `content-type` must carry, parameters aside, over the bank's
+  `headless.mediaTypes` default for the step's response kind; a missing or
+  different type fails the step `<step> unexpected media type`, after the
+  status policy and before the body is read
+  ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
+- `strictUtf8` (N63) decodes the answer's bytes as strict UTF-8, over the
+  bank's `headless.strictUtf8`; a malformed byte fails the step
+  `<step> body not utf-8` instead of becoming U+FFFD. `strictUtf8: false`
+  lifts the bank's `true` for that step's body reading, and fails the
+  build on a bank that is not strict
+  ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
 - `headerExtractsToCarry` reads a header of the final response; a missing
   header without `fallback` fails with `<step> header missing`
   ([Response-header carry](../architecture/pipeline.md#response-header-carry)).
 - `deriveCarry` runs once the step's extracts are in scope
   ([Carry derivation](#carry-derivation)).
 - `encoding: 'form'` sends the body as `application/x-www-form-urlencoded`,
-  and `encoding: 'form-latin1'` the same over ISO-8859-1; either shape must be
+  `encoding: 'form-utf8'` the same under exactly
+  `application/x-www-form-urlencoded;charset=UTF-8`, and
+  `encoding: 'form-latin1'` the same over ISO-8859-1; each shape must be
   a flat record of `$ref`, `$join` and scalar `$literal` values, or one
   `$merge` whose `set` is such a record. `encoding: 'text'`
   sends the string of a `{ text }` body verbatim, with no content-type
@@ -1263,7 +1303,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a manual `redirect` whose `allow` list is empty                                                                                           | `redirect.allow: must not be empty`                                                |
 | a manual `redirect` whose `maxHops` is not an integer from 1 to 10                                                                        | `redirect.maxHops: must be an integer from 1 to 10`                                |
 | a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`                                                         | `headless.redirectPolicy: must be reject when a step redirects manually`           |
-| a form step (`form` or `form-latin1`) whose body shape is not a flat record of `$ref`, `$join` and scalar `$literal` values               | `steps.body: a form body must be a flat record`                                    |
+| a form step (`form`, `form-utf8` or `form-latin1`) whose body shape is not a flat record of `$ref`, `$join` and scalar `$literal` values    | `steps.body: a form body must be a flat record`                                    |
 | a `text` step whose body shape is not exactly `{ text }`                                                                                  | `steps.body: a text body must be exactly { text }`                                 |
 | a form step whose whole-shape `$merge` (`isMergeRoot`) has a `base` off `carry.<slot>` or a `set` that is not flat                    | `steps.body: a form body must be a flat record`                          |
 | a `$merge` anywhere but a form body's whole shape: a JSON or text body, a field, a header, a query (`API_DIRECT_MERGE_RULES`)         | `steps: $merge belongs only at the root of a form body`                  |
@@ -1304,6 +1344,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | `headless.clientCert` together with `headless.requiresClientCert: true`                                                                   | `headless.clientCert: not allowed with headless.requiresClientCert`                |
 | a `sessionCarry` slot that names no body or header extract of any login or resume step (`API_DIRECT_SESSION_RULES`)                       | `sessionCarry: each slot must name a step extract`                                 |
 | `cookieHandoff: 'isolate'` without `headless.cookieDomains`                                                                               | `cookieHandoff: isolate not allowed without headless.cookieDomains`                |
+| a `persistentAuth` block whose `kind` has no supported primer (`API_DIRECT_PERSISTENT_AUTH_RULES`)                                        | `persistentAuth.kind: must be bound-device or device-memory`                       |
 | a login or resume step with `response`, `documentMarker`, `headerExtractsToCarry` or `encoding` off native fetch and node:https           | `steps.<field>: not allowed without nativeFetch or node:https`                     |
 | a login or resume step with `redirect`, without `headless.nativeFetch: true`                                                              | `steps.redirect: not allowed without headless.nativeFetch`                         |
 | `headless.cookieDomains` off native fetch and node:https                                                                                  | `headless.cookieDomains: not allowed without nativeFetch or node:https`            |
@@ -1334,6 +1375,13 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `classify` `into` or capture slot that the same step writes as an extract, final URL, capture or derivation                          | `steps.classify: slots must not be slots the step also writes`           |
 | a `sessionCarry` slot that is the `into` of some `classify`                                                                           | `steps.classify.into: must not be a sessionCarry slot`                   |
 | a `runIf` whose `carry` some `classify` writes, with a `oneOf` text that no case written to that slot is named                        | `steps.runIf: on a classifier slot, oneOf lists only case names`         |
+| a login or resume step with `mediaType`, off native fetch and node:https                                                              | `steps.mediaType: not allowed without nativeFetch or node:https`         |
+| a login or resume step with `strictUtf8`, off native fetch and node:https                                                             | `steps.strictUtf8: not allowed without nativeFetch or node:https`        |
+| `headless.mediaTypes` without `headless.nativeFetch: true`                                                                            | `headless.mediaTypes: not allowed without headless.nativeFetch`          |
+| `headless.strictUtf8` without `headless.nativeFetch: true`                                                                           | `headless.strictUtf8: not allowed without headless.nativeFetch`         |
+| a `headless.mediaTypes` key that is not a response kind (`API_DIRECT_MEDIA_RULES`)                                                    | `headless.mediaTypes: keys must be response kinds`                       |
+| a step `mediaType` or `headless.mediaTypes` value that is not one lower-case `type/subtype`, no parameters                            | `mediaType: must be a lower-case type/subtype`                           |
+| a step `strictUtf8: false` on a bank without `headless.strictUtf8: true` (`API_DIRECT_UTF8_RULES`)                                    | `steps.strictUtf8: false only overrides headless.strictUtf8`             |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
@@ -1705,10 +1753,19 @@ getter keeps that warning rule alone.
 
 ## Persistent (durable) device auth
 
-A bank whose config declares a `persistentAuth` block can keep its bound device
-between runs. Pepper is the only one today; every other bank ignores the two
-options. The caller-facing contract lives in
-[Pepper durable device auth](../banks/pepper.md#durable-device-auth-opt-in).
+A bank whose config declares a `persistentAuth` block can keep its device
+between runs; every other bank ignores the two options. The block
+(`IPersistentAuthConfig`) is a union tagged by `kind` (`PersistentAuthKind`):
+
+- `bound-device` (`IBoundDeviceAuthConfig`) — Pepper. The state holds a bound
+  EC key and the last token; resume replays or renews it. The caller-facing
+  contract lives in
+  [Pepper durable device auth](../banks/pepper.md#durable-device-auth-opt-in).
+- `device-memory` (`IDeviceMemoryAuthConfig`) — the bank remembers a device by
+  the id it issued, so a login that sends that id back skips the OTP step.
+  See [Device memory](#device-memory).
+
+The sections below describe `bound-device` unless they say otherwise.
 
 `.action` resolves one mode — token-only, enrollment or resume — while it
 builds the token strategy, before any auth request. An invalid option
@@ -1740,16 +1797,53 @@ combination fails there, so it never reaches the network.
 A durable run therefore performs at most two auth requests on resume, at most
 one state callback, and no SMS outside enrollment.
 
+### Device memory
+
+A `device-memory` block names three things: the `provider` tag the state is
+bound to, the carry slot holding the server-issued device id
+(`deviceIdField`) and the creds field binding the state to one account
+(`accountField`). The state (`IDeviceMemoryStateV1`) is
+`{version: 1, kind: 'device-memory', provider, account, deviceId}` in the same
+base64url JSON envelope as Pepper's. It holds no token, key or renewal step.
+
+- **Account.** `account` is `creds[accountField]` lower-cased, untrimmed and
+  at most 64 characters; a resume compares it exactly, so a username that
+  differs only in case still resumes.
+- **Device id.** One to 256 characters of letters, digits, `_`, `.`, `:` and
+  `-` (`isDeviceMemoryId`).
+- **Enrollment** runs the bank's configured login with an empty carry. Once it
+  succeeds, the id in `carry[deviceIdField]` is checked and published once
+  through `onPersistentAuthStateUpdate`, before the scrape starts.
+- **Resume** decodes the state and checks provider and account before any
+  request; a mismatch fails by category. It then runs the same login with the
+  stored id seeded into carry, so the bank skips its OTP step. The step's
+  `keepExisting` optional extract keeps the seeded id even when the reply
+  carries a different one, and a resume publishes nothing.
+- **Device id check.** In both modes, a login that ends without a valid id in
+  carry fails as `persistent auth failed: device-id`.
+- **No fallback.** As with `bound-device`, `primeFresh` fails locally, so a
+  401/403 during the scrape never repeats the login.
+- **Failures.** Invalid state, callback and missing device id use the durable
+  categories. A failed login returns `persistent auth failed: flow` with its
+  original error type but no bank-controlled response text or error details:
+  a bank can echo even a truncated prefix of the stored id or account, which
+  replacing whole values would miss.
+- **Logging.** One debug line per run carries the mode and whether a state was
+  published — never a value.
+
 Where each piece lives, for maintainers:
 
-| Concern             | Symbols                                                                                                                                                                                                                             |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Caller input        | `IPersistentAuthInput` and `PersistentAuthStateCallback`, read from the options by `readPersistentAuthInput`                                                                                                                        |
-| Mode resolution     | `createContextStrategy` → `resolveContextAuthMode` → `resolvePersistentAuthMode`, producing a `PersistentAuthMode`: legacy, or a `DurableAuthMode` (enroll / resume)                                                                |
-| State codec         | `encodePersistentAuthState` / `decodePersistentAuthState` over `IPersistentAuthStateV1`. Decoding checks the state against an `IPersistentAuthExpectation` and returns an `IRehydratedPersistentAuth` with the EC key ready to sign |
-| Strategy branch     | `primeDurable` (replay, renew or enroll) and `refuseDurableRefresh` (the local `primeFresh` refusal)                                                                                                                                |
-| Secrets in failures | `sanitiseStepFailure` reports a failed step by name and status, never its reply; `scrubPersistedValues` still redacts any stored value a renewal failure quotes; transports strip the query string with `safeUrlForLog`             |
-| Bank data           | Pepper's `PEPPER_RESUME_STEPS`: signed `/auth/login`, then one password assertion                                                                                                                                                   |
+| Concern             | Symbols                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Caller input        | `IPersistentAuthInput` and `PersistentAuthStateCallback`, read from the options by `readPersistentAuthInput`                                                                                                                                                                                                                                                  |
+| Mode resolution     | `createContextStrategy` → `resolveContextAuthMode` → `resolvePersistentAuthMode`, producing a `PersistentAuthMode`: legacy, or a `DurableAuthMode` (enroll / resume)                                                                                                                                                                                          |
+| State codec         | `encodePersistentAuthState` / `decodePersistentAuthState` over `IPersistentAuthStateV1`. Decoding checks the state against an `IPersistentAuthExpectation` and returns an `IRehydratedPersistentAuth` with the EC key ready to sign                                                                                                                           |
+| Device-memory codec | `encodeDeviceMemoryState` / `decodeDeviceMemoryState` over `IDeviceMemoryStateV1`, rules in order: shape, version, kind, provider, account, deviceId                                                                                                                                                                                                          |
+| Shared envelope     | `PersistentAuthEnvelope.ts`: `decodeStateObject`, `encodeStateObject`, `hasExactKeySet`, `invalidState`; the shared rules `isBoundedString`, `isExpectedProvider` and `isSupportedVersion` are each an `IStateRule` check                                                                                                                                     |
+| Strategy branch     | `primeDurable` dispatches on `PersistentAuthKind` through `PERSISTENT_PRIMERS` to `primeBoundDevice` (replay, renew or enroll) or `primeDeviceMemory`; each gets an `IDurablePrimeArgs` with its block narrowed, plus the `RunConfiguredFlow` runner. `refuseDurableRefresh` is the local `primeFresh` refusal; `durableFail` and `invokeOnUpdate` are shared |
+| Build rule          | `API_DIRECT_PERSISTENT_AUTH_RULES` refuses an unknown `kind` (`isPersistentAuthKind`); `resumeStepsOf` gives the other rules a `bound-device` block's `resumeSteps`                                                                                                                                                                                           |
+| Secrets in failures | `sanitiseStepFailure` reports a failed step by name and status, never its reply; `scrubPersistedValues` redacts stored values in bound-device renewal failures; `omitFlowFailureText` removes all bank text on device-memory flow failures; transports strip the query string with `safeUrlForLog`                                                          |
+| Bank data           | Pepper's `PEPPER_RESUME_STEPS`: signed `/auth/login`, then one password assertion                                                                                                                                                                                                                                                                             |
 
 ## Sub-step contract
 
@@ -1772,7 +1866,7 @@ Where each piece lives, for maintainers:
 | `GENERIC`                                                       | A body extract failed its rule (`<step> extract <slot> invalid`) — see [Extract rules](#extract-rules)                                                                                                                                                                                    |
 | `GENERIC`                                                       | A GET step's final URL failed its own redirect rules (`<step> final url refused`) — see [Final URL carry](#final-url-carry)                                                                                                                                                               |
 | `GENERIC`                                                       | A text step's handoff script fell outside the grammar, held no browser location or more than one, or its URL failed the step's `url` rules (`<step> handoff script unsupported`, `missing`, `ambiguous` or `refused`) — see [Handoff script capture](#handoff-script-capture)             |
-| `INVALID_OTP`                                                   | Wrong code, or a code that fails its pre-hook `valuePattern` (`<step> preHook value invalid`) — see [OTP pre-hook guards](#otp-pre-hook-guards)                                                                                                                                           |
+| `INVALID_OTP`                                                   | Wrong code, or a code that fails its pre-hook `valuePattern` or stated length (`<step> preHook value invalid`) — see [OTP pre-hook guards](#otp-pre-hook-guards)                                                                                                                          |
 | `TWO_FACTOR_RETRIEVER_MISSING`                                  | OTP step reached without callback (`preHook: creds.<field> is not a function`)                                                                                                                                                                                                            |
 | `GENERIC`                                                       | A pre-hook `requires` ref did not resolve, or the OTP callback threw (`preHook: creds.<field>() threw <ErrorName>`) — see [OTP pre-hook guards](#otp-pre-hook-guards)                                                                                                                     |
 | `INVALID_PHONE_NUMBER`                                          | `phoneNumber` cannot be normalised to the bank's wire format — see [Phone normaliser](#phone-normaliser)                                                                                                                                                                                  |

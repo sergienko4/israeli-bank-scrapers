@@ -7,9 +7,14 @@
  * A miss reports the resolver's own failure (`ref <token> miss` / `bad`) and
  * the callback is never asked, so no code is spent on a login that cannot finish.
  *
+ * <p>Length (N57): a `valueLengthRef` slot the bank set must hold an integer
+ * 4..10, else the step fails before the callback is asked; an absent slot
+ * leaves `valuePattern` alone.
+ *
  * <p>After: the deposited value must match the hook's anchored
- * `valuePattern`, else the step fails InvalidOtp before its request. Neither
- * guard puts a value in its failure text.
+ * `valuePattern` and, when a length is stated, be exactly that many ASCII
+ * digits, else the step fails InvalidOtp before its request. No guard puts a
+ * value in its failure text.
  */
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
@@ -34,6 +39,17 @@ interface IPendingCookieView {
   readonly jar: ICookieSession;
   readonly url: string;
 }
+
+const CARRY_PREFIX = 'carry.';
+/** Decimal text of a stated OTP length. */
+const LENGTH_TEXT = /^\d{1,2}$/u;
+/** ASCII digits only. */
+const DIGITS = /^\d+$/u;
+const MIN_OTP_LENGTH = 4;
+const MAX_OTP_LENGTH = 10;
+
+/** The stated OTP length, or false when the hook states none. */
+type StatedLength = number | false;
 
 /**
  * Read the cookie a request would use after one client write, without writing it.
@@ -132,35 +148,97 @@ function checkPreHookRequires(args: IPreHookGuardArgs): Procedure<ITemplateScope
 }
 
 /**
- * Check the deposited pre-hook value against the hook's `valuePattern`.
+ * Read a stated OTP length: an integer 4..10, as a number or decimal text.
+ * @param raw - The carry slot's value.
+ * @returns The length, or false when it is not one.
+ */
+function lengthOf(raw: JsonValue): StatedLength {
+  const text = typeof raw === 'number' ? String(raw) : raw;
+  if (typeof text !== 'string' || !LENGTH_TEXT.test(text)) return false;
+  const length = Number(text);
+  if (length < MIN_OTP_LENGTH || length > MAX_OTP_LENGTH) return false;
+  return length;
+}
+
+/**
+ * Read the OTP length the hook's `valueLengthRef` slot states (N57).
+ * @param args - Guard bundle.
+ * @returns The length, false when the hook or carry states none, or a failure.
+ */
+function statedLength(args: IPreHookGuardArgs): Procedure<StatedLength> {
+  const ref = args.hook.valueLengthRef;
+  if (ref === undefined) return succeed(false);
+  const slot = ref.slice(CARRY_PREFIX.length);
+  if (!Object.hasOwn(args.scope.carry, slot)) return succeed(false);
+  const length = lengthOf(args.scope.carry[slot]);
+  if (length !== false) return succeed(length);
+  return fail(ScraperErrorTypes.Generic, `${args.step.name} preHook length invalid`);
+}
+
+/**
+ * Check the `requires` refs, then read the stated OTP length.
+ * @param args - Guard bundle.
+ * @returns The stated length, or the first failure.
+ */
+function checkPreHookReady(args: IPreHookGuardArgs): Procedure<StatedLength> {
+  const ready = checkPreHookRequires(args);
+  if (!isOk(ready)) return ready;
+  return statedLength(args);
+}
+
+/**
+ * Whether a deposited value matches the hook's `valuePattern`, if any.
+ * @param args - Guard bundle.
+ * @param value - The deposited value.
+ * @returns True when the hook sets no pattern or the value matches it.
+ */
+function matchesPattern(args: IPreHookGuardArgs, value: JsonValue): boolean {
+  if (args.hook.valuePattern === undefined) return true;
+  const pattern = new RegExp(args.hook.valuePattern, 'u');
+  return typeof value === 'string' && pattern.test(value);
+}
+
+/**
+ * Whether a deposited value has the stated length in ASCII digits, if any.
+ * @param value - The deposited value.
+ * @param length - The stated length, or false.
+ * @returns True when no length is stated or the value has it.
+ */
+function hasStatedLength(value: JsonValue, length: StatedLength): boolean {
+  if (length === false) return true;
+  return typeof value === 'string' && value.length === length && DIGITS.test(value);
+}
+
+/**
+ * Check the deposited pre-hook value against `valuePattern` and the stated length.
  * @param args - Guard bundle.
  * @param scope - Scope after the pre-hook deposited its value.
+ * @param length - The stated OTP length, or false.
  * @returns The scope unchanged, or an InvalidOtp failure naming no value.
  */
 function checkPreHookValue(
   args: IPreHookGuardArgs,
   scope: ITemplateScope,
+  length: StatedLength,
 ): Procedure<ITemplateScope> {
-  if (args.hook.valuePattern === undefined) return succeed(scope);
-  const pattern = new RegExp(args.hook.valuePattern, 'u');
   const value = scope.carry[args.hook.intoCarryField];
-  if (typeof value === 'string' && pattern.test(value)) return succeed(scope);
+  if (matchesPattern(args, value) && hasStatedLength(value, length)) return succeed(scope);
   return fail(ScraperErrorTypes.InvalidOtp, `${args.step.name} preHook value invalid`);
 }
 
 /**
- * Run the step's pre-hook between its `requires` and `valuePattern` guards.
+ * Run the step's pre-hook between its `requires`/length and value guards.
  * @param args - Guard bundle.
  * @returns Scope carrying the deposited value, or the first guard/hook failure.
  */
 async function applyGuardedPreHook(args: IPreHookGuardArgs): Promise<Procedure<ITemplateScope>> {
-  const ready = checkPreHookRequires(args);
+  const ready = checkPreHookReady(args);
   if (!isOk(ready)) return ready;
   const { scope, hook } = args;
   const hookArgs = { scope, creds: args.reduce.creds, hook, cache: args.reduce.preHookCache };
   const hooked = await applyPreHook(hookArgs);
   if (!isOk(hooked)) return hooked;
-  return checkPreHookValue(args, hooked.value);
+  return checkPreHookValue(args, hooked.value, ready.value);
 }
 
 export default applyGuardedPreHook;

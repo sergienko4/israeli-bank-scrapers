@@ -1,5 +1,6 @@
 /**
- * derivedCarry evaluation: per-part collection, join + UTF-8 truncate,
+ * derivedCarry evaluation: per-part collection, join, the N60 lower-case
+ * transform, UTF-8 truncate,
  * the `applyDerivations` reducer and the flow-init `applyDerivedCarry`.
  * Steps reuse `applyDerivations` for their own `deriveCarry` (N7).
  */
@@ -53,22 +54,26 @@ function reduceDerivedPart(
 function truncateUtf8(value: string, maxBytes: number): string {
   const encoded = Buffer.from(value, 'utf8');
   if (encoded.length <= maxBytes) return value;
-  const slice = encoded.subarray(0, maxBytes);
+  let end = Math.floor(maxBytes);
+  while ((encoded[end] & 0xc0) === 0x80) end -= 1;
+  const slice = encoded.subarray(0, end);
   const decoder = new TextDecoder('utf-8', { fatal: false });
   return decoder.decode(slice);
 }
 
 /**
- * Join collected parts with the configured separator and optionally
- * truncate to a UTF-8 byte cap.
+ * Join collected parts with the configured separator, lower-case the text
+ * when the spec asks (before the cap, so a char that grows still fits), and
+ * optionally truncate to a UTF-8 byte cap.
  * @param parts - Collected string parts.
- * @param derived - Derived-carry spec (separator + truncateBytes).
+ * @param derived - Derived-carry spec (separator, transform, truncateBytes).
  * @returns Assembled string.
  */
 function joinAndTruncate(parts: readonly string[], derived: IDerivedCarry): string {
   const joined = parts.join(derived.separator ?? '');
-  if (derived.truncateBytes === undefined) return joined;
-  return truncateUtf8(joined, derived.truncateBytes);
+  const shaped = derived.transform === 'lower' ? joined.toLowerCase() : joined;
+  if (derived.truncateBytes === undefined) return shaped;
+  return truncateUtf8(shaped, derived.truncateBytes);
 }
 
 /**

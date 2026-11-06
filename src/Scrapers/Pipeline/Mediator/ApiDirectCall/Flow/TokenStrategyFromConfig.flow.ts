@@ -12,7 +12,8 @@ import { formatAuthValue } from './AuthModePolicy.js';
 import { handOffCookies } from './CookieHandoff.js';
 import { runSmsOtpFlow } from './SmsOtpFlow.js';
 import { admitFlow, isColdStart } from './TokenStrategyFromConfig.budget.js';
-import { primeDurable, refuseDurableRefresh } from './TokenStrategyFromConfig.persistent.js';
+import { primeDurable } from './TokenStrategyFromConfig.durable.js';
+import { refuseDurableRefresh } from './TokenStrategyFromConfig.persistent.js';
 import { isWarmSeedSupplied, makeWarmArgs } from './TokenStrategyFromConfig.shared.js';
 import type {
   IFlowCapture,
@@ -234,7 +235,7 @@ function openPrimeCycle(args: IPrimeArgs, isAccepted: boolean): true {
  */
 async function primeInitialImpl(args: IPrimeArgs): Promise<Procedure<string>> {
   const durable = args.slot.persistentAuth;
-  if (durable !== undefined) return primeDurable(args, durable);
+  if (durable !== undefined) return primeDurable(args, durable, runConfiguredFlow);
   const { config, bus, ctx, creds, slot } = args;
   const flowBase = { config, bus, creds, companyId: ctx.companyId };
   const initialCarry = restoreWarmSeed({ config, bus, creds });

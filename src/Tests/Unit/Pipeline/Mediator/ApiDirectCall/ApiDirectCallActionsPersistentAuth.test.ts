@@ -71,6 +71,7 @@ const STRING_CALLBACK = { onPersistentAuthStateUpdate: 'not-a-function' };
 
 /** Synthetic persistent-auth block — one inert renewal step. */
 const DURABLE_BLOCK: IPersistentAuthConfig = {
+  kind: 'bound-device',
   provider: 'pepper-test',
   resumeSteps: [{ name: 'login', urlTag: 'auth.login', body: { shape: {} }, extractsToCarry: {} }],
   clientInstanceIdField: 'clientInstanceId',

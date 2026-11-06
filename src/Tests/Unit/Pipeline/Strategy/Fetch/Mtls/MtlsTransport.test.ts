@@ -16,6 +16,7 @@ import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../../Scrapers/Base/ScraperError.js';
+import { readBodyText } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/BodyText.js';
 import { fixedAgentSource } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.js';
 import {
   collectBody,
@@ -30,6 +31,7 @@ import {
   setMtlsRequestTimeoutMs,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import { checkServerCertificate } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/ServerCertificateFloor.js';
+import type { IResponseReading } from '../../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 import { isOk } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { IBodyEcho, IGateServer } from './MtlsTestServer.js';
 import {
@@ -252,7 +254,7 @@ describe('MtlsTransport.makeMtlsInvoke', () => {
     const source = fixedAgentSource(certAgent, false);
     const invoke = makeMtlsInvoke(source);
     const init: RequestInit = { method: 'POST', headers: {}, body: '{}' };
-    const result = await invoke(server.restUrl, init, 'POST');
+    const result = await invoke(server.restUrl, init, { verb: 'POST' });
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     if (isOk(result)) expect(result.value.status).toBe(200);
@@ -402,6 +404,28 @@ function fakeMessage(): IncomingMessage & { readableEnded: boolean } {
 }
 
 describe('MtlsTransport.collectBody — stream failure branches', () => {
+  it('preserves malformed response bytes for strict UTF-8 decoding', async () => {
+    const message = fakeMessage();
+    Object.assign(message, { statusCode: 200, headers: {} });
+    const collected = collectBody(message);
+    const bytes = Buffer.from([0x6f, 0x6b, 0xff]);
+    message.emit('data', bytes);
+    message.readableEnded = true;
+    message.emit('end');
+    const response = toResponse(message, await collected);
+    const reading: IResponseReading = { statusPolicy: {}, responseKind: 'text', strictUtf8: true };
+    const result = await readBodyText({
+      response,
+      verb: 'GET',
+      url: 'https://bank.example/auth',
+      reading,
+    });
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'GET https://bank.example/auth body not utf-8',
+    });
+  });
+
   it('rejects when the response stream emits an error', async () => {
     const message = fakeMessage();
     const promise = collectBody(message);
@@ -443,7 +467,8 @@ describe('MtlsTransport.collectBody — stream failure branches', () => {
     message.emit('end');
     message.emit('close');
     const body = await promise;
-    expect(body).toBe('{"ok":true}');
+    const text = body.toString('utf8');
+    expect(text).toBe('{"ok":true}');
   });
 });
 
@@ -451,7 +476,8 @@ describe('MtlsTransport.toResponse — defensive header branches', () => {
   it.each([204, 205, 304])('preserves no-body status %s and its headers', async status => {
     const headers = { 'x-session': 'rotated', 'set-cookie': ['sid=rotated'] };
     const message = { statusCode: status, headers } as unknown as IncomingMessage;
-    const response = toResponse(message, '');
+    const emptyBody = Buffer.alloc(0);
+    const response = toResponse(message, emptyBody);
     expect(response.status).toBe(status);
     expect(await response.text()).toBe('');
     const session = response.headers.get('x-session');
@@ -467,7 +493,8 @@ describe('MtlsTransport.toResponse — defensive header branches', () => {
       'set-cookie': ['sid=1', 'csrf=2'],
     };
     const message = { statusCode: 200, headers: fakeHeaders } as unknown as IncomingMessage;
-    const response = toResponse(message, 'body-text');
+    const body = Buffer.from('body-text');
+    const response = toResponse(message, body);
     expect(response.status).toBe(200);
     const multi = response.headers.get('x-multi');
     expect(multi).toBe('a, b');

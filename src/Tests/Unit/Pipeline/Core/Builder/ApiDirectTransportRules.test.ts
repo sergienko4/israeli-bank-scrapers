@@ -107,6 +107,7 @@ function landingRun(overrides: Partial<IManualRedirect>): IApiDirectRuleInput {
 
 /** Durable auth fields beside the resume steps. */
 const RESUME_AUTH = {
+  kind: 'bound-device' as const,
   provider: 'syn-provider',
   clientInstanceIdField: 'clientInstanceId',
   deviceIdField: 'deviceId',

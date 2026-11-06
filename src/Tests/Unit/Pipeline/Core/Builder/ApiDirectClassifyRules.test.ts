@@ -132,6 +132,7 @@ function inputOf(build: IBuildCase): IApiDirectRuleInput {
   const call: IApiDirectCallConfig = { flow: 'sms-otp', envelope: {}, steps, sessionCarry };
   if (build.resume === undefined) return { call, headless: NATIVE };
   const persistentAuth = {
+    kind: 'bound-device' as const,
     provider: 'syn-provider',
     clientInstanceIdField: 'clientInstanceId',
     deviceIdField: 'deviceId',

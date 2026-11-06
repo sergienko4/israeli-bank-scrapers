@@ -72,6 +72,20 @@ const CASES: readonly IOptionalCase[] = [
   },
 ];
 
+/** A step whose `bcKey` slot keeps the value carry already holds (N56). */
+const KEEP_STEP: IStepConfig = {
+  ...STEP,
+  optionalExtractsToCarry: { bcKey: { pointer: '/bean/bcKey', keepExisting: true } },
+};
+
+const KEEP_STEPS: readonly { readonly label: string; readonly step: IStepConfig }[] = [
+  { label: 'against a different answer', step: KEEP_STEP },
+  {
+    label: 'when the slot is ruled',
+    step: { ...KEEP_STEP, extractRules: { bcKey: { type: 'string' } } },
+  },
+];
+
 beforeAll((): void => {
   registerWkUrl('auth.bind', HINT, 'https://example.test/api/validate');
 });
@@ -85,6 +99,50 @@ describe('E10 optional extracts', () => {
     const scope: ITemplateScope = { carry, creds: {}, config: CONFIG, keypair: undefined };
     const result = await runStep({ step: STEP, bus, scope, companyId: HINT });
     expect(result).toMatchObject({ success: true, value: { carry: row.expected } });
+  });
+
+  it.each(KEEP_STEPS)(
+    'keeps a held keep-existing slot $label (N56)',
+    async (row): Promise<void> => {
+      const responses = [succeed({ bean: { returnCode: '1', bcKey: 'syn-bc-2' } })];
+      const bus = makeStubMediator({ responses, captures: [] });
+      const carry = { bcKey: 'syn-bc-1' };
+      const scope: ITemplateScope = { carry, creds: {}, config: CONFIG, keypair: undefined };
+      const result = await runStep({ step: row.step, bus, scope, companyId: HINT });
+      expect(result).toMatchObject({ success: true, value: { carry: { bcKey: 'syn-bc-1' } } });
+    },
+  );
+
+  it.each([
+    ['no earlier value', {}],
+    ['an empty earlier value', { bcKey: '' }],
+  ])('rejects a numeric keep-existing slot with %s', async (_label, carry) => {
+    const responses = [succeed({ bean: { returnCode: '1', bcKey: 42 } })];
+    const bus = makeStubMediator({ responses, captures: [] });
+    const scope: ITemplateScope = { carry, creds: {}, config: CONFIG, keypair: undefined };
+    const step: IStepConfig = { ...KEEP_STEP, extractRules: { bcKey: { type: 'string' } } };
+    const result = await runStep({ step, bus, scope, companyId: HINT });
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'validate extract bcKey invalid',
+    });
+  });
+
+  it('ignores a numeric answer when a keep-existing slot already holds text', async () => {
+    const responses = [succeed({ bean: { returnCode: '1', bcKey: 42 } })];
+    const bus = makeStubMediator({ responses, captures: [] });
+    const scope: ITemplateScope = {
+      carry: { bcKey: 'syn-bc-1' },
+      creds: {},
+      config: CONFIG,
+      keypair: undefined,
+    };
+    const step: IStepConfig = { ...KEEP_STEP, extractRules: { bcKey: { type: 'string' } } };
+    const result = await runStep({ step, bus, scope, companyId: HINT });
+    expect(result).toMatchObject({
+      success: true,
+      value: { carry: { bcKey: 'syn-bc-1' } },
+    });
   });
 
   it('still fails when a required extract is missing', async (): Promise<void> => {

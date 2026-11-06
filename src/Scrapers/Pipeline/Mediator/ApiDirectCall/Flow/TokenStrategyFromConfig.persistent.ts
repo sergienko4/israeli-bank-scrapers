@@ -12,7 +12,7 @@ import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import { getDebug } from '../../../Logging/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { IPersistentAuthConfig } from '../ConfigContracts/index.js';
+import type { IBoundDeviceAuthConfig } from '../ConfigContracts/index.js';
 import { exportEcP256Pkcs8 } from '../Crypto/CryptoKeyFactory.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import { isJwtFresh } from '../Jwt/GenericJwtClaims.js';
@@ -27,7 +27,12 @@ import { formatAuthValue } from './AuthModePolicy.js';
 import { type IFlowResult, type IRunSmsOtpArgs, runSmsOtpFlow } from './SmsOtpFlow.js';
 import { admitFlow } from './TokenStrategyFromConfig.budget.js';
 import { scrubPersistedValues } from './TokenStrategyFromConfig.scrub.js';
-import type { DurableAuthMode, IPrimeArgs, IRunFlowArgs } from './TokenStrategyFromConfig.types.js';
+import type {
+  DurableAuthMode,
+  IDurablePrimeArgs,
+  IPrimeArgs,
+  IRunFlowArgs,
+} from './TokenStrategyFromConfig.types.js';
 
 const LOG = getDebug(import.meta.url);
 
@@ -37,11 +42,8 @@ const BEARER_CARRY_FIELD = 'token';
 /** Freshness claim read when the bank config declares none. */
 const DEFAULT_FRESHNESS_FIELD = 'exp';
 
-/** One durable prime: the strategy's prime args plus the narrowed mode. */
-interface IDurableRun {
-  readonly prime: IPrimeArgs;
-  readonly mode: DurableAuthMode;
-}
+/** One bound-device prime: prime args, mode and the narrowed block. */
+type IDurableRun = IDurablePrimeArgs<'bound-device'>;
 
 /** Device identity enrollment captures from the completed flow's carry. */
 type DeviceIdentity = Pick<IPersistentAuthStateV1, 'clientInstanceId' | 'deviceId'>;
@@ -133,7 +135,7 @@ function baseFlowArgs(prime: IPrimeArgs): IRunFlowArgs {
  * @returns Both identifiers, or a category-only failure.
  */
 function readDeviceIdentity(
-  block: IPersistentAuthConfig,
+  block: IBoundDeviceAuthConfig,
   carry: Readonly<Record<string, JsonValue>>,
 ): Procedure<DeviceIdentity> {
   const clientInstanceId = carry[block.clientInstanceIdField];
@@ -165,7 +167,7 @@ function exportEnrolledKey(flow: IFlowResult): Procedure<string> {
 function enrolledState(run: IDurableRun, flow: IFlowResult): Procedure<IPersistentAuthStateV1> {
   const key = exportEnrolledKey(flow);
   if (!isOk(key)) return key;
-  const identity = readDeviceIdentity(run.mode.block, flow.carrySnapshot);
+  const identity = readDeviceIdentity(run.block, flow.carrySnapshot);
   if (!isOk(identity)) return identity;
   const owner = expectationOf(run.mode);
   const bound = { ...owner, ...identity.value, ecPrivateKeyPkcs8Base64: key.value };
@@ -197,7 +199,7 @@ async function enrollDurable(run: IDurableRun): Promise<Procedure<string>> {
  */
 function isReplayable(run: IDurableRun, accessToken: string): boolean {
   const freshnessField = run.prime.config.jwtClaims?.freshnessField ?? DEFAULT_FRESHNESS_FIELD;
-  const skewSeconds = run.mode.block.freshnessMarginSeconds;
+  const skewSeconds = run.block.freshnessMarginSeconds;
   return isJwtFresh(accessToken, { freshnessField, skewSeconds });
 }
 
@@ -221,7 +223,7 @@ function replayFresh(run: IDurableRun, accessToken: string): Procedure<string> {
  * @returns Runner args walking only the bank's resume steps.
  */
 function resumeFlowArgs(run: IDurableRun, rehydrated: IRehydratedPersistentAuth): IRunSmsOtpArgs {
-  const { block } = run.mode;
+  const { block } = run;
   const { state, ecKeypair } = rehydrated;
   const base = baseFlowArgs(run.prime);
   const creds = { ...base.creds, [block.clientInstanceIdField]: state.clientInstanceId };
@@ -262,13 +264,12 @@ async function resumeDurable(run: IDurableRun, encodedState: string): Promise<Pr
 }
 
 /**
- * primeInitial for a durable strategy.
- * @param prime - Strategy prime args.
- * @param mode - Durable mode the strategy was built for.
+ * primeInitial for a bound-device strategy.
+ * @param run - Prime args, durable mode and the bound-device block.
  * @returns Formatted Authorization header value.
  */
-async function primeDurable(prime: IPrimeArgs, mode: DurableAuthMode): Promise<Procedure<string>> {
-  const run: IDurableRun = { prime, mode };
+async function primeBoundDevice(run: IDurableRun): Promise<Procedure<string>> {
+  const { mode } = run;
   if (mode.kind === 'resume') return resumeDurable(run, mode.encodedState);
   return enrollDurable(run);
 }
@@ -287,4 +288,4 @@ function refuseDurableRefresh(prime: IPrimeArgs): Procedure<string> {
   return durableFail('in-run-renewal');
 }
 
-export { primeDurable, refuseDurableRefresh };
+export { durableFail, invokeOnUpdate, primeBoundDevice, refuseDurableRefresh };

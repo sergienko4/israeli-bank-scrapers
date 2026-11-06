@@ -1,7 +1,9 @@
 /**
  * N23 — the native transport writes `form-latin1` and `text` POST bodies and
  * reads a `text` answer. A latin1 form encodes like Java's URLEncoder over
- * ISO-8859-1 and refuses a char above U+00FF before any request; a `text`
+ * ISO-8859-1 and refuses a char above U+00FF before any request; an N62
+ * `form-utf8` form encodes as UTF-8 pairs under the exact type
+ * `application/x-www-form-urlencoded;charset=UTF-8`; a `text`
  * body travels verbatim with no content-type; a `text` answer reaches the
  * caller as `{ text }`, up to the call's `maxTextChars` (65 536 by default).
  */
@@ -18,9 +20,11 @@ import { fakeFetch, type IFetchFake } from '../../../../Helpers/FakeFetch.js';
 const BASE_URL = 'https://api.bank.example/v1/';
 const STRATEGY = new HeadlessNativeFetchStrategy(BASE_URL);
 const LATIN1: IFetchOpts = { extraHeaders: {}, bodyEncoding: 'form-latin1' };
+const UTF8: IFetchOpts = { extraHeaders: {}, bodyEncoding: 'form-utf8' };
 const TEXT_BODY: IFetchOpts = { extraHeaders: {}, bodyEncoding: 'text' };
 const TEXT_ANSWER: IFetchOpts = { extraHeaders: {}, responseKind: 'text' };
 const LATIN1_TYPE = 'application/x-www-form-urlencoded; charset=ISO-8859-1';
+const UTF8_TYPE = 'application/x-www-form-urlencoded;charset=UTF-8';
 const TEXT_CAP = 65_536;
 
 /**
@@ -86,6 +90,25 @@ describe('NativeFetchStrategy — N23 body encodings and text answers', () => {
     expect(result).toMatchObject({ success: false, ...expected });
     expect(result).toMatchObject({ errorMessage: `POST ${BASE_URL}login form-latin1 unencodable` });
     expect(fake.calls).toHaveLength(0);
+  });
+
+  it.each([
+    ['a b*~ç', 'a+b*%7E%C3%A7'],
+    ['שלום', '%D7%A9%D7%9C%D7%95%D7%9D'],
+    ["&=+%/'!()", '%26%3D%2B%25%2F%27%21%28%29'],
+  ])('encodes %s as UTF-8 form pairs', async (value, encoded) => {
+    const fake = serveJson();
+    await STRATEGY.fetchPost('login', { 'k y': value }, UTF8);
+    expect(fake.calls[0].init.body).toBe(`k+y=${encoded}`);
+  });
+
+  it('names UTF-8, with no space, in place of a caller JSON content-type', async () => {
+    const fake = serveJson();
+    const extraHeaders = { 'Content-Type': 'application/json', 'x-trace': 't' };
+    await STRATEGY.fetchPost('login', { a: '1', b: 2 }, { ...UTF8, extraHeaders });
+    expect(fake.calls[0].init.body).toBe('a=1&b=2');
+    const headers = sentHeaders(fake);
+    expect(headers).toEqual({ 'content-type': UTF8_TYPE, 'x-trace': 't' });
   });
 
   it('sends a text body verbatim with no content-type', async () => {

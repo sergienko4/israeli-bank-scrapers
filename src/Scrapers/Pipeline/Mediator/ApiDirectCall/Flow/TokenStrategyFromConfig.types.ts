@@ -6,8 +6,13 @@ import type { IStoredCookie } from '../../../Types/Domain/CookieSession.js';
 import type { PersistentAuthStateCallback } from '../../../Types/Domain/PersistentAuthInput.js';
 import type { ITokenBus } from '../../../Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../../Types/Domain/TokenContext.js';
+import type { Procedure } from '../../../Types/Procedure.js';
 import type { ITokenStrategy } from '../../Api/ITokenStrategy.js';
-import type { IApiDirectCallConfig, IPersistentAuthConfig } from '../ConfigContracts/index.js';
+import type {
+  IApiDirectCallConfig,
+  IPersistentAuthConfig,
+  PersistentAuthKind,
+} from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 
 /** Generic creds shape — strategies read named fields via config. */
@@ -195,6 +200,20 @@ interface ICreateTokenStrategyArgs {
   readonly persistentAuth?: PersistentAuthMode;
 }
 
+/** The legacy flow runner a durable primer borrows, injected to keep imports acyclic. */
+type RunConfiguredFlow = (
+  args: IRunFlowArgs,
+  slot: ILongTermTokenSlot,
+) => Promise<Procedure<string>>;
+
+/** One durable prime, its block narrowed to a single persistent-auth kind. */
+interface IDurablePrimeArgs<TKind extends PersistentAuthKind> {
+  readonly prime: IPrimeArgs;
+  readonly mode: DurableAuthMode;
+  readonly block: Extract<IPersistentAuthConfig, { readonly kind: TKind }>;
+  readonly runFlow: RunConfiguredFlow;
+}
+
 /** Strategy bindings — the 5 functions exposed by the strategy (without name). */
 type IStrategyBindings = Omit<IConfigTokenStrategy, 'name'>;
 export type {
@@ -202,6 +221,7 @@ export type {
   GenericCreds,
   IConfigTokenStrategy,
   ICreateTokenStrategyArgs,
+  IDurablePrimeArgs,
   IFlowCapture,
   ILongTermTokenSlot,
   IMakeWarmArgs,
@@ -211,5 +231,6 @@ export type {
   IWarmRunArgs,
   IWarmSeedVerdict,
   PersistentAuthMode,
+  RunConfiguredFlow,
   WarmCarry,
 };

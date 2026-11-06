@@ -1,7 +1,9 @@
 /**
- * N8 — node-backed readers, encoding, header carry and domain cookies;
- * native-fetch-only redirect, status and failure-text policies. Domain
- * cookies need a session jar, and header and cookie names must be tokens.
+ * N8 — node-backed readers, media types, encoding, headers and domain
+ * cookies and strict UTF-8 steps; native-fetch-only redirect, status,
+ * failure-text and bank-wide media-type and UTF-8 defaults. Domain cookies
+ * need a jar; header and cookie names must be tokens. N61 and N63 validate
+ * media types and strict UTF-8 overrides.
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
@@ -40,6 +42,9 @@ const CALL: IStepConfig = {
 const PAGE: IStepConfig = { ...CALL, response: 'document' };
 const MARKED: IStepConfig = { ...CALL, response: 'document', documentMarker: 'welcome' };
 const MARKED_JSON: IStepConfig = { ...CALL, documentMarker: 'welcome' };
+const TYPED: IStepConfig = { ...CALL, mediaType: 'text/html' };
+const STRICT: IStepConfig = { ...CALL, strictUtf8: true };
+const LAX: IStepConfig = { ...CALL, strictUtf8: false };
 const REJECTING: IStepConfig = { ...CALL, redirect: 'reject' };
 const FORM: IStepConfig = {
   name: 'login',
@@ -92,6 +97,7 @@ function runOf(
  */
 function resumeOf(step: IStepConfig): IApiDirectRuleInput {
   const persistentAuth = {
+    kind: 'bound-device' as const,
     provider: 'syn-provider',
     clientInstanceIdField: 'clientInstanceId',
     deviceIdField: 'deviceId',
@@ -112,6 +118,27 @@ const NO_DOMAIN_JAR = 'steps.setCookies: not allowed without headless.cookieDoma
 const COOKIE_NAME_MSG = 'steps.setCookies: each name must be an HTTP token';
 const DOMAIN_JAR: HeadlessBlock = { ...JAR, cookieDomains: ['native.example'] };
 const SETTING_G3 = setting('G3CmE');
+const MEDIA_MSG = 'mediaType: must be a lower-case type/subtype';
+const MEDIA_KIND_MSG = 'headless.mediaTypes: keys must be response kinds';
+const LAX_MSG = 'steps.strictUtf8: false only overrides headless.strictUtf8';
+
+/**
+ * Rule input whose one native step names the given media type.
+ * @param mediaType - The step's media type.
+ * @returns Rule input on native fetch.
+ */
+function typedAs(mediaType: string): IApiDirectRuleInput {
+  return runOf([{ ...CALL, mediaType }], NATIVE);
+}
+
+/**
+ * Rule input whose native bank names the given media type defaults.
+ * @param mediaTypes - The bank's defaults per response kind.
+ * @returns Rule input on native fetch.
+ */
+function bankTyped(mediaTypes: Readonly<Record<string, string>>): IApiDirectRuleInput {
+  return runOf([CALL], { ...NATIVE, mediaTypes });
+}
 
 /** A config, the headless block beside it, and the text it fails with. */
 interface IBrokenCase {
@@ -203,6 +230,37 @@ const BROKEN: readonly IBrokenCase[] = [
     message: `headless.statusPolicy: ${OFF}`,
   },
   {
+    label: 'media type step, plain',
+    input: runOf([TYPED], PLAIN),
+    message: `steps.mediaType: ${NODE_OFF}`,
+  },
+  {
+    label: 'bank media types, TLS profile',
+    input: runOf([CALL], { ...PROFILE, mediaTypes: { json: 'application/json' } }),
+    message: `headless.mediaTypes: ${OFF}`,
+  },
+  { label: 'media type, upper case', input: typedAs('Text/HTML'), message: MEDIA_MSG },
+  { label: 'media type, parameter', input: typedAs('text/html;charset=utf-8'), message: MEDIA_MSG },
+  { label: 'media type, no subtype', input: typedAs('text'), message: MEDIA_MSG },
+  { label: 'media type, empty', input: typedAs(''), message: MEDIA_MSG },
+  { label: 'bank media type, bad value', input: bankTyped({ json: 'json' }), message: MEDIA_MSG },
+  {
+    label: 'bank media type, unknown kind',
+    input: bankTyped({ html: 'text/html' }),
+    message: MEDIA_KIND_MSG,
+  },
+  {
+    label: 'strict UTF-8 step, plain',
+    input: runOf([STRICT], PLAIN),
+    message: `steps.strictUtf8: ${NODE_OFF}`,
+  },
+  {
+    label: 'bank strict UTF-8, TLS profile',
+    input: runOf([CALL], { ...PROFILE, strictUtf8: true }),
+    message: `headless.strictUtf8: ${OFF}`,
+  },
+  { label: 'lax step, bank not strict', input: runOf([LAX], NATIVE), message: LAX_MSG },
+  {
     label: 'cookie domains, no jar',
     input: runOf([CALL], { ...NATIVE, cookieDomains: ['native.example'] }),
     message: 'headless.cookieDomains: not allowed without headless.sessionCookies',
@@ -248,10 +306,12 @@ const EVERY_FIELD: HeadlessBlock = {
   redirectPolicy: 'reject',
   statusPolicy: { 204: 'empty' },
   omitBankText: true,
+  mediaTypes: { json: 'application/json', document: 'text/html' },
+  strictUtf8: true,
 };
 
 /** The steps whose fields node:https reads and writes as native fetch does. */
-const NODE_STEPS = [PAGE, MARKED, FORM, carrying('x-id'), setting('G3CmE')];
+const NODE_STEPS = [PAGE, MARKED, TYPED, STRICT, FORM, carrying('x-id'), setting('G3CmE')];
 
 /**
  * A node:https block keeping a domain jar.
@@ -271,7 +331,17 @@ const SOUND: readonly ISoundCase[] = [
   {
     label: 'every field on native fetch',
     input: runOf(
-      [PAGE, MARKED, REJECTING, FORM, carrying("X-Trace_ID.v2!#$%&'*+^`|~"), setting('G3CmE')],
+      [
+        PAGE,
+        MARKED,
+        TYPED,
+        STRICT,
+        LAX,
+        REJECTING,
+        FORM,
+        carrying("X-Trace_ID.v2!#$%&'*+^`|~"),
+        setting('G3CmE'),
+      ],
       EVERY_FIELD,
     ),
   },
@@ -291,6 +361,7 @@ const SOUND: readonly ISoundCase[] = [
   { label: 'node fields, dynamic client cert', input: runOf(NODE_STEPS, DYNAMIC_JAR) },
   { label: 'node fields, TLS profile', input: runOf(NODE_STEPS, PROFILE_JAR) },
   { label: 'node fields, registered cert', input: runOf(NODE_STEPS, REGISTERED_JAR) },
+  { label: 'media type with a token subtype', input: typedAs('application/vnd.bank+json') },
 ];
 
 describe('validateApiDirectConfig — native-fetch fields', () => {

@@ -9,6 +9,8 @@
  *  - a GET carries no default JSON content-type, because it has no body.
  * A bank may also set the default redirect policy a call runs under when it
  * names none; every manual redirect hop goes through the same capped seam.
+ * Its status policy, media type defaults (N61) and strict UTF-8 choice (N63)
+ * are installed the same way.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
@@ -17,6 +19,7 @@ import type { IResponseReading } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IFetchOpts } from './FetchStrategy.js';
+import { isMediaTypeMismatch } from './MediaTypeCheck.js';
 import type {
   DefaultHeadersByVerb,
   FetchInvoke,
@@ -82,13 +85,14 @@ function toCappedFailure(error: unknown, verb: HttpVerb, url: string): Procedure
  * Whether the WAF classifier or response reader still needs the body.
  * @param response - Received headers and status.
  * @param request - This call's wire redirect mode and response-reading policy.
- * @returns False for policy-owned redirects or a header-decided 2xx.
+ * @returns False for redirects, status decisions or media-type refusals from headers.
  */
 function needsBody(response: Response, request: ICappedRequest): boolean {
   const { init, reading } = request;
   if (init.redirect === 'manual' && isRedirectStatus(response.status)) return false;
   if (!isApiSuccess(response)) return true;
-  return !statusActionFor({ response, reading }).has;
+  if (statusActionFor({ response, reading }).has) return false;
+  return !isMediaTypeMismatch(response, reading.mediaType);
 }
 
 /**
@@ -126,12 +130,12 @@ async function fetchWithinCap(request: ICappedRequest): Promise<Response> {
  * @returns A transport yielding the Response, or a network/timeout failure.
  */
 function makeInvokeCapped(timeoutMs: number, reading: IResponseReading): FetchInvoke {
-  return async (url, init, verb): Promise<Procedure<Response>> => {
+  return async (url, init, policy): Promise<Procedure<Response>> => {
     try {
       const response = await fetchWithinCap({ url, init, timeoutMs, reading });
       return succeed(response);
     } catch (error) {
-      return toCappedFailure(error, verb, url);
+      return toCappedFailure(error, policy.verb, url);
     }
   };
 }
@@ -145,7 +149,8 @@ class HeadlessNativeFetchStrategy extends NativeFetchStrategy {
    * @param baseUrl - Base URL for API requests.
    * @param options - Optional `timeoutMs` ceiling (defaults to the shared
    *   {@link NETWORK_FETCH_TIMEOUT_MS}), default `redirectPolicy` and the
-   *   bank's `statusPolicy` and HTTP-failure body omission.
+   *   bank's `statusPolicy`, media-type defaults, strict UTF-8 choice and
+   *   HTTP-failure body omission.
    */
   constructor(baseUrl: string, options: IHeadlessNativeFetchOptions = {}) {
     super(baseUrl, options);

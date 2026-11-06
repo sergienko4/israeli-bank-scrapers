@@ -353,6 +353,32 @@ describe('NativeFetchStrategy — failure paths', () => {
     }
   });
 
+  it.each([false, true])(
+    'returns a safe body-read failure with strictUtf8=%s',
+    async strictUtf8 => {
+      const body = new ReadableStream<Uint8Array>({
+        /**
+         * Reject either body reader with bank-controlled details.
+         * @param controller - The response body's controller.
+         */
+        start(controller): void {
+          controller.error(new Error('syn-customer-data in rejected body read'));
+        },
+      });
+      const response = new Response(body, { status: 200 });
+      const promised = Promise.resolve(response);
+      installFetchMock(() => promised);
+      const strategy = new NativeFetchStrategy('https://api.example');
+      const opts = { extraHeaders: {}, strictUtf8 };
+      const result = await strategy.fetchGet('https://api.example/x?sid=syn-secret', opts);
+      expect(result).toMatchObject({
+        success: false,
+        errorType: ScraperErrorTypes.Generic,
+        errorMessage: 'GET https://api.example/x body read failed',
+      });
+    },
+  );
+
   it('returns fail with "network error" when fetch throws', async () => {
     const networkError = new Error('connection refused');
     const impl = rejectWith(networkError);

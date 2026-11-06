@@ -9,7 +9,8 @@
  * transactions a single full-window POST. balanceKind=account.
  *
  * The factory owns only what every FIBI brand shares — the request
- * envelope, the identity merge, and the response extractors. Origin,
+ * envelope, the per-call headers, the identity merge, and the response
+ * extractors. Origin,
  * step name, and coverage-backfill stance stay with the brand, so each
  * brand keeps declaring its own stance in its own module (which the
  * WINDOW-CANARY gate scans) and no bank ever imports another bank.
@@ -18,6 +19,7 @@
 import type { WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { IApiDirectScrapeShape, WindowNarrowing } from '../IApiDirectScrapeShape.js';
 import { accountNumberOf, extractAccounts } from './FibiGroupShapeAccounts.js';
+import fibiCallHeaders from './FibiGroupShapeHeaders.js';
 import { balanceExtract, type IFibiAcct, noVars } from './FibiGroupShapeHelpers.js';
 import { txnsExtractPage, txnsVars } from './FibiGroupShapeTxns.js';
 
@@ -52,6 +54,7 @@ function customerOf(args: IFibiGroupShapeArgs): FibiShape['customer'] {
     urlTag: args.customerUrl,
     secondaryUrlTag: args.secondaryUrl,
     method: 'GET',
+    extraHeaders: fibiCallHeaders,
   };
 }
 
@@ -61,7 +64,13 @@ function customerOf(args: IFibiGroupShapeArgs): FibiShape['customer'] {
  * @returns Balance step bound to the brand's origin.
  */
 function balanceOf(args: IFibiGroupShapeArgs): FibiShape['balance'] {
-  return { buildVars: noVars, extract: balanceExtract, urlTag: args.balanceUrl, method: 'GET' };
+  return {
+    buildVars: noVars,
+    extract: balanceExtract,
+    urlTag: args.balanceUrl,
+    method: 'GET',
+    extraHeaders: fibiCallHeaders,
+  };
 }
 
 /**
@@ -77,6 +86,7 @@ function transactionsOf(args: IFibiGroupShapeArgs): FibiShape['transactions'] {
     windowNarrowing: args.windowNarrowing,
     urlTag: args.txnsUrl,
     method: 'POST',
+    extraHeaders: fibiCallHeaders,
   };
 }
 

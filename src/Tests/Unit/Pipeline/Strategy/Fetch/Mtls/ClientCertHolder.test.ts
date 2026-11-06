@@ -50,7 +50,7 @@ const TRUSTING_AGENT: AgentBuilder = buildTrustingAgent;
  */
 async function presentedTo(holder: IClientCertHolder, origin: string): Promise<string> {
   const invoke = makeMtlsInvoke(holder.source);
-  const result = await invoke(`${origin}/peer`, GET_INIT, 'GET');
+  const result = await invoke(`${origin}/peer`, GET_INIT, { verb: 'GET' });
   if (!isOk(result)) return result.errorMessage;
   const echo = (await result.value.json()) as IPeerEcho;
   return echo.sha256;
@@ -152,8 +152,8 @@ describe('ClientCertHolder — origin-scoped dynamic client certificate', () => 
     holder.control.install(PAIR_A);
     bank.seen.length = 0;
     const invoke = makeMtlsInvoke(holder.source);
-    await invoke(`${bank.origin}/peer`, GET_INIT, 'GET');
-    await invoke(`${foreign.origin}/peer`, GET_INIT, 'GET');
+    await invoke(`${bank.origin}/peer`, GET_INIT, { verb: 'GET' });
+    await invoke(`${foreign.origin}/peer`, GET_INIT, { verb: 'GET' });
     expect(presented).toEqual([{ sha256: CERT_A.sha256 }, false]);
     expect(bank.seen).toEqual([]);
   });

@@ -87,6 +87,25 @@ describe('buildInitialCarry — seed validation branches', () => {
 });
 
 describe('buildInitialCarry — derivedCarry validation branches', () => {
+  it.each([
+    ['a\u00e9z', 2, 'a'],
+    ['a\u00e9z', 2.5, 'a'],
+    ['a\u20acz', 3, 'a'],
+    ['a\u{1F600}z', 4, 'a'],
+    ['\u{1F600}z', 1, ''],
+    ['a\u00e9z', 3, 'a\u00e9'],
+    ['\u00e9', 2, '\u00e9'],
+    ['\u{1F600}', 8, '\u{1F600}'],
+  ] as const)(
+    'truncates "%s" at a complete character within %s bytes',
+    (value, truncateBytes, prefix) => {
+      const derivedCarry = [{ into: 'prefix', parts: ['creds.value'], truncateBytes }] as const;
+      const config = makeConfig({ derivedCarry });
+      const result = buildInitialCarry(config, { value }, {});
+      expect(result).toEqual({ success: true, value: { prefix } });
+    },
+  );
+
   it('fails when a derivedCarry part references a missing creds field', () => {
     const config = makeConfig({
       derivedCarry: [{ into: 'k', parts: ['creds.absent'], separator: '|' }],

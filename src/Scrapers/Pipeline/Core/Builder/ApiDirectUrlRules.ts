@@ -17,6 +17,7 @@ import {
   type IApiDirectRule,
   type IApiDirectRuleInput,
   isExtractSlot,
+  resumeStepsOf,
 } from './ApiDirectRuleInput.js';
 
 /**
@@ -120,7 +121,7 @@ function hasUnruledInList(steps: readonly IStepConfig[]): boolean {
  * @returns True when either list does.
  */
 function hasUnruledCarriedUrl(input: IApiDirectRuleInput): boolean {
-  const resume = input.call.persistentAuth?.resumeSteps ?? [];
+  const resume = resumeStepsOf(input.call);
   return [input.call.steps, resume].some(hasUnruledInList);
 }
 

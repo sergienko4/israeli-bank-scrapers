@@ -8,6 +8,7 @@
 
 import type { Agent } from 'node:https';
 
+import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IFetchOpts } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 import {
   type AgentSource,
@@ -15,6 +16,10 @@ import {
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.js';
 import { MtlsFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
 import { MtlsGraphQLFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsGraphQLFetchStrategy.js';
+import {
+  MTLS_REQUEST_TIMEOUT_MS,
+  setMtlsRequestTimeoutMs,
+} from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import { isOk } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { IGateServer } from './MtlsTestServer.js';
 import {
@@ -35,6 +40,13 @@ interface IEcho {
 interface IGqlEnvelope {
   readonly data: { readonly me: string };
 }
+
+/** A bank status policy must still decide before media type refusal. */
+class EmptyStatusMtlsFetchStrategy extends MtlsFetchStrategy {
+  protected override _statusPolicy = { 200: 'empty' } as const;
+}
+
+const HEADER_TEST_TIMEOUT_MS = 1_000;
 
 describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
   let server: IGateServer;
@@ -59,6 +71,7 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
   afterEach(() => {
     certAgent.destroy();
     noCertAgent.destroy();
+    setMtlsRequestTimeoutMs(MTLS_REQUEST_TIMEOUT_MS);
   });
 
   it('POSTs with the client cert and parses the 200 body', async () => {
@@ -66,7 +79,7 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
     const result = await strategy.fetchPost<IEcho>(
       server.restUrl,
       { a: '1' },
-      { extraHeaders: {} },
+      { extraHeaders: {}, mediaType: 'application/json' },
     );
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
@@ -98,10 +111,50 @@ describe('MtlsFetchStrategy — REST over the mTLS gate', () => {
 
   it('classifies a cert-less 403 into a failure carrying the status', async () => {
     const strategy = new MtlsFetchStrategy(server.baseUrl, noCertSource);
-    const result = await strategy.fetchPost(server.restUrl, { a: '1' }, { extraHeaders: {} });
+    const opts = { extraHeaders: {}, mediaType: 'application/json' };
+    const result = await strategy.fetchPost(server.restUrl, { a: '1' }, opts);
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(false);
     if (!isOk(result)) expect(result.errorMessage).toContain('403');
+  });
+
+  it('refuses mismatched headers without waiting for a body, preserving cookie hooks', async () => {
+    setMtlsRequestTimeoutMs(HEADER_TEST_TIMEOUT_MS);
+    const captured: string[] = [];
+    /**
+     * Record cookies delivered with the header-only refusal.
+     * @param lines - Raw Set-Cookie lines.
+     * @returns The number recorded.
+     */
+    const onSetCookie = (lines: readonly string[]): number => captured.push(...lines);
+    const strategy = new MtlsFetchStrategy(server.baseUrl, certSource);
+    const url = `${server.baseUrl}wrong-media-headers?sid=syn-secret`;
+    const opts = { extraHeaders: {}, mediaType: 'application/json', onSetCookie };
+    const result = await strategy.fetchGet(url, opts);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: `GET ${server.baseUrl}wrong-media-headers unexpected media type`,
+    });
+    expect(captured).toEqual([...GATE_COOKIES]);
+  });
+
+  it('preserves a bank status decision ahead of mismatched media headers', async () => {
+    setMtlsRequestTimeoutMs(HEADER_TEST_TIMEOUT_MS);
+    const strategy = new EmptyStatusMtlsFetchStrategy(server.baseUrl, certSource);
+    const opts = { extraHeaders: {}, mediaType: 'application/json' };
+    const result = await strategy.fetchGet(`${server.baseUrl}wrong-media-headers`, opts);
+    expect(result).toEqual({ success: true, value: {} });
+  });
+
+  it('preserves a 200 WAF challenge ahead of mismatched media headers', async () => {
+    const strategy = new MtlsFetchStrategy(server.baseUrl, certSource);
+    const opts = { extraHeaders: {}, mediaType: 'application/json' };
+    const result = await strategy.fetchGet(`${server.baseUrl}challenge`, opts);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.WafBlocked,
+    });
   });
 
   it('writes a latin1 form, reads text and hands back headers, as native fetch does', async () => {

@@ -17,6 +17,7 @@ import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/Pip
 import type { TlsClientProfileKind } from '../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/TlsClientProfiles.js';
 import type { IDynamicClientCert } from '../../../../Scrapers/Pipeline/Types/Domain/ClientCertControl.js';
 import type {
+  MediaTypePolicy,
   RedirectPolicy,
   StatusPolicy,
 } from '../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
@@ -32,6 +33,8 @@ interface ITransportFlags {
   readonly cookieDomains?: readonly string[];
   readonly redirectPolicy?: RedirectPolicy;
   readonly statusPolicy?: StatusPolicy;
+  readonly mediaTypes?: MediaTypePolicy;
+  readonly strictUtf8?: true;
 }
 
 /** URLs every case shares; only the transport flags vary. */
@@ -211,6 +214,18 @@ describe('HeadlessMediatorWiring — transport selection', () => {
     resolveWith({ nativeFetch: true, statusPolicy: { 204: 'empty' } });
     const [args] = CREATE_NATIVE.mock.calls[0] as unknown[];
     expect(args).toMatchObject({ statusPolicy: { 204: 'empty' } });
+  });
+
+  it('hands the media type defaults to the native factory', () => {
+    resolveWith({ nativeFetch: true, mediaTypes: { json: 'application/json' } });
+    const [args] = CREATE_NATIVE.mock.calls[0] as unknown[];
+    expect(args).toMatchObject({ mediaTypes: { json: 'application/json' } });
+  });
+
+  it('hands strict UTF-8 decoding to the native factory', () => {
+    resolveWith({ nativeFetch: true, strictUtf8: true });
+    const [args] = CREATE_NATIVE.mock.calls[0] as unknown[];
+    expect(args).toMatchObject({ strictUtf8: true });
   });
 
   it('defaults the cookie jar flag to false', () => {

@@ -37,12 +37,23 @@ interface IApiDirectRule {
 }
 
 /**
+ * The durable resume steps; only a bound-device block has any.
+ * @param call - Call config.
+ * @returns Resume steps, or none.
+ */
+function resumeStepsOf(call: IApiDirectCallConfig): readonly IStepConfig[] {
+  const block = call.persistentAuth;
+  if (block?.kind !== 'bound-device') return [];
+  return block.resumeSteps;
+}
+
+/**
  * Every login step, including durable resume steps.
  * @param call - Call config.
  * @returns All steps the config can run.
  */
 function allSteps(call: IApiDirectCallConfig): readonly IStepConfig[] {
-  const resume = call.persistentAuth?.resumeSteps ?? [];
+  const resume = resumeStepsOf(call);
   return [...call.steps, ...resume];
 }
 
@@ -149,4 +160,5 @@ export {
   isBadCharCap,
   isBodyPointer,
   isExtractSlot,
+  resumeStepsOf,
 };

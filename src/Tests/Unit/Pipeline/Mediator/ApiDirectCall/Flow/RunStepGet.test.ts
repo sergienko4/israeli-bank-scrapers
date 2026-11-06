@@ -123,7 +123,7 @@ function installRedirect(): IFetchFake {
  * @param html - Page body.
  * @returns The fake, for request assertions.
  */
-function installPage(html: string): IFetchFake {
+function installPage(html: string | Uint8Array<ArrayBuffer>): IFetchFake {
   const fake = fakeFetch((): Response => new Response(html, { status: 200 }));
   globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
   return fake;
@@ -232,6 +232,24 @@ describe('E8 GET login step over the headless native transport', () => {
     const bus = makeNativeMediator();
     const result = await runStep({ step: DOCUMENT_STEP, bus, scope: makeScope(), companyId: HINT });
     expect(result).toMatchObject({ success: false, errorMessage: 'bind document unverified' });
+  });
+
+  it("refuses a document of another media type than the step's", async (): Promise<void> => {
+    installPage(PORTAL_HTML);
+    const step: IGetStep = { ...DOCUMENT_STEP, mediaType: 'text/html' };
+    const bus = makeNativeMediator();
+    const result = await runStep({ step, bus, scope: makeScope(), companyId: HINT });
+    expect(result).toMatchObject({ success: false, errorMessage: 'bind unexpected media type' });
+  });
+
+  it('refuses a document that is not UTF-8 on a strict step', async (): Promise<void> => {
+    const marker = new TextEncoder().encode('portal-ready');
+    const page = Uint8Array.of(...marker, 0xff);
+    installPage(page);
+    const step: IGetStep = { ...DOCUMENT_STEP, strictUtf8: true };
+    const bus = makeNativeMediator();
+    const result = await runStep({ step, bus, scope: makeScope(), companyId: HINT });
+    expect(result).toMatchObject({ success: false, errorMessage: 'bind body not utf-8' });
   });
 
   it('leaves redirects to fetch when the step names no policy', async (): Promise<void> => {

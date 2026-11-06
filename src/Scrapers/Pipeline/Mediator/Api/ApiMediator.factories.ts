@@ -20,6 +20,7 @@ import { HeadlessNativeFetchStrategy } from '../../Strategy/Fetch/HeadlessNative
 import type { AgentSource } from '../../Strategy/Fetch/Mtls/MtlsAgentSource.js';
 import { MtlsFetchStrategy } from '../../Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
 import { MtlsGraphQLFetchStrategy } from '../../Strategy/Fetch/Mtls/MtlsGraphQLFetchStrategy.js';
+import type { INativeFetchOptions } from '../../Strategy/Fetch/NativeFetchStrategy.js';
 import {
   type ISessionTransport,
   withCookieSession,
@@ -56,14 +57,25 @@ function applyStaticAuth(
 }
 
 /**
+ * Share bank response policies between the identity REST and GraphQL transports.
+ * @param args - Headless mediator args carrying bank-wide defaults.
+ * @returns Policies used by both native transports.
+ */
+function nativePolicies(args: IGraphQLTransportArgs): INativeFetchOptions {
+  const { redirectPolicy, statusPolicy, mediaTypes } = args;
+  const privacy = { omitBankText: args.omitBankText };
+  const decoding = { strictUtf8: args.strictUtf8 };
+  return { redirectPolicy, statusPolicy, mediaTypes, ...privacy, ...decoding };
+}
+
+/**
  * Construct the shared GraphQL transport with the bank's optional header floor.
  * @param args - Anything carrying the GraphQL URL + optional default headers.
  * @returns GraphQL fetch strategy.
  */
 function buildGqlStrategy(args: IGraphQLTransportArgs): GraphQLFetchStrategy {
   const headers = args.graphqlHeaders ?? {};
-  const { redirectPolicy, statusPolicy } = args;
-  const policies = { redirectPolicy, statusPolicy, omitBankText: args.omitBankText };
+  const policies = nativePolicies(args);
   return Reflect.construct(GraphQLFetchStrategy, [args.graphqlUrl, headers, policies]);
 }
 
@@ -73,8 +85,7 @@ function buildGqlStrategy(args: IGraphQLTransportArgs): GraphQLFetchStrategy {
  * @returns Strategy pair.
  */
 function buildHeadlessStrategies(args: IHeadlessMediatorArgs): IHeadlessStrategies {
-  const { redirectPolicy, statusPolicy } = args;
-  const policies = { redirectPolicy, statusPolicy, omitBankText: args.omitBankText };
+  const policies = nativePolicies(args);
   const constructArgs: HeadlessConstructorArgs = [args.identityBaseUrl, policies];
   const fetch = Reflect.construct(HeadlessNativeFetchStrategy, constructArgs);
   const gql = buildGqlStrategy(args);

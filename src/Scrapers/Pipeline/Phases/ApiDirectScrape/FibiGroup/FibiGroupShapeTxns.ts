@@ -26,8 +26,11 @@ import { BFF_BASE, type IFibiAcct, type IFibiGroupConfig } from './FibiGroupShap
 
 /** Transaction date format (YYYY-MM-DD, per the captured POST body). */
 const TXN_DATE_FMT = 'YYYY-MM-DD';
-/** Fixed sort order (ascending) the endpoint expects. */
-const TXN_ORDER = 1;
+/**
+ * Query kind: `0` asks for the date range. `1` is a different query — the
+ * last 50 rows — which silently drops older rows in a busy window.
+ */
+const TXN_ORDER = 0;
 /** Fixed response language code. */
 const TXN_LANGUAGE = 'HEB';
 

@@ -207,7 +207,7 @@ describe('BeinleumiShape transactions', () => {
     expect(req.accountNumber).toBe(555001);
     expect(req.branch).toBe('770');
     expect(req.accountType).toBe(105);
-    expect(req.order).toBe(1);
+    expect(req.order).toBe(0);
     expect(req.language).toBe('HEB');
     expect(req.startDate).toBe('2026-06-04');
     expect(req.endDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
