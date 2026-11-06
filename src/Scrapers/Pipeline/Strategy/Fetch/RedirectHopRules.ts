@@ -26,6 +26,7 @@ const CROSS_ORIGIN_DROPPED = ['authorization', 'proxy-authorization'] as const;
 const BODY_HEADERS = [
   'content-encoding',
   'content-language',
+  'content-length',
   'content-location',
   'content-type',
 ] as const;

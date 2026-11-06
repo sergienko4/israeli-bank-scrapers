@@ -15,8 +15,8 @@
 import { jest } from '@jest/globals';
 
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
-import type { IFibiMockBrand } from './BeinleumiBrands.js';
 import { capturingDebugModule, LOG_LINES } from '../Helpers/LogCapture.js';
+import type { IFibiMockBrand } from './BeinleumiBrands.js';
 
 jest.unstable_mockModule('../../../Scrapers/Pipeline/Logging/Debug.js', capturingDebugModule);
 

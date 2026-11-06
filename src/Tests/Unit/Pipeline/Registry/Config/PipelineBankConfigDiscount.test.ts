@@ -277,7 +277,14 @@ describe('Discount login config — key and login answers', () => {
     const { call } = await loadModule();
     const step = stepNamed(call, 'logon');
     const body = hydrateFixed(step.body?.shape ?? {}, call) as Record<string, JsonValue>;
-    const expected = { ...APP_CONTEXT, PlatformType: 'WEB', Uid: UID, ThirdIdentifierType: 'aid' };
+    const expected = {
+      ...APP_CONTEXT,
+      PlatformType: 'WEB',
+      Uid: UID,
+      ThirdIdentifierType: 'aid',
+      ThirdIdentifier: '',
+      Password: '',
+    };
     const keyOrder = Object.keys(body);
     const expectedOrder = Object.keys(expected);
     expect(body).toEqual(expected);

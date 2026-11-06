@@ -52,8 +52,8 @@ async function fetchSecondaryBody<TAcct, TCursor>(
   if (tag === false) return succeed<ApiBody>(EMPTY_BODY);
   const opts = buildSecondaryOpts(d);
   const response = await d.bus.apiGet<ApiBody>(tag, opts);
-  const checked = applyBodyCheck(response, d.shape.checkBody);
-  return omitBankResponseText(checked, 'customer', d.shape.omitBankText);
+  const answered = omitBankResponseText(response, 'customer', d.shape.omitBankText);
+  return applyBodyCheck(answered, d.shape.checkBody);
 }
 
 /**

@@ -182,15 +182,17 @@ async function routeStep(args: IDispatchArgs): Promise<Procedure<ApiBody>> {
 }
 
 /**
- * Dispatch one scrape step against the mediator, run the shape's body
- * check on a successful response, then read its response session.
+ * Dispatch one scrape step against the mediator, strip the bank's text from a
+ * failed call when the shape asks for it, run the shape's body check on a
+ * successful response, then read its response session. The bank-text rule
+ * runs before the check so a check's own descriptive message survives.
  * @param args - Dispatch bundle.
  * @returns Procedure with the typed payload.
  */
 export async function dispatchStep(args: IDispatchArgs): Promise<Procedure<ApiBody>> {
   const capture = captureAnswer(args.opts, args.responseSession);
   const response = await routeStep({ ...args, opts: capture.opts });
-  const checked = applyBodyCheck(response, args.checkBody);
-  const settled = readResponseSession(checked, capture, args);
-  return omitBankResponseText(settled, args.call ?? args.queryTag, args.omitBankText);
+  const answered = omitBankResponseText(response, args.call ?? args.queryTag, args.omitBankText);
+  const checked = applyBodyCheck(answered, args.checkBody);
+  return readResponseSession(checked, capture, args);
 }

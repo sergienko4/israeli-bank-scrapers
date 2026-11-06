@@ -39,8 +39,8 @@ import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
 
 /** The id formats the web app sends; each pattern must match the whole id. */
 const UID_FORMATS: readonly IFormatRule[] = [
-  { pattern: '\\d{1,9}', prefix: '00001', padStart: 9 },
-  { pattern: '9\\d{9}', prefix: '0000' },
+  { pattern: String.raw`\d{1,9}`, prefix: '00001', padStart: 9 },
+  { pattern: String.raw`9\d{9}`, prefix: '0000' },
 ];
 
 /** The cookie values the steps set, read through `config.secrets.<name>`. */

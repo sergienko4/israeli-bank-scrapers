@@ -71,7 +71,7 @@ const PRIME_STEP: IStepConfig = {
     caller: 'config.secrets.caller',
   },
   textCaptures: {
-    appRoot: { pattern: '<app-root\\b', group: 0 },
+    appRoot: { pattern: String.raw`<app-root\b`, group: 0 },
     csrf: { pattern: 'csrfToken', group: 0, absent: true },
   },
   extractsToCarry: {},
@@ -102,6 +102,8 @@ const LOGON_STEP: IStepConfig = {
       PlatformType: { $literal: 'WEB' },
       Uid: { $ref: 'carry.uid' },
       ThirdIdentifierType: { $literal: 'aid' },
+      ThirdIdentifier: { $literal: '' },
+      Password: { $literal: '' },
     },
   },
   headers: LOGIN_POST_HEADERS,

@@ -437,6 +437,7 @@ function postRun(invoke: Invoke, policy: IManualRedirect): IRedirectRun {
     'Content-Type': 'application/json',
     'Content-Encoding': 'gzip',
     'Content-Language': 'he-IL',
+    'Content-Length': '7',
     'Content-Location': '/start',
     'x-caller': 'kept',
   };
@@ -445,7 +446,13 @@ function postRun(invoke: Invoke, policy: IManualRedirect): IRedirectRun {
 }
 
 /** Content-describing headers a POST-originated GET must never carry after a hop. */
-const BODY_HEADERS = ['content-type', 'content-encoding', 'content-language', 'content-location'];
+const BODY_HEADERS = [
+  'content-type',
+  'content-encoding',
+  'content-language',
+  'content-length',
+  'content-location',
+];
 
 describe('sendUnderPolicy — manual POST', () => {
   it.each([302, 303])('follows a %i as a body-less GET without content-type', async status => {
@@ -461,6 +468,7 @@ describe('sendUnderPolicy — manual POST', () => {
     expect([hopUrl, hopVerb, ...bodyFields, hop.get('x-caller')]).toEqual([
       HOP_1,
       'GET',
+      null,
       null,
       null,
       null,
@@ -497,6 +505,6 @@ describe('sendUnderPolicy — manual POST', () => {
     const later = sentHeaders(invoke, 2);
     const laterBodyFields = BODY_HEADERS.map(name => later.get(name));
     expect(responseUrl).toBe(HOP_2);
-    expect(laterBodyFields).toEqual([null, null, null, null]);
+    expect(laterBodyFields).toEqual([null, null, null, null, null]);
   });
 });

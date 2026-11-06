@@ -9,6 +9,7 @@
  */
 
 import type {
+  ISealedFieldTarget,
   ISealFieldConfig,
   ISealRsaBlockXorConfig,
   ISealRsaBlockXorParams,
@@ -113,7 +114,9 @@ function blockXorTargets(seal: ISealRsaBlockXorConfig): readonly string[] {
  * @returns Each field's `writeTo`.
  */
 function pkcs1Targets(seal: ISealRsaPkcs1Config): readonly string[] {
-  return seal.fields.map((field): string => field.writeTo);
+  const fields = seal.fields as readonly ISealedFieldTarget[] | undefined;
+  if (fields === undefined) return [];
+  return fields.map((field): string => field.writeTo);
 }
 
 /** The body pointers each kind writes. */

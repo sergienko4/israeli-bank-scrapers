@@ -493,8 +493,6 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    * scope-config that backs `$ref` resolution.
    */
   readonly secrets?: Readonly<Record<string, string>>;
-  /** Omit bank response text from scrape failures, as the login config requests. */
-  readonly omitBankText?: boolean;
   /**
    * Optional check run on every successful scrape response — bootstrap,
    * customer (and its secondary identity GET), balance and transactions —
