@@ -94,7 +94,7 @@ interface IApiMediatorDeps {
 }
 
 /** Args for firePost — bundled to satisfy the 3-parameter ceiling. */
-interface IFirePostArgs extends Pick<IApiQueryOpts, 'onSetCookie' | 'policy'> {
+interface IFirePostArgs extends Pick<IApiQueryOpts, 'onSetCookie' | 'policy' | 'redactUrlValues'> {
   readonly deps: IApiMediatorDeps;
   readonly url: string;
   readonly body: PostData;

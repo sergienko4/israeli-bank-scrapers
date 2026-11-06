@@ -56,6 +56,8 @@ interface IInPageFetchArgs {
   readonly headers: Record<string, string>;
   readonly body: string | null;
   readonly timeoutMs: number;
+  /** Explicit account ids the timeout description must mask. */
+  readonly redactUrlValues?: readonly string[];
 }
 
 /** Args bundle for the dispatch helper (verb + url + body + opts). */
@@ -111,40 +113,36 @@ async function evalFetchBody(input: IInPageFetchArgs): Promise<IPageFetchEnvelop
  */
 async function runFetchInPage(page: Page, args: IInPageFetchArgs): Promise<IPageFetchEnvelope> {
   const pending = page.evaluate(evalFetchBody, args);
-  const description = `in-page ${args.method} ${safeUrlForLog(args.url)}`;
+  const description = `in-page ${args.method} ${safeUrlForLog(args.url, args.redactUrlValues)}`;
   return timeoutPromise(NETWORK_FETCH_TIMEOUT_MS, pending, description);
 }
 
 /**
  * Classifies a failed or challenged envelope into a Procedure failure.
  * @param env - In-page fetch envelope: non-2xx, or a 2xx challenge.
- * @param verb - HTTP verb.
- * @param url - Target URL.
+ * @param args - The call: verb, URL and the ids its message must mask.
  * @returns WafBlocked for a Cloudflare edge refusal, else Generic with a snippet.
  */
-function classifyFailedEnvelope<T>(
-  env: IPageFetchEnvelope,
-  verb: HttpVerb,
-  url: string,
-): Procedure<T> {
-  const failure = { verb, url, status: env.status, body: env.bodyText, headers: env.headers };
-  return classifyHttpFailure<T>(failure);
+function classifyFailedEnvelope<T>(env: IPageFetchEnvelope, args: IDispatchArgs): Procedure<T> {
+  const redactUrlValues = args.opts.redactUrlValues;
+  const failure = { verb: args.verb, url: args.url, status: env.status, body: env.bodyText };
+  return classifyHttpFailure<T>({ ...failure, headers: env.headers, redactUrlValues });
 }
 
 /**
  * Parses a 2xx envelope body as JSON.
  * @param env - In-page fetch envelope.
- * @param verb - HTTP verb.
- * @param url - Target URL.
+ * @param args - The call: verb, URL and the ids its message must mask.
  * @returns Succeed with parsed body, or Generic parse-error failure.
  */
-function parseJsonEnvelope<T>(env: IPageFetchEnvelope, verb: HttpVerb, url: string): Procedure<T> {
+function parseJsonEnvelope<T>(env: IPageFetchEnvelope, args: IDispatchArgs): Procedure<T> {
   try {
     const parsed = JSON.parse(env.bodyText) as T;
     return succeed(parsed);
   } catch (error) {
     const reason = describeJsonParseFailure(error);
-    const safeUrl = safeUrlForLog(url);
+    const { verb, url, opts } = args;
+    const safeUrl = safeUrlForLog(url, opts.redactUrlValues);
     return fail(ScraperErrorTypes.Generic, `${verb} ${safeUrl} parse error: ${reason}`);
   }
 }
@@ -153,14 +151,13 @@ function parseJsonEnvelope<T>(env: IPageFetchEnvelope, verb: HttpVerb, url: stri
  * Routes an envelope to the JSON parser or the failure classifier. A 2xx
  * carrying Cloudflare's challenge header is classified, not parsed.
  * @param env - In-page fetch envelope.
- * @param verb - HTTP verb.
- * @param url - Target URL.
+ * @param args - The call: verb, URL and the ids its message must mask.
  * @returns Parsed body, parse-error failure, or classified failure.
  */
-function routeEnvelope<T>(env: IPageFetchEnvelope, verb: HttpVerb, url: string): Procedure<T> {
+function routeEnvelope<T>(env: IPageFetchEnvelope, args: IDispatchArgs): Procedure<T> {
   const isChallenged = hasCloudflareChallengeHeader(env.headers);
-  if (env.ok && !isChallenged) return parseJsonEnvelope<T>(env, verb, url);
-  return classifyFailedEnvelope<T>(env, verb, url);
+  if (env.ok && !isChallenged) return parseJsonEnvelope<T>(env, args);
+  return classifyFailedEnvelope<T>(env, args);
 }
 
 /**
@@ -278,8 +275,9 @@ function logFetchStatus(verb: string, safeUrl: string, env: IPageFetchEnvelope):
  */
 function toDispatchFailure(error: unknown, args: IDispatchArgs): Procedure<never> {
   const rawReason = toError(error).message;
-  const reason = scrubUrlFromText(rawReason, args.url);
-  const safeUrl = safeUrlForLog(args.url);
+  const values = args.opts.redactUrlValues;
+  const reason = scrubUrlFromText(rawReason, args.url, values);
+  const safeUrl = safeUrlForLog(args.url, values);
   const message = `${args.verb} ${safeUrl} network error: ${reason}`;
   const isTimeout = error instanceof TimeoutError;
   if (isTimeout) return fail(ScraperErrorTypes.Timeout, message);
@@ -293,7 +291,8 @@ function toDispatchFailure(error: unknown, args: IDispatchArgs): Procedure<never
  * @returns Procedure with parsed body, parse error, or structured failure.
  */
 async function dispatch<T>(page: Page, args: IDispatchArgs): Promise<Procedure<T>> {
-  const safeUrl = safeUrlForLog(args.url);
+  const values = args.opts.redactUrlValues;
+  const safeUrl = safeUrlForLog(args.url, values);
   LOG.debug({ verb: args.verb, url: safeUrl, message: '[camoufox-identity] fetch FIRE' });
   const headers = mergeHeaders(args.opts.extraHeaders);
   const fetchArgs: IInPageFetchArgs = {
@@ -302,6 +301,7 @@ async function dispatch<T>(page: Page, args: IDispatchArgs): Promise<Procedure<T
     headers,
     body: args.body,
     timeoutMs: NETWORK_FETCH_PAGE_TIMEOUT_MS,
+    redactUrlValues: values,
   };
   let env: IPageFetchEnvelope;
   try {
@@ -311,7 +311,7 @@ async function dispatch<T>(page: Page, args: IDispatchArgs): Promise<Procedure<T
   }
   logFetchStatus(args.verb, safeUrl, env);
   emitSetCookies(env.setCookies, args.opts.onSetCookie);
-  return routeEnvelope<T>(env, args.verb, args.url);
+  return routeEnvelope<T>(env, args);
 }
 
 /**

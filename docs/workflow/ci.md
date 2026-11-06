@@ -60,10 +60,10 @@ and release together — covered in
 | **Pipeline + coverage** | `test:pipeline` | Coverage drops below 97/95/97/98 | `src/coverage/lcov-report/` |
 | **SonarCloud** | n/a (job `SonarCloud Scan`) | On a PR touching `src/**`: the quality gate fails, the PR adds any new issue, SonarCloud's new-issue count cannot be read in 5 tries of at most 30 s each, or `Detect changes` / `Unit tests` did not succeed | `sonar-project.properties`; [SonarCloud query protocol](code-review-tooling.md#sonarcloud--query-protocol) |
 | **Browser stack** | `lint:browser-stack`, after `node scripts/patch-playwright-core.mjs --strict` (job `Browser stack contract`) | On a PR where `critical_deps` is true: a patch anchor (the pageError guard, the interception shim or the Set-Cookie split) no longer matches the resolved playwright-core; either side's Juggler `Protocol.js` (the resolved playwright-core's or the pinned Camoufox tag's) differs from the SHA-256 `browser-stack.json` pins for that side, checked before either is parsed (a playwright-core version with no pin is reported, not failed); or the playwright-core protocol differs from the Camoufox tag's beyond the deltas `browser-stack.json` accepts; or `src/Scrapers/Pipeline/Mediator/Browser/BrowserStackConfig.ts` no longer matches what `npm run browser-stack:gen` writes from `browser-stack.json` (`GENERATED-STALE`; run that script and commit the file). Mock E2E and Integration then never start. On other PRs its steps are skipped and the job passes; there Unit tests run `BrowserStackAcceptanceGuards.test.ts`, which fails when src starts to use a feature an accepted delta breaks or the installed playwright-core sends a method or field Camoufox lacks, and `BrowserStackGenConfig.test.ts`, which fails on a hand edit of the generated file | `browser-stack.json`, `scripts/browser-stack/`; wiring pinned by `BrowserStackGateWiring.test.ts` |
-| **Mock E2E** | `test:e2e:mock`, after the runtime contract alone (`--runTestsByPath src/Tests/E2eMocked/BrowserStackContract.e2e-mocked.test.ts`) | Fixture-driven E2E for browser banks; synthetic-gateway E2E for the API-direct banks (Pepper, OneZero, Visa Cal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav). First, on every run: `page.route`/`context.route` fulfil a request and a multi-value `Set-Cookie` stays one entry per value through the pinned Camoufox. The job's limit is 20 minutes, over three times its projected run; the first launch also fetches uBlock Origin from addons.mozilla.org, as the cache keeps only the asset | `src/Tests/E2eMocked/`; step pinned by `BrowserStackGateWiring.test.ts` |
+| **Mock E2E** | `test:e2e:mock`, after the runtime contract alone (`--runTestsByPath src/Tests/E2eMocked/BrowserStackContract.e2e-mocked.test.ts`) | Browser-engine E2E with no live site (browser-stack contract, Camoufox launch, anti-detection, home entry, selector fallback, OTP detection); synthetic-gateway E2E for the API-direct banks (Pepper, OneZero, Visa Cal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav, Beinleumi, Massad, Otsar Hahayal, Pagi, Discount). First, on every run: `page.route`/`context.route` fulfil a request and a multi-value `Set-Cookie` stays one entry per value through the pinned Camoufox. The job's limit is 20 minutes, over three times its projected run; the first launch also fetches uBlock Origin from addons.mozilla.org, as the cache keeps only the asset | `src/Tests/E2eMocked/`; step pinned by `BrowserStackGateWiring.test.ts` |
 | **Mock suite (orchestrated)** | `test:mock` | `scripts/run-mock-suite.ts` driving all configured banks | Same fixtures |
 | **Bank tests** | `test:e2e-factory-tests` | Phase H cross-bank factory drives every phase per bank | `src/Tests/Unit/Pipeline/CrossValidation/Phases/` |
-| **Integration** | `test:integration:mode-a:bank`, `test:integration:mode-b:bank` | A static-HTML drive (Mode A) or a mirror-origin replay (Mode B) fails for a fixture bank. CI splits both scripts into 3 Jest shards (`--shard=i/3`, job `Integration (shard i/3)`); an empty shard fails | `src/Tests/Integration/` (Mode A, plus the Mode B mirror test), `src/Tests/Unit/Integration/Banks/` (Mode B bank tests) |
+| **Integration** | `test:integration:mode-a:bank`, `test:integration:mode-b:bank` | A static-HTML drive (Mode A) or a mirror-origin replay (Mode B) fails for a fixture bank. CI splits both scripts into 2 Jest shards (`--shard=i/2`, job `Integration (shard i/2)`); an empty shard fails, so the shard count never exceeds Mode B's file count | `src/Tests/Integration/` (Mode A, plus the Mode B mirror test), `src/Tests/Unit/Integration/Banks/` (Mode B bank tests) |
 | **Build** | `build` | `tsup` ESM + CJS bundle | `lib/index.{mjs,cjs,d.ts,d.cts}` produced |
 | **Memory** | `test:memory` | Peak memory grows more than 10% against the merge base | `.github/scripts/ci/memory-measure.sh` + [`memory-compare.sh`](#memory-regression-gate) |
 | **Decoupling** | n/a (`scripts/decoupling-metrics/measure.mjs`) | A new import cycle, a new `any`, a deleted canary or ESLint rule, or fan-out growing more than 10% | [`decoupling-compare.sh`](#decoupling-regression-gate) |
@@ -126,33 +126,33 @@ unfinished step's `if`, and a step that names no status function means
 
 ## A push stays under the job limit
 
-BLUF: one push to a PR needs at most 17 runners at once, and an open event
-at most 18. The account runs at most 20 jobs at once. After `Validate`, the
-count also rests on measured timing (below).
+BLUF: one push to a PR needs at most 16 runners at once before `Validate`
+(17 on an open event) and 17 after it. The account runs at most 20 jobs at
+once. After `Validate`, the count also rests on measured timing (below).
 `PushConcurrencyBound.test.ts` pins the count, so a PR that adds a job, a
 matrix leg or a PR-triggered workflow has to update it.
 
 - **`pr.yml`.** Once `Detect changes` ends, it starts 8 runners: Static
   checks, the bash 3.2 (macOS) check, 3 Unit tests legs, Package & E2E
   factory, Browser stack contract and Dependency Review. E2E mocked and the
-  3 Integration shards wait for the 1-runner Browser stack contract, so
-  their 4 runners add 3: at most 11. `SonarCloud Scan` waits for all 3 Unit
+  2 Integration shards wait for the 1-runner Browser stack contract, so
+  their 3 runners add 2: at most 10. `SonarCloud Scan` waits for all 3 Unit
   tests legs, so it never adds to the peak.
 - **Other workflows.** A push also starts CodeQL, Validate PR Title, PR Body
   Compliance and the Workflow Security Scan, one job each. GitHub adds 2
   runs of its own: Copilot Code Review and GitHub Advanced Security's Code
-  scanning AI findings. 11 + 4 + 2 = 17.
+  scanning AI findings. 10 + 4 + 2 = 16.
 - **Open events.** Dependabot Auto-Merge (`opened`) or Block Fork PRs
   (`opened`, `reopened`) adds 1 job; Dependabot's PRs never come from a
   fork, so both never run on one PR. `cache-cleanup.yml` runs only on
   `closed`.
 - **After Validate.** Once `Validate` passes and a reviewer approves a group,
   its E2E-real legs start: 13 across the 5 groups (4, 2, 3, 1 and 3).
-  Group A's VisaCal, Isracard and Max legs, Group B's Hapoalim and
-  Beinleumi legs, Group D's Amex leg and Group E's Yahav and Mizrahi
-  legs log in over the bank's API and open no browser; Groups B and D
-  install no Camoufox, Group A still installs it for Discount and
-  Group E for Leumi. A
+  Group A's Discount, VisaCal, Isracard and Max legs, Group B's
+  Hapoalim and Beinleumi legs, Group D's Amex leg and Group E's Yahav
+  and Mizrahi legs log in over the bank's API and open no browser;
+  Groups A, B and D install no Camoufox; Groups C and E still install
+  it on every leg. A
   group holds its approval gate's runner or its legs', never both. Only
   `SonarCloud Scan` and CodeQL may still be running beside them, plus
   GitHub's 2 runs: 13 + 2 + 2 = 17. Dependency Review, Validate PR Title, PR

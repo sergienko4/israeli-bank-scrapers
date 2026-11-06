@@ -11,7 +11,6 @@
  */
 
 import type { ILoginConfig } from '../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
-import { DISCOUNT_LOGIN } from '../../../Scrapers/Pipeline/Banks/Discount/DiscountPipeline.js';
 import { LEUMI_LOGIN } from '../../../Scrapers/Pipeline/Banks/Leumi/LeumiPipeline.js';
 import { MERCANTILE_LOGIN } from '../../../Scrapers/Pipeline/Banks/Mercantile/MercantilePipeline.js';
 
@@ -22,7 +21,6 @@ import { MERCANTILE_LOGIN } from '../../../Scrapers/Pipeline/Banks/Mercantile/Me
  * every bank in {@link BankFixtureExpectations} has a config entry).
  */
 const BANK_LOGIN_CONFIGS: Readonly<Partial<Record<string, ILoginConfig>>> = {
-  discount: DISCOUNT_LOGIN,
   leumi: LEUMI_LOGIN,
   mercantile: MERCANTILE_LOGIN,
 };

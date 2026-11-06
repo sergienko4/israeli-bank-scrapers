@@ -81,9 +81,9 @@ const LATE_JOBS = {
 /**
  * Runners each group of late jobs adds over the level-1 jobs it waits for,
  * keyed by those jobs: Sonar's 1 waits for the 3 Unit tests legs, and E2E
- * mocked's 1 plus Integration's 3 wait for the 1-runner Browser stack contract.
+ * mocked's 1 plus Integration's 2 wait for the 1-runner Browser stack contract.
  */
-const LATE_EXTRA = { 'unit-tests': 0, 'browser-stack': 3 };
+const LATE_EXTRA = { 'unit-tests': 0, 'browser-stack': 2 };
 
 /** The `pr.yml` jobs that open and close the level-1 stage, one runner each. */
 const STAGE_RUNNERS = { [ROOT_JOB_KEY]: 1, [VALIDATE_JOB_KEY]: 1 };

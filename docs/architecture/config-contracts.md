@@ -126,7 +126,7 @@ this contract; the build-time checks read both.
 | OTP hint, prerequisites and code shape | `preHook.hintFrom`, `preHook.requires`, `preHook.valuePattern` | EnvelopeTypes | [OTP pre-hook guards](../phases/api-direct-call.md#otp-pre-hook-guards) |
 | Auth header form | `authScheme` (`AuthScheme`), `authPrefix` | EnvelopeTypes, ApiDirectCallConfig | [Auth-mode policy](../phases/api-direct-call.md#auth-mode-policy) |
 | Credential shapes checked up front | `requiredCreds` (`CredRule`) | ApiDirectCallConfig | [Required credentials](../phases/api-direct-call.md#required-credentials) |
-| Keep bank reply text out of missed extracts and login diagnostics | `omitBankText` | ApiDirectCallConfig | [Bank text in failures](../phases/api-direct-call.md#bank-text-in-failures) |
+| Keep the bank's reply text out of a missed extract, login diagnostics and a failed scrape call | `omitBankText` | ApiDirectCallConfig | [Bank text in failures](../phases/api-direct-call.md#bank-text-in-failures) |
 | Carry slots the scrape may see | `sessionCarry` | ApiDirectCallConfig | [Session carry](../phases/api-direct-call.md#session-carry) |
 | Where a finished login leaves its cookies | `cookieHandoff` (`CookieHandoff`) | FlowTypes | [Cookie hand-off](../phases/api-direct-call.md#cookie-hand-off) |
 | How a rejected session recovers | `authRecovery` (`AuthRecovery`) | FlowTypes, ApiDirectCallConfig | [Auth recovery](../phases/api-direct-call.md#auth-recovery) |

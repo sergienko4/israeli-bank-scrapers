@@ -1243,7 +1243,7 @@ buildTxnsDispatchArgs
 # Consumed only by ApiDirectScrapeSteps; never re-exported from the package index. Not user-facing.
 resolveSecondaryUrlTag
 
-# --- P2 Discount hard-model post-auth scrape shape (browser-bank migration) ---
+# --- P2 Discount hard-model post-auth scrape shape (API-direct bank) ---
 # Reason: IDiscountAcct â€” Discount scrape-shape account ref (accountId path id +
 # displayNumber); consumed only by DISCOUNT_SHAPE + its helpers. Pipeline-internal,
 # not part of the @sergienko4/israeli-bank-scrapers public surface (not in src/index.ts).

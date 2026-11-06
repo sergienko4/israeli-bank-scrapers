@@ -117,6 +117,12 @@ interface IResponseReading {
   readonly onEmptyResponse?: () => number;
   readonly mediaType?: string;
   readonly strictUtf8?: boolean;
+  /**
+   * Account ids the caller explicitly identified for this call. The URL
+   * sanitizer masks each one literally, so an id whose shape carries no
+   * digit run (a valid Titan id like `ACCT_1-a`) never reaches a log line.
+   */
+  readonly redactUrlValues?: readonly string[];
 }
 
 /** Fixed reason a transport reports for a refused redirect. */

@@ -436,6 +436,11 @@ The same flag keeps a response's `error_code` out of login diagnostics:
 the logger records a length-only hint instead of the bank-supplied value.
 Banks that leave the flag unset or false retain their existing diagnostics.
 
+`withApiDirect` copies the flag onto the scrape shape, so the scrape phase
+honours it too: a failed scrape call reads `<call> HTTP <status>` and quotes
+none of the reply (see
+[api-direct-scrape](api-direct-scrape.md)).
+
 ### Step outcome
 
 Some banks refuse a login with HTTP 200 and a status code in the body. A step
@@ -1254,7 +1259,8 @@ from what it extracted:
 - `generate` writes fresh device material, such as an RSA key, into carry
   before the body is hydrated ([Carry generators](#carry-generators)).
 - `omitBankText: true` on the config keeps reply text out of a missed extract
-  and records a length-only hint for `error_code` in login diagnostics
+  and out of a failed scrape call, and records a length-only hint for
+  `error_code` in login diagnostics
   ([Bank text in failures](#bank-text-in-failures)).
 - `headless.omitBankText: true` also omits bank text from native HTTP failures,
   including post-login data calls. WAF classification still runs first

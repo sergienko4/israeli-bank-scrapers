@@ -9,6 +9,7 @@
  */
 
 import { DISCOUNT_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Discount/scrape/DiscountShape.js';
+import { checkTitanBody } from '../../../../../Scrapers/Pipeline/Banks/Discount/scrape/DiscountShapeCheck.js';
 import {
   accountNumberOf,
   balanceExtract,
@@ -16,6 +17,7 @@ import {
   customerUrl,
   extractAccounts,
   type IDiscountAcct,
+  titanHeaders,
 } from '../../../../../Scrapers/Pipeline/Banks/Discount/scrape/DiscountShapeHelpers.js';
 import {
   txnsExtractPage,
@@ -163,5 +165,17 @@ describe('DISCOUNT_SHAPE wiring', () => {
 
   it('carries the DiscountScrape step name', () => {
     expect(DISCOUNT_SHAPE.stepName).toBe('DiscountScrape');
+  });
+
+  it('checks every Titan answer and sends the Titan headers on every call', () => {
+    expect(DISCOUNT_SHAPE.checkBody).toBe(checkTitanBody);
+    expect(DISCOUNT_SHAPE.customer.extraHeaders).toBe(titanHeaders);
+    expect(DISCOUNT_SHAPE.balance.extraHeaders).toBe(titanHeaders);
+    expect(DISCOUNT_SHAPE.transactions.extraHeaders).toBe(titanHeaders);
+  });
+
+  it('names an account to the headers by its Titan path id', () => {
+    const accountId = DISCOUNT_SHAPE.callAccountIdOf?.(ACCT);
+    expect(accountId).toBe('ACCT-1');
   });
 });

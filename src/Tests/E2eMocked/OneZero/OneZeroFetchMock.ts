@@ -587,7 +587,7 @@ function makeMockFetch(tally: ICallTally): MockFetch {
  * @returns Procedure carrying the mocked Response.
  */
 const VIA_MOCKED_FETCH: MtlsFallback = request =>
-  invokeFetch(request.url, request.init, request.verb);
+  invokeFetch({ url: request.url, init: request.init, verb: request.verb });
 
 /**
  * Install the synthetic fetch override. Dispose restores the original.

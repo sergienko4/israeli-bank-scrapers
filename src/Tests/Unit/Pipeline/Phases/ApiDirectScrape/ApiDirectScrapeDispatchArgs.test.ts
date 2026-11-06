@@ -234,6 +234,7 @@ describe('ApiDirectScrapeDispatchArgs — per-account headers (N53)', () => {
     expect(seen).toHaveLength(1);
     expect(seen[0].ctx).toBe(CTX);
     expect(seen[0].call).toStrictEqual({ accountId: ACCOUNT_ID });
+    expect(opts.redactUrlValues).toEqual([ACCOUNT_ID]);
     expect(fx.accountNumberOf).toHaveBeenCalledWith({ id: 'a-1' });
   });
 
@@ -245,6 +246,7 @@ describe('ApiDirectScrapeDispatchArgs — per-account headers (N53)', () => {
     const shape = { ...fx.acct.shape, callAccountIdOf };
     const opts = optsOf({ ...fx.acct, shape });
     expect(opts.extraHeaders).toStrictEqual({ AccountNumber: 'path-7' });
+    expect(opts.redactUrlValues).toStrictEqual(['path-7']);
     expect(callAccountIdOf).toHaveBeenCalledWith({ id: 'a-1' });
     expect(fx.accountNumberOf).not.toHaveBeenCalled();
   });

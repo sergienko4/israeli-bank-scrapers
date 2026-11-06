@@ -20,10 +20,7 @@ import * as path from 'node:path';
 
 import * as ts from 'typescript';
 
-import {
-  SKIP_ALLOWLIST_FILES,
-  SONAR_PARITY_IGNORE_PREFIXES,
-} from '../../../eslint.canary-scope.mjs';
+import { SONAR_PARITY_IGNORE_PREFIXES } from '../../../eslint.canary-scope.mjs';
 
 /** Path fragment that marks a file as part of the Pipeline tree. */
 const PIPELINE_DIR = 'Scrapers/Pipeline';
@@ -591,14 +588,6 @@ const PII_PAYLOAD_RE = new RegExp(
  */
 const SONAR_PARITY_IGNORES: readonly string[] = SONAR_PARITY_IGNORE_PREFIXES;
 
-/**
- * The seven e2e-mocked suites ESLint block 19.7 permits to keep an
- * unconditional `describe.skip` while their fixtures are captured. S1607
- * stays active everywhere else — including the rest of `src/Tests` — because
- * skipped tests are precisely what it exists to find.
- */
-const SKIP_ALLOWLIST: readonly string[] = SKIP_ALLOWLIST_FILES;
-
 /** Repo root, forward-slash form, for relativising absolute inputs. */
 const CWD = process.cwd();
 const REPO_ROOT_FWD = normalisePath(CWD);
@@ -615,21 +604,18 @@ function toRepoRelative(fwd: string): string {
 }
 
 /**
- * Whether a path sits under any of the given repo-relative entries.
- *
- * An entry ending in `/` is a directory prefix; any other entry must match
- * the whole path exactly, so a file entry cannot exempt a longer sibling
- * name that merely starts with it. Anchoring at the start of the
- * repo-relative path keeps an unrelated checkout whose ancestor happens to
- * be named `src/Tests` from being silently exempted.
+ * Whether a path sits under any of the given repo-relative directory
+ * prefixes. Anchoring at the start of the repo-relative path keeps an
+ * unrelated checkout whose ancestor happens to be named `src/Tests` from
+ * being silently exempted.
  * @param fwd - Forward-slash normalised file path.
- * @param entries - Repo-relative directory prefixes or exact file paths.
+ * @param entries - Repo-relative directory prefixes, each ending in `/`.
  * @returns True on the first entry that matches.
  */
 function matchesAny(fwd: string, entries: readonly string[]): boolean {
   const normalised = normalisePath(fwd);
   const rel = toRepoRelative(normalised);
-  return entries.some(e => (e.endsWith('/') ? rel.startsWith(e) : rel === e));
+  return entries.some(e => rel.startsWith(e));
 }
 
 /**
@@ -646,7 +632,7 @@ function sonarCanaryIssues(fwd: string, code: string): IIssue[] {
   if (!matchesAny(fwd, SONAR_PARITY_IGNORES)) {
     issues.push(...s6564CanaryIssues(code), ...s3735CanaryIssues(code));
   }
-  if (!matchesAny(fwd, SKIP_ALLOWLIST)) issues.push(...s1607CanaryIssues(code));
+  issues.push(...s1607CanaryIssues(code));
   return issues;
 }
 
@@ -1105,8 +1091,8 @@ function issuesFromCodeRaw(filePath: string, code: string): IIssue[] {
   if (isInPipeline) issues.push(...asyncIssues(code));
   issues.push(...piiLogIssues(code));
   // Defence-in-depth canaries: re-assert three SonarJS rules by regex, each
-  // scoped exactly like the ESLint rule it shadows (config blocks 11, 19.6
-  // and 19.7), so the gate never enforces an undocumented stricter policy.
+  // scoped exactly like the ESLint rule it shadows (config blocks 11 and
+  // 19.6), so the gate never enforces an undocumented stricter policy.
   issues.push(...sonarCanaryIssues(fwd, code));
   return issues;
 }

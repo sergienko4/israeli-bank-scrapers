@@ -1,8 +1,8 @@
 /**
  * FIBI group browserless refusals — mocked E2E. Each login, envelope, page,
- * hand-off or SSO answer off spec §11.3 fails the run with the error type
- * the spec maps it to, before any later call; no failure carries the bank's
- * own text.
+ * hand-off or SSO answer off spec §11.3, and a data read the bank fails,
+ * fails the run with the error type the spec maps it to, before any later
+ * call; no failure carries the bank's own text.
  *
  * Rule #18: all credentials + data are synthetic; no real PII.
  */
@@ -12,7 +12,7 @@ import { FIBI_MOCK_BRANDS } from './BeinleumiBrands.js';
 import type { BeinleumiFault } from './BeinleumiFaults.js';
 import { BN_BANK_NOTICE } from './BeinleumiMockData.js';
 import type { IRunSetup } from './BeinleumiRun.js';
-import { OPENING_TRAIL, PORTAL_TRAIL, runBeinleumi } from './BeinleumiRun.js';
+import { OPENING_TRAIL, PORTAL_TRAIL, runBeinleumi, SCRAPE_TRAIL } from './BeinleumiRun.js';
 
 /** One refused run: how the bank misbehaves, and how the run must end. */
 interface IRefusal {
@@ -30,6 +30,12 @@ const TO_LOGON = [...OPENING_TRAIL, 'logon'];
 const TO_BOOTSTRAP = [
   ...OPENING_TRAIL,
   ...PORTAL_TRAIL.slice(0, PORTAL_TRAIL.indexOf('bootstrap') + 1),
+];
+
+const TO_ACCOUNT_TYPE = [
+  ...OPENING_TRAIL,
+  ...PORTAL_TRAIL,
+  ...SCRAPE_TRAIL.slice(0, SCRAPE_TRAIL.indexOf('accountType') + 1),
 ];
 
 const WRONG_PASSWORD = { creds: { password: 'syn-Wrong-99' } };
@@ -107,6 +113,14 @@ const REFUSALS: readonly IRefusal[] = [
     message: 'bootstrap HTTP 204',
     trail: TO_BOOTSTRAP,
   },
+  {
+    label: 'an account-type lookup the bank fails',
+    fault: 'accountType500',
+    setup: {},
+    errorType: ScraperErrorTypes.Generic,
+    message: 'customer HTTP 500',
+    trail: TO_ACCOUNT_TYPE,
+  },
 ];
 
 describe.each(FIBI_MOCK_BRANDS)('$companyId browserless refusals', (brand): void => {
@@ -115,6 +129,7 @@ describe.each(FIBI_MOCK_BRANDS)('$companyId browserless refusals', (brand): void
     expect(run.state.violations).toEqual([]);
     expect(run.result).toMatchObject({ success: false, errorType: refusal.errorType });
     expect(run.result.errorMessage).toContain(refusal.message);
+    expect(run.result.errorMessage).not.toContain(BN_BANK_NOTICE);
     expect(run.trail).toEqual(refusal.trail);
     expect(run.launches).toBe(0);
   });

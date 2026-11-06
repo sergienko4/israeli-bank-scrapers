@@ -40,17 +40,3 @@ export const SONAR_PARITY_IGNORE_PREFIXES = Object.freeze([
 export const SONAR_PARITY_IGNORE_GLOBS = Object.freeze(
   SONAR_PARITY_IGNORE_PREFIXES.map(prefix => `${prefix}**`),
 );
-
-/**
- * The e2e-mocked suites permitted to keep an unconditional
- * `describe.skip(...)` while their fixtures are captured
- * (tasks/phase-7-5-T8-T12). Exact file paths, never prefixes: an entry
- * here must not exempt a longer sibling name.
- *
- * Remove an entry when its suite is unskipped — `sonarjs/no-skipped-tests`
- * then fires on any remaining `.skip` and blocks the merge.
- * @type {readonly string[]}
- */
-export const SKIP_ALLOWLIST_FILES = Object.freeze([
-  'src/Tests/E2eMocked/Discount/Discount.e2e-mocked.test.ts',
-]);

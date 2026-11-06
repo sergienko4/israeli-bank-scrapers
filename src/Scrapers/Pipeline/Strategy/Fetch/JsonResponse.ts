@@ -23,7 +23,7 @@ function parseJsonText<T>(answer: IAnswer, rawText: string): Procedure<T> {
     return succeed(parsed);
   } catch (error) {
     const reason = describeJsonParseFailure(error);
-    const safeUrl = safeUrlForLog(answer.url);
+    const safeUrl = safeUrlForLog(answer.url, answer.reading.redactUrlValues);
     return fail(ScraperErrorTypes.Generic, `${answer.verb} ${safeUrl} parse error: ${reason}`);
   }
 }

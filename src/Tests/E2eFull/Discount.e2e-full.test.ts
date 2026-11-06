@@ -3,7 +3,6 @@ import * as dotenv from 'dotenv';
 import { CompanyTypes, createScraper } from '../../index.js';
 import {
   assertSuccessfulScrape,
-  BROWSER_ARGS,
   lastMonthStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
@@ -18,15 +17,13 @@ const hasCredentials = !!(
 );
 const DESCRIBE_IF = hasCredentials ? describe : describe.skip;
 
-DESCRIBE_IF('E2E: Discount Bank (real credentials)', () => {
+DESCRIBE_IF('E2E: Discount Bank (real credentials, API-direct)', () => {
   it(
     'scrapes transactions successfully',
     async () => {
       const scraper = createScraper({
         companyId: CompanyTypes.Discount,
         startDate: lastMonthStartDate(),
-        shouldShowBrowser: false,
-        args: BROWSER_ARGS,
       });
       const result = await scraper.scrape({
         id: process.env.DISCOUNT_ID ?? '',

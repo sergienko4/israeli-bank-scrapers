@@ -35,13 +35,6 @@ const BANK_FIXTURE_EXPECTATIONS: readonly IBankFixtureExpectations[] = [
     steps: LEUMI_PHASE_11_STEPS,
   },
   {
-    bankId: 'discount',
-    originUrl: 'https://start.telebank.co.il',
-    loginStep: '02-pre-login',
-    requiresHydration: false,
-    steps: [{ stepName: '01-home' }, { stepName: '02-pre-login' }],
-  },
-  {
     bankId: 'mercantile',
     originUrl: 'https://start.telebank.co.il',
     loginStep: '02-pre-login',

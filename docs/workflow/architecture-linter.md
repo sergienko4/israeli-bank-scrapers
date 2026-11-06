@@ -34,16 +34,16 @@ in force — so each one is scoped exactly like its ESLint counterpart:
 | ------- | ------------------------------- | ---------------------------------------------------------------------------------- |
 | `S6564` | `sonarjs/redundant-type-aliases` | Block 11 — all `src`, minus `src/Tests`, `src/Common`, `Registry` and legacy banks |
 | `S3735` | `sonarjs/void-use`              | Block 11 — same exclusions                                                         |
-| `S1607` | `sonarjs/no-skipped-tests`      | Block 19.6 — **on** across `src/Tests`; block 19.7 exempts 7 named files           |
+| `S1607` | `sonarjs/no-skipped-tests`      | Block 19.6 — **on** across `src/Tests`, no file exempt                             |
 
 Block 11's exclusion list is not arbitrary: it mirrors `sonar.exclusions` in
 `sonar-project.properties`, so SonarCloud does not report those paths either.
 A canary that fired there would enforce a policy no configuration states.
 
 `S1607` is the opposite case. Skipped tests are what it exists to find, so it
-stays active across `src/Tests` — including test tooling. Only the seven
-`E2eMocked` suites that block 19.7 names are exempt, and they are tracked debt
-awaiting fixture capture (`tasks/phase-7-5-T8-T12`), not false positives.
+stays active across `src/Tests` — including test tooling — with no file
+exempt. The Phase 7.5 allow-list (block 19.7) that excused `E2eMocked` suites
+awaiting fixture capture is retired: its last suite, Discount's, now runs.
 
 ### One list, three consumers
 
@@ -56,7 +56,6 @@ from `eslint.canary-scope.mjs`:
 | ------------------------------- | ------------------------------------------ |
 | `SONAR_PARITY_IGNORE_PREFIXES`  | `LintValidator.ts` path matching, and the test |
 | `SONAR_PARITY_IGNORE_GLOBS`     | Block 11 `ignores` — derived from the prefixes |
-| `SKIP_ALLOWLIST_FILES`          | Block 19.7 `files`, and `LintValidator.ts` |
 
 Hand-maintained copies made drift a matter of time, and a canary mirroring a
 stale scope reports on files ESLint no longer covers. Sharing the list makes

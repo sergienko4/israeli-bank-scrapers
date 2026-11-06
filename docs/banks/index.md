@@ -10,11 +10,11 @@
 
 - :material-bank: **Banks (browser engine)**
 
-  [Bank Leumi](leumi.md) · [Discount](discount.md) · [Mercantile](mercantile.md)
+  [Bank Leumi](leumi.md) · [Mercantile](mercantile.md)
 
 - :material-api: **API-direct (no browser)**
 
-  [OneZero](onezero.md) · [Pepper](pepper.md) · [PayBox](paybox.md) · [Visa Cal](visacal.md) · [Isracard](isracard.md) · [Amex](amex.md) · [Max](max.md) · [Mizrahi Bank](mizrahi.md) · [Bank Hapoalim](hapoalim.md) · [Bank Yahav](yahav.md) · [Beinleumi](beinleumi.md) · [Massad](massad.md) · [Otsar Hahayal](otsar-hahayal.md) · [Pagi](pagi.md)
+  [OneZero](onezero.md) · [Pepper](pepper.md) · [PayBox](paybox.md) · [Visa Cal](visacal.md) · [Isracard](isracard.md) · [Amex](amex.md) · [Max](max.md) · [Mizrahi Bank](mizrahi.md) · [Bank Hapoalim](hapoalim.md) · [Bank Yahav](yahav.md) · [Beinleumi](beinleumi.md) · [Massad](massad.md) · [Otsar Hahayal](otsar-hahayal.md) · [Pagi](pagi.md) · [Discount](discount.md)
 
 - :material-archive: **Legacy (deprecated)**
 
@@ -46,10 +46,10 @@
 
 ## Legacy banks (2) — credentials at a glance
 
-| Bank              | `CompanyTypes`     | Credential fields      | OTP |
-| ----------------- | ------------------ | ---------------------- | --- |
-| Behatsdaa         | `Behatsdaa`        | `id`, `password`       | —   |
-| Beyahad Bishvilha | `BeyahadBishvilha` | `id`, `password`       | —   |
+| Bank              | `CompanyTypes`     | Credential fields | OTP |
+| ----------------- | ------------------ | ----------------- | --- |
+| Behatsdaa         | `Behatsdaa`        | `id`, `password`  | —   |
+| Beyahad Bishvilha | `BeyahadBishvilha` | `id`, `password`  | —   |
 
 Source: [`src/Definitions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Definitions.ts).
 

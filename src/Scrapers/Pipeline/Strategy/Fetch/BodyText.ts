@@ -27,7 +27,7 @@ function decodeStrict(answer: IAnswer, bytes: ArrayBuffer): Procedure<string> {
     const text = STRICT_UTF8.decode(bytes);
     return succeed(text);
   } catch {
-    const safeUrl = safeUrlForLog(answer.url);
+    const safeUrl = safeUrlForLog(answer.url, answer.reading.redactUrlValues);
     return fail(ScraperErrorTypes.Generic, `${answer.verb} ${safeUrl} ${BODY_NOT_UTF8_REASON}`);
   }
 }
@@ -55,7 +55,7 @@ async function readBodyText(answer: IAnswer): Promise<Procedure<string>> {
   try {
     return await readResponseBody(answer);
   } catch {
-    const safeUrl = safeUrlForLog(answer.url);
+    const safeUrl = safeUrlForLog(answer.url, answer.reading.redactUrlValues);
     return fail(ScraperErrorTypes.Generic, `${answer.verb} ${safeUrl} body read failed`);
   }
 }

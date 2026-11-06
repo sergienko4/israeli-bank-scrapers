@@ -3,12 +3,17 @@
  */
 
 import { getDebug } from '../../Logging/Debug.js';
+import type { IResponseReading } from '../../Types/Domain/FetchPolicy.js';
 import type { HttpVerb } from './FetchStrategy.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 
 interface IRequestContext {
   readonly verb: HttpVerb;
   readonly url: string;
+  /** Explicit account ids the URL logger must mask. */
+  readonly redactUrlValues?: readonly string[];
+  /** A reading that carries the same redaction values (an answered call). */
+  readonly reading?: Pick<IResponseReading, 'redactUrlValues'>;
 }
 
 const LOG = getDebug(import.meta.url);
@@ -27,7 +32,8 @@ async function cancelResponseBody(response: Response, request: IRequestContext):
     await response.body?.cancel();
     return true;
   } catch {
-    const url = safeUrlForLog(request.url);
+    const values = request.redactUrlValues ?? request.reading?.redactUrlValues;
+    const url = safeUrlForLog(request.url, values);
     LOG.warn({ verb: request.verb, url, message: 'Response body cancellation failed' });
     return false;
   }

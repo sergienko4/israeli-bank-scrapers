@@ -23,6 +23,7 @@ import {
   BN_ACCOUNT_TYPE,
   BN_AUTHORIZATION,
   BN_BALANCE,
+  BN_BANK_NOTICE,
   BN_OTHER_ACCOUNT,
   BN_TXNS,
 } from './BeinleumiMockData.js';
@@ -121,11 +122,23 @@ function list(call: IRecordedCall, state: IBeinleumiMockState): Response {
 
 const ACCOUNTS = { accounts: [BN_ACCOUNT, BN_OTHER_ACCOUNT] };
 
+const ACCOUNT_TYPE = read('accountType', { accountType: [{ accountType: BN_ACCOUNT_TYPE }] });
+
+/**
+ * The account-type lookup, which its fault fails with the bank's own text.
+ * @param call - The request.
+ * @param state - Run state.
+ * @returns The account type, or a 500 quoting the bank.
+ */
+function accountType(call: IRecordedCall, state: IBeinleumiMockState): Response {
+  if (state.fault !== 'accountType500') return ACCOUNT_TYPE(call, state);
+  hit(state, 'accountType');
+  return new Response(BN_BANK_NOTICE, { status: 500 });
+}
+
 const DATA_ROUTES: Readonly<Record<string, Route>> = {
   [`GET ${WIRE_PATHS.userData}`]: read('userData', ACCOUNTS),
-  [`GET ${WIRE_PATHS.bff}/accountType`]: read('accountType', {
-    accountType: [{ accountType: BN_ACCOUNT_TYPE }],
-  }),
+  [`GET ${WIRE_PATHS.bff}/accountType`]: accountType,
   [`GET ${WIRE_PATHS.bff}/balances/${String(BN_ACCOUNT_TYPE)}`]: read('balance', {
     currentBalance: BN_BALANCE,
   }),

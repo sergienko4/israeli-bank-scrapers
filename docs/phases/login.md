@@ -101,12 +101,12 @@ The table above describes a *sample*: URL, node count and visibility are all rea
 for up to three seconds. Anything the bank does inside that window is invisible to the
 sample.
 
-Discount does exactly that. It answers a **successful** submit with a `301` to its
-authenticated app about 370 ms after submit — 170 ms after the sample was taken. The
-sample therefore records "still on the login page", and three seconds later that stale
-reading condemns a session that had in fact authenticated. The captured failure logs
-*"URL unchanged"* while the response beacon shows the browser moving from `/login/` to
-`/apollo/retail3/`.
+Discount's browser login, before the bank moved to its API, did exactly that. It
+answered a **successful** submit with a `301` to its authenticated app about 370 ms after
+submit — 170 ms after the sample was taken. The sample therefore recorded "still on the
+login page", and three seconds later that stale reading condemned a session that had in
+fact authenticated. The captured failure logged *"URL unchanged"* while the response
+beacon showed the browser moving from `/login/` to `/apollo/retail3/`.
 
 So before failing, the guard re-reads the page and keys the verdict to where the browser
 actually is when the verdict is made:

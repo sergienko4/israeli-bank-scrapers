@@ -121,6 +121,44 @@ function driverWithRejectedSecondary(
   >;
 }
 
+/** A transport failure quoting the bank's reply, as the classifier words it. */
+const QUOTED_SECONDARY_FAILURE = fail(
+  ScraperErrorTypes.Generic,
+  'GET https://api.bank.example/v1/customer 500: SYN bank notice 7731',
+);
+
+/**
+ * Answer the secondary identity GET with a quoting transport failure.
+ * @returns The bus reply.
+ */
+async function quotedReply(): Promise<ReturnType<typeof fail>> {
+  await Promise.resolve();
+  return QUOTED_SECONDARY_FAILURE;
+}
+
+/**
+ * A shape extractor that must not run, since the secondary call fails first.
+ * @returns One synthetic account.
+ */
+function oneAccount(): readonly string[] {
+  return ['acct-1'];
+}
+
+/**
+ * Build a driver whose secondary identity GET fails with a quoting transport
+ * message, for a bank that omits its text.
+ * @returns Driver context.
+ */
+function driverWithQuotedSecondary(): IDriverCtx<string, number> {
+  const customer = {
+    skipFetch: true,
+    secondaryUrlTag: 'data.customerSecondary',
+    extractAccounts: oneAccount,
+  };
+  const bus = { getSessionContext: emptySessionContext, apiGet: quotedReply };
+  return { shape: { customer, omitBankText: true }, bus } as unknown as IDriverCtx<string, number>;
+}
+
 describe('fetchAccounts secondary identity body check', () => {
   it('fails when the shape check rejects the secondary identity body', async () => {
     const extractAccounts = jest.fn((): readonly string[] => ['acct-1']);
@@ -131,9 +169,17 @@ describe('fetchAccounts secondary identity body check', () => {
     expect(extractAccounts).not.toHaveBeenCalled();
   });
 
-  it('omits a secondary identity refusal when the bank opts in', async () => {
+  it('keeps a secondary identity refusal when the bank opts in', async () => {
+    // The shape's own refusal never quotes the bank's text, so the bank-text
+    // rule leaves it intact; it rewrites only a failed transport call.
     const driver = driverWithRejectedSecondary(() => ['acct-1'], true);
     const result = await fetchAccounts(driver);
-    expect(result).toMatchObject({ success: false, errorMessage: 'customer GENERIC' });
+    expect(result).toMatchObject({ success: false, errorMessage: 'expired' });
+  });
+
+  it('strips bank text from a failed secondary identity call when the bank opts in', async () => {
+    const driver = driverWithQuotedSecondary();
+    const result = await fetchAccounts(driver);
+    expect(result).toMatchObject({ success: false, errorMessage: 'customer HTTP 500' });
   });
 });

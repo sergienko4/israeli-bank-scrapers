@@ -29,7 +29,7 @@ function makeDescriptor(isHeadless: boolean, companyId: CompanyTypes): IPipeline
 
 describe('PipelineContextFactory — wireHeadlessMediator', () => {
   it('HTML bank (isHeadless=false): apiMediator slot stays none', () => {
-    const descriptor = makeDescriptor(false, CompanyTypes.Discount);
+    const descriptor = makeDescriptor(false, CompanyTypes.Mercantile);
     const ctx = buildInitialContext(
       descriptor,
       {} as unknown as Parameters<typeof buildInitialContext>[1],
@@ -56,7 +56,7 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
   });
 
   it('Headless flag but bank has no headless block: apiMediator stays none', () => {
-    const descriptor = makeDescriptor(true, CompanyTypes.Discount);
+    const descriptor = makeDescriptor(true, CompanyTypes.Mercantile);
     const ctx = buildInitialContext(
       descriptor,
       {} as unknown as Parameters<typeof buildInitialContext>[1],
@@ -65,9 +65,9 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
   });
 
   it('buildInitialContext returns a well-formed context (non-headless default)', () => {
-    const descriptor = makeDescriptor(false, CompanyTypes.Discount);
+    const descriptor = makeDescriptor(false, CompanyTypes.Mercantile);
     const ctx = buildInitialContext(descriptor, { id: 'syn', password: 'syn' });
-    expect(ctx.options.companyId).toBe(CompanyTypes.Discount);
+    expect(ctx.options.companyId).toBe(CompanyTypes.Mercantile);
     expect(ctx.browser.has).toBe(false);
     expect(ctx.mediator.has).toBe(false);
     expect(ctx.apiMediator.has).toBe(false);

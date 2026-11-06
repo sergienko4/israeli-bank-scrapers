@@ -157,6 +157,7 @@ const EXPECTED_BROWSERLESS: readonly CompanyTypes[] = [
   CompanyTypes.VisaCal,
   CompanyTypes.Max,
   CompanyTypes.OtsarHahayal,
+  CompanyTypes.Discount,
   CompanyTypes.Mizrahi,
   CompanyTypes.Massad,
   CompanyTypes.Yahav,

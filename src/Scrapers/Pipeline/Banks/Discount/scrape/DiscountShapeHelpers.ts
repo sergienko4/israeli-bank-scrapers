@@ -1,27 +1,34 @@
 /**
- * Discount scrape shape — account list + balance extractors + REST
- * urlTag builders for the Titan gateway. Transactions helpers live in
- * DiscountShapeTxns.ts. All three calls are cookie-authed GET (session
- * cookies ride BrowserFetchStrategy through the live login page).
- *
- * Grounded in the Discount network trace + CrossBank fixtures. Raw
- * OperationEntry rows normalise downstream via
- * PIPELINE_WELL_KNOWN_TXN_FIELDS (the Data Mapper) — never in the shape.
+ * Discount scrape shape — account list + balance extractors, REST urlTag
+ * builders and the per-call headers for the Titan gateway. Transactions
+ * helpers live in DiscountShapeTxns.ts. All three calls are cookie-authed
+ * GET: the node transport sends the login's cookie jar, and
+ * {@link titanHeaders} echoes the routing cookies as headers.
  */
 
 import type {
   ApiBody,
+  HeaderMap,
   IExtractAccountsArgs,
+  IScrapeCallInfo,
   VarsMap,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import {
+  DISCOUNT_ORIGIN,
+  DISCOUNT_STATIC_HEADERS,
+  DISCOUNT_TITAN_HEADERS,
+} from '../../../Registry/Config/PipelineBankConfigDiscountConstants.js';
 import { literalUrl, type WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
 import type { Brand } from '../../../Types/Brand.js';
+import type { IActionContext } from '../../../Types/PipelineContext.js';
 
-/** Titan gateway origin — Discount's fixed API-contract host. */
-export const TITAN_API = 'https://start.telebank.co.il/Titan/gatewayAPI';
+/** Titan gateway — Discount's data API, on the login origin. */
+export const TITAN_API = `${DISCOUNT_ORIGIN}/Titan/gatewayAPI`;
 
 /** Account display number — branded for Rule #15. */
 type AccountNumberDisplay = Brand<string, 'DiscountAccountNumberDisplay'>;
+/** Titan account path id — branded for Rule #15. */
+type TitanAccountId = Brand<string, 'DiscountTitanAccountId'>;
 /** Current account balance — branded for Rule #15. */
 type AccountBalance = Brand<number, 'DiscountAccountBalance'>;
 
@@ -80,6 +87,29 @@ export function extractAccounts(args: IExtractAccountsArgs): readonly IDiscountA
  */
 export function accountNumberOf(acct: IDiscountAcct): AccountNumberDisplay {
   return acct.displayNumber as AccountNumberDisplay;
+}
+
+/**
+ * The id the Titan API names an account by — the `accountnumber` header of
+ * its balance and transactions reads.
+ * @param acct - Discount account.
+ * @returns Titan path id.
+ */
+export function callAccountIdOf(acct: IDiscountAcct): TitanAccountId {
+  return acct.accountId as TitanAccountId;
+}
+
+/**
+ * Headers every Titan call sends (spec §11.2): the routing headers, the
+ * retail-app accept and referer, and the call's account id — empty on the
+ * accounts read, which belongs to no account.
+ * @param _ctx - Action context (unused).
+ * @param call - The call the headers are for.
+ * @returns Titan header map.
+ */
+export function titanHeaders(_ctx: IActionContext, call: IScrapeCallInfo): HeaderMap {
+  const accountnumber = call.accountId ?? '';
+  return { ...DISCOUNT_STATIC_HEADERS, ...DISCOUNT_TITAN_HEADERS, accountnumber };
 }
 
 /**

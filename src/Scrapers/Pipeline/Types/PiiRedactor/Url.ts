@@ -111,19 +111,28 @@ function redactUrl(url: string): PiiHintString {
 const PATH_ID_SEPARATOR_RE = /-/g;
 
 /**
+ * A run of at least {@link PATH_SEGMENT_DIGIT_THRESHOLD} digits. Several
+ * banks carry an opaque account id in a URL path segment that also holds
+ * letters or separators (e.g. Discount's `NewAccountInfo.AccountID`,
+ * `SYN-DC-0001`), so a digit run — not a bare all-digit segment — is what
+ * marks a segment as an identifier.
+ */
+const ID_DIGIT_RUN_RE = new RegExp(String.raw`\d{${PATH_SEGMENT_DIGIT_THRESHOLD},}`);
+
+/**
  * Predicate for path segments that look like account / card / phone
- * IDs — runs of ≥ 4 digits, optionally with embedded `-` separators
- * (e.g., `4111-1111-1111-1111`). The separators are stripped before
- * the digit-run check so card-formatted identifiers in URL paths are
- * reliably masked. WHATWG URL parsing percent-encodes spaces, so raw
- * spaces never appear here.
+ * IDs — a run of ≥ 4 digits, optionally with embedded `-` separators
+ * or letters (e.g., `4111-1111-1111-1111`, `SYN-DC-0001`). The
+ * separators are stripped before the digit-run check so card-formatted
+ * and prefixed identifiers in URL paths are reliably masked. WHATWG URL
+ * parsing percent-encodes spaces, so raw spaces never appear here.
  * @param segment - Single path segment.
  * @returns True when the segment is a candidate for last-4 hinting.
  */
 function isLikelyIdSegment(segment: string): boolean {
   const normalized = segment.replaceAll(PATH_ID_SEPARATOR_RE, '');
   if (normalized.length < PATH_SEGMENT_DIGIT_THRESHOLD) return false;
-  return /^\d+$/.test(normalized);
+  return ID_DIGIT_RUN_RE.test(normalized);
 }
 
 /**

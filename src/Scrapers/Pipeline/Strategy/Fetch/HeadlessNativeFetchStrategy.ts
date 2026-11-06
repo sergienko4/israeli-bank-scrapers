@@ -18,12 +18,11 @@ import { NETWORK_FETCH_TIMEOUT_MS } from '../../Mediator/Network/FetchConfig.js'
 import type { IResponseReading } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
-import type { IFetchOpts } from './FetchStrategy.js';
+import type { IFetchInvokePolicy, IFetchOpts } from './FetchStrategy.js';
 import { isMediaTypeMismatch } from './MediaTypeCheck.js';
 import type {
   DefaultHeadersByVerb,
   FetchInvoke,
-  HttpVerb,
   IDispatch,
   INativeFetchOptions,
   TRequest,
@@ -69,16 +68,27 @@ function isAbortRejection(error: unknown): boolean {
 }
 
 /**
+ * Args of a rejected capped request: the error plus what the message needs.
+ */
+interface ICappedFailureArgs {
+  readonly error: unknown;
+  readonly url: string;
+  readonly policy: IFetchInvokePolicy;
+  readonly reading: IResponseReading;
+}
+
+/**
  * Map a rejected capped request onto a network-error Procedure.
- * @param error - The caught value.
- * @param verb - HTTP verb (for the error-message prefix).
- * @param url - Target URL (for the error-message prefix).
+ * @param args - The caught error plus the request it was made for.
  * @returns A `Timeout` failure, or the inherited network failure.
  */
-function toCappedFailure(error: unknown, verb: HttpVerb, url: string): Procedure<Response> {
-  if (!isAbortRejection(error)) return toNetworkFailure(error, verb, url);
-  const safeUrl = safeUrlForLog(url);
-  return fail(ScraperErrorTypes.Timeout, `${verb} ${safeUrl} network error: timeout`);
+function toCappedFailure(args: ICappedFailureArgs): Procedure<Response> {
+  const { error, url, policy, reading } = args;
+  const redactUrlValues = policy.redactUrlValues ?? reading.redactUrlValues;
+  const request = { url, verb: policy.verb, redactUrlValues };
+  if (!isAbortRejection(error)) return toNetworkFailure(error, request);
+  const safeUrl = safeUrlForLog(url, redactUrlValues);
+  return fail(ScraperErrorTypes.Timeout, `${policy.verb} ${safeUrl} network error: timeout`);
 }
 
 /**
@@ -135,7 +145,7 @@ function makeInvokeCapped(timeoutMs: number, reading: IResponseReading): FetchIn
       const response = await fetchWithinCap({ url, init, timeoutMs, reading });
       return succeed(response);
     } catch (error) {
-      return toCappedFailure(error, policy.verb, url);
+      return toCappedFailure({ error, url, policy, reading });
     }
   };
 }

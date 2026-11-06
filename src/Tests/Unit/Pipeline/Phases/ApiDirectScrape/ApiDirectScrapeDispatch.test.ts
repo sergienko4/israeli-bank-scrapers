@@ -253,6 +253,31 @@ describe('ApiDirectScrapeDispatch.dispatchStep — shape body check', () => {
   });
 });
 
+/** A transport failure quoting the bank's reply, as the classifier words it. */
+const QUOTING_FAILURE = fail(
+  ScraperErrorTypes.Generic,
+  'GET https://api.bank.example/v1/items 500: SYN bank notice 7731',
+);
+
+describe('ApiDirectScrapeDispatch.dispatchStep — bank-text rule', () => {
+  it.each([
+    { label: 'the query tag', overrides: {}, message: 'customer HTTP 500' },
+    { label: 'the call name', overrides: { call: 'accounts' }, message: 'accounts HTTP 500' },
+  ])('names a failed call by $label and status only', async ({ overrides, message }) => {
+    const bus = makeOneShotBus(QUOTING_FAILURE);
+    const args = makeDispatchArgs({ bus, omitBankText: true, ...overrides });
+    const result = await dispatchStep(args);
+    expect(result).toEqual({ ...QUOTING_FAILURE, errorMessage: message });
+  });
+
+  it('keeps the transport message for a shape that does not omit bank text', async () => {
+    const bus = makeOneShotBus(QUOTING_FAILURE);
+    const args = makeDispatchArgs({ bus });
+    const result = await dispatchStep(args);
+    expect(result).toBe(QUOTING_FAILURE);
+  });
+});
+
 /** One way a scrape step cannot take array vars, and how it says so. */
 interface IArrayVarsRefusal {
   readonly name: string;

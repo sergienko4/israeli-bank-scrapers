@@ -51,7 +51,7 @@ function emptyStatusAnswer<T>(answer: IAnswer): Procedure<T> {
  * @returns Generic failure with the log-safe URL and the status.
  */
 function refuseStatus<T>(answer: IAnswer): Procedure<T> {
-  const safeUrl = safeUrlForLog(answer.url);
+  const safeUrl = safeUrlForLog(answer.url, answer.reading.redactUrlValues);
   const status = String(answer.response.status);
   return fail(ScraperErrorTypes.Generic, `${answer.verb} ${safeUrl} HTTP ${status}`);
 }

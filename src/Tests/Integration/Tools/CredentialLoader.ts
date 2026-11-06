@@ -35,7 +35,6 @@ type BankCredentials = Readonly<Record<string, string>>;
  * enforced by the `Readonly<>` annotation.
  */
 const BANK_ENV_MAP: Readonly<Partial<Record<string, Readonly<Record<string, string>>>>> = {
-  discount: { id: 'DISCOUNT_ID', password: 'DISCOUNT_PASSWORD', num: 'DISCOUNT_NUM' },
   leumi: { username: 'LEUMI_USERNAME', password: 'LEUMI_PASSWORD' },
 };
 

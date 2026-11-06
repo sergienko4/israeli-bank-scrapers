@@ -117,6 +117,14 @@ Pagi now logs in and scrapes over its web login API on `online.pagi.co.il` the w
 
 **What to do:** Remove browser options from Pagi's `createScraper` call and keep passing `otpCodeRetriever`, because the bank decides when it asks for a code. To let the bank remember the device, pass `onPersistentAuthStateUpdate`, store the state it receives and pass it back as `persistentAuthState` on later runs.
 
+### 9.1.0 - Discount signs in without a browser
+
+**Impact:** Behavior
+
+Discount now logs in and scrapes over its web API on `start.telebank.co.il`, with Node's own `fetch` and one cookie jar, so no browser starts. Browser options passed for it no longer apply: `createScraper` names them in a `ScraperOptionsWarning` and ignores them, so a `preparePage` hook or a caller's `browser` is not used. Credentials are still `id`, `password` and `num`. A blank one, an `id` that is not all digits, or a `password` or `num` outside Latin-1 fails as `GENERIC` with `Missing or malformed credentials` before any request; an `id` of more than nine digits also fails as `GENERIC` before any request, unless it is ten digits starting with `9`. A login answer whose status is anything other than success fails as `INVALID_PASSWORD`. An answer that asks for a further action, a redirect the login does not expect, or any other refusal fails as `GENERIC`. No failure message carries the bank's own text.
+
+**What to do:** Remove browser options from Discount's `createScraper` call; its credentials stay the same.
+
 ### 9.0.0 - Node 24.11 or later required; Node 22 is no longer supported
 
 **Impact:** Breaking

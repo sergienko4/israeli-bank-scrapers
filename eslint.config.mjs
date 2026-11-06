@@ -12,7 +12,7 @@ import jsdoc from 'eslint-plugin-jsdoc';
 import regexpPlugin from 'eslint-plugin-regexp';
 import sonarjs from 'eslint-plugin-sonarjs';
 import unicorn from 'eslint-plugin-unicorn';
-import { SKIP_ALLOWLIST_FILES, SONAR_PARITY_IGNORE_GLOBS } from './eslint.canary-scope.mjs';
+import { SONAR_PARITY_IGNORE_GLOBS } from './eslint.canary-scope.mjs';
 
 /**
  * GLOBAL ARCHITECTURAL GUARDRAILS
@@ -539,7 +539,6 @@ const phase9LocalPlugin = {
 // under that subtree.
 const PHASE_9_TEST_FILES = [
   'src/Tests/E2eReal/Helpers.ts',
-  'src/Tests/E2eReal/Tools/CaptureInvalidLogin.ts',
   'src/Tests/Unit/Pipeline/Infrastructure/DashboardPhase.test.ts',
   'src/Tests/Unit/Pipeline/Mediator/AuthDiscovery/AuthDiscoveryFactoryTest.test.ts',
   'src/Tests/Unit/Pipeline/Mediator/BalanceResolve/BalanceResolveCrossBank.test.ts',
@@ -3548,19 +3547,6 @@ export default tseslint.config(
     plugins: { sonarjs },
     rules: {
       'sonarjs/no-skipped-tests': 'error',
-    },
-  },
-
-  // 19.7 PHASE 7.5 SKIP ALLOW-LIST — e2e-mocked tests with
-  // unconditional `describe.skip(...)` awaiting fixture capture
-  // (tasks/phase-7-5-T8-T12). Each entry MUST be removed from this
-  // list when its test is unskipped (the rule then fires if any
-  // `.skip` remains, blocking the merge). Shared with the parity
-  // canaries via `eslint.canary-scope.mjs`.
-  {
-    files: [...SKIP_ALLOWLIST_FILES],
-    rules: {
-      'sonarjs/no-skipped-tests': 'off',
     },
   },
 

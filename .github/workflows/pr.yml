@@ -67,9 +67,9 @@ defaults:
 #                           caught BEFORE we burn real-bank capacity.
 #   dns-preflight         — Israeli bank DNS resolution sanity.
 #   e2e-real-group-a      — Stage 1 (parallel, gate-A approval):
-#                           non-OTP banks: browser-form
-#                           Discount plus api-direct VisaCal,
-#                           Isracard and Max (no browser).
+#                           non-OTP banks: api-direct
+#                           Discount, VisaCal, Isracard
+#                           and Max (no browser).
 #   e2e-real-group-b      — Stage 2 (parallel, gate-B approval):
 #                           OTP banks: api-direct
 #                           Beinleumi and Hapoalim
@@ -973,14 +973,14 @@ jobs:
 
   # ──────────────────────────────────────────────────────────────
   # Integration Mode A + Mode B — Static HTML drive + Mirror Origin
-  # (HARD GATE). Three Jest shards (`--shard=i/3`) → 3 runners.
+  # (HARD GATE). Two Jest shards (`--shard=i/2`) → 2 runners.
   #
   # Why shards and not a per-bank matrix: the former 9-bank × 2-mode
   # matrix took 18 of the Free plan's 20 concurrent-job slots, yet the
   # bank filter narrowed only the two cross-bank loops — every per-bank
   # `*.modeA` / `*.modeB` file still ran in all 9 cells of its mode, so
   # one failing per-bank file red-blocked all 9. Jest splits the file
-  # list after path filtering, so the 3 shards run disjoint files whose
+  # list after path filtering, so the 2 shards run disjoint files whose
   # union is exactly the unsharded suite.
   #
   # `INTEGRATION_BANK_FILTER` is left unset here, so the two cross-bank
@@ -993,7 +993,8 @@ jobs:
   #
   # The `:bank` scripts pin the gate's file set; the non-bank scripts
   # would also pick up any future `static` or `Mirror/` file. No
-  # `--passWithNoTests`: an empty shard must fail, not pass.
+  # `--passWithNoTests`: an empty shard must fail, not pass, so N never
+  # exceeds the smaller mode's file count (Mode B's).
   #
   # Mode B runs even when Mode A fails (not when setup failed), so one
   # run reports both modes. A hang hits the job timeout instead, which
@@ -1006,19 +1007,19 @@ jobs:
   # Pinned by IntegrationShardGate.test.ts [ISG-1..ISG-13].
   # ──────────────────────────────────────────────────────────────
   integration:
-    name: Integration (shard ${{ matrix.shard }}/3)
+    name: Integration (shard ${{ matrix.shard }}/2)
     needs: [changes, browser-stack]
     if: needs.changes.outputs.full_suite == 'true'
     runs-on: ubuntu-latest
-    # Hang guard for both modes back to back (slowest shard estimated
-    # at ≈ 5.5 min including setup).
+    # Hang guard for both modes back to back (three-shard jobs took
+    # 2–4 min including setup, so two stay well under it).
     timeout-minutes: 15
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3]
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -1028,11 +1029,11 @@ jobs:
         uses: $/.github/actions/setup-test-runner
         with:
           gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Integration Mode A — shard ${{ matrix.shard }}/3
-        run: npm run test:integration:mode-a:bank -- --shard=${{ matrix.shard }}/3
-      - name: Integration Mode B — shard ${{ matrix.shard }}/3
+      - name: Integration Mode A — shard ${{ matrix.shard }}/2
+        run: npm run test:integration:mode-a:bank -- --shard=${{ matrix.shard }}/2
+      - name: Integration Mode B — shard ${{ matrix.shard }}/2
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: npm run test:integration:mode-b:bank -- --shard=${{ matrix.shard }}/3
+        run: npm run test:integration:mode-b:bank -- --shard=${{ matrix.shard }}/2
 
   # ──────────────────────────────────────────────────────────────
   # SonarCloud Scan — the required `SonarCloud Scan` context for PRs.
@@ -1219,8 +1220,7 @@ jobs:
   #
   #   Group A, gate-A (parallel runners):
   #     non-OTP banks
-  #     — Discount (browser-form)
-  #     — VisaCal, Isracard, Max (api-direct, no browser)
+  #     — Discount, VisaCal, Isracard, Max (api-direct, no browser)
   #   Group B, gate-B (parallel runners):
   #     OTP banks
   #     — Beinleumi, Hapoalim (api-direct, no browser)
@@ -1390,8 +1390,8 @@ jobs:
       (github.event_name == 'workflow_dispatch' ||
       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
-    # Non-OTP banks: Discount on a browser form, VisaCal, Isracard
-    # and Max over the API. Amex is no longer here — it now runs
+    # Non-OTP banks: Discount, VisaCal, Isracard and Max, all over
+    # the API. Amex is no longer here — it now runs
     # in its OWN isolated Group D (`e2e-real-group-d` below) under a
     # separate gate-D approval. Rule #16 (Amex never co-runs with
     # Isracard) is honored by approving gate-D alone for an Amex-only
@@ -1430,9 +1430,6 @@ jobs:
       - name: Force reliable DNS for ${{ matrix.bank }}
         run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
       - uses: $/.github/actions/setup-node-deps
-      - uses: $/.github/actions/install-camoufox
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: E2E real (${{ matrix.bank }})
         env:

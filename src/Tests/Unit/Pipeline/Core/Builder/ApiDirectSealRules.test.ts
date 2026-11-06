@@ -243,6 +243,13 @@ describe('validateApiDirectConfig — fields sealed with RSA PKCS#1 v1.5 (N44)',
     expect(result).toMatchObject({ success: false, errorMessage: FIELDS_MSG });
   });
 
+  it('a fields list omitted at runtime fails the build, not a throw', () => {
+    const omitted = { ...PKCS1_SEAL, fields: undefined } as unknown as ISealRsaPkcs1Config;
+    const step = postWith(omitted);
+    const result = validate(step);
+    expect(result).toMatchObject({ success: false, errorMessage: FIELDS_MSG });
+  });
+
   it.each([
     ['/Credentials', '/Credentials/Password'],
     ['/Credentials/Password', '/Credentials'],

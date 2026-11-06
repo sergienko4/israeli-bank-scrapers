@@ -16,10 +16,6 @@ import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import {
-  buildDiscountPipeline,
-  DISCOUNT_LOGIN,
-} from '../../../../Scrapers/Pipeline/Banks/Discount/DiscountPipeline.js';
-import {
   buildMercantilePipeline,
   MERCANTILE_LOGIN,
 } from '../../../../Scrapers/Pipeline/Banks/Mercantile/MercantilePipeline.js';
@@ -60,15 +56,6 @@ const BASE_PHASES = [
  * phases (7) with no OTP step.
  */
 const BANK_LOGIN_FIXTURES: readonly IBankLoginFixture[] = [
-  {
-    bank: 'discount',
-    company: CompanyTypes.Discount,
-    loginConfig: DISCOUNT_LOGIN,
-    buildPipeline: buildDiscountPipeline,
-    expectedFieldKeys: ['id', 'password', 'num'],
-    expectedPhaseCount: BASE_PHASES.length,
-    expectedPhaseNames: BASE_PHASES,
-  },
   {
     bank: 'mercantile',
     company: CompanyTypes.Mercantile,
