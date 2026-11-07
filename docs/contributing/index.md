@@ -38,7 +38,7 @@ npm run test:pipeline  # full coverage gates
 # 4. Branch + commit
 git checkout -b fix/whatever-im-fixing
 # ... make changes ...
-git commit -m "fix(scope): descriptive subject"   # husky runs 12 gates
+git commit -m "fix(scope): descriptive subject"   # husky runs up to 23 gates
 git push -u origin fix/whatever-im-fixing
 
 # 5. Open PR — CI re-runs the gates + bank tests

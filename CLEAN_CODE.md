@@ -247,6 +247,7 @@ git commit
   → skip filter: no source files staged (only .md / .json / .yml /
     .yaml, LICENSE, dotfiles, .github/, .husky/, tasks/)?
       → package.json staged → lint:jest-scopes
+      → lint:plan-refs on the staged additions
       → commit succeeds ✅ (no other gate runs)
   → T1-INVERSE: test-only branches (refactor/phase-7-*,
     refactor/phase-9-*, chore/test-*) reject production src/ edits
@@ -257,7 +258,8 @@ git commit
       build (npm run lint + tsup + public-surface), canaries,
       dead-code, cycles, guideline-coverage, syntax-guardrails,
       test-duplication, bank-coverage, fixtures-pii, pii-staged,
-      node-support, coderabbit-filters, jest-scopes
+      plan-refs (not cached), node-support, coderabbit-filters,
+      jest-scopes
       + architecture   when a src/ code file is staged
       + docs-strict    when docs/**, mkdocs.yml or a root
                        UPPER_CASE.md is staged (skipped if Python

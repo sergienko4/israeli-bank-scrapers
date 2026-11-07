@@ -58,7 +58,7 @@ flowchart LR
 | Banks supported | **19** total — 17 on Pipeline (7 browser + 10 api-direct), 2 on legacy migration path | [Banks](banks/index.md) |
 | Phases | Browser: `INIT → HOME → [PRE-LOGIN] → LOGIN → [OTP] → AUTH-DISCOVERY → BIND-API-MEDIATOR → API-DIRECT-SCRAPE → TERMINATE` · api-direct: **2** | [Phases](phases/index.md) |
 | Test suites | 412, ~4,800 tests, 97.20% statements coverage | [Workflow → CI gates](workflow/ci.md) |
-| Pre-commit gates | 12 gates in parallel | [Workflow → Pre-commit](workflow/pre-commit.md) |
+| Pre-commit gates | Up to 23 gates in parallel | [Workflow → Pre-commit](workflow/pre-commit.md) |
 
 ## What's new
 

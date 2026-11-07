@@ -24,7 +24,7 @@ where applicable: CLEAN_CODE.md (function/file/complexity/params caps),
 CLAUDE.md (ZERO CSS selectors), agent-contract.md §A3.5 (exit-gate
 GREEN + timestamp), agent-contract.md §Test safety net (bodies
 unchanged), spec.txt (commit-message contract), before-commit-guidlines.md
-(6-step + husky 20 gates), commit-guidlines.md (Conventional
+(6-step + husky 23 gates), commit-guidlines.md (Conventional
 Commits + Co-authored-by trailer), public API surface unchanged
 (`npm run build && npm run lint:public-surface`, then review
 `git diff origin/main...HEAD -- api-surface.d.ts` — NOT a byte-diff of

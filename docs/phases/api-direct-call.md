@@ -52,7 +52,7 @@ Declarative body literal with `$ref` tokens:
 | `$join: { parts, … }`        | One string built from refs and literals  |
 | `$merge: { base, set }`      | A carried record with `set` laid over it |
 
-A `$join` node (`IJoinTemplate`, N24) concatenates its `parts` in order. Each
+A `$join` node (`IJoinTemplate`) concatenates its `parts` in order. Each
 `JoinPart` is a ref token (`'creds.password'`) or a literal (`{ literal: '-' }`).
 `encode: 'base64'` (`JoinEncoding`) encodes the joined text as base64 over its
 UTF-8 bytes, and `prefix` goes in front of the result. `hydrateJoin` computes
@@ -75,7 +75,7 @@ A part that does not resolve fails hydration with the same error as a missing
 `$ref`. A part that resolves to a value that is not a string fails with
 `$join part <token> is not a string`.
 
-An optional ref (N49), such as `{ $ref: 'carry.did', optional: true }`, is for a
+An optional ref, such as `{ $ref: 'carry.did', optional: true }`, is for a
 value the bank wants only when the run has one: a device id an earlier run
 stored, say. When its carry slot, credential field or cookie is absent,
 `hydrate` leaves its key out of the record (`isRefAbsent` in
@@ -96,7 +96,7 @@ queryTemplate: {
 },
 ```
 
-A `$merge` node (`IMergeTemplate`, N37) sends back a form the bank handed out
+A `$merge` node (`IMergeTemplate`) sends back a form the bank handed out
 ([Login-form capture](#login-form-capture)). `hydrateMerge` (in
 `Template/MergeTemplate.ts`) resolves `base`, a `carry.<slot>` holding a flat
 record of strings, and lays the hydrated `set` over it: a `set` key replaces
@@ -124,10 +124,10 @@ One hydration engine serves both `API-DIRECT-CALL` and `API-DIRECT-SCRAPE` step 
 - `seedCarryFromCreds` mirrors creds into carry slots at flow init.
 - `sha256-prefix-16` derives a stable identifier from another creds field (PayBox uses this to bind its long-term JWT to a phone-derived `deviceId16Hex` — warm-start-stable without the caller persisting state).
 - `random-uuid` generates one canonical UUID per flow init, so every step that reads the slot sees the same value — for banks that need a stable client-instance identifier across the steps of one login. A non-empty creds value is mirrored instead.
-- `random-hex` (`IRandomHexBootstrap`, N42) draws `bytes` (1 to 64) fresh random bytes per flow init as hex, twice as many characters, upper-case when `isUpperCase` is set — for a flow identifier of a fixed length and case. `evalRandomBootstrap` (in `Flow/FlowInitCarry.random.ts`) serves it and the other `RandomBootstrap` kinds, `random-hex-16` and `random-uuid`, once `isRandomBootstrap` matches; a non-empty creds value is mirrored instead.
-- `derivedCarry` joins parts with separators + truncation for OTP-encryption keys. `transform: 'lower'` (N60) lower-cases the joined text before the byte cap, so a slot can carry a lower-cased copy of a credential (the FIBI Transmit `uid`) while the credential itself stays as typed.
+- `random-hex` (`IRandomHexBootstrap`) draws `bytes` (1 to 64) fresh random bytes per flow init as hex, twice as many characters, upper-case when `isUpperCase` is set — for a flow identifier of a fixed length and case. `evalRandomBootstrap` (in `Flow/FlowInitCarry.random.ts`) serves it and the other `RandomBootstrap` kinds, `random-hex-16` and `random-uuid`, once `isRandomBootstrap` matches; a non-empty creds value is mirrored instead.
+- `derivedCarry` joins parts with separators + truncation for OTP-encryption keys. `transform: 'lower'` lower-cases the joined text before the byte cap, so a slot can carry a lower-cased copy of a credential (the FIBI Transmit `uid`) while the credential itself stays as typed.
 - A step's `deriveCarry` takes the same `IDerivedCarry` entries and runs them once that step's body and header extracts are in scope. `deriveStepCarry` hands them to `applyDerivations`, the evaluator flow-init `derivedCarry` uses, so the parts (`carry.<slot>`, `creds.<field>`, `config.<dotted.path>` such as `config.secrets.<name>`), separator, truncation and failure messages (`derivedCarry: carry.<slot> missing or non-string`) are the same. A part that fails fails the step.
-- `op` (`DerivedOp`, N45) shapes the finished text last, after the join, `transform` and the byte cap: `applyDerivedOp` (in `Flow/FlowInitCarry.ops.ts`) takes an `IOpInput`: the text, the subject a failure names and the op. A `format` op (`IFormatOp`) takes the first `IFormatRule` whose `pattern` matches the whole text, anchored at both ends with the `u` flag by `anchoredPattern`, and writes the rule's `prefix` plus the text left-padded with `0` to `padStart` chars, so a 1-to-9-digit id can become `00001` and nine digits. No match fails `Generic`, naming the slot and never the text: `derivedCarry: <slot> unformattable` at flow init, `<step> derive <slot> unformattable` in a step, before that flow's next request. An `md5-hex` op (`IMd5HexOp`) writes the MD5 digest of the UTF-8 text as lower-case hex, for a bank that checks one; nothing relies on it for secrecy.
+- `op` (`DerivedOp`) shapes the finished text last, after the join, `transform` and the byte cap: `applyDerivedOp` (in `Flow/FlowInitCarry.ops.ts`) takes an `IOpInput`: the text, the subject a failure names and the op. A `format` op (`IFormatOp`) takes the first `IFormatRule` whose `pattern` matches the whole text, anchored at both ends with the `u` flag by `anchoredPattern`, and writes the rule's `prefix` plus the text left-padded with `0` to `padStart` chars, so a 1-to-9-digit id can become `00001` and nine digits. No match fails `Generic`, naming the slot and never the text: `derivedCarry: <slot> unformattable` at flow init, `<step> derive <slot> unformattable` in a step, before that flow's next request. An `md5-hex` op (`IMd5HexOp`) writes the MD5 digest of the UTF-8 text as lower-case hex, for a bank that checks one; nothing relies on it for secrecy.
   Format patterns use the linear-time `FlatPattern` grammar: no groups or
   alternation, and a variable repeat only on the last atom. Explicit anchors
   are optional because the evaluator adds them.
@@ -223,7 +223,7 @@ headers: {
 ### Raw query
 
 Some banks read a query byte for byte, so a percent-encoded `queryTemplate`
-pair would not match what they expect. Such a step sets `rawQuery` (N41), an
+pair would not match what they expect. Such a step sets `rawQuery`, an
 `IJoinTemplate`: the `parts`, optional `prefix` and optional `encode` of a
 `$join`. The joined text goes after the step URL's `?` as it is. When the URL
 already has a query, the text follows an `&` instead.
@@ -256,7 +256,7 @@ its WK tag.
 ### Carried step URL
 
 Some banks hand the client the next URL to call, as a redirect target or as a
-field in an answer. A GET step sends there when it names `urlFromCarry` (N40),
+field in an answer. A GET step sends there when it names `urlFromCarry`,
 the carry slot holding that URL. Its `urlTag` still names the step but is not
 sent to. A POST cannot name it, since `IPostStep.urlFromCarry` is `never`.
 
@@ -296,7 +296,7 @@ resulting URL as a literal.
 
 A bank may hand the client a ticket URL that redirects to the page later calls
 must name, for example as their `Referer`. A GET step with a manual `redirect`
-can carry that page's URL: `finalUrlInto` (N51) names the slot that takes the
+can carry that page's URL: `finalUrlInto` names the slot that takes the
 URL that gave the final answer, after the last hop. A POST cannot name it,
 since `IPostStep.finalUrlInto` is `never`.
 
@@ -348,7 +348,7 @@ For a ruled optional slot, `optionalRawValue` retains a present, nonblank
 raw value for `extractRules` before using any fallback; an invalid value is
 refused rather than hidden.
 
-`keepExisting: true` keeps a value carry already holds (N56). The slot is
+`keepExisting: true` keeps a value carry already holds. The slot is
 written only while carry has no non-empty string for it, so a device id an
 earlier run seeded survives a different id in the answer. When the answer
 differs, the debug log notes `{step, slot, kept: true}` and never the values.
@@ -588,7 +588,7 @@ that resolves. `passesCheck` then applies the check's one kind:
 | `text`         | is safe text (below) that matches the whole `pattern`, if any  |
 
 Every kind but `absent` fails when no alternative resolves, and a check with
-no kind never passes. `negate: true` (N60) inverts a check's verdict, so
+no kind never passes. `negate: true` inverts a check's verdict, so
 `{ pointer, equals: 'SUCCESS', negate: true }` passes on any other value,
 `null` or a missing pointer included, and `{ pointer, absent: true, negate:
 true }` passes when the pointer resolves. A negated check with no kind still
@@ -659,14 +659,14 @@ extractRules: {
   any decoded path holding none of the denied texts), no user info and no
   fragment. Malformed path escapes are refused.
   The slot keeps the text as sent, not the resolved URL.
-- `pemCertificate: { keyRef }` (`IPemCertificateRule`, N27) is checked by
+- `pemCertificate: { keyRef }` (`IPemCertificateRule`) is checked by
   `isPemCertificate` (in `Flow/RunStep.pemRule.ts`). It demands exactly one
   PEM block, a `CERTIFICATE` that parses as X.509, certifies the private key
   `keyRef` resolves to and is valid now (`validFrom ≤ now ≤ validTo`). The key
   ref resolves to text with `resolveRefText` (in `Template/RefResolver.ts`)
   against the step's prepared scope, so it reads a key an earlier step or this
   step's [generators](#carry-generators) put in carry.
-- `equalsRef` (N47) is checked last, on the text the other checks kept. The
+- `equalsRef` is checked last, on the text the other checks kept. The
   ref resolves to text with `resolveRefText` against the step's prepared scope,
   and the slot text must equal it exactly (case and all). An unresolved ref is
   a mismatch.
@@ -702,7 +702,7 @@ prompt, and neither message names the value.
 
 A bank that answers with a page or a script rather than JSON can still hand a
 value to carry. On a `response: 'text'` step, `textCaptures` maps a carry slot
-to an `ITextCapture` (N36): a regex `pattern`, searched in the whole answer
+to an `ITextCapture`: a regex `pattern`, searched in the whole answer
 with the `g` flag, and the `group` whose text the slot takes (`0` is the whole
 match). `captureText` (in `Flow/RunStep.textCapture.ts`) runs right after the
 header slots, through `answerSlots` (in `Flow/RunStep.answerSlots.ts`):
@@ -732,7 +732,7 @@ textCaptures: {
 ### Login-form capture
 
 Some banks hand out a login form whose hidden fields the logon post must send
-back. On a `response: 'text'` step, `formCapture` (an `IFormCapture`, N37)
+back. On a `response: 'text'` step, `formCapture` (an `IFormCapture`)
 reads one form's hidden fields into a carry slot. `captureForm` (in
 `Flow/RunStep.formCapture.ts`) runs through `answerSlots` after the text
 captures, on the page `answerText` reads off the `{ text }` answer:
@@ -781,7 +781,7 @@ formCapture: {
 
 Some banks answer a logon with a page whose script sends a browser on, and an
 app elsewhere, by testing the User-Agent. On a `response: 'text'` step,
-`locationCapture` (an `ILocationCapture`, N54) carries the URL that script
+`locationCapture` (an `ILocationCapture`) carries the URL that script
 sends a browser to. `captureLocation` (in `Flow/RunStep.locationCapture.ts`)
 runs through `answerSlots` after the text captures and the form capture. The
 script is never run: it is read as tokens, along the path the configured
@@ -845,7 +845,7 @@ on a step whose `response` is not `'text'`, one with an empty `into`,
 ### Envelope codec
 
 Some banks wrap every JSON request and answer in an AES-256-CBC envelope. A
-POST step names it with `codec` (an `EnvelopeCodec`, N39). In `sealed` mode
+POST step names it with `codec` (an `EnvelopeCodec`). In `sealed` mode
 (`IEnvelopeSealed`) the session key and the crypto session id come from carry:
 
 ```ts
@@ -879,7 +879,7 @@ codec: {
   `data` canonical base64 of whole blocks, at most 4 194 304 characters, that
   decrypts to a strict UTF-8 JSON record. Anything else fails
   `<step> envelope invalid`.
-- An answer must come back sealed (N52). A plaintext answer with a non-zero
+- An answer must come back sealed. A plaintext answer with a non-zero
   numeric `error_code` fails `<step> bank error`, typed by the step's
   [`bankErrorType`](#bank-error-guard); any other plaintext answer fails
   `<step> envelope invalid` (`Generic`). Opened data with such an `error_code`
@@ -918,7 +918,7 @@ codec: {
   `crypto_session_id` that `isSessionId` accepts (1..512 characters). The
   session key is the SHA-256 of the ECDH shared secret. Anything else fails
   `<step> envelope invalid`.
-- The answer must open under that session, as in `sealed` mode (N52). Then
+- The answer must open under that session, as in `sealed` mode. Then
   the key (base64) goes to the `keyInto` slot and the id to `sessionInto`;
   the step's extracts read the opened answer and run after, so an extract
   into the same slot wins.
@@ -950,7 +950,7 @@ skipped step, never the slot's value.
 
 ### Carry generators
 
-A step's `generate` list (`ICarryGenerator`, `GeneratorTypes.ts`, N25) makes
+A step's `generate` list (`ICarryGenerator`, `GeneratorTypes.ts`) makes
 values the bank expects the device to own. The reducer runs
 `generateStepCarry` (in `Flow/RunStep.generate.ts`) once the `runIf` guard
 passes and before the pre-hook and body hydration. A skipped step generates
@@ -963,7 +963,7 @@ body and later steps can read them. `GENERATOR_RUNS` maps each
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `rsa-key`    | `generateRsaKey` (`IRsaKeyGenerator`): a fresh RSA key of `bits` (2048). Its PKCS#8 PEM goes to `keyInto`, and `spkiSha256Hex` of its public key (64 lowercase hex characters) to `spkiSha256HexInto` |
 | `pkcs10-csr` | `generatePkcs10Csr` (`IPkcs10CsrGenerator`, `Flow/RunStep.generate.csr.ts`): a PKCS#10 request signed with the RSA key `keyRef` names, base64url DER without padding, to `into`                       |
-| `ecdh-key`   | `generateEcdhKey` (`IEcdhKeyGenerator`, `Crypto/EcdhKeypair.ts`, N38): a fresh key pair on `curve` (`secp256k1`), base64. The uncompressed public point (65 bytes, 0x04 first) goes to `publicInto`   |
+| `ecdh-key`   | `generateEcdhKey` (`IEcdhKeyGenerator`, `Crypto/EcdhKeypair.ts`): a fresh key pair on `curve` (`secp256k1`), base64. The uncompressed public point (65 bytes, 0x04 first) goes to `publicInto`        |
 
 ```ts
 generate: [{ kind: 'rsa-key', bits: 2048, spkiSha256HexInto: 'deviceId' }],
@@ -1021,7 +1021,7 @@ A bank whose login obtains its device certificate at runtime declares a
 dynamic `clientCert` on its headless block
 ([Dynamic client certificate](../architecture/pipeline.md#dynamic-client-certificate)).
 The step that has the key and the issued certificate in scope names them in
-its `clientCert` (`IStepClientCert`, N26): refs to the PEM private key and the
+its `clientCert` (`IStepClientCert`): refs to the PEM private key and the
 PEM certificate.
 
 ```ts
@@ -1051,7 +1051,7 @@ Once the login succeeds, the ACTION stage installs the session context the
 scrape phase reads (`getSessionContext`). By default that is the full carry
 snapshot. A flow whose carry holds registration secrets (a device key, an
 issued certificate, client credentials) names what the scrape may see in
-`sessionCarry` (N32):
+`sessionCarry`:
 
 ```ts
 sessionCarry: ['mag'],
@@ -1075,7 +1075,7 @@ seeded credential can never be allowlisted.
 
 A login on one gateway can leave cookies the scrape must not send: a `Path=/`
 cookie scoped to the bank's registrable domain matches every later read on a
-sibling host. `cookieHandoff` (a `CookieHandoff`, N35) decides what a finished
+sibling host. `cookieHandoff` (a `CookieHandoff`) decides what a finished
 login leaves in the session jar:
 
 - `shared` (the default) leaves the jar as the login left it.
@@ -1131,7 +1131,7 @@ that cannot be sent. A raw query is resolved later because it may use that code.
   step `INVALID_OTP` with `<step> preHook value invalid` before its request
   is sent. The message never names the value.
 - `valueLengthRef` names the carry slot where the bank states the code's exact
-  length (N57). `statedLength` reads it after `requires`, before the callback
+  length. `statedLength` reads it after `requires`, before the callback
   is asked. An integer 4..10, as a number or as decimal text, means the value
   must be exactly that many ASCII digits, or the step fails `INVALID_OTP` as
   above, so a malformed code never spends an attempt. When the slot is absent,
@@ -1173,8 +1173,8 @@ headless: {
   cookieDomains: ['bank.example'], // a Domain cookie reaches every *.bank.example host
   redirectPolicy: 'reject',        // any 3xx fails unless the step names its own redirect
   statusPolicy: { 204: 'empty' },  // a 204 answers {} without reading the body
-  mediaTypes: { json: 'application/json' }, // every json answer must say so (N61)
-  strictUtf8: true,                // a malformed UTF-8 byte fails the call (N63)
+  mediaTypes: { json: 'application/json' }, // every json answer must say so
+  strictUtf8: true,                // a malformed UTF-8 byte fails the call
 }
 ```
 
@@ -1230,7 +1230,7 @@ from what it extracted:
   a manual one, `finalUrlInto` carries the URL that gave the final answer
   ([Final URL carry](#final-url-carry)). A POST step names a manual one only
   with `postAsGet: true`: a 302/303 answer is followed as a body-less GET
-  without the body headers, and a 301/307/308 is refused (N46).
+  without the body headers, and a 301/307/308 is refused.
 - `response: 'document'` and `documentMarker` read a page instead of JSON;
   `response: 'text'` reads the answer as `{ text }`, up to `maxTextChars`
   (65 536 by default), and `textCaptures` read slots off it
@@ -1240,13 +1240,13 @@ from what it extracted:
   ([Handoff script capture](#handoff-script-capture));
   `statusPolicy` decides a 2xx before any body is read
   ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
-- `mediaType` (N61) names the one lower-case `type/subtype` the answer's
+- `mediaType` names the one lower-case `type/subtype` the answer's
   `content-type` must carry, parameters aside, over the bank's
   `headless.mediaTypes` default for the step's response kind; a missing or
   different type fails the step `<step> unexpected media type`, after the
   status policy and before the body is read
   ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
-- `strictUtf8` (N63) decodes the answer's bytes as strict UTF-8, over the
+- `strictUtf8` decodes the answer's bytes as strict UTF-8, over the
   bank's `headless.strictUtf8`; a malformed byte fails the step
   `<step> body not utf-8` instead of becoming U+FFFD. `strictUtf8: false`
   lifts the bank's `true` for that step's body reading, and fails the
@@ -1334,7 +1334,7 @@ rules, `API_DIRECT_CODEC_RULES` in `Core/Builder/ApiDirectCodecRules.ts`,
 the step URL rules, `API_DIRECT_URL_RULES` in
 `Core/Builder/ApiDirectUrlRules.ts`, and the optional-ref rule,
 `API_DIRECT_OPTIONAL_REF_RULES` in `Core/Builder/ApiDirectOptionalRefRules.ts`,
-then the answer-classifier rules (N50), `API_DIRECT_CLASSIFY_RULES` in
+then the answer-classifier rules, `API_DIRECT_CLASSIFY_RULES` in
 `Core/Builder/ApiDirectClassifyRules.ts` and `API_DIRECT_CLASSIFY_SLOT_RULES` in
 `Core/Builder/ApiDirectClassifySlotRules.ts`,
 then the dynamic client-certificate

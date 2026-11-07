@@ -7,7 +7,7 @@
 | Page                                              | What it covers                                                                                                |
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | [CI gates](ci.md)                                 | Every check that runs on a PR, what fails it, where to look for the log                                       |
-| [Pre-commit hook](pre-commit.md)                  | 12 quality gates run in parallel before any commit lands locally                                              |
+| [Pre-commit hook](pre-commit.md)                  | Up to 23 quality gates run in parallel before any commit lands locally                                        |
 | [Pre-push hook](pre-push.md)                      | Opt-in PR-body validator mirroring the `Validate PR body sections` CI gate                                    |
 | [Branch flow & release-please](branch-flow.md)    | Branch policy, PR rules, release-please automated versioning                                                  |
 | [Releases & consumer signals](releases.md)        | What a publish proves, the guards behind it, and the compatibility score                                      |
@@ -23,7 +23,7 @@
 ```mermaid
 flowchart LR
     DEV[Developer<br/>git commit]
-    PCH[Pre-commit hook<br/>12 gates parallel<br/>~3-5 min]
+    PCH[Pre-commit hook<br/>up to 23 gates parallel<br/>~3-5 min]
     PR[Push + PR]
     CI[GitHub Actions<br/>same gates + bank-tests]
     MERGE[Squash merge]
