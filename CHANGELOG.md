@@ -1,5 +1,39 @@
 # Changelog
 
+## [9.1.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v9.0.0...v9.1.0) (2026-11-07)
+
+
+### Features
+
+* **amex:** log in over the API, no browser ([#692](https://github.com/sergienko4/israeli-bank-scrapers/issues/692)) ([46bb829](https://github.com/sergienko4/israeli-bank-scrapers/commit/46bb829b4fb9f7f51610f7725c0b84887a00adf0))
+* **api-direct:** card guards (part 3/3) ([#689](https://github.com/sergienko4/israeli-bank-scrapers/issues/689)) ([ed8c00f](https://github.com/sergienko4/israeli-bank-scrapers/commit/ed8c00fc7f272528487f817310c96194993368fc))
+* **api-direct:** card login flow (part 2/3) ([#688](https://github.com/sergienko4/israeli-bank-scrapers/issues/688)) ([17fe191](https://github.com/sergienko4/israeli-bank-scrapers/commit/17fe191732b53afa3ea9830846e38a6b4a2d6ba2))
+* **api-direct:** card transport (part 1/3) ([#687](https://github.com/sergienko4/israeli-bank-scrapers/issues/687)) ([497af67](https://github.com/sergienko4/israeli-bank-scrapers/commit/497af676d1e08589943543609c59f23697066e28))
+* **api-direct:** Discount engine (part 1/2) ([#707](https://github.com/sergienko4/israeli-bank-scrapers/issues/707)) ([5100410](https://github.com/sergienko4/israeli-bank-scrapers/commit/5100410079e1a2422cc16fc76daab3869f5a5b10))
+* **api-direct:** FIBI device auth (part 2/3) ([#702](https://github.com/sergienko4/israeli-bank-scrapers/issues/702)) ([30c20ac](https://github.com/sergienko4/israeli-bank-scrapers/commit/30c20accf26d0f2c5348268739cba5754a4a6208))
+* **api-direct:** FIBI engine (part 1/3) ([#701](https://github.com/sergienko4/israeli-bank-scrapers/issues/701)) ([1e7fae6](https://github.com/sergienko4/israeli-bank-scrapers/commit/1e7fae61ed0e902e3db8d216cea9b292b6f319a2))
+* **api-direct:** Yahav engine (part 1/2) ([#699](https://github.com/sergienko4/israeli-bank-scrapers/issues/699)) ([9c91121](https://github.com/sergienko4/israeli-bank-scrapers/commit/9c911213dc77394a00c0e2beafcff805d4319333))
+* **beinleumi:** log in over the API (part 3/3) ([#703](https://github.com/sergienko4/israeli-bank-scrapers/issues/703)) ([e6ba199](https://github.com/sergienko4/israeli-bank-scrapers/commit/e6ba199464c7911136a95adcaa37661ac12687d7))
+* **discount:** log in over the API (part 2/2) ([#708](https://github.com/sergienko4/israeli-bank-scrapers/issues/708)) ([189b931](https://github.com/sergienko4/israeli-bank-scrapers/commit/189b931d80849f9d3d10fb90132874fb7aed737a))
+* **fetch:** cookie session and redirect policies ([#694](https://github.com/sergienko4/israeli-bank-scrapers/issues/694)) ([2368f90](https://github.com/sergienko4/israeli-bank-scrapers/commit/2368f90543be3598645b5f3e846689bf70cdb2a2))
+* **flow:** form-encoded login steps and guards ([#696](https://github.com/sergienko4/israeli-bank-scrapers/issues/696)) ([d3dd646](https://github.com/sergienko4/israeli-bank-scrapers/commit/d3dd646c436994ade94efac0321967b3a4baf4a9))
+* **hapoalim:** log in over the API, no browser ([#697](https://github.com/sergienko4/israeli-bank-scrapers/issues/697)) ([7ebf89c](https://github.com/sergienko4/israeli-bank-scrapers/commit/7ebf89cde623e4dbabc30df98a4abc3cd0b99e43))
+* **isracard:** log in over the API, no browser ([#691](https://github.com/sergienko4/israeli-bank-scrapers/issues/691)) ([b08180d](https://github.com/sergienko4/israeli-bank-scrapers/commit/b08180d56dd831efa1aaad73401c7c8b20c27f71))
+* **massad:** log in over the API, no browser ([#704](https://github.com/sergienko4/israeli-bank-scrapers/issues/704)) ([1e4cddf](https://github.com/sergienko4/israeli-bank-scrapers/commit/1e4cddf50739b7ac70ee7b7e198be69c1ced5766))
+* **max:** log in over the API, no browser ([#693](https://github.com/sergienko4/israeli-bank-scrapers/issues/693)) ([0e1e306](https://github.com/sergienko4/israeli-bank-scrapers/commit/0e1e3068709e75d6ba101c8e0cdc74bbbae46b49))
+* **mercantile:** log in over the API, no browser ([#710](https://github.com/sergienko4/israeli-bank-scrapers/issues/710)) ([3520f42](https://github.com/sergienko4/israeli-bank-scrapers/commit/3520f424d4b96b9151f112ed8ba6f7178290d075))
+* **mizrahi:** log in over the API, no browser ([#695](https://github.com/sergienko4/israeli-bank-scrapers/issues/695)) ([b7d437d](https://github.com/sergienko4/israeli-bank-scrapers/commit/b7d437dde4c8c3b4a08994c23065f8b202689541))
+* **otsar:** log in over the API, no browser ([#705](https://github.com/sergienko4/israeli-bank-scrapers/issues/705)) ([45e6c21](https://github.com/sergienko4/israeli-bank-scrapers/commit/45e6c21f2dc48f0016cab581000b1320d940648b))
+* **pagi:** log in over the API, no browser ([#706](https://github.com/sergienko4/israeli-bank-scrapers/issues/706)) ([d1a8877](https://github.com/sergienko4/israeli-bank-scrapers/commit/d1a8877f5822a7c145e6baf5f82338241c98c278))
+* **visacal:** log in over the API, no browser ([#690](https://github.com/sergienko4/israeli-bank-scrapers/issues/690)) ([1a99d58](https://github.com/sergienko4/israeli-bank-scrapers/commit/1a99d58bbea3d67841fe83730933f5ff5adc14c7))
+* **yahav:** log in via the mobile API (part 2/2) ([#700](https://github.com/sergienko4/israeli-bank-scrapers/issues/700)) ([4cf8bf1](https://github.com/sergienko4/israeli-bank-scrapers/commit/4cf8bf143eae5a3fdac338458cb05869d7c873ca))
+
+
+### Bug Fixes
+
+* **ci:** let portable-map lookups read all input ([#686](https://github.com/sergienko4/israeli-bank-scrapers/issues/686)) ([4dd5247](https://github.com/sergienko4/israeli-bank-scrapers/commit/4dd5247b7e60cebf06e912370ba5a8f745bff53a))
+* **yahav:** refused login is INVALID_PASSWORD ([#709](https://github.com/sergienko4/israeli-bank-scrapers/issues/709)) ([b350151](https://github.com/sergienko4/israeli-bank-scrapers/commit/b350151398754a07e9d338d9be596c5209c5e216))
+
 ## [9.0.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v8.8.0...v9.0.0) (2026-10-25)
 
 
