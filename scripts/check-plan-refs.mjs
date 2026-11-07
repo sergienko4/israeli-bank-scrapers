@@ -41,7 +41,7 @@ const ITEM = String.raw`(?:DN|N|E|D)\d{1,3}`;
  * Where a test title starts: a line, or the first argument of `describe`,
  * `it` or `test` (with any chain such as `.each(...)`).
  */
-const TITLE_OPEN = String.raw`(?:^|\b(?:describe|it|test)(?:\.\w+)*(?:\([^)]*\))?\()\s*['"]`;
+const TITLE_OPEN = String.raw`(?:^|(?<!\.)\b(?:describe|it|test)(?:\.\w+)*(?:\([^)]*\))?\()\s*['"]`;
 /**
  * A whole `'...'` or `"..."` string holding only the token is a value, such
  * as an error code, unless it sits where a test title goes.

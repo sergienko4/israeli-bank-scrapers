@@ -101,6 +101,7 @@ const LOOKALIKES = [
   sample("const color = '#AD", "4';"),
   sample("const color = '#AD", "1234';"),
   sample("const u = '%AD", "1';"),
+  sample("if (errorCodePattern.test('E", "42')) {}"),
   'D1234',
   'D1_x',
   'שדהN2',
