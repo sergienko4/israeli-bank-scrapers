@@ -29,10 +29,10 @@ import { pathToFileURL } from 'node:url';
 /** Word characters in any script, marks included, so a Hebrew word never ends in an ID. */
 const WORD = String.raw`\p{L}\p{M}\p{N}_`;
 /**
- * Characters that, right before an item number, make it part of a word, a
- * path, an escape or a `${...}` interpolation.
+ * Characters that, right before an ID, make it part of a word, a path, a
+ * color, an escape or a `${...}` interpolation.
  */
-const NOT_AFTER = String.raw`(?<![-${WORD}$#%./=&+])(?<!\$\{)`;
+const NOT_AFTER = String.raw`(?<![-${WORD}$#%./=&+\\])(?<!\$\{)`;
 /** Characters that, right after one, make it part of a word, a path or an assignment target. */
 const NOT_BEFORE = String.raw`(?![-${WORD}+/])(?!\s*=(?![=>]))`;
 /** The item number itself: one to three digits behind its family letter. */
@@ -55,7 +55,10 @@ export const PLAN_REF_RULES = [
     name: 'plan item number',
     pattern: new RegExp(`${NOT_AFTER}${WHOLE_STRING}${NOT_BEFORE}`, 'u'),
   },
-  { name: 'plan decision ID', pattern: /\bAD(?:\d+|-[A-Z]\d*)\b(?!-)/ },
+  {
+    name: 'plan decision ID',
+    pattern: new RegExp(`${NOT_AFTER}AD(?:\\d+|-[A-Z]\\d*)\\b(?!-)`, 'u'),
+  },
   { name: 'plan task number', pattern: /\b(?:M\d+\.T\d+|T\d+\.\d+)\b/ },
   { name: 'plan test ID', pattern: /\bSEC-\d{2}\b/ },
 ];
