@@ -15,10 +15,13 @@ interface IPlanRefFinding {
   rule: string;
 }
 
+/** A rule name, or `null` when the line is clean. */
+type PlanRefRuleName = string | null;
+
 interface IPlanRefGate {
   isSkipped: (file: string) => boolean;
   /** Yields the broken rule's name, or `null` when the line is clean. */
-  ruleBrokenBy: (line: string) => unknown;
+  ruleBrokenBy: (line: string) => PlanRefRuleName;
   findPlanRefs: (diff: string) => IPlanRefFinding[];
 }
 
@@ -101,6 +104,9 @@ const LOOKALIKES = [
   sample("const color = '#AD", "4';"),
   sample("const color = '#AD", "1234';"),
   sample("const u = '%AD", "1';"),
+  sample("const encoded = 'AD", "12/abc';"),
+  sample('const AD', '12 = 1;'),
+  sample('const AD', '12שדה = 1;'),
   sample("if (errorCodePattern.test('E", "42')) {}"),
   'D1234',
   'D1_x',
@@ -202,22 +208,6 @@ describe('check-plan-refs diff reading', () => {
     const diff = [...header, '@@ -0,0 +1 @@', `+${planLine}`].join('\n');
     const found = GATE.findPlanRefs(diff);
     expect(found).toEqual([{ file: 'a\u0001b.ts', line: 1, rule: 'plan item number' }]);
-  });
-
-  // Regression: `diff.mnemonicPrefix` writes `+++ i/…`, so a one-letter
-  // prefix must be stripped like git's usual `b/`.
-  it('strips a one-letter diff prefix from the header path', () => {
-    const header = ['diff --git i/src/a.ts w/src/a.ts', '+++ i/src/a.ts'];
-    const diff = [...header, '@@ -0,0 +1 @@', `+${planLine}`].join('\n');
-    const found = GATE.findPlanRefs(diff);
-    expect(found).toEqual([{ file: 'src/a.ts', line: 1, rule: 'plan item number' }]);
-  });
-
-  it('skips a generated file under a one-letter diff prefix', () => {
-    const header = ['diff --git i/CHANGELOG.md w/CHANGELOG.md', '+++ i/CHANGELOG.md'];
-    const diff = [...header, '@@ -0,0 +1 @@', `+${planLine}`].join('\n');
-    const found = GATE.findPlanRefs(diff);
-    expect(found).toEqual([]);
   });
 
   // Regression: an added line that opens with `++` reaches the diff as

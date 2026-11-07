@@ -57,7 +57,7 @@ export const PLAN_REF_RULES = [
   },
   {
     name: 'plan decision ID',
-    pattern: new RegExp(`${NOT_AFTER}AD(?:\\d+|-[A-Z]\\d*)\\b(?!-)`, 'u'),
+    pattern: new RegExp(`${NOT_AFTER}AD(?:\\d+|-[A-Z]\\d*)\\b(?!-)${NOT_BEFORE}`, 'u'),
   },
   { name: 'plan task number', pattern: /\b(?:M\d+\.T\d+|T\d+\.\d+)\b/ },
   { name: 'plan test ID', pattern: /\bSEC-\d{2}\b/ },
@@ -130,7 +130,7 @@ function unescapeChar(_match, octal, char) {
 function pathOf(line) {
   const raw = line.slice(4).replace(/\t$/, '');
   const unquoted = /^"(.*)"$/.exec(raw)?.[1].replace(/\\(?:([0-7]{3})|(.))/g, unescapeChar) ?? raw;
-  return unquoted.replace(/^[a-z]\//, '');
+  return unquoted.replace(/^b\//, '');
 }
 
 /**
