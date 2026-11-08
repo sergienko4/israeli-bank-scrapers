@@ -16,7 +16,7 @@ banks side by side with `Promise.allSettled`.
 
 ```typescript
 const results = await Promise.allSettled(
-  banks.map(({ companyId, credentials }) =>
+  banks.map(async ({ companyId, credentials }) =>
     createScraper({ companyId, startDate }).scrape(credentials),
   ),
 );

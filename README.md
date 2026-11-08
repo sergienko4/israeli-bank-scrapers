@@ -388,7 +388,7 @@ backwards compatibility. Full remedies, including WAF-specific ones, are in
 
 ```mermaid
 flowchart LR
-    subgraph BB["Pipeline browser banks (7)"]
+    subgraph BB["Pipeline browser banks (1) — Leumi"]
       direction LR
       INIT --> HOME --> PRELOGIN["PRE-LOGIN (opt-in)"]
       PRELOGIN --> LOGIN
@@ -399,7 +399,7 @@ flowchart LR
       SCRAPE --> TERM["TERMINATE"]
     end
 
-    subgraph API["API-direct banks (10) — OneZero · Pepper · PayBox · Visa Cal · Isracard · Amex · Max · Mizrahi · Hapoalim · Yahav"]
+    subgraph API["API-direct banks (16) — every bank except Leumi"]
       direction LR
       CALL["API-DIRECT-CALL<br/>(login + OTP via JSON API)"] --> SCR["API-DIRECT-SCRAPE"]
     end
