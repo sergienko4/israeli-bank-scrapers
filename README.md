@@ -351,8 +351,9 @@ that protection is gone; see
   "telemetry" in this codebase means the local `pipeline.log` file.
 - **Outbound traffic goes to your bank only** — plus a one-time Camoufox
   browser download on first launch.
-- **Runtime dependencies are `camoufox-js`, `lodash`, `moment`,
-  `moment-timezone`, `pino`, and `playwright-core`.** None of them phone home.
+- **Runtime dependencies are `@babel/parser`, `camoufox-js`, `lodash`,
+  `moment`, `moment-timezone`, `parse5`, `pino`, and `playwright-core`.**
+  None of them phone home.
 
 Found a security issue? Please follow [SECURITY.md](./SECURITY.md) rather than
 opening a public issue.
