@@ -25,7 +25,7 @@ import type { IProcedureFailure, Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import { type ITemplateScope, resolveRef } from '../Template/RefResolver.js';
-import { clientCookieOf } from './RunStep.clientCookies.js';
+import { clientCookieOf, cookieRefOf } from './RunStep.clientCookies.js';
 import { stepBaseUrlOf } from './RunStep.stepUrl.js';
 import { applyPreHook } from './SmsOtpFlow.prehook.js';
 import type { IPreHookGuardArgs } from './SmsOtpFlow.types.js';
@@ -79,11 +79,11 @@ function pendingCookie(view: IPendingCookieView, name: string): CookieRead {
   const stored = view.jar.cookieFor.bind(null, view.url);
   const own = view.args.step.setCookies;
   if (own === undefined || !Object.hasOwn(own, name)) return stored(name);
-  const source = own[name];
   const scope = { ...view.args.scope, cookie: stored };
-  const pending = clientCookieOf(view.args.step, scope, [name, source]);
-  if (!isOk(pending)) return source.startsWith('cookie.') ? pending : none();
-  return previewCookie(view.jar, view.url, pending.value);
+  const pending = clientCookieOf(view.args.step, scope, [name, own[name]]);
+  if (!isOk(pending)) return cookieRefOf(own[name]).startsWith('cookie.') ? pending : none();
+  if (!pending.value.has) return stored(name);
+  return previewCookie(view.jar, view.url, pending.value.value);
 }
 
 /**

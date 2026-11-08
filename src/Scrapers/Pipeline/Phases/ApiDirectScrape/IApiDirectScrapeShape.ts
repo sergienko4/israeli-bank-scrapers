@@ -21,6 +21,7 @@
  *     accounts derive purely from session-context (PayBox uId case).
  */
 
+import type { WindowCaveat } from '../../../../WindowCoverage.js';
 import type {
   IAesSignerConfig,
   IBodyDigestConfig,
@@ -78,6 +79,12 @@ export type ApiBody = Record<string, unknown>;
 
 /** A shape-level check on a successful response body — see `checkBody`. */
 export type BodyCheck = (body: ApiBody) => Procedure<ApiBody>;
+
+/** Identity of a scrape response before its body is extracted. */
+export type ScrapeOperation = 'bootstrap' | 'customer' | 'customer-secondary' | 'balance' | 'txns';
+
+/** Optional body checks selected by scrape operation. */
+export type OperationBodyChecks = Readonly<Partial<Record<ScrapeOperation, BodyCheck>>>;
 
 /**
  * REST URL tag — when set, the driver dispatches via `bus.apiPost`
@@ -373,6 +380,8 @@ export interface IApiDirectScrapeGuardSummary {
   readonly accountCount: number;
   readonly totalTxns: number;
   readonly balanceDegraded: boolean;
+  /** Post-mapping evidence; absent when no ledger snapshot is available. */
+  readonly observedCaveats?: readonly WindowCaveat[];
 }
 
 /**
@@ -503,6 +512,11 @@ export interface IApiDirectScrapeShape<TAcct, TCursor> {
    * every 2xx body is used as-is.
    */
   readonly checkBody?: BodyCheck;
+  /**
+   * Optional checks selected by operation and run before `checkBody`.
+   * Unlisted operations retain the existing global-check behavior.
+   */
+  readonly checkBodyByOperation?: OperationBodyChecks;
   /**
    * Set for banks whose replies can quote the customer back: a failed
    * scrape call then names only the call and its HTTP status, never the

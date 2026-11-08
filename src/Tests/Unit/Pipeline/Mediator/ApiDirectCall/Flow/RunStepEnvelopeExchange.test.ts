@@ -28,6 +28,7 @@ import {
   keyExchangeHeader,
   peerKey,
   sealUnder,
+  serverPublic,
 } from '../../../../../Helpers/EnvelopeExchangeOracle.js';
 import { ENVELOPE_KEY, ENVELOPE_SESSION_ID } from '../../../../../Helpers/EnvelopeOracle.js';
 import { fakeFetch, type IFetchFake } from '../../../../../Helpers/FakeFetch.js';
@@ -74,6 +75,16 @@ const EXCHANGE_STEP: IPostStep = {
   extractsToCarry: { greeting: '/data/r' },
 };
 
+const ECHO_CODEC = {
+  kind: 'ecdh-aes-cbc',
+  mode: 'exchange',
+  privateRef: 'carry.ecdhPrivate',
+  keyInto: 'envelopeKey',
+  sessionInto: 'envelopeSession',
+  echoRef: 'carry.ecdhPublic',
+} as const;
+const ECHO_STEP = { ...EXCHANGE_STEP, codec: ECHO_CODEC };
+
 beforeAll((): void => {
   registerWkUrl('auth.encryptionKey', HINT, `${ORIGIN}/api/v2/auth/key_exchange`);
 });
@@ -104,11 +115,15 @@ function serve(answer: JsonUnknownRecord): IFetchFake {
 /**
  * Fire the exchange step through the real mediator and native transport.
  * @param scope - Step scope.
+ * @param step - Exchange step.
  * @returns The step result.
  */
-async function fireExchange(scope: ITemplateScope): Promise<Procedure<ITemplateScope>> {
+async function fireExchange(
+  scope: ITemplateScope,
+  step: IPostStep = EXCHANGE_STEP,
+): Promise<Procedure<ITemplateScope>> {
   const bus = makeNativeMediator(HINT, ORIGIN);
-  return runStep({ step: EXCHANGE_STEP, bus, scope, companyId: HINT });
+  return runStep({ step, bus, scope, companyId: HINT });
 }
 
 /**
@@ -156,6 +171,103 @@ describe('key-exchange step', () => {
     expect(result.value.carry.envelopeKey).toBe(keyText);
     expect(result.value.carry.envelopeSession).toBe(ENVELOPE_SESSION_ID);
     expect(result.value.carry.greeting).toBe(GREETING.r);
+  });
+
+  it('accepts an opted-in exchange only when the echo matches the submitted point', async () => {
+    const publicPoint = clientPublic();
+    const header = keyExchangeHeader({ echo_y: publicPoint });
+    const answer = exchangeAnswer(GREETING, [header]);
+    serve(answer);
+    const scope = scopeWith();
+    const result = await fireExchange(scope, ECHO_STEP);
+    if (!result.success) throw new TypeError(result.errorMessage);
+    const expected = peerKey().toString('base64');
+    expect(result.value.carry.envelopeKey).toBe(expected);
+    expect(result.value.carry.greeting).toBe(GREETING.r);
+  });
+
+  it.each([
+    ['missing', undefined],
+    ['empty', ''],
+    ['non-text', 123],
+    ['foreign', serverPublic()],
+  ])('refuses a %s echo without exposing it', async (_label, echo) => {
+    const header = keyExchangeHeader({ echo_y: echo });
+    const answer = exchangeAnswer(GREETING, [header]);
+    serve(answer);
+    const scope = scopeWith();
+    const result = await fireExchange(scope, ECHO_STEP);
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'encryptionKey envelope invalid',
+    });
+    const failure = JSON.stringify(result);
+    const publicPoint = clientPublic();
+    expect(failure).not.toContain(publicPoint);
+    if (typeof echo === 'string' && echo.length > 0) {
+      expect(failure).not.toContain(echo);
+    }
+  });
+
+  it('refuses a reference that is not the point in the outgoing exchange header', async () => {
+    const body = {
+      shape: {
+        headers: [{ type: { $literal: 'key_exchange' }, y: { $literal: serverPublic() } }],
+        data: {},
+      },
+    } as const;
+    const step = { ...ECHO_STEP, body };
+    const publicPoint = clientPublic();
+    const header = keyExchangeHeader({ echo_y: publicPoint });
+    const answer = exchangeAnswer(GREETING, [header]);
+    const fake = serve(answer);
+    const scope = scopeWith();
+    const result = await fireExchange(scope, step);
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'encryptionKey envelope key invalid',
+    });
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('refuses an unavailable echo reference before sending', async () => {
+    const answer = exchangeAnswer(GREETING);
+    const fake = serve(answer);
+    const scope = scopeWith({ ecdhPublic: '' });
+    const result = await fireExchange(scope, ECHO_STEP);
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'encryptionKey envelope key invalid',
+    });
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('refuses duplicate outgoing exchange headers before sending', async () => {
+    const header = { type: { $literal: 'key_exchange' }, y: { $ref: 'carry.ecdhPublic' } } as const;
+    const body = { shape: { headers: [header, header], data: {} } };
+    const step = { ...ECHO_STEP, body };
+    const answer = exchangeAnswer(GREETING);
+    const fake = serve(answer);
+    const scope = scopeWith();
+    const result = await fireExchange(scope, step);
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'encryptionKey envelope key invalid',
+    });
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('refuses duplicate response exchange headers even when both echoes match', async () => {
+    const publicPoint = clientPublic();
+    const header = keyExchangeHeader({ echo_y: publicPoint });
+    const answer = exchangeAnswer(GREETING, [header, header]);
+    serve(answer);
+    const scope = scopeWith();
+    const result = await fireExchange(scope, ECHO_STEP);
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'encryptionKey envelope invalid',
+    });
   });
 
   it.each([

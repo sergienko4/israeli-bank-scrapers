@@ -319,6 +319,83 @@ describe('SmsOtpFlow — pre-hook guards', () => {
     expect(run.captures).toHaveLength(2);
   });
 
+  it('previews a present optional cookie before requesting an OTP', async () => {
+    const jar = fakeJar({}, []);
+    const run = await runGuarded({
+      hook: COOKIE_HOOK,
+      bind: FULL_BIND,
+      jar,
+      setCookies: { csrfcookie: { ref: 'carry.flow', optional: true } },
+    });
+    expect(run.result).toMatchObject({ success: true });
+    expect(run.hints).toHaveLength(1);
+    expect(run.captures).toHaveLength(2);
+  });
+
+  it.each([
+    ['absent', 'carry.missing', FULL_BIND],
+    ['empty', 'carry.flow', { ...FULL_BIND, flow: '' }],
+  ] as const)(
+    'previews the stored cookie when the optional source is %s',
+    async (_label, ref, bind) => {
+      const jar = fakeJar({ csrfcookie: SECRETS[2] }, []);
+      const run = await runGuarded({
+        hook: COOKIE_HOOK,
+        bind,
+        jar,
+        setCookies: { csrfcookie: { ref, optional: true } },
+      });
+      expect(run.result).toMatchObject({ success: true });
+      expect(run.hints).toHaveLength(1);
+    },
+  );
+
+  it.each([
+    ['absent', 'carry.missing', FULL_BIND],
+    ['empty', 'carry.flow', { ...FULL_BIND, flow: '' }],
+    ['invalid', 'carry.flow', { ...FULL_BIND, flow: 'not valid' }],
+  ] as const)(
+    'does not request an OTP when a required optional cookie is %s',
+    async (_label, ref, bind) => {
+      const run = await runGuarded({
+        hook: COOKIE_HOOK,
+        bind,
+        jar: fakeJar({}, []),
+        setCookies: { csrfcookie: { ref, optional: true } },
+      });
+      expect(run.result).toMatchObject({ success: false });
+      expect(run.hints).toEqual([]);
+      expect(run.captures).toHaveLength(1);
+    },
+  );
+
+  it('does not request an OTP for a malformed optional cookie source', async () => {
+    const jar = realJarWithRawCookie('/');
+    const run = await runGuarded({
+      hook: COOKIE_HOOK,
+      bind: FULL_BIND,
+      jar,
+      setCookies: { csrfcookie: { ref: 'cookie.csrfcookie', optional: true } },
+    });
+    expect(run.result).toMatchObject({ success: false, errorMessage: 'ref cookie.csrfcookie bad' });
+    expect(run.hints).toEqual([]);
+  });
+
+  it('honors stored path precedence when previewing an optional write', async () => {
+    const jar = realJarWithRawCookie('/authenticate');
+    const run = await runGuarded({
+      hook: COOKIE_HOOK,
+      bind: FULL_BIND,
+      jar,
+      setCookies: { csrfcookie: { ref: 'carry.flow', optional: true } },
+    });
+    expect(run.result).toMatchObject({ success: false, errorMessage: 'ref cookie.csrfcookie bad' });
+    expect(run.hints).toEqual([]);
+    expect(run.captures).toHaveLength(1);
+    const stored = jar.exportAll();
+    expect(stored).toHaveLength(1);
+  });
+
   it('does not set a same-step cookie before all required refs validate', async () => {
     const set = jest.fn<ReturnType<ICookieSession['set']>, Parameters<ICookieSession['set']>>(
       () => 0,

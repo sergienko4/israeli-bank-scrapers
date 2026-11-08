@@ -17,6 +17,7 @@ import type {
   ICarryGenerator,
   ISeedCarrySource,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { isRandomBootstrap } from '../../Mediator/ApiDirectCall/Flow/FlowInitCarry.random.js';
 import { API_DIRECT_CLASSIFY_RULES } from './ApiDirectClassifyRules.js';
 import { API_DIRECT_CLASSIFY_SLOT_RULES } from './ApiDirectClassifySlotRules.js';
 import { API_DIRECT_CODEC_RULES } from './ApiDirectCodecRules.js';
@@ -145,6 +146,28 @@ function hasBadRandomHex(input: IApiDirectRuleInput): boolean {
   return seeds.some(isBadRandomHex);
 }
 
+/**
+ * Whether an unconditional seed lacks a random bootstrap.
+ * @param entry - Seed declaration.
+ * @returns True for an unsafe unconditional policy.
+ */
+function isBadFreshSeed(entry: string | ISeedCarrySource): boolean {
+  if (typeof entry === 'string') return false;
+  const mode: unknown = Reflect.get(entry, 'alwaysBootstrap');
+  if (mode === undefined) return false;
+  const bootstrap = entry.bootstrap;
+  return mode !== true || !isRandomBootstrap(bootstrap);
+}
+
+/**
+ * Whether the call contains an invalid unconditional seed.
+ * @param input - Rule input.
+ * @returns True for an invalid seed.
+ */
+function hasBadFreshSeed(input: IApiDirectRuleInput): boolean {
+  return (input.call.seedCarryFromCreds ?? []).some(isBadFreshSeed);
+}
+
 /** Carry-generator rules, checked after the step-guard rules. */
 const API_DIRECT_GENERATE_RULES: readonly IApiDirectRule[] = [
   {
@@ -166,6 +189,10 @@ const API_DIRECT_GENERATE_RULES: readonly IApiDirectRule[] = [
   {
     message: 'seedCarryFromCreds: random-hex needs integer bytes from 1 to 64',
     isBroken: hasBadRandomHex,
+  },
+  {
+    message: 'seedCarryFromCreds: alwaysBootstrap needs a random bootstrap',
+    isBroken: hasBadFreshSeed,
   },
   ...API_DIRECT_DERIVE_RULES,
   ...API_DIRECT_CODEC_RULES,

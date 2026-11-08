@@ -400,6 +400,10 @@ high affected-package entries but one development-only advisory. The separate
 production scan determines scope; development-only means absent from that
 scan, not proof that tooling cannot be exploited.
 
+The direct runtime parsers, `parse5` and `@babel/parser`, are included in the
+production dependency graph. Moving a parser from development to runtime can
+change advisory scope even when its locked version stays the same.
+
 Scheduled scans update the marked issue created by `github-actions[bot]`.
 Repeated scans replace its body without comments or duplicate issues.
 A verified clean scan closes that issue; recurrence reopens it. Human-created

@@ -50,8 +50,11 @@ is the regression the test pyramid previously missed.
 The optional `resultGuard` shape hook closes it. After the `.post`
 forensic audit, the phase summarises the run into an
 `IApiDirectScrapeGuardSummary` (`accountCount`, `totalTxns`,
-`balanceDegraded`) and hands it to the bank's guard. The summary keys
-on the balance step **outcome**, never its value: because each
+`balanceDegraded`, and optional `observedCaveats`) and hands it to the bank's
+guard. `observedCaveats` aggregates each account's post-mapping ledger
+independently of public window coverage: an empty array means no ledger
+channel fired, while an absent field means evidence is unavailable. The
+summary keys on the balance step **outcome**, never its value: because each
 `fetchBalance` returns an `IBalanceOutcome` (`{ value, degraded }`), a
 genuine balance of `0` stays distinguishable from a fallback-masked `0`.
 
@@ -99,7 +102,10 @@ fails the run with `WAF_BLOCKED` whatever `fallbackOnFail` declares, and
 the phase does not recover the session over it: the bank never saw the
 call, so a masked figure would report a blocked host as a healthy scrape,
 and a cold re-login could send an SMS without unblocking it. Both checks
-use `isWafBlocked`, the same predicate the login transport uses.
+use `isTerminalFailure`, the same predicate the login transport uses.
+An oversized response or digest mismatch is also terminal: its internal
+integrity-refusal tag prevents fallback and session recovery without calling
+an unrecognized response a WAF block.
 
 The same holds when the block arrives one step removed. A balance call
 answered `401` triggers a token refresh, and if the edge refuses that
@@ -107,7 +113,7 @@ refresh the call fails with the refresh's `WAF_BLOCKED`, not the `401`, so
 the fallback above still does not fire. Likewise, when a warm scrape's
 session recovery is itself refused, the phase returns that `WAF_BLOCKED`
 rather than the degraded or failed first scrape. Both sites use
-`preferWafBlock` (`src/Scrapers/Pipeline/Types/Procedure.ts`).
+`preferTerminalFailure` (`src/Scrapers/Pipeline/Types/Procedure.ts`).
 
 ## Bank response text in failures
 
@@ -274,7 +280,8 @@ Beyond the three required steps (`customer` / `balance` / `transactions`), `IApi
 - `responseSession` (shape root) — an `IResponseSessionSpec` whose patch reads every successful answer's body, declared headers and status, and is merged into the session-context (Yahav). See [Response session](#response-session).
 - `bodyDigest` (shape root) — an `IBodyDigestConfig` that adds a digest header over every REST object POST body (Yahav). See [Body digest](#body-digest).
 - `resultGuard` — a fail-closed POST-stage guard over a PII-free `IApiDirectScrapeGuardSummary` that aborts a degraded run (e.g. zero transactions from a warm session).
-- `checkBody` (shape root, type `BodyCheck`) — a check run on every **successful** scrape response (bootstrap, customer and its secondary identity GET, balance, transactions) before the step reads it. For banks that report a failure inside an HTTP 200 body: a failed check fails the call exactly as a non-2xx would, so balance falls back to `fallbackOnFail` and the phase's recover-once re-login runs, instead of the body yielding no rows silently. `dispatchStep` and the secondary GET share one helper, `checkAnswer`; a successful response with no check passes through unchanged (the ring issuers fail a `Header.Status: -2` "session expired" body).
+- `checkBody` (shape root, type `BodyCheck`) — a check run on every **successful** scrape response (bootstrap, customer and its secondary identity GET, balance, transactions) before the step reads it. For banks that report a failure inside an HTTP 200 body: a failed check fails the call exactly as a non-2xx would, so balance falls back to `fallbackOnFail` and the phase's recover-once re-login runs, instead of the body yielding no rows silently. `dispatchStep` and the secondary GET share `applyBodyChecks`; a successful response with no check passes through unchanged (the ring issuers fail a `Header.Status: -2` "session expired" body).
+- `checkBodyByOperation` (shape root, `OperationBodyChecks`) — selects a `BodyCheck` by `ScrapeOperation`: `bootstrap`, `customer`, `customer-secondary`, `balance` or `txns`. `applyBodyChecks` runs the selected check before `checkBody`, passing its successful output to the global check; the first failure stops extraction. Unlisted operations retain global-check behavior, and a dispatch with a map but no operation fails before I/O.
 - `omitBankText` (shape root) — copied by `withApiDirect` from the login config's flag (`bindBankTextRule`). A failed call (bootstrap, customer and its secondary identity GET, balance, transactions) then carries only its name and HTTP status (`customer HTTP 500`), never the reply text; a WAF block keeps its fixed reason. `checkAnswer` reads the call's name, check and flag from an `IAnswerGuard` and applies the flag through the login flow's `sanitiseStepFailure`. Absent ⇒ a failed call keeps the transport's message.
 - `bootstrap` — an `IApiDirectScrapeBootstrapStep`, or an ordered list of them, that runs **once before** the per-account scrape to seed the session context with material later steps need (PayBox's per-session HMAC key). See below.
 - `isCardIssuer` — declares that this shape's rows are **card** transactions, so the mapper inverts the issuer's sign convention. See below.

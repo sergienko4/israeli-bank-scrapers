@@ -22,6 +22,7 @@ const NATIVE = { identityBase: HOST, graphql: `${HOST}/graphql`, paths: {}, nati
 const JSON_MSG = 'steps.codec: needs a json body and a json response';
 const SLOTS_MSG = 'steps.codec: exchange needs distinct keyInto and sessionInto';
 const SESSION_MSG = 'steps.codec: codec slots must not be sessionCarry slots';
+const ECHO_MSG = 'steps.codec: exchange echoRef needs a nonblank carry slot';
 
 const EXCHANGE: IEnvelopeExchange = {
   kind: 'ecdh-aes-cbc',
@@ -97,6 +98,10 @@ const TEXT_BODY: IPostStep['body'] = { shape: { text: { $literal: 'x' } } };
 const BLANK_KEY = exchangeWith({ keyInto: ' ' });
 const BLANK_SESSION = exchangeWith({ sessionInto: '' });
 const SHARED_SLOT = exchangeWith({ sessionInto: 'envelopeKey' });
+const ECHO = { ...EXCHANGE, echoRef: 'carry.ecdhPublic' } as const;
+const EMPTY_ECHO = { ...EXCHANGE, echoRef: 'carry.' } as const;
+const BLANK_ECHO = { ...EXCHANGE, echoRef: 'carry.  ' } as const;
+const FOREIGN_ECHO = { ...EXCHANGE, echoRef: 'creds.publicKey' as `carry.${string}` };
 
 const REFUSALS: readonly IRefusalCase[] = [
   { label: 'a form body', change: { encoding: 'form', body: FLAT_BODY }, expected: JSON_MSG },
@@ -106,6 +111,9 @@ const REFUSALS: readonly IRefusalCase[] = [
   { label: 'a blank keyInto', change: { codec: BLANK_KEY }, expected: SLOTS_MSG },
   { label: 'a blank sessionInto', change: { codec: BLANK_SESSION }, expected: SLOTS_MSG },
   { label: 'one slot for key and id', change: { codec: SHARED_SLOT }, expected: SLOTS_MSG },
+  { label: 'an empty echo ref', change: { codec: EMPTY_ECHO }, expected: ECHO_MSG },
+  { label: 'a blank echo ref', change: { codec: BLANK_ECHO }, expected: ECHO_MSG },
+  { label: 'a non-carry echo ref', change: { codec: FOREIGN_ECHO }, expected: ECHO_MSG },
   { label: 'a kept scalar', change: {}, sessionCarry: ['ecdhPrivate'], expected: SESSION_MSG },
   { label: 'a kept session key', change: {}, sessionCarry: ['envelopeKey'], expected: SESSION_MSG },
   {
@@ -118,6 +126,7 @@ const REFUSALS: readonly IRefusalCase[] = [
 
 const ACCEPTED: readonly IRunCase[] = [
   { label: 'the bank flow', change: {} },
+  { label: 'a carried echo reference', change: { codec: ECHO } },
   { label: 'explicit json', change: { encoding: 'json', response: 'json' } },
   { label: 'a typed bank error', change: { bankErrorType: ScraperErrorTypes.InvalidPassword } },
 ];

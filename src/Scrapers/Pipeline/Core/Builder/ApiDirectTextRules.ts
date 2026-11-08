@@ -17,6 +17,7 @@ import type {
 import { API_DIRECT_FORM_CAPTURE_RULES } from './ApiDirectFormCaptureRules.js';
 import { API_DIRECT_LOCATION_CAPTURE_RULES } from './ApiDirectLocationCaptureRules.js';
 import { anyStep, type IApiDirectRule } from './ApiDirectRuleInput.js';
+import { API_DIRECT_STRUCTURED_CAPTURE_RULES } from './ApiDirectStructuredCaptureRules.js';
 
 /** Longest text answer a step may accept, in chars (2 MiB). */
 const MAX_TEXT_CHARS = 2_097_152;
@@ -173,6 +174,7 @@ const API_DIRECT_TEXT_RULES: readonly IApiDirectRule[] = [
   },
   ...API_DIRECT_FORM_CAPTURE_RULES,
   ...API_DIRECT_LOCATION_CAPTURE_RULES,
+  ...API_DIRECT_STRUCTURED_CAPTURE_RULES,
 ];
 
 export default API_DIRECT_TEXT_RULES;

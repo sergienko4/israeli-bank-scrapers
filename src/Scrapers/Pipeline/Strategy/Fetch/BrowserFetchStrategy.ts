@@ -25,6 +25,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { fail, failWithDetails, isOk, succeed } from '../../Types/Procedure.js';
 import { hasCookieSentinel, substituteCookieHeaders } from './CookieHeaderSentinel.js';
 import type { IFetchOpts, IFetchStrategy } from './FetchStrategy.js';
+import { checkResponseIntegrity } from './ResponseIntegrityCheck.js';
 
 type IsTargetFrame = Brand<boolean, 'IsTargetFrame'>;
 
@@ -142,6 +143,8 @@ class BrowserFetchStrategy implements IFetchStrategy {
     data: Record<string, string>,
     opts: IFetchOpts,
   ): Promise<Procedure<T>> {
+    const integrity = checkResponseIntegrity(opts.responseIntegrity, false);
+    if (!isOk(integrity)) return integrity;
     const ctx = resolveContext(this._page, url);
     const headers = await this.resolveHeaders(url, opts.extraHeaders);
     if (!isOk(headers)) return headers;
@@ -157,6 +160,8 @@ class BrowserFetchStrategy implements IFetchStrategy {
    * @returns Procedure with parsed response or failure.
    */
   public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
+    const integrity = checkResponseIntegrity(opts.responseIntegrity, false);
+    if (!isOk(integrity)) return integrity;
     const ctx = resolveContext(this._page, url);
     const headers = await this.resolveHeaders(url, opts.extraHeaders);
     if (!isOk(headers)) return headers;

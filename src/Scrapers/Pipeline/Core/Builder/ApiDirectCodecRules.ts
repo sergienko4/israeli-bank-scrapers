@@ -77,6 +77,23 @@ function hasSlotlessExchange(input: IApiDirectRuleInput): boolean {
 }
 
 /**
+ * Whether an exchange's optional echo reference lacks a nonblank carry slot.
+ * @param input - Rule input.
+ * @returns True when an echo reference cannot name a carry value.
+ */
+function hasBadEchoRef(input: IApiDirectRuleInput): boolean {
+  return codecsOf(input).some(codec => {
+    if (codec.mode !== 'exchange' || codec.echoRef === undefined) return false;
+    const ref = codec.echoRef;
+    return (
+      typeof ref !== 'string' ||
+      !ref.startsWith(CARRY_PREFIX) ||
+      ref.slice(CARRY_PREFIX.length).trim() === ''
+    );
+  });
+}
+
+/**
  * Whether `sessionCarry` keeps a codec slot.
  * @param input - Rule input.
  * @returns True when some codec slot is a session slot.
@@ -96,6 +113,10 @@ const API_DIRECT_CODEC_RULES: readonly IApiDirectRule[] = [
   {
     message: 'steps.codec: exchange needs distinct keyInto and sessionInto',
     isBroken: hasSlotlessExchange,
+  },
+  {
+    message: 'steps.codec: exchange echoRef needs a nonblank carry slot',
+    isBroken: hasBadEchoRef,
   },
   {
     message: 'steps.codec: codec slots must not be sessionCarry slots',

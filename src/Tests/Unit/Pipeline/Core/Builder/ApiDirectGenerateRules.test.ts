@@ -14,6 +14,7 @@ import type {
   ICarryGenerator,
   ICsrSubjectEntry,
   IStepConfig,
+  SeedCarryBootstrapKind,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 
 const TARGET_MSG = 'steps.generate: rsa-key needs keyInto or spkiSha256HexInto';
@@ -33,6 +34,7 @@ function ecdhOf(publicInto: string, privateInto: string): ICarryGenerator {
 
 const ECDH_KEY = ecdhOf('ecdhPublic', 'ecdhPrivate');
 const RANDOM_HEX_MSG = 'seedCarryFromCreds: random-hex needs integer bytes from 1 to 64';
+const FRESH_SEED_MSG = 'seedCarryFromCreds: alwaysBootstrap needs a random bootstrap';
 
 /**
  * Rule input seeding `flowId` from a `random-hex` bootstrap of some length.
@@ -44,6 +46,17 @@ function seededOf(bytes: number): IApiDirectRuleInput {
   const bootstrap = { kind: 'random-hex', bytes, isUpperCase: true } as const;
   const seedCarryFromCreds = ['phone', { field: 'flowId', bootstrap }];
   return { ...input, call: { ...input.call, seedCarryFromCreds } };
+}
+
+/**
+ * Rule input asking for an unconditional seed.
+ * @param bootstrap - Candidate generator.
+ * @returns Rule input.
+ */
+function alwaysSeededOf(bootstrap?: SeedCarryBootstrapKind): IApiDirectRuleInput {
+  const input = runOf(ECDH_KEY);
+  const seed = { field: 'flowId', bootstrap, alwaysBootstrap: true } as const;
+  return { ...input, call: { ...input.call, seedCarryFromCreds: [seed] } };
 }
 
 /**
@@ -152,5 +165,31 @@ describe('validateApiDirectConfig — carry generators', () => {
     const input = seededOf(bytes);
     const result = validateApiDirectConfig(input);
     expect(result).toEqual({ success: true, value: true });
+  });
+
+  it.each<SeedCarryBootstrapKind | undefined>([
+    undefined,
+    { kind: 'sha256-prefix-16', from: 'phone' },
+    { kind: 'jwt-claim', from: 'token', claim: 'uid' },
+  ])('rejects an always-bootstrap seed without a random generator: %s', bootstrap => {
+    const input = alwaysSeededOf(bootstrap);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({ success: false, errorMessage: FRESH_SEED_MSG });
+  });
+
+  it('accepts an always-bootstrap random seed', () => {
+    const bootstrap = { kind: 'random-hex', bytes: 32, isUpperCase: true } as const;
+    const input = alwaysSeededOf(bootstrap);
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+  });
+
+  it('rejects an untyped false unconditional-bootstrap flag', () => {
+    const input = alwaysSeededOf({ kind: 'random-uuid' });
+    const seed = input.call.seedCarryFromCreds?.[0];
+    if (typeof seed !== 'object') throw new TypeError('missing seed');
+    Reflect.set(seed, 'alwaysBootstrap', false);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({ success: false, errorMessage: FRESH_SEED_MSG });
   });
 });

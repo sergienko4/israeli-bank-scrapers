@@ -1,7 +1,7 @@
 /**
  * Session rules for an api-direct call config, checked after the
  * client-certificate rules. Every `sessionCarry` slot must name a body
- * or header extract, or the final URL its manual redirect checked, of some
+ * or header extract, a root JSON capture, or the final URL its manual redirect checked, of some
  * login or resume step: the scrape's session context holds server-issued
  * values only, so a generated key, a seeded
  * credential or a typo fails the build instead of reaching the scrape. An
@@ -26,7 +26,9 @@ import {
  * @returns True when the step writes a server-issued value to the slot.
  */
 function isServerSlot(step: IStepConfig, slot: string): boolean {
-  return step.finalUrlInto === slot || isExtractSlot(step, slot);
+  const capture = step.structuredCapture;
+  const isScriptSlot = capture?.kind === 'script-json' && capture.into === slot;
+  return isScriptSlot || step.finalUrlInto === slot || isExtractSlot(step, slot);
 }
 
 /**

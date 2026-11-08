@@ -104,7 +104,7 @@ function evalDerivedCarry(args: IEvalDerivedArgs): Procedure<string> {
   if (!isOk(collected)) return collected;
   const text = joinAndTruncate(collected.value, args.derived);
   const subject = `${args.owner} ${args.derived.into}`;
-  return applyDerivedOp({ text, subject, op: args.derived.op });
+  return applyDerivedOp({ text, parts: collected.value, subject, op: args.derived.op });
 }
 
 /**

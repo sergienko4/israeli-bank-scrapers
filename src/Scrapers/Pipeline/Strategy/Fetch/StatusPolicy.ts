@@ -1,7 +1,7 @@
 /**
- * Status policy — a bank names the 2xx statuses it decides itself.
- * Checked after WAF classification and before the body is read: `empty`
- * answers `{}`, `fail` refuses with the log-safe URL and the status. A
+ * Status policy — a bank names its 2xx decisions and rate-limit statuses.
+ * `empty` answers `{}`, `fail` refuses with the log-safe URL and the status,
+ * and `rate-limit` reports WafBlocked without reading the body. A
  * document step skips `empty`, because its reader judges a 204 as an empty
  * document against the step's marker.
  */
@@ -56,10 +56,22 @@ function refuseStatus<T>(answer: IAnswer): Procedure<T> {
   return fail(ScraperErrorTypes.Generic, `${answer.verb} ${safeUrl} HTTP ${status}`);
 }
 
+/**
+ * Report a bank-configured rate limit without quoting its response.
+ * @param answer - The answered call.
+ * @returns Terminal rate-limit failure with a log-safe URL.
+ */
+function refuseRateLimit<T>(answer: IAnswer): Procedure<T> {
+  const safeUrl = safeUrlForLog(answer.url, answer.reading.redactUrlValues);
+  const status = String(answer.response.status);
+  return fail(ScraperErrorTypes.WafBlocked, `${answer.verb} ${safeUrl} ${status}: rate limited`);
+}
+
 /** Outcome per status action. */
 const DECISIONS: Readonly<Record<StatusAction, Decide>> = {
   empty: emptyStatusAnswer,
   fail: refuseStatus,
+  'rate-limit': refuseRateLimit,
 };
 
 /**
@@ -88,5 +100,15 @@ async function applyStatusPolicy<T>(answer: IAnswer): Promise<Option<Procedure<T
   return some(decided);
 }
 
+/**
+ * Apply the explicitly configured rate limit before reading a failed body.
+ * @param answer - The rate-limited answer.
+ * @returns The terminal failure.
+ */
+async function applyRateLimit<T>(answer: IAnswer): Promise<Procedure<T>> {
+  await cancelResponseBody(answer.response, answer);
+  return refuseRateLimit<T>(answer);
+}
+
 export type { IAnswer };
-export { applyStatusPolicy, emptyAnswer, statusActionFor };
+export { applyRateLimit, applyStatusPolicy, emptyAnswer, statusActionFor };

@@ -20,7 +20,7 @@ import type { Brand } from '../../Types/Brand.js';
 import { toError } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
-import { applyBodyCheck, dispatchStep, omitBankResponseText } from './ApiDirectScrapeDispatch.js';
+import { applyBodyChecks, dispatchStep, omitBankResponseText } from './ApiDirectScrapeDispatch.js';
 import {
   buildCustomerDispatchArgs,
   buildSecondaryOpts,
@@ -53,7 +53,8 @@ async function fetchSecondaryBody<TAcct, TCursor>(
   const opts = buildSecondaryOpts(d);
   const response = await d.bus.apiGet<ApiBody>(tag, opts);
   const answered = omitBankResponseText(response, 'customer', d.shape.omitBankText);
-  return applyBodyCheck(answered, d.shape.checkBody);
+  const selected = d.shape.checkBodyByOperation?.['customer-secondary'];
+  return applyBodyChecks(answered, d.shape.checkBody, selected);
 }
 
 /**

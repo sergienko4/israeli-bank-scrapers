@@ -33,6 +33,10 @@ import {
   LATIN1_UNENCODABLE_REASON,
   MEDIA_TYPE_REFUSED_REASON,
   REDIRECT_REFUSED_REASON,
+  RESPONSE_BYTE_LIMIT_REASON,
+  RESPONSE_DIGEST_MISMATCH_REASON,
+  RESPONSE_INTEGRITY_INVALID_REASON,
+  RESPONSE_INTEGRITY_UNSUPPORTED_REASON,
   TEXT_BODY_REFUSED_REASON,
   TEXT_TOO_LONG_REASON,
 } from '../../../Types/Domain/FetchPolicy.js';
@@ -64,6 +68,14 @@ const REFUSAL_REASONS = [
 const POLICY_REFUSAL = new RegExp(
   String.raw`^\S+ \S+ (HTTP \d{3}(?: (?:${REFUSAL_REASONS}))?|${REFUSAL_REASONS})$`,
 );
+
+/** Fixed, body-free integrity reasons emitted by the native transport. */
+const INTEGRITY_REFUSAL_REASONS = [
+  RESPONSE_BYTE_LIMIT_REASON,
+  RESPONSE_DIGEST_MISMATCH_REASON,
+  RESPONSE_INTEGRITY_INVALID_REASON,
+  RESPONSE_INTEGRITY_UNSUPPORTED_REASON,
+];
 
 /**
  * Read the HTTP status the transport embedded in a failure message.
@@ -104,6 +116,9 @@ function describeFailure(failure: IProcedureFailure): string {
  */
 function isFixedReason(failure: IProcedureFailure): boolean {
   if (isWafBlocked(failure)) return true;
+  if (failure.responseIntegrityRefusal === true) {
+    return INTEGRITY_REFUSAL_REASONS.includes(failure.errorMessage);
+  }
   return isLocalFailureMessage(failure.errorMessage);
 }
 

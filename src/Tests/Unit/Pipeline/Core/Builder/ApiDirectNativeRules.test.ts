@@ -210,6 +210,11 @@ const BROKEN: readonly IBrokenCase[] = [
     message: `headless.redirectPolicy: ${OFF}`,
   },
   {
+    label: 'connect retry opt-out, plain',
+    input: runOf([CALL], { ...PLAIN, isConnectRetryDisabled: true }),
+    message: `headless.isConnectRetryDisabled: ${OFF}`,
+  },
+  {
     label: 'bank status policy, plain',
     input: runOf([CALL], { ...PLAIN, statusPolicy: { 204: 'empty' } }),
     message: `headless.statusPolicy: ${OFF}`,
@@ -308,6 +313,7 @@ const EVERY_FIELD: HeadlessBlock = {
   omitBankText: true,
   mediaTypes: { json: 'application/json', document: 'text/html' },
   strictUtf8: true,
+  isConnectRetryDisabled: true,
 };
 
 /** The steps whose fields node:https reads and writes as native fetch does. */
@@ -377,5 +383,39 @@ describe('validateApiDirectConfig — native-fetch fields', () => {
   it.each(SOUND)('$label → passes', ({ input }) => {
     const result = validateApiDirectConfig(input);
     expect(result).toEqual({ success: true, value: true });
+  });
+
+  it.each([
+    ['missing ref', { optional: true }],
+    ['empty carry slot', { ref: 'carry.', optional: true }],
+    ['unknown ref', { ref: 'unknown.slot', optional: true }],
+    ['non-string ref', { ref: 42, optional: true }],
+    ['false optional flag', { ref: 'carry.g3', optional: false }],
+    ['extra field', { ref: 'carry.g3', optional: true, ignored: true }],
+  ])('refuses an optional cookie with %s before IO', (_label, entry) => {
+    const setCookies = { G3CmE: entry } as IStepConfig['setCookies'];
+    const input = runOf([{ ...CALL, setCookies }], DOMAIN_JAR);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'steps.setCookies: each source must be a valid ref or optional ref',
+    });
+  });
+
+  it('accepts a valid optional cookie source', () => {
+    const setCookies = { G3CmE: { ref: 'carry.g3', optional: true } } as const;
+    const input = runOf([{ ...CALL, setCookies }], DOMAIN_JAR);
+    const result = validateApiDirectConfig(input);
+    expect(result).toEqual({ success: true, value: true });
+  });
+
+  it.each(['carry.', 'unknown.slot'])('rejects invalid required cookie ref %s', ref => {
+    const setCookies = { G3CmE: ref } as IStepConfig['setCookies'];
+    const input = runOf([{ ...CALL, setCookies }], DOMAIN_JAR);
+    const result = validateApiDirectConfig(input);
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'steps.setCookies: each source must be a valid ref or optional ref',
+    });
   });
 });

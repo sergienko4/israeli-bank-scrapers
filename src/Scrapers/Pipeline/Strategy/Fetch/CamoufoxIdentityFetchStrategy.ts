@@ -31,6 +31,7 @@ import { overlayHeaders } from './HeaderOverlay.js';
 import { classifyHttpFailure, hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
 import { CAMOUFOX_LAUNCH_FAILED } from './LocalFailureReasons.js';
 import { digestResponse, type IResponseDigest } from './ResponseDigest.js';
+import { checkResponseIntegrity } from './ResponseIntegrityCheck.js';
 import { safeUrlForLog, scrubUrlFromText } from './SafeUrlForLog.js';
 
 const LOG = getDebug(import.meta.url);
@@ -355,6 +356,8 @@ class CamoufoxIdentityFetchStrategy implements IFetchStrategy {
    * @returns Procedure carrying parsed response or structured failure.
    */
   public async fetchPost<T>(url: string, data: PostData, opts: IFetchOpts): Promise<Procedure<T>> {
+    const integrity = checkResponseIntegrity(opts.responseIntegrity, false);
+    if (!isOk(integrity)) return integrity;
     return this.runVerb<T>({ verb: 'POST', url, body: JSON.stringify(data), opts });
   }
 
@@ -365,6 +368,8 @@ class CamoufoxIdentityFetchStrategy implements IFetchStrategy {
    * @returns Procedure carrying parsed response or structured failure.
    */
   public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
+    const integrity = checkResponseIntegrity(opts.responseIntegrity, false);
+    if (!isOk(integrity)) return integrity;
     return this.runVerb<T>({ verb: 'GET', url, body: null, opts });
   }
 

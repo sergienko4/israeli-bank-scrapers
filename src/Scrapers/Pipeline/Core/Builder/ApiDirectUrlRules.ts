@@ -4,13 +4,14 @@
  * (`IPostStep.urlFromCarry` is `never`), reads a slot whose earlier writers in
  * the same list checked — with an `extractRules` `url` rule, as its final
  * URL, which its own redirect rules check, or as its handoff script's
- * URL, which its capture's `url` rules check: login steps and resume
- * steps each run without the other's carry. A final-URL slot needs a manual
- * redirect, whose rules check it, and a slot of its own.
+ * URL, which its capture's `url` rules check, as an SDK reference, or as a
+ * checked URL path map. Login steps and resume steps each run without the
+ * other's carry. A final-URL slot needs a manual redirect and its own slot.
  */
 
 import type { IStepConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { allowedRulesOf } from '../../Mediator/ApiDirectCall/Flow/RunStep.carriedUrlRules.js';
+import { structuredSlotsOf } from '../../Mediator/ApiDirectCall/Flow/RunStep.structuredCapture.js';
 import {
   answerCapturesOf,
   anyStep,
@@ -19,6 +20,8 @@ import {
   isExtractSlot,
   resumeStepsOf,
 } from './ApiDirectRuleInput.js';
+
+const CHECKED_DERIVATIONS: ReadonlySet<string> = new Set(['url-path-map', 'url-compose']);
 
 /**
  * Whether a step sets both a raw query and a query template.
@@ -72,6 +75,7 @@ function directSlotsOf(step: IStepConfig): readonly string[] {
  */
 function writesSlot(step: IStepConfig, slot: string): boolean {
   if (directSlotsOf(step).includes(slot)) return true;
+  if (structuredSlotsOf(step).includes(slot)) return true;
   const derived = step.deriveCarry ?? [];
   if (derived.some((entry): boolean => entry.into === slot)) return true;
   const captures = step.classify === undefined ? [] : answerCapturesOf(step.classify);
@@ -79,14 +83,19 @@ function writesSlot(step: IStepConfig, slot: string): boolean {
 }
 
 /**
- * Whether a step checks a slot: an `extractRules` `url` rule, its final URL,
- * or its handoff script's URL.
+ * Whether a step checks every derived value and declares a URL rule.
  * @param step - Step config.
  * @param slot - Carry slot.
  * @returns True when the slot is a checked URL.
  */
 function hasUrlRule(step: IStepConfig, slot: string): boolean {
-  if (step.deriveCarry?.some((derived): boolean => derived.into === slot)) return false;
+  const derived = step.deriveCarry ?? [];
+  if (
+    derived.some((entry): boolean => {
+      return entry.into === slot && !CHECKED_DERIVATIONS.has(entry.op?.kind ?? '');
+    })
+  )
+    return false;
   return allowedRulesOf(step, slot).length > 0;
 }
 

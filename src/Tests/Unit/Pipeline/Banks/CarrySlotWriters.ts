@@ -12,6 +12,7 @@ import type {
   IPostStep,
   IStepConfig,
 } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
+import { structuredSlotsOf } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.structuredCapture.js';
 
 /** One slot a config writes, and whether the write keeps a held value. */
 interface ISlotWrite {
@@ -167,6 +168,16 @@ function locationWrites(step: IStepConfig): readonly ISlotWrite[] {
 }
 
 /**
+ * The slot a structured capture writes.
+ * @param step - Login step.
+ * @returns Its write, when set.
+ */
+function structuredWrites(step: IStepConfig): readonly ISlotWrite[] {
+  const slots = structuredSlotsOf(step);
+  return plain(slots);
+}
+
+/**
  * The slot a step's final URL writes.
  * @param step - Login step.
  * @returns Its write, when set.
@@ -207,6 +218,7 @@ const STEP_WRITERS = {
   textCaptures: textCaptureWrites,
   formCapture: formWrites,
   locationCapture: locationWrites,
+  structuredCapture: structuredWrites,
   classify: classifyWrites,
   deriveCarry: deriveWrites,
   generate: generateWrites,
@@ -224,6 +236,7 @@ const STEP_WRITERS = {
   documentMarker: none,
   mediaType: none,
   strictUtf8: none,
+  responseIntegrity: none,
   seal: none,
   setCookies: none,
   clientCert: none,

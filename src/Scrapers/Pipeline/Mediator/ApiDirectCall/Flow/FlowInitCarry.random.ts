@@ -67,8 +67,10 @@ const RANDOM_BOOTSTRAPS: {
  * @param bootstrap - Discriminated bootstrap descriptor.
  * @returns True when the kind draws a random value.
  */
-function isRandomBootstrap(bootstrap: SeedCarryBootstrapKind): bootstrap is RandomBootstrap {
-  return Object.hasOwn(RANDOM_BOOTSTRAPS, bootstrap.kind);
+function isRandomBootstrap(bootstrap: unknown): bootstrap is RandomBootstrap {
+  if (typeof bootstrap !== 'object' || bootstrap === null) return false;
+  const kind: unknown = Reflect.get(bootstrap, 'kind');
+  return typeof kind === 'string' && Object.hasOwn(RANDOM_BOOTSTRAPS, kind);
 }
 
 /**

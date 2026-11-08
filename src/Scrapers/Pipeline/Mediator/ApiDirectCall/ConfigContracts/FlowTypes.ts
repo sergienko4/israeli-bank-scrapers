@@ -21,6 +21,7 @@ import type { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { WKUrlGroup } from '../../../Registry/WK/UrlsWK.js';
 import type {
   BodyEncoding,
+  IResponseIntegrity,
   RedirectPolicy,
   ResponseKind,
 } from '../../../Types/Domain/FetchPolicy.js';
@@ -38,7 +39,13 @@ import type {
   JsonValueTemplate,
   RefToken,
 } from './TemplateTypes.js';
-import type { EnvelopeCodec, IFormCapture, ILocationCapture, ITextCapture } from './WireTypes.js';
+import type {
+  EnvelopeCodec,
+  IFormCapture,
+  ILocationCapture,
+  ITextCapture,
+  StructuredCapture,
+} from './WireTypes.js';
 
 /** Exhaustive flow-kind discriminator (spec.txt §B.3). */
 type FlowKind = 'sms-otp' | 'stored-jwt' | 'bearer-static';
@@ -145,6 +152,15 @@ interface IStepClientCert {
   readonly cert: RefToken;
 }
 
+/** A client-cookie source that may be absent or empty. */
+interface IOptionalClientCookie {
+  readonly ref: RefToken;
+  readonly optional: true;
+}
+
+/** A required ref or an explicitly optional ref. */
+type ClientCookieSource = RefToken | IOptionalClientCookie;
+
 /** Fields every login step has, whatever its HTTP method. */
 interface IStepBase extends IStepFailureTyping {
   readonly name: StepName;
@@ -197,20 +213,24 @@ interface IStepBase extends IStepFailureTyping {
   readonly formCapture?: IFormCapture;
   /** The URL the page's handoff script assigns, captured from a `text` answer. */
   readonly locationCapture?: ILocationCapture;
+  /** One structured value captured from a `text` answer. */
+  readonly structuredCapture?: StructuredCapture;
   /** Text a `document` answer must contain, else the step fails `document unverified`. */
   readonly documentMarker?: string;
   /** Media type the answer must name, over the bank's per-kind default. */
   readonly mediaType?: string;
   /** Decode the answer as strict UTF-8, over the bank's `headless.strictUtf8`. */
   readonly strictUtf8?: boolean;
+  /** Bounds and optionally pins response bytes, overriding the bank default. */
+  readonly responseIntegrity?: IResponseIntegrity;
   /** Carry slots read from the final response's headers, merged beside `extractsToCarry`. */
   readonly headerExtractsToCarry?: Readonly<Record<string, IHeaderExtract>>;
   /** Carry slots derived, in order, once this step's extracts are in scope. */
   readonly deriveCarry?: readonly IDerivedCarry[];
   /** Optional credential seal, written into the body before the request. */
   readonly seal?: ISealFieldConfig;
-  /** Client cookies (name → ref) set in the domain jar before the request. */
-  readonly setCookies?: Readonly<Record<string, RefToken>>;
+  /** Client cookies (name → source) set in the domain jar before the request. */
+  readonly setCookies?: Readonly<Record<string, ClientCookieSource>>;
   /** Device certificate installed before the request; needs headless `clientCert`. */
   readonly clientCert?: IStepClientCert;
   /** Rules per body- or header-extract slot, checked once the answer is read. */
@@ -262,10 +282,12 @@ type StepMethod = NonNullable<IStepConfig['method']>;
 
 export type {
   AuthRecovery,
+  ClientCookieSource,
   CookieHandoff,
   FlowKind,
   IGetStep,
   IHeaderExtract,
+  IOptionalClientCookie,
   IOptionalExtract,
   IPostStep,
   IRunIf,

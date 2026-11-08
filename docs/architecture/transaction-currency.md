@@ -74,6 +74,11 @@ which is `null` in every captured row and is not in the alias list, so the rows
 report `ILS`, as the removed legacy scraper did. `MizrahiShape.test.ts` pins
 this.
 
+## Rejection diagnostics
+
+When a transaction cannot be mapped because its date or amount is invalid,
+the shared mapper logs the rejection without including those values.
+
 ## Known limitation — numeric code without an ISO sibling
 
 The enum table above is an observation, not a mapping the code applies. A row

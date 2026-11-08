@@ -25,7 +25,9 @@ import type {
   IStepConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IConfigTokenStrategy } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/TokenStrategyFromConfig.js';
+import { failResponseIntegrity } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/ResponseIntegrityCheck.js';
 import type { ICookieSession } from '../../../../../../Scrapers/Pipeline/Types/Domain/CookieSession.js';
+import { RESPONSE_BYTE_LIMIT_REASON } from '../../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenContext.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -479,6 +481,36 @@ async function primeThenRecover(
 }
 
 describe('carry-bundle in-run recovery', () => {
+  const integrityRefusal = failResponseIntegrity(RESPONSE_BYTE_LIMIT_REASON);
+  const wafRefusal = fail(ScraperErrorTypes.WafBlocked, 'edge refusal');
+
+  it.each([
+    ['integrity', integrityRefusal],
+    ['WAF', wafRefusal],
+  ])('does not cold-login after a %s refusal when budget remains', async (_label, refusal) => {
+    const responses = [TOKEN_OK, refusal, REGISTER_OK, TOKEN_OK];
+    const run = makeRun({ responses, coldFallback: 'any' });
+    const warmCreds = credsWith(STORED);
+    const { proc } = await primeThenRecover(run, warmCreds);
+    expect(proc).toEqual(refusal);
+    expect(run.captures).toHaveLength(WARM_STEPS + WARM_STEPS);
+  });
+
+  it.each([
+    ['integrity', integrityRefusal],
+    ['WAF', wafRefusal],
+  ])(
+    'does not return an old header after a %s refusal when budget is spent',
+    async (_label, refusal) => {
+      const responses = [REGISTER_OK, TOKEN_OK, refusal];
+      const run = makeRun({ responses, coldFallback: 'any' });
+      const coldCreds = credsWith('');
+      const { proc } = await primeThenRecover(run, coldCreds);
+      expect(proc).toEqual(refusal);
+      expect(run.captures).toHaveLength(COLD_STEPS + WARM_STEPS);
+    },
+  );
+
   it('resumes from the stash and the private carry at fromStepIndex', async (): Promise<void> => {
     const responses = [REGISTER_OK, TOKEN_OK, TOKEN_OK];
     const run = makeRun({ responses, cookieHandoff: 'isolate' });

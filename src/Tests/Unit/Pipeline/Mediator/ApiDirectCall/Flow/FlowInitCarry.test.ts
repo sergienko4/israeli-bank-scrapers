@@ -68,6 +68,30 @@ describe('FlowInitCarry.buildInitialCarry', () => {
     expect(result).toEqual({ success: true, value: { flowId: 'kept' } });
   });
 
+  it('always bootstraps a fresh ID despite supplied credentials and initial carry', () => {
+    const bootstrap = { kind: 'random-hex', bytes: 32, isUpperCase: true } as const;
+    const seed = { field: 'flowId', bootstrap, alwaysBootstrap: true } as const;
+    const config = makeConfig({ seedCarryFromCreds: [seed] });
+    const first = buildInitialCarry(config, { flowId: 'credential-value' }, { flowId: 'old' });
+    const second = buildInitialCarry(config, { flowId: 'credential-value' }, { flowId: 'old' });
+    expect(first.success && second.success).toBe(true);
+    if (first.success && second.success) {
+      expect(first.value.flowId).toMatch(/^[A-F0-9]{64}$/);
+      expect(first.value.flowId).not.toBe(second.value.flowId);
+    }
+  });
+
+  it('refuses an unconditional deterministic seed even without builder validation', () => {
+    const bootstrap = { kind: 'sha256-prefix-16', from: 'phone' } as const;
+    const seed = { field: 'flowId', bootstrap, alwaysBootstrap: true } as const;
+    const config = makeConfig({ seedCarryFromCreds: [seed] });
+    const result = buildInitialCarry(config, { phone: 'synthetic' }, {});
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'seedCarryFromCreds: alwaysBootstrap needs a random bootstrap',
+    });
+  });
+
   it('mirrors a creds field into carry under the same name', () => {
     const config = makeConfig({ seedCarryFromCreds: ['phoneNumber'] });
     const result = buildInitialCarry(config, { phoneNumber: '972-000000000' }, {});

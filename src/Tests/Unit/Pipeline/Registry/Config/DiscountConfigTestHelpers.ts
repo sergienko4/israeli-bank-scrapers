@@ -12,6 +12,7 @@ import type {
   JsonValueTemplate,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { JsonValue } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/JsonPointer.js';
+import { cookieRefOf } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.clientCookies.js';
 import { applyExtractRules } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.extractRules.js';
 import { hydrate } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
 import { resolveRefText } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
@@ -90,7 +91,10 @@ function hydratedHeaders(step: IStepConfig, call: IApiDirectCallConfig): Record<
 function resolvedCookies(step: IStepConfig, call: IApiDirectCallConfig): Record<string, unknown> {
   const scope = { carry: CARRY, creds: CREDS, config: call };
   const entries = Object.entries(step.setCookies ?? {});
-  const resolved = entries.map(([name, ref]) => [name, resolveRefText(ref, scope)]);
+  const resolved = entries.map(([name, source]) => {
+    const ref = cookieRefOf(source);
+    return [name, resolveRefText(ref, scope)];
+  });
   return Object.fromEntries(resolved) as Record<string, unknown>;
 }
 

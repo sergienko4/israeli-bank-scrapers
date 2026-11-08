@@ -419,6 +419,13 @@ The classifier's one non-obvious rule: reaching the lower bound with caveats is
 happened that could have cost rows; laundering that into `covered` would
 reproduce the silence this whole page documents.
 
+For API-direct scrapes, each post-mapping ledger snapshot also travels through
+`IAccountTxns` and internal `IScrapeState` to the optional result guard as
+`observedCaveats`. It is independent of `windowCoverage`, whose `unproven`
+variant intentionally carries no caveats. An empty snapshot means no channel
+fired; absent evidence is not a clean snapshot. This does not add fields to
+public account results.
+
 ### Why the backfill's refusals are data, not branches
 
 `planBackfill()` returns an `IBackfillPlan` — either an `IBackfillAsk` naming

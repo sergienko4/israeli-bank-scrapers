@@ -11,6 +11,7 @@ import type { NativeFetchStrategy } from '../../Strategy/Fetch/NativeFetchStrate
 import type { TlsClientProfileKind } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
 import type { IDynamicClientCert } from '../../Types/Domain/ClientCertControl.js';
 import type {
+  IResponseIntegrity,
   MediaTypePolicy,
   RedirectPolicy,
   StatusPolicy,
@@ -37,6 +38,10 @@ interface IHeadlessMediatorArgs {
   readonly mediaTypes?: MediaTypePolicy;
   /** Decode every answer as strict UTF-8 unless its call says otherwise. */
   readonly strictUtf8?: boolean;
+  /** Limits and optionally pins each response when the call names no policy. */
+  readonly responseIntegrity?: IResponseIntegrity;
+  /** Disable automatic retries after native connect timeouts. */
+  readonly isConnectRetryDisabled?: boolean;
 }
 
 /** Args bundle for the node:https (client-cert and/or TLS-profile) mediator factory. */
@@ -64,12 +69,19 @@ interface IBrowserBackedHeadlessMediatorArgs {
   readonly graphqlHeaders?: Readonly<Record<string, string>>;
   readonly staticAuth?: string;
   readonly bypassOriginChallenge?: boolean;
+  readonly responseIntegrity?: IResponseIntegrity;
 }
 
 /** Minimal shape needed to construct the shared GraphQL transport. */
 interface IGraphQLTransportArgs extends Pick<
   IHeadlessMediatorArgs,
-  'redirectPolicy' | 'statusPolicy' | 'omitBankText' | 'mediaTypes' | 'strictUtf8'
+  | 'redirectPolicy'
+  | 'statusPolicy'
+  | 'omitBankText'
+  | 'mediaTypes'
+  | 'strictUtf8'
+  | 'responseIntegrity'
+  | 'isConnectRetryDisabled'
 > {
   readonly graphqlUrl: string;
   readonly graphqlHeaders?: Readonly<Record<string, string>>;

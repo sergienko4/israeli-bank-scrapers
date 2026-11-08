@@ -10,6 +10,8 @@
 
 import type { IHeaderExtract } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IHeadlessUrlsConfig } from '../../Registry/Config/PipelineBankConfigTypes.js';
+import { API_DIRECT_COOKIE_RULES } from './ApiDirectCookieRules.js';
+import { API_DIRECT_INTEGRITY_RULES } from './ApiDirectIntegrityRules.js';
 import { API_DIRECT_MEDIA_RULES } from './ApiDirectMediaRules.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
 import { API_DIRECT_UTF8_RULES } from './ApiDirectUtf8Rules.js';
@@ -20,6 +22,7 @@ type GatedStepField =
   | 'documentMarker'
   | 'mediaType'
   | 'strictUtf8'
+  | 'responseIntegrity'
   | 'redirect'
   | 'headerExtractsToCarry'
   | 'encoding';
@@ -31,6 +34,8 @@ const NATIVE_HEADLESS_FIELDS = [
   'omitBankText',
   'mediaTypes',
   'strictUtf8',
+  'responseIntegrity',
+  'isConnectRetryDisabled',
 ] as const;
 
 /** A headless field one transport family acts on. */
@@ -94,6 +99,7 @@ const STEP_FIELD_GATES: readonly (readonly [GatedStepField, IFieldGate])[] = [
   ['documentMarker', NODE_GATE],
   ['mediaType', NODE_GATE],
   ['strictUtf8', NODE_GATE],
+  ['responseIntegrity', NATIVE_GATE],
   ['redirect', NATIVE_GATE],
   ['headerExtractsToCarry', NODE_GATE],
   ['encoding', NODE_GATE],
@@ -238,8 +244,10 @@ const API_DIRECT_NATIVE_RULES: readonly IApiDirectRule[] = [
     isBroken: isSetCookieWithoutDomainJar,
   },
   { message: 'steps.setCookies: each name must be an HTTP token', isBroken: hasBadCookieName },
+  ...API_DIRECT_COOKIE_RULES,
   ...API_DIRECT_MEDIA_RULES,
   ...API_DIRECT_UTF8_RULES,
+  ...API_DIRECT_INTEGRITY_RULES,
 ];
 
 export default API_DIRECT_NATIVE_RULES;

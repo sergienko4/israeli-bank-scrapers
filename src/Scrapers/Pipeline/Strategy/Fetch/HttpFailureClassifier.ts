@@ -80,13 +80,22 @@ function isCloudflareBlockPage(body: string): boolean {
  * Whether the edge blocked the request — a 4xx Cloudflare block page.
  * Cloudflare's 5xx pages carry the same markers but report an unreachable
  * origin, so they stay Generic.
+ * @param status - The response status.
+ * @param body - The available response text.
+ * @returns True when the response is an edge block.
+ */
+function isCloudflareBlock(status: number, body: string): boolean {
+  const isClientError = status >= EDGE_REFUSAL_STATUS.min && status <= EDGE_REFUSAL_STATUS.max;
+  return isClientError && isCloudflareBlockPage(body);
+}
+
+/**
+ * Adapts the shared block predicate to the failure rule.
  * @param failure - The non-2xx response.
  * @returns True when the response is an edge block.
  */
-function isCloudflareBlock(failure: IHttpFailure): boolean {
-  const isClientError =
-    failure.status >= EDGE_REFUSAL_STATUS.min && failure.status <= EDGE_REFUSAL_STATUS.max;
-  return isClientError && isCloudflareBlockPage(failure.body);
+function matchesCloudflareBlock(failure: IHttpFailure): boolean {
+  return isCloudflareBlock(failure.status, failure.body);
 }
 
 /**
@@ -114,7 +123,7 @@ function isCloudflareChallenge(failure: IHttpFailure): boolean {
 /** Edge-refusal rules, checked in order; the first match wins. */
 const EDGE_REFUSAL_RULES: readonly IEdgeRefusalRule[] = [
   { matches: isCloudflareChallenge, reason: CLOUDFLARE_CHALLENGE_REASON },
-  { matches: isCloudflareBlock, reason: CLOUDFLARE_BLOCK_REASON },
+  { matches: matchesCloudflareBlock, reason: CLOUDFLARE_BLOCK_REASON },
 ];
 
 /**
@@ -140,4 +149,5 @@ export {
   CLOUDFLARE_BLOCK_REASON,
   CLOUDFLARE_CHALLENGE_REASON,
   hasCloudflareChallengeHeader,
+  isCloudflareBlock,
 };

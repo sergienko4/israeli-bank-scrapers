@@ -301,13 +301,10 @@ function buildMappedTxn(input: IBuildTxnInput): ITransaction {
  * {@link autoMapTransaction} stays under the LoC budget while keeping
  * the rejection telemetry intact.
  *
- * @param dateStr - Coerced date string (may be empty on failure).
- * @param amtNum - Resolved charged amount (may be NaN on failure).
  * @returns Always `false` — the rejection sentinel for the extractor.
  */
-function rejectMappedTxn(dateStr: string, amtNum: number): false {
-  const why = `date="${dateStr}", amount=${String(amtNum)}`;
-  LOG.debug({ message: `autoMapTransaction: rejected (${why})` });
+function rejectMappedTxn(): false {
+  LOG.debug({ message: 'autoMapTransaction: rejected invalid date or amount' });
   return false;
 }
 
@@ -332,7 +329,7 @@ function autoMapTransaction(raw: ApiRecord, isCardIssuer?: boolean): ITransactio
   // as money received. See IApiDirectScrapeShape.isCardIssuer.
   const isCard = isCardIssuer ?? Boolean(fields.voidField);
   const amounts = computeAmounts(raw, fields, isCard);
-  if (!isMappableTxn(dateStr, amounts.amtNum)) return rejectMappedTxn(dateStr, amounts.amtNum);
+  if (!isMappableTxn(dateStr, amounts.amtNum)) return rejectMappedTxn();
   return buildMappedTxn({ dates: { date: dateStr, processedDate: procStr }, amounts, fields, raw });
 }
 

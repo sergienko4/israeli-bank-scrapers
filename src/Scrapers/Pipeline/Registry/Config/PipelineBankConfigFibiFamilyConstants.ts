@@ -4,7 +4,8 @@
  * values and the portal URL rule. Pure data (Rule #11).
  */
 
-import type { IUrlRule, StatusAction, StatusPolicy } from '../../Types/Domain/FetchPolicy.js';
+import type { IUrlRule } from '../../Types/Domain/FetchPolicy.js';
+import ONLY_200_STATUS_POLICY from './PipelineBankConfigHttpStatus.js';
 
 /** What one FIBI-family bank differs by. */
 interface IFibiBrand {
@@ -55,12 +56,7 @@ const FIBI_HTML = 'text/html';
 const FIBI_PAGE_ACCEPT = 'text/html,application/xhtml+xml';
 
 /** Every 2xx status but 200: a login call answers 200 or fails. */
-const NON_200_SUCCESS = Array.from({ length: 99 }, (_unused, index) => 201 + index);
-const REFUSED: readonly (readonly [number, StatusAction])[] = NON_200_SUCCESS.map(code => [
-  code,
-  'fail',
-]);
-const FIBI_STATUS_POLICY: StatusPolicy = Object.fromEntries(REFUSED);
+const FIBI_STATUS_POLICY = ONLY_200_STATUS_POLICY;
 
 /**
  * The brand's entry page, which states the bank number and client address.

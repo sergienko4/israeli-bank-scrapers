@@ -38,6 +38,9 @@ const INIT_STEP: IPostStep = {
   extractsToCarry: {},
 };
 
+const OPTIONAL_COOKIE = { ref: 'carry.g3', optional: true } as const;
+const OPTIONAL_STEP = { ...INIT_STEP, setCookies: { G3CmE: OPTIONAL_COOKIE } };
+
 const LOGIN_STEP: IPostStep = {
   name: 'login',
   urlTag: 'auth.login',
@@ -153,6 +156,71 @@ describe('client cookies', () => {
     const result = await runStep({ step: INIT_STEP, bus, scope, companyId: HINT });
     const message = 'bind setCookies needs a cookie session';
     expect(result).toMatchObject({ success: false, errorMessage: message });
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it.each(['absent', 'empty'])(
+    'keeps an existing cookie when the optional value is %s',
+    async label => {
+      const fake = serveBank();
+      const bus = jarBus();
+      if (bus.cookies === undefined) throw new TypeError('domain jar unavailable');
+      bus.cookies.set(ORIGIN, { name: 'G3CmE', value: SEAL_COOKIE });
+      const base = scopeWith('');
+      const scope = label === 'absent' ? { ...base, carry: {} } : base;
+      const result = await runStep({ step: OPTIONAL_STEP, bus, scope, companyId: HINT });
+      expect(result.success).toBe(true);
+      const sent = cookieSent(fake, 0);
+      expect(sent).toContain(`G3CmE=${SEAL_COOKIE}`);
+    },
+  );
+
+  it.each(['absent', 'empty'])(
+    'does not create a cookie when the optional value is %s',
+    async label => {
+      const fake = serveBank();
+      const bus = jarBus();
+      const base = scopeWith('');
+      const scope = label === 'absent' ? { ...base, carry: {} } : base;
+      const result = await runStep({ step: OPTIONAL_STEP, bus, scope, companyId: HINT });
+      expect(result.success).toBe(true);
+      const sent = cookieSent(fake, 0);
+      expect(sent).not.toContain('G3CmE=');
+      const stored = bus.cookies?.exportAll();
+      const isCreated = stored?.some(cookie => cookie.name === 'G3CmE');
+      expect(isCreated).toBe(false);
+    },
+  );
+
+  it('writes a present optional cookie with host-only secure root scope', async () => {
+    const fake = serveBank();
+    const bus = jarBus();
+    const scope = scopeWith(SEAL_COOKIE);
+    const result = await runStep({ step: OPTIONAL_STEP, bus, scope, companyId: HINT });
+    expect(result.success).toBe(true);
+    const sent = cookieSent(fake, 0);
+    expect(sent).toContain(`G3CmE=${SEAL_COOKIE}`);
+    const stored = bus.cookies?.exportAll();
+    const cookie = stored?.find(entry => entry.name === 'G3CmE');
+    expect(cookie).toMatchObject({
+      name: 'G3CmE',
+      domain: 'bank.example',
+      hostOnly: true,
+      path: '/',
+      secure: true,
+    });
+  });
+
+  it.each([
+    ['a separator', 'a;b'],
+    ['a space', 'a b'],
+    ['a number', 7],
+    ['an oversized value', 'x'.repeat(4097)],
+  ])('refuses optional %s before the request', async (_label, value) => {
+    const fake = serveBank();
+    const scope = scopeWith(value);
+    const result = await runStep({ step: OPTIONAL_STEP, bus: jarBus(), scope, companyId: HINT });
+    expect(result).toMatchObject({ success: false, errorMessage: 'bind setCookies G3CmE invalid' });
     expect(fake.calls).toHaveLength(0);
   });
 });

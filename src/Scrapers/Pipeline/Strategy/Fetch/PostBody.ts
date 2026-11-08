@@ -3,6 +3,7 @@
  * body as JSON text under the transport's default content-type; `form` writes
  * a flat record as `application/x-www-form-urlencoded` in key order;
  * `form-utf8` does the same under `;charset=UTF-8` (no space);
+ * `form-text-utf8` sends those form bytes under text/plain;charset=UTF-8;
  * `form-latin1` does the same over ISO-8859-1; `text` sends the one string
  * field of a `{ text }` record verbatim. Every non-JSON writer replaces any
  * content-type the caller named — `text` by sending none — so a body never
@@ -23,6 +24,9 @@ const FORM_CONTENT_TYPE = 'application/x-www-form-urlencoded';
 
 /** Content-type every UTF-8 form body is sent under, byte for byte. */
 const UTF8_FORM_CONTENT_TYPE = `${FORM_CONTENT_TYPE};charset=UTF-8`;
+
+/** Content-type for UTF-8 form bytes sent as text. */
+const TEXT_FORM_CONTENT_TYPE = 'text/plain;charset=UTF-8';
 
 /** Content-type every latin1 form body is sent under. */
 const LATIN1_CONTENT_TYPE = `${FORM_CONTENT_TYPE}; charset=ISO-8859-1`;
@@ -141,6 +145,7 @@ const BODY_WRITERS: Readonly<Record<BodyEncoding, BodyWriter>> = {
   json: writeJson,
   form: formWriter(FORM_CONTENT_TYPE),
   'form-utf8': formWriter(UTF8_FORM_CONTENT_TYPE),
+  'form-text-utf8': formWriter(TEXT_FORM_CONTENT_TYPE),
   'form-latin1': writeLatin1Form,
   text: writeText,
 };

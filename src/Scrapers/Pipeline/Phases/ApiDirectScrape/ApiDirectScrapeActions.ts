@@ -7,6 +7,7 @@
  * the per-file LOC ceiling. Zero bank-name coupling.
  */
 
+import type { WindowCaveat } from '../../../../WindowCoverage.js';
 import { isAuthRejectedFailure } from '../../Mediator/Api/ApiMediator.authReject.js';
 import type { IApiMediator } from '../../Mediator/Api/ApiMediator.js';
 import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
@@ -15,7 +16,7 @@ import type { IAuditedAccount } from '../../Types/Domain/AuditedAccount.js';
 import { isSome, some } from '../../Types/Option.js';
 import type { IActionContext, IScrapeState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { isOk, isWafBlocked, preferWafBlock, succeed } from '../../Types/Procedure.js';
+import { isOk, isTerminalFailure, preferTerminalFailure, succeed } from '../../Types/Procedure.js';
 import { fetchAccountTxns } from './ApiDirectScrapeAccountTxns.js';
 import { fetchBalance } from './ApiDirectScrapeBalance.js';
 import runBootstrap from './ApiDirectScrapeBootstrap.js';
@@ -30,6 +31,7 @@ interface IAccountResult {
   readonly degraded: boolean;
   /** Backfill was asked for the missing slice and did not get it. */
   readonly backfillExhausted: boolean;
+  readonly observedCaveats: readonly WindowCaveat[];
 }
 
 /** Accumulator for per-account scrape results. */
@@ -68,7 +70,7 @@ async function fetchOneAccount<TAcct, TCursor>(
   const held = { txns: [...txns.value.txns], windowCoverage };
   const account = { accountNumber, ...balanceField(bal.value), ...held };
   const outcome = { degraded: bal.value.degraded, backfillExhausted: txns.value.backfillExhausted };
-  return succeed({ account, ...outcome });
+  return succeed({ account, ...outcome, observedCaveats: txns.value.observedCaveats });
 }
 
 /**
@@ -104,7 +106,13 @@ function summarizeScrape(results: readonly IAccountResult[]): IScrapeState {
   const accounts = results.map(r => r.account);
   const hasDegraded = results.some(r => r.degraded);
   const hasExhausted = results.some(r => r.backfillExhausted);
-  return { accounts, balanceDegraded: hasDegraded, backfillExhausted: hasExhausted };
+  const observedCaveats = results.flatMap(r => r.observedCaveats);
+  return {
+    accounts,
+    balanceDegraded: hasDegraded,
+    backfillExhausted: hasExhausted,
+    observedCaveats,
+  };
 }
 
 /**
@@ -187,13 +195,13 @@ function isSessionRejected(first: Procedure<ApiDirectScrapeResult>): boolean {
  * flow, so recovering would only burn a second OTP, and a healthy warm session
  * needs no recovery. An edge (WAF) refusal never recovers: the bank never saw
  * the call, and a cold re-login could send an SMS OTP while the scrape host
- * stays blocked.
+ * stays blocked. Response-integrity refusals also stop recovery.
  * @param first - The first scrape procedure.
  * @param bus - The bound ApiMediator.
  * @returns True when recovery should run.
  */
 function shouldRecoverSession(first: Procedure<ApiDirectScrapeResult>, bus: IApiMediator): boolean {
-  if (isWafBlocked(first)) return false;
+  if (isTerminalFailure(first)) return false;
   if (bus.recoversWholeScrape()) return isSessionRejected(first);
   return isScrapeSuspicious(first) && bus.wasSessionWarm();
 }
@@ -203,10 +211,9 @@ function shouldRecoverSession(first: Procedure<ApiDirectScrapeResult>, bus: IApi
  * session (a cold re-login, or a re-grant under whole-scrape recovery) and
  * re-run the whole scrape, bootstrap included, once. A
  * failed recovery returns the first outcome unchanged so a loud failure or a
- * degraded result is never masked — unless the edge refused the recovery, in
- * which case that WAF block is returned, since a degraded first outcome would
- * otherwise hide it. Shared by every api-direct bank with zero per-bank
- * coupling.
+ * degraded result is never masked — unless recovery returned a terminal edge
+ * or integrity refusal, which the earlier outcome would otherwise hide.
+ * Shared by every api-direct bank with zero per-bank coupling.
  * @param d - Driver context.
  * @returns Scrape procedure (recovered when warranted).
  */
@@ -217,7 +224,7 @@ async function runScrapeWithRecovery<TAcct, TCursor>(
   if (!shouldRecoverSession(first, d.bus)) return first;
   const recovered = await d.bus.recoverSession();
   if (isOk(recovered)) return runScrape(d);
-  return preferWafBlock(recovered, first);
+  return preferTerminalFailure(recovered, first);
 }
 
 /**
