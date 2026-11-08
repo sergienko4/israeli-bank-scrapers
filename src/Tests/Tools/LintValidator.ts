@@ -866,7 +866,6 @@ export const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
   ['src/Common/Config/OtpDetectorConfig.js', 'Scrapers/Pipeline/Mediator/Otp/OtpDetectorConfig.js'],
   ['src/Common/FormAnchor.js', 'Scrapers/Pipeline/Mediator/Form/FormAnchor.js'],
   ['src/Common/SelectorResolver.js', 'Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js'],
-  ['src/Common/OtpDetector.js', 'Scrapers/Pipeline/Mediator/Otp/OtpDetector.js'],
   ['src/Common/SafeScreenshot.js', 'Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.js'],
   ['src/Common/Fetch.js', 'Scrapers/Pipeline/Mediator/Network/Fetch/index.js'],
   ['src/Common/Waiting.js', 'Scrapers/Pipeline/Mediator/Timing/Waiting.js'],

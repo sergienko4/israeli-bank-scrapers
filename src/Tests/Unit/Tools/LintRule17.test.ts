@@ -153,7 +153,6 @@ const EXPECTED_RETIRED_INVENTORY: readonly string[] = [
   'src/Common/ElementsInteractions.js',
   'src/Common/Fetch.js',
   'src/Common/FormAnchor.js',
-  'src/Common/OtpDetector.js',
   'src/Common/SafeScreenshot.js',
   'src/Common/SelectorResolver.js',
   'src/Common/Waiting.js',
