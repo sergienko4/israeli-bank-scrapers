@@ -71,8 +71,11 @@ transaction fields are extracted. `validAccounts` rejects missing or duplicate
 account identifiers before account-specific calls, and
 `validTransactionAmount` requires the shared mapper to use the row's own
 `Amount`, rejects nested or non-finite original amounts and refuses sign
-changes from unrelated fields. Leumi is explicitly mapped as a bank, not a
-card issuer.
+changes from unrelated fields. `validTransactionSource` requires a complete, valid
+root `DateUTC` and a usable root `FITID` or `ReferenceNumberLong`, and rejects
+conflicting mapper aliases. `normalizeTransactionIdentifier` removes unusable
+`FITID` placeholders so the fallback can be mapped. Leumi is explicitly mapped
+as a bank, not a card issuer.
 `leumiResultGuard` rejects missing loss evidence or observed transaction loss.
 A genuine zero balance and an empty
 transaction list remain valid. An unproven history window is not itself

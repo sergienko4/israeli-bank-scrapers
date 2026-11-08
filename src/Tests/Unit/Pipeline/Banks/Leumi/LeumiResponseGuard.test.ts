@@ -27,6 +27,7 @@ import { makeRouterBus } from '../../Phases/ApiDirectScrape/ApiDirectScrapeRoute
 const ACCOUNT = { AccountIndex: 0, MaskedNumber: '99-12345/88' };
 const STATUS = { Status: true, SOStatusItem: null };
 const START = new Date('2026-01-01T00:00:00Z');
+const SOURCE = { DateUTC: '2026-02-01', FITID: 'synthetic-id' };
 
 /**
  * Wraps a synthetic WCF response.
@@ -149,7 +150,10 @@ describe('Leumi WCF operation checks', () => {
   });
 
   it('accepts a genuine zero transaction amount', () => {
-    const body = envelope({ SOStatus: STATUS, HistoryTransactionsItems: [{ Amount: 0 }] });
+    const body = envelope({
+      SOStatus: STATUS,
+      HistoryTransactionsItems: [{ ...SOURCE, Amount: 0 }],
+    });
     const result = check('txns', body);
     expect(result).toMatchObject({ success: true });
   });
@@ -157,7 +161,7 @@ describe('Leumi WCF operation checks', () => {
   it('accepts a numeric original amount with the bank amount', () => {
     const body = envelope({
       SOStatus: STATUS,
-      HistoryTransactionsItems: [{ Amount: '10', originalAmount: '12' }],
+      HistoryTransactionsItems: [{ ...SOURCE, Amount: '10', originalAmount: '12' }],
     });
     const result = check('txns', body);
     expect(result).toMatchObject({ success: true });
@@ -228,7 +232,7 @@ describe('Leumi WCF checks in the real scrape driver', () => {
     const balance = envelope({ SOStatus: STATUS, BalanceDisplay: 7 });
     const page = envelope({
       SOStatus: STATUS,
-      HistoryTransactionsItems: [{ DateUTC: '2026-02-01', ...row }],
+      HistoryTransactionsItems: [{ ...SOURCE, ...row }],
     });
     const bus = makeRouterBus({
       [leumiBrokerUrl(GET_ACCOUNTS_MODULE)]: [succeed(accounts)],
@@ -339,7 +343,7 @@ describe('Leumi WCF checks in the real scrape driver', () => {
     expect(outcome.success).toBe(true);
   });
 
-  it('refuses mapping loss even when the backfill bound does not move', async () => {
+  it('refuses an invalid source date before mapping or backfill', async () => {
     const rows = [
       { DateUTC: '2026-06-02', Description: 'market', Amount: 10, FITID: 'row-1' },
       { DateUTC: 'invalid-date', Description: 'bakery', Amount: 20, FITID: 'row-2' },
@@ -359,16 +363,10 @@ describe('Leumi WCF checks in the real scrape driver', () => {
       windowEnd: none(),
     };
     const run = createApiDirectScrapePhase(LEUMI_SHAPE);
-    const action = await run(ctx);
-    assertOk(action);
-    assertHas(action.value.scrape);
-    expect(action.value.scrape.value.accounts[0].windowCoverage).toMatchObject({
-      status: 'unproven',
-      reason: 'boundDidNotMove',
+    const outcome = await run(ctx);
+    expect(outcome).toMatchObject({
+      success: false,
+      errorMessage: 'Leumi transactions WCF response failed validation',
     });
-    expect(action.value.scrape.value.observedCaveats).toContain('mappingRejectedRows');
-    const phase = buildApiDirectScrapePhase(LEUMI_SHAPE);
-    const outcome = await phase.post(ctx, { ...ctx, scrape: action.value.scrape });
-    expect(outcome).toMatchObject({ success: false });
   });
 });

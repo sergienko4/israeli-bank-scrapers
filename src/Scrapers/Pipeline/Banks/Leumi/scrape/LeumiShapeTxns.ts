@@ -4,9 +4,9 @@
  * RFC-1123 `FromDateUTC`/`ToDateUTC` range) returns the whole window, so
  * there is no pagination cursor (`TCursor = never`).
  *
- * `extractPage` returns the raw `HistoryTransactionsItems` (completed)
- * rows verbatim; they normalise downstream via the field-mapping Data
- * Mapper (`DateUTC` → date, `FITID` → identifier, falling back to
+ * `extractPage` returns the `HistoryTransactionsItems` (completed)
+ * rows, removing unusable FITID placeholders before downstream field mapping
+ * (`DateUTC` → date, `FITID` → identifier, falling back to
  * `ReferenceNumberLong`). Same-day
  * `TodayTransactionsItems` (pending) is out of scope for the hard model —
  * the driver marks every row Completed — and is `null` in every captured
@@ -20,12 +20,13 @@ import type {
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
+import { normalizeTransactionIdentifier } from './LeumiFinancialValidation.js';
 import { parseJsonResp } from './LeumiShapeEnvelope.js';
 import type { ILeumiAcct } from './LeumiShapeHelpers.js';
 import { type IUcSo27Variant, ucSo27Vars } from './LeumiShapeUcSo27.js';
 
 interface ITxnsResp {
-  readonly HistoryTransactionsItems?: readonly object[];
+  readonly HistoryTransactionsItems?: readonly Record<string, unknown>[];
 }
 
 /**
@@ -73,5 +74,5 @@ export function txnsVars(acct: ILeumiAcct, _cursor: false, ctx: IActionContext):
 export function txnsExtractPage(args: IExtractPageArgs<ILeumiAcct, never>): IPage<object, never> {
   const resp = parseJsonResp(args.body) as unknown as ITxnsResp;
   const rows = resp.HistoryTransactionsItems ?? [];
-  return { items: rows, nextCursor: false };
+  return { items: rows.map(normalizeTransactionIdentifier), nextCursor: false };
 }

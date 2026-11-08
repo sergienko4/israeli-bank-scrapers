@@ -13,7 +13,11 @@ import type {
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import { validAccounts, validTransactionAmount } from './LeumiFinancialValidation.js';
+import {
+  validAccounts,
+  validTransactionAmount,
+  validTransactionSource,
+} from './LeumiFinancialValidation.js';
 
 type InnerCheck = (inner: Record<string, unknown>) => boolean;
 
@@ -62,13 +66,18 @@ function validBalance(inner: Record<string, unknown>): boolean {
 }
 
 /**
- * Requires a successful status and valid transaction amounts.
+ * Requires a successful status and valid transaction source fields.
  * @param inner - Decoded transactions response.
- * @returns Whether all transaction amounts are usable.
+ * @returns Whether all transaction fields are usable.
  */
 function validTransactions(inner: Record<string, unknown>): boolean {
   const rows = inner.HistoryTransactionsItems;
-  return validStatus(inner) && Array.isArray(rows) && rows.every(validTransactionAmount);
+  return (
+    validStatus(inner) &&
+    Array.isArray(rows) &&
+    rows.every(validTransactionAmount) &&
+    rows.every(validTransactionSource)
+  );
 }
 
 /**
