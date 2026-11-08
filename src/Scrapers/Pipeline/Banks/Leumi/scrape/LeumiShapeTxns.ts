@@ -13,13 +13,17 @@
  * sample. Split from `LeumiShapeHelpers.ts` to respect the 150-LOC cap.
  */
 
+import { bankMomentOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
+import { matchField } from '../../../Mediator/Scrape/BfsFieldSearch/BfsFieldSearch.js';
 import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type {
   IExtractPageArgs,
   VarsMap,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../../Registry/WK/ScrapeWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
+import { isOk } from '../../../Types/Procedure.js';
 import { normalizeTransactionIdentifier } from './LeumiFinancialValidation.js';
 import { parseJsonResp } from './LeumiShapeEnvelope.js';
 import type { ILeumiAcct } from './LeumiShapeHelpers.js';
@@ -27,6 +31,20 @@ import { type IUcSo27Variant, ucSo27Vars } from './LeumiShapeUcSo27.js';
 
 interface ITxnsResp {
   readonly HistoryTransactionsItems?: readonly Record<string, unknown>[];
+}
+
+/**
+ * Resolves provider dates before the generic mapper reads the row.
+ * @param row - Transaction row with a previously validated provider date.
+ * @returns A row with an unambiguous UTC instant.
+ */
+function normalizeTransactionDate(row: Record<string, unknown>): Record<string, unknown> {
+  if (typeof row.DateUTC !== 'string') return row;
+  const date = bankMomentOfInstant(row.DateUTC, true);
+  const field = matchField(row, WK.date);
+  if (!date.isValid() || !isOk(field)) return row;
+  const instant = date.toISOString();
+  return { ...row, DateUTC: instant, [field.value.originalKey]: instant };
 }
 
 /**
@@ -74,5 +92,6 @@ export function txnsVars(acct: ILeumiAcct, _cursor: false, ctx: IActionContext):
 export function txnsExtractPage(args: IExtractPageArgs<ILeumiAcct, never>): IPage<object, never> {
   const resp = parseJsonResp(args.body) as unknown as ITxnsResp;
   const rows = resp.HistoryTransactionsItems ?? [];
-  return { items: rows.map(normalizeTransactionIdentifier), nextCursor: false };
+  const identified = rows.map(normalizeTransactionIdentifier);
+  return { items: identified.map(normalizeTransactionDate), nextCursor: false };
 }

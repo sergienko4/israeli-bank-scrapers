@@ -12,6 +12,7 @@ import { signCardAmounts } from '../../../Mediator/Scrape/TxnMapper/TxnSign.js';
 import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../../Registry/WK/ScrapeWK.js';
 
 const COMPLETE_ISO_DATE = /^(?:\d{4}-\d{2}-\d{2}|\d{8})(?:T|$)/;
+const CONTROL_CHARACTERS = /\p{Cc}/u;
 
 /**
  * Narrows an untrusted financial entry.
@@ -100,7 +101,7 @@ function validTransactionAmount(value: unknown): boolean {
 function usableIdentifier(value: unknown): value is string | number {
   if (typeof value === 'number') return Number.isSafeInteger(value) && value !== 0;
   if (typeof value !== 'string') return false;
-  return value.trim() !== '' && value.trim() !== '0';
+  return value.trim() !== '' && value.trim() !== '0' && !CONTROL_CHARACTERS.test(value);
 }
 
 /**

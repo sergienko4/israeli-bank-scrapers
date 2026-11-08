@@ -53,6 +53,8 @@ describe('Leumi transaction source integrity', () => {
     ['a missing source date', { ...ROW, DateUTC: undefined, purchaseDate: ROW.DateUTC }],
     ['a missing identifier', { ...ROW, FITID: undefined }],
     ['a blank identifier without fallback', { ...ROW, FITID: ' ' }],
+    ['a control-only identifier', { ...ROW, FITID: '\u0000' }],
+    ['a control-only fallback', { ...ROW, FITID: undefined, ReferenceNumberLong: '\u0001' }],
     ['a conflicting identifier alias', { ...ROW, OperationNumber: 42 }],
     ['a nested identifier without a root identifier', { ...ROW, FITID: undefined, aux: { id: 8 } }],
   ])('refuses %s before returning financial data', async (_label, row) => {
@@ -65,7 +67,7 @@ describe('Leumi transaction source integrity', () => {
     });
   });
 
-  it.each(['', ' ', '0', 0])(
+  it.each(['', ' ', '0', 0, '\u0000', 'id\u0000'])(
     'uses the root fallback when FITID is unusable (%s)',
     async primary => {
       const row = { ...ROW, FITID: primary, ReferenceNumberLong: 781 };
@@ -105,4 +107,27 @@ describe('Leumi transaction source integrity', () => {
       ]);
     },
   );
+
+  it.each([
+    ['2026-03-01T00:00:00.000', '2026-02-28T22:00:00.000Z'],
+    ['20260301T000000Z', '2026-03-01T00:00:00.000Z'],
+    ['2026-03-01T04:30:00+02:00', '2026-03-01T02:30:00.000Z'],
+  ])('returns an unambiguous UTC instant for %s', async (date, expected) => {
+    const ctx = transactionContext({ ...ROW, DateUTC: date });
+    const outcome = await createApiDirectScrapePhase(LEUMI_SHAPE)(ctx);
+    assertOk(outcome);
+    assertHas(outcome.value.scrape);
+    expect(outcome.value.scrape.value.accounts[0].txns).toMatchObject([{ date: expected }]);
+  });
+
+  it('normalizes an equal higher-priority date alias too', async () => {
+    const date = '2026-03-01T00:00:00.000';
+    const ctx = transactionContext({ ...ROW, DateUTC: date, purchaseDate: date });
+    const outcome = await createApiDirectScrapePhase(LEUMI_SHAPE)(ctx);
+    assertOk(outcome);
+    assertHas(outcome.value.scrape);
+    expect(outcome.value.scrape.value.accounts[0].txns).toMatchObject([
+      { date: '2026-02-28T22:00:00.000Z' },
+    ]);
+  });
 });

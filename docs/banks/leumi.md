@@ -73,9 +73,11 @@ account identifiers before account-specific calls, and
 `Amount`, rejects nested or non-finite original amounts and refuses sign
 changes from unrelated fields. `validTransactionSource` requires a complete, valid
 root `DateUTC` and a usable root `FITID` or `ReferenceNumberLong`, and rejects
-conflicting mapper aliases. `normalizeTransactionIdentifier` removes unusable
-`FITID` placeholders so the fallback can be mapped. Leumi is explicitly mapped
-as a bank, not a card issuer.
+conflicting mapper aliases. Identifiers containing control characters are
+unusable. `normalizeTransactionIdentifier` removes unusable `FITID` placeholders
+so the fallback can be mapped. Valid dates are normalized to UTC before mapping;
+dates without an offset use the bank's calendar timezone. Leumi is explicitly
+mapped as a bank, not a card issuer.
 `leumiResultGuard` rejects missing loss evidence or observed transaction loss.
 A genuine zero balance and an empty
 transaction list remain valid. An unproven history window is not itself
