@@ -143,8 +143,7 @@ directory under `src/Scrapers/Pipeline/Banks/` and verifies:
   `bankId`.
 - `fixtures/banks/<bankId>/` exists.
 
-Legacy non-pipeline banks (Behatsdaa, BeyahadBishvilha) and API-direct
-providers (including Max) are exempted from the browser fixture gate.
+API-direct providers (including Max) are exempted from the browser fixture gate.
 `API_DIRECT_BANKS` in
 `src/Tests/Integration/Tools/CheckBankIntegrationCoverage.ts` is the
 canonical API-direct allow-list.

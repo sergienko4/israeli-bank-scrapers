@@ -148,15 +148,15 @@ const RESTRICTED_SYNTAX_RULES = [
   },
   {
     // Phase 7: per-bank `describe('<Phase>.<bank>')` duplication anti-pattern.
-    // Matches a literal of shape `<Word>.<bank>` where <bank> is one of the 19
+    // Matches a literal of shape `<Word>.<bank>` where <bank> is one of the 17
     // CompanyTypes enum values (exact casing — most are lowercase but `visaCal`,
-    // `oneZero`, `otsarHahayal`, `payBox`, `beyahadBishvilha` are camelCase per
+    // `oneZero`, `otsarHahayal`, `payBox` are camelCase per
     // `src/Definitions.ts`). Forces consolidation via `it.each(BANKS)` (from
     // `src/Tests/Helpers/banks.ts`). Does NOT block bank-as-feature-name
     // describes (e.g. `describe('Hapoalim WAF challenge')`) because they start
     // with the bank name itself, not `<Phase>.<bank>`.
     selector:
-      "CallExpression[callee.name='describe'] > Literal[value=/^[A-Z][A-Za-z0-9]*\\.(hapoalim|discount|max|visaCal|isracard|amex|beinleumi|oneZero|pepper|mizrahi|mercantile|otsarHahayal|yahav|leumi|massad|pagi|behatsdaa|beyahadBishvilha|payBox)$/]",
+      "CallExpression[callee.name='describe'] > Literal[value=/^[A-Z][A-Za-z0-9]*\\.(hapoalim|discount|max|visaCal|isracard|amex|beinleumi|oneZero|pepper|mizrahi|mercantile|otsarHahayal|yahav|leumi|massad|pagi|payBox)$/]",
     message:
       "🚫 PHASE-7 DIAMOND: per-bank duplication detected. Use it.each(BANKS) from 'src/Tests/Helpers/banks.ts' instead of describe('<Phase>.<bank>'). Bank is an input row, not a suite name.",
   },
@@ -2304,51 +2304,14 @@ export default tseslint.config(
     },
   },
 
-  // 12b. TEST STUB EXCEPTION — `require-await` flags `async` methods
-  //      that don't actually await. Production code MUST await; test
-  //      stubs (e.g., `async fetchData() { return ScraperResult.ok }`)
-  //      mock the Promise<T> return type without doing real async work.
-  //      Disabled only inside `src/Tests/Unit/Base*` legacy stubs.
-  {
-    files: [
-      'src/Tests/Unit/BaseScraper.test.ts',
-      'src/Tests/Unit/BaseScraperWithBrowser.test.ts',
-      'src/Tests/Unit/BaseScraperWithBrowserExtended.test.ts',
-    ],
-    rules: {
-      '@typescript-eslint/require-await': 'off',
-    },
-  },
-
-  // 13. Legacy bank lookup safety canary — scoped to shared base code only.
-  //
-  //     The PR #205 root cause was `BaseScraperWithBrowser.login()` doing
-  //     a bare destructure of SCRAPER_CONFIGURATION.banks[runtimeId] —
-  //     pipeline-only banks aren't in that map, so the lookup returned
-  //     undefined and the destructure crashed the scrape. The fix is the
-  //     `resolveLegacyBank(companyId)` helper which returns a discriminated
-  //     Result. This canary forbids reintroducing the bare lookup in any
-  //     other shared-base file. Per-bank scrapers (src/Scrapers/<Bank>/)
-  //     can still access their own config row directly because their
-  //     companyId IS guaranteed to be in the map.
-  //
-  //     The helper FILE itself (BaseScraperWithBrowser.ts) is allowed via
-  //     a `files` glob that excludes it.
+  // 13. Shared base code keeps the global restricted-syntax contract plus the
+  //     no-direct-screenshot rule. The legacy bank-lookup selector that lived
+  //     here guarded `SCRAPER_CONFIGURATION.banks[...]`, which was deleted
+  //     together with the legacy scraper chain.
   {
     files: ['src/Scrapers/Base/**/*.ts'],
-    ignores: ['src/Scrapers/Base/BaseScraperWithBrowser.ts'],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        ...RESTRICTED_SYNTAX_RULES,
-        NO_DIRECT_SCREENSHOT_RULE,
-        {
-          selector:
-            "MemberExpression[computed=true][object.type='MemberExpression'][object.object.name='SCRAPER_CONFIGURATION'][object.property.name='banks']",
-          message:
-            "🚫 LEGACY BANK LOOKUP: Use resolveLegacyBank(companyId) instead of bare SCRAPER_CONFIGURATION.banks[...]. Pipeline-only banks aren't in this map; direct access can crash with 'cannot destructure undefined'.",
-        },
-      ],
+      'no-restricted-syntax': ['error', ...RESTRICTED_SYNTAX_RULES, NO_DIRECT_SCREENSHOT_RULE],
     },
   },
 
@@ -3152,8 +3115,8 @@ export default tseslint.config(
   //
   // Phase H §8a + Mediator §14b.* locked `max-lines-per-function:10`,
   // `max-statements:10` for Pipeline/{Mediator,Phases,Network,Init,…}.
-  // PR #304 CR finding #1 caught a 12-LoC method in
-  // `src/Scrapers/Base/BaseScraperWithBrowser.ts` — outside that scope,
+  // PR #304 CR finding #1 caught a 12-LoC method in a shared base-class
+  // file — outside that scope,
   // so ESLint stayed silent and the bad code shipped. This section
   // extends the strict cap to ALL `src/Scrapers/**` + `src/Common/**`
   // (the only remaining first-party production trees), then
@@ -3524,8 +3487,6 @@ export default tseslint.config(
       'src/Scrapers/Base/**/*.ts',
       'src/Scrapers/Leumi/**/*.ts',
       'src/Scrapers/Yahav/**/*.ts',
-      'src/Scrapers/BeyahadBishvilha/**/*.ts',
-      'src/Scrapers/Behatsdaa/**/*.ts',
       'src/Common/**/*.ts',
     ],
     rules: {
@@ -3814,48 +3775,6 @@ export default tseslint.config(
     files: [file],
     rules: { 'no-restricted-syntax': pipelineSyntaxExcept(exempt, file) },
   })),
-
-  // 24. LEGACY READERS OF LEGACY-ONLY SCRAPER OPTIONS
-  //
-  //     Sits after §23 without weakening it. §23's "last" invariant governs
-  //     `no-restricted-syntax`; this block sets a different rule
-  //     (`@typescript-eslint/no-deprecated`) on a file set disjoint from every
-  //     Pipeline path §22/§22a/§23 match, so neither can narrow the other.
-  //
-  //     Eight fields on the public `ScraperOptions` type carry `@deprecated`
-  //     (src/Scrapers/Base/Interface.ts) because only the Legacy (deprecated)
-  //     scrapers read them — every Pipeline bank ignores them, which issue #540
-  //     reported as a silent drop. The tag is the point: it strikes the option
-  //     through in a consumer's editor before their code ever runs, which the
-  //     runtime `ScraperOptionsWarning` cannot do.
-  //
-  //     The cost is that the legacy files IMPLEMENTING those options now read a
-  //     deprecated symbol, so `@typescript-eslint/no-deprecated` (inherited from
-  //     `strictTypeChecked`) fires 13 times across the six files below. That is
-  //     the rule working as designed on code that is deprecated by definition.
-  //
-  //     Scope is enumerated file-by-file, never a glob, so the rule keeps full
-  //     force everywhere else — in particular across all of
-  //     `src/Scrapers/Pipeline/**`, where a file reading one of these options
-  //     would be a genuine defect and must still fail lint. Per
-  //     eslint-rules-guidlines.md §3 this is a `files: […]` override, not an
-  //     `eslint-disable` header (which §15 `no-warning-comments` bans outright).
-  //
-  //     Removal condition: this block loses an entry every time a legacy bank
-  //     migrates to the Pipeline (docs/architecture/migration.md step 6), and
-  //     disappears when the legacy path is deleted. It may only ever be
-  //     narrowed, never widened (eslint-rules-guidlines.md §4).
-  {
-    files: [
-      'src/Common/OtpHandler.ts',
-      'src/Scrapers/Base/BaseScraperWithBrowser.ts',
-      'src/Scrapers/Behatsdaa/BehatsdaaScraper.ts',
-      'src/Scrapers/BeyahadBishvilha/BeyahadBishvilhaScraper.ts',
-    ],
-    rules: {
-      '@typescript-eslint/no-deprecated': 'off',
-    },
-  },
 
   // ── `JsonUnknown` is the one alias S6564 may not judge ───────────
   //

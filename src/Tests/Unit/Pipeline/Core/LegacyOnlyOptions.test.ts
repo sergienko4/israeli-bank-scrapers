@@ -134,18 +134,18 @@ describe('warnLegacyOnlyOptions — caller-visible warning', () => {
     expect(emitted[0]).toContain('Legacy (deprecated)');
   });
 
-  it('names only the legacy scrapers that still exist as readers', () => {
+  it('states that the legacy scrapers which read these options were removed', () => {
     const reported = makeOptions({ optInFeatures: [] });
     const { emitted } = captureWarnings(reported);
-    expect(emitted[0]).toContain('(Behatsdaa, Beyahad Bishvilha)');
+    expect(emitted[0]).toContain('were removed');
+    expect(emitted[0]).not.toContain('Behatsdaa');
     expect(emitted[0]).not.toContain('Mizrahi');
   });
 
-  it('does not claim a legacy reader for an option that has none', () => {
+  it('tells the caller the option has no effect on any bank', () => {
     const reported = makeOptions({ optInFeatures: [] });
     const { emitted } = captureWarnings(reported);
-    expect(emitted[0]).not.toContain('read them');
-    expect(emitted[0]).toContain('Some legacy-only options are read only by');
+    expect(emitted[0]).toContain('no effect on any bank');
   });
 
   it('returns the ignored options so a caller can assert on them programmatically', () => {

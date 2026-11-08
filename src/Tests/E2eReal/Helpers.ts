@@ -1,5 +1,4 @@
 import { maskAccount, maskAmount, maskDesc } from '../../Common/ResultFormatter.js';
-import { LOGIN_RESULTS } from '../../Scrapers/Base/BaseScraperWithBrowser.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/Errors.js';
 import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
 import type { ITransaction, ITransactionsAccount } from '../../Transactions.js';
@@ -81,8 +80,7 @@ export const isCiEnvironment = !!process.env.CI;
 export const BROWSER_ARGS = isCiEnvironment ? CI_BROWSER_ARGS : [];
 
 const FAILED_LOGIN_TYPES: string[] = [
-  LOGIN_RESULTS.InvalidPassword,
-  LOGIN_RESULTS.UnknownError,
+  ScraperErrorTypes.InvalidPassword,
   ScraperErrorTypes.Generic,
   ScraperErrorTypes.Timeout,
   ScraperErrorTypes.ChangePassword,

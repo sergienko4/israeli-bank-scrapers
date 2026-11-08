@@ -1,6 +1,6 @@
 # Contributing
 
-> **Who this is for:** anyone who wants to fix a bug, add a feature, port a legacy bank, or improve docs.
+> **Who this is for:** anyone who wants to fix a bug, add a feature, or improve docs.
 
 ## In this section
 
@@ -53,7 +53,7 @@ git push -u origin fix/whatever-im-fixing
 | Fix a phase | The relevant [Phases](../phases/index.md) page + its source |
 | Improve a test | [Test surfaces](testing.md) |
 | Improve docs | This site is built from `docs/` — see `mkdocs.yml` for the nav + Material theme config |
-| Port a legacy bank | [Architecture → Migration strategy](../architecture/migration.md) — the wave plan |
+| Read the migration history | [Architecture → Migration strategy](../architecture/migration.md) — how the legacy chain was retired |
 
 ## What we expect in a PR
 

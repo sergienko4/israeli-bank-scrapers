@@ -1,56 +1,37 @@
 # Advanced usage
 
-## Parallel scraping with a shared browser
+## Parallel scraping
 
-> **Legacy (deprecated) path only.** `browserContext` is read solely by the
-> [Legacy (deprecated)](architecture/legacy.md) scrapers. The Pipeline launches
-> and closes its own Camoufox instance per scraper and reads neither `browser`
-> nor `browserContext`, so this pattern does not reduce startup cost for a
-> Pipeline bank — see
+Each `createScraper` instance is independent: it launches (or, for a browserless
+bank, skips) its own browser and shares no state with the others. Run several
+banks side by side with `Promise.allSettled`.
+
+> **No shared browser.** `browser` and `browserContext` are read by no scraper —
+> the [legacy](architecture/legacy.md) launcher that honoured them was removed.
+> Every Pipeline scrape that needs a browser launches and closes its own Camoufox
+> instance, so the lever is concurrency, not sharing: each scrape in flight holds
+> its own ~1.3 GB browser process, so cap how many run at once. Banks that never
+> open a browser hold no such process — see
 > [Browser lifecycle options](configuration.md#browser-lifecycle-options).
-> On the Pipeline the lever is concurrency rather than sharing: each scrape in
-> flight holds its own ~1.3 GB browser process, so cap how many run at once.
-
-Launching one Camoufox instance and giving each bank its own
-`BrowserContext` avoids paying the ~1.3 GB browser startup cost per bank, while
-keeping cookies and storage isolated between them.
 
 ```typescript
-import { Camoufox } from '@hieutran094/camoufox-js';
+const results = await Promise.allSettled(
+  banks.map(async ({ companyId, credentials }) =>
+    createScraper({ companyId, startDate }).scrape(credentials),
+  ),
+);
 
-const browser = await Camoufox({ headless: true });
-try {
-  const results = await Promise.allSettled(
-    banks.map(async ({ companyId, credentials }) => {
-      const ctx = await browser.newContext();
-      try {
-        const scraper = createScraper({ companyId, startDate, browserContext: ctx });
-        return await scraper.scrape(credentials);
-      } finally {
-        await ctx.close();
-      }
-    }),
-  );
-
-  results.forEach((result, i) => {
-    const { companyId } = banks[i];
-    if (result.status === 'rejected') {
-      console.error(companyId, 'threw', result.reason);
-    } else if (!result.value.success) {
-      console.error(companyId, 'failed', result.value.errorType, result.value.errorMessage);
-    } else {
-      console.log(companyId, (result.value.accounts ?? []).length, 'accounts');
-    }
-  });
-} finally {
-  await browser.close();
-}
+results.forEach((result, i) => {
+  const { companyId } = banks[i];
+  if (result.status === 'rejected') {
+    console.error(companyId, 'threw', result.reason);
+  } else if (!result.value.success) {
+    console.error(companyId, 'failed', result.value.errorType, result.value.errorMessage);
+  } else {
+    console.log(companyId, (result.value.accounts ?? []).length, 'accounts');
+  }
+});
 ```
-
-Both `finally` blocks matter. Without the inner one a rejected scrape leaks its
-context — and because `Promise.allSettled` waits for every entry, that context
-would stay open for the rest of the run. Without the outer one a throw anywhere
-leaves the ~1.3 GB browser process alive.
 
 `allSettled` rather than `all` because one bank failing should not discard the
 results of the banks that succeeded. That leaves two failure shapes to handle,
@@ -80,12 +61,11 @@ createScraper({
 
 `defaultTimeout` bounds **each phase** independently, not the run as a whole.
 
-!!! warning "`navigationRetryCount` is Legacy-only — it does nothing here"
-    `navigationRetryCount` retries a phase that failed with `TIMEOUT`, but it is
-    read only by the [Legacy (deprecated)](architecture/legacy.md) scrapers.
-    Every Pipeline bank ignores it — including Leumi, above — and `createScraper`
-    emits a `ScraperOptionsWarning` when you pass one. Even on the legacy path it
-    never retries authentication failures, which are terminal by design. See
+!!! warning "`navigationRetryCount` does nothing"
+    `navigationRetryCount` once retried a phase that failed with `TIMEOUT`, but
+    the [legacy](architecture/legacy.md) scraper that read it was removed.
+    Every bank ignores it — including Leumi, above — and `createScraper`
+    emits a `ScraperOptionsWarning` when you pass one. See
     [Options the Pipeline ignores](configuration.md#options-the-pipeline-ignores).
 
 ## Migrating from upstream `israeli-bank-scrapers`

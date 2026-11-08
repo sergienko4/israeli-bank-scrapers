@@ -12,11 +12,8 @@ components:
 
   src/scrapers/amex.ts:
     - daniel-hauser
-  src/scrapers/behatsdaa.ts:
-    - daniel-hauser
   src/scrapers/beinleumi.ts:
     - nissant
-  # src/scrapers/beyahad-bishvilha.ts:
   src/scrapers/discount.ts:
     - galbarm
   src/scrapers/hapoalim.ts:

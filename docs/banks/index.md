@@ -2,7 +2,7 @@
 
 > **Who this is for:** users picking the right `CompanyTypes` for their bank and looking up credentials, OTP behavior, or known quirks.
 
-19 institutions are listed. **17 are on the Pipeline architecture** (recommended) and **2 are on the legacy path** (still ship, on the migration roadmap).
+17 institutions are listed, and all 17 are on the Pipeline architecture.
 
 ## Quick directory
 
@@ -15,10 +15,6 @@
 - :material-api: **API-direct (no browser)**
 
   [OneZero](onezero.md) · [Pepper](pepper.md) · [PayBox](paybox.md) · [Visa Cal](visacal.md) · [Isracard](isracard.md) · [Amex](amex.md) · [Max](max.md) · [Mizrahi Bank](mizrahi.md) · [Bank Hapoalim](hapoalim.md) · [Bank Yahav](yahav.md) · [Beinleumi](beinleumi.md) · [Massad](massad.md) · [Otsar Hahayal](otsar-hahayal.md) · [Pagi](pagi.md) · [Discount](discount.md) · [Mercantile](mercantile.md)
-
-- :material-archive: **Legacy (deprecated)**
-
-  [Behatsdaa](behatsdaa.md) · [Beyahad Bishvilha](beyahad-bishvilha.md)
 
 </div>
 
@@ -43,13 +39,6 @@
 | Pepper          | `Pepper`       | `phoneNumber`, `password`       | required (API) |
 | Visa Cal        | `VisaCal`      | `username`, `password`          | —              |
 | Bank Yahav      | `Yahav`        | `num`, `nationalID`, `password` | —              |
-
-## Legacy banks (2) — credentials at a glance
-
-| Bank              | `CompanyTypes`     | Credential fields | OTP |
-| ----------------- | ------------------ | ----------------- | --- |
-| Behatsdaa         | `Behatsdaa`        | `id`, `password`  | —   |
-| Beyahad Bishvilha | `BeyahadBishvilha` | `id`, `password`  | —   |
 
 Source: [`src/Definitions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Definitions.ts).
 

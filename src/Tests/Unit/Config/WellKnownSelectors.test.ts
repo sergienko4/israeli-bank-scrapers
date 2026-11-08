@@ -1,109 +1,5 @@
-import { jest } from '@jest/globals';
-
 import type { SelectorCandidate } from '../../../Scrapers/Base/Config/LoginConfig.js';
-import { mockToXpathLiteral } from '../../MockModuleFactories.js';
-
-// ── Mocks (required by transitive imports from ILoginConfig files) ────────────
-
-jest.unstable_mockModule('../../../Scrapers/Pipeline/Logging/Debug.js', async () => ({
-  ...(await import('../../../Scrapers/Pipeline/Types/MockTiming.js')),
-  ...(await import('../../../Scrapers/Pipeline/Logging/BankContext.js')),
-  /**
-   * Pipeline-internal callers derive their module name from `import.meta.url`,
-   * so mocking the canonical module means this entry point must exist too.
-   * @returns A mock debug logger object.
-   */
-  getDebug: (): Record<string, jest.Mock> => ({
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  }),
-  /**
-   * Creates a mock debug logger.
-   * @returns mock debug logger with all methods stubbed.
-   */
-  getDebugByName: (): Record<string, jest.Mock> => ({
-    trace: jest.fn(),
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  }),
-  /**
-   * Passthrough mock for bank context.
-   * @param _b - Bank name (unused).
-   * @param fn - Function to execute.
-   * @returns fn result.
-   */
-  runWithBankContext: <T>(_b: string, fn: () => T): T => fn(),
-}));
-
-jest.unstable_mockModule(
-  '../../../Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
-  () => ({
-    waitUntilElementFound: jest.fn(),
-    waitUntilElementDisappear: jest.fn(),
-    clickButton: jest.fn(),
-    clickLink: jest.fn(),
-    dropdownElements: jest.fn(),
-    dropdownSelect: jest.fn(),
-    fillInput: jest.fn(),
-    elementPresentOnPage: jest.fn(),
-    waitUntilIframeFound: jest.fn(),
-    pageEval: jest.fn(),
-    pageEvalAll: jest.fn(),
-    setValue: jest.fn(),
-    capturePageText: jest.fn(),
-  }),
-);
-
-jest.unstable_mockModule('../../../Common/Navigation.js', () => ({
-  waitForNavigation: jest.fn(),
-  waitForRedirect: jest.fn(),
-  getCurrentUrl: jest.fn(),
-  waitForUrl: jest.fn(),
-  waitForNavigationAndDomLoad: jest.fn(),
-}));
-
-jest.unstable_mockModule('../../../Scrapers/Pipeline/Mediator/Timing/Waiting.js', () => ({
-  sleep: jest.fn(),
-  humanDelay: jest.fn(),
-  waitUntil: jest.fn(),
-  raceTimeout: jest.fn(),
-  runSerial: jest.fn(),
-  TimeoutError: class TimeoutError extends Error {},
-  SECOND: 1000,
-}));
-
-jest.unstable_mockModule(
-  '../../../Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js',
-  () => ({
-    resolveFieldContext: jest.fn(),
-    resolveFieldWithCache: jest.fn(),
-    candidateToCss: jest.fn(),
-    extractCredentialKey: jest.fn(),
-    tryInContext: jest.fn(),
-    toXpathLiteral: mockToXpathLiteral,
-    resolveDashboardField: jest.fn(),
-  }),
-);
-
-jest.unstable_mockModule('../../../Common/Storage.js', () => ({
-  getFromSessionStorage: jest.fn(),
-}));
-
-jest.unstable_mockModule('../../../Scrapers/Pipeline/Mediator/Network/Fetch/index.js', () => ({
-  fetchPost: jest.fn(),
-  fetchPostWithinPage: jest.fn(),
-}));
-
-// ── Imports (after mocks) ───────────────────────────────────────────────────
-
-const { SCRAPER_CONFIGURATION } =
-  await import('../../../Scrapers/Registry/Config/ScraperConfig.js');
-const { BANK_REGISTRY } = await import('../../../Scrapers/Registry/BankRegistry.js');
+import { WELL_KNOWN_LOGIN_SELECTORS } from '../../../Scrapers/Registry/WellKnownSelectors.js';
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -117,7 +13,7 @@ const VALID_KINDS = [
   'xpath',
 ] as const;
 
-const WELL_KNOWN = SCRAPER_CONFIGURATION.wellKnownSelectors;
+const WELL_KNOWN = WELL_KNOWN_LOGIN_SELECTORS;
 type WkKey = keyof typeof WELL_KNOWN;
 
 /**
@@ -233,18 +129,5 @@ describe('wellKnownSelectors', () => {
     const wellKnownRecord: Record<string, readonly SelectorCandidate[] | undefined> = WELL_KNOWN;
     const value = wellKnownRecord.nonExistentKey;
     expect(value).toBeUndefined();
-  });
-});
-
-describe('BANK_REGISTRY — all banks use selectors: []', () => {
-  const entries = Object.entries(BANK_REGISTRY) as [
-    string,
-    { fields: { selectors: unknown[] }[] },
-  ][];
-
-  it.each(entries)('%s has empty selectors on all login fields', (_bankName, config) => {
-    for (const field of config.fields) {
-      expect(field.selectors).toEqual([]);
-    }
   });
 });

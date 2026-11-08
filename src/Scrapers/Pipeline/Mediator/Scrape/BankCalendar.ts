@@ -8,12 +8,13 @@
  * choice was made implicitly — by whatever zone the Node process happened to
  * sit in.
  *
- * <p>That was worse than machine-dependent. `BaseScraper.initialize()`
- * (`BaseScraper.ts:109`) calls `moment.tz.setDefault(...)` on the same moment
- * singleton the Pipeline reads, so running a Legacy scraper first changed the
- * value the Pipeline emitted for identical input — the same account could
- * produce two different `ITransaction.date` values in one process depending on
- * scrape order.
+ * <p>That was worse than machine-dependent. The legacy scraper base class
+ * (`BaseScraper.initialize()`, since removed) called `moment.tz.setDefault(...)`
+ * on the same moment singleton the Pipeline reads, so running a Legacy scraper
+ * first changed the value the Pipeline emitted for identical input — the same
+ * account could produce two different `ITransaction.date` values in one process
+ * depending on scrape order. Any code that moves the global default can still
+ * reintroduce that, which is why the zone is named here.
  *
  * <p>Naming the zone here removes both variables. It also makes a sentence we
  * can finally write on the public field true: a date-only provider value
@@ -86,8 +87,9 @@ export function parseInBankZone(
  * <p>A `Date` is an unambiguous instant, so it only needs re-expressing. A
  * string may not be: ISO-8601 permits a value with no offset (`2026-02-09`,
  * `2026-02-09T00:00:00`), and plain `moment(value, ISO_8601)` resolves those
- * against Moment's effective shared default. `BaseScraper.initialize()` can
- * change that default before scraping, so the same argument named different
+ * against Moment's effective shared default. Anything that moves
+ * `moment.tz.setDefault` (the removed legacy `BaseScraper.initialize()` did)
+ * can change that default before scraping, so the same argument named different
  * calendar days across hosts or scrape orders — read from UTC+14 a bare
  * `2026-02-09` became `2026-02-08`, inflating a window gap by a day and
  * turning a covered window into a spurious backfill ask.

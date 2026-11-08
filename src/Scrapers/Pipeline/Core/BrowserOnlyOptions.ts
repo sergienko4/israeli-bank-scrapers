@@ -31,8 +31,8 @@ import { findSuppliedOptions, warnIgnoredOptions } from './SuppliedOptions.js';
  * is left out: {@link ./LegacyOnlyOptions.ts} already warns about it on every
  * Pipeline bank.
  * - `args` — no reader (launch flags come from the bundled Camoufox profile)
- * - `browser` — `Base/BaseScraperWithBrowser.ts` (legacy only)
- * - `browserContext` — `Base/BaseScraperWithBrowser.ts` (legacy only)
+ * - `browser` — no reader (the legacy launcher that honoured it was removed)
+ * - `browserContext` — no reader (the legacy launcher that honoured it was removed)
  * - `defaultTimeout` — `Mediator/Browser/BrowserLifecycle.ts` page setup
  * - `executablePath` — no reader (the bundled Camoufox binary is always used)
  * - `prepareBrowser` — `Mediator/Browser/BrowserLifecycle.ts` `launchBrowser`

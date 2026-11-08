@@ -39,16 +39,16 @@ To run all tests of companies that you provided credentials to:
 npm test
 ```
 
-To run specific `describe` (a.k.a suite), use the `testNamePattern` arg with the name of the suite. The following will run the all tests under `Leumi legacy scraper` suite.
+To run specific `describe` (a.k.a suite), use the `testNamePattern` arg with the name of the suite. The following will run the all tests under the `Factory` suite.
 
 ```bash
-npm test -- --testNamePattern="Leumi legacy scraper"
+npm test -- --testNamePattern="Factory"
 ```
 
-To run specific `test`, use the `testNamePattern` arg with suite name following the test name. The following will run test `should expose login fields in scrapers constant` that is part of `Leumi legacy scraper` suite.
+To run specific `test`, use the `testNamePattern` arg with the test name (or the full `describe` name followed by the test name), for example:
 
 ```bash
-npm test -- --testNamePattern="Leumi legacy scraper should expose login fields in scrapers constant"
+npm test -- --testNamePattern="throws for a company id that was removed from the registry"
 ```
 
 ### Running tests using IDE
@@ -152,40 +152,10 @@ No manual `npm publish` is needed.
 
 ## Creating a new scraper
 
-It is best to look at an existing example.
-Most scrapers inherit from `BaseScraper`, notice that you need to implement the following:
+Every bank is a Pipeline bank: a declarative `PipelineDescriptor` under
+`src/Scrapers/Pipeline/Banks/<Name>/`, registered in `PIPELINE_REGISTRY`. There are no
+base classes to extend. Start from an existing bank in that folder and follow
+[Adding a new bank](https://sergienko4.github.io/israeli-bank-scrapers/contributing/new-bank/).
 
-### Overriding getLoginOptions()
-
-> this section is relevant if you are extending class `BaseScraperWithBrowser`
-
-Unless you plan to override the entire `login()` function, You can override this function to login regularly in a login form.
-
-```typescript
-import { LoginResults, PossibleLoginResults } from './Scrapers/Base/BaseScraperWithBrowser';
-
-function getPossibleLoginResults(): PossibleLoginResults {
-  // checkout file `base-scraper-with-browser.ts` for available result types
-  const urls: PossibleLoginResults = {};
-  urls[LoginResults.Success] = [];
-  urls[LoginResults.InvalidPassword] = [];
-  urls[LoginResults.ChangePassword] = [];
-  return urls;
-}
-
-function getLoginOptions(credentials) {
-  return {
-    loginUrl: '<LOGIN_URL>',
-    fields: [
-      { selector: '<USER_NAME_FIELD>', value: credentials.username },
-      { selector: `<PASSWORD_FIELD>`, value: credentials.password },
-    ],
-    submitButtonSelector: '<SUBMIT_BUTTON>',
-    possibleResults: getPossibleLoginResults(),
-  };
-}
-```
-
-### Overriding fetchData()
-
-You can override this async function however way you want, as long as your return results as `IScraperScrapingResult` (see [Interface.ts](./src/Scrapers/Base/Interface.ts)).
+Whatever the transport, a scrape must return `IScraperScrapingResult` (see
+[Interface.ts](./src/Scrapers/Base/Interface.ts)).

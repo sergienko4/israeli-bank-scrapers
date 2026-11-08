@@ -28,8 +28,6 @@ module.exports = {
     // union: {username:'',password:''}
     // beinleumi: { username: '', password: ''},
     // yahav: {username: '', nationalID: '', password: ''}
-    // beyahadBishvilha: { id: '', password: ''},
-    // behatsdaa: { id: '', password: ''},
     // oneZero: { email: '', password: '', otpCode: '', otpToken: null },
     // pagi: { username: '', password: ''},
   },

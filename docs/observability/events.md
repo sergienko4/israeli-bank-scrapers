@@ -186,9 +186,7 @@ hand-maintained string constants:
   kebab-cased into the logger name (`balance-resolve-actions`).
 - `getDebugByName(name)` — the explicit-name escape hatch for cases
   where the logger name has to be dynamic at construction time
-  (notably `BaseScraper` keying loggers by `companyId`). Legacy
-  string-keyed callers import it directly under the local alias
-  `getDebug`, so their call sites read unchanged.
+  (for example keying a logger by `companyId`).
 
 Both helpers route through the same lazy-resolved root logger, so
 `PiiRedactor` always intercepts before any transport writes — see

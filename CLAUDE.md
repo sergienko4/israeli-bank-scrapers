@@ -101,9 +101,7 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 - `src/Scrapers/Pipeline/Mediator/Timing/TimingActions.ts` — `humanDelay(min, max)`, the source of every human-like pause
 - `src/Scrapers/Pipeline/Mediator/Elements/ElementsInteractionConfig.ts` — delay ranges (fill-input 200–600 ms)
 - `src/Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.ts` — fill, click, capture, presence check
-- `src/Scrapers/Base/BaseScraperWithBrowser.ts` — base class; `launchCamoufox()` → `newContext()` → `newPage()`
 - `src/Scrapers/Base/Interface.ts` — type definitions (`ScraperOptions`, `ScraperCredentials`, etc.)
-- `src/Scrapers/Registry/ScraperRegistryAmexToIsracard.ts` — Amex→Isracard scraper registry entries
 - `browser-stack.json` — the tested Camoufox tag + `playwright-core` minor, and the accepted protocol deltas; run `npm run browser-stack:gen` after editing it
 - `scripts/check-browser-stack.mjs` — browser-stack gate CLI: diffs the Juggler protocols of a `playwright-core` × Camoufox pair (`--mode gate|candidate`)
 
@@ -111,7 +109,7 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 
 - Browser engine: Camoufox (Firefox anti-detect) driven through Playwright, replacing Puppeteer — clears Cloudflare without a stealth plugin
 - `src/Common/Browser.ts`: `buildContextOptions()` sets locale, timezone and `viewport: null`; it deliberately sets no `userAgent`, leaving Camoufox's own fingerprint intact
-- `src/Scrapers/Base/BaseScraperWithBrowser.ts`: `launchCamoufox()` → `browser.newContext()` → `context.newPage()`
+- `src/Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.ts`: `launchCamoufox()` → `browser.newContext()` → `context.newPage()`
 - `src/Scrapers/Pipeline/Mediator/Timing/TimingActions.ts`: `humanDelay()` behind form interactions (fill-input 200–600 ms)
 - `src/Scrapers/Base/Errors.ts`: `WafBlockError` carrying `IWafErrorDetails`
 - CI/CD: release-please + npm publish pipeline, Camoufox browser install in CI

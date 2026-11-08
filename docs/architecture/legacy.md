@@ -1,62 +1,47 @@
-# Legacy (deprecated)
+# Legacy (removed)
 
---8<-- "_deprecated.md"
+The pre-Pipeline scraper chain no longer exists. Every registered bank runs on the [Pipeline](pipeline.md), and `createScraper` throws `unknown company id <id>` for an id with no Pipeline entry. This page records what was removed and which `ScraperOptions` fields therefore have no effect.
 
-## What counts as legacy
+## What was removed
 
-Everything **outside `src/Scrapers/Pipeline/`** except the **layer-5 shared infra** (see [Layer separation](layers.md#what-lives-in-layer-5-vs-layer-6)).
+### Bank scrapers
 
-### Legacy bank scrapers
+Behatsdaa and Beyahad Bishvilha were the last two non-Pipeline banks. They were removed in v10 together with their `CompanyTypes` keys.
 
-| Bank              | File                                               | `createScraper` route                        |
-| ----------------- | -------------------------------------------------- | -------------------------------------------- |
-| Behatsdaa         | `src/Scrapers/Behatsdaa/BehatsdaaScraper.ts`       | `SCRAPER_REGISTRY_AMEX_TO_ISRACARD` (subset) |
-| Beyahad Bishvilha | (registered in `ScraperRegistryAmexToIsracard.ts`) | `SCRAPER_REGISTRY_AMEX_TO_ISRACARD`          |
-
-> **Bank Leumi** and **Bank Yahav** were migrated to the Pipeline and their
-> legacy scrapers deleted — they are now pipeline-only (see
+> **Bank Leumi** and **Bank Yahav** were migrated to the Pipeline earlier and their
+> legacy scrapers deleted — they are pipeline-only (see
 > [Bank Leumi](../banks/leumi.md), [Bank Yahav](../banks/yahav.md)). **Mizrahi
 > Bank** moved to the Pipeline in one migration: the change that deleted its
 > legacy scraper also registered the Pipeline bank, so `createScraper` resolves
 > Mizrahi on every revision (see [Mizrahi Bank](../banks/mizrahi.md)).
 
-### Legacy base classes
+### Base classes and utilities
 
-| File                                          | Role                                            |
-| --------------------------------------------- | ----------------------------------------------- |
-| `src/Scrapers/Base/BaseScraper.ts`            | Abstract `IScraper` implementation pre-Pipeline |
-| `src/Scrapers/Base/BaseScraperWithBrowser.ts` | Adds Playwright lifecycle to `BaseScraper`      |
-| `src/Scrapers/Base/BaseScraperHelpers.ts`     | Shared helpers consumed by the above            |
-| `src/Scrapers/Base/ConcreteGenericScraper.ts` | Concrete realisation used by legacy banks       |
-| `src/Scrapers/Base/GenericBankScraper.ts`     | Generic bank scraper class                      |
+The shared chain that only those banks used went with them:
 
-### Legacy utilities
+- the abstract and browser-backed base scrapers, the generic bank scraper and its login-chain builder
+- the declarative login-step and navigation-retry helpers
+- the legacy OTP detector and OTP handler (the Pipeline owns OTP in `src/Scrapers/Pipeline/Mediator/Otp{Trigger,Fill}/`)
+- the legacy storage, date and transaction helpers, and the legacy scraper registry
 
-| Path                                     | Replacement under Pipeline                          |
-| ---------------------------------------- | --------------------------------------------------- |
-| `src/Common/Browser.ts`                  | `src/Scrapers/Pipeline/Mediator/Browser/`           |
-| `src/Common/SelectorFieldResolver.ts`    | `src/Scrapers/Pipeline/Mediator/Selector/`          |
-| `src/Common/OtpHandler.ts`               | `src/Scrapers/Pipeline/Mediator/Otp{Trigger,Fill}/` |
-| `src/Common/Navigation.ts`, `Storage.ts` | Mediator zones own these directly                   |
-| `src/Common/ResultFormatter.ts`          | `src/Scrapers/Pipeline/Core/PipelineResult.ts`      |
+What stays is the **layer-5 shared infra** (see [Layer separation](layers.md#what-lives-in-layer-5)): the public types, error classes and declarative login-config types the Pipeline imports.
 
 ## Legacy-only scraper options
 
-`ScraperOptions` is one flat type shared by both paths, so the compiler accepts every field for every bank. Eight of them have no Pipeline implementation and no effect on a Pipeline bank. Five are read **only** by the legacy scrapers; three have no reader at all. Two lost their only reader when the legacy Mizrahi scraper was removed, and no scraper passes `shouldCombineInstallments` to the instalment filter:
+`ScraperOptions` is one flat type, so the compiler accepts every field for every bank. Eight of them have no implementation and no effect. The legacy scrapers that read five of them are gone; the other three never had a reader since the legacy Mizrahi scraper was removed.
 
-| Option                            | Legacy reader                                          |
-| --------------------------------- | ------------------------------------------------------ |
-| `includeRawTransaction`           | `src/Common/Transactions.ts` (`getRawTransaction`)     |
-| `navigationRetryCount`            | `src/Scrapers/Base/BaseScraperWithBrowser.ts`          |
-| `optInFeatures`                   | none (legacy Mizrahi removed)                          |
-| `outputData`                      | `BeyahadBishvilhaScraper` (date filtering)             |
-| `shouldAddTransactionInformation` | none (legacy Mizrahi removed)                          |
-| `shouldCombineInstallments`       | none (`filterOldTransactions` takes a resolved flag)   |
-| `skipCloseBrowser`                | `src/Scrapers/Base/BaseScraperWithBrowser.ts`          |
-| `storeFailureScreenShotPath`      | `src/Scrapers/Base/BaseScraperWithBrowser.ts`          |
+| Option                            | Former reader                                                      |
+| --------------------------------- | ------------------------------------------------------------------ |
+| `includeRawTransaction`           | the legacy transaction mapper (removed)                            |
+| `navigationRetryCount`            | the legacy browser scraper (removed)                               |
+| `optInFeatures`                   | none (legacy Mizrahi removed)                                      |
+| `outputData`                      | the Beyahad Bishvilha scraper (removed)                            |
+| `shouldAddTransactionInformation` | none (legacy Mizrahi removed)                                      |
+| `shouldCombineInstallments`       | none (`filterOldTransactions` takes a resolved flag)               |
+| `skipCloseBrowser`                | the legacy browser scraper (removed)                               |
+| `storeFailureScreenShotPath`      | the legacy browser scraper (removed)                               |
 
-`createScraper` emits a `ScraperOptionsWarning` when any of them is passed for a
-Pipeline bank — see [Configuration](../configuration.md#options-the-pipeline-ignores).
+`createScraper` emits a `ScraperOptionsWarning` when any of them is passed — see [Configuration](../configuration.md#options-the-pipeline-ignores). The warning is kept on purpose: dropping it would turn a deprecated field into a silent no-op, which is the defect reported in issue #540.
 
 The manifest that drives the warning lives in
 `src/Scrapers/Pipeline/Core/LegacyOnlyOptions.ts`, which exports four symbols:
@@ -66,10 +51,10 @@ The manifest that drives the warning lives in
 | `LEGACY_ONLY_OPTIONS` | The manifest itself — the eight option names, alphabetical |
 | `LegacyOnlyOption` | Union of those names, so a typo is a compile error |
 | `findLegacyOnlyOptions` | Returns the legacy-only options a caller actually supplied |
-| `warnLegacyOnlyOptions` | Emits the warning; called by `createScraper` on the Pipeline branch |
+| `warnLegacyOnlyOptions` | Emits the warning; called by `createScraper` |
 
-A bank migration that implements one of these options must delete its entry from
-`LEGACY_ONLY_OPTIONS` in the same change, or the Pipeline will keep warning that
+A change that implements one of these options on the Pipeline must delete its entry from
+`LEGACY_ONLY_OPTIONS` in the same change, or `createScraper` will keep warning that
 a now-working option is ignored.
 
 This guard and the [browser-options guard](../configuration.md#browser-options-on-browserless-banks)
@@ -78,10 +63,9 @@ treats any defined value, `false` and `0` included, as supplied, and
 `warnIgnoredOptions` emits one `ScraperOptionsWarning` per call, so both guards
 judge presence and warn the same way.
 
-`browserContext` is also honoured only by the legacy path
-(`BaseScraperWithBrowser.ts`), but it sits outside this manifest: it is a
-required member of an options-union arm rather than a stray flag, so supplying
-it is a deliberate choice. It is documented instead under
+`browserContext` is also unread now (the legacy launcher that honoured it was
+removed), but it sits outside this manifest: it is a required member of an
+options-union arm rather than a stray flag. It is documented instead under
 [Browser lifecycle options](../configuration.md#browser-lifecycle-options).
 
 **These options will not be ported.** Raw provider payloads are available on the
@@ -90,36 +74,11 @@ body to `network/*.json` under `RUNS_ROOT` with PII redaction applied by default
 — see [Observability](../observability/index.md) and
 [PII redaction](../observability/redaction.md).
 
-## Support policy
+## Where new code goes
 
-The legacy path is closed to new work. It is retained for API compatibility only:
+- ✅ A new bank is a Pipeline bank under `src/Scrapers/Pipeline/Banks/<Name>/` — never `src/Scrapers/<Name>/`.
+- ✅ Shared types live in layer 5: `src/Scrapers/Base/Interface.ts`, `ErrorTypes.ts`, `ScraperError.ts`, `Config/LoginConfig*.ts`, `Interfaces/**`.
+- ❌ Do not import `src/Common/` from the Pipeline — the one allowlisted edge is
+  `src/Common/Config/BrowserConfig.ts` (browser bootstrap, no Pipeline duplicate).
 
-- ❌ No new features on legacy scrapers.
-- ❌ No new options, or new readers for existing options, on the legacy path.
-- ❌ No behavioural fixes — a legacy-only defect is resolved by migrating the bank to the Pipeline, not by patching the legacy scraper.
-- ✅ Security fixes and changes required to keep the package building.
-
-A request to extend a legacy capability is answered by porting the bank, per [Migration strategy](migration.md).
-
-## Why ship deprecated code?
-
-1. **Public API compatibility** — `createScraper(CompanyTypes.Behatsdaa, ...)` already works; removing it would be a breaking change.
-2. **Migration is incremental** — porting a legacy bank to Pipeline requires writing a `LoginConfig`, a `PipelineDescriptor`, and registering in `PIPELINE_REGISTRY`. That's a per-bank PR, not a single sweep.
-3. **Two-registry dispatch is safe** — `Factory.tryPipeline` is consulted first; legacy is a fallback. When a bank moves to Pipeline, `createScraper` automatically routes there with no caller change.
-
-## What new code should NOT touch
-
-- ❌ `BaseScraper.ts` or any of the 5 legacy base classes
-- ❌ Adding a new bank to `src/Scrapers/<Name>/` (use `src/Scrapers/Pipeline/Banks/<Name>/` instead)
-- ❌ Importing from `src/Common/` — the one allowlisted edge is
-  `src/Common/Config/BrowserConfig.ts` (browser bootstrap, no Pipeline duplicate)
-- ❌ Extending `SCRAPER_REGISTRY_AMEX_TO_ISRACARD`
-
-## What new code MAY touch
-
-- ✅ `src/Scrapers/Base/Interface.ts` — shared interfaces, layer 5
-- ✅ `src/Scrapers/Base/ErrorTypes.ts`, `ScraperError.ts`
-- ✅ `src/Scrapers/Base/Config/LoginConfig*.ts`, `Interfaces/**`
-- ✅ All of `src/Scrapers/Pipeline/`
-
-See [Migration strategy](migration.md) for the per-bank porting sequence.
+See [Migration strategy](migration.md) for how the removal was sequenced.

@@ -7,7 +7,7 @@
  * mirroring the `LandingDocument` / `LandingDocumentConfig` pair.
  *
  * <p><b>Why the policy is deliberately conservative.</b> A bounce is reported as
- * {@link WafBlockError}, which `BaseScraper` maps to `ScraperErrorTypes.WafBlocked`
+ * {@link WafBlockError}, which the Pipeline error mapping turns into `ScraperErrorTypes.WafBlocked`
  * — and that failure is **terminal**: `Mediator/Api/ApiMediator.retry.ts` returns
  * `false` for it, so the call is never retried. Classifying an origin's own
  * rate-limit or maintenance envelope as a bounce would therefore turn a run that

@@ -1,6 +1,8 @@
 # Migration strategy
 
 > **Goal:** every bank lives under `src/Scrapers/Pipeline/`, every utility in `src/Common/` is replaced by a mediator zone, every legacy base class is deleted. Public API behavior preserved throughout.
+>
+> **Status:** the legacy scraper chain is deleted. No bank outside the Pipeline remains, and `createScraper` throws `unknown company id` for an id with no `PIPELINE_REGISTRY` entry. `src/Common/` is down to the browser bootstrap and test helpers. The sections below are kept as the record of how the migration ran and as the template for porting a future bank.
 
 ## What we did in v8.4 (precedent)
 
@@ -27,7 +29,7 @@ For each legacy bank, the porting PR does:
 | 4 | Write fixtures under `src/Tests/E2eMocked/<Bank>/fixtures/` from a captured real-bank run |
 | 5 | Verify with `npm test -- --testPathPatterns=E2eMocked/<Bank>` and `npm test -- --testPathPatterns=E2eReal/<Bank>.e2e-real` |
 | 6 | **Options parity** — for each option in `LEGACY_ONLY_OPTIONS` (`src/Scrapers/Pipeline/Core/LegacyOnlyOptions.ts`), decide *implement on the Pipeline* or *drop*. Implementing one removes its manifest entry; dropping it is a behaviour change for that bank's callers and belongs in the PR body |
-| 7 | Once green, delete `src/Scrapers/<Bank>/` and remove its row from the legacy registry (`ScraperRegistryAmexToIsracard.ts`) |
+| 7 | Once green, delete `src/Scrapers/<Bank>/`. The bank's `SCRAPERS` entry in `src/Definitions.ts` stays: it declares the login fields |
 | 8 | Re-run `lint:dead-code` to confirm no unused exports remain |
 
 The first 16 banks on the Pipeline followed exactly this sequence — except step 6, which was added after [#540](https://github.com/sergienko4/israeli-bank-scrapers/issues/540) showed that a migration can silently drop an option its callers relied on.
@@ -41,29 +43,31 @@ For each `src/Common/` helper that the Pipeline does NOT already use:
 | 1 | Identify the **mediator zone** that owns its concern (e.g. `Mediator/Browser/`, `Mediator/Selector/`, `Mediator/Network/`) |
 | 2 | Move the helper into the zone (keeping the API surface for in-flight callers) |
 | 3 | Update every importer in `src/Scrapers/Pipeline/` to use the new path |
-| 4 | Mark the original under `src/Common/` as `@deprecated` until the last legacy bank caller is gone |
-| 5 | When the last legacy caller is migrated, delete the original |
+| 4 | Mark the original under `src/Common/` as `@deprecated` until the last caller is gone |
+| 5 | When the last caller is migrated, delete the original |
 
 ## Order of operations (proposed)
 
 > **Status:** Bank Leumi (wave 1) and Bank Yahav (wave 2) have since migrated to
 > the Pipeline. Mizrahi followed in one migration that replaced its legacy scraper
 > with the Pipeline bank (real end-to-end CI runs proved its live login and
-> hard-model scrape); Behatsdaa and Beyahad Bishvilha remain.
+> hard-model scrape). Behatsdaa and Beyahad Bishvilha were removed rather than
+> migrated, so every registered bank now runs on the Pipeline. Wave 4 is done: the
+> legacy base classes and their `src/Common/` helpers are deleted.
 
 | Wave | Banks to migrate | Why this wave |
 |---|---|---|
 | Wave 1 | Mizrahi, Leumi | Largest customer base; biggest test signal |
-| Wave 2 | Yahav, Behatsdaa, Beyahad Bishvilha | Smaller — finish the bank surface |
+| Wave 2 | Yahav | Smaller — finish the bank surface |
 | Wave 3 | `src/Common/` → mediator zones | Now that no legacy bank imports `Common/`, fold remaining helpers |
-| Wave 4 | Delete 5 legacy base classes (`BaseScraper`, `BaseScraperWithBrowser`, `BaseScraperHelpers`, `ConcreteGenericScraper`, `GenericBankScraper`) | Layer 6 is empty after wave 3 |
+| Wave 4 | Delete the legacy base classes (`BaseScraper`, `BaseScraperWithBrowser`, `BaseScraperHelpers`, `ConcreteGenericScraper`, `GenericBankScraper`) and the helpers only they used | **Done.** Layer 6 was empty after wave 3 |
 | Wave 5 | Update README + mkdocs to drop the deprecation banners and the "Migration notice" section | End-state docs |
 
 Each wave is a separate PR, gated by:
 
 - All previous waves still green
 - `test:pipeline` ≥ 97/95/97/98 thresholds
-- `test:e2e:mock` green for both moved banks AND every still-legacy bank
+- `test:e2e:mock` green for every bank
 - `lint:architecture` + `lint:dead-code` 0 errors
 
 ## Why this order?
@@ -75,4 +79,4 @@ Each wave is a separate PR, gated by:
 ## What stays after migration
 
 - `src/Scrapers/Base/Interface.ts` and the rest of layer 5 — that's the public API surface, not legacy.
-- The two registries in `src/Scrapers/Registry/` simplify down to a single `PIPELINE_REGISTRY` after wave 2.
+- The legacy registry is gone: `src/Scrapers/Registry/Factory.ts` resolves `PIPELINE_REGISTRY` only.

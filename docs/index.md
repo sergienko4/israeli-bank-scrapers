@@ -6,7 +6,7 @@ hide:
 
 # Israeli Bank Scrapers
 
-Scrape transactions from **19 Israeli banks and credit card companies** with built-in **Cloudflare WAF bypass** and **end-to-end PII redaction**.
+Scrape transactions from **17 Israeli banks and credit card companies** with built-in **Cloudflare WAF bypass** and **end-to-end PII redaction**.
 
 ```sh
 npm install @sergienko4/israeli-bank-scrapers
@@ -36,7 +36,7 @@ npm install @sergienko4/israeli-bank-scrapers
 
 ```mermaid
 flowchart LR
-    subgraph BB["Browser banks (7 pipeline)"]
+    subgraph BB["Browser banks (1 pipeline — Leumi)"]
       direction LR
       INIT --> HOME --> PRELOGIN["PRE-LOGIN (opt-in)"]
       PRELOGIN --> LOGIN --> OTP["OTP (opt-in)"]
@@ -44,7 +44,7 @@ flowchart LR
       BIND --> SCRAPE["API-DIRECT-SCRAPE<br/>(direct API — no nav)"] --> TERM["TERMINATE"]
     end
 
-    subgraph API["API-direct banks (10)"]
+    subgraph API["API-direct banks (16)"]
       direction LR
       CALL["API-DIRECT-CALL"] --> SCR["API-DIRECT-SCRAPE"]
     end
@@ -55,7 +55,7 @@ flowchart LR
 
 | Surface | Counts | Source of truth |
 |---|---|---|
-| Banks supported | **19** total — 17 on Pipeline (7 browser + 10 api-direct), 2 on legacy migration path | [Banks](banks/index.md) |
+| Banks supported | **17** total — all on the Pipeline (1 browser + 16 api-direct) | [Banks](banks/index.md) |
 | Phases | Browser: `INIT → HOME → [PRE-LOGIN] → LOGIN → [OTP] → AUTH-DISCOVERY → BIND-API-MEDIATOR → API-DIRECT-SCRAPE → TERMINATE` · api-direct: **2** | [Phases](phases/index.md) |
 | Test suites | 412, ~4,800 tests, 97.20% statements coverage | [Workflow → CI gates](workflow/ci.md) |
 | Pre-commit gates | Up to 23 gates in parallel | [Workflow → Pre-commit](workflow/pre-commit.md) |
@@ -72,4 +72,4 @@ See [README → Version history](https://github.com/sergienko4/israeli-bank-scra
 
 ## Migration notice
 
-Everything **outside `src/Scrapers/Pipeline/`** is on a wide-net migration path: `src/Scrapers/Base/`, `src/Common/`, and the 2 legacy bank dirs will fold into Pipeline over time. Public API behavior is preserved. See [Architecture → Migration strategy](architecture/migration.md) for the plan.
+Everything outside `src/Scrapers/Pipeline/` is shared infrastructure: `src/Scrapers/Base/` holds the public types and error classes, and `src/Common/` holds the browser bootstrap and test helpers. The legacy non-Pipeline scraper chain has been removed, and the Leumi browser flow is being moved to a browserless Pipeline bank. Public API behavior is otherwise preserved. See [Architecture → Migration strategy](architecture/migration.md) for the plan.

@@ -16,8 +16,6 @@ export enum CompanyTypes {
   Leumi = 'leumi',
   Massad = 'massad',
   Yahav = 'yahav',
-  Behatsdaa = 'behatsdaa',
-  BeyahadBishvilha = 'beyahadBishvilha',
   OneZero = 'oneZero',
   Pagi = 'pagi',
   PayBox = 'payBox',
@@ -77,17 +75,9 @@ export const SCRAPERS = {
     name: 'Bank Yahav',
     loginFields: ['num', 'nationalID', PASSWORD_FIELD],
   },
-  [CompanyTypes.BeyahadBishvilha]: {
-    name: 'Beyahad Bishvilha',
-    loginFields: ['id', PASSWORD_FIELD],
-  },
   [CompanyTypes.OneZero]: {
     name: 'One Zero',
     loginFields: ['email', PASSWORD_FIELD],
-  },
-  [CompanyTypes.Behatsdaa]: {
-    name: 'Behatsdaa',
-    loginFields: ['id', PASSWORD_FIELD],
   },
   [CompanyTypes.Pagi]: {
     name: 'Pagi',
