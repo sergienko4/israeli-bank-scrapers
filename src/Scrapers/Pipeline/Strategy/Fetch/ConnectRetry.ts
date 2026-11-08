@@ -4,8 +4,11 @@
  * Some bank edges silently drop a share of new TCP/TLS handshakes. Node's
  * fetch gives up on such a connection after its own connect budget, with a
  * bare `fetch failed` whose real reason is `error.cause.code`. A connect
- * timeout means the request never left the client, so replaying it on a fresh
- * connection cannot double-submit a one-time code or a payment.
+ * timeout means the request being sent never left the client, so replaying it
+ * on a fresh connection cannot double-submit a one-time code or a payment.
+ * That holds per request, not per call: when fetch follows redirects itself, a
+ * timeout can come from a redirect hop after the original request was
+ * processed. Callers therefore repeat only requests that are a single hop.
  */
 
 import { getDebug } from '../../Logging/Debug.js';

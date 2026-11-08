@@ -271,6 +271,12 @@ describe('HeadlessNativeFetchStrategy', () => {
   });
 });
 
+const START_URL = `${BASE_URL}start`;
+const HOP_URL = `${BASE_URL}next`;
+const ONE_HOP: IManualRedirect = {
+  maxHops: 1,
+  allow: [{ origin: 'https://api.bank.example', paths: ['/v1/next'] }],
+};
 const CONNECT_RETRY_REASON = 'network error: fetch failed (UND_ERR_CONNECT_TIMEOUT)';
 
 /**
@@ -299,7 +305,11 @@ function connectTimeoutsThenJson(failures: number): MockFetchImpl {
 
 describe('HeadlessNativeFetchStrategy — connect timeout retry', () => {
   let originalFetch: typeof globalThis.fetch;
-  const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
+  const strategy = new HeadlessNativeFetchStrategy(BASE_URL, { redirectPolicy: 'reject' });
+  const following = new HeadlessNativeFetchStrategy(BASE_URL);
+  const postHopping = new HeadlessNativeFetchStrategy(BASE_URL, {
+    redirectPolicy: { ...ONE_HOP, postAsGet: true },
+  });
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
@@ -316,6 +326,34 @@ describe('HeadlessNativeFetchStrategy — connect timeout retry', () => {
     expect(mock).toHaveBeenCalledTimes(3);
     const signals = mock.mock.calls.map(([, init]) => signalOf(init));
     expect(new Set(signals).size).toBe(3);
+  });
+
+  it('does not resend a POST when a redirect target times out under follow', async () => {
+    const impl = connectTimeoutsThenJson(1);
+    const mock = installFetchMock(impl);
+    const result = await following.fetchPost('items', { id: '1' }, { extraHeaders: {} });
+    const message = !isOk(result) && result.errorMessage;
+    expect(message).toBe(`POST https://api.bank.example/v1/items ${CONNECT_RETRY_REASON}`);
+    expect(mock).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries only the failed hop of a manual redirect, never the original POST', async () => {
+    const urls: string[] = [];
+    let hopAttempts = 0;
+    installFetchMock((url): Promise<Response> => {
+      urls.push(url);
+      if (url !== HOP_URL) {
+        const headers = { location: HOP_URL };
+        return Promise.resolve(new Response(null, { status: 303, headers }));
+      }
+      hopAttempts += 1;
+      if (hopAttempts > 1) return serveJson();
+      const rejection = fetchFailedWith('UND_ERR_CONNECT_TIMEOUT');
+      return Promise.reject(rejection);
+    });
+    const result = await postHopping.fetchPost('start', { id: '1' }, { extraHeaders: {} });
+    expect(result).toEqual({ success: true, value: { ok: true } });
+    expect(urls).toEqual([START_URL, HOP_URL, HOP_URL]);
   });
 
   it('gives up after the retry budget and reports the cause code', async () => {
@@ -357,13 +395,6 @@ describe('HeadlessNativeFetchStrategy — connect timeout retry', () => {
     expect(message).not.toContain('secret');
   });
 });
-
-const START_URL = `${BASE_URL}start`;
-const HOP_URL = `${BASE_URL}next`;
-const ONE_HOP: IManualRedirect = {
-  maxHops: 1,
-  allow: [{ origin: 'https://api.bank.example', paths: ['/v1/next'] }],
-};
 
 /**
  * Mock fetch: the start URL answers 302 to the hop, and the hop hangs until

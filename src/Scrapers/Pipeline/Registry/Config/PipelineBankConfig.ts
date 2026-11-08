@@ -175,6 +175,9 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
       // API to Node's own fetch without a challenge, so no browser identity
       // is needed to reach it.
       nativeFetch: true,
+      // Every PayBox call is a single hop: a connect timeout is then retried on
+      // a fresh connection without resending a POST that already reached the server.
+      redirectPolicy: 'reject',
     },
   },
   [CompanyTypes.Pepper]: defineApiDirectBank('https://www.pepper.co.il', ACCOUNT, PEPPER_HEADLESS),

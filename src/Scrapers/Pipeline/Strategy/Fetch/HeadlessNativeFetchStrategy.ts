@@ -138,7 +138,19 @@ async function fetchWithinCap(request: ICappedRequest): Promise<Response> {
 }
 
 /**
- * Cap a request and repeat it on a fresh connection while it times out connecting.
+ * Connect retries one request may take. Only a single-hop request
+ * (`redirect: 'manual'`) is repeated: under `follow` fetch walks redirects
+ * itself, so a connect timeout may come from a later hop after the original
+ * request was already processed, and replaying it would resend its body.
+ * @param init - The request's wire options.
+ * @returns The repeat budget, zero when fetch follows redirects itself.
+ */
+function connectRetriesFor(init: RequestInit): number {
+  return init.redirect === 'manual' ? NETWORK_CONNECT_RETRIES : 0;
+}
+
+/**
+ * Cap a request and repeat a single-hop one on a fresh connection while it times out connecting.
  * Each attempt gets its own `timeoutMs`, so the cap bounds one attempt, not the sum.
  * @param request - Request, reading policy and per-attempt timeout ceiling.
  * @returns The received Response from the first attempt that connected.
@@ -149,7 +161,8 @@ async function fetchRetryingConnect(request: ICappedRequest): Promise<Response> 
    * @returns The received Response.
    */
   const attempt = async (): Promise<Response> => fetchWithinCap(request);
-  return retryOnConnectTimeout(attempt, NETWORK_CONNECT_RETRIES);
+  const retries = connectRetriesFor(request.init);
+  return retryOnConnectTimeout(attempt, retries);
 }
 
 /**
