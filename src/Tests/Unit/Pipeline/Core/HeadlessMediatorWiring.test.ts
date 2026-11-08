@@ -2,13 +2,16 @@
  * Unit tests for Core/HeadlessMediatorWiring.resolveHeadlessApiMediator — the
  * transport selector. Asserts: a non-headless descriptor yields none(); a
  * headless bank with no headless config yields none(); OneZero (requiresClientCert)
- * yields a mTLS-backed mediator; PayBox (browser TLS) yields a Camoufox-backed
+ * yields a mTLS-backed mediator; PayBox (native fetch) yields a Node-fetch-backed
  * mediator. Construction only — no network is performed.
  */
 
 import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
-import { resolveHeadlessApiMediator } from '../../../../Scrapers/Pipeline/Core/HeadlessMediatorWiring.js';
+import {
+  resolveHeadlessApiMediator,
+  resolveHeadlessTransportKind,
+} from '../../../../Scrapers/Pipeline/Core/HeadlessMediatorWiring.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import { isSome } from '../../../../Scrapers/Pipeline/Types/Option.js';
 
@@ -51,13 +54,21 @@ describe('resolveHeadlessApiMediator — some(mediator) cases', () => {
     }
   });
 
-  it('wires a Camoufox mediator for PayBox (browser TLS)', () => {
+  it('wires a Node-fetch mediator for PayBox (nativeFetch)', () => {
     const descriptor = makeDescriptor(CompanyTypes.PayBox, true);
     const option = resolveHeadlessApiMediator(descriptor);
     const isPresent = isSome(option);
     expect(isPresent).toBe(true);
     if (isSome(option)) {
       expect(typeof option.value.apiPost).toBe('function');
+      expect(option.value.drivesBrowser).toBeUndefined();
     }
+  });
+});
+
+describe('resolveHeadlessTransportKind — Pepper and PayBox', () => {
+  it.each([CompanyTypes.Pepper, CompanyTypes.PayBox])('selects native for %s', companyId => {
+    const kind = resolveHeadlessTransportKind(companyId);
+    expect(kind).toBe('native');
   });
 });

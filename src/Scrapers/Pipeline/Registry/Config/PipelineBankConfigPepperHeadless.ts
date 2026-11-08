@@ -31,7 +31,7 @@ const PEPPER_HEADLESS: IHeadlessUrlsConfig = {
   // PepperShape's per-call headers. Canary:
   // `Tests/Unit/Pipeline/Registry/Config/PipelineBankConfigPepperWaf.test.ts`.
   graphqlHeaders: { 'user-agent': 'okhttp/4.12.0' },
-  requiresBrowserTls: true,
+  nativeFetch: true,
   phoneNumberFormat: 'international-flat',
 };
 

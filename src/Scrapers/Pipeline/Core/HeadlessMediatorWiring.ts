@@ -3,9 +3,10 @@
  * descriptor needs, and which identity transport it uses. An ordered rule
  * table picks the transport: a bank that needs a client certificate and/or a
  * TLS ClientHello profile (OneZero) runs over node:https; a bank that opts in
- * with `nativeFetch` runs over Node's own fetch; every other bank (Pepper /
- * PayBox) routes identity REST through the Camoufox strategy. Extracted from
- * PipelineContextFactory to keep that file under the strict 150-LoC cap.
+ * with `nativeFetch` runs over Node's own fetch (Pepper, PayBox and most
+ * API-direct banks); a bank that declares nothing falls back to the Camoufox
+ * strategy. Extracted from PipelineContextFactory to keep that file under the
+ * strict 150-LoC cap.
  */
 
 import type { CompanyTypes } from '../../../Definitions.js';

@@ -20,8 +20,9 @@ const LOG = getDebug(import.meta.url);
 const hasCoreCreds = !!process.env.PAYBOX_PHONE_NUMBER;
 
 /**
- * PayBox routes through a direct REST client (apipin.payboxapp.com) —
- * no Camoufox needed (no Cloudflare WAF on the API host). The login
+ * PayBox routes through a direct REST client (apipin.payboxapp.com) over
+ * Node's own fetch (`nativeFetch: true`). The host sits behind Cloudflare
+ * but answers the API calls without a browser challenge. The login
  * flow is SMS-only: PayBox sends one OTP via SMS that the user types
  * once; the OtpPoller helper memoises the value across the 2-call
  * confirm (/pinValidation + /loginBySms).
