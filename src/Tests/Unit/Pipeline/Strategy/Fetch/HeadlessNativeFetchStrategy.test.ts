@@ -9,6 +9,7 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import { NETWORK_CONNECT_RETRIES } from '../../../../../Scrapers/Pipeline/Mediator/Network/FetchConfig.js';
 import { HeadlessNativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import type {
   IManualRedirect,
@@ -267,6 +268,93 @@ describe('HeadlessNativeFetchStrategy', () => {
     await strategy.fetchPost('items', { id: '1' }, { extraHeaders });
     const headers = sentHeaders(mock);
     expect(headers).toEqual({ 'content-type': 'application/json', authorization: 'token' });
+  });
+});
+
+const CONNECT_RETRY_REASON = 'network error: fetch failed (UND_ERR_CONNECT_TIMEOUT)';
+
+/**
+ * Node's rejection when no handshake completed within its connect budget.
+ * @param code - The `cause.code` undici reports.
+ * @returns The bare `fetch failed` error carrying the code.
+ */
+function fetchFailedWith(code: string): TypeError {
+  return new TypeError('fetch failed', { cause: { code } });
+}
+
+/**
+ * Mock fetch that fails to connect a number of times, then serves JSON.
+ * @param failures - How many leading calls fail to connect.
+ * @returns The mock implementation.
+ */
+function connectTimeoutsThenJson(failures: number): MockFetchImpl {
+  let calls = 0;
+  return (): Promise<Response> => {
+    calls += 1;
+    if (calls > failures) return serveJson();
+    const rejection = fetchFailedWith('UND_ERR_CONNECT_TIMEOUT');
+    return Promise.reject(rejection);
+  };
+}
+
+describe('HeadlessNativeFetchStrategy — connect timeout retry', () => {
+  let originalFetch: typeof globalThis.fetch;
+  const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('retries a connect timeout on a fresh attempt signal and succeeds', async () => {
+    const impl = connectTimeoutsThenJson(2);
+    const mock = installFetchMock(impl);
+    const result = await strategy.fetchPost('items', { id: '1' }, { extraHeaders: {} });
+    expect(result).toEqual({ success: true, value: { ok: true } });
+    expect(mock).toHaveBeenCalledTimes(3);
+    const signals = mock.mock.calls.map(([, init]) => signalOf(init));
+    expect(new Set(signals).size).toBe(3);
+  });
+
+  it('gives up after the retry budget and reports the cause code', async () => {
+    const impl = connectTimeoutsThenJson(Number.POSITIVE_INFINITY);
+    const mock = installFetchMock(impl);
+    const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    const message = !isOk(result) && result.errorMessage;
+    expect(message).toBe(`GET https://api.bank.example/v1/items ${CONNECT_RETRY_REASON}`);
+    expect(mock).toHaveBeenCalledTimes(NETWORK_CONNECT_RETRIES + 1);
+  });
+
+  it.each(['ECONNRESET', 'ENOTFOUND', 'UND_ERR_SOCKET'])(
+    'does not retry a %s failure',
+    async code => {
+      const rejection = fetchFailedWith(code);
+      const mock = installFetchMock(() => Promise.reject(rejection));
+      const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
+      const message = !isOk(result) && result.errorMessage;
+      expect(message).toBe(
+        `GET https://api.bank.example/v1/items network error: fetch failed (${code})`,
+      );
+      expect(mock).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('does not retry a timeout abort', async () => {
+    const timeout = new DOMException('The operation was aborted', 'TimeoutError');
+    const mock = installFetchMock(() => Promise.reject(timeout));
+    const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Timeout });
+    expect(mock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the query string out of the reported failure', async () => {
+    const impl = connectTimeoutsThenJson(Number.POSITIVE_INFINITY);
+    installFetchMock(impl);
+    const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    const message = !isOk(result) && result.errorMessage;
+    expect(message).not.toContain('secret');
   });
 });
 

@@ -3,6 +3,7 @@
  */
 
 import {
+  errorCauseCodeOf,
   errorNameOf,
   toError,
   toErrorMessage,
@@ -253,5 +254,53 @@ describe('errorNameOf — a caught value names itself only as a class', () => {
   ])('%s → logged as the class name or Error', (_label, error, expected) => {
     const name = errorNameOf(error);
     expect(name).toBe(expected);
+  });
+});
+
+/**
+ * An error whose `cause` carries the given code, as Node's fetch rejects.
+ * @param code - Value of `cause.code`.
+ * @returns The error.
+ */
+function failedFetchWithCode(code: unknown): TypeError {
+  return new TypeError('fetch failed', { cause: { code } });
+}
+
+/**
+ * An error whose `cause` getter throws.
+ * @returns The error.
+ */
+function throwingCauseError(): Error {
+  const error = new FixtureBoomError('syn-message-5521');
+  return Object.defineProperty(error, 'cause', {
+    /**
+     * Refuse to reveal the cause.
+     * @returns Never.
+     */
+    get(): string {
+      throw new FixtureBoomError('syn-cause-getter');
+    },
+  });
+}
+
+describe('errorCauseCodeOf — a failure reports only a well-formed cause code', () => {
+  it.each([
+    [
+      'a connect timeout',
+      failedFetchWithCode('UND_ERR_CONNECT_TIMEOUT'),
+      'UND_ERR_CONNECT_TIMEOUT',
+    ],
+    ['a reset', failedFetchWithCode('ECONNRESET'), 'ECONNRESET'],
+    ['a code carrying free text', failedFetchWithCode('reset by 203.0.113.7'), ''],
+    ['a lowercase code', failedFetchWithCode('econnreset'), ''],
+    ['a code that is no string', failedFetchWithCode(110), ''],
+    ['an error without a cause', new TypeError('fetch failed'), ''],
+    ['a cause that is no object', new TypeError('fetch failed', { cause: 'timeout' }), ''],
+    ['a cause getter that throws', throwingCauseError(), ''],
+    ['a thrown string', 'ECONNRESET', ''],
+    ['null', null, ''],
+  ])('%s → the code or an empty string', (_label, error, expected) => {
+    const code = errorCauseCodeOf(error);
+    expect(code).toBe(expected);
   });
 });

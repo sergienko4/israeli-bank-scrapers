@@ -152,5 +152,40 @@ function errorNameOf(error: unknown): string {
   return 'Error';
 }
 
+/**
+ * Shape of a system or undici error code (`ECONNRESET`, `UND_ERR_CONNECT_TIMEOUT`).
+ * A cause carries arbitrary text, so only a value of this shape is ever reported.
+ */
+const CAUSE_CODE_PATTERN = /^[A-Z][A-Z0-9_]{2,40}$/;
+
+/**
+ * Read one property of an object-like value.
+ * @param value - Any value; a primitive has no properties.
+ * @param field - The property name.
+ * @returns The property value, or '' when `value` is not an object.
+ */
+function readField(value: unknown, field: string): unknown {
+  if (typeof value !== 'object' || value === null) return '';
+  return Reflect.get(value, field);
+}
+
+/**
+ * The machine-readable code of a failure's underlying cause, safe to log.
+ * Node's fetch rejects with a bare `fetch failed` and keeps the real reason
+ * (a connect timeout, a reset) in `error.cause.code`.
+ * @param error - The unknown caught value, from any realm.
+ * @returns The code (e.g. `UND_ERR_CONNECT_TIMEOUT`), or '' when there is no
+ *   well-formed one.
+ */
+function errorCauseCodeOf(error: unknown): string {
+  try {
+    const cause = readField(error, 'cause');
+    const code = readField(cause, 'code');
+    return typeof code === 'string' && CAUSE_CODE_PATTERN.test(code) ? code : '';
+  } catch {
+    return '';
+  }
+}
+
 export default toErrorMessage;
-export { errorNameOf, toError, toErrorMessage, UNREPRESENTABLE_ERROR };
+export { errorCauseCodeOf, errorNameOf, toError, toErrorMessage, UNREPRESENTABLE_ERROR };

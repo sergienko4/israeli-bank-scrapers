@@ -14,10 +14,14 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { NETWORK_FETCH_TIMEOUT_MS } from '../../Mediator/Network/FetchConfig.js';
+import {
+  NETWORK_CONNECT_RETRIES,
+  NETWORK_FETCH_TIMEOUT_MS,
+} from '../../Mediator/Network/FetchConfig.js';
 import type { IResponseReading } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
+import { retryOnConnectTimeout } from './ConnectRetry.js';
 import type { IFetchInvokePolicy, IFetchOpts } from './FetchStrategy.js';
 import { isMediaTypeMismatch } from './MediaTypeCheck.js';
 import type {
@@ -134,6 +138,21 @@ async function fetchWithinCap(request: ICappedRequest): Promise<Response> {
 }
 
 /**
+ * Cap a request and repeat it on a fresh connection while it times out connecting.
+ * Each attempt gets its own `timeoutMs`, so the cap bounds one attempt, not the sum.
+ * @param request - Request, reading policy and per-attempt timeout ceiling.
+ * @returns The received Response from the first attempt that connected.
+ */
+async function fetchRetryingConnect(request: ICappedRequest): Promise<Response> {
+  /**
+   * Start one capped request with its own fresh timeout signal.
+   * @returns The received Response.
+   */
+  const attempt = async (): Promise<Response> => fetchWithinCap(request);
+  return retryOnConnectTimeout(attempt, NETWORK_CONNECT_RETRIES);
+}
+
+/**
  * Build the capped transport for the `_invoke` seam.
  * @param timeoutMs - Ceiling (ms) for each request.
  * @param reading - The call's immutable reading policy.
@@ -142,7 +161,7 @@ async function fetchWithinCap(request: ICappedRequest): Promise<Response> {
 function makeInvokeCapped(timeoutMs: number, reading: IResponseReading): FetchInvoke {
   return async (url, init, policy): Promise<Procedure<Response>> => {
     try {
-      const response = await fetchWithinCap({ url, init, timeoutMs, reading });
+      const response = await fetchRetryingConnect({ url, init, timeoutMs, reading });
       return succeed(response);
     } catch (error) {
       return toCappedFailure({ error, url, policy, reading });

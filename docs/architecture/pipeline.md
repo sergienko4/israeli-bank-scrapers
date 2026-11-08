@@ -106,9 +106,10 @@ A block that declares more than one of `requiresClientCert`/`clientCert`/
 | `findBrowserOnlyOptions`       | `BrowserOnlyOptions.ts`     | The browser options a caller actually supplied                              |
 | `warnBrowserOnlyOptions`       | `BrowserOnlyOptions.ts`     | Emits the warning when the kind opens no browser; called by `createScraper` |
 
-The native transport is [`HeadlessNativeFetchStrategy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.ts), a `NativeFetchStrategy` with two changes:
+The native transport is [`HeadlessNativeFetchStrategy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.ts), a `NativeFetchStrategy` with three changes:
 
 - Every request, including any required body read, is capped at the constructor's `timeoutMs` option (`IHeadlessNativeFetchOptions`), which defaults to the shared 30 s `NETWORK_FETCH_TIMEOUT_MS`. A hung socket fails as `Timeout` (like the browser-backed transports) with `"<VERB> <url> network error: timeout"`; any other rejection keeps the inherited `toNetworkFailure` message.
+- A request whose TCP connect times out (`UND_ERR_CONNECT_TIMEOUT`, detected by `isConnectTimeout`) is retried by `retryOnConnectTimeout` on a fresh connection, up to `NETWORK_CONNECT_RETRIES` times, each attempt with its own `timeoutMs` budget. The edge in front of some banks silently drops a share of new connections, and a connect timeout never reaches the server, so the retry cannot repeat an OTP or a payment. Resets, DNS failures and aborts are not retried. Whatever failure remains reports its cause code, read by `errorCauseCodeOf` only when it is a well-formed uppercase identifier, for example `"<VERB> <url> network error: fetch failed (UND_ERR_CONNECT_TIMEOUT)"`.
 - A GET sends no default `content-type`; a POST still sends `application/json`. The per-verb defaults are the strategy's `DefaultHeadersByVerb` seam; the base strategy sends JSON on both verbs. A caller `Content-Type` in any letter case replaces the default, as it does on the Camoufox transport, since `fetch` would otherwise join both values into one.
 
 `INativeFetchOptions` gives native REST and GraphQL strategies the same bank-wide

@@ -5,6 +5,13 @@ export const JSON_CONTENT_TYPE = 'application/json';
 export const NETWORK_FETCH_TIMEOUT_MS = 30_000;
 
 /**
+ * Fresh-connection retries after a connect timeout, on top of the first attempt.
+ * A connect timeout never reached the server, so repeating it is side-effect free.
+ * Bank edges that drop about half of new handshakes need several tries.
+ */
+export const NETWORK_CONNECT_RETRIES = 4;
+
+/**
  * Extra budget given to the in-page abort on top of {@link NETWORK_FETCH_TIMEOUT_MS}.
  *
  * The deadline is enforced in Node via `timeoutPromise` because that is the only

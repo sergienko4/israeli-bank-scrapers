@@ -14,7 +14,7 @@ import type {
   ResponseKind,
   StatusPolicy,
 } from '../../Types/Domain/FetchPolicy.js';
-import { toError } from '../../Types/ErrorUtils.js';
+import { errorCauseCodeOf, toError } from '../../Types/ErrorUtils.js';
 import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { readDocument } from './DocumentResponse.js';
@@ -177,7 +177,9 @@ function networkReason(rawReason: string, request: INativeFailure): string {
  */
 function toNetworkFailure(error: unknown, request: INativeFailure): Procedure<Response> {
   const rawReason = toError(error).message;
-  const reason = networkReason(rawReason, request);
+  const code = errorCauseCodeOf(error);
+  const base = networkReason(rawReason, request);
+  const reason = code === '' ? base : `${base} (${code})`;
   const safeUrl = safeUrlForLog(request.url, request.redactUrlValues);
   return fail(ScraperErrorTypes.Generic, `${request.verb} ${safeUrl} network error: ${reason}`);
 }
