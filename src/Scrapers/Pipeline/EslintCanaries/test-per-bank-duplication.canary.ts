@@ -25,10 +25,10 @@
  *   describe('PayBox phone normalisation edge', ...)   ← bank as feature name
  *
  * The selector matches a literal of shape `<Word>.<bank>` where
- * `<bank>` matches one of the 19 CompanyTypes enum values with their
+ * `<bank>` matches one of the 17 CompanyTypes enum values with their
  * EXACT casing (most lowercase — e.g. `hapoalim`, `discount`, `max`
- * — but `visaCal`, `oneZero`, `otsarHahayal`, `payBox`,
- * `beyahadBishvilha` are camelCase per `src/Definitions.ts`). So
+ * — but `visaCal`, `oneZero`, `otsarHahayal`, `payBox` are camelCase
+ * per `src/Definitions.ts`). So
  * bank-as-feature-name `describe()`s that start with the bank name
  * (not `<Phase>.<bank>`) stay legal.
  *

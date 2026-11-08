@@ -9,7 +9,7 @@
 
 // 🚫 DI: Restricted import from Registry/Config
 // (commented out — would break TSC, verified by import rule separately)
-// import { SCRAPER_CONFIGURATION } from '../../../Registry/Config/ScraperConfig';
+// import { SOME_REGISTRY_CONFIG } from '../../../Registry/Config/SomeRegistryConfig';
 
 class CanaryHelper {}
 

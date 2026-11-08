@@ -1,5 +1,5 @@
 site_name: Israeli Bank Scrapers
-site_description: Scrape transactions from 19 Israeli banks and credit card companies with built-in Cloudflare WAF bypass and end-to-end PII redaction.
+site_description: Scrape transactions from 17 Israeli banks and credit card companies with built-in Cloudflare WAF bypass and end-to-end PII redaction.
 site_url: https://sergienko4.github.io/israeli-bank-scrapers/
 repo_url: https://github.com/sergienko4/israeli-bank-scrapers
 repo_name: sergienko4/israeli-bank-scrapers
@@ -141,7 +141,7 @@ nav:
       - WAF challenge interceptor: architecture/waf-interceptor.md
       - WAF fetch bounce: architecture/waf-fetch-bounce.md
       - Browser stack: architecture/browser-stack.md
-      - Legacy (deprecated): architecture/legacy.md
+      - Legacy (removed): architecture/legacy.md
       - Migration strategy: architecture/migration.md
   - Phases:
       - Overview: phases/index.md
@@ -180,9 +180,6 @@ nav:
           - OneZero: banks/onezero.md
           - PayBox: banks/paybox.md
           - Pepper: banks/pepper.md
-      - Legacy (deprecated):
-          - Behatsdaa: banks/behatsdaa.md
-          - Beyahad Bishvilha: banks/beyahad-bishvilha.md
   - Observability:
       - Overview: observability/index.md
       - Structured events: observability/events.md

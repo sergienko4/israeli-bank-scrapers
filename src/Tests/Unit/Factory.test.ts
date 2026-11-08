@@ -50,12 +50,12 @@ describe('createScraper — legacy-only options on a Pipeline bank (issue #540)'
     });
     expect(emitted).toEqual([]);
   });
+});
 
-  it('stays silent for a legacy bank, which does read the option', () => {
-    const base: ScraperOptions = { companyId: CompanyTypes.Behatsdaa, startDate: new Date() };
-    const options = withLegacyOnlyOptions(base, { includeRawTransaction: true });
-    const emitted = warningsFromCreate(options);
-    expect(emitted).toEqual([]);
+describe('createScraper — unregistered company', () => {
+  it('throws for a company id that was removed from the registry', () => {
+    const options = { companyId: 'behatsdaa', startDate: new Date() } as unknown as ScraperOptions;
+    expect(() => createScraper(options)).toThrow('unknown company id behatsdaa');
   });
 });
 

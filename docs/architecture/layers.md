@@ -1,6 +1,6 @@
 # Layer separation
 
-The codebase is organised into **9 logical layers** (per the `/understand` knowledge-graph analysis). Every file belongs to exactly one. Imports flow downward — a higher layer may import from a lower one, never the reverse.
+The codebase is organised into **8 logical layers** (per the `/understand` knowledge-graph analysis). Every file belongs to exactly one. Imports flow downward — a higher layer may import from a lower one, never the reverse.
 
 ```mermaid
 flowchart TB
@@ -9,20 +9,16 @@ flowchart TB
     L3["3. Pipeline mediator<br/>Browser · Form · Elements · Dashboard · Login · OTP · BalanceResolve · …"]
     L4["4. Pipeline strategy + registry<br/>Fetch + Scrape strategies · per-bank PipelineDescriptor · WK registry"]
     L5["5. Pipeline types<br/>BasePhase · Procedure · Option · PiiRedactor · PipelineContext"]
-    L6["6. Legacy scrapers (deprecated)<br/>BaseScraper · BaseScraperWithBrowser · per-bank legacy classes"]
-    L7["7. Common utilities (deprecated)<br/>src/Common/ helpers consumed by both generations"]
-    L8["8. Tests<br/>src/Tests/ — Unit / Pipeline / E2eMocked / E2eReal / Helpers"]
-    L9["9. Build & CI<br/>GitHub Actions · husky · Dockerfile.ci-mirror · tsup · biome · eslint"]
+    L6["6. Common utilities (residual)<br/>src/Common/ — Browser · Navigation · ResultFormatter"]
+    L7["7. Tests<br/>src/Tests/ — Unit / Pipeline / E2eMocked / E2eReal / Helpers"]
+    L8["8. Build & CI<br/>GitHub Actions · husky · Dockerfile.ci-mirror · tsup · biome · eslint"]
 
     L1 --> L2
-    L1 --> L6
     L2 --> L3 --> L4 --> L5
-    L6 --> L7
-    L6 --> L5
-    L8 --> L1
-    L8 --> L2
-    L8 --> L3
-    L9 -.->|"orchestrates"| L8
+    L7 --> L1
+    L7 --> L2
+    L7 --> L3
+    L8 -.->|"orchestrates"| L7
 ```
 
 ## Layer details
@@ -34,12 +30,11 @@ flowchart TB
 | 3   | Pipeline mediator            | `src/Scrapers/Pipeline/Mediator/` (BalanceResolve, Browser, Dashboard, Elements, Form, Login, Network, OtpFill, OtpTrigger, Scrape, …)                                                                                                                             | Canonical                                             |
 | 4   | Pipeline strategy + registry | `src/Scrapers/Pipeline/Strategy/`, `src/Scrapers/Pipeline/Banks/`, `src/Scrapers/Pipeline/Registry/`, `src/Scrapers/Registry/Factory.ts`                                                                                                                           | Canonical                                             |
 | 5   | Pipeline types               | `src/Scrapers/Pipeline/Types/`, `src/Scrapers/Base/{Interface, ErrorTypes, ScraperError, Config/, Interfaces/}`                                                                                                                                                    | Shared infra                                          |
-| 6   | Legacy scrapers              | `src/Scrapers/Base/{BaseScraper, BaseScraperWithBrowser, BaseScraperHelpers, ConcreteGenericScraper, GenericBankScraper}.ts`, `src/Scrapers/{Behatsdaa, BeyahadBishvilha}/`, `src/Scrapers/Registry/ScraperRegistryAmexToIsracard.ts` (legacy rows)                | **Deprecated**                                        |
-| 7   | Common utilities             | `src/Common/` (Browser, CamoufoxLauncher, Fetch, Navigation, OtpDetector, OtpHandler, ResultFormatter, SafeScreenshot, SelectorResolver, Storage, Waiting, …)                                                                                                      | **Mostly deprecated** — pipeline uses only `Debug.ts` |
-| 8   | Tests                        | `src/Tests/Unit/`, `src/Tests/E2eMocked/`, `src/Tests/E2eReal/`, `src/Tests/Helpers/`, `src/Tests/Tools/`                                                                                                                                                          | Always-on gate                                        |
-| 9   | Build & CI                   | `.github/workflows/`, `.husky/`, `tsup.config.ts`, `biome.json`, `eslint.config.mjs`, `tsconfig.json`                                                                                                                                                              | Always-on gate                                        |
+| 6   | Common utilities (residual)  | `src/Common/` (Browser, Navigation, ResultFormatter and their `Config/`)                                                                                                                                                                                           | Test infra and browser bootstrap only                 |
+| 7   | Tests                        | `src/Tests/Unit/`, `src/Tests/E2eMocked/`, `src/Tests/E2eReal/`, `src/Tests/Helpers/`, `src/Tests/Tools/`                                                                                                                                                          | Always-on gate                                        |
+| 8   | Build & CI                   | `.github/workflows/`, `.husky/`, `tsup.config.ts`, `biome.json`, `eslint.config.mjs`, `tsconfig.json`                                                                                                                                                              | Always-on gate                                        |
 
-## What lives in layer 5 vs layer 6
+## What lives in layer 5
 
 **Layer 5 (shared infra — used by Pipeline 107 times)** keeps shipping unchanged:
 
@@ -49,18 +44,13 @@ flowchart TB
 - `src/Scrapers/Base/Config/LoginConfig*.ts` — declarative login config types
 - `src/Scrapers/Base/Interfaces/**` — all sub-interfaces
 
-**Layer 6 (legacy)** still works through `createScraper` but is on the migration path:
-
-- The 2 legacy bank dirs (Behatsdaa, BeyahadBishvilha) — Leumi + Yahav migrated to Pipeline; Mizrahi's legacy dir was replaced by its Pipeline bank in the same migration
-- The 5 legacy base classes (`BaseScraper`, `BaseScraperWithBrowser`, `BaseScraperHelpers`, `ConcreteGenericScraper`, `GenericBankScraper`)
-- The legacy registry rows in `ScraperRegistryAmexToIsracard.ts` (Behatsdaa, Beyahad Bishvilha)
+The former legacy layer (the base scrapers, per-bank classes and their `src/Common/` helpers) was removed once no registered bank used it — see [Legacy (removed)](legacy.md).
 
 ## Import direction enforcement
 
 The architecture validator (`lint:architecture`) runs on every commit and rejects:
 
-- Imports from `src/Scrapers/Pipeline/` into `src/Common/` or `src/Scrapers/Base/{BaseScraper*, ConcreteGenericScraper}`
-- Imports from layer 1 (Public API) into any legacy implementation
+- Imports from `src/Scrapers/Pipeline/` into `src/Common/`, apart from the allowlisted browser-bootstrap edge
 - Cross-mediator imports within layer 3 (BALANCE-RESOLVE cannot reach into SCRAPE state directly)
 
 Source: [`src/Tests/Tools/lint-and-validate.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Tools/lint-and-validate.ts) + the 3 architecture canaries under `src/Scrapers/Pipeline/EslintCanaries/`.

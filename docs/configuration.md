@@ -5,15 +5,15 @@ construction time and `ScraperCredentials` at scrape time. Nothing else reads
 from disk, and the only environment variables consulted are the operational
 ones listed at the bottom of this page.
 
-Some fields on `ScraperOptions` are honoured only by the
-[Legacy (deprecated)](architecture/legacy.md) scrapers — see
+Some fields on `ScraperOptions` are read by no scraper — they belong to the
+removed [legacy](architecture/legacy.md) path. See
 [Options the Pipeline ignores](#options-the-pipeline-ignores).
 
 ## Scraper options — `createScraper({ ... })`
 
 | Field | Type | Default | What it controls |
 | --- | --- | --- | --- |
-| `companyId` | `CompanyTypes` (enum) | **required** | Picks the bank — discriminates pipeline vs legacy path |
+| `companyId` | `CompanyTypes` (enum) | **required** | Picks the bank — an id with no Pipeline entry throws `unknown company id <id>` |
 | `startDate` | `Date` | **required** | Earliest transaction date to fetch |
 | `futureMonthsToScrape` | `number` | bank-specific | How far past today to reach for scheduled transactions |
 | `defaultTimeout` | `number` (ms) | `30000` | Per-phase navigation timeout |
@@ -33,22 +33,20 @@ LOGIN does not consume the budget that SCRAPE will need.
 
 ## Options the Pipeline ignores
 
-`ScraperOptions` is one flat type shared by the Pipeline and the
-[Legacy (deprecated)](architecture/legacy.md) scrapers, so the compiler accepts
-every field for every bank. **Sixteen fields do nothing on a Pipeline bank**, in
+`ScraperOptions` is one flat type that predates the Pipeline, so the compiler
+accepts every field for every bank. **Sixteen fields do nothing**, in
 three groups. The first group always warns; the browser options also warn on a
 bank that never opens a browser — see
 [Browser options on browserless banks](#browser-options-on-browserless-banks).
 
-Passing one of the eight legacy-only options for a Pipeline bank emits a Node
+Passing one of the eight legacy-only options emits a Node
 process warning at `createScraper` time:
 
 ```text
 (node:12345) ScraperOptionsWarning: "isracard" runs on the Pipeline, which does not
 implement these Legacy (deprecated) scraper options: includeRawTransaction,
-shouldCombineInstallments. They are ignored here. Some legacy-only options are read
-only by the deprecated non-Pipeline scrapers (Behatsdaa, Beyahad Bishvilha), and
-that path is closed to new work. Remove them, or see
+shouldCombineInstallments. They are ignored here. The legacy non-Pipeline scrapers
+that read them were removed, so they have no effect on any bank. Remove them, or see
 https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/
 ```
 
@@ -69,15 +67,16 @@ process.on('warning', w => {
 
 ### Legacy-only options
 
-Not implemented by the Pipeline. Five are read only by the
-[Legacy (deprecated)](architecture/legacy.md) scrapers; three have no reader.
+Not implemented, and read by no scraper: the [legacy](architecture/legacy.md)
+scrapers that read five of them were removed, and the other three have had no
+reader since the legacy Mizrahi scraper was removed.
 
-| Option | What it does on the legacy path |
+| Option | What it did on the legacy path |
 | --- | --- |
 | `includeRawTransaction` | Attaches the unparsed provider row to each transaction |
 | `navigationRetryCount` | Retries a phase on `TIMEOUT` before failing |
 | `optInFeatures` | No active reader since the legacy Mizrahi scraper was removed; ignored with `ScraperOptionsWarning` |
-| `outputData` | Suppresses date filtering (Beyahad Bishvilha only) |
+| `outputData` | No reader since the Beyahad Bishvilha scraper was removed; ignored with `ScraperOptionsWarning` |
 | `shouldAddTransactionInformation` | No active reader since the legacy Mizrahi scraper was removed; ignored with `ScraperOptionsWarning` |
 | `shouldCombineInstallments` | No active reader: no scraper passes it to the instalment filter; ignored with `ScraperOptionsWarning` |
 | `skipCloseBrowser` | Leaves an externally supplied browser open |
@@ -89,7 +88,7 @@ Raw provider payloads **are** available on the Pipeline — set
 
 ### Unimplemented options
 
-Accepted by the type, read by neither path.
+Accepted by the type, read by no scraper.
 
 | Option | Status |
 | --- | --- |
@@ -103,9 +102,9 @@ Accepted by the type, read by neither path.
 | --- | --- |
 | `args` | Not read. Launch flags come from the bundled Camoufox profile |
 | `browser` | Not read. On a bank whose Pipeline launches a browser, `launchCamoufox()` creates it every run |
-| `browserContext` | Not read on the Pipeline, which always creates its own context. The legacy path does honour it |
+| `browserContext` | Not read. The Pipeline always creates its own context, and the legacy launcher that honoured it was removed |
 | `executablePath` | Not read. The bundled Camoufox binary is always used |
-| `timeout` | Not read on either path. Use `defaultTimeout` instead, which the Pipeline does honour |
+| `timeout` | Not read. Use `defaultTimeout` instead, which the Pipeline does honour |
 
 On a bank whose Pipeline launches a browser, it always launches and closes its own
 Camoufox instance, so it ignores every option that tries to supply or configure

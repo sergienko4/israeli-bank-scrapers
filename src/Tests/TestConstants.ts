@@ -72,12 +72,6 @@ export const INVALID_CREDS_YAHAV = {
   password: 'fixt-i-yh-9e0f',
 } as const;
 
-/** Invalid placeholder for id+password banks (Behatsdaa, BeyahadBishvilha). */
-export const INVALID_CREDS_ID_PASSWORD = {
-  id: 'fixt-i-id-1f2e',
-  password: 'fixt-i-id-3d4c',
-} as const;
-
 /** Invalid placeholder for OneZero (email + password + long-term token). */
 export const INVALID_CREDS_ONEZERO = {
   email: 'fixt-i-oz-5b6a@example.com',

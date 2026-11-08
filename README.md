@@ -2,7 +2,7 @@
 
 # Israeli Bank Scrapers
 
-**Scrape transactions from 19 Israeli banks and credit card companies.**
+**Scrape transactions from 17 Israeli banks and credit card companies.**
 Built-in Cloudflare WAF bypass, automatic OTP handling, and end-to-end PII
 redaction — so you can share a failing log without leaking customer data.
 
@@ -142,7 +142,7 @@ See [Compatibility](https://sergienko4.github.io/israeli-bank-scrapers/compatibi
 
 ## Supported institutions
 
-19 institutions. `CompanyTypes.<Name>` selects the bank; credential fields are
+17 institutions. `CompanyTypes.<Name>` selects the bank; credential fields are
 validated at runtime.
 
 | Institution          | Type        | Engine     | Credentials                     |
@@ -151,9 +151,7 @@ validated at runtime.
 | Bank Leumi           | Bank        | Browser    | `username`, `password`          |
 | Bank Otsar Hahayal   | Bank        | API-direct | `username`, `password`, OTP\*   |
 | Bank Yahav           | Bank        | API-direct | `num`, `nationalID`, `password` |
-| Behatsdaa            | Bank        | Browser    | `id`, `password`                |
 | Beinleumi            | Bank        | API-direct | `username`, `password`, OTP\*   |
-| Beyahad Bishvilha    | Bank        | Browser    | `id`, `password`                |
 | Discount Bank        | Bank        | API-direct | `id`, `password`, `num`         |
 | Massad               | Bank        | API-direct | `username`, `password`, OTP\*   |
 | Mercantile Bank      | Bank        | API-direct | `id`, `password`, `num`         |
@@ -172,11 +170,6 @@ bank requests one.
 
 Per-bank notes live in the
 [bank documentation](https://sergienko4.github.io/israeli-bank-scrapers/banks/).
-
-> **Legacy path:** Behatsdaa and Beyahad Bishvilha still run on the
-> pre-pipeline scraper. They work through the same `createScraper(...)`
-> entry point and their public behaviour is preserved, but new features target
-> the pipeline architecture.
 
 ## OTP (two-factor authentication)
 
@@ -411,14 +404,8 @@ flowchart LR
       CALL["API-DIRECT-CALL<br/>(login + OTP via JSON API)"] --> SCR["API-DIRECT-SCRAPE"]
     end
 
-    subgraph LEG["Legacy banks (2) — Behatsdaa · Beyahad Bishvilha"]
-      direction LR
-      LLOGIN["Declarative login"] --> LFETCH["Bank API or DOM parse"]
-    end
-
     BB -.->|"unified result shape"| RESULT(["IScraperScrapingResult"])
     API -.->|"unified result shape"| RESULT
-    LEG -.->|"unified result shape"| RESULT
 ```
 
 **Every bank on the pipeline scrapes direct API after login.** Once
@@ -427,12 +414,6 @@ authenticated client to the live page and `API-DIRECT-SCRAPE` walks a typed
 list of REST/GraphQL calls — no post-login navigation, no DOM scraping. The
 API-direct banks reach that same phase through a headless JSON login instead of
 the browser prefix.
-
-The two legacy banks predate the phase chain. Behatsdaa calls the bank's API
-from the page; Beyahad Bishvilha still parses its transaction table out of the
-DOM. Both return the same `IScraperScrapingResult`, so callers cannot tell the
-difference — but they do not gain pipeline-only behaviour such as phase-scoped
-retries.
 
 Phases never read one another's state; they communicate through typed fields on
 a shared context. See

@@ -33,7 +33,7 @@ const PARITY_IGNORED_PATHS = SONAR_PARITY_IGNORE_PREFIXES.map(prefix => `${prefi
 /** Production paths block 11 covers, so the canaries must fire there. */
 const PARITY_COVERED_PATHS = [
   'src/Scrapers/Pipeline/Mediator/Elements/RenderHealth.ts',
-  'src/Scrapers/Base/BaseScraperWithBrowser.ts',
+  'src/Scrapers/Base/Errors.ts',
 ];
 
 /**

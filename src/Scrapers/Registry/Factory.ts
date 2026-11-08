@@ -1,48 +1,24 @@
-import { type CompanyTypes } from '../../Definitions.js';
 import { type IScraper, type ScraperCredentials, type ScraperOptions } from '../Base/Interface.js';
 import ScraperError from '../Base/ScraperError.js';
 import PIPELINE_REGISTRY from '../Pipeline/Banks/PipelineRegistry.js';
 import { warnBrowserOnlyOptions } from '../Pipeline/Core/BrowserOnlyOptions.js';
 import { warnLegacyOnlyOptions } from '../Pipeline/Core/LegacyOnlyOptions.js';
 import { PipelineScraper } from '../Pipeline/Core/PipelineScraper.js';
-import SCRAPER_REGISTRY_AMEX_TO_ISRACARD, {
-  type ScraperFactory,
-} from './ScraperRegistryAmexToIsracard.js';
-
-/** Combined registry of all supported bank scrapers (legacy). */
-const SCRAPER_REGISTRY: Partial<Record<CompanyTypes, ScraperFactory>> = {
-  ...SCRAPER_REGISTRY_AMEX_TO_ISRACARD,
-};
-
-/**
- * Try creating a pipeline scraper for banks registered in PIPELINE_REGISTRY.
- *
- * <p>Warns here rather than inside {@link PipelineScraper} because this is the
- * only point that knows the bank resolved to the Pipeline: the same options are
- * legitimate on the legacy path, so the warning must not fire there. A bank
- * whose transport runs no browser also hears about any browser option it got.
- * @param options - Scraper configuration.
- * @returns A PipelineScraper if registered, false otherwise.
- */
-function tryPipeline(options: ScraperOptions): IScraper<ScraperCredentials> | false {
-  const pipelineFactory = PIPELINE_REGISTRY[options.companyId];
-  if (!pipelineFactory) return false;
-  warnLegacyOnlyOptions(options);
-  warnBrowserOnlyOptions(options);
-  return new PipelineScraper(options, pipelineFactory);
-}
 
 /**
  * Create a scraper instance for the given company.
- * Pipeline-first: if the bank is in PIPELINE_REGISTRY, returns a PipelineScraper
- * regardless of the usePipeline flag. Falls back to the legacy registry otherwise.
+ *
+ * <p>Every supported bank resolves through PIPELINE_REGISTRY. The caller hears
+ * about any option the Pipeline ignores, and a bank whose transport runs no
+ * browser also hears about any browser option it was given.
  * @param options - Scraper configuration including company ID and credentials.
  * @returns A scraper instance ready to scrape transactions.
+ * @throws ScraperError when the company id is not registered.
  */
 export default function createScraper(options: ScraperOptions): IScraper<ScraperCredentials> {
-  const pipelineScraper = tryPipeline(options);
-  if (pipelineScraper) return pipelineScraper;
-  const factory = SCRAPER_REGISTRY[options.companyId];
-  if (factory) return factory(options);
-  throw new ScraperError(`unknown company id ${options.companyId}`);
+  const pipelineFactory = PIPELINE_REGISTRY[options.companyId];
+  if (!pipelineFactory) throw new ScraperError(`unknown company id ${options.companyId}`);
+  warnLegacyOnlyOptions(options);
+  warnBrowserOnlyOptions(options);
+  return new PipelineScraper(options, pipelineFactory);
 }

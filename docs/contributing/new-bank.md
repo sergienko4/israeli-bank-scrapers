@@ -1,6 +1,6 @@
 # Adding a new bank
 
-Pipeline-first — every new bank lives under `src/Scrapers/Pipeline/Banks/<Name>/` and is registered in `PIPELINE_REGISTRY`. Legacy `src/Scrapers/<Name>/` is closed to new banks.
+Pipeline-first — every new bank lives under `src/Scrapers/Pipeline/Banks/<Name>/` and is registered in `PIPELINE_REGISTRY`. There is no legacy `src/Scrapers/<Name>/` path any more; an id absent from `PIPELINE_REGISTRY` makes `createScraper` throw `unknown company id`.
 
 ## Step-by-step
 

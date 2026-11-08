@@ -83,7 +83,7 @@ browser bank:
   cannot rescue a promise that never settles. The count is raced against
   `ERROR_HEADING_COUNT_TIMEOUT_MS`.
 - **It fails open.** Any driver error, or the deadline expiring, yields a
-  count of zero. On 19 banks a false alarm is worse than a missed detection,
+  count of zero. On 17 banks a false alarm is worse than a missed detection,
   so silence is always the fallback.
 
 The probe takes `ILandingDocumentSource` — the two-method surface it actually
@@ -111,4 +111,4 @@ error document, asserting zero matches on the former and one on the latter.
 | `GENERIC` "bank edge served HTTP ..." | The bank served 404/410 at `loginUrl` — the entry URL moved, or the bank's edge is serving a branded not-found page to this egress IP |
 | `GENERIC` `INIT_ERROR_DOCUMENT ...` | The bank served its own error page under a success status. Usually transient edge trouble; if it persists, the entry URL moved |
 | `WAF_BLOCKED` | Cloudflare challenge at the landing page — see [README → WAF Troubleshooting](https://github.com/sergienko4/israeli-bank-scrapers#error-types) |
-| `GENERIC` "companyId not registered" | The bank is legacy-only — falls back to `SCRAPER_REGISTRY` automatically; if you see this on a Pipeline-registered bank, the registry got out of sync |
+| `GENERIC` "companyId not registered" | The bank is not in `PIPELINE_REGISTRY` and there is no fallback; if you see this on a Pipeline-registered bank, the registry got out of sync |

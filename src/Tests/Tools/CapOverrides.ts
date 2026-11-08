@@ -83,8 +83,6 @@ function pinNewFiles(
 const MAX_LINES_OVERRIDES: readonly ICapOverride[] = [
   { prefix: 'src/Common', cap: 300, reason: LEGACY_TREE_CAP },
   { prefix: 'src/Scrapers/Base', cap: 300, reason: LEGACY_TREE_CAP },
-  { prefix: 'src/Scrapers/Behatsdaa', cap: 300, reason: LEGACY_TREE_CAP },
-  { prefix: 'src/Scrapers/BeyahadBishvilha', cap: 300, reason: LEGACY_TREE_CAP },
   { prefix: 'src/Scrapers/Registry', cap: 300, reason: LEGACY_TREE_CAP },
   { prefix: 'src/Scrapers/Pipeline/Types', cap: 'off', reason: TYPES_FILE_OFF },
   { prefix: 'src/Scrapers/Pipeline/Mediator/Completion', cap: 'off', reason: MEDIATOR_FILE_OFF },
@@ -147,8 +145,6 @@ const MAX_LINES_OVERRIDES: readonly ICapOverride[] = [
 const MAX_LINES_PER_FUNCTION_OVERRIDES: readonly ICapOverride[] = [
   { prefix: 'src/Common', cap: 20, reason: LEGACY_TREE_CAP },
   { prefix: 'src/Scrapers/Base', cap: 20, reason: LEGACY_TREE_CAP },
-  { prefix: 'src/Scrapers/Behatsdaa', cap: 20, reason: LEGACY_TREE_CAP },
-  { prefix: 'src/Scrapers/BeyahadBishvilha', cap: 20, reason: LEGACY_TREE_CAP },
   { prefix: 'src/Scrapers/Registry', cap: 20, reason: LEGACY_TREE_CAP },
   { prefix: 'src/Scrapers/Pipeline/Banks', cap: 15, reason: PIPELINE_FN_DEFAULT },
   { prefix: 'src/Scrapers/Pipeline/Core', cap: 15, reason: PIPELINE_FN_DEFAULT },

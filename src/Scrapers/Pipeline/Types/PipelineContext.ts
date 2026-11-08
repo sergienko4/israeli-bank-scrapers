@@ -1,7 +1,7 @@
 /**
  * Pipeline context — immutable, accumulated across phases.
  * Each phase returns a NEW context with spread.
- * All config injected via DI — no direct imports of SCRAPER_CONFIGURATION.
+ * All config injected via DI — no direct imports of a global scraper configuration.
  */
 
 import type { CompanyTypes } from '../../../Definitions.js';

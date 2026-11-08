@@ -55,9 +55,9 @@ interface IDebugMockModule {
  * `does not provide an export named …` the moment one is absent. Keeping this
  * factory complete makes it safe to mock the real module from any suite.
  *
- * `getDebugByName` is the entry point legacy scrapers use — they pass a
+ * `getDebugByName` is the entry point non-Pipeline code uses — it passes a
  * verbatim module name rather than `import.meta.url` — so a mock of this module
- * that omits it fails to load any legacy consumer.
+ * that omits it fails to load any such consumer.
  *
  * `MOCK_TIMEOUT_MS` is re-exported from the real `Types/MockTiming.ts` rather
  * than restated, so the two can never drift. That module is never itself
@@ -237,32 +237,6 @@ export function createWaitingMock(): {
 } {
   const stubs = serialRunnerStubs();
   return { ...stubs, TimeoutError: Error, SECOND: 1000 };
-}
-
-/**
- * OtpHandler module mock.
- * @returns OtpHandler mock module
- */
-export function createOtpMock(): {
-  handleOtpStep: jest.Mock;
-  handleOtpCode: jest.Mock;
-  handleOtpConfirm: jest.Mock;
-} {
-  return {
-    handleOtpStep: jest.fn().mockResolvedValue(null),
-    handleOtpCode: jest.fn().mockResolvedValue({ success: true }),
-    handleOtpConfirm: jest.fn().mockResolvedValue(''),
-  };
-}
-
-/**
- * Storage module mock (used by VisaCal).
- * @returns Storage mock module
- */
-export function createStorageMock(): {
-  getFromSessionStorage: jest.Mock;
-} {
-  return { getFromSessionStorage: jest.fn() };
 }
 
 /**

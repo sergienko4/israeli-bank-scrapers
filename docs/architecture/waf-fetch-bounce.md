@@ -32,13 +32,13 @@ The block was in fact already **detected** — `logResponseIssues` ran
 was discarded. This module keeps that verdict and raises it as a typed
 `WafBlockError`.
 
-Two layers then map that error to `ScraperErrorTypes.WafBlocked`, depending on
-which path the caller came in on, and both preserve `details`:
+`Strategy/Fetch/BrowserFetchStrategy.ts` then maps that error to
+`ScraperErrorTypes.WafBlocked` as the throw crosses into a `Procedure`, and
+preserves `details`:
 
 | Layer | Path | Mapping |
 |---|---|---|
 | `Strategy/Fetch/BrowserFetchStrategy.ts` | Pipeline — the throw crosses into a `Procedure` | `failWithDetails(WafBlocked, message, error.details)` |
-| `Base/BaseScraper.ts` | Legacy — the throw reaches the scraper's top-level handler | `createWafBlockedError(error.message, error.details)` |
 
 ## The gated rule
 

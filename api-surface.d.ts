@@ -14,8 +14,6 @@ declare enum CompanyTypes {
     Leumi = "leumi",
     Massad = "massad",
     Yahav = "yahav",
-    Behatsdaa = "behatsdaa",
-    BeyahadBishvilha = "beyahadBishvilha",
     OneZero = "oneZero",
     Pagi = "pagi",
     PayBox = "payBox",
@@ -74,15 +72,7 @@ declare const SCRAPERS: {
         name: string;
         loginFields: string[];
     };
-    beyahadBishvilha: {
-        name: string;
-        loginFields: string[];
-    };
     oneZero: {
-        name: string;
-        loginFields: string[];
-    };
-    behatsdaa: {
         name: string;
         loginFields: string[];
     };
@@ -751,10 +741,13 @@ type ScraperScrapingResult = IScraperScrapingResult;
 
 /**
  * Create a scraper instance for the given company.
- * Pipeline-first: if the bank is in PIPELINE_REGISTRY, returns a PipelineScraper
- * regardless of the usePipeline flag. Falls back to the legacy registry otherwise.
+ *
+ * <p>Every supported bank resolves through PIPELINE_REGISTRY. The caller hears
+ * about any option the Pipeline ignores, and a bank whose transport runs no
+ * browser also hears about any browser option it was given.
  * @param options - Scraper configuration including company ID and credentials.
  * @returns A scraper instance ready to scrape transactions.
+ * @throws ScraperError when the company id is not registered.
  */
 declare function createScraper(options: ScraperOptions): IScraper<ScraperCredentials>;
 

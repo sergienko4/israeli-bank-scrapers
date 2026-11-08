@@ -32,7 +32,7 @@ in force — so each one is scoped exactly like its ESLint counterpart:
 
 | Canary  | ESLint rule                     | Scope mirrored                                                                     |
 | ------- | ------------------------------- | ---------------------------------------------------------------------------------- |
-| `S6564` | `sonarjs/redundant-type-aliases` | Block 11 — all `src`, minus `src/Tests`, `src/Common`, `Registry` and legacy banks |
+| `S6564` | `sonarjs/redundant-type-aliases` | Block 11 — all `src`, minus `src/Tests`, `src/Common` and `Registry` |
 | `S3735` | `sonarjs/void-use`              | Block 11 — same exclusions                                                         |
 | `S1607` | `sonarjs/no-skipped-tests`      | Block 19.6 — **on** across `src/Tests`, no file exempt                             |
 

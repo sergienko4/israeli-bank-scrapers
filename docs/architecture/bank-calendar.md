@@ -110,8 +110,9 @@ ISO-8601 lets a value carry no offset — `2026-02-09`, or `2026-02-09T00:00:00`
 Such a value is not an instant until some zone is chosen for it, and plain
 `moment(value, moment.ISO_8601)` chooses **moment's effective default** — the
 host's zone, unless something in the process has called `moment.tz.setDefault`.
-Something does: `BaseScraper.initialize()` sets it before scraping, on the same
-singleton the Pipeline imported. So the old reading varied not only with the
+Something could: the removed legacy `BaseScraper.initialize()` set it before
+scraping, on the same singleton the Pipeline imported, and so can any host
+application. So the old reading varied not only with the
 machine but with **scrape order** within one process, exactly as described under
 [Why the zone is named rather than inherited](#why-the-zone-is-named-rather-than-inherited).
 The argument looks absolute, so nothing at the call site suggests the answer
@@ -157,9 +158,9 @@ Before this was fixed ([#545](https://github.com/sergienko4/israeli-bank-scraper
 the zone was whatever the Node process happened to sit in. That was worse than
 merely machine-dependent, for a reason that is easy to miss:
 
-`BaseScraper.initialize()` calls `moment.tz.setDefault(ISRAEL_TIMEZONE)`
-([`src/Scrapers/Base/BaseScraper.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Base/BaseScraper.ts)),
-and `moment-timezone` augments the _same singleton_ the Pipeline's mapper
+The legacy `BaseScraper.initialize()` (since removed) called
+`moment.tz.setDefault(ISRAEL_TIMEZONE)`, and `moment-timezone` augments the
+_same singleton_ the Pipeline's mapper
 imported as plain `moment`. So the emitted value depended not only on the host
 but on **scrape order** — running a legacy scraper first silently changed what
 the Pipeline emitted for identical input, in the same process.
@@ -191,8 +192,8 @@ the host zone — replacing one defect with another.
 ## Impact of the change
 
 The variable is not the host zone but the _effective moment default_ at the
-moment a value is parsed — which `BaseScraper.initialize()` can move mid-process
-(see above).
+moment a value is parsed — which any code in the process can move mid-run with
+`moment.tz.setDefault` (the removed legacy `BaseScraper.initialize()` did; see above).
 
 | Effective moment default | Effect                                                                         |
 | ------------------------ | ------------------------------------------------------------------------------ |
@@ -200,8 +201,8 @@ moment a value is parsed — which `BaseScraper.initialize()` can move mid-proce
 | Anything else            | Values move to agree with an Israel host. Day-level comparisons stop drifting. |
 
 An Israel host is _usually_ the first row, but not necessarily: an application
-that calls `moment.tz.setDefault('UTC')` for its own reasons, or that runs a
-Legacy scraper first, was in the second row even on Israeli hardware. That is
+that calls `moment.tz.setDefault('UTC')` for its own reasons, or that ran a
+legacy scraper first, was in the second row even on Israeli hardware. That is
 the non-determinism this change removes.
 
 ## Alternatives that were rejected

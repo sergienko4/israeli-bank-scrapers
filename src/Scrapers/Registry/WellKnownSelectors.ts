@@ -58,7 +58,7 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     // --- CSS fallback ---
     { kind: 'css', value: 'input[type="password"]' },
     { kind: 'css', value: '#password' }, // Hapoalim, Max, Beinleumi
-    { kind: 'css', value: '#loginPassword' }, // Behatsdaa, BeyahadBishvilha
+    { kind: 'css', value: '#loginPassword' }, // generic id+password login forms
     { kind: 'css', value: '#tzPassword' }, // Discount
     { kind: 'css', value: '[formcontrolname="password"]' }, // VisaCal
     // --- walk-up DOM (absolute last resort) ---
@@ -76,7 +76,7 @@ export const WELL_KNOWN_LOGIN_SELECTORS = {
     // --- semantic HTML ---
     { kind: 'name', value: 'id' },
     // --- CSS fallback ---
-    { kind: 'css', value: '#loginId' }, // Behatsdaa, BeyahadBishvilha
+    { kind: 'css', value: '#loginId' }, // generic id+password login forms
     { kind: 'css', value: '#tzId' }, // Discount
     // --- walk-up DOM (absolute last resort) ---
     { kind: 'textContent', value: 'תעודת זהות' },

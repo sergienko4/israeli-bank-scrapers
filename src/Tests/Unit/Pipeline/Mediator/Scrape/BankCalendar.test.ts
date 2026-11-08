@@ -7,10 +7,10 @@
  * public `ITransaction.date` on different machines.
  *
  * <p>The ambient zone is moved with `moment.tz.setDefault`. That is not a test
- * convenience — it is the actual leak vector. `BaseScraper.initialize()`
- * (`BaseScraper.ts:109`) calls it on the same moment singleton the Pipeline
- * reads, so a Legacy scrape running first used to change what the Pipeline
- * emitted for identical input, in the same process.
+ * convenience — it is the actual leak vector. The removed legacy
+ * `BaseScraper.initialize()` called it on the same moment singleton the
+ * Pipeline reads, so a Legacy scrape running first used to change what the
+ * Pipeline emitted for identical input, in the same process.
  *
  * <p>Without moving the zone these cases would pass vacuously: `jest.config.js`
  * pins `TZ='Asia/Jerusalem'`, which is the one zone in which the old ambient
@@ -97,8 +97,8 @@ describe('parseAutoDate/is host-independent', () => {
     expect(days).toEqual(expected);
   });
 
-  it('is unaffected by the global default a Legacy scraper sets', () => {
-    // BaseScraper.initialize() does exactly this on the shared moment singleton.
+  it('is unaffected by a global default another scraper sets', () => {
+    // The removed legacy BaseScraper.initialize() did exactly this on the shared moment singleton.
     const before = parseAutoDate('29/06/2026');
     const after = underZone('UTC', (): string => parseAutoDate('29/06/2026'));
     expect(after).toBe(before);

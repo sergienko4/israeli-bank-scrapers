@@ -26,7 +26,7 @@ export async function violation(page: Page): Promise<boolean> {
 
 /**
  * Forbidden shape — `this.page.screenshot()` (the exact pre-fix pattern
- * in BaseScraperWithBrowser before this PR). MemberExpression on `this`.
+ * in a legacy scraper base class before this PR). MemberExpression on `this`.
  */
 class ViolationOnThis {
   private readonly page!: Page;
