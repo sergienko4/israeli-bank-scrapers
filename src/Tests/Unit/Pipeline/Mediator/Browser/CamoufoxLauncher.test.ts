@@ -61,6 +61,13 @@ describe('CamoufoxLauncher native-binding diagnostic', () => {
     expect(enriched.message).toContain('--ignore-scripts');
   });
 
+  it('opens with the sentence the consumer-install gate asserts on', () => {
+    const enriched = withNativeBindingDiagnostic(new Error('invalid ELF header')) as Error;
+    expect(enriched.message).toContain(
+      'Camoufox could not start: the native better-sqlite3 binding is missing',
+    );
+  });
+
   it('passes unrelated launch errors through untouched', () => {
     const unrelated = new Error('Timeout 30000ms exceeded while launching browser');
     const passedThrough = withNativeBindingDiagnostic(unrelated);

@@ -576,6 +576,17 @@ describe('Pepper mock — the server contract is enforced, not assumed', () => {
     expect(counts).toMatchObject({ bind: 0, rejected: 1, rejections: ['ts-token'] });
   });
 
+  it('keeps the headers and body of a Request input when no init is given', async () => {
+    const mock = install({});
+    const signed = handSignedBind(honest);
+    const init = { method: 'POST', headers: signed.headers, body: signed.bodyText };
+    const input = new Request(BIND_URL, init);
+    const response = await fetch(input);
+    expect(response.status).toBe(200);
+    const counts = mock.callCounts();
+    expect(counts).toMatchObject({ bind: 1, rejected: 0 });
+  });
+
   it('answers 404 to an auth route it does not serve', async () => {
     const mock = install({});
     const request = handSignedBind(honest);

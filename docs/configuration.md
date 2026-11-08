@@ -102,16 +102,19 @@ Accepted by the type, read by neither path.
 | Option | Status |
 | --- | --- |
 | `args` | Not read. Launch flags come from the bundled Camoufox profile |
-| `browser` | Not read. `launchCamoufox()` creates the browser every run |
+| `browser` | Not read. On a bank whose Pipeline launches a browser, `launchCamoufox()` creates it every run |
 | `browserContext` | Not read on the Pipeline, which always creates its own context. The legacy path does honour it |
 | `executablePath` | Not read. The bundled Camoufox binary is always used |
 | `timeout` | Not read on either path. Use `defaultTimeout` instead, which the Pipeline does honour |
 
-The Pipeline always launches and closes its own Camoufox instance, so it ignores
-every option that tries to supply or configure the browser. `browser` and
-`browserContext` come from the external-browser arms of the options union;
-`args`, `executablePath` and `timeout` sit on `IDefaultBrowserOptions` alongside
-`shouldShowBrowser` and `prepareBrowser`, which the Pipeline **does** read.
+On a bank whose Pipeline launches a browser, it always launches and closes its own
+Camoufox instance, so it ignores every option that tries to supply or configure
+the browser. Banks that never open a browser — PayBox and Pepper among them — do
+not launch Camoufox at all, so none of these options apply to them; see
+[Browser options on browserless banks](#browser-options-on-browserless-banks).
+`browser` and `browserContext` come from the external-browser arms of the options
+union; `args`, `executablePath` and `timeout` sit on `IDefaultBrowserOptions`
+alongside `shouldShowBrowser` and `prepareBrowser`, which the Pipeline **does** read.
 
 None of these are covered by the warning above — supplying one is a deliberate
 act rather than a leftover flag; see

@@ -251,21 +251,45 @@ function resolveUrl(input: RequestInfo | URL): string {
 }
 
 /**
+ * Flatten a Headers object into the plain record the dispatchers read.
+ * @param headers - Headers carried by a Request.
+ * @returns Header record.
+ */
+function headersToRecord(headers: Headers): Record<string, string> {
+  const entries = Array.from(headers);
+  return Object.fromEntries(entries);
+}
+
+/**
+ * Carry a Request input's method, headers and body into the init the dispatchers read.
+ * An explicitly supplied init overrides the Request's own values.
+ * @param input - URL, Request, or string from fetch().
+ * @param init - Explicit request init (may be absent).
+ * @returns Init holding everything the call sent.
+ */
+async function normalizeInit(input: RequestInfo | URL, init?: RequestInit): Promise<RequestInit> {
+  if (typeof input === 'string' || input instanceof URL) return init ?? {};
+  const body = await input.clone().text();
+  const headers = headersToRecord(input.headers);
+  return { method: input.method, headers, body, ...init };
+}
+
+/**
  * Build the mock fetch closure.
  * @param mock - Mock state (tallies, auth server, accepted bearers).
  * @returns Fetch-like function.
  */
 function makeMockFetch(mock: IMockState): typeof globalThis.fetch {
   /**
-   * Mock fetch handler — synchronous dispatch + promise wrap.
+   * Mock fetch handler — normalizes a Request input, then dispatches synchronously.
    * @param input - URL or Request.
    * @param init - Request init.
    * @returns Response Promise.
    */
   async function mockFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    await Promise.resolve();
     const url = resolveUrl(input);
-    return dispatch({ url, init, mock });
+    const resolvedInit = await normalizeInit(input, init);
+    return dispatch({ url, init: resolvedInit, mock });
   }
   return mockFetch;
 }
