@@ -834,9 +834,12 @@ function ruleSixteenIssues(code: string): IIssue[] {
  * — a per-row base would make that check unwritable, and a typo in a
  * replacement would then ship as advice pointing nowhere.
  *
- * One row is deliberately prose instead of a path: `Mediator/Timing/TimingConfig.js`
+ * Two rows are deliberately prose instead of a path. `Mediator/Timing/TimingConfig.js`
  * split into several per-domain modules, so the right replacement depends on
- * which constant the caller wanted and no single path is correct. The suite
+ * which constant the caller wanted and no single path is correct.
+ * `Common/OtpDetector.js` was deleted with the legacy scraper chain and its
+ * behaviour now lives in the OtpTrigger and OtpFill phase actions, so the row
+ * stays to block the shim being recreated and points at those owners. The suite
  * partitions the rows accordingly rather than weakening the resolve check for
  * everyone.
  *
@@ -866,6 +869,10 @@ export const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
   ['src/Common/Config/OtpDetectorConfig.js', 'Scrapers/Pipeline/Mediator/Otp/OtpDetectorConfig.js'],
   ['src/Common/FormAnchor.js', 'Scrapers/Pipeline/Mediator/Form/FormAnchor.js'],
   ['src/Common/SelectorResolver.js', 'Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js'],
+  [
+    'src/Common/OtpDetector.js',
+    'the owning Scrapers/Pipeline/Mediator/OtpTrigger/OtpTriggerPhaseActions.js or Scrapers/Pipeline/Mediator/OtpFill/OtpFillPhaseActions.js module',
+  ],
   ['src/Common/SafeScreenshot.js', 'Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.js'],
   ['src/Common/Fetch.js', 'Scrapers/Pipeline/Mediator/Network/Fetch/index.js'],
   ['src/Common/Waiting.js', 'Scrapers/Pipeline/Mediator/Timing/Waiting.js'],

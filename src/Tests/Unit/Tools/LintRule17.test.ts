@@ -153,6 +153,7 @@ const EXPECTED_RETIRED_INVENTORY: readonly string[] = [
   'src/Common/ElementsInteractions.js',
   'src/Common/Fetch.js',
   'src/Common/FormAnchor.js',
+  'src/Common/OtpDetector.js',
   'src/Common/SafeScreenshot.js',
   'src/Common/SelectorResolver.js',
   'src/Common/Waiting.js',
@@ -191,12 +192,15 @@ const JEST_MODULE_APIS: readonly string[] = [
  * Rows whose replacement is prose rather than one importable path.
  *
  * `TimingConfig.js` split into several per-domain modules, so the correct
- * replacement depends on which constant the caller wanted. These rows are still
+ * replacement depends on which constant the caller wanted. `OtpDetector.js` was
+ * deleted outright and its behaviour is now owned by the OtpTrigger and OtpFill
+ * phase actions, so no single replacement file exists. These rows are still
  * flagged and still name a replacement; only the resolves-on-disk assertion is
  * inapplicable, so they are partitioned out rather than weakening that check
  * for every other row.
  */
 const PROSE_REPLACEMENTS: readonly string[] = [
+  'src/Common/OtpDetector.js',
   'src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.js',
 ];
 
