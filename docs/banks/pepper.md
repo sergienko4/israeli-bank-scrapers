@@ -4,6 +4,7 @@
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `CompanyTypes` | `Pepper`                                                                                                                                                     |
 | Engine         | **API-direct** (no browser)                                                                                                                                  |
+| Transport      | Node's own `fetch` (`nativeFetch`) — see [Headless transports](../architecture/pipeline.md#headless-transports)                                              |
 | Credentials    | `phoneNumber`, `password`, `otpCodeRetriever`                                                                                                                |
 | OTP            | Required                                                                                                                                                     |
 | Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                        |

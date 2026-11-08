@@ -133,13 +133,21 @@ describe('warnBrowserOnlyOptions — browserless transports', () => {
   });
 
   it.each([CompanyTypes.Pepper, CompanyTypes.PayBox])(
-    'stays silent on %s, whose run uses a browser',
+    'warns on %s, whose identity calls run over Node fetch',
     companyId => {
       const options = makeOptions(companyId, { shouldShowBrowser: true });
       const { emitted, returned } = captureWarnings(options);
-      expect({ emitted, returned }).toEqual({ emitted: [], returned: [] });
+      expect(returned).toEqual(['shouldShowBrowser']);
+      expect(emitted).toHaveLength(1);
+      expect(emitted[0]).toContain(`"${companyId}"`);
     },
   );
+
+  it('stays silent on a browser bank, which honours these options', () => {
+    const options = makeOptions(CompanyTypes.Leumi, { shouldShowBrowser: true });
+    const { emitted, returned } = captureWarnings(options);
+    expect({ emitted, returned }).toEqual({ emitted: [], returned: [] });
+  });
 });
 
 /** Transports that run no browser, listed here independently of production. */
@@ -164,6 +172,8 @@ const EXPECTED_BROWSERLESS: readonly CompanyTypes[] = [
   CompanyTypes.Yahav,
   CompanyTypes.OneZero,
   CompanyTypes.Pagi,
+  CompanyTypes.PayBox,
+  CompanyTypes.Pepper,
 ];
 
 const REGISTERED = Object.values(CompanyTypes).filter(

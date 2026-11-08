@@ -88,24 +88,19 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
   });
 
   /**
-   * Cross-bank TLS-dispose matrix: every `requiresBrowserTls=true`
-   * bank must expose a `dispose` hook on its headless ApiMediator so
-   * the pipeline can tear down the browser-backed TLS context. Driven
-   * via a single config array per CLAUDE.md's "config arrays mapped
-   * with .map() — no duplication" rule. OneZero is intentionally absent:
-   * it moved to a node:https client-cert (mTLS) transport with no browser
-   * to tear down, so it exposes NO dispose hook (see OZ-PCF-01 below).
+   * Cross-bank native-transport matrix: Pepper and PayBox run their identity
+   * calls over Node's own fetch, so their headless ApiMediator drives no
+   * browser and exposes NO `dispose` hook. Driven via a single config array
+   * per CLAUDE.md's "config arrays mapped with .map() — no duplication" rule.
+   * OneZero (node:https mTLS) follows the same contract — see OZ-PCF-01 below.
    */
-  const tlsDisposeCases = [
+  const nativeNoDisposeCases = [
     { testId: 'PP-PCF-02', bankName: 'Pepper', companyId: CompanyTypes.Pepper },
-    // PayBox lives in the same matrix because its dispose contract is
-    // identical to Pepper — the `bypassOriginChallenge` route-intercept
-    // detail is exercised at the strategy-level tests, not here.
     { testId: 'PB-PCF-04', bankName: 'PayBox', companyId: CompanyTypes.PayBox },
   ] as const;
 
-  tlsDisposeCases.forEach(({ testId, bankName, companyId }) => {
-    it(`${testId} — ${bankName} (requiresBrowserTls=true): mediator exposes dispose hook`, () => {
+  nativeNoDisposeCases.forEach(({ testId, bankName, companyId }) => {
+    it(`${testId} — ${bankName} (nativeFetch=true): mediator exposes no dispose hook`, () => {
       const descriptor = makeDescriptor(true, companyId);
       const ctx = buildInitialContext(
         descriptor,
@@ -113,7 +108,8 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
       );
       expect(ctx.apiMediator.has).toBe(true);
       if (ctx.apiMediator.has) {
-        expect(typeof ctx.apiMediator.value.dispose).toBe('function');
+        expect(ctx.apiMediator.value.dispose).toBeUndefined();
+        expect(ctx.apiMediator.value.drivesBrowser).toBeUndefined();
       }
     });
   });

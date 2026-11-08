@@ -31,7 +31,10 @@ const PEPPER_HEADLESS: IHeadlessUrlsConfig = {
   // PepperShape's per-call headers. Canary:
   // `Tests/Unit/Pipeline/Registry/Config/PipelineBankConfigPepperWaf.test.ts`.
   graphqlHeaders: { 'user-agent': 'okhttp/4.12.0' },
-  requiresBrowserTls: true,
+  nativeFetch: true,
+  // Every Pepper call is a single hop: a connect timeout is then retried on a
+  // fresh connection without resending a POST that already reached the server.
+  redirectPolicy: 'reject',
   phoneNumberFormat: 'international-flat',
 };
 

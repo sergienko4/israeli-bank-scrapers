@@ -26,6 +26,10 @@
  * No bank is contacted. The credentials are obvious dummies, and the harness
  * installs with `--ignore-scripts` so the native better-sqlite3 binding is
  * absent — Camoufox therefore refuses to start long before any navigation.
+ *
+ * The bank must be one whose pipeline opens a browser to log in. A bank that
+ * calls its API directly would skip the launch, reach the network and fail on
+ * the bank's reply, which is neither hermetic nor the outcome the gate asserts.
  */
 
 /** Printed only when the scrape produced an outcome the caller can act on. */
@@ -33,9 +37,8 @@ const SETTLED_MARKER = 'SETTLED';
 
 /** Obvious dummies — this program must never authenticate against anything. */
 const DUMMY_CREDENTIALS = {
-  phoneNumber: '972000000000',
+  username: 'not-a-real-user',
   password: 'not-a-real-password',
-  email: 'nobody@example.invalid',
 };
 
 /**
@@ -50,7 +53,7 @@ function report(label, detail) {
 
 function createConsumerScraper({ createScraper, CompanyTypes }) {
   return createScraper({
-    companyId: CompanyTypes.Pepper,
+    companyId: CompanyTypes.Leumi,
     startDate: new Date('2026-01-01'),
   });
 }

@@ -3,11 +3,9 @@
  * Pepper Transmit + GraphQL API so the pipeline can be exercised without
  * network. Rule #18: every value is SYNTHETIC (no real PII).
  *
- * Since Pepper adopted `requiresBrowserTls: true` (Camoufox identity
- * transport), the auth steps route through `page.evaluate(fn, args)`.
- * The CamoufoxJsMock fake-page-eval mode is toggled on so the evaluate
- * call runs the function in Node against this file's globalThis.fetch
- * override — same pattern as OneZeroFetchMock.
+ * Pepper runs on `nativeFetch: true`, so every auth and GraphQL call goes
+ * straight through `globalThis.fetch` and this override intercepts it with
+ * no browser involved.
  *
  * Auth routes are served by the synthetic Transmit server in
  * `PepperAuthServer.ts`, which verifies every request signature. GraphQL
@@ -15,7 +13,6 @@
  * explicitly accept, so a stale or never-renewed token cannot slip through.
  */
 
-import { setFakePageEvalMode } from '../../Mocks/CamoufoxJsMock.js';
 import type { IAuthRouteCounts, IAuthServer, ISeedDevice } from './PepperAuthServer.js';
 import { createPepperAuthServer, handleAuthRequest } from './PepperAuthServer.js';
 import { headerOf } from './PepperSignatureOracle.js';
@@ -57,19 +54,8 @@ const SYN_ACCOUNT_ID = 'acct-pep-001';
 const SYN_ACCOUNT_NUMBER = '40286139';
 const SYN_CUSTOMER_ID = 'cust-pep-001';
 const SYN_BALANCE = 2850.6;
-const MIN_OK = 200;
-const MAX_OK = 300;
 
 type JsonObject = Record<string, unknown>;
-
-/** Minimal Response shape the project consumes. */
-interface IResponseLike {
-  readonly ok: boolean;
-  readonly status: number;
-  readonly text: () => Promise<string>;
-  /** Real, empty Headers — read for Set-Cookie lines and edge verdicts. */
-  readonly headers: Headers;
-}
 
 /** Accumulates call counts. */
 interface ICallTally {
@@ -86,28 +72,22 @@ interface IMockState {
 }
 
 /**
- * Build a Response-like object.
+ * Build a real JSON Response, the shape the native transport clones and reads.
  * @param status - HTTP status.
  * @param bodyText - Serialized body.
- * @returns Response-like object.
+ * @returns Response carrying a JSON content-type.
  */
-function buildResponse(status: number, bodyText: string): IResponseLike {
-  const isOk = status >= MIN_OK && status < MAX_OK;
-  /**
-   * Closure returning the captured body.
-   * @returns Body text promise.
-   */
-  const textFn = (): Promise<string> => Promise.resolve(bodyText);
-  const headers = new Headers();
-  return { ok: isOk, status, text: textFn, headers };
+function buildResponse(status: number, bodyText: string): Response {
+  const headers = new Headers({ 'content-type': 'application/json' });
+  return new Response(bodyText, { status, headers });
 }
 
 /**
- * Wrap a JSON object as a 200 Response-like.
+ * Wrap a JSON object as a 200 Response.
  * @param payload - JSON-serializable payload.
- * @returns 200 Response-like.
+ * @returns 200 Response.
  */
-function jsonOk(payload: JsonObject): IResponseLike {
+function jsonOk(payload: JsonObject): Response {
   const bodyText = JSON.stringify(payload);
   return buildResponse(200, bodyText);
 }
@@ -219,9 +199,9 @@ interface IDispatchArgs {
 /**
  * Serve an auth route through the synthetic Transmit server.
  * @param args - URL + init + mock state bundle.
- * @returns Response-like.
+ * @returns Response.
  */
-function dispatchAuth(args: IDispatchArgs): IResponseLike {
+function dispatchAuth(args: IDispatchArgs): Response {
   args.mock.tally.identity += 1;
   const headers = headersOf(args.init);
   const bodyText = typeof args.init?.body === 'string' ? args.init.body : '';
@@ -233,9 +213,9 @@ function dispatchAuth(args: IDispatchArgs): IResponseLike {
 /**
  * Serve a GraphQL operation, refusing any bearer the mock never accepted.
  * @param args - URL + init + mock state bundle.
- * @returns Response-like.
+ * @returns Response.
  */
-function dispatchGraphql(args: IDispatchArgs): IResponseLike {
+function dispatchGraphql(args: IDispatchArgs): Response {
   args.mock.tally.graphql += 1;
   const headers = headersOf(args.init);
   const bearer = headerOf(headers, 'authorization');
@@ -250,9 +230,9 @@ function dispatchGraphql(args: IDispatchArgs): IResponseLike {
 /**
  * Dispatch a URL + RequestInit to a synthetic response.
  * @param args - URL + init + mock state bundle.
- * @returns Response-like.
+ * @returns Response.
  */
-function dispatch(args: IDispatchArgs): IResponseLike {
+function dispatch(args: IDispatchArgs): Response {
   if (args.url.includes('/auth/')) return dispatchAuth(args);
   if (args.url.includes('/graphql')) return dispatchGraphql(args);
   const notFoundText = JSON.stringify({ message: `unmocked: ${args.url}` });
@@ -271,22 +251,45 @@ function resolveUrl(input: RequestInfo | URL): string {
 }
 
 /**
+ * Flatten a Headers object into the plain record the dispatchers read.
+ * @param headers - Headers carried by a Request.
+ * @returns Header record.
+ */
+function headersToRecord(headers: Headers): Record<string, string> {
+  const entries = Array.from(headers);
+  return Object.fromEntries(entries);
+}
+
+/**
+ * Carry a Request input's method, headers and body into the init the dispatchers read.
+ * An explicitly supplied init overrides the Request's own values.
+ * @param input - URL, Request, or string from fetch().
+ * @param init - Explicit request init (may be absent).
+ * @returns Init holding everything the call sent.
+ */
+async function normalizeInit(input: RequestInfo | URL, init?: RequestInit): Promise<RequestInit> {
+  if (typeof input === 'string' || input instanceof URL) return init ?? {};
+  const body = await input.clone().text();
+  const headers = headersToRecord(input.headers);
+  return { method: input.method, headers, body, ...init };
+}
+
+/**
  * Build the mock fetch closure.
  * @param mock - Mock state (tallies, auth server, accepted bearers).
  * @returns Fetch-like function.
  */
 function makeMockFetch(mock: IMockState): typeof globalThis.fetch {
   /**
-   * Mock fetch handler — synchronous dispatch + promise wrap.
+   * Mock fetch handler — normalizes a Request input, then dispatches synchronously.
    * @param input - URL or Request.
    * @param init - Request init.
-   * @returns Response-like Promise.
+   * @returns Response Promise.
    */
   async function mockFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    await Promise.resolve();
     const url = resolveUrl(input);
-    const resp = dispatch({ url, init, mock });
-    return resp as unknown as Response;
+    const resolvedInit = await normalizeInit(input, init);
+    return dispatch({ url, init: resolvedInit, mock });
   }
   return mockFetch;
 }
@@ -329,14 +332,12 @@ export function installPepperFetchMock(options: IPepperMockOptions = {}): IMockH
   const mock = createMockState(options);
   const mockFetch = makeMockFetch(mock);
   (globalThis as unknown as { fetch: typeof globalThis.fetch }).fetch = mockFetch;
-  setFakePageEvalMode(true);
   /**
-   * Restore the original fetch + reset the Camoufox fake-page-eval mode.
+   * Restore the original fetch.
    * @returns True once restored.
    */
   const dispose = (): boolean => {
     globalThis.fetch = previousFetch;
-    setFakePageEvalMode(false);
     return true;
   };
   /**

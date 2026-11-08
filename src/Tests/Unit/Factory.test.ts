@@ -73,7 +73,7 @@ describe('createScraper — browser options on a browserless bank', () => {
 
   it('stays silent for a browser-backed bank given the same option', () => {
     const emitted = warningsFromCreate({
-      companyId: CompanyTypes.Pepper,
+      companyId: CompanyTypes.Leumi,
       startDate: new Date(),
       shouldShowBrowser: true,
     });

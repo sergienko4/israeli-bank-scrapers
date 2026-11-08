@@ -71,16 +71,22 @@ SETTLED_MARKER="SETTLED"
 # resolving a devDependency at runtime.
 TRANSPORT_FAILURE="unable to determine transport target"
 
-# The one outcome a hermetic run may reach. Both strings are this repo's own
-# (`LocalFailureReasons.ts`, `CamoufoxLauncher.ts`) and are pinned by
-# unit tests, so they cannot drift underneath the gate the way a third-party
-# error message could.
+# The one outcome a hermetic run may reach: the INIT phase of a browser-backed
+# bank (Leumi) cannot start Camoufox, because the harness installs with
+# `--ignore-scripts` and so never builds the native better-sqlite3 binding.
+# The string is this repo's own (`CamoufoxLauncher.ts`) and is pinned by a unit
+# test, so it cannot drift underneath the gate the way a third-party error
+# message could.
+#
+# The bank must be a browser-backed one. A bank that calls its API directly
+# never reaches the launch, so a dummy-credential scrape would leave the
+# machine and fail on the bank's reply - neither hermetic nor this outcome.
 #
 # Asserting the expected outcome POSITIVELY is the point. Accepting anything
 # that merely settled would let an unrelated regression inside the package -
 # a TypeError on import, a reworked error message - report success, because
 # it too would print a settled line.
-EXPECTED_OUTCOME="camoufox launch failed"
+EXPECTED_OUTCOME="Camoufox could not start: the native better-sqlite3 binding is missing"
 
 # A scrape reports failure by returning a result. `SETTLED throw` means an
 # exception escaped to the consumer, which is a defect in its own right.
