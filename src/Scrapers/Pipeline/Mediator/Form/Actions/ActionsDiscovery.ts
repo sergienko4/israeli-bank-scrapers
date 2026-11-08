@@ -10,7 +10,7 @@
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { ScraperLogger } from '../../../Logging/Debug.js';
 import { type MaskedText, maskVisibleText } from '../../../Types/LogEvent.js';
-import type { ILoginFieldDiscovery, IResolvedTarget } from '../../../Types/PipelineContext.js';
+import type { IResolvedTarget } from '../../../Types/PipelineContext.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, succeed } from '../../../Types/Procedure.js';
 import type { IActionMediator } from '../../Elements/ElementMediator.js';
@@ -305,14 +305,16 @@ function mapClickRejection(error: unknown): Procedure<boolean> {
  * Extracted from {@link tryClickSubmitFromDiscovery} for cap drain.
  * @param executor - Sealed action mediator.
  * @param target - Pre-resolved submit target.
+ * @param isSingleAttempt - Disable the click-strategy fallback.
  * @returns Succeed(true) on click; fail with normalized message otherwise.
  */
-async function clickDiscoveryTarget(
+function clickDiscoveryTarget(
   executor: IActionMediator,
   target: IResolvedTarget,
+  isSingleAttempt?: true,
 ): Promise<Procedure<boolean>> {
   return executor
-    .clickElement({ contextId: target.contextId, selector: target.selector })
+    .clickElement({ contextId: target.contextId, selector: target.selector, isSingleAttempt })
     .then((): Procedure<boolean> => succeed(true))
     .catch(mapClickRejection);
 }
@@ -321,33 +323,34 @@ async function clickDiscoveryTarget(
  * Try clicking the submit button from a PRE-resolved discovery target.
  * Mirrors `tryClickSubmit` shape so the discovery path reports real
  * click outcomes instead of swallowing errors silently.
- * @param executor - Sealed action mediator.
- * @param discovery - Login field discovery with optional submit target.
- * @param logger - Pipeline logger.
+ * @param args - Fill inputs including the resolved submit target and policy.
  * @returns succeed(true) on click, succeed(false) when no submit target,
  *   fail when the click rejected.
  */
 async function tryClickSubmitFromDiscovery(
-  executor: IActionMediator,
-  discovery: ILoginFieldDiscovery,
-  logger: ScraperLogger,
+  args: IFillFromDiscoveryArgs,
 ): Promise<Procedure<boolean>> {
+  const { executor, discovery, logger } = args;
   if (!discovery.submitTarget.has) return succeed(false);
   const target = discovery.submitTarget.value;
   logger.debug({ method: 'click', url: maskVisibleText(target.candidateValue) });
-  return clickDiscoveryTarget(executor, target);
+  return clickDiscoveryTarget(executor, target, args.isSingleSubmit);
 }
 
 /**
- * Run the discovery-mode submit attempts (Enter + Click) and capture
- * both outcomes. Mirrors `runSubmitPhase` so the caller can decide.
+ * Run discovery-mode submission: one strict click when requested,
+ * otherwise the existing Enter + Click path.
  * @param args - Bundled fill-from-discovery arguments.
  * @returns Bundle of `didEnter` + `clickResult`.
  */
 async function submitViaDiscovery(args: IFillFromDiscoveryArgs): Promise<ISubmitPhaseResult> {
+  if (args.isSingleSubmit) {
+    const clickResult = await tryClickSubmitFromDiscovery(args);
+    return { didEnter: false, clickResult };
+  }
   const { executor, logger, discovery } = args;
   const didEnter = await tryEnterFromDiscovery(executor, discovery.activeFrameId, logger);
-  const clickResult = await tryClickSubmitFromDiscovery(executor, discovery, logger);
+  const clickResult = await tryClickSubmitFromDiscovery(args);
   return { didEnter, clickResult };
 }
 
@@ -367,7 +370,7 @@ async function runDiscoveryPrereqs(args: IFillFromDiscoveryArgs): Promise<Proced
   return succeed(true);
 }
 
-export { type IFillFromDiscoveryArgs } from './ActionsTypes.js';
+export type { IFillFromDiscoveryArgs } from './ActionsTypes.js';
 
 /**
  * Resolve the fired method, log it, and return the success Procedure.

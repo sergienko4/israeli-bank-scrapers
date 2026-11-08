@@ -70,6 +70,7 @@ export interface IFillFromDiscoveryArgs {
   readonly config: ILoginConfig;
   readonly creds: Record<string, string>;
   readonly logger: ScraperLogger;
+  readonly isSingleSubmit?: true;
 }
 
 /**

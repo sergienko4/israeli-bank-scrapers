@@ -276,14 +276,11 @@ the account's concurrent-job limit.
   the memory gate cannot check out the merge base, reports "not measured"
   and passes.
 - **Camoufox and the consumer install.** When the E2E factory tests run,
-  Camoufox is on disk during the consumer install. The smoke scrapes Leumi,
-  a bank whose pipeline still opens a browser, so its scrape ends in the
-  expected `Camoufox could not start: the native better-sqlite3 binding is
-  missing`. Without Camoufox, `camoufox-js` first downloads it and then fails
-  to start, so the verdict is the same either way. The failure is raised in
-  the INIT phase, before any request is sent. A bank that calls its API
-  directly cannot be the smoke's target: it would skip the launch and send a
-  request to the bank.
+  Camoufox is on disk during the consumer install. The smoke uses native
+  Leumi and substitutes a synthetic 503 response for `fetch`, so the expected
+  failure is `prime HTTP 503`. No request is sent to the bank. The check
+  requires both the synthetic-request marker and the expected failure, rather
+  than accepting any settled result.
 - **Time limits.** Each step keeps its old job's limit: 10 minutes for each
   build step, 15 for the E2E factory tests, 20 for the consumer install and
   30 for each memory step. The job limit is the longest chain,

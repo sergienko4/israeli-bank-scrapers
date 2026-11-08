@@ -14,6 +14,9 @@
  * resolves through the deep code paths.
  */
 
+import { jest } from '@jest/globals';
+
+import { CompanyTypes } from '../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import type { IRaceResult } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
@@ -32,6 +35,7 @@ import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 /** Anchor option supplied to deep mediator stubs. */
 type AnchorOption = Option<IFormAnchor>;
 import type {
+  IActionContext,
   IBrowserState,
   ILoginFieldDiscovery,
   IPipelineContext,
@@ -155,6 +159,56 @@ function makeFieldCtx(page: IBrowserState['page']): IFieldContext {
     resolvedKind: 'placeholder',
     resolvedVia: 'placeholder',
   } as unknown as IFieldContext;
+}
+
+/**
+ * Prepare discovered targets for a single-submit login.
+ * @param hasSubmit - Whether the submit target was discovered.
+ * @returns Synthetic discovery.
+ */
+function makeSingleSubmitDiscovery(hasSubmit: boolean): ILoginFieldDiscovery {
+  const field: IResolvedTarget = {
+    selector: 'text=Password',
+    contextId: 'main',
+    kind: 'textContent',
+    candidateValue: 'Password',
+  };
+  const submit: IResolvedTarget = { ...field, selector: 'text=Login', candidateValue: 'Login' };
+  const submitTarget = hasSubmit ? some(submit) : none();
+  return {
+    targets: new Map([['password', field]]),
+    formAnchor: none(),
+    activeFrameId: 'main',
+    submitTarget,
+  };
+}
+
+/**
+ * Prepare the real Leumi policy with a scripted action executor.
+ * @param hasSubmit - Whether a submit target is present.
+ * @param clickFails - Whether the click rejects.
+ * @returns Sealed context and action spies.
+ */
+async function makeSingleSubmitAttempt(
+  hasSubmit: boolean,
+  clickFails: boolean,
+): Promise<{
+  input: IActionContext;
+  pressEnter: jest.Mock<Promise<true>, []>;
+  clickElement: jest.Mock<Promise<true>, []>;
+}> {
+  const { resolvePipelineBankConfig } =
+    await import('../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
+  const config = resolvePipelineBankConfig(CompanyTypes.Leumi);
+  if (config === false) throw new TypeError('missing Leumi configuration');
+  const discovery = makeSingleSubmitDiscovery(hasSubmit);
+  const context = makeMockContext({ config, loginFieldDiscovery: some(discovery) });
+  const pressEnter = jest.fn((): Promise<true> => Promise.resolve(true));
+  const clickElement = jest.fn((): Promise<true> =>
+    clickFails ? Promise.reject(new Error('click failed')) : Promise.resolve(true),
+  );
+  const executor = makeMockActionExecutor({ pressEnter, clickElement });
+  return { input: toActionCtx(context, executor), pressEnter, clickElement };
 }
 
 /**
@@ -311,6 +365,35 @@ describe('executeFillAndSubmitFromDiscovery — fillFromDiscovery propagation', 
     } as unknown as ILoginConfig;
     const result = await executeFillAndSubmitFromDiscovery(cfg, ctx);
     expect(typeof result.success).toBe('boolean');
+  });
+
+  it('submits Leumi credentials with one click rather than Enter and click', async () => {
+    const { input, pressEnter, clickElement } = await makeSingleSubmitAttempt(true, false);
+    const result = await executeFillAndSubmitFromDiscovery(CFG_PWD_AND_SUBMIT, input);
+    expect(result.success).toBe(true);
+    expect(pressEnter).not.toHaveBeenCalled();
+    expect(clickElement).toHaveBeenCalledTimes(1);
+    expect(clickElement).toHaveBeenCalledWith({
+      contextId: 'main',
+      selector: 'text=Login',
+      isSingleAttempt: true,
+    });
+  });
+
+  it('does not press Enter after the Leumi submit click rejects', async () => {
+    const { input, pressEnter, clickElement } = await makeSingleSubmitAttempt(true, true);
+    const result = await executeFillAndSubmitFromDiscovery(CFG_PWD_AND_SUBMIT, input);
+    expect(result.success).toBe(false);
+    expect(pressEnter).not.toHaveBeenCalled();
+    expect(clickElement).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails without a Leumi submit target rather than pressing Enter', async () => {
+    const { input, pressEnter, clickElement } = await makeSingleSubmitAttempt(false, false);
+    const result = await executeFillAndSubmitFromDiscovery(CFG_PWD_AND_SUBMIT, input);
+    expect(result.success).toBe(false);
+    expect(pressEnter).not.toHaveBeenCalled();
+    expect(clickElement).not.toHaveBeenCalled();
   });
 });
 

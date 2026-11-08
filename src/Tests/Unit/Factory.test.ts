@@ -71,13 +71,14 @@ describe('createScraper — browser options on a browserless bank', () => {
     expect(emitted[0]).toContain('shouldShowBrowser');
   });
 
-  it('stays silent for a browser-backed bank given the same option', () => {
+  it('warns for Leumi when passed a browser-only option', () => {
     const emitted = warningsFromCreate({
       companyId: CompanyTypes.Leumi,
       startDate: new Date(),
       shouldShowBrowser: true,
     });
-    expect(emitted).toEqual([]);
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0]).toContain('shouldShowBrowser');
   });
 
   it('stays silent for a browserless bank given a clean bag', () => {

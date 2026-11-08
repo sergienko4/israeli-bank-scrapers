@@ -389,6 +389,8 @@ interface IClickElementArgs {
   readonly selector: string;
   /** Force click bypassing actionability checks (for hidden toggles). */
   readonly isForce?: boolean;
+  /** Propagate click failures without trying another click strategy. */
+  readonly isSingleAttempt?: true;
   /** Optional 0-based nth index when the selector matches multiple DOM
    *  elements (Beinleumi legacy + modern buttons share aria-label).
    *  Default `.first()` (== `.nth(0)`); ACTION-level iteration provides

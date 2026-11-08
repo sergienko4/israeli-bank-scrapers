@@ -7,8 +7,8 @@
  * honest try is enough when the login-completion poll exhausts its budget
  * without the form leaving the screen.
  *
- * Every OTHER login failure (e.g. wrong password / InvalidPassword) keeps
- * its retry so a transient WAF challenge can still clear on the pulse.
+ * By default, other login failures keep their retry so a transient WAF
+ * challenge can still clear on the pulse. Banks may opt out.
  *
  * Each case drives the exported reducePhases over a single failing phase
  * and counts how many times that phase's run is invoked: 1 = no retry,
@@ -17,6 +17,7 @@
 
 import { jest } from '@jest/globals';
 
+import { CompanyTypes } from '../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import { reducePhases } from '../../../../Scrapers/Pipeline/Core/Executor/PipelineReducer.js';
 import type { BasePhase } from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
@@ -49,13 +50,15 @@ function makeFailingPhase(
  * Drive reducePhases over a single failing phase and return the run spy.
  * @param name - Phase name.
  * @param failure - Failure the phase returns on every invocation.
+ * @param config - Bank policy applied to the reducer.
  * @returns The run spy (assert its call count).
  */
 async function driveReducer(
   name: PhaseName,
   failure: Procedure<IPipelineContext>,
+  config: IPipelineContext['config'] = makeMockContext().config,
 ): Promise<jest.Mock> {
-  const ctx = makeMockContext();
+  const ctx = makeMockContext({ config });
   const { phase, run } = makeFailingPhase(name, failure);
   const tracker = { phases: [phase], interceptors: [], lastCtx: ctx };
   await reducePhases(tracker, ctx, 0);
@@ -91,6 +94,32 @@ describe('PipelineReducer — narrow login no-retry', () => {
       const failure = fail(ScraperErrorTypes.Generic, msg);
       const run = await driveReducer('dashboard', failure);
       expect(run).toHaveBeenCalledTimes(2);
+    },
+    RETRY_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'does not repeat a failed Leumi browser login',
+    async () => {
+      const { resolvePipelineBankConfig } =
+        await import('../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
+      const config = resolvePipelineBankConfig(CompanyTypes.Leumi);
+      if (config === false) throw new TypeError('missing Leumi configuration');
+      const failure = fail(ScraperErrorTypes.InvalidPassword, 'InvalidPassword');
+      const run = await driveReducer('login', failure, config);
+      expect(run).toHaveBeenCalledTimes(1);
+    },
+    RETRY_TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'does not retry other phases when the bank opts out',
+    async () => {
+      const base = makeMockContext().config;
+      const config = { ...base, disablePhaseRetry: true as const };
+      const failure = fail(ScraperErrorTypes.Generic, 'synthetic failure');
+      const run = await driveReducer('dashboard', failure, config);
+      expect(run).toHaveBeenCalledTimes(1);
     },
     RETRY_TEST_TIMEOUT_MS,
   );

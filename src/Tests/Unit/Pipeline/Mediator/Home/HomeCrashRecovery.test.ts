@@ -10,6 +10,7 @@
 
 import type { Page } from 'playwright-core';
 
+import { CompanyTypes } from '../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import {
@@ -22,12 +23,14 @@ import {
   type IHomeRecoveryArgs,
   recoverFromClientCrash,
   resolveHomeWithRecovery,
+  toRecoveryArgs,
 } from '../../../../../Scrapers/Pipeline/Mediator/Home/HomeCrashRecovery.js';
 import {
   type IHomeDiscovery,
   NAV_STRATEGY,
 } from '../../../../../Scrapers/Pipeline/Mediator/Home/HomeResolver.js';
 import { fail, type Procedure, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 
 const LOG: ScraperLogger = {
   /**
@@ -257,5 +260,28 @@ describe('resolveHomeWithRecovery', () => {
     const result = await resolveHomeWithRecovery(args);
     expect(result.success).toBe(true);
     expect(calls.navigateTo).toBe(1);
+  });
+
+  it('does not reload a crashed Leumi home page when retries are disabled', async () => {
+    const calls: IRecoveryCalls = { navigateTo: 0 };
+    const mediator = makeRecoveryMediator(
+      {
+        crashCount: 1,
+        visibleQueue: [NOT_FOUND_RESULT, DIRECT_TRIGGER],
+        attrsByName: { ...DIRECT_ATTRS },
+        hrefValue: 'https://test.bank/login',
+      },
+      calls,
+    );
+    const { resolvePipelineBankConfig } =
+      await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
+    const config = resolvePipelineBankConfig(CompanyTypes.Leumi);
+    if (config === false) throw new TypeError('missing Leumi configuration');
+    const context = makeMockContext({ config });
+    const page = makePage();
+    const args = toRecoveryArgs(context, mediator, page);
+    const result = await resolveHomeWithRecovery(args);
+    expect(result.success).toBe(false);
+    expect(calls.navigateTo).toBe(0);
   });
 });

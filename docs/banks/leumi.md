@@ -3,10 +3,11 @@
 |                |                                                                                                                                                          |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `CompanyTypes` | `Leumi`                                                                                                                                                  |
-| Engine         | Browser (Pipeline)                                                                                                                                       |
+| Engine         | **API-direct** (no browser)                                                                                                                              |
+| Transport      | Node's own `fetch` with a session cookie jar                                                                                                             |
 | Credentials    | `username`, `password`                                                                                                                                   |
-| OTP            | —                                                                                                                                                        |
-| Phase chain    | INIT → HOME → LOGIN → BIND-API-MEDIATOR → API-DIRECT-SCRAPE → TERMINATE (hard-model post-auth)                                                          |
+| OTP            | Unsupported challenges stop the run                                                                                                                      |
+| Phase chain    | API-DIRECT-CALL → API-DIRECT-SCRAPE                                                                                                                      |
 | Source         | [`Banks/Leumi/LeumiPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Leumi/LeumiPipeline.ts) |
 
 ## Quick example
@@ -25,45 +26,83 @@ const result = await scraper.scrape({
 });
 ```
 
-## Pipeline specifics
+## Login and configuration
 
-Leumi is a **real-browser** Pipeline bank: Camoufox drives `https://www.leumi.co.il` through a generic (visible-text) login, then a **hard-model** post-auth shape issues Leumi's exact WCF API calls directly — no generic network-traffic discovery. Its config entry ([`Registry/Config/PipelineBankConfig.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Registry/Config/PipelineBankConfig.ts)) is minimal:
+Leumi logs in and reads financial data over its web APIs with Node's own
+`fetch`. Every run starts with a fresh session and key exchange. The SDK
+reference is discovered but its code is not executed; its bytes must match
+the reviewed digest before credentials are submitted. An SDK change therefore
+stops login until the integration is reviewed and updated.
 
-| Key                | Value                                                                             |
-| ------------------ | --------------------------------------------------------------------------------- |
-| `urls.base`        | `https://www.leumi.co.il` — INIT navigates here; LOGIN reuses it as the login URL |
-| `balanceKind`      | `ACCOUNT` — live balance resolved per bank-account by the hard-model balance step |
-| `authStrategyKind` | `SESSION_COOKIE` — the session is carried by cookies, not a bearer token          |
+Credentials remain `username` and `password`, including the original username
+casing. Unsupported challenges, including OTP, stop the run; there is no
+browser fallback. Password-change requests are reported as `CHANGE_PASSWORD`.
+The pipeline does not automatically retry failed phases or connect timeouts.
+An invalid `startDate` is refused before any bank request.
+HTTP 429 is reported as `WAF_BLOCKED` and stops the run without a retry.
 
-**Login is zero-config.** `LEUMI_LOGIN` ships **empty selector arrays** and the migration added **no `LoginWK` entries** — `SelectorResolver` matches the `username`/`password` inputs and submit button from the generic Well-Known login candidates (visible text), per the repo's ZERO-CSS-selectors rule. The builder wires only `.withBrowser()` + `.withDeclarativeLogin(LEUMI_LOGIN)`, so there is no PRE-LOGIN and no OTP.
+The internal `disablePhaseRetry` policy also prevents HOME crash-recovery
+reloads and limits browser login to one click without strategy fallback when
+an opting-in bank uses browser phases. It does not disable passive
+observation polling. Leumi separately disables native connect retries.
 
-**Login + response normalization extend generic Well-Known dictionaries.** The migration added bank-specific values to generic WK dictionaries. With the hard-model post-auth path, the endpoint-discovery patterns (`ScrapeWK` / `DashboardWK` below) are **legacy** — retained but superseded by the shape's direct WCF broker call (`leumiBrokerUrl(UC_SO_27_GetBusinessAccountTrx)`); the field-mapping and login entries stay active:
-
-| Generic dictionary       | Leumi's addition                                                         | Why it's needed                                                                                                                                                                                        |
-| ------------------------ | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `ScrapeWK.ts`            | `/GetBusinessAccountTrx/i` list-endpoint pattern                         | (legacy) generic-discovery pattern for Leumi's `Trx`-abbreviated WCF txn module; the hard-model shape now calls this module directly                                                                   |
-| `DashboardWK.ts`         | `/\bBusinessAccountTrx\b/i` route pattern                                | (legacy) Leumi's SPA hash-route for the transactions view; unused now that the hard-model path has no DASHBOARD phase                                                                                  |
-| `ScrapeFieldMappings.ts` | `accountsItems` container · `DateUTC` date alias · `FITID` (fallback `ReferenceNumberLong`) | maps Leumi's WCF `UC_SO_27_GetBusinessAccountTrx` rows (and the accounts container) onto the canonical shape — without the `DateUTC` alias, `autoMapTransaction` rejects every Leumi txn as empty-date |
-| `ScrapeIdFields.ts`      | `MaskedNumber` · `AccountIndex`                                          | Leumi's account display-id / query-id field names                                                                                                                                                      |
-| `SharedWK.ts`            | `'סגירה'` close-popup text (ariaLabel + exactText)                       | dismiss Leumi's cookie-consent overlay so HOME can reach the login link                                                                                                                                |
-
-To add a bank like this, see [Adding a new bank](../contributing/new-bank.md) — it walks through the same builder-and-Well-Known steps Leumi uses.
+Browser options such as `preparePage`, `prepareBrowser` and
+`shouldShowBrowser` no longer apply to Leumi. `createScraper` warns when they
+are supplied; remove them from Leumi options.
 
 ## Known quirks
 
-- HOME dismisses Leumi's cookie-consent overlay (the `'סגירה'` close control added to `SharedWK`) before it can reach the login link.
-- No OTP — plain `username`/`password` login. The login flow is generic (visible-text WK candidates); post-auth uses the hard-model shape (see below), **not** generic network-traffic discovery.
-- Transactions come from Leumi's WCF module `UC_SO_27_GetBusinessAccountTrx`, which the hard-model shape POSTs directly; its rows carry the date as `DateUTC` and the per-txn identifier as `FITID` (the OFX "Financial Institution Transaction ID"), normalized via the field mappings above. `ReferenceNumberLong` is kept only as a fallback alias — it is not unique per transaction and repeats within a single response.
+- The supported login is a password challenge; an OTP or other unsupported challenge stops rather than being submitted.
+- Transactions come from Leumi's WCF module `UC_SO_27_GetBusinessAccountTrx`; its rows carry the date as `DateUTC` and the per-txn identifier as `FITID`. `ReferenceNumberLong` is a fallback alias, not a unique identifier.
 - Balance is per-bank-account (`balanceKind: ACCOUNT`), resolved by the hard-model balance step.
 
 ## Hard-model post-auth
 
-After login, Leumi uses the hard-model post-auth path
-(`withBrowserApiDirect`): the exact API calls are issued directly through the
-live login page instead of the generic AUTH-DISCOVERY / ACCOUNT-RESOLVE /
-DASHBOARD / SCRAPE / BALANCE-RESOLVE chain. The bank's `IApiDirectScrapeShape`
+After login, Leumi uses the hard-model post-auth path. The bank's
+`IApiDirectScrapeShape`
 (account-list, balance, and transactions helpers under `Banks/Leumi/scrape/`:
 `extractAccounts`, `balanceVars` / `balanceExtract`, `txnsVars` /
 `txnsExtractPage`) declares each endpoint. See
 [api-direct-scrape](../phases/api-direct-scrape.md) for the phase contract.
 
+The internal `LEUMI_BODY_CHECKS` require each WCF response to pass its
+operation-specific envelope and status check before account, balance or
+transaction fields are extracted. `validAccounts` rejects missing or duplicate
+account identifiers before account-specific calls, and
+`validTransactionAmount` requires the shared mapper to use the row's own
+`Amount`, rejects nested or non-finite original amounts and refuses sign
+changes from unrelated fields. Leumi is explicitly mapped as a bank, not a
+card issuer.
+`leumiResultGuard` rejects missing loss evidence or observed transaction loss.
+A genuine zero balance and an empty
+transaction list remain valid. An unproven history window is not itself
+evidence of loss or a claim of complete coverage.
+
+## Native login details
+
+The registered `buildLeumiNativePipeline` descriptor uses
+`LEUMI_API_DIRECT_CALL` for the login steps and `LEUMI_HEADLESS` for the
+native transport, cookie jar, redirect policy and response limits.
+
+For maintainers, `LEUMI_BOOTSTRAP_PATHS` and `LEUMI_BOOTSTRAP_STEPS` define
+fresh entry, gatekeeper, pinned SDK verification and session reset;
+`CLIENT_PROFILE` supplies the observed request profile. The SDK is checked
+before identity submission and is never executed.
+`LEUMI_TRANSMIT_PATHS`, `LEUMI_TRANSMIT_SEEDS` and
+`LEUMI_TRANSMIT_STEPS` define the fresh encrypted login. Its request templates
+are `LEUMI_EXCHANGE_BODY`, `LEUMI_LOGIN_BODY` and `LEUMI_PASSWORD_BODY`;
+`LEUMI_LOGIN_CLASSIFIER` and `LEUMI_PASSWORD_CLASSIFIER` reject unsupported
+challenge and completion states.
+
+The handoff uses `LEUMI_PORTAL_PATHS`, `LEUMI_PORTAL_SEEDS` and
+`LEUMI_PORTAL_STEPS`. `LEUMI_JWT_CAPTURE` binds issued claims to the current
+flow and `LEUMI_SITE_GUARD` admits only supported site codes. `ENTRY_RULES`,
+`SSO_RULES` and `SPA_RULES` constrain destinations under `ORIGIN`;
+`PAGE_LIMIT` bounds HTML and `COMMON_HEADERS` carries the observed request
+profile. The `/authenticate` response is parsed as JSON despite its observed
+`text/html` media type; other JSON endpoints retain their normal media-type
+checks. The token binding parses claims but does not independently verify the
+JWT signature.
+
+The SPA handoff selects one distinct matching serialized `SessionID` from
+active script syntax. It does not establish the assignment's provenance.
