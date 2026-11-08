@@ -13,6 +13,26 @@ Raised from `>= 22.14.0` in 9.0.0. Enforced by the `engines` field, so npm warns
 
 ## Release notes
 
+### 10.0.0 - Behatsdaa and Beyahad Bishvilha are removed; `createScraper` throws for an unknown company
+
+**Impact:** Breaking
+
+`CompanyTypes.Behatsdaa` (`'behatsdaa'`) and `CompanyTypes.BeyahadBishvilha` (`'beyahadBishvilha'`) are no longer exported, and their `SCRAPERS` entries are gone. They were the last two scrapers on the legacy browser chain, which is removed with them. `createScraper` now resolves every company through the Pipeline registry, so a company id that is not registered throws `ScraperError('unknown company id <id>')` instead of falling back to a legacy scraper. The other 17 institutions are unchanged.
+
+**What to do:** Stop passing these two company ids. TypeScript callers see a compile error on the removed enum members; JavaScript callers get the thrown `ScraperError` at `createScraper`. If you still need either institution, pin `^9` until you have another source for it.
+
+Before:
+
+```js
+createScraper({ companyId: CompanyTypes.Behatsdaa, startDate });
+```
+
+After:
+
+```js
+// Removed: pick a supported company from CompanyTypes, or pin ^9.
+```
+
 ### 9.1.0 - API-direct login failures name the step and HTTP status
 
 **Impact:** Behavior

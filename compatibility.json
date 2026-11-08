@@ -8,6 +8,15 @@
   },
   "entries": [
     {
+      "version": "10.0.0",
+      "impact": "breaking",
+      "title": "Behatsdaa and Beyahad Bishvilha are removed; `createScraper` throws for an unknown company",
+      "detail": "`CompanyTypes.Behatsdaa` (`'behatsdaa'`) and `CompanyTypes.BeyahadBishvilha` (`'beyahadBishvilha'`) are no longer exported, and their `SCRAPERS` entries are gone. They were the last two scrapers on the legacy browser chain, which is removed with them. `createScraper` now resolves every company through the Pipeline registry, so a company id that is not registered throws `ScraperError('unknown company id <id>')` instead of falling back to a legacy scraper. The other 17 institutions are unchanged.",
+      "action": "Stop passing these two company ids. TypeScript callers see a compile error on the removed enum members; JavaScript callers get the thrown `ScraperError` at `createScraper`. If you still need either institution, pin `^9` until you have another source for it.",
+      "before": "createScraper({ companyId: CompanyTypes.Behatsdaa, startDate });",
+      "after": "// Removed: pick a supported company from CompanyTypes, or pin ^9."
+    },
+    {
       "version": "9.1.0",
       "impact": "behavior",
       "title": "API-direct login failures name the step and HTTP status",
