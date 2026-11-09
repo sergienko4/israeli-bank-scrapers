@@ -35,8 +35,6 @@ PayBox sends no `Authorization` header after login, so `/getUserHistory` identif
 
 `/sync` (balance) **must omit the envelope**. It answers HTTP 400 for every body shape tried — including an empty object — so it never yields a balance; `balanceVars()` returns `{}` and the step is skipped (`fallbackOnFail: 0` degrades the balance to `0`). This is independent of transaction reads: `/getUserHistory` refuses with `401 "missing signature headers"` when the HMAC signature headers are absent (see [HMAC request signing](#hmac-request-signing-getkey-bootstrap)), not because of anything `/sync` did. `PayBoxScrapeBodyContract.test.ts` pins the envelope contract: it is required on every data step and omitted on the balance call.
 
-> **Note:** the balance step's `fallbackOnFail: 0` reports the 400 as a zero balance, so a degraded `/sync` is expected and is not by itself a failure. The api-direct step diagnostics (`respLength`, `errorCode`) show what the server actually objected to.
-
 ## HMAC request signing (getKey bootstrap)
 
 PayBox's API rejects authenticated reads (e.g. `/getUserHistory`) with
