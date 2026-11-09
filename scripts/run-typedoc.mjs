@@ -9,6 +9,7 @@
  * lockfile for Dependabot alert #62 (`GHSA-g3hv-75wg-m249`).
  */
 
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 
@@ -22,6 +23,12 @@ const typedocRequire = createRequire(rootRequire.resolve('typedoc/package.json')
  * @returns {string} File URL string for dynamic `import()`.
  */
 export function resolveFromTypedoc(specifier) {
+  if (specifier === 'minimatch') {
+    const pkgPath = typedocRequire.resolve('minimatch/package.json');
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
+    const esmRel = pkg.exports?.['.']?.import?.default ?? './dist/esm/index.js';
+    return new URL(esmRel, pathToFileURL(pkgPath)).href;
+  }
   return pathToFileURL(typedocRequire.resolve(specifier)).href;
 }
 

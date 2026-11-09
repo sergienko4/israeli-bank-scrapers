@@ -57,14 +57,15 @@ function existingMatchOne(): boolean {
 function writeTypedocFixture(root: string): string {
   const pkgJson = JSON.stringify({ name: 'fixture', version: '1.0.0' });
   writeTempFile(root, 'package.json', pkgJson);
-  writeTempFile(root, 'nested/entry.ts', 'export const answer = 42;\n');
+  writeTempFile(root, 'src/index.ts', 'export const rootVal = 1;\n');
+  writeTempFile(root, 'src/nested/entry.ts', 'export const answer = 42;\n');
   const tsconfigJson = JSON.stringify({
     compilerOptions: { target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext' },
-    include: ['nested/entry.ts'],
+    include: ['src/**/*.ts'],
   });
   writeTempFile(root, 'tsconfig.json', tsconfigJson);
   const typedocJson = JSON.stringify({
-    entryPoints: ['nested/entry.ts'],
+    entryPoints: ['src/index.ts', 'src/nested/entry.ts'],
     tsconfig: 'tsconfig.json',
     readme: 'none',
     out: 'out-docs',
@@ -88,8 +89,9 @@ function runLauncherOnFixture(root: string): { status: number; output: string } 
 }
 
 describe('scripts/run-typedoc.mjs compatibility shim', () => {
-  it('resolves minimatch from typedoc package context and shims matchOne', async () => {
+  it('resolves minimatch ESM entry from typedoc package context and shims matchOne', async () => {
     const minimatchUrl = LAUNCHER.resolveFromTypedoc('minimatch');
+    expect(minimatchUrl).toContain('/minimatch/dist/esm/index.js');
     const mod = (await import(minimatchUrl)) as { Minimatch: IMinimatchClass };
     const matcher = new mod.Minimatch('**/nested/entry.ts');
     const row = matcher.set[0];
