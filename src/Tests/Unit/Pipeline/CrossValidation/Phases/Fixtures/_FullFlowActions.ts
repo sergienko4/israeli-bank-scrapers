@@ -3,7 +3,7 @@
  * function exercised by the full-flow factory. Exists so
  * {@link FullFlowFactory.test.ts} can stay under the project's
  * `import-x/max-dependencies` ceiling (15 modules) while still
- * chaining all 10 phase factories per row.
+ * chaining all 8 phase factories per row.
  *
  * <p>Test-only convenience. Production code never imports through
  * this barrel — phases own their action modules directly.
@@ -14,7 +14,6 @@ export {
   executeAccountResolvePost,
 } from '../../../../../../Scrapers/Pipeline/Mediator/AccountResolve/AccountResolveActions.js';
 export { executeAuthDiscoveryPost } from '../../../../../../Scrapers/Pipeline/Mediator/AuthDiscovery/AuthDiscoveryActions.js';
-export { executeValidateLoginArea } from '../../../../../../Scrapers/Pipeline/Mediator/Home/HomeActions.js';
 export { executeValidatePage } from '../../../../../../Scrapers/Pipeline/Mediator/Init/InitActions.js';
 export { executeLoginSignal } from '../../../../../../Scrapers/Pipeline/Mediator/Login/LoginPhaseActions.js';
 export {
@@ -25,10 +24,6 @@ export {
   executeTriggerFinal,
   executeTriggerPost,
 } from '../../../../../../Scrapers/Pipeline/Mediator/OtpTrigger/OtpTriggerPhaseActions.js';
-export {
-  executeSignalToLogin,
-  executeValidateForm,
-} from '../../../../../../Scrapers/Pipeline/Mediator/PreLogin/PreLoginPhaseActions.js';
 export {
   executeStampAccounts,
   executeValidateResults,

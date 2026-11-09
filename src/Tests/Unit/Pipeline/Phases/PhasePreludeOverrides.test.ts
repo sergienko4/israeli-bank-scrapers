@@ -18,7 +18,6 @@ import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/L
 import type { IPreludeSpec } from '../../../../Scrapers/Pipeline/Mediator/Elements/PagePrelude.js';
 import { PRELUDE_NONE } from '../../../../Scrapers/Pipeline/Mediator/Elements/PagePrelude.js';
 import { DASHBOARD_PRELUDE_TIMEOUT_MS } from '../../../../Scrapers/Pipeline/Mediator/Timing/DashboardTimingConfig.js';
-import { HOME_PRELUDE_TIMEOUT_MS } from '../../../../Scrapers/Pipeline/Mediator/Timing/HomeTimingConfig.js';
 import { LOGIN_PRELUDE_POST_TIMEOUT_MS } from '../../../../Scrapers/Pipeline/Mediator/Timing/LoginTimingConfig.js';
 import {
   OTP_FILL_PRELUDE_TIMEOUT_MS,
@@ -26,7 +25,6 @@ import {
 } from '../../../../Scrapers/Pipeline/Mediator/Timing/OtpTimingConfig.js';
 import type { BasePhase } from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
 import { createDashboardPhase } from '../../../../Scrapers/Pipeline/Phases/Dashboard/DashboardPhase.js';
-import { createHomePhase } from '../../../../Scrapers/Pipeline/Phases/Home/HomePhase.js';
 import { createLoginPhaseFromConfig } from '../../../../Scrapers/Pipeline/Phases/Login/LoginPhase.js';
 import { createOtpFillPhase } from '../../../../Scrapers/Pipeline/Phases/OtpFill/OtpFillPhase.js';
 import { createOtpTriggerPhase } from '../../../../Scrapers/Pipeline/Phases/OtpTrigger/OtpTriggerPhase.js';
@@ -65,14 +63,6 @@ interface IPhaseOptInRow {
 }
 
 const ROWS: readonly IPhaseOptInRow[] = [
-  {
-    label: 'HOME',
-    buildPhase: createHomePhase,
-    optedIn: new Map<StageLabel, IPreludeSpec>([
-      ['PRE', { level: 'spa', timeoutMs: HOME_PRELUDE_TIMEOUT_MS }],
-      ['ACTION', { level: 'spa', timeoutMs: HOME_PRELUDE_TIMEOUT_MS }],
-    ]),
-  },
   {
     label: 'OTP-TRIGGER',
     buildPhase: createOtpTriggerPhase,

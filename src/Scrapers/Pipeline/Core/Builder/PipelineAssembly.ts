@@ -2,7 +2,7 @@
  * Pipeline assembly — declarative phase chain composition.
  *
  * <p>Single source of truth for the order of pipeline phases. The
- * 12-slot chain below pairs each phase factory with a one-line
+ * 10-slot chain below pairs each phase factory with a one-line
  * predicate against {@link IBuilderState}; {@link assemblePhases}
  * walks the chain once and returns the BasePhase list.
  *
@@ -26,11 +26,9 @@ import { createAuthDiscoveryPhase } from '../../Phases/AuthDiscovery/AuthDiscove
 import { createBalanceResolvePhase } from '../../Phases/BalanceResolve/BalanceResolvePhase.js';
 import type { BasePhase } from '../../Phases/Base/BasePhase.js';
 import { createDashboardPhase } from '../../Phases/Dashboard/DashboardPhase.js';
-import { createHomePhase } from '../../Phases/Home/HomePhase.js';
 import { createInitPhase } from '../../Phases/Init/InitPhaseFactory.js';
 import { createOtpFillPhase } from '../../Phases/OtpFill/OtpFillPhase.js';
 import { createOtpTriggerPhase } from '../../Phases/OtpTrigger/OtpTriggerPhase.js';
-import { createPreLoginPhase } from '../../Phases/PreLogin/FindLoginAreaPhase.js';
 import { createTerminatePhase } from '../../Phases/Terminate/TerminatePhase.js';
 import { buildLoginPhase, buildScrapePhase, type IBuilderState } from './StepResolvers.js';
 
@@ -44,7 +42,7 @@ interface IPhaseSlot {
 
 /**
  * Predicate: the browser-lifecycle phases that run for EVERY browser
- * bank regardless of post-auth path (INIT / HOME / TERMINATE).
+ * bank regardless of post-auth path (INIT / TERMINATE).
  *
  * @param state - Builder state.
  * @returns True for browser-mode pipelines.
@@ -66,17 +64,6 @@ function ifBrowser(state: IBuilderState): boolean {
  */
 function ifGenericBrowser(state: IBuilderState): boolean {
   return state.hasBrowser && state.apiDirectScrape === false;
-}
-
-/**
- * Predicate: PRE-LOGIN — opt-in flag plus browser path.
- *
- * @param state - Builder state.
- * @returns True when the user opted into PRE-LOGIN AND is on the
- *   browser path.
- */
-function ifBrowserAndPreLogin(state: IBuilderState): boolean {
-  return state.hasBrowser && state.hasPreLogin;
 }
 
 /**
@@ -130,24 +117,6 @@ function ifAnyScraper(state: IBuilderState): boolean {
  */
 function makeInit(): BasePhase {
   return createInitPhase();
-}
-
-/**
- * Build the HOME phase instance.
- *
- * @returns HOME phase.
- */
-function makeHome(): BasePhase {
-  return createHomePhase();
-}
-
-/**
- * Build the PRE-LOGIN phase instance.
- *
- * @returns PRE-LOGIN phase.
- */
-function makePreLogin(): BasePhase {
-  return createPreLoginPhase();
 }
 
 /**
@@ -247,15 +216,12 @@ function makeTerminate(): BasePhase {
 // ── Phase chain ──────────────────────────────────────────────────
 
 /**
- * The 12-slot phase chain — single, linear, declarative source of
- * truth. Order matters: PRE-LOGIN before LOGIN, OTP-TRIGGER before
- * OTP-FILL, AUTH-DISCOVERY between OTP-FILL (when present) and
- * ACCOUNT-RESOLVE.
+ * The 10-slot phase chain — single, linear, declarative source of
+ * truth. Order matters: OTP-TRIGGER before OTP-FILL, AUTH-DISCOVERY
+ * between OTP-FILL (when present) and ACCOUNT-RESOLVE.
  */
 const PHASE_CHAIN: readonly IPhaseSlot[] = [
   { factory: makeInit, enabled: ifBrowser },
-  { factory: makeHome, enabled: ifBrowser },
-  { factory: makePreLogin, enabled: ifBrowserAndPreLogin },
   { factory: makeLogin, enabled: ifLoginAlways },
   { factory: makeOtpTrigger, enabled: ifOtpFillAndTrigger },
   { factory: makeOtpFill, enabled: ifOtpFill },

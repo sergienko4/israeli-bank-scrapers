@@ -91,15 +91,6 @@ class PipelineBuilder {
   }
 
   /**
-   * Enable PRE-LOGIN phase (form-reveal click before LOGIN).
-   * @returns This builder.
-   */
-  public withPreLogin(): this {
-    this._s.hasPreLogin = true;
-    return this;
-  }
-
-  /**
    * Enable OTP trigger phase (clicks "Send SMS").
    * @returns This builder.
    */
