@@ -1,9 +1,11 @@
 # Forensic audit
 
-Every scrape path (browser + api-direct) emits a **per-account audit line** during `.post`. The line is the primary debug surface for "did the scrape actually pull transactions for this account?".
+API-DIRECT-SCRAPE emits a **per-account audit line** during `.post`.
+The line answers "did this run collect transactions for this account?"
+without rerunning a live bank.
 
 | Source | [`src/Scrapers/Pipeline/Mediator/Scrape/ForensicAuditAction.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Scrape/ForensicAuditAction.ts) |
-|---|---|
+| ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 
 ## What it looks like in `pipeline.log`
 
@@ -13,35 +15,33 @@ Every scrape path (browser + api-direct) emits a **per-account audit line** duri
 --- Account ***9981 | 18 txns ---
 ```
 
-| Element | Source |
-|---|---|
-| `***NNNN` | `maskTail4(accountNumber)` — last-4 of the discovered iter id |
-| `N txns` | `scrape.accounts[i].txns.length` |
+| Element       | Source                                                        |
+| ------------- | ------------------------------------------------------------- |
+| Account label | `redactAccount(accountNumber)` — the central redaction policy |
+| `N txns`      | `scrape.accounts[i].txns.length`                              |
 
-The line is emitted **regardless of underlying transport** — browser banks call it from [`SCRAPE.post`](../phases/scrape.md), api-direct banks call it from [`API-DIRECT-SCRAPE.post`](../phases/api-direct-scrape.md). Both paths produce the same line shape so triage scripts work cross-bank.
+Every bank uses [`API-DIRECT-SCRAPE.post`](../phases/api-direct-scrape.md).
+The audit also emits a mirror check, window-completeness diagnostics and a
+redacted transaction preview at debug level. Account/amount/merchant output
+uses the central [redaction policy](redaction.md).
 
 ## Why it's load-bearing
 
 When a scrape result comes back "empty", the first question is always: **did we get 0 transactions per account, or 0 accounts entirely?** The forensic audit answers it directly:
 
-| What you see | What it means | Where to look next |
-|---|---|---|
-| No `--- Account ---` lines | 0 accounts discovered | [ACCOUNT-RESOLVE](../phases/account-resolve.md) — discovery returned empty |
-| `--- Account *** | 0 txns ---` for one account | That account is genuinely empty for the date range OR scrape miss | Compare with `scrape.post.empty-gate.<verdict>` event |
-| `--- Account *** | 0 txns ---` for **every** account | Real scrape miss OR legitimate "no transactions this month" | Consult `network.countSuccessfulResponses()` via empty-gate heuristic |
-| `--- Account *** | N txns ---` with N > 0 | Scrape worked for that account | OK |
+| What you see                | What it means                                                         | Where to look next                                                                 |
+| --------------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| No account lines            | The run did not reach account auditing, or no accounts were available | Inspect authentication/action failures and the universal zero-account result guard |
+| Zero txns for one account   | Legitimately empty window or incomplete collection                    | Inspect the account's window-completeness diagnostics                              |
+| Zero txns for every account | May be legitimate; may indicate degraded authentication/data          | Inspect coverage and the bank's result guard; the count alone cannot decide        |
+| `--- Account ***            | N txns ---` with N > 0                                                | Scrape worked for that account                                                     | OK  |
 
-## Cross-reference with BALANCE-RESOLVE
+## Balance and final-result interpretation
 
-The forensic audit reports **txn count**, BALANCE-RESOLVE separately reports **resolved balance**. Together they tell the full per-account story:
+Transaction count is not evidence that a balance was resolved. Balance
+values come from the bank's scrape shape; unknown values may be omitted
+rather than reported as zero. See [Account and card balances](../architecture/balance-resolve.md).
 
-```
---- Account ***6789 | 42 txns ---
-balance.miss account=***6789 message=balance unresolved — fallback to 0
-```
-
-→ 42 transactions captured fine, but the balance fetch for that bank account failed (quarantined). The account still ships with `balance: 0` and the txn list. Open a bug if the bank's balance endpoint truly should have returned data.
-
-## Pre-v6 behavior
-
-Before the v6 BALANCE-RESOLVE rewrite, this audit line was only emitted from SCRAPE — api-direct banks had no equivalent. v8.4 adds the same call to `ApiDirectScrapePhase.post` so both paths produce the line. See [Architecture → BALANCE-RESOLVE (v6)](../architecture/balance-resolve.md).
+Auditing happens before the result guard. An account line therefore does
+not by itself prove a successful scrape: inspect the POST verdict and
+final scraper result as well.

@@ -6,16 +6,14 @@ The package is a **typed phase-based pipeline**. Banks register a declarative `P
 
 ## Read in this order
 
-1. **[Pipeline architecture](pipeline.md)** — the browser phase chain (direct-API after login) + the 2 api-direct phases, the `IPipelineContext`, the `Procedure<T>` result pattern.
+1. **[Pipeline architecture](pipeline.md)** — the two HTTP-only phases, `IPipelineContext` and the `Procedure<T>` result pattern.
 2. **[Layer separation](layers.md)** — the 8 logical layers (public-api, orchestration, mediator, strategy-registry, types, common-utilities, tests, build-ci) and how imports flow between them.
 3. **[Config Contracts (api-direct-call)](config-contracts.md)** — the 6-bucket type split that replaces the legacy `IApiDirectCallConfig.ts` god-file in v8.5; the example that defines how every type-tree should be carved into ≤150-LoC concern slices.
 4. **[JSON algebra](json-algebra.md)** — the single declaration site for JSON types, and why the closed (`JsonValue`) and open (`JsonUnknown`) arms stay distinct.
 5. **[Transaction sign](transaction-sign.md)** — which side of zero a mapped amount lands on; the card-issuer inversion, and why a bank's numeric direction code outranks a worded one.
 6. **[Transaction currency](transaction-currency.md)** — which code `originalCurrency` reports; why an ISO alias outranks a numeric enum, and why a blank value never wins.
-7. **[BALANCE-RESOLVE (v6)](balance-resolve.md)** — the single-phase ownership rewrite that lands in v8.4; the example that defines how new phases should be structured.
-8. **[Browser stack](browser-stack.md)** — the tested Camoufox × `playwright-core` pair; how one manifest feeds CI and the runtime warning, and why the readers avoid JSON imports.
-9. **[Legacy (removed)](legacy.md)** — what the removed pre-Pipeline chain was, and which `ScraperOptions` fields it leaves with no effect.
-10. **[Migration strategy](migration.md)** — how the legacy code was folded into the Pipeline; staging plan.
+7. **[Legacy (removed)](legacy.md)** — which retained `ScraperOptions` fields have no effect.
+8. **[Migration strategy](migration.md)** — the historical migration and the current HTTP-only end state.
 
 ## At a glance
 
@@ -26,24 +24,24 @@ flowchart TB
     USER --> REG
     REG -->|registered| PIPE[/"PipelineScraper"/]
     REG -->|not registered| ERR[/"throws: unknown company id"/]
-    PIPE --> CHAIN[["12 / 2 phases"]] --> RESULT(["IScraperScrapingResult"])
+    PIPE --> CHAIN[["2 HTTP phases"]] --> RESULT(["IScraperScrapingResult"])
 ```
 
 ## Anchor invariants
 
-| Invariant | Where enforced |
-|---|---|
-| Phases own state — no cross-phase reach | `IPipelineContext` is read-only between phases; lint canary `balance-resolve-isolation` |
-| No CSS selectors in interaction code | ESLint AST rules + `SelectorResolver` is the only entry point |
-| No raw PII in logs / captures / snapshots | `PiiRedactor` runs as Pino's `redact.censor` + ESLint `PII-Log` rule |
-| No `null` / `undefined` returns from functions | ESLint `no-restricted-syntax` on return types |
-| Pipeline-only dispatch in public entry | `createScraper` resolves `PIPELINE_REGISTRY` and throws `unknown company id` for an unregistered bank |
+| Invariant                                      | Where enforced                                                                                        |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Phases own state — no cross-phase reach        | Read-only `IPipelineContext` and architecture guardrails                                              |
+| No browser or DOM interaction                  | API-direct configuration and HTTP response parsing only                                               |
+| No raw PII in logs / captures                  | `PiiRedactor` runs as Pino's `redact.censor` + ESLint `PII-Log` rule                                  |
+| No `null` / `undefined` returns from functions | ESLint `no-restricted-syntax` on return types                                                         |
+| Pipeline-only dispatch in public entry         | `createScraper` resolves `PIPELINE_REGISTRY` and throws `unknown company id` for an unregistered bank |
 
 ## Source pointers
 
-| File | Role |
-|---|---|
-| [`src/Scrapers/Pipeline/Core/Builder/PipelineAssembly.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/Builder/PipelineAssembly.ts) | Declarative `PHASE_CHAIN` slot definitions |
-| [`src/Scrapers/Pipeline/Banks/PipelineRegistry.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/PipelineRegistry.ts) | Merges the alphabetical-half sub-registries into `PIPELINE_REGISTRY` (`CompanyTypes → PipelineFactory`); Core stays bank-agnostic |
-| [`src/Scrapers/Pipeline/Types/PipelineContext.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/PipelineContext.ts) | All shared types + `Option<T>` slots |
-| [`src/Scrapers/Pipeline/Types/Procedure.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/Procedure.ts) | The `Procedure<T>` result-pattern primitive |
+| File                                                                                                                                                                                   | Role                                                                                                                              |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| [`src/Scrapers/Pipeline/Core/Builder/PipelineAssembly.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/Builder/PipelineAssembly.ts) | Declarative `PHASE_CHAIN` slot definitions                                                                                        |
+| [`src/Scrapers/Pipeline/Banks/PipelineRegistry.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/PipelineRegistry.ts)               | Merges the alphabetical-half sub-registries into `PIPELINE_REGISTRY` (`CompanyTypes → PipelineFactory`); Core stays bank-agnostic |
+| [`src/Scrapers/Pipeline/Types/PipelineContext.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/PipelineContext.ts)                 | All shared types + `Option<T>` slots                                                                                              |
+| [`src/Scrapers/Pipeline/Types/Procedure.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/Procedure.ts)                             | The `Procedure<T>` result-pattern primitive                                                                                       |

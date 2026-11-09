@@ -52,7 +52,8 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 ### Pre-Commit Protocol
 - Run targeted tests first (`npx jest --testPathPatterns=...`) to validate
 - Only attempt full commit when targeted tests pass
-- If commit hook gate 7 (real E2E) fails: READ THE LOG, investigate, don't retry blindly
+- If an enabled hook gate fails: READ THE LOG, investigate, don't retry blindly
+- Run only relevant focused tests locally; normal hooks and CI own broader validation. Do not duplicate heavy suites or rerun main/live-bank baselines.
 
 ### Pre-Push / PR Protocol
 - Write the PR body to `.git/PR_BODY.md` (gitignored) **before** running `gh pr create`
@@ -73,9 +74,9 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 ## Workflow
 
 1. Branch from `main`: `git checkout -b fix/description`
-2. Build: `npm run build` (Babel + TSC)
-3. Test: `npm test` (Jest)
-4. Lint: `npm run lint`
+2. Verify relevant focused tests with `npm run test:unit -- --runTestsByPath <test-path>`
+3. Use normal commit hooks for their enabled gates, including lint and `npm run build` (tsup)
+4. Let CI run full suites, coverage and approved real-bank E2E
 5. Conventional commits: `fix:`, `feat:`, `refactor:`
 6. PR → squash merge to main
 7. release-please creates Release PR → merge to publish
@@ -99,5 +100,5 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 
 - Transport: every bank logs in and scrapes over HTTP (`ApiDirectCall` → `ApiDirectScrape`); no browser runs at scrape time
 - `src/Scrapers/Base/Errors.ts`: `WafBlockError` carrying `IWafErrorDetails`
-- The Camoufox/Playwright packages stay declared until the next major release removes them
+- No browser runtime, browser download, page hooks or browser install patch ships
 - CI/CD: release-please + npm publish pipeline

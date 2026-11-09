@@ -55,8 +55,8 @@ whether the OTP callback belongs in the options or the credentials
 
 A maintained fork of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers),
 rewritten onto a typed phase-based pipeline using TypeScript strict mode.
-All supported banks currently use direct API calls; the browser infrastructure
-remains available in the codebase.
+All supported banks use direct API calls. There is no browser engine,
+browser download or browser-specific install script.
 
 <!-- Regenerate the TOC below with:
      npx doctoc README.md --title '## Table of Contents'
@@ -89,8 +89,8 @@ remains available in the codebase.
 
 - **Browserless banking** — supported institutions authenticate and fetch
   data through their APIs without launching a browser.
-- **PII redaction you can trust** — every log line, captured HTTP body, and DOM
-  snapshot passes through one redactor _before_ it touches disk.
+- **PII redaction you can trust** — log lines and captured HTTP bodies pass
+  through one redactor _before_ they touch disk.
 - **Direct-API scraping after login** — data is read from the bank's own
   endpoints, not scraped from the DOM.
 - **One result shape** — all supported banks return the same
@@ -99,12 +99,10 @@ remains available in the codebase.
 
 ## Requirements
 
-| Requirement     | Minimum         | Note                                                                                                                                                                                                                                |
-| --------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Node.js         | `>= 24.11.0`    | First Node 24 LTS; bundles OpenSSL 3.5, which OneZero's TLS handshake needs                                                                                                                                                         |
-| npm             | `>= 10`         | Provenance-signed publishes                                                                                                                                                                                                         |
-| Disk            | ~1.3 GB         | Camoufox bundle, cached on **first browser launch**; current banks do not launch it                                                                                                                                                 |
-| Install scripts | must be allowed | `--ignore-scripts` breaks the native build. npm 12 blocks them by default too, so `better-sqlite3` needs `npm install-scripts approve` — see [Troubleshooting](https://sergienko4.github.io/israeli-bank-scrapers/troubleshooting/) |
+| Requirement | Minimum      | Note                                                                        |
+| ----------- | ------------ | --------------------------------------------------------------------------- |
+| Node.js     | `>= 24.11.0` | First Node 24 LTS; bundles OpenSSL 3.5, which OneZero's TLS handshake needs |
+| npm         | `>= 10`      | Provenance-signed publishes                                                 |
 
 Windows, macOS, and Linux are all supported.
 
@@ -169,7 +167,7 @@ Per-bank notes live in the
 
 ## OTP (two-factor authentication)
 
-**Browser banks** — pass the callback in _options_:
+**Hapoalim and the Beinleumi group** — pass the callback in _options_:
 
 ```typescript
 createScraper({
@@ -261,8 +259,8 @@ Optional fields — `memo`, `category`, `installments`, `chargedCurrency`,
 and is kept for compatibility; no scraper in this package writes to it. Read it
 as "not available", not as "this account has no upcoming debits".
 
-`diagnostics` is populated only by the browser-based scrapers. The API-direct
-pipeline reports through `windowCoverage` instead — see below.
+`diagnostics` remains in the result type for compatibility. The API-direct
+pipeline reports transaction-window coverage through `windowCoverage` — see below.
 
 ### Did you get the whole window? (`windowCoverage`)
 
@@ -301,14 +299,13 @@ could not be made; it does not claim rows were confirmed missing. Where a bank
 declares nothing and configures no audit, there is nothing to check against.
 `covered` means "we reached the edge and saw no loss", never "nothing was lost".
 
-The field is absent on browser-based scrapers, which have no equivalent walk to
-audit — so check for its presence rather than assuming it.
+Check for the field's presence when handling results from older releases.
 
 ### The same data, on disk
 
 With redaction on (the default), those values are only ever unredacted **in
 memory**: every _text_ artifact the run writes — `pipeline.log`,
-`network/*.json`, `screenshots/*.html` — goes through the redactor first, so
+`network/*.json` — goes through the redactor first, so
 `pipeline.log` from a real run reads:
 
 ```text
@@ -324,8 +321,7 @@ Account numbers keep a 4-digit tail so you can tell accounts apart. Amounts
 keep only their sign, so a missing debit is still visible in a bug report.
 Merchant names collapse to a length class, which is enough to spot a parser
 splitting one description into two. With redaction left on, attach that file to
-an issue as-is — but not the `.png` screenshots beside it, which are raster and
-never scrubbed. See
+an issue as-is after checking that redaction was enabled. See
 [PII redaction](https://sergienko4.github.io/israeli-bank-scrapers/observability/redaction/)
 for the full field-by-field table.
 
@@ -345,10 +341,9 @@ that protection is gone; see
 
 - **No telemetry, no analytics, no remote error reporting.** The word
   "telemetry" in this codebase means the local `pipeline.log` file.
-- **Outbound traffic goes to your bank only** — browser infrastructure, if used,
-  additionally downloads Camoufox on its first launch.
-- **Runtime dependencies are `@babel/parser`, `camoufox-js`, `lodash`,
-  `moment`, `moment-timezone`, `parse5`, `pino`, and `playwright-core`.**
+- **No browser downloads** — scraping uses the bank's HTTP endpoints.
+- **Runtime dependencies are `@babel/parser`, `lodash`, `moment`,
+  `moment-timezone`, `parse5`, and `pino`.**
   None of them phone home.
 
 Found a security issue? Please follow [SECURITY.md](./SECURITY.md) rather than
@@ -427,21 +422,20 @@ Bug reports and pull requests are welcome — see
 Before opening a PR:
 
 ```sh
-npm run test:unit       # unit tests
-npm run lint            # eslint + architecture + canaries + format
-npm run test:pipeline   # coverage gates (97/95/97/98)
+npm run test:unit -- --runTestsByPath src/Tests/Unit/TimingActions.test.ts --runInBand
 ```
 
-The pre-commit hook runs those plus mocked E2E. PRs are squash-merged and
-release-please cuts the next version automatically.
+Replace the example test path with the suite relevant to your change.
+Use normal commit hooks for local quality gates; CI owns the full test,
+coverage and mocked-E2E runs. PRs are squash-merged and release-please cuts
+the next version automatically.
 
-**Filing a bug?** Attach `pipeline.log`, `network/*.json`, and
-`screenshots/*.html`. With redaction left at its default (`PII_REDACTION=on`)
-those three text artifacts are scrubbed at write time and safe to share. If you
-ran with `PII_REDACTION=off` they hold **real** account numbers, balances and
-tokens — regenerate them with redaction on rather than sharing them. Never
-attach the `.png` files: redaction does not reach them in either mode, because
-raster is not OCR-scrubbed.
+**Filing a bug?** Use `pipeline.log` and the relevant `network/*.json`
+records; browser screenshots and DOM captures are no longer produced.
+Keep `PII_REDACTION=on` and inspect/redact any diagnostic material before
+sharing it privately. Never post credentials, session tokens or raw bank
+data. If you ran with `PII_REDACTION=off`, regenerate the evidence with
+redaction enabled rather than sharing the original files.
 
 ## Contributors
 

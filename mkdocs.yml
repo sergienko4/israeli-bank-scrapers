@@ -137,53 +137,38 @@ nav:
       - Transaction sign: architecture/transaction-sign.md
       - Transaction currency: architecture/transaction-currency.md
       - Bank calendar (dates & time zone): architecture/bank-calendar.md
-      - BALANCE-RESOLVE (v6): architecture/balance-resolve.md
-      - WAF fetch bounce: architecture/waf-fetch-bounce.md
+      - Account and card balances: architecture/balance-resolve.md
       - Legacy (removed): architecture/legacy.md
       - Migration strategy: architecture/migration.md
   - Phases:
       - Overview: phases/index.md
-      - INIT: phases/init.md
-      - LOGIN: phases/login.md
-      - OTP-TRIGGER: phases/otp-trigger.md
-      - OTP-FILL: phases/otp-fill.md
-      - AUTH-DISCOVERY: phases/auth-discovery.md
-      - ACCOUNT-RESOLVE: phases/account-resolve.md
-      - DASHBOARD: phases/dashboard.md
-      - SCRAPE: phases/scrape.md
-      - BALANCE-RESOLVE: phases/balance-resolve.md
-      - TERMINATE: phases/terminate.md
       - API-DIRECT-CALL: phases/api-direct-call.md
       - API-DIRECT-SCRAPE: phases/api-direct-scrape.md
   - Banks:
       - Overview: banks/index.md
-      - Browser:
-          - Amex: banks/amex.md
-          - Bank Hapoalim: banks/hapoalim.md
-          - Bank Leumi: banks/leumi.md
-          - Bank Yahav: banks/yahav.md
-          - Beinleumi: banks/beinleumi.md
-          - Discount: banks/discount.md
-          - Isracard: banks/isracard.md
-          - Massad: banks/massad.md
-          - Max: banks/max.md
-          - Mercantile: banks/mercantile.md
-          - Mizrahi Bank: banks/mizrahi.md
-          - Otsar Hahayal: banks/otsar-hahayal.md
-          - Pagi: banks/pagi.md
-          - Visa Cal: banks/visacal.md
-      - API-direct:
-          - OneZero: banks/onezero.md
-          - PayBox: banks/paybox.md
-          - Pepper: banks/pepper.md
+      - Amex: banks/amex.md
+      - Bank Hapoalim: banks/hapoalim.md
+      - Bank Leumi: banks/leumi.md
+      - Bank Yahav: banks/yahav.md
+      - Beinleumi: banks/beinleumi.md
+      - Discount: banks/discount.md
+      - Isracard: banks/isracard.md
+      - Massad: banks/massad.md
+      - Max: banks/max.md
+      - Mercantile: banks/mercantile.md
+      - Mizrahi Bank: banks/mizrahi.md
+      - OneZero: banks/onezero.md
+      - Otsar Hahayal: banks/otsar-hahayal.md
+      - Pagi: banks/pagi.md
+      - PayBox: banks/paybox.md
+      - Pepper: banks/pepper.md
+      - Visa Cal: banks/visacal.md
   - Observability:
       - Overview: observability/index.md
       - Structured events: observability/events.md
       - PII redaction: observability/redaction.md
       - Forensic audit: observability/forensic-audit.md
-      - INIT navigation forensics: observability/init-navigation-forensics.md
       - Coverage audit: observability/coverage-audit.md
-      - Element identity: observability/element-identity.md
   - Workflow:
       - Overview: workflow/index.md
       - CI gates: workflow/ci.md

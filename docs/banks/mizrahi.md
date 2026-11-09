@@ -1,13 +1,13 @@
 # Mizrahi Bank
 
-| | |
-|---|---|
-| `CompanyTypes` | `Mizrahi` |
-| Engine | **API-direct** (no browser) |
-| Credentials | `username`, `password` |
-| OTP | — |
-| Phase chain | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md) |
-| Source | [`Banks/Mizrahi/MizrahiPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Mizrahi/MizrahiPipeline.ts) |
+|                |                                                                                                                                                                  |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CompanyTypes` | `Mizrahi`                                                                                                                                                        |
+| Engine         | **API-direct** (no browser)                                                                                                                                      |
+| Credentials    | `username`, `password`                                                                                                                                           |
+| OTP            | —                                                                                                                                                                |
+| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                            |
+| Source         | [`Banks/Mizrahi/MizrahiPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Mizrahi/MizrahiPipeline.ts) |
 
 ## Quick example
 
@@ -29,19 +29,19 @@ runs on `www.mizrahi-tefahot.co.il`, then hands the session to the
 online-banking host `mto.mizrahi-tefahot.co.il`. `MIZRAHI_API_DIRECT_CALL`
 (`Registry/Config/PipelineBankConfigMizrahi.ts`) declares four steps:
 
-| Step | Endpoint | Sends | Returns |
-|---|---|---|---|
-| `bootstrap` | `GET www/login/index.html` | — | the `XSRF-TOKEN` cookie, set for the parent domain |
-| `login` | `POST www/login/api/Login/LoginUser` | `Username`, `Password`; the decoded XSRF cookie as `x-xsrf-token` | `ReturnCode` |
-| `landing` | `GET mto/Online/Default.aspx?language=he-IL` | — | the online-banking session cookies |
-| `logon` | `POST mto/Online/api/SkyBL/logon` | the app's fixed metadata | `xsrfToken`, the account list and the `skyserid` response header |
+| Step        | Endpoint                                     | Sends                                                             | Returns                                                          |
+| ----------- | -------------------------------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `bootstrap` | `GET www/login/index.html`                   | —                                                                 | the `XSRF-TOKEN` cookie, set for the parent domain               |
+| `login`     | `POST www/login/api/Login/LoginUser`         | `Username`, `Password`; the decoded XSRF cookie as `x-xsrf-token` | `ReturnCode`                                                     |
+| `landing`   | `GET mto/Online/Default.aspx?language=he-IL` | —                                                                 | the online-banking session cookies                               |
+| `logon`     | `POST mto/Online/api/SkyBL/logon`            | the app's fixed metadata                                          | `xsrfToken`, the account list and the `skyserid` response header |
 
 The session is cookies, not an auth header. `MIZRAHI_HEADLESS` registers the
 four paths, selects Node's own `fetch` (`nativeFetch`) and keeps one cookie jar
 for both hosts (`sessionCookies`, `cookieDomains`): a cookie set for the parent
 domain reaches each host, a host-only cookie stays on its host. No browser
-starts, and browser options passed to `createScraper` are ignored with a
-[warning](../configuration.md#browser-options-on-browserless-banks).
+starts, and browser options passed to `createScraper` are no longer supported; see the
+[migration notes](../configuration.md#removed-browser-options).
 
 Any redirect fails the run (`redirectPolicy: 'reject'`), so a redirected
 `LoginUser` never replays the credentials. The one exception is `landing`: it
@@ -74,11 +74,11 @@ stays unset.
 `MIZRAHI_SHAPE` (helpers under `Banks/Mizrahi/scrape/`) issues Mizrahi's exact
 calls on the `mto` API:
 
-| Step | Call | Notes |
-|---|---|---|
-| Accounts | — | No call: `logon` already returned `user.Accounts`. The login carries the list into the session, and the customer step (`skipFetch`) reads it from there. Every entry is scraped, keyed by its position in the array |
-| Balance | POST `SkyBL/changeAccount` | `{ selectedAccountIndex }` switches the session to the account and replies with its `SnifAndNumber400` and balance `YitraAdkanit`. A reply that does not name the requested account — another account, or none at all — fails the scrape, since it cannot prove the switch landed. A `null` balance outside banking hours (about 00:00–06:00 IDT) is reported absent. A failed call fails the scrape (no `fallbackOnFail`) |
-| Transactions | POST `SkyOSH/get428Index` | The "between dates" (בין תאריכים) body with `DD/MM/YYYY` bank-calendar days. Only rows with `RecTypeSpecified: true` (they carry `RecType: 1`) are transactions; the balance header and section-label rows beside them are dropped. The shape declares the same test (`IS_MIZRAHI_TXN_ROW`) as `auditIsTxnRow`, so the coverage audit does not count the balance line as an unread movement. An empty `204` reply reads as no movements (`statusPolicy`) |
+| Step         | Call                       | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ------------ | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Accounts     | —                          | No call: `logon` already returned `user.Accounts`. The login carries the list into the session, and the customer step (`skipFetch`) reads it from there. Every entry is scraped, keyed by its position in the array                                                                                                                                                                                                                                      |
+| Balance      | POST `SkyBL/changeAccount` | `{ selectedAccountIndex }` switches the session to the account and replies with its `SnifAndNumber400` and balance `YitraAdkanit`. A reply that does not name the requested account — another account, or none at all — fails the scrape, since it cannot prove the switch landed. A `null` balance outside banking hours (about 00:00–06:00 IDT) is reported absent. A failed call fails the scrape (no `fallbackOnFail`)                               |
+| Transactions | POST `SkyOSH/get428Index`  | The "between dates" (בין תאריכים) body with `DD/MM/YYYY` bank-calendar days. Only rows with `RecTypeSpecified: true` (they carry `RecType: 1`) are transactions; the balance header and section-label rows beside them are dropped. The shape declares the same test (`IS_MIZRAHI_TXN_ROW`) as `auditIsTxnRow`, so the coverage audit does not count the balance line as an unread movement. An empty `204` reply reads as no movements (`statusPolicy`) |
 
 **Multiple accounts.** `get428Index` serves only the session's current account, the same way
 the SPA's account picker works. The driver runs each account's balance step before its

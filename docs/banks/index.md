@@ -16,33 +16,33 @@
 
 ## Pipeline-backed banks (17) — credentials at a glance
 
-| Bank            | `CompanyTypes` | Credential fields               | OTP            |
-| --------------- | -------------- | ------------------------------- | -------------- |
-| Amex            | `Amex`         | `id`, `card6Digits`, `password` | —              |
-| Bank Hapoalim   | `Hapoalim`     | `userCode`, `password`          | conditional    |
+| Bank            | `CompanyTypes` | Credential fields               | OTP                      |
+| --------------- | -------------- | ------------------------------- | ------------------------ |
+| Amex            | `Amex`         | `id`, `card6Digits`, `password` | —                        |
+| Bank Hapoalim   | `Hapoalim`     | `userCode`, `password`          | conditional              |
 | Bank Leumi      | `Leumi`        | `username`, `password`          | unsupported if requested |
-| Beinleumi       | `Beinleumi`    | `username`, `password`          | conditional    |
-| Discount Bank   | `Discount`     | `id`, `password`, `num`         | —              |
-| Isracard        | `Isracard`     | `id`, `card6Digits`, `password` | —              |
-| Massad          | `Massad`       | `username`, `password`          | conditional    |
-| Max             | `Max`          | `username`, `password`          | —              |
-| Mercantile Bank | `Mercantile`   | `id`, `password`, `num`         | —              |
-| Mizrahi Bank    | `Mizrahi`      | `username`, `password`          | —              |
-| One Zero        | `OneZero`      | `email`, `password`             | required (API) |
-| Otsar Hahayal   | `OtsarHahayal` | `username`, `password`          | conditional    |
-| Pagi            | `Pagi`         | `username`, `password`          | conditional    |
-| PayBox          | `PayBox`       | `phoneNumber`                   | required (API) |
-| Pepper          | `Pepper`       | `phoneNumber`, `password`       | required (API) |
-| Visa Cal        | `VisaCal`      | `username`, `password`          | —              |
-| Bank Yahav      | `Yahav`        | `num`, `nationalID`, `password` | —              |
+| Beinleumi       | `Beinleumi`    | `username`, `password`          | conditional              |
+| Discount Bank   | `Discount`     | `id`, `password`, `num`         | —                        |
+| Isracard        | `Isracard`     | `id`, `card6Digits`, `password` | —                        |
+| Massad          | `Massad`       | `username`, `password`          | conditional              |
+| Max             | `Max`          | `username`, `password`          | —                        |
+| Mercantile Bank | `Mercantile`   | `id`, `password`, `num`         | —                        |
+| Mizrahi Bank    | `Mizrahi`      | `username`, `password`          | —                        |
+| One Zero        | `OneZero`      | `email`, `password`             | required (API)           |
+| Otsar Hahayal   | `OtsarHahayal` | `username`, `password`          | conditional              |
+| Pagi            | `Pagi`         | `username`, `password`          | conditional              |
+| PayBox          | `PayBox`       | `phoneNumber`                   | required (API)           |
+| Pepper          | `Pepper`       | `phoneNumber`, `password`       | required (API)           |
+| Visa Cal        | `VisaCal`      | `username`, `password`          | —                        |
+| Bank Yahav      | `Yahav`        | `num`, `nationalID`, `password` | —                        |
 
 Source: [`src/Definitions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Definitions.ts).
 
 ## How to pick the right page
 
-| If you...                                                     | Read                                                                                                                                       |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| ... just want to scrape with code that works today            | The per-bank page for credential fields, then [Quick Start](../quick-start.md)                                                             |
-| ... want to know which engine your bank uses (browser vs API) | The per-bank page's "Engine" line                                                                                                          |
-| ... hit `INVALID_OTP` or `INVALID_PASSWORD`                   | The per-bank "Known quirks" section + [Phases → LOGIN](../phases/login.md) / [OTP-FILL](../phases/otp-fill.md)                             |
-| ... see `WAF_BLOCKED`                                         | The per-bank page (in case of bank-specific quirks) + [Error Types → WAF](https://github.com/sergienko4/israeli-bank-scrapers#error-types) |
+| If you...                                            | Read                                                                                                                                       |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| ... just want to scrape with code that works today   | The per-bank page for credential fields, then [Quick Start](../quick-start.md)                                                             |
+| ... want to know which HTTP transport your bank uses | The per-bank page's "Engine" or "Transport" line                                                                                           |
+| ... hit `INVALID_OTP` or `INVALID_PASSWORD`          | The per-bank "Known quirks" section + [API-DIRECT-CALL](../phases/api-direct-call.md)                                                      |
+| ... see `WAF_BLOCKED`                                | The per-bank page (in case of bank-specific quirks) + [Error Types → WAF](https://github.com/sergienko4/israeli-bank-scrapers#error-types) |

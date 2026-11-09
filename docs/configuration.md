@@ -11,35 +11,24 @@ removed [legacy](architecture/legacy.md) path. See
 
 ## Scraper options — `createScraper({ ... })`
 
-| Field | Type | Default | What it controls |
-| --- | --- | --- | --- |
-| `companyId` | `CompanyTypes` (enum) | **required** | Picks the bank — an id with no Pipeline entry throws `unknown company id <id>` |
-| `startDate` | `Date` | **required** | Earliest transaction date to fetch |
-| `futureMonthsToScrape` | `number` | bank-specific | How far past today to reach for scheduled transactions |
-| `defaultTimeout` | `number` (ms) | `30000` | Per-phase navigation timeout |
-| `shouldShowBrowser` | `boolean` | `false` | Show the Camoufox window while scraping |
-| `preparePage` | `(page: Page) => Promise<void>` | (none) | Hook run against the page before the pipeline starts |
-| `prepareBrowser` | `(browser: Browser) => Promise<void>` | (none) | Hook run against the browser after launch |
-| `otpCodeRetriever` | `(phoneHint: string) => Promise<string>` | (none) | Invoked when the bank requires an OTP. API-direct flows also accept it in credentials; `phoneHint` is bank-specific and may be empty |
-| `onAuthFlowComplete` | `(info: IAuthFlowInfo) => void` | (none) | Fires once authentication finishes, before scraping |
-| `otpTimeoutMs` | `number` (ms) | bank-specific | How long to wait for `otpCodeRetriever` to resolve |
-| `loginLogLevel` | `'info' \| 'trace'` | `'info'` | Raises log detail for the LOGIN phase only |
-| `persistentAuthState` | `string` | (none) | **Pepper, Beinleumi, Massad, Otsar Hahayal and Pagi** — opaque device-auth state previously handed to `onPersistentAuthStateUpdate`. Pepper's holds a bearer token and a device private key, Beinleumi's, Massad's, Otsar Hahayal's and Pagi's the provider, the lower-cased `username` and the device id: store it as a secret. Requires `onPersistentAuthStateUpdate`. Omit it when nothing is stored — an empty string fails as invalid state — see [Pepper durable device auth](banks/pepper.md#durable-device-auth-opt-in), [Beinleumi warm start](banks/beinleumi.md#warm-start), [Massad warm start](banks/massad.md#warm-start) and [Otsar Hahayal warm start](banks/otsar-hahayal.md#warm-start) |
-| `onPersistentAuthStateUpdate` | `(state: string) => Promise<void>` | (none) | **Pepper, Beinleumi, Massad, Otsar Hahayal and Pagi** — opts into durable device auth. Called once after an enrollment or a renewal with the state to store (Beinleumi, Massad, Otsar Hahayal and Pagi: once, on enrollment); a rejection fails the run before the new token is used. Other banks ignore it |
+| Field                         | Type                                     | Default       | What it controls                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------------- | ---------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `companyId`                   | `CompanyTypes` (enum)                    | **required**  | Picks the bank — an id with no Pipeline entry throws `unknown company id <id>`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `startDate`                   | `Date`                                   | **required**  | Earliest transaction date to fetch                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `futureMonthsToScrape`        | `number`                                 | bank-specific | How far past today to reach for scheduled transactions                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `otpCodeRetriever`            | `(phoneHint: string) => Promise<string>` | (none)        | Invoked when the bank requires an OTP. API-direct flows also accept it in credentials; `phoneHint` is bank-specific and may be empty                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `onAuthFlowComplete`          | `(info: IAuthFlowInfo) => void`          | (none)        | Fires once authentication finishes, before scraping                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `otpTimeoutMs`                | `number` (ms)                            | bank-specific | How long to wait for `otpCodeRetriever` to resolve                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `loginLogLevel`               | `'info' \| 'trace'`                      | `'info'`      | Raises authentication-chain log detail                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `persistentAuthState`         | `string`                                 | (none)        | **Pepper, Beinleumi, Massad, Otsar Hahayal and Pagi** — opaque device-auth state previously handed to `onPersistentAuthStateUpdate`. Pepper's holds a bearer token and a device private key, Beinleumi's, Massad's, Otsar Hahayal's and Pagi's the provider, the lower-cased `username` and the device id: store it as a secret. Requires `onPersistentAuthStateUpdate`. Omit it when nothing is stored — an empty string fails as invalid state — see [Pepper durable device auth](banks/pepper.md#durable-device-auth-opt-in), [Beinleumi warm start](banks/beinleumi.md#warm-start), [Massad warm start](banks/massad.md#warm-start) and [Otsar Hahayal warm start](banks/otsar-hahayal.md#warm-start) |
+| `onPersistentAuthStateUpdate` | `(state: string) => Promise<void>`       | (none)        | **Pepper, Beinleumi, Massad, Otsar Hahayal and Pagi** — opts into durable device auth. Called once after an enrollment or a renewal with the state to store (Beinleumi, Massad, Otsar Hahayal and Pagi: once, on enrollment); a rejection fails the run before the new token is used. Other banks ignore it                                                                                                                                                                                                                                                                                                                                                                                               |
 
-`defaultTimeout` is an **option, not an environment variable**. It bounds each
-phase's navigation independently rather than the run as a whole, so a slow
-LOGIN does not consume the budget that SCRAPE will need.
+Request deadlines belong to the HTTP transports, not browser navigation.
+See [Request deadlines](troubleshooting.md#request-deadlines).
 
 ## Options the Pipeline ignores
 
-`ScraperOptions` is one flat type that predates the Pipeline, so the compiler
-accepts every field for every bank. **Sixteen fields do nothing**, in
-three groups. The first group always warns; the browser options also warn on a
-bank that never opens a browser — see
-[Browser options on browserless banks](#browser-options-on-browserless-banks).
-
-Passing one of the eight legacy-only options emits a Node
+Five retained legacy-only options have no effect. Passing one emits a Node
 process warning at `createScraper` time:
 
 ```text
@@ -50,10 +39,9 @@ that read them were removed, so they have no effect on any bank. Remove them, or
 https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/
 ```
 
-One warning is emitted per group of offending options per `createScraper` call.
-Legacy-only options and browser-only options are separate groups, so passing
-both kinds emits two warnings. Each warning lists every offending option in its
-group. Silence them by removing the options. To make the warnings impossible to
+One warning lists all supplied legacy-only option names per `createScraper`
+call; values are never printed. Silence it by removing the options.
+To make the warnings impossible to
 ignore in CI, listen for their shared name and escalate:
 
 ```typescript
@@ -67,20 +55,16 @@ process.on('warning', w => {
 
 ### Legacy-only options
 
-Not implemented, and read by no scraper: the [legacy](architecture/legacy.md)
-scrapers that read five of them were removed, and the other three have had no
-reader since the legacy Mizrahi scraper was removed.
+Not implemented, and read by no scraper. The former readers belonged to the
+removed [legacy](architecture/legacy.md) path.
 
-| Option | What it did on the legacy path |
-| --- | --- |
-| `includeRawTransaction` | Attaches the unparsed provider row to each transaction |
-| `navigationRetryCount` | Retries a phase on `TIMEOUT` before failing |
-| `optInFeatures` | No active reader since the legacy Mizrahi scraper was removed; ignored with `ScraperOptionsWarning` |
-| `outputData` | No reader since the Beyahad Bishvilha scraper was removed; ignored with `ScraperOptionsWarning` |
-| `shouldAddTransactionInformation` | No active reader since the legacy Mizrahi scraper was removed; ignored with `ScraperOptionsWarning` |
-| `shouldCombineInstallments` | No active reader: no scraper passes it to the instalment filter; ignored with `ScraperOptionsWarning` |
-| `skipCloseBrowser` | Leaves an externally supplied browser open |
-| `storeFailureScreenShotPath` | Writes a screenshot when a scrape fails |
+| Option                            | What it did on the legacy path                                                                        |
+| --------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `includeRawTransaction`           | Attaches the unparsed provider row to each transaction                                                |
+| `optInFeatures`                   | No active reader since the legacy Mizrahi scraper was removed; ignored with `ScraperOptionsWarning`   |
+| `outputData`                      | No reader since the Beyahad Bishvilha scraper was removed; ignored with `ScraperOptionsWarning`       |
+| `shouldAddTransactionInformation` | No active reader since the legacy Mizrahi scraper was removed; ignored with `ScraperOptionsWarning`   |
+| `shouldCombineInstallments`       | No active reader: no scraper passes it to the instalment filter; ignored with `ScraperOptionsWarning` |
 
 Raw provider payloads **are** available on the Pipeline — set
 `FORENSIC_TRACE=true` and read `network/*.json`. See
@@ -90,65 +74,22 @@ Raw provider payloads **are** available on the Pipeline — set
 
 Accepted by the type, read by no scraper.
 
-| Option | Status |
-| --- | --- |
+| Option        | Status                                                                                                                          |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `usePipeline` | Not read. The registry is Pipeline-first: a bank in `PIPELINE_REGISTRY` always takes the Pipeline, and one outside it never can |
-| `verbose` | Not implemented. Use `LOG_LEVEL` or `loginLogLevel` |
-| `viewportSize` | Not implemented. The context is created with `viewport: null` |
+| `verbose`     | Not implemented. Use `LOG_LEVEL` or `loginLogLevel`                                                                             |
 
-### Browser lifecycle options
+<a id="browser-lifecycle-options"></a>
+<a id="browser-options-on-browserless-banks"></a>
 
-| Option | Status |
-| --- | --- |
-| `args` | Not read. Launch flags come from the bundled Camoufox profile |
-| `browser` | Not read. On a bank whose Pipeline launches a browser, `launchCamoufox()` creates it every run |
-| `browserContext` | Not read. The Pipeline always creates its own context, and the legacy launcher that honoured it was removed |
-| `executablePath` | Not read. The bundled Camoufox binary is always used |
-| `timeout` | Not read. Use `defaultTimeout` instead, which the Pipeline does honour |
+## Removed browser options
 
-On a bank whose Pipeline launches a browser, it always launches and closes its own
-Camoufox instance, so it ignores every option that tries to supply or configure
-the browser. Banks that never open a browser — PayBox and Pepper among them — do
-not launch Camoufox at all, so none of these options apply to them; see
-[Browser options on browserless banks](#browser-options-on-browserless-banks).
-`browser` and `browserContext` come from the external-browser arms of the options
-union; `args`, `executablePath` and `timeout` sit on `IDefaultBrowserOptions`
-alongside `shouldShowBrowser` and `prepareBrowser`, which the Pipeline **does** read.
-
-None of these are covered by the warning above — supplying one is a deliberate
-act rather than a leftover flag; see
-[issue #540](https://github.com/sergienko4/israeli-bank-scrapers/issues/540)
-for the rationale.
-
-### Browser options on browserless banks
-
-Some API-direct banks never open a browser: their `headless` block selects
-Node's own `fetch` (`nativeFetch`) or `node:https` (a client certificate or a
-TLS profile) — today, Leumi, OneZero, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav, Beinleumi, Massad, Otsar Hahayal, Pagi, Discount, Mercantile, PayBox and Pepper. Nothing on such a run reads a browser option, so
-`createScraper` names every one you pass in a single `ScraperOptionsWarning`:
-
-```text
-(node:12345) ScraperOptionsWarning: "oneZero" calls its bank API directly and never
-opens a browser, so these browser options have no effect: shouldShowBrowser. They are
-ignored here. Remove them, or see
-https://sergienko4.github.io/israeli-bank-scrapers/configuration/#browser-options-on-browserless-banks
-```
-
-The options checked are `args`, `browser`, `browserContext`, `defaultTimeout`,
-`executablePath`, `prepareBrowser`, `preparePage`, `shouldShowBrowser`,
-`timeout` and `viewportSize`; `skipCloseBrowser` already warns as a legacy-only
-option. Only names are printed, never values. Browser banks do not warn.
-
-PayBox and Pepper used to run their identity calls through a Camoufox page, so
-they never warned. They now use Node's own `fetch` and warn like the other
-browserless banks. If you pass a browser option to either of them, remove it.
-Leumi also no longer invokes browser hooks or honors browser options; remove
-those options from its configuration.
-
-The list lives in `src/Scrapers/Pipeline/Core/BrowserOnlyOptions.ts`. The
-transport comes from `resolveHeadlessTransportKind`, which applies the same
-rules the runtime uses to wire the bank — see
-[Headless transports](architecture/pipeline.md#headless-transports).
+Browser ownership, page hooks, navigation timeouts, viewport settings and
+screenshot options are **removed**, not accepted with a warning. Every bank
+uses HTTP, and there is no browser fallback. Remove those fields from
+`createScraper` calls; the complete breaking-change list is in
+[Compatibility](compatibility.md). The five unrelated legacy-only warnings
+above remain.
 
 ## Per-bank credentials — `scraper.scrape({ ... })`
 
@@ -158,11 +99,11 @@ than a login timeout.
 
 API-direct banks (OneZero, Pepper, PayBox) additionally accept:
 
-| Field | Purpose |
-| --- | --- |
-| `phoneNumber` | Digits-only international form (no `+`, no dashes) — e.g. `972000000000`; a value already in the bank's own wire form is accepted unchanged. The mediator rewrites it to each bank's wire format, and fails the run with `INVALID_PHONE_NUMBER` when it cannot — including for the natural local form `0500000001`. |
-| `otpCodeRetriever` | Passed in **credentials**, not options, for these three banks |
-| `otpLongTermToken` | Persistent token returned in `result.persistentOtpToken` — supply it to skip the SMS round-trip on the next run |
+| Field              | Purpose                                                                                                                                                                                                                                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `phoneNumber`      | Digits-only international form (no `+`, no dashes) — e.g. `972000000000`; a value already in the bank's own wire form is accepted unchanged. The mediator rewrites it to each bank's wire format, and fails the run with `INVALID_PHONE_NUMBER` when it cannot — including for the natural local form `0500000001`. |
+| `otpCodeRetriever` | Passed in **credentials**, not options, for these three banks                                                                                                                                                                                                                                                       |
+| `otpLongTermToken` | Persistent token returned in `result.persistentOtpToken` — supply it to skip the SMS round-trip on the next run                                                                                                                                                                                                     |
 
 VisaCal is API-direct but has no OTP: it takes `username` and `password`, and
 an optional `otpLongTermToken` that skips the password step — see
@@ -199,35 +140,23 @@ but carries no token, so the bank may still ask for an SMS — see
 
 All optional.
 
-| Variable | Default | Effect |
-| --- | --- | --- |
-| `PII_REDACTION` | `on` | Set to `off` for real-bank E2E **only**. It governs the three text artifacts below — `pipeline.log`, `network/*.json`, `screenshots/*.html` — so turning it off means each holds real PII. It does not govern the browser cache or `.png` screenshots, which behave the same in both modes. Unit tests always run with redaction default-on. |
-| `FORENSIC_TRACE` | unset | `true` writes the full run folder — `pipeline.log`, `network/*.json`, `screenshots/*.png` — under `RUNS_ROOT`. This is how raw provider payloads are captured on the Pipeline; see [Observability](observability/index.md) |
-| `RUNS_ROOT` | `<cwd>` | Parent directory for the forensic run folder — see [PII redaction](observability/redaction.md) |
-| `LOG_LEVEL` | pino default | Pino verbosity only; decoupled from `FORENSIC_TRACE`. Has no observable effect until a destination is enabled — the logger is silent unless `FORENSIC_TRACE` or `PRETTY_LOGS` asks for one |
-| `PRETTY_LOGS` | unset | `true` (exactly — the flag is default-deny) routes logs through `pino-pretty` for human-readable terminal output. It is a **development** convenience: `pino-pretty` is a devDependency, so it is absent from a consumer's production install. Asking for it there is not fatal — `instantiateLogger` emits a process warning and degrades to the file transport, or to silence — see [Observability](observability/index.md#pretty-terminal-output) |
-| `DUMP_FIXTURES_DIR` | unset | Opt-in DOM `*.html` snapshot capture — see [TERMINATE](phases/terminate.md) |
-| `DUMP_SNAPSHOTS` | unset | Opt-in cold-start navigation snapshots — see [INIT navigation forensics](observability/init-navigation-forensics.md) |
-| `WINDOW_BACKFILL` | on | `off` is the operator kill-switch; any other value leaves backfill on — see [API-DIRECT-SCRAPE](phases/api-direct-scrape.md) |
-| `MOCK_MODE` | unset | `1` switches `test:mock` to its fixture-driven path |
-| `CAMOUFOX_LAUNCH_TIMEOUT_MS` | `300000` | Bounds browser launch — see [Quick Start](quick-start.md#tuning-the-launch) |
+| Variable          | Default      | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ----------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PII_REDACTION`   | `on`         | Set to `off` for real-bank E2E **only**. It disables redaction of `pipeline.log` and `network/*.json`, so those files then hold real PII. Unit tests always run with redaction default-on.                                                                                                                                                                                                                                                           |
+| `FORENSIC_TRACE`  | unset        | `true` writes `pipeline.log` and `network/*.json` under the run folder in `RUNS_ROOT`. See [Observability](observability/index.md)                                                                                                                                                                                                                                                                                                                   |
+| `RUNS_ROOT`       | `C:\tmp\runs` | Parent directory for the forensic run folder. Set it explicitly on non-Windows hosts — see [PII redaction](observability/redaction.md) |
+| `LOG_LEVEL`       | pino default | Pino verbosity only; decoupled from `FORENSIC_TRACE`. Has no observable effect until a destination is enabled — the logger is silent unless `FORENSIC_TRACE` or `PRETTY_LOGS` asks for one                                                                                                                                                                                                                                                           |
+| `PRETTY_LOGS`     | unset        | `true` (exactly — the flag is default-deny) routes logs through `pino-pretty` for human-readable terminal output. It is a **development** convenience: `pino-pretty` is a devDependency, so it is absent from a consumer's production install. Asking for it there is not fatal — `instantiateLogger` emits a process warning and degrades to the file transport, or to silence — see [Observability](observability/index.md#pretty-terminal-output) |
+| `WINDOW_BACKFILL` | on           | `off` is the operator kill-switch; any other value leaves backfill on — see [API-DIRECT-SCRAPE](phases/api-direct-scrape.md)                                                                                                                                                                                                                                                                                                                         |
+| `MOCK_MODE`       | unset        | `1` switches `test:mock` to its fixture-driven path                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 ## Files written to disk
 
 The "Redacted?" column assumes the default `PII_REDACTION=on`. Setting it to
-`off` turns each ✅ below into a ❌. The two non-✅ rows are unaffected: the
-browser cache holds no scrape output, and `.png` screenshots are never scrubbed
-in either mode.
+`off` turns each ✅ below into a ❌. No browser cache, DOM snapshot or
+screenshot is created.
 
-| Path | Contents | Redacted? |
-| --- | --- | --- |
-| `~/.cache/camoufox/` | Camoufox browser bundle (~1.3 GB, downloaded on first launch) | n/a |
-| `<cwd>/pipeline.log` | Pino transcript | ✅ censored before any transport writes |
-| `<cwd>/network/*.json` | Captured HTTP bodies | ✅ redacted before write |
-| `<cwd>/screenshots/*.html` | DOM snapshots per phase | ✅ redacted in place |
-| `<cwd>/screenshots/*.png` | Raster screenshots | ❌ **never** — raster is not OCR-scrubbed |
-
-!!! warning "PNG screenshots are not redacted"
-    Raster images are not OCR-scrubbed. They can contain unredacted PII
-    rendered by the bank's own UI. Blur or crop before attaching one to a bug
-    report — see [PII redaction](observability/redaction.md).
+| Path                   | Contents             | Redacted?                               |
+| ---------------------- | -------------------- | --------------------------------------- |
+| `<run>/pipeline.log`   | Pino transcript      | ✅ censored before any transport writes |
+| `<run>/network/*.json` | Captured HTTP bodies | ✅ redacted before write                |

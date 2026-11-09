@@ -75,8 +75,8 @@ shared with Mizrahi) turns these fixed maps into step headers.
 The session is cookies, not an auth header. `HAPOALIM_HEADLESS` maps each step
 to its path, selects Node's own `fetch` (`nativeFetch`) and keeps one cookie jar
 for `bankhapoalim.co.il` (`sessionCookies`, `cookieDomains`). No browser
-starts, and browser options passed to `createScraper` are ignored with a
-[warning](../configuration.md#browser-options-on-browserless-banks). Any
+starts, and browser options passed to `createScraper` are no longer supported; see the
+[migration notes](../configuration.md#removed-browser-options). Any
 redirect fails the run (`redirectPolicy: 'reject'`), so a redirected `verify`
 never replays the sealed password.
 

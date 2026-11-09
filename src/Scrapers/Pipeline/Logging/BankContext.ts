@@ -38,12 +38,12 @@ const BANK_CONTEXT = createBankStore();
  * Fields:
  *   - `bank` / extra fields — read from the AsyncLocalStorage scope
  *     established by {@link runWithBankContext}.
- *   - `phase` — current pipeline phase (init / login / scrape / …).
+ *   - `phase` — current pipeline phase (api-direct-call / api-direct-scrape).
  *   - `stage` — 4-stage protocol (PRE / ACTION / POST / FINAL).
  *   - `runId` — per-process run-stamp (`DD-MM-YYYY_HHMMSScc`); SAME
  *     value the trace artefact folder is named with on disk, so a log
- *     line can be deterministically joined to its `network/` and
- *     `screenshots/` siblings even after logs are aggregated off-host.
+ *     line can be deterministically joined to its `network/` siblings
+ *     even after logs are aggregated off-host.
  *     Omitted from the mixin object when empty (pre-`setActiveBank`
  *     log lines) so it never appears as `runId:""` noise.
  *

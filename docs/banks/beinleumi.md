@@ -90,8 +90,8 @@ login never answers:
   body is never read.
 
 The config sets `omitBankText`, so no failure message carries the bank's own
-text. Browser options passed to `createScraper` are ignored with a
-[warning](../configuration.md#browser-options-on-browserless-banks).
+text. Browser options passed to `createScraper` are no longer supported; see the
+[migration notes](../configuration.md#removed-browser-options).
 
 ## Warm start
 

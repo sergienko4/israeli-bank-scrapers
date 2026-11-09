@@ -5,7 +5,6 @@ source-files:
   - .github/workflows/pr-body-check.yml
   - .github/workflows/codeql.yml
   - .github/workflows/cache-cleanup.yml
-  - .github/workflows/browser-stack-watch.yml
   - .github/workflows/dev-tooling-watch.yml
   - .github/scripts/ci/detect-changes.sh
   - .github/actions/setup-consumer-runtime/action.yml
@@ -13,13 +12,6 @@ source-files:
   - .github/scripts/ci/consumer-smoke.cjs
   - .github/scripts/ci/consumer-smoke.mjs
   - scripts/check-node-support.mjs
-  - scripts/check-browser-stack.mjs
-  - scripts/browser-stack/gate-pins.mjs
-  - src/Tests/Unit/Tools/BrowserStackAcceptanceGuards.test.ts
-  - scripts/browser-stack/gate-report.mjs
-  - scripts/browser-stack/gen-config.mjs
-  - scripts/browser-stack/gate.mjs
-  - src/Tests/Unit/Tools/BrowserStackGenConfig.test.ts
 ---
 
 # CI gates
@@ -29,16 +21,12 @@ are skipped when the changed files cannot affect them —
 `.github/scripts/ci/detect-changes.sh` classifies the diff and each job's `if:`
 in `pr.yml` states its own condition. The matrix below is the source of truth.
 
-Unit tests, mocked E2E, integration and the package job gate on `full_suite`:
-`src` or `critical_deps`. `critical_deps` catches a browser-stack change that
-leaves `src/` untouched. That is a moved range or resolved version of
-`playwright-core` or `@hieutran094/camoufox-js`, or an edit to a file that pins
-the stack: `browser-stack.json` (the Camoufox tag, its asset SHA-256, the
-tested playwright-core minor and the SHA-256 of each side's Juggler
-`Protocol.js`), `scripts/patch-playwright-core.mjs`,
-`.github/actions/install-camoufox/`, or the tooling that validates the manifest
-(`scripts/browser-stack/`, `scripts/check-browser-stack.mjs`).
-`CriticalDepsFullSuiteGate.test.ts` pins this list.
+`full_suite` means `src` or `critical_deps`. A changed declared range or
+resolved version of any production dependency (`@babel/parser`, `lodash`,
+`moment`, `moment-timezone`, `parse5`, `pino`) sets `critical_deps`, even
+without a source edit. Dependency-only changes also select the unit, mocked
+E2E and package jobs. `CriticalDepsFullSuiteGate.test.ts` pins that routing.
+The browser-stack gate and browser integration harness are removed.
 
 Post-merge is a different pipeline: one `Main Pipeline` run per merge — scans
 and release together — covered in
@@ -46,33 +34,30 @@ and release together — covered in
 
 ## Gate matrix
 
-| Gate | npm script | Failure mode | Where to look |
-|---|---|---|---|
-| **Format** | `format:check` | Prettier reports unformatted files | Run `npm run format` locally |
-| **Type check** | `type-check` | `tsc --noEmit` errors | `tsconfig.json` — strict mode is on, no `any`, no unused |
-| **ESLint** | `lint` (also runs architecture + canaries + format:check) | Any rule violation; `--max-warnings 0` | `eslint.config.mjs` |
-| **Biome** | `lint:biome` | Biome rule violation | `biome.json` |
-| **Architecture** | `lint:architecture src/Scrapers/Pipeline` | Cross-layer import violation | Lives under `src/Tests/Tools/lint-and-validate.ts` |
-| **Canaries** | `lint:canaries` | One of the 33 TypeScript canaries didn't trigger its expected error | `src/Scrapers/Pipeline/EslintCanaries/verify.sh` |
-| **Dead code** | `lint:dead-code` | Unused exports / unreachable code | `src/Tests/Tools/detect-dead-code.ts` |
-| **Phase isolation lint** | `lint:phases:strict` | Phase H test code outside the allowed pattern | `src/Tests/Unit/Pipeline/CrossValidation/Phases/` |
-| **Unit tests** | `test:unit` | 4807 tests; all must pass | `--testPathIgnorePatterns=E2eReal --testPathIgnorePatterns=E2eMocked` |
-| **Pipeline + coverage** | `test:pipeline` | Coverage drops below 97/95/97/98 | `src/coverage/lcov-report/` |
-| **SonarCloud** | n/a (job `SonarCloud Scan`) | On a PR touching `src/**`: the quality gate fails, the PR adds any new issue, SonarCloud's new-issue count cannot be read in 5 tries of at most 30 s each, or `Detect changes` / `Unit tests` did not succeed | `sonar-project.properties`; [SonarCloud query protocol](code-review-tooling.md#sonarcloud--query-protocol) |
-| **Browser stack** | `lint:browser-stack`, after `node scripts/patch-playwright-core.mjs --strict` (job `Browser stack contract`) | On a PR where `critical_deps` is true: a patch anchor (the pageError guard, the interception shim or the Set-Cookie split) no longer matches the resolved playwright-core; either side's Juggler `Protocol.js` (the resolved playwright-core's or the pinned Camoufox tag's) differs from the SHA-256 `browser-stack.json` pins for that side, checked before either is parsed (a playwright-core version with no pin is reported, not failed); or the playwright-core protocol differs from the Camoufox tag's beyond the deltas `browser-stack.json` accepts; or `src/Scrapers/Pipeline/Mediator/Browser/BrowserStackConfig.ts` no longer matches what `npm run browser-stack:gen` writes from `browser-stack.json` (`GENERATED-STALE`; run that script and commit the file). Mock E2E and Integration then never start. On other PRs its steps are skipped and the job passes; there Unit tests run `BrowserStackAcceptanceGuards.test.ts`, which fails when src starts to use a feature an accepted delta breaks or the installed playwright-core sends a method or field Camoufox lacks, and `BrowserStackGenConfig.test.ts`, which fails on a hand edit of the generated file | `browser-stack.json`, `scripts/browser-stack/`; wiring pinned by `BrowserStackGateWiring.test.ts` |
-| **Mock E2E** | `test:e2e:mock`, after the runtime contract alone (`--runTestsByPath src/Tests/E2eMocked/BrowserStackContract.e2e-mocked.test.ts`) | Browser-engine E2E with no live site (browser-stack contract, Camoufox launch, anti-detection, home entry, selector fallback, OTP detection); synthetic-gateway E2E for the API-direct banks (Pepper, OneZero, Visa Cal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav, Beinleumi, Massad, Otsar Hahayal, Pagi, Discount). First, on every run: `page.route`/`context.route` fulfil a request and a multi-value `Set-Cookie` stays one entry per value through the pinned Camoufox. The job's limit is 20 minutes, over three times its projected run; the first launch also fetches uBlock Origin from addons.mozilla.org, as the cache keeps only the asset | `src/Tests/E2eMocked/`; step pinned by `BrowserStackGateWiring.test.ts` |
-| **Mock suite (orchestrated)** | `test:mock` | `scripts/run-mock-suite.ts` driving all configured banks | Same fixtures |
-| **Bank tests** | `test:e2e-factory-tests` | Phase H cross-bank factory drives every phase per bank | `src/Tests/Unit/Pipeline/CrossValidation/Phases/` |
-| **Integration** | `test:integration:mode-a:bank`, `test:integration:mode-b:bank` | A static-HTML drive (Mode A) or a mirror-origin replay (Mode B) fails for a fixture bank. CI splits both scripts into 2 Jest shards (`--shard=i/2`, job `Integration (shard i/2)`); an empty shard fails, so the shard count never exceeds Mode B's file count | `src/Tests/Integration/` (Mode A, plus the Mode B mirror test), `src/Tests/Unit/Integration/Banks/` (Mode B bank tests) |
-| **Build** | `build` | `tsup` ESM + CJS bundle | `lib/index.{mjs,cjs,d.ts,d.cts}` produced |
-| **Memory** | `test:memory` | Peak memory grows more than 10% against the merge base | `.github/scripts/ci/memory-measure.sh` + [`memory-compare.sh`](#memory-regression-gate) |
-| **Decoupling** | n/a (`scripts/decoupling-metrics/measure.mjs`) | A new import cycle, a new `any`, a deleted canary or ESLint rule, or fan-out growing more than 10% | [`decoupling-compare.sh`](#decoupling-regression-gate) |
-| **PR body compliance** | n/a (server-side `actions/github-script`) | PR body missing one of the 3 mandatory sections (`## Why`, `## What`, `## Guideline compliance`) | `.github/workflows/pr-body-check.yml` — mirrored locally by [`npm run lint:pr-body`](pre-push.md) |
-| **Cited paths** | `lint:doc-paths` | An agent doc or PR body cites a repo path that does not exist | `scripts/check-doc-paths.mjs` — see [Doc path gate](doc-paths.md) |
-| **Plan refs** | `lint:plan-refs` | An added line cites an ID from a local, uncommitted plan (item number, decision ID, task number or section mark); fixtures, captured pages, lockfiles and the generated changelog are skipped | `scripts/check-plan-refs.mjs` — runs in the pre-commit hook and in `pr-body-check.yml` |
-| **Docs staleness** | n/a (`Docs staleness canary` step of the [`Static checks`](#static-checks) job in `pr.yml`; also the pre-commit hook) | A file listed in a docs page's `source-files:` front matter changed, but no page that lists it changed. Runs on every PR that `is-bot-pr.cjs` does not exempt: bot PRs and same-repository `dependabot/…` or `release-please--…` branches skip it — see [Code scanning](code-scanning.md) | `.github/scripts/ci/docs-staleness.sh` |
-| **Links** | n/a (Lychee step in `pr.yml`) | A link in `README.md` or `docs/**/*.md` is broken; runs when a PR touches Markdown, and on every manual run | [Link checking](#link-checking) |
-| **Fork PRs** | n/a (server-side `gh`) | A pull request opened from a fork is commented on and closed automatically — see [Pull requests come from this repository only](#pull-requests-come-from-this-repository-only) | `.github/workflows/no-fork-prs.yml` |
+| Gate                          | npm script                                                                                                            | Failure mode                                                                                                                                                                                                                                                                              | Where to look                                                                                              |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Format**                    | `format:check`                                                                                                        | Prettier reports unformatted files                                                                                                                                                                                                                                                        | Run `npm run format` locally                                                                               |
+| **Type check**                | `type-check`                                                                                                          | `tsc --noEmit` errors                                                                                                                                                                                                                                                                     | `tsconfig.json` — strict mode is on, no `any`, no unused                                                   |
+| **ESLint**                    | `lint` (also runs architecture + canaries + format:check)                                                             | Any rule violation; `--max-warnings 0`                                                                                                                                                                                                                                                    | `eslint.config.mjs`                                                                                        |
+| **Biome**                     | `lint:biome`                                                                                                          | Biome rule violation                                                                                                                                                                                                                                                                      | `biome.json`                                                                                               |
+| **Architecture**              | `lint:architecture src/Scrapers/Pipeline`                                                                             | Cross-layer import violation                                                                                                                                                                                                                                                              | Lives under `src/Tests/Tools/lint-and-validate.ts`                                                         |
+| **Canaries**                  | `lint:canaries`                                                                                                       | An enabled canary did not trigger its expected error                                                                                                                                                                                                                                      | `src/Scrapers/Pipeline/EslintCanaries/verify.sh`                                                           |
+| **Dead code**                 | `lint:dead-code`                                                                                                      | Unused exports / unreachable code                                                                                                                                                                                                                                                         | `src/Tests/Tools/detect-dead-code.ts`                                                                      |
+| **Unit tests**                | `test:unit`                                                                                                           | A selected unit suite fails                                                                                                                                                                                                                                                               | `jest.unit.config.js`                                                                                      |
+| **Pipeline + coverage**       | `test:pipeline`                                                                                                       | Coverage drops below 97/95/97/98                                                                                                                                                                                                                                                          | `src/coverage/lcov-report/`                                                                                |
+| **SonarCloud**                | n/a (job `SonarCloud Scan`)                                                                                           | On a PR touching `src/**`: the quality gate fails, the PR adds any new issue, SonarCloud's new-issue count cannot be read in 5 tries of at most 30 s each, or `Detect changes` / `Unit tests` did not succeed                                                                             | `sonar-project.properties`; [SonarCloud query protocol](code-review-tooling.md#sonarcloud--query-protocol) |
+| **Mock E2E**                  | `test:e2e:mock`                                                                                                       | An API-direct flow fails against its synthetic HTTP gateway                                                                                                                                                                                                                               | `src/Tests/E2eMocked/`; no live bank or browser                                                            |
+| **Mock suite (orchestrated)** | `test:mock`                                                                                                           | `scripts/run-mock-suite.ts` driving all configured banks                                                                                                                                                                                                                                  | Same fixtures                                                                                              |
+| **Bank tests**                | `test:e2e-factory-tests`                                                                                              | The scraper/error-handling contract fails                                                                                                                                                                                                                                                 | `src/Tests/E2e.test.ts`                                                                                    |
+| **Build**                     | `build`                                                                                                               | `tsup` ESM + CJS bundle                                                                                                                                                                                                                                                                   | `lib/index.{mjs,cjs,d.ts,d.cts}` produced                                                                  |
+| **Memory**                    | `test:memory`                                                                                                         | Peak memory grows more than 10% against the merge base                                                                                                                                                                                                                                    | `.github/scripts/ci/memory-measure.sh` + [`memory-compare.sh`](#memory-regression-gate)                    |
+| **Decoupling**                | n/a (`scripts/decoupling-metrics/measure.mjs`)                                                                        | A new import cycle, a new `any`, a deleted canary or ESLint rule, or fan-out growing more than 10%                                                                                                                                                                                        | [`decoupling-compare.sh`](#decoupling-regression-gate)                                                     |
+| **PR body compliance**        | n/a (server-side `actions/github-script`)                                                                             | PR body missing one of the 3 mandatory sections (`## Why`, `## What`, `## Guideline compliance`)                                                                                                                                                                                          | `.github/workflows/pr-body-check.yml` — mirrored locally by [`npm run lint:pr-body`](pre-push.md)          |
+| **Cited paths**               | `lint:doc-paths`                                                                                                      | An agent doc or PR body cites a repo path that does not exist                                                                                                                                                                                                                             | `scripts/check-doc-paths.mjs` — see [Doc path gate](doc-paths.md)                                          |
+| **Plan refs**                 | `lint:plan-refs`                                                                                                      | An added line cites an ID from a local, uncommitted plan (item number, decision ID, task number or section mark); fixtures, captured pages, lockfiles and the generated changelog are skipped                                                                                             | `scripts/check-plan-refs.mjs` — runs in the pre-commit hook and in `pr-body-check.yml`                     |
+| **Docs staleness**            | n/a (`Docs staleness canary` step of the [`Static checks`](#static-checks) job in `pr.yml`; also the pre-commit hook) | A file listed in a docs page's `source-files:` front matter changed, but no page that lists it changed. Runs on every PR that `is-bot-pr.cjs` does not exempt: bot PRs and same-repository `dependabot/…` or `release-please--…` branches skip it — see [Code scanning](code-scanning.md) | `.github/scripts/ci/docs-staleness.sh`                                                                     |
+| **Links**                     | n/a (Lychee step in `pr.yml`)                                                                                         | A link in `README.md` or `docs/**/*.md` is broken; runs when a PR touches Markdown, and on every manual run                                                                                                                                                                               | [Link checking](#link-checking)                                                                            |
+| **Fork PRs**                  | n/a (server-side `gh`)                                                                                                | A pull request opened from a fork is commented on and closed automatically — see [Pull requests come from this repository only](#pull-requests-come-from-this-repository-only)                                                                                                            | `.github/workflows/no-fork-prs.yml`                                                                        |
 
 ## Pull requests come from this repository only
 
@@ -127,22 +112,20 @@ unfinished step's `if`, and a step that names no status function means
 
 ## A push stays under the job limit
 
-BLUF: one push to a PR needs at most 16 runners at once before `Validate`
-(17 on an open event) and 17 after it. The account runs at most 20 jobs at
+BLUF: one push to a PR needs at most 14 runners at once before `Validate`
+(15 on an open event) and 17 after it. The account runs at most 20 jobs at
 once. After `Validate`, the count also rests on measured timing (below).
 `PushConcurrencyBound.test.ts` pins the count, so a PR that adds a job, a
 matrix leg or a PR-triggered workflow has to update it.
 
 - **`pr.yml`.** Once `Detect changes` ends, it starts 8 runners: Static
   checks, the bash 3.2 (macOS) check, 3 Unit tests legs, Package & E2E
-  factory, Browser stack contract and Dependency Review. E2E mocked and the
-  2 Integration shards wait for the 1-runner Browser stack contract, so
-  their 3 runners add 2: at most 10. `SonarCloud Scan` waits for all 3 Unit
+  factory, E2E mocked and Dependency Review. `SonarCloud Scan` waits for all 3 Unit
   tests legs, so it never adds to the peak.
 - **Other workflows.** A push also starts CodeQL, Validate PR Title, PR Body
   Compliance and the Workflow Security Scan, one job each. GitHub adds 2
   runs of its own: Copilot Code Review and GitHub Advanced Security's Code
-  scanning AI findings. 10 + 4 + 2 = 16.
+  scanning AI findings. 8 + 4 + 2 = 14.
 - **Open events.** Dependabot Auto-Merge (`opened`) or Block Fork PRs
   (`opened`, `reopened`) adds 1 job; Dependabot's PRs never come from a
   fork, so both never run on one PR. `cache-cleanup.yml` runs only on
@@ -151,9 +134,8 @@ matrix leg or a PR-triggered workflow has to update it.
   its E2E-real legs start: 13 across the 5 groups (4, 2, 3, 1 and 3).
   Group A's Discount, VisaCal, Isracard and Max legs, Group B's
   Hapoalim and Beinleumi legs, Group D's Amex leg and Group E's Yahav
-  and Mizrahi legs log in over the bank's API and open no browser;
-  Groups A, B and D install no Camoufox; Groups C and E still install
-  it on every leg. A
+  and Mizrahi legs log in over the bank's API. All groups use HTTP and
+  install no browser. A
   group holds its approval gate's runner or its legs', never both. Only
   `SonarCloud Scan` and CodeQL may still be running beside them, plus
   GitHub's 2 runs: 13 + 2 + 2 = 17. Dependency Review, Validate PR Title, PR
@@ -194,15 +176,6 @@ delete is re-checked: if another run already removed the caches, the job
 still passes; if any are left, it fails. `CacheCleanupGate.test.ts` runs the
 committed script against a stubbed `gh` to pin all of this.
 
-## The browser stack is watched weekly
-
-`.github/workflows/browser-stack-watch.yml` is not a gate, and no PR runs it.
-Every Monday it reports whether the Browser stack gate accepts the consumer
-`playwright-core` × Camoufox pair, and whether CI tests the release
-camoufox-js installs. The report is the body of
-one issue labelled `browser-stack`. See
-[Browser stack](../architecture/browser-stack.md#the-weekly-watch).
-
 ## The lint tooling is probed daily
 
 `.github/workflows/dev-tooling-watch.yml` is not a gate either. Every day at
@@ -216,12 +189,12 @@ closed after `pass` or `no-candidate`. See
 
 ## Static checks
 
-BLUF: one job, `Static checks`, runs the lint and type steps plus four short
-repository gates — Scorecard npm pins, bank integration coverage, decoupling
+BLUF: one job, `Static checks`, runs the lint and type steps plus short
+repository gates — Scorecard npm pins, decoupling
 and docs staleness — that used to be jobs of their own. Fewer jobs keep a
 push inside the account's concurrent-job limit.
 
-- **Background steps.** The four gates are `background` steps that run beside
+- **Background steps.** These gates are `background` steps that run beside
   the lint steps. The job's last step, `wait-all`, fails the job when any of
   them failed. It always runs, even after a lint step fails, so no gate's
   failure is lost.
@@ -245,8 +218,8 @@ push inside the account's concurrent-job limit.
 - **No shared writes.** Background steps share the working tree with the
   foreground ones, so none may write a file another step reads. Scorecard
   scans a `git archive` copy in a temporary directory. Decoupling writes its
-  git-ignored snapshots and a sibling `../base` worktree. Bank coverage and
-  docs staleness only read. `StaticChecksJob.test.ts` pins the background
+  git-ignored snapshots and a sibling `../base` worktree. Docs staleness
+  only reads. `StaticChecksJob.test.ts` pins the background
   set, so adding a step there means repeating this check. Decoupling never
   shares a job with the build, whose guardrails hash `lib/`, or with the
   memory gate, which adds the same `../base` worktree.
@@ -270,13 +243,12 @@ the account's concurrent-job limit.
   it, with nothing beside them, so the PR and its merge base are measured
   under the same load.
 - **Conditions.** Each step keeps the `if:` its old job had, joined with its
-  own. The job's `if:` is the OR of the four. Setup installs Camoufox, and
-  passes it a token, only when the E2E factory tests run.
+  own. The job's `if:` is the OR of the four. Setup installs Node dependencies,
+  not a browser.
 - **Full history.** Checkout keeps `fetch-depth: 0`. With a shallow clone
   the memory gate cannot check out the merge base, reports "not measured"
   and passes.
-- **Camoufox and the consumer install.** When the E2E factory tests run,
-  Camoufox is on disk during the consumer install. The smoke uses native
+- **Consumer install.** The smoke uses native
   Leumi and substitutes a synthetic 503 response for `fetch`, so the expected
   failure is `prime HTTP 503`. The synthetic handler accepts only
   `https://hb2.bankleumi.co.il/H/Login.html`; a wrong host or path fails
@@ -310,12 +282,12 @@ merge commit. On a manual
 always runs and checks the selected branch. Files under `tasks/` are not
 checked. Links are handled in four ways:
 
-| Link | How it is checked |
-| --- | --- |
-| A `blob/` or `tree/` link into this repository, on the branch placeholder or on `main` | Mapped onto a `git archive` export of the checked-out commit; the path must be a tracked file or directory |
-| Any other `blob/` link on github.com, including this repository on another branch or commit | Mapped onto `raw.githubusercontent.com`, which answers 404 for a missing file |
-| A relative link | Resolved against the files in the checkout |
-| Any other web link | Fetched directly: at most 4 requests in flight per host, at least 200 ms apart. A timeout, 429 or 5xx answer is retried up to 3 times, waiting at least 2, 4 and 8 s; a 404 fails at once |
+| Link                                                                                        | How it is checked                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A `blob/` or `tree/` link into this repository, on the branch placeholder or on `main`      | Mapped onto a `git archive` export of the checked-out commit; the path must be a tracked file or directory                                                                                |
+| Any other `blob/` link on github.com, including this repository on another branch or commit | Mapped onto `raw.githubusercontent.com`, which answers 404 for a missing file                                                                                                             |
+| A relative link                                                                             | Resolved against the files in the checkout                                                                                                                                                |
+| Any other web link                                                                          | Fetched directly: at most 4 requests in flight per host, at least 200 ms apart. A timeout, 429 or 5xx answer is retried up to 3 times, waiting at least 2, 4 and 8 s; a 404 fails at once |
 
 Why not just fetch github.com: under Lychee's burst of requests, github.com
 intermittently answers `/blob/` pages with an HTML 503 page — no 429, no
@@ -371,11 +343,11 @@ the CI scripts themselves (`full_suite`, `deps`, `test_config`, `ci_scripts`).
 A docs-only PR cannot move memory, so it is skipped rather than measured twice
 to prove nothing.
 
-| Knob | Default | Meaning |
-| --- | --- | --- |
-| `MEMORY_WORKLOAD` | `test:memory` | The npm script that gets measured |
-| `MEMORY_SAMPLES` | `3` | Runs per side; the **lowest** is kept |
-| `THRESHOLD_PCT` | `10` | Growth above this percentage fails the gate |
+| Knob              | Default       | Meaning                                     |
+| ----------------- | ------------- | ------------------------------------------- |
+| `MEMORY_WORKLOAD` | `test:memory` | The npm script that gets measured           |
+| `MEMORY_SAMPLES`  | `3`           | Runs per side; the **lowest** is kept       |
+| `THRESHOLD_PCT`   | `10`          | Growth above this percentage fails the gate |
 
 Two details worth knowing when reading a result:
 
@@ -419,14 +391,14 @@ Comparison is against the merge base rather than the committed
 hand, so it drifts behind `main`; diffing against a stale one measures
 everything merged since it was taken instead of what this PR did.
 
-| Metric | Kind | Fails when |
-|---|---|---|
-| Runtime import cycles | ratchet | increases |
-| `any` usages | ratchet | increases |
-| ESLint canaries | ratchet | decreases |
-| ESLint rules | ratchet | decreases |
-| Avg runtime fan-out | tolerance | grows more than `THRESHOLD_PCT` (default 10%) |
-| Files, runtime edges | context | never — reported to explain the rows above |
+| Metric                | Kind      | Fails when                                                                                     |
+| --------------------- | --------- | ---------------------------------------------------------------------------------------------- |
+| Runtime import cycles | ratchet   | increases                                                                                      |
+| `any` usages          | ratchet   | increases                                                                                      |
+| ESLint canaries       | ratchet   | decreases beyond exact approved browser-only retirements, or an unapproved filename disappears |
+| ESLint rules          | ratchet   | decreases                                                                                      |
+| Avg runtime fan-out   | tolerance | grows more than `THRESHOLD_PCT` (default 10%)                                                  |
+| Files, runtime edges  | context   | never — reported to explain the rows above                                                     |
 
 The split is deliberate. A guardrail has no legitimate "slightly weaker"
 state, so those four have no tolerance band at all: deleting a canary or an
@@ -436,6 +408,16 @@ made executable. Coupling is different — files and edges grow whenever a
 feature lands, so only the _average_ fan-out is bounded, and only against a
 generous band that catches new code being markedly more coupled than the code
 already there.
+
+Browser removal has an explicit, hash-pinned list of 18 retired canaries
+in `scripts/decoupling-metrics/lib/canary-retirements.mjs`. Credit applies
+only when the exact filename and SHA-256 existed in the base and are
+absent from the head. Raw live counts and every credited filename are
+shown in the summary. Removing any other canary fails even if a replacement
+hides the count. Once a retired fixture is absent from the base, it
+provides no further credit. Legacy snapshots without inventories retain
+the strict count ratchet. Rules, numeric caps, cycles, `any` and fan-out
+are not relaxed.
 
 Exit codes distinguish two situations that must not be collapsed:
 
@@ -462,12 +444,12 @@ GITHUB_STEP_SUMMARY=/dev/stdout bash .github/scripts/ci/decoupling-compare.sh
 
 ## Coverage thresholds
 
-| Metric | Threshold | Source |
-|---|---|---|
-| Statements | ≥ 97% | `jest.pipeline.config.cjs` |
-| Branches | ≥ 95% | same |
-| Functions | ≥ 97% | same |
-| Lines | ≥ 98% | same |
+| Metric     | Threshold | Source                     |
+| ---------- | --------- | -------------------------- |
+| Statements | ≥ 97%     | `jest.pipeline.config.cjs` |
+| Branches   | ≥ 95%     | same                       |
+| Functions  | ≥ 97%     | same                       |
+| Lines      | ≥ 98%     | same                       |
 
 A PR that drops any threshold fails `test:pipeline`. The post-Commit-1 numbers (v8.4.0) are **97.20% / 95.23% / 97.19% / 98.45%**.
 
@@ -484,21 +466,22 @@ binary and without devDependencies. Docker reads the same `.nvmrc` build pin.
 
 ## Where to find logs
 
-| Where it ran | Log location |
-|---|---|
-| Local `npm run <script>` | stdout |
-| Pre-commit hook | `.pre-commit-output.log` at repo root (overwritten each run) |
-| GitHub Actions (PR) | The PR's "Checks" tab → workflow logs |
+| Where it ran                 | Log location                                                                        |
+| ---------------------------- | ----------------------------------------------------------------------------------- |
+| Local `npm run <script>`     | stdout                                                                              |
+| Pre-commit hook              | `.pre-commit-output.log` at repo root (overwritten each run)                        |
+| GitHub Actions (PR)          | The PR's "Checks" tab → workflow logs                                               |
 | GitHub Actions (after merge) | The [`Main Pipeline`](main-pipeline.md) run → summary table names the failing stage |
 
 ## Forensic diagnostics artifacts
 
 BLUF: CI diagnostics never leave the access-controlled private store.
 `FORENSIC_TRACE=true` enables one per-run folder from
-`TraceConfig.getRunFolder` containing `pipeline.log`, `network/*.json`, and
-screenshots. On a failed real-E2E job that whole folder uploads only to the
+`TraceConfig.getRunFolder` containing `pipeline.log` and `network/*.json`.
+There are no browser screenshots or DOM captures.
+On a failed real-E2E job that whole folder uploads only to the
 private OCI diagnostics store — nothing goes to a public GitHub artifact,
-because the bundle can carry rendered PII.
+because HTTP payloads and logs can still contain sensitive data.
 
 On failed real-E2E jobs, `.github/scripts/ci/upload-private-diagnostics.sh`
 uploads the full run folder to the access-controlled OCI diagnostics store
@@ -530,7 +513,10 @@ job therefore only ever uploads; it cannot prune the bucket with
   `oci os object`, grouping by the `<run_id>-<run_attempt>` key segment and
   keeping the 5 newest run tags.
 
-## What changed in v8.4
+## Historical v8.4 changes
+
+The standalone browser-era balance phase and the three canaries named below
+were subsequently retired. This is release history, not the current gate list.
 
 - 3 new ESLint canaries for BALANCE-RESOLVE boundary enforcement: `balance-resolve-isolation`, `no-balance-in-scrape`, `balance-fetch-only-in-balance-resolve`.
 - 12 new tests in `BalanceResolveActionsCoverage.test.ts` + `BalanceResolvePhase.test.ts` + `ScrapePostDetectionBranches.test.ts` pushing branch coverage from 94.59% → 95.23%.

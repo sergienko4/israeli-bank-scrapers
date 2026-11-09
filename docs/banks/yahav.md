@@ -54,8 +54,8 @@ sends `YAHAV_NATIVE_UA`, which names this library rather than the app.
 `YAHAV_HEADLESS` maps each step to its path, keeps one cookie jar for
 `yahav.co.il`, and presents the certificate `register` returned to the native
 origin alone (`clientCert: { mode: 'dynamic' }`) over `node:https`. No browser
-starts, and browser options passed to `createScraper` are ignored with a
-[warning](../configuration.md#browser-options-on-browserless-banks). The
+starts, and browser options passed to `createScraper` are no longer supported; see the
+[migration notes](../configuration.md#removed-browser-options). The
 config sets `omitBankText`, so no failure message carries the bank's own text.
 The credentials are checked before any call: `num` and `password` must be
 Latin-1, since the token form sends both, and `nationalID` digits.

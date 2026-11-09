@@ -1,13 +1,13 @@
 # Max (formerly Leumi Card)
 
-| | |
-|---|---|
-| `CompanyTypes` | `Max` |
-| Engine | **API-direct** (no browser) |
-| Credentials | `username`, `password` |
-| OTP | — |
-| Phase chain | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md) |
-| Source | [`Banks/Max/MaxPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Max/MaxPipeline.ts) |
+|                |                                                                                                                                                  |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `CompanyTypes` | `Max`                                                                                                                                            |
+| Engine         | **API-direct** (no browser)                                                                                                                      |
+| Credentials    | `username`, `password`                                                                                                                           |
+| OTP            | —                                                                                                                                                |
+| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                            |
+| Source         | [`Banks/Max/MaxPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Max/MaxPipeline.ts) |
 
 ## Quick example
 
@@ -28,16 +28,16 @@ Max logs in over its web app's own JSON API on `MAX_ORIGIN`
 (`https://www.max.co.il`) and sends no SMS. `MAX_API_DIRECT_CALL`
 (`Registry/Config/PipelineBankConfigMax.ts`) declares two steps:
 
-| Step | Endpoint | Sends | Returns |
-|---|---|---|---|
-| `prime` | `GET api/registered/clientcontext` | — | the bank's pre-login cookies |
-| `login` | `POST api/login/login` | `username`, `password`, `id: null` | the session cookie |
+| Step    | Endpoint                           | Sends                              | Returns                      |
+| ------- | ---------------------------------- | ---------------------------------- | ---------------------------- |
+| `prime` | `GET api/registered/clientcontext` | —                                  | the bank's pre-login cookies |
+| `login` | `POST api/login/login`             | `username`, `password`, `id: null` | the session cookie           |
 
 The session is a cookie, not an auth header. `MAX_HEADLESS` registers both
 paths, selects Node's own `fetch` (`nativeFetch`) and keeps the run's cookies
 (`sessionCookies`), so no browser starts. Browser options passed to
-`createScraper` are ignored with a
-[warning](../configuration.md#browser-options-on-browserless-banks).
+`createScraper` are no longer supported; see the
+[migration notes](../configuration.md#removed-browser-options).
 
 Every call, login and data alike, carries `MAX_STATIC_HEADERS`, the run's
 session id (`sid`, the flow id the mediator mints once per run; credentials

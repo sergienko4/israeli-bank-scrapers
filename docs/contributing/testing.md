@@ -1,18 +1,21 @@
 # Test surfaces
 
-Five test suites, picked by **what you're testing**.
+Choose tests by the behavior you changed. Run only the relevant cases locally
+when needed; do not repeat full suites or checks already owned by normal hooks
+and CI. The table identifies the validation surface, not a local full-suite
+checklist.
 
 ## Decision tree
 
-| What you changed | Tests you must add / update | Tests you must run before PR |
-|---|---|---|
-| One helper function under `src/Scrapers/Pipeline/` | Unit test for that helper under `src/Tests/Unit/Pipeline/` | `test:unit` |
-| One phase's action / extractor / planner | Unit tests + the bank-factory test | `test:unit` + `test:pipeline` |
-| New bank's pipeline config | Mocked-E2E with fixtures | `test:e2e:mock` + `test:pipeline` |
-| Cross-phase invariant | Integration test under `Tests/Unit/Pipeline/CrossValidation/` | `test:pipeline` |
-| Timing, cleanup, or cancellation code | Add a case to the memory regression gate | `test:memory` |
-| Public API surface (types in `Base/Interface.ts`) | Update both unit + e2e expectations | `test:unit` + `test:e2e:mock` |
-| Real-bank behavior (live network) | E2eReal suite — `Tests/E2eReal/<Bank>.e2e-real.test.ts` | `npm test -- --testPathPatterns=E2eReal/<Bank>.e2e-real` (needs `.env`) |
+| What you changed                                   | Tests you must add / update                                   | Validation surface                                                      |
+| -------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| One helper function under `src/Scrapers/Pipeline/` | Unit test for that helper under `src/Tests/Unit/Pipeline/`    | `test:unit`                                                             |
+| One phase's action / extractor / planner           | Focused helper/phase tests                                    | `test:unit` + `test:pipeline`                                           |
+| New bank's pipeline config                         | Mocked-E2E with fixtures                                      | `test:e2e:mock` + `test:pipeline`                                       |
+| Cross-phase invariant                              | Integration test under `Tests/Unit/Pipeline/CrossValidation/` | `test:pipeline`                                                         |
+| Timing, cleanup, or cancellation code              | Add a case to the memory regression gate                      | `test:memory`                                                           |
+| Public API surface (types in `Base/Interface.ts`)  | Update both unit + e2e expectations                           | `test:unit` + `test:e2e:mock`                                           |
+| Real-bank behavior (live network)                  | E2eReal suite — `Tests/E2eReal/<Bank>.e2e-real.test.ts`       | `npm test -- --testPathPatterns=E2eReal/<Bank>.e2e-real` (needs `.env`) |
 
 ## Each surface in detail
 
@@ -22,7 +25,7 @@ Five test suites, picked by **what you're testing**.
 - Lives under `src/Tests/Unit/`.
 - Drives helpers / actions / phases with mocked `IPipelineContext`.
 - Uses `MockFactories.ts` + `MockPipelineFactories.ts` for context construction.
-- ~4800 tests, ~4 minutes.
+- Use the runner's current suite/test totals rather than a historical count.
 
 ### Pipeline + coverage (`test:pipeline`)
 
@@ -34,7 +37,7 @@ Five test suites, picked by **what you're testing**.
 
 - Uses pre-recorded fixtures (HAR-like JSON) under `src/Tests/E2eMocked/<Bank>/fixtures/`.
 - Drives the **real pipeline** against the fixtures — no live network, no browser.
-- API-direct banks (Pepper, OneZero, Visa Cal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav, Beinleumi, Massad, Otsar Hahayal, Pagi, Discount) use synthetic gateways instead: a
+- Banks use synthetic HTTP gateways: a
   `<Bank>FetchMock.ts` stands in for `fetch`, and `ApiDirect/ApiDirectFlow.e2e-mocked.test.ts`
   runs each bank's login and scrape. One `Ring/RingFetchMock.ts` serves every issuer on the
   ring mobile gateway; `Helpers/FetchMockKit.ts` holds the plumbing the newer mocks share, and
@@ -44,11 +47,10 @@ Five test suites, picked by **what you're testing**.
 - Suite, test and skip totals are reported by the runner; use its current
   summary rather than a fixed count.
 
-### Bank factory tests (`test:e2e-factory-tests`)
+### Scraper contract (`test:e2e-factory-tests`)
 
-- Cross-bank Phase H pattern — `Tests/Unit/Pipeline/CrossValidation/Phases/<Phase>Factory.test.ts`.
-- Parametrised: same test body runs for every bank, asserting per-phase invariants.
-- Uses fixtures under `CrossValidation/Phases/Fixtures/<bank>/<phase>/*.json`.
+- Runs `src/Tests/E2e.test.ts` for the scraper/error-handling contract.
+- This surface can reach real bank URLs; do not treat it as an offline unit test.
 
 ### Real-bank E2E (`test:e2e:real`)
 
@@ -63,34 +65,29 @@ Five test suites, picked by **what you're testing**.
 
 Two layers guarding against a repeat of the [#449](https://github.com/sergienko4/israeli-bank-scrapers/pull/449) OOM, both under `src/Tests/Unit/Pipeline/Mediator/Timing/`:
 
-| Layer | File | Asserts |
-|---|---|---|
-| Mechanism | `TimerLeakInvariants.test.ts` | `jest.getTimerCount() === 0` after every timing operation settles — no timer stays armed. |
-| Cancellation | `RaceTimeoutCancellation.test.ts` | The losing arm of a `raceTimeout` is cancelled, not abandoned. |
+| Layer        | File                              | Asserts                                                                                   |
+| ------------ | --------------------------------- | ----------------------------------------------------------------------------------------- |
+| Mechanism    | `TimerLeakInvariants.test.ts`     | `jest.getTimerCount() === 0` after every timing operation settles — no timer stays armed. |
+| Cancellation | `RaceTimeoutCancellation.test.ts` | The losing arm of a `raceTimeout` is cancelled, not abandoned.                            |
 
 An armed timer keeps its callback closure reachable, and that retention is what leaked in #449, so the timer count is the invariant to hold.
 
 These run inside `test:unit` / `test:pipeline` automatically, so CI covers them. `npm run test:memory` is the narrow local loop.
 
-### Memory profiler (`memory:profile`, Windows-only)
-
-`npm run memory:profile -- --bank=<bank>` samples working-set and private-bytes for the Node process **and every browser child** over a real scrape, writing a timeline under `scripts/memory-profile/runs/`.
-
-It is a **local diagnostic, not a gate** — the sampler uses PowerShell `Get-CimInstance`, and all CI runners are `ubuntu-latest`. Use it to get an absolute number for a bank; use `test:memory` to catch regressions.
-
 ## Test fixtures
 
-Captured under `src/Tests/E2eMocked/<Bank>/fixtures/` and `Tests/Unit/Pipeline/CrossValidation/Phases/Fixtures/<bank>/`. Always **pre-redacted** via `PiiRedactor` at capture time — committing a fixture should never leak real PII.
-
-If you need to add fixtures, use the [`SnapshotInterceptor`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Interceptors/SnapshotFrameCapture.ts) which writes redacted JSON for every captured response, then move the relevant slice into the fixture dir.
+Store synthetic or pre-redacted HTTP fixtures beside the corresponding
+mocked suite under `src/Tests/E2eMocked/`. `FORENSIC_TRACE=true` provides
+request/response captures when an authorized live run is needed; keep
+redaction enabled and inspect every fixture before committing it.
 
 ## Where the gates run
 
-| Trigger | Suites run |
-|---|---|
-| `npm run test:unit` (manual) | Unit |
-| `npm run test:pipeline` (manual or pre-commit) | Pipeline + coverage |
-| `npm run test:memory` (manual) | Memory regression gate (also inside Unit / Pipeline) |
-| `npm run test:e2e:mock` (CI + pre-commit) | Mocked E2E |
-| Push to PR (GitHub Actions) | Everything above + canaries + dead-code + lint + biome + tsc + format + build |
-| Maintainer ad-hoc (`scripts/run-real-suite.ts`) | Real-bank E2E with credentials |
+| Trigger                                         | Suites run                                                                    |
+| ----------------------------------------------- | ----------------------------------------------------------------------------- |
+| `npm run test:unit` (manual)                    | Unit                                                                          |
+| CI                                              | Pipeline + coverage                                                           |
+| `npm run test:memory` (manual)                  | Memory regression gate (also inside Unit / Pipeline)                          |
+| CI                                              | Mocked E2E                                                                    |
+| Push to PR (GitHub Actions)                     | Everything above + canaries + dead-code + lint + biome + tsc + format + build |
+| Maintainer ad-hoc (`scripts/run-real-suite.ts`) | Real-bank E2E with credentials                                                |

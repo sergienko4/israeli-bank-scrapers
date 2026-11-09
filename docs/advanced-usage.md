@@ -2,17 +2,9 @@
 
 ## Parallel scraping
 
-Each `createScraper` instance is independent: it launches (or, for a browserless
-bank, skips) its own browser and shares no state with the others. Run several
-banks side by side with `Promise.allSettled`.
-
-> **No shared browser.** `browser` and `browserContext` are read by no scraper —
-> the [legacy](architecture/legacy.md) launcher that honoured them was removed.
-> Every Pipeline scrape that needs a browser launches and closes its own Camoufox
-> instance, so the lever is concurrency, not sharing: each scrape in flight holds
-> its own ~1.3 GB browser process, so cap how many run at once. Banks that never
-> open a browser hold no such process — see
-> [Browser lifecycle options](configuration.md#browser-lifecycle-options).
+Each `createScraper` instance uses its own HTTP mediator. No browser process
+is started or shared. Run banks side by side with `Promise.allSettled`, while
+respecting the bank's session and rate limits.
 
 ```typescript
 const results = await Promise.allSettled(
@@ -40,9 +32,9 @@ as the loop above does: `status: 'rejected'` when the scrape threw, and
 handled error such as `INVALID_PASSWORD`.
 
 !!! warning "Parallelism raises WAF risk"
-    Several banks fingerprint concurrent sessions from one IP. If parallel runs
-    start returning `WAF_BLOCKED` where serial runs do not, stagger them by
-    2–5 s or reduce the width. See [Troubleshooting](troubleshooting.md#waf_blocked).
+Several banks fingerprint concurrent sessions from one IP. If parallel runs
+start returning `WAF_BLOCKED` where serial runs do not, stagger them by
+2–5 s or reduce the width. See [Troubleshooting](troubleshooting.md#waf_blocked).
 
 Amex and Isracard must not run concurrently against the same customer session —
 Amex has to finish before Isracard logs in. The real-E2E orchestrator encodes
@@ -51,22 +43,13 @@ scheduler.
 
 ## Timeout and retry configuration
 
-```typescript
-createScraper({
-  companyId: CompanyTypes.Leumi,
-  startDate,
-  defaultTimeout: 60000,
-});
-```
+HTTP transports own request deadlines; `otpTimeoutMs` bounds the OTP callback.
+The executor does not repeat failed phases, which could resend an SMS or
+resubmit authentication. Transport-level connection retry policies are
+separate; see [Headless transports](architecture/pipeline.md#headless-transports).
 
-`defaultTimeout` bounds **each phase** independently, not the run as a whole.
-
-!!! warning "`navigationRetryCount` does nothing"
-    `navigationRetryCount` once retried a phase that failed with `TIMEOUT`, but
-    the [legacy](architecture/legacy.md) scraper that read it was removed.
-    Every bank ignores it — including Leumi, above — and `createScraper`
-    emits a `ScraperOptionsWarning` when you pass one. See
-    [Options the Pipeline ignores](configuration.md#options-the-pipeline-ignores).
+`defaultTimeout` and `navigationRetryCount` were browser options and have been
+removed. See [Compatibility](compatibility.md) before upgrading older callers.
 
 ## Migrating from upstream `israeli-bank-scrapers`
 
@@ -75,8 +58,9 @@ createScraper({
 + npm install @sergienko4/israeli-bank-scrapers
 ```
 
-The public API is unchanged: same `createScraper`, same `companyId`, same
-credential shapes. Both `import` and `require()` work.
+`createScraper` and `CompanyTypes` remain the entry points. Both `import` and
+`require()` work, but browser options and types were removed in v10; this is
+a breaking change. Follow the [compatibility notes](compatibility.md).
 
 Two differences worth knowing:
 
