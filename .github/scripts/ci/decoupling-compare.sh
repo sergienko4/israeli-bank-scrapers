@@ -12,7 +12,8 @@
 #
 #   Ratchets    guardrails may get stronger, never weaker. A new import cycle,
 #               a new `any`, a deleted canary or a deleted ESLint rule fails
-#               the gate outright. There is no tolerance band, because "a
+#               the gate outright, except exact hash-pinned browser retirements.
+#               There is no tolerance band, because "a
 #               little bit weaker" is how a guardrail dies.
 #
 #   Tolerance   average runtime fan-out may drift within THRESHOLD_PCT. Files
@@ -81,6 +82,25 @@ RATCHETS=(
 failures=()
 rows=()
 
+# Both trees are measured with HEAD's tool, so the inventory describes the
+# actual removed fixtures. Legacy snapshots get no retirement credit.
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+retirements=$(node --input-type=module - "$BASE_SNAPSHOT" "$HEAD_SNAPSHOT" \
+  "$script_dir/../../../scripts/decoupling-metrics/lib/canary-retirements.mjs" <<'NODE'
+import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+const [basePath, headPath, policyPath] = process.argv.slice(2);
+const { canaryRetirements } = await import(pathToFileURL(policyPath).href);
+const [base, head] = [basePath, headPath].map(path => JSON.parse(readFileSync(path, 'utf8')));
+console.log(JSON.stringify(canaryRetirements(base.guardrails, head.guardrails)));
+NODE
+) || exit 2
+retired=$(jq -er '.approved | length' <<< "$retirements") || exit 2
+unapproved=$(jq -er '.unapproved | join(", ")' <<< "$retirements") || exit 2
+if [ -n "$unapproved" ]; then
+  failures+=("Unapproved canary removal: ${unapproved}")
+fi
+
 delta_of() {
   local d=$(($2 - $1))
   if [ "$d" -eq 0 ]; then
@@ -104,7 +124,11 @@ for entry in "${RATCHETS[@]}"; do
   IFS='|' read -r _name path direction label <<< "$entry"
   base=$(read_metric "$BASE_SNAPSHOT" "$path") || exit 2
   head=$(read_metric "$HEAD_SNAPSHOT" "$path") || exit 2
-  if regressed "$base" "$head" "$direction"; then
+  required=$base
+  if [ "$_name" = "canaries" ]; then
+    required=$((base - retired))
+  fi
+  if regressed "$required" "$head" "$direction"; then
     rows+=("| ${label} | ${base} | ${head} | $(delta_of "$base" "$head") | ❌ |")
     failures+=("${label}: ${base} → ${head}")
   else
@@ -160,6 +184,11 @@ fi
   echo "| --- | ---: | ---: | ---: | :-: |"
   printf '%s\n' "${rows[@]}"
   echo ""
+  if [ "$retired" -gt 0 ]; then
+    echo "Approved browser-only canary retirements: ${retired} (exact filename and SHA-256)."
+    jq -r '.approved[] | "- `" + . + "`"' <<< "$retirements"
+    echo ""
+  fi
   echo "Guardrail rows are ratchets — they may improve but never regress."
   echo "Fan-out tolerates ${THRESHOLD_PCT}% drift. Rows marked \`·\` are context only."
 } >> "$GITHUB_STEP_SUMMARY"

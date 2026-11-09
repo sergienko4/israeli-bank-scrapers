@@ -21,10 +21,18 @@ function countIn(root, files, re) {
   return total;
 }
 
-function countCanaries(root) {
+function canaryFiles(root) {
   const dir = join(root, 'src/Scrapers/Pipeline/EslintCanaries');
-  if (!existsSync(dir)) return 0;
-  return readdirSync(dir).filter(f => f.endsWith('.canary.ts')).length;
+  if (!existsSync(dir)) return {};
+  const names = readdirSync(dir)
+    .filter(f => f.endsWith('.canary.ts'))
+    .sort();
+  return Object.fromEntries(names.map(name => [name, canaryHash(dir, name)]));
+}
+
+function canaryHash(dir, name) {
+  const content = readFileSync(join(dir, name));
+  return createHash('sha256').update(content).digest('hex');
 }
 
 /**
@@ -80,8 +88,10 @@ function publicSurface(root) {
 
 /** Snapshot of guardrail strength and the published public surface. */
 export function guardrails(root, files) {
+  const inventory = canaryFiles(root);
   return {
-    canaries: countCanaries(root),
+    canaries: Object.keys(inventory).length,
+    canaryFiles: inventory,
     eslintRules: countEslintRules(root),
     anyUsages: countIn(root, files, ANY_RE),
     publicSurface: publicSurface(root),

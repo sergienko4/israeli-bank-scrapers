@@ -37,6 +37,20 @@ ratchet goes backwards (import cycles, canaries, ESLint rules, `any` usages) or
 average fan-out grows by more than 10%. The full matrix is posted to the job
 summary.
 
+Browser removal has one explicit retirement policy in
+`lib/canary-retirements.mjs`: 18 named fixtures for deleted browser-era owners
+and the superseded Common allowlist lookalike guard. Measurements now include
+each live canary's filename and SHA-256. A retirement receives credit only when
+that exact fixture existed in the base and is absent from the head. Raw live
+counts remain visible in the summary, with the approved retirements listed.
+
+An unapproved canary deletion fails even if a replacement hides the count.
+The policy gives no credit after a retired fixture is already absent from
+the base, and old snapshots without inventories retain the original strict
+count comparison. It does not relax ESLint rules, numeric caps, cycles, `any`
+or the fan-out threshold. `CanaryRetirements.test.ts` exercises the comparator
+with synthetic snapshots; it needs no main or live-bank baseline.
+
 It is skipped when the changed files cannot move the numbers — it runs only for
 the `full_suite`, `metrics` and `ci_scripts` file groups, so a docs-only PR does
 not pay for a measurement whose result is known in advance.
@@ -103,16 +117,15 @@ config per cluster and fails by name when a cap goes missing or laxer — that i
 what catches a deleted _scoped_ declaration, which this count cannot see.
 
 That gate is **complete for the four numeric caps**: it resolves the effective
-config for every production _file_ under `src/Common` and `src/Scrapers` — 862
-of them — and fails unless each cap matches the expectation recorded across
+config for every production _file_ under `src/Common` and `src/Scrapers`
+and fails unless each cap matches the expectation recorded across
 `src/Tests/Tools/CapRegimeTable.ts` (the policy anchor) and
 `src/Tests/Tools/CapOverrides.ts` (the per-path exceptions) exactly. The unit is
 the file rather than the directory because this config also
 scopes caps to individual filenames beside a differently-capped sibling
-directory (`Strategy/Scrape/ScrapeExecutor.ts` next to `Strategy/Scrape/**`, for
-one); sampling a single file per directory would leave those regimes unmeasured.
+directory; sampling a single file per directory would leave those regimes unmeasured.
 Exact matching is what catches a deleted block that pins a drained sub-tree back
-to the canonical cap — for example `Strategy/Scrape/Executor/**`, which `§19.1`
+to the canonical cap — for example `Strategy/Fetch/**`, which `§19.1`
 would otherwise leave grandfathered at 40 LoC per function. It also catches the
 reverse: draining a tree without recording it, which `eslint-rules-guidlines.md`
 §1 requires in the same PR. Rules outside those four — notably scoped
