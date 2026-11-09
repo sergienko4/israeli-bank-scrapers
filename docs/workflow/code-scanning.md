@@ -45,9 +45,17 @@ This repository uploads SARIF from three tools: **CodeQL**, **zizmor**, and
 authority and Scorecard is advisory**. This page explains why, and records the
 four standing findings that should not be "fixed" the obvious way.
 
-Of `package.json`, only the dependency ranges, `overrides`, `engines`,
-`constraints` and the browser-stack scripts bear on this page; its other
-scripts, such as test tooling, do not.
+Of `package.json`, the dependency ranges, `overrides`, `engines`,
+`constraints` and the browser-stack scripts bear on the scanning controls
+below; other scripts, such as test tooling, do not.
+
+The root `license` fields in `package.json` and `package-lock.json` identify
+this fork's own grant: `AGPL-3.0-only` starting with 10.0.0. They do not
+relicense third-party packages or relax the dependency-review license
+allowlist. Non-root lockfile license entries and vulnerability thresholds
+remain unchanged. See the
+[project license](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/README.md#license)
+for the terms and matching-release source access.
 
 ## Why zizmor decides
 

@@ -140,6 +140,17 @@ PR titles **must** follow [Conventional Commits](https://www.conventionalcommits
 
 All PRs must pass CI checks before merge (lint, type-check, tests, build, E2E, audit, PR title validation). The pre-commit hook runs the same 8-gate validation locally.
 
+## License for contributions
+
+Contributions to this fork are accepted under the
+[GNU Affero General Public License, version 3 only](./LICENSE)
+(`AGPL-3.0-only`). By submitting a contribution, you agree that it may be
+distributed under those terms. Contributors retain their copyright.
+
+The preserved [upstream MIT notice](./LICENSE-MIT) and third-party licenses
+remain applicable to their respective material. No copyright assignment or
+contributor license agreement is required.
+
 ## Publishing
 
 Publishing is fully automated via CI/CD:

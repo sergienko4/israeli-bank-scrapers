@@ -46,7 +46,7 @@ whether the OTP callback belongs in the options or the credentials
 [![CI](https://img.shields.io/github/actions/workflow/status/sergienko4/israeli-bank-scrapers/main-pipeline.yml?branch=main&logo=github&label=CI)](https://github.com/sergienko4/israeli-bank-scrapers/actions/workflows/main-pipeline.yml)
 [![Quality Gate](https://img.shields.io/sonar/quality_gate/sergienko4_israeli-bank-scrapers?server=https%3A%2F%2Fsonarcloud.io&logo=sonarcloud&logoColor=white)](https://sonarcloud.io/summary/overall?id=sergienko4_israeli-bank-scrapers)
 [![Node.js](https://img.shields.io/badge/node-%E2%89%A5%2024.11-green?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![License](https://img.shields.io/github/license/sergienko4/israeli-bank-scrapers)](./LICENSE)
+[![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](./LICENSE)
 
 > **Documentation** — [User guide](https://sergienko4.github.io/israeli-bank-scrapers/)
 > · [API reference](https://sergienko4.github.io/israeli-bank-scrapers/api/)
@@ -491,7 +491,31 @@ contributors, whose work this fork builds on:
 
 ## License
 
-MIT. Maintained by [@sergienko4](https://github.com/sergienko4), based on
+Starting with **10.0.0**, this fork is distributed under the
+**GNU Affero General Public License, version 3 only** (`AGPL-3.0-only`).
+See [LICENSE](./LICENSE) for the full terms. Commercial use is permitted
+subject to those terms, including applicable source-distribution obligations
+and section 13's source-offer requirement for modified versions that support
+remote network interaction.
+
+The licensing change was made on 2026-11-09. Maintained by
+[@sergienko4](https://github.com/sergienko4), this fork modifies
 [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers).
+The upstream MIT copyright, permission notice and disclaimer are retained in
+[LICENSE-MIT](./LICENSE-MIT). Previously granted MIT permissions, including
+those for earlier releases, remain intact. Third-party components retain
+their own licenses; the new fork grant is not an MIT/AGPL dual-license offer.
+
+**Corresponding Source:** for an installed package version `X.Y.Z`, download
+the source archive for tag `vX.Y.Z` from
+[GitHub Releases](https://github.com/sergienko4/israeli-bank-scrapers/releases).
+That version's source includes the TypeScript files, build/install scripts,
+configuration and dependency lockfile. From that source directory, use the
+Node.js version supported by that release, then run `npm ci` and
+`npm run build`. Use the matching release source, not the current `main` branch.
+
+A forced publish has no tag or GitHub release. For such a version, the npm
+provenance attestation records the exact source commit; use the source at that
+commit instead.
 
 [Code of Conduct](./CODE_OF_CONDUCT.md) · [Security Policy](./SECURITY.md)
