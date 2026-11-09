@@ -73,8 +73,9 @@ CLAUDE.md
 .onezero-otp.tmp
 # TypeDoc output (regenerated via `npm run docs`; deployed to GH Pages /api/)
 /typedoc-build/
-# mkdocs build output (regenerated via `python -m mkdocs build`; deployed to GH Pages /)
+# docs build output (regenerated via `zensical build`; deployed to GH Pages /)
 /site/
+/.cache/
 /.mkdocs-strict-out/
 
 # Local debug sessions, trace output, inspection scripts — never commit
@@ -110,6 +111,9 @@ scripts/**
 # Generates docs/compatibility.md from compatibility.json; CI runs it with
 # --check, so it has to be in the tree for the docs gate to work.
 !scripts/build-compatibility.mjs
+# Runs TypeDoc with a minimatch@11 `matchOne` compatibility shim so `npm run docs`
+# works while keeping `minimatch@11.0.5` pinned across the lockfile.
+!scripts/run-typedoc.mjs
 # Enforced by the PR-body compliance workflow, so it must be in the tree.
 !scripts/check-breaking-note.mjs
 # Run by `npm run lint:coderabbit-filters` from the pre-commit hook, so it has

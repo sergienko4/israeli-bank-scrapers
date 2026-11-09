@@ -275,10 +275,10 @@ bg_gate "jest-scopes"       "yes" npm run lint:jest-scopes
 # always re-run it under the `Validate` job either way.
 DOCS_FILES=$(echo "$STAGED_FILES" | grep -E '^(docs/|[A-Z_]+\.md$|mkdocs\.yml$)' || true)
 if [ -n "$DOCS_FILES" ]; then
-    if command -v python >/dev/null 2>&1 && python -m mkdocs --version >/dev/null 2>&1; then
+    if command -v zensical >/dev/null 2>&1; then
         bg_gate "docs-strict" "yes" npm run lint:docs-strict
     else
-        log "  ⏭️  docs-strict skipped — python or mkdocs not installed locally (CI still enforces)"
+        log "  ⏭️  docs-strict skipped — zensical not installed locally (CI still enforces)"
     fi
 else
     log "  ⏭️  docs-strict skipped — no docs/** or root .md files staged"

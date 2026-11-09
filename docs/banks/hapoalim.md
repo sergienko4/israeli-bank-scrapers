@@ -171,7 +171,7 @@ Two mechanisms now answer this defect, and both are kept. The shape walk above
 is the more precise of the two, because it reads the cap the bank itself
 states rather than inferring truncation after the fact — so it never spends a
 probe request on an account that was simply quiet. Beneath it sits the generic
-[coverage backfill](../phases/api-direct-scrape.md#coverage-backfill--asking-again-for-the-slice-that-did-not-arrive),
+[coverage backfill](../phases/api-direct-scrape.md#coverage-backfill-asking-again-for-the-slice-that-did-not-arrive),
 which watches the rows that survive the walk and narrows the window again if
 they still fall short. They compose rather than compete: once the shape walk
 has reached the requested start the window assesses as covered, so the generic

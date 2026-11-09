@@ -131,9 +131,15 @@ updates:
     groups:
       mkdocs-toolchain:
         patterns:
+          - 'zensical*'
           - 'mkdocs*'
           - 'pymdown-extensions'
           - 'Markdown'
+          - 'MarkupSafe'
+          - 'click'
+          - 'pathspec'
+          - 'PyYAML'
+          - 'tomli'
           - 'markdown-it-py'
           - 'Jinja2'
           - 'Pygments'

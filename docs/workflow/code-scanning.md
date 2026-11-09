@@ -292,7 +292,12 @@ The upload job keeps the key `analysis` on purpose.
 upload under `<workflow path>:<job key>`, and the existing Scorecard alerts
 belong to `.github/workflows/scorecard.yml:analysis`. An upload under a new key
 starts a new configuration. The old one goes stale, and its alerts stay open
-until it is [deleted by hand][stale-config].
+until it is [deleted by hand][stale-config]. For the same reason,
+`codeql.yml` and `workflow-security.yml` — both called via `workflow_call` from
+`main-pipeline.yml` as well as directly on pull requests — pin
+`CODEQL_ACTION_ANALYSIS_KEY` in job `env:` alongside `category`, so
+`workflow_call` runs do not register a second
+`.github/workflows/main-pipeline.yml:<job>` configuration.
 
 The wiring and the surgical scope are pinned by tests in
 `WorkflowSecurityGate.test.ts`. `SCF-*` assert the filter runs in
@@ -419,7 +424,8 @@ configuration. Because no upstream patch exists yet, its alert is kept open to
 trace until `deepmerge` publishes a fix or `jest-config` drops it, while
 `minimatch` (`GHSA-g3hv-75wg-m249`) and `glob` (`GHSA-3g3m-2fjr-6pw4`) are
 resolved to patched releases (`^11.0.1` and `$glob`) via `package.json`
-`overrides`.
+`overrides` (`scripts/run-typedoc.mjs` shims `Minimatch.prototype.matchOne` for
+`typedoc` so `npm run docs` runs under `minimatch@11.0.5`).
 
 ## Standing finding 4: dev-scoped transitive alerts were auto-dismissed
 

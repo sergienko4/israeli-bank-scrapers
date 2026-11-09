@@ -34,8 +34,8 @@ group's `exclude-patterns`, so the split does not depend on group order.
 An update type a group does not list, such as a major for `lint-tooling`,
 arrives as a pull request of its own.
 
-GitHub Actions (`actions`), the CI mirror image (`docker/`) and the docs
-toolchain (`mkdocs-toolchain`, pip) have one group each.
+GitHub Actions (`actions`), the CI mirror image (`docker/`) and the Zensical
+docs toolchain (`mkdocs-toolchain`, pip) have one group each.
 
 ## Why lint tooling has its own group
 

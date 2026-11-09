@@ -16,11 +16,13 @@ Resolution order:
 
 import os
 import subprocess
+from jinja2.ext import Extension
 
 _PLACEHOLDER = '{{BRANCH}}'
 
 
 def _resolve_branch() -> str:
+    """Resolve the active git branch name from CI environment variables or local git."""
     return (
         os.environ.get('GITHUB_HEAD_REF')
         or os.environ.get('GITHUB_REF_NAME')
@@ -30,6 +32,7 @@ def _resolve_branch() -> str:
 
 
 def _git_branch() -> str:
+    """Return the current checked-out git branch name, or an empty string if detached/unavailable."""
     try:
         out = subprocess.check_output(
             ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
@@ -45,6 +48,28 @@ _BRANCH = _resolve_branch()
 
 
 def on_page_markdown(markdown: str, page, config, files) -> str:
+    """Replace `{{BRANCH}}` placeholders in page markdown during MkDocs builds."""
     if _PLACEHOLDER not in markdown:
         return markdown
     return markdown.replace(_PLACEHOLDER, _BRANCH)
+
+
+class BranchOnlyExtension(Extension):
+    """Substitutes `{{BRANCH}}` before Jinja2 lexing in Zensical's macros plugin."""
+
+    def preprocess(
+        self,
+        source: str,
+        name: str | None,
+        filename: str | None = None,
+    ) -> str:
+        """Replace `{{BRANCH}}` tokens in raw template text before Jinja2 lexes it."""
+        if _PLACEHOLDER not in source:
+            return source
+        return source.replace(_PLACEHOLDER, _BRANCH)
+
+
+def define_env(env) -> None:
+    """Register the resolved `BRANCH` variable in the macros plugin environment."""
+    env.variables['BRANCH'] = _BRANCH
+

@@ -25,6 +25,13 @@ jobs:
     timeout-minutes: 30
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      # Pinned alongside `category` below because `github/codeql-action`
+      # derives `analysis_key` separately from `category`, defaulting to
+      # "<caller-workflow-path>:<job-name>". Without this env var,
+      # `main-pipeline.yml` (`workflow_call`) uploads under
+      # `.github/workflows/main-pipeline.yml:analyze` — a job key that does
+      # not exist in `main-pipeline.yml` and differs from PR/scheduled runs.
+      CODEQL_ACTION_ANALYSIS_KEY: .github/workflows/codeql.yml:analyze
     permissions:
       contents: read
       security-events: write

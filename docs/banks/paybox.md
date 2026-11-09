@@ -44,7 +44,7 @@ canonical request. The signing key is **per-session**: it is not the
 login token but a 32-byte key delivered — AES-CBC encrypted — by an
 unsigned `getKey` exchange call the client makes first.
 
-The generic [`bootstrap` step](../phases/api-direct-scrape.md#bootstrap--one-shot-session-context-seeding)
+The generic [`bootstrap` step](../phases/api-direct-scrape.md#bootstrap-one-shot-session-context-seeding)
 runs `getKey` before the account walk. `getKeyVars()`
 (`scrape/PayBoxBootstrap.ts`) builds the unsigned exchange request's
 auth envelope; `extractHmacKeyPatch()` derives the AES key from the

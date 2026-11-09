@@ -29,10 +29,11 @@
 #                 could otherwise be weakened and merged without the job
 #                 that runs it ever firing. The scheduled watches —
 #                 `scripts/npm-audit/**`, `scripts/npm-audit-watch.mjs`,
-#                 `scripts/dev-tooling/**` and `scripts/dev-tooling-watch.mjs`
-#                 — are included for the same reason: they run on a cron,
-#                 never on a PR, so `unit-tests` is what proves a change
-#                 to them before it merges.
+#                 `scripts/dev-tooling/**`, `scripts/dev-tooling-watch.mjs`,
+#                 `scripts/run-typedoc.mjs` and `typedoc.json`
+#                 — are included for the same reason: they run on a cron or
+#                 post-merge in `docs.yml`, so `unit-tests` is what proves a
+#                 change to them before it merges.
 #   metrics     — `scripts/decoupling-metrics/**` was modified. That tree
 #                 sits outside both `src/` and `.github/`, so it matched NO
 #                 other group: the tool that measures architectural
@@ -232,9 +233,9 @@ full_suite=false
 
 if has '^src/'; then src=true; fi
 if has '\.md$'; then md=true; fi
-if has '^docs/|^mkdocs\.yml$|^requirements-docs\.txt$|^typedoc\.json$|^compatibility\.json$|^scripts/build-compatibility\.mjs$'; then docs=true; fi
+if has '^docs/|^mkdocs_hooks/|^mkdocs\.yml$|^requirements-docs\.txt$|^typedoc\.json$|^scripts/run-typedoc\.mjs$|^compatibility\.json$|^scripts/build-compatibility\.mjs$'; then docs=true; fi
 if has '^src/Scrapers/Pipeline/.*\.ts$'; then pipeline_ts=true; fi
-if has '^\.github/scripts/ci/|^\.github/workflows/|^\.github/actions/|^\.husky/|^scripts/check-shell-portability\.mjs$|^scripts/npm-audit/|^scripts/npm-audit-watch\.mjs$|^scripts/dev-tooling/|^scripts/dev-tooling-watch\.mjs$'; then ci_scripts=true; fi
+if has '^\.github/scripts/ci/|^\.github/workflows/|^\.github/actions/|^\.husky/|^scripts/check-shell-portability\.mjs$|^scripts/npm-audit/|^scripts/npm-audit-watch\.mjs$|^scripts/dev-tooling/|^scripts/dev-tooling-watch\.mjs$|^typedoc\.json$|^scripts/run-typedoc\.mjs$'; then ci_scripts=true; fi
 if has '^package\.json$|^package-lock\.json$|^\.github/dependabot\.yml$|^renovate\.json$|^\.nvmrc$'; then deps=true; fi
 if has '^jest\..*\.(js|cjs|mjs|ts)$|^jest\.config\.(js|cjs|mjs|ts)$'; then test_config=true; fi
 if has '^scripts/decoupling-metrics/'; then metrics=true; fi

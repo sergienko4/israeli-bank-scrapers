@@ -21,6 +21,11 @@ jobs:
     name: zizmor (workflow CVE / hardening)
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      # Pinned so `main-pipeline.yml` (`workflow_call`) and direct runs
+      # (`pull_request`, `workflow_dispatch`) share one code-scanning
+      # `analysis_key` instead of splitting across two configurations.
+      CODEQL_ACTION_ANALYSIS_KEY: .github/workflows/workflow-security.yml:zizmor
     permissions:
       contents: read
       security-events: write
