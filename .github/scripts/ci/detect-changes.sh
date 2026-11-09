@@ -232,7 +232,7 @@ full_suite=false
 
 if has '^src/'; then src=true; fi
 if has '\.md$'; then md=true; fi
-if has '^docs/|^mkdocs\.yml$|^requirements-docs\.txt$|^typedoc\.json$|^compatibility\.json$|^scripts/build-compatibility\.mjs$'; then docs=true; fi
+if has '^docs/|^mkdocs_hooks/|^mkdocs\.yml$|^requirements-docs\.txt$|^typedoc\.json$|^scripts/run-typedoc\.mjs$|^compatibility\.json$|^scripts/build-compatibility\.mjs$'; then docs=true; fi
 if has '^src/Scrapers/Pipeline/.*\.ts$'; then pipeline_ts=true; fi
 if has '^\.github/scripts/ci/|^\.github/workflows/|^\.github/actions/|^\.husky/|^scripts/check-shell-portability\.mjs$|^scripts/npm-audit/|^scripts/npm-audit-watch\.mjs$|^scripts/dev-tooling/|^scripts/dev-tooling-watch\.mjs$'; then ci_scripts=true; fi
 if has '^package\.json$|^package-lock\.json$|^\.github/dependabot\.yml$|^renovate\.json$|^\.nvmrc$'; then deps=true; fi

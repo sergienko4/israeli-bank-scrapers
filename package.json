@@ -60,7 +60,7 @@
     "lint:fixtures-pii": "node scripts/audit-fixtures-pii.cjs",
     "lint:pii-staged": "node scripts/check-staged-pii.cjs",
     "lint:plan-refs": "node scripts/check-plan-refs.mjs",
-    "lint:docs-strict": "PYTHONPATH=. zensical build --clean --strict",
+    "lint:docs-strict": "cross-env PYTHONPATH=. zensical build --clean --strict",
     "lint:pr-body": "node scripts/validate-pr-body.mjs",
     "lint:doc-paths": "node scripts/check-doc-paths.mjs README.md CLAUDE.md CLEAN_CODE.md CONTRIBUTING.md .github/copilot-instructions.md",
     "lint:node-support": "node scripts/check-node-support.mjs",
