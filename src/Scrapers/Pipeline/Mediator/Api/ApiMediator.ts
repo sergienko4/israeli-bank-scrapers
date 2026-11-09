@@ -6,7 +6,6 @@
  */
 
 export {
-  createBrowserBackedHeadlessApiMediator,
   createHeadlessApiMediator,
   createMtlsHeadlessApiMediator,
 } from './ApiMediator.factories.js';
@@ -14,7 +13,6 @@ export { createApiMediator } from './ApiMediator.factory.js';
 export type {
   IApiMediator,
   IApiQueryOpts,
-  IBrowserBackedHeadlessMediatorArgs,
   RecoveredHook,
   SessionContext,
 } from './ApiMediator.types.js';

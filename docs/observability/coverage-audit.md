@@ -122,7 +122,7 @@ coverage payBox/txns: UNAUDITED — no comparable hunted rows (extracted=43 hunt
 | Totals low but `unread=0`, `complete`            | The rows never arrived — look at the request window, not the shape                |
 | Totals low but `UNAUDITED`                       | The round proved nothing — this bank's coverage is unverified, not verified-clean |
 
-That penultimate row is the useful half of a silent verdict: it separates _we failed to read it_ from _the bank did not send it_, which is the same ambiguity the [response digest](response-digest.md) resolves one layer lower down. The last row is the reminder that a silent verdict is only informative once the round is known to have run.
+That penultimate row is the useful half of a silent verdict: it separates _we failed to read it_ from _the bank did not send it_. The last row is the reminder that a silent verdict is only informative once the round is known to have run.
 
 ## The blind spot: rows the mapper refuses
 

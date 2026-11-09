@@ -3,7 +3,6 @@ import type { Page } from 'playwright-core';
 import { CompanyTypes } from '../../../../Definitions.js';
 import resolvePhaseSettlePolicy from '../../../../Scrapers/Pipeline/Core/Executor/PipelinePhaseSettlePolicy.js';
 import {
-  createBrowserBackedHeadlessApiMediator,
   createHeadlessApiMediator,
   createMtlsHeadlessApiMediator,
 } from '../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.factories.js';
@@ -34,10 +33,6 @@ function idleCleanup(): Promise<void> {
 
 const NATIVE_API = createHeadlessApiMediator(URLS);
 const NODE_TLS_API = createMtlsHeadlessApiMediator(URLS);
-const CAMOUFOX_API = createBrowserBackedHeadlessApiMediator({
-  ...URLS,
-  identityOriginUrl: 'https://id.example',
-});
 /**
  * Stand-in for a live post-login page's address.
  * @returns The page URL.
@@ -59,12 +54,6 @@ const CASES = [
     label: 'browser pipeline after launch',
     apiMediator: none(),
     browser: some(BROWSER_STATE),
-    wait: true,
-  },
-  {
-    label: 'Camoufox headless mediator',
-    apiMediator: some(CAMOUFOX_API),
-    browser: none(),
     wait: true,
   },
   {
@@ -100,10 +89,6 @@ const CASES = [
 ] as const;
 
 describe('PipelinePhaseSettlePolicy', () => {
-  afterAll(async (): Promise<void> => {
-    await CAMOUFOX_API.dispose?.();
-  });
-
   it.each(CASES)('T-SETTLE-1: $label', ({ apiMediator, browser, wait }) => {
     const ctx: SettleContext = { apiMediator, browser };
     const policy = resolvePhaseSettlePolicy(ctx);

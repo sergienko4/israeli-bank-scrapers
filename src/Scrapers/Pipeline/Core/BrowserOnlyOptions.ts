@@ -5,9 +5,9 @@
  * <p>A headless bank whose identity transport is Node's own fetch (`native`) or
  * node:https (`node-tls`) never launches a browser or opens a page, so every
  * option that configures one has no reader on that run. The caller gets no
- * error and no effect unless this guard speaks. Browser-backed transports and
- * browser banks stay silent: the Pipeline honours some of these options there,
- * and the rest are documented as ignored for every bank.
+ * error and no effect unless this guard speaks. A bank with no headless block
+ * stays silent: the Pipeline honours some of these options there, and the rest
+ * are documented as ignored for every bank.
  *
  * <p>The transport comes from {@link resolveHeadlessTransportKind}, the same
  * selector the runtime uses to wire the mediator, so the warning and the
@@ -17,10 +17,7 @@
 
 import type { CompanyTypes } from '../../../Definitions.js';
 import type { ScraperOptions } from '../../Base/Interface.js';
-import {
-  type HeadlessTransportKind,
-  resolveHeadlessTransportKind,
-} from './HeadlessMediatorWiring.js';
+import { resolveHeadlessTransportKind } from './HeadlessMediatorWiring.js';
 import { findSuppliedOptions, warnIgnoredOptions } from './SuppliedOptions.js';
 
 /**
@@ -57,13 +54,6 @@ export const BROWSER_ONLY_OPTIONS = [
 /** One of the option names only a browser run can honour. */
 export type BrowserOnlyOption = (typeof BROWSER_ONLY_OPTIONS)[number];
 
-/** Whether each headless transport runs without any browser. */
-const IS_BROWSERLESS: Readonly<Record<HeadlessTransportKind, boolean>> = {
-  native: true,
-  'node-tls': true,
-  browser: false,
-};
-
 /** Documentation the warning points at. */
 const DOCS_URL =
   'https://sergienko4.github.io/israeli-bank-scrapers/configuration/#browser-options-on-browserless-banks';
@@ -71,12 +61,11 @@ const DOCS_URL =
 /**
  * Report whether a bank's selected transport runs without a browser.
  * @param companyId - Bank the scrape targets.
- * @returns True for the `native` and `node-tls` transports.
+ * @returns True for every bank with a headless block: each transport kind
+ *   (`native` and `node-tls`) is browserless.
  */
 function isBrowserlessBank(companyId: CompanyTypes): boolean {
-  const kind = resolveHeadlessTransportKind(companyId);
-  if (kind === false) return false;
-  return IS_BROWSERLESS[kind];
+  return resolveHeadlessTransportKind(companyId) !== false;
 }
 
 /**

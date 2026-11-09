@@ -1,5 +1,5 @@
 /**
- * Higher-level factories: headless + browser-backed-headless ApiMediators.
+ * Higher-level factories: headless (native fetch) + node:https ApiMediators.
  * Construct the underlying fetch strategies and wire them into createApiMediator.
  *
  * Why `Reflect.construct(...)` instead of `new`: this file IS the DI boundary
@@ -15,8 +15,6 @@
  */
 
 import ScraperError from '../../../Base/ScraperError.js';
-import { CamoufoxIdentityFetchStrategy } from '../../Strategy/Fetch/CamoufoxIdentityFetchStrategy.js';
-import { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import { HeadlessGraphQLFetchStrategy } from '../../Strategy/Fetch/HeadlessGraphQLFetchStrategy.js';
 import { HeadlessNativeFetchStrategy } from '../../Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import type { AgentSource } from '../../Strategy/Fetch/Mtls/MtlsAgentSource.js';
@@ -34,8 +32,6 @@ import type { INodeTlsMediatorArgs } from './ApiMediator.headless.types.js';
 import { buildTransportSource } from './ApiMediator.nodeTransport.js';
 import type {
   IApiMediator,
-  IBrowserBackedHeadlessMediatorArgs,
-  IBrowserBackedStrategies,
   IGraphQLTransportArgs,
   IHeadlessMediatorArgs,
   IHeadlessStrategies,
@@ -82,17 +78,6 @@ function nativePolicies(args: IGraphQLTransportArgs): INativeFetchOptions {
   const privacy = { omitBankText: args.omitBankText };
   const decoding = { strictUtf8: args.strictUtf8, responseIntegrity: args.responseIntegrity };
   return { ...wire, ...privacy, ...decoding, isConnectRetryDisabled: args.isConnectRetryDisabled };
-}
-
-/**
- * Construct the shared GraphQL transport with the bank's optional header floor.
- * @param args - Anything carrying the GraphQL URL + optional default headers.
- * @returns GraphQL fetch strategy.
- */
-function buildGqlStrategy(args: IGraphQLTransportArgs): GraphQLFetchStrategy {
-  const headers = args.graphqlHeaders ?? {};
-  const policies = nativePolicies(args);
-  return Reflect.construct(GraphQLFetchStrategy, [args.graphqlUrl, headers, policies]);
 }
 
 /**
@@ -147,68 +132,6 @@ function createHeadlessApiMediator(args: IHeadlessMediatorArgs): IApiMediator {
 }
 
 /**
- * Build the readonly tuple of args to Reflect.construct the Camoufox
- * identity fetch strategy with.
- * @param args - Mediator args bundle.
- * @returns Readonly tuple to pass to Reflect.construct.
- */
-function buildCamoufoxConstructArgs(
-  args: IBrowserBackedHeadlessMediatorArgs,
-): readonly [string, boolean] {
-  return [args.identityOriginUrl, args.bypassOriginChallenge === true];
-}
-
-/**
- * Construct the Camoufox identity fetch strategy.
- * @param args - Mediator args bundle.
- * @returns Camoufox fetch strategy.
- */
-function buildCamoufoxFetch(
-  args: IBrowserBackedHeadlessMediatorArgs,
-): CamoufoxIdentityFetchStrategy {
-  const camoufoxArgs = buildCamoufoxConstructArgs(args);
-  return Reflect.construct(CamoufoxIdentityFetchStrategy, camoufoxArgs);
-}
-
-/**
- * Construct the Camoufox + GraphQL strategies for a browser-backed mediator.
- * @param args - Mediator args bundle.
- * @returns Strategy pair.
- */
-function buildBrowserBackedStrategies(
-  args: IBrowserBackedHeadlessMediatorArgs,
-): IBrowserBackedStrategies {
-  const fetch = buildCamoufoxFetch(args);
-  const gql = buildGqlStrategy(args);
-  return { fetch, gql };
-}
-
-/**
- * Build a dispose hook bound to the underlying Camoufox strategy.
- * @param strategy - Camoufox strategy instance.
- * @returns Dispose function.
- */
-function makeCamoufoxDispose(strategy: CamoufoxIdentityFetchStrategy): () => Promise<void> {
-  return async (): Promise<void> => strategy.dispose();
-}
-
-/**
- * Build an ApiMediator whose identity REST transport runs through Camoufox.
- * @param args - Bank hint + URLs + optional staticAuth header.
- * @returns IApiMediator with dispose() plumbed through to the Camoufox strategy.
- */
-function createBrowserBackedHeadlessApiMediator(
-  args: IBrowserBackedHeadlessMediatorArgs,
-): IApiMediator {
-  assertNoUnsupportedIntegrity(args);
-  const { fetch, gql } = buildBrowserBackedStrategies(args);
-  const mediator = createApiMediator(args.bankHint, fetch, gql);
-  applyStaticAuth(mediator, args);
-  const dispose = makeCamoufoxDispose(fetch);
-  return Object.assign(mediator, { dispose, drivesBrowser: true as const });
-}
-
-/**
  * Construct the node:https native + GraphQL strategies sharing one agent source.
  * @param args - Mediator args bundle (identity + graphql URLs + headers).
  * @param source - Picks the HTTPS agent (certificate + profile) per request.
@@ -255,8 +178,4 @@ function createMtlsHeadlessApiMediator(args: INodeTlsMediatorArgs): IApiMediator
   return attachClientCert(mediator, transport.control);
 }
 
-export {
-  createBrowserBackedHeadlessApiMediator,
-  createHeadlessApiMediator,
-  createMtlsHeadlessApiMediator,
-};
+export { createHeadlessApiMediator, createMtlsHeadlessApiMediator };

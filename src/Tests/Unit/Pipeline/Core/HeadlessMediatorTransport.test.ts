@@ -2,11 +2,11 @@
  * Unit tests for the transport rule in Core/HeadlessMediatorWiring.
  *
  * A headless bank that declares a client certificate (static or dynamic) or a
- * TLS ClientHello profile runs over node:https; a bank that opts into `nativeFetch` runs over
- * Node's own fetch; any other headless bank runs over browser TLS; a bank that
- * declares more than one transport fails fast. The bank registry and every
- * mediator factory are replaced, so each case states only its transport flags
- * and observes which factory was chosen and what it received.
+ * TLS ClientHello profile runs over node:https; a bank that opts into
+ * `nativeFetch` runs over Node's own fetch; a bank that declares more than one
+ * transport, or none, fails fast. The bank registry and every mediator
+ * factory are replaced, so each case states only its transport flags and
+ * observes which factory was chosen and what it received.
  */
 
 import { jest } from '@jest/globals';
@@ -24,7 +24,6 @@ import type {
 
 /** Transport flags a headless config block may declare. */
 interface ITransportFlags {
-  readonly requiresBrowserTls?: boolean;
   readonly requiresClientCert?: boolean;
   readonly clientCert?: IDynamicClientCert;
   readonly tlsProfile?: TlsClientProfileKind;
@@ -55,7 +54,6 @@ const DYNAMIC_CERT: IDynamicClientCert = {
 
 const RESOLVE_CONFIG = jest.fn<unknown, [CompanyTypes]>();
 const CREATE_NODE_TLS = jest.fn((): object => ({}));
-const CREATE_BROWSER_TLS = jest.fn((): object => ({}));
 const CREATE_NATIVE = jest.fn((): object => ({}));
 
 jest.unstable_mockModule(
@@ -67,7 +65,6 @@ jest.unstable_mockModule(
 
 jest.unstable_mockModule('../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js', () => ({
   createMtlsHeadlessApiMediator: CREATE_NODE_TLS,
-  createBrowserBackedHeadlessApiMediator: CREATE_BROWSER_TLS,
   createHeadlessApiMediator: CREATE_NATIVE,
 }));
 
@@ -75,13 +72,15 @@ const WIRING = await import('../../../../Scrapers/Pipeline/Core/HeadlessMediator
 
 /** Flag sets that declare more than one identity transport. */
 const CONFLICTING_FLAGS: readonly (readonly [string, ITransportFlags])[] = [
-  ['a TLS profile and browser TLS', { tlsProfile: ANDROID_PROFILE, requiresBrowserTls: true }],
-  ['a client certificate and browser TLS', { requiresClientCert: true, requiresBrowserTls: true }],
-  ['native fetch and browser TLS', { nativeFetch: true, requiresBrowserTls: true }],
   ['native fetch and a client certificate', { nativeFetch: true, requiresClientCert: true }],
   ['native fetch and a TLS profile', { nativeFetch: true, tlsProfile: ANDROID_PROFILE }],
   ['native fetch and a dynamic certificate', { nativeFetch: true, clientCert: DYNAMIC_CERT }],
-  ['browser TLS and a dynamic certificate', { requiresBrowserTls: true, clientCert: DYNAMIC_CERT }],
+];
+
+/** Flag sets that declare no identity transport at all. */
+const MISSING_FLAGS: readonly (readonly [string, ITransportFlags])[] = [
+  ['no transport flag', {}],
+  ['native fetch switched off', { nativeFetch: false }],
 ];
 
 /**
@@ -114,13 +113,12 @@ function resolveWith(flags: ITransportFlags): boolean {
 
 /**
  * Name the factories the resolver invoked.
- * @returns `node-tls`, `native`, `browser-tls`, several joined with `+`, or empty.
+ * @returns `node-tls`, `native`, several joined with `+`, or empty.
  */
 function chosenTransport(): string {
   const calls = {
     'node-tls': CREATE_NODE_TLS.mock.calls.length,
     native: CREATE_NATIVE.mock.calls.length,
-    'browser-tls': CREATE_BROWSER_TLS.mock.calls.length,
   };
   const chosen = Object.entries(calls).filter(([, count]): boolean => count > 0);
   return chosen.map(([name]): string => name).join('+');
@@ -129,7 +127,6 @@ function chosenTransport(): string {
 describe('HeadlessMediatorWiring — transport selection', () => {
   beforeEach(() => {
     CREATE_NODE_TLS.mockClear();
-    CREATE_BROWSER_TLS.mockClear();
     CREATE_NATIVE.mockClear();
   });
 
@@ -143,14 +140,11 @@ describe('HeadlessMediatorWiring — transport selection', () => {
       'node-tls',
     ],
     ['native fetch', { nativeFetch: true }, 'native'],
-    ['native fetch switched off', { nativeFetch: false }, 'browser-tls'],
     [
       'native fetch off with a TLS profile',
       { nativeFetch: false, tlsProfile: ANDROID_PROFILE },
       'node-tls',
     ],
-    ['browser TLS', { requiresBrowserTls: true }, 'browser-tls'],
-    ['no transport flag', {}, 'browser-tls'],
   ])('routes %s to %s', (_label, flags, expected) => {
     resolveWith(flags);
     const transport = chosenTransport();
@@ -244,19 +238,28 @@ describe('HeadlessMediatorWiring — transport selection', () => {
     const transport = chosenTransport();
     expect(transport).toBe('');
   });
+
+  it.each(MISSING_FLAGS)('fails closed when the block declares %s', (_label, flags) => {
+    /**
+     * Resolve the mediator for the transport-less config.
+     * @returns Never; the resolver throws.
+     */
+    const resolveMissing = (): boolean => resolveWith(flags);
+    expect(resolveMissing).toThrow(/Missing headless transport.*\(oneZero\)/);
+    const transport = chosenTransport();
+    expect(transport).toBe('');
+  });
 });
 
 /** Transport kind for each factory name {@link chosenTransport} reports. */
 const KIND_OF_FACTORY: Readonly<Record<string, string>> = {
   'node-tls': 'node-tls',
   native: 'native',
-  'browser-tls': 'browser',
 };
 
 describe('resolveHeadlessTransportKind — agrees with the wired factory', () => {
   beforeEach(() => {
     CREATE_NODE_TLS.mockClear();
-    CREATE_BROWSER_TLS.mockClear();
     CREATE_NATIVE.mockClear();
   });
 
@@ -265,8 +268,6 @@ describe('resolveHeadlessTransportKind — agrees with the wired factory', () =>
     ['a client certificate', { requiresClientCert: true }],
     ['a dynamic client certificate', { clientCert: DYNAMIC_CERT }],
     ['native fetch', { nativeFetch: true }],
-    ['browser TLS', { requiresBrowserTls: true }],
-    ['no transport flag', {}],
   ])('names the transport wired for %s', (_label, flags) => {
     resolveWith(flags);
     const transport = chosenTransport();
@@ -282,6 +283,16 @@ describe('resolveHeadlessTransportKind — agrees with the wired factory', () =>
      */
     const resolveKind = (): unknown => WIRING.resolveHeadlessTransportKind(CompanyTypes.OneZero);
     expect(resolveKind).toThrow(/mutually exclusive \(oneZero\)/);
+  });
+
+  it.each(MISSING_FLAGS)('rejects %s before returning a kind', (_label, flags) => {
+    mockHeadless(flags);
+    /**
+     * Resolve the kind for the transport-less config.
+     * @returns Never; the resolver throws.
+     */
+    const resolveKind = (): unknown => WIRING.resolveHeadlessTransportKind(CompanyTypes.OneZero);
+    expect(resolveKind).toThrow(/Missing headless transport.*\(oneZero\)/);
   });
 
   it.each<[string, unknown]>([

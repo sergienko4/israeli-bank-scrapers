@@ -8,12 +8,9 @@ import type { IHeadlessUrlsConfig } from '../Registry/Config/PipelineBankConfigT
 
 /** Identity-transport flags decoded from the optional headless config block. */
 interface IWiringFlags {
-  readonly requiresBrowserTls: boolean;
   /** When true, present the bank's registered client certificate over node:https. */
   readonly requiresClientCert: boolean;
-  /** When true, the Camoufox strategy route-intercepts the initial origin nav. */
-  readonly bypassOriginChallenge: boolean;
-  /** When true, identity REST runs over Node's own fetch (no browser, stock TLS). */
+  /** When true, identity REST runs over Node's own fetch (stock TLS). */
   readonly nativeFetch: boolean;
   /** When true, a node transport keeps one run-scoped cookie jar. */
   readonly sessionCookies: boolean;
@@ -22,7 +19,7 @@ interface IWiringFlags {
 }
 
 /** Identity transport a headless bank runs over. */
-type HeadlessTransportKind = 'node-tls' | 'native' | 'browser';
+type HeadlessTransportKind = 'node-tls' | 'native';
 
 /** Optional transport settings a headless config block hands to the factory. */
 type TTransportKey =
