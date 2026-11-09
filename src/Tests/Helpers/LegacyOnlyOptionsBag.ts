@@ -16,19 +16,8 @@
 import type { ScraperOptions } from '../../Scrapers/Base/Interface.js';
 import type { LegacyOnlyOption } from '../../Scrapers/Pipeline/Core/LegacyOnlyOptions.js';
 
-/**
- * Value type of option `TKey`, read from whichever `ScraperOptions` member declares it.
- * Distributes over the union because some keys, such as `skipCloseBrowser`, exist on
- * one browser-options member only, so `ScraperOptions[TKey]` does not compile.
- */
-type OptionValue<TKey extends PropertyKey, TMember = ScraperOptions> = TMember extends unknown
-  ? TKey extends keyof TMember
-    ? TMember[TKey]
-    : never
-  : never;
-
 /** Legacy-only options a test sets on purpose, keyed by the production manifest. */
-type LegacyOnlyOptionsBag = { readonly [TKey in LegacyOnlyOption]?: OptionValue<TKey> };
+type LegacyOnlyOptionsBag = { readonly [TKey in LegacyOnlyOption]?: ScraperOptions[TKey] };
 
 /**
  * Returns a copy of the base options with the given Legacy-only options applied.

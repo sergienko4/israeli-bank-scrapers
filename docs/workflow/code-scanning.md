@@ -20,19 +20,13 @@ source-files:
   - .github/scripts/ci/is-bot-pr.cjs
   - .github/scripts/ci/compute-gate-booleans.sh
   - .github/scripts/ci/detect-changes.sh
-  - .github/actions/install-camoufox/action.yml
-  - .github/actions/install-camoufox/install.sh
   - docker/Dockerfile.ci-mirror
-  - scripts/browser-stack/gate.mjs
-  - scripts/browser-stack/gen-config.mjs
-  - scripts/browser-stack/gate-report.mjs
   - .github/workflows/pr-body-check.yml
   - src/Tests/Unit/Pipeline/CrossValidation/DependabotSecurityGrouping.test.ts
   - src/Tests/Unit/Pipeline/CrossValidation/RenovateLockfileMaintenancePolicy.test.ts
   - .github/scripts/ci/docs-staleness-bot-skip.cjs
   - src/Tests/Unit/Pipeline/CrossValidation/DocsStalenessGate.test.ts
   - .github/workflows/pr.yml
-  - src/Tests/Unit/Pipeline/CrossValidation/BrowserStackGateWiring.test.ts
 ---
 
 # Code scanning: two scanners, one authority
@@ -45,9 +39,11 @@ This repository uploads SARIF from three tools: **CodeQL**, **zizmor**, and
 authority and Scorecard is advisory**. This page explains why, and records the
 four standing findings that should not be "fixed" the obvious way.
 
-Of `package.json`, only the dependency ranges, `overrides`, `engines`,
-`constraints` and the browser-stack scripts bear on this page; its other
-scripts, such as test tooling, do not.
+The package manifests, dependency update rules and runner image remain inputs
+to supply-chain scanning for the HTTP-only pipeline. Retired browser-stack
+checks and browser-install actions are not validation dependencies.
+Removing the browser runtime does not relax vulnerability thresholds,
+dependency license controls or the full-suite policy for critical updates.
 
 ## Why zizmor decides
 

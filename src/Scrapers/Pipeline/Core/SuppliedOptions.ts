@@ -1,10 +1,9 @@
 /**
- * Supplied-option probes shared by the `createScraper` option guards
- * ({@link ./LegacyOnlyOptions.ts}, {@link ./BrowserOnlyOptions.ts}).
+ * Supply-option probes used by the `createScraper` option guards
+ * ({@link ./LegacyOnlyOptions.ts}).
  *
- * <p>Each guard names a set of options the selected path ignores and warns once
- * when the caller supplied any of them. Both guards judge "supplied" the same
- * way and warn under the same Node warning name, so the rule lives here once.
+ * <p>Each guard names a set of options the Pipeline ignores and warns once
+ * when the caller supplied any of them.
  */
 
 import type { ScraperOptions } from '../../Base/Interface.js';
@@ -24,12 +23,8 @@ const WARNING_NAME = 'ScraperOptionsWarning';
  * @param key - Option name to probe.
  * @returns True when the option holds a defined value.
  */
-function isSupplied(options: ScraperOptions, key: string): boolean {
-  // ScraperOptions is a union of browser-options arms, and some keys live on
-  // only one of them, so TypeScript rejects a direct index and a single-step
-  // cast. Widening through `unknown` is the narrowest way to probe a key that
-  // is legal on the public type but absent from some arm.
-  return (options as unknown as Record<string, unknown>)[key] !== undefined;
+function isSupplied(options: ScraperOptions, key: keyof ScraperOptions): boolean {
+  return options[key] !== undefined;
 }
 
 /**
@@ -38,7 +33,7 @@ function isSupplied(options: ScraperOptions, key: string): boolean {
  * @param names - Option names to probe, in the order the warning lists them.
  * @returns Supplied option names, in `names` order.
  */
-export function findSuppliedOptions<T extends string>(
+export function findSuppliedOptions<T extends keyof ScraperOptions>(
   options: ScraperOptions,
   names: readonly T[],
 ): T[] {

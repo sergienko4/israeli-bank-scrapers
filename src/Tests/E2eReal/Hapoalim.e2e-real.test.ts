@@ -7,7 +7,6 @@ import { INVALID_CREDS_HAPOALIM } from '../TestConstants.js';
 import {
   assertFailedLogin,
   assertSuccessfulScrape,
-  BROWSER_ARGS,
   defaultStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
@@ -31,8 +30,6 @@ DESCRIBE_IF('E2E: Bank Hapoalim (real credentials)', () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Hapoalim,
       startDate: defaultStartDate(),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
       otpCodeRetriever: retrieve,
     });
     const result = await scraper.scrape({
@@ -48,8 +45,6 @@ DESCRIBE_IF('E2E: Bank Hapoalim (real credentials)', () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Hapoalim,
       startDate: defaultStartDate(),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
     });
     const result = await scraper.scrape(INVALID_CREDS_HAPOALIM);
     assertFailedLogin(result);

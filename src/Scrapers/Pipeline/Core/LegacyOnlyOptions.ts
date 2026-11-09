@@ -2,8 +2,8 @@
  * Legacy-only scraper options — the Pipeline guard that makes an ignored
  * option audible instead of silent.
  *
- * <p>`ScraperOptions` is one flat type that predates the Pipeline, and eight
- * of its fields have no Pipeline implementation: five were read only by the
+ * <p>`ScraperOptions` predates the Pipeline, and five
+ * of its fields have no Pipeline implementation: two were read only by the
  * removed non-Pipeline scrapers, and three have no reader at all. A
  * caller who sets one gets no error, no warning and no
  * effect — the defect reported in issue #540. This module detects that case so
@@ -18,7 +18,7 @@
  * the very defect it exists to report.
  *
  * <p>Only option *names* are emitted. Values are withheld deliberately —
- * `storeFailureScreenShotPath` carries a filesystem path, and no option is
+ * callers may attach sensitive data, and no option is
  * worth leaking into a stderr stream the caller may ship to a log aggregator.
  */
 
@@ -36,23 +36,17 @@ import { findSuppliedOptions, warnIgnoredOptions } from './SuppliedOptions.js';
  * the entry here in the same change. Every reader named below was deleted with
  * the legacy scraper chain, so the files are gone from the tree.
  * - `includeRawTransaction` — was the legacy `Common/Transactions.ts` reader
- * - `navigationRetryCount` — was the legacy `BaseScraperWithBrowser` reader
  * - `optInFeatures` — no reader (legacy Mizrahi removed)
  * - `outputData` — was the legacy `BeyahadBishvilhaScraper` reader
  * - `shouldAddTransactionInformation` — no reader (legacy Mizrahi removed)
  * - `shouldCombineInstallments` — no reader
- * - `skipCloseBrowser` — was the legacy `BaseScraperWithBrowser` reader
- * - `storeFailureScreenShotPath` — was the legacy `BaseScraperWithBrowser` reader
  */
 export const LEGACY_ONLY_OPTIONS = [
   'includeRawTransaction',
-  'navigationRetryCount',
   'optInFeatures',
   'outputData',
   'shouldAddTransactionInformation',
   'shouldCombineInstallments',
-  'skipCloseBrowser',
-  'storeFailureScreenShotPath',
 ] as const;
 
 /** One of the option names the Pipeline cannot honour. */

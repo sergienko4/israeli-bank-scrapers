@@ -57,7 +57,6 @@ const NEW_CORE_FILES: readonly string[] = [
   'src/Scrapers/Pipeline/Core/Builder/ApiDirectNativeRules.ts',
   'src/Scrapers/Pipeline/Core/Builder/ApiDirectRuleInput.ts',
   'src/Scrapers/Pipeline/Core/Builder/ApiDirectTransportRules.ts',
-  'src/Scrapers/Pipeline/Core/BrowserOnlyOptions.ts',
   'src/Scrapers/Pipeline/Core/SuppliedOptions.ts',
 ];
 

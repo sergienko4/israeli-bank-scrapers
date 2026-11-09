@@ -35,7 +35,6 @@ console.log(`\n>>> Dumping visible text for: ${bankKey}\n`);
 const scraper = createScraper({
   companyId,
   startDate: new Date(),
-  shouldShowBrowser: true,
 });
 
 const result = await scraper.scrape(creds);

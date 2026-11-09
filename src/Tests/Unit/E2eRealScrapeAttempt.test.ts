@@ -29,7 +29,6 @@ jest.unstable_mockModule('../../index.js', () => ({
 }));
 
 const { createScrapeAttempt: CREATE_SCRAPE_ATTEMPT } = await import('../E2eReal/ScrapeAttempt.js');
-const { BROWSER_ARGS } = await import('../E2eReal/Helpers.js');
 
 /**
  * Read the options handed to `createScraper` on a given call.
@@ -104,14 +103,12 @@ describe('E2eReal/ScrapeAttempt', () => {
     expect(optionsOf(0).onAuthFlowComplete).toBe(writer);
   });
 
-  it('runs headless with the shared browser arguments', async () => {
+  it('carries the scrape start date on every attempt', async () => {
     const writer = stubWriter();
     const attempt = buildAttempt(writer);
 
     await attempt({});
 
-    expect(optionsOf(0).shouldShowBrowser).toBe(false);
-    expect(optionsOf(0).args).toBe(BROWSER_ARGS);
     expect(optionsOf(0).startDate).toBeInstanceOf(Date);
   });
 

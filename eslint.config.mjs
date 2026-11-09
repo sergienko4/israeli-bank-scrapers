@@ -2816,7 +2816,6 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Core/Builder/ApiDirectNativeRules.ts',
       'src/Scrapers/Pipeline/Core/Builder/ApiDirectRuleInput.ts',
       'src/Scrapers/Pipeline/Core/Builder/ApiDirectTransportRules.ts',
-      'src/Scrapers/Pipeline/Core/BrowserOnlyOptions.ts',
       'src/Scrapers/Pipeline/Core/SuppliedOptions.ts',
       'src/Scrapers/Pipeline/EslintCanaries/core-new-file-fn-over-cap.canary.ts',
     ],

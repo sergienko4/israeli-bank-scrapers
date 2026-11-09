@@ -1,14 +1,10 @@
-import { type Browser, type BrowserContext, type Page } from 'playwright-core';
-
 import { type CompanyTypes, type ScraperProgressTypes } from '../../Definitions.js';
 import { type IErrorResult } from './Errors.js';
-import type { LifecyclePromise, VoidResult } from './Interfaces/CallbackTypes.js';
-import type { IDefaultBrowserOptions } from './Interfaces/DefaultBrowserOptions.js';
+import type { VoidResult } from './Interfaces/CallbackTypes.js';
 import type { IOutputDataOptions } from './Interfaces/OutputDataOptions.js';
 import type { IScraperLoginResult } from './Interfaces/ScraperLoginResult.js';
 import type { IScraperScrapingResult } from './Interfaces/ScraperScrapingResult.js';
 
-export type { IDefaultBrowserOptions } from './Interfaces/DefaultBrowserOptions.js';
 export type { IErrorResult } from './Interfaces/ErrorResult.js';
 export type { IFutureDebit } from './Interfaces/FutureDebit.js';
 export type { IOutputDataOptions } from './Interfaces/OutputDataOptions.js';
@@ -90,35 +86,7 @@ export type OptInFeatures =
   | 'mizrahi:pendingIfHasGenericDescription'
   | 'mizrahi:isPendingIfTodayTransaction';
 
-interface IExternalBrowserOptions {
-  /**
-   * An externally created browser instance.
-   * you can get a browser directly from playwright via `chromium.launch()`
-   *
-   * Note: The browser will be closed by the library after the scraper finishes unless `skipCloseBrowser` is set to true
-   */
-  browser: Browser;
-
-  /**
-   * If true, the browser will not be closed by the library after the scraper finishes
-   * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
-   * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
-   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
-   */
-  skipCloseBrowser?: boolean;
-}
-
-interface IExternalBrowserContextOptions {
-  /**
-   * An externally managed browser context. This is useful when you want to manage the browser
-   */
-  browserContext: BrowserContext;
-}
-
-type ScraperBrowserOptions =
-  IExternalBrowserOptions | IExternalBrowserContextOptions | IDefaultBrowserOptions;
-
-export type ScraperOptions = ScraperBrowserOptions & {
+interface IScraperOptions {
   /**
    * The company you want to scrape
    */
@@ -152,25 +120,6 @@ export type ScraperOptions = ScraperBrowserOptions & {
   shouldCombineInstallments?: boolean;
 
   /**
-   * Adjust the page instance before it is being used.
-   * @param page - The Playwright Page instance to configure.
-   */
-  preparePage?: (page: Page) => LifecyclePromise;
-
-  /**
-   * if set, store a screenshot if failed to scrape. Used for debug purposes
-   * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
-   * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
-   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
-   */
-  storeFailureScreenShotPath?: string;
-
-  /**
-   * if set, will set the timeout in milliseconds of `page.setDefaultTimeout`.
-   */
-  defaultTimeout?: number;
-
-  /**
    * Options for manipulation of output data
    * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
    * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
@@ -199,25 +148,6 @@ export type ScraperOptions = ScraperBrowserOptions & {
   includeRawTransaction?: boolean;
 
   /**
-   * Adjust the viewport size of the browser page.
-   *
-   * Not implemented: no scraper on either path reads this option. The Pipeline
-   * launches with `viewport: null` so the render surface follows the browser window.
-   */
-  viewportSize?: {
-    width: number;
-    height: number;
-  };
-
-  /**
-   * The number of times to retry the navigation in case of a failure (default 0)
-   * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
-   * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
-   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
-   */
-  navigationRetryCount?: number;
-
-  /**
    * Opt-in features for the scrapers, allowing safe rollout of new breaking changes.
    * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
    * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
@@ -226,7 +156,7 @@ export type ScraperOptions = ScraperBrowserOptions & {
   optInFeatures?: OptInFeatures[];
 
   /**
-   * Called when an OTP/2FA screen is detected after login form submission.
+   * Called when the bank's authentication API requests an OTP/2FA code.
    * Return the one-time code to continue scraping automatically.
    *
    * Called at most once per successful acquisition per login attempt — see the
@@ -236,7 +166,7 @@ export type ScraperOptions = ScraperBrowserOptions & {
    * login: an acquisition that rejects is not cached, so a retry re-prompts;
    * and a step config may opt out with `preHook.reuse: 'per-step'`, which no
    * bank currently does.
-   * @param phoneHint masked phone number shown on the page, e.g. "*******1200" (empty string if none)
+   * @param phoneHint masked phone number reported by the bank, e.g. "*******1200" (empty string if none)
    */
   otpCodeRetriever?: (phoneHint: string) => Promise<string>;
 
@@ -284,19 +214,20 @@ export type ScraperOptions = ScraperBrowserOptions & {
   /**
    * Login chain log verbosity.
    * - 'info' (default): chain plan, step pass/fail with timing, masked result summary.
-   * - 'trace': all of info plus per-step context (URL, frames, selectors).
+   * - 'trace': all of info plus per-step HTTP request context.
    * Falls back to LOG_LEVEL env var when not set.
    */
   loginLogLevel?: 'info' | 'trace';
 
   /**
-   * Opt-in to the new Pipeline architecture.
-   * When true, the factory routes to PipelineRegistry instead of the legacy scraper classes.
-   * Both old and new code coexist — set to true to use the new pipeline for migrated banks.
-   * @default false
+   * Retained for compatibility. Every company now runs on the Pipeline
+   * regardless of this value; the legacy scraper classes are gone.
+   * @deprecated Has no effect; the Pipeline is the only path.
    */
   usePipeline?: boolean;
-};
+}
+
+export type ScraperOptions = IScraperOptions;
 
 export interface IScraper<TCredentials extends ScraperCredentials> {
   scrape(credentials: TCredentials): Promise<IScraperScrapingResult>;

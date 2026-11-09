@@ -90,7 +90,6 @@ const scraper = createScraper({
   companyId: bankConfig.company,
   startDate: START_DATE,
   futureMonthsToScrape: 1,
-  shouldShowBrowser: false,
   ...(needsOtp && { otpCodeRetriever: promptOtp }),
 });
 

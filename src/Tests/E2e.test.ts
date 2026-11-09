@@ -36,7 +36,6 @@ describe('E2E: IScraper error handling', () => {
       const scraper = createScraper({
         companyId: CompanyTypes.Hapoalim,
         startDate: new Date(),
-        shouldShowBrowser: false,
       });
       const result = await scraper.scrape({ userCode: 'invalid', password: 'invalid' });
       expect(result.success).toBe(false);

@@ -2,52 +2,34 @@
 
 The pipeline is a **declarative chain of typed phases** orchestrated by `PipelineExecutor`. Each phase implements `BasePhase` and owns four sub-step hooks: `pre`, `action`, `post`, `final`. The executor drives them in order, threading an immutable `IPipelineContext` snapshot between phases.
 
-## The phase chain (API-direct)
+## The phase chain
 
-Every registered bank runs the **API-direct** pipeline: `API-DIRECT-CALL` (login + OTP over the bank's JSON API) followed by `API-DIRECT-SCRAPE`. No registered bank launches a browser. The browser phases below are **retained infrastructure** that is being removed; they stay in the codebase until the browser-removal work completes.
+Every registered bank runs the **API-direct** pipeline: `API-DIRECT-CALL`
+(login + OTP over the bank's JSON API) followed by `API-DIRECT-SCRAPE`.
+The library opens no browser; the navigation and DOM-scrape phases that
+preceded v10 have been removed.
+
+`IBuilderState` is the internal assembly contract for the configured login and
+scrape slots; consumers configure banks through `createScraper`, not this type.
+`IContextTracker` is the reducer's internal execution state. It retains the
+latest context so the executor disposes the API mediator even when a phase
+throws; it is not an extension point for a caller-managed browser.
 
 ```mermaid
-flowchart TD
-    subgraph "Current — every registered bank (API-direct, 2 phases)"
-      direction TB
-      ADC["API-DIRECT-CALL<br/>(login + OTP over JSON API)"] --> ADS["API-DIRECT-SCRAPE<br/>(hard-model shape — no nav)"]
-    end
-
-    subgraph "Retained, being removed — no registered bank uses it (browser)"
-      direction TB
-      I[INIT] --> L[LOGIN] --> OT["OTP-TRIGGER<br/>(opt-in)"]
-      OT --> OF["OTP-FILL<br/>(opt-in)"]
-      OF --> AD[AUTH-DISCOVERY]
-      AD --> ADS2["API-DIRECT-SCRAPE"] --> T[TERMINATE]
-    end
+flowchart LR
+    ADC["API-DIRECT-CALL<br/>(login + OTP over JSON API)"] --> ADS["API-DIRECT-SCRAPE<br/>(hard-model shape — no nav)"]
 ```
 
-### Current: API-direct banks
-
-| Phase                                               | Owner concern                                                                                                                                         |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [API-DIRECT-CALL](../phases/api-direct-call.md)     | Login + OTP over the bank's JSON API; replaces the browser phases INIT → LOGIN → OTP-TRIGGER → OTP-FILL                                               |
+| Phase                                               | Owner concern                                                                                                                   |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| [API-DIRECT-CALL](../phases/api-direct-call.md)     | Login + OTP over the bank's JSON API                                                                                            |
 | [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md) | Walk the bank's typed hard-model shape (accounts + balances + transactions) over direct REST/GraphQL — no nav; `.final` emits `ctx.balanceResolution` |
-
-### Retained browser infrastructure (no registered bank uses it)
-
-| Slot | Phase                                         | Owner concern                                                       |
-| ---- | --------------------------------------------- | ------------------------------------------------------------------- |
-| 1    | [INIT](../phases/init.md)                     | Launch Camoufox, build the `IPipelineContext`, navigate to bank URL |
-| 2    | [LOGIN](../phases/login.md)                   | 7-strategy `SelectorResolver` + declarative `LoginConfig`           |
-| 3    | [OTP-TRIGGER](../phases/otp-trigger.md)       | Opt-in; no bank opts in today                                       |
-| 4    | [OTP-FILL](../phases/otp-fill.md)             | Opt-in; no bank opts in today                                       |
-| 5    | [AUTH-DISCOVERY](../phases/auth-discovery.md) | Capture post-login auth token + API origin from network             |
-| 6    | API-DIRECT-SCRAPE                             | Shared with the API-direct pipeline above                           |
-| 7    | [TERMINATE](../phases/terminate.md)           | Close page/context/browser, finalise `IScraperScrapingResult`       |
-
-The generic navigation + DOM-scrape phases — [ACCOUNT-RESOLVE](../phases/account-resolve.md) · [DASHBOARD](../phases/dashboard.md) · [SCRAPE](../phases/scrape.md) · [BALANCE-RESOLVE](../phases/balance-resolve.md) — are retired. They remain in the codebase (ESLint canaries guard the boundary) but no pipeline bank triggers them; `API-DIRECT-SCRAPE` supersedes them.
 
 ## The Procedure result pattern
 
 An internal bank configuration may opt into `disablePhaseRetry: true` when
 repeating an authentication submission is unsafe. The executor then returns
-the first phase failure without a sanitization pulse, and browser login uses one submit click without Enter or click-strategy fallback.
+the first phase failure without a sanitization pulse.
 Banks that omit the flag retain their existing recovery behavior. This policy
 does not disable passive observation polling or transport-level retries.
 

@@ -2,12 +2,7 @@ import { jest } from '@jest/globals';
 import * as dotenv from 'dotenv';
 
 import { CompanyTypes, createScraper } from '../../index.js';
-import {
-  assertSuccessfulScrape,
-  BROWSER_ARGS,
-  logScrapedTransactions,
-  SCRAPE_TIMEOUT,
-} from './Helpers.js';
+import { assertSuccessfulScrape, logScrapedTransactions, SCRAPE_TIMEOUT } from './Helpers.js';
 import { type IDaysBackOverride, overridableStartDate } from './WindowOverride.js';
 
 dotenv.config();
@@ -31,8 +26,6 @@ DESCRIBE_IF('E2E: Bank Mizrahi (real credentials)', () => {
     const options = {
       companyId: CompanyTypes.Mizrahi,
       startDate: overridableStartDate(MIZRAHI_WINDOW),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
     };
     console.log(`Mizrahi E2E window starts ${options.startDate.toISOString()}`);
     const scraper = createScraper(options);
