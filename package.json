@@ -101,8 +101,11 @@
     "fintech",
     "financial-automation"
   ],
-  "author": "Elad Shaham",
-  "license": "MIT",
+  "author": "Sergienko",
+  "contributors": [
+    "Elad Shaham"
+  ],
+  "license": "AGPL-3.0-only",
   "bugs": {
     "url": "https://github.com/sergienko4/israeli-bank-scrapers/issues"
   },
@@ -160,7 +163,8 @@
     "pino": "^10.3.1"
   },
   "files": [
-    "lib/**/*"
+    "lib/**/*",
+    "LICENSE-MIT"
   ],
   "overrides": {
     "test-exclude": "^7.0.2",
