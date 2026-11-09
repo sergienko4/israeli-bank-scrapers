@@ -18,13 +18,14 @@ function isC1Control(unit: string): boolean {
 }
 
 /**
- * Whether text is bounded and free of C0, DEL and C1 controls.
+ * Whether text is bounded, losslessly UTF-8 encodable and free of controls.
  * @param value - Candidate text.
  * @param maxChars - Longest allowed text.
  * @returns True for safe, nonempty text.
  */
 function isQueryText(value: string, maxChars: number): boolean {
   if (!isSafeText(value, maxChars)) return false;
+  if (Buffer.from(value, 'utf8').toString('utf8') !== value) return false;
   return !Array.from(value).some(isC1Control);
 }
 

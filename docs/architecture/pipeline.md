@@ -38,6 +38,13 @@ flowchart TD
 
 ## The Procedure result pattern
 
+An internal bank configuration may opt into `disablePhaseRetry: true` when
+repeating an authentication submission is unsafe. The executor then returns
+the first phase failure without a sanitization pulse, HOME skips crash reloads,
+and browser login uses one submit click without Enter or click-strategy fallback.
+Banks that omit the flag retain their existing recovery behavior. This policy
+does not disable passive observation polling or transport-level retries.
+
 Every action returns `Procedure<T> = { success: true, value: T } | { success: false, errorType, errorMessage }`. Phases never throw exceptions across boundaries; they return Procedures and the executor consults `.success` to decide whether to advance.
 
 ```typescript

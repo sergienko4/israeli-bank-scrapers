@@ -10,7 +10,6 @@
 
 import type { Page } from 'playwright-core';
 
-import { CompanyTypes } from '../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { ScraperLogger } from '../../../../../Scrapers/Pipeline/Logging/Debug.js';
 import {
@@ -262,7 +261,7 @@ describe('resolveHomeWithRecovery', () => {
     expect(calls.navigateTo).toBe(1);
   });
 
-  it('does not reload a crashed Leumi home page when retries are disabled', async () => {
+  it('does not reload a crashed home page when retries are disabled', async () => {
     const calls: IRecoveryCalls = { navigateTo: 0 };
     const mediator = makeRecoveryMediator(
       {
@@ -273,10 +272,7 @@ describe('resolveHomeWithRecovery', () => {
       },
       calls,
     );
-    const { resolvePipelineBankConfig } =
-      await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
-    const config = resolvePipelineBankConfig(CompanyTypes.Leumi);
-    if (config === false) throw new TypeError('missing Leumi configuration');
+    const config = { ...makeMockContext().config, disablePhaseRetry: true as const };
     const context = makeMockContext({ config });
     const page = makePage();
     const args = toRecoveryArgs(context, mediator, page);

@@ -17,7 +17,6 @@
 
 import { jest } from '@jest/globals';
 
-import { CompanyTypes } from '../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import { reducePhases } from '../../../../Scrapers/Pipeline/Core/Executor/PipelineReducer.js';
 import type { BasePhase } from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
@@ -99,12 +98,9 @@ describe('PipelineReducer — narrow login no-retry', () => {
   );
 
   it(
-    'does not repeat a failed Leumi browser login',
+    'does not repeat a failed browser login when the bank opts out',
     async () => {
-      const { resolvePipelineBankConfig } =
-        await import('../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
-      const config = resolvePipelineBankConfig(CompanyTypes.Leumi);
-      if (config === false) throw new TypeError('missing Leumi configuration');
+      const config = { ...makeMockContext().config, disablePhaseRetry: true as const };
       const failure = fail(ScraperErrorTypes.InvalidPassword, 'InvalidPassword');
       const run = await driveReducer('login', failure, config);
       expect(run).toHaveBeenCalledTimes(1);

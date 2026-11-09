@@ -94,6 +94,7 @@ function invalidBody(): Procedure<never> {
  * @returns A decoded object or a sanitized failure.
  */
 function parseInner(body: ApiBody): Procedure<Record<string, unknown>> {
+  if (!isRecord(body)) return invalidBody();
   if (body.ProcessRequestResult !== 0 || typeof body.jsonResp !== 'string') return invalidBody();
   try {
     const parsed: unknown = JSON.parse(body.jsonResp);

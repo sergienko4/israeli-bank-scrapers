@@ -67,7 +67,9 @@ After login, Leumi uses the hard-model post-auth path. The bank's
 
 The internal `LEUMI_BODY_CHECKS` require each WCF response to pass its
 operation-specific envelope and status check before account, balance or
-transaction fields are extracted. `validAccounts` rejects missing or duplicate
+transaction fields are extracted. A non-object outer envelope, including
+JSON `null`, returns a sanitized validation failure without further financial
+requests. `validAccounts` rejects missing or duplicate
 account identifiers before account-specific calls, and
 `validTransactionAmount` requires the shared mapper to use the row's own
 `Amount`, rejects nested or non-finite original amounts and refuses sign

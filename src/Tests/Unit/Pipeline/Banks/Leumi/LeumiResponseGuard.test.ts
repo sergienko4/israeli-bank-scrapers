@@ -201,6 +201,39 @@ describe('Leumi result guard', () => {
 });
 
 describe('Leumi WCF checks in the real scrape driver', () => {
+  it.each([
+    ['customer', [null]],
+    ['balance', [envelope({ AccountsItems: [ACCOUNT] }), null]],
+    [
+      'transactions',
+      [
+        envelope({ AccountsItems: [ACCOUNT] }),
+        envelope({ SOStatus: STATUS, BalanceDisplay: 7 }),
+        null,
+      ],
+    ],
+  ] as const)(
+    'refuses a null outer %s envelope without further requests',
+    async (operation, bodies) => {
+      const [customer, ...financial] = bodies;
+      const bus = makeRouterBus({
+        [leumiBrokerUrl(GET_ACCOUNTS_MODULE)]: [succeed(customer)],
+        [leumiBrokerUrl(UC_SO_27_MODULE)]: financial.map(succeed),
+      });
+      const ctx = {
+        ...makeMockContext({ apiMediator: some(bus) }),
+        executor: none(),
+        windowEnd: none(),
+      };
+      const outcome = createApiDirectScrapePhase(LEUMI_SHAPE)(ctx);
+      await expect(outcome).resolves.toMatchObject({
+        success: false,
+        errorMessage: `Leumi ${operation} WCF response failed validation`,
+      });
+      expect(bus.apiPost).toHaveBeenCalledTimes(bodies.length);
+    },
+  );
+
   it('refuses duplicate account indices before requesting financial details', async () => {
     const accounts = envelope({
       AccountsItems: [ACCOUNT, { ...ACCOUNT, MaskedNumber: 'other-account' }],

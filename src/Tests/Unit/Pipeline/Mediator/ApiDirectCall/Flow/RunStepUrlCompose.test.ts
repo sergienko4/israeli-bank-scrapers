@@ -170,6 +170,7 @@ describe('checked URL composition', () => {
     ['fragment', '/sso#fragment'],
     ['invalid query UTF-8', '/sso?value=%C0%AF'],
     ['encoded control', '/sso?value=%00'],
+    ['ill-formed target Unicode', '/sso?value=route\ud800'],
   ])('refuses %s before the next request', async (_label, landing) => {
     const { result, calls } = await runComposition(landing);
     expect(result.success).toBe(false);
@@ -183,6 +184,7 @@ describe('checked URL composition', () => {
     ['duplicate routing', `${ENTRY}&tracking=stale`],
     ['missing routing', `${ORIGIN}/gate?language=1`],
     ['invalid entry query', `${ENTRY}&extra=%C0%AF`],
+    ['ill-formed entry Unicode', `${ENTRY}&extra=route\udc00`],
   ])('refuses %s before the next request', async (_label, entry) => {
     const { result, calls } = await runComposition(LANDING, entry);
     expect(result.success).toBe(false);

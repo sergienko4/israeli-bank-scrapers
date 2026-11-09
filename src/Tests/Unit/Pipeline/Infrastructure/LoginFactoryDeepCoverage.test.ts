@@ -16,7 +16,6 @@
 
 import { jest } from '@jest/globals';
 
-import { CompanyTypes } from '../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import type { IRaceResult } from '../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
@@ -184,23 +183,20 @@ function makeSingleSubmitDiscovery(hasSubmit: boolean): ILoginFieldDiscovery {
 }
 
 /**
- * Prepare the real Leumi policy with a scripted action executor.
+ * Prepare an explicit single-attempt policy with a scripted action executor.
  * @param hasSubmit - Whether a submit target is present.
  * @param clickFails - Whether the click rejects.
  * @returns Sealed context and action spies.
  */
-async function makeSingleSubmitAttempt(
+function makeSingleSubmitAttempt(
   hasSubmit: boolean,
   clickFails: boolean,
-): Promise<{
+): {
   input: IActionContext;
   pressEnter: jest.Mock<Promise<true>, []>;
   clickElement: jest.Mock<Promise<true>, []>;
-}> {
-  const { resolvePipelineBankConfig } =
-    await import('../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
-  const config = resolvePipelineBankConfig(CompanyTypes.Leumi);
-  if (config === false) throw new TypeError('missing Leumi configuration');
+} {
+  const config = { ...makeMockContext().config, disablePhaseRetry: true as const };
   const discovery = makeSingleSubmitDiscovery(hasSubmit);
   const context = makeMockContext({ config, loginFieldDiscovery: some(discovery) });
   const pressEnter = jest.fn((): Promise<true> => Promise.resolve(true));
@@ -367,8 +363,8 @@ describe('executeFillAndSubmitFromDiscovery — fillFromDiscovery propagation', 
     expect(typeof result.success).toBe('boolean');
   });
 
-  it('submits Leumi credentials with one click rather than Enter and click', async () => {
-    const { input, pressEnter, clickElement } = await makeSingleSubmitAttempt(true, false);
+  it('submits credentials with one click when phase retries are disabled', async () => {
+    const { input, pressEnter, clickElement } = makeSingleSubmitAttempt(true, false);
     const result = await executeFillAndSubmitFromDiscovery(CFG_PWD_AND_SUBMIT, input);
     expect(result.success).toBe(true);
     expect(pressEnter).not.toHaveBeenCalled();
@@ -380,16 +376,16 @@ describe('executeFillAndSubmitFromDiscovery — fillFromDiscovery propagation', 
     });
   });
 
-  it('does not press Enter after the Leumi submit click rejects', async () => {
-    const { input, pressEnter, clickElement } = await makeSingleSubmitAttempt(true, true);
+  it('does not press Enter after a single-submit click rejects', async () => {
+    const { input, pressEnter, clickElement } = makeSingleSubmitAttempt(true, true);
     const result = await executeFillAndSubmitFromDiscovery(CFG_PWD_AND_SUBMIT, input);
     expect(result.success).toBe(false);
     expect(pressEnter).not.toHaveBeenCalled();
     expect(clickElement).toHaveBeenCalledTimes(1);
   });
 
-  it('fails without a Leumi submit target rather than pressing Enter', async () => {
-    const { input, pressEnter, clickElement } = await makeSingleSubmitAttempt(false, false);
+  it('fails without a single-submit target rather than pressing Enter', async () => {
+    const { input, pressEnter, clickElement } = makeSingleSubmitAttempt(false, false);
     const result = await executeFillAndSubmitFromDiscovery(CFG_PWD_AND_SUBMIT, input);
     expect(result.success).toBe(false);
     expect(pressEnter).not.toHaveBeenCalled();
