@@ -39,7 +39,7 @@ export const BANK_EXTRA_DNS_HOSTS: BankExtraDnsHosts = {
   [CompanyTypes.Discount]: ['start.telebank.co.il'],
   [CompanyTypes.Hapoalim]: ['login.bankhapoalim.co.il'],
   [CompanyTypes.Isracard]: ['ring.isracard.co.il'],
-  [CompanyTypes.Leumi]: ['hb2.bankleumi.co.il'],
+  [CompanyTypes.Leumi]: ['hb2.bankleumi.co.il', 'sa.bankleumi.co.il'],
   [CompanyTypes.Massad]: ['online.bankmassad.co.il'],
   [CompanyTypes.Mercantile]: ['start.telebank.co.il'],
   [CompanyTypes.Mizrahi]: ['mto.mizrahi-tefahot.co.il'],

@@ -278,7 +278,10 @@ the account's concurrent-job limit.
 - **Camoufox and the consumer install.** When the E2E factory tests run,
   Camoufox is on disk during the consumer install. The smoke uses native
   Leumi and substitutes a synthetic 503 response for `fetch`, so the expected
-  failure is `prime HTTP 503`. No request is sent to the bank. The check
+  failure is `prime HTTP 503`. The synthetic handler accepts only
+  `https://hb2.bankleumi.co.il/H/Login.html`; a wrong host or path fails
+  before the synthetic-request marker is printed. No request is sent to the
+  bank. The check
   requires both the synthetic-request marker and the expected failure, rather
   than accepting any settled result.
 - **Time limits.** Each step keeps its old job's limit: 10 minutes for each

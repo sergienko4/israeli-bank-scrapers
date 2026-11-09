@@ -29,6 +29,7 @@
 
 /** Printed only when the scrape produced an outcome the caller can act on. */
 const SETTLED_MARKER = 'SETTLED';
+const PRIME_URL = 'https://hb2.bankleumi.co.il/H/Login.html';
 
 /** Obvious dummies — this program must never authenticate against anything. */
 const DUMMY_CREDENTIALS = {
@@ -36,7 +37,9 @@ const DUMMY_CREDENTIALS = {
   password: 'not-a-real-password',
 };
 
-function offlineFetch() {
+function offlineFetch(input) {
+  const url = input instanceof Request ? input.url : String(input);
+  if (url !== PRIME_URL) throw new Error('Unexpected consumer prime URL');
   console.log('OFFLINE_REQUEST');
   return Promise.resolve(new Response(null, { status: 503 }));
 }
