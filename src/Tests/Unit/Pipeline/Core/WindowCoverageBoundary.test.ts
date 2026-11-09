@@ -74,25 +74,3 @@ describe('toResult/window verdict', () => {
     expect(verdict).toEqual(VERDICT);
   });
 });
-
-/**
- * Issue #553 also asked for `diagnostics` on the pipeline's result. The
- * pipeline does carry a diagnostics state — but every field `IScraperDiagnostics`
- * needs is set once at construction and never written again: `loginUrl` stays
- * `''`, `finalUrl`/`pageTitle`/`fetchStartMs` stay absent, `lastAction` stays
- * `'init (...)'`, and nothing anywhere pushes a warning.
- *
- * <p>Publishing that object would not be reporting diagnostics, it would be
- * inventing them — an empty `warnings` array read as "no warnings" is the same
- * lie `futureDebits` tells by always being absent. So the result deliberately
- * carries no `diagnostics`, and this pins the decision: anyone wiring the
- * state through has to make the fields true first, and will land here.
- */
-describe('toResult/diagnostics', () => {
-  it('publishes no diagnostics rather than an unpopulated one', () => {
-    const ctx = ctxWith(new Map());
-    const proc = succeed(ctx);
-    const result = toResult(proc);
-    expect(result.diagnostics).toBeUndefined();
-  });
-});

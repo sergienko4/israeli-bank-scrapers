@@ -16,9 +16,8 @@ src/Tests/Integration/
 
 ## Consumers
 
-- `src/Tests/Unit/Integration/Banks/Leumi/Leumi.contractExtraction.test.ts`
-- `src/Tests/Unit/Integration/Banks/Mizrahi/Mizrahi.contractExtraction.test.ts`
 - `src/Tests/Unit/Pipeline/Banks/Mizrahi/MizrahiBusFactory.ts`
+- `src/Tests/Unit/Pipeline/Banks/Mizrahi/MizrahiShape.test.ts`
 
 ## Adding a fixture
 

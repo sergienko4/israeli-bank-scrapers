@@ -10,11 +10,20 @@
     {
       "version": "10.0.0",
       "impact": "breaking",
-      "title": "The fork is distributed under AGPL-3.0-only instead of MIT",
-      "detail": "Starting with 10.0.0, the fork as a whole is distributed under the GNU Affero General Public License, version 3 only (`AGPL-3.0-only`). Previously granted MIT permissions remain intact, including those for earlier releases. The upstream MIT notice is preserved in `LICENSE-MIT`, and third-party components keep their own licenses. The package README explains how to obtain the Corresponding Source for the matching release.",
-      "action": "Review the AGPLv3 terms before upgrading, redistributing or operating a modified version over a network, including the applicable source-distribution and source-offer requirements. Commercial use remains permitted under those terms. If those obligations do not fit your use, retain a version you received under MIT.",
+      "title": "The fork is distributed under PolyForm-Noncommercial-1.0.0 (free for private use; paid commercial license for businesses)",
+      "detail": "Starting with 10.0.0, this fork is distributed under the PolyForm Noncommercial License 1.0.0 (`PolyForm-Noncommercial-1.0.0`). Personal, hobby, academic, and non-commercial use is free under those terms. Any commercial, business, or for-profit use requires a separate paid commercial license from `@sergienko4`. Previously granted MIT permissions for earlier releases remain intact, the upstream MIT notice is preserved in `LICENSE-MIT`, and third-party components keep their own licenses.",
+      "action": "Review `LICENSE` before upgrading to 10.0.0. Personal and non-commercial users may upgrade at no cost under `PolyForm-Noncommercial-1.0.0`. Businesses and commercial users must obtain a paid commercial license from `@sergienko4` before using 10.0.0+, or retain a pre-10.0.0 version received under MIT.",
       "before": null,
       "after": null
+    },
+    {
+      "version": "10.0.0",
+      "impact": "breaking",
+      "title": "Deprecated legacy options, methods, and types are removed from the public API",
+      "detail": "`ScraperOptions` no longer includes the deprecated legacy fields (`includeRawTransaction`, `optInFeatures`, `outputData`, `shouldAddTransactionInformation`, `shouldCombineInstallments`, `usePipeline`, `verbose`), and `createScraper` no longer emits `ScraperOptionsWarning` for them. `IScraper` removes the unimplemented `triggerTwoFactorAuth` and `getLongTermTwoFactorToken` stub methods. `ScraperErrorTypes.General` (`'GENERAL_ERROR'`), `IScraperLoginResult`, `ScraperLoginResult`, the misspelled `ScaperLoginResult` and `ScaperScrapingResult` aliases, `IOutputDataOptions`, `OptInFeatures`, `IFutureDebit`, `IScraperDiagnostics`, `IScraperScrapingResult.futureDebits`, `IScraperScrapingResult.diagnostics`, and `ITransaction.rawTransaction` are also removed.",
+      "action": "Remove deprecated options from `createScraper({ ... })` calls, switch any `ScraperErrorTypes.General` reference to `ScraperErrorTypes.Generic`, and use `ITransactionsAccount.windowCoverage` and `FORENSIC_TRACE=true` instead of legacy diagnostics or `includeRawTransaction`.",
+      "before": "createScraper({ companyId, startDate, shouldCombineInstallments: false, includeRawTransaction: true });",
+      "after": "createScraper({ companyId, startDate });"
     },
     {
       "version": "10.0.0",

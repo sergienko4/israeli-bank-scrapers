@@ -50,14 +50,7 @@ const BUILD_PACKAGE = '$/.github/actions/build-package';
 const SETUP_NODE_DEPS = '$/.github/actions/setup-node-deps';
 
 /** Production packages whose version defines the critical runtime. */
-const CRITICAL_PACKAGES = [
-  '@babel/parser',
-  'lodash',
-  'moment',
-  'moment-timezone',
-  'parse5',
-  'pino',
-] as const;
+const CRITICAL_PACKAGES = ['@babel/parser', 'moment', 'moment-timezone', 'parse5', 'pino'] as const;
 
 /**
  * Paths that define the published API surface or the gate guarding it.

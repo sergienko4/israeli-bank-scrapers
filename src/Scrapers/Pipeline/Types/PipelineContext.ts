@@ -9,8 +9,6 @@ import type { ScraperCredentials, ScraperOptions } from '../../Base/Interface.js
 import type { ScraperLogger } from '../Logging/Debug.js';
 import type { IApiMediator } from '../Mediator/Api/ApiMediator.js';
 import type { IPipelineBankConfig } from '../Registry/Config/PipelineBankConfig.js';
-import type { IFetchStrategy } from '../Strategy/Fetch/FetchStrategy.js';
-import type { IDiagnosticsState } from './Domain/DiagnosticsState.js';
 import type { IDurableAuthState } from './Domain/DurableAuthState.js';
 import type { IScrapeState } from './Domain/ScrapeState.js';
 import type { Option } from './Option.js';
@@ -21,9 +19,7 @@ interface IPipelineContext {
   readonly credentials: ScraperCredentials;
   readonly companyId: CompanyTypes;
   readonly logger: ScraperLogger;
-  readonly diagnostics: IDiagnosticsState;
   readonly config: IPipelineBankConfig;
-  readonly fetchStrategy: Option<IFetchStrategy>;
   /**
    * Upper bound of the scrape window. `none()` on the ordinary pass, where
    * every shape reaches today; set by the coverage backfill to re-request an
@@ -54,5 +50,4 @@ interface IPipelineContext {
 type IActionContext = IPipelineContext;
 
 export type { IActionContext, IPipelineContext };
-export { type IDiagnosticsState } from './Domain/DiagnosticsState.js';
 export { type IScrapeState } from './Domain/ScrapeState.js';

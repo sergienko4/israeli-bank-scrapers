@@ -98,63 +98,12 @@ declare enum ScraperProgressTypes {
     Terminating = "TERMINATING"
 }
 
-/** Categorized error types returned by scrapers on failure. */
-declare enum ScraperErrorTypes {
-    TwoFactorRetrieverMissing = "TWO_FACTOR_RETRIEVER_MISSING",
-    InvalidOtp = "INVALID_OTP",
-    InvalidPassword = "INVALID_PASSWORD",
-    /** Supplied `phoneNumber` cannot be normalised to the bank's wire format. */
-    InvalidPhoneNumber = "INVALID_PHONE_NUMBER",
-    ChangePassword = "CHANGE_PASSWORD",
-    Timeout = "TIMEOUT",
-    NetworkError = "NETWORK_ERROR",
-    AccountBlocked = "ACCOUNT_BLOCKED",
-    Generic = "GENERIC",
-    /**
-     * Legacy generic error type — kept for backwards-compatibility.
-     * @deprecated Use `Generic` instead.
-     */
-    General = "GENERAL_ERROR",
-    WafBlocked = "WAF_BLOCKED"
-}
-
-interface IWafErrorDetails {
-    provider: 'cloudflare' | 'unknown';
-    httpStatus: number;
-    pageTitle: string;
-    pageUrl: string;
-    responseSnippet?: string;
-    suggestions: string[];
-}
-
-interface IErrorResult {
-    success: false;
-    errorType: ScraperErrorTypes;
-    errorMessage: string;
-    errorDetails?: IWafErrorDetails;
-}
-
 /**
  * Type-level alias that resolves to void at compile time.
  * Used in callback parameter types where the return value is intentionally ignored.
  * Infers void from Promise without using the void keyword directly.
  */
 type VoidResult = Promise<void> extends Promise<infer R> ? R : never;
-
-interface IOutputDataOptions {
-    /**
-     * if true, the result wouldn't be filtered out by date, and you will return unfiltered scrapped data.
-     */
-    isFilterByDateEnabled?: boolean;
-}
-
-interface IScraperLoginResult {
-    success: boolean;
-    errorType?: ScraperErrorTypes;
-    errorMessage?: string;
-    errorDetails?: IWafErrorDetails;
-    persistentOtpToken?: string;
-}
 
 /**
  * What a scrape can honestly say about the window it was asked for.
@@ -320,10 +269,10 @@ interface ITransaction {
     /**
      * ISO-8601 date/date-time string.
      *
-     * <p><b>Pipeline scrapers</b> emit a UTC instant. Most Israeli providers
-     * state a *day* with no time and no offset; the Pipeline resolves such a
-     * value to midnight of that day in the bank's calendar (`Asia/Jerusalem`), so
-     * the instant is stable no matter what zone the scraper runs in.
+     * <p>Scrapers emit a UTC instant. Most Israeli providers state a *day* with
+     * no time and no offset; the Pipeline resolves such a value to midnight of
+     * that day in the bank's calendar (`Asia/Jerusalem`), so the instant is
+     * stable no matter what zone the scraper runs in.
      *
      * <p>That means the provider's stated day is **not** the UTC date prefix —
      * `2026-06-28T21:00:00.000Z` is the 29th in Israel. Read the day in the bank
@@ -333,16 +282,12 @@ interface ITransaction {
      * moment(txn.date).tz('Asia/Jerusalem').format('YYYY-MM-DD'); // '2026-06-29'
      * ```
      *
-     * <p><b>Legacy (deprecated) scrapers</b> are frozen and are not covered by
-     * that convention — some emit a bare `YYYY-MM-DD` day instead of an instant.
-     * Parse defensively if you consume both families.
-     *
      * @see docs/architecture/bank-calendar.md
      */
     date: string;
     /**
-     * ISO-8601 date/date-time string. Same calendar convention, and the same
-     * Legacy caveat, as {@link ITransaction.date}.
+     * ISO-8601 date/date-time string. Same calendar convention as
+     * {@link ITransaction.date}.
      */
     processedDate: string;
     originalAmount: number;
@@ -354,53 +299,41 @@ interface ITransaction {
     status: TransactionStatuses;
     installments?: ITransactionInstallments;
     category?: string;
-    rawTransaction?: unknown;
 }
 
-interface IFutureDebit {
-    amount: number;
-    amountCurrency: string;
-    chargeDate?: string;
-    bankAccountNumber?: string;
+/** Categorized error types returned by scrapers on failure. */
+declare enum ScraperErrorTypes {
+    TwoFactorRetrieverMissing = "TWO_FACTOR_RETRIEVER_MISSING",
+    InvalidOtp = "INVALID_OTP",
+    InvalidPassword = "INVALID_PASSWORD",
+    /** Supplied `phoneNumber` cannot be normalised to the bank's wire format. */
+    InvalidPhoneNumber = "INVALID_PHONE_NUMBER",
+    ChangePassword = "CHANGE_PASSWORD",
+    Timeout = "TIMEOUT",
+    NetworkError = "NETWORK_ERROR",
+    AccountBlocked = "ACCOUNT_BLOCKED",
+    Generic = "GENERIC",
+    WafBlocked = "WAF_BLOCKED"
 }
 
-interface IScraperDiagnostics {
-    loginUrl: string;
-    finalUrl?: string;
-    loginDurationMs?: number;
-    fetchDurationMs?: number;
-    lastAction: string;
-    pageTitle?: string;
-    warnings: string[];
+interface IWafErrorDetails {
+    provider: 'cloudflare' | 'unknown';
+    httpStatus: number;
+    pageTitle: string;
+    pageUrl: string;
+    responseSnippet?: string;
+    suggestions: string[];
 }
 
 interface IScraperScrapingResult {
     success: boolean;
     accounts?: ITransactionsAccount[];
-    /**
-     * Upcoming debits.
-     *
-     * <p><b>Never populated.</b> The field is part of the upstream result shape
-     * and is kept so the type stays compatible, but no scraper in this package
-     * writes to it. An empty or absent value means "not available", not "this
-     * account has no upcoming debits" — treating it as the latter would read a
-     * gap in the implementation as a fact about someone's money.
-     */
-    futureDebits?: IFutureDebit[];
     errorType?: ScraperErrorTypes;
     errorMessage?: string;
     errorDetails?: IWafErrorDetails;
     /** Long-term OTP token returned by banks that support it (e.g. OneZero).
      *  Save and pass as credentials.otpLongTermToken to skip SMS on future runs. */
     persistentOtpToken?: string;
-    /**
-     * Per-run diagnostics.
-     *
-     * <p>Retained on the public result type for compatibility; no scraper
-     * populates it today. The Pipeline reports what it knows through
-     * `ITransactionsAccount.windowCoverage` instead.
-     */
-    diagnostics?: IScraperDiagnostics;
 }
 
 /**
@@ -492,20 +425,11 @@ type ScraperCredentials = {
 } | {
     otpLongTermToken: string;
 }));
-type OptInFeatures = 'isracard-amex:skipAdditionalTransactionInformation' | 'mizrahi:pendingIfNoIdentifier' | 'mizrahi:pendingIfHasGenericDescription' | 'mizrahi:isPendingIfTodayTransaction';
 interface IScraperOptions {
     /**
      * The company you want to scrape
      */
     companyId: CompanyTypes;
-    /**
-     * include more debug info about in the output
-     *
-     * Not implemented: no scraper on either path reads this option. Use the
-     * `FORENSIC_TRACE` capture for diagnostics instead —
-     * see {@link https://sergienko4.github.io/israeli-bank-scrapers/observability/ Observability}.
-     */
-    verbose?: boolean;
     /**
      * the date to fetch transactions from (can't be before the minimum allowed time difference for the scraper)
      */
@@ -514,45 +438,6 @@ interface IScraperOptions {
      * scrape transactions to be processed X months in the future
      */
     futureMonthsToScrape?: number;
-    /**
-     * if set to true, all installment transactions will be combine into the first one
-     * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
-     * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
-     * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
-     */
-    shouldCombineInstallments?: boolean;
-    /**
-     * Options for manipulation of output data
-     * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
-     * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
-     * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
-     */
-    outputData?: IOutputDataOptions;
-    /**
-     * Perform additional operation for each transaction to get more information (Like category) about it.
-     * Please note: It will take more time to finish the process.
-     * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
-     * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
-     * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
-     */
-    shouldAddTransactionInformation?: boolean;
-    /**
-     * Include the raw transaction object as received from the scraper source for debugging purposes.
-     * @default false
-     * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
-     * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
-     * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
-     * For raw provider payloads on the Pipeline, use the `FORENSIC_TRACE` capture instead —
-     * see {@link https://sergienko4.github.io/israeli-bank-scrapers/observability/redaction/ Forensic capture}.
-     */
-    includeRawTransaction?: boolean;
-    /**
-     * Opt-in features for the scrapers, allowing safe rollout of new breaking changes.
-     * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
-     * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
-     * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
-     */
-    optInFeatures?: OptInFeatures[];
     /**
      * Called when the bank's authentication API requests an OTP/2FA code.
      * Return the one-time code to continue scraping automatically.
@@ -611,12 +496,6 @@ interface IScraperOptions {
      * Falls back to LOG_LEVEL env var when not set.
      */
     loginLogLevel?: 'info' | 'trace';
-    /**
-     * Retained for compatibility. Every company now runs on the Pipeline
-     * regardless of this value; the legacy scraper classes are gone.
-     * @deprecated Has no effect; the Pipeline is the only path.
-     */
-    usePipeline?: boolean;
 }
 type ScraperOptions = IScraperOptions;
 interface IScraper<TCredentials extends ScraperCredentials> {
@@ -624,24 +503,11 @@ interface IScraper<TCredentials extends ScraperCredentials> {
     onProgress(func: (companyId: CompanyTypes, payload: {
         type: ScraperProgressTypes;
     }) => VoidResult): VoidResult;
-    triggerTwoFactorAuth(phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult>;
-    getLongTermTwoFactorToken(otpCode: string): Promise<ScraperGetLongTermTwoFactorTokenResult>;
 }
-type ScraperTwoFactorAuthTriggerResult = IErrorResult | {
-    success: true;
-};
-type ScraperGetLongTermTwoFactorTokenResult = IErrorResult | {
-    success: true;
-    longTermTwoFactorAuthToken: string;
-};
 /**
  * Backward-compatible alias for IScraper. Prefer IScraper for new code.
  */
 type Scraper<TCredentials extends ScraperCredentials = ScraperCredentials> = IScraper<TCredentials>;
-/**
- * Backward-compatible alias for IScraperLoginResult. Prefer IScraperLoginResult for new code.
- */
-type ScraperLoginResult = IScraperLoginResult;
 /**
  * Backward-compatible alias for IScraperScrapingResult. Prefer IScraperScrapingResult for new code.
  */
@@ -650,8 +516,7 @@ type ScraperScrapingResult = IScraperScrapingResult;
 /**
  * Create a scraper instance for the given company.
  *
- * <p>Every supported bank resolves through PIPELINE_REGISTRY. The caller hears
- * about any option the Pipeline ignores.
+ * <p>Every supported bank resolves through PIPELINE_REGISTRY.
  * @param options - Scraper configuration including company ID and credentials.
  * @returns A scraper instance ready to scrape transactions.
  * @throws ScraperError when the company id is not registered.
@@ -659,4 +524,4 @@ type ScraperScrapingResult = IScraperScrapingResult;
 declare function createScraper(options: ScraperOptions): IScraper<ScraperCredentials>;
 
 export { CompanyTypes, SCRAPERS, createScraper };
-export type { IScraper, IScraperLoginResult, IScraperScrapingResult, IWindowCoverage, IWindowCovered, IWindowLowerBoundReached, IWindowUnproven, IScraperLoginResult as ScaperLoginResult, IScraperScrapingResult as ScaperScrapingResult, Scraper, ScraperCredentials, ScraperLoginResult, ScraperOptions, ScraperScrapingResult, WindowCaveat, WindowUnprovenReason };
+export type { IScraper, IScraperScrapingResult, IWindowCoverage, IWindowCovered, IWindowLowerBoundReached, IWindowUnproven, Scraper, ScraperCredentials, ScraperOptions, ScraperScrapingResult, WindowCaveat, WindowUnprovenReason };

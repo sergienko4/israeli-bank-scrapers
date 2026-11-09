@@ -160,13 +160,14 @@ enabled local gates; full-suite and coverage evidence comes from CI.
 ## License for contributions
 
 Contributions to this fork are accepted under the
-[GNU Affero General Public License, version 3 only](./LICENSE)
-(`AGPL-3.0-only`). By submitting a contribution, you agree that it may be
-distributed under those terms. Contributors retain their copyright.
+[PolyForm Noncommercial License 1.0.0](./LICENSE)
+(`PolyForm-Noncommercial-1.0.0`) and may also be distributed by the maintainer
+([@sergienko4](https://github.com/sergienko4)) under commercial license terms.
+By submitting a contribution, you agree to this distribution model while
+retaining copyright in your contribution.
 
 The preserved [upstream MIT notice](./LICENSE-MIT) and third-party licenses
-remain applicable to their respective material. No copyright assignment or
-contributor license agreement is required.
+remain applicable to their respective material.
 
 ## Publishing
 

@@ -46,12 +46,15 @@ Removing the browser runtime does not relax vulnerability thresholds,
 dependency license controls or the full-suite policy for critical updates.
 
 The root `license` fields in `package.json` and `package-lock.json` identify
-this fork's own grant: `AGPL-3.0-only` starting with 10.0.0. They do not
+this fork's own grant: `PolyForm-Noncommercial-1.0.0` (with a separate paid
+commercial license option) starting with 10.0.0. They do not
 relicense third-party packages or relax the dependency-review license
-allowlist. Non-root lockfile license entries and vulnerability thresholds
+allowlist, and unused runtime/dev packages (`lodash`, `@types/lodash`,
+`fast-check`, `tmp`, `@types/tmp`, `@json2csv/plainjs`) have been removed from
+the manifests. Non-root lockfile license entries and vulnerability thresholds
 remain unchanged. See the
 [project license](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/README.md#license)
-for the terms and matching-release source access.
+for the terms and commercial licensing details.
 
 ## Why zizmor decides
 
