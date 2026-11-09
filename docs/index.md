@@ -53,13 +53,14 @@ flowchart LR
 
 ## What's new
 
+- **v10.0.0** — **100% browserless HTTP/TLS Pipeline across all 17 banks.** Retires the browser execution path, Playwright/Camoufox dependencies, `behatsdaa` and `beyahadBishvilha`, and deprecated legacy options/methods/types; adopts `PolyForm-Noncommercial-1.0.0` (free for permitted non-commercial use; paid commercial license for businesses).
 - **v8.6.0** — **Direct-API scraping after login for every pipeline bank.** The 13 browser banks retire the generic `ACCOUNT-RESOLVE → DASHBOARD → SCRAPE → BALANCE-RESOLVE` navigation chain: after `AUTH-DISCOVERY`, `BIND-API-MEDIATOR` binds an authenticated `ApiMediator` to the live page and `API-DIRECT-SCRAPE` walks a typed hard-model shape of REST/GraphQL calls (accounts, balances, transactions) — no post-auth page navigation or DOM scraping. Balance is emitted by the shape's `.final`.
 - **v8.4.0** — Two milestones land together:
   - [`BALANCE-RESOLVE` single-phase ownership (v6)](architecture/balance-resolve.md). SCRAPE emits identities + template, BALANCE-RESOLVE owns every live `api.fetchPost`/`fetchGet` and per-card extraction. Universal-miss fail only when **every** card missed. _(Retired in v8.6.0 — balance now rides the hard-model shape.)_
   - Unified api-direct primitives across OneZero, Pepper, PayBox (signer config DU, `JsonValueTemplate`, carry derivations).
 - **v8.3.0** — Pipeline architecture v2 (Strategy / Builder / Mediator / Result patterns, phase isolation, PII redaction).
 
-See [README → Version history](https://github.com/sergienko4/israeli-bank-scrapers#version-history) for the full timeline.
+See [Compatibility](compatibility.md) for the full release and upgrade timeline.
 
 ## Migration notice
 

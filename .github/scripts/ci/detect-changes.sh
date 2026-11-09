@@ -186,14 +186,13 @@ has() {
 # comma onto an untouched dependency line whenever a later key is removed.
 CRITICAL_PACKAGES=(
   '@babel/parser'
-  'lodash'
   'moment'
   'moment-timezone'
   'parse5'
   'pino'
 )
 
-# Declared range from package.json, e.g. `"lodash": "^4.17.23"`.
+# Declared range from package.json, e.g. `"moment": "^2.30.1"`.
 declared_range() {
   printf '%s\n' "$1" | grep -m1 -oE "\"$2\": *\"[^\"]+\"" || true
 }

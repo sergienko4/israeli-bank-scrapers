@@ -22,7 +22,7 @@ are skipped when the changed files cannot affect them —
 in `pr.yml` states its own condition. The matrix below is the source of truth.
 
 `full_suite` means `src` or `critical_deps`. A changed declared range or
-resolved version of any production dependency (`@babel/parser`, `lodash`,
+resolved version of any production dependency (`@babel/parser`,
 `moment`, `moment-timezone`, `parse5`, `pino`) sets `critical_deps`, even
 without a source edit. Dependency-only changes also select the unit, mocked
 E2E and package jobs. `CriticalDepsFullSuiteGate.test.ts` pins that routing.

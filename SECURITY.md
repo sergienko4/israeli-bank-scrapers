@@ -4,10 +4,10 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 8.x     | :white_check_mark: |
-| 7.x     | :white_check_mark: |
-| 6.x     | :x:                |
-| < 6.0   | :x:                |
+| 10.x    | :white_check_mark: |
+| 9.x     | :white_check_mark: |
+| 8.x     | :x:                |
+| < 8.0   | :x:                |
 
 ## Reporting a Vulnerability
 
@@ -52,8 +52,9 @@ This project employs the following security measures:
 - CODEOWNERS enforcement for code review
 
 The dependency-license policy is separate from this fork's own
-`AGPL-3.0-only` license. Third-party components retain their existing licenses;
-the project's license change does not relax the dependency allowlist.
+`PolyForm-Noncommercial-1.0.0` license. Third-party components retain their
+existing licenses; the project's license change does not relax the dependency
+allowlist.
 
 The dependency-review gate allowlists a few packages whose license metadata its
 scanner cannot map to an SPDX identifier, for example `gitdb`, which ships a

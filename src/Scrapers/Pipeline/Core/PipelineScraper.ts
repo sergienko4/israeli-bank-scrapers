@@ -10,12 +10,9 @@ import type {
   IScraper,
   IScraperScrapingResult,
   ScraperCredentials,
-  ScraperGetLongTermTwoFactorTokenResult,
   ScraperOptions,
-  ScraperTwoFactorAuthTriggerResult,
 } from '../../Base/Interface.js';
 import type { VoidResult } from '../../Base/Interfaces/CallbackTypes.js';
-import ScraperError from '../../Base/ScraperError.js';
 import { isOk, type Procedure, toLegacy } from '../Types/Procedure.js';
 import { normalizeCredentials } from './CredentialAliases.js';
 import { executePipeline } from './Executor/PipelineExecutor.js';
@@ -73,33 +70,6 @@ class PipelineScraper<TCredentials extends ScraperCredentials> implements IScrap
    */
   public onProgress(func: ProgressCallback): VoidResult {
     this._emitter.on(SCRAPE_PROGRESS, func);
-  }
-
-  /**
-   * Trigger two-factor authentication (stub — override per bank).
-   * @param phoneNumber - The phone number to send OTP to.
-   * @returns Trigger result.
-   */
-  public triggerTwoFactorAuth(phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult> {
-    const bank = this._options.companyId;
-    const masked = `***${phoneNumber.slice(-4)}`;
-    const error = new ScraperError(`triggerOtp(${masked}) not implemented for ${bank}`);
-    return Promise.reject(error);
-  }
-
-  /**
-   * Retrieve long-term OTP token (stub — override per bank).
-   * @param otpCode - The one-time password.
-   * @returns Long-term token result.
-   */
-  public getLongTermTwoFactorToken(
-    otpCode: string,
-  ): Promise<ScraperGetLongTermTwoFactorTokenResult> {
-    const bank = this._options.companyId;
-    const codeLength = String(otpCode.length);
-    const msg = `getPermanentOtpToken(${codeLength} chars) not implemented for ${bank}`;
-    const error = new ScraperError(msg);
-    return Promise.reject(error);
   }
 }
 

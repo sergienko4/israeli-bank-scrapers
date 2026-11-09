@@ -10,11 +10,6 @@ enum ScraperErrorTypes {
   NetworkError = 'NETWORK_ERROR',
   AccountBlocked = 'ACCOUNT_BLOCKED',
   Generic = 'GENERIC',
-  /**
-   * Legacy generic error type — kept for backwards-compatibility.
-   * @deprecated Use `Generic` instead.
-   */
-  General = 'GENERAL_ERROR',
   WafBlocked = 'WAF_BLOCKED',
 }
 

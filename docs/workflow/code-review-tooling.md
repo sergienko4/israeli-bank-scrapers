@@ -92,7 +92,7 @@ Returns `OK`, `ERROR`, or `NONE`. The `SonarCloud Scan` CI job is GREEN iff `sta
 
 ## CodeRabbit config rationale
 
-This repository is a public AGPL-3.0-only fork, with inherited MIT notices preserved. CodeRabbit auto-classifies it as **Open Source plan** — see [`docs.coderabbit.ai/management/plans`](https://docs.coderabbit.ai/management/plans):
+This repository is a public fork (`PolyForm-Noncommercial-1.0.0`, with inherited MIT notices preserved). CodeRabbit classifies it under the **Open Source plan** — see [`docs.coderabbit.ai/management/plans`](https://docs.coderabbit.ai/management/plans):
 
 | Plan | PR reviews / hour / developer | Files / review | Chat / hour |
 |---|---|---|---|

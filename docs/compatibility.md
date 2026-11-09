@@ -13,13 +13,33 @@ Raised from `>= 22.14.0` in 9.0.0. Enforced by the `engines` field, so npm warns
 
 ## Release notes
 
-### 10.0.0 - The fork is distributed under AGPL-3.0-only instead of MIT
+### 10.0.0 - The fork is distributed under PolyForm-Noncommercial-1.0.0 (free for permitted non-commercial use; paid commercial license for businesses)
 
 **Impact:** Breaking
 
-Starting with 10.0.0, the fork as a whole is distributed under the GNU Affero General Public License, version 3 only (`AGPL-3.0-only`). Previously granted MIT permissions remain intact, including those for earlier releases. The upstream MIT notice is preserved in `LICENSE-MIT`, and third-party components keep their own licenses. The package README explains how to obtain the Corresponding Source for the matching release.
+Starting with 10.0.0, this fork is distributed under the PolyForm Noncommercial License 1.0.0 (`PolyForm-Noncommercial-1.0.0`). Personal use, non-commercial purposes, and use by the non-commercial organizations listed in `LICENSE` (charities, educational institutions, public research, public safety/health, environmental protection, and government institutions) are free under those terms. Any commercial, business, or for-profit use outside the permitted purposes in `LICENSE` requires a separate paid commercial license from `@sergienko4`. Previously granted MIT permissions for earlier releases remain intact, the upstream MIT notice is preserved in `LICENSE-MIT`, and third-party components keep their own licenses.
 
-**What to do:** Review the AGPLv3 terms before upgrading, redistributing or operating a modified version over a network, including the applicable source-distribution and source-offer requirements. Commercial use remains permitted under those terms. If those obligations do not fit your use, retain a version you received under MIT.
+**What to do:** Review `LICENSE` before upgrading to 10.0.0. Users within the permitted non-commercial purposes of `PolyForm-Noncommercial-1.0.0` may upgrade at no cost. Businesses and commercial users outside those permitted purposes must obtain a paid commercial license from `@sergienko4` before using 10.0.0+, or retain a pre-10.0.0 version received under MIT.
+
+### 10.0.0 - Deprecated legacy options, methods, and types are removed from the public API
+
+**Impact:** Breaking
+
+`ScraperOptions` no longer includes the deprecated legacy fields (`includeRawTransaction`, `optInFeatures`, `outputData`, `shouldAddTransactionInformation`, `shouldCombineInstallments`, `usePipeline`, `verbose`), and `createScraper` no longer emits `ScraperOptionsWarning` for them. `IScraper` removes the unimplemented `triggerTwoFactorAuth` and `getLongTermTwoFactorToken` stub methods. `ScraperErrorTypes.General` (`'GENERAL_ERROR'`), `IScraperLoginResult`, `ScraperLoginResult`, the misspelled `ScaperLoginResult` and `ScaperScrapingResult` aliases, `IOutputDataOptions`, `OptInFeatures`, `IFutureDebit`, `IScraperDiagnostics`, `IScraperScrapingResult.futureDebits`, `IScraperScrapingResult.diagnostics`, and `ITransaction.rawTransaction` are also removed.
+
+**What to do:** Remove deprecated options from `createScraper({ ... })` calls, switch any `ScraperErrorTypes.General` reference to `ScraperErrorTypes.Generic`, and use `ITransactionsAccount.windowCoverage` and `FORENSIC_TRACE=true` instead of legacy diagnostics or `includeRawTransaction`.
+
+Before:
+
+```js
+createScraper({ companyId, startDate, shouldCombineInstallments: false, includeRawTransaction: true });
+```
+
+After:
+
+```js
+createScraper({ companyId, startDate });
+```
 
 ### 10.0.0 - Behatsdaa and Beyahad Bishvilha are removed; `createScraper` throws for an unknown company
 

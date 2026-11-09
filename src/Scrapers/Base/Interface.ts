@@ -1,15 +1,8 @@
 import { type CompanyTypes, type ScraperProgressTypes } from '../../Definitions.js';
-import { type IErrorResult } from './Errors.js';
 import type { VoidResult } from './Interfaces/CallbackTypes.js';
-import type { IOutputDataOptions } from './Interfaces/OutputDataOptions.js';
-import type { IScraperLoginResult } from './Interfaces/ScraperLoginResult.js';
 import type { IScraperScrapingResult } from './Interfaces/ScraperScrapingResult.js';
 
 export type { IErrorResult } from './Interfaces/ErrorResult.js';
-export type { IFutureDebit } from './Interfaces/FutureDebit.js';
-export type { IOutputDataOptions } from './Interfaces/OutputDataOptions.js';
-export type { IScraperDiagnostics } from './Interfaces/ScraperDiagnostics.js';
-export type { IScraperLoginResult } from './Interfaces/ScraperLoginResult.js';
 export type { IScraperScrapingResult } from './Interfaces/ScraperScrapingResult.js';
 export type { IWafErrorDetails } from './Interfaces/WafErrorDetails.js';
 
@@ -80,26 +73,11 @@ export type ScraperCredentials =
         }
     ));
 
-export type OptInFeatures =
-  | 'isracard-amex:skipAdditionalTransactionInformation'
-  | 'mizrahi:pendingIfNoIdentifier'
-  | 'mizrahi:pendingIfHasGenericDescription'
-  | 'mizrahi:isPendingIfTodayTransaction';
-
 interface IScraperOptions {
   /**
    * The company you want to scrape
    */
   companyId: CompanyTypes;
-
-  /**
-   * include more debug info about in the output
-   *
-   * Not implemented: no scraper on either path reads this option. Use the
-   * `FORENSIC_TRACE` capture for diagnostics instead —
-   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/observability/ Observability}.
-   */
-  verbose?: boolean;
 
   /**
    * the date to fetch transactions from (can't be before the minimum allowed time difference for the scraper)
@@ -110,50 +88,6 @@ interface IScraperOptions {
    * scrape transactions to be processed X months in the future
    */
   futureMonthsToScrape?: number;
-
-  /**
-   * if set to true, all installment transactions will be combine into the first one
-   * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
-   * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
-   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
-   */
-  shouldCombineInstallments?: boolean;
-
-  /**
-   * Options for manipulation of output data
-   * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
-   * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
-   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
-   */
-  outputData?: IOutputDataOptions;
-
-  /**
-   * Perform additional operation for each transaction to get more information (Like category) about it.
-   * Please note: It will take more time to finish the process.
-   * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
-   * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
-   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
-   */
-  shouldAddTransactionInformation?: boolean;
-
-  /**
-   * Include the raw transaction object as received from the scraper source for debugging purposes.
-   * @default false
-   * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
-   * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
-   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
-   * For raw provider payloads on the Pipeline, use the `FORENSIC_TRACE` capture instead —
-   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/observability/redaction/ Forensic capture}.
-   */
-  includeRawTransaction?: boolean;
-
-  /**
-   * Opt-in features for the scrapers, allowing safe rollout of new breaking changes.
-   * @deprecated Read only by the Legacy (deprecated) scrapers. Every Pipeline bank ignores
-   * this option, and `createScraper` emits a `ScraperOptionsWarning` when it is passed —
-   * see {@link https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/ Legacy (deprecated) scrapers}.
-   */
-  optInFeatures?: OptInFeatures[];
 
   /**
    * Called when the bank's authentication API requests an OTP/2FA code.
@@ -218,13 +152,6 @@ interface IScraperOptions {
    * Falls back to LOG_LEVEL env var when not set.
    */
   loginLogLevel?: 'info' | 'trace';
-
-  /**
-   * Retained for compatibility. Every company now runs on the Pipeline
-   * regardless of this value; the legacy scraper classes are gone.
-   * @deprecated Has no effect; the Pipeline is the only path.
-   */
-  usePipeline?: boolean;
 }
 
 export type ScraperOptions = IScraperOptions;
@@ -234,35 +161,13 @@ export interface IScraper<TCredentials extends ScraperCredentials> {
   onProgress(
     func: (companyId: CompanyTypes, payload: { type: ScraperProgressTypes }) => VoidResult,
   ): VoidResult;
-  triggerTwoFactorAuth(phoneNumber: string): Promise<ScraperTwoFactorAuthTriggerResult>;
-  getLongTermTwoFactorToken(otpCode: string): Promise<ScraperGetLongTermTwoFactorTokenResult>;
 }
-
-export type ScraperTwoFactorAuthTriggerResult =
-  | IErrorResult
-  | {
-      success: true;
-    };
-
-export type ScraperGetLongTermTwoFactorTokenResult =
-  | IErrorResult
-  | {
-      success: true;
-      longTermTwoFactorAuthToken: string;
-    };
-
-// Backward-compatible type aliases (v7.x names → I-prefixed equivalents)
 
 /**
  * Backward-compatible alias for IScraper. Prefer IScraper for new code.
  */
 export type Scraper<TCredentials extends ScraperCredentials = ScraperCredentials> =
   IScraper<TCredentials>;
-
-/**
- * Backward-compatible alias for IScraperLoginResult. Prefer IScraperLoginResult for new code.
- */
-export type ScraperLoginResult = IScraperLoginResult;
 
 /**
  * Backward-compatible alias for IScraperScrapingResult. Prefer IScraperScrapingResult for new code.

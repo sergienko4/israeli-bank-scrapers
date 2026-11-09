@@ -3,7 +3,7 @@
 # Israeli Bank Scrapers
 
 **Scrape transactions from 17 Israeli banks and credit card companies.**
-Built-in Cloudflare WAF bypass, automatic OTP handling, and end-to-end PII
+Direct HTTP/TLS bank API calls, automatic OTP handling, and end-to-end PII
 redaction — so you can share a failing log without leaking customer data.
 
 ```sh
@@ -35,18 +35,12 @@ the same result shape — what varies is which credential fields you pass, and
 whether the OTP callback belongs in the options or the credentials
 ([details below](#otp-two-factor-authentication)).
 
-<!-- ALL-CONTRIBUTORS-BADGE:START -->
-
-[![All Contributors](https://img.shields.io/badge/all_contributors-15-orange.svg?style=flat-square)](#contributors)
-
-<!-- ALL-CONTRIBUTORS-BADGE:END -->
-
 [![npm version](https://img.shields.io/npm/v/@sergienko4/israeli-bank-scrapers?logo=npm&logoColor=white)](https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers)
 [![npm downloads](https://img.shields.io/npm/dm/@sergienko4/israeli-bank-scrapers?logo=npm&logoColor=white)](https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers)
 [![CI](https://img.shields.io/github/actions/workflow/status/sergienko4/israeli-bank-scrapers/main-pipeline.yml?branch=main&logo=github&label=CI)](https://github.com/sergienko4/israeli-bank-scrapers/actions/workflows/main-pipeline.yml)
 [![Quality Gate](https://img.shields.io/sonar/quality_gate/sergienko4_israeli-bank-scrapers?server=https%3A%2F%2Fsonarcloud.io&logo=sonarcloud&logoColor=white)](https://sonarcloud.io/summary/overall?id=sergienko4_israeli-bank-scrapers)
 [![Node.js](https://img.shields.io/badge/node-%E2%89%A5%2024.11-green?logo=node.js&logoColor=white)](https://nodejs.org/)
-[![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](./LICENSE)
+[![License: PolyForm-Noncommercial-1.0.0](https://img.shields.io/badge/license-PolyForm--Noncommercial--1.0.0-blue)](./LICENSE)
 
 > **Documentation** — [User guide](https://sergienko4.github.io/israeli-bank-scrapers/)
 > · [API reference](https://sergienko4.github.io/israeli-bank-scrapers/api/)
@@ -251,16 +245,9 @@ Every bank returns the same `IScraperScrapingResult`:
 }
 ```
 
-Optional fields — `memo`, `category`, `installments`, `chargedCurrency`,
-`rawTransaction` — appear when the bank supplies them. `futureDebits`,
-`persistentOtpToken`, and `diagnostics` sit alongside `accounts`.
-
-`futureDebits` is **never populated**. It is part of the upstream result shape
-and is kept for compatibility; no scraper in this package writes to it. Read it
-as "not available", not as "this account has no upcoming debits".
-
-`diagnostics` remains in the result type for compatibility. The API-direct
-pipeline reports transaction-window coverage through `windowCoverage` — see below.
+Optional fields — `memo`, `category`, `installments`, `chargedCurrency` —
+appear when the bank supplies them. `persistentOtpToken` sits alongside
+`accounts` when a bank issues a reusable device token.
 
 ### Did you get the whole window? (`windowCoverage`)
 
@@ -342,7 +329,7 @@ that protection is gone; see
 - **No telemetry, no analytics, no remote error reporting.** The word
   "telemetry" in this codebase means the local `pipeline.log` file.
 - **No browser downloads** — scraping uses the bank's HTTP endpoints.
-- **Runtime dependencies are `@babel/parser`, `lodash`, `moment`,
+- **Runtime dependencies are `@babel/parser`, `moment`,
   `moment-timezone`, `parse5`, and `pino`.**
   None of them phone home.
 
@@ -368,12 +355,11 @@ if (!result.success) {
 | `CHANGE_PASSWORD`              | Bank is forcing a password reset    | Log in through the bank's own site once                           |
 | `ACCOUNT_BLOCKED`              | Bank locked the account             | Contact the bank — retrying will not help                         |
 | `WAF_BLOCKED`                  | Cloudflare block                    | Read `errorDetails.suggestions`                                   |
-| `TIMEOUT`                      | Page load timeout                   | Raise `defaultTimeout`                                            |
+| `TIMEOUT`                      | HTTP request or OTP timeout         | Check connectivity or raise `otpTimeoutMs`                        |
 | `NETWORK_ERROR`                | Transport failure before a response | Check connectivity, then retry                                    |
 | `GENERIC`                      | Pipeline phase failure              | Read `errorMessage`                                               |
 
-`GENERAL_ERROR` is a deprecated alias of `GENERIC`, still emitted for
-backwards compatibility. Full remedies, including WAF-specific ones, are in
+Full remedies, including WAF-specific ones, are in
 [Troubleshooting](https://sergienko4.github.io/israeli-bank-scrapers/troubleshooting/).
 
 ## How it works
@@ -439,42 +425,17 @@ redaction enabled rather than sharing the original files.
 
 ## Contributors
 
-Thanks to the original [israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers)
-contributors, whose work this fork builds on:
+Maintained by **Sergienko** ([@sergienko4](https://github.com/sergienko4)).
 
-<!-- ALL-CONTRIBUTORS-LIST:START -->
-<!-- prettier-ignore-start -->
-<!-- markdownlint-disable -->
 <table>
   <tbody>
     <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/sergienko4"><img src="https://avatars.githubusercontent.com/u/16467411?v=4?s=80" width="80px;" alt="sergienko4 Eugune"/><br /><sub><b>sergienko4 Eugune</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=sergienko4" title="Code">💻</a> <a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=sergienko4" title="Documentation">📖</a> <a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=sergienko4" title="Tests">⚠️</a> <a href="#maintenance-sergienko4" title="Maintenance">🚧</a> <a href="#infra-sergienko4" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="http://elad.shaham.net/"><img src="https://avatars.githubusercontent.com/u/7040645?v=4?s=80" width="80px;" alt="Elad Shaham"/><br /><sub><b>Elad Shaham</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=eshaham" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/sebikaplun"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="sebikaplun"/><br /><sub><b>sebikaplun</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=sebikaplun" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/esakal"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="esakal"/><br /><sub><b>esakal</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=esakal" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/ezzatq"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="ezzatq"/><br /><sub><b>ezzatq</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=ezzatq" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/kfirarad"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="kfirarad"/><br /><sub><b>kfirarad</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=kfirarad" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/baruchiro"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="baruchiro"/><br /><sub><b>baruchiro</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=baruchiro" title="Code">💻</a></td>
-    </tr>
-    <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/matanelgabsi"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="matanelgabsi"/><br /><sub><b>matanelgabsi</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=matanelgabsi" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/dratler"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="dratler"/><br /><sub><b>dratler</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=dratler" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/dudiventura"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="dudiventura"/><br /><sub><b>dudiventura</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=dudiventura" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/gczobel"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="gczobel"/><br /><sub><b>gczobel</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=gczobel" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/orzarchi"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="orzarchi"/><br /><sub><b>orzarchi</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=orzarchi" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/erezd"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="erezd"/><br /><sub><b>erezd</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=erezd" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/erikash"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="erikash"/><br /><sub><b>erikash</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=erikash" title="Code">💻</a></td>
-    </tr>
-    <tr>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/daniel-hauser"><img src="https://avatars.githubusercontent.com/u/0?v=4?s=80" width="80px;" alt="daniel-hauser"/><br /><sub><b>daniel-hauser</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=daniel-hauser" title="Code">💻</a></td>
+      <td align="center" valign="top"><a href="https://github.com/sergienko4"><img src="https://avatars.githubusercontent.com/u/16467411?v=4?s=80" width="80px;" alt="sergienko4"/><br /><sub><b>sergienko4</b></sub></a><br /><a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=sergienko4" title="Code">💻</a> <a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=sergienko4" title="Documentation">📖</a> <a href="https://github.com/sergienko4/israeli-bank-scrapers/commits?author=sergienko4" title="Tests">⚠️</a> <a href="#maintenance-sergienko4" title="Maintenance">🚧</a> <a href="#infra-sergienko4" title="Infrastructure (Hosting, Build-Tools, etc)">🚇</a></td>
     </tr>
   </tbody>
 </table>
 
-<!-- markdownlint-restore -->
-<!-- prettier-ignore-end -->
-
-<!-- ALL-CONTRIBUTORS-LIST:END -->
+Originally forked from [israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers).
 
 ## Built with this library
 
@@ -486,30 +447,15 @@ contributors, whose work this fork builds on:
 ## License
 
 Starting with **10.0.0**, this fork is distributed under the
-**GNU Affero General Public License, version 3 only** (`AGPL-3.0-only`).
-See [LICENSE](./LICENSE) for the full terms. Commercial use is permitted
-subject to those terms, including applicable source-distribution obligations
-and section 13's source-offer requirement for modified versions that support
-remote network interaction.
+**PolyForm Noncommercial License 1.0.0** (`PolyForm-Noncommercial-1.0.0`):
 
-The licensing change was made on 2026-11-09. Maintained by
-[@sergienko4](https://github.com/sergienko4), this fork modifies
+- **Free for permitted non-commercial use:** Personal use, non-commercial purposes, and use by qualifying non-commercial organizations (including charities, educational institutions, public research, public safety/health, environmental protection, and government institutions as defined in [LICENSE](./LICENSE)) are free of charge under those terms.
+- **Commercial and business use requires a paid license:** Any commercial, business, or for-profit use outside the permitted purposes in [LICENSE](./LICENSE) (including commercial operations, client services, or revenue-generating products) requires a separate paid commercial license from [@sergienko4](https://github.com/sergienko4).
+
+Maintained by [@sergienko4](https://github.com/sergienko4), this fork modifies
 [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers).
 The upstream MIT copyright, permission notice and disclaimer are retained in
-[LICENSE-MIT](./LICENSE-MIT). Previously granted MIT permissions, including
-those for earlier releases, remain intact. Third-party components retain
-their own licenses; the new fork grant is not an MIT/AGPL dual-license offer.
-
-**Corresponding Source:** for an installed package version `X.Y.Z`, download
-the source archive for tag `vX.Y.Z` from
-[GitHub Releases](https://github.com/sergienko4/israeli-bank-scrapers/releases).
-That version's source includes the TypeScript files, build/install scripts,
-configuration and dependency lockfile. From that source directory, use the
-Node.js version supported by that release, then run `npm ci` and
-`npm run build`. Use the matching release source, not the current `main` branch.
-
-A forced publish has no tag or GitHub release. For such a version, the npm
-provenance attestation records the exact source commit; use the source at that
-commit instead.
+[LICENSE-MIT](./LICENSE-MIT). Previously granted MIT permissions for pre-10.0.0
+releases remain intact, and third-party components retain their own licenses.
 
 [Code of Conduct](./CODE_OF_CONDUCT.md) · [Security Policy](./SECURITY.md)

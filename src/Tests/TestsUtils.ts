@@ -1,13 +1,9 @@
-import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { jest } from '@jest/globals';
-import { Parser } from '@json2csv/plainjs';
-import moment from 'moment';
 
-import { type ITransactionsAccount } from '../Transactions.js';
 import { ASYNC_TIMEOUT } from './Config/TestTimingConfig.js';
 
 const FILE_NAME = fileURLToPath(import.meta.url);
@@ -87,91 +83,11 @@ export function getTestsConfig(): ITestsConfig {
 }
 
 /**
- * Conditionally returns test or test.skip based on company API config.
- * @param scraperId - the scraper identifier to check
- * @param filter - optional filter function to further condition the test
- * @returns test function or test.skip
- */
-export function maybeTestCompanyAPI(
-  scraperId: string,
-  filter?: (config: ITestsConfig) => boolean,
-): typeof test {
-  if (!isConfigurationLoaded) {
-    getTestsConfig();
-  }
-  const hasCredentials = scraperId in (testsConfig?.credentials ?? {});
-  return testsConfig?.companyAPI.enabled && hasCredentials && (!filter || filter(testsConfig))
-    ? test
-    : test.skip;
-}
-
-/**
  * Extends the Jest async test timeout.
  * @param timeout - timeout in milliseconds, defaults to 120000
  * @returns true when the timeout has been set
  */
 export function extendAsyncTimeout(timeout = ASYNC_TIMEOUT): boolean {
   jest.setTimeout(timeout);
-  return true;
-}
-
-interface ITransactionRow {
-  account: string;
-  balance: string;
-  date: string;
-  processedDate: string;
-  [key: string]: unknown;
-}
-
-/**
- * Exports transaction data to a CSV file for test inspection.
- * @param fileName - the output file name (without extension)
- * @param accounts - the scraped transaction accounts to export
- * @returns true when export completes or is skipped
- */
-export function exportTransactions(fileName: string, accounts: ITransactionsAccount[]): boolean {
-  const config = getTestsConfig();
-
-  if (
-    !config.companyAPI.enabled ||
-    !config.companyAPI.excelFilesDist ||
-    !fs.existsSync(config.companyAPI.excelFilesDist)
-  ) {
-    return true;
-  }
-
-  let data: ITransactionRow[] = [];
-
-  for (const account of accounts) {
-    data = [
-      ...data,
-      ...account.txns.map(txn => {
-        return {
-          account: account.accountNumber,
-          balance: `account balance: ${String(account.balance ?? '')}`,
-          ...txn,
-          date: moment(txn.date).format('DD/MM/YYYY'),
-          processedDate: moment(txn.processedDate).format('DD/MM/YYYY'),
-        };
-      }),
-    ];
-  }
-
-  if (data.length === 0) {
-    data = [
-      {
-        account: '',
-        balance: '',
-        date: '',
-        processedDate: '',
-        comment: 'no transaction found for requested time frame',
-      },
-    ];
-  }
-
-  const parser = new Parser({ withBOM: true });
-  const csv = parser.parse(data);
-  const filePath = `${path.join(config.companyAPI.excelFilesDist, fileName)}.csv`;
-  fs.writeFileSync(filePath, csv);
   return true;
 }

@@ -60,31 +60,3 @@ describe('PipelineScraper/onProgress', () => {
     expect(register).not.toThrow();
   });
 });
-
-describe('PipelineScraper/triggerTwoFactorAuth', () => {
-  it('rejects with masked phone number', async () => {
-    const scraper = new PipelineScraper(MOCK_OPTIONS, mockBuildPipeline);
-    const promise = scraper.triggerTwoFactorAuth('0507164829');
-    await expect(promise).rejects.toThrow('***4829');
-  });
-
-  it('includes bank name in rejection', async () => {
-    const scraper = new PipelineScraper(MOCK_OPTIONS, mockBuildPipeline);
-    const promise = scraper.triggerTwoFactorAuth('0507164829');
-    await expect(promise).rejects.toThrow('beinleumi');
-  });
-});
-
-describe('PipelineScraper/getLongTermTwoFactorToken', () => {
-  it('rejects with code length', async () => {
-    const scraper = new PipelineScraper(MOCK_OPTIONS, mockBuildPipeline);
-    const promise = scraper.getLongTermTwoFactorToken('123456');
-    await expect(promise).rejects.toThrow('6 chars');
-  });
-
-  it('includes bank name in rejection', async () => {
-    const scraper = new PipelineScraper(MOCK_OPTIONS, mockBuildPipeline);
-    const promise = scraper.getLongTermTwoFactorToken('1234');
-    await expect(promise).rejects.toThrow('beinleumi');
-  });
-});

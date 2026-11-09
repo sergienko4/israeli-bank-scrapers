@@ -5,9 +5,9 @@ construction time and `ScraperCredentials` at scrape time. Nothing else reads
 from disk, and the only environment variables consulted are the operational
 ones listed at the bottom of this page.
 
-Some fields on `ScraperOptions` are read by no scraper — they belong to the
-removed [legacy](architecture/legacy.md) path. See
-[Options the Pipeline ignores](#options-the-pipeline-ignores).
+Legacy and browser-specific options from earlier releases have been removed
+from `ScraperOptions` — see [Legacy](architecture/legacy.md) and
+[Removed legacy options](#options-the-pipeline-ignores).
 
 ## Scraper options — `createScraper({ ... })`
 
@@ -26,58 +26,28 @@ removed [legacy](architecture/legacy.md) path. See
 Request deadlines belong to the HTTP transports, not browser navigation.
 See [Request deadlines](troubleshooting.md#request-deadlines).
 
-## Options the Pipeline ignores
+<a id="options-the-pipeline-ignores"></a>
 
-Five retained legacy-only options have no effect. Passing one emits a Node
-process warning at `createScraper` time:
+## Removed legacy options
 
-```text
-(node:12345) ScraperOptionsWarning: "isracard" runs on the Pipeline, which does not
-implement these Legacy (deprecated) scraper options: includeRawTransaction,
-shouldCombineInstallments. They are ignored here. The legacy non-Pipeline scrapers
-that read them were removed, so they have no effect on any bank. Remove them, or see
-https://sergienko4.github.io/israeli-bank-scrapers/architecture/legacy/
-```
+The deprecated legacy-only options (`includeRawTransaction`, `optInFeatures`,
+`outputData`, `shouldAddTransactionInformation`, `shouldCombineInstallments`,
+`usePipeline`, `verbose`) were removed from `ScraperOptions` in v10.0.0. The
+former readers belonged to the removed [legacy](architecture/legacy.md) path.
 
-One warning lists all supplied legacy-only option names per `createScraper`
-call; values are never printed. Silence it by removing the options.
-To make the warnings impossible to
-ignore in CI, listen for their shared name and escalate:
-
-```typescript
-process.on('warning', w => {
-  if (w.name === 'ScraperOptionsWarning') {
-    console.error(w.message);
-    process.exitCode = 1;
-  }
-});
-```
-
-### Legacy-only options
-
-Not implemented, and read by no scraper. The former readers belonged to the
-removed [legacy](architecture/legacy.md) path.
-
-| Option                            | What it did on the legacy path                                                                        |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `includeRawTransaction`           | Attaches the unparsed provider row to each transaction                                                |
-| `optInFeatures`                   | No active reader since the legacy Mizrahi scraper was removed; ignored with `ScraperOptionsWarning`   |
-| `outputData`                      | No reader since the Beyahad Bishvilha scraper was removed; ignored with `ScraperOptionsWarning`       |
-| `shouldAddTransactionInformation` | No active reader since the legacy Mizrahi scraper was removed; ignored with `ScraperOptionsWarning`   |
-| `shouldCombineInstallments`       | No active reader: no scraper passes it to the instalment filter; ignored with `ScraperOptionsWarning` |
+| Option                            | Replacement / Status                                                                          |
+| --------------------------------- | --------------------------------------------------------------------------------------------- |
+| `includeRawTransaction`           | Removed — set `FORENSIC_TRACE=true` and read `network/*.json` for raw provider payloads       |
+| `optInFeatures`                   | Removed — enrichment is enabled automatically on every bank that provides the data            |
+| `outputData`                      | Removed — date formatting and installment normalization are standardized across all banks     |
+| `shouldAddTransactionInformation` | Removed — enrichment fields (`category`, `memo`, `identifier`) are populated automatically    |
+| `shouldCombineInstallments`       | Removed — installment transactions are emitted directly as reported by each bank              |
+| `usePipeline`                     | Removed — every registered bank runs on the Pipeline                                          |
+| `verbose`                         | Removed — use `LOG_LEVEL` or `loginLogLevel`                                                  |
 
 Raw provider payloads **are** available on the Pipeline — set
 `FORENSIC_TRACE=true` and read `network/*.json`. See
 [Observability](observability/index.md).
-
-### Unimplemented options
-
-Accepted by the type, read by no scraper.
-
-| Option        | Status                                                                                                                          |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `usePipeline` | Not read. The registry is Pipeline-first: a bank in `PIPELINE_REGISTRY` always takes the Pipeline, and one outside it never can |
-| `verbose`     | Not implemented. Use `LOG_LEVEL` or `loginLogLevel`                                                                             |
 
 <a id="browser-lifecycle-options"></a>
 <a id="browser-options-on-browserless-banks"></a>
@@ -88,8 +58,7 @@ Browser ownership, page hooks, navigation timeouts, viewport settings and
 screenshot options are **removed**, not accepted with a warning. Every bank
 uses HTTP, and there is no browser fallback. Remove those fields from
 `createScraper` calls; the complete breaking-change list is in
-[Compatibility](compatibility.md). The five unrelated legacy-only warnings
-above remain.
+[Compatibility](compatibility.md).
 
 ## Per-bank credentials — `scraper.scrape({ ... })`
 
