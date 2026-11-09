@@ -5,7 +5,12 @@ import { CompanyTypes, createScraper } from '../../index.js';
 import { ScraperErrorTypes } from '../../Scrapers/Base/ErrorTypes.js';
 import type { IScraperScrapingResult, ScraperCredentials } from '../../Scrapers/Base/Interface.js';
 import { INVALID_CREDS_USERNAME_PASSWORD } from '../TestConstants.js';
-import { assertSuccessfulScrape, defaultStartDate, SCRAPE_TIMEOUT } from './Helpers.js';
+import {
+  assertSuccessfulScrape,
+  defaultStartDate,
+  logScrapedTransactions,
+  SCRAPE_TIMEOUT,
+} from './Helpers.js';
 
 dotenv.config();
 
@@ -45,8 +50,7 @@ DESCRIBE_IF('E2E: Max (real credentials, API-direct)', () => {
     );
     expect(hasNumericBalances).toBe(true);
     expect(result.persistentOtpToken).toBeUndefined();
-    const txnCount = accounts.reduce((count, account): number => count + account.txns.length, 0);
-    console.log('Max scrape summary', { accounts: accounts.length, transactions: txnCount });
+    logScrapedTransactions(result);
   });
 
   it('rejects synthetic invalid credentials with HTTP 400', async () => {

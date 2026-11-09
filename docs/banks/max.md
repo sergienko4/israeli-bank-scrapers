@@ -68,3 +68,10 @@ call:
 
 A data call without a live session cookie gets an empty `403`; the run fails
 as `GENERIC` and does not log in again.
+
+## Real-test output
+
+A successful Max real-test run prints every transaction, grouped by account
+and sorted newest-first, using the same masked listing as the other banks.
+Account identifiers, amounts and descriptions stay masked. This diagnostic
+output does not change the returned `accounts` or `txns`.
