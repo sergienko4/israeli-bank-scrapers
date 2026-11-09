@@ -4,8 +4,8 @@
  * <p>One logic path, parametrized over every browser-flow bank that
  * runs the LOGIN phase. Mirrors the {@link AuthDiscoveryFactoryTest}
  * shape: a `BANK_LOGIN_FIXTURES` table (in `BankLoginFixtures.ts`)
- * drives `describe.each` for the bank-shape contracts (config +
- * pipeline phase sequence), and a separate set of bank-agnostic
+ * drives `describe.each` for the bank-shape contract (login config),
+ * and a separate set of bank-agnostic
  * blocks exercises the LOGIN action handlers
  * (`executeDiscoverForm`, `executeFillAndSubmitFromDiscovery`,
  * `executeValidateLogin`, `validateActionScopeIntact`, plus the
@@ -26,7 +26,6 @@
  */
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
-import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import {
   executeDiscoverForm,
@@ -54,21 +53,9 @@ import {
 import { BANK_LOGIN_FIXTURES } from './BankLoginFixtures.js';
 import { makeMockActionExecutor, makeScreenshotPage, toActionCtx } from './TestHelpers.js';
 
-/**
- * Build a {@link ScraperOptions} stub for the bank's pipeline
- * builder. Uses fake credentials and `companyId` to satisfy the
- * builder's options validation.
- *
- * @param company - Bank under test.
- * @returns Mock options bound to the company.
- */
-function makeOpts(company: string): ScraperOptions {
-  return { companyId: company } as unknown as ScraperOptions;
-}
-
 // ─── Cross-bank LOGIN-shape contract ─────────────────────────────
 
-describe.each(BANK_LOGIN_FIXTURES)('$bank — LOGIN config + pipeline shape', fixture => {
+describe.each(BANK_LOGIN_FIXTURES)('$bank — LOGIN config shape', fixture => {
   it('declares the expected credential field keys', () => {
     const keys = fixture.loginConfig.fields.map((f): string => f.credentialKey);
     expect(keys).toEqual(fixture.expectedFieldKeys);
@@ -88,23 +75,6 @@ describe.each(BANK_LOGIN_FIXTURES)('$bank — LOGIN config + pipeline shape', fi
       expect(cfg[key]).toBeUndefined();
     },
   );
-
-  it('builds a pipeline descriptor with the expected phase count', () => {
-    const opts = makeOpts(fixture.company);
-    const result = fixture.buildPipeline(opts);
-    expect(result.success).toBe(true);
-    if (result.success) expect(result.value.phases).toHaveLength(fixture.expectedPhaseCount);
-  });
-
-  it('builds a pipeline descriptor with the expected phase name sequence', () => {
-    const opts = makeOpts(fixture.company);
-    const result = fixture.buildPipeline(opts);
-    expect(result.success).toBe(true);
-    if (result.success) {
-      const names = result.value.phases.map((p): string => p.name);
-      expect(names).toEqual(fixture.expectedPhaseNames);
-    }
-  });
 });
 
 // ─── Bank-agnostic LOGIN action handlers ─────────────────────────

@@ -264,10 +264,6 @@ The call fails, named after it (`queryTag`, or the bootstrap step's `name`), whe
 
 A failed answer, or a failed body check, never reaches the patch. A shape with no `responseSession` sends its opts untouched. The customer secondary identity GET is not read.
 
-## withBrowserApiDirect — wiring a browser bank to the hard model
-
-`PipelineBuilder.withBrowserApiDirect(shape)` is the public builder entry point that swaps a browser bank's generic post-auth chain (AUTH-DISCOVERY / ACCOUNT-RESOLVE / DASHBOARD / generic SCRAPE / BALANCE-RESOLVE) for a single `API-DIRECT-SCRAPE` phase driven by the bank's `IApiDirectScrapeShape`, while keeping the browser login phases (INIT / HOME / PRE-LOGIN / LOGIN / OTP-\*) for WAF bypass. The hard-model calls dispatch through the **live login page** (`BrowserFetchStrategy`), so session cookies + the TLS/JA3 fingerprint ride every request for free.
-
 ## Optional shape hooks
 
 Beyond the three required steps (`customer` / `balance` / `transactions`), `IApiDirectScrapeShape` exposes optional hooks a bank declares only when needed:
@@ -305,7 +301,7 @@ So a card row counts as a credit when **exactly one of its two amounts is negati
 
 `ScraperOptions.startDate` means "give me transactions from this date onwards". Every shape formats it into the outbound request, but providers treat it as a **hint**, not a contract — and card issuers ignore it almost entirely. Isracard and Amex are queried per _billing cycle_ (`startOf('month')` of `startDate`, walked forward to `now + futureMonthsToScrape`), and a cycle carries rows whose purchase date can be far older than the cycle itself: installments and out-of-statement charges. Measured against captured Isracard traffic, a 180-day request returned **15 months** of history — 61 of 239 rows predated the window.
 
-The generic path had a client-side filter for exactly this (`filterAfterStart`, in `Strategy/Scrape/ScrapeData/ScrapeDataDedup.ts`), but no api-direct bank ever reached it: `withApiDirect` / `withBrowserApiDirect` short-circuit the builder straight to this phase, bypassing the legacy `Strategy/Scrape` chain. So the window was silently unenforced for all api-direct banks.
+The generic path had a client-side filter for exactly this (`filterAfterStart`, in `Strategy/Scrape/ScrapeData/ScrapeDataDedup.ts`), but no api-direct bank ever reached it: `withApiDirect` short-circuits the builder straight to this phase, bypassing the legacy `Strategy/Scrape` chain. So the window was silently unenforced for all api-direct banks.
 
 `applyStartWindow` (`Mediator/Scrape/StartWindow.ts`) closes that gap. `refineTxns` applies it as the last step of refinement — after `mapTxns`, after the map-reject report, and after any duplicate collapse — passing an `IStartWindowArgs` (`txns`, `startDate`, `label`) and receiving an `IStartWindowResult` (`kept`, `dropped`).
 

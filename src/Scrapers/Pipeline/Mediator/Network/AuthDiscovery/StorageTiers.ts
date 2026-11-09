@@ -1,8 +1,7 @@
 /**
  * AuthDiscovery storage-tier chain — the page-only sessionStorage discovery
- * shared by the full orchestrator (Tier 2..4) and the BIND-API-MEDIATOR
- * auth-prime. Single-sourced so both paths find frame-scoped SPA tokens
- * identically (main page → all frames → all keys).
+ * used by the full orchestrator (Tier 2..4). Frame-scoped SPA tokens are
+ * found identically (main page → all frames → all keys).
  */
 
 import type { Page } from 'playwright-core';

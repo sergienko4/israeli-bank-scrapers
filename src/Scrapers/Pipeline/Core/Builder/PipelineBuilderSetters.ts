@@ -137,23 +137,6 @@ function bindBankTextRule(
 }
 
 /**
- * Set the HARD-MODEL post-auth path on a BROWSER bank. Keeps the
- * browser login phases (WAF bypass) but flags the bank so assembly
- * swaps the generic AUTH-DISCOVERY / ACCOUNT-RESOLVE / DASHBOARD /
- * BALANCE-RESOLVE chain for the single API-DIRECT-SCRAPE phase.
- * Sets `hasBrowser` so the predicate pair (`ifGenericBrowser` /
- * `ifBrowserApiDirect`) routes correctly in one call.
- * @param state - Mutable builder state.
- * @param shape - Bank IApiDirectScrapeShape literal.
- * @returns True after setting.
- */
-function setBrowserApiDirect(state: IBuilderState, shape: AnyApiDirectScrapeShape): DidSet {
-  state.hasBrowser = true;
-  state.apiDirectScrape = shape;
-  return true as DidSet;
-}
-
-/**
  * Snapshot mutable state to IBuilderFields.
  * @param state - Mutable builder state.
  * @returns Immutable fields snapshot.
@@ -168,7 +151,6 @@ export {
   createEmptyState,
   setApiDirectConfig,
   setApiDirectScrape,
-  setBrowserApiDirect,
   setDeclarativeLogin,
   snapshotFields,
 };

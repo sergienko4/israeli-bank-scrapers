@@ -131,7 +131,7 @@ async function executeAuthDiscoveryFinal(
 
 /**
  * FINAL for hard-model banks — commit telemetry WITHOUT the dashboard gate.
- * Hard-model (`withBrowserApiDirect`) banks never reveal a browser dashboard;
+ * Hard-model banks (those carrying an api-direct shape) never reveal a browser dashboard;
  * their auth is validated by the POST cookie-audit, so the M4.F1 dashboard gate
  * would fail-loud `AUTH_DISCOVERY_DASHBOARD_NOT_READY` on a legitimately
  * authenticated session. Settle, emit the committed telemetry, pass through.

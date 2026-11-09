@@ -11,8 +11,8 @@ flowchart TD
       I[INIT] --> H[HOME] --> PL["PRE-LOGIN<br/>(opt-in)"]
       PL --> L[LOGIN] --> OT["OTP-TRIGGER<br/>(opt-in)"]
       OT --> OF["OTP-FILL<br/>(opt-in)"]
-      OF --> AD[AUTH-DISCOVERY] --> BIND[BIND-API-MEDIATOR]
-      BIND --> ADS["API-DIRECT-SCRAPE<br/>(hard-model shape — no nav)"] --> T[TERMINATE]
+      OF --> AD[AUTH-DISCOVERY]
+      AD --> ADS["API-DIRECT-SCRAPE<br/>(hard-model shape — no nav)"] --> T[TERMINATE]
     end
 
     subgraph "API-direct banks — 2 phases"
@@ -30,11 +30,10 @@ flowchart TD
 | 5    | [OTP-TRIGGER](../phases/otp-trigger.md)                                                                                                                                            | ⚙️ opt-in       | Dormant — no bank opts in today                                                                                                                                                                                 |
 | 6    | [OTP-FILL](../phases/otp-fill.md)                                                                                                                                                  | ⚙️ opt-in       | Dormant — no bank opts in today                                                                                                                                                                                 |
 | 7    | [AUTH-DISCOVERY](../phases/auth-discovery.md)                                                                                                                                      | ✅ browser      | Capture post-login auth token + API origin from network                                                                                                                                                         |
-| 8    | `BIND-API-MEDIATOR`                                                                                                                                                                | ✅ browser      | Bind an authenticated `ApiMediator` to the live login page; prime bearer / session token from the capture pool                                                                                                  |
-| 9    | [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                                                                                                | ✅ all          | Walk the bank's typed hard-model shape (accounts + balances + transactions) over direct REST/GraphQL — no nav; `.final` emits `ctx.balanceResolution`                                                           |
-| 10   | [TERMINATE](../phases/terminate.md)                                                                                                                                                | ✅ browser      | Close page/context/browser, finalise `IScraperScrapingResult`                                                                                                                                                   |
+| 8    | [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                                                                                                | ✅ all          | Walk the bank's typed hard-model shape (accounts + balances + transactions) over direct REST/GraphQL — no nav; `.final` emits `ctx.balanceResolution`                                                           |
+| 9    | [TERMINATE](../phases/terminate.md)                                                                                                                                                | ✅ browser      | Close page/context/browser, finalise `IScraperScrapingResult`                                                                                                                                                   |
 | —    | [API-DIRECT-CALL](../phases/api-direct-call.md)                                                                                                                                    | api-direct only | Replaces INIT…OTP-FILL for OneZero/Pepper/PayBox                                                                                                                                                                |
-| —    | _dormant_: [ACCOUNT-RESOLVE](../phases/account-resolve.md) · [DASHBOARD](../phases/dashboard.md) · [SCRAPE](../phases/scrape.md) · [BALANCE-RESOLVE](../phases/balance-resolve.md) | —               | The retired generic navigation + DOM-scrape chain. Still in the codebase (ESLint canaries guard the boundary) but **no pipeline bank triggers them** — superseded by `BIND-API-MEDIATOR` + `API-DIRECT-SCRAPE`. |
+| —    | _dormant_: [ACCOUNT-RESOLVE](../phases/account-resolve.md) · [DASHBOARD](../phases/dashboard.md) · [SCRAPE](../phases/scrape.md) · [BALANCE-RESOLVE](../phases/balance-resolve.md) | —               | The retired generic navigation + DOM-scrape chain. Still in the codebase (ESLint canaries guard the boundary) but **no pipeline bank triggers them** — superseded by `API-DIRECT-SCRAPE`. |
 
 ## The Procedure result pattern
 
@@ -78,14 +77,14 @@ Key slots (v8.6+):
 | `browser`           | INIT                                                               | Playwright browser + context + page                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `login`             | LOGIN                                                              | `persistentOtpToken`, `urlBeforeSubmit`                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `durableAuth`       | API-DIRECT-CALL.action                                             | `IDurableAuthState` — the long-lived re-login artifact minted by an api-direct login chain. api-direct banks never run LOGIN, so they cannot use the `login` slot (it carries a live `Page`/`Frame`); both slots feed the single public `result.persistentOtpToken` ([#576](https://github.com/sergienko4/israeli-bank-scrapers/issues/576))                                                                                                                                   |
-| `apiMediator`       | BIND-API-MEDIATOR (browser) · headless context wiring (api-direct) | Authenticated `ApiMediator`. **Browser banks:** `BIND-API-MEDIATOR` commits a page-bound mediator to the live login page (+ any primed bearer / session token). **api-direct banks:** wired at context build by `resolveHeadlessApiMediator`, whose ordered transport rules pick `createMtlsHeadlessApiMediator` (client cert / TLS profile) or `createHeadlessApiMediator` (`nativeFetch`), and fail closed when a block declares neither, then consumed by `API-DIRECT-CALL` |
+| `apiMediator`       | headless context wiring                                            | Authenticated `ApiMediator`, wired at context build by `resolveHeadlessApiMediator`, whose ordered transport rules pick `createMtlsHeadlessApiMediator` (client cert / TLS profile) or `createHeadlessApiMediator` (`nativeFetch`), and fail closed when a block declares neither, then consumed by `API-DIRECT-CALL` |
 | `scrape`            | API-DIRECT-SCRAPE.post                                             | `accounts`, `accountIdentities` produced by the hard-model shape                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `balanceResolution` | API-DIRECT-SCRAPE.final                                            | Final `Map<accountNumber, number>` → `PipelineResult`                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | _dormant_           | ACCOUNT-RESOLVE / DASHBOARD / BALANCE-RESOLVE                      | `accountDiscovery`, `txnEndpoint`, `dashboardTxnHarvest`, `balanceFetchPlan`, `balanceResponsesByBankAccount`, `balanceExtracted`, `balanceValidation` — slots of the retired generic chain; still declared on `IPipelineContext` but written by no pipeline bank                                                                                                                                                                                                              |
 
-> Both paths converge on the same `apiMediator` → `scrape` → `balanceResolution` slots. They differ only in **who mints the mediator**: `BIND-API-MEDIATOR` for browser banks (page-bound, post-auth); the headless context wiring — consumed by `API-DIRECT-CALL` — for api-direct banks.
+> Every pipeline bank follows the same `apiMediator` → `scrape` → `balanceResolution` slot sequence; the headless context wiring mints the mediator and `API-DIRECT-CALL` consumes it.
 
-The two paths converge on `balanceResolution` — that's the single source of truth read by [`PipelineResult.combineWithBalance`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/PipelineResult.ts).
+`balanceResolution` is the single source of truth read by [`PipelineResult.combineWithBalance`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Core/PipelineResult.ts).
 
 ## Headless transports
 
@@ -353,14 +352,14 @@ Source: [`FrameRegistry.ts`](https://github.com/sergienko4/israeli-bank-scrapers
 | Interceptor          | Runs between                        | Job                                                                                                                                |
 | -------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | **PopupInterceptor** | HOME / before the api-direct scrape | Dismiss modal overlays by visible text                                                                                             |
-| **NetworkDiscovery** | (whole run)                         | Index every HTTP request/response post-auth, redact body+URL before write, feed endpoints to BIND-API-MEDIATOR + API-DIRECT-SCRAPE |
+| **NetworkDiscovery** | (whole run)                         | Index every HTTP request/response post-auth, redact body+URL before write, feed endpoints to API-DIRECT-SCRAPE |
 
 Source: [`src/Scrapers/Pipeline/Interceptors/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Interceptors).
 
 ### Network-discovery contract types
 
 The `NetworkDiscovery` interceptor exposes two type-only contracts that
-downstream phases (BIND-API-MEDIATOR, API-DIRECT-SCRAPE) import to
+downstream phases (API-DIRECT-SCRAPE) import to
 consume the capture pool without coupling to the live implementation:
 
 - `INetworkDiscovery` — the mediator-side contract: capture-lifecycle

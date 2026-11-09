@@ -15,9 +15,8 @@ Every phase implements [`BasePhase`](https://github.com/sergienko4/israeli-bank-
 | 5 | [OTP-TRIGGER](otp-trigger.md) | ⚙️ | Ask bank to dispatch SMS |
 | 6 | [OTP-FILL](otp-fill.md) | ⚙️ | Fill the code from `otpCodeRetriever` |
 | 7 | [AUTH-DISCOVERY](auth-discovery.md) | ✅ | Capture post-login auth token + API origin |
-| 8 | `BIND-API-MEDIATOR` | ✅ | Bind an authenticated `ApiMediator` to the live page; prime bearer / session token |
-| 9 | [API-DIRECT-SCRAPE](api-direct-scrape.md) | ✅ | Walk the bank's hard-model shape (accounts + balances + transactions) — no nav; `.final` emits `ctx.balanceResolution` |
-| 10 | [TERMINATE](terminate.md) | ✅ | Close browser, finalise result |
+| 8 | [API-DIRECT-SCRAPE](api-direct-scrape.md) | ✅ | Walk the bank's hard-model shape (accounts + balances + transactions) — no nav; `.final` emits `ctx.balanceResolution` |
+| 9 | [TERMINATE](terminate.md) | ✅ | Close browser, finalise result |
 | — | _dormant_: [ACCOUNT-RESOLVE](account-resolve.md) · [DASHBOARD](dashboard.md) · [SCRAPE](scrape.md) · [BALANCE-RESOLVE](balance-resolve.md) | — | Retired generic navigation + DOM-scrape chain; still in the tree (ESLint-canary-guarded) but unused by any pipeline bank |
 
 ## API-direct banks — 2 phases

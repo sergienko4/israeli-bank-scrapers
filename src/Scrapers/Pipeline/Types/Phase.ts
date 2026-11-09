@@ -19,7 +19,6 @@ type PhaseName =
   | 'auth-discovery'
   | 'account-resolve'
   | 'dashboard'
-  | 'bind-api-mediator'
   | 'scrape'
   | 'api-direct-scrape'
   | 'balance-resolve'

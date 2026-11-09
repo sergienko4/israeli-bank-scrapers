@@ -1,5 +1,3 @@
-import type { Page } from 'playwright-core';
-
 import { CompanyTypes } from '../../../../Definitions.js';
 import resolvePhaseSettlePolicy from '../../../../Scrapers/Pipeline/Core/Executor/PipelinePhaseSettlePolicy.js';
 import {
@@ -7,7 +5,6 @@ import {
   createMtlsHeadlessApiMediator,
 } from '../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.factories.js';
 import type { IApiMediator } from '../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.types.js';
-import { createBrowserPageApiMediator } from '../../../../Scrapers/Pipeline/Mediator/Api/BrowserPageApiMediator.factory.js';
 import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IBrowserState,
@@ -33,16 +30,6 @@ function idleCleanup(): Promise<void> {
 
 const NATIVE_API = createHeadlessApiMediator(URLS);
 const NODE_TLS_API = createMtlsHeadlessApiMediator(URLS);
-/**
- * Stand-in for a live post-login page's address.
- * @returns The page URL.
- */
-function bankPageUrl(): string {
-  return 'https://bank.example/home';
-}
-
-const BANK_PAGE = { url: bankPageUrl } as unknown as Page;
-const PAGE_BOUND_API = createBrowserPageApiMediator(CompanyTypes.OneZero, BANK_PAGE);
 const NATIVE_WITH_CLEANUP: IApiMediator = {
   ...createHeadlessApiMediator(URLS),
   dispose: idleCleanup,
@@ -73,12 +60,6 @@ const CASES = [
     apiMediator: some(NATIVE_WITH_CLEANUP),
     browser: none(),
     wait: false,
-  },
-  {
-    label: 'page-bound mediator without a browser slot',
-    apiMediator: some(PAGE_BOUND_API),
-    browser: none(),
-    wait: true,
   },
   {
     label: 'browser API-direct mediator',

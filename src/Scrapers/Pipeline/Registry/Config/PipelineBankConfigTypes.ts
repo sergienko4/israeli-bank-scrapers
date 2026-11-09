@@ -67,15 +67,13 @@ export type BalanceKind = 'account' | 'card-cycle';
 
 /**
  * Auth-completion family for a bank -- an explicit, REQUIRED per-bank declaration.
- * Documents HOW a completed browser login is verified:
+ * Documents HOW a completed login is verified:
  *   - 'token'         -- a Bearer/JWT is discovered post-auth (FIBI/Mataf, Cal).
  *   - 'session-cookie'-- auth is carried by first-party session cookies
  *                        (telebank, Wix-shell, Angular SPA banks).
  *   - 'api-direct'    -- no browser AUTH-DISCOVERY at all (OneZero/PayBox/Pepper
  *                        run the headless identity strategy).
- * The BIND-API-MEDIATOR auth-prime consumes 'token' (reads the post-login token
- * and installs it on the browser-page mediator); 'session-cookie' is a no-op
- * there. The runtime dashboard gate does NOT branch on this value. Never
+ * The runtime dashboard gate does NOT branch on this value. Never
  * inferred from absence -- an unstated kind is a config error.
  */
 export type AuthStrategyKind = 'token' | 'session-cookie' | 'api-direct';
@@ -255,52 +253,6 @@ export interface IPipelineBankConfig {
     readonly intervalMs: number;
     readonly maxAttempts: number;
   };
-  /**
-   * Post-auth session-token capture — for banks whose API carries a body-borne
-   * session id (e.g. Leumi's WCF `reqObj.SessionHeader.SessionID`) instead of a
-   * header/cookie token. BIND-API-MEDIATOR reads the login-inclusive discovery
-   * pool (open from `pre-login` onward via the network-trace lifecycle
-   * interceptor), finds the first POST whose URL includes `urlMatch`, decodes
-   * the body, walks `tokenPath`, and stashes the leaf on the mediator
-   * session-context as `sessionToken`. ONLY the matched bank endpoint is
-   * inspected — credential POSTs are never read (PII-safe by extraction scope).
-   * Absent ⇒ no capture (header-token / cookie banks).
-   */
-  readonly sessionTokenCapture?: {
-    /** Substring identifying the bank's post-auth API endpoint URL. */
-    readonly urlMatch: string;
-    /** Top-level postData key whose string value is itself JSON (WCF `reqObj`). */
-    readonly bodyField?: string;
-    /** Ordered keys within the decoded body to the token leaf. */
-    readonly tokenPath: readonly string[];
-  };
-  /**
-   * Opt-in: install the FULL discovered-header bag (SPA content-negotiation
-   * headers + Origin / Referer / X-Site-Id, plus the discovered token as
-   * Authorization) on EVERY hard-model call, replicating the generic
-   * AUTH-DISCOVERY green path. BIND-API-MEDIATOR reads the login-inclusive
-   * capture pool once, builds the bag via `buildDiscoveredHeadersFromCapture`,
-   * and passes it to the browser-page mediator's fetch strategy as defaults
-   * (per-call and rawAuth headers still win). Set for browser banks
-   * whose SPA API rejects a bare cookie/Bearer without the negotiation headers
-   * (the FIBI BFF needs Accept: application/json).
-   * Absent/false ⇒ empty bag ⇒ the mediator is byte-identical to no wrap.
-   */
-  readonly installDiscoveredHeaders?: boolean;
-  /**
-   * Post-login auth-header sniff — for banks whose API Bearer is injected by the
-   * SPA's own HTTP interceptor and appears in NO login response body nor a
-   * parseable sessionStorage shape (FIBI's `appsng` BFF: the token rides only
-   * the SPA's own authorized requests). BIND-API-MEDIATOR scans the
-   * login-inclusive capture pool for the FIRST request whose URL includes this
-   * substring carrying a non-empty `authorization` / `x-auth-token` header and
-   * installs that value verbatim as the discovered Authorization — taking
-   * priority over the generic 5-tier discovery so a wrong-family token is never
-   * picked. Scoped to the bank's own SPA endpoint family (e.g. `'appsng/bff-'`);
-   * the pre-token OAuth code-exchange carries no Bearer and is skipped
-   * naturally. Absent ⇒ no sniff (generic discovery runs unchanged).
-   */
-  readonly authHeaderUrlMatch?: string;
   /**
    * Post-login navigation the browser performs in AUTH-DISCOVERY, BEFORE the
    * cookie-audit, to mint the data-API session for banks whose data API lives

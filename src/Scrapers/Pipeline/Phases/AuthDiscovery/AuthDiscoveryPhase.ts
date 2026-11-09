@@ -31,7 +31,7 @@ class AuthDiscoveryPhase extends BasePhase {
 
   /**
    * Construct the phase in generic or hard-model mode.
-   * @param hardModel - True for `withBrowserApiDirect` banks — skips the FINAL
+   * @param hardModel - True for banks carrying an api-direct shape — skips the FINAL
    *   dashboard gate (they validate auth via the POST cookie-audit, not a
    *   revealed browser dashboard).
    */
@@ -80,7 +80,7 @@ class AuthDiscoveryPhase extends BasePhase {
 
 /**
  * Create the AUTH-DISCOVERY phase instance.
- * @param hardModel - True for hard-model (`withBrowserApiDirect`) banks.
+ * @param hardModel - True for hard-model banks (those carrying an api-direct shape).
  * @returns AuthDiscoveryPhase.
  */
 function createAuthDiscoveryPhase(hardModel: boolean): AuthDiscoveryPhase {

@@ -2,7 +2,7 @@
  * Pipeline assembly — declarative phase chain composition.
  *
  * <p>Single source of truth for the order of pipeline phases. The
- * 13-slot chain below pairs each phase factory with a one-line
+ * 12-slot chain below pairs each phase factory with a one-line
  * predicate against {@link IBuilderState}; {@link assemblePhases}
  * walks the chain once and returns the BasePhase list.
  *
@@ -25,7 +25,6 @@ import { createAccountResolvePhase } from '../../Phases/AccountResolve/AccountRe
 import { createAuthDiscoveryPhase } from '../../Phases/AuthDiscovery/AuthDiscoveryPhase.js';
 import { createBalanceResolvePhase } from '../../Phases/BalanceResolve/BalanceResolvePhase.js';
 import type { BasePhase } from '../../Phases/Base/BasePhase.js';
-import { createBindApiMediatorPhase } from '../../Phases/BindApiMediator/BindApiMediatorPhase.js';
 import { createDashboardPhase } from '../../Phases/Dashboard/DashboardPhase.js';
 import { createHomePhase } from '../../Phases/Home/HomePhase.js';
 import { createInitPhase } from '../../Phases/Init/InitPhaseFactory.js';
@@ -122,19 +121,6 @@ function ifAnyScraper(state: IBuilderState): boolean {
   return state.hasBrowser || Boolean(state.scrapeFn) || Boolean(state.apiDirectScrape);
 }
 
-/**
- * Predicate: BIND-API-MEDIATOR — a browser bank that ALSO declares
- * an api-direct-scrape shape (the hard-model post-auth path). No
- * current bank sets both flags, so the slot stays dormant until a
- * browser bank is migrated via `withBrowserApiDirect`.
- *
- * @param state - Builder state.
- * @returns True for a browser bank carrying an api-direct shape.
- */
-function ifBrowserApiDirect(state: IBuilderState): boolean {
-  return state.hasBrowser && Boolean(state.apiDirectScrape);
-}
-
 // ── Factories ────────────────────────────────────────────────────
 
 /**
@@ -197,7 +183,7 @@ function makeOtpFill(state: IBuilderState): BasePhase {
 
 /**
  * Build the AUTH-DISCOVERY phase instance — Mission 1. Runs for every browser
- * bank; hard-model (`withBrowserApiDirect`) banks get the hard-model-aware
+ * bank; a bank carrying an api-direct shape gets the hard-model-aware
  * variant (POST cookie-audit, no FINAL dashboard gate).
  *
  * @param state - Builder state (`apiDirectScrape` set ⇒ hard-model).
@@ -224,18 +210,6 @@ function makeAccountResolve(): BasePhase {
  */
 function makeDashboard(): BasePhase {
   return createDashboardPhase();
-}
-
-/**
- * Build the BIND-API-MEDIATOR phase instance — provisions an
- * ApiMediator bound to the live login page so the hard-model
- * post-auth path can dispatch REST calls through the authenticated
- * browser session. Enabled only for browser banks on api-direct.
- *
- * @returns BIND-API-MEDIATOR phase.
- */
-function makeBindApiMediator(): BasePhase {
-  return createBindApiMediatorPhase();
 }
 
 /**
@@ -273,7 +247,7 @@ function makeTerminate(): BasePhase {
 // ── Phase chain ──────────────────────────────────────────────────
 
 /**
- * The 13-slot phase chain — single, linear, declarative source of
+ * The 12-slot phase chain — single, linear, declarative source of
  * truth. Order matters: PRE-LOGIN before LOGIN, OTP-TRIGGER before
  * OTP-FILL, AUTH-DISCOVERY between OTP-FILL (when present) and
  * ACCOUNT-RESOLVE.
@@ -288,7 +262,6 @@ const PHASE_CHAIN: readonly IPhaseSlot[] = [
   { factory: makeAuthDiscovery, enabled: ifBrowser },
   { factory: makeAccountResolve, enabled: ifGenericBrowser },
   { factory: makeDashboard, enabled: ifGenericBrowser },
-  { factory: makeBindApiMediator, enabled: ifBrowserApiDirect },
   { factory: makeScrape, enabled: ifAnyScraper },
   { factory: makeBalanceResolve, enabled: ifGenericBrowser },
   { factory: makeTerminate, enabled: ifBrowser },
