@@ -4,8 +4,8 @@
  * `ScraperOptions.startDate` is a required field meaning "give me transactions
  * from this date onwards", yet no bank on the ApiDirectScrape path applied it.
  * The legacy filter ({@link filterAfterStart}) still exists but nothing reaches
- * it — every registered bank routes through `withApiDirect` or
- * `withBrowserApiDirect`, both of which short-circuit the builder straight to
+ * it — every registered bank routes through `withApiDirect`, which
+ * short-circuits the builder straight to
  * the ApiDirectScrape phase. Callers therefore received whatever the provider
  * happened to return.
  *

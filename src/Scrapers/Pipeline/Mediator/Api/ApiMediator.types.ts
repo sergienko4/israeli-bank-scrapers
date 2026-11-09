@@ -78,12 +78,6 @@ interface IApiMediator extends Pick<ITokenBus, 'cookies' | 'clientCert'>, IRecov
     opts?: IApiQueryOpts,
   ) => Promise<Procedure<T>>;
   readonly dispose?: () => Promise<void>;
-  /**
-   * The transport runs inside a browser engine, so phase transitions keep
-   * the browser page-settle windows. Absent for native and node:https
-   * transports, whatever cleanup hooks they carry.
-   */
-  readonly drivesBrowser?: true;
 }
 
 /** Bundle of collaborators captured by the closure. */
@@ -183,8 +177,6 @@ type ICallMethods = Pick<IApiMediator, 'apiPost' | 'apiGet' | 'apiQuery'>;
 // (definitions live in ./ApiMediator.headless.types.ts to keep this file ≤150 LoC)
 export type { IApiQueryOpts } from '../../Types/Domain/ApiQueryOpts.js';
 export type {
-  IBrowserBackedHeadlessMediatorArgs,
-  IBrowserBackedStrategies,
   IGraphQLTransportArgs,
   IHeadlessMediatorArgs,
   IHeadlessStrategies,

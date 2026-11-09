@@ -15,7 +15,6 @@ import {
   type IBuilderState,
   setApiDirectConfig,
   setApiDirectScrape,
-  setBrowserApiDirect,
   setDeclarativeLogin,
   snapshotFields,
 } from './PipelineBuilderSetters.js';
@@ -88,27 +87,6 @@ class PipelineBuilder {
     const scrape = shape as unknown as IApiDirectScrapeShape<unknown, unknown>;
     const bound = bindBankTextRule(scrape, config);
     setApiDirectScrape(this._s, bound);
-    return this;
-  }
-
-  /**
-   * Wire the HARD-MODEL post-auth path for a BROWSER bank. Keeps the
-   * browser login phases (INIT/HOME/PRE-LOGIN/LOGIN/OTP/TERMINATE)
-   * for WAF bypass, but replaces the generic AUTH-DISCOVERY /
-   * ACCOUNT-RESOLVE / DASHBOARD / BALANCE-RESOLVE discovery chain
-   * with the single API-DIRECT-SCRAPE phase driven by `shape`.
-   * BIND-API-MEDIATOR binds an ApiMediator to the live login page so
-   * the shape's REST calls ride the authenticated browser session.
-   *
-   * Generic in `<TAcct, TCursor>` so bank-specific shape literals
-   * flow through without contravariance errors at the builder
-   * boundary. Pair with `withDeclarativeLogin` for the login path.
-   *
-   * @param shape - Bank IApiDirectScrapeShape literal (scrape path).
-   * @returns This builder.
-   */
-  public withBrowserApiDirect<TAcct, TCursor>(shape: IApiDirectScrapeShape<TAcct, TCursor>): this {
-    setBrowserApiDirect(this._s, shape as unknown as IApiDirectScrapeShape<unknown, unknown>);
     return this;
   }
 

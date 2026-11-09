@@ -67,15 +67,13 @@ export type BalanceKind = 'account' | 'card-cycle';
 
 /**
  * Auth-completion family for a bank -- an explicit, REQUIRED per-bank declaration.
- * Documents HOW a completed browser login is verified:
+ * Documents HOW a completed login is verified:
  *   - 'token'         -- a Bearer/JWT is discovered post-auth (FIBI/Mataf, Cal).
  *   - 'session-cookie'-- auth is carried by first-party session cookies
  *                        (telebank, Wix-shell, Angular SPA banks).
  *   - 'api-direct'    -- no browser AUTH-DISCOVERY at all (OneZero/PayBox/Pepper
  *                        run the headless identity strategy).
- * The BIND-API-MEDIATOR auth-prime consumes 'token' (reads the post-login token
- * and installs it on the browser-page mediator); 'session-cookie' is a no-op
- * there. The runtime dashboard gate does NOT branch on this value. Never
+ * The runtime dashboard gate does NOT branch on this value. Never
  * inferred from absence -- an unstated kind is a config error.
  */
 export type AuthStrategyKind = 'token' | 'session-cookie' | 'api-direct';
@@ -97,17 +95,11 @@ export interface IHeadlessUrlsConfig {
    */
   readonly graphqlHeaders?: Readonly<Record<string, string>>;
   /**
-   * When true, identity API calls (NOT graphql) are routed through a Camoufox
-   * browser session to bypass Cloudflare's Node-TLS bot rule. Default: undefined
-   * (treated as false). Only set for banks whose identity host gates Node TLS.
-   */
-  readonly requiresBrowserTls?: boolean;
-  /**
    * When true, identity + graphql calls present the bank's registered client
    * certificate (see ClientCertRegistry) over `node:https` (mutual-TLS) to
    * satisfy a Cloudflare API Shield mTLS gate. Default: undefined (treated as
-   * false). Mutually exclusive with `requiresBrowserTls`, because both cannot
-   * drive identity. The certificate alone does not always pass the edge: a host
+   * false). Mutually exclusive with `nativeFetch`, because both cannot drive
+   * identity. The certificate alone does not always pass the edge: a host
    * that also fingerprints the handshake needs `tlsProfile` as well.
    * Only set for banks whose identity host returns 403 without a client cert
    * (e.g. OneZero's `*.tfd-bank.com`).
@@ -118,23 +110,23 @@ export interface IHeadlessUrlsConfig {
    * through the mediator's `clientCert` port (a step's `clientCert` field).
    * It is presented to `origin` only — an exact https origin — and never
    * written anywhere. Selects the node:https transport. Mutually exclusive
-   * with `requiresBrowserTls` and `nativeFetch`. Default: undefined.
+   * with `nativeFetch`. Default: undefined.
    */
   readonly clientCert?: IDynamicClientCert;
   /**
    * ClientHello profile that identity + graphql calls present over
    * `node:https`, for edges that admit only the bank app's TLS fingerprint.
    * Setting it selects the node:https transport, with or without a client
-   * certificate. Mutually exclusive with `requiresBrowserTls`. Default:
+   * certificate. Mutually exclusive with `nativeFetch`. Default:
    * undefined (Node's stock handshake).
    */
   readonly tlsProfile?: TlsClientProfileKind;
   /**
    * When true, identity calls run over Node's built-in `fetch` with no
-   * browser and no custom TLS handshake — for banks whose edge admits a
-   * plain Node client. Mutually exclusive with `requiresBrowserTls`,
-   * `requiresClientCert` and `tlsProfile`. Default: undefined (the bank
-   * keeps the browser-backed identity transport).
+   * custom TLS handshake — for banks whose edge admits a plain Node client.
+   * Mutually exclusive with `requiresClientCert`, `clientCert` and
+   * `tlsProfile`. A headless block that declares none of the three
+   * transports fails closed with a wiring error.
    */
   readonly nativeFetch?: boolean;
   /** Disable native connect-timeout retries, including on manual redirect hops. */
@@ -143,8 +135,7 @@ export interface IHeadlessUrlsConfig {
    * When true, the node identity transport keeps one cookie jar for the
    * run: every response's Set-Cookie feeds it and every POST and GET sends
    * it as one `cookie` header. For banks whose session is a cookie rather
-   * than an auth header. The browser transport ignores it (the page has its
-   * own jar). Default: undefined (no jar; headers unchanged).
+   * than an auth header. Default: undefined (no jar; headers unchanged).
    */
   readonly sessionCookies?: boolean;
   /**
@@ -192,25 +183,6 @@ export interface IHeadlessUrlsConfig {
   readonly strictUtf8?: true;
   /** Native response byte limit and optional digest, overridden by a step. */
   readonly responseIntegrity?: IResponseIntegrity;
-  /**
-   * When set, the Camoufox identity strategy route-intercepts the
-   * initial navigation to the identity origin URL and serves a blank
-   * HTML stub (`<!doctype html><html><head></head><body></body></html>`).
-   * The stub gives the page a clean on-origin context without entering
-   * the Cloudflare interstitial / CSP state, so subsequent
-   * `page.evaluate(fetch …)` calls reach the real `/api/*` endpoints
-   * over Camoufox's Firefox-profile HTTP/2 + TLS.
-   *
-   * Required for banks whose identity host returns a Cloudflare
-   * challenge page on root navigation (e.g. PayBox's
-   * `apipin.payboxapp.com`). Default `false` — OneZero / Pepper
-   * identity hosts don't gate root navigation with an interstitial.
-   *
-   * Bypass validated by `c:\tmp\paybox-camoufox-probe3.mjs` (probe
-   * succeeded with 400 Validation Error from the API; without the
-   * stub, probe2 saw NetworkError on every header combination).
-   */
-  readonly bypassOriginChallenge?: boolean;
   /**
    * Wire format the bank expects for `creds.phoneNumber`. Caller
    * always supplies digits-only international form (e.g.
@@ -281,52 +253,6 @@ export interface IPipelineBankConfig {
     readonly intervalMs: number;
     readonly maxAttempts: number;
   };
-  /**
-   * Post-auth session-token capture — for banks whose API carries a body-borne
-   * session id (e.g. Leumi's WCF `reqObj.SessionHeader.SessionID`) instead of a
-   * header/cookie token. BIND-API-MEDIATOR reads the login-inclusive discovery
-   * pool (open from `pre-login` onward via the network-trace lifecycle
-   * interceptor), finds the first POST whose URL includes `urlMatch`, decodes
-   * the body, walks `tokenPath`, and stashes the leaf on the mediator
-   * session-context as `sessionToken`. ONLY the matched bank endpoint is
-   * inspected — credential POSTs are never read (PII-safe by extraction scope).
-   * Absent ⇒ no capture (header-token / cookie banks).
-   */
-  readonly sessionTokenCapture?: {
-    /** Substring identifying the bank's post-auth API endpoint URL. */
-    readonly urlMatch: string;
-    /** Top-level postData key whose string value is itself JSON (WCF `reqObj`). */
-    readonly bodyField?: string;
-    /** Ordered keys within the decoded body to the token leaf. */
-    readonly tokenPath: readonly string[];
-  };
-  /**
-   * Opt-in: install the FULL discovered-header bag (SPA content-negotiation
-   * headers + Origin / Referer / X-Site-Id, plus the discovered token as
-   * Authorization) on EVERY hard-model call, replicating the generic
-   * AUTH-DISCOVERY green path. BIND-API-MEDIATOR reads the login-inclusive
-   * capture pool once, builds the bag via `buildDiscoveredHeadersFromCapture`,
-   * and passes it to the browser-page mediator's fetch strategy as defaults
-   * (per-call and rawAuth headers still win). Set for browser banks
-   * whose SPA API rejects a bare cookie/Bearer without the negotiation headers
-   * (the FIBI BFF needs Accept: application/json).
-   * Absent/false ⇒ empty bag ⇒ the mediator is byte-identical to no wrap.
-   */
-  readonly installDiscoveredHeaders?: boolean;
-  /**
-   * Post-login auth-header sniff — for banks whose API Bearer is injected by the
-   * SPA's own HTTP interceptor and appears in NO login response body nor a
-   * parseable sessionStorage shape (FIBI's `appsng` BFF: the token rides only
-   * the SPA's own authorized requests). BIND-API-MEDIATOR scans the
-   * login-inclusive capture pool for the FIRST request whose URL includes this
-   * substring carrying a non-empty `authorization` / `x-auth-token` header and
-   * installs that value verbatim as the discovered Authorization — taking
-   * priority over the generic 5-tier discovery so a wrong-family token is never
-   * picked. Scoped to the bank's own SPA endpoint family (e.g. `'appsng/bff-'`);
-   * the pre-token OAuth code-exchange carries no Bearer and is skipped
-   * naturally. Absent ⇒ no sniff (generic discovery runs unchanged).
-   */
-  readonly authHeaderUrlMatch?: string;
   /**
    * Post-login navigation the browser performs in AUTH-DISCOVERY, BEFORE the
    * cookie-audit, to mint the data-API session for banks whose data API lives

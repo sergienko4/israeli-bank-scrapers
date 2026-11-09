@@ -127,7 +127,6 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
       expect(ctx.apiMediator.has).toBe(true);
       if (ctx.apiMediator.has) {
         expect(ctx.apiMediator.value.dispose).toBeUndefined();
-        expect(ctx.apiMediator.value.drivesBrowser).toBeUndefined();
       }
     });
   });

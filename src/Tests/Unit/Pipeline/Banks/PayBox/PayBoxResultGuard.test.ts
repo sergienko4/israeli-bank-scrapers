@@ -82,7 +82,8 @@ describe('payBoxResultGuard', () => {
     // Nor whether a fresh login clears the signature — and run
     // 31015484475 proves it does not. Any re-auth claim would be unfounded.
     expect(PAYBOX_DEGRADED_SCRAPE_MSG).not.toMatch(/re-?auth/i);
-    expect(PAYBOX_DEGRADED_SCRAPE_MSG).toMatch(/respLength|errorCode/);
+    // Nor may it point at diagnostics that a rejected request never emits.
+    expect(PAYBOX_DEGRADED_SCRAPE_MSG).not.toMatch(/respLength|errorCode/);
   });
 
   it('T-PBG-7: operator message carries no digit run resembling an account', () => {
