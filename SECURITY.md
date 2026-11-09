@@ -42,7 +42,7 @@ Instead, please use one of the following methods:
 This project employs the following security measures:
 
 - CodeQL static analysis with `security-extended` query suite on every pull request
-- Dependency review for new/changed dependencies (blocks moderate+ severity, GPL/AGPL licenses)
+- Dependency review for new/changed third-party dependencies (blocks moderate+ severity, GPL/AGPL dependency licenses)
 - npm audit checks for known vulnerabilities (production and dev dependencies)
 - OSSF Scorecard analysis (weekly)
 - Dependabot automated security updates
@@ -50,3 +50,7 @@ This project employs the following security measures:
 - npm provenance attestation on published packages
 - All GitHub Actions pinned by commit SHA to prevent supply chain attacks
 - CODEOWNERS enforcement for code review
+
+The dependency-license policy is separate from this fork's own
+`AGPL-3.0-only` license. Third-party components retain their existing licenses;
+the project's license change does not relax the dependency allowlist.

@@ -13,6 +13,14 @@ Raised from `>= 22.14.0` in 9.0.0. Enforced by the `engines` field, so npm warns
 
 ## Release notes
 
+### 10.0.0 - The fork is distributed under AGPL-3.0-only instead of MIT
+
+**Impact:** Breaking
+
+Starting with 10.0.0, the fork as a whole is distributed under the GNU Affero General Public License, version 3 only (`AGPL-3.0-only`). Previously granted MIT permissions remain intact, including those for earlier releases. The upstream MIT notice is preserved in `LICENSE-MIT`, and third-party components keep their own licenses. The package README explains how to obtain the Corresponding Source for the matching release.
+
+**What to do:** Review the AGPLv3 terms before upgrading, redistributing or operating a modified version over a network, including the applicable source-distribution and source-offer requirements. Commercial use remains permitted under those terms. If those obligations do not fit your use, retain a version you received under MIT.
+
 ### 10.0.0 - Behatsdaa and Beyahad Bishvilha are removed; `createScraper` throws for an unknown company
 
 **Impact:** Breaking

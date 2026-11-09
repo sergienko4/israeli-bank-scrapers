@@ -2,7 +2,7 @@
 # Docs: https://docs.coderabbit.ai/reference/configuration
 #
 # === OSS PLAN OPTIMIZATIONS (PR #281 C8 audit) =========================
-# This is a public MIT-licensed repository, so it auto-qualifies for the
+# This is a public AGPL-3.0-only repository, so it auto-qualifies for the
 # CodeRabbit "Open Source" plan: Pro+ features at no cost, but with a
 # per-developer hourly review limit that varies between 1-10 reviews/hour
 # based on community size (see https://docs.coderabbit.ai/management/plans).

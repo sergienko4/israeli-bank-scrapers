@@ -5,7 +5,7 @@ repo_url: https://github.com/sergienko4/israeli-bank-scrapers
 repo_name: sergienko4/israeli-bank-scrapers
 edit_uri: edit/main/docs/
 copyright: |
-  &copy; <a href="https://github.com/sergienko4">sergienko4</a> &middot; MIT &middot; based on <a href="https://github.com/eshaham/israeli-bank-scrapers">eshaham/israeli-bank-scrapers</a>
+  &copy; <a href="https://github.com/sergienko4">sergienko4</a> &middot; AGPL-3.0-only &middot; based on <a href="https://github.com/eshaham/israeli-bank-scrapers">eshaham/israeli-bank-scrapers</a>
 
 docs_dir: docs
 site_dir: site

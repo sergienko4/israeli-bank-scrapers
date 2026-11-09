@@ -118,7 +118,7 @@
     "cloudflare"
   ],
   "author": "Elad Shaham",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "bugs": {
     "url": "https://github.com/sergienko4/israeli-bank-scrapers/issues"
   },
@@ -180,7 +180,8 @@
   },
   "files": [
     "lib/**/*",
-    "scripts/patch-playwright-core.mjs"
+    "scripts/patch-playwright-core.mjs",
+    "LICENSE-MIT"
   ],
   "overrides": {
     "adm-zip": "^0.6.1",
