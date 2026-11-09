@@ -47,7 +47,6 @@ Returned as `result.errorType` when `result.success` is `false`.
 | `TIMEOUT`                      | The HTTP request exceeded its deadline                                    |
 | `NETWORK_ERROR`                | Transport failure reaching the bank                                       |
 | `GENERIC`                      | Pipeline failure; read `errorMessage`                                     |
-| `GENERAL_ERROR`                | Deprecated alias of `GENERIC`                                             |
 
 ## Request deadlines
 
