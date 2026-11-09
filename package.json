@@ -155,8 +155,7 @@
   },
   "files": [
     "lib/**/*",
-    "LICENSE",
-    "LICENSE-MIT"
+    "LICENSE"
   ],
   "overrides": {
     "test-exclude": "^7.0.2",

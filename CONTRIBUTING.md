@@ -166,8 +166,7 @@ Contributions to this fork are accepted under the
 By submitting a contribution, you agree to this distribution model while
 retaining copyright in your contribution.
 
-The preserved [upstream MIT notice](./LICENSE-MIT) and third-party licenses
-remain applicable to their respective material.
+Third-party licenses remain applicable to their respective material.
 
 ## Publishing
 

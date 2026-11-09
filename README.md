@@ -452,10 +452,7 @@ Starting with **10.0.0**, this fork is distributed under the
 - **Free for permitted non-commercial use:** Personal use, non-commercial purposes, and use by qualifying non-commercial organizations (including charities, educational institutions, public research, public safety/health, environmental protection, and government institutions as defined in [LICENSE](./LICENSE)) are free of charge under those terms.
 - **Commercial and business use requires a paid license:** Any commercial, business, or for-profit use outside the permitted purposes in [LICENSE](./LICENSE) (including commercial operations, client services, or revenue-generating products) requires a separate paid commercial license from [@sergienko4](https://github.com/sergienko4).
 
-Maintained by [@sergienko4](https://github.com/sergienko4), this fork modifies
-[eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers).
-The upstream MIT copyright, permission notice and disclaimer are retained in
-[LICENSE-MIT](./LICENSE-MIT). Previously granted MIT permissions for pre-10.0.0
-releases remain intact, and third-party components retain their own licenses.
+Maintained by [@sergienko4](https://github.com/sergienko4). Third-party
+components retain their own licenses.
 
 [Code of Conduct](./CODE_OF_CONDUCT.md) · [Security Policy](./SECURITY.md)
