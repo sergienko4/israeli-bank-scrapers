@@ -45,7 +45,7 @@ jobs:
         run: pip install -r requirements-docs.txt
 
       - name: Build mkdocs (strict — fails on dead links)
-        run: python -m mkdocs build --strict
+        run: PYTHONPATH=. zensical build --clean --strict
 
       - name: Generate TypeDoc
         run: npm run docs

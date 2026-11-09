@@ -1,5 +1,11 @@
 {
-  "entryPoints": ["src/index.ts", "src/transactions.ts", "src/scrapers/interface.ts", "src/definitions.ts", "src/scrapers/errors.ts"],
+  "entryPoints": [
+    "src/index.ts",
+    "src/Transactions.ts",
+    "src/Scrapers/Base/Interface.ts",
+    "src/Definitions.ts",
+    "src/Scrapers/Base/Errors.ts"
+  ],
   "out": "typedoc-build",
   "name": "@sergienko4/israeli-bank-scrapers",
   "readme": "README.md",

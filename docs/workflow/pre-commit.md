@@ -37,7 +37,7 @@ A commit that stages no source file — only docs, workflows, `.json`/`.yml` con
 | 18 | Node support | `node-support` | `lint:node-support` |
 | 19 | CodeRabbit filters | `coderabbit-filters` | `lint:coderabbit-filters` (CodeRabbit path filters may skip only generated output) |
 | 20 | Jest scopes | `jest-scopes` | `lint:jest-scopes` (no test script silently widens its own scope) |
-| 21 | Docs strict | `docs-strict` | `lint:docs-strict` (only fires when `docs/**`, root `*.md`, or `mkdocs.yml` is staged; runs `mkdocs build --strict` — soft-skips when Python/mkdocs not on PATH locally, CI is the hard gate) |
+| 21 | Docs strict | `docs-strict` | `lint:docs-strict` (only fires when `docs/**`, root `*.md`, or `mkdocs.yml` is staged; runs `PYTHONPATH=. zensical build --clean --strict` — soft-skips when `zensical` is not on PATH locally, CI is the hard gate) |
 | 22 | Docs coverage | `docs-coverage` | `.github/scripts/ci/docs-coverage.sh` (fires when any `src/Scrapers/Pipeline/**/*.ts` is staged; diffs new public exports against the merge-base with `origin/main`/`main`, as CI does, and fails if a new symbol is undocumented + un-allowlisted — soft-skips when base ref unresolvable locally, CI is the hard gate). See [Docs coverage gate](docs-coverage.md) for which export forms count. |
 | 23 | Docs staleness | `docs-staleness` | `.github/scripts/ci/docs-staleness.sh` (same merge-base as docs coverage, so commits on `main` after the branch forked never count as staged changes) |
 

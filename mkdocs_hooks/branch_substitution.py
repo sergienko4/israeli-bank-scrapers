@@ -16,6 +16,7 @@ Resolution order:
 
 import os
 import subprocess
+from jinja2.ext import Extension
 
 _PLACEHOLDER = '{{BRANCH}}'
 
@@ -48,3 +49,22 @@ def on_page_markdown(markdown: str, page, config, files) -> str:
     if _PLACEHOLDER not in markdown:
         return markdown
     return markdown.replace(_PLACEHOLDER, _BRANCH)
+
+
+class BranchOnlyExtension(Extension):
+    """Substitutes `{{BRANCH}}` before Jinja2 lexing in Zensical's macros plugin."""
+
+    def preprocess(
+        self,
+        source: str,
+        name: str | None,
+        filename: str | None = None,
+    ) -> str:
+        if _PLACEHOLDER not in source:
+            return source
+        return source.replace(_PLACEHOLDER, _BRANCH)
+
+
+def define_env(env) -> None:
+    env.variables['BRANCH'] = _BRANCH
+

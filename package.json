@@ -60,7 +60,7 @@
     "lint:fixtures-pii": "node scripts/audit-fixtures-pii.cjs",
     "lint:pii-staged": "node scripts/check-staged-pii.cjs",
     "lint:plan-refs": "node scripts/check-plan-refs.mjs",
-    "lint:docs-strict": "python -m mkdocs build --strict --site-dir .mkdocs-strict-out",
+    "lint:docs-strict": "PYTHONPATH=. zensical build --clean --strict",
     "lint:pr-body": "node scripts/validate-pr-body.mjs",
     "lint:doc-paths": "node scripts/check-doc-paths.mjs README.md CLAUDE.md CLEAN_CODE.md CONTRIBUTING.md .github/copilot-instructions.md",
     "lint:node-support": "node scripts/check-node-support.mjs",
@@ -83,7 +83,7 @@
     "prepare:default": "git reset --hard && npm ci && npm run build",
     "prepare": "tsup && rimraf lib/Common lib/Scrapers lib/Tests",
     "reset": "git reset --hard && npm ci",
-    "docs": "typedoc",
+    "docs": "node scripts/run-typedoc.mjs",
     "lint:architecture": "npx tsx src/Tests/Tools/lint-and-validate.ts",
     "lint:retired-shims": "npx tsx src/Tests/Tools/lint-and-validate.ts --only \"Rule #17\" src"
   },

@@ -54,11 +54,20 @@ hooks:
 
 plugins:
   - search
+  - macros:
+      module_name: mkdocs_hooks/branch_substitution
+      j2_block_start_string: '{%--'
+      j2_block_end_string: '--%}'
+      j2_comment_start_string: '{#--'
+      j2_comment_end_string: '--#}'
+      j2_variable_start_string: '{{__NEVER__'
+      j2_variable_end_string: '__NEVER__}}'
+      j2_extensions:
+        - mkdocs_hooks.branch_substitution:BranchOnlyExtension
   - minify:
       minify_html: true
       minify_js: true
       minify_css: true
-  - mermaid2
   - git-revision-date-localized:
       type: timeago
       enable_creation_date: true
@@ -104,7 +113,7 @@ markdown_extensions:
       custom_fences:
         - name: mermaid
           class: mermaid
-          format: !!python/name:mermaid2.fence_mermaid_custom
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.tasklist:

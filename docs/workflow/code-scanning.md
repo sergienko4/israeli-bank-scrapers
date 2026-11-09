@@ -419,7 +419,8 @@ configuration. Because no upstream patch exists yet, its alert is kept open to
 trace until `deepmerge` publishes a fix or `jest-config` drops it, while
 `minimatch` (`GHSA-g3hv-75wg-m249`) and `glob` (`GHSA-3g3m-2fjr-6pw4`) are
 resolved to patched releases (`^11.0.1` and `$glob`) via `package.json`
-`overrides`.
+`overrides` (`scripts/run-typedoc.mjs` shims `Minimatch.prototype.matchOne` for
+`typedoc` so `npm run docs` runs under `minimatch@11.0.5`).
 
 ## Standing finding 4: dev-scoped transitive alerts were auto-dismissed
 

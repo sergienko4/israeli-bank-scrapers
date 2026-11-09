@@ -448,7 +448,7 @@ jobs:
         run: pip install -r requirements-docs.txt
       - name: mkdocs build --strict (catches dead links / undefined refs)
         if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.docs == 'true' && steps.mkdocs_deps.outcome == 'success') }}
-        run: python -m mkdocs build --strict
+        run: PYTHONPATH=. zensical build --clean --strict
 
       - name: Docs coverage extractor unit test
         if: ${{ !cancelled() && steps.ready.outcome == 'success' && (needs.changes.outputs.ci_scripts == 'true') }}
