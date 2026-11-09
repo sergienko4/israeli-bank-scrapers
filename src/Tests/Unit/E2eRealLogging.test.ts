@@ -10,6 +10,8 @@
  * Fixtures are synthetic and carry zero PII.
  */
 
+import assert from 'node:assert/strict';
+
 import { jest } from '@jest/globals';
 
 import type { IScraperScrapingResult } from '../../Scrapers/Base/Interface.js';
@@ -135,5 +137,55 @@ describe('logScrapedTransactions masking', () => {
     const joined = rows.join('\n');
     expect(joined).not.toContain(DESCRIPTION);
     expect(joined).not.toContain('1234');
+  });
+});
+
+describe('Max real-suite transaction output', () => {
+  it('prints the shared masked transaction block after a successful scrape', async () => {
+    const result = resultWith(CYCLE_GROUPED);
+    const account = result.accounts?.[0];
+    assert(account, 'Missing synthetic account');
+    account.balance = 0;
+    account.windowCoverage = {
+      status: 'covered',
+      requestedStart: '2026-06-02',
+      oldest: '2026-06-02',
+    };
+    const expected = blockFor(CYCLE_GROUPED);
+    const cases = new Map<string, jest.ProvidesCallback>();
+    const env = jest.replaceProperty(process, 'env', {
+      ...process.env,
+      MAX_USERNAME: 'synthetic-max-user',
+      MAX_PASSWORD: 'not-a-real-password',
+    });
+    const suite = jest.spyOn(globalThis, 'describe').mockImplementation((_name, define) => {
+      define();
+    });
+    const setup = jest.spyOn(globalThis, 'beforeAll').mockImplementation(() => undefined);
+    const register = jest.spyOn(globalThis, 'it').mockImplementation((name, callback) => {
+      if (callback) cases.set(name, callback);
+    });
+    const log = jest.spyOn(console, 'log').mockImplementation(() => undefined);
+    jest.unstable_mockModule('dotenv', () => ({ config: jest.fn() }));
+    jest.unstable_mockModule('../../index.js', () => ({
+      CompanyTypes: { Max: 'max' },
+      createScraper: jest.fn(() => ({ scrape: jest.fn(() => Promise.resolve(result)) })),
+    }));
+    try {
+      await import('../E2eReal/Max.e2e-real.test.js');
+      const success = cases.get('scrapes transactions successfully (cold, over the API)');
+      assert(success, 'Missing Max success case');
+      const fail = jest.fn<undefined, []>();
+      const done = Object.assign(() => undefined, { fail });
+      await success(done);
+      expect(log).toHaveBeenCalledTimes(1);
+      expect(log).toHaveBeenCalledWith(expected);
+    } finally {
+      log.mockRestore();
+      register.mockRestore();
+      setup.mockRestore();
+      suite.mockRestore();
+      env.restore();
+    }
   });
 });
