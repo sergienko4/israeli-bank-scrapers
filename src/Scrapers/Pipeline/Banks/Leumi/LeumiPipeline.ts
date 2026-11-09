@@ -1,6 +1,5 @@
 /**
- * Leumi pipelines — native API-direct login and WCF scraping, plus the
- * retained browser descriptor for existing browser-flow contract tests.
+ * Leumi pipeline — native API-direct login and WCF scraping, no browser.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
@@ -24,23 +23,8 @@ export const LEUMI_LOGIN: ILoginConfig = {
 };
 
 /**
- * Build the Leumi pipeline descriptor.
- * Post-auth data path uses the Leumi hard model (api-direct WCF scrape)
- * instead of the generic AUTH-DISCOVERY/ACCOUNT-RESOLVE/DASHBOARD chain.
- * @param options - Scraper options from the user.
- * @returns Pipeline descriptor (browser + declarative login, no OTP).
- */
-function buildLeumiPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
-  return createPipelineBuilder()
-    .withOptions(options)
-    .withBrowser()
-    .withDeclarativeLogin(LEUMI_LOGIN)
-    .withBrowserApiDirect(LEUMI_SHAPE)
-    .build();
-}
-
-/**
  * Builds the registered native descriptor.
+ * Post-auth data path uses the Leumi hard model (api-direct WCF scrape).
  * @param options - Scraper options from the user.
  * @returns Browserless pipeline descriptor.
  */
@@ -57,5 +41,5 @@ function buildLeumiNativePipeline(options: ScraperOptions): Procedure<IPipelineD
     .build();
 }
 
-export default buildLeumiPipeline;
-export { buildLeumiNativePipeline, buildLeumiPipeline };
+export default buildLeumiNativePipeline;
+export { buildLeumiNativePipeline };

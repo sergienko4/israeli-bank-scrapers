@@ -80,7 +80,6 @@ describe('resolveHeadlessApiMediator — some(mediator) cases', () => {
     expect(isPresent).toBe(true);
     if (isSome(option)) {
       expect(typeof option.value.apiPost).toBe('function');
-      expect(option.value.drivesBrowser).toBeUndefined();
     }
   });
 });

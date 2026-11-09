@@ -1,9 +1,9 @@
 /**
  * Hapoalim scrape shape — the `IApiDirectScrapeShape` data declaration
  * consumed by the generic buildGenericHeadlessScrape driver via
- * `withBrowserApiDirect`. balanceKind=account (issues a real balance
- * call); accounts + balance are cookie-authed GET (cookies ride the live
- * login page through BrowserFetchStrategy), transactions is an
+ * `withApiDirect`. balanceKind=account (issues a real balance
+ * call); accounts + balance are cookie-authed GET (cookies ride the
+ * session through the native fetch transport), transactions is an
  * anti-replay POST (X-XSRF-TOKEN cookie-echo + pageUuid + uuid). Helpers
  * split across HapoalimShapeHelpers.ts (accounts + balance) and
  * HapoalimShapeTxns.ts (transactions).
@@ -33,7 +33,7 @@ import {
   txnsVars,
 } from './HapoalimShapeTxns.js';
 
-/** Hapoalim hard-model shape — passed to `.withBrowserApiDirect(...)`. */
+/** Hapoalim hard-model shape — passed to `.withApiDirect(...)`. */
 const HAPOALIM_SHAPE: IApiDirectScrapeShape<IHapoalimAcct, HapoalimCursor> = {
   stepName: 'HapoalimScrape',
   accountNumberOf,
