@@ -1,5 +1,3 @@
-import type { Page } from 'playwright-core';
-
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
@@ -7,14 +5,14 @@ import { executePipeline } from '../../../../Scrapers/Pipeline/Core/Executor/Pip
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { BasePhase } from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
-import type { PhaseName } from '../../../../Scrapers/Pipeline/Types/Phase.js';
+import type PhaseName from '../../../../Scrapers/Pipeline/Types/Phase.js';
 import type {
   IActionContext,
   IPipelineContext,
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { SimplePhase } from '../../../../Scrapers/Pipeline/Types/SimplePhase.js';
+import { SimplePhase } from './SimplePhase.js';
 
 /** Minimal ScraperOptions. */
 const MOCK_OPTIONS = {
@@ -79,7 +77,7 @@ function failPhase(name: PhaseName, message: string): SimplePhase {
  * @returns A pipeline descriptor.
  */
 function makeDescriptor(phases: BasePhase[]): IPipelineDescriptor {
-  return { options: MOCK_OPTIONS, phases, interceptors: [] };
+  return { options: MOCK_OPTIONS, phases };
 }
 
 /**
@@ -95,7 +93,7 @@ async function run(descriptor: IPipelineDescriptor): ReturnType<typeof executePi
 
 describe('PipelineExecutor/basic-flow', () => {
   it('runs all phases sequentially and returns success', async () => {
-    const phases = [succeedPhase('init'), succeedPhase('login'), succeedPhase('scrape')];
+    const phases = [succeedPhase('api-direct-call'), succeedPhase('api-direct-call'), succeedPhase('api-direct-scrape')];
     const descriptor = makeDescriptor(phases);
     const result = await run(descriptor);
     expect(result.success).toBe(true);
@@ -124,8 +122,8 @@ describe('PipelineExecutor/short-circuit', () => {
       const result = succeed(input);
       return Promise.resolve(result);
     };
-    const phase3 = new SimplePhase('scrape', trackExecute);
-    const phases = [succeedPhase('init'), failPhase('login', 'bad creds'), phase3];
+    const phase3 = new SimplePhase('api-direct-scrape', trackExecute);
+    const phases = [succeedPhase('api-direct-call'), failPhase('api-direct-call', 'bad creds'), phase3];
     const descriptor = makeDescriptor(phases);
     const result = await run(descriptor);
     expect(result.success).toBe(false);
@@ -161,7 +159,7 @@ describe('PipelineExecutor/pre-failure', () => {
         return Promise.resolve(result);
       }
     }
-    const phase = new PreFailPhase('login', trackAction);
+    const phase = new PreFailPhase('api-direct-call', trackAction);
     const descriptor = makeDescriptor([phase]);
     const result = await run(descriptor);
     expect(result.success).toBe(false);
@@ -185,7 +183,7 @@ describe('PipelineExecutor/post-failure', () => {
         return Promise.resolve(result);
       }
     }
-    const phase = new PostFailPhase('login', succeedExecute);
+    const phase = new PostFailPhase('api-direct-call', succeedExecute);
     const descriptor = makeDescriptor([phase]);
     const result = await run(descriptor);
     expect(result.success).toBe(false);
@@ -204,7 +202,7 @@ describe('PipelineExecutor/exception-handling', () => {
     const throwExecute = (): never => {
       throw new ScraperError('unexpected crash');
     };
-    const phase = new SimplePhase('login', throwExecute);
+    const phase = new SimplePhase('api-direct-call', throwExecute);
     const descriptor = makeDescriptor([phase]);
     const result = await run(descriptor);
     expect(result.success).toBe(false);
@@ -217,7 +215,7 @@ describe('PipelineExecutor/exception-handling', () => {
 
 describe('PipelineExecutor/pre-success-passthrough', () => {
   it('pre step passes context to action (default no-ops)', async () => {
-    const phase = succeedPhase('init');
+    const phase = succeedPhase('api-direct-call');
     const descriptor = makeDescriptor([phase]);
     const result = await run(descriptor);
     expect(result.success).toBe(true);
@@ -242,7 +240,6 @@ describe('PipelineExecutor/registerOrFail', () => {
     const descriptor: IPipelineDescriptor = {
       options: badOptions as unknown as ScraperOptions,
       phases: [],
-      interceptors: [],
     };
     let caught: unknown = null;
     try {
@@ -258,23 +255,19 @@ describe('PipelineExecutor/registerOrFail', () => {
 // ── OTP token ────────────────────────────────────────────
 
 describe('PipelineExecutor/persistentOtpToken', () => {
-  it('includes persistentOtpToken in result when login state has it', async () => {
+  it('includes persistentOtpToken in result when durable auth state has it', async () => {
     /**
-     * Set login.persistentOtpToken in context.
+     * Set durableAuth.persistentOtpToken in context.
      * @param _ctx - Pipeline context (unused).
      * @param input - Input to extend with OTP token.
-     * @returns Context with persistentOtpToken set.
+     * @returns Context with durableAuth set.
      */
     const setOtpExecute = (_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> => {
-      const loginState = {
-        activeFrame: {} as unknown as Page,
-        persistentOtpToken: some('TOKEN123' as const),
-      };
-      const extended = { ...input, login: some(loginState) } as unknown as Ctx;
-      const result = succeed(extended);
+      const durableAuth = some({ persistentOtpToken: 'TOKEN123' });
+      const result = succeed({ ...input, durableAuth });
       return Promise.resolve(result);
     };
-    const phase = new SimplePhase('login', setOtpExecute);
+    const phase = new SimplePhase('api-direct-call', setOtpExecute);
     const descriptor = makeDescriptor([phase]);
     const result = await run(descriptor);
     expect(result.success).toBe(true);

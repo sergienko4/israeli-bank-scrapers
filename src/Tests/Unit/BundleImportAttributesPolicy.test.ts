@@ -218,7 +218,7 @@ describe('bundled source import attributes drift pin', () => {
   it('scans the bundled tree', () => {
     const files = bundledSources();
     expect(files).toContain('src/index.ts');
-    expect(files).toContain('src/Scrapers/Pipeline/Mediator/Browser/BrowserStackCheck.ts');
+    expect(files).toContain('src/Scrapers/Pipeline/Core/Executor/PipelineExecutor.ts');
   });
 
   it('no bundled source file uses import attributes', () => {

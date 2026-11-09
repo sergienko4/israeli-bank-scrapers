@@ -1,6 +1,6 @@
 # Copilot Project Instructions — israeli-bank-scrapers (fork)
 
-Fork of `eshaham/israeli-bank-scrapers` with Camoufox/Playwright WAF bypass,
+Fork of `eshaham/israeli-bank-scrapers` that scrapes every bank over pure HTTP,
 published as `@sergienko4/israeli-bank-scrapers`.
 
 > **Canonical rule sources (do not duplicate — defer to these):**

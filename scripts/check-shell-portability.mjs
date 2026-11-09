@@ -45,8 +45,8 @@ import { join } from 'node:path';
 
 /**
  * Directories scanned for shell code, relative to the repo root.
- * `.github/actions` holds composite-action scripts (the Camoufox install
- * that CI and the Docker mirror share); only its `.sh` files are scanned.
+ * `.github/actions` holds composite-action scripts; only its `.sh`
+ * files are scanned.
  */
 const ROOTS = ['.husky', '.github/scripts', '.github/actions', 'scripts'];
 

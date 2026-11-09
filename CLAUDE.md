@@ -2,7 +2,7 @@
 
 ## Project
 
-Fork of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers) with Camoufox/Playwright WAF bypass.
+Fork of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers) that scrapes every bank over pure HTTP (no browser at scrape time).
 
 Published as `@sergienko4/israeli-bank-scrapers` on npm.
 
@@ -24,27 +24,20 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 
 ## Architecture Rules — ABSOLUTE
 
-### ZERO CSS Selectors in Interaction Code
-- **NO** `$eval`, `$$eval`, `page.$()`, `querySelector`, `waitForSelector('#id')` in click/fill/navigate/wait code
-- **NO** hardcoded CSS IDs, classes, or attribute selectors in user-facing interaction flows
-- **ONLY** visible text the user can read: `getByText()`, `getByRole()`, `getByPlaceholder()`
-- Text IS the stable anchor — once found, extract all metadata dynamically
-- Use `WELL_KNOWN_LOGIN_SELECTORS` / `WELL_KNOWN_DASHBOARD_SELECTORS` from `WellKnownSelectors.ts`
-- Priority: visible text → semantic HTML → textContent walk-up (down to up)
-- **Exceptions:** Structural CSS selectors are allowed in parsing/extraction code (e.g., `pageEvalAll` table parsing, date picker grid navigation, frame detection via `input[type="password"]`)
+### Pure HTTP Pipeline — No DOM or Browser Interaction
+- Every registered bank runs the same two phases: `ApiDirectCallPhase` (login) then `ApiDirectScrapePhase` (scrape). Both speak HTTP only.
+- The browser phases (INIT → HOME → PRE-LOGIN → LOGIN → OTP → DASHBOARD) and their DOM mediators (selector resolution, form fill, element click) were removed. Do **not** reintroduce interaction code; add or extend an `ApiDirect` config and shape instead.
+- Structural CSS selectors remain acceptable only in pure parsing/extraction of response bodies, never in a user-facing flow.
 
-### Middleware Flow
-- Find element by visible text (what user sees)
-- Collect metadata from DOM element (tag, id, class, parent, attributes)
-- Build selectors dynamically from metadata
-- SelectorResolver + LoginConfig already implement this — REUSE them
+### Phases Stay Thin
+- A phase orchestrates `PRE → ACTION → POST → FINAL`; every bank-specific decision lives in a config or shape that the phase receives.
+- No `if (bank === ...)` in a phase, the builder, or the executor — register a new bank through `Registry` and its `ApiDirect` config.
 
 ### Factories and Generics
-- Use factory functions for test mocks (`makeMockLocator`, `createErrorLocator`)
-- Use config arrays (`WRONG_DETAILS_TEXTS`) mapped with `.map()` — no duplication
+- Use factory functions for test mocks (`makeMockContext`) — see `src/Tests/Unit/Pipeline/Infrastructure/MockFactories.ts`
+- Use config arrays mapped with `.map()` — no duplication
 - Tests must NOT duplicate production logic — import shared helpers
 - Use `as const` for literal type narrowing
-
 ## Claude Workflow Rules — STRICT
 
 ### No Back-and-Forth
@@ -93,23 +86,18 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 > that gate fails until this list is updated — see
 > [docs/workflow/doc-paths.md](./docs/workflow/doc-paths.md).
 
-- `src/Common/Browser.ts` — `buildContextOptions()`: Israel locale + timezone, `viewport: null` so the render surface follows the Camoufox launch window
 - `src/Scrapers/Base/Errors.ts` — `WafBlockError` with structured `IWafErrorDetails` (provider, httpStatus, pageTitle, pageUrl, suggestions)
-- `src/Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.ts` — `launchCamoufox()`
-- `src/Scrapers/Pipeline/Mediator/Network/Fetch/PageFetchPost.ts` — `fetchPostWithinPage()` with HTTP status capture
-- `src/Scrapers/Pipeline/Mediator/Network/Fetch/WafDetection.ts` — `detectWafBlock()`: classifies a response as a WAF block
-- `src/Scrapers/Pipeline/Mediator/Timing/TimingActions.ts` — `humanDelay(min, max)`, the source of every human-like pause
-- `src/Scrapers/Pipeline/Mediator/Elements/ElementsInteractionConfig.ts` — delay ranges (fill-input 200–600 ms)
-- `src/Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.ts` — fill, click, capture, presence check
+- `src/Scrapers/Pipeline/Core/Builder/PipelineBuilder.ts` — `withOptions` / `withHeadlessMediator` / `withApiDirect` / `build`: assembles the two-slot pipeline
+- `src/Scrapers/Pipeline/Core/Executor/PipelineExecutor.ts` — runs the phases, disposes the API mediator in `finally`
+- `src/Scrapers/Pipeline/Phases/ApiDirectCall/ApiDirectCallPhase.ts` — login slot (HTTP login, OTP, durable token)
+- `src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.ts` — scrape slot (accounts, transactions, balances)
+- `src/Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.ts` — the HTTP transport (cookies, redirects, mTLS)
+- `src/Scrapers/Pipeline/Mediator/Timing/TimingActions.ts` — `humanDelay(min, max)`, `raceTimeout`, `runSerial`
 - `src/Scrapers/Base/Interface.ts` — type definitions (`ScraperOptions`, `ScraperCredentials`, etc.)
-- `browser-stack.json` — the tested Camoufox tag + `playwright-core` minor, and the accepted protocol deltas; run `npm run browser-stack:gen` after editing it
-- `scripts/check-browser-stack.mjs` — browser-stack gate CLI: diffs the Juggler protocols of a `playwright-core` × Camoufox pair (`--mode gate|candidate`)
 
 ## Changes from upstream
 
-- Browser engine: Camoufox (Firefox anti-detect) driven through Playwright, replacing Puppeteer — clears Cloudflare without a stealth plugin
-- `src/Common/Browser.ts`: `buildContextOptions()` sets locale, timezone and `viewport: null`; it deliberately sets no `userAgent`, leaving Camoufox's own fingerprint intact
-- `src/Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.ts`: `launchCamoufox()` → `browser.newContext()` → `context.newPage()`
-- `src/Scrapers/Pipeline/Mediator/Timing/TimingActions.ts`: `humanDelay()` behind form interactions (fill-input 200–600 ms)
+- Transport: every bank logs in and scrapes over HTTP (`ApiDirectCall` → `ApiDirectScrape`); no browser runs at scrape time
 - `src/Scrapers/Base/Errors.ts`: `WafBlockError` carrying `IWafErrorDetails`
-- CI/CD: release-please + npm publish pipeline, Camoufox browser install in CI
+- The Camoufox/Playwright packages stay declared until the next major release removes them
+- CI/CD: release-please + npm publish pipeline

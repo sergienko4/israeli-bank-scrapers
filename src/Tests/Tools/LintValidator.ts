@@ -817,6 +817,14 @@ function ruleSixteenIssues(code: string): IIssue[] {
 }
 
 /**
+ * Recommendation for retired modules that belonged to the removed browser
+ * engine. No successor module exists, so the advice names the pipeline every
+ * bank now runs through instead.
+ */
+const BROWSER_REMOVED =
+  'the API-direct pipeline in Scrapers/Pipeline/Phases/ApiDirectCall/ApiDirectCallPhase.js (the browser engine was removed)';
+
+/**
  * Module specifiers retired during the Phase 3 and arch5 shim sweeps, mapped
  * to what replaced them. Each was a deprecated re-export whose importers have
  * all moved; the files are deleted.
@@ -834,14 +842,16 @@ function ruleSixteenIssues(code: string): IIssue[] {
  * — a per-row base would make that check unwritable, and a typo in a
  * replacement would then ship as advice pointing nowhere.
  *
- * Two rows are deliberately prose instead of a path. `Mediator/Timing/TimingConfig.js`
+ * One row is deliberately prose instead of a path. `Mediator/Timing/TimingConfig.js`
  * split into several per-domain modules, so the right replacement depends on
- * which constant the caller wanted and no single path is correct.
- * `Common/OtpDetector.js` was deleted with the legacy scraper chain and its
- * behaviour now lives in the OtpTrigger and OtpFill phase actions, so the row
- * stays to block the shim being recreated and points at those owners. The suite
+ * which constant the caller wanted and no single path is correct. The suite
  * partitions the rows accordingly rather than weakening the resolve check for
  * everyone.
+ *
+ * Rows for modules that belonged to the removed browser engine name the
+ * API-direct pipeline instead, because no successor module exists: the shim is
+ * still blocked from being recreated, and the failure says why nothing replaces
+ * it. The suite partitions those rows too.
  *
  * Exported so the Rule #17 suite derives its coverage from this map rather than
  * restating it. A hand-kept copy drifted to fifteen of seventeen rows once
@@ -854,34 +864,19 @@ export const RETIRED_SPECIFIERS: ReadonlyMap<string, string> = new Map([
     'src/Scrapers/Pipeline/Mediator/ApiDirectCall/IApiDirectCallConfig.js',
     'Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js',
   ],
-  [
-    'src/Scrapers/Pipeline/Mediator/Network/Fetch.js',
-    'Scrapers/Pipeline/Mediator/Network/Fetch/index.js',
-  ],
-  [
-    'src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery.js',
-    'Scrapers/Pipeline/Mediator/Network/AuthDiscovery/index.js',
-  ],
-  [
-    'src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.js',
-    'Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher/index.js',
-  ],
-  ['src/Common/Config/OtpDetectorConfig.js', 'Scrapers/Pipeline/Mediator/Otp/OtpDetectorConfig.js'],
-  ['src/Common/FormAnchor.js', 'Scrapers/Pipeline/Mediator/Form/FormAnchor.js'],
-  ['src/Common/SelectorResolver.js', 'Scrapers/Pipeline/Mediator/Selector/SelectorResolver.js'],
-  [
-    'src/Common/OtpDetector.js',
-    'the owning Scrapers/Pipeline/Mediator/OtpTrigger/OtpTriggerPhaseActions.js or Scrapers/Pipeline/Mediator/OtpFill/OtpFillPhaseActions.js module',
-  ],
-  ['src/Common/SafeScreenshot.js', 'Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.js'],
-  ['src/Common/Fetch.js', 'Scrapers/Pipeline/Mediator/Network/Fetch/index.js'],
-  ['src/Common/Waiting.js', 'Scrapers/Pipeline/Mediator/Timing/Waiting.js'],
+  ['src/Scrapers/Pipeline/Mediator/Network/Fetch.js', BROWSER_REMOVED],
+  ['src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery.js', BROWSER_REMOVED],
+  ['src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.js', BROWSER_REMOVED],
+  ['src/Common/Config/OtpDetectorConfig.js', BROWSER_REMOVED],
+  ['src/Common/FormAnchor.js', BROWSER_REMOVED],
+  ['src/Common/SelectorResolver.js', BROWSER_REMOVED],
+  ['src/Common/OtpDetector.js', BROWSER_REMOVED],
+  ['src/Common/SafeScreenshot.js', BROWSER_REMOVED],
+  ['src/Common/Fetch.js', BROWSER_REMOVED],
+  ['src/Common/Waiting.js', 'Scrapers/Pipeline/Mediator/Timing/TimingActions.js'],
   ['src/Common/Debug.js', 'Scrapers/Pipeline/Logging/Debug.js'],
-  ['src/Common/CamoufoxLauncher.js', 'Scrapers/Pipeline/Mediator/Browser/CamoufoxLauncher.js'],
-  [
-    'src/Common/ElementsInteractions.js',
-    'Scrapers/Pipeline/Mediator/Elements/ElementsInteractions.js',
-  ],
+  ['src/Common/CamoufoxLauncher.js', BROWSER_REMOVED],
+  ['src/Common/ElementsInteractions.js', BROWSER_REMOVED],
   ['src/Scrapers/Pipeline/Types/BasePhase.js', 'Scrapers/Pipeline/Phases/Base/BasePhase.js'],
   ['src/Scrapers/Pipeline/Types/Debug.js', 'Scrapers/Pipeline/Logging/Debug.js'],
   [

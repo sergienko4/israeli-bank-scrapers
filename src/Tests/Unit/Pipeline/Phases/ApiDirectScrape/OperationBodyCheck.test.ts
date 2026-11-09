@@ -85,7 +85,7 @@ function runShape(
   bus: IApiMediator,
 ): Promise<Procedure<ApiDirectScrapeResult>> {
   const base = makeMockContext({ apiMediator: some(bus) });
-  const ctx: IActionContext = { ...base, executor: none(), windowEnd: none() };
+  const ctx: IActionContext = { ...base, windowEnd: none() };
   const run = createApiDirectScrapePhase(shape);
   return run(ctx);
 }
@@ -210,7 +210,7 @@ describe('operation-specific body checks', () => {
   it('refuses a dispatch with operation checks but no operation before IO', async () => {
     const bus = busWith(SYN_CASE.fixtures.balance);
     const base = makeMockContext({ apiMediator: some(bus) });
-    const ctx: IActionContext = { ...base, executor: none(), windowEnd: none() };
+    const ctx: IActionContext = { ...base, windowEnd: none() };
     const args = {
       bus,
       ctx,

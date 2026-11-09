@@ -24,19 +24,10 @@ import { findSuppliedOptions, warnIgnoredOptions } from './SuppliedOptions.js';
  * Options that configure a browser, its context or its page. Alphabetical, so
  * the warning lists them in a stable order regardless of caller insertion order.
  *
- * <p>Each entry is pinned to its reader, or to "no reader". `skipCloseBrowser`
+ * <p>No Pipeline bank launches a browser, so none of these has a reader:
+ * every bank is API-direct and the browser engine was removed. `skipCloseBrowser`
  * is left out: {@link ./LegacyOnlyOptions.ts} already warns about it on every
  * Pipeline bank.
- * - `args` — no reader (launch flags come from the bundled Camoufox profile)
- * - `browser` — no reader (the legacy launcher that honoured it was removed)
- * - `browserContext` — no reader (the legacy launcher that honoured it was removed)
- * - `defaultTimeout` — `Mediator/Browser/BrowserLifecycle.ts` page setup
- * - `executablePath` — no reader (the bundled Camoufox binary is always used)
- * - `prepareBrowser` — `Mediator/Browser/BrowserLifecycle.ts` `launchBrowser`
- * - `preparePage` — `Mediator/Browser/BrowserLifecycle.ts` page setup
- * - `shouldShowBrowser` — `Mediator/Browser/BrowserLifecycle.ts` `launchBrowser`
- * - `timeout` — no reader (`defaultTimeout` is the honoured one)
- * - `viewportSize` — no reader (contexts are created with `viewport: null`)
  */
 export const BROWSER_ONLY_OPTIONS = [
   'args',

@@ -104,7 +104,6 @@ function resolveWith(flags: ITransportFlags): boolean {
   const descriptor: IPipelineDescriptor = {
     options,
     phases: [],
-    interceptors: [],
     isHeadless: true,
   };
   WIRING.resolveHeadlessApiMediator(descriptor);

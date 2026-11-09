@@ -222,7 +222,6 @@ describe('Leumi WCF checks in the real scrape driver', () => {
       });
       const ctx = {
         ...makeMockContext({ apiMediator: some(bus) }),
-        executor: none(),
         windowEnd: none(),
       };
       const outcome = createApiDirectScrapePhase(LEUMI_SHAPE)(ctx);
@@ -241,7 +240,6 @@ describe('Leumi WCF checks in the real scrape driver', () => {
     const bus = makeRouterBus({ [leumiBrokerUrl(GET_ACCOUNTS_MODULE)]: [succeed(accounts)] });
     const ctx = {
       ...makeMockContext({ apiMediator: some(bus) }),
-      executor: none(),
       windowEnd: none(),
     };
     const outcome = await createApiDirectScrapePhase(LEUMI_SHAPE)(ctx);
@@ -273,7 +271,6 @@ describe('Leumi WCF checks in the real scrape driver', () => {
     });
     const ctx = {
       ...makeMockContext({ apiMediator: some(bus) }),
-      executor: none(),
       windowEnd: none(),
     };
     const outcome = await createApiDirectScrapePhase(LEUMI_SHAPE)(ctx);
@@ -294,7 +291,6 @@ describe('Leumi WCF checks in the real scrape driver', () => {
     const shape = { ...LEUMI_SHAPE, balance: { ...LEUMI_SHAPE.balance, extract } };
     const ctx: IActionContext = {
       ...makeMockContext({ apiMediator: some(bus) }),
-      executor: none(),
       windowEnd: none(),
     };
     const run = createApiDirectScrapePhase(shape);
@@ -318,7 +314,6 @@ describe('Leumi WCF checks in the real scrape driver', () => {
     const ctx = {
       ...base,
       options: { ...base.options, startDate: START },
-      executor: none(),
       windowEnd: none(),
     };
     const run = createApiDirectScrapePhase(LEUMI_SHAPE);
@@ -358,7 +353,6 @@ describe('Leumi WCF checks in the real scrape driver', () => {
     const ctx = {
       ...base,
       options: { ...base.options, startDate: START },
-      executor: none(),
       windowEnd: none(),
     };
     const run = createApiDirectScrapePhase(LEUMI_SHAPE);
@@ -392,7 +386,6 @@ describe('Leumi WCF checks in the real scrape driver', () => {
     const ctx = {
       ...base,
       options: { ...base.options, startDate: START },
-      executor: none(),
       windowEnd: none(),
     };
     const run = createApiDirectScrapePhase(LEUMI_SHAPE);

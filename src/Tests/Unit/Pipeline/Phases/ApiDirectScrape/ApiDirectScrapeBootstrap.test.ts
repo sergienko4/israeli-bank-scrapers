@@ -19,7 +19,6 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { literalUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
-import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
@@ -132,7 +131,7 @@ function driverWith(
   bootstrap: readonly IApiDirectScrapeBootstrapStep[],
 ): IDriverCtx<unknown, unknown> {
   const base = makeMockContext({ apiMediator: some(bus) });
-  const ctx = base as unknown as IActionContext;
+  const ctx = base;
   return { shape: { bootstrap }, bus, ctx } as unknown as IDriverCtx<unknown, unknown>;
 }
 

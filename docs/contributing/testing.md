@@ -66,12 +66,9 @@ Two layers guarding against a repeat of the [#449](https://github.com/sergienko4
 | Layer | File | Asserts |
 |---|---|---|
 | Mechanism | `TimerLeakInvariants.test.ts` | `jest.getTimerCount() === 0` after every timing operation settles — no timer stays armed. |
-| Consequence | `TimingRetention.test.ts` | A `WeakRef` to the object a timed-out poll captured is cleared after `gc()` — the closure is actually released. |
 | Cancellation | `RaceTimeoutCancellation.test.ts` | The losing arm of a `raceTimeout` is cancelled, not abandoned. |
 
-Both layers are needed. A timer count can go green while retention is still broken, because the leak that matters is the closure the timer keeps alive — in production that closure pinned Playwright `Page` handles and captured response bodies.
-
-The retention layer needs Node's `--expose-gc`. Every script that can select it — `test`, `test:unit`, `test:pipeline`, `test:ci`, `test:memory` — passes the flag; the E2E and integration scripts don't, because their path patterns exclude the retention suite. It asserts the hook is present rather than skipping without it: a vacuous pass would be worse than no test.
+An armed timer keeps its callback closure reachable, and that retention is what leaked in #449, so the timer count is the invariant to hold.
 
 These run inside `test:unit` / `test:pipeline` automatically, so CI covers them. `npm run test:memory` is the narrow local loop.
 

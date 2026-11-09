@@ -120,7 +120,7 @@ export function ctxOfWithPhone(bus: IApiMediator, phone: string): IActionContext
   const overrides: Partial<IPipelineContext> = { apiMediator: some(bus) };
   const base = makeMockContext(overrides);
   const credentials = { phoneNumber: phone } as unknown as typeof base.credentials;
-  return { ...base, credentials } as unknown as IActionContext;
+  return { ...base, credentials };
 }
 
 /**

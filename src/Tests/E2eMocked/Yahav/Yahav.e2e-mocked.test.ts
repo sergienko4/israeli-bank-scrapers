@@ -65,13 +65,12 @@ describe('Yahav native login and scrape (cold)', () => {
     run = await runYahav();
   });
 
-  it('signs in and scrapes with every call on spec, launching no browser', () => {
+  it('signs in and scrapes with every call on spec', () => {
     expect(run.state.violations).toEqual([]);
     expect(run.result.errorMessage).toBeUndefined();
     const trail = foldedTrail(run);
     expect(run.result.success).toBe(true);
     expect(trail).toEqual(COLD_TRAIL);
-    expect(run.launches).toBe(0);
   });
 
   it('sends a verifiable certification request to register the device', () => {

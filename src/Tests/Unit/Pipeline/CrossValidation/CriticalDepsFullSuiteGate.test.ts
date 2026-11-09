@@ -34,7 +34,7 @@ const GATE_SCRIPT = join(REPO_ROOT, '.github/scripts/ci/compute-gate-booleans.sh
 const PACKAGE_JSON = join(REPO_ROOT, 'package.json');
 
 /** Jobs that must run whenever the browser stack moves, not just on `src`. */
-const HEAVY_JOB_KEYS = ['unit-tests', 'e2e-mocked', 'integration', 'package-factory'] as const;
+const HEAVY_JOB_KEYS = ['unit-tests', 'e2e-mocked', 'package-factory'] as const;
 
 /** The job that runs the lint, type and short repository gates as its steps. */
 const STATIC_CHECKS_JOB_KEY = 'static-checks';
@@ -43,10 +43,7 @@ const STATIC_CHECKS_JOB_KEY = 'static-checks';
 const PACKAGE_JOB_KEY = 'package-factory';
 
 /** Steps of a merged job, as `[job, step name]`, that must run on `full_suite`, not just on `src`. */
-const HEAVY_STEPS = [
-  [STATIC_CHECKS_JOB_KEY, 'Bank integration coverage gate'],
-  [PACKAGE_JOB_KEY, 'E2E factory tests'],
-] as const;
+const HEAVY_STEPS = [[PACKAGE_JOB_KEY, 'E2E factory tests']] as const;
 
 /** The build step's action; it also runs the public-surface check. */
 const BUILD_PACKAGE = '$/.github/actions/build-package';
@@ -304,24 +301,13 @@ function countOf(haystack: string, needle: string): number {
   return segments.length - 1;
 }
 
-/**
- * Paths whose change ALONE must arm `critical_deps` and `full_suite`: the
- * browser-stack manifest and every file of the gate that validates it,
- * plus the two original pinning files.
- */
-const BROWSER_STACK_PATHS = [
-  'browser-stack.json',
-  'scripts/check-browser-stack.mjs',
-  'scripts/browser-stack/x.mjs',
-  'scripts/patch-playwright-core.mjs',
-  '.github/actions/install-camoufox/install.sh',
-] as const;
+/** Paths whose change ALONE must arm `critical_deps` and `full_suite`. */
+const PINNING_PATHS = ['scripts/patch-playwright-core.mjs'] as const;
 
 /** Look-alikes the anchored patterns must NOT match. */
-const NOT_BROWSER_STACK_PATHS = [
-  'docs/browser-stack.json',
-  'scripts/browser-stack.json.bak',
-  'scripts/check-browser-stack.mjs.orig',
+const NOT_PINNING_PATHS = [
+  'docs/patch-playwright-core.mjs',
+  'scripts/patch-playwright-core.mjs.orig',
 ] as const;
 
 /**
@@ -536,15 +522,14 @@ describe('CriticalDepsFullSuiteGate', () => {
     expect(emitted).toBe(DETECTOR_OUTPUT_BRANCHES);
   });
 
-  it('[CI-CRIT-GATE] Detector_PatchAndBrowserPinPaths_ShouldFeedCriticalDeps', () => {
+  it('[CI-CRIT-GATE] Detector_PatchPinPath_ShouldFeedCriticalDeps', () => {
     const script = read(DETECTOR);
     expect(script).toContain('^scripts/patch-playwright-core\\.mjs');
-    expect(script).toContain('.github/actions/install-camoufox/');
   });
 
   // `src=false` proves the run took the real diff branch, not the fail-open
   // branch that sets every flag true when git or BASE_SHA is unusable.
-  it.each(BROWSER_STACK_PATHS)(
+  it.each(PINNING_PATHS)(
     '[CI-CRIT-GATE] Detector_OnlyChanged_%s_ShouldArmCriticalDepsAndFullSuite',
     path => {
       const flags = detectFor(path);
@@ -552,7 +537,7 @@ describe('CriticalDepsFullSuiteGate', () => {
     },
   );
 
-  it.each(NOT_BROWSER_STACK_PATHS)(
+  it.each(NOT_PINNING_PATHS)(
     '[CI-CRIT-GATE] Detector_OnlyChanged_%s_ShouldNotArmCriticalDeps',
     path => {
       const flags = detectFor(path);
@@ -562,7 +547,7 @@ describe('CriticalDepsFullSuiteGate', () => {
 
   // An ignored critical path needs `git add -f` to land, so the detector
   // entry above would guard a file the tree can silently drop.
-  it.each(BROWSER_STACK_PATHS)('[CI-CRIT-GATE] GitIgnore_%s_ShouldStayTrackable', path => {
+  it.each(PINNING_PATHS)('[CI-CRIT-GATE] GitIgnore_%s_ShouldStayTrackable', path => {
     const [pattern, reported] = ignoreVerdict(path);
     expect(reported).toBe(path);
     expect(pattern).toMatch(/^(!.*)?$/u);

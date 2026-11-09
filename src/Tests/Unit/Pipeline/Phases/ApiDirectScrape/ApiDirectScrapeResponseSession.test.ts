@@ -193,7 +193,7 @@ function refuseBody(): Procedure<ApiBody> {
  */
 function ctxFor(bus: IApiMediator): IActionContext {
   const base = makeMockContext({ apiMediator: some(bus) });
-  return base as unknown as IActionContext;
+  return base;
 }
 
 /**

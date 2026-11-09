@@ -1,11 +1,10 @@
 /**
- * Durable auth artifact captured outside the browser LOGIN phase.
+ * Durable auth artifact minted by an API-direct login chain.
  *
- * API-direct banks (OneZero, Pepper, PayBox) authenticate over HTTP and never
- * build an `ILoginState` — that contract carries a live `Page | Frame`. They
- * still mint a long-lived handle the caller must store to skip the next SMS,
- * so it travels in its own slot and is surfaced through the same public
- * `result.persistentOtpToken` field the browser scrapers use.
+ * Banks that authenticate over HTTP (OneZero, Pepper, PayBox) mint a
+ * long-lived handle the caller must store to skip the next SMS. It travels
+ * in its own context slot and is surfaced through the public
+ * `result.persistentOtpToken` field.
  */
 
 /** Long-lived re-login artifact produced by an API-direct login chain. */

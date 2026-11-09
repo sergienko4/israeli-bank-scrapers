@@ -22,7 +22,6 @@ function makeDescriptor(isHeadless: boolean, companyId: CompanyTypes): IPipeline
   return {
     options,
     phases: [],
-    interceptors: [],
     isHeadless,
   };
 }
@@ -99,10 +98,8 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
     const descriptor = makeDescriptor(false, CompanyTypes.Leumi);
     const ctx = buildInitialContext(descriptor, { id: 'syn', password: 'syn' });
     expect(ctx.options.companyId).toBe(CompanyTypes.Leumi);
-    expect(ctx.browser.has).toBe(false);
-    expect(ctx.mediator.has).toBe(false);
     expect(ctx.apiMediator.has).toBe(false);
-    expect(ctx.loginAreaReady).toBe(false);
+    expect(ctx.windowEnd.has).toBe(false);
   });
 
   /**

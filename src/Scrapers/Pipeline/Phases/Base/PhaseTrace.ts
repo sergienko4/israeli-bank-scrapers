@@ -9,8 +9,6 @@
  * path as the class itself.
  *
  * @see "./BasePhase.ts" — the Template Method that emits these tags.
- * @see "./HandoffHelpers.ts" — sibling helper file that consumes
- *   {@link PHASE_STAGE_EVENT} indirectly via the same trace contract.
  */
 
 import type { Brand } from '../../Types/Brand.js';

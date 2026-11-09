@@ -192,15 +192,25 @@ const JEST_MODULE_APIS: readonly string[] = [
  * Rows whose replacement is prose rather than one importable path.
  *
  * `TimingConfig.js` split into several per-domain modules, so the correct
- * replacement depends on which constant the caller wanted. `OtpDetector.js` was
- * deleted outright and its behaviour is now owned by the OtpTrigger and OtpFill
- * phase actions, so no single replacement file exists. These rows are still
- * flagged and still name a replacement; only the resolves-on-disk assertion is
+ * replacement depends on which constant the caller wanted. The other rows
+ * belonged to the removed browser engine and have no successor module; they
+ * point at the API-direct pipeline instead. These rows are still flagged and
+ * still name a replacement; only the resolves-on-disk assertion is
  * inapplicable, so they are partitioned out rather than weakening that check
  * for every other row.
  */
 const PROSE_REPLACEMENTS: readonly string[] = [
+  'src/Common/CamoufoxLauncher.js',
+  'src/Common/Config/OtpDetectorConfig.js',
+  'src/Common/ElementsInteractions.js',
+  'src/Common/Fetch.js',
+  'src/Common/FormAnchor.js',
   'src/Common/OtpDetector.js',
+  'src/Common/SafeScreenshot.js',
+  'src/Common/SelectorResolver.js',
+  'src/Scrapers/Pipeline/Mediator/Network/AuthDiscovery.js',
+  'src/Scrapers/Pipeline/Mediator/Network/AuthFailureWatcher.js',
+  'src/Scrapers/Pipeline/Mediator/Network/Fetch.js',
   'src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.js',
 ];
 
@@ -301,7 +311,7 @@ describe('issuesFromCode — Rule #17 retired specifier guard', () => {
       .filter((i): boolean => i.rule === 'Rule #17')
       .map((i): string => i.message);
     expect(messages).toHaveLength(1);
-    expect(messages[0]).toContain('Mediator/Network/Fetch/index.js');
+    expect(messages[0]).toContain('ApiDirectCallPhase.js');
   });
 
   it('skips its own source but no longer needs to skip its fixtures', () => {

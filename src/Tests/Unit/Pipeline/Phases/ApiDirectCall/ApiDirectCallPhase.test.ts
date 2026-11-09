@@ -12,7 +12,6 @@ import type { WKUrlGroup } from '../../../../../Scrapers/Pipeline/Registry/WK/Ur
 import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
-  IActionContext,
   IPipelineContext,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
@@ -83,7 +82,7 @@ describe('ApiDirectCallPhase action hook', () => {
     const config = makeConfig();
     const phase = createApiDirectCallPhase(config);
     const ctx = makePhaseCtx('tok-action');
-    const actionCtx = ctx as unknown as IActionContext;
+    const actionCtx = ctx;
     const result = await phase.action(actionCtx, actionCtx);
     expect(result.success).toBe(true);
   });
@@ -92,7 +91,7 @@ describe('ApiDirectCallPhase action hook', () => {
     const config = makeConfig();
     const phase = createApiDirectCallPhase(config);
     const ctx = makePhaseCtx('');
-    const actionCtx = ctx as unknown as IActionContext;
+    const actionCtx = ctx;
     const result = await phase.action(actionCtx, actionCtx);
     expect(result.success).toBe(false);
   });

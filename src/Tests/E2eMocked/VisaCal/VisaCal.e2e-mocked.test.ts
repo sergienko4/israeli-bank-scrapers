@@ -1,7 +1,7 @@
 /**
  * Visa Cal browserless login — mocked-gateway E2E for what the shared
- * API-DIRECT flow spec cannot see: the request headers, the browser never
- * launching, the password staying off the warm path, and every way step 0
+ * API-DIRECT flow spec cannot see: the request headers, the password
+ * staying off the warm path, and every way step 0
  * can fail. The happy cold and warm runs live in ApiDirectFlow.
  *
  * Rule #18: all credentials + data are synthetic; no real PII.
@@ -18,7 +18,6 @@ import {
   CAL_WEB_SITE_ID,
 } from '../../../Scrapers/Pipeline/Banks/VisaCal/scrape/VisaCalShapeHelpers.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
-import { getLaunchCount } from '../../Mocks/CamoufoxJsMock.js';
 import type { IMockHandle, IRecordedCall } from '../Helpers/FetchMockKit.js';
 import type { LoginFault } from './VisaCalFetchMock.js';
 import {
@@ -40,7 +39,6 @@ interface ICalRun {
   readonly steps: readonly string[];
   /** Every call that did not go to the login gateway. */
   readonly data: readonly IRecordedCall[];
-  readonly launches: number;
   readonly durationMs: number;
 }
 
@@ -80,7 +78,7 @@ function splitCalls(calls: readonly IRecordedCall[]): Pick<ICalRun, 'steps' | 'd
  * Scrape Visa Cal against the synthetic gateways.
  * @param creds - Credentials to scrape with.
  * @param fault - Fault the password login answers with.
- * @returns The result, the call log and how many browsers were launched.
+ * @returns The result and the call log.
  */
 async function runCal(creds: ScraperCredentials, fault: LoginFault = 'none'): Promise<ICalRun> {
   const handle = installVisaCalFetchMock(fault);
@@ -96,21 +94,19 @@ async function runCal(creds: ScraperCredentials, fault: LoginFault = 'none'): Pr
  * @param handle - Installed mock whose new calls belong to this run.
  * @param creds - Credentials to scrape with.
  * @param offset - Existing calls to exclude.
- * @returns The result, new call log and browser-launch count.
+ * @returns The result and the new call log.
  */
 async function scrapeCal(
   handle: IMockHandle,
   creds: ScraperCredentials,
   offset = 0,
 ): Promise<ICalRun> {
-  const launchesBefore = getLaunchCount();
   const options = { companyId: CompanyTypes.VisaCal, startDate: VISACAL_MOCK_START_DATE };
   const startedAt = performance.now();
   const result = await createScraper(options).scrape(creds);
   const durationMs = performance.now() - startedAt;
   const calls = handle.calls().slice(offset);
-  const launches = getLaunchCount() - launchesBefore;
-  return { result, calls, ...splitCalls(calls), launches, durationMs };
+  return { result, calls, ...splitCalls(calls), durationMs };
 }
 
 /**
@@ -154,10 +150,9 @@ const STEP_ZERO_FAULTS: readonly (readonly [LoginFault, ScraperErrorTypes, strin
 ];
 
 describe('Visa Cal browserless login', () => {
-  it('signs in cold, sends the CAL headers on every data call and launches no browser', async () => {
+  it('signs in cold, sends the CAL headers on every data call', async () => {
     const run = await runCal({ ...VISACAL_MOCK_CREDS });
     expect(run.result.success).toBe(true);
-    expect(run.launches).toBe(0);
     expect(run.steps).toEqual(['regularLogin', 'bioLogin']);
     expect(run.data.length).toBeGreaterThan(0);
     const sent = run.data.map(call => [
@@ -173,11 +168,10 @@ describe('Visa Cal browserless login', () => {
     expect(balances).toEqual(expected);
   });
 
-  it('resumes from the stored hash without sending the password or launching a browser', async () => {
+  it('resumes from the stored hash without sending the password', async () => {
     const creds = { ...VISACAL_MOCK_CREDS, otpLongTermToken: SYN_STORED_HASH };
     const run = await runCal(creds);
     expect(run.result.success).toBe(true);
-    expect(run.launches).toBe(0);
     expect(run.durationMs).toBeLessThan(WARM_BUDGET_MS);
     expect(run.steps).toEqual(['bioLogin']);
     const isHashSent = isSent(run.calls, SYN_STORED_HASH);

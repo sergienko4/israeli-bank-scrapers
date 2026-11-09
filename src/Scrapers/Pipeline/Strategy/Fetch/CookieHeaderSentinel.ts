@@ -45,7 +45,7 @@ export interface INamedCookie {
   readonly value: string;
 }
 
-/** Live cookie jar (subset of Playwright `BrowserContext.cookies()`). */
+/** Live cookie jar: the name/value records the resolver reads. */
 export type CookieJar = readonly INamedCookie[];
 
 /** Reads one cookie's stored value by name, or none when the cookie is absent. */

@@ -138,9 +138,7 @@ nav:
       - Transaction currency: architecture/transaction-currency.md
       - Bank calendar (dates & time zone): architecture/bank-calendar.md
       - BALANCE-RESOLVE (v6): architecture/balance-resolve.md
-      - WAF challenge interceptor: architecture/waf-interceptor.md
       - WAF fetch bounce: architecture/waf-fetch-bounce.md
-      - Browser stack: architecture/browser-stack.md
       - Legacy (removed): architecture/legacy.md
       - Migration strategy: architecture/migration.md
   - Phases:
@@ -195,7 +193,6 @@ nav:
       - Pre-push hook: workflow/pre-push.md
       - Branch flow & release-please: workflow/branch-flow.md
       - Releases & consumer signals: workflow/releases.md
-      - Browser stack upgrade: workflow/browser-stack-upgrade.md
       - Dependency updates: workflow/dependency-updates.md
       - Code-review tooling (CodeRabbit + SonarCloud): workflow/code-review-tooling.md
       - Code scanning triage (zizmor vs Scorecard): workflow/code-scanning.md

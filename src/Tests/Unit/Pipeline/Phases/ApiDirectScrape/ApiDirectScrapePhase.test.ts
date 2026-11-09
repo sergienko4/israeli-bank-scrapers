@@ -56,7 +56,7 @@ function ctxOf(bus: IApiMediator, caseName: string): IActionContext {
   const credsOverride =
     caseName === PEPPER_CASE.name ? { credentials: PEPPER_TEST_CREDENTIALS } : {};
   const base = makeMockContext({ apiMediator: some(bus), ...credsOverride });
-  return base as unknown as IActionContext;
+  return base;
 }
 
 /**
@@ -208,7 +208,7 @@ describe('createApiDirectScrapePhase (synthetic-only edge cases)', () => {
       SYN_CASE.shape as IApiDirectScrapeShape<unknown, unknown>,
     );
     const base = makeMockContext({ apiMediator: none() });
-    const ctx = base as unknown as IActionContext;
+    const ctx = base;
     const result = await phase(ctx);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('ApiMediator missing');

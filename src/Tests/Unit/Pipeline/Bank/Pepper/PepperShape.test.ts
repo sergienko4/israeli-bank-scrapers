@@ -72,7 +72,7 @@ describe('PEPPER_SHAPE balance extractor', () => {
  */
 function defaultExtractCtx(): IActionContext {
   const opts = makeMockOptions();
-  return makeMockContext({ options: opts }) as unknown as IActionContext;
+  return makeMockContext({ options: opts });
 }
 
 describe('PEPPER_SHAPE transactions extractor', () => {
@@ -141,21 +141,21 @@ describe('PEPPER_SHAPE accessors', () => {
   });
 
   it('customer.buildVars returns empty map', () => {
-    const ctx = makeMockContext() as unknown as IActionContext;
+    const ctx = makeMockContext();
     const vars = PEPPER_SHAPE.customer.buildVars(ctx);
     const got = Object.keys(vars);
     expect(got).toHaveLength(0);
   });
 
   it('balance.buildVars carries accountId', () => {
-    const ctx = makeMockContext({}) as unknown as IActionContext;
+    const ctx = makeMockContext({});
     const vars = PEPPER_SHAPE.balance.buildVars({ accountId: 'a' }, ctx);
     expect(vars).toEqual({ accountId: 'a' });
   });
 
   it('transactions.buildVars carries accountId + from + to + page + size', () => {
     const opts = makeMockOptions({ startDate: new Date('2026-01-01') });
-    const ctx = makeMockContext({ options: opts }) as unknown as IActionContext;
+    const ctx = makeMockContext({ options: opts });
     const vars = PEPPER_SHAPE.transactions.buildVars({ accountId: 'a' }, false, ctx);
     assertPostObject(vars);
     expect(vars.accountId).toBe('a');

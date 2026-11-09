@@ -4,22 +4,16 @@
  */
 
 import pino from 'pino';
-import type { Page } from 'playwright-core';
 
 import type { CompanyTypes } from '../../../../Definitions.js';
-import type { OtpConfig } from '../../../../Scrapers/Base/Config/LoginConfigTypes.js';
 import type { ScraperCredentials, ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
-import type { ILoginConfig } from '../../../../Scrapers/Base/Interfaces/Config/LoginConfig.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import type { ScraperLogger } from '../../../../Scrapers/Pipeline/Logging/Debug.js';
 import type { IRecoveryMethods } from '../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.types.js';
 import type { IApiDirectCallConfig } from '../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IApiDirectScrapeShape } from '../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { none } from '../../../../Scrapers/Pipeline/Types/Option.js';
-import type {
-  IActionContext,
-  IPipelineContext,
-} from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import type { IPipelineContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 
@@ -126,46 +120,6 @@ function makeMockCredentials(): ScraperCredentials {
 }
 
 /**
- * Create a minimal mock Playwright Page with isolated URL state.
- * @param initialUrl - The URL the page should report.
- * @returns A Page-compatible mock with its own URL closure.
- */
-function makeMockPage(initialUrl = 'https://bank.example.com/login'): Page {
-  let currentUrl = initialUrl;
-  return {
-    /**
-     * Return this mock page's URL.
-     * @returns The mock URL.
-     */
-    url: (): string => currentUrl,
-    /**
-     * Simulate navigation by updating the URL (async like Playwright).
-     * @param newUrl - The new URL after navigation.
-     * @returns Resolved null (matches Playwright Response | null).
-     */
-    goto: (newUrl: string): Promise<string> => {
-      currentUrl = newUrl;
-      return Promise.resolve(currentUrl);
-    },
-    /**
-     * No-op event listener for network discovery.
-     * @returns Self for chaining.
-     */
-    on: (): Page => ({}) as unknown as Page,
-    /**
-     * Mock waitForResponse — never resolves (fire-and-forget).
-     * @returns Never-resolving promise.
-     */
-    waitForResponse: (): Promise<false> => Promise.race([]),
-    /**
-     * Mock frames — no iframes in test.
-     * @returns Empty array.
-     */
-    frames: (): Page[] => [],
-  } as unknown as Page;
-}
-
-/**
  * Create a minimal mock IPipelineContext.
  * @param overrides - Optional field overrides.
  * @returns An IPipelineContext for testing.
@@ -191,29 +145,10 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
       authStrategyKind: 'token',
     },
     fetchStrategy: none(),
-    mediator: none(),
+    windowEnd: none(),
     apiMediator: none(),
-    browser: none(),
-    login: none(),
-    durableAuth: none(),
-    dashboard: none(),
     scrape: none(),
-    api: none(),
-    loginAreaReady: false,
-    preLoginDiscovery: none(),
-    loginFieldDiscovery: none(),
-    scrapeDiscovery: none(),
-    accountDiscovery: none(),
-    txnEndpoint: none(),
-    dashboardTxnHarvest: none(),
-    authDiscovery: none(),
-    otpTrigger: none(),
-    otpFill: none(),
-    balanceAccountIdentities: none(),
-    balanceFetchPlan: none(),
-    balanceResponsesByBankAccount: none(),
-    balanceExtracted: none(),
-    balanceValidation: none(),
+    durableAuth: none(),
     balanceResolution: none(),
   };
   return {
@@ -234,54 +169,11 @@ function makeMockDescriptor(
   const descriptor: IPipelineDescriptor = {
     options,
     phases: [],
-    interceptors: [],
   };
   return succeed(descriptor);
 }
 
 // ── PipelineBuilder shared stubs ──────────────────────────
-
-/** Minimal ILoginConfig stub for builder tests. */
-const MOCK_LOGIN_CONFIG: ILoginConfig = {
-  loginUrl: 'https://bank.example.com/login',
-  fields: [],
-  submit: { kind: 'textContent', value: 'Login' },
-  possibleResults: {},
-} as unknown as ILoginConfig;
-
-/**
- * Stub login function for direct-POST mode.
- * @param ctx - Pipeline context.
- * @returns Resolved succeed procedure.
- */
-const MOCK_DIRECT_LOGIN = (ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> => {
-  const result = succeed(ctx);
-  return Promise.resolve(result);
-};
-
-/**
- * Stub login function for native mode.
- * @param ctx - Pipeline context.
- * @returns Resolved succeed procedure.
- */
-const MOCK_NATIVE_LOGIN = (ctx: IPipelineContext): Promise<Procedure<IPipelineContext>> => {
-  const result = succeed(ctx);
-  return Promise.resolve(result);
-};
-
-/**
- * Stub scrape function.
- * @param ctx - Action context.
- * @returns Resolved succeed procedure.
- */
-const MOCK_SCRAPE = (ctx: IActionContext): Promise<Procedure<IPipelineContext>> => {
-  const full = ctx as unknown as IPipelineContext;
-  const result = succeed(full);
-  return Promise.resolve(result);
-};
-
-/** Minimal OTP config for builder tests. */
-const MOCK_OTP_CONFIG: OtpConfig = { kind: 'api' };
 
 /** Minimal IApiDirectCallConfig for builder tests. */
 const MOCK_API_DIRECT = { steps: [] } as unknown as IApiDirectCallConfig;
@@ -294,13 +186,7 @@ export {
   makeMockCredentials,
   makeMockDescriptor,
   makeMockOptions,
-  makeMockPage,
   makeRecoverySessionStubs,
   MOCK_API_DIRECT,
   MOCK_API_DIRECT_SHAPE,
-  MOCK_DIRECT_LOGIN,
-  MOCK_LOGIN_CONFIG,
-  MOCK_NATIVE_LOGIN,
-  MOCK_OTP_CONFIG,
-  MOCK_SCRAPE,
 };

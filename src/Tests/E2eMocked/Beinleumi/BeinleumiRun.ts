@@ -12,7 +12,6 @@ import type {
   ScraperOptions,
 } from '../../../Scrapers/Base/Interface.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
-import { getLaunchCount } from '../../Mocks/CamoufoxJsMock.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import type { IFibiMockBrand } from './BeinleumiBrands.js';
 import { BEINLEUMI_MOCK_BRAND } from './BeinleumiBrands.js';
@@ -31,8 +30,6 @@ export interface IBeinleumiRun {
   /** Each call by route name, in order. */
   readonly trail: readonly string[];
   readonly state: IBeinleumiMockState;
-  /** Browsers the run launched. */
-  readonly launches: number;
   /** The hint each retriever call received, in order. */
   readonly hints: readonly string[];
   /** Each device state the run handed the storage callback, in order. */
@@ -144,7 +141,6 @@ export async function runBeinleumi(
   fault: BeinleumiFault = 'none',
   setup: IRunSetup = {},
 ): Promise<IBeinleumiRun> {
-  const launchesBefore = getLaunchCount();
   const hints: string[] = [];
   const published: string[] = [];
   const retriever = retrieverOf(setup.otp ?? BN_OTP, hints);
@@ -155,9 +151,8 @@ export async function runBeinleumi(
   const handle = installBeinleumiFetchMock(state);
   try {
     const result = await createScraper(options).scrape(creds);
-    const launches = getLaunchCount() - launchesBefore;
     const calls = handle.calls();
-    return { result, calls, trail: state.trail, state, launches, hints, published, stored };
+    return { result, calls, trail: state.trail, state, hints, published, stored };
   } finally {
     handle.dispose();
   }

@@ -45,7 +45,6 @@ describe.each(FIBI_MOCK_BRANDS)('$companyId browserless device memory', (brand):
     expect(run.trail).toEqual(COLD_TRAIL);
     expect(dids).toEqual([BN_STORED_DID, BN_STORED_DID, BN_STORED_DID]);
     expect(run.published).toEqual([]);
-    expect(run.launches).toBe(0);
   });
 
   it('keeps the stored id through an SMS step the bank still asks for', async () => {

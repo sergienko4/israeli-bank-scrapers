@@ -46,9 +46,7 @@ class ApiDirectCallPhase extends BasePhase {
     _ctx: IActionContext,
     input: IActionContext,
   ): Promise<Procedure<IActionContext>> {
-    const full = input as unknown as IPipelineContext;
-    const result = await runApiDirectCallAction(this._config, full);
-    return result as unknown as Procedure<IActionContext>;
+    return runApiDirectCallAction(this._config, input);
   }
 
   /** @inheritdoc */

@@ -9,7 +9,6 @@ import { CompanyTypes } from '../../../Definitions.js';
 import type { IScraperScrapingResult } from '../../../Scrapers/Base/Interface.js';
 import { YAHAV_AUTH_PATHS } from '../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigYahavConstants.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
-import { getLaunchCount } from '../../Mocks/CamoufoxJsMock.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import type { IBancsWindow } from './YahavBancsData.js';
 import { bancsCallOf, windowOf } from './YahavBancsRoutes.js';
@@ -25,8 +24,6 @@ export interface IYahavRun {
   /** Each call by name: `initialize` … `txns`. */
   readonly trail: readonly string[];
   readonly state: IYahavMockState;
-  /** Browsers the run launched. */
-  readonly launches: number;
 }
 
 /** Credential overrides, such as a stored token. */
@@ -109,7 +106,6 @@ export async function runYahav(
   setup: IRunSetup = {},
 ): Promise<IYahavRun> {
   const state = freshState(fault);
-  const launchesBefore = getLaunchCount();
   const handle = installYahavFetchMock(state);
   try {
     const result = await createScraper(RUN_OPTIONS).scrape({ ...YAHAV_MOCK_CREDS, ...setup.creds });
@@ -119,7 +115,6 @@ export async function runYahav(
       calls,
       trail: calls.map(nameOf),
       state,
-      launches: getLaunchCount() - launchesBefore,
     };
   } finally {
     handle.dispose();

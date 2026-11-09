@@ -10,7 +10,6 @@ import type {
   ScraperCredentials,
 } from '../../../Scrapers/Base/Interface.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
-import { getLaunchCount } from '../../Mocks/CamoufoxJsMock.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import type { ITelebankMockBrand } from './DiscountBrands.js';
 import { DISCOUNT_MOCK_BRAND } from './DiscountBrands.js';
@@ -31,7 +30,6 @@ export interface IDiscountRun {
   readonly trail: readonly string[];
   /** Every Titan read. */
   readonly data: readonly IRecordedCall[];
-  readonly launches: number;
 }
 
 /** The login trail up to and including the sealed login. */
@@ -111,22 +109,20 @@ function isDataCall(call: IRecordedCall): boolean {
  * @param fault - Fault the bank answers with.
  * @param creds - Credentials to scrape with.
  * @param brand - The bank to scrape; Discount by default.
- * @returns The result, the call log and how many browsers were launched.
+ * @returns The result and the call log.
  */
 export async function runDiscount(
   fault: DiscountFault = 'none',
   creds: ScraperCredentials = { ...DISCOUNT_MOCK_CREDS },
   brand: ITelebankMockBrand = DISCOUNT_MOCK_BRAND,
 ): Promise<IDiscountRun> {
-  const launchesBefore = getLaunchCount();
   const handle = installDiscountFetchMock(fault, brand);
   try {
     const options = { companyId: brand.companyId, startDate: DISCOUNT_MOCK_START_DATE };
     const scraper = createScraper(options);
     const result = await scraper.scrape(creds);
-    const launches = getLaunchCount() - launchesBefore;
     const calls = handle.calls();
-    return { result, calls, trail: calls.map(trailOf), data: calls.filter(isDataCall), launches };
+    return { result, calls, trail: calls.map(trailOf), data: calls.filter(isDataCall) };
   } finally {
     handle.dispose();
   }

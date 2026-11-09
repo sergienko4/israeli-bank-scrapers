@@ -9,7 +9,7 @@
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { Option } from '../../Types/Option.js';
 import { isSome, none, some } from '../../Types/Option.js';
-import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
+import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import type { IApiMediator } from './ApiMediator.js';
@@ -37,9 +37,8 @@ function pickPresent(slot: IMediatorSlot): Option<IApiMediator> {
  * @param ctx - Pipeline or action context.
  * @returns Option carrying the present mediator.
  */
-function readSlot(ctx: IPipelineContext | IActionContext): Option<IApiMediator> {
-  const asPipeline = ctx as unknown as IPipelineContext;
-  const slot = asPipeline.apiMediator as unknown as IMediatorSlot | undefined;
+function readSlot(ctx: IPipelineContext): Option<IApiMediator> {
+  const slot = ctx.apiMediator as unknown as IMediatorSlot | undefined;
   if (slot === undefined) return none();
   return pickPresent(slot);
 }
@@ -47,15 +46,15 @@ function readSlot(ctx: IPipelineContext | IActionContext): Option<IApiMediator> 
 /**
  * Narrow a context's apiMediator slot to an `IApiMediator`, or fail.
  * The slot is populated by PipelineContextFactory when the descriptor
- * carries `isHeadless: true`. For HTML banks the slot is `none()` and
- * this accessor returns a labelled Generic failure — handlers that
- * reach here on an HTML bank have a wiring bug, not a data bug.
+ * carries `isHeadless: true`. Without it the slot is `none()` and
+ * this accessor returns a labelled Generic failure — a handler that
+ * reaches here without a mediator has a wiring bug, not a data bug.
  * @param ctx - The pipeline or action context.
  * @param label - Label included in the fail message for diagnosis.
  * @returns Mediator Procedure.
  */
 function resolveApiMediator(
-  ctx: IPipelineContext | IActionContext,
+  ctx: IPipelineContext,
   label: string,
 ): Procedure<IApiMediator> {
   const present = readSlot(ctx);

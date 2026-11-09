@@ -1421,13 +1421,6 @@ YAHAV_CUSTOMER
 YAHAV_BALANCE
 YAHAV_TXNS
 YAHAV_SHAPE
-# Reason: CamoufoxLauncher -- withLaunchBound is the launch-timeout policy and
-# withNativeBindingDiagnostic enriches a missing better-sqlite3 binding with its
-# remedy. Both are framework-internal; exported solely so they can be unit-tested
-# without starting a browser process. The operator-facing knob they implement
-# (CAMOUFOX_LAUNCH_TIMEOUT_MS) is documented in docs/quick-start.md.
-withLaunchBound
-withNativeBindingDiagnostic
 # Reason: PersistentAuthStateRules -- the codec's private validation tables
 # (exact v1 key whitelist, ordered field rules). Exported only so
 # PersistentAuthStateCodec can share them; the durable-auth contract they

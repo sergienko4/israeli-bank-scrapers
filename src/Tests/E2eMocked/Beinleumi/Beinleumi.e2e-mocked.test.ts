@@ -19,12 +19,11 @@ describe('Beinleumi browserless login and scrape (cold, no SMS)', () => {
     run = await runBeinleumi();
   });
 
-  it('signs in and scrapes with every call on spec, launching no browser', () => {
+  it('signs in and scrapes with every call on spec', () => {
     expect(run.state.violations).toEqual([]);
     expect(run.result.errorMessage).toBeUndefined();
     expect(run.result.success).toBe(true);
     expect(run.trail).toEqual(COLD_TRAIL);
-    expect(run.launches).toBe(0);
   });
 
   it('asks the caller for no code and publishes no device state', () => {

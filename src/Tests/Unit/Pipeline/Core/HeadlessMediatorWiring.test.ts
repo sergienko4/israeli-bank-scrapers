@@ -30,7 +30,7 @@ const PHONE_VALIDATE_REPLY = { code: 0, content: { access_token: 'synthetic-acce
  */
 function makeDescriptor(companyId: CompanyTypes, isHeadless: boolean): IPipelineDescriptor {
   const options = { companyId } as unknown as ScraperOptions;
-  return { options, phases: [], interceptors: [], isHeadless };
+  return { options, phases: [], isHeadless };
 }
 
 describe('resolveHeadlessApiMediator — none() cases', () => {

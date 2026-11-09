@@ -51,7 +51,7 @@ describe('All bank pipelines', () => {
   });
 
   it.each(BANK_BUILDERS)(
-    '%s descriptor carries options + phases + interceptors',
+    '%s descriptor carries options + phases',
     (companyId, build) => {
       const opts = makeMockOptions({ companyId });
       const result = build(opts);
@@ -60,8 +60,6 @@ describe('All bank pipelines', () => {
         expect(result.value.options).toBe(opts);
         const isArrayResult3 = Array.isArray(result.value.phases);
         expect(isArrayResult3).toBe(true);
-        const isArrayResult4 = Array.isArray(result.value.interceptors);
-        expect(isArrayResult4).toBe(true);
       }
     },
   );

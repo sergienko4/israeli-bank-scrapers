@@ -83,10 +83,9 @@ const COLD_TRAIL = [
 ];
 
 describe('Mizrahi browserless login', () => {
-  it('signs in cold over both hosts in order and launches no browser', async () => {
+  it('signs in cold over both hosts in order', async () => {
     const run = await runMizrahi();
     expect(run.result.success).toBe(true);
-    expect(run.launches).toBe(0);
     expect(run.trail).toEqual(COLD_TRAIL);
   });
 

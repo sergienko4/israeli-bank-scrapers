@@ -87,7 +87,7 @@ function ctxOf(bus: IApiMediator, caseName: string): IActionContext {
   const credsOverride =
     caseName === PEPPER_CASE.name ? { credentials: PEPPER_TEST_CREDENTIALS } : {};
   const base = makeMockContext({ apiMediator: some(bus), ...credsOverride });
-  return base as unknown as IActionContext;
+  return base;
 }
 
 /**

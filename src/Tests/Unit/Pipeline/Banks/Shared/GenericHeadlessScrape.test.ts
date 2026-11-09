@@ -162,7 +162,7 @@ function ctxOf(bus: IApiMediator): IActionContext {
     ...base,
     apiMediator: some(bus),
   };
-  return { ...withBus, windowEnd: none() } as unknown as IActionContext;
+  return { ...withBus, windowEnd: none() };
 }
 
 describe('buildGenericHeadlessScrape', () => {
@@ -170,7 +170,7 @@ describe('buildGenericHeadlessScrape', () => {
     const shape = makeShape();
     const scrape = buildGenericHeadlessScrape(shape);
     const base = makeMockContext({ apiMediator: none() });
-    const result = await scrape(base as unknown as IActionContext);
+    const result = await scrape(base);
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('ApiMediator missing');
   });

@@ -28,7 +28,6 @@ const LOG = {
 };
 
 jest.unstable_mockModule('../../../../Scrapers/Pipeline/Logging/Debug.js', async () => ({
-  ...(await import('../../../../Scrapers/Pipeline/Types/MockTiming.js')),
   ...(await import('../../../../Scrapers/Pipeline/Logging/BankContext.js')),
   /**
    * Pipeline modules derive their logger from `import.meta.url`.
@@ -74,7 +73,7 @@ function emitted(): string {
  * @param isExhausted - Whether backfill was spent without covering the window.
  * @returns Context ready for the run-level audit.
  */
-function ctxWith(isExhausted: boolean): Parameters<typeof AUDIT.logForensicAudit>[0] {
+function ctxWith(isExhausted: boolean): Parameters<typeof AUDIT.default>[0] {
   const scrape = { accounts: [], backfillExhausted: isExhausted };
   return FACTORIES.makeMockContext({ scrape: OPTION.some(scrape) });
 }
@@ -83,7 +82,7 @@ function ctxWith(isExhausted: boolean): Parameters<typeof AUDIT.logForensicAudit
  * A scrape whose transaction instant falls on the next bank-calendar day.
  * @returns Context ready for the run-level audit.
  */
-function ctxWithBoundaryTxn(): Parameters<typeof AUDIT.logForensicAudit>[0] {
+function ctxWithBoundaryTxn(): Parameters<typeof AUDIT.default>[0] {
   const account = { accountNumber: 'test-account', txns: [BOUNDARY_TXN] };
   const scrape = { accounts: [account], backfillExhausted: false };
   return FACTORIES.makeMockContext({ scrape: OPTION.some(scrape) });
@@ -99,14 +98,14 @@ beforeEach(() => {
 describe('logForensicAudit — window verdict wiring', () => {
   it('reports the shortfall when backfill was spent short of the window', () => {
     const ctx = ctxWith(true);
-    AUDIT.logForensicAudit(ctx);
+    AUDIT.default(ctx);
     const said = emitted();
     expect(said).toContain('EXHAUSTED - backfill spent');
   });
 
   it('records the clear verdict when no shortfall was observed', () => {
     const ctx = ctxWith(false);
-    AUDIT.logForensicAudit(ctx);
+    AUDIT.default(ctx);
     const said = emitted();
     expect(said).toContain('WINDOW | NOT_EXHAUSTED');
   });
@@ -115,7 +114,7 @@ describe('logForensicAudit — window verdict wiring', () => {
 describe('logForensicAudit — bank-calendar transaction dates', () => {
   it('renders a boundary instant as the day observed by the bank', () => {
     const ctx = ctxWithBoundaryTxn();
-    AUDIT.logForensicAudit(ctx);
+    AUDIT.default(ctx);
     const said = emitted();
     expect(said).toContain('2.1.2026');
   });

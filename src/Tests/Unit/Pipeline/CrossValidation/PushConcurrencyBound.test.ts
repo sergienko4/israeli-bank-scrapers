@@ -67,23 +67,20 @@ const LEVEL_1_RUNNERS = {
   'portability-macos': 1,
   'unit-tests': 3,
   'package-factory': 1,
-  'browser-stack': 1,
+  'e2e-mocked': 1,
   'dependency-review': 1,
 };
 
 /** `pr.yml` jobs that start after level 1 and before `Validate`, with their needs. */
 const LATE_JOBS = {
   sonarcloud: ['changes', 'unit-tests'],
-  'e2e-mocked': ['changes', 'browser-stack'],
-  integration: ['changes', 'browser-stack'],
 };
 
 /**
  * Runners each group of late jobs adds over the level-1 jobs it waits for,
- * keyed by those jobs: Sonar's 1 waits for the 3 Unit tests legs, and E2E
- * mocked's 1 plus Integration's 2 wait for the 1-runner Browser stack contract.
+ * keyed by those jobs: Sonar's 1 waits for the 3 Unit tests legs.
  */
-const LATE_EXTRA = { 'unit-tests': 0, 'browser-stack': 2 };
+const LATE_EXTRA = { 'unit-tests': 0 };
 
 /** The `pr.yml` jobs that open and close the level-1 stage, one runner each. */
 const STAGE_RUNNERS = { [ROOT_JOB_KEY]: 1, [VALIDATE_JOB_KEY]: 1 };

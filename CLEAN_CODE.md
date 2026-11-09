@@ -254,7 +254,7 @@ git commit
   → Phase 1: prettier --write on staged src/ files, then re-stage
   → Phase 2: every gate in parallel, cached per staged tree
     (cache off while unstaged changes exist):
-      tsc, eslint:pipeline, biome, audit, lint:phases:strict,
+      tsc, eslint:pipeline, biome, audit,
       build (npm run lint + tsup + public-surface), canaries,
       dead-code, cycles, guideline-coverage, syntax-guardrails,
       test-duplication, bank-coverage, fixtures-pii, pii-staged,

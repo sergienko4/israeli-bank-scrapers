@@ -166,26 +166,6 @@ const INTENTIONAL_ESCAPES = {
     patterns: ['E2eMocked/', 'E2eReal/', 'src/Tests/E2e\\.test\\.ts$'],
     why: 'same scope as the bare entry point, with coverage — run only where live-bank credentials are expected',
   },
-  'test:integration': {
-    patterns: ['Tests/Integration/'],
-    why: 'runs the integration suites serially — escaping that exclusion is the point',
-  },
-  'test:integration:mode-a': {
-    patterns: ['Tests/Integration/'],
-    why: 'mode-A slice of the serial integration run',
-  },
-  'test:integration:mode-a:bank': {
-    patterns: ['Tests/Integration/'],
-    why: 'per-bank mode-A slice of the serial integration run',
-  },
-  'test:integration:mode-b': {
-    patterns: ['Tests/Integration/'],
-    why: 'mode-B slice of the serial integration run',
-  },
-  'test:integration:mode-b:bank': {
-    patterns: ['Tests/Integration/'],
-    why: 'per-bank mode-B slice of the serial integration run',
-  },
   'test:e2e:full': {
     patterns: ['E2eFull/'],
     why: 'the full-journey E2E suite the gated run hides from every other script',

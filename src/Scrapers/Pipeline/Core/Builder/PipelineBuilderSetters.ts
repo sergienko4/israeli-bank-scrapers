@@ -4,12 +4,10 @@
  */
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
-import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IApiDirectScrapeShape } from '../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Brand } from '../../Types/Brand.js';
-import type { LoginFn } from './PipelineAssembly.js';
-import type { IBuilderFields, ScrapeFn } from './PipelineBuilderValidation.js';
+import type { IBuilderFields } from './PipelineBuilderValidation.js';
 
 /** Bank-supplied shape literal — variance erased at the builder boundary. */
 type AnyApiDirectScrapeShape = IApiDirectScrapeShape<unknown, unknown>;
@@ -17,35 +15,21 @@ type AnyApiDirectScrapeShape = IApiDirectScrapeShape<unknown, unknown>;
 /** Setter outcome — true after applying state mutation. */
 type DidSet = Brand<boolean, 'BuilderDidSet'>;
 
-type LoginMode = 'none' | 'declarative' | 'apiDirectConfig';
+type LoginMode = 'none' | 'apiDirectConfig';
 
 /** Mutable builder state operated on by setter functions. */
 interface IBuilderState {
   options: ScraperOptions | false;
-  hasBrowser: boolean;
   isHeadless: boolean;
   loginMode: LoginMode;
   error: string;
-  loginConfig: ILoginConfig | false;
-  loginFn: LoginFn | false;
-  hasOtpFill: boolean;
-  otpFillRequired: boolean;
-  hasOtpTrigger: boolean;
-  scrapeFn: ScrapeFn | false;
   apiDirectScrape: AnyApiDirectScrapeShape | false;
   apiDirectConfig: IApiDirectCallConfig | false;
 }
 
 /** Default values for an empty builder state — split to keep the factory ≤ 15 LOC. */
 const EMPTY_STATE_DEFAULTS: Omit<IBuilderState, 'options' | 'loginMode' | 'error'> = {
-  hasBrowser: false,
   isHeadless: false,
-  loginConfig: false,
-  loginFn: false,
-  hasOtpFill: false,
-  otpFillRequired: true,
-  hasOtpTrigger: false,
-  scrapeFn: false,
   apiDirectScrape: false,
   apiDirectConfig: false,
 };
@@ -72,23 +56,6 @@ function assertNoLoginMode(state: IBuilderState): DidSet {
 }
 
 /**
- * Set declarative login mode from config or function.
- * @param state - Mutable builder state.
- * @param configOrFn - ILoginConfig or login function.
- * @returns True after setting.
- */
-function setDeclarativeLogin(state: IBuilderState, configOrFn: ILoginConfig | LoginFn): DidSet {
-  assertNoLoginMode(state);
-  state.loginMode = 'declarative';
-  if (typeof configOrFn === 'function') {
-    state.loginFn = configOrFn;
-    return true as DidSet;
-  }
-  state.loginConfig = configOrFn;
-  return true as DidSet;
-}
-
-/**
  * Set the API-DIRECT-CALL config literal on builder state. Banks
  * declare their login as data via withApiDirect; this setter
  * is the only path into api-direct-call mode after the plugin port
@@ -107,8 +74,7 @@ function setApiDirectConfig(state: IBuilderState, config: IApiDirectCallConfig):
 /**
  * Set the API-DIRECT-SCRAPE shape literal on builder state. Banks
  * supply pure data (customer + balance + transactions step shapes);
- * the new ApiDirectScrape phase consumes the literal at runtime.
- * Replaces the legacy `withScraper(fn)` path for API-direct banks.
+ * the ApiDirectScrape phase consumes the literal at runtime.
  * @param state - Mutable builder state.
  * @param shape - Bank IApiDirectScrapeShape literal.
  * @returns True after setting.
@@ -149,6 +115,5 @@ export {
   createEmptyState,
   setApiDirectConfig,
   setApiDirectScrape,
-  setDeclarativeLogin,
   snapshotFields,
 };

@@ -46,7 +46,7 @@ describe('resolveApiMediator — resolver behaviour', () => {
 
   it('returns fail with Generic error when slot is absent', () => {
     const base = makeMockContext();
-    const ctx: IPipelineContext = { ...base, mediator: none() };
+    const ctx: IPipelineContext = { ...base, apiMediator: none() };
     const result = resolveApiMediator(ctx, 'TestLabel');
     expect(result.success).toBe(false);
     if (!result.success) {

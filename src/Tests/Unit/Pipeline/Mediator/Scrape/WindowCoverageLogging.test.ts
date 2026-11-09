@@ -13,7 +13,6 @@ const LOG = {
 };
 
 jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Logging/Debug.js', async () => ({
-  ...(await import('../../../../../Scrapers/Pipeline/Types/MockTiming.js')),
   ...(await import('../../../../../Scrapers/Pipeline/Logging/BankContext.js')),
   /**
    * Supply the shared logger to the module under test.

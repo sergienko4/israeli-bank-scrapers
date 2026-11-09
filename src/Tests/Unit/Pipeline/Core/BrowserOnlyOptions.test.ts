@@ -216,7 +216,7 @@ function buildDescriptor(companyId: CompanyTypes): IPipelineDescriptor | false {
 
 /**
  * Decide from the wiring alone whether a bank's run opens no browser: the
- * descriptor is headless, has no INIT (browser launch) phase, and its headless
+ * descriptor is headless and its headless
  * block selects a transport that needs no browser.
  * @param companyId - Registry key.
  * @returns True when nothing on the run could read a browser option.
@@ -224,7 +224,6 @@ function buildDescriptor(companyId: CompanyTypes): IPipelineDescriptor | false {
 function runsWithoutBrowser(companyId: CompanyTypes): boolean {
   const descriptor = buildDescriptor(companyId);
   if (descriptor === false || descriptor.isHeadless !== true) return false;
-  if (descriptor.phases.some((phase): boolean => phase.name === 'init')) return false;
   const kind = resolveHeadlessTransportKind(companyId);
   return kind !== false && BROWSERLESS_KINDS.includes(kind);
 }

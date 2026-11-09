@@ -20,7 +20,6 @@ import type {
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { literalUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
-import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
@@ -154,7 +153,7 @@ async function scrapeOver(
   bus: IApiMediator,
   shape = BOOT_SHAPE,
 ): Promise<Procedure<ApiDirectScrapeResult>> {
-  const ctx = makeMockContext({ apiMediator: some(bus) }) as unknown as IActionContext;
+  const ctx = makeMockContext({ apiMediator: some(bus) });
   const phase = createApiDirectScrapePhase(shape);
   return phase(ctx);
 }

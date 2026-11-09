@@ -1,25 +1,26 @@
 /**
  * Static checks job.
  *
- * <p>`Static checks` in `pr.yml` holds the lint and type steps plus four short
- * repository gates that used to be jobs of their own: Scorecard npm pins, bank
- * integration coverage, decoupling and docs staleness. The four run as
+ * <p>`Static checks` in `pr.yml` holds the lint and type steps plus three short
+ * repository gates that used to be jobs of their own: Scorecard npm pins,
+ * decoupling and docs staleness. The three run as
  * `background` steps beside the lint steps, and a closing `wait-all` fails
- * the job when any of them failed. One job instead of five keeps a push
+ * the job when any of them failed. One job instead of four keeps a push
  * inside the account's concurrent-job limit.
  *
  * <p>The background steps share the job's working tree with the foreground
  * steps, so each was checked to write nothing another step reads: Scorecard
  * scans a `git archive` copy in a temp directory, decoupling writes its
- * ignored snapshots and a sibling `../base` worktree, and the other two only
- * read. That review holds for this set only, so the set is pinned here, and
+ * ignored snapshots and a sibling `../base` worktree, and docs staleness only
+ * reads. That review holds for this set only, so the set is pinned here, and
  * adding a background step means repeating it. Decoupling must never share a
  * job with the build, whose guardrails hash `lib/`, or with the memory gate,
  * which adds the same `../base` worktree.
  *
  * <p>Scorecard and docs staleness have their own suites
- * (`ScorecardNpmPinGate`, `DocsStalenessGate`); this one pins the two moved
- * gates that had none, the background set, and the decoupling composite.
+ * (`ScorecardNpmPinGate`, `DocsStalenessGate`); this one pins the moved
+ * decoupling gate that had none, the background set, and the decoupling
+ * composite.
  *
  * <p>It also pins how the foreground gates keep going after one fails. A
  * `ready` step closes setup; every gate after it runs under
@@ -57,15 +58,6 @@ const FULL_SUITE = "needs.changes.outputs.full_suite == 'true'";
 const METRICS = "needs.changes.outputs.metrics == 'true'";
 const CI_SCRIPTS = "needs.changes.outputs.ci_scripts == 'true'";
 
-/** The bank integration coverage gate, pinned whole. */
-const BANK_STEP = {
-  name: 'Bank integration coverage gate',
-  if: FULL_SUITE,
-  background: true,
-  'timeout-minutes': 5,
-  run: 'npm run lint:bank-coverage',
-};
-
 /** The decoupling gate, pinned whole; its threshold reaches the composite as step env. */
 const DECOUPLING_STEP = {
   name: 'Decoupling',
@@ -79,7 +71,6 @@ const DECOUPLING_STEP = {
 /** The background steps, in order. Adding one means reviewing it for shared writes. */
 const BACKGROUND_STEP_NAMES = [
   'npm commands are pinned as Scorecard reads them',
-  BANK_STEP.name,
   DECOUPLING_STEP.name,
   'Docs staleness canary',
 ];
@@ -336,10 +327,8 @@ function runsIn(step: IStep, context: IGhaContext): boolean {
 const GATE_ROWS = gates().map(step => [step.name ?? step.uses ?? '?', step] as const);
 
 describe('Static checks job', () => {
-  it('[SCJ-1] runs the moved bank coverage and decoupling gates unchanged', () => {
-    const bank = stepNamed(BANK_STEP.name);
+  it('[SCJ-1] runs the moved decoupling gate unchanged', () => {
     const decoupling = stepNamed(DECOUPLING_STEP.name);
-    expect(bank).toStrictEqual(BANK_STEP);
     expect(decoupling).toStrictEqual(DECOUPLING_STEP);
   });
 
@@ -354,7 +343,7 @@ describe('Static checks job', () => {
     expect(last).toStrictEqual(WAIT_ALL_STEP);
   });
 
-  it.each([BANK_STEP.name, DECOUPLING_STEP.name])(
+  it.each([DECOUPLING_STEP.name])(
     '[SCJ-3] installs dependencies before, and whenever, %s runs',
     name => {
       const all = steps();

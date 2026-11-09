@@ -6,11 +6,8 @@
 #   bash docker/run-banks.sh Beinleumi           # single bank
 #   bash docker/run-banks.sh Beinleumi Hapoalim  # specific subset
 #
-# Each bank runs in its OWN container, sidestepping Camoufox upstream
-# bug #386 ("instances interfere with each other") that constrains
-# host-Camoufox to sequential mode (see scripts/run-real-suite.ts +
-# telegram-m5-and-final-cleanup/origin-plan-work/post-m4-cleanup-and-m5-unblock/status.txt
-# §"Camoufox parallel-launch limitation").
+# Each bank runs in its OWN container, so the banks can run in parallel
+# without sharing a process space or a resolver.
 #
 # Pre-requisites:
 #   - Image built: docker build -f docker/Dockerfile.ci-mirror -t isbs-ci:latest .
@@ -107,9 +104,7 @@ fi
 # infra and MUST NEVER overlap. The group map collapses both into
 # one sequential worker; other banks each get a singleton group.
 # Across groups, parallelism is safe because every container has
-# its own Camoufox process space (the upstream bug #386 that
-# constrains the host scripts/run-real-suite.ts to sequential mode
-# does NOT apply once each instance is in a separate container).
+# its own process space.
 declare -A BANK_TO_GROUP
 BANK_TO_GROUP[Amex]=isracard-pair
 BANK_TO_GROUP[Isracard]=isracard-pair
@@ -158,7 +153,7 @@ run_one_bank() {
     # tree, which would otherwise shadow the Linux `node_modules` the
     # image baked via `npm ci`. On a Windows host that substitutes
     # win32-x64 native binaries (`@unrs/resolver-binding-win32-x64-msvc`,
-    # playwright/camoufox `.node` addons) into a Linux container, and
+    # other `.node` addons) into a Linux container, and
     # every bank then fails identically with
     # `GENERIC Cannot read properties of undefined (reading 'has')` —
     # an environment artifact that masks the real per-bank result.

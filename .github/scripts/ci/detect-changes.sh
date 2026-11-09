@@ -186,18 +186,11 @@ has() {
 # Two independent signals feed `critical_deps`:
 #
 #   1. A pinning FILE moved: the script that applies our playwright-core
-#      patch, the composite action that installs the Camoufox browser
-#      build, `browser-stack.json` (the single source of the pinned
-#      Camoufox tag and the tested playwright-core minor), or the
-#      browser-stack gate tooling that validates it
-#      (`scripts/check-browser-stack.mjs`, `scripts/browser-stack/`).
-#      None is under `src/`, and `.github/actions/**` is not covered by
-#      `ci_scripts` either — so they used to be invisible to this
-#      detector. The gate tooling is listed for the same self-testing
-#      reason `metrics` exists: editing the gate must run the gate. The
-#      patch signal was `^patches/` until the `patch-package` overlay was
-#      replaced by the dependency-free `scripts/patch-playwright-core.mjs`,
-#      which now carries the same guard for consumers as well as CI.
+#      patch. It is not under `src/`, so it used to be invisible to this
+#      detector. The patch signal was `^patches/` until the `patch-package`
+#      overlay was replaced by the dependency-free
+#      `scripts/patch-playwright-core.mjs`, which now carries the same guard
+#      for consumers as well as CI.
 #   2. The declared range or the resolved version of a critical package
 #      actually MOVED between base and HEAD.
 #
@@ -209,9 +202,7 @@ has() {
 # "camoufox" without the browser stack having moved at all. Both fired as
 # false positives in testing, which would have degraded `critical_deps`
 # into a second, noisier copy of `deps`.
-CRITICAL_DEP_PATHS='^scripts/patch-playwright-core\.mjs|^\.github/actions/install-camoufox/'
-CRITICAL_DEP_PATHS="${CRITICAL_DEP_PATHS}|^browser-stack\.json$"
-CRITICAL_DEP_PATHS="${CRITICAL_DEP_PATHS}|^scripts/check-browser-stack\.mjs$|^scripts/browser-stack/"
+CRITICAL_DEP_PATHS='^scripts/patch-playwright-core\.mjs'
 CRITICAL_PACKAGES=('playwright-core' '@hieutran094/camoufox-js')
 
 # Declared range from package.json, e.g. `"playwright-core": "^1.62.1"`.

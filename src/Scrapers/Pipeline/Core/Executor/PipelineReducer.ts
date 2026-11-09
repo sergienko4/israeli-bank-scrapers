@@ -1,65 +1,55 @@
-/** Pipeline phase reducer — split from PipelineExecutor to keep files under 150 lines. */
-
-import { setTimeout as setTimeoutPromise } from 'node:timers/promises';
+/** Pipeline phase reducer — runs phases in order and short-circuits on the first failure. */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { INIT_ERROR_DOCUMENT_CODE } from '../../Mediator/Init/LandingDocumentConfig.js';
-import { PHASE_SETTLE_MS } from '../../Mediator/Timing/SharedTimingConstants.js';
+import type { BasePhase } from '../../Phases/Base/BasePhase.js';
 import { setActivePhase, setActiveStage } from '../../Types/ActiveState.js';
-import { AUTH_DISCOVERY_NOT_READY_CODE } from '../../Types/Domain/AuthDiscoveryTypes.js';
-import { LOGIN_NOT_COMPLETED_CODE } from '../../Types/Domain/LoginTypes.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
-import type { PhaseName } from '../../Types/Phase.js';
+import type PhaseName from '../../Types/Phase.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { buildPhaseIndex, traceResult, traceStart } from '../PipelineTraceService.js';
-import type { IContextTracker } from './PipelineMiddleware.js';
-import resolvePhaseSettlePolicy from './PipelinePhaseSettlePolicy.js';
-import { type IPhaseStep, sanitizationPulse } from './PipelineSanitizationPulse.js';
+
+/** Mutable state for phase reduction. */
+export interface IContextTracker {
+  readonly phases: readonly BasePhase[];
+  lastCtx: IPipelineContext;
+}
+
+/** Phase step metadata for tracing. */
+interface IPhaseStep {
+  readonly name: PhaseName;
+  readonly tag: string;
+  readonly index: number;
+}
 
 /**
- * Phases that MUST NOT be retried by the sanitization pulse because
- * re-running them has real-world side-effects (e.g. api-direct-call
- * fires a fresh SMS OTP on every retry). Browser phases can be safely
- * retried; API-only phases cannot.
- */
-const NO_RETRY_PHASES: ReadonlySet<PhaseName> = new Set([
-  'api-direct-call',
-  'api-direct-scrape',
-] as const);
-
-/**
- * Run one phase with interceptors.
+ * Run one phase, remembering the context it started from so the executor can
+ * dispose resources the context owns even when the phase throws.
  * @param tracker - Context tracker.
  * @param ctx - Current context.
  * @param index - Phase index.
  * @returns Phase result Procedure.
  */
-async function runPhase(
+function runPhase(
   tracker: IContextTracker,
   ctx: IPipelineContext,
   index: number,
 ): Promise<Procedure<IPipelineContext>> {
-  const { applyInterceptors } = await import('./PipelineMiddleware.js');
-  const nextPhase = tracker.phases[index].name;
-  const intercepted = await applyInterceptors(tracker, ctx, nextPhase);
-  if (!isOk(intercepted)) return intercepted;
-  tracker.lastCtx = intercepted.value;
-  return tracker.phases[index].run(intercepted.value);
+  tracker.lastCtx = ctx;
+  return tracker.phases[index].run(ctx);
 }
 
 /**
  * Prime ActiveState and emit trace START before phase executes.
- * @param name - Phase name.
- * @param indexTag - Phase index tag.
+ * @param step - Phase step metadata.
  * @param logger - Pipeline logger.
  * @returns True after priming.
  */
-function primePhaseState(name: string, indexTag: string, logger: IPipelineContext['logger']): true {
-  setActivePhase(name);
+function primePhaseState(step: IPhaseStep, logger: IPipelineContext['logger']): true {
+  setActivePhase(step.name);
   setActiveStage('PRE');
-  traceStart(logger, name, indexTag);
+  traceStart(logger, step.name, step.tag);
   return true;
 }
 
@@ -76,142 +66,21 @@ function buildStep(tracker: IContextTracker, index: number): IPhaseStep {
 }
 
 /**
- * Browser phase settle — give the bank's SPA a fixed window to settle
- * (analytics, deferred hydration, cross-origin pixels) and to give
- * the page's anti-bot JS time to observe a "human-paused-on-page"
- * interval before our next interaction. Native and node-TLS transports
- * skip this browser-only wait. Browser-capable pipelines fire it TWICE
- * per phase: once before phase.PRE work begins (`when='pre'`), once
- * after phase.FINAL completes (`when='final'`). FINAL settle is skipped
- * for the terminal phase so pipeline completion is not delayed.
- *
- * <p>The timer is ref'd. An unref'd timer tells Node it may exit without
- * waiting, which is a contradiction for a wait the pipeline then awaits:
- * with no browser or socket left to hold the loop open, Node exits mid-run
- * and the scrape is abandoned with no result and no error (issue #552).
- *
- * @param ctx - Active pipeline context (used for structured trace).
- * @param step - The phase step entering or just-finished.
- * @param when - 'pre' (before phase work) or 'final' (after phase work).
- * @returns True after the settle resolves.
- */
-async function phaseSettle(
-  ctx: IPipelineContext,
-  step: IPhaseStep,
-  when: 'pre' | 'final',
-): Promise<true> {
-  if (!resolvePhaseSettlePolicy(ctx).wait) return true;
-  ctx.logger.debug({
-    phase: step.name,
-    event: 'phase-settle',
-    when,
-    elapsedMs: String(PHASE_SETTLE_MS),
-  });
-  await setTimeoutPromise(PHASE_SETTLE_MS);
-  return true as const;
-}
-
-/**
- * Trace success and continue to next phase. The FINAL-side phase
- * settle is invoked from reducePhases (one call site) so the wait
- * does NOT run on sanitization-pulse retry paths.
- * @param tracker - Context tracker.
- * @param ctx - Successful context.
+ * Trace the phase outcome.
+ * @param ctx - Context carrying the logger.
  * @param step - Phase step metadata.
- * @returns Next phase reduction.
+ * @param isSuccess - Whether the phase succeeded.
+ * @returns True after tracing.
  */
-function traceAndContinue(
-  tracker: IContextTracker,
-  ctx: IPipelineContext,
-  step: IPhaseStep,
-): Promise<Procedure<IPipelineContext>> {
-  traceResult({ logger: ctx.logger, name: step.name, indexTag: step.tag, isSuccess: true });
-  return reducePhases(tracker, ctx, step.index + 1);
-}
-
-/** Args bundle for handlePhaseFailure (keeps parameter count within budget). */
-interface IFailureArgs {
-  readonly tracker: IContextTracker;
-  readonly ctx: IPipelineContext;
-  readonly step: IPhaseStep;
-  readonly result: Procedure<IPipelineContext>;
+function traceOutcome(ctx: IPipelineContext, step: IPhaseStep, isSuccess: boolean): true {
+  traceResult({ logger: ctx.logger, name: step.name, indexTag: step.tag, isSuccess });
+  return true;
 }
 
 /**
- * Decide whether a failed phase must skip the sanitization-pulse retry.
- *
- * <p>Three non-retryable cases: (1) the side-effecting NO_RETRY phases —
- * re-running them fires real-world side-effects (e.g. api-direct-call
- * sends a fresh SMS OTP on every retry); (2) AUTH-DISCOVERY's honest
- * dashboard-not-ready failure — the page is stuck on login, so a retry
- * only re-reads the same still-login page; (3) INIT's error-document
- * failure — the edge served its own error page, which the evidence says
- * clears in minutes rather than seconds, and re-running INIT re-enters
- * the non-idempotent browser launch while the tracker's last context
- * predates the phase and so cannot dispose what the retry creates.
- * One try is enough in each. Other browser failures (incl.
- * AUTH_DISCOVERY_SESSION_INVALID) stay retryable so a transient WAF
- * challenge can clear on the pulse.
- * @param step - The failed phase step.
- * @param result - The failed phase result (carries the fail code).
- * @returns True when the phase must not be retried.
- */
-function isNonRetryable(step: IPhaseStep, result: Procedure<IPipelineContext>): boolean {
-  if (NO_RETRY_PHASES.has(step.name)) return true;
-  if (isOk(result)) return false;
-  if (step.name === 'login' && result.errorMessage.includes(LOGIN_NOT_COMPLETED_CODE)) return true;
-  if (step.name === 'init' && result.errorMessage.includes(INIT_ERROR_DOCUMENT_CODE)) return true;
-  return (
-    step.name === 'auth-discovery' && result.errorMessage.includes(AUTH_DISCOVERY_NOT_READY_CODE)
-  );
-}
-
-/**
- * Handle phase failure: respect the bank policy and NO_RETRY list or attempt
- * a sanitization pulse.
- * @param args - Tracker + ctx + step + failed result bundle.
- * @returns Either recovered continuation or original failure.
- */
-async function handlePhaseFailure(args: IFailureArgs): Promise<Procedure<IPipelineContext>> {
-  const { tracker, ctx, step, result } = args;
-  if (ctx.config.disablePhaseRetry === true || isNonRetryable(step, result)) {
-    traceResult({ logger: ctx.logger, name: step.name, indexTag: step.tag, isSuccess: false });
-    return result;
-  }
-  const recovered = await sanitizationPulse({ tracker, ctx, step });
-  if (recovered !== false) return traceAndContinue(tracker, recovered, step);
-  traceResult({ logger: ctx.logger, name: step.name, indexTag: step.tag, isSuccess: false });
-  return result;
-}
-
-/**
- * Apply the FINAL-side phase settle (skipped on terminal phase) then
- * continue to the next phase via traceAndContinue. Extracted from
- * reducePhases to respect the 15-line ceiling + 1-level nesting rule.
- * @param tracker - Context tracker.
- * @param ctx - Recovered/successful context.
- * @param step - Phase step metadata (carries phase index + total).
- * @returns Next phase reduction.
- */
-async function settleAndContinue(
-  tracker: IContextTracker,
-  ctx: IPipelineContext,
-  step: IPhaseStep,
-): Promise<Procedure<IPipelineContext>> {
-  const hasNext = step.index + 1 < tracker.phases.length;
-  if (hasNext) await phaseSettle(ctx, step, 'final');
-  return traceAndContinue(tracker, ctx, step);
-}
-
-/**
- * Reduce phases sequentially with trace + sanitization pulse on failure.
- * Bracketed by `phaseSettle` at PRE and FINAL: 4 s settle BEFORE
- * each phase's PRE work begins (so the bank's anti-bot JS sees a
- * "human paused on the page" interval before we touch anything) and
- * 4 s AFTER each phase's FINAL work succeeds (so the page can
- * complete post-action settle before the next phase's PRE settle).
- * Terminal-phase FINAL settle is skipped to avoid delaying exit;
- * sanitization-pulse retries skip BOTH settles to avoid double-penalty.
+ * Reduce phases sequentially with trace. A failed phase is returned as-is:
+ * both phases have real-world side effects (api-direct-call sends a fresh
+ * SMS OTP), so none is ever re-run.
  * @param tracker - Context tracker.
  * @param ctx - Current context.
  * @param index - Current phase index.
@@ -224,11 +93,12 @@ async function reducePhases(
 ): Promise<Procedure<IPipelineContext>> {
   if (index >= tracker.phases.length) return succeed(ctx);
   const step = buildStep(tracker, index);
-  primePhaseState(step.name, step.tag, ctx.logger);
-  await phaseSettle(ctx, step, 'pre');
+  primePhaseState(step, ctx.logger);
   const result = await runPhase(tracker, ctx, index);
-  if (isOk(result)) return settleAndContinue(tracker, result.value, step);
-  return handlePhaseFailure({ tracker, ctx, step, result });
+  const isSuccess = isOk(result);
+  traceOutcome(ctx, step, isSuccess);
+  if (!isOk(result)) return result;
+  return reducePhases(tracker, result.value, index + 1);
 }
 
 /**

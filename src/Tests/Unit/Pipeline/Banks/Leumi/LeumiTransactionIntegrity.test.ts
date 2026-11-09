@@ -38,7 +38,6 @@ function transactionContext(row: object): IActionContext {
   return {
     ...base,
     options: { ...base.options, startDate: new Date('2026-03-01T00:00:00Z') },
-    executor: none(),
     windowEnd: none(),
   };
 }

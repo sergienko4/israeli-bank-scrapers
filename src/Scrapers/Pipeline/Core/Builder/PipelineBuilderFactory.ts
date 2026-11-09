@@ -1,6 +1,6 @@
 /** Factory helper for PipelineBuilder — split from PipelineBuilder.ts to keep file under 150 lines. */
 
-import { PipelineBuilder } from './PipelineBuilder.js';
+import PipelineBuilder from './PipelineBuilder.js';
 
 /**
  * Factory: create a new PipelineBuilder.

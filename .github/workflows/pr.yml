@@ -137,8 +137,7 @@ jobs:
       # checker-only edit disarms the guard without touching `src/`.
       syntax_guardrails: ${{ steps.changes.outputs.syntax_guardrails }}
       # `full_suite` = src OR critical_deps. Every heavy job gates on THIS,
-      # so a playwright-core / Camoufox bump runs the same flow a src/ PR
-      # does — those packages are the runtime for all 17 banks.
+      # so a runtime-dependency bump runs the same flow a src/ PR does.
       full_suite: ${{ steps.changes.outputs.full_suite }}
       # Single-source-of-truth booleans for downstream `if:` conditions.
       # `trusted_event` — true unless this is a PR from a fork (untrusted secrets).
@@ -283,12 +282,6 @@ jobs:
         background: true
         timeout-minutes: 10
         run: /bin/bash .github/scripts/ci/scorecard-npm-pins.sh
-      # Bank integration coverage gate — fast structural lint.
-      - name: Bank integration coverage gate
-        if: needs.changes.outputs.full_suite == 'true'
-        background: true
-        timeout-minutes: 5
-        run: npm run lint:bank-coverage
       # Decoupling regression — see .github/actions/decoupling-gate.
       # `metrics` and `ci_scripts` are included so a change to the measuring
       # tool or to this gate always exercises it. Without them the thing that
@@ -311,7 +304,7 @@ jobs:
         run: bash .github/scripts/ci/docs-staleness.sh
 
       # `deps` is here, not just `full_suite`, because a lint-rule bump lands
-      # as `deps` alone — `critical_deps` covers only the browser stack, so
+      # as `deps` alone — `critical_deps` covers only the pinned runtime packages, so
       # `full_suite` stays false. `typescript-eslint` 8.70.0 (#573) merged
       # green that way and added `no-generated-empty-object-type`, which fires
       # on existing `src/` code; the next unrelated PR ate the failure. The
@@ -592,8 +585,7 @@ jobs:
 
   # ──────────────────────────────────────────────────────────────
   # Unit tests (coverage on the floor leg only) — parallel with the e2e
-  # and integration jobs. Camoufox is NOT needed here
-  # (jest.pipeline.config.cjs excludes the browser-driven suites).
+  # jobs.
   #
   # Also runs when only `deps` or `test_config` changed. A test-time
   # dependency bump (`@jest/globals`, `@types/*`) or a Jest config edit
@@ -639,7 +631,6 @@ jobs:
           persist-credentials: false
       - uses: $/.github/actions/setup-test-runner
         with:
-          camoufox: 'false'
           node-version: ${{ matrix.node }}
       # Coverage runs on the build-pin leg only: every leg runs the same suite, so
       # the other legs' copies add nothing and cost about a third of their
@@ -712,17 +703,10 @@ jobs:
           # commit has to be present locally rather than just the tip.
           fetch-depth: 0
           persist-credentials: false
-      # Camoufox only when the E2E factory tests run. Consumer install then
-      # runs with it on disk; its scrape still fails at the unbuilt
-      # better-sqlite3 binding, so its verdict is unchanged.
       - uses: $/.github/actions/setup-test-runner
-        with:
-          camoufox: ${{ (needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true') && 'true' || 'false' }}
-          gh-token: ${{ (needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true') && secrets.GITHUB_TOKEN || '' }}
-      # E2E factory tests — independent of Mode A / Mode B / e2e-mocked.
+      # E2E factory tests — independent of e2e-mocked.
       # Also runs on dependency-only PRs (`deps`) so runtime-dep bumps that
-      # touch no `src/` file are still validated against the real Camoufox
-      # browser launch. See detect-changes.sh `deps` output.
+      # touch no `src/` file are still validated. See detect-changes.sh `deps`.
       - name: E2E factory tests
         if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
         background: true
@@ -880,80 +864,16 @@ jobs:
         run: bash .github/scripts/ci/memory-compare.sh
 
   # ──────────────────────────────────────────────────────────────
-  # Browser stack contract — fails a browser-stack change before E2E
-  # mocked and the Integration shards spend a runner each on a
-  # Camoufox build that cannot drive this playwright-core.
-  #
-  # Two checks, both on a scripts-free install (the `postinstall`
-  # patcher would swallow its own failure):
-  #   1. `patch-playwright-core.mjs --strict` — every patch anchor
-  #      still matches the resolved playwright-core.
-  #   2. `npm run lint:browser-stack` — the Juggler protocol that
-  #      playwright-core speaks matches the pinned Camoufox tag's,
-  #      apart from the deltas `browser-stack.json` accepts.
-  #
-  # Step-gated, not job-gated: the job always runs after `changes`
-  # and its steps run only when `critical_deps` is true. Without a
-  # browser-stack change it succeeds as a no-op, so E2E mocked and
-  # Integration (which need it) keep their own `if:` unchanged; when
-  # the contract fails, both are skipped and Validate fails.
-  #
-  # Pinned by BrowserStackGateWiring.test.ts [BSW-1..BSW-7].
-  # ──────────────────────────────────────────────────────────────
-  browser-stack:
-    name: Browser stack contract
-    needs: changes
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: needs.changes.outputs.critical_deps == 'true'
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
-        if: needs.changes.outputs.critical_deps == 'true'
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - name: Install without lifecycle scripts
-        if: needs.changes.outputs.critical_deps == 'true'
-        run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Patch anchors match playwright-core
-        if: needs.changes.outputs.critical_deps == 'true'
-        run: node scripts/patch-playwright-core.mjs --strict
-      - name: Juggler protocol matches the pinned Camoufox
-        if: needs.changes.outputs.critical_deps == 'true'
-        run: npm run lint:browser-stack
-
-  # ──────────────────────────────────────────────────────────────
-  # E2E mocked tests — flake-prone under high worker counts; the
-  # package.json `test:e2e:mock` script pins `--maxWorkers=2` to
-  # avoid CPU-contention timeouts documented in the husky pre-commit
-  # cycle (PRs #331+ cycle-4 cache-marker workaround).
-  # Also runs on dependency-only PRs (`deps`): this is the gate that
-  # exercises `browser.newContext` against the pinned Camoufox build,
-  # so a playwright-core bump can no longer land UNvalidated (the
-  # 1.61.0 `setDefaultViewport` regression slipped onto main because a
-  # dependency-only PR skipped this job).
-  # Waits for the Browser stack contract: a broken stack skips it.
-  # Its first step runs the runtime contract alone (routing and
-  # multi-value headers through the real Camoufox), so a client/browser
-  # pair that breaks them fails with the invariant named before the
-  # full suite starts. `--runTestsByPath` selects the one file: an
-  # extra `--testPathPatterns` would be ORed with the script's own.
-  # 20 minutes: in one Linux container the Camoufox 156 build ran the
-  # suite 1.5x slower than 152 (363 s vs 240 s). The cache keeps only
-  # the asset, so each job's first launch also fetches uBlock Origin
-  # from addons.mozilla.org: 9-18 s in later runs, 113 s once. With
-  # that host unreachable every launch retries for ~25 s, and the suite
-  # still passed in 334 s. A cold cache also downloads a larger asset.
-  # That projects to ~6 minutes here, under a third of the limit.
+  # E2E mocked tests — every bank's full API-direct flow against recorded
+  # HTTP fixtures. No browser is launched. The package.json `test:e2e:mock`
+  # script pins `--maxWorkers=2` to avoid CPU-contention timeouts
+  # documented in the husky pre-commit cycle.
+  # Also runs on dependency-only PRs (`deps`) so a runtime-dependency bump
+  # can no longer land unvalidated.
   # ──────────────────────────────────────────────────────────────
   e2e-mocked:
     name: E2E mocked
-    needs: [changes, browser-stack]
+    needs: changes
     if: needs.changes.outputs.full_suite == 'true' || needs.changes.outputs.deps == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -964,76 +884,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: $/.github/actions/setup-test-runner
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Browser stack runtime contract
-        run: npm run test:e2e:mock -- --ci --verbose --runTestsByPath src/Tests/E2eMocked/BrowserStackContract.e2e-mocked.test.ts
       - name: E2E mocked tests
         run: npm run test:e2e:mock -- --ci --verbose
-
-  # ──────────────────────────────────────────────────────────────
-  # Integration Mode A + Mode B — Static HTML drive + Mirror Origin
-  # (HARD GATE). Two Jest shards (`--shard=i/2`) → 2 runners.
-  #
-  # Why shards and not a per-bank matrix: the former 9-bank × 2-mode
-  # matrix took 18 of the Free plan's 20 concurrent-job slots, yet the
-  # bank filter narrowed only the two cross-bank loops — every per-bank
-  # `*.modeA` / `*.modeB` file still ran in all 9 cells of its mode, so
-  # one failing per-bank file red-blocked all 9. Jest splits the file
-  # list after path filtering, so the 2 shards run disjoint files whose
-  # union is exactly the unsharded suite.
-  #
-  # `INTEGRATION_BANK_FILTER` is left unset here, so the two cross-bank
-  # loops (LoginFormDiscovery.integration, Mirror/LoginNavigation.mirror)
-  # enumerate every bank in BANK_FIXTURE_EXPECTATIONS — including the
-  # five the old matrix never listed. As before, `requiresHydration`
-  # banks skip their drive case in both modes, and Mode B also skips
-  # banks listed in `.github/banks-pending-reharvest.txt`. The filter
-  # stays a local debugging knob.
-  #
-  # The `:bank` scripts pin the gate's file set; the non-bank scripts
-  # would also pick up any future `static` or `Mirror/` file. No
-  # `--passWithNoTests`: an empty shard must fail, not pass, so N never
-  # exceeds the smaller mode's file count (Mode B's).
-  #
-  # Mode B runs even when Mode A fails (not when setup failed), so one
-  # run reports both modes. A hang hits the job timeout instead, which
-  # cancels the whole shard and fails Validate. There are no step
-  # timeouts: a step kill can leave Camoufox children running while
-  # Mode B starts.
-  #
-  # Waits for the Browser stack contract: a broken stack skips it.
-  #
-  # Pinned by IntegrationShardGate.test.ts [ISG-1..ISG-13].
-  # ──────────────────────────────────────────────────────────────
-  integration:
-    name: Integration (shard ${{ matrix.shard }}/2)
-    needs: [changes, browser-stack]
-    if: needs.changes.outputs.full_suite == 'true'
-    runs-on: ubuntu-latest
-    # Hang guard for both modes back to back (three-shard jobs took
-    # 2–4 min including setup, so two stay well under it).
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Set up test runner
-        id: setup
-        uses: $/.github/actions/setup-test-runner
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Integration Mode A — shard ${{ matrix.shard }}/2
-        run: npm run test:integration:mode-a:bank -- --shard=${{ matrix.shard }}/2
-      - name: Integration Mode B — shard ${{ matrix.shard }}/2
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: npm run test:integration:mode-b:bank -- --shard=${{ matrix.shard }}/2
 
   # ──────────────────────────────────────────────────────────────
   # SonarCloud Scan — the required `SonarCloud Scan` context for PRs.
@@ -1167,9 +1019,7 @@ jobs:
       - portability-macos
       - unit-tests
       - package-factory
-      - browser-stack
       - e2e-mocked
-      - integration
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -1294,10 +1144,10 @@ jobs:
     needs: validate
     # Dependency-bot PRs (Dependabot, Renovate lockfile maintenance) SKIP
     # the real-bank gate prerequisites — the validate
-    # tier above (lint/types/unit/mocked/integration/build) is sufficient
+    # tier above (lint/types/unit/mocked/build) is sufficient
     # to gate a dependency bump. The real-bank E2E happy-path remains
     # optional (manual approval) on human-authored PRs only. To exercise
-    # the real gates for a browser-stack bump, re-raise it on a
+    # the real gates for a dependency bump, re-raise it on a
     # maintainer-owned branch: `full_suite` then unlocks them.
     # `real_gates_enabled` = trusted_event AND non-dependency-bot AND full_suite
     # (see .github/scripts/ci/compute-gate-booleans.sh for the predicate).
@@ -1869,9 +1719,6 @@ jobs:
       - name: Force reliable DNS for ${{ matrix.bank }}
         run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
       - uses: $/.github/actions/setup-node-deps
-      - uses: $/.github/actions/install-camoufox
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       # ── Warm-token cache: encrypted long-term OTP JWT persistence.
       # On the FIRST run for a branch (or after TOKEN_CACHE_KEY
@@ -2055,9 +1902,6 @@ jobs:
       - name: Force reliable DNS for ${{ matrix.bank }}
         run: bash .github/scripts/ci/dns-warmup.sh ${{ matrix.bank }}
       - uses: $/.github/actions/setup-node-deps
-      - uses: $/.github/actions/install-camoufox
-        with:
-          gh-token: ${{ secrets.GITHUB_TOKEN }}
       - run: npx ncp src/Tests/.tests-config.tpl.cjs src/Tests/.tests-config.cjs
       - name: E2E real (${{ matrix.bank }})
         env:

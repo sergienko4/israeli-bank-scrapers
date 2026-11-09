@@ -1832,13 +1832,7 @@ reports a failed step as `<step> HTTP <status>` when the bank answered, or as
 keeps `errorType` and `errorDetails`, except that a step's
 [`httpFailureMap`](#http-failure-map) may name the type for the reply's
 status, and leaves a `WAF_BLOCKED` failure as it is, since that message
-carries a fixed reason instead of the page. A failure raised before any
-request is sent, such as `CAMOUFOX_LAUNCH_FAILED` when the browser will not
-start, passes unchanged too: it holds no bank reply, and the consumer-install
-gate reads it. `isLocalFailureMessage`
-(`src/Scrapers/Pipeline/Strategy/Fetch/LocalFailureReasons.ts`) matches such a
-reason only at the start of the message, so a reply that quotes one is still
-cut down. The in-request re-mint runs below the step, so it still reads the
+carries a fixed reason instead of the page. The in-request re-mint runs below the step, so it still reads the
 original space-delimited `<status>:` marker. A scrape call keeps the
 transport message unless its shape sets `omitBankText`; the scrape phase then
 passes the failure through `sanitiseStepFailure` with only the call's name, so

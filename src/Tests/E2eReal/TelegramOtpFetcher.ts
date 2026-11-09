@@ -55,7 +55,7 @@
  */
 
 import type { ScraperLogger } from '../../Scrapers/Pipeline/Logging/Debug.js';
-import { humanDelay } from '../../Scrapers/Pipeline/Mediator/Timing/Waiting.js';
+import { humanDelay } from '../../Scrapers/Pipeline/Mediator/Timing/TimingActions.js';
 
 /** Bundled args — preserves the project's 3-param ceiling. */
 interface ITelegramFetchArgs {

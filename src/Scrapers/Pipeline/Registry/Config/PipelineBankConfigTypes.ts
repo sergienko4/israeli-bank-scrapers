@@ -200,12 +200,6 @@ export interface IPipelineBankConfig {
   readonly urls: {
     readonly base: string;
   };
-  /**
-   * Disable phase retries and HOME's crash reload, and submit login once
-   * through a single click. Absent preserves existing recovery behavior.
-   * This does not change observation polling or transport-level retries.
-   */
-  readonly disablePhaseRetry?: true;
   /** Fallback transaction API path — used when network discovery finds nothing. */
   readonly transactionsPath?: string;
   /** Headless-strategy URLs — populated for API-native banks (no browser). */

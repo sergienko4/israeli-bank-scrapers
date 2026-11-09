@@ -6,14 +6,12 @@
  * the per-file LOC ceiling is respected.
  *
  * Zero bank-name coupling per Rule #11. The bank's SHAPE config
- * is supplied by the PipelineBuilder via withApiDirect(CALL, SHAPE)
- * which wires this phase into the chain in place of the legacy
- * SCRAPE phase + custom action exec. The phase name
- * `api-direct-scrape` is registered in NO_RETRY_PHASES so the
- * sanitization pulse will not re-invoke real API calls on failure.
+ * is supplied by the PipelineBuilder via withApiDirect(CALL, SHAPE),
+ * which wires this phase in after the API-direct login phase. A failed
+ * scrape is never retried here, so real API calls are not re-invoked.
  */
 
-import { logForensicAudit } from '../../Mediator/Scrape/ForensicAuditAction.js';
+import logForensicAudit from '../../Mediator/Scrape/ForensicAuditAction.js';
 import { some } from '../../Types/Option.js';
 import type {
   IActionContext,
@@ -64,8 +62,7 @@ class ApiDirectScrapePhase extends BasePhase {
   /**
    * POST stage — emit the forensic-audit summary so the per-account
    * txn-count line lands in `pipeline.log` for every api-direct
-   * scrape, mirroring the legacy {@link ScrapePhase.post} hook, then
-   * run the shape's optional fail-closed {@link ResultGuardFn}.
+   * scrape, then run the shape's optional fail-closed {@link ResultGuardFn}.
    * Observability + guard only: no state mutation. When the shape
    * supplies no guard the stage always succeeds; when it does, a
    * degraded/empty scrape is converted into a loud typed failure
@@ -91,15 +88,8 @@ class ApiDirectScrapePhase extends BasePhase {
   /**
    * FINAL stage — emit `ctx.balanceResolution` directly from the
    * per-account balances the bank's IApiDirectScrapeShape already
-   * populated on `scrape.accounts[i].balance`. PipelineResult then
-   * reads a single source (balanceResolution) regardless of which
-   * scrape path ran (BALANCE-RESOLVE vs api-direct).
-   *
-   * <p>v6 single-source contract: every browser bank's
-   * BALANCE-RESOLVE.final emits balanceResolution; every api-direct
-   * bank's api-direct-scrape.final does the same here, so the
-   * result-builder reads one field unconditionally (no legacy
-   * fallback needed once both paths are wired).
+   * populated on `scrape.accounts[i].balance`. PipelineResult reads
+   * the single balanceResolution source.
    *
    * @param _ctx - Unused incoming context.
    * @param input - Pipeline context after .post.
@@ -172,8 +162,8 @@ function emitBalanceResolutionFromScrape(input: IPipelineContext): Procedure<IPi
  * Build the per-account balance map from the api-direct shape's own
  * per-account balance fields. One entry per `accounts[i].accountNumber`
  * **whose `balance` is a real number** — missing balances are skipped so
- * PipelineResult's downstream lookup falls back to the legacy SCRAPE
- * balance, distinguishing "unknown" from a real zero. Default-deny per
+ * PipelineResult's downstream lookup keeps the scrape-time balance,
+ * distinguishing "unknown" from a real zero. Default-deny per
  * coding-principle-guidlines §4.
  *
  * @param scrape - Scrape state populated by the api-direct action.
@@ -188,8 +178,8 @@ function buildBalanceMapFromScrape(scrape: IScrapeState): ReadonlyMap<string, nu
 /**
  * Hoisted helper so {@link buildBalanceMapFromScrape} stays at depth 1
  * (max-depth lint rule). Only commits when `acc.balance` is a real
- * number; missing balances are skipped so PipelineResult can fall back
- * to the legacy SCRAPE value.
+ * number; missing balances are skipped so PipelineResult keeps the
+ * account's own scrape-time balance.
  *
  * @param out - Balance map being built.
  * @param acc - Scrape account record.
@@ -206,7 +196,7 @@ function commitIfKnownBalance(
 
 /**
  * Bind a SHAPE to the ApiDirectScrape phase, returning the bound
- * function the legacy pipeline executor invokes per scrape run.
+ * function the phase invokes per scrape run.
  *
  * @param shape - Bank-supplied shape declaration (data only).
  * @returns Phase function that performs the scrape against the
@@ -221,9 +211,7 @@ function createApiDirectScrapePhase<TAcct, TCursor>(
 /**
  * Build an ApiDirectScrape BasePhase bound to a shape literal.
  * Used by PipelineBuilder.withApiDirect(call, shape) to wire the phase
- * into the chain. The resulting phase carries name
- * `api-direct-scrape` so NO_RETRY_PHASES suppresses sanitization
- * pulse retries.
+ * into the chain.
  *
  * @param shape - Bank-supplied shape declaration (data only).
  * @returns BasePhase instance with name 'api-direct-scrape'.

@@ -1,18 +1,12 @@
-# CI mirror — Ubuntu + the build Node from .nvmrc + Camoufox (the tag pinned in
-# browser-stack.json, installed by the same script as the CI composite
-# action .github/actions/install-camoufox; package.json is the single
-# source of truth for the npm package version).
+# CI mirror — Ubuntu + the build Node from .nvmrc; package.json is the single
+# source of truth for the npm package versions.
 # Built to match GitHub's `ubuntu-latest` (= 24.04) runner image so local
 # repro of the E2E Real A jobs matches the CI environment byte-for-byte
 # above the OS level. Used for two purposes:
 #   1. Reproduce CI-only flakes locally (e.g. Beinleumi HOME load
 #      variance, Hapoalim auth-API rejections) for root-cause analysis.
-#   2. Replace the host-Camoufox parallel-launch workaround
-#      (sequential 6/6 in scripts/run-real-suite.ts) with per-bank
-#      container isolation — each container has its own Camoufox
-#      process space, so upstream bug #386 ("instances interfere
-#      with each other") is sidestepped and all banks can run in
-#      parallel, dropping wall time from ~29 min to ~5 min.
+#   2. Run each bank in its own container, so the banks can run in
+#      parallel without sharing a process space or a resolver.
 #
 # Build:   docker build -f docker/Dockerfile.ci-mirror -t isbs-ci:latest .
 # Single:  bash docker/run-banks.sh Beinleumi
@@ -28,16 +22,10 @@ FROM ubuntu:25.10@sha256:7cc5e35f6567ee8c66d2abb4aab0fd866669e6207c237c3a8f0947a
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-# Mirror the apt set that the GitHub `ubuntu-24.04` runner image carries
-# that Camoufox / Firefox needs at runtime. Source list cross-checked
-# against `actions/runner-images` Ubuntu2404-Readme.md.
+# The scrapers are pure HTTP, so the image needs only TLS roots, git, and
+# curl + xz to fetch and unpack the Node tarball below.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates curl git unzip xz-utils \
-        libgtk-3-0t64 libgbm1 libxt6 libdbus-glib-1-2 \
-        libasound2t64 libnss3 libxss1 libxrandr2 \
-        libpangocairo-1.0-0 libatk1.0-0t64 libatk-bridge2.0-0t64 \
-        libcups2t64 libxcomposite1 libxdamage1 libxkbcommon0 \
-        fonts-liberation libdrm2 libxshmfence1 \
+        ca-certificates curl git xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node from the prebuilt tarball — same channel that
@@ -62,22 +50,8 @@ WORKDIR /work
 COPY package.json package-lock.json ./
 RUN npm ci --prefer-offline --ignore-scripts
 
-# Camoufox — the install-camoufox composite action's own script, so the
-# image carries the build CI tests: the tag pinned in browser-stack.json,
-# not the newest release camoufox-js would resolve. There is no GH_TOKEN
-# at build time, so the script downloads the release asset with curl;
-# the asset unzips flat, putting `camoufox-bin` at the path the tests
-# expect. Copied after `npm ci` so a tag bump rebuilds only this layer.
-# The image bundles the browser so per-bank containers don't re-download
-# on every run; the cache lives at `/root/.cache/camoufox` and its size
-# follows the pinned release.
-COPY browser-stack.json ./
-COPY scripts/browser-stack/manifest.mjs scripts/browser-stack/
-COPY .github/actions/install-camoufox/install.sh .github/actions/install-camoufox/
-RUN bash .github/actions/install-camoufox/install.sh
-
 # Source tree is volume-mounted at runtime so iteration is fast (no
-# rebuild on edits). The Dockerfile only bakes deps + Camoufox, not
+# rebuild on edits). The Dockerfile only bakes deps, not
 # the source — same model as the CI runner's checkout + cached deps.
 
 # Default entry: run a single bank's happy-path test. The wrapper

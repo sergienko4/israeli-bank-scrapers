@@ -75,14 +75,8 @@ const CHECKOUT_STEP = {
   with: { 'fetch-depth': 0, 'persist-credentials': false },
 };
 
-/** Shared setup; Camoufox and its token only when the E2E factory tests run. */
-const SETUP_STEP = {
-  uses: SETUP_TEST_RUNNER,
-  with: {
-    camoufox: `\${{ (${E2E_IF}) && 'true' || 'false' }}`,
-    'gh-token': `\${{ (${E2E_IF}) && secrets.GITHUB_TOKEN || '' }}`,
-  },
-};
+/** Shared setup: the plain runner action, with no inputs. */
+const SETUP_STEP = { uses: SETUP_TEST_RUNNER };
 
 /** The only background step, pinned whole. */
 const E2E_STEP = {
@@ -303,7 +297,7 @@ describe('Package & E2E factory job', () => {
     expect(sortedTerms).toStrictEqual(stepFlags);
   });
 
-  it('[PFJ-3] checks out full history and sets up Camoufox only for the E2E factory tests', () => {
+  it('[PFJ-3] checks out full history and sets up the shared runner', () => {
     const [checkout, setup] = steps();
     expect(checkout).toStrictEqual(CHECKOUT_STEP);
     expect(setup).toStrictEqual(SETUP_STEP);

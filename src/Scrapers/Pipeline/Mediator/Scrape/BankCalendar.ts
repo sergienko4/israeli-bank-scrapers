@@ -31,16 +31,14 @@
 import moment from 'moment-timezone';
 
 import type { Brand } from '../../Types/Brand.js';
-import { ISRAEL_TIMEZONE } from '../Browser/BrowserConfig.js';
 
 /**
- * Zone every bank date is read in.
+ * Zone every bank date is read in — the Israeli portal calendar.
  *
- * Aliased rather than redeclared so the Pipeline cannot drift from the zone the
- * browser context is pinned to — a page rendering in one calendar while its
- * rows are parsed in another is the bug this module exists to prevent.
+ * One zone for every parse and comparison, so a date is never read in one
+ * calendar and compared in another.
  */
-export const BANK_CALENDAR_TIMEZONE = ISRAEL_TIMEZONE;
+export const BANK_CALENDAR_TIMEZONE = 'Asia/Jerusalem';
 
 /** Calendar-day label all day-level comparisons reduce to. */
 export const BANK_DAY_FORMAT = 'YYYY-MM-DD';
