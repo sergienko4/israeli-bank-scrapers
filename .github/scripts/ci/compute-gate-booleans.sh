@@ -14,16 +14,16 @@
 #                           2. PR author is not a dependency bot (dependabot[bot] or
 #                              renovate[bot]); stable across reruns because it uses
 #                              pull_request.user.login, NOT github.actor
-#                           3. full_suite                 (src/ touched OR the browser
-#                              stack moved ? see detect-changes.sh `critical_deps`;
-#                              skips docs-only / chore PRs)
+#                           3. full_suite                 (src/ touched OR a critical
+#                              runtime package moved ? see detect-changes.sh
+#                              `critical_deps`; skips docs-only / chore PRs)
 #                         workflow_dispatch is treated as trusted + skips the src filter
 #                         (operator manually triggered ? assume intent).
 #
-# Note on (2): a Dependabot-authored playwright-core / camoufox bump still cannot
+# Note on (2): a Dependabot-authored runtime-package bump still cannot
 # reach the real gates, because Dependabot PRs run with restricted secrets and the
-# bank credentials would resolve empty. The supported path for validating a browser
-# stack bump end-to-end is to re-raise it on a maintainer-owned branch, where
+# bank credentials would resolve empty. The supported path for validating a
+# dependency bump end-to-end is to re-raise it on a maintainer-owned branch, where
 # `full_suite` then unlocks the same gates a `src/` PR gets.
 #
 # Renovate's weekly lockfile-maintenance PR is excluded for the opposite reason:

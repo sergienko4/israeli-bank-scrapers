@@ -69,15 +69,14 @@ defaults:
 #   e2e-real-group-a      — Stage 1 (parallel, gate-A approval):
 #                           non-OTP banks: api-direct
 #                           Discount, VisaCal, Isracard
-#                           and Max (no browser).
+#                           and Max.
 #   e2e-real-group-b      — Stage 2 (parallel, gate-B approval):
 #                           OTP banks: api-direct
-#                           Beinleumi and Hapoalim
-#                           (no browser).
+#                           Beinleumi and Hapoalim.
 #   e2e-real-group-c      — Stage 3 (parallel, gate-C approval):
 #                           api-direct banks
 #                           (OneZero, Pepper, PayBox).
-#   e2e-real-group-d      — Amex (api-direct, no browser),
+#   e2e-real-group-d      — Amex (api-direct),
 #                           ISOLATED under its OWN gate-D
 #                           approval (independent of gate-A so the
 #                           maintainer can approve an Amex-only run).
@@ -85,9 +84,8 @@ defaults:
 #                           Isracard) holds by releasing gate-D
 #                           alone — Group A stays unreleased.
 #   e2e-real-group-e      — Stage 4 (parallel, gate-E approval):
-#                           non-OTP banks: browser-form
-#                           Leumi plus api-direct Yahav
-#                           and Mizrahi (no browser).
+#                           non-OTP banks: api-direct Leumi,
+#                           Yahav and Mizrahi.
 #   dependency-review     — PR-only, independent.
 #
 # Each gate runs ONCE per PR — no overlap between validate and the
@@ -865,7 +863,7 @@ jobs:
 
   # ──────────────────────────────────────────────────────────────
   # E2E mocked tests — every bank's full API-direct flow against recorded
-  # HTTP fixtures. No browser is launched. The package.json `test:e2e:mock`
+  # HTTP fixtures. The package.json `test:e2e:mock`
   # script pins `--maxWorkers=2` to avoid CPU-contention timeouts
   # documented in the husky pre-commit cycle.
   # Also runs on dependency-only PRs (`deps`) so a runtime-dependency bump
@@ -1070,17 +1068,17 @@ jobs:
   #
   #   Group A, gate-A (parallel runners):
   #     non-OTP banks
-  #     — Discount, VisaCal, Isracard, Max (api-direct, no browser)
+  #     — Discount, VisaCal, Isracard, Max (api-direct)
   #   Group B, gate-B (parallel runners):
   #     OTP banks
-  #     — Beinleumi, Hapoalim (api-direct, no browser)
+  #     — Beinleumi, Hapoalim (api-direct)
   #     (TELEGRAM_* secrets exposed for OTP delivery).
   #   Group C, gate-C (parallel runners):
-  #     api-direct banks (no browser)
+  #     api-direct banks
   #     — OneZero, Pepper, PayBox
   #     (TELEGRAM_* secrets exposed for OTP delivery).
   #   Group D, gate-D (single runner):
-  #     Amex (api-direct, no browser), isolated under its own gate
+  #     Amex (api-direct), isolated under its own gate
   #     so it can be approved independently. Rule #16 (Amex never
   #     co-runs with Isracard) is honored by approving gate-D
   #     alone — Group A stays unreleased for an Amex-only run.
@@ -1353,7 +1351,7 @@ jobs:
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # ──────────────────────────────────────────────────────────────
-  # Group D — Amex (api-direct, no browser), ISOLATED under its own
+  # Group D — Amex (api-direct), ISOLATED under its own
   # gate-D approval.
   # Added 2026-06-26 to decouple Amex from gate-A so the maintainer
   # can approve an Amex-only run. Rule #16 (Amex never co-runs with
@@ -1638,8 +1636,8 @@ jobs:
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # ──────────────────────────────────────────────────────────────
-  # Group C — api-direct banks (OneZero, Pepper, PayBox). No
-  # browser; HTTP-only flows. Requires gate-C approval AFTER
+  # Group C — api-direct banks (OneZero, Pepper, PayBox).
+  # HTTP-only flows. Requires gate-C approval AFTER
   # Group B has completed. Telegram OTP secrets exposed for the
   # SMS OTP dance on cold-start runs (warm runs use long-term JWTs).
   # ──────────────────────────────────────────────────────────────
@@ -1825,7 +1823,7 @@ jobs:
           echo "[cooldown-hold] done; slot freed for next queued same-bank job"
 
   # ──────────────────────────────────────────────────────────────
-  # Group E — non-OTP banks: Leumi on a browser form, Yahav and
+  # Group E — non-OTP banks: api-direct Leumi, Yahav and
   # Mizrahi over the API. Split out of Group B so these approve/run
   # under their OWN gate-E, independent of the OTP banks. None needs an
   # OTP (no Telegram secrets). Gate is independent — see the header.
@@ -1987,7 +1985,6 @@ jobs:
           # below documents the upstream license verified by reading
           # the project's LICENSE file directly.
           allow-dependencies-licenses: >-
-            pkg:npm/playwright-core,
             pkg:githubactions/SonarSource/sonarqube-scan-action,
             pkg:pypi/gitdb,
             pkg:pypi/Pygments,

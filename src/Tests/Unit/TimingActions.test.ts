@@ -79,6 +79,11 @@ describe('Sequential Action Executor (runSerial)', () => {
 });
 
 describe('humanDelay', () => {
+  it('accepts equal bounds for fixed OTP polling delays', async () => {
+    const result = await humanDelay(2, 2);
+    expect(result).toMatchObject({ success: true });
+  });
+
   it('resolves after a delay within the specified range', async () => {
     const start = Date.now();
     await humanDelay(10, 50);

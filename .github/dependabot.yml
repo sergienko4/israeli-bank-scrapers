@@ -16,27 +16,6 @@ updates:
     labels:
       - dependencies
     groups:
-      # Camoufox stays a declared dependency until the browser-free major;
-      # every upstream release (patch / minor / major) flows through CI as
-      # its own PR. Single source of truth for the version lives in
-      # package.json — Dependabot keeps it current.
-      camoufox:
-        patterns:
-          - '@hieutran094/camoufox-js'
-        update-types:
-          - patch
-          - minor
-          - major
-      # Playwright stays a declared dependency until the browser-free major.
-      # Auto-bump on patch + minor so upstream fixes arrive as their
-      # own PR, gated by the full CI suite.
-      playwright:
-        patterns:
-          - 'playwright-core'
-          - 'playwright'
-        update-types:
-          - patch
-          - minor
       # TypeScript is installed twice under npm aliases: `@typescript/native`
       # (the TS 7 native compiler, used by `npm run type-check`) and
       # `typescript` -> `@typescript/typescript6` (the TS 6 programmatic API
@@ -78,9 +57,6 @@ updates:
           - minor
           - patch
         exclude-patterns:
-          - '@hieutran094/camoufox-js'
-          - 'playwright-core'
-          - 'playwright'
           - '@typescript/native'
           - 'typescript'
           - 'eslint'
@@ -95,10 +71,6 @@ updates:
         dependency-type: production
         update-types:
           - patch
-        exclude-patterns:
-          - '@hieutran094/camoufox-js'
-          - 'playwright-core'
-          - 'playwright'
       # Security updates are the ONLY Dependabot path that targets an npm
       # transitive (lockfile-only) dependency, and only while its alert is
       # OPEN. Version updates target direct dependencies only (npm has no

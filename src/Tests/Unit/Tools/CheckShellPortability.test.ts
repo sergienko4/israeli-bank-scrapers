@@ -176,7 +176,7 @@ describe('check-shell-portability — links never stop the gate running', () => 
  * @returns The written path.
  */
 function writeActionFile(root: string, name: string, text: string): string {
-  const actionDir = path.join(root, '.github', 'actions', 'install-camoufox');
+  const actionDir = path.join(root, '.github', 'actions', 'example-action');
   fs.mkdirSync(actionDir, { recursive: true });
   const file = path.join(actionDir, name);
   fs.writeFileSync(file, text);
@@ -185,7 +185,7 @@ function writeActionFile(root: string, name: string, text: string): string {
 
 describe('check-shell-portability — composite-action scripts are scanned', () => {
   it('SHP-ROOT-1 a violation in a .github/actions shell script fails the gate', () => {
-    // install-camoufox/install.sh runs in CI and in the Docker mirror; it is
+    // example-action/install.sh runs in CI and in the Docker mirror; it is
     // shell we own, so the gate must see it.
     const root = makeTree();
     writeActionFile(root, 'install.sh', NON_PORTABLE);

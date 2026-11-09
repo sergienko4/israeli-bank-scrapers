@@ -43,12 +43,10 @@ fi
 # call dotenv.config(), which DOES strip matching surrounding quotes —
 # but dotenv never overrides an already-set variable, so under Docker
 # the quoted form wins and the value silently gains two characters.
-# Live evidence: MAX_PASSWORD="…" arrived 16 chars against Max's
-# password input, which caps at maxlength="14". Playwright's .fill()
-# assigns the value programmatically and so bypasses maxlength, leaving
-# Angular's maxLength(14) validator to mark the control ng-invalid;
-# ngSubmit then returned before issuing any auth request, producing a
-# login that fails with no error banner and no network call.
+# Live evidence: MAX_PASSWORD="…" arrived 16 chars while Max's login
+# field caps at 14, so the request failed before issuing any auth
+# request, producing a login that fails with no error banner and no
+# network call.
 #
 # The same gap applies to dotenv's INLINE COMMENT handling: dotenv drops
 # a trailing ` # …` from an unquoted value, docker keeps it. Live

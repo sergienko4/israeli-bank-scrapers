@@ -1,15 +1,13 @@
 /**
  * CI critical-dependency gate regression test.
  *
- * <p>The browser stack — `playwright-core` and Camoufox — IS the runtime
- * for all 17 banks. A bump there changes real navigation, anti-bot
- * fingerprinting and frame handling, yet it touches no `src/` file, so
- * every `src`-gated job used to skip. The 1.61.0
- * `Browser.setDefaultViewport` regression that broke `browser.newContext`
- * reached main exactly that way.
+ * <p>The runtime stack — `parse5`, `lodash`, `moment`, `pino` and the rest of
+ * the production dependencies — IS the runtime for all 17 banks. A bump there
+ * changes parsing, date handling or logging, yet it touches no `src/` file, so
+ * every `src`-gated job used to skip.
  *
- * <p>`detect-changes.sh` therefore emits `critical_deps` (the browser
- * stack moved) and `full_suite` (`src OR critical_deps`). This test pins
+ * <p>`detect-changes.sh` therefore emits `critical_deps` (a production
+ * dependency moved) and `full_suite` (`src OR critical_deps`). This test pins
  * the wiring: every heavy job, and every heavy step of a job that holds
  * several gates, must gate on `full_suite`, so re-adding a `src`-only gate
  * fails here instead of silently shrinking coverage.
@@ -33,7 +31,7 @@ const DETECTOR = join(REPO_ROOT, '.github/scripts/ci/detect-changes.sh');
 const GATE_SCRIPT = join(REPO_ROOT, '.github/scripts/ci/compute-gate-booleans.sh');
 const PACKAGE_JSON = join(REPO_ROOT, 'package.json');
 
-/** Jobs that must run whenever the browser stack moves, not just on `src`. */
+/** Jobs that must run whenever a critical runtime package moves, not just on `src`. */
 const HEAVY_JOB_KEYS = ['unit-tests', 'e2e-mocked', 'package-factory'] as const;
 
 /** The job that runs the lint, type and short repository gates as its steps. */
@@ -51,8 +49,15 @@ const BUILD_PACKAGE = '$/.github/actions/build-package';
 /** The install step's action; every Node step of the job needs what it installs. */
 const SETUP_NODE_DEPS = '$/.github/actions/setup-node-deps';
 
-/** Runtime packages whose version defines the browser stack. */
-const CRITICAL_PACKAGES = ['playwright-core', '@hieutran094/camoufox-js'] as const;
+/** Production packages whose version defines the critical runtime. */
+const CRITICAL_PACKAGES = [
+  '@babel/parser',
+  'lodash',
+  'moment',
+  'moment-timezone',
+  'parse5',
+  'pino',
+] as const;
 
 /**
  * Paths that define the published API surface or the gate guarding it.
@@ -118,8 +123,8 @@ const DETECTOR_FLAGS = [
  * Steps that must also fire on a lockfile-only bump, not just `full_suite`.
  *
  * <p>A lint-rule bump lands as `deps` alone: `critical_deps` covers only the
- * browser stack, so `full_suite` (`src OR critical_deps`) stays false and a
- * step gated on `full_suite` never runs. `typescript-eslint` 8.70.0 reached
+ * production runtime packages, so `full_suite` (`src OR critical_deps`) stays
+ * false and a step gated on `full_suite` never runs. `typescript-eslint` 8.70.0 reached
  * main exactly that way — it added `no-generated-empty-object-type`, which
  * fires on existing `src/` code, so the FIRST unrelated PR afterwards failed
  * lint while the bump itself merged green.
@@ -301,14 +306,8 @@ function countOf(haystack: string, needle: string): number {
   return segments.length - 1;
 }
 
-/** Paths whose change ALONE must arm `critical_deps` and `full_suite`. */
-const PINNING_PATHS = ['scripts/patch-playwright-core.mjs'] as const;
-
-/** Look-alikes the anchored patterns must NOT match. */
-const NOT_PINNING_PATHS = [
-  'docs/patch-playwright-core.mjs',
-  'scripts/patch-playwright-core.mjs.orig',
-] as const;
+/** An unrelated path whose change must NOT arm `critical_deps`. */
+const UNRELATED_PATH = 'docs/guide.md';
 
 /**
  * The environment minus every inherited `GIT_*` variable. Husky runs this
@@ -473,22 +472,6 @@ const FAILING_RUNS: readonly (readonly [string, (dir: string) => unknown])[] = [
   ['git', runFailingGit],
 ];
 
-/**
- * Ask the REAL repo's ignore rules about one path, as a new untracked file.
- *
- * @param path - Repo-relative path.
- * @returns The deciding pattern (`''` when none matches; a `!` prefix means
- *   re-included) and the path git reported, which proves git actually ran.
- */
-function ignoreVerdict(path: string): readonly [string, string] {
-  const args = [...GIT_ISOLATION, 'check-ignore', '-v', '-n', '--no-index', path];
-  // check-ignore exits 1 when no pattern matches, which -n still reports.
-  const line = checkedRun('git', args, { cwd: REPO_ROOT, env: CLEAN_ENV, okStatuses: [0, 1] });
-  const [source = '', reported = ''] = line.split('\t');
-  const pattern = source.split(':').slice(2).join(':');
-  return [pattern, reported];
-}
-
 describe('CriticalDepsFullSuiteGate', () => {
   it.each(HEAVY_JOB_KEYS)('[CI-CRIT-GATE] PrYaml_HeavyJob_%s_ShouldGateOnFullSuite', jobKey => {
     const condition = jobCondition(jobKey);
@@ -522,35 +505,11 @@ describe('CriticalDepsFullSuiteGate', () => {
     expect(emitted).toBe(DETECTOR_OUTPUT_BRANCHES);
   });
 
-  it('[CI-CRIT-GATE] Detector_PatchPinPath_ShouldFeedCriticalDeps', () => {
-    const script = read(DETECTOR);
-    expect(script).toContain('^scripts/patch-playwright-core\\.mjs');
-  });
-
   // `src=false` proves the run took the real diff branch, not the fail-open
   // branch that sets every flag true when git or BASE_SHA is unusable.
-  it.each(PINNING_PATHS)(
-    '[CI-CRIT-GATE] Detector_OnlyChanged_%s_ShouldArmCriticalDepsAndFullSuite',
-    path => {
-      const flags = detectFor(path);
-      expect(flags).toMatchObject({ src: 'false', critical_deps: 'true', full_suite: 'true' });
-    },
-  );
-
-  it.each(NOT_PINNING_PATHS)(
-    '[CI-CRIT-GATE] Detector_OnlyChanged_%s_ShouldNotArmCriticalDeps',
-    path => {
-      const flags = detectFor(path);
-      expect(flags).toMatchObject({ src: 'false', critical_deps: 'false', full_suite: 'false' });
-    },
-  );
-
-  // An ignored critical path needs `git add -f` to land, so the detector
-  // entry above would guard a file the tree can silently drop.
-  it.each(PINNING_PATHS)('[CI-CRIT-GATE] GitIgnore_%s_ShouldStayTrackable', path => {
-    const [pattern, reported] = ignoreVerdict(path);
-    expect(reported).toBe(path);
-    expect(pattern).toMatch(/^(!.*)?$/u);
+  it(`[CI-CRIT-GATE] Detector_OnlyChanged_${UNRELATED_PATH}_ShouldNotArmCriticalDeps`, () => {
+    const flags = detectFor(UNRELATED_PATH);
+    expect(flags).toMatchObject({ src: 'false', critical_deps: 'false', full_suite: 'false' });
   });
 
   // A detector or git that fails must fail the test, never pass as flags

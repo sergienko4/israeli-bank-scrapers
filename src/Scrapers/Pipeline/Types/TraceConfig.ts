@@ -1,6 +1,6 @@
 /**
  * Forensic artefact root — single per-process folder for the pipeline log,
- * network response dumps, and screenshots, captured only when the opt-in
+ * and network response dumps, captured only when the opt-in
  * `FORENSIC_TRACE=true` flag is set. Removes
  * the older patchwork of independent env vars (LOG_FILE / LOG_PATH /
  * LOG_BANK / DUMP_NETWORK_DIR / DUMP_NETWORK_LABEL) that had to be wired up
@@ -10,7 +10,6 @@
  *   <RUNS_ROOT>/pipeline/<bank>/<DDMMYY-HHMMSScc>/
  *     pipeline.log
  *     network/<NNNN>-<METHOD>-<safe-url>.json
- *     screenshots/<bank>-<label>-<HHMMSS>.png
  *
  * `<bank>` is auto-detected from the test pattern in process.argv (e.g.
  * `Beinleumi.e2e-real.test.ts` → `beinleumi`); also accepts an explicit
@@ -21,8 +20,8 @@
  *
  * Capture is gated centrally by `FORENSIC_TRACE` (see {@link isForensicTrace}):
  * when the flag is off (default) every artefact getter returns `''` and the
- * writer layer (Pino transport, NetworkDiscovery dump gate, screenshot
- * helpers) no-ops. `LOG_LEVEL` independently controls log verbosity only — it
+ * writer layer (Pino transport and HTTP capture hooks) no-ops.
+ * `LOG_LEVEL` independently controls log verbosity only — it
  * no longer decides whether artefacts land on disk.
  *
  * Override with `RUNS_ROOT` env var when the default `C:\tmp\runs` is wrong
@@ -53,15 +52,11 @@ type RunFolderPath = Brand<string, 'RunFolderPath'>;
 type LogFilePath = Brand<string, 'LogFilePath'>;
 /** Absolute network-dump directory (or empty). */
 type NetworkDumpDirPath = Brand<string, 'NetworkDumpDirPath'>;
-/** Absolute screenshot directory (or empty). */
-type ScreenshotDirPath = Brand<string, 'ScreenshotDirPath'>;
 
 /** Default root for per-run artefact folders — overridable via RUNS_ROOT. */
 const DEFAULT_RUNS_ROOT = String.raw`C:\tmp\runs`;
 /** Sub-directory for network response body dumps. */
 const NETWORK_SUBDIR = 'network';
-/** Sub-directory for OTP / phase diagnostic screenshots. */
-const SCREENSHOT_SUBDIR = 'screenshots';
 /** Filename for the pipeline log inside the run folder. */
 const PIPELINE_LOG_FILE = 'pipeline.log';
 /** Top-level umbrella segment under RUNS_ROOT — fixed for every pipeline run. */
@@ -73,8 +68,6 @@ let runFolderCache: string | false = false;
 let networkDirCache: string | false = false;
 /** Cached per-substep dump dirs keyed by `<phase>-<stage>`. */
 const SUB_STEP_DIR_CACHE = new Map<string, string>();
-/** Cached screenshot dir (created on first call to getScreenshotDir). */
-let screenshotDirCache: string | false = false;
 /** Active bank for this process — set dynamically by the pipeline orchestrator. */
 let activeBankCache: string | false = false;
 /**
@@ -214,7 +207,7 @@ function resolveBankSlug(): BankSlugLower {
 /**
  * True iff `FORENSIC_TRACE=true` (case-insensitive, whitespace-trimmed).
  * Single opt-in gate for ALL on-disk forensic artefacts (pipeline.log,
- * network dumps, screenshots). Default-deny: absent, empty, `false`, or any
+ * and network dumps). Default-deny: absent, empty, `false`, or any
  * other value resolves to false so nothing is captured unless explicitly
  * requested. Decoupled from `LOG_LEVEL` (verbosity) and `CI` (OTP/Telegram).
  * See `coding-principle-guidlines.md` §4 (Default Deny).
@@ -288,7 +281,7 @@ function getLogFile(): LogFilePath {
 
 /**
  * Network-dump directory inside the run folder. Empty string off-trace so
- * NetworkDiscovery skips body dumps without forcing a bank registration.
+ * HTTP capture hooks skip body dumps without forcing a bank registration.
  * @returns Absolute network-dump directory path, or empty string off-trace.
  */
 function getNetworkDumpDir(): NetworkDumpDirPath {
@@ -305,9 +298,7 @@ function getNetworkDumpDir(): NetworkDumpDirPath {
  * Per-substep network dump dir
  * `<run>/network/<phase>-<stage>/`. Each sub-step gets its own
  * folder so the on-disk layout itself answers "which sub-step saw
- * this capture" without timestamp cross-referencing — pre-nav for
- * an auth FINAL = the union of every sub-folder dumped before
- * `dashboard-PRE/`. Empty string off-trace.
+ * this capture" without timestamp cross-referencing. Empty string off-trace.
  * @param phase - Active phase name from ActiveState.
  * @param stage - Active stage label from ActiveState.
  * @returns Absolute sub-step folder path, or empty string off-trace.
@@ -325,21 +316,6 @@ function getSubStepNetworkDumpDir(phase: string, stage: string): NetworkDumpDirP
 }
 
 /**
- * Screenshot directory inside the run folder. Empty string off-trace so
- * callers can skip the screenshot without needing a registered bank.
- * @returns Absolute screenshot directory path, or empty string off-trace.
- */
-function getScreenshotDir(): ScreenshotDirPath {
-  if (screenshotDirCache) return screenshotDirCache as ScreenshotDirPath;
-  const root = getRunFolder();
-  if (!root) return '' as ScreenshotDirPath;
-  const dir = path.join(root, SCREENSHOT_SUBDIR);
-  fs.mkdirSync(dir, { recursive: true });
-  screenshotDirCache = dir;
-  return dir as ScreenshotDirPath;
-}
-
-/**
  * Reset cached folders. Test-only — production callers should never need
  * this. Used by Jest's jest.resetModules path; exported so unit tests can
  * exercise different env-var combinations cleanly.
@@ -349,7 +325,6 @@ function resetTraceConfigCache(): true {
   runFolderCache = false;
   networkDirCache = false;
   SUB_STEP_DIR_CACHE.clear();
-  screenshotDirCache = false;
   activeBankCache = false;
   activeRunIdCache = false;
   return true;
@@ -362,7 +337,6 @@ export {
   getLogFile,
   getNetworkDumpDir,
   getRunFolder,
-  getScreenshotDir,
   getSubStepNetworkDumpDir,
   isForensicTrace,
   resetTraceConfigCache,

@@ -22,13 +22,13 @@
  * the run can be invoked — `scripts/check-jest-scopes.mjs` is what watches the
  * scripts.
  *
- * The additions are the suites that need real credentials or a real browser,
+ * The additions are the suites that need real credentials or a live bank,
  * which is why they cannot run in the parallel pool. Each is anchored to a path
  * boundary, which matters: the old CLI flag passed a bare `E2eReal`, and that
  * also swallowed the three ordinary `Tests/Unit/E2eReal*.test.ts` unit suites,
  * which have always been safe to run here and now do. `Tests/E2e.test.ts` is one
  * of them despite its unassuming name: past the factory assertions at the top
- * it drives a real browser against Hapoalim's live site, which is why it owns a
+ * it drives a live bank against Hapoalim's site, which is why it owns a
  * 300 s timeout, its own `test:e2e-factory-tests` script and its own CI job, and
  * why `test:pipeline` excludes it too. A local unit run must not reach for the
  * network, so it is hidden here on the same grounds. That last pattern is

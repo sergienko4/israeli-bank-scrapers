@@ -50,10 +50,8 @@
 #                 browser E2E gates (e2e-mocked + e2e-factory) to RUN on
 #                 dependency-only PRs (e.g. dependabot bumps, Renovate's
 #                 weekly lockfile maintenance) that touch
-#                 no `src/` file. Without this a runtime-dep bump such as
-#                 playwright-core could land UNvalidated against Camoufox
-#                 (the 1.61.0 `Browser.setDefaultViewport` regression that
-#                 broke `browser.newContext` slipped onto main this way).
+#                 no `src/` file. Without this a runtime-dependency bump
+#                 could land UNvalidated against the bank APIs.
 #                 Also forces `unit-tests`: a bump to a test-time dependency
 #                 (`@jest/globals`, `@types/*`, `ts-jest`) can only surface
 #                 there, and those bumps touch no `src/` file either.
@@ -62,15 +60,14 @@
 #                 matched NO group: a PR moving it alone skipped `unit-tests`
 #                 and the `lint:node-support` check that ties it to
 #                 `engines.node` and the matrix.
-#   critical_deps — the BROWSER STACK moved: `playwright-core` or Camoufox
-#                 (`@hieutran094/camoufox-js`, the pinned browser binary, or
-#                 the `scripts/patch-playwright-core.mjs` guard). `deps` alone
-#                 says "a manifest moved" — it cannot say WHICH package, so it
-#                 only buys the two browser E2E jobs. These packages ARE the
-#                 runtime for all 17 banks: a bump changes real navigation,
-#                 anti-bot fingerprinting and frame handling, so it must clear
-#                 the SAME gates as a `src/` change (build, integration, bank
-#                 coverage, the 17-bank smoke matrix, and the real-bank gates).
+#   critical_deps — a critical runtime package moved: one of the production
+#                 dependencies in `package.json` (HTML parsing, date/time,
+#                 logging, AST). `deps` alone says "a manifest moved" — it
+#                 cannot say WHICH package, so it only buys the two E2E jobs.
+#                 These packages ARE the runtime for every bank, so a bump must
+#                 clear the SAME gates as a `src/` change (build, integration,
+#                 bank coverage, the 17-bank smoke matrix, and the real-bank
+#                 gates).
 #   full_suite  — `src OR critical_deps`. The single token every heavy job
 #                 gates on, so "runs the full flow" has one definition instead
 #                 of an OR-chain duplicated across a dozen `if:` conditions.
@@ -181,31 +178,22 @@ has() {
   grep -qE "$1" <<< "${changed_files}"
 }
 
-# The browser stack — `playwright-core` + Camoufox — is the runtime for
-# every bank, so a bump there needs the same coverage as a `src/` edit.
-# Two independent signals feed `critical_deps`:
+# A critical runtime package bump needs the same coverage as a `src/` edit.
+# The declared range or the resolved version is compared between base and HEAD.
 #
-#   1. A pinning FILE moved: the script that applies our playwright-core
-#      patch. It is not under `src/`, so it used to be invisible to this
-#      detector. The patch signal was `^patches/` until the `patch-package`
-#      overlay was replaced by the dependency-free
-#      `scripts/patch-playwright-core.mjs`, which now carries the same guard
-#      for consumers as well as CI.
-#   2. The declared range or the resolved version of a critical package
-#      actually MOVED between base and HEAD.
-#
-# (2) compares versions rather than grepping the manifest diff, because a
-# diff grep cannot tell a real bump from noise: `npm i` rewrites a
-# trailing comma onto the untouched `"playwright-core": "^1.62.0"` line
-# whenever a later key is removed, and any dedupe under
-# `node_modules/@hieutran094/camoufox-js/node_modules/**` mentions
-# "camoufox" without the browser stack having moved at all. Both fired as
-# false positives in testing, which would have degraded `critical_deps`
-# into a second, noisier copy of `deps`.
-CRITICAL_DEP_PATHS='^scripts/patch-playwright-core\.mjs'
-CRITICAL_PACKAGES=('playwright-core' '@hieutran094/camoufox-js')
+# Comparing versions rather than grepping the manifest diff matters: a diff
+# grep cannot tell a real bump from noise, because `npm i` rewrites a trailing
+# comma onto an untouched dependency line whenever a later key is removed.
+CRITICAL_PACKAGES=(
+  '@babel/parser'
+  'lodash'
+  'moment'
+  'moment-timezone'
+  'parse5'
+  'pino'
+)
 
-# Declared range from package.json, e.g. `"playwright-core": "^1.62.1"`.
+# Declared range from package.json, e.g. `"lodash": "^4.17.23"`.
 declared_range() {
   printf '%s\n' "$1" | grep -m1 -oE "\"$2\": *\"[^\"]+\"" || true
 }
@@ -290,11 +278,10 @@ if has '^eslint\.config\.mjs$|^eslint\.canary-scope\.mjs$|^scripts/check-syntax-
 fi
 
 # Compare against the merge-base, mirroring the `...HEAD` semantics used
-# for `changed_files`: main bumping playwright-core meanwhile must not be
+# for `changed_files`: main bumping a critical package meanwhile must not be
 # attributed to this PR.
 merge_base=$(git merge-base "${BASE_SHA}" HEAD 2>/dev/null || echo "${BASE_SHA}")
-if has "${CRITICAL_DEP_PATHS}" \
-  || [ "$(critical_fingerprint "${merge_base}")" != "$(critical_fingerprint HEAD)" ]; then
+if [ "$(critical_fingerprint "${merge_base}")" != "$(critical_fingerprint HEAD)" ]; then
   critical_deps=true
 fi
 if [ "${src}" = "true" ] || [ "${critical_deps}" = "true" ]; then full_suite=true; fi

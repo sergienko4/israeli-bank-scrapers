@@ -48,10 +48,10 @@ CONFIG_FILE="${CONFIG_DIR}/PipelineBankConfig.ts"
 HOSTS_FILE="${CONFIG_DIR}/PipelineBankHosts.ts"
 
 # Browser-like agent for the reachability diagnostic only. The point of
-# the probe is to predict what Camoufox will be served moments later, so
-# it must present the same agent class as the engine; a default
+# the probe is to predict what the bank edge will serve moments later, so
+# it must present the same agent class as the runtime; a default
 # `curl/x.y` agent is a different client to these edges and its status
-# would not be comparable. Kept in sync with Camoufox (Firefox).
+# would not be comparable. Kept in sync with the runtime's agent class.
 DIAG_USER_AGENT='Mozilla/5.0 (X11; Linux x86_64; rv:133.0) Gecko/20100101 Firefox/133.0'
 
 # Report one host's first-hop HTTP status. An origin that answers
@@ -223,7 +223,7 @@ echo ""
 # vs reachability vs edge-block from the job log alone, instead of
 # downloading the forensic bundle to read a screenshot. NEVER touches
 # `failed` or the exit code — a bank that blocks this probe but serves
-# the browser must not fail the preflight.
+# the HTTP client must not fail the preflight.
 echo "===First-hop reachability (diagnostic, non-fatal)==="
 for h in "${HOSTS[@]}"; do
   probe_status "$h"

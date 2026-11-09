@@ -387,7 +387,7 @@ wait_all
 # Runs `Tests/E2e.test.ts` which hits real bank URLs to verify the
 # error-handling contract (invalid-creds rejection). The 180s
 # per-test timeout assumed an idle box — when this runs concurrent
-# with the browser-heavy test:mock + test:e2e:mock pools above, the
+# with the network-heavy test:mock + test:e2e:mock pools above, the
 # slow-path latency exceeds 180s. Sequencing this AFTER wait_all
 # returns the gate to its baseline timing budget.
 #
