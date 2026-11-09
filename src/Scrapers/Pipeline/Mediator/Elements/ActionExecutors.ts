@@ -173,6 +173,7 @@ interface IClickArgs {
   readonly frame: Page | Frame;
   readonly selector: string;
   readonly isForce?: boolean;
+  readonly isSingleAttempt?: true;
   /** Optional 0-based nth index when the selector matches multiple DOM
    *  elements (e.g. Beinleumi legacy + modern buttons share aria-label).
    *  Default `.first()` (== `.nth(0)`); ACTION-level iteration provides
@@ -243,8 +244,8 @@ async function clickForceCascade(args: IClickCascadeArgs): Promise<true> {
 
 /**
  * Click an element via Playwright locator with human-like delay.
- * Captures click forensics (pre/post URL + DOM identity + outerHTML) before
- * each tier so CI-vs-LOCAL divergence can be proven from logs alone.
+ * The default path captures click forensics before each fallback tier.
+ * A single-attempt click propagates failure without fallback or forensics.
  * @param args - Bundled click arguments (frame, selector, isForce, nth).
  * @returns True after clicking.
  */
@@ -253,8 +254,20 @@ async function clickElementImpl(args: IClickArgs): Promise<true> {
   await humanDelay(200, 500);
   const base = frame.locator(selector);
   const locator = narrowLocator(base, nth);
+  if (args.isSingleAttempt) return clickOnce(locator, isForce);
   if (!isForce) return clickNaturalPath({ locator, selector, frame });
   return clickForceCascade({ locator, selector, frame });
+}
+
+/**
+ * Click once and propagate failure without trying another strategy.
+ * @param locator - Resolved target.
+ * @param isForce - Whether to bypass actionability checks.
+ * @returns True when the click resolves.
+ */
+async function clickOnce(locator: Locator, isForce?: boolean): Promise<true> {
+  await locator.click({ force: isForce, timeout: ELEMENTS_CLICK_TIMEOUT_MS });
+  return true;
 }
 
 /**

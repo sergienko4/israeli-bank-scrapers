@@ -51,8 +51,7 @@ function safeUrl(text: string, base?: string): URL | false {
  * @returns True for bounded, nonblank, well-formed text.
  */
 function isSafeIdentity(identity: string): boolean {
-  if (!isQueryText(identity, MAX_QUERY_VALUE_CHARS) || identity.trim() === '') return false;
-  return Buffer.from(identity, 'utf8').toString('utf8') === identity;
+  return isQueryText(identity, MAX_QUERY_VALUE_CHARS) && identity.trim() !== '';
 }
 
 /**

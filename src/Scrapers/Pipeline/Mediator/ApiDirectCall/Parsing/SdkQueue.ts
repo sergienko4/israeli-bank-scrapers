@@ -38,12 +38,13 @@ function initializesQueue(node: QueueNode): boolean {
 }
 
 /**
- * Reads the first literal from a queue call's array argument.
+ * Reads the source literal from a single-entry queue call.
  * @param node - Parsed call expression.
  * @returns The source literal.
- * @throws If the queue source is missing or not a string literal.
+ * @throws If there is not one argument or its source is not a string literal.
  */
 function firstSource(node: Extract<Expression, { type: 'CallExpression' }>): string {
+  if (node.arguments.length !== 1) throw new SyntaxError('invalid script queue arguments');
   const first = node.arguments.at(0);
   const source = first?.type === 'ArrayExpression' ? first.elements[0] : undefined;
   if (source?.type !== 'StringLiteral') throw new SyntaxError('invalid script queue source');

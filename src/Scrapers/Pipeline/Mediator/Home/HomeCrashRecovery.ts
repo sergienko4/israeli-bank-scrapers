@@ -47,6 +47,7 @@ interface IHomeRecoveryArgs {
   readonly logger: ScraperLogger;
   readonly page: Page;
   readonly baseUrl: string;
+  readonly disablePhaseRetry?: true;
 }
 
 /**
@@ -128,8 +129,8 @@ async function recoverFromClientCrash(
 /**
  * Run HOME passive discovery, healing a client-side crash on failure.
  * Single PRE entry point: ordinary success and ordinary "no trigger"
- * failures pass straight through; only a detected crash boundary
- * triggers the reload-and-retry path.
+ * failures pass straight through; a detected crash boundary triggers the
+ * reload-and-retry path unless phase retry is disabled by the bank.
  * @param args - Bundled mediator, logger, page, baseUrl.
  * @returns Discovery Procedure (recovered when a crash was healed).
  */
@@ -137,7 +138,7 @@ async function resolveHomeWithRecovery(
   args: IHomeRecoveryArgs,
 ): Promise<Procedure<IHomeDiscovery>> {
   const first = await resolveHomeStrategy(args.mediator, args.logger, args.page);
-  if (first.success) return first;
+  if (first.success || args.disablePhaseRetry === true) return first;
   return recoverFromClientCrash(args, first);
 }
 
@@ -154,7 +155,10 @@ function toRecoveryArgs(
   mediator: IElementMediator,
   page: Page,
 ): IHomeRecoveryArgs {
-  return { mediator, logger: input.logger, page, baseUrl: input.config.urls.base };
+  const { logger } = input;
+  const baseUrl = input.config.urls.base;
+  const isRetryDisabled = input.config.disablePhaseRetry;
+  return { mediator, logger, page, baseUrl, disablePhaseRetry: isRetryDisabled };
 }
 
 export type { IHomeRecoveryArgs };

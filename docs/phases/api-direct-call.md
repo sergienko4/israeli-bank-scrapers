@@ -138,7 +138,7 @@ One hydration engine serves both `API-DIRECT-CALL` and `API-DIRECT-SCRAPE` step 
   rejects malformed query escapes. `MAX_QUERY_URL_CHARS` caps the source URL
   at 32,768 characters and `MAX_QUERY_VALUE_CHARS` caps decoded values at
   8,192. Invalid URLs or encoding,
-  missing or duplicate values, and control characters fail without naming
+  missing or duplicate values, control characters and ill-formed Unicode fail without naming
   the URL or value. `rejectBlank: true` additionally refuses whitespace-only
   decoded values without trimming accepted values; omitting it preserves the
   existing behavior.
@@ -154,7 +154,7 @@ One hydration engine serves both `API-DIRECT-CALL` and `API-DIRECT-SCRAPE` step 
   three parts supply the target, an independently allowlisted fresh source URL
   and a nonblank identity. Required source query keys must each occur once;
   source keys replace target keys, then the identity replaces `setKey`. Other
-  target query fields remain. URL/query bounds, encoding and control checks
+  target query fields remain. URL/query bounds, lossless UTF-8 encoding and control checks
   apply before use, and the final carried GET checks the destination again.
   Composition does not admit separators, transforms or truncation.
 
@@ -889,6 +889,8 @@ and the final answering URL. It considers active HTML script `src` attributes
 and literal sources in the observed top-level `self.__next_s.push` queue
 forms. A zero-marker inline queue entry with static, non-source properties is
 not an external script; dynamic or source-bearing inline properties are refused.
+Each supported queue push must have exactly one argument; multi-argument calls
+are refused rather than silently ignoring later entries.
 It excludes inert, non-JavaScript and foreign-namespace subtrees;
 `activeElements`, `attribute`, `isExecutableScript`, `scriptText`, and
 `queueSources` supply those syntactic checks. No page or SDK code is

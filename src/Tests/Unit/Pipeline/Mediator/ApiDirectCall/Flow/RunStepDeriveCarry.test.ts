@@ -149,6 +149,12 @@ describe('step-level derived carry', () => {
     expect(result).toMatchObject({ success: true, value: { carry: { tracking: '  ' } } });
   });
 
+  it('preserves well-formed Unicode surrogate pairs in query values', async () => {
+    const tracking = 'route\ud83d\ude00';
+    const result = await runQuery(`https://route.example/?tracking=${tracking}`);
+    expect(result).toMatchObject({ success: true, value: { carry: { tracking } } });
+  });
+
   it('rejects a whitespace-only query only when explicitly configured', async () => {
     const op = { kind: 'url-query', key: 'tracking', rejectBlank: true } as const;
     const derive = { into: 'tracking', parts: ['carry.entry'] as const, op };
@@ -176,6 +182,9 @@ describe('step-level derived carry', () => {
     ['encoded control', 'https://route.example/?tracking=bad%00value'],
     ['encoded C1 control', 'https://route.example/?tracking=bad%C2%85value'],
     ['raw control', 'https://route.example/?tracking=bad\nvalue'],
+    ['unpaired high surrogate', 'https://route.example/?tracking=route\ud800'],
+    ['unpaired low surrogate', 'https://route.example/?tracking=route\udc00'],
+    ['malformed Unicode elsewhere in URL', 'https://route.example/\ud800?tracking=route'],
     ['malformed escape', 'https://route.example/?tracking=%C0%AF'],
     ['oversized value', `https://route.example/?tracking=${'x'.repeat(8193)}`],
     ['oversized URL', `https://route.example/?tracking=ok&other=${'x'.repeat(32768)}`],

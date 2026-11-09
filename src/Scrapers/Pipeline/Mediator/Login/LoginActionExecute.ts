@@ -55,13 +55,13 @@ interface IRunFillArgs {
  * @returns Fill-from-discovery args.
  */
 function buildFillArgs(args: IRunFillArgs): Parameters<typeof fillFromDiscovery>[0] {
-  const creds = args.input.credentials as Record<string, string>;
   return {
     discovery: args.discovery,
     executor: args.executor,
     config: args.config,
-    creds,
+    creds: args.input.credentials as Record<string, string>,
     logger: args.input.logger,
+    isSingleSubmit: args.input.config.disablePhaseRetry,
   };
 }
 

@@ -8,6 +8,7 @@ type HtmlNode = DefaultTreeAdapterTypes.Node;
 type HtmlElement = DefaultTreeAdapterTypes.Element;
 
 const INERT_TAGS: ReadonlySet<string> = new Set(['template', 'noscript']);
+const HTML_WHITESPACE: ReadonlySet<string> = new Set(['\t', '\n', '\f', '\r', ' ']);
 const DEFAULT_SCRIPT_TYPE = 'text/javascript';
 const JAVASCRIPT_TYPES: ReadonlySet<string> = new Set([
   'application/ecmascript',
@@ -110,7 +111,11 @@ function allowsEvent(node: HtmlElement): boolean {
  */
 function classicType(node: HtmlElement, type: string): string {
   if (attribute(node, 'type') === false) return type;
-  return type.replaceAll(/^[\t\n\f\r ]+|[\t\n\f\r ]+$/gu, '');
+  let start = 0;
+  let end = type.length;
+  while (start < end && HTML_WHITESPACE.has(type[start])) start += 1;
+  while (end > start && HTML_WHITESPACE.has(type[end - 1])) end -= 1;
+  return type.slice(start, end);
 }
 
 /**

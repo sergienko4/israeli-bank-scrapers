@@ -86,6 +86,35 @@ describe('active SDK reference', () => {
     expect(result).toMatchObject({ success: false });
   });
 
+  it.each([
+    '["/other/sdk.js",{}]',
+    '[dynamicSource,{}]',
+    '[]',
+    '...unknown',
+    '[0,{"id":"inline"}]',
+  ])('refuses an unchecked later queue argument: %s', later => {
+    const script = `self.__next_s.push(["../sdk.js",{}],${later})`;
+    const result = captureSdkReference({
+      html: `<script>${script}</script>`,
+      answerUrl: ANSWER_URL,
+      rules: RULES,
+    });
+    expect(result).toMatchObject({ success: false });
+  });
+
+  it.each([
+    ['\t\n\f\r text/javascript \t\n\f\r', true],
+    ['\u00a0text/javascript\u00a0', false],
+    [' '.repeat(32768), false],
+  ])('preserves HTML classic-script type whitespace rules', (type, success) => {
+    const result = captureSdkReference({
+      html: `<script type="${type}" src="../sdk.js"></script>`,
+      answerUrl: ANSWER_URL,
+      rules: RULES,
+    });
+    expect(result).toMatchObject({ success });
+  });
+
   it('refuses different allowed references and relevant malformed syntax without source text', () => {
     const candidates = [
       '<script src="../sdk.js"></script><script src="/other/sdk.js"></script>',

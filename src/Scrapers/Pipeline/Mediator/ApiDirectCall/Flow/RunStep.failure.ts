@@ -70,12 +70,12 @@ const POLICY_REFUSAL = new RegExp(
 );
 
 /** Fixed, body-free integrity reasons emitted by the native transport. */
-const INTEGRITY_REFUSAL_REASONS = [
+const INTEGRITY_REFUSAL_REASONS: ReadonlySet<string> = new Set([
   RESPONSE_BYTE_LIMIT_REASON,
   RESPONSE_DIGEST_MISMATCH_REASON,
   RESPONSE_INTEGRITY_INVALID_REASON,
   RESPONSE_INTEGRITY_UNSUPPORTED_REASON,
-];
+]);
 
 /**
  * Read the HTTP status the transport embedded in a failure message.
@@ -117,7 +117,7 @@ function describeFailure(failure: IProcedureFailure): string {
 function isFixedReason(failure: IProcedureFailure): boolean {
   if (isWafBlocked(failure)) return true;
   if (failure.responseIntegrityRefusal === true) {
-    return INTEGRITY_REFUSAL_REASONS.includes(failure.errorMessage);
+    return INTEGRITY_REFUSAL_REASONS.has(failure.errorMessage);
   }
   return isLocalFailureMessage(failure.errorMessage);
 }
