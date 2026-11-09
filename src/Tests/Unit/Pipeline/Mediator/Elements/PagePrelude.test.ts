@@ -22,7 +22,7 @@ import {
   awaitPagePrelude,
   PRELUDE_NONE,
 } from '../../../../../Scrapers/Pipeline/Mediator/Elements/PagePrelude.js';
-import { HOME_PRELUDE_TIMEOUT_MS } from '../../../../../Scrapers/Pipeline/Mediator/Timing/HomeTimingConfig.js';
+import { DASHBOARD_PRELUDE_TIMEOUT_MS } from '../../../../../Scrapers/Pipeline/Mediator/Timing/DashboardTimingConfig.js';
 import { OTP_FILL_PRELUDE_TIMEOUT_MS } from '../../../../../Scrapers/Pipeline/Mediator/Timing/OtpTimingConfig.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 
@@ -160,10 +160,10 @@ function buildPagePreludeScenario(resolveFor: ReadonlySet<string>): IPagePrelude
 // PR #221 review (id 3217306133): the suite previously hard-coded
 // `timeoutMs: 5_000` for both specs. Sourced from the per-phase timing
 // modules instead so the central ceilings remain the single source of
-// truth — `HOME_PRELUDE_TIMEOUT_MS` is a representative SPA-level
+// truth — `DASHBOARD_PRELUDE_TIMEOUT_MS` is a representative SPA-level
 // budget; `OTP_FILL_PRELUDE_TIMEOUT_MS` is a representative DOM-level
 // budget.
-const SPA_SPEC: IPreludeSpec = { level: 'spa', timeoutMs: HOME_PRELUDE_TIMEOUT_MS };
+const SPA_SPEC: IPreludeSpec = { level: 'spa', timeoutMs: DASHBOARD_PRELUDE_TIMEOUT_MS };
 const DOM_SPEC: IPreludeSpec = { level: 'dom', timeoutMs: OTP_FILL_PRELUDE_TIMEOUT_MS };
 const DOM_ONLY = new Set(['domcontentloaded']);
 const LOAD_AND_IDLE = new Set(['load', 'networkidle']);

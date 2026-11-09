@@ -1,15 +1,13 @@
 /**
  * Phase H.T4 — cross-bank FULL-FLOW factory.
  *
- * <p>Chains every PHASE_H_BANK through all 10 pipeline phases by
+ * <p>Chains every PHASE_H_BANK through all 8 pipeline phases by
  * replaying each phase's per-phase factory against the bank's
  * per-phase last-good fixture. Asserts the bank's last-good
  * captured-shape data flows end-to-end through:
  *
  * <ol>
  *   <li>INIT.POST (executeValidatePage)</li>
- *   <li>HOME.POST (executeValidateLoginArea)</li>
- *   <li>PRE-LOGIN.POST + FINAL (executeValidateForm + executeSignalToLogin)</li>
  *   <li>LOGIN.FINAL (executeLoginSignal cookie audit)</li>
  *   <li>OTP-TRIGGER.POST + FINAL (only for OTP-using banks)</li>
  *   <li>OTP-FILL.POST + FINAL (only for OTP-using banks)</li>
@@ -33,7 +31,6 @@
  */
 
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
-import type { IElementMediator } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ElementMediator.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { type ITransaction, type ITransactionsAccount } from '../../../../../Transactions.js';
 import {
@@ -52,24 +49,19 @@ import {
   executeLoginSignal,
   executeLogResults,
   executeSignalDone,
-  executeSignalToLogin,
   executeStampAccounts,
   executeStartCleanup,
   executeTriggerFinal,
   executeTriggerPost,
-  executeValidateForm,
-  executeValidateLoginArea,
   executeValidatePage,
   executeValidateResults,
 } from './Fixtures/_FullFlowActions.js';
 import {
   buildAccountResolvePhaseContext,
-  buildHomePhaseContext,
   buildInitPhaseContext,
   buildLoginPhaseContext,
   buildOtpFillPhaseContext,
   buildOtpTriggerPhaseContext,
-  buildPreLoginPhaseContext,
   buildScrapePhaseContext,
   buildTerminatePhaseContext,
   loadAuthDiscoveryFixtureCookies,
@@ -157,89 +149,6 @@ async function runInitPost(_row: IFullFlowRow, preCtx: IPipelineContext): Promis
 }
 
 /**
- * Build the HOME per-phase preCtx + homepage URL for one row.
- *
- * @param row - Per-bank scenario row.
- * @returns Pre-built HOME phase subject (context + homepageUrl).
- */
-function buildHomePreCtx(row: IFullFlowRow): ReturnType<typeof buildHomePhaseContext> {
-  return buildHomePhaseContext({
-    homepageUrl: row.homepageUrl,
-    postNavUrl: row.postNavUrl,
-    frameCount: row.frameCount,
-  });
-}
-
-/**
- * Run HOME.POST for one bank row against the supplied preCtx.
- *
- * @param _row - Per-bank scenario row (kept for symmetry; unused).
- * @param preCtx - HOME phase subject from {@link buildHomePreCtx}.
- * @returns True when HOME.POST succeeds.
- */
-async function runHomePost(
-  _row: IFullFlowRow,
-  preCtx: ReturnType<typeof buildHomePhaseContext>,
-): Promise<boolean> {
-  if (!preCtx.context.mediator.has) return false;
-  const args = buildHomeArgs({ preCtx, mediator: preCtx.context.mediator.value });
-  return (await executeValidateLoginArea(args)).success;
-}
-
-/** Args bundle accepted by {@link executeValidateLoginArea}. */
-type LoginAreaArgs = Parameters<typeof executeValidateLoginArea>[0];
-
-/** Inputs needed to build the FullFlow HOME args bundle. */
-interface IBuildHomeArgsInput {
-  readonly preCtx: ReturnType<typeof buildHomePhaseContext>;
-  readonly mediator: IElementMediator;
-}
-
-/**
- * Build the {@link executeValidateLoginArea} argument bundle from
- * the HOME per-phase subject.
- *
- * @param input - HOME phase subject + narrowed mediator.
- * @returns Args bundle for HOME.POST.
- */
-function buildHomeArgs(input: IBuildHomeArgsInput): LoginAreaArgs {
-  return {
-    mediator: input.mediator,
-    input: input.preCtx.context,
-    homepageUrl: input.preCtx.homepageUrl,
-    logger: input.preCtx.context.logger,
-  };
-}
-
-/**
- * Run INIT.POST followed by HOME.POST.
- *
- * @param row - Per-bank scenario row.
- * @returns True when both phases succeed.
- */
-async function runInitHome(row: IFullFlowRow): Promise<boolean> {
-  const initPreCtx = buildInitPreCtx(row);
-  const isInitOk = await runInitPost(row, initPreCtx);
-  if (!isInitOk) return false;
-  const homePreCtx = buildHomePreCtx(row);
-  return runHomePost(row, homePreCtx);
-}
-
-/**
- * Run PRE-LOGIN.POST + PRE-LOGIN.FINAL for one row.
- *
- * @param row - Per-bank scenario row.
- * @returns True when both PRE-LOGIN sub-steps succeed.
- */
-async function runPreLogin(row: IFullFlowRow): Promise<boolean> {
-  const subject = buildPreLoginPhaseContext({ isFormGateFound: true, loginUrl: row.loginUrl });
-  if (!subject.context.mediator.has) return false;
-  const post = await executeValidateForm(subject.context.mediator.value, subject.context);
-  if (!post.success) return false;
-  return executeSignalToLogin(post.value).success;
-}
-
-/**
  * Run LOGIN.FINAL cookie audit for one row.
  *
  * @param row - Per-bank scenario row.
@@ -251,18 +160,6 @@ async function runLoginFinal(row: IFullFlowRow): Promise<boolean> {
   const loginCtx = buildLoginPhaseContext(loginFixture, loginCookies);
   const loginFinal = await executeLoginSignal(loginCtx);
   return loginFinal.success;
-}
-
-/**
- * Run PRE-LOGIN POST+FINAL followed by LOGIN.FINAL.
- *
- * @param row - Per-bank scenario row.
- * @returns True when the full PRE-LOGIN → LOGIN.FINAL leg succeeds.
- */
-async function runPreLoginAndLogin(row: IFullFlowRow): Promise<boolean> {
-  const isPreLoginOk = await runPreLogin(row);
-  if (!isPreLoginOk) return false;
-  return runLoginFinal(row);
 }
 
 /**
@@ -399,20 +296,21 @@ async function runBackHalf(row: IFullFlowRow): Promise<boolean> {
 }
 
 /**
- * Run the full 10-phase chain for one bank row, asserting at each
+ * Run the full 8-phase chain for one bank row, asserting at each
  * leg.
  *
  * @param row - Per-bank scenario row.
  * @returns Resolved when all leg assertions complete.
  */
 async function runFullFlowForRow(row: IFullFlowRow): Promise<void> {
-  expect(await runInitHome(row)).toBe(true);
-  expect(await runPreLoginAndLogin(row)).toBe(true);
+  const initPreCtx = buildInitPreCtx(row);
+  expect(await runInitPost(row, initPreCtx)).toBe(true);
+  expect(await runLoginFinal(row)).toBe(true);
   if (row.usesOtp) expect(await runOtpLeg(row)).toBe(true);
   expect(await runBackHalf(row)).toBe(true);
 }
 
-describe('FULL-FLOW-FACTORY — Phase H per-bank 10-phase chain', () => {
+describe('FULL-FLOW-FACTORY — Phase H per-bank 8-phase chain', () => {
   it.each(SCENARIOS)('fullFlow_$bank_lastGood_ShouldCompleteEveryPhase', async row => {
     await runFullFlowForRow(row);
   });

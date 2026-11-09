@@ -146,8 +146,6 @@ nav:
   - Phases:
       - Overview: phases/index.md
       - INIT: phases/init.md
-      - HOME: phases/home.md
-      - PRE-LOGIN: phases/pre-login.md
       - LOGIN: phases/login.md
       - OTP-TRIGGER: phases/otp-trigger.md
       - OTP-FILL: phases/otp-fill.md
@@ -187,7 +185,7 @@ nav:
       - Forensic audit: observability/forensic-audit.md
       - INIT navigation forensics: observability/init-navigation-forensics.md
       - Coverage audit: observability/coverage-audit.md
-      - Render health & element identity: observability/render-health.md
+      - Element identity: observability/element-identity.md
   - Workflow:
       - Overview: workflow/index.md
       - CI gates: workflow/ci.md

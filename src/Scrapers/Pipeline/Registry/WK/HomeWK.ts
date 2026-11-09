@@ -1,7 +1,6 @@
 /**
  * HOME phase WK constants — login entry points only.
- * NO reveal toggles — those belong to PRE-LOGIN (PreLoginWK.ts).
- * Isolated: NO imports from PreLogin, Login, Dashboard, or Scrape WK.
+ * Isolated: NO imports from Login, Dashboard, or Scrape WK.
  */
 
 /** Selector-kind discriminator strings, lifted out of every literal entry. */

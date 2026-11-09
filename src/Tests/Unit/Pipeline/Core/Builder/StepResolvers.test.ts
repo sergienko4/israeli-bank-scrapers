@@ -36,7 +36,6 @@ function makeState(overrides: Partial<IBuilderState> = {}): IBuilderState {
   const base: IBuilderState = {
     hasBrowser: false,
     isHeadless: false,
-    hasPreLogin: false,
     hasOtpFill: false,
     otpFillRequired: true,
     hasOtpTrigger: false,

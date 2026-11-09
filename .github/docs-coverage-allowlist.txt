@@ -372,7 +372,7 @@ buildActiveOptions
 # These 69 timing-budget constants were previously declared in
 # src/Scrapers/Pipeline/Mediator/Timing/TimingConfig.ts and are NOT new
 # public API. Phase 12b decomposed that 481-LoC hub into per-phase
-# domain files (HomeTimingConfig.ts, OtpTimingConfig.ts, etc.) plus a
+# domain files (OtpTimingConfig.ts, etc.) plus a
 # shared cross-cutting module. TimingConfig.ts re-exported every name
 # verbatim for one release window and has since been removed; the
 # external symbol surface emitted into lib/index.{cjs,mjs} was unchanged
@@ -416,13 +416,6 @@ ELEMENTS_FORENSICS_EVAL_TIMEOUT_MS
 ELEMENTS_LOADING_DELAY_MS
 ELEMENTS_NETWORK_IDLE_TIMEOUT_MS
 ELEMENTS_URL_WAIT_TIMEOUT_MS
-HOME_ENTRY_TIMEOUT_MS
-HOME_FORM_READY_TIMEOUT_MS
-HOME_MODAL_SETTLE_TIMEOUT_MS
-HOME_PRELUDE_TIMEOUT_MS
-HOME_RESOLVER_ENTRY_TIMEOUT_MS
-HOME_SETTLE_TIMEOUT_MS
-HOME_SPA_NAV_TIMEOUT_MS
 HUMAN_DELAY_MAX_MS
 HUMAN_DELAY_MIN_MS
 INIT_NAV_COMMIT_TIMEOUT_MS
@@ -442,13 +435,6 @@ OTP_SUBMIT_PROBE_TIMEOUT_MS
 OTP_TRIGGER_GONE_PROBE_TIMEOUT_MS
 OTP_TRIGGER_PRELUDE_TIMEOUT_MS
 PHASE_SETTLE_MS
-PRELOGIN_CRED_AREA_TIMEOUT_MS
-PRELOGIN_DISCOVER_TIMEOUT_MS
-PRELOGIN_FORM_GATE_TIMEOUT_MS
-PRELOGIN_FORM_POST_TIMEOUT_MS
-PRELOGIN_FORM_PROBE_TIMEOUT_MS
-PRELOGIN_RESOLVE_TARGET_TIMEOUT_MS
-PRELOGIN_REVEAL_NAV_TIMEOUT_MS
 PRELUDE_NONE_BUDGET_MS
 SCRAPE_UI_TRAFFIC_TIMEOUT_MS
 SCRAPE_UI_WK_TIMEOUT_MS

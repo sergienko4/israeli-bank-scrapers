@@ -53,8 +53,9 @@ The root `license` fields in `package.json` and `package-lock.json` identify
 this fork's own grant: `AGPL-3.0-only` starting with 10.0.0. They do not
 relicense third-party packages or relax the dependency-review license
 allowlist. Non-root lockfile license entries and vulnerability thresholds
-remain unchanged. See the [project license](../../README.md#license) for
-the terms and matching-release source access.
+remain unchanged. See the
+[project license](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/README.md#license)
+for the terms and matching-release source access.
 
 ## Why zizmor decides
 

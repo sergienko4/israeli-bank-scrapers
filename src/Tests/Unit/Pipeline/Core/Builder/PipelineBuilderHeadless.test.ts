@@ -92,14 +92,12 @@ describe('PipelineBuilder — withHeadlessMediator', () => {
     expect(result.value.isHeadless).toBe(true);
   });
 
-  it('phase list EXCLUDES init/home/pre-login/dashboard/terminate', () => {
+  it('phase list EXCLUDES init/dashboard/terminate', () => {
     const opts = makeMockOptions();
     const result = buildHeadlessDescriptor(opts);
     assertOk(result);
     const names = result.value.phases.map(p => p.name);
     expect(names).not.toContain('init');
-    expect(names).not.toContain('home');
-    expect(names).not.toContain('pre-login');
     expect(names).not.toContain('dashboard');
     expect(names).not.toContain('terminate');
   });
@@ -146,13 +144,13 @@ describe('PipelineBuilder — back-compat (no withHeadlessMediator)', () => {
     expect(result.value.isHeadless).toBe(false);
   });
 
-  it('browser-driven phase list INCLUDES init/home/terminate (pre-login is opt-in)', () => {
+  it('browser-driven phase list INCLUDES init/terminate', () => {
     const opts = makeMockOptions();
     const result = buildBrowserDescriptor(opts);
     assertOk(result);
     const names = result.value.phases.map(p => p.name);
     expect(names).toContain('init');
-    expect(names).toContain('home');
+    expect(names).not.toContain('home');
     expect(names).not.toContain('pre-login');
     expect(names).toContain('terminate');
   });

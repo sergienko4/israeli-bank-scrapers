@@ -711,7 +711,7 @@ const RESTRICTED_SYNTAX_RULES_NEW = [
   {
     // Add your safe classes to the negative lookahead (the ?! section)
     selector:
-      'NewExpression[callee.name=/^(?!Error|Map|Set|Date|RegExp|URL|Headers|EventEmitter|ScraperError|PipelineBuilder|HomePhase|PreLoginPhase|DashboardPhase|ScrapePhase|OtpPhase|TerminatePhase)[A-Z]/]',
+      'NewExpression[callee.name=/^(?!Error|Map|Set|Date|RegExp|URL|Headers|EventEmitter|ScraperError|PipelineBuilder|DashboardPhase|ScrapePhase|OtpPhase|TerminatePhase)[A-Z]/]',
     message: '🚫 DI ENFORCEMENT: Do not instantiate classes directly. Inject via PipelineContext.',
   },
   {
@@ -903,7 +903,7 @@ const PIPELINE_SYNTAX_PENDING_DRAIN = new Set([
   // which is a typing refactor with its own review.
   'TSAsExpression > TSAsExpression',
   // 20 — direct instantiation outside the DI container.
-  'NewExpression[callee.name=/^(?!Error|Map|Set|Date|RegExp|URL|Headers|EventEmitter|ScraperError|PipelineBuilder|HomePhase|PreLoginPhase|DashboardPhase|ScrapePhase|OtpPhase|TerminatePhase)[A-Z]/]',
+  'NewExpression[callee.name=/^(?!Error|Map|Set|Date|RegExp|URL|Headers|EventEmitter|ScraperError|PipelineBuilder|DashboardPhase|ScrapePhase|OtpPhase|TerminatePhase)[A-Z]/]',
   // 17 — `''` fallbacks in business logic.
   "VariableDeclarator[id.name!=/text|html|content|val|attr/i] > LogicalExpression[right.value='']",
   // 10 — `else` blocks.
@@ -1834,7 +1834,7 @@ export default tseslint.config(
   //
   // Phase 12b (v8.5) split the former 481-LoC
   // `Mediator/Timing/TimingConfig.ts` hub into per-phase domain
-  // files (`HomeTimingConfig.ts`, `OtpTimingConfig.ts`, ...). Some
+  // files (`OtpTimingConfig.ts`, `TerminateTimingConfig.ts`, ...). Some
   // phases own exactly one budget — `TerminateTimingConfig.ts` only
   // exposes `TERMINATE_CLEANUP_BUDGET_MS`. Forcing those modules to
   // `export default` would require every importer to bind a local
@@ -2869,11 +2869,10 @@ export default tseslint.config(
     },
   },
 
-  // 14b.3. Phase 2d cluster — Login + PreLogin + AuthDiscovery.
+  // 14b.3. Phase 2d cluster — Login + AuthDiscovery.
   {
     files: [
       'src/Scrapers/Pipeline/Mediator/Login/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/PreLogin/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/AuthDiscovery/**/*.ts',
       'src/Scrapers/Pipeline/EslintCanaries/mediator-auth-fn-over-cap.canary.ts',
       'src/Scrapers/Pipeline/EslintCanaries/mediator-auth-file-over-cap.canary.ts',
@@ -2899,7 +2898,6 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Mediator/Scrape/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/Otp/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/Browser/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/Home/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/Credentials/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/Terminate/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/Timing/**/*.ts',
