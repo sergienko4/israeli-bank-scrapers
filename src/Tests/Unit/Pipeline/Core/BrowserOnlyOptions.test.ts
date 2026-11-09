@@ -143,10 +143,29 @@ describe('warnBrowserOnlyOptions — browserless transports', () => {
     },
   );
 
-  it('stays silent on a browser bank, which honours these options', () => {
+  it('warns on Leumi, which now uses native fetch', () => {
     const options = makeOptions(CompanyTypes.Leumi, { shouldShowBrowser: true });
     const { emitted, returned } = captureWarnings(options);
-    expect({ emitted, returned }).toEqual({ emitted: [], returned: [] });
+    expect(returned).toEqual(['shouldShowBrowser']);
+    expect(emitted).toHaveLength(1);
+  });
+
+  it('stays silent for a bank without a headless configuration', async () => {
+    const registry =
+      await import('../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
+    const bank = CompanyTypes.Leumi;
+    const original = registry.PIPELINE_BANK_CONFIG[bank];
+    if (original === undefined) throw new TypeError('missing bank configuration');
+    const { headless, ...withoutHeadless } = original;
+    expect(headless).toBeDefined();
+    registry.PIPELINE_BANK_CONFIG[bank] = withoutHeadless;
+    try {
+      const options = makeOptions(bank, { shouldShowBrowser: true });
+      const outcome = captureWarnings(options);
+      expect(outcome).toEqual({ emitted: [], returned: [] });
+    } finally {
+      registry.PIPELINE_BANK_CONFIG[bank] = original;
+    }
   });
 });
 
@@ -168,6 +187,7 @@ const EXPECTED_BROWSERLESS: readonly CompanyTypes[] = [
   CompanyTypes.Discount,
   CompanyTypes.Mercantile,
   CompanyTypes.Mizrahi,
+  CompanyTypes.Leumi,
   CompanyTypes.Massad,
   CompanyTypes.Yahav,
   CompanyTypes.OneZero,

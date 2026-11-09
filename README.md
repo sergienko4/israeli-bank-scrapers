@@ -54,9 +54,9 @@ whether the OTP callback belongs in the options or the credentials
 > · [Contributing](./CONTRIBUTING.md)
 
 A maintained fork of [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers),
-rewritten onto a typed phase-based pipeline using
-[Camoufox](https://github.com/daijro/camoufox) (Firefox anti-detect),
-Playwright, and TypeScript strict mode.
+rewritten onto a typed phase-based pipeline using TypeScript strict mode.
+All supported banks currently use direct API calls; the browser infrastructure
+remains available in the codebase.
 
 <!-- Regenerate the TOC below with:
      npx doctoc README.md --title '## Table of Contents'
@@ -87,17 +87,13 @@ Playwright, and TypeScript strict mode.
 
 ## Why this fork
 
-- **WAF bypass that works on the first attempt** — Camoufox (Firefox
-  anti-detect) rather than Puppeteer plus stealth shims.
-- **Logins survive UI redesigns** — zero CSS selectors in interaction code.
-  Fields are found by the visible Hebrew text a user reads, through a
-  7-strategy resolver.
+- **Browserless banking** — supported institutions authenticate and fetch
+  data through their APIs without launching a browser.
 - **PII redaction you can trust** — every log line, captured HTTP body, and DOM
   snapshot passes through one redactor _before_ it touches disk.
-- **Direct-API scraping after login** — once the browser proves the session,
-  data is read from the bank's own REST/GraphQL endpoints, not scraped from the
-  DOM. Faster, and immune to layout changes.
-- **One result shape** — browser banks and API-direct banks return the same
+- **Direct-API scraping after login** — data is read from the bank's own
+  endpoints, not scraped from the DOM.
+- **One result shape** — all supported banks return the same
   `IScraperScrapingResult`.
 - **Dual ESM + CJS** — `import` and `require()` both work.
 
@@ -107,7 +103,7 @@ Playwright, and TypeScript strict mode.
 | --------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Node.js         | `>= 24.11.0`    | First Node 24 LTS; bundles OpenSSL 3.5, which OneZero's TLS handshake needs                                                                                                                                                         |
 | npm             | `>= 10`         | Provenance-signed publishes                                                                                                                                                                                                         |
-| Disk            | ~1.3 GB         | Camoufox bundle, cached on **first launch** (not at install)                                                                                                                                                                        |
+| Disk            | ~1.3 GB         | Camoufox bundle, cached on **first browser launch**; current banks do not launch it                                                                                                                                                 |
 | Install scripts | must be allowed | `--ignore-scripts` breaks the native build. npm 12 blocks them by default too, so `better-sqlite3` needs `npm install-scripts approve` — see [Troubleshooting](https://sergienko4.github.io/israeli-bank-scrapers/troubleshooting/) |
 
 Windows, macOS, and Linux are all supported.
@@ -148,7 +144,7 @@ validated at runtime.
 | Institution          | Type        | Engine     | Credentials                     |
 | -------------------- | ----------- | ---------- | ------------------------------- |
 | Bank Hapoalim        | Bank        | API-direct | `userCode`, `password`, OTP\*   |
-| Bank Leumi           | Bank        | Browser    | `username`, `password`          |
+| Bank Leumi           | Bank        | API-direct | `username`, `password`          |
 | Bank Otsar Hahayal   | Bank        | API-direct | `username`, `password`, OTP\*   |
 | Bank Yahav           | Bank        | API-direct | `num`, `nationalID`, `password` |
 | Beinleumi            | Bank        | API-direct | `username`, `password`, OTP\*   |
@@ -225,7 +221,7 @@ natural local form `0500000001` — write it as `972500000001`.
 
 ## What you get back
 
-Every bank — browser or API-direct — returns the same `IScraperScrapingResult`:
+Every bank returns the same `IScraperScrapingResult`:
 
 ```json
 {
@@ -349,8 +345,8 @@ that protection is gone; see
 
 - **No telemetry, no analytics, no remote error reporting.** The word
   "telemetry" in this codebase means the local `pipeline.log` file.
-- **Outbound traffic goes to your bank only** — plus a one-time Camoufox
-  browser download on first launch.
+- **Outbound traffic goes to your bank only** — browser infrastructure, if used,
+  additionally downloads Camoufox on its first launch.
 - **Runtime dependencies are `@babel/parser`, `camoufox-js`, `lodash`,
   `moment`, `moment-timezone`, `parse5`, `pino`, and `playwright-core`.**
   None of them phone home.
@@ -389,32 +385,17 @@ backwards compatibility. Full remedies, including WAF-specific ones, are in
 
 ```mermaid
 flowchart LR
-    subgraph BB["Pipeline browser banks (1) — Leumi"]
-      direction LR
-      INIT --> HOME --> PRELOGIN["PRE-LOGIN (opt-in)"]
-      PRELOGIN --> LOGIN
-      LOGIN --> OTP["OTP-TRIGGER / OTP-FILL (opt-in)"]
-      OTP --> AUTH["AUTH-DISCOVERY"]
-      AUTH --> BIND["BIND-API-MEDIATOR"]
-      BIND --> SCRAPE["API-DIRECT-SCRAPE<br/>(direct API calls — no DOM walk)"]
-      SCRAPE --> TERM["TERMINATE"]
-    end
-
-    subgraph API["API-direct banks (16) — every bank except Leumi"]
+    subgraph API["API-direct banks (17)"]
       direction LR
       CALL["API-DIRECT-CALL<br/>(login + OTP via JSON API)"] --> SCR["API-DIRECT-SCRAPE"]
     end
 
-    BB -.->|"unified result shape"| RESULT(["IScraperScrapingResult"])
-    API -.->|"unified result shape"| RESULT
+    API -.->|"unified result shape"| RESULT(["IScraperScrapingResult"])
 ```
 
-**Every bank on the pipeline scrapes direct API after login.** Once
-`AUTH-DISCOVERY` proves the session, `BIND-API-MEDIATOR` attaches an
-authenticated client to the live page and `API-DIRECT-SCRAPE` walks a typed
-list of REST/GraphQL calls — no post-login navigation, no DOM scraping. The
-API-direct banks reach that same phase through a headless JSON login instead of
-the browser prefix.
+**Every registered bank uses API-direct login and scraping.**
+`API-DIRECT-CALL` establishes the session, then `API-DIRECT-SCRAPE` walks a
+typed list of bank API calls without page navigation or DOM scraping.
 
 Phases never read one another's state; they communicate through typed fields on
 a shared context. See

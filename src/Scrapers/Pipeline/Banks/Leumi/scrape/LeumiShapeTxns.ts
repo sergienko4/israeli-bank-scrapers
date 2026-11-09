@@ -4,28 +4,47 @@
  * RFC-1123 `FromDateUTC`/`ToDateUTC` range) returns the whole window, so
  * there is no pagination cursor (`TCursor = never`).
  *
- * `extractPage` returns the raw `HistoryTransactionsItems` (completed)
- * rows verbatim; they normalise downstream via the field-mapping Data
- * Mapper (`DateUTC` → date, `FITID` → identifier, falling back to
+ * `extractPage` returns the `HistoryTransactionsItems` (completed)
+ * rows, removing unusable FITID placeholders before downstream field mapping
+ * (`DateUTC` → date, `FITID` → identifier, falling back to
  * `ReferenceNumberLong`). Same-day
  * `TodayTransactionsItems` (pending) is out of scope for the hard model —
  * the driver marks every row Completed — and is `null` in every captured
  * sample. Split from `LeumiShapeHelpers.ts` to respect the 150-LOC cap.
  */
 
+import { bankMomentOfInstant } from '../../../Mediator/Scrape/BankCalendar.js';
+import { matchField } from '../../../Mediator/Scrape/BfsFieldSearch/BfsFieldSearch.js';
 import { scrapeWindowEnd } from '../../../Mediator/Scrape/ScrapeWindowEnd.js';
 import type {
   IExtractPageArgs,
   VarsMap,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import { PIPELINE_WELL_KNOWN_TXN_FIELDS as WK } from '../../../Registry/WK/ScrapeWK.js';
 import type { IPage } from '../../../Strategy/Fetch/Pagination.js';
 import type { IActionContext } from '../../../Types/PipelineContext.js';
+import { isOk } from '../../../Types/Procedure.js';
+import { normalizeTransactionIdentifier } from './LeumiFinancialValidation.js';
 import { parseJsonResp } from './LeumiShapeEnvelope.js';
 import type { ILeumiAcct } from './LeumiShapeHelpers.js';
 import { type IUcSo27Variant, ucSo27Vars } from './LeumiShapeUcSo27.js';
 
 interface ITxnsResp {
-  readonly HistoryTransactionsItems?: readonly object[];
+  readonly HistoryTransactionsItems?: readonly Record<string, unknown>[];
+}
+
+/**
+ * Resolves provider dates before the generic mapper reads the row.
+ * @param row - Transaction row with a previously validated provider date.
+ * @returns A row with an unambiguous UTC instant.
+ */
+function normalizeTransactionDate(row: Record<string, unknown>): Record<string, unknown> {
+  if (typeof row.DateUTC !== 'string') return row;
+  const date = bankMomentOfInstant(row.DateUTC, true);
+  const field = matchField(row, WK.date);
+  if (!date.isValid() || !isOk(field)) return row;
+  const instant = date.toISOString();
+  return { ...row, DateUTC: instant, [field.value.originalKey]: instant };
 }
 
 /**
@@ -73,5 +92,6 @@ export function txnsVars(acct: ILeumiAcct, _cursor: false, ctx: IActionContext):
 export function txnsExtractPage(args: IExtractPageArgs<ILeumiAcct, never>): IPage<object, never> {
   const resp = parseJsonResp(args.body) as unknown as ITxnsResp;
   const rows = resp.HistoryTransactionsItems ?? [];
-  return { items: rows, nextCursor: false };
+  const identified = rows.map(normalizeTransactionIdentifier);
+  return { items: identified.map(normalizeTransactionDate), nextCursor: false };
 }

@@ -10,6 +10,7 @@
 import { CompanyTypes } from '../../../../../Definitions.js';
 import {
   resolveWkUrl,
+  WK_URLS,
   type WKUrlGroup,
 } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { isOk, type Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -19,6 +20,8 @@ import { isOk, type Procedure } from '../../../../../Scrapers/Pipeline/Types/Pro
 // PipelineBankConfigPepperWaf.test.ts).
 const { PIPELINE_BANK_CONFIG } =
   await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
+const SEEDER =
+  await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigSeeder.js');
 
 /** One bank's entry in PIPELINE_BANK_CONFIG. */
 type BankConfig = (typeof PIPELINE_BANK_CONFIG)[CompanyTypes];
@@ -69,7 +72,6 @@ const ALL_BANKS = Object.values(CompanyTypes);
 const EXPECTED_URLS = ALL_BANKS.flatMap(bankId =>
   expectedUrlsFor(bankId, PIPELINE_BANK_CONFIG[bankId]),
 );
-const BANKS_WITHOUT_HEADLESS = ALL_BANKS.filter(bankId => !PIPELINE_BANK_CONFIG[bankId]?.headless);
 
 describe('PipelineBankConfigSeeder', () => {
   it('finds headless banks to check', () => {
@@ -82,9 +84,22 @@ describe('PipelineBankConfigSeeder', () => {
     expect(resolved).toBe(url);
   });
 
-  it.each(BANKS_WITHOUT_HEADLESS)('leaves %s without a WK identityBase', bankId => {
-    const result = resolveWkUrl('identityBase', bankId);
-    const isResolved = isOk(result);
-    expect(isResolved).toBe(false);
+  it('leaves a bank without a headless block without a WK identityBase', () => {
+    const bank = CompanyTypes.Leumi;
+    const config = PIPELINE_BANK_CONFIG[bank];
+    const identities = WK_URLS.get('identityBase');
+    if (config === undefined || identities === undefined) throw new TypeError('missing registry');
+    const original = identities.get(bank);
+    const { headless, ...withoutHeadless } = config;
+    expect(headless).toBeDefined();
+    identities.delete(bank);
+    try {
+      SEEDER.seedWkFromPipelineConfig({ [bank]: withoutHeadless });
+      const result = resolveWkUrl('identityBase', bank);
+      const isResolved = isOk(result);
+      expect(isResolved).toBe(false);
+    } finally {
+      if (original !== undefined) identities.set(bank, original);
+    }
   });
 });

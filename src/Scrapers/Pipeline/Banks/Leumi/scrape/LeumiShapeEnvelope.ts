@@ -7,9 +7,8 @@
  * double-encoded JSON envelope `{ moduleName, reqObj, version }` — where
  * `reqObj` is the stringified per-module request — and answers with
  * `{ ProcessRequestResult, jsonResp }` where `jsonResp` is stringified
- * JSON. The runtime WCF `SessionHeader.SessionID` is primed onto the
- * mediator session-context by BIND-API-MEDIATOR (`sessionTokenCapture`)
- * and read back here — never a hardcoded secret.
+ * JSON. The native login projects the runtime WCF `SessionHeader.SessionID`
+ * onto the mediator session context; it is never hardcoded.
  */
 
 import { resolveApiMediator } from '../../../Mediator/Api/ApiMediatorAccessor.js';

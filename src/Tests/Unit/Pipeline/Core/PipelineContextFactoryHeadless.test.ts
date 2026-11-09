@@ -31,8 +31,8 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
   /**
    * The apiMediator slot's outcome per branch: an HTML bank with the flag
    * off, a headless bank whose config carries the block, a bank the config
-   * never registered, a headless bank whose config has no block, and the
-   * non-headless Leumi repeat. Driven from one table per CLAUDE.md's
+   * never registered, a headless Leumi descriptor, and a non-headless
+   * descriptor. Driven from one table per CLAUDE.md's
    * config-array rule (no duplicated test bodies).
    */
   const apiMediatorCases = [
@@ -55,10 +55,10 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
       hasMediator: false,
     },
     {
-      name: 'Headless flag but bank has no headless block: apiMediator stays none',
+      name: 'Headless Leumi config: apiMediator populated',
       isHeadless: true,
       companyId: CompanyTypes.Leumi,
-      hasMediator: false,
+      hasMediator: true,
     },
     {
       name: 'OZ-PCF-03 — Leumi (non-headless): apiMediator slot stays none',
@@ -75,6 +75,24 @@ describe('PipelineContextFactory — wireHeadlessMediator', () => {
       {} as unknown as Parameters<typeof buildInitialContext>[1],
     );
     expect(ctx.apiMediator.has).toBe(hasMediator);
+  });
+
+  it('leaves the mediator empty when a registered bank has no headless block', async () => {
+    const registry =
+      await import('../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
+    const bank = CompanyTypes.Leumi;
+    const original = registry.PIPELINE_BANK_CONFIG[bank];
+    if (original === undefined) throw new TypeError('missing bank configuration');
+    const { headless, ...withoutHeadless } = original;
+    expect(headless).toBeDefined();
+    registry.PIPELINE_BANK_CONFIG[bank] = withoutHeadless;
+    try {
+      const descriptor = makeDescriptor(true, bank);
+      const ctx = buildInitialContext(descriptor, { id: 'syn', password: 'syn' });
+      expect(ctx.apiMediator.has).toBe(false);
+    } finally {
+      registry.PIPELINE_BANK_CONFIG[bank] = original;
+    }
   });
 
   it('buildInitialContext returns a well-formed context (non-headless default)', () => {

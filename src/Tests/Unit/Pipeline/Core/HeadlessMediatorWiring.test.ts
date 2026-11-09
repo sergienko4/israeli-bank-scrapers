@@ -41,11 +41,23 @@ describe('resolveHeadlessApiMediator — none() cases', () => {
     expect(isPresent).toBe(false);
   });
 
-  it('returns none() when a headless bank has no headless config block', () => {
-    const descriptor = makeDescriptor(CompanyTypes.Leumi, true);
-    const option = resolveHeadlessApiMediator(descriptor);
-    const isPresent = isSome(option);
-    expect(isPresent).toBe(false);
+  it('returns none() when a headless bank has no headless config block', async () => {
+    const registry =
+      await import('../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
+    const bank = CompanyTypes.Leumi;
+    const original = registry.PIPELINE_BANK_CONFIG[bank];
+    if (original === undefined) throw new TypeError('missing bank configuration');
+    const { headless, ...withoutHeadless } = original;
+    expect(headless).toBeDefined();
+    registry.PIPELINE_BANK_CONFIG[bank] = withoutHeadless;
+    try {
+      const descriptor = makeDescriptor(bank, true);
+      const option = resolveHeadlessApiMediator(descriptor);
+      const isPresent = isSome(option);
+      expect(isPresent).toBe(false);
+    } finally {
+      registry.PIPELINE_BANK_CONFIG[bank] = original;
+    }
   });
 });
 

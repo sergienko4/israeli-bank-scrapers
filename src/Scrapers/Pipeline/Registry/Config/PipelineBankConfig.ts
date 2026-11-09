@@ -16,6 +16,7 @@ import {
 } from './PipelineBankConfigFibiBrands.js';
 import { HAPOALIM_HEADLESS } from './PipelineBankConfigHapoalim.js';
 import { ISRACARD_HEADLESS } from './PipelineBankConfigIsracard.js';
+import { LEUMI_HEADLESS } from './PipelineBankConfigLeumi.js';
 import { MAX_HEADLESS } from './PipelineBankConfigMax.js';
 import { MERCANTILE_HEADLESS } from './PipelineBankConfigMercantile.js';
 import { MIZRAHI_HEADLESS } from './PipelineBankConfigMizrahi.js';
@@ -23,7 +24,6 @@ import { ONEZERO_HEADLESS } from './PipelineBankConfigOneZeroHeadless.js';
 import { PEPPER_HEADLESS } from './PipelineBankConfigPepperHeadless.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
 import type {
-  AuthStrategyKind,
   BalanceKind,
   IHeadlessUrlsConfig,
   IPipelineBankConfig,
@@ -43,29 +43,8 @@ const CARD_CYCLE = 'card-cycle';
 /** Deposit/checking banks expose a real account balance resolved live. */
 const ACCOUNT = 'account';
 
-/** Banks whose completed login is carried by first-party session cookies. */
-const SESSION_COOKIE = 'session-cookie';
-
 /** API-native banks -- headless identity strategy, no browser AUTH-DISCOVERY. */
 const API_DIRECT = 'api-direct';
-
-/**
- * Build a plain bank config — base URL + balance/auth kinds, no
- * headless/OTP/poll blocks. Keeps the registry DRY: adding a simple
- * deposit or card bank is a single line; banks needing extra wiring
- * (API-direct headless, discovered-header bag) stay object-literal.
- * @param base - Official website URL (HOME phase navigates here).
- * @param balanceKind - Balance semantics (account vs card-cycle).
- * @param authStrategyKind - Auth-completion family.
- * @returns A pipeline bank config.
- */
-function defineBank(
-  base: string,
-  balanceKind: BalanceKind,
-  authStrategyKind: AuthStrategyKind,
-): IPipelineBankConfig {
-  return { urls: { base }, balanceKind, authStrategyKind };
-}
 
 /**
  * Build an API-native bank config: its login runs over the headless block's
@@ -91,12 +70,8 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     BEINLEUMI_HEADLESS,
   ),
   [CompanyTypes.Leumi]: {
-    ...defineBank('https://www.leumi.co.il', ACCOUNT, SESSION_COOKIE),
-    sessionTokenCapture: {
-      urlMatch: 'Broker.svc/ProcessRequest',
-      bodyField: 'reqObj',
-      tokenPath: ['SessionHeader', 'SessionID'],
-    },
+    ...defineApiDirectBank('https://www.leumi.co.il', ACCOUNT, LEUMI_HEADLESS),
+    disablePhaseRetry: true,
   },
   [CompanyTypes.Discount]: defineApiDirectBank(
     'https://www.discountbank.co.il',

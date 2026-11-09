@@ -23,23 +23,26 @@
  * this file is itself a defect — `throw` therefore sets a non-zero exit code
  * and fails the gate rather than counting as "it settled".
  *
- * No bank is contacted. The credentials are obvious dummies, and the harness
- * installs with `--ignore-scripts` so the native better-sqlite3 binding is
- * absent — Camoufox therefore refuses to start long before any navigation.
- *
- * The bank must be one whose pipeline opens a browser to log in. A bank that
- * calls its API directly would skip the launch, reach the network and fail on
- * the bank's reply, which is neither hermetic nor the outcome the gate asserts.
+ * No bank is contacted. The credentials are obvious dummies, and a synthetic
+ * fetch response stops the native Leumi flow at its first request.
  */
 
 /** Printed only when the scrape produced an outcome the caller can act on. */
 const SETTLED_MARKER = 'SETTLED';
+const PRIME_URL = 'https://hb2.bankleumi.co.il/H/Login.html';
 
 /** Obvious dummies — this program must never authenticate against anything. */
 const DUMMY_CREDENTIALS = {
   username: 'not-a-real-user',
   password: 'not-a-real-password',
 };
+
+function offlineFetch(input) {
+  const url = input instanceof Request ? input.url : String(input);
+  if (url !== PRIME_URL) throw new Error('Unexpected consumer prime URL');
+  console.log('OFFLINE_REQUEST');
+  return Promise.resolve(new Response(null, { status: 503 }));
+}
 
 /**
  * Print the outcome in a form the shell gate can assert on.
@@ -58,14 +61,18 @@ function createConsumerScraper({ createScraper, CompanyTypes }) {
   });
 }
 
-function runScrape(exports) {
-  return createConsumerScraper(exports)
-    .scrape(DUMMY_CREDENTIALS)
-    .then(result => report('result', JSON.stringify(result)))
-    .catch(error => {
-      report('throw', error && error.message ? error.message : String(error));
-      process.exitCode = 1;
-    });
+async function runScrape(exports) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = offlineFetch;
+  try {
+    const result = await createConsumerScraper(exports).scrape(DUMMY_CREDENTIALS);
+    report('result', JSON.stringify(result));
+  } catch (error) {
+    report('throw', error && error.message ? error.message : String(error));
+    process.exitCode = 1;
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 }
 
 module.exports = { runScrape };

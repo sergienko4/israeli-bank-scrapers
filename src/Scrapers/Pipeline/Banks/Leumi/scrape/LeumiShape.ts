@@ -1,9 +1,8 @@
 /**
  * Leumi scrape shape — the `IApiDirectScrapeShape` data declaration
- * consumed by the generic buildGenericHeadlessScrape driver via
- * `withBrowserApiDirect`. balanceKind=account (issues a real balance
- * call); auth=session-cookie + a body-borne WCF `SessionHeader.SessionID`
- * primed by BIND-API-MEDIATOR (`sessionTokenCapture`). All three calls
+ * consumed by the generic buildGenericHeadlessScrape driver. The native
+ * login projects the body-borne WCF `SessionHeader.SessionID` into the
+ * mediator session. All three calls
  * are POST to the same broker endpoint keyed by `moduleName`. Helpers
  * split across LeumiShapeEnvelope / LeumiShapeUcSo27 / LeumiShapeHelpers
  * (accounts + balance) / LeumiShapeTxns (transactions).
@@ -13,6 +12,7 @@ import type {
   HeaderMap,
   IApiDirectScrapeShape,
 } from '../../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import { LEUMI_BODY_CHECKS, leumiResultGuard } from './LeumiResponseGuard.js';
 import { leumiBrokerUrl } from './LeumiShapeEnvelope.js';
 import {
   accountNumberOf,
@@ -40,10 +40,13 @@ const WCF_JSON_HEADERS: HeaderMap = {
   accept: 'application/json',
 };
 
-/** Leumi hard-model shape — passed to `.withBrowserApiDirect(...)`. */
+/** Leumi hard-model shape for native API-direct scraping. */
 const LEUMI_SHAPE: IApiDirectScrapeShape<ILeumiAcct, never> = {
   stepName: 'LeumiScrape',
+  isCardIssuer: false,
   accountNumberOf,
+  checkBodyByOperation: LEUMI_BODY_CHECKS,
+  resultGuard: leumiResultGuard,
   customer: {
     buildVars: customerVars,
     extractAccounts,

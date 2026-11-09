@@ -36,11 +36,8 @@
 #      resolved happens before any network call, which makes it look like the
 #      bank is unreachable.
 #
-# NO BANK IS CONTACTED. Installing with `--ignore-scripts` leaves the native
-# better-sqlite3 binding unbuilt, so Camoufox refuses to start well before any
-# navigation. That is also what makes the gate hermetic and deterministic:
-# the run cannot depend on a bank being up. The published defect reproduces
-# with and without that flag, so nothing is lost by using it.
+# NO BANK IS CONTACTED. The smoke replaces fetch with a synthetic 503 response,
+# making the native Leumi run hermetic and independent of the bank's status.
 #
 # Usage:
 #   CONSUMER_NODE=/absolute/path/to/floor-node consumer-install.sh
@@ -71,22 +68,15 @@ SETTLED_MARKER="SETTLED"
 # resolving a devDependency at runtime.
 TRANSPORT_FAILURE="unable to determine transport target"
 
-# The one outcome a hermetic run may reach: the INIT phase of a browser-backed
-# bank (Leumi) cannot start Camoufox, because the harness installs with
-# `--ignore-scripts` and so never builds the native better-sqlite3 binding.
-# The string is this repo's own (`CamoufoxLauncher.ts`) and is pinned by a unit
-# test, so it cannot drift underneath the gate the way a third-party error
-# message could.
-#
-# The bank must be a browser-backed one. A bank that calls its API directly
-# never reaches the launch, so a dummy-credential scrape would leave the
-# machine and fail on the bank's reply - neither hermetic nor this outcome.
+# The controlled outcome is Leumi's first native request receiving a synthetic
+# HTTP 503. Require both the request marker and the resulting step failure.
 #
 # Asserting the expected outcome POSITIVELY is the point. Accepting anything
 # that merely settled would let an unrelated regression inside the package -
 # a TypeError on import, a reworked error message - report success, because
 # it too would print a settled line.
-EXPECTED_OUTCOME="Camoufox could not start: the native better-sqlite3 binding is missing"
+EXPECTED_REQUEST="OFFLINE_REQUEST"
+EXPECTED_OUTCOME="prime HTTP 503"
 
 # A scrape reports failure by returning a result. `SETTLED throw` means an
 # exception escaped to the consumer, which is a defect in its own right.
@@ -161,7 +151,7 @@ FAILED=0
 assert_expected_outcome() {
   local output="$1"
   local expectation
-  for expectation in "${EXPECTED_KIND}" "${EXPECTED_VERDICT}" "${EXPECTED_OUTCOME}"; do
+  for expectation in "${EXPECTED_KIND}" "${EXPECTED_VERDICT}" "${EXPECTED_REQUEST}" "${EXPECTED_OUTCOME}"; do
     case "${output}" in
       *"${expectation}"*)
         ;;

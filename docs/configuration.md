@@ -124,7 +124,7 @@ for the rationale.
 
 Some API-direct banks never open a browser: their `headless` block selects
 Node's own `fetch` (`nativeFetch`) or `node:https` (a client certificate or a
-TLS profile) — today, OneZero, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav, Beinleumi, Massad, Otsar Hahayal, Pagi, Discount, Mercantile, PayBox and Pepper. Nothing on such a run reads a browser option, so
+TLS profile) — today, Leumi, OneZero, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav, Beinleumi, Massad, Otsar Hahayal, Pagi, Discount, Mercantile, PayBox and Pepper. Nothing on such a run reads a browser option, so
 `createScraper` names every one you pass in a single `ScraperOptionsWarning`:
 
 ```text
@@ -142,6 +142,8 @@ option. Only names are printed, never values. Browser banks do not warn.
 PayBox and Pepper used to run their identity calls through a Camoufox page, so
 they never warned. They now use Node's own `fetch` and warn like the other
 browserless banks. If you pass a browser option to either of them, remove it.
+Leumi also no longer invokes browser hooks or honors browser options; remove
+those options from its configuration.
 
 The list lives in `src/Scrapers/Pipeline/Core/BrowserOnlyOptions.ts`. The
 transport comes from `resolveHeadlessTransportKind`, which applies the same
