@@ -117,7 +117,10 @@
     "waf-bypass",
     "cloudflare"
   ],
-  "author": "Elad Shaham",
+  "author": "Sergienko",
+  "contributors": [
+    "Elad Shaham"
+  ],
   "license": "AGPL-3.0-only",
   "bugs": {
     "url": "https://github.com/sergienko4/israeli-bank-scrapers/issues"

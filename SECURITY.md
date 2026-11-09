@@ -54,3 +54,11 @@ This project employs the following security measures:
 The dependency-license policy is separate from this fork's own
 `AGPL-3.0-only` license. Third-party components retain their existing licenses;
 the project's license change does not relax the dependency allowlist.
+
+The dependency-review gate allowlists a few packages whose license metadata its
+scanner cannot map to an SPDX identifier, for example `gitdb`, which ships a
+GPL-licensed helper file alongside its BSD-3-Clause code. The gate therefore
+does not reject every dependency that contains GPL material. The exceptions
+are listed, with the verified upstream license of each, in the
+`allow-dependencies-licenses` input of the dependency-review job in
+[`.github/workflows/pr.yml`](./.github/workflows/pr.yml).

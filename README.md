@@ -514,4 +514,8 @@ configuration and dependency lockfile. From that source directory, use the
 Node.js version supported by that release, then run `npm ci` and
 `npm run build`. Use the matching release source, not the current `main` branch.
 
+A forced publish has no tag or GitHub release. For such a version, the npm
+provenance attestation records the exact source commit; use the source at that
+commit instead.
+
 [Code of Conduct](./CODE_OF_CONDUCT.md) · [Security Policy](./SECURITY.md)
