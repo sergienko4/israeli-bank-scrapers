@@ -146,8 +146,11 @@ log "═════════════════════════
 log "📝 Phase 1: Prettier format..."
 STAGED_SRC=$(git diff --cached --name-only --diff-filter=d -- 'src/')
 if [ -n "$STAGED_SRC" ]; then
-    echo "$STAGED_SRC" | xargs npx prettier --write --log-level warn 2>&1 | tee -a "$LOG_FILE"
-    echo "$STAGED_SRC" | xargs git add
+    # Batch the paths: `npx` is a .cmd shim on Windows, so one xargs call over
+    # ~140+ staged files exceeds cmd.exe's 8191-char limit ("The command line
+    # is too long"). `-n 40` keeps every invocation far below it.
+    echo "$STAGED_SRC" | xargs -n 40 npx prettier --write --log-level warn 2>&1 | tee -a "$LOG_FILE"
+    echo "$STAGED_SRC" | xargs -n 40 git add
 fi
 
 # Compute cache key from the tree AFTER Phase 1 fixed up whitespace.
