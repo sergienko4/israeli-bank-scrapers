@@ -13,13 +13,13 @@ Raised from `>= 22.14.0` in 9.0.0. Enforced by the `engines` field, so npm warns
 
 ## Release notes
 
-### 10.0.0 - The fork is distributed under PolyForm-Noncommercial-1.0.0 (free for private use; paid commercial license for businesses)
+### 10.0.0 - The fork is distributed under PolyForm-Noncommercial-1.0.0 (free for permitted non-commercial use; paid commercial license for businesses)
 
 **Impact:** Breaking
 
-Starting with 10.0.0, this fork is distributed under the PolyForm Noncommercial License 1.0.0 (`PolyForm-Noncommercial-1.0.0`). Personal, hobby, academic, and non-commercial use is free under those terms. Any commercial, business, or for-profit use requires a separate paid commercial license from `@sergienko4`. Previously granted MIT permissions for earlier releases remain intact, the upstream MIT notice is preserved in `LICENSE-MIT`, and third-party components keep their own licenses.
+Starting with 10.0.0, this fork is distributed under the PolyForm Noncommercial License 1.0.0 (`PolyForm-Noncommercial-1.0.0`). Personal use, non-commercial purposes, and use by the non-commercial organizations listed in `LICENSE` (charities, educational institutions, public research, public safety/health, environmental protection, and government institutions) are free under those terms. Any commercial, business, or for-profit use outside the permitted purposes in `LICENSE` requires a separate paid commercial license from `@sergienko4`. Previously granted MIT permissions for earlier releases remain intact, the upstream MIT notice is preserved in `LICENSE-MIT`, and third-party components keep their own licenses.
 
-**What to do:** Review `LICENSE` before upgrading to 10.0.0. Personal and non-commercial users may upgrade at no cost under `PolyForm-Noncommercial-1.0.0`. Businesses and commercial users must obtain a paid commercial license from `@sergienko4` before using 10.0.0+, or retain a pre-10.0.0 version received under MIT.
+**What to do:** Review `LICENSE` before upgrading to 10.0.0. Users within the permitted non-commercial purposes of `PolyForm-Noncommercial-1.0.0` may upgrade at no cost. Businesses and commercial users outside those permitted purposes must obtain a paid commercial license from `@sergienko4` before using 10.0.0+, or retain a pre-10.0.0 version received under MIT.
 
 ### 10.0.0 - Deprecated legacy options, methods, and types are removed from the public API
 

@@ -449,8 +449,8 @@ Originally forked from [israeli-bank-scrapers](https://github.com/eshaham/israel
 Starting with **10.0.0**, this fork is distributed under the
 **PolyForm Noncommercial License 1.0.0** (`PolyForm-Noncommercial-1.0.0`):
 
-- **Free for private and non-commercial use:** Personal, hobby, academic, and non-profit use is free of charge under the terms in [LICENSE](./LICENSE).
-- **Commercial and business use requires a paid license:** Any commercial, business, or for-profit use (including internal business operations, client services, or revenue-generating products) requires a separate paid commercial license from [@sergienko4](https://github.com/sergienko4).
+- **Free for permitted non-commercial use:** Personal use, non-commercial purposes, and use by qualifying non-commercial organizations (including charities, educational institutions, public research, public safety/health, environmental protection, and government institutions as defined in [LICENSE](./LICENSE)) are free of charge under those terms.
+- **Commercial and business use requires a paid license:** Any commercial, business, or for-profit use outside the permitted purposes in [LICENSE](./LICENSE) (including commercial operations, client services, or revenue-generating products) requires a separate paid commercial license from [@sergienko4](https://github.com/sergienko4).
 
 Maintained by [@sergienko4](https://github.com/sergienko4), this fork modifies
 [eshaham/israeli-bank-scrapers](https://github.com/eshaham/israeli-bank-scrapers).
