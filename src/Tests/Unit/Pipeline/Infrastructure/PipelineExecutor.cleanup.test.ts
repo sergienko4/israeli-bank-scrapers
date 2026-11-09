@@ -111,7 +111,9 @@ describe('PipelineExecutor/mediator-dispose', () => {
   });
 
   it('preserves the original error when dispose itself rejects', async () => {
-    const dispose = jest.fn<Promise<void>, []>().mockRejectedValue(new Error('socket already closed'));
+    const dispose = jest
+      .fn<Promise<void>, []>()
+      .mockRejectedValue(new Error('socket already closed'));
     const result = await run([makeMediatorPhase(dispose), failPhase('invalid password')]);
     expect(result.success).toBe(false);
     expect(result.errorMessage).toBe('invalid password');

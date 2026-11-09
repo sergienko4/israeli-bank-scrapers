@@ -72,7 +72,7 @@ function page(caveat: WindowCaveat | 'clean', date: string): Record<string, unkn
  * @param bus - Router-backed mediator.
  * @returns Action context with a fixed requested window.
  */
-function contextFor(bus: IApiMediator): IActionContext   {
+function contextFor(bus: IApiMediator): IActionContext {
   const base = makeMockContext({ apiMediator: some(bus) });
   return {
     ...base,

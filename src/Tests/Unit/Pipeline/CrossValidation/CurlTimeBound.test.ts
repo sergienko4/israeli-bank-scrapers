@@ -125,10 +125,7 @@ function offendersIn(file: IFileCalls): readonly string[] {
 }
 
 /** One file of each kind the scan reads, each known to call curl. */
-const KNOWN_CALLERS = [
-  '.github/workflows/pr.yml',
-  'docker/Dockerfile.ci-mirror',
-] as const;
+const KNOWN_CALLERS = ['.github/workflows/pr.yml', 'docker/Dockerfile.ci-mirror'] as const;
 
 /** Calls the oracle must flag, each next to a bounded call. */
 const UNBOUNDED_CURLS: readonly (readonly [string, string])[] = [

@@ -53,10 +53,7 @@ function readSlot(ctx: IPipelineContext): Option<IApiMediator> {
  * @param label - Label included in the fail message for diagnosis.
  * @returns Mediator Procedure.
  */
-function resolveApiMediator(
-  ctx: IPipelineContext,
-  label: string,
-): Procedure<IApiMediator> {
+function resolveApiMediator(ctx: IPipelineContext, label: string): Procedure<IApiMediator> {
   const present = readSlot(ctx);
   if (!isSome(present)) return fail(ScraperErrorTypes.Generic, `${label}: ApiMediator missing`);
   return succeed(present.value);

@@ -93,7 +93,11 @@ async function run(descriptor: IPipelineDescriptor): ReturnType<typeof executePi
 
 describe('PipelineExecutor/basic-flow', () => {
   it('runs all phases sequentially and returns success', async () => {
-    const phases = [succeedPhase('api-direct-call'), succeedPhase('api-direct-call'), succeedPhase('api-direct-scrape')];
+    const phases = [
+      succeedPhase('api-direct-call'),
+      succeedPhase('api-direct-call'),
+      succeedPhase('api-direct-scrape'),
+    ];
     const descriptor = makeDescriptor(phases);
     const result = await run(descriptor);
     expect(result.success).toBe(true);
@@ -123,7 +127,11 @@ describe('PipelineExecutor/short-circuit', () => {
       return Promise.resolve(result);
     };
     const phase3 = new SimplePhase('api-direct-scrape', trackExecute);
-    const phases = [succeedPhase('api-direct-call'), failPhase('api-direct-call', 'bad creds'), phase3];
+    const phases = [
+      succeedPhase('api-direct-call'),
+      failPhase('api-direct-call', 'bad creds'),
+      phase3,
+    ];
     const descriptor = makeDescriptor(phases);
     const result = await run(descriptor);
     expect(result.success).toBe(false);

@@ -11,9 +11,7 @@ import { createApiDirectCallPhase } from '../../../../../Scrapers/Pipeline/Phase
 import type { WKUrlGroup } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
-import type {
-  IPipelineContext,
-} from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import { makeStubMediator } from '../../Mediator/ApiDirectCall/Flow/StubMediator.js';
 
