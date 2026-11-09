@@ -47,8 +47,8 @@ dependency license controls or the full-suite policy for critical updates.
 
 The root `license` fields in `package.json` and `package-lock.json` identify
 this fork's own grant: `PolyForm-Noncommercial-1.0.0` (with a separate paid
-commercial license option, shipped as the sole root `LICENSE` file in
-`package.json` `files`) starting with 10.0.0. They do not
+commercial license option) starting with 10.0.0. The only root license file
+listed in `package.json` `files` is `LICENSE`. The license fields do not
 relicense third-party packages or relax the dependency-review license
 allowlist, and unused runtime/dev packages (`lodash`, `@types/lodash`,
 `fast-check`, `tmp`, `@types/tmp`, `@json2csv/plainjs`) have been removed from
