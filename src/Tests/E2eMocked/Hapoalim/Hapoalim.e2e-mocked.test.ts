@@ -126,10 +126,9 @@ async function expectRefused(refusal: IRefusal): Promise<void> {
 }
 
 describe('Hapoalim browserless login', () => {
-  it('signs in cold through the SMS step, asks once with the phone hint, launches no browser', async () => {
+  it('signs in cold through the SMS step, asks once with the phone hint', async () => {
     const run = await runHapoalim();
     expect(run.result.success).toBe(true);
-    expect(run.launches).toBe(0);
     expect(run.trail).toEqual([...SIGNED_IN_TRAIL, ...SCRAPE_TRAIL]);
     expect(run.hints).toEqual([HP_PHONE]);
   });

@@ -7,8 +7,7 @@
  * Dockerfile or workflow / composite-action `run:` step must set a positive
  * `--max-time` (or `-m`). A wrapper that passes its arguments on must set
  * its bound after them: curl keeps the last value given, so a bound placed
- * before them lets a caller's `-m 0` lift it. The installer and its Docker mirror are held to
- * the stricter connect-and-total rule by `InstallCamoufoxWiring`.
+ * before them lets a caller's `-m 0` lift it.
  *
  * <p>Test harnesses under a `tests/` directory are skipped: they replace curl
  * with a stub, which CTB-5 checks.
@@ -126,11 +125,7 @@ function offendersIn(file: IFileCalls): readonly string[] {
 }
 
 /** One file of each kind the scan reads, each known to call curl. */
-const KNOWN_CALLERS = [
-  '.github/workflows/pr.yml',
-  'docker/Dockerfile.ci-mirror',
-  '.github/actions/install-camoufox/install.sh',
-] as const;
+const KNOWN_CALLERS = ['.github/workflows/pr.yml', 'docker/Dockerfile.ci-mirror'] as const;
 
 /** Calls the oracle must flag, each next to a bounded call. */
 const UNBOUNDED_CURLS: readonly (readonly [string, string])[] = [

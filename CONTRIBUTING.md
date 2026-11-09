@@ -15,6 +15,21 @@ While there's no specific template for creating a new issue, please take the tim
 
 ## Testing the scrapers
 
+For local development, run only the focused unit suites relevant to your change:
+
+```bash
+npm run test:unit -- --runTestsByPath src/Tests/Unit/TimingActions.test.ts --runInBand
+```
+
+Replace the example path with the changed suite. Unit tests need no bank
+credentials. Normal hooks and CI own broader validation, coverage and mocked
+E2E; do not duplicate heavy suites or run live-bank baselines.
+
+### Supervised live-bank configuration
+
+The remaining configuration examples are for an explicitly authorized,
+supervised live-bank run, not the normal local verification workflow.
+
 In order to run tests you need first to create test configuration file `./src/Tests/.tests-config.cjs` from template `./src/Tests/.tests-config.tpl.cjs`. This file will be used by `jest` testing framework.
 
 > IMPORTANT: Under `src/Tests` folder exists `.gitignore` file that ignore the test configuration file thus this file will not be commited to github. Still when you create new PRs make sure that you didn't explicitly added it to the PR.
@@ -29,7 +44,7 @@ Modify property `options` in the test configuration file. This object is passed 
 
 Enable any company you wish to test by providing its credetials in the test configuration file under `credentials` property.
 
-### Running tests from CLI
+### Running supervised live-bank tests from CLI
 
 > Before running any tests, make sure you created the test configuration file with relevant credentials,
 
@@ -63,10 +78,10 @@ To save unit test scraper results provide a valid path in test configurations pr
 
 ```json
 {
-   "companyAPI": {
-      "enabled": true,
-      "excelFilesDist": "/Users/xyz/Downloads/Transactions"
-   }
+  "companyAPI": {
+    "enabled": true,
+    "excelFilesDist": "/Users/xyz/Downloads/Transactions"
+  }
 }
 ```
 
@@ -83,9 +98,7 @@ Copy and adjust the json below with relevant credentials and assign it to enviro
   "options": {
     "startDate": "2019-06-01",
     "combineInstallments": false,
-    "showBrowser": true,
-    "verbose": false,
-    "args": []
+    "verbose": false
   },
   "credentials": {
     "leumi": { "username": "demouser", "password": "demopassword" }
@@ -109,9 +122,11 @@ EOF
 ```
 
 #### Trying to run the tests using the CLI fail saying the test configuration file is missing
+
 Make sure that you created test configuration file `./src/Tests/.tests-config.cjs` from template `./src/Tests/.tests-config.tpl.cjs`.
 
 #### Trying to run the tests using the IDE fail saying the test configuration file is missing
+
 1. Make sure that you created test configuration file `./src/Tests/.tests-config.cjs` from template `./src/Tests/.tests-config.tpl.cjs`.
 2. Make sure that you set `NODE_OPTIONS=--experimental-vm-modules` in the IDE test configuration.
 
@@ -138,7 +153,9 @@ PR titles **must** follow [Conventional Commits](https://www.conventionalcommits
 - `docs: description` — documentation only
 - `test: description` — test changes only
 
-All PRs must pass CI checks before merge (lint, type-check, tests, build, E2E, audit, PR title validation). The pre-commit hook runs the same 8-gate validation locally.
+All PRs must pass CI checks before merge (lint, type-check, tests, build,
+E2E, audit, PR title validation). Use the normal pre-commit hook for its
+enabled local gates; full-suite and coverage evidence comes from CI.
 
 ## License for contributions
 

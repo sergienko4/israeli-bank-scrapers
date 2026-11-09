@@ -1,7 +1,6 @@
 /**
  * Max browserless login — mocked E2E for what the shared API-DIRECT flow spec
- * cannot see: the session cookie and id headers, the browser never launching,
- * each login refusal, a lost session, and every way step 0 can fail. The
+ * cannot see: the session cookie and id headers, each login refusal, a lost session, and every way step 0 can fail. The
  * happy cold run lives in ApiDirectFlow.
  *
  * Rule #18: all credentials + data are synthetic; no real PII.
@@ -17,7 +16,6 @@ import type {
 } from '../../../Scrapers/Base/Interface.js';
 import { MAX_HEADLESS } from '../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigMax.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
-import { getLaunchCount } from '../../Mocks/CamoufoxJsMock.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import type { MaxFault } from './MaxFetchMock.js';
 import {
@@ -38,7 +36,6 @@ interface IMaxRun {
   readonly steps: readonly string[];
   /** Every call that was not a login call. */
   readonly data: readonly IRecordedCall[];
-  readonly launches: number;
 }
 
 const COLD_STEPS = ['clientcontext', 'login'];
@@ -96,18 +93,16 @@ function splitCalls(calls: readonly IRecordedCall[]): Pick<IMaxRun, 'steps' | 'd
  * Scrape Max against the synthetic site.
  * @param creds - Credentials to scrape with.
  * @param fault - Fault the site answers with.
- * @returns The result, the call log and how many browsers were launched.
+ * @returns The result and the call log.
  */
 async function runMax(creds: ScraperCredentials, fault: MaxFault = 'none'): Promise<IMaxRun> {
-  const launchesBefore = getLaunchCount();
   const handle = installMaxFetchMock(fault);
   try {
     const options = { companyId: CompanyTypes.Max, startDate: MAX_MOCK_START_DATE };
     const scraper = createScraper(options);
     const result = await scraper.scrape(creds);
-    const launches = getLaunchCount() - launchesBefore;
     const calls = handle.calls();
-    return { result, calls, ...splitCalls(calls), launches };
+    return { result, calls, ...splitCalls(calls) };
   } finally {
     handle.dispose();
   }
@@ -209,10 +204,9 @@ describe('Max browserless login', () => {
     }
   });
 
-  it('signs in cold, rides the session cookie on every data call and launches no browser', async () => {
+  it('signs in cold, rides the session cookie on every data call', async () => {
     const run = await runMax({ ...MAX_MOCK_CREDS });
     expect(run.result.success).toBe(true);
-    expect(run.launches).toBe(0);
     expect(run.steps).toEqual(COLD_STEPS);
     expect(run.data.length).toBeGreaterThan(0);
     const sent = run.data.map(call => [call.method, hasAuthCookie(call)]);

@@ -125,10 +125,9 @@ const MALFORMED: readonly (readonly [string, ScraperCredentials, string])[] = [
 ];
 
 describe('Discount browserless login', () => {
-  it('signs in cold, reads every account and launches no browser', async () => {
+  it('signs in cold, reads every account', async () => {
     const run = await runDiscount();
     expect(run.result.success).toBe(true);
-    expect(run.launches).toBe(0);
     expect(run.trail).toEqual(COLD_TRAIL);
   });
 

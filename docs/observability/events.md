@@ -1,166 +1,55 @@
 # Structured events
 
-Every phase emits structured Pino records. Each record carries an `event` field (kebab-case dotted scope) plus phase-specific fields. All fields go through `PiiRedactor` before write.
+The HTTP-only pipeline emits structured Pino records for
+`api-direct-call` and `api-direct-scrape`. Stage records use
+`event: "phase-stage"`; other records may use structured fields and a
+`message` rather than an `event` discriminator. All records pass through
+the central redaction pipeline before write.
 
 ## Common fields
 
-| Field | Type | Notes |
-|---|---|---|
-| `event` | string | `<phase>.<action>.<outcome>` — e.g. `balance-resolve.fetch.start` |
-| `correlationId` | string | `randomUUID()` per phase invocation — correlates `.start` / `.success` / `.failure` records |
-| `module` | string | Module/logger name — kebab-cased from `import.meta.url` basename (e.g. `balance-resolve-actions`) or an explicit name passed to `getDebugByName`. NOT the phase name. |
-| `bankAccountTail4` | string | `***NNNN` — last-4 of a bankAccountUniqueId, never the full id |
+| Field    | Type   | Notes                                                                               |
+| -------- | ------ | ----------------------------------------------------------------------------------- |
+| `bank`   | string | Active bank's async-local context                                                   |
+| `phase`  | string | `api-direct-call` or `api-direct-scrape` during phase execution                     |
+| `stage`  | string | `PRE`, `ACTION`, `POST` or `FINAL`                                                  |
+| `runId`  | string | Per-process run stamp; also names the trace folder when enabled                     |
+| `module` | string | Logger/module identifier; typically derived from the module URL, not the phase name |
+| `event`  | string | Present on discriminated events, including `phase-stage`                            |
 
 ### Phase-stage records
 
 Every phase emits one record per sub-step (`PRE` / `ACTION` / `POST` / `FINAL`) carrying `phase`, `stage`, and a `result` tag. A failing stage additionally carries the reason, so a red run is diagnosable from the log alone:
 
-| Field | Type | Notes |
-|---|---|---|
-| `result` | string | `OK` / `FAIL` — the outcome tag (uppercase, as emitted by `traceTag`) |
-| `errorType` | string | Present only on failure. The `ScraperErrorTypes` member from the underlying `IProcedureFailure` |
-| `errorMessage` | string | Present only on failure. Masked through `maskVisibleText` before write |
+| Field          | Type   | Notes                                                                                           |
+| -------------- | ------ | ----------------------------------------------------------------------------------------------- |
+| `result`       | string | `OK` / `FAIL` — the outcome tag (uppercase, as emitted by `traceTag`)                           |
+| `errorType`    | string | Present only on failure. The `ScraperErrorTypes` member from the underlying `IProcedureFailure` |
+| `errorMessage` | string | Present only on failure. Masked through `maskVisibleText` before write                          |
 
 `traceReason` produces the two failure fields and returns an empty object on success, so callers spread it unconditionally. Before it existed a `fail` tag was terminal but silent — the log said a stage failed and nothing more.
 
-## Per-phase events
+## Lifecycle and scrape records
 
-### INIT
+| Record                                              | Level | Meaning                                                 |
+| --------------------------------------------------- | ----- | ------------------------------------------------------- |
+| `phase`, `action: START`, `index`                   | debug | A phase begins                                          |
+| `phase`, `action: OK` or `FAIL`, `index`            | debug | A phase finishes                                        |
+| `event: phase-stage`, `phase`, `stage`, `result`    | debug | One stage completes; failure includes the masked reason |
+| `message: api-direct-scrape.post`                   | debug | Scrape POST begins                                      |
+| `--- Account <redacted> \| N txns ---` in `message` | info  | Per-account transaction count                           |
+| Redacted transaction preview in `message`           | debug | Dates and centrally redacted amount/merchant hints      |
+| `message: api-direct-scrape.final`                  | debug | Balance-resolution output is assembled                  |
 
-| Event | Level | Fired when |
-|---|---|---|
-| `init.browser.launched` | info | Camoufox + context + page ready |
-| `init.navigation.complete` | info | First nav to `loginUrl` returned |
-| `INIT-ACTION-NAV-FAILURE` | warn | `executeNavigateToBank` failed — full transport-layer envelope, see [INIT navigation forensics](init-navigation-forensics.md). **Naming exception:** predates the `phase.action.outcome` lowercase contract; kept UPPER-KEBAB so existing log dashboards and grep aliases continue matching while the forensics envelope stabilises. |
+Authentication/OTP-specific diagnostics depend on the bank's declarative
+HTTP flow. There are no INIT, LOGIN, DOM completion, dashboard or
+browser-cleanup event contracts. Consult
+[API-DIRECT-CALL](../phases/api-direct-call.md) for authentication and
+[API-DIRECT-SCRAPE](../phases/api-direct-scrape.md) for data/result guards.
 
-### LOGIN
-
-| Event | Level | Fired when |
-|---|---|---|
-| `login.field.resolved` | debug | One credential field resolved via SelectorResolver |
-| `login.fields_unresolved` | error | A field the bank declares never resolved; LOGIN fails here rather than filling nothing and reporting success |
-| `login.field_not_form_control` | warn | A field resolved to an element that cannot hold text (e.g. an `<a>`); the resolution is dropped rather than filled silently |
-| `login.field_collision` | warn | A field resolved to an element another field already claimed; the later resolution is dropped |
-| `login.submit` | info | Submit button clicked |
-| `login.result.invalid_password` | warn | Bank returned credentials-wrong |
-| `login.result.success` | info | Post-submit page recognised as authenticated |
-| `login.completion.attempt` | debug | One settle-poll capture — `attempt` / `of` + `formPresent` / `advanced` / `hasError` (see below) |
-| `login.completion` | debug | Final completion snapshot composed at LOGIN.final — `settled` / `attempts` / `waitedMs` + form signals (see below) |
-| `login.completion.error` | debug | A completion probe threw; snapshot stays neutral |
-
-#### LOGIN completion observer (enforced when opted in)
-
-At `LOGIN.final` an observer composes four **LOGIN-LOCAL** signals
-— is the filled login form still present, is a loading spinner still visible,
-is an error banner present, and has the page advanced past the login URL —
-into one snapshot and logs it as `login.completion`. The verdict is **neutral
-by default**: a bank that has not opted into a settle budget always succeeds
-(the single-shot poll settles on the first capture), so behaviour is
-byte-identical for it. A bank that opts in (see `loginCompletionPoll` below)
-instead **fails `LOGIN.final` non-retryably** with `LOGIN_NOT_COMPLETED` when
-the poll budget is exhausted while the filled form is still on screen —
-surfacing, per bank in the CI logs, the case where a login lingers on a
-spinning form yet still passes the lenient cookie gate.
-
-The composer is wrapped in a **config-driven, FORM-FIRST poll**. A phase has
-settled when it advanced past the start screen, an error surfaced, OR the
-filled form is gone. By default the poll is **single-shot** (one capture, never
-sleeps) so it is byte-identical to a lone snapshot and adds zero wall-time. A
-bank opts into a multi-attempt budget through the optional `loginCompletionPoll`
-config field; a perpetually spinning login (form still present, no error, URL
-unchanged) then exhausts the budget instead of passing silently.
-
-- `enforceLoginCompletion(input)` — the entry facade wired into `LOGIN.final`.
-  It runs the existing LOGIN post-gates first; if those already fail it returns
-  a neutral success and emits nothing. It reads `input.config.loginCompletionPoll`
-  to resolve the poll budget (absent ⇒ single-shot) and returns the LOGIN.final
-  verdict — a non-retryable `LOGIN_NOT_COMPLETED` fail only for an opted-in,
-  unsettled poll; otherwise success.
-- Each poll capture emits one `login.completion.attempt` debug line (`attempt`,
-  `of`, plus the three form signals `formPresent` / `advanced` / `hasError`); the
-  final summary is the single `login.completion` line. Both drop the unreliable
-  `spinnerVisible` from their logged projection.
-- `captureCompletionSignals(ports)` — the phase-agnostic composer (under
-  `Mediator/Completion`). It reads an `ICompletionPorts` contract and returns an
-  `ICompletionSignals` snapshot (`formPresent`, `spinnerVisible`, `hasError`,
-  `advanced`).
-- `pollCompletion(ports, opts)` — the phase-agnostic poll that repeatedly calls
-  the composer until the phase settles or the attempt budget is spent. It returns
-  an `ICompletionPollOutcome` (`settled`, `attempts`, `waitedMs`, `last`). Sleep
-  is injected so timing is deterministic in tests.
-- `ICompletionPollOptions` — the injected budget: `intervalMs`, `maxAttempts`,
-  and the `sleep` function. `ICompletionPollOutcome` — the poll result.
-- `LOGIN_COMPLETION_POLL_INTERVAL_MS` (5000) and
-  `LOGIN_COMPLETION_POLL_MAX_ATTEMPTS` (15) — the opt-in budget constants a bank
-  references when it sets `loginCompletionPoll`.
-- `buildLoginCompletionPorts(...)` — the LOGIN adapter that binds that contract
-  to login-local probes: the form-present probe re-counts the **already-discovered**
-  password-field target (count-only, no new CSS selector), the spinner probe is
-  `buildIsLoadingVisible` (the phase-neutral loading well-known), the error probe
-  reuses the existing frame scan, and the advanced probe reuses the existing
-  login-URL helper. It never probes dashboard state — that REVEAL belongs to
-  AUTH-DISCOVERY.
-
-### OTP-TRIGGER / OTP-FILL
-
-| Event | Level | Fired when |
-|---|---|---|
-| `otp-trigger.sent` | info | Bank dispatched SMS/email |
-| `otp-fill.retriever.invoked` | info | `otpCodeRetriever` callback called |
-| `otp-fill.submit` | info | Code submitted |
-| `otp-fill.result.invalid` | warn | Wrong/expired code |
-
-### AUTH-DISCOVERY
-
-| Event | Level | Fired when |
-|---|---|---|
-| `auth-discovery.scan.start` | debug | Pool scan begins |
-| `auth-discovery.token.found` | info | Auth signal extracted |
-
-### ACCOUNT-RESOLVE
-
-| Event | Level | Fired when |
-|---|---|---|
-| `account-resolve.discovery.fetched` | info | Discovery call returned |
-| `account-resolve.ids.count=N` | info | N account ids parsed |
-
-### DASHBOARD
-
-| Event | Level | Fired when |
-|---|---|---|
-| `dashboard.ui.click` | info | Dashboard affordance clicked |
-| `dashboard.endpoint.detected` | info | Txn endpoint URL identified |
-| `dashboard.halt.<gate>` | error | F-DASH-1 / F-DASH-2 / F-DASH-3 |
-
-### SCRAPE
-
-| Event | Level | Fired when |
-|---|---|---|
-| `scrape.pre.priming.start` | debug | Forensic priming starting |
-| `scrape.account.start` | info | Per-account iteration begins |
-| `scrape.account.complete` | info | Per-account walk done |
-| `scrape.post.empty-gate.<verdict>` | info/warn | Empty-gate heuristic outcome |
-| `--- Account *** | N txns ---` | info | Forensic audit line — see [Forensic audit](forensic-audit.md) |
-
-### BALANCE-RESOLVE
-
-| Event | Level | Fired when |
-|---|---|---|
-| `balance-resolve.fetch.start` | info | Each live fetch begins (one per plan entry) |
-| `balance-resolve.fetch.success` | info | Fetch returned successfully |
-| `balance-resolve.fetch.failure` | warn | Quarantined per-fetch failure |
-| `balance-resolve.post resolved=N missed=M total=K` | debug | Partition outcome |
-| `balance.miss` | warn | One per missed account (under `.post`) |
-| `balance-resolve.final` | info | REVEAL log emitted with `resolvedCount`, `missedCount`, `totalCount` |
-
-### TERMINATE
-
-| Event | Level | Fired when |
-|---|---|---|
-| `terminate.cleanup.page` | debug | Page closed |
-| `terminate.cleanup.context` | debug | Context closed |
-| `terminate.cleanup.browser` | debug | Browser closed |
-| `Result: success=<bool> | errorType=<type>` | info | Final outcome line |
+The [forensic audit](forensic-audit.md) runs before the result guard.
+Its account count is diagnostic evidence, not a substitute for checking
+the final phase/scraper outcome.
 
 ## Reading the log
 
@@ -168,11 +57,11 @@ unchanged) then exhausts the budget instead of passing silently.
 # Watch the live log
 tail -f pipeline.log | jq .
 
-# Find all BALANCE-RESOLVE events for a run
-grep "balance-resolve" pipeline.log | jq .
+# Find scrape records
+jq -c 'select(.phase == "api-direct-scrape")' pipeline.log
 
-# Find every fetch quarantine
-jq -c 'select(.event == "balance-resolve.fetch.failure")' pipeline.log
+# Find failed phase stages
+jq -c 'select(.event == "phase-stage" and .result == "FAIL")' pipeline.log
 ```
 
 ## Per-module loggers
@@ -182,8 +71,7 @@ path so each event record carries an accurate `module` field without
 hand-maintained string constants:
 
 - `getDebug(import.meta.url)` — the default form, used by every Pipeline
-  module. The basename of the URL (e.g. `BalanceResolveActions.ts`) is
-  kebab-cased into the logger name (`balance-resolve-actions`).
+  module. The basename of the URL is kebab-cased into the logger name.
 - `getDebugByName(name)` — the explicit-name escape hatch for cases
   where the logger name has to be dynamic at construction time
   (for example keying a logger by `companyId`).

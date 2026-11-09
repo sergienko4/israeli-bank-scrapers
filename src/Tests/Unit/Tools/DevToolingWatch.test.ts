@@ -27,8 +27,8 @@ import {
   runWatch,
 } from '../../../../scripts/dev-tooling/watch.mjs';
 import ScraperError from '../../../Scrapers/Base/ScraperError.js';
-import { type IPrinted, printingIo } from '../../Helpers/BrowserStackWatchFixtures.js';
 import { canRunPosixBash } from '../../Helpers/HostCapabilities.js';
+import { type IPrinted, printingIo } from '../../Helpers/PrintingIo.js';
 import { readRepoFile, trackedFiles } from '../../Helpers/RepoFiles.js';
 
 const DEPENDABOT_PATH = '/repo/.github/dependabot.yml';

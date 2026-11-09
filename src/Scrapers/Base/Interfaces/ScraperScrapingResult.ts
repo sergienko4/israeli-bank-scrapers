@@ -26,9 +26,9 @@ export interface IScraperScrapingResult {
   /**
    * Per-run diagnostics.
    *
-   * <p>Populated by the browser-based scrapers only. The API-direct pipeline
-   * does not extend the base scraper that builds this, and reports what it
-   * knows through `ITransactionsAccount.windowCoverage` instead.
+   * <p>Retained on the public result type for compatibility; no scraper
+   * populates it today. The Pipeline reports what it knows through
+   * `ITransactionsAccount.windowCoverage` instead.
    */
   diagnostics?: IScraperDiagnostics;
 }

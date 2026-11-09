@@ -35,15 +35,12 @@ Permanent exceptions are limited to the provider itself and operator-facing
 run and trace labels that intentionally use the machine clock. Exact-message
 canaries keep every calendar selector active.
 
-### No CSS selectors in interaction code
+### HTTP-only interactions
 
-| Banned in interaction code                       | Allowed                                                              |
-| ------------------------------------------------ | -------------------------------------------------------------------- |
-| `page.$$('div#login')`, `$eval`, `querySelector` | `getByText`, `getByRole`, `getByPlaceholder` (Playwright text-first) |
-| Hardcoded `#login-form`, `.btn-submit` strings   | The 7-strategy `SelectorResolver`                                    |
-| `waitForSelector('#id')`                         | `waitForText` / `waitForRole`                                        |
-
-CSS selectors **are** allowed in parsing / extraction code (table walks, date-picker grids, etc.) — the rule targets user-facing flow only.
+Do not introduce a browser, DOM navigation, selector resolution or form-fill
+flow. Authentication and collection use typed API-direct configuration.
+Structural selectors are acceptable in pure HTTP-response parsing, where
+no page is executed or interacted with.
 
 ### No `null` / `undefined` returns
 

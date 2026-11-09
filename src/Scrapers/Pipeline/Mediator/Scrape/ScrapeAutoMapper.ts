@@ -9,10 +9,6 @@
  * NetworkDiscovery's Phase 4 split is the precedent template.
  */
 
-export type {
-  ITxnEndpoint as TxnEndpoint,
-  ITxnFieldMap as TxnFieldMap,
-} from '../../Types/PipelineContext.js';
 export {
   extractAccountIds,
   extractAccountRecords,
@@ -25,7 +21,6 @@ export {
   extractTransactions,
   extractTransactionsForCard,
 } from './ContainerPicker/ContainerPicker.js';
-export { default as resolveTxnEndpoint } from './EndpointResolver/EndpointResolver.js';
 export { default as findFirstArray } from './FieldHunt/LifoCrawl.js';
 export type { IChunkMonth, IMonthChunk } from './ScrapeReplayAction.js';
 export {

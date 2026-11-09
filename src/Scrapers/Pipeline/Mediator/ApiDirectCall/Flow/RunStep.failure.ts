@@ -20,13 +20,10 @@
  * that got no reply and a policy refusal keep their type.
  *
  * <p>A WAF block passes through unchanged: the transport already swapped the
- * edge page for a fixed reason, and that reason is a documented contract. So
- * does a failure raised before any request left the process (a Camoufox
- * launch failure): it holds no reply, and the consumer-install gate reads it.
+ * edge page for a fixed reason, and that reason is a documented contract.
  */
 
 import type { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { isLocalFailureMessage } from '../../../Strategy/Fetch/LocalFailureReasons.js';
 import {
   BODY_NOT_UTF8_REASON,
   DOCUMENT_UNVERIFIED_REASON,
@@ -112,14 +109,12 @@ function describeFailure(failure: IProcedureFailure): string {
 /**
  * Whether a failure carries a fixed reason, not text the bank sent.
  * @param failure - Failure returned by the transport.
- * @returns True for a WAF block or a failure raised before any request.
+ * @returns True for a WAF block or a native-transport integrity refusal.
  */
 function isFixedReason(failure: IProcedureFailure): boolean {
   if (isWafBlocked(failure)) return true;
-  if (failure.responseIntegrityRefusal === true) {
-    return INTEGRITY_REFUSAL_REASONS.has(failure.errorMessage);
-  }
-  return isLocalFailureMessage(failure.errorMessage);
+  if (failure.responseIntegrityRefusal !== true) return false;
+  return INTEGRITY_REFUSAL_REASONS.has(failure.errorMessage);
 }
 
 /**

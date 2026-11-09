@@ -160,31 +160,11 @@ const CATCH_ALL = /^\^?\.[*+]?\$?$|^$/;
 const INTENTIONAL_ESCAPES = {
   test: {
     patterns: ['E2eMocked/', 'E2eReal/', 'src/Tests/E2e\\.test\\.ts$'],
-    why: 'the bare entry point inherits only the base config, so it reaches the mocked E2E suites, the real-browser E2E suites and the live-bank factory suite — 38 suites beyond the gated run. This is why CLAUDE.md tells contributors to run test:unit instead',
+    why: 'the bare entry point inherits only the base config, so it reaches the mocked E2E suites, the real-bank E2E suites and the live-bank factory suite — 38 suites beyond the gated run. This is why CLAUDE.md tells contributors to run test:unit instead',
   },
   'test:ci': {
     patterns: ['E2eMocked/', 'E2eReal/', 'src/Tests/E2e\\.test\\.ts$'],
     why: 'same scope as the bare entry point, with coverage — run only where live-bank credentials are expected',
-  },
-  'test:integration': {
-    patterns: ['Tests/Integration/'],
-    why: 'runs the integration suites serially — escaping that exclusion is the point',
-  },
-  'test:integration:mode-a': {
-    patterns: ['Tests/Integration/'],
-    why: 'mode-A slice of the serial integration run',
-  },
-  'test:integration:mode-a:bank': {
-    patterns: ['Tests/Integration/'],
-    why: 'per-bank mode-A slice of the serial integration run',
-  },
-  'test:integration:mode-b': {
-    patterns: ['Tests/Integration/'],
-    why: 'mode-B slice of the serial integration run',
-  },
-  'test:integration:mode-b:bank': {
-    patterns: ['Tests/Integration/'],
-    why: 'per-bank mode-B slice of the serial integration run',
   },
   'test:e2e:full': {
     patterns: ['E2eFull/'],
@@ -196,7 +176,7 @@ const INTENTIONAL_ESCAPES = {
   },
   'test:e2e:real:single': {
     patterns: ['E2eReal/'],
-    why: 'drives a real browser against a live bank, one suite at a time, under supervision',
+    why: 'drives a live bank over its real endpoints, one suite at a time, under supervision',
   },
   'test:e2e-factory-tests': {
     patterns: ['src/Tests/E2e\\.test\\.ts$'],
@@ -215,11 +195,10 @@ const INTENTIONAL_ESCAPES = {
  * revisited if the orchestrator is rewritten into something else.
  *
  * It does NOT check what an orchestrator selects. It cannot: the scope is
- * assembled inside the source file, and `memory:profile`'s `custom` mode takes
- * the pattern from whoever runs it, so there is no fixed answer to compare
+ * assembled inside the source file, so there is no fixed answer to compare
  * against. A pattern list here would read as a constraint while enforcing
  * nothing, so the reachable suites are recorded in `why` as prose instead —
- * the gate should not appear to promise more than it verifies. Both scripts are
+ * the gate should not appear to promise more than it verifies. The script is
  * operator-run, never part of an unattended run, which is what makes an
  * unverified scope acceptable here and nowhere else.
  *
@@ -230,10 +209,6 @@ const ORCHESTRATORS = {
   'test:e2e:real': {
     source: 'scripts/run-real-suite.ts',
     why: 'builds a per-bank Jest command in TypeScript, reaching E2eReal/ suites, so its scope is not listable here',
-  },
-  'memory:profile': {
-    source: 'scripts/memory-profile/profile-bank.mjs',
-    why: 'assembles a Jest command per profiling mode, reaching E2eReal/ and E2eMocked/; its `custom` mode takes an operator-supplied pattern, so the scope is bounded by the operator rather than by this table — it is a supervised profiling tool, never part of an unattended run',
   },
 };
 
@@ -612,7 +587,7 @@ function assertFloorHeld(name, selected) {
   const breach = NEVER_UNATTENDED.filter((file) => selected.includes(file));
   if (breach.length === 0) return;
   fail(
-    `${name} runs ${breach.join(', ')}, which must never run unattended: it drives a real browser against a live bank. This is checked independently of the other scripts, so weakening two of them together does not make it pass. Restore the exclusion, or remove the suite from NEVER_UNATTENDED and say why in the same commit.`,
+    `${name} runs ${breach.join(', ')}, which must never run unattended: it drives a live bank over its real endpoints. This is checked independently of the other scripts, so weakening two of them together does not make it pass. Restore the exclusion, or remove the suite from NEVER_UNATTENDED and say why in the same commit.`,
   );
 }
 

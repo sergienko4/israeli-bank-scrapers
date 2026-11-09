@@ -1,14 +1,12 @@
 /**
  * DNS-critical auth/API hosts that are NOT the bank's `urls.base`.
  *
- * CI warms bank DNS before Camoufox launches. That warmup derives its
+ * CI warms bank DNS before the E2E run. That warmup derives its
  * host list from `urls.base` in the bank registry, so it only ever
  * warmed each bank's marketing apex. Every host a login handshake
- * actually talks to -- the auth iframe origin, the post-login API
- * origin -- stayed cold, and a cold lookup inside Camoufox (which
- * retries for ~6s before giving up) surfaces as
- * `NS_ERROR_UNKNOWN_HOST`: a blank login form with zero fields
- * resolved, indistinguishable from a scraper bug.
+ * actually talks to -- the auth origin, the post-login API origin --
+ * stayed cold, and a cold lookup there surfaces as a connect failure
+ * that is indistinguishable from a scraper bug.
  *
  * Entries are deliberately hand-curated rather than grepped out of
  * the source tree, because the source tree also contains hosts that

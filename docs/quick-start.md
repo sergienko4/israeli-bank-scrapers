@@ -14,38 +14,9 @@ Requirements:
 | ------- | ------------ | --------------------------------------------------------------------------- |
 | Node.js | `>= 24.11.0` | First Node 24 LTS; bundles OpenSSL 3.5, which OneZero's TLS handshake needs |
 | npm     | `>= 10`      | Workspaces + `--access public` provenance                                   |
-| Disk    | ~1.3 GB      | Camoufox bundle cached under `~/.cache/camoufox/`                           |
 
-> The bundle is downloaded on **first launch**, not at install time, so the
-> first scrape on a cold cache is substantially slower than later ones.
-
-### Tuning the launch
-
-| Environment variable         | Default          | Why you would change it                                                                                                                                                          |
-| ---------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CAMOUFOX_LAUNCH_TIMEOUT_MS` | `300000` (5 min) | Bounds browser launch. The default is deliberately generous because the first launch downloads the bundle described above. Raise it on a slow link; lower it to fail fast in CI. |
-
-The bound exists so a browser that never comes up produces a rejection naming
-the likely cause, rather than leaving the launch promise permanently unsettled.
-An unsettled launch drains the event loop, and a caller using top-level `await`
-then exits silently with code `13` and no diagnostic output. The environment
-variable name is exported as `CAMOUFOX_LAUNCH_TIMEOUT_ENV` and its default as
-`DEFAULT_CAMOUFOX_LAUNCH_TIMEOUT_MS`. `resolveLaunchTimeoutMs` returns the
-bound the launcher will apply: the variable when it is a positive number, the
-default otherwise. A caller that bounds the launch from outside, such as a test
-setup hook, adds its slack to that value so a raised bound still fails with the
-launcher's error first.
-
-If a launch instead fails with `Could not locate the bindings file`, the
-`better-sqlite3` native binding was never compiled. This happens when
-dependencies were installed with `--ignore-scripts`; reinstall without that
-flag, or rebuild the binding with `npm rebuild better-sqlite3`.
-
-On npm 12 the same failure occurs on a plain `npm install`, because install
-scripts are blocked unless the package is in your `allowScripts` — and
-`npm rebuild` reports success without building. See
-[Troubleshooting](troubleshooting.md#npm-12-blocks-install-scripts-by-default)
-for the two commands that do fix it.
+No browser binary, browser cache or native browser-fingerprinting module is
+required. Authentication and collection both use HTTP.
 
 ## 2. Scrape
 
@@ -73,7 +44,7 @@ if (result.success) {
 }
 ```
 
-Field names per bank live in [Banks → your bank](banks/index.md). Banks marked **API-direct** read credentials slightly differently — see [OneZero](banks/onezero.md), [Pepper](banks/pepper.md), [PayBox](banks/paybox.md).
+Field names and OTP callback placement per bank live in [Banks → your bank](banks/index.md).
 
 ## 3. Inspect the result
 
@@ -92,13 +63,13 @@ Field names per bank live in [Banks → your bank](banks/index.md). Banks marked
 }
 ```
 
-The `***NNNN`, `<merchant:N>`, and `+***`/`-***` markers are produced by the [PII redactor](observability/redaction.md). Every log line, captured network body, and DOM snapshot goes through the same redactor _before_ it touches disk.
+The `***NNNN`, `<merchant:N>`, and `+***`/`-***` markers are produced by the [PII redactor](observability/redaction.md). Log lines and captured network bodies go through the redactor _before_ they touch disk.
 
-The `balance` field is populated by [BALANCE-RESOLVE.final](phases/balance-resolve.md) (browser banks) or [API-DIRECT-SCRAPE.final](phases/api-direct-scrape.md) (api-direct banks) — one source of truth across both paths.
+The `balance` field is populated by [API-DIRECT-SCRAPE.final](phases/api-direct-scrape.md).
 
 ## What next?
 
 - Bank not Hapoalim? — pick yours in [Banks](banks/index.md); each page lists credentials + OTP behavior + known quirks.
-- Need OTP? — see [Phase → OTP-TRIGGER](phases/otp-trigger.md) and [OTP-FILL](phases/otp-fill.md) for browser banks, [API-DIRECT-CALL](phases/api-direct-call.md) for API-direct ones.
-- WAF block? — [Error Types → WAF Troubleshooting](https://github.com/sergienko4/israeli-bank-scrapers#error-types) in the README.
-- Parallel scraping? — [README → Advanced Usage](https://github.com/sergienko4/israeli-bank-scrapers#advanced-usage).
+- Need OTP? — see [API-DIRECT-CALL](phases/api-direct-call.md).
+- WAF block? — see [Troubleshooting](troubleshooting.md#waf_blocked).
+- Parallel scraping? — see [Advanced usage](advanced-usage.md).

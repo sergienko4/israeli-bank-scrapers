@@ -1,13 +1,13 @@
 # Amex (American Express)
 
-| | |
-|---|---|
-| `CompanyTypes` | `Amex` |
-| Engine | **API-direct** (no browser) |
-| Credentials | `id`, `card6Digits`, `password` (optional `otpLongTermToken`) |
-| OTP | — |
-| Phase chain | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md) |
-| Source | [`Banks/Amex/AmexPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Amex/AmexPipeline.ts) |
+|                |                                                                                                                                                      |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CompanyTypes` | `Amex`                                                                                                                                               |
+| Engine         | **API-direct** (no browser)                                                                                                                          |
+| Credentials    | `id`, `card6Digits`, `password` (optional `otpLongTermToken`)                                                                                        |
+| OTP            | —                                                                                                                                                    |
+| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                |
+| Source         | [`Banks/Amex/AmexPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Amex/AmexPipeline.ts) |
 
 ## Quick example
 
@@ -45,8 +45,8 @@ steps from Amex's ring constants (`AMEX_RING`): host
 
 `AMEX_HEADLESS` registers the `service` URL and selects Node's own `fetch`
 (`nativeFetch`) with a cookie jar, so no browser starts. Browser options passed
-to `createScraper` are ignored with a
-[warning](../configuration.md#browser-options-on-browserless-banks).
+to `createScraper` are no longer supported; see the
+[migration notes](../configuration.md#removed-browser-options).
 
 ## Scrape
 

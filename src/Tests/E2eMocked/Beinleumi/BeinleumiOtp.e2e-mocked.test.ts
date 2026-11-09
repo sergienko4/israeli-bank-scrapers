@@ -71,7 +71,6 @@ describe.each(FIBI_MOCK_BRANDS)('$companyId browserless SMS step', (brand): void
       const run = await runBeinleumi(fault, { brand });
       expectSignedIn(run, trail);
       expect(run.hints).toEqual(['']);
-      expect(run.launches).toBe(0);
     },
   );
 

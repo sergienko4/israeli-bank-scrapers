@@ -69,10 +69,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
     ACCOUNT,
     BEINLEUMI_HEADLESS,
   ),
-  [CompanyTypes.Leumi]: {
-    ...defineApiDirectBank('https://www.leumi.co.il', ACCOUNT, LEUMI_HEADLESS),
-    disablePhaseRetry: true,
-  },
+  [CompanyTypes.Leumi]: defineApiDirectBank('https://www.leumi.co.il', ACCOUNT, LEUMI_HEADLESS),
   [CompanyTypes.Discount]: defineApiDirectBank(
     'https://www.discountbank.co.il',
     ACCOUNT,

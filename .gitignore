@@ -96,18 +96,6 @@ scripts/**
 # `auditText` (tsconfig sets `allowJs: false`, so the `.ts` test cannot
 # import the `.cjs` untyped).
 !scripts/audit-fixtures-pii.d.cts
-# Browser-stack tooling. The
-# install-camoufox action and the Docker CI mirror read the pinned Camoufox
-# tag through manifest.mjs, so it must be in the tree for either to work. The
-# `.d.mts` files type the unit tests (tsconfig sets `allowJs: false`). The
-# gate CLI runs the contract in CI and from `npm run lint:browser-stack`.
-# CriticalDepsFullSuiteGate asserts every critical path is trackable.
-!scripts/browser-stack/
-!scripts/browser-stack/*.mjs
-!scripts/browser-stack/*.d.mts
-!scripts/check-browser-stack.mjs
-# Entry point of the weekly browser-stack watch, which its workflow runs.
-!scripts/browser-stack-watch.mjs
 # Scheduled npm advisory reports run without node_modules.
 !scripts/npm-audit-watch.mjs
 !scripts/npm-audit/
@@ -163,9 +151,6 @@ scripts/**
 # `allowJs: false`, so the `.ts` test cannot import the `.mjs` untyped).
 !scripts/filter-scorecard-sarif.mjs
 !scripts/filter-scorecard-sarif.d.mts
-# Published tooling: named in package.json "files", so it ships in the
-# tarball and runs from postinstall on every consumer install.
-!scripts/patch-playwright-core.mjs
 !scripts/pii-denylist.sha256
 !scripts/sweep-fixtures-pii.ts
 # Run by the release workflow to append the Upgrading section to the
@@ -182,12 +167,6 @@ scripts/**
 !scripts/decoupling-metrics/**
 scripts/decoupling-metrics/snapshots/*
 !scripts/decoupling-metrics/snapshots/baseline.json
-# Committed tooling: peak-memory profiler used to size a scrape before a
-# release. Captured run artifacts stay ignored — they are machine- and
-# run-specific, and the scrape log can contain account-level PII.
-!scripts/memory-profile/
-!scripts/memory-profile/**
-scripts/memory-profile/runs/
 
 # Stale lint-output left by an older verify-script version. Current
 # src/Scrapers/Pipeline/EslintCanaries/verify.sh writes to os.tmpdir(),

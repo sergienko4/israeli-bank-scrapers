@@ -6,7 +6,7 @@ import {
   INVALID_CREDS_USERNAME_PASSWORD,
   INVALID_CREDS_YAHAV,
 } from '../TestConstants.js';
-import { assertFailedLogin, BROWSER_ARGS, defaultStartDate, SCRAPE_TIMEOUT } from './Helpers.js';
+import { assertFailedLogin, defaultStartDate, SCRAPE_TIMEOUT } from './Helpers.js';
 
 beforeAll(() => {
   jest.setTimeout(SCRAPE_TIMEOUT);
@@ -39,8 +39,6 @@ describe('E2E: One Zero (invalid login)', () => {
     const scraper = createScraper({
       companyId: CompanyTypes.OneZero,
       startDate: defaultStartDate(),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
     });
     const result = await scraper.scrape(INVALID_CREDS_ONEZERO);
     assertFailedLogin(result);

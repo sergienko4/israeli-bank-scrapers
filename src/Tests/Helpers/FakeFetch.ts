@@ -1,5 +1,5 @@
 /**
- * A recording `fetch` fake for tests of the browser-stack scripts.
+ * A recording `fetch` fake for tests of the HTTP transport and the repo scripts.
  *
  * It answers through `reply(url)` and keeps every request, so a test can
  * assert what was sent without leaving the machine.

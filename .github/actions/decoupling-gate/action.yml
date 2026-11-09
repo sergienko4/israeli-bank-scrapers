@@ -7,8 +7,9 @@
 # and needs no maintenance.
 #
 # Guardrail metrics are ratchets, not budgets — a new import cycle, a new
-# `any`, or a deleted canary / ESLint rule fails outright. See
-# decoupling-compare.sh for the policy.
+# `any`, or a deleted canary / ESLint rule fails outright. Only exact,
+# hash-pinned browser canary retirements are permitted; surviving guards
+# cannot spend that allowance. See decoupling-compare.sh for the policy.
 #
 # Runs as a background step of pr.yml's `static-checks` job. The caller
 # checks out with `fetch-depth: 0` (the base tree is a second worktree),

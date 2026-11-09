@@ -1,12 +1,6 @@
-import { PipelineBuilder } from '../../../../Scrapers/Pipeline/Core/Builder/PipelineBuilder.js';
+import PipelineBuilder from '../../../../Scrapers/Pipeline/Core/Builder/PipelineBuilder.js';
 import { assertOk } from '../../../Helpers/AssertProcedure.js';
-import {
-  makeMockOptions,
-  MOCK_API_DIRECT,
-  MOCK_API_DIRECT_SHAPE,
-  MOCK_LOGIN_CONFIG,
-  MOCK_SCRAPE,
-} from './MockFactories.js';
+import { makeMockOptions, MOCK_API_DIRECT, MOCK_API_DIRECT_SHAPE } from './MockFactories.js';
 
 /** Shared test options. */
 const MOCK_OPTIONS = makeMockOptions();
@@ -19,7 +13,7 @@ describe('PipelineBuilder/build', () => {
     if (!result.success) expect(result.errorMessage).toContain('withOptions()');
   });
 
-  it('fails when no login mode was set', () => {
+  it('fails when withApiDirect was not called', () => {
     const builder = new PipelineBuilder();
     builder.withOptions(MOCK_OPTIONS);
     const result = builder.build();
@@ -28,46 +22,50 @@ describe('PipelineBuilder/build', () => {
   });
 });
 
-describe('PipelineBuilder/withOptions', () => {
-  it('sets options and returns this for chaining', () => {
+describe('PipelineBuilder/chaining', () => {
+  it('withOptions returns this', () => {
     const builder = new PipelineBuilder();
     const returned = builder.withOptions(MOCK_OPTIONS);
     expect(returned).toBe(builder);
   });
-});
 
-describe('PipelineBuilder/withBrowser', () => {
-  it('returns this for chaining', () => {
+  it('withHeadlessMediator returns this', () => {
     const builder = new PipelineBuilder();
-    const returned = builder.withBrowser();
+    const returned = builder.withHeadlessMediator();
+    expect(returned).toBe(builder);
+  });
+
+  it('withApiDirect returns this', () => {
+    const builder = new PipelineBuilder();
+    const returned = builder.withApiDirect(MOCK_API_DIRECT, MOCK_API_DIRECT_SHAPE);
     expect(returned).toBe(builder);
   });
 });
 
-describe('PipelineBuilder/withDeclarativeLogin', () => {
-  it('sets login mode and returns this', () => {
-    const builder = new PipelineBuilder();
-    builder.withOptions(MOCK_OPTIONS);
-    const returned = builder.withDeclarativeLogin(MOCK_LOGIN_CONFIG);
-    expect(returned).toBe(builder);
-  });
-
-  it('allows build after setting declarative login', () => {
+describe('PipelineBuilder/withApiDirect', () => {
+  it('builds the api-direct login then scrape, in that order', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
-      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
+      .withApiDirect(MOCK_API_DIRECT, MOCK_API_DIRECT_SHAPE)
       .build();
     assertOk(descriptor);
-    const desc = descriptor.value;
-    expect(desc.options).toBe(MOCK_OPTIONS);
+    const names = descriptor.value.phases.map(p => p.name);
+    expect(names).toEqual(['api-direct-call', 'api-direct-scrape']);
   });
-});
 
-describe('PipelineBuilder/mutual-exclusion', () => {
-  it('fails build after withDeclarativeLogin + withApiDirect', () => {
+  it('carries the provided options onto the descriptor', () => {
+    const descriptor = new PipelineBuilder()
+      .withOptions(MOCK_OPTIONS)
+      .withApiDirect(MOCK_API_DIRECT, MOCK_API_DIRECT_SHAPE)
+      .build();
+    assertOk(descriptor);
+    expect(descriptor.value.options).toBe(MOCK_OPTIONS);
+  });
+
+  it('fails build when withApiDirect is called twice', () => {
     const result = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
-      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
+      .withApiDirect(MOCK_API_DIRECT, MOCK_API_DIRECT_SHAPE)
       .withApiDirect(MOCK_API_DIRECT, MOCK_API_DIRECT_SHAPE)
       .build();
     expect(result.success).toBe(false);
@@ -75,73 +73,23 @@ describe('PipelineBuilder/mutual-exclusion', () => {
   });
 });
 
-describe('PipelineBuilder/optional-phases', () => {
-  it('withOtpFill returns this', () => {
-    const builder = new PipelineBuilder();
-    const returned = builder.withOtpFill();
-    expect(returned).toBe(builder);
-  });
-
-  it('withOtpTrigger returns this', () => {
-    const builder = new PipelineBuilder();
-    const returned = builder.withOtpTrigger();
-    expect(returned).toBe(builder);
-  });
-
-  it('withScraper returns this', () => {
-    const builder = new PipelineBuilder();
-    const returned = builder.withScraper(MOCK_SCRAPE);
-    expect(returned).toBe(builder);
-  });
-});
-
-describe('PipelineBuilder/full-config', () => {
-  it('builds with all optional phases configured', () => {
-    const descriptor = new PipelineBuilder()
-      .withOptions(MOCK_OPTIONS)
-      .withBrowser()
-      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
-      .withOtpTrigger()
-      .withOtpFill()
-      .withScraper(MOCK_SCRAPE)
-      .build();
-    assertOk(descriptor);
-    const desc = descriptor.value;
-    expect(desc.options).toBe(MOCK_OPTIONS);
-  });
-
-  it('builds with apiDirect headless path + scraper', () => {
+describe('PipelineBuilder/withHeadlessMediator', () => {
+  it('stamps isHeadless=true on the descriptor', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
       .withHeadlessMediator()
       .withApiDirect(MOCK_API_DIRECT, MOCK_API_DIRECT_SHAPE)
-      .withScraper(MOCK_SCRAPE)
       .build();
     assertOk(descriptor);
-    const desc = descriptor.value;
-    expect(desc.options).toBe(MOCK_OPTIONS);
-  });
-});
-
-describe('PipelineBuilder/descriptor-shape', () => {
-  it('returns descriptor with phases array', () => {
-    const descriptor = new PipelineBuilder()
-      .withOptions(MOCK_OPTIONS)
-      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
-      .build();
-    assertOk(descriptor);
-    const desc = descriptor.value;
-    const isArray = Array.isArray(desc.phases);
-    expect(isArray).toBe(true);
+    expect(descriptor.value.isHeadless).toBe(true);
   });
 
-  it('returns descriptor with the provided options', () => {
+  it('stamps isHeadless=false when withHeadlessMediator is omitted', () => {
     const descriptor = new PipelineBuilder()
       .withOptions(MOCK_OPTIONS)
-      .withDeclarativeLogin(MOCK_LOGIN_CONFIG)
+      .withApiDirect(MOCK_API_DIRECT, MOCK_API_DIRECT_SHAPE)
       .build();
     assertOk(descriptor);
-    const desc = descriptor.value;
-    expect(desc.options).toBe(MOCK_OPTIONS);
+    expect(descriptor.value.isHeadless).toBe(false);
   });
 });

@@ -41,7 +41,6 @@ const LOG = {
 };
 
 jest.unstable_mockModule('../../../../../../Scrapers/Pipeline/Logging/Debug.js', async () => ({
-  ...(await import('../../../../../../Scrapers/Pipeline/Types/MockTiming.js')),
   ...(await import('../../../../../../Scrapers/Pipeline/Logging/BankContext.js')),
   /**
    * Every module derives its logger from `import.meta.url`.

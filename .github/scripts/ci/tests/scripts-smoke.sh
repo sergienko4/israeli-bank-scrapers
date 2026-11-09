@@ -433,7 +433,7 @@ else
     echo "$?"
   }
 
-  printf 'See `src/Common/Browser.ts` for the context builder.\n' > "$DOC_DIR/good.md"
+  printf 'See `src/Scrapers/Registry/Factory.ts` for the context builder.\n' > "$DOC_DIR/good.md"
   printf 'See `src/helpers/browser.ts` for the context builder.\n' > "$DOC_DIR/phantom.md"
 
   assert_eq "a resolving path passes" "0" "$(doc_check "$DOC_DIR/good.md")"
@@ -509,7 +509,7 @@ else
 
   # A `#L` locator is documented as supported, so it must actually resolve
   # rather than fail the path shape and be skipped as a non-path.
-  printf 'See `src/Common/Browser.ts#L17` and `src/Common/Browser.ts:17`.\n' > "$DOC_DIR/locator.md"
+  printf 'See `src/Scrapers/Registry/Factory.ts#L17` and `src/Scrapers/Registry/Factory.ts:17`.\n' > "$DOC_DIR/locator.md"
   assert_eq "a #L locator resolves to the file" "0" "$(doc_check "$DOC_DIR/locator.md")"
   printf 'Gone: `src/helpers/browser.ts#L17`.\n' > "$DOC_DIR/locator-bad.md"
   assert_eq "a #L locator on a phantom path still fails" "1" \
@@ -560,7 +560,7 @@ fi
 
 # The real-gate half of the bot policy: a same-repo Renovate PR would
 # otherwise receive the bank secrets, so it must never unlock the real-bank
-# gates even when its lockfile refresh moves the browser stack and sets
+# gates even when its lockfile refresh moves the critical runtime and sets
 # full_suite.
 gate_out() {
   local out
@@ -614,7 +614,7 @@ detect_flag() {
 
 assert_eq "a renovate.json-only change runs the dependency gates" \
   "deps=true" "$(detect_flag deps)"
-assert_eq "a renovate.json-only change leaves the browser stack alone" \
+assert_eq "a renovate.json-only change leaves the critical runtime alone" \
   "critical_deps=false" "$(detect_flag critical_deps)"
 assert_eq "a renovate.json-only change does not force the full suite" \
   "full_suite=false" "$(detect_flag full_suite)"
@@ -792,8 +792,8 @@ echo "── 10/10: DNS warm-up host extraction ──"
 # dns-warmup.sh runs BEFORE `npm install`, so it reads the bank registry
 # with awk/grep/sed instead of importing TypeScript. That puts its
 # extractors out of reach of both tsc and jest, and a silently-skipped
-# host is not a loud failure — it surfaces much later as the browser
-# failing to resolve an auth origin (NS_ERROR_UNKNOWN_HOST) mid-login.
+# host is not a loud failure — it surfaces much later as the HTTP
+# client failing to resolve an auth origin mid-login.
 #
 # These assertions eval the REAL functions straight out of the shipped
 # script, so the test cannot drift away from what CI actually runs.
@@ -896,7 +896,7 @@ assert_eq "an unreachable origin is reported as NO_RESPONSE, not 000" \
   "[diag]  bank.example -> http=NO_RESPONSE" "$(probe_status bank.example)"
 
 # It is a diagnostic, not a gate: a bank that blocks the probe but serves
-# the browser must never fail the preflight. The subshell re-enables the
+# the HTTP client must never fail the preflight. The subshell re-enables the
 # `set -e` the real script runs under — without it a failed assignment
 # aborts nothing here, and this assertion could not tell the guard apart
 # from its absence.

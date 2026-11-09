@@ -3,8 +3,8 @@
  * once per issuer against the synthetic ring playing that issuer, for what
  * the shared
  * API-DIRECT flow spec cannot see: the six-step device-key login, the
- * session cookie and bcKey riding on every data call, the browser never
- * launching, the password staying off the warm path, the one cold
+ * session cookie and bcKey riding on every data call, the password
+ * staying off the warm path, the one cold
  * re-login after an expired warm session, a card row with no card number
  * or a refused month failing the run instead of reading as empty, and every
  * way the login can fail.
@@ -20,7 +20,6 @@ import type {
   ScraperCredentials,
 } from '../../../Scrapers/Base/Interface.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
-import { getLaunchCount } from '../../Mocks/CamoufoxJsMock.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import { parseBody } from '../Helpers/FetchMockKit.js';
 import type { IRingTarget, RingFault } from './RingFetchMock.js';
@@ -59,7 +58,6 @@ interface IRingRun {
   readonly steps: readonly string[];
   /** Every card-list and transactions call. */
   readonly data: readonly IRecordedCall[];
-  readonly launches: number;
 }
 
 const VALIDATE = 'ValidateIdDataNoReg';
@@ -106,18 +104,16 @@ interface IRingRunArgs {
 /**
  * Scrape an issuer against the synthetic ring playing it.
  * @param args - Issuer, credentials and fault.
- * @returns The result, the call log and how many browsers were launched.
+ * @returns The result and the call log.
  */
 async function runRing(args: IRingRunArgs): Promise<IRingRun> {
-  const launchesBefore = getLaunchCount();
   const handle = installRingFetchMock(args.issuer.target, args.fault);
   try {
     const options = { companyId: args.issuer.companyId, startDate: RING_MOCK_START_DATE };
     const scraper = createScraper(options);
     const result = await scraper.scrape(args.creds);
-    const launches = getLaunchCount() - launchesBefore;
     const calls = handle.calls();
-    return { result, calls, ...splitCalls(calls), launches };
+    return { result, calls, ...splitCalls(calls) };
   } finally {
     handle.dispose();
   }
@@ -200,10 +196,9 @@ const STEP_ZERO_FAULTS: readonly (readonly [RingFault, ScraperErrorTypes, string
 ];
 
 describe.each(ISSUERS)('$bank browserless login', issuer => {
-  it('signs in cold, rides the session on every data call and launches no browser', async () => {
+  it('signs in cold, rides the session on every data call', async () => {
     const run = await runRing({ issuer, creds: { ...RING_MOCK_CREDS } });
     expect(run.result.success).toBe(true);
-    expect(run.launches).toBe(0);
     expect(run.steps).toEqual(COLD_STEPS);
     expect(run.data.length).toBeGreaterThan(0);
     const sent = run.data.map(call => [
@@ -234,11 +229,10 @@ describe.each(ISSUERS)('$bank browserless login', issuer => {
     expect(summary).toEqual(expected);
   });
 
-  it('resumes with the stored key without sending the password or launching a browser', async () => {
+  it('resumes with the stored key without sending the password', async () => {
     const creds = { ...RING_MOCK_CREDS, otpLongTermToken: SYN_STORED_KEY };
     const run = await runRing({ issuer, creds });
     expect(run.result.success).toBe(true);
-    expect(run.launches).toBe(0);
     expect(run.steps).toEqual(WARM_STEPS);
     const isPasswordSent = isSent(run.calls, RING_MOCK_CREDS.password);
     expect(isPasswordSent).toBe(false);

@@ -8,8 +8,8 @@
  */
 
 import type { Brand } from './Brand.js';
-import type { PhaseName } from './Phase.js';
-import type { ApiStrategyKind } from './PipelineContext.js';
+import type { ApiStrategyKind } from './Domain/ApiStrategy.js';
+import type PhaseName from './Phase.js';
 
 // ── Scalar type aliases (Rule #15: no bare primitives) ───────────────
 

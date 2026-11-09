@@ -42,7 +42,6 @@ function expectSignedIn(run: IBeinleumiRun, trail: readonly string[]): boolean {
   expect(run.result.errorMessage).toBeUndefined();
   expect(run.result.success).toBe(true);
   expect(run.trail).toEqual(trail);
-  expect(run.launches).toBe(0);
   return true;
 }
 

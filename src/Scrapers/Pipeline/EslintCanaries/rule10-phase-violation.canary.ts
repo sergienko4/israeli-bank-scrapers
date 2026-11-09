@@ -1,11 +1,11 @@
 /**
- * CANARY: Rule #10 violation — Pipeline business logic calling Playwright.
+ * CANARY: Rule #10 violation — Pipeline business logic calling a page directly.
  * This file MUST trigger ESLint errors. If it passes, the guardrail is dead.
  *
  * Expected error:
  *   no-restricted-syntax — `page.click(...)` below is a direct call on an
  *   identifier named `page`, which Rule #10 forbids in Pipeline business
- *   logic (Phases/Core/Banks/Registry/Logging). Browser access belongs to the
+ *   logic (Phases/Core/Banks/Registry/Logging). A page handle belongs to the
  *   Mediator; those layers must go through `ctx.mediator`.
  *
  * WHAT THIS CANARY DOES *NOT* PROVE — one honest limit:
@@ -27,16 +27,19 @@
  * canary-expects-message: Rule #10
  */
 
-import type { Page } from 'playwright-core';
+/** Structural page handle; the rule keys on the identifier, not the type. */
+interface IPageLike {
+  click(selector: string): Promise<unknown>;
+}
 
-/** Canary phase that violates Rule #10 — direct Playwright usage. */
+/** Canary phase that violates Rule #10 — direct page usage. */
 export class CanaryPhaseViolation {
   /**
    * BAD: calls page.click directly instead of using mediator.
-   * @param page - Playwright page (should not be used directly).
+   * @param page - Page-like handle (should not be used directly).
    * @returns True after click.
    */
-  public async execute(page: Page): Promise<boolean> {
+  public async execute(page: IPageLike): Promise<boolean> {
     await page.click('.submit');
     return true;
   }

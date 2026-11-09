@@ -7,19 +7,18 @@ import {
   BasePhase,
   type IsPrePayloadValid,
 } from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
-import { none, some } from '../../../../Scrapers/Pipeline/Types/Option.js';
-import type { PhaseName } from '../../../../Scrapers/Pipeline/Types/Phase.js';
+import type PhaseName from '../../../../Scrapers/Pipeline/Types/Phase.js';
 import type {
   IActionContext,
   IPipelineContext,
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { makeMockContext } from '../../Scrapers/Pipeline/MockPipelineFactories.js';
+import { makeMockContext } from '../Infrastructure/MockFactories.js';
 
 /** Concrete BasePhase subclass that records lifecycle calls. */
 class DummyPhase extends BasePhase {
-  public readonly name: PhaseName = 'init';
+  public readonly name: PhaseName = 'api-direct-call';
   public preCalls = 0;
   public actionCalls = 0;
   public postCalls = 0;
@@ -88,7 +87,7 @@ class DummyPhase extends BasePhase {
 
 /** Phase whose PRE fails — verifies .run() short-circuits. */
 class PreFailPhase extends BasePhase {
-  public readonly name: PhaseName = 'init';
+  public readonly name: PhaseName = 'api-direct-call';
   public postCalled = false;
 
   /**
@@ -132,7 +131,7 @@ class PreFailPhase extends BasePhase {
 
 /** Phase whose ACTION fails. */
 class ActionFailPhase extends BasePhase {
-  public readonly name: PhaseName = 'login';
+  public readonly name: PhaseName = 'api-direct-call';
   public postCalled = false;
 
   /**
@@ -162,7 +161,7 @@ class ActionFailPhase extends BasePhase {
 
 /** Phase with failing POST. */
 class PostFailPhase extends BasePhase {
-  public readonly name: PhaseName = 'dashboard';
+  public readonly name: PhaseName = 'api-direct-scrape';
   public finalCalled = false;
 
   /**
@@ -206,7 +205,7 @@ class PostFailPhase extends BasePhase {
 
 /** Phase with failing validatePrePayload. */
 class ContractPhase extends BasePhase {
-  public readonly name: PhaseName = 'scrape';
+  public readonly name: PhaseName = 'api-direct-scrape';
 
   /**
    * Test helper.
@@ -281,34 +280,12 @@ describe('BasePhase.run()', () => {
       expect(result.errorMessage).toContain('STAGE_CONTRACT_VIOLATION');
     }
   });
-
-  it('runs run() with mediator present (exercises buildActionContext sealed path)', async () => {
-    const { makeMockMediator, makeMockBrowserState } =
-      await import('../../Scrapers/Pipeline/MockPipelineFactories.js');
-    const phase = new DummyPhase();
-    const med = makeMockMediator();
-    const br = makeMockBrowserState();
-    const ctx = makeMockContext({ mediator: some(med), browser: some(br) });
-    const result = await phase.run(ctx);
-    const isOkResult6 = isOk(result);
-    expect(isOkResult6).toBe(true);
-  });
-
-  it('runs run() with mediator but no browser (skips sealed executor extraction)', async () => {
-    const { makeMockMediator } = await import('../../Scrapers/Pipeline/MockPipelineFactories.js');
-    const phase = new DummyPhase();
-    const med = makeMockMediator();
-    const ctx = makeMockContext({ mediator: some(med), browser: none() });
-    const result = await phase.run(ctx);
-    const isOkResult7 = isOk(result);
-    expect(isOkResult7).toBe(true);
-  });
 });
 
 describe('BasePhase default lifecycle hooks', () => {
   /** Phase that relies on BasePhase's default pre/post/final (no-op). */
   class DefaultHooksPhase extends BasePhase {
-    public readonly name: PhaseName = 'init';
+    public readonly name: PhaseName = 'api-direct-call';
     /**
      * Test helper.
      * @param _ctx - Parameter.

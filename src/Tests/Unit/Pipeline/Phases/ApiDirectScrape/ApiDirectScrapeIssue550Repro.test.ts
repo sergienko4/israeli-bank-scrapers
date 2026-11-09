@@ -164,7 +164,7 @@ function pepperContext(bus: IApiMediator): IActionContext {
     apiMediator: some(bus),
     credentials: PEPPER_TEST_CREDENTIALS,
   });
-  return ctx as unknown as IActionContext;
+  return ctx;
 }
 
 /**

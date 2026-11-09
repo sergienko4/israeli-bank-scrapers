@@ -18,7 +18,6 @@ module.exports = {
     // strips `.mjs`. That broke dynamic imports of `scripts/*.mjs`, which
     // resolve through Node rather than through the mapper.
     '^(\\.{1,2}/.*)\\.js$': '$1',
-    '^@hieutran094/camoufox-js$': '<rootDir>/Tests/Mocks/CamoufoxJsMock.js',
   },
   transform: {
     '^.+\\.ts$': ['ts-jest', { useESM: true }],

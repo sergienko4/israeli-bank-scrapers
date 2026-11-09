@@ -1,180 +1,49 @@
 # Adding a new bank
 
-Pipeline-first — every new bank lives under `src/Scrapers/Pipeline/Banks/<Name>/` and is registered in `PIPELINE_REGISTRY`. There is no legacy `src/Scrapers/<Name>/` path any more; an id absent from `PIPELINE_REGISTRY` makes `createScraper` throw `unknown company id`.
+Every bank uses `API-DIRECT-CALL` followed by `API-DIRECT-SCRAPE`. Add
+declarative HTTP configuration and a hard-model shape, never a browser
+launcher, DOM login configuration or navigation phase.
 
-## Step-by-step
+## Register the bank
 
-### 1. Add the enum entry
+1. Add its `CompanyTypes` and `SCRAPERS` metadata in `src/Definitions.ts`.
+   Declare the credential fields the bank actually accepts.
+2. Capture the bank's authentication and collection HTTP exchanges using
+   an authorized account. Redact credentials, tokens and financial data
+   before storing fixtures.
+3. Add the login steps and explicit transport configuration under
+   `src/Scrapers/Pipeline/Registry/Config/`. Use `nativeFetch` for ordinary
+   HTTP or the client-certificate/TLS-profile transport when required.
+   Missing or conflicting transport selections fail closed.
+4. Add the account, balance and transaction shape under
+   `src/Scrapers/Pipeline/Banks/<Name>/`. Reuse shared extraction,
+   pagination, cookie-session and bank-calendar helpers.
+5. Assemble the descriptor with `withOptions`, `withHeadlessMediator` and
+   `withApiDirect(loginConfig, shape)`. See
+   [LeumiPipeline.ts](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Leumi/LeumiPipeline.ts)
+   for the actual builder contract.
+6. Register the factory in `Banks/PipelineRegistryAmexToMax.ts` or
+   `Banks/PipelineRegistryMercantileToVisaCal.ts`. Core remains bank-agnostic.
+7. Declare additional authentication hosts in
+   `Registry/Config/PipelineBankHosts.ts` when needed by CI's DNS preflight.
+   List only hosts the bank actually uses.
 
-Edit [`src/Definitions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Definitions.ts):
+## Authentication and OTP
 
-```typescript
-export enum CompanyTypes {
-  // ... existing entries ...
-  NewBank = 'newBank',
-}
+Use the shared API-direct login configuration, including OTP steps and
+durable-auth hooks when supported. Do not rerun an entire failed phase:
+authentication can have side effects such as issuing a new SMS.
+See [API-DIRECT-CALL](../phases/api-direct-call.md) for its contracts and
+build-time checks.
 
-export const SCRAPERS = {
-  // ... existing entries ...
-  [CompanyTypes.NewBank]: {
-    name: 'New Bank',
-    loginFields: ['username', PASSWORD_FIELD], // declarative
-  },
-};
-```
+## Tests and review
 
-### 2. Capture a real-bank network trace
+Add focused unit tests for new transforms and boundary failures, and a
+mocked HTTP flow under `src/Tests/E2eMocked/`. Use the shared fetch-mock
+helpers so a malformed request fails offline. Include expected accounts,
+balances, transactions, error classification and redaction behavior.
 
-Run a manual scrape against your account once and capture the HTTP traffic (browser DevTools → Network → Save All as HAR, or use `mitmproxy`). You need:
-
-- The login form HTML (post-auth redirect URLs, hidden fields)
-- The post-login account-discovery endpoint (URL + response body)
-- The per-account txn endpoint (URL + body template)
-- The balance endpoint (URL + body template + per-card response shape)
-
-Save these under `src/Tests/E2eMocked/<NewBank>/fixtures/`.
-
-### 3. Write the declarative LoginConfig
-
-Create `src/Scrapers/Pipeline/Banks/<NewBank>/<NewBank>LoginConfig.ts`:
-
-```typescript
-import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
-
-export const NEWBANK_LOGIN: ILoginConfig = {
-  loginUrl: 'https://newbank.example/login',
-  fields: [
-    { credentialKey: 'username', selectors: [] }, // resolved via shared LoginWK
-    { credentialKey: 'password', selectors: [] },
-  ],
-  submit: [],
-  possibleResults: { success: [] },
-};
-```
-
-**Prefer empty `selectors: []`.** The generic Well-Known login dictionary
-([`Registry/WK/LoginWK.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Registry/WK/LoginWK.ts))
-resolves each field by visible text / `aria-label` / semantic HTML — never a CSS
-selector in the bank config (the ZERO-CSS-selectors rule). If a field is not
-matched (e.g. an `aria-label`-only input with an empty placeholder, as some
-national-ID fields are), **add the value to the shared `LoginWK`
-slot** — do not put a bank-specific selector here.
-
-### 4. Write the pipeline builder
-
-Create `src/Scrapers/Pipeline/Banks/<NewBank>/<NewBank>Pipeline.ts`:
-
-```typescript
-import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilderFactory.js';
-import { NEWBANK_LOGIN } from './NewBankLoginConfig.js';
-
-export function buildNewBankPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
-  return (
-    createPipelineBuilder()
-      .withOptions(options)
-      .withBrowser()
-      .withDeclarativeLogin(NEWBANK_LOGIN)
-      // optional: .withOtpTrigger().withOtpFill() etc.
-      .build()
-  );
-}
-```
-
-### 5. Register the builder
-
-Add the entry to the matching alphabetical-half registry in the **Banks**
-layer (never Core) — [`Banks/PipelineRegistryAmexToMax.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/PipelineRegistryAmexToMax.ts)
-for banks Amex–Max, or [`Banks/PipelineRegistryMercantileToVisaCal.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/PipelineRegistryMercantileToVisaCal.ts)
-for banks Mercantile–VisaCal:
-
-```typescript
-import { buildNewBankPipeline } from './NewBank/NewBankPipeline.js';
-
-const PIPELINE_REGISTRY_AMEX_TO_MAX: Partial<Record<CompanyTypes, PipelineFactory>> = {
-  // ... existing entries ...
-  [CompanyTypes.NewBank]: buildNewBankPipeline,
-};
-```
-
-> The Core layer never enumerates banks — `Core/PipelineDescriptor.ts` only
-> declares the `PipelineFactory` type, and `Banks/PipelineRegistry.ts` merges
-> the two halves into `PIPELINE_REGISTRY`. The `CoreBankIndependence`
-> architecture test fails if a bank import leaks into `Core/**`.
-
-### 6. Declare any extra auth origins
-
-CI resolves every host a bank needs *before* the browser starts, because a
-cold lookup inside Camoufox times out in roughly six seconds and surfaces as
-`NS_ERROR_UNKNOWN_HOST` part-way through login. The warm-up already extracts
-each bank's `urls.base` from its config, so most banks need nothing here.
-
-Add an entry to `BANK_EXTRA_DNS_HOSTS` in
-[`Registry/Config/PipelineBankHosts.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Registry/Config/PipelineBankHosts.ts)
-when the flow reaches an origin the config does not carry — a separate login
-host, an API subdomain, or an iframe whose `src` is only set at runtime and
-so appears in no source file:
-
-```typescript
-export const BANK_EXTRA_DNS_HOSTS: BankExtraDnsHosts = {
-  // ... existing entries ...
-  [CompanyTypes.NewBank]: ['login.newbank.co.il'],
-};
-```
-
-List only hosts that actually resolve: the warm-up exits non-zero on a host
-it cannot look up, so a dead entry fails every run. A bank whose whole flow
-lives on `urls.base` is correctly absent from the manifest.
-
-### 7. Add the mocked-E2E test
-
-Create `src/Tests/E2eMocked/<NewBank>/<NewBank>.e2e-mocked.test.ts`.
-For a browser-driven bank, the test:
-
-1. Serves synthetic stand-ins for the endpoints from step 2 through a
-   `<NewBank>FetchMock.ts` that replaces `fetch` (shared plumbing lives in
-   `Helpers/FetchMockKit.ts`).
-2. Constructs the scraper.
-3. Asserts `result.success === true` + expected account count + sample txn.
-
-The existing [`Discount.e2e-mocked.test.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/E2eMocked/Discount/Discount.e2e-mocked.test.ts) is the template: its fetch mock enforces what the bank enforces, so a broken request fails offline too.
-
-### 8. Verify
-
-```sh
-npm test -- --testPathPatterns=E2eMocked/NewBank
-npm run lint                      # eslint + architecture + canaries
-npm run test:pipeline             # coverage gates
-npm test -- --testPathPatterns=E2eReal/NewBank.e2e-real   # requires .env credentials
-```
-
-### 9. Open the PR
-
-Conventional Commit subject: `feat(banks): add NewBank pipeline scraper`.
-The pre-commit hook runs the local quality gates; CI runs the full test
-suites. Squash-merge once green.
-
-## Adding OTP support
-
-If your bank needs OTP:
-
-```typescript
-return createPipelineBuilder()
-  .withOptions(options)
-  .withBrowser()
-  .withDeclarativeLogin(NEWBANK_LOGIN)
-  .withOtpTrigger()
-  .withOtpFill()
-  .build();
-```
-
-See [Phases → OTP-TRIGGER](../phases/otp-trigger.md) / [OTP-FILL](../phases/otp-fill.md).
-
-## Adding an api-direct bank
-
-For banks with a JSON API, use
-`.withHeadlessMediator().withApiDirect(config, shape)` instead of the
-browser-login builder steps. Select the registry's headless transport
-explicitly; Max sets `nativeFetch: true` to avoid launching a browser.
-See [Phases → API-DIRECT-CALL](../phases/api-direct-call.md) for the
-primitives (signer config, JsonValueTemplate, carry derivation, phone
-normaliser).
+Run only the relevant tests needed for the change locally. Normal hooks
+run the local quality gates; CI owns the complete suites. Live-bank tests
+require explicit authorization and the appropriate approval gate.
+See [Test surfaces](testing.md).

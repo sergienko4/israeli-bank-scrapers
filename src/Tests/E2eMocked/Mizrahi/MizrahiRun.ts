@@ -11,7 +11,6 @@ import type {
   ScraperCredentials,
 } from '../../../Scrapers/Base/Interface.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
-import { getLaunchCount } from '../../Mocks/CamoufoxJsMock.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import type { MizrahiFault } from './MizrahiFetchMock.js';
 import { classifyMizrahi, installMizrahiFetchMock } from './MizrahiFetchMock.js';
@@ -25,7 +24,6 @@ export interface IMizrahiRun {
   readonly trail: readonly string[];
   /** Every data call (changeAccount, get428Index). */
   readonly data: readonly IRecordedCall[];
-  readonly launches: number;
 }
 
 /** The login trail up to and including LoginUser. */
@@ -75,22 +73,20 @@ function isDataCall(call: IRecordedCall): boolean {
  * Scrape Mizrahi against the synthetic bank.
  * @param fault - Fault the bank answers with.
  * @param creds - Credentials to scrape with.
- * @returns The result, the call log and how many browsers were launched.
+ * @returns The result and the call log.
  */
 export async function runMizrahi(
   fault: MizrahiFault = 'none',
   creds: ScraperCredentials = { ...MIZRAHI_MOCK_CREDS },
 ): Promise<IMizrahiRun> {
-  const launchesBefore = getLaunchCount();
   const handle = installMizrahiFetchMock(fault);
   try {
     const options = { companyId: CompanyTypes.Mizrahi, startDate: MIZRAHI_MOCK_START_DATE };
     const scraper = createScraper(options);
     const result = await scraper.scrape(creds);
-    const launches = getLaunchCount() - launchesBefore;
     const calls = handle.calls();
     const data = calls.filter(isDataCall);
-    return { result, calls, trail: calls.map(trailOf), data, launches };
+    return { result, calls, trail: calls.map(trailOf), data };
   } finally {
     handle.dispose();
   }

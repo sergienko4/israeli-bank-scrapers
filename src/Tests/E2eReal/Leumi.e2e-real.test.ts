@@ -4,7 +4,6 @@ import * as dotenv from 'dotenv';
 import { CompanyTypes, createScraper } from '../../index.js';
 import {
   assertSuccessfulScrape,
-  BROWSER_ARGS,
   defaultStartDate,
   logScrapedTransactions,
   SCRAPE_TIMEOUT,
@@ -24,8 +23,6 @@ DESCRIBE_IF('E2E: Bank Leumi (real credentials)', () => {
     const scraper = createScraper({
       companyId: CompanyTypes.Leumi,
       startDate: defaultStartDate(),
-      shouldShowBrowser: false,
-      args: BROWSER_ARGS,
     });
     const result = await scraper.scrape({
       username: process.env.LEUMI_USERNAME ?? '',

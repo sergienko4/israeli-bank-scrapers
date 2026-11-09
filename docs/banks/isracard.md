@@ -1,13 +1,13 @@
 # Isracard
 
-| | |
-|---|---|
-| `CompanyTypes` | `Isracard` |
-| Engine | **API-direct** (no browser) |
-| Credentials | `id`, `card6Digits`, `password` (optional `otpLongTermToken`) |
-| OTP | — |
-| Phase chain | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md) |
-| Source | [`Banks/Isracard/IsracardPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Isracard/IsracardPipeline.ts) |
+|                |                                                                                                                                                                      |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CompanyTypes` | `Isracard`                                                                                                                                                           |
+| Engine         | **API-direct** (no browser)                                                                                                                                          |
+| Credentials    | `id`, `card6Digits`, `password` (optional `otpLongTermToken`)                                                                                                        |
+| OTP            | —                                                                                                                                                                    |
+| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                                |
+| Source         | [`Banks/Isracard/IsracardPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Isracard/IsracardPipeline.ts) |
 
 ## Quick example
 
@@ -30,14 +30,14 @@ service in the query string. `ISRACARD_API_DIRECT_CALL`
 (`Registry/Config/PipelineBankConfigIsracard.ts`) builds the steps from
 Isracard's ring constants (`ISRACARD_RING`):
 
-| Step | Bank service | Sends | Returns |
-|---|---|---|---|
-| `validate` | `ValidateIdDataNoReg` | `id`, `card6Digits` | the session's `bcKey` and user code |
-| `login` | `performNewLogon` | `id`, the user code, `password` | — |
-| `deviceKey` | `CustomerValidateKeyOtp` | `id`, `card6Digits`, the device id | a device key |
-| `register` | `CustomerDataRegistration` | `id`, the device key, the device id | — |
-| `resume` | `CustomerValidateKeyOtp` | the device key, the device id | the session's `bcKey` and user code |
-| `sessionToken` | `performLogonOtp` | `id`, the user code | — |
+| Step           | Bank service               | Sends                               | Returns                             |
+| -------------- | -------------------------- | ----------------------------------- | ----------------------------------- |
+| `validate`     | `ValidateIdDataNoReg`      | `id`, `card6Digits`                 | the session's `bcKey` and user code |
+| `login`        | `performNewLogon`          | `id`, the user code, `password`     | —                                   |
+| `deviceKey`    | `CustomerValidateKeyOtp`   | `id`, `card6Digits`, the device id  | a device key                        |
+| `register`     | `CustomerDataRegistration` | `id`, the device key, the device id | —                                   |
+| `resume`       | `CustomerValidateKeyOtp`   | the device key, the device id       | the session's `bcKey` and user code |
+| `sessionToken` | `performLogonOtp`          | `id`, the user code                 | —                                   |
 
 `sessionToken` and the card list both send the app's wallet id,
 `RING_WALLET_ID`.
@@ -45,8 +45,8 @@ Isracard's ring constants (`ISRACARD_RING`):
 The device id is derived from `id`, so every run of one user presents the same
 device. `ISRACARD_HEADLESS` registers the `service` URL and selects Node's own
 `fetch` (`nativeFetch`) with a cookie jar, so no browser starts. Browser
-options passed to `createScraper` are ignored with a
-[warning](../configuration.md#browser-options-on-browserless-banks).
+options passed to `createScraper` are no longer supported; see the
+[migration notes](../configuration.md#removed-browser-options).
 
 `validate` succeeds on `returnCode` `1`; `4` fails the run as
 `CHANGE_PASSWORD`. `login` succeeds on `Header.Status` `1`; `3` fails it as

@@ -50,7 +50,6 @@ describe('Yahav warm start', () => {
     expect(tokenCookies).toEqual(GATEWAY_COOKIES);
     expect(run.result.accounts).toEqual(cold.accounts);
     expect(run.result.persistentOtpToken).toMatch(/^v1\./);
-    expect(run.launches).toBe(0);
   });
 
   it.each(REFUSED)(

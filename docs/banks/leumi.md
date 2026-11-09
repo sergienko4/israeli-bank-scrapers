@@ -41,14 +41,9 @@ The pipeline does not automatically retry failed phases or connect timeouts.
 An invalid `startDate` is refused before any bank request.
 HTTP 429 is reported as `WAF_BLOCKED` and stops the run without a retry.
 
-The internal `disablePhaseRetry` policy also limits browser login to one click
-without strategy fallback when an opting-in bank uses browser phases. It does
-not disable passive observation polling. Leumi separately disables native
-connect retries.
-
 Browser options such as `preparePage`, `prepareBrowser` and
-`shouldShowBrowser` no longer apply to Leumi. `createScraper` warns when they
-are supplied; remove them from Leumi options.
+`shouldShowBrowser` are removed from the public API; remove them from Leumi
+options. See the [migration notes](../configuration.md#removed-browser-options).
 
 ## Known quirks
 

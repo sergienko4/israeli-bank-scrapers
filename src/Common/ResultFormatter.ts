@@ -7,8 +7,7 @@ import {
   redactSensitiveEnum,
 } from '../Scrapers/Pipeline/Types/PiiRedactor.js';
 import type { ITransaction, ITransactionsAccount } from '../Transactions.js';
-import { ISRAEL_LOCALE } from './Config/BrowserConfig.js';
-import { MAX_TXN_PREVIEW, SEPARATOR_WIDTH } from './Config/ResultFormatterConfig.js';
+import { ISRAEL_LOCALE, MAX_TXN_PREVIEW, SEPARATOR_WIDTH } from './Config/ResultFormatterConfig.js';
 
 /** Optional numeric amount — undefined when the bank API omits the field. */
 type OptionalAmount = number | undefined;

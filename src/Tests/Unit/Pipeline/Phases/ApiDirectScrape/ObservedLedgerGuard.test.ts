@@ -12,7 +12,6 @@ import type { IApiDirectScrapeGuardSummary } from '../../../../../Scrapers/Pipel
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IActionContext,
-  IPipelineContext,
   IScrapeState,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -73,12 +72,11 @@ function page(caveat: WindowCaveat | 'clean', date: string): Record<string, unkn
  * @param bus - Router-backed mediator.
  * @returns Action context with a fixed requested window.
  */
-function contextFor(bus: IApiMediator): IActionContext & IPipelineContext {
+function contextFor(bus: IApiMediator): IActionContext {
   const base = makeMockContext({ apiMediator: some(bus) });
   return {
     ...base,
     options: { ...base.options, startDate: START },
-    executor: none(),
     windowEnd: none(),
   };
 }

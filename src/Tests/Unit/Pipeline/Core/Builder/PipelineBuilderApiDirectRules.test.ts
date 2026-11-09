@@ -17,17 +17,8 @@ import type {
   IApiDirectCallConfig,
   IStepConfig,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import type {
-  IActionContext,
-  IPipelineContext,
-} from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import {
-  makeMockOptions,
-  MOCK_API_DIRECT_SHAPE,
-  MOCK_LOGIN_CONFIG,
-} from '../../Infrastructure/MockFactories.js';
+import { makeMockOptions, MOCK_API_DIRECT_SHAPE } from '../../Infrastructure/MockFactories.js';
 
 const JAR_BANK = 'jarBank' as unknown as CompanyTypes;
 const TLS_BANK = 'tlsBank' as unknown as CompanyTypes;
@@ -90,6 +81,8 @@ const STEP: IStepConfig = {
   extractsToCarry: { token: '/data/accessToken' },
 };
 
+const PLAIN_CALL: IApiDirectCallConfig = { flow: 'sms-otp', envelope: {}, steps: [STEP] };
+
 const NONE_CALL: IApiDirectCallConfig = {
   flow: 'sms-otp',
   envelope: {},
@@ -111,17 +104,6 @@ const DYNAMIC_CALL: IApiDirectCallConfig = {
 };
 
 /**
- * Stub scrape function — succeeds without mutation.
- * @param ctx - Sealed action context.
- * @returns Resolved succeed procedure.
- */
-function stubScrape(ctx: IActionContext): Promise<Procedure<IPipelineContext>> {
-  const full = ctx as unknown as IPipelineContext;
-  const ok = succeed(full);
-  return Promise.resolve(ok);
-}
-
-/**
  * Build a headless api-direct pipeline for the given bank and call config.
  * @param opts - Scraper options naming the bank.
  * @param call - Call config under test.
@@ -135,22 +117,17 @@ function buildWith(
   const seeded = builder.withOptions(opts);
   const headless = seeded.withHeadlessMediator();
   const withLogin = headless.withApiDirect(call, MOCK_API_DIRECT_SHAPE);
-  const withScrape = withLogin.withScraper(stubScrape);
-  return withScrape.build();
+  return withLogin.build();
 }
 
 /**
- * Build a headless declarative-login pipeline, so no api-direct config exists.
+ * Build a headless pipeline whose call config sets no transport option, so any
+ * refusal comes from the bank's headless block alone.
  * @param opts - Scraper options naming the bank.
  * @returns Build result.
  */
 function buildPlain(opts: ScraperOptions): Procedure<IPipelineDescriptor> {
-  const builder = BUILDER_FACTORY.createPipelineBuilder();
-  const seeded = builder.withOptions(opts);
-  const headless = seeded.withHeadlessMediator();
-  const withLogin = headless.withDeclarativeLogin(MOCK_LOGIN_CONFIG);
-  const withScrape = withLogin.withScraper(stubScrape);
-  return withScrape.build();
+  return buildWith(opts, PLAIN_CALL);
 }
 
 describe('PipelineBuilder — api-direct config rules', () => {
@@ -187,7 +164,7 @@ describe('PipelineBuilder — api-direct config rules', () => {
 });
 
 describe('PipelineBuilder — node-tls headless rules', () => {
-  it('refuses a native-only redirect policy without an api-direct config', () => {
+  it('refuses a native-only redirect policy on a node:https block', () => {
     const opts = makeMockOptions({ companyId: TLS_BANK });
     const result = buildPlain(opts);
     expect(result).toMatchObject({
@@ -209,7 +186,7 @@ describe('PipelineBuilder — node-tls headless rules', () => {
     expect(result.success).toBe(true);
   });
 
-  it('refuses a dynamic mTLS redirect default without an api-direct config', () => {
+  it('refuses a dynamic mTLS redirect default on a node:https block', () => {
     const opts = makeMockOptions({ companyId: DYNAMIC_TLS_REDIRECT_BANK });
     const result = buildPlain(opts);
     expect(result).toMatchObject({

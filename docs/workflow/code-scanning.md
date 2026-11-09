@@ -20,19 +20,13 @@ source-files:
   - .github/scripts/ci/is-bot-pr.cjs
   - .github/scripts/ci/compute-gate-booleans.sh
   - .github/scripts/ci/detect-changes.sh
-  - .github/actions/install-camoufox/action.yml
-  - .github/actions/install-camoufox/install.sh
   - docker/Dockerfile.ci-mirror
-  - scripts/browser-stack/gate.mjs
-  - scripts/browser-stack/gen-config.mjs
-  - scripts/browser-stack/gate-report.mjs
   - .github/workflows/pr-body-check.yml
   - src/Tests/Unit/Pipeline/CrossValidation/DependabotSecurityGrouping.test.ts
   - src/Tests/Unit/Pipeline/CrossValidation/RenovateLockfileMaintenancePolicy.test.ts
   - .github/scripts/ci/docs-staleness-bot-skip.cjs
   - src/Tests/Unit/Pipeline/CrossValidation/DocsStalenessGate.test.ts
   - .github/workflows/pr.yml
-  - src/Tests/Unit/Pipeline/CrossValidation/BrowserStackGateWiring.test.ts
 ---
 
 # Code scanning: two scanners, one authority
@@ -45,9 +39,11 @@ This repository uploads SARIF from three tools: **CodeQL**, **zizmor**, and
 authority and Scorecard is advisory**. This page explains why, and records the
 four standing findings that should not be "fixed" the obvious way.
 
-Of `package.json`, the dependency ranges, `overrides`, `engines`,
-`constraints` and the browser-stack scripts bear on the scanning controls
-below; other scripts, such as test tooling, do not.
+The package manifests, dependency update rules and runner image remain inputs
+to supply-chain scanning for the HTTP-only pipeline. Retired browser-stack
+checks and browser-install actions are not validation dependencies.
+Removing the browser runtime does not relax vulnerability thresholds,
+dependency license controls or the full-suite policy for critical updates.
 
 The root `license` fields in `package.json` and `package-lock.json` identify
 this fork's own grant: `AGPL-3.0-only` starting with 10.0.0. They do not
@@ -310,88 +306,12 @@ Trigger one on demand with `gh workflow run scorecard.yml`. Re-evaluate — and
 remove the filter — if Scorecard adds `$/` support: upstream tracking issue
 [ossf/scorecard#5191][scorecard-5191] is still open.
 
-## Standing finding 2: adm-zip — patched here, accepted risk for consumers
+## Retired finding: browser archive extraction
 
-[`GHSA-vwc7-r8mq-g2x9`][adm-zip-advisory] — extraction follows destination
-symlinks, allowing arbitrary file overwrite. CWE-59, moderate — CVSS v3.1 6.5,
-v4.0 6.8 — affecting `>=0.5.9 <=0.6.0`. The advisory lists no patched version.
-
-**Our lockfile is patched.** adm-zip 0.6.1 (2026-09-11) is outside the range,
-and its release notes block extraction from writing through symlinks. The root
-`overrides` entry `"adm-zip": "^0.6.1"` forces the lock's single adm-zip entry
-to 0.6.1, although `@hieutran094/camoufox-js` itself still declares `^0.5.16`.
-
-**Consumers are not.** npm applies `overrides` only from the root project, so
-an app installing this package resolves camoufox-js's own `^0.5.16` — today
-0.5.18, inside the range. The residual-risk reasoning below is for them.
-
-We never import adm-zip. It arrives under `@hieutran094/camoufox-js`, and only
-half of its call sites are even the vulnerable shape:
-
-| call site                                         | pattern                      | writes to disk     | vulnerable |
-| ------------------------------------------------- | ---------------------------- | ------------------ | ---------- |
-| `generative-bayesian-network` (read)              | `getEntries()` / `getData()` | no — in memory     | no         |
-| `generative-bayesian-network` (write)             | `addFile` / `writeZip`       | creates an archive | no         |
-| `camoufox-js` `extractAllTo(dir, true)`           | extraction, overwrite on     | yes                | **yes**    |
-| `camoufox-js` `extractEntryTo(e, p, false, true)` | extraction, overwrite on     | yes                | **yes**    |
-
-Residual risk for consumers is low for two independent reasons:
-
-1. An attacker must pre-plant a symlink inside `~/.cache/camoufox`. Anyone who
-   can write there already holds the user's permissions.
-2. The archive is a `daijro/camoufox` GitHub release fetched over HTTPS, not
-   attacker-supplied input.
-
-Our own CI relies on the override at launch, not at install. Every
-`install-camoufox` call follows `setup-node-deps` (`npm ci`) and runs
-`.github/actions/install-camoufox/install.sh`, which also builds the Docker CI
-mirror. The script installs into the directory camoufox-js launches from:
-`CAMOUFOX_INSTALL_DIR` when set, else `~/.cache/camoufox`. That directory must
-not exist yet: before any download, the script refuses a relative path or any
-existing entry there (an older install, an empty directory, a file or a symlink)
-and leaves it as it is, so a mistyped override cannot touch unrelated files. CI
-jobs and the Docker build always start without one. Every run installs from the
-release asset of the tag pinned in `browser-stack.json`, checked against
-`camoufox.linuxX64Sha256`, the SHA-256 pinned beside the tag; it trusts no
-install already on disk. In CI the asset comes from the action's cache, which
-holds the asset and never the install, and is hashed again after every restore.
-A mismatch or no cached asset means a download, and a download that misses the
-pin fails before anything is extracted. A verified download replaces a kept file
-that failed the hash with one rename; a directory or symlink at the asset's name
-is left as it is, and the download is used without being kept or saved. The
-action saves a fresh download under a key unique to the run and restores the
-newest entry for the tag and digest, so the next download supersedes a corrupt
-entry instead of every later job paying for one. The script extracts with system
-`unzip` into a staging directory beside the install directory, checks the
-binary, writes `version.json` last, and only then renames the staging directory
-into place with rename(2). That rename fails, leaving the path as it is, if
-anything but an empty directory appeared there during the download, so a failed
-run installs nothing. Exit 1 is unzip's warnings status, which a pinned asset
-can trigger with entries whose local and central filenames differ, but which
-also covers entries unzip skipped. So exit 1 passes only when every entry that
-`unzip -Z1` lists is on disk. Any higher status fails the install. It never
-runs `camoufox-js fetch`, which would resolve
-camoufox-js's own newest release instead of the pin. CI downloads the exact
-asset with `gh release download`; the Docker build has no token and uses `curl`
-on the public release URL, so the image carries no GitHub CLI and no copy of the
-asset. That `curl`, like the image's Node download, limits its connect and total
-time, so a stalled download fails the build instead of hanging it. The pin
-lives only in `browser-stack.json`: the action, the script and the Dockerfile
-name no Camoufox version or asset size, so their comments stay true when the
-pin moves. At launch, camoufox-js downloads its default uBlock Origin addon into
-that directory when it is missing and extracts it with `extractEntryTo`, which
-runs on the locked adm-zip 0.6.1. A manifest edit is a browser-stack change: the
-detector arms `critical_deps`, so the pull request runs the full suite.
-The same pull request must regenerate
-`src/Scrapers/Pipeline/Mediator/Browser/BrowserStackConfig.ts` with
-`npm run browser-stack:gen`, or `npm run lint:browser-stack` fails with
-`GENERATED-STALE`.
-
-**Action:** keep the override until camoufox-js declares `>=0.6.1` itself, then
-drop it. Watch the advisory: it bounds the range by `last_affected`, so a
-widened range would re-cover 0.6.1. Consumers can add the same `overrides`
-entry, or on shared or multi-user hosts set `CAMOUFOX_INSTALL_DIR` to a private
-directory.
+The former adm-zip advisory arrived through the browser dependency tree.
+That tree, its installer and its obsolete root override are removed;
+adm-zip is absent from the current lockfile. This does not patch consumers
+still using an older release.
 
 ## npm advisory monitoring: visibility even without a fix
 
@@ -537,17 +457,8 @@ If alert 52 still reads `auto_dismissed`, reopen it (Security → Dependabot →
 the alert → Reopen) so Dependabot can raise the pull request. Reopen only an
 alert that has a patched version; without one there is nothing to bump.
 
-**Browser stack.** The `playwright` version-update group bumps
-`playwright-core` on `patch` and `minor` releases, in a pull request of its
-own. Its other pattern, `playwright`, matches no dependency here. The
-`dev-dependencies` and `production-dependencies` groups exclude both names, so
-no other group moves them. The browser-stack gate decides whether such a bump
-lands. It compares the bumped `playwright-core` with the Camoufox tag pinned in
-`browser-stack.json`, so a new minor fails until the same pull request, or one
-that supersedes it, raises `testedMinor`. A consumer installs through the `^`
-range in `package.json`, not through this lockfile, so the weekly
-browser-stack watch reports the version that range resolves to today. See
-[Upgrading the browser stack](browser-stack-upgrade.md).
+**HTTP runtime.** Production dependency updates retain full-suite routing.
+There is no browser-stack group, protocol gate or weekly browser watch.
 
 **Limit:** Dependabot never targets a transitive that has no open alert. It
 moves only when a direct-dependency bump happens to re-resolve it. A second
@@ -609,11 +520,7 @@ pull request to `main`, with no path filter. The detector must flag
 The `changes` job and its detector and gate steps must carry no `if:` or
 `continue-on-error:`. The gate step must receive the PR author.
 `real_gates_enabled` must reach `validate`. The unit, mocked E2E and
-`package-factory` jobs must run whenever `deps` is set. The unit and
-`package-factory` jobs must need only `changes`. Mocked E2E also needs the
-`browser-stack` job, which has no `if:` and passes when its steps are
-skipped, so a dependency-only pull request outside the browser stack still
-runs it. Inside `package-factory`, the factory E2E step keeps its own `deps` term
+`package-factory` jobs must run whenever `deps` is set. All three jobs must need only `changes`. Inside `package-factory`, the factory E2E step keeps its own `deps` term
 (PackageFactoryJob PFJ-4). Conditions
 are compared after unwrapping `${{ }}` and every layer of outer parentheses.
 In `pr-body-check.yml`, the job also runs `npm run lint:plan-refs` after
@@ -747,9 +654,8 @@ a few minutes more — and expect `fixed`.
    for every copy; and `npm audit` reports nothing for the package. If all
    three hold, the entry goes. The `@babel/core` entry, added in #392 for
    Dependabot alert 32, passed all three: Jest and istanbul-lib-instrument ask
-   for `^7.23.9` or later, and the single copy in the lock is 7.29.7. adm-zip
-   fails the first check: camoufox-js still declares `^0.5.16`, which excludes
-   the patched 0.6.1, so its entry stays (standing finding 2).
+   for `^7.23.9` or later, and the single copy in the lock is 7.29.7. The former
+   adm-zip override was retired with its browser dependency tree.
 
 [self-repo-blog]: https://github.blog/changelog/2026-07-30-reference-same-repository-actions-with-self-repository-syntax/
 [scorecard-5191]: https://github.com/ossf/scorecard/issues/5191

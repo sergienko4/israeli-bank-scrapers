@@ -13,7 +13,7 @@ import type {
 } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { SimplePhase } from '../../../../Scrapers/Pipeline/Types/SimplePhase.js';
+import { SimplePhase } from './SimplePhase.js';
 
 type Ctx = IActionContext;
 type FullCtx = IPipelineContext;
@@ -64,11 +64,10 @@ describe('PipelineExecutor/final-step', () => {
         return Promise.resolve(result);
       }
     }
-    const phase = new FinalPhase('login', succeedExecute);
+    const phase = new FinalPhase('api-direct-call', succeedExecute);
     const descriptor: IPipelineDescriptor = {
       options: MOCK_OPTIONS,
       phases: [phase],
-      interceptors: [],
     };
     const result = await run(descriptor);
     expect(result.success).toBe(true);
@@ -87,11 +86,10 @@ describe('PipelineExecutor/final-step', () => {
         return Promise.resolve(result);
       }
     }
-    const phase = new FailFinalPhase('home', succeedExecute);
+    const phase = new FailFinalPhase('api-direct-call', succeedExecute);
     const descriptor: IPipelineDescriptor = {
       options: MOCK_OPTIONS,
       phases: [phase],
-      interceptors: [],
     };
     const result = await run(descriptor);
     expect(result.success).toBe(false);
@@ -99,11 +97,10 @@ describe('PipelineExecutor/final-step', () => {
   });
 
   it('skips final when default no-op (BasePhase default)', async () => {
-    const phase = new SimplePhase('init', succeedExecute);
+    const phase = new SimplePhase('api-direct-call', succeedExecute);
     const descriptor: IPipelineDescriptor = {
       options: MOCK_OPTIONS,
       phases: [phase],
-      interceptors: [],
     };
     const result = await run(descriptor);
     expect(result.success).toBe(true);

@@ -9,13 +9,7 @@ import { setActiveBank } from '../../Types/TraceConfig.js';
 import { buildInitialContext } from '../PipelineContextFactory.js';
 import type { IPipelineDescriptor } from '../PipelineDescriptor.js';
 import { toResult } from '../PipelineResult.js';
-import runAfterPipeline from './PipelineFinalizer.js';
-import {
-  assembleInterceptors,
-  ensureBrowserCleanup,
-  type IContextTracker,
-} from './PipelineMiddleware.js';
-import { reducePhases, wrapError } from './PipelineReducer.js';
+import { type IContextTracker, reducePhases, wrapError } from './PipelineReducer.js';
 
 /**
  * Awaits an optional dispose() callback, swallowing any thrown error so the
@@ -33,8 +27,8 @@ async function tryDispose(disposeFn?: () => Promise<void>): LifecyclePromise {
 }
 
 /**
- * Disposes an apiMediator that owns external resources (e.g. a Camoufox
- * browser). Mediators without an own resource (dispose === undefined) are
+ * Disposes an apiMediator that owns external resources (e.g. a pooled
+ * connection). Mediators without an own resource (dispose === undefined) are
  * a no-op.
  * @param ctx - The last-known pipeline context carrying the mediator slot.
  * @returns Resolves once dispose has been attempted (success or swallowed).
@@ -58,18 +52,10 @@ async function runWithCleanup(
   } catch (error) {
     return wrapError(error as Error);
   } finally {
-    await runAfterPipeline(tracker.interceptors, tracker.lastCtx);
-    await ensureBrowserCleanup(tracker, initialCtx.logger);
     await disposeApiMediatorSafe(tracker.lastCtx);
   }
 }
 
-/**
- * Execute a pipeline descriptor against credentials.
- * @param descriptor - The pipeline to execute.
- * @param credentials - User bank credentials.
- * @returns Legacy result shape.
- */
 /**
  * Register the active bank or fail loudly. There is no run without a bank.
  * @param ctx - Initial pipeline context carrying companyId.
@@ -95,12 +81,7 @@ async function executePipeline(
 ): Promise<IScraperScrapingResult> {
   const initialCtx = buildInitialContext(descriptor, credentials);
   registerOrFail(initialCtx);
-  const interceptors = assembleInterceptors(descriptor.interceptors);
-  const tracker: IContextTracker = {
-    phases: descriptor.phases,
-    interceptors,
-    lastCtx: initialCtx,
-  };
+  const tracker: IContextTracker = { phases: descriptor.phases, lastCtx: initialCtx };
   return toResult(await runWithCleanup(tracker, initialCtx));
 }
 

@@ -2,54 +2,34 @@
 
 The pipeline is a **declarative chain of typed phases** orchestrated by `PipelineExecutor`. Each phase implements `BasePhase` and owns four sub-step hooks: `pre`, `action`, `post`, `final`. The executor drives them in order, threading an immutable `IPipelineContext` snapshot between phases.
 
-## The phase chain (API-direct)
+## The phase chain
 
-Every registered bank runs the **API-direct** pipeline: `API-DIRECT-CALL` (login + OTP over the bank's JSON API) followed by `API-DIRECT-SCRAPE`. No registered bank launches a browser. The browser phases below are **retained infrastructure** that is being removed; they stay in the codebase until the browser-removal work completes.
+Every registered bank runs the **API-direct** pipeline: `API-DIRECT-CALL`
+(login + OTP over the bank's JSON API) followed by `API-DIRECT-SCRAPE`.
+The library opens no browser; the navigation and DOM-scrape phases that
+preceded v10 have been removed.
+
+`IBuilderState` is the internal assembly contract for the configured login and
+scrape slots; consumers configure banks through `createScraper`, not this type.
+`IContextTracker` is the reducer's internal execution state. It retains the
+latest context so the executor disposes the API mediator even when a phase
+throws; it is not an extension point for a caller-managed browser.
 
 ```mermaid
-flowchart TD
-    subgraph "Current — every registered bank (API-direct, 2 phases)"
-      direction TB
-      ADC["API-DIRECT-CALL<br/>(login + OTP over JSON API)"] --> ADS["API-DIRECT-SCRAPE<br/>(hard-model shape — no nav)"]
-    end
-
-    subgraph "Retained, being removed — no registered bank uses it (browser)"
-      direction TB
-      I[INIT] --> L[LOGIN] --> OT["OTP-TRIGGER<br/>(opt-in)"]
-      OT --> OF["OTP-FILL<br/>(opt-in)"]
-      OF --> AD[AUTH-DISCOVERY]
-      AD --> ADS2["API-DIRECT-SCRAPE"] --> T[TERMINATE]
-    end
+flowchart LR
+    ADC["API-DIRECT-CALL<br/>(login + OTP over JSON API)"] --> ADS["API-DIRECT-SCRAPE<br/>(hard-model shape — no nav)"]
 ```
-
-### Current: API-direct banks
 
 | Phase                                               | Owner concern                                                                                                                                         |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [API-DIRECT-CALL](../phases/api-direct-call.md)     | Login + OTP over the bank's JSON API; replaces the browser phases INIT → LOGIN → OTP-TRIGGER → OTP-FILL                                               |
+| [API-DIRECT-CALL](../phases/api-direct-call.md)     | Login + OTP over the bank's JSON API                                                                                                                  |
 | [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md) | Walk the bank's typed hard-model shape (accounts + balances + transactions) over direct REST/GraphQL — no nav; `.final` emits `ctx.balanceResolution` |
-
-### Retained browser infrastructure (no registered bank uses it)
-
-| Slot | Phase                                         | Owner concern                                                       |
-| ---- | --------------------------------------------- | ------------------------------------------------------------------- |
-| 1    | [INIT](../phases/init.md)                     | Launch Camoufox, build the `IPipelineContext`, navigate to bank URL |
-| 2    | [LOGIN](../phases/login.md)                   | 7-strategy `SelectorResolver` + declarative `LoginConfig`           |
-| 3    | [OTP-TRIGGER](../phases/otp-trigger.md)       | Opt-in; no bank opts in today                                       |
-| 4    | [OTP-FILL](../phases/otp-fill.md)             | Opt-in; no bank opts in today                                       |
-| 5    | [AUTH-DISCOVERY](../phases/auth-discovery.md) | Capture post-login auth token + API origin from network             |
-| 6    | API-DIRECT-SCRAPE                             | Shared with the API-direct pipeline above                           |
-| 7    | [TERMINATE](../phases/terminate.md)           | Close page/context/browser, finalise `IScraperScrapingResult`       |
-
-The generic navigation + DOM-scrape phases — [ACCOUNT-RESOLVE](../phases/account-resolve.md) · [DASHBOARD](../phases/dashboard.md) · [SCRAPE](../phases/scrape.md) · [BALANCE-RESOLVE](../phases/balance-resolve.md) — are retired. They remain in the codebase (ESLint canaries guard the boundary) but no pipeline bank triggers them; `API-DIRECT-SCRAPE` supersedes them.
 
 ## The Procedure result pattern
 
-An internal bank configuration may opt into `disablePhaseRetry: true` when
-repeating an authentication submission is unsafe. The executor then returns
-the first phase failure without a sanitization pulse, and browser login uses one submit click without Enter or click-strategy fallback.
-Banks that omit the flag retain their existing recovery behavior. This policy
-does not disable passive observation polling or transport-level retries.
+The executor returns the first failed phase without replaying it.
+Authentication and OTP submissions have side effects. Transport-level
+connection retry and coverage backfill have separate, explicit policies.
 
 Every action returns `Procedure<T> = { success: true, value: T } | { success: false, errorType, errorMessage }`. Phases never throw exceptions across boundaries; they return Procedures and the executor consults `.success` to decide whether to advance.
 
@@ -77,17 +57,16 @@ See [`Procedure.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{
 
 `IPipelineContext` is a discriminated record of `Option<T>` slots. Each phase reads the slots its `pre`/`action`/`post`/`final` declare, and writes only the slots it owns. The compiler enforces that no phase writes outside its declared scope.
 
-Key slots (v8.6+):
+Key slots:
 
-| Slot                | Owner                                                              | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `browser`           | INIT                                                               | Playwright browser + context + page                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `login`             | LOGIN                                                              | `persistentOtpToken`, `urlBeforeSubmit`                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `durableAuth`       | API-DIRECT-CALL.action                                             | `IDurableAuthState` — the long-lived re-login artifact minted by an api-direct login chain. api-direct banks never run LOGIN, so they cannot use the `login` slot (it carries a live `Page`/`Frame`); both slots feed the single public `result.persistentOtpToken` ([#576](https://github.com/sergienko4/israeli-bank-scrapers/issues/576))                                                                                                                                   |
-| `apiMediator`       | headless context wiring                                            | Authenticated `ApiMediator`, wired at context build by `resolveHeadlessApiMediator`, whose ordered transport rules pick `createMtlsHeadlessApiMediator` (client cert / TLS profile) or `createHeadlessApiMediator` (`nativeFetch`), and fail closed when a block declares neither, then consumed by `API-DIRECT-CALL` |
-| `scrape`            | API-DIRECT-SCRAPE.post                                             | `accounts`, `accountIdentities` produced by the hard-model shape                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `balanceResolution` | API-DIRECT-SCRAPE.final                                            | Final `Map<accountNumber, number>` → `PipelineResult`                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| _dormant_           | ACCOUNT-RESOLVE / DASHBOARD / BALANCE-RESOLVE                      | `accountDiscovery`, `txnEndpoint`, `dashboardTxnHarvest`, `balanceFetchPlan`, `balanceResponsesByBankAccount`, `balanceExtracted`, `balanceValidation` — slots of the retired generic chain; still declared on `IPipelineContext` but written by no pipeline bank                                                                                                                                                                                                              |
+| Slot                | Owner                   | Purpose                                                                                                                                                                                                                                                                                                               |
+| ------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `durableAuth`       | API-DIRECT-CALL.action  | `IDurableAuthState` — the long-lived re-login artifact feeding `result.persistentOtpToken`                                                                                                                                                                                                                            |
+| `apiMediator`       | headless context wiring | Authenticated `ApiMediator`, wired at context build by `resolveHeadlessApiMediator`, whose ordered transport rules pick `createMtlsHeadlessApiMediator` (client cert / TLS profile) or `createHeadlessApiMediator` (`nativeFetch`), and fail closed when a block declares neither, then consumed by `API-DIRECT-CALL` |
+| `scrape`            | API-DIRECT-SCRAPE.post  | `accounts`, `accountIdentities` produced by the hard-model shape                                                                                                                                                                                                                                                      |
+| `balanceResolution` | API-DIRECT-SCRAPE.final | Final `Map<accountNumber, number>` → `PipelineResult`                                                                                                                                                                                                                                                                 |
+| `windowEnd`         | Coverage backfill       | Optional internal upper bound for an older requested slice                                                                                                                                                                                                                                                            |
+| `diagnostics`       | Shared context          | Per-run diagnostic state                                                                                                                                                                                                                                                                                              |
 
 > Every pipeline bank follows the same `apiMediator` → `scrape` → `balanceResolution` slot sequence; the headless context wiring mints the mediator and `API-DIRECT-CALL` consumes it.
 
@@ -109,23 +88,21 @@ fails the same way (`Missing headless transport`): there is no default
 transport, so a bank can never reach the network over an unintended one.
 `assertSingleTransport` enforces both; `pickTransportKind` walks the table above.
 
-`resolveHeadlessTransportKind(companyId)` returns the kind these rules pick without building a mediator. `createScraper` uses it to warn when a bank whose kind opens no browser is given browser options — see [Browser options on browserless banks](../configuration.md#browser-options-on-browserless-banks).
+`resolveHeadlessTransportKind(companyId)` returns the kind these rules pick
+without building a mediator. Browser options are removed from the public
+contract; there is no separate browser-option warning path.
 
-| Symbol                         | Module                      | Role                                                                        |
-| ------------------------------ | --------------------------- | --------------------------------------------------------------------------- |
-| `HeadlessTransportKind`        | `HeadlessWiringTypes.ts`    | The `Kind` column above — the rule a headless block matches                 |
-| `resolveHeadlessTransportKind` | `HeadlessMediatorWiring.ts` | The kind for a bank, or `false` when it has no `headless` block             |
-| `BROWSER_ONLY_OPTIONS`         | `BrowserOnlyOptions.ts`     | The browser option names, alphabetical, each pinned to its reader           |
-| `BrowserOnlyOption`            | `BrowserOnlyOptions.ts`     | Union of those names                                                        |
-| `findBrowserOnlyOptions`       | `BrowserOnlyOptions.ts`     | The browser options a caller actually supplied                              |
-| `warnBrowserOnlyOptions`       | `BrowserOnlyOptions.ts`     | Emits the warning when the kind opens no browser; called by `createScraper` |
+| Symbol                         | Module                      | Role                                                            |
+| ------------------------------ | --------------------------- | --------------------------------------------------------------- |
+| `HeadlessTransportKind`        | `HeadlessWiringTypes.ts`    | The `Kind` column above — the rule a headless block matches     |
+| `resolveHeadlessTransportKind` | `HeadlessMediatorWiring.ts` | The kind for a bank, or `false` when it has no `headless` block |
 
 The native transport is [`HeadlessNativeFetchStrategy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.ts), a `NativeFetchStrategy` with three changes:
 
-- Every request, including any required body read, is capped at the constructor's `timeoutMs` option (`IHeadlessNativeFetchOptions`), which defaults to the shared 30 s `NETWORK_FETCH_TIMEOUT_MS`. A hung socket fails as `Timeout` (like the browser-backed transports) with `"<VERB> <url> network error: timeout"`; any other rejection keeps the inherited `toNetworkFailure` message.
+- Every request, including any required body read, is capped at the constructor's `timeoutMs` option (`IHeadlessNativeFetchOptions`), which defaults to the shared 30 s `NETWORK_FETCH_TIMEOUT_MS`. A hung socket fails as `Timeout` with `"<VERB> <url> network error: timeout"`; any other rejection keeps the inherited `toNetworkFailure` message.
 - A request whose TCP connect times out (`UND_ERR_CONNECT_TIMEOUT`, detected by `isConnectTimeout`) is retried by `retryOnConnectTimeout` on a fresh connection, up to `NETWORK_CONNECT_RETRIES` times, each attempt with its own `timeoutMs` budget. Only a single-hop request is repeated (`redirect: 'manual'`, which the `reject` and manual redirect policies send): a connect timeout on such a request never reaches the server, so the retry cannot repeat an OTP or a payment, and a manual redirect replays only the hop that failed, never the original POST. Under `follow` fetch walks redirects itself, so the timeout may come from a later hop after the POST was already processed; that request is never repeated. The edge in front of some banks silently drops a share of new connections, so a bank whose POSTs need this retry sets `headless.redirectPolicy: 'reject'` (Pepper and PayBox do). Resets, DNS failures and aborts are not retried. Whatever failure remains reports its cause code, read by `errorCauseCodeOf` only when it is a well-formed uppercase identifier, for example `"<VERB> <url> network error: fetch failed (UND_ERR_CONNECT_TIMEOUT)"`.
 - A native bank may set `headless.isConnectRetryDisabled: true` to stop after the first connection timeout even on a manual hop. Banks that do not opt out retain the default.
-- A GET sends no default `content-type`; a POST still sends `application/json`. The per-verb defaults are the strategy's `DefaultHeadersByVerb` seam; the base strategy sends JSON on both verbs. A caller `Content-Type` in any letter case replaces the default, as it does on the Camoufox transport, since `fetch` would otherwise join both values into one.
+- A GET sends no default `content-type`; a POST still sends `application/json`. The per-verb defaults are the strategy's `DefaultHeadersByVerb` seam; the base strategy sends JSON on both verbs. A caller `Content-Type` in any letter case replaces the default, since `fetch` would otherwise join both values into one.
 
 `INativeFetchOptions` gives native REST and GraphQL strategies the same bank-wide
 redirect/status defaults and HTTP-failure body omission. `TRequest` and `IDispatch` are internal extension
@@ -140,7 +117,7 @@ and status, but replace the response snippet with `response body omitted`.
 fixed WAF reasons and error types are unchanged. Without this opt-in, generic
 failures retain their existing snippets.
 
-A bank whose session is a cookie, not an auth header, sets `sessionCookies: true`. Both node factories then pass their transport through `withCookieSession`; without `cookieDomains` it calls `withSessionCookies`, which wraps it in [`SessionCookieFetchStrategy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/SessionCookieFetchStrategy.ts): one run-scoped `IOriginCookieJar` (built by `createOriginCookieJar`) that keeps one `ICookieJar` (built by `createSimpleCookieJar`) per origin. Every response's `Set-Cookie` feeds the jar of the origin that answered — the response's final URL when `fetch` followed a redirect, else the request URL — and every POST and GET sends only its own origin's cookies as one `cookie` header, replacing a caller cookie header in any letter case, since `fetch` would otherwise send both values. Under the default `follow` redirect policy `fetch` follows redirects itself, so a redirect hop's own `Set-Cookie` lines never reach the jar; a `manual` policy files them (see [Redirect policies](#redirect-policies)). The origin comes from the `FullyQualifiedUrl` the transport itself resolves (`resolveFetchUrl`: relative paths join the base URL), so a cookie never goes back to a different host, scheme or port, a `Domain` attribute never widens it, and a URL that cannot be parsed neither sends nor keeps a cookie. A later cookie of the same name replaces the earlier one; `Max-Age=0` (or less), or an `Expires` already past, deletes it (`Max-Age` wins when both are set); an empty jar adds no header; a caller's own `onSetCookie` hook still runs; cookie values are never logged. Without the flag the transport is returned unchanged. The browser transport ignores the flag, because the Camoufox page keeps its own jar.
+A bank whose session is a cookie, not an auth header, sets `sessionCookies: true`. Both node factories then pass their transport through `withCookieSession`; without `cookieDomains` it calls `withSessionCookies`, which wraps it in [`SessionCookieFetchStrategy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/SessionCookieFetchStrategy.ts): one run-scoped `IOriginCookieJar` (built by `createOriginCookieJar`) that keeps one `ICookieJar` (built by `createSimpleCookieJar`) per origin. Every response's `Set-Cookie` feeds the jar of the origin that answered — the response's final URL when `fetch` followed a redirect, else the request URL — and every POST and GET sends only its own origin's cookies as one `cookie` header, replacing a caller cookie header in any letter case, since `fetch` would otherwise send both values. Under the default `follow` redirect policy `fetch` follows redirects itself, so a redirect hop's own `Set-Cookie` lines never reach the jar; a `manual` policy files them (see [Redirect policies](#redirect-policies)). The origin comes from the `FullyQualifiedUrl` the transport itself resolves (`resolveFetchUrl`: relative paths join the base URL), so a cookie never goes back to a different host, scheme or port, a `Domain` attribute never widens it, and a URL that cannot be parsed neither sends nor keeps a cookie. A later cookie of the same name replaces the earlier one; `Max-Age=0` (or less), or an `Expires` already past, deletes it (`Max-Age` wins when both are set); an empty jar adds no header; a caller's own `onSetCookie` hook still runs; cookie values are never logged. Without the flag the transport is returned unchanged.
 
 A bank whose login hops across sibling hosts of one registrable domain also sets `cookieDomains` (for example `['bank.example']`). `withCookieSession` then builds the decorator over the RFC 6265 jar from [`createDomainCookieJar`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/DomainCookieJar.ts) instead of the origin jar, and returns an `ISessionTransport`: the decorated transport plus its `ICookieSession`, which the factory attaches to the mediator as `cookies` (the token bus a login flow sees; banks without `cookieDomains` get `cookies === undefined`).
 
@@ -170,7 +147,7 @@ A bank whose login obtains its device certificate at runtime (the flow builds a 
 
 ### Redirect policies
 
-The native transport sends every request under a `RedirectPolicy` ([`FetchPolicy.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/Domain/FetchPolicy.ts)). The bank-wide default is `headless.redirectPolicy` (absent: `follow`), which the factory hands to `HeadlessNativeFetchStrategy` as its `redirectPolicy` option; one api-direct step overrides it with its own `redirect` field, carried down as an `IFetchCallPolicy` (`IApiQueryOpts.policy`, which `IFetchOpts` extends). The browser ignores it; node:https honors a step's `reject` but not the bank-wide default.
+The native transport sends every request under a `RedirectPolicy` ([`FetchPolicy.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/Domain/FetchPolicy.ts)). The bank-wide default is `headless.redirectPolicy` (absent: `follow`), which the factory hands to `HeadlessNativeFetchStrategy` as its `redirectPolicy` option; one api-direct step overrides it with its own `redirect` field, carried down as an `IFetchCallPolicy` (`IApiQueryOpts.policy`, which `IFetchOpts` extends). node:https honors a step's `reject` but not the bank-wide default.
 
 | Policy                                             | Sends                | On a 3xx                                                                                    |
 | -------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------- |
@@ -249,7 +226,7 @@ message has a policy refusal's shape, so no response text can pass for one.
 
 A step can carry values the bank returns in response headers. `headerExtractsToCarry` maps a carry slot to an `IHeaderExtract`: a `header` name, compared case-insensitively, and an optional `fallback`. [`attachHeaderCapture`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.headerCarry.ts) builds the step's `IHeaderCapture`. Its `IResponseHeaderSink` (the lower-case header `names` and a `take` receiver, handed each answer's declared headers, its HTTP status and the URL that gave it) rides down as `IFetchCallPolicy.headerSink`, next to `redirect`. The map that sink fills stays on the step's fire args and never reaches the bus.
 
-The native transport hands the final response to [`emitResponseHeaders`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/ResponseHeaderSink.ts), next to the Set-Cookie hook. `emitResponseHeaders` passes the sink only the declared headers the response carried. Each `take` replaces what the sink held, so when a call is retried after a 401 only the last answer's headers and URL count. A step that names `finalUrlInto` gets the same capture, with no declared headers if it reads none, and carries that URL — see [Final URL carry](../phases/api-direct-call.md#final-url-carry). After the outcome is judged and the required extracts are read, `carryHeaders` fills each slot from its header, else from its `fallback`, else fails the step `Generic` with `"<step> header missing"`. Optional extracts are read after the header slots. The browser, Camoufox and TLS transports ignore the sink, so a declared header slot on them fails closed. Header values are never logged.
+The native transport hands the final response to [`emitResponseHeaders`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/ResponseHeaderSink.ts), next to the Set-Cookie hook. `emitResponseHeaders` passes the sink only the declared headers the response carried. Each `take` replaces what the sink held, so when a call is retried after a 401 only the last answer's headers and URL count. A step that names `finalUrlInto` gets the same capture, with no declared headers if it reads none, and carries that URL — see [Final URL carry](../phases/api-direct-call.md#final-url-carry). After the outcome is judged and the required extracts are read, `carryHeaders` fills each slot from its header, else from its `fallback`, else fails the step `Generic` with `"<step> header missing"`. Optional extracts are read after the header slots. The TLS transport ignores the sink, so a declared header slot on them fails closed. Header values are never logged.
 
 ### Form bodies
 
@@ -276,112 +253,6 @@ A login step can set cookies the bank expects the browser to have written, and r
 `setCookies` maps cookie names to a `ClientCookieSource`: either a required ref or an `IOptionalClientCookie` (`{ ref, optional: true }`). An optional source that is absent or resolves to empty text is skipped, leaving any stored cookie untouched. Every other source must resolve to a string of 1 to 4096 RFC 6265 cookie-octets before any cookie is written; then each is written host-only with `Path=/` and `Secure`, so it travels on the step's own request and on later requests to that host. Pre-hook cookie previews apply the same optional-write rules before requesting a credential, using `cookieRefOf` to read either source's ref.
 
 A step fails before any request, naming no value: `ref cookie.<name> miss` when no required cookie applies or the run has no domain jar; `ref cookie.<name> bad` when the raw value is over 4096 characters or holds a malformed escape; `<step> setCookies <name> invalid` when a ref does not resolve to cookie-octets; `<step> setCookies needs a cookie session` when the run has no cookie jar. The build refuses `setCookies` without `headless.cookieDomains`, a cookie name that is not an HTTP token, and malformed sources (`API_DIRECT_NATIVE_RULES` and `API_DIRECT_COOKIE_RULES`).
-
-## contextIds — addressing a frame across the PRE→ACTION seal
-
-`buildActionContext` seals the raw `Page` away before `action()` runs, so
-ACTION cannot hold a `Frame` reference that PRE discovered. Instead PRE mints
-an opaque **contextId** for the frame it resolved, and ACTION rebuilds a
-registry from the live page and looks the id back up.
-
-| Stage  | Call                            | What happens                                        |
-| ------ | ------------------------------- | --------------------------------------------------- |
-| PRE    | `computeContextId(frame, page)` | Mints the id, stored on `IResolvedTarget.contextId` |
-| ACTION | `buildFrameRegistry(page)`      | Snapshots `page.frames()` at action-entry           |
-| ACTION | `resolveFrame(registry, id)`    | Maps the id back to a live `Frame`                  |
-
-The id has two halves, `<token>|<base>`, and each covers the other's blind
-spot.
-
-The **base** is content-derived — `iframe:<origin><pathname>` for a real URL,
-`iframe:<frame.name()>` for `about:blank`. The query string is stripped on
-purpose: a session token in the URL changes between PRE and ACTION, and an id
-that embedded it would stop resolving.
-
-Content is stable but not unique. Two sibling iframes can share an
-origin+pathname (differing only in the stripped query), and two unnamed
-`about:blank` frames both reduce to the bare prefix. So the id also carries a
-**token** — an opaque per-`Frame` identity minted from a `WeakMap`. It pins
-the exact frame instance, and because it is keyed on the object it never
-changes when a sibling attaches or detaches. Without it the registry silently
-kept only the last writer, and a credential could be typed into a frame that
-was never resolved.
-
-When a frame's base is **already shared** at mint time, `computeContextId`
-drops the base entirely and returns the bare token. Such an id is
-identity-only: it resolves while that exact frame lives and refuses once it
-dies, so it can never content-fall-back onto a surviving sibling. The cost is
-cosmetic — an ambiguous frame logs as `f7` with no human-readable base.
-
-Because that shape has no `<token>|<base>` split, the registry reads each
-frame's token from the frame itself rather than parsing it back out of the id
-it just minted. Every frame is therefore indexed by identity whatever shape
-its id took, and no registry key is ever empty — an empty key would be
-claimed by each ambiguous sibling in turn and hand the last writer back to
-any caller with a blank id.
-
-`resolveFrame` narrows in three steps. The full id is an exact
-content-and-identity match. The bare token alone still pins the same live
-frame after it navigated and its content-derived base changed. Only once
-identity is gone — the frame detached and re-attached as a new object — does
-resolution fall back to the bare base id, matching on content the way it did
-before the token existed.
-
-That last fallback is only registered when the base id is **unique** among the
-live frames. If two siblings share a base, neither claims it, and an id that
-reaches the fallback resolves to nothing rather than to an arbitrary sibling —
-`resolveFrame` throws. Guessing here would type a credential into a frame that
-was never resolved, so refusing is the safer failure. Positional
-disambiguation is not an option: a re-attached frame moves to the back of
-`page.frames()`, so an ordinal recorded at PRE points at a different frame by
-ACTION and would resolve confidently to the wrong one.
-
-Consumers that need to ask "is this the same context?" compare with
-`isSameContext(page, a, b)`, not `===`. Two ids alone cannot answer the
-question — the same string comparison that unites a re-attached frame with its
-former self also unites two live siblings. So the comparison resolves both ids
-against the live page and re-mints them, giving three outcomes:
-
-| Outcome                | When                                               |
-| ---------------------- | -------------------------------------------------- |
-| Definitely the same    | Both ids resolve, and re-minting yields one id     |
-| Definitely different   | Both resolve, but to two frames that are alive now |
-| Unprovable → different | Either id no longer resolves to any live frame     |
-
-Identical strings short-circuit to `true` before any resolution. The
-"unprovable" case is deliberately conservative: a caller that cannot prove two
-ids name one frame must not act as if they do.
-
-Source: [`FrameRegistry.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/Elements/FrameRegistry.ts).
-
-## Interceptors — cross-cutting, no data
-
-| Interceptor          | Runs between                        | Job                                                                                                                                |
-| -------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| **PopupInterceptor** | Before the api-direct scrape | Dismiss modal overlays by visible text                                                                                             |
-| **NetworkDiscovery** | (whole run)                         | Index every HTTP request/response post-auth, redact body+URL before write, feed endpoints to API-DIRECT-SCRAPE |
-
-Source: [`src/Scrapers/Pipeline/Interceptors/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Interceptors).
-
-### Network-discovery contract types
-
-The `NetworkDiscovery` interceptor exposes two type-only contracts that
-downstream phases (API-DIRECT-SCRAPE) import to
-consume the capture pool without coupling to the live implementation:
-
-- `INetworkDiscovery` — the mediator-side contract: capture-lifecycle
-  flags, `markDashboardClickAt` / `getPreNavCaptures` /
-  `getPostNavCaptures` partitioning, pattern-based `findEndpoints` /
-  `discoverByPatterns` lookups, plus the auth-failure watcher slot.
-- `IDiscoveredEndpoint` — the per-capture record: URL, method, body,
-  headers, `captureIndex` (the same `NNNN-METHOD` prefix used by the
-  on-disk `network/` dumps so a log line can be joined to its dump
-  file via `runId` + `captureIndex`), and the `PickerTier` annotation
-  produced by `discoverShapeAware` to record _which_ tier of the
-  shape-aware picker selected the endpoint (ordered cleanest →
-  loosest: `postWithShape` → `replayablePost` → `shapePassing` →
-  `preClickFallback` → `urlOnlyMatch` → `windowParamsMatch` →
-  `none`).
 
 ## Source pointers
 

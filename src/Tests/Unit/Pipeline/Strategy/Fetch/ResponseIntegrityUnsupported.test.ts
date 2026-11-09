@@ -5,24 +5,20 @@
 import { CompanyTypes } from '../../../../../Definitions.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import { createMtlsHeadlessApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import { BrowserFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/BrowserFetchStrategy.js';
 import { GraphQLFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
 import { MtlsFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
 import { NativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js';
-import { makeMockPage } from '../../Infrastructure/MockFactories.js';
 
 const ORIGIN = 'https://bank.example/';
 const OPTS = { extraHeaders: {}, responseIntegrity: { maxBytes: 8 } };
 
 describe('unsupported response integrity', () => {
-  it('refuses per-call policies on browser, mTLS and uncapped native fetch', async () => {
-    const page = makeMockPage();
+  it('refuses per-call policies on mTLS, GraphQL and uncapped native fetch', async () => {
     /** Refuses agent creation if the transport is incorrectly invoked. */
     const noAgent = (): never => {
       throw new ScraperError('must not construct an agent');
     };
     const strategies = [
-      new BrowserFetchStrategy(page),
       new MtlsFetchStrategy(ORIGIN, noAgent),
       new NativeFetchStrategy(ORIGIN),
       new GraphQLFetchStrategy(ORIGIN),

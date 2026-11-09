@@ -1,13 +1,13 @@
 # Visa Cal
 
-| | |
-|---|---|
-| `CompanyTypes` | `VisaCal` |
-| Engine | **API-direct** (no browser) |
-| Credentials | `username`, `password` (optional `otpLongTermToken`) |
-| OTP | — |
-| Phase chain | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md) |
-| Source | [`Banks/VisaCal/VisaCalPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.ts) |
+|                |                                                                                                                                                                  |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CompanyTypes` | `VisaCal`                                                                                                                                                        |
+| Engine         | **API-direct** (no browser)                                                                                                                                      |
+| Credentials    | `username`, `password` (optional `otpLongTermToken`)                                                                                                             |
+| OTP            | —                                                                                                                                                                |
+| Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                            |
+| Source         | [`Banks/VisaCal/VisaCalPipeline.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/VisaCal/VisaCalPipeline.ts) |
 
 ## Quick example
 
@@ -27,16 +27,16 @@ Visa Cal logs in over CAL's mobile JSON API with two POSTs and sends no SMS.
 `VISACAL_API_DIRECT_CALL` (`Registry/Config/PipelineBankConfigVisaCal.ts`)
 declares them:
 
-| Step | Endpoint | Sends | Returns |
-|---|---|---|---|
-| `login` | `Authentication/api/login/regularLogin` | `username`, `password`, a fresh device id | session token + long-term hash |
-| `resume` | `Authentication/api/login/bioLogin` | the hash | a fresh session token + a rotated hash |
+| Step     | Endpoint                                | Sends                                     | Returns                                |
+| -------- | --------------------------------------- | ----------------------------------------- | -------------------------------------- |
+| `login`  | `Authentication/api/login/regularLogin` | `username`, `password`, a fresh device id | session token + long-term hash         |
+| `resume` | `Authentication/api/login/bioLogin`     | the hash                                  | a fresh session token + a rotated hash |
 
 `VISACAL_HEADLESS` (`Registry/Config/PipelineBankConfigVisaCalHeadless.ts`)
 registers both paths on `api-cc.cal-online.co.il` and selects Node's own
 `fetch` (`nativeFetch`), so no browser starts. Browser options passed to
-`createScraper` are ignored with a
-[warning](../configuration.md#browser-options-on-browserless-banks).
+`createScraper` are no longer supported; see the
+[migration notes](../configuration.md#removed-browser-options).
 
 Every login response carries `statusCode`: `1` is success, `4` fails the run as
 `INVALID_PASSWORD` with the message `login outcome 4`, and any other code fails

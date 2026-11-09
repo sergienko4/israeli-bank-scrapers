@@ -184,7 +184,7 @@ function ctxWithOption(bus: IApiMediator, includeRawTransaction: boolean): IActi
   const base = makeMockContext();
   const options = withLegacyOnlyOptions(base.options, { includeRawTransaction });
   const withBus: IPipelineContext = { ...base, options, apiMediator: some(bus) };
-  return { ...withBus, windowEnd: none() } as unknown as IActionContext;
+  return { ...withBus, windowEnd: none() };
 }
 
 /**

@@ -229,13 +229,12 @@ const RESTRICTED_SYNTAX_RULES = [
 
 // PII Screenshot Bypass Prevention — added 2026-05-21 after CI artifact
 // 7128234088 leaked 18+ post-auth PNGs (PR #248, run 26207506594).
-// Bans direct `page.screenshot(...)` outside the central SafeScreenshot
-// helper, which short-circuits in CI. Applied via a dedicated files
-// block below so the helper itself + tests remain allow-listed.
+// Bans `page.screenshot(...)` everywhere it is armed; the pipeline is pure
+// HTTP, so no sanctioned call site remains.
 const NO_DIRECT_SCREENSHOT_RULE = {
   selector: 'CallExpression[callee.type="MemberExpression"][callee.property.name="screenshot"]',
   message:
-    'page.screenshot(...) — use safeScreenshot() from src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts (PII-safe CI gate). The former src/Common/SafeScreenshot.ts shim has been removed; import the canonical Pipeline path.',
+    'page.screenshot(...) is forbidden — rendered bank pixels must never reach public CI artifacts (PR #248). The pipeline is pure HTTP and has no page to capture.',
 };
 
 // RULE #10 — RAW `page` OUT OF PIPELINE BUSINESS LOGIC. Added 2026-08 after the
@@ -277,30 +276,6 @@ const SHAPE_TXNS_WINDOW_END_RULE = {
     "CallExpression[callee.name='moment'][arguments.length=0], NewExpression[callee.name='Date'][arguments.length=0], CallExpression[callee.object.name='Date'][callee.property.name='now']",
   message:
     'Reading the clock in a *ShapeTxns.ts file detaches it from the scrape window. Use scrapeWindowEnd(ctx) from src/Scrapers/Pipeline/Mediator/Scrape/ScrapeWindowEnd.ts so the coverage backfill can narrow the bound.',
-};
-
-// §8e: balance resolution belongs to BALANCE-RESOLVE, so the literal must not
-// creep back into the SCRAPE data assembler.
-const NO_BALANCE_LITERAL_RULE = {
-  selector: "Literal[value='balance']",
-  message:
-    "🚫 V5 ISOLATION (T50): The literal 'balance' is forbidden in ScrapeDataActions.ts. Balance resolution belongs to the BALANCE-RESOLVE phase.",
-};
-
-// §8g: an unwrapped `await api.fetch*` rejects the surrounding `Promise.all`,
-// so one bank account's network failure aborts every sibling fetch.
-const BALANCE_QUARANTINE_RULE = {
-  selector: 'AwaitExpression > CallExpression[callee.property.name=/^fetch(Post|Get)$/]',
-  message:
-    '🚫 BALANCE-RESOLVE QUARANTINE (CR #264 Critical): wrap `await api.fetch*` in safeIssueOneFetch (try/catch) so a thrown fetch cannot abort the Promise.all loop and break per-bank-account quarantine.',
-};
-
-// §8h: the bulk-key sentinel lives in BalanceFetchPlanner; hardcoded copies
-// drift silently when it is renamed.
-const BALANCE_BULK_LITERAL_RULE = {
-  selector: "Literal[value='__BULK__']",
-  message:
-    "🚫 BALANCE-RESOLVE CONSTANTS (CR #264 Major): use the named BULK_KEY constant imported from BalanceFetchPlanner instead of the hardcoded '__BULK__' literal.",
 };
 
 // §8i: `<x>.balance ?? 0` makes "balance unknown" indistinguishable from a real
@@ -531,20 +506,17 @@ const phase9LocalPlugin = {
 };
 
 // §19.10 enforcement scope — Phase 9 6 files + Phase 10 wave 1 (Integration).
-// PR-A2.1 cycle 4c (CodeRabbit follow-up): the Mode A/B harvester +
-// simulator landed under `src/Tests/Integration/**`. CR cycle 4b flagged
-// 17 helper functions over the 10-line cap that §19.10 would have
-// caught at lint time — but the directory was not in this allowlist.
+// The Integration tree (`src/Tests/Integration/**`) holds the PII redactor,
+// the fixture-root locator and the committed bank fixtures. CR cycle 4b
+// flagged 17 helper functions over the 10-line cap there that §19.10 would
+// have caught at lint time — but the directory was not in this allowlist.
 // Extending the glob enforces the cap going forward on every new file
 // under that subtree.
 const PHASE_9_TEST_FILES = [
   'src/Tests/E2eReal/Helpers.ts',
-  'src/Tests/Unit/Pipeline/Infrastructure/DashboardPhase.test.ts',
-  'src/Tests/Unit/Pipeline/Mediator/AuthDiscovery/AuthDiscoveryFactoryTest.test.ts',
-  'src/Tests/Unit/Pipeline/Mediator/BalanceResolve/BalanceResolveCrossBank.test.ts',
 ];
 
-// Phase 10 wave 1 — Mode A/B harvester + simulator tree. Glob form so
+// Phase 10 wave 1 — Integration tree. Glob form so
 // future Integration files inherit the cap automatically.
 const PHASE_10_INTEGRATION_FILES = [
   'src/Tests/Integration/**/*.ts',
@@ -571,8 +543,6 @@ const PHASE_10_INTEGRATION_FILES = [
 // directories. A future "wave 3" widens to all `src/Tests/Unit/Pipeline/**`
 // after the existing 2 317 violators are drained (Phase 9-style sweep).
 const PHASE_10_WAVE_2_PIPELINE_HARDENING_TESTS = [
-  'src/Tests/Unit/Pipeline/Mediator/Network/MethodBundles.test.ts',
-  'src/Tests/Unit/Pipeline/Mediator/Network/Scoring/**/*.test.ts',
   'src/Tests/Unit/Pipeline/Types/PiiRedactor/JsonBody.test.ts',
 ];
 
@@ -1090,12 +1060,6 @@ export const PIPELINE_ARMED_SELECTORS = PIPELINE_SYNTAX_RULES.map(selectorOf);
  * derives from a walk.
  */
 export const PIPELINE_SELECTOR_EXEMPTIONS = {
-  // SafeScreenshot is the one sanctioned `page.screenshot()` call site: it
-  // short-circuits in CI so rendered bank pixels stay out of public-readable
-  // artifacts (PR #248 leaked 18+ post-auth PNGs). Exempting the selector on
-  // this file alone keeps every other selector enforced on it.
-  'src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts': [NO_DIRECT_SCREENSHOT_RULE.selector],
-
   // `Procedure.ts` DEFINES `succeed()` / `fail()`, so it is the one place a
   // `{ success: … }` literal is the point rather than a bypass of the helpers.
   //
@@ -1111,20 +1075,13 @@ export const PIPELINE_SELECTOR_EXEMPTIONS = {
     ':matches(ReturnStatement, ArrowFunctionExpression) > ObjectExpression > Property:matches([key.name="success"], [key.value="success"])',
   ],
 
-  // The three files below sit in folders that had been narrowed to a single
+  // The two files below sit in folders that had been narrowed to a single
   // selector, so they have been escaping the repo-wide legacy set. They are
   // exempted per-selector rather than queued for drain because these rules do
   // apply everywhere else in `src` — queueing them would weaken the whole
-  // Pipeline to accommodate seven sites (`eslint-rules-guidlines.md` §1).
+  // Pipeline to accommodate a handful of sites (`eslint-rules-guidlines.md` §1).
   //
   // TARGET: drain each in its own commit, then delete its entry here.
-  // `snapshotBalancePool` returns `readonly unknown[] | undefined` and signals
-  // "no mediator / empty pool" with `undefined`; collapsing that onto a Result
-  // changes what BALANCE-RESOLVE observes, so it needs its own tests.
-  'src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhase/PhaseActions.ts': [
-    ":matches(TSFunctionType, FunctionDeclaration) TSTypeAnnotation :matches(Identifier[name='null'], Identifier[name='undefined'], TSNullKeyword, TSUndefinedKeyword)",
-    "ReturnStatement[argument=null], ReturnStatement[argument.type='Literal'][argument.value=null], ReturnStatement[argument.type='Identifier'][argument.name='undefined']",
-  ],
   // Two nested calls each, in replay serialisation helpers.
   'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/JsonReplace.ts': [
     "CallExpression > .arguments[type='CallExpression']",
@@ -1133,12 +1090,10 @@ export const PIPELINE_SELECTOR_EXEMPTIONS = {
     "CallExpression > .arguments[type='CallExpression']",
   ],
 
-  // §24 BANK CALENDAR — these two files name LOCAL forensic artefacts, not
-  // bank-calendar data. Their host-local timestamps are the intended output:
-  // a screenshot/run folder should match the machine clock an operator reads.
-  // Exempt only the component-read selector; host-zone Date construction stays
-  // banned even here.
-  'src/Scrapers/Pipeline/Types/RunLabel.ts': [BANK_CALENDAR_HOST_READ_RULE.selector],
+  // §24 BANK CALENDAR — this file names a LOCAL forensic artefact, not
+  // bank-calendar data. Its host-local timestamp is the intended output: a run
+  // folder should match the machine clock an operator reads. Exempt only the
+  // component-read selector; host-zone Date construction stays banned even here.
   'src/Scrapers/Pipeline/Types/TraceConfig.ts': [BANK_CALENDAR_HOST_READ_RULE.selector],
   // BankCalendar is the one sanctioned Moment boundary. It pins every parse
   // explicitly; allowing Moment anywhere else would recreate the shared
@@ -1155,10 +1110,10 @@ export const PIPELINE_SELECTOR_EXEMPTIONS = {
  * rebuild `no-restricted-syntax` wholesale. Before it existed they rebuilt from
  * {@link PIPELINE_SYNTAX_RULES} alone, so any selector a narrower block had
  * added was dropped for exactly the files that block targeted. §12C added
- * {@link LOWER_KEYS_ARRAY_RULE} for the canonical-10 folders, and three of the
- * five exemption entries — `PhaseActions.ts`, `JsonReplace.ts`, `RecordShape.ts`
- * — sit inside those folders. The last two are the very files §12C cites as its
- * motivation, so the rule was disarmed precisely where it was aimed.
+ * {@link LOWER_KEYS_ARRAY_RULE} for the canonical-10 folders, and two of the
+ * exemption entries — `JsonReplace.ts` and `RecordShape.ts` — sit inside those
+ * folders. They are the very files §12C cites as its motivation, so the rule was
+ * disarmed precisely where it was aimed.
  *
  * That is the same flat-config replacement hazard the exemption machinery was
  * built to contain, reappearing one layer up. Declaring the scoped selectors
@@ -1169,10 +1124,7 @@ export const PIPELINE_SCOPED_SYNTAX_EXTRAS = [
   {
     id: '§12C canonical-10 lookup-array naming',
     files: [
-      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhase/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/Scrape/FrozenScrapeAction.ts',
-      'src/Scrapers/Pipeline/Mediator/Scrape/UrlDateRange.ts',
     ],
     rules: [LOWER_KEYS_ARRAY_RULE],
   },
@@ -1321,16 +1273,6 @@ const SUPPRESSION_COMMENT_OPTIONS = {
 };
 
 const CANARY_EXTRA_RULES = {
-  // §8e: `ScrapePhase.ts` must not emit a `balance:` literal.
-  'src/Scrapers/Pipeline/EslintCanaries/no-balance-in-scrape.canary.ts': [NO_BALANCE_LITERAL_RULE],
-  // §8g: BALANCE-RESOLVE fetches must stay quarantined in a try block.
-  'src/Scrapers/Pipeline/EslintCanaries/balance-resolve-throw-leaks-quarantine.canary.ts': [
-    BALANCE_QUARANTINE_RULE,
-  ],
-  // §8h: the `'__BULK__'` sentinel must be imported, never re-typed.
-  'src/Scrapers/Pipeline/EslintCanaries/balance-resolve-bulk-literal.canary.ts': [
-    BALANCE_BULK_LITERAL_RULE,
-  ],
   // §8i: `balance ?? 0` / `?? null` collapses unknown into a real value.
   'src/Scrapers/Pipeline/EslintCanaries/balance-default-zero.canary.ts':
     BALANCE_DEFAULT_DENY_RULES,
@@ -1380,17 +1322,13 @@ const CANARY_EXTRA_BLOCKS = Object.entries(CANARY_EXTRA_RULES).map(([file, rules
 //
 // Bans Pipeline production code from importing Common/* (Pipeline is canonical;
 // Common is the deprecated re-export shim layer). Uses `regex` (not `group`) so
-// the negative lookahead can ALLOWLIST `Common/Config/BrowserConfig`, which is
-// browser-bootstrap-only with no Pipeline duplicate. The single canonical
-// allowed Pipeline → Common runtime edge: CamoufoxLauncher.ts → BrowserConfig.
-//
-// Pinning by regex (not file-level `ignores` on CamoufoxLauncher) closes the
-// hole rubber-duck flagged in C11 critique Blocking-2: any OTHER Common import
-// added to CamoufoxLauncher in the future also fires this rule.
+// the ban stays a single anchored pattern that no file-level `ignores` can
+// narrow. No Pipeline → Common edge remains: the only allowlisted module,
+// `Common/Config/BrowserConfig`, left with the browser engine.
 const PHASE3_COMMON_IMPORT_BAN_PATTERN = {
-  regex: String.raw`Common/(?!Config/BrowserConfig(?:\.js)?$)`,
+  regex: String.raw`Common/`,
   message:
-    '🚫 PHASE-3 ARCHITECTURE: Pipeline production code must not import from Common/*. Pipeline is canonical; Common/* is a deprecated re-export shim. Import the symbol from src/Scrapers/Pipeline/Mediator/<Subdir>/<Module>.js instead. Allowlist: Common/Config/BrowserConfig (browser bootstrap-only, no Pipeline duplicate; exact module match, NOT lookalikes like BrowserConfigLegacy).',
+    '🚫 PHASE-3 ARCHITECTURE: Pipeline production code must not import from Common/*. Pipeline is canonical; Common/* is a deprecated re-export shim. Import the symbol from src/Scrapers/Pipeline/Mediator/<Subdir>/<Module>.js instead.',
 };
 
 export default tseslint.config(
@@ -1879,142 +1817,6 @@ export default tseslint.config(
     },
   },
 
-  // 8c. V5 ISOLATION — BALANCE-RESOLVE MUST NOT IMPORT SCRAPE INTERNALS (T49).
-  //
-  // The v5 phase architecture splits SCRAPE and BALANCE-RESOLVE into
-  // disjoint zones. BALANCE-RESOLVE consumes ONLY the typed
-  // `scrape.perAccountResponses` field from {@link IPipelineContext};
-  // anything deeper (helpers, types, mediator actions) would re-couple
-  // the phases and break the single-source-of-truth contract from
-  // `general-phases-view-guidlines.md`.
-  //
-  // Scope covers both the production BalanceResolve zone (so a regression
-  // fails pre-commit) AND the dedicated canary file (so verify.sh can
-  // confirm the rule still fires).
-  {
-    files: [
-      'src/Scrapers/Pipeline/Phases/BalanceResolve/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/balance-resolve-isolation.canary.ts',
-    ],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              group: ['**/Strategy/Scrape/**', '**/Mediator/Scrape/ScrapePhaseActions*'],
-              message:
-                '🚫 V5 ISOLATION (T49): BALANCE-RESOLVE must not import SCRAPE internals. Read ctx.scrape.perAccountResponses instead.',
-            },
-            PHASE3_COMMON_IMPORT_BAN_PATTERN,
-          ],
-        },
-      ],
-    },
-  },
-
-  // 8d. V5 ISOLATION — SCRAPE MUST NOT REFERENCE BALANCE-RESOLVE (T50).
-  //
-  // Mirror of 8c — guards the SCRAPE zone from leaking back into
-  // balance resolution logic. The `Account/BalanceExtractor.ts` shim
-  // is excluded because it re-exports from the BalanceResolve module
-  // by design (compatibility shim, removed in a later decoupling phase).
-  // The canary file lives outside the production scope; it gets the
-  // same rule via the second `files:` glob so verify.sh sees the
-  // intended ESLint errors.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Strategy/Scrape/**/*.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/no-balance-in-scrape.canary.ts',
-    ],
-    ignores: ['src/Scrapers/Pipeline/Strategy/Scrape/Account/BalanceExtractor.ts'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              group: ['**/Registry/WK/BalanceResolveWK*', '**/Mediator/BalanceResolve/**'],
-              message:
-                '🚫 V5 ISOLATION (T50): SCRAPE must not reference BalanceResolve internals. Balance resolution is owned by the BALANCE-RESOLVE phase.',
-            },
-            PHASE3_COMMON_IMPORT_BAN_PATTERN,
-          ],
-        },
-      ],
-    },
-  },
-
-  // 8e. V5 LITERAL-BALANCE BAN — proves Agent 2's removal stuck (T50).
-  //
-  // `ScrapeDataActions.ts` previously held a `'balance'` literal as
-  // part of the assembled account shape. v4 moved balance to
-  // `ctx.balanceResolution`; this rule blocks the literal from
-  // sneaking back in. The canary that proves it fires is armed in §22a.
-  {
-    files: ['src/Scrapers/Pipeline/Strategy/Scrape/ScrapeDataActions.ts'],
-    rules: {
-      'no-restricted-syntax': ['error', ...PIPELINE_SYNTAX_RULES, NO_BALANCE_LITERAL_RULE],
-    },
-  },
-
-  // 8f. V6 ISOLATION — BALANCE-FETCH TEMPLATE/PLANNER OWNED BY BALANCE-RESOLVE (H3).
-  //
-  // The v6 contract emits {@link IBalanceFetchTemplate} from SCRAPE.post
-  // but the live planner + fetch loop is owned by BALANCE-RESOLVE alone.
-  // Other phases must not import the planner module — they would be
-  // duplicating balance work and breaking the single-phase-ownership
-  // rule (general-phases-view-guidlines.md). The TYPE itself is shared
-  // via PipelineContext.ts (a typed seam, not a behaviour seam).
-  //
-  // This block targets the dedicated canary so verify.sh proves the
-  // rule fires; the canary's import of `BalanceFetchPlanner` is rejected.
-  {
-    files: ['src/Scrapers/Pipeline/EslintCanaries/balance-fetch-only-in-balance-resolve.canary.ts'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              group: ['**/Mediator/BalanceResolve/BalanceFetchPlanner*'],
-              message:
-                '🚫 V6 ISOLATION (H3): BalanceFetchPlanner is consumed only by BalanceResolveActions. Other phases must not depend on it.',
-            },
-          ],
-        },
-      ],
-    },
-  },
-
-  // 8g+8h. BALANCE-RESOLVE MEDIATOR LOCKS (PR #264 CR findings #4 + #7)
-  //
-  // Both rules scope to the same file, so they MUST share one block: flat
-  // config replaces `no-restricted-syntax` options rather than merging them,
-  // and two blocks would leave only the later rule armed.
-  //
-  //   • Quarantine — every `await api.fetchPost/fetchGet` inside the
-  //     BALANCE-RESOLVE mediator must be wrapped in a TryStatement
-  //     (`safeIssueOneFetch`) so a throw from one bank account's network call
-  //     cannot reject the surrounding `Promise.all` and abort every sibling.
-  //   • BULK_KEY — the `'__BULK__'` sentinel lives only in
-  //     `BalanceFetchPlanner.ts`; consumers import the named constant so the
-  //     value can be renamed atomically.
-  //
-  // The canaries that prove both fire are armed in §22a.
-  {
-    files: ['src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts'],
-    rules: {
-      'no-restricted-syntax': [
-        'error',
-        ...PIPELINE_SYNTAX_RULES,
-        BALANCE_QUARANTINE_RULE,
-        BALANCE_BULK_LITERAL_RULE,
-      ],
-    },
-  },
-
   // 8i. BALANCE DEFAULT-ZERO PROHIBITION (PR #264 CR finding #5)
   //
   // `<x>.balance ?? 0` (or `?? null`) makes "balance unknown" identical
@@ -2030,63 +1832,6 @@ export default tseslint.config(
     },
   },
 
-  // 8a. CROSS-BANK PHASE FACTORIES — STRICT QUALITY RULES
-  //
-  // Scoped to Phase H deep-factory work. Locks in the project's
-  // strictest discipline so PR #232 cannot regress to the prior state:
-  //
-  //   - **max-lines-per-function: 10** (CLAUDE.md + coding-principle-
-  //     guidlines.md "Max 10 lines per method"). Forces extraction.
-  //
-  //   - **max-statements: 10** (A3). Semantic counterpart to lines;
-  //     prevents long methods that pass the line count by stuffing
-  //     statements onto one line.
-  //
-  //   - **sonarjs/no-identical-functions** (A8). Catches the kind of
-  //     placeholderConfig + run*Pre/Action/Post/Final unwrap-or-throw
-  //     duplication CodeRabbit flagged in rabbit cycle #3 (findings
-  //     #1, #2, #7, #8).
-  //
-  //   - **sonarjs/no-duplicate-string** (A8). Threshold:5 catches
-  //     repeated literal magic strings (e.g. `'last-good'` paths,
-  //     error-prefix strings) that should be constants.
-  //
-  //   - **no-restricted-syntax — double-cast ban** (A2). Bans
-  //     `expr as unknown as T` outright. CodeRabbit's repeated
-  //     finding ("type-system bypass via double-cast") is now a
-  //     compile-time error inside the deep-factory zone.
-  //
-  // Pre-existing files outside this scope can adopt the same limits
-  // incrementally in follow-up PRs.
-  {
-    files: ['src/Tests/Unit/Pipeline/CrossValidation/Phases/**/*.ts'],
-    plugins: {
-      sonarjs,
-    },
-    rules: {
-      'max-lines-per-function': ['error', { max: 10, skipBlankLines: true, skipComments: true }],
-      'max-statements': ['error', 10],
-      'sonarjs/no-identical-functions': 'error',
-      'sonarjs/no-duplicate-string': ['error', { threshold: 5 }],
-      'no-restricted-syntax': [
-        'error',
-        // RABBIT-CYCLE-#4 FINDING #1: ESLint flat-config rule arrays REPLACE
-        // (not extend) earlier definitions for files matching the same scope.
-        // Spreading RESTRICTED_SYNTAX_RULES first preserves the global guards
-        // (coverage-bypass, forbidden-method, PII-leak, security-logging,
-        // anti-sleep, ...) that section 4 applies repo-wide; otherwise this
-        // §8a block would silently strip them for Phases/** files.
-        ...RESTRICTED_SYNTAX_RULES,
-        {
-          // A2 — ban `expr as unknown as T` double-casts.
-          // Phase H rabbit cycle #3 finding #1, #3, #7.
-          selector: 'TSAsExpression > TSAsExpression',
-          message:
-            "🚫 TYPE BYPASS (Phase H rule): 'expr as unknown as T' double-casts are banned in deep-factory tests. Extract a properly typed factory/constant from `Fixtures/_deepPhaseHelpers.ts` instead.",
-        },
-      ],
-    },
-  },
   // 9. INDEX FILES EXCEPTION
   {
     files: ['**/index.ts'],
@@ -2317,12 +2062,8 @@ export default tseslint.config(
 
   // 14. NO DIRECT page.screenshot() — added 2026-05-21 after PR #248 CI
   //     artifact 7128234088 leaked 18+ post-auth PNGs (run 26207506594).
-  //     The SafeScreenshot helper is the only sanctioned call site —
-  //     it short-circuits in CI to keep rendered bank pixels out of
-  //     public-readable artifacts. The canonical implementation lives
-  //     at `src/Scrapers/Pipeline/Mediator/Browser/SafeScreenshot.ts`
-  //     and is allow-listed so the helper itself can call
-  //     `page.screenshot()` without tripping the rule.
+  //     The pipeline is pure HTTP and has no sanctioned call site, so the
+  //     ban carries no allow-list.
   //     Pipeline and Scrapers/Base are excluded here and carry the ban
   //     through their own blocks instead. Both declare extra selectors of
   //     their own, and flat config REPLACES `no-restricted-syntax` options
@@ -2524,10 +2265,7 @@ export default tseslint.config(
   // four files now meet cap 10 through the C1-C4 refactor work.
   {
     files: [
-      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhase/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/Scrape/FrozenScrapeAction.ts',
-      'src/Scrapers/Pipeline/Mediator/Scrape/UrlDateRange.ts',
       'src/Scrapers/Pipeline/EslintCanaries/scrape-canonical10-fn-over-cap.canary.ts',
     ],
     rules: {
@@ -2587,10 +2325,7 @@ export default tseslint.config(
   // rule fires on every commit.
   {
     files: [
-      'src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhase/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/Scrape/FrozenScrapeAction.ts',
-      'src/Scrapers/Pipeline/Mediator/Scrape/UrlDateRange.ts',
       'src/Scrapers/Pipeline/EslintCanaries/scrape-canonical10-negated-condition.canary.ts',
     ],
     rules: {
@@ -2769,46 +2504,10 @@ export default tseslint.config(
     },
   },
 
-  // 14. INIT SUB-MODULE FUNCTION-SIZE GUARD (strict 10-LoC)
+  // 14. MEDIATOR CLUSTER LOCK — full strict three-rule lock.
   //
-  // PR #288 added the L4 transport-forensics envelope under
-  // `Mediator/Init/**` (InitActions.ts, NavigationDiagnostics.ts,
-  // NavigationRequestLifecycle.ts, NavigationTransportProbe.ts).
-  // Those splits inherited the lax 20-cap default and immediately
-  // accumulated 24 over-cap function bodies — a regression caught
-  // only by CodeRabbit (R3-1..R3-5), not the pre-commit hook.
-  //
-  // Per `eslint-rules-guidlines.md` §1 (ALWAYS tighten when you
-  // split a module) and §2 (every strict cluster needs a canary),
-  // this cluster now pins Init/ to the canonical 10-LoC ceiling.
-  // No `max-lines` (file-size) cap yet — Init/ files are still
-  // large after the split; that hardening lands in a separate
-  // commit once the helpers are stable.
-  //
-  // Canary: `init-cluster-fn-over-cap.canary.ts` over-sizes a
-  // single function so verify.sh confirms the rule fires.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Mediator/Init/**/*.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/init-cluster-fn-over-cap.canary.ts',
-    ],
-    rules: {
-      'max-lines-per-function': [
-        'error',
-        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
-      ],
-    },
-  },
-
-  // 14b. PHASE 2 LOCKDOWN — full strict three-rule lock (`refactor/phase-2-decoupling-mediator`).
-  //
-  // Phase 2 (loose commits 3533ed97 / ec30d4ad / 01cdcebf / 53809048 +
-  // strict commits 59a4b837 / 98572c69 / 3961607b / 4ee2046b / 9c94087d)
-  // extracted ~250+ over-cap functions across 55 cluster files in the
-  // Mediator/ tree down to ≤10-statement, ≤10-line bodies AND split
-  // every cluster file to ≤150-line co-located siblings. The four
-  // override blocks below pin all 19 Mediator/ sub-clusters touched
-  // in Phase 2 to the canonical three-rule lock (no relaxation):
+  // Every surviving Mediator/ sub-cluster is pinned to the canonical
+  // three-rule lock (no relaxation):
   //
   //   • max-statements: 10            — body statement count
   //   • max-lines-per-function: 10    — signature+body+brace
@@ -2816,29 +2515,17 @@ export default tseslint.config(
   //   • max-lines: 150                — per-file
   //                                     (skipBlankLines + skipComments)
   //
-  // The three rules lock in lock-step: a function may grow to 10
-  // statements OR 10 lines OR live in a 150-line file before its
-  // cluster fails CI. Any future "let it slip just one more" attempt
-  // is rejected. File-split hardening is no longer deferred.
-  //
   // Canaries — one fn-over-cap + one file-over-cap per cluster — live
-  // alongside in EslintCanaries/ and are scoped into each block via
-  // the `files` array so the corresponding rule provably fires:
-  //   • mediator-api-selector-fn-over-cap.canary.ts (max-statements + max-lines-per-function)
-  //   • mediator-api-selector-file-over-cap.canary.ts (max-lines)
-  //   • mediator-dashboard-fn-over-cap.canary.ts
-  //   • mediator-dashboard-file-over-cap.canary.ts
-  //   • mediator-auth-fn-over-cap.canary.ts
-  //   • mediator-auth-file-over-cap.canary.ts
-  //   • mediator-residue-fn-over-cap.canary.ts
-  //   • mediator-residue-file-over-cap.canary.ts
+  // alongside in EslintCanaries/ and are scoped into each block via the
+  // `files` array so the corresponding rule provably fires:
+  //   • mediator-api-selector-{fn,file}-over-cap.canary.ts (Api + ApiDirectCall)
+  //   • mediator-residue-{fn,file}-over-cap.canary.ts (Scrape + Credentials + Timing)
 
-  // 14b.1. Phase 2b cluster — Api + ApiDirectCall + Selector.
+  // 14a. Api + ApiDirectCall.
   {
     files: [
       'src/Scrapers/Pipeline/Mediator/Api/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/ApiDirectCall/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/Selector/**/*.ts',
       'src/Scrapers/Pipeline/EslintCanaries/mediator-api-selector-fn-over-cap.canary.ts',
       'src/Scrapers/Pipeline/EslintCanaries/mediator-api-selector-file-over-cap.canary.ts',
     ],
@@ -2852,54 +2539,11 @@ export default tseslint.config(
     },
   },
 
-  // 14b.2. Phase 2c cluster — Dashboard.
+  // 14b. Scrape + Credentials + Timing.
   {
     files: [
-      'src/Scrapers/Pipeline/Mediator/Dashboard/**/*.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/mediator-dashboard-fn-over-cap.canary.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/mediator-dashboard-file-over-cap.canary.ts',
-    ],
-    rules: {
-      'max-statements': ['error', 10],
-      'max-lines-per-function': [
-        'error',
-        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
-      ],
-      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
-    },
-  },
-
-  // 14b.3. Phase 2d cluster — Login + AuthDiscovery.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Mediator/Login/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/AuthDiscovery/**/*.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/mediator-auth-fn-over-cap.canary.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/mediator-auth-file-over-cap.canary.ts',
-    ],
-    rules: {
-      'max-statements': ['error', 10],
-      'max-lines-per-function': [
-        'error',
-        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
-      ],
-      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
-    },
-  },
-
-  // 14b.4. Phase 2e cluster — 11 residue sub-clusters (incl. full Scrape/).
-  // Last-wins applies all three caps to the entire Phase 2e drain surface.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Mediator/BalanceResolve/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/AccountResolve/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/OtpFill/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/OtpTrigger/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/Scrape/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/Otp/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/Browser/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/Credentials/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/Terminate/**/*.ts',
       'src/Scrapers/Pipeline/Mediator/Timing/**/*.ts',
       'src/Scrapers/Pipeline/EslintCanaries/mediator-residue-fn-over-cap.canary.ts',
       'src/Scrapers/Pipeline/EslintCanaries/mediator-residue-file-over-cap.canary.ts',
@@ -2913,153 +2557,6 @@ export default tseslint.config(
       'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
     },
   },
-
-  // 14c. PHASE 12e — Init TransportProbe file-size lock.
-  //
-  // PR #288 landed the L4 transport-forensics probe as a single
-  // 1036-LoC `Mediator/Init/NavigationTransportProbe.ts` god-module.
-  // §14 (above) pinned Init/ to the 10-LoC per-function cap but
-  // deferred the file-size (`max-lines`) hardening "once the helpers
-  // are stable". Phase 12e drains that file: the probe is now a barrel
-  // facade re-exporting focused co-located modules under
-  // `Mediator/Init/TransportProbe/` (Types / Reject / Result / Url /
-  // Dns / Tcp / Tls / Probe).
-  //
-  // Per `eslint-rules-guidlines.md` §1 (tighten when you split) this
-  // block pins the new sub-cluster + the facade to the canonical
-  // three-rule lock shared by every other Pipeline cluster. §4
-  // (narrow, never revert): scope is the TransportProbe sub-tree +
-  // facade only — the cluster-wide `Mediator/Init/**` file cap lands
-  // once the remaining Init files (InitActions, PageObservers,
-  // EnvSnapshot, NavigationDiagnostics, NavigationRequestLifecycle)
-  // are drained too. 150 is justified: the largest drained sub-module
-  // (Tls.ts) measures ~129 effective lines (skipBlankLines +
-  // skipComments), comfortably under the shared 150 ceiling.
-  //
-  // Canary: `init-transport-probe-file-over-cap.canary.ts` over-sizes
-  // a file so verify.sh confirms `max-lines` fires.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Mediator/Init/TransportProbe/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/Init/NavigationTransportProbe.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/init-transport-probe-file-over-cap.canary.ts',
-    ],
-    rules: {
-      'max-statements': ['error', 10],
-      'max-lines-per-function': [
-        'error',
-        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
-      ],
-      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
-    },
-  },
-
-  // 14d. PHASE 12e — Scrape Executor file-size lock.
-  //
-  // `Strategy/Scrape/ScrapeExecutor.ts` was a 167-LoC generic scrape
-  // orchestrator (fetch + per-account iteration + assembly). §19.1
-  // (below) pins Strategy/Scrape to per-function caps (40 lines / 20
-  // statements) but leaves the file-size (`max-lines`) guard off.
-  // Phase 12e drains the file: it is now a barrel facade re-exporting
-  // focused co-located modules under `Strategy/Scrape/Executor/`
-  // (Types / Fetch / Account / Execute).
-  //
-  // Per `eslint-rules-guidlines.md` §1 (tighten when you split) this
-  // block turns on the missing `max-lines` guard for the new
-  // sub-cluster + the facade, pinning them to the canonical 150-line
-  // Pipeline ceiling. §4 (narrow, never revert): scope is the Executor
-  // sub-tree + facade only — the remaining over-cap Strategy/Scrape
-  // files (AccountScrapeStrategy, ScrapeDataActions, MatrixLoopStrategy)
-  // get their own file caps as they are drained in subsequent Phase 12e
-  // PRs. 150 is justified: the largest drained sub-module (Fetch.ts)
-  // measures well under 150 effective lines (skipBlankLines +
-  // skipComments), comfortably inside the shared ceiling.
-  //
-  // Canary: `scrape-executor-file-over-cap.canary.ts` over-sizes a file
-  // so verify.sh confirms `max-lines` fires.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Strategy/Scrape/Executor/**/*.ts',
-      'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeExecutor.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/scrape-executor-file-over-cap.canary.ts',
-    ],
-    rules: {
-      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
-    },
-  },
-
-  // 14e. PHASE 12e — AccountScrape file-size lock.
-  //
-  // `Strategy/Scrape/Account/AccountScrapeStrategy.ts` was a 217-LoC
-  // per-account scrape strategy (matrix → first-wave → billing → range
-  // → direct POST/GET orchestration). §19.1 (below) pins Strategy/Scrape
-  // to per-function caps (40 lines / 20 statements) but leaves the
-  // file-size (`max-lines`) guard off. Phase 12e drains the file into
-  // co-located focused siblings under `Strategy/Scrape/Account/`
-  // (AccountScrapeShared / AccountScrapePost / AccountScrapeFirstWave)
-  // behind the unchanged orchestrator facade.
-  //
-  // Per `eslint-rules-guidlines.md` §1 (tighten when you split) this
-  // block turns on the missing `max-lines` guard for the Account
-  // sub-cluster + every co-located strategy, pinning them to the
-  // canonical 150-line Pipeline ceiling. §4 (narrow, never revert):
-  // scope is the Account/ sub-tree only — the remaining over-cap
-  // Strategy/Scrape files (ScrapeDataActions, MatrixLoopStrategy) get
-  // their own file caps as they are drained in subsequent Phase 12e
-  // PRs. 150 is justified: the largest drained sub-module
-  // (AccountScrapeFirstWave) measures well under 150 effective lines
-  // (skipBlankLines + skipComments), comfortably inside the ceiling.
-  //
-  // Canary: `account-scrape-file-over-cap.canary.ts` over-sizes a file
-  // so verify.sh confirms `max-lines` fires.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Strategy/Scrape/Account/**/*.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/account-scrape-file-over-cap.canary.ts',
-    ],
-    rules: {
-      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
-    },
-  },
-
-  // 14f. PHASE 12e — ScrapeData file-size lock.
-  //
-  // `Strategy/Scrape/ScrapeDataActions.ts` was a 467-LoC (≈200 effective)
-  // grab-bag helper module (rate limiting + date parsing + txn hashing +
-  // dedup + POST-body templating + txn-URL build/resolve + account
-  // assembly). §19.1 (below) pins Strategy/Scrape to per-function caps
-  // (40 lines / 20 statements) but leaves the file-size (`max-lines`)
-  // guard off. Phase 12e drains the file into co-located focused modules
-  // under `Strategy/Scrape/ScrapeData/` (Dedup / Templating / Url /
-  // Assembly) behind an unchanged barrel facade.
-  //
-  // Per `eslint-rules-guidlines.md` §1 (tighten when you split) this
-  // block turns on the missing `max-lines` guard for the ScrapeData
-  // sub-cluster + the barrel facade, pinning them to the canonical
-  // 150-line Pipeline ceiling. §4 (narrow, never revert): scope is the
-  // ScrapeData/ sub-tree + facade only — the last remaining over-cap
-  // Strategy/Scrape file (MatrixLoopStrategy) gets its own file cap as it
-  // is drained in the next Phase 12e PR. 150 is justified: the largest
-  // drained sub-module (Templating) measures well under 150 effective
-  // lines (skipBlankLines + skipComments), comfortably inside the ceiling.
-  //
-  // Canary: `scrape-data-file-over-cap.canary.ts` over-sizes a file so
-  // verify.sh confirms `max-lines` fires. NOTE: this block locks the
-  // file-size (`max-lines`) guard only; the matching per-function
-  // (`max-lines-per-function` / `max-statements`) 10/10 lock for the
-  // same sub-tree lives in §19.1b (after the §19.1 Strategy grandfather,
-  // which would otherwise override it under flat-config last-wins).
-  {
-    files: [
-      'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeData/**/*.ts',
-      'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeDataActions.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/scrape-data-file-over-cap.canary.ts',
-    ],
-    rules: {
-      'max-lines': ['error', { max: 150, skipBlankLines: true, skipComments: true }],
-    },
-  },
-
   // 15. PHASE 3 COMMON ↔ PIPELINE UNIFICATION GUARD — Commit 11 (refactor/phase-3-common-unify).
   //
   // Closes Phase 3 Probe 3.4 (Pipeline → Common runtime imports = 0). Phase 3
@@ -3068,22 +2565,11 @@ export default tseslint.config(
   // production code from ever importing back from Common/*, which would
   // re-introduce duplication and defeat the canonical-Pipeline mandate.
   //
-  // The constant `PHASE3_COMMON_IMPORT_BAN_PATTERN` (defined above) uses a
-  // regex with a negative lookahead so `Common/Config/BrowserConfig` is the
-  // ONLY allowed Pipeline → Common edge (consumed by CamoufoxLauncher.ts).
-  //
-  // `ignores` here skips the scopes that already have their own
-  // `no-restricted-imports` block (sections 8c/8d) where the same Common ban
-  // pattern is merged into their patterns array. Without this, last-wins
-  // semantics in flat config would clobber the scoped V5 isolation rules.
+  // The constant `PHASE3_COMMON_IMPORT_BAN_PATTERN` (defined above) bans every
+  // Common/* specifier; no Pipeline → Common edge is allowed any more.
   {
     files: ['src/Scrapers/Pipeline/**/*.ts'],
-    ignores: [
-      'src/Scrapers/Pipeline/EslintCanaries/**',
-      'src/Scrapers/Pipeline/Phases/BalanceResolve/**',
-      'src/Scrapers/Pipeline/Mediator/BalanceResolve/BalanceResolveActions.ts',
-      'src/Scrapers/Pipeline/Strategy/Scrape/**',
-    ],
+    ignores: ['src/Scrapers/Pipeline/EslintCanaries/**'],
     rules: {
       'no-restricted-imports': ['error', { patterns: [PHASE3_COMMON_IMPORT_BAN_PATTERN] }],
     },
@@ -3096,14 +2582,8 @@ export default tseslint.config(
   // override re-attaches the Phase 3 rule so the canary's deliberate Common
   // import trips it. Mirrors the pattern used by every other canary in this file.
   //
-  // CR PR #286 finding F3 added the `no-common-config-lookalike-in-pipeline`
-  // canary — same regex, but its target import is a sibling Common/Config/*
-  // module proving the negative-lookahead's `(?:\.js)?$` anchor pin works.
   {
-    files: [
-      'src/Scrapers/Pipeline/EslintCanaries/no-common-import-in-pipeline.canary.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/no-common-config-lookalike-in-pipeline.canary.ts',
-    ],
+    files: ['src/Scrapers/Pipeline/EslintCanaries/no-common-import-in-pipeline.canary.ts'],
     rules: {
       'no-restricted-imports': ['error', { patterns: [PHASE3_COMMON_IMPORT_BAN_PATTERN] }],
     },
@@ -3152,82 +2632,12 @@ export default tseslint.config(
     },
   },
 
-  // 19.1 GRANDFATHER — Pipeline/Strategy (heaviest debt: 16 files, 57+14).
-  // TODO(phase-9): refactor Strategy/Scrape clusters to ≤10 LoC.
+  // 19.1 GRANDFATHER — Pipeline/Strategy (the Fetch transports).
   {
     files: ['src/Scrapers/Pipeline/Strategy/**/*.ts'],
     rules: {
       'max-lines-per-function': ['error', { max: 40, skipBlankLines: true, skipComments: true }],
       'max-statements': ['error', 20],
-    },
-  },
-
-  // 19.1a PHASE 12e — Scrape Executor per-function lock (drained sub-cluster).
-  //
-  // §19.1 (above) grandfathers ALL of `Strategy/**` to a loose 40-line /
-  // 20-statement per-function cap. The Phase 12e drain split the
-  // `ScrapeExecutor.ts` god-module into focused co-located modules under
-  // `Strategy/Scrape/Executor/` (Types / Fetch / Account / Execute) whose
-  // functions were authored fresh to the canonical 10-LoC ceiling — so
-  // per `eslint-rules-guidlines.md` §1 (tighten when you split) this block
-  // pins the drained sub-tree + facade back to the strict 10/10 cap that
-  // §19.0 sets for all new first-party code. Flat-config is last-wins and
-  // this block sits AFTER §19.1, so the strict cap deterministically wins
-  // for these paths while the rest of Strategy/** keeps its grandfather.
-  // §4 (narrow, never revert): scope is the Executor sub-tree + facade
-  // only — the remaining over-cap Strategy/Scrape files keep §19.1's cap
-  // until they are drained in subsequent Phase 12e PRs.
-  //
-  // Canary: `scrape-executor-fn-over-cap.canary.ts` over-sizes one
-  // function so verify.sh confirms `max-lines-per-function` fires.
-  {
-    files: [
-      'src/Scrapers/Pipeline/Strategy/Scrape/Executor/**/*.ts',
-      'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeExecutor.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/scrape-executor-fn-over-cap.canary.ts',
-    ],
-    rules: {
-      'max-lines-per-function': [
-        'error',
-        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
-      ],
-      'max-statements': ['error', 10],
-    },
-  },
-
-  // 19.1b PHASE 12e — ScrapeData per-function lock (drained sub-cluster).
-  //
-  // §19.1 (above) grandfathers ALL of `Strategy/**` to a loose 40-line /
-  // 20-statement per-function cap. The Phase 12e drain split the
-  // `ScrapeDataActions.ts` god-module into focused co-located modules
-  // under `Strategy/Scrape/ScrapeData/` (Dedup / Templating / Url /
-  // Assembly) whose functions were authored fresh to the canonical
-  // 10-LoC ceiling — so per `eslint-rules-guidlines.md` §1 (tighten when
-  // you split) this block pins the drained sub-tree + barrel facade back
-  // to the strict 10/10 cap that §19.0 sets for all new first-party code.
-  // Flat-config is last-wins and this block sits AFTER §19.1, so the
-  // strict cap deterministically wins for these paths while the rest of
-  // Strategy/** keeps its grandfather. §4 (narrow, never revert): scope
-  // is the ScrapeData sub-tree + facade only — the remaining over-cap
-  // Strategy/Scrape file (MatrixLoopStrategy) keeps §19.1's cap until it
-  // is drained in the next Phase 12e PR.
-  //
-  // CodeRabbit PR #358 caught this gap: §14f added the file-size cap but
-  // left the per-function cap at §19.1's loose 40, so oversized drained
-  // functions shipped. This block + `scrape-data-fn-over-cap.canary.ts`
-  // close it (verify.sh confirms `max-lines-per-function` fires).
-  {
-    files: [
-      'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeData/**/*.ts',
-      'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeDataActions.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/scrape-data-fn-over-cap.canary.ts',
-    ],
-    rules: {
-      'max-lines-per-function': [
-        'error',
-        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
-      ],
-      'max-statements': ['error', 10],
     },
   },
 
@@ -3328,12 +2738,11 @@ export default tseslint.config(
     },
   },
 
-  // 19.3 GRANDFATHER — Pipeline/Core + Phases + Interceptors + Banks + Registry.
+  // 19.3 GRANDFATHER — Pipeline/Core + Phases + Banks + Registry.
   {
     files: [
       'src/Scrapers/Pipeline/Core/**/*.ts',
       'src/Scrapers/Pipeline/Phases/**/*.ts',
-      'src/Scrapers/Pipeline/Interceptors/**/*.ts',
       'src/Scrapers/Pipeline/Banks/**/*.ts',
       'src/Scrapers/Pipeline/Registry/**/*.ts',
     ],
@@ -3407,7 +2816,6 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Core/Builder/ApiDirectNativeRules.ts',
       'src/Scrapers/Pipeline/Core/Builder/ApiDirectRuleInput.ts',
       'src/Scrapers/Pipeline/Core/Builder/ApiDirectTransportRules.ts',
-      'src/Scrapers/Pipeline/Core/BrowserOnlyOptions.ts',
       'src/Scrapers/Pipeline/Core/SuppliedOptions.ts',
       'src/Scrapers/Pipeline/EslintCanaries/core-new-file-fn-over-cap.canary.ts',
     ],
@@ -3419,74 +2827,10 @@ export default tseslint.config(
     },
   },
 
-  // 19.4 GRANDFATHER — Pipeline/Mediator/{Elements,Form} (not covered by
-  // existing §14b.* cluster blocks; Network already passes 10/10).
+  // 19.5 GRANDFATHER — Base + Common.
+  // Phase 9 plans a per-file refactor pass to bring each ≤10/10.
   {
-    files: [
-      'src/Scrapers/Pipeline/Mediator/Elements/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/Form/**/*.ts',
-    ],
-    rules: {
-      'max-lines-per-function': ['error', { max: 20, skipBlankLines: true, skipComments: true }],
-      'max-statements': ['error', 12],
-    },
-  },
-
-  // 19.4a PHASE 12d TIGHTENING — Form sub-folders to canonical 10/10.
-  //
-  // Phase 12d split the three HIGH-tier Form blobs
-  // (`LoginFormActions.ts`, `FormAnchor.ts`, `FormErrorDiscovery.ts`)
-  // into focused sub-folders under `Mediator/Form/{Actions,Anchor,
-  // ErrorDiscovery}/`. Per eslint-rules-guidlines §1 ("Always tighten
-  // the ceiling in the same PR so the next blob cannot grow back to
-  // the old budget") + §4 ("never revert, only narrow"), this block
-  // narrows §19.4's grandfather `max: 20` down to the canonical
-  // `max: 10` for the three NEW sub-folders only. The legacy
-  // `Mediator/Form/*.ts` files (LoginFormFill.ts, LoginScopeResolver.ts,
-  // OtpProbe.ts, PostActionResolver.ts) keep §19.4's cap-20 until
-  // their own dedicated drain phase.
-  //
-  // Flat-config last-wins: this block MUST appear after §19.4.
-  //
-  // Companion canary: `form-sub-fn-over-cap.canary.ts` exhibits the
-  // banned shape so `verify.sh` asserts the rule fires on every
-  // commit (eslint-rules §2 "every numeric rule MUST have one").
-  {
-    files: [
-      'src/Scrapers/Pipeline/Mediator/Form/Actions/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/Form/Anchor/**/*.ts',
-      'src/Scrapers/Pipeline/Mediator/Form/ErrorDiscovery/**/*.ts',
-      'src/Scrapers/Pipeline/EslintCanaries/form-sub-fn-over-cap.canary.ts',
-    ],
-    rules: {
-      'max-lines-per-function': [
-        'error',
-        { max: 10, skipBlankLines: true, skipComments: true, IIFEs: true },
-      ],
-      'max-statements': ['error', 10],
-    },
-  },
-
-  // §19.4b REMOVED (CR PR #345 hardening):
-  // The previous browser-eval cap-20 grandfather for `AnchorWalk.ts` +
-  // `ErrorDiscoveryScan.ts` is no longer needed. Phase 12d-final
-  // decoupled the in-browser closures into sibling files
-  // (`AnchorWalkBrowser.ts`, `ErrorDiscoveryScanBrowser.ts`) under a
-  // column-array data contract — each closure is now self-contained
-  // and ≤10 LoC, and the Node-side zip helpers fit cap-10 too.
-  // The OCP/SRP-compliant decoupling supersedes the carve-out per
-  // CLEAN_CODE.md + guidelines (no permanent exceptions for cap-10).
-
-  // 19.5 GRANDFATHER — legacy bank scrapers + Base + Common.
-  // The base classes + bank-specific scrapers carry the deepest debt.
-  // Phase 9 plans a per-bank refactor pass to bring each ≤10/10.
-  {
-    files: [
-      'src/Scrapers/Base/**/*.ts',
-      'src/Scrapers/Leumi/**/*.ts',
-      'src/Scrapers/Yahav/**/*.ts',
-      'src/Common/**/*.ts',
-    ],
+    files: ['src/Scrapers/Base/**/*.ts', 'src/Common/**/*.ts'],
     rules: {
       'max-lines-per-function': ['error', { max: 20, skipBlankLines: true, skipComments: true }],
       'max-statements': ['error', 12],
@@ -3550,36 +2894,14 @@ export default tseslint.config(
   },
 
   // 19.10 PHASE 10 WAVE 1 — extend `fn-declaration-max-lines:10` to the
-  // Mode A/B harvester + simulator tree under `src/Tests/Integration/**`
-  // and its companion unit tests. Closes the gap CR cycle 4b exposed
-  // (17 helper functions >10 lines slipped through because the directory
-  // was not in the §19.10 allowlist). Future Integration files inherit
-  // automatically via the glob.
-  //
-  // The `ignores:` list grandfathers 4 pre-existing files that were
-  // NOT touched by PR-A2.1 (Banks/, Helpers/, LoginNavigation, Check…
-  // Coverage). Phase 10 wave 2 brings those under the cap in a focused
-  // refactor PR — avoiding scope creep on PR-A2.1.
+  // Integration tree under `src/Tests/Integration/**` and its companion
+  // unit tests. Closes the gap CR cycle 4b exposed (17 helper functions
+  // >10 lines slipped through because the directory was not in the
+  // §19.10 allowlist). Future Integration files inherit automatically
+  // via the glob. No file is grandfathered: every remaining file
+  // already complies with the cap.
   {
     files: PHASE_10_INTEGRATION_FILES,
-    // PR-321 cycle-1 (CR finding #1): the previous glob
-    // 'src/Tests/Integration/Banks/**/*.ts' was too broad and grandfathered
-    // every NEW Mode A bank test out of §19.10. Narrow to the only legacy
-    // Phase 10 file under Banks/ so Mode A tests are enforced going forward.
-    //
-    // Same correction applied to Helpers/: the glob
-    // 'src/Tests/Integration/Helpers/**/*.ts' exempted every helper,
-    // including ones added later, so a new helper could exceed the cap
-    // while linting clean. Only MirrorInterceptor.ts actually needs the
-    // exemption (routeHandler 17, readCapturedSteps 11, installMirror 11);
-    // the other five helpers already comply, so naming the one file costs
-    // nothing and puts new helpers under the cap.
-    ignores: [
-      'src/Tests/Integration/Banks/LoginFormDiscovery.integration.test.ts',
-      'src/Tests/Integration/Helpers/MirrorInterceptor.ts',
-      'src/Tests/Integration/Mirror/LoginNavigation.mirror.test.ts',
-      'src/Tests/Integration/Tools/CheckBankIntegrationCoverage.ts',
-    ],
     plugins: { 'phase9-local': phase9LocalPlugin },
     rules: {
       'phase9-local/fn-declaration-max-lines': ['error', { max: 10 }],

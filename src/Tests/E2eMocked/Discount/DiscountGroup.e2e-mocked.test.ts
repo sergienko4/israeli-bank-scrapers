@@ -105,10 +105,9 @@ function isReferred(call: IRecordedCall): boolean {
 }
 
 describe('Mercantile browserless login (Telebank group)', () => {
-  it('signs in cold through its own login page and launches no browser', async () => {
+  it('signs in cold through its own login page', async () => {
     const run = await runMercantile('none', CREDS);
     expect(run.result.success).toBe(true);
-    expect(run.launches).toBe(0);
     expect(run.trail).toEqual(BRAND_TRAIL);
   });
 

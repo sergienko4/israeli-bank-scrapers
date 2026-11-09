@@ -42,8 +42,7 @@ type MtlsFallback = (request: IMtlsFallbackRequest) => Promise<Procedure<Respons
  * mTLS invoke path delegates to this fallback (which routes through the mocked
  * `globalThis.fetch`) instead of opening a real node:https socket, so the
  * OneZero mocked pipeline runs fully offline. Production leaves this null,
- * keeping the node:https path byte-identical. Mirrors the setFakePageEvalMode
- * test seam already used by the mocked Camoufox layer. The fallback is told
+ * keeping the node:https path byte-identical. The fallback is told
  * which certificate the request would present (`false` for none), so a mocked
  * suite can prove a dynamic client certificate reaches its origin only.
  */

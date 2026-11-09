@@ -22,7 +22,7 @@ const ACCT = { portfolioId: 'pf', portfolioNum: 'num', accountId: 'acc' };
  */
 function ctxFor(startDate: Date): IActionContext {
   const opts = makeMockOptions({ startDate });
-  return makeMockContext({ options: opts }) as unknown as IActionContext;
+  return makeMockContext({ options: opts });
 }
 
 describe('OneZeroShapeTxns.txnsVars', () => {

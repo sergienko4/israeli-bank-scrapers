@@ -1,27 +1,22 @@
 /**
- * Unit tests for PipelineExecutor — browser cleanup on failure.
- * Verifies that browser resources are always cleaned up, even when phases fail or throw.
+ * Unit tests for PipelineExecutor — API mediator disposal.
+ * Verifies the mediator's owned resources are released even when a phase fails or throws.
  */
 
 import { jest } from '@jest/globals';
-import type { BrowserContext, Page } from 'playwright-core';
 
 import { ScraperErrorTypes } from '../../../../Scrapers/Base/ErrorTypes.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import ScraperError from '../../../../Scrapers/Base/ScraperError.js';
 import { executePipeline } from '../../../../Scrapers/Pipeline/Core/Executor/PipelineExecutor.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
+import type { IApiMediator } from '../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { BasePhase } from '../../../../Scrapers/Pipeline/Phases/Base/BasePhase.js';
 import { some } from '../../../../Scrapers/Pipeline/Types/Option.js';
-import type { PhaseName } from '../../../../Scrapers/Pipeline/Types/Phase.js';
-import type {
-  IActionContext,
-  IBrowserState,
-  IPipelineContext,
-} from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
+import type { IActionContext } from '../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { SimplePhase } from '../../../../Scrapers/Pipeline/Types/SimplePhase.js';
+import { SimplePhase } from './SimplePhase.js';
 
 /** Minimal ScraperOptions for cleanup tests. */
 const MOCK_OPTIONS = {
@@ -33,36 +28,35 @@ const MOCK_OPTIONS = {
 const MOCK_CREDENTIALS = { username: 'user', password: 'pass' };
 
 type Ctx = IActionContext;
-type FullCtx = IPipelineContext;
 type ExecFn = (_ctx: Ctx, _input: Ctx) => Promise<Procedure<Ctx>>;
+type DisposeFn = () => Promise<void>;
 
 /**
- * Succeed-and-passthrough execute.
- * @param _ctx - Action context (unused).
- * @param input - Input passed through.
- * @returns Resolved success procedure.
+ * Create a phase that installs a mediator whose dispose is the given function.
+ * @param dispose - Dispose hook the executor must call during cleanup.
+ * @returns A phase that puts the mediator on the context.
  */
-function succeedExecute(_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> {
-  const result = succeed(input);
-  return Promise.resolve(result);
-}
-
-/**
- * Create a succeeding SimplePhase.
- * @param name - Phase name.
- * @returns A succeeding SimplePhase.
- */
-function succeedPhase(name: PhaseName): SimplePhase {
-  return new SimplePhase(name, succeedExecute);
+function makeMediatorPhase(dispose: DisposeFn): SimplePhase {
+  /**
+   * Install the mediator.
+   * @param _ctx - Pipeline context (unused).
+   * @param input - Input context to extend.
+   * @returns Context carrying the mediator.
+   */
+  const executeFn: ExecFn = (_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> => {
+    const mediator = { dispose } as unknown as IApiMediator;
+    const result = succeed({ ...input, apiMediator: some(mediator) });
+    return Promise.resolve(result);
+  };
+  return new SimplePhase('api-direct-call', executeFn);
 }
 
 /**
  * Create a failing SimplePhase.
- * @param name - Phase name.
  * @param message - Error message.
  * @returns A failing SimplePhase.
  */
-function failPhase(name: PhaseName, message: string): SimplePhase {
+function failPhase(message: string): SimplePhase {
   /**
    * Return a failure procedure.
    * @returns Resolved failure.
@@ -71,16 +65,15 @@ function failPhase(name: PhaseName, message: string): SimplePhase {
     const result = fail(ScraperErrorTypes.Generic, message);
     return Promise.resolve(result);
   };
-  return new SimplePhase(name, executeFn);
+  return new SimplePhase('api-direct-scrape', executeFn);
 }
 
 /**
  * Create a throwing SimplePhase.
- * @param name - Phase name.
  * @param message - Error message.
  * @returns A throwing SimplePhase.
  */
-function throwPhase(name: PhaseName, message: string): SimplePhase {
+function throwPhase(message: string): SimplePhase {
   /**
    * Always throws.
    * @returns Never.
@@ -88,159 +81,50 @@ function throwPhase(name: PhaseName, message: string): SimplePhase {
   const executeFn = (): Promise<Procedure<Ctx>> => {
     throw new ScraperError(message);
   };
-  return new SimplePhase(name, executeFn);
+  return new SimplePhase('api-direct-scrape', executeFn);
 }
 
 /**
- * Create a descriptor from phases.
+ * Run the pipeline built from the given phases.
  * @param phases - BasePhase instances.
- * @returns Pipeline descriptor.
- */
-function makeDescriptor(phases: BasePhase[]): IPipelineDescriptor {
-  return { options: MOCK_OPTIONS, phases, interceptors: [] };
-}
-
-/**
- * Run pipeline with default credentials.
- * @param descriptor - Pipeline descriptor.
  * @returns Scraping result.
  */
-async function run(descriptor: IPipelineDescriptor): ReturnType<typeof executePipeline> {
+async function run(phases: BasePhase[]): ReturnType<typeof executePipeline> {
+  const descriptor: IPipelineDescriptor = { options: MOCK_OPTIONS, phases, isHeadless: false };
   return await executePipeline(descriptor, MOCK_CREDENTIALS);
 }
 
-/**
- * Create an INIT SimplePhase that wires mock browser state with spy cleanups.
- * @param spies - Jest mock functions used as cleanup handlers.
- * @returns SimplePhase that sets browser state with the provided spy cleanups.
- */
-function makeInitWithSpyCleanups(spies: jest.Mock[]): SimplePhase {
-  /**
-   * Wire browser state with spy cleanups into context.
-   * @param _ctx - Pipeline context (unused).
-   * @param input - Input context to extend.
-   * @returns Context with browser state containing spy cleanups.
-   */
-  const executeFn: ExecFn = (_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> => {
-    const cleanups: IBrowserState['cleanups'] = spies.map(
-      (spy): IBrowserState['cleanups'][number] =>
-        (): Promise<Procedure<void>> => {
-          spy();
-          const done = succeed(undefined);
-          return Promise.resolve(done);
-        },
-    );
-    const state: IBrowserState = {
-      page: {} as unknown as Page,
-      context: {} as unknown as BrowserContext,
-      cleanups,
-    };
-    const extended = { ...input, browser: some(state) } as unknown as Ctx;
-    const result = succeed(extended);
-    return Promise.resolve(result);
-  };
-  return new SimplePhase('init', executeFn);
-}
-
-// ── Tests ───────────────────────────────────────────────────
-
-describe('PipelineExecutor/cleanup-on-phase-failure', () => {
-  it('runs browser cleanup when LOGIN phase fails', async () => {
-    const spy0 = jest.fn();
-    const spy1 = jest.fn();
-    const spy2 = jest.fn();
-    const initPhase = makeInitWithSpyCleanups([spy0, spy1, spy2]);
-    const phases = [initPhase, failPhase('login', 'bad creds')];
-    const descriptor = makeDescriptor(phases);
-    const result = await run(descriptor);
+describe('PipelineExecutor/mediator-dispose', () => {
+  it('disposes the mediator when a later phase fails', async () => {
+    const dispose = jest.fn<Promise<void>, []>().mockResolvedValue(undefined);
+    const result = await run([makeMediatorPhase(dispose), failPhase('bad creds')]);
     expect(result.success).toBe(false);
-    expect(spy0).toHaveBeenCalled();
-    expect(spy1).toHaveBeenCalled();
-    expect(spy2).toHaveBeenCalled();
+    expect(dispose).toHaveBeenCalledTimes(1);
   });
 
-  it('runs browser cleanup when HOME phase fails', async () => {
-    const spy0 = jest.fn();
-    const initPhase = makeInitWithSpyCleanups([spy0]);
-    const descriptor = makeDescriptor([initPhase, failPhase('home', 'home nav failed')]);
-    const result = await run(descriptor);
-    expect(result.success).toBe(false);
-    expect(spy0).toHaveBeenCalled();
-  });
-
-  it('runs browser cleanup when SCRAPE phase fails', async () => {
-    const spy0 = jest.fn();
-    const initPhase = makeInitWithSpyCleanups([spy0]);
-    const phases = [
-      initPhase,
-      succeedPhase('home'),
-      succeedPhase('login'),
-      failPhase('scrape', 'scrape error'),
-    ];
-    const descriptor = makeDescriptor(phases);
-    const result = await run(descriptor);
-    expect(result.success).toBe(false);
-    expect(spy0).toHaveBeenCalled();
-  });
-
-  it('runs browser cleanup when phase throws exception', async () => {
-    const spy0 = jest.fn();
-    const initPhase = makeInitWithSpyCleanups([spy0]);
-    const descriptor = makeDescriptor([initPhase, throwPhase('login', 'unexpected crash')]);
-    const result = await run(descriptor);
+  it('disposes the mediator and wraps the error when a later phase throws', async () => {
+    const dispose = jest.fn<Promise<void>, []>().mockResolvedValue(undefined);
+    const result = await run([makeMediatorPhase(dispose), throwPhase('unexpected crash')]);
     expect(result.success).toBe(false);
     expect(result.errorMessage).toBe('unexpected crash');
-    expect(spy0).toHaveBeenCalled();
+    expect(dispose).toHaveBeenCalledTimes(1);
   });
 
-  it('preserves original error message after cleanup', async () => {
-    const spy0 = jest.fn();
-    const initPhase = makeInitWithSpyCleanups([spy0]);
-    const descriptor = makeDescriptor([initPhase, failPhase('login', 'invalid password')]);
-    const result = await run(descriptor);
+  it('preserves the original error when dispose itself rejects', async () => {
+    const dispose = jest
+      .fn<Promise<void>, []>()
+      .mockRejectedValue(new Error('socket already closed'));
+    const result = await run([makeMediatorPhase(dispose), failPhase('invalid password')]);
     expect(result.success).toBe(false);
     expect(result.errorMessage).toBe('invalid password');
+    expect(dispose).toHaveBeenCalledTimes(1);
   });
 });
 
-describe('PipelineExecutor/cleanup-idempotent-on-success', () => {
-  it('does not crash when cleanup runs after successful TERMINATE', async () => {
-    const spy0 = jest.fn().mockResolvedValue(true);
-    const initPhase = makeInitWithSpyCleanups([spy0]);
-    /**
-     * Mock TERMINATE — runs cleanups then succeeds.
-     * @param _ctx - Pipeline context (unused).
-     * @param input - Input context with browser state.
-     * @returns Succeed after running cleanups.
-     */
-    const terminateExecute: ExecFn = async (_ctx: Ctx, input: Ctx): Promise<Procedure<Ctx>> => {
-      const withBrowser = input as unknown as FullCtx;
-      if (!withBrowser.browser.has) return succeed(input);
-      const cleanups = withBrowser.browser.value.cleanups;
-      const promises = cleanups.map((fn): Promise<Procedure<void>> => fn());
-      await Promise.all(promises);
-      return succeed(input);
-    };
-    const terminatePhase = new SimplePhase('terminate', terminateExecute);
-    const phases = [initPhase, succeedPhase('login'), terminatePhase];
-    const descriptor = makeDescriptor(phases);
-    const result = await run(descriptor);
-    expect(result.success).toBe(true);
-  });
-});
-
-describe('PipelineExecutor/no-browser-no-cleanup', () => {
-  it('skips cleanup when no INIT phase exists', async () => {
-    const descriptor = makeDescriptor([failPhase('login', 'no browser')]);
-    const result = await run(descriptor);
+describe('PipelineExecutor/no-mediator-no-dispose', () => {
+  it('fails cleanly when no phase installed a mediator', async () => {
+    const result = await run([failPhase('no mediator')]);
     expect(result.success).toBe(false);
-    expect(result.errorMessage).toBe('no browser');
-  });
-
-  it('skips cleanup when INIT itself fails', async () => {
-    const descriptor = makeDescriptor([failPhase('init', 'browser launch failed')]);
-    const result = await run(descriptor);
-    expect(result.success).toBe(false);
-    expect(result.errorMessage).toBe('browser launch failed');
+    expect(result.errorMessage).toBe('no mediator');
   });
 });

@@ -131,7 +131,6 @@ describe.each(FIBI_MOCK_BRANDS)('$companyId browserless refusals', (brand): void
     expect(run.result.errorMessage).toContain(refusal.message);
     expect(run.result.errorMessage).not.toContain(BN_BANK_NOTICE);
     expect(run.trail).toEqual(refusal.trail);
-    expect(run.launches).toBe(0);
   });
 
   it('never repeats the bank own text on a wrong password', async () => {

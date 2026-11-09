@@ -54,7 +54,7 @@ export function yahavCtx(session: SessionContext, start?: Date): IActionContext 
   const startDate = start ?? new Date(Date.now() - 30 * 86_400_000);
   const options = { ...base.options, startDate };
   const withBus: IPipelineContext = { ...base, options, apiMediator: some(bus) };
-  return withBus as unknown as IActionContext;
+  return withBus;
 }
 
 /**

@@ -50,19 +50,14 @@ describe('All bank pipelines', () => {
     expect(result.success).toBe(true);
   });
 
-  it.each(BANK_BUILDERS)(
-    '%s descriptor carries options + phases + interceptors',
-    (companyId, build) => {
-      const opts = makeMockOptions({ companyId });
-      const result = build(opts);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.value.options).toBe(opts);
-        const isArrayResult3 = Array.isArray(result.value.phases);
-        expect(isArrayResult3).toBe(true);
-        const isArrayResult4 = Array.isArray(result.value.interceptors);
-        expect(isArrayResult4).toBe(true);
-      }
-    },
-  );
+  it.each(BANK_BUILDERS)('%s descriptor carries options + phases', (companyId, build) => {
+    const opts = makeMockOptions({ companyId });
+    const result = build(opts);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.value.options).toBe(opts);
+      const isArrayResult3 = Array.isArray(result.value.phases);
+      expect(isArrayResult3).toBe(true);
+    }
+  });
 });

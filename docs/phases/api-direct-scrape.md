@@ -1,10 +1,12 @@
 # API-DIRECT-SCRAPE
 
-Shape-driven JSON/GraphQL walk that replaces SCRAPE + BALANCE-RESOLVE for api-direct banks. Same `PRE → ACTION → POST → FINAL` lifecycle as the browser pair, but the action is a shape-extractor pass rather than a DOM walk.
+Shape-driven HTTP data collection for every bank. The
+`PRE → ACTION → POST → FINAL` lifecycle fetches and maps transactions and
+balances from the authenticated session; it does not execute a DOM walk.
 
 |                 |                                                                                                                                                                                                                                                                                                                                               |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Always-on?**  | api-direct banks only                                                                                                                                                                                                                                                                                                                         |
+| **Always-on?**  | All banks                                                                                                                                                                                                                                                                                                                                     |
 | **Owner slots** | `scrape`, `balanceResolution`                                                                                                                                                                                                                                                                                                                 |
 | **Source**      | [`ApiDirectScrapePhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.ts) + [`ApiDirectScrapeSteps.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeSteps.ts) |
 
@@ -15,28 +17,30 @@ Shape-driven JSON/GraphQL walk that replaces SCRAPE + BALANCE-RESOLVE for api-di
 | `.pre`    | Read `IApiDirectScrapeShape` from the bank's `PipelineDescriptor`: per-account txn query + per-account balance query + extractors.                                                                                                                                                                                                                                        |
 | `.action` | For each `accountId`, run `fetchAccountTransactions` (calls the txn endpoint, extracts via the bank's `txnExtract`) + `fetchBalance` (calls the balance endpoint, extracts via `balanceExtract`, returning an `IBalanceOutcome` that records whether the value is real or a `fallbackOnFail` mask). Per-account `balance` lands on `scrape.accounts[i].balance` directly. |
 | `.post`   | Forensic audit — emits the per-account `--- Account <masked> \| <N> txns ---` line via `logForensicAudit`, then runs the optional **result guard** (see below).                                                                                                                                                                                                           |
-| `.final`  | **Emit `balanceResolution` from `scrape.accounts`** — builds `Map<accountNumber, balance>` directly. `PipelineResult` reads it the same way as browser banks.                                                                                                                                                                                                             |
+| `.final`  | **Emit `balanceResolution` from `scrape.accounts`** — records known per-account balances for `PipelineResult`; unknown balances remain unknown.                                                                                                                                                                                                                           |
 
-## Cross-origin session hand-off (browser banks)
+## HTTP session continuity
 
-Cookie-only banks authorise every post-auth service from the login session, so the hard-model driver calls the data API the moment login clears; the shape declares no navigation step. Headless banks never open a browser page; any page a login needs (Mizrahi's login and landing pages) is fetched as a plain HTTP step in API-DIRECT-CALL.
+Cookie-only banks authorise post-auth requests from the login session.
+Any HTML page a login needs is fetched as a plain HTTP step in
+API-DIRECT-CALL, not opened in a browser.
 
-The FIBI-group banks serve their data API on a different origin than their website (`www.<host>` → `online.<host>`). Beinleumi, Massad, Otsar Hahayal and Pagi log in headless on those online origins (`online.fibi.co.il`, `online.bankmassad.co.il`, `online.bankotsar.co.il`, `online.pagi.co.il`): API-DIRECT-CALL's SSO steps keep the portal-shell `authorization` through `sessionCarry`, so no browser hand-off is needed. AUTH-DISCOVERY's `postLoginNav` config, which once performed that hand-off in a browser, is declared by no bank today.
+The FIBI-group banks use their online origins (`online.fibi.co.il`,
+`online.bankmassad.co.il`, `online.bankotsar.co.il`, `online.pagi.co.il`).
+API-DIRECT-CALL's SSO steps keep the portal-shell `authorization` through
+`sessionCarry`. There is no separate browser/session-discovery phase.
 
 ## .final — Emit balanceResolution from scrape.accounts
 
-```typescript
-// ApiDirectScrapePhase.final (paraphrased)
-const map = new Map<string, number>();
-for (const acc of scrape.value.accounts) {
-  map.set(acc.accountNumber, acc.balance ?? 0);
-}
-return succeed({ ...input, balanceResolution: some(map) });
-```
+The final stage collects each known account balance into the shared
+resolution map. It does not turn an absent balance into zero. Per-card
+balances remain attached to their account/card records.
 
-This is what closes the cross-path unification: `PipelineResult.combineWithBalance` reads `ctx.balanceResolution` regardless of which scrape path produced it.
+`PipelineResult.combineWithBalance` reads `ctx.balanceResolution` when
+building the public account results.
 
-See [Architecture → BALANCE-RESOLVE (v6)](../architecture/balance-resolve.md) for the cross-path rationale.
+See [Account and card balances](../architecture/balance-resolve.md) for
+the current account/card semantics and unknown-balance behavior.
 
 ## Result guard — fail-closed degraded-token detection
 

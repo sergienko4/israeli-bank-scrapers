@@ -1,21 +1,17 @@
 /** Pipeline builder — fluent builder for IPipelineDescriptor. */
 
 import type { ScraperOptions } from '../../../Base/Interface.js';
-import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IApiDirectScrapeShape } from '../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import type { IPipelineDescriptor } from '../PipelineDescriptor.js';
-import type { LoginFn } from './PipelineAssembly.js';
-import type { ScrapeFn } from './PipelineBuilderHelpers.js';
-import { buildDescriptor } from './PipelineBuilderHelpers.js';
+import buildDescriptor from './PipelineBuilderHelpers.js';
 import {
   bindBankTextRule,
   createEmptyState,
   type IBuilderState,
   setApiDirectConfig,
   setApiDirectScrape,
-  setDeclarativeLogin,
   snapshotFields,
 } from './PipelineBuilderSetters.js';
 
@@ -34,30 +30,11 @@ class PipelineBuilder {
   }
 
   /**
-   * Enable browser lifecycle.
-   * @returns This builder.
-   */
-  public withBrowser(): this {
-    this._s.hasBrowser = true;
-    return this;
-  }
-
-  /**
    * Enable Headless Strategy — API-only banks skip browser phases.
    * @returns This builder.
    */
   public withHeadlessMediator(): this {
     this._s.isHeadless = true;
-    return this;
-  }
-
-  /**
-   * Use declarative form-based login.
-   * @param configOrFn - ILoginConfig or login function.
-   * @returns This builder.
-   */
-  public withDeclarativeLogin(configOrFn: ILoginConfig | LoginFn): this {
-    setDeclarativeLogin(this._s, configOrFn);
     return this;
   }
 
@@ -91,39 +68,6 @@ class PipelineBuilder {
   }
 
   /**
-   * Enable OTP trigger phase (clicks "Send SMS").
-   * @returns This builder.
-   */
-  public withOtpTrigger(): this {
-    this._s.hasOtpTrigger = true;
-    return this;
-  }
-
-  /**
-   * Enable OTP fill phase. Pass `required=false` for banks that may skip
-   * OTP entirely (e.g. Hapoalim — device-remembered sessions).
-   * @param required - Whether OTP fill is mandatory (default true).
-   * @returns This builder.
-   */
-  public withOtpFill(required = true): this {
-    this._s.hasOtpFill = true;
-    this._s.otpFillRequired = required;
-    return this;
-  }
-
-  /**
-   * Set transaction scraping function — browser-mode banks only.
-   * API-direct banks use {@link PipelineBuilder.withApiDirect}
-   * which wires call + scrape together.
-   * @param fn - Scrape function.
-   * @returns This builder.
-   */
-  public withScraper(fn: ScrapeFn): this {
-    this._s.scrapeFn = fn;
-    return this;
-  }
-
-  /**
    * Build the pipeline descriptor.
    * @returns The assembled descriptor.
    */
@@ -134,6 +78,4 @@ class PipelineBuilder {
   }
 }
 
-export type { LoginFn } from './PipelineAssembly.js';
-export type { ScrapeFn } from './PipelineBuilderHelpers.js';
-export { PipelineBuilder };
+export default PipelineBuilder;

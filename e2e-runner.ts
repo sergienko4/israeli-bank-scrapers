@@ -131,7 +131,6 @@ async function main(): Promise<void> {
   const scraper = createScraper({
     companyId,
     startDate: START_DATE,
-    shouldShowBrowser: false,
   });
 
   const result = await scraper.scrape(creds);

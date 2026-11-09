@@ -90,8 +90,8 @@ login never answers:
   body is never read.
 
 The config sets `omitBankText`, so no failure message carries the bank's own
-text. Browser options passed to `createScraper` are ignored with a
-[warning](../configuration.md#browser-options-on-browserless-banks).
+text. Browser options passed to `createScraper` are no longer supported; see the
+[migration notes](../configuration.md#removed-browser-options).
 
 ## Warm start
 
@@ -115,7 +115,7 @@ encoded, not encrypted, so store it as a secret.
 ## Known quirks
 
 - Beinleumi is the parent of the Beinleumi group. [Massad](massad.md), [Otsar Hahayal](otsar-hahayal.md) and [Pagi](pagi.md) log in the same way with their own brands.
-- Balance endpoint shape: `(withdrawable + current)` per account — see [`beinleumi/balance-resolve/last-good.json`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Tests/Unit/Pipeline/CrossValidation/Phases/Fixtures/beinleumi/balance-resolve/last-good.json) for the captured response shape.
+- Balance endpoint shape: `currentBalance ?? withdrawableBalance ?? 0` per account — see [`FibiGroupShapeHelpers.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.ts).
 
 ## Hard-model post-auth
 

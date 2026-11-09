@@ -18,11 +18,6 @@
  * anything, so an expired or opaque artifact is rejected the way the real bank
  * rejects it. Without that, a warm start replaying a dead token looked healthy
  * here while failing in production — the blind spot behind issue #576.
- *
- * Since fix/onezero-camoufox-identity-tls, identity calls route through the
- * Camoufox-backed strategy. The CamoufoxJsMock fake-page-eval mode is toggled
- * on so page.evaluate(fn, args) runs fn(args) in Node against this file's
- * globalThis.fetch override.
  */
 
 import {
@@ -31,7 +26,6 @@ import {
 } from '../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import { invokeFetch } from '../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js';
 import { makeJwtExpiringIn, makeJwtExpiringInWithClaims } from '../../Helpers/Jwt.js';
-import { setFakePageEvalMode } from '../../Mocks/CamoufoxJsMock.js';
 
 /** Tally values returned alongside dispose for wiring assertions. */
 export interface IMockCallCounts {
@@ -598,15 +592,13 @@ export function installOneZeroFetchMock(): IMockHandle {
   const tally: ICallTally = { identity: 0, graphql: 0 };
   const mockFetch = makeMockFetch(tally);
   (globalThis as unknown as { fetch: typeof mockFetch }).fetch = mockFetch;
-  setFakePageEvalMode(true);
   setMtlsFetchFallback(VIA_MOCKED_FETCH);
   /**
-   * Restore the original fetch implementation and reset the Camoufox mock.
+   * Restore the original fetch implementation and the mTLS fallback.
    * @returns True once restoration completes.
    */
   const dispose = (): boolean => {
     globalThis.fetch = previousFetch;
-    setFakePageEvalMode(false);
     setMtlsFetchFallback();
     return true;
   };

@@ -12,7 +12,6 @@ import type {
   ScraperOptions,
 } from '../../../Scrapers/Base/Interface.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
-import { getLaunchCount } from '../../Mocks/CamoufoxJsMock.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import type { HapoalimFault } from './HapoalimFaults.js';
 import { classifyHapoalim, installHapoalimFetchMock } from './HapoalimFetchMock.js';
@@ -29,7 +28,6 @@ export interface IHapoalimRun {
   readonly calls: readonly IRecordedCall[];
   readonly trail: readonly string[];
   readonly data: readonly IRecordedCall[];
-  readonly launches: number;
   /** The hint each retriever call received, in order. */
   readonly hints: readonly string[];
 }
@@ -159,7 +157,6 @@ export async function runHapoalim(
   fault: HapoalimFault = 'none',
   setup: IRunSetup = {},
 ): Promise<IHapoalimRun> {
-  const launchesBefore = getLaunchCount();
   const hints: string[] = [];
   const retriever = retrieverOf(setup, hints);
   const creds = credsOf(setup, retriever);
@@ -168,9 +165,8 @@ export async function runHapoalim(
   try {
     const result = await createScraper(options).scrape(creds);
     const calls = handle.calls();
-    const launches = getLaunchCount() - launchesBefore;
     const data = calls.filter(isDataCall);
-    return { result, calls, trail: calls.map(trailOf), data, launches, hints };
+    return { result, calls, trail: calls.map(trailOf), data, hints };
   } finally {
     handle.dispose();
   }

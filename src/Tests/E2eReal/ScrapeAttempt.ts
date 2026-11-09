@@ -5,7 +5,7 @@ import type {
   ScraperCredentials,
   ScraperOptions,
 } from '../../Scrapers/Base/Interface.js';
-import { BROWSER_ARGS, defaultStartDate } from './Helpers.js';
+import { defaultStartDate } from './Helpers.js';
 
 /**
  * Runs one real-bank scrape and resolves with its result.
@@ -55,8 +55,6 @@ function buildAttemptOptions(args: IScrapeAttemptArgs): ScraperOptions {
   return {
     companyId: args.companyId,
     startDate: defaultStartDate(),
-    shouldShowBrowser: false,
-    args: BROWSER_ARGS,
     onAuthFlowComplete: args.onAuthFlowComplete,
     ...durable,
   };

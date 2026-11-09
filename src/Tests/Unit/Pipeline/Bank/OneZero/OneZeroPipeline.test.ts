@@ -54,11 +54,4 @@ describe('buildOneZeroPipeline', () => {
     expect(names).not.toContain('otp-trigger');
     expect(names).not.toContain('otp-fill');
   });
-
-  it('descriptor has no interceptors (headless = no popup interceptor)', () => {
-    const opts = makeMockOptions();
-    const result = buildOneZeroPipeline(opts);
-    assertOk(result);
-    expect(result.value.interceptors).toHaveLength(0);
-  });
 });

@@ -41,6 +41,26 @@ After:
 // Removed: pick a supported company from CompanyTypes, or pin ^9.
 ```
 
+### 10.0.0 - The browser engine is removed; browser options leave `ScraperOptions`
+
+**Impact:** Breaking
+
+Every supported bank runs over HTTP, so the Playwright/Camoufox engine, the `postinstall` patch and both browser dependencies are gone. `ScraperOptions` no longer accepts `browser`, `browserContext`, `skipCloseBrowser`, `preparePage`, `defaultTimeout`, `viewportSize`, `shouldShowBrowser`, `executablePath`, `args`, `prepareBrowser`, `timeout`, `storeFailureScreenShotPath` or `navigationRetryCount`. Browser option types and Playwright imports no longer appear in the public declarations. `playwright-core` and `@hieutran094/camoufox-js` are no longer installed, so a consumer install downloads no browser binary and runs no browser patch.
+
+**What to do:** Remove those options from `createScraper` calls. A run no longer opens a page, so `page` hooks, viewport and timeout settings have no effect. If your own code imported Playwright types through this package, add `playwright-core` to your dependencies explicitly.
+
+Before:
+
+```js
+createScraper({ companyId, startDate, shouldShowBrowser: false, browser });
+```
+
+After:
+
+```js
+createScraper({ companyId, startDate });
+```
+
 ### 9.1.0 - API-direct login failures name the step and HTTP status
 
 **Impact:** Behavior

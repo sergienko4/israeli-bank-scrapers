@@ -1,8 +1,8 @@
 /**
  * LegacyOnlyOptions — the Pipeline guard for deprecated non-Pipeline options.
  *
- * <p>Eight fields declared in the shared public `ScraperOptions` type have no
- * Pipeline implementation: five are read only by the deprecated non-Pipeline
+ * <p>Five fields declared in the shared public `ScraperOptions` type have no
+ * Pipeline implementation: two are read only by the deprecated non-Pipeline
  * scrapers, and three have no reader at all (two since legacy Mizrahi was
  * removed). Passing one alongside a
  * Pipeline bank has no effect at all, which issue #540 reported as a silent
@@ -40,7 +40,7 @@ function makeOptions(extra: Record<string, unknown> = {}): ScraperOptions {
 
 describe('findLegacyOnlyOptions — detection', () => {
   it('finds nothing when the caller passes only Pipeline-supported options', () => {
-    const supported = makeOptions({ defaultTimeout: 30000 });
+    const supported = makeOptions({ futureMonthsToScrape: 1 });
     const found = findLegacyOnlyOptions(supported);
     expect(found).toEqual([]);
   });
@@ -70,10 +70,10 @@ describe('findLegacyOnlyOptions — detection', () => {
   });
 
   it('lists several ignored options in manifest order, not insertion order', () => {
-    const bag = { storeFailureScreenShotPath: '/tmp/x.png', includeRawTransaction: true };
+    const bag = { shouldCombineInstallments: false, includeRawTransaction: true };
     const outOfOrder = makeOptions(bag);
     const found = findLegacyOnlyOptions(outOfOrder);
-    expect(found).toEqual(['includeRawTransaction', 'storeFailureScreenShotPath']);
+    expect(found).toEqual(['includeRawTransaction', 'shouldCombineInstallments']);
   });
 });
 
@@ -101,7 +101,7 @@ function captureWarnings(options: ScraperOptions): IWarnOutcome {
 
 describe('warnLegacyOnlyOptions — caller-visible warning', () => {
   it('stays silent when every option passed is supported on the Pipeline', () => {
-    const supported = makeOptions({ defaultTimeout: 30000 });
+    const supported = makeOptions({ futureMonthsToScrape: 1 });
     const { emitted } = captureWarnings(supported);
     expect(emitted).toEqual([]);
   });
@@ -114,11 +114,11 @@ describe('warnLegacyOnlyOptions — caller-visible warning', () => {
   });
 
   it('names every ignored option so the caller knows what to remove', () => {
-    const bag = { includeRawTransaction: true, navigationRetryCount: 3 };
+    const bag = { includeRawTransaction: true, optInFeatures: [] };
     const two = makeOptions(bag);
     const { emitted } = captureWarnings(two);
     expect(emitted[0]).toContain('includeRawTransaction');
-    expect(emitted[0]).toContain('navigationRetryCount');
+    expect(emitted[0]).toContain('optInFeatures');
   });
 
   it('names the bank so the caller can tell which scrape dropped the option', () => {
@@ -154,9 +154,9 @@ describe('warnLegacyOnlyOptions — caller-visible warning', () => {
     expect(returned).toEqual(['includeRawTransaction']);
   });
 
-  it('never echoes an option value, which may carry a filesystem path or PII', () => {
-    const withPath = makeOptions({ storeFailureScreenShotPath: '/home/dana/secret.png' });
-    const { emitted } = captureWarnings(withPath);
-    expect(emitted[0]).not.toContain('/home/dana/secret.png');
+  it('never echoes an option value', () => {
+    const withFeature = makeOptions({ optInFeatures: ['mizrahi:pendingIfNoIdentifier'] });
+    const { emitted } = captureWarnings(withFeature);
+    expect(emitted[0]).not.toContain('mizrahi:pendingIfNoIdentifier');
   });
 });

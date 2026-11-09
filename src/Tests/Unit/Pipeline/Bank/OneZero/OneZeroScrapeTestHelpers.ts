@@ -157,5 +157,5 @@ export function makeCtx(bus: IApiMediator): IActionContext {
     ...base,
     apiMediator: some(bus),
   };
-  return withMediator as unknown as IActionContext;
+  return withMediator;
 }

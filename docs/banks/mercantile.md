@@ -45,8 +45,8 @@ its referer; the key request and the login name bank `m`; and `Uid` is
 `00011` and the id padded to nine digits, or `0001` and a ten-digit id
 starting with `9`. Every step, answer check and wire rule is Discount's; see
 the Discount [login](discount.md#browserless-login). Browser options passed to
-`createScraper` are ignored with a
-[warning](../configuration.md#browser-options-on-browserless-banks).
+`createScraper` are no longer supported; see the
+[migration notes](../configuration.md#removed-browser-options).
 
 ## Hard-model post-auth
 

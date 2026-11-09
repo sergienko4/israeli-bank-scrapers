@@ -1,11 +1,14 @@
 # API-DIRECT-CALL
 
-Login + OTP via JSON API. Replaces INIT → LOGIN → OTP-TRIGGER → OTP-FILL for api-direct banks (OneZero, Pepper, PayBox, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav) — the browser phases collapse into one headless phase with a declarative step list.
+Authentication over HTTP for every bank. A declarative step list handles
+login, OTP, session cookies and any HTML/script responses that need parsing;
+no page or browser engine is created. This is the first of the two pipeline
+phases, followed by [API-DIRECT-SCRAPE](api-direct-scrape.md).
 
 |                 |                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Always-on?**  | api-direct banks only                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| **Owner slots** | `apiMediator`, `login`, `api`                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **Always-on?**  | All banks                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **Owner slots** | `apiMediator`, `durableAuth`; diagnostics record the authentication outcome                                                                                                                                                                                                                                                                                                                                                                                                |
 | **Source**      | [`ApiDirectCallPhase.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectCall/ApiDirectCallPhase.ts) + [`ApiDirectCallActions.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/ApiDirectCall/ApiDirectCallActions.ts) + [`Flow/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow) |
 
 ## Unified api-direct primitives
@@ -858,7 +861,7 @@ locationCapture: {
   `<step> handoff missing`, and two or more `<step> handoff ambiguous`.
 - The one URL is resolved against the final answering URL and must pass the
   `url` rules (https, no user info, no fragment): else `<step> handoff
-  refused`. Its `href` goes to carry `into`, which a later step can name as its
+refused`. Its `href` goes to carry `into`, which a later step can name as its
   [`urlFromCarry`](#carried-step-url). A failure is `Generic` and names the
   step only, never the URL.
 
@@ -1523,126 +1526,126 @@ the native-only defaults checked by both api-direct and node-tls builders.
 The first broken rule
 fails the build with `Generic` and `<field>: <rule>`:
 
-| Broken when                                                                                                                               | Message                                                                            |
-| ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `authScheme: 'prefixed'` with a missing or blank `authPrefix`                                                                             | `authPrefix: required when authScheme is prefixed`                                 |
-| `authScheme: 'none'` without `headless.sessionCookies: true`                                                                              | `headless.sessionCookies: required when authScheme is none`                        |
-| `headless.sessionCookies` and any login or resume step with `cookieJar`                                                                   | `steps.cookieJar: not allowed with headless.sessionCookies`                        |
-| any login or resume step whose `outcome.successCodes` is empty                                                                            | `outcome.successCodes: must not be empty`                                          |
-| `warmStart` validated as `'jwt'` (the default) with no `jwtClaims`                                                                        | `jwtClaims: required when warmStart.validation is jwt`                             |
-| `warmStart` validated as `'bank-call'` with a `fromStepIndex` that names no step                                                          | `warmStart.fromStepIndex: must name a step when validation is bank-call`           |
-| `warmStart.fromStepIndex` below 1                                                                                                         | `warmStart.fromStepIndex: must start after the first step`                         |
-| `warmStart.fromStepIndex` fractional, `NaN` or above `steps.length`                                                                       | `warmStart.fromStepIndex: must be a whole number up to the step count`             |
-| `warmStart` validated as `'bank-call'` whose `fromStepIndex` step has a `runIf` guard                                                     | `warmStart.fromStepIndex: a bank-call check step must not have runIf`              |
-| a `kind: 'cookie-jar'` or `'carry-bundle'` `warmStart` with a blank `provider`                                                            | `warmStart.provider: must not be blank`                                            |
-| a `kind: 'cookie-jar'` `warmStart` with a blank `accountField`                                                                            | `warmStart.accountField: must not be blank`                                        |
-| a `kind: 'cookie-jar'` or `'carry-bundle'` `warmStart` whose `maxTokenChars` is not an integer from 1 to 16384                            | `warmStart.maxTokenChars: must be an integer from 1 to 16384`                      |
-| a `kind: 'cookie-jar'` `warmStart` without `headless.cookieDomains`                                                                       | `warmStart.kind: cookie-jar not allowed without headless.cookieDomains`            |
-| a `kind: 'carry-bundle'` `warmStart` with no `accountFields`, or a blank one (`API_DIRECT_WARM_BUNDLE_RULES`)                             | `warmStart.accountFields: must name a creds field, none blank`                     |
-| a `kind: 'carry-bundle'` `warmStart` with an empty `slots`                                                                                | `warmStart.slots: must not be empty`                                               |
-| a `kind: 'carry-bundle'` `warmStart` keeping a slot no login step extracts or generates                                                   | `warmStart.slots: each slot must be filled by a login step`                        |
-| a `kind: 'carry-bundle'` `warmStart` with `cookies: true`, without `headless.cookieDomains`                                               | `warmStart.cookies: not allowed without headless.cookieDomains`                    |
-| a `response: 'document'` step with any `extractsToCarry`, `optionalExtractsToCarry`, `outcome` or nonempty `failIfPresent`                | `steps.response: a document step reads no body extracts, outcome or failIfPresent` |
-| a `documentMarker` on any step whose `response` is not `'document'`                                                                       | `steps.documentMarker: only on a document step`                                    |
-| a manual `redirect` on a POST step without `postAsGet: true`                                                                          | `steps.redirect: manual on a POST step needs postAsGet`                  |
-| a manual `redirect` with `postAsGet` on a GET step                                                                                    | `steps.redirect: postAsGet only on POST steps`                           |
-| a manual `headless.redirectPolicy` (the default every POST shares)                                                                        | `headless.redirectPolicy: manual only on GET steps`                                |
-| a manual `redirect` whose `allow` list is empty                                                                                           | `redirect.allow: must not be empty`                                                |
-| a manual `redirect` whose `maxHops` is not an integer from 1 to 10                                                                        | `redirect.maxHops: must be an integer from 1 to 10`                                |
-| a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`                                                         | `headless.redirectPolicy: must be reject when a step redirects manually`           |
+| Broken when                                                                                                                                 | Message                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `authScheme: 'prefixed'` with a missing or blank `authPrefix`                                                                               | `authPrefix: required when authScheme is prefixed`                                 |
+| `authScheme: 'none'` without `headless.sessionCookies: true`                                                                                | `headless.sessionCookies: required when authScheme is none`                        |
+| `headless.sessionCookies` and any login or resume step with `cookieJar`                                                                     | `steps.cookieJar: not allowed with headless.sessionCookies`                        |
+| any login or resume step whose `outcome.successCodes` is empty                                                                              | `outcome.successCodes: must not be empty`                                          |
+| `warmStart` validated as `'jwt'` (the default) with no `jwtClaims`                                                                          | `jwtClaims: required when warmStart.validation is jwt`                             |
+| `warmStart` validated as `'bank-call'` with a `fromStepIndex` that names no step                                                            | `warmStart.fromStepIndex: must name a step when validation is bank-call`           |
+| `warmStart.fromStepIndex` below 1                                                                                                           | `warmStart.fromStepIndex: must start after the first step`                         |
+| `warmStart.fromStepIndex` fractional, `NaN` or above `steps.length`                                                                         | `warmStart.fromStepIndex: must be a whole number up to the step count`             |
+| `warmStart` validated as `'bank-call'` whose `fromStepIndex` step has a `runIf` guard                                                       | `warmStart.fromStepIndex: a bank-call check step must not have runIf`              |
+| a `kind: 'cookie-jar'` or `'carry-bundle'` `warmStart` with a blank `provider`                                                              | `warmStart.provider: must not be blank`                                            |
+| a `kind: 'cookie-jar'` `warmStart` with a blank `accountField`                                                                              | `warmStart.accountField: must not be blank`                                        |
+| a `kind: 'cookie-jar'` or `'carry-bundle'` `warmStart` whose `maxTokenChars` is not an integer from 1 to 16384                              | `warmStart.maxTokenChars: must be an integer from 1 to 16384`                      |
+| a `kind: 'cookie-jar'` `warmStart` without `headless.cookieDomains`                                                                         | `warmStart.kind: cookie-jar not allowed without headless.cookieDomains`            |
+| a `kind: 'carry-bundle'` `warmStart` with no `accountFields`, or a blank one (`API_DIRECT_WARM_BUNDLE_RULES`)                               | `warmStart.accountFields: must name a creds field, none blank`                     |
+| a `kind: 'carry-bundle'` `warmStart` with an empty `slots`                                                                                  | `warmStart.slots: must not be empty`                                               |
+| a `kind: 'carry-bundle'` `warmStart` keeping a slot no login step extracts or generates                                                     | `warmStart.slots: each slot must be filled by a login step`                        |
+| a `kind: 'carry-bundle'` `warmStart` with `cookies: true`, without `headless.cookieDomains`                                                 | `warmStart.cookies: not allowed without headless.cookieDomains`                    |
+| a `response: 'document'` step with any `extractsToCarry`, `optionalExtractsToCarry`, `outcome` or nonempty `failIfPresent`                  | `steps.response: a document step reads no body extracts, outcome or failIfPresent` |
+| a `documentMarker` on any step whose `response` is not `'document'`                                                                         | `steps.documentMarker: only on a document step`                                    |
+| a manual `redirect` on a POST step without `postAsGet: true`                                                                                | `steps.redirect: manual on a POST step needs postAsGet`                            |
+| a manual `redirect` with `postAsGet` on a GET step                                                                                          | `steps.redirect: postAsGet only on POST steps`                                     |
+| a manual `headless.redirectPolicy` (the default every POST shares)                                                                          | `headless.redirectPolicy: manual only on GET steps`                                |
+| a manual `redirect` whose `allow` list is empty                                                                                             | `redirect.allow: must not be empty`                                                |
+| a manual `redirect` whose `maxHops` is not an integer from 1 to 10                                                                          | `redirect.maxHops: must be an integer from 1 to 10`                                |
+| a manual `redirect` on any step while `headless.redirectPolicy` is not `'reject'`                                                           | `headless.redirectPolicy: must be reject when a step redirects manually`           |
 | a form step (`form`, `form-utf8` or `form-latin1`) whose body shape is not a flat record of `$ref`, `$join` and scalar `$literal` values    | `steps.body: a form body must be a flat record`                                    |
-| a `text` step whose body shape is not exactly `{ text }`                                                                                  | `steps.body: a text body must be exactly { text }`                                 |
-| a form step whose whole-shape `$merge` (`isMergeRoot`) has a `base` off `carry.<slot>` or a `set` that is not flat                    | `steps.body: a form body must be a flat record`                          |
-| a `$merge` anywhere but a form body's whole shape: a JSON or text body, a field, a header, a query (`API_DIRECT_MERGE_RULES`)         | `steps: $merge belongs only at the root of a form body`                  |
-| a `seal` whose `kind` is not a `SealKind`                                                                                             | `steps.seal.kind: unknown seal kind`                                     |
-| a `seal` on a step that is not a `POST` with a record body                                                                            | `steps.seal: needs a POST step with a record body`                       |
-| a `seal` with a `writeTo` that is not a JSON pointer                                                                                  | `steps.seal.writeTo: must be a JSON pointer`                             |
-| a `seal` with no fields or overlapping `writeTo` paths                                                                                | `steps.seal.fields: needs at least one field with non-overlapping writeTo paths` |
-| a block-xor `seal` whose `params` are out of range (exponent, seed, block size or printable text)                                     | `steps.seal.params: out of range`                                        |
-| a login or resume step with a `failIfPresent` entry that is not a JSON pointer below the body root                                    | `steps.failIfPresent: each entry must be a JSON pointer`                 |
-| a login or resume step with a `bankErrorType` but no `failIfPresent` entry and no codec                                               | `steps.bankErrorType: needs failIfPresent or a codec`                    |
-| an `extractRules` key that names no `extractsToCarry`, `optionalExtractsToCarry`, `headerExtractsToCarry` or `textCaptures` slot              | `steps.extractRules: each key must name a body or header extract`                  |
-| an `extractRules` `pattern` that does not start with `^`, end with `$` and compile with the `u` flag                                      | `steps.extractRules.pattern: must be an anchored regex`                            |
-| an `extractRules` `pattern` with a group, an alternation or a variable repeat before its last atom                                        | `steps.extractRules.pattern: must be a flat regex`                                 |
-| an `extractRules` `maxChars` that is not an integer from 1 to 65536                                                                       | `steps.extractRules.maxChars: must be an integer from 1 to 65536`                  |
-| an `extractRules` `oneOf` or `url` list that is empty                                                                                     | `steps.extractRules: oneOf and url must not be empty`                              |
-| a login or resume step whose `runIf` has a blank `carry` or an empty `oneOf`                                                              | `steps.runIf: carry and oneOf must not be empty`                                   |
-| a login or resume step with `textCaptures` whose `response` is not `'text'` (`API_DIRECT_TEXT_RULES`)                                    | `steps.textCaptures: need a text response`                                         |
-| a login or resume step with `maxTextChars` whose `response` is not `'text'`                                                           | `steps.maxTextChars: needs a text response`                              |
-| a `maxTextChars` that is not an integer from 1 to 2097152                                                                             | `steps.maxTextChars: must be an integer from 1 to 2097152`               |
-| a `textCaptures` `pattern` that does not compile with the `g` flag                                                                    | `steps.textCaptures.pattern: must compile`                               |
-| a `textCaptures` `pattern` with a group followed by `*`, `+` or `{`                                                                   | `steps.textCaptures.pattern: must not repeat a group`                    |
-| a `textCaptures` `group` that is not an integer from 0 to its pattern's group count                                                   | `steps.textCaptures.group: must name a group of its pattern`             |
-| a login or resume step with `formCapture` whose `response` is not `'text'` (`API_DIRECT_FORM_CAPTURE_RULES`)                          | `steps.formCapture: needs a text response`                               |
-| a `formCapture` with an empty `form` or `into`                                                                                        | `steps.formCapture: form and into must not be empty`                     |
-| a `formCapture` `action` that is not an absolute https URL written as `new URL(action).href`                                          | `steps.formCapture.action: must be an absolute https URL`                |
-| a `formCapture` whose `minFields` or `maxFields` is not an integer, or not `1 <= minFields <= maxFields`                              | `steps.formCapture: needs integers 1 <= minFields <= maxFields`          |
-| a `formCapture` `required` or `forbidden` name off `FORM_FIELD_NAME`, or named in both                                                | `steps.formCapture: field names must be valid and disjoint`              |
-| a login or resume step with `locationCapture` whose `response` is not `'text'` (`API_DIRECT_LOCATION_CAPTURE_RULES`)                  | `steps.locationCapture: needs a text response`                           |
-| a `locationCapture` with an empty `into`, `userAgent` or `url`                                                                        | `steps.locationCapture: into, userAgent and url must not be empty`       |
-| a `locationCapture` `into` that the step also extracts, or names as its `finalUrlInto` or `formCapture` slot                          | `steps.locationCapture: must be a fresh slot`                            |
-| a login or resume step with an `rsa-key` generator that names neither `keyInto` nor `spkiSha256HexInto` (`API_DIRECT_GENERATE_RULES`)     | `steps.generate: rsa-key needs keyInto or spkiSha256HexInto`                       |
-| a login or resume step with a `pkcs10-csr` generator whose `subject` is empty or whose `into` is blank                                    | `steps.generate: pkcs10-csr needs a subject and into`                              |
-| a login or resume step with an `ecdh-key` generator whose `publicInto` or `privateInto` is blank, or both name one slot               | `steps.generate: ecdh-key needs distinct publicInto and privateInto`     |
-| a `sessionCarry` slot that is the `privateInto` of some `ecdh-key` generator                                                          | `steps.generate: ecdh-key privateInto must not be a sessionCarry slot`   |
-| a login or resume step whose `preHook.valuePattern` does not start with `^`, end with `$` and compile with the `u` flag                   | `steps.preHook.valuePattern: must be an anchored regex`                            |
-| a login or resume step whose `preHook.valuePattern` has a group, an alternation or a variable repeat before its last atom                 | `steps.preHook.valuePattern: must be a flat regex`                                 |
-| a login or resume step whose `httpFailureMap` is empty (`API_DIRECT_HTTP_FAILURE_RULES`)                                              | `steps.httpFailureMap: must not be empty`                                          |
-| an `httpFailureMap` key that is not a `4xx` status, or a value outside the [login failure types](#http-failure-map)                   | `steps.httpFailureMap: must map 4xx statuses to login failure types`               |
-| a login or resume step with `clientCert`, without a `headless.clientCert` block (`API_DIRECT_CLIENT_CERT_RULES`)                          | `steps.clientCert: not allowed without headless.clientCert`                        |
-| a `headless.clientCert` whose `origin` is not exactly `https://host[:port]` (no path, user, trailing slash or default port)               | `headless.clientCert.origin: must be an exact https origin`                        |
-| `headless.clientCert` together with `headless.requiresClientCert: true`                                                                   | `headless.clientCert: not allowed with headless.requiresClientCert`                |
+| a `text` step whose body shape is not exactly `{ text }`                                                                                    | `steps.body: a text body must be exactly { text }`                                 |
+| a form step whose whole-shape `$merge` (`isMergeRoot`) has a `base` off `carry.<slot>` or a `set` that is not flat                          | `steps.body: a form body must be a flat record`                                    |
+| a `$merge` anywhere but a form body's whole shape: a JSON or text body, a field, a header, a query (`API_DIRECT_MERGE_RULES`)               | `steps: $merge belongs only at the root of a form body`                            |
+| a `seal` whose `kind` is not a `SealKind`                                                                                                   | `steps.seal.kind: unknown seal kind`                                               |
+| a `seal` on a step that is not a `POST` with a record body                                                                                  | `steps.seal: needs a POST step with a record body`                                 |
+| a `seal` with a `writeTo` that is not a JSON pointer                                                                                        | `steps.seal.writeTo: must be a JSON pointer`                                       |
+| a `seal` with no fields or overlapping `writeTo` paths                                                                                      | `steps.seal.fields: needs at least one field with non-overlapping writeTo paths`   |
+| a block-xor `seal` whose `params` are out of range (exponent, seed, block size or printable text)                                           | `steps.seal.params: out of range`                                                  |
+| a login or resume step with a `failIfPresent` entry that is not a JSON pointer below the body root                                          | `steps.failIfPresent: each entry must be a JSON pointer`                           |
+| a login or resume step with a `bankErrorType` but no `failIfPresent` entry and no codec                                                     | `steps.bankErrorType: needs failIfPresent or a codec`                              |
+| an `extractRules` key that names no `extractsToCarry`, `optionalExtractsToCarry`, `headerExtractsToCarry` or `textCaptures` slot            | `steps.extractRules: each key must name a body or header extract`                  |
+| an `extractRules` `pattern` that does not start with `^`, end with `$` and compile with the `u` flag                                        | `steps.extractRules.pattern: must be an anchored regex`                            |
+| an `extractRules` `pattern` with a group, an alternation or a variable repeat before its last atom                                          | `steps.extractRules.pattern: must be a flat regex`                                 |
+| an `extractRules` `maxChars` that is not an integer from 1 to 65536                                                                         | `steps.extractRules.maxChars: must be an integer from 1 to 65536`                  |
+| an `extractRules` `oneOf` or `url` list that is empty                                                                                       | `steps.extractRules: oneOf and url must not be empty`                              |
+| a login or resume step whose `runIf` has a blank `carry` or an empty `oneOf`                                                                | `steps.runIf: carry and oneOf must not be empty`                                   |
+| a login or resume step with `textCaptures` whose `response` is not `'text'` (`API_DIRECT_TEXT_RULES`)                                       | `steps.textCaptures: need a text response`                                         |
+| a login or resume step with `maxTextChars` whose `response` is not `'text'`                                                                 | `steps.maxTextChars: needs a text response`                                        |
+| a `maxTextChars` that is not an integer from 1 to 2097152                                                                                   | `steps.maxTextChars: must be an integer from 1 to 2097152`                         |
+| a `textCaptures` `pattern` that does not compile with the `g` flag                                                                          | `steps.textCaptures.pattern: must compile`                                         |
+| a `textCaptures` `pattern` with a group followed by `*`, `+` or `{`                                                                         | `steps.textCaptures.pattern: must not repeat a group`                              |
+| a `textCaptures` `group` that is not an integer from 0 to its pattern's group count                                                         | `steps.textCaptures.group: must name a group of its pattern`                       |
+| a login or resume step with `formCapture` whose `response` is not `'text'` (`API_DIRECT_FORM_CAPTURE_RULES`)                                | `steps.formCapture: needs a text response`                                         |
+| a `formCapture` with an empty `form` or `into`                                                                                              | `steps.formCapture: form and into must not be empty`                               |
+| a `formCapture` `action` that is not an absolute https URL written as `new URL(action).href`                                                | `steps.formCapture.action: must be an absolute https URL`                          |
+| a `formCapture` whose `minFields` or `maxFields` is not an integer, or not `1 <= minFields <= maxFields`                                    | `steps.formCapture: needs integers 1 <= minFields <= maxFields`                    |
+| a `formCapture` `required` or `forbidden` name off `FORM_FIELD_NAME`, or named in both                                                      | `steps.formCapture: field names must be valid and disjoint`                        |
+| a login or resume step with `locationCapture` whose `response` is not `'text'` (`API_DIRECT_LOCATION_CAPTURE_RULES`)                        | `steps.locationCapture: needs a text response`                                     |
+| a `locationCapture` with an empty `into`, `userAgent` or `url`                                                                              | `steps.locationCapture: into, userAgent and url must not be empty`                 |
+| a `locationCapture` `into` that the step also extracts, or names as its `finalUrlInto` or `formCapture` slot                                | `steps.locationCapture: must be a fresh slot`                                      |
+| a login or resume step with an `rsa-key` generator that names neither `keyInto` nor `spkiSha256HexInto` (`API_DIRECT_GENERATE_RULES`)       | `steps.generate: rsa-key needs keyInto or spkiSha256HexInto`                       |
+| a login or resume step with a `pkcs10-csr` generator whose `subject` is empty or whose `into` is blank                                      | `steps.generate: pkcs10-csr needs a subject and into`                              |
+| a login or resume step with an `ecdh-key` generator whose `publicInto` or `privateInto` is blank, or both name one slot                     | `steps.generate: ecdh-key needs distinct publicInto and privateInto`               |
+| a `sessionCarry` slot that is the `privateInto` of some `ecdh-key` generator                                                                | `steps.generate: ecdh-key privateInto must not be a sessionCarry slot`             |
+| a login or resume step whose `preHook.valuePattern` does not start with `^`, end with `$` and compile with the `u` flag                     | `steps.preHook.valuePattern: must be an anchored regex`                            |
+| a login or resume step whose `preHook.valuePattern` has a group, an alternation or a variable repeat before its last atom                   | `steps.preHook.valuePattern: must be a flat regex`                                 |
+| a login or resume step whose `httpFailureMap` is empty (`API_DIRECT_HTTP_FAILURE_RULES`)                                                    | `steps.httpFailureMap: must not be empty`                                          |
+| an `httpFailureMap` key that is not a `4xx` status, or a value outside the [login failure types](#http-failure-map)                         | `steps.httpFailureMap: must map 4xx statuses to login failure types`               |
+| a login or resume step with `clientCert`, without a `headless.clientCert` block (`API_DIRECT_CLIENT_CERT_RULES`)                            | `steps.clientCert: not allowed without headless.clientCert`                        |
+| a `headless.clientCert` whose `origin` is not exactly `https://host[:port]` (no path, user, trailing slash or default port)                 | `headless.clientCert.origin: must be an exact https origin`                        |
+| `headless.clientCert` together with `headless.requiresClientCert: true`                                                                     | `headless.clientCert: not allowed with headless.requiresClientCert`                |
 | a `sessionCarry` slot no login or resume step extracts, captures via `script-json`, or names as `finalUrlInto` (`API_DIRECT_SESSION_RULES`) | `sessionCarry: each slot must name a step extract`                                 |
-| `cookieHandoff: 'isolate'` without `headless.cookieDomains`                                                                               | `cookieHandoff: isolate not allowed without headless.cookieDomains`                |
-| a `persistentAuth` block whose `kind` has no supported primer (`API_DIRECT_PERSISTENT_AUTH_RULES`)                                        | `persistentAuth.kind: must be bound-device or device-memory`                       |
-| a login or resume step with `response`, `documentMarker`, `headerExtractsToCarry` or `encoding` off native fetch and node:https           | `steps.<field>: not allowed without nativeFetch or node:https`                     |
-| a login or resume step with `redirect`, without `headless.nativeFetch: true`                                                              | `steps.redirect: not allowed without headless.nativeFetch`                         |
-| `headless.cookieDomains` off native fetch and node:https                                                                                  | `headless.cookieDomains: not allowed without nativeFetch or node:https`            |
-| `headless.redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, including node-tls banks                | `headless.<field>: not allowed without headless.nativeFetch`                       |
-| `headless.cookieDomains` without `headless.sessionCookies: true`                                                                          | `headless.cookieDomains: not allowed without headless.sessionCookies`              |
-| a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                                | `headerExtractsToCarry.header: must be an HTTP header name`                        |
-| a login or resume step with `setCookies`, without `headless.cookieDomains`                                                                | `steps.setCookies: not allowed without headless.cookieDomains`                     |
-| a `setCookies` cookie name that is not an HTTP token (RFC 9110)                                                                           | `steps.setCookies: each name must be an HTTP token`                                |
-| a malformed required or optional `setCookies` source                                                                                       | `steps.setCookies: each source must be a valid ref or optional ref`                |
-| a `seedCarryFromCreds` entry whose `random-hex` bootstrap draws a `bytes` count that is not an integer from 1 to 64                   | `seedCarryFromCreds: random-hex needs integer bytes from 1 to 64`        |
-| a seed with `alwaysBootstrap: true` but no random bootstrap                                                                              | `seedCarryFromCreds: alwaysBootstrap needs a random bootstrap`                     |
-| a `derivedCarry` or `deriveCarry` `op` with an unsupported `kind` (`API_DIRECT_DERIVE_RULES`)                                            | `derive.op.kind: must be format, md5-hex, url-query, url-path-map or url-compose`  |
-| a `url-query` op without exactly one source part and a safe, nonblank key                                                             | `derive.op.url-query: needs one part and a valid key`                     |
-| a `url-query` op whose `rejectBlank` is neither omitted nor `true` | `derive.op.url-query.rejectBlank: must be true when set` |
-| a `url-path-map` with invalid source, selector, map or URL policies                                                                  | `derive.op.url-path-map: invalid mapping`                                |
-| a `url-compose` with invalid parts, URL policies or merge settings                                                                       | `derive.op.url-compose: invalid composition`                                       |
-| a `format` op with no rule                                                                                                            | `derive.op.rules: needs at least one rule`                               |
-| a `format` rule `pattern` that does not compile with the `u` flag                                                                     | `derive.op.rules.pattern: must compile`                                  |
-| a `format` rule `pattern` outside the linear-time `FlatPattern` grammar                                                              | `derive.op.rules.pattern: must be a flat regex`                          |
-| a `format` rule `padStart` that is not an integer from 0 to 64                                                                        | `derive.op.rules.padStart: must be an integer from 0 to 64`              |
-| a login or resume step with `codec` whose `encoding` or `response` is not `'json'` (`API_DIRECT_CODEC_RULES`)                         | `steps.codec: needs a json body and a json response`                     |
-| an `exchange` codec whose `keyInto` or `sessionInto` is blank, or both name one slot                                                  | `steps.codec: exchange needs distinct keyInto and sessionInto`           |
-| a `sessionCarry` slot that a codec reads or writes: the `privateRef`, `keyRef` or `sessionRef` slot, `keyInto` or `sessionInto`       | `steps.codec: codec slots must not be sessionCarry slots`                |
-| a login or resume step with both `rawQuery` and `queryTemplate` (`API_DIRECT_URL_RULES`)                                              | `steps.rawQuery: not with queryTemplate`                                 |
-| a `urlFromCarry` slot with any unchecked earlier writer, or a pre-hook overwrite in its consumer step                               | `steps.urlFromCarry: slot needs an earlier url rule`                     |
-| a `finalUrlInto` on a step whose `redirect` is not manual                                                                             | `steps.finalUrlInto: needs a manual redirect`                            |
-| a `finalUrlInto` slot that is blank, or that the step also extracts                                                                   | `steps.finalUrlInto: must be a fresh slot`                               |
-| an optional `$ref` at a body or query root, inside an array or in a header (`API_DIRECT_OPTIONAL_REF_RULES`)                          | `steps: optional ref only as an object value`                            |
-| a `response: 'document'` step with any `extractsToCarry` or `optionalExtractsToCarry`                                                 | `steps.response: a document step reads no body extracts`                 |
-| a login or resume step whose `classify` has no case, or a case with an empty `when` (`API_DIRECT_CLASSIFY_RULES`)                     | `steps.classify: needs cases, each with a check`                         |
-| a `classify` check that names no kind, or several of `absent`, `equals`, `oneOf`, `items`, `keys` and `text`                          | `steps.classify: each check names exactly one kind`                      |
-| a `classify` check or capture pointer with no alternative, or an alternative that is not a JSON pointer below the body root           | `steps.classify: each pointer must be a JSON pointer`                    |
-| a `classify` text `pattern` that does not start with `^`, end with `$` and compile alone with the `u` flag                            | `steps.classify.text.pattern: must be an anchored regex`                 |
-| a `classify` text `pattern` with a group, an alternation or a variable repeat before its last atom                                    | `steps.classify.text.pattern: must be a flat regex`                      |
-| a `classify` text check or capture whose `maxChars` is not an integer from 1 to 65536                                                 | `steps.classify.maxChars: must be an integer from 1 to 65536`            |
-| a `classify` capture with both `onlyKey` and `integer`                                                                                | `steps.classify.captures: onlyKey and integer are exclusive`             |
-| a `classify` capture `integer` range with a fractional bound, or a `min` above its `max`                                              | `steps.classify.captures.integer: must be an integer range`              |
-| a `classify` capture whose slot is the classifier's `into` (`API_DIRECT_CLASSIFY_SLOT_RULES`)                                         | `steps.classify.captures: a slot must not be into`                       |
-| a `classify` `into` or capture slot that the same step writes as an extract, final URL, capture or derivation                          | `steps.classify: slots must not be slots the step also writes`           |
-| a `sessionCarry` slot that is the `into` of some `classify`                                                                           | `steps.classify.into: must not be a sessionCarry slot`                   |
-| a `runIf` whose `carry` some `classify` writes, with a `oneOf` text that no case written to that slot is named                        | `steps.runIf: on a classifier slot, oneOf lists only case names`         |
-| a login or resume step with `mediaType`, off native fetch and node:https                                                              | `steps.mediaType: not allowed without nativeFetch or node:https`         |
-| a login or resume step with `strictUtf8`, off native fetch and node:https                                                             | `steps.strictUtf8: not allowed without nativeFetch or node:https`        |
-| `headless.mediaTypes` without `headless.nativeFetch: true`                                                                            | `headless.mediaTypes: not allowed without headless.nativeFetch`          |
-| `headless.strictUtf8` without `headless.nativeFetch: true`                                                                           | `headless.strictUtf8: not allowed without headless.nativeFetch`         |
-| a `headless.mediaTypes` key that is not a response kind (`API_DIRECT_MEDIA_RULES`)                                                    | `headless.mediaTypes: keys must be response kinds`                       |
-| a step `mediaType` or `headless.mediaTypes` value that is not one lower-case `type/subtype`, no parameters                            | `mediaType: must be a lower-case type/subtype`                           |
-| a step `strictUtf8: false` on a bank without `headless.strictUtf8: true` (`API_DIRECT_UTF8_RULES`)                                    | `steps.strictUtf8: false only overrides headless.strictUtf8`             |
+| `cookieHandoff: 'isolate'` without `headless.cookieDomains`                                                                                 | `cookieHandoff: isolate not allowed without headless.cookieDomains`                |
+| a `persistentAuth` block whose `kind` has no supported primer (`API_DIRECT_PERSISTENT_AUTH_RULES`)                                          | `persistentAuth.kind: must be bound-device or device-memory`                       |
+| a login or resume step with `response`, `documentMarker`, `headerExtractsToCarry` or `encoding` off native fetch and node:https             | `steps.<field>: not allowed without nativeFetch or node:https`                     |
+| a login or resume step with `redirect`, without `headless.nativeFetch: true`                                                                | `steps.redirect: not allowed without headless.nativeFetch`                         |
+| `headless.cookieDomains` off native fetch and node:https                                                                                    | `headless.cookieDomains: not allowed without nativeFetch or node:https`            |
+| `headless.redirectPolicy`, `statusPolicy` or `omitBankText` without `headless.nativeFetch: true`, including node-tls banks                  | `headless.<field>: not allowed without headless.nativeFetch`                       |
+| `headless.cookieDomains` without `headless.sessionCookies: true`                                                                            | `headless.cookieDomains: not allowed without headless.sessionCookies`              |
+| a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                                  | `headerExtractsToCarry.header: must be an HTTP header name`                        |
+| a login or resume step with `setCookies`, without `headless.cookieDomains`                                                                  | `steps.setCookies: not allowed without headless.cookieDomains`                     |
+| a `setCookies` cookie name that is not an HTTP token (RFC 9110)                                                                             | `steps.setCookies: each name must be an HTTP token`                                |
+| a malformed required or optional `setCookies` source                                                                                        | `steps.setCookies: each source must be a valid ref or optional ref`                |
+| a `seedCarryFromCreds` entry whose `random-hex` bootstrap draws a `bytes` count that is not an integer from 1 to 64                         | `seedCarryFromCreds: random-hex needs integer bytes from 1 to 64`                  |
+| a seed with `alwaysBootstrap: true` but no random bootstrap                                                                                 | `seedCarryFromCreds: alwaysBootstrap needs a random bootstrap`                     |
+| a `derivedCarry` or `deriveCarry` `op` with an unsupported `kind` (`API_DIRECT_DERIVE_RULES`)                                               | `derive.op.kind: must be format, md5-hex, url-query, url-path-map or url-compose`  |
+| a `url-query` op without exactly one source part and a safe, nonblank key                                                                   | `derive.op.url-query: needs one part and a valid key`                              |
+| a `url-query` op whose `rejectBlank` is neither omitted nor `true`                                                                          | `derive.op.url-query.rejectBlank: must be true when set`                           |
+| a `url-path-map` with invalid source, selector, map or URL policies                                                                         | `derive.op.url-path-map: invalid mapping`                                          |
+| a `url-compose` with invalid parts, URL policies or merge settings                                                                          | `derive.op.url-compose: invalid composition`                                       |
+| a `format` op with no rule                                                                                                                  | `derive.op.rules: needs at least one rule`                                         |
+| a `format` rule `pattern` that does not compile with the `u` flag                                                                           | `derive.op.rules.pattern: must compile`                                            |
+| a `format` rule `pattern` outside the linear-time `FlatPattern` grammar                                                                     | `derive.op.rules.pattern: must be a flat regex`                                    |
+| a `format` rule `padStart` that is not an integer from 0 to 64                                                                              | `derive.op.rules.padStart: must be an integer from 0 to 64`                        |
+| a login or resume step with `codec` whose `encoding` or `response` is not `'json'` (`API_DIRECT_CODEC_RULES`)                               | `steps.codec: needs a json body and a json response`                               |
+| an `exchange` codec whose `keyInto` or `sessionInto` is blank, or both name one slot                                                        | `steps.codec: exchange needs distinct keyInto and sessionInto`                     |
+| a `sessionCarry` slot that a codec reads or writes: the `privateRef`, `keyRef` or `sessionRef` slot, `keyInto` or `sessionInto`             | `steps.codec: codec slots must not be sessionCarry slots`                          |
+| a login or resume step with both `rawQuery` and `queryTemplate` (`API_DIRECT_URL_RULES`)                                                    | `steps.rawQuery: not with queryTemplate`                                           |
+| a `urlFromCarry` slot with any unchecked earlier writer, or a pre-hook overwrite in its consumer step                                       | `steps.urlFromCarry: slot needs an earlier url rule`                               |
+| a `finalUrlInto` on a step whose `redirect` is not manual                                                                                   | `steps.finalUrlInto: needs a manual redirect`                                      |
+| a `finalUrlInto` slot that is blank, or that the step also extracts                                                                         | `steps.finalUrlInto: must be a fresh slot`                                         |
+| an optional `$ref` at a body or query root, inside an array or in a header (`API_DIRECT_OPTIONAL_REF_RULES`)                                | `steps: optional ref only as an object value`                                      |
+| a `response: 'document'` step with any `extractsToCarry` or `optionalExtractsToCarry`                                                       | `steps.response: a document step reads no body extracts`                           |
+| a login or resume step whose `classify` has no case, or a case with an empty `when` (`API_DIRECT_CLASSIFY_RULES`)                           | `steps.classify: needs cases, each with a check`                                   |
+| a `classify` check that names no kind, or several of `absent`, `equals`, `oneOf`, `items`, `keys` and `text`                                | `steps.classify: each check names exactly one kind`                                |
+| a `classify` check or capture pointer with no alternative, or an alternative that is not a JSON pointer below the body root                 | `steps.classify: each pointer must be a JSON pointer`                              |
+| a `classify` text `pattern` that does not start with `^`, end with `$` and compile alone with the `u` flag                                  | `steps.classify.text.pattern: must be an anchored regex`                           |
+| a `classify` text `pattern` with a group, an alternation or a variable repeat before its last atom                                          | `steps.classify.text.pattern: must be a flat regex`                                |
+| a `classify` text check or capture whose `maxChars` is not an integer from 1 to 65536                                                       | `steps.classify.maxChars: must be an integer from 1 to 65536`                      |
+| a `classify` capture with both `onlyKey` and `integer`                                                                                      | `steps.classify.captures: onlyKey and integer are exclusive`                       |
+| a `classify` capture `integer` range with a fractional bound, or a `min` above its `max`                                                    | `steps.classify.captures.integer: must be an integer range`                        |
+| a `classify` capture whose slot is the classifier's `into` (`API_DIRECT_CLASSIFY_SLOT_RULES`)                                               | `steps.classify.captures: a slot must not be into`                                 |
+| a `classify` `into` or capture slot that the same step writes as an extract, final URL, capture or derivation                               | `steps.classify: slots must not be slots the step also writes`                     |
+| a `sessionCarry` slot that is the `into` of some `classify`                                                                                 | `steps.classify.into: must not be a sessionCarry slot`                             |
+| a `runIf` whose `carry` some `classify` writes, with a `oneOf` text that no case written to that slot is named                              | `steps.runIf: on a classifier slot, oneOf lists only case names`                   |
+| a login or resume step with `mediaType`, off native fetch and node:https                                                                    | `steps.mediaType: not allowed without nativeFetch or node:https`                   |
+| a login or resume step with `strictUtf8`, off native fetch and node:https                                                                   | `steps.strictUtf8: not allowed without nativeFetch or node:https`                  |
+| `headless.mediaTypes` without `headless.nativeFetch: true`                                                                                  | `headless.mediaTypes: not allowed without headless.nativeFetch`                    |
+| `headless.strictUtf8` without `headless.nativeFetch: true`                                                                                  | `headless.strictUtf8: not allowed without headless.nativeFetch`                    |
+| a `headless.mediaTypes` key that is not a response kind (`API_DIRECT_MEDIA_RULES`)                                                          | `headless.mediaTypes: keys must be response kinds`                                 |
+| a step `mediaType` or `headless.mediaTypes` value that is not one lower-case `type/subtype`, no parameters                                  | `mediaType: must be a lower-case type/subtype`                                     |
+| a step `strictUtf8: false` on a bank without `headless.strictUtf8: true` (`API_DIRECT_UTF8_RULES`)                                          | `steps.strictUtf8: false only overrides headless.strictUtf8`                       |
 
 `warmStart.validation` says how a stored token is judged before reuse. `'jwt'`
 reads its expiry through `jwtClaims`. `'bank-call'` is for a token with no
@@ -1786,11 +1789,11 @@ The bundle's ops:
 
 ### Transport errors
 
-Every transport — native fetch, Camoufox page fetch and mTLS — names a URL in
+Every HTTP transport — native fetch and its mTLS variant — names a URL in
 its errors and debug logs through `safeUrlForLog`, which keeps only the origin
 and path. Query parameters can carry device ids and session values, so they
-never reach an error message or a log line. Native fetch and Camoufox also pass
-a caught exception's text through `scrubUrlFromText`, so an engine message that
+never reach an error message or a log line. Native fetch also passes
+a caught exception's text through `scrubUrlFromText`, so a transport message that
 quotes the request URL keeps only its origin and path as well.
 
 A non-2xx response becomes `GENERIC`, with the message
@@ -1804,10 +1807,9 @@ itself is unreachable, so they stay `GENERIC`. A Cloudflare challenge is also
 `cf-mitigated: challenge` response header: Cloudflare injects its
 challenge-platform script into ordinary origin pages too, so no body marker
 can tell a challenge apart. Cloudflare does not tie that header to a status, so
-both strategies check it with `hasCloudflareChallengeHeader` before parsing a
+the HTTP strategy checks it with `hasCloudflareChallengeHeader` before parsing a
 `2xx` body; a challenged `2xx` is classified, not parsed. Native fetch
-(including its mTLS
-and GraphQL variants) and Camoufox page fetch share this one rule,
+(including its mTLS and GraphQL variants) uses this rule,
 `classifyHttpFailure`
 (`src/Scrapers/Pipeline/Strategy/Fetch/HttpFailureClassifier.ts`), whose fixed
 reasons are `CLOUDFLARE_BLOCK_REASON` and `CLOUDFLARE_CHALLENGE_REASON`. The
@@ -1832,13 +1834,7 @@ reports a failed step as `<step> HTTP <status>` when the bank answered, or as
 keeps `errorType` and `errorDetails`, except that a step's
 [`httpFailureMap`](#http-failure-map) may name the type for the reply's
 status, and leaves a `WAF_BLOCKED` failure as it is, since that message
-carries a fixed reason instead of the page. A failure raised before any
-request is sent, such as `CAMOUFOX_LAUNCH_FAILED` when the browser will not
-start, passes unchanged too: it holds no bank reply, and the consumer-install
-gate reads it. `isLocalFailureMessage`
-(`src/Scrapers/Pipeline/Strategy/Fetch/LocalFailureReasons.ts`) matches such a
-reason only at the start of the message, so a reply that quotes one is still
-cut down. The in-request re-mint runs below the step, so it still reads the
+carries a fixed reason instead of the page. The in-request re-mint runs below the step, so it still reads the
 original space-delimited `<status>:` marker. A scrape call keeps the
 transport message unless its shape sets `omitBankText`; the scrape phase then
 passes the failure through `sanitiseStepFailure` with only the call's name, so
@@ -2107,7 +2103,7 @@ Where each piece lives, for maintainers:
 | Shared envelope     | `PersistentAuthEnvelope.ts`: `decodeStateObject`, `encodeStateObject`, `hasExactKeySet`, `invalidState`; the shared rules `isBoundedString`, `isExpectedProvider` and `isSupportedVersion` are each an `IStateRule` check                                                                                                                                     |
 | Strategy branch     | `primeDurable` dispatches on `PersistentAuthKind` through `PERSISTENT_PRIMERS` to `primeBoundDevice` (replay, renew or enroll) or `primeDeviceMemory`; each gets an `IDurablePrimeArgs` with its block narrowed, plus the `RunConfiguredFlow` runner. `refuseDurableRefresh` is the local `primeFresh` refusal; `durableFail` and `invokeOnUpdate` are shared |
 | Build rule          | `API_DIRECT_PERSISTENT_AUTH_RULES` refuses an unknown `kind` (`isPersistentAuthKind`); `resumeStepsOf` gives the other rules a `bound-device` block's `resumeSteps`                                                                                                                                                                                           |
-| Secrets in failures | `sanitiseStepFailure` reports a failed step by name and status, never its reply; `scrubPersistedValues` redacts stored values in bound-device renewal failures; `omitFlowFailureText` removes all bank text on device-memory flow failures; transports strip the query string with `safeUrlForLog`                                                          |
+| Secrets in failures | `sanitiseStepFailure` reports a failed step by name and status, never its reply; `scrubPersistedValues` redacts stored values in bound-device renewal failures; `omitFlowFailureText` removes all bank text on device-memory flow failures; transports strip the query string with `safeUrlForLog`                                                            |
 | Bank data           | Pepper's `PEPPER_RESUME_STEPS`: signed `/auth/login`, then one password assertion                                                                                                                                                                                                                                                                             |
 
 ## Sub-step contract

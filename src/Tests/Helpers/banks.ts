@@ -1,12 +1,9 @@
 /**
  * Canonical bank enumeration for cross-bank parameterised tests.
  *
- * Pre-Phase 7 tests imported {@link CompanyTypes} ad-hoc and built local tuple
- * arrays (see legacy `BANK_BUILDERS` in
- * `Tests/Unit/Pipeline/Banks/AllBankPipelines.test.ts` and `BANK_SCENARIOS` in
- * `Tests/Unit/Pipeline/CrossValidation/Phases/Fixtures/_BankScenarios.ts`).
- * Phase 7 consolidates them into this single export per the cross-bank
- * STRUCTURAL principle documented in `docs/phase-7-consolidation-map.md`.
+ * Consolidates the per-test tuple arrays of {@link CompanyTypes} into this
+ * single export per the cross-bank STRUCTURAL principle documented in
+ * `docs/phase-7-consolidation-map.md`.
  *
  * Tests that exercise per-bank pipelines should iterate this list with
  * `it.each(BANKS)` so adding a new bank to {@link CompanyTypes} automatically

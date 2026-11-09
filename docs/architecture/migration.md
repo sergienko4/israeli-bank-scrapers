@@ -1,8 +1,12 @@
 # Migration strategy
 
-> **Goal:** every bank lives under `src/Scrapers/Pipeline/`, every utility in `src/Common/` is replaced by a mediator zone, every legacy base class is deleted. Public API behavior preserved throughout.
+> **Historical migration record.** The sequences below describe the earlier
+> legacy-to-Pipeline migration, not instructions to restore its browser path.
+> New banks follow [Adding a new bank](../contributing/new-bank.md).
 >
-> **Status:** the legacy scraper chain is deleted. No bank outside the Pipeline remains, and `createScraper` throws `unknown company id` for an id with no `PIPELINE_REGISTRY` entry. `src/Common/` is down to the browser bootstrap and test helpers. The sections below are kept as the record of how the migration ran and as the template for porting a future bank.
+> **Current status:** all banks use two HTTP phases. The legacy chain and the
+> browser engine are deleted. Browser options/types were removed in v10; see
+> [Compatibility](../compatibility.md). `src/Common/` retains result/test helpers.
 
 ## What we did in v8.4 (precedent)
 
@@ -21,16 +25,16 @@ Total LOC delta: **+5285 / −510**, 68 files touched.
 
 For each legacy bank, the porting PR does:
 
-| Step | File / change |
-|---|---|
-| 1 | Write `src/Scrapers/Pipeline/Banks/<Bank>/<Bank>LoginConfig.ts` — declarative `LoginConfig` (visible-text selectors, field list, submit anchor) |
-| 2 | Write `src/Scrapers/Pipeline/Banks/<Bank>/<Bank>Pipeline.ts` — `buildXxxPipeline(options)` returns a `Procedure<IPipelineDescriptor>` |
-| 3 | Register in the matching `src/Scrapers/Pipeline/Banks/PipelineRegistry{AmexToMax,MercantileToVisaCal}.ts` half — `[CT.<Bank>]: buildXxxPipeline` (never edit `Core/**`) |
-| 4 | Write fixtures under `src/Tests/E2eMocked/<Bank>/fixtures/` from a captured real-bank run |
-| 5 | Verify with `npm test -- --testPathPatterns=E2eMocked/<Bank>` and `npm test -- --testPathPatterns=E2eReal/<Bank>.e2e-real` |
-| 6 | **Options parity** — for each option in `LEGACY_ONLY_OPTIONS` (`src/Scrapers/Pipeline/Core/LegacyOnlyOptions.ts`), decide *implement on the Pipeline* or *drop*. Implementing one removes its manifest entry; dropping it is a behaviour change for that bank's callers and belongs in the PR body |
-| 7 | Once green, delete `src/Scrapers/<Bank>/`. The bank's `SCRAPERS` entry in `src/Definitions.ts` stays: it declares the login fields |
-| 8 | Re-run `lint:dead-code` to confirm no unused exports remain |
+| Step | File / change                                                                                                                                                                                                                                                                                      |
+| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | Write `src/Scrapers/Pipeline/Banks/<Bank>/<Bank>LoginConfig.ts` — declarative `LoginConfig` (visible-text selectors, field list, submit anchor)                                                                                                                                                    |
+| 2    | Write `src/Scrapers/Pipeline/Banks/<Bank>/<Bank>Pipeline.ts` — `buildXxxPipeline(options)` returns a `Procedure<IPipelineDescriptor>`                                                                                                                                                              |
+| 3    | Register in the matching `src/Scrapers/Pipeline/Banks/PipelineRegistry{AmexToMax,MercantileToVisaCal}.ts` half — `[CT.<Bank>]: buildXxxPipeline` (never edit `Core/**`)                                                                                                                            |
+| 4    | Write fixtures under `src/Tests/E2eMocked/<Bank>/fixtures/` from a captured real-bank run                                                                                                                                                                                                          |
+| 5    | Verify with `npm test -- --testPathPatterns=E2eMocked/<Bank>` and `npm test -- --testPathPatterns=E2eReal/<Bank>.e2e-real`                                                                                                                                                                         |
+| 6    | **Options parity** — for each option in `LEGACY_ONLY_OPTIONS` (`src/Scrapers/Pipeline/Core/LegacyOnlyOptions.ts`), decide _implement on the Pipeline_ or _drop_. Implementing one removes its manifest entry; dropping it is a behaviour change for that bank's callers and belongs in the PR body |
+| 7    | Once green, delete `src/Scrapers/<Bank>/`. The bank's `SCRAPERS` entry in `src/Definitions.ts` stays: it declares the login fields                                                                                                                                                                 |
+| 8    | Re-run `lint:dead-code` to confirm no unused exports remain                                                                                                                                                                                                                                        |
 
 The first 16 banks on the Pipeline followed exactly this sequence — except step 6, which was added after [#540](https://github.com/sergienko4/israeli-bank-scrapers/issues/540) showed that a migration can silently drop an option its callers relied on.
 
@@ -38,13 +42,13 @@ The first 16 banks on the Pipeline followed exactly this sequence — except ste
 
 For each `src/Common/` helper that the Pipeline does NOT already use:
 
-| Step | Change |
-|---|---|
-| 1 | Identify the **mediator zone** that owns its concern (e.g. `Mediator/Browser/`, `Mediator/Selector/`, `Mediator/Network/`) |
-| 2 | Move the helper into the zone (keeping the API surface for in-flight callers) |
-| 3 | Update every importer in `src/Scrapers/Pipeline/` to use the new path |
-| 4 | Mark the original under `src/Common/` as `@deprecated` until the last caller is gone |
-| 5 | When the last caller is migrated, delete the original |
+| Step | Change                                                                                                                     |
+| ---- | -------------------------------------------------------------------------------------------------------------------------- |
+| 1    | Identify the **mediator zone** that owns its concern (e.g. `Mediator/Browser/`, `Mediator/Selector/`, `Mediator/Network/`) |
+| 2    | Move the helper into the zone (keeping the API surface for in-flight callers)                                              |
+| 3    | Update every importer in `src/Scrapers/Pipeline/` to use the new path                                                      |
+| 4    | Mark the original under `src/Common/` as `@deprecated` until the last caller is gone                                       |
+| 5    | When the last caller is migrated, delete the original                                                                      |
 
 ## Order of operations (proposed)
 
@@ -55,13 +59,13 @@ For each `src/Common/` helper that the Pipeline does NOT already use:
 > migrated, so every registered bank now runs on the Pipeline. Wave 4 is done: the
 > legacy base classes and their `src/Common/` helpers are deleted.
 
-| Wave | Banks to migrate | Why this wave |
-|---|---|---|
-| Wave 1 | Mizrahi, Leumi | Largest customer base; biggest test signal |
-| Wave 2 | Yahav | Smaller — finish the bank surface |
-| Wave 3 | `src/Common/` → mediator zones | Now that no legacy bank imports `Common/`, fold remaining helpers |
-| Wave 4 | Delete the legacy base classes (`BaseScraper`, `BaseScraperWithBrowser`, `BaseScraperHelpers`, `ConcreteGenericScraper`, `GenericBankScraper`) and the helpers only they used | **Done.** Layer 6 was empty after wave 3 |
-| Wave 5 | Update README + mkdocs to drop the deprecation banners and the "Migration notice" section | End-state docs |
+| Wave   | Banks to migrate                                                                                                                                                              | Why this wave                                                     |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Wave 1 | Mizrahi, Leumi                                                                                                                                                                | Largest customer base; biggest test signal                        |
+| Wave 2 | Yahav                                                                                                                                                                         | Smaller — finish the bank surface                                 |
+| Wave 3 | `src/Common/` → mediator zones                                                                                                                                                | Now that no legacy bank imports `Common/`, fold remaining helpers |
+| Wave 4 | Delete the legacy base classes (`BaseScraper`, `BaseScraperWithBrowser`, `BaseScraperHelpers`, `ConcreteGenericScraper`, `GenericBankScraper`) and the helpers only they used | **Done.** Layer 6 was empty after wave 3                          |
+| Wave 5 | Update README + mkdocs to drop the deprecation banners and the "Migration notice" section                                                                                     | End-state docs                                                    |
 
 Each wave is a separate PR, gated by:
 

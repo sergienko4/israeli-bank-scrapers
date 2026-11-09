@@ -86,7 +86,7 @@ reviews:
       instructions: >
         Bank scraper code. Check for: hardcoded CSS/ID selectors (must use visible text),
         missing error handling, methods over 20 lines, any types, fetch pattern violations
-        (browser scrapers must use fetchPostWithinPage/fetchGetWithinPage, not native fetch).
+        (bank IO must go through the API-direct transport helpers, not ad-hoc native fetch).
     - path: "src/Common/**"
       instructions: >
         Shared infrastructure. Check for: breaking changes to public API,

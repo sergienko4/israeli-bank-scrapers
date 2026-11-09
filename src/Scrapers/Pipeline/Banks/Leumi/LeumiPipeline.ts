@@ -4,23 +4,11 @@
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { ScraperOptions } from '../../../Base/Interface.js';
-import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import { createPipelineBuilder } from '../../Core/Builder/PipelineBuilderFactory.js';
 import type { IPipelineDescriptor } from '../../Core/PipelineDescriptor.js';
 import { LEUMI_API_DIRECT_CALL } from '../../Registry/Config/PipelineBankConfigLeumi.js';
 import { fail, type Procedure } from '../../Types/Procedure.js';
 import { LEUMI_SHAPE } from './scrape/LeumiShape.js';
-
-/** Leumi login config — credential keys only. WellKnown resolves selectors. */
-export const LEUMI_LOGIN: ILoginConfig = {
-  loginUrl: '',
-  fields: [
-    { credentialKey: 'username', selectors: [] },
-    { credentialKey: 'password', selectors: [] },
-  ],
-  submit: [],
-  possibleResults: { success: [] },
-};
 
 /**
  * Builds the registered native descriptor.

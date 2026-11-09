@@ -34,7 +34,6 @@ import { literalUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.
 import { writePostBody } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/PostBody.js';
 import type { ApiPostData } from '../../../../../Scrapers/Pipeline/Types/Domain/ApiPostData.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
-import type { IActionContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { assertOk } from '../../../../Helpers/AssertProcedure.js';
@@ -98,7 +97,7 @@ function makeDispatchArgs(overrides: Partial<IDispatchArgs>): IDispatchArgs {
   const defaultResp = succeed({});
   const bus = overrides.bus ?? makeOneShotBus(defaultResp);
   const base = makeMockContext({ apiMediator: some(bus) });
-  const ctx = base as unknown as IActionContext;
+  const ctx = base;
   return {
     bus,
     ctx,

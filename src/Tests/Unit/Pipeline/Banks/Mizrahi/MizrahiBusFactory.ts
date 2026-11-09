@@ -23,7 +23,7 @@ import type {
   IPipelineContext,
 } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
-import { resolveFixtureRoot } from '../../../../Integration/Helpers/FixturePage.js';
+import resolveFixtureRoot from '../../../../Integration/Helpers/FixtureRoot.js';
 import { makeMockContext, makeRecoverySessionStubs } from '../../Infrastructure/MockFactories.js';
 
 const FIXTURE_ROOT = resolveFixtureRoot('mizrahi');
@@ -91,7 +91,7 @@ function ctxOf(bus: IApiMediator, window: IScrapeWindow): IActionContext {
   const base = makeMockContext();
   const options = { ...base.options, startDate: window.start };
   const withBus: IPipelineContext = { ...base, options, apiMediator: some(bus) };
-  return { ...withBus, windowEnd: some(window.end) } as unknown as IActionContext;
+  return { ...withBus, windowEnd: some(window.end) };
 }
 
 /**

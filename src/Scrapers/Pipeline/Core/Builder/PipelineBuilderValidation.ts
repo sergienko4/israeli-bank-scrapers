@@ -5,38 +5,26 @@
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type { ScraperOptions } from '../../../Base/Interface.js';
-import type { ILoginConfig } from '../../../Base/Interfaces/Config/LoginConfig.js';
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IApiDirectScrapeShape } from '../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { resolvePipelineBankConfig } from '../../Registry/Config/PipelineBankConfig.js';
 import type { IHeadlessUrlsConfig } from '../../Registry/Config/PipelineBankConfigTypes.js';
 import type { Brand } from '../../Types/Brand.js';
-import type { IActionContext, IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import { validateApiDirectConfig } from './ApiDirectConfigRules.js';
 import { NATIVE_HEADLESS_FIELDS } from './ApiDirectNativeRules.js';
-import type { IBuilderState, LoginFn } from './PipelineAssembly.js';
+import type { IBuilderState } from './PipelineAssembly.js';
 
 /** Per-check error flag — branded so Rule #15 accepts the inline predicate. */
 type IsErrCheck = Brand<boolean, 'BuilderIsErrCheck'>;
 
-/** Scrape function signature — receives sealed action context. */
-type ScrapeFn = (ctx: IActionContext) => Promise<Procedure<IPipelineContext>>;
-
 /** Bundled raw builder fields for validation and snapshot. */
 interface IBuilderFields {
   readonly options: ScraperOptions | false;
-  readonly hasBrowser: boolean;
   readonly isHeadless: boolean;
   readonly loginMode: string;
   readonly error: string;
-  readonly loginConfig: ILoginConfig | false;
-  readonly loginFn: LoginFn | false;
-  readonly hasOtpFill: boolean;
-  readonly otpFillRequired: boolean;
-  readonly hasOtpTrigger: boolean;
-  readonly scrapeFn: ScrapeFn | false;
   readonly apiDirectScrape: IApiDirectScrapeShape<unknown, unknown> | false;
   readonly apiDirectConfig: IApiDirectCallConfig | false;
 }
@@ -134,5 +122,5 @@ function toBuilderState(fields: IBuilderFields): IBuilderState {
   return { ...fields };
 }
 
-export type { IBuilderFields, ScrapeFn };
+export type { IBuilderFields };
 export { assertRequiredFields, toBuilderState, validateBuilderFields };

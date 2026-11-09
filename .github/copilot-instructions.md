@@ -1,6 +1,6 @@
 # Copilot Project Instructions — israeli-bank-scrapers (fork)
 
-Fork of `eshaham/israeli-bank-scrapers` with Camoufox/Playwright WAF bypass,
+Fork of `eshaham/israeli-bank-scrapers` that scrapes every bank over pure HTTP,
 published as `@sergienko4/israeli-bank-scrapers`.
 
 > **Canonical rule sources (do not duplicate — defer to these):**
@@ -23,15 +23,15 @@ Every non-trivial change flows through these phases. Each phase has an
 auto-activating skill in `.github/skills/<phase>/SKILL.md` and (in the CLI) an
 invokable command in `.claude/commands/<phase>.md`.
 
-| Phase | Skill / command | Principle | Enforced by |
-|-------|-----------------|-----------|-------------|
-| DEFINE | `spec` | Spec before code | `tasks/*.md`, `new-task` |
-| PLAN | `plan` | Small, atomic tasks | `plan.md`, GitHub Project, `start-task` |
-| BUILD | `build` | One slice at a time | `npm run build`, ESLint caps, `CLEAN_CODE.md` |
-| VERIFY | `test` | Tests are proof | `npm test`, `npm run lint:cycles`, `validate` |
-| REVIEW | `review` | Improve code health | `npm run lint`, `improve`, rubber-duck, CodeRabbit |
-| SIMPLIFY | `code-simplify` | Clarity over cleverness | `code-simplification-guidlines.md`, `improve` |
-| SHIP | `ship` | Faster is safer | 23 husky gates, `lint:pr-body`, `gh pr create`, release-please |
+| Phase    | Skill / command | Principle               | Enforced by                                                 |
+| -------- | --------------- | ----------------------- | ----------------------------------------------------------- |
+| DEFINE   | `spec`          | Spec before code        | `tasks/*.md`, `new-task`                                    |
+| PLAN     | `plan`          | Small, atomic tasks     | `plan.md`, GitHub Project, `start-task`                     |
+| BUILD    | `build`         | One slice at a time     | `npm run build`, ESLint caps, `CLEAN_CODE.md`               |
+| VERIFY   | `test`          | Tests are proof         | `npm test`, `npm run lint:cycles`, `validate`               |
+| REVIEW   | `review`        | Improve code health     | `npm run lint`, `improve`, rubber-duck, CodeRabbit          |
+| SIMPLIFY | `code-simplify` | Clarity over cleverness | `code-simplification-guidlines.md`, `improve`               |
+| SHIP     | `ship`          | Faster is safer         | husky gates, `lint:pr-body`, `gh pr create`, release-please |
 
 ## Boundaries
 
@@ -45,9 +45,9 @@ invokable command in `.claude/commands/<phase>.md`.
 
 ## Architecture (see `CLAUDE.md` for the full set)
 
-- **ZERO CSS selectors in interaction code** — find elements by visible text
-  (`getByText`/`getByRole`/`getByPlaceholder`); structural selectors allowed
-  only in parsing/extraction.
+- **HTTP-only pipeline** — extend API-direct configs and shapes, never browser
+  interaction or DOM navigation. Structural selectors belong only in pure
+  parsing/extraction of HTTP response bodies.
 - SOLID, OCP via maps over if/else, factories over duplication.
 - TypeScript strict — no `any`, no unused vars.
 - Acyclic dependencies — the import-cycle gate (`npm run lint:cycles`) is a

@@ -46,8 +46,8 @@ for Massad's `IFibiBrand`:
 Every step, answer check and wire rule is Beinleumi's, bound to this origin;
 see the Beinleumi [login](beinleumi.md#login) and
 [wire policy](beinleumi.md#wire-policy). Browser options passed to
-`createScraper` are ignored with a
-[warning](../configuration.md#browser-options-on-browserless-banks).
+`createScraper` are no longer supported; see the
+[migration notes](../configuration.md#removed-browser-options).
 
 ## Warm start
 

@@ -1,14 +1,10 @@
 /**
  * Pipeline result extraction — converts pipeline context
- * to legacy IScraperScrapingResult shape.
+ * to the public IScraperScrapingResult shape.
  *
- * v4: balance comes from BALANCE-RESOLVE.final's
- * `ctx.balanceResolution` map when present; falls back to whatever
- * SCRAPE wrote into `ctx.scrape.value.accounts[i].balance` (legacy
- * path) otherwise. This lets the v4 BALANCE-RESOLVE phase override
- * incorrect SCRAPE-time balance values for the 4 affected banks
- * (Hapoalim, Max, VisaCal, Amex) without ripping out the legacy
- * fallback that still serves the 3 working banks.
+ * Balance comes from the `ctx.balanceResolution` map the scrape phase
+ * commits; an account absent from the map keeps the balance the scrape
+ * wrote into `ctx.scrape.value.accounts[i].balance`.
  */
 
 import type { ITransactionsAccount } from '../../../Transactions.js';
@@ -18,13 +14,12 @@ import type { Procedure } from '../Types/Procedure.js';
 import { toLegacy } from '../Types/Procedure.js';
 
 /**
- * Empty balance map sentinel — used when BALANCE-RESOLVE didn't run
- * (api-direct path, or the option is absent for any other reason).
+ * Empty balance map sentinel — used when no balance map was committed.
  */
 const EMPTY_BALANCE_MAP: ReadonlyMap<string, number> = new Map<string, number>();
 
 /**
- * Read the per-account balance map committed by BALANCE-RESOLVE.final.
+ * Read the per-account balance map committed by the scrape phase.
  * @param ctx - Pipeline context.
  * @returns Balance map (possibly empty).
  */
@@ -34,9 +29,9 @@ function readBalanceResolution(ctx: IPipelineContext): ReadonlyMap<string, numbe
 }
 
 /**
- * Combine a SCRAPE-produced account with the BALANCE-RESOLVE map.
- * Map-resolved balance wins when present; otherwise the legacy
- * SCRAPE-time balance is preserved.
+ * Combine a scraped account with the balance map.
+ * Map-resolved balance wins when present; otherwise the
+ * scrape-time balance is preserved.
  * @param account - Account record produced by SCRAPE.
  * @param balanceMap - Map keyed by accountNumber.
  * @returns Account with balance populated.
@@ -51,7 +46,7 @@ function combineWithBalance(
 }
 
 /**
- * Extract accounts array from scrape state, applying BALANCE-RESOLVE
+ * Extract accounts array from scrape state, applying balance-map
  * overrides where present.
  * @param ctx - The pipeline context.
  * @returns Array of transaction accounts, empty if no scrape.
@@ -65,26 +60,20 @@ function extractAccounts(ctx: IPipelineContext): IScraperScrapingResult['account
 }
 
 /**
- * Read the durable re-login token from whichever slot produced it.
- *
- * Browser scrapers write it into the LOGIN phase state; API-direct banks have
- * no LOGIN phase and write it into `ctx.durableAuth`. Both are surfaced through
- * the single public `result.persistentOtpToken`.
+ * Read the durable re-login token the API-direct login chain minted.
+ * Surfaced through the public `result.persistentOtpToken`.
  * @param ctx - Pipeline context.
- * @returns The token, or an empty string when no login path produced one.
+ * @returns The token, or an empty string when the login minted none.
  */
 function extractPersistentOtpToken(ctx: IPipelineContext): string {
   if (ctx.durableAuth.has) return ctx.durableAuth.value.persistentOtpToken;
-  if (ctx.login.has && ctx.login.value.persistentOtpToken.has) {
-    return ctx.login.value.persistentOtpToken.value;
-  }
   return '';
 }
 
 /**
  * Extract scrape results from a successful pipeline context.
  * @param ctx - The final pipeline context after all phases.
- * @returns Legacy result with accounts and OTP token.
+ * @returns Result with accounts and OTP token.
  */
 function extractSuccess(ctx: IPipelineContext): IScraperScrapingResult {
   const base: IScraperScrapingResult = {
@@ -97,9 +86,9 @@ function extractSuccess(ctx: IPipelineContext): IScraperScrapingResult {
 }
 
 /**
- * Convert a pipeline Procedure result to the legacy result shape.
+ * Convert a pipeline Procedure result to the public result shape.
  * @param result - The pipeline Procedure result.
- * @returns Legacy IScraperScrapingResult.
+ * @returns IScraperScrapingResult.
  */
 function toResult(result: Procedure<IPipelineContext>): IScraperScrapingResult {
   if (result.success) return extractSuccess(result.value);

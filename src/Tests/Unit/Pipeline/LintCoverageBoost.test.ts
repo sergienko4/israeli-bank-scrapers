@@ -20,7 +20,7 @@ import type { ITemplateScope } from '../../../Scrapers/Pipeline/Mediator/ApiDire
 import type { IActionContext } from '../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail } from '../../../Scrapers/Pipeline/Types/Procedure.js';
-import { SimplePhase } from '../../../Scrapers/Pipeline/Types/SimplePhase.js';
+import { SimplePhase } from './Infrastructure/SimplePhase.js';
 
 const EMPTY_CONFIG = {} as unknown as IApiDirectCallConfig;
 const EMPTY_SCOPE: ITemplateScope = { carry: {}, creds: {}, config: EMPTY_CONFIG };
@@ -136,7 +136,7 @@ type PhaseName = ConstructorParameters<typeof SimplePhase>[0];
 
 /**
  * Build a SimplePhase that fails with a specific name — used to exercise
- * the NO_RETRY branch in PipelineReducer.
+ * the failure pass-through in PipelineReducer.
  * @param name - Phase name.
  * @param message - Failure message.
  * @returns A phase whose execute returns a failure procedure.
@@ -170,12 +170,11 @@ function buildThrowingPhase(name: PhaseName): SimplePhase {
   return new SimplePhase(name, exec);
 }
 
-describe('PipelineReducer — api-direct-call NO_RETRY path', () => {
-  it('skips sanitization pulse for api-direct-call failures', async () => {
+describe('PipelineReducer — failure and error wrapping', () => {
+  it('returns an api-direct-call failure as-is', async () => {
     const descriptor: IPipelineDescriptor = {
       options: MOCK_OPTIONS,
       phases: [buildFailingPhase('api-direct-call', 'api-direct-call failed')],
-      interceptors: [],
     };
     const result = await executePipeline(descriptor, MOCK_CREDENTIALS);
     expect(result.success).toBe(false);
@@ -185,8 +184,7 @@ describe('PipelineReducer — api-direct-call NO_RETRY path', () => {
   it('executePipeline wraps thrown errors via wrapError', async () => {
     const descriptor: IPipelineDescriptor = {
       options: MOCK_OPTIONS,
-      phases: [buildThrowingPhase('init')],
-      interceptors: [],
+      phases: [buildThrowingPhase('api-direct-call')],
     };
     const result = await executePipeline(descriptor, MOCK_CREDENTIALS);
     expect(result.success).toBe(false);
@@ -197,7 +195,6 @@ describe('PipelineReducer — api-direct-call NO_RETRY path', () => {
     const descriptor: IPipelineDescriptor = {
       options: MOCK_OPTIONS,
       phases: [phase],
-      interceptors: [],
     };
     const result = await executePipeline(descriptor, MOCK_CREDENTIALS);
     expect(result.success).toBe(false);
@@ -223,19 +220,5 @@ function buildEmptyMessageThrowingPhase(): SimplePhase {
     const blank = Object.assign(placeholder, { message: '' });
     throw blank;
   };
-  return new SimplePhase('init', exec);
+  return new SimplePhase('api-direct-call', exec);
 }
-
-describe('PipelineReducer — sanitization-pulse no-recovery branch', () => {
-  it('propagates the original failure when no api-direct-call retry happens', async () => {
-    const failingPhase = buildFailingPhase('init', 'init failed');
-    const descriptor: IPipelineDescriptor = {
-      options: MOCK_OPTIONS,
-      phases: [failingPhase],
-      interceptors: [],
-    };
-    const result = await executePipeline(descriptor, MOCK_CREDENTIALS);
-    expect(result.success).toBe(false);
-    if (!result.success) expect(result.errorMessage).toBe('init failed');
-  });
-});

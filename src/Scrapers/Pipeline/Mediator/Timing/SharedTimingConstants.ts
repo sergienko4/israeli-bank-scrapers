@@ -27,31 +27,6 @@ export const HUMAN_DELAY_MIN_MS = 300;
 export const HUMAN_DELAY_MAX_MS = 1200;
 
 /**
- * Browser phase settle — fixed delay applied TWICE per phase:
- * once before phase.PRE work begins, once after phase.FINAL completes.
- * Browser-capable phases are bookended by a wait window in which the
- * bank's SPA can finish settling and the page's anti-bot JS can observe
- * a "human-paused-on-the-page" interval before our next interaction.
- * Native and node-TLS transports skip this browser-only delay.
- *
- * <p>Was previously a single "between phases" settle (PR #233 fix
- * for Hapoalim "no login nav link found"). Split into PRE + FINAL on
- * 2026-05-17 after Hapoalim hCaptcha on PR #234 — the silent single
- * window was profiled as bot by Incapsula. Splitting gives the page
- * more contact-window time to settle naturally, and the next step
- * (planned) is to humanize each window with small mouse / scroll
- * events so Incapsula sees user-activity signals.
- *
- * <p>Applied at the SINGLE central chokepoint in
- * {@link "../../Core/Executor/PipelineReducer.js"} `reducePhases`
- * — no per-phase configuration, no per-bank override. Browser PRE settle
- * fires on every phase (incl. terminal). FINAL settle is skipped for the
- * terminal phase so pipeline completion is not delayed. Failure paths
- * skip the FINAL settle so sanitization-pulse retries are not penalized.
- */
-export const PHASE_SETTLE_MS = 4000;
-
-/**
  * Minimum count of post-auth session cookies that, combined with
  * REVEAL=true, is considered sufficient corroboration to override
  * the M4.F1 URL-change requirement on same-URL SPAs (Isracard

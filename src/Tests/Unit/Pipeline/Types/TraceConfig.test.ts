@@ -115,18 +115,16 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     expect(isMode).toBe(true);
   });
 
-  it('off-trace: getRunFolder/getLogFile/getNetworkDumpDir/getScreenshotDir all empty', async () => {
+  it('off-trace: log and network artifact paths are empty', async () => {
     delete process.env.FORENSIC_TRACE;
     jest.resetModules();
     const mod = await loadTraceConfig();
     const runFolder = mod.getRunFolder();
     const logFile = mod.getLogFile();
     const networkDir = mod.getNetworkDumpDir();
-    const screenshotDir = mod.getScreenshotDir();
     expect(runFolder).toBe('');
     expect(logFile).toBe('');
     expect(networkDir).toBe('');
-    expect(screenshotDir).toBe('');
   });
 
   it('on-trace: derives folder under RUNS_ROOT, creates it lazily', async () => {
@@ -145,7 +143,7 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     fs.rmSync(folder, { recursive: true, force: true });
   });
 
-  it('on-trace: log file, network dir, screenshot dir all share the same root', async () => {
+  it('on-trace: log file and network directory share the same root', async () => {
     const tmpRoot = makeTmpRoot('traceconfig-shared');
     process.env.FORENSIC_TRACE = 'true';
     process.env.RUNS_ROOT = tmpRoot;
@@ -155,23 +153,16 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     const root = mod.getRunFolder();
     const logFile = mod.getLogFile();
     const networkDir = mod.getNetworkDumpDir();
-    const screenshotDir = mod.getScreenshotDir();
     const logBase = path.basename(logFile);
     const netBase = path.basename(networkDir);
-    const shotBase = path.basename(screenshotDir);
     const isLogUnder = logFile.startsWith(root);
     const isNetUnder = networkDir.startsWith(root);
-    const isShotUnder = screenshotDir.startsWith(root);
     const didCreateNet = fs.existsSync(networkDir);
-    const didCreateShot = fs.existsSync(screenshotDir);
     expect(isLogUnder).toBe(true);
     expect(isNetUnder).toBe(true);
-    expect(isShotUnder).toBe(true);
     expect(logBase).toBe('pipeline.log');
     expect(netBase).toBe('network');
-    expect(shotBase).toBe('screenshots');
     expect(didCreateNet).toBe(true);
-    expect(didCreateShot).toBe(true);
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
@@ -339,19 +330,6 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     // Both are well-formed; equality is timing-dependent so we only
     // assert format stability.
     expect(isAfterWellFormed).toBe(true);
-  });
-
-  it('getScreenshotDir is cached across calls', async () => {
-    const tmpRoot = makeTmpRoot('traceconfig-shot');
-    process.env.FORENSIC_TRACE = 'true';
-    process.env.RUNS_ROOT = tmpRoot;
-    jest.resetModules();
-    const mod = await loadTraceConfig();
-    mod.setActiveBank('beinleumi');
-    const a = mod.getScreenshotDir();
-    const b = mod.getScreenshotDir();
-    expect(a).toBe(b);
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 
   it.each([

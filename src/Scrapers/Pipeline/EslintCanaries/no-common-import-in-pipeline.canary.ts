@@ -5,9 +5,8 @@
  */
 
 // Canary: Phase 3 — Pipeline production code must not import from Common/*
-// (Pipeline is canonical; Common/* are deprecated re-export shims). Allowlist:
-// Common/Config/BrowserConfig (browser-bootstrap-only). The import below MUST
-// trip `no-restricted-imports` via the PHASE3_COMMON_IMPORT_BAN_PATTERN regex.
+// (Pipeline is canonical; Common/* holds only result formatting). The import
+// below MUST trip `no-restricted-imports` via PHASE3_COMMON_IMPORT_BAN_PATTERN.
 //
 // The banned module only has to be a *live* Common one — it is never called for
 // its behaviour. `ResultFormatter` is a real implementation module rather than a

@@ -214,10 +214,10 @@ describe('scripts/ declares no any', () => {
       jsDocTypeCount(file, sources[index]),
     );
     const typeCount = counts.reduce((sum: number, count: number): number => sum + count, 0);
-    const gateCli = path.join('scripts', 'check-browser-stack.mjs');
-    const jugglerTypes = path.join('scripts', 'browser-stack', 'juggler-types.mjs');
+    const gateCli = path.join('scripts', 'check-jest-scopes.mjs');
+    const docPathsCli = path.join('scripts', 'check-doc-paths.mjs');
     expect(relative).toContain(gateCli);
-    expect(relative).toContain(jugglerTypes);
+    expect(relative).toContain(docPathsCli);
     expect(typeCount).toBeGreaterThan(100);
   });
 

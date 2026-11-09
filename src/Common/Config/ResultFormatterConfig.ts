@@ -1,3 +1,6 @@
+/** Locale used to render dates in the CLI result summary. */
+export const ISRAEL_LOCALE = 'he-IL';
+
 /** Maximum number of transactions to show in the CLI result summary. */
 export const MAX_TXN_PREVIEW = 3;
 

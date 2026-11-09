@@ -266,7 +266,7 @@ function makeRestBus(router: PostRouter, captures: IPostCapture[]): IApiMediator
  */
 function makeRestCtx(bus: IApiMediator): IActionContext {
   const base = makeMockContext({ apiMediator: some(bus) });
-  return base as unknown as IActionContext;
+  return base;
 }
 
 /**

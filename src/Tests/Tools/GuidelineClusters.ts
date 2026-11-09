@@ -40,13 +40,6 @@ export interface IClusterExpectations {
  *   • §6 Pipeline Phases already resolves every cap it declares, so it
  *     is enforced outright. That is what makes deleting a per-cluster
  *     declaration fail this gate rather than pass unnoticed.
- *   • §19.1a/b/c are drained sub-trees of `Strategy/**`, which §19.1
- *     grandfathers to 40 LoC per function. Each is pinned back to the
- *     canonical 10 by a LATER block; deleting that block silently relaxes
- *     shipped code from 10 to 40. The CAP REGIME AUDIT is what turns that
- *     into a gate failure, and it does so for every such block rather than
- *     only the few named here. §19.1c pins only `max-lines`, so its
- *     per-function cap is deferred by name rather than pretended.
  *   • §19.1d is not a drain: it pins the new Strategy/Fetch transport
  *     files to the canonical caps from the day they land.
  *   • §19.3b is not a drain either: it pins new Core files to the
@@ -66,15 +59,13 @@ export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
     deferredRules: ['max-lines'],
   },
   {
-    // The §6 label is the config section, not the whole Pipeline tree: the
-    // 787 production TypeScript files under `src/Scrapers/Pipeline` (863
-    // total, less the 76 canaries) span eight cap regimes, and this row
-    // measures only the `Phases/**` one that its representative sits in
+    // The §6 label is the config section, not the whole Pipeline tree: this row
+    // measures only the `Phases/**` regime that its representative sits in
     // (15 per function, granted by the §19.3 grandfather rather than the
-    // canonical 10). The other seven regimes are covered by the per-file
-    // sweep in `lint:guideline-coverage`, not by this row.
+    // canonical 10). The other regimes are covered by the per-file sweep in
+    // `lint:guideline-coverage`, not by this row.
     clusterName: 'Pipeline Phases regime (§6)',
-    representativeFile: 'src/Scrapers/Pipeline/Phases/AccountResolve/AccountResolvePhase.ts',
+    representativeFile: 'src/Scrapers/Pipeline/Phases/ApiDirectCall/ApiDirectCallPhase.ts',
     expectations: [
       { ruleId: 'max-lines', maxAllowed: 150 },
       { ruleId: 'max-lines-per-function', maxAllowed: 15 },
@@ -94,7 +85,7 @@ export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
   },
   {
     clusterName: 'Network (§11)',
-    representativeFile: 'src/Scrapers/Pipeline/Mediator/Network/Scoring/Scoring.ts',
+    representativeFile: 'src/Scrapers/Pipeline/Mediator/Network/FetchConfig.ts',
     expectations: [
       { ruleId: 'max-lines', maxAllowed: 150 },
       { ruleId: 'max-lines-per-function', maxAllowed: 10 },
@@ -104,7 +95,7 @@ export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
   },
   {
     clusterName: 'Scrape (§12)',
-    representativeFile: 'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeRouter.ts',
+    representativeFile: 'src/Scrapers/Pipeline/Mediator/Scrape/TxnDedup.ts',
     expectations: [
       { ruleId: 'max-lines', maxAllowed: 150 },
       // §12 declares the file cap; the function cap comes from the later,
@@ -116,7 +107,7 @@ export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
   },
   {
     clusterName: 'Scrape canonical-10 sub-folders (§12B)',
-    representativeFile: 'src/Scrapers/Pipeline/Mediator/Scrape/ScrapePhase/PhaseActions.ts',
+    representativeFile: 'src/Scrapers/Pipeline/Mediator/Scrape/ScrapeReplay/Base64Paging.ts',
     expectations: [
       { ruleId: 'max-lines', maxAllowed: 150 },
       { ruleId: 'max-lines-per-function', maxAllowed: 10 },
@@ -134,37 +125,6 @@ export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
       { ruleId: 'complexity', maxAllowed: 10 },
       { ruleId: '@typescript-eslint/max-params', maxAllowed: 3 },
     ],
-  },
-  {
-    clusterName: 'Strategy Scrape Executor (§19.1a)',
-    representativeFile: 'src/Scrapers/Pipeline/Strategy/Scrape/Executor/Account.ts',
-    expectations: [
-      { ruleId: 'max-lines', maxAllowed: 150 },
-      { ruleId: 'max-lines-per-function', maxAllowed: 10 },
-      { ruleId: 'complexity', maxAllowed: 10 },
-      { ruleId: '@typescript-eslint/max-params', maxAllowed: 3 },
-    ],
-  },
-  {
-    clusterName: 'Strategy Scrape ScrapeData (§19.1b)',
-    representativeFile: 'src/Scrapers/Pipeline/Strategy/Scrape/ScrapeData/ScrapeDataAssembly.ts',
-    expectations: [
-      { ruleId: 'max-lines', maxAllowed: 150 },
-      { ruleId: 'max-lines-per-function', maxAllowed: 10 },
-      { ruleId: 'complexity', maxAllowed: 10 },
-      { ruleId: '@typescript-eslint/max-params', maxAllowed: 3 },
-    ],
-  },
-  {
-    clusterName: 'Strategy Scrape Account (§19.1c)',
-    representativeFile: 'src/Scrapers/Pipeline/Strategy/Scrape/Account/AccountScrapeFirstWave.ts',
-    expectations: [
-      { ruleId: 'max-lines', maxAllowed: 150 },
-      { ruleId: 'max-lines-per-function', maxAllowed: 10 },
-      { ruleId: 'complexity', maxAllowed: 10 },
-      { ruleId: '@typescript-eslint/max-params', maxAllowed: 3 },
-    ],
-    deferredRules: ['max-lines-per-function'],
   },
   {
     clusterName: 'Strategy Fetch transport (§19.1d)',
