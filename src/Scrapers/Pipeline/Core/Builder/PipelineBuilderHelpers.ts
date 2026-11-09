@@ -30,8 +30,8 @@ import {
  * `login.*` substeps.
  *
  * Mapping:
- * - PRE-LOGIN configured: boundary = `pre-login` (gate ON at LOGIN entry)
- * - No PRE-LOGIN: boundary = `home` (gate ON at LOGIN entry)
+ * - Browser pipeline with a login mode: boundary = `init` (gate ON at
+ *   LOGIN entry — INIT is the only phase before the auth phases).
  * - Headless / no login mode: empty string (skip gate).
  * @param state - Validated builder state.
  * @returns Boundary phase name or empty string.
@@ -39,8 +39,7 @@ import {
 function resolveTraceBoundaryPhase(state: IBuilderState): string {
   if (!state.hasBrowser) return '';
   if (state.loginMode === 'none') return '';
-  if (state.hasPreLogin) return 'pre-login';
-  return 'home';
+  return 'init';
 }
 
 /**

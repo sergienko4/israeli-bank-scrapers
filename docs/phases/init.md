@@ -39,7 +39,7 @@ are all wrong here:
 - **403 / 429 / 503** are how edge WAFs serve a challenge. Challenge
   detection is DOM-based (`detectChallenge`), and the solver is a
   pipeline-wide interceptor rather than an INIT-local step — Hapoalim is on
-  record solving an hCaptcha ~1.5s *after* `HOME.PRE`. Failing INIT on those
+  record solving an hCaptcha ~1.5s *after* the landing page had loaded. Failing INIT on those
   statuses would break a bypass that currently works.
 - **5xx generally** is transient by definition and already covered by the
   retry path.
@@ -58,7 +58,7 @@ document, 37 KB, whose only heading is `404`. Every gate above is
 structurally blind to it: the status is 200, the `<title>` is empty so the
 neterror classifier finds nothing, and `detectWafBlock` is wired into the
 fetch path rather than navigation. INIT reported success and the run died
-three phases later at `HOME.PRE` with "no login nav link found" — literally
+three phases later at login with "no login nav link found" — literally
 true, since the document has two anchors, and completely unattributable.
 
 So INIT also classifies the *document*. `isErrorDocument` counts visible

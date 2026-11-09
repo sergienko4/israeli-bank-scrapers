@@ -33,7 +33,6 @@ interface IBuilderFields {
   readonly error: string;
   readonly loginConfig: ILoginConfig | false;
   readonly loginFn: LoginFn | false;
-  readonly hasPreLogin: boolean;
   readonly hasOtpFill: boolean;
   readonly otpFillRequired: boolean;
   readonly hasOtpTrigger: boolean;

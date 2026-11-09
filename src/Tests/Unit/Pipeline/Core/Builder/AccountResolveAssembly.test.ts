@@ -21,7 +21,6 @@ function makeState(overrides: Partial<IBuilderState> = {}): IBuilderState {
   const defaults: IBuilderState = {
     hasBrowser: true,
     isHeadless: false,
-    hasPreLogin: false,
     hasOtpFill: false,
     otpFillRequired: false,
     hasOtpTrigger: false,
@@ -89,22 +88,16 @@ describe('PipelineAssembly — ACCOUNT-RESOLVE auto-bind (Phase 7)', () => {
 });
 
 describe('resolveTraceBoundaryPhase — Phase 7 earlier boundary', () => {
-  it('returns "pre-login" when PRE-LOGIN configured', () => {
-    const state = makeState({ hasPreLogin: true });
-    const boundary = resolveTraceBoundaryPhase(state);
-    expect(boundary).toBe('pre-login');
-  });
-
-  it('returns "home" for non-OTP browser bank without PRE-LOGIN', () => {
+  it('returns "init" for a non-OTP browser bank', () => {
     const state = makeState();
     const boundary = resolveTraceBoundaryPhase(state);
-    expect(boundary).toBe('home');
+    expect(boundary).toBe('init');
   });
 
-  it('returns "home" for OTP bank — OTP no longer pushes the boundary later', () => {
+  it('returns "init" for OTP bank — OTP no longer pushes the boundary later', () => {
     const state = makeState({ hasOtpFill: true, hasOtpTrigger: true });
     const boundary = resolveTraceBoundaryPhase(state);
-    expect(boundary).toBe('home');
+    expect(boundary).toBe('init');
   });
 
   it('returns empty string for headless pipelines', () => {

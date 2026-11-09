@@ -25,7 +25,6 @@ export interface IBankScenario {
   readonly loginUrl: string;
   readonly dashboardUrl: string;
   readonly accountsUrl: string;
-  readonly frameCount: number;
   readonly usesOtp: boolean;
   /** Cookie count observed in the captured run for OTP-FILL FINAL audit. */
   readonly cookieCount: number;
@@ -46,7 +45,6 @@ export const BANK_SCENARIOS: readonly IBankScenario[] = [
     loginUrl: 'https://login.bankhapoalim.example/ng-portals/auth/he/',
     dashboardUrl: 'https://login.bankhapoalim.example/ng-portals/dashboard',
     accountsUrl: 'https://login.bankhapoalim.example/ServerServices/general/accounts',
-    frameCount: 2,
     usesOtp: true,
     cookieCount: 4,
   },
@@ -57,7 +55,6 @@ export const BANK_SCENARIOS: readonly IBankScenario[] = [
     loginUrl: 'https://login.beinleumi.example/login',
     dashboardUrl: 'https://login.beinleumi.example/dashboard',
     accountsUrl: 'https://login.beinleumi.example/api/accounts',
-    frameCount: 0,
     usesOtp: true,
     cookieCount: 3,
   },
@@ -68,7 +65,6 @@ export const BANK_SCENARIOS: readonly IBankScenario[] = [
     loginUrl: 'https://start.telebank.example/auth',
     dashboardUrl: 'https://start.telebank.example/dashboard',
     accountsUrl: 'https://start.telebank.example/api/accounts',
-    frameCount: 0,
     usesOtp: false,
     cookieCount: 0,
   },

@@ -2,45 +2,52 @@
 
 The pipeline is a **declarative chain of typed phases** orchestrated by `PipelineExecutor`. Each phase implements `BasePhase` and owns four sub-step hooks: `pre`, `action`, `post`, `final`. The executor drives them in order, threading an immutable `IPipelineContext` snapshot between phases.
 
-## The phase chain (direct-API after login)
+## The phase chain (API-direct)
+
+Every registered bank runs the **API-direct** pipeline: `API-DIRECT-CALL` (login + OTP over the bank's JSON API) followed by `API-DIRECT-SCRAPE`. No registered bank launches a browser. The browser phases below are **retained infrastructure** that is being removed; they stay in the codebase until the browser-removal work completes.
 
 ```mermaid
 flowchart TD
-    subgraph "Browser banks — direct-API after login"
+    subgraph "Current — every registered bank (API-direct, 2 phases)"
       direction TB
-      I[INIT] --> H[HOME] --> PL["PRE-LOGIN<br/>(opt-in)"]
-      PL --> L[LOGIN] --> OT["OTP-TRIGGER<br/>(opt-in)"]
-      OT --> OF["OTP-FILL<br/>(opt-in)"]
-      OF --> AD[AUTH-DISCOVERY]
-      AD --> ADS["API-DIRECT-SCRAPE<br/>(hard-model shape — no nav)"] --> T[TERMINATE]
+      ADC["API-DIRECT-CALL<br/>(login + OTP over JSON API)"] --> ADS["API-DIRECT-SCRAPE<br/>(hard-model shape — no nav)"]
     end
 
-    subgraph "API-direct banks — 2 phases"
+    subgraph "Retained, being removed — no registered bank uses it (browser)"
       direction TB
-      ADC[API-DIRECT-CALL] --> ADS2[API-DIRECT-SCRAPE]
+      I[INIT] --> L[LOGIN] --> OT["OTP-TRIGGER<br/>(opt-in)"]
+      OT --> OF["OTP-FILL<br/>(opt-in)"]
+      OF --> AD[AUTH-DISCOVERY]
+      AD --> ADS2["API-DIRECT-SCRAPE"] --> T[TERMINATE]
     end
 ```
 
-| Slot | Phase                                                                                                                                                                              | Always-on?      | Owner concern                                                                                                                                                                                                   |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | [INIT](../phases/init.md)                                                                                                                                                          | ✅ browser      | Launch Camoufox, build the `IPipelineContext`, navigate to bank URL                                                                                                                                             |
-| 2    | [HOME](../phases/home.md)                                                                                                                                                          | ✅ browser      | Landing-page discovery, signal login readiness                                                                                                                                                                  |
-| 3    | [PRE-LOGIN](../phases/pre-login.md)                                                                                                                                                | ⚙️ opt-in       | Dormant — no bank opts in today                                                                                                                                                                                 |
-| 4    | [LOGIN](../phases/login.md)                                                                                                                                                        | ✅ browser      | 7-strategy `SelectorResolver` + declarative `LoginConfig`                                                                                                                                                       |
-| 5    | [OTP-TRIGGER](../phases/otp-trigger.md)                                                                                                                                            | ⚙️ opt-in       | Dormant — no bank opts in today                                                                                                                                                                                 |
-| 6    | [OTP-FILL](../phases/otp-fill.md)                                                                                                                                                  | ⚙️ opt-in       | Dormant — no bank opts in today                                                                                                                                                                                 |
-| 7    | [AUTH-DISCOVERY](../phases/auth-discovery.md)                                                                                                                                      | ✅ browser      | Capture post-login auth token + API origin from network                                                                                                                                                         |
-| 8    | [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                                                                                                | ✅ all          | Walk the bank's typed hard-model shape (accounts + balances + transactions) over direct REST/GraphQL — no nav; `.final` emits `ctx.balanceResolution`                                                           |
-| 9    | [TERMINATE](../phases/terminate.md)                                                                                                                                                | ✅ browser      | Close page/context/browser, finalise `IScraperScrapingResult`                                                                                                                                                   |
-| —    | [API-DIRECT-CALL](../phases/api-direct-call.md)                                                                                                                                    | api-direct only | Replaces INIT…OTP-FILL for OneZero/Pepper/PayBox                                                                                                                                                                |
-| —    | _dormant_: [ACCOUNT-RESOLVE](../phases/account-resolve.md) · [DASHBOARD](../phases/dashboard.md) · [SCRAPE](../phases/scrape.md) · [BALANCE-RESOLVE](../phases/balance-resolve.md) | —               | The retired generic navigation + DOM-scrape chain. Still in the codebase (ESLint canaries guard the boundary) but **no pipeline bank triggers them** — superseded by `API-DIRECT-SCRAPE`. |
+### Current: API-direct banks
+
+| Phase                                               | Owner concern                                                                                                                                         |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [API-DIRECT-CALL](../phases/api-direct-call.md)     | Login + OTP over the bank's JSON API; replaces the browser phases INIT → LOGIN → OTP-TRIGGER → OTP-FILL                                               |
+| [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md) | Walk the bank's typed hard-model shape (accounts + balances + transactions) over direct REST/GraphQL — no nav; `.final` emits `ctx.balanceResolution` |
+
+### Retained browser infrastructure (no registered bank uses it)
+
+| Slot | Phase                                         | Owner concern                                                       |
+| ---- | --------------------------------------------- | ------------------------------------------------------------------- |
+| 1    | [INIT](../phases/init.md)                     | Launch Camoufox, build the `IPipelineContext`, navigate to bank URL |
+| 2    | [LOGIN](../phases/login.md)                   | 7-strategy `SelectorResolver` + declarative `LoginConfig`           |
+| 3    | [OTP-TRIGGER](../phases/otp-trigger.md)       | Opt-in; no bank opts in today                                       |
+| 4    | [OTP-FILL](../phases/otp-fill.md)             | Opt-in; no bank opts in today                                       |
+| 5    | [AUTH-DISCOVERY](../phases/auth-discovery.md) | Capture post-login auth token + API origin from network             |
+| 6    | API-DIRECT-SCRAPE                             | Shared with the API-direct pipeline above                           |
+| 7    | [TERMINATE](../phases/terminate.md)           | Close page/context/browser, finalise `IScraperScrapingResult`       |
+
+The generic navigation + DOM-scrape phases — [ACCOUNT-RESOLVE](../phases/account-resolve.md) · [DASHBOARD](../phases/dashboard.md) · [SCRAPE](../phases/scrape.md) · [BALANCE-RESOLVE](../phases/balance-resolve.md) — are retired. They remain in the codebase (ESLint canaries guard the boundary) but no pipeline bank triggers them; `API-DIRECT-SCRAPE` supersedes them.
 
 ## The Procedure result pattern
 
 An internal bank configuration may opt into `disablePhaseRetry: true` when
 repeating an authentication submission is unsafe. The executor then returns
-the first phase failure without a sanitization pulse, HOME skips crash reloads,
-and browser login uses one submit click without Enter or click-strategy fallback.
+the first phase failure without a sanitization pulse, and browser login uses one submit click without Enter or click-strategy fallback.
 Banks that omit the flag retain their existing recovery behavior. This policy
 does not disable passive observation polling or transport-level retries.
 
@@ -351,7 +358,7 @@ Source: [`FrameRegistry.ts`](https://github.com/sergienko4/israeli-bank-scrapers
 
 | Interceptor          | Runs between                        | Job                                                                                                                                |
 | -------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| **PopupInterceptor** | HOME / before the api-direct scrape | Dismiss modal overlays by visible text                                                                                             |
+| **PopupInterceptor** | Before the api-direct scrape | Dismiss modal overlays by visible text                                                                                             |
 | **NetworkDiscovery** | (whole run)                         | Index every HTTP request/response post-auth, redact body+URL before write, feed endpoints to API-DIRECT-SCRAPE |
 
 Source: [`src/Scrapers/Pipeline/Interceptors/`](https://github.com/sergienko4/israeli-bank-scrapers/tree/{{BRANCH}}/src/Scrapers/Pipeline/Interceptors).

@@ -12,7 +12,7 @@ The package auto-redacts PII *before* any line is written and emits structured e
 | [PII redaction](redaction.md) | What gets redacted, what survives, the two enforcement layers |
 | [Forensic audit](forensic-audit.md) | The per-account `--- Account *** | N txns ---` line in `pipeline.log` |
 | [Coverage audit](coverage-audit.md) | Proving a shape read every transaction its response carried, instead of silently returning fewer |
-| [Render health & element identity](render-health.md) | Telling a page that never painted from one that changed, and telling two credential fields apart |
+| [Element identity](element-identity.md) | Telling two credential fields apart by position in the document, not by selector string |
 
 ## Two enforcement layers
 

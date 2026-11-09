@@ -28,7 +28,6 @@ interface IBuilderState {
   error: string;
   loginConfig: ILoginConfig | false;
   loginFn: LoginFn | false;
-  hasPreLogin: boolean;
   hasOtpFill: boolean;
   otpFillRequired: boolean;
   hasOtpTrigger: boolean;
@@ -43,7 +42,6 @@ const EMPTY_STATE_DEFAULTS: Omit<IBuilderState, 'options' | 'loginMode' | 'error
   isHeadless: false,
   loginConfig: false,
   loginFn: false,
-  hasPreLogin: false,
   hasOtpFill: false,
   otpFillRequired: true,
   hasOtpTrigger: false,

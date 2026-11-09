@@ -105,29 +105,6 @@ export interface IPhaseHExpected {
    *  successful login. Banks vary; lower-bound check guards against
    *  silent session-truncation regressions. */
   readonly loginFinalMinCookieCount?: number;
-  /** HOME PRE: visible trigger text the WK_HOME.ENTRY race expects to
-   *  surface on this bank's homepage (e.g. 'התחברות', 'כניסה').
-   *  Documentation-only — not asserted dynamically here. */
-  readonly homePreTriggerText?: string;
-  /** HOME POST: did the URL change from homepageUrl after the ACTION
-   *  click? Drives the cross-bank `executeValidateLoginArea` contract
-   *  through the `didNavigate` branch. */
-  readonly homePostDidNavigate?: boolean;
-  /** HOME POST: were post-nav iframes present (Hapoalim-group banks
-   *  host login in an iframe)? Drives the `hasFrames` branch. */
-  readonly homePostHasFrames?: boolean;
-  /** HOME POST: Procedure verdict — should the POST succeed under the
-   *  bank's last-good shape? */
-  readonly homePostOutcome?: PhaseOutcome;
-  /** PRE-LOGIN POST: was the password field visible after the reveal
-   *  click on the bank's login page? Drives the form-gate contract. */
-  readonly preLoginPostFormGateFound?: boolean;
-  /** PRE-LOGIN POST: Procedure verdict — should the POST succeed under
-   *  the bank's last-good shape? */
-  readonly preLoginPostOutcome?: PhaseOutcome;
-  /** PRE-LOGIN FINAL: Procedure verdict — when POST succeeds POST
-   *  sets `loginAreaReady=true` and FINAL signals to LOGIN. */
-  readonly preLoginFinalOutcome?: PhaseOutcome;
   /** OTP-TRIGGER PRE: redacted phone-hint string the bank surfaces
    *  (e.g. masked phone number tail). Pinned per-bank because the
    *  hint-format is bank-specific (4-digit tail, last-2, etc.). */

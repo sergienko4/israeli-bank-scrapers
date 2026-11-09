@@ -8,9 +8,7 @@
  * contract the production scraper's recipe + post-login waitFor relies
  * on, deterministically, offline, no creds.
  *
- * <p>Leumi has NO pre-login phase — `LeumiPipeline.ts` builds the
- * pipeline as `.withBrowser().withDeclarativeLogin(LEUMI_LOGIN)` (no
- * `.withPreLogin()` / `.withOtp*()`). The real-website journey is
+ * <p>Leumi has NO pre-login phase — the browser journey is
  * INIT → HOME → LOGIN → AUTH-DISCOVERY → ACCOUNT-RESOLVE → DASHBOARD →
  * SCRAPE → BALANCE-RESOLVE → TERMINATE, so the fixture step list omits
  * the 02/03 pre-login and 05/06 OTP steps that OTP-gated banks ship.
