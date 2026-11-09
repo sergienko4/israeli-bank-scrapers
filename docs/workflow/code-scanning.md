@@ -292,7 +292,12 @@ The upload job keeps the key `analysis` on purpose.
 upload under `<workflow path>:<job key>`, and the existing Scorecard alerts
 belong to `.github/workflows/scorecard.yml:analysis`. An upload under a new key
 starts a new configuration. The old one goes stale, and its alerts stay open
-until it is [deleted by hand][stale-config].
+until it is [deleted by hand][stale-config]. For the same reason,
+`codeql.yml` and `workflow-security.yml` — both called via `workflow_call` from
+`main-pipeline.yml` as well as directly on pull requests — pin
+`CODEQL_ACTION_ANALYSIS_KEY` in job `env:` alongside `category`, so
+`workflow_call` runs do not register a second
+`.github/workflows/main-pipeline.yml:<job>` configuration.
 
 The wiring and the surgical scope are pinned by tests in
 `WorkflowSecurityGate.test.ts`. `SCF-*` assert the filter runs in
