@@ -7,10 +7,9 @@
  *
  * Ladder semantics (spec.txt §A.3):
  *   resolve()  runs primeInitial; on fail + warm state, retries
- *              via primeFresh — unless the edge blocked the call
- *              (WafBlocked is terminal) or the strategy's optional
- *              mayEscalateWarmFailure refuses it; else returns the
- *              failure verbatim.
+ *              via primeFresh — unless a terminal edge or integrity refusal,
+ *              or the strategy's optional mayEscalateWarmFailure, prevents it;
+ *              otherwise returns the failure verbatim.
  *   refresh()  always runs primeFresh (invoked by ApiMediator's
  *              retryOn401 wrapper on any 401 mid-session).
  *   recover()  runs primeRecover; bound only when the strategy has
@@ -21,7 +20,7 @@
 import type { ITokenBus } from '../../Types/Domain/TokenBus.js';
 import type { ITokenContext } from '../../Types/Domain/TokenContext.js';
 import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
-import { isOk, isWafBlocked } from '../../Types/Procedure.js';
+import { isOk, isTerminalFailure } from '../../Types/Procedure.js';
 import type { ITokenResolver } from './ITokenResolver.js';
 import type { ITokenStrategy } from './ITokenStrategy.js';
 
@@ -47,14 +46,15 @@ async function runFresh<TCreds>(deps: IBuilderDeps<TCreds>): Promise<Procedure<s
  * Whether a failed stored-token attempt may escalate to primeFresh.
  * A WAF block is terminal: the edge refused the request before the bank saw
  * it, so a cold login would hit the same edge and could spend an SMS OTP.
- * A strategy may narrow it further; one without the hook escalates as before.
+ * Integrity refusals also stop escalation. A strategy may narrow it further;
+ * one without the hook escalates as before.
  * @param first - The failed primeInitial outcome.
  * @param deps - Closure deps bag.
- * @returns True when warm state exists, the edge did not block the call and
- *   the strategy lets this failure escalate.
+ * @returns True when warm state exists, the failure is not terminal and the
+ *   strategy lets this failure escalate.
  */
 function canEscalate<TCreds>(first: IProcedureFailure, deps: IBuilderDeps<TCreds>): boolean {
-  if (isWafBlocked(first)) return false;
+  if (isTerminalFailure(first)) return false;
   if (!deps.strategy.hasWarmState(deps.creds)) return false;
   return deps.strategy.mayEscalateWarmFailure?.(first) ?? true;
 }
@@ -63,7 +63,7 @@ function canEscalate<TCreds>(first: IProcedureFailure, deps: IBuilderDeps<TCreds
  * Prime ladder — stored-first, fresh-fallback when a warm state
  * was supplied. Preserves rev11 belt-and-suspenders semantic
  * (spec.txt §A.3: "Stored path failure + warm state → ONE
- * retry via primeFresh"), except after a WAF block.
+ * retry via primeFresh"), except after a terminal refusal.
  * @param deps - Closure deps bag.
  * @returns Header-value procedure.
  */

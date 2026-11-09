@@ -127,7 +127,8 @@ function policyFieldsOf(step: IStepConfig): IFetchCallPolicy {
   const { redirect, documentMarker, maxTextChars, mediaType } = step;
   const fields = { redirect, documentMarker, maxTextChars, mediaType };
   const kinds = { responseKind: step.response, bodyEncoding: step.encoding };
-  return { ...fields, ...kinds, strictUtf8: step.strictUtf8 };
+  const { responseIntegrity } = step;
+  return { ...fields, ...kinds, strictUtf8: step.strictUtf8, responseIntegrity };
 }
 
 /**

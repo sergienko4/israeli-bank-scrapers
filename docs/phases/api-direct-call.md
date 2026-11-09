@@ -125,12 +125,38 @@ One hydration engine serves both `API-DIRECT-CALL` and `API-DIRECT-SCRAPE` step 
 - `sha256-prefix-16` derives a stable identifier from another creds field (PayBox uses this to bind its long-term JWT to a phone-derived `deviceId16Hex` — warm-start-stable without the caller persisting state).
 - `random-uuid` generates one canonical UUID per flow init, so every step that reads the slot sees the same value — for banks that need a stable client-instance identifier across the steps of one login. A non-empty creds value is mirrored instead.
 - `random-hex` (`IRandomHexBootstrap`) draws `bytes` (1 to 64) fresh random bytes per flow init as hex, twice as many characters, upper-case when `isUpperCase` is set — for a flow identifier of a fixed length and case. `evalRandomBootstrap` (in `Flow/FlowInitCarry.random.ts`) serves it and the other `RandomBootstrap` kinds, `random-hex-16` and `random-uuid`, once `isRandomBootstrap` matches; a non-empty creds value is mirrored instead.
+- A seed with `alwaysBootstrap: true` must name one of those random bootstraps and draws a new value at every flow init, regardless of credentials or initial carry. Without this option, existing credential-first behavior is unchanged.
 - `derivedCarry` joins parts with separators + truncation for OTP-encryption keys. `transform: 'lower'` lower-cases the joined text before the byte cap, so a slot can carry a lower-cased copy of a credential (the FIBI Transmit `uid`) while the credential itself stays as typed.
 - A step's `deriveCarry` takes the same `IDerivedCarry` entries and runs them once that step's body and header extracts are in scope. `deriveStepCarry` hands them to `applyDerivations`, the evaluator flow-init `derivedCarry` uses, so the parts (`carry.<slot>`, `creds.<field>`, `config.<dotted.path>` such as `config.secrets.<name>`), separator, truncation and failure messages (`derivedCarry: carry.<slot> missing or non-string`) are the same. A part that fails fails the step.
 - `op` (`DerivedOp`) shapes the finished text last, after the join, `transform` and the byte cap: `applyDerivedOp` (in `Flow/FlowInitCarry.ops.ts`) takes an `IOpInput`: the text, the subject a failure names and the op. A `format` op (`IFormatOp`) takes the first `IFormatRule` whose `pattern` matches the whole text, anchored at both ends with the `u` flag by `anchoredPattern`, and writes the rule's `prefix` plus the text left-padded with `0` to `padStart` chars, so a 1-to-9-digit id can become `00001` and nine digits. No match fails `Generic`, naming the slot and never the text: `derivedCarry: <slot> unformattable` at flow init, `<step> derive <slot> unformattable` in a step, before that flow's next request. An `md5-hex` op (`IMd5HexOp`) writes the MD5 digest of the UTF-8 text as lower-case hex, for a bank that checks one; nothing relies on it for secrecy.
   Format patterns use the linear-time `FlatPattern` grammar: no groups or
   alternation, and a variable repeat only on the last atom. Explicit anchors
   are optional because the evaluator adds them.
+- A `url-query` op (`IUrlQueryOp`) reads exactly one nonempty value of its
+  configured `key` from one URL source part. `queryValue` applies `isQueryKey`
+  and `isQueryText` to reject unsafe keys and values; `hasValidEncoding`
+  rejects malformed query escapes. `MAX_QUERY_URL_CHARS` caps the source URL
+  at 32,768 characters and `MAX_QUERY_VALUE_CHARS` caps decoded values at
+  8,192. Invalid URLs or encoding,
+  missing or duplicate values, control characters and ill-formed Unicode fail without naming
+  the URL or value. `rejectBlank: true` additionally refuses whitespace-only
+  decoded values without trimming accepted values; omitting it preserves the
+  existing behavior.
+- A `url-path-map` op (`IUrlPathMapOp`) takes one untransformed, untruncated URL source and
+  chooses a static path by a single query value. Both the source and mapped
+  destination must match their own nonempty HTTPS URL-rule allowlists. The
+  complete query is retained; missing, duplicate, malformed or unsupported
+  selectors and unsafe URLs fail without exposing their values. The builder
+  validates the map, selector and both policies before a flow starts.
+- A `url-compose` op (`IUrlComposeOp`) uses `runUrlCompose` to resolve one absolute or relative target
+  against a configured HTTPS origin. It checks the input and final URL against
+  separate allowlists and may set a static canonical path. With an `IUrlComposeMerge` policy,
+  three parts supply the target, an independently allowlisted fresh source URL
+  and a nonblank identity. Required source query keys must each occur once;
+  source keys replace target keys, then the identity replaces `setKey`. Other
+  target query fields remain. URL/query bounds, lossless UTF-8 encoding and control checks
+  apply before use, and the final carried GET checks the destination again.
+  Composition does not admit separators, transforms or truncation.
 
 ### CryptoField pre-hook
 
@@ -264,14 +290,17 @@ The slot must hold an absolute URL. Every earlier step that may write it in
 the same list (login or resume) must check it with an `extractRules` `url`
 rule, as its [final URL](#final-url-carry) under its manual redirect rules,
 or as the URL its [handoff script](#handoff-script-capture) sets under its
-capture rules. This includes optional fallbacks and conditional writers;
+capture rules, or as an [SDK reference](#sdk-reference-capture) checked by its
+capture rules, or as a checked `url-path-map` destination. This includes
+optional fallbacks and conditional writers;
 an unchecked overwrite or a pre-hook writing the consumer's URL fails the
 build with `steps.urlFromCarry: slot needs an earlier url rule`. An absent
 optional extract after a pre-hook write still checks that write against its
 own rule. At run time, the actual carried URL must also match an earlier
 producer's rules. A missing, non-text, relative or unapproved URL fails with
 `<step> carried url invalid` before the GET is sent.
-`allowedRulesOf` reads each writer's extract, final-URL and handoff rules;
+`allowedRulesOf` reads each writer's extract, final-URL, handoff, SDK and
+path-map destination rules;
 `carriedUrlRulesOf` gathers preceding writers' rules for the consumer's
 pre-hook and dispatch checks.
 
@@ -833,7 +862,7 @@ locationCapture: {
   [`urlFromCarry`](#carried-step-url). A failure is `Generic` and names the
   step only, never the URL.
 
-Both captures require the answering URL; if the transport cannot provide it,
+Page captures require the answering URL; if the transport cannot provide it,
 the step fails `<step> answer url missing` without exposing a URL. A later
 retry or redirect always replaces the prior answer's URL.
 
@@ -841,6 +870,105 @@ The build (`API_DIRECT_LOCATION_CAPTURE_RULES`) refuses a `locationCapture`
 on a step whose `response` is not `'text'`, one with an empty `into`,
 `userAgent` or `url`, and an `into` the step also fills: an extract, its
 `finalUrlInto` or its `formCapture` slot.
+
+### SDK reference capture
+
+A `response: 'text'` step can find the SDK named by a page without running its
+scripts. `structuredCapture` takes an `ISdkReferenceCapture`:
+
+```ts
+structuredCapture: {
+  kind: 'sdk-reference',
+  into: 'sdkUrl',
+  url: [{ origin: 'https://bank.example', paths: ['/sdk/client.js'] }],
+},
+```
+
+`captureSdkReference` resolves script sources against the first document base
+and the final answering URL. It considers active HTML script `src` attributes
+and literal sources in the observed top-level `self.__next_s.push` queue
+forms. A zero-marker inline queue entry with static, non-source properties is
+not an external script; dynamic or source-bearing inline properties are refused.
+Each supported queue push must have exactly one argument; multi-argument calls
+are refused rather than silently ignoring later entries.
+It excludes inert, non-JavaScript and foreign-namespace subtrees;
+`activeElements`, `attribute`, `isExecutableScript`, `scriptText`, and
+`queueSources` supply those syntactic checks. No page or SDK code is
+executed. Unrelated well-formed sources outside the allowlist are ignored;
+the distinct allowlisted sources must resolve to exactly one URL. Malformed
+active sources or relevant queue syntax fail without including source text
+or URLs in the error.
+
+`captureStructured` runs after text, form and handoff capture, before
+derivations, and a later GET may use `urlFromCarry`. The builder's
+`API_DIRECT_STRUCTURED_CAPTURE_RULES` requires a text response, a named fresh
+slot, and a nonempty allowlist. `areSdkUrlRulesValid` checks each HTTPS origin
+and path/query rule; `generatedSlots` also helps reject conflicting generator
+outputs. The later GET checks the carried URL again before sending it.
+This only finds the SDK reference: pin the SDK response separately with
+`responseIntegrity` before relying on its contents.
+
+### Serialized script JSON capture
+
+The `script-json` member of `StructuredCapture` (`IScriptJsonCapture`) reads
+one exact root field from JSON serialized inside an active inline script:
+
+```ts
+structuredCapture: {
+  kind: 'script-json',
+  into: 'session',
+  field: 'SessionID',
+  pattern: '^[a-fA-F0-9]{32}$',
+  maxChars: 32,
+},
+```
+
+`captureScriptJson` reads the literals found by `scriptJsonLiterals` in
+top-level assignments and declarations, including their objects, arrays and
+single-argument `JSON.parse` expressions. It does not evaluate those expressions,
+inspect function bodies, traverse other calls or constructors, or read external
+scripts. A matching unrelated assignment can still be selected: this syntax
+check does not establish a literal's provenance. It accepts a single distinct
+matching string root field; unrelated malformed JSON literals are ignored.
+No match, multiple distinct matches or malformed script syntax fail without
+disclosing page text or values. `hasDuplicateJsonField` rejects
+repeated root keys, including alternate escape spellings.
+`isScriptJsonCaptureValid` requires a nonblank field, a bounded `maxChars`,
+and an anchored flat pattern before any request. As with other structured
+captures, its carry is available to the same step's derivations. The
+`script-json` output can be explicitly projected through `sessionCarry`;
+it is not a checked URL producer.
+
+### Issued JWT claim binding
+
+The `jwt-claims` member (`IJwtClaimsCapture` and `IJwtClaimSlot`) reads a
+token from carry after the step's ordinary and classifier captures. It compares
+configured payload pointers to refs in the current scope and writes only the
+named bounded text captures before same-step derivations:
+
+```ts
+structuredCapture: {
+  kind: 'jwt-claims',
+  from: 'issuedToken',
+  maxTokenChars: 32768,
+  equals: { '/subject': 'creds.username', '/routing': 'carry.routing' },
+  captures: { site: { pointer: '/site', maxChars: 8 } },
+},
+```
+
+`isJwtClaimsCaptureValid` uses `isCookieRef` for known refs and rejects invalid
+configurations before I/O. `issuedJwtPayload` checks the bound, three canonical
+base64url segments, strict UTF-8 JSON objects, and `hasDuplicateJsonKeys` for
+ambiguous keys at any depth. `captureJwtClaims` requires an integer future
+expiry and exact equality for every binding; its failures contain no token or
+claims. An output slot may opt into `rejectBlank: true` to reject whitespace-only
+claims without trimming accepted values; omitting it preserves the default.
+`applyJwtCapture` enforces these checks before the next step.
+`structuredSlotsOf` reports output slots for collision and URL-admission
+checks; captured claims do not become checked URL producers.
+
+These are local structural and binding checks, **not JWT signature
+verification**. The bank remains responsible for validating its opaque token.
 
 ### Envelope codec
 
@@ -918,6 +1046,13 @@ codec: {
   `crypto_session_id` that `isSessionId` accepts (1..512 characters). The
   session key is the SHA-256 of the ECDH shared secret. Anything else fails
   `<step> envelope invalid`.
+- An exchange may opt into `echoRef: 'carry.ecdhPublic'`. Before sending, the
+  reference must resolve to nonempty text exactly matching `y` in the one
+  outgoing `key_exchange` header. The one response `key_exchange` header must
+  then carry the same text in `echo_y` before the session is accepted. Missing,
+  ambiguous or mismatched values fail without disclosing either point; absent
+  `echoRef` leaves existing exchanges unchanged. The builder requires a
+  nonblank `carry.` slot for this option.
 - The answer must open under that session, as in `sealed` mode. Then
   the key (base64) goes to the `keyInto` slot and the id to `sessionInto`;
   the step's extracts read the opened answer and run after, so an extract
@@ -1066,10 +1201,10 @@ prime, and the recovery hook (`makeRecoveryHook`) after every recovery.
 so a recovery also drops every value the scrape patched in since. The token
 strategy keeps the full carry privately for warm export and recovery.
 
-Each slot must name a body or header extract, or the `finalUrlInto` slot (a
-final URL its manual redirect checked), of some login or resume step (a
-[build-time check](#build-time-config-checks)), so a generated key or a
-seeded credential can never be allowlisted.
+Each slot must name a body or header extract, a `script-json` output, or the
+`finalUrlInto` slot (a final URL its manual redirect checked) of some login or
+resume step (a [build-time check](#build-time-config-checks)), so a generated
+key or a seeded credential can never be allowlisted.
 
 ### Cookie hand-off
 
@@ -1157,7 +1292,8 @@ login calls with redirects, HTML pages or response headers instead of JSON
 alone. Reading, encoding, headers and domain cookies work on either node
 transport (`nativeFetch` or node:https with a certificate or TLS profile).
 Step redirects and bank-wide redirect, status, failure-text and media-type
-and strict UTF-8 defaults need `headless.nativeFetch`; step media types and
+and strict UTF-8 defaults need `headless.nativeFetch`; response integrity at
+either bank or step level also requires native fetch. Step media types and
 strict UTF-8 work on either node transport. The transport side of each field
 is described in
 [Headless transports](../architecture/pipeline.md#headless-transports), and
@@ -1175,11 +1311,43 @@ headless: {
   statusPolicy: { 204: 'empty' },  // a 204 answers {} without reading the body
   mediaTypes: { json: 'application/json' }, // every json answer must say so
   strictUtf8: true,                // a malformed UTF-8 byte fails the call
+  responseIntegrity: { maxBytes: 4_194_304 }, // post-decompression byte ceiling
 }
 ```
 
-For a native-fetch headless bank, the media-type and strict UTF-8 defaults also
-apply to GraphQL answers; a call's own policy still overrides either one.
+For a native-fetch headless bank, the media-type, strict UTF-8 and response
+integrity defaults also apply to GraphQL answers; a call's own policy overrides
+the corresponding default.
+
+`IResponseIntegrity` accepts a `maxBytes` safe integer from 1 through
+8,388,608 and an optional `sha256` of exactly 64 lowercase hexadecimal
+characters. Native fetch checks the streamed post-decompression bytes before
+decoding. An oversized body is aborted; a digest mismatch refuses the answer.
+Redirect, status and media-type decisions that need only headers do not read or
+hash their bodies. The digest is checked for API successes; failed responses
+remain bounded and are classified as HTTP or WAF failures. When a failure
+exceeds the limit, `isCloudflareBlock` checks only the permitted prefix; a
+recognizable block remains `WAF_BLOCKED`, while other oversized failures
+report a byte-limit refusal without assuming a WAF block. That oversized WAF
+case returns the fixed block reason without the usual URL/status prefix.
+`RESPONSE_BYTE_LIMIT_REASON`, `RESPONSE_DIGEST_MISMATCH_REASON`,
+`RESPONSE_INTEGRITY_INVALID_REASON` and `RESPONSE_INTEGRITY_UNSUPPORTED_REASON`
+name the fixed messages; `failResponseIntegrity` marks these refusals, and
+the internal integrity-refusal tag survives step sanitization.
+`isTerminalFailure` prevents a tagged refusal from triggering auth retries,
+warm-session recovery or balance fallback, and `preferTerminalFailure` keeps a
+refusal from a recovery attempt instead of an earlier degraded outcome.
+Carry-bundle re-grants also return terminal refusals before considering
+`coldFallback`, regardless of the remaining cold-login budget.
+Cleanup is requested without waiting for a stream's cancellation promise.
+A missing policy preserves ordinary transport behavior.
+
+The shared `isResponseIntegrity` validator checks the same bounds at build and
+transport boundaries. `toHeadlessWiring` and `selectHeadlessMediator` pass the
+bank default into the native transport, while `checkResponseIntegrity`
+refuses unsupported paths. `makeInvokeCapped` and `verifyResponseIntegrity`
+enforce the per-call policy; `HeadlessGraphQLFetchStrategy` uses that same
+reader for opted-in GraphQL calls.
 
 `cookieDomains` needs `sessionCookies`. List only the bank's own registrable
 domains, never a public suffix such as `co.il`: the jar trusts the list as
@@ -1237,8 +1405,9 @@ from what it extracted:
   ([Text captures](#text-captures)); `formCapture` reads a login form's
   hidden fields off it ([Login-form capture](#login-form-capture)), and
   `locationCapture` the URL its handoff script sends a browser to
-  ([Handoff script capture](#handoff-script-capture));
-  `statusPolicy` decides a 2xx before any body is read
+  ([Handoff script capture](#handoff-script-capture)); `structuredCapture`
+  can select an allowlisted SDK reference ([SDK reference capture](#sdk-reference-capture));
+  `statusPolicy` decides a 2xx or an explicitly configured rate limit before any body is read
   ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
 - `mediaType` names the one lower-case `type/subtype` the answer's
   `content-type` must carry, parameters aside, over the bank's
@@ -1252,6 +1421,10 @@ from what it extracted:
   lifts the bank's `true` for that step's body reading, and fails the
   build on a bank that is not strict
   ([Document responses and status policies](../architecture/pipeline.md#document-responses-and-status-policies)).
+- `responseIntegrity` overrides `headless.responseIntegrity` for one step.
+  Configure `maxTextChars` separately for text answers: it is a character cap,
+  not the byte cap. `API_DIRECT_INTEGRITY_RULES` refuses malformed policies at
+  build time; transports that cannot enforce a policy refuse it before I/O.
 - `headerExtractsToCarry` reads a header of the final response; a missing
   header without `fallback` fails with `<step> header missing`
   ([Response-header carry](../architecture/pipeline.md#response-header-carry)).
@@ -1277,7 +1450,8 @@ from what it extracted:
   Sealing clones JSON branches independently, so repeated references or
   shared literals cannot make one field overwrite another field's seal.
 - `setCookies` writes client cookies, host-only with `Path=/` and `Secure`,
-  before the step's request; `$ref: cookie.<name>` reads the cookie that
+  before the step's request. A `{ ref, optional: true }` source skips an
+  absent or empty value; nonempty invalid values still fail. `$ref: cookie.<name>` reads the cookie that
   applies to the step URL, URL-decoded
   ([Client cookies](../architecture/pipeline.md#client-cookies)).
 - `clientCert` installs a device certificate the run obtained, presented to
@@ -1418,7 +1592,7 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a login or resume step with `clientCert`, without a `headless.clientCert` block (`API_DIRECT_CLIENT_CERT_RULES`)                          | `steps.clientCert: not allowed without headless.clientCert`                        |
 | a `headless.clientCert` whose `origin` is not exactly `https://host[:port]` (no path, user, trailing slash or default port)               | `headless.clientCert.origin: must be an exact https origin`                        |
 | `headless.clientCert` together with `headless.requiresClientCert: true`                                                                   | `headless.clientCert: not allowed with headless.requiresClientCert`                |
-| a `sessionCarry` slot no login or resume step extracts or names as `finalUrlInto` (`API_DIRECT_SESSION_RULES`)                              | `sessionCarry: each slot must name a step extract`                                 |
+| a `sessionCarry` slot no login or resume step extracts, captures via `script-json`, or names as `finalUrlInto` (`API_DIRECT_SESSION_RULES`) | `sessionCarry: each slot must name a step extract`                                 |
 | `cookieHandoff: 'isolate'` without `headless.cookieDomains`                                                                               | `cookieHandoff: isolate not allowed without headless.cookieDomains`                |
 | a `persistentAuth` block whose `kind` has no supported primer (`API_DIRECT_PERSISTENT_AUTH_RULES`)                                        | `persistentAuth.kind: must be bound-device or device-memory`                       |
 | a login or resume step with `response`, `documentMarker`, `headerExtractsToCarry` or `encoding` off native fetch and node:https           | `steps.<field>: not allowed without nativeFetch or node:https`                     |
@@ -1429,8 +1603,14 @@ fails the build with `Generic` and `<field>: <rule>`:
 | a `headerExtractsToCarry` header name that is not an HTTP token (RFC 9110)                                                                | `headerExtractsToCarry.header: must be an HTTP header name`                        |
 | a login or resume step with `setCookies`, without `headless.cookieDomains`                                                                | `steps.setCookies: not allowed without headless.cookieDomains`                     |
 | a `setCookies` cookie name that is not an HTTP token (RFC 9110)                                                                           | `steps.setCookies: each name must be an HTTP token`                                |
+| a malformed required or optional `setCookies` source                                                                                       | `steps.setCookies: each source must be a valid ref or optional ref`                |
 | a `seedCarryFromCreds` entry whose `random-hex` bootstrap draws a `bytes` count that is not an integer from 1 to 64                   | `seedCarryFromCreds: random-hex needs integer bytes from 1 to 64`        |
-| a `derivedCarry` or `deriveCarry` `op` whose `kind` is not `format` or `md5-hex` (`API_DIRECT_DERIVE_RULES`)                          | `derive.op.kind: must be format or md5-hex`                              |
+| a seed with `alwaysBootstrap: true` but no random bootstrap                                                                              | `seedCarryFromCreds: alwaysBootstrap needs a random bootstrap`                     |
+| a `derivedCarry` or `deriveCarry` `op` with an unsupported `kind` (`API_DIRECT_DERIVE_RULES`)                                            | `derive.op.kind: must be format, md5-hex, url-query, url-path-map or url-compose`  |
+| a `url-query` op without exactly one source part and a safe, nonblank key                                                             | `derive.op.url-query: needs one part and a valid key`                     |
+| a `url-query` op whose `rejectBlank` is neither omitted nor `true` | `derive.op.url-query.rejectBlank: must be true when set` |
+| a `url-path-map` with invalid source, selector, map or URL policies                                                                  | `derive.op.url-path-map: invalid mapping`                                |
+| a `url-compose` with invalid parts, URL policies or merge settings                                                                       | `derive.op.url-compose: invalid composition`                                       |
 | a `format` op with no rule                                                                                                            | `derive.op.rules: needs at least one rule`                               |
 | a `format` rule `pattern` that does not compile with the `u` flag                                                                     | `derive.op.rules.pattern: must compile`                                  |
 | a `format` rule `pattern` outside the linear-time `FlatPattern` grammar                                                              | `derive.op.rules.pattern: must be a flat regex`                          |
@@ -1631,17 +1811,17 @@ and GraphQL variants) and Camoufox page fetch share this one rule,
 `classifyHttpFailure`
 (`src/Scrapers/Pipeline/Strategy/Fetch/HttpFailureClassifier.ts`), whose fixed
 reasons are `CLOUDFLARE_BLOCK_REASON` and `CLOUDFLARE_CHALLENGE_REASON`. The
-`<status>: ` prefix is kept
-in both cases, and `WAF_BLOCKED` is terminal — neither the in-request `401`/`403`
+`<status>: ` prefix is kept in both cases except for the oversized bounded
+block described above, and `WAF_BLOCKED` is terminal — neither the in-request `401`/`403`
 re-mint nor the warm-to-cold fallback fires on it, the scrape phase does not
 recover the session over it (a cold re-login could send an SMS while the host
 stays blocked), and a balance `fallbackOnFail` never masks it. All four paths
-ask the one predicate `isWafBlocked`
+ask the predicate `isTerminalFailure`
 (`src/Scrapers/Pipeline/Types/Procedure.ts`). A block on the repair itself
 is not dropped either: when the edge refuses the re-mint, the request answers
 with that `WAF_BLOCKED` instead of the original `401`/`403`, and when it
 refuses the scrape phase's session recovery, the phase answers with it
-instead of its first outcome. Both go through `preferWafBlock` in the same
+instead of its first outcome. Both go through `preferTerminalFailure` in the same
 file.
 
 A login step does not pass that message on, because a bank can echo the

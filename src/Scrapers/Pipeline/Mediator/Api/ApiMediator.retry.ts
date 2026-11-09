@@ -5,7 +5,7 @@
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { toErrorMessage } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, isOk, isWafBlocked, preferWafBlock } from '../../Types/Procedure.js';
+import { fail, isOk, isTerminalFailure, preferTerminalFailure } from '../../Types/Procedure.js';
 import { isAuthRejectionMessage } from './ApiMediator.authReject.js';
 import { getSessionWarmOp, setRawAuthOp, setSessionWarmOp } from './ApiMediator.state.js';
 import type { IMediatorState } from './ApiMediator.types.js';
@@ -130,13 +130,14 @@ function applyRefreshedAuth(state: IMediatorState, refreshed: Procedure<string>)
  * A Cloudflare WAF block answers with a 403 page whose message carries the same
  * `<sp>403:<sp>` marker a stale bearer does, but the edge rejected the request
  * BEFORE the API saw it — re-minting cannot help and only feeds an unbounded
- * retry storm. A `WafBlocked` failure is therefore terminal.
+ * retry storm. A `WafBlocked` failure is therefore terminal. An integrity
+ * refusal is also terminal even if it resembles an auth rejection.
  * @param first - First-attempt procedure.
  * @returns True iff the failure is a genuine auth rejection (never a WAF block).
  */
 function isUnauthorizedFailure<T>(first: Procedure<T>): boolean {
   if (first.success) return false;
-  if (isWafBlocked(first)) return false;
+  if (isTerminalFailure(first)) return false;
   return isAuthRejectionMessage(first.errorMessage);
 }
 
@@ -195,9 +196,8 @@ async function rearmAfterAuthRejection(state: IMediatorState): Promise<IRearmOut
  * dead one, and the next run would spend another SMS OTP replaying it.
  * Re-arming happens *before* the retry so the retried attempt is signed
  * with the session context the refresh just minted rather than the dead one.
- * A failed refresh answers with the original rejection, except when the edge
- * refused the refresh itself: that WAF block is returned instead, so the
- * caller's WAF guards see it rather than an ordinary auth failure.
+ * A failed refresh answers with the original rejection, except when the
+ * refresh itself ended in a terminal edge or integrity refusal.
  * A bank whose policy turns `rearmOnReject` off (a cookie session) gets the
  * rejection back at once: no refresh, no second login, no retry.
  * @param args - Bundled mediator-state + fire-callable.
@@ -209,7 +209,7 @@ async function retryOn401Op<T>(args: IRetryOn401Args<T>): Promise<Procedure<T>> 
   if (!args.state.rearmOnReject) return first;
   const rearm = await rearmAfterAuthRejection(args.state);
   if (rearm.isRearmed) return args.fire();
-  return preferWafBlock(rearm.refreshed, first);
+  return preferTerminalFailure(rearm.refreshed, first);
 }
 
 /**

@@ -12,6 +12,7 @@ import { carryFinalUrl } from './RunStep.finalUrl.js';
 import { captureForm } from './RunStep.formCapture.js';
 import { carryHeaders } from './RunStep.headerCarry.js';
 import { captureLocation } from './RunStep.locationCapture.js';
+import { captureStructured } from './RunStep.structuredCapture.js';
 import { captureText } from './RunStep.textCapture.js';
 import type { CarryMap, IDispatchBundle, IRunStepArgs, JsonValue } from './RunStep.types.js';
 
@@ -52,7 +53,20 @@ function readPageSlots(args: IRunStepArgs, resp: JsonValue, url: string): Proced
   if (!isOk(form)) return form;
   const location = captureLocation(args, resp, url);
   if (!isOk(location)) return location;
-  return succeed({ ...form.value, ...location.value });
+  const structured = captureStructured(args, resp, url);
+  if (!isOk(structured)) return structured;
+  return succeed({ ...form.value, ...location.value, ...structured.value });
+}
+
+/**
+ * Whether the step requests a capture resolved against the answering URL.
+ * @param args - The step and its configuration.
+ * @returns True when page capture is configured.
+ */
+function hasPageCapture(args: IRunStepArgs): boolean {
+  const { formCapture, locationCapture, structuredCapture } = args.step;
+  if (formCapture !== undefined || locationCapture !== undefined) return true;
+  return structuredCapture !== undefined && structuredCapture.kind !== 'jwt-claims';
 }
 
 /**
@@ -63,8 +77,7 @@ function readPageSlots(args: IRunStepArgs, resp: JsonValue, url: string): Proced
  */
 function pageSlots(bundle: IDispatchBundle, resp: JsonValue): Procedure<CarryMap> {
   const args = bundle.fireScope;
-  if (args.step.formCapture === undefined && args.step.locationCapture === undefined)
-    return succeed({});
+  if (!hasPageCapture(args)) return succeed({});
   const url = captureUrlOf(bundle);
   if (!isOk(url)) return url;
   return readPageSlots(args, resp, url.value);

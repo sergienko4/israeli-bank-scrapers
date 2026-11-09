@@ -32,6 +32,8 @@ type TTransportKey =
   | 'redirectPolicy'
   | 'statusPolicy'
   | 'mediaTypes'
+  | 'responseIntegrity'
+  | 'isConnectRetryDisabled'
   | 'strictUtf8';
 
 /** Pair of URLs + flags needed to wire the headless ApiMediator. */

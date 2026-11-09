@@ -20,6 +20,7 @@ interface IProcedureFailure {
   readonly errorType: ScraperErrorTypes;
   readonly errorMessage: string;
   readonly errorDetails: Option<IWafErrorDetails>;
+  readonly responseIntegrityRefusal?: true;
 }
 
 /** Discriminated union — every pipeline step returns this. */
@@ -87,21 +88,30 @@ function isWafBlocked<T>(proc: Procedure<T>): boolean {
 }
 
 /**
- * Answer with a repair attempt's edge (WAF) refusal when it has one.
+ * Whether an edge or response-integrity refusal must stop recovery.
+ * @param proc - Any procedure.
+ * @returns True for a WAF block or a response-integrity refusal.
+ */
+function isTerminalFailure<T>(proc: Procedure<T>): boolean {
+  if (isOk(proc)) return false;
+  return isWafBlocked(proc) || proc.responseIntegrityRefusal === true;
+}
+
+/**
+ * Answer with a repair attempt's terminal refusal when it has one.
  * A token refresh or session recovery runs because an earlier outcome looked
- * broken. When the edge refuses that repair, keeping the earlier outcome — an
- * auth rejection, or a degraded success — would hide the block from every
- * WAF guard downstream, so the refusal replaces it.
+ * broken. Keeping the earlier outcome — an auth rejection, or a degraded
+ * success — would hide a terminal refusal from guards downstream.
  * @param repair - The refresh or recovery procedure.
  * @param earlier - The outcome the repair was meant to fix.
- * @returns The repair's WAF failure, else the earlier outcome.
+ * @returns The repair's terminal refusal, else the earlier outcome.
  */
-function preferWafBlock<T, TRepair>(
+function preferTerminalFailure<T, TRepair>(
   repair: Procedure<TRepair>,
   earlier: Procedure<T>,
 ): Procedure<T> {
   if (isOk(repair)) return earlier;
-  if (isWafBlocked(repair)) return repair;
+  if (isTerminalFailure(repair)) return repair;
   return earlier;
 }
 
@@ -139,4 +149,14 @@ function toLegacy<T>(proc: Procedure<T>): IScraperScrapingResult {
 }
 
 export type { IProcedureFailure, IProcedureSuccess, Procedure };
-export { fail, failWithDetails, fromLegacy, isOk, isWafBlocked, preferWafBlock, succeed, toLegacy };
+export {
+  fail,
+  failWithDetails,
+  fromLegacy,
+  isOk,
+  isTerminalFailure,
+  isWafBlocked,
+  preferTerminalFailure,
+  succeed,
+  toLegacy,
+};

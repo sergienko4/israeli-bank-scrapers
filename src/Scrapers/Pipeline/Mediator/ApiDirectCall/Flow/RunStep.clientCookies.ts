@@ -8,19 +8,31 @@
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { IClientCookie, ICookieSession } from '../../../Types/Domain/CookieSession.js';
-import type { IProcedureFailure, Procedure } from '../../../Types/Procedure.js';
+import { none, type Option, some } from '../../../Types/Option.js';
+import type { IProcedureFailure, IProcedureSuccess, Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { RefToken } from '../ConfigContracts/index.js';
+import type { ClientCookieSource, RefToken } from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
+import { isRefAbsent } from '../Template/RefPresence.js';
 import { type ITemplateScope, resolveRef } from '../Template/RefResolver.js';
 import { stepBaseUrlOf } from './RunStep.stepUrl.js';
 import type { IRunStepArgs, IStepConfig } from './RunStep.types.js';
 
 /** RFC 6265 cookie-octets, 1 to 4096 of them. */
 const COOKIE_VALUE = /^[\x21\x23-\x2B\x2D-\x3A\x3C-\x5B\x5D-\x7E]{1,4096}$/;
+const NO_CLIENT_COOKIE: Option<IClientCookie> = none();
 
-/** One `setCookies` entry: cookie name and the ref that fills it. */
-type SetCookieEntry = readonly [string, RefToken];
+/** One `setCookies` entry: cookie name and its source. */
+type SetCookieEntry = readonly [string, ClientCookieSource];
+
+/**
+ * The reference named by a cookie source.
+ * @param source - Required or optional cookie source.
+ * @returns Its ref token.
+ */
+function cookieRefOf(source: ClientCookieSource): RefToken {
+  return typeof source === 'string' ? source : source.ref;
+}
 
 /**
  * Check a resolved client-cookie value.
@@ -35,21 +47,49 @@ function checkedCookie(stepName: string, name: string, value: JsonValue): Proced
 }
 
 /**
+ * Wraps a checked cookie as a present optional result.
+ * @param checked - Checked cookie or failure.
+ * @returns Optional cookie or the original failure.
+ */
+function optionalCookie(checked: Procedure<IClientCookie>): Procedure<Option<IClientCookie>> {
+  if (!isOk(checked)) return checked;
+  const cookie = some(checked.value);
+  return succeed(cookie);
+}
+
+/**
+ * Check a present value or omit an explicitly optional empty value.
+ * @param stepName - Step name for a refusal.
+ * @param entry - Cookie name and source.
+ * @param value - Resolved value.
+ * @returns Checked cookie or explicit absence.
+ */
+function cookieValueOf(
+  stepName: string,
+  entry: SetCookieEntry,
+  value: JsonValue,
+): Procedure<Option<IClientCookie>> {
+  if (typeof entry[1] !== 'string' && value === '') return succeed(NO_CLIENT_COOKIE);
+  const checked = checkedCookie(stepName, entry[0], value);
+  return optionalCookie(checked);
+}
+
+/**
  * Resolve one client cookie and check its value.
  * @param step - Step config.
  * @param scope - Step scope.
  * @param entry - Cookie name and ref.
- * @returns Procedure with the cookie, or a failure naming no value.
+ * @returns Procedure with an optional cookie, or a failure naming no value.
  */
 function clientCookieOf(
   step: IStepConfig,
   scope: ITemplateScope,
   entry: SetCookieEntry,
-): Procedure<IClientCookie> {
-  const [name, ref] = entry;
+): Procedure<Option<IClientCookie>> {
+  const ref = cookieRefOf(entry[1]);
+  if (typeof entry[1] !== 'string' && isRefAbsent(ref, scope)) return succeed(NO_CLIENT_COOKIE);
   const resolved = resolveRef(ref, scope);
-  if (!isOk(resolved)) return resolved;
-  return checkedCookie(step.name, name, resolved.value);
+  return isOk(resolved) ? cookieValueOf(step.name, entry, resolved.value) : resolved;
 }
 
 /**
@@ -57,8 +97,18 @@ function clientCookieOf(
  * @param proc - Resolved cookie.
  * @returns True on failure.
  */
-function isFailed(proc: Procedure<IClientCookie>): proc is IProcedureFailure {
+function isFailed(proc: Procedure<Option<IClientCookie>>): proc is IProcedureFailure {
   return !isOk(proc);
+}
+
+/**
+ * Collects a present cookie or no cookie for an absent optional source.
+ * @param result - Successfully resolved optional cookie.
+ * @returns Zero or one cookie.
+ */
+function presentCookie(result: IProcedureSuccess<Option<IClientCookie>>): readonly IClientCookie[] {
+  const value = result.value;
+  return value.has ? [value.value] : [];
 }
 
 /**
@@ -69,12 +119,11 @@ function isFailed(proc: Procedure<IClientCookie>): proc is IProcedureFailure {
  */
 function clientCookiesOf(step: IStepConfig, scope: ITemplateScope): Procedure<IClientCookie[]> {
   const entries = Object.entries(step.setCookies ?? {});
-  const resolved = entries.map((entry): Procedure<IClientCookie> =>
-    clientCookieOf(step, scope, entry),
-  );
+  const resolve = clientCookieOf.bind(null, step, scope);
+  const resolved = entries.map(resolve);
   const failed = resolved.find(isFailed);
   if (failed !== undefined) return failed;
-  const cookies = resolved.filter(isOk).map((proc): IClientCookie => proc.value);
+  const cookies = resolved.filter(isOk).flatMap(presentCookie);
   return succeed(cookies);
 }
 
@@ -118,4 +167,4 @@ function bindStepCookies(args: IRunStepArgs): Procedure<IRunStepArgs> {
 }
 
 export default bindStepCookies;
-export { bindStepCookies, clientCookieOf };
+export { bindStepCookies, clientCookieOf, cookieRefOf };

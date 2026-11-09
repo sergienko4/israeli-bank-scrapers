@@ -22,6 +22,10 @@ const STRATEGY = new HeadlessNativeFetchStrategy(BASE_URL);
 const LATIN1: IFetchOpts = { extraHeaders: {}, bodyEncoding: 'form-latin1' };
 const UTF8: IFetchOpts = { extraHeaders: {}, bodyEncoding: 'form-utf8' };
 const TEXT_BODY: IFetchOpts = { extraHeaders: {}, bodyEncoding: 'text' };
+const FORM_TEXT: IFetchOpts = {
+  extraHeaders: {},
+  bodyEncoding: 'form-text-utf8',
+};
 const TEXT_ANSWER: IFetchOpts = { extraHeaders: {}, responseKind: 'text' };
 const LATIN1_TYPE = 'application/x-www-form-urlencoded; charset=ISO-8859-1';
 const UTF8_TYPE = 'application/x-www-form-urlencoded;charset=UTF-8';
@@ -122,14 +126,29 @@ describe('NativeFetchStrategy — body encodings and text answers', () => {
     expect(headers).toEqual({ accept: '*/*' });
   });
 
-  it('sends text bytes without a Content-Type on the native wire', async () => {
-    const received: { body: string; contentType?: string }[] = [];
+  it.each([
+    {
+      label: 'text bytes without a Content-Type',
+      data: { text: 'MIIC_x-y€' },
+      options: TEXT_BODY,
+      body: 'MIIC_x-y€',
+      contentType: undefined,
+    },
+    {
+      label: 'UTF-8 form bytes under text/plain',
+      data: { userId: 'אב &+', password: 'a +&=ç', authType: 2, appId: 'webapp' },
+      options: FORM_TEXT,
+      body: 'userId=%D7%90%D7%91+%26%2B&password=a+%2B%26%3D%C3%A7&authType=2&appId=webapp',
+      contentType: 'text/plain;charset=UTF-8',
+    },
+  ])('sends $label on the native wire', async ({ data, options, body, contentType }) => {
+    const received: { body: Buffer; contentType?: string }[] = [];
     const server = createServer((request, response) => {
       const chunks: Buffer[] = [];
       request.on('data', (chunk: Buffer) => chunks.push(chunk));
       request.on('end', () => {
         received.push({
-          body: Buffer.concat(chunks).toString('utf8'),
+          body: Buffer.concat(chunks),
           contentType: request.headers['content-type'],
         });
         response.setHeader('content-type', 'application/json');
@@ -145,11 +164,10 @@ describe('NativeFetchStrategy — body encodings and text answers', () => {
       }
       const baseUrl = `http://127.0.0.1:${String(address.port)}/`;
       const strategy = new HeadlessNativeFetchStrategy(baseUrl);
-      const text = 'MIIC_x-y€';
-      const options = { ...TEXT_BODY, extraHeaders: { 'Content-Type': 'application/json' } };
-      const result = await strategy.fetchPost('register', { text }, options);
+      const requestOptions = { ...options, extraHeaders: { 'Content-Type': 'application/json' } };
+      const result = await strategy.fetchPost('register', data, requestOptions);
       expect(result).toEqual({ success: true, value: {} });
-      expect(received).toEqual([{ body: text, contentType: undefined }]);
+      expect(received).toEqual([{ body: Buffer.from(body, 'utf8'), contentType }]);
     } finally {
       await new Promise<void>((resolve, reject) => {
         server.close(error => {

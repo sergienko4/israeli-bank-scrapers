@@ -148,7 +148,9 @@ function summarizeScrapeForGuard(scrape: IScrapeState): IApiDirectScrapeGuardSum
   const accountCount = scrape.accounts.length;
   const totalTxns = scrape.accounts.reduce((n, a) => n + a.txns.length, 0);
   const hasDegraded = scrape.balanceDegraded ?? false;
-  return { accountCount, totalTxns, balanceDegraded: hasDegraded };
+  const observed = scrape.observedCaveats;
+  const evidence = observed === undefined ? {} : { observedCaveats: observed };
+  return { accountCount, totalTxns, balanceDegraded: hasDegraded, ...evidence };
 }
 
 /**

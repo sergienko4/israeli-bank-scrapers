@@ -8,6 +8,7 @@ import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import { getDebug } from '../../Logging/Debug.js';
 import type { Brand } from '../../Types/Brand.js';
 import type {
+  IResponseIntegrity,
   IResponseReading,
   MediaTypePolicy,
   RedirectPolicy,
@@ -28,14 +29,14 @@ import type {
 import { overlayHeaders } from './HeaderOverlay.js';
 import { classifyHttpFailure, hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
 import { parseJsonResponse } from './JsonResponse.js';
-import { refuseMediaType } from './MediaTypeCheck.js';
 import { withBodyContentType, writePostBody } from './PostBody.js';
 import type { IRedirectRun, IRunEnd } from './RedirectFollow.js';
 import { emitSetCookies, sendUnderPolicy } from './RedirectFollow.js';
 import { emitResponseHeaders } from './ResponseHeaderSink.js';
+import { checkResponseIntegrity, refuseMediaType } from './ResponsePolicyCheck.js';
 import { safeUrlForLog, scrubUrlFromText } from './SafeUrlForLog.js';
 import type { IAnswer } from './StatusPolicy.js';
-import { applyStatusPolicy } from './StatusPolicy.js';
+import { applyRateLimit, applyStatusPolicy, statusActionFor } from './StatusPolicy.js';
 import { readText } from './TextResponse.js';
 
 type FullyQualifiedUrl = Brand<string, 'FullyQualifiedUrl'>;
@@ -78,6 +79,8 @@ interface INativeFetchOptions {
   readonly mediaTypes?: MediaTypePolicy;
   /** Decode every answer as strict UTF-8 unless its call says otherwise. */
   readonly strictUtf8?: boolean;
+  readonly responseIntegrity?: IResponseIntegrity;
+  readonly isConnectRetryDisabled?: boolean;
 }
 
 /** JSON content-type on every verb — the base strategy's defaults. */
@@ -116,8 +119,10 @@ function refuseBody<T>(
  */
 async function classifyStatus<T>(answer: IAnswer): Promise<Procedure<T>> {
   const { response, verb, url } = answer;
-  const body = await response.text();
   const headers = Object.fromEntries(response.headers);
+  const isHeaderChallenge =
+    answer.reading.responseIntegrity !== undefined && hasCloudflareChallengeHeader(headers);
+  const body = isHeaderChallenge ? '' : await response.text();
   const privacy = { omitBankText: answer.reading.omitBankText };
   const redaction = { redactUrlValues: answer.reading.redactUrlValues };
   const failure = { verb, url, status: response.status, body, headers, ...privacy, ...redaction };
@@ -137,12 +142,14 @@ function isApiSuccess(response: Response): boolean {
 }
 
 /**
- * Route an answer: WAF classification first, then the bank's status policy,
- * then the expected media type, then the reader its response kind names.
+ * Route an answer: configured rate limits, WAF classification, remaining
+ * status decisions, media type, and finally the configured reader.
  * @param answer - The answered call.
  * @returns Procedure with the read body or a classified failure.
  */
 async function routeResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
+  const action = statusActionFor(answer);
+  if (action.has && action.value === 'rate-limit') return applyRateLimit<T>(answer);
   if (!isApiSuccess(answer.response)) return classifyStatus<T>(answer);
   const decided = await applyStatusPolicy<T>(answer);
   if (decided.has) return decided.value;
@@ -285,7 +292,7 @@ class NativeFetchStrategy implements IFetchStrategy {
   protected _redirectDefault: RedirectPolicy = 'follow';
 
   /**
-   * Status seam — the 2xx statuses this transport's bank decides itself.
+   * Status seam — the statuses this transport's bank decides itself.
    * The base decides none; transports built for a bank whose config names a
    * policy replace it in their constructor.
    */
@@ -308,6 +315,13 @@ class NativeFetchStrategy implements IFetchStrategy {
    */
   protected _strictUtf8 = false;
 
+  /** The transport must explicitly opt in only after implementing enforcement. */
+  protected _supportsResponseIntegrity = false;
+
+  protected readonly _responseIntegrity?: IResponseIntegrity;
+
+  protected readonly _isConnectRetryDisabled: boolean;
+
   /**
    * Create a NativeFetchStrategy.
    * @param baseUrl - The base URL for API requests.
@@ -320,6 +334,8 @@ class NativeFetchStrategy implements IFetchStrategy {
     this._omitBankText = options.omitBankText === true;
     this._mediaTypes = options.mediaTypes ?? this._mediaTypes;
     this._strictUtf8 = options.strictUtf8 ?? this._strictUtf8;
+    this._responseIntegrity = options.responseIntegrity;
+    this._isConnectRetryDisabled = options.isConnectRetryDisabled === true;
   }
 
   /**
@@ -332,6 +348,8 @@ class NativeFetchStrategy implements IFetchStrategy {
    * @returns Procedure with parsed response or structured failure.
    */
   public async fetchPost<T>(url: string, data: PostData, opts: IFetchOpts): Promise<Procedure<T>> {
+    const integrity = this.checkIntegrity(opts);
+    if (!isOk(integrity)) return integrity;
     const written = writePostBody(data, opts.bodyEncoding);
     const target = this.resolveUrl(url);
     if (!isOk(written)) return refuseBody<T>(target, written, opts.redactUrlValues);
@@ -353,6 +371,8 @@ class NativeFetchStrategy implements IFetchStrategy {
    * @returns Procedure with parsed response or structured failure.
    */
   public async fetchGet<T>(url: string, opts: IFetchOpts): Promise<Procedure<T>> {
+    const integrity = this.checkIntegrity(opts);
+    if (!isOk(integrity)) return integrity;
     const headers = overlayHeaders(this._verbDefaults.GET, opts.extraHeaders);
     const init: RequestInit = { method: 'GET', headers };
     const run = this.toRun({ url, init, verb: 'GET' }, opts);
@@ -394,7 +414,10 @@ class NativeFetchStrategy implements IFetchStrategy {
     const hooks = { responseKind, documentMarker, maxTextChars, headerSink, onEmptyResponse };
     const redaction = { redactUrlValues: opts.redactUrlValues };
     const privacy = { omitBankText: this._omitBankText };
-    const policy = { statusPolicy: this._statusPolicy };
+    const policy = {
+      statusPolicy: this._statusPolicy,
+      responseIntegrity: opts.responseIntegrity ?? this._responseIntegrity,
+    };
     return { ...policy, ...hooks, ...media, ...decoding, ...privacy, ...redaction };
   }
 
@@ -405,6 +428,17 @@ class NativeFetchStrategy implements IFetchStrategy {
    */
   protected resolveUrl(url: string): FullyQualifiedUrl {
     return resolveFetchUrl(this._baseUrl, url);
+  }
+
+  /**
+   * Checks both default and per-call policies before a request is dispatched.
+   * @param opts - Call options that may override the default.
+   * @returns A policy refusal or permission to continue.
+   */
+  private checkIntegrity(opts: IFetchOpts): Procedure<void> {
+    const bank = checkResponseIntegrity(this._responseIntegrity, this._supportsResponseIntegrity);
+    if (!isOk(bank)) return bank;
+    return checkResponseIntegrity(opts.responseIntegrity, this._supportsResponseIntegrity);
   }
 }
 

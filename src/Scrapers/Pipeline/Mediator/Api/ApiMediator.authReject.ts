@@ -16,7 +16,7 @@
  */
 
 import type { IProcedureFailure } from '../../Types/Procedure.js';
-import { isWafBlocked } from '../../Types/Procedure.js';
+import { isTerminalFailure } from '../../Types/Procedure.js';
 
 /**
  * Matches the embedded HTTP status prefix `<sp>401:<sp>` or `<sp>403:<sp>`.
@@ -53,7 +53,7 @@ function isAuthRejectionMessage(message: string): boolean {
  * @returns True for a 401/403 the bank answered.
  */
 function isAuthRejectedFailure(failure: IProcedureFailure): boolean {
-  if (isWafBlocked(failure)) return false;
+  if (isTerminalFailure(failure)) return false;
   return (
     AUTH_REJECT_REGEX.test(failure.errorMessage) ||
     AUTH_REJECTED_SUFFIX_REGEX.test(failure.errorMessage)

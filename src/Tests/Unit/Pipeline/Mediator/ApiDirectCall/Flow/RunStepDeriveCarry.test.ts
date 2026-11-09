@@ -58,13 +58,29 @@ function makeScope(): ITemplateScope {
 /**
  * Run the base step with these derivations against the stock answer.
  * @param deriveCarry - The step's derivations.
+ * @param carry - Earlier carry slots.
  * @returns The step's result.
  */
-function runDerive(deriveCarry: IGetStep['deriveCarry']): ReturnType<typeof runStep> {
+function runDerive(
+  deriveCarry: IGetStep['deriveCarry'],
+  carry: Readonly<Record<string, string>> = {},
+): ReturnType<typeof runStep> {
   installJsonAnswer(ANSWER_BODY, ANSWER_HEADERS);
   const step: IGetStep = { ...BASE_STEP, deriveCarry };
   const bus = makeNativeMediator(HINT, ORIGIN);
-  return runStep({ step, bus, scope: makeScope(), companyId: HINT });
+  const scope = { ...makeScope(), carry };
+  return runStep({ step, bus, scope, companyId: HINT });
+}
+
+/**
+ * Derive a tracking value from one synthetic entry URL.
+ * @param url - Source URL.
+ * @returns The step result.
+ */
+function runQuery(url: string): ReturnType<typeof runStep> {
+  const op = { kind: 'url-query', key: 'tracking' } as const;
+  const derive = { into: 'tracking', parts: ['carry.entry'] as const, op };
+  return runDerive([derive], { entry: url });
 }
 
 describe('step-level derived carry', () => {
@@ -118,5 +134,65 @@ describe('step-level derived carry', () => {
     const result = await runDerive([{ into: 'uid', parts: ['carry.modulus'], op }]);
     const errorMessage = 'bind derive uid unformattable';
     expect(result).toMatchObject({ success: false, errorMessage });
+  });
+
+  it('carries the one decoded query value without changing other slots', async () => {
+    const result = await runQuery('https://route.example/?tracking=route%2B%26+%D7%90');
+    expect(result).toMatchObject({
+      success: true,
+      value: { carry: { tracking: 'route+& א', ...PRESERVED } },
+    });
+  });
+
+  it('preserves the default behavior for a whitespace-only query value', async () => {
+    const result = await runQuery('https://route.example/?tracking=%20%20');
+    expect(result).toMatchObject({ success: true, value: { carry: { tracking: '  ' } } });
+  });
+
+  it('preserves well-formed Unicode surrogate pairs in query values', async () => {
+    const tracking = 'route\ud83d\ude00';
+    const result = await runQuery(`https://route.example/?tracking=${tracking}`);
+    expect(result).toMatchObject({ success: true, value: { carry: { tracking } } });
+  });
+
+  it('rejects a whitespace-only query only when explicitly configured', async () => {
+    const op = { kind: 'url-query', key: 'tracking', rejectBlank: true } as const;
+    const derive = { into: 'tracking', parts: ['carry.entry'] as const, op };
+    const blank = await runDerive([derive], { entry: 'https://route.example/?tracking=%20%20' });
+    const text = await runDerive([derive], { entry: 'https://route.example/?tracking=%20a%20' });
+    expect(blank).toMatchObject({
+      success: false,
+      errorMessage: 'bind derive tracking unformattable',
+    });
+    expect(text).toMatchObject({ success: true, value: { carry: { tracking: ' a ' } } });
+  });
+
+  it('accepts a query value at the maximum length', async () => {
+    const tracking = 'x'.repeat(8192);
+    const result = await runQuery(`https://route.example/?tracking=${tracking}`);
+    expect(result).toMatchObject({ success: true, value: { carry: { tracking } } });
+  });
+
+  it.each([
+    ['invalid URL', 'not an absolute URL'],
+    ['missing key', 'https://route.example/?other=value'],
+    ['empty value', 'https://route.example/?tracking='],
+    ['duplicate key', 'https://route.example/?tracking=first&tracking=second'],
+    ['encoded duplicate key', 'https://route.example/?tracking=first&%74racking=second'],
+    ['encoded control', 'https://route.example/?tracking=bad%00value'],
+    ['encoded C1 control', 'https://route.example/?tracking=bad%C2%85value'],
+    ['raw control', 'https://route.example/?tracking=bad\nvalue'],
+    ['unpaired high surrogate', 'https://route.example/?tracking=route\ud800'],
+    ['unpaired low surrogate', 'https://route.example/?tracking=route\udc00'],
+    ['malformed Unicode elsewhere in URL', 'https://route.example/\ud800?tracking=route'],
+    ['malformed escape', 'https://route.example/?tracking=%C0%AF'],
+    ['oversized value', `https://route.example/?tracking=${'x'.repeat(8193)}`],
+    ['oversized URL', `https://route.example/?tracking=ok&other=${'x'.repeat(32768)}`],
+  ])('refuses %s without naming the value', async (_label, url) => {
+    const result = await runQuery(url);
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'bind derive tracking unformattable',
+    });
   });
 });

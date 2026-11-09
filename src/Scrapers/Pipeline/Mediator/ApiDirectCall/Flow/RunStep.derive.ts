@@ -11,6 +11,7 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import type { IStepConfig } from '../ConfigContracts/index.js';
 import { applyDerivations, type IApplyDerivedCarryArgs } from './FlowInitCarry.derived.js';
+import { applyJwtCapture } from './RunStep.jwtCapture.js';
 import type { ITemplateScope } from './RunStep.types.js';
 
 /**
@@ -33,12 +34,14 @@ function stepDeriveArgs(step: IStepConfig, scope: ITemplateScope): IApplyDerived
  * @returns Procedure with the scope plus the derived slots, or the failure.
  */
 function deriveStepCarry(step: IStepConfig, scope: ITemplateScope): Procedure<ITemplateScope> {
+  const bound = applyJwtCapture(step, scope);
+  if (!isOk(bound)) return bound;
   const entries = step.deriveCarry ?? [];
-  if (entries.length === 0) return succeed(scope);
-  const args = stepDeriveArgs(step, scope);
+  if (entries.length === 0) return bound;
+  const args = stepDeriveArgs(step, bound.value);
   const derived = applyDerivations(entries, args);
   if (!isOk(derived)) return derived;
-  return succeed({ ...scope, carry: derived.value });
+  return succeed({ ...bound.value, carry: derived.value });
 }
 
 export default deriveStepCarry;

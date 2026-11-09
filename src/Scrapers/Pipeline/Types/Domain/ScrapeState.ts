@@ -1,4 +1,5 @@
 import type { ITransactionsAccount } from '../../../../Transactions.js';
+import type { WindowCaveat } from '../../../../WindowCoverage.js';
 import type { IAccountIdentity, IBalanceFetchTemplate } from './BalanceTypes.js';
 
 /** Scrape phase result context. */
@@ -78,6 +79,11 @@ interface IScrapeState {
    * exhaustion; consumers treat only an explicit `true` as a shortfall.
    */
   readonly backfillExhausted?: boolean;
+  /**
+   * Per-account post-mapping evidence aggregated independently of coverage.
+   * Empty means no caveats were recorded; absent means evidence is unavailable.
+   */
+  readonly observedCaveats?: readonly WindowCaveat[];
 }
 
 export type { IScrapeState };

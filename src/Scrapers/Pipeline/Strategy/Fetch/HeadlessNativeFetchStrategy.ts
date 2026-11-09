@@ -18,11 +18,12 @@ import {
   NETWORK_CONNECT_RETRIES,
   NETWORK_FETCH_TIMEOUT_MS,
 } from '../../Mediator/Network/FetchConfig.js';
-import type { IResponseReading } from '../../Types/Domain/FetchPolicy.js';
+import type { IResponseIntegrity, IResponseReading } from '../../Types/Domain/FetchPolicy.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, succeed } from '../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { retryOnConnectTimeout } from './ConnectRetry.js';
 import type { IFetchInvokePolicy, IFetchOpts } from './FetchStrategy.js';
+import { hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
 import { isMediaTypeMismatch } from './MediaTypeCheck.js';
 import type {
   DefaultHeadersByVerb,
@@ -33,6 +34,7 @@ import type {
 } from './NativeFetchStrategy.js';
 import { isApiSuccess, NativeFetchStrategy, toNetworkFailure } from './NativeFetchStrategy.js';
 import { isRedirectStatus } from './RedirectFollow.js';
+import { verifyResponseIntegrity } from './ResponseIntegrityReader.js';
 import { safeUrlForLog } from './SafeUrlForLog.js';
 import { statusActionFor } from './StatusPolicy.js';
 
@@ -48,6 +50,7 @@ interface ICappedRequest {
   readonly init: RequestInit;
   readonly timeoutMs: number;
   readonly reading: IResponseReading;
+  readonly isConnectRetryDisabled: boolean;
 }
 
 /** Error names a fetch rejects with once its abort signal fires. */
@@ -96,6 +99,18 @@ function toCappedFailure(args: ICappedFailureArgs): Procedure<Response> {
 }
 
 /**
+ * Whether an integrity-bounded answer is a header-only challenge.
+ * @param response - Received response.
+ * @param reading - Response-reading policy.
+ * @returns True when the challenge body is not needed.
+ */
+function isBoundedChallenge(response: Response, reading: IResponseReading): boolean {
+  if (reading.responseIntegrity === undefined) return false;
+  const headers = Object.fromEntries(response.headers);
+  return hasCloudflareChallengeHeader(headers);
+}
+
+/**
  * Whether the WAF classifier or response reader still needs the body.
  * @param response - Received headers and status.
  * @param request - This call's wire redirect mode and response-reading policy.
@@ -104,8 +119,10 @@ function toCappedFailure(args: ICappedFailureArgs): Procedure<Response> {
 function needsBody(response: Response, request: ICappedRequest): boolean {
   const { init, reading } = request;
   if (init.redirect === 'manual' && isRedirectStatus(response.status)) return false;
-  if (!isApiSuccess(response)) return true;
-  if (statusActionFor({ response, reading }).has) return false;
+  if (isBoundedChallenge(response, reading)) return false;
+  const action = statusActionFor({ response, reading });
+  if (!isApiSuccess(response)) return !(action.has && action.value === 'rate-limit');
+  if (action.has) return false;
   return !isMediaTypeMismatch(response, reading.mediaType);
 }
 
@@ -123,18 +140,62 @@ function stopAfterHeaders(response: Response, controller: AbortController): Resp
 }
 
 /**
+ * Buffers a response under the existing timeout when no byte policy is named.
+ * @param response - Response whose headers have passed policy checks.
+ * @returns The buffered response.
+ */
+async function readUnbounded(response: Response): Promise<Procedure<Response>> {
+  await response.clone().arrayBuffer();
+  return succeed(response);
+}
+
+/**
+ * Verifies successful bytes and bounds failures for their normal classification.
+ * @param response - Response whose headers have passed policy checks.
+ * @param controller - Request-local abort controller.
+ * @param policy - The validated byte and digest policy.
+ * @returns The buffered response or a fixed integrity refusal.
+ */
+async function checkBoundedBody(
+  response: Response,
+  controller: AbortController,
+  policy: IResponseIntegrity,
+): Promise<Procedure<Response>> {
+  const applied = isApiSuccess(response) ? policy : { maxBytes: policy.maxBytes };
+  const checked = await verifyResponseIntegrity(response, applied, controller);
+  return isOk(checked) ? succeed(response) : checked;
+}
+
+/**
+ * Buffers a required response under its optional integrity policy.
+ * @param response - Response whose headers have passed policy checks.
+ * @param controller - Request-local abort controller.
+ * @param reading - The call's immutable reading policy.
+ * @returns The buffered response or a fixed integrity refusal.
+ */
+async function readWithinCap(
+  response: Response,
+  controller: AbortController,
+  reading: IResponseReading,
+): Promise<Procedure<Response>> {
+  const policy = reading.responseIntegrity;
+  if (policy === undefined) return readUnbounded(response);
+  return checkBoundedBody(response, controller, policy);
+}
+
+/**
  * Cap connect and required-body reads; leave header-only outcomes unbuffered.
  * The clone preserves the original body for the inherited response reader.
  * @param request - Request, reading policy and timeout ceiling.
- * @returns The received Response, with a complete body only when needed.
+ * @returns The received Response or a response-integrity refusal.
  */
-async function fetchWithinCap(request: ICappedRequest): Promise<Response> {
+async function fetchWithinCap(request: ICappedRequest): Promise<Procedure<Response>> {
   const controller = new AbortController();
   const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(request.timeoutMs)]);
   const response = await globalThis.fetch(request.url, { ...request.init, signal });
-  if (!needsBody(response, request)) return stopAfterHeaders(response, controller);
-  await response.clone().arrayBuffer();
-  return response;
+  if (needsBody(response, request)) return readWithinCap(response, controller, request.reading);
+  const stopped = stopAfterHeaders(response, controller);
+  return succeed(stopped);
 }
 
 /**
@@ -142,11 +203,12 @@ async function fetchWithinCap(request: ICappedRequest): Promise<Response> {
  * (`redirect: 'manual'`) is repeated: under `follow` fetch walks redirects
  * itself, so a connect timeout may come from a later hop after the original
  * request was already processed, and replaying it would resend its body.
- * @param init - The request's wire options.
+ * @param request - The request's wire options and retry policy.
  * @returns The repeat budget, zero when fetch follows redirects itself.
  */
-function connectRetriesFor(init: RequestInit): number {
-  return init.redirect === 'manual' ? NETWORK_CONNECT_RETRIES : 0;
+function connectRetriesFor(request: ICappedRequest): number {
+  if (request.isConnectRetryDisabled) return 0;
+  return request.init.redirect === 'manual' ? NETWORK_CONNECT_RETRIES : 0;
 }
 
 /**
@@ -155,31 +217,47 @@ function connectRetriesFor(init: RequestInit): number {
  * @param request - Request, reading policy and per-attempt timeout ceiling.
  * @returns The received Response from the first attempt that connected.
  */
-async function fetchRetryingConnect(request: ICappedRequest): Promise<Response> {
+async function fetchRetryingConnect(request: ICappedRequest): Promise<Procedure<Response>> {
   /**
    * Start one capped request with its own fresh timeout signal.
    * @returns The received Response.
    */
-  const attempt = async (): Promise<Response> => fetchWithinCap(request);
-  const retries = connectRetriesFor(request.init);
+  const attempt = async (): Promise<Procedure<Response>> => fetchWithinCap(request);
+  const retries = connectRetriesFor(request);
   return retryOnConnectTimeout(attempt, retries);
+}
+
+/**
+ * Execute a capped request and convert a transport rejection to a failure.
+ * @param request - Request and reading policy.
+ * @param policy - Request verb and redaction policy.
+ * @returns Response, integrity refusal, or network failure.
+ */
+async function invokeCapped(
+  request: ICappedRequest,
+  policy: IFetchInvokePolicy,
+): Promise<Procedure<Response>> {
+  try {
+    return await fetchRetryingConnect(request);
+  } catch (error) {
+    return toCappedFailure({ error, url: request.url, policy, reading: request.reading });
+  }
 }
 
 /**
  * Build the capped transport for the `_invoke` seam.
  * @param timeoutMs - Ceiling (ms) for each request.
  * @param reading - The call's immutable reading policy.
+ * @param isConnectRetryDisabled - Whether to forbid connect-timeout retries.
  * @returns A transport yielding the Response, or a network/timeout failure.
  */
-function makeInvokeCapped(timeoutMs: number, reading: IResponseReading): FetchInvoke {
-  return async (url, init, policy): Promise<Procedure<Response>> => {
-    try {
-      const response = await fetchRetryingConnect({ url, init, timeoutMs, reading });
-      return succeed(response);
-    } catch (error) {
-      return toCappedFailure({ error, url, policy, reading });
-    }
-  };
+function makeInvokeCapped(
+  timeoutMs: number,
+  reading: IResponseReading,
+  isConnectRetryDisabled: boolean,
+): FetchInvoke {
+  return async (url, init, policy): Promise<Procedure<Response>> =>
+    invokeCapped({ url, init, timeoutMs, reading, isConnectRetryDisabled }, policy);
 }
 
 /** Native fetch with a per-request cap and body-less GET defaults. */
@@ -198,6 +276,7 @@ class HeadlessNativeFetchStrategy extends NativeFetchStrategy {
     super(baseUrl, options);
     this._timeoutMs = options.timeoutMs ?? NETWORK_FETCH_TIMEOUT_MS;
     this._verbDefaults = HEADLESS_DEFAULT_HEADERS;
+    this._supportsResponseIntegrity = true;
   }
 
   /**
@@ -208,11 +287,11 @@ class HeadlessNativeFetchStrategy extends NativeFetchStrategy {
    */
   protected toRun(request: TRequest, opts: IFetchOpts): IDispatch {
     const run = super.toRun(request, opts);
-    const invoke = makeInvokeCapped(this._timeoutMs, run.reading);
+    const invoke = makeInvokeCapped(this._timeoutMs, run.reading, this._isConnectRetryDisabled);
     return { ...run, invoke };
   }
 }
 
 export default HeadlessNativeFetchStrategy;
 export type { IHeadlessNativeFetchOptions };
-export { HeadlessNativeFetchStrategy };
+export { HeadlessNativeFetchStrategy, makeInvokeCapped };

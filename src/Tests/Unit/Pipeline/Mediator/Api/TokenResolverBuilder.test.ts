@@ -191,6 +191,22 @@ describe('buildResolverFromStrategy — resolve() ladder', () => {
     expect(result).toBe(edgeBlock);
     expect(counts.primeFresh).toBe(0);
   });
+
+  it('does not replace a response-integrity refusal with a fresh login', async () => {
+    const refusal = {
+      ...fail(ScraperErrorTypes.Generic, 'response exceeds integrity byte limit'),
+      responseIntegrityRefusal: true as const,
+    };
+    const freshOk = succeed(FRESH_HEADER);
+    const { strategy, counts } = makeScriptedStrategy(refusal, freshOk, true);
+    const bus = makeStubMediator();
+    const ctx = makeStubCtx();
+    const creds: ITestCreds = { storedToken: 'stale' };
+    const resolver = buildResolverFromStrategy({ strategy, bus, ctx, creds });
+    const result = await resolver.resolve();
+    expect(result).toBe(refusal);
+    expect(counts.primeFresh).toBe(0);
+  });
 });
 
 /** A warm-failure gate that records what it was asked. */

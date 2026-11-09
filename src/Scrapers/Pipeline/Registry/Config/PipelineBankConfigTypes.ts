@@ -7,6 +7,7 @@
 import type { TlsClientProfileKind } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
 import type { IDynamicClientCert } from '../../Types/Domain/ClientCertControl.js';
 import type {
+  IResponseIntegrity,
   MediaTypePolicy,
   RedirectPolicy,
   StatusPolicy,
@@ -136,6 +137,8 @@ export interface IHeadlessUrlsConfig {
    * keeps the browser-backed identity transport).
    */
   readonly nativeFetch?: boolean;
+  /** Disable native connect-timeout retries, including on manual redirect hops. */
+  readonly isConnectRetryDisabled?: boolean;
   /**
    * When true, the node identity transport keeps one cookie jar for the
    * run: every response's Set-Cookie feeds it and every POST and GET sends
@@ -187,6 +190,8 @@ export interface IHeadlessUrlsConfig {
    * Undefined → bodies read as `text()` does, unless a step says otherwise.
    */
   readonly strictUtf8?: true;
+  /** Native response byte limit and optional digest, overridden by a step. */
+  readonly responseIntegrity?: IResponseIntegrity;
   /**
    * When set, the Camoufox identity strategy route-intercepts the
    * initial navigation to the identity origin URL and serves a blank
@@ -223,6 +228,12 @@ export interface IPipelineBankConfig {
   readonly urls: {
     readonly base: string;
   };
+  /**
+   * Disable phase retries and HOME's crash reload, and submit login once
+   * through a single click. Absent preserves existing recovery behavior.
+   * This does not change observation polling or transport-level retries.
+   */
+  readonly disablePhaseRetry?: true;
   /** Fallback transaction API path — used when network discovery finds nothing. */
   readonly transactionsPath?: string;
   /** Headless-strategy URLs — populated for API-native banks (no browser). */

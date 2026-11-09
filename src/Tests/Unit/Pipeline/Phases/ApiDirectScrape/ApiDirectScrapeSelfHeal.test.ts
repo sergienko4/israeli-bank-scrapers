@@ -17,6 +17,7 @@ import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import { createApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type { IApiDirectScrapeShape } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
+import { checkResponseIntegrity } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/ResponseIntegrityCheck.js';
 import { some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import type {
   IActionContext,
@@ -28,6 +29,7 @@ import { assertHas, assertOk } from '../../../../Helpers/AssertProcedure.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
 import {
   type AnyBankCase,
+  type IApiDirectScrapeBankShapeCase,
   ONEZERO_CASE,
   PEPPER_CASE,
   SYN_CASE,
@@ -94,7 +96,9 @@ function ctxOf(bus: IApiMediator, caseName: string): IActionContext {
  * @param bankCase - Parameterised bank case.
  * @returns Shape whose balance step falls back on failure.
  */
-function degradedShape(bankCase: AnyBankCase): IApiDirectScrapeShape<unknown, unknown> {
+function degradedShape<TAcct, TCursor>(
+  bankCase: IApiDirectScrapeBankShapeCase<TAcct, TCursor>,
+): IApiDirectScrapeShape<TAcct, TCursor> {
   return {
     ...bankCase.shape,
     balance: { ...bankCase.shape.balance, fallbackOnFail: bankCase.fixtures.fallbackBalance ?? 0 },
@@ -166,7 +170,7 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
       isWarm: false,
       recover: succeed('unused'),
     });
-    const shape = degradedShape(SYN_CASE as AnyBankCase);
+    const shape = degradedShape(SYN_CASE);
     const phase = createApiDirectScrapePhase(shape);
     const ctx = ctxOf(bus, SYN_CASE.name);
     const result = await phase(ctx);
@@ -203,7 +207,7 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
       isWarm: true,
       recover: fail(ScraperErrorTypes.Generic, 'cold re-login failed'),
     });
-    const shape = degradedShape(SYN_CASE as AnyBankCase);
+    const shape = degradedShape(SYN_CASE);
     const phase = createApiDirectScrapePhase(shape);
     const ctx = ctxOf(bus, SYN_CASE.name);
     const result = await phase(ctx);
@@ -228,7 +232,7 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
       isWarm: true,
       recover: succeed('fresh-cold-token'),
     });
-    const shape = degradedShape(SYN_CASE as AnyBankCase);
+    const shape = degradedShape(SYN_CASE);
     const phase = createApiDirectScrapePhase(shape);
     const ctx = ctxOf(bus, SYN_CASE.name);
     const result = await phase(ctx);
@@ -247,7 +251,7 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
       isWarm: true,
       recover: succeed('fresh-cold-token'),
     });
-    const shape = degradedShape(SYN_CASE as AnyBankCase);
+    const shape = degradedShape(SYN_CASE);
     const phase = createApiDirectScrapePhase(shape);
     const ctx = ctxOf(bus, SYN_CASE.name);
     const result = await phase(ctx);
@@ -269,7 +273,7 @@ describe('ApiDirectScrape self-heal — gating + recovery failure (synthetic)', 
       isWarm: false,
       recover: succeed('unused'),
     });
-    const shape = degradedShape(SYN_CASE as AnyBankCase);
+    const shape = degradedShape(SYN_CASE);
     const phase = createApiDirectScrapePhase(shape);
     const ctx = ctxOf(bus, SYN_CASE.name);
     const result = await phase(ctx);
@@ -347,6 +351,76 @@ describe('ApiDirectScrape self-heal — Pepper deployed shape (issue #550)', () 
 
 /** An edge (WAF) refusal of an authenticated call on the scrape host. */
 const EDGE_REFUSED = fail(ScraperErrorTypes.WafBlocked, 'Cloudflare edge blocked the request');
+const INTEGRITY_REFUSED = {
+  ...fail(ScraperErrorTypes.Generic, 'response exceeds integrity byte limit'),
+  responseIntegrityRefusal: true as const,
+};
+
+describe('ApiDirectScrape self-heal — response integrity refusal is terminal', () => {
+  it.each([
+    ['unsupported', { maxBytes: 8 }, false],
+    ['invalid', { maxBytes: 0 }, true],
+  ] as const)(
+    'does not mask an %s integrity policy with a balance fallback',
+    async (_, policy, supported) => {
+      const refusal = checkResponseIntegrity(policy, supported);
+      const { bus, recoverSession } = makeSelfHealBus({
+        router: {
+          customer: [succeed(SYN_CASE.fixtures.customer)],
+          balance: [refusal],
+          transactions: [succeed(SYN_CASE.fixtures.transactions)],
+        },
+        isWarm: true,
+        recover: succeed('fresh-cold-token'),
+      });
+      const shape = degradedShape(SYN_CASE);
+      const phase = createApiDirectScrapePhase(shape);
+      const ctx = ctxOf(bus, SYN_CASE.name);
+      const result = await phase(ctx);
+      expect(result).toEqual(refusal);
+      expect(recoverSession).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['customer', 'balance'])(
+    'does not recover or use a balance fallback after %s',
+    async key => {
+      const { bus, recoverSession } = makeSelfHealBus({
+        router: {
+          customer: [key === 'customer' ? INTEGRITY_REFUSED : succeed(SYN_CASE.fixtures.customer)],
+          balance: [INTEGRITY_REFUSED],
+          transactions: [succeed(SYN_CASE.fixtures.transactions)],
+        },
+        isWarm: true,
+        recover: succeed('fresh-cold-token'),
+      });
+      const shape = degradedShape(SYN_CASE);
+      const phase = createApiDirectScrapePhase(shape);
+      const ctx = ctxOf(bus, SYN_CASE.name);
+      const result = await phase(ctx);
+      expect(result).toMatchObject(INTEGRITY_REFUSED);
+      expect(recoverSession).not.toHaveBeenCalled();
+    },
+  );
+
+  it('surfaces an integrity refusal during recovery instead of a degraded balance', async () => {
+    const { bus, recoverSession } = makeSelfHealBus({
+      router: {
+        customer: [succeed(SYN_CASE.fixtures.customer)],
+        balance: [BALANCE_REJECTED],
+        transactions: [succeed(SYN_CASE.fixtures.transactions)],
+      },
+      isWarm: true,
+      recover: INTEGRITY_REFUSED,
+    });
+    const shape = degradedShape(SYN_CASE);
+    const phase = createApiDirectScrapePhase(shape);
+    const ctx = ctxOf(bus, SYN_CASE.name);
+    const result = await phase(ctx);
+    expect(result).toEqual(INTEGRITY_REFUSED);
+    expect(recoverSession).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe.each([SYN_CASE, PEPPER_CASE, ONEZERO_CASE] as readonly AnyBankCase[])(
   'ApiDirectScrape self-heal — edge refusal is terminal — $name',

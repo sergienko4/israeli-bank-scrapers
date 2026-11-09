@@ -19,6 +19,7 @@ import type {
   IApiDirectScrapeBootstrapStep,
   IApiDirectScrapeShape,
   IScrapeCallInfo,
+  ScrapeOperation,
 } from './IApiDirectScrapeShape.js';
 
 /** Driver context — shape + bus + action context. */
@@ -88,25 +89,26 @@ function accountOpts<TAcct, TCursor>(
 }
 
 /** The dispatch-args fields every step of one shape shares. */
-type ShapeLevelArgs = Pick<
-  IDispatchArgs,
-  'signer' | 'secrets' | 'checkBody' | 'bodyDigest' | 'responseSession' | 'omitBankText'
->;
+type ShapeLevelArgs = Pick<IDispatchArgs, 'signer' | 'secrets' | 'checkBody' | 'bodyDigest'> &
+  Pick<IDispatchArgs, 'checkBodyByOperation' | 'responseSession' | 'omitBankText' | 'operation'>;
 
 /**
  * Pull the shape-level signer, secrets, body check, body digest and
  * response session onto a dispatch-args slice.
  * @param shape - Bank shape literal.
+ * @param operation - Operation represented by this call.
  * @returns Slice with the shape-level fields.
  */
 function pickShapeLevel<TAcct, TCursor>(
   shape: IApiDirectScrapeShape<TAcct, TCursor>,
+  operation: ScrapeOperation,
 ): ShapeLevelArgs {
-  const { secrets, checkBody, bodyDigest, responseSession } = shape;
+  const { secrets, checkBody, checkBodyByOperation, bodyDigest, responseSession } = shape;
+  const checks = { checkBody, checkBodyByOperation, operation };
   return {
     signer: shape.signer ?? false,
     secrets,
-    checkBody,
+    ...checks,
     bodyDigest,
     responseSession,
     omitBankText: shape.omitBankText,
@@ -132,11 +134,11 @@ export function buildBootstrapDispatchArgs<TAcct, TCursor>(
 ): IDispatchArgs {
   const head = { bus: d.bus, ctx: d.ctx, queryTag: 'customer' as const, urlTag: step.urlTag };
   const vars = step.buildVars(d.ctx);
-  const method = step.method ?? 'POST';
   const bodyTemplate = step.bodyTemplate ?? false;
   const opts = accountlessOpts(d.ctx, step.extraHeaders);
   const call = step.name ?? BOOTSTRAP_CALL;
-  return { ...head, call, method, vars, bodyTemplate, ...pickShapeLevel(d.shape), opts };
+  const shared = pickShapeLevel(d.shape, 'bootstrap');
+  return { ...head, call, method: step.method ?? 'POST', vars, bodyTemplate, ...shared, opts };
 }
 
 /**
@@ -197,7 +199,7 @@ export function buildCustomerDispatchArgs<TAcct, TCursor>(
     method: d.shape.customer.method ?? 'POST',
     vars: d.shape.customer.buildVars(d.ctx),
     bodyTemplate: d.shape.customer.bodyTemplate ?? false,
-    ...pickShapeLevel(d.shape),
+    ...pickShapeLevel(d.shape, 'customer'),
     opts: accountlessOpts(d.ctx, d.shape.customer.extraHeaders),
   };
 }
@@ -230,7 +232,7 @@ export function buildBalanceDispatchArgs<TAcct, TCursor>(
     method: a.shape.balance.method ?? 'POST',
     vars: a.shape.balance.buildVars(a.acct, a.ctx),
     bodyTemplate: a.shape.balance.bodyTemplate ?? false,
-    ...pickShapeLevel(a.shape),
+    ...pickShapeLevel(a.shape, 'balance'),
     opts: accountOpts(a, a.shape.balance.extraHeaders),
   };
 }
@@ -268,5 +270,5 @@ export function buildTxnsDispatchArgs<TAcct, TCursor>(
   const bodyTemplate = t.bodyTemplate ?? false;
   const method = t.method ?? 'POST';
   const opts = accountOpts(a, t.extraHeaders);
-  return { ...head, urlTag, method, bodyTemplate, ...pickShapeLevel(a.shape), opts };
+  return { ...head, urlTag, method, bodyTemplate, ...pickShapeLevel(a.shape, 'txns'), opts };
 }

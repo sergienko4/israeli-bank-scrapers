@@ -11,6 +11,7 @@
  * Rule #11 compliance: zero bank-name strings.
  */
 
+import type { IUrlRule } from '../../../Types/Domain/FetchPolicy.js';
 import type { RefToken } from './TemplateTypes.js';
 
 /** What every warm-start kind reads: the stored token and where to resume. */
@@ -190,6 +191,8 @@ type SeedCarryBootstrapKind =
 interface ISeedCarrySource {
   readonly field: string;
   readonly bootstrap?: SeedCarryBootstrapKind;
+  /** Draw a fresh random bootstrap even when credentials supply this field. */
+  readonly alwaysBootstrap?: true;
 }
 
 /**
@@ -235,8 +238,42 @@ interface IMd5HexOp {
   readonly kind: 'md5-hex';
 }
 
+/** `url-query`: the single nonempty value of one URL query key. */
+interface IUrlQueryOp {
+  readonly kind: 'url-query';
+  readonly key: string;
+  /** Refuse a decoded value containing only whitespace. */
+  readonly rejectBlank?: true;
+}
+
+/** A checked path selected by one URL query value, retaining the query. */
+interface IUrlPathMapOp {
+  readonly kind: 'url-path-map';
+  readonly key: string;
+  readonly paths: Readonly<Record<string, string>>;
+  readonly source: readonly IUrlRule[];
+  readonly url: readonly IUrlRule[];
+}
+
+/** Fresh query source and one final identity override. */
+interface IUrlComposeMerge {
+  readonly source: readonly IUrlRule[];
+  readonly requiredKeys: readonly string[];
+  readonly setKey: string;
+}
+
+/** A checked relative or absolute URL, optionally merged with another URL's query. */
+interface IUrlComposeOp {
+  readonly kind: 'url-compose';
+  readonly base: string;
+  readonly path?: string;
+  readonly source: readonly IUrlRule[];
+  readonly url: readonly IUrlRule[];
+  readonly merge?: IUrlComposeMerge;
+}
+
 /** The last shaping a derivation applies to its text. */
-type DerivedOp = IFormatOp | IMd5HexOp;
+type DerivedOp = IFormatOp | IMd5HexOp | IUrlQueryOp | IUrlPathMapOp | IUrlComposeOp;
 
 export type {
   ColdFallback,
@@ -254,6 +291,10 @@ export type {
   IRandomUuidBootstrap,
   ISeedCarrySource,
   ISha256Prefix16Bootstrap,
+  IUrlComposeMerge,
+  IUrlComposeOp,
+  IUrlPathMapOp,
+  IUrlQueryOp,
   IWarmStartConfig,
   SeedCarryBootstrapKind,
 };

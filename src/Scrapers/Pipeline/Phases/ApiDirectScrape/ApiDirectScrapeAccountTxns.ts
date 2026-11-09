@@ -8,7 +8,7 @@
  */
 
 import type { ITransaction } from '../../../../Transactions.js';
-import type { IWindowCoverage } from '../../../../WindowCoverage.js';
+import type { IWindowCoverage, WindowCaveat } from '../../../../WindowCoverage.js';
 import { reportMapRejects } from '../../Mediator/Scrape/CoverageAudit/MapRejects.js';
 import { classifyWindowCoverage } from '../../Mediator/Scrape/CoverageAudit/WindowCoverageVerdict.js';
 import { autoMapTransaction } from '../../Mediator/Scrape/ScrapeAutoMapper.js';
@@ -84,6 +84,8 @@ export interface IAccountTxns {
   readonly backfillExhausted: boolean;
   /** What this account may honestly claim about the requested window. */
   readonly windowCoverage: IWindowCoverage;
+  /** Loss and audit observations recorded after mapping. */
+  readonly observedCaveats: readonly WindowCaveat[];
 }
 
 /**
@@ -108,5 +110,6 @@ export async function fetchAccountTxns<TAcct, TCursor>(
   const txns = refineTxns(a, got.rows);
   const caveats = a.ledger.caveats();
   const windowCoverage = classifyWindowCoverage({ ...got.window, caveats });
-  return succeed({ txns, backfillExhausted: got.isBackfillExhausted, windowCoverage });
+  const outcome = { backfillExhausted: got.isBackfillExhausted, observedCaveats: caveats };
+  return succeed({ txns, windowCoverage, ...outcome });
 }

@@ -70,9 +70,11 @@ function toHeadlessWiring(headless: IHeadlessUrlsConfig): IHeadlessWiring {
   const { identityBase, graphql, graphqlHeaders, staticAuth } = headless;
   const { redirectPolicy, statusPolicy, mediaTypes } = headless;
   const urls = { identity: identityBase, graphql, graphqlHeaders, staticAuth };
+  const { responseIntegrity } = headless;
   const policies = { redirectPolicy, statusPolicy, mediaTypes, strictUtf8: headless.strictUtf8 };
-  const { tlsProfile, clientCert, cookieDomains } = headless;
-  const transport = { tlsProfile, clientCert, cookieDomains, ...policies };
+  const { tlsProfile, clientCert, cookieDomains, isConnectRetryDisabled } = headless;
+  const options = { tlsProfile, clientCert, cookieDomains, isConnectRetryDisabled };
+  const transport = { ...options, ...policies, responseIntegrity };
   return { ...urls, transport, ...flags };
 }
 
@@ -196,4 +198,9 @@ function resolveHeadlessApiMediator(descriptor: IPipelineDescriptor): Option<IAp
 
 export default resolveHeadlessApiMediator;
 export type { HeadlessTransportKind } from './HeadlessWiringTypes.js';
-export { resolveHeadlessApiMediator, resolveHeadlessTransportKind };
+export {
+  resolveHeadlessApiMediator,
+  resolveHeadlessTransportKind,
+  selectHeadlessMediator,
+  toHeadlessWiring,
+};

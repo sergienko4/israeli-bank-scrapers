@@ -27,7 +27,9 @@ import type {
   ApiBody,
   BodyCheck,
   IResponseSessionSpec,
+  OperationBodyChecks,
   ScrapeHttpMethod,
+  ScrapeOperation,
   VarsMap,
 } from './IApiDirectScrapeShape.js';
 
@@ -48,6 +50,9 @@ export interface IDispatchArgs {
   readonly secrets?: Readonly<Record<string, string>>;
   /** Shape-level response check — see `IApiDirectScrapeShape.checkBody`. */
   readonly checkBody?: BodyCheck;
+  /** Operation-specific checks and the identity of this call. */
+  readonly checkBodyByOperation?: OperationBodyChecks;
+  readonly operation?: ScrapeOperation;
   /** Shape-level body digest — see `IApiDirectScrapeShape.bodyDigest`. */
   readonly bodyDigest?: IBodyDigestConfig;
   /** Omit bank response text from failed calls when the bank opts in. */
@@ -101,6 +106,22 @@ export function applyBodyCheck(
 ): Procedure<ApiBody> {
   if (!isOk(response) || checkBody === undefined) return response;
   return checkBody(response.value);
+}
+
+/**
+ * Apply the operation check, then the global check to its result.
+ * @param response - The call's result.
+ * @param checkBody - Global check, when declared.
+ * @param operationCheck - Check for this operation, when declared.
+ * @returns The checked response or the first failure.
+ */
+export function applyBodyChecks(
+  response: Procedure<ApiBody>,
+  checkBody?: BodyCheck,
+  operationCheck?: BodyCheck,
+): Procedure<ApiBody> {
+  const selected = applyBodyCheck(response, operationCheck);
+  return applyBodyCheck(selected, checkBody);
 }
 
 /**
@@ -190,9 +211,13 @@ async function routeStep(args: IDispatchArgs): Promise<Procedure<ApiBody>> {
  * @returns Procedure with the typed payload.
  */
 export async function dispatchStep(args: IDispatchArgs): Promise<Procedure<ApiBody>> {
+  if (args.checkBodyByOperation !== undefined && args.operation === undefined) {
+    return fail(ScraperErrorTypes.Generic, 'scrape operation required for body checks');
+  }
   const capture = captureAnswer(args.opts, args.responseSession);
   const response = await routeStep({ ...args, opts: capture.opts });
   const answered = omitBankResponseText(response, args.call ?? args.queryTag, args.omitBankText);
-  const checked = applyBodyCheck(answered, args.checkBody);
+  const operationCheck = args.operation && args.checkBodyByOperation?.[args.operation];
+  const checked = applyBodyChecks(answered, args.checkBody, operationCheck);
   return readResponseSession(checked, capture, args);
 }

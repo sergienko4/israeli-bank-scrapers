@@ -10,6 +10,7 @@ import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import { NETWORK_CONNECT_RETRIES } from '../../../../../Scrapers/Pipeline/Mediator/Network/FetchConfig.js';
+import { HeadlessGraphQLFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessGraphQLFetchStrategy.js';
 import { HeadlessNativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import type {
   IManualRedirect,
@@ -125,6 +126,17 @@ function hangOnBody(_url: string, init: RequestInit): Promise<Response> {
 }
 
 /**
+ * Mock a rate limit whose body never finishes.
+ * @param _url - Ignored.
+ * @param init - The RequestInit carrying the abort signal.
+ * @returns A 429 response with a stalled body.
+ */
+function hangOnRateLimit(_url: string, init: RequestInit): Promise<Response> {
+  const response = hangingResponse(init, { status: 429 });
+  return Promise.resolve(response);
+}
+
+/**
  * Answer with headers but an already-failed body stream.
  * @returns A response whose body cannot be consumed.
  */
@@ -198,7 +210,7 @@ describe('HeadlessNativeFetchStrategy', () => {
     });
   });
 
-  it.each<[StatusAction, string, MockFetchImpl]>([
+  it.each<[Exclude<StatusAction, 'rate-limit'>, string, MockFetchImpl]>([
     ['empty', 'stalled', hangOnBody],
     ['empty', 'broken', brokenBody],
     ['fail', 'stalled', hangOnBody],
@@ -212,6 +224,27 @@ describe('HeadlessNativeFetchStrategy', () => {
     const result = await guarded.fetchGet(ITEMS_URL, { extraHeaders: {} });
     expect(result).toMatchObject(STATUS_RESULTS[action]);
     expect(signalOf(mock.mock.calls[0][1]).aborted).toBe(true);
+  });
+
+  it('reports an opted-in 429 without consuming a stalled body', async () => {
+    const guarded = new HeadlessNativeFetchStrategy(BASE_URL, {
+      timeoutMs: LOWERED_CAP_MS,
+      statusPolicy: { 429: 'rate-limit' },
+    });
+    const mock = installFetchMock(hangOnRateLimit);
+    const result = await guarded.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.WafBlocked,
+      errorMessage: 'GET https://api.bank.example/v1/items 429: rate limited',
+    });
+    expect(signalOf(mock.mock.calls[0][1]).aborted).toBe(true);
+  });
+
+  it('keeps an unconfigured 429 under the shared failure policy', async () => {
+    installFetchMock(() => Promise.resolve(new Response('slow down', { status: 429 })));
+    const result = await strategy.fetchGet(ITEMS_URL, { extraHeaders: {} });
+    expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.Generic });
   });
 
   it('refuses a bank media-type mismatch without waiting for a stalled body', async () => {
@@ -326,6 +359,38 @@ describe('HeadlessNativeFetchStrategy — connect timeout retry', () => {
     expect(mock).toHaveBeenCalledTimes(3);
     const signals = mock.mock.calls.map(([, init]) => signalOf(init));
     expect(new Set(signals).size).toBe(3);
+  });
+
+  it('does not retry a bounded GraphQL request when the bank opts out', async () => {
+    const gql = new HeadlessGraphQLFetchStrategy(
+      BASE_URL,
+      {},
+      {
+        redirectPolicy: 'reject',
+        responseIntegrity: { maxBytes: 64 },
+        isConnectRetryDisabled: true,
+      },
+    );
+    const impl = connectTimeoutsThenJson(1);
+    const mock = installFetchMock(impl);
+    const result = await gql.query('query { ok }', {});
+    expect(result.success).toBe(false);
+    expect(mock).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves a response-integrity refusal after a connect retry', async () => {
+    const bounded = new HeadlessNativeFetchStrategy(BASE_URL, {
+      redirectPolicy: 'reject',
+      responseIntegrity: { maxBytes: 2 },
+    });
+    const impl = connectTimeoutsThenJson(1);
+    const mock = installFetchMock(impl);
+    const result = await bounded.fetchGet('items', { extraHeaders: {} });
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'response exceeds integrity byte limit',
+    });
+    expect(mock).toHaveBeenCalledTimes(2);
   });
 
   it('does not resend a POST when a redirect target times out under follow', async () => {

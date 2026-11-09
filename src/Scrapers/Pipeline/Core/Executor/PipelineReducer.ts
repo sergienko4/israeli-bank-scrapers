@@ -167,13 +167,14 @@ function isNonRetryable(step: IPhaseStep, result: Procedure<IPipelineContext>): 
 }
 
 /**
- * Handle phase failure: respect NO_RETRY list or attempt sanitization pulse.
+ * Handle phase failure: respect the bank policy and NO_RETRY list or attempt
+ * a sanitization pulse.
  * @param args - Tracker + ctx + step + failed result bundle.
  * @returns Either recovered continuation or original failure.
  */
 async function handlePhaseFailure(args: IFailureArgs): Promise<Procedure<IPipelineContext>> {
   const { tracker, ctx, step, result } = args;
-  if (isNonRetryable(step, result)) {
+  if (ctx.config.disablePhaseRetry === true || isNonRetryable(step, result)) {
     traceResult({ logger: ctx.logger, name: step.name, indexTag: step.tag, isSuccess: false });
     return result;
   }

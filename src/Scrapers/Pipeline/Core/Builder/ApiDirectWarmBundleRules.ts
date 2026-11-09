@@ -207,4 +207,4 @@ const API_DIRECT_WARM_BUNDLE_RULES: readonly IApiDirectRule[] = [
 ];
 
 export default API_DIRECT_WARM_BUNDLE_RULES;
-export { API_DIRECT_WARM_BUNDLE_RULES };
+export { API_DIRECT_WARM_BUNDLE_RULES, generatedSlots };

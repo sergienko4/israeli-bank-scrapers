@@ -14,8 +14,10 @@
  * placed in the factory by design."
  */
 
+import ScraperError from '../../../Base/ScraperError.js';
 import { CamoufoxIdentityFetchStrategy } from '../../Strategy/Fetch/CamoufoxIdentityFetchStrategy.js';
 import { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
+import { HeadlessGraphQLFetchStrategy } from '../../Strategy/Fetch/HeadlessGraphQLFetchStrategy.js';
 import { HeadlessNativeFetchStrategy } from '../../Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import type { AgentSource } from '../../Strategy/Fetch/Mtls/MtlsAgentSource.js';
 import { MtlsFetchStrategy } from '../../Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
@@ -26,6 +28,7 @@ import {
   withCookieSession,
 } from '../../Strategy/Fetch/SessionCookieFetchStrategy.js';
 import type { IClientCertControl } from '../../Types/Domain/ClientCertControl.js';
+import type { IResponseIntegrity } from '../../Types/Domain/FetchPolicy.js';
 import { createApiMediator } from './ApiMediator.factory.js';
 import type { INodeTlsMediatorArgs } from './ApiMediator.headless.types.js';
 import { buildTransportSource } from './ApiMediator.nodeTransport.js';
@@ -40,6 +43,18 @@ import type {
 
 /** Preserve the constructor tuple so Reflect selects its typed overload. */
 type HeadlessConstructorArgs = ConstructorParameters<typeof HeadlessNativeFetchStrategy>;
+
+/**
+ * Refuses bank defaults when the chosen identity transport cannot enforce them.
+ * @param args - Transport construction options.
+ * @param args.responseIntegrity - Optional unsupported response policy.
+ * @returns True when no unsupported policy is present.
+ */
+function assertNoUnsupportedIntegrity(args: { responseIntegrity?: IResponseIntegrity }): boolean {
+  if (args.responseIntegrity !== undefined)
+    throw new ScraperError('response integrity unsupported');
+  return true;
+}
 
 /**
  * Install the static Authorization header when configured.
@@ -63,9 +78,10 @@ function applyStaticAuth(
  */
 function nativePolicies(args: IGraphQLTransportArgs): INativeFetchOptions {
   const { redirectPolicy, statusPolicy, mediaTypes } = args;
+  const wire = { redirectPolicy, statusPolicy, mediaTypes };
   const privacy = { omitBankText: args.omitBankText };
-  const decoding = { strictUtf8: args.strictUtf8 };
-  return { redirectPolicy, statusPolicy, mediaTypes, ...privacy, ...decoding };
+  const decoding = { strictUtf8: args.strictUtf8, responseIntegrity: args.responseIntegrity };
+  return { ...wire, ...privacy, ...decoding, isConnectRetryDisabled: args.isConnectRetryDisabled };
 }
 
 /**
@@ -88,7 +104,8 @@ function buildHeadlessStrategies(args: IHeadlessMediatorArgs): IHeadlessStrategi
   const policies = nativePolicies(args);
   const constructArgs: HeadlessConstructorArgs = [args.identityBaseUrl, policies];
   const fetch = Reflect.construct(HeadlessNativeFetchStrategy, constructArgs);
-  const gql = buildGqlStrategy(args);
+  const headers = args.graphqlHeaders ?? {};
+  const gql = Reflect.construct(HeadlessGraphQLFetchStrategy, [args.graphqlUrl, headers, policies]);
   return { fetch, gql };
 }
 
@@ -183,6 +200,7 @@ function makeCamoufoxDispose(strategy: CamoufoxIdentityFetchStrategy): () => Pro
 function createBrowserBackedHeadlessApiMediator(
   args: IBrowserBackedHeadlessMediatorArgs,
 ): IApiMediator {
+  assertNoUnsupportedIntegrity(args);
   const { fetch, gql } = buildBrowserBackedStrategies(args);
   const mediator = createApiMediator(args.bankHint, fetch, gql);
   applyStaticAuth(mediator, args);
@@ -230,6 +248,7 @@ function attachClientCert(
  * @returns A fully-wired IApiMediator using the node:https transport.
  */
 function createMtlsHeadlessApiMediator(args: INodeTlsMediatorArgs): IApiMediator {
+  assertNoUnsupportedIntegrity(args);
   const transport = buildTransportSource(args);
   const strategies = buildMtlsStrategies(args, transport.source);
   const mediator = assembleNodeMediator(args, strategies);

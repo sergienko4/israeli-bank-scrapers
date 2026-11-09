@@ -56,22 +56,36 @@ type ResponseKind = 'json' | 'document' | 'text';
 /**
  * `json` sends the POST body as JSON (the default); `form` sends a flat record
  * URL-encoded; `form-utf8` does the same under a type naming UTF-8;
+ * `form-text-utf8` sends those bytes under text/plain;charset=UTF-8;
  * `form-latin1` does the same over ISO-8859-1; `text` sends the one string
  * field of a `{ text }` record verbatim, with no content-type.
  */
-type BodyEncoding = 'json' | 'form' | 'form-utf8' | 'form-latin1' | 'text';
+type BodyEncoding = 'json' | 'form' | 'form-utf8' | 'form-text-utf8' | 'form-latin1' | 'text';
 
 /** Encodings that write a flat record field by field. */
-const FORM_BODY_ENCODINGS: readonly BodyEncoding[] = ['form', 'form-utf8', 'form-latin1'];
+const FORM_BODY_ENCODINGS: readonly BodyEncoding[] = [
+  'form',
+  'form-utf8',
+  'form-text-utf8',
+  'form-latin1',
+];
 
-/** `empty` answers `{}` without reading the body; `fail` refuses the call. */
-type StatusAction = 'empty' | 'fail';
+/** `empty` answers `{}`; `fail` refuses; `rate-limit` reports WafBlocked. */
+type StatusAction = 'empty' | 'fail' | 'rate-limit';
 
-/** A bank's 2xx statuses it decides before the body is read. */
+/** A bank's 2xx decisions and explicitly configured rate-limit statuses. */
 type StatusPolicy = Readonly<Partial<Record<number, StatusAction>>>;
 
 /** A bank's expected media type per response kind; lower-case `type/subtype`. */
 type MediaTypePolicy = Readonly<Partial<Record<ResponseKind, string>>>;
+
+/** Limits decoded fetch bytes and optionally pins their SHA-256 digest. */
+interface IResponseIntegrity {
+  /** Maximum post-decompression bytes accepted from the response body. */
+  readonly maxBytes: number;
+  /** Expected lowercase SHA-256 of those exact bytes. */
+  readonly sha256?: string;
+}
 
 /** The response headers a call reads: their names and their receiver. */
 interface IResponseHeaderSink {
@@ -102,6 +116,8 @@ interface IFetchCallPolicy {
   readonly mediaType?: string;
   /** Decode the answer as strict UTF-8; overrides the bank's choice. */
   readonly strictUtf8?: boolean;
+  /** Limits and optionally pins the response bytes; overrides the bank's policy. */
+  readonly responseIntegrity?: IResponseIntegrity;
 }
 
 /** How a transport reads one answered call: the bank's policy plus the call's own. */
@@ -117,6 +133,7 @@ interface IResponseReading {
   readonly onEmptyResponse?: () => number;
   readonly mediaType?: string;
   readonly strictUtf8?: boolean;
+  readonly responseIntegrity?: IResponseIntegrity;
   /**
    * Account ids the caller explicitly identified for this call. The URL
    * sanitizer masks each one literally, so an id whose shape carries no
@@ -146,6 +163,12 @@ const MEDIA_TYPE_REFUSED_REASON = 'unexpected media type';
 /** Fixed reason a transport reports for a strict answer that is not UTF-8. */
 const BODY_NOT_UTF8_REASON = 'body not utf-8';
 
+/** Fixed refusals for a bounded response that cannot be accepted. */
+const RESPONSE_BYTE_LIMIT_REASON = 'response exceeds integrity byte limit';
+const RESPONSE_DIGEST_MISMATCH_REASON = 'response integrity digest mismatch';
+const RESPONSE_INTEGRITY_INVALID_REASON = 'invalid response integrity';
+const RESPONSE_INTEGRITY_UNSUPPORTED_REASON = 'response integrity unsupported';
+
 export type {
   BodyEncoding,
   IAnyPathExceptRule,
@@ -153,6 +176,7 @@ export type {
   IFetchCallPolicy,
   IManualRedirect,
   IResponseHeaderSink,
+  IResponseIntegrity,
   IResponseReading,
   IUrlRule,
   MediaTypePolicy,
@@ -168,6 +192,10 @@ export {
   LATIN1_UNENCODABLE_REASON,
   MEDIA_TYPE_REFUSED_REASON,
   REDIRECT_REFUSED_REASON,
+  RESPONSE_BYTE_LIMIT_REASON,
+  RESPONSE_DIGEST_MISMATCH_REASON,
+  RESPONSE_INTEGRITY_INVALID_REASON,
+  RESPONSE_INTEGRITY_UNSUPPORTED_REASON,
   TEXT_BODY_REFUSED_REASON,
   TEXT_TOO_LONG_REASON,
 };

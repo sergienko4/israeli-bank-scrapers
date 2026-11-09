@@ -144,7 +144,7 @@ this contract; the build-time checks read both.
 | Node's own `fetch`, no browser | `headless.nativeFetch` | — | [Headless transports](pipeline.md#headless-transports) |
 | Bank-wide redirect handling | `headless.redirectPolicy` (`RedirectPolicy`) | — | [Redirect policies](pipeline.md#redirect-policies) |
 | Redirect handling of one step | `redirect` (`RedirectPolicy`) | FlowTypes | [Redirect policies](pipeline.md#redirect-policies) |
-| Bank-wide 2xx statuses decided before the body is read | `headless.statusPolicy` (`StatusPolicy`) | — | [Document responses and status policies](pipeline.md#document-responses-and-status-policies) |
+| Bank-wide status decisions before reading the body | `headless.statusPolicy` (`StatusPolicy`) | — | [Document responses and status policies](pipeline.md#document-responses-and-status-policies) |
 | Keep bank text out of native HTTP failures, including data calls | `headless.omitBankText` | — | [Headless transports](pipeline.md#headless-transports) |
 | Read one step's answer as a page, not JSON | `response` (`ResponseKind`), `documentMarker` | FlowTypes | [Document responses and status policies](pipeline.md#document-responses-and-status-policies) |
 | Carry values the bank returns in response headers | `headerExtractsToCarry` (`IHeaderExtract`) | FlowTypes | [Response-header carry](pipeline.md#response-header-carry) |

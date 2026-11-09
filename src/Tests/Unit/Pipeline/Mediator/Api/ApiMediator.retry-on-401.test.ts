@@ -320,6 +320,22 @@ describe('ApiMediator.retryOn401 — strategy registered via withTokenStrategy',
     expect(result).toMatchObject({ success: false, errorType: ScraperErrorTypes.WafBlocked });
   });
 
+  it('returns an integrity refusal from refresh instead of the original 401', async () => {
+    const initial401 = fail(ScraperErrorTypes.Generic, MSG_401_FIRST);
+    const fetchStrat = scriptedFetchStrategy([initial401]);
+    const graphql = stubGraphqlStrategy();
+    const mediator = createApiMediator(CompanyTypes.OneZero, fetchStrat, graphql);
+    const refreshRefused = {
+      ...fail(ScraperErrorTypes.Generic, 'response exceeds integrity byte limit'),
+      responseIntegrityRefusal: true as const,
+    };
+    const strategy = scriptedStrategy([refreshRefused]);
+    const ctx = makeStubCtx();
+    mediator.withTokenStrategy(strategy, ctx, { marker: 'x' });
+    const result = await mediator.apiPost(TEST_URL_TAG, {});
+    expect(result).toEqual(refreshRefused);
+  });
+
   it('converts a thrown primeFresh into a failure + returns the original 401', async () => {
     const initial401 = fail(ScraperErrorTypes.Generic, MSG_401_FIRST);
     const fetchStrat = scriptedFetchStrategy([initial401]);

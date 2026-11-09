@@ -11,6 +11,7 @@
  */
 
 import type { IUrlRule } from '../../../Types/Domain/FetchPolicy.js';
+import type { RefToken } from './TemplateTypes.js';
 
 /**
  * One text capture on a `text` step: its pattern must match the answer
@@ -62,6 +63,42 @@ interface ILocationCapture {
   readonly url: readonly IUrlRule[];
 }
 
+/** An active SDK reference resolved and checked against its answering page. */
+interface ISdkReferenceCapture {
+  readonly kind: 'sdk-reference';
+  readonly into: string;
+  readonly url: readonly IUrlRule[];
+}
+
+/** A root field read from serialized JSON in an active inline script. */
+interface IScriptJsonCapture {
+  readonly kind: 'script-json';
+  readonly into: string;
+  readonly field: string;
+  readonly pattern: string;
+  readonly maxChars: number;
+}
+
+/** A bounded text value read from an issued token's payload. */
+interface IJwtClaimSlot {
+  readonly pointer: string;
+  readonly maxChars: number;
+  /** Refuse values containing only whitespace. */
+  readonly rejectBlank?: true;
+}
+
+/** Issued token claims checked against this flow before later requests. */
+interface IJwtClaimsCapture {
+  readonly kind: 'jwt-claims';
+  readonly from: string;
+  readonly maxTokenChars: number;
+  readonly equals: Readonly<Record<string, RefToken>>;
+  readonly captures: Readonly<Record<string, IJwtClaimSlot>>;
+}
+
+/** Structured captures, selected by their kind. */
+type StructuredCapture = ISdkReferenceCapture | IScriptJsonCapture | IJwtClaimsCapture;
+
 /**
  * The `sealed` mode of the AES-CBC envelope codec: the step's hydrated
  * `{ headers, data }` body goes out sealed under the session key, and its
@@ -87,6 +124,8 @@ interface IEnvelopeExchange {
   readonly mode: 'exchange';
   /** Carry ref of the client's secp256k1 private scalar: canonical base64 of 32 bytes. */
   readonly privateRef: `carry.${string}`;
+  /** Carry ref of the public point submitted in the exchange, when echo binding is required. */
+  readonly echoRef?: `carry.${string}`;
   /** Carry slot that receives the session key, base64. */
   readonly keyInto: string;
   /** Carry slot that receives the crypto session id. */
@@ -101,6 +140,11 @@ export type {
   IEnvelopeExchange,
   IEnvelopeSealed,
   IFormCapture,
+  IJwtClaimsCapture,
+  IJwtClaimSlot,
   ILocationCapture,
+  IScriptJsonCapture,
+  ISdkReferenceCapture,
   ITextCapture,
+  StructuredCapture,
 };

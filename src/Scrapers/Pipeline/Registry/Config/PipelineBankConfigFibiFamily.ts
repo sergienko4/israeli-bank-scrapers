@@ -8,12 +8,7 @@
  * logs in without a code. Pure data (Rule #11).
  */
 
-import { release, type as osType } from 'node:os';
-
-import type {
-  IApiDirectCallConfig,
-  IFingerprintConfig,
-} from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
+import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import {
   FIBI_PATHS,
   FIBI_STATUS_POLICY,
@@ -27,31 +22,8 @@ import {
   fibiSsoSteps,
 } from './PipelineBankConfigFibiFamilyPortal.js';
 import { fibiAssertSteps, fibiOpeningSteps } from './PipelineBankConfigFibiFamilyTransmit.js';
+import deviceFingerprint from './PipelineBankConfigRuntimeFingerprint.js';
 import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
-
-/** The device as the web SDK reports it, read once at load. */
-const DEVICE_DETAILS = {
-  os_type: osType(),
-  os_version: release(),
-  device_model: `Node.js ${process.versions.node}`,
-  device_platform: process.platform,
-  timezone_offset: new Date().getTimezoneOffset(),
-};
-
-/**
- * The SDK's collection result: the app host, the device, no location.
- * @param brand - FIBI-family brand.
- * @returns The fingerprint config.
- */
-function fibiFingerprint(brand: IFibiBrand): IFingerprintConfig {
-  const { host } = new URL(brand.origin);
-  const metadata = { timestamp: { $ref: 'nowMs' }, physical_app_id: { $literal: host } } as const;
-  const content = {
-    device_details: { $literal: DEVICE_DETAILS },
-    location: { $literal: { enabled: false } },
-  };
-  return { shape: { metadata, content } };
-}
 
 /** What every family login shares: the flow, the creds and the carry. */
 const FIBI_LOGIN = {
@@ -95,7 +67,7 @@ function buildFibiApiDirectCall(brand: IFibiBrand): IApiDirectCallConfig {
   const opening = [fibiPrimeStep(brand), ...fibiOpeningSteps(brand)];
   const portal = [...fibiHandoffSteps(brand), ...fibiSsoSteps(brand)];
   const steps = [...opening, ...fibiAssertSteps(brand), ...portal];
-  const fingerprint = fibiFingerprint(brand);
+  const fingerprint = deviceFingerprint(brand.origin);
   return { ...FIBI_LOGIN, persistentAuth, fingerprint, steps };
 }
 

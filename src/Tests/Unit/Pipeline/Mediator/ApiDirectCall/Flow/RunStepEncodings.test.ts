@@ -35,6 +35,10 @@ const LATIN1_STEP: IPostStep = {
 };
 
 const UTF8_STEP: IPostStep = { ...LATIN1_STEP, encoding: 'form-utf8' };
+const FORM_TEXT_STEP: IPostStep = {
+  ...LATIN1_STEP,
+  encoding: 'form-text-utf8',
+};
 
 const TEXT_STEP: IPostStep = {
   name: 'register',
@@ -136,6 +140,26 @@ describe('latin1 forms, text bodies and text answers on login steps', () => {
     const bus = makeNativeMediator(HINT, ORIGIN);
     const scope = scopeWith(['a']);
     const result = await runStep({ step: UTF8_STEP, bus, scope, companyId: HINT });
+    expect(result).toMatchObject({ success: false, errorMessage: 'login form body not flat' });
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it('sends URL-encoded UTF-8 form fields under text/plain', async () => {
+    const fake = serveText('{}');
+    const bus = makeNativeMediator(HINT, ORIGIN);
+    const scope = scopeWith('שלום &+');
+    const result = await runStep({ step: FORM_TEXT_STEP, bus, scope, companyId: HINT });
+    expect(result.success).toBe(true);
+    expect(fake.calls[0].init.body).toBe('username=%D7%A9%D7%9C%D7%95%D7%9D+%26%2B&n=1');
+    const headers = fake.calls[0].init.headers as Record<string, string>;
+    expect(headers['content-type']).toBe('text/plain;charset=UTF-8');
+  });
+
+  it('refuses a nested text-form body before any request', async () => {
+    const fake = serveText('{}');
+    const bus = makeNativeMediator(HINT, ORIGIN);
+    const scope = scopeWith(['invalid']);
+    const result = await runStep({ step: FORM_TEXT_STEP, bus, scope, companyId: HINT });
     expect(result).toMatchObject({ success: false, errorMessage: 'login form body not flat' });
     expect(fake.calls).toHaveLength(0);
   });

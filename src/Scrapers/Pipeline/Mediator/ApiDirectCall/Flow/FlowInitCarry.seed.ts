@@ -9,6 +9,7 @@ import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IApiDirectCallConfig, ISeedCarrySource } from '../ConfigContracts/index.js';
 import type { JsonValue } from '../Envelope/JsonPointer.js';
 import { evalBootstrap } from './FlowInitCarry.bootstrap.js';
+import { evalRandomBootstrap, isRandomBootstrap } from './FlowInitCarry.random.js';
 import type { CarryMut, Creds, IReduceSeedCtx, SeedSourceEntry } from './FlowInitCarry.types.js';
 
 /**
@@ -37,6 +38,21 @@ function noBootstrapFail(field: string): Procedure<JsonValue> {
 }
 
 /**
+ * Draw an unconditional random seed, ignoring credential and initial values.
+ * @param entry - Seed source.
+ * @returns Fresh random value or an invalid-policy failure.
+ */
+function evalFreshSeed(entry: ISeedCarrySource): Procedure<JsonValue> {
+  const bootstrap = entry.bootstrap;
+  if (entry.alwaysBootstrap !== true || bootstrap === undefined || !isRandomBootstrap(bootstrap))
+    return fail(
+      ScraperErrorTypes.Generic,
+      'seedCarryFromCreds: alwaysBootstrap needs a random bootstrap',
+    );
+  return evalRandomBootstrap(bootstrap);
+}
+
+/**
  * Evaluate one `ISeedCarrySource` entry: mirror the creds field when
  * present + non-empty, fall back to the bootstrap when configured, or
  * fail when neither is available.
@@ -45,6 +61,7 @@ function noBootstrapFail(field: string): Procedure<JsonValue> {
  * @returns Procedure with the resolved JsonValue.
  */
 function evalSeedSource(entry: ISeedCarrySource, creds: Creds): Procedure<JsonValue> {
+  if (entry.alwaysBootstrap !== undefined) return evalFreshSeed(entry);
   const raw = creds[entry.field];
   const coerced = coerceCredsValue(raw);
   if (isOk(coerced) && coerced.value !== '') return coerced;

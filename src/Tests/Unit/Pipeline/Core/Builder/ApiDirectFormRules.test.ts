@@ -19,7 +19,7 @@ const HOST = 'https://form.example';
 const NATIVE = { identityBase: HOST, graphql: `${HOST}/graphql`, paths: {}, nativeFetch: true };
 const FLAT_MSG = 'steps.body: a form body must be a flat record';
 const TEXT_MSG = 'steps.body: a text body must be exactly { text }';
-const FORM_ENCODINGS = ['form', 'form-latin1', 'form-utf8'] as const;
+const FORM_ENCODINGS = ['form', 'form-latin1', 'form-utf8', 'form-text-utf8'] as const;
 
 const FLAT: JsonValueTemplate = {
   user: { $ref: 'creds.userCode' },

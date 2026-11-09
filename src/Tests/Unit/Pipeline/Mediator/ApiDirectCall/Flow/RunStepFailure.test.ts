@@ -77,6 +77,8 @@ const RUN_STEP =
 const MEDIATOR = await import('../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js');
 const NATIVE =
   await import('../../../../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js');
+const HEADLESS =
+  await import('../../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js');
 const URLS = await import('../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js');
 const STUB = await import('./StubMediator.js');
 
@@ -325,6 +327,23 @@ describe('login-step failure message', () => {
     expect(result).toEqual(refused);
   });
 
+  it('sanitizes unrecognized text even when the integrity tag is present', async () => {
+    const refusal = {
+      ...fail(ScraperErrorTypes.Generic, `POST ${BIND_URL} 500: ${ECHO_BODY}`),
+      responseIntegrityRefusal: true as const,
+    };
+    const bus = STUB.makeStubMediator({ responses: [refusal], captures: [] });
+    const result = await runBind(bus);
+    expect(result).toMatchObject({
+      success: false,
+      errorMessage: 'bind HTTP 500',
+      responseIntegrityRefusal: true,
+    });
+    const serialized = JSON.stringify(result);
+    const leaked = leaksIn(serialized);
+    expect(leaked).toEqual([]);
+  });
+
   it('passes a failure raised before any request through as is', async (): Promise<void> => {
     const launch = fail(ScraperErrorTypes.Generic, `${CAMOUFOX_LAUNCH_FAILED}: no binary`);
     const bus = STUB.makeStubMediator({ responses: [launch], captures: [] });
@@ -435,5 +454,29 @@ describe('login-step failure message through the native transport and the mediat
     const result = await runBind(bus);
     expect(result.success).toBe(true);
     expect(fake.calls).toHaveLength(2);
+  });
+
+  it('preserves a real bounded overflow refusal through the mediator and step', async () => {
+    const body = '<html>' + 'x'.repeat(64) + '<div class="cf-error">cloudflare</div>';
+    const fake = fakeFetch((): Response => new Response(body, { status: 403 }));
+    globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
+    const transport = new HEADLESS.HeadlessNativeFetchStrategy('https://example.test', {
+      responseIntegrity: { maxBytes: 64 },
+    });
+    const graphql = {} as unknown as GraphQLFetchStrategy;
+    const bus = MEDIATOR.createApiMediator(HINT, transport, graphql);
+    const refreshed = succeed('******');
+    const strategy = refreshingStrategy(refreshed);
+    const ctx = {} as unknown as IPipelineContext;
+    bus.withTokenStrategy(strategy, ctx, {});
+    const result = await runBind(bus);
+    expect(result).toMatchObject({
+      success: false,
+      errorType: ScraperErrorTypes.Generic,
+      errorMessage: 'response exceeds integrity byte limit',
+      responseIntegrityRefusal: true,
+    });
+    expect(fake.calls).toHaveLength(1);
+    expect(JSON.stringify(result) + LOG_LINES.join('\n')).not.toContain('cf-error');
   });
 });

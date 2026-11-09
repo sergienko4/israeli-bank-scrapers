@@ -82,7 +82,8 @@ function isCapturing(step: IStepConfig): boolean {
     step.headerExtractsToCarry !== undefined ||
     step.finalUrlInto !== undefined ||
     step.formCapture !== undefined ||
-    step.locationCapture !== undefined
+    step.locationCapture !== undefined ||
+    (step.structuredCapture !== undefined && step.structuredCapture.kind !== 'jwt-claims')
   );
 }
 

@@ -9,7 +9,7 @@
 import type { ECDH } from 'node:crypto';
 
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { JsonValue } from '../../../Types/JsonValue.js';
+import type { JsonUnknown, JsonUnknownRecord, JsonValue } from '../../../Types/JsonValue.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IEnvelopeExchange } from '../ConfigContracts/index.js';
@@ -18,6 +18,80 @@ import type { IEnvelopeSession } from '../Crypto/EnvelopeCodec.js';
 import { type ITemplateScope, resolveRefText } from '../Template/RefResolver.js';
 import { type IOpenedAnswer, KEY_INVALID, openForStep, stepFail } from './RunStep.codec.open.js';
 import type { CarryMap, IDispatchBundle, IPreparedBody } from './RunStep.types.js';
+
+const ENVELOPE_INVALID = 'envelope invalid';
+
+/** A request or answer field that must match the configured public point. */
+interface IExchangeBinding {
+  readonly value: JsonUnknown;
+  readonly field: 'y' | 'echo_y';
+}
+
+/**
+ * Identifies a record at the request or response boundary.
+ * @param value - Boundary value.
+ * @returns True when the value is a record.
+ */
+function isRecord(value: JsonUnknown): value is JsonUnknownRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Identifies a key-exchange header.
+ * @param value - Candidate header.
+ * @returns True when the record names a key exchange.
+ */
+function isExchangeHeader(value: JsonUnknown): value is JsonUnknownRecord {
+  return isRecord(value) && value.type === 'key_exchange';
+}
+
+/**
+ * Selects exactly one exchange header without copying the header list.
+ * @param headers - Request or answer headers.
+ * @returns The unique header, or false.
+ */
+function uniqueExchangeHeader(headers: readonly JsonUnknown[]): JsonUnknownRecord | false {
+  const index = headers.findIndex(isExchangeHeader);
+  const header = headers[index];
+  if (!isExchangeHeader(header)) return false;
+  if (headers.some((entry, pos): boolean => pos > index && isExchangeHeader(entry))) return false;
+  return header;
+}
+
+/**
+ * Checks a field on the only exchange header without exposing its value.
+ * @param value - Request or answer.
+ * @param field - Exchange header field.
+ * @param expected - Configured public point.
+ * @returns True when exactly one exchange header matches.
+ */
+function matchesExchangeField(
+  value: JsonUnknown,
+  field: IExchangeBinding['field'],
+  expected: string,
+): boolean {
+  if (!isRecord(value) || !Array.isArray(value.headers)) return false;
+  const header = uniqueExchangeHeader(value.headers);
+  return header !== false && header[field] === expected;
+}
+
+/**
+ * Applies the optional public-point binding to an exchange.
+ * @param codec - Exchange codec config.
+ * @param scope - Step scope.
+ * @param binding - Request or answer field to check.
+ * @returns True when binding is absent or matches.
+ */
+function hasBoundExchange(
+  codec: IEnvelopeExchange,
+  scope: ITemplateScope,
+  binding: IExchangeBinding,
+): boolean {
+  if (codec.echoRef === undefined) return true;
+  const expected = resolveRefText(codec.echoRef, scope);
+  if (expected === false || expected.length === 0) return false;
+  return matchesExchangeField(binding.value, binding.field, expected);
+}
 
 /**
  * The client key pair the codec's carry ref names.
@@ -42,8 +116,9 @@ function checkExchangeKey(
   prepared: IPreparedBody,
 ): Procedure<IPreparedBody> {
   const ecdh = exchangeKeyOf(codec, prepared.scope);
-  if (ecdh === false) return fail(ScraperErrorTypes.Generic, KEY_INVALID);
-  return succeed(prepared);
+  const binding: IExchangeBinding = { value: prepared.body, field: 'y' };
+  const isValid = ecdh !== false && hasBoundExchange(codec, prepared.scope, binding);
+  return isValid ? succeed(prepared) : fail(ScraperErrorTypes.Generic, KEY_INVALID);
 }
 
 /**
@@ -60,7 +135,8 @@ function sessionFor(
 ): Procedure<IEnvelopeSession> {
   const ecdh = exchangeKeyOf(codec, scope);
   if (ecdh === false) return fail(ScraperErrorTypes.Generic, KEY_INVALID);
-  return exchangeSession(ecdh, resp);
+  const isBound = hasBoundExchange(codec, scope, { value: resp, field: 'echo_y' });
+  return isBound ? exchangeSession(ecdh, resp) : fail(ScraperErrorTypes.Generic, ENVELOPE_INVALID);
 }
 
 /**

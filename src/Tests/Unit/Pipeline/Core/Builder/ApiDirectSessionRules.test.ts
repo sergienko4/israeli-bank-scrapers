@@ -71,6 +71,34 @@ function validateWith(sessionCarry: readonly string[]): ReturnType<typeof valida
 }
 
 describe('validateApiDirectConfig — sessionCarry', () => {
+  it('accepts a bounded root JSON capture as a server-issued session slot', () => {
+    const spa: IGetStep = {
+      name: 'bootstrap',
+      urlTag: 'auth.bootstrap',
+      method: 'GET',
+      response: 'text',
+      extractsToCarry: {},
+      structuredCapture: {
+        kind: 'script-json',
+        into: 'sessionToken',
+        field: 'SessionID',
+        pattern: '^[a-fA-F0-9]{32}$',
+        maxChars: 32,
+      },
+    };
+    const call = {
+      flow: 'sms-otp',
+      envelope: {},
+      steps: [spa],
+      sessionCarry: ['sessionToken'],
+    } as const;
+    const result = validateApiDirectConfig({ call, headless: NATIVE });
+    expect(result).toEqual({
+      success: true,
+      value: true,
+    });
+  });
+
   it.each<[string, readonly string[]]>([
     ['a header extract', ['mag']],
     ['a body extract', ['token']],

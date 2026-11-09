@@ -23,7 +23,11 @@
  */
 
 import { clickElementImpl } from '../../../../../Scrapers/Pipeline/Mediator/Elements/ActionExecutors.js';
+import createElementMediator, {
+  extractActionMediator,
+} from '../../../../../Scrapers/Pipeline/Mediator/Elements/CreateElementMediator.js';
 import { makeFrame, makeLocator } from './ActionExecutorsHelpers.js';
+import { makeRichPage } from './CreateElementMediatorExtraHelpers.js';
 
 /**
  * Rejection mimicking Playwright's pointer-interception timeout.
@@ -135,5 +139,30 @@ describe('clickNaturalPath — intercepted-click fallback', () => {
     expect(calls.click).toBe(1);
     expect(calls.evaluate).toBe(0);
     expect(calls.frameEvaluate).toBe(0);
+  });
+
+  it('does not fall back after a single-attempt click fails', async () => {
+    const { calls, frame } = makeCountingFrame({ clickFails: true, evaluateFails: false });
+    const click = clickElementImpl({ frame, selector: TEXT_TARGET, isSingleAttempt: true });
+    await expect(click).rejects.toThrow('locator.click');
+    expect(calls.click).toBe(1);
+    expect(calls.evaluate).toBe(0);
+    expect(calls.frameEvaluate).toBe(0);
+  });
+
+  it('preserves the single-attempt policy through the sealed action mediator', async () => {
+    const { calls, frame } = makeCountingFrame({ clickFails: true, evaluateFails: false });
+    const locator = frame.locator(TEXT_TARGET);
+    const page = makeRichPage({ locator });
+    const mediator = createElementMediator(page);
+    const action = extractActionMediator(mediator, page);
+    const click = action.clickElement({
+      contextId: 'main',
+      selector: TEXT_TARGET,
+      isSingleAttempt: true,
+    });
+    await expect(click).rejects.toThrow('locator.click');
+    expect(calls.click).toBe(1);
+    expect(calls.evaluate).toBe(0);
   });
 });
