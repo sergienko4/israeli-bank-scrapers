@@ -410,6 +410,16 @@ forces a fresh look. Re-evaluate sooner if braces publishes above 3.0.3 or
 `eslint-plugin-check-file` drops micromatch. After the file lands on `main`,
 run `gh workflow run scorecard.yml` to clear the alert.
 
+[`GHSA-gcqx-w48m-w2h4`][deepmerge-advisory] — `deepmerge` `<=4.3.1` prototype
+poisoning in `mergeObject()` (low, `CVE-2026-93753`) has no upstream fix
+(latest published release is `4.3.1`) and is reached only at test time via
+`jest` → `@jest/core` → `jest-config` merging the repository's own Jest
+configuration. Because no upstream patch exists yet, its alert is kept open to
+trace until `deepmerge` publishes a fix or `jest-config` drops it, while
+`minimatch` (`GHSA-g3hv-75wg-m249`) and `glob` (`GHSA-3g3m-2fjr-6pw4`) are
+resolved to patched releases (`^11.0.1` and `$glob`) via `package.json`
+`overrides`.
+
 ## Standing finding 4: dev-scoped transitive alerts were auto-dismissed
 
 **A fixable transitive advisory stayed open for weeks because GitHub's
@@ -667,6 +677,7 @@ a few minutes more — and expect `fixed`.
 [stale-config]: https://docs.github.com/en/code-security/how-tos/manage-security-alerts/manage-code-scanning-alerts/resolve-alerts#removing-stale-configurations-and-alerts-from-a-branch
 [adm-zip-advisory]: https://github.com/advisories/GHSA-vwc7-r8mq-g2x9
 [braces-advisory]: https://github.com/advisories/GHSA-vfj7-8cjw-p6xm
+[deepmerge-advisory]: https://github.com/advisories/GHSA-gcqx-w48m-w2h4
 [fast-copy-advisory]: https://github.com/advisories/GHSA-jggr-w7fw-pc2j
 [grouped-security-errors]: https://docs.github.com/en/code-security/reference/supply-chain-security/troubleshoot-dependabot/dependabot-errors#failed-to-update-dependency-in-grouped-pull-request
 [renovate-lfm]: https://docs.renovatebot.com/configuration-options/#lockfilemaintenance
