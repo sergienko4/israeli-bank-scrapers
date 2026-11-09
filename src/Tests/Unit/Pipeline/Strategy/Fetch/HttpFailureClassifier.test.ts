@@ -1,7 +1,7 @@
 /**
  * Unit tests for Strategy/Fetch/HttpFailureClassifier — the non-2xx
  * classification shared by NativeFetchStrategy (and its mTLS / GraphQL
- * subclasses) and CamoufoxIdentityFetchStrategy.
+ * subclasses).
  */
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';

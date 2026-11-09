@@ -183,8 +183,6 @@ type ICallMethods = Pick<IApiMediator, 'apiPost' | 'apiGet' | 'apiQuery'>;
 // (definitions live in ./ApiMediator.headless.types.ts to keep this file ≤150 LoC)
 export type { IApiQueryOpts } from '../../Types/Domain/ApiQueryOpts.js';
 export type {
-  IBrowserBackedHeadlessMediatorArgs,
-  IBrowserBackedStrategies,
   IGraphQLTransportArgs,
   IHeadlessMediatorArgs,
   IHeadlessStrategies,

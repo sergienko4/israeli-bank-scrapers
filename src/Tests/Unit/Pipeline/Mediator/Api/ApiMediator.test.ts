@@ -17,7 +17,6 @@ import {
 } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.hmacHeaders.js';
 import {
   createApiMediator,
-  createBrowserBackedHeadlessApiMediator,
   createHeadlessApiMediator,
   type IApiMediator,
 } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
@@ -503,31 +502,7 @@ describe('ApiMediator/reuseContract', () => {
   });
 });
 
-describe('ApiMediator/createBrowserBackedHeadlessApiMediator', () => {
-  it('OZ-AM-01 — factory returns a mediator carrying the standard surface and a dispose hook', () => {
-    const mediator = createBrowserBackedHeadlessApiMediator({
-      bankHint: HINT,
-      identityBaseUrl: 'https://id.example/v1/',
-      identityOriginUrl: 'https://id.example',
-      graphqlUrl: 'https://gql.example/graphql',
-    });
-    expect(typeof mediator.apiPost).toBe('function');
-    expect(typeof mediator.apiGet).toBe('function');
-    expect(typeof mediator.apiQuery).toBe('function');
-    expect(typeof mediator.dispose).toBe('function');
-  });
-
-  it('OZ-AM-02 — dispose() delegates to the strategy and is idempotent (no throw, no launch)', async () => {
-    const mediator = createBrowserBackedHeadlessApiMediator({
-      bankHint: HINT,
-      identityBaseUrl: 'https://id.example/v1/',
-      identityOriginUrl: 'https://id.example',
-      graphqlUrl: 'https://gql.example/graphql',
-    });
-    await expect(mediator.dispose?.()).resolves.toBeUndefined();
-    await expect(mediator.dispose?.()).resolves.toBeUndefined();
-  });
-
+describe('ApiMediator/createHeadlessApiMediator', () => {
   it('OZ-AM-03 — native createHeadlessApiMediator leaves dispose undefined', () => {
     const mediator = createHeadlessApiMediator({
       bankHint: HINT,
