@@ -22,7 +22,6 @@ import { OTSAR_HAHAYAL_SHAPE } from './scrape/OtsarHahayalShape.js';
 function buildOtsarHahayalPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withHeadlessMediator()
     .withApiDirect(OTSAR_HAHAYAL_API_DIRECT_CALL, OTSAR_HAHAYAL_SHAPE)
     .build();
 }

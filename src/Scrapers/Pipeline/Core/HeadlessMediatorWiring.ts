@@ -174,13 +174,12 @@ function selectHeadlessMediator(companyId: CompanyTypes, wiring: IHeadlessWiring
 }
 
 /**
- * Resolve the ApiMediator Option for a descriptor: none() unless the
- * descriptor is headless AND the bank has a registered headless block.
- * @param descriptor - The pipeline descriptor (isHeadless flag + companyId).
+ * Resolve the ApiMediator Option for a descriptor: some(mediator) only when
+ * the bank has a registered headless block.
+ * @param descriptor - The pipeline descriptor (companyId).
  * @returns some(mediator) when applicable, else none().
  */
 function resolveHeadlessApiMediator(descriptor: IPipelineDescriptor): Option<IApiMediator> {
-  if (descriptor.isHeadless !== true) return none();
   const wiring = resolveHeadlessWiring(descriptor.options.companyId);
   if (wiring === false) return none();
   const apiMediator = selectHeadlessMediator(descriptor.options.companyId, wiring);

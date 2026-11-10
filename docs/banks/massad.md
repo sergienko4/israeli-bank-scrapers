@@ -67,7 +67,7 @@ encoded, not encrypted, so store it as a secret.
 
 - Mocked tests cover the Massad login with its own brand values; no live
   Massad run has been recorded yet.
-- Balance plan is single bank-account (`balanceKind: 'account'`).
+- Balance plan is single bank-account.
 
 ## Hard-model post-auth
 

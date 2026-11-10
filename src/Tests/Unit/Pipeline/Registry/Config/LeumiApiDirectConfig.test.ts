@@ -21,7 +21,7 @@ interface ILeumiModule {
 interface IRegistryModule {
   readonly resolvePipelineBankConfig: (
     company: CompanyTypes,
-  ) => { readonly authStrategyKind?: string } | false;
+  ) => { readonly headless?: IHeadless } | false;
 }
 
 describe('Leumi native candidate configuration', () => {
@@ -43,7 +43,7 @@ describe('Leumi native candidate configuration', () => {
     });
     const registry = (await import(REGISTRY)) as IRegistryModule;
     const active = registry.resolvePipelineBankConfig(CompanyTypes.Leumi);
-    expect(active).toMatchObject({ authStrategyKind: 'api-direct', headless });
+    expect(active).toMatchObject({ headless });
   });
 
   it('selects the native descriptor from the production pipeline registry', () => {
@@ -51,7 +51,6 @@ describe('Leumi native candidate configuration', () => {
     if (factory === undefined) throw new TypeError('missing Leumi factory');
     const result = factory({ companyId: CompanyTypes.Leumi, startDate: new Date('2026-01-01') });
     assertOk(result);
-    expect(result.value.isHeadless).toBe(true);
     const phases = result.value.phases.map(phase => phase.name);
     expect(phases).toEqual(['api-direct-call', 'api-direct-scrape']);
   });

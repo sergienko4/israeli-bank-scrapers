@@ -45,10 +45,10 @@ function readSlot(ctx: IPipelineContext): Option<IApiMediator> {
 
 /**
  * Narrow a context's apiMediator slot to an `IApiMediator`, or fail.
- * The slot is populated by PipelineContextFactory when the descriptor
- * carries `isHeadless: true`. Without it the slot is `none()` and
- * this accessor returns a labelled Generic failure — a handler that
- * reaches here without a mediator has a wiring bug, not a data bug.
+ * The slot is populated by PipelineContextFactory when the bank has a
+ * registered headless block. Without it the slot is `none()` and this
+ * accessor returns a labelled Generic failure — a handler that reaches
+ * here without a mediator has a wiring bug, not a data bug.
  * @param ctx - The pipeline or action context.
  * @param label - Label included in the fail message for diagnosis.
  * @returns Mediator Procedure.

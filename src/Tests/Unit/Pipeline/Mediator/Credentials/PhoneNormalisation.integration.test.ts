@@ -41,8 +41,6 @@ type PhoneNumberFormatTag =
 /** Local mirror of the registry's `IPipelineBankConfig` shape — see above. */
 interface IPipelineBankConfig {
   readonly urls: { readonly base: string };
-  readonly balanceKind: 'account' | 'card-cycle';
-  readonly authStrategyKind: 'token' | 'session-cookie' | 'api-direct';
   readonly headless?: {
     readonly identityBase: string;
     readonly graphql: string;
@@ -159,8 +157,6 @@ function makeCapturingBus(capture: ICredsCapture): IApiMediator {
 function makeBankConfig(format: PhoneNumberFormatTag): IPipelineBankConfig {
   return {
     urls: { base: 'https://example.invalid' },
-    balanceKind: 'account',
-    authStrategyKind: 'api-direct',
     headless: {
       identityBase: 'https://identity.example.invalid/',
       graphql: 'https://graph.example.invalid/graphql',
@@ -236,8 +232,6 @@ describe('Phone normalisation — pipeline integration', () => {
     const bank = CompanyTypes.OneZero;
     const configNoFormat: IPipelineBankConfig = {
       urls: { base: 'https://example.invalid' },
-      balanceKind: 'account',
-      authStrategyKind: 'api-direct',
       headless: {
         identityBase: 'https://identity.example.invalid/',
         graphql: 'https://graph.example.invalid/graphql',

@@ -21,7 +21,6 @@ import { ISRACARD_SHAPE } from './scrape/IsracardShape.js';
 function buildIsracardPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withHeadlessMediator()
     .withApiDirect(ISRACARD_API_DIRECT_CALL, ISRACARD_SHAPE)
     .build();
 }

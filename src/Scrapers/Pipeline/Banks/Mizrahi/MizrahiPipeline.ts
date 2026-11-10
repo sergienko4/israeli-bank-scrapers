@@ -21,7 +21,6 @@ import { MIZRAHI_SHAPE } from './scrape/MizrahiShape.js';
 function buildMizrahiPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withHeadlessMediator()
     .withApiDirect(MIZRAHI_API_DIRECT_CALL, MIZRAHI_SHAPE)
     .build();
 }

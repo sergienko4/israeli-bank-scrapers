@@ -115,12 +115,11 @@ describe('Max API-direct call config', () => {
     });
   });
 
-  it('is registered as an api-direct card issuer on that headless block', async () => {
+  it('is registered on that headless block', async () => {
     const { headless } = await loadMax();
     const { resolvePipelineBankConfig } =
       await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
     const entry = resolvePipelineBankConfig(CompanyTypes.Max);
-    expect(entry).toMatchObject({ authStrategyKind: 'api-direct', balanceKind: 'card-cycle' });
     const isWired = entry !== false && entry.headless === headless;
     expect(isWired).toBe(true);
   });

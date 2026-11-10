@@ -22,7 +22,6 @@ type IsErrCheck = Brand<boolean, 'BuilderIsErrCheck'>;
 /** Bundled raw builder fields for validation and snapshot. */
 interface IBuilderFields {
   readonly options: ScraperOptions | false;
-  readonly isHeadless: boolean;
   readonly loginMode: string;
   readonly error: string;
   readonly apiDirectScrape: IApiDirectScrapeShape<unknown, unknown> | false;

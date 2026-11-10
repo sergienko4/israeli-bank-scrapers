@@ -78,6 +78,13 @@ describe('PipelineBankConfigSeeder', () => {
     expect(EXPECTED_URLS.length).toBeGreaterThan(0);
   });
 
+  it('declares a headless block for every registered pipeline bank', () => {
+    const missing = Object.entries(PIPELINE_BANK_CONFIG)
+      .filter(([, config]) => config.headless === undefined)
+      .map(([companyId]) => companyId);
+    expect(missing).toEqual([]);
+  });
+
   it.each(EXPECTED_URLS)('registers %s for %s', (group, bankId, url) => {
     const result = resolveWkUrl(group, bankId);
     const resolved = resolvedUrl(result);

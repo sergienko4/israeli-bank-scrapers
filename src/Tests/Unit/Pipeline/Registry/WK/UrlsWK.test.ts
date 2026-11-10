@@ -263,13 +263,7 @@ async function seedSessionBank(): Promise<void> {
     await import('../../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigSeeder.js');
   const graphql = `${SESSION_ORIGIN}/graphql`;
   const headless: HeadlessBlock = { identityBase: SESSION_ORIGIN, graphql, paths: SESSION_PATHS };
-  const urls = { base: SESSION_ORIGIN };
-  const config = {
-    urls,
-    balanceKind: 'account',
-    authStrategyKind: 'api-direct',
-    headless,
-  } as const;
+  const config = { urls: { base: SESSION_ORIGIN }, headless } as const;
   seeder.seedWkFromPipelineConfig({ [HINT]: config });
 }
 

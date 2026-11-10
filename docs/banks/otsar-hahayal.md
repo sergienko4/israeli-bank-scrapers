@@ -68,7 +68,7 @@ encoded, not encrypted, so store it as a secret.
 
 - Mocked tests cover the Otsar Hahayal login with its own brand values; no
   live Otsar Hahayal run has been recorded yet.
-- Balance plan is single bank-account (`balanceKind: 'account'`).
+- Balance plan is single bank-account.
 
 ## Hard-model post-auth
 

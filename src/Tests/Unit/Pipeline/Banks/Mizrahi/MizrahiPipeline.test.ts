@@ -25,13 +25,6 @@ describe('buildMizrahiPipeline', () => {
     expect(result.value.options).toBe(opts);
   });
 
-  it('is a headless pipeline', () => {
-    const opts = makeMockOptions(MIZRAHI_OPTIONS);
-    const result = buildMizrahiPipeline(opts);
-    assertOk(result);
-    expect(result.value.isHeadless).toBe(true);
-  });
-
   it('runs only the API-direct login and scrape', () => {
     const opts = makeMockOptions(MIZRAHI_OPTIONS);
     const result = buildMizrahiPipeline(opts);

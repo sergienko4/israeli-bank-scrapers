@@ -20,7 +20,6 @@ type LoginMode = 'none' | 'apiDirectConfig';
 /** Mutable builder state operated on by setter functions. */
 interface IBuilderState {
   options: ScraperOptions | false;
-  isHeadless: boolean;
   loginMode: LoginMode;
   error: string;
   apiDirectScrape: AnyApiDirectScrapeShape | false;
@@ -29,7 +28,6 @@ interface IBuilderState {
 
 /** Default values for an empty builder state — split to keep the factory ≤ 15 LOC. */
 const EMPTY_STATE_DEFAULTS: Omit<IBuilderState, 'options' | 'loginMode' | 'error'> = {
-  isHeadless: false,
   apiDirectScrape: false,
   apiDirectConfig: false,
 };

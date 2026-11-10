@@ -21,7 +21,6 @@ import { BEINLEUMI_SHAPE } from './scrape/BeinleumiShape.js';
 function buildBeinleumiPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withHeadlessMediator()
     .withApiDirect(BEINLEUMI_API_DIRECT_CALL, BEINLEUMI_SHAPE)
     .build();
 }

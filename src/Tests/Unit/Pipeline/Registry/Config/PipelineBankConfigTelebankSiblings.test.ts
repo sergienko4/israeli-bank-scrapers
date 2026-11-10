@@ -114,8 +114,7 @@ describe('Mercantile api-direct login config (Telebank group)', () => {
       unknown
     >;
     const entries = registry.PIPELINE_BANK_CONFIG as Record<string, unknown>;
-    const urls = { base: 'https://www.mercantile.co.il' };
-    const expected = { urls, balanceKind: 'account', authStrategyKind: 'api-direct', headless };
+    const expected = { urls: { base: 'https://www.mercantile.co.il' }, headless };
     expect(entries[CompanyTypes.Mercantile]).toEqual(expected);
   });
 });

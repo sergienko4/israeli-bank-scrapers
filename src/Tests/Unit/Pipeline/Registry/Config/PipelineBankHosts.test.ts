@@ -24,8 +24,7 @@
  * Import paths are inline string literals so TypeScript resolves the
  * module types, and the imports are dynamic to dodge the
  * no-restricted-imports DI rule that bans static imports of
- * Registry/Config/** in Pipeline tests (same precedent as
- * PipelineBankConfigAuthStrategy.test.ts).
+ * Registry/Config/** in Pipeline tests.
  */
 
 import { CompanyTypes } from '../../../../../Definitions.js';

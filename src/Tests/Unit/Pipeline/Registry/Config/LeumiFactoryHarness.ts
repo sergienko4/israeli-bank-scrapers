@@ -95,11 +95,7 @@ function syntheticConfig(config: IApiDirectCallConfig): IApiDirectCallConfig {
  */
 function makeFactory(config: IApiDirectCallConfig): PipelineFactory {
   return (options: ScraperOptions): ReturnType<PipelineFactory> =>
-    createPipelineBuilder()
-      .withOptions(options)
-      .withHeadlessMediator()
-      .withApiDirect(config, LEUMI_SHAPE)
-      .build();
+    createPipelineBuilder().withOptions(options).withApiDirect(config, LEUMI_SHAPE).build();
 }
 
 /**
@@ -141,7 +137,6 @@ function install(modules: IModules, saved: ISnapshot, factory: PipelineFactory):
   PIPELINE_REGISTRY[HINT] = factory;
   modules.registry.PIPELINE_BANK_CONFIG[HINT] = {
     ...saved.bank,
-    authStrategyKind: 'api-direct',
     headless: modules.candidate.LEUMI_HEADLESS,
   };
   modules.seeder.seedWkFromPipelineConfig(modules.registry.PIPELINE_BANK_CONFIG);

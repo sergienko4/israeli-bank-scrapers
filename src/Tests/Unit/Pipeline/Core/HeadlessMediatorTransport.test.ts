@@ -101,11 +101,7 @@ function mockHeadless(flags: ITransportFlags): boolean {
 function resolveWith(flags: ITransportFlags): boolean {
   mockHeadless(flags);
   const options = { companyId: CompanyTypes.OneZero } as unknown as ScraperOptions;
-  const descriptor: IPipelineDescriptor = {
-    options,
-    phases: [],
-    isHeadless: true,
-  };
+  const descriptor: IPipelineDescriptor = { options, phases: [] };
   WIRING.resolveHeadlessApiMediator(descriptor);
   return true;
 }

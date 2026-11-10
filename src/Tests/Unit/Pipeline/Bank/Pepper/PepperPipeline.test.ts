@@ -1,7 +1,7 @@
 /**
  * Unit tests for the Pepper pipeline factory.
- * Asserts the descriptor is a success Procedure, carries isHeadless=true,
- * and the phase list matches the Headless Strategy.
+ * Asserts the descriptor is a success Procedure and the phase list matches
+ * the headless strategy.
  */
 
 import { buildPepperPipeline } from '../../../../../Scrapers/Pipeline/Banks/Pepper/PepperPipeline.js';
@@ -21,13 +21,6 @@ describe('buildPepperPipeline', () => {
     const result = buildPepperPipeline(opts);
     assertOk(result);
     expect(result.value.options).toBe(opts);
-  });
-
-  it('descriptor carries isHeadless=true', () => {
-    const opts = makeMockOptions();
-    const result = buildPepperPipeline(opts);
-    assertOk(result);
-    expect(result.value.isHeadless).toBe(true);
   });
 
   it('phase list excludes browser phases and includes api-direct-call + api-direct-scrape', () => {

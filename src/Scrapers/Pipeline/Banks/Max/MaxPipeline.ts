@@ -20,7 +20,6 @@ import { MAX_SHAPE } from './scrape/MaxShape.js';
 function buildMaxPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withHeadlessMediator()
     .withApiDirect(MAX_API_DIRECT_CALL, MAX_SHAPE)
     .build();
 }

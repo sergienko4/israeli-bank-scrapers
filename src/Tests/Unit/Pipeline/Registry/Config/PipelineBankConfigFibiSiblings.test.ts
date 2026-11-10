@@ -168,8 +168,7 @@ describe.each(SIBLINGS)('$companyId api-direct login config (Beinleumi group)', 
       unknown
     >;
     const entries = registry.PIPELINE_BANK_CONFIG as Record<string, unknown>;
-    const urls = { base: sibling.site };
-    const expected = { urls, balanceKind: 'account', authStrategyKind: 'api-direct', headless };
+    const expected = { urls: { base: sibling.site }, headless };
     expect(entries[sibling.companyId]).toEqual(expected);
   });
 });

@@ -90,7 +90,7 @@ function throwPhase(message: string): SimplePhase {
  * @returns Scraping result.
  */
 async function run(phases: BasePhase[]): ReturnType<typeof executePipeline> {
-  const descriptor: IPipelineDescriptor = { options: MOCK_OPTIONS, phases, isHeadless: false };
+  const descriptor: IPipelineDescriptor = { options: MOCK_OPTIONS, phases };
   return await executePipeline(descriptor, MOCK_CREDENTIALS);
 }
 

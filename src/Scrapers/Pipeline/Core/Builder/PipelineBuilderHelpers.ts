@@ -23,7 +23,7 @@ import {
 function assembleDescriptor(fields: IBuilderFields, options: ScraperOptions): IPipelineDescriptor {
   const state = toBuilderState(fields);
   const phases = assemblePhases(state);
-  return { options, phases, isHeadless: fields.isHeadless };
+  return { options, phases };
 }
 
 /**

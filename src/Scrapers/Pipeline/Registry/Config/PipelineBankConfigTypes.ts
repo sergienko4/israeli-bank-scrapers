@@ -53,31 +53,6 @@ export type AuthPathKey =
 export type PhoneNumberFormatTag =
   'international-plus' | 'international-dash' | 'international-flat' | 'local-only';
 
-/**
- * Balance semantics for a bank — an explicit, REQUIRED per-bank declaration.
- * `'account'` banks expose a real account balance (deposit/checking banks)
- * and trigger a live BALANCE-RESOLVE; `'card-cycle'` banks expose no account
- * balance, only billing-cycle figures — a per-card debit (VisaCal, Max,
- * Isracard, Amex) — which their scrape shape's balance step owns, so
- * BALANCE-RESOLVE is a deterministic no-op for them. Never
- * inferred from absence — an unstated kind is a config error, not a dormant
- * no-op.
- */
-export type BalanceKind = 'account' | 'card-cycle';
-
-/**
- * Auth-completion family for a bank -- an explicit, REQUIRED per-bank declaration.
- * Documents HOW a completed login is verified:
- *   - 'token'         -- a Bearer/JWT is discovered post-auth (FIBI/Mataf, Cal).
- *   - 'session-cookie'-- auth is carried by first-party session cookies
- *                        (telebank, Wix-shell, Angular SPA banks).
- *   - 'api-direct'    -- no browser AUTH-DISCOVERY at all (OneZero/PayBox/Pepper
- *                        run the headless identity strategy).
- * The runtime dashboard gate does NOT branch on this value. Never
- * inferred from absence -- an unstated kind is a config error.
- */
-export type AuthStrategyKind = 'token' | 'session-cookie' | 'api-direct';
-
 /** Headless-strategy URL block — populates ctx.apiMediator at build time. */
 export interface IHeadlessUrlsConfig {
   readonly identityBase: string;
@@ -194,67 +169,18 @@ export interface IHeadlessUrlsConfig {
   readonly phoneNumberFormat?: PhoneNumberFormatTag;
 }
 
-/** Pipeline bank config — HOME phase URL + optional headless URLs. */
+/**
+ * Pipeline bank config — the bank's official website plus its optional
+ * headless transport block.
+ */
 export interface IPipelineBankConfig {
-  /** Official website URL — HOME phase navigates here. */
+  /**
+   * Official website URL. The pipeline runtime does not navigate to it; CI's
+   * DNS warm-up reads it as the bank's marketing-apex host.
+   */
   readonly urls: {
     readonly base: string;
   };
-  /** Fallback transaction API path — used when network discovery finds nothing. */
-  readonly transactionsPath?: string;
-  /** Headless-strategy URLs — populated for API-native banks (no browser). */
+  /** Headless-strategy URLs — populated for API-native banks. */
   readonly headless?: IHeadlessUrlsConfig;
-  /**
-   * Balance semantics — see {@link BalanceKind}. REQUIRED: every bank states
-   * its kind explicitly — `'account'` (live balance resolved) or `'card-cycle'`
-   * (deterministic no-op). Never inferred from absence — an unstated kind is a
-   * config error, not a silent dormant no-op.
-   */
-  readonly balanceKind: BalanceKind;
-  /**
-   * Auth-completion family -- see {@link AuthStrategyKind}. REQUIRED: every bank
-   * states its kind explicitly. Declarative documentation + registry-completeness
-   * contract; the runtime gate does not branch on it.
-   */
-  readonly authStrategyKind: AuthStrategyKind;
-  /**
-   * Advisory observation budget (ms) for the post-login accounts-traffic
-   * histogram. When set, LOGIN.POST waits up to this budget so the PII-safe
-   * login.authconfirm.pool diagnostic is emitted; it NEVER gates login
-   * completion. Absent ⇒ the wait uses the default short budget.
-   *
-   * Built for AngularJS-SPA logins where the SSO redirect fires the accounts
-   * call inside the login boundary, so the histogram captures whether that
-   * hit landed. No bank opts in today. Authentication itself is proven later
-   * at AUTH-DISCOVERY, keeping LOGIN and AUTH cleanly separated.
-   */
-  readonly loginAuthConfirmMs?: number;
-  /**
-   * Login-completion settle-poll budget. When set, the LOGIN.final completion
-   * observer re-checks the LOGIN-LOCAL settle signals (form-gone / advanced /
-   * error / spinner) up to `maxAttempts` times, waiting `intervalMs` between
-   * checks. Absent ⇒ single-shot (one capture, zero wait) — byte-identical to
-   * a direct capture and zero added wall-time.
-   *
-   * ENFORCED when opted in: a bank whose poll budget is exhausted while the
-   * filled login form is still on screen fails LOGIN.final non-retryably with
-   * LOGIN_NOT_COMPLETED. A non-opted bank always succeeds (the single-shot
-   * poll settles on the first capture), so the verdict is unchanged for it.
-   * Built for slow-AngularJS logins whose form lingers while the SSO
-   * redirect settles. No bank opts in today.
-   */
-  readonly loginCompletionPoll?: {
-    readonly intervalMs: number;
-    readonly maxAttempts: number;
-  };
-  /**
-   * Post-login navigation the browser performs in AUTH-DISCOVERY, BEFORE the
-   * cookie-audit, to mint the data-API session for banks whose data API lives
-   * on a DIFFERENT origin than the login page (FIBI: login on `www.<host>`,
-   * data API on `online.<host>`). Navigating to the SPA frontend route drives
-   * the browser onto the data-API origin so its SPA runs the session handshake
-   * — the hand-off the removed DASHBOARD phase used to perform. Absent ⇒ no nav
-   * (banks whose data API is same-origin as login).
-   */
-  readonly postLoginNav?: { readonly url: string; readonly settleMs?: number };
 }

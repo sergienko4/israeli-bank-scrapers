@@ -22,7 +22,6 @@ import { DISCOUNT_SHAPE } from './scrape/DiscountShape.js';
 function buildDiscountPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withHeadlessMediator()
     .withApiDirect(DISCOUNT_API_DIRECT_CALL, DISCOUNT_SHAPE)
     .build();
 }

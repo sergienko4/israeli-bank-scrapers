@@ -24,7 +24,6 @@ function buildLeumiNativePipeline(options: ScraperOptions): Procedure<IPipelineD
   }
   return createPipelineBuilder()
     .withOptions(options)
-    .withHeadlessMediator()
     .withApiDirect(LEUMI_API_DIRECT_CALL, LEUMI_SHAPE)
     .build();
 }

@@ -88,7 +88,7 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 > [docs/workflow/doc-paths.md](./docs/workflow/doc-paths.md).
 
 - `src/Scrapers/Base/Errors.ts` — `WafBlockError` with structured `IWafErrorDetails` (provider, httpStatus, pageTitle, pageUrl, suggestions)
-- `src/Scrapers/Pipeline/Core/Builder/PipelineBuilder.ts` — `withOptions` / `withHeadlessMediator` / `withApiDirect` / `build`: assembles the two-slot pipeline
+- `src/Scrapers/Pipeline/Core/Builder/PipelineBuilder.ts` — `withOptions` / `withApiDirect` / `build`: assembles the two-slot pipeline
 - `src/Scrapers/Pipeline/Core/Executor/PipelineExecutor.ts` — runs the phases, disposes the API mediator in `finally`
 - `src/Scrapers/Pipeline/Phases/ApiDirectCall/ApiDirectCallPhase.ts` — login slot (HTTP login, OTP, durable token)
 - `src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.ts` — scrape slot (accounts, transactions, balances)

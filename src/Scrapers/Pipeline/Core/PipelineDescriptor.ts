@@ -11,11 +11,6 @@ import type { Procedure } from '../Types/Procedure.js';
 interface IPipelineDescriptor {
   readonly options: ScraperOptions;
   readonly phases: readonly BasePhase[];
-  /**
-   * Headless flag — when true, the executor wires an ApiMediator for the
-   * bank. Set via `PipelineBuilder.withHeadlessMediator()`.
-   */
-  readonly isHeadless?: boolean;
 }
 
 /**

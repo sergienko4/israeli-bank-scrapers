@@ -1,7 +1,7 @@
 /**
  * Unit tests for the OneZero pipeline factory.
- * Asserts the descriptor is a success Procedure, carries isHeadless=true,
- * and the phase list matches the Headless Strategy (no browser phases).
+ * Asserts the descriptor is a success Procedure and the phase list matches
+ * the headless strategy (no browser phases).
  */
 
 import { buildOneZeroPipeline } from '../../../../../Scrapers/Pipeline/Banks/OneZero/OneZeroPipeline.js';
@@ -21,13 +21,6 @@ describe('buildOneZeroPipeline', () => {
     const result = buildOneZeroPipeline(opts);
     assertOk(result);
     expect(result.value.options).toBe(opts);
-  });
-
-  it('descriptor carries isHeadless=true', () => {
-    const opts = makeMockOptions();
-    const result = buildOneZeroPipeline(opts);
-    assertOk(result);
-    expect(result.value.isHeadless).toBe(true);
   });
 
   it('phase list EXCLUDES browser phases (init/home/pre-login/dashboard/terminate)', () => {

@@ -22,7 +22,6 @@ import { PAYBOX_SHAPE } from './scrape/PayBoxShape.js';
 function buildPayBoxPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withHeadlessMediator()
     .withApiDirect(PAYBOX_API_DIRECT_CALL, PAYBOX_SHAPE)
     .build();
 }
