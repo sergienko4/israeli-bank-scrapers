@@ -46,6 +46,21 @@ function fail(errorType: ScraperErrorTypes, errorMessage: string): IProcedureFai
 }
 
 /**
+ * Assemble a failure result around a prepared details option.
+ * @param errorType - The categorized error type.
+ * @param errorMessage - Human-readable error description.
+ * @param errorDetails - The attached details option.
+ * @returns A failure Procedure.
+ */
+function failureOf(
+  errorType: ScraperErrorTypes,
+  errorMessage: string,
+  errorDetails: Option<IWafErrorDetails>,
+): IProcedureFailure {
+  return { success: false, errorType, errorMessage, errorDetails };
+}
+
+/**
  * Create a failure result with WAF error details.
  * @param errorType - The categorized error type.
  * @param errorMessage - Human-readable error description.
@@ -57,12 +72,8 @@ function failWithDetails(
   errorMessage: string,
   details: IWafErrorDetails,
 ): IProcedureFailure {
-  return {
-    success: false,
-    errorType,
-    errorMessage,
-    errorDetails: some(details),
-  };
+  const errorDetails = some(details);
+  return failureOf(errorType, errorMessage, errorDetails);
 }
 
 /**
@@ -130,22 +141,28 @@ function fromLegacy(result: IScraperScrapingResult): Procedure<IScraperScrapingR
 }
 
 /**
+ * The error fields every legacy failure carries.
+ * @param proc - The internal failure result.
+ * @returns A legacy failure without error details.
+ */
+function legacyBase(proc: IProcedureFailure): IScraperScrapingResult {
+  return {
+    success: false,
+    errorType: proc.errorType,
+    errorMessage: proc.errorMessage,
+  };
+}
+
+/**
  * Convert Procedure back to IScraperScrapingResult for backward compat.
  * @param proc - The internal Procedure result.
  * @returns A legacy result shape.
  */
 function toLegacy<T>(proc: Procedure<T>): IScraperScrapingResult {
   if (proc.success) return { success: true };
-  const base = {
-    success: false as const,
-    errorType: proc.errorType,
-    errorMessage: proc.errorMessage,
-  };
-  if (proc.errorDetails.has) {
-    const withDetails: IScraperScrapingResult = { ...base, errorDetails: proc.errorDetails.value };
-    return withDetails;
-  }
-  return base;
+  const base = legacyBase(proc);
+  if (!proc.errorDetails.has) return base;
+  return { ...base, errorDetails: proc.errorDetails.value };
 }
 
 export type { IProcedureFailure, IProcedureSuccess, Procedure };

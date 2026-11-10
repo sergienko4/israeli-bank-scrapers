@@ -19,6 +19,18 @@ interface IRequestContext {
 const LOG = getDebug(import.meta.url);
 
 /**
+ * Log a body-cancellation failure with a log-safe URL.
+ * @param request - Request identity for the log-safe diagnostic.
+ * @returns False, the cleanup verdict.
+ */
+function warnCancellation(request: IRequestContext): boolean {
+  const values = request.redactUrlValues ?? request.reading?.redactUrlValues;
+  const url = safeUrlForLog(request.url, values);
+  LOG.warn({ verb: request.verb, url, message: 'Response body cancellation failed' });
+  return false;
+}
+
+/**
  * Cancels an unused body, retaining the policy verdict if cleanup rejects.
  * Already-aborted transports can reject cancellation; diagnostics never include
  * the rejection text, which may contain response data.
@@ -32,10 +44,7 @@ async function cancelResponseBody(response: Response, request: IRequestContext):
     await response.body?.cancel();
     return true;
   } catch {
-    const values = request.redactUrlValues ?? request.reading?.redactUrlValues;
-    const url = safeUrlForLog(request.url, values);
-    LOG.warn({ verb: request.verb, url, message: 'Response body cancellation failed' });
-    return false;
+    return warnCancellation(request);
   }
 }
 

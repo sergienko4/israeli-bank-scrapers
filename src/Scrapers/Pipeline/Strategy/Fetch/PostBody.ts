@@ -161,6 +161,18 @@ function writePostBody(data: PostData, encoding: BodyEncoding = 'json'): Procedu
 }
 
 /**
+ * Copy headers without any content-type entry.
+ * @param headers - Merged request headers.
+ * @returns Headers lacking a content-type, in their original order.
+ */
+function withoutContentType(headers: Record<string, string>): Record<string, string> {
+  const kept = Object.entries(headers).filter(([name]): boolean => {
+    return name.toLowerCase() !== 'content-type';
+  });
+  return Object.fromEntries(kept);
+}
+
+/**
  * Headers with the written body's content-type in place of any other.
  * @param headers - Merged request headers.
  * @param written - Written body.
@@ -172,10 +184,7 @@ function withBodyContentType(
   written: IWrittenBody,
 ): Record<string, string> {
   if (written.contentType === undefined) return headers;
-  const kept = Object.entries(headers).filter(([name]): boolean => {
-    return name.toLowerCase() !== 'content-type';
-  });
-  const rest = Object.fromEntries(kept);
+  const rest = withoutContentType(headers);
   if (written.contentType === false) return rest;
   return { ...rest, 'content-type': written.contentType };
 }

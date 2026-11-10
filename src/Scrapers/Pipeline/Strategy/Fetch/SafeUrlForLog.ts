@@ -44,6 +44,20 @@ function scrubKnownValues(url: string, values?: readonly string[]): string {
 }
 
 /**
+ * Mask a parseable URL to origin + path with account ids hidden.
+ * @param url - Full URL to sanitize.
+ * @param redactUrlValues - Explicit account ids to mask wherever they appear.
+ * @returns Origin + path with account ids masked.
+ */
+function maskedUrl(url: string, redactUrlValues?: readonly string[]): SafeUrlForLog {
+  const parsed = new URL(url);
+  const originPath = `${parsed.origin}${parsed.pathname}`;
+  const masked = redactUrlFull(originPath);
+  const scrubbed = scrubKnownValues(masked, redactUrlValues);
+  return mintSafeUrlForLog(scrubbed);
+}
+
+/**
  * Strip query string, fragment and credentials from a URL and mask any
  * account-bearing path segment.
  * @param url - Full URL to sanitize.
@@ -52,11 +66,7 @@ function scrubKnownValues(url: string, values?: readonly string[]): string {
  */
 function safeUrlForLog(url: string, redactUrlValues?: readonly string[]): SafeUrlForLog {
   try {
-    const parsed = new URL(url);
-    const originPath = `${parsed.origin}${parsed.pathname}`;
-    const masked = redactUrlFull(originPath);
-    const scrubbed = scrubKnownValues(masked, redactUrlValues);
-    return mintSafeUrlForLog(scrubbed);
+    return maskedUrl(url, redactUrlValues);
   } catch {
     return mintSafeUrlForLog(UNPARSEABLE_URL);
   }

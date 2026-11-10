@@ -587,3 +587,10 @@ integrityStateOf
 # TraceConfig.ts; consumed only by TraceConfig.ts and its unit tests.
 formatRunStamp
 RunStampStr
+# Reason: JSON_DEFAULT_HEADERS / ITransportSeed / seedTransport -- the native
+# transport's option surface and option-to-state seeding, split out of
+# NativeFetchStrategy.ts; consumed only by that strategy, which still
+# re-exports the option types consumers already use.
+JSON_DEFAULT_HEADERS
+ITransportSeed
+seedTransport

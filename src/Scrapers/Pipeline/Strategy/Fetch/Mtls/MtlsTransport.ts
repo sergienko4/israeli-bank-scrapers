@@ -257,6 +257,23 @@ async function mtlsInvoke(request: IMtlsRequest): Promise<Procedure<Response>> {
 }
 
 /**
+ * Send one resolved request through the active transport.
+ * @param request - The request and the agent picked for it.
+ * @param presented - The certificate the agent presents.
+ * @returns Procedure carrying the synthesised Response, or a network failure.
+ */
+function invokeThrough(
+  request: IMtlsRequest,
+  presented: IPresentedCert | false,
+): Promise<Procedure<Response>> {
+  const { url, init, verb, mediaType, redactUrlValues } = request;
+  if (mtlsFetchFallback) {
+    return mtlsFetchFallback({ url, init, verb, mediaType, redactUrlValues, presented });
+  }
+  return mtlsInvoke(request);
+}
+
+/**
  * Bind an agent source into a FetchInvoke transport for a strategy's `_invoke`
  * seam. The source is asked on every request, so a dynamic client certificate
  * installed mid-run applies to the next request. Keeps the arrow's typing
@@ -273,12 +290,9 @@ function makeMtlsInvoke(source: AgentSource): FetchInvoke {
    * @returns Procedure carrying the synthesised Response, or a network failure.
    */
   const invoke: FetchInvoke = (url, init, policy) => {
-    const { verb, mediaType, redactUrlValues } = policy;
-    const { agent, presented } = source(url);
-    if (mtlsFetchFallback) {
-      return mtlsFetchFallback({ url, init, verb, mediaType, redactUrlValues, presented });
-    }
-    return mtlsInvoke({ agent, url, init, verb, mediaType, redactUrlValues });
+    const choice = source(url);
+    const request = { agent: choice.agent, url, init, ...policy };
+    return invokeThrough(request, choice.presented);
   };
   return invoke;
 }

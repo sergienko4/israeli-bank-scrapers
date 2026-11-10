@@ -140,6 +140,20 @@ function splitRootArc(values: readonly number[]): readonly number[] {
 }
 
 /**
+ * Fold every byte of an OID element into the accumulator.
+ * @param raw - Certificate bytes.
+ * @param node - The OID element.
+ * @returns The accumulator after the element's bytes.
+ */
+function foldOid(raw: Buffer, node: IDerNode): IOidAccumulator {
+  const content = raw.subarray(node.start, node.end);
+  return [...content].reduce(
+    (acc: IOidAccumulator, byte: number): IOidAccumulator => appendOidByte(acc, byte),
+    OID_SEED,
+  );
+}
+
+/**
  * Decode an OBJECT IDENTIFIER's content to dotted form.
  * @param raw - Certificate bytes.
  * @param node - The OID element.
@@ -147,14 +161,20 @@ function splitRootArc(values: readonly number[]): readonly number[] {
  */
 function decodeOid(raw: Buffer, node: IDerNode): string {
   if (node.end <= node.start) return '';
-  const content = raw.subarray(node.start, node.end);
-  const decoded = [...content].reduce(
-    (acc: IOidAccumulator, byte: number): IOidAccumulator => appendOidByte(acc, byte),
-    OID_SEED,
-  );
+  const decoded = foldOid(raw, node);
   if (!decoded.isWellFormed || decoded.pending !== 0) return '';
-  const arcs = splitRootArc(decoded.values);
-  return arcs.join('.');
+  return splitRootArc(decoded.values).join('.');
+}
+
+/**
+ * Open the content of the next element when it carries the expected tag.
+ * @param cursor - Where to read and the enclosing element's end.
+ * @param tag - Required tag byte.
+ * @returns A cursor at the element's content; every read from it fails when absent.
+ */
+function childOf(cursor: IDerCursor, tag: number): IDerCursor {
+  const node = readNode(cursor, tag);
+  return contentOf(cursor.raw, node);
 }
 
 /**
@@ -164,15 +184,22 @@ function decodeOid(raw: Buffer, node: IDerNode): string {
  * @returns The hash OID, or empty when absent (the SHA-1 default) or not PSS.
  */
 function readPssHash(params: IDerCursor): string {
-  const { raw } = params;
-  const pss = readNode(params, SEQUENCE);
-  const pssFields = contentOf(raw, pss);
-  const explicit = readNode(pssFields, CONTEXT_0);
-  const explicitBody = contentOf(raw, explicit);
-  const hashAlgorithm = readNode(explicitBody, SEQUENCE);
-  const hashFields = contentOf(raw, hashAlgorithm);
+  const pssFields = childOf(params, SEQUENCE);
+  const explicitBody = childOf(pssFields, CONTEXT_0);
+  const hashFields = childOf(explicitBody, SEQUENCE);
   const hashOid = readNode(hashFields, OBJECT_IDENTIFIER);
-  return decodeOid(raw, hashOid);
+  return decodeOid(params.raw, hashOid);
+}
+
+/**
+ * Read the SEQUENCE element that starts at a fixed span of the certificate.
+ * @param raw - Certificate bytes.
+ * @param start - Offset where the element begins.
+ * @param limit - End of the enclosing element.
+ * @returns The element's content bounds, or NO_NODE.
+ */
+function nodeAt(raw: Buffer, start: number, limit: number): IDerNode {
+  return readNode({ raw, offset: start, limit }, SEQUENCE);
 }
 
 /**
@@ -182,15 +209,14 @@ function readPssHash(params: IDerCursor): string {
  * @returns The algorithm OIDs; empty OIDs when the DER is malformed.
  */
 function readSignatureAlgorithm(raw: Buffer): ISignatureAlgorithm {
-  const certificate = readNode({ raw, offset: 0, limit: raw.length }, SEQUENCE);
+  const certificate = nodeAt(raw, 0, raw.length);
   const certificateFields = contentOf(raw, certificate);
   const tbs = readNode(certificateFields, SEQUENCE);
-  const algorithm = readNode({ raw, offset: tbs.end, limit: certificate.end }, SEQUENCE);
+  const algorithm = nodeAt(raw, tbs.end, certificate.end);
   const algorithmFields = contentOf(raw, algorithm);
   const oid = readNode(algorithmFields, OBJECT_IDENTIFIER);
   const pssHashOid = readPssHash({ raw, offset: oid.end, limit: algorithm.end });
-  const algorithmOid = decodeOid(raw, oid);
-  return { oid: algorithmOid, pssHashOid };
+  return { oid: decodeOid(raw, oid), pssHashOid };
 }
 
 export type { ISignatureAlgorithm };
