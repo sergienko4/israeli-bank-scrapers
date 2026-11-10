@@ -1,5 +1,12 @@
 # Changelog
 
+## [10.0.1](https://github.com/sergienko4/israeli-bank-scrapers/compare/v10.0.0...v10.0.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* **leumi:** accept an empty transaction window ([#747](https://github.com/sergienko4/israeli-bank-scrapers/issues/747)) ([d8281e4](https://github.com/sergienko4/israeli-bank-scrapers/commit/d8281e47be614c6436f1c6459d6a1b598e1604c8))
+
 ## [10.0.0](https://github.com/sergienko4/israeli-bank-scrapers/compare/v9.0.0...v10.0.0) (2026-11-09)
 
 
