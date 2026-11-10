@@ -66,17 +66,21 @@ function validBalance(inner: Record<string, unknown>): boolean {
 }
 
 /**
- * Requires a successful status and valid transaction source fields.
+ * Requires a successful status and valid transaction fields.
+ *
+ * Leumi encodes an empty window as `HistoryTransactionsItems: null`, which the
+ * extractor already maps to an empty page. Requiring an array here rejected a
+ * valid empty window and failed the whole scrape.
+ *
  * @param inner - Decoded transactions response.
  * @returns Whether all transaction fields are usable.
  */
 function validTransactions(inner: Record<string, unknown>): boolean {
+  if (!validStatus(inner)) return false;
   const rows = inner.HistoryTransactionsItems;
+  if (rows === null) return true;
   return (
-    validStatus(inner) &&
-    Array.isArray(rows) &&
-    rows.every(validTransactionAmount) &&
-    rows.every(validTransactionSource)
+    Array.isArray(rows) && rows.every(validTransactionAmount) && rows.every(validTransactionSource)
   );
 }
 

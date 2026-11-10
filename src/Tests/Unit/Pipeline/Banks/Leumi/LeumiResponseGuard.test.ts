@@ -134,8 +134,13 @@ describe('Leumi WCF operation checks', () => {
   it.each([
     ['missing status', { HistoryTransactionsItems: [] }],
     ['false status', { SOStatus: { Status: false }, HistoryTransactionsItems: [] }],
+    ['missing status with null rows', { HistoryTransactionsItems: null }],
+    [
+      'false status with null rows',
+      { SOStatus: { Status: false }, HistoryTransactionsItems: null },
+    ],
     ['missing rows', { SOStatus: STATUS }],
-    ['null rows', { SOStatus: STATUS, HistoryTransactionsItems: null }],
+    ['non-array rows', { SOStatus: STATUS, HistoryTransactionsItems: {} }],
     ['invalid row', { SOStatus: STATUS, HistoryTransactionsItems: [null] }],
     ['missing amount', { SOStatus: STATUS, HistoryTransactionsItems: [{ DateUTC: '2026-01-01' }] }],
     [
@@ -147,6 +152,12 @@ describe('Leumi WCF operation checks', () => {
     const body = envelope(inner);
     const result = check('txns', body);
     expect(result).toMatchObject({ success: false });
+  });
+
+  it("accepts a null transaction list as Leumi's empty window", () => {
+    const body = envelope({ SOStatus: STATUS, HistoryTransactionsItems: null });
+    const result = check('txns', body);
+    expect(result).toEqual({ success: true, value: body });
   });
 
   it('accepts a genuine zero transaction amount', () => {
@@ -302,10 +313,13 @@ describe('Leumi WCF checks in the real scrape driver', () => {
     expect(extract).not.toHaveBeenCalled();
   });
 
-  it('preserves a real zero balance and an empty unproven window', async () => {
+  it.each([
+    ['an empty array', []],
+    ['a null list', null],
+  ])('preserves a real zero balance and an empty window from %s', async (_label, history) => {
     const accounts = envelope({ AccountsItems: [ACCOUNT] });
     const balance = envelope({ SOStatus: STATUS, BalanceDisplay: 0 });
-    const page = envelope({ SOStatus: STATUS, HistoryTransactionsItems: [] });
+    const page = envelope({ SOStatus: STATUS, HistoryTransactionsItems: history });
     const bus = makeRouterBus({
       [leumiBrokerUrl(GET_ACCOUNTS_MODULE)]: [succeed(accounts)],
       [leumiBrokerUrl(UC_SO_27_MODULE)]: [succeed(balance), succeed(page)],

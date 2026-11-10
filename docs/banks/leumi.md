@@ -77,7 +77,9 @@ dates without an offset use the bank's calendar timezone. Leumi is explicitly
 mapped as a bank, not a card issuer.
 `leumiResultGuard` rejects missing loss evidence or observed transaction loss.
 A genuine zero balance and an empty
-transaction list remain valid. An unproven history window is not itself
+transaction list remain valid. Leumi encodes an empty transaction window as
+`HistoryTransactionsItems: null`; the guard accepts it as empty, matching the
+extractor. An unproven history window is not itself
 evidence of loss or a claim of complete coverage.
 
 ## Native login details
