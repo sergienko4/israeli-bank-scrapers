@@ -30,7 +30,7 @@ import type { ILeumiAcct } from './LeumiShapeHelpers.js';
 import { type IUcSo27Variant, ucSo27Vars } from './LeumiShapeUcSo27.js';
 
 interface ITxnsResp {
-  readonly HistoryTransactionsItems?: readonly Record<string, unknown>[];
+  readonly HistoryTransactionsItems?: readonly Record<string, unknown>[] | null;
 }
 
 /**
