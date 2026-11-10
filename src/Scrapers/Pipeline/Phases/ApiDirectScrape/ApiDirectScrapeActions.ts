@@ -1,98 +1,26 @@
 /**
  * ApiDirectScrape phase actions — Zero-Logic Bank Folder pattern.
- * Banks supply an IApiDirectScrapeShape (data only); this file walks
- * customer → per-account (balance + paginated transactions) and returns
- * the scrape procedure. Per-step helpers live in ApiDirectScrapeSteps.ts and
- * row refinement in ApiDirectScrapeAccountTxns.ts, keeping this file under
- * the per-file LOC ceiling. Zero bank-name coupling.
+ * Banks supply an IApiDirectScrapeShape (data only); this file drives the
+ * customer → accounts → recovery flow and returns the scrape procedure.
+ * Per-step helpers live in ApiDirectScrapeSteps.ts, the per-account walk in
+ * ApiDirectScrapeAccountWalk.ts and row refinement in
+ * ApiDirectScrapeAccountTxns.ts, keeping this file under the per-file LOC
+ * ceiling. Zero bank-name coupling.
  */
 
-import type { WindowCaveat } from '../../../../WindowCoverage.js';
 import { isAuthRejectedFailure } from '../../Mediator/Api/ApiMediator.authReject.js';
 import type { IApiMediator } from '../../Mediator/Api/ApiMediator.js';
 import { resolveApiMediator } from '../../Mediator/Api/ApiMediatorAccessor.js';
-import { makeEvidenceLedger } from '../../Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
-import type { IAuditedAccount } from '../../Types/Domain/AuditedAccount.js';
 import { isSome, some } from '../../Types/Option.js';
 import type { IActionContext, IScrapeState } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, isTerminalFailure, preferTerminalFailure, succeed } from '../../Types/Procedure.js';
-import { fetchAccountTxns } from './ApiDirectScrapeAccountTxns.js';
-import { fetchBalance } from './ApiDirectScrapeBalance.js';
+import type { IAccountResult } from './ApiDirectScrapeAccountWalk.js';
+import { iterateAccounts } from './ApiDirectScrapeAccountWalk.js';
 import runBootstrap from './ApiDirectScrapeBootstrap.js';
-import type { IAcctCtx, IDriverCtx } from './ApiDirectScrapeDispatchArgs.js';
 import { fetchAccounts } from './ApiDirectScrapeSteps.js';
-import type { ApiDirectScrapeResult } from './ApiDirectScrapeTypes.js';
-import type { IApiDirectScrapeShape, IBalanceOutcome } from './IApiDirectScrapeShape.js';
-
-/** One account plus the outcome facts its walk produced. */
-interface IAccountResult {
-  readonly account: IAuditedAccount;
-  readonly degraded: boolean;
-  /** Backfill was asked for the missing slice and did not get it. */
-  readonly backfillExhausted: boolean;
-  readonly observedCaveats: readonly WindowCaveat[];
-}
-
-/** Accumulator for per-account scrape results. */
-type AcctsAcc = Procedure<readonly IAccountResult[]>;
-
-/**
- * Build the account's balance field — OMITTED when the figure is unknown.
- *
- * `ITransactionsAccount.balance` is optional, so leaving the key out is the
- * only truthful way to say "we do not know". Emitting `0` would publish a
- * number the bank never gave us; emitting `undefined` would still create the
- * key, so `'balance' in account` and `Object.keys` would both report a
- * balance the bank never sent.
- * @param outcome - Balance outcome from the balance step.
- * @returns Either `{ balance }` or an empty object.
- */
-function balanceField(outcome: IBalanceOutcome): { balance?: number } {
-  if (outcome.value === undefined) return {};
-  return { balance: outcome.value };
-}
-
-/**
- * Assemble one account — balance + txns + outcome flags.
- * @param a - Per-account context.
- * @returns Account-result procedure (account + balance and backfill outcomes).
- */
-async function fetchOneAccount<TAcct, TCursor>(
-  a: IAcctCtx<TAcct, TCursor>,
-): Promise<Procedure<IAccountResult>> {
-  const bal = await fetchBalance(a);
-  if (!isOk(bal)) return bal;
-  const txns = await fetchAccountTxns(a);
-  if (!isOk(txns)) return txns;
-  const accountNumber = a.shape.accountNumberOf(a.acct);
-  const { windowCoverage } = txns.value;
-  const held = { txns: [...txns.value.txns], windowCoverage };
-  const account = { accountNumber, ...balanceField(bal.value), ...held };
-  const outcome = { degraded: bal.value.degraded, backfillExhausted: txns.value.backfillExhausted };
-  return succeed({ account, ...outcome, observedCaveats: txns.value.observedCaveats });
-}
-
-/**
- * Iterate accounts sequentially, short-circuiting on failure.
- * @param d - Driver context.
- * @param accounts - Flat account list.
- * @returns Accounts accumulator procedure.
- */
-async function iterateAccounts<TAcct, TCursor>(
-  d: IDriverCtx<TAcct, TCursor>,
-  accounts: readonly TAcct[],
-): Promise<AcctsAcc> {
-  const seedProc: AcctsAcc = succeed([]);
-  const seed: Promise<AcctsAcc> = Promise.resolve(seedProc);
-  return accounts.reduce(async (prev, acct): Promise<AcctsAcc> => {
-    const acc = await prev;
-    if (!isOk(acc)) return acc;
-    const one = await fetchOneAccount({ ...d, acct, ledger: makeEvidenceLedger() });
-    if (!isOk(one)) return one;
-    return succeed([...acc.value, one.value]);
-  }, seed);
-}
+import type { ApiDirectScrapeResult, IDriverCtx } from './ApiDirectScrapeTypes.js';
+import type { IApiDirectScrapeShape } from './IApiDirectScrapeShape.js';
 
 /**
  * Fold per-account results into the scrape slot, surfacing whether any
@@ -103,16 +31,50 @@ async function iterateAccounts<TAcct, TCursor>(
  * @returns Scrape state with accounts + the two outcome flags.
  */
 function summarizeScrape(results: readonly IAccountResult[]): IScrapeState {
-  const accounts = results.map(r => r.account);
-  const hasDegraded = results.some(r => r.degraded);
-  const hasExhausted = results.some(r => r.backfillExhausted);
+  const flags = scrapeFlags(results);
   const observedCaveats = results.flatMap(r => r.observedCaveats);
-  return {
-    accounts,
-    balanceDegraded: hasDegraded,
-    backfillExhausted: hasExhausted,
-    observedCaveats,
-  };
+  return { accounts: results.map(r => r.account), ...flags, observedCaveats };
+}
+
+/**
+ * Fold the per-account outcome flags into the scrape-level ones.
+ * @param results - Per-account results from the sequential walk.
+ * @returns Degraded and backfill-exhausted flags.
+ */
+function scrapeFlags(
+  results: readonly IAccountResult[],
+): Pick<IScrapeState, 'balanceDegraded' | 'backfillExhausted'> {
+  const isBalanceDegraded = results.some(r => r.degraded);
+  const isBackfillExhausted = results.some(r => r.backfillExhausted);
+  return { balanceDegraded: isBalanceDegraded, backfillExhausted: isBackfillExhausted };
+}
+
+/**
+ * Run the bootstrap, then fetch the account list.
+ * @param d - Driver context.
+ * @returns Account refs procedure.
+ */
+async function preparedAccounts<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+): Promise<Procedure<readonly TAcct[]>> {
+  const primed = await runBootstrap(d);
+  if (!isOk(primed)) return primed;
+  return fetchAccounts(d);
+}
+
+/**
+ * Publish the populated scrape slot beside the action context.
+ * @param ctx - Action context.
+ * @param results - Per-account results from the sequential walk.
+ * @returns Action context augmented with the populated scrape slot.
+ */
+function scrapedResult(
+  ctx: IActionContext,
+  results: readonly IAccountResult[],
+): Procedure<ApiDirectScrapeResult> {
+  const scrape = summarizeScrape(results);
+  const withScrape: ApiDirectScrapeResult = { ...ctx, scrape: some(scrape) };
+  return succeed(withScrape);
 }
 
 /**
@@ -123,15 +85,11 @@ function summarizeScrape(results: readonly IAccountResult[]): IScrapeState {
 async function runScrape<TAcct, TCursor>(
   d: IDriverCtx<TAcct, TCursor>,
 ): Promise<Procedure<ApiDirectScrapeResult>> {
-  const primed = await runBootstrap(d);
-  if (!isOk(primed)) return primed;
-  const accts = await fetchAccounts(d);
+  const accts = await preparedAccounts(d);
   if (!isOk(accts)) return accts;
   const scraped = await iterateAccounts(d, accts.value);
   if (!isOk(scraped)) return scraped;
-  const summary = summarizeScrape(scraped.value);
-  const withScrape: ApiDirectScrapeResult = { ...d.ctx, scrape: some(summary) };
-  return succeed(withScrape);
+  return scrapedResult(d.ctx, scraped.value);
 }
 
 /**

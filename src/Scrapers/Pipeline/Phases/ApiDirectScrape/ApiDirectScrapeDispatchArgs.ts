@@ -1,19 +1,23 @@
 /**
  * Dispatch-args construction for the ApiDirectScrape phase driver.
- * Resolves each step's urlTag (literal or producer) and assembles the
- * IDispatchArgs bundle (verb, vars, body, headers, signing) consumed by
- * dispatchStep. Balance and transactions header producers learn the
- * account the call is for (see ApiDirectScrapeHeaders.ts). Split
- * out of ApiDirectScrapeSteps.ts to keep both files within the per-file
- * LOC ceiling. Zero bank-name coupling.
+ * Consumes the urlTag resolvers from ApiDirectScrapeUrlTags.ts and assembles
+ * the IDispatchArgs bundle (verb, vars, body, headers, signing) consumed by
+ * dispatchStep. Balance and transactions header producers learn the account
+ * the call is for (see ApiDirectScrapeHeaders.ts). Split out of
+ * ApiDirectScrapeSteps.ts to keep both files within the per-file LOC ceiling.
+ * Zero bank-name coupling.
  */
 
-import type { IApiMediator, IApiQueryOpts } from '../../Mediator/Api/ApiMediator.js';
-import type { IEvidenceLedger } from '../../Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
+import type { IApiQueryOpts } from '../../Mediator/Api/ApiMediator.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
-import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { IDispatchArgs } from './ApiDirectScrapeDispatch.js';
 import { accountlessOpts, headerOpts } from './ApiDirectScrapeHeaders.js';
+import type { IAcctCtx, IDriverCtx } from './ApiDirectScrapeTypes.js';
+import {
+  resolveBalanceUrlTag,
+  resolveCustomerUrlTag,
+  resolveTxnsUrlTag,
+} from './ApiDirectScrapeUrlTags.js';
 import type {
   ApiDirectScrapeHeadersLike,
   IApiDirectScrapeBootstrapStep,
@@ -21,26 +25,6 @@ import type {
   IScrapeCallInfo,
   ScrapeOperation,
 } from './IApiDirectScrapeShape.js';
-
-/** Driver context — shape + bus + action context. */
-export interface IDriverCtx<TAcct, TCursor> {
-  readonly shape: IApiDirectScrapeShape<TAcct, TCursor>;
-  readonly bus: IApiMediator;
-  readonly ctx: IActionContext;
-}
-
-/** Per-account context — driver context + current account. */
-export interface IAcctCtx<TAcct, TCursor> extends IDriverCtx<TAcct, TCursor> {
-  readonly acct: TAcct;
-  /**
-   * Where this account's guardrails report what they saw.
-   *
-   * One per account, never shared. Required rather than optional so a new
-   * call site that forgets to open one is a compile error rather than an
-   * account whose evidence silently vanishes.
-   */
-  readonly ledger: IEvidenceLedger;
-}
 
 /**
  * Call info naming the account a balance or transactions call is for.
@@ -92,6 +76,40 @@ function accountOpts<TAcct, TCursor>(
 type ShapeLevelArgs = Pick<IDispatchArgs, 'signer' | 'secrets' | 'checkBody' | 'bodyDigest'> &
   Pick<IDispatchArgs, 'checkBodyByOperation' | 'responseSession' | 'omitBankText' | 'operation'>;
 
+/** The fields a step supplies before the shape-level ones are folded in. */
+type StepCall = Omit<IDispatchArgs, keyof ShapeLevelArgs>;
+
+/** A step literal's declared REST verb and body-template flag. */
+type StepVerb = Pick<IApiDirectScrapeBootstrapStep, 'method' | 'bodyTemplate'>;
+
+/**
+ * The bus/ctx/queryTag triple every step's dispatch fields start with.
+ * @param d - Driver context.
+ * @param queryTag - Which call this step represents.
+ * @returns The shared head of a step's dispatch fields.
+ */
+function callHead<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+  queryTag: StepCall['queryTag'],
+): Pick<StepCall, 'bus' | 'ctx' | 'queryTag'> {
+  return { bus: d.bus, ctx: d.ctx, queryTag };
+}
+
+/**
+ * Resolve a step's REST verb, body-template flag and url tag.
+ * @param step - The step literal declaring the verb and body template.
+ * @param urlTag - The call's resolved url tag.
+ * @returns The tail of a step's dispatch fields.
+ */
+function stepTail(
+  step: StepVerb,
+  urlTag: WKUrlOrLiteral | false,
+): Pick<StepCall, 'method' | 'bodyTemplate' | 'urlTag'> {
+  const method = step.method ?? 'POST';
+  const bodyTemplate = step.bodyTemplate ?? false;
+  return { method, bodyTemplate, urlTag };
+}
+
 /**
  * Pull the shape-level signer, secrets, body check, body digest and
  * response session onto a dispatch-args slice.
@@ -104,26 +122,51 @@ function pickShapeLevel<TAcct, TCursor>(
   operation: ScrapeOperation,
 ): ShapeLevelArgs {
   const { secrets, checkBody, checkBodyByOperation, bodyDigest, responseSession } = shape;
-  const checks = { checkBody, checkBodyByOperation, operation };
-  return {
-    signer: shape.signer ?? false,
-    secrets,
-    ...checks,
-    bodyDigest,
-    responseSession,
-    omitBankText: shape.omitBankText,
-  };
+  const checks = { checkBody, checkBodyByOperation, operation, omitBankText: shape.omitBankText };
+  const signer = shape.signer ?? false;
+  return { signer, secrets, ...checks, bodyDigest, responseSession };
+}
+
+/**
+ * Fold the shape-level fields into one step's own dispatch fields.
+ * @param d - Driver context, whose shape supplies the shared fields.
+ * @param operation - Operation represented by this call.
+ * @param call - The step's own fields.
+ * @returns Dispatch args ready for {@link dispatchStep}.
+ */
+function assembleDispatch<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+  operation: ScrapeOperation,
+  call: StepCall,
+): IDispatchArgs {
+  return { ...call, ...pickShapeLevel(d.shape, operation) };
 }
 
 /** Name a bootstrap call carries when its step declares none. */
 const BOOTSTRAP_CALL = 'bootstrap';
 
 /**
- * Build the bootstrap-step dispatch args bundle. Mirrors the customer
- * step but sources its fields from the shape-level `bootstrap` literal,
- * and names the call after the step (`bootstrap` when unnamed).
- * Signed through the same shape-level signer + secrets, so the bootstrap
- * body (PayBox getKey `auth` envelope) gets its `/auth/signature`.
+ * The bootstrap step's own dispatch fields. Mirrors the customer step but
+ * sources its fields from the shape-level `bootstrap` literal, and names
+ * the call after the step (`bootstrap` when unnamed).
+ * @param d - Driver context.
+ * @param step - The shape's bootstrap step literal.
+ * @returns Step fields, signed through the shape-level signer + secrets.
+ */
+function bootstrapCall<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+  step: IApiDirectScrapeBootstrapStep,
+): StepCall {
+  const call = step.name ?? BOOTSTRAP_CALL;
+  const opts = accountlessOpts(d.ctx, step.extraHeaders);
+  const vars = step.buildVars(d.ctx);
+  return { ...callHead(d, 'customer'), call, vars, opts, ...stepTail(step, step.urlTag) };
+}
+
+/**
+ * Build the bootstrap-step dispatch args bundle. Signed through the same
+ * shape-level signer + secrets, so the bootstrap body (PayBox getKey
+ * `auth` envelope) gets its `/auth/signature`.
  * @param d - Driver context.
  * @param step - The shape's bootstrap step literal.
  * @returns Dispatch args ready for {@link dispatchStep}.
@@ -132,44 +175,8 @@ export function buildBootstrapDispatchArgs<TAcct, TCursor>(
   d: IDriverCtx<TAcct, TCursor>,
   step: IApiDirectScrapeBootstrapStep,
 ): IDispatchArgs {
-  const head = { bus: d.bus, ctx: d.ctx, queryTag: 'customer' as const, urlTag: step.urlTag };
-  const vars = step.buildVars(d.ctx);
-  const bodyTemplate = step.bodyTemplate ?? false;
-  const opts = accountlessOpts(d.ctx, step.extraHeaders);
-  const call = step.name ?? BOOTSTRAP_CALL;
-  const shared = pickShapeLevel(d.shape, 'bootstrap');
-  return { ...head, call, method: step.method ?? 'POST', vars, bodyTemplate, ...shared, opts };
-}
-
-/**
- * Resolve a customer-step urlTag (literal or producer).
- * @param d - Driver context.
- * @returns WK URL tag or `false` when GraphQL.
- */
-function resolveCustomerUrlTag<TAcct, TCursor>(
-  d: IDriverCtx<TAcct, TCursor>,
-): WKUrlOrLiteral | false {
-  const spec = d.shape.customer.urlTag;
-  if (spec === undefined) return false;
-  if (typeof spec === 'function') return spec(d.ctx);
-  return spec;
-}
-
-/**
- * Resolve the optional customer secondary-identity urlTag (a second GET
- * whose body augments `extractAccounts`). Mirrors
- * {@link resolveCustomerUrlTag}, but `false` here means "no secondary
- * fetch declared" — there is no GraphQL secondary variant.
- * @param d - Driver context.
- * @returns WK URL tag, or `false` when the shape declares none.
- */
-export function resolveSecondaryUrlTag<TAcct, TCursor>(
-  d: IDriverCtx<TAcct, TCursor>,
-): WKUrlOrLiteral | false {
-  const spec = d.shape.customer.secondaryUrlTag;
-  if (spec === undefined) return false;
-  if (typeof spec === 'function') return spec(d.ctx);
-  return spec;
+  const call = bootstrapCall(d, step);
+  return assembleDispatch(d, 'bootstrap', call);
 }
 
 /**
@@ -184,6 +191,19 @@ export function buildSecondaryOpts<TAcct, TCursor>(d: IDriverCtx<TAcct, TCursor>
 }
 
 /**
+ * The customer step's own dispatch fields.
+ * @param d - Driver context.
+ * @returns Step fields with the resolved urlTag and customer opts.
+ */
+function customerCall<TAcct, TCursor>(d: IDriverCtx<TAcct, TCursor>): StepCall {
+  const cust = d.shape.customer;
+  const urlTag = resolveCustomerUrlTag(d);
+  const opts = accountlessOpts(d.ctx, cust.extraHeaders);
+  const vars = cust.buildVars(d.ctx);
+  return { ...callHead(d, 'customer'), vars, opts, ...stepTail(cust, urlTag) };
+}
+
+/**
  * Build the customer-step dispatch args bundle.
  * @param d - Driver context.
  * @returns Dispatch args ready for {@link dispatchStep}.
@@ -191,29 +211,21 @@ export function buildSecondaryOpts<TAcct, TCursor>(d: IDriverCtx<TAcct, TCursor>
 export function buildCustomerDispatchArgs<TAcct, TCursor>(
   d: IDriverCtx<TAcct, TCursor>,
 ): IDispatchArgs {
-  return {
-    bus: d.bus,
-    ctx: d.ctx,
-    queryTag: 'customer',
-    urlTag: resolveCustomerUrlTag(d),
-    method: d.shape.customer.method ?? 'POST',
-    vars: d.shape.customer.buildVars(d.ctx),
-    bodyTemplate: d.shape.customer.bodyTemplate ?? false,
-    ...pickShapeLevel(d.shape, 'customer'),
-    opts: accountlessOpts(d.ctx, d.shape.customer.extraHeaders),
-  };
+  const call = customerCall(d);
+  return assembleDispatch(d, 'customer', call);
 }
 
 /**
- * Resolve a balance-step urlTag (literal or producer).
+ * The balance step's own dispatch fields.
  * @param a - Per-account context.
- * @returns WK URL tag or `false` when GraphQL.
+ * @returns Step fields with the resolved urlTag and account-aware opts.
  */
-function resolveBalanceUrlTag<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): WKUrlOrLiteral | false {
-  const spec = a.shape.balance.urlTag;
-  if (spec === undefined) return false;
-  if (typeof spec === 'function') return spec(a.acct);
-  return spec;
+function balanceCall<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): StepCall {
+  const bal = a.shape.balance;
+  const urlTag = resolveBalanceUrlTag(a);
+  const vars = bal.buildVars(a.acct, a.ctx);
+  const opts = accountOpts(a, bal.extraHeaders);
+  return { ...callHead(a, 'balance'), vars, opts, ...stepTail(bal, urlTag) };
 }
 
 /**
@@ -224,33 +236,22 @@ function resolveBalanceUrlTag<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): WKUr
 export function buildBalanceDispatchArgs<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
 ): IDispatchArgs {
-  return {
-    bus: a.bus,
-    ctx: a.ctx,
-    queryTag: 'balance',
-    urlTag: resolveBalanceUrlTag(a),
-    method: a.shape.balance.method ?? 'POST',
-    vars: a.shape.balance.buildVars(a.acct, a.ctx),
-    bodyTemplate: a.shape.balance.bodyTemplate ?? false,
-    ...pickShapeLevel(a.shape, 'balance'),
-    opts: accountOpts(a, a.shape.balance.extraHeaders),
-  };
+  const call = balanceCall(a);
+  return assembleDispatch(a, 'balance', call);
 }
 
 /**
- * Resolve a transactions-step urlTag (literal or producer).
+ * The transactions step's own dispatch fields.
  * @param a - Per-account context.
- * @param cursor - Cursor passed into the producer (when dynamic).
- * @returns WK URL tag or `false` when GraphQL.
+ * @param cursor - Cursor for this round (or false on first call).
+ * @returns Step fields with the round's urlTag, vars and account-aware opts.
  */
-function resolveTxnsUrlTag<TAcct, TCursor>(
-  a: IAcctCtx<TAcct, TCursor>,
-  cursor: TCursor | false,
-): WKUrlOrLiteral | false {
-  const spec = a.shape.transactions.urlTag;
-  if (spec === undefined) return false;
-  if (typeof spec === 'function') return spec(a.acct, cursor, a.ctx);
-  return spec;
+function txnsCall<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>, cursor: TCursor | false): StepCall {
+  const t = a.shape.transactions;
+  const urlTag = resolveTxnsUrlTag(a, cursor);
+  const vars = t.buildVars(a.acct, cursor, a.ctx);
+  const opts = accountOpts(a, t.extraHeaders);
+  return { ...callHead(a, 'transactions'), vars, opts, ...stepTail(t, urlTag) };
 }
 
 /**
@@ -263,12 +264,6 @@ export function buildTxnsDispatchArgs<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
   cursor: TCursor | false,
 ): IDispatchArgs {
-  const t = a.shape.transactions;
-  const vars = t.buildVars(a.acct, cursor, a.ctx);
-  const head = { bus: a.bus, ctx: a.ctx, queryTag: 'transactions' as const, vars };
-  const urlTag = resolveTxnsUrlTag(a, cursor);
-  const bodyTemplate = t.bodyTemplate ?? false;
-  const method = t.method ?? 'POST';
-  const opts = accountOpts(a, t.extraHeaders);
-  return { ...head, urlTag, method, bodyTemplate, ...pickShapeLevel(a.shape, 'txns'), opts };
+  const call = txnsCall(a, cursor);
+  return assembleDispatch(a, 'txns', call);
 }

@@ -16,8 +16,9 @@ import { applyStartWindow } from '../../Mediator/Scrape/StartWindow.js';
 import { collapseDuplicates } from '../../Mediator/Scrape/TxnDedup.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
+import type { ICollectedRows } from './ApiDirectScrapeBackfill.js';
 import { collectAccountRows } from './ApiDirectScrapeBackfill.js';
-import type { IAcctCtx } from './ApiDirectScrapeDispatchArgs.js';
+import type { IAcctCtx } from './ApiDirectScrapeTypes.js';
 
 /**
  * Map raw rows through autoMapTransaction (drops rejects).
@@ -89,6 +90,28 @@ export interface IAccountTxns {
 }
 
 /**
+ * Refine the walk's rows and classify what they say about the window.
+ *
+ * <p>Classification runs AFTER `refineTxns` on purpose: the mapper and the
+ * de-duplicator can still reject rows the walk counted, and those rejects are
+ * caveats the verdict has to see. Classifying before them would publish a
+ * stale confidence.
+ * @param a - Per-account context.
+ * @param got - What the walk collected.
+ * @returns Mapped, in-window transactions plus the walk's facts.
+ */
+function accountTxnsOf<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  got: ICollectedRows,
+): IAccountTxns {
+  const txns = refineTxns(a, got.rows);
+  const caveats = a.ledger.caveats();
+  const windowCoverage = classifyWindowCoverage({ ...got.window, caveats });
+  const outcome = { backfillExhausted: got.isBackfillExhausted, observedCaveats: caveats };
+  return { txns, windowCoverage, ...outcome };
+}
+
+/**
  * Fetch + map one account's paginated transactions.
  *
  * Carries the backfill outcome out with the rows: a short window and a
@@ -103,13 +126,6 @@ export async function fetchAccountTxns<TAcct, TCursor>(
 ): Promise<Procedure<IAccountTxns>> {
   const collected = await collectAccountRows(a);
   if (!isOk(collected)) return collected;
-  const got = collected.value;
-  // After refineTxns on purpose: the mapper and the de-duplicator can still
-  // reject rows the walk counted, and those rejects are caveats the verdict
-  // has to see. Classifying before them would publish a stale confidence.
-  const txns = refineTxns(a, got.rows);
-  const caveats = a.ledger.caveats();
-  const windowCoverage = classifyWindowCoverage({ ...got.window, caveats });
-  const outcome = { backfillExhausted: got.isBackfillExhausted, observedCaveats: caveats };
-  return succeed({ txns, windowCoverage, ...outcome });
+  const txns = accountTxnsOf(a, collected.value);
+  return succeed(txns);
 }

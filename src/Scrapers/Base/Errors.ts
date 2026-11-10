@@ -102,17 +102,7 @@ export class WafBlockError extends Error {
     pageTitle: string,
     pageUrl: string,
   ): WafBlockError {
-    return new WafBlockError({
-      provider: 'cloudflare',
-      httpStatus,
-      pageTitle,
-      pageUrl,
-      suggestions: [
-        WAF_SUGGESTIONS.ipCooldown,
-        WAF_SUGGESTIONS.residentialProxy,
-        WAF_SUGGESTIONS.avoidRapidRetries,
-      ],
-    });
+    return new WafBlockError(cloudflareDetails(httpStatus, pageTitle, pageUrl));
   }
 
   /**
@@ -143,15 +133,68 @@ export class WafBlockError extends Error {
   public static apiBlock(
     httpStatus: number,
     pageUrl: string,
-    opts: { pageTitle?: string; responseSnippet?: string } = {},
+    opts: IBlockOpts = {},
   ): WafBlockError {
-    return new WafBlockError({
-      provider: 'unknown',
-      httpStatus,
-      pageTitle: opts.pageTitle ?? '',
-      pageUrl,
-      responseSnippet: opts.responseSnippet?.substring(0, 200),
-      suggestions: [WAF_SUGGESTIONS.ipCooldown, WAF_SUGGESTIONS.avoidRapidRetries],
-    });
+    return new WafBlockError(apiBlockDetails(httpStatus, pageUrl, opts));
   }
+}
+
+/**
+ * Suggestion lists, one per block kind.
+ *
+ * <p>Copied into each details object rather than shared by reference:
+ * {@link WafBlockError} reads `suggestions[0]` while it builds its message, so a
+ * caller that edits one error's list must not rewrite another error's message.
+ */
+
+/** Suggestions for a plain Cloudflare WAF block. */
+const CLOUDFLARE_SUGGESTIONS: readonly string[] = [
+  WAF_SUGGESTIONS.ipCooldown,
+  WAF_SUGGESTIONS.residentialProxy,
+  WAF_SUGGESTIONS.avoidRapidRetries,
+];
+
+/** Suggestions for a block reported by an unrecognised provider. */
+const API_SUGGESTIONS: readonly string[] = [
+  WAF_SUGGESTIONS.ipCooldown,
+  WAF_SUGGESTIONS.avoidRapidRetries,
+];
+
+/** Optional diagnostics an API-block report may carry. */
+interface IBlockOpts {
+  readonly pageTitle?: string;
+  readonly responseSnippet?: string;
+}
+
+/**
+ * Details for a plain Cloudflare WAF block.
+ * @param httpStatus - The HTTP status code from Cloudflare.
+ * @param pageTitle - The page title returned by Cloudflare.
+ * @param pageUrl - The URL that was blocked.
+ * @returns Structured details for {@link WafBlockError}.
+ */
+function cloudflareDetails(
+  httpStatus: number,
+  pageTitle: string,
+  pageUrl: string,
+): IWafErrorDetails {
+  const provider = 'cloudflare';
+  const suggestions = [...CLOUDFLARE_SUGGESTIONS];
+  return { provider, httpStatus, pageTitle, pageUrl, suggestions };
+}
+
+/**
+ * Details for a block reported by an unrecognised WAF provider.
+ * @param httpStatus - The HTTP status code received.
+ * @param pageUrl - The URL of the blocked API call.
+ * @param opts - Optional page title and response snippet for diagnostics.
+ * @returns Structured details for {@link WafBlockError}.
+ */
+function apiBlockDetails(httpStatus: number, pageUrl: string, opts: IBlockOpts): IWafErrorDetails {
+  const pageTitle = opts.pageTitle ?? '';
+  const responseSnippet = opts.responseSnippet?.substring(0, 200);
+  const provider = 'unknown' as const;
+  const details = { provider, httpStatus, pageUrl, pageTitle, responseSnippet };
+  const suggestions = [...API_SUGGESTIONS];
+  return { ...details, suggestions };
 }

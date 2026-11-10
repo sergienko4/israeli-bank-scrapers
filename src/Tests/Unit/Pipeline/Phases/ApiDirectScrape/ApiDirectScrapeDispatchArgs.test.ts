@@ -16,10 +16,12 @@ import {
   buildCustomerDispatchArgs,
   buildSecondaryOpts,
   buildTxnsDispatchArgs,
-  type IAcctCtx,
-  type IDriverCtx,
-  resolveSecondaryUrlTag,
 } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeDispatchArgs.js';
+import type {
+  IAcctCtx,
+  IDriverCtx,
+} from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeTypes.js';
+import { resolveSecondaryUrlTag } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeUrlTags.js';
 import type {
   ApiDirectScrapeHeadersLike,
   HeaderMap,

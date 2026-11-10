@@ -14,7 +14,7 @@
 
 import type { Brand } from '../../Types/Brand.js';
 import { toError } from '../../Types/ErrorUtils.js';
-import type { IDriverCtx } from './ApiDirectScrapeDispatchArgs.js';
+import type { IDriverCtx } from './ApiDirectScrapeTypes.js';
 import type { IExtractAccountsArgs } from './IApiDirectScrapeShape.js';
 
 /** Count of products a shape excluded at discovery — branded for Rule #15. */
@@ -140,13 +140,25 @@ function discover(
   try {
     return count(args);
   } catch (error) {
-    const kind = toError(error).name;
-    return `countDiscovered threw ${kind}`;
+    return failureReason('countDiscovered threw', error);
   }
 }
 
 /**
+ * Name a caught throw by type, never by message (which may carry PII).
+ * @param prefix - What failed, as this module names it.
+ * @param error - The caught value.
+ * @returns The attribution string.
+ */
+function failureReason(prefix: string, error: unknown): string {
+  return `${prefix} ${toError(error).name}`;
+}
+
+/**
  * Validate the shape's count, then report the delta it describes.
+ *
+ * <p>A shape that declares no counter has nothing to report, so the clean
+ * zero is answered before any bank-authored code runs.
  * @param d - Driver context.
  * @param args - The bundle handed to the shape's extractor.
  * @param selected - How many accounts the extractor kept.
@@ -158,9 +170,39 @@ function reportChecked<TAcct, TCursor>(
   selected: number,
 ): ExcludedProductCount {
   const count = d.shape.customer.countDiscovered;
-  if (!count) return 0 as ExcludedProductCount;
+  if (count === undefined) return 0 as ExcludedProductCount;
   const discovered = discover(count, args);
+  return reportCount(d, discovered, selected);
+}
+
+/**
+ * Report a completed discovery count, or the failure that replaced it.
+ * @param d - Driver context.
+ * @param discovered - The declared count, or why it could not be produced.
+ * @param selected - How many accounts the extractor kept.
+ * @returns How many products were excluded.
+ */
+function reportCount<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+  discovered: number | string,
+  selected: number,
+): ExcludedProductCount {
   if (typeof discovered === 'string') return warnReportFailed(d, discovered);
+  return validDelta(d, discovered, selected);
+}
+
+/**
+ * Report a validated discovery count's exclusion delta.
+ * @param d - Driver context.
+ * @param discovered - The (believable) declared product count.
+ * @param selected - How many accounts the extractor kept.
+ * @returns How many products were excluded.
+ */
+function validDelta<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+  discovered: number,
+  selected: number,
+): ExcludedProductCount {
   const problem = countProblem(discovered, selected);
   if (problem) return warnReportFailed(d, problem);
   return logDelta(d, discovered, selected);
@@ -185,9 +227,6 @@ function reportChecked<TAcct, TCursor>(
  * account data in its text, so copying it into a log payload would leak
  * through the diagnostics channel.
  *
- * <p>The catch below is the LAST resort, and stays deliberately unattributed.
- * The counter is contained at its own call site, which is the only place that
- * can honestly name it; anything reaching here failed elsewhere in the report.
  * @param d - Driver context.
  * @param args - The bundle handed to the shape's extractor.
  * @param selected - How many accounts the extractor kept.
@@ -198,10 +237,40 @@ export default function reportExcludedProducts<TAcct, TCursor>(
   args: IExtractAccountsArgs,
   selected: number,
 ): ExcludedProductCount {
+  return containReport(d, () => reportChecked(d, args, selected));
+}
+
+/**
+ * Run the report, containing anything the report itself throws.
+ *
+ * <p>The catch below is the LAST resort, and stays deliberately unattributed.
+ * The counter is contained at its own call site, which is the only place that
+ * can honestly name it; anything reaching here failed elsewhere in the report.
+ * @param d - Driver context.
+ * @param produce - The report to run.
+ * @returns The report's count, or zero once the failure warning was emitted.
+ */
+function containReport<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+  produce: () => ExcludedProductCount,
+): ExcludedProductCount {
   try {
-    return reportChecked(d, args, selected);
+    return produce();
   } catch (error) {
-    const kind = toError(error).name;
-    return warnReportFailed(d, `exclusion report failed: ${kind}`);
+    return failedReport(d, error);
   }
+}
+
+/**
+ * Report a failure that happened outside the counter's own contained call.
+ * @param d - Driver context.
+ * @param error - The caught value.
+ * @returns Zero, after the warning has been emitted.
+ */
+function failedReport<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+  error: unknown,
+): ExcludedProductCount {
+  const reason = failureReason('exclusion report failed:', error);
+  return warnReportFailed(d, reason);
 }

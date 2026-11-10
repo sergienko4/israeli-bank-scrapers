@@ -22,8 +22,8 @@ import type {
   IApiQueryOpts,
   SessionContext,
 } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
-import type { IDriverCtx } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeDispatchArgs.js';
 import { fetchAccounts } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeSteps.js';
+import type { IDriverCtx } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeTypes.js';
 import type { IFibiAcct } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/FibiGroup/FibiGroupShapeHelpers.js';
 import type {
   ApiBody,

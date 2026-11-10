@@ -107,4 +107,20 @@ describe('WafBlockError', () => {
     });
     expect(error.details.responseSnippet).toHaveLength(200);
   });
+
+  it('gives each blocked error its own suggestions array', () => {
+    const first = WafBlockError.cloudflareBlock(403, 'Blocked', 'https://amex.co.il/login');
+    first.details.suggestions.push('caller-local advice');
+    const second = WafBlockError.cloudflareBlock(403, 'Blocked', 'https://amex.co.il/login');
+    const original = first.details.suggestions.slice(0, -1);
+    expect(second.details.suggestions).not.toContain('caller-local advice');
+    expect(second.details.suggestions).toEqual(original);
+  });
+
+  it('gives each api-blocked error its own suggestions array', () => {
+    const first = WafBlockError.apiBlock(429, 'https://amex.co.il/api');
+    first.details.suggestions.push('caller-local advice');
+    const second = WafBlockError.apiBlock(429, 'https://amex.co.il/api');
+    expect(second.details.suggestions).not.toContain('caller-local advice');
+  });
 });
