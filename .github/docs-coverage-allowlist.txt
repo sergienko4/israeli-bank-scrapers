@@ -571,3 +571,15 @@ fetchInitial
 fetchOnce
 planFor
 validateRequestPlan
+
+# --- Strategy/Fetch + Types cap drain (function + file caps) ---
+# The splits below kept each file and function under the canonical caps. The
+# moved symbols are Pipeline-internal seams consumed only by their sibling
+# modules and are never re-exported from lib/index.{cjs,mjs}; the modules'
+# user-facing behaviour is unchanged and already documented in docs/.
+# Reason: IReaderState / integrityStateOf -- the bounded-read state and its
+# assembler, consumed only by ResponseIntegrityReader.ts. The reader's verdict
+# remains the module's entry point; read limits are documented in
+# docs/architecture/layers.md.
+IReaderState
+integrityStateOf
