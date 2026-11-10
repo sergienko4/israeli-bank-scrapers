@@ -128,7 +128,7 @@ export const PIPELINE_CLUSTERS: readonly IClusterExpectations[] = [
   },
   {
     clusterName: 'Strategy Fetch transport (§19.1d)',
-    representativeFile: 'src/Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.ts',
+    representativeFile: 'src/Scrapers/Pipeline/Strategy/Fetch/CappedInvoke.ts',
     expectations: [
       { ruleId: 'max-lines', maxAllowed: 150 },
       { ruleId: 'max-lines-per-function', maxAllowed: 10 },

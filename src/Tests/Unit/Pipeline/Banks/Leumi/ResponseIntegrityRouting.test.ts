@@ -5,9 +5,9 @@
 import { CompanyTypes } from '../../../../../Definitions.js';
 import { LEUMI_SHAPE } from '../../../../../Scrapers/Pipeline/Banks/Leumi/scrape/LeumiShape.js';
 import {
-  selectHeadlessMediator,
-  toHeadlessWiring,
-} from '../../../../../Scrapers/Pipeline/Core/HeadlessMediatorWiring.js';
+  selectApiMediator,
+  toApiWiring,
+} from '../../../../../Scrapers/Pipeline/Core/ApiMediatorWiring.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { IStepConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { runStep } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.js';
@@ -36,8 +36,8 @@ function mediator(): IApiMediator {
     nativeFetch: true,
     responseIntegrity: { maxBytes: 32 },
   };
-  const wiring = toHeadlessWiring(headless);
-  return selectHeadlessMediator(CompanyTypes.Leumi, wiring);
+  const wiring = toApiWiring(headless);
+  return selectApiMediator(CompanyTypes.Leumi, wiring);
 }
 
 describe('response integrity routing', () => {

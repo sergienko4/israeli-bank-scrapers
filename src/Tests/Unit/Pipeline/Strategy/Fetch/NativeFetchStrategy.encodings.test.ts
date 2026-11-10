@@ -14,11 +14,11 @@ import { createServer } from 'node:http';
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import type { IFetchOpts } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
-import { HeadlessNativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
+import { cappedNative } from '../../../../Helpers/CappedTransport.js';
 import { fakeFetch, type IFetchFake } from '../../../../Helpers/FakeFetch.js';
 
 const BASE_URL = 'https://api.bank.example/v1/';
-const STRATEGY = new HeadlessNativeFetchStrategy(BASE_URL);
+const STRATEGY = cappedNative(BASE_URL);
 const LATIN1: IFetchOpts = { extraHeaders: {}, bodyEncoding: 'form-latin1' };
 const UTF8: IFetchOpts = { extraHeaders: {}, bodyEncoding: 'form-utf8' };
 const TEXT_BODY: IFetchOpts = { extraHeaders: {}, bodyEncoding: 'text' };
@@ -163,7 +163,7 @@ describe('NativeFetchStrategy — body encodings and text answers', () => {
         throw new ScraperError('test server not bound');
       }
       const baseUrl = `http://127.0.0.1:${String(address.port)}/`;
-      const strategy = new HeadlessNativeFetchStrategy(baseUrl);
+      const strategy = cappedNative(baseUrl);
       const requestOptions = { ...options, extraHeaders: { 'Content-Type': 'application/json' } };
       const result = await strategy.fetchPost('register', data, requestOptions);
       expect(result).toEqual({ success: true, value: {} });

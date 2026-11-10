@@ -15,30 +15,34 @@
  */
 
 import ScraperError from '../../../Base/ScraperError.js';
-import { HeadlessGraphQLFetchStrategy } from '../../Strategy/Fetch/HeadlessGraphQLFetchStrategy.js';
-import { HeadlessNativeFetchStrategy } from '../../Strategy/Fetch/HeadlessNativeFetchStrategy.js';
+import { GraphQLFetchStrategy } from '../../Strategy/Fetch/GraphQLFetchStrategy.js';
 import type { AgentSource } from '../../Strategy/Fetch/Mtls/MtlsAgentSource.js';
 import { MtlsFetchStrategy } from '../../Strategy/Fetch/Mtls/MtlsFetchStrategy.js';
 import { MtlsGraphQLFetchStrategy } from '../../Strategy/Fetch/Mtls/MtlsGraphQLFetchStrategy.js';
 import type { INativeFetchOptions } from '../../Strategy/Fetch/NativeFetchStrategy.js';
+import {
+  CAPPED_DEFAULT_HEADERS,
+  NativeFetchStrategy,
+} from '../../Strategy/Fetch/NativeFetchStrategy.js';
 import {
   type ISessionTransport,
   withCookieSession,
 } from '../../Strategy/Fetch/SessionCookieFetchStrategy.js';
 import type { IClientCertControl } from '../../Types/Domain/ClientCertControl.js';
 import type { IResponseIntegrity } from '../../Types/Domain/FetchPolicy.js';
+import { NETWORK_FETCH_TIMEOUT_MS } from '../Network/FetchConfig.js';
 import { createApiMediator } from './ApiMediator.factory.js';
-import type { INodeTlsMediatorArgs } from './ApiMediator.headless.types.js';
 import { buildTransportSource } from './ApiMediator.nodeTransport.js';
+import type { INodeTlsMediatorArgs } from './ApiMediator.transport.types.js';
 import type {
   IApiMediator,
+  IApiMediatorArgs,
+  IApiMediatorStrategies,
   IGraphQLTransportArgs,
-  IHeadlessMediatorArgs,
-  IHeadlessStrategies,
 } from './ApiMediator.types.js';
 
 /** Preserve the constructor tuple so Reflect selects its typed overload. */
-type HeadlessConstructorArgs = ConstructorParameters<typeof HeadlessNativeFetchStrategy>;
+type NativeConstructorArgs = ConstructorParameters<typeof NativeFetchStrategy>;
 
 /**
  * Refuses bank defaults when the chosen identity transport cannot enforce them.
@@ -77,21 +81,40 @@ function nativePolicies(args: IGraphQLTransportArgs): INativeFetchOptions {
   const wire = { redirectPolicy, statusPolicy, mediaTypes };
   const privacy = { omitBankText: args.omitBankText };
   const decoding = { strictUtf8: args.strictUtf8, responseIntegrity: args.responseIntegrity };
-  return { ...wire, ...privacy, ...decoding, isConnectRetryDisabled: args.isConnectRetryDisabled };
+  const timing = { timeoutMs: NETWORK_FETCH_TIMEOUT_MS, defaultHeaders: CAPPED_DEFAULT_HEADERS };
+  const retries = { isConnectRetryDisabled: args.isConnectRetryDisabled };
+  return { ...wire, ...privacy, ...decoding, ...timing, ...retries };
 }
 
 /**
- * Construct the capped native + GraphQL strategies for a headless mediator.
+ * GraphQL policies: the shared native policies plus the inherited cap rule —
+ * an operation without an integrity policy keeps the base transport.
+ * @param args - Mediator args bundle.
+ * @returns Policies for the GraphQL transport.
+ */
+function graphqlPolicies(args: IGraphQLTransportArgs): INativeFetchOptions {
+  return { ...nativePolicies(args), capOnlyWithIntegrity: true };
+}
+
+/**
+ * Construct the capped GraphQL strategy for an API-direct mediator.
+ * @param args - Mediator args bundle.
+ * @returns A capped GraphQL transport.
+ */
+function buildGraphQL(args: IApiMediatorArgs): GraphQLFetchStrategy {
+  const headers = args.graphqlHeaders ?? {};
+  return Reflect.construct(GraphQLFetchStrategy, [args.graphqlUrl, headers, graphqlPolicies(args)]);
+}
+
+/**
+ * Construct the capped native + GraphQL strategies for an API-direct mediator.
  * @param args - Mediator args bundle.
  * @returns Strategy pair.
  */
-function buildHeadlessStrategies(args: IHeadlessMediatorArgs): IHeadlessStrategies {
-  const policies = nativePolicies(args);
-  const constructArgs: HeadlessConstructorArgs = [args.identityBaseUrl, policies];
-  const fetch = Reflect.construct(HeadlessNativeFetchStrategy, constructArgs);
-  const headers = args.graphqlHeaders ?? {};
-  const gql = Reflect.construct(HeadlessGraphQLFetchStrategy, [args.graphqlUrl, headers, policies]);
-  return { fetch, gql };
+function buildHeadlessStrategies(args: IApiMediatorArgs): IApiMediatorStrategies {
+  const constructArgs: NativeConstructorArgs = [args.identityBaseUrl, nativePolicies(args)];
+  const fetch = Reflect.construct(NativeFetchStrategy, constructArgs);
+  return { fetch, gql: buildGraphQL(args) };
 }
 
 /**
@@ -112,8 +135,8 @@ function attachCookieSession(mediator: IApiMediator, session: ISessionTransport)
  * @returns A fully-wired IApiMediator instance.
  */
 function assembleNodeMediator(
-  args: IHeadlessMediatorArgs,
-  strategies: IHeadlessStrategies,
+  args: IApiMediatorArgs,
+  strategies: IApiMediatorStrategies,
 ): IApiMediator {
   const session = withCookieSession(strategies.fetch, args);
   const mediator = createApiMediator(args.bankHint, session.transport, strategies.gql);
@@ -126,7 +149,7 @@ function assembleNodeMediator(
  * @param args - Bank hint + URLs + optional staticAuth header.
  * @returns A fully-wired IApiMediator instance.
  */
-function createHeadlessApiMediator(args: IHeadlessMediatorArgs): IApiMediator {
+function createHeadlessApiMediator(args: IApiMediatorArgs): IApiMediator {
   const strategies = buildHeadlessStrategies(args);
   return assembleNodeMediator(args, strategies);
 }
@@ -137,10 +160,7 @@ function createHeadlessApiMediator(args: IHeadlessMediatorArgs): IApiMediator {
  * @param source - Picks the HTTPS agent (certificate + profile) per request.
  * @returns Strategy pair whose transports run over node:https.
  */
-function buildMtlsStrategies(
-  args: IHeadlessMediatorArgs,
-  source: AgentSource,
-): IHeadlessStrategies {
+function buildMtlsStrategies(args: IApiMediatorArgs, source: AgentSource): IApiMediatorStrategies {
   const fetch = Reflect.construct(MtlsFetchStrategy, [args.identityBaseUrl, source]);
   const headers = args.graphqlHeaders ?? {};
   const gql = Reflect.construct(MtlsGraphQLFetchStrategy, [args.graphqlUrl, source, headers]);

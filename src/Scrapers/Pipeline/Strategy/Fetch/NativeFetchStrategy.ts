@@ -2,23 +2,23 @@
  * Native fetch strategy — uses globalThis.fetch for API-only scrapers (no browser).
  * Caller-supplied extraHeaders WIN on collision with the default content-type.
  * Every async path returns Procedure<T>; no thrown errors escape the class.
+ *
+ * A bank may ask for a per-request cap (`timeoutMs`): the strategy then installs
+ * the capped invoke seam, supports response-integrity policies, and can name the
+ * default headers each verb sends. Without a cap every behaviour stays the base
+ * fetch behaviour. Assembly lives in the API-mediator factory, not in inheritance.
  */
 
-import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
-import { getDebug } from '../../Logging/Debug.js';
-import type { Brand } from '../../Types/Brand.js';
 import type {
   IResponseIntegrity,
   IResponseReading,
   MediaTypePolicy,
   RedirectPolicy,
-  ResponseKind,
   StatusPolicy,
 } from '../../Types/Domain/FetchPolicy.js';
-import { errorCauseCodeOf, toError } from '../../Types/ErrorUtils.js';
-import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../Types/Procedure.js';
-import { readDocument } from './DocumentResponse.js';
+import type { Procedure } from '../../Types/Procedure.js';
+import { isOk } from '../../Types/Procedure.js';
+import makeInvokeCapped from './CappedInvoke.js';
 import type {
   FetchInvoke,
   HttpVerb,
@@ -27,45 +27,16 @@ import type {
   PostData,
 } from './FetchStrategy.js';
 import { overlayHeaders } from './HeaderOverlay.js';
-import { classifyHttpFailure, hasCloudflareChallengeHeader } from './HttpFailureClassifier.js';
-import { parseJsonResponse } from './JsonResponse.js';
+import type { IDispatch } from './NativeFetchDispatch.js';
+import { dispatchFetch } from './NativeFetchDispatch.js';
+import type { FullyQualifiedUrl } from './NativeFetchNetwork.js';
+import { INVOKE_NATIVE_FETCH, refuseBody, resolveFetchUrl } from './NativeFetchNetwork.js';
 import { withBodyContentType, writePostBody } from './PostBody.js';
-import type { IRedirectRun, IRunEnd } from './RedirectFollow.js';
-import { emitSetCookies, sendUnderPolicy } from './RedirectFollow.js';
-import { emitResponseHeaders } from './ResponseHeaderSink.js';
-import { checkResponseIntegrity, refuseMediaType } from './ResponsePolicyCheck.js';
-import { safeUrlForLog, scrubUrlFromText } from './SafeUrlForLog.js';
-import type { IAnswer } from './StatusPolicy.js';
-import { applyRateLimit, applyStatusPolicy, statusActionFor } from './StatusPolicy.js';
-import { readText } from './TextResponse.js';
-
-type FullyQualifiedUrl = Brand<string, 'FullyQualifiedUrl'>;
+import type { IRedirectRun } from './RedirectFollow.js';
+import { checkResponseIntegrity } from './ResponsePolicyCheck.js';
 
 /** The request half of a run — what a verb method builds before policy. */
 type TRequest = Pick<IRedirectRun, 'url' | 'init' | 'verb'>;
-
-/** The parts of a native request a failure message needs. */
-interface INativeFailure {
-  readonly url: string;
-  readonly verb: HttpVerb;
-  readonly redactUrlValues?: readonly string[];
-}
-
-/** One native request and the account ids its failure text must mask. */
-interface INativeRequest extends INativeFailure {
-  readonly init: RequestInit;
-}
-
-/** A run plus how its answer is read. */
-interface IDispatch extends IRedirectRun {
-  readonly reading: IResponseReading;
-}
-
-/** Reads a 2xx answer the status policy left undecided. */
-type Reader = <T>(answer: IAnswer) => Promise<Procedure<T>>;
-
-/** Module logger — name derived from source filename per project convention. */
-const LOG = getDebug(import.meta.url);
 
 /** Default request headers per verb, merged under the caller's headers. */
 type DefaultHeadersByVerb = Readonly<Record<HttpVerb, Readonly<Record<string, string>>>>;
@@ -81,6 +52,19 @@ interface INativeFetchOptions {
   readonly strictUtf8?: boolean;
   readonly responseIntegrity?: IResponseIntegrity;
   readonly isConnectRetryDisabled?: boolean;
+  /**
+   * Ceiling (ms) for one request, connect through the full body. Setting it
+   * installs the capped invoke and lets the transport enforce response
+   * integrity; leaving it out keeps the uncapped base transport.
+   */
+  readonly timeoutMs?: number;
+  /** Headers each verb sends under the caller's; absent keeps JSON on every verb. */
+  readonly defaultHeaders?: DefaultHeadersByVerb;
+  /**
+   * Install the cap only when the call names a response-integrity policy.
+   * GraphQL uses this so an unbounded query keeps the base transport.
+   */
+  readonly capOnlyWithIntegrity?: boolean;
 }
 
 /** JSON content-type on every verb — the base strategy's defaults. */
@@ -89,183 +73,13 @@ const JSON_DEFAULT_HEADERS: DefaultHeadersByVerb = {
   POST: { 'content-type': 'application/json' },
 };
 
-/** Reader per response kind; each runs after WAF classification and the status policy. */
-const READERS: Readonly<Record<ResponseKind, Reader>> = {
-  json: parseJsonResponse,
-  document: readDocument,
-  text: readText,
+/** Capped transport defaults: a GET has no body, so only POST names JSON. */
+const CAPPED_DEFAULT_HEADERS: DefaultHeadersByVerb = {
+  GET: {},
+  POST: { 'content-type': 'application/json' },
 };
 
-/**
- * Fail a POST whose body its writer refused, before any request.
- * @param url - Resolved request URL.
- * @param refusal - The writer's fixed refusal.
- * @param redactUrlValues - Explicit account ids to mask in the message.
- * @returns The refusal, naming the request URL only.
- */
-function refuseBody<T>(
-  url: string,
-  refusal: IProcedureFailure,
-  redactUrlValues?: readonly string[],
-): Procedure<T> {
-  const safeUrl = safeUrlForLog(url, redactUrlValues);
-  return fail(refusal.errorType, `POST ${safeUrl} ${refusal.errorMessage}`);
-}
-
-/**
- * Classify a failed or challenged answer into a Procedure failure.
- * @param answer - The answered call: non-2xx, or a 2xx challenge.
- * @returns WafBlocked for an edge refusal, else Generic honoring body omission.
- */
-async function classifyStatus<T>(answer: IAnswer): Promise<Procedure<T>> {
-  const { response, verb, url } = answer;
-  const headers = Object.fromEntries(response.headers);
-  const isHeaderChallenge =
-    answer.reading.responseIntegrity !== undefined && hasCloudflareChallengeHeader(headers);
-  const body = isHeaderChallenge ? '' : await response.text();
-  const privacy = { omitBankText: answer.reading.omitBankText };
-  const redaction = { redactUrlValues: answer.reading.redactUrlValues };
-  const failure = { verb, url, status: response.status, body, headers, ...privacy, ...redaction };
-  return classifyHttpFailure<T>(failure);
-}
-
-/**
- * Whether a Response carries an API body: a 2xx that is not an edge
- * challenge (Cloudflare does not tie its challenge header to a status).
- * @param response - The fetch Response returned by globalThis.fetch.
- * @returns True when the body should be read as the API's answer.
- */
-function isApiSuccess(response: Response): boolean {
-  if (!response.ok) return false;
-  const headers = Object.fromEntries(response.headers);
-  return !hasCloudflareChallengeHeader(headers);
-}
-
-/**
- * Route an answer: configured rate limits, WAF classification, remaining
- * status decisions, media type, and finally the configured reader.
- * @param answer - The answered call.
- * @returns Procedure with the read body or a classified failure.
- */
-async function routeResponse<T>(answer: IAnswer): Promise<Procedure<T>> {
-  const action = statusActionFor(answer);
-  if (action.has && action.value === 'rate-limit') return applyRateLimit<T>(answer);
-  if (!isApiSuccess(answer.response)) return classifyStatus<T>(answer);
-  const decided = await applyStatusPolicy<T>(answer);
-  if (decided.has) return decided.value;
-  const refused = await refuseMediaType<T>(answer);
-  if (refused.has) return refused.value;
-  return READERS[answer.reading.responseKind]<T>(answer);
-}
-
-/** Reason for a header fetch refused; the refusal's own text may quote the value. */
-const INVALID_HEADER_REASON = 'invalid request header';
-
-/** Node/undici refusal texts naming a header fetch would not send. */
-const HEADER_REFUSAL_PATTERN = /invalid header|ByteString/i;
-
-/**
- * The reason a network failure reports: a header refusal by name only,
- * anything else with the URL scrubbed out.
- * @param rawReason - The thrown error's message.
- * @param request - The native request whose URL and ids are masked.
- * @returns The reason to report.
- */
-function networkReason(rawReason: string, request: INativeFailure): string {
-  if (HEADER_REFUSAL_PATTERN.test(rawReason)) return INVALID_HEADER_REASON;
-  return scrubUrlFromText(rawReason, request.url, request.redactUrlValues);
-}
-
-/**
- * Wrap a thrown fetch error into a network-error Procedure.
- * @param error - The caught value, from any realm.
- * @param request - The native request that failed.
- * @returns Procedure failure annotated with the underlying reason.
- */
-function toNetworkFailure(error: unknown, request: INativeFailure): Procedure<Response> {
-  const rawReason = toError(error).message;
-  const code = errorCauseCodeOf(error);
-  const base = networkReason(rawReason, request);
-  const reason = code === '' ? base : `${base} (${code})`;
-  const safeUrl = safeUrlForLog(request.url, request.redactUrlValues);
-  return fail(ScraperErrorTypes.Generic, `${request.verb} ${safeUrl} network error: ${reason}`);
-}
-
-/**
- * Run globalThis.fetch and surface the Response or a network-error Procedure.
- * @param request - URL, init, verb and explicit account ids to mask.
- * @returns Procedure carrying the raw Response, or a network-error failure.
- */
-async function invokeFetch(request: INativeRequest): Promise<Procedure<Response>> {
-  try {
-    const response = await globalThis.fetch(request.url, request.init);
-    return succeed(response);
-  } catch (error) {
-    return toNetworkFailure(error, request);
-  }
-}
-
-/**
- * Adapt the native fetch caller to the transport policy seam.
- * @param url - Target URL.
- * @param init - Native fetch request.
- * @param policy - Request metadata; media checks stay in the shared router.
- * @returns The raw response or the native network failure.
- */
-const INVOKE_NATIVE_FETCH: FetchInvoke = (url, init, policy): Promise<Procedure<Response>> =>
-  invokeFetch({ url, init, verb: policy.verb, redactUrlValues: policy.redactUrlValues });
-
-/**
- * Resolve a request URL the way every node transport does: an absolute
- * http(s) URL passes through, anything else is appended to the base URL.
- * @param baseUrl - The transport's base URL.
- * @param url - Caller-supplied URL (absolute or relative).
- * @returns The fully-qualified URL suitable for globalThis.fetch.
- */
-function resolveFetchUrl(baseUrl: string, url: string): FullyQualifiedUrl {
-  if (url.startsWith('http://') || url.startsWith('https://')) return url as FullyQualifiedUrl;
-  return `${baseUrl}${url}` as FullyQualifiedUrl;
-}
-
-/**
- * Hand the final response to the call's hooks: its Set-Cookie lines go to the
- * cookie hook under the URL that answered, its declared headers and that URL
- * to the sink.
- * @param run - The dispatched run and its hooks.
- * @param end - The response that ended the run and the URL that answered.
- * @returns How many headers the call's header sink took.
- */
-function emitHooks(run: IDispatch, end: IRunEnd): number {
-  emitSetCookies(end.response, end.responseUrl, run.onSetCookie);
-  return emitResponseHeaders(end.response, end.responseUrl, run.reading.headerSink);
-}
-
-/**
- * Send a run under its redirect policy and route success/non-2xx through the
- * helpers. The final response's Set-Cookie lines are filed under the URL that
- * answered (manual hops file their own on the way) and its declared headers
- * reach the call's header sink. Emits PII-safe DEBUG
- * traces at fire and after-status. Per `logging-pii-guidlines.txt`, the URL
- * is stripped of query string (which may carry session ids / tokens) first.
- * @param run - url + init + verb + invoke transport + policies + cookie hooks.
- * @returns Procedure with parsed body or structured failure.
- */
-async function dispatchFetch<T>(run: IDispatch): Promise<Procedure<T>> {
-  const safeUrl = safeUrlForLog(run.url, run.redactUrlValues);
-  LOG.debug({ verb: run.verb, url: safeUrl, message: '[fetch] FIRE' });
-  const sent = await sendUnderPolicy(run);
-  if (!isOk(sent)) {
-    const errorMessage = sent.errorMessage;
-    LOG.debug({ verb: run.verb, url: safeUrl, errorMessage, message: '[fetch] NETWORK FAIL' });
-    return sent;
-  }
-  const response = sent.value.response;
-  LOG.debug({ verb: run.verb, url: safeUrl, status: response.status, message: '[fetch] STATUS' });
-  emitHooks(run, sent.value);
-  return routeResponse<T>({ response, verb: run.verb, url: run.url, reading: run.reading });
-}
-
-/** Native fetch — uses globalThis.fetch with merged JSON headers. */
+/** Native fetch — uses globalThis.fetch with merged default headers. */
 class NativeFetchStrategy implements IFetchStrategy {
   protected readonly _baseUrl: string;
 
@@ -273,7 +87,7 @@ class NativeFetchStrategy implements IFetchStrategy {
    * Transport seam — performs the raw request. Defaults to globalThis.fetch;
    * mTLS subclasses replace it in their constructor with a client-cert
    * transport. All downstream response parsing, cookie emission, and logging
-   * stay in the shared dispatchFetch pipeline regardless of transport.
+   * stay in the shared dispatch pipeline regardless of transport.
    */
   protected _invoke: FetchInvoke = INVOKE_NATIVE_FETCH;
 
@@ -322,6 +136,12 @@ class NativeFetchStrategy implements IFetchStrategy {
 
   protected readonly _isConnectRetryDisabled: boolean;
 
+  /** Per-request ceiling; absent keeps the uncapped base transport. */
+  private readonly _timeoutMs?: number;
+
+  /** Keep the base transport for calls that name no integrity policy. */
+  private readonly _capOnlyWithIntegrity: boolean;
+
   /**
    * Create a NativeFetchStrategy.
    * @param baseUrl - The base URL for API requests.
@@ -329,6 +149,9 @@ class NativeFetchStrategy implements IFetchStrategy {
    */
   constructor(baseUrl: string, options: INativeFetchOptions = {}) {
     this._baseUrl = baseUrl;
+    this._timeoutMs = options.timeoutMs;
+    this._capOnlyWithIntegrity = options.capOnlyWithIntegrity === true;
+    this._verbDefaults = options.defaultHeaders ?? this._verbDefaults;
     this._redirectDefault = options.redirectPolicy ?? this._redirectDefault;
     this._statusPolicy = options.statusPolicy ?? this._statusPolicy;
     this._omitBankText = options.omitBankText === true;
@@ -336,6 +159,7 @@ class NativeFetchStrategy implements IFetchStrategy {
     this._strictUtf8 = options.strictUtf8 ?? this._strictUtf8;
     this._responseIntegrity = options.responseIntegrity;
     this._isConnectRetryDisabled = options.isConnectRetryDisabled === true;
+    this._supportsResponseIntegrity = this._timeoutMs !== undefined;
   }
 
   /**
@@ -391,10 +215,10 @@ class NativeFetchStrategy implements IFetchStrategy {
     const url = this.resolveUrl(request.url);
     const policy = opts.redirect ?? this._redirectDefault;
     const reading = this.readingOf(opts);
-    const { onSetCookie, sessionHeadersFor } = opts;
-    const hooks = { onSetCookie, sessionHeadersFor };
+    const invoke = this.invokeFor(reading);
+    const hooks = { onSetCookie: opts.onSetCookie, sessionHeadersFor: opts.sessionHeadersFor };
     const redaction = { redactUrlValues: opts.redactUrlValues };
-    const invocation = { invoke: this._invoke, mediaType: reading.mediaType, ...redaction };
+    const invocation = { invoke, mediaType: reading.mediaType, ...redaction };
     return { ...request, ...hooks, ...invocation, url, policy, reading };
   }
 
@@ -431,6 +255,19 @@ class NativeFetchStrategy implements IFetchStrategy {
   }
 
   /**
+   * Pick the transport seam for one call: the capped one when the transport
+   * has a ceiling and is allowed to apply it here, otherwise the base seam.
+   * @param reading - The call's immutable reading policy.
+   * @returns The request-local transport.
+   */
+  private invokeFor(reading: IResponseReading): FetchInvoke {
+    const timeoutMs = this._timeoutMs;
+    if (timeoutMs === undefined) return this._invoke;
+    if (this._capOnlyWithIntegrity && reading.responseIntegrity === undefined) return this._invoke;
+    return makeInvokeCapped(timeoutMs, reading, this._isConnectRetryDisabled);
+  }
+
+  /**
    * Checks both default and per-call policies before a request is dispatched.
    * @param opts - Call options that may override the default.
    * @returns A policy refusal or permission to continue.
@@ -443,7 +280,10 @@ class NativeFetchStrategy implements IFetchStrategy {
 }
 
 export default NativeFetchStrategy;
-export { invokeFetch, isApiSuccess, NativeFetchStrategy, resolveFetchUrl, toNetworkFailure };
-export type { DefaultHeadersByVerb, FullyQualifiedUrl, IDispatch };
-export type { INativeFetchOptions, TRequest };
+export { CAPPED_DEFAULT_HEADERS, NativeFetchStrategy };
+export { isApiSuccess } from './NativeFetchDispatch.js';
+export { invokeFetch, resolveFetchUrl, toNetworkFailure } from './NativeFetchNetwork.js';
+export type { DefaultHeadersByVerb, INativeFetchOptions, TRequest };
 export type { FetchInvoke, HttpVerb } from './FetchStrategy.js';
+export type { IDispatch } from './NativeFetchDispatch.js';
+export type { FullyQualifiedUrl } from './NativeFetchNetwork.js';

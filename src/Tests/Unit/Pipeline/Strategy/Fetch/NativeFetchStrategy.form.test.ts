@@ -5,11 +5,11 @@
  */
 
 import type { IFetchOpts } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
-import { HeadlessNativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
+import { cappedNative } from '../../../../Helpers/CappedTransport.js';
 import { fakeFetch, type IFetchFake } from '../../../../Helpers/FakeFetch.js';
 
 const BASE_URL = 'https://api.bank.example/v1/';
-const STRATEGY = new HeadlessNativeFetchStrategy(BASE_URL);
+const STRATEGY = cappedNative(BASE_URL);
 const FORM: IFetchOpts = { extraHeaders: {}, bodyEncoding: 'form' };
 const FORM_TYPE = 'application/x-www-form-urlencoded';
 

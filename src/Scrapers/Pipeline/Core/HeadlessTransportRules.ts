@@ -1,13 +1,13 @@
 /**
  * Headless transport rules — the ordered rule table that picks a headless
  * bank's identity transport, plus the guard that rejects a config declaring
- * two mutually-exclusive transports. Split from HeadlessMediatorWiring to
+ * two mutually-exclusive transports. Split from ApiMediatorWiring to
  * keep that file under the 150-LoC cap.
  */
 
 import type { CompanyTypes } from '../../../Definitions.js';
 import ScraperError from '../../Base/ScraperError.js';
-import type { HeadlessTransportKind, IHeadlessWiring } from './HeadlessWiringTypes.js';
+import type { IApiWiring, TransportKind } from './ApiWiringTypes.js';
 
 /** Message when a bank misconfigures two identity transports at once. */
 const TRANSPORT_CONFLICT_MSG =
@@ -23,7 +23,7 @@ const TRANSPORT_MISSING_MSG =
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns True when identity + GraphQL must run over node:https.
  */
-function usesNodeTls(wiring: IHeadlessWiring): boolean {
+function usesNodeTls(wiring: IApiWiring): boolean {
   const { tlsProfile, clientCert } = wiring.transport;
   if (wiring.requiresClientCert) return true;
   return tlsProfile !== undefined || clientCert !== undefined;
@@ -34,14 +34,14 @@ function usesNodeTls(wiring: IHeadlessWiring): boolean {
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns True when identity REST must run over native fetch.
  */
-function usesNativeFetch(wiring: IHeadlessWiring): boolean {
+function usesNativeFetch(wiring: IApiWiring): boolean {
   return wiring.nativeFetch;
 }
 
 /** One transport rule: the first rule whose predicate holds picks the kind. */
 interface ITransportRule {
-  readonly kind: HeadlessTransportKind;
-  readonly applies: (wiring: IHeadlessWiring) => boolean;
+  readonly kind: TransportKind;
+  readonly applies: (wiring: IApiWiring) => boolean;
 }
 
 /** Ordered transport rules; a bank matching none is a wiring error. */
@@ -61,7 +61,7 @@ const TRANSPORT_DECLARATIONS = [usesNodeTls, usesNativeFetch] as const;
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns True when the transport selection is unambiguous.
  */
-function assertSingleTransport(companyId: CompanyTypes, wiring: IHeadlessWiring): boolean {
+function assertSingleTransport(companyId: CompanyTypes, wiring: IApiWiring): boolean {
   const declared = TRANSPORT_DECLARATIONS.filter((isDeclared): boolean => isDeclared(wiring));
   if (declared.length > 1) throw new ScraperError(`${TRANSPORT_CONFLICT_MSG} (${companyId})`);
   return true;
@@ -74,10 +74,7 @@ function assertSingleTransport(companyId: CompanyTypes, wiring: IHeadlessWiring)
  * @returns The first matching rule's kind.
  * @throws ScraperError when the headless block declares no transport.
  */
-function pickTransportKind(
-  companyId: CompanyTypes,
-  wiring: IHeadlessWiring,
-): HeadlessTransportKind {
+function pickTransportKind(companyId: CompanyTypes, wiring: IApiWiring): TransportKind {
   const match = TRANSPORT_RULES.find((rule): boolean => rule.applies(wiring));
   if (match === undefined) throw new ScraperError(`${TRANSPORT_MISSING_MSG} (${companyId})`);
   return match.kind;

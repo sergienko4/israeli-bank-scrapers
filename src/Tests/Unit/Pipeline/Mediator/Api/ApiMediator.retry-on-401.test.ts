@@ -17,10 +17,10 @@ import type {
 import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { IFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
 import type { GraphQLFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
-import { HeadlessNativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import type { IPipelineContext } from '../../../../../Scrapers/Pipeline/Types/PipelineContext.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { cappedNative } from '../../../../Helpers/CappedTransport.js';
 import {
   type IStateRecorder,
   loadPepperConfig,
@@ -376,7 +376,7 @@ describe('ApiMediator.retryOn401 — response-header carry', () => {
       return Promise.resolve(answers.shift() ?? new Response(null));
     }
     globalThis.fetch = answer;
-    const transport = new HeadlessNativeFetchStrategy('https://bank.example.com');
+    const transport = cappedNative('https://bank.example.com');
     const graphql = stubGraphqlStrategy();
     const mediator = createApiMediator(CompanyTypes.OneZero, transport, graphql);
     const strategy = scriptedStrategy([succeed(FRESH_HEADER)]);

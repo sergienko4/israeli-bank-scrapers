@@ -2646,8 +2646,9 @@ export default tseslint.config(
   // §19.1 (above) grandfathers ALL of `Strategy/**` to a loose 40-line /
   // 20-statement per-function cap, and §7 turns the file-size guard off
   // there. The browserless card transport adds four Fetch modules
-  // (CookieJar, OriginCookieJar, SessionCookieFetchStrategy,
-  // HeadlessNativeFetchStrategy) and the session transport adds nine
+  // (CookieJar, OriginCookieJar, SessionCookieFetchStrategy) and the capped
+  // transport adds four (CappedBody, CappedInvoke, NativeFetchDispatch,
+  // NativeFetchNetwork) and the session transport adds nine
   // (CookieMatch, SetCookieScope, DomainCookieJar, UrlRule,
   // RedirectFollow, StatusPolicy, DocumentResponse, ResponseHeaderSink,
   // HeaderText) and the body/answer encodings add two (Latin1Form,
@@ -2661,8 +2662,8 @@ export default tseslint.config(
   // config is last-wins and this block sits AFTER §19.1, so the strict
   // caps win for these paths while the rest of Strategy/Fetch keeps its
   // grandfather. §4 (narrow, never revert): scope is the seventeen new files
-  // only. 150 is justified: the largest (HeadlessNativeFetchStrategy)
-  // measures well under it (skipBlankLines + skipComments).
+  // only. 150 is justified: every listed module measures well under it
+  // (skipBlankLines + skipComments).
   //
   // Canaries: `fetch-transport-fn-over-cap.canary.ts` over-sizes one
   // function and `fetch-transport-file-over-cap.canary.ts` over-sizes a
@@ -2673,7 +2674,10 @@ export default tseslint.config(
       'src/Scrapers/Pipeline/Strategy/Fetch/CookieJar.ts',
       'src/Scrapers/Pipeline/Strategy/Fetch/OriginCookieJar.ts',
       'src/Scrapers/Pipeline/Strategy/Fetch/SessionCookieFetchStrategy.ts',
-      'src/Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.ts',
+      'src/Scrapers/Pipeline/Strategy/Fetch/CappedBody.ts',
+      'src/Scrapers/Pipeline/Strategy/Fetch/CappedInvoke.ts',
+      'src/Scrapers/Pipeline/Strategy/Fetch/NativeFetchDispatch.ts',
+      'src/Scrapers/Pipeline/Strategy/Fetch/NativeFetchNetwork.ts',
       'src/Scrapers/Pipeline/Strategy/Fetch/CookieMatch.ts',
       'src/Scrapers/Pipeline/Strategy/Fetch/SetCookieScope.ts',
       'src/Scrapers/Pipeline/Strategy/Fetch/DomainCookieJar.ts',

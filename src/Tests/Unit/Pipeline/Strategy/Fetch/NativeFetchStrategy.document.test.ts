@@ -6,8 +6,8 @@
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IFetchOpts } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
-import { HeadlessNativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { cappedNative } from '../../../../Helpers/CappedTransport.js';
 import {
   CLOUDFLARE_BLOCK_PAGE,
   CLOUDFLARE_CHALLENGE_HEADERS,
@@ -23,11 +23,11 @@ const DOCUMENT: IFetchOpts = { extraHeaders: {}, responseKind: 'document' };
 const MARKED: IFetchOpts = { ...DOCUMENT, documentMarker: MARKER };
 const JSON_STEP: IFetchOpts = { extraHeaders: {} };
 
-const GOVERNED = new HeadlessNativeFetchStrategy(BASE_URL, {
+const GOVERNED = cappedNative(BASE_URL, {
   statusPolicy: { 204: 'empty', 207: 'fail' },
 });
-const PLAIN = new HeadlessNativeFetchStrategy(BASE_URL);
-const EMPTY_200 = new HeadlessNativeFetchStrategy(BASE_URL, {
+const PLAIN = cappedNative(BASE_URL);
+const EMPTY_200 = cappedNative(BASE_URL, {
   statusPolicy: { 200: 'empty' },
 });
 
@@ -49,7 +49,7 @@ function serve(response: Response): IFetchFake {
  * @returns The transport's outcome.
  */
 function getPortal(
-  strategy: HeadlessNativeFetchStrategy,
+  strategy: ReturnType<typeof cappedNative>,
   opts: IFetchOpts,
 ): Promise<Procedure<unknown>> {
   return strategy.fetchGet<unknown>('portal?sid=secret', opts);

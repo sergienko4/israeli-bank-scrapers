@@ -7,7 +7,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { gzipSync } from 'node:zlib';
 
-import { HeadlessNativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
+import { cappedNative } from '../../../../Helpers/CappedTransport.js';
 
 /**
  * Waits for the local server to close.
@@ -38,7 +38,7 @@ describe('response integrity over native fetch', () => {
     });
     try {
       const { port } = server.address() as AddressInfo;
-      const strategy = new HeadlessNativeFetchStrategy(`http://127.0.0.1:${String(port)}/`);
+      const strategy = cappedNative(`http://127.0.0.1:${String(port)}/`);
       const tooSmall = await strategy.fetchGet('data', {
         extraHeaders: {},
         responseKind: 'text',
@@ -79,7 +79,7 @@ describe('response integrity over native fetch', () => {
     watchdog.addEventListener('abort', onWatchdog);
     try {
       const { port } = server.address() as AddressInfo;
-      const strategy = new HeadlessNativeFetchStrategy(`http://127.0.0.1:${String(port)}/`);
+      const strategy = cappedNative(`http://127.0.0.1:${String(port)}/`);
       const result = await strategy.fetchGet('data', {
         extraHeaders: {},
         responseKind: 'text',

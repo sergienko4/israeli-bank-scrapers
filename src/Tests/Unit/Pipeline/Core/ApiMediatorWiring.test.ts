@@ -1,5 +1,5 @@
 /**
- * Unit tests for Core/HeadlessMediatorWiring.resolveHeadlessApiMediator — the
+ * Unit tests for Core/ApiMediatorWiring.resolveApiMediator — the
  * transport selector. Asserts: a bank with no headless config yields none();
  * OneZero (requiresClientCert) yields a mTLS-backed mediator; PayBox (native
  * fetch) yields a Node-fetch-backed mediator, and a PayBox phoneValidate POST
@@ -12,9 +12,9 @@ import { jest } from '@jest/globals';
 import { CompanyTypes } from '../../../../Definitions.js';
 import type { ScraperOptions } from '../../../../Scrapers/Base/Interface.js';
 import {
-  resolveHeadlessApiMediator,
-  resolveHeadlessTransportKind,
-} from '../../../../Scrapers/Pipeline/Core/HeadlessMediatorWiring.js';
+  resolveApiMediator,
+  resolveTransportKind,
+} from '../../../../Scrapers/Pipeline/Core/ApiMediatorWiring.js';
 import type { IPipelineDescriptor } from '../../../../Scrapers/Pipeline/Core/PipelineDescriptor.js';
 import { isSome } from '../../../../Scrapers/Pipeline/Types/Option.js';
 
@@ -32,7 +32,7 @@ function makeDescriptor(companyId: CompanyTypes): IPipelineDescriptor {
   return { options, phases: [] };
 }
 
-describe('resolveHeadlessApiMediator — none() cases', () => {
+describe('resolveApiMediator — none() cases', () => {
   it('returns none() when a bank has no headless config block', async () => {
     const registry =
       await import('../../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfig.js');
@@ -44,7 +44,7 @@ describe('resolveHeadlessApiMediator — none() cases', () => {
     registry.PIPELINE_BANK_CONFIG[bank] = withoutHeadless;
     try {
       const descriptor = makeDescriptor(bank);
-      const option = resolveHeadlessApiMediator(descriptor);
+      const option = resolveApiMediator(descriptor);
       const isPresent = isSome(option);
       expect(isPresent).toBe(false);
     } finally {
@@ -53,10 +53,10 @@ describe('resolveHeadlessApiMediator — none() cases', () => {
   });
 });
 
-describe('resolveHeadlessApiMediator — some(mediator) cases', () => {
+describe('resolveApiMediator — some(mediator) cases', () => {
   it('wires a mTLS mediator for OneZero (requiresClientCert)', () => {
     const descriptor = makeDescriptor(CompanyTypes.OneZero);
-    const option = resolveHeadlessApiMediator(descriptor);
+    const option = resolveApiMediator(descriptor);
     const isPresent = isSome(option);
     expect(isPresent).toBe(true);
     if (isSome(option)) {
@@ -67,7 +67,7 @@ describe('resolveHeadlessApiMediator — some(mediator) cases', () => {
 
   it('wires a Node-fetch mediator for PayBox (nativeFetch)', () => {
     const descriptor = makeDescriptor(CompanyTypes.PayBox);
-    const option = resolveHeadlessApiMediator(descriptor);
+    const option = resolveApiMediator(descriptor);
     const isPresent = isSome(option);
     expect(isPresent).toBe(true);
     if (isSome(option)) {
@@ -76,7 +76,7 @@ describe('resolveHeadlessApiMediator — some(mediator) cases', () => {
   });
 });
 
-describe('resolveHeadlessApiMediator — PayBox native transport', () => {
+describe('resolveApiMediator — PayBox native transport', () => {
   afterEach(() => {
     jest.restoreAllMocks();
   });
@@ -86,7 +86,7 @@ describe('resolveHeadlessApiMediator — PayBox native transport', () => {
     const answer = new Response(JSON.stringify(PHONE_VALIDATE_REPLY), { status: 200, headers });
     const fetch = jest.spyOn(globalThis, 'fetch').mockResolvedValue(answer);
     const descriptor = makeDescriptor(CompanyTypes.PayBox);
-    const option = resolveHeadlessApiMediator(descriptor);
+    const option = resolveApiMediator(descriptor);
     if (!isSome(option)) throw new TypeError('PayBox resolved no mediator');
     const result = await option.value.apiPost('identity.phoneValidate', PHONE_VALIDATE_BODY);
     expect(result).toEqual({ success: true, value: PHONE_VALIDATE_REPLY });
@@ -98,9 +98,9 @@ describe('resolveHeadlessApiMediator — PayBox native transport', () => {
   });
 });
 
-describe('resolveHeadlessTransportKind — Pepper and PayBox', () => {
+describe('resolveTransportKind — Pepper and PayBox', () => {
   it.each([CompanyTypes.Pepper, CompanyTypes.PayBox])('selects native for %s', companyId => {
-    const kind = resolveHeadlessTransportKind(companyId);
+    const kind = resolveTransportKind(companyId);
     expect(kind).toBe('native');
   });
 });

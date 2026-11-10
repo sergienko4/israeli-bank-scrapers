@@ -7,8 +7,8 @@ import { createHash } from 'node:crypto';
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import { HeadlessNativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import { verifyResponseIntegrity } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/ResponseIntegrityReader.js';
+import { cappedNative } from '../../../../Helpers/CappedTransport.js';
 
 type MockFetch = jest.Mock<Promise<Response>, [string, RequestInit]>;
 
@@ -63,7 +63,7 @@ describe('native response integrity', () => {
   it('hashes the exact bytes before text decoding, including the UTF-8 BOM', async () => {
     const bytes = new TextEncoder().encode('\uFEFFשלום');
     const mock = install(() => response(bytes));
-    const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
+    const strategy = cappedNative(BASE_URL);
     const policy = { maxBytes: bytes.length, sha256: digest(bytes) };
     const result = await strategy.fetchGet(SECRET_URL, {
       extraHeaders: {},
@@ -77,7 +77,7 @@ describe('native response integrity', () => {
   it('refuses a digest mismatch without leaking the URL query or body', async () => {
     const bytes = new TextEncoder().encode('private-body');
     install(() => response(bytes));
-    const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
+    const strategy = cappedNative(BASE_URL);
     const result = await strategy.fetchGet(SECRET_URL, {
       extraHeaders: {},
       responseKind: 'text',
@@ -120,7 +120,7 @@ describe('native response integrity', () => {
       expect(init.signal?.aborted).toBe(false);
       return new Response(body, { status: 200 });
     });
-    const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
+    const strategy = cappedNative(BASE_URL);
     const result = await strategy.fetchGet(SECRET_URL, {
       extraHeaders: {},
       responseKind: 'text',
@@ -136,7 +136,7 @@ describe('native response integrity', () => {
     'refuses an invalid byte ceiling %s before making a request',
     async maxBytes => {
       const mock = install(() => response(new Uint8Array()));
-      const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
+      const strategy = cappedNative(BASE_URL);
       const result = await strategy.fetchGet(SECRET_URL, {
         extraHeaders: {},
         responseKind: 'text',
@@ -151,7 +151,7 @@ describe('native response integrity', () => {
     'refuses an invalid digest before making a request',
     async sha256 => {
       const mock = install(() => response(new Uint8Array()));
-      const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
+      const strategy = cappedNative(BASE_URL);
       const result = await strategy.fetchGet(SECRET_URL, {
         extraHeaders: {},
         responseKind: 'text',
@@ -165,7 +165,7 @@ describe('native response integrity', () => {
   it('preserves ordinary native reads when no integrity policy is configured', async () => {
     const bytes = new TextEncoder().encode('ordinary response');
     install(() => response(bytes));
-    const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
+    const strategy = cappedNative(BASE_URL);
     const result = await strategy.fetchGet(SECRET_URL, { extraHeaders: {}, responseKind: 'text' });
     expect(result).toMatchObject({ success: true, value: { text: 'ordinary response' } });
   });
@@ -187,7 +187,7 @@ describe('native response integrity', () => {
       });
       return new Response(body, { status: 200 });
     });
-    const strategy = new HeadlessNativeFetchStrategy(BASE_URL, { timeoutMs: 25 });
+    const strategy = cappedNative(BASE_URL, { timeoutMs: 25 });
     const result = await strategy.fetchGet(SECRET_URL, {
       extraHeaders: {},
       responseIntegrity: { maxBytes: 64 },
@@ -238,7 +238,7 @@ describe('native response integrity', () => {
       );
       return new Response(body, { status: 201 });
     });
-    const strategy = new HeadlessNativeFetchStrategy(BASE_URL, {
+    const strategy = cappedNative(BASE_URL, {
       statusPolicy: { 201: 'empty' },
       responseIntegrity: { maxBytes: 1, sha256: '0'.repeat(64) },
     });
@@ -268,7 +268,7 @@ describe('native response integrity', () => {
         headers: { location: `${BASE_URL}final` },
       });
     });
-    const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
+    const strategy = cappedNative(BASE_URL);
     const result = await strategy.fetchGet(SECRET_URL, {
       extraHeaders: {},
       responseKind: 'text',
@@ -296,7 +296,7 @@ describe('native response integrity', () => {
       );
       return new Response(body, { status: 200, headers: { 'content-type': 'text/html' } });
     });
-    const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
+    const strategy = cappedNative(BASE_URL);
     const result = await strategy.fetchGet(SECRET_URL, {
       extraHeaders: {},
       mediaType: 'application/json',
@@ -310,7 +310,7 @@ describe('native response integrity', () => {
   it('classifies a bounded WAF block instead of masking it as a digest mismatch', async () => {
     const body = '<html><div class="cf-error">cloudflare</div></html>';
     install(() => new Response(body, { status: 403 }));
-    const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
+    const strategy = cappedNative(BASE_URL);
     const result = await strategy.fetchGet(SECRET_URL, {
       extraHeaders: {},
       responseIntegrity: { maxBytes: 128, sha256: '0'.repeat(64) },
@@ -323,7 +323,7 @@ describe('native response integrity', () => {
   it('classifies an oversized WAF block when its markers fit within the byte limit', async () => {
     const body = '<html><div class="cf-error">cloudflare</div>' + 'x'.repeat(256);
     install(() => new Response(body, { status: 403 }));
-    const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
+    const strategy = cappedNative(BASE_URL);
     const result = await strategy.fetchGet(SECRET_URL, {
       extraHeaders: {},
       responseIntegrity: { maxBytes: 64 },
@@ -336,7 +336,7 @@ describe('native response integrity', () => {
   it('does not classify WAF markers outside the permitted response prefix', async () => {
     const body = '<html>' + 'x'.repeat(64) + '<div class="cf-error">cloudflare</div>';
     install(() => new Response(body, { status: 403 }));
-    const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
+    const strategy = cappedNative(BASE_URL);
     const result = await strategy.fetchGet(SECRET_URL, {
       extraHeaders: {},
       responseIntegrity: { maxBytes: 64 },
@@ -366,7 +366,7 @@ describe('native response integrity', () => {
       },
     });
     install(() => new Response(body, { status: 403 }));
-    const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
+    const strategy = cappedNative(BASE_URL);
     const result = await strategy.fetchGet(SECRET_URL, {
       extraHeaders: {},
       responseIntegrity: { maxBytes: 64 },
@@ -377,7 +377,7 @@ describe('native response integrity', () => {
   it('does not classify oversized 5xx edge pages as WAF blocks', async () => {
     const body = '<html><div class="cf-error">cloudflare</div>' + 'x'.repeat(256);
     install(() => new Response(body, { status: 503 }));
-    const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
+    const strategy = cappedNative(BASE_URL);
     const result = await strategy.fetchGet(SECRET_URL, {
       extraHeaders: {},
       responseIntegrity: { maxBytes: 64 },
@@ -431,7 +431,7 @@ describe('native response integrity', () => {
       );
       return new Response(body, { status: 200, headers: { 'cf-mitigated': 'challenge' } });
     });
-    const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
+    const strategy = cappedNative(BASE_URL);
     const result = await strategy.fetchGet(SECRET_URL, {
       extraHeaders: {},
       responseIntegrity: { maxBytes: 1, sha256: '0'.repeat(64) },

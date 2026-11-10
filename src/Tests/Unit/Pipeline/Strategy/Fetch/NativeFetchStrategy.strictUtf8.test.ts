@@ -8,8 +8,8 @@
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IFetchOpts } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
-import { HeadlessNativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { cappedNative } from '../../../../Helpers/CappedTransport.js';
 import { fakeFetch, type IFetchFake } from '../../../../Helpers/FakeFetch.js';
 
 const BASE_URL = 'https://api.bank.example/v1/';
@@ -18,8 +18,8 @@ const JSON_CALL: IFetchOpts = { extraHeaders: {} };
 const DOCUMENT: IFetchOpts = { extraHeaders: {}, responseKind: 'document' };
 const TEXT: IFetchOpts = { extraHeaders: {}, responseKind: 'text' };
 
-const PLAIN = new HeadlessNativeFetchStrategy(BASE_URL);
-const STRICT_BANK = new HeadlessNativeFetchStrategy(BASE_URL, { strictUtf8: true });
+const PLAIN = cappedNative(BASE_URL);
+const STRICT_BANK = cappedNative(BASE_URL, { strictUtf8: true });
 
 /** `{"a":"<0xff>"}` — JSON whose one string holds a byte UTF-8 never uses. */
 const BAD_JSON = Uint8Array.of(0x7b, 0x22, 0x61, 0x22, 0x3a, 0x22, 0xff, 0x22, 0x7d);
@@ -45,7 +45,7 @@ function serve(body: Uint8Array<ArrayBuffer> | string): IFetchFake {
  * @returns The transport's outcome.
  */
 function getPortal(
-  strategy: HeadlessNativeFetchStrategy,
+  strategy: ReturnType<typeof cappedNative>,
   opts: IFetchOpts,
 ): Promise<Procedure<unknown>> {
   return strategy.fetchGet<unknown>('portal?sid=secret', opts);

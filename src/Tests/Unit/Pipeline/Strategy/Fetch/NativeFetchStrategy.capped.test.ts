@@ -1,22 +1,20 @@
 /**
- * Unit tests for Strategy/Fetch/HeadlessNativeFetchStrategy — the capped
- * native transport behind `nativeFetch`. globalThis.fetch is replaced with
- * mocks that honour the request's abort signal, so the timeout path runs on a
- * real `AbortSignal.timeout` (no fake timers) on a strategy built with a
- * lowered ceiling.
+ * Unit tests for the capped native transport behind `nativeFetch`.
+ * globalThis.fetch is replaced with mocks that honour the request's abort
+ * signal, so the timeout path runs on a real `AbortSignal.timeout` (no fake
+ * timers) on a strategy built with a lowered ceiling.
  */
 
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import { NETWORK_CONNECT_RETRIES } from '../../../../../Scrapers/Pipeline/Mediator/Network/FetchConfig.js';
-import { HeadlessGraphQLFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessGraphQLFetchStrategy.js';
-import { HeadlessNativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import type {
   IManualRedirect,
   StatusAction,
 } from '../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { cappedGraphQL, cappedNative } from '../../../../Helpers/CappedTransport.js';
 
 type MockFetchImpl = (url: string, init: RequestInit) => Promise<Response>;
 type MockFetch = jest.Mock<Promise<Response>, [string, RequestInit]>;
@@ -174,10 +172,10 @@ function sentHeaders(mock: MockFetch): Record<string, string> {
   return init.headers as Record<string, string>;
 }
 
-describe('HeadlessNativeFetchStrategy', () => {
+describe('capped NativeFetchStrategy', () => {
   let originalFetch: typeof globalThis.fetch;
-  const strategy = new HeadlessNativeFetchStrategy(BASE_URL);
-  const capped = new HeadlessNativeFetchStrategy(BASE_URL, { timeoutMs: LOWERED_CAP_MS });
+  const strategy = cappedNative(BASE_URL);
+  const capped = cappedNative(BASE_URL, { timeoutMs: LOWERED_CAP_MS });
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
@@ -216,7 +214,7 @@ describe('HeadlessNativeFetchStrategy', () => {
     ['fail', 'stalled', hangOnBody],
     ['fail', 'broken', brokenBody],
   ])('decides %s without consuming a %s body', async (action, _label, impl) => {
-    const guarded = new HeadlessNativeFetchStrategy(BASE_URL, {
+    const guarded = cappedNative(BASE_URL, {
       timeoutMs: LOWERED_CAP_MS,
       statusPolicy: { 200: action },
     });
@@ -227,7 +225,7 @@ describe('HeadlessNativeFetchStrategy', () => {
   });
 
   it('reports an opted-in 429 without consuming a stalled body', async () => {
-    const guarded = new HeadlessNativeFetchStrategy(BASE_URL, {
+    const guarded = cappedNative(BASE_URL, {
       timeoutMs: LOWERED_CAP_MS,
       statusPolicy: { 429: 'rate-limit' },
     });
@@ -248,7 +246,7 @@ describe('HeadlessNativeFetchStrategy', () => {
   });
 
   it('refuses a bank media-type mismatch without waiting for a stalled body', async () => {
-    const guarded = new HeadlessNativeFetchStrategy(BASE_URL, {
+    const guarded = cappedNative(BASE_URL, {
       timeoutMs: LOWERED_CAP_MS,
       mediaTypes: { json: 'application/json' },
     });
@@ -268,7 +266,7 @@ describe('HeadlessNativeFetchStrategy', () => {
   });
 
   it('refuses a per-call media-type mismatch before reading a broken body', async () => {
-    const guarded = new HeadlessNativeFetchStrategy(BASE_URL, { timeoutMs: LOWERED_CAP_MS });
+    const guarded = cappedNative(BASE_URL, { timeoutMs: LOWERED_CAP_MS });
     const mock = installFetchMock(brokenBody);
     const opts = { extraHeaders: {}, mediaType: 'application/json' };
     const result = await guarded.fetchGet(ITEMS_URL, opts);
@@ -336,11 +334,11 @@ function connectTimeoutsThenJson(failures: number): MockFetchImpl {
   };
 }
 
-describe('HeadlessNativeFetchStrategy — connect timeout retry', () => {
+describe('capped NativeFetchStrategy — connect timeout retry', () => {
   let originalFetch: typeof globalThis.fetch;
-  const strategy = new HeadlessNativeFetchStrategy(BASE_URL, { redirectPolicy: 'reject' });
-  const following = new HeadlessNativeFetchStrategy(BASE_URL);
-  const postHopping = new HeadlessNativeFetchStrategy(BASE_URL, {
+  const strategy = cappedNative(BASE_URL, { redirectPolicy: 'reject' });
+  const following = cappedNative(BASE_URL);
+  const postHopping = cappedNative(BASE_URL, {
     redirectPolicy: { ...ONE_HOP, postAsGet: true },
   });
 
@@ -362,7 +360,7 @@ describe('HeadlessNativeFetchStrategy — connect timeout retry', () => {
   });
 
   it('does not retry a bounded GraphQL request when the bank opts out', async () => {
-    const gql = new HeadlessGraphQLFetchStrategy(
+    const gql = cappedGraphQL(
       BASE_URL,
       {},
       {
@@ -379,7 +377,7 @@ describe('HeadlessNativeFetchStrategy — connect timeout retry', () => {
   });
 
   it('preserves a response-integrity refusal after a connect retry', async () => {
-    const bounded = new HeadlessNativeFetchStrategy(BASE_URL, {
+    const bounded = cappedNative(BASE_URL, {
       redirectPolicy: 'reject',
       responseIntegrity: { maxBytes: 2 },
     });
@@ -474,11 +472,11 @@ function redirectThenHang(url: string, init: RequestInit): Promise<Response> {
   return Promise.resolve(response);
 }
 
-describe('HeadlessNativeFetchStrategy — redirect policy', () => {
+describe('capped NativeFetchStrategy — redirect policy', () => {
   let originalFetch: typeof globalThis.fetch;
-  const plain = new HeadlessNativeFetchStrategy(BASE_URL);
-  const rejecting = new HeadlessNativeFetchStrategy(BASE_URL, { redirectPolicy: 'reject' });
-  const hopping = new HeadlessNativeFetchStrategy(BASE_URL, {
+  const plain = cappedNative(BASE_URL);
+  const rejecting = cappedNative(BASE_URL, { redirectPolicy: 'reject' });
+  const hopping = cappedNative(BASE_URL, {
     timeoutMs: LOWERED_CAP_MS,
     redirectPolicy: ONE_HOP,
   });
@@ -515,7 +513,7 @@ describe('HeadlessNativeFetchStrategy — redirect policy', () => {
       const response = hangingResponse(init, { status: 302, headers }, pull);
       return Promise.resolve(response);
     });
-    const guarded = new HeadlessNativeFetchStrategy(BASE_URL, { timeoutMs: LOWERED_CAP_MS });
+    const guarded = cappedNative(BASE_URL, { timeoutMs: LOWERED_CAP_MS });
     const onSetCookie = jest.fn((): number => events.push('cookies'));
     const opts = { extraHeaders: {}, redirect: testCase.policy, onSetCookie };
     const result = await guarded.fetchGet('start', opts);

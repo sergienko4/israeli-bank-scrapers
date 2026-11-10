@@ -17,8 +17,8 @@ import { runStep } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectC
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { GraphQLFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
-import { HeadlessNativeFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { cappedNative } from '../../../../../Helpers/CappedTransport.js';
 import { fakeFetch } from '../../../../../Helpers/FakeFetch.js';
 
 /** The error a refused answer carries. */
@@ -80,7 +80,7 @@ async function runAgainst(answer: JsonValue): Promise<Procedure<ITemplateScope>>
   const fake = fakeFetch((): Response => Response.json(answer));
   globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
   const graphql = {} as unknown as GraphQLFetchStrategy;
-  const transport = new HeadlessNativeFetchStrategy(ORIGIN);
+  const transport = cappedNative(ORIGIN);
   const bus = createApiMediator(HINT, transport, graphql);
   const scope = { carry: {}, creds: {}, config: PLAIN_CONFIG };
   return runStep({ step: STEP, bus, scope, companyId: HINT });

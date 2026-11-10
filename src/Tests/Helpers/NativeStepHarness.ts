@@ -10,7 +10,7 @@ import {
   type IApiMediator,
 } from '../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import type { GraphQLFetchStrategy } from '../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
-import { HeadlessNativeFetchStrategy } from '../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
+import { cappedNative } from './CappedTransport.js';
 import { fakeFetch } from './FakeFetch.js';
 
 /** One response header: its name and value. */
@@ -40,6 +40,6 @@ export function installJsonAnswer(body: object, headers: readonly HeaderPair[]):
  */
 export function makeNativeMediator(hint: CompanyTypes, origin: string): IApiMediator {
   const graphql = {} as unknown as GraphQLFetchStrategy;
-  const transport = new HeadlessNativeFetchStrategy(origin);
+  const transport = cappedNative(origin);
   return createApiMediator(hint, transport, graphql);
 }
