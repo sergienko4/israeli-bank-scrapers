@@ -5,8 +5,15 @@
  * otherwise escape the phase's `Procedure` contract: `PipelineExecutor`'s
  * cleanup catch would still see it, but `runScrapeWithRecovery` would not, so a
  * warm session that served an unusable body could never re-login and retry
- * once. Every shape invocation therefore funnels through here, turning one
- * throw into one typed `Generic` failure that names the callback.
+ * once. Every callback at that boundary — the seven that read a payload or
+ * decide the walk — therefore funnels through here, turning one throw into one
+ * typed `Generic` failure that names the callback.
+ *
+ * <p>Dispatch-argument builders (`accountNumberOf`, the `buildVars` family,
+ * URL and header producers) run earlier, while a request is being assembled,
+ * and stay outside this guard: they cannot return a `Procedure` without
+ * reshaping dispatch, and a throw there is a programming error rather than an
+ * unusable response.
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';

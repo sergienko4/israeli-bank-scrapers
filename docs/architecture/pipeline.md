@@ -55,7 +55,11 @@ See [`Procedure.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{
 
 ## Shape callbacks and the guarded boundary
 
-An api-direct shape may reject a payload by throwing when it cannot build a truthful value. [`ShapeGuard.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/ShapeGuard.ts) is the one place that converts such a throw into the phase's result contract: `guardShape` wraps a value-returning callback, `guardShapeProcedure` wraps one that already returns a `Procedure`, and both answer `Generic` with `shape <callback> threw: <message>`. An escaping exception would bypass `runScrapeWithRecovery`, so a warm session that served an unusable account list, balance, page, bootstrap patch, stop rule or request-plan guard would abort the run instead of re-logging in and retrying once.
+An api-direct shape may reject a payload by throwing when it cannot build a truthful value. [`ShapeGuard.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/ShapeGuard.ts) is the one place that converts such a throw into the phase's result contract: `guardShape` wraps a value-returning callback, `guardShapeProcedure` wraps one that already returns a `Procedure`, and both answer `Generic` with `shape <callback> threw: <message>`.
+
+The guard covers the seven callbacks that read a payload or decide the walk: `extractAccounts`, `balance.isAbsent`, `balance.extract`, `transactions.extractPage`, `transactions.stop`, `transactions.validatePlan` and `bootstrap.extractPatch`. An escaping exception there would bypass `runScrapeWithRecovery`, so a warm session that served an unusable account list, balance, page, bootstrap patch, stop rule or request-plan guard would abort the run instead of re-logging in and retrying once.
+
+The dispatch-argument builders (`accountNumberOf`, the `buildVars` family, URL and header producers) run earlier, while a request is being assembled, and stay outside the guard: they cannot answer with a `Procedure` without reshaping dispatch, and a throw there is a programming error rather than an unusable response.
 
 ## IPipelineContext — the shared state slot table
 
@@ -63,14 +67,14 @@ An api-direct shape may reject a payload by throwing when it cannot build a trut
 
 Key slots:
 
-| Slot                | Owner                   | Purpose                                                                                                                                                                                                                                                                                                               |
-| ------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `durableAuth`       | API-DIRECT-CALL.action  | `IDurableAuthState` — the long-lived re-login artifact feeding `result.persistentOtpToken`                                                                                                                                                                                                                            |
+| Slot                | Owner                   | Purpose                                                                                                                                                                                                                                                                                                       |
+| ------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `durableAuth`       | API-DIRECT-CALL.action  | `IDurableAuthState` — the long-lived re-login artifact feeding `result.persistentOtpToken`                                                                                                                                                                                                                    |
 | `apiMediator`       | headless context wiring | Authenticated `ApiMediator`, wired at context build by `resolveApiMediator`, whose ordered transport rules pick `createMtlsHeadlessApiMediator` (client cert / TLS profile) or `createHeadlessApiMediator` (`nativeFetch`), and fail closed when a block declares neither, then consumed by `API-DIRECT-CALL` |
-| `scrape`            | API-DIRECT-SCRAPE.post  | `accounts`, `accountIdentities` produced by the hard-model shape                                                                                                                                                                                                                                                      |
-| `balanceResolution` | API-DIRECT-SCRAPE.final | Final `Map<accountNumber, number>` → `PipelineResult`                                                                                                                                                                                                                                                                 |
-| `windowEnd`         | Coverage backfill       | Optional internal upper bound for an older requested slice                                                                                                                                                                                                                                                            |
-| `diagnostics`       | Shared context          | Per-run diagnostic state                                                                                                                                                                                                                                                                                              |
+| `scrape`            | API-DIRECT-SCRAPE.post  | `accounts`, `accountIdentities` produced by the hard-model shape                                                                                                                                                                                                                                              |
+| `balanceResolution` | API-DIRECT-SCRAPE.final | Final `Map<accountNumber, number>` → `PipelineResult`                                                                                                                                                                                                                                                         |
+| `windowEnd`         | Coverage backfill       | Optional internal upper bound for an older requested slice                                                                                                                                                                                                                                                    |
+| `diagnostics`       | Shared context          | Per-run diagnostic state                                                                                                                                                                                                                                                                                      |
 
 > Every pipeline bank follows the same `apiMediator` → `scrape` → `balanceResolution` slot sequence; the headless context wiring mints the mediator and `API-DIRECT-CALL` consumes it.
 
@@ -96,10 +100,10 @@ transport, so a bank can never reach the network over an unintended one.
 without building a mediator. Browser options are removed from the public
 contract; there is no separate browser-option warning path.
 
-| Symbol                         | Module                      | Role                                                            |
-| ------------------------------ | --------------------------- | --------------------------------------------------------------- |
-| `TransportKind`        | `ApiWiringTypes.ts`     | The `Kind` column above — the rule a headless block matches     |
-| `resolveTransportKind` | `ApiMediatorWiring.ts`  | The kind for a bank, or `false` when it has no `headless` block |
+| Symbol                 | Module                 | Role                                                            |
+| ---------------------- | ---------------------- | --------------------------------------------------------------- |
+| `TransportKind`        | `ApiWiringTypes.ts`    | The `Kind` column above — the rule a headless block matches     |
+| `resolveTransportKind` | `ApiMediatorWiring.ts` | The kind for a bank, or `false` when it has no `headless` block |
 
 The native transport is [`NativeFetchStrategy`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.ts). The API-mediator factory installs the capped request seam through constructor options, so the class carries no transport-policy subclass:
 
