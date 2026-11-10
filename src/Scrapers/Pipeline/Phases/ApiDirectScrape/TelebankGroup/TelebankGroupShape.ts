@@ -76,6 +76,18 @@ function transactionsOf(args: ITelebankGroupShapeArgs): TelebankShape['transacti
 }
 
 /**
+ * The brand's three steps — customer, balance and transactions.
+ * @param args - Brand binding supplying the window stance.
+ * @returns The step triple the shape is assembled from.
+ */
+function brandSteps(
+  args: ITelebankGroupShapeArgs,
+): Pick<TelebankShape, 'customer' | 'balance' | 'transactions'> {
+  const transactions = transactionsOf(args);
+  return { customer: CUSTOMER_STEP, balance: BALANCE_STEP, transactions };
+}
+
+/**
  * Assemble one Telebank brand's hard-model scrape shape.
  * @param args - Brand binding: step name and backfill stance.
  * @returns Shape passed to `.withApiDirect(...)`.
@@ -86,8 +98,6 @@ export function makeTelebankGroupShape(args: ITelebankGroupShapeArgs): TelebankS
     accountNumberOf,
     callAccountIdOf,
     checkBody: checkTitanBody,
-    customer: CUSTOMER_STEP,
-    balance: BALANCE_STEP,
-    transactions: transactionsOf(args),
+    ...brandSteps(args),
   };
 }

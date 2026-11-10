@@ -19,10 +19,14 @@ import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { ApiPostData } from '../../Types/Domain/ApiPostData.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, isOk } from '../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { maybeSignBody, resolveStepBody } from './ApiDirectScrapeBody.js';
 import { withBodyDigest } from './ApiDirectScrapeBodyDigest.js';
-import { captureAnswer, readResponseSession } from './ApiDirectScrapeResponseSession.js';
+import {
+  captureAnswer,
+  type IAnswerCapture,
+  readResponseSession,
+} from './ApiDirectScrapeResponseSession.js';
 import type {
   ApiBody,
   BodyCheck,
@@ -66,6 +70,12 @@ export interface IDispatchArgs {
 /** Dispatch args whose vars are an object — what templates and signing need. */
 interface IObjectDispatchArgs extends Omit<IDispatchArgs, 'vars'> {
   readonly vars: VarsMap;
+}
+
+/** A hydrated REST POST body plus the opts its digest header belongs on. */
+interface IPreparedPost {
+  readonly body: ApiBody;
+  readonly opts: IApiQueryOpts;
 }
 
 /** An object-only REST POST feature and its refusal of array vars. */
@@ -154,12 +164,23 @@ async function dispatchRestPost(
   args: IObjectDispatchArgs,
   url: WKUrlOrLiteral,
 ): Promise<Procedure<ApiBody>> {
+  const prepared = preparedPost(args);
+  if (!isOk(prepared)) return prepared;
+  return args.bus.apiPost<ApiBody>(url, prepared.value.body, prepared.value.opts);
+}
+
+/**
+ * Hydrate and sign a REST POST body, then attach its digest header.
+ * @param args - Dispatch bundle whose vars are an object.
+ * @returns The ready body and opts, or the first refusal.
+ */
+function preparedPost(args: IObjectDispatchArgs): Procedure<IPreparedPost> {
   const bodyProc = resolveStepBody(args);
   if (!isOk(bodyProc)) return bodyProc;
   const signedProc = maybeSignBody(bodyProc.value, args);
   if (!isOk(signedProc)) return signedProc;
   const opts = withBodyDigest(args.opts, signedProc.value, args.bodyDigest);
-  return args.bus.apiPost<ApiBody>(url, signedProc.value, opts);
+  return succeed({ body: signedProc.value, opts });
 }
 
 /**
@@ -217,6 +238,21 @@ export async function dispatchStep(args: IDispatchArgs): Promise<Procedure<ApiBo
   const capture = captureAnswer(args.opts, args.responseSession);
   const response = await routeStep({ ...args, opts: capture.opts });
   const answered = omitBankResponseText(response, args.call ?? args.queryTag, args.omitBankText);
+  return checkAndRead(answered, capture, args);
+}
+
+/**
+ * Apply the shape's body checks, then read the call's response session.
+ * @param answered - The sanitised response.
+ * @param capture - The answers the call's sink filed.
+ * @param args - Dispatch bundle.
+ * @returns The checked response with its session patch applied.
+ */
+function checkAndRead(
+  answered: Procedure<ApiBody>,
+  capture: IAnswerCapture,
+  args: IDispatchArgs,
+): Procedure<ApiBody> {
   const operationCheck = args.operation && args.checkBodyByOperation?.[args.operation];
   const checked = applyBodyChecks(answered, args.checkBody, operationCheck);
   return readResponseSession(checked, capture, args);

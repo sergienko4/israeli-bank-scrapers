@@ -16,51 +16,32 @@
  * predates the start.
  */
 
-import {
-  isLossyTermination,
-  worseTermination,
-} from '../../Mediator/Scrape/CoverageAudit/TerminationEvidence.js';
+/**
+ * Per-account row collection — the first request plus any backfill it earns.
+ *
+ * The window-coverage audit can say "the rows do not reach back to the start",
+ * and for eight of the sixteen banks that shortfall is answerable: narrow the
+ * upper bound to just before the oldest row held and ask again. This file owns
+ * that loop. One round — the request itself plus the assessment of what the
+ * rows prove — lives in ApiDirectScrapeWalkRounds.ts; the loop here decides
+ * whether to ask again. It holds no bank knowledge — the stance comes from the
+ * shape's declaration and every decision comes from {@link planBackfill}.
+ */
+
+import { isLossyTermination } from '../../Mediator/Scrape/CoverageAudit/TerminationEvidence.js';
 import type { IWindowResult } from '../../Mediator/Scrape/CoverageAudit/WindowCoverage.js';
-import { assessWindowCoverage } from '../../Mediator/Scrape/CoverageAudit/WindowCoverage.js';
 import type { WindowStop } from '../../Mediator/Scrape/CoverageAudit/WindowCoverageVerdict.js';
-import type { PageMerge } from '../../Mediator/Scrape/OverlapMerge.js';
-import { buildOverlapMerge } from '../../Mediator/Scrape/OverlapMerge.js';
-import { dropOverlap } from '../../Mediator/Scrape/RawOverlap.js';
-import type { IBackfillPlan } from '../../Mediator/Scrape/WindowBackfill.js';
-import { planBackfill } from '../../Mediator/Scrape/WindowBackfill.js';
 import type { IPaginatedWalk, PaginationTermination } from '../../Strategy/Fetch/Pagination.js';
-import { concatPages, fetchPaginated } from '../../Strategy/Fetch/Pagination.js';
-import type { Option } from '../../Types/Option.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
-import type { IAcctCtx } from './ApiDirectScrapeDispatchArgs.js';
-import { buildPageFetcher, buildStop } from './ApiDirectScrapeSteps.js';
-import { guardShapeProcedure } from './ShapeGuard.js';
-
-/** Everything one account has collected, and under which bound. */
-interface IWalkState {
-  /** Raw rows held so far, in arrival order. */
-  readonly rows: readonly object[];
-  /** Upper bound the most recent request carried. */
-  readonly end: Option<Date>;
-  /** Extra requests issued beyond the first. */
-  readonly attempt: number;
-  /**
-   * How pagination ended, the most doubtful round winning.
-   *
-   * <p>Monotonic on purpose. Each backfill round runs its own paginated walk,
-   * so keeping only the newest answer would let a clean final round erase an
-   * earlier halt — the walk would look exhausted when an earlier round had
-   * already proved it was not.
-   *
-   * <p>Ranked by `worseTermination`, which shares its ordering with
-   * `isLossyTermination` so that "which ending is worse" and "which endings
-   * are loss" cannot drift apart. They did once: the fold kept the first
-   * non-`exhausted` answer, so an early `predicateStop` — which is not loss —
-   * masked a `cursorRepeat` a later round went on to prove.
-   */
-  readonly termination: PaginationTermination;
-}
+import type { IAcctCtx } from './ApiDirectScrapeTypes.js';
+import {
+  extend,
+  fetchInitial,
+  type IWalkState,
+  planFor,
+  validateRequestPlan,
+} from './ApiDirectScrapeWalkRounds.js';
 
 /** What a stopped walk settled on about the window it was asked for. */
 export interface IWalkEnd {
@@ -116,161 +97,6 @@ export interface ICollectedRows {
   readonly window: IWalkEnd;
 }
 
-/** One round of the walk: what the rows prove, and what to do next. */
-interface IRound {
-  /** The start the caller asked for, as the audit read it. */
-  readonly requestedStart: string;
-  /** Verdict for everything held at the start of this round. */
-  readonly coverage: IWindowResult;
-  /** What the planner decided to do about it. */
-  readonly plan: IBackfillPlan;
-}
-
-/**
- * The correlation identity for one account's transactions walk.
- *
- * The paginator's overlap collapse, the window-coverage assessment and the
- * backfill plan each log under this exact string — it is what ties those three
- * lines together when reading a run, so it is derived once rather than spelled
- * out at each site where a drifting copy would break the correlation.
- *
- * @param a - Per-account context.
- * @returns Bank and step identity. Carries no account or row content.
- */
-function labelOf<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): string {
-  return `${a.ctx.companyId}/txns`;
-}
-
-/**
- * Page merge for this account's walk.
- *
- * Bound to the account's label so the collapse reports under the same identity
- * as the rest of the walk. A shape that declares nothing keeps plain
- * concatenation, which is correct for disjoint pages and costs nothing.
- *
- * @param a - Per-account context.
- * @returns The merge the paginator should join pages with.
- */
-function buildMerge<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): PageMerge {
-  if (a.shape.transactions.pagesMayOverlap !== true) return concatPages;
-  const label = labelOf(a);
-  return buildOverlapMerge(label);
-}
-
-/**
- * Run one full paginated transactions walk under the context's current bound.
- * @param a - Per-account context.
- * @returns Every raw row that walk produced.
- */
-async function fetchOnce<TAcct, TCursor>(
-  a: IAcctCtx<TAcct, TCursor>,
-): Promise<Procedure<IPaginatedWalk<object>>> {
-  const fetchPage = buildPageFetcher(a);
-  const stop = buildStop(a);
-  const merge = buildMerge(a);
-  return fetchPaginated<object, TCursor>({ fetchPage, stop, merge });
-}
-
-/**
- * Whether the caller supplied a resolved requested-start instant.
- * @param start - Requested lower-bound instant.
- * @returns True when the instant can guide pagination.
- */
-function startIsReadable(start: Date): boolean {
-  const time = start.getTime();
-  return Number.isFinite(time);
-}
-
-/**
- * Build the empty walk used when caller input cannot safely reach a provider.
- * @returns Caller-stopped walk with no fabricated rows.
- */
-function unreadableStartWalk(): Procedure<IPaginatedWalk<object>> {
-  return succeed({ items: [], termination: 'predicateStop' });
-}
-
-/**
- * Select the bounded initial fetch from requested-start readability.
- * @param a - Per-account context.
- * @returns One page for an unreadable start, otherwise the normal walk.
- */
-function fetchInitial<TAcct, TCursor>(
-  a: IAcctCtx<TAcct, TCursor>,
-): Promise<Procedure<IPaginatedWalk<object>>> {
-  if (!startIsReadable(a.ctx.options.startDate)) {
-    const walk = unreadableStartWalk();
-    return Promise.resolve(walk);
-  }
-  return fetchOnce(a);
-}
-
-/**
- * Run the shape's optional whole-plan guard for a readable request.
- * @param a - Per-account context carrying the shape and requested window.
- * @returns Successful validation, or the shape's typed rejection.
- */
-function validateRequestPlan<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): Procedure<void> {
-  if (!startIsReadable(a.ctx.options.startDate)) return succeed(undefined);
-  const validate = a.shape.transactions.validatePlan;
-  if (!validate) return succeed(undefined);
-  return guardShapeProcedure('transactions.validatePlan', () => validate(a.ctx));
-}
-
-/**
- * Issue one narrowed request and fold its fresh rows into the state.
- * @param a - Per-account context.
- * @param state - Rows held, plus the bound the next request should carry.
- * @returns The extended state.
- */
-async function extend<TAcct, TCursor>(
-  a: IAcctCtx<TAcct, TCursor>,
-  state: IWalkState,
-): Promise<Procedure<IWalkState>> {
-  const more = await fetchOnce({ ...a, ctx: { ...a.ctx, windowEnd: state.end } });
-  if (!isOk(more)) return more;
-  const incoming = more.value.items;
-  const fresh = dropOverlap({ collected: state.rows, incoming, label: labelOf(a) });
-  const rows = [...state.rows, ...fresh.kept];
-  const termination = worseTermination(state.termination, more.value.termination);
-  return succeed({ rows, end: state.end, attempt: state.attempt + 1, termination });
-}
-
-/**
- * Render a requested start for the audit without ever throwing.
- *
- * <p>`toISOString` throws on an unparseable date, which would abort the whole
- * account before the coverage verdict could say so. A caller who passed a bad
- * start deserves to be told that in the result, not by losing the account.
- *
- * @param start - The start the caller supplied.
- * @returns An ISO instant, or a marker the audit will reject as unreadable.
- */
-function renderStart(start: Date): string {
-  return startIsReadable(start) ? start.toISOString() : 'invalid-date';
-}
-
-/**
- * Decide whether the window is already covered, and under what bound to re-ask.
- *
- * Returns the coverage verdict alongside the plan because the walk needs both:
- * the plan to decide whether to continue, the verdict to record why it stopped.
- * Re-deriving the verdict at the stop site would emit the audit's log line a
- * second time and break the one-line-per-round correlation.
- *
- * @param a - Per-account context.
- * @param state - Rows held and the bound that produced them.
- * @returns The coverage verdict and the backfill plan for this round.
- */
-function planFor<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>, state: IWalkState): IRound {
-  const label = labelOf(a);
-  const requestedStart = renderStart(a.ctx.options.startDate);
-  const coverage = assessWindowCoverage({ requestedStart, rows: state.rows, label });
-  const spent = { attempt: state.attempt, previousEnd: state.end };
-  const stance = a.shape.transactions.windowNarrowing;
-  const plan = planBackfill({ stance, coverage, label, ...spent });
-  return { requestedStart, coverage, plan };
-}
-
 /**
  * Close the walk, recording whether backfill was spent without covering.
  *
@@ -287,13 +113,29 @@ function stopAt<TAcct, TCursor>(
   state: IWalkState,
   window: IWalkEnd,
 ): ICollectedRows {
-  const didAsk = state.attempt > 0;
-  const isShort = window.stop !== 'covered';
-  const isLossy = isLossyTermination(state.termination);
-  a.ledger.noteWhen('paginationStoppedEarly', isLossy);
-  const isBackfillExhausted = didAsk && isShort;
+  const isBackfillExhausted = noteWalkEnd(a, state, window.stop);
   const termination = state.termination;
   return { rows: state.rows, isBackfillExhausted, termination, window };
+}
+
+/**
+ * Record the walk's termination evidence and report whether backfill fell short.
+ *
+ * Both conditions are required: a window that was never re-asked is not
+ * exhaustion, and a covered window is not short however many asks it took.
+ * @param a - Per-account context, holding the evidence ledger.
+ * @param state - Rows held and the asks spent reaching them.
+ * @param stop - How the walk ended.
+ * @returns True when backfill was spent without covering the window.
+ */
+function noteWalkEnd<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  state: IWalkState,
+  stop: IWalkEnd['stop'],
+): boolean {
+  const isLossy = isLossyTermination(state.termination);
+  a.ledger.noteWhen('paginationStoppedEarly', isLossy);
+  return state.attempt > 0 && stop !== 'covered';
 }
 
 /** What one walk round settles on, named to keep the recursive signature short. */
@@ -308,13 +150,26 @@ type WalkOutcome = Promise<Procedure<ICollectedRows>>;
 async function walk<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>, state: IWalkState): WalkOutcome {
   const round = planFor(a, state);
   const plan = round.plan;
-  if (plan.shouldAsk) {
-    const next = await extend(a, { ...state, end: plan.nextEnd });
-    return isOk(next) ? walk(a, next.value) : next;
-  }
+  if (plan.shouldAsk) return askAgain(a, state, plan.nextEnd);
   const { requestedStart, coverage } = round;
   const collected = stopAt(a, state, { requestedStart, coverage, stop: plan.stop });
   return succeed(collected);
+}
+
+/**
+ * Re-ask under the narrowed bound, then continue the walk on its result.
+ * @param a - Per-account context.
+ * @param state - Rows held and the bound that produced them.
+ * @param end - The narrowed upper bound.
+ * @returns The continued walk, or the failed request.
+ */
+async function askAgain<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  state: IWalkState,
+  end: IWalkState['end'],
+): WalkOutcome {
+  const next = await extend(a, { ...state, end });
+  return isOk(next) ? walk(a, next.value) : next;
 }
 
 /**
@@ -331,10 +186,22 @@ export async function collectAccountRows<TAcct, TCursor>(
   if (!isOk(validation)) return validation;
   const first = await fetchInitial(a);
   if (!isOk(first)) return first;
-  const rows = first.value.items;
-  const termination = first.value.termination;
-  const seed: IWalkState = { rows, end: a.ctx.windowEnd, attempt: 0, termination };
-  return walk(a, seed);
+  const state = seedWalk(a, first.value);
+  return walk(a, state);
+}
+
+/**
+ * Seed the walk state from the initial page and the caller's window end.
+ * @param a - Per-account context.
+ * @param first - The initial page.
+ * @returns State for the first backfill round.
+ */
+function seedWalk<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  first: IPaginatedWalk<object>,
+): IWalkState {
+  const end = a.ctx.windowEnd;
+  return { rows: first.items, end, attempt: 0, termination: first.termination };
 }
 
 export default collectAccountRows;

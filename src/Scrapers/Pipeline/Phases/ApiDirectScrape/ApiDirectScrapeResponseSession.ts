@@ -43,6 +43,14 @@ interface IResponseSessionCall {
   readonly responseSession?: IResponseSessionSpec;
 }
 
+/** What reading one answer's session needs: the sink, its spec and the call. */
+interface ISessionRead {
+  readonly response: ApiBody;
+  readonly capture: IAnswerCapture;
+  readonly spec: IResponseSessionSpec;
+  readonly call: IResponseSessionCall;
+}
+
 /**
  * File one answer the sink saw; the last one filed is the final answer.
  * @param seen - The call's filed answers.
@@ -109,13 +117,31 @@ function readResponseSession(
 ): Procedure<ApiBody> {
   const spec = call.responseSession;
   if (!isOk(response) || spec === undefined) return response;
+  const stored = applySessionPatch({ response: response.value, capture, spec, call });
+  return isOk(stored) ? response : stored;
+}
+
+/**
+ * Name a call whose header sink never filed an answer.
+ * @param name - The call's name.
+ * @returns The call's named response-unseen failure.
+ */
+function unseenAnswer(name: string): Procedure<void> {
+  return fail(ScraperErrorTypes.Generic, `${name} response unseen`);
+}
+
+/**
+ * Build the session patch from the call's final answer and store it.
+ * @param input - The checked body, the sink's answers, the spec and the call.
+ * @returns Void procedure, or the call's named failure.
+ */
+function applySessionPatch(input: ISessionRead): Procedure<void> {
+  const { response, capture, spec, call } = input;
   const name = call.call ?? call.queryTag;
   const answer = capture.seen.at(-1);
-  if (answer === undefined) return fail(ScraperErrorTypes.Generic, `${name} response unseen`);
-  const patch = spec.patch({ body: response.value, ...answer, ctx: call.ctx });
-  const stored = storePatch(patch, call.bus, name);
-  if (!isOk(stored)) return stored;
-  return response;
+  if (answer === undefined) return unseenAnswer(name);
+  const patch = spec.patch({ body: response, ...answer, ctx: call.ctx });
+  return storePatch(patch, call.bus, name);
 }
 
 export type { IAnswerCapture };

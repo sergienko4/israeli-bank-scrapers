@@ -7,11 +7,11 @@
  * or the call did not carry one), and a hard failure that discards the run.
  */
 
-import type { Procedure } from '../../Types/Procedure.js';
+import type { IProcedureFailure, Procedure } from '../../Types/Procedure.js';
 import { isOk, isTerminalFailure, succeed } from '../../Types/Procedure.js';
 import { dispatchStep } from './ApiDirectScrapeDispatch.js';
-import type { IAcctCtx } from './ApiDirectScrapeDispatchArgs.js';
 import { buildBalanceDispatchArgs } from './ApiDirectScrapeDispatchArgs.js';
+import type { IAcctCtx } from './ApiDirectScrapeTypes.js';
 import type { ApiBody, BalanceUnknown, IBalanceOutcome } from './IApiDirectScrapeShape.js';
 import { BALANCE_UNKNOWN } from './IApiDirectScrapeShape.js';
 import { guardShape } from './ShapeGuard.js';
@@ -53,6 +53,19 @@ function readBalance<TAcct, TCursor>(
   const absent = absenceDeclared(a, body);
   if (!isOk(absent)) return absent;
   if (absent.value) return succeed({ degraded: true });
+  return extractedBalance(a, body);
+}
+
+/**
+ * Run the shape's balance extractor and mark the figure as live.
+ * @param a - Per-account context.
+ * @param body - Balance response (or the empty body when the fetch is skipped).
+ * @returns The live figure, or the guard's typed failure.
+ */
+function extractedBalance<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  body: ApiBody,
+): Procedure<IBalanceOutcome> {
   const extracted = guardShape('balance.extract', () => a.shape.balance.extract(body, a.acct));
   if (!isOk(extracted)) return extracted;
   return succeed({ value: extracted.value, degraded: false });
@@ -96,13 +109,24 @@ export async function fetchBalance<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
 ): Promise<Procedure<IBalanceOutcome>> {
   const resp = await dispatchBalance(a);
-  if (isOk(resp)) {
-    return readBalance(a, resp.value);
-  }
+  if (isOk(resp)) return readBalance(a, resp.value);
+  return failedBalance(a, resp);
+}
+
+/**
+ * Answer a failed balance call, honouring the shape's declared fallback.
+ * @param a - Per-account context.
+ * @param resp - The failed balance response.
+ * @returns The response, or a degraded outcome from the declared fallback.
+ */
+function failedBalance<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  resp: IProcedureFailure,
+): Procedure<IBalanceOutcome> {
   const fb = a.shape.balance.fallbackOnFail;
   if (fb === undefined || isTerminalFailure(resp)) return resp;
-  const fallback = balanceFallback(fb);
-  return succeed(fallback);
+  const degraded = balanceFallback(fb);
+  return succeed(degraded);
 }
 
 export default fetchBalance;

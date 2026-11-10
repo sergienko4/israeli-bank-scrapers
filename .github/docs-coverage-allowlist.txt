@@ -537,3 +537,37 @@ IBuilderState
 # Internal to PipelineReducer.ts; the executor contract is documented in
 # docs/architecture/pipeline.md.
 IContextTracker
+
+# --- ApiDirectScrape phase split (function-cap drain) ---
+# The four modules below were carved out of ApiDirectScrapeActions.ts,
+# ApiDirectScrapeBackfill.ts and ApiDirectScrapeDispatchArgs.ts so each file and
+# function stays under the canonical caps. Their exports are the seams between
+# those modules, consumed only inside Pipeline/Phases/ApiDirectScrape and never
+# re-exported from lib/index.{cjs,mjs}. The phase contract itself is documented
+# in docs/phases/api-direct-call.md.
+# Reason: IAccountResult / iterateAccounts -- the per-account walk's result
+# shape and its sequential fold. Internal to ApiDirectScrapeAccountWalk.ts; the
+# phase entry point remains the only public call.
+IAccountResult
+iterateAccounts
+# Reason: auditPage -- runs the page-coverage guardrails for one extracted page.
+# Internal seam consumed by ApiDirectScrapeSteps.ts so no caller can obtain a
+# page without the audit having run against the body that produced it.
+auditPage
+# Reason: resolveBalanceUrlTag / resolveCustomerUrlTag / resolveTxnsUrlTag --
+# the per-step urlTag resolvers (literal or producer form) consumed by
+# ApiDirectScrapeDispatchArgs.ts. Registry-internal; each bank's labels live in
+# its shape module.
+resolveBalanceUrlTag
+resolveCustomerUrlTag
+resolveTxnsUrlTag
+# Reason: IRound / IWalkState / fetchInitial / fetchOnce / planFor /
+# validateRequestPlan -- one walk round's state, request and assessment.
+# Internal to ApiDirectScrapeWalkRounds.ts; the backfill loop in
+# ApiDirectScrapeBackfill.ts is its only consumer.
+IRound
+IWalkState
+fetchInitial
+fetchOnce
+planFor
+validateRequestPlan

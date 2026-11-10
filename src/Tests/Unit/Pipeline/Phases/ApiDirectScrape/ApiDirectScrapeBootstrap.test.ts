@@ -11,7 +11,7 @@ import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import runBootstrap from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeBootstrap.js';
-import type { IDriverCtx } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeDispatchArgs.js';
+import type { IDriverCtx } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeTypes.js';
 import type {
   ApiBody,
   IApiDirectScrapeBootstrapStep,

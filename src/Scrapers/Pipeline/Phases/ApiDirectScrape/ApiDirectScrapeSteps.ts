@@ -5,15 +5,6 @@
  * paginated transactions. Zero bank-name coupling.
  */
 
-import type {
-  ICoverageResult,
-  OwnsRow,
-} from '../../Mediator/Scrape/CoverageAudit/CoverageAudit.js';
-import {
-  auditCoverage,
-  OWNS_EVERY_ROW,
-} from '../../Mediator/Scrape/CoverageAudit/CoverageAudit.js';
-import { auditDeclaredRows } from '../../Mediator/Scrape/CoverageAudit/DeclaredRows.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
@@ -22,11 +13,11 @@ import {
   buildCustomerDispatchArgs,
   buildSecondaryOpts,
   buildTxnsDispatchArgs,
-  type IAcctCtx,
-  type IDriverCtx,
-  resolveSecondaryUrlTag,
 } from './ApiDirectScrapeDispatchArgs.js';
 import reportExcludedProducts from './ApiDirectScrapeExclusions.js';
+import auditPage from './ApiDirectScrapePageAudit.js';
+import type { IAcctCtx, IDriverCtx } from './ApiDirectScrapeTypes.js';
+import { resolveSecondaryUrlTag } from './ApiDirectScrapeUrlTags.js';
 import type { ApiBody, IExtractAccountsArgs } from './IApiDirectScrapeShape.js';
 import { guardShape } from './ShapeGuard.js';
 
@@ -47,6 +38,19 @@ async function fetchSecondaryBody<TAcct, TCursor>(
   if (tag === false) return succeed<ApiBody>(EMPTY_BODY);
   const opts = buildSecondaryOpts(d);
   const response = await d.bus.apiGet<ApiBody>(tag, opts);
+  return checkSecondaryBody(d, response);
+}
+
+/**
+ * Sanitise and check the secondary identity response.
+ * @param d - Driver context.
+ * @param response - The secondary identity GET result.
+ * @returns The checked body, or the first refusal.
+ */
+function checkSecondaryBody<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+  response: Procedure<ApiBody>,
+): Procedure<ApiBody> {
   const answered = omitBankResponseText(response, 'customer', d.shape.omitBankText);
   const selected = d.shape.checkBodyByOperation?.['customer-secondary'];
   return applyBodyChecks(answered, d.shape.checkBody, selected);
@@ -74,9 +78,23 @@ function runExtract<TAcct, TCursor>(
   body: ApiBody,
   secondaryBody: ApiBody,
 ): Procedure<readonly TAcct[]> {
-  const sessionContext = d.bus.getSessionContext();
-  const args: IExtractAccountsArgs = { body, secondaryBody, sessionContext };
+  const args = { body, secondaryBody, sessionContext: d.bus.getSessionContext() };
   const extracted = guardShape('extractAccounts', () => d.shape.customer.extractAccounts(args));
+  return reportExtracted(d, args, extracted);
+}
+
+/**
+ * Report the products the shape filtered out, then pass the extraction on.
+ * @param d - Driver context.
+ * @param args - Extract-args bundle.
+ * @param extracted - Result of the guarded extraction.
+ * @returns The extraction, unchanged.
+ */
+function reportExtracted<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+  args: IExtractAccountsArgs,
+  extracted: Procedure<readonly TAcct[]>,
+): Procedure<readonly TAcct[]> {
   if (!isOk(extracted)) return extracted;
   reportExcludedProducts(d, args, extracted.value.length);
   return extracted;
@@ -120,99 +138,6 @@ export async function fetchAccounts<TAcct, TCursor>(
 type PageFetcher<TCursor> = (cursor: TCursor | false) => Promise<Procedure<IPage<object, TCursor>>>;
 
 /**
- * Bind a shape's declared row-ownership test to the account being audited.
- *
- * Only a shape whose response carries every account merged declares one. For
- * the rest the audit's own default applies, and returning it here rather than
- * nothing keeps a single definition of what "this row is mine" means.
- *
- * @param a - Per-account context.
- * @returns The bound test, or the every-row default when none is declared.
- */
-function ownsRowFor<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): OwnsRow {
-  const declared = a.shape.transactions.auditOwnsRow;
-  if (!declared) return OWNS_EVERY_ROW;
-  return (row: object): boolean => declared(row, a.acct);
-}
-
-/**
- * Reconcile one page: compare the rows the bank shape returned against every
- * transaction discoverable in the same response body.
- *
- * Runs on every page of every bank because the defect it catches is a
- * provider-side change — a container added or renamed upstream — which no
- * amount of care in our own code prevents. It reports and returns; the page
- * is passed through untouched.
- *
- * A shape whose response carries every account merged declares `auditOwnsRow`;
- * bound to this account by {@link ownsRowFor} it narrows hunted rows to the
- * ones this account owns. Without it the other accounts' rows would read as
- * loss on every page. Banks with a per-account response declare nothing.
- * Likewise a shape whose table carries a readable non-transaction row declares
- * `auditIsTxnRow`, so that row is never counted as loss.
- *
- * @param a - Per-account context.
- * @param body - Raw response body for this page.
- * @param items - Rows the shape extracted from that body.
- * @returns Coverage counts for the page.
- */
-function auditPageCoverage<TAcct, TCursor>(
-  a: IAcctCtx<TAcct, TCursor>,
-  body: ApiBody,
-  items: readonly object[],
-): ICoverageResult {
-  const label = `${a.ctx.companyId}/txns`;
-  const isCardIssuer = a.shape.isCardIssuer;
-  const ownsRow = ownsRowFor(a);
-  const isTxnRow = a.shape.transactions.auditIsTxnRow;
-  const result = auditCoverage({ body, extracted: items, isCardIssuer, label, ownsRow, isTxnRow });
-  a.ledger.noteWhen('extractionShortfall', result.unread > 0);
-  a.ledger.noteWhen('extractionAuditUnavailable', result.unaudited);
-  return result;
-}
-
-/**
- * Reconcile one page against the counts the provider itself declared.
- *
- * Complements {@link auditPageCoverage}: that audit hunts the body and can be
- * argued with, this one quotes the provider back at itself and cannot. Runs
- * only for banks whose response carries such a count.
- *
- * @param a - Per-account context.
- * @param body - Raw response body for this page.
- * @returns True once the check has reported.
- */
-function auditPageDeclared<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>, body: ApiBody): true {
-  const specs = a.shape.transactions.declaredRowSpecs ?? [];
-  const label = `${a.ctx.companyId}/txns`;
-  const result = auditDeclaredRows({ body, specs, label });
-  a.ledger.noteWhen('declaredRowShortfall', result.shortfall > 0);
-  a.ledger.noteWhen('declaredRowAuditUnavailable', result.unavailable);
-  return true;
-}
-
-/**
- * Run both guardrails over one fetched page.
- *
- * Kept together because they answer the same question from opposite ends —
- * one re-reads the body to find rows the shape never returned, the other
- * checks the count the provider itself declared. Neither repairs anything.
- *
- * @param a - Per-account context.
- * @param body - Raw response body for this page.
- * @param items - Rows the shape extracted from it.
- * @returns True once both checks have reported.
- */
-function auditPage<TAcct, TCursor>(
-  a: IAcctCtx<TAcct, TCursor>,
-  body: ApiBody,
-  items: readonly object[],
-): true {
-  auditPageCoverage(a, body, items);
-  return auditPageDeclared(a, body);
-}
-
-/**
  * Extract one page from a response body and run both coverage guardrails.
  *
  * Extraction and auditing are bound together so no caller can obtain a page
@@ -228,14 +153,26 @@ function extractAudited<TAcct, TCursor>(
   body: ApiBody,
   cursor: TCursor | false,
 ): Procedure<IPage<object, TCursor>> {
-  const args = { body, cursor, acct: a.acct, ctx: a.ctx, ledger: a.ledger };
-  const guarded = guardShape('transactions.extractPage', () =>
-    a.shape.transactions.extractPage(args),
-  );
+  const guarded = guardedPage(a, body, cursor);
   if (!isOk(guarded)) return guarded;
-  const page = guarded.value;
-  auditPage(a, body, page.items);
-  return succeed(page);
+  auditPage(a, body, guarded.value.items);
+  return guarded;
+}
+
+/**
+ * Run the shape's page extractor behind the guarded boundary.
+ * @param a - Per-account context.
+ * @param body - Raw response body for this round.
+ * @param cursor - Cursor that produced this round, or false on the first call.
+ * @returns The extracted page, or the guard's typed failure.
+ */
+function guardedPage<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  body: ApiBody,
+  cursor: TCursor | false,
+): Procedure<IPage<object, TCursor>> {
+  const args = { body, cursor, acct: a.acct, ctx: a.ctx, ledger: a.ledger };
+  return guardShape('transactions.extractPage', () => a.shape.transactions.extractPage(args));
 }
 
 /**

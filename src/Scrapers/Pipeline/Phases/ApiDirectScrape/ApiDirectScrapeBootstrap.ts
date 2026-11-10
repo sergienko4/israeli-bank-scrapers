@@ -9,15 +9,18 @@
  */
 
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import type { IApiMediator } from '../../Mediator/Api/ApiMediator.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../Types/Procedure.js';
 import { dispatchStep } from './ApiDirectScrapeDispatch.js';
-import { buildBootstrapDispatchArgs, type IDriverCtx } from './ApiDirectScrapeDispatchArgs.js';
+import { buildBootstrapDispatchArgs } from './ApiDirectScrapeDispatchArgs.js';
 import { mergeSessionContext } from './ApiDirectScrapeSessionMerge.js';
+import type { IDriverCtx } from './ApiDirectScrapeTypes.js';
 import type {
   ApiBody,
   IApiDirectScrapeBootstrapStep,
   IApiDirectScrapeShape,
+  SessionContextPatch,
 } from './IApiDirectScrapeShape.js';
 import { guardShapeProcedure } from './ShapeGuard.js';
 
@@ -45,11 +48,36 @@ function applyBootstrapPatch<TAcct, TCursor>(
   step: IApiDirectScrapeBootstrapStep,
   body: ApiBody,
 ): Procedure<void> {
-  const patch = guardShapeProcedure('bootstrap.extractPatch', () =>
+  const patch = guardedPatch(d, step, body);
+  if (!isOk(patch)) return patch;
+  return storeBootstrapPatch(d.bus, patch.value);
+}
+
+/**
+ * Run the shape's bootstrap extractor behind the guarded boundary.
+ * @param d - Driver context.
+ * @param step - The shape's bootstrap step literal.
+ * @param body - Parsed bootstrap response body.
+ * @returns The patch the shape built, or the guard's typed failure.
+ */
+function guardedPatch<TAcct, TCursor>(
+  d: IDriverCtx<TAcct, TCursor>,
+  step: IApiDirectScrapeBootstrapStep,
+  body: ApiBody,
+): Procedure<SessionContextPatch> {
+  return guardShapeProcedure('bootstrap.extractPatch', () =>
     step.extractPatch({ body, ctx: d.ctx }),
   );
-  if (!isOk(patch)) return patch;
-  const wasStored = mergeSessionContext(d.bus, patch.value);
+}
+
+/**
+ * Merge one bootstrap patch into session-context, failing closed on refusal.
+ * @param bus - Mediator whose session-context receives the patch.
+ * @param patch - The patch the shape built.
+ * @returns Void procedure, or the named merge refusal.
+ */
+function storeBootstrapPatch(bus: IApiMediator, patch: SessionContextPatch): Procedure<void> {
+  const wasStored = mergeSessionContext(bus, patch);
   if (!wasStored) return fail(ScraperErrorTypes.Generic, MERGE_REFUSED_MSG);
   return succeed(undefined);
 }
@@ -111,11 +139,24 @@ async function runBootstrap<TAcct, TCursor>(
   const steps = toStepList(d.shape.bootstrap);
   const none = succeed(undefined);
   const seed: StepsDone = Promise.resolve(none);
-  return steps.reduce(async (prev, step): StepsDone => {
-    const done = await prev;
-    if (!isOk(done)) return done;
-    return runOneStep(d, step);
-  }, seed);
+  return steps.reduce((prev, step): StepsDone => afterStep(prev, d, step), seed);
+}
+
+/**
+ * Run the next bootstrap step once the previous one has merged its patch.
+ * @param prev - Result of the steps run so far.
+ * @param d - Driver context.
+ * @param step - The bootstrap step to run next.
+ * @returns The next step's result, or the earlier failure.
+ */
+async function afterStep<TAcct, TCursor>(
+  prev: StepsDone,
+  d: IDriverCtx<TAcct, TCursor>,
+  step: IApiDirectScrapeBootstrapStep,
+): Promise<Procedure<void>> {
+  const done = await prev;
+  if (!isOk(done)) return done;
+  return runOneStep(d, step);
 }
 
 export default runBootstrap;

@@ -67,6 +67,16 @@ function endOf(ctx: IActionContext): string {
 }
 
 /**
+ * The account identity fields of the envelope.
+ * @param acct - FIBI account.
+ * @returns Numeric account number, account type and branch.
+ */
+function accountFields(acct: IFibiAcct): VarsMap {
+  const accountNumber = Number(acct.accountNumber);
+  return { accountNumber, accountType: acct.accountType, branch: acct.branch };
+}
+
+/**
  * Build the `initialRequest` envelope — account number is numeric on the
  * wire; branch is a string; dates span the scrape window.
  * @param acct - FIBI account.
@@ -74,15 +84,8 @@ function endOf(ctx: IActionContext): string {
  * @returns Wire request payload.
  */
 function buildInitialRequest(acct: IFibiAcct, ctx: IActionContext): VarsMap {
-  return {
-    accountNumber: Number(acct.accountNumber),
-    accountType: acct.accountType,
-    branch: acct.branch,
-    startDate: startOf(ctx),
-    endDate: endOf(ctx),
-    order: TXN_ORDER,
-    language: TXN_LANGUAGE,
-  };
+  const window = { startDate: startOf(ctx), endDate: endOf(ctx) };
+  return { ...accountFields(acct), ...window, order: TXN_ORDER, language: TXN_LANGUAGE };
 }
 
 /**
