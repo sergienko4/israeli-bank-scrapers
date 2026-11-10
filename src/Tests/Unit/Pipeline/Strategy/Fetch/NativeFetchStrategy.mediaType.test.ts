@@ -7,8 +7,8 @@
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
 import type { IFetchOpts } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/FetchStrategy.js';
-import { HeadlessNativeFetchStrategy } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { cappedNative } from '../../../../Helpers/CappedTransport.js';
 import { fakeFetch, type IFetchFake } from '../../../../Helpers/FakeFetch.js';
 
 const BASE_URL = 'https://api.bank.example/v1/';
@@ -23,8 +23,8 @@ const HTML_PAGE: IFetchOpts = {
 const JSON_CALL: IFetchOpts = { extraHeaders: {} };
 const DOCUMENT: IFetchOpts = { extraHeaders: {}, responseKind: 'document' };
 
-const PLAIN = new HeadlessNativeFetchStrategy(BASE_URL);
-const JSON_BANK = new HeadlessNativeFetchStrategy(BASE_URL, {
+const PLAIN = cappedNative(BASE_URL);
+const JSON_BANK = cappedNative(BASE_URL, {
   mediaTypes: { json: 'application/json' },
   statusPolicy: { 207: 'fail' },
 });
@@ -52,7 +52,7 @@ function serve(body: string, contentType: string | false, status = 200): IFetchF
  * @returns The transport's outcome.
  */
 function getPortal(
-  strategy: HeadlessNativeFetchStrategy,
+  strategy: ReturnType<typeof cappedNative>,
   opts: IFetchOpts,
 ): Promise<Procedure<unknown>> {
   return strategy.fetchGet<unknown>('portal?sid=secret', opts);

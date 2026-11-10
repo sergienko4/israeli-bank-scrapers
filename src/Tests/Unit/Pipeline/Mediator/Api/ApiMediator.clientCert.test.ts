@@ -6,8 +6,8 @@
  */
 
 import { CompanyTypes } from '../../../../../Definitions.js';
-import type { INodeTlsMediatorArgs } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.headless.types.js';
 import { createMtlsHeadlessApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import type { INodeTlsMediatorArgs } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.transport.types.js';
 import { literalUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { setMtlsFetchFallback } from '../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
 import type { IClientCertPair } from '../../../../../Scrapers/Pipeline/Types/Domain/ClientCertControl.js';

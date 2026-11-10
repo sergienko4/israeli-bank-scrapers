@@ -8,8 +8,8 @@
 
 import { CompanyTypes } from '../../../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../../../../Scrapers/Base/ErrorTypes.js';
-import type { INodeTlsMediatorArgs } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.headless.types.js';
 import { createMtlsHeadlessApiMediator } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
+import type { INodeTlsMediatorArgs } from '../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.transport.types.js';
 import type {
   IApiDirectCallConfig,
   IPostStep,

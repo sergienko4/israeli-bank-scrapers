@@ -1,7 +1,7 @@
 /**
- * Headless-wiring shapes — the decoded transport flags and the resolved
- * wiring entry shared by the transport rule table and the mediator wiring.
- * Split from HeadlessMediatorWiring to keep that file under the 150-LoC cap.
+ * API-wiring shapes — the decoded transport flags and the resolved wiring
+ * entry shared by the transport rule table and the mediator wiring. Split
+ * from ApiMediatorWiring to keep that file under the 150-LoC cap.
  */
 
 import type { IHeadlessUrlsConfig } from '../Registry/Config/PipelineBankConfigTypes.js';
@@ -18,8 +18,8 @@ interface IWiringFlags {
   readonly isBankTextOmitted: boolean;
 }
 
-/** Identity transport a headless bank runs over. */
-type HeadlessTransportKind = 'node-tls' | 'native';
+/** Identity transport an API-direct bank runs over. */
+type TransportKind = 'node-tls' | 'native';
 
 /** Optional transport settings a headless config block hands to the factory. */
 type TTransportKey =
@@ -33,8 +33,8 @@ type TTransportKey =
   | 'isConnectRetryDisabled'
   | 'strictUtf8';
 
-/** Pair of URLs + flags needed to wire the headless ApiMediator. */
-interface IHeadlessWiring extends IWiringFlags {
+/** Pair of URLs + flags needed to wire the ApiMediator. */
+interface IApiWiring extends IWiringFlags {
   /**
    * Optional transport settings, handed to the factory untouched: the
    * node:https ClientHello profile (absent keeps Node's default), the
@@ -50,4 +50,4 @@ interface IHeadlessWiring extends IWiringFlags {
   readonly staticAuth?: string;
 }
 
-export type { HeadlessTransportKind, IHeadlessWiring, IWiringFlags };
+export type { IApiWiring, IWiringFlags, TransportKind };

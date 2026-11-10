@@ -30,7 +30,9 @@ class GraphQLFetchStrategy extends NativeFetchStrategy {
    * Bind the strategy to a GraphQL endpoint and an optional header floor.
    * @param baseUrl - GraphQL endpoint every operation is POSTed to.
    * @param defaultHeaders - Headers merged under each call's extraHeaders.
-   * @param options - Bank-wide redirect, status, media type and decoding defaults.
+   * @param options - Bank-wide redirect, status, media type, decoding and
+   *   per-request cap defaults; `capOnlyWithIntegrity` keeps the cap for
+   *   operations that name an integrity policy, as the factory installs it.
    */
   constructor(
     baseUrl: string,

@@ -1,6 +1,6 @@
 /**
- * Headless-mediator factory types — args bundles + strategy pairs for the
- * native and node:https headless ApiMediator factories. Extracted from
+ * API-mediator factory types — args bundles + strategy pairs for the native
+ * and node:https ApiMediator factories. Extracted from
  * `ApiMediator.types.ts` to keep that file under the strict 150-LoC cap.
  */
 
@@ -16,8 +16,8 @@ import type {
   StatusPolicy,
 } from '../../Types/Domain/FetchPolicy.js';
 
-/** Args bundle for the headless-mediator factory. */
-interface IHeadlessMediatorArgs {
+/** Args bundle for the API-mediator factory. */
+interface IApiMediatorArgs {
   readonly bankHint: CompanyTypes;
   readonly identityBaseUrl: string;
   readonly graphqlUrl: string;
@@ -44,7 +44,7 @@ interface IHeadlessMediatorArgs {
 }
 
 /** Args bundle for the node:https (client-cert and/or TLS-profile) mediator factory. */
-interface INodeTlsMediatorArgs extends IHeadlessMediatorArgs {
+interface INodeTlsMediatorArgs extends IApiMediatorArgs {
   /** Present the bank's registered client certificate on every handshake. */
   readonly requiresClientCert?: boolean;
   /** A device certificate the flow installs at runtime, presented to one origin. */
@@ -53,15 +53,15 @@ interface INodeTlsMediatorArgs extends IHeadlessMediatorArgs {
   readonly tlsProfile?: TlsClientProfileKind;
 }
 
-/** Bundled strategy pair returned by the headless builder. */
-interface IHeadlessStrategies {
+/** Bundled strategy pair returned by the API-mediator builder. */
+interface IApiMediatorStrategies {
   readonly fetch: NativeFetchStrategy;
   readonly gql: GraphQLFetchStrategy;
 }
 
 /** Minimal shape needed to construct the shared GraphQL transport. */
 interface IGraphQLTransportArgs extends Pick<
-  IHeadlessMediatorArgs,
+  IApiMediatorArgs,
   | 'redirectPolicy'
   | 'statusPolicy'
   | 'omitBankText'
@@ -75,8 +75,8 @@ interface IGraphQLTransportArgs extends Pick<
 }
 
 export type {
+  IApiMediatorArgs,
+  IApiMediatorStrategies,
   IGraphQLTransportArgs,
-  IHeadlessMediatorArgs,
-  IHeadlessStrategies,
   INodeTlsMediatorArgs,
 };

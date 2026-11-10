@@ -1,7 +1,7 @@
 /**
  * Unit tests for Strategy/Fetch/SessionCookieFetchStrategy — the opt-in
  * run-scoped, origin-scoped cookie jar in front of a node transport. A real
- * HeadlessNativeFetchStrategy sends the requests; globalThis.fetch is replaced
+ * capped native transport sends the requests; globalThis.fetch is replaced
  * with a queue of canned responses, and the shared logger is replaced so the
  * cases can prove no cookie value is ever logged.
  */
@@ -35,8 +35,7 @@ jest.unstable_mockModule('../../../../../Scrapers/Pipeline/Logging/Debug.js', as
   getDebugByName: (): typeof LOG => LOG,
 }));
 
-const NATIVE =
-  await import('../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js');
+const NATIVE = await import('../../../../Helpers/CappedTransport.js');
 const SESSION =
   await import('../../../../../Scrapers/Pipeline/Strategy/Fetch/SessionCookieFetchStrategy.js');
 
@@ -101,7 +100,7 @@ function cookieSent(mock: MockFetch, index: number): string {
  * @returns The session-cookie transport.
  */
 function makeTransport(): InstanceType<typeof SESSION.SessionCookieFetchStrategy> {
-  const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+  const inner = NATIVE.cappedNative(BASE_URL);
   return new SESSION.SessionCookieFetchStrategy(inner, BASE_URL);
 }
 
@@ -231,7 +230,7 @@ describe('SessionCookieFetchStrategy', () => {
 });
 
 describe('withSessionCookies', () => {
-  const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+  const inner = NATIVE.cappedNative(BASE_URL);
 
   it.each([
     ['absent', { identityBaseUrl: BASE_URL }],
@@ -271,18 +270,18 @@ describe('withCookieSession', () => {
    * @returns The transport and its cookie session.
    */
   function makeSession(): ReturnType<typeof SESSION.withCookieSession> {
-    const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+    const inner = NATIVE.cappedNative(BASE_URL);
     return SESSION.withCookieSession(inner, DOMAIN_ARGS);
   }
 
   it('UT-CS-01 exposes no session and keeps the transport without the flag', () => {
-    const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+    const inner = NATIVE.cappedNative(BASE_URL);
     const session = SESSION.withCookieSession(inner, { identityBaseUrl: BASE_URL });
     expect(session).toEqual({ transport: inner });
   });
 
   it('UT-CS-02 keeps the origin jar and exposes no session without cookieDomains', () => {
-    const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+    const inner = NATIVE.cappedNative(BASE_URL);
     const args = { identityBaseUrl: BASE_URL, sessionCookies: true };
     const session = SESSION.withCookieSession(inner, args);
     expect(session.transport).toBeInstanceOf(SESSION.SessionCookieFetchStrategy);
@@ -405,7 +404,7 @@ describe('withCookieSession across manual redirect hops', () => {
 
   it('UT-RD-12 sends hop cookies and domain cookies on, never a host-only cookie of www', async () => {
     const mock = serveLogin();
-    const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+    const inner = NATIVE.cappedNative(BASE_URL);
     const { transport } = SESSION.withCookieSession(inner, DOMAIN_ARGS);
     await transport.fetchGet(WWW_LOGIN, { extraHeaders: {} });
     const result = await transport.fetchGet(`${WWW_LOGIN}/go`, {
@@ -422,7 +421,7 @@ describe('withCookieSession across manual redirect hops', () => {
 
   it('UT-RD-13 resolves each sentinel for the hop URL, never carrying a www-only value to mto', async () => {
     const mock = serveLogin();
-    const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+    const inner = NATIVE.cappedNative(BASE_URL);
     const { transport } = SESSION.withCookieSession(inner, DOMAIN_ARGS);
     await transport.fetchGet(WWW_LOGIN, { extraHeaders: {} });
     const extraHeaders = { 'X-Www': '@cookie:wwwonly', 'X-Hop': '@cookie:hop1' };
@@ -440,7 +439,7 @@ describe('withCookieSession across manual redirect hops', () => {
 
   it('UT-RD-14 stops before the hop when the redirect sets an undecodable strict cookie', async () => {
     const mock = serveLogin('XSRF-TOKEN=%E0%A4%A; Domain=bank.example; Path=/');
-    const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+    const inner = NATIVE.cappedNative(BASE_URL);
     const { transport } = SESSION.withCookieSession(inner, DOMAIN_ARGS);
     await transport.fetchGet(WWW_LOGIN, { extraHeaders: {} });
     const extraHeaders = { 'X-XSRF-TOKEN': '@cookie-strict:XSRF-TOKEN' };
@@ -480,7 +479,7 @@ async function sendSentinel(
   url: string,
 ): Promise<Readonly<Record<string, string>>> {
   const mock = serveCookies([seed, []]);
-  const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+  const inner = NATIVE.cappedNative(BASE_URL);
   const { transport } = SESSION.withCookieSession(inner, DOMAIN_ARGS);
   await transport.fetchPost(WWW_LOGIN, {}, { extraHeaders: {} });
   await transport.fetchGet(url, { extraHeaders: XSRF_SENTINEL });
@@ -504,7 +503,7 @@ async function sendOn(
   extraHeaders: Record<string, string>,
 ): Promise<{ result: Procedure<unknown>; mock: MockFetch }> {
   const mock = serveCookies([seed, []]);
-  const inner = new NATIVE.HeadlessNativeFetchStrategy(BASE_URL);
+  const inner = NATIVE.cappedNative(BASE_URL);
   const { transport } = SESSION.withCookieSession(inner, DOMAIN_ARGS);
   await transport.fetchPost(WWW_LOGIN, {}, { extraHeaders: {} });
   const opts = { extraHeaders };

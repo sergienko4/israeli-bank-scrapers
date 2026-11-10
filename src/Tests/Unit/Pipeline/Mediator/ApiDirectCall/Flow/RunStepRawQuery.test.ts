@@ -23,8 +23,8 @@ import { runStep } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectC
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { GraphQLFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
-import { HeadlessNativeFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import type { ITokenBus } from '../../../../../../Scrapers/Pipeline/Types/Domain/TokenBus.js';
+import { cappedNative } from '../../../../../Helpers/CappedTransport.js';
 import { fakeFetch, type IFetchCall, type IFetchFake } from '../../../../../Helpers/FakeFetch.js';
 
 const HINT = CompanyTypes.OneZero;
@@ -118,7 +118,7 @@ function installFetch(): IFetchFake {
  */
 function makeNativeMediator(): ITokenBus {
   const graphql = {} as unknown as GraphQLFetchStrategy;
-  const transport = new HeadlessNativeFetchStrategy(ORIGIN);
+  const transport = cappedNative(ORIGIN);
   return createApiMediator(HINT, transport, graphql);
 }
 

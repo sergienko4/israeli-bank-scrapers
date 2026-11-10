@@ -32,9 +32,12 @@ const NEW_CORE_FILE_PIN = 'New Core file pinned to the canonical function cap (ย
 /** New Strategy/Fetch transport files that ยง19.1d pins past the Strategy grandfather. */
 const FETCH_TRANSPORT_FILES: readonly string[] = [
   'src/Scrapers/Pipeline/Strategy/Fetch/CookieJar.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/CappedBody.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/CappedInvoke.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/NativeFetchDispatch.ts',
+  'src/Scrapers/Pipeline/Strategy/Fetch/NativeFetchNetwork.ts',
   'src/Scrapers/Pipeline/Strategy/Fetch/OriginCookieJar.ts',
   'src/Scrapers/Pipeline/Strategy/Fetch/SessionCookieFetchStrategy.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.ts',
   'src/Scrapers/Pipeline/Strategy/Fetch/CookieMatch.ts',
   'src/Scrapers/Pipeline/Strategy/Fetch/SetCookieScope.ts',
   'src/Scrapers/Pipeline/Strategy/Fetch/DomainCookieJar.ts',

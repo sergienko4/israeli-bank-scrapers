@@ -20,8 +20,8 @@ import { hydrate } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectC
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { GraphQLFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/GraphQLFetchStrategy.js';
-import { HeadlessNativeFetchStrategy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js';
 import { fail } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { cappedNative } from '../../../../../Helpers/CappedTransport.js';
 import { fakeFetch, type IFetchFake } from '../../../../../Helpers/FakeFetch.js';
 
 const HINT = CompanyTypes.OneZero;
@@ -70,7 +70,7 @@ async function runOver(
   const fake = fakeFetch((): Response => Response.json({ access_token: 'syn-token' }));
   globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
   const graphql = {} as unknown as GraphQLFetchStrategy;
-  const transport = new HeadlessNativeFetchStrategy(ORIGIN);
+  const transport = cappedNative(ORIGIN);
   const bus = createApiMediator(HINT, transport, graphql);
   const scope = { carry, creds: {}, config: PLAIN_CONFIG };
   const result = await runStep({ step, bus, scope, companyId: HINT });

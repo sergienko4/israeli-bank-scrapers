@@ -1,5 +1,5 @@
 /**
- * Headless-mediator wiring — resolves which ApiMediator (if any) a headless
+ * API-mediator wiring — resolves which ApiMediator (if any) an API-direct
  * descriptor needs, and which identity transport it uses. An ordered rule
  * table picks the transport: a bank that needs a client certificate and/or a
  * TLS ClientHello profile (OneZero) runs over node:https; a bank that opts in
@@ -19,14 +19,11 @@ import { resolvePipelineBankConfig } from '../Registry/Config/PipelineBankConfig
 import type { IHeadlessUrlsConfig } from '../Registry/Config/PipelineBankConfigTypes.js';
 import type { Option } from '../Types/Option.js';
 import { none, some } from '../Types/Option.js';
+import type { IApiWiring, IWiringFlags, TransportKind } from './ApiWiringTypes.js';
 import { assertSingleTransport, pickTransportKind } from './HeadlessTransportRules.js';
-import type {
-  HeadlessTransportKind,
-  IHeadlessWiring,
-  IWiringFlags,
-} from './HeadlessWiringTypes.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
-/** Arg bundle accepted by every headless mediator factory (the node:https superset). */
+
+/** Arg bundle accepted by every API-mediator factory (the node:https superset). */
 type TMediatorArgs = Parameters<typeof createMtlsHeadlessApiMediator>[0];
 
 /** Identity-transport slice of the mediator args. */
@@ -36,7 +33,7 @@ type TIdentityArgs = Pick<TMediatorArgs, 'bankHint' | 'identityBaseUrl'>;
 type TGraphqlArgs = Pick<TMediatorArgs, 'graphqlUrl' | 'graphqlHeaders' | 'staticAuth'>;
 
 /** Transport-requirement slice of the mediator args, optional settings included. */
-type TTransportArgs = IHeadlessWiring['transport'] &
+type TTransportArgs = IApiWiring['transport'] &
   Pick<TMediatorArgs, 'requiresClientCert' | 'sessionCookies' | 'omitBankText'>;
 
 /**
@@ -58,7 +55,7 @@ function toWiringFlags(headless: IHeadlessUrlsConfig): IWiringFlags {
  * @param headless - Headless URL block from PIPELINE_BANK_CONFIG.
  * @returns Resolved wiring (URLs + decoded flags).
  */
-function toHeadlessWiring(headless: IHeadlessUrlsConfig): IHeadlessWiring {
+function toApiWiring(headless: IHeadlessUrlsConfig): IApiWiring {
   const flags = toWiringFlags(headless);
   const { identityBase, graphql, graphqlHeaders, staticAuth } = headless;
   const { redirectPolicy, statusPolicy, mediaTypes } = headless;
@@ -77,10 +74,10 @@ function toHeadlessWiring(headless: IHeadlessUrlsConfig): IHeadlessWiring {
  * @param companyId - Target bank company type.
  * @returns Resolved wiring, or false when the lookup fails.
  */
-function resolveHeadlessWiring(companyId: CompanyTypes): IHeadlessWiring | false {
+function resolveApiWiring(companyId: CompanyTypes): IApiWiring | false {
   const config = resolvePipelineBankConfig(companyId);
   if (config === false || !config.headless) return false;
-  return toHeadlessWiring(config.headless);
+  return toApiWiring(config.headless);
 }
 
 /**
@@ -89,7 +86,7 @@ function resolveHeadlessWiring(companyId: CompanyTypes): IHeadlessWiring | false
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns bankHint plus the identity base URL.
  */
-function toIdentityArgs(companyId: CompanyTypes, wiring: IHeadlessWiring): TIdentityArgs {
+function toIdentityArgs(companyId: CompanyTypes, wiring: IApiWiring): TIdentityArgs {
   return { bankHint: companyId, identityBaseUrl: wiring.identity };
 }
 
@@ -98,7 +95,7 @@ function toIdentityArgs(companyId: CompanyTypes, wiring: IHeadlessWiring): TIden
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns GraphQL endpoint plus its optional headers + static auth.
  */
-function toGraphqlArgs(wiring: IHeadlessWiring): TGraphqlArgs {
+function toGraphqlArgs(wiring: IApiWiring): TGraphqlArgs {
   const { graphql, graphqlHeaders, staticAuth } = wiring;
   return { graphqlUrl: graphql, graphqlHeaders, staticAuth };
 }
@@ -110,7 +107,7 @@ function toGraphqlArgs(wiring: IHeadlessWiring): TGraphqlArgs {
  *   domain-jar allow-list and the redirect and status policies and
  *   HTTP-failure body omission.
  */
-function toTransportArgs(wiring: IHeadlessWiring): TTransportArgs {
+function toTransportArgs(wiring: IApiWiring): TTransportArgs {
   return {
     ...wiring.transport,
     requiresClientCert: wiring.requiresClientCert,
@@ -123,12 +120,9 @@ function toTransportArgs(wiring: IHeadlessWiring): TTransportArgs {
  * Build the mediator-factory arg literal from the resolved wiring + companyId.
  * @param companyId - Target bank company type.
  * @param wiring - Resolved wiring entry (URLs + flags).
- * @returns Args bundle accepted by every headless mediator factory.
+ * @returns Args bundle accepted by every API-mediator factory.
  */
-function buildMediatorArgsForWiring(
-  companyId: CompanyTypes,
-  wiring: IHeadlessWiring,
-): TMediatorArgs {
+function buildMediatorArgsForWiring(companyId: CompanyTypes, wiring: IApiWiring): TMediatorArgs {
   const identityArgs = toIdentityArgs(companyId, wiring);
   const graphqlArgs = toGraphqlArgs(wiring);
   const transportArgs = toTransportArgs(wiring);
@@ -136,9 +130,7 @@ function buildMediatorArgsForWiring(
 }
 
 /** Mediator factory per transport kind. */
-const MEDIATOR_FACTORIES: Readonly<
-  Record<HeadlessTransportKind, (args: TMediatorArgs) => IApiMediator>
-> = {
+const MEDIATOR_FACTORIES: Readonly<Record<TransportKind, (args: TMediatorArgs) => IApiMediator>> = {
   'node-tls': createMtlsHeadlessApiMediator,
   native: createHeadlessApiMediator,
 };
@@ -146,27 +138,27 @@ const MEDIATOR_FACTORIES: Readonly<
 /**
  * Resolve the identity transport a bank's headless block selects, without
  * building a mediator. Shares {@link pickTransportKind} with
- * {@link selectHeadlessMediator}, so a caller asking which transport a bank
+ * {@link selectApiMediator}, so a caller asking which transport a bank
  * runs gets the answer the runtime acts on.
  * @param companyId - Target bank company type.
  * @returns The transport kind, or false when the bank has no headless block.
  * @throws ScraperError when the headless block declares conflicting transports
  *   or none at all.
  */
-function resolveHeadlessTransportKind(companyId: CompanyTypes): HeadlessTransportKind | false {
-  const wiring = resolveHeadlessWiring(companyId);
+function resolveTransportKind(companyId: CompanyTypes): TransportKind | false {
+  const wiring = resolveApiWiring(companyId);
   if (wiring === false) return false;
   assertSingleTransport(companyId, wiring);
   return pickTransportKind(companyId, wiring);
 }
 
 /**
- * Select + invoke the headless mediator factory for the resolved wiring.
+ * Select + invoke the API-mediator factory for the resolved wiring.
  * @param companyId - Target bank company type.
  * @param wiring - Resolved wiring entry (URLs + flags).
  * @returns A fully-wired IApiMediator for the bank's transport requirements.
  */
-function selectHeadlessMediator(companyId: CompanyTypes, wiring: IHeadlessWiring): IApiMediator {
+function selectApiMediator(companyId: CompanyTypes, wiring: IApiWiring): IApiMediator {
   assertSingleTransport(companyId, wiring);
   const args = buildMediatorArgsForWiring(companyId, wiring);
   const kind = pickTransportKind(companyId, wiring);
@@ -179,18 +171,13 @@ function selectHeadlessMediator(companyId: CompanyTypes, wiring: IHeadlessWiring
  * @param descriptor - The pipeline descriptor (companyId).
  * @returns some(mediator) when applicable, else none().
  */
-function resolveHeadlessApiMediator(descriptor: IPipelineDescriptor): Option<IApiMediator> {
-  const wiring = resolveHeadlessWiring(descriptor.options.companyId);
+function resolveApiMediator(descriptor: IPipelineDescriptor): Option<IApiMediator> {
+  const wiring = resolveApiWiring(descriptor.options.companyId);
   if (wiring === false) return none();
-  const apiMediator = selectHeadlessMediator(descriptor.options.companyId, wiring);
+  const apiMediator = selectApiMediator(descriptor.options.companyId, wiring);
   return some(apiMediator);
 }
 
-export default resolveHeadlessApiMediator;
-export type { HeadlessTransportKind } from './HeadlessWiringTypes.js';
-export {
-  resolveHeadlessApiMediator,
-  resolveHeadlessTransportKind,
-  selectHeadlessMediator,
-  toHeadlessWiring,
-};
+export default resolveApiMediator;
+export type { TransportKind } from './ApiWiringTypes.js';
+export { resolveApiMediator, resolveTransportKind, selectApiMediator, toApiWiring };

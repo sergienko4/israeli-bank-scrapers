@@ -24,7 +24,7 @@ import {
   warnIfTlsProfileUnsupported,
 } from '../../Strategy/Fetch/Tls/TlsClientProfiles.js';
 import type { IClientCertControl } from '../../Types/Domain/ClientCertControl.js';
-import type { INodeTlsMediatorArgs } from './ApiMediator.headless.types.js';
+import type { INodeTlsMediatorArgs } from './ApiMediator.transport.types.js';
 
 /**
  * Resolves the client certificate a node:https mediator presents.

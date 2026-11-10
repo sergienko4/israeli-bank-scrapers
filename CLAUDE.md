@@ -92,7 +92,7 @@ Published as `@sergienko4/israeli-bank-scrapers` on npm.
 - `src/Scrapers/Pipeline/Core/Executor/PipelineExecutor.ts` — runs the phases, disposes the API mediator in `finally`
 - `src/Scrapers/Pipeline/Phases/ApiDirectCall/ApiDirectCallPhase.ts` — login slot (HTTP login, OTP, durable token)
 - `src/Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.ts` — scrape slot (accounts, transactions, balances)
-- `src/Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.ts` — the HTTP transport (cookies, redirects, mTLS)
+- `src/Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.ts` — the HTTP transport (cookies, redirects, mTLS, capped invoke)
 - `src/Scrapers/Pipeline/Mediator/Timing/TimingActions.ts` — `humanDelay(min, max)`, `raceTimeout`, `runSerial`
 - `src/Scrapers/Base/Interface.ts` — type definitions (`ScraperOptions`, `ScraperCredentials`, etc.)
 

@@ -76,8 +76,7 @@ const RUN_STEP =
 const MEDIATOR = await import('../../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js');
 const NATIVE =
   await import('../../../../../../Scrapers/Pipeline/Strategy/Fetch/NativeFetchStrategy.js');
-const HEADLESS =
-  await import('../../../../../../Scrapers/Pipeline/Strategy/Fetch/HeadlessNativeFetchStrategy.js');
+const HEADLESS = await import('../../../../../Helpers/CappedTransport.js');
 const URLS = await import('../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js');
 const STUB = await import('./StubMediator.js');
 
@@ -446,7 +445,7 @@ describe('login-step failure message through the native transport and the mediat
     const body = '<html>' + 'x'.repeat(64) + '<div class="cf-error">cloudflare</div>';
     const fake = fakeFetch((): Response => new Response(body, { status: 403 }));
     globalThis.fetch = fake.fetchImpl as typeof globalThis.fetch;
-    const transport = new HEADLESS.HeadlessNativeFetchStrategy('https://example.test', {
+    const transport = HEADLESS.cappedNative('https://example.test', {
       responseIntegrity: { maxBytes: 64 },
     });
     const graphql = {} as unknown as GraphQLFetchStrategy;

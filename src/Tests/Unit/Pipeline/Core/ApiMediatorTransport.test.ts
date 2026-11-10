@@ -1,5 +1,5 @@
 /**
- * Unit tests for the transport rule in Core/HeadlessMediatorWiring.
+ * Unit tests for the transport rule in Core/ApiMediatorWiring.
  *
  * A headless bank that declares a client certificate (static or dynamic) or a
  * TLS ClientHello profile runs over node:https; a bank that opts into
@@ -68,7 +68,7 @@ jest.unstable_mockModule('../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator
   createHeadlessApiMediator: CREATE_NATIVE,
 }));
 
-const WIRING = await import('../../../../Scrapers/Pipeline/Core/HeadlessMediatorWiring.js');
+const WIRING = await import('../../../../Scrapers/Pipeline/Core/ApiMediatorWiring.js');
 
 /** Flag sets that declare more than one identity transport. */
 const CONFLICTING_FLAGS: readonly (readonly [string, ITransportFlags])[] = [
@@ -102,7 +102,7 @@ function resolveWith(flags: ITransportFlags): boolean {
   mockHeadless(flags);
   const options = { companyId: CompanyTypes.OneZero } as unknown as ScraperOptions;
   const descriptor: IPipelineDescriptor = { options, phases: [] };
-  WIRING.resolveHeadlessApiMediator(descriptor);
+  WIRING.resolveApiMediator(descriptor);
   return true;
 }
 
@@ -119,7 +119,7 @@ function chosenTransport(): string {
   return chosen.map(([name]): string => name).join('+');
 }
 
-describe('HeadlessMediatorWiring — transport selection', () => {
+describe('ApiMediatorWiring — transport selection', () => {
   beforeEach(() => {
     CREATE_NODE_TLS.mockClear();
     CREATE_NATIVE.mockClear();
@@ -252,7 +252,7 @@ const KIND_OF_FACTORY: Readonly<Record<string, string>> = {
   native: 'native',
 };
 
-describe('resolveHeadlessTransportKind — agrees with the wired factory', () => {
+describe('resolveTransportKind — agrees with the wired factory', () => {
   beforeEach(() => {
     CREATE_NODE_TLS.mockClear();
     CREATE_NATIVE.mockClear();
@@ -266,7 +266,7 @@ describe('resolveHeadlessTransportKind — agrees with the wired factory', () =>
   ])('names the transport wired for %s', (_label, flags) => {
     resolveWith(flags);
     const transport = chosenTransport();
-    const kind = WIRING.resolveHeadlessTransportKind(CompanyTypes.OneZero);
+    const kind = WIRING.resolveTransportKind(CompanyTypes.OneZero);
     expect(kind).toBe(KIND_OF_FACTORY[transport]);
   });
 
@@ -276,7 +276,7 @@ describe('resolveHeadlessTransportKind — agrees with the wired factory', () =>
      * Resolve the kind for the conflicting config.
      * @returns Never; the resolver throws.
      */
-    const resolveKind = (): unknown => WIRING.resolveHeadlessTransportKind(CompanyTypes.OneZero);
+    const resolveKind = (): unknown => WIRING.resolveTransportKind(CompanyTypes.OneZero);
     expect(resolveKind).toThrow(/mutually exclusive \(oneZero\)/);
   });
 
@@ -286,7 +286,7 @@ describe('resolveHeadlessTransportKind — agrees with the wired factory', () =>
      * Resolve the kind for the transport-less config.
      * @returns Never; the resolver throws.
      */
-    const resolveKind = (): unknown => WIRING.resolveHeadlessTransportKind(CompanyTypes.OneZero);
+    const resolveKind = (): unknown => WIRING.resolveTransportKind(CompanyTypes.OneZero);
     expect(resolveKind).toThrow(/Missing headless transport.*\(oneZero\)/);
   });
 
@@ -295,7 +295,7 @@ describe('resolveHeadlessTransportKind — agrees with the wired factory', () =>
     ['a bank with no headless block', {}],
   ])('returns false for %s', (_label, config) => {
     RESOLVE_CONFIG.mockReturnValue(config);
-    const kind = WIRING.resolveHeadlessTransportKind(CompanyTypes.OneZero);
+    const kind = WIRING.resolveTransportKind(CompanyTypes.OneZero);
     expect(kind).toBe(false);
   });
 });

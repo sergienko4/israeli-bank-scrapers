@@ -7,7 +7,7 @@ import { getDebug as createLogger } from '../Logging/Debug.js';
 import { resolvePipelineBankConfig } from '../Registry/Config/PipelineBankConfig.js';
 import { none } from '../Types/Option.js';
 import type { IPipelineContext } from '../Types/PipelineContext.js';
-import { resolveHeadlessApiMediator } from './HeadlessMediatorWiring.js';
+import { resolveApiMediator } from './ApiMediatorWiring.js';
 import type { IPipelineDescriptor } from './PipelineDescriptor.js';
 
 /** Context fields every phase output starts without. */
@@ -57,7 +57,7 @@ function buildInitialContext(
   credentials: ScraperCredentials,
 ): IPipelineContext {
   const core = resolveCoreDeps(descriptor, credentials);
-  const apiMediator = resolveHeadlessApiMediator(descriptor);
+  const apiMediator = resolveApiMediator(descriptor);
   const slots = emptySlots();
   return { ...core, apiMediator, ...slots };
 }
