@@ -5,7 +5,6 @@
  * paginated transactions. Zero bank-name coupling.
  */
 
-import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
 import type {
   ICoverageResult,
   OwnsRow,
@@ -16,10 +15,8 @@ import {
 } from '../../Mediator/Scrape/CoverageAudit/CoverageAudit.js';
 import { auditDeclaredRows } from '../../Mediator/Scrape/CoverageAudit/DeclaredRows.js';
 import type { IPage } from '../../Strategy/Fetch/Pagination.js';
-import type { Brand } from '../../Types/Brand.js';
-import { toError } from '../../Types/ErrorUtils.js';
 import type { Procedure } from '../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../Types/Procedure.js';
+import { isOk, succeed } from '../../Types/Procedure.js';
 import { applyBodyChecks, dispatchStep, omitBankResponseText } from './ApiDirectScrapeDispatch.js';
 import {
   buildCustomerDispatchArgs,
@@ -31,9 +28,7 @@ import {
 } from './ApiDirectScrapeDispatchArgs.js';
 import reportExcludedProducts from './ApiDirectScrapeExclusions.js';
 import type { ApiBody, IExtractAccountsArgs } from './IApiDirectScrapeShape.js';
-
-/** Stop signal — branded so Rule #15 accepts the boolean return. */
-type ShouldStop = Brand<boolean, 'GenericHeadlessShouldStop'>;
+import { guardShape } from './ShapeGuard.js';
 
 /** Empty body passed to a step's extractor when it skips the fetch. */
 const EMPTY_BODY = Object.freeze({});
@@ -58,37 +53,15 @@ async function fetchSecondaryBody<TAcct, TCursor>(
 }
 
 /**
- * Run a shape's `extractAccounts` and convert a throw into a typed failure.
- *
- * <p>Shapes reject an unusable account identity by throwing (see the FIBI
- * group factory). An escaping exception would bypass
- * `runScrapeWithRecovery`, so a warm session serving a degraded identity
- * body would abort the scrape instead of re-logging in and retrying. A
- * failed `Procedure` is what `isScrapeSuspicious` reads, so converting here
- * keeps the documented recover-once path reachable and honours the
- * Result-Pattern contract every other step in this module follows.
- * @param d - Driver context.
- * @param args - Extract-args bundle.
- * @returns Account refs procedure.
- */
-function tryExtract<TAcct, TCursor>(
-  d: IDriverCtx<TAcct, TCursor>,
-  args: IExtractAccountsArgs,
-): Procedure<readonly TAcct[]> {
-  try {
-    const accts = d.shape.customer.extractAccounts(args);
-    return succeed(accts);
-  } catch (error) {
-    const message = toError(error).message;
-    return fail(ScraperErrorTypes.Generic, `extractAccounts threw: ${message}`);
-  }
-}
-
-/**
  * Extract the account list, then report anything the shape filtered out.
  *
- * <p>The reporting call sits OUTSIDE `tryExtract` deliberately: only
- * `extractAccounts` may be blamed for `extractAccounts threw`, and
+ * <p>Shapes reject an unusable account identity by throwing (see the FIBI
+ * group factory). {@link guardShape} converts that throw into the failed
+ * `Procedure` `isScrapeSuspicious` reads, which is what keeps the documented
+ * recover-once path reachable.
+ *
+ * <p>The reporting call sits OUTSIDE the guard deliberately: only
+ * `extractAccounts` may be blamed for its own throw, and
  * `reportExcludedProducts` is total, so diagnostics cannot change the
  * outcome of a scrape that already succeeded.
  * @param d - Driver context.
@@ -102,9 +75,9 @@ function runExtract<TAcct, TCursor>(
   secondaryBody: ApiBody,
 ): Procedure<readonly TAcct[]> {
   const sessionContext = d.bus.getSessionContext();
-  const args = { body, secondaryBody, sessionContext };
-  const extracted = tryExtract(d, args);
-  if (!extracted.success) return extracted;
+  const args: IExtractAccountsArgs = { body, secondaryBody, sessionContext };
+  const extracted = guardShape('extractAccounts', () => d.shape.customer.extractAccounts(args));
+  if (!isOk(extracted)) return extracted;
   reportExcludedProducts(d, args, extracted.value.length);
   return extracted;
 }
@@ -254,11 +227,15 @@ function extractAudited<TAcct, TCursor>(
   a: IAcctCtx<TAcct, TCursor>,
   body: ApiBody,
   cursor: TCursor | false,
-): IPage<object, TCursor> {
+): Procedure<IPage<object, TCursor>> {
   const args = { body, cursor, acct: a.acct, ctx: a.ctx, ledger: a.ledger };
-  const page = a.shape.transactions.extractPage(args);
+  const guarded = guardShape('transactions.extractPage', () =>
+    a.shape.transactions.extractPage(args),
+  );
+  if (!isOk(guarded)) return guarded;
+  const page = guarded.value;
   auditPage(a, body, page.items);
-  return page;
+  return succeed(page);
 }
 
 /**
@@ -274,8 +251,7 @@ async function runPageFetch<TAcct, TCursor>(
   const dispatchArgs = buildTxnsDispatchArgs(a, cursor);
   const resp = await dispatchStep(dispatchArgs);
   if (!isOk(resp)) return resp;
-  const page = extractAudited(a, resp.value, cursor);
-  return succeed(page);
+  return extractAudited(a, resp.value, cursor);
 }
 
 /**
@@ -290,14 +266,14 @@ export function buildPageFetcher<TAcct, TCursor>(
 }
 
 /** Stop predicate signature consumed by fetchPaginated. */
-type BoundStop = (acc: readonly object[]) => ShouldStop;
+type BoundStop = (acc: readonly object[]) => Procedure<boolean>;
 
 /**
  * No-op stop predicate — used when the shape omits a custom stop.
- * @returns False (never stop).
+ * @returns A successful false (never stop).
  */
-function neverStop(): ShouldStop {
-  return false as ShouldStop;
+function neverStop(): Procedure<boolean> {
+  return succeed(false);
 }
 
 /**
@@ -308,5 +284,5 @@ function neverStop(): ShouldStop {
 export function buildStop<TAcct, TCursor>(d: IDriverCtx<TAcct, TCursor>): BoundStop {
   const stop = d.shape.transactions.stop;
   if (!stop) return neverStop;
-  return (acc): ShouldStop => stop(acc, d.ctx) as ShouldStop;
+  return (acc): Procedure<boolean> => guardShape('transactions.stop', () => stop(acc, d.ctx));
 }

@@ -443,7 +443,28 @@ export interface IResponseSessionSpec {
   readonly patch: (args: IResponseSessionArgs) => Procedure<SessionContextPatch>;
 }
 
-/** Shape a bank plugs into createApiDirectScrapePhase. */
+/**
+ * Shape a bank plugs into createApiDirectScrapePhase.
+ *
+ * <p>A shape that cannot build a truthful value rejects the payload rather than
+ * fabricating one, and the phase guards the seven callbacks that read a payload
+ * or decide the walk: {@link IApiDirectScrapeCustomerStep.extractAccounts},
+ * {@link IApiDirectScrapeBalanceStep.isAbsent},
+ * {@link IApiDirectScrapeBalanceStep.extract},
+ * {@link IApiDirectScrapeTxnsStep.extractPage},
+ * {@link IApiDirectScrapeTxnsStep.stop},
+ * {@link IWindowRequestPolicy.validatePlan} and
+ * {@link IApiDirectScrapeBootstrapStep.extractPatch}. Their throws become a
+ * typed `Generic` failure carrying `shape <callback> threw: <message>` instead
+ * of an escaping exception, which keeps the scrape inside its `Procedure`
+ * contract and lets `runScrapeWithRecovery` see a warm-session failure and retry
+ * once.
+ *
+ * <p>The dispatch-argument builders (`accountNumberOf`, the `buildVars` family,
+ * URL and header producers) run earlier, while a request is assembled, and are
+ * not guarded: their throw stays a programming error and reaches
+ * `PipelineExecutor`'s cleanup catch, not the recover-once path.
+ */
 export interface IApiDirectScrapeShape<TAcct, TCursor> {
   readonly stepName: string;
   readonly accountNumberOf: (acct: TAcct) => string;

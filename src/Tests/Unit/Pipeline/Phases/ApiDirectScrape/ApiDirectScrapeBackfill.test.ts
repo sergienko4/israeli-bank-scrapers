@@ -15,6 +15,7 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import { bankMomentOfInstant } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/BankCalendar.js';
 import type { IEvidenceLedger } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
@@ -244,6 +245,20 @@ async function runLoop(seen: string[]): Promise<readonly IRow[]> {
   const bus = makeBus(seen);
   const collected = await collect(bus);
   return collected.rows as readonly IRow[];
+}
+
+/**
+ * Drive one account's walk whose shape throws, expecting a typed failure.
+ * @param shape - Shape whose transactions callback throws.
+ * @returns The failed procedure.
+ */
+async function collectFailure(shape: unknown): Promise<Procedure<ICollectedRows>> {
+  const bus = makeBus([]);
+  const options = { startDate: REQUESTED_START } as IPipelineContext['options'];
+  const base = makeMockContext({ apiMediator: some(bus), options });
+  const ctx = { ...base, windowEnd: none() } as unknown as IActionContext;
+  const acctCtx = { shape, bus, ctx, acct: { id: 'acct-1' }, ledger: makeEvidenceLedger() };
+  return collectAccountRows(acctCtx as unknown as IAcctCtx<IAcct, string>);
 }
 
 describe('collectAccountRows/a provider that caps by row count', () => {
@@ -658,5 +673,57 @@ describe('collectAccountRows/loss proved after a non-lossy round', () => {
     const audit = await collectWithLedger(bus, ENOUGH_THEN_STUCK_SHAPE);
     const reported = audit.ledger.caveats();
     expect(reported).toEqual(['paginationStoppedEarly']);
+  });
+});
+
+/**
+ * Reject every page before producing one.
+ * @returns Never — always throws.
+ */
+function throwingExtractPage(): never {
+  throw new ScraperError('page mapper exploded');
+}
+
+/**
+ * Reject the walk's stop question before answering it.
+ * @returns Never — always throws.
+ */
+function throwingStop(): never {
+  throw new ScraperError('stop rule exploded');
+}
+
+describe('collectAccountRows/shape callbacks that throw', () => {
+  it('converts a throwing extractPage into a typed failure', async () => {
+    const shape = {
+      ...SHAPE,
+      transactions: {
+        ...SHAPE.transactions,
+        extractPage: throwingExtractPage,
+      },
+    } as unknown as IApiDirectScrapeShape<IAcct, string>;
+    const result = await collectFailure(shape);
+    expect(result.success).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+      expect(result.errorMessage).toBe(
+        'shape transactions.extractPage threw: page mapper exploded',
+      );
+    }
+  });
+
+  it('converts a throwing stop predicate into a typed failure', async () => {
+    const shape = {
+      ...SHAPE,
+      transactions: {
+        ...SHAPE.transactions,
+        stop: throwingStop,
+      },
+    } as unknown as IApiDirectScrapeShape<IAcct, string>;
+    const result = await collectFailure(shape);
+    expect(result.success).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+      expect(result.errorMessage).toBe('shape transactions.stop threw: stop rule exploded');
+    }
   });
 });

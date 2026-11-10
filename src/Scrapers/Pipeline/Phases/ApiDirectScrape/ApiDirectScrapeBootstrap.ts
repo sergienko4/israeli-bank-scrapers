@@ -19,6 +19,7 @@ import type {
   IApiDirectScrapeBootstrapStep,
   IApiDirectScrapeShape,
 } from './IApiDirectScrapeShape.js';
+import { guardShapeProcedure } from './ShapeGuard.js';
 
 /**
  * Reported when the mediator refuses the merged session-context. The
@@ -44,7 +45,9 @@ function applyBootstrapPatch<TAcct, TCursor>(
   step: IApiDirectScrapeBootstrapStep,
   body: ApiBody,
 ): Procedure<void> {
-  const patch = step.extractPatch({ body, ctx: d.ctx });
+  const patch = guardShapeProcedure('bootstrap.extractPatch', () =>
+    step.extractPatch({ body, ctx: d.ctx }),
+  );
   if (!isOk(patch)) return patch;
   const wasStored = mergeSessionContext(d.bus, patch.value);
   if (!wasStored) return fail(ScraperErrorTypes.Generic, MERGE_REFUSED_MSG);

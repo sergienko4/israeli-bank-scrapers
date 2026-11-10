@@ -8,6 +8,7 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import runBootstrap from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeBootstrap.js';
 import type { IDriverCtx } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeDispatchArgs.js';
@@ -107,6 +108,14 @@ function refusedPatch(): Procedure<SessionContextPatch> {
   return fail(ScraperErrorTypes.Generic, 'no portfolio id');
 }
 
+/**
+ * Login patch that throws before it can return a procedure.
+ * @returns Never — always throws.
+ */
+function throwingPatch(): Procedure<SessionContextPatch> {
+  throw new ScraperError('patch mapper exploded');
+}
+
 const LOGIN_STEP: IApiDirectScrapeBootstrapStep = {
   urlTag: literalUrl(LOGIN_URL),
   buildVars: noVars,
@@ -165,6 +174,19 @@ describe('ApiDirectScrapeBootstrap/step list', () => {
     const d = driverWith(boot.bus, [unreadable, PORTFOLIO_STEP]);
     const result = await runBootstrap(d);
     expect(result.success).toBe(false);
+    expect(boot.posts).toHaveLength(1);
+  });
+
+  it('converts a throwing extractPatch into a typed failure', async () => {
+    const boot = makeBootBus({ [LOGIN_URL]: LOGIN_OK, [PORTFOLIO_URL]: PORTFOLIO_OK });
+    const throwing = { ...LOGIN_STEP, extractPatch: throwingPatch };
+    const d = driverWith(boot.bus, [throwing, PORTFOLIO_STEP]);
+    const result = await runBootstrap(d);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+      expect(result.errorMessage).toBe('shape bootstrap.extractPatch threw: patch mapper exploded');
+    }
     expect(boot.posts).toHaveLength(1);
   });
 

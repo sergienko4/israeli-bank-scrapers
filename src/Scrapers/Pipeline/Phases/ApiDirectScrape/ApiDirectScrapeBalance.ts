@@ -14,9 +14,25 @@ import type { IAcctCtx } from './ApiDirectScrapeDispatchArgs.js';
 import { buildBalanceDispatchArgs } from './ApiDirectScrapeDispatchArgs.js';
 import type { ApiBody, BalanceUnknown, IBalanceOutcome } from './IApiDirectScrapeShape.js';
 import { BALANCE_UNKNOWN } from './IApiDirectScrapeShape.js';
+import { guardShape } from './ShapeGuard.js';
 
 /** Stand-in body handed to `extract` when the shape skips the fetch. */
 const EMPTY_BALANCE_BODY = Object.freeze({});
+
+/**
+ * Ask the shape whether a successful response carried no figure.
+ * @param a - Per-account context.
+ * @param body - Balance response (or the empty body when the fetch is skipped).
+ * @returns True when the figure is absent; false when present or undeclared.
+ */
+function absenceDeclared<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  body: ApiBody,
+): Procedure<boolean> {
+  const declaredAbsent = a.shape.balance.isAbsent;
+  if (!declaredAbsent) return succeed(false);
+  return guardShape('balance.isAbsent', () => declaredAbsent(body, a.acct));
+}
 
 /**
  * Read the balance out of a response body.
@@ -24,16 +40,22 @@ const EMPTY_BALANCE_BODY = Object.freeze({});
  * A shape that declares the figure absent (see
  * {@link IApiDirectScrapeBalanceStep.isAbsent}) yields a degraded outcome
  * carrying no value, rather than a `0` indistinguishable from a genuinely
- * empty account.
+ * empty account. Both shape callbacks run through {@link guardShape}, so a
+ * throw becomes a typed failure instead of escaping the phase.
  * @param a - Per-account context.
  * @param body - Balance response (or the empty body when the fetch is skipped).
- * @returns Balance outcome.
+ * @returns Balance outcome procedure.
  */
-function readBalance<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>, body: ApiBody): IBalanceOutcome {
-  const declaredAbsent = a.shape.balance.isAbsent;
-  if (declaredAbsent?.(body, a.acct) === true) return { degraded: true };
-  const value = a.shape.balance.extract(body, a.acct);
-  return { value, degraded: false };
+function readBalance<TAcct, TCursor>(
+  a: IAcctCtx<TAcct, TCursor>,
+  body: ApiBody,
+): Procedure<IBalanceOutcome> {
+  const absent = absenceDeclared(a, body);
+  if (!isOk(absent)) return absent;
+  if (absent.value) return succeed({ degraded: true });
+  const extracted = guardShape('balance.extract', () => a.shape.balance.extract(body, a.acct));
+  if (!isOk(extracted)) return extracted;
+  return succeed({ value: extracted.value, degraded: false });
 }
 
 /**
@@ -75,8 +97,7 @@ export async function fetchBalance<TAcct, TCursor>(
 ): Promise<Procedure<IBalanceOutcome>> {
   const resp = await dispatchBalance(a);
   if (isOk(resp)) {
-    const fetched = readBalance(a, resp.value);
-    return succeed(fetched);
+    return readBalance(a, resp.value);
   }
   const fb = a.shape.balance.fallbackOnFail;
   if (fb === undefined || isTerminalFailure(resp)) return resp;
