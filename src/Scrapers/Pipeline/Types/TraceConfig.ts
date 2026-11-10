@@ -33,11 +33,9 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 
 import type { Brand } from './Brand.js';
+import type { RunStampStr } from './TraceStamp.js';
+import { formatRunStamp } from './TraceStamp.js';
 
-/** Two-digit zero-padded numeric. */
-type TwoDigitPad = Brand<string, 'TraceTwoDigitPad'>;
-/** Run-stamp string `DD-MM-YYYY_HHMMSScc`. */
-type RunStampStr = Brand<string, 'RunStampStr'>;
 /** Lowercase bank slug (or empty). */
 type BankSlugLower = Brand<string, 'BankSlugLower'>;
 /** Per-slug regex match outcome. */
@@ -79,41 +77,6 @@ let activeBankCache: string | false = false;
  */
 let activeRunIdCache: string | false = false;
 
-/**
- * Pad a 1- or 2-digit positive integer to width 2 with leading zero.
- * @param n - Integer to pad.
- * @returns Two-character string.
- */
-function pad2(n: number): TwoDigitPad {
-  const s = String(n);
-  return s.padStart(2, '0') as TwoDigitPad;
-}
-
-/**
- * Build a `DD-MM-YYYY_HHMMSScc` timestamp for the given Date instance. `cc` is
- * centiseconds (milliseconds / 10), zero-padded to two digits — gives
- * sub-second uniqueness without forcing a separate millisecond field.
- * @param d - Date to format.
- * @returns Timestamp string.
- */
-function formatRunStamp(d: Date): RunStampStr {
-  const day = d.getDate();
-  const month = d.getMonth() + 1;
-  const year = d.getFullYear() % 10000;
-  const hours = d.getHours();
-  const minutes = d.getMinutes();
-  const seconds = d.getSeconds();
-  const centiseconds = Math.floor(d.getMilliseconds() / 10);
-  const dd = pad2(day);
-  const mm = pad2(month);
-  const yyyy = pad2(year);
-  const hh = pad2(hours);
-  const mi = pad2(minutes);
-  const ss = pad2(seconds);
-  const cc = pad2(centiseconds);
-  return `${dd}-${mm}-${yyyy}_${hh}${mi}${ss}${cc}` as RunStampStr;
-}
-
 /** Bank slugs the auto-detector recognises in test argv. Lowercase, single token. */
 const KNOWN_BANK_SLUGS: readonly string[] = [
   'amex',
@@ -135,12 +98,6 @@ const KNOWN_BANK_SLUGS: readonly string[] = [
   'yahav',
 ];
 
-/**
- * Detect the active bank slug from `process.argv` by matching the canonical
- * test-file pattern `<Bank>.e2e-real.test.ts`. Returns the lowercase slug
- * when matched, else `''` so the caller can fall back to a default.
- * @returns Lowercase bank slug, or empty string when no match.
- */
 /**
  * Build the regex that matches a bank slug in the canonical test-file name
  * `<Bank>.e2e-real.test.ts`. Extracted to flatten detectBankFromArgv (the
@@ -239,6 +196,27 @@ function getActiveRunId(): RunStampStr {
   return stamp;
 }
 
+/** The root, bank and stamp one run folder is built from. */
+interface IRunSeed {
+  readonly root: string;
+  readonly bank: BankSlugLower;
+  readonly stamp: RunStampStr;
+}
+
+/**
+ * Resolve the root, bank and stamp a run folder is named from.
+ * @returns The seed pieces, or false when capture is off or no bank is known.
+ */
+function runSeed(): IRunSeed | false {
+  if (!isForensicTrace()) return false;
+  const bank = resolveBankSlug();
+  if (bank.length === 0) return false;
+  const stamp = getActiveRunId();
+  if (stamp.length === 0) return false;
+  const root = process.env.RUNS_ROOT ?? DEFAULT_RUNS_ROOT;
+  return { root, bank, stamp };
+}
+
 /**
  * Lazily resolve the per-process run folder
  * `<RUNS_ROOT>/pipeline/<bank>/<DDMMYY-HHMMSScc>/`. Path format is the same
@@ -254,14 +232,10 @@ function getActiveRunId(): RunStampStr {
  * @returns Absolute folder path, or empty string.
  */
 function getRunFolder(): RunFolderPath {
-  if (!isForensicTrace()) return '' as RunFolderPath;
   if (runFolderCache) return runFolderCache as RunFolderPath;
-  const bank = resolveBankSlug();
-  if (bank.length === 0) return '' as RunFolderPath;
-  const stamp = getActiveRunId();
-  if (stamp.length === 0) return '' as RunFolderPath;
-  const root = process.env.RUNS_ROOT ?? DEFAULT_RUNS_ROOT;
-  const folder = path.join(root, PIPELINE_SEGMENT, bank, stamp);
+  const seed = runSeed();
+  if (seed === false) return '' as RunFolderPath;
+  const folder = path.join(seed.root, PIPELINE_SEGMENT, seed.bank, seed.stamp);
   fs.mkdirSync(folder, { recursive: true });
   runFolderCache = folder;
   return folder as RunFolderPath;
@@ -295,6 +269,19 @@ function getNetworkDumpDir(): NetworkDumpDirPath {
 }
 
 /**
+ * Create the per-substep dump folder when capture is on.
+ * @param key - `<phase>-<stage>` cache key and folder name.
+ * @returns The created folder, or empty when capture is off.
+ */
+function makeSubStepDir(key: string): NetworkDumpDirPath {
+  const root = getNetworkDumpDir();
+  if (!root) return '' as NetworkDumpDirPath;
+  const dir = path.join(root, key);
+  fs.mkdirSync(dir, { recursive: true });
+  return dir as NetworkDumpDirPath;
+}
+
+/**
  * Per-substep network dump dir
  * `<run>/network/<phase>-<stage>/`. Each sub-step gets its own
  * folder so the on-disk layout itself answers "which sub-step saw
@@ -307,12 +294,10 @@ function getSubStepNetworkDumpDir(phase: string, stage: string): NetworkDumpDirP
   const key = `${phase}-${stage}`;
   const cached = SUB_STEP_DIR_CACHE.get(key);
   if (cached !== undefined) return cached as NetworkDumpDirPath;
-  const root = getNetworkDumpDir();
-  if (!root) return '' as NetworkDumpDirPath;
-  const dir = path.join(root, key);
-  fs.mkdirSync(dir, { recursive: true });
+  const dir = makeSubStepDir(key);
+  if (!dir) return dir;
   SUB_STEP_DIR_CACHE.set(key, dir);
-  return dir as NetworkDumpDirPath;
+  return dir;
 }
 
 /**
@@ -332,7 +317,6 @@ function resetTraceConfigCache(): true {
 
 export {
   detectBankFromArgv,
-  formatRunStamp,
   getActiveRunId,
   getLogFile,
   getNetworkDumpDir,
@@ -342,3 +326,4 @@ export {
   resetTraceConfigCache,
   setActiveBank,
 };
+export { formatRunStamp } from './TraceStamp.js';

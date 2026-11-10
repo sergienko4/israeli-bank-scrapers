@@ -583,3 +583,7 @@ validateRequestPlan
 # docs/architecture/layers.md.
 IReaderState
 integrityStateOf
+# Reason: formatRunStamp / RunStampStr -- the run-stamp formatter split out of
+# TraceConfig.ts; consumed only by TraceConfig.ts and its unit tests.
+formatRunStamp
+RunStampStr
