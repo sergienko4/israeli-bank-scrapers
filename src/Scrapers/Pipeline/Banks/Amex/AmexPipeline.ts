@@ -21,7 +21,6 @@ import { AMEX_SHAPE } from './scrape/AmexShape.js';
 function buildAmexPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withHeadlessMediator()
     .withApiDirect(AMEX_API_DIRECT_CALL, AMEX_SHAPE)
     .build();
 }

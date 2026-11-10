@@ -22,7 +22,7 @@ const result = await scraper.scrape({
 ## Known quirks
 
 - Three-field login — the third `num` field is the Discount-specific account number.
-- Balance is per-bank-account (`balanceKind: ACCOUNT`) — Discount customers usually have one BA, but the hard-model balance step handles multi-BA accounts identically.
+- Balance is per-bank-account — Discount customers usually have one BA, but the hard-model balance step handles multi-BA accounts identically.
 - The PayBox wallet uses Discount's infrastructure but ships as a separate api-direct bank — see [PayBox](paybox.md).
 
 ## Browserless login

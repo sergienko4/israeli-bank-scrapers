@@ -130,11 +130,7 @@ function makeMockContext(overrides: Partial<IPipelineContext> = {}): IPipelineCo
     credentials: makeMockCredentials(),
     companyId: TEST_COMPANY_ID,
     logger: createMockLogger(),
-    config: {
-      urls: { base: 'https://test.bank' },
-      balanceKind: 'account',
-      authStrategyKind: 'token',
-    },
+    config: { urls: { base: 'https://test.bank' } },
     windowEnd: none(),
     apiMediator: none(),
     scrape: none(),

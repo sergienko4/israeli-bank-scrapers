@@ -18,7 +18,7 @@ launcher, DOM login configuration or navigation phase.
 4. Add the account, balance and transaction shape under
    `src/Scrapers/Pipeline/Banks/<Name>/`. Reuse shared extraction,
    pagination, cookie-session and bank-calendar helpers.
-5. Assemble the descriptor with `withOptions`, `withHeadlessMediator` and
+5. Assemble the descriptor with `withOptions` and
    `withApiDirect(loginConfig, shape)`. See
    [LeumiPipeline.ts](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Banks/Leumi/LeumiPipeline.ts)
    for the actual builder contract.

@@ -29,12 +29,6 @@ describe('PipelineBuilder/chaining', () => {
     expect(returned).toBe(builder);
   });
 
-  it('withHeadlessMediator returns this', () => {
-    const builder = new PipelineBuilder();
-    const returned = builder.withHeadlessMediator();
-    expect(returned).toBe(builder);
-  });
-
   it('withApiDirect returns this', () => {
     const builder = new PipelineBuilder();
     const returned = builder.withApiDirect(MOCK_API_DIRECT, MOCK_API_DIRECT_SHAPE);
@@ -70,26 +64,5 @@ describe('PipelineBuilder/withApiDirect', () => {
       .build();
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errorMessage).toContain('login mode already set');
-  });
-});
-
-describe('PipelineBuilder/withHeadlessMediator', () => {
-  it('stamps isHeadless=true on the descriptor', () => {
-    const descriptor = new PipelineBuilder()
-      .withOptions(MOCK_OPTIONS)
-      .withHeadlessMediator()
-      .withApiDirect(MOCK_API_DIRECT, MOCK_API_DIRECT_SHAPE)
-      .build();
-    assertOk(descriptor);
-    expect(descriptor.value.isHeadless).toBe(true);
-  });
-
-  it('stamps isHeadless=false when withHeadlessMediator is omitted', () => {
-    const descriptor = new PipelineBuilder()
-      .withOptions(MOCK_OPTIONS)
-      .withApiDirect(MOCK_API_DIRECT, MOCK_API_DIRECT_SHAPE)
-      .build();
-    assertOk(descriptor);
-    expect(descriptor.value.isHeadless).toBe(false);
   });
 });

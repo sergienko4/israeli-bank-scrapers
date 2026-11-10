@@ -49,7 +49,7 @@ options. See the [migration notes](../configuration.md#removed-browser-options).
 
 - The supported login is a password challenge; an OTP or other unsupported challenge stops rather than being submitted.
 - Transactions come from Leumi's WCF module `UC_SO_27_GetBusinessAccountTrx`; its rows carry the date as `DateUTC` and the per-txn identifier as `FITID`. `ReferenceNumberLong` is a fallback alias, not a unique identifier.
-- Balance is per-bank-account (`balanceKind: ACCOUNT`), resolved by the hard-model balance step.
+- Balance is per-bank-account, resolved by the hard-model balance step.
 
 ## Hard-model post-auth
 

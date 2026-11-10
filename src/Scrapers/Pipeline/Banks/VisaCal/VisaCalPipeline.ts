@@ -21,7 +21,6 @@ import { VISACAL_SHAPE } from './scrape/VisaCalShape.js';
 function buildVisaCalPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withHeadlessMediator()
     .withApiDirect(VISACAL_API_DIRECT_CALL, VISACAL_SHAPE)
     .build();
 }

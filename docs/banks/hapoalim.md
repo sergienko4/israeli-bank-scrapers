@@ -101,7 +101,7 @@ session mid-scrape fails, and the next run logs in again.
 
 ## Known quirks
 
-- Balance is single-bank-account (`balanceKind: ACCOUNT`) — the bank exposes a single `bankAccountUniqueId` per customer, resolved by the hard-model balance step.
+- Balance is single-bank-account — the bank exposes a single `bankAccountUniqueId` per customer, resolved by the hard-model balance step.
 
 ## Hard-model post-auth
 

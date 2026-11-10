@@ -115,8 +115,7 @@ function buildWith(
 ): Procedure<IPipelineDescriptor> {
   const builder = BUILDER_FACTORY.createPipelineBuilder();
   const seeded = builder.withOptions(opts);
-  const headless = seeded.withHeadlessMediator();
-  const withLogin = headless.withApiDirect(call, MOCK_API_DIRECT_SHAPE);
+  const withLogin = seeded.withApiDirect(call, MOCK_API_DIRECT_SHAPE);
   return withLogin.build();
 }
 

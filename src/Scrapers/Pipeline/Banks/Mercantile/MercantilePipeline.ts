@@ -23,7 +23,6 @@ import { MERCANTILE_SHAPE } from './scrape/MercantileShape.js';
 function buildMercantilePipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withHeadlessMediator()
     .withApiDirect(MERCANTILE_API_DIRECT_CALL, MERCANTILE_SHAPE)
     .build();
 }

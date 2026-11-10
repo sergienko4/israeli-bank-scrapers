@@ -140,7 +140,7 @@ keeps every current (`DDA`) account in ILS. An account is matched by its id;
 when both the account and the answer carry an account number, the two must
 agree (an empty number counts as none, since the reads send one empty). The IOR
 id is ignored because the bank re-issues it between reads. `YAHAV_BALANCE` reads the matched account's
-`CURRENT` figure (`balanceKind: ACCOUNT`). A missing or non-numeric figure is
+`CURRENT` figure. A missing or non-numeric figure is
 reported absent, never coerced to zero, and a failed balance read fails the
 scrape.
 

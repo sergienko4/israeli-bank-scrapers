@@ -20,7 +20,6 @@ import { HAPOALIM_SHAPE } from './scrape/HapoalimShape.js';
 function buildHapoalimPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withHeadlessMediator()
     .withApiDirect(HAPOALIM_API_DIRECT_CALL, HAPOALIM_SHAPE)
     .build();
 }

@@ -22,7 +22,6 @@ import { PAGI_SHAPE } from './scrape/PagiShape.js';
 function buildPagiPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withHeadlessMediator()
     .withApiDirect(PAGI_API_DIRECT_CALL, PAGI_SHAPE)
     .build();
 }

@@ -24,7 +24,6 @@ import { ONE_ZERO_SHAPE } from './scrape/OneZeroShape.js';
 function buildOneZeroPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withHeadlessMediator()
     .withApiDirect(ONEZERO_API_DIRECT_CALL, ONE_ZERO_SHAPE)
     .build();
 }

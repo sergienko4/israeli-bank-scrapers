@@ -22,7 +22,6 @@ import { MASSAD_SHAPE } from './scrape/MassadShape.js';
 function buildMassadPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withHeadlessMediator()
     .withApiDirect(MASSAD_API_DIRECT_CALL, MASSAD_SHAPE)
     .build();
 }

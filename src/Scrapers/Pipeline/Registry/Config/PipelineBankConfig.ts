@@ -23,11 +23,7 @@ import { MIZRAHI_HEADLESS } from './PipelineBankConfigMizrahi.js';
 import { ONEZERO_HEADLESS } from './PipelineBankConfigOneZeroHeadless.js';
 import { PEPPER_HEADLESS } from './PipelineBankConfigPepperHeadless.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
-import type {
-  BalanceKind,
-  IHeadlessUrlsConfig,
-  IPipelineBankConfig,
-} from './PipelineBankConfigTypes.js';
+import type { IHeadlessUrlsConfig, IPipelineBankConfig } from './PipelineBankConfigTypes.js';
 import { VISACAL_HEADLESS } from './PipelineBankConfigVisaCalHeadless.js';
 import { YAHAV_HEADLESS } from './PipelineBankConfigYahav.js';
 
@@ -37,96 +33,45 @@ export type {
   IPipelineBankConfig,
 } from './PipelineBankConfigTypes.js';
 
-/** Billing-cycle banks (credit-card companies) expose no account balance. */
-const CARD_CYCLE = 'card-cycle';
-
-/** Deposit/checking banks expose a real account balance resolved live. */
-const ACCOUNT = 'account';
-
-/** API-native banks -- headless identity strategy, no browser AUTH-DISCOVERY. */
-const API_DIRECT = 'api-direct';
-
 /**
  * Build an API-native bank config: its login runs over the headless block's
- * transport, no browser AUTH-DISCOVERY.
- * @param base - Official website URL.
- * @param balanceKind - Balance semantics (account vs card-cycle).
+ * transport.
+ * @param base - Official website URL (CI DNS apex).
  * @param headless - The bank's headless URL and transport block.
  * @returns A pipeline bank config.
  */
-function defineApiDirectBank(
-  base: string,
-  balanceKind: BalanceKind,
-  headless: IHeadlessUrlsConfig,
-): IPipelineBankConfig {
-  return { urls: { base }, balanceKind, authStrategyKind: API_DIRECT, headless };
+function defineApiDirectBank(base: string, headless: IHeadlessUrlsConfig): IPipelineBankConfig {
+  return { urls: { base }, headless };
 }
 
 /** Pipeline bank registry — migrated banks only. */
 const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> = {
-  [CompanyTypes.Beinleumi]: defineApiDirectBank(
-    'https://www.fibi.co.il',
-    ACCOUNT,
-    BEINLEUMI_HEADLESS,
-  ),
-  [CompanyTypes.Leumi]: defineApiDirectBank('https://www.leumi.co.il', ACCOUNT, LEUMI_HEADLESS),
-  [CompanyTypes.Discount]: defineApiDirectBank(
-    'https://www.discountbank.co.il',
-    ACCOUNT,
-    DISCOUNT_HEADLESS,
-  ),
-  [CompanyTypes.Hapoalim]: defineApiDirectBank(
-    'https://www.bankhapoalim.co.il',
-    ACCOUNT,
-    HAPOALIM_HEADLESS,
-  ),
-  [CompanyTypes.Massad]: defineApiDirectBank(
-    'https://www.bankmassad.co.il',
-    ACCOUNT,
-    MASSAD_HEADLESS,
-  ),
+  [CompanyTypes.Beinleumi]: defineApiDirectBank('https://www.fibi.co.il', BEINLEUMI_HEADLESS),
+  [CompanyTypes.Leumi]: defineApiDirectBank('https://www.leumi.co.il', LEUMI_HEADLESS),
+  [CompanyTypes.Discount]: defineApiDirectBank('https://www.discountbank.co.il', DISCOUNT_HEADLESS),
+  [CompanyTypes.Hapoalim]: defineApiDirectBank('https://www.bankhapoalim.co.il', HAPOALIM_HEADLESS),
+  [CompanyTypes.Massad]: defineApiDirectBank('https://www.bankmassad.co.il', MASSAD_HEADLESS),
   [CompanyTypes.OtsarHahayal]: defineApiDirectBank(
     'https://www.bankotsar.co.il',
-    ACCOUNT,
     OTSAR_HAHAYAL_HEADLESS,
   ),
-  [CompanyTypes.Pagi]: defineApiDirectBank('https://www.pagi.co.il', ACCOUNT, PAGI_HEADLESS),
-  [CompanyTypes.Yahav]: defineApiDirectBank('https://www.yahav.co.il', ACCOUNT, YAHAV_HEADLESS),
-  [CompanyTypes.VisaCal]: defineApiDirectBank(
-    'https://www.cal-online.co.il/',
-    CARD_CYCLE,
-    VISACAL_HEADLESS,
-  ),
-  [CompanyTypes.Amex]: defineApiDirectBank(
-    'https://www.americanexpress.co.il',
-    CARD_CYCLE,
-    AMEX_HEADLESS,
-  ),
-  [CompanyTypes.Max]: defineApiDirectBank('https://www.max.co.il', CARD_CYCLE, MAX_HEADLESS),
+  [CompanyTypes.Pagi]: defineApiDirectBank('https://www.pagi.co.il', PAGI_HEADLESS),
+  [CompanyTypes.Yahav]: defineApiDirectBank('https://www.yahav.co.il', YAHAV_HEADLESS),
+  [CompanyTypes.VisaCal]: defineApiDirectBank('https://www.cal-online.co.il/', VISACAL_HEADLESS),
+  [CompanyTypes.Amex]: defineApiDirectBank('https://www.americanexpress.co.il', AMEX_HEADLESS),
+  [CompanyTypes.Max]: defineApiDirectBank('https://www.max.co.il', MAX_HEADLESS),
   [CompanyTypes.Mercantile]: defineApiDirectBank(
     'https://www.mercantile.co.il',
-    ACCOUNT,
     MERCANTILE_HEADLESS,
   ),
   [CompanyTypes.Mizrahi]: defineApiDirectBank(
     'https://www.mizrahi-tefahot.co.il',
-    ACCOUNT,
     MIZRAHI_HEADLESS,
   ),
-  [CompanyTypes.Isracard]: defineApiDirectBank(
-    'https://www.isracard.co.il',
-    CARD_CYCLE,
-    ISRACARD_HEADLESS,
-  ),
-  [CompanyTypes.OneZero]: defineApiDirectBank(
-    'https://www.onezerobank.com',
-    ACCOUNT,
-    ONEZERO_HEADLESS,
-  ),
+  [CompanyTypes.Isracard]: defineApiDirectBank('https://www.isracard.co.il', ISRACARD_HEADLESS),
+  [CompanyTypes.OneZero]: defineApiDirectBank('https://www.onezerobank.com', ONEZERO_HEADLESS),
   [CompanyTypes.PayBox]: {
     urls: { base: 'https://www.payboxapp.com/' },
-    balanceKind: ACCOUNT,
-    authStrategyKind: API_DIRECT,
     headless: {
       identityBase: 'https://apipin.payboxapp.com/api/2.0/',
       // PayBox has no GraphQL — set graphql to identityBase to satisfy the
@@ -152,7 +97,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
       redirectPolicy: 'reject',
     },
   },
-  [CompanyTypes.Pepper]: defineApiDirectBank('https://www.pepper.co.il', ACCOUNT, PEPPER_HEADLESS),
+  [CompanyTypes.Pepper]: defineApiDirectBank('https://www.pepper.co.il', PEPPER_HEADLESS),
 };
 
 /**

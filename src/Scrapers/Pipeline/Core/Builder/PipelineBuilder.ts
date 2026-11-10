@@ -30,15 +30,6 @@ class PipelineBuilder {
   }
 
   /**
-   * Enable Headless Strategy — API-only banks skip browser phases.
-   * @returns This builder.
-   */
-  public withHeadlessMediator(): this {
-    this._s.isHeadless = true;
-    return this;
-  }
-
-  /**
    * Wire the full API-direct bank flow in one call — replaces
    * LOGIN+OTP with a config-driven API-DIRECT-CALL phase AND binds
    * the post-login SHAPE to the API-DIRECT-SCRAPE phase. The two

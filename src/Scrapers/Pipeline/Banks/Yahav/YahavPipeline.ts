@@ -22,7 +22,6 @@ import { YAHAV_SHAPE } from './scrape/YahavShape.js';
 function buildYahavPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withHeadlessMediator()
     .withApiDirect(YAHAV_API_DIRECT_CALL, YAHAV_SHAPE)
     .build();
 }

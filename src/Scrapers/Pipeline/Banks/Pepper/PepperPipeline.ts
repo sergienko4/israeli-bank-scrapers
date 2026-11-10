@@ -24,7 +24,6 @@ import { PEPPER_SHAPE } from './scrape/PepperShape.js';
 function buildPepperPipeline(options: ScraperOptions): Procedure<IPipelineDescriptor> {
   return createPipelineBuilder()
     .withOptions(options)
-    .withHeadlessMediator()
     .withApiDirect(PEPPER_API_DIRECT_CALL, PEPPER_SHAPE)
     .build();
 }

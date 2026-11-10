@@ -66,4 +66,4 @@ answer checks; see the Discount
   Mercantile's login, checked only against the mocked bank so far; if the bank
   answers it with another page, the run fails as `GENERIC` rather than logging
   in elsewhere.
-- Balance is per bank account (`balanceKind: 'account'`).
+- Balance is per bank account.
