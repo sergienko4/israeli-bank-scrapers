@@ -11,6 +11,7 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import { createApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
 import type { ApiDirectScrapeResult } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeTypes.js';
@@ -223,6 +224,37 @@ describe('whole-scrape recovery — what triggers it', () => {
     assertHas(result.value.scrape);
     expect(result.value.scrape.value.balanceDegraded).toBe(true);
     expect(handle.recoverSession).not.toHaveBeenCalled();
+  });
+});
+
+describe('per-request recovery — a throwing shape callback', () => {
+  it('guards the throw, re-grants once and retries the scrape', async () => {
+    const router = routerWith('transactions', OK_ANSWERS.transactions);
+    const handle = makeRecoveryBus({ router, isWarm: true, isWholeScrape: false });
+    let attempts = 0;
+    /**
+     * Throw on the first page, then delegate to the synthetic shape.
+     * @param args - Extraction args for one page.
+     * @returns The synthetic page.
+     */
+    function flakyExtractPage(
+      args: Parameters<typeof BOOT_SHAPE.transactions.extractPage>[0],
+    ): ReturnType<typeof BOOT_SHAPE.transactions.extractPage> {
+      attempts += 1;
+      if (attempts === 1) throw new ScraperError('page mapper exploded');
+      return BOOT_SHAPE.transactions.extractPage(args);
+    }
+    const flaky: IApiDirectScrapeShape<unknown, unknown> = {
+      ...BOOT_SHAPE,
+      transactions: {
+        ...BOOT_SHAPE.transactions,
+        extractPage: flakyExtractPage,
+      },
+    };
+    const result = await scrapeOver(handle.bus, flaky);
+    assertOk(result);
+    expect(handle.recoverSession).toHaveBeenCalledTimes(1);
+    expect(attempts).toBe(2);
   });
 });
 

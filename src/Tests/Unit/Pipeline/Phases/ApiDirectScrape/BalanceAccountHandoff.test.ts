@@ -15,6 +15,8 @@
  * rather than silently reporting one card's balance for all of them.
  */
 
+import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import { fetchBalance } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeBalance.js';
 import type { IAcctCtx } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeDispatchArgs.js';
 import type { ApiBody } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
@@ -186,5 +188,45 @@ describe('fetchBalance hands the account to extract on the fetched branch', () =
     const isDegraded = isOk(result) ? result.value.degraded : true;
     const balance = balanceOf(result);
     expect([balance, isDegraded]).toEqual([13.84, false]);
+  });
+});
+
+/**
+ * Build a skip-fetch context whose shape declares an absence probe.
+ * @param acct - Account under assembly.
+ * @param isAbsent - Absence probe stand-in.
+ * @returns Minimal per-account context.
+ */
+function acctCtxWithAbsence(
+  acct: ITestAcct,
+  isAbsent: (body: ApiBody, acct: ITestAcct) => boolean,
+): IAcctCtx<ITestAcct, number> {
+  const balance = { skipFetch: true, isAbsent, extract: readCarried };
+  return { shape: { balance }, acct } as unknown as IAcctCtx<ITestAcct, number>;
+}
+
+describe('fetchBalance converts a shape throw into a typed failure', () => {
+  it('guards the absence probe', async () => {
+    const a = acctCtxWithAbsence({ id: 'card-1234', carried: 1 }, () => {
+      throw new ScraperError('absence probe exploded');
+    });
+    const result = await fetchBalance(a);
+    expect(result.success).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+      expect(result.errorMessage).toBe('shape balance.isAbsent threw: absence probe exploded');
+    }
+  });
+
+  it('guards the balance extractor', async () => {
+    const a = acctCtxWith({ id: 'card-1234', carried: 1 }, () => {
+      throw new ScraperError('balance mapper exploded');
+    });
+    const result = await fetchBalance(a);
+    expect(result.success).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+      expect(result.errorMessage).toBe('shape balance.extract threw: balance mapper exploded');
+    }
   });
 });

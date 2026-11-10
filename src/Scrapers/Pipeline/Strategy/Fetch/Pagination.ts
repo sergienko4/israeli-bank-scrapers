@@ -66,7 +66,12 @@ type HaltCode = keyof typeof HALT_MESSAGE;
 /** Arguments for fetchPaginated — callers supply the page fetcher and stop predicate. */
 interface IFetchPaginatedArgs<TItem, TCursor> {
   readonly fetchPage: (cursor: TCursor | false) => Promise<Procedure<IPage<TItem, TCursor>>>;
-  readonly stop: (acc: readonly TItem[]) => boolean;
+  /**
+   * Caller-supplied halt rule. A failure is propagated unchanged, before the
+   * next page is fetched, so a shape callback that throws and the guard that
+   * converts it cannot be hidden by the paginator.
+   */
+  readonly stop: (acc: readonly TItem[]) => Procedure<boolean>;
   /**
    * How a fetched page joins what is already held. Defaults to concatenation.
    *
@@ -220,7 +225,9 @@ async function paginateStep<TItem, TCursor>(
   args: IFetchPaginatedArgs<TItem, TCursor>,
   state: IPaginationState<TItem, TCursor>,
 ): Promise<Procedure<IPaginatedWalk<TItem>>> {
-  if (args.stop(state.acc)) return walked(state.acc, 'predicateStop');
+  const stop = args.stop(state.acc);
+  if (!isOk(stop)) return stop;
+  if (stop.value) return walked(state.acc, 'predicateStop');
   const stepped = await advanceOnce(args, state);
   if (!isOk(stepped)) return stepped;
   const terminal = terminalOf(stepped.value, state);

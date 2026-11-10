@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
+import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api/ApiMediator.js';
 import { makeEvidenceLedger } from '../../../../../Scrapers/Pipeline/Mediator/Scrape/CoverageAudit/EvidenceLedger.js';
 import collectAccountRows from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapeBackfill.js';
@@ -36,6 +37,14 @@ interface IAcct {
  */
 function rejectPlan(): Procedure<void> {
   return fail(ScraperErrorTypes.Generic, 'request plan exceeds its budget');
+}
+
+/**
+ * Throw while validating instead of returning a typed rejection.
+ * @returns Never — always throws.
+ */
+function throwingPlan(): Procedure<void> {
+  throw new ScraperError('plan guard exploded');
 }
 
 /**
@@ -115,15 +124,19 @@ function makeBus(seen: string[]): IApiMediator {
 }
 
 /**
- * Build one account collection context for the rejecting shape.
+ * Build one account collection context.
  * @param bus - Recording fake mediator.
+ * @param shape - Shape whose transaction policy the walk should honour.
  * @returns Per-account driver context.
  */
-function accountContext(bus: IApiMediator): IAcctCtx<IAcct, string> {
+function accountContext(
+  bus: IApiMediator,
+  shape: IApiDirectScrapeShape<IAcct, string> = SHAPE,
+): IAcctCtx<IAcct, string> {
   const options = { startDate: new Date('2026-01-01T00:00:00Z') };
   const base = makeMockContext({ apiMediator: some(bus), options } as Partial<IPipelineContext>);
   const ctx = { ...base, windowEnd: none() } as unknown as IActionContext;
-  return { shape: SHAPE, bus, ctx, acct: { id: 'acct-1' }, ledger: makeEvidenceLedger() };
+  return { shape, bus, ctx, acct: { id: 'acct-1' }, ledger: makeEvidenceLedger() };
 }
 
 describe('collectAccountRows — request-plan validation', () => {
@@ -134,6 +147,23 @@ describe('collectAccountRows — request-plan validation', () => {
     const result = await collectAccountRows(ctx);
     const isSuccess = isOk(result);
     expect(isSuccess).toBe(false);
+    expect(seen).toHaveLength(0);
+  });
+
+  it('converts a throwing plan guard into a typed failure before any request', async () => {
+    const seen: string[] = [];
+    const bus = makeBus(seen);
+    const transactions = { ...SHAPE.transactions, validatePlan: throwingPlan };
+    const shape = { ...SHAPE, transactions } as IApiDirectScrapeShape<IAcct, string>;
+    const ctx = accountContext(bus, shape);
+    const result = await collectAccountRows(ctx);
+    expect(result.success).toBe(false);
+    if (!isOk(result)) {
+      expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+      expect(result.errorMessage).toBe(
+        'shape transactions.validatePlan threw: plan guard exploded',
+      );
+    }
     expect(seen).toHaveLength(0);
   });
 });

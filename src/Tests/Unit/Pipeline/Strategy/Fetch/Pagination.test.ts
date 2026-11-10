@@ -45,9 +45,9 @@ function makePagedFetcher<TItem, TCursor>(
 
 /**
  * Stop-predicate that never halts — loop exits only via cursor exhaustion or fail.
- * @returns Always false, meaning "do not stop yet".
+ * @returns A successful false, meaning "do not stop yet".
  */
-const NEVER_STOP = (): boolean => false;
+const NEVER_STOP = (): Procedure<boolean> => succeed(false);
 
 describe('Pagination.fetchPaginated', () => {
   it('exhausts in a single page when nextCursor is false immediately', async () => {
@@ -132,9 +132,9 @@ describe('Pagination.fetchPaginated', () => {
     /**
      * Stop once the accumulator has at least 10 items.
      * @param acc - Accumulated items so far.
-     * @returns True when the 10-item threshold is crossed.
+     * @returns A successful true when the 10-item threshold is crossed.
      */
-    const stop = (acc: readonly string[]): boolean => acc.length >= 10;
+    const stop = (acc: readonly string[]): Procedure<boolean> => succeed(acc.length >= 10);
     const args: IFetchPaginatedArgs<string, string> = { fetchPage, stop };
     const result = await fetchPaginated(args);
     const isOkResult = isOk(result);
@@ -144,6 +144,33 @@ describe('Pagination.fetchPaginated', () => {
       expect(result.value.items.length).toBeLessThan(13);
       expect(result.value.termination).toBe('predicateStop');
     }
+  });
+
+  it('propagates a failed stop predicate unchanged without fetching a page', async () => {
+    const calls = { count: 0 };
+    /**
+     * Count each ask and answer an empty terminal page.
+     * @returns Promise resolving to an empty terminal page.
+     */
+    const fetchPage: PageFetcher<string, string> = (): Promise<
+      Procedure<IPage<string, string>>
+    > => {
+      calls.count += 1;
+      const page: IPage<string, string> = { items: [], nextCursor: false };
+      const answered = succeed(page);
+      return Promise.resolve(answered);
+    };
+    /**
+     * Refuse the walk before a page can be fetched.
+     * @returns A failed stop procedure.
+     */
+    function failingStop(): Procedure<boolean> {
+      return fail(ScraperErrorTypes.Generic, 'stop rule exploded');
+    }
+    const result = await fetchPaginated({ fetchPage, stop: failingStop });
+    const expected = fail(ScraperErrorTypes.Generic, 'stop rule exploded');
+    expect(result).toEqual(expected);
+    expect(calls.count).toBe(0);
   });
 
   it('terminates cleanly on an empty first page', async () => {

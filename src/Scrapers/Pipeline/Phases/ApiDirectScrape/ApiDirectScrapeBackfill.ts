@@ -35,6 +35,7 @@ import type { Procedure } from '../../Types/Procedure.js';
 import { isOk, succeed } from '../../Types/Procedure.js';
 import type { IAcctCtx } from './ApiDirectScrapeDispatchArgs.js';
 import { buildPageFetcher, buildStop } from './ApiDirectScrapeSteps.js';
+import { guardShapeProcedure } from './ShapeGuard.js';
 
 /** Everything one account has collected, and under which bound. */
 interface IWalkState {
@@ -212,7 +213,7 @@ function validateRequestPlan<TAcct, TCursor>(a: IAcctCtx<TAcct, TCursor>): Proce
   if (!startIsReadable(a.ctx.options.startDate)) return succeed(undefined);
   const validate = a.shape.transactions.validatePlan;
   if (!validate) return succeed(undefined);
-  return validate(a.ctx);
+  return guardShapeProcedure('transactions.validatePlan', () => validate(a.ctx));
 }
 
 /**

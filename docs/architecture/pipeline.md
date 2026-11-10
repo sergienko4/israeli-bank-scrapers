@@ -53,6 +53,10 @@ type Procedure<T> =
 
 See [`Procedure.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Types/Procedure.ts).
 
+## Shape callbacks and the guarded boundary
+
+An api-direct shape may reject a payload by throwing when it cannot build a truthful value. [`ShapeGuard.ts`](https://github.com/sergienko4/israeli-bank-scrapers/blob/{{BRANCH}}/src/Scrapers/Pipeline/Phases/ApiDirectScrape/ShapeGuard.ts) is the one place that converts such a throw into the phase's result contract: `guardShape` wraps a value-returning callback, `guardShapeProcedure` wraps one that already returns a `Procedure`, and both answer `Generic` with `shape <callback> threw: <message>`. An escaping exception would bypass `runScrapeWithRecovery`, so a warm session that served an unusable account list, balance, page, bootstrap patch, stop rule or request-plan guard would abort the run instead of re-logging in and retrying once.
+
 ## IPipelineContext — the shared state slot table
 
 `IPipelineContext` is a discriminated record of `Option<T>` slots. Each phase reads the slots its `pre`/`action`/`post`/`final` declare, and writes only the slots it owns. The compiler enforces that no phase writes outside its declared scope.

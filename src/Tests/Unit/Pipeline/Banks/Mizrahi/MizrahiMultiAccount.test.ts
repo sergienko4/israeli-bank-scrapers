@@ -28,7 +28,6 @@
 import { jest } from '@jest/globals';
 
 import { ScraperErrorTypes } from '../../../../../Scrapers/Base/ErrorTypes.js';
-import ScraperError from '../../../../../Scrapers/Base/ScraperError.js';
 import { MIZRAHI_API } from '../../../../../Scrapers/Pipeline/Banks/Mizrahi/scrape/MizrahiShapeHelpers.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import { fail, succeed } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -435,10 +434,20 @@ describe('Mizrahi multi-account scrape (changeAccount)', () => {
     { mode: 'staysNamingRequested', isNight: false, when: 'stays put but names the requested one' },
     { mode: 'movesNamingNone', isNight: false, when: 'names no account' },
     { mode: 'staysNamingCurrent', isNight: true, when: 'names another account at night' },
-  ] as const)('fails when the switch reply $when', async ({ mode, isNight }) => {
-    const { run } = runScrape(mode, isNight);
-    await expect(run).rejects.toThrow(ScraperError);
-  });
+  ] as const)(
+    'fails with a typed failure when the switch reply $when',
+    async ({ mode, isNight }) => {
+      const { run } = runScrape(mode, isNight);
+      const result = await run;
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.errorType).toBe(ScraperErrorTypes.Generic);
+        expect(result.errorMessage).toMatch(
+          /^shape (balance\.isAbsent|transactions\.extractPage) threw: /,
+        );
+      }
+    },
+  );
 
   it('publishes every account without a balance at night', async () => {
     const { run } = runScrape('moves', true);

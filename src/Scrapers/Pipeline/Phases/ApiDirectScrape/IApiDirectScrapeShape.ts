@@ -443,7 +443,16 @@ export interface IResponseSessionSpec {
   readonly patch: (args: IResponseSessionArgs) => Procedure<SessionContextPatch>;
 }
 
-/** Shape a bank plugs into createApiDirectScrapePhase. */
+/**
+ * Shape a bank plugs into createApiDirectScrapePhase.
+ *
+ * <p>Every callback declared here may throw: a shape that cannot build a
+ * truthful value rejects the payload rather than fabricating one. The phase
+ * invokes each callback through {@link guardShape}, so a throw becomes a typed
+ * `Generic` failure carrying `shape <callback> threw: <message>` instead of an
+ * escaping exception. That keeps the scrape inside its `Procedure` contract and
+ * lets `runScrapeWithRecovery` see a warm-session failure and retry once.
+ */
 export interface IApiDirectScrapeShape<TAcct, TCursor> {
   readonly stepName: string;
   readonly accountNumberOf: (acct: TAcct) => string;
