@@ -179,13 +179,5 @@ export function iterateAccounts<TAcct, TCursor>(
   accounts: readonly TAcct[],
 ): Promise<AcctsAcc> {
   const seed = emptyAcc();
-  /**
-   * Bind one account to its own context, then append its result.
-   * @param prev - Results accumulated so far.
-   * @param acct - The account to walk.
-   * @returns Accumulator carrying the new result, or the failure.
-   */
-  const next = (prev: Promise<AcctsAcc>, acct: TAcct): Promise<AcctsAcc> =>
-    extendAcc(d, acct, prev);
-  return accounts.reduce(next, seed);
+  return accounts.reduce((prev, acct): Promise<AcctsAcc> => extendAcc(d, acct, prev), seed);
 }

@@ -139,15 +139,26 @@ export class WafBlockError extends Error {
   }
 }
 
+/**
+ * Suggestion lists, one per block kind.
+ *
+ * <p>Copied into each details object rather than shared by reference:
+ * {@link WafBlockError} reads `suggestions[0]` while it builds its message, so a
+ * caller that edits one error's list must not rewrite another error's message.
+ */
+
 /** Suggestions for a plain Cloudflare WAF block. */
-const CLOUDFLARE_SUGGESTIONS = [
+const CLOUDFLARE_SUGGESTIONS: readonly string[] = [
   WAF_SUGGESTIONS.ipCooldown,
   WAF_SUGGESTIONS.residentialProxy,
   WAF_SUGGESTIONS.avoidRapidRetries,
 ];
 
 /** Suggestions for a block reported by an unrecognised provider. */
-const API_SUGGESTIONS = [WAF_SUGGESTIONS.ipCooldown, WAF_SUGGESTIONS.avoidRapidRetries];
+const API_SUGGESTIONS: readonly string[] = [
+  WAF_SUGGESTIONS.ipCooldown,
+  WAF_SUGGESTIONS.avoidRapidRetries,
+];
 
 /** Optional diagnostics an API-block report may carry. */
 interface IBlockOpts {
@@ -168,7 +179,8 @@ function cloudflareDetails(
   pageUrl: string,
 ): IWafErrorDetails {
   const provider = 'cloudflare';
-  return { provider, httpStatus, pageTitle, pageUrl, suggestions: CLOUDFLARE_SUGGESTIONS };
+  const suggestions = [...CLOUDFLARE_SUGGESTIONS];
+  return { provider, httpStatus, pageTitle, pageUrl, suggestions };
 }
 
 /**
@@ -183,5 +195,6 @@ function apiBlockDetails(httpStatus: number, pageUrl: string, opts: IBlockOpts):
   const responseSnippet = opts.responseSnippet?.substring(0, 200);
   const provider = 'unknown' as const;
   const details = { provider, httpStatus, pageUrl, pageTitle, responseSnippet };
-  return { ...details, suggestions: API_SUGGESTIONS };
+  const suggestions = [...API_SUGGESTIONS];
+  return { ...details, suggestions };
 }
