@@ -1,41 +1,18 @@
 /**
  * CAP REGIME TABLE — the cap expectation that lives OUTSIDE `eslint.config.mjs`.
  *
- * <p>`eslint.config.mjs` repeatedly uses a grandfather-then-tighten shape: a
- * broad block relaxes a whole tree, and a LATER block pins a drained sub-tree
- * back to the canonical cap. Flat config is last-wins, so deleting a tightening
- * block does not merely lose a check — it silently relaxes shipped production
- * code.
+ * <p>Flat ESLint config is ordered (last-wins), so a later block that loosens or
+ * disables a rule silently overrides earlier strict declarations. No check
+ * derived only from `eslint.config.mjs` can catch that, because the expectation
+ * disappears or shifts together with the config edit. Restating the canonical
+ * expectation here, independently, lets the gate assert exact agreement for
+ * every production file.
  *
- * <p>No check derived only from the current `eslint.config.mjs` can catch that,
- * because the expectation disappears together with the deleted declaration. So
- * the expectation is restated here, independently, and the gate asserts the two
- * agree EXACTLY for every production file.
- *
- * <p>Exact equality is deliberate in both directions. A looser resolved cap is a
- * regression. A tighter one means a tree was drained without updating this
- * table, which `eslint-rules-guidlines.md` §1 requires in the same PR.
- *
- * <p>An entry in `CapOverrides.ts` is either a recursive directory prefix or an
- * exact file path, and the LONGEST match wins. That is this table's OWN policy —
- * the most specific statement about a path governs it — and is deliberately NOT
- * a model of how `eslint.config.mjs` resolves. Flat config is ordered: a LATER
- * block wins even when it is BROADER, so a broad grandfather placed after a
- * narrow tightening silently overrides it.
- *
- * <p>Because the two rules differ, an entry records the cap a maintainer has
- * REVIEWED and intends for that tree — never what a single config block appears
- * to declare, since a later block may override it. ESLint supplies the cap that
- * is actually in force, and the gate asserts the two agree.
- *
- * <p>Agreement therefore proves the config has not DRIFTED from a reviewed
- * decision. It does not prove the decision was right: if an entry is authored by
- * copying the resolved value instead of reviewing it, both sides agree and the
- * gate passes. That is exactly how the `Types/Domain` 10 → 30 relaxation stayed
- * hidden. Author entries from CLEAN_CODE.md and the config's stated rationale,
- * and treat a mismatch as the question "which side is wrong?" — not as a
- * prompt to overwrite the table. A path with no matching entry must resolve to
- * the canonical CLEAN_CODE.md cap.
+ * <p>All production trees now resolve directly to {@link CANONICAL_CAPS} with
+ * an empty `CapOverrides.ts` table. Any reviewed per-path deviation added in
+ * `CapOverrides.ts` uses longest-prefix matching and must match ESLint's
+ * resolved value in both directions — looser is a regression, tighter means the
+ * override entry is stale and should be removed.
  */
 
 /** Canonical caps from CLEAN_CODE.md — the default for every production tree. */

@@ -1,10 +1,12 @@
 /**
- * CAP OVERRIDES — every production path whose cap deliberately deviates.
+ * CAP OVERRIDES — per-path deviations from the canonical CLEAN_CODE.md caps.
  *
- * <p>A rule absent from {@link CAP_OVERRIDES}, or a path matching no entry, must
- * resolve to the canonical CLEAN_CODE.md cap. The policy these lists implement —
- * why the expectation lives outside `eslint.config.mjs`, and how entries are
- * matched — is documented in `CapRegimeTable.ts`.
+ * <p>Every production tree in `src/` now satisfies the canonical caps
+ * (`max-lines: 150`, `max-lines-per-function: 10`, `complexity: 10`,
+ * `@typescript-eslint/max-params: 3`), so all four override lists are empty.
+ * The override table and the per-file regime gate in `CapRegimeTable.ts` +
+ * `EslintCapProbe.ts` stay active so any future `eslint.config.mjs` block that
+ * weakens or turns off a production cap fails closed at pre-commit.
  */
 
 /** A resolved numeric cap, or `'off'` when the rule is disabled for the tree. */
@@ -20,120 +22,13 @@ export interface ICapOverride {
   readonly reason: string;
 }
 
-const LEGACY_TREE_CAP = 'Legacy non-Pipeline tree; drained by its own phase, not this table.';
-const TYPES_FILE_OFF = 'Types grandfather: file cap off pending a drain phase.';
-const STRATEGY_FILE_OFF = 'Strategy grandfather: file cap off pending a drain phase.';
-const PIPELINE_FN_DEFAULT = 'Pipeline default of 15 LoC per function, not yet drained to 10.';
-const DRAINED_TREE_FILE_PIN = 'Drained sub-tree pinned back to the canonical file cap.';
-const DRAINED_TREE_FN_PIN = 'Drained sub-tree pinned back to the canonical function cap.';
-const NEW_FETCH_FILE_PIN = 'New Strategy/Fetch file pinned to the canonical cap (§19.1d).';
-const NEW_CORE_FILE_PIN = 'New Core file pinned to the canonical function cap (§19.3b).';
-
-/** New Strategy/Fetch transport files that §19.1d pins past the Strategy grandfather. */
-const FETCH_TRANSPORT_FILES: readonly string[] = [
-  'src/Scrapers/Pipeline/Strategy/Fetch/CookieJar.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/CappedBody.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/CappedInvoke.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/NativeFetchDispatch.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/NativeFetchNetwork.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/OriginCookieJar.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/SessionCookieFetchStrategy.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/CookieMatch.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/SetCookieScope.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/DomainCookieJar.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/UrlRule.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/RedirectFollow.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/StatusPolicy.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/DocumentResponse.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/ResponseHeaderSink.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/HeaderText.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/Latin1Form.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/TextResponse.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsAgentSource.ts',
-  'src/Scrapers/Pipeline/Strategy/Fetch/Mtls/ClientCertHolder.ts',
-];
-
-/** New Core files that §19.3b pins past the Core grandfather. */
-const NEW_CORE_FILES: readonly string[] = [
-  'src/Scrapers/Pipeline/Core/Builder/ApiDirectClientCertRules.ts',
-  'src/Scrapers/Pipeline/Core/Builder/ApiDirectConfigRules.ts',
-  'src/Scrapers/Pipeline/Core/Builder/ApiDirectNativeRules.ts',
-  'src/Scrapers/Pipeline/Core/Builder/ApiDirectRuleInput.ts',
-  'src/Scrapers/Pipeline/Core/Builder/ApiDirectTransportRules.ts',
-];
-
 /**
- * Pin every listed new file to one canonical cap.
- * @param files - Repo-relative paths one scoped block pins.
- * @param cap - The canonical cap those files must resolve to.
- * @param reason - The block that pins them.
- * @returns One filename-scoped override per file.
- */
-function pinNewFiles(
-  files: readonly string[],
-  cap: number,
-  reason: string,
-): readonly ICapOverride[] {
-  return files.map((prefix): ICapOverride => ({ prefix, cap, reason }));
-}
-
-/** File-size expectations that deviate from the canonical `max-lines: 150`. */
-const MAX_LINES_OVERRIDES: readonly ICapOverride[] = [
-  { prefix: 'src/Common', cap: 300, reason: LEGACY_TREE_CAP },
-  { prefix: 'src/Scrapers/Base', cap: 300, reason: LEGACY_TREE_CAP },
-  { prefix: 'src/Scrapers/Registry', cap: 300, reason: LEGACY_TREE_CAP },
-  { prefix: 'src/Scrapers/Pipeline/Types', cap: 'off', reason: TYPES_FILE_OFF },
-  { prefix: 'src/Scrapers/Pipeline/Strategy/Fetch', cap: 'off', reason: STRATEGY_FILE_OFF },
-  // TIGHTENINGS — each pins a drained sub-tree back to canonical. Deleting the
-  // block behind one of these relaxes shipped code, which is what this gate
-  // exists to catch, so each must stay pinned here.
-  { prefix: 'src/Scrapers/Pipeline/Types/PiiRedactor', cap: 150, reason: DRAINED_TREE_FILE_PIN },
-  ...pinNewFiles(FETCH_TRANSPORT_FILES, 150, NEW_FETCH_FILE_PIN),
-  {
-    prefix: 'src/Scrapers/Pipeline/Phases/Base/BasePhase.ts',
-    cap: 'off',
-    reason: 'Template Method base class; file cap off pending a drain phase.',
-  },
-];
-
-/** Function-size expectations that deviate from the canonical `max-lines-per-function: 10`. */
-const MAX_LINES_PER_FUNCTION_OVERRIDES: readonly ICapOverride[] = [
-  { prefix: 'src/Common', cap: 20, reason: LEGACY_TREE_CAP },
-  { prefix: 'src/Scrapers/Base', cap: 20, reason: LEGACY_TREE_CAP },
-  { prefix: 'src/Scrapers/Registry', cap: 20, reason: LEGACY_TREE_CAP },
-  { prefix: 'src/Scrapers/Pipeline/Banks', cap: 15, reason: PIPELINE_FN_DEFAULT },
-  { prefix: 'src/Scrapers/Pipeline/Core', cap: 15, reason: PIPELINE_FN_DEFAULT },
-  { prefix: 'src/Scrapers/Pipeline/Phases', cap: 15, reason: PIPELINE_FN_DEFAULT },
-  { prefix: 'src/Scrapers/Pipeline/Registry/Config', cap: 15, reason: PIPELINE_FN_DEFAULT },
-  { prefix: 'src/Scrapers/Pipeline/Registry/WK', cap: 15, reason: PIPELINE_FN_DEFAULT },
-  {
-    prefix: 'src/Scrapers/Pipeline/Types',
-    cap: 30,
-    reason: 'Type-heavy tree; drained separately.',
-  },
-  {
-    prefix: 'src/Scrapers/Pipeline/Strategy/Fetch',
-    cap: 40,
-    reason: 'Strategy grandfather pending a drain phase.',
-  },
-  // TIGHTENINGS — see the note in MAX_LINES_OVERRIDES.
-  { prefix: 'src/Scrapers/Pipeline/Types/PiiRedactor', cap: 10, reason: DRAINED_TREE_FN_PIN },
-  {
-    prefix: 'src/Scrapers/Pipeline/Types/Domain',
-    cap: 10,
-    reason: 'Type-only tree re-tightened after §19.2 broadened it to 30.',
-  },
-  ...pinNewFiles(FETCH_TRANSPORT_FILES, 10, NEW_FETCH_FILE_PIN),
-  ...pinNewFiles(NEW_CORE_FILES, 10, NEW_CORE_FILE_PIN),
-];
-
-/**
- * Per-rule override lists. A rule absent from this map has no exceptions at
- * all: every production file must resolve it to the canonical cap.
+ * Per-rule override lists. Every list is empty now that all grandfather caps
+ * have been drained: every production file must resolve to the canonical cap.
  */
 export const CAP_OVERRIDES: Readonly<Record<string, readonly ICapOverride[]>> = {
-  'max-lines': MAX_LINES_OVERRIDES,
-  'max-lines-per-function': MAX_LINES_PER_FUNCTION_OVERRIDES,
+  'max-lines': [],
+  'max-lines-per-function': [],
   complexity: [],
   '@typescript-eslint/max-params': [],
 };
