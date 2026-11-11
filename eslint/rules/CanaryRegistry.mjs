@@ -23,29 +23,6 @@ import { PIPELINE_CANARY_SYNTAX_RULES, selectorOf } from './PipelineContract.mjs
  * Declared here and emitted last (§22a), a canary's extra entry cannot be
  * outranked, and `check-syntax-guardrails.mjs` proves each one resolves.
  */
-/**
- * Suppression-comment ban options, shared by §15 (production) and §15a (canary).
- *
- * Hoisted so the canary that certifies the rule is provably armed with the SAME
- * term list production carries. Inlined twice, the two could drift and the
- * canary would keep passing while guarding a shorter list than production uses.
- */
-const SUPPRESSION_COMMENT_OPTIONS = {
-  terms: [
-    'NOSONAR',
-    '@ts-ignore',
-    '@ts-expect-error',
-    '@ts-nocheck',
-    'biome-ignore',
-    'eslint-disable',
-    'istanbul ignore',
-    'c8 ignore',
-    'v8 ignore',
-    'prettier-ignore',
-  ],
-  location: 'anywhere',
-};
-
 const CANARY_EXTRA_RULES = {
   // §8i: `balance ?? 0` / `?? null` collapses unknown into a real value.
   'src/Scrapers/Pipeline/EslintCanaries/balance-default-zero.canary.ts': BALANCE_DEFAULT_DENY_RULES,
