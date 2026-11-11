@@ -3,8 +3,8 @@
  * the consumer checks its actual URL immediately before it is sent.
  */
 
-import type { IUrlRule } from '../../../Types/Domain/FetchPolicy.js';
-import type { IStepConfig } from '../ConfigContracts/index.js';
+import type { IUrlRule } from '../../../../Types/Domain/FetchPolicy.js';
+import type { IStepConfig } from '../../ConfigContracts/index.js';
 
 /**
  * Reads a structured SDK capture's rules for a carried URL.

@@ -11,7 +11,7 @@ import type { IStepConfig } from '../../../../../../Scrapers/Pipeline/Mediator/A
 import type {
   CarryMap,
   JsonValue,
-} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.types.js';
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.types.js';
 
 /** Logger shared by the module under test and the assertions. */
 const LOG = {
@@ -37,7 +37,7 @@ jest.unstable_mockModule('../../../../../../Scrapers/Pipeline/Logging/Debug.js',
 }));
 
 const OPTIONAL =
-  await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.optional.js');
+  await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.optional.js');
 
 const STEP: IStepConfig = {
   name: 'login',

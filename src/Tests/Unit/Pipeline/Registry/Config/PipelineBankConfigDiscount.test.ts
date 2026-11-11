@@ -16,8 +16,8 @@ import type { JsonValue } from '../../../../../Scrapers/Pipeline/Mediator/ApiDir
 import { captureText } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Captures/RunStep.textCapture.js';
 import { applyDerivedCarry } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/FlowInitCarry.derived.js';
 import { checkRequiredCreds } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RequiredCreds.js';
-import { classifyAnswer } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.classify.js';
-import { guardBankError } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.failIfPresent.js';
+import { classifyAnswer } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.classify.js';
+import { guardBankError } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.failIfPresent.js';
 import { stepNamed } from './BeinleumiConfigTestHelpers.js';
 import {
   CARRY,

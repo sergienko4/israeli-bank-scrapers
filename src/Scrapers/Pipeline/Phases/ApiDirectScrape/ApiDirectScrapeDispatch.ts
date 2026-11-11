@@ -14,7 +14,7 @@ import type {
   JsonValueTemplate,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { JsonValue } from '../../Mediator/ApiDirectCall/Envelope/JsonPointer.js';
-import { sanitiseStepFailure } from '../../Mediator/ApiDirectCall/Flow/RunStep.failure.js';
+import { sanitiseStepFailure } from '../../Mediator/ApiDirectCall/Flow/Steps/RunStep.failure.js';
 import type { WKUrlOrLiteral } from '../../Registry/WK/UrlsWK.js';
 import type { ApiPostData } from '../../Types/Domain/ApiPostData.js';
 import type { IActionContext } from '../../Types/PipelineContext.js';

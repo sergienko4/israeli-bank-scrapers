@@ -11,7 +11,7 @@ import type {
   IFormCapture,
   IStepConfig,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { FORM_FIELD_NAME } from '../../Mediator/ApiDirectCall/Flow/RunStep.formFields.js';
+import { FORM_FIELD_NAME } from '../../Mediator/ApiDirectCall/Flow/Steps/RunStep.formFields.js';
 import { anyStep, type IApiDirectRule } from './ApiDirectRuleInput.js';
 
 /** A check on one form capture. */

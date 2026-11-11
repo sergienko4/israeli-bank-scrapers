@@ -8,7 +8,7 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IJwtClaimsCapture, IJwtClaimSlot, RefToken } from '../ConfigContracts/index.js';
 import { walkPointer } from '../Envelope/JsonPointer.js';
-import { isSafeText } from '../Flow/RunStep.classify.checks.js';
+import { isSafeText } from '../Flow/Steps/RunStep.classify.checks.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { resolveRefText } from '../Template/RefResolver.js';
 import { issuedJwtPayload } from './IssuedJwtPayload.js';

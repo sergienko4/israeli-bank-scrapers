@@ -1,14 +1,13 @@
 /**
- * RunStep barrel — re-exports the public surface from the co-located
- * sibling siblings:
+ * RunStep barrel — re-exports the dispatcher and shared step contracts:
  *   - `.dispatch` — `runStep` (default + named).
  *   - `Strategy/Fetch/CookieJar` — `createSimpleCookieJar` (the shared jar).
- *   - `.types` — public type aliases (`IStepCookieJar`, `IRunStepArgs`, `CarryMap`).
+ *   - `Steps/RunStep.types` — public aliases (`IStepCookieJar`, `IRunStepArgs`, `CarryMap`).
  *
- * Internal helpers (url/headers/prepare) stay sibling-private; runtime
- * consumers and tests import via this barrel only.
+ * Internal helpers (url/headers/prepare) live under `Steps/`; runtime
+ * consumers import the entrypoint through this barrel.
  */
 
 export { createSimpleCookieJar } from '../../../Strategy/Fetch/CookieJar.js';
 export { runStep as default, runStep } from './RunStep.dispatch.js';
-export type { CarryMap, IRunStepArgs, IStepCookieJar } from './RunStep.types.js';
+export type { CarryMap, IRunStepArgs, IStepCookieJar } from './Steps/RunStep.types.js';

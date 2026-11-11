@@ -7,14 +7,14 @@
  * unformattable`).
  */
 
-import type { Procedure } from '../../../Types/Procedure.js';
-import { isOk, succeed } from '../../../Types/Procedure.js';
-import type { IStepConfig } from '../ConfigContracts/index.js';
-import { applyJwtCapture } from './Captures/RunStep.jwtCapture.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { isOk, succeed } from '../../../../Types/Procedure.js';
+import type { IStepConfig } from '../../ConfigContracts/index.js';
+import { applyJwtCapture } from '../Captures/RunStep.jwtCapture.js';
 import {
   applyDerivations,
   type IApplyDerivedCarryArgs,
-} from './Lifecycle/FlowInitCarry.derived.js';
+} from '../Lifecycle/FlowInitCarry.derived.js';
 import type { ITemplateScope } from './RunStep.types.js';
 
 /**

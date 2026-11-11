@@ -16,7 +16,7 @@ import type { IEnvelopeExchange } from '../../ConfigContracts/index.js';
 import { exchangeSession, toExchangeKey } from '../../Crypto/EnvelopeCodec.exchange.js';
 import type { IEnvelopeSession } from '../../Crypto/EnvelopeCodec.js';
 import { type ITemplateScope, resolveRefText } from '../../Template/RefResolver.js';
-import type { CarryMap, IDispatchBundle, IPreparedBody } from '../RunStep.types.js';
+import type { CarryMap, IDispatchBundle, IPreparedBody } from '../Steps/RunStep.types.js';
 import { type IOpenedAnswer, KEY_INVALID, openForStep, stepFail } from './RunStep.codec.open.js';
 
 const ENVELOPE_INVALID = 'envelope invalid';

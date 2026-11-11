@@ -7,8 +7,8 @@
  * name and no `forbidden` one.
  */
 
-import type { IFormCapture } from '../ConfigContracts/index.js';
-import type { HtmlAttrs, HtmlAttrValue } from './HtmlTags.attrs.js';
+import type { IFormCapture } from '../../ConfigContracts/index.js';
+import type { HtmlAttrs, HtmlAttrValue } from '../HtmlTags.attrs.js';
 
 /** A form field's name: 1 to 100 ASCII letters, digits, `_` or `-`. */
 const FORM_FIELD_NAME = /^[\w-]{1,100}$/u;

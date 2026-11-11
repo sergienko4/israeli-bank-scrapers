@@ -11,11 +11,11 @@
  * Zero bank knowledge. Rule #11 compliant.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, isOk } from '../../../Types/Procedure.js';
-import type { AnswerPointer, IAnswerCheck, IAnswerText } from '../ConfigContracts/index.js';
-import { isPlainObject, walkPointer } from '../Envelope/JsonPointer.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { fail, isOk } from '../../../../Types/Procedure.js';
+import type { AnswerPointer, IAnswerCheck, IAnswerText } from '../../ConfigContracts/index.js';
+import { isPlainObject, walkPointer } from '../../Envelope/JsonPointer.js';
 import type { JsonValue } from './RunStep.types.js';
 
 /** The check kinds that read a resolved value. */

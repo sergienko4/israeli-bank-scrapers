@@ -23,7 +23,7 @@
  * edge page for a fixed reason, and that reason is a documented contract.
  */
 
-import type { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import type { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
 import {
   BODY_NOT_UTF8_REASON,
   DOCUMENT_UNVERIFIED_REASON,
@@ -36,10 +36,10 @@ import {
   RESPONSE_INTEGRITY_UNSUPPORTED_REASON,
   TEXT_BODY_REFUSED_REASON,
   TEXT_TOO_LONG_REASON,
-} from '../../../Types/Domain/FetchPolicy.js';
-import type { IProcedureFailure } from '../../../Types/Procedure.js';
-import { isWafBlocked } from '../../../Types/Procedure.js';
-import type { IStepConfig } from '../ConfigContracts/index.js';
+} from '../../../../Types/Domain/FetchPolicy.js';
+import type { IProcedureFailure } from '../../../../Types/Procedure.js';
+import { isWafBlocked } from '../../../../Types/Procedure.js';
+import type { IStepConfig } from '../../ConfigContracts/index.js';
 
 /** What a failure is rebuilt from: a login step, or a scrape call by its name. */
 type FailedStep = Pick<IStepConfig, 'httpFailureMap'> & { readonly name: string };

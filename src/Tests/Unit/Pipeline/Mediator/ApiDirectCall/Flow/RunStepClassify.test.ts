@@ -19,7 +19,7 @@ import type {
 import type {
   CarryMap,
   JsonValue,
-} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.types.js';
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.types.js';
 import type { Procedure } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 
 /** Logger shared by the module under test and the assertions. */
@@ -46,7 +46,7 @@ jest.unstable_mockModule('../../../../../../Scrapers/Pipeline/Logging/Debug.js',
 }));
 
 const CLASSIFY =
-  await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.classify.js');
+  await import('../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.classify.js');
 
 /** A step with no classifier. */
 const PLAIN_STEP: IStepConfig = {

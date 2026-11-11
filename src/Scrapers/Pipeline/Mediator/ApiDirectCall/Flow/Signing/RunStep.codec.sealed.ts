@@ -12,7 +12,7 @@ import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IEnvelopeSealed } from '../../ConfigContracts/index.js';
 import { type IEnvelopeSession, sealEnvelope, toSession } from '../../Crypto/EnvelopeCodec.js';
 import { type ITemplateScope, resolveRefText } from '../../Template/RefResolver.js';
-import type { IDispatchBundle, IPreparedBody } from '../RunStep.types.js';
+import type { IDispatchBundle, IPreparedBody } from '../Steps/RunStep.types.js';
 import { type IOpenedAnswer, KEY_INVALID, openForStep, stepFail } from './RunStep.codec.open.js';
 
 /**

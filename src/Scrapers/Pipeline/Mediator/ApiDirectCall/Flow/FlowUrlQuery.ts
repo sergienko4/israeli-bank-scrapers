@@ -2,7 +2,7 @@
  * Bounded, UTF-8-safe URL query text shared by derivation operations.
  */
 
-import { isSafeText } from './RunStep.classify.checks.js';
+import { isSafeText } from './Steps/RunStep.classify.checks.js';
 
 const MAX_QUERY_URL_CHARS = 32_768;
 const MAX_QUERY_VALUE_CHARS = 8_192;

@@ -66,7 +66,7 @@ A step cannot set both `rawQuery` and `queryTemplate`: the build fails with
 }
 ```
 
-`stepUrlOf` (`Flow/RunStep.stepUrl.ts`) resolves the step URL with its raw
+`stepUrlOf` (`Flow/Steps/RunStep.stepUrl.ts`) resolves the step URL with its raw
 query once, so the canonical `pathAndQuery` and the bus target use the same
 generated values. It reads an `IStepUrlInput`: the step, its scope and its
 company. `sendTargetOf` gives the bus that resolved URL as a literal, so the
@@ -109,7 +109,7 @@ pre-hook and dispatch checks.
 }
 ```
 
-`stepBaseUrlOf` (`Flow/RunStep.stepUrl.ts`) gives the carried URL, or else the
+`stepBaseUrlOf` (`Flow/Steps/RunStep.stepUrl.ts`) gives the carried URL, or else the
 WK url, before any query. The step's jar view and client cookies bind to it,
 and its pre-hook `requires` read cookies through it. Its relative
 `extractRules` URLs and its form action resolve against it. `stepUrlOf` adds
@@ -126,7 +126,7 @@ since `IPostStep.finalUrlInto` is `never`.
 
 The native transport hands the step's header sink each answer's URL, and the
 step's capture keeps only the last one, so a call retried after a 401 carries
-its final answer's URL. `carryFinalUrl` (`Flow/RunStep.finalUrl.ts`) then
+its final answer's URL. `carryFinalUrl` (`Flow/Steps/RunStep.finalUrl.ts`) then
 checks that URL against the step's own `redirect.allow` rules. Every hop
 already passed them, so in practice only a request URL that answered without
 a hop is refused: the step fails `Generic` with `<step> final url refused`,
@@ -159,7 +159,7 @@ extracts. A manual `redirect` itself needs `transport.nativeFetch` and
 some responses carry, use `optionalExtractsToCarry`, a map of carry slot to
 `IOptionalExtract` (`pointer`, optional `fallback`). It is read after the
 required extracts and is applied by `extractOptional` in
-`Flow/RunStep.optional.ts`:
+`Flow/Steps/RunStep.optional.ts`:
 
 - When the pointer resolves to a string that is not blank, that string is
   written as it is.
@@ -246,7 +246,7 @@ to the full cold login", so the log never claims an SMS the bank did not send.
 
 A step's `generate` list (`ICarryGenerator`, `GeneratorTypes.ts`) makes
 values the bank expects the device to own. The reducer runs
-`generateStepCarry` (in `Flow/RunStep.generate.ts`) once the `runIf` guard
+`generateStepCarry` (in `Flow/Steps/RunStep.generate.ts`) once the `runIf` guard
 passes and before the pre-hook and body hydration. A skipped step generates
 nothing, and so does a warm run that starts after it. The generators run in
 order. Each one's slots merge into carry, so a later generator, the step's
@@ -256,7 +256,7 @@ body and later steps can read them. `GENERATOR_RUNS` maps each
 | Kind         | Writes                                                                                                                                                                                                |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `rsa-key`    | `generateRsaKey` (`IRsaKeyGenerator`): a fresh RSA key of `bits` (2048). Its PKCS#8 PEM goes to `keyInto`, and `spkiSha256Hex` of its public key (64 lowercase hex characters) to `spkiSha256HexInto` |
-| `pkcs10-csr` | `generatePkcs10Csr` (`IPkcs10CsrGenerator`, `Flow/RunStep.generate.csr.ts`): a PKCS#10 request signed with the RSA key `keyRef` names, base64url DER without padding, to `into`                       |
+| `pkcs10-csr` | `generatePkcs10Csr` (`IPkcs10CsrGenerator`, `Flow/Steps/RunStep.generate.csr.ts`): a PKCS#10 request signed with the RSA key `keyRef` names, base64url DER without padding, to `into`                       |
 | `ecdh-key`   | `generateEcdhKey` (`IEcdhKeyGenerator`, `Crypto/EcdhKeypair.ts`): a fresh key pair on `curve` (`secp256k1`), base64. The uncompressed public point (65 bytes, 0x04 first) goes to `publicInto`        |
 
 ```ts

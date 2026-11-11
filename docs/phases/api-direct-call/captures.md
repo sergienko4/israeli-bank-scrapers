@@ -9,7 +9,7 @@ value to carry. On a `response: 'text'` step, `textCaptures` maps a carry slot
 to an `ITextCapture`: a regex `pattern`, searched in the whole answer
 with the `g` flag, and the `group` whose text the slot takes (`0` is the whole
 match). `captureText` (in `Flow/Captures/RunStep.textCapture.ts`) runs right after the
-header slots, through `answerSlots` (in `Flow/RunStep.answerSlots.ts`):
+header slots, through `answerSlots` (in `Flow/Steps/RunStep.answerSlots.ts`):
 
 ```ts
 response: 'text',
@@ -70,7 +70,7 @@ formCapture: {
   `<step> form action refused`.
 - Its fields are the inputs with a non-empty `name` and no `disabled`, up to
   its end tag or the next `<form>`. `formFieldsOf` (in
-  `Flow/RunStep.formFields.ts`) fails `<step> form field not hidden` when a
+  `Flow/Steps/RunStep.formFields.ts`) fails `<step> form field not hidden` when a
   field's `type` is not `hidden` (a missing `type` included), and
   `<step> form fields invalid` for a name off `FORM_FIELD_NAME`
   (`^[\w-]{1,100}$`), a `value` past 32 768 chars or with no `=`, a field

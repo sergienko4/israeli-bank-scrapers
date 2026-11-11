@@ -7,12 +7,12 @@
  * failure-map keys before matching.
  */
 
-import type { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { IStepConfig, IStepOutcome } from '../ConfigContracts/index.js';
-import type { JsonValue } from '../Envelope/JsonPointer.js';
-import { walkPointer } from '../Envelope/JsonPointer.js';
+import type { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
+import type { IStepConfig, IStepOutcome } from '../../ConfigContracts/index.js';
+import type { JsonValue } from '../../Envelope/JsonPointer.js';
+import { walkPointer } from '../../Envelope/JsonPointer.js';
 
 /**
  * Render a scalar as an outcome code; numbers and booleans compare as text.

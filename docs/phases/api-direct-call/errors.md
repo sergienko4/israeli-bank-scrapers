@@ -163,7 +163,7 @@ file.
 
 A login step does not pass that message on, because a bank can echo the
 password, the OTP or a device id back in its reply. `sanitiseStepFailure`
-(`src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.failure.ts`)
+(`src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.failure.ts`)
 reports a failed step as `<step> HTTP <status>` when the bank answered, or as
 `<step> <errorType>` (for example `bind TIMEOUT`) when no reply arrived. It
 keeps `errorType` and `errorDetails`, except that a step's
