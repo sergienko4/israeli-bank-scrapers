@@ -31,7 +31,7 @@ is called only when the bank asks for a code.
 
 Pagi is a brand of the Beinleumi group and logs in the way
 [Beinleumi](beinleumi.md#login) does, with no browser, on its own online
-origin. `PAGI_API_DIRECT_CALL` and `PAGI_HEADLESS`
+origin. `PAGI_API_DIRECT_CALL` and `PAGI_TRANSPORT`
 (`Registry/Config/PipelineBankConfigPagi.ts`) are the FIBI-family login
 built for Pagi's `IFibiBrand`:
 

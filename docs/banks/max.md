@@ -33,7 +33,7 @@ Max logs in over its web app's own JSON API on `MAX_ORIGIN`
 | `prime` | `GET api/registered/clientcontext` | —                                  | the bank's pre-login cookies |
 | `login` | `POST api/login/login`             | `username`, `password`, `id: null` | the session cookie           |
 
-The session is a cookie, not an auth header. `MAX_HEADLESS` registers both
+The session is a cookie, not an auth header. `MAX_TRANSPORT` registers both
 paths, selects Node's own `fetch` (`nativeFetch`) and keeps the run's cookies
 (`sessionCookies`), so no browser starts. Browser options passed to
 `createScraper` are no longer supported; see the

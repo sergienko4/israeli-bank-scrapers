@@ -37,7 +37,7 @@ const YAHAV_API_DIRECT_CALL: IApiDirectCallConfig = {
   steps: YAHAV_STEPS,
 };
 
-const YAHAV_HEADLESS: ITransportConfig = {
+const YAHAV_TRANSPORT: ITransportConfig = {
   identityBase: `${YAHAV_NATIVE_ORIGIN}/`,
   // Yahav has no GraphQL; graphql names the native origin to satisfy the type.
   graphql: `${YAHAV_NATIVE_ORIGIN}/`,
@@ -52,4 +52,4 @@ const YAHAV_HEADLESS: ITransportConfig = {
 };
 
 export default YAHAV_API_DIRECT_CALL;
-export { YAHAV_API_DIRECT_CALL, YAHAV_HEADLESS };
+export { YAHAV_API_DIRECT_CALL, YAHAV_TRANSPORT };

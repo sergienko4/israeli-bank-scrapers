@@ -11,7 +11,7 @@ import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 const CAL_LOGIN_BASE = 'https://api-cc.cal-online.co.il/';
 
 /** VisaCal headless identity and login endpoints. */
-const VISACAL_HEADLESS: ITransportConfig = {
+const VISACAL_TRANSPORT: ITransportConfig = {
   identityBase: CAL_LOGIN_BASE,
   // CAL has no GraphQL; graphql mirrors identityBase to satisfy the type.
   graphql: CAL_LOGIN_BASE,
@@ -23,5 +23,5 @@ const VISACAL_HEADLESS: ITransportConfig = {
   nativeFetch: true,
 };
 
-export default VISACAL_HEADLESS;
-export { VISACAL_HEADLESS };
+export default VISACAL_TRANSPORT;
+export { VISACAL_TRANSPORT };

@@ -14,7 +14,7 @@ import type {
   IScraperScrapingResult,
   ScraperCredentials,
 } from '../../../Scrapers/Base/Interface.js';
-import { MAX_HEADLESS } from '../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigMax.js';
+import { MAX_TRANSPORT } from '../../../Scrapers/Pipeline/Registry/Config/PipelineBankConfigMax.js';
 import createScraper from '../../../Scrapers/Registry/Factory.js';
 import type { IRecordedCall } from '../Helpers/FetchMockKit.js';
 import type { MaxFault } from './MaxFetchMock.js';
@@ -55,7 +55,7 @@ const APP_HEADERS = ['urf', 'cav'];
  * @returns The URL configured for that route.
  */
 function maxAuthUrl(tag: 'auth.prime' | 'auth.login'): string {
-  const url = MAX_HEADLESS.paths[tag];
+  const url = MAX_TRANSPORT.paths[tag];
   ok(url, `Missing Max auth URL: ${tag}`);
   return url;
 }

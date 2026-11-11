@@ -31,7 +31,7 @@ is called only when the bank asks for a code.
 
 Otsar Hahayal is a brand of the Beinleumi group and logs in the way
 [Beinleumi](beinleumi.md#login) does, with no browser, on its own online
-origin. `OTSAR_HAHAYAL_API_DIRECT_CALL` and `OTSAR_HAHAYAL_HEADLESS`
+origin. `OTSAR_HAHAYAL_API_DIRECT_CALL` and `OTSAR_HAHAYAL_TRANSPORT`
 (`Registry/Config/PipelineBankConfigOtsarHahayal.ts`) are the FIBI-family login
 built for Otsar Hahayal's `IFibiBrand`:
 

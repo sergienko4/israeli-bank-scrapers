@@ -34,7 +34,7 @@ const LEUMI_API_DIRECT_CALL: IApiDirectCallConfig = {
   seedCarryFromCreds: [...LEUMI_TRANSMIT_SEEDS, ...LEUMI_PORTAL_SEEDS],
   steps: [...LEUMI_BOOTSTRAP_STEPS, ...LEUMI_TRANSMIT_STEPS, ...LEUMI_PORTAL_STEPS],
 };
-const LEUMI_HEADLESS: ITransportConfig = {
+const LEUMI_TRANSPORT: ITransportConfig = {
   identityBase: ORIGIN,
   graphql: `${ORIGIN}/`,
   paths: { ...LEUMI_BOOTSTRAP_PATHS, ...LEUMI_TRANSMIT_PATHS, ...LEUMI_PORTAL_PATHS },
@@ -50,4 +50,4 @@ const LEUMI_HEADLESS: ITransportConfig = {
   responseIntegrity: { maxBytes: 4194304 },
 };
 
-export { LEUMI_API_DIRECT_CALL, LEUMI_HEADLESS };
+export { LEUMI_API_DIRECT_CALL, LEUMI_TRANSPORT };

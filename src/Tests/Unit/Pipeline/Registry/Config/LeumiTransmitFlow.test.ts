@@ -91,7 +91,7 @@ interface IPortalModule {
 
 interface ILeumiModule {
   readonly LEUMI_API_DIRECT_CALL: IApiDirectCallConfig;
-  readonly LEUMI_HEADLESS: Exclude<
+  readonly LEUMI_TRANSPORT: Exclude<
     Parameters<typeof validateApiDirectConfig>[0]['transport'],
     false
   >;
@@ -344,7 +344,7 @@ async function runThroughPortal(peer: IPeer): Promise<{
  */
 async function portalSetup(): Promise<{
   config: IApiDirectCallConfig;
-  headless: ILeumiModule['LEUMI_HEADLESS'];
+  headless: ILeumiModule['LEUMI_TRANSPORT'];
 }> {
   const transmit = (await import(MODULE)) as ITransmitModule;
   const portal = (await import(PORTAL_MODULE)) as IPortalModule;
@@ -354,7 +354,7 @@ async function portalSetup(): Promise<{
   for (const [tag, url] of Object.entries(paths)) {
     registerWkUrl(tag as keyof typeof paths, HINT, url);
   }
-  const { LEUMI_API_DIRECT_CALL: config, LEUMI_HEADLESS: headless } = assembled;
+  const { LEUMI_API_DIRECT_CALL: config, LEUMI_TRANSPORT: headless } = assembled;
   const valid = validateApiDirectConfig({ call: config, transport: headless });
   if (!valid.success) throw new TypeError(valid.errorMessage);
   return { config, headless };

@@ -48,7 +48,7 @@ const ISSUERS: readonly IRingIssuer[] = [
   {
     bank: 'Isracard',
     module: 'PipelineBankConfigIsracard.js',
-    headlessExport: 'ISRACARD_HEADLESS',
+    headlessExport: 'ISRACARD_TRANSPORT',
     origin: 'https://ring.isracard.co.il',
     applicationId: 'mi',
     isrdomain: 'isracard',
@@ -57,7 +57,7 @@ const ISSUERS: readonly IRingIssuer[] = [
   {
     bank: 'Amex',
     module: 'PipelineBankConfigAmex.js',
-    headlessExport: 'AMEX_HEADLESS',
+    headlessExport: 'AMEX_TRANSPORT',
     origin: 'https://ring.americanexpress.co.il',
     applicationId: 'ma',
     isrdomain: 'amex',

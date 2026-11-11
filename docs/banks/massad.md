@@ -31,7 +31,7 @@ is called only when the bank asks for a code.
 
 Massad is a brand of the Beinleumi group and logs in the way
 [Beinleumi](beinleumi.md#login) does, with no browser, on its own online
-origin. `MASSAD_API_DIRECT_CALL` and `MASSAD_HEADLESS`
+origin. `MASSAD_API_DIRECT_CALL` and `MASSAD_TRANSPORT`
 (`Registry/Config/PipelineBankConfigMassad.ts`) are the FIBI-family login built
 for Massad's `IFibiBrand`:
 

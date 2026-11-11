@@ -29,7 +29,7 @@ const result = await scraper.scrape({
 Mercantile is a brand of the Discount group and logs in the way
 [Discount](discount.md#browserless-login) does, with no browser, on the
 shared `start.telebank.co.il` origin. `MERCANTILE_API_DIRECT_CALL` and
-`MERCANTILE_HEADLESS` (`Registry/Config/PipelineBankConfigMercantile.ts`) are
+`MERCANTILE_TRANSPORT` (`Registry/Config/PipelineBankConfigMercantile.ts`) are
 the Telebank family login built for Mercantile's `ITelebankBrand`:
 
 | Brand field      | Mercantile       |

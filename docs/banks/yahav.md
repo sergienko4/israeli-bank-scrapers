@@ -51,7 +51,7 @@ resumes. The issued client credentials and the token must be printable text,
 and the `mag-identifier` base64; anything else fails the step. Every call
 sends `YAHAV_NATIVE_UA`, which names this library rather than the app.
 
-`YAHAV_HEADLESS` maps each step to its path, keeps one cookie jar for
+`YAHAV_TRANSPORT` maps each step to its path, keeps one cookie jar for
 `yahav.co.il`, and presents the certificate `register` returned to the native
 origin alone (`clientCert: { mode: 'dynamic' }`) over `node:https`. No browser
 starts, and browser options passed to `createScraper` are no longer supported; see the

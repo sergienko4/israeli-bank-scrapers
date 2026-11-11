@@ -157,11 +157,11 @@ only when it looks like the OneZero Android app on **all three** of the
 following. Miss any one and the edge answers `403` with a Cloudflare
 "Attention Required" block page:
 
-| Requirement        | What the scraper sends                                                                         | Where it lives                                                                                       |
-| ------------------ | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Client certificate | The app-level OneZero certificate (mutual TLS) — see [Client certificate](#client-certificate) | `src/Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.ts`                                     |
-| TLS fingerprint    | A ClientHello matching the app's OkHttp stack on Android 11 (`android-11-okhttp`)              | `src/Scrapers/Pipeline/Strategy/Fetch/Tls/TlsClientProfiles.ts`                                      |
-| User-Agent         | The app's User-Agent, on identity **and** GraphQL calls                                        | `ONEZERO_USER_AGENT` in `src/Scrapers/Pipeline/Registry/Config/PipelineBankConfigOneZeroHeadless.ts` |
+| Requirement        | What the scraper sends                                                                         | Where it lives                                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Client certificate | The app-level OneZero certificate (mutual TLS) — see [Client certificate](#client-certificate) | `src/Scrapers/Pipeline/Strategy/Fetch/Mtls/OneZeroClientCert.ts`                                      |
+| TLS fingerprint    | A ClientHello matching the app's OkHttp stack on Android 11 (`android-11-okhttp`)              | `src/Scrapers/Pipeline/Strategy/Fetch/Tls/TlsClientProfiles.ts`                                       |
+| User-Agent         | The app's User-Agent, on identity **and** GraphQL calls                                        | `ONEZERO_USER_AGENT` in `src/Scrapers/Pipeline/Registry/Config/PipelineBankConfigOneZeroTransport.ts` |
 
 The fingerprint is a property of the TLS handshake itself — cipher and
 signature-algorithm order, curves, extensions — so no header, cookie or

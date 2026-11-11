@@ -36,7 +36,7 @@ online-banking host `mto.mizrahi-tefahot.co.il`. `MIZRAHI_API_DIRECT_CALL`
 | `landing`   | `GET mto/Online/Default.aspx?language=he-IL` | —                                                                 | the online-banking session cookies                               |
 | `logon`     | `POST mto/Online/api/SkyBL/logon`            | the app's fixed metadata                                          | `xsrfToken`, the account list and the `skyserid` response header |
 
-The session is cookies, not an auth header. `MIZRAHI_HEADLESS` registers the
+The session is cookies, not an auth header. `MIZRAHI_TRANSPORT` registers the
 four paths, selects Node's own `fetch` (`nativeFetch`) and keeps one cookie jar
 for both hosts (`sessionCookies`, `cookieDomains`): a cookie set for the parent
 domain reaches each host, a host-only cookie stays on its host. No browser
@@ -60,7 +60,7 @@ for `logon` and every data call.
 run as `INVALID_PASSWORD`, `4` as `CHANGE_PASSWORD`, `5` as `ACCOUNT_BLOCKED`,
 and any other value as `GENERIC` (`login outcome unmapped`). The config sets
 `omitBankText`, so a `logon` reply without `xsrfToken` fails as `GENERIC`
-naming the missing field only. `MIZRAHI_HEADLESS` carries the same omission
+naming the missing field only. `MIZRAHI_TRANSPORT` carries the same omission
 policy into the native transport: HTTP failures from `changeAccount` and
 `get428Index` keep their status but never quote bank response text. WAF
 classification and its fixed reasons are preserved. Login diagnostics record

@@ -19,7 +19,7 @@ const BEINLEUMI_BRAND: IFibiBrand = {
 
 const BEINLEUMI_API_DIRECT_CALL: IApiDirectCallConfig = buildFibiApiDirectCall(BEINLEUMI_BRAND);
 
-const BEINLEUMI_HEADLESS: ITransportConfig = buildFibiHeadless(BEINLEUMI_BRAND);
+const BEINLEUMI_TRANSPORT: ITransportConfig = buildFibiHeadless(BEINLEUMI_BRAND);
 
 export default BEINLEUMI_API_DIRECT_CALL;
-export { BEINLEUMI_API_DIRECT_CALL, BEINLEUMI_HEADLESS };
+export { BEINLEUMI_API_DIRECT_CALL, BEINLEUMI_TRANSPORT };

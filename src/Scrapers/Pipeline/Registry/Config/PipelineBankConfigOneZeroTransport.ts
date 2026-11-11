@@ -22,7 +22,7 @@ import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 const ONEZERO_USER_AGENT = 'ONEZEROIL/4.7.0(564) Lokalize/0 (Android 11 ; Pixel 3) MTLS';
 
 /** OneZero headless identity, GraphQL and auth endpoints plus transport identity. */
-const ONEZERO_HEADLESS: ITransportConfig = {
+const ONEZERO_TRANSPORT: ITransportConfig = {
   identityBase: 'https://identity.tfd-bank.com/v1/',
   graphql: 'https://mobile.tfd-bank.com/mobile-graph/graphql',
   paths: {
@@ -38,5 +38,5 @@ const ONEZERO_HEADLESS: ITransportConfig = {
   phoneNumberFormat: 'international-plus',
 };
 
-export default ONEZERO_HEADLESS;
-export { ONEZERO_HEADLESS, ONEZERO_USER_AGENT };
+export default ONEZERO_TRANSPORT;
+export { ONEZERO_TRANSPORT, ONEZERO_USER_AGENT };

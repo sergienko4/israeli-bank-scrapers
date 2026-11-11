@@ -50,7 +50,7 @@ const BEINLEUMI: IGroupBank = {
   companyId: CompanyTypes.Beinleumi,
   site: 'https://www.fibi.co.il',
   module: 'PipelineBankConfigBeinleumi.js',
-  headlessExport: 'BEINLEUMI_HEADLESS',
+  headlessExport: 'BEINLEUMI_TRANSPORT',
   brand: {
     host: 'online.fibi.co.il',
     portalId: 'FIBIPORTAL',
@@ -65,7 +65,7 @@ const SIBLINGS: readonly IGroupBank[] = [
     companyId: CompanyTypes.Massad,
     site: 'https://www.bankmassad.co.il',
     module: 'PipelineBankConfigMassad.js',
-    headlessExport: 'MASSAD_HEADLESS',
+    headlessExport: 'MASSAD_TRANSPORT',
     brand: {
       host: 'online.bankmassad.co.il',
       portalId: 'MASADPRTAL',
@@ -78,7 +78,7 @@ const SIBLINGS: readonly IGroupBank[] = [
     companyId: CompanyTypes.OtsarHahayal,
     site: 'https://www.bankotsar.co.il',
     module: 'PipelineBankConfigOtsarHahayal.js',
-    headlessExport: 'OTSAR_HAHAYAL_HEADLESS',
+    headlessExport: 'OTSAR_HAHAYAL_TRANSPORT',
     brand: {
       host: 'online.bankotsar.co.il',
       portalId: 'OTSARPRTAL',
@@ -91,7 +91,7 @@ const SIBLINGS: readonly IGroupBank[] = [
     companyId: CompanyTypes.Pagi,
     site: 'https://www.pagi.co.il',
     module: 'PipelineBankConfigPagi.js',
-    headlessExport: 'PAGI_HEADLESS',
+    headlessExport: 'PAGI_TRANSPORT',
     brand: {
       host: 'online.pagi.co.il',
       portalId: 'PAGIPORTAL',

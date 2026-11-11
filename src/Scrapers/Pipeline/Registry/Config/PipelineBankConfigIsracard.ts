@@ -11,7 +11,7 @@ import { ISRACARD_RING } from './PipelineBankConfigRingConstants.js';
 const ISRACARD_API_DIRECT_CALL = buildRingApiDirectCall(ISRACARD_RING);
 
 /** Isracard headless endpoints. */
-const ISRACARD_HEADLESS = buildRingHeadless(ISRACARD_RING);
+const ISRACARD_TRANSPORT = buildRingHeadless(ISRACARD_RING);
 
 export default ISRACARD_API_DIRECT_CALL;
-export { ISRACARD_API_DIRECT_CALL, ISRACARD_HEADLESS };
+export { ISRACARD_API_DIRECT_CALL, ISRACARD_TRANSPORT };
