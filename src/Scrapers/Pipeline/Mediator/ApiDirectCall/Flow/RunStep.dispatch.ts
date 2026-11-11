@@ -9,24 +9,24 @@ import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk, succeed } from '../../../Types/Procedure.js';
 import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
-import { answerSlots } from './RunStep.answerSlots.js';
-import { deriveStepCarry } from './RunStep.derive.js';
-import { ruleStepCarry } from './RunStep.extractRules.js';
-import { sanitiseStepFailure } from './RunStep.failure.js';
-import { fireStep } from './RunStep.fire.js';
-import { judgeAnswer } from './RunStep.judge.js';
-import { extractOptional } from './RunStep.optional.js';
-import { buildDispatchBundle, mergeScopeCarry } from './RunStep.prepare.js';
-import { prepareStepSession } from './RunStep.session.js';
+import { openGuardedAnswer } from './Signing/RunStep.codec.js';
+import { answerSlots } from './Steps/RunStep.answerSlots.js';
+import { deriveStepCarry } from './Steps/RunStep.derive.js';
+import { ruleStepCarry } from './Steps/RunStep.extractRules.js';
+import { sanitiseStepFailure } from './Steps/RunStep.failure.js';
+import { fireStep } from './Steps/RunStep.fire.js';
+import { judgeAnswer } from './Steps/RunStep.judge.js';
+import { extractOptional } from './Steps/RunStep.optional.js';
+import { buildDispatchBundle, mergeScopeCarry } from './Steps/RunStep.prepare.js';
+import { prepareStepSession } from './Steps/RunStep.session.js';
 import type {
   CarryMap,
   IDispatchBundle,
   IRespDescriptor,
   IRunStepArgs,
   JsonValue,
-} from './RunStep.types.js';
-import { resolvePathAndQuery } from './RunStep.url.js';
-import { openGuardedAnswer } from './Signing/RunStep.codec.js';
+} from './Steps/RunStep.types.js';
+import { resolvePathAndQuery } from './Steps/RunStep.url.js';
 
 const LOG = getDebug(import.meta.url);
 

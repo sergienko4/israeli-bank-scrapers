@@ -9,9 +9,9 @@ import type {
   IApiDirectCallConfig,
   IGetStep,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { attachHeaderCapture } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.headerCarry.js';
 import { runStep } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.js';
-import type { IFireArgs } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.types.js';
+import { attachHeaderCapture } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.headerCarry.js';
+import type { IFireArgs } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.types.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { HeaderPair } from '../../../../../Helpers/NativeStepHarness.js';

@@ -7,15 +7,15 @@
  * duplicate branches downstream.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { JsonValueTemplate } from '../ConfigContracts/index.js';
-import type { IGenericKeypair } from '../Crypto/CryptoKeyFactory.js';
-import { buildCanonical } from '../Crypto/GenericCanonicalStringBuilder.js';
-import { signCanonical } from '../Crypto/GenericCryptoSigner.js';
-import { hydrate } from '../Template/GenericBodyTemplate.js';
-import type { ITemplateScope } from '../Template/RefResolver.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
+import type { JsonValueTemplate } from '../../ConfigContracts/index.js';
+import type { IGenericKeypair } from '../../Crypto/CryptoKeyFactory.js';
+import { buildCanonical } from '../../Crypto/GenericCanonicalStringBuilder.js';
+import { signCanonical } from '../../Crypto/GenericCryptoSigner.js';
+import { hydrate } from '../../Template/GenericBodyTemplate.js';
+import type { ITemplateScope } from '../../Template/RefResolver.js';
 import type {
   HeaderMap,
   IAttachSignerArgs,

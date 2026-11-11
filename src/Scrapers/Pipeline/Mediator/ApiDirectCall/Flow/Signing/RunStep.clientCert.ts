@@ -15,7 +15,7 @@ import type { IProcedureFailure, Procedure } from '../../../../Types/Procedure.j
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IStepClientCert } from '../../ConfigContracts/index.js';
 import { type ITemplateScope, resolveRefText } from '../../Template/RefResolver.js';
-import type { IRunStepArgs, IStepConfig } from '../RunStep.types.js';
+import type { IRunStepArgs, IStepConfig } from '../Steps/RunStep.types.js';
 
 const UNSUPPORTED = 'client certificate unsupported';
 const INVALID = 'client certificate invalid';

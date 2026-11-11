@@ -14,7 +14,7 @@ import type {
   IStepConfig,
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { runSmsOtpFlow } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Lifecycle/SmsOtpFlow.js';
-import { applyExtractRules } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.extractRules.js';
+import { applyExtractRules } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.extractRules.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { JsonValue } from '../../../../../../Scrapers/Pipeline/Types/JsonValue.js';

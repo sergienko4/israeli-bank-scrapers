@@ -13,7 +13,7 @@ import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
 import type { IProcedureFailure, Procedure } from '../../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IStepConfig, ITextCapture } from '../../ConfigContracts/index.js';
-import type { CarryMap, JsonValue } from '../RunStep.types.js';
+import type { CarryMap, JsonValue } from '../Steps/RunStep.types.js';
 
 /** One capture: its carry slot and its pattern. */
 type CaptureEntry = readonly [string, ITextCapture];

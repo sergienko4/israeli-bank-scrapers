@@ -8,7 +8,7 @@ import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IStepConfig, StructuredCapture } from '../../ConfigContracts/index.js';
 import { captureScriptJson } from '../../Parsing/ScriptJsonCapture.js';
 import { captureSdkReference } from '../../Parsing/SdkReference.js';
-import type { CarryMap, IRunStepArgs, JsonValue } from '../RunStep.types.js';
+import type { CarryMap, IRunStepArgs, JsonValue } from '../Steps/RunStep.types.js';
 import { answerText } from './RunStep.textCapture.js';
 
 /** Captures read from an HTML answer. */

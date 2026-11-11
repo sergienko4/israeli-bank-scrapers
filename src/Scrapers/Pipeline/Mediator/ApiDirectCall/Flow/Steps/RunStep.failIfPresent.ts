@@ -8,12 +8,12 @@
  * bank's value; the envelope codec fails a bank `error_code` the same way.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { IProcedureFailure, Procedure } from '../../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { IStepConfig } from '../ConfigContracts/index.js';
-import type { JsonValue } from '../Envelope/JsonPointer.js';
-import { walkPointer } from '../Envelope/JsonPointer.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import type { IProcedureFailure, Procedure } from '../../../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
+import type { IStepConfig } from '../../ConfigContracts/index.js';
+import type { JsonValue } from '../../Envelope/JsonPointer.js';
+import { walkPointer } from '../../Envelope/JsonPointer.js';
 
 /**
  * Whether a body value reports an error.

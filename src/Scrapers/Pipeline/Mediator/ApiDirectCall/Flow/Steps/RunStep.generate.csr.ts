@@ -7,16 +7,16 @@
  * `<step> generate pkcs10-csr failed`.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { ICsrSubjectEntry, IPkcs10CsrGenerator } from '../ConfigContracts/index.js';
-import { buildCsr, type ICsrBuildInput } from '../Crypto/CsrBuilder.js';
-import type { ICsrSubjectValue } from '../Crypto/CsrSubject.js';
-import type { GeneratedCarry } from '../Crypto/RsaKeyGenerator.js';
-import type { JsonValue } from '../Envelope/JsonPointer.js';
-import { hydrate } from '../Template/GenericBodyTemplate.js';
-import { type ITemplateScope, resolveRef } from '../Template/RefResolver.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
+import type { ICsrSubjectEntry, IPkcs10CsrGenerator } from '../../ConfigContracts/index.js';
+import { buildCsr, type ICsrBuildInput } from '../../Crypto/CsrBuilder.js';
+import type { ICsrSubjectValue } from '../../Crypto/CsrSubject.js';
+import type { GeneratedCarry } from '../../Crypto/RsaKeyGenerator.js';
+import type { JsonValue } from '../../Envelope/JsonPointer.js';
+import { hydrate } from '../../Template/GenericBodyTemplate.js';
+import { type ITemplateScope, resolveRef } from '../../Template/RefResolver.js';
 
 /** Failure for a key or subject value that is not text — names no value. */
 const NOT_TEXT = 'pkcs10-csr input is not text';

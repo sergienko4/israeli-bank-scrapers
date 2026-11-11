@@ -9,8 +9,8 @@ OTP challenge or a locked account, all with HTTP 200. A step that declares
 `classify` (an `IAnswerClassifier`) names those shapes as cases. The step's
 opened answer is classified after its [bank-error guard](errors.md#bank-error-guard)
 and its [outcome](errors.md#step-outcome), and before its extracts run. `judgeAnswer`
-(in `Flow/RunStep.judge.ts`) runs `judgeStepOutcome`, then `classifyAnswer`
-(in `Flow/RunStep.classify.ts`):
+(in `Flow/Steps/RunStep.judge.ts`) runs `judgeStepOutcome`, then `classifyAnswer`
+(in `Flow/Steps/RunStep.classify.ts`):
 
 ```ts
 classify: {
@@ -41,7 +41,7 @@ captures. The classifier's slots are merged over the step's extract slots,
 though the build refuses a slot that both write on one step.
 
 A check's `pointer` is an `AnswerPointer`: one JSON pointer, or alternatives of
-which `resolveFirst` (in `Flow/RunStep.classify.checks.ts`) reads the first
+which `resolveFirst` (in `Flow/Steps/RunStep.classify.checks.ts`) reads the first
 that resolves. `passesCheck` then applies the check's one kind:
 
 | Kind           | Passes when the value                                          |
@@ -79,7 +79,7 @@ capture's `maxChars`. A capture whose pointer misses fails `Generic` with
 An unrecognized or ambiguous answer is logged at debug level with the step
 name, the matched case names and the answer's redacted shape, never a value
 or a bank-supplied key name. `answerShape` (in
-`Flow/RunStep.classify.shape.ts`) builds it: a scalar becomes its JSON type,
+`Flow/Steps/RunStep.classify.shape.ts`) builds it: a scalar becomes its JSON type,
 an object's keys become anonymous `<key:i>` positions, and an array keeps its
 items' shapes. Six levels are walked; a deeper container prints as
 `object(n)` or `array(n)`. At most 64 entries (keys and items) are shown in
@@ -105,7 +105,7 @@ check its body, header and text-capture slots before they reach carry.
 `extractRules` maps a slot of `extractsToCarry`, `optionalExtractsToCarry`,
 `headerExtractsToCarry` or `textCaptures` to an `IExtractRule`. Once the
 step's carry is read,
-`ruleStepCarry` (in `Flow/RunStep.extractRules.ts`) resolves the step's URL
+`ruleStepCarry` (in `Flow/Steps/RunStep.extractRules.ts`) resolves the step's URL
 and `applyExtractRules` checks each ruled slot:
 
 ```ts
@@ -139,7 +139,7 @@ extractRules: {
 - A string always runs the text checks. A finite number runs them, stringified,
   only when the rule sets one; any other value under a text check is refused.
   The type checks (`isTypeSound`, `isFiniteNumber`) live in
-  `Flow/RunStep.extractTypes.ts`.
+  `Flow/Steps/RunStep.extractTypes.ts`.
 - An optional slot whose pointer is unresolved, `null` or blank skips its
   rule only if neither a fallback nor its step's pre-hook wrote the slot.
   Those values are checked before they are carried. A present nonblank

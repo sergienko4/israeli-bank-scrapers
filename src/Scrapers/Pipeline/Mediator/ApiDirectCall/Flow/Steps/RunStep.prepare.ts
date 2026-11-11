@@ -4,15 +4,22 @@
  * envelope seal, fire-args assembly, log-context.
  */
 
-import { getDebug } from '../../../Logging/Debug.js';
-import type { WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
-import type { IFetchCallPolicy } from '../../../Types/Domain/FetchPolicy.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { isOk, succeed } from '../../../Types/Procedure.js';
-import type { IBodyTemplate } from '../ConfigContracts/index.js';
-import { isJsonRecord } from '../Crypto/EnvelopeWire.js';
-import { hydrate } from '../Template/GenericBodyTemplate.js';
-import type { ITemplateScope } from '../Template/RefResolver.js';
+import { getDebug } from '../../../../Logging/Debug.js';
+import type { WKUrlOrLiteral } from '../../../../Registry/WK/UrlsWK.js';
+import type { IFetchCallPolicy } from '../../../../Types/Domain/FetchPolicy.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { isOk, succeed } from '../../../../Types/Procedure.js';
+import type { IBodyTemplate } from '../../ConfigContracts/index.js';
+import { isJsonRecord } from '../../Crypto/EnvelopeWire.js';
+import { hydrate } from '../../Template/GenericBodyTemplate.js';
+import type { ITemplateScope } from '../../Template/RefResolver.js';
+import { sealGuardedBody } from '../Signing/RunStep.codec.js';
+import { applySeal } from '../Signing/RunStep.seal.js';
+import {
+  applyCryptoField,
+  attachBodySignature,
+  primeStepCarry,
+} from '../Signing/RunStepBodySigning.js';
 import buildOnSetCookie from './RunStep.cookies.js';
 import { attachHeaderCapture } from './RunStep.headerCarry.js';
 import { buildStepHeaders } from './RunStep.headers.js';
@@ -32,13 +39,6 @@ import type {
   OnSetCookie,
   QueryRecord,
 } from './RunStep.types.js';
-import { sealGuardedBody } from './Signing/RunStep.codec.js';
-import { applySeal } from './Signing/RunStep.seal.js';
-import {
-  applyCryptoField,
-  attachBodySignature,
-  primeStepCarry,
-} from './Signing/RunStepBodySigning.js';
 
 const LOG = getDebug(import.meta.url);
 

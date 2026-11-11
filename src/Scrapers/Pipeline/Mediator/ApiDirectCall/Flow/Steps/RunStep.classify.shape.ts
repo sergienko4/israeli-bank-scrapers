@@ -11,8 +11,8 @@
  * Zero bank knowledge. Rule #11 compliant.
  */
 
-import type { IJsonObject, JsonArray } from '../Envelope/JsonPointer.js';
-import { isPlainObject } from '../Envelope/JsonPointer.js';
+import type { IJsonObject, JsonArray } from '../../Envelope/JsonPointer.js';
+import { isPlainObject } from '../../Envelope/JsonPointer.js';
 import type { JsonValue } from './RunStep.types.js';
 
 /** Containers walked from the root down. */

@@ -14,8 +14,8 @@ import type { IProcedureFailure, Procedure } from '../../../../Types/Procedure.j
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IAnswerCapture, IAnswerCase, IAnswerRange } from '../../ConfigContracts/index.js';
 import { isPlainObject } from '../../Envelope/JsonPointer.js';
-import { isSafeText, resolveFirst } from '../RunStep.classify.checks.js';
-import type { CarryMap, JsonValue } from '../RunStep.types.js';
+import { isSafeText, resolveFirst } from '../Steps/RunStep.classify.checks.js';
+import type { CarryMap, JsonValue } from '../Steps/RunStep.types.js';
 
 /** One capture: its carry slot and its config. */
 type CaptureEntry = readonly [string, IAnswerCapture];

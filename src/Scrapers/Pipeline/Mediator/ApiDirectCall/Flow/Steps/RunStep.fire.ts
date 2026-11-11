@@ -5,9 +5,9 @@
  * the Set-Cookie sink.
  */
 
-import type { WKUrlOrLiteral } from '../../../Registry/WK/UrlsWK.js';
-import type { IApiQueryOpts } from '../../../Types/Domain/ApiQueryOpts.js';
-import type { StepMethod } from '../ConfigContracts/index.js';
+import type { WKUrlOrLiteral } from '../../../../Registry/WK/UrlsWK.js';
+import type { IApiQueryOpts } from '../../../../Types/Domain/ApiQueryOpts.js';
+import type { StepMethod } from '../../ConfigContracts/index.js';
 import type { IFireArgs, IRunStepArgs, JsonValue, Procedure } from './RunStep.types.js';
 
 /** Sends one prepared step to its bus target and returns its parsed response. */

@@ -13,7 +13,7 @@ import { planSeal } from '../../Crypto/SealKinds.js';
 import type { ISealedWrite, SealRef, SealRefText } from '../../Crypto/SealPlan.js';
 import { type JsonValue, walkPointer } from '../../Envelope/JsonPointer.js';
 import { type ITemplateScope, resolveRefText } from '../../Template/RefResolver.js';
-import type { IPreparedBody, IStepConfig } from '../RunStep.types.js';
+import type { IPreparedBody, IStepConfig } from '../Steps/RunStep.types.js';
 import { isRecordValue } from '../WarmTokenParts.js';
 import { writeAtPointer } from './RunStepBodySigning.pointer.js';
 

@@ -13,8 +13,8 @@ import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { IEnvelopeSession } from '../../Crypto/EnvelopeCodec.js';
 import { openEnvelope } from '../../Crypto/EnvelopeCodec.open.js';
 import { isJsonRecord } from '../../Crypto/EnvelopeWire.js';
-import { bankErrorOf } from '../RunStep.failIfPresent.js';
-import type { IDispatchBundle, IStepConfig } from '../RunStep.types.js';
+import { bankErrorOf } from '../Steps/RunStep.failIfPresent.js';
+import type { IDispatchBundle, IStepConfig } from '../Steps/RunStep.types.js';
 
 const LOG = getDebug(import.meta.url);
 

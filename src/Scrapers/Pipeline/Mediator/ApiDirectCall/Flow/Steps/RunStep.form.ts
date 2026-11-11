@@ -5,11 +5,11 @@
  * names no value.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { isFlatFormBody } from '../../../Strategy/Fetch/PostBody.js';
-import { FORM_BODY_ENCODINGS } from '../../../Types/Domain/FetchPolicy.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, succeed } from '../../../Types/Procedure.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import { isFlatFormBody } from '../../../../Strategy/Fetch/PostBody.js';
+import { FORM_BODY_ENCODINGS } from '../../../../Types/Domain/FetchPolicy.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { fail, succeed } from '../../../../Types/Procedure.js';
 import type { IPreparedBody, IStepConfig } from './RunStep.types.js';
 
 /**

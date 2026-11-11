@@ -25,8 +25,8 @@ import type { IProcedureFailure, Procedure } from '../../../../Types/Procedure.j
 import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import type { JsonValue } from '../../Envelope/JsonPointer.js';
 import { type ITemplateScope, resolveRef } from '../../Template/RefResolver.js';
-import { clientCookieOf, cookieRefOf } from '../RunStep.clientCookies.js';
-import { stepBaseUrlOf } from '../RunStep.stepUrl.js';
+import { clientCookieOf, cookieRefOf } from '../Steps/RunStep.clientCookies.js';
+import { stepBaseUrlOf } from '../Steps/RunStep.stepUrl.js';
 import { applyPreHook } from './SmsOtpFlow.prehook.js';
 import type { IPreHookGuardArgs } from './SmsOtpFlow.types.js';
 

@@ -4,7 +4,7 @@
  * (a non-null, non-array object) or a list. `null` is no type.
  */
 
-import type { ExtractValueType, IExtractRule } from '../ConfigContracts/index.js';
+import type { ExtractValueType, IExtractRule } from '../../ConfigContracts/index.js';
 import type { JsonValue } from './RunStep.types.js';
 
 /** Whether a raw value has a demanded JSON type. */

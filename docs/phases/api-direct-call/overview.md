@@ -30,7 +30,7 @@ POSTs and type-check unchanged.
 A GET skips body hydration, the `cryptoField` hook and the AES body
 signature. It keeps the query template, the headers, the cookie jar and the
 extracts. `fireStep`
-(`src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.fire.ts`) picks
+(`src/Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.fire.ts`) picks
 the bus call by method, so a GET goes through `apiGet` with the query, headers
 and Set-Cookie sink that a POST hands to `apiPost`. A config-level signature
 header, when one is set, signs the empty body `{}`. On the native

@@ -6,10 +6,10 @@
  * a different answer is logged by step and slot, never by value.
  */
 
-import { getDebug } from '../../../Logging/Debug.js';
-import { isOk } from '../../../Types/Procedure.js';
-import type { IOptionalExtract, IStepConfig } from '../ConfigContracts/index.js';
-import { walkPointer } from '../Envelope/JsonPointer.js';
+import { getDebug } from '../../../../Logging/Debug.js';
+import { isOk } from '../../../../Types/Procedure.js';
+import type { IOptionalExtract, IStepConfig } from '../../ConfigContracts/index.js';
+import { walkPointer } from '../../Envelope/JsonPointer.js';
 import type { CarryMap, JsonValue } from './RunStep.types.js';
 
 const LOG = getDebug(import.meta.url);

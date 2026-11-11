@@ -8,8 +8,8 @@ import type {
   IPostStep,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { JsonValue } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Envelope/JsonPointer.js';
-import { classifyAnswer } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.classify.js';
-import { guardBankError } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.failIfPresent.js';
+import { classifyAnswer } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.classify.js';
+import { guardBankError } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.failIfPresent.js';
 import { hydrate } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/GenericBodyTemplate.js';
 
 const MODULE =

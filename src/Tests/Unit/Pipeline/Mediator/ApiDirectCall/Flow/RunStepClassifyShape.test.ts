@@ -4,8 +4,8 @@
  * at most 6 levels are walked, and at most 64 entries are shown in all.
  */
 
-import { answerShape } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.classify.shape.js';
-import type { JsonValue } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.types.js';
+import { answerShape } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.classify.shape.js';
+import type { JsonValue } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Steps/RunStep.types.js';
 
 /**
  * Nest a leaf under `levels` objects, each holding the given key.
