@@ -55,7 +55,7 @@ import { parse } from 'yaml';
 
 const THIS_FILE_PATH = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE_PATH);
-const REPO_ROOT = join(THIS_DIR, '../../../../../');
+const REPO_ROOT = join(THIS_DIR, '../../../');
 const RENOVATE_JSON = join(REPO_ROOT, 'renovate.json');
 const NVMRC = join(REPO_ROOT, '.nvmrc');
 const DETECTOR = join(REPO_ROOT, '.github/scripts/ci/detect-changes.sh');
@@ -399,7 +399,7 @@ function sameRepoPr(login: string, ref: string): IBotPrPayload {
 /**
  * Parse a committed workflow file.
  *
- * <p>The cast matches the sibling CrossValidation gates. A document that is
+ * <p>The cast matches the sibling Policy gates. A document that is
  * not a mapping either throws on first access or yields no jobs, so every
  * assertion below fails rather than passes.
  *

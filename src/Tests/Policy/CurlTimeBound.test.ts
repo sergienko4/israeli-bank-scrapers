@@ -15,13 +15,8 @@
 
 import { parse } from 'yaml';
 
-import {
-  curlCallsIn,
-  logicalLines,
-  TOTAL_BOUND,
-  unboundedCalls,
-} from '../../../Helpers/CurlCalls.js';
-import { readRepoFile, trackedFiles } from '../../../Helpers/RepoFiles.js';
+import { curlCallsIn, logicalLines, TOTAL_BOUND, unboundedCalls } from '../Helpers/CurlCalls.js';
+import { readRepoFile, trackedFiles } from '../Helpers/RepoFiles.js';
 
 /** The bound every call must set. */
 const BOUNDS: readonly RegExp[] = [TOTAL_BOUND];

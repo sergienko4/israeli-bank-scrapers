@@ -16,13 +16,10 @@
  * group order.
  */
 
-import {
-  matchesPattern,
-  TOOLING_GROUP,
-} from '../../../../../scripts/dev-tooling/tooling-group.mjs';
-import type { IDependabotGroup } from '../../../Helpers/DependabotConfig.js';
-import { npmGroupMap } from '../../../Helpers/DependabotConfig.js';
-import { readRepoFile, trackedFiles } from '../../../Helpers/RepoFiles.js';
+import { matchesPattern, TOOLING_GROUP } from '../../../scripts/dev-tooling/tooling-group.mjs';
+import type { IDependabotGroup } from '../Helpers/DependabotConfig.js';
+import { npmGroupMap } from '../Helpers/DependabotConfig.js';
+import { readRepoFile, trackedFiles } from '../Helpers/RepoFiles.js';
 
 /** Update types the group takes; a major still gets a pull request of its own. */
 const TOOLING_UPDATE_TYPES = ['minor', 'patch'];

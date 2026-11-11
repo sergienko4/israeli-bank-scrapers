@@ -14,7 +14,7 @@ interface ISmoke {
 }
 
 const SMOKE = createRequire(import.meta.url)(
-  '../../../../../.github/scripts/ci/consumer-smoke.cjs',
+  '../../../.github/scripts/ci/consumer-smoke.cjs',
 ) as ISmoke;
 const PRIME_URL = 'https://hb2.bankleumi.co.il/H/Login.html';
 

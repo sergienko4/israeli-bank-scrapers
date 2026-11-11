@@ -24,7 +24,7 @@ import { parse } from 'yaml';
 const THIS_FILE_URL = import.meta.url;
 const THIS_FILE_PATH = fileURLToPath(THIS_FILE_URL);
 const THIS_DIR = dirname(THIS_FILE_PATH);
-const REPO_ROOT = join(THIS_DIR, '../../../../../');
+const REPO_ROOT = join(THIS_DIR, '../../../');
 const PR_YAML = join(REPO_ROOT, '.github/workflows/pr.yml');
 const E2E_REAL_DIR = join(REPO_ROOT, 'src/Tests/E2eReal');
 

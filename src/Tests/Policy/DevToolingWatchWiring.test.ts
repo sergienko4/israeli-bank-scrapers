@@ -45,10 +45,10 @@ import { join } from 'node:path';
 
 import { parse } from 'yaml';
 
-import { PROBE_BUDGET_MS } from '../../../../../scripts/dev-tooling/watch.mjs';
-import { canRunPosixBash } from '../../../Helpers/HostCapabilities.js';
-import { readRepoFile, trackedFiles } from '../../../Helpers/RepoFiles.js';
-import { createTempRepo, writeTempFile } from '../../../Helpers/TempRepoTree.js';
+import { PROBE_BUDGET_MS } from '../../../scripts/dev-tooling/watch.mjs';
+import { canRunPosixBash } from '../Helpers/HostCapabilities.js';
+import { readRepoFile, trackedFiles } from '../Helpers/RepoFiles.js';
+import { createTempRepo, writeTempFile } from '../Helpers/TempRepoTree.js';
 
 const WORKFLOW_FILE = '.github/workflows/dev-tooling-watch.yml';
 const ENTRY = 'scripts/dev-tooling-watch.mjs';

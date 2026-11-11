@@ -23,11 +23,11 @@ import { fileURLToPath } from 'node:url';
 
 import { parse } from 'yaml';
 
-import gateTrigger from '../../../Helpers/StaticGateGuard.js';
+import gateTrigger from '../Helpers/StaticGateGuard.js';
 
 const THIS_FILE_PATH = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE_PATH);
-const REPO_ROOT = join(THIS_DIR, '../../../../../');
+const REPO_ROOT = join(THIS_DIR, '../../../');
 const PR_YAML = join(REPO_ROOT, '.github/workflows/pr.yml');
 const DETECTOR = join(REPO_ROOT, '.github/scripts/ci/detect-changes.sh');
 

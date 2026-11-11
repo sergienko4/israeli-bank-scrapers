@@ -22,10 +22,10 @@ source-files:
   - .github/scripts/ci/detect-changes.sh
   - docker/Dockerfile.ci-mirror
   - .github/workflows/pr-body-check.yml
-  - src/Tests/Unit/Pipeline/CrossValidation/DependabotSecurityGrouping.test.ts
-  - src/Tests/Unit/Pipeline/CrossValidation/RenovateLockfileMaintenancePolicy.test.ts
+  - src/Tests/Policy/DependabotSecurityGrouping.test.ts
+  - src/Tests/Policy/RenovateLockfileMaintenancePolicy.test.ts
   - .github/scripts/ci/docs-staleness-bot-skip.cjs
-  - src/Tests/Unit/Pipeline/CrossValidation/DocsStalenessGate.test.ts
+  - src/Tests/Policy/DocsStalenessGate.test.ts
   - .github/workflows/pr.yml
 ---
 
@@ -464,7 +464,7 @@ bump that fails CI holds back the rest. To unblock it, open a separate pull
 request that bumps the failing package. Once that merges, Dependabot rebases
 the group without it ([GitHub's recovery steps][grouped-security-errors]). Do
 not narrow the group instead.
-`src/Tests/Unit/Pipeline/CrossValidation/DependabotSecurityGrouping.test.ts`
+`src/Tests/Policy/DependabotSecurityGrouping.test.ts`
 fails if the group is removed, renamed, or narrowed (`exclude-patterns`,
 `dependency-type`, `update-types`). It also fails if another npm group is
 scoped to anything but version updates. Only a missing `applies-to` defaults
@@ -530,7 +530,7 @@ To roll back: switch the app to Silent (or uninstall it), close the open pull
 request and delete its `renovate/lock-file-maintenance` branch, then revert the
 commit that added `renovate.json`. Confirm no onboarding pull request appears.
 
-`src/Tests/Unit/Pipeline/CrossValidation/RenovateLockfileMaintenancePolicy.test.ts`
+`src/Tests/Policy/RenovateLockfileMaintenancePolicy.test.ts`
 fails if `renovate.json` enables another update type, if `packageRules`
 drifts from the exact catch-all and update-type pair, if the cooldown or the
 schedule is dropped, if automerge is turned on, or if either bot exemption

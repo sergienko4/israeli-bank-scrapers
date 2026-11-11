@@ -44,7 +44,7 @@ import { parse } from 'yaml';
 
 const THIS_FILE_PATH = fileURLToPath(import.meta.url);
 const THIS_DIR = dirname(THIS_FILE_PATH);
-const REPO_ROOT = join(THIS_DIR, '../../../../../');
+const REPO_ROOT = join(THIS_DIR, '../../../');
 const SECURITY_YAML = join(REPO_ROOT, '.github/workflows/workflow-security.yml');
 /** Repo-relative path of the Scorecard workflow, as code scanning sees it. */
 const SCORECARD_WORKFLOW = '.github/workflows/scorecard.yml';

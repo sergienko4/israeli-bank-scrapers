@@ -47,7 +47,7 @@ and every inert bump in it waited for a code fix. In `lint-tooling` such a
 release gets a pull request of its own, and the other dev bumps go green
 without it.
 
-`src/Tests/Unit/Pipeline/CrossValidation/DependabotToolingGrouping.test.ts`
+`src/Tests/Policy/DependabotToolingGrouping.test.ts`
 reads the lint packages from the repository: every dev dependency the ESLint
 config tree imports, plus ESLint, Prettier and Biome. It fails when
 one of them is not in `lint-tooling`, or is also taken by another

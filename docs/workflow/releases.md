@@ -23,10 +23,10 @@ flowchart LR
 Two guards exist because `npm publish` exiting `0` is a weaker claim than it
 looks:
 
-| Guard | Failure it catches |
-| --- | --- |
+| Guard                               | Failure it catches                                                                                                                                                                                                                   |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `Verify the release is installable` | The tarball was accepted but the version is not yet resolvable, or `dist-tags.latest` still points at the previous version, so `npm install` keeps serving old code — or the OIDC exchange degraded and published without provenance |
-| `Release reached npm` | The `publish` job was **skipped**. A skipped job is not a red workflow, so the tag, GitHub release and CHANGELOG all say "shipped" while npm serves the previous version |
+| `Release reached npm`               | The `publish` job was **skipped**. A skipped job is not a red workflow, so the tag, GitHub release and CHANGELOG all say "shipped" while npm serves the previous version                                                             |
 
 Both live in [`.github/workflows/release.yml`](https://github.com/sergienko4/israeli-bank-scrapers/blob/main/.github/workflows/release.yml).
 
@@ -60,7 +60,7 @@ A budget sized for the typical five minutes would go red on any slower-than-
 average scan. Version `8.7.2` is the worked example: the publish succeeded, the
 old 120-second budget expired, and the registry recorded the version 16 seconds
 later. These numbers are pinned by
-`src/Tests/Unit/Pipeline/CrossValidation/ReleasePublishAvailabilityGate.test.ts`,
+`src/Tests/Policy/ReleasePublishAvailabilityGate.test.ts`,
 so shrinking the cap below the worst case, or dropping the read's bound, fails
 the build.
 
@@ -92,13 +92,13 @@ that it carries a provenance attestation — and it names which one failed. A
 re-run only helps when the sole problem was that the version had not appeared
 yet, so check the failing signal before re-running:
 
-| What the step reports | What it means | Re-run? |
-| --- | --- | --- |
-| Version missing, and it is now listed on [npmjs.com](https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers) | The scan outran the budget; the release shipped | Yes — verification will pass |
-| Version missing, and still not listed | Either the publish never reached the registry, or the scan is still running or has **blocked** the package | Not yet — establish which before re-running |
-| Version resolves but `dist-tags.latest` is stale | The tag was not moved | No — a re-run cannot fix it; re-tag instead |
-| Version resolves but has no attestation | The OIDC exchange degraded and published without provenance | No — a re-run cannot add provenance to a published version |
-| The package document was never readable | A registry or network fault; the step saw nothing, so this says nothing about the publish | Yes, once the registry answers — but do not read it as a failed publish |
+| What the step reports                                                                                                 | What it means                                                                                              | Re-run?                                                                 |
+| --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Version missing, and it is now listed on [npmjs.com](https://www.npmjs.com/package/@sergienko4/israeli-bank-scrapers) | The scan outran the budget; the release shipped                                                            | Yes — verification will pass                                            |
+| Version missing, and still not listed                                                                                 | Either the publish never reached the registry, or the scan is still running or has **blocked** the package | Not yet — establish which before re-running                             |
+| Version resolves but `dist-tags.latest` is stale                                                                      | The tag was not moved                                                                                      | No — a re-run cannot fix it; re-tag instead                             |
+| Version resolves but has no attestation                                                                               | The OIDC exchange degraded and published without provenance                                                | No — a re-run cannot add provenance to a published version              |
+| The package document was never readable                                                                               | A registry or network fault; the step saw nothing, so this says nothing about the publish                  | Yes, once the registry answers — but do not read it as a failed publish |
 
 A blocked package is the case worth naming: npm may hold or block a package it
 flags, and from the registry that is indistinguishable from a slow scan, so the
@@ -108,21 +108,21 @@ than re-running.
 
 ## Signals we control
 
-| Signal | Where it comes from | How it is kept honest |
-| --- | --- | --- |
-| Provenance attestation | `publishConfig.provenance` + Trusted Publishing OIDC | Release workflow fails if the published version has no attestation |
-| `dist-tags.latest` | `npm publish` | Polled back from the registry after every publish |
-| Supported Node range | `engines.node` | The packed-consumer smoke runs on the floor, and the unit matrix on the `.nvmrc` pin, latest 24.x and latest 26.x (see [Node support policy](#node-support-policy) for when it runs); `npm run lint:node-support` fails the build if `.nvmrc`, `engines.node`, the CI matrix and the README table disagree |
-| Upgrade notes | `compatibility.json` | `npm run compat:check` diffs the generated page against its source |
+| Signal                 | Where it comes from                                  | How it is kept honest                                                                                                                                                                                                                                                                                      |
+| ---------------------- | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Provenance attestation | `publishConfig.provenance` + Trusted Publishing OIDC | Release workflow fails if the published version has no attestation                                                                                                                                                                                                                                         |
+| `dist-tags.latest`     | `npm publish`                                        | Polled back from the registry after every publish                                                                                                                                                                                                                                                          |
+| Supported Node range   | `engines.node`                                       | The packed-consumer smoke runs on the floor, and the unit matrix on the `.nvmrc` pin, latest 24.x and latest 26.x (see [Node support policy](#node-support-policy) for when it runs); `npm run lint:node-support` fails the build if `.nvmrc`, `engines.node`, the CI matrix and the README table disagree |
+| Upgrade notes          | `compatibility.json`                                 | `npm run compat:check` diffs the generated page against its source                                                                                                                                                                                                                                         |
 
 ## Node support policy
 
 Two claims are easy to conflate, and only one of them can break someone:
 
-| Claim | Declared in | May move |
-| --- | --- | --- |
-| What we **build and publish on** | `.nvmrc` for `docs.yml` and CI; Node 24 for the `publish` job in `release.yml`, because Trusted Publishing needs npm 11.5.1+ | Any time — it is invisible to consumers |
-| What we **require of consumers** | `engines.node`, plus `target` in `tsup.config.ts` | Only in a **major** — raising the floor breaks working installs |
+| Claim                            | Declared in                                                                                                                  | May move                                                        |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| What we **build and publish on** | `.nvmrc` for `docs.yml` and CI; Node 24 for the `publish` job in `release.yml`, because Trusted Publishing needs npm 11.5.1+ | Any time — it is invisible to consumers                         |
+| What we **require of consumers** | `engines.node`, plus `target` in `tsup.config.ts`                                                                            | Only in a **major** — raising the floor breaks working installs |
 
 Raising `engines.node` to a new major also moves `tsup`'s `target` with it
 (`node24` since 9.0.0), because the emitted bundle is downlevelled to the
@@ -132,11 +132,11 @@ together or we ship a bundle using syntax the advertised floor cannot parse.
 **Current state**, against Node's
 [release schedule](https://github.com/nodejs/release#release-schedule):
 
-| Node | Upstream status | Our position |
-| --- | --- | --- |
-| 22.x | Maintenance LTS, EOL 2027-04-30 | Unsupported since 9.0.0; the floor for all of `8.x` |
+| Node | Upstream status                                  | Our position                                                                       |
+| ---- | ------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| 22.x | Maintenance LTS, EOL 2027-04-30                  | Unsupported since 9.0.0; the floor for all of `8.x`                                |
 | 24.x | Maintenance LTS since 2026-10-20, EOL 2028-04-30 | The `engines.node` floor (`>= 24.11.0`, its first LTS release); in the unit matrix |
-| 26.x | Current, LTS from 2026-10-28 | In the unit matrix; not a candidate floor until it reaches LTS |
+| 26.x | Current, LTS from 2026-10-28                     | In the unit matrix; not a candidate floor until it reaches LTS                     |
 
 Every leg in that matrix runs under one shared condition rather than on every
 PR: the `unit-tests` job fires when a PR touches source, dependencies, Jest
@@ -170,7 +170,7 @@ Three consequences follow directly:
 1. **It is computed downstream, not published upstream.** No field in
    `package.json`, no workflow, and no registry metadata can set it. It is
    derived from strangers' CI runs.
-2. **It is per *version pair*, not per package.** The score for
+2. **It is per _version pair_, not per package.** The score for
    `8.6.6 → 8.6.7` says nothing about `8.6.7 → 8.6.8`.
 3. **It accrues after the fact.** On release day no downstream repository has
    attempted the upgrade yet, so the sample size is zero.
@@ -178,22 +178,22 @@ Three consequences follow directly:
 **Measured evidence.** Querying the badge endpoint directly for a range of
 packages:
 
-| Dependency | Version pair | Score |
-| --- | --- | --- |
-| `lodash` | 4.17.20 → 4.17.21 | 93% |
-| `eslint-plugin-jsdoc` | 63.3.2 → 63.3.3 | 89% |
-| `eslint-plugin-jsdoc` | 63.3.3 → 64.2.0 | 57% |
-| `playwright-core` | 1.55.0 → 1.56.0 | **unknown** |
-| `israeli-bank-scrapers` (upstream) | 6.2.0 → 6.3.0 | **unknown** |
-| `@sergienko4/israeli-bank-scrapers` | 8.6.6 → 8.6.7 | **unknown** |
+| Dependency                          | Version pair      | Score       |
+| ----------------------------------- | ----------------- | ----------- |
+| `lodash`                            | 4.17.20 → 4.17.21 | 93%         |
+| `eslint-plugin-jsdoc`               | 63.3.2 → 63.3.3   | 89%         |
+| `eslint-plugin-jsdoc`               | 63.3.3 → 64.2.0   | 57%         |
+| `playwright-core`                   | 1.55.0 → 1.56.0   | **unknown** |
+| `israeli-bank-scrapers` (upstream)  | 6.2.0 → 6.3.0     | **unknown** |
+| `@sergienko4/israeli-bank-scrapers` | 8.6.6 → 8.6.7     | **unknown** |
 
 `playwright-core` is one of the most-installed packages in the ecosystem and
 its newest pair still reads "unknown". The pattern is age and downstream
 adoption, not package quality, configuration, or anything a publisher does.
 
-**Conclusion.** "Unknown" on a fresh release is the expected state for *every*
+**Conclusion.** "Unknown" on a fresh release is the expected state for _every_
 package, including upstream and including far larger dependencies. Chasing it
-is not actionable. What *is* actionable is everything in
+is not actionable. What _is_ actionable is everything in
 [Signals we control](#signals-we-control) — provenance, an accurate
 `dist-tags.latest`, an evidenced Node range, and honest upgrade notes. Those
 are the claims a consumer can actually verify, and this repository fails its
