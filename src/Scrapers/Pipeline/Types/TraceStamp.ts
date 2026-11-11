@@ -17,6 +17,13 @@ type PaddedDigits = Brand<string, 'TraceTwoDigitPad'>;
 /** Run-stamp string `DD-MM-YYYY_HHMMSScc`. */
 type RunStampStr = Brand<string, 'RunStampStr'>;
 
+/** Millisecond step corresponding to one centisecond (`cc` suffix). */
+const CENTISECOND_MS = 10;
+/** Last quantized epoch-ms slot issued by {@link nextRunStamp}. */
+let lastStampSlotMs = 0;
+/** Formatted stamps already issued in this process (guards DST fall-back folds). */
+const ISSUED_STAMPS = new Set<RunStampStr>();
+
 /**
  * Left-pad a non-negative integer with `'0'` to a minimum width of 2 without
  * truncating wider values (such as a four-digit year).
@@ -81,5 +88,42 @@ function formatRunStamp(d: Date): RunStampStr {
   return stamp as RunStampStr;
 }
 
+/**
+ * Advance `slotMs` in 10 ms steps until its formatted local stamp is unused,
+ * then record both the slot and the formatted stamp.
+ * @param slotMs - Candidate quantized epoch-ms slot.
+ * @returns Unique formatted run stamp.
+ */
+function claimUniqueStamp(slotMs: number): RunStampStr {
+  const stampDateValue = new Date(slotMs);
+  const candidate = formatRunStamp(stampDateValue);
+  if (ISSUED_STAMPS.has(candidate)) return claimUniqueStamp(slotMs + CENTISECOND_MS);
+  lastStampSlotMs = slotMs;
+  ISSUED_STAMPS.add(candidate);
+  return candidate;
+}
+
+/**
+ * Issue a unique `DD-MM-YYYY_HHMMSScc` run stamp across same-tick calls,
+ * wall-clock rollbacks, and local DST fall-back folds.
+ * @param nowMs - Current epoch milliseconds (defaults to `Date.now()`).
+ * @returns Unique run-stamp string.
+ */
+function nextRunStamp(nowMs: number = Date.now()): RunStampStr {
+  const nowSlotMs = Math.floor(nowMs / CENTISECOND_MS) * CENTISECOND_MS;
+  const startSlotMs = Math.max(nowSlotMs, lastStampSlotMs + CENTISECOND_MS);
+  return claimUniqueStamp(startSlotMs);
+}
+
+/**
+ * Reset monotonic run-stamp state for isolated unit tests.
+ * @returns True after reset.
+ */
+function resetRunStampState(): true {
+  lastStampSlotMs = 0;
+  ISSUED_STAMPS.clear();
+  return true;
+}
+
 export type { RunStampStr };
-export { formatRunStamp };
+export { formatRunStamp, nextRunStamp, resetRunStampState };

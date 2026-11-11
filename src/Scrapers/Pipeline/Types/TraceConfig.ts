@@ -1,7 +1,7 @@
 /**
- * Forensic artefact root — single per-process folder for the pipeline log,
- * and network response dumps, captured only when the opt-in
- * `FORENSIC_TRACE=true` flag is set. Removes
+ * Forensic artefact root — per-bank-run folder for the pipeline log and
+ * network response dumps, captured only when the opt-in `FORENSIC_TRACE=true`
+ * flag is set. Removes
  * the older patchwork of independent env vars (LOG_FILE / LOG_PATH /
  * LOG_BANK / DUMP_NETWORK_DIR / DUMP_NETWORK_LABEL) that had to be wired up
  * by hand on every run.
@@ -25,8 +25,8 @@
  * no longer decides whether artefacts land on disk.
  *
  * Override with `RUNS_ROOT` env var when the default `C:\tmp\runs` is wrong
- * (e.g. CI). Folder paths are cached after first creation, so all artefacts
- * within a single process share the same root.
+ * (e.g. CI). Folder paths and `runId` are cached within one bank run and
+ * reset automatically when `setActiveBank` switches to a different bank slug.
  */
 
 import * as fs from 'node:fs';
@@ -34,12 +34,10 @@ import * as path from 'node:path';
 
 import type { Brand } from './Brand.js';
 import type { RunStampStr } from './TraceStamp.js';
-import { formatRunStamp } from './TraceStamp.js';
+import { nextRunStamp, resetRunStampState } from './TraceStamp.js';
 
 /** Lowercase bank slug (or empty). */
 type BankSlugLower = Brand<string, 'BankSlugLower'>;
-/** Per-slug regex match outcome. */
-type IsSlugMatch = Brand<boolean, 'IsSlugMatch'>;
 /** setActiveBank acceptance outcome. */
 type DidAcceptBank = Brand<boolean, 'DidAcceptBank'>;
 /** Forensic-trace active flag. */
@@ -60,7 +58,7 @@ const PIPELINE_LOG_FILE = 'pipeline.log';
 /** Top-level umbrella segment under RUNS_ROOT — fixed for every pipeline run. */
 const PIPELINE_SEGMENT = 'pipeline';
 
-/** Cached per-process run folder (created on first call to getRunFolder). */
+/** Cached run folder for the active bank (created on first call to getRunFolder). */
 let runFolderCache: string | false = false;
 /** Cached network dump dir (created on first call to getNetworkDumpDir). */
 let networkDirCache: string | false = false;
@@ -69,11 +67,10 @@ const SUB_STEP_DIR_CACHE = new Map<string, string>();
 /** Active bank for this process — set dynamically by the pipeline orchestrator. */
 let activeBankCache: string | false = false;
 /**
- * Per-run unique identifier — the same `DD-MM-YYYY_HHMMSScc` stamp that
- * names the run-artefact folder on disk. Cached on first read so every
- * log line in the run shares a single value, and so the on-disk folder
- * (when trace mode is active) and the in-log `runId` field (always)
- * stay in sync. See {@link getActiveRunId}.
+ * Per-bank-run unique identifier — the same `DD-MM-YYYY_HHMMSScc` stamp that
+ * names the run-artefact folder on disk. Cached on first read for the active
+ * bank and cleared when {@link setActiveBank} switches banks, so sequential
+ * scrapes of different banks never share a `runId` or trace folder.
  */
 let activeRunIdCache: string | false = false;
 
@@ -121,28 +118,37 @@ function bankSlugRegex(slug: string): RegExp {
  * when matched, else `''` so the caller can decide how to handle it.
  * @returns Lowercase bank slug, or empty string when no match.
  */
-function detectBankFromArgv(): BankSlugLower {
-  const argvJoined = process.argv.join(' ');
-  const haystack = argvJoined.toLowerCase();
-  const match = KNOWN_BANK_SLUGS.find(
-    (slug): IsSlugMatch => bankSlugRegex(slug).test(haystack) as IsSlugMatch,
-  );
+export function detectBankFromArgv(): BankSlugLower {
+  const haystack = process.argv.join(' ').toLowerCase();
+  const match = KNOWN_BANK_SLUGS.find((slug): boolean => bankSlugRegex(slug).test(haystack));
   return (match ?? '') as BankSlugLower;
 }
 
 /**
+ * Clear per-run folder, network-dump, sub-step, and runId caches when the
+ * active bank changes or during explicit test resets.
+ * @returns True after clearing.
+ */
+function clearRunCaches(): true {
+  runFolderCache = false;
+  networkDirCache = false;
+  SUB_STEP_DIR_CACHE.clear();
+  activeRunIdCache = false;
+  return true;
+}
+
+/**
  * Register the active bank for this process. Called by the pipeline runner
- * at startup so `resolveBankSlug()` can return the correct slug regardless
- * of how Jest/the test orchestrator was invoked. Idempotent — last writer
- * wins (cheap to call from multiple call sites).
+ * at startup so `resolveBankSlug()` returns the active slug regardless of how
+ * Jest/the test orchestrator was invoked. Idempotent for repeated calls with
+ * the same bank; clears run caches when switching to a different bank slug.
  * @param slug - Lowercase bank slug (must be in KNOWN_BANK_SLUGS).
  * @returns True when accepted, false when the slug is unknown.
  */
-function setActiveBank(slug: string): DidAcceptBank {
+export function setActiveBank(slug: string): DidAcceptBank {
   const normalised = slug.trim().toLowerCase();
-  if (normalised.length === 0) return false as DidAcceptBank;
-  const isKnown = KNOWN_BANK_SLUGS.includes(normalised);
-  if (!isKnown) return false as DidAcceptBank;
+  if (!normalised || !KNOWN_BANK_SLUGS.includes(normalised)) return false as DidAcceptBank;
+  if (resolveBankSlug() !== normalised) clearRunCaches();
   activeBankCache = normalised;
   return true as DidAcceptBank;
 }
@@ -156,9 +162,7 @@ function setActiveBank(slug: string): DidAcceptBank {
  */
 function resolveBankSlug(): BankSlugLower {
   if (activeBankCache) return activeBankCache as BankSlugLower;
-  const fromArgv = detectBankFromArgv();
-  if (fromArgv.length > 0) return fromArgv;
-  return '' as BankSlugLower;
+  return detectBankFromArgv();
 }
 
 /**
@@ -170,30 +174,27 @@ function resolveBankSlug(): BankSlugLower {
  * See `coding-principle-guidlines.md` §4 (Default Deny).
  * @returns True only when the flag is the literal `true`.
  */
-function isForensicTrace(): IsForensicTraceActive {
+export function isForensicTrace(): IsForensicTraceActive {
   const v = (process.env.FORENSIC_TRACE ?? '').trim().toLowerCase();
   return (v === 'true') as IsForensicTraceActive;
 }
 
 /**
- * Per-run unique identifier — `DD-MM-YYYY_HHMMSScc` stamp computed once
- * per process and cached. Used as the `runId` field auto-injected on
- * every log line via the pino mixin in `Debug.ts`, and as the leaf
- * folder name when trace-mode artefacts are written. Available in EVERY
- * mode (trace and off-trace) so aggregated logs across hosts can be
- * grouped by run without depending on the artefact folder existing on
- * disk. Returns `''` only when no bank slug has been resolved yet —
+ * Per-bank-run unique identifier — `DD-MM-YYYY_HHMMSScc` stamp cached for the
+ * active bank and reset when {@link setActiveBank} switches banks. Used as
+ * the `runId` field auto-injected on every log line via the pino mixin in
+ * `BankContext.ts`, and as the leaf folder name when trace-mode artefacts are
+ * written. Returns `''` only when no bank slug has been resolved yet —
  * pre-`setActiveBank` log lines simply omit the field.
  *
  * @returns The run-stamp string, or empty when bank is not yet known.
  */
-function getActiveRunId(): RunStampStr {
+export function getActiveRunId(): RunStampStr {
   if (activeRunIdCache) return activeRunIdCache as RunStampStr;
   const bank = resolveBankSlug();
   if (bank.length === 0) return '' as RunStampStr;
-  const stamp = formatRunStamp(new Date());
-  activeRunIdCache = stamp;
-  return stamp;
+  activeRunIdCache = nextRunStamp();
+  return activeRunIdCache as RunStampStr;
 }
 
 /** The root, bank and stamp one run folder is built from. */
@@ -233,7 +234,7 @@ function runSeed(): IRunSeed | false {
  * mid-process stops path emission instead of serving the cached folder.
  * @returns Absolute folder path, or empty string.
  */
-function getRunFolder(): RunFolderPath {
+export function getRunFolder(): RunFolderPath {
   if (!isForensicTrace()) return '' as RunFolderPath;
   if (runFolderCache) return runFolderCache as RunFolderPath;
   const seed = runSeed();
@@ -250,7 +251,7 @@ function getRunFolder(): RunFolderPath {
  * needing to register).
  * @returns Absolute log file path, or empty string off-trace.
  */
-function getLogFile(): LogFilePath {
+export function getLogFile(): LogFilePath {
   const root = getRunFolder();
   if (!root) return '' as LogFilePath;
   return path.join(root, PIPELINE_LOG_FILE) as LogFilePath;
@@ -261,7 +262,7 @@ function getLogFile(): LogFilePath {
  * HTTP capture hooks skip body dumps without forcing a bank registration.
  * @returns Absolute network-dump directory path, or empty string off-trace.
  */
-function getNetworkDumpDir(): NetworkDumpDirPath {
+export function getNetworkDumpDir(): NetworkDumpDirPath {
   const root = getRunFolder();
   if (!root) return '' as NetworkDumpDirPath;
   if (networkDirCache) return networkDirCache as NetworkDumpDirPath;
@@ -292,7 +293,7 @@ function makeSubStepDir(root: NetworkDumpDirPath, key: string): NetworkDumpDirPa
  * @param stage - Active stage label from ActiveState.
  * @returns Absolute sub-step folder path, or empty string off-trace.
  */
-function getSubStepNetworkDumpDir(phase: string, stage: string): NetworkDumpDirPath {
+export function getSubStepNetworkDumpDir(phase: string, stage: string): NetworkDumpDirPath {
   const root = getNetworkDumpDir();
   if (!root) return '' as NetworkDumpDirPath;
   const key = `${phase}-${stage}`;
@@ -309,24 +310,11 @@ function getSubStepNetworkDumpDir(phase: string, stage: string): NetworkDumpDirP
  * exercise different env-var combinations cleanly.
  * @returns True after reset.
  */
-function resetTraceConfigCache(): true {
-  runFolderCache = false;
-  networkDirCache = false;
-  SUB_STEP_DIR_CACHE.clear();
+export function resetTraceConfigCache(): true {
+  clearRunCaches();
   activeBankCache = false;
-  activeRunIdCache = false;
+  resetRunStampState();
   return true;
 }
 
-export {
-  detectBankFromArgv,
-  getActiveRunId,
-  getLogFile,
-  getNetworkDumpDir,
-  getRunFolder,
-  getSubStepNetworkDumpDir,
-  isForensicTrace,
-  resetTraceConfigCache,
-  setActiveBank,
-};
 export { formatRunStamp } from './TraceStamp.js';

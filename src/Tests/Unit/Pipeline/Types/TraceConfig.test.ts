@@ -452,3 +452,111 @@ describe('TraceConfig — FORENSIC_TRACE=true gates artefact emission', () => {
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });
 });
+
+describe('TraceConfig — setActiveBank bank-switch cache isolation', () => {
+  const originalForensic = process.env.FORENSIC_TRACE;
+  const originalRunsRoot = process.env.RUNS_ROOT;
+
+  afterEach(() => {
+    if (originalForensic === undefined) delete process.env.FORENSIC_TRACE;
+    else process.env.FORENSIC_TRACE = originalForensic;
+    if (originalRunsRoot === undefined) delete process.env.RUNS_ROOT;
+    else process.env.RUNS_ROOT = originalRunsRoot;
+    jest.resetModules();
+  });
+
+  it('setActiveBank clears runFolder, networkDir, subStepDir, and runId caches when switching banks', async () => {
+    const tmpRoot = makeTmpRoot('traceconfig-switch');
+    process.env.FORENSIC_TRACE = 'true';
+    process.env.RUNS_ROOT = tmpRoot;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    mod.setActiveBank('beinleumi');
+    const folder1 = mod.getRunFolder();
+    const netDir1 = mod.getNetworkDumpDir();
+    const subDir1 = mod.getSubStepNetworkDumpDir('api-direct-call', 'ACTION');
+    const runId1 = mod.getActiveRunId();
+    mod.setActiveBank('discount');
+    const folder2 = mod.getRunFolder();
+    const netDir2 = mod.getNetworkDumpDir();
+    const subDir2 = mod.getSubStepNetworkDumpDir('api-direct-call', 'ACTION');
+    const runId2 = mod.getActiveRunId();
+    expect(folder1).toContain(`${path.sep}beinleumi${path.sep}`);
+    expect(folder2).toContain(`${path.sep}discount${path.sep}`);
+    expect(folder2).not.toBe(folder1);
+    expect(netDir2).not.toBe(netDir1);
+    expect(subDir2).not.toBe(subDir1);
+    expect(runId2).not.toBe(runId1);
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
+  it('setActiveBank preserves cached folders and runId when called again with the same bank', async () => {
+    const tmpRoot = makeTmpRoot('traceconfig-idempotent');
+    process.env.FORENSIC_TRACE = 'true';
+    process.env.RUNS_ROOT = tmpRoot;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    mod.setActiveBank('beinleumi');
+    const folder1 = mod.getRunFolder();
+    const netDir1 = mod.getNetworkDumpDir();
+    const subDir1 = mod.getSubStepNetworkDumpDir('api-direct-call', 'ACTION');
+    const runId1 = mod.getActiveRunId();
+    mod.setActiveBank(' Beinleumi ');
+    const folder2 = mod.getRunFolder();
+    const netDir2 = mod.getNetworkDumpDir();
+    const subDir2 = mod.getSubStepNetworkDumpDir('api-direct-call', 'ACTION');
+    const runId2 = mod.getActiveRunId();
+    expect(folder2).toBe(folder1);
+    expect(netDir2).toBe(netDir1);
+    expect(subDir2).toBe(subDir1);
+    expect(runId2).toBe(runId1);
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
+  it('setActiveBank leaves existing bank caches intact when given an unknown slug', async () => {
+    const tmpRoot = makeTmpRoot('traceconfig-unknown-keep');
+    process.env.FORENSIC_TRACE = 'true';
+    process.env.RUNS_ROOT = tmpRoot;
+    jest.resetModules();
+    const mod = await loadTraceConfig();
+    mod.setActiveBank('beinleumi');
+    const folder1 = mod.getRunFolder();
+    const runId1 = mod.getActiveRunId();
+    const accepted = mod.setActiveBank('not-a-real-bank');
+    const folder2 = mod.getRunFolder();
+    const runId2 = mod.getActiveRunId();
+    expect(accepted).toBe(false);
+    expect(folder2).toBe(folder1);
+    expect(runId2).toBe(runId1);
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  });
+
+  it('mints distinct stamps across same-tick, clock-rollback, and DST-fold local collisions', async () => {
+    delete process.env.FORENSIC_TRACE;
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(new Date(2026, 10, 1, 1, 30, 0, 0));
+      jest.resetModules();
+      const mod = await loadTraceConfig();
+      mod.setActiveBank('beinleumi');
+      const runIdSameTick1 = mod.getActiveRunId();
+      mod.setActiveBank('discount');
+      const runIdSameTick2 = mod.getActiveRunId();
+      jest.setSystemTime(new Date(2026, 10, 1, 1, 29, 50, 0));
+      mod.setActiveBank('hapoalim');
+      const runIdRollback = mod.getActiveRunId();
+      const hoursSpy = jest.spyOn(Date.prototype, 'getHours').mockReturnValue(1);
+      try {
+        jest.setSystemTime(new Date(2026, 10, 1, 2, 30, 0, 0));
+        mod.setActiveBank('beinleumi');
+        const runIdDstFold = mod.getActiveRunId();
+        const seen = new Set([runIdSameTick1, runIdSameTick2, runIdRollback, runIdDstFold]);
+        expect(seen.size).toBe(4);
+      } finally {
+        hoursSpy.mockRestore();
+      }
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});

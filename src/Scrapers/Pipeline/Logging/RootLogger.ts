@@ -19,6 +19,12 @@ import { toError } from '../Types/ErrorUtils.js';
 import { createCensorFn } from '../Types/PiiRedactor.js';
 import { getLogFile } from '../Types/TraceConfig.js';
 import { getBankMixin } from './BankContext.js';
+import {
+  type IFileLease,
+  type ILeasedLoggerResult,
+  instantiateLeasedFileLogger,
+} from './FileLease.js';
+import { retireSupersededLogger } from './RetireTransport.js';
 
 /** Brand for the root-logger generation counter (Rule #15). */
 type RootLoggerGeneration = Brand<number, 'RootLoggerGeneration'>;
@@ -72,25 +78,25 @@ type PinoCensorFn = Extract<PinoRedactOptions, { censor?: unknown }>['censor'];
 /**
  * Build a single file-only transport (used in production runs once
  * `setActiveBank` has resolved a real destination).
- * @param logFile - Resolved log file path.
+ * @param destination - Resolved log file path or owned file descriptor.
  * @returns Pino file-transport config.
  */
-function buildFileTransport(logFile: string): pino.TransportSingleOptions {
-  return { target: 'pino/file', options: { destination: logFile } };
+function buildFileTransport(destination: string | number): pino.TransportSingleOptions {
+  return { target: 'pino/file', options: { destination } };
 }
 
 /**
  * Build the dual terminal-+-file transport used when pretty output is
  * requested, so the developer sees pretty output AND the same trace
  * artefact lands on disk for post-run inspection.
- * @param logFile - Resolved log file path.
+ * @param destination - Resolved log file path or owned file descriptor.
  * @returns Pino multi-target transport config.
  */
-function buildDualTransport(logFile: string): pino.TransportMultiOptions {
+function buildDualTransport(destination: string | number): pino.TransportMultiOptions {
   return {
     targets: [
       { ...PRETTY_TRANSPORT, level: 'trace' },
-      { target: 'pino/file', options: { destination: logFile }, level: 'trace' },
+      { target: 'pino/file', options: { destination }, level: 'trace' },
     ],
   };
 }
@@ -116,6 +122,9 @@ export function buildTransport(
 /** Cached root pino instance — built lazily on first log call so file
  *  destination is resolved AFTER setActiveBank has fired in the orchestrator. */
 let rootLoggerCache: Logger | false = false;
+
+/** Owned file-descriptor lease paired with {@link rootLoggerCache} when file-backed. */
+let rootLeaseCache: IFileLease | false = false;
 
 /** The `getLogFile()` value {@link rootLoggerCache} was built for. `false`
  *  means "never built"; `''` is a legitimate key — it is the terminal-only
@@ -279,32 +288,92 @@ export function instantiateLogger(logFile: string, options: pino.LoggerOptions):
 }
 
 /**
- * Replace the cached root logger with one bound to `logFile`, flushing the
- * superseded instance so buffered pre-upgrade records still reach their
- * destination.
- *
- * The superseded logger is flushed but deliberately NOT closed. Closing it
- * would terminate its `thread-stream` worker, and writes can still legally
- * arrive on it: `LOG.child({...})` returns a *real* pino child rather than a
- * proxy, so any sub-logger captured before the upgrade keeps writing to the
- * old stream forever and would start throwing on a closed one. Flushing
- * therefore trades a bounded leak for safety — and the bound is small: a run
- * changes destination exactly once (`'' -> <file>`, when `setActiveBank`
- * fires), so at most one logger is ever superseded, and without the
- * `PRETTY_LOGS` opt-in and no file the superseded logger is transportless
- * and owns no worker at all.
+ * Build active Pino options around an owned file descriptor `fd`.
+ * @param fd - Owned `pipeline.log` file descriptor.
+ * @param isDual - Whether to include the pretty terminal target alongside `fd`.
+ * @returns Active Pino options targeting `fd`.
+ */
+function buildFdOptions(fd: number, isDual: boolean): pino.LoggerOptions {
+  const transport = isDual ? buildDualTransport(fd) : buildFileTransport(fd);
+  return buildActiveOptions(transport);
+}
+
+/**
+ * Build preferred active Pino options for `fd` honoring `PRETTY_LOGS`.
+ * @param fd - Owned `pipeline.log` file descriptor.
+ * @returns Preferred active Pino options.
+ */
+function buildPreferredFd(fd: number): pino.LoggerOptions {
+  const isPretty = isPrettyLogs();
+  return buildFdOptions(fd, isPretty);
+}
+
+/**
+ * Build file-only fallback Pino options for `fd`.
+ * @param fd - Owned `pipeline.log` file descriptor.
+ * @returns File-only active Pino options.
+ */
+function buildFallbackFd(fd: number): pino.LoggerOptions {
+  return buildFdOptions(fd, false);
+}
+
+/**
+ * Build the terminal-only / silent root logger when no trace file is active.
+ * @returns Unleased root logger result.
+ */
+function buildTerminalInstance(): ILeasedLoggerResult {
+  const transport = buildTransport('');
+  const options = buildPinoOptions(transport);
+  return { logger: instantiateLogger('', options), lease: false };
+}
+
+/**
+ * Build the root logger and optional file lease for `logFile`.
+ * @param logFile - Resolved log file path (`''` for terminal-only / silent).
+ * @returns Root logger and its owned file lease (when file-backed).
+ */
+function buildRootInstance(logFile: string): ILeasedLoggerResult {
+  if (!logFile) return buildTerminalInstance();
+  return instantiateLeasedFileLogger({
+    logFile,
+    buildPreferredOptions: buildPreferredFd,
+    buildFallbackOptions: buildFallbackFd,
+    /**
+     * Emit the transport degradation warning for `logFile`.
+     * @param error - Underlying open or transport construction failure.
+     * @returns Always true.
+     */
+    onTransportFailure: (error: Error): boolean => warnTransportFailure(error, logFile),
+    buildSilentFallback: silentLogger,
+  });
+}
+
+/**
+ * Replace the cached root logger with one bound to `logFile`, flushing and
+ * draining-to-close any superseded worker transport so repeated bank switches
+ * in a long-lived process never accumulate `thread-stream` workers or open
+ * `pipeline.log` file descriptors.
  * @param logFile - Resolved log file path (empty string for terminal-only).
  * @returns The freshly built root logger.
  */
 function rebuildRootLogger(logFile: string): Logger {
-  const previous = rootLoggerCache;
-  const transport = buildTransport(logFile);
-  const options = buildPinoOptions(transport);
-  rootLoggerCache = instantiateLogger(logFile, options);
+  const previous = { logger: rootLoggerCache, lease: rootLeaseCache };
+  const built = buildRootInstance(logFile);
+  rootLoggerCache = built.logger;
+  rootLeaseCache = built.lease;
   rootLoggerKey = logFile;
   rootGeneration += 1;
-  if (previous) previous.flush();
+  retireSupersededLogger(previous.logger, previous.lease);
   return rootLoggerCache;
+}
+
+/**
+ * Expose the active root file-descriptor lease for unit-test cleanup assertions.
+ * @internal
+ * @returns Active file lease when file-backed, else `false`.
+ */
+export function getActiveRootFileLeaseForTest(): IFileLease | false {
+  return rootLeaseCache;
 }
 
 /**
@@ -320,15 +389,9 @@ function rebuildRootLogger(logFile: string): Logger {
  * `pino-pretty` `thread-stream` worker that nothing ever closed: one `LOG.info(...)`
  * costs 23 property reads (pino reads its internal symbols off `this`),
  * so a single log statement leaked 23 worker threads and ~92 MB of
- * `SharedArrayBuffer`. Keying preserves the file-upgrade behaviour the
- * gate was reaching for while holding a single logger for the current
- * destination.
- *
- * This is a one-entry cache, so an `A -> B -> A` destination sequence
- * rebuilds `A`. That is acceptable: the only transition a real run makes
- * is `'' -> <file>`, once, when `setActiveBank` fires. Logging
- * configuration read at construction time (notably `LOG_LEVEL`) is
- * therefore start-up only for a given destination.
+ * `SharedArrayBuffer`. Keying holds a single logger while the destination is
+ * unchanged, and {@link rebuildRootLogger} drains and closes the superseded
+ * worker transport whenever `setActiveBank` switches to a new run folder.
  * @returns Root pino instance.
  */
 export function getRootLogger(): Logger {

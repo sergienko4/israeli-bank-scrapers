@@ -3,6 +3,7 @@
 import type { IScraperScrapingResult, ScraperCredentials } from '../../../Base/Interface.js';
 import type { LifecyclePromise } from '../../../Base/Interfaces/CallbackTypes.js';
 import ScraperError from '../../../Base/ScraperError.js';
+import { runWithBankContext } from '../../Logging/Debug.js';
 import type { IPipelineContext } from '../../Types/PipelineContext.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { setActiveBank } from '../../Types/TraceConfig.js';
@@ -72,6 +73,33 @@ async function runWithCleanup(
 }
 
 /**
+ * Build the zero-arg cleanup thunk passed to {@link runWithBankContext}.
+ * @param tracker - Context tracker.
+ * @param initialCtx - Initial pipeline context.
+ * @returns Thunk invoking {@link runWithCleanup}.
+ */
+function makeCleanupThunk(
+  tracker: IContextTracker,
+  initialCtx: IPipelineContext,
+): () => Promise<Procedure<IPipelineContext>> {
+  return (): Promise<Procedure<IPipelineContext>> => runWithCleanup(tracker, initialCtx);
+}
+
+/**
+ * Run phase reduction + cleanup inside the bank's async-local log context.
+ * @param tracker - Context tracker.
+ * @param initialCtx - Initial pipeline context carrying companyId.
+ * @returns Pipeline result Procedure.
+ */
+function runInBankContext(
+  tracker: IContextTracker,
+  initialCtx: IPipelineContext,
+): Promise<Procedure<IPipelineContext>> {
+  const run = makeCleanupThunk(tracker, initialCtx);
+  return runWithBankContext(initialCtx.companyId, run);
+}
+
+/**
  * Register the active bank or fail loudly. There is no run without a bank.
  * @param ctx - Initial pipeline context carrying companyId.
  * @returns True after successful registration (throws otherwise).
@@ -97,7 +125,7 @@ async function executePipeline(
   const initialCtx = buildInitialContext(descriptor, credentials);
   registerOrFail(initialCtx);
   const tracker: IContextTracker = { phases: descriptor.phases, lastCtx: initialCtx };
-  return toResult(await runWithCleanup(tracker, initialCtx));
+  return toResult(await runInBankContext(tracker, initialCtx));
 }
 
 export { executePipeline };

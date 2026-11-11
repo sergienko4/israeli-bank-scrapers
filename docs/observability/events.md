@@ -8,14 +8,16 @@ the central redaction pipeline before write.
 
 ## Common fields
 
-| Field    | Type   | Notes                                                                               |
-| -------- | ------ | ----------------------------------------------------------------------------------- |
-| `bank`   | string | Active bank's async-local context                                                   |
-| `phase`  | string | `api-direct-call` or `api-direct-scrape` during phase execution                     |
-| `stage`  | string | `PRE`, `ACTION`, `POST` or `FINAL`                                                  |
-| `runId`  | string | Per-process run stamp; also names the trace folder when enabled                     |
-| `module` | string | Logger/module identifier; typically derived from the module URL, not the phase name |
-| `event`  | string | Present on discriminated events, including `phase-stage`                            |
+| Field    | Type   | Notes                                                                                                    |
+| -------- | ------ | -------------------------------------------------------------------------------------------------------- |
+| `bank`   | string | Active bank's async-local context (entered by `PipelineExecutor` via `runWithBankContext`)               |
+| `phase`  | string | `api-direct-call` or `api-direct-scrape` during phase execution (process-global via `ActiveState`)       |
+| `stage`  | string | `PRE`, `ACTION`, `POST` or `FINAL` (process-global via `ActiveState`)                                    |
+| `runId`  | string | Per-bank-run stamp (reset when `setActiveBank` switches banks); also names the trace folder when enabled |
+| `module` | string | Logger/module identifier; typically derived from the module URL, not the phase name                      |
+| `event`  | string | Present on discriminated events, including `phase-stage`                                                 |
+
+> **Concurrency note:** `bank` is scoped to each `executePipeline` call via `AsyncLocalStorage`, and `setActiveBank` clears `TraceConfig`'s cached run folder, network directories, and `runId` (minted uniquely via `TraceStamp`'s `nextRunStamp`, reset in tests via `resetRunStampState`) whenever the active bank slug changes so sequential runs in one process stay isolated. `ActiveState` (`phase` and `stage`) and `TraceConfig`'s active-bank, `runId`, and forensic artefact directory state remain process-global, so concurrent scrapes in the same process still share `phase`/`stage` labels, `runId`, and trace output paths; migrating them to async-local storage is a separate follow-up.
 
 ### Phase-stage records
 
@@ -105,11 +107,46 @@ one concern so the moving parts are independently testable:
   keyed on the resolved log destination rather than gated on it, so the
   terminal-only root used before `setActiveBank` lands is itself cached
   and is rebuilt when — and only when — the destination actually changes.
-  The companion `getRootLoggerGeneration` counter advances on each
-  rebuild so the deferred-resolve proxy drops a memoised child on its
-  next access after the root behind it was replaced.
+  On each rebuild, any superseded worker transport (`ThreadStream`) and
+  owned file lease (`getActiveRootFileLeaseForTest` in tests) are handed to
+  `RetireTransport` so alternating-bank runs never accumulate workers or
+  open file descriptors, while `getRootLoggerGeneration` advances so
+  deferred proxies drop memoised children on their next access.
+- `Logging/FileLease.ts` — main-thread file-descriptor lease primitives
+  (`IFileLease`, `ILeasedLoggerHooks`, `ILeasedLoggerResult`,
+  `DidCloseLease`, `ILeaseFlushWait`, `DidAwaitLeaseFlush`) plus
+  `instantiateLeasedFileLogger`, `awaitLeaseFlush`, and
+  `closeFileLeaseAsync`, ensuring all serialized bytes
+  reach `pipeline.log` on disk before worker termination and that raw
+  descriptors are closed deterministically afterward.
+- `Logging/RetireWorkerEnd.ts` — the non-blocking end handshake
+  (`requestWorkerEnd`, `WorkerEndOutcome`). Once the main-thread buffer is
+  empty and the worker has consumed the ring buffer, it stores `-1` in
+  `ThreadStream`'s `WRITE_INDEX`, which makes the worker call
+  `destination.end()` and flush/close every target — including buffered
+  `pino-pretty` output that `flush()` alone does not acknowledge.
+- `Logging/RetireWarnings.ts` — out-of-band retirement reporting
+  (`IRetirementState`, `emitRetiredDrainWarning`, `handleTerminateRejection`,
+  `makeRetiredErrorListener`): genuine drain failures surface through
+  `process.emitWarning`, while stale post-close writes and the terminating
+  worker's expected exit stay silent.
+- `Logging/RetireTransport.ts` — non-blocking worker retirement
+  (`IPinoStreamCandidate`, `DidRetireLogger`, `scheduleStreamClose`, and
+  `retireSupersededLogger`) that waits for queued records to reach the worker,
+  asks it to end every destination via `RetireWorkerEnd`, and settles on the
+  stream `'close'` event. `worker.terminate()` remains the bounded watchdog
+  fallback when the handshake is unavailable or a destination never closes;
+  synchronous `ThreadStream.end()` is never called on the main event loop.
 - `Logging/ChildLoggerProxy.ts` — `buildDeferredLogger(name)` returns
   the lazy-resolve `Proxy` that backs both `getDebug` and
-  `getDebugByName`. The internal `IProxyHandler` type documents the
-  exact `get`-trap shape so the cluster's unit tests can assert
+  `getDebugByName` (and intercepts `.child(...)` and `.setBindings(...)`
+  so retained sub-loggers likewise re-resolve against the current root
+  generation). The internal `IProxyHandler` type documents the exact
+  `get`/`set`-trap shape so the cluster's unit tests can assert
   property-access semantics without re-deriving it from `Proxy<T>`.
+- `Logging/ChildLoggerState.ts` — `IDeferredChildSpec`,
+  `IDeferredChildEntry`, and `BindingsFormatter` state carriers plus
+  `captureChindings`, `captureBindingsFormatter`, and `instantiateChild`,
+  which snapshot Pino's serialized chindings string, neutralize and restore
+  effective `formatters.bindings` without mutating parent tables, and replay
+  `level` overrides across root rebuilds.
