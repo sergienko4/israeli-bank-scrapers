@@ -13,7 +13,7 @@ import {
   HAPOALIM_STATIC_HEADERS,
 } from './PipelineBankConfigHapoalimConstants.js';
 import { HAPOALIM_RESUME_STEP_INDEX, HAPOALIM_STEPS } from './PipelineBankConfigHapoalimSteps.js';
-import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
+import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
 /**
  * Fixed values the login forms send. The organization id and the key wrap
@@ -48,7 +48,7 @@ const HAPOALIM_API_DIRECT_CALL: IApiDirectCallConfig = {
   steps: HAPOALIM_STEPS,
 };
 
-const HAPOALIM_HEADLESS: IHeadlessUrlsConfig = {
+const HAPOALIM_HEADLESS: ITransportConfig = {
   identityBase: `${HAPOALIM_ORIGIN}/`,
   // Hapoalim has no GraphQL; graphql names the data API to satisfy the type.
   graphql: `${HAPOALIM_API}/`,

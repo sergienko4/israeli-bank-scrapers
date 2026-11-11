@@ -9,7 +9,7 @@ import {
   buildTelebankHeadless,
 } from './PipelineBankConfigTelebankFamily.js';
 import type { ITelebankBrand } from './PipelineBankConfigTelebankFamilyConstants.js';
-import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
+import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
 const MERCANTILE_BRAND: ITelebankBrand = {
   bankCode: 'm',
@@ -22,7 +22,7 @@ const MERCANTILE_BRAND: ITelebankBrand = {
 const MERCANTILE_API_DIRECT_CALL: IApiDirectCallConfig =
   buildTelebankApiDirectCall(MERCANTILE_BRAND);
 
-const MERCANTILE_HEADLESS: IHeadlessUrlsConfig = buildTelebankHeadless(MERCANTILE_BRAND);
+const MERCANTILE_HEADLESS: ITransportConfig = buildTelebankHeadless(MERCANTILE_BRAND);
 
 export default MERCANTILE_API_DIRECT_CALL;
 export { MERCANTILE_API_DIRECT_CALL, MERCANTILE_HEADLESS };

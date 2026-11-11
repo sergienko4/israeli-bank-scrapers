@@ -8,7 +8,7 @@ import type { ScraperOptions } from '../../../Base/Interface.js';
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import type { IApiDirectScrapeShape } from '../../Phases/ApiDirectScrape/IApiDirectScrapeShape.js';
 import { resolvePipelineBankConfig } from '../../Registry/Config/PipelineBankConfig.js';
-import type { IHeadlessUrlsConfig } from '../../Registry/Config/PipelineBankConfigTypes.js';
+import type { ITransportConfig } from '../../Registry/Config/PipelineBankConfigTypes.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
@@ -49,7 +49,7 @@ function assertRequiredFields(fields: IBuilderFields): Procedure<true> {
  * @param options - Scraper options naming the bank.
  * @returns Headless block, or false.
  */
-function headlessOf(options: ScraperOptions): IHeadlessUrlsConfig | false {
+function headlessOf(options: ScraperOptions): ITransportConfig | false {
   const bank = resolvePipelineBankConfig(options.companyId);
   if (bank === false) return false;
   return bank.headless ?? false;
@@ -63,7 +63,7 @@ function headlessOf(options: ScraperOptions): IHeadlessUrlsConfig | false {
  * @param headless - The bank's headless block.
  * @returns True when the block needs a client certificate or TLS profile.
  */
-function isNodeTls(headless: IHeadlessUrlsConfig | false): headless is IHeadlessUrlsConfig {
+function isNodeTls(headless: ITransportConfig | false): headless is ITransportConfig {
   if (headless === false) return false;
   const hasStaticTls = headless.requiresClientCert === true || headless.tlsProfile !== undefined;
   return hasStaticTls || headless.clientCert !== undefined;
@@ -75,7 +75,7 @@ function isNodeTls(headless: IHeadlessUrlsConfig | false): headless is IHeadless
  * @param headless - The bank's headless block.
  * @returns Success, or a Generic failure naming the ignored field.
  */
-function checkNodeTlsFields(headless: IHeadlessUrlsConfig | false): Procedure<true> {
+function checkNodeTlsFields(headless: ITransportConfig | false): Procedure<true> {
   if (!isNodeTls(headless)) return succeed(true);
   const field = NATIVE_HEADLESS_FIELDS.find((name): boolean => headless[name] !== undefined);
   if (field === undefined) return succeed(true);
@@ -91,7 +91,7 @@ function checkNodeTlsFields(headless: IHeadlessUrlsConfig | false): Procedure<tr
  */
 function checkApiDirectFields(
   fields: IBuilderFields,
-  headless: IHeadlessUrlsConfig | false,
+  headless: ITransportConfig | false,
 ): Procedure<true> {
   if (fields.apiDirectConfig === false) return succeed(true);
   return validateApiDirectConfig({ call: fields.apiDirectConfig, headless });

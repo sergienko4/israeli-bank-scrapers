@@ -7,7 +7,7 @@
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { buildFibiApiDirectCall, buildFibiHeadless } from './PipelineBankConfigFibiFamily.js';
 import type { IFibiBrand } from './PipelineBankConfigFibiFamilyConstants.js';
-import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
+import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
 const BEINLEUMI_BRAND: IFibiBrand = {
   origin: 'https://online.fibi.co.il',
@@ -19,7 +19,7 @@ const BEINLEUMI_BRAND: IFibiBrand = {
 
 const BEINLEUMI_API_DIRECT_CALL: IApiDirectCallConfig = buildFibiApiDirectCall(BEINLEUMI_BRAND);
 
-const BEINLEUMI_HEADLESS: IHeadlessUrlsConfig = buildFibiHeadless(BEINLEUMI_BRAND);
+const BEINLEUMI_HEADLESS: ITransportConfig = buildFibiHeadless(BEINLEUMI_BRAND);
 
 export default BEINLEUMI_API_DIRECT_CALL;
 export { BEINLEUMI_API_DIRECT_CALL, BEINLEUMI_HEADLESS };

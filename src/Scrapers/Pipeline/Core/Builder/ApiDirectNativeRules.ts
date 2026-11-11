@@ -9,7 +9,7 @@
  */
 
 import type { IHeaderExtract } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import type { IHeadlessUrlsConfig } from '../../Registry/Config/PipelineBankConfigTypes.js';
+import type { ITransportConfig } from '../../Registry/Config/PipelineBankConfigTypes.js';
 import { API_DIRECT_COOKIE_RULES } from './ApiDirectCookieRules.js';
 import { API_DIRECT_INTEGRITY_RULES } from './ApiDirectIntegrityRules.js';
 import { API_DIRECT_MEDIA_RULES } from './ApiDirectMediaRules.js';
@@ -68,7 +68,7 @@ function isNativeOff(input: IApiDirectRuleInput): boolean {
  * @param headless - The bank's headless block.
  * @returns True when a client certificate or a TLS profile is set.
  */
-function isNodeTls(headless: IHeadlessUrlsConfig): boolean {
+function isNodeTls(headless: ITransportConfig): boolean {
   const values = NODE_TLS_KEYS.map((key): unknown => headless[key]);
   return values.some((value): boolean => value !== undefined && value !== false);
 }

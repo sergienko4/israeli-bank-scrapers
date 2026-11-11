@@ -21,7 +21,7 @@ import type {
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { type IRingConstants, ringStaticHeaders } from './PipelineBankConfigRingConstants.js';
 import { buildRingSteps, RING_WARM_STEP_INDEX } from './PipelineBankConfigRingSteps.js';
-import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
+import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
 /** Carry slots seeded before the first step. */
 const RING_SEEDS: readonly ISeedCarrySource[] = [
@@ -62,7 +62,7 @@ function buildRingApiDirectCall(ring: IRingConstants): IApiDirectCallConfig {
  * @param ring - Issuer constants.
  * @returns Headless endpoints.
  */
-function buildRingHeadless(ring: IRingConstants): IHeadlessUrlsConfig {
+function buildRingHeadless(ring: IRingConstants): ITransportConfig {
   const identityBase = `${ring.base}/`;
   const paths = { 'auth.service': `${ring.base}/service` };
   // The ring has no GraphQL; graphql mirrors identityBase to satisfy the type.

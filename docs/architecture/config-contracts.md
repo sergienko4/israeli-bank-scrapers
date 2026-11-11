@@ -3,10 +3,14 @@
 > **Who this is for:** developers wiring a new API-direct bank, or auditing
 > the type surface that powers the [API-DIRECT-CALL phase](../phases/api-direct-call.md).
 
-The API-DIRECT-CALL config contract is the typed shape every API-direct bank
-(Pepper, PayBox, OneZero, VisaCal, Isracard, Amex, Max, Mizrahi, Hapoalim, Yahav) compiles its `PipelineBankConfig.headless` literal
-against. That shape lives in **eleven focused concern-slice files** (six as of
-**v8.5**, before `GeneratorTypes`, `WireTypes`, `ClassifyTypes`, `ExtractRuleTypes` and `FailureTypes`) under `src/Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/`, exported
+The API-DIRECT-CALL config contract is the typed login-flow shape every
+API-direct bank (Pepper, PayBox, OneZero, VisaCal, Isracard, Amex, Max,
+Mizrahi, Hapoalim, Yahav) pairs with its HTTP transport configuration
+(`ITransportConfig` on `IPipelineBankConfig.headless`). That login shape lives
+in **eleven focused concern-slice files** (six as of **v8.5**, before
+`GeneratorTypes`, `WireTypes`, `ClassifyTypes`, `ExtractRuleTypes` and
+`FailureTypes`) under
+`src/Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/`, exported
 through a single barrel. The legacy `IApiDirectCallConfig.ts` file was reduced
 to a 14-line deprecated re-export shim in v8.5 and **deleted in v8.6**.
 
@@ -76,19 +80,19 @@ Each row lists the exact named exports of the sub-module (verified against
 the source); the dependency column lists the ConfigContracts buckets it imports
 from (cross-package imports such as `Registry/WK/*` are omitted for brevity).
 
-| Bucket | Exports | Intra-cluster deps |
-|---|---|---|
-| **TemplateTypes** | `RefToken`, `JsonValueTemplate`, `IBodyTemplate`, `IEnvelopeSelectors`, `IJoinTemplate`, `JoinPart`, `JoinEncoding` | (none) |
-| **SignerTypes** | `SignerAlgorithm`, `AsymmetricSignerAlgorithm`, `SignerEncoding`, `CanonicalPart`, `ICanonicalStringConfig`, `IAsymmetricSignerConfig`, `IAesSignerConfig`, `IHmacHeaderSignerConfig`, `ISignerConfig`, `IBodyDigestConfig`, `ICryptoFieldConfig`, `SealKind`, `ISealRsaBlockXorParams`, `ISealFieldConfig` | (none) |
-| **CarryTypes** | `IWarmStartConfig`, `ICarryWarmStart`, `ICookieJarWarmStart`, `ICarryBundleWarmStart`, `ColdFallback`, `ISeedCarrySource`, `IRandomHex16Bootstrap`, `IRandomHexBootstrap`, `IRandomUuidBootstrap`, `ISha256Prefix16Bootstrap`, `IJwtClaimBootstrap`, `SeedCarryBootstrapKind`, `IDerivedCarry` | TemplateTypes |
-| **EnvelopeTypes** | `IFingerprintConfig`, `AuthScheme`, `IJwtClaimsConfig`, `IProbeConfig`, `IPreStepHook`, `PreHookReuse` | TemplateTypes, SignerTypes |
-| **ExtractRuleTypes** | `ExtractValueType`, `IExtractRule`, `IPemCertificateRule` | TemplateTypes |
-| **FlowTypes** | `FlowKind`, `CookieHandoff`, `AuthRecovery`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract`, `IHeaderExtract`, `IRunIf`, `IStepClientCert` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, GeneratorTypes, ExtractRuleTypes, WireTypes, ClassifyTypes, FailureTypes |
-| **GeneratorTypes** | `ICarryGenerator`, `CarryGeneratorKind`, `IRsaKeyGenerator`, `IPkcs10CsrGenerator`, `IEcdhKeyGenerator`, `ICsrSubjectEntry`, `CsrSubjectAttr` | TemplateTypes |
-| **WireTypes** | `ITextCapture`, `IFormCapture`, `EnvelopeCodec`, `IEnvelopeSealed`, `IEnvelopeExchange` | (none) |
-| **ClassifyTypes** | `AnswerPointer`, `IAnswerText`, `IAnswerCheck`, `IAnswerRange`, `IAnswerCapture`, `IAnswerCase`, `IAnswerClassifier` | (none) |
-| **FailureTypes** | `IStepFailureTyping` | (none) |
-| **ApiDirectCallConfig** | `IApiDirectCallConfig`, `IPersistentAuthConfig`, `CredRule` | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, FlowTypes |
+| Bucket                  | Exports                                                                                                                                                                                                                                                                                                     | Intra-cluster deps                                                                                                              |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **TemplateTypes**       | `RefToken`, `JsonValueTemplate`, `IBodyTemplate`, `IEnvelopeSelectors`, `IJoinTemplate`, `JoinPart`, `JoinEncoding`                                                                                                                                                                                         | (none)                                                                                                                          |
+| **SignerTypes**         | `SignerAlgorithm`, `AsymmetricSignerAlgorithm`, `SignerEncoding`, `CanonicalPart`, `ICanonicalStringConfig`, `IAsymmetricSignerConfig`, `IAesSignerConfig`, `IHmacHeaderSignerConfig`, `ISignerConfig`, `IBodyDigestConfig`, `ICryptoFieldConfig`, `SealKind`, `ISealRsaBlockXorParams`, `ISealFieldConfig` | (none)                                                                                                                          |
+| **CarryTypes**          | `IWarmStartConfig`, `ICarryWarmStart`, `ICookieJarWarmStart`, `ICarryBundleWarmStart`, `ColdFallback`, `ISeedCarrySource`, `IRandomHex16Bootstrap`, `IRandomHexBootstrap`, `IRandomUuidBootstrap`, `ISha256Prefix16Bootstrap`, `IJwtClaimBootstrap`, `SeedCarryBootstrapKind`, `IDerivedCarry`              | TemplateTypes                                                                                                                   |
+| **EnvelopeTypes**       | `IFingerprintConfig`, `AuthScheme`, `IJwtClaimsConfig`, `IProbeConfig`, `IPreStepHook`, `PreHookReuse`                                                                                                                                                                                                      | TemplateTypes, SignerTypes                                                                                                      |
+| **ExtractRuleTypes**    | `ExtractValueType`, `IExtractRule`, `IPemCertificateRule`                                                                                                                                                                                                                                                   | TemplateTypes                                                                                                                   |
+| **FlowTypes**           | `FlowKind`, `CookieHandoff`, `AuthRecovery`, `StepName`, `StepMethod`, `IStepBase`, `IPostStep`, `IGetStep`, `IStepConfig`, `IStepOutcome`, `IOptionalExtract`, `IHeaderExtract`, `IRunIf`, `IStepClientCert`                                                                                               | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, GeneratorTypes, ExtractRuleTypes, WireTypes, ClassifyTypes, FailureTypes |
+| **GeneratorTypes**      | `ICarryGenerator`, `CarryGeneratorKind`, `IRsaKeyGenerator`, `IPkcs10CsrGenerator`, `IEcdhKeyGenerator`, `ICsrSubjectEntry`, `CsrSubjectAttr`                                                                                                                                                               | TemplateTypes                                                                                                                   |
+| **WireTypes**           | `ITextCapture`, `IFormCapture`, `EnvelopeCodec`, `IEnvelopeSealed`, `IEnvelopeExchange`                                                                                                                                                                                                                     | (none)                                                                                                                          |
+| **ClassifyTypes**       | `AnswerPointer`, `IAnswerText`, `IAnswerCheck`, `IAnswerRange`, `IAnswerCapture`, `IAnswerCase`, `IAnswerClassifier`                                                                                                                                                                                        | (none)                                                                                                                          |
+| **FailureTypes**        | `IStepFailureTyping`                                                                                                                                                                                                                                                                                        | (none)                                                                                                                          |
+| **ApiDirectCallConfig** | `IApiDirectCallConfig`, `IPersistentAuthConfig`, `CredRule`                                                                                                                                                                                                                                                 | TemplateTypes, SignerTypes, CarryTypes, EnvelopeTypes, FlowTypes                                                                |
 
 Notes:
 
@@ -114,54 +118,55 @@ current max: `FlowTypes.ts` at 133) and is held there by an ESLint guard
 ## Which field does what
 
 Where each login capability lives, and where its behaviour is documented.
-Fields marked `headless.` sit in the bank's registry `headless` block, not in
-this contract; the build-time checks read both.
+Fields marked `headless.` sit in the bank's HTTP transport config
+(`ITransportConfig` on `IPipelineBankConfig.headless`), not in
+`IApiDirectCallConfig`; the build-time checks read both.
 
-| Capability | Field (type) | Bucket | Behaviour |
-|---|---|---|---|
-| GET or POST per step | `method` (`StepMethod`) | FlowTypes | [GET steps](../phases/api-direct-call.md#get-steps) |
-| Extra request headers per step | `headers` | FlowTypes | [Step headers](../phases/api-direct-call.md#step-headers) |
-| Response fields that may be absent | `optionalExtractsToCarry` (`IOptionalExtract`) | FlowTypes | [Optional extracts](../phases/api-direct-call.md#optional-extracts) |
-| Login refused with HTTP 200 | `outcome` (`IStepOutcome`) | FlowTypes | [Step outcome](../phases/api-direct-call.md#step-outcome) |
-| Bank state codes that change case | `outcome.caseInsensitive` | FlowTypes | [Step outcome](../phases/api-direct-call.md#step-outcome) |
-| Bank error field in a 2xx body, and its type | `failIfPresent`, `bankErrorType` | FailureTypes | [Bank-error guard](../phases/api-direct-call.md#bank-error-guard) |
-| Type of a `4xx` reply, per status | `httpFailureMap` | FailureTypes | [HTTP failure map](../phases/api-direct-call.md#http-failure-map) |
-| Checks on a value the bank sends back | `extractRules` (`IExtractRule`, `ExtractValueType`) | ExtractRuleTypes, FlowTypes | [Extract rules](../phases/api-direct-call.md#extract-rules) |
-| A step that runs only in some bank states | `runIf` (`IRunIf`) | FlowTypes | [Conditional steps](../phases/api-direct-call.md#conditional-steps) |
-| Step identity and URL | `name` (`StepName`), `urlTag` | FlowTypes | [Step names and URL tags](../phases/api-direct-call.md#step-names-and-url-tags) |
-| OTP prompt (absent: password-only) | `preHook` (`IPreStepHook`, `PreHookReuse`) | EnvelopeTypes, FlowTypes | [Password-only chains](../phases/api-direct-call.md#password-only-chains) |
-| OTP hint, prerequisites and code shape | `preHook.hintFrom`, `preHook.requires`, `preHook.valuePattern` | EnvelopeTypes | [OTP pre-hook guards](../phases/api-direct-call.md#otp-pre-hook-guards) |
-| Auth header form | `authScheme` (`AuthScheme`), `authPrefix` | EnvelopeTypes, ApiDirectCallConfig | [Auth-mode policy](../phases/api-direct-call.md#auth-mode-policy) |
-| Credential shapes checked up front | `requiredCreds` (`CredRule`) | ApiDirectCallConfig | [Required credentials](../phases/api-direct-call.md#required-credentials) |
-| Keep the bank's reply text out of a missed extract, login diagnostics and a failed scrape call | `omitBankText` | ApiDirectCallConfig | [Bank text in failures](../phases/api-direct-call.md#bank-text-in-failures) |
-| Carry slots the scrape may see | `sessionCarry` | ApiDirectCallConfig | [Session carry](../phases/api-direct-call.md#session-carry) |
-| Where a finished login leaves its cookies | `cookieHandoff` (`CookieHandoff`) | FlowTypes | [Cookie hand-off](../phases/api-direct-call.md#cookie-hand-off) |
-| How a rejected session recovers | `authRecovery` (`AuthRecovery`) | FlowTypes, ApiDirectCallConfig | [Auth recovery](../phases/api-direct-call.md#auth-recovery) |
-| How a stored token is judged | `warmStart.validation` | CarryTypes | [Build-time config checks](../phases/api-direct-call.md#build-time-config-checks) |
-| Which failed warm resumes fall back to a cold login | `warmStart.coldFallback` (`ColdFallback`) | CarryTypes | [Carry-bundle warm start](../phases/api-direct-call.md#carry-bundle-warm-start) |
-| Session held in cookies | `headless.sessionCookies` | — | [Headless transports](pipeline.md#headless-transports) |
-| Cookies shared across sibling hosts | `headless.cookieDomains` | — | [Headless transports](pipeline.md#headless-transports) |
-| Node's own `fetch`, no browser | `headless.nativeFetch` | — | [Headless transports](pipeline.md#headless-transports) |
-| Bank-wide redirect handling | `headless.redirectPolicy` (`RedirectPolicy`) | — | [Redirect policies](pipeline.md#redirect-policies) |
-| Redirect handling of one step | `redirect` (`RedirectPolicy`) | FlowTypes | [Redirect policies](pipeline.md#redirect-policies) |
-| Bank-wide status decisions before reading the body | `headless.statusPolicy` (`StatusPolicy`) | — | [Document responses and status policies](pipeline.md#document-responses-and-status-policies) |
-| Keep bank text out of native HTTP failures, including data calls | `headless.omitBankText` | — | [Headless transports](pipeline.md#headless-transports) |
-| Read one step's answer as a page, not JSON | `response` (`ResponseKind`), `documentMarker` | FlowTypes | [Document responses and status policies](pipeline.md#document-responses-and-status-policies) |
-| Carry values the bank returns in response headers | `headerExtractsToCarry` (`IHeaderExtract`) | FlowTypes | [Response-header carry](pipeline.md#response-header-carry) |
-| Carry values found by pattern in a text answer, and its size cap | `textCaptures` (`ITextCapture`), `maxTextChars` | WireTypes, FlowTypes | [Text captures](../phases/api-direct-call.md#text-captures) |
-| A login form's hidden fields, read off a text answer into one carry slot | `formCapture` (`IFormCapture`) | WireTypes, FlowTypes | [Login-form capture](../phases/api-direct-call.md#login-form-capture) |
-| Seal one POST step's JSON body and open its answer under a carried AES session, or derive that session by an ECDH key exchange | `codec` (`EnvelopeCodec`, `IEnvelopeSealed`, `IEnvelopeExchange`) | WireTypes, FlowTypes | [Envelope codec](../phases/api-direct-call.md#envelope-codec) |
-| Carry slots built from one step's extracts | `deriveCarry` (`IDerivedCarry`) | FlowTypes | [Carry derivation](../phases/api-direct-call.md#carry-derivation) |
-| Send one step's body as a URL-encoded form (UTF-8 or Latin-1) or as plain text | `encoding` (`BodyEncoding`) | FlowTypes | [Form bodies](pipeline.md#form-bodies) |
-| Seal a credential into one step's body | `seal` (`ISealFieldConfig`) | SignerTypes, FlowTypes | [Sealed fields](pipeline.md#sealed-fields) |
-| Set client cookies before one step's request | `setCookies` (record of `RefToken`) | FlowTypes, TemplateTypes | [Client cookies](pipeline.md#client-cookies) |
-| Read a cookie the bank set, URL-decoded | `cookie.<name>` (`RefToken`) | TemplateTypes | [Client cookies](pipeline.md#client-cookies) |
-| One string built from refs and literals | `$join` (`IJoinTemplate`, `JoinPart`, `JoinEncoding`) | TemplateTypes | [JsonValueTemplate](../phases/api-direct-call.md#jsonvaluetemplate) |
-| A carried form record with fields laid over it | `$merge` (`IMergeTemplate`) | TemplateTypes | [JsonValueTemplate](../phases/api-direct-call.md#jsonvaluetemplate) |
-| A fresh key or certificate request made by one step | `generate` (`ICarryGenerator`) | GeneratorTypes, FlowTypes | [Carry generators](../phases/api-direct-call.md#carry-generators) |
-| A returned certificate checked against its key | `extractRules` `pemCertificate` (`IPemCertificateRule`) | ExtractRuleTypes | [Extract rules](../phases/api-direct-call.md#extract-rules) |
-| A returned value that must equal one the run already holds | `extractRules` `equalsRef` (`RefToken`) | ExtractRuleTypes | [Extract rules](../phases/api-direct-call.md#extract-rules) |
-| Present a device certificate the run obtained | `clientCert` (`IStepClientCert`), `headless.clientCert` | FlowTypes | [Device certificate](../phases/api-direct-call.md#device-certificate) |
+| Capability                                                                                                                     | Field (type)                                                      | Bucket                             | Behaviour                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------- |
+| GET or POST per step                                                                                                           | `method` (`StepMethod`)                                           | FlowTypes                          | [GET steps](../phases/api-direct-call.md#get-steps)                                          |
+| Extra request headers per step                                                                                                 | `headers`                                                         | FlowTypes                          | [Step headers](../phases/api-direct-call.md#step-headers)                                    |
+| Response fields that may be absent                                                                                             | `optionalExtractsToCarry` (`IOptionalExtract`)                    | FlowTypes                          | [Optional extracts](../phases/api-direct-call.md#optional-extracts)                          |
+| Login refused with HTTP 200                                                                                                    | `outcome` (`IStepOutcome`)                                        | FlowTypes                          | [Step outcome](../phases/api-direct-call.md#step-outcome)                                    |
+| Bank state codes that change case                                                                                              | `outcome.caseInsensitive`                                         | FlowTypes                          | [Step outcome](../phases/api-direct-call.md#step-outcome)                                    |
+| Bank error field in a 2xx body, and its type                                                                                   | `failIfPresent`, `bankErrorType`                                  | FailureTypes                       | [Bank-error guard](../phases/api-direct-call.md#bank-error-guard)                            |
+| Type of a `4xx` reply, per status                                                                                              | `httpFailureMap`                                                  | FailureTypes                       | [HTTP failure map](../phases/api-direct-call.md#http-failure-map)                            |
+| Checks on a value the bank sends back                                                                                          | `extractRules` (`IExtractRule`, `ExtractValueType`)               | ExtractRuleTypes, FlowTypes        | [Extract rules](../phases/api-direct-call.md#extract-rules)                                  |
+| A step that runs only in some bank states                                                                                      | `runIf` (`IRunIf`)                                                | FlowTypes                          | [Conditional steps](../phases/api-direct-call.md#conditional-steps)                          |
+| Step identity and URL                                                                                                          | `name` (`StepName`), `urlTag`                                     | FlowTypes                          | [Step names and URL tags](../phases/api-direct-call.md#step-names-and-url-tags)              |
+| OTP prompt (absent: password-only)                                                                                             | `preHook` (`IPreStepHook`, `PreHookReuse`)                        | EnvelopeTypes, FlowTypes           | [Password-only chains](../phases/api-direct-call.md#password-only-chains)                    |
+| OTP hint, prerequisites and code shape                                                                                         | `preHook.hintFrom`, `preHook.requires`, `preHook.valuePattern`    | EnvelopeTypes                      | [OTP pre-hook guards](../phases/api-direct-call.md#otp-pre-hook-guards)                      |
+| Auth header form                                                                                                               | `authScheme` (`AuthScheme`), `authPrefix`                         | EnvelopeTypes, ApiDirectCallConfig | [Auth-mode policy](../phases/api-direct-call.md#auth-mode-policy)                            |
+| Credential shapes checked up front                                                                                             | `requiredCreds` (`CredRule`)                                      | ApiDirectCallConfig                | [Required credentials](../phases/api-direct-call.md#required-credentials)                    |
+| Keep the bank's reply text out of a missed extract, login diagnostics and a failed scrape call                                 | `omitBankText`                                                    | ApiDirectCallConfig                | [Bank text in failures](../phases/api-direct-call.md#bank-text-in-failures)                  |
+| Carry slots the scrape may see                                                                                                 | `sessionCarry`                                                    | ApiDirectCallConfig                | [Session carry](../phases/api-direct-call.md#session-carry)                                  |
+| Where a finished login leaves its cookies                                                                                      | `cookieHandoff` (`CookieHandoff`)                                 | FlowTypes                          | [Cookie hand-off](../phases/api-direct-call.md#cookie-hand-off)                              |
+| How a rejected session recovers                                                                                                | `authRecovery` (`AuthRecovery`)                                   | FlowTypes, ApiDirectCallConfig     | [Auth recovery](../phases/api-direct-call.md#auth-recovery)                                  |
+| How a stored token is judged                                                                                                   | `warmStart.validation`                                            | CarryTypes                         | [Build-time config checks](../phases/api-direct-call.md#build-time-config-checks)            |
+| Which failed warm resumes fall back to a cold login                                                                            | `warmStart.coldFallback` (`ColdFallback`)                         | CarryTypes                         | [Carry-bundle warm start](../phases/api-direct-call.md#carry-bundle-warm-start)              |
+| Session held in cookies                                                                                                        | `headless.sessionCookies`                                         | —                                  | [Headless transports](pipeline.md#headless-transports)                                       |
+| Cookies shared across sibling hosts                                                                                            | `headless.cookieDomains`                                          | —                                  | [Headless transports](pipeline.md#headless-transports)                                       |
+| Node's own `fetch`, no browser                                                                                                 | `headless.nativeFetch`                                            | —                                  | [Headless transports](pipeline.md#headless-transports)                                       |
+| Bank-wide redirect handling                                                                                                    | `headless.redirectPolicy` (`RedirectPolicy`)                      | —                                  | [Redirect policies](pipeline.md#redirect-policies)                                           |
+| Redirect handling of one step                                                                                                  | `redirect` (`RedirectPolicy`)                                     | FlowTypes                          | [Redirect policies](pipeline.md#redirect-policies)                                           |
+| Bank-wide status decisions before reading the body                                                                             | `headless.statusPolicy` (`StatusPolicy`)                          | —                                  | [Document responses and status policies](pipeline.md#document-responses-and-status-policies) |
+| Keep bank text out of native HTTP failures, including data calls                                                               | `headless.omitBankText`                                           | —                                  | [Headless transports](pipeline.md#headless-transports)                                       |
+| Read one step's answer as a page, not JSON                                                                                     | `response` (`ResponseKind`), `documentMarker`                     | FlowTypes                          | [Document responses and status policies](pipeline.md#document-responses-and-status-policies) |
+| Carry values the bank returns in response headers                                                                              | `headerExtractsToCarry` (`IHeaderExtract`)                        | FlowTypes                          | [Response-header carry](pipeline.md#response-header-carry)                                   |
+| Carry values found by pattern in a text answer, and its size cap                                                               | `textCaptures` (`ITextCapture`), `maxTextChars`                   | WireTypes, FlowTypes               | [Text captures](../phases/api-direct-call.md#text-captures)                                  |
+| A login form's hidden fields, read off a text answer into one carry slot                                                       | `formCapture` (`IFormCapture`)                                    | WireTypes, FlowTypes               | [Login-form capture](../phases/api-direct-call.md#login-form-capture)                        |
+| Seal one POST step's JSON body and open its answer under a carried AES session, or derive that session by an ECDH key exchange | `codec` (`EnvelopeCodec`, `IEnvelopeSealed`, `IEnvelopeExchange`) | WireTypes, FlowTypes               | [Envelope codec](../phases/api-direct-call.md#envelope-codec)                                |
+| Carry slots built from one step's extracts                                                                                     | `deriveCarry` (`IDerivedCarry`)                                   | FlowTypes                          | [Carry derivation](../phases/api-direct-call.md#carry-derivation)                            |
+| Send one step's body as a URL-encoded form (UTF-8 or Latin-1) or as plain text                                                 | `encoding` (`BodyEncoding`)                                       | FlowTypes                          | [Form bodies](pipeline.md#form-bodies)                                                       |
+| Seal a credential into one step's body                                                                                         | `seal` (`ISealFieldConfig`)                                       | SignerTypes, FlowTypes             | [Sealed fields](pipeline.md#sealed-fields)                                                   |
+| Set client cookies before one step's request                                                                                   | `setCookies` (record of `RefToken`)                               | FlowTypes, TemplateTypes           | [Client cookies](pipeline.md#client-cookies)                                                 |
+| Read a cookie the bank set, URL-decoded                                                                                        | `cookie.<name>` (`RefToken`)                                      | TemplateTypes                      | [Client cookies](pipeline.md#client-cookies)                                                 |
+| One string built from refs and literals                                                                                        | `$join` (`IJoinTemplate`, `JoinPart`, `JoinEncoding`)             | TemplateTypes                      | [JsonValueTemplate](../phases/api-direct-call.md#jsonvaluetemplate)                          |
+| A carried form record with fields laid over it                                                                                 | `$merge` (`IMergeTemplate`)                                       | TemplateTypes                      | [JsonValueTemplate](../phases/api-direct-call.md#jsonvaluetemplate)                          |
+| A fresh key or certificate request made by one step                                                                            | `generate` (`ICarryGenerator`)                                    | GeneratorTypes, FlowTypes          | [Carry generators](../phases/api-direct-call.md#carry-generators)                            |
+| A returned certificate checked against its key                                                                                 | `extractRules` `pemCertificate` (`IPemCertificateRule`)           | ExtractRuleTypes                   | [Extract rules](../phases/api-direct-call.md#extract-rules)                                  |
+| A returned value that must equal one the run already holds                                                                     | `extractRules` `equalsRef` (`RefToken`)                           | ExtractRuleTypes                   | [Extract rules](../phases/api-direct-call.md#extract-rules)                                  |
+| Present a device certificate the run obtained                                                                                  | `clientCert` (`IStepClientCert`), `headless.clientCert`           | FlowTypes                          | [Device certificate](../phases/api-direct-call.md#device-certificate)                        |
 
 Cross-field rules (for example `authScheme: 'none'` needs
 `headless.sessionCookies`) fail the build; see
@@ -186,7 +191,10 @@ import type {
 ```ts
 import type { ISignerConfig } from '<rel>/Mediator/ApiDirectCall/ConfigContracts/SignerTypes.js';
 import type { IWarmStartConfig } from '<rel>/Mediator/ApiDirectCall/ConfigContracts/CarryTypes.js';
-import type { IStepConfig, FlowKind } from '<rel>/Mediator/ApiDirectCall/ConfigContracts/FlowTypes.js';
+import type {
+  IStepConfig,
+  FlowKind,
+} from '<rel>/Mediator/ApiDirectCall/ConfigContracts/FlowTypes.js';
 ```
 
 ### Legacy shim (removed in v8.6)
@@ -243,7 +251,7 @@ indication at every import site. The v8.6 sweep then:
     [Public API surface gate](../workflow/public-surface.md#why-this-gate-exists)
     for exactly how it failed open.
 
-    What the claims assert is still *plausible* — a barrel re-export that
+    What the claims assert is still _plausible_ — a barrel re-export that
     preserves every name would not change the emitted surface — but it was
     never demonstrated. The real check is now
     `npm run lint:public-surface`, which compares the exported API against

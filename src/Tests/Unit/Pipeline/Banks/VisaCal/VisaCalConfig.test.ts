@@ -23,7 +23,7 @@ import { warmCarryField } from '../../../../../Scrapers/Pipeline/Mediator/ApiDir
 const CONFIG_DIR = '../../../../../Scrapers/Pipeline/Registry/Config/';
 
 /** The bank's headless block, as the build-time validator reads it. */
-type IHeadlessUrlsConfig = Exclude<IApiDirectRuleInput['headless'], false>;
+type ITransportConfig = Exclude<IApiDirectRuleInput['headless'], false>;
 
 /** Module shape shared by the call-config and headless-block modules. */
 interface IDefaultModule<T> {
@@ -44,9 +44,9 @@ async function loadCall(): Promise<IApiDirectCallConfig> {
  * Load the VisaCal headless block.
  * @returns The headless block.
  */
-async function loadHeadless(): Promise<IHeadlessUrlsConfig> {
+async function loadHeadless(): Promise<ITransportConfig> {
   const path = `${CONFIG_DIR}PipelineBankConfigVisaCalHeadless.js`;
-  const mod = (await import(path)) as IDefaultModule<IHeadlessUrlsConfig>;
+  const mod = (await import(path)) as IDefaultModule<ITransportConfig>;
   return mod.default;
 }
 

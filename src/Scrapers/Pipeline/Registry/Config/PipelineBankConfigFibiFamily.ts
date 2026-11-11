@@ -23,7 +23,7 @@ import {
 } from './PipelineBankConfigFibiFamilyPortal.js';
 import { fibiAssertSteps, fibiOpeningSteps } from './PipelineBankConfigFibiFamilyTransmit.js';
 import deviceFingerprint from './PipelineBankConfigRuntimeFingerprint.js';
-import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
+import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
 /** What every family login shares: the flow, the creds and the carry. */
 const FIBI_LOGIN = {
@@ -109,7 +109,7 @@ function fibiOriginPaths(origin: string): Readonly<Record<string, string>> {
  * @param brand - FIBI-family brand.
  * @returns URL tag → absolute URL.
  */
-function fibiPaths(brand: IFibiBrand): IHeadlessUrlsConfig['paths'] {
+function fibiPaths(brand: IFibiBrand): ITransportConfig['paths'] {
   const portal = { 'auth.prime': fibiEntryUrl(brand), 'auth.logon': fibiServletUrl(brand) };
   const api = fibiOriginPaths(brand.origin);
   return { ...portal, ...api };
@@ -121,7 +121,7 @@ function fibiPaths(brand: IFibiBrand): IHeadlessUrlsConfig['paths'] {
  * @param brand - FIBI-family brand.
  * @returns The headless block.
  */
-function buildFibiHeadless(brand: IFibiBrand): IHeadlessUrlsConfig {
+function buildFibiHeadless(brand: IFibiBrand): ITransportConfig {
   const base = `${brand.origin}/`;
   const paths = fibiPaths(brand);
   return { identityBase: base, graphql: base, paths, ...FIBI_WIRE };

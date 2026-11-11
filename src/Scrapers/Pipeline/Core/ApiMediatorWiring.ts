@@ -16,7 +16,7 @@ import {
   type IApiMediator,
 } from '../Mediator/Api/ApiMediator.js';
 import { resolvePipelineBankConfig } from '../Registry/Config/PipelineBankConfig.js';
-import type { IHeadlessUrlsConfig } from '../Registry/Config/PipelineBankConfigTypes.js';
+import type { ITransportConfig } from '../Registry/Config/PipelineBankConfigTypes.js';
 import type { Option } from '../Types/Option.js';
 import { none, some } from '../Types/Option.js';
 import type { IApiWiring, IWiringFlags, TransportKind } from './ApiWiringTypes.js';
@@ -41,7 +41,7 @@ type TTransportArgs = IApiWiring['transport'] &
  * @param headless - Headless URL block from PIPELINE_BANK_CONFIG.
  * @returns The transport flags, each defaulted to false when absent.
  */
-function toWiringFlags(headless: IHeadlessUrlsConfig): IWiringFlags {
+function toWiringFlags(headless: ITransportConfig): IWiringFlags {
   return {
     requiresClientCert: headless.requiresClientCert === true,
     nativeFetch: headless.nativeFetch === true,
@@ -55,7 +55,7 @@ function toWiringFlags(headless: IHeadlessUrlsConfig): IWiringFlags {
  * @param headless - Headless URL block from PIPELINE_BANK_CONFIG.
  * @returns Transport options and response policies for the mediator factories.
  */
-function toWiringTransport(headless: IHeadlessUrlsConfig): IApiWiring['transport'] {
+function toWiringTransport(headless: ITransportConfig): IApiWiring['transport'] {
   const { redirectPolicy, statusPolicy, mediaTypes, responseIntegrity } = headless;
   const policies = { redirectPolicy, statusPolicy, mediaTypes, strictUtf8: headless.strictUtf8 };
   const { tlsProfile, clientCert, cookieDomains, isConnectRetryDisabled } = headless;
@@ -68,7 +68,7 @@ function toWiringTransport(headless: IHeadlessUrlsConfig): IApiWiring['transport
  * @param headless - Headless URL block from PIPELINE_BANK_CONFIG.
  * @returns Resolved wiring (URLs + decoded flags).
  */
-function toApiWiring(headless: IHeadlessUrlsConfig): IApiWiring {
+function toApiWiring(headless: ITransportConfig): IApiWiring {
   const flags = toWiringFlags(headless);
   const transport = toWiringTransport(headless);
   const { identityBase, graphql, graphqlHeaders, staticAuth } = headless;

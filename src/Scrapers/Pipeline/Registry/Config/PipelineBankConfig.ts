@@ -23,14 +23,14 @@ import { MIZRAHI_HEADLESS } from './PipelineBankConfigMizrahi.js';
 import { ONEZERO_HEADLESS } from './PipelineBankConfigOneZeroHeadless.js';
 import { PEPPER_HEADLESS } from './PipelineBankConfigPepperHeadless.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
-import type { IHeadlessUrlsConfig, IPipelineBankConfig } from './PipelineBankConfigTypes.js';
+import type { IPipelineBankConfig, ITransportConfig } from './PipelineBankConfigTypes.js';
 import { VISACAL_HEADLESS } from './PipelineBankConfigVisaCalHeadless.js';
 import { YAHAV_HEADLESS } from './PipelineBankConfigYahav.js';
 
 export type {
   AuthPathKey,
-  IHeadlessUrlsConfig,
   IPipelineBankConfig,
+  ITransportConfig,
 } from './PipelineBankConfigTypes.js';
 
 /**
@@ -40,7 +40,7 @@ export type {
  * @param headless - The bank's headless URL and transport block.
  * @returns A pipeline bank config.
  */
-function defineApiDirectBank(base: string, headless: IHeadlessUrlsConfig): IPipelineBankConfig {
+function defineApiDirectBank(base: string, headless: ITransportConfig): IPipelineBankConfig {
   return { urls: { base }, headless };
 }
 

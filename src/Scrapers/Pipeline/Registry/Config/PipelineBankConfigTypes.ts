@@ -53,8 +53,11 @@ export type AuthPathKey =
 export type PhoneNumberFormatTag =
   'international-plus' | 'international-dash' | 'international-flat' | 'local-only';
 
-/** Headless-strategy URL block — populates ctx.apiMediator at build time. */
-export interface IHeadlessUrlsConfig {
+/**
+ * Pure-HTTP transport configuration — endpoints, TLS/mTLS settings, cookie jar
+ * rules and response policies that populate `ctx.apiMediator` at build time.
+ */
+export interface ITransportConfig {
   readonly identityBase: string;
   readonly graphql: string;
   /** Per-bank auth-path map — only the keys the bank actually uses. */
@@ -100,7 +103,7 @@ export interface IHeadlessUrlsConfig {
    * When true, identity calls run over Node's built-in `fetch` with no
    * custom TLS handshake — for banks whose edge admits a plain Node client.
    * Mutually exclusive with `requiresClientCert`, `clientCert` and
-   * `tlsProfile`. A headless block that declares none of the three
+   * `tlsProfile`. A transport config that declares none of the three
    * transports fails closed with a wiring error.
    */
   readonly nativeFetch?: boolean;
@@ -171,7 +174,7 @@ export interface IHeadlessUrlsConfig {
 
 /**
  * Pipeline bank config — the bank's official website plus its optional
- * headless transport block.
+ * HTTP transport configuration.
  */
 export interface IPipelineBankConfig {
   /**
@@ -181,6 +184,6 @@ export interface IPipelineBankConfig {
   readonly urls: {
     readonly base: string;
   };
-  /** Headless-strategy URLs — populated for API-native banks. */
-  readonly headless?: IHeadlessUrlsConfig;
+  /** Pure-HTTP transport configuration — populated for API-direct banks. */
+  readonly headless?: ITransportConfig;
 }

@@ -7,7 +7,7 @@
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { buildFibiApiDirectCall, buildFibiHeadless } from './PipelineBankConfigFibiFamily.js';
 import type { IFibiBrand } from './PipelineBankConfigFibiFamilyConstants.js';
-import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
+import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
 const OTSAR_HAHAYAL_BRAND: IFibiBrand = {
   origin: 'https://online.bankotsar.co.il',
@@ -20,7 +20,7 @@ const OTSAR_HAHAYAL_BRAND: IFibiBrand = {
 const OTSAR_HAHAYAL_API_DIRECT_CALL: IApiDirectCallConfig =
   buildFibiApiDirectCall(OTSAR_HAHAYAL_BRAND);
 
-const OTSAR_HAHAYAL_HEADLESS: IHeadlessUrlsConfig = buildFibiHeadless(OTSAR_HAHAYAL_BRAND);
+const OTSAR_HAHAYAL_HEADLESS: ITransportConfig = buildFibiHeadless(OTSAR_HAHAYAL_BRAND);
 
 export default OTSAR_HAHAYAL_API_DIRECT_CALL;
 export { OTSAR_HAHAYAL_API_DIRECT_CALL, OTSAR_HAHAYAL_HEADLESS };

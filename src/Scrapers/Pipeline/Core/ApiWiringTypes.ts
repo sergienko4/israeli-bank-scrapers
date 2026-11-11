@@ -4,7 +4,7 @@
  * from ApiMediatorWiring to keep that file under the 150-LoC cap.
  */
 
-import type { IHeadlessUrlsConfig } from '../Registry/Config/PipelineBankConfigTypes.js';
+import type { ITransportConfig } from '../Registry/Config/PipelineBankConfigTypes.js';
 
 /** Identity-transport flags decoded from the optional headless config block. */
 interface IWiringFlags {
@@ -43,7 +43,7 @@ interface IApiWiring extends IWiringFlags {
    * status policy (absent decides no status), its media type defaults and
    * its strict UTF-8 choice (absent reads bodies as `text()` does).
    */
-  readonly transport: Pick<IHeadlessUrlsConfig, TTransportKey>;
+  readonly transport: Pick<ITransportConfig, TTransportKey>;
   readonly identity: string;
   readonly graphql: string;
   readonly graphqlHeaders?: Readonly<Record<string, string>>;

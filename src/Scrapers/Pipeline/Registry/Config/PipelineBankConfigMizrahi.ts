@@ -39,7 +39,7 @@ import {
   MIZRAHI_WEB,
   MIZRAHI_WEB_POST_HEADERS,
 } from './PipelineBankConfigMizrahiConstants.js';
-import type { IHeadlessUrlsConfig } from './PipelineBankConfigTypes.js';
+import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
 /** The only page the landing hops may reach. */
 const LANDING_PATHS = ['/Online/Default.aspx'];
@@ -124,7 +124,7 @@ const MIZRAHI_API_DIRECT_CALL: IApiDirectCallConfig = {
 };
 
 /** Mizrahi headless endpoints. Every path is a full URL, registered verbatim. */
-const MIZRAHI_HEADLESS: IHeadlessUrlsConfig = {
+const MIZRAHI_HEADLESS: ITransportConfig = {
   identityBase: `${MIZRAHI_WEB}/`,
   // Mizrahi has no GraphQL; graphql mirrors identityBase to satisfy the type.
   graphql: `${MIZRAHI_WEB}/`,
