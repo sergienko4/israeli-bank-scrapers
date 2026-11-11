@@ -1,17 +1,15 @@
 /**
  * WK URL registry — identity/graphql endpoint URLs keyed by (group, bankHint).
- * Banks populate via `registerWkUrl` at module-load time.
+ * Seeded via `registerWkUrl` at module-load time, then frozen on first `resolveWkUrl`.
  * Zero bank-name literals in this file (one-way: WK depends on bank data, not code).
  */
 
 import type { CompanyTypes } from '../../../../Definitions.js';
 import { ScraperErrorTypes } from '../../../Base/ErrorTypes.js';
+import ScraperError from '../../../Base/ScraperError.js';
 import type { Brand } from '../../Types/Brand.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
-
-/** Registry write outcome — branded for Rule #15. */
-type DidRegister = Brand<boolean, 'WkUrlsDidRegister'>;
 
 /** Supported WK URL groups — generic API endpoints. */
 export type WKUrlGroup =
@@ -54,6 +52,18 @@ export type WKUrlOrLiteral = WKUrlGroup | LiteralUrl;
 /** Internal registry: group -> bankHint -> url string. */
 const WK_URLS = new Map<WKUrlGroup, Map<CompanyTypes, string>>();
 
+/** Set on first `resolveWkUrl` read; blocks all subsequent `registerWkUrl` writes. */
+let isFrozen = false;
+
+/**
+ * Mark the URL registry frozen on first read so subsequent registrations fail closed.
+ * @returns True once frozen.
+ */
+function ensureFrozen(): true {
+  isFrozen = true;
+  return true;
+}
+
 /**
  * Lookup or create the inner bank map for a URL group.
  * @param group - WK URL group.
@@ -68,17 +78,21 @@ function bankMapFor(group: WKUrlGroup): Map<CompanyTypes, string> {
 }
 
 /**
- * Register a URL string for a (group, bankHint) pair.
- * Called by bank-local data files at module-load time.
+ * Register a URL string for a `(group, bankHint)` pair during module-load seeding.
+ * Fails closed with {@link ScraperError} once {@link resolveWkUrl} has frozen the registry.
+ * @internal
  * @param group - WK URL group.
  * @param bankHint - Target bank identifier.
  * @param url - Full or relative URL string.
  * @returns True once stored.
  */
-export function registerWkUrl(group: WKUrlGroup, bankHint: CompanyTypes, url: string): DidRegister {
+export function registerWkUrl(group: WKUrlGroup, bankHint: CompanyTypes, url: string): true {
+  if (isFrozen) {
+    throw new ScraperError(`WK URL registry is frozen; refused ${group}/${bankHint}`);
+  }
   const inner = bankMapFor(group);
   inner.set(bankHint, url);
-  return true as DidRegister;
+  return true;
 }
 
 /**
@@ -100,12 +114,13 @@ export function literalUrl(url: string): LiteralUrl {
 }
 
 /**
- * Resolve a URL string for (group, bankHint).
+ * Resolve a URL string for `(group, bankHint)`, freezing the registry on first read.
  * @param group - WK URL group, or an inline absolute URL (passthrough).
  * @param bankHint - Target bank identifier.
  * @returns Procedure carrying the URL string, or fail if unknown.
  */
 export function resolveWkUrl(group: WKUrlOrLiteral, bankHint: CompanyTypes): Procedure<string> {
+  ensureFrozen();
   if (isLiteralUrl(group)) return succeed(group);
   const inner = WK_URLS.get(group);
   const hit = inner?.get(bankHint);
@@ -113,4 +128,13 @@ export function resolveWkUrl(group: WKUrlOrLiteral, bankHint: CompanyTypes): Pro
   return succeed(hit);
 }
 
-export { WK_URLS };
+/**
+ * Clear all registered URLs and lift the freeze flag for isolated unit tests.
+ * @internal
+ * @returns True after reset.
+ */
+export function resetWkRegistryForTest(): true {
+  WK_URLS.clear();
+  isFrozen = false;
+  return true;
+}

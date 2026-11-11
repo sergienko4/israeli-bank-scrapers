@@ -45,6 +45,13 @@ flowchart TB
 
 The former legacy layer (the base scrapers, per-bank classes and their `src/Common/` helpers) was removed once no registered bank used it — see [Legacy (removed)](legacy.md).
 
+## Well-known (WK) registry seeding and freeze
+
+Layer 4's well-known URL and GraphQL query registries (`src/Scrapers/Pipeline/Registry/WK/UrlsWK.ts` and `QueriesWK.ts`) keep their backing maps module-private and follow a two-phase lifecycle:
+
+1. **Module-load seeding:** `PipelineBankConfig.ts` seeds every bank's transport URLs via `seedWkFromPipelineConfig` (calling `@internal` `registerWkUrl`), and the GraphQL banks (`OneZeroQueries.ts`, `PepperQueries.ts`, statically imported through `PipelineRegistry.ts` and `src/Scrapers/Registry/Factory.ts`) register their operations via `@internal` `registerWkQuery` before any scrape begins.
+2. **Freeze on first read:** the first `resolveWkUrl` or `resolveWkQuery` call marks its registry frozen (`ensureFrozen()`); any subsequent `registerWkUrl` or `registerWkQuery` call fails closed with a `ScraperError`. Unit tests that construct isolated fixtures explicitly clear the backing map and lift the freeze flag via `resetWkRegistryForTest`.
+
 ## Import direction enforcement
 
 The architecture validator (`lint:architecture`) runs on every commit and rejects:

@@ -12,8 +12,14 @@ import type { IApiMediator } from '../../../../../Scrapers/Pipeline/Mediator/Api
 import type { IStepConfig } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { runStep } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.js';
 import { createApiDirectScrapePhase } from '../../../../../Scrapers/Pipeline/Phases/ApiDirectScrape/ApiDirectScrapePhase.js';
-import { registerWkQuery } from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
-import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import {
+  registerWkQuery,
+  resetWkRegistryForTest as resetWkQueriesForTest,
+} from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
+import {
+  registerWkUrl,
+  resetWkRegistryForTest as resetWkUrlsForTest,
+} from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { none, some } from '../../../../../Scrapers/Pipeline/Types/Option.js';
 import { fakeFetch } from '../../../../Helpers/FakeFetch.js';
 import { makeMockContext } from '../../Infrastructure/MockFactories.js';
@@ -42,6 +48,10 @@ function mediator(): IApiMediator {
 
 describe('response integrity routing', () => {
   const originalFetch = globalThis.fetch;
+  beforeEach(() => {
+    resetWkUrlsForTest();
+    resetWkQueriesForTest();
+  });
   afterEach(() => {
     globalThis.fetch = originalFetch;
   });

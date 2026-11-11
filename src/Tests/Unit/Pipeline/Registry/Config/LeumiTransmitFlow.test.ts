@@ -21,7 +21,10 @@ import {
   runSmsOtpFlow,
 } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/SmsOtpFlow.js';
 import { projectSessionCarry } from '../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/SessionCarryProjection.js';
-import { registerWkUrl } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import {
+  registerWkUrl,
+  resetWkRegistryForTest,
+} from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import type { JsonUnknownRecord } from '../../../../../Scrapers/Pipeline/Types/JsonValue.js';
 import type { Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import createScraper from '../../../../../Scrapers/Registry/Factory.js';
@@ -252,6 +255,20 @@ function makePeer(
 }
 
 /**
+ * Reset and register the synthetic transmit routes for one test run.
+ * @param paths - Transmit path URLs from the candidate module.
+ * @returns True after registration.
+ */
+function seedTransmitRoutes(paths: ITransmitModule['LEUMI_TRANSMIT_PATHS']): true {
+  resetWkRegistryForTest();
+  registerWkUrl('auth.encryptionKey', HINT, paths['auth.encryptionKey']);
+  registerWkUrl('auth.login', HINT, paths['auth.login']);
+  registerWkUrl('auth.assert', HINT, paths['auth.assert']);
+  registerWkUrl('auth.logon', HINT, `${ORIGIN}/sentinel`);
+  return true;
+}
+
+/**
  * Runs the configured steps through the real native mediator and peer.
  * @param peer - Offline peer.
  * @param creds - Synthetic credentials and optional injected flow ID.
@@ -262,11 +279,7 @@ async function run(
   creds: typeof CREDS & { readonly flowId?: string } = CREDS,
 ): Promise<Procedure<IFlowResult>> {
   const module = (await import(MODULE)) as ITransmitModule;
-  const paths = module.LEUMI_TRANSMIT_PATHS;
-  registerWkUrl('auth.encryptionKey', HINT, paths['auth.encryptionKey']);
-  registerWkUrl('auth.login', HINT, paths['auth.login']);
-  registerWkUrl('auth.assert', HINT, paths['auth.assert']);
-  registerWkUrl('auth.logon', HINT, `${ORIGIN}/sentinel`);
+  seedTransmitRoutes(module.LEUMI_TRANSMIT_PATHS);
   const config: IApiDirectCallConfig = {
     flow: 'sms-otp',
     envelope: {},
@@ -337,6 +350,7 @@ async function portalSetup(): Promise<{
   const portal = (await import(PORTAL_MODULE)) as IPortalModule;
   const assembled = (await import(CONFIG_MODULE)) as ILeumiModule;
   const paths = { ...transmit.LEUMI_TRANSMIT_PATHS, ...portal.LEUMI_PORTAL_PATHS };
+  resetWkRegistryForTest();
   for (const [tag, url] of Object.entries(paths)) {
     registerWkUrl(tag as keyof typeof paths, HINT, url);
   }

@@ -10,8 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { CompanyTypes } from '../../../../../Definitions.js';
 import {
   registerWkQuery,
+  resetWkRegistryForTest,
   resolveWkQuery,
-  WK_QUERIES,
   type WKQueryOperation,
 } from '../../../../../Scrapers/Pipeline/Registry/WK/QueriesWK.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -19,7 +19,7 @@ import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 const HINT = CompanyTypes.OneZero;
 
 beforeEach(() => {
-  WK_QUERIES.clear();
+  resetWkRegistryForTest();
 });
 
 describe('QueriesWK/registration', () => {
@@ -86,5 +86,23 @@ describe('QueriesWK/sourceContract', () => {
       /oneZero|amex|isracard|hapoalim|discount|visaCal|beinleumi|massad|mercantile|otsarHahayal|pagi/i;
     const hit = bannedNamesPattern.exec(source);
     expect(hit).toBeNull();
+  });
+});
+
+describe('QueriesWK/freezeOnFirstRead', () => {
+  it('fails closed when registerWkQuery is called after resolveWkQuery', () => {
+    registerWkQuery('customer', HINT, 'query Customer { me { id } }');
+    resolveWkQuery('customer', HINT);
+    expect(() => {
+      registerWkQuery('balance', HINT, 'query Balance { balance }');
+    }).toThrow(/WK query registry is frozen/);
+  });
+
+  it('allows registration again after resetWkRegistryForTest', () => {
+    resolveWkQuery('customer', HINT);
+    resetWkRegistryForTest();
+    registerWkQuery('customer', HINT, 'query Reset { me { id } }');
+    const result = resolveWkQuery('customer', HINT);
+    expect(result).toEqual({ success: true, value: 'query Reset { me { id } }' });
   });
 });
