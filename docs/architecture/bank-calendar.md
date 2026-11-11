@@ -179,7 +179,6 @@ label into a bank day, month, or wire value:
 | Bank request shapes                                             | Render caller bounds consistently for provider wire formats                                 |
 | `MatrixLoopStrategy.ts`, `MonthChunking.ts`, `JsonTraversal.ts` | Carry, validate, enumerate, and bound named billing months without an instant round trip    |
 | `BancsDateTemplate.ts`                                          | Validate chunk labels and render the provider's bank-calendar request fields                |
-| `DashboardDateCandidates.ts`                                    | Match visible date candidates to the Israel-pinned browser calendar                         |
 | `UrlDateRange.ts`, `UrlDateRangeInspect.ts`                     | Read captured date labels and write URL ranges in the bank calendar                         |
 | `FrozenScrapeAction.ts`, `ScrapePhase/DirectFetch.ts`           | Render the caller's start instant into the shared scrape context                            |
 | `OneZeroShapeTxns.ts`                                           | Calculate the default one-year lookback across leap and DST boundaries                      |

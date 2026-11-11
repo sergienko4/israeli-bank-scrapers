@@ -232,7 +232,7 @@ the ClientHello the profile really emits and asserts it hashes to that JA4
 exactly on runtimes at or above the floor, so a profile that drifts from its
 target fails in CI rather than at the edge.
 
-The transport is not specific to OneZero. A bank's headless config opts in with
+The transport is not specific to OneZero. A bank's transport config opts in with
 `tlsProfile` (a `TlsClientProfileKind`), `requiresClientCert`, or both; either
 one moves its identity and GraphQL calls onto `node:https`. When the transport
 is built, `getTlsClientProfile` resolves the profile's ClientHello options,
@@ -352,5 +352,5 @@ than leaving the request pending.
 ## Known quirks
 
 - GraphQL API throughout — `GET_ACCOUNT_TRANSACTIONS` + `GET_ACCOUNT_BALANCE` queries.
-- Persistent OTP token returned on successful login — opt-in long-lived auth for headless re-runs.
+- Persistent OTP token returned on successful login — opt-in long-lived auth for later runs.
 - The poll interval was bumped past an undocumented API throttle in v8.4.x (see `fix(telegram-otp): bump poll interval past undocumented API throttle`).

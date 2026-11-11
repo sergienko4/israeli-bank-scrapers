@@ -4,7 +4,7 @@
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `CompanyTypes` | `Pepper`                                                                                                                                                     |
 | Engine         | **API-direct** (no browser)                                                                                                                                  |
-| Transport      | Node's own `fetch` (`nativeFetch`) — see [Headless transports](../architecture/pipeline.md#headless-transports)                                              |
+| Transport      | Node's own `fetch` (`nativeFetch`) — see [HTTP transports](../architecture/pipeline.md#http-transports)                                              |
 | Credentials    | `phoneNumber`, `password`, `otpCodeRetriever`                                                                                                                |
 | OTP            | Required                                                                                                                                                     |
 | Phase chain    | [API-DIRECT-CALL](../phases/api-direct-call.md) → [API-DIRECT-SCRAPE](../phases/api-direct-scrape.md)                                                        |
@@ -179,7 +179,7 @@ PEPPER_PERSISTENT_AUTH=1 npm test -- --testPathPatterns=E2eReal/PepperDurable.e2
   (`UserDataV2`, `fetchAccountBalance`, `Transactions`). The gateway also
   requires a `queryname` request header matching the operation name, supplied
   by the scrape shape as `extraHeaders`.
-- Pepper is on the Headless mediator path — its `PipelineDescriptor` is composed via the fluent `PipelineBuilder` rather than the declarative literal style.
+- Pepper is on the transport-mediator path — its `PipelineDescriptor` is composed via the fluent `PipelineBuilder` rather than the declarative literal style.
 - Only **current accounts** are scrapeable; every other product the profile holds is skipped at discovery (see below).
 
 ## Unsupported account products

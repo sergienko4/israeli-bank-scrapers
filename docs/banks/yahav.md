@@ -62,7 +62,7 @@ Latin-1, since the token form sends both, and `nationalID` digits.
 
 `register` carries the password, and wrong credentials draw a bare `401`
 there. The reply names no reason, so the step's
-[`httpFailureMap`](../phases/api-direct-call.md#http-failure-map) reports
+[`httpFailureMap`](../phases/api-direct-call/errors.md#http-failure-map) reports
 every `401` at `register` as `INVALID_PASSWORD`, still with the message
 `register HTTP 401`; any other refusal at `register` stays `GENERIC`.
 

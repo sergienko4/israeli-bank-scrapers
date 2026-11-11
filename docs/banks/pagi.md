@@ -52,7 +52,7 @@ see the Beinleumi [login](beinleumi.md#login) and
 ## Warm start
 
 Pagi keeps the device the bank names as
-[device memory](../phases/api-direct-call.md#device-memory), as
+[device memory](../phases/api-direct-call/auth.md#device-memory), as
 [Beinleumi](beinleumi.md#warm-start) does, under provider `pagi-web`,
 bound to `username`. Pass `onPersistentAuthStateUpdate` on the first run and
 the stored `persistentAuthState` with it on later runs; the bank decides

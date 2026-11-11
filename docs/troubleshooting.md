@@ -15,8 +15,8 @@ interactive CAPTCHA.
 | `blocked by Cloudflare edge (WAF) before reaching the API`    | The edge refused the client identity or TLS fingerprint; see [OneZero](banks/onezero.md#what-happens-when-the-edge-refuses) |
 | `challenged by Cloudflare edge (WAF) before reaching the API` | The edge returned a challenge; stop retrying immediately and wait                                                           |
 
-Read `errorMessage` for the failed call and status. API-direct failures do
-not populate browser-specific `errorDetails`.
+Read `errorMessage` for the failed call and status. API-direct failures attach
+`errorDetails` only on the Cloudflare/WAF path.
 
 ## `server certificate chain is below the TLS security floor`
 
@@ -50,10 +50,10 @@ Returned as `result.errorType` when `result.success` is `false`.
 
 ## Request deadlines
 
-The headless native transport caps requests, including required response-body
+The native HTTP transport caps requests, including required response-body
 reads, with `timeoutMs`; its shared default is `NETWORK_FETCH_TIMEOUT_MS`
 (30 seconds). Connection retry and redirect policies are separate concerns;
-see [Headless transports](architecture/pipeline.md#headless-transports).
+see [HTTP transports](architecture/pipeline.md#http-transports).
 `defaultTimeout` is removed and cannot change an HTTP request budget.
 Use `otpTimeoutMs` for the OTP callback, not an HTTP deadline.
 

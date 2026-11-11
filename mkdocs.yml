@@ -151,7 +151,17 @@ nav:
       - Migration strategy: architecture/migration.md
   - Phases:
       - Overview: phases/index.md
-      - API-DIRECT-CALL: phases/api-direct-call.md
+      - API-DIRECT-CALL:
+          - Overview: phases/api-direct-call.md
+          - Shared primitives: phases/api-direct-call/overview.md
+          - Flow: phases/api-direct-call/flow.md
+          - Signing and crypto: phases/api-direct-call/signing.md
+          - Codecs and response rules: phases/api-direct-call/codecs.md
+          - Captures: phases/api-direct-call/captures.md
+          - Session and transport: phases/api-direct-call/session.md
+          - Auth policy and durable auth: phases/api-direct-call/auth.md
+          - Errors and failure modes: phases/api-direct-call/errors.md
+          - Build-time config checks: phases/api-direct-call/checks.md
       - API-DIRECT-SCRAPE: phases/api-direct-scrape.md
   - Banks:
       - Overview: banks/index.md

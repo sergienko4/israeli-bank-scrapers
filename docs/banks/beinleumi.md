@@ -98,7 +98,7 @@ text. Browser options passed to `createScraper` are no longer supported; see the
 The bank remembers the device it names during a login, and a device it knows
 may log in without an SMS code. The bank decides, and may still ask for one,
 so keep `otpCodeRetriever` set on every run. Beinleumi keeps
-that device as [device memory](../phases/api-direct-call.md#device-memory)
+that device as [device memory](../phases/api-direct-call/auth.md#device-memory)
 (provider `beinleumi-web`, bound to `username`):
 
 - **First run.** Pass `onPersistentAuthStateUpdate` and no

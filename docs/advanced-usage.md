@@ -46,7 +46,7 @@ scheduler.
 HTTP transports own request deadlines; `otpTimeoutMs` bounds the OTP callback.
 The executor does not repeat failed phases, which could resend an SMS or
 resubmit authentication. Transport-level connection retry policies are
-separate; see [Headless transports](architecture/pipeline.md#headless-transports).
+separate; see [HTTP transports](architecture/pipeline.md#http-transports).
 
 `defaultTimeout` and `navigationRetryCount` were browser options and have been
 removed. See [Compatibility](compatibility.md) before upgrading older callers.
