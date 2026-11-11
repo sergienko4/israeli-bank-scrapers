@@ -80,7 +80,13 @@ export const TEST_BLOCKS = [
       ],
       'check-file/folder-naming-convention': [
         'error',
-        { 'src/Tests/**/Pipeline/**/': 'PASCAL_CASE' },
+        {
+          'src/Tests/**/Pipeline/**/': 'PASCAL_CASE',
+          // The policy gates moved out of `Pipeline/` in Phase 14; without
+          // this key their folders lose the naming check the old path gave
+          // them, because this block replaces the repository-wide options.
+          'src/Tests/Policy/**/': 'PASCAL_CASE',
+        },
       ],
       'check-file/folder-match-with-fex': [
         'error',
