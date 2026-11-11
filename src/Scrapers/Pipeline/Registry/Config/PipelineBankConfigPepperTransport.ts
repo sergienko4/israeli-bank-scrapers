@@ -7,7 +7,7 @@
 import type { ITransportConfig } from './PipelineBankConfigTypes.js';
 
 /** Pepper headless identity, GraphQL and auth endpoints. */
-const PEPPER_HEADLESS: ITransportConfig = {
+const PEPPER_TRANSPORT: ITransportConfig = {
   identityBase: 'https://sa.pepper.co.il/',
   graphql: 'https://fe-sec.pepper.co.il/graphql',
   paths: {
@@ -38,5 +38,5 @@ const PEPPER_HEADLESS: ITransportConfig = {
   phoneNumberFormat: 'international-flat',
 };
 
-export default PEPPER_HEADLESS;
-export { PEPPER_HEADLESS };
+export default PEPPER_TRANSPORT;
+export { PEPPER_TRANSPORT };

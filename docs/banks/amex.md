@@ -43,7 +43,7 @@ step — see [Isracard → Login](isracard.md#login) and
 steps from Amex's ring constants (`AMEX_RING`): host
 `ring.americanexpress.co.il`, app id `ma`, domain `amex` and company code `77`.
 
-`AMEX_HEADLESS` registers the `service` URL and selects Node's own `fetch`
+`AMEX_TRANSPORT` registers the `service` URL and selects Node's own `fetch`
 (`nativeFetch`) with a cookie jar, so no browser starts. Browser options passed
 to `createScraper` are no longer supported; see the
 [migration notes](../configuration.md#removed-browser-options).

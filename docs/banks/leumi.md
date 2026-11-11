@@ -85,7 +85,7 @@ evidence of loss or a claim of complete coverage.
 ## Native login details
 
 The registered `buildLeumiNativePipeline` descriptor uses
-`LEUMI_API_DIRECT_CALL` for the login steps and `LEUMI_HEADLESS` for the
+`LEUMI_API_DIRECT_CALL` for the login steps and `LEUMI_TRANSPORT` for the
 native transport, cookie jar, redirect policy and response limits.
 
 For maintainers, `LEUMI_BOOTSTRAP_PATHS` and `LEUMI_BOOTSTRAP_STEPS` define

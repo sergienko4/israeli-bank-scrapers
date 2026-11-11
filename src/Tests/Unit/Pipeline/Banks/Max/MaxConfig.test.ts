@@ -42,7 +42,7 @@ async function loadMax(): Promise<IMaxModule> {
   const path = `${CONFIG_DIR}PipelineBankConfigMax.js`;
   const loaded = (await import(path)) as Record<string, unknown>;
   const call = loaded.default as IApiDirectCallConfig;
-  const headless = loaded.MAX_HEADLESS as ITransportConfig;
+  const headless = loaded.MAX_TRANSPORT as ITransportConfig;
   return { call, headless };
 }
 

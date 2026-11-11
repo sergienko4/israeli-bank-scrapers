@@ -45,7 +45,7 @@ async function loadCall(): Promise<IApiDirectCallConfig> {
  * @returns The headless block.
  */
 async function loadHeadless(): Promise<ITransportConfig> {
-  const path = `${CONFIG_DIR}PipelineBankConfigVisaCalHeadless.js`;
+  const path = `${CONFIG_DIR}PipelineBankConfigVisaCalTransport.js`;
   const mod = (await import(path)) as IDefaultModule<ITransportConfig>;
   return mod.default;
 }

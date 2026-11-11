@@ -86,7 +86,7 @@ const ENVELOPE_HEADERS = [
 async function loadModule(): Promise<IBeinleumiModule> {
   const loaded = (await import(CONFIG_MODULE)) as Record<string, unknown>;
   const call = loaded.default as IApiDirectCallConfig;
-  const headless = loaded.BEINLEUMI_HEADLESS as HeadlessBlock;
+  const headless = loaded.BEINLEUMI_TRANSPORT as HeadlessBlock;
   return { call, headless };
 }
 

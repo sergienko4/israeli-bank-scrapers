@@ -89,7 +89,7 @@ const TOKEN_FORM = {
 async function loadModule(): Promise<IYahavModule> {
   const loaded = (await import(CONFIG_MODULE)) as Record<string, unknown>;
   const call = loaded.default as IApiDirectCallConfig;
-  const headless = loaded.YAHAV_HEADLESS as HeadlessBlock;
+  const headless = loaded.YAHAV_TRANSPORT as HeadlessBlock;
   return { call, headless };
 }
 

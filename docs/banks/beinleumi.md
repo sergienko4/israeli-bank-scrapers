@@ -31,7 +31,7 @@ is called only when the bank asks for a code.
 
 Beinleumi logs in the way its web login page does, with no browser. Every call
 runs on the bank's online origin. `BEINLEUMI_API_DIRECT_CALL` and
-`BEINLEUMI_HEADLESS` (`Registry/Config/PipelineBankConfigBeinleumi.ts`) are the
+`BEINLEUMI_TRANSPORT` (`Registry/Config/PipelineBankConfigBeinleumi.ts`) are the
 FIBI-family login built for one `IFibiBrand` record: the origin, the entry
 page's `bankId`, the Transmit app id, the bank number and the device-memory
 provider. `buildFibiApiDirectCall` and `buildFibiHeadless`
@@ -77,7 +77,7 @@ no location.
 
 ## Wire policy
 
-`BEINLEUMI_HEADLESS` maps each step to its path in `FIBI_PATHS` on the online
+`BEINLEUMI_TRANSPORT` maps each step to its path in `FIBI_PATHS` on the online
 origin, keeps one cookie session over native fetch and refuses what the web
 login never answers:
 

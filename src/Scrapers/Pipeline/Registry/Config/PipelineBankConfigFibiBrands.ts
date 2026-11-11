@@ -4,7 +4,7 @@
  * built in its brand's own config module from the shared FIBI-family login.
  */
 
-export { BEINLEUMI_HEADLESS } from './PipelineBankConfigBeinleumi.js';
-export { MASSAD_HEADLESS } from './PipelineBankConfigMassad.js';
-export { OTSAR_HAHAYAL_HEADLESS } from './PipelineBankConfigOtsarHahayal.js';
-export { PAGI_HEADLESS } from './PipelineBankConfigPagi.js';
+export { BEINLEUMI_TRANSPORT } from './PipelineBankConfigBeinleumi.js';
+export { MASSAD_TRANSPORT } from './PipelineBankConfigMassad.js';
+export { OTSAR_HAHAYAL_TRANSPORT } from './PipelineBankConfigOtsarHahayal.js';
+export { PAGI_TRANSPORT } from './PipelineBankConfigPagi.js';

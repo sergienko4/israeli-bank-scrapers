@@ -85,15 +85,15 @@ function swapBrand(text: string): string {
 
 describe('Mercantile api-direct login config (Telebank group)', () => {
   it('names each Discount brand token as often as the swap table says', async () => {
-    const discount = await loadConfig('PipelineBankConfigDiscount.js', 'DISCOUNT_HEADLESS');
+    const discount = await loadConfig('PipelineBankConfigDiscount.js', 'DISCOUNT_TRANSPORT');
     const counts = SWAPS.map(swap => countOf(discount.text, swap.from));
     const expected = SWAPS.map(swap => swap.count);
     expect(counts).toEqual(expected);
   });
 
   it("is Discount's login with only the brand swapped", async () => {
-    const discount = await loadConfig('PipelineBankConfigDiscount.js', 'DISCOUNT_HEADLESS');
-    const own = await loadConfig('PipelineBankConfigMercantile.js', 'MERCANTILE_HEADLESS');
+    const discount = await loadConfig('PipelineBankConfigDiscount.js', 'DISCOUNT_TRANSPORT');
+    const own = await loadConfig('PipelineBankConfigMercantile.js', 'MERCANTILE_TRANSPORT');
     const expected = swapBrand(discount.text);
     expect(own.text).toBe(expected);
   });
@@ -101,14 +101,17 @@ describe('Mercantile api-direct login config (Telebank group)', () => {
   it('passes the build-time validator with its headless block', async () => {
     const { call, headless } = await loadConfig(
       'PipelineBankConfigMercantile.js',
-      'MERCANTILE_HEADLESS',
+      'MERCANTILE_TRANSPORT',
     );
     const result = validateApiDirectConfig({ call, transport: headless });
     expect(result).toEqual({ success: true, value: true });
   });
 
   it('registers its website as an api-direct account bank on that block', async () => {
-    const { headless } = await loadConfig('PipelineBankConfigMercantile.js', 'MERCANTILE_HEADLESS');
+    const { headless } = await loadConfig(
+      'PipelineBankConfigMercantile.js',
+      'MERCANTILE_TRANSPORT',
+    );
     const registry = (await import(`${CONFIG_DIR}PipelineBankConfig.js`)) as Record<
       string,
       unknown

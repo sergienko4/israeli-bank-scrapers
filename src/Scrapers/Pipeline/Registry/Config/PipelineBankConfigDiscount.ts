@@ -21,7 +21,7 @@ const DISCOUNT_BRAND: ITelebankBrand = {
 
 const DISCOUNT_API_DIRECT_CALL: IApiDirectCallConfig = buildTelebankApiDirectCall(DISCOUNT_BRAND);
 
-const DISCOUNT_HEADLESS: ITransportConfig = buildTelebankHeadless(DISCOUNT_BRAND);
+const DISCOUNT_TRANSPORT: ITransportConfig = buildTelebankHeadless(DISCOUNT_BRAND);
 
 export default DISCOUNT_API_DIRECT_CALL;
-export { DISCOUNT_API_DIRECT_CALL, DISCOUNT_HEADLESS };
+export { DISCOUNT_API_DIRECT_CALL, DISCOUNT_TRANSPORT };

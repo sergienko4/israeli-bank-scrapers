@@ -22,7 +22,7 @@ const MERCANTILE_BRAND: ITelebankBrand = {
 const MERCANTILE_API_DIRECT_CALL: IApiDirectCallConfig =
   buildTelebankApiDirectCall(MERCANTILE_BRAND);
 
-const MERCANTILE_HEADLESS: ITransportConfig = buildTelebankHeadless(MERCANTILE_BRAND);
+const MERCANTILE_TRANSPORT: ITransportConfig = buildTelebankHeadless(MERCANTILE_BRAND);
 
 export default MERCANTILE_API_DIRECT_CALL;
-export { MERCANTILE_API_DIRECT_CALL, MERCANTILE_HEADLESS };
+export { MERCANTILE_API_DIRECT_CALL, MERCANTILE_TRANSPORT };

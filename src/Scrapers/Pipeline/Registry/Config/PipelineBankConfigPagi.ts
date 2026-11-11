@@ -19,7 +19,7 @@ const PAGI_BRAND: IFibiBrand = {
 
 const PAGI_API_DIRECT_CALL: IApiDirectCallConfig = buildFibiApiDirectCall(PAGI_BRAND);
 
-const PAGI_HEADLESS: ITransportConfig = buildFibiHeadless(PAGI_BRAND);
+const PAGI_TRANSPORT: ITransportConfig = buildFibiHeadless(PAGI_BRAND);
 
 export default PAGI_API_DIRECT_CALL;
-export { PAGI_API_DIRECT_CALL, PAGI_HEADLESS };
+export { PAGI_API_DIRECT_CALL, PAGI_TRANSPORT };

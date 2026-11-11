@@ -53,7 +53,7 @@ const CARRY = { uid: UID, uidMd5: UID_MD5, rsaKey: 'syn-key', mi6: UID_MD5 } as 
 async function loadModule(): Promise<IDiscountModule> {
   const loaded = (await import(CONFIG_MODULE)) as Record<string, unknown>;
   const call = loaded.default as IApiDirectCallConfig;
-  const headless = loaded.DISCOUNT_HEADLESS as HeadlessBlock;
+  const headless = loaded.DISCOUNT_TRANSPORT as HeadlessBlock;
   return { call, headless };
 }
 

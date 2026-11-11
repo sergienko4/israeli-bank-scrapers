@@ -28,7 +28,7 @@ type GatedStepField =
   | 'encoding';
 
 /** Headless defaults not passed to the node:https strategy. */
-const NATIVE_HEADLESS_FIELDS = [
+const NATIVE_TRANSPORT_FIELDS = [
   'redirectPolicy',
   'statusPolicy',
   'omitBankText',
@@ -39,7 +39,7 @@ const NATIVE_HEADLESS_FIELDS = [
 ] as const;
 
 /** A headless field one transport family acts on. */
-type GatedHeadlessField = 'cookieDomains' | (typeof NATIVE_HEADLESS_FIELDS)[number];
+type GatedTransportField = 'cookieDomains' | (typeof NATIVE_TRANSPORT_FIELDS)[number];
 
 /** The transports that act on a field, and the rule text off them. */
 interface IFieldGate {
@@ -106,9 +106,9 @@ const STEP_FIELD_GATES: readonly (readonly [GatedStepField, IFieldGate])[] = [
 ];
 
 /** Headless fields and the transports that act on them, in check order. */
-const HEADLESS_FIELD_GATES: readonly (readonly [GatedHeadlessField, IFieldGate])[] = [
+const TRANSPORT_FIELD_GATES: readonly (readonly [GatedTransportField, IFieldGate])[] = [
   ['cookieDomains', NODE_GATE],
-  ...NATIVE_HEADLESS_FIELDS.map((field): readonly [GatedHeadlessField, IFieldGate] => [
+  ...NATIVE_TRANSPORT_FIELDS.map((field): readonly [GatedTransportField, IFieldGate] => [
     field,
     NATIVE_GATE,
   ]),
@@ -138,8 +138,8 @@ function hasStepFieldOff(
  * @param input - Rule input.
  * @returns True when the headless block sets the field off its transports.
  */
-function hasHeadlessFieldOff(
-  field: GatedHeadlessField,
+function hasTransportFieldOff(
+  field: GatedTransportField,
   gate: IFieldGate,
   input: IApiDirectRuleInput,
 ): boolean {
@@ -163,9 +163,9 @@ function stepFieldRule(entry: readonly [GatedStepField, IFieldGate]): IApiDirect
  * @param entry - The field and its gate.
  * @returns The rule.
  */
-function headlessFieldRule(entry: readonly [GatedHeadlessField, IFieldGate]): IApiDirectRule {
+function transportFieldRule(entry: readonly [GatedTransportField, IFieldGate]): IApiDirectRule {
   const [field, gate] = entry;
-  const isBroken = hasHeadlessFieldOff.bind(null, field, gate);
+  const isBroken = hasTransportFieldOff.bind(null, field, gate);
   return { message: `transport.${field}: ${gate.offText}`, isBroken };
 }
 
@@ -223,14 +223,14 @@ function hasBadCookieName(input: IApiDirectRuleInput): boolean {
 }
 
 const STEP_FIELD_RULES = STEP_FIELD_GATES.map((entry): IApiDirectRule => stepFieldRule(entry));
-const HEADLESS_FIELD_RULES = HEADLESS_FIELD_GATES.map((entry): IApiDirectRule =>
-  headlessFieldRule(entry),
+const TRANSPORT_FIELD_RULES = TRANSPORT_FIELD_GATES.map((entry): IApiDirectRule =>
+  transportFieldRule(entry),
 );
 
 /** Transport rules, checked in order after the session-transport rules. */
 const API_DIRECT_NATIVE_RULES: readonly IApiDirectRule[] = [
   ...STEP_FIELD_RULES,
-  ...HEADLESS_FIELD_RULES,
+  ...TRANSPORT_FIELD_RULES,
   {
     message: 'transport.cookieDomains: not allowed without transport.sessionCookies',
     isBroken: isDomainJarWithoutSession,
@@ -251,4 +251,4 @@ const API_DIRECT_NATIVE_RULES: readonly IApiDirectRule[] = [
 ];
 
 export default API_DIRECT_NATIVE_RULES;
-export { API_DIRECT_NATIVE_RULES, NATIVE_HEADLESS_FIELDS };
+export { API_DIRECT_NATIVE_RULES, NATIVE_TRANSPORT_FIELDS };

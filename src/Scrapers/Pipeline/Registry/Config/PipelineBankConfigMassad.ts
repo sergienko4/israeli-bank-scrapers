@@ -19,7 +19,7 @@ const MASSAD_BRAND: IFibiBrand = {
 
 const MASSAD_API_DIRECT_CALL: IApiDirectCallConfig = buildFibiApiDirectCall(MASSAD_BRAND);
 
-const MASSAD_HEADLESS: ITransportConfig = buildFibiHeadless(MASSAD_BRAND);
+const MASSAD_TRANSPORT: ITransportConfig = buildFibiHeadless(MASSAD_BRAND);
 
 export default MASSAD_API_DIRECT_CALL;
-export { MASSAD_API_DIRECT_CALL, MASSAD_HEADLESS };
+export { MASSAD_API_DIRECT_CALL, MASSAD_TRANSPORT };

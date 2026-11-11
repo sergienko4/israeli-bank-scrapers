@@ -15,7 +15,7 @@ type IHeadless = Exclude<Parameters<typeof validateApiDirectConfig>[0]['transpor
 
 interface ILeumiModule {
   readonly LEUMI_API_DIRECT_CALL: IApiDirectCallConfig;
-  readonly LEUMI_HEADLESS: IHeadless;
+  readonly LEUMI_TRANSPORT: IHeadless;
 }
 
 interface IRegistryModule {
@@ -26,7 +26,7 @@ interface IRegistryModule {
 
 describe('Leumi native candidate configuration', () => {
   it('builds one bounded, private native flow and activates its registry config', async () => {
-    const { LEUMI_API_DIRECT_CALL: call, LEUMI_HEADLESS: headless } = (await import(
+    const { LEUMI_API_DIRECT_CALL: call, LEUMI_TRANSPORT: headless } = (await import(
       MODULE
     )) as ILeumiModule;
     const validation = validateApiDirectConfig({ call, transport: headless });

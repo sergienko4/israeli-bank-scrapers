@@ -1521,7 +1521,7 @@ rules, `API_DIRECT_CLIENT_CERT_RULES` in
 transport rules, `API_DIRECT_NATIVE_RULES` in
 `Core/Builder/ApiDirectNativeRules.ts`, run last: step reading and domain
 cookies are rejected off either node transport; redirects and native-only
-bank defaults are rejected on node:https too. `NATIVE_HEADLESS_FIELDS` names
+bank defaults are rejected on node:https too. `NATIVE_TRANSPORT_FIELDS` names
 the native-only defaults checked by both api-direct and node-tls builders.
 The first broken rule
 fails the build with `Generic` and `<field>: <rule>`:

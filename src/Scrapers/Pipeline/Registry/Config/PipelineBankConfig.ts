@@ -6,26 +6,26 @@
  */
 
 import { CompanyTypes } from '../../../../Definitions.js';
-import { AMEX_HEADLESS } from './PipelineBankConfigAmex.js';
-import { DISCOUNT_HEADLESS } from './PipelineBankConfigDiscount.js';
+import { AMEX_TRANSPORT } from './PipelineBankConfigAmex.js';
+import { DISCOUNT_TRANSPORT } from './PipelineBankConfigDiscount.js';
 import {
-  BEINLEUMI_HEADLESS,
-  MASSAD_HEADLESS,
-  OTSAR_HAHAYAL_HEADLESS,
-  PAGI_HEADLESS,
+  BEINLEUMI_TRANSPORT,
+  MASSAD_TRANSPORT,
+  OTSAR_HAHAYAL_TRANSPORT,
+  PAGI_TRANSPORT,
 } from './PipelineBankConfigFibiBrands.js';
-import { HAPOALIM_HEADLESS } from './PipelineBankConfigHapoalim.js';
-import { ISRACARD_HEADLESS } from './PipelineBankConfigIsracard.js';
-import { LEUMI_HEADLESS } from './PipelineBankConfigLeumi.js';
-import { MAX_HEADLESS } from './PipelineBankConfigMax.js';
-import { MERCANTILE_HEADLESS } from './PipelineBankConfigMercantile.js';
-import { MIZRAHI_HEADLESS } from './PipelineBankConfigMizrahi.js';
-import { ONEZERO_HEADLESS } from './PipelineBankConfigOneZeroHeadless.js';
-import { PEPPER_HEADLESS } from './PipelineBankConfigPepperHeadless.js';
+import { HAPOALIM_TRANSPORT } from './PipelineBankConfigHapoalim.js';
+import { ISRACARD_TRANSPORT } from './PipelineBankConfigIsracard.js';
+import { LEUMI_TRANSPORT } from './PipelineBankConfigLeumi.js';
+import { MAX_TRANSPORT } from './PipelineBankConfigMax.js';
+import { MERCANTILE_TRANSPORT } from './PipelineBankConfigMercantile.js';
+import { MIZRAHI_TRANSPORT } from './PipelineBankConfigMizrahi.js';
+import { ONEZERO_TRANSPORT } from './PipelineBankConfigOneZeroTransport.js';
+import { PEPPER_TRANSPORT } from './PipelineBankConfigPepperTransport.js';
 import { seedWkFromPipelineConfig } from './PipelineBankConfigSeeder.js';
 import type { IPipelineBankConfig, ITransportConfig } from './PipelineBankConfigTypes.js';
-import { VISACAL_HEADLESS } from './PipelineBankConfigVisaCalHeadless.js';
-import { YAHAV_HEADLESS } from './PipelineBankConfigYahav.js';
+import { VISACAL_TRANSPORT } from './PipelineBankConfigVisaCalTransport.js';
+import { YAHAV_TRANSPORT } from './PipelineBankConfigYahav.js';
 
 export type {
   AuthPathKey,
@@ -45,30 +45,36 @@ function defineApiDirectBank(base: string, transport: ITransportConfig): IPipeli
 
 /** Pipeline bank registry — migrated banks only. */
 const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> = {
-  [CompanyTypes.Beinleumi]: defineApiDirectBank('https://www.fibi.co.il', BEINLEUMI_HEADLESS),
-  [CompanyTypes.Leumi]: defineApiDirectBank('https://www.leumi.co.il', LEUMI_HEADLESS),
-  [CompanyTypes.Discount]: defineApiDirectBank('https://www.discountbank.co.il', DISCOUNT_HEADLESS),
-  [CompanyTypes.Hapoalim]: defineApiDirectBank('https://www.bankhapoalim.co.il', HAPOALIM_HEADLESS),
-  [CompanyTypes.Massad]: defineApiDirectBank('https://www.bankmassad.co.il', MASSAD_HEADLESS),
+  [CompanyTypes.Beinleumi]: defineApiDirectBank('https://www.fibi.co.il', BEINLEUMI_TRANSPORT),
+  [CompanyTypes.Leumi]: defineApiDirectBank('https://www.leumi.co.il', LEUMI_TRANSPORT),
+  [CompanyTypes.Discount]: defineApiDirectBank(
+    'https://www.discountbank.co.il',
+    DISCOUNT_TRANSPORT,
+  ),
+  [CompanyTypes.Hapoalim]: defineApiDirectBank(
+    'https://www.bankhapoalim.co.il',
+    HAPOALIM_TRANSPORT,
+  ),
+  [CompanyTypes.Massad]: defineApiDirectBank('https://www.bankmassad.co.il', MASSAD_TRANSPORT),
   [CompanyTypes.OtsarHahayal]: defineApiDirectBank(
     'https://www.bankotsar.co.il',
-    OTSAR_HAHAYAL_HEADLESS,
+    OTSAR_HAHAYAL_TRANSPORT,
   ),
-  [CompanyTypes.Pagi]: defineApiDirectBank('https://www.pagi.co.il', PAGI_HEADLESS),
-  [CompanyTypes.Yahav]: defineApiDirectBank('https://www.yahav.co.il', YAHAV_HEADLESS),
-  [CompanyTypes.VisaCal]: defineApiDirectBank('https://www.cal-online.co.il/', VISACAL_HEADLESS),
-  [CompanyTypes.Amex]: defineApiDirectBank('https://www.americanexpress.co.il', AMEX_HEADLESS),
-  [CompanyTypes.Max]: defineApiDirectBank('https://www.max.co.il', MAX_HEADLESS),
+  [CompanyTypes.Pagi]: defineApiDirectBank('https://www.pagi.co.il', PAGI_TRANSPORT),
+  [CompanyTypes.Yahav]: defineApiDirectBank('https://www.yahav.co.il', YAHAV_TRANSPORT),
+  [CompanyTypes.VisaCal]: defineApiDirectBank('https://www.cal-online.co.il/', VISACAL_TRANSPORT),
+  [CompanyTypes.Amex]: defineApiDirectBank('https://www.americanexpress.co.il', AMEX_TRANSPORT),
+  [CompanyTypes.Max]: defineApiDirectBank('https://www.max.co.il', MAX_TRANSPORT),
   [CompanyTypes.Mercantile]: defineApiDirectBank(
     'https://www.mercantile.co.il',
-    MERCANTILE_HEADLESS,
+    MERCANTILE_TRANSPORT,
   ),
   [CompanyTypes.Mizrahi]: defineApiDirectBank(
     'https://www.mizrahi-tefahot.co.il',
-    MIZRAHI_HEADLESS,
+    MIZRAHI_TRANSPORT,
   ),
-  [CompanyTypes.Isracard]: defineApiDirectBank('https://www.isracard.co.il', ISRACARD_HEADLESS),
-  [CompanyTypes.OneZero]: defineApiDirectBank('https://www.onezerobank.com', ONEZERO_HEADLESS),
+  [CompanyTypes.Isracard]: defineApiDirectBank('https://www.isracard.co.il', ISRACARD_TRANSPORT),
+  [CompanyTypes.OneZero]: defineApiDirectBank('https://www.onezerobank.com', ONEZERO_TRANSPORT),
   [CompanyTypes.PayBox]: {
     urls: { base: 'https://www.payboxapp.com/' },
     transport: {
@@ -96,7 +102,7 @@ const PIPELINE_BANK_CONFIG: Partial<Record<CompanyTypes, IPipelineBankConfig>> =
       redirectPolicy: 'reject',
     },
   },
-  [CompanyTypes.Pepper]: defineApiDirectBank('https://www.pepper.co.il', PEPPER_HEADLESS),
+  [CompanyTypes.Pepper]: defineApiDirectBank('https://www.pepper.co.il', PEPPER_TRANSPORT),
 };
 
 /**
