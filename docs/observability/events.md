@@ -107,11 +107,19 @@ one concern so the moving parts are independently testable:
   keyed on the resolved log destination rather than gated on it, so the
   terminal-only root used before `setActiveBank` lands is itself cached
   and is rebuilt when — and only when — the destination actually changes.
-  The companion `getRootLoggerGeneration` counter advances on each
-  rebuild so the deferred-resolve proxy drops a memoised child on its
-  next access after the root behind it was replaced.
+  On each rebuild, any superseded worker transport (`ThreadStream`) is
+  flushed and scheduled to drain-and-close so alternating-bank runs never
+  accumulate workers or open file descriptors, while `getRootLoggerGeneration`
+  advances so deferred proxies drop memoised children on their next access.
 - `Logging/ChildLoggerProxy.ts` — `buildDeferredLogger(name)` returns
   the lazy-resolve `Proxy` that backs both `getDebug` and
-  `getDebugByName`. The internal `IProxyHandler` type documents the
-  exact `get`-trap shape so the cluster's unit tests can assert
+  `getDebugByName` (and intercepts `.child(...)` and `.setBindings(...)`
+  so retained sub-loggers likewise re-resolve against the current root
+  generation). The internal `IProxyHandler` type documents the exact
+  `get`/`set`-trap shape so the cluster's unit tests can assert
   property-access semantics without re-deriving it from `Proxy<T>`.
+- `Logging/ChildLoggerState.ts` — `IDeferredChildSpec` and
+  `IDeferredChildEntry` state carriers plus `captureChindings` and
+  `instantiateChild`, which snapshot Pino's serialized chindings string
+  and preserve custom `formatters.bindings` and `level` overrides across
+  root rebuilds.

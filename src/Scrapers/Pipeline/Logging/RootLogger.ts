@@ -278,21 +278,88 @@ export function instantiateLogger(logFile: string, options: pino.LoggerOptions):
   }
 }
 
+/** Prefix emitted out-of-band when draining a retired worker transport fails. */
+const RETIRED_DRAIN_FAILED = 'superseded log transport failed while draining:';
+
+/** Expected `ThreadStream` errors emitted only when a stale unproxied caller writes post-end. */
+const STALE_WORKER_MESSAGES = new Set(['the worker is ending', 'the worker has exited']);
+
 /**
- * Replace the cached root logger with one bound to `logFile`, flushing the
- * superseded instance so buffered pre-upgrade records still reach their
- * destination.
- *
- * The superseded logger is flushed but deliberately NOT closed. Closing it
- * would terminate its `thread-stream` worker, and writes can still legally
- * arrive on it: `LOG.child({...})` returns a *real* pino child rather than a
- * proxy, so any sub-logger captured before the upgrade keeps writing to the
- * old stream forever and would start throwing on a closed one. Flushing
- * therefore trades a bounded leak for safety — and the bound is small: a run
- * changes destination exactly once (`'' -> <file>`, when `setActiveBank`
- * fires), so at most one logger is ever superseded, and without the
- * `PRETTY_LOGS` opt-in and no file the superseded logger is transportless
- * and owns no worker at all.
+ * Candidate stream shape read off `pino.symbols.streamSym` when retiring a
+ * superseded root logger. Worker transports (`ThreadStream`) omit `fd` and
+ * expose `.end()`, whereas Pino's default stdout `SonicBoom` carries `fd: 1`
+ * and must never be closed.
+ */
+interface IPinoStreamCandidate {
+  readonly fd?: number;
+  readonly closed?: boolean;
+  readonly end?: () => object | boolean;
+  readonly on?: (event: 'error', listener: (err: Error) => boolean) => object;
+}
+
+/**
+ * Suppress late-write errors on an ending/exited `ThreadStream` while still
+ * surfacing genuine drain, disk, or shutdown-timeout failures out-of-band.
+ * @param rawError - Error emitted by the retiring `ThreadStream`.
+ * @returns True when a warning was emitted, false when suppressed as stale write.
+ */
+function handleRetiredStreamError(rawError: Error): boolean {
+  const error = toError(rawError);
+  if (STALE_WORKER_MESSAGES.has(error.message)) return false;
+  process.emitWarning(`${RETIRED_DRAIN_FAILED} ${error.message}`);
+  return true;
+}
+
+/**
+ * Build the next-turn callback that ends a retired worker transport stream.
+ * @param stream - Owned `ThreadStream` from the superseded root logger.
+ * @returns Callback invoking `stream.end()` when still open.
+ */
+function makeStreamCloseCallback(stream: IPinoStreamCandidate): () => true {
+  return (): true => {
+    if (!stream.closed) stream.end?.();
+    return true;
+  };
+}
+
+/**
+ * Drain and close a retired `ThreadStream` on the next event-loop turn so any
+ * synchronous writes from the current turn enter the ring buffer before `end()`
+ * closes the file descriptor and terminates the worker thread.
+ * @param stream - Owned `ThreadStream` from the superseded root logger.
+ * @returns True after scheduling retirement.
+ */
+function scheduleStreamClose(stream: IPinoStreamCandidate): true {
+  stream.on?.('error', handleRetiredStreamError);
+  const closeOnNextTurn = makeStreamCloseCallback(stream);
+  const handle = setImmediate(closeOnNextTurn);
+  handle.unref();
+  return true;
+}
+
+/**
+ * Flush a superseded root logger and schedule its owned worker transport (if
+ * any) for drain-and-close so repeated bank switches in trace mode never leak
+ * file descriptors or `thread-stream` workers.
+ * @param previous - Superseded root logger (or `false` on first build).
+ * @returns True when a worker transport was scheduled for closure, else false.
+ */
+function retireSupersededLogger(previous: Logger | false): boolean {
+  if (!previous) return false;
+  previous.flush();
+  const stream = Reflect.get(previous, pino.symbols.streamSym) as IPinoStreamCandidate | false;
+  if (!stream || typeof stream.fd === 'number' || typeof stream.end !== 'function') return false;
+  return scheduleStreamClose(stream);
+}
+
+/**
+ * Replace the cached root logger with one bound to `logFile`, flushing and
+ * draining-to-close any superseded worker transport so repeated bank switches
+ * in a long-lived process never accumulate `thread-stream` workers or open
+ * `pipeline.log` file descriptors. Retained `LOG.child({...})` instances are
+ * deferred proxies (see {@link ./ChildLoggerProxy.ts}) that re-resolve against
+ * the incremented {@link rootGeneration} rather than writing to the retired
+ * stream, and an `'error'` listener guards any unproxied stale reference.
  * @param logFile - Resolved log file path (empty string for terminal-only).
  * @returns The freshly built root logger.
  */
@@ -303,7 +370,7 @@ function rebuildRootLogger(logFile: string): Logger {
   rootLoggerCache = instantiateLogger(logFile, options);
   rootLoggerKey = logFile;
   rootGeneration += 1;
-  if (previous) previous.flush();
+  retireSupersededLogger(previous);
   return rootLoggerCache;
 }
 
@@ -320,15 +387,9 @@ function rebuildRootLogger(logFile: string): Logger {
  * `pino-pretty` `thread-stream` worker that nothing ever closed: one `LOG.info(...)`
  * costs 23 property reads (pino reads its internal symbols off `this`),
  * so a single log statement leaked 23 worker threads and ~92 MB of
- * `SharedArrayBuffer`. Keying preserves the file-upgrade behaviour the
- * gate was reaching for while holding a single logger for the current
- * destination.
- *
- * This is a one-entry cache, so an `A -> B -> A` destination sequence
- * rebuilds `A`. That is acceptable: the only transition a real run makes
- * is `'' -> <file>`, once, when `setActiveBank` fires. Logging
- * configuration read at construction time (notably `LOG_LEVEL`) is
- * therefore start-up only for a given destination.
+ * `SharedArrayBuffer`. Keying holds a single logger while the destination is
+ * unchanged, and {@link rebuildRootLogger} drains and closes the superseded
+ * worker transport whenever `setActiveBank` switches to a new run folder.
  * @returns Root pino instance.
  */
 export function getRootLogger(): Logger {
