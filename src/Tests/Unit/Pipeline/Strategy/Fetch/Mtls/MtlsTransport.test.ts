@@ -28,11 +28,13 @@ import {
   makeMtlsInvoke,
   MTLS_REQUEST_TIMEOUT_MS,
   mtlsInvoke,
+  setMtlsFetchFallback,
   setMtlsRequestTimeoutMs,
 } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Mtls/MtlsTransport.js';
+import { sendUnderPolicy } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/RedirectFollow.js';
 import { checkServerCertificate } from '../../../../../../Scrapers/Pipeline/Strategy/Fetch/Tls/ServerCertificateFloor.js';
 import type { IResponseReading } from '../../../../../../Scrapers/Pipeline/Types/Domain/FetchPolicy.js';
-import { isOk } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
+import { isOk, succeed } from '../../../../../../Scrapers/Pipeline/Types/Procedure.js';
 import type { IBodyEcho, IGateServer } from './MtlsTestServer.js';
 import {
   buildCertAgent,
@@ -248,6 +250,7 @@ describe('MtlsTransport.makeMtlsInvoke', () => {
   });
   afterEach(() => {
     certAgent.destroy();
+    setMtlsFetchFallback();
   });
 
   it('binds the agent source into a FetchInvoke that reaches the gate (200)', async () => {
@@ -258,6 +261,49 @@ describe('MtlsTransport.makeMtlsInvoke', () => {
     const isOkResult = isOk(result);
     expect(isOkResult).toBe(true);
     if (isOk(result)) expect(result.value.status).toBe(200);
+  });
+
+  it('keeps the caller url and init when the policy argument is a whole run', async () => {
+    const seen: { url: string; init: RequestInit }[] = [];
+    setMtlsFetchFallback(request => {
+      seen.push({ url: request.url, init: request.init });
+      const response = new Response(null, { status: 200 });
+      const answered = succeed(response);
+      return Promise.resolve(answered);
+    });
+    const source = fixedAgentSource(certAgent, false);
+    const invoke = makeMtlsInvoke(source);
+    const runInit: RequestInit = { method: 'GET', redirect: 'follow' };
+    const rejectInit: RequestInit = { ...runInit, redirect: 'manual' };
+    const run = { verb: 'GET' as const, url: 'https://run.example/original', init: runInit };
+    await invoke('https://run.example/hop', rejectInit, run);
+    expect(seen[0].url).toBe('https://run.example/hop');
+    expect(seen[0].init.redirect).toBe('manual');
+  });
+
+  it('preserves manual redirect mode and refuses 3xx under sendUnderPolicy reject', async () => {
+    const seenRedirects: (RequestRedirect | undefined)[] = [];
+    setMtlsFetchFallback(request => {
+      seenRedirects.push(request.init.redirect);
+      const headers = new Headers({ location: 'https://evil.example/next' });
+      const response = new Response(null, { status: 302, headers });
+      const answered = succeed(response);
+      return Promise.resolve(answered);
+    });
+    const source = fixedAgentSource(certAgent, false);
+    const invoke = makeMtlsInvoke(source);
+    const init: RequestInit = { method: 'GET', redirect: 'follow' };
+    const result = await sendUnderPolicy({
+      url: 'https://run.example/start',
+      init,
+      verb: 'GET',
+      invoke,
+      policy: 'reject',
+    });
+    expect(seenRedirects).toEqual(['manual']);
+    const didSucceed = isOk(result);
+    expect(didSucceed).toBe(false);
+    if (!isOk(result)) expect(result.errorMessage).toContain('redirect refused');
   });
 });
 

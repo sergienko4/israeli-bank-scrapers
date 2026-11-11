@@ -204,11 +204,11 @@ interface IRunSeed {
 }
 
 /**
- * Resolve the root, bank and stamp a run folder is named from.
- * @returns The seed pieces, or false when capture is off or no bank is known.
+ * Resolve the root, bank and stamp a run folder is named from. The caller
+ * checks the FORENSIC_TRACE opt-in first; this only gathers the naming pieces.
+ * @returns The seed pieces, or false when no bank or stamp is known.
  */
 function runSeed(): IRunSeed | false {
-  if (!isForensicTrace()) return false;
   const bank = resolveBankSlug();
   if (bank.length === 0) return false;
   const stamp = getActiveRunId();
@@ -228,10 +228,13 @@ function runSeed(): IRunSeed | false {
  * bank" rule is enforced at pipeline start by `PipelineExecutor` calling
  * `setActiveBank(companyId)` and failing if the slug isn't recognised.
  * Reuses {@link getActiveRunId}'s cached stamp so the on-disk folder
- * leaf and the in-log `runId` field always match.
+ * leaf and the in-log `runId` field always match. The opt-in flag is
+ * re-checked on every call ahead of the cache, so clearing `FORENSIC_TRACE`
+ * mid-process stops path emission instead of serving the cached folder.
  * @returns Absolute folder path, or empty string.
  */
 function getRunFolder(): RunFolderPath {
+  if (!isForensicTrace()) return '' as RunFolderPath;
   if (runFolderCache) return runFolderCache as RunFolderPath;
   const seed = runSeed();
   if (seed === false) return '' as RunFolderPath;
@@ -259,9 +262,9 @@ function getLogFile(): LogFilePath {
  * @returns Absolute network-dump directory path, or empty string off-trace.
  */
 function getNetworkDumpDir(): NetworkDumpDirPath {
-  if (networkDirCache) return networkDirCache as NetworkDumpDirPath;
   const root = getRunFolder();
   if (!root) return '' as NetworkDumpDirPath;
+  if (networkDirCache) return networkDirCache as NetworkDumpDirPath;
   const dir = path.join(root, NETWORK_SUBDIR);
   fs.mkdirSync(dir, { recursive: true });
   networkDirCache = dir;
@@ -269,13 +272,12 @@ function getNetworkDumpDir(): NetworkDumpDirPath {
 }
 
 /**
- * Create the per-substep dump folder when capture is on.
- * @param key - `<phase>-<stage>` cache key and folder name.
- * @returns The created folder, or empty when capture is off.
+ * Create the per-substep dump folder inside the active network-dump root.
+ * @param root - Active network-dump directory path.
+ * @param key - `<phase>-<stage>` folder name.
+ * @returns The created sub-step folder path.
  */
-function makeSubStepDir(key: string): NetworkDumpDirPath {
-  const root = getNetworkDumpDir();
-  if (!root) return '' as NetworkDumpDirPath;
+function makeSubStepDir(root: NetworkDumpDirPath, key: string): NetworkDumpDirPath {
   const dir = path.join(root, key);
   fs.mkdirSync(dir, { recursive: true });
   return dir as NetworkDumpDirPath;
@@ -291,11 +293,12 @@ function makeSubStepDir(key: string): NetworkDumpDirPath {
  * @returns Absolute sub-step folder path, or empty string off-trace.
  */
 function getSubStepNetworkDumpDir(phase: string, stage: string): NetworkDumpDirPath {
+  const root = getNetworkDumpDir();
+  if (!root) return '' as NetworkDumpDirPath;
   const key = `${phase}-${stage}`;
   const cached = SUB_STEP_DIR_CACHE.get(key);
   if (cached !== undefined) return cached as NetworkDumpDirPath;
-  const dir = makeSubStepDir(key);
-  if (!dir) return dir;
+  const dir = makeSubStepDir(root, key);
   SUB_STEP_DIR_CACHE.set(key, dir);
   return dir;
 }

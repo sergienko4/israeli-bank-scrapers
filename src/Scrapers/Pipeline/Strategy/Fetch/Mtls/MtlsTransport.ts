@@ -284,14 +284,20 @@ function invokeThrough(
 function makeMtlsInvoke(source: AgentSource): FetchInvoke {
   /**
    * Perform one request through the agent the source picks.
+   *
+   * <p>`url` and `init` stay authoritative: a redirect-reject hop passes its
+   * whole run object as `policy`, so spreading that object last would restore
+   * the pre-hop URL and drop the caller's `redirect: 'manual'` override.
+   *
    * @param url - Fully-qualified target URL.
    * @param init - Native fetch RequestInit (method/headers/body).
    * @param policy - HTTP verb and expected response media type.
    * @returns Procedure carrying the synthesised Response, or a network failure.
    */
   const invoke: FetchInvoke = (url, init, policy) => {
+    const { verb, mediaType, redactUrlValues } = policy;
     const choice = source(url);
-    const request = { agent: choice.agent, url, init, ...policy };
+    const request = { agent: choice.agent, url, init, verb, mediaType, redactUrlValues };
     return invokeThrough(request, choice.presented);
   };
   return invoke;
