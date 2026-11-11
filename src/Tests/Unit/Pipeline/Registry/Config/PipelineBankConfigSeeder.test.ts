@@ -9,8 +9,8 @@
 
 import { CompanyTypes } from '../../../../../Definitions.js';
 import {
+  resetWkRegistryForTest,
   resolveWkUrl,
-  WK_URLS,
   type WKUrlGroup,
 } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { isOk, type Procedure } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -94,19 +94,18 @@ describe('PipelineBankConfigSeeder', () => {
   it('leaves a bank without a headless block without a WK identityBase', () => {
     const bank = CompanyTypes.Leumi;
     const config = PIPELINE_BANK_CONFIG[bank];
-    const identities = WK_URLS.get('identityBase');
-    if (config === undefined || identities === undefined) throw new TypeError('missing registry');
-    const original = identities.get(bank);
+    if (config === undefined) throw new TypeError('missing registry');
     const { transport: headless, ...withoutHeadless } = config;
     expect(headless).toBeDefined();
-    identities.delete(bank);
+    resetWkRegistryForTest();
     try {
-      SEEDER.seedWkFromPipelineConfig({ [bank]: withoutHeadless });
+      SEEDER.seedWkFromPipelineConfig({ ...PIPELINE_BANK_CONFIG, [bank]: withoutHeadless });
       const result = resolveWkUrl('identityBase', bank);
       const isResolved = isOk(result);
       expect(isResolved).toBe(false);
     } finally {
-      if (original !== undefined) identities.set(bank, original);
+      resetWkRegistryForTest();
+      SEEDER.seedWkFromPipelineConfig(PIPELINE_BANK_CONFIG);
     }
   });
 });

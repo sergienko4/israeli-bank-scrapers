@@ -13,8 +13,8 @@ import {
   isLiteralUrl,
   literalUrl,
   registerWkUrl,
+  resetWkRegistryForTest,
   resolveWkUrl,
-  WK_URLS,
   type WKUrlGroup,
 } from '../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
@@ -22,8 +22,27 @@ import { isOk } from '../../../../../Scrapers/Pipeline/Types/Procedure.js';
 const HINT = CompanyTypes.OneZero;
 const PEPPER = CompanyTypes.Pepper;
 
+/** Every `auth.*` group tag in `WKUrlGroup`, used to audit per-bank auth ownership. */
+const ALL_AUTH_GROUPS: readonly WKUrlGroup[] = [
+  'auth.bind',
+  'auth.login',
+  'auth.assert',
+  'auth.logout',
+  'auth.prime',
+  'auth.resume',
+  'auth.service',
+  'auth.bootstrap',
+  'auth.landing',
+  'auth.logon',
+  'auth.encryptionKey',
+  'auth.identify',
+  'auth.verify',
+  'auth.otpInit',
+  'auth.otpVerify',
+];
+
 beforeEach(() => {
-  WK_URLS.clear();
+  resetWkRegistryForTest();
 });
 
 describe('UrlsWK/registration', () => {
@@ -142,8 +161,12 @@ describe('UrlsWK/pepperAuthUrls', () => {
 
   it('shares auth.login between exactly Pepper, VisaCal, Max, Mizrahi, Beinleumi, Massad, OtsarHahayal, Pagi and Leumi', async () => {
     await seedFromBankConfig();
-    const owners = WK_URLS.get('auth.login');
-    const ownerHints = new Set(owners?.keys());
+    const ownerHints = new Set(
+      Object.values(CompanyTypes).filter((bank): boolean => {
+        const outcome = resolveWkUrl('auth.login', bank);
+        return isOk(outcome);
+      }),
+    );
     const expected = new Set([
       CompanyTypes.Pepper,
       CompanyTypes.VisaCal,
@@ -162,9 +185,10 @@ describe('UrlsWK/pepperAuthUrls', () => {
     await seedFromBankConfig();
     const base = resolveWkUrl('identityBase', CompanyTypes.Pepper);
     const origin = isOk(base) ? new URL(base.value).origin : 'missing';
-    const authUrls = [...WK_URLS.entries()]
-      .filter(([group, owners]): boolean => group.startsWith('auth.') && owners.has(PEPPER))
-      .map(([, owners]): string => owners.get(PEPPER) ?? 'missing');
+    const authUrls = ALL_AUTH_GROUPS.flatMap((group): string[] => {
+      const resolved = resolveWkUrl(group, PEPPER);
+      return isOk(resolved) ? [resolved.value] : [];
+    });
     expect(authUrls).toHaveLength(PEPPER_AUTH_URLS.length);
     const offenders = authUrls.filter((url): boolean => {
       const parsed = new URL(url);
@@ -284,5 +308,31 @@ describe('UrlsWK/sourceContract', () => {
       /oneZero|amex|isracard|hapoalim|discount|visaCal|beinleumi|massad|mercantile|otsarHahayal|pagi/i;
     const hit = bannedNamesPattern.exec(source);
     expect(hit).toBeNull();
+  });
+});
+
+describe('UrlsWK/freezeOnFirstRead', () => {
+  it('fails closed when registerWkUrl is called after resolveWkUrl', () => {
+    registerWkUrl('identityBase', HINT, 'https://id.example');
+    resolveWkUrl('identityBase', HINT);
+    expect(() => {
+      registerWkUrl('graphql', HINT, 'https://gql.example');
+    }).toThrow(/WK URL registry is frozen/);
+  });
+
+  it('freezes even when the first resolveWkUrl uses a literalUrl passthrough', () => {
+    const inlineTag = literalUrl('https://api.example/direct');
+    resolveWkUrl(inlineTag, HINT);
+    expect(() => {
+      registerWkUrl('identityBase', HINT, 'https://id.example');
+    }).toThrow(/WK URL registry is frozen/);
+  });
+
+  it('allows registration again after resetWkRegistryForTest', () => {
+    resolveWkUrl('identityBase', HINT);
+    resetWkRegistryForTest();
+    registerWkUrl('identityBase', HINT, 'https://id-reset.example');
+    const result = resolveWkUrl('identityBase', HINT);
+    expect(result).toEqual({ success: true, value: 'https://id-reset.example' });
   });
 });

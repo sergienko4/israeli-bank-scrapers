@@ -10,7 +10,10 @@ import type {
 } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/ConfigContracts/index.js';
 import { carriedUrlRulesOf } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.carriedUrlRules.js';
 import { runStep } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStep.js';
-import { registerWkUrl } from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
+import {
+  registerWkUrl,
+  resetWkRegistryForTest,
+} from '../../../../../../Scrapers/Pipeline/Registry/WK/UrlsWK.js';
 import { fakeFetch } from '../../../../../Helpers/FakeFetch.js';
 import { makeNativeMediator } from '../../../../../Helpers/NativeStepHarness.js';
 
@@ -36,6 +39,9 @@ const CONFIG: IApiDirectCallConfig = { flow: 'sms-otp', envelope: {}, steps: [ST
 
 describe('SDK reference routing', () => {
   const originalFetch = globalThis.fetch;
+  beforeEach(() => {
+    resetWkRegistryForTest();
+  });
   afterEach(() => {
     globalThis.fetch = originalFetch;
   });
