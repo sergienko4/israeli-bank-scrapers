@@ -4,7 +4,7 @@
  *
  * Depends on TemplateTypes (`RefToken` references in IDerivedCarry).
  * Carries the closed set of carry-bootstrap kinds + per-variant
- * configuration shapes consumed by Flow/FlowInitCarry. Higher-level
+ * configuration shapes consumed by Flow/Lifecycle/FlowInitCarry. Higher-level
  * sub-modules (ApiDirectCallConfig via seedCarryFromCreds / derivedCarry /
  * warmStart) compose from here.
  *

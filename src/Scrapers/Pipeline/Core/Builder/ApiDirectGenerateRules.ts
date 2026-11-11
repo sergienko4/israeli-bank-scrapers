@@ -17,7 +17,7 @@ import type {
   ICarryGenerator,
   ISeedCarrySource,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { isRandomBootstrap } from '../../Mediator/ApiDirectCall/Flow/FlowInitCarry.random.js';
+import { isRandomBootstrap } from '../../Mediator/ApiDirectCall/Flow/Lifecycle/FlowInitCarry.random.js';
 import { API_DIRECT_CLASSIFY_RULES } from './ApiDirectClassifyRules.js';
 import { API_DIRECT_CLASSIFY_SLOT_RULES } from './ApiDirectClassifySlotRules.js';
 import { API_DIRECT_CODEC_RULES } from './ApiDirectCodecRules.js';

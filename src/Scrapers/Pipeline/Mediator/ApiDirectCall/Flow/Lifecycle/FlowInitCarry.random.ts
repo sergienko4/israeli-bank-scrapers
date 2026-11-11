@@ -5,9 +5,9 @@
 
 import { randomBytes, randomUUID } from 'node:crypto';
 
-import type { Procedure } from '../../../Types/Procedure.js';
-import { succeed } from '../../../Types/Procedure.js';
-import type { IRandomHexBootstrap, SeedCarryBootstrapKind } from '../ConfigContracts/index.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { succeed } from '../../../../Types/Procedure.js';
+import type { IRandomHexBootstrap, SeedCarryBootstrapKind } from '../../ConfigContracts/index.js';
 
 /** Random-hex generator size used by the `'random-hex-16'` bootstrap. */
 const RANDOM_HEX_16_BYTES = 16;

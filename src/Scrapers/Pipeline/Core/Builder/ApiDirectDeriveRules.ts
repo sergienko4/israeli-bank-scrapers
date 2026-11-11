@@ -16,7 +16,7 @@ import type {
 import {
   anchoredPattern,
   isQueryKey,
-} from '../../Mediator/ApiDirectCall/Flow/FlowInitCarry.ops.js';
+} from '../../Mediator/ApiDirectCall/Flow/Lifecycle/FlowInitCarry.ops.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
 import isUrlComposeValid from './ApiDirectUrlComposeValidation.js';
 import isUrlPathMapValid from './ApiDirectUrlPathMapValidation.js';

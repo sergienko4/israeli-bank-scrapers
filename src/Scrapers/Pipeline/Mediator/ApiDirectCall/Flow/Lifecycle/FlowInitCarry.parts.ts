@@ -3,10 +3,10 @@
  * dotted-path walks for the `config` namespace.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { IApiDirectCallConfig } from '../ConfigContracts/index.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
+import type { IApiDirectCallConfig } from '../../ConfigContracts/index.js';
 import type {
   CarryMut,
   Creds,

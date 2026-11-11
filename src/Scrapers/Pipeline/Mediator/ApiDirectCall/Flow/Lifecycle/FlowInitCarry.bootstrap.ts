@@ -6,10 +6,10 @@
 
 import { createHash } from 'node:crypto';
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import { describeJsonParseFailure } from '../../../Types/JsonParseFailure.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../../Types/Procedure.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import { describeJsonParseFailure } from '../../../../Types/JsonParseFailure.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
 import {
   evalRandomBootstrap,
   isRandomBootstrap,

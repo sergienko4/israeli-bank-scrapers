@@ -2,7 +2,7 @@
  * Validates path-map policies before a flow starts.
  */
 
-import { isQueryKey } from '../../Mediator/ApiDirectCall/Flow/FlowInitCarry.ops.js';
+import { isQueryKey } from '../../Mediator/ApiDirectCall/Flow/Lifecycle/FlowInitCarry.ops.js';
 import { areSdkUrlRulesValid } from './ApiDirectStructuredUrlValidation.js';
 
 const SAFE_PATH = /^\/[\w.~/-]*$/u;
