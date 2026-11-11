@@ -12,19 +12,20 @@
 
 import type { Brand } from './Brand.js';
 
-/** Two-digit zero-padded numeric. */
-type TwoDigitPad = Brand<string, 'TraceTwoDigitPad'>;
+/** Zero-padded numeric field (minimum width 2; wider values pass through). */
+type PaddedDigits = Brand<string, 'TraceTwoDigitPad'>;
 /** Run-stamp string `DD-MM-YYYY_HHMMSScc`. */
 type RunStampStr = Brand<string, 'RunStampStr'>;
 
 /**
- * Pad a 1- or 2-digit positive integer to width 2 with leading zero.
- * @param n - Integer to pad.
- * @returns Two-character string.
+ * Left-pad a non-negative integer with `'0'` to a minimum width of 2 without
+ * truncating wider values (such as a four-digit year).
+ * @param n - Non-negative integer to pad.
+ * @returns Zero-padded numeric string of at least two characters.
  */
-function pad2(n: number): TwoDigitPad {
+function pad2(n: number): PaddedDigits {
   const s = String(n);
-  return s.padStart(2, '0') as TwoDigitPad;
+  return s.padStart(2, '0') as PaddedDigits;
 }
 
 /**
