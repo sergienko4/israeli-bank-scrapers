@@ -262,6 +262,11 @@ describe('Feature — deferred proxy invalidates its child on root upgrade', () 
   const originalForensicTrace = process.env.FORENSIC_TRACE;
   const originalRunsRoot = process.env.RUNS_ROOT;
   const originalLogLevel = process.env.LOG_LEVEL;
+  const originalPrettyLogs = process.env.PRETTY_LOGS;
+
+  beforeEach(() => {
+    delete process.env.PRETTY_LOGS;
+  });
 
   afterEach(() => {
     if (originalCi === undefined) delete process.env.CI;
@@ -272,6 +277,8 @@ describe('Feature — deferred proxy invalidates its child on root upgrade', () 
     else process.env.RUNS_ROOT = originalRunsRoot;
     if (originalLogLevel === undefined) delete process.env.LOG_LEVEL;
     else process.env.LOG_LEVEL = originalLogLevel;
+    if (originalPrettyLogs === undefined) delete process.env.PRETTY_LOGS;
+    else process.env.PRETTY_LOGS = originalPrettyLogs;
     jest.resetModules();
   });
 
@@ -394,9 +401,28 @@ describe('Feature — deferred proxy invalidates its child on root upgrade', () 
         },
       },
     );
+    const nestedPlain = sub.child({ step: 'nested-plain' });
+    const nestedFormatted = sub.child(
+      { tenant: 'bank-nested' },
+      {
+        formatters: {
+          /**
+           * Nested tenant-requiring formatter verifying deep child reconstruction.
+           * @param bindings - Incoming bindings object.
+           * @returns Uppercased tenant binding.
+           */
+          bindings: (bindings: pino.Bindings): pino.Bindings => ({
+            ...bindings,
+            tenant: (bindings.tenant as string).toUpperCase(),
+          }),
+        },
+      },
+    );
     trace.setActiveBank('hapoalim');
     const hapoalimLogFile = trace.getLogFile();
     sub.info({ msg: 'after-switch-formatted' });
+    nestedPlain.info({ msg: 'nested-plain-after-switch' });
+    nestedFormatted.info({ msg: 'nested-formatted-after-switch' });
     sub.setBindings({ tenant: 'bank-b' });
     sub.info({ msg: 'after-setbindings-formatted' });
     const content = await flushAndReadLogOnceContains(
@@ -405,6 +431,8 @@ describe('Feature — deferred proxy invalidates its child on root upgrade', () 
       'after-setbindings-formatted',
     );
     expect(content).toContain('"tenant":"BANK-A"');
+    expect(content).toContain('"step":"nested-plain"');
+    expect(content).toContain('"tenant":"BANK-NESTED"');
     expect(content).toContain('"tenant":"BANK-B"');
   });
 });

@@ -14,6 +14,7 @@
 import type { Bindings, ChildLoggerOptions, Logger } from 'pino';
 
 import {
+  captureBindingsFormatter,
   captureChindings,
   type IDeferredChildEntry,
   type IDeferredChildSpec,
@@ -69,6 +70,7 @@ function makeResolvedEntry(initial: Logger): IDeferredChildEntry {
     resolved: initial,
     generation: getRootLoggerGeneration(),
     chindings: captureChindings(initial),
+    bindingsFormatter: captureBindingsFormatter(initial),
     levelOverride: false,
   };
 }
@@ -238,7 +240,13 @@ function makeChildProxyHandler(
  * @returns Initialized deferred-child cache entry.
  */
 function makeInitialEntry(): IDeferredChildEntry {
-  return { resolved: false, generation: -1, chindings: false, levelOverride: false };
+  return {
+    resolved: false,
+    generation: -1,
+    chindings: false,
+    bindingsFormatter: false,
+    levelOverride: false,
+  };
 }
 
 /**

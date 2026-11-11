@@ -19,6 +19,12 @@ import { toError } from '../Types/ErrorUtils.js';
 import { createCensorFn } from '../Types/PiiRedactor.js';
 import { getLogFile } from '../Types/TraceConfig.js';
 import { getBankMixin } from './BankContext.js';
+import {
+  type IFileLease,
+  type ILeasedLoggerResult,
+  instantiateLeasedFileLogger,
+} from './FileLease.js';
+import { retireSupersededLogger } from './RetireTransport.js';
 
 /** Brand for the root-logger generation counter (Rule #15). */
 type RootLoggerGeneration = Brand<number, 'RootLoggerGeneration'>;
@@ -72,25 +78,25 @@ type PinoCensorFn = Extract<PinoRedactOptions, { censor?: unknown }>['censor'];
 /**
  * Build a single file-only transport (used in production runs once
  * `setActiveBank` has resolved a real destination).
- * @param logFile - Resolved log file path.
+ * @param destination - Resolved log file path or owned file descriptor.
  * @returns Pino file-transport config.
  */
-function buildFileTransport(logFile: string): pino.TransportSingleOptions {
-  return { target: 'pino/file', options: { destination: logFile } };
+function buildFileTransport(destination: string | number): pino.TransportSingleOptions {
+  return { target: 'pino/file', options: { destination } };
 }
 
 /**
  * Build the dual terminal-+-file transport used when pretty output is
  * requested, so the developer sees pretty output AND the same trace
  * artefact lands on disk for post-run inspection.
- * @param logFile - Resolved log file path.
+ * @param destination - Resolved log file path or owned file descriptor.
  * @returns Pino multi-target transport config.
  */
-function buildDualTransport(logFile: string): pino.TransportMultiOptions {
+function buildDualTransport(destination: string | number): pino.TransportMultiOptions {
   return {
     targets: [
       { ...PRETTY_TRANSPORT, level: 'trace' },
-      { target: 'pino/file', options: { destination: logFile }, level: 'trace' },
+      { target: 'pino/file', options: { destination }, level: 'trace' },
     ],
   };
 }
@@ -116,6 +122,9 @@ export function buildTransport(
 /** Cached root pino instance — built lazily on first log call so file
  *  destination is resolved AFTER setActiveBank has fired in the orchestrator. */
 let rootLoggerCache: Logger | false = false;
+
+/** Owned file-descriptor lease paired with {@link rootLoggerCache} when file-backed. */
+let rootLeaseCache: IFileLease | false = false;
 
 /** The `getLogFile()` value {@link rootLoggerCache} was built for. `false`
  *  means "never built"; `''` is a legitimate key — it is the terminal-only
@@ -278,100 +287,93 @@ export function instantiateLogger(logFile: string, options: pino.LoggerOptions):
   }
 }
 
-/** Prefix emitted out-of-band when draining a retired worker transport fails. */
-const RETIRED_DRAIN_FAILED = 'superseded log transport failed while draining:';
-
-/** Expected `ThreadStream` errors emitted only when a stale unproxied caller writes post-end. */
-const STALE_WORKER_MESSAGES = new Set(['the worker is ending', 'the worker has exited']);
-
 /**
- * Candidate stream shape read off `pino.symbols.streamSym` when retiring a
- * superseded root logger. Worker transports (`ThreadStream`) omit `fd` and
- * expose `.end()`, whereas Pino's default stdout `SonicBoom` carries `fd: 1`
- * and must never be closed.
+ * Build active Pino options around an owned file descriptor `fd`.
+ * @param fd - Owned `pipeline.log` file descriptor.
+ * @param isDual - Whether to include the pretty terminal target alongside `fd`.
+ * @returns Active Pino options targeting `fd`.
  */
-interface IPinoStreamCandidate {
-  readonly fd?: number;
-  readonly closed?: boolean;
-  readonly end?: () => object | boolean;
-  readonly on?: (event: 'error', listener: (err: Error) => boolean) => object;
+function buildFdOptions(fd: number, isDual: boolean): pino.LoggerOptions {
+  const transport = isDual ? buildDualTransport(fd) : buildFileTransport(fd);
+  return buildActiveOptions(transport);
 }
 
 /**
- * Suppress late-write errors on an ending/exited `ThreadStream` while still
- * surfacing genuine drain, disk, or shutdown-timeout failures out-of-band.
- * @param rawError - Error emitted by the retiring `ThreadStream`.
- * @returns True when a warning was emitted, false when suppressed as stale write.
+ * Build preferred active Pino options for `fd` honoring `PRETTY_LOGS`.
+ * @param fd - Owned `pipeline.log` file descriptor.
+ * @returns Preferred active Pino options.
  */
-function handleRetiredStreamError(rawError: Error): boolean {
-  const error = toError(rawError);
-  if (STALE_WORKER_MESSAGES.has(error.message)) return false;
-  process.emitWarning(`${RETIRED_DRAIN_FAILED} ${error.message}`);
-  return true;
+function buildPreferredFd(fd: number): pino.LoggerOptions {
+  const isPretty = isPrettyLogs();
+  return buildFdOptions(fd, isPretty);
 }
 
 /**
- * Build the next-turn callback that ends a retired worker transport stream.
- * @param stream - Owned `ThreadStream` from the superseded root logger.
- * @returns Callback invoking `stream.end()` when still open.
+ * Build file-only fallback Pino options for `fd`.
+ * @param fd - Owned `pipeline.log` file descriptor.
+ * @returns File-only active Pino options.
  */
-function makeStreamCloseCallback(stream: IPinoStreamCandidate): () => true {
-  return (): true => {
-    if (!stream.closed) stream.end?.();
-    return true;
-  };
+function buildFallbackFd(fd: number): pino.LoggerOptions {
+  return buildFdOptions(fd, false);
 }
 
 /**
- * Drain and close a retired `ThreadStream` on the next event-loop turn so any
- * synchronous writes from the current turn enter the ring buffer before `end()`
- * closes the file descriptor and terminates the worker thread.
- * @param stream - Owned `ThreadStream` from the superseded root logger.
- * @returns True after scheduling retirement.
+ * Build the terminal-only / silent root logger when no trace file is active.
+ * @returns Unleased root logger result.
  */
-function scheduleStreamClose(stream: IPinoStreamCandidate): true {
-  stream.on?.('error', handleRetiredStreamError);
-  const closeOnNextTurn = makeStreamCloseCallback(stream);
-  const handle = setImmediate(closeOnNextTurn);
-  handle.unref();
-  return true;
+function buildTerminalInstance(): ILeasedLoggerResult {
+  const transport = buildTransport('');
+  const options = buildPinoOptions(transport);
+  return { logger: instantiateLogger('', options), lease: false };
 }
 
 /**
- * Flush a superseded root logger and schedule its owned worker transport (if
- * any) for drain-and-close so repeated bank switches in trace mode never leak
- * file descriptors or `thread-stream` workers.
- * @param previous - Superseded root logger (or `false` on first build).
- * @returns True when a worker transport was scheduled for closure, else false.
+ * Build the root logger and optional file lease for `logFile`.
+ * @param logFile - Resolved log file path (`''` for terminal-only / silent).
+ * @returns Root logger and its owned file lease (when file-backed).
  */
-function retireSupersededLogger(previous: Logger | false): boolean {
-  if (!previous) return false;
-  previous.flush();
-  const stream = Reflect.get(previous, pino.symbols.streamSym) as IPinoStreamCandidate | false;
-  if (!stream || typeof stream.fd === 'number' || typeof stream.end !== 'function') return false;
-  return scheduleStreamClose(stream);
+function buildRootInstance(logFile: string): ILeasedLoggerResult {
+  if (!logFile) return buildTerminalInstance();
+  return instantiateLeasedFileLogger({
+    logFile,
+    buildPreferredOptions: buildPreferredFd,
+    buildFallbackOptions: buildFallbackFd,
+    /**
+     * Emit the transport degradation warning for `logFile`.
+     * @param error - Underlying open or transport construction failure.
+     * @returns Always true.
+     */
+    onTransportFailure: (error: Error): boolean => warnTransportFailure(error, logFile),
+    buildSilentFallback: silentLogger,
+  });
 }
 
 /**
  * Replace the cached root logger with one bound to `logFile`, flushing and
  * draining-to-close any superseded worker transport so repeated bank switches
  * in a long-lived process never accumulate `thread-stream` workers or open
- * `pipeline.log` file descriptors. Retained `LOG.child({...})` instances are
- * deferred proxies (see {@link ./ChildLoggerProxy.ts}) that re-resolve against
- * the incremented {@link rootGeneration} rather than writing to the retired
- * stream, and an `'error'` listener guards any unproxied stale reference.
+ * `pipeline.log` file descriptors.
  * @param logFile - Resolved log file path (empty string for terminal-only).
  * @returns The freshly built root logger.
  */
 function rebuildRootLogger(logFile: string): Logger {
-  const previous = rootLoggerCache;
-  const transport = buildTransport(logFile);
-  const options = buildPinoOptions(transport);
-  rootLoggerCache = instantiateLogger(logFile, options);
+  const previous = { logger: rootLoggerCache, lease: rootLeaseCache };
+  const built = buildRootInstance(logFile);
+  rootLoggerCache = built.logger;
+  rootLeaseCache = built.lease;
   rootLoggerKey = logFile;
   rootGeneration += 1;
-  retireSupersededLogger(previous);
+  retireSupersededLogger(previous.logger, previous.lease);
   return rootLoggerCache;
+}
+
+/**
+ * Expose the active root file-descriptor lease for unit-test cleanup assertions.
+ * @internal
+ * @returns Active file lease when file-backed, else `false`.
+ */
+export function getActiveRootFileLeaseForTest(): IFileLease | false {
+  return rootLeaseCache;
 }
 
 /**

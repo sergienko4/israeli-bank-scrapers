@@ -107,10 +107,22 @@ one concern so the moving parts are independently testable:
   keyed on the resolved log destination rather than gated on it, so the
   terminal-only root used before `setActiveBank` lands is itself cached
   and is rebuilt when — and only when — the destination actually changes.
-  On each rebuild, any superseded worker transport (`ThreadStream`) is
-  flushed and scheduled to drain-and-close so alternating-bank runs never
-  accumulate workers or open file descriptors, while `getRootLoggerGeneration`
-  advances so deferred proxies drop memoised children on their next access.
+  On each rebuild, any superseded worker transport (`ThreadStream`) and
+  owned file lease (`getActiveRootFileLeaseForTest` in tests) are handed to
+  `RetireTransport` so alternating-bank runs never accumulate workers or
+  open file descriptors, while `getRootLoggerGeneration` advances so
+  deferred proxies drop memoised children on their next access.
+- `Logging/FileLease.ts` — main-thread file-descriptor lease primitives
+  (`IFileLease`, `ILeasedLoggerHooks`, `ILeasedLoggerResult`,
+  `DidCloseLease`) plus `instantiateLeasedFileLogger` and
+  `closeFileLeaseAsync`, ensuring all serialized bytes reach
+  `pipeline.log` on disk before worker termination and that raw
+  descriptors are closed deterministically afterward.
+- `Logging/RetireTransport.ts` — non-blocking worker retirement
+  (`IPinoStreamCandidate`, `DidRetireLogger`, `scheduleStreamClose`, and
+  `retireSupersededLogger`) that drains queued `ThreadStream` records via
+  `Atomics.waitAsync` flush and terminates superseded workers asynchronously
+  without calling synchronous `ThreadStream.end()` on the main event loop.
 - `Logging/ChildLoggerProxy.ts` — `buildDeferredLogger(name)` returns
   the lazy-resolve `Proxy` that backs both `getDebug` and
   `getDebugByName` (and intercepts `.child(...)` and `.setBindings(...)`
@@ -118,8 +130,9 @@ one concern so the moving parts are independently testable:
   generation). The internal `IProxyHandler` type documents the exact
   `get`/`set`-trap shape so the cluster's unit tests can assert
   property-access semantics without re-deriving it from `Proxy<T>`.
-- `Logging/ChildLoggerState.ts` — `IDeferredChildSpec` and
-  `IDeferredChildEntry` state carriers plus `captureChindings` and
-  `instantiateChild`, which snapshot Pino's serialized chindings string
-  and preserve custom `formatters.bindings` and `level` overrides across
-  root rebuilds.
+- `Logging/ChildLoggerState.ts` — `IDeferredChildSpec`,
+  `IDeferredChildEntry`, and `BindingsFormatter` state carriers plus
+  `captureChindings`, `captureBindingsFormatter`, and `instantiateChild`,
+  which snapshot Pino's serialized chindings string, neutralize and restore
+  effective `formatters.bindings` without mutating parent tables, and replay
+  `level` overrides across root rebuilds.
