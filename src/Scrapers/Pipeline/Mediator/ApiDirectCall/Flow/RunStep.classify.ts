@@ -16,7 +16,7 @@ import { getDebug } from '../../../Logging/Debug.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
 import type { IAnswerCase, IAnswerClassifier, IStepConfig } from '../ConfigContracts/index.js';
-import { readCaptures } from './RunStep.classify.captures.js';
+import { readCaptures } from './Captures/RunStep.classify.captures.js';
 import { passesCheck } from './RunStep.classify.checks.js';
 import { answerShape } from './RunStep.classify.shape.js';
 import type { CarryMap, JsonValue } from './RunStep.types.js';

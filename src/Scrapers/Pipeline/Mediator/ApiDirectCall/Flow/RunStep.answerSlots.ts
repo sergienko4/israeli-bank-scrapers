@@ -8,12 +8,12 @@
 import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
 import type { Procedure } from '../../../Types/Procedure.js';
 import { fail, isOk, succeed } from '../../../Types/Procedure.js';
+import { captureForm } from './Captures/RunStep.formCapture.js';
+import { captureLocation } from './Captures/RunStep.locationCapture.js';
+import { captureStructured } from './Captures/RunStep.structuredCapture.js';
+import { captureText } from './Captures/RunStep.textCapture.js';
 import { carryFinalUrl } from './RunStep.finalUrl.js';
-import { captureForm } from './RunStep.formCapture.js';
 import { carryHeaders } from './RunStep.headerCarry.js';
-import { captureLocation } from './RunStep.locationCapture.js';
-import { captureStructured } from './RunStep.structuredCapture.js';
-import { captureText } from './RunStep.textCapture.js';
 import type { CarryMap, IDispatchBundle, IRunStepArgs, JsonValue } from './RunStep.types.js';
 
 /**

@@ -65,7 +65,7 @@ that does not compile alone, such as `a)|(?:b`, which would escape the wrapper,
 fails its check.
 
 A matched case's `captures` map carry slots to an `IAnswerCapture`.
-`readCaptures` (in `Flow/RunStep.classify.captures.ts`, fed an
+`readCaptures` (in `Flow/Captures/RunStep.classify.captures.ts`, fed an
 `ICaptureInput`) reads each one as text: by default the value must be a
 string; with `onlyKey: true`, an object of exactly one key gives that key;
 with `integer` (an `IAnswerRange`), a safe JSON integer from `min` to `max`
@@ -126,7 +126,7 @@ extractRules: {
   fragment. Malformed path escapes are refused.
   The slot keeps the text as sent, not the resolved URL.
 - `pemCertificate: { keyRef }` (`IPemCertificateRule`) is checked by
-  `isPemCertificate` (in `Flow/RunStep.pemRule.ts`). It demands exactly one
+  `isPemCertificate` (in `Flow/Signing/RunStep.pemRule.ts`). It demands exactly one
   PEM block, a `CERTIFICATE` that parses as X.509, certifies the private key
   `keyRef` resolves to and is valid now (`validFrom ≤ now ≤ validTo`). The key
   ref resolves to text with `resolveRefText` (in `Template/RefResolver.ts`)
@@ -183,7 +183,7 @@ codec: {
 - `keyRef` must name canonical base64 of 32 bytes and `sessionRef` a 1..512
   character id (`toSession`, in `Crypto/EnvelopeCodec.ts`); anything else
   fails `<step> envelope key invalid` before the request is sent.
-- `sealGuardedBody` (in `Flow/RunStep.codec.ts`) seals the body last, after
+- `sealGuardedBody` (in `Flow/Signing/RunStep.codec.ts`) seals the body last, after
   its signature and form guard. The hydrated body must be exactly
   `{ headers, data }`: at most 16 header records and a data record, or the
   step fails `<step> envelope body invalid`. `sealEnvelope` sends `headers`
@@ -252,12 +252,12 @@ codec: {
   the key (base64) goes to the `keyInto` slot and the id to `sessionInto`;
   the step's extracts read the opened answer and run after, so an extract
   into the same slot wins.
-- `Flow/RunStep.codec.ts` holds one seal and one open per mode in
+- `Flow/Signing/RunStep.codec.ts` holds one seal and one open per mode in
   `CODEC_MODES`, so a new mode is one row. `sealSealedBody` and
-  `openSealedAnswer` live in `Flow/RunStep.codec.sealed.ts`;
+  `openSealedAnswer` live in `Flow/Signing/RunStep.codec.sealed.ts`;
   `checkExchangeKey` and `openExchangeAnswer` in
-  `Flow/RunStep.codec.exchange.ts`. Both open through `openForStep` (in
-  `Flow/RunStep.codec.open.ts`), which returns an `IOpenedAnswer` (the
+  `Flow/Signing/RunStep.codec.exchange.ts`. Both open through `openForStep` (in
+  `Flow/Signing/RunStep.codec.open.ts`), which returns an `IOpenedAnswer` (the
   answer and its bundle) and fails opened data that `hasBankErrorCode`
   flags. `stepFail` prefixes a reason with the step name, and `KEY_INVALID`
   is the shared `envelope key invalid` reason.

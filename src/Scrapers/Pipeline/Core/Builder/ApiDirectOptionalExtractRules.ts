@@ -4,7 +4,7 @@
  */
 
 import type { IStepConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { captureSlotsOf } from '../../Mediator/ApiDirectCall/Flow/RunStep.textCapture.js';
+import { captureSlotsOf } from '../../Mediator/ApiDirectCall/Flow/Captures/RunStep.textCapture.js';
 import { anyStep, type IApiDirectRule } from './ApiDirectRuleInput.js';
 
 /**

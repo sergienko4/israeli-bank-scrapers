@@ -10,7 +10,6 @@ import { isOk, succeed } from '../../../Types/Procedure.js';
 import { extractFields } from '../Envelope/GenericEnvelopeParser.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
 import { answerSlots } from './RunStep.answerSlots.js';
-import { openGuardedAnswer } from './RunStep.codec.js';
 import { deriveStepCarry } from './RunStep.derive.js';
 import { ruleStepCarry } from './RunStep.extractRules.js';
 import { sanitiseStepFailure } from './RunStep.failure.js';
@@ -27,6 +26,7 @@ import type {
   JsonValue,
 } from './RunStep.types.js';
 import { resolvePathAndQuery } from './RunStep.url.js';
+import { openGuardedAnswer } from './Signing/RunStep.codec.js';
 
 const LOG = getDebug(import.meta.url);
 

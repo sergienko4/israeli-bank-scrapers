@@ -3,10 +3,10 @@
  * scalars and key/IV byte buffers for the body-signing pipeline.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
-import type { Procedure } from '../../../Types/Procedure.js';
-import { fail, succeed } from '../../../Types/Procedure.js';
-import type { ITemplateScope } from '../Template/RefResolver.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { fail, succeed } from '../../../../Types/Procedure.js';
+import type { ITemplateScope } from '../../Template/RefResolver.js';
 import { AES_KEY_BYTES } from './RunStepBodySigning.iv.js';
 
 /** Sentinel returned by ref-resolvers when a slot is missing. */

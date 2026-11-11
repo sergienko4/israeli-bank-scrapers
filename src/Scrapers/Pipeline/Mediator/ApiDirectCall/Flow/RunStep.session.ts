@@ -5,9 +5,9 @@
 
 import type { Procedure } from '../../../Types/Procedure.js';
 import { isOk } from '../../../Types/Procedure.js';
-import { installStepCert } from './RunStep.clientCert.js';
 import { bindStepCookies } from './RunStep.clientCookies.js';
 import type { IRunStepArgs } from './RunStep.types.js';
+import { installStepCert } from './Signing/RunStep.clientCert.js';
 
 /**
  * Bind the step's client cookies, then install its device certificate.

@@ -2,11 +2,11 @@
  * Applies issued-token claim bindings after step extraction.
  */
 
-import type { Procedure } from '../../../Types/Procedure.js';
-import { isOk, succeed } from '../../../Types/Procedure.js';
-import type { IStepConfig } from '../ConfigContracts/index.js';
-import { captureJwtClaims } from '../Jwt/JwtClaimCapture.js';
-import type { ITemplateScope } from '../Template/RefResolver.js';
+import type { Procedure } from '../../../../Types/Procedure.js';
+import { isOk, succeed } from '../../../../Types/Procedure.js';
+import type { IStepConfig } from '../../ConfigContracts/index.js';
+import { captureJwtClaims } from '../../Jwt/JwtClaimCapture.js';
+import type { ITemplateScope } from '../../Template/RefResolver.js';
 
 /**
  * Checks a step's issued token before its derivations and later requests.

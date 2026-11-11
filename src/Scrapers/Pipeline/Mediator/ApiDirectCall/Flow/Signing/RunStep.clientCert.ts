@@ -6,16 +6,16 @@
  * already installed. A failure names the step only, never the PEM text.
  */
 
-import { ScraperErrorTypes } from '../../../../Base/ErrorTypes.js';
+import { ScraperErrorTypes } from '../../../../../Base/ErrorTypes.js';
 import type {
   IClientCertControl,
   IClientCertPair,
-} from '../../../Types/Domain/ClientCertControl.js';
-import type { IProcedureFailure, Procedure } from '../../../Types/Procedure.js';
-import { fail, isOk, succeed } from '../../../Types/Procedure.js';
-import type { IStepClientCert } from '../ConfigContracts/index.js';
-import { type ITemplateScope, resolveRefText } from '../Template/RefResolver.js';
-import type { IRunStepArgs, IStepConfig } from './RunStep.types.js';
+} from '../../../../Types/Domain/ClientCertControl.js';
+import type { IProcedureFailure, Procedure } from '../../../../Types/Procedure.js';
+import { fail, isOk, succeed } from '../../../../Types/Procedure.js';
+import type { IStepClientCert } from '../../ConfigContracts/index.js';
+import { type ITemplateScope, resolveRefText } from '../../Template/RefResolver.js';
+import type { IRunStepArgs, IStepConfig } from '../RunStep.types.js';
 
 const UNSUPPORTED = 'client certificate unsupported';
 const INVALID = 'client certificate invalid';

@@ -22,7 +22,7 @@ import {
   attachBodySignature,
   primeStepCarry,
   writeAtPointer,
-} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/RunStepBodySigning.js';
+} from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Flow/Signing/RunStepBodySigning.js';
 import type { ITemplateScope } from '../../../../../../Scrapers/Pipeline/Mediator/ApiDirectCall/Template/RefResolver.js';
 
 const PLAIN_CONFIG: IApiDirectCallConfig = {

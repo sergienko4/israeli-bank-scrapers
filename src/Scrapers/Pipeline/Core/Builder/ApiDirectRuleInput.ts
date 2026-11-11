@@ -12,7 +12,7 @@ import type {
   IApiDirectCallConfig,
   IStepConfig,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { captureSlotsOf } from '../../Mediator/ApiDirectCall/Flow/RunStep.textCapture.js';
+import { captureSlotsOf } from '../../Mediator/ApiDirectCall/Flow/Captures/RunStep.textCapture.js';
 import type { ITransportConfig } from '../../Registry/Config/PipelineBankConfigTypes.js';
 
 /** Longest value a config `maxChars` may allow. */

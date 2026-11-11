@@ -8,7 +8,7 @@ A bank that answers with a page or a script rather than JSON can still hand a
 value to carry. On a `response: 'text'` step, `textCaptures` maps a carry slot
 to an `ITextCapture`: a regex `pattern`, searched in the whole answer
 with the `g` flag, and the `group` whose text the slot takes (`0` is the whole
-match). `captureText` (in `Flow/RunStep.textCapture.ts`) runs right after the
+match). `captureText` (in `Flow/Captures/RunStep.textCapture.ts`) runs right after the
 header slots, through `answerSlots` (in `Flow/RunStep.answerSlots.ts`):
 
 ```ts
@@ -38,7 +38,7 @@ textCaptures: {
 Some banks hand out a login form whose hidden fields the logon post must send
 back. On a `response: 'text'` step, `formCapture` (an `IFormCapture`)
 reads one form's hidden fields into a carry slot. `captureForm` (in
-`Flow/RunStep.formCapture.ts`) runs through `answerSlots` after the text
+`Flow/Captures/RunStep.formCapture.ts`) runs through `answerSlots` after the text
 captures, on the page `answerText` reads off the `{ text }` answer:
 
 ```ts
@@ -86,7 +86,7 @@ formCapture: {
 Some banks answer a logon with a page whose script sends the client on, and an
 app elsewhere, by testing the User-Agent. On a `response: 'text'` step,
 `locationCapture` (an `ILocationCapture`) carries the URL that script
-sends the client to. `captureLocation` (in `Flow/RunStep.locationCapture.ts`)
+sends the client to. `captureLocation` (in `Flow/Captures/RunStep.locationCapture.ts`)
 runs through `answerSlots` after the text captures and the form capture. The
 script is never run: it is read as tokens, along the path the configured
 `userAgent` selects.
@@ -102,18 +102,18 @@ locationCapture: {
 
 - The page's `<script>` bodies are read left to right, up to the first one
   that is never closed; a script with only a `src` has no body to read.
-- `tokenizeScript` (in `Flow/RunStep.locationScriptLexer.ts`) reads a body
+- `tokenizeScript` (in `Flow/Captures/RunStep.locationScriptLexer.ts`) reads a body
   into `IScriptToken`s, each of a `ScriptTokenKind`: names, numbers, quoted
   strings, templates without `${`, and one-char punctuators (an `end` token
   stands past the last one); comments and blanks are dropped, and a token
   after a line break starts a line. Anything else, an unclosed string or
   comment included, refuses the script. `decodeJsString` decodes a string
   with no escape but `\/`, `\\`, `\'` and `\"`.
-- `selectedTargets` (in `Flow/RunStep.locationScriptWalk.ts`) walks the
+- `selectedTargets` (in `Flow/Captures/RunStep.locationScriptWalk.ts`) walks the
   tokens through an `IScriptWalk` (cursor helpers `tokenAt`, `isEndAt`,
   `isPunctAt`, `isNameAt`, `takePunct`, `takeName` and `takeToken` in
-  `Flow/RunStep.locationScriptCursor.ts`). `walkChain` (in
-  `Flow/RunStep.locationScriptStatement.ts`) reads a plain statement: a
+  `Flow/Captures/RunStep.locationScriptCursor.ts`). `walkChain` (in
+  `Flow/Captures/RunStep.locationScriptStatement.ts`) reads a plain statement: a
   quoted string assigned to `location`, `window.location`,
   `document.location` or `top.location`, or to their `.href`, or a call to
   `console.log`, `sessionStorage.removeItem` or `localStorage.removeItem`,
@@ -121,11 +121,11 @@ locationCapture: {
   line break, a `}` or the end of the script.
 - An `if` must test exactly
   `(navigator.userAgent.indexOf('<marker>') > -1)`; `readMarker` (in
-  `Flow/RunStep.locationScriptCondition.ts`) reads a marker of 1 to 64 chars.
+  `Flow/Captures/RunStep.locationScriptCondition.ts`) reads a marker of 1 to 64 chars.
   The branch is taken when `userAgent` contains the marker, else the `else`
   branch, when there is one. A branch is a block or one statement; `if`
   nests at most `MAX_IF_DEPTH` (4) deep. The taken branch is walked, and
-  `skipBranch` and `skipGroup` (in `Flow/RunStep.locationScriptSkip.ts`) step
+  `skipBranch` and `skipGroup` (in `Flow/Captures/RunStep.locationScriptSkip.ts`) step
   over the other one unread, as balanced brackets.
 - Any other statement on the walked path, an empty statement, a bare block or
   two statements on one line without `;` fail

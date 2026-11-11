@@ -18,7 +18,7 @@ import type {
   JsonValueTemplate,
   SealKind,
 } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { decodePointerSegments } from '../../Mediator/ApiDirectCall/Flow/RunStepBodySigning.pointer.js';
+import { decodePointerSegments } from '../../Mediator/ApiDirectCall/Flow/Signing/RunStepBodySigning.pointer.js';
 import { allSteps, type IApiDirectRule, type IApiDirectRuleInput } from './ApiDirectRuleInput.js';
 
 /** One check of a step's seal. */

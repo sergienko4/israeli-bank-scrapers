@@ -13,11 +13,9 @@ import type { IBodyTemplate } from '../ConfigContracts/index.js';
 import { isJsonRecord } from '../Crypto/EnvelopeWire.js';
 import { hydrate } from '../Template/GenericBodyTemplate.js';
 import type { ITemplateScope } from '../Template/RefResolver.js';
-import { sealGuardedBody } from './RunStep.codec.js';
 import buildOnSetCookie from './RunStep.cookies.js';
 import { attachHeaderCapture } from './RunStep.headerCarry.js';
 import { buildStepHeaders } from './RunStep.headers.js';
-import { applySeal } from './RunStep.seal.js';
 import type {
   CarryMap,
   IAssembleFireArgs,
@@ -34,7 +32,13 @@ import type {
   OnSetCookie,
   QueryRecord,
 } from './RunStep.types.js';
-import { applyCryptoField, attachBodySignature, primeStepCarry } from './RunStepBodySigning.js';
+import { sealGuardedBody } from './Signing/RunStep.codec.js';
+import { applySeal } from './Signing/RunStep.seal.js';
+import {
+  applyCryptoField,
+  attachBodySignature,
+  primeStepCarry,
+} from './Signing/RunStepBodySigning.js';
 
 const LOG = getDebug(import.meta.url);
 
