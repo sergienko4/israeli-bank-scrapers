@@ -1,9 +1,11 @@
 /**
- * Regression coverage for the ESLint-rule ratchet's reachability walk.
+ * Regression coverage for the ESLint-rule ratchet's applied-config walk.
  *
  * The decoupling metric must count rules that `eslint.config.mjs` actually
- * applies. A cluster left on disk after its import was removed no longer
- * governs any file, so counting the directory would hide the rule loss.
+ * applies. A cluster can stop applying in two ways — the import is removed,
+ * or the import stays while the spread that used it is deleted — and both must
+ * stop contributing to the ratchet. Counting the directory hides the first;
+ * following imports alone hides the second.
  */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -105,6 +107,26 @@ function writeDisconnectedCluster(root: string): true {
   return true;
 }
 
+/**
+ * Import a cluster whose binding the exported config never uses.
+ *
+ * This is the second way a rule can go silent: the import survives, the spread
+ * that applied it does not. A reachability walk that follows imports alone
+ * keeps crediting the module.
+ * @param root - Owned temporary root.
+ * @returns Always true.
+ */
+function writeUnusedImportCluster(root: string): true {
+  writeModule(
+    root,
+    'eslint.config.mjs',
+    "import { BLOCKS } from './eslint/clusters/Connected.mjs';\nimport { UNUSED } from './eslint/clusters/Unused.mjs';\nexport default [...BLOCKS];\n",
+  );
+  const source = clusterSource('unused-rule');
+  writeModule(root, 'eslint/clusters/Unused.mjs', source);
+  return true;
+}
+
 afterAll(() => {
   for (const dir of CREATED) rmSync(dir, { recursive: true, force: true });
 });
@@ -121,6 +143,14 @@ describe('Decoupling ESLint-rule ratchet', () => {
     const root = makeRoot();
     writeConnectedTree(root);
     writeDisconnectedCluster(root);
+    const result = GUARDRAILS.guardrails(root, []);
+    expect(result.eslintRules).toBe(2);
+  });
+
+  it('ignores a cluster imported but not applied by the exported config', () => {
+    const root = makeRoot();
+    writeConnectedTree(root);
+    writeUnusedImportCluster(root);
     const result = GUARDRAILS.guardrails(root, []);
     expect(result.eslintRules).toBe(2);
   });

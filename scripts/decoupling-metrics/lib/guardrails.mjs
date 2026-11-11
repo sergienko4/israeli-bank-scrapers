@@ -11,8 +11,14 @@ import { stripComments } from './strip-comments.mjs';
 
 const ANY_RE = /:\s*any\b|<any>|as\s+any\b/g;
 const RULE_RE = /^\s*'([\w@/-]+(?:\/[\w-]+)*)':\s*\[?\s*'(?:error|warn)'/gm;
-const FROM_IMPORT_RE = /\bfrom\s*['"]([^'"]+)['"]/g;
-const SIDE_EFFECT_IMPORT_RE = /^\s*import\s*['"]([^'"]+)['"]/gm;
+/** `import <clause> from '<specifier>'`, possibly spread over several lines. */
+const IMPORT_FROM_RE = /^[ \t]*import\s+([^'"]+?)\s+from\s*['"]([^'"]+)['"]/gm;
+/** `export <clause> from '<specifier>'` — a re-export applies its target. */
+const REEXPORT_FROM_RE = /^[ \t]*export\s+(?:\*|\{[^}]*\})\s+from\s*['"]([^'"]+)['"]/gm;
+/** `import '<specifier>'` — a side-effect import applies its target. */
+const SIDE_EFFECT_IMPORT_RE = /^[ \t]*import\s*['"]([^'"]+)['"]/gm;
+/** One JavaScript identifier. */
+const IDENT_RE = /[A-Za-z_$][\w$]*/g;
 
 function countIn(root, files, re) {
   let total = 0;
@@ -69,35 +75,93 @@ function canaryHash(dir, name) {
  * glob resolution, which no text count can do. What stays with this ratchet is
  * the coarse question it answers reliably: did a rule disappear altogether?
  *
- * "Reachable" is therefore part of the measurement. Only modules imported
- * (transitively) from `eslint.config.mjs` are counted: once a cluster is
- * disconnected, its rule declarations no longer govern anything, so scanning
- * the directory would keep crediting rules the config never applies.
+ * "Reachable" is therefore part of the measurement, and so is "applied".
+ * Counting every module reachable by import is not enough: an import whose
+ * binding is never used is green text a linter may even flag, and the config
+ * does not apply it. The walk therefore follows only imports whose bindings
+ * are actually referenced outside the import statements — spread into a block
+ * array, passed as an argument, or re-exported. That is the closest a text
+ * read gets to "this module's rules reach the exported configuration", and it
+ * catches both ways a cluster can be disconnected: the import removed, and the
+ * import kept while its spread is deleted.
  */
 
 /**
- * List the relative module specifiers imported or re-exported by `code`.
- * @param {string} code - Module source with comments stripped.
- * @returns {string[]} Relative specifiers in source order.
+ * Local names an import clause binds.
+ *
+ * Handles the three clause shapes the config uses: a default import, a named
+ * list (with or without `as` aliases), and `* as namespace`. Any other token
+ * in the clause (`type`, punctuation) is ignored.
+ * @param {string} clause - Text between `import` and `from`.
+ * @returns {string[]} Local binding names introduced by the clause.
  */
-function localImports(code) {
-  const specifiers = [];
-  for (const re of [FROM_IMPORT_RE, SIDE_EFFECT_IMPORT_RE]) {
-    for (const match of code.matchAll(re)) {
-      if (match[1].startsWith('.')) specifiers.push(match[1]);
+function bindingsOf(clause) {
+  const names = [];
+  const namespace = /\*\s+as\s+([A-Za-z_$][\w$]*)/.exec(clause);
+  if (namespace) names.push(namespace[1]);
+  const named = /\{([^}]*)\}/.exec(clause);
+  if (named) {
+    for (const entry of named[1].split(',')) {
+      const alias = /\bas\s+([A-Za-z_$][\w$]*)/.exec(entry);
+      const name = (alias ? alias[1] : entry).trim();
+      if (/^[A-Za-z_$][\w$]*$/.test(name)) names.push(name);
     }
   }
-  return specifiers;
+  const rest = clause.replace(/\{[^}]*\}/, '').replace(/\*\s+as\s+[A-Za-z_$][\w$]*/, '');
+  for (const part of rest.split(',')) {
+    const name = part.trim();
+    if (/^[A-Za-z_$][\w$]*$/.test(name)) names.push(name);
+  }
+  return names;
 }
 
 /**
- * Resolve module files reachable from the flat-config entry through relative
- * imports. A cluster left on disk but no longer spread by the entry is not
- * reachable, so its rules stop counting toward the ratchet.
- * @param {string} root - Repository root.
- * @returns {string[]} Entry file plus every reachable local module.
+ * Names a module body references, with every import/export-from removed.
+ *
+ * Stripping the statements first is what makes the check meaningful: an
+ * imported binding mentioned only by its own import line does not count as
+ * used, which is exactly the "import kept, spread deleted" case.
+ * @param {string} code - Comment-stripped module source.
+ * @returns {Set<string>} Identifiers that appear outside import statements.
  */
-function eslintConfigFiles(root) {
+function referencedNames(code) {
+  const body = code
+    .replace(IMPORT_FROM_RE, '')
+    .replace(REEXPORT_FROM_RE, '')
+    .replace(SIDE_EFFECT_IMPORT_RE, '');
+  return new Set(body.match(IDENT_RE) ?? []);
+}
+
+/**
+ * Relative modules a module actually applies.
+ *
+ * An `import … from` counts only when at least one of its bindings is
+ * referenced in the body; a re-export or side-effect import always counts,
+ * because both apply the target by definition.
+ * @param {string} code - Comment-stripped module source.
+ * @returns {string[]} Relative specifiers the module applies, in source order.
+ */
+function appliedImports(code) {
+  const names = referencedNames(code);
+  const applied = [];
+  for (const match of code.matchAll(IMPORT_FROM_RE)) {
+    if (bindingsOf(match[1]).some(name => names.has(name))) applied.push(match[2]);
+  }
+  for (const re of [REEXPORT_FROM_RE, SIDE_EFFECT_IMPORT_RE]) {
+    for (const match of code.matchAll(re)) applied.push(match[1]);
+  }
+  return applied.filter(specifier => specifier.startsWith('.'));
+}
+
+/**
+ * Resolve the modules the flat-config entry actually applies.
+ *
+ * A module that is left on disk, or imported but never spread, contributes no
+ * rule to the effective config, so it must not contribute to the ratchet.
+ * @param {string} root - Repository root.
+ * @returns {string[]} Entry file plus every applied local module.
+ */
+function appliedConfigFiles(root) {
   const entry = join(root, 'eslint.config.mjs');
   const seen = new Set();
   const pending = [entry];
@@ -106,7 +170,7 @@ function eslintConfigFiles(root) {
     if (seen.has(file) || !existsSync(file)) continue;
     seen.add(file);
     const code = stripComments(readFileSync(file, 'utf8'));
-    for (const specifier of localImports(code)) {
+    for (const specifier of appliedImports(code)) {
       const target = resolve(dirname(file), specifier);
       if (!seen.has(target)) pending.push(target);
     }
@@ -114,8 +178,17 @@ function eslintConfigFiles(root) {
   return [...seen];
 }
 
+/**
+ * Count distinct rule names declared by the applied ESLint configuration.
+ *
+ * A ratchet on this number answers one question: did a rule disappear
+ * altogether? It cannot tell narrowed scope from deletion; that needs glob
+ * resolution, which no text read can do.
+ * @param {string} root - Repository root.
+ * @returns {number} Distinct rule names declared across applied modules.
+ */
 function countEslintRules(root) {
-  const files = eslintConfigFiles(root).filter(file => existsSync(file));
+  const files = appliedConfigFiles(root).filter(file => existsSync(file));
   const names = new Set();
   for (const file of files) {
     for (const match of readFileSync(file, 'utf8').matchAll(RULE_RE)) names.add(match[1]);
