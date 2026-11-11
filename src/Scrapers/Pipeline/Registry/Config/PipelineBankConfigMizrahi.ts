@@ -124,7 +124,7 @@ const MIZRAHI_API_DIRECT_CALL: IApiDirectCallConfig = {
 };
 
 /** Mizrahi headless endpoints. Every path is a full URL, registered verbatim. */
-const MIZRAHI_HEADLESS: ITransportConfig = {
+const MIZRAHI_TRANSPORT: ITransportConfig = {
   identityBase: `${MIZRAHI_WEB}/`,
   // Mizrahi has no GraphQL; graphql mirrors identityBase to satisfy the type.
   graphql: `${MIZRAHI_WEB}/`,
@@ -145,4 +145,4 @@ const MIZRAHI_HEADLESS: ITransportConfig = {
 };
 
 export default MIZRAHI_API_DIRECT_CALL;
-export { MIZRAHI_API_DIRECT_CALL, MIZRAHI_HEADLESS };
+export { MIZRAHI_API_DIRECT_CALL, MIZRAHI_TRANSPORT };

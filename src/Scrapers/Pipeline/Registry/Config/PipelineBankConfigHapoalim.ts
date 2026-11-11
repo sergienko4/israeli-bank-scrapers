@@ -48,7 +48,7 @@ const HAPOALIM_API_DIRECT_CALL: IApiDirectCallConfig = {
   steps: HAPOALIM_STEPS,
 };
 
-const HAPOALIM_HEADLESS: ITransportConfig = {
+const HAPOALIM_TRANSPORT: ITransportConfig = {
   identityBase: `${HAPOALIM_ORIGIN}/`,
   // Hapoalim has no GraphQL; graphql names the data API to satisfy the type.
   graphql: `${HAPOALIM_API}/`,
@@ -70,4 +70,4 @@ const HAPOALIM_HEADLESS: ITransportConfig = {
 };
 
 export default HAPOALIM_API_DIRECT_CALL;
-export { HAPOALIM_API_DIRECT_CALL, HAPOALIM_HEADLESS };
+export { HAPOALIM_API_DIRECT_CALL, HAPOALIM_TRANSPORT };

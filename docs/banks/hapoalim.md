@@ -72,7 +72,7 @@ origin, and the `XSRF-TOKEN` cookie echoed as `x-xsrf-token`.
 `literalHeaders` (`Registry/Config/PipelineBankConfigLiteralHeaders.ts`,
 shared with Mizrahi) turns these fixed maps into step headers.
 
-The session is cookies, not an auth header. `HAPOALIM_HEADLESS` maps each step
+The session is cookies, not an auth header. `HAPOALIM_TRANSPORT` maps each step
 to its path, selects Node's own `fetch` (`nativeFetch`) and keeps one cookie jar
 for `bankhapoalim.co.il` (`sessionCookies`, `cookieDomains`). No browser
 starts, and browser options passed to `createScraper` are no longer supported; see the

@@ -13,7 +13,7 @@ import type { Brand } from '../../Types/Brand.js';
 import type { Procedure } from '../../Types/Procedure.js';
 import { fail, succeed } from '../../Types/Procedure.js';
 import { validateApiDirectConfig } from './ApiDirectConfigRules.js';
-import { NATIVE_HEADLESS_FIELDS } from './ApiDirectNativeRules.js';
+import { NATIVE_TRANSPORT_FIELDS } from './ApiDirectNativeRules.js';
 import type { IBuilderState } from './PipelineAssembly.js';
 
 /** Per-check error flag — branded so Rule #15 accepts the inline predicate. */
@@ -77,7 +77,7 @@ function isNodeTls(transport: ITransportConfig | false): transport is ITransport
  */
 function checkNodeTlsFields(transport: ITransportConfig | false): Procedure<true> {
   if (!isNodeTls(transport)) return succeed(true);
-  const field = NATIVE_HEADLESS_FIELDS.find((name): boolean => transport[name] !== undefined);
+  const field = NATIVE_TRANSPORT_FIELDS.find((name): boolean => transport[name] !== undefined);
   if (field === undefined) return succeed(true);
   const message = `transport.${field}: not allowed without transport.nativeFetch`;
   return fail(ScraperErrorTypes.Generic, message);

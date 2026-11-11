@@ -492,11 +492,11 @@ YAHAV_SHAPE
 # docs/phases/api-direct-call.md. Not user-facing.
 STATE_KEYS
 STATE_RULES
-# Reason: PipelineBankConfigPepperHeadless -- Pepper's headless transport
+# Reason: PipelineBankConfigPepperTransport -- Pepper's headless transport
 # literal, moved out of PipelineBankConfig.ts to keep that file under its size
 # cap. Registry-internal data; Pepper's endpoints and WAF handling are
 # documented in docs/banks/pepper.md. Not user-facing.
-PEPPER_HEADLESS
+PEPPER_TRANSPORT
 # --- Mizrahi hard-model post-auth scrape shape (account) ---
 # Reason: IMizrahiAcct - Mizrahi scrape-shape account ref (Accounts[] position +
 # SnifAndNumber400); consumed only by MIZRAHI_SHAPE + its helpers. Pipeline-internal, not in src/index.ts.
@@ -509,11 +509,11 @@ MIZRAHI_API
 # mediator factory (bank hint, URLs, client-cert flag, TLS profile).
 # Framework-internal; the transport is documented in docs/banks/onezero.md.
 INodeTlsMediatorArgs
-# Reason: PipelineBankConfigOneZeroHeadless -- OneZero's headless transport
+# Reason: PipelineBankConfigOneZeroTransport -- OneZero's headless transport
 # literal, moved out of PipelineBankConfig.ts to keep that file under its size
 # cap. Registry-internal data; OneZero's transport contract is documented in
 # docs/banks/onezero.md. Not user-facing.
-ONEZERO_HEADLESS
+ONEZERO_TRANSPORT
 # Reason: TlsClientProfiles -- the registry's entry shape and the node:tls
 # option subset a profile sets. Internal to the registry and MtlsTransport;
 # the profile mechanism is documented in docs/banks/onezero.md.

@@ -73,7 +73,7 @@ const MAX_API_DIRECT_CALL: IApiDirectCallConfig = {
 };
 
 /** Max headless endpoints. Every path is a full URL, registered verbatim. */
-const MAX_HEADLESS: ITransportConfig = {
+const MAX_TRANSPORT: ITransportConfig = {
   identityBase: `${MAX_ORIGIN}/`,
   // Max has no GraphQL; graphql mirrors identityBase to satisfy the type.
   graphql: `${MAX_ORIGIN}/`,
@@ -87,4 +87,4 @@ const MAX_HEADLESS: ITransportConfig = {
 };
 
 export default MAX_API_DIRECT_CALL;
-export { MAX_API_DIRECT_CALL, MAX_HEADLESS };
+export { MAX_API_DIRECT_CALL, MAX_TRANSPORT };

@@ -37,7 +37,7 @@ interface ITransportFlags {
 }
 
 /** URLs every case shares; only the transport flags vary. */
-const BASE_HEADLESS = {
+const BASE_TRANSPORT = {
   identityBase: 'https://identity.bank.example/v1/',
   graphql: 'https://api.bank.example/graphql',
   paths: {},
@@ -89,7 +89,7 @@ const MISSING_FLAGS: readonly (readonly [string, ITransportFlags])[] = [
  * @returns True once the config mock is set.
  */
 function mockHeadless(flags: ITransportFlags): boolean {
-  RESOLVE_CONFIG.mockReturnValue({ transport: { ...BASE_HEADLESS, ...flags } });
+  RESOLVE_CONFIG.mockReturnValue({ transport: { ...BASE_TRANSPORT, ...flags } });
   return true;
 }
 
@@ -161,7 +161,7 @@ describe('ApiMediatorWiring — transport selection', () => {
   it('hands the identity base URL to the native factory', () => {
     resolveWith({ nativeFetch: true });
     const [args] = CREATE_NATIVE.mock.calls[0] as unknown[];
-    expect(args).toMatchObject({ identityBaseUrl: BASE_HEADLESS.identityBase });
+    expect(args).toMatchObject({ identityBaseUrl: BASE_TRANSPORT.identityBase });
   });
 
   it.each<[string, ITransportFlags, typeof CREATE_NATIVE]>([

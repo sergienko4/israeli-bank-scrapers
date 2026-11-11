@@ -43,7 +43,7 @@ Isracard's ring constants (`ISRACARD_RING`):
 `RING_WALLET_ID`.
 
 The device id is derived from `id`, so every run of one user presents the same
-device. `ISRACARD_HEADLESS` registers the `service` URL and selects Node's own
+device. `ISRACARD_TRANSPORT` registers the `service` URL and selects Node's own
 `fetch` (`nativeFetch`) with a cookie jar, so no browser starts. Browser
 options passed to `createScraper` are no longer supported; see the
 [migration notes](../configuration.md#removed-browser-options).

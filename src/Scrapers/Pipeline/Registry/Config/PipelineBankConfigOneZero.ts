@@ -5,7 +5,7 @@
  * just POSTs with plain JSON bodies and /resultData/* response
  * extraction. The transport identity the edge checks (client
  * certificate, TLS fingerprint, User-Agent) is declared in
- * PipelineBankConfigOneZeroHeadless; only the User-Agent rides on
+ * PipelineBankConfigOneZeroTransport; only the User-Agent rides on
  * these steps, via `staticHeaders`.
  *
  * Warm-start: creds.otpLongTermToken holds the durable `idToken` minted by
@@ -19,7 +19,7 @@
  */
 
 import type { IApiDirectCallConfig } from '../../Mediator/ApiDirectCall/ConfigContracts/index.js';
-import { ONEZERO_USER_AGENT } from './PipelineBankConfigOneZeroHeadless.js';
+import { ONEZERO_USER_AGENT } from './PipelineBankConfigOneZeroTransport.js';
 
 /**
  * The five login steps, in order.

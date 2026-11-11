@@ -32,7 +32,7 @@ declares them:
 | `login`  | `Authentication/api/login/regularLogin` | `username`, `password`, a fresh device id | session token + long-term hash         |
 | `resume` | `Authentication/api/login/bioLogin`     | the hash                                  | a fresh session token + a rotated hash |
 
-`VISACAL_HEADLESS` (`Registry/Config/PipelineBankConfigVisaCalHeadless.ts`)
+`VISACAL_TRANSPORT` (`Registry/Config/PipelineBankConfigVisaCalTransport.ts`)
 registers both paths on `api-cc.cal-online.co.il` and selects Node's own
 `fetch` (`nativeFetch`), so no browser starts. Browser options passed to
 `createScraper` are no longer supported; see the

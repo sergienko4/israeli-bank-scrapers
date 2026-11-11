@@ -35,7 +35,7 @@ prefixes `00001` / `0000`. `buildTelebankApiDirectCall`
 in `PipelineBankConfigTelebankFamilySteps.ts`) logs in the way the bank's
 web app does, over plain HTTPS on `TELEBANK_ORIGIN`
 (`https://start.telebank.co.il`), with no browser.
-`DISCOUNT_HEADLESS` (`buildTelebankHeadless`) registers its four paths,
+`DISCOUNT_TRANSPORT` (`buildTelebankHeadless`) registers its four paths,
 selects Node's own `fetch` and keeps one cookie jar for `telebank.co.il`;
 any redirect a step does not allow fails the run. The registry row is
 `defineApiDirectBank`, so a run opens no browser.

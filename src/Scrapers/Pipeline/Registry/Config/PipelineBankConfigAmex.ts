@@ -11,7 +11,7 @@ import { AMEX_RING } from './PipelineBankConfigRingConstants.js';
 const AMEX_API_DIRECT_CALL = buildRingApiDirectCall(AMEX_RING);
 
 /** Amex headless endpoints. */
-const AMEX_HEADLESS = buildRingHeadless(AMEX_RING);
+const AMEX_TRANSPORT = buildRingHeadless(AMEX_RING);
 
 export default AMEX_API_DIRECT_CALL;
-export { AMEX_API_DIRECT_CALL, AMEX_HEADLESS };
+export { AMEX_API_DIRECT_CALL, AMEX_TRANSPORT };
